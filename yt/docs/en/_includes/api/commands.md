@@ -4091,6 +4091,7 @@ Parameters:
 | `query` | Yes |                           | Query text to execute. |
 | `settings` | No |                           | Engine-specific query settings. |
 | `files` | No |                           | List of files to attach to the query. |
+| `stage` | No |                           | Query Tracker stage to use (e.g., `production`, `testing`). |
 | `draft` | No | `false` | If `true`, the query is created as a draft and not executed immediately. |
 | `annotations` | No |                           | User-defined annotations for the query. |
 | `access_control_object` | No |                           | Access control object name. |
@@ -4132,6 +4133,7 @@ Parameters:
 | **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | ----------------------- |
 | `query_id` | Yes |                           | ID of the query to abort. |
+| `stage` | No |                           | Query Tracker stage to use (e.g., `production`, `testing`). |
 
 Input data:
 
@@ -4167,6 +4169,7 @@ Parameters:
 | **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | ----------------------- |
 | `query_id` | Yes |                           | Query ID. |
+| `stage` | No |                           | Query Tracker stage to use (e.g., `production`, `testing`). |
 | `attributes` | No |                           | List of attributes to fetch. |
 
 Input data:
@@ -4209,6 +4212,7 @@ Parameters:
 
 | **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | ------------------------------------------------------------ |
+| `stage` | No | `production` | Query Tracker stage to use (e.g., `production`, `testing`). |
 | `from_time` | No |                           | Start time for query filtering. |
 | `to_time` | No |                           | End time for query filtering. |
 | `cursor_time` | No |                           | Cursor time for pagination. |
@@ -4260,6 +4264,7 @@ Parameters:
 | ------------ | ------------- | ------------------------- | ----------------------- |
 | `query_id` | Yes |                           | Query ID. |
 | `result_index` | No | `0` | Index of the result (queries can produce multiple results). |
+| `stage` | No |                           | Query Tracker stage to use (e.g., `production`, `testing`). |
 
 Input data:
 
@@ -4300,6 +4305,7 @@ Parameters:
 | ------------ | ------------- | ------------------------- | ----------------------- |
 | `query_id` | Yes |                           | Query ID. |
 | `result_index` | No | `0` | Index of the result to read. |
+| `stage` | No |                           | Query Tracker stage to use (e.g., `production`, `testing`). |
 | `columns` | No |                           | List of columns to read. |
 | `lower_row_index` | No | `0` | Lower row index for range reading. |
 | `upper_row_index` | No |                           | Upper row index for range reading. |
@@ -4338,6 +4344,7 @@ Parameters:
 | **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | ----------------------- |
 | `query_id` | Yes |                           | Query ID. |
+| `stage` | No | `production` | Query Tracker stage to use (e.g., `production`, `testing`). |
 | `annotations` | No |                           | New annotations for the query. |
 | `access_control_object` | No |                           | New access control object name. |
 | `access_control_objects` | No |                           | New list of access control object names. |
@@ -4375,6 +4382,7 @@ Parameters:
 
 | **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | ----------------------- |
+| `stage` | No | `production` | Query Tracker stage to use (e.g., `production`, `testing`). |
 | `attributes` | No |                           | List of attributes to fetch. |
 
 Input data:
@@ -4414,6 +4422,7 @@ Parameters:
 
 | **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | ----------------------- |
+| `stage` | No | `production` | Query Tracker stage to use (e.g., `production`, `testing`). |
 | `query` | Yes |                           | Query text to analyze. |
 | `engine` | Yes |                           | Query engine. |
 | `settings` | No |                           | Engine-specific settings. |
