@@ -117,7 +117,7 @@ Semantics:
 
 Detailed description.
 
-- `ping_tx` pings the transaction on the server (including all the parent transactions if `ping_ancestors`is specified). This way you can extend the TTL for the transaction.
+- `ping_tx` pings the transaction on the server (including all the parent transactions if `ping_ancestor_transactions` is specified). This way you can extend the TTL for the transaction.
 - If the transaction started at the time `s` with the timeout (TTL) of `t`, then the transaction will complete at `s+t` by default.
 - If you ping the transaction at the time `r` (`s < r < s + t`), it will be extended until `r + t`.
 
@@ -1113,7 +1113,7 @@ Command properties: **Mutating**, **Light**.
 
 Semantics:
 
-- Pings the distributed session transaction on the server (including all parent transactions if `ping_ancestors` is specified), thereby extending the transaction's TTL.
+- Pings the distributed session transaction on the server (including all parent transactions if `ping_ancestor_transactions` is specified), thereby extending the transaction's TTL.
 
 Parameters:
 
@@ -2151,7 +2151,7 @@ Command properties: **Mutating**, **Light**.
 
 Semantics:
 
-- Pings the distributed session transaction on the server (including all parent transactions if `ping_ancestors` is specified), thereby extending the transaction's TTL.
+- Pings the distributed session transaction on the server (including all parent transactions if `ping_ancestor_transactions` is specified), thereby extending the transaction's TTL.
 
 Parameters:
 
