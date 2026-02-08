@@ -3330,6 +3330,1068 @@ OUTPUT   "end_offset" = 600;
 OUTPUT }
 ```
 
+
+## Working with queries { #queries }
+
+The Query Tracker system enables executing SQL-like queries across YTsaurus data.
+
+### start_query
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Start a new query in the Query Tracker system.
+- The query will be executed asynchronously by the specified query engine.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ------------------------------------------------------------ |
+| `engine` | Yes |                           | Query engine to use (e.g., `yql`, `chyt`, `spyt`). |
+| `query` | Yes |                           | Query text to execute. |
+| `settings` | No |                           | Engine-specific query settings. |
+| `files` | No |                           | List of files to attach to the query. |
+| `draft` | No | `false` | If `true`, the query is created as a draft and not executed immediately. |
+| `annotations` | No |                           | User-defined annotations for the query. |
+| `access_control_object` | No |                           | Access control object name. |
+| `access_control_objects` | No |                           | List of access control object names. |
+| `secrets` | No |                           | Map of secret values for the query. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: Query ID.
+
+Example:
+
+```bash
+PARAMETERS { "engine" = "yql"; "query" = "SELECT * FROM `//tmp/table`" }
+OUTPUT "1a2b3c4d-5e6f7g8h-9i0j1k2l-3m4n5o6p"
+```
+
+### abort_query
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Abort a running query.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `query_id` | Yes |                           | ID of the query to abort. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+
+Example:
+
+```bash
+PARAMETERS { "query_id" = "1a2b3c4d-5e6f7g8h-9i0j1k2l-3m4n5o6p" }
+OUTPUT { }
+```
+
+### get_query
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Non-mutating**, **Light**.
+
+Semantics:
+
+- Get information about a query.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `query_id` | Yes |                           | Query ID. |
+| `attributes` | No |                           | List of attributes to fetch. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: Query information including state, progress, and results.
+
+Example:
+
+```bash
+PARAMETERS { "query_id" = "1a2b3c4d-5e6f7g8h-9i0j1k2l-3m4n5o6p" }
+OUTPUT {
+    "id" = "1a2b3c4d-5e6f7g8h-9i0j1k2l-3m4n5o6p";
+    "state" = "completed";
+    "engine" = "yql";
+    "query" = "SELECT * FROM `//tmp/table`";
+    "result_count" = 1;
+}
+```
+
+### list_queries
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Non-mutating**, **Light**.
+
+Semantics:
+
+- List queries matching the specified filters.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ------------------------------------------------------------ |
+| `from_time` | No |                           | Start time for query filtering. |
+| `to_time` | No |                           | End time for query filtering. |
+| `cursor_time` | No |                           | Cursor time for pagination. |
+| `cursor_direction` | No | `past` | Cursor direction: `past` or `future`. |
+| `user` | No |                           | Filter by user. |
+| `state` | No |                           | Filter by query state. |
+| `engine` | No |                           | Filter by query engine. |
+| `filter` | No |                           | Additional filter string. |
+| `limit` | No | `100` | Maximum number of queries to return. |
+| `attributes` | No |                           | List of attributes to fetch for each query. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: List of queries with pagination information.
+
+Example:
+
+```bash
+PARAMETERS { "user" = "root"; "limit" = 10 }
+OUTPUT {
+    "queries" = [ ... ];
+    "incomplete" = %false;
+    "timestamp" = 1234567890u;
+}
+```
+
+### get_query_result
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Non-mutating**, **Light**.
+
+Semantics:
+
+- Get the result schema and metadata for a completed query.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `query_id` | Yes |                           | Query ID. |
+| `result_index` | No | `0` | Index of the result (queries can produce multiple results). |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: Result metadata including schema and row count.
+
+Example:
+
+```bash
+PARAMETERS { "query_id" = "1a2b3c4d-5e6f7g8h-9i0j1k2l-3m4n5o6p"; "result_index" = 0 }
+OUTPUT {
+    "schema" = [ ... ];
+    "data_statistics" = { "row_count" = 1000; };
+}
+```
+
+### read_query_result
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Non-mutating**, **Heavy**.
+
+Semantics:
+
+- Read the actual data from a query result.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `query_id` | Yes |                           | Query ID. |
+| `result_index` | No | `0` | Index of the result to read. |
+| `columns` | No |                           | List of columns to read. |
+| `lower_row_index` | No | `0` | Lower row index for range reading. |
+| `upper_row_index` | No |                           | Upper row index for range reading. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `tabular`.
+- Value: Rows from the query result.
+
+Example:
+
+```bash
+PARAMETERS { "query_id" = "1a2b3c4d-5e6f7g8h-9i0j1k2l-3m4n5o6p"; "lower_row_index" = 0; "upper_row_index" = 100 }
+```
+
+### alter_query
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Modify query metadata such as annotations or access control settings.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `query_id` | Yes |                           | Query ID. |
+| `annotations` | No |                           | New annotations for the query. |
+| `access_control_object` | No |                           | New access control object name. |
+| `access_control_objects` | No |                           | New list of access control object names. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+
+Example:
+
+```bash
+PARAMETERS { "query_id" = "1a2b3c4d-5e6f7g8h-9i0j1k2l-3m4n5o6p"; "annotations" = { "project" = "analytics" } }
+OUTPUT { }
+```
+
+### get_query_tracker_info
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Non-mutating**, **Light**.
+
+Semantics:
+
+- Get information about the Query Tracker system itself.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `attributes` | No |                           | List of attributes to fetch. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: Query Tracker system information.
+
+Example:
+
+```bash
+PARAMETERS { }
+OUTPUT {
+    "supported_engines" = ["yql"; "chyt"; "spyt"];
+    "cluster_name" = "primary";
+}
+```
+
+### get_query_declared_parameters_info
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Non-mutating**, **Light**.
+
+Semantics:
+
+- Get information about parameters declared in a query text.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `query` | Yes |                           | Query text to analyze. |
+| `engine` | Yes |                           | Query engine. |
+| `settings` | No |                           | Engine-specific settings. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: Information about declared parameters.
+
+Example:
+
+```bash
+PARAMETERS { "engine" = "yql"; "query" = "SELECT * FROM table WHERE id = $user_id" }
+OUTPUT {
+    "parameters" = [
+        { "name" = "user_id"; "type" = "int64" };
+    ];
+}
+```
+
+
+## Working with queues { #queues }
+
+The Queue system provides durable message queue functionality in YTsaurus.
+
+### register_queue_consumer
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Register a consumer for a queue to track consumption progress.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `queue_path` | Yes |                           | Path to the queue. |
+| `consumer_path` | Yes |                           | Path to the consumer. |
+| `vital` | Yes |                           | Whether the consumer is vital for the queue. |
+| `partitions` | No |                           | List of partition indexes to register for. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+
+### unregister_queue_consumer
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Unregister a previously registered queue consumer.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `queue_path` | Yes |                           | Path to the queue. |
+| `consumer_path` | Yes |                           | Path to the consumer. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+
+### list_queue_consumer_registrations
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Non-mutating**, **Light**.
+
+Semantics:
+
+- List all consumer registrations for a queue.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `queue_path` | No |                           | Path to the queue (if omitted, list for all queues). |
+| `consumer_path` | No |                           | Path to the consumer (if omitted, list for all consumers). |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: List of consumer registrations.
+
+### pull_queue
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Non-mutating**, **Heavy**.
+
+Semantics:
+
+- Pull data from a queue partition starting from a specified offset.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `queue_path` | Yes |                           | Path to the queue. |
+| `partition_index` | Yes |                           | Partition index to pull from. |
+| `offset` | No | `0` | Offset to start pulling from. |
+| `max_row_count` | No |                           | Maximum number of rows to pull. |
+| `max_data_weight` | No |                           | Maximum data weight to pull. |
+| `data_weight_per_row_hint` | No |                           | Hint for average data weight per row. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `tabular`.
+- Value: Rows from the queue.
+
+### pull_queue_consumer
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Non-mutating**, **Heavy**.
+
+Semantics:
+
+- Pull data for a registered consumer from a queue partition.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `consumer_path` | Yes |                           | Path to the consumer. |
+| `queue_path` | Yes |                           | Path to the queue. |
+| `partition_index` | Yes |                           | Partition index to pull from. |
+| `offset` | Yes |                           | Offset to start pulling from. |
+| `max_row_count` | No |                           | Maximum number of rows to pull. |
+| `max_data_weight` | No |                           | Maximum data weight to pull. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `tabular`.
+- Value: Rows from the queue.
+
+### advance_queue_consumer
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Advance a consumer's read position in a queue partition.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `consumer_path` | Yes |                           | Path to the consumer. |
+| `queue_path` | Yes |                           | Path to the queue. |
+| `partition_index` | Yes |                           | Partition index. |
+| `new_offset` | Yes |                           | New offset for the consumer. |
+| `old_offset` | No |                           | Expected old offset (for optimistic locking). |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+
+### create_queue_producer_session
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Create a producer session for writing to a queue.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `producer_path` | Yes |                           | Path to the producer. |
+| `queue_path` | Yes |                           | Path to the queue. |
+| `session_id` | Yes |                           | Unique session identifier. |
+| `user_meta` | No |                           | User-defined metadata for the session. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: Session information including epoch and sequence number.
+
+### remove_queue_producer_session
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Remove a producer session.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `producer_path` | Yes |                           | Path to the producer. |
+| `queue_path` | Yes |                           | Path to the queue. |
+| `session_id` | Yes |                           | Session identifier to remove. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+
+### push_queue_producer
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Push rows to a queue through a producer session.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `producer_path` | Yes |                           | Path to the producer. |
+| `queue_path` | Yes |                           | Path to the queue. |
+| `session_id` | Yes |                           | Producer session identifier. |
+| `epoch` | Yes |                           | Session epoch number. |
+| `sequence_number` | No |                           | Starting sequence number for the rows. |
+
+Input data:
+
+- Type: `tabular`.
+- Value: Rows to push to the queue.
+
+Output data:
+
+- Type: `structured`.
+- Value: Last sequence number and skipped row count.
+
+## Working with pipelines and flows { #flows }
+
+The Flow system provides pipeline management and execution capabilities.
+
+### get_pipeline_spec
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Non-mutating**, **Light**.
+
+Semantics:
+
+- Get the specification of a pipeline.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `pipeline_path` | Yes |                           | Path to the pipeline. |
+| `spec_path` | No |                           | Path within the spec to retrieve. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: Pipeline specification and version.
+
+### set_pipeline_spec
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Set or update the specification of a pipeline.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `pipeline_path` | Yes |                           | Path to the pipeline. |
+| `spec_path` | No |                           | Path within the spec to set. |
+| `force` | No | `false` | Force update even if validation fails. |
+| `expected_version` | No |                           | Expected current version (for optimistic locking). |
+
+Input data:
+
+- Type: `structured`.
+- Value: Pipeline specification.
+
+Output data:
+
+- Type: `structured`.
+- Value: New version.
+
+### remove_pipeline_spec
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Remove a pipeline specification or a part of it.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `pipeline_path` | Yes |                           | Path to the pipeline. |
+| `spec_path` | Yes |                           | Path within the spec to remove. |
+| `force` | No | `false` | Force removal even if validation fails. |
+| `expected_version` | No |                           | Expected current version. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: New version.
+
+### get_pipeline_dynamic_spec
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Non-mutating**, **Light**.
+
+Semantics:
+
+- Get the dynamic specification of a pipeline.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `pipeline_path` | Yes |                           | Path to the pipeline. |
+| `spec_path` | No |                           | Path within the dynamic spec to retrieve. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: Dynamic pipeline specification and version.
+
+### set_pipeline_dynamic_spec
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Set or update the dynamic specification of a pipeline.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `pipeline_path` | Yes |                           | Path to the pipeline. |
+| `spec_path` | No |                           | Path within the dynamic spec to set. |
+| `expected_version` | No |                           | Expected current version. |
+
+Input data:
+
+- Type: `structured`.
+- Value: Dynamic pipeline specification.
+
+Output data:
+
+- Type: `structured`.
+- Value: New version.
+
+### remove_pipeline_dynamic_spec
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Remove a pipeline dynamic specification or a part of it.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `pipeline_path` | Yes |                           | Path to the pipeline. |
+| `spec_path` | Yes |                           | Path within the dynamic spec to remove. |
+| `expected_version` | No |                           | Expected current version. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: New version.
+
+### start_pipeline
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Start execution of a pipeline.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `pipeline_path` | Yes |                           | Path to the pipeline. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+
+### stop_pipeline
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Stop execution of a pipeline.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `pipeline_path` | Yes |                           | Path to the pipeline. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+
+### pause_pipeline
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Pause execution of a pipeline.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `pipeline_path` | Yes |                           | Path to the pipeline. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+
+### get_pipeline_state
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Non-mutating**, **Light**.
+
+Semantics:
+
+- Get the current state of a pipeline.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `pipeline_path` | Yes |                           | Path to the pipeline. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: Pipeline state.
+
+### get_flow_view
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Non-mutating**, **Light**.
+
+Semantics:
+
+- Get a view of the flow for a pipeline.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `pipeline_path` | Yes |                           | Path to the pipeline. |
+| `view_path` | No |                           | Path within the flow view. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: Flow view data.
+
+### flow_execute
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Heavy**.
+
+Semantics:
+
+- Execute a flow command on a pipeline.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `pipeline_path` | Yes |                           | Path to the pipeline. |
+
+Input data:
+
+- Type: `structured`.
+- Value: Flow command to execute.
+
+Output data:
+
+- Type: `structured`.
+- Value: Execution result.
+
+### flow_execute_plaintext
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Heavy**.
+
+Semantics:
+
+- Execute a plaintext flow command on a pipeline.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `pipeline_path` | Yes |                           | Path to the pipeline. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `binary`.
+- Value: Plaintext execution result.
+
+
+
 ## Other
 
 ### parse_ypath
