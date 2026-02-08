@@ -5154,7 +5154,7 @@ Output data:
 
 ### issue_token
 
-Command properties: **Mutating**, **Light`.
+Command properties: **Mutating**, **Light**.
 
 Semantics:
 
@@ -6212,7 +6212,7 @@ Output data:
 
 ### remote_copy
 
-Command properties: **Mutating**, **Light`.
+Command properties: **Mutating**, **Light**.
 
 Semantics:
 
