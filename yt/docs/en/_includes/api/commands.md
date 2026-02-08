@@ -2652,7 +2652,7 @@ Parameters:
 
 | **Parameter** | **Required** | **Default value** | **Description** |
 | -------------- | ------------- | ------------------------- | ------------------------------------------------------------ |
-| `operation_type` | Yes |                           | Operation type (can be one of these: `map`, `reduce`, `map_reduce`, `remote-copy`, `erase`, `sort`, `merge`, `vanilla`). |
+| `operation_type` | Yes |                           | Operation type (can be one of these: `map`, `reduce`, `map_reduce`, `remote_copy`, `erase`, `sort`, `merge`, `vanilla`). |
 | `spec` | Yes |                           | Operation specification. For more information, see [Setting up operations](../../user-guide/data-processing/operations/operations-options.md). |
 
 Input data:
@@ -2926,7 +2926,7 @@ PARAMETERS {
 OUTPUT "37878b-ba919c15-cdc97f3a-8a983ece"
 ```
 
-### remote-copy
+### remote_copy
 
 Command properties: **Mutating**, **Light**.
 
@@ -3053,7 +3053,6 @@ Output data:
 | `incomplete` | `bool` | Whether the list of operations is complete. That is, whether all the operations in the range `from_time` — `to_time` are listed. |
 | `type_counts` | `map<string, int>` | Map indicating the number of operations of various types that match all specified filters (except the filter by type). |
 | `state_counts` | `map<string, int>` | Map indicating the number of operations with various states that match all specified filters (except the filter by state). |
-| `type_counts` | `map<string, int>` | Map indicating the number of operations of various types that match all specified filters (except the filter by type). |
 | `pool_counts` | `map<string, int>` | Map indicating the number of operations in various pools that match all specified filters (except the filter by pool). |
 | `pool_tree_counts` | `map<string, int>` | Map indicating the number of operations in various pool trees that match all specified filters (except the filter by pool tree). |
 | `failed_jobs_count` | `int` | Number of unsuccessful jobs with the `failed` state. |
@@ -3066,7 +3065,7 @@ OUTPUT {
       "operations" = [
           {
               "id" = "7001208d-fef089b3-3fe03e8-453d99a1";
-              "type" = "remote-copy";
+              "type" = "remote_copy";
               "state" = "initializing";
               "authenticated_user" = "user-name";
               "brief_progress" = {};
@@ -3103,7 +3102,7 @@ OUTPUT {
           "sort" = 1126;
           "reduce" = 886;
           "map_reduce" = 1609;
-          "remote-copy" = 24;
+          "remote_copy" = 24;
       };
       "failed_jobs_count" = 109;
 }
@@ -3877,10 +3876,10 @@ Example:
 
 ```bash
 PARAMETERS { "operation_id" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; "job_id" = "1225d-1f2fb8c4-f1075d39-5fb7cdff"; "offset" = 500; "limit" = 100 }
-OUTPUT {
-OUTPUT   "total_size" = 1000;
-OUTPUT   "end_offset" = 600;
-OUTPUT }
+# Response parameters:
+# total_size = 1000
+# end_offset = 600
+# Binary output: (stderr content)
 ```
 
 
@@ -4389,6 +4388,7 @@ Parameters:
 | ------------ | ------------- | ------------------------- | ----------------------- |
 | `stage` | No | `production` | Query Tracker stage to use (e.g., `production`, `testing`). |
 | `attributes` | No |                           | List of attributes to fetch. |
+| `settings` | No |                           | Query Tracker settings. |
 
 Input data:
 
@@ -4404,8 +4404,12 @@ Example:
 ```bash
 PARAMETERS { }
 OUTPUT {
-    "supported_engines" = ["yql"; "chyt"; "spyt"];
+    "query_tracker_stage" = "production";
     "cluster_name" = "primary";
+    "supported_features" = { ... };
+    "access_control_objects" = [ ... ];
+    "clusters" = [ ... ];
+    "engines_info" = { ... };
 }
 ```
 

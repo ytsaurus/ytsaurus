@@ -125,7 +125,7 @@ OUTPUT "0-54c-1-bb49086d"
 
 | **Параметр**                   | **Обязательный** | **Значение по умолчанию** | **Описание**                                                 |
 | -------------------------- | ------------- | ------------------------- | ------------------------------------------------------------ |
-| `transaction_id`             | Да      |                           | Идентификатор родительской транзакции.                      |
+| `transaction_id`             | Да      |                           | Идентификатор транзакции для пинга.                      |
 | `ping_ancestor_transactions` | Нет      | `false`                     | Пинговать ли все родительские транзакции в процессе выполнения операции. |
 
 Входные данные:
@@ -2257,7 +2257,7 @@ OUTPUT "sample_signed_result"
 
 | **Параметр**   | **Обязательный** | **Значение по умолчанию** | **Описание**                                                 |
 | -------------- | ------------- | ------------------------- | ------------------------------------------------------------ |
-| `operation_type` | Да      |                           | Тип операции (один из `map`, `reduce`, `map_reduce`, `remote-copy`, `erase`, `sort`, `merge`, `vanilla`). |
+| `operation_type` | Да      |                           | Тип операции (один из `map`, `reduce`, `map_reduce`, `remote_copy`, `erase`, `sort`, `merge`, `vanilla`). |
 | `spec`           | Да      |                           | Спецификация операции. Подробнее в разделе [Настройка операций](../../user-guide/data-processing/operations/operations-options.md). |
 
 Входные данные:
@@ -2531,7 +2531,7 @@ PARAMETERS {
 OUTPUT "37878b-ba919c15-cdc97f3a-8a983ece"
 ```
 
-### remote-copy
+### remote_copy
 
 Свойства команды: **Мутирующая**, **Легкая**.
 
@@ -2658,7 +2658,6 @@ OUTPUT "37878b-ba919c15-cdc97f3a-8a983ece"
 | `incomplete` | `bool` | Является ли список операций полным, то есть перечислены ли все операции в диапазоне `from_time` — `to_time`. |
 | `type_counts` | `map<string, int>` | Словарь, содержащий количество операций различного типа, подходящих под все указанные фильтры (кроме фильтра по типу). |
 | `state_counts` | `map<string, int>` | Словарь, содержащий количество операций в различных состояниях, подходящих под все указанные фильтры (кроме фильтра по состоянию). |
-| `type_counts` | `map<string, int>` | Словарь, содержащий количество операций различного типа, подходящих под все указанные фильтры (кроме фильтра по типу). |
 | `pool_counts` | `map<string, int>` | Словарь, содержащий количество операций в различных пулах, подходящих под все указанные фильтры (кроме фильтра по пулу). |
 | `pool_tree_counts` | `map<string, int>` | Словарь, содержащий количество операций в различных деревьях пулов, подходящих под все указанные фильтры (кроме фильтра по дереву пулов). |
 | `failed_jobs_count` | `int` | Количество джобов, завершившихся неуспешно (состояние `failed`). |
@@ -2671,7 +2670,7 @@ OUTPUT {
       "operations" = [
           {
               "id" = "7001208d-fef089b3-3fe03e8-453d99a1";
-              "type" = "remote-copy";
+              "type" = "remote_copy";
               "state" = "initializing";
               "authenticated_user" = "user-name";
               "brief_progress" = {};
@@ -2708,7 +2707,7 @@ OUTPUT {
           "sort" = 1126;
           "reduce" = 886;
           "map_reduce" = 1609;
-          "remote-copy" = 24;
+          "remote_copy" = 24;
       };
       "failed_jobs_count" = 109;
 }
@@ -3482,10 +3481,10 @@ PARAMETERS { "operation_id" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; "job_id" = "1
 
 ```bash
 PARAMETERS { "operation_id" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; "job_id" = "1225d-1f2fb8c4-f1075d39-5fb7cdff"; "offset" = 500; "limit" = 100 }
-OUTPUT {
-OUTPUT   "total_size" = 1000;
-OUTPUT   "end_offset" = 600;
-OUTPUT }
+# Параметры ответа:
+# total_size = 1000
+# end_offset = 600
+# Бинарный вывод: (содержимое stderr)
 ```
 
 ## Прочее
@@ -3919,6 +3918,7 @@ OUTPUT {
 | ------------ | ------------- | ------------------------- | ----------------------- |
 | `stage` | Нет | `production` | Стадия Query Tracker для использования (например, `production`, `testing`). |
 | `attributes` | Нет |                           | Список атрибутов для получения. |
+| `settings` | Нет |                           | Настройки Query Tracker. |
 
 Входные данные:
 
@@ -3928,6 +3928,20 @@ OUTPUT {
 
 - Тип: `structured`.
 - Значение: Информация о системе Query Tracker.
+
+Пример:
+
+```bash
+PARAMETERS { }
+OUTPUT {
+    "query_tracker_stage" = "production";
+    "cluster_name" = "primary";
+    "supported_features" = { ... };
+    "access_control_objects" = [ ... ];
+    "clusters" = [ ... ];
+    "engines_info" = { ... };
+}
+```
 
 ### get_query_declared_parameters_info
 
