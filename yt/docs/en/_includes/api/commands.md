@@ -3056,7 +3056,7 @@ Output data:
 | `type_counts` | `map<string, int>` | Map indicating the number of operations of various types that match all specified filters (except the filter by type). |
 | `pool_counts` | `map<string, int>` | Map indicating the number of operations in various pools that match all specified filters (except the filter by pool). |
 | `pool_tree_counts` | `map<string, int>` | Map indicating the number of operations in various pool trees that match all specified filters (except the filter by pool tree). |
-| `failed_job_count` | `int` | Number of unsuccessful jobs with the `failed` state. |
+| `failed_jobs_count` | `int` | Number of unsuccessful jobs with the `failed` state. |
 
 Example:
 
@@ -3860,6 +3860,7 @@ Parameters:
 | ------------ | ------------- | ------------------------- | ----------------------- |
 | `operation_id (operation_alias)` | Yes |                           | Operation ID. |
 | `job_id` | Yes |                           | Job ID. |
+| `type` | No |                            | Type of stderr to retrieve: `user_job_stderr` or `gpu_check_stderr`. |
 | `offset` | No |                            | Offset from the beginning in bytes. |
 | `limit` | No |                            | Maximum size in bytes. |
 
@@ -4223,6 +4224,10 @@ Parameters:
 | `filter` | No |                           | Additional filter string. |
 | `limit` | No | `100` | Maximum number of queries to return. |
 | `attributes` | No |                           | List of attributes to fetch for each query. |
+| `search_by_token_prefix` | No |                           | Enable search by token prefix. |
+| `use_full_text_search` | No |                           | Enable full-text search. |
+| `tutorial_filter` | No |                           | Filter tutorial queries. |
+| `sort_order` | No |                           | Sort order for the results. |
 
 Input data:
 
