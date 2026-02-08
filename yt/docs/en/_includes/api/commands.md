@@ -203,6 +203,165 @@ Example:
 PARAMETERS { "transaction_id" = "0-54b-1-36223d20" }
 ```
 
+### start_transaction
+
+{% note info %}
+
+The HTTP API supports this command from version 4 onward. Earlier versions use the `start_tx` command.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Begin a new transaction in the context of the current transaction.
+- The new transaction is a nested (internal) transaction for the given one.
+- This is the API v4 equivalent of `start_tx` with structured output.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| -------------------------- | ------------- | ------------------------- | ------------------------------------------------------------ |
+| `transaction_id` | No | *null-transaction-id* | ID of the current transaction (it will become a parent transaction for the transaction created by the command). |
+| `ping_ancestor_transactions` | No | `false` | Whether to ping, when running the operation, all the parent transactions (to extend their TTL). |
+| `timeout` | No | `15000` | Transaction TTL since the last extension (in ms). |
+| `deadline` | No | `missing` | Transaction execution deadline (in UTC). |
+| `attributes` | No | `missing` | Enables you to set attributes for the created transaction. |
+| `type` | No | `master` | Enables you to set the transaction type: `master` or `tablet`. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: Transaction ID.
+
+Example:
+
+```bash
+PARAMETERS { "transaction_id" = "0-54b-1-36223d20" }
+OUTPUT "0-54c-1-bb49086d"
+```
+
+### ping_transaction
+
+{% note info %}
+
+The HTTP API supports this command from version 4 onward. Earlier versions use the `ping_tx` command.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Update the transaction by pinging it to extend its TTL.
+- This is the API v4 equivalent of `ping_tx` with structured output.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| -------------------------- | ------------- | ------------------------- | ------------------------------------------------------------ |
+| `transaction_id` | Yes |                           | Transaction ID to ping. |
+| `ping_ancestor_transactions` | No | `false` | Whether to ping all the parent transactions while running the operation. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+
+Example:
+
+```bash
+PARAMETERS { "transaction_id" = "0-54b-1-36223d20" }
+OUTPUT { }
+```
+
+### commit_transaction
+
+{% note info %}
+
+The HTTP API supports this command from version 4 onward. Earlier versions use the `commit_tx` command.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Complete the transaction successfully.
+- While there are some incomplete internal transactions, the outer transaction can't complete.
+- This is the API v4 equivalent of `commit_tx` with structured output.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| -------------------------- | ------------- | ------------------------- | ------------------------------------------------------------ |
+| `transaction_id` | Yes |                           | Transaction ID to commit. |
+| `ping_ancestor_transactions` | No | `false` | Whether to ping all the parent transactions while running the operation. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+
+Example:
+
+```bash
+PARAMETERS { "transaction_id" = "0-54b-1-36223d20" }
+OUTPUT { }
+```
+
+### abort_transaction
+
+{% note info %}
+
+The HTTP API supports this command from version 4 onward. Earlier versions use the `abort_tx` command.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Abort the transaction.
+- All the active internal transactions are aborted as well.
+- This is the API v4 equivalent of `abort_tx` with structured output.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| -------------------------- | ------------- | ------------------------- | ------------------------------------------------------------ |
+| `transaction_id` | Yes |                           | Transaction ID to abort. |
+| `ping_ancestor_transactions` | No | `false` | Whether to ping all the parent transactions while running the operation. |
+| `force` | No | `false` | Forcibly aborts the transaction even if this may result in consistency loss (in case of a tablet transaction and a two-phase commit). |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+
+Example:
+
+```bash
+PARAMETERS { "transaction_id" = "0-54b-1-36223d20" }
+OUTPUT { }
+```
+
+
+
 ## Working with Cypress
 
 For more information about the metainformation tree, see [Cypress](../../user-guide/storage/cypress.md).
@@ -2075,6 +2234,399 @@ INPUT { "id" = 2; "value" = 2.000; };
 OUTPUT "sample_signed_result"
 ```
 
+### alter_table
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Modify table metadata and settings.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `path` | Yes |                           | Path to the table. |
+| `schema` | No |                           | New table schema. |
+| `dynamic` | No |                           | Whether the table should be dynamic. |
+| `upstream_replica_id` | No |                           | Upstream replica ID for table replication. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+
+### enable_table_replica
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Enable a table replica.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `replica_id` | Yes |                           | Replica ID to enable. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+
+### disable_table_replica
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Disable a table replica.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `replica_id` | Yes |                           | Replica ID to disable. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+
+### get_in_sync_replicas
+
+Command properties: **Non-mutating**, **Heavy**.
+
+Semantics:
+
+- Get the list of replicas that are in sync with a table at a given timestamp.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `path` | Yes |                           | Path to the table. |
+| `timestamp` | Yes |                           | Timestamp to check synchronization at. |
+| `all_keys` | No | `false` | Whether to check all keys. |
+
+Input data:
+
+- Type: `tabular`.
+
+Output data:
+
+- Type: `structured`.
+- Value: List of in-sync replica IDs.
+
+### pull_rows
+
+Command properties: **Non-mutating**, **Heavy**.
+
+Semantics:
+
+- Pull rows from a table for replication purposes.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `path` | Yes |                           | Path to the table. |
+| `upstream_replica_id` | Yes |                           | Upstream replica ID. |
+| `replication_progress` | Yes |                           | Current replication progress. |
+| `upper_timestamp` | No |                           | Upper timestamp limit for pulling. |
+| `order_rows_by_timestamp` | No | `false` | Whether to order rows by timestamp. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `tabular`.
+- Value: Rows pulled from the table.
+
+### explain_query
+
+Command properties: **Non-mutating**, **Heavy**.
+
+Semantics:
+
+- Get the execution plan for a query without actually running it.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `query` | Yes |                           | Query string to explain. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: Query execution plan.
+
+### get_table_pivot_keys
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Non-mutating**, **Light**.
+
+Semantics:
+
+- Get the pivot keys that define tablet boundaries for a table.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `path` | Yes |                           | Path to the table. |
+| `represent_key_as_list` | No | `false` | Whether to represent keys as lists instead of tuples. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: List of pivot keys.
+
+### get_tablet_infos
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Non-mutating**, **Light**.
+
+Semantics:
+
+- Get information about specific tablets of a table.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `path` | Yes |                           | Path to the table. |
+| `tablet_indexes` | Yes |                           | List of tablet indexes to get information for. |
+| `request_errors` | No | `false` | Whether to include error information. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: Information about the requested tablets.
+
+### get_tablet_errors
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Non-mutating**, **Light**.
+
+Semantics:
+
+- Get error information for tablets of a table.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `path` | Yes |                           | Path to the table. |
+| `limit` | No |                           | Maximum number of errors to return. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: List of tablet errors.
+
+### get_table_mount_info
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Non-mutating**, **Light**.
+
+Semantics:
+
+- Get mount information for a dynamic table.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `path` | Yes |                           | Path to the table. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: Table mount information including cell IDs and tablet states.
+
+### balance_tablet_cells
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Balance tablets across tablet cells for optimal resource distribution.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `bundle` | Yes |                           | Tablet cell bundle name. |
+| `tables` | No |                           | Specific tables to balance (if omitted, balance all tables in bundle). |
+| `keep_actions` | No | `false` | Whether to keep the actions for inspection. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: Balancing actions taken or planned.
+
+### cancel_tablet_transition
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Cancel an ongoing tablet state transition (e.g., mounting, unmounting).
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `tablet_id` | Yes |                           | ID of the tablet. |
+| `cell_id` | Yes |                           | ID of the tablet cell. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+
+### create_table_backup
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Create a backup of one or more tables with consistent snapshot semantics.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `manifest` | Yes |                           | Backup manifest describing tables and their destinations. |
+| `checkpoint_timestamp_delay` | No | `5s` | Delay for checkpoint timestamp selection. |
+| `force` | No | `false` | Force backup even if destination tables exist. |
+| `preserve_account` | No | `false` | Preserve the source account in the backup. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+
+### restore_table_backup
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Restore tables from a previously created backup.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `manifest` | Yes |                           | Restore manifest describing source backups and target locations. |
+| `force` | No | `false` | Force restore even if target tables exist. |
+| `mount` | No | `false` | Whether to mount tables after restoration. |
+| `enable_replicas` | No | `false` | Whether to enable table replicas after restoration. |
+| `preserve_account` | No | `false` | Preserve the backup account in restored tables. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+
+### locate_skynet_share
+
+Command properties: **Non-mutating**, **Heavy**.
+
+Semantics:
+
+- Locate data for Skynet share integration.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `path` | Yes |                           | Path to locate. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+
+
+
 ## Running operations
 
 For more information about running data processing operations, see [Data processing](../../user-guide/data-processing/operations/overview.md).
@@ -3331,6 +3883,187 @@ OUTPUT }
 ```
 
 
+### get_job_spec
+
+Command properties: **Non-mutating**, **Heavy**.
+
+Semantics:
+
+- Get the specification of a job.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `job_id` | Yes |                           | Job ID. |
+| `omit_node_directory` | No | `true` | Whether to omit node directory information. |
+| `omit_input_table_specs` | No | `false` | Whether to omit input table specifications. |
+| `omit_output_table_specs` | No | `false` | Whether to omit output table specifications. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: Job specification.
+
+### get_job_input_paths
+
+Command properties: **Non-mutating**, **Heavy**.
+
+Semantics:
+
+- Get the input paths for a job.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `job_id` | Yes |                           | Job ID. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: List of input paths.
+
+### dump_job_proxy_log
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Dump the job proxy log for a specific job.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `job_id` | Yes |                           | Job ID. |
+| `operation_id` | Yes |                           | Operation ID containing the job. |
+| `path` | Yes |                           | Path where to dump the log. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+
+### get_job_trace
+
+Command properties: **Non-mutating**, **Heavy**.
+
+Semantics:
+
+- Get trace information for a job.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `job_id` | Yes |                           | Job ID. |
+| `trace_id` | No |                           | Specific trace ID to retrieve. |
+| `from_time` | No |                           | Start time for trace filtering. |
+| `to_time` | No |                           | End time for trace filtering. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `binary`.
+- Value: Job trace data.
+
+### list_job_traces
+
+Command properties: **Non-mutating**, **Light**.
+
+Semantics:
+
+- List available traces for a job.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `job_id` | Yes |                           | Job ID. |
+| `limit` | No |                           | Maximum number of traces to return. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: List of job traces.
+
+### poll_job_shell
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Poll for output from a job shell command.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `job_id` | Yes |                           | Job ID. |
+| `parameters` | Yes |                           | Poll parameters including shell descriptor. |
+| `shell_name` | No |                           | Name of the shell. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: Shell output.
+
+### run_job_shell_command
+
+Command properties: **Mutating**, **Heavy**.
+
+Semantics:
+
+- Run a shell command in a job's environment.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `job_id` | Yes |                           | Job ID. |
+| `command` | Yes |                           | Shell command to execute. |
+| `shell_name` | No |                           | Name of the shell. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `binary`.
+- Value: Command output.
+
+
+
 ## Working with queries { #queries }
 
 The Query Tracker system enables executing SQL-like queries across YTsaurus data.
@@ -4392,6 +5125,610 @@ Output data:
 
 
 
+## Authentication { #authentication }
+
+### set_user_password
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Set or update a user's password.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `user` | Yes |                           | Username. |
+| `current_password_sha256` | No |                           | SHA256 hash of the current password (required for password updates). |
+| `new_password_sha256` | Yes |                           | SHA256 hash of the new password. |
+| `password_is_temporary` | No | `false` | Whether the password is temporary and must be changed on first use. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+
+### issue_token
+
+Command properties: **Mutating**, **Light`.
+
+Semantics:
+
+- Issue an authentication token for a user.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `user` | Yes |                           | Username. |
+| `password_sha256` | No |                           | SHA256 hash of the user's password. |
+| `description` | No |                           | Description for the token. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: The issued token.
+
+### revoke_token
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Revoke an authentication token.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `user` | Yes |                           | Username. |
+| `password_sha256` | No |                           | SHA256 hash of the user's password. |
+| `token_sha256` | Yes |                           | SHA256 hash of the token to revoke. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+
+### list_user_tokens
+
+Command properties: **Non-mutating**, **Light**.
+
+Semantics:
+
+- List authentication tokens for a user.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `user` | Yes |                           | Username. |
+| `password_sha256` | No |                           | SHA256 hash of the user's password. |
+| `with_metadata` | No | `false` | Whether to include token metadata. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: List of tokens.
+
+## Journal operations { #journals }
+
+### read_journal
+
+Command properties: **Non-mutating**, **Heavy**.
+
+Semantics:
+
+- Read rows from a journal.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `path` | Yes |                           | Path to the journal. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `tabular`.
+- Value: Rows from the journal.
+
+### write_journal
+
+Command properties: **Mutating**, **Heavy**.
+
+Semantics:
+
+- Write rows to a journal.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `path` | Yes |                           | Path to the journal. |
+| `enable_chunk_preallocation` | No | `false` | Whether to enable chunk preallocation for better performance. |
+
+Input data:
+
+- Type: `tabular`.
+- Value: Rows to write to the journal.
+
+Output data:
+
+- Type: `structured`.
+
+### truncate_journal
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Truncate a journal to a specified row count.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `path` | Yes |                           | Path to the journal. |
+| `row_count` | Yes |                           | Number of rows to keep from the beginning. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+
+## Chaos and Replication { #chaos }
+
+### alter_replication_card
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Non-mutating**, **Light**.
+
+Semantics:
+
+- Modify a replication card's configuration.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `replication_card_id` | Yes |                           | Replication card ID. |
+| `replicated_table_options` | No |                           | New options for replicated tables. |
+| `enable_replicated_table_tracker` | No |                           | Whether to enable the replicated table tracker. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+
+### update_replication_progress
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Non-mutating**, **Light**.
+
+Semantics:
+
+- Update replication progress for a chaos table replica.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `replica_id` | Yes |                           | Replica ID. |
+| `progress` | Yes |                           | New replication progress. |
+| `force` | Yes |                           | Whether to force the update. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+
+### ping_chaos_lease
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Ping a chaos lease to extend its lifetime.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `chaos_lease_id` | Yes |                           | Chaos lease ID. |
+| `ping_ancestors` | No | `true` | Whether to ping ancestor leases. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+
+## Shuffle operations { #shuffle }
+
+### start_shuffle
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Start a shuffle operation for distributed data exchange.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `account` | Yes |                           | Account to use for the shuffle. |
+| `partition_count` | Yes |                           | Number of partitions. |
+| `parent_transaction_id` | Yes |                           | Parent transaction ID. |
+| `medium` | No |                           | Storage medium to use. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: Signed shuffle handle.
+
+### read_shuffle_data
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Non-mutating**, **Heavy**.
+
+Semantics:
+
+- Read data from a shuffle partition.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `signed_shuffle_handle` | Yes |                           | Signed handle from start_shuffle. |
+| `partition_index` | Yes |                           | Partition index to read from. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `tabular`.
+- Value: Rows from the shuffle partition.
+
+### write_shuffle_data
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Heavy**.
+
+Semantics:
+
+- Write data to a shuffle operation.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `signed_shuffle_handle` | Yes |                           | Signed handle from start_shuffle. |
+| `partition_column` | Yes |                           | Column name to use for partitioning. |
+
+Input data:
+
+- Type: `tabular`.
+- Value: Rows to write to the shuffle.
+
+Output data:
+
+- Type: `structured`.
+
+## Distributed write sessions { #distributed_write }
+
+### start_distributed_write_session
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Start a distributed write session for parallel writing to a table.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `path` | Yes |                           | Path to the target table. |
+| `cookie_count` | No |                           | Number of write cookies to generate. |
+| `session_timeout` | No |                           | Session timeout duration. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: Session information and write cookies.
+
+### ping_distributed_write_session
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Ping a distributed write session to keep it alive.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `session` | Yes |                           | Session identifier. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `null`.
+
+### finish_distributed_write_session
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Finish a distributed write session and commit all writes.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `session` | Yes |                           | Session identifier. |
+| `results` | Yes |                           | Write results from all participants. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `null`.
+
+### write_table_fragment
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Heavy**.
+
+Semantics:
+
+- Write a fragment of data to a table as part of a distributed write session.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `cookie` | Yes |                           | Write cookie from start_distributed_write_session. |
+
+Input data:
+
+- Type: `tabular`.
+- Value: Rows to write.
+
+Output data:
+
+- Type: `structured`.
+- Value: Signed write result.
+
+### start_distributed_write_file_session
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Start a distributed write session for parallel writing to a file.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `path` | Yes |                           | Path to the target file. |
+| `cookie_count` | No |                           | Number of write cookies to generate. |
+| `session_timeout` | No |                           | Session timeout duration. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: Session information and write cookies.
+
+### ping_distributed_write_file_session
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Ping a distributed file write session to keep it alive.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `session` | Yes |                           | Session identifier. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `null`.
+
+### finish_distributed_write_file_session
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Finish a distributed file write session and commit all writes.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `session` | Yes |                           | Session identifier. |
+| `results` | Yes |                           | Write results from all participants. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `null`.
+
+### write_file_fragment
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Heavy**.
+
+Semantics:
+
+- Write a fragment of binary data to a file as part of a distributed write session.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `cookie` | Yes |                           | Write cookie from start_distributed_write_file_session. |
+
+Input data:
+
+- Type: `binary`.
+- Value: Binary data to write.
+
+Output data:
+
+- Type: `structured`.
+- Value: Signed write result.
+
+
+
 ## Other
 
 ### parse_ypath
@@ -4560,3 +5897,338 @@ OUTPUT {
     "timestamp" = 1723665447133469427u;
 }
 ```
+
+### get_version
+
+Command properties: **Non-mutating**, **Light**.
+
+Semantics:
+
+- Get version information about the YTsaurus cluster.
+
+Parameters:
+
+- No
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: Version information including build version and features.
+
+### get_current_user
+
+Command properties: **Non-mutating**, **Light**.
+
+Semantics:
+
+- Get the current authenticated user.
+
+Parameters:
+
+- No
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: Current user name.
+
+### discover_proxies
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Non-mutating**, **Light**.
+
+Semantics:
+
+- Discover available proxy addresses in the cluster.
+
+Parameters:
+
+- No
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: List of proxy addresses.
+
+### get_bundle_config
+
+Command properties: **Non-mutating**, **Light**.
+
+Semantics:
+
+- Get configuration for a tablet cell bundle.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `bundle_name` | Yes |                           | Name of the bundle. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: Bundle configuration.
+
+### set_bundle_config
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Set configuration for a tablet cell bundle.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `bundle_name` | Yes |                           | Name of the bundle. |
+| `bundle_config` | No |                           | New bundle configuration. |
+
+Input data:
+
+- Type: `structured`.
+- Value: Bundle configuration.
+
+Output data:
+
+- Type: `null`.
+
+### externalize
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Externalize a Cypress node to another cell.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `path` | Yes |                           | Path to the node. |
+| `cell_tag` | Yes |                           | Target cell tag. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `null`.
+
+### internalize
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Internalize an externalized Cypress node.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `path` | Yes |                           | Path to the node. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `null`.
+
+### check_permission_by_acl
+
+Command properties: **Non-mutating**, **Light**.
+
+Semantics:
+
+- Check if a user has specific permission according to an ACL.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `user` | Yes |                           | Username to check. |
+| `permission` | Yes |                           | Permission to check (e.g., `read`, `write`). |
+| `acl` | Yes |                           | Access control list to check against. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: Permission check result.
+
+### transfer_account_resources
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Transfer resource quota between accounts.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `source_account` | Yes |                           | Source account name. |
+| `destination_account` | Yes |                           | Destination account name. |
+| `resource_delta` | Yes |                           | Resources to transfer. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+
+### transfer_pool_resources
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Transfer resource quota between scheduler pools.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `source_pool` | Yes |                           | Source pool name. |
+| `destination_pool` | Yes |                           | Destination pool name. |
+| `pool_tree` | Yes |                           | Pool tree name. |
+| `resource_delta` | Yes |                           | Resources to transfer. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+
+### transfer_bundle_resources
+
+{% note info %}
+
+This command is only available from API version 4 onward.
+
+{% endnote %}
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Transfer resource quota between tablet cell bundles.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `source_bundle` | Yes |                           | Source bundle name. |
+| `destination_bundle` | Yes |                           | Destination bundle name. |
+| `resource_delta` | Yes |                           | Resources to transfer. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+
+### join_reduce
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Start a join-reduce operation to join multiple tables and reduce the result.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `spec` | Yes |                           | Operation specification. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: Operation ID.
+
+### remote_copy
+
+Command properties: **Mutating**, **Light`.
+
+Semantics:
+
+- Copy data from another YTsaurus cluster.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ----------------------- |
+| `spec` | Yes |                           | Operation specification including source cluster and paths. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: Operation ID.
