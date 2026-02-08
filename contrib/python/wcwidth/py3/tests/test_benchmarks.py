@@ -183,7 +183,8 @@ def test_iter_sequences_mixed(benchmark):
 
 # UDHR-based benchmarks,
 # Load combined text (12 world languages)
-UDHR_FILE = os.path.join(os.path.dirname(__file__), 'udhr_combined.txt')
+import yatest.common as yc
+UDHR_FILE = os.path.join(os.path.dirname(yc.source_path(__file__)), 'udhr_combined.txt')
 with open(UDHR_FILE, encoding='utf-8') as f:
     UDHR_TEXT = f.read()
 UDHR_LINES = UDHR_TEXT.splitlines()[:200]
