@@ -1533,6 +1533,8 @@ private:
             SetRequestWorkloadDescriptor(req, Options_.WorkloadDescriptor);
             ToProto(req->mutable_read_session_id(), Options_.ReadSessionId);
             req->set_use_direct_io(Reader_->Config_->UseDirectIO);
+            req->set_read_and_cache_whole_blocks(Reader_->Config_->ReadAndCacheWholeBlocks);
+            req->set_block_count_to_precache(Reader_->Config_->BlockCountToPrecache);
 
             for (auto& item : plan->Items) {
                 auto* subrequest = req->add_subrequests();

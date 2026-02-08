@@ -429,7 +429,7 @@ void TBlobChunkBase::OnBlocksExtLoaded(
             const auto& blockCache = session->Options.BlockCache;
 
             auto blockId = TBlockId(Id_, entry.BlockIndex);
-            entry.Cookie = blockCache->GetBlockCookie(blockId, EBlockType::CompressedData);
+            entry.Cookie = blockCache->GetBlockCookie(blockId, session->Options.BlockType);
 
             if (!entry.Cookie->IsActive()) {
                 entry.Cached = true;
@@ -563,7 +563,8 @@ void TBlobChunkBase::DoReadSession(
     DoReadBlockSet(session);
 }
 
-std::tuple<int, int, THashMap<int, TBlobChunkBase::TReadBlockSetSession::TBlockEntry>> TBlobChunkBase::FindLastEntryWithinReadGap(
+std::tuple<int, int, THashMap<int, TBlobChunkBase::TReadBlockSetSession::TBlockEntry>>
+TBlobChunkBase::FindLastEntryWithinReadGap(
     const TReadBlockSetSessionPtr& session,
     int beginEntryIndex)
 {
@@ -609,7 +610,7 @@ std::tuple<int, int, THashMap<int, TBlobChunkBase::TReadBlockSetSession::TBlockE
                 const auto& info = blocksExt->Blocks[index];
 
                 auto blockId = TBlockId(Id_, index);
-                auto cookie = blockCache->GetBlockCookie(blockId, EBlockType::CompressedData);
+                auto cookie = blockCache->GetBlockCookie(blockId, session->Options.BlockType);
 
                 EmplaceOrCrash(blockIndexToEntry, index, TReadBlockSetSession::TBlockEntry{
                     .BlockIndex = index,
@@ -1046,7 +1047,7 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
         for (int entryIndex = 0; entryIndex < std::ssize(blockIndexes); ++entryIndex) {
             auto& entry = session->Entries[entryIndex];
             auto blockId = TBlockId(Id_, entry.BlockIndex);
-            auto block = options.BlockCache->FindBlock(blockId, EBlockType::CompressedData);
+            auto block = options.BlockCache->FindBlock(blockId, options.BlockType);
             if (block) {
                 session->Options.ChunkReaderStatistics->DataBytesReadFromCache.fetch_add(
                     block.Size(),
