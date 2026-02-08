@@ -8,7 +8,6 @@ LICENSE(MIT)
 
 PEERDIR(
     contrib/python/idna
-    contrib/python/typing-extensions
 )
 
 NO_LINT()
