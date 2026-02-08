@@ -29,6 +29,7 @@ import yt.yson as yson
 
 from copy import deepcopy
 import time
+import random
 
 import builtins
 
@@ -1599,8 +1600,6 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
             }
         })
 
-        set("//tmp/t/@hunk_chunk_reader/fragment_reader_cache_capacity", 1000)
-        remount_table("//tmp/t")
         assert_items_equal(lookup_rows("//tmp/t", keys), rows)
         assert_items_equal(lookup_rows("//tmp/t", keys), rows)
 
@@ -1696,6 +1695,12 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
                     "unlock_check_period": 100
                 }
             }
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "max_blocks_per_read": 2,
         }
     }
 
@@ -2430,6 +2435,64 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         assert get("//tmp/t2/@chunk_count") == 2
         assert get("//tmp/t2/@tablet_statistics/chunk_count") == 2
+
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("hunk_erasure_codec", ["none", "isa_reed_solomon_3_3"])
+    def test_prefetch_fragments_on_data_node(self, hunk_erasure_codec):
+        sync_create_cells(1)
+
+        self._create_table(path="//tmp/t")
+        set("//tmp/t/@hunk_erasure_codec", hunk_erasure_codec)
+        set("//tmp/t/@hunk_chunk_reader", {
+            "read_and_cache_whole_blocks": True,
+            "block_count_to_precache": 1,
+            "max_hunk_count_per_read": 10,
+            "max_total_hunk_length_per_read": 1000,
+        })
+
+        hunk_storage_attributes = {
+            "store_rotation_period": 120000,
+            "hunk_store_writer": {
+                "max_record_size": 10,
+            },
+        }
+        if hunk_erasure_codec != "none":
+            hunk_storage_attributes["read_quorum"] = 4
+            hunk_storage_attributes["write_quorum"] = 5
+            hunk_storage_attributes["erasure_codec"] = hunk_erasure_codec
+            hunk_storage_attributes["replication_factor"] = 1
+
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes=hunk_storage_attributes)
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+
+        sync_reshard_table("//tmp/t", 2)
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        assert get("//tmp/t/@tablet_count") == 2
+
+        rows = [{"$tablet_index": random.randint(0, 1), "key": i, "value": "a" * (25 + i)} for i in range(25)]
+
+        self._insert_rows_with_hunk_storage("//tmp/t", rows)
+
+        assert_items_equal(select_rows("key, value, [$tablet_index] from [//tmp/t]"), rows)
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "block_cache": {
+                    "chunk_fragments_data": {
+                        "capacity": 10000000,
+                    }
+                }
+            }
+        })
+
+        rows0 = [row for row in rows if row["$tablet_index"] == 0]
+        rows1 = [row for row in rows if row["$tablet_index"] == 1]
+        assert_items_equal(select_rows("key, value, [$tablet_index] from [//tmp/t] where [$tablet_index] = 0"), rows0)
+        assert_items_equal(select_rows("key, value, [$tablet_index] from [//tmp/t]"), rows)
+        assert_items_equal(select_rows("key, value, [$tablet_index] from [//tmp/t] where [$tablet_index] = 1"), rows1)
+        assert_items_equal(select_rows("key, value, [$tablet_index] from [//tmp/t]"), rows)
 
 
 ################################################################################

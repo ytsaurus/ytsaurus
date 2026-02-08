@@ -337,6 +337,9 @@ message TReqGetChunkFragmentSet
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 2;
     optional bool use_direct_io = 4;
 
+    optional bool read_and_cache_whole_blocks = 5;
+    optional int32 block_count_to_precache = 6;
+
     message TSubrequest
     {
         required NYT.NProto.TGuid chunk_id = 1;
