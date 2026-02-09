@@ -498,6 +498,23 @@ class TestJobProber(YTEnvSetup):
                 value = end_profiling["abort_reason"][abort_reason] - start_profiling["abort_reason"][abort_reason]
                 assert value == (1 if abort_reason == "user_request" else 0)
 
+    @authors("krasovav")
+    def test_job_shell_try_change_yt_runtime(self):
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
+        job_id = wait_breakpoint()[0]
+        wait(lambda: op.get_job_phase(job_id) == "running")
+
+        r = poll_job_shell(
+            job_id,
+            operation="spawn",
+            command="cd /yt_runtime; ls ytserver-tools; (echo 123456 > ytserver-tools) > /dev/null 2>&1 || rm ytserver-tools > /dev/null 2>&1 || echo SUCCESS",
+        )
+
+        shell_id = r["shell_id"]
+        output = self._poll_until_shell_exited(job_id, shell_id)
+        expected = "ytserver-tools\r\nSUCCESS\r\n"
+        assert output == expected
+
 
 class TestJobProberCri(TestJobProber):
     ENABLE_MULTIDAEMON = False  # Use profiling counters.
