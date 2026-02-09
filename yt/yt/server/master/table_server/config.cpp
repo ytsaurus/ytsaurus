@@ -21,7 +21,7 @@ void TDynamicTableManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("yson_table_schema_cache", &TThis::YsonTableSchemaCache)
         .DefaultNew();
     registrar.Parameter("column_to_constraint_log_limit", &TThis::ColumnToConstraintLogLimit)
-        .Default(5000);
+        .Default(50);
     registrar.Parameter("enable_column_constraints_for_tables", &TThis::EnableColumnConstraintsForTables)
         .Default(false);
 

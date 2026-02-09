@@ -2189,12 +2189,12 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     struct TAlterTableOptions
     {
         TCompactTableSchemaPtr Schema;
-        // NB: Constants are handled differently in table creation and alteration operations due to differences in schema formats representations:
+        // NB: Constants are handled differently in table creation and table schema alter operations due to differences in schema formats representations:
         // When table is created schema is passed as YSON and when table is altered schema is passed as TTableSchemaExt.
         // Addition of constants into TTableSchemaExt is undesirable, because schemas are currently stored as wire TTableSchemaExt
         // on the master's side and it is not acceptable to have constrained schemas there.
         // Therefore on table creation constrained schema validation is performed on the master's side.
-        // And on alteration it is partially performed on the client.
+        // And on table schema alter it is partially performed on the client.
         std::optional<TColumnNameToConstraintMap> ColumnToConstraint;
         std::optional<bool> Dynamic;
         std::optional<TTableReplicaId> UpstreamReplicaId;
@@ -2242,7 +2242,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     auto maxSchemaMemoryUsageToLog = dynamicConfig->MaxSchemaMemoryUsageToLog;
 
     if (options.ColumnToConstraint && !dynamicConfig->EnableColumnConstraintsForTables) {
-        THROW_ERROR_EXCEPTION("Alteration of tables with column constraints is prohibited by system administrator");
+        THROW_ERROR_EXCEPTION("Table schema alter of tables with column constraints is prohibited by system administrator");
     }
 
     const auto& tableManager = Bootstrap_->GetTableManager();
@@ -2502,7 +2502,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
                 std::move(*options.ColumnToConstraint),
                 config->TableManager->ColumnToConstraintLogLimit);
         }
-        ValidateConstrainedSchemaAlteration(
+        ValidateConstrainedTableSchemaAlter(
             *oldTableSchema,
             *newTableSchema,
             table->Constraints(),

@@ -569,7 +569,7 @@ static void ValidateAllConstrainedColumnsExist(
 }
 
 //! Validates that
-// - constraints expressions have remained the same or have been dropped.
+// - constraints expressions have remained the same or have been dropped
 // - types of constrained columns have remained the same
 static void ValidateConstraintsCompatibility(
     const TTableSchema& oldSchema,
@@ -627,19 +627,19 @@ void ValidateConstraintsMatch(
     }
 }
 
-void ValidateConstrainedSchemaAlteration(
+void ValidateConstrainedTableSchemaAlter(
     const TTableSchema& oldSchema,
     const TTableSchema& newSchema,
     const TColumnStableNameToConstraintMap& oldConstraints,
     const TColumnStableNameToConstraintMap& newConstraints,
     bool isTableEmpty)
 {
-    ValidateConstrainedSchemaCreation(newSchema, newConstraints);
+    ValidateConstrainedTableSchemaCreation(newSchema, newConstraints);
     ValidateNoNewConstraintsForExistingColumns(oldSchema, oldConstraints, newConstraints, isTableEmpty);
     ValidateConstraintsCompatibility(oldSchema, newSchema, oldConstraints, newConstraints, isTableEmpty);
 }
 
-void ValidateConstrainedSchemaCreation(
+void ValidateConstrainedTableSchemaCreation(
     const TTableSchema& schema,
     const TColumnStableNameToConstraintMap& constraints)
 {
