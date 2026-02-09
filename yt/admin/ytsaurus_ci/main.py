@@ -1,4 +1,5 @@
 import json
+import os
 
 import click
 import yaml
@@ -37,21 +38,64 @@ def reproduce(job_id, cloud_function_token):
     click.secho(content, fg=color)
 
 
-@cli.command()
-@click.option(
-    "--version-filter", type=str, required=False, default="{}", help="--version-filter '{\"operator\": \"main\"}'"
-)
-def matrix(version_filter):
+def version_filter_option(f):
+    return click.option(
+        "--version-filter", type=str, required=False, default="{}", help="--version-filter '{\"operator\": \"main\"}'"
+    )(f)
+
+
+@cli.group()
+def matrix():
+    pass
+
+
+@matrix.command()
+@version_filter_option
+@click.option("--json", "with_json", is_flag=True)
+def run(version_filter, with_json):
     registry = component_registry.VersionComponentRegistry(yaml.safe_load(resource.resfs_read(consts.COMPONENTS_PATH)))
     graph = compatibility_graph.CompatibilityGraph(registry)
 
     suites = graph.find_all_test_suites(json.loads(version_filter))
-    compatibility_graph.print_suites(suites)
+    if with_json:
+        print(suites)
+    else:
+        compatibility_graph.print_suites(suites)
 
     if suites:
         click.secho(f"\nTotal: {len(suites)} compatible suite(s)", fg="green")
     else:
         click.secho("\nNo compatible suites found for given components", fg="red")
+
+
+@matrix.command()
+@click.option("--output", "output_dir", type=click.Path(), required=True)
+@click.option(
+    "--components",
+    multiple=True,
+    required=True,
+    type=click.Choice(
+        [
+            "ytsaurus",
+            "operator",
+            "chyt",
+            "spyt",
+            "query_tracker",
+            "strawberry",
+        ]
+    ),
+)
+def docs(output_dir, components):
+    registry = component_registry.VersionComponentRegistry(yaml.safe_load(resource.resfs_read(consts.COMPONENTS_PATH)))
+    os.makedirs(output_dir, exist_ok=True)
+
+    for component in components:
+        md = compatibility_graph.format_compat_table(registry, component)
+        path = os.path.join(output_dir, f"{component}.md")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(md)
+
+    click.secho(f"Written {len(components)} file(s) to {output_dir}", fg="green")
 
 
 @cli.command()
