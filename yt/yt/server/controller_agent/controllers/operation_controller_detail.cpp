@@ -569,9 +569,8 @@ void TOperationControllerBase::InitializeInputTransactions()
         }
     }
 
-    auto clusterResolver = New<TClusterResolver>(InputClient_);
-    WaitFor(clusterResolver->Init())
-        .ThrowOnError();
+    auto clusterResolver = WaitFor(CreateClusterResolver(InputClient_))
+        .ValueOrThrow();
 
     InputTransactions_ = New<TInputTransactionManager>(
         InputClient_,
