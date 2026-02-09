@@ -192,9 +192,9 @@ void TClusterStateProviderConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(1));
 
     registrar.Parameter("bundles_fetch_period", &TThis::BundlesFetchPeriod)
-        .Default(TDuration::Seconds(10));
+        .Default(TDuration::Seconds(20));
     registrar.Parameter("nodes_fetch_period", &TThis::NodesFetchPeriod)
-        .Default(TDuration::Seconds(10));
+        .Default(TDuration::Seconds(40));
     registrar.Parameter("unhealthy_bundles_fetch_period", &TThis::UnhealthyBundlesFetchPeriod)
         .Default(TDuration::Seconds(10));
     registrar.Parameter("banned_replicas_fetch_period", &TThis::BannedReplicasFetchPeriod)
