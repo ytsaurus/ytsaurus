@@ -237,7 +237,10 @@ private:
 
     std::vector<TNumaNodeState> NumaNodeStates_;
 
+    // NB: Whenever we want to do something with the job environment,
+    // we should first cache it so that it doesn't expire upon resurrection.
     IJobEnvironmentPtr JobEnvironment_;
+
     std::optional<NJobProxy::EJobEnvironmentType> JobEnvironmentType_;
 
     //! We maintain queue for distributing job logs evenly among slots.
