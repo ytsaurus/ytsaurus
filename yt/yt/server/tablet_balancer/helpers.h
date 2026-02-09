@@ -22,22 +22,27 @@ struct TCellTagRequest
 {
     NTabletClient::TMasterTabletServiceProxy::TReqGetTableBalancingAttributesPtr Request;
     TFuture<NTabletClient::TMasterTabletServiceProxy::TRspGetTableBalancingAttributesPtr> Response;
+
+    i64 GetSize() const;
 };
 
 struct TCellTagBatch
 {
     NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr Request;
     TFuture<NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr> Response;
+
+    i64 GetSize() const;
 };
 
 template <typename TRequest>
-void ExecuteRequestsToCellTags(THashMap<NObjectClient::TCellTag, TRequest>* batchRequest);
+void ExecuteRequestsToCellTags(THashMap<NObjectClient::TCellTag, TRequest>* batchRequest, const IMulticellThrottlerPtr& throttler);
 
 THashMap<NObjectClient::TCellTag, TCellTagRequest> FetchTableAttributes(
     const NApi::NNative::IClientPtr& client,
     const THashSet<TTableId>& tableIds,
     const THashSet<TTableId>& tableIdsToFetchPivotKeys,
     const THashMap<TTableId, NObjectClient::TCellTag>& tableIdToCellTag,
+    const IMulticellThrottlerPtr& throttler,
     std::function<void(const NTabletClient::TMasterTabletServiceProxy::TReqGetTableBalancingAttributesPtr&)> prepareRequestProto);
 
 THashMap<NTabletClient::TTableReplicaId, NTabletClient::ETableReplicaMode> FetchChaosTableReplicaModes(
@@ -48,7 +53,8 @@ THashMap<NTabletClient::TTableReplicaId, NTabletClient::ETableReplicaMode> Fetch
 THashMap<NObjectClient::TObjectId, NYTree::IAttributeDictionaryPtr> FetchAttributes(
     const NApi::NNative::IClientPtr& client,
     const THashSet<NObjectClient::TObjectId>& objectIds,
-    const std::vector<std::string>& attributeKeys);
+    const std::vector<std::string>& attributeKeys,
+    const IMulticellThrottlerPtr& throttler);
 
 TInstant TruncatedNow();
 
