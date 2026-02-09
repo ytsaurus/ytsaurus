@@ -4043,9 +4043,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PollJobShell)
 
     auto jobId = FromProto<TJobId>(request->job_id());
     auto parameters = TYsonString(request->parameters());
-    auto shellName = request->has_shell_name()
-        ? std::make_optional(request->shell_name())
-        : std::nullopt;
+    auto shellName = YT_OPTIONAL_FROM_PROTO(*request, shell_name);
 
     TPollJobShellOptions options;
     SetTimeoutOptions(&options, context.Get());
@@ -4072,9 +4070,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, RunJobShellCommand)
 
     auto jobId = FromProto<TJobId>(request->job_id());
     auto command = request->command();
-    auto shellName = request->has_shell_name()
-        ? std::optional<std::string>(request->shell_name())
-        : std::nullopt;
+    auto shellName = YT_OPTIONAL_FROM_PROTO(*request, shell_name);
 
     TRunJobShellCommandOptions options;
     SetTimeoutOptions(&options, context.Get());
