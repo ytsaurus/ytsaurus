@@ -53,7 +53,7 @@ DEFINE_ENUM(EPortoErrorCode,
     ((NbdSocketTimeout)              ((PortoErrorCodeBase + Porto::EError::NbdSocketTimeout)))
     ((NbdSocketUnavailable)          ((PortoErrorCodeBase + Porto::EError::NbdSocketUnavailable)))
     ((NbdSocketError)                ((PortoErrorCodeBase + Porto::EError::NbdSocketError)))
-    ((NbdUnkownExport)               ((PortoErrorCodeBase + Porto::EError::NbdUnkownExport)))
+    ((NbdUnknownExport)              ((PortoErrorCodeBase + Porto::EError::NbdUnknownExport)))
     ((NbdProtoError)                 ((PortoErrorCodeBase + Porto::EError::NbdProtoError)))
 );
 
