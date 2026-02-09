@@ -586,6 +586,7 @@ public:
         IInvokerPtr controlInvoker,
         TBundleStateProviderConfigPtr config,
         IClusterStateProviderPtr clusterStateProvider,
+        IMulticellThrottlerPtr throttler,
         const IAttributeDictionary* initialAttributes);
 
     TFuture<TBundleSnapshotPtr> GetBundleSnapshot() override;
@@ -625,6 +626,7 @@ private:
     const std::string SelfClusterName_;
     const IClusterStateProviderPtr ClusterStateProvider_;
     const TPeriodicExecutorPtr PollExecutor_;
+    const IMulticellThrottlerPtr MasterRequestThrottler_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, TableRegistryLock_);
     const TTableRegistryPtr TableRegistry_;
@@ -715,13 +717,15 @@ private:
     static THashMap<TTableId, TTableSettings> FetchActualTableSettings(
         const NApi::NNative::IClientPtr& client,
         const THashSet<TTableId>& tableIdsToFetch,
-        const THashMap<TTableId, TCellTag>& tableIdToCellTag);
+        const THashMap<TTableId, TCellTag>& tableIdToCellTag,
+        const IMulticellThrottlerPtr& throttler);
 
     static THashMap<TTableId, TTableStatisticsResponse> FetchTableStatistics(
         const NApi::NNative::IClientPtr& client,
         const THashSet<TTableId>& tableIds,
         const THashSet<TTableId>& tableIdsToFetchPivotKeys,
         const THashMap<TTableId, TCellTag>& tableIdToCellTag,
+        const IMulticellThrottlerPtr& throttler,
         bool fetchPerformanceCounters,
         bool parameterizedBalancingEnabledDefault = false,
         THashSet<TTableId> tableIdsWithParameterizedBalancing = {});
@@ -774,6 +778,7 @@ TBundleState::TBundleState(
     IInvokerPtr controlInvoker,
     TBundleStateProviderConfigPtr config,
     IClusterStateProviderPtr clusterStateProvider,
+    IMulticellThrottlerPtr throttler,
     const IAttributeDictionary* initialAttributes)
     : Logger(TabletBalancerLogger().WithTag("BundleName: %v", name))
     , Profiler_(TabletBalancerProfiler().WithTag("tablet_cell_bundle", name))
@@ -789,6 +794,7 @@ TBundleState::TBundleState(
         ControlInvoker_,
         BIND(&TBundleState::FetchState, MakeWeak(this)),
         config->FetchPlannerPeriod))
+    , MasterRequestThrottler_(throttler)
     , TableRegistry_(New<TTableRegistry>())
     , Config_(std::move(config))
     , Counters_(New<TBundleProfilingCounters>(Profiler_))
@@ -1621,7 +1627,8 @@ void TBundleState::FetchStatistics(
     auto tableIdToSettings = FetchActualTableSettings(
         Client_,
         tableIdsToFetchSettings,
-        BuildTableToCellTagMapping(bundle->Tables));
+        BuildTableToCellTagMapping(bundle->Tables),
+        MasterRequestThrottler_);
     YT_LOG_DEBUG("Finished fetching actual table settings (TableCount: %v)", tableIdToSettings.size());
 
     THashSet<TTableId> tableIds;
@@ -1670,7 +1677,8 @@ void TBundleState::FetchStatistics(
         tableIdsToFetch,
         tableIdsToFetchPivotKeys,
         BuildTableToCellTagMapping(bundle->Tables),
-        !config->UseStatisticsReporter,
+        MasterRequestThrottler_,
+        /*fetchPerformanceCounters*/ !config->UseStatisticsReporter,
         /*parameterizedBalancingEnabledDefault*/ false,
         tableIdsWithParameterizedBalancing);
 
@@ -1847,6 +1855,7 @@ void TBundleState::FetchReplicaStatistics(
             tableIdsToFetchStatistics,
             /*tableIdsToFetchPivotKeys*/ tableIdsToFetchStatistics,
             tableIdToCellTag,
+            MasterRequestThrottler_,
             /*fetchPerformanceCounters*/ false,
             /*parameterizedBalancingEnabledDefault*/ true);
 
@@ -1949,7 +1958,7 @@ THashMap<TTabletCellId, TBundleState::TTabletCellInfo> TBundleState::FetchTablet
         }
     }
 
-    ExecuteRequestsToCellTags(&batchRequests);
+    ExecuteRequestsToCellTags(&batchRequests, MasterRequestThrottler_);
 
     THashMap<TTabletCellId, TTabletCellInfo> tabletCells;
     for (auto cellTag : cellTags) {
@@ -2017,7 +2026,7 @@ THashMap<TTableId, TTablePtr> TBundleState::FetchBasicTableAttributes(
     TTabletCellBundle* bundle) const
 {
     static const std::vector<std::string> attributeKeys{"path", "external", "sorted", "external_cell_tag"};
-    auto tableToAttributes = FetchAttributes(Client_, tableIds, attributeKeys);
+    auto tableToAttributes = FetchAttributes(Client_, tableIds, attributeKeys, MasterRequestThrottler_);
 
     THashMap<TTableId, TTablePtr> tableInfos;
     for (const auto& [tableId, attributes] : tableToAttributes) {
@@ -2044,13 +2053,15 @@ THashMap<TTableId, TTablePtr> TBundleState::FetchBasicTableAttributes(
 THashMap<TTableId, TTableSettings> TBundleState::FetchActualTableSettings(
     const NApi::NNative::IClientPtr& client,
     const THashSet<TTableId>& tableIdsToFetch,
-    const THashMap<TTableId, TCellTag>& tableIdToCellTag)
+    const THashMap<TTableId, TCellTag>& tableIdToCellTag,
+    const IMulticellThrottlerPtr& throttler)
 {
     auto cellTagToBatch = FetchTableAttributes(
         client,
         tableIdsToFetch,
         /*tableIdsToFetchPivotKeys*/ {},
         tableIdToCellTag,
+        throttler,
         [] (const NTabletClient::TMasterTabletServiceProxy::TReqGetTableBalancingAttributesPtr& request) {
             request->set_fetch_balancing_attributes(true);
         });
@@ -2091,6 +2102,7 @@ THashMap<TTableId, TTableStatisticsResponse> TBundleState::FetchTableStatistics(
     const THashSet<TTableId>& tableIds,
     const THashSet<TTableId>& tableIdsToFetchPivotKeys,
     const THashMap<TTableId, TCellTag>& tableIdToCellTag,
+    const IMulticellThrottlerPtr& throttler,
     bool fetchPerformanceCounters,
     bool parameterizedBalancingEnabledDefault,
     THashSet<TTableId> tableIdsWithParameterizedBalancing)
@@ -2103,6 +2115,7 @@ THashMap<TTableId, TTableStatisticsResponse> TBundleState::FetchTableStatistics(
         tableIds,
         tableIdsToFetchPivotKeys,
         tableIdToCellTag,
+        throttler,
         [fetchPerformanceCounters] (const NTabletClient::TMasterTabletServiceProxy::TReqGetTableBalancingAttributesPtr& request) {
             request->set_fetch_statistics(true);
             if (fetchPerformanceCounters) {
@@ -2242,6 +2255,7 @@ void TBundleState::FetchReplicaModes(
         const NNative::IClientPtr& localClient,
         const NNative::IClientPtr& client,
         const THashSet<TTableReplicaId>& replicaIds,
+        const IMulticellThrottlerPtr& throttler,
         auto replicaType)
     {
         switch (replicaType) {
@@ -2250,7 +2264,7 @@ void TBundleState::FetchReplicaModes(
 
             case EObjectType::TableReplica: {
                 static const std::vector<std::string> attributeKeys{"mode"};
-                auto tableToAttributes = FetchAttributes(client, replicaIds, attributeKeys);
+                auto tableToAttributes = FetchAttributes(client, replicaIds, attributeKeys, throttler);
 
                 THashMap<TTableReplicaId, ETableReplicaMode> modes;
                 for (const auto& [replicaId, attributes] : tableToAttributes) {
@@ -2291,7 +2305,7 @@ void TBundleState::FetchReplicaModes(
             replicaIds.size(),
             cellTag);
 
-        auto replicaIdToMode = fetchReplicaModes(Client_, client, replicaIds, replicaType);
+        auto replicaIdToMode = fetchReplicaModes(Client_, client, replicaIds, MasterRequestThrottler_, replicaType);
 
         YT_LOG_DEBUG("Finished fetching replica table modes (Cluster: %v, TableCount: %v)",
             clusterName,
@@ -2514,6 +2528,7 @@ IBundleStatePtr CreateBundleState(
     IInvokerPtr controlInvoker,
     TBundleStateProviderConfigPtr config,
     IClusterStateProviderPtr clusterStateProvider,
+    IMulticellThrottlerPtr throttler,
     const IAttributeDictionary* initialAttributes)
 {
     return New<TBundleState>(
@@ -2523,6 +2538,7 @@ IBundleStatePtr CreateBundleState(
         controlInvoker,
         config,
         clusterStateProvider,
+        throttler,
         initialAttributes);
 }
 

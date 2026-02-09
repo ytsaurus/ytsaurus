@@ -92,6 +92,8 @@ struct TTabletBalancerDynamicConfig
     std::vector<std::string> ClustersForBundleHealthCheck;
     int MaxUnhealthyBundlesOnReplicaCluster;
 
+    NConcurrency::TThroughputThrottlerConfigPtr MasterRequestThrottler;
+
     REGISTER_YSON_STRUCT(TTabletBalancerDynamicConfig);
 
     static void Register(TRegistrar registrar);

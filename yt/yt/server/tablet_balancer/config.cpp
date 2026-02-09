@@ -122,6 +122,13 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_unhealthy_bundles_on_replica_cluster", &TThis::MaxUnhealthyBundlesOnReplicaCluster)
         .Default(5);
 
+    registrar.Parameter("master_request_throttler", &TThis::MasterRequestThrottler)
+        .DefaultCtor([] {
+            auto throttler = New<NConcurrency::TThroughputThrottlerConfig>();
+            throttler->Limit = 300;
+            return throttler;
+        });
+
     registrar.Postprocessor([] (TThis* config) {
         if (config->Schedule.IsEmpty()) {
             THROW_ERROR_EXCEPTION("Schedule cannot be empty");
