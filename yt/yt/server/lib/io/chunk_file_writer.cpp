@@ -36,6 +36,23 @@ constinit const auto Logger = IOLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+i64 TruncateBlocks(NChunkClient::NProto::TBlocksExt& blocksExt, int truncateBlockCount, i64 oldDataSize)
+{
+    YT_LOG_FATAL_IF(
+        truncateBlockCount > blocksExt.blocks_size() || truncateBlockCount < 0,
+        "Invalid truncate block count (TruncateBlockCount: %v, BlockCount: %v)",
+        truncateBlockCount,
+        blocksExt.blocks_size());
+
+    i64 truncateDataSize = 0;
+    for (int index = truncateBlockCount; index < blocksExt.blocks_size(); ++index) {
+        truncateDataSize += blocksExt.blocks(index).size();
+    }
+    blocksExt.mutable_blocks()->Truncate(truncateBlockCount);
+    YT_VERIFY(truncateDataSize <= oldDataSize);
+    return oldDataSize - truncateDataSize;
+}
+
 TWriteBlocksRequest MakeWriteRequest(i64 startOffset, const std::vector<TBlock>& blocks, NChunkClient::NProto::TBlocksExt& blocksExt)
 {
     TWriteBlocksRequest request;
@@ -64,6 +81,19 @@ TWriteBlocksRequest MakeWriteRequest(i64 startOffset, const std::vector<TBlock>&
     return request;
 }
 
+TRefCountedChunkMetaPtr FinalizeChunkMeta(TDeferredChunkMetaPtr chunkMeta, const NChunkClient::NProto::TBlocksExt& blocksExt)
+{
+    if (!chunkMeta->IsFinalized()) {
+        auto& mapping = chunkMeta->BlockIndexMapping();
+        mapping = std::vector<int>(blocksExt.blocks().size());
+        std::iota(mapping->begin(), mapping->end(), 0);
+        chunkMeta->Finalize();
+    }
+
+    SetProtoExtension(chunkMeta->mutable_extensions(), blocksExt);
+    return chunkMeta;
+}
+
 TSharedMutableRef PrepareChunkMetaBlob(TChunkId chunkId, const TRefCountedChunkMetaPtr& chunkMeta)
 {
     auto metaData = SerializeProtoToRefWithEnvelope(*chunkMeta);
@@ -83,44 +113,6 @@ TSharedMutableRef PrepareChunkMetaBlob(TChunkId chunkId, const TRefCountedChunkM
     ::memcpy(buffer.Begin() + sizeof(header), metaData.Begin(), metaData.Size());
 
     return buffer;
-}
-
-TRefCountedChunkMetaPtr FinalizeChunkMeta(TDeferredChunkMetaPtr chunkMeta, const NChunkClient::NProto::TBlocksExt& blocksExt)
-{
-    if (!chunkMeta->IsFinalized()) {
-        auto& mapping = chunkMeta->BlockIndexMapping();
-        mapping = std::vector<int>(blocksExt.blocks().size());
-        std::iota(mapping->begin(), mapping->end(), 0);
-        chunkMeta->Finalize();
-    }
-
-    SetProtoExtension(chunkMeta->mutable_extensions(), blocksExt);
-    return chunkMeta;
-}
-
-i64 TruncateBlocks(NChunkClient::NProto::TBlocksExt& blocksExt, int truncateBlockCount, i64 oldDataSize)
-{
-    YT_LOG_FATAL_IF(
-        truncateBlockCount > blocksExt.blocks_size() || truncateBlockCount < 0,
-        "Invalid truncate block count (TruncateBlockCount: %v, BlockCount: %v)",
-        truncateBlockCount,
-        blocksExt.blocks_size());
-
-    i64 truncateDataSize = 0;
-    for (int index = truncateBlockCount; index < blocksExt.blocks_size(); ++index) {
-        truncateDataSize += blocksExt.blocks(index).size();
-    }
-    blocksExt.mutable_blocks()->Truncate(truncateBlockCount);
-    YT_VERIFY(truncateDataSize <= oldDataSize);
-    return oldDataSize - truncateDataSize;
-}
-
-TSharedMutableRef Close(TChunkId chunkId, TDeferredChunkMetaPtr chunkMeta, const NChunkClient::NProto::TBlocksExt& blocksExt)
-{
-    auto finalizedChunkMeta = FinalizeChunkMeta(std::move(chunkMeta), blocksExt);
-
-    auto chunkMetaBlob = PrepareChunkMetaBlob(chunkId, finalizedChunkMeta);
-    return chunkMetaBlob;
 }
 
 //////////////////////////////////////////////////////////////////////////////

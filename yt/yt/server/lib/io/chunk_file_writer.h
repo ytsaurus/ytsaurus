@@ -27,18 +27,13 @@ struct TWriteBlocksRequest
     std::vector<TSharedRef> Buffers;
 };
 
+i64 TruncateBlocks(NChunkClient::NProto::TBlocksExt& blocksExt, int truncateBlockCount, i64 oldDataSize);
+
 TWriteBlocksRequest MakeWriteRequest(i64 startOffset, const std::vector<NChunkClient::TBlock>& blocks, NChunkClient::NProto::TBlocksExt& blocksExt);
-
-TSharedMutableRef Close(
-    NChunkClient::TChunkId chunkId,
-    NChunkClient::TDeferredChunkMetaPtr chunkMeta,
-    const NChunkClient::NProto::TBlocksExt& blocksExt);
-
-TSharedMutableRef PrepareChunkMetaBlob(NChunkClient::TChunkId chunkId, const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta);
 
 NChunkClient::TRefCountedChunkMetaPtr FinalizeChunkMeta(NChunkClient::TDeferredChunkMetaPtr chunkMeta, const NChunkClient::NProto::TBlocksExt& blocksExt);
 
-i64 TruncateBlocks(NChunkClient::NProto::TBlocksExt& blocksExt, int truncateBlockCount, i64 oldDataSize);
+TSharedMutableRef PrepareChunkMetaBlob(NChunkClient::TChunkId chunkId, const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta);
 
 ////////////////////////////////////////////////////////////////////////////
 
