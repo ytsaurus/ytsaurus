@@ -113,7 +113,7 @@ enum EError {
     NbdSocketError = 35;
 
     // Unkown nbd export
-    NbdUnkownExport = 36;
+    NbdUnknownExport = 36;
 
     // Invalid message from nbd server
     NbdProtoError = 37;
