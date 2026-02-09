@@ -1179,6 +1179,10 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
 
     SleepInPrepare();
 
+    if (Spec_->JobTestingOptions && Spec_->JobTestingOptions->FindChild("events_on_fs") && !Config_->TestingOptions->EnableEventsOnFs) {
+        THROW_ERROR_EXCEPTION("\"events_on_fs\" is not enabled");
+    }
+
     // Testing purpose code.
     if (Config_->EnableControllerFailureSpecOption &&
         Spec_->TestingOperationOptions->ControllerFailure)
