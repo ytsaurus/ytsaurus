@@ -3,7 +3,7 @@ name: Release tutorial generator
 on:
   push:
     tags:
-      - 'docker/tutorial/0\.[0-9]+\.[0-9]+'
+      - 'docker/tutorial/0\.[0-9]+\.[0-9]+*'
 
 jobs:
   release:
