@@ -330,7 +330,7 @@ $ yt get //home/my_user/@effective_acl
 
 ### Managing cluster nodes
 
-Significant part of cluster management is nodes operations such as commission and decomimssion of nodes, handling various issues on a specific node.
+Significant part of cluster management is nodes operations such as commission and decommission of nodes, handling various issues on a specific node.
 
 Common information about cluster nodes is available in the UI. However, it's worth to know how nodes are represented in Cypress and what attributes they have.
 
