@@ -94,7 +94,6 @@ TRefCountedChunkMetaPtr FinalizeChunkMeta(TDeferredChunkMetaPtr chunkMeta, const
         chunkMeta->Finalize();
     }
 
-    // ChunkMeta_->CopyFrom(*chunkMeta);
     SetProtoExtension(chunkMeta->mutable_extensions(), blocksExt);
     return chunkMeta;
 }
@@ -121,7 +120,6 @@ TSharedMutableRef Close(TChunkId chunkId, TDeferredChunkMetaPtr chunkMeta, const
     auto finalizedChunkMeta = FinalizeChunkMeta(std::move(chunkMeta), blocksExt);
 
     auto chunkMetaBlob = PrepareChunkMetaBlob(chunkId, finalizedChunkMeta);
-    // UpdateChunkInfoDiskSpace(chunkMetaBlob.size() + 0);
     return chunkMetaBlob;
 }
 
@@ -284,9 +282,7 @@ bool TChunkFileWriter::WriteBlocks(
         return false;
     }
 
-    auto oldDataSize = GetDataSize();
     auto writeRequest = MakeWriteRequest(DataSize_, blocks, BlocksExt_);
-    DataSize_ = writeRequest.EndOffset;
 
     ReadyEvent_ =
         IOEngine_->Write({
@@ -300,7 +296,7 @@ bool TChunkFileWriter::WriteBlocks(
         .Apply(BIND([
             this,
             this_ = MakeStrong(this),
-            oldDataSize,
+            newDataSize = writeRequest.EndOffset,
             blockCount = blocks.size(),
             chunkWriterStatistics = options.ClientOptions.ChunkWriterStatistics
         ] (const TErrorOr<TWriteResponse>& rspOrError) {
@@ -314,13 +310,14 @@ bool TChunkFileWriter::WriteBlocks(
             }
 
             const auto& rsp = rspOrError.Value();
-            YT_VERIFY(DataSize_ - oldDataSize == rsp.WrittenBytes);
+            YT_VERIFY(newDataSize - DataSize_ == rsp.WrittenBytes);
 
             chunkWriterStatistics->DataBytesWrittenToDisk.fetch_add(rsp.WrittenBytes, std::memory_order::relaxed);
             chunkWriterStatistics->DataBlocksWrittenToDisk.fetch_add(blockCount, std::memory_order::relaxed);
             chunkWriterStatistics->DataIOWriteRequests.fetch_add(rsp.IOWriteRequests, std::memory_order::relaxed);
             chunkWriterStatistics->DataIOSyncRequests.fetch_add(rsp.IOSyncRequests, std::memory_order::relaxed);
 
+            DataSize_ = newDataSize;
             State_.store(EState::Ready);
         }).AsyncVia(IOEngine_->GetAuxPoolInvoker()));
 
@@ -370,7 +367,6 @@ TFuture<void> TChunkFileWriter::Close(
             YT_VERIFY(State_.load() == EState::Closing);
 
             ChunkMeta_->CopyFrom(*FinalizeChunkMeta(std::move(chunkMeta), BlocksExt_));
-            SetProtoExtension(chunkMeta->mutable_extensions(), BlocksExt_);
 
             chunkWriterStatistics->DataIOSyncRequests.fetch_add(rsp.IOSyncRequests, std::memory_order::relaxed);
 
