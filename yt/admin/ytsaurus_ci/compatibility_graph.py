@@ -1,3 +1,4 @@
+from functools import cmp_to_key
 from itertools import product
 from typing import Any, Dict, List
 
@@ -54,6 +55,13 @@ def _satisfies_constraint(version, constraint):
 
 
 def _compare_versions(lhs, rhs):
+    if lhs.isalpha() and rhs.isalpha():
+        return 0
+    elif lhs.isalpha():
+        return 1
+    elif rhs.isalpha():
+        return -1
+
     parts1 = [int(x) for x in lhs.split('.')]
     parts2 = [int(x) for x in rhs.split('.')]
     max_len = max(len(parts1), len(parts2))
@@ -178,3 +186,38 @@ def print_suites(paths: List[Dict[str, str]]):
         for component, version in sorted(path.items()):
             print(f"  {component:20s}: {version}")
         print()
+
+
+def format_compat_table(registry, pivot_component: str) -> str:
+    components = sorted(registry.get_components())
+    components.remove(pivot_component)
+    versions = sorted(
+        registry.get_component_versions(pivot_component),
+        key=cmp_to_key(_compare_versions),
+        reverse=True,
+    )
+
+    def cell_text(constraint):
+        if constraint is None or constraint == "—":
+            return "—"
+        if isinstance(constraint, list):
+            return ", ".join(str(x) for x in constraint)
+
+        return str(constraint).strip()
+
+    lines = [f"# {pivot_component}", ""]
+    for ver in versions:
+        lines.append(f'% cut "**{ver}**" %')
+        lines.append("")
+        lines.append("| component | requirements |")
+        lines.append("|-----------|------------|")
+        constraints = registry.get_constraints(pivot_component, ver) or {}
+        for other in components:
+            c = constraints.get(other, "—")
+            t = cell_text(c)
+            cell = f"`{t}`" if t != "—" else "—"
+            lines.append(f"| {other} | {cell} |")
+        lines.append("% endcut %")
+        lines.append("")
+
+    return "\n".join(lines) + "\n"
