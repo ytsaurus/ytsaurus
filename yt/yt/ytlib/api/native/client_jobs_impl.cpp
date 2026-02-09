@@ -34,12 +34,12 @@ class TJobShellCommandOutputReader
 {
 public:
     TJobShellCommandOutputReader(
-        TClient* client,
+        IClientPtr client,
         TJobId jobId,
         std::string shellId,
         std::optional<TString> shellName,
         const NLogging::TLogger& logger)
-        : Client_(client)
+        : Client_(std::move(client))
         , JobId_(jobId)
         , ShellName_(std::move(shellName))
         , ShellId_(std::move(shellId))
@@ -79,19 +79,19 @@ public:
 
                 auto output = resultMap->FindChildValue<std::string>("output");
 
-                if (output) {
-                    return TSharedRef::FromString(*output);
+                if (!output) {
+                    THROW_ERROR_EXCEPTION("No output from job shell")
+                        << TErrorAttribute("job_id", JobId_)
+                        << TErrorAttribute("shell_name", ShellName_)
+                        << TErrorAttribute("shell_id", ShellId_);
                 }
 
-                THROW_ERROR_EXCEPTION("No output from job shell")
-                    << TErrorAttribute("job_id", JobId_)
-                    << TErrorAttribute("shell_name", ShellName_)
-                    << TErrorAttribute("shell_id", ShellId_);
+                return TSharedRef::FromString(*output);
             }));
     }
 
 private:
-    TClient* const Client_;
+    const IClientPtr Client_;
     const TJobId JobId_;
     const std::optional<TString> ShellName_;
     const std::string ShellId_;
@@ -273,10 +273,12 @@ IAsyncZeroCopyInputStreamPtr TClient::DoRunJobShellCommand(
     auto result = ConvertToNode(rsp.Result);
     auto shellId = result->AsMap()->GetChildValueOrThrow<std::string>("shell_id");
 
-    YT_LOG_DEBUG("Job shell spawned (JobId: %v, ShellId: %v)", jobId, shellId);
+    YT_LOG_DEBUG("Job shell spawned (JobId: %v, ShellId: %v)",
+        jobId,
+        shellId);
 
     return New<TJobShellCommandOutputReader>(
-        this,
+        StaticPointerCast<IClient>(MakeStrong(this)),
         jobId,
         shellId,
         std::move(shellNameConverted),
