@@ -207,7 +207,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     }
 
     if (effectiveConstraints && effectiveTableSchema) {
-        ValidateConstrainedSchemaCreation(
+        ValidateConstrainedTableSchemaCreation(
             *schema,
             *effectiveConstraints);
     }

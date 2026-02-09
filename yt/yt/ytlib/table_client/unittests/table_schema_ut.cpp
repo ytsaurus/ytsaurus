@@ -675,7 +675,7 @@ TEST_F(TConstrainedTableSchemaTest, ValidateAlter)
         EmplaceOrCrash(newConstraints, "column2", "BETWEEN 2 AND 3");
 
         EXPECT_THROW_WITH_SUBSTRING(
-            ValidateConstrainedSchemaAlteration(schema, schema, oldConstraints, newConstraints, /*isTableEmpty*/ false),
+            ValidateConstrainedTableSchemaAlter(schema, schema, oldConstraints, newConstraints, /*isTableEmpty*/ false),
             "Constraint for unknown column");
     }
 
@@ -687,7 +687,7 @@ TEST_F(TConstrainedTableSchemaTest, ValidateAlter)
         EmplaceOrCrash(newConstraints, "column1", "BETWEEN 2 AND 3");
 
         EXPECT_THROW_WITH_SUBSTRING(
-            ValidateConstrainedSchemaAlteration(schema, schema, oldConstraints, newConstraints, /*isTableEmpty*/ false),
+            ValidateConstrainedTableSchemaAlter(schema, schema, oldConstraints, newConstraints, /*isTableEmpty*/ false),
             "cannot be changed");
     }
 
@@ -701,7 +701,7 @@ TEST_F(TConstrainedTableSchemaTest, ValidateAlter)
         });
 
         EXPECT_THROW_WITH_SUBSTRING(
-            ValidateConstrainedSchemaAlteration(schema, newSchema, constraints, constraints, /*isTableEmpty*/ false),
+            ValidateConstrainedTableSchemaAlter(schema, newSchema, constraints, constraints, /*isTableEmpty*/ false),
             "Altering type for constrained column is forbidden");
     }
 
@@ -712,7 +712,7 @@ TEST_F(TConstrainedTableSchemaTest, ValidateAlter)
         EmplaceOrCrash(newConstraints, "column1", "BETWEEN 2 AND 3");
 
         EXPECT_THROW_WITH_SUBSTRING(
-            ValidateConstrainedSchemaAlteration(schema, schema, oldConstraints, newConstraints, /*isTableEmpty*/ false),
+            ValidateConstrainedTableSchemaAlter(schema, schema, oldConstraints, newConstraints, /*isTableEmpty*/ false),
             "Constraint cannot be added for existing column");
     }
 }
