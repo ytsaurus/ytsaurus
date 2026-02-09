@@ -2087,7 +2087,7 @@ class TestNbdSquashFSLayers(YTEnvSetup):
 
         # Get initial log counts before running the operation.
         initial_logs_cache_hit_count = len(self._get_node_debug_logs("RO NBD volume is either already in the cache or is being inserted"))
-        initial_logs_removed_count = len(self._get_node_debug_logs("Removed RO NBD volume"))
+        initial_logs_removed_count = len(self._get_node_debug_logs("Removed volume (VolumeType: RO NBD"))
 
         # Run map operation with NUM_USER_SLOTS jobs.
         map(
@@ -2105,7 +2105,7 @@ class TestNbdSquashFSLayers(YTEnvSetup):
 
         # Get final log counts after operation completes.
         final_logs_cache_hit_count = len(self._get_node_debug_logs("RO NBD volume is either already in the cache or is being inserted"))
-        final_logs_removed_count = len(self._get_node_debug_logs("Removed RO NBD volume"))
+        final_logs_removed_count = len(self._get_node_debug_logs("Removed volume (VolumeType: RO NBD"))
 
         # Check that all jobs but the first one hit cache.
         logs_cache_hit_delta = final_logs_cache_hit_count - initial_logs_cache_hit_count
