@@ -7,10 +7,24 @@ from yt.environment.components.query_tracker import QueryTracker as QueryTracker
 
 from yt.environment.helpers import wait_for_dynamic_config_update
 
+from yt.logger import BASIC_FORMATTER
+
 from yt_queries import list_queries
 
 import pytest
 
+import logging
+
+import sys
+
+
+STDOUT_HANDLER = logging.StreamHandler(stream=sys.stdout)
+STDOUT_HANDLER.setFormatter(BASIC_FORMATTER)
+
+TEST_SETUP_TEARDOWN_LOGGER = logging.getLogger("Yt.TestSetupTeardown")
+TEST_SETUP_TEARDOWN_LOGGER.addHandler(STDOUT_HANDLER)
+TEST_SETUP_TEARDOWN_LOGGER.setLevel = logging.INFO
+TEST_SETUP_TEARDOWN_LOGGER.propagate = False
 
 pytest_plugins = [
     "yt.test_helpers.authors",
@@ -59,3 +73,19 @@ def query_tracker(request):
     with QueryTracker(cls.Env, count) as query_tracker:
         update_query_tracker_environment(cls, query_tracker)
         yield query_tracker
+
+
+def pytest_runtest_call(item):
+    TEST_SETUP_TEARDOWN_LOGGER.info(f"start test: {item.nodeid}")
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_fixture_setup(fixturedef, request):
+    TEST_SETUP_TEARDOWN_LOGGER.info(f"setup fixture : {fixturedef.argname}, node: {request.node.nodeid}")
+
+    res = yield
+
+    if res.excinfo is None:
+        def _log_teardown():
+            TEST_SETUP_TEARDOWN_LOGGER.info(f"teardown fixture : {fixturedef.argname}, node: {request.node.nodeid}")
+        request.addfinalizer(_log_teardown)
