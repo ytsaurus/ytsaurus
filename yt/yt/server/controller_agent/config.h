@@ -74,6 +74,8 @@ struct TTestingOptions
 
     bool AbortOutputTransactionAfterCompletionTransactionCommit;
 
+    bool EnableEventsOnFs;
+
     REGISTER_YSON_STRUCT(TTestingOptions);
 
     static void Register(TRegistrar registrar);

@@ -6,6 +6,7 @@ TEST_SRCS(
     test_controller_agent.py
     test_controller_transactions.py
     test_erase_operation.py
+    test_events_on_fs.py
     test_fast_intermediate_medium.py
     test_features.py
     test_job_experiment.py
