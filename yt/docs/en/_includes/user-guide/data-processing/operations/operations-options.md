@@ -48,12 +48,14 @@ The default values, if set, are provided in parentheses:
   {% endnote %}
 
 - `omit_inaccessible_columns` (false) — skips columns that cannot be accessed. By default, operations in this scenario end with an error at startup.
+- `omit_inaccessible_rows` (false) — skips rows that cannot be accessed. By default, operations in this scenario end with an error at startup.
 - `alias` — alias of the operation. Makes the operation available in search and through the commands (e.g. `get-operation`) on the specified row.
   The alias must start with the `*` symbol. Only one operation with this given alias can be run simultaneously. You can run an operation with another alias or rerun the operation with the same alias after it is completed. The `get-operation` returns the recent operation.
 - `job_node_account` (tmp_jobs) — account under which chunks of files with the error log (stderr) and input context are stored.
 - `suspend_operation_if_account_limit_exceeded` (false) — suspends (pauses) the operation in case of the "Account limit exceeded" error in a job.
 - `enable_job_splitting` (true) — determines if the scheduler is allowed to adaptively split user jobs that take a long time.
 - `fail_on_job_restart` (false) — force-interrupts the operation if a started job terminates in any state other than success (such as abort or fail). Useful for operations that do not tolerate job restarts.
+- `suspend_on_job_failure` (false) — suspends (pauses) the operation if any job fails. When enabled, instead of failing the operation after reaching `max_failed_job_count`, the operation is suspended for investigation. The operation can be resumed after addressing the issue.
 - `title` — operation title. The passed-in text is shown in the web interface.
 - `started_by` — a map describing the client that started the operation. This field is not associated with a strict schema. The specified information is shown on the operation page in the web interface.
 - `annotations` — a map where the user can write any structured information related to the operation. The `annotations` contents are saved to the operation archive as [YSON](../../../../user-guide/storage/formats.md#yson) and can then be used to look up and identify operations within the archive.
