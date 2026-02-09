@@ -20,7 +20,7 @@ except ImportError:
 from .common.sensors import SchedulerOperations
 
 try:
-    from .constants import (
+    from .yandex_constants import (
         JOB_STATISTICS_DOCUMENTATION_URL,
     )
 except ImportError:
