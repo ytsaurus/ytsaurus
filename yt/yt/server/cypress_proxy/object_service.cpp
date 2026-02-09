@@ -1031,9 +1031,12 @@ private:
         };
 
         auto relevantSubrequestCount = std::ranges::count_if(Subrequests_, isSubrequestRelevant);
-        if (relevantSubrequestCount != 0) {
-            MaybeSyncWithMaster();
+        if (relevantSubrequestCount == 0) {
+            // No Sequoia requests are present.
+            return;
         }
+
+        MaybeSyncWithMaster();
 
         const auto& invoker = Owner_->GetDefaultInvoker();
         std::vector<TFuture<std::optional<TSharedRefArray>>> asyncSubresponses;
