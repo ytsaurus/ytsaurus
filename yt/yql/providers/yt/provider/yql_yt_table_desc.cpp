@@ -331,7 +331,7 @@ bool TYtTableDescriptionBase::Fill(const TString& provider, const TString& clust
     RowType = RawRowType;
 
     bool onlyRawView = false;
-    if (TYtTableIntent::View == Intents) {
+    if ((TYtTableIntent::View | TYtTableIntent::Read) == Intents) {
         for (auto& view : Views) {
             if (view.first == TStringBuf("raw")) {
                 onlyRawView = true;
