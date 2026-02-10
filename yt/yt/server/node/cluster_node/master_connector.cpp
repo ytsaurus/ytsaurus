@@ -11,6 +11,7 @@
 
 #include <yt/yt/server/node/data_node/bootstrap.h>
 #include <yt/yt/server/node/data_node/chunk_store.h>
+#include <yt/yt/server/node/data_node/config.h>
 #include <yt/yt/server/node/data_node/location.h>
 #include <yt/yt/server/node/data_node/medium_directory_manager.h>
 #include <yt/yt/server/node/data_node/medium_updater.h>

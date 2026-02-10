@@ -803,7 +803,7 @@ TChunkStore::TPerLocationChunkMap TChunkStore::GetPerLocationChunksUnsafe(
     return result;
 }
 
-void TChunkStore::CheckAllChunksHaveValidCellTags(THashSet<NObjectClient::TCellTag> masterCellTags) const
+void TChunkStore::CheckAllChunksHaveValidCellTags(const THashSet<NObjectClient::TCellTag>& masterCellTags) const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 

@@ -1730,6 +1730,20 @@ private:
         SecondaryMasterCellListChanged_.Fire(newSecondaryMasterConfigs);
         ReadyToUpdateHeartbeatStream_.Fire(newSecondaryMasterConfigs);
 
+        if (NeedDataNodeBootstrap() && !newSecondaryMasterConfigs.empty()) {
+            const auto& dataNodeBootstrap = GetDataNodeBootstrap();
+            if (GetDynamicConfigManager()->GetConfig()->DataNode->MasterConnector->CheckChunksCellTagsAfterReceivingNewMasterCellConfigs) {
+                YT_UNUSED_FUTURE(
+                    // NB: Master cell tags were updated during firing the above signals.
+                    BIND([weakThis = MakeWeak(this), dataNodeBootstrap, masterCellTags = GetMasterConnector()->GetMasterCellTags()] {
+                        if (auto this_ = weakThis.Lock()) {
+                            dataNodeBootstrap->GetChunkStore()->CheckAllChunksHaveValidCellTags(masterCellTags);
+                        }
+                    }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+                    .Run());
+            }
+        }
+
         {
             auto guard = WriterGuard(SecondaryMasterConnectionLock_);
             for (const auto& [cellTag, masterConfig] : newSecondaryMasterConfigs) {

@@ -476,6 +476,11 @@ struct TMasterConnectorDynamicConfig
 
     bool CheckChunksCellTagsBeforeHeartbeats;
 
+    // COMPAT(cherepashka)
+    bool ForceSyncMasterCellDirectoryBeforeCheckChunks;
+
+    bool CheckChunksCellTagsAfterReceivingNewMasterCellConfigs;
+
     REGISTER_YSON_STRUCT(TMasterConnectorDynamicConfig);
 
     static void Register(TRegistrar registrar);
