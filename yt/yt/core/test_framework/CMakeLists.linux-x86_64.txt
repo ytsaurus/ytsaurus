@@ -43,6 +43,7 @@ target_link_libraries(yt-core-test_framework PUBLIC
   yt-yt-core
   yt-core-http
   library-profiling-solomon
+  backtrace-symbolizers-dwarf
   library-cpp-resource
 )
 
@@ -78,6 +79,7 @@ target_link_libraries(yt-core-test_framework.global PUBLIC
   yt-yt-core
   yt-core-http
   library-profiling-solomon
+  backtrace-symbolizers-dwarf
   library-cpp-resource
 )
 
