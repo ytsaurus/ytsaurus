@@ -173,7 +173,7 @@ public:
      *  \note
      *  Thread affinity: any
      */
-    void CheckAllChunksHaveValidCellTags(THashSet<NObjectClient::TCellTag> masterCellTags) const;
+    void CheckAllChunksHaveValidCellTags(const THashSet<NObjectClient::TCellTag>& masterCellTags) const;
 
     //! Physically removes or move to trash the location chunk. This method called with registering in location actions.
     /*!
