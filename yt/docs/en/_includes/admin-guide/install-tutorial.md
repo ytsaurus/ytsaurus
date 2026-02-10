@@ -28,6 +28,7 @@ yt create map_node //home/tutorial
 Assign the minimal required ACLs to the user (assuming the user has permissions to create tables and execute queries):
 
 ```bash
+yt add-member robot-tutorial superusers
 yt set //home/tutorial/@acl/end '{action=allow; subjects=[robot-tutorial]; permissions=[read; write; create; remove; mount]}'
 yt set //sys/tablet_cell_bundles/sys/@acl/end '{action=allow; subjects=[robot-tutorial];permissions=[use]}'
 yt set //sys/accounts/sys/@acl/end '{action=allow; subjects=[robot-tutorial]; permissions=[use]}'
@@ -52,10 +53,9 @@ kubectl create secret generic yt-tutorial-secret \
 Typically, installation can be performed as follows:
 
 ```bash
-helm install oci://ghcr.io/ytsaurus/tutorial-chart \
+helm install ytsaurus-tutorial oci://ghcr.io/ytsaurus/tutorial-chart \
      --version {{tutorial-version}} \
-     ytsaurus-tutorial \
-     --set tutorial.args.proxy="http://http-proxies.default.svc.cluster.local" \
+     --set tutorial.args.proxy="http://http-proxies.<namespace>.svc.cluster.local" \
      -n <namespace>
 ```
 
