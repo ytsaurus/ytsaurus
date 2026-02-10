@@ -211,6 +211,12 @@ def build_queue_consumer_metric_rowsets(backend: str):
         .alias("Partition time lag [{{partition_index}}]")
         .stack(False))
 
+    offset = (MonitoringExpr(QueueAgent("yt.queue_agent.consumer_partition.offset.max"))
+        .all("partition_index")
+        .top_last(50)
+        .alias("Offset [{{partition_index}}]")
+        .stack(False))
+
     rowset = Rowset()
     (rowset
         .row()
@@ -228,7 +234,12 @@ def build_queue_consumer_metric_rowsets(backend: str):
                 .cell("Row lag (top 50)", monitoring_top50_row_lag)
                 .cell("Time lag (top 50)", monitoring_top50_time_lag)
             .row()
-                .cell("Lag time histogram", lag_time_histogram))
+                .cell("Lag time histogram", lag_time_histogram)
+                .cell("Offset", offset))
+    else:
+        (rowset
+            .row()
+                .cell("Offset", offset))
 
     return [rowset]
 
