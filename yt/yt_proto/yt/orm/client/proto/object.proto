@@ -123,24 +123,6 @@ enum EAttributeSensorPolicy
     ASP_UPDATE = 2;
 }
 
-enum EObjectWithReferenceRemovalPolicy
-{
-    // Both sides of reference can be removed independently. The reference between them also gets removed.
-    OWRRP_REMOVAL_ALLOWED = 0;
-
-    // Removal of the defined part of the reference is forbidden.
-    //
-    // E.g. in the one-to-many reference removal of `one` part is forbidden
-    // if there exists any `many` object connected to it.
-    OWRRP_SOURCE_REMOVAL_FORBIDDEN = 1;
-
-    // Removal of generated part of the reference is forbidden.
-    OWRRP_TARGET_REMOVAL_FORBIDDEN = 2;
-
-    // Both sides of reference cannot be removed until the reference itself is removed.
-    OWRRP_REMOVAL_FORBIDDEN = 3;
-}
-
 enum ECascadingRemovalPolicy
 {
     // Remove object with all its descendants.
