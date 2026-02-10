@@ -96,6 +96,7 @@ func newOutput(config *Config, logConfig JSONLogConfig, task timbertruck.TaskArg
 				Logger:                task.Controller.Logger(),
 				BytesPerRow:           logConfig.QueueBatchSize,
 				BytesPerRowsBatch:     ytQueueConfig.BytesPerRowsBatch,
+				RowsBatchFlushTimeout: ytQueueConfig.RowsBatchFlushTimeout,
 				MaxCompressedRowBytes: ytQueueConfig.MaxCompressedRowBytes,
 				OnSent: func(meta pipelines.RowMeta) {
 					task.Controller.NotifyProgress(meta.End)

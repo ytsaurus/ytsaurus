@@ -38,6 +38,12 @@ type Config struct {
 	// Default value is 0.
 	BytesPerRowsBatch int `yaml:"bytes_per_rows_batch"`
 
+	// RowsBatchFlushTimeout specifies the maximum time to keep a partially filled rows batch before flushing.
+	// If 0, flush only when batch reaches BytesPerRowsBatch.
+	//
+	// Default value is 0 (disabled).
+	RowsBatchFlushTimeout time.Duration `yaml:"rows_batch_flush_timeout"`
+
 	// MaxCompressedRowBytes specifies the maximum size in bytes of a compressed row.
 	// Rows exceeding this limit will be skipped with reason 'compressed_too_large'.
 	// Must be <= 16 MiB (YT hard limit).
@@ -66,6 +72,9 @@ type OutputConfig struct {
 	// BytesPerRowsBatch specifies the minimum total size in bytes of compressed rows to batch before pushing to YT queue.
 	// If 0, each row is pushed immediately.
 	BytesPerRowsBatch int
+
+	// RowsBatchFlushTimeout specifies the maximum time to keep a partially filled rows batch before flushing.
+	RowsBatchFlushTimeout time.Duration
 
 	// MaxCompressedRowBytes specifies the maximum size in bytes of a compressed row.
 	// Rows exceeding this limit will be skipped.
@@ -134,6 +143,7 @@ func NewOutput(ctx context.Context, config OutputConfig) (out pipelines.Output[p
 
 		bytesPerRowsBatch:     config.BytesPerRowsBatch,
 		maxCompressedRowBytes: maxCompressedRowBytes,
+		rowsBatchFlushTimeout: config.RowsBatchFlushTimeout,
 
 		logger:       config.Logger,
 		onSent:       config.OnSent,
@@ -169,10 +179,12 @@ type output struct {
 
 	bytesPerRowsBatch     int
 	maxCompressedRowBytes int
-	toCompress            chan sendItem
-	toSend                chan sendItem
-	compressorDone        chan struct{}
-	senderDone            chan struct{}
+	rowsBatchFlushTimeout time.Duration
+
+	toCompress     chan sendItem
+	toSend         chan sendItem
+	compressorDone chan struct{}
+	senderDone     chan struct{}
 
 	onSent       func(meta pipelines.RowMeta)
 	onSkippedRow func(data io.WriterTo, info pipelines.SkippedRowInfo)
@@ -224,21 +236,47 @@ func (o *output) compressorLoop() {
 }
 
 func (o *output) senderLoop() {
+	defer close(o.senderDone)
+
 	var batch []sendItem
 	var totalRowsBytes int
 
-	for item := range o.toSend {
-		batch = append(batch, item)
-		totalRowsBytes += len(item.row.Value)
-		if totalRowsBytes >= o.bytesPerRowsBatch {
-			o.flushBatch(batch)
-			batch = batch[:0]
-			totalRowsBytes = 0
+	var timer *time.Timer
+	var timerCh <-chan time.Time
+	if o.rowsBatchFlushTimeout > 0 {
+		timer = time.NewTimer(o.rowsBatchFlushTimeout)
+		timer.Stop()
+		timerCh = timer.C
+	}
+
+	flush := func() {
+		o.flushBatch(batch)
+		batch = batch[:0]
+		totalRowsBytes = 0
+		if timer != nil {
+			timer.Stop()
 		}
 	}
 
-	o.flushBatch(batch)
-	close(o.senderDone)
+	for {
+		select {
+		case item, ok := <-o.toSend:
+			if !ok {
+				flush()
+				return
+			}
+			if len(batch) == 0 && timer != nil {
+				timer.Reset(o.rowsBatchFlushTimeout)
+			}
+			batch = append(batch, item)
+			totalRowsBytes += len(item.row.Value)
+			if totalRowsBytes >= o.bytesPerRowsBatch {
+				flush()
+			}
+		case <-timerCh:
+			flush()
+		}
+	}
 }
 
 func (o *output) flushBatch(batch []sendItem) {
