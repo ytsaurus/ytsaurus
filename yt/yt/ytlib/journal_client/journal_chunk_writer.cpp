@@ -714,7 +714,7 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (!Error_.IsOK()) {
-            return VoidFuture;
+            return MakeFuture(Error_);
         }
 
         YT_LOG_DEBUG("Closing journal chunk writer");
@@ -744,8 +744,11 @@ private:
             // to finish as well so subsequent seal will not trigger undesireable recovery.
             return ClosingPromise_.ToFuture()
                 .WithTimeout(Config_->ChunkCloseGracePeriod)
-                .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& /*error*/) {
+                .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
                     OnWriterFinished();
+                    if (!error.IsOK()) {
+                        THROW_ERROR(error);
+                    }
                 })
                 .AsyncVia(Invoker_));
         })

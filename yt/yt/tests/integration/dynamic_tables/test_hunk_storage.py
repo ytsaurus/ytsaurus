@@ -17,7 +17,7 @@ from yt.common import YtError
 
 import yt.yson as yson
 
-from yt_error_codes import ResolveErrorCode, HunkTabletStoreToggleConflict
+from yt_error_codes import ResolveErrorCode, HunkTabletStoreToggleConflict, HunkStoreAllocationFailed
 
 import pytest
 
@@ -64,6 +64,18 @@ class TestHunkStorage(DynamicTablesBase):
     def _remove_hunk_storage(self, path):
         wait(lambda: get(f"{path}/@associated_nodes") == [])
         remove(path)
+
+    def _write_hunks_with_retries(self, path, rows, tablet_index=0, retry_count=100):
+        iteration = 0
+        while iteration < retry_count:
+            iteration += 1
+            try:
+                result = write_hunks(path, rows, tablet_index=tablet_index)
+                return result
+            except YtError as e:
+                if not e.contains_code(HunkTabletStoreToggleConflict) and \
+                   not e.contains_code(HunkStoreAllocationFailed):
+                    raise e
 
     @authors("gritukan")
     def test_create_remove(self):
@@ -161,7 +173,7 @@ class TestHunkStorage(DynamicTablesBase):
 
         store_id = self._get_active_store_id("//tmp/h")
         assert exists("#{}".format(store_id))
-        hunks = write_hunks("//tmp/h", ["a", "bb"])
+        hunks = self._write_hunks_with_retries("//tmp/h", ["a", "bb"])
         assert hunks == [
             {"chunk_id": store_id, "block_index": 0, "block_offset": 0, "length": 9,
              "erasure_codec": erasure_codec, "block_size": 19},
@@ -235,10 +247,10 @@ class TestHunkStorage(DynamicTablesBase):
 
         store_id = self._get_active_store_id("//tmp/h")
 
-        hunk1 = write_hunks("//tmp/h", ["a"])[0]
+        hunk1 = self._write_hunks_with_retries("//tmp/h", ["a"])[0]
         wait(lambda: self._get_active_store_id("//tmp/h") != store_id)
 
-        hunk2 = write_hunks("//tmp/h", ["a"])[0]
+        hunk2 = self._write_hunks_with_retries("//tmp/h", ["a"])[0]
         assert hunk1["chunk_id"] != hunk2["chunk_id"]
 
     @authors("gritukan")
@@ -251,10 +263,10 @@ class TestHunkStorage(DynamicTablesBase):
 
         store_id = self._get_active_store_id("//tmp/h")
 
-        hunk1 = write_hunks("//tmp/h", ["a" * 100])[0]
+        hunk1 = self._write_hunks_with_retries("//tmp/h", ["a" * 100])[0]
         wait(lambda: self._get_active_store_id("//tmp/h") != store_id)
 
-        hunk2 = write_hunks("//tmp/h", ["a"])[0]
+        hunk2 = self._write_hunks_with_retries("//tmp/h", ["a"])[0]
         assert hunk1["chunk_id"] != hunk2["chunk_id"]
 
     @authors("gritukan")
@@ -267,7 +279,7 @@ class TestHunkStorage(DynamicTablesBase):
 
         sync_mount_table("//tmp/h")
 
-        hunk = write_hunks("//tmp/h", ["a" * 100])[0]
+        hunk = self._write_hunks_with_retries("//tmp/h", ["a" * 100])[0]
         chunk_id = hunk["chunk_id"]
         assert exists("#{}".format(chunk_id))
 
@@ -288,7 +300,7 @@ class TestHunkStorage(DynamicTablesBase):
 
         sync_mount_table("//tmp/h")
 
-        hunk = write_hunks("//tmp/h", ["a" * 100])[0]
+        hunk = self._write_hunks_with_retries("//tmp/h", ["a" * 100])[0]
         store_id = hunk["chunk_id"]
         lock_hunk_store("//tmp/h", 0, store_id)
 
@@ -325,7 +337,7 @@ class TestHunkStorage(DynamicTablesBase):
         set("//tmp/h/@store_rotation_period", 1000000)
         sync_mount_table("//tmp/h")
 
-        hunk = write_hunks("//tmp/h", ["arbuzich"])[0]
+        hunk = self._write_hunks_with_retries("//tmp/h", ["arbuzich"])[0]
         chunk_id = hunk["chunk_id"]
 
         sync_unmount_table("//tmp/h", force=True)
@@ -519,8 +531,8 @@ class TestHunkStorage(DynamicTablesBase):
 
         assert len(get("//tmp/h/@tablets")) == 2
 
-        hunk1 = write_hunks("//tmp/h", ["a"], tablet_index=0)[0]
-        hunk2 = write_hunks("//tmp/h", ["b"], tablet_index=1)[0]
+        hunk1 = self._write_hunks_with_retries("//tmp/h", ["a"], tablet_index=0)[0]
+        hunk2 = self._write_hunks_with_retries("//tmp/h", ["b"], tablet_index=1)[0]
 
         assert hunk1["chunk_id"] != hunk2["chunk_id"]
 
@@ -531,7 +543,7 @@ class TestHunkStorage(DynamicTablesBase):
         set("//tmp/h/@store_rotation_period", 1000)
         sync_mount_table("//tmp/h")
 
-        hunk_chunk_id = write_hunks("//tmp/h", ["a" * 100])[0]["chunk_id"]
+        hunk_chunk_id = self._write_hunks_with_retries("//tmp/h", ["a" * 100])[0]["chunk_id"]
         lock_hunk_store("//tmp/h", 0, hunk_chunk_id)
 
         wait(lambda: self._get_active_store_id("//tmp/h") != hunk_chunk_id)
@@ -575,7 +587,7 @@ class TestHunkStorage(DynamicTablesBase):
             "write/successful_data_weight",
             fixed_tags={"tablet_id": tablet_id})
 
-        write_hunks("//tmp/h", ["a" * 100])
+        self._write_hunks_with_retries("//tmp/h", ["a" * 100])
 
         wait(lambda: row_count.get_delta() > 0)
         wait(lambda: data_weight.get_delta() > 0)
@@ -595,7 +607,7 @@ class TestHunkStorage(DynamicTablesBase):
             "write_hunks/request_count",
             fixed_tags={"tablet_id": tablet_id})
 
-        write_hunks("//tmp/h", ["a" * 100])
+        self._write_hunks_with_retries("//tmp/h", ["a" * 100])
 
         wait(lambda: write_hunks_sensor.get_delta() > 0)
 
@@ -683,7 +695,7 @@ class TestHunkStorage(DynamicTablesBase):
             "journal_writer/io_request_count",
             fixed_tags={"tablet_id": tablet_id})
 
-        write_hunks("//tmp/h", ["a" * 100])
+        self._write_hunks_with_retries("//tmp/h", ["a" * 100])
 
         wait(lambda: medium_written_bytes.get_delta() > 0)
         wait(lambda: journal_written_bytes.get_delta() > 0)
