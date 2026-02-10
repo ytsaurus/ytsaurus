@@ -1889,8 +1889,8 @@ print(json.dumps(input))
 
         assert len(op.list_jobs()) == 10
 
-    @authors("faucct")
-    def test_distributed(self):
+    @authors("faucct", "pogorelov")
+    def test_job_collective(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
@@ -1919,8 +1919,33 @@ print(json.dumps(input))
         res = read_table("//tmp/t2")
         assert res == [{"a": "b"}]
 
-    @authors("faucct")
-    def test_distributed_aborting(self):
+    @authors("pogorelov")
+    def test_master_job_completed_before_secondary_scheduled(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": "b"}])
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="""if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; fi""",
+            spec={
+                "mapper": {
+                    "collective_options": {
+                        "size": 2,
+                    },
+                    "close_stdout_if_unused": True,
+                },
+                "data_weight_per_job": 1,
+                "resource_limits": {"user_slots": 1},
+            },
+        )
+
+        op.track()
+        assert op.get_job_count("aborted") == 0
+
+    @authors("faucct", "pogorelov")
+    def test_job_collective_aborting(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
@@ -1928,19 +1953,20 @@ print(json.dumps(input))
             track=False,
             in_="//tmp/t1",
             out="//tmp/t2",
-            command=with_breakpoint("""if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then read row; echo $row; fi; BREAKPOINT; if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; fi"""),
+            command=with_breakpoint("""if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; fi; BREAKPOINT;"""),
             spec={"mapper": {"collective_options": {"size": 2}}},
         )
+        wait_breakpoint(job_count=2)
+
         abort_job(get_job(op.id, wait_breakpoint(job_count=2)[0], attributes=["collective_id"])["collective_id"])
-        wait_breakpoint(job_count=2)[0]
-        assert op.get_job_count("aborted") == 2
-        assert read_table("//tmp/t2") == []
+
+        wait(lambda: op.get_job_count("aborted") == 2)
         release_breakpoint()
         op.track()
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
-    @authors("faucct")
-    def test_distributed_interrupting(self):
+    @authors("faucct", "pogorelov")
+    def test_job_collective_interrupting(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
@@ -1962,31 +1988,8 @@ print(json.dumps(input))
         op.track()
         assert op.get_job_count("aborted") == 0
 
-    @authors("faucct")
-    def test_distributed_with_secondary_job_hang(self):
-        create("table", "//tmp/t1")
-        create("table", "//tmp/t2")
-        write_table("//tmp/t1", {"a": "b"})
-        op = map(
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            command=with_breakpoint(
-                """
-                BREAKPOINT
-                if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; fi
-                """
-            ),
-            spec={"mapper": {"collective_options": {"size": 2}}},
-            track=False,
-        )
-        job_ids = wait_breakpoint(job_count=2)
-        collective_id = get_job(op.id, job_ids[0], attributes=["collective_id"])["collective_id"]
-        release_breakpoint(job_id=collective_id)
-        op.track()
-        assert read_table("//tmp/t2") == [{"a": "b"}]
-
-    @authors("faucct")
-    def test_distributed_with_secondary_job_fail_and_operation_completion(self):
+    @authors("faucct", "pogorelov")
+    def test_job_collective_with_slave_job_fail_and_operation_completion(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
@@ -2007,6 +2010,175 @@ print(json.dumps(input))
         wait_breakpoint(job_count=2)
         release_breakpoint()
         op.track()
+        assert read_table("//tmp/t2") == [{"a": "b"}]
+
+    @authors("pogorelov")
+    def test_master_job_completed_operation_waits_for_slave(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": "b"}])
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint(
+                """BREAKPOINT; if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; fi"""
+            ),
+            spec={
+                "mapper": {
+                    "collective_options": {"size": 2},
+                    "close_stdout_if_unused": True,
+                },
+            },
+        )
+        job_ids = wait_breakpoint(job_count=2)
+        collective_id = get_job(op.id, job_ids[0], attributes=["collective_id"])["collective_id"]
+        secondary_job_id, = {*job_ids} - {collective_id}
+
+        release_breakpoint(job_id=collective_id)
+        wait(lambda: op.get_job_count("completed") >= 1)
+        time.sleep(2)
+        assert op.get_state() == "running"
+
+        release_breakpoint(job_id=secondary_job_id)
+        op.track()
+
+        assert read_table("//tmp/t2") == [{"a": "b"}]
+        assert op.get_job_count("aborted") == 0
+
+    @authors("pogorelov")
+    def test_master_job_completed_slave_aborted(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": "b"}])
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint(
+                """BREAKPOINT; if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; fi"""
+            ),
+            spec={
+                "mapper": {
+                    "collective_options": {"size": 2},
+                    "close_stdout_if_unused": True,
+                },
+            },
+        )
+        job_ids = wait_breakpoint(job_count=2)
+        collective_id = get_job(op.id, job_ids[0], attributes=["collective_id"])["collective_id"]
+        secondary_job_id, = {*job_ids} - {collective_id}
+
+        release_breakpoint(job_id=collective_id)
+        wait(lambda: op.get_job_count("completed") >= 1)
+
+        abort_job(secondary_job_id)
+        op.track()
+
+        assert read_table("//tmp/t2") == [{"a": "b"}]
+        assert op.get_job_count("aborted") == 1
+
+    @authors("pogorelov")
+    def test_master_job_completed_slave_failed(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": "b"}])
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint(
+                """BREAKPOINT; if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; else exit 1; fi"""
+            ),
+            spec={
+                "mapper": {
+                    "collective_options": {"size": 2},
+                    "close_stdout_if_unused": True,
+                },
+                "max_failed_job_count": 2,
+            },
+        )
+        job_ids = wait_breakpoint(job_count=2)
+        collective_id = get_job(op.id, job_ids[0], attributes=["collective_id"])["collective_id"]
+        secondary_job_id, = {*job_ids} - {collective_id}
+
+        release_breakpoint(job_id=collective_id)
+        wait(lambda: op.get_job_count("completed") >= 1)
+
+        release_breakpoint(job_id=secondary_job_id)
+        op.track()
+
+        assert read_table("//tmp/t2") == [{"a": "b"}]
+        assert op.get_job_count("failed") == 1
+
+    @authors("pogorelov")
+    def test_slave_aborted_before_master_completed_collective_restarts(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": "b"}])
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint(
+                """BREAKPOINT; if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; fi"""
+            ),
+            spec={
+                "mapper": {
+                    "collective_options": {"size": 2},
+                    "close_stdout_if_unused": True,
+                },
+            },
+        )
+        first_incarnation = wait_breakpoint(job_count=2)
+        collective_id = get_job(op.id, first_incarnation[0], attributes=["collective_id"])["collective_id"]
+        secondary_job_id, = {*first_incarnation} - {collective_id}
+
+        abort_job(secondary_job_id)
+        wait(lambda: get_job(op.id, secondary_job_id)["state"] == "aborted", ignore_exceptions=True)
+
+        release_breakpoint(job_id=collective_id)
+        release_breakpoint(job_id=secondary_job_id)
+
+        wait_breakpoint(job_count=2)
+        release_breakpoint()
+        op.track()
+
+        assert read_table("//tmp/t2") == [{"a": "b"}]
+
+    @authors("pogorelov")
+    def test_slave_failed_before_master_completed_collective_restarts(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": "b"}])
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint(
+                """BREAKPOINT; if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; elif (( "$YT_JOB_INDEX" < 2 )); then exit 1; fi"""
+            ),
+            spec={
+                "mapper": {
+                    "collective_options": {"size": 2},
+                    "close_stdout_if_unused": True,
+                },
+                "max_failed_job_count": 2,
+            },
+        )
+        first_incarnation = wait_breakpoint(job_count=2)
+        collective_id = get_job(op.id, first_incarnation[0], attributes=["collective_id"])["collective_id"]
+        secondary_job_id, = {*first_incarnation} - {collective_id}
+
+        release_breakpoint(job_id=secondary_job_id)
+        wait(lambda: get_job(op.id, secondary_job_id)["state"] == "failed", ignore_exceptions=True)
+
+        release_breakpoint(job_id=collective_id)
+
+        wait_breakpoint(job_count=2)
+        release_breakpoint()
+        op.track()
+
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
     @authors("ifsmirnov")
