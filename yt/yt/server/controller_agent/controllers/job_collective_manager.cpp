@@ -19,6 +19,16 @@ using namespace NChunkPools;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool TJobCollectiveManager::TCollective::HasRunningSlaves() const
+{
+    for (const auto& slave : Slaves) {
+        if (slave.JobId) {
+            return true;
+        }
+    }
+    return false;
+}
+
 TJobCollectiveManager::TJobCollectiveManager(
     TTask* task,
     NLogging::TLogger logger)
@@ -50,9 +60,9 @@ std::pair<NChunkPools::IChunkPoolOutput::TCookie, int> TJobCollectiveManager::Pe
         return {cookie, collective.Slaves.size() - collective.Pending + 1};
 }
 
-bool TJobCollectiveManager::OnJobAborted(const TJobletPtr& joblet, EAbortReason /*reason*/)
+bool TJobCollectiveManager::OnJobAborted(const TJobletPtr& joblet, EAbortReason reason)
 {
-    return OnUnsuccessfulJobFinish(joblet);
+    return OnUnsuccessfulJobFinish(joblet, reason);
 }
 
 bool TJobCollectiveManager::OnJobFailed(const TJobletPtr& joblet)
@@ -73,7 +83,7 @@ void TJobCollectiveManager::OnJobScheduled(const TJobletPtr& joblet)
         auto it = EmplaceOrCrash(CookieToCollective_, joblet->OutputCookie, TCollective());
         auto& collective = it->second;
 
-        YT_LOG_DEBUG("Distributed job collective created (MasterJobId: %v, OutputCookie: %v)", masterJobId, joblet->OutputCookie);
+        YT_LOG_DEBUG("Job collective created (MasterJobId: %v, OutputCookie: %v)", masterJobId, joblet->OutputCookie);
 
         for (int i = 1; i < GetCollectiveSize(); i++) {
             auto guard = TProgressCounterGuard(JobCounter_);
@@ -107,7 +117,7 @@ void TJobCollectiveManager::OnOperationRevived()
     auto cookieToCollectiveCopy = CookieToCollective_;
     for (auto& [cookie, collective] : cookieToCollectiveCopy) {
         if (collective.Pending) {
-            Task_->GetTaskHost()->AbortJob(collective.MasterJobId, EAbortReason::DistributedJobGroupDisbanded);
+            Task_->GetTaskHost()->AbortJob(collective.MasterJobId, EAbortReason::JobCollectiveDisbanded);
         }
     }
 }
@@ -121,16 +131,51 @@ bool TJobCollectiveManager::OnJobCompleted(const TJobletPtr& joblet)
     auto collectiveIt = CookieToCollective_.find(joblet->OutputCookie);
     if (collectiveIt != CookieToCollective_.end()) {
         auto& collective = collectiveIt->second;
+
         if (joblet->CollectiveInfo.Rank != 0) {
-            collective.Slaves[joblet->CollectiveInfo.Rank - 1].ProgressCounterGuard.SetCategory(EProgressCategory::Completed);
+            auto& currentSlaveInfo = collective.Slaves[joblet->CollectiveInfo.Rank - 1];
+            currentSlaveInfo.ProgressCounterGuard.SetCategory(EProgressCategory::Completed);
+            currentSlaveInfo.JobId = TJobId{};
+
+            if (collective.Finished && !collective.HasRunningSlaves()) {
+                CookieToCollective_.erase(collectiveIt);
+            }
         } else {
-            YT_LOG_DEBUG("Distributed job collective completed (MasterJobId: %v, OutputCookie: %v)", collective.MasterJobId, joblet->OutputCookie);
+            YT_LOG_DEBUG(
+                "Job collective completed since master job completed (MasterJobId: %v, OutputCookie: %v, CollectiveWillBeRemovedImmediately: %v)",
+                collective.MasterJobId,
+                joblet->OutputCookie,
+                collective.Pending == GetCollectiveSize() - 1);
+
+            collective.Finished = true;
+
+            if (collective.Pending) {
+                YT_LOG_DEBUG(
+                    "Job collective completed before scheduling all slaves (MasterJobId: %v, OutputCookie: %v, NonScheduledSlaves: %v)",
+                    collective.MasterJobId,
+                    joblet->OutputCookie,
+                    collective.Pending);
+                EraseOrCrash(PendingCookies_, joblet->OutputCookie);
+            }
+            for (auto& slave : collective.Slaves) {
+                // NB(pogorelov): If some slave job is scheduled, we will wait for it to finish.
+                if (!slave.JobId) {
+                    slave.ProgressCounterGuard.SetCategory(EProgressCategory::None);
+                }
+            }
+
+            if (!collective.HasRunningSlaves()) {
+                CookieToCollective_.erase(collectiveIt);
+            }
 
             YT_VERIFY(joblet->JobId == collective.MasterJobId);
-
-            CookieToCollective_.erase(collectiveIt);
             return true;
         }
+    } else {
+        YT_LOG_DEBUG(
+            "Master job completed but collective is already finished (MasterJobId: %v, OutputCookie: %v)",
+            joblet->JobId,
+            joblet->OutputCookie);
     }
     return false;
 }
@@ -171,33 +216,61 @@ bool TJobCollectiveManager::IsRelevant() const
     return GetCollectiveSize() > 1;
 }
 
-bool TJobCollectiveManager::OnUnsuccessfulJobFinish(const TJobletPtr& joblet)
+bool TJobCollectiveManager::OnUnsuccessfulJobFinish(const TJobletPtr& joblet, EAbortReason abortReason)
 {
     if (!IsRelevant()) {
         // By default after unsuccessful finish of job a cookie is returned to chunk pool.
         return true;
     }
 
-    auto collectiveIt = CookieToCollective_.find(joblet->OutputCookie);
-    if (collectiveIt != CookieToCollective_.end()) {
+    const bool isMasterJob = joblet->CollectiveInfo.Rank == 0;
+
+    if (auto collectiveIt = CookieToCollective_.find(joblet->OutputCookie);
+        collectiveIt != end(CookieToCollective_))
+    {
         auto& collective = collectiveIt->second;
-        Task_->GetTaskHost()->AsyncAbortJob(collective.MasterJobId, EAbortReason::DistributedJobGroupDisbanded);
-        for (auto& slave : collective.Slaves) {
-            if (slave.JobId) {
-                Task_->GetTaskHost()->AsyncAbortJob(slave.JobId, EAbortReason::DistributedJobGroupDisbanded);
-                slave.ProgressCounterGuard.OnAborted(EAbortReason::DistributedJobGroupDisbanded);
-            } else {
-                slave.ProgressCounterGuard.SetCategory(EProgressCategory::None);
+
+        if (!collective.Finished) {
+            YT_LOG_DEBUG("Job collective aborted (MasterJobId: %v, OutputCookie: %v)", collective.MasterJobId, joblet->OutputCookie);
+
+            if (!isMasterJob) {
+                Task_->GetTaskHost()->AsyncAbortJob(collective.MasterJobId, EAbortReason::JobCollectiveDisbanded);
+            }
+            for (auto& slave : collective.Slaves) {
+                if (slave.JobId) {
+                    if (slave.JobId != joblet->JobId) {
+                        Task_->GetTaskHost()->AsyncAbortJob(slave.JobId, EAbortReason::JobCollectiveDisbanded);
+                    }
+                    slave.ProgressCounterGuard.OnAborted(NScheduler::EAbortReason::JobCollectiveDisbanded);
+                } else {
+                    slave.ProgressCounterGuard.SetCategory(EProgressCategory::None);
+                }
             }
         }
+        if (!isMasterJob) {
+            collective.Slaves[joblet->CollectiveInfo.Rank - 1].JobId = TJobId{};
+            auto& slave = collective.Slaves[joblet->CollectiveInfo.Rank - 1];
+            if (abortReason == EAbortReason::None) {
+                slave.ProgressCounterGuard.OnFailed();
+            } else {
+                slave.ProgressCounterGuard.OnAborted(abortReason);
+            }
+        }
+
         if (collective.Pending) {
+            YT_LOG_DEBUG(
+                "Job collective aborted before scheduling all slaves (MasterJobId: %v, OutputCookie: %v, NonScheduledSlaves: %v)",
+                collective.MasterJobId,
+                joblet->OutputCookie,
+                collective.Pending);
             EraseOrCrash(PendingCookies_, joblet->OutputCookie);
         }
 
-        YT_LOG_DEBUG("Distributed job collective aborted (MasterJobId: %v, OutputCookie: %v)", collective.MasterJobId, joblet->OutputCookie);
+        if (!collective.Finished || !collective.HasRunningSlaves()) {
+            CookieToCollective_.erase(collectiveIt);
+        }
 
-        CookieToCollective_.erase(collectiveIt);
-        return true;
+        return !collective.Finished;
     }
     return false;
 }
