@@ -494,6 +494,8 @@ items:
          href: admin-guide/monitoring.md
        - name: Updating YTsaurus server components
          href: admin-guide/update-ytsaurus.md
+       - name: Updating volumes
+         href: admin-guide/update-volumes.md
        - name: Cluster operation
          href: admin-guide/cluster-operations.md
        - name: Node administration
