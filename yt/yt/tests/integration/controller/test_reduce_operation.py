@@ -924,8 +924,8 @@ echo {v = 2} >&7
 
         assert not get("//tmp/out/@sorted")
 
-    @authors("faucct")
-    def test_distributed_reduce(self):
+    @authors("faucct", "pogorelov")
+    def test_job_collective_reduce(self):
         skip_if_component_old(self.Env, (25, 3), "controller-agent")
         skip_if_component_old(self.Env, (25, 3), "node")
 

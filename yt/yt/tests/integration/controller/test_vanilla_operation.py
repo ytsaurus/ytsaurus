@@ -497,8 +497,8 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         )
         assert sorted_dicts(read_table("//tmp/t")) == [{"a": 1}, {"a": 2}]
 
-    @authors("faucct")
-    def test_distributed(self):
+    @authors("faucct", "pogorelov")
+    def test_job_collective(self):
         op = run_test_vanilla(
             with_breakpoint("echo YT_COLLECTIVE_MEMBER_RANK $YT_COLLECTIVE_MEMBER_RANK 1>&2; env 1>&2; BREAKPOINT"),
             task_patch={"collective_options": {"size": 2}}, job_count=1,
@@ -532,8 +532,8 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         release_breakpoint()
         op.track()
 
-    @authors("faucct")
-    def test_table_output_distributed(self):
+    @authors("faucct", "pogorelov")
+    def test_table_output_job_collective(self):
         create("table", "//tmp/t")
         with pytest.raises(YtError, match="echo: write error:"):
             vanilla(
@@ -1083,8 +1083,8 @@ class TestVanillaOperationRevival(YTEnvSetup):
         wait(lambda: incarnation_switch_counter.get() == 0)
         wait(lambda: started_job_profiler.get(default=0) == 3 - jobs_were_scheduled)
 
-    @authors("faucct")
-    def test_revive_before_distributed_jobs_scheduled(self):
+    @authors("faucct", "pogorelov")
+    def test_revive_before_job_collective_jobs_scheduled(self):
         started_job_profiler = JobCountProfiler(
             "started",
             tags={"tree": "default", "job_type": "vanilla"},
@@ -2202,7 +2202,7 @@ class TestGangOperations(YTEnvSetup):
 
         assert restarted_job_profiler.get_job_count_delta() == 0
 
-    @authors("faucct")
+    @authors("faucct", "pogorelov")
     def test_gang_operation_with_collective_options(self):
         with pytest.raises(YtError, match='Operation with "collective_options" can not have tasks with "gang_options"'):
             vanilla(
