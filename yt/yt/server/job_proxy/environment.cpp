@@ -593,15 +593,24 @@ public:
         Launcher_->SetCwd(CurrentWorkDirectory_);
     }
 
-    void StartSidecar() final
+    TFuture<void> StartSidecar() final
     {
-        Instance_ = WaitFor(Launcher_->Launch("/bin/bash", {"-c", Spec_->Command}, {}))
-            .ValueOrThrow();
-        OnSidecarStarted();
+        YT_VERIFY(!Instance_);
+
+        return Launcher_->Launch("/bin/bash", {"-c", Spec_->Command}, {})
+            .Apply(
+                BIND([this, this_ = MakeStrong(this)] (IInstancePtr instance) {
+                    Instance_ = std::move(instance);
+                    OnSidecarStarted();
+                })
+                .AsyncVia(GetCurrentInvoker())
+            );
     }
 
     TFuture<void> ShutdownSidecar() final
     {
+        YT_VERIFY(Instance_);
+
         SidecarFinished_.Unsubscribe(FutureSidecarFinishedCallbackCookie_);
         return BIND(&TPortoSidecarEnvironment::DoShutdownSidecar, MakeStrong(this))
             .AsyncVia(GetCurrentInvoker())
@@ -610,16 +619,24 @@ public:
 
     void RestartSidecar() final
     {
+        YT_VERIFY(Instance_);
+
         Instance_->Respawn();
         OnSidecarStarted();
     }
 
     bool IsAlive() final
     {
-        return !Instance_->Wait().IsSet();
+        return Instance_ && !Instance_->Wait().IsSet();
     }
 
 private:
+    IInstancePtr Instance_;
+    const TString CurrentWorkDirectory_;
+    IInstanceLauncherPtr Launcher_;
+    TFuture<void> SidecarFinished_;
+    TFutureCallbackCookie FutureSidecarFinishedCallbackCookie_;
+
     void DoShutdownSidecar()
     {
         if (Spec_->GracefulShutdown) {
@@ -652,6 +669,7 @@ private:
         }
 
         Instance_->Destroy();
+        Instance_.Reset();
     }
 
     void OnSidecarStarted()
@@ -662,13 +680,6 @@ private:
             MakeStrong(this)
         ));
     }
-
-private:
-    IInstancePtr Instance_;
-    TString CurrentWorkDirectory_;
-    IInstanceLauncherPtr Launcher_;
-    TFuture<void> SidecarFinished_;
-    TFutureCallbackCookie FutureSidecarFinishedCallbackCookie_;
 };
 
 DECLARE_REFCOUNTED_CLASS(TPortoSidecarEnvironment)
@@ -768,6 +779,8 @@ public:
             return;
         }
 
+        std::vector<TFuture<void>> futures;
+        futures.reserve(jobSpecExt.user_job_spec().sidecars().size());
         RunningSidecars_.reserve(jobSpecExt.user_job_spec().sidecars().size());
         for (const auto& [name, sidecar]: jobSpecExt.user_job_spec().sidecars()) {
             auto sidecarSpec = New<TSidecarJobSpec>();
@@ -781,9 +794,16 @@ public:
                 PortoExecutor_,
                 JobProxyContainerPath_);
 
-            newSidecar->StartSidecar();
-
+            futures.push_back(std::move(newSidecar->StartSidecar()));
             RunningSidecars_.push_back(std::move(newSidecar));
+        }
+
+        try {
+            WaitFor(AllSet(std::move(futures)))
+                .ThrowOnError();
+        } catch (const std::exception& ex) {
+            ShutdownSidecars();
+            throw;
         }
     }
 
