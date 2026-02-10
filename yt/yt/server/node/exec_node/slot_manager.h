@@ -379,6 +379,7 @@ private:
         int slotIndex,
         NClusterNode::TCpu requestedCpu,
         const std::optional<i64>& numaNodeIdAffinity);
+    std::vector<int> SortedFreeSlots();
 
     /*!
      *  \note
