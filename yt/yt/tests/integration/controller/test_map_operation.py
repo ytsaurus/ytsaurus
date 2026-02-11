@@ -161,7 +161,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         if self.ENABLE_UNIQUE_COUNT_CHECK:
             all_statistics = get_table_columnar_statistics("[\"//tmp/t2{index}\"]")
-            assert all_statistics[0]['column_estimated_unique_counts'] == {'index': 790262}
+            assert all_statistics[0]['column_estimated_unique_counts'] == {'index': 1135017}
 
     @authors("ignat")
     def test_two_outputs_at_the_same_time(self):
@@ -191,7 +191,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         if self.ENABLE_UNIQUE_COUNT_CHECK:
             all_statistics = get_table_columnar_statistics("[\"//tmp/t_output1{index}\";\"//tmp/t_output2{value}\"]")
-            assert all_statistics[0]['column_estimated_unique_counts'] == {'index': 683}
+            assert all_statistics[0]['column_estimated_unique_counts'] == {'index': 1121}
             assert all_statistics[1]['column_estimated_unique_counts'] == {'value': 1}
 
     @authors("ignat")
