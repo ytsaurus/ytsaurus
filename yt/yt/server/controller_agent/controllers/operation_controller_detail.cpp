@@ -6692,7 +6692,8 @@ void TOperationControllerBase::GetOutputTablesSchema()
             ValidateOutputDynamicTablesAllowed();
 
             using TSecondaryIndicesAttribute = THashMap<TObjectId, NYTree::INodePtr>;
-            if (auto secondaryIndices = attributes->Find<TSecondaryIndicesAttribute>("secondary_indices")) {
+            auto secondaryIndices = attributes->Find<TSecondaryIndicesAttribute>("secondary_indices");
+            if (secondaryIndices && Spec_->UpdateSecondaryIndex) {
                 auto keyView = std::views::keys(*secondaryIndices);
                 THROW_ERROR_EXCEPTION("Bulk insert into an indexed table is not supported at the moment")
                     << TErrorAttribute("table_path", path)

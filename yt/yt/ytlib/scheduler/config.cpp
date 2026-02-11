@@ -1063,6 +1063,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("enable_multiple_jobs_in_allocation", &TThis::EnableMultipleJobsInAllocation)
         .Default();
 
+    registrar.Parameter("update_secondary_index", &TThis::UpdateSecondaryIndex)
+        .Default(true);
+
     registrar.Postprocessor([] (TOperationSpecBase* spec) {
         if (spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             spec->UnavailableChunkTactics == EUnavailableChunkAction::Skip)
