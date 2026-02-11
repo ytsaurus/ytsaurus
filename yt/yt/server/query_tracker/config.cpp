@@ -101,6 +101,8 @@ void TSpytConnectEngineConfig::Register(TRegistrar registrar)
         .Default("spark-launch-conf");
     registrar.Parameter("grpc_port", &TThis::GrpcPort)
         .Default(27080);
+    registrar.Parameter("http_client", &TThis::HttpClient)
+        .DefaultNew();
     registrar.Parameter("token_expiration_timeout", &TThis::TokenExpirationTimeout)
         .Default(TDuration::Minutes(20));
     registrar.Parameter("refresh_token_period", &TThis::RefreshTokenPeriod)
