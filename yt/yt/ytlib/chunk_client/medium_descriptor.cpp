@@ -61,7 +61,7 @@ TS3MediumDescriptor::TS3ObjectPlacement TS3MediumDescriptor::GetChunkPlacement(T
 {
     return {
         .Bucket = Config_->Bucket,
-        .Key = Format("chunk-data/%v", chunkId)
+        .Key = Format("chunk-data/%02x/%02x/%v", chunkId.ReversedParts8[1], chunkId.ReversedParts8[0], chunkId),
     };
 };
 
