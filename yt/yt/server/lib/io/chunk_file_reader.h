@@ -71,7 +71,7 @@ struct TChunkMetaWithChunkId
 //! stored in the meta file. Passing NullChunkId to this class suppresses this check.
 TChunkMetaWithChunkId DeserializeMeta(
     TSharedRef metaFileBlob,
-    const TString& chunkMetaFilename,
+    const std::string& chunkMetaFilename,
     NChunkClient::TChunkId chunkId,
     TDumpBrokenMetaCallback dumpBrokenMeta);
 
@@ -86,7 +86,7 @@ std::vector<NChunkClient::TBlock> DeserializeBlocks(
     TSharedRef blocksBlob,
     TBlockRange blockRange,
     bool validateBlockChecksums,
-    const TString& chunkFileName,
+    const std::string& chunkFileName,
     const TBlocksExtPtr& blocksExt,
     TDumpBrokenBlockCallback dumpBrokenBlockCallback);
 

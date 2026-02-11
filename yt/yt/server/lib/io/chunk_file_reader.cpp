@@ -40,7 +40,7 @@ namespace {
 template <class T>
 void ReadHeader(
     const TSharedRef& metaFileBlob,
-    const TString& fileName,
+    const std::string& fileName,
     TChunkMetaHeader_2* metaHeader,
     TRef* metaBlob)
 {
@@ -59,7 +59,7 @@ void ReadHeader(
 
 TChunkMetaWithChunkId DeserializeMeta(
     TSharedRef metaFileBlob,
-    const TString& chunkMetaFilename,
+    const std::string& chunkMetaFilename,
     TChunkId chunkId,
     TDumpBrokenMetaCallback dumpBrokenMetaCallback)
 {
@@ -131,7 +131,7 @@ std::vector<TBlock> DeserializeBlocks(
     TSharedRef blocksBlob,
     TBlockRange blockRange,
     bool validateBlockChecksums,
-    const TString& chunkFileName,
+    const std::string& chunkFileName,
     const TBlocksExtPtr& blocksExt,
     TDumpBrokenBlockCallback dumpBrokenBlockCallback)
 {
