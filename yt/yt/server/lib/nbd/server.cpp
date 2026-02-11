@@ -539,6 +539,11 @@ private:
 
                             Device_->SetError(result);
 
+                            TNbdProfilerCounters::Get()->GetCounter(
+                                TNbdProfilerCounters::MakeTagSet(Device_->GetProfileSensorTag()),
+                                "/device/read_errors")
+                            .Increment(1);
+
                             WriteServerResponse(EServerError::NBD_EIO, cookie);
                             return;
                         }
@@ -639,6 +644,11 @@ private:
                                 duration);
 
                             Device_->SetError(result);
+
+                            TNbdProfilerCounters::Get()->GetCounter(
+                                TNbdProfilerCounters::MakeTagSet(Device_->GetProfileSensorTag()),
+                                "/device/write_errors")
+                            .Increment(1);
 
                             WriteServerResponse(EServerError::NBD_EIO, cookie);
                             return;
