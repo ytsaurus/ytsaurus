@@ -1496,9 +1496,10 @@ TEST_F(TPingTransactionsTest, Reconfigure)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCypressKeyWriterTest
+class TCypressKeyWriterTest
     : public TApiTestBase
 {
+public:
     NNative::IConnectionPtr NativeConnection = DynamicPointerCast<NNative::IConnection>(Connection_);
     NNative::IClientPtr NativeClient = NativeConnection->CreateNativeClient(
         NNative::TClientOptions::FromUser(NSecurityClient::SignatureKeysmithUserName));
@@ -1780,9 +1781,10 @@ TEST_F(TCypressKeyWriterTest, NoCleanupWhenMaxKeyCountNotSet)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSignatureComponentsTest
+class TSignatureComponentsTest
     : public TApiTestBase
 {
+public:
     NNative::IConnectionPtr NativeConnection = DynamicPointerCast<NApi::NNative::IConnection>(Connection_);
     TCypressKeyReaderConfigPtr CypressKeyReaderConfig = New<TCypressKeyReaderConfig>();
     TCypressKeyWriterConfigPtr CypressKeyWriterConfig = New<TCypressKeyWriterConfig>();
