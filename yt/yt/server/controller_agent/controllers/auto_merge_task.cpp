@@ -370,7 +370,7 @@ void TAutoMergeTask::OnJobStarted(TJobletPtr joblet)
 {
     TTask::OnJobStarted(joblet);
 
-    int poolIndex = *joblet->InputStripeList->GetOutputChunkPoolIndex();
+    int poolIndex = GetOrCrash(joblet->InputStripeList->GetOutputChunkPoolIndex());
     CurrentChunkCounts_[poolIndex] -= joblet->InputStripeList->GetAggregateStatistics().ChunkCount;
 
     TaskHost_->GetAutoMergeDirector()->OnMergeJobStarted();
@@ -380,7 +380,7 @@ TJobFinishedResult TAutoMergeTask::OnJobAborted(TJobletPtr joblet, const TAborte
 {
     auto result = TTask::OnJobAborted(joblet, jobSummary);
 
-    int poolIndex = *joblet->InputStripeList->GetOutputChunkPoolIndex();
+    int poolIndex = GetOrCrash(joblet->InputStripeList->GetOutputChunkPoolIndex());
     CurrentChunkCounts_[poolIndex] += joblet->InputStripeList->GetAggregateStatistics().ChunkCount;
 
     if (jobSummary.AbortReason == EAbortReason::ShallowMergeFailed) {
@@ -413,7 +413,7 @@ TJobFinishedResult TAutoMergeTask::OnJobFailed(TJobletPtr joblet, const TFailedJ
 {
     auto result = TTask::OnJobFailed(joblet, jobSummary);
 
-    int poolIndex = *joblet->InputStripeList->GetOutputChunkPoolIndex();
+    int poolIndex = GetOrCrash(joblet->InputStripeList->GetOutputChunkPoolIndex());
     CurrentChunkCounts_[poolIndex] += joblet->InputStripeList->GetAggregateStatistics().ChunkCount;
 
     TaskHost_->GetAutoMergeDirector()->OnMergeJobFinished(/*unregisteredIntermediateChunkCount*/ 0);
@@ -461,7 +461,7 @@ void TAutoMergeTask::OnChunkTeleported(TInputChunkPtr teleportChunk, std::any ta
 
 void TAutoMergeTask::SetStreamDescriptors(TJobletPtr joblet) const
 {
-    auto poolIndex = *joblet->InputStripeList->GetOutputChunkPoolIndex();
+    auto poolIndex = GetOrCrash(joblet->InputStripeList->GetOutputChunkPoolIndex());
     joblet->OutputStreamDescriptors = {OutputStreamDescriptors_[poolIndex]};
     joblet->InputStreamDescriptors = InputStreamDescriptors_;
 }

@@ -1,11 +1,13 @@
 from yt_env_setup import (
-    YTEnvSetup, Restarter, SCHEDULERS_SERVICE)
+    YTEnvSetup, Restarter, SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE)
 
 from yt_commands import (
-    authors, print_debug, wait, create, get, set, exists,
+    authors, print_debug, wait, create, get, set, exists, ls,
     create_account, read_table, write_file, sorted_dicts,
     write_table, map, reduce, merge, sync_create_cells, sync_mount_table,
-    get_operation, assert_statistics, extract_statistic_v2)
+    get_operation, assert_statistics, extract_statistic_v2,
+    events_on_fs, wait_breakpoint, release_breakpoint,
+    abort_job)
 
 from yt_type_helpers import normalize_schema, make_schema
 
@@ -16,6 +18,7 @@ import yt.yson as yson
 import pytest
 
 from time import sleep
+import builtins
 
 ##################################################################
 
@@ -1109,3 +1112,108 @@ else:
 
         content = read_table("//tmp/t_out")
         assert sorted_dicts(content) == sorted_dicts(data)
+
+
+##################################################################
+
+
+class TestSchedulerAutoMergeCARestarts(TestSchedulerAutoMergeBase):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+    ENABLE_SHALLOW_MERGE = False
+    NUM_TEST_PARTITIONS = 1
+    USE_DYNAMIC_TABLES = False
+    ENABLE_BULK_INSERT = False
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,
+            "operations_update_period": 10,
+            "running_allocations_update_period": 10,
+        },
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "snapshot_period": 1000,
+            "operations_update_period": 10,
+            "chunk_unstage_period": 10,
+            "testing_options": {
+                "enable_events_on_fs": True,
+            },
+        }
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "cypress_manager": {
+            "default_table_replication_factor": 1,
+            "default_file_replication_factor": 1,
+        }
+    }
+
+    @authors("coteeq")
+    def test_auto_merge_revive_aborted_job(self):
+        events_on_fs().external_breakpoint("before_run")
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table(
+            "//tmp/t_in",
+            [{"a": i} for i in range(20)],
+            max_row_buffer_size=1,
+            table_writer={"desired_chunk_size": 1},
+        )
+
+        op = map(
+            track=False,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="cat",
+            spec={
+                "job_count": 2,
+                "auto_merge": {
+                    "mode": "relaxed",
+                    # "max_intermediate_chunk_count": 1,
+                    # "chunk_count_per_merge_job": 1000,
+                },
+                "job_testing_options": {
+                    "events_on_fs": {
+                        "path": events_on_fs()._tmpdir,
+                        "breakpoints": ["before_run"],
+                    },
+                },
+            },
+        )
+
+        def list_jobs(type):
+            return builtins.set(op.list_jobs(type=type))
+
+        map_job_ids = wait_breakpoint("before_run", job_count=2)
+        assert list_jobs("map") == builtins.set(map_job_ids)
+
+        release_breakpoint("before_run", job_id=map_job_ids[0])
+        release_breakpoint("before_run", job_id=map_job_ids[1])
+
+        auto_merge_job_id, = wait_breakpoint("before_run")
+        assert list_jobs("unordered_merge") == {auto_merge_job_id}
+
+        op.wait_for_fresh_snapshot()
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            node_address, = ls("//sys/exec_nodes")
+            active_jobs_orchid = f"//sys/exec_nodes/{node_address}/orchid/exec_node/job_controller/active_jobs"
+
+            def get_job_state():
+                active_jobs = get(active_jobs_orchid)
+                assert builtins.set(active_jobs.keys()) == {auto_merge_job_id}
+                return list(active_jobs.values())[0]["job_state"]
+
+            assert get_job_state() == "running"
+            abort_job(auto_merge_job_id)
+            wait(lambda: get_job_state() == "aborted")
+
+        release_breakpoint("before_run")
+
+        op.track()
