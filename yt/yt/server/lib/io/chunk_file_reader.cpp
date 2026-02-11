@@ -57,7 +57,7 @@ void ReadHeader(
 
 ////////////////////////////////////////////////////////////////////////////
 
-TChunkMetaWithChunkId DeserializeMeta(
+TRefCountedChunkMetaPtr DeserializeMeta(
     TSharedRef metaFileBlob,
     const std::string& chunkMetaFilename,
     TChunkId chunkId,
@@ -114,17 +114,13 @@ TChunkMetaWithChunkId DeserializeMeta(
             metaHeader.ChunkId);
     }
 
-    TChunkMetaWithChunkId result;
-    result.ChunkId = metaHeader.ChunkId;
     TChunkMeta meta;
     if (!TryDeserializeProtoWithEnvelope(&meta, metaBlob)) {
         THROW_ERROR_EXCEPTION("Failed to parse chunk meta file %v",
             chunkMetaFilename);
     }
 
-    result.ChunkMeta = New<TRefCountedChunkMeta>(std::move(meta));
-
-    return result;
+    return New<TRefCountedChunkMeta>(std::move(meta));
 }
 
 std::vector<TBlock> DeserializeBlocks(
@@ -554,7 +550,7 @@ TRefCountedChunkMetaPtr TChunkFileReader::OnMetaRead(
         readResponse.IORequests,
         std::memory_order::relaxed);
 
-    return meta.ChunkMeta;
+    return meta;
 }
 
 TFuture<TIOEngineHandlePtr> TChunkFileReader::OpenDataFile(EDirectIOFlag useDirectIO)
