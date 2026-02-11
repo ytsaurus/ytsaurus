@@ -2060,7 +2060,7 @@ private:
                 }
                 ToProto(response->mutable_chunk_reader_statistics(), chunkReaderStatistics);
 
-                 auto bytesReadFromDisk =
+                auto bytesReadFromDisk =
                     chunkReaderStatistics->DataBytesReadFromDisk.load(std::memory_order::relaxed) +
                     chunkReaderStatistics->MetaBytesReadFromDisk.load(std::memory_order::relaxed);
                 const auto& ioTracker = Bootstrap_->GetIOTracker();
