@@ -56,7 +56,7 @@ TEST(TPhysicalChunkLayout, SerializeAndDeserializeBlocks)
     auto originalBlocks = CreateBlocks(BlocksCount, &generator);
     NChunkClient::NProto::TBlocksExt protoBlocksExt;
 
-    auto writeRequest = MakeWriteRequest(0, originalBlocks, protoBlocksExt);
+    auto writeRequest = SerializeBlocks(0, originalBlocks, protoBlocksExt);
 
     struct TMyTag {};
     auto blocksBlob = MergeRefsToRef<TMyTag>(std::move(writeRequest.Buffers));
@@ -69,7 +69,6 @@ TEST(TPhysicalChunkLayout, SerializeAndDeserializeBlocks)
         /*validateBlockChecksums*/ true,
         Format("%v", chunkId),
         New<TBlocksExt>(protoBlocksExt),
-        New<NChunkClient::TChunkReaderStatistics>(),
         /*dumpBrokenBlockCallback*/ {});
 
     EXPECT_EQ(BlocksCount, std::ssize(deserializedBlocks));
@@ -85,13 +84,12 @@ TEST(TPhysicalChunkLayout, SerializeAndDeserializeMeta)
     NChunkClient::NProto::TBlocksExt protoBlocksExt;
 
     auto finalizedMeta = FinalizeChunkMeta(New<NChunkClient::TDeferredChunkMeta>(), protoBlocksExt);
-    auto metaBlob = PrepareChunkMetaBlob(chunkId, finalizedMeta);
+    auto metaBlob = SerializeChunkMeta(chunkId, finalizedMeta);
 
     auto deserializedMeta = DeserializeMeta(
         metaBlob,
         Format("%v.meta", chunkId),
         chunkId,
-        New<NChunkClient::TChunkReaderStatistics>(),
         /*dumpBrokenMeta*/ {});
 
     EXPECT_TRUE(google::protobuf::util::MessageDifferencer::Equals(*deserializedMeta.ChunkMeta, *finalizedMeta));

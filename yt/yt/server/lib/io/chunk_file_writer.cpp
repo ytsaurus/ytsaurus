@@ -53,9 +53,9 @@ i64 TruncateBlocks(NChunkClient::NProto::TBlocksExt& blocksExt, int truncateBloc
     return oldDataSize - truncateDataSize;
 }
 
-TWriteBlocksRequest MakeWriteRequest(i64 startOffset, const std::vector<TBlock>& blocks, NChunkClient::NProto::TBlocksExt& blocksExt)
+TSerializedBlocksRequest SerializeBlocks(i64 startOffset, const std::vector<TBlock>& blocks, NChunkClient::NProto::TBlocksExt& blocksExt)
 {
-    TWriteBlocksRequest request;
+    TSerializedBlocksRequest request;
 
     request.StartOffset = startOffset;
     request.EndOffset = request.StartOffset;
@@ -94,7 +94,7 @@ TRefCountedChunkMetaPtr FinalizeChunkMeta(TDeferredChunkMetaPtr chunkMeta, const
     return chunkMeta;
 }
 
-TSharedMutableRef PrepareChunkMetaBlob(TChunkId chunkId, const TRefCountedChunkMetaPtr& chunkMeta)
+TSharedMutableRef SerializeChunkMeta(TChunkId chunkId, const TRefCountedChunkMetaPtr& chunkMeta)
 {
     auto metaData = SerializeProtoToRefWithEnvelope(*chunkMeta);
 
@@ -274,7 +274,7 @@ bool TChunkFileWriter::WriteBlocks(
         return false;
     }
 
-    auto writeRequest = MakeWriteRequest(DataSize_, blocks, BlocksExt_);
+    auto writeRequest = SerializeBlocks(DataSize_, blocks, BlocksExt_);
 
     ReadyEvent_ =
         IOEngine_->Write({
@@ -373,7 +373,7 @@ TFuture<void> TChunkFileWriter::Close(
         ] (const TIOEngineHandlePtr& chunkMetaFile) {
             YT_VERIFY(State_.load() == EState::Closing);
 
-            auto buffer = PrepareChunkMetaBlob(ChunkId_, ChunkMeta_);
+            auto buffer = SerializeChunkMeta(ChunkId_, ChunkMeta_);
             MetaDataSize_ = buffer.size();
 
             return

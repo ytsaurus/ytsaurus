@@ -56,6 +56,7 @@ DEFINE_ENUM(EDirectIOFlag,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(cherepashka): move these usings below somewhere more suitable for S3 chunk readers & writers.
 using TDumpBrokenMetaCallback = TCallback<void(TRef /*block*/)>;
 using TDumpBrokenBlockCallback = TCallback<void(int /*blockIndex*/, const NIO::TBlockInfo& /*blockInfo*/, TRef /*block*/)>;
 
@@ -72,7 +73,6 @@ TChunkMetaWithChunkId DeserializeMeta(
     TSharedRef metaFileBlob,
     const TString& chunkMetaFilename,
     NChunkClient::TChunkId chunkId,
-    NChunkClient::TChunkReaderStatisticsPtr chunkReaderStatistics,
     TDumpBrokenMetaCallback dumpBrokenMeta);
 
 struct TBlockRange
@@ -88,7 +88,6 @@ std::vector<NChunkClient::TBlock> DeserializeBlocks(
     bool validateBlockChecksums,
     const TString& chunkFileName,
     const TBlocksExtPtr& blocksExt,
-    NChunkClient::TChunkReaderStatisticsPtr chunkReaderStatistics,
     TDumpBrokenBlockCallback dumpBrokenBlockCallback);
 
 ////////////////////////////////////////////////////////////////////////////

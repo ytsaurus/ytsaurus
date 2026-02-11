@@ -61,7 +61,6 @@ TChunkMetaWithChunkId DeserializeMeta(
     TSharedRef metaFileBlob,
     const TString& chunkMetaFilename,
     TChunkId chunkId,
-    TChunkReaderStatisticsPtr chunkReaderStatistics,
     TDumpBrokenMetaCallback dumpBrokenMetaCallback)
 {
     if (metaFileBlob.Size() < sizeof(TChunkMetaHeaderBase)) {
@@ -71,10 +70,6 @@ TChunkMetaWithChunkId DeserializeMeta(
             chunkMetaFilename,
             sizeof(TChunkMetaHeaderBase));
     }
-
-    chunkReaderStatistics->MetaBytesReadFromDisk.fetch_add(
-        metaFileBlob.Size(),
-        std::memory_order::relaxed);
 
     TChunkMetaHeader_2 metaHeader;
     TRef metaBlob;
@@ -138,13 +133,8 @@ std::vector<TBlock> DeserializeBlocks(
     bool validateBlockChecksums,
     const TString& chunkFileName,
     const TBlocksExtPtr& blocksExt,
-    NChunkClient::TChunkReaderStatisticsPtr chunkReaderStatistics,
     TDumpBrokenBlockCallback dumpBrokenBlockCallback)
 {
-    chunkReaderStatistics->DataBytesReadFromDisk.fetch_add(
-        blocksBlob.Size(),
-        std::memory_order::relaxed);
-
     const auto& firstBlockInfo = blocksExt->Blocks[blockRange.StartBlockIndex];
 
     std::vector<TBlock> blocks;
@@ -172,7 +162,7 @@ std::vector<TBlock> DeserializeBlocks(
                     << TErrorAttribute("block_count", blockRange.EndBlockIndex - blockRange.StartBlockIndex);
             }
         }
-        blocks.push_back(TBlock(block, blockInfo.Checksum));
+        blocks.emplace_back(block, blockInfo.Checksum);
     }
 
     return blocks;
@@ -419,6 +409,9 @@ std::vector<TBlock> TChunkFileReader::OnBlocksRead(
     YT_VERIFY(readResponse.OutputBuffers.size() == 1);
     const auto& buffer = readResponse.OutputBuffers[0];
 
+    options.ChunkReaderStatistics->DataBytesReadFromDisk.fetch_add(
+        buffer.Size(),
+        std::memory_order::relaxed);
     options.ChunkReaderStatistics->DataIORequests.fetch_add(
         readResponse.IORequests,
         std::memory_order::relaxed);
@@ -432,7 +425,6 @@ std::vector<TBlock> TChunkFileReader::OnBlocksRead(
         ValidateBlockChecksums_,
         FileName_,
         blocksExt,
-        options.ChunkReaderStatistics,
         BIND(&TChunkFileReader::DumpBrokenBlock, MakeWeak(this)));
 }
 
@@ -553,8 +545,11 @@ TRefCountedChunkMetaPtr TChunkFileReader::OnMetaRead(
         metaFileBlob,
         metaFileName,
         ChunkId_,
-        chunkReaderStatistics,
         BIND(&TChunkFileReader::DumpBrokenMeta, MakeWeak(this)));
+    
+    chunkReaderStatistics->MetaBytesReadFromDisk.fetch_add(
+        metaFileBlob.Size(),
+        std::memory_order::relaxed);
     chunkReaderStatistics->MetaIORequests.fetch_add(
         readResponse.IORequests,
         std::memory_order::relaxed);
