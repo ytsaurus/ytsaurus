@@ -27,7 +27,7 @@ PEERDIR(
     contrib/ydb/core/kqp/common
     contrib/ydb/core/kqp/compute_actor
     contrib/ydb/core/kqp/executer_actor/shards_resolver
-    contrib/ydb/core/kqp/federated_query
+    contrib/ydb/core/kqp/federated_query/actors
     contrib/ydb/core/kqp/gateway/local_rpc
     contrib/ydb/core/kqp/query_compiler
     contrib/ydb/core/kqp/rm_service
@@ -42,8 +42,10 @@ PEERDIR(
     contrib/ydb/library/plan2svg
     contrib/ydb/library/yql/dq/actors/compute
     contrib/ydb/library/yql/dq/runtime
+    contrib/ydb/library/yql/dq/comp_nodes
     contrib/ydb/library/yql/dq/tasks
     contrib/ydb/library/yql/providers/common/http_gateway
+    contrib/ydb/library/yql/providers/pq/proto
     contrib/ydb/services/metadata/abstract
 )
 

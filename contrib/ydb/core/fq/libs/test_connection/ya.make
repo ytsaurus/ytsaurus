@@ -18,6 +18,7 @@ PEERDIR(
     contrib/ydb/core/fq/libs/control_plane_storage
     contrib/ydb/core/fq/libs/test_connection/events
     contrib/ydb/library/yql/providers/pq/cm_client
+    contrib/ydb/library/yql/providers/pq/gateway/native
     contrib/ydb/library/yql/providers/solomon/actors
 )
 

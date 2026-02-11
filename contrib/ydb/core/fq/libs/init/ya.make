@@ -35,9 +35,6 @@ PEERDIR(
     contrib/ydb/library/yql/dq/actors/compute
     contrib/ydb/library/yql/dq/actors/input_transforms
     contrib/ydb/library/yql/dq/transform
-    yql/essentials/minikql/comp_nodes
-    yql/essentials/providers/common/comp_nodes
-    yql/essentials/providers/common/metrics
     contrib/ydb/library/yql/providers/dq/actors
     contrib/ydb/library/yql/providers/dq/api/protos
     contrib/ydb/library/yql/providers/dq/provider
@@ -57,6 +54,9 @@ PEERDIR(
     contrib/ydb/library/yql/providers/solomon/proto
     contrib/ydb/library/yql/providers/solomon/provider
     contrib/ydb/library/yql/utils/actor_log
+    yql/essentials/minikql/comp_nodes
+    yql/essentials/providers/common/comp_nodes
+    yql/essentials/providers/common/metrics
 )
 
 YQL_LAST_ABI_VERSION()

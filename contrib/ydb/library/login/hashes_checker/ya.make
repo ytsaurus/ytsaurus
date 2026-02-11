@@ -2,6 +2,7 @@ LIBRARY()
 
 PEERDIR(
     library/cpp/string_utils/base64
+    contrib/ydb/library/login/protos
 )
 
 SRCS(

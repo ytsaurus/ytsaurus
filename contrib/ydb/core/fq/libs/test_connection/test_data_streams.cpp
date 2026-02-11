@@ -2,15 +2,14 @@
 #include "probes.h"
 #include "test_connection.h"
 
-#include <contrib/ydb/library/actors/core/actor_bootstrapped.h>
-
 #include <contrib/ydb/core/fq/libs/actors/clusters_from_connections.h>
 #include <contrib/ydb/core/fq/libs/config/yq_issue.h>
 #include <contrib/ydb/core/fq/libs/db_id_async_resolver_impl/db_async_resolver_impl.h>
+#include <contrib/ydb/library/actors/core/actor_bootstrapped.h>
 #include <contrib/ydb/library/security/util.h>
-#include <yql/essentials/providers/common/structured_token/yql_token_builder.h>
 #include <contrib/ydb/library/yql/providers/pq/gateway/native/yql_pq_gateway.h>
-#include <contrib/ydb/library/yql/providers/pq/provider/yql_pq_gateway.h>
+
+#include <yql/essentials/providers/common/structured_token/yql_token_builder.h>
 
 namespace {
 

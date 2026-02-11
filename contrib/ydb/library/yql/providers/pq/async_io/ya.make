@@ -16,18 +16,19 @@ PEERDIR(
     contrib/ydb/core/fq/libs/row_dispatcher
     contrib/ydb/library/actors/log_backend
     contrib/ydb/library/yql/dq/actors/compute
-    yql/essentials/minikql/computation
     contrib/ydb/library/yql/providers/common/token_accessor/client
     contrib/ydb/library/yql/providers/dq/api/protos
     contrib/ydb/library/yql/providers/pq/common
+    contrib/ydb/library/yql/providers/pq/gateway/abstract
     contrib/ydb/library/yql/providers/pq/proto
-    yql/essentials/public/types
-    yql/essentials/utils/log
     contrib/ydb/public/sdk/cpp/adapters/issue
     contrib/ydb/public/sdk/cpp/src/client/federated_topic
     contrib/ydb/public/sdk/cpp/src/client/driver
     contrib/ydb/public/sdk/cpp/src/client/topic
     contrib/ydb/public/sdk/cpp/src/client/types/credentials
+    yql/essentials/minikql/computation
+    yql/essentials/public/types
+    yql/essentials/utils/log
 )
 
 YQL_LAST_ABI_VERSION()
