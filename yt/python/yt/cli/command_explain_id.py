@@ -1,6 +1,8 @@
 import yt.wrapper as yt
 from yt.wrapper.cli_helpers import print_to_output
 
+from datetime import datetime
+
 
 def _explain_id(**kwargs):
     print_to_output("Id: {}".format(kwargs["id"]))
@@ -11,8 +13,13 @@ def _explain_id(**kwargs):
     print_to_output("  Epoch/Segment:  {} ({})".format(a, hex(a)))
     print_to_output("  Mutation:       {} ({})".format(b, hex(b)))
     print_to_output("  Cell tag:       {} ({})".format(c >> 16, hex(c >> 16)))
-    print_to_output("  Object type:    {} ({}) - {}".format(c & 0xFFFF, hex(c & 0xFFFF), _OBJECT_TYPE.get(c & 0xFFFF, "unknown")))
+    object_type_part = c & 0xFFFF
+    object_type = _OBJECT_TYPE.get(object_type_part, "unknown")
+    print_to_output("  Object type:    {} ({}) - {}".format(object_type_part, hex(object_type_part), object_type))
     print_to_output("  Hash:           {} ({})".format(d, hex(d)))
+    if object_type == "atomic_tablet_transaction":
+        timestamp = ((a << 32) + b) >> 30
+        print_to_output("  Tx timestamp:   {}".format(datetime.fromtimestamp(timestamp)))
 
     if not kwargs["local"]:
         print_to_output("On cluster \"{}\":".format(yt.config["proxy"]["url"]))
