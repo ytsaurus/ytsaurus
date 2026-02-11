@@ -197,7 +197,7 @@ public:
             return false;
         }
 
-        auto guard = Guard(SpinLock_);
+        auto guard = WriterGuard(SpinLock_);
 
         // You should not add data to a session that has not been started (or that is already completing).
         YT_VERIFY(State_ == ES3UploadSessionState::Started);
@@ -255,7 +255,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        auto guard = Guard(SpinLock_);
+        auto guard = ReaderGuard(SpinLock_);
         return CurrentObjectOffset_;
     }
 
@@ -266,7 +266,7 @@ private:
     TAsyncSemaphorePtr UploadWindowSemaphore_;
 
     //! Protects the fields below.
-    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SpinLock_);
     //! This state is not an atomic because it lives in the same plane as the data buffer and pending uploads.
     ES3UploadSessionState State_ = ES3UploadSessionState::Created;
     //! Filled after upload is started. Read-only afterwards.
@@ -290,7 +290,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        auto guard = Guard(SpinLock_);
+        auto guard = ReaderGuard(SpinLock_);
         return State_;
     }
 
@@ -298,7 +298,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        auto guard = Guard(SpinLock_);
+        auto guard = WriterGuard(SpinLock_);
         if (State_ == expected) {
             State_ = desired;
             return true;
@@ -330,7 +330,7 @@ private:
         const auto& multiPartUpload = multiPartUploadOrError.Value();
 
         {
-            auto guard = Guard(SpinLock_);
+            auto guard = WriterGuard(SpinLock_);
 
             YT_VERIFY(State_ == ES3UploadSessionState::Starting);
 
@@ -355,7 +355,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        auto guard = Guard(SpinLock_);
+        auto guard = ReaderGuard(SpinLock_);
         GuardedSchedulePartUploadIfNeeded();
     }
 
@@ -453,7 +453,7 @@ private:
         std::vector<TFuture<TUploadPartResponse>> pendingPartUploads;
 
         {
-            auto guard = Guard(SpinLock_);
+            auto guard = WriterGuard(SpinLock_);
             pendingPartUploads.swap(PendingPartUploads_);
         }
 
@@ -537,7 +537,7 @@ private:
     void DoAbortUpload()
     {
         {
-            auto guard = Guard(SpinLock_);
+            auto guard = ReaderGuard(SpinLock_);
             // There is no point in aborting if the upload was not started or is already completed.
             // The latter is unlikely because we check for it before running this method.
             if (State_ == ES3UploadSessionState::Created || State_ == ES3UploadSessionState::Starting || State_ == ES3UploadSessionState::Completed) {
