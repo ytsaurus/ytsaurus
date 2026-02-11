@@ -19,7 +19,8 @@ using namespace NProfiling;
 class TDummyPullerReplicaCache
     : public IPullerReplicaCache
 {
-    void OnPull(const TTabletId& /*tabletId*/) override
+public:
+    void OnPull(TTabletId /*tabletId*/) override
     { }
 };
 
@@ -32,7 +33,7 @@ class TPullerReplicaCache
     , public TAsyncExpiringCache<TTabletId, void>
 {
 public:
-    explicit TPullerReplicaCache(TTablet* tablet, TReplicationCardId replicationCardId)
+    TPullerReplicaCache(TTablet* tablet, TReplicationCardId replicationCardId)
         : TAsyncExpiringCache<TTabletId, void>(
             GetCacheConfig(tablet->GetSettings().MountConfig),
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
@@ -46,12 +47,12 @@ public:
             .GaugeSummary("/size", ESummaryPolicy::Max))
     { }
 
-    void OnPull(const TTabletId& pullerTabletId) override
+    void OnPull(TTabletId pullerTabletId) override
     {
         Y_UNUSED(Get(pullerTabletId));
     }
 
-    virtual void OnAdded(const TTabletId& /*key*/) noexcept override
+    void OnAdded(const TTabletId& /*key*/) noexcept override
     {
         ++Size_;
 
@@ -64,7 +65,7 @@ public:
         }
     }
 
-    virtual void OnRemoved(const TTabletId& /*key*/) noexcept override
+    void OnRemoved(const TTabletId& /*key*/) noexcept override
     {
         --Size_;
 

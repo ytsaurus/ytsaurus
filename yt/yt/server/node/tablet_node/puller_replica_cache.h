@@ -12,7 +12,7 @@ namespace NYT::NTabletNode {
 struct IPullerReplicaCache
     : public virtual TRefCounted
 {
-    virtual void OnPull(const TTabletId& pullerTabletId) = 0;
+    virtual void OnPull(TTabletId pullerTabletId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IPullerReplicaCache)

@@ -668,9 +668,10 @@ private:
             : std::numeric_limits<i64>::max();
         auto requestTimeout = context->GetTimeout()
             .value_or(Bootstrap_->GetConnection()->GetConfig()->DefaultPullRowsTimeout);
-        auto pullerTabletId = request->has_puller_tablet_id()
-            ? std::make_optional(FromProto<TTabletId>(request->puller_tablet_id()))
-            : std::nullopt;
+        TTabletId pullerTabletId;
+        if (request->has_puller_tablet_id()) {
+            pullerTabletId = FromProto<TTabletId>(request->puller_tablet_id());
+        }
         auto maxAllowedCommitInstant = request->has_max_allowed_commit_instant()
             ? FromProto<TInstant>(request->max_allowed_commit_instant())
             : TInstant::Max();
@@ -742,7 +743,7 @@ private:
                 profilerGuard.Start(serviceCounters->PullRows);
 
                 if (pullerTabletId) {
-                    tabletSnapshot->TabletChaosData->PullerReplicaCache.Acquire()->OnPull(*pullerTabletId);
+                    tabletSnapshot->TabletChaosData->PullerReplicaCache.Acquire()->OnPull(pullerTabletId);
                 }
 
                 snapshotStore->ValidateTabletAccess(tabletSnapshot, AsyncLastCommittedTimestamp);
