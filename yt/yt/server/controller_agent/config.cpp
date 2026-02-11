@@ -59,6 +59,9 @@ void TTestingOptions::Register(TRegistrar registrar)
         "abort_output_transaction_after_completion_transaction_commit",
         &TThis::AbortOutputTransactionAfterCompletionTransactionCommit)
         .Default(false);
+
+    registrar.Parameter("enable_events_on_fs", &TThis::EnableEventsOnFs)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

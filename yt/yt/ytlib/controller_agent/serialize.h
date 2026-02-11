@@ -107,6 +107,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((FixSimpleSort)                         (302127))
     ((ChunkPoolStatistics)                   (302128))
     ((ValidateRootFS)                        (302129))
+    ((FixOutputChunkPoolIndexSerialization)  (302130))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

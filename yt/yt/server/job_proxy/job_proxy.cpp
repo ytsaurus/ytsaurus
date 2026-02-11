@@ -20,6 +20,8 @@
 #include <yt/yt/server/lib/controller_agent/helpers.h>
 #include <yt/yt/server/lib/controller_agent/statistics.h>
 
+#include <yt/yt/server/lib/job_proxy/events_on_fs.h>
+
 #include <yt/yt/server/lib/exec_node/proto/supervisor_service.pb.h>
 
 #include <yt/yt/server/lib/rpc_proxy/access_checker.h>
@@ -1093,6 +1095,15 @@ TJobResult TJobProxy::RunJob()
 
     if (GetJobSpecHelper()->HasSidecars()) {
         environment->StartSidecars(GetJobSpecHelper()->GetJobSpecExt());
+    }
+
+    if (auto eventsOnFsConfig = Config_->JobTestingOptions->EventsOnFs) {
+        WaitFor(
+            GetBreakpointEvent(
+                eventsOnFsConfig,
+                JobId_,
+                EBreakpointType::BeforeRun))
+            .ThrowOnError();
     }
 
     return job->Run();
