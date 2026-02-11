@@ -443,10 +443,10 @@ def upload_tutorials(args: argparse.Namespace):
     root_dir = args.scripts_folder
     query_ids = []
     for root, dirs, files in os.walk(root_dir):
+        files.sort(reverse=True)
         if files:
             print(f" Root: {root}, Dirs: {dirs}, Files: {files}")
-            sql_files = [f for f in files if f.endswith(".sql")][::-1]
-            for file in sql_files:
+            for file in files:
                 print(f"Engine: {root.split("/")[1]}")
                 file_path = os.path.join(root, file)
                 with open(file_path, "r") as f:
