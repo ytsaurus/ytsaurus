@@ -861,14 +861,15 @@ bool TSlotManager::Disable(TError error)
     if (auto syncResult = WaitFor(jobController->AbortAllJobs(jobsAbortionError).WithTimeout(timeout));
         !syncResult.IsOK())
     {
-        YT_LOG_FATAL(
+        YT_LOG_ERROR(
             syncResult,
             "Free slot synchronization failed (ActualSlotCount: %v, TotalSlots: %v, InitializedSlots: %v, InitializationEpoch: %v, ActualSlots: %v)",
             size(FreeSlots_),
             SlotCount_,
             InitializedSlotCount_.load(),
             InitializationEpoch_,
-            TRingQueueIterableWrapper(FreeSlots_));
+            SortedFreeSlots());
+        AbortProcessDramatically(EProcessExitCode::InternalError, "Free slot synchronization failed");
     }
 
     if (auto volumeManager = VolumeManager_.Acquire()) {
@@ -881,32 +882,36 @@ bool TSlotManager::Disable(TError error)
             .WithTimeout(timeout));
 
         if (!disableVolumeManagerResult.IsOK()) {
-            YT_LOG_EVENT(
-                Logger(),
-                dynamicConfig->AbortOnFreeVolumeSynchronizationFailed ? NLogging::ELogLevel::Fatal : NLogging::ELogLevel::Error,
+            YT_LOG_ERROR(
                 disableVolumeManagerResult,
-                "Free volume synchronization failed");
+                "Failed to release volumes");
+            if (dynamicConfig->AbortOnFreeVolumeSynchronizationFailed) {
+                AbortProcessDramatically(EProcessExitCode::InternalError, "Failed to release volumes");
+            }
         }
 
         if (!disableLayerCacheResult.IsOK()) {
-            YT_LOG_EVENT(
-                Logger(),
-                dynamicConfig->AbortOnFreeVolumeSynchronizationFailed ? NLogging::ELogLevel::Fatal : NLogging::ELogLevel::Error,
+            YT_LOG_ERROR(
                 disableLayerCacheResult,
                 "Disabling the layer cache failed with an error");
+            if (dynamicConfig->AbortOnFreeVolumeSynchronizationFailed) {
+                AbortProcessDramatically(EProcessExitCode::InternalError, "Disabling the layer cache failed with an error");
+            }
         }
     }
 
     YT_LOG_WARNING("Disable slot manager finished");
 
-    YT_LOG_FATAL_IF(
-        ssize(FreeSlots_) != InitializedSlotCount_.load(),
-        "Some slots are hung after slot disabled (ActualSlotCount: %v, TotalSlots: %v, InitializedSlots: %v, InitializationEpoch: %v, ActualSlots: %v)",
-        size(FreeSlots_),
-        SlotCount_,
-        InitializedSlotCount_.load(),
-        InitializationEpoch_,
-        TRingQueueIterableWrapper(FreeSlots_));
+    if (ssize(FreeSlots_) != InitializedSlotCount_.load()) {
+        YT_LOG_ERROR(
+            "Some slots are hung after disabling slot manager (ActualSlotCount: %v, TotalSlots: %v, InitializedSlots: %v, InitializationEpoch: %v, ActualSlots: %v)",
+            size(FreeSlots_),
+            SlotCount_,
+            InitializedSlotCount_.load(),
+            InitializationEpoch_,
+            SortedFreeSlots());
+        AbortProcessDramatically(EProcessExitCode::InternalError, "Some slots are hung after disabling slot manager");
+    }
 
     VerifyCurrentState(ESlotManagerState::Disabling);
 
@@ -1315,7 +1320,7 @@ void TSlotManager::PushSlot(int slotIndex)
         SlotCount_,
         InitializedSlotCount_.load(),
         InitializationEpoch_,
-        TRingQueueIterableWrapper(FreeSlots_));
+        SortedFreeSlots());
 }
 
 int TSlotManager::PopSlot()
@@ -1352,6 +1357,18 @@ void TSlotManager::ReleaseSlot(ESlotType slotType, int slotIndex, NClusterNode::
         slotType,
         slotIndex,
         requestedCpu);
+}
+
+std::vector<int> TSlotManager::SortedFreeSlots()
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    std::vector<int> freeSlotsSorted;
+    for (int slot : TRingQueueIterableWrapper(FreeSlots_)) {
+        freeSlotsSorted.push_back(slot);
+    }
+    std::ranges::sort(freeSlotsSorted);
+    return freeSlotsSorted;
 }
 
 NNodeTrackerClient::NProto::TDiskResources TSlotManager::GetDiskResources()
