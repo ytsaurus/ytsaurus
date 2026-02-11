@@ -148,10 +148,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        auto it = EmplaceOrCrash(Nodes_, nodeId, New<TNode>(nodeAddress));
-        const auto& node = it->second;
-
-        ReviveNodeState(nodeId, node);
+        EmplaceOrCrash(Nodes_, nodeId, New<TNode>(nodeAddress));
 
         YT_LOG_DEBUG("Node registered (NodeId: %v, NodeAddress: %v)",
             nodeId,
@@ -198,6 +195,8 @@ public:
         bool wasSchedulable = node->IsSchedulable();
 
         node->SetDescriptor(std::move(descriptor));
+
+        ReviveNodeState(nodeId, node);
 
         // TODO(eshcherbin): Rework how modules are configured.
         auto oldModule = node->SchedulingModule();
@@ -891,6 +890,10 @@ private:
         // with the policy's percieved resource usage (because there are no allocations in the dry-run policy).
         // Thus, we need to approximate the known total resource demand by fake grouped needed resources.
         YT_VERIFY(operation->InitialGroupedNeededResources());
+
+        if (operation->InitialGroupedNeededResources()->empty()) {
+            return *operation->InitialGroupedNeededResources();
+        }
 
         // For vanilla operations we pretend that they always want what they wanted in the very beginning.
         if (operation->GetType() == EOperationType::Vanilla) {
