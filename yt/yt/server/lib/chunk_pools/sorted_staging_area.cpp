@@ -482,7 +482,6 @@ private:
             if (!PrimaryComparator_.IsRangeEmpty(UpperBound_.Invert(), dataSlice->UpperLimit().KeyBound)) {
                 // Right part of the data slice goes to Buffer domain.
                 auto restDataSlice = CreateInputDataSlice(dataSlice, PrimaryComparator_, UpperBound_.Invert(), dataSlice->UpperLimit().KeyBound);
-                restDataSlice->LowerLimit().KeyBound = PrimaryComparator_.StrongerKeyBound(UpperBound_.Invert(), restDataSlice->LowerLimit().KeyBound);
                 // It may happen that data slice is entirely inside current upper bound (e.g. slice E from example 1 above), so
                 // check if rest data slice is non-empty.
                 if (!PrimaryComparator_.IsRangeEmpty(restDataSlice->LowerLimit().KeyBound, restDataSlice->UpperLimit().KeyBound)) {
