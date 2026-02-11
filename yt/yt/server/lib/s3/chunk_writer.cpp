@@ -108,6 +108,12 @@ public:
             : AbortIncompleteUpload();
     }
 
+    bool IsUploadCompleted() const
+    {
+        auto completionFuture = GetCompletionFuture();
+        return completionFuture.IsSet() && completionFuture.Get().IsOK();
+    }
+
 protected:
     const IClientPtr Client_;
     const TS3MediumDescriptor::TS3ObjectPlacement ObjectPlacement_;
@@ -116,12 +122,6 @@ protected:
 private:
     //! This promise should never be set successfully, only errors are expected.
     TPromise<void> StateError_ = NewPromise<void>();
-
-    bool IsUploadCompleted()
-    {
-        auto completionFuture = GetCompletionFuture();
-        return completionFuture.IsSet() && completionFuture.Get().IsOK();
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////
@@ -224,7 +224,7 @@ public:
         auto promise = NewPromise<void>();
         promise.TrySetFrom(GetStateFuture());
         promise.TrySetFrom(UploadWindowSemaphore_->GetReadyEvent());
-        // Both futures we are setting from are uncancelable, but it is wise to show our intent anyway.
+        // Futures, that we are setting from, are uncancelable, but it is wise to show our intent anyway.
         return promise.ToFuture().ToUncancelable();
     }
 
@@ -735,6 +735,8 @@ public:
 
         // This method may only be called if the chunk was closed successfully,
         // so we can assume that the upload session was completed.
+        YT_VERIFY(ChunkUploadSession_->IsUploadCompleted());
+
         TChunkReplicaWithLocation replica(
             OffshoreNodeId,
             GenericChunkReplicaIndex,
