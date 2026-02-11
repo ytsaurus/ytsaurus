@@ -1124,6 +1124,18 @@ class TestBulkInsert(DynamicTablesBase):
                 command="cat",
             )
 
+        map(
+            in_="//tmp/t_input",
+            out="<append=%true>//tmp/t_output",
+            command="cat",
+            spec={
+                "update_secondary_index": False
+            }
+        )
+
+        assert select_rows("* from [//tmp/t_output_index]") == []
+        assert select_rows("* from [//tmp/t_output]") == [{"key": 1, "value": "1"}]
+
     @pytest.mark.parametrize("schema_inference_mode", ["from_input", "from_output"])
     def test_inference_mode(self, schema_inference_mode):
         sync_create_cells(1)
