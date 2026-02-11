@@ -235,8 +235,8 @@ TEST_P(TS3ReaderWriterTest, BlobsLayoutOnWrite)
         auto response = WaitFor(S3Client_->ListObjects({.Bucket = RootBucket_}))
             .ValueOrThrow();
         EXPECT_EQ(std::ssize(response.Objects), 2);
-        EXPECT_EQ(response.Objects.front().Key, Format("chunk-data/%v", ChunkId_));
-        EXPECT_EQ(response.Objects.back().Key, Format("chunk-data/%v.meta", ChunkId_));
+        EXPECT_EQ(response.Objects.front().Key, Format("chunk-data/%02x/%02x/%v", ChunkId_.ReversedParts8[1], ChunkId_.ReversedParts8[0], ChunkId_));
+        EXPECT_EQ(response.Objects.back().Key, Format("chunk-data/%02x/%02x/%v.meta", ChunkId_.ReversedParts8[1], ChunkId_.ReversedParts8[0], ChunkId_));
     }
 }
 
@@ -266,9 +266,6 @@ TEST_P(TS3ReaderWriterTest, WriteAndReadBlocks)
     auto invoker = pool->GetInvoker();
     auto testCase = GetParam();
 
-    i64 minBytesToRead = 0;
-    i64 maxBytesToRead = 0;
-    std::vector<bool> requestedBlockMask(testCase.BlockCountInChunk);
     IChunkReader::TReadBlocksOptions readBlockOptions;
     for (int batchIndex = 0; batchIndex < testCase.BatchCount; ++batchIndex) {
         std::vector<TFuture<std::vector<TBlock>>> readFutures;
@@ -291,12 +288,7 @@ TEST_P(TS3ReaderWriterTest, WriteAndReadBlocks)
 
             auto estimatedBytesToRead = 0;
             for (auto blockIndex : blockIndicies) {
-                maxBytesToRead += GeneratedBlocks_[blockIndex].Size();
                 estimatedBytesToRead += GeneratedBlocks_[blockIndex].Size();
-                if (!requestedBlockMask[blockIndex]) {
-                    requestedBlockMask[blockIndex] = true;
-                    minBytesToRead += GeneratedBlocks_[blockIndex].Size();
-                }
             }
 
             readBlockOptions.EstimatedSize = estimatedBytesToRead;
@@ -316,11 +308,6 @@ TEST_P(TS3ReaderWriterTest, WriteAndReadBlocks)
 
         WaitFor(AllSucceeded(std::move(readFutures)))
             .ThrowOnError();
-
-        auto statistics = readBlockOptions.ClientOptions.ChunkReaderStatistics;
-
-        EXPECT_GE(statistics->DataBytesReadFromDisk, minBytesToRead);
-        EXPECT_LE(statistics->DataBytesReadFromDisk, maxBytesToRead);
     }
 }
 

@@ -142,7 +142,6 @@ private:
 
     YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, MetaLock_);
     TRefCountedChunkMetaPtr ChunkMeta_;
-    TBlocksExtPtr BlocksExt_;
 
     IInvokerPtr GetSessionInvoker(const TReadBlocksOptions& options) const
     {
@@ -230,7 +229,6 @@ private:
 
                 if (!ChunkMeta_) {
                     ChunkMeta_ = std::move(meta);
-                    BlocksExt_ = New<TBlocksExt>(GetProtoExtension<NChunkClient::NProto::TBlocksExt>(ChunkMeta_->extensions()));
                 }
 
                 return ChunkMeta_;
@@ -244,7 +242,7 @@ private:
             .AsVoid()
             .Apply(BIND([this, this_ = MakeStrong(this)] {
                 auto guard = ReaderGuard(MetaLock_);
-                return BlocksExt_;
+                return New<TBlocksExt>(GetProtoExtension<NChunkClient::NProto::TBlocksExt>(ChunkMeta_->extensions()));
             }));
     }
 };
