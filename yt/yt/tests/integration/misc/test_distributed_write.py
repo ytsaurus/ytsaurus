@@ -56,7 +56,7 @@ class TestDistributedWrite(YTEnvSetup):
 
 
 @pytest.mark.enabled_multidaemon
-class TestDistributedWriteRPC(TestDistributedWrite):
+class TestDistributedWriteRpcProxy(TestDistributedWrite):
     ENABLE_RPC_PROXY = True
     DELTA_RPC_DRIVER_CONFIG = {
         "enable_retries": True,

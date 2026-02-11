@@ -446,7 +446,9 @@ private:
         auto jobId = FromProto<TJobId>(request->job_id());
         auto payload = FromProto<std::string>(request->payload());
 
-        context->SetRequestInfo("JobId: %v, PayloadSize: %v", jobId, payload.size());
+        context->SetRequestInfo("JobId: %v, PayloadSize: %v",
+            jobId,
+            payload.size());
 
         auto signature = Bootstrap_->GetSignatureGenerator()->Sign(std::move(payload));
 
@@ -461,7 +463,9 @@ private:
         auto jobId = FromProto<TJobId>(request->job_id());
         auto signature = FromProto<TSignaturePtr>(request->signature());
 
-        context->SetRequestInfo("JobId: %v, PayloadSize: %v", jobId, signature->Payload().size());
+        context->SetRequestInfo("JobId: %v, PayloadSize: %v",
+            jobId,
+            signature->Payload().size());
 
         bool isValid = WaitFor(Bootstrap_->GetSignatureValidator()->Validate(signature))
             .ValueOrThrow();

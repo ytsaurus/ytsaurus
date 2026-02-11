@@ -62,7 +62,10 @@ TFuture<TKeyInfoPtr> TCypressKeyReader::FindKey(const TOwnerId& ownerId, const T
     auto config = Config_.Acquire();
     auto keyNodePath = MakeCypressKeyPath(config->Path, ownerId, keyId);
 
-    YT_LOG_DEBUG("Looking for public key in Cypress (OwnerId: %v, KeyId: %v, Path: %v)", ownerId, keyId, keyNodePath);
+    YT_LOG_DEBUG("Looking for public key in Cypress (OwnerId: %v, KeyId: %v, Path: %v)",
+        ownerId,
+        keyId,
+        keyNodePath);
 
     TGetNodeOptions options;
     static_cast<TMasterReadOptions&>(options) = *config->CypressReadOptions;
@@ -73,7 +76,9 @@ TFuture<TKeyInfoPtr> TCypressKeyReader::FindKey(const TOwnerId& ownerId, const T
         auto [ownerId, keyId] = std::visit([] (const auto& meta) {
             return std::pair(meta.OwnerId, meta.KeyId);
         }, keyInfo->Meta());
-        YT_LOG_DEBUG("Found public key in Cypress (OwnerId: %v, KeyId: %v)", ownerId, keyId);
+        YT_LOG_DEBUG("Found public key in Cypress (OwnerId: %v, KeyId: %v)",
+            ownerId,
+            keyId);
         return std::move(keyInfo);
     }));
 }
@@ -107,17 +112,18 @@ TFuture<void> TCypressKeyWriter::CleanUpKeysIfLimitReached(TCypressKeyWriterConf
     return Client_->GetNode(ownerNodePath, options)
         .Apply(BIND([
                 this,
-                config = std::move(config),
-                this_ = MakeStrong(this)
+                this_ = MakeStrong(this),
+                config = std::move(config)
             ] (const TErrorOr<TYsonString>& result) mutable {
-                return DoCleanUpOnReachedLimit(std::move(config), result);
+                return DoCleanUpOnLimitReached(config, result);
             }));
 }
 
-TFuture<void> TCypressKeyWriter::DoCleanUpOnReachedLimit(TCypressKeyWriterConfigPtr config, const TErrorOr<TYsonString>& ownerNode) {
+TFuture<void> TCypressKeyWriter::DoCleanUpOnLimitReached(const TCypressKeyWriterConfigPtr& config, const TErrorOr<TYsonString>& ownerNode)
+{
     if (!ownerNode.IsOK()) {
         if (ownerNode.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            YT_LOG_ERROR(ownerNode, "Skipping cleaning up keys: owner node doesn't exist");
+            YT_LOG_ERROR(ownerNode, "Skipping cleaning up keys: owner node does not exist");
             return OKFuture;
         }
         return MakeFuture(TError(ownerNode));
@@ -126,7 +132,9 @@ TFuture<void> TCypressKeyWriter::DoCleanUpOnReachedLimit(TCypressKeyWriterConfig
     auto currentKeys = ConvertTo<IMapNodePtr>(ownerNode.Value());
     auto currentKeyCount = currentKeys->GetChildCount();
     if (currentKeyCount + 1 <= *config->MaxKeyCount) {
-        YT_LOG_DEBUG("Skipping cleaning up keys (CurrentKeyCount: %v, MaxKeyCount: %v)", currentKeyCount, *config->MaxKeyCount);
+        YT_LOG_DEBUG("Skipping cleaning up keys (CurrentKeyCount: %v, MaxKeyCount: %v)",
+            currentKeyCount,
+            *config->MaxKeyCount);
         return OKFuture;
     }
 
@@ -137,11 +145,11 @@ TFuture<void> TCypressKeyWriter::DoCleanUpOnReachedLimit(TCypressKeyWriterConfig
         config->MaxKeyCount,
         keysToDelete);
 
-    std::vector<std::pair<TInstant, TGuid>> sortedKeys;
+    std::vector<std::pair<TInstant, TKeyId>> sortedKeys;
     sortedKeys.reserve(currentKeyCount);
     for (const auto& [keyId, keyNode] : currentKeys->GetChildren()) {
         auto expirationTime = keyNode->Attributes().Get<TInstant>("expiration_time");
-        sortedKeys.emplace_back(expirationTime, ConvertTo<TGuid>(keyId));
+        sortedKeys.emplace_back(expirationTime, ConvertTo<TKeyId>(keyId));
     }
     std::ranges::nth_element(sortedKeys, sortedKeys.begin() + keysToDelete);
 
@@ -161,7 +169,9 @@ TFuture<void> TCypressKeyWriter::RegisterKey(const TKeyInfoPtr& keyInfo)
         return std::pair(meta.OwnerId, meta.KeyId);
     }, keyInfo->Meta());
 
-    YT_LOG_DEBUG("Registering key (OwnerId: %v, KeyId: %v)", ownerId, keyId);
+    YT_LOG_DEBUG("Registering key (OwnerId: %v, KeyId: %v)",
+        ownerId,
+        keyId);
 
     auto config = Config_.Acquire();
 
@@ -172,18 +182,20 @@ TFuture<void> TCypressKeyWriter::RegisterKey(const TKeyInfoPtr& keyInfo)
     return cleanUpFuture
         .Apply(BIND([
                 this,
+                this_ = MakeStrong(this),
                 config = std::move(config),
                 keyInfo = keyInfo,
                 ownerId = std::move(ownerId),
-                keyId = std::move(keyId),
-                this_ = MakeStrong(this)
+                keyId = std::move(keyId)
             ] () mutable {
-                YT_LOG_DEBUG("Cleanup finished, registering key (OwnerId: %v, KeyId: %v)", ownerId, keyId);
-                return DoRegisterKey(std::move(config), std::move(keyInfo), std::move(ownerId), std::move(keyId));
+                YT_LOG_DEBUG("Cleanup finished, registering key (OwnerId: %v, KeyId: %v)",
+                    ownerId,
+                    keyId);
+                return DoRegisterKey(config, std::move(keyInfo), std::move(ownerId), std::move(keyId));
             }));
 }
 
-TFuture<void> TCypressKeyWriter::DoRegisterKey(TCypressKeyWriterConfigPtr config, TKeyInfoPtr keyInfo, TOwnerId ownerId, TKeyId keyId)
+TFuture<void> TCypressKeyWriter::DoRegisterKey(const TCypressKeyWriterConfigPtr& config, TKeyInfoPtr keyInfo, TOwnerId ownerId, TKeyId keyId)
 {
     auto ownerNodePath = MakeCypressOwnerPath(config->Path, ownerId);
     auto keyNodePath = MakeCypressKeyPath(config->Path, ownerId, keyId);
@@ -198,14 +210,18 @@ TFuture<void> TCypressKeyWriter::DoRegisterKey(TCypressKeyWriterConfigPtr config
     options.Attributes = std::move(attributes);
     options.Recursive = true;
     return Client_->CreateNode(keyNodePath, EObjectType::Document, options)
-        .AsUnique().Apply(BIND([this, keyInfoYson = ConvertToYsonString(keyInfo), keyNodePath = std::move(keyNodePath), this_ = MakeStrong(this)] (TNodeId&& /*nodeId*/) {
+        .Apply(BIND([this, this_ = MakeStrong(this), keyInfoYson = ConvertToYsonString(keyInfo), keyNodePath = std::move(keyNodePath)] (TNodeId /*nodeId*/) {
             return Client_->SetNode(keyNodePath, keyInfoYson);
         }))
         .Apply(BIND([ownerId = std::move(ownerId), keyId = std::move(keyId)] (const TError& error) {
             if (!error.IsOK()) {
-                return error.Wrap("Failed to register key (OwnerId: %v, KeyId: %v)", ownerId, keyId);
+                return error.Wrap("Failed to register key")
+                    << TErrorAttribute("owner_id", ownerId)
+                    << TErrorAttribute("key_id", keyId);
             }
-            YT_LOG_DEBUG("Successfully registered key (OwnerId: %v, KeyId: %v)", ownerId, keyId);
+            YT_LOG_DEBUG("Successfully registered key (OwnerId: %v, KeyId: %v)",
+                ownerId,
+                keyId);
             return TError();
         }));
 }

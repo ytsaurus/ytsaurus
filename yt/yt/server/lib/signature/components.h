@@ -32,13 +32,13 @@ public:
     TFuture<void> Reconfigure(const TSignatureComponentsConfigPtr& config);
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ReconfigureSpinLock_);
-
     const TOwnerId OwnerId_;
     const NApi::NNative::IClientPtr Client_;
     const IInvokerPtr RotateInvoker_;
 
     TFuture<void> InitializeCryptographyFuture_;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ReconfigureSpinLock_);
 
     TCypressKeyReaderPtr CypressKeyReader_;
     TSignatureValidatorPtr UnderlyingValidator_;

@@ -77,7 +77,8 @@ void TSignatureComponents::InitializeCryptographyIfRequired(const TSignatureComp
         .Apply(BIND([actionQueue = std::move(actionQueue)] {}));
 }
 
-TFuture<void> TSignatureComponents::Reconfigure(const TSignatureComponentsConfigPtr& config) {
+TFuture<void> TSignatureComponents::Reconfigure(const TSignatureComponentsConfigPtr& config)
+{
     YT_LOG_INFO("Reconfiguring signature components");
 
     auto guard = Guard(ReconfigureSpinLock_);
@@ -102,7 +103,7 @@ TFuture<void> TSignatureComponents::Reconfigure(const TSignatureComponentsConfig
         if (KeyRotator_) {
             // NB: Best effort attempt to get the first rotation *after* Reconfigure.
             // Can't be put later, because Reconfigure might trigger an immediate rotation.
-            returnFuture = KeyRotator_->GetNextRotation();
+            returnFuture = KeyRotator_->GetNextRotationFuture();
             KeyRotator_->Reconfigure(config->Generation->KeyRotator);
         } else {
             KeyRotator_ = New<TKeyRotator>(config->Generation->KeyRotator, RotateInvoker_, CypressKeyWriter_, UnderlyingGenerator_);

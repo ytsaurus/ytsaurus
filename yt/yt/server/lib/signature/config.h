@@ -106,7 +106,6 @@ DEFINE_REFCOUNTED_TYPE(TSignatureValidationConfig)
 struct TSignatureGenerationConfig
     : public NYTree::TYsonStruct
 {
-public:
     TCypressKeyWriterConfigPtr CypressKeyWriter;
     TSignatureGeneratorConfigPtr Generator;
     TKeyRotatorConfigPtr KeyRotator;

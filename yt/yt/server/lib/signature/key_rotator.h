@@ -37,7 +37,7 @@ public:
 
     //! Returns the future that is set when the next started rotation completes, with "next"
     //! starting from some point inside of this call.
-    TFuture<void> GetNextRotation();
+    TFuture<void> GetNextRotationFuture();
 
     void Reconfigure(TKeyRotatorConfigPtr config);
 
