@@ -28,6 +28,7 @@ PEERDIR(
     library/cpp/xml/document
     contrib/ydb/core/base
     contrib/ydb/core/fq/libs/events
+    contrib/ydb/core/util
     contrib/ydb/library/yql/dq/actors/compute
     contrib/ydb/library/yql/providers/common/arrow
     contrib/ydb/library/yql/providers/common/arrow/interface

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <contrib/ydb/public/sdk/cpp/src/library/time/time.h>
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/library/time/time.h>
 
 #include <functional>
 

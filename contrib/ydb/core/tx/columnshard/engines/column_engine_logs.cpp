@@ -1,5 +1,4 @@
 #include "column_engine_logs.h"
-#include "filter.h"
 
 #include "changes/actualization/construction/context.h"
 #include "changes/cleanup_portions.h"
@@ -22,8 +21,7 @@
 #include <contrib/ydb/library/conclusion/status.h>
 
 #include <library/cpp/time_provider/time_provider.h>
-
-#include <concepts>
+#include <contrib/ydb/core/tx/columnshard/tracing/probes.h>
 
 namespace NKikimr::NColumnShard {
 
@@ -32,6 +30,11 @@ LWTRACE_USING(YDB_CS);
 }
 
 namespace NKikimr::NOlap {
+
+// Windows build workaround
+#ifndef LWTRACE_DISABLE
+using namespace NKikimr::NColumnShard::LWTRACE_GET_NAMESPACE(YDB_CS);
+#endif
 
 TColumnEngineForLogs::TColumnEngineForLogs(const ui64 tabletId, const std::shared_ptr<TSchemaObjectsCache>& schemaCache,
     const std::shared_ptr<NDataAccessorControl::IDataAccessorsManager>& dataAccessorsManager,
@@ -342,7 +345,6 @@ std::shared_ptr<TCleanupPortionsColumnEngineChanges> TColumnEngineForLogs::Start
         changes->GetPortionsToAccess().size())("drop", portionsFromDrop)("skip", skipLocked)("portions_counter", portionsCount)(
         "chunks", chunksCount)("limit", limitExceeded)("max_portions", maxPortionsCount)("max_chunks", maxChunksCount);
 
-    using namespace NKikimr::NColumnShard;
     if (LWPROBE_ENABLED(StartCleanup)) {
         ui64 totalPortions = 0;
         for (const auto& [_, portions]: CleanupPortions) {
@@ -422,6 +424,7 @@ bool TColumnEngineForLogs::ApplyChangesOnExecute(
 }
 
 void TColumnEngineForLogs::AppendPortion(const std::shared_ptr<TPortionInfo>& portionInfo) {
+    TInstant appendPortionStart = TAppData::TimeProvider->Now();
     AFL_VERIFY(portionInfo);
     auto granule = GetGranulePtrVerified(portionInfo->GetPathId());
     AFL_VERIFY(!granule->GetPortionOptional(portionInfo->GetPortionId()));
@@ -430,9 +433,11 @@ void TColumnEngineForLogs::AppendPortion(const std::shared_ptr<TPortionInfo>& po
     if (portionInfo->HasRemoveSnapshot()) {
         AddCleanupPortion(portionInfo);
     }
+    SignalCounters.OnPortionAdded((TAppData::TimeProvider->Now() - appendPortionStart));
 }
 
 void TColumnEngineForLogs::AppendPortion(const std::shared_ptr<TPortionDataAccessor>& portionInfo) {
+    TInstant appendPortionStart = TAppData::TimeProvider->Now();
     auto granule = GetGranulePtrVerified(portionInfo->GetPortionInfo().GetPathId());
     AFL_VERIFY(!granule->GetPortionOptional(portionInfo->GetPortionInfo().GetPortionId()));
     Counters->AddPortion(portionInfo->GetPortionInfo());
@@ -440,6 +445,7 @@ void TColumnEngineForLogs::AppendPortion(const std::shared_ptr<TPortionDataAcces
     if (portionInfo->GetPortionInfo().HasRemoveSnapshot()) {
         AddCleanupPortion(portionInfo->GetPortionInfoPtr());
     }
+    SignalCounters.OnPortionAdded((TAppData::TimeProvider->Now() - appendPortionStart));
 }
 
 bool TColumnEngineForLogs::ErasePortion(const TPortionInfo& portionInfo, bool updateStats) {
@@ -463,12 +469,19 @@ std::vector<TColumnEngineForLogs::TSelectedPortionInfo> TColumnEngineForLogs::Se
     const TPKRangesFilter& pkRangesFilter, const bool withNonconflicting, const bool withConflicting,
     const std::optional<THashSet<TInsertWriteId>>& ownPortions) const {
     std::vector<TSelectedPortionInfo> out;
+
     auto spg = GranulesStorage->GetGranuleOptional(pathId);
     if (!spg) {
         return out;
     }
 
+    const bool calculateProbe = LWPROBE_ENABLED(ColumnEngineForLogsSelect);
+    TInstant start;
+    TDuration timeOfInsertedIsUsed;
+    ui64 totalPortionsCount = 0;
+    ui64 totalFilteredPortionsCount = 0;
     for (const auto& [writeId, portion] : spg->GetInsertedPortions()) {
+        ++totalPortionsCount;
         if (portion->IsRemovedFor(snapshot)) {
             continue;
         }
@@ -480,14 +493,28 @@ std::vector<TColumnEngineForLogs::TSelectedPortionInfo> TColumnEngineForLogs::Se
             continue;
         }
 
-        const bool takePortion = pkRangesFilter.IsUsed(*portion);
+        bool takePortion;
+        if (calculateProbe) {
+            start = TAppData::TimeProvider->Now();
+            takePortion = pkRangesFilter.IsUsed(*portion);
+            timeOfInsertedIsUsed += TAppData::TimeProvider->Now() - start;
+            if (!takePortion) {
+                ++totalFilteredPortionsCount;
+            }
+        } else {
+            takePortion = pkRangesFilter.IsUsed(*portion);
+        }
+
         AFL_TRACE(NKikimrServices::TX_COLUMNSHARD_SCAN)("event", takePortion ? "portion_selected" : "portion_skipped")("pathId", pathId)("portion", portion->DebugString());
         if (takePortion) {
             AFL_VERIFY(nonconflicting != conflicting)("nonconflicting", nonconflicting);
             out.emplace_back(portion, nonconflicting);
         }
     }
+
+    TDuration timeOfCompactedIsUsed{};
     for (const auto& [_, portion] : spg->GetPortions()) {
+        ++totalPortionsCount;
         if (portion->IsRemovedFor(snapshot)) {
             continue;
         }
@@ -504,12 +531,27 @@ std::vector<TColumnEngineForLogs::TSelectedPortionInfo> TColumnEngineForLogs::Se
             continue;
         }
 
-        const bool takePortion = pkRangesFilter.IsUsed(*portion);
+        bool takePortion;
+        if (calculateProbe) {
+            start = TAppData::TimeProvider->Now();
+            takePortion = pkRangesFilter.IsUsed(*portion);
+            timeOfCompactedIsUsed += TAppData::TimeProvider->Now() - start;
+            if (!takePortion) {
+                ++totalFilteredPortionsCount;
+            }
+        } else {
+            takePortion = pkRangesFilter.IsUsed(*portion);
+        }
+
         AFL_TRACE(NKikimrServices::TX_COLUMNSHARD_SCAN)("event", takePortion ? "portion_selected" : "portion_skipped")("pathId", pathId)("portion", portion->DebugString());
         if (takePortion) {
             AFL_VERIFY(nonconflicting != conflicting)("nonconflicting", nonconflicting);
             out.emplace_back(portion, nonconflicting);
         }
+    }
+
+    if (calculateProbe) {
+        LWPROBE(ColumnEngineForLogsSelect, pathId.DebugString(), timeOfInsertedIsUsed.MilliSeconds(), timeOfCompactedIsUsed.MilliSeconds(), totalPortionsCount, totalFilteredPortionsCount, out.size());
     }
 
     return out;

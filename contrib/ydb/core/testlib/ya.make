@@ -54,6 +54,7 @@ PEERDIR(
     contrib/ydb/core/keyvalue
     contrib/ydb/core/kqp
     contrib/ydb/core/kqp/federated_query
+    contrib/ydb/core/kqp/federated_query/actors
     contrib/ydb/core/kqp/finalize_script_service
     contrib/ydb/core/kqp/proxy_service
     contrib/ydb/core/metering

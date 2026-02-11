@@ -1,7 +1,7 @@
 #include "kqp_finalize_script_actor.h"
 
 #include <contrib/ydb/core/fq/libs/events/events.h>
-#include <contrib/ydb/core/kqp/federated_query/kqp_federated_query_actors.h>
+#include <contrib/ydb/core/kqp/federated_query/actors/kqp_federated_query_actors.h>
 #include <contrib/ydb/core/kqp/proxy_service/script_executions_utils/kqp_script_execution_compression.h>
 #include <contrib/ydb/core/kqp/proxy_service/kqp_script_executions.h>
 #include <contrib/ydb/core/tx/datashard/const.h>

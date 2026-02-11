@@ -11,7 +11,6 @@
 #include <contrib/ydb/core/fq/libs/config/protos/issue_id.pb.h>
 #include <contrib/ydb/core/fq/libs/control_plane_storage/proto/yq_internal.pb.h>
 #include <contrib/ydb/core/fq/libs/protos/fq_private.pb.h>
-#include <yql/essentials/utils/exceptions.h>
 
 namespace NFq {
 

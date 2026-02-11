@@ -7,6 +7,7 @@
 #include <contrib/ydb/core/backup/common/checksum.h>
 #include <contrib/ydb/core/backup/common/encryption.h>
 #include <contrib/ydb/core/backup/common/metadata.h>
+#include <contrib/ydb/core/backup/regexp/regexp.h>
 #include <contrib/ydb/core/base/table_index.h>
 #include <contrib/ydb/core/wrappers/retry_policy.h>
 #include <contrib/ydb/core/wrappers/s3_storage_config.h>
@@ -335,9 +336,24 @@ class TSchemeGetter: public TGetterFromS3<TSchemeGetter> {
         return schemeKey.EndsWith(NYdb::NDump::NFiles::CreateAsyncReplication().FileName);
     }
 
+    static bool IsTransfer(TStringBuf schemeKey) {
+        return schemeKey.EndsWith(NYdb::NDump::NFiles::CreateTransfer().FileName);
+    }
+
+    static bool IsExternalDataSource(TStringBuf schemeKey) {
+        return schemeKey.EndsWith(NYdb::NDump::NFiles::CreateExternalDataSource().FileName);
+    }
+
+    static bool IsExternalTable(TStringBuf schemeKey) {
+        return schemeKey.EndsWith(NYdb::NDump::NFiles::CreateExternalTable().FileName);
+    }
+
     static bool IsCreatedByQuery(TStringBuf schemeKey) {
         return IsView(schemeKey)
-            || IsReplication(schemeKey);
+            || IsReplication(schemeKey)
+            || IsTransfer(schemeKey)
+            || IsExternalDataSource(schemeKey)
+            || IsExternalTable(schemeKey);
     }
 
     static bool NoObjectFound(Aws::S3::S3Errors errorType) {
@@ -847,13 +863,8 @@ class TSchemeGetter: public TGetterFromS3<TSchemeGetter> {
                         }
 
                         const TVector<TString> indexColumns(index.index_columns().begin(), index.index_columns().end());
-                        std::optional<Ydb::Table::FulltextIndexSettings::Layout> layout;
-                        if (*indexType == NKikimrSchemeOp::EIndexTypeGlobalFulltext) {
-                            const auto& settings = index.global_fulltext_index().fulltext_settings();
-                            layout = settings.has_layout() ? settings.layout() : Ydb::Table::FulltextIndexSettings::LAYOUT_UNSPECIFIED;
-                        }
 
-                        for (const auto& implTable : NTableIndex::GetImplTables(*indexType, indexColumns, layout)) {
+                        for (const auto& implTable : NTableIndex::GetImplTables(*indexType, indexColumns)) {
                             const TString implTablePrefix = TStringBuilder() << index.name() << "/" << implTable;
                             IndexImplTablePrefixes.push_back({implTablePrefix, implTablePrefix});
                         }
@@ -1394,8 +1405,16 @@ public:
                 return false;
             }
         }
-        if (NBackup::NormalizeExportPrefix(Request->Get()->Record.GetSettings().prefix()).empty()) {
+        const auto& settings = req.GetSettings();
+        if (NBackup::NormalizeExportPrefix(settings.prefix()).empty()) {
             Reply(Ydb::StatusIds::BAD_REQUEST, "Empty S3 prefix specified");
+            return false;
+        }
+
+        try {
+            ExcludeRegexps = NBackup::CombineRegexps(settings.exclude_regexps());
+        } catch (const std::exception& ex) {
+            Reply(Ydb::StatusIds::BAD_REQUEST, TStringBuilder() << "Invalid regexp: " << ex.what());
             return false;
         }
         return true;
@@ -1564,7 +1583,11 @@ public:
                 continue;
             }
 
-            if (PageSize && pos >= StartPos + PageSize) { // Calc only items that suit filter
+            if (IsExcludedFromListing(item.ObjectPath)) {
+                continue;
+            }
+
+            if (PageSize && pos >= StartPos + PageSize) { // Calc only items that suit filters
                 NextPos = pos;
                 break;
             }
@@ -1583,6 +1606,15 @@ public:
         Reply();
     }
 
+    bool IsExcludedFromListing(const TString& path) const {
+        for (const auto& regexp : ExcludeRegexps) {
+            if (regexp.Match(path.c_str())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
 private:
     TEvImport::TEvListObjectsInS3ExportRequest::TPtr Request;
     Ydb::Import::ListObjectsInS3ExportResult Result;
@@ -1590,6 +1622,7 @@ private:
     size_t PageSize = 0;
     size_t NextPos = 0;
     TPathFilter PathFilter;
+    std::vector<TRegExMatch> ExcludeRegexps;
 };
 
 class TFSHelper {
@@ -1675,10 +1708,10 @@ public:
     void Bootstrap() {
         const auto settings = ImportInfo->GetFsSettings();
         const TString basePath = settings.base_path();
-        
+
         Y_ABORT_UNLESS(ItemIdx < ImportInfo->Items.size());
         auto& item = ImportInfo->Items[ItemIdx];
-        
+
         TString sourcePath = item.SrcPath;
         if (sourcePath.empty()) {
             Reply(false, "Source path is empty for import item");
@@ -1690,7 +1723,7 @@ public:
 
         const TString metadataPath = itemPath / "metadata.json";
         TString metadataContent;
-        
+
         if (!TFSHelper::ReadFile(metadataPath, metadataContent, error)) {
             Reply(false, error);
             return;
@@ -1704,7 +1737,7 @@ public:
         const TString schemeFileName = NYdb::NDump::NFiles::TableScheme().FileName;
         const TString schemePath = itemPath / schemeFileName;
         TString schemeContent;
-        
+
         if (!TFSHelper::ReadFile(schemePath, schemeContent, error)) {
             Reply(false, error);
             return;
@@ -1718,7 +1751,7 @@ public:
         if (!ImportInfo->GetNoAcl()) {
             const TString permissionsPath = itemPath / "permissions.pb";
             TString permissionsContent;
-            
+
             if (TFSHelper::ReadFile(permissionsPath, permissionsContent, error)) {
                 ProcessPermissions(permissionsContent);
             }

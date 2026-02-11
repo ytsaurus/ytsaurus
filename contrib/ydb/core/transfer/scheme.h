@@ -2,6 +2,7 @@
 
 #include <library/cpp/yson/node/node.h>
 #include <util/generic/vector.h>
+#include <contrib/ydb/core/protos/kqp_tablemetadata.pb.h>
 #include <contrib/ydb/core/protos/kqp.pb.h>
 #include <contrib/ydb/core/scheme_types/scheme_type_info.h>
 #include <contrib/ydb/public/api/protos/ydb_value.pb.h>
