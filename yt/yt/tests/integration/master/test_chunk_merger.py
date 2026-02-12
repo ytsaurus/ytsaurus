@@ -1444,8 +1444,6 @@ class TestChunkMerger(YTEnvSetup):
     @pytest.mark.parametrize("merge_mode", ["auto", "deep", "shallow"])
     @pytest.mark.parametrize("operation", [copy, move])
     def test_inherit_chunk_merger_mode_after_copy(self, merge_mode, operation):
-        set("//sys/@config/cypress_manager/enable_inherit_attributes_during_copy", True)
-
         create("map_node", "//tmp/d")
         set("//tmp/d/@chunk_merger_mode", merge_mode)
         assert get("//tmp/d/@chunk_merger_mode") == merge_mode

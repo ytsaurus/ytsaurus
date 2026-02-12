@@ -3430,8 +3430,6 @@ class TestCypress(YTEnvSetup):
     @authors("kvk1920")
     @pytest.mark.parametrize("inherit_from", ["source", "destination"])
     def test_inheritable_attributes_during_copy(self, inherit_from):
-        set("//sys/@config/cypress_manager/enable_inherit_attributes_during_copy", True)
-
         create("table", "//tmp/source/dir/table", recursive=True, attributes={
             "chunk_merger_mode": "shallow",
             "compression_codec": "zlib_9",
@@ -3464,8 +3462,6 @@ class TestCypress(YTEnvSetup):
 
     @authors("kvk1920")
     def test_inheritable_attributes_during_copy_from_dst(self):
-        set("//sys/@config/cypress_manager/enable_inherit_attributes_during_copy", True)
-
         create("table", "//tmp/source/dir/table", recursive=True, attributes={
             "chunk_merger_mode": "shallow",
             "compression_codec": "zlib_9",

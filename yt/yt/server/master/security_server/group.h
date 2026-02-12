@@ -28,9 +28,6 @@ public:
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
-
-    //! COMPAT(cherepashka)
-    void SetId(NObjectServer::TObjectId id);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TGroup)
