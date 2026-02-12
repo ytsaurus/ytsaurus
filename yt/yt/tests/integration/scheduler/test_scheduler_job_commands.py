@@ -515,6 +515,24 @@ class TestJobProber(YTEnvSetup):
         expected = "ytserver-tools\r\nSUCCESS\r\n"
         assert output == expected
 
+    @authors("krasovav")
+    def test_write_job_shell(self):
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"enable_porto": "isolate"})
+        job_id = wait_breakpoint()[0]
+        wait(lambda: op.get_job_phase(job_id) == "running")
+
+        r = poll_job_shell(job_id, operation="spawn")
+        shell_id = r["shell_id"]
+
+        # Since the running command gets into the output, it is necessary that there is no substring SUCCESS in it,
+        # for this it is written S\\UCCESS.
+        command = """test -f .bashrc && test -f .motd && cat .bashrc && cat .motd | grep HOME &&
+            (echo 1 >> .bashrc || rm -f .bashrc || echo 1 >> .motd || rm -f .motd || echo S\\UCCESS); exit\r"""
+        self._send_keys(job_id, shell_id, command, 0)
+        output = self._poll_until_shell_exited(job_id, shell_id)
+
+        assert "SUCCESS" in output
+
 
 class TestJobProberCri(TestJobProber):
     ENABLE_MULTIDAEMON = False  # Use profiling counters.
