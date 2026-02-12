@@ -259,7 +259,7 @@ DB::MutableColumnPtr ConvertIntegerYTColumnToLowCardinalityCHColumnImpl(
             return values[index];
         },
         [&] (auto value) {
-            if (GetBit(nullBitmap, nullBitMapIndex++)) {
+            if (nullBitmap && GetBit(nullBitmap, nullBitMapIndex++)) {
                 lowCardinalityColumn->insertDefault();
             } else {
                 lowCardinalityColumn->insert(value);
