@@ -6,6 +6,7 @@
 #include "helpers.h"
 #include "private.h"
 #include "volume_counters.h"
+#include "volume_options.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -268,43 +269,6 @@ struct TVolumeMeta
 {
     TVolumeId Id;
     TString MountPath;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TCreateNbdVolumeOptions
-{
-    TJobId JobId;
-    TString DeviceId;
-    TString Filesystem;
-    bool IsReadOnly;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TPrepareRONbdVolumeOptions
-{
-    TJobId JobId;
-    TArtifactKey ArtifactKey;
-    IImageReaderPtr ImageReader;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TPrepareRWNbdVolumeOptions
-{
-    TJobId JobId;
-
-    i64 Size;
-    int MediumIndex;
-    EFilesystemType Filesystem;
-    TString DeviceId;
-    IChannelPtr DataNodeChannel;
-    TSessionId SessionId;
-
-    //! Params for NBD requests to data nodes.
-    TDuration DataNodeNbdServiceRpcTimeout;
-    TDuration DataNodeNbdServiceMakeTimeout;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
