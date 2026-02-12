@@ -92,7 +92,7 @@ TEST(TPhysicalChunkLayout, SerializeAndDeserializeMeta)
         chunkId,
         /*dumpBrokenMeta*/ {});
 
-    EXPECT_TRUE(google::protobuf::util::MessageDifferencer::Equals(*deserializedMeta.ChunkMeta, *finalizedMeta));
+    EXPECT_TRUE(google::protobuf::util::MessageDifferencer::Equals(*deserializedMeta, *finalizedMeta));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
