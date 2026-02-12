@@ -3,6 +3,7 @@
 #include "artifact_cache.h"
 #include "preparation_options.h"
 #include "public.h"
+#include "volume.h"
 
 #include <yt/yt/core/actions/future.h>
 
@@ -35,33 +36,6 @@ DEFINE_REFCOUNTED_TYPE(IVolumeArtifactCache)
 ////////////////////////////////////////////////////////////////////////////////
 
 IVolumeArtifactCachePtr CreateVolumeArtifactCacheAdapter(TArtifactCachePtr artifactCache);
-
-////////////////////////////////////////////////////////////////////////////////
-
-using TVolumeId = TGuid;
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct IVolume
-    : public virtual TRefCounted
-{
-    //! Get unique volume id.
-    virtual const TVolumeId& GetId() const = 0;
-    //! Get absolute path to volume mount point.
-    virtual const std::string& GetPath() const = 0;
-    //! Overlayfs stores its upper/work directories in root volume.
-    virtual bool IsRootVolume() const = 0;
-    //! Link volume mount point to target.
-    virtual TFuture<void> Link(
-        TGuid tag,
-        const TString& target) = 0;
-    //! Remove volume and links where it points to.
-    virtual TFuture<void> Remove() = 0;
-
-    virtual bool IsCached() const = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(IVolume)
 
 ////////////////////////////////////////////////////////////////////////////////
 

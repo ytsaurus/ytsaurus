@@ -5,6 +5,7 @@
 #include "bootstrap.h"
 #include "helpers.h"
 #include "private.h"
+#include "volume.h"
 #include "volume_counters.h"
 #include "volume_options.h"
 
@@ -236,40 +237,6 @@ IVolumeArtifactCachePtr CreateVolumeArtifactCacheAdapter(TArtifactCachePtr artif
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TPortoVolumeManager)
-
-////////////////////////////////////////////////////////////////////////////////
-
-using TLayerId = TGuid;
-
-//! Used for layer and for volume meta files.
-struct TLayerMetaHeader
-{
-    ui64 Signature = ExpectedSignature;
-
-    //! Version of layer meta format. Update every time layer meta version is updated.
-    ui64 Version = ExpectedVersion;
-
-    ui64 MetaChecksum;
-
-    static constexpr ui64 ExpectedSignature = 0xbe17d73ce7ff9ea6ull; // YTLMH001
-    static constexpr ui64 ExpectedVersion = 1;
-};
-
-struct TLayerMeta
-    : public NProto::TLayerMeta
-{
-    std::string Path;
-    TLayerId Id;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TVolumeMeta
-    : public NProto::TVolumeMeta
-{
-    TVolumeId Id;
-    TString MountPath;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
