@@ -868,7 +868,7 @@ bool TSlotManager::Disable(TError error)
             SlotCount_,
             InitializedSlotCount_.load(),
             InitializationEpoch_,
-            SortedFreeSlots());
+            MakeCompactIntervalView(SortedFreeSlots()));
         AbortProcessDramatically(EProcessExitCode::InternalError, "Free slot synchronization failed");
     }
 
@@ -909,7 +909,7 @@ bool TSlotManager::Disable(TError error)
             SlotCount_,
             InitializedSlotCount_.load(),
             InitializationEpoch_,
-            SortedFreeSlots());
+            MakeCompactIntervalView(SortedFreeSlots()));
         AbortProcessDramatically(EProcessExitCode::InternalError, "Some slots are hung after disabling slot manager");
     }
 
@@ -1320,7 +1320,7 @@ void TSlotManager::PushSlot(int slotIndex)
         SlotCount_,
         InitializedSlotCount_.load(),
         InitializationEpoch_,
-        SortedFreeSlots());
+        MakeCompactIntervalView(SortedFreeSlots()));
 }
 
 int TSlotManager::PopSlot()
