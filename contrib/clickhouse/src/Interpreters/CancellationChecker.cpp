@@ -10,6 +10,10 @@
 namespace DB
 {
 
+/// Maximum allowed timeout is 1 year in milliseconds.
+/// This prevents overflow in chrono calculations and ensures reasonable behavior.
+static constexpr Int64 MAX_TIMEOUT_MS = 365LL * 24 * 60 * 60 * 1000;
+
 struct CancellationChecker::QueryToTrack
 {
     QueryToTrack(QueryStatusPtr query_, UInt64 timeout_, UInt64 endtime_, OverflowMode overflow_mode_)
@@ -82,11 +86,17 @@ void CancellationChecker::appendTask(const QueryStatusPtr & query, const Int64 t
         LOG_TEST(log, "Did not add the task because the timeout is 0. Query: {}", query->getInfo().query);
         return;
     }
+
+    /// Cap timeout to 1 year to prevent overflow in chrono calculations.
+    /// std::condition_variable::wait_for converts milliseconds to nanoseconds internally
+    /// (multiplying by 1,000,000), which overflows for values close to INT64_MAX.
+    const Int64 capped_timeout = std::min(timeout, MAX_TIMEOUT_MS);
+
     std::unique_lock<std::mutex> lock(m);
-    LOG_TEST(log, "Added to set. query: {}, timeout: {} milliseconds", query->getInfo().query, timeout);
+    LOG_TEST(log, "Added to set. query: {}, timeout: {} milliseconds", query->getInfo().query, capped_timeout);
     const auto now = std::chrono::steady_clock::now();
-    const UInt64 end_time = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count() + timeout;
-    query_set.emplace(query, timeout, end_time, overflow_mode);
+    const UInt64 end_time = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count() + capped_timeout;
+    query_set.emplace(query, capped_timeout, end_time, overflow_mode);
     cond_var.notify_all();
 }
 
@@ -154,8 +164,12 @@ void CancellationChecker::workerFunction()
             chassert(duration_milliseconds.count());
             cond_var.wait_for(
                 lock,
-                duration_milliseconds,
-                [&, now_ms] { return stop_thread || (!query_set.empty() && query_set.begin()->endtime < now_ms); });
+                std::chrono::milliseconds(query_set.begin()->endtime - now_ms),
+                [&] {
+                    /// Use fresh time to avoid spinning when the predicate is re-evaluated after spurious wakeups.
+                    UInt64 fresh_now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+                    return stop_thread || (!query_set.empty() && query_set.begin()->endtime <= fresh_now_ms);
+                });
         }
     }
 }
