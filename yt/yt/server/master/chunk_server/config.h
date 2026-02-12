@@ -319,6 +319,7 @@ struct TDynamicDataNodeTrackerConfig
     bool EnableValidationFullHeartbeats;
     TDuration ValidationFullHeartbeatPeriod;
     TDuration ValidationFullHeartbeatSplay;
+    bool ValidateSequoiaReplicas;
 
     // COMPAT(cherepashka)
     bool EnableChunkReplicasThrottlingInHeartbeats;
@@ -562,6 +563,8 @@ struct TDynamicSequoiaChunkReplicasConfig
     TDuration GlobalSequoiaChunkRefreshPeriod;
     int GlobalSequoiaChunkRefreshBatchSize;
     int MaxUnsuccessfulGlobalSequoiaChunkRefreshIterations;
+
+    bool FixSequoiaReplicasIfReplicaValidationFailed;
 
     REGISTER_YSON_STRUCT(TDynamicSequoiaChunkReplicasConfig);
 

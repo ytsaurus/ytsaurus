@@ -318,6 +318,9 @@ void TDynamicDataNodeTrackerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Days(1));
     registrar.Parameter("validation_full_heartbeat_splay", &TThis::ValidationFullHeartbeatSplay)
         .Default(TDuration::Hours(4));
+    registrar.Parameter("validate_sequoia_replicas", &TThis::ValidateSequoiaReplicas)
+        .Default(false)
+        .DontSerializeDefault();
     registrar.Parameter("enable_chunk_replicas_throttling_in_heartbeats", &TThis::EnableChunkReplicasThrottlingInHeartbeats)
         .Default(false);
     registrar.Parameter("enable_location_indexes_in_data_node_heartbeats", &TThis::EnableLocationIndexesInDataNodeHeartbeats)
@@ -501,6 +504,9 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("max_unsuccessful_global_sequoia_chunk_refresh_iterations", &TThis::MaxUnsuccessfulGlobalSequoiaChunkRefreshIterations)
         .Default(10);
+
+    registrar.Parameter("fix_sequoia_replicas_if_replica_validation_failed", &TThis::FixSequoiaReplicasIfReplicaValidationFailed)
+        .Default(false);
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->StoreSequoiaReplicasOnMaster && !config->ProcessRemovedSequoiaReplicasOnMaster) {
