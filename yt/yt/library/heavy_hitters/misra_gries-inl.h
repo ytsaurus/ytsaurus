@@ -9,6 +9,19 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TKey>
+bool TMisraGriesHeavyHitters<TKey>::TCounterSetComparator::operator()(
+    const std::pair<double, TSummaryMapIterator>& lhs,
+    const std::pair<double, TSummaryMapIterator>& rhs) const
+{
+    if (lhs.first != rhs.first) {
+        return lhs.first < rhs.first;
+    }
+    return std::addressof(*lhs.second) < std::addressof(*rhs.second);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TKey>
 TMisraGriesHeavyHitters<TKey>::TMisraGriesHeavyHitters(double threshold, TDuration window, i64 defaultLimit)
     : Threshold_(threshold)
     , Window_(window)
@@ -29,25 +42,35 @@ void TMisraGriesHeavyHitters<TKey>::DoRegister(const TKey& key, double increment
 {
     TotalCounter_ += increment;
     // The difference between misra-gries and statistics counters is here.
-    auto [iter, emplaced] = Summary_.emplace(
+    auto [iter, emplaced] = Summary_.try_emplace(
         key,
-        TCounters{
+        TKeyState{
             .MisraGriesCounter = increment + MisraGriesDelta_,
             .StatisticsCounter = increment,
         });
-    auto summaryRef = std::addressof(*iter);
 
     if (!emplaced) {
-        auto oldValue = iter->second;
-
         iter->second.MisraGriesCounter += increment;
         iter->second.StatisticsCounter += increment;
 
-        UpdateState(SortedByMisraGriesCounter_, summaryRef, oldValue.MisraGriesCounter, iter->second.MisraGriesCounter);
-        UpdateState(SortedByStatisticsCounter_, summaryRef, oldValue.StatisticsCounter, iter->second.StatisticsCounter);
+        UpdateState(&SortedByMisraGriesCounter_, &iter->second.SortedByMisraGriesCounterIterator, iter->second.MisraGriesCounter);
+        UpdateState(&SortedByStatisticsCounter_, &iter->second.SortedByStatisticsCounterIterator, iter->second.StatisticsCounter);
     } else {
-        SortedByMisraGriesCounter_.insert(std::pair(iter->second.MisraGriesCounter, summaryRef));
-        SortedByStatisticsCounter_.insert(std::pair(iter->second.StatisticsCounter, summaryRef));
+        auto insertCounter = [&] (auto* container, auto* targetIterator, double counter) {
+            if (!CounterSetNodePool_.empty()) {
+                CounterSetNodePool_.back().value().first = counter;
+                CounterSetNodePool_.back().value().second = iter;
+                auto insertionResult = container->insert(std::move(CounterSetNodePool_.back()));
+                CounterSetNodePool_.pop_back();
+                YT_VERIFY(insertionResult.inserted);
+                *targetIterator = insertionResult.position;
+            } else {
+                *targetIterator = EmplaceOrCrash(*container, counter, iter);
+            }
+        };
+        insertCounter(&SortedByMisraGriesCounter_, &iter->second.SortedByMisraGriesCounterIterator, iter->second.MisraGriesCounter);
+        insertCounter(&SortedByStatisticsCounter_, &iter->second.SortedByStatisticsCounterIterator, iter->second.StatisticsCounter);
+
         CleanUpSummary();
     }
 }
@@ -104,8 +127,8 @@ TMisraGriesHeavyHitters<TKey>::TStatistics TMisraGriesHeavyHitters<TKey>::GetSta
         auto hits = rit->first * normalizationFactor;
         auto ratio = hits / total;
         if (ratio >= Threshold_) {
-            auto summaryRef = rit->second;
-            statistics.Fractions[summaryRef->first] = ratio;
+            const auto& summaryIt = rit->second;
+            statistics.Fractions[summaryIt->first] = ratio;
         }
         ++rit;
         --count;
@@ -127,11 +150,17 @@ void TMisraGriesHeavyHitters<TKey>::CleanUpSummary()
         auto it = SortedByMisraGriesCounter_.begin();
         while (it != SortedByMisraGriesCounter_.end() && it->first <= MisraGriesDelta_) {
             auto next = std::next(it);
-            auto summaryRef = it->second;
-            auto summaryIter = Summary_.find(summaryRef->first);
-            SortedByStatisticsCounter_.erase(std::pair(summaryIter->second.StatisticsCounter, it->second));
+            auto summaryIter = it->second;
+
+            auto eraseCounter = [&] (auto* container, const auto& iterator) {
+                auto element = container->extract(iterator);
+                YT_ASSERT(!element.empty());
+                CounterSetNodePool_.emplace_back(std::move(element));
+            };
+
+            eraseCounter(&SortedByStatisticsCounter_, summaryIter->second.SortedByStatisticsCounterIterator);
+            eraseCounter(&SortedByMisraGriesCounter_, it);
             Summary_.erase(summaryIter);
-            SortedByMisraGriesCounter_.erase(it);
             it = next;
         }
     }
@@ -145,15 +174,16 @@ double TMisraGriesHeavyHitters<TKey>::GetNormalizationFactor(TInstant now) const
 
 template <class TKey>
 void TMisraGriesHeavyHitters<TKey>::UpdateState(
-    std::set<std::pair<double, TSummaryElementRef>>& set,
-    TSummaryElementRef summaryRef,
-    double oldValue,
+    TCounterSet* set,
+    TCounterSet::iterator* iterator,
     double newValue)
 {
-    auto setElement = set.extract(std::pair(oldValue, summaryRef));
+    auto setElement = set->extract(*iterator);
     YT_VERIFY(!setElement.empty());
     setElement.value().first = newValue;
-    set.insert(std::move(setElement));
+    auto insertionResult = set->insert(std::move(setElement));
+    YT_VERIFY(insertionResult.inserted);
+    *iterator = insertionResult.position;
 }
 
 template <class TKey>
@@ -171,15 +201,11 @@ void TMisraGriesHeavyHitters<TKey>::EnsureSummaryTimestampFreshness(TInstant now
     if ((now - SummaryTimestamp_) / Window_ >= WindowCountToUpdateTimestamp || force) {
         double normalizationFactor = GetNormalizationFactor(now);
         for (auto iter = Summary_.begin(); iter != Summary_.end(); ++iter) {
-            auto oldValue = iter->second;
-
             iter->second.MisraGriesCounter *= normalizationFactor;
             iter->second.StatisticsCounter *= normalizationFactor;
 
-            auto summaryRef = std::addressof(*iter);
-
-            UpdateState(SortedByMisraGriesCounter_, summaryRef, oldValue.MisraGriesCounter, iter->second.MisraGriesCounter);
-            UpdateState(SortedByStatisticsCounter_, summaryRef, oldValue.StatisticsCounter, iter->second.StatisticsCounter);
+            UpdateState(&SortedByMisraGriesCounter_, &iter->second.SortedByMisraGriesCounterIterator, iter->second.MisraGriesCounter);
+            UpdateState(&SortedByStatisticsCounter_, &iter->second.SortedByStatisticsCounterIterator, iter->second.StatisticsCounter);
         }
         MisraGriesDelta_ *= normalizationFactor;
         TotalCounter_ *= normalizationFactor;
@@ -192,6 +218,7 @@ void TMisraGriesHeavyHitters<TKey>::Clear()
 {
     SortedByMisraGriesCounter_.clear();
     SortedByStatisticsCounter_.clear();
+    CounterSetNodePool_.clear();
     Summary_.clear();
     MisraGriesDelta_ = 0;
     TotalCounter_ = 0;

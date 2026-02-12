@@ -31,13 +31,28 @@ public:
     TStatistics GetStatistics(TInstant now, std::optional<i64> limit = {}) const;
 
 private:
-    struct TCounters
+    struct TKeyState;
+
+    using TSummaryMap = THashMap<TKey, TKeyState>;
+    using TSummaryMapIterator = TSummaryMap::iterator;
+
+    struct TCounterSetComparator
+    {
+        bool operator()(const std::pair<double, TSummaryMapIterator>& lhs, const std::pair<double, TSummaryMapIterator>& rhs) const;
+    };
+
+    using TCounterSet = std::set<std::pair<double, TSummaryMapIterator>, TCounterSetComparator>;
+
+    struct TKeyState
     {
         // These counters are being changed lazily, actual counters can be evaluated as:
         // * ActualMisraGriesCounter = decay(MisraGriesCounter - MisraGriesDelta_, now - SummaryTimestamp_).
         // * ActualStatisticsCounter = decay(StatisticsCounter, now - SummaryTimestamp_).
         double MisraGriesCounter = 0;
         double StatisticsCounter = 0;
+
+        TCounterSet::iterator SortedByMisraGriesCounterIterator = {};
+        TCounterSet::iterator SortedByStatisticsCounterIterator = {};
     };
 
     double Threshold_;
@@ -49,11 +64,11 @@ private:
     static constexpr int WindowCountToUpdateTimestamp = 300;
     static constexpr i64 MaxSummarySize = 10000000;
 
-    THashMap<TKey, TCounters> Summary_;
+    TSummaryMap Summary_;
 
-    using TSummaryElementRef = std::pair<const TKey, TCounters>*;
-    std::set<std::pair<double, TSummaryElementRef>> SortedByMisraGriesCounter_;
-    std::set<std::pair<double, TSummaryElementRef>> SortedByStatisticsCounter_;
+    TCounterSet SortedByMisraGriesCounter_;
+    TCounterSet SortedByStatisticsCounter_;
+    std::vector<typename TCounterSet::node_type> CounterSetNodePool_;
 
     TInstant SummaryTimestamp_ = TInstant::Zero();
     double MisraGriesDelta_ = 0;
@@ -64,9 +79,8 @@ private:
     void DoRegister(const TKey& key, double increment);
     void CleanUpSummary();
     static void UpdateState(
-        std::set<std::pair<double, TSummaryElementRef>>& set,
-        TSummaryElementRef summaryRef,
-        double oldValue,
+        TCounterSet* set,
+        TCounterSet::iterator* iterator,
         double newValue);
     double GetNormalizationFactor(TInstant now) const;
     void EnsureSummaryTimestampFreshness(TInstant now, bool force = false);
