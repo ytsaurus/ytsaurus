@@ -599,6 +599,23 @@ class TestDryRunGpuSchedulingPolicy(DryRunGpuSchedulingPolicyTestBaseConfig):
                 preemptible=False)
 
     @authors("yaishenka")
+    def test_empty_operation(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        op = map(
+            track=False,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="sleep 1000",
+        )
+
+        wait_for_operations_in_orchid(operation_count=1)
+
+        operation = get_operation_from_orchid(op)
+        assert not operation["initial_grouped_needed_resources"]
+
+    @authors("yaishenka")
     def test_simple_fullhost_map(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
