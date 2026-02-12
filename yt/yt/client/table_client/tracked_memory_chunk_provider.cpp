@@ -7,7 +7,7 @@
 
 #include <library/cpp/yt/threading/spin_lock.h>
 
-namespace NYT::NQueryClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,6 +48,14 @@ TTrackedMemoryChunkProvider::TTrackedMemoryChunkProvider(
     , MemoryTracker_(std::move(memoryTracker))
 { }
 
+TTrackedMemoryChunkProvider::TTrackedMemoryChunkProvider(
+    IMemoryUsageTrackerPtr memoryTracker,
+    bool allowMemoryOvercommit)
+    : Limit_(std::numeric_limits<size_t>::max())
+    , MemoryTracker_(std::move(memoryTracker))
+    , AllowMemoryOvercommit_(allowMemoryOvercommit)
+{ }
+
 std::unique_ptr<TAllocationHolder> TTrackedMemoryChunkProvider::Allocate(size_t size, TRefCountedTypeCookie cookie)
 {
     size_t allocated = Allocated_.load();
@@ -75,8 +83,10 @@ std::unique_ptr<TAllocationHolder> TTrackedMemoryChunkProvider::Allocate(size_t 
     });
 
     if (MemoryTracker_) {
-        MemoryTracker_->TryAcquire(allocatedSize)
-            .ThrowOnError();
+        auto error = MemoryTracker_->TryAcquire(allocatedSize);
+        if (!AllowMemoryOvercommit_) {
+            error.ThrowOnError();
+        }
     }
 
     finally.Release();
@@ -92,12 +102,25 @@ size_t TTrackedMemoryChunkProvider::GetMaxAllocated()
 
 TTrackedMemoryChunkProvider::~TTrackedMemoryChunkProvider()
 {
-    auto guard = Guard(Parent_->SpinLock_);
-    Parent_->Map_.erase(Key_);
+    if (Parent_) {
+        auto guard = Guard(Parent_->SpinLock_);
+        Parent_->Map_.erase(Key_);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
+IMemoryChunkProviderPtr GetTrackedMemoryChunkProvider(
+    IMemoryUsageTrackerPtr memoryUsageTracker,
+    bool allowMemoryOvercommit)
+{
+    if (!memoryUsageTracker) {
+        return GetDefaultMemoryChunkProvider();
+    }
+    return New<TTrackedMemoryChunkProvider>(std::move(memoryUsageTracker), allowMemoryOvercommit);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 TTrackedMemoryChunkProviderPtr TMemoryProviderMapByTag::GetOrCreateProvider(
     TStringBuf tag,
     size_t limit,
@@ -118,4 +141,4 @@ TTrackedMemoryChunkProviderPtr TMemoryProviderMapByTag::GetOrCreateProvider(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NQueryClient
+} // namespace NYT::NTableClient
