@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 from .common import update, get_arg_spec
 from .default_config import get_default_config, RemotePatchableValueBase, _get_settings_from_cluster_callback, _update_from_env_vars, FORCED_SHORTCUTS
 

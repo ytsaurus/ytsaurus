@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import yt.logger as logger
 import yt.yson as yson
 from yt.common import get_value, update

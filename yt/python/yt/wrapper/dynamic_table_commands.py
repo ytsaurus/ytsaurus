@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 from .driver import make_request, make_formatted_request
 from .table_helpers import _prepare_command_format, _to_chunk_stream
 from .common import set_param, require, is_master_transaction, YtError, get_value

@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 from .conftest import authors
 from .helpers import TEST_DIR, check_rows_equality, get_tests_sandbox, dumps_yt_config, set_config_option
 
