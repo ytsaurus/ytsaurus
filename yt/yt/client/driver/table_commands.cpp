@@ -249,6 +249,8 @@ void TReadBlobTableCommand::DoExecute(ICommandContextPtr context)
 void TReadTablePartitionCommand::Register(TRegistrar registrar)
 {
     registrar.Parameter("cookie", &TThis::Cookie);
+    registrar.Parameter("control_attributes", &TThis::ControlAttributes)
+        .DefaultNew();
 }
 
 void TReadTablePartitionCommand::DoExecute(ICommandContextPtr context)
@@ -264,7 +266,11 @@ void TReadTablePartitionCommand::DoExecute(ICommandContextPtr context)
         THROW_ERROR_EXCEPTION("Signature validation failed");
     }
 
-    auto reader = WaitFor(client->CreateTablePartitionReader(cookie))
+    Options.EnableTableIndex = ControlAttributes->EnableTableIndex;
+    Options.EnableRowIndex = ControlAttributes->EnableRowIndex;
+    Options.EnableRangeIndex = ControlAttributes->EnableRangeIndex;
+    Options.EnableTabletIndex = ControlAttributes->EnableTabletIndex;
+    auto reader = WaitFor(client->CreateTablePartitionReader(cookie, Options))
         .ValueOrThrow();
 
     auto format = context->GetOutputFormat();
