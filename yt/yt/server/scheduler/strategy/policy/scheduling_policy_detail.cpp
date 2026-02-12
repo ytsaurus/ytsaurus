@@ -1654,13 +1654,14 @@ bool TScheduleAllocationsContext::ScheduleAllocation(TPoolTreeOperationElement* 
             element,
             "No pending allocations can satisfy available resources on node ("
             "FreeAllocationResources: %v, DiskResources: %v, DiscountResources: %v, "
-            "MinNeededResources: %v, GroupedNeededResources: %v, "
+            "MinNeededResources: %v, GroupedNeededResources: %v, UnsatisfiedResources: %v, "
             "Address: %v)",
             FormatResources(SchedulingHeartbeatContext_->GetNodeFreeResourcesWithoutDiscount()),
             SchedulingHeartbeatContext_->DiskResources(),
             FormatResources(SchedulingHeartbeatContext_->GetDiscount()),
             FormatResources(element->AggregatedMinNeededAllocationResources()),
             element->GroupedNeededResources(),
+            unsatisfiedResources,
             NNodeTrackerClient::GetDefaultAddress(SchedulingHeartbeatContext_->GetNodeDescriptor()->Addresses));
 
         OnMinNeededResourcesUnsatisfied(
