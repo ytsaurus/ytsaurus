@@ -6743,8 +6743,8 @@ class TestChaosClock(ChaosClockBase):
         else:
             for replica in replicas:
                 with raises_yt_error(
-                    "Chaos replicas should be part of tablet cell bundle configured with relevant clock cell tag."
-                    " Please reconfigure bundle or move table to bundle properly configured with respect to clock source."
+                    "Chaos replicas should be part of tablet cell bundle configured with relevant clock cell tag;"
+                    " Please reconfigure bundle or move table to bundle properly configured with respect to clock source"
                 ):
                     sync_mount_table(replica["replica_path"], driver=get_driver(cluster=replica["cluster_name"]))
 
