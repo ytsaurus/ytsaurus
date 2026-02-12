@@ -406,15 +406,19 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             }
         }
         create_user("u1")
+
+        # NB(buyval01): After adding wrappers for tests with Sequoia using an explicit alias leads to duplication in the wrapper.
+        # Therefore, use the alias generated randomly by default, but leave a comment below as additional information for future flaps investigation.
+        #
         # NB: unique clique alias is used here because scheduler's restart
         # somehow break the clique instance so reusing of this clique alias in
         # other tests is impossible. DO NOT REUSE THIS ALIAS.
-        with Clique(1, config_patch=patch, alias="*ch_alias_unique_13") as clique:
+        with Clique(1, config_patch=patch) as clique:
             acl = [make_ace("allow", "u1", "use")]
-            yt_set("//sys/access_control_object_namespaces/chyt/ch_alias_unique_13/principal/@acl", acl)
+            yt_set(f"//sys/access_control_object_namespaces/chyt/{clique.alias}/principal/@acl", acl)
             # TODO(gudqeit): this attribute should become unused and must be removed after we stop supporting discovery v1 in HTTP proxy.
             yt_set(
-                "//sys/strawberry/chyt/ch_alias_unique_13/@strawberry_persistent_state",
+                f"//sys/strawberry/chyt/{clique.alias}/@strawberry_persistent_state",
                 {
                     "yt_operation_id": clique.op.id,
                     "yt_operation_state": "running",
