@@ -858,8 +858,8 @@ public:
             const auto& bundle = table->TabletCellBundle();
 
             if (dynamicConfig->EnableClockCellTagValidationOnChaosReplicaMount && bundle->GetOptions()->ClockClusterTag == InvalidCellTag) {
-                THROW_ERROR_EXCEPTION("Chaos replicas should be part of tablet cell bundle configured with relevant clock cell tag."
-                    " Please reconfigure bundle or move table to bundle properly configured with respect to clock source.");
+                THROW_ERROR_EXCEPTION("Chaos replicas should be part of tablet cell bundle configured with relevant clock cell tag;"
+                    " Please reconfigure bundle or move table to bundle properly configured with respect to clock source");
             }
         }
 
