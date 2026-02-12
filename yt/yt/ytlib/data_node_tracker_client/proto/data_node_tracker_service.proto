@@ -55,6 +55,8 @@ message TReqReplaceLocationReplicas
     repeated NYT.NProto.TGuid dead_chunk_ids = 4;
 
     optional bool caused_by_node_disposal = 5 [default = false];
+
+    optional bool is_validation = 6 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
