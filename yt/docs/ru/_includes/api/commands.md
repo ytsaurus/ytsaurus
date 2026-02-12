@@ -237,13 +237,15 @@ HTTP API поддерживает данную команду начиная с 
 Выходные данные:
 
 - Тип: `structured`;
-- Значение: идентификатор транзакции.
+- Значение: словарь с ключом `transaction_id`, содержащим идентификатор новой транзакции.
 
 Пример:
 
 ```bash
 PARAMETERS { "transaction_id" = "0-54b-1-36223d20" }
-OUTPUT "0-54c-1-bb49086d"
+OUTPUT {
+    "transaction_id" = "0-54c-1-bb49086d";
+}
 ```
 
 ### ping_transaction
@@ -1993,7 +1995,7 @@ OUTPUT [
 
 Выходные данные:
 
-- Тип: `null`;
+- Тип: `null` (API v3), `structured` (API v4);
 
 Пример:
 
@@ -3697,7 +3699,16 @@ OUTPUT {
 Выходные данные:
 
 - Тип: `structured`.
-- Значение: ID запроса.
+- Значение: словарь с ключом `query_id`, содержащим идентификатор запроса.
+
+Пример:
+
+```bash
+PARAMETERS { "engine" = "yql"; "query" = "SELECT * FROM `//tmp/table`" }
+OUTPUT {
+    "query_id" = "1a2b3c4d-5e6f7g8h-9i0j1k2l-3m4n5o6p";
+}
+```
 
 ### abort_query
 

@@ -237,13 +237,15 @@ Input data:
 Output data:
 
 - Type: `structured`.
-- Value: Transaction ID.
+- Value: Map with `transaction_id` key containing the new transaction ID.
 
 Example:
 
 ```bash
 PARAMETERS { "transaction_id" = "0-54b-1-36223d20" }
-OUTPUT "0-54c-1-bb49086d"
+OUTPUT {
+    "transaction_id" = "0-54c-1-bb49086d";
+}
 ```
 
 ### ping_transaction
@@ -1995,7 +1997,7 @@ Input data:
 
 Output data:
 
-- Type: `null`.
+- Type: `null` (API v3), `structured` (API v4).
 
 Example:
 
@@ -2233,31 +2235,6 @@ INPUT { "id" = 2; "value" = 2.000; };
 
 OUTPUT "sample_signed_result"
 ```
-
-### alter_table
-
-Command properties: **Mutating**, **Light**.
-
-Semantics:
-
-- Modify table metadata and settings.
-
-Parameters:
-
-| **Parameter** | **Required** | **Default value** | **Description** |
-| ------------ | ------------- | ------------------------- | ----------------------- |
-| `path` | Yes |                           | Path to the table. |
-| `schema` | No |                           | New table schema. |
-| `dynamic` | No |                           | Whether the table should be dynamic. |
-| `upstream_replica_id` | No |                           | Upstream replica ID for table replication. |
-
-Input data:
-
-- Type: `null`.
-
-Output data:
-
-- Type: `structured`.
 
 ### enable_table_replica
 
@@ -4105,13 +4082,15 @@ Input data:
 Output data:
 
 - Type: `structured`.
-- Value: Query ID.
+- Value: Map with `query_id` key containing the query ID.
 
 Example:
 
 ```bash
 PARAMETERS { "engine" = "yql"; "query" = "SELECT * FROM `//tmp/table`" }
-OUTPUT "1a2b3c4d-5e6f7g8h-9i0j1k2l-3m4n5o6p"
+OUTPUT {
+    "query_id" = "1a2b3c4d-5e6f7g8h-9i0j1k2l-3m4n5o6p";
+}
 ```
 
 ### abort_query
@@ -5332,7 +5311,7 @@ This command is only available from API version 4 onward.
 
 {% endnote %}
 
-Command properties: **Non-mutating**, **Light**.
+Command properties: **Mutating**, **Light**.
 
 Semantics:
 
@@ -5362,7 +5341,7 @@ This command is only available from API version 4 onward.
 
 {% endnote %}
 
-Command properties: **Non-mutating**, **Light**.
+Command properties: **Mutating**, **Light**.
 
 Semantics:
 
