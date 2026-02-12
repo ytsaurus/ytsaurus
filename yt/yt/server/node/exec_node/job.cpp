@@ -3613,9 +3613,10 @@ THashSet<TString> TJob::InitializeNbdDeviceIds()
          }
     }
 
-    // Create NBD export id for NBD root volume.
+    // Create NBD device id for NBD root volume.
     if (SandboxNbdRootVolumeData_) {
         auto deviceId = MakeNbdExportId(Id_, nbdDeviceCount);
+        EmplaceOrCrash(nbdDeviceIds, deviceId);
         ++nbdDeviceCount;
 
         SandboxNbdRootVolumeData_->DeviceId = deviceId;
