@@ -570,25 +570,30 @@ private:
             return slot->PrepareRootVolume(
                 layerArtifactKeys,
                 options)
-                .Apply(BIND([slot, this, this_ = MakeStrong(this)] (const TErrorOr<IVolumePtr>& volumeOrError) {
-                    if (!volumeOrError.IsOK()) {
-                        YT_LOG_WARNING(volumeOrError, "Failed to prepare root volume");
+                    .Apply(
+                        BIND([slot, this, this_ = MakeStrong(this)] (const TErrorOr<IVolumePtr>& volumeOrError) {
+                            if (!volumeOrError.IsOK()) {
+                                YT_LOG_WARNING(volumeOrError, "Failed to prepare root volume");
 
-                        THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::RootVolumePreparationFailed, "Failed to prepare root volume")
-                            << volumeOrError;
-                    }
+                                THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::RootVolumePreparationFailed, "Failed to prepare root volume")
+                                    << volumeOrError;
+                            }
 
-                    auto rootVolume = std::move(volumeOrError.Value());
-                    return slot->CreateSlotDirectories(
-                        rootVolume,
-                        Context_.UserSandboxOptions.UserId)
-                        .Apply(BIND([rootVolume, this, this_ = MakeStrong(this)] () {
-                            Context_.RootVolume = rootVolume;
-                            YT_LOG_DEBUG("Root volume prepared");
-                            SetNowTime(TimePoints_.PrepareRootVolumeFinishTime);
-                        }).AsyncVia(Invoker_));
+                            auto rootVolume = std::move(volumeOrError.Value());
+                            return slot->CreateSlotDirectories(
+                                rootVolume,
+                                Context_.UserSandboxOptions.UserId)
+                                    .Apply(
+                                        BIND([rootVolume, this, this_ = MakeStrong(this)] {
+                                            Context_.RootVolume = rootVolume;
+                                            YT_LOG_DEBUG("Root volume prepared");
+                                            SetNowTime(TimePoints_.PrepareRootVolumeFinishTime);
+                                        })
+                                        .AsyncVia(Invoker_))
+                                    .ToUncancelable();
 
-                }).AsyncVia(Invoker_));
+                        })
+                        .AsyncVia(Invoker_));
         } else {
             YT_LOG_DEBUG("Root volume preparation is not needed");
             return OKFuture;
