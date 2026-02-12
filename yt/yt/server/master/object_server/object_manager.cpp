@@ -1963,11 +1963,7 @@ void TObjectManager::ValidatePrerequisites(
                 auto nodeId = FromProto<TObjectId>(prerequisite.resolved_node_id_hint());
                 trunkNode = cypressManager->GetNodeOrThrow(TVersionedNodeId(nodeId));
             } else {
-                if (GetDynamicConfig()->FixResolvePrerequisitePathToLocalObjectForSymlinks) {
-                    trunkNode = cypressManager->ResolvePathToTrunkNode(path, service, method, transactionForPrerequisiteResolve);
-                } else {
-                    trunkNode = cypressManager->ResolvePathToTrunkNode(path);
-                }
+                trunkNode = cypressManager->ResolvePathToTrunkNode(path, service, method, transactionForPrerequisiteResolve);
             }
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(

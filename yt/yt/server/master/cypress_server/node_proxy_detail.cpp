@@ -2229,7 +2229,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, LockCopyDestinatio
     auto* account = parentNode->GetTrunkNode()->Account().Get();
 
     auto effectiveInheritableAttributes = New<TInheritedAttributeDictionary>(Bootstrap_);
-    if (GetDynamicCypressManagerConfig()->EnableInheritAttributesDuringCopy && !inplace) {
+    if (!inplace) {
         YT_LOG_ALERT_AND_THROW_UNLESS(
             IsCompositeNodeType(parentNode->GetType()),
             "Attempt to copy to a non-composite node was made (ParentNodeId: %v, ParentNodeType: %v)",
@@ -2379,16 +2379,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, CalculateInherited
     ValidateTransaction();
 
     auto dstInheritedAttributes = FromProto(request->dst_attributes());
-    auto shouldCalculateInheritedAttributes = GetDynamicCypressManagerConfig()->EnableInheritAttributesDuringCopy;
 
-    context->SetRequestInfo("DestinationInheritedAttributes: %v, ShouldCalculateInheritedAttributes: %v",
-        dstInheritedAttributes->ListPairs(),
-        shouldCalculateInheritedAttributes);
-
-    if (!shouldCalculateInheritedAttributes) {
-        context->Reply();
-        return;
-    }
+    context->SetRequestInfo("DestinationInheritedAttributes: %v",
+        dstInheritedAttributes->ListPairs());
 
     const auto& cypressManager = Bootstrap_->GetCypressManager();
 
@@ -2743,7 +2736,7 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
         targetPath);
 
     auto inheritedAttributes = New<TInheritedAttributeDictionary>(Bootstrap_);
-    if (GetDynamicCypressManagerConfig()->EnableInheritAttributesDuringCopy && !inplace) {
+    if (!inplace) {
         YT_LOG_ALERT_AND_THROW_UNLESS(
             IsCompositeNodeType(parentNode->GetType()),
             "Attempt to copy to a non-composite node was made (ParentNodeId: %v, ParentNodeType: %v)",

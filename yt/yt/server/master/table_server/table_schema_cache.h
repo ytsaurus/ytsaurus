@@ -49,13 +49,10 @@ class TYsonTableSchemaCache
     : public TAsyncExpiringCache<TCompactTableSchemaPtr, NYson::TYsonString>
 {
 public:
-    TYsonTableSchemaCache(const TWeakPtr<ITableManager>& weakTableManager, TYsonTableSchemaCacheConfigPtr config);
-
-    void Reconfigure(const TYsonTableSchemaCacheConfigPtr& config);
+    TYsonTableSchemaCache(const TWeakPtr<ITableManager>& weakTableManager, TAsyncExpiringCacheConfigPtr config);
 
 private:
     const TWeakPtr<ITableManager> WeakTableManager_;
-    std::atomic<bool> EnableTableSchemaCache_;
 
     bool CanCacheError(const TError& error) noexcept override;
 

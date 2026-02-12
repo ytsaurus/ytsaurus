@@ -10,25 +10,12 @@ namespace NYT::NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TYsonTableSchemaCacheConfig
-    : public TAsyncExpiringCacheConfig
-{
-    // COMPAT(cherepashka): drop after 25.2.
-    bool CacheTableSchemaAfterConvertionToYson;
-
-    REGISTER_YSON_STRUCT(TYsonTableSchemaCacheConfig)
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TYsonTableSchemaCacheConfig)
-
 struct TDynamicTableManagerConfig
     : public NYTree::TYsonStruct
 {
     i64 MaxSchemaMemoryUsageToLog;
     TAsyncExpiringCacheConfigPtr TableSchemaCache;
-    TYsonTableSchemaCacheConfigPtr YsonTableSchemaCache;
+    TAsyncExpiringCacheConfigPtr YsonTableSchemaCache;
     bool CacheHeavySchemaOnCreation;
     int ColumnToConstraintLogLimit;
     bool EnableColumnConstraintsForTables;
