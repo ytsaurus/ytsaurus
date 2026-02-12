@@ -100,8 +100,6 @@ DEFINE_ENUM(EObjectKind,
 );
 
 DEFINE_ENUM(EQueueFamily,
-    //! Sentinel value that does not correspond to any valid queue type.
-    ((Null)                       (0))
     //! Regular ordered dynamic table.
     ((OrderedDynamicTable)        (1))
 );

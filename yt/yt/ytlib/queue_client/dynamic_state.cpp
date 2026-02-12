@@ -561,6 +561,11 @@ TConsumerTableRow TConsumerTableRow::FromAttributeDictionary(
     };
 }
 
+bool TConsumerTableRow::IsMultiConsumerRow() const
+{
+    return Schema.has_value() && Schema->FindColumnByStableName(TColumnStableName{"queue_consumer_name"});
+}
+
 void Serialize(const TConsumerTableRow& row, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
