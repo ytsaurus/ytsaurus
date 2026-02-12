@@ -354,36 +354,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TLayerLocationPerformanceCounters
-{
-    TLayerLocationPerformanceCounters() = default;
-
-    explicit TLayerLocationPerformanceCounters(const TProfiler& profiler)
-    {
-        LayerCount = profiler.Gauge("/layer_count");
-        VolumeCount = profiler.Gauge("/volume_count");
-
-        UsedSpace = profiler.Gauge("/used_space");
-        AvailableSpace = profiler.Gauge("/available_space");
-        TotalSpace = profiler.Gauge("/total_space");
-        Full = profiler.Gauge("/full");
-
-        ImportLayerTimer = profiler.Timer("/import_layer_time");
-    }
-
-    TGauge LayerCount;
-    TGauge VolumeCount;
-
-    TGauge TotalSpace;
-    TGauge UsedSpace;
-    TGauge AvailableSpace;
-    TGauge Full;
-
-    TEventTimer ImportLayerTimer;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 static const TString VolumesName = "volumes";
 static const TString LayersName = "porto_layers";
 static const TString LayersMetaName = "layers_meta";
@@ -2311,44 +2281,6 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TLayer)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TTmpfsLayerCacheCounters
-{
-public:
-    explicit TTmpfsLayerCacheCounters(TProfiler profiler)
-        : Profiler_(std::move(profiler))
-    { }
-
-    TCounter GetCounter(const TTagSet& tagSet, const TString& name)
-    {
-        auto key = CreateKey(tagSet, name);
-
-        auto guard = Guard(Lock_);
-        auto [it, inserted] = Counters_.emplace(key, TCounter());
-        if (inserted) {
-            it->second = Profiler_.WithTags(tagSet).Counter(name);
-        }
-
-        return it->second;
-    }
-
-private:
-    using TKey = TTagList;
-
-    static TKey CreateKey(const TTagSet& tagSet, const TString& name)
-    {
-        auto key = tagSet.Tags();
-        key.push_back({"name", name});
-        return key;
-    }
-
-    const TProfiler Profiler_;
-
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
-    THashMap<TKey, TCounter> Counters_;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
