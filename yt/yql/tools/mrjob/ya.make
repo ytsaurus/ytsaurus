@@ -1,6 +1,6 @@
 PROGRAM(mrjob)
 
-ALLOCATOR(J)
+ALLOCATOR(TCMALLOC)
 
 SRCS(
     mrjob.cpp
