@@ -1,5 +1,6 @@
 from .common import YtError, require, get_value
 from .config import get_config, get_option
+from .distributed_commands import DistributedReadTablePartitionType, partition_tables, guess_table_data_weight_per_partition
 from .errors import YtChunkUnavailable
 from .format import YtFormatReadError
 from .heavy_commands import process_read_exception, _get_read_response
@@ -15,10 +16,14 @@ import yt.logger as logger
 
 from yt.common import join_exceptions
 
+from typing import Literal, List, Dict, Tuple, Any, Callable, TypedDict, Union, Optional, Mapping, TYPE_CHECKING
+
 import builtins
 import copy
 import threading
-import typing
+
+if TYPE_CHECKING:
+    from . import YtClient
 
 
 DEFAULT_DATA_SIZE_PER_THREAD = 8 * 1024 * 1024
@@ -54,8 +59,22 @@ class ParallelReadRetrier(Retrier):
         return self.run()
 
 
+class _RangesForParallerReadType(TypedDict):
+    range: Tuple[int, int]
+
+
 class ParallelReader(object):
-    def __init__(self, command_name, transaction, params, prepare_params_func, prepare_meta_func, unordered, thread_count, client):
+    def __init__(
+        self,
+        command_name: str,
+        transaction: Transaction,
+        params: Dict[str, Any],
+        prepare_params_func: Callable[[Dict[str, Any], _RangesForParallerReadType], Dict[str, Any]],
+        prepare_meta_func,
+        unordered: bool,
+        thread_count: int,
+        client: "YtClient",
+    ):
         self._command_name = command_name
         self._transaction = transaction
         self._prepare_params_func = prepare_params_func
@@ -76,13 +95,13 @@ class ParallelReader(object):
                                     "params": copy.deepcopy(params),
                                     "retrier": ParallelReadRetrier(self._command_name, transaction_id, client)}
 
-    def read_range(self, range):
+    def read_range(self, range: Union[_RangesForParallerReadType, DistributedReadTablePartitionType]):
         if self._transaction and not self._transaction.is_pinger_alive():
             raise YtError("Transaction pinger failed, read interrupted")
 
         ident = threading.current_thread().ident
 
-        retrier = self._thread_data[ident]["retrier"]
+        retrier: ParallelReadRetrier = self._thread_data[ident]["retrier"]
         params = self._thread_data[ident]["params"]
         params = self._prepare_params_func(params, range)
         if "meta" in range:
@@ -91,7 +110,7 @@ class ParallelReader(object):
         else:
             return retrier.run_read(params)
 
-    def _read_iterator(self, ranges):
+    def _read_iterator(self, ranges: List[_RangesForParallerReadType]):
         if self._unordered:
             return self._pool.imap_unordered(self.read_range, ranges)
         return self._pool.imap(self.read_range, ranges)
@@ -111,8 +130,18 @@ class ParallelReader(object):
                 self._transaction.abort()
 
 
-def make_read_parallel_request(command_name, path, ranges, params, prepare_params_func,
-                               prepare_meta_func, max_thread_count, unordered, response_parameters, client):
+def make_read_parallel_request(
+    command_name: Literal["read_table_partition", "read_table"],
+    path: Union[str, TablePath],
+    ranges: List[Union[_RangesForParallerReadType, DistributedReadTablePartitionType]],
+    params: Dict[str, Any],
+    prepare_params_func: Callable[[Dict[str, Any], _RangesForParallerReadType], Dict[str, Any]],
+    prepare_meta_func,
+    max_thread_count: int,
+    unordered: bool,
+    response_parameters: Dict[str, Any],
+    client,
+):
     if not ranges:
         return ResponseStreamWithReadRow(
             get_response=lambda: None,
@@ -136,6 +165,7 @@ def make_read_parallel_request(command_name, path, ranges, params, prepare_param
 
         reader = ParallelReader(command_name, transaction, params, prepare_params_func, prepare_meta_func, unordered, thread_count, client)
         iterator = reader.read(ranges)
+
         return ResponseStreamWithReadRow(
             get_response=lambda: None,
             iter_content=iterator,
@@ -153,7 +183,7 @@ def _prepare_ranges_for_parallel_read(
     length: int,
     data_size: int,
     data_size_per_thread: int,
-) -> typing.List[typing.Dict[str, typing.Tuple[int, int]]]:
+) -> List[_RangesForParallerReadType]:
     if not data_size_per_thread:
         data_size_per_thread = DEFAULT_DATA_SIZE_PER_THREAD
 
@@ -163,7 +193,7 @@ def _prepare_ranges_for_parallel_read(
     length = get_value(length, data_size)
     length = min(length, data_size - offset)
 
-    result = []
+    result: List[_RangesForParallerReadType] = []
     while offset < data_size and length > 0:
         range_size = min(data_size_per_thread, length)
         result.append({"range" : (offset, range_size)})
@@ -173,16 +203,42 @@ def _prepare_ranges_for_parallel_read(
     return result
 
 
+def _slice_table_ranges_for_parallel_read(
+    table: Union[str, TablePath],
+    chunk_count: int,
+    data_weight: int,
+    unordered: bool = False,
+    data_size_per_thread: Optional[int] = None,
+    client=None,
+) -> List[DistributedReadTablePartitionType]:
+    data_weight_per_partition = guess_table_data_weight_per_partition(
+        path=table,
+        table_chunk_count=chunk_count,
+        table_data_weight=data_weight,
+        max_partition_count=None,
+        max_partition_weight=data_size_per_thread,
+    )
+
+    ranges = partition_tables(
+        table,
+        partition_mode="unordered" if unordered else "ordered",
+        data_weight_per_partition=data_weight_per_partition,
+        enable_cookies=True,
+        client=client,
+    )
+    return ranges
+
+
 def _slice_row_ranges_for_parallel_read(
-    ranges: typing.List[typing.Mapping],
+    ranges: List[Mapping],
     row_count: int,
     chunk_count: int,
     data_size: int,
     replication_factor: int,
-    data_size_per_thread: typing.Union[int, None],
-) -> typing.Tuple[typing.List[typing.Dict[str, typing.Tuple[int, int]]], int]:
+    data_size_per_thread: Optional[int] = None,
+) -> Tuple[List[_RangesForParallerReadType], int]:
     def _get_ranges(ranges, rows_per_task):
-        result = []
+        result: List[_RangesForParallerReadType] = []
         for range in ranges:
             if "exact" in range:
                 require("row_index" in range["exact"], lambda: YtError('Invalid YPath: "row_index" not found'))

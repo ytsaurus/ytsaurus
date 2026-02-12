@@ -1,5 +1,3 @@
-from __future__ import with_statement
-
 from .conftest import authors
 from .helpers import TEST_DIR, set_config_option, get_tests_sandbox, wait, check_rows_equality
 

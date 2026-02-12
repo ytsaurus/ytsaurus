@@ -21,6 +21,9 @@ from yt.common import join_exceptions, YT_NULL_TRANSACTION_ID as null_transactio
 import sys
 import time
 
+if typing.TYPE_CHECKING:
+    from . import YtClient  # noqa
+
 
 class _ProgressReporter(object):
     def __init__(self, monitor):

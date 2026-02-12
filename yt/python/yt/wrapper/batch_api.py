@@ -2,10 +2,11 @@ from .cypress_commands import (  # noqa
     set, get, list, exists, remove, externalize, internalize, mkdir, copy, move, link, get_type, create,
     has_attribute, get_attribute, set_attribute, remove_attribute)
 from .acl_commands import check_permission, add_member, remove_member  # noqa
+from .distributed_commands import partition_tables  # noqa
 from .lock_commands import lock, unlock  # noqa
 from .file_commands import LocalFile, put_file_to_cache, get_file_from_cache  # noqa
 from .table_commands import (  # noqa
-    create_table, row_count, is_sorted, is_empty, alter_table, get_table_columnar_statistics, partition_tables)
+    create_table, row_count, is_sorted, is_empty, alter_table, get_table_columnar_statistics)
 from .dynamic_table_commands import (  # noqa
     mount_table, unmount_table, remount_table,
     freeze_table, unfreeze_table, reshard_table, reshard_table_automatic, balance_tablet_cells,

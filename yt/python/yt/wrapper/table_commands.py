@@ -1,13 +1,10 @@
-from __future__ import annotations
-
-from typing import TYPE_CHECKING, Union, Optional, List, Literal
+from typing import TYPE_CHECKING, Mapping, Union, Optional, BinaryIO, Iterable, Any, Dict, List, Literal
 
 if TYPE_CHECKING:
-    from typing import Mapping
     from . import YtClient
 
 from .common import (flatten, require, update, get_value, set_param, datetime_to_string,
-                     MB, chunk_iter_stream, deprecated, merge_blobs_by_size, typing, utcnow)
+                     MB, chunk_iter_stream, deprecated, merge_blobs_by_size, utcnow)
 from .compression import try_enable_parallel_write_gzip
 from .config import get_config, get_option
 from .constants import YSON_PACKAGE_INSTALLATION_TEXT
@@ -25,7 +22,7 @@ from .response_stream import EmptyResponseStream, ResponseStreamWithReadRow
 from .table_helpers import (_prepare_source_tables, _are_default_empty_table, _prepare_table_writer,
                             _remove_tables, DEFAULT_EMPTY_TABLE, _to_chunk_stream, _prepare_command_format)
 from .file_commands import _get_remote_temp_files_directory, _append_default_path_with_user_level
-from .parallel_reader import make_read_parallel_request, _slice_row_ranges_for_parallel_read
+from .parallel_reader import make_read_parallel_request, _slice_row_ranges_for_parallel_read, _slice_table_ranges_for_parallel_read
 from .schema import _SchemaRuntimeCtx, TableSchema, make_dataclass_from_table_schema
 from .stream import ItemStream, _ChunkStream
 from .ypath import TablePath, YPath, ypath_join
@@ -154,15 +151,15 @@ def create_temp_table(path=None, prefix=None, attributes=None, expiration_timeou
 
 
 def write_table(
-    table,  # type: str | TablePath
-    input_stream,  # type: str | bytes | typing.BinaryIO | typing.Iterable
-    format=None,  # type: str | Format | None
-    table_writer=None,  # type: dict[str, typing.Any] | None
-    max_row_buffer_size=None,  # type: int | None
-    is_stream_compressed=False,  # type: bool | None
-    force_create=None,  # type: bool | None
-    raw=None,  # type: bool | None
-    client=None,  # type: YtClient | None
+    table: Union[str, "TablePath"],
+    input_stream: Union[str, bytes, BinaryIO, Iterable],
+    format: Union[str, Format, None] = None,
+    table_writer: Optional[Dict[str, Any]] = None,
+    max_row_buffer_size: Optional[int] = None,
+    is_stream_compressed: Optional[bool] = False,
+    force_create: Optional[bool] = None,
+    raw: Optional[bool] = None,
+    client=None,
 ):
     """Writes rows from input_stream to table.
 
@@ -220,7 +217,7 @@ def write_table(
         # NOTE: For legacy reasons we just del schema here.
         del table.attributes["schema"]
 
-    default_create_attributes: Mapping | None = None
+    default_create_attributes: Union[Mapping, None] = None
     if schema:
         default_create_attributes = {"schema": schema}
 
@@ -229,9 +226,9 @@ def write_table(
     _DEFAULT = object()
 
     def prepare_table(
-        path: str | YPath ,
-        client: YtClient | None,
-        attributes: Mapping | None = _DEFAULT
+        path: Union[str, YPath],
+        client: "YtClient",
+        attributes: Optional[Mapping] = _DEFAULT
     ):
         if attributes is _DEFAULT:
             attributes = default_create_attributes
@@ -241,7 +238,7 @@ def write_table(
 
     is_input_stream_filelike = hasattr(input_stream, "read")
     is_input_stream_str = isinstance(input_stream, (str, bytes))
-    can_split_input = (isinstance(input_stream, typing.Iterable) and not is_input_stream_filelike and not is_input_stream_str) \
+    can_split_input = (isinstance(input_stream, Iterable) and not is_input_stream_filelike and not is_input_stream_str) \
         or format.is_raw_load_supported()
     enable_retries = get_config(client)["write_retries"]["enable"] and \
         can_split_input and \
@@ -452,6 +449,11 @@ def read_blob_table(table, part_index_column_name=None, data_column_name=None,
 def _prepare_params_for_parallel_read(params, range):
     params["path"].attributes["ranges"] = [{"lower_limit": {"row_index": range["range"][0]},
                                             "upper_limit": {"row_index": range["range"][1]}}]
+    return params
+
+
+def _prepare_params_for_partition_read(params, range):
+    params["cookie"] = range["cookie"]
     return params
 
 
@@ -779,13 +781,35 @@ def _check_attributes_for_read_table(attributes, table, client):
 def _get_table_attributes(table, client):
     attributes = get(
         table + "/@",
-        attributes=["type", "chunk_count", "compressed_data_size", "dynamic", "row_count", "replication_factor", "chunk_count", "uncompressed_data_size"],
+        attributes=[
+            "chunk_count",
+            "chunk_count",
+            "compressed_data_size",
+            "data_weight",
+            "dynamic",
+            "replication_factor",
+            "row_count",
+            "sorted",
+            "type",
+            "uncompressed_data_size",
+        ],
         client=client)
     return attributes
 
 
-def read_table(table, format=None, table_reader=None, control_attributes=None, unordered=None,
-               raw=None, response_parameters=None, enable_read_parallel=None, omit_inaccessible_columns=None, omit_inaccessible_rows=None, client=None):
+def read_table(
+    table: Union[str, "TablePath"],
+    format: Union[str, Format, None] = None,
+    table_reader: Optional[Dict[str, Any]] = None,
+    control_attributes: Optional[Dict[str, Any]] = None,
+    unordered: Optional[bool] = None,
+    raw: Optional[bool] = None,
+    response_parameters: Optional[Dict[str, Any]] = None,
+    enable_read_parallel: Optional[bool] = None,
+    omit_inaccessible_columns: Optional[bool] = None,
+    omit_inaccessible_rows: Optional[bool] = None,
+    client=None,
+):
     """Reads rows from table and parse (optionally).
 
     :param table: table to read.
@@ -800,12 +824,14 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
     command is executed under self-pinged transaction with retries and snapshot lock on the table.
     This transaction is alive until your finish reading your table, or call `close` method of ResponseStream.
     """
+    client_config = get_config(client)
+
     if raw is None:
-        raw = get_config(client)["default_value_of_raw_option"]
+        raw = client_config["default_value_of_raw_option"]
 
     table = TablePath(table, client=client)
     format = _prepare_command_format(format, raw, client)
-    if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and not exists(table, client=client):
+    if client_config["yamr_mode"]["treat_unexisting_as_empty"] and not exists(table, client=client):
         return ResponseStreamWithReadRow(get_response=lambda: None,
                                          iter_content=iter(EmptyResponseStream()),
                                          close=lambda from_delete: None,
@@ -822,43 +848,63 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
     set_param(params, "table_reader", table_reader)
     set_param(params, "unordered", unordered)
 
-    set_param(params, "omit_inaccessible_columns", get_value(omit_inaccessible_columns,  get_config(client)["read_omit_inaccessible_columns"]), bool)
-    set_param(params, "omit_inaccessible_rows", get_value(omit_inaccessible_rows,  get_config(client)["read_omit_inaccessible_rows"]), bool)
+    set_param(params, "omit_inaccessible_columns", get_value(omit_inaccessible_columns,  client_config["read_omit_inaccessible_columns"]), bool)
+    set_param(params, "omit_inaccessible_rows", get_value(omit_inaccessible_rows,  client_config["read_omit_inaccessible_rows"]), bool)
 
-    enable_read_parallel = get_value(enable_read_parallel, get_config(client)["read_parallel"]["enable"])
+    enable_read_parallel = get_value(enable_read_parallel, client_config["read_parallel"]["enable"])
+    read_parallel_by_partition = client_config["read_parallel"]["use_distributed_read"]
 
     if enable_read_parallel:
         if _check_warnings_for_parallel_read(attributes, table, control_attributes):
-            if "ranges" not in table.attributes:
-                table.attributes["ranges"] = [
-                    {"lower_limit": {"row_index": 0},
-                     "upper_limit": {"row_index": attributes["row_count"]}}]
-            ranges, _ = _slice_row_ranges_for_parallel_read(
-                ranges=table.attributes["ranges"],
-                row_count=attributes["row_count"],
-                chunk_count=attributes["chunk_count"],
-                data_size=attributes["uncompressed_data_size"],
-                replication_factor=attributes["replication_factor"],
-                data_size_per_thread=get_config(client)["read_parallel"]["data_size_per_thread"],
-            )
-            response_parameters = get_value(response_parameters, {})
-            if not ranges:
-                response_parameters["start_row_index"] = 0
-                response_parameters["approximate_row_count"] = 0
+            if read_parallel_by_partition:
+                ranges = _slice_table_ranges_for_parallel_read(
+                    table,
+                    unordered=unordered,
+                    chunk_count=attributes["chunk_count"],
+                    data_weight=attributes["data_weight"],
+                    data_size_per_thread=client_config["read_parallel"]["data_size_per_thread"],
+                    client=client,
+                )
+                command_name = "read_table_partition"
+                prepare_params_func = _prepare_params_for_partition_read
             else:
-                response_parameters["start_row_index"] = ranges[0]["range"][0]
-                response_parameters["approximate_row_count"] = sum(range["range"][1] - range["range"][0] for range in ranges)
+                if "ranges" not in table.attributes:
+                    table.attributes["ranges"] = [
+                        {
+                            "lower_limit": {"row_index": 0},
+                            "upper_limit": {"row_index": attributes["row_count"]},
+                        }
+                    ]
+                ranges, _ = _slice_row_ranges_for_parallel_read(
+                    ranges=table.attributes["ranges"],
+                    row_count=attributes["row_count"],
+                    chunk_count=attributes["chunk_count"],
+                    data_size=attributes["uncompressed_data_size"],
+                    replication_factor=attributes["replication_factor"],
+                    data_size_per_thread=client_config["read_parallel"]["data_size_per_thread"],
+                )
+                command_name = "read_table"
+                prepare_params_func = _prepare_params_for_parallel_read
+                response_parameters = get_value(response_parameters, {})
+                if not ranges:
+                    response_parameters["start_row_index"] = 0
+                    response_parameters["approximate_row_count"] = 0
+                else:
+                    response_parameters["start_row_index"] = ranges[0]["range"][0]
+                    response_parameters["approximate_row_count"] = sum(range["range"][1] - range["range"][0] for range in ranges)
+
             response = make_read_parallel_request(
-                "read_table",
+                command_name,
                 table,
                 ranges,
                 params,
-                _prepare_params_for_parallel_read,
+                prepare_params_func,
                 prepare_meta_func=None,
-                max_thread_count=get_config(client)["read_parallel"]["max_thread_count"],
+                max_thread_count=client_config["read_parallel"]["max_thread_count"],
                 unordered=unordered,
                 response_parameters=response_parameters,
-                client=client)
+                client=client
+            )
             if raw:
                 return response
             else:
@@ -1110,31 +1156,6 @@ def get_table_columnar_statistics(paths, client=None):
     return make_formatted_request("get_table_columnar_statistics", params={"paths": paths}, client=client, format=None)
 
 
-def partition_tables(paths, partition_mode=None, data_weight_per_partition=None, max_partition_count=None,
-                     enable_key_guarantee=None, adjust_data_weight_per_partition=None, client=None):
-    """Splits tables into a few partitions
-    :param paths: paths to tables
-    :type paths: list of (str or :class:`TablePath <yt.wrapper.ypath.TablePath>`)
-    :param partition_mode: table partitioning mode, one of the ["sorted", "ordered", "unordered"]
-    :param data_weight_per_partition: approximate data weight of each output partition
-    :param max_partition_count: maximum output partition count
-    :param enable_key_guarantee: a key will be placed to a single chunk exactly
-    :param adjust_data_weight_per_partition: allow the data weight per partition to exceed data_weight_per_partition when max_partition_count is set
-    """
-    params = {}
-    set_param(params, "paths", list(map(lambda path: TablePath(path, client=client), flatten(paths))))
-    set_param(params, "partition_mode", partition_mode)
-    set_param(params, "data_weight_per_partition", data_weight_per_partition)
-    set_param(params, "max_partition_count", max_partition_count)
-    set_param(params, "enable_key_guarantee", enable_key_guarantee)
-    set_param(params, "adjust_data_weight_per_partition", adjust_data_weight_per_partition)
-    response = make_formatted_request("partition_tables", params, client=client, format=None)
-    partitions = apply_function_to_result(
-        lambda response: response["partitions"],
-        response)
-    return partitions
-
-
 def _slice_row_ranges_for_dump_parquet(max_thread_count, lower_limit, upper_limit):
     result = []
     range_count = upper_limit - lower_limit
@@ -1288,7 +1309,7 @@ def dump_parquet(
     output_path: Optional[str] = None,
     enable_several_files: Optional[bool] = False,
     unordered: Optional[bool] = False,
-    file_compression_codec: Optional[Union[Literal["uncompressed"], Literal["snappy"], Literal["gzip"], Literal["brotli"], Literal["zstd"], Literal["lz4"], Literal["lz4_frame"], Literal["lzo"], Literal["bz2"], Literal["lz4_hadoop"]]] = None,  # noqa
+    file_compression_codec: Union[Literal["uncompressed"], Literal["snappy"], Literal["gzip"], Literal["brotli"], Literal["zstd"], Literal["lz4"], Literal["lz4_frame"], Literal["lzo"], Literal["bz2"], Literal["lz4_hadoop"], None] = None,  # noqa
     file_compression_level: Optional[int] = None,
     client=None,
 ):

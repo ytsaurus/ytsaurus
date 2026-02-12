@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 from .conftest import authors
 from .helpers import get_tests_sandbox, get_environment_for_binary_test
 from .helpers_cli import YtCli

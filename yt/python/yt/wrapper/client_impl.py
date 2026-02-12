@@ -11,14 +11,14 @@ from typing import ForwardRef
 
 from typing import Any, BinaryIO, Callable, Dict, Iterable, List, Literal, Mapping, Optional, Tuple, Union
 from .auth_commands import DictCurrentUser
-from .distributed_commands import DistributedWriteCookePacketType, DistributedWriteFragmentPacketType, DistributedWriteSessionPacketType
+from .distributed_commands import DistributedReadTablePartitionType, DistributedWriteCookePacketType, DistributedWriteFragmentPacketType, DistributedWriteSessionPacketType
 from .format import Format
 from .job_commands import GetJobJobType, JobSpecType, ListJobTracesType, ListJobsType
 from .operation_commands import CheckOperationPermissionResultType, GetOperationOperationType, ListOperationsType, OperationState
 from .query_commands import Query
 from .schema.table_schema import TableSchema
 from .spec_builders import SpecCommonType, SpecMapReduceType, SpecMapType, SpecReduceType, SpecSortType
-from .ypath import YPath
+from .ypath import TablePath as TablePath_, YPath
 
 
 class YtClient(ClientState):
@@ -29,39 +29,43 @@ class YtClient(ClientState):
         initialize_client(self, proxy, token, config)
 
     def LocalFile(
-            self,
-            path,
-            file_name=None, attributes=None):
+        self,
+        path,
+        file_name=None, attributes=None
+    ):
         """
         Represents a local path of a file and its path in job's sandbox
         """
         return client_api.LocalFile(
             path,
             client=self,
-            file_name=file_name, attributes=attributes)
+            file_name=file_name, attributes=attributes
+        )
 
     def PingTransaction(
-            self,
-            transaction, ping_period, ping_timeout,
-            interrupt_on_failed=True):
+        self,
+        transaction, ping_period, ping_timeout,
+        interrupt_on_failed=True
+    ):
         """
         Pinger for transaction.
 
         Pings transaction in background thread.
-
         """
         return client_api.PingTransaction(
             transaction, ping_period, ping_timeout,
             client=self,
-            interrupt_on_failed=interrupt_on_failed)
+            interrupt_on_failed=interrupt_on_failed
+        )
 
     def TablePath(
-            self,
-            name,
-            append=None, sorted_by=None, columns=None, exact_key=None, lower_key=None, upper_key=None,
-            exact_index=None, start_index=None, end_index=None, ranges=None, schema=None, optimize_for=None,
-            compression_codec=None, erasure_codec=None, foreign=None, rename_columns=None, simplify=None,
-            attributes=None):
+        self,
+        name,
+        append=None, sorted_by=None, columns=None, exact_key=None, lower_key=None, upper_key=None,
+        exact_index=None, start_index=None, end_index=None, ranges=None, schema=None, optimize_for=None,
+        compression_codec=None, erasure_codec=None, foreign=None, rename_columns=None, simplify=None,
+        attributes=None
+    ):
         """
         YPath descendant to be used in table commands.
 
@@ -76,7 +80,6 @@ class YtClient(ClientState):
         `static schema doc <https://ytsaurus.tech/docs/en/user-guide/storage/static-schema#creating-a-table-with-a-schema>`_
 
         .. seealso:: `YPath in the docs <https://ytsaurus.tech/docs/en/user-guide/storage/ypath>`_
-
         """
         return client_api.TablePath(
             name,
@@ -85,28 +88,31 @@ class YtClient(ClientState):
             upper_key=upper_key, exact_index=exact_index, start_index=start_index, end_index=end_index,
             ranges=ranges, schema=schema, optimize_for=optimize_for, compression_codec=compression_codec,
             erasure_codec=erasure_codec, foreign=foreign, rename_columns=rename_columns, simplify=simplify,
-            attributes=attributes)
+            attributes=attributes
+        )
 
     def TempTable(
-            self,
-            *args,
-            **kwds):
+        self,
+        *args,
+        **kwds
+    ):
         """
         Creates temporary table in given path with given prefix on scope enter and        removes it on scope exit.
 
         .. seealso:: :func:`create_temp_table <yt.wrapper.table_commands.create_temp_table>`
-
         """
         return client_api.TempTable(
             *args,
             client=self,
-            **kwds)
+            **kwds
+        )
 
     def Transaction(
-            self,
-            timeout=None, deadline=None, attributes=None, ping=None, interrupt_on_failed=True,
-            transaction_id=None, ping_ancestor_transactions=None, type='master', acquire=None, ping_period=None,
-            ping_timeout=None, prerequisite_transaction_ids=None):
+        self,
+        timeout=None, deadline=None, attributes=None, ping=None, interrupt_on_failed=True, transaction_id=None,
+        ping_ancestor_transactions=None, type="master", acquire=None, ping_period=None, ping_timeout=None,
+        prerequisite_transaction_ids=None
+    ):
         """
 
         It is designed to be used by with_statement::
@@ -125,34 +131,37 @@ class YtClient(ClientState):
         :param bool ping: ping transaction in separate thread. By default True if acquire is also True else False.
 
         .. seealso:: `transactions in the docs <https://ytsaurus.tech/docs/en/user-guide/storage/transactions>`_
-
         """
         return client_api.Transaction(
             client=self,
             timeout=timeout, deadline=deadline, attributes=attributes, ping=ping, interrupt_on_failed=interrupt_on_failed,
             transaction_id=transaction_id, ping_ancestor_transactions=ping_ancestor_transactions, type=type,
-            acquire=acquire, ping_period=ping_period, ping_timeout=ping_timeout, prerequisite_transaction_ids=prerequisite_transaction_ids)
+            acquire=acquire, ping_period=ping_period, ping_timeout=ping_timeout, prerequisite_transaction_ids=prerequisite_transaction_ids
+        )
 
     def abort_job(
-            self,
-            job_id: str,
-            interrupt_timeout: Optional[int] = None):
+        self,
+        job_id: str,
+        interrupt_timeout: Optional[int] = None
+    ):
         """
         Interrupts running job with preserved result.
 
         :param str job_id: job id.
         :param int interrupt_timeout: wait for interrupt before abort (in ms).
-
         """
         return client_api.abort_job(
             job_id,
             client=self,
-            interrupt_timeout=interrupt_timeout)
+            interrupt_timeout=interrupt_timeout
+        )
 
     def abort_operation(
-            self,
-            operation: str,
-            message: str = None, reason: str = None):
+        self,
+        operation: str,
+        message: str = None,
+        reason: str = None
+    ):
         """
         Aborts operation.
 
@@ -161,17 +170,18 @@ class YtClient(ClientState):
         :param str operation: operation id.
         :param str message: custom message for abort error.
         :param str reason: alias for message (deprecated).
-
         """
         return client_api.abort_operation(
             operation,
             client=self,
-            message=message, reason=reason)
+            message=message, reason=reason
+        )
 
     def abort_query(
-            self,
-            query_id,
-            message=None, stage=None):
+        self,
+        query_id,
+        message=None, stage=None
+    ):
         """
         Abort query.
 
@@ -181,31 +191,33 @@ class YtClient(ClientState):
         :type message: str or None
         :param stage: query tracker stage, defaults to "production"
         :type stage: str
-
         """
         return client_api.abort_query(
             query_id,
             client=self,
-            message=message, stage=stage)
+            message=message, stage=stage
+        )
 
     def abort_transaction(
-            self,
-            transaction):
+        self,
+        transaction
+    ):
         """
         Aborts transaction. All changes will be lost.
 
         :param str transaction: transaction id.
 
         .. seealso:: `abort_tx in the docs <https://ytsaurus.tech/docs/en/api/commands#abort_tx>`_
-
         """
         return client_api.abort_transaction(
             transaction,
-            client=self)
+            client=self
+        )
 
     def add_maintenance(
-            self,
-            component, address, type, comment):
+        self,
+        component, address, type, comment
+    ):
         """
         Adds maintenance request for a given node.
 
@@ -218,15 +230,16 @@ class YtClient(ClientState):
         :param comment: any string with length not larger than 512 characters.
         :return: YSON map-node with maintenance IDs for each target. Maintenance IDs are unique
         per target.
-
         """
         return client_api.add_maintenance(
             component, address, type, comment,
-            client=self)
+            client=self
+        )
 
     def add_member(
-            self,
-            member, group):
+        self,
+        member, group
+    ):
         """
         Adds member to Cypress node group.
 
@@ -234,16 +247,17 @@ class YtClient(ClientState):
         :param str group: group to add member to.
 
         .. seealso:: `permissions in the docs <https://ytsaurus.tech/docs/en/user-guide/storage/access-control>`_
-
         """
         return client_api.add_member(
             member, group,
-            client=self)
+            client=self
+        )
 
     def advance_consumer(
-            self,
-            consumer_path, queue_path, partition_index, old_offset, new_offset,
-            client_side=True):
+        self,
+        consumer_path, queue_path, partition_index, old_offset, new_offset,
+        client_side=True
+    ):
         """
         Advances consumer offset for the given queue.
         If the old offset is specified, the command fails if it is not equal to the current stored offset.
@@ -260,17 +274,18 @@ class YtClient(ClientState):
         :type new_offset: int
         :param client_side: use client-side implementation
         :type client_side: bool
-
         """
         return client_api.advance_consumer(
             consumer_path, queue_path, partition_index, old_offset, new_offset,
             client=self,
-            client_side=client_side)
+            client_side=client_side
+        )
 
     def advance_queue_consumer(
-            self,
-            consumer_path, queue_path, partition_index, old_offset, new_offset,
-            client_side=True):
+        self,
+        consumer_path, queue_path, partition_index, old_offset, new_offset,
+        client_side=True
+    ):
         """
         Advances consumer offset for the given queue.
         If the old offset is specified, the command fails if it is not equal to the current stored offset.
@@ -287,17 +302,18 @@ class YtClient(ClientState):
         :type new_offset: int
         :param client_side: use client-side implementation
         :type client_side: bool
-
         """
         return client_api.advance_queue_consumer(
             consumer_path, queue_path, partition_index, old_offset, new_offset,
             client=self,
-            client_side=client_side)
+            client_side=client_side
+        )
 
     def alter_query(
-            self,
-            query_id,
-            stage=None, annotations=None, access_control_objects=None):
+        self,
+        query_id,
+        stage=None, annotations=None, access_control_objects=None
+    ):
         """
         Alter query.
 
@@ -309,18 +325,19 @@ class YtClient(ClientState):
         :type stage: dict or None
         :param access_control_objects: list access control object names
         :type access_control_objects: list or None
-
         """
         return client_api.alter_query(
             query_id,
             client=self,
-            stage=stage, annotations=annotations, access_control_objects=access_control_objects)
+            stage=stage, annotations=annotations, access_control_objects=access_control_objects
+        )
 
     def alter_replication_card(
-            self,
-            replication_card_id,
-            replicated_table_options=None, enable_replicated_table_tracker=None, replication_card_collocation_id=None,
-            collocation_options=None):
+        self,
+        replication_card_id,
+        replicated_table_options=None, enable_replicated_table_tracker=None, replication_card_collocation_id=None,
+        collocation_options=None
+    ):
         """
         Changes mode and enables or disables a table replica. Also manipulates with card's collocation.
 
@@ -331,20 +348,20 @@ class YtClient(ClientState):
         Cannot be specified with replicated_table_options at the same time.
         :param str replication_card_collocation_id: id of collocation to set. Set "0-0-0-0" to remove card from collocation.
         :param str collocation_options: options to set for card's collocation. Card is expected to be a member of a collocation.
-
-
         """
         return client_api.alter_replication_card(
             replication_card_id,
             client=self,
             replicated_table_options=replicated_table_options, enable_replicated_table_tracker=enable_replicated_table_tracker,
-            replication_card_collocation_id=replication_card_collocation_id, collocation_options=collocation_options)
+            replication_card_collocation_id=replication_card_collocation_id, collocation_options=collocation_options
+        )
 
     def alter_table(
-            self,
-            path,
-            schema=None, schema_id=None, dynamic=None, upstream_replica_id=None, replication_progress=None,
-            clip_timestamp=None, constrained_schema=None, constraints=None):
+        self,
+        path,
+        schema=None, schema_id=None, dynamic=None, upstream_replica_id=None, replication_progress=None,
+        clip_timestamp=None, constrained_schema=None, constraints=None
+    ):
         """
         Performs schema and other table meta information modifications.
         Applicable to static and dynamic tables.
@@ -359,19 +376,20 @@ class YtClient(ClientState):
         :param int clip_timestamp: new clip_timestamp to set on table
         :param constrained_schema: new schema with constraints to set on table
         :param dict constraints: constraint per column map for table schema
-
         """
         return client_api.alter_table(
             path,
             client=self,
             schema=schema, schema_id=schema_id, dynamic=dynamic, upstream_replica_id=upstream_replica_id,
             replication_progress=replication_progress, clip_timestamp=clip_timestamp, constrained_schema=constrained_schema,
-            constraints=constraints)
+            constraints=constraints
+        )
 
     def alter_table_replica(
-            self,
-            replica_id,
-            enabled=None, mode=None, enable_replicated_table_tracker=None):
+        self,
+        replica_id,
+        enabled=None, mode=None, enable_replicated_table_tracker=None
+    ):
         """
         Changes mode and enables or disables a table replica or replicated table tracker for table replica.
 
@@ -379,17 +397,18 @@ class YtClient(ClientState):
         :param bool enabled: enable or disable the replica.
         :param str mode: switch the replica to sync or async mode.
         :param bool enable_replicated_table_tracker: enable or disable replicated table tracker.
-
         """
         return client_api.alter_table_replica(
             replica_id,
             client=self,
-            enabled=enabled, mode=mode, enable_replicated_table_tracker=enable_replicated_table_tracker)
+            enabled=enabled, mode=mode, enable_replicated_table_tracker=enable_replicated_table_tracker
+        )
 
     def balance_tablet_cells(
-            self,
-            bundle,
-            tables=None, sync=False):
+        self,
+        bundle,
+        tables=None, sync=False
+    ):
         """
         Reassign tablets evenly among tablet cells.
 
@@ -397,42 +416,46 @@ class YtClient(ClientState):
         :param list tables: if None, all tablets of bundle will be moved. If specified,
         only tablets of `tables` will be moved.
         :param bool sync: wait for the command to finish.
-
         """
         return client_api.balance_tablet_cells(
             bundle,
             client=self,
-            tables=tables, sync=sync)
+            tables=tables, sync=sync
+        )
 
     def batch_apply(
-            self,
-            function, data):
+        self,
+        function, data
+    ):
         """
         Applies function to each element from data in a batch mode and returns result.
         """
         return client_api.batch_apply(
             function, data,
-            client=self)
+            client=self
+        )
 
     def check_operation_permission(
-            self,
-            operation_id: str = None, user: str = None, permission: str = None, format: Union[str, Format, None] = None) -> CheckOperationPermissionResultType:
+        self,
+        operation_id: str = None, user: str = None, permission: str = None, format: Union[str, Format, None] = None
+    ) -> CheckOperationPermissionResultType:
         """
         Check if user has permission for operation.
 
         :param str operation_id: operation id.
         :param str user: user name.
         :param str permission: permission name (e.g., "read", "manage").
-
         """
         return client_api.check_operation_permission(
             client=self,
-            operation_id=operation_id, user=user, permission=permission, format=format)
+            operation_id=operation_id, user=user, permission=permission, format=format
+        )
 
     def check_permission(
-            self,
-            user, permission, path,
-            format=None, read_from=None, cache_sticky_group_size=None, columns=None):
+        self,
+        user, permission, path,
+        format=None, read_from=None, cache_sticky_group_size=None, columns=None
+    ):
         """
         Checks permission for Cypress node.
 
@@ -441,32 +464,34 @@ class YtClient(ClientState):
         :return: permission in specified format (YSON by default).
 
         .. seealso:: `permissions in the docs <https://ytsaurus.tech/docs/en/user-guide/storage/access-control>`_
-
         """
         return client_api.check_permission(
             user, permission, path,
             client=self,
             format=format, read_from=read_from, cache_sticky_group_size=cache_sticky_group_size,
-            columns=columns)
+            columns=columns
+        )
 
     def commit_transaction(
-            self,
-            transaction):
+        self,
+        transaction
+    ):
         """
         Saves all transaction changes.
 
         :param str transaction: transaction id.
 
         .. seealso:: `commit_tx in the docs <https://ytsaurus.tech/docs/en/api/commands#commit_tx>`_
-
         """
         return client_api.commit_transaction(
             transaction,
-            client=self)
+            client=self
+        )
 
     def complete_operation(
-            self,
-            operation: str):
+        self,
+        operation: str
+    ):
         """
         Completes operation.
 
@@ -475,15 +500,17 @@ class YtClient(ClientState):
         Does nothing if operation is in final state.
 
         :param str operation: operation id.
-
         """
         return client_api.complete_operation(
             operation,
-            client=self)
+            client=self
+        )
 
     def concatenate(
-            self,
-            source_paths: Union[str, YPath], destination_path: Union[str, YPath]):
+        self,
+        source_paths: Union[str, YPath],
+        destination_path: Union[str, YPath]
+    ):
         """
         Concatenates cypress nodes. This command applicable only to files and tables.
 
@@ -491,19 +518,30 @@ class YtClient(ClientState):
         :type source_paths: list[str or :class:`YPath <yt.wrapper.ypath.YPath>`]
         :param destination_path: destination path.
         :type destination_path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
-
         """
         return client_api.concatenate(
             source_paths, destination_path,
-            client=self)
+            client=self
+        )
 
     def copy(
-            self,
-            source_path: Union[str, YPath], destination_path: Union[str, YPath],
-            recursive: bool = None, force: bool = None, ignore_existing: bool = None, lock_existing: bool = None,
-            preserve_account: bool = None, preserve_owner: bool = None, preserve_acl: bool = None,
-            preserve_expiration_time: bool = None, preserve_expiration_timeout: bool = None, preserve_creation_time: bool = None,
-            preserve_modification_time: bool = None, pessimistic_quota_check: bool = None, enable_cross_cell_copying: bool = None):
+        self,
+        source_path: Union[str, YPath],
+        destination_path: Union[str, YPath],
+        recursive: bool = None,
+        force: bool = None,
+        ignore_existing: bool = None,
+        lock_existing: bool = None,
+        preserve_account: bool = None,
+        preserve_owner: bool = None,
+        preserve_acl: bool = None,
+        preserve_expiration_time: bool = None,
+        preserve_expiration_timeout: bool = None,
+        preserve_creation_time: bool = None,
+        preserve_modification_time: bool = None,
+        pessimistic_quota_check: bool = None,
+        enable_cross_cell_copying: bool = None
+    ):
         """
         Copies Cypress node.
 
@@ -526,7 +564,6 @@ class YtClient(ClientState):
         :param bool enable_cross_cell_copying: enable cross cell copying.
 
         .. seealso:: `copy in the docs <https://ytsaurus.tech/docs/en/api/commands#copy>`_
-
         """
         return client_api.copy(
             source_path, destination_path,
@@ -535,14 +572,20 @@ class YtClient(ClientState):
             preserve_account=preserve_account, preserve_owner=preserve_owner, preserve_acl=preserve_acl,
             preserve_expiration_time=preserve_expiration_time, preserve_expiration_timeout=preserve_expiration_timeout,
             preserve_creation_time=preserve_creation_time, preserve_modification_time=preserve_modification_time,
-            pessimistic_quota_check=pessimistic_quota_check, enable_cross_cell_copying=enable_cross_cell_copying)
+            pessimistic_quota_check=pessimistic_quota_check, enable_cross_cell_copying=enable_cross_cell_copying
+        )
 
     def create(
-            self,
-            type: Literal["table", "file", "map_node", "list_node", "document"],
-            path: Union[str, YPath, None] = None, recursive: bool = False, ignore_existing: bool = False,
-            lock_existing: bool = None, force: bool = None, attributes: Optional[Dict[str, Any]] = None,
-            ignore_type_mismatch: bool = False):
+        self,
+        type: Literal["table", "file", "map_node", "list_node", "document"],
+        path: Union[str, YPath, None] = None,
+        recursive: bool = False,
+        ignore_existing: bool = False,
+        lock_existing: bool = None,
+        force: bool = None,
+        attributes: Optional[Dict[str, Any]] = None,
+        ignore_type_mismatch: bool = False
+    ):
         """
         Creates Cypress node.
 
@@ -557,28 +600,31 @@ class YtClient(ClientState):
         :param bool ignore_type_mismatch: ignore type mismatch with existing node.
 
         .. seealso:: `create in the docs <https://ytsaurus.tech/docs/en/api/commands#create>`_
-
         """
         return client_api.create(
             type,
             client=self,
             path=path, recursive=recursive, ignore_existing=ignore_existing, lock_existing=lock_existing,
-            force=force, attributes=attributes, ignore_type_mismatch=ignore_type_mismatch)
+            force=force, attributes=attributes, ignore_type_mismatch=ignore_type_mismatch
+        )
 
     def create_batch_client(
-            self,
-            raise_errors=False, max_batch_size=None, concurrency=None):
+        self,
+        raise_errors=False, max_batch_size=None, concurrency=None
+    ):
         """
         Creates client which supports batch executions.
         """
         return client_api.create_batch_client(
             client=self,
-            raise_errors=raise_errors, max_batch_size=max_batch_size, concurrency=concurrency)
+            raise_errors=raise_errors, max_batch_size=max_batch_size, concurrency=concurrency
+        )
 
     def create_queue_producer_session(
-            self,
-            producer_path, queue_path, session_id,
-            user_meta=None, format=None):
+        self,
+        producer_path, queue_path, session_id,
+        user_meta=None, format=None
+    ):
         """
         Creates queue producer session.
         :param producer_path: path to queue producer table.
@@ -588,33 +634,36 @@ class YtClient(ClientState):
         :param session_id: identificator of session.
         :type session_id: str
         :param user_meta: arbitrary user meta information.
-
         """
         return client_api.create_queue_producer_session(
             producer_path, queue_path, session_id,
             client=self,
-            user_meta=user_meta, format=format)
+            user_meta=user_meta, format=format
+        )
 
     def create_revision_parameter(
-            self,
-            path: Union[str, YPath],
-            transaction_id=None, revision=None):
+        self,
+        path: Union[str, YPath],
+        transaction_id=None,
+        revision=None
+    ):
         """
         Creates revision parameter of the path.
 
         :param str path: path.
         :rtype: dict
-
         """
         return client_api.create_revision_parameter(
             path,
             client=self,
-            transaction_id=transaction_id, revision=revision)
+            transaction_id=transaction_id, revision=revision
+        )
 
     def create_table(
-            self,
-            *args,
-            **kwargs):
+        self,
+        *args,
+        **kwargs
+    ):
         """
         Creates empty table. Shortcut for `create("table", ...)`.
 
@@ -625,34 +674,36 @@ class YtClient(ClientState):
         otherwise if path exists and option is not specified
         then :class:`YtResponseError <yt.wrapper.errors.YtResponseError>` will be raised.
         :param dict attributes: attributes.
-
         """
         return client_api.create_table(
             *args,
             client=self,
-            **kwargs)
+            **kwargs
+        )
 
     def create_table_backup(
-            self,
-            manifest,
-            force=None, checkpoint_timestamp_delay=None, checkpoint_check_timeout=None, preserve_account=None):
+        self,
+        manifest,
+        force=None, checkpoint_timestamp_delay=None, checkpoint_check_timeout=None, preserve_account=None
+    ):
         """
         Creates a consistent backup copy of a collection of tables.
 
         :param manifest: description of tables to be backed up.
         :type manifest: dict or :class:`BackupManifest`
         :param bool force: overwrite destination tables.
-
         """
         return client_api.create_table_backup(
             manifest,
             client=self,
             force=force, checkpoint_timestamp_delay=checkpoint_timestamp_delay, checkpoint_check_timeout=checkpoint_check_timeout,
-            preserve_account=preserve_account)
+            preserve_account=preserve_account
+        )
 
     def create_temp_table(
-            self,
-            path=None, prefix=None, attributes=None, expiration_timeout=None):
+        self,
+        path=None, prefix=None, attributes=None, expiration_timeout=None
+    ):
         """
         Creates temporary table by given path with given prefix and return name.
 
@@ -662,16 +713,17 @@ class YtClient(ClientState):
         :param int expiration_timeout: expiration timeout for newly created table, in ms.
         :return: name of result table.
         :rtype: str
-
         """
         return client_api.create_temp_table(
             client=self,
-            path=path, prefix=prefix, attributes=attributes, expiration_timeout=expiration_timeout)
+            path=path, prefix=prefix, attributes=attributes, expiration_timeout=expiration_timeout
+        )
 
     def delete_rows(
-            self,
-            table, input_stream,
-            atomicity=None, durability=None, format=None, raw=None, require_sync_replica=None):
+        self,
+        table, input_stream,
+        atomicity=None, durability=None, format=None, raw=None, require_sync_replica=None
+    ):
         """
         Deletes rows with keys from input_stream from dynamic table.
 
@@ -684,45 +736,48 @@ class YtClient(ClientState):
         in specified `format` is expected. Otherwise dicts or :class:`Record <yt.wrapper.yamr_record.Record>`
         are expected.
         :param bool require_sync_replica: require sync replica write.
-
         """
         return client_api.delete_rows(
             table, input_stream,
             client=self,
-            atomicity=atomicity, durability=durability, format=format, raw=raw, require_sync_replica=require_sync_replica)
+            atomicity=atomicity, durability=durability, format=format, raw=raw, require_sync_replica=require_sync_replica
+        )
 
     def destroy_chunk_locations(
-            self,
-            node_address, location_uuids):
+        self,
+        node_address, location_uuids
+    ):
         """
         Mark locations for destroying. Disks of these locations can be recovered.
 
         :param node_address: node address.
         :param location_uuids: location uuids.
-
         """
         return client_api.destroy_chunk_locations(
             node_address, location_uuids,
-            client=self)
+            client=self
+        )
 
     def disable_chunk_locations(
-            self,
-            node_address, location_uuids):
+        self,
+        node_address, location_uuids
+    ):
         """
         Disable locations by uuids.
 
         :param node_address: node address.
         :param location_uuids: location uuids.
-
         """
         return client_api.disable_chunk_locations(
             node_address, location_uuids,
-            client=self)
+            client=self
+        )
 
     def download_core_dump(
-            self,
-            output_directory,
-            job_id=None, operation_id=None, core_table_path=None, core_indices=None):
+        self,
+        output_directory,
+        job_id=None, operation_id=None, core_table_path=None, core_indices=None
+    ):
         """
         Downloads core dump for a given operation_id and job_id from a given core_table_path.
         If core_table_path is not specified, operation_id is used to generate core_table_path.
@@ -735,27 +790,31 @@ class YtClient(ClientState):
         :param core_indices:
         :param client:
         :return: None
-
         """
         return client_api.download_core_dump(
             output_directory,
             client=self,
-            job_id=job_id, operation_id=operation_id, core_table_path=core_table_path, core_indices=core_indices)
+            job_id=job_id, operation_id=operation_id, core_table_path=core_table_path, core_indices=core_indices
+        )
 
     def dump_job_context(
-            self,
-            job_id: str, path: str):
+        self,
+        job_id: str,
+        path: str
+    ):
         """
         Dumps job input context to specified path.
         """
         return client_api.dump_job_context(
             job_id, path,
-            client=self)
+            client=self
+        )
 
     def dump_orc(
-            self,
-            table,
-            output_file=None, output_path=None, enable_several_files=False, unordered=False, file_compression_codec=None):
+        self,
+        table,
+        output_file=None, output_path=None, enable_several_files=False, unordered=False, file_compression_codec=None
+    ):
         """
         Dump table with a strict schema as `ORC <https://orc.apache.org/>` file
 
@@ -771,20 +830,24 @@ class YtClient(ClientState):
         :type enable_several_files: bool
         :param unordered: if the option is set to false, the order will be as in the original table
         :type unordered: bool
-
         """
         return client_api.dump_orc(
             table,
             client=self,
             output_file=output_file, output_path=output_path, enable_several_files=enable_several_files,
-            unordered=unordered, file_compression_codec=file_compression_codec)
+            unordered=unordered, file_compression_codec=file_compression_codec
+        )
 
     def dump_parquet(
-            self,
-            table: "Union[str, TablePath]",
-            output_file: "Optional[str]" = None, output_path: "Optional[str]" = None, enable_several_files: "Optional[bool]" = False,
-            unordered: "Optional[bool]" = False, file_compression_codec: "Optional[Union[Literal['uncompressed'], Literal['snappy'], Literal['gzip'], Literal['brotli'], Literal['zstd'], Literal['lz4'], Literal['lz4_frame'], Literal['lzo'], Literal['bz2'], Literal['lz4_hadoop']]]" = None,  # noqa
-            file_compression_level: "Optional[int]" = None):
+        self,
+        table: Union[str, TablePath_],
+        output_file: Optional[str] = None,
+        output_path: Optional[str] = None,
+        enable_several_files: Optional[bool] = False,
+        unordered: Optional[bool] = False,
+        file_compression_codec: Union[Literal["uncompressed"], Literal["snappy"], Literal["gzip"], Literal["brotli"], Literal["zstd"], Literal["lz4"], Literal["lz4_frame"], Literal["lzo"], Literal["bz2"], Literal["lz4_hadoop"], None] = None,  # noqa
+        file_compression_level: Optional[int] = None
+    ):
         """
         Dump table with a strict schema as `Parquet <https://parquet.apache.org/docs>` file
 
@@ -800,30 +863,35 @@ class YtClient(ClientState):
         :type enable_several_files: bool
         :param unordered: if the option is set to false, the order will be as in the original table
         :type unordered: bool
-
         """
         return client_api.dump_parquet(
             table,
             client=self,
             output_file=output_file, output_path=output_path, enable_several_files=enable_several_files,
-            unordered=unordered, file_compression_codec=file_compression_codec, file_compression_level=file_compression_level)
+            unordered=unordered, file_compression_codec=file_compression_codec, file_compression_level=file_compression_level
+        )
 
     def execute_batch(
-            self,
-            requests,
-            concurrency=None):
+        self,
+        requests,
+        concurrency=None
+    ):
         """
         Executes `requests` in parallel as one batch request.
         """
         return client_api.execute_batch(
             requests,
             client=self,
-            concurrency=concurrency)
+            concurrency=concurrency
+        )
 
     def exists(
-            self,
-            path: Union[str, YPath],
-            read_from: str = None, cache_sticky_group_size: int = None, suppress_transaction_coordinator_sync: bool = None):
+        self,
+        path: Union[str, YPath],
+        read_from: str = None,
+        cache_sticky_group_size: int = None,
+        suppress_transaction_coordinator_sync: bool = None
+    ):
         """
         Checks if Cypress node exists.
 
@@ -831,20 +899,21 @@ class YtClient(ClientState):
         :type path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
 
         .. seealso:: `exists in the docs <https://ytsaurus.tech/docs/en/api/commands#exists>`_
-
         """
         return client_api.exists(
             path,
             client=self,
-            read_from=read_from, cache_sticky_group_size=cache_sticky_group_size, suppress_transaction_coordinator_sync=suppress_transaction_coordinator_sync)
+            read_from=read_from, cache_sticky_group_size=cache_sticky_group_size, suppress_transaction_coordinator_sync=suppress_transaction_coordinator_sync
+        )
 
     def explain_query(
-            self,
-            query,
-            timestamp=None, input_row_limit=None, output_row_limit=None, range_expansion_limit=None,
-            max_subqueries=None, workload_descriptor=None, allow_full_scan=None, allow_join_without_index=None,
-            format=None, raw=None, execution_pool=None, retention_timestamp=None, syntax_version=None,
-            expression_builder_version=None, udf_registry_path=None):
+        self,
+        query,
+        timestamp=None, input_row_limit=None, output_row_limit=None, range_expansion_limit=None,
+        max_subqueries=None, workload_descriptor=None, allow_full_scan=None, allow_join_without_index=None,
+        format=None, raw=None, execution_pool=None, retention_timestamp=None, syntax_version=None,
+        expression_builder_version=None, udf_registry_path=None
+    ):
         """
         Explains a SQL-like query on dynamic table.
 
@@ -855,7 +924,6 @@ class YtClient(ClientState):
         :param format: output format.
         :type format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
         :param bool raw: don't parse response to rows.
-
         """
         return client_api.explain_query(
             query,
@@ -864,83 +932,95 @@ class YtClient(ClientState):
             range_expansion_limit=range_expansion_limit, max_subqueries=max_subqueries, workload_descriptor=workload_descriptor,
             allow_full_scan=allow_full_scan, allow_join_without_index=allow_join_without_index, format=format,
             raw=raw, execution_pool=execution_pool, retention_timestamp=retention_timestamp, syntax_version=syntax_version,
-            expression_builder_version=expression_builder_version, udf_registry_path=udf_registry_path)
+            expression_builder_version=expression_builder_version, udf_registry_path=udf_registry_path
+        )
 
     def externalize(
-            self,
-            path: Union[str, YPath], cell_tag: int):
+        self,
+        path: Union[str, YPath],
+        cell_tag: int
+    ):
         """
         Externalize cypress node
 
         :param path: path.
         :type path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
         :param int: cell_tag.
-
         """
         return client_api.externalize(
             path, cell_tag,
-            client=self)
+            client=self
+        )
 
     def find_free_subpath(
-            self,
-            path: Union[str, YPath]):
+        self,
+        path: Union[str, YPath]
+    ):
         """
         Generates some free random subpath.
 
         :param str path: path.
         :rtype: str
-
         """
         return client_api.find_free_subpath(
             path,
-            client=self)
+            client=self
+        )
 
     def find_spark_cluster(
-            self,
-            discovery_path=None):
+        self,
+        discovery_path=None
+    ):
         """
         Print Spark urls
         :param discovery_path: Cypress path for discovery files and logs
         :param client: YtClient
         :return: None
-
         """
         return client_api.find_spark_cluster(
             client=self,
-            discovery_path=discovery_path)
+            discovery_path=discovery_path
+        )
 
     def finish_distributed_write_session(
-            self,
-            session: DistributedWriteSessionPacketType, results: List[object]):
+        self,
+        session: DistributedWriteSessionPacketType,
+        results: List[object]
+    ):
         """
         Finish distribution write session
-
         """
         return client_api.finish_distributed_write_session(
             session, results,
-            client=self)
+            client=self
+        )
 
     def flow_execute(
-            self,
-            pipeline_path: str, flow_command: str,
-            flow_argument=None, input_format=None, output_format=None):
+        self,
+        pipeline_path: str,
+        flow_command: str,
+        flow_argument=None,
+        input_format=None,
+        output_format=None
+    ):
         """
         Execute YT Flow specific command
 
         :param pipeline_path: path to pipeline.
         :param flow_command: name of the command to execute.
         :param flow_argument: optional argument of the command.
-
         """
         return client_api.flow_execute(
             pipeline_path, flow_command,
             client=self,
-            flow_argument=flow_argument, input_format=input_format, output_format=output_format)
+            flow_argument=flow_argument, input_format=input_format, output_format=output_format
+        )
 
     def freeze_table(
-            self,
-            path,
-            first_tablet_index=None, last_tablet_index=None, sync=False):
+        self,
+        path,
+        first_tablet_index=None, last_tablet_index=None, sync=False
+    ):
         """
         Freezes the table.
 
@@ -949,12 +1029,12 @@ class YtClient(ClientState):
         :param int first_tablet_index: first tablet index.
         :param int last_tablet_index: last tablet index, inclusive.
         :param bool sync: wait for completion.
-
         """
         return client_api.freeze_table(
             path,
             client=self,
-            first_tablet_index=first_tablet_index, last_tablet_index=last_tablet_index, sync=sync)
+            first_tablet_index=first_tablet_index, last_tablet_index=last_tablet_index, sync=sync
+        )
 
     def generate_timestamp(self):
         """
@@ -963,11 +1043,16 @@ class YtClient(ClientState):
         return client_api.generate_timestamp(client=self)
 
     def get(
-            self,
-            path: Union[str, YPath],
-            max_size: Optional[int] = None, attributes: Union[List[str], Tuple, None] = None, format: Union[str, Format, None] = None,
-            read_from: Optional[Literal["cache"]] = None, cache_sticky_group_size: Optional[bool] = None,
-            suppress_transaction_coordinator_sync: Optional[bool] = None, suppress_upstream_sync: Optional[bool] = None):
+        self,
+        path: Union[str, YPath],
+        max_size: Optional[int] = None,
+        attributes: Union[List[str], Tuple, None] = None,
+        format: Union[str, Format, None] = None,
+        read_from: Optional[Literal["cache"]] = None,
+        cache_sticky_group_size: Optional[bool] = None,
+        suppress_transaction_coordinator_sync: Optional[bool] = None,
+        suppress_upstream_sync: Optional[bool] = None
+    ):
         """
         Gets Cypress node content (attribute tree).
 
@@ -981,36 +1066,37 @@ class YtClient(ClientState):
         Be careful: attributes have specific representation in JSON format.
 
         .. seealso:: `get in the docs <https://ytsaurus.tech/docs/en/api/commands#get>`_
-
         """
         return client_api.get(
             path,
             client=self,
-            max_size=max_size, attributes=attributes, format=format, read_from=read_from, cache_sticky_group_size=cache_sticky_group_size,
-            suppress_transaction_coordinator_sync=suppress_transaction_coordinator_sync, suppress_upstream_sync=suppress_upstream_sync)
+            max_size=max_size, attributes=attributes, format=format, read_from=read_from, cache_sticky_group_size=cache_sticky_group_size,  # noqa
+            suppress_transaction_coordinator_sync=suppress_transaction_coordinator_sync, suppress_upstream_sync=suppress_upstream_sync
+        )
 
     def get_attribute(
-            self,
-            path: Union[str, YPath], attribute: str,
-            default=_KwargSentinelClass()):
+        self,
+        path: Union[str, YPath],
+        attribute: str,
+        default=_KwargSentinelClass()
+    ):
         """
         Gets attribute of Cypress node.
 
         :param str path: path.
         :param str attribute: attribute.
         :param default: if node hasn't attribute `attribute` this value will be returned.
-
         """
         return client_api.get_attribute(
             path, attribute,
             client=self,
-            default=default)
+            default=default
+        )
 
     def get_current_transaction_id(self):
         """
 
         Returns current transaction id of client.
-
         """
         return client_api.get_current_transaction_id(client=self)
 
@@ -1021,43 +1107,46 @@ class YtClient(ClientState):
         return client_api.get_current_user(client=self)
 
     def get_file_from_cache(
-            self,
-            md5,
-            cache_path=None):
+        self,
+        md5,
+        cache_path=None
+    ):
         """
         Gets file path in cache
 
         :param str md5: MD5 hash of file
         :param str cache_path: Path to file cache
         :return: path to file in Cypress if it was found in cache and YsonEntity otherwise
-
         """
         return client_api.get_file_from_cache(
             md5,
             client=self,
-            cache_path=cache_path)
+            cache_path=cache_path
+        )
 
     def get_flow_view(
-            self,
-            pipeline_path,
-            view_path=None, cache=None, format=None):
+        self,
+        pipeline_path,
+        view_path=None, cache=None, format=None
+    ):
         """
         Get YT Flow flow view
 
         :param pipeline_path: path to pipeline
         :param view_path: path inside flow view yson struct, starting with /
         :param cache: use controller cache
-
         """
         return client_api.get_flow_view(
             pipeline_path,
             client=self,
-            view_path=view_path, cache=cache, format=format)
+            view_path=view_path, cache=cache, format=format
+        )
 
     def get_in_sync_replicas(
-            self,
-            path, timestamp, input_stream,
-            all_keys=False, cached_sync_replicas_timeout=None, format=None, raw=None):
+        self,
+        path, timestamp, input_stream,
+        all_keys=False, cached_sync_replicas_timeout=None, format=None, raw=None
+    ):
         """
         Returns ids of in-sync replicas for keys in input_stream.
 
@@ -1074,62 +1163,68 @@ class YtClient(ClientState):
         :param bool raw: if `raw` is specified stream with unparsed records (strings)
         in specified `format` is expected. Otherwise dicts or :class:`Record <yt.wrapper.yamr_record.Record>`
         are expected.
-
         """
         return client_api.get_in_sync_replicas(
             path, timestamp, input_stream,
             client=self,
             all_keys=all_keys, cached_sync_replicas_timeout=cached_sync_replicas_timeout, format=format,
-            raw=raw)
+            raw=raw
+        )
 
     def get_job(
-            self,
-            operation_id: str, job_id: str,
-            format=None) -> GetJobJobType:
+        self,
+        operation_id: str,
+        job_id: str,
+        format=None
+    ) -> GetJobJobType:
         """
         Get job of operation.
 
         :param str operation_id: operation id.
         :param str job_id: job id.
-
         """
         return client_api.get_job(
             operation_id, job_id,
             client=self,
-            format=format)
+            format=format
+        )
 
     def get_job_input(
-            self,
-            job_id: str):
+        self,
+        job_id: str
+    ):
         """
         Get full input of the specified job.
 
         :param str job_id: job id.
-
         """
         return client_api.get_job_input(
             job_id,
-            client=self)
+            client=self
+        )
 
     def get_job_input_paths(
-            self,
-            job_id: str):
+        self,
+        job_id: str
+    ):
         """
         Get input paths of the specified job.
 
         :param str job_if: job id.
         :return: list of YPaths.
-
         """
         return client_api.get_job_input_paths(
             job_id,
-            client=self)
+            client=self
+        )
 
     def get_job_spec(
-            self,
-            job_id: str,
-            omit_node_directory: Optional[bool] = None, omit_input_table_specs: Optional[bool] = None,
-            omit_output_table_specs: Optional[bool] = None) -> JobSpecType:
+        self,
+        job_id: str,
+        omit_node_directory: Optional[bool] = None,
+        omit_input_table_specs: Optional[bool] = None,
+        omit_output_table_specs: Optional[bool] = None
+    ) -> JobSpecType:
         """
         Get spec of the specified job.
 
@@ -1137,139 +1232,153 @@ class YtClient(ClientState):
         :param bool omit_node_directory: whether node directory should be removed from job spec.
         :param bool omit_input_table_specs: whether input table specs should be removed from job spec.
         :param bool omit_output_table_specs: whether output table specs should be removed from job spec.
-
         """
         return client_api.get_job_spec(
             job_id,
             client=self,
             omit_node_directory=omit_node_directory, omit_input_table_specs=omit_input_table_specs,
-            omit_output_table_specs=omit_output_table_specs)
+            omit_output_table_specs=omit_output_table_specs
+        )
 
     def get_job_stderr(
-            self,
-            operation_id: str, job_id: str,
-            stderr_type: Optional[str] = None) -> bytes:
+        self,
+        operation_id: str,
+        job_id: str,
+        stderr_type: Optional[str] = None
+    ) -> bytes:
         """
         Gets stderr of the specified job.
 
         :param str operation_id: operation id.
         :param str job_id: job id.
         :param str type: stderr type.
-
         """
         return client_api.get_job_stderr(
             operation_id, job_id,
             client=self,
-            stderr_type=stderr_type)
+            stderr_type=stderr_type
+        )
 
     def get_job_trace(
-            self,
-            operation_id: str, job_id: str,
-            trace_id: Optional[str] = None, from_time=None, to_time=None):
+        self,
+        operation_id: str,
+        job_id: str,
+        trace_id: Optional[str] = None,
+        from_time=None,
+        to_time=None
+    ):
         """
         Get traces of the specified job.
         """
         return client_api.get_job_trace(
             operation_id, job_id,
             client=self,
-            trace_id=trace_id, from_time=from_time, to_time=to_time)
+            trace_id=trace_id, from_time=from_time, to_time=to_time
+        )
 
     def get_operation(
-            self,
-            operation_id: str = None, operation_alias: str = None, attributes: Optional[List[str]] = None,
-            include_runtime: Optional[bool] = None, format: Union[str, Format, None] = None) -> GetOperationOperationType:
+        self,
+        operation_id: str = None, operation_alias: str = None, attributes: Optional[List[str]] = None,
+        include_runtime: Optional[bool] = None, format: Union[str, Format, None] = None
+    ) -> GetOperationOperationType:
         """
         Get operation attributes through API.
-
         """
         return client_api.get_operation(
             client=self,
             operation_id=operation_id, operation_alias=operation_alias, attributes=attributes, include_runtime=include_runtime,
-            format=format)
+            format=format
+        )
 
     def get_operation_attributes(
-            self,
-            operation: str,
-            fields: Optional[List[str]] = None):
+        self,
+        operation: str,
+        fields: Optional[List[str]] = None
+    ):
         """
         Returns dict with operation attributes.
 
         :param str operation: operation id.
         :return: operation description.
         :rtype: dict
-
         """
         return client_api.get_operation_attributes(
             operation,
             client=self,
-            fields=fields)
+            fields=fields
+        )
 
     def get_operation_state(
-            self,
-            operation: str) -> OperationState:
+        self,
+        operation: str
+    ) -> OperationState:
         """
         Returns current state of operation.
 
         :param str operation: operation id.
 
         Raises :class:`YtError <yt.common.YtError>` if operation does not exists.
-
         """
         return client_api.get_operation_state(
             operation,
-            client=self)
+            client=self
+        )
 
     def get_pipeline_dynamic_spec(
-            self,
-            pipeline_path,
-            spec_path=None, format=None):
+        self,
+        pipeline_path,
+        spec_path=None, format=None
+    ):
         """
         Get YT Flow pipeline dynamic spec.
 
         :param pipeline_path: path to pipeline.
         :param spec_path: path inside pipeline dynamic spec yson struct, starting with /.
-
         """
         return client_api.get_pipeline_dynamic_spec(
             pipeline_path,
             client=self,
-            spec_path=spec_path, format=format)
+            spec_path=spec_path, format=format
+        )
 
     def get_pipeline_spec(
-            self,
-            pipeline_path,
-            spec_path=None, format=None):
+        self,
+        pipeline_path,
+        spec_path=None, format=None
+    ):
         """
         Get YT Flow pipeline spec.
 
         :param pipeline_path: path to pipeline.
         :param spec_path: path inside pipeline spec yson struct, starting with /.
-
         """
         return client_api.get_pipeline_spec(
             pipeline_path,
             client=self,
-            spec_path=spec_path, format=format)
+            spec_path=spec_path, format=format
+        )
 
     def get_pipeline_state(
-            self,
-            pipeline_path,
-            timeout=None):
+        self,
+        pipeline_path,
+        timeout=None
+    ):
         """
         Get YT Flow pipeline state
 
         :param pipeline_path: path to pipeline
-
         """
         return client_api.get_pipeline_state(
             pipeline_path,
             client=self,
-            timeout=timeout)
+            timeout=timeout
+        )
 
     def get_query(
-            self,
-            query_id,
-            attributes=None, stage=None, format=None):
+        self,
+        query_id,
+        attributes=None, stage=None, format=None
+    ):
         """
         Get query.
 
@@ -1279,17 +1388,18 @@ class YtClient(ClientState):
         :type attributes: list or None
         :param stage: query tracker stage, defaults to "production"
         :type stage: str
-
         """
         return client_api.get_query(
             query_id,
             client=self,
-            attributes=attributes, stage=stage, format=format)
+            attributes=attributes, stage=stage, format=format
+        )
 
     def get_query_declared_parameters_info(
-            self,
-            query, engine,
-            stage=None, settings=None, format=None):
+        self,
+        query, engine,
+        stage=None, settings=None, format=None
+    ):
         """
         Get parameters DECLAREd in YQL query. Currently supported only for YQL.
 
@@ -1301,17 +1411,18 @@ class YtClient(ClientState):
         :type stage: str
         :param settings: a dictionary of settings
         :type settings: dict or None
-
         """
         return client_api.get_query_declared_parameters_info(
             query, engine,
             client=self,
-            stage=stage, settings=settings, format=format)
+            stage=stage, settings=settings, format=format
+        )
 
     def get_query_result(
-            self,
-            query_id,
-            result_index=None, stage=None, format=None):
+        self,
+        query_id,
+        result_index=None, stage=None, format=None
+    ):
         """
         Get query result.
 
@@ -1321,155 +1432,169 @@ class YtClient(ClientState):
         :type result_index: int
         :param stage: query tracker stage, defaults to "production"
         :type stage: str
-
         """
         return client_api.get_query_result(
             query_id,
             client=self,
-            result_index=result_index, stage=stage, format=format)
+            result_index=result_index, stage=stage, format=format
+        )
 
     def get_query_tracker_info(
-            self,
-            attributes=None, stage=None, format=None):
+        self,
+        attributes=None, stage=None, format=None
+    ):
         """
         get query tracker info
-
         """
         return client_api.get_query_tracker_info(
             client=self,
-            attributes=attributes, stage=stage, format=format)
+            attributes=attributes, stage=stage, format=format
+        )
 
     def get_supported_features(
-            self,
-            format=None):
+        self,
+        format=None
+    ):
         """
         Retrieves supported cluster features (data types, codecs etc.).
         """
         return client_api.get_supported_features(
             client=self,
-            format=format)
+            format=format
+        )
 
     def get_table_columnar_statistics(
-            self,
-            paths):
+        self,
+        paths
+    ):
         """
         Gets columnar statistics of tables listed in paths
         :param paths: paths to tables
         :type paths: list of (str or :class:`TablePath <yt.wrapper.ypath.TablePath>`)
-
         """
         return client_api.get_table_columnar_statistics(
             paths,
-            client=self)
+            client=self
+        )
 
     def get_table_schema(
-            self,
-            table_path: Union[str, YPath]) -> TableSchema:
+        self,
+        table_path: Union[str, YPath]
+    ) -> TableSchema:
         """
         Gets schema of table.
 
         :param table_path: path to table.
         :type table_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
-
         """
         return client_api.get_table_schema(
             table_path,
-            client=self)
+            client=self
+        )
 
     def get_tablet_errors(
-            self,
-            path,
-            limit=None, format=None):
+        self,
+        path,
+        limit=None, format=None
+    ):
         """
         Returns dynamic table tablet and replication errors.
 
         :param str path: path to table.
         :param int limit: maximum number of returned errors of any kind.
-
         """
         return client_api.get_tablet_errors(
             path,
             client=self,
-            limit=limit, format=format)
+            limit=limit, format=format
+        )
 
     def get_tablet_infos(
-            self,
-            path, tablet_indexes,
-            format=None):
+        self,
+        path, tablet_indexes,
+        format=None
+    ):
         """
         Returns various runtime tablet information.
 
         :param path: path to table.
         :type path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
         :param indexes: tablet indexes.
-
         """
         return client_api.get_tablet_infos(
             path, tablet_indexes,
             client=self,
-            format=format)
+            format=format
+        )
 
     def get_type(
-            self,
-            *args,
-            **kwargs):
+        self,
+        *args,
+        **kwargs
+    ):
         """
         Gets Cypress node attribute type.
 
         :param str path: path.
-
         """
         return client_api.get_type(
             *args,
             client=self,
-            **kwargs)
+            **kwargs
+        )
 
     def get_user_name(
-            self,
-            token=None, headers=None):
+        self,
+        token=None, headers=None
+    ):
         """
         Requests auth method at proxy to receive user name by token or by cookies in header.
         """
         return client_api.get_user_name(
             client=self,
-            token=token, headers=headers)
+            token=token, headers=headers
+        )
 
     def has_attribute(
-            self,
-            path: Union[str, YPath], attribute: str):
+        self,
+        path: Union[str, YPath],
+        attribute: str
+    ):
         """
         Checks if Cypress node has attribute.
 
         :param str path: path.
         :param str attribute: attribute.
-
         """
         return client_api.has_attribute(
             path, attribute,
-            client=self)
+            client=self
+        )
 
     def infer_table_schema(
-            self,
-            table: "Union[str, YPath]",
-            optional_only: "Optional[List]" = None) -> "TableSchema":
+        self,
+        table: Union[str, YPath],
+        optional_only: Optional[List] = None
+    ) -> TableSchema:
         """
         Infer table schema from table content.
 
         :param table: path to table.
         :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
         :param optional_only: List of optional fields (by default - all)
-
         """
         return client_api.infer_table_schema(
             table,
             client=self,
-            optional_only=optional_only)
+            optional_only=optional_only
+        )
 
     def insert_rows(
-            self,
-            table, input_stream,
-            update=None, aggregate=None, atomicity=None, durability=None, require_sync_replica=None,
-            lock_type=None, format=None, raw=None):
+        self,
+        table, input_stream,
+        update=None, aggregate=None, atomicity=None, durability=None, require_sync_replica=None,
+        lock_type=None, format=None, raw=None
+    ):
         """
         Inserts rows from input_stream to dynamic table.
 
@@ -1482,91 +1607,102 @@ class YtClient(ClientState):
         in specified `format` is expected. Otherwise dicts or :class:`Record <yt.wrapper.yamr_record.Record>`
         are expected.
         :param bool require_sync_replica: require sync replica write.
-
         """
         return client_api.insert_rows(
             table, input_stream,
             client=self,
-            update=update, aggregate=aggregate, atomicity=atomicity, durability=durability, require_sync_replica=require_sync_replica,
-            lock_type=lock_type, format=format, raw=raw)
+            update=update, aggregate=aggregate, atomicity=atomicity, durability=durability, require_sync_replica=require_sync_replica,  # noqa
+            lock_type=lock_type, format=format, raw=raw
+        )
 
     def internalize(
-            self,
-            path: Union[str, YPath]):
+        self,
+        path: Union[str, YPath]
+    ):
         """
         Internalize cypress node
 
         :param path: path.
         :type path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
-
         """
         return client_api.internalize(
             path,
-            client=self)
+            client=self
+        )
 
     def is_empty(
-            self,
-            table):
+        self,
+        table
+    ):
         """
         Is table empty?
 
         :param table: table.
         :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
         :rtype: bool
-
         """
         return client_api.is_empty(
             table,
-            client=self)
+            client=self
+        )
 
     def is_sorted(
-            self,
-            table):
+        self,
+        table
+    ):
         """
         Is table sorted?
 
         :param table: table.
         :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
         :rtype: bool
-
         """
         return client_api.is_sorted(
             table,
-            client=self)
+            client=self
+        )
 
     def issue_token(
-            self,
-            user,
-            password=None):
+        self,
+        user,
+        password=None
+    ):
         """
         Issues a new token for user.
         """
         return client_api.issue_token(
             user,
             client=self,
-            password=password)
+            password=password
+        )
 
     def iterate_operations(
-            self,
-            user=None, state=None, type=None, filter=None, pool_tree=None, pool=None, with_failed_jobs=None,
-            from_time=None, to_time=None, cursor_direction='past', limit_per_request=100, include_archive=None,
-            attributes=None, format=None):
+        self,
+        user=None, state=None, type=None, filter=None, pool_tree=None, pool=None, with_failed_jobs=None,
+        from_time=None, to_time=None, cursor_direction="past", limit_per_request=100, include_archive=None,
+        attributes=None, format=None
+    ):
         """
         Yield operations that satisfy given options.
-
         """
         return client_api.iterate_operations(
             client=self,
             user=user, state=state, type=type, filter=filter, pool_tree=pool_tree, pool=pool,
             with_failed_jobs=with_failed_jobs, from_time=from_time, to_time=to_time, cursor_direction=cursor_direction,
             limit_per_request=limit_per_request, include_archive=include_archive, attributes=attributes,
-            format=format)
+            format=format
+        )
 
     def link(
-            self,
-            target_path: Union[str, YPath], link_path: Union[str, YPath],
-            recursive: bool = False, ignore_existing: bool = False, lock_existing: bool = None, force: bool = False,
-            attributes: Optional[Dict[str, Any]] = None):
+        self,
+        target_path: Union[str, YPath],
+        link_path: Union[str, YPath],
+        recursive: bool = False,
+        ignore_existing: bool = False,
+        lock_existing: bool = None,
+        force: bool = False,
+        attributes: Optional[Dict[str, Any]] = None
+    ):
         """
         Makes link to Cypress node.
 
@@ -1580,20 +1716,27 @@ class YtClient(ClientState):
         :param bool lock_existing: lock existing node.
 
         .. seealso:: `link in the docs <https://ytsaurus.tech/docs/en/api/commands#link>`_
-
         """
         return client_api.link(
             target_path, link_path,
             client=self,
             recursive=recursive, ignore_existing=ignore_existing, lock_existing=lock_existing, force=force,
-            attributes=attributes)
+            attributes=attributes
+        )
 
     def list(
-            self,
-            path: Union[str, YPath],
-            max_size: Optional[int] = None, format: Optional[Format] = None, absolute: bool = None,
-            attributes: Union[List[str], Tuple, None] = None, sort: bool = True, read_from=None, cache_sticky_group_size: int = None,
-            suppress_transaction_coordinator_sync: bool = None, suppress_upstream_sync: bool = None):
+        self,
+        path: Union[str, YPath],
+        max_size: Optional[int] = None,
+        format: Optional[Format] = None,
+        absolute: bool = None,
+        attributes: Union[List[str], Tuple, None] = None,
+        sort: bool = True,
+        read_from=None,
+        cache_sticky_group_size: int = None,
+        suppress_transaction_coordinator_sync: bool = None,
+        suppress_upstream_sync: bool = None
+    ):
         """
         Lists directory (map_node) content. Node type must be "map_node".
 
@@ -1611,35 +1754,58 @@ class YtClient(ClientState):
         :return: raw YSON (string) by default, parsed YSON or JSON if format is not specified (= `None`).
 
         .. seealso:: `list in the docs <https://ytsaurus.tech/docs/en/api/commands#list>`_
-
         """
         return client_api.list(
             path,
             client=self,
             max_size=max_size, format=format, absolute=absolute, attributes=attributes, sort=sort,
-            read_from=read_from, cache_sticky_group_size=cache_sticky_group_size, suppress_transaction_coordinator_sync=suppress_transaction_coordinator_sync,
-            suppress_upstream_sync=suppress_upstream_sync)
+            read_from=read_from, cache_sticky_group_size=cache_sticky_group_size, suppress_transaction_coordinator_sync=suppress_transaction_coordinator_sync,  # noqa
+            suppress_upstream_sync=suppress_upstream_sync
+        )
 
     def list_job_traces(
-            self,
-            operation_id: str, job_id: str,
-            per_process: Optional[bool] = None, limit: Optional[int] = None, format=None) -> ListJobTracesType:
+        self,
+        operation_id: str,
+        job_id: str,
+        per_process: Optional[bool] = None,
+        limit: Optional[int] = None,
+        format=None
+    ) -> ListJobTracesType:
         """
         List traces of the specified job.
         """
         return client_api.list_job_traces(
             operation_id, job_id,
             client=self,
-            per_process=per_process, limit=limit, format=format)
+            per_process=per_process, limit=limit, format=format
+        )
 
     def list_jobs(
-            self,
-            operation_id: str,
-            job_type=None, job_state=None, address=None, job_competition_id=None, with_competitors=None,
-            sort_field=None, sort_order=None, limit=None, offset=None, with_stderr=None, with_spec=None,
-            with_fail_context=None, with_monitoring_descriptor=None, with_interruption_info=None,
-            include_cypress=None, include_runtime=None, include_archive=None, data_source=None, attributes=None,
-            operation_incarnation=None, monitoring_descriptor=None, format=None) -> ListJobsType:
+        self,
+        operation_id: str,
+        job_type=None,
+        job_state=None,
+        address=None,
+        job_competition_id=None,
+        with_competitors=None,
+        sort_field=None,
+        sort_order=None,
+        limit=None,
+        offset=None,
+        with_stderr=None,
+        with_spec=None,
+        with_fail_context=None,
+        with_monitoring_descriptor=None,
+        with_interruption_info=None,
+        include_cypress=None,
+        include_runtime=None,
+        include_archive=None,
+        data_source=None,
+        attributes=None,
+        operation_incarnation=None,
+        monitoring_descriptor=None,
+        format=None
+    ) -> ListJobsType:
         """
         List jobs of operation.
         """
@@ -1652,65 +1818,71 @@ class YtClient(ClientState):
             with_monitoring_descriptor=with_monitoring_descriptor, with_interruption_info=with_interruption_info,
             include_cypress=include_cypress, include_runtime=include_runtime, include_archive=include_archive,
             data_source=data_source, attributes=attributes, operation_incarnation=operation_incarnation,
-            monitoring_descriptor=monitoring_descriptor, format=format)
+            monitoring_descriptor=monitoring_descriptor, format=format
+        )
 
     def list_operation_events(
-            self,
-            operation_id: str,
-            event_type: str = None, format: Union[str, Format, None] = None):
+        self,
+        operation_id: str,
+        event_type: str = None,
+        format: Union[str, Format, None] = None
+    ):
         """
         List events of given operation.
 
         :param str operation_id: operation id.
         :param str event_type: event type.
-
         """
         return client_api.list_operation_events(
             operation_id,
             client=self,
-            event_type=event_type, format=format)
+            event_type=event_type, format=format
+        )
 
     def list_operations(
-            self,
-            user: str = None, state: Union[ForwardRef("OperationState"), Literal["aborted", "completed", "failed", "running", "starting", "orphaned", "waiting_for_agent", "initializing", "reviving", "reviving_jobs"], None] = None,  # noqa
-            type: Optional[str] = None, filter: Optional[str] = None, pool_tree: Optional[str] = None,
-            pool: Optional[str] = None, with_failed_jobs: Optional[bool] = None, from_time=None, to_time=None,
-            cursor_time=None, cursor_direction: Optional[Literal["future", "past"]] = None, include_archive: Optional[bool] = None,
-            include_counters: Optional[bool] = None, limit: Optional[int] = None, enable_ui_mode: bool = False,
-            attributes: Optional[List[str]] = None, format: Union[str, Format, None] = None) -> ListOperationsType:
+        self,
+        user: str = None, state: Union[ForwardRef("OperationState"), Literal["aborted", "completed", "failed", "running", "starting", "orphaned", "waiting_for_agent", "initializing", "reviving", "reviving_jobs"], None] = None,  # noqa
+        type: Optional[str] = None, filter: Optional[str] = None, pool_tree: Optional[str] = None,
+        pool: Optional[str] = None, with_failed_jobs: Optional[bool] = None, from_time=None, to_time=None,
+        cursor_time=None, cursor_direction: Optional[Literal["future", "past"]] = None, include_archive: Optional[bool] = None,
+        include_counters: Optional[bool] = None, limit: Optional[int] = None, enable_ui_mode: bool = False,
+        attributes: Optional[List[str]] = None, format: Union[str, Format, None] = None
+    ) -> ListOperationsType:
         """
         List operations that satisfy given options.
-
         """
         return client_api.list_operations(
             client=self,
             user=user, state=state, type=type, filter=filter, pool_tree=pool_tree, pool=pool,
             with_failed_jobs=with_failed_jobs, from_time=from_time, to_time=to_time, cursor_time=cursor_time,
             cursor_direction=cursor_direction, include_archive=include_archive, include_counters=include_counters,
-            limit=limit, enable_ui_mode=enable_ui_mode, attributes=attributes, format=format)
+            limit=limit, enable_ui_mode=enable_ui_mode, attributes=attributes, format=format
+        )
 
     def list_queries(
-            self,
-            user=None, engine=None, state=None, filter=None, from_time=None, to_time=None, cursor_time=None,
-            cursor_direction=None, limit=None, attributes=None, tutorial_filter=None, stage=None,
-            format=None, sort_order=None, search_by_token_prefix=None, use_full_text_search=None):
+        self,
+        user=None, engine=None, state=None, filter=None, from_time=None, to_time=None, cursor_time=None,
+        cursor_direction=None, limit=None, attributes=None, tutorial_filter=None, stage=None, format=None,
+        sort_order=None, search_by_token_prefix=None, use_full_text_search=None
+    ):
         """
         List operations that satisfy given options.
 
         :param tutorial_filter: specifies whether to search among tutorials
         :type tutorial_filter: bool
-
         """
         return client_api.list_queries(
             client=self,
             user=user, engine=engine, state=state, filter=filter, from_time=from_time, to_time=to_time,
             cursor_time=cursor_time, cursor_direction=cursor_direction, limit=limit, attributes=attributes,
-            tutorial_filter=tutorial_filter, stage=stage, format=format, sort_order=sort_order, search_by_token_prefix=search_by_token_prefix,
-            use_full_text_search=use_full_text_search)
+            tutorial_filter=tutorial_filter, stage=stage, format=format, sort_order=sort_order, search_by_token_prefix=search_by_token_prefix,  # noqa
+            use_full_text_search=use_full_text_search
+        )
 
     def list_queue_consumer_registrations(
-            self,
-            queue_path=None, consumer_path=None, format=None):
+        self,
+        queue_path=None, consumer_path=None, format=None
+    ):
         """
         Lists queue consumer registrations.
 
@@ -1718,28 +1890,31 @@ class YtClient(ClientState):
         :type queue_path: None or str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
         :param consumer_path: path to consumer table.
         :type consumer_path: None or str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
-
         """
         return client_api.list_queue_consumer_registrations(
             client=self,
-            queue_path=queue_path, consumer_path=consumer_path, format=format)
+            queue_path=queue_path, consumer_path=consumer_path, format=format
+        )
 
     def list_user_tokens(
-            self,
-            user,
-            password=None):
+        self,
+        user,
+        password=None
+    ):
         """
         Lists sha256-encoded user tokens.
         """
         return client_api.list_user_tokens(
             user,
             client=self,
-            password=password)
+            password=password
+        )
 
     def lock(
-            self,
-            path,
-            mode=None, waitable=False, wait_for=None, child_key=None, attribute_key=None):
+        self,
+        path,
+        mode=None, waitable=False, wait_for=None, child_key=None, attribute_key=None
+    ):
         """
         Tries to lock the path.
 
@@ -1749,17 +1924,18 @@ class YtClient(ClientState):
         :return: map with lock information (as dict) or throws     :class:`YtResponseError <yt.wrapper.errors.YtResponseError>` with 40* code if lock conflict detected.
 
         .. seealso:: `lock in the docs <https://ytsaurus.tech/docs/en/user-guide/storage/transactions#locks>`_
-
         """
         return client_api.lock(
             path,
             client=self,
-            mode=mode, waitable=waitable, wait_for=wait_for, child_key=child_key, attribute_key=attribute_key)
+            mode=mode, waitable=waitable, wait_for=wait_for, child_key=child_key, attribute_key=attribute_key
+        )
 
     def lock_rows(
-            self,
-            table, input_stream,
-            locks=[], lock_type=None, durability=None, format=None, raw=None):
+        self,
+        table, input_stream,
+        locks=[], lock_type=None, durability=None, format=None, raw=None
+    ):
         """
         Lock rows with keys from input_stream from dynamic table.
 
@@ -1771,19 +1947,20 @@ class YtClient(ClientState):
         :param bool raw: if `raw` is specified stream with unparsed records (strings)
         in specified `format` is expected. Otherwise dicts or :class:`Record <yt.wrapper.yamr_record.Record>`
         are expected.
-
         """
         return client_api.lock_rows(
             table, input_stream,
             client=self,
-            locks=locks, lock_type=lock_type, durability=durability, format=format, raw=raw)
+            locks=locks, lock_type=lock_type, durability=durability, format=format, raw=raw
+        )
 
     def lookup_rows(
-            self,
-            table, input_stream,
-            timestamp=None, column_names=None, keep_missing_rows=None, enable_partial_result=None,
-            use_lookup_cache=None, format=None, raw=None, versioned=None, retention_timestamp=None,
-            versioned_read_options=None, with_timestamps=None):
+        self,
+        table, input_stream,
+        timestamp=None, column_names=None, keep_missing_rows=None, enable_partial_result=None, use_lookup_cache=None,
+        format=None, raw=None, versioned=None, retention_timestamp=None, versioned_read_options=None,
+        with_timestamps=None
+    ):
         """
         Lookups rows in dynamic table.
 
@@ -1793,7 +1970,6 @@ class YtClient(ClientState):
         :type format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
         :param bool raw: don't parse response to rows.
         :param bool versioned: return all versions of the requested rows.
-
         """
         return client_api.lookup_rows(
             table, input_stream,
@@ -1801,30 +1977,33 @@ class YtClient(ClientState):
             timestamp=timestamp, column_names=column_names, keep_missing_rows=keep_missing_rows,
             enable_partial_result=enable_partial_result, use_lookup_cache=use_lookup_cache, format=format,
             raw=raw, versioned=versioned, retention_timestamp=retention_timestamp, versioned_read_options=versioned_read_options,
-            with_timestamps=with_timestamps)
+            with_timestamps=with_timestamps
+        )
 
     def mkdir(
-            self,
-            path: Union[str, YPath],
-            recursive: bool = None):
+        self,
+        path: Union[str, YPath],
+        recursive: bool = None
+    ):
         """
         Makes directory (Cypress node of map_node type).
 
         :param path: path.
         :type path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
         :param bool recursive: ``yt.wrapper.config["yamr_mode"]["create_recursive"]`` by default.
-
         """
         return client_api.mkdir(
             path,
             client=self,
-            recursive=recursive)
+            recursive=recursive
+        )
 
     def mount_table(
-            self,
-            path,
-            first_tablet_index=None, last_tablet_index=None, cell_id=None, freeze=False, sync=False,
-            target_cell_ids=None):
+        self,
+        path,
+        first_tablet_index=None, last_tablet_index=None, cell_id=None, freeze=False, sync=False,
+        target_cell_ids=None
+    ):
         """
         Mounts the table.
 
@@ -1837,21 +2016,30 @@ class YtClient(ClientState):
         :param bool sync: wait for completion.
         :param target_cell_ids:
         the ids of the cells where corresponding tablets should be mounted to.
-
         """
         return client_api.mount_table(
             path,
             client=self,
             first_tablet_index=first_tablet_index, last_tablet_index=last_tablet_index, cell_id=cell_id,
-            freeze=freeze, sync=sync, target_cell_ids=target_cell_ids)
+            freeze=freeze, sync=sync, target_cell_ids=target_cell_ids
+        )
 
     def move(
-            self,
-            source_path: Union[str, YPath], destination_path: Union[str, YPath],
-            recursive: bool = None, force: bool = None, preserve_account: bool = None, preserve_owner: bool = None,
-            preserve_acl: bool = None, preserve_expiration_time: bool = None, preserve_expiration_timeout: bool = None,
-            preserve_creation_time: bool = None, preserve_modification_time: bool = None, pessimistic_quota_check: bool = None,
-            enable_cross_cell_copying: bool = None):
+        self,
+        source_path: Union[str, YPath],
+        destination_path: Union[str, YPath],
+        recursive: bool = None,
+        force: bool = None,
+        preserve_account: bool = None,
+        preserve_owner: bool = None,
+        preserve_acl: bool = None,
+        preserve_expiration_time: bool = None,
+        preserve_expiration_timeout: bool = None,
+        preserve_creation_time: bool = None,
+        preserve_modification_time: bool = None,
+        pessimistic_quota_check: bool = None,
+        enable_cross_cell_copying: bool = None
+    ):
         """
         Moves (renames) Cypress node.
 
@@ -1872,108 +2060,127 @@ class YtClient(ClientState):
         :param bool enable_cross_cell_copying: enable cross cell copying.
 
         .. seealso:: `move in the docs <https://ytsaurus.tech/docs/en/api/commands#move>`_
-
         """
         return client_api.move(
             source_path, destination_path,
             client=self,
             recursive=recursive, force=force, preserve_account=preserve_account, preserve_owner=preserve_owner,
-            preserve_acl=preserve_acl, preserve_expiration_time=preserve_expiration_time, preserve_expiration_timeout=preserve_expiration_timeout,
+            preserve_acl=preserve_acl, preserve_expiration_time=preserve_expiration_time, preserve_expiration_timeout=preserve_expiration_timeout,  # noqa
             preserve_creation_time=preserve_creation_time, preserve_modification_time=preserve_modification_time,
-            pessimistic_quota_check=pessimistic_quota_check, enable_cross_cell_copying=enable_cross_cell_copying)
+            pessimistic_quota_check=pessimistic_quota_check, enable_cross_cell_copying=enable_cross_cell_copying
+        )
 
     def partition_tables(
-            self,
-            paths,
-            partition_mode=None, data_weight_per_partition=None, max_partition_count=None, enable_key_guarantee=None,
-            adjust_data_weight_per_partition=None):
+        self,
+        paths: Union[str, YPath, List[Union[str, YPath]]],
+        partition_mode: Optional[Literal["ordered", "sorted", "unordered"]] = "ordered",
+        data_weight_per_partition: Optional[int] = None,
+        max_partition_count: Optional[int] = None,
+        enable_key_guarantee: Optional[bool] = None,
+        adjust_data_weight_per_partition: Optional[bool] = None,
+        enable_cookies: Optional[bool] = None,
+        omit_inaccessible_rows: Optional[bool] = False
+    ) -> List[DistributedReadTablePartitionType]:
         """
         Splits tables into a few partitions
+        https://ytsaurus.tech/docs/ru/api/commands#partition_tables
         :param paths: paths to tables
         :type paths: list of (str or :class:`TablePath <yt.wrapper.ypath.TablePath>`)
         :param partition_mode: table partitioning mode, one of the ["sorted", "ordered", "unordered"]
-        :param data_weight_per_partition: approximate data weight of each output partition
+        :param data_weight_per_partition: hint for approximate data weight of each output partition
         :param max_partition_count: maximum output partition count
         :param enable_key_guarantee: a key will be placed to a single chunk exactly
         :param adjust_data_weight_per_partition: allow the data weight per partition to exceed data_weight_per_partition when max_partition_count is set
+        :param enable_cookies: return cookie for each partition that can be used with `read_table_partition`
 
+        . seealso:: `partition_tables command in the docs <https://ytsaurus.tech/docs/ru/api/commands#partition_tables>`_
         """
         return client_api.partition_tables(
             paths,
             client=self,
-            partition_mode=partition_mode, data_weight_per_partition=data_weight_per_partition, max_partition_count=max_partition_count,
-            enable_key_guarantee=enable_key_guarantee, adjust_data_weight_per_partition=adjust_data_weight_per_partition)
+            partition_mode=partition_mode, data_weight_per_partition=data_weight_per_partition, max_partition_count=max_partition_count,  # noqa
+            enable_key_guarantee=enable_key_guarantee, adjust_data_weight_per_partition=adjust_data_weight_per_partition,
+            enable_cookies=enable_cookies, omit_inaccessible_rows=omit_inaccessible_rows
+        )
 
     def patch_operation_spec(
-            self,
-            operation_id: str, patches: List[Mapping[str, Any]]):
+        self,
+        operation_id: str,
+        patches: List[Mapping[str, Any]]
+    ):
         """
         Patches operation spec.
         """
         return client_api.patch_operation_spec(
             operation_id, patches,
-            client=self)
+            client=self
+        )
 
     def pause_pipeline(
-            self,
-            pipeline_path):
+        self,
+        pipeline_path
+    ):
         """
         Pause YT Flow pipeline.
 
         :param pipeline_path: path to pipeline.
-
         """
         return client_api.pause_pipeline(
             pipeline_path,
-            client=self)
+            client=self
+        )
 
     def ping_chaos_lease(
-            self,
-            chaos_lease_id):
+        self,
+        chaos_lease_id
+    ):
         """
         Ping chaos lease.
 
         :param str chaos_lease_id: chaos lease id.
-
         """
         return client_api.ping_chaos_lease(
             chaos_lease_id,
-            client=self)
+            client=self
+        )
 
     def ping_distributed_write_session(
-            self,
-            session: DistributedWriteSessionPacketType,
-            timeout: Optional[int] = None):
+        self,
+        session: DistributedWriteSessionPacketType,
+        timeout: Optional[int] = None
+    ):
         """
         Ping distribution write session
-
         """
         return client_api.ping_distributed_write_session(
             session,
             client=self,
-            timeout=timeout)
+            timeout=timeout
+        )
 
     def ping_transaction(
-            self,
-            transaction,
-            timeout=None, retry_config=None):
+        self,
+        transaction,
+        timeout=None, retry_config=None
+    ):
         """
         Prolongs transaction lifetime.
 
         :param str transaction: transaction id.
 
         .. seealso:: `ping_tx in the docs <https://ytsaurus.tech/docs/en/api/commands#ping_tx>`_
-
         """
         return client_api.ping_transaction(
             transaction,
             client=self,
-            timeout=timeout, retry_config=retry_config)
+            timeout=timeout, retry_config=retry_config
+        )
 
     def pull_consumer(
-            self,
-            consumer_path, queue_path, offset, partition_index,
-            max_row_count=None, max_data_weight=None, replica_consistency=None, format=None, raw=None):
+        self,
+        consumer_path, queue_path, offset, partition_index,
+        max_row_count=None, max_data_weight=None, replica_consistency=None, format=None, raw=None
+    ):
         """
         Reads rows from a single partition of a queue (i.e. any ordered dynamic table) with authorization via consumer.
         Returns at most max_row_count consecutive rows of a single tablet with row indexes larger than the given offset.
@@ -1995,18 +2202,19 @@ class YtClient(ClientState):
         :param format: output format.
         :type format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
         :param bool raw: don't parse response to rows.
-
         """
         return client_api.pull_consumer(
             consumer_path, queue_path, offset, partition_index,
             client=self,
             max_row_count=max_row_count, max_data_weight=max_data_weight, replica_consistency=replica_consistency,
-            format=format, raw=raw)
+            format=format, raw=raw
+        )
 
     def pull_queue(
-            self,
-            queue_path, offset, partition_index,
-            max_row_count=None, max_data_weight=None, replica_consistency=None, format=None, raw=None):
+        self,
+        queue_path, offset, partition_index,
+        max_row_count=None, max_data_weight=None, replica_consistency=None, format=None, raw=None
+    ):
         """
         Reads rows from a single partition of a queue (i.e. any ordered dynamic table).
         Returns at most max_row_count consecutive rows of a single tablet with row indexes larger than the given offset.
@@ -2026,18 +2234,19 @@ class YtClient(ClientState):
         :param format: output format.
         :type format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
         :param bool raw: don't parse response to rows.
-
         """
         return client_api.pull_queue(
             queue_path, offset, partition_index,
             client=self,
             max_row_count=max_row_count, max_data_weight=max_data_weight, replica_consistency=replica_consistency,
-            format=format, raw=raw)
+            format=format, raw=raw
+        )
 
     def pull_queue_consumer(
-            self,
-            consumer_path, queue_path, offset, partition_index,
-            max_row_count=None, max_data_weight=None, replica_consistency=None, format=None, raw=None):
+        self,
+        consumer_path, queue_path, offset, partition_index,
+        max_row_count=None, max_data_weight=None, replica_consistency=None, format=None, raw=None
+    ):
         """
         Reads rows from a single partition of a queue (i.e. any ordered dynamic table) with authorization via consumer.
         Returns at most max_row_count consecutive rows of a single tablet with row indexes larger than the given offset.
@@ -2059,18 +2268,19 @@ class YtClient(ClientState):
         :param format: output format.
         :type format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
         :param bool raw: don't parse response to rows.
-
         """
         return client_api.pull_queue_consumer(
             consumer_path, queue_path, offset, partition_index,
             client=self,
             max_row_count=max_row_count, max_data_weight=max_data_weight, replica_consistency=replica_consistency,
-            format=format, raw=raw)
+            format=format, raw=raw
+        )
 
     def push_queue_producer(
-            self,
-            producer_path, queue_path, session_id, epoch, input_stream,
-            user_meta=None, input_format=None, raw=None, output_format=None, require_sync_replica=None):
+        self,
+        producer_path, queue_path, session_id, epoch, input_stream,
+        user_meta=None, input_format=None, raw=None, output_format=None, require_sync_replica=None
+    ):
         """
         Push rows to queue via queue producer.
         :param producer_path: path to queue producer table.
@@ -2092,18 +2302,19 @@ class YtClient(ClientState):
         :param bool raw: if `raw` is specified stream with unparsed records (strings)
         in specified `format` is expected. Otherwise dicts or :class:`Record <yt.wrapper.yamr_record.Record>`
         are expected.
-
         """
         return client_api.push_queue_producer(
             producer_path, queue_path, session_id, epoch, input_stream,
             client=self,
             user_meta=user_meta, input_format=input_format, raw=raw, output_format=output_format,
-            require_sync_replica=require_sync_replica)
+            require_sync_replica=require_sync_replica
+        )
 
     def put_file_to_cache(
-            self,
-            path, md5,
-            cache_path=None):
+        self,
+        path, md5,
+        cache_path=None
+    ):
         """
         Puts file to cache
 
@@ -2111,17 +2322,18 @@ class YtClient(ClientState):
         :param str md5: Expected MD5 hash of file
         :param str cache_path: Path to file cache
         :return: path to file in cache
-
         """
         return client_api.put_file_to_cache(
             path, md5,
             client=self,
-            cache_path=cache_path)
+            cache_path=cache_path
+        )
 
     def read_blob_table(
-            self,
-            table,
-            part_index_column_name=None, data_column_name=None, part_size=None, table_reader=None):
+        self,
+        table,
+        part_index_column_name=None, data_column_name=None, part_size=None, table_reader=None
+    ):
         """
         Reads file from blob table.
 
@@ -2132,19 +2344,19 @@ class YtClient(ClientState):
         :param int part_size: size of each blob.
         :param dict table_reader: spec of "read" operation.
         :rtype: :class:`ResponseStream <yt.wrapper.response_stream.ResponseStream>`.
-
-
         """
         return client_api.read_blob_table(
             table,
             client=self,
             part_index_column_name=part_index_column_name, data_column_name=data_column_name, part_size=part_size,
-            table_reader=table_reader)
+            table_reader=table_reader
+        )
 
     def read_file(
-            self,
-            path,
-            file_reader=None, offset=None, length=None, enable_read_parallel=None):
+        self,
+        path,
+        file_reader=None, offset=None, length=None, enable_read_parallel=None
+    ):
         """
         Downloads file from path in Cypress to local machine.
 
@@ -2154,17 +2366,18 @@ class YtClient(ClientState):
         :param int offset: offset in input file in bytes, 0 by default.
         :param int length: length in bytes of desired part of input file, all file without offset by default.
         :return: some stream over downloaded file, string generator by default.
-
         """
         return client_api.read_file(
             path,
             client=self,
-            file_reader=file_reader, offset=offset, length=length, enable_read_parallel=enable_read_parallel)
+            file_reader=file_reader, offset=offset, length=length, enable_read_parallel=enable_read_parallel
+        )
 
     def read_query_result(
-            self,
-            query_id,
-            result_index=None, stage=None, format=None, raw=None):
+        self,
+        query_id,
+        result_index=None, stage=None, format=None, raw=None
+    ):
         """
         Read query result.
 
@@ -2174,18 +2387,26 @@ class YtClient(ClientState):
         :type result_index: int
         :param stage: query tracker stage, defaults to "production"
         :type stage: str
-
         """
         return client_api.read_query_result(
             query_id,
             client=self,
-            result_index=result_index, stage=stage, format=format, raw=raw)
+            result_index=result_index, stage=stage, format=format, raw=raw
+        )
 
     def read_table(
-            self,
-            table,
-            format=None, table_reader=None, control_attributes=None, unordered=None, raw=None,
-            response_parameters=None, enable_read_parallel=None, omit_inaccessible_columns=None, omit_inaccessible_rows=None):
+        self,
+        table: Union[str, ForwardRef("TablePath")],
+        format: Union[str, Format, None] = None,
+        table_reader: Optional[Dict[str, Any]] = None,
+        control_attributes: Optional[Dict[str, Any]] = None,
+        unordered: Optional[bool] = None,
+        raw: Optional[bool] = None,
+        response_parameters: Optional[Dict[str, Any]] = None,
+        enable_read_parallel: Optional[bool] = None,
+        omit_inaccessible_columns: Optional[bool] = None,
+        omit_inaccessible_rows: Optional[bool] = None
+    ):
         """
         Reads rows from table and parse (optionally).
 
@@ -2199,19 +2420,38 @@ class YtClient(ClientState):
         If ``yt.wrapper.config["read_retries"]["enable"]`` is specified,
         command is executed under self-pinged transaction with retries and snapshot lock on the table.
         This transaction is alive until your finish reading your table, or call `close` method of ResponseStream.
-
         """
         return client_api.read_table(
             table,
             client=self,
             format=format, table_reader=table_reader, control_attributes=control_attributes, unordered=unordered,
             raw=raw, response_parameters=response_parameters, enable_read_parallel=enable_read_parallel,
-            omit_inaccessible_columns=omit_inaccessible_columns, omit_inaccessible_rows=omit_inaccessible_rows)
+            omit_inaccessible_columns=omit_inaccessible_columns, omit_inaccessible_rows=omit_inaccessible_rows
+        )
+
+    def read_table_partition(
+        self,
+        cookie: bytes,
+        format: Union[str, Format, None] = None,
+        raw: bool = None
+    ):
+        """
+        Read table partition by cookie.
+        Call `partition_tables` with parameter `enable_cookies=True` for cookie.
+
+        . seealso:: `read_table_partition command in the docs <https://ytsaurus.tech/docs/ru/api/commands#read_table_partition>`_
+        """
+        return client_api.read_table_partition(
+            cookie,
+            client=self,
+            format=format, raw=raw
+        )
 
     def read_table_structured(
-            self,
-            table,
-            row_type=None, table_reader=None, unordered=None, response_parameters=None, enable_read_parallel=None):
+        self,
+        table,
+        row_type=None, table_reader=None, unordered=None, response_parameters=None, enable_read_parallel=None
+    ):
         """
         Reads rows from table in structured format. Cf. docstring for read_table
         """
@@ -2219,12 +2459,14 @@ class YtClient(ClientState):
             table,
             client=self,
             row_type=row_type, table_reader=table_reader, unordered=unordered, response_parameters=response_parameters,
-            enable_read_parallel=enable_read_parallel)
+            enable_read_parallel=enable_read_parallel
+        )
 
     def register_queue_consumer(
-            self,
-            queue_path, consumer_path, vital,
-            partitions=None):
+        self,
+        queue_path, consumer_path, vital,
+        partitions=None
+    ):
         """
         Registers queue consumer.
 
@@ -2233,17 +2475,18 @@ class YtClient(ClientState):
         :param consumer_path: path to consumer table.
         :type consumer_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
         :param bool vital: vital.
-
         """
         return client_api.register_queue_consumer(
             queue_path, consumer_path, vital,
             client=self,
-            partitions=partitions)
+            partitions=partitions
+        )
 
     def remount_table(
-            self,
-            path,
-            first_tablet_index=None, last_tablet_index=None):
+        self,
+        path,
+        first_tablet_index=None, last_tablet_index=None
+    ):
         """
         Remounts the table.
 
@@ -2255,17 +2498,19 @@ class YtClient(ClientState):
         This command effectively sends updated table settings to tablets and should be used
         whenever some attributes are set to a mounted table. It is not equivalent to
         unmount+mount and does not cause any downtime.
-
         """
         return client_api.remount_table(
             path,
             client=self,
-            first_tablet_index=first_tablet_index, last_tablet_index=last_tablet_index)
+            first_tablet_index=first_tablet_index, last_tablet_index=last_tablet_index
+        )
 
     def remove(
-            self,
-            path: Union[str, YPath],
-            recursive: bool = False, force: bool = False):
+        self,
+        path: Union[str, YPath],
+        recursive: bool = False,
+        force: bool = False
+    ):
         """
         Removes Cypress node.
 
@@ -2275,31 +2520,34 @@ class YtClient(ClientState):
         :param bool force: force.
 
         .. seealso:: `remove in the docs <https://ytsaurus.tech/docs/en/api/commands#remove>`_
-
         """
         return client_api.remove(
             path,
             client=self,
-            recursive=recursive, force=force)
+            recursive=recursive, force=force
+        )
 
     def remove_attribute(
-            self,
-            path: Union[str, YPath], attribute: str):
+        self,
+        path: Union[str, YPath],
+        attribute: str
+    ):
         """
         Removes Cypress node `attribute`
 
         :param str path: path.
         :param str attribute: attribute.
-
         """
         return client_api.remove_attribute(
             path, attribute,
-            client=self)
+            client=self
+        )
 
     def remove_maintenance(
-            self,
-            component, address,
-            id=None, ids=None, type=None, user=None, mine=False, all=False):
+        self,
+        component, address,
+        id=None, ids=None, type=None, user=None, mine=False, all=False
+    ):
         """
         Removes maintenance requests from given node by id or filter.
 
@@ -2317,16 +2565,17 @@ class YtClient(ClientState):
         :param all: all maintenance requests from given node will be removed.
         Cannot be used with other options.
         :return: two-level YSON map-node: {target -> {maintenance_type -> count}}.
-
         """
         return client_api.remove_maintenance(
             component, address,
             client=self,
-            id=id, ids=ids, type=type, user=user, mine=mine, all=all)
+            id=id, ids=ids, type=type, user=user, mine=mine, all=all
+        )
 
     def remove_member(
-            self,
-            member, group):
+        self,
+        member, group
+    ):
         """
         Removes member from Cypress node group.
 
@@ -2334,33 +2583,35 @@ class YtClient(ClientState):
         :param str group: group to remove member from.
 
         .. seealso:: `permissions in the docs <https://ytsaurus.tech/docs/en/user-guide/storage/access-control>`_
-
         """
         return client_api.remove_member(
             member, group,
-            client=self)
+            client=self
+        )
 
     def remove_pipeline_dynamic_spec(
-            self,
-            pipeline_path,
-            spec_path=None, expected_version=None):
+        self,
+        pipeline_path,
+        spec_path=None, expected_version=None
+    ):
         """
         Remove YT Flow pipeline dynamic spec.
 
         :param pipeline_path: path to pipeline.
         :param spec_path: path inside pipeline dynamic spec yson struct, starting with /.
         :param expected_version: current dynamic spec expected version.
-
         """
         return client_api.remove_pipeline_dynamic_spec(
             pipeline_path,
             client=self,
-            spec_path=spec_path, expected_version=expected_version)
+            spec_path=spec_path, expected_version=expected_version
+        )
 
     def remove_pipeline_spec(
-            self,
-            pipeline_path,
-            spec_path=None, expected_version=None, force=None):
+        self,
+        pipeline_path,
+        spec_path=None, expected_version=None, force=None
+    ):
         """
         Remove YT Flow pipeline spec.
 
@@ -2368,17 +2619,18 @@ class YtClient(ClientState):
         :param spec_path: path inside pipeline spec yson struct, starting with /.
         :param expected_version: current spec expected version.
         :param force: if true, remove spec even if pipeline is paused.
-
         """
         return client_api.remove_pipeline_spec(
             pipeline_path,
             client=self,
-            spec_path=spec_path, expected_version=expected_version, force=force)
+            spec_path=spec_path, expected_version=expected_version, force=force
+        )
 
     def remove_queue_producer_session(
-            self,
-            producer_path, queue_path, session_id,
-            format=None):
+        self,
+        producer_path, queue_path, session_id,
+        format=None
+    ):
         """
         Removes queue producer session.
         :param producer_path: path to queue producer table.
@@ -2387,18 +2639,19 @@ class YtClient(ClientState):
         :type queue_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
         :param session_id: identificator of session.
         :type session_id: str
-
         """
         return client_api.remove_queue_producer_session(
             producer_path, queue_path, session_id,
             client=self,
-            format=format)
+            format=format
+        )
 
     def reshard_table(
-            self,
-            path,
-            pivot_keys=None, tablet_count=None, first_tablet_index=None, last_tablet_index=None,
-            uniform=None, enable_slicing=None, slicing_accuracy=None, trimmed_row_counts=None, sync=False):
+        self,
+        path,
+        pivot_keys=None, tablet_count=None, first_tablet_index=None, last_tablet_index=None, uniform=None,
+        enable_slicing=None, slicing_accuracy=None, trimmed_row_counts=None, sync=False
+    ):
         """
         Changes pivot keys separating tablets of a given table.
 
@@ -2419,20 +2672,20 @@ class YtClient(ClientState):
         :param List[int] trimmed_row_counts: new initial tirmmed row counts
         for the new tablets of the ordered table.
         :param bool sync: wait for completion.
-
-
         """
         return client_api.reshard_table(
             path,
             client=self,
             pivot_keys=pivot_keys, tablet_count=tablet_count, first_tablet_index=first_tablet_index,
             last_tablet_index=last_tablet_index, uniform=uniform, enable_slicing=enable_slicing, slicing_accuracy=slicing_accuracy,
-            trimmed_row_counts=trimmed_row_counts, sync=sync)
+            trimmed_row_counts=trimmed_row_counts, sync=sync
+        )
 
     def reshard_table_automatic(
-            self,
-            path,
-            sync=False):
+        self,
+        path,
+        sync=False
+    ):
         """
         Automatically balance tablets of a mounted table according to tablet balancer config.
 
@@ -2441,17 +2694,18 @@ class YtClient(ClientState):
         :param path: path to table.
         :type path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
         :param bool sync: wait for the command to finish.
-
         """
         return client_api.reshard_table_automatic(
             path,
             client=self,
-            sync=sync)
+            sync=sync
+        )
 
     def restore_table_backup(
-            self,
-            manifest,
-            force=None, mount=None, enable_replicas=None, preserve_account=None):
+        self,
+        manifest,
+        force=None, mount=None, enable_replicas=None, preserve_account=None
+    ):
         """
         Restores a collection of tables from its backup copy.
 
@@ -2460,88 +2714,96 @@ class YtClient(ClientState):
         :param bool force: overwrite destination tables.
         :param bool mount: mount restored tables which were mounted before backup.
         :param bool enable_replicas: enable restored table replicas which were enabled before backup.
-
         """
         return client_api.restore_table_backup(
             manifest,
             client=self,
-            force=force, mount=mount, enable_replicas=enable_replicas, preserve_account=preserve_account)
+            force=force, mount=mount, enable_replicas=enable_replicas, preserve_account=preserve_account
+        )
 
     def resume_operation(
-            self,
-            operation: str):
+        self,
+        operation: str
+    ):
         """
         Continues operation after suspending.
 
         :param str operation: operation id.
-
         """
         return client_api.resume_operation(
             operation,
-            client=self)
+            client=self
+        )
 
     def resurrect_chunk_locations(
-            self,
-            node_address, location_uuids):
+        self,
+        node_address, location_uuids
+    ):
         """
         Try resurrect disabled locations.
 
         :param node_address: node address.
         :param location_uuids: location uuids.
-
         """
         return client_api.resurrect_chunk_locations(
             node_address, location_uuids,
-            client=self)
+            client=self
+        )
 
     def revoke_token(
-            self,
-            user,
-            password=None, token=None, token_sha256=None):
+        self,
+        user,
+        password=None, token=None, token_sha256=None
+    ):
         """
         Revokes user token.
         """
         return client_api.revoke_token(
             user,
             client=self,
-            password=password, token=token, token_sha256=token_sha256)
+            password=password, token=token, token_sha256=token_sha256
+        )
 
     def row_count(
-            self,
-            table):
+        self,
+        table
+    ):
         """
         Returns number of rows in the table.
 
         :param table: table.
         :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
         :rtype: int
-
         """
         return client_api.row_count(
             table,
-            client=self)
+            client=self
+        )
 
     def run_command_with_lock(
-            self,
-            path, command,
-            popen_kwargs=None, lock_conflict_callback=None, ping_failed_callback=None, set_address=True,
-            address_path=None, create_lock_options=None, poll_period=None, forward_signals=None):
+        self,
+        path, command,
+        popen_kwargs=None, lock_conflict_callback=None, ping_failed_callback=None, set_address=True,
+        address_path=None, create_lock_options=None, poll_period=None, forward_signals=None
+    ):
         """
 
         Run given command under lock.
-
         """
         return client_api.run_command_with_lock(
             path, command,
             client=self,
             popen_kwargs=popen_kwargs, lock_conflict_callback=lock_conflict_callback, ping_failed_callback=ping_failed_callback,
             set_address=set_address, address_path=address_path, create_lock_options=create_lock_options,
-            poll_period=poll_period, forward_signals=forward_signals)
+            poll_period=poll_period, forward_signals=forward_signals
+        )
 
     def run_erase(
-            self,
-            table,
-            spec: Union[SpecCommonType, Dict, None] = None, sync=True):
+        self,
+        table,
+        spec: Union[SpecCommonType, Dict, None] = None,
+        sync=True
+    ):
         """
         Erases table or part of it.
 
@@ -2553,59 +2815,78 @@ class YtClient(ClientState):
         :param dict spec: operation spec.
 
         .. seealso::  :ref:`operation_parameters`.
-
         """
         return client_api.run_erase(
             table,
             client=self,
-            spec=spec, sync=sync)
+            spec=spec, sync=sync
+        )
 
     def run_job_shell(
-            self,
-            job_id: str,
-            shell_name: Optional[str] = None, timeout=None, command=None):
+        self,
+        job_id: str,
+        shell_name: Optional[str] = None,
+        timeout=None,
+        command=None
+    ):
         """
         Runs interactive shell in the job sandbox.
 
         :param str job_id: job id.
         :param str shell_name: shell name.
-
         """
         return client_api.run_job_shell(
             job_id,
             client=self,
-            shell_name=shell_name, timeout=timeout, command=command)
+            shell_name=shell_name, timeout=timeout, command=command
+        )
 
     def run_job_shell_command(
-            self,
-            job_id: str, command: str,
-            shell_name: Optional[str] = None) -> bytes:
+        self,
+        job_id: str,
+        command: str,
+        shell_name: Optional[str] = None
+    ) -> bytes:
         """
         Runs a command in the job sandbox and returns the output.
 
         :param str job_id: job id.
         :param str command: command to execute.
         :param str shell_name: shell name.
-
         """
         return client_api.run_job_shell_command(
             job_id, command,
             client=self,
-            shell_name=shell_name)
+            shell_name=shell_name
+        )
 
     def run_join_reduce(
-            self,
-            binary, source_table, destination_table,
-            local_files=None, yt_files=None, format=None, input_format=None, output_format=None,
-            sync=True, job_io=None, table_writer=None, job_count=None, memory_limit=None, spec: Union[SpecCommonType, Dict, None] = None,
-            sort_by=None, reduce_by=None, join_by=None, stderr_table=None):
+        self,
+        binary,
+        source_table,
+        destination_table,
+        local_files=None,
+        yt_files=None,
+        format=None,
+        input_format=None,
+        output_format=None,
+        sync=True,
+        job_io=None,
+        table_writer=None,
+        job_count=None,
+        memory_limit=None,
+        spec: Union[SpecCommonType, Dict, None] = None,
+        sort_by=None,
+        reduce_by=None,
+        join_by=None,
+        stderr_table=None
+    ):
         """
         Runs join-reduce operation.
 
         .. note:: You should specify at least two input table and all except one     should have set foreign attribute. You should also specify join_by columns.
 
         .. seealso::  :ref:`operation_parameters` and :func:`run_map_reduce <.run_map_reduce>`.
-
         """
         return client_api.run_join_reduce(
             binary, source_table, destination_table,
@@ -2613,38 +2894,74 @@ class YtClient(ClientState):
             local_files=local_files, yt_files=yt_files, format=format, input_format=input_format,
             output_format=output_format, sync=sync, job_io=job_io, table_writer=table_writer, job_count=job_count,
             memory_limit=memory_limit, spec=spec, sort_by=sort_by, reduce_by=reduce_by, join_by=join_by,
-            stderr_table=stderr_table)
+            stderr_table=stderr_table
+        )
 
     def run_map(
-            self,
-            binary, source_table,
-            destination_table=None, local_files=None, yt_files=None, format=None, input_format=None,
-            output_format=None, sync=True, job_io=None, table_writer=None, job_count=None, memory_limit=None,
-            spec: Union[SpecMapType, Dict, None] = None, ordered=None, stderr_table=None):
+        self,
+        binary,
+        source_table,
+        destination_table=None,
+        local_files=None,
+        yt_files=None,
+        format=None,
+        input_format=None,
+        output_format=None,
+        sync=True,
+        job_io=None,
+        table_writer=None,
+        job_count=None,
+        memory_limit=None,
+        spec: Union[SpecMapType, Dict, None] = None,
+        ordered=None,
+        stderr_table=None
+    ):
         """
         Runs map operation.
 
         :param bool ordered: force ordered input for mapper.
 
         .. seealso::  :ref:`operation_parameters` and :func:`run_map_reduce <.run_map_reduce>`.
-
         """
         return client_api.run_map(
             binary, source_table,
             client=self,
             destination_table=destination_table, local_files=local_files, yt_files=yt_files, format=format,
             input_format=input_format, output_format=output_format, sync=sync, job_io=job_io, table_writer=table_writer,
-            job_count=job_count, memory_limit=memory_limit, spec=spec, ordered=ordered, stderr_table=stderr_table)
+            job_count=job_count, memory_limit=memory_limit, spec=spec, ordered=ordered, stderr_table=stderr_table
+        )
 
     def run_map_reduce(
-            self,
-            mapper, reducer, source_table, destination_table,
-            format=None, map_input_format=None, map_output_format=None, reduce_input_format=None,
-            reduce_output_format=None, sync=True, job_io=None, table_writer=None, spec: Union[SpecMapReduceType, Dict, None] = None,
-            map_local_files=None, map_yt_files=None, reduce_local_files=None, reduce_yt_files=None,
-            mapper_memory_limit=None, reducer_memory_limit=None, sort_by=None, reduce_by=None, reduce_combiner=None,
-            reduce_combiner_input_format=None, reduce_combiner_output_format=None, reduce_combiner_local_files=None,
-            reduce_combiner_yt_files=None, reduce_combiner_memory_limit=None, stderr_table=None):
+        self,
+        mapper,
+        reducer,
+        source_table,
+        destination_table,
+        format=None,
+        map_input_format=None,
+        map_output_format=None,
+        reduce_input_format=None,
+        reduce_output_format=None,
+        sync=True,
+        job_io=None,
+        table_writer=None,
+        spec: Union[SpecMapReduceType, Dict, None] = None,
+        map_local_files=None,
+        map_yt_files=None,
+        reduce_local_files=None,
+        reduce_yt_files=None,
+        mapper_memory_limit=None,
+        reducer_memory_limit=None,
+        sort_by=None,
+        reduce_by=None,
+        reduce_combiner=None,
+        reduce_combiner_input_format=None,
+        reduce_combiner_output_format=None,
+        reduce_combiner_local_files=None,
+        reduce_combiner_yt_files=None,
+        reduce_combiner_memory_limit=None,
+        stderr_table=None
+    ):
         """
         Runs map (optionally), sort, reduce and reduce-combine (optionally) operations.
 
@@ -2695,7 +3012,6 @@ class YtClient(ClientState):
         :param int reduce_combiner_memory_limit: memory limit in bytes.
 
         .. seealso::  :ref:`operation_parameters`.
-
         """
         return client_api.run_map_reduce(
             mapper, reducer, source_table, destination_table,
@@ -2708,13 +3024,21 @@ class YtClient(ClientState):
             reduce_by=reduce_by, reduce_combiner=reduce_combiner, reduce_combiner_input_format=reduce_combiner_input_format,
             reduce_combiner_output_format=reduce_combiner_output_format, reduce_combiner_local_files=reduce_combiner_local_files,
             reduce_combiner_yt_files=reduce_combiner_yt_files, reduce_combiner_memory_limit=reduce_combiner_memory_limit,
-            stderr_table=stderr_table)
+            stderr_table=stderr_table
+        )
 
     def run_merge(
-            self,
-            source_table, destination_table,
-            mode=None, sync=True, job_io=None, table_writer=None, job_count=None, spec: Union[SpecCommonType, Dict, None] = None,
-            merge_by=None):
+        self,
+        source_table,
+        destination_table,
+        mode=None,
+        sync=True,
+        job_io=None,
+        table_writer=None,
+        job_count=None,
+        spec: Union[SpecCommonType, Dict, None] = None,
+        merge_by=None
+    ):
         """
         Merges source tables to destination table.
 
@@ -2734,18 +3058,19 @@ class YtClient(ClientState):
         :type merge_by: list[str]
 
         .. seealso::  :ref:`operation_parameters`.
-
         """
         return client_api.run_merge(
             source_table, destination_table,
             client=self,
             mode=mode, sync=sync, job_io=job_io, table_writer=table_writer, job_count=job_count,
-            spec=spec, merge_by=merge_by)
+            spec=spec, merge_by=merge_by
+        )
 
     def run_operation(
-            self,
-            spec_builder,
-            sync=True, run_operation_mutation_id=None, enable_optimizations=False):
+        self,
+        spec_builder,
+        sync=True, run_operation_mutation_id=None, enable_optimizations=False
+    ):
         """
         Runs operation.
 
@@ -2753,19 +3078,25 @@ class YtClient(ClientState):
         :type spec_builder: :class:`SpecBuilder <yt.wrapper.spec_builders.SpecBuilder>`
 
         .. seealso::  :ref:`operation_parameters`.
-
         """
         return client_api.run_operation(
             spec_builder,
             client=self,
-            sync=sync, run_operation_mutation_id=run_operation_mutation_id, enable_optimizations=enable_optimizations)
+            sync=sync, run_operation_mutation_id=run_operation_mutation_id, enable_optimizations=enable_optimizations
+        )
 
     def run_query(
-            self,
-            engine: str, query: str,
-            settings: Optional[Dict] = None, files: Optional[List] = None, stage: Optional[str] = None,
-            annotations: Optional[Dict] = None, access_control_objects: Optional[List] = None, is_indexed: Optional[bool] = None,
-            sync: bool = True) -> Query:
+        self,
+        engine: str,
+        query: str,
+        settings: Optional[Dict] = None,
+        files: Optional[List] = None,
+        stage: Optional[str] = None,
+        annotations: Optional[Dict] = None,
+        access_control_objects: Optional[List] = None,
+        is_indexed: Optional[bool] = None,
+        sync: bool = True
+    ) -> Query:
         """
         Run query and track its progress (unless sync = false).
 
@@ -2785,26 +3116,40 @@ class YtClient(ClientState):
         :type access_control_objects: list or None
         :param sync: if True, wait for query to finish, otherwise return immediately
         :type sync: bool
-
         """
         return client_api.run_query(
             engine, query,
             client=self,
             settings=settings, files=files, stage=stage, annotations=annotations, access_control_objects=access_control_objects,
-            is_indexed=is_indexed, sync=sync)
+            is_indexed=is_indexed, sync=sync
+        )
 
     def run_reduce(
-            self,
-            binary, source_table,
-            destination_table=None, local_files=None, yt_files=None, format=None, input_format=None,
-            output_format=None, sync=True, job_io=None, table_writer=None, job_count=None, memory_limit=None,
-            spec: Union[SpecReduceType, Dict, None] = None, sort_by=None, reduce_by=None, join_by=None,
-            stderr_table=None, enable_key_guarantee=None):
+        self,
+        binary,
+        source_table,
+        destination_table=None,
+        local_files=None,
+        yt_files=None,
+        format=None,
+        input_format=None,
+        output_format=None,
+        sync=True,
+        job_io=None,
+        table_writer=None,
+        job_count=None,
+        memory_limit=None,
+        spec: Union[SpecReduceType, Dict, None] = None,
+        sort_by=None,
+        reduce_by=None,
+        join_by=None,
+        stderr_table=None,
+        enable_key_guarantee=None
+    ):
         """
         Runs reduce operation.
 
         .. seealso::  :ref:`operation_parameters` and :func:`run_map_reduce <.run_map_reduce>`.
-
         """
         return client_api.run_reduce(
             binary, source_table,
@@ -2812,13 +3157,20 @@ class YtClient(ClientState):
             destination_table=destination_table, local_files=local_files, yt_files=yt_files, format=format,
             input_format=input_format, output_format=output_format, sync=sync, job_io=job_io, table_writer=table_writer,
             job_count=job_count, memory_limit=memory_limit, spec=spec, sort_by=sort_by, reduce_by=reduce_by,
-            join_by=join_by, stderr_table=stderr_table, enable_key_guarantee=enable_key_guarantee)
+            join_by=join_by, stderr_table=stderr_table, enable_key_guarantee=enable_key_guarantee
+        )
 
     def run_remote_copy(
-            self,
-            source_table, destination_table,
-            cluster_name=None, network_name=None, cluster_connection=None, copy_attributes=None,
-            spec: Union[SpecCommonType, Dict, None] = None, sync=True):
+        self,
+        source_table,
+        destination_table,
+        cluster_name=None,
+        network_name=None,
+        cluster_connection=None,
+        copy_attributes=None,
+        spec: Union[SpecCommonType, Dict, None] = None,
+        sync=True
+    ):
         """
         Copies source table from remote cluster to destination table on current cluster.
 
@@ -2834,35 +3186,42 @@ class YtClient(ClientState):
         .. note:: For atomicity you should specify just one item in `source_table`     in case attributes copying.
 
         .. seealso::  :ref:`operation_parameters`.
-
         """
         return client_api.run_remote_copy(
             source_table, destination_table,
             client=self,
             cluster_name=cluster_name, network_name=network_name, cluster_connection=cluster_connection,
-            copy_attributes=copy_attributes, spec=spec, sync=sync)
+            copy_attributes=copy_attributes, spec=spec, sync=sync
+        )
 
     def run_sort(
-            self,
-            source_table,
-            destination_table=None, sort_by=None, sync=True, job_io=None, table_writer=None, spec: Union[SpecSortType, Dict, None] = None):
+        self,
+        source_table,
+        destination_table=None,
+        sort_by=None,
+        sync=True,
+        job_io=None,
+        table_writer=None,
+        spec: Union[SpecSortType, Dict, None] = None
+    ):
         """
         Sorts source tables to destination table.
 
         If destination table is not specified, than it equals to source table.
 
         .. seealso::  :ref:`operation_parameters`.
-
         """
         return client_api.run_sort(
             source_table,
             client=self,
             destination_table=destination_table, sort_by=sort_by, sync=sync, job_io=job_io, table_writer=table_writer,
-            spec=spec)
+            spec=spec
+        )
 
     def sample_rows_from_table(
-            self,
-            table, output_table, row_count):
+        self,
+        table, output_table, row_count
+    ):
         """
         Samples random rows from table.
 
@@ -2871,21 +3230,21 @@ class YtClient(ClientState):
         :param output_table: path to output table
         :type output_table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
         :param int row_count: the number of rows to be sampled
-
-
         """
         return client_api.sample_rows_from_table(
             table, output_table, row_count,
-            client=self)
+            client=self
+        )
 
     def search(
-            self,
-            root: Union[str, YPath, Literal[""]] = '', node_type: List[str] = None, path_filter: Callable[[str], bool] = None,
-            object_filter: Callable[[Any], bool] = None, subtree_filter: Callable[[str, Any], bool] = None,
-            map_node_order: Callable[[str, List[Any]], List[int]] = _MapOrderSorted(), list_node_order: Callable[[str, List[Any]], List[int]] = None,
-            attributes: Union[List[str], Tuple, None] = None, exclude: Union[List[str], Tuple, None] = None,
-            depth_bound: int = None, follow_links: bool = False, read_from: Literal["cache"] = None,
-            cache_sticky_group_size: int = None, enable_batch_mode: bool = None):
+        self,
+        root: Union[str, YPath, Literal[""]] = "", node_type: List[str] = None, path_filter: Callable[[str], bool] = None,
+        object_filter: Callable[[Any], bool] = None, subtree_filter: Callable[[str, Any], bool] = None,
+        map_node_order: Callable[[str, List[Any]], List[int]] = _MapOrderSorted(), list_node_order: Callable[[str, List[Any]], List[int]] = None,  # noqa
+        attributes: Union[List[str], Tuple, None] = None, exclude: Union[List[str], Tuple, None] = None,
+        depth_bound: int = None, follow_links: bool = False, read_from: Literal["cache"] = None, cache_sticky_group_size: int = None,  # noqa
+        enable_batch_mode: bool = None
+    ):
         """
         Searches for some nodes in Cypress subtree.
 
@@ -2907,25 +3266,26 @@ class YtClient(ClientState):
         :param bool follow_links: follow links.
         :param lambda action: apply given method to each found path.
         :return: result paths as iterable over :class:`YsonString <yt.yson.yson_types.YsonString>`.
-
         """
         return client_api.search(
             client=self,
             root=root, node_type=node_type, path_filter=path_filter, object_filter=object_filter,
             subtree_filter=subtree_filter, map_node_order=map_node_order, list_node_order=list_node_order,
             attributes=attributes, exclude=exclude, depth_bound=depth_bound, follow_links=follow_links,
-            read_from=read_from, cache_sticky_group_size=cache_sticky_group_size, enable_batch_mode=enable_batch_mode)
+            read_from=read_from, cache_sticky_group_size=cache_sticky_group_size, enable_batch_mode=enable_batch_mode
+        )
 
     def select_rows(
-            self,
-            query,
-            timestamp=None, input_row_limit=None, output_row_limit=None, range_expansion_limit=None,
-            fail_on_incomplete_result=None, verbose_logging=None, enable_code_cache=None, max_subqueries=None,
-            workload_descriptor=None, allow_full_scan=None, allow_join_without_index=None, format=None,
-            raw=None, execution_pool=None, response_parameters=None, retention_timestamp=None, placeholder_values=None,
-            use_canonical_null_relations=None, merge_versioned_rows=None, syntax_version=None, versioned_read_options=None,
-            with_timestamps=None, udf_registry_path=None, use_lookup_cache=None, execution_backend=None,
-            expression_builder_version=None):
+        self,
+        query,
+        timestamp=None, input_row_limit=None, output_row_limit=None, range_expansion_limit=None,
+        fail_on_incomplete_result=None, verbose_logging=None, enable_code_cache=None, max_subqueries=None,
+        workload_descriptor=None, allow_full_scan=None, allow_join_without_index=None, format=None,
+        raw=None, execution_pool=None, response_parameters=None, retention_timestamp=None, placeholder_values=None,
+        use_canonical_null_relations=None, merge_versioned_rows=None, syntax_version=None, versioned_read_options=None,
+        with_timestamps=None, udf_registry_path=None, use_lookup_cache=None, execution_backend=None,
+        expression_builder_version=None
+    ):
         """
         Executes a SQL-like query on dynamic table.
 
@@ -2936,7 +3296,6 @@ class YtClient(ClientState):
         :param format: output format.
         :type format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
         :param bool raw: don't parse response to rows.
-
         """
         return client_api.select_rows(
             query,
@@ -2944,18 +3303,24 @@ class YtClient(ClientState):
             timestamp=timestamp, input_row_limit=input_row_limit, output_row_limit=output_row_limit,
             range_expansion_limit=range_expansion_limit, fail_on_incomplete_result=fail_on_incomplete_result,
             verbose_logging=verbose_logging, enable_code_cache=enable_code_cache, max_subqueries=max_subqueries,
-            workload_descriptor=workload_descriptor, allow_full_scan=allow_full_scan, allow_join_without_index=allow_join_without_index,
+            workload_descriptor=workload_descriptor, allow_full_scan=allow_full_scan, allow_join_without_index=allow_join_without_index,  # noqa
             format=format, raw=raw, execution_pool=execution_pool, response_parameters=response_parameters,
-            retention_timestamp=retention_timestamp, placeholder_values=placeholder_values, use_canonical_null_relations=use_canonical_null_relations,
+            retention_timestamp=retention_timestamp, placeholder_values=placeholder_values, use_canonical_null_relations=use_canonical_null_relations,  # noqa
             merge_versioned_rows=merge_versioned_rows, syntax_version=syntax_version, versioned_read_options=versioned_read_options,
             with_timestamps=with_timestamps, udf_registry_path=udf_registry_path, use_lookup_cache=use_lookup_cache,
-            execution_backend=execution_backend, expression_builder_version=expression_builder_version)
+            execution_backend=execution_backend, expression_builder_version=expression_builder_version
+        )
 
     def set(
-            self,
-            path: Union[str, YPath], value,
-            format=None, recursive: bool = False, force: bool = None, suppress_transaction_coordinator_sync: bool = None,
-            suppress_upstream_sync: bool = None):
+        self,
+        path: Union[str, YPath],
+        value,
+        format=None,
+        recursive: bool = False,
+        force: bool = None,
+        suppress_transaction_coordinator_sync: bool = None,
+        suppress_upstream_sync: bool = None
+    ):
         """
         Sets new value to Cypress node.
 
@@ -2966,33 +3331,37 @@ class YtClient(ClientState):
         :param bool recursive: recursive.
 
         .. seealso:: `set in the docs <https://ytsaurus.tech/docs/en/api/commands#set>`_
-
         """
         return client_api.set(
             path, value,
             client=self,
-            format=format, recursive=recursive, force=force, suppress_transaction_coordinator_sync=suppress_transaction_coordinator_sync,
-            suppress_upstream_sync=suppress_upstream_sync)
+            format=format, recursive=recursive, force=force, suppress_transaction_coordinator_sync=suppress_transaction_coordinator_sync,  # noqa
+            suppress_upstream_sync=suppress_upstream_sync
+        )
 
     def set_attribute(
-            self,
-            path: Union[str, YPath], attribute: str, value):
+        self,
+        path: Union[str, YPath],
+        attribute: str,
+        value
+    ):
         """
         Sets Cypress node `attribute` to `value`.
 
         :param str path: path.
         :param str attribute: attribute.
         :param value: value.
-
         """
         return client_api.set_attribute(
             path, attribute, value,
-            client=self)
+            client=self
+        )
 
     def set_pipeline_dynamic_spec(
-            self,
-            pipeline_path, value,
-            spec_path=None, expected_version=None, format=None):
+        self,
+        pipeline_path, value,
+        spec_path=None, expected_version=None, format=None
+    ):
         """
         Set YT Flow pipeline dynamic spec.
 
@@ -3000,17 +3369,18 @@ class YtClient(ClientState):
         :param spec: new pipeline spec.
         :param spec_path: path inside pipeline dynamic spec yson struct, starting with /.
         :param expected_version: current dynamic spec expected version.
-
         """
         return client_api.set_pipeline_dynamic_spec(
             pipeline_path, value,
             client=self,
-            spec_path=spec_path, expected_version=expected_version, format=format)
+            spec_path=spec_path, expected_version=expected_version, format=format
+        )
 
     def set_pipeline_spec(
-            self,
-            pipeline_path, value,
-            spec_path=None, expected_version=None, force=None, format=None):
+        self,
+        pipeline_path, value,
+        spec_path=None, expected_version=None, force=None, format=None
+    ):
         """
         Set YT Flow pipeline spec.
 
@@ -3019,29 +3389,32 @@ class YtClient(ClientState):
         :param spec_path: path inside pipeline spec yson struct, starting with /.
         :param expected_version: current spec expected version.
         :param force: if true, update spec even if pipeline is paused.
-
         """
         return client_api.set_pipeline_spec(
             pipeline_path, value,
             client=self,
-            spec_path=spec_path, expected_version=expected_version, force=force, format=format)
+            spec_path=spec_path, expected_version=expected_version, force=force, format=format
+        )
 
     def set_user_password(
-            self,
-            user, new_password,
-            current_password=None):
+        self,
+        user, new_password,
+        current_password=None
+    ):
         """
         Updates user password.
         """
         return client_api.set_user_password(
             user, new_password,
             client=self,
-            current_password=current_password)
+            current_password=current_password
+        )
 
     def shuffle_table(
-            self,
-            table,
-            sync=True, temp_column_name='__random_number', spec=None):
+        self,
+        table,
+        sync=True, temp_column_name="__random_number", spec=None
+    ):
         """
         Shuffles table randomly.
 
@@ -3051,18 +3424,19 @@ class YtClient(ClientState):
         :type temp_column_name: str.
 
         . seealso::  :ref:`operation_parameters`.
-
         """
         return client_api.shuffle_table(
             table,
             client=self,
-            sync=sync, temp_column_name=temp_column_name, spec=spec)
+            sync=sync, temp_column_name=temp_column_name, spec=spec
+        )
 
     def smart_upload_file(
-            self,
-            filename,
-            destination=None, yt_filename=None, placement_strategy=None, ignore_set_attributes_error=True,
-            hash=None):
+        self,
+        filename,
+        destination=None, yt_filename=None, placement_strategy=None, ignore_set_attributes_error=True,
+        hash=None
+    ):
         """
         Uploads file to destination path with custom placement strategy.
 
@@ -3086,47 +3460,51 @@ class YtClient(ClientState):
         * "hash" (only if `destination` parameter is `None`) -> destination path will be
         ``yt.wrapper.config["remote_temp_files_directory"]/hash/<md5sum_of_file>`` or this path will be link
         to some random Cypress path.
-
         """
         return client_api.smart_upload_file(
             filename,
             client=self,
             destination=destination, yt_filename=yt_filename, placement_strategy=placement_strategy,
-            ignore_set_attributes_error=ignore_set_attributes_error, hash=hash)
+            ignore_set_attributes_error=ignore_set_attributes_error, hash=hash
+        )
 
     def start_distributed_write_session(
-            self,
-            path: Union[str, YPath],
-            fragments_count: Optional[int] = None, timeout: Optional[int] = None) -> Tuple[DistributedWriteSessionPacketType, DistributedWriteCookePacketType]:
+        self,
+        path: Union[str, YPath],
+        fragments_count: Optional[int] = None,
+        timeout: Optional[int] = None
+    ) -> Tuple[DistributedWriteSessionPacketType, DistributedWriteCookePacketType]:
         """
         Start distribution write session
-
         """
         return client_api.start_distributed_write_session(
             path,
             client=self,
-            fragments_count=fragments_count, timeout=timeout)
+            fragments_count=fragments_count, timeout=timeout
+        )
 
     def start_pipeline(
-            self,
-            pipeline_path,
-            timeout=None):
+        self,
+        pipeline_path,
+        timeout=None
+    ):
         """
         Start YT Flow pipeline.
 
         :param pipeline_path: path to pipeline.
-
         """
         return client_api.start_pipeline(
             pipeline_path,
             client=self,
-            timeout=timeout)
+            timeout=timeout
+        )
 
     def start_query(
-            self,
-            engine, query,
-            settings=None, files=None, stage=None, annotations=None, access_control_object=None,
-            access_control_objects=None, secrets=None, is_indexed=None):
+        self,
+        engine, query,
+        settings=None, files=None, stage=None, annotations=None, access_control_object=None, access_control_objects=None,
+        secrets=None, is_indexed=None
+    ):
         """
         Start query.
 
@@ -3146,18 +3524,19 @@ class YtClient(ClientState):
         :type access_control_object: str or None
         :param access_control_objects: list access control object names
         :type access_control_objects: list or None
-
         """
         return client_api.start_query(
             engine, query,
             client=self,
             settings=settings, files=files, stage=stage, annotations=annotations, access_control_object=access_control_object,
-            access_control_objects=access_control_objects, secrets=secrets, is_indexed=is_indexed)
+            access_control_objects=access_control_objects, secrets=secrets, is_indexed=is_indexed
+        )
 
     def start_transaction(
-            self,
-            parent_transaction=None, timeout=None, deadline=None, attributes=None, type='master',
-            sticky=False, prerequisite_transaction_ids=None):
+        self,
+        parent_transaction=None, timeout=None, deadline=None, attributes=None, type="master", sticky=False,
+        prerequisite_transaction_ids=None
+    ):
         """
         Starts transaction.
 
@@ -3170,44 +3549,48 @@ class YtClient(ClientState):
         :rtype: str
 
         .. seealso:: `start_tx in the docs <https://ytsaurus.tech/docs/en/api/commands#start_tx>`_
-
         """
         return client_api.start_transaction(
             client=self,
             parent_transaction=parent_transaction, timeout=timeout, deadline=deadline, attributes=attributes,
-            type=type, sticky=sticky, prerequisite_transaction_ids=prerequisite_transaction_ids)
+            type=type, sticky=sticky, prerequisite_transaction_ids=prerequisite_transaction_ids
+        )
 
     def stop_pipeline(
-            self,
-            pipeline_path):
+        self,
+        pipeline_path
+    ):
         """
         Stop YT Flow pipeline.
 
         :param pipeline_path: path to pipeline.
-
         """
         return client_api.stop_pipeline(
             pipeline_path,
-            client=self)
+            client=self
+        )
 
     def suspend_operation(
-            self,
-            operation: str,
-            abort_running_jobs: bool = False, reason: str = None):
+        self,
+        operation: str,
+        abort_running_jobs: bool = False,
+        reason: str = None
+    ):
         """
         Suspends operation.
 
         :param str operation: operation id.
-
         """
         return client_api.suspend_operation(
             operation,
             client=self,
-            abort_running_jobs=abort_running_jobs, reason=reason)
+            abort_running_jobs=abort_running_jobs, reason=reason
+        )
 
     def transfer_account_resources(
-            self,
-            source_account, destination_account, resource_delta):
+        self,
+        source_account, destination_account, resource_delta
+    ):
         """
         Transfers resources between accounts.
 
@@ -3218,15 +3601,16 @@ class YtClient(ClientState):
         :param str source_account: account to transfer resources from.
         :param str destination_account: account to transfer resources to.
         :param resource_delta: the amount of transferred resources as a dict.
-
         """
         return client_api.transfer_account_resources(
             source_account, destination_account, resource_delta,
-            client=self)
+            client=self
+        )
 
     def transfer_pool_resources(
-            self,
-            source_pool, destination_pool, pool_tree, resource_delta):
+        self,
+        source_pool, destination_pool, pool_tree, resource_delta
+    ):
         """
         Transfers resources between pools.
 
@@ -3237,19 +3621,24 @@ class YtClient(ClientState):
         :param str source_pool: pool to transfer resources from.
         :param str destination_pool: pool to transfer resources to.
         :param resource_delta: the amount of transferred resources as a dict.
-
         """
         return client_api.transfer_pool_resources(
             source_pool, destination_pool, pool_tree, resource_delta,
-            client=self)
+            client=self
+        )
 
     def transform(
-            self,
-            source_table: Union[str, YPath],
-            destination_table: Union[str, YPath, None] = None, erasure_codec: Optional[Literal["isa_lrc_12_2_2", "lrc_12_2_2", "reed_solomon_6_3", "reed_solomon_3_3", "isa_reed_solomon_6_3"]] = None,  # noqa
-            compression_codec: Optional[Literal["none", "snappy", "lz4", "lz4_high_compression", "brotli_1", "brotli_2", "brotli_3", "brotli_4", "brotli_5", "brotli_6", "brotli_7", "brotli_8", "brotli_9", "brotli_10", "brotli_11", "zlib_1", "zlib_2", "zlib_3", "zlib_4", "zlib_5", "zlib_6", "zlib_7", "zlib_8", "zlib_9", "zstd_1", "zstd_2", "zstd_3", "zstd_4", "zstd_5", "zstd_6", "zstd_7", "zstd_8", "zstd_9", "zstd_10", "zstd_11", "zstd_12", "zstd_13", "zstd_14", "zstd_15", "zstd_16", "zstd_17", "zstd_18", "zstd_19", "zstd_20", "zstd_21", "lzma_0", "lzma_1", "lzma_2", "lzma_3", "lzma_4", "lzma_5", "lzma_6", "lzma_7", "lzma_8", "lzma_9", "bzip2_1", "bzip2_2", "bzip2_3", "bzip2_4", "bzip2_5", "bzip2_6", "bzip2_7", "bzip2_8", "bzip2_9", "zstd_fast_1", "zstd_fast_2", "zstd_fast_3", "zstd_fast_4", "zstd_fast_5", "zstd_fast_6", "zstd_fast_7", "zlib6", "gzip_normal", "zlib9", "gzip_best_compression", "zstd", "brotli3", "brotli5", "brotli8", "quick_lz"]] = None,  # noqa
-            desired_chunk_size: Optional[int] = None, spec: Union[SpecCommonType, Dict[str, Any], None] = None,
-            check_codecs: bool = False, optimize_for: Optional[Literal["lookup", "scan"]] = None, force_empty: bool = False) -> bool:
+        self,
+        source_table: Union[str, YPath],
+        destination_table: Union[str, YPath, None] = None,
+        erasure_codec: Optional[Literal["isa_lrc_12_2_2", "lrc_12_2_2", "reed_solomon_6_3", "reed_solomon_3_3", "isa_reed_solomon_6_3"]] = None,  # noqa
+        compression_codec: Optional[Literal["none", "snappy", "lz4", "lz4_high_compression", "brotli_1", "brotli_2", "brotli_3", "brotli_4", "brotli_5", "brotli_6", "brotli_7", "brotli_8", "brotli_9", "brotli_10", "brotli_11", "zlib_1", "zlib_2", "zlib_3", "zlib_4", "zlib_5", "zlib_6", "zlib_7", "zlib_8", "zlib_9", "zstd_1", "zstd_2", "zstd_3", "zstd_4", "zstd_5", "zstd_6", "zstd_7", "zstd_8", "zstd_9", "zstd_10", "zstd_11", "zstd_12", "zstd_13", "zstd_14", "zstd_15", "zstd_16", "zstd_17", "zstd_18", "zstd_19", "zstd_20", "zstd_21", "lzma_0", "lzma_1", "lzma_2", "lzma_3", "lzma_4", "lzma_5", "lzma_6", "lzma_7", "lzma_8", "lzma_9", "bzip2_1", "bzip2_2", "bzip2_3", "bzip2_4", "bzip2_5", "bzip2_6", "bzip2_7", "bzip2_8", "bzip2_9", "zstd_fast_1", "zstd_fast_2", "zstd_fast_3", "zstd_fast_4", "zstd_fast_5", "zstd_fast_6", "zstd_fast_7", "zlib6", "gzip_normal", "zlib9", "gzip_best_compression", "zstd", "brotli3", "brotli5", "brotli8", "quick_lz"]] = None,  # noqa
+        desired_chunk_size: Optional[int] = None,
+        spec: Union[SpecCommonType, Dict[str, Any], None] = None,
+        check_codecs: bool = False,
+        optimize_for: Optional[Literal["lookup", "scan"]] = None,
+        force_empty: bool = False
+    ) -> bool:
         """
         Transforms source table to destination table writing data with given compression and erasure codecs.
 
@@ -3261,18 +3650,19 @@ class YtClient(ClientState):
         :param check_codecs: do not transform if "compression", "erasure" and "optimize_for" are relevant
         :param force_empty: tranform even empty table
         :param spec: extra operation parameters
-
         """
         return client_api.transform(
             source_table,
             client=self,
             destination_table=destination_table, erasure_codec=erasure_codec, compression_codec=compression_codec,
             desired_chunk_size=desired_chunk_size, spec=spec, check_codecs=check_codecs, optimize_for=optimize_for,
-            force_empty=force_empty)
+            force_empty=force_empty
+        )
 
     def trim_rows(
-            self,
-            path, tablet_index, trimmed_row_count):
+        self,
+        path, tablet_index, trimmed_row_count
+    ):
         """
         Trim rows of the dynamic table.
 
@@ -3280,16 +3670,17 @@ class YtClient(ClientState):
         :type path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
         :param int tablet_index: tablet index.
         :param int trimmed_row_count: trimmed row count.
-
         """
         return client_api.trim_rows(
             path, tablet_index, trimmed_row_count,
-            client=self)
+            client=self
+        )
 
     def unfreeze_table(
-            self,
-            path,
-            first_tablet_index=None, last_tablet_index=None, sync=False):
+        self,
+        path,
+        first_tablet_index=None, last_tablet_index=None, sync=False
+    ):
         """
         Unfreezes the table.
 
@@ -3298,16 +3689,17 @@ class YtClient(ClientState):
         :param int first_tablet_index: first tablet index.
         :param int last_tablet_index: last tablet index, inclusive.
         :param bool sync: wait for completion.
-
         """
         return client_api.unfreeze_table(
             path,
             client=self,
-            first_tablet_index=first_tablet_index, last_tablet_index=last_tablet_index, sync=sync)
+            first_tablet_index=first_tablet_index, last_tablet_index=last_tablet_index, sync=sync
+        )
 
     def unlock(
-            self,
-            path):
+        self,
+        path
+    ):
         """
         Tries to unlock the path.
 
@@ -3317,16 +3709,17 @@ class YtClient(ClientState):
         contains changes compared to its original version, :class:`YtError <yt.common.YtError>` is raised.
 
         .. seealso:: `unlock in the docs <https://ytsaurus.tech/docs/en/user-guide/storage/transactions#locks>`_
-
         """
         return client_api.unlock(
             path,
-            client=self)
+            client=self
+        )
 
     def unmount_table(
-            self,
-            path,
-            first_tablet_index=None, last_tablet_index=None, force=None, sync=False):
+        self,
+        path,
+        first_tablet_index=None, last_tablet_index=None, force=None, sync=False
+    ):
         """
         Unmounts the table.
 
@@ -3338,17 +3731,18 @@ class YtClient(ClientState):
         unmounts the table immediately without flushing the dynamic stores.
         May cause data corruption.
         :param bool sync: wait for completion.
-
         """
         return client_api.unmount_table(
             path,
             client=self,
             first_tablet_index=first_tablet_index, last_tablet_index=last_tablet_index, force=force,
-            sync=sync)
+            sync=sync
+        )
 
     def unregister_queue_consumer(
-            self,
-            queue_path, consumer_path):
+        self,
+        queue_path, consumer_path
+    ):
         """
         Unregisters queue consumer.
 
@@ -3356,25 +3750,29 @@ class YtClient(ClientState):
         :type queue_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
         :param consumer_path: path to consumer table.
         :type consumer_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
-
         """
         return client_api.unregister_queue_consumer(
             queue_path, consumer_path,
-            client=self)
+            client=self
+        )
 
     def update_operation_parameters(
-            self,
-            operation_id: str, parameters: Mapping[str, Any]):
+        self,
+        operation_id: str,
+        parameters: Mapping[str, Any]
+    ):
         """
         Updates operation runtime parameters.
         """
         return client_api.update_operation_parameters(
             operation_id, parameters,
-            client=self)
+            client=self
+        )
 
     def upload_orc(
-            self,
-            table, input_file):
+        self,
+        table, input_file
+    ):
         """
         Upload `ORC <https://orc.apache.org/>` file as a table
 
@@ -3382,15 +3780,16 @@ class YtClient(ClientState):
         :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
         :param input_file: path to input file
         :type input_file: str
-
         """
         return client_api.upload_orc(
             table, input_file,
-            client=self)
+            client=self
+        )
 
     def upload_parquet(
-            self,
-            table, input_file):
+        self,
+        table, input_file
+    ):
         """
         Upload `Parquet <https://parquet.apache.org/docs>` file as a table
 
@@ -3398,17 +3797,18 @@ class YtClient(ClientState):
         :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
         :param input_file: path to input file
         :type input_file: str
-
         """
         return client_api.upload_parquet(
             table, input_file,
-            client=self)
+            client=self
+        )
 
     def write_file(
-            self,
-            destination, stream,
-            file_writer=None, is_stream_compressed=False, force_create=None, compute_md5=False,
-            size_hint=None, filename_hint=None, progress_monitor=None):
+        self,
+        destination, stream,
+        file_writer=None, is_stream_compressed=False, force_create=None, compute_md5=False, size_hint=None,
+        filename_hint=None, progress_monitor=None
+    ):
         """
         Uploads file to destination path from stream on local machine.
 
@@ -3421,19 +3821,25 @@ class YtClient(ClientState):
         disables write retries.
         :param bool force_create: unconditionally create file and ignores existing file.
         :param bool compute_md5: compute md5 of file content.
-
         """
         return client_api.write_file(
             destination, stream,
             client=self,
             file_writer=file_writer, is_stream_compressed=is_stream_compressed, force_create=force_create,
-            compute_md5=compute_md5, size_hint=size_hint, filename_hint=filename_hint, progress_monitor=progress_monitor)
+            compute_md5=compute_md5, size_hint=size_hint, filename_hint=filename_hint, progress_monitor=progress_monitor
+        )
 
     def write_table(
-            self,
-            table, input_stream,
-            format=None, table_writer=None, max_row_buffer_size=None, is_stream_compressed=False,
-            force_create=None, raw=None):
+        self,
+        table: Union[str, ForwardRef("TablePath")],
+        input_stream: Union[str, bytes, BinaryIO, Iterable],
+        format: Union[str, Format, None] = None,
+        table_writer: Optional[Dict[str, Any]] = None,
+        max_row_buffer_size: Optional[int] = None,
+        is_stream_compressed: Optional[bool] = False,
+        force_create: Optional[bool] = None,
+        raw: Optional[bool] = None
+    ):
         """
         Writes rows from input_stream to table.
 
@@ -3460,35 +3866,41 @@ class YtClient(ClientState):
         your own place for it ``config["remote_temp_files_directory"]``
 
         Writing is executed under self-pinged transaction.
-
         """
         return client_api.write_table(
             table, input_stream,
             client=self,
-            format=format, table_writer=table_writer, max_row_buffer_size=max_row_buffer_size, is_stream_compressed=is_stream_compressed,
-            force_create=force_create, raw=raw)
+            format=format, table_writer=table_writer, max_row_buffer_size=max_row_buffer_size, is_stream_compressed=is_stream_compressed,  # noqa
+            force_create=force_create, raw=raw
+        )
 
     def write_table_fragment(
-            self,
-            cookie: DistributedWriteSessionPacketType, input_stream: Union[str, bytes, Iterable, BinaryIO],
-            format: Optional[str] = None, raw: Optional[bool] = None, max_row_buffer_size: Optional[int] = None) -> DistributedWriteFragmentPacketType:
+        self,
+        cookie: DistributedWriteSessionPacketType,
+        input_stream: Union[str, bytes, Iterable, BinaryIO],
+        format: Optional[str] = None,
+        raw: Optional[bool] = None,
+        max_row_buffer_size: Optional[int] = None
+    ) -> DistributedWriteFragmentPacketType:
         """
         Write distribution table fragment
-
         """
         return client_api.write_table_fragment(
             cookie, input_stream,
             client=self,
-            format=format, raw=raw, max_row_buffer_size=max_row_buffer_size)
+            format=format, raw=raw, max_row_buffer_size=max_row_buffer_size
+        )
 
     def write_table_structured(
-            self,
-            table, row_type, input_stream,
-            table_writer=None, max_row_buffer_size=None, force_create=None):
+        self,
+        table, row_type, input_stream,
+        table_writer=None, max_row_buffer_size=None, force_create=None
+    ):
         """
         Writes rows from input_stream to table in structured format. Cf. docstring for write_table
         """
         return client_api.write_table_structured(
             table, row_type, input_stream,
             client=self,
-            table_writer=table_writer, max_row_buffer_size=max_row_buffer_size, force_create=force_create)
+            table_writer=table_writer, max_row_buffer_size=max_row_buffer_size, force_create=force_create
+        )
