@@ -12,12 +12,10 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_executable(unittester-queue-client)
+add_executable(unittester-client-queue-client)
 
 
-target_compile_options(unittester-queue-client PRIVATE
+target_compile_options(unittester-client-queue-client PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
   -Wparentheses
@@ -26,61 +24,61 @@ target_compile_options(unittester-queue-client PRIVATE
   -Wswitch
 )
 
-target_link_libraries(unittester-queue-client PUBLIC
-  linux-headers-generic::linux-headers-generic
+target_link_libraries(unittester-client-queue-client PUBLIC
   contrib-libs-cxxsupp
   yutil
   build-cow-on
   cpp-testing-gtest
   cpp-testing-gtest_main
-  yt-yt-ytlib
+  yt-yt-client
   yt-core-test_framework
 )
 
-target_allocator(unittester-queue-client
+target_allocator(unittester-client-queue-client
   cpp-malloc-tcmalloc
   libs-tcmalloc-default
 )
 
-target_link_options(unittester-queue-client PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
+target_link_options(unittester-client-queue-client PRIVATE
+  -Wl,-platform_version,macos,11.0,11.0
   -fPIC
   -fPIC
-  -lrt
-  -ldl
-  -lutil
+  -framework
+  CoreFoundation
+)
+
+target_sources(unittester-client-queue-client PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/queue_client/unittests/cross_cluster_reference_ut.cpp
 )
 
 
 add_test(
   NAME
-  unittester-queue-client
+  unittester-client-queue-client
   COMMAND
-  unittester-queue-client
+  unittester-client-queue-client
 )
 
 set_property(
   TEST
-  unittester-queue-client
+  unittester-client-queue-client
   PROPERTY
   LABELS
-  MEDIUM
+  SMALL
 )
 
 set_property(
   TEST
-  unittester-queue-client
+  unittester-client-queue-client
   PROPERTY
   ENVIRONMENT
 )
 
-vcs_info(unittester-queue-client)
+vcs_info(unittester-client-queue-client)
 
 set_property(
   TEST
-  unittester-queue-client
+  unittester-client-queue-client
   PROPERTY
   PROCESSORS
   1
