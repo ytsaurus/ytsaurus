@@ -1113,6 +1113,8 @@ void TScheduleAllocationsContext::PreemptAllocationsAfterScheduling(
         YT_VERIFY(operationElement);
 
         preemptorOperationLocalPreemptionPriority = GetOperationPreemptionPriority(operationElement, EOperationPreemptionPriorityScope::OperationOnly);
+
+        MaybeDelay(operationElement->Spec()->TestingOperationOptions->DelayBeforePreemptionForThisOperation);
     }
 
     SortAllocationsWithPreemptionInfo(&preemptibleAllocations);
@@ -1237,6 +1239,31 @@ void TScheduleAllocationsContext::PreemptAllocationsAfterScheduling(
             continue;
         }
 
+        if (treeConfig->UsePrecommitForPreemption) {
+            std::string violatedId;
+            auto increaseStatus = operationElement->TryIncreaseHierarchicalPreemptedResourceUsagePrecommit(allocation->ResourceUsage(), &violatedId);
+            if (increaseStatus != EResourceTreeIncreasePreemptedResult::Success) {
+                continue;
+            }
+
+            if (violatedId == operationElement->GetId()) {
+                allocation->SetPreemptionReason(
+                    Format("Preempted due to violation of resource limits of operation %v",
+                    violatedId));
+            } else {
+                allocation->SetPreemptionReason(
+                    Format("Preempted due to violation of limits on pool %Qv",
+                    violatedId));
+            }
+
+            PreemptAllocation(
+                allocation,
+                operationElement,
+                EAllocationPreemptionReason::ResourceLimitsViolated,
+                /*commitPreemptedResourceUsage*/ true);
+            continue;
+        }
+
         if (operationElement->AreSpecifiedResourceLimitsViolated()) {
             allocation->SetPreemptionReason(
                 Format("Preempted due to violation of resource limits of operation %v",
@@ -1296,17 +1323,26 @@ void TScheduleAllocationsContext::AbortAllocationsSinceResourcesOvercommit() con
 void TScheduleAllocationsContext::PreemptAllocation(
     const TAllocationPtr& allocation,
     TPoolTreeOperationElement* element,
-    EAllocationPreemptionReason preemptionReason) const
+    EAllocationPreemptionReason preemptionReason,
+    bool commitPreemptedResourceUsage) const
 {
+    MaybeDelay(element->Spec()->TestingOperationOptions->DelayBeforeAllocationPreemption);
+
     SchedulingHeartbeatContext_->ResourceUsage() -= allocation->ResourceUsage();
     allocation->ResourceUsage() = TJobResources();
 
     const auto& operationSharedState = GetPoolTreeSnapshotState(TreeSnapshot_)->GetEnabledOperationSharedState(element);
-    operationSharedState->ProcessAllocationUpdate(
-        element,
-        allocation->GetId(),
-        TJobResources(),
-        /*resetPreemptibleProgress*/ false);
+    if (commitPreemptedResourceUsage) {
+        operationSharedState->ProcessAllocationPreemption(
+            element,
+            allocation->GetId());
+    } else {
+        operationSharedState->ProcessAllocationUpdate(
+            element,
+            allocation->GetId(),
+            TJobResources(),
+            /*resetPreemptibleProgress*/ false);
+    }
 
     SchedulingHeartbeatContext_->PreemptAllocation(
         allocation,

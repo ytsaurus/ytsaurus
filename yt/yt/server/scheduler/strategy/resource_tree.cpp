@@ -34,12 +34,21 @@ void TResourceTree::UpdateConfig(const TStrategyTreeConfigPtr& config)
 {
     YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-    EnableStructureLockProfiling.store(config->EnableResourceTreeStructureLockProfiling);
-    EnableUsageLockProfiling.store(config->EnableResourceTreeUsageLockProfiling);
+    EnableStructureLockProfiling_.store(config->EnableResourceTreeStructureLockProfiling);
+    EnableUsageLockProfiling_.store(config->EnableResourceTreeUsageLockProfiling);
     ResourceTreeInitializeResourceUsageDelay_ = config->TestingOptions->ResourceTreeInitializeResourceUsageDelay;
     ResourceTreeReleaseResourcesRandomDelay_ = config->TestingOptions->ResourceTreeReleaseResourcesRandomDelay;
     ResourceTreeIncreaseLocalResourceUsagePrecommitRandomDelay_ = config->TestingOptions->ResourceTreeIncreaseLocalResourceUsagePrecommitRandomDelay;
     ResourceTreeRevertResourceUsagePrecommitRandomDelay_ = config->TestingOptions->ResourceTreeRevertResourceUsagePrecommitRandomDelay;
+
+    if (config->UsePrecommitForPreemption != UsePrecommitForPreemption_) {
+        auto structureGuard = WriterGuard(StructureLock_);
+
+        ResetPreemptedResourceUsagePrecommit();
+
+        UsePrecommitForPreemption_.store(config->UsePrecommitForPreemption);
+        YT_LOG_DEBUG("Switch precommit preemption setting (Enabled: %v)", UsePrecommitForPreemption_);
+    }
 }
 
 void TResourceTree::AttachParent(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& parent)
@@ -83,11 +92,17 @@ void TResourceTree::ChangeParent(
 
     DoIncreaseHierarchicalResourceUsage(element->Parent_.Get(), -element->ResourceUsage_);
     DoIncreaseHierarchicalResourceUsagePrecommit(element->Parent_.Get(), -element->ResourceUsagePrecommit_);
+    if (UsePrecommitForPreemption_) {
+        DoIncreaseHierarchicalPreemptedResourceUsagePrecommit(element->Parent_.Get(), -element->PreemptedResourceUsagePrecommit_);
+    }
 
     element->Parent_ = newParent;
 
     DoIncreaseHierarchicalResourceUsage(newParent, element->ResourceUsage_);
     DoIncreaseHierarchicalResourceUsagePrecommit(newParent, element->ResourceUsagePrecommit_);
+    if (UsePrecommitForPreemption_) {
+        DoIncreaseHierarchicalPreemptedResourceUsagePrecommit(newParent, element->PreemptedResourceUsagePrecommit_);
+    }
 
     if (calculateTransientResourceUsage) {
         element->ResourceUsage_ = TJobResources();
@@ -128,7 +143,8 @@ void TResourceTree::ReleaseResources(const TResourceTreeElementPtr& element, boo
 
         TJobResources usagePrecommit;
         TJobResources usage;
-        element->ReleaseResources(&usagePrecommit, &usage);
+        TJobResources preemptedUsagePrecommit;
+        element->ReleaseResources(&usagePrecommit, &usage, &preemptedUsagePrecommit);
 
         YT_LOG_DEBUG("Strong release of element resources (Id: %v, Usage: %v, UsagePrecommit: %v)",
             element->GetId(),
@@ -139,16 +155,25 @@ void TResourceTree::ReleaseResources(const TResourceTreeElementPtr& element, boo
 
         DoIncreaseHierarchicalResourceUsagePrecommit(element->Parent_, -usagePrecommit, /*enableDetailedLogs*/ true);
         DoIncreaseHierarchicalResourceUsage(element->Parent_, -usage);
+
+        if (UsePrecommitForPreemption_) {
+            DoIncreaseHierarchicalPreemptedResourceUsagePrecommit(element->Parent_, -preemptedUsagePrecommit);
+        }
     } else {
         // Relaxed way to release resources.
         auto usagePrecommit = element->GetResourceUsagePrecommit();
         auto usage = element->GetResourceUsage();
+        auto preemptedUsagePrecommit = element->GetPreemptedResourceUsagePrecommit();
         YT_LOG_DEBUG("Relaxed release of element resources (Id: %v, Usage: %v, UsagePrecommit: %v)",
             element->GetId(),
             FormatResources(usage),
             FormatResources(usagePrecommit));
         DoIncreaseHierarchicalResourceUsagePrecommit(element, -usagePrecommit);
         DoIncreaseHierarchicalResourceUsage(element, -usage);
+
+        if (UsePrecommitForPreemption_) {
+            DoIncreaseHierarchicalPreemptedResourceUsagePrecommit(element, -preemptedUsagePrecommit);
+        }
     }
 }
 
@@ -376,6 +401,149 @@ void TResourceTree::CommitHierarchicalResourceUsage(
     }
 }
 
+EResourceTreeIncreasePreemptedResult TResourceTree::TryIncreaseHierarchicalPreemptedResourceUsagePrecommit(
+    const TResourceTreeElementPtr& element,
+    const TJobResources& delta,
+    std::string* violatedIdOutput)
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    if (!element->GetAlive()) {
+        return EResourceTreeIncreasePreemptedResult::ElementIsNotAlive;
+    }
+
+    auto guard = ReaderGuard(StructureLock_);
+
+    if (!UsePrecommitForPreemption_) {
+        YT_LOG_DEBUG("Skip increasing precommit preempted usage because it is disabled");
+        return EResourceTreeIncreasePreemptedResult::NoResourceLimitsViolation;
+    }
+
+    auto elementGuard = element->AcquireWriteLock();
+
+    IncrementStructureLockReadCount();
+
+    YT_VERIFY(element->Kind_ == EResourceTreeElementKind::Operation);
+    YT_VERIFY(element->Initialized_);
+
+    TResourceTreeElement* elementWithViolatedLimits = nullptr;
+
+    if (element->AreSpecifiedResourceLimitsViolatedUnsafe(/*considerPreemptedPrecommited*/ true)) {
+        elementWithViolatedLimits = element.Get();
+    }
+
+    auto increaseLocalPreemptedResourceUsagePrecommitUnsafe = [element] (auto* current, const TJobResources& delta) {
+        auto precommitStatus = current->IncreaseLocalPreemptedResourceUsagePrecommitUnsafe(delta);
+        YT_LOG_DEBUG_UNLESS(
+            precommitStatus,
+            "Local increase of precommit preempted resource usage failed "
+            "(ResourceUsageDelta: %v, CurrentElement: %v, SourceElement: %v)",
+            delta,
+            current->GetId(),
+            element->GetId());
+        return precommitStatus;
+    };
+
+    if (!increaseLocalPreemptedResourceUsagePrecommitUnsafe(element.Get(), delta)) {
+        return EResourceTreeIncreasePreemptedResult::ElementIsNotAlive;
+    }
+
+    TResourceTreeElement* failedParent = nullptr;
+    TResourceTreeElement* current = element->Parent_.Get();
+    while (current) {
+        auto currentGuard = current->AcquireWriteLock();
+        if (!elementWithViolatedLimits && current->AreSpecifiedResourceLimitsViolatedUnsafe(/*considerPreemptedPrecommited*/ true)) {
+            elementWithViolatedLimits = current;
+        }
+
+        auto precommitStatus = increaseLocalPreemptedResourceUsagePrecommitUnsafe(current, delta);
+        if (!precommitStatus) {
+            failedParent = current;
+            break;
+        }
+
+        current = current->Parent_.Get();
+    }
+
+    if (!elementWithViolatedLimits || failedParent) {
+        YT_VERIFY(increaseLocalPreemptedResourceUsagePrecommitUnsafe(element.Get(), -delta));
+        current = element->Parent_.Get();
+
+        while (current && current != failedParent) {
+            YT_VERIFY(increaseLocalPreemptedResourceUsagePrecommitUnsafe(current, -delta));
+
+            current = current->Parent_.Get();
+        }
+
+        return EResourceTreeIncreasePreemptedResult::NoResourceLimitsViolation;
+    }
+
+    *violatedIdOutput = elementWithViolatedLimits->GetId();
+
+    return EResourceTreeIncreasePreemptedResult::Success;
+}
+
+bool TResourceTree::CommitHierarchicalPreemptedResourceUsage(
+    const TResourceTreeElementPtr& element,
+    const TJobResources& resourceUsageDelta)
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    auto guard = ReaderGuard(StructureLock_);
+
+    IncrementStructureLockReadCount();
+
+    if (!UsePrecommitForPreemption_) {
+        YT_LOG_DEBUG("Skip commiting precommit preempted usage because UsePrecommitForPreemption is disabled");
+        return false;
+    }
+
+    YT_VERIFY(element->Kind_ == EResourceTreeElementKind::Operation);
+    YT_VERIFY(element->Initialized_);
+
+    auto commitLocalPreemptedResourceUsage = [&] (auto* current) -> bool {
+        bool success = current->CommitLocalPreemptedResourceUsage(resourceUsageDelta);
+        YT_LOG_DEBUG_UNLESS(
+            success,
+            "Local commit of preempted usage failed (ResourceUsageDelta: %v, CurrentElement: %v, SourceElement: %v)",
+            resourceUsageDelta,
+            current->GetId(),
+            element->GetId());
+        return success;
+    };
+
+    if (!commitLocalPreemptedResourceUsage(element.Get())) {
+        return false;
+    }
+
+    auto* current = element->Parent_.Get();
+    while (current) {
+        YT_VERIFY(commitLocalPreemptedResourceUsage(current));
+        current = current->Parent_.Get();
+    }
+
+    return true;
+}
+
+void TResourceTree::DoIncreaseHierarchicalPreemptedResourceUsagePrecommit(
+    const TResourceTreeElementPtr& element,
+    const TJobResources& delta)
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    YT_VERIFY(element->Initialized_);
+
+    if (!element->IncreaseLocalPreemptedResourceUsagePrecommit(delta)) {
+        return;
+    }
+
+    auto* current = element->Parent_.Get();
+    while (current) {
+        YT_VERIFY(current->IncreaseLocalPreemptedResourceUsagePrecommit(delta));
+        current = current->Parent_.Get();
+    }
+}
+
 void TResourceTree::PerformPostponedActions()
 {
     YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
@@ -402,28 +570,28 @@ void TResourceTree::PerformPostponedActions()
 
 void TResourceTree::IncrementStructureLockReadCount()
 {
-    if (EnableStructureLockProfiling) {
+    if (EnableStructureLockProfiling_) {
         StructureLockReadCount_.Increment();
     }
 }
 
 void TResourceTree::IncrementStructureLockWriteCount()
 {
-    if (EnableStructureLockProfiling) {
+    if (EnableStructureLockProfiling_) {
         StructureLockWriteCount_.Increment();
     }
 }
 
 void TResourceTree::IncrementUsageLockReadCount()
 {
-    if (EnableUsageLockProfiling) {
+    if (EnableUsageLockProfiling_) {
         UsageLockReadCount_.Increment();
     }
 }
 
 void TResourceTree::IncrementUsageLockWriteCount()
 {
-    if (EnableUsageLockProfiling) {
+    if (EnableUsageLockProfiling_) {
         UsageLockWriteCount_.Increment();
     }
 }
@@ -434,11 +602,13 @@ void TResourceTree::DoInitializeResourceUsageFor(
 {
     TJobResources newResourceUsage;
     TJobResources newResourceUsagePrecommit;
+    TJobResources newPreemptedResourceUsagePrecommit;
     for (auto element : operationElements) {
         auto guard = ReaderGuard(element->ResourceUsageLock_);
         YT_VERIFY(AliveElements_.contains(element));
         newResourceUsage += element->ResourceUsage_;
         newResourceUsagePrecommit += element->ResourceUsagePrecommit_;
+        newPreemptedResourceUsagePrecommit += element->PreemptedResourceUsagePrecommit_;
     }
 
     {
@@ -446,12 +616,18 @@ void TResourceTree::DoInitializeResourceUsageFor(
         IncrementUsageLockWriteCount();
         targetElement->ResourceUsage_ = newResourceUsage;
         targetElement->ResourceUsagePrecommit_ = newResourceUsagePrecommit;
+        if (UsePrecommitForPreemption_) {
+            targetElement->PreemptedResourceUsagePrecommit_ = newPreemptedResourceUsagePrecommit;
+        }
     }
 
-    YT_LOG_DEBUG("Resource usage initialized for element in resource tree (Id: %v, ResourceUsage: %v, ResourceUsagePrecommit: %v)",
+    YT_LOG_DEBUG(
+        "Resource usage initialized for element in resource tree "
+        "(Id: %v, ResourceUsage: %v, ResourceUsagePrecommit: %v, PreemptedResourceUsagePrecommit: %v)",
         targetElement->Id_,
         FormatResources(newResourceUsage),
-        FormatResources(newResourceUsagePrecommit));
+        FormatResources(newResourceUsagePrecommit),
+        FormatResources(newPreemptedResourceUsagePrecommit));
 }
 
 TWriterGuard<TReaderWriterSpinLock> TResourceTree::AcquireStructureLock()
@@ -471,6 +647,13 @@ void TResourceTree::InitializeResourceUsageFor(
     // All changes of tree structure performed from Control thread, thus we guarantee that
     // all operations are alive.
     DoInitializeResourceUsageFor(targetElement, operationElements);
+}
+
+void TResourceTree::ResetPreemptedResourceUsagePrecommit()
+{
+    for (auto element : AliveElements_) {
+        YT_VERIFY(element->ResetLocalPreemptedResourceUsagePrecommit());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

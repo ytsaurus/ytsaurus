@@ -106,6 +106,11 @@ class TestSchedulerPreemption(YTEnvSetup):
         }
     }
 
+    @pytest.fixture(scope="class", autouse=True, params=[True, False])
+    def _setup_preempted_usage_precommit(self, request):
+        request.cls.use_precommit_for_preemption = request.param
+        yield
+
     def setup_method(self, method):
         super(TestSchedulerPreemption, self).setup_method(method)
         sync_create_cells(1)
@@ -120,6 +125,7 @@ class TestSchedulerPreemption(YTEnvSetup):
             "non_preemptible_resource_usage_threshold": {"user_slots": 0},
             "preemptive_scheduling_backoff": 0,
             "allocation_graceful_preemption_timeout": 10000,
+            "use_precommit_for_preemption": self.use_precommit_for_preemption,
         })
 
     @authors("ignat")
@@ -903,6 +909,11 @@ class TestPreemptibleProgressUpdate(YTEnvSetup):
         }
     }
 
+    @pytest.fixture(scope="class", autouse=True, params=[True, False])
+    def _setup_preempted_usage_precommit(self, request):
+        request.cls.use_precommit_for_preemption = request.param
+        yield
+
     def setup_method(self, method):
         super().setup_method(method)
         self._work_dir = os.getcwd()
@@ -916,6 +927,7 @@ class TestPreemptibleProgressUpdate(YTEnvSetup):
             "non_preemptible_resource_usage_threshold": {"user_slots": 0},
             "preemptive_scheduling_backoff": 0,
             "allocation_graceful_preemption_timeout": 10000,
+            "use_precommit_for_preemption": self.use_precommit_for_preemption,
         })
 
     def teardown_method(self, method, wait_for_nodes=True):
@@ -1094,6 +1106,11 @@ class TestNonPreemptibleResourceUsageThreshold(YTEnvSetup):
         },
     }
 
+    @pytest.fixture(scope="class", autouse=True, params=[True, False])
+    def _setup_preempted_usage_precommit(self, request):
+        request.cls.use_precommit_for_preemption = request.param
+        yield
+
     def setup_method(self, method):
         super(TestNonPreemptibleResourceUsageThreshold, self).setup_method(method)
 
@@ -1102,6 +1119,7 @@ class TestNonPreemptibleResourceUsageThreshold(YTEnvSetup):
             "preemption_satisfaction_threshold": 0.9,
             "fair_share_starvation_tolerance": 1.0,
             "non_preemptible_resource_usage_threshold": {},
+            "use_precommit_for_preemption": self.use_precommit_for_preemption,
         })
 
     def _check_preemptible_job_count(self, op, expected_preemptible_count, expected_aggressively_preemptible_count):
@@ -1242,6 +1260,11 @@ class TestPreemptionPriorityScope(YTEnvSetup):
         },
     }
 
+    @pytest.fixture(scope="class", autouse=True, params=[True, False])
+    def _setup_preempted_usage_precommit(self, request):
+        request.cls.use_precommit_for_preemption = request.param
+        yield
+
     @authors("eshcherbin")
     def test_preemption_priority_scope(self):
         update_pool_tree_config(
@@ -1253,6 +1276,7 @@ class TestPreemptionPriorityScope(YTEnvSetup):
                 "non_preemptible_resource_usage_threshold": {"user_slots": 0},
                 "preemptive_scheduling_backoff": 0,
                 "scheduling_preemption_priority_scope": "operation_only",
+                "use_precommit_for_preemption": self.use_precommit_for_preemption,
             })
 
         create_pool("first", attributes={"strong_guarantee_resources": {"cpu": 4.9, "user_slots": 5}})
@@ -1305,6 +1329,11 @@ class TestRacyPreemption(YTEnvSetup):
         },
     }
 
+    @pytest.fixture(scope="class", autouse=True, params=[True, False])
+    def _setup_preempted_usage_precommit(self, request):
+        request.cls.use_precommit_for_preemption = request.param
+        yield
+
     def setup_method(self, method):
         super(TestRacyPreemption, self).setup_method(method)
         update_pool_tree_config("default", {
@@ -1313,6 +1342,7 @@ class TestRacyPreemption(YTEnvSetup):
             "non_preemptible_resource_usage_threshold": {"user_slots": 0},
             "fair_share_starvation_timeout": 0,
             "preemptive_scheduling_backoff": 0,
+            "use_precommit_for_preemption": self.use_precommit_for_preemption,
         })
 
     def teardown_method(self, method):
@@ -1405,11 +1435,17 @@ class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {"job_resource_manager": {"resource_limits": {"cpu": 2, "user_slots": 2}}}
 
+    @pytest.fixture(scope="class", autouse=True, params=[True, False])
+    def _setup_preempted_usage_precommit(self, request):
+        request.cls.use_precommit_for_preemption = request.param
+        yield
+
     def setup_method(self, method):
         super(TestResourceLimitsOverdraftPreemption, self).setup_method(method)
         update_pool_tree_config("default", {
             "allocation_graceful_preemption_timeout": 10000,
             "allocation_preemption_timeout": 600000,
+            "use_precommit_for_preemption": self.use_precommit_for_preemption,
         })
 
     def teardown_method(self, method):
@@ -1554,6 +1590,11 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {"scheduler": {"fair_share_update_period": 100}}
 
+    @pytest.fixture(scope="class", autouse=True, params=[True, False])
+    def _setup_preempted_usage_precommit(self, request):
+        request.cls.use_precommit_for_preemption = request.param
+        yield
+
     def setup_method(self, method):
         super(TestSchedulerAggressivePreemption, self).setup_method(method)
         update_pool_tree_config("default", {
@@ -1565,6 +1606,7 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
             "fair_share_aggressive_starvation_timeout": 200,
             "preemptive_scheduling_backoff": 0,
             "max_ephemeral_pools_per_user": 5,
+            "use_precommit_for_preemption": self.use_precommit_for_preemption,
         })
 
         nodes = ls("//sys/cluster_nodes")
@@ -1725,6 +1767,11 @@ class TestSchedulerAggressivePreemption2(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {"scheduler": {"fair_share_update_period": 100}}
 
+    @pytest.fixture(scope="class", autouse=True, params=[True, False])
+    def _setup_preempted_usage_precommit(self, request):
+        request.cls.use_precommit_for_preemption = request.param
+        yield
+
     def setup_method(self, method):
         super(TestSchedulerAggressivePreemption2, self).setup_method(method)
         update_pool_tree_config("default", {
@@ -1733,6 +1780,7 @@ class TestSchedulerAggressivePreemption2(YTEnvSetup):
             "fair_share_starvation_timeout": 100,
             "non_preemptible_resource_usage_threshold": {"user_slots": 2},
             "preemptive_scheduling_backoff": 0,
+            "use_precommit_for_preemption": self.use_precommit_for_preemption,
         })
 
     @classmethod

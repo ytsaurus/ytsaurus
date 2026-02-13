@@ -671,6 +671,9 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("consider_single_allocation_vanilla_operations_as_gang", &TThis::ConsiderSingleAllocationVanillaOperationsAsGang)
         .Default(true);
 
+    registrar.Parameter("use_precommit_for_preemption", &TThis::UsePrecommitForPreemption)
+        .Default(false);
+
     registrar.Parameter("gpu_scheduling_policy", &TThis::GpuSchedulingPolicy)
         .DefaultNew();
 
