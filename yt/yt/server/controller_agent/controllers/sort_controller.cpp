@@ -3083,6 +3083,9 @@ void TSortControllerBase::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(45, UnorderedFinalPartitions_);
     PHOENIX_REGISTER_FIELD(46, UnprocessedPhysicalPartitionsCount_);
 
+    PHOENIX_REGISTER_FIELD(47, PartitionsDispatchStatistics_,
+        .SinceVersion(ESnapshotVersion::FixPartitionsDispatchStatistics));
+
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         if (!this_->SimpleSortTask_) {
             this_->SetupPartitioningCompletedCallbacks();
