@@ -2343,7 +2343,7 @@ private:
         {
             YT_ASSERT_INVOKER_AFFINITY(Session_->SessionInvoker_);
 
-            if (Session_->ShouldThrottle(GetPeer(isPrimaryRequest).Address, ThrottlingCondition_)) {
+            if (Session_->ShouldThrottle(GetPeer(isPrimaryRequest).Id, ThrottlingCondition_)) {
                 YT_VERIFY(BlockIndexes_.size() <= Session_->BlockIndexes_.size());
                 // NB: Some blocks are read from cache hence we need to further estimate throttling amount.
                 auto requestedBlocksEstimatedSize = *Session_->EstimatedSize_ * std::ssize(BlockIndexes_) /
@@ -2387,8 +2387,7 @@ private:
             const auto& peer = GetPeer(isPrimaryRequest);
             auto future = Session_->RequestBatcher_->GetBlockSet(
                 IRequestBatcher::TRequest{
-                    .Address = peer.Address,
-                    .Channel = Session_->GetChannel(peer.Address),
+                    .Channel = Session_->GetChannel(peer.Id),
                     .BlockIndexes = BlockIndexes_,
                     .Session = Session_,
                     .Barriers = Barriers_,
@@ -3049,7 +3048,6 @@ private:
 
             future = RequestBatcher_->GetBlockSet(
                 IRequestBatcher::TRequest{
-                    .Address = primaryAddress,
                     .Channel = channel,
                     .BlockIndexes = blockIndexes,
                     .Session = MakeStrong(this),

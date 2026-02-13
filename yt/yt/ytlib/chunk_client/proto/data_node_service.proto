@@ -284,7 +284,7 @@ message TReqGetBlockSet
     optional bool enable_p2p = 14 [default = true];
     optional bool fetch_node_descriptors = 15 [default = false];
 
-    optional TChunkReplicaSpec replica_spec = 14;
+    optional TChunkReplicaSpec replica_spec = 16;
 
     reserved 3, 4, 9;
 }
