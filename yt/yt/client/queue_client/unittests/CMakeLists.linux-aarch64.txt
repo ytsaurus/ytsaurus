@@ -38,8 +38,7 @@ target_link_libraries(unittester-client-queue-client PUBLIC
 )
 
 target_allocator(unittester-client-queue-client
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
+  system_allocator
 )
 
 target_link_options(unittester-client-queue-client PRIVATE
