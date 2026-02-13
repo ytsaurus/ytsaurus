@@ -26,6 +26,11 @@ struct TBundleProfilingCounters
     NProfiling::TCounter BasicTableAttributesRequestCount;
     NProfiling::TCounter ActualTableSettingsRequestCount;
     NProfiling::TCounter TableStatisticsRequestCount;
+    NProfiling::TCounter DirectStateRequest;
+    NProfiling::TCounter DirectStatisticsRequest;
+    NProfiling::TCounter DirectPerformanceCountersRequest;
+    NProfiling::TCounter StateRequestThrottled;
+    NProfiling::TCounter StatisticsRequestThrottled;
 
     explicit TBundleProfilingCounters(const NProfiling::TProfiler& profiler);
 };
