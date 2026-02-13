@@ -296,11 +296,14 @@ public:
 
         if (Options_->MessageOfTheDay) {
             auto path = NFS::CombinePaths(preparationDir, ".motd");
+            auto pathInContainer = NFS::CombinePaths(workingDir, ".motd");
 
             try {
                 TFile file(path, CreateAlways | WrOnly | Seq | CloseOnExec);
                 TUnbufferedFileOutput output(file);
                 output.Write(Options_->MessageOfTheDay->c_str(), Options_->MessageOfTheDay->size());
+
+                AddFileBindFromUserJobNamespace(pathInContainer);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error saving shell message file")
                     << ex
@@ -309,11 +312,14 @@ public:
         }
         if (Options_->Bashrc) {
             auto path = NFS::CombinePaths(preparationDir, ".bashrc");
+            auto pathInContainer = NFS::CombinePaths(workingDir, ".bashrc");
 
             try {
                 TFile file(path, CreateAlways | WrOnly | Seq | CloseOnExec);
                 TUnbufferedFileOutput output(file);
                 output.Write(Options_->Bashrc->c_str(), Options_->Bashrc->size());
+
+                AddFileBindFromUserJobNamespace(pathInContainer);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error saving shell config file")
                     << ex
@@ -325,6 +331,10 @@ public:
             auto toolConfig = New<TSpawnShellConfig>();
             toolConfig->Command = Options_->Command;
             auto args = GenerateToolArguments<TSpawnShellTool>(toolConfig);
+
+            if (!Options_->Binds.empty()) {
+                launcher->SetBinds(Options_->Binds);
+            }
 
             Instance_ = WaitFor(launcher->Launch(ShellToolPath, args, env))
                 .ValueOrThrow();
@@ -357,6 +367,17 @@ public:
 private:
     const IPortoExecutorPtr PortoExecutor_;
     IInstancePtr Instance_;
+
+    void AddFileBindFromUserJobNamespace(const std::string& pathInContainer)
+    {
+        TBind bind;
+        // Porto resolves the source path in the fs of the parent container.
+        // Although we are running a shell, the parent container is uj.
+        bind.SourcePath = pathInContainer;
+        bind.TargetPath = pathInContainer;
+        bind.ReadOnly = true;
+        Options_->Binds.push_back(std::move(bind));
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

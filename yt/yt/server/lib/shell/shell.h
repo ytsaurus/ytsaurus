@@ -27,6 +27,7 @@ struct TShellOptions
     std::vector<TString> Environment;
     std::optional<TString> Bashrc;
     std::optional<TString> MessageOfTheDay;
+    std::vector<NContainers::TBind> Binds;
     TDuration InactivityTimeout;
     std::optional<TString> Command;
     TString ContainerName;
