@@ -3,7 +3,6 @@
 #include "helpers.h"
 #include "private.h"
 
-#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/format.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
@@ -34,12 +33,14 @@ struct TChunkFileReaderDataBufferTag
 struct TChunkFileReaderMetaBufferTag
 { };
 
+////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 template <class T>
 void ReadHeader(
     const TSharedRef& metaFileBlob,
-    const TString& fileName,
+    const std::string& fileName,
     TChunkMetaHeader_2* metaHeader,
     TRef* metaBlob)
 {
@@ -53,6 +54,117 @@ void ReadHeader(
 }
 
 } // namespace
+
+////////////////////////////////////////////////////////////////////////////
+
+TRefCountedChunkMetaPtr DeserializeMeta(
+    TSharedRef metaFileBlob,
+    const std::string& chunkMetaFilename,
+    TChunkId chunkId,
+    TDumpBrokenMetaCallback dumpBrokenMetaCallback)
+{
+    if (metaFileBlob.Size() < sizeof(TChunkMetaHeaderBase)) {
+        THROW_ERROR_EXCEPTION(
+            NChunkClient::EErrorCode::BrokenChunkFileMeta,
+            "Chunk meta file %v is too short: at least %v bytes expected",
+            chunkMetaFilename,
+            sizeof(TChunkMetaHeaderBase));
+    }
+
+    TChunkMetaHeader_2 metaHeader;
+    TRef metaBlob;
+    const auto* metaHeaderBase = reinterpret_cast<const TChunkMetaHeaderBase*>(metaFileBlob.Begin());
+
+    switch (metaHeaderBase->Signature) {
+        case TChunkMetaHeader_1::ExpectedSignature:
+            ReadHeader<TChunkMetaHeader_1>(metaFileBlob, chunkMetaFilename, &metaHeader, &metaBlob);
+            metaHeader.ChunkId = chunkId;
+            break;
+
+        case TChunkMetaHeader_2::ExpectedSignature:
+            ReadHeader<TChunkMetaHeader_2>(metaFileBlob, chunkMetaFilename, &metaHeader, &metaBlob);
+            break;
+
+        default:
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::BrokenChunkFileMeta,
+                "Incorrect header signature %x in chunk meta file %v",
+                metaHeaderBase->Signature,
+                chunkMetaFilename);
+    }
+
+    auto checksum = GetChecksum(metaBlob);
+    if (checksum != metaHeader.Checksum) {
+        if (dumpBrokenMetaCallback) {
+            dumpBrokenMetaCallback(metaBlob);
+        }
+        THROW_ERROR_EXCEPTION(
+            NChunkClient::EErrorCode::BrokenChunkFileMeta,
+            "Incorrect checksum in chunk meta file %v: expected %x, actual %x",
+            chunkMetaFilename,
+            metaHeader.Checksum,
+            checksum)
+            << TErrorAttribute("meta_file_length", metaFileBlob.Size());
+    }
+
+    if (chunkId != NullChunkId && metaHeader.ChunkId != chunkId) {
+        THROW_ERROR_EXCEPTION("Invalid chunk id in meta file %v: expected %v, actual %v",
+            chunkMetaFilename,
+            chunkId,
+            metaHeader.ChunkId);
+    }
+
+    TChunkMeta meta;
+    if (!TryDeserializeProtoWithEnvelope(&meta, metaBlob)) {
+        THROW_ERROR_EXCEPTION("Failed to parse chunk meta file %v",
+            chunkMetaFilename);
+    }
+
+    return New<TRefCountedChunkMeta>(std::move(meta));
+}
+
+std::vector<TBlock> DeserializeBlocks(
+    TSharedRef blocksBlob,
+    TBlockRange blockRange,
+    bool validateBlockChecksums,
+    const std::string& chunkFileName,
+    const TBlocksExtPtr& blocksExt,
+    TDumpBrokenBlockCallback dumpBrokenBlockCallback)
+{
+    const auto& firstBlockInfo = blocksExt->Blocks[blockRange.StartBlockIndex];
+
+    std::vector<TBlock> blocks;
+    blocks.reserve(blockRange.EndBlockIndex - blockRange.StartBlockIndex);
+
+    for (int blockIndex = blockRange.StartBlockIndex; blockIndex < blockRange.EndBlockIndex; ++blockIndex) {
+        const auto& blockInfo = blocksExt->Blocks[blockIndex];
+        auto block = blocksBlob.Slice(
+            blockInfo.Offset - firstBlockInfo.Offset,
+            blockInfo.Offset - firstBlockInfo.Offset + blockInfo.Size);
+        if (validateBlockChecksums) {
+            auto checksum = GetChecksum(block);
+            if (checksum != blockInfo.Checksum) {
+                if (dumpBrokenBlockCallback) {
+                    dumpBrokenBlockCallback(blockIndex, blockInfo, block);
+                }
+                THROW_ERROR_EXCEPTION(
+                    NChunkClient::EErrorCode::IncorrectChunkFileChecksum,
+                    "Incorrect checksum of block %v in chunk data file %v: expected %v, actual %v",
+                    blockIndex,
+                    chunkFileName,
+                    blockInfo.Checksum,
+                    checksum)
+                    << TErrorAttribute("first_block_index", blockRange.StartBlockIndex)
+                    << TErrorAttribute("block_count", blockRange.EndBlockIndex - blockRange.StartBlockIndex);
+            }
+        }
+        blocks.emplace_back(block, blockInfo.Checksum);
+    }
+
+    return blocks;
+}
+
+////////////////////////////////////////////////////////////////////////////
 
 TChunkFileReader::TChunkFileReader(
     IIOEnginePtr ioEngine,
@@ -300,36 +412,16 @@ std::vector<TBlock> TChunkFileReader::OnBlocksRead(
         readResponse.IORequests,
         std::memory_order::relaxed);
 
-    const auto& firstBlockInfo = blocksExt->Blocks[firstBlockIndex];
-
-    std::vector<TBlock> blocks;
-    blocks.reserve(blockCount);
-
-    for (int localIndex = 0; localIndex < blockCount; ++localIndex) {
-        int blockIndex = firstBlockIndex + localIndex;
-        const auto& blockInfo = blocksExt->Blocks[blockIndex];
-        auto block = buffer.Slice(
-            blockInfo.Offset - firstBlockInfo.Offset,
-            blockInfo.Offset - firstBlockInfo.Offset + blockInfo.Size);
-        if (ValidateBlockChecksums_) {
-            auto checksum = GetChecksum(block);
-            if (checksum != blockInfo.Checksum) {
-                DumpBrokenBlock(blockIndex, blockInfo, block);
-                THROW_ERROR_EXCEPTION(
-                    NChunkClient::EErrorCode::IncorrectChunkFileChecksum,
-                    "Incorrect checksum of block %v in chunk data file %v: expected %v, actual %v",
-                    blockIndex,
-                    FileName_,
-                    blockInfo.Checksum,
-                    checksum)
-                    << TErrorAttribute("first_block_index", firstBlockIndex)
-                    << TErrorAttribute("block_count", blockCount);
-            }
-        }
-        blocks.push_back(TBlock(block, blockInfo.Checksum));
-    }
-
-    return blocks;
+    return DeserializeBlocks(
+        buffer,
+        TBlockRange{
+            .StartBlockIndex = firstBlockIndex,
+            .EndBlockIndex = firstBlockIndex + blockCount,
+        },
+        ValidateBlockChecksums_,
+        FileName_,
+        blocksExt,
+        BIND(&TChunkFileReader::DumpBrokenBlock, MakeWeak(this)));
 }
 
 TFuture<std::vector<TBlock>> TChunkFileReader::DoReadBlocks(
@@ -445,14 +537,12 @@ TRefCountedChunkMetaPtr TChunkFileReader::OnMetaRead(
     YT_LOG_DEBUG("Finished reading chunk meta file (FileName: %v)",
         metaFileName);
 
-    if (metaFileBlob.Size() < sizeof(TChunkMetaHeaderBase)) {
-        THROW_ERROR_EXCEPTION(
-            NChunkClient::EErrorCode::BrokenChunkFileMeta,
-            "Chunk meta file %v is too short: at least %v bytes expected",
-            metaFileName,
-            sizeof(TChunkMetaHeaderBase));
-    }
-
+    auto meta = DeserializeMeta(
+        metaFileBlob,
+        metaFileName,
+        ChunkId_,
+        BIND(&TChunkFileReader::DumpBrokenMeta, MakeWeak(this)));
+    
     chunkReaderStatistics->MetaBytesReadFromDisk.fetch_add(
         metaFileBlob.Size(),
         std::memory_order::relaxed);
@@ -460,55 +550,7 @@ TRefCountedChunkMetaPtr TChunkFileReader::OnMetaRead(
         readResponse.IORequests,
         std::memory_order::relaxed);
 
-    TChunkMetaHeader_2 metaHeader;
-    TRef metaBlob;
-    const auto* metaHeaderBase = reinterpret_cast<const TChunkMetaHeaderBase*>(metaFileBlob.Begin());
-
-    switch (metaHeaderBase->Signature) {
-        case TChunkMetaHeader_1::ExpectedSignature:
-            ReadHeader<TChunkMetaHeader_1>(metaFileBlob, metaFileName, &metaHeader, &metaBlob);
-            metaHeader.ChunkId = ChunkId_;
-            break;
-
-        case TChunkMetaHeader_2::ExpectedSignature:
-            ReadHeader<TChunkMetaHeader_2>(metaFileBlob, metaFileName, &metaHeader, &metaBlob);
-            break;
-
-        default:
-            THROW_ERROR_EXCEPTION(
-                NChunkClient::EErrorCode::BrokenChunkFileMeta,
-                "Incorrect header signature %x in chunk meta file %v",
-                metaHeaderBase->Signature,
-                metaFileName);
-    }
-
-    auto checksum = GetChecksum(metaBlob);
-    if (checksum != metaHeader.Checksum) {
-        DumpBrokenMeta(metaBlob);
-        THROW_ERROR_EXCEPTION(
-            NChunkClient::EErrorCode::BrokenChunkFileMeta,
-            "Incorrect checksum in chunk meta file %v: expected %x, actual %x",
-            metaFileName,
-            metaHeader.Checksum,
-            checksum)
-            << TErrorAttribute("meta_file_length", metaFileBlob.Size());
-    }
-
-    if (ChunkId_ != NullChunkId && metaHeader.ChunkId != ChunkId_) {
-        THROW_ERROR_EXCEPTION("Invalid chunk id in meta file %v: expected %v, actual %v",
-            metaFileName,
-            ChunkId_,
-            metaHeader.ChunkId);
-    }
-    ChunkId_ = metaHeader.ChunkId;
-
-    TChunkMeta meta;
-    if (!TryDeserializeProtoWithEnvelope(&meta, metaBlob)) {
-        THROW_ERROR_EXCEPTION("Failed to parse chunk meta file %v",
-            metaFileName);
-    }
-
-    return New<TRefCountedChunkMeta>(std::move(meta));
+    return meta;
 }
 
 TFuture<TIOEngineHandlePtr> TChunkFileReader::OpenDataFile(EDirectIOFlag useDirectIO)
@@ -526,7 +568,8 @@ TFuture<TIOEngineHandlePtr> TChunkFileReader::OpenDataFile(EDirectIOFlag useDire
 
     if (!fileHandleFuture) {
         YT_LOG_DEBUG("Started opening chunk data file (FileName: %v, DirectIO: %v)",
-            FileName_, useDirectIO);
+            FileName_,
+            useDirectIO);
 
         EOpenMode mode = OpenExisting | RdOnly | CloseOnExec;
         if (useDirectIO == EDirectIOFlag::On) {

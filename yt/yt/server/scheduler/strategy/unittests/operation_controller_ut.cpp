@@ -243,10 +243,10 @@ public:
     TOperationControllerTest()
     {
         NChunkClient::NProto::TMediumDirectory protoDirectory;
-        auto* item = protoDirectory.add_items();
-        item->set_name(NChunkClient::DefaultSlotsMediumName);
-        item->set_index(NChunkClient::DefaultSlotsMediumIndex);
-        item->set_priority(0);
+        auto* protoMediumDescriptor = protoDirectory.add_medium_descriptors();
+        protoMediumDescriptor->set_name(NChunkClient::DefaultSlotsMediumName);
+        protoMediumDescriptor->set_index(NChunkClient::DefaultSlotsMediumIndex);
+        protoMediumDescriptor->set_priority(0);
         MediumDirectory_->LoadFrom(protoDirectory);
     }
 

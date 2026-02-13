@@ -1250,11 +1250,12 @@ void SerializeMediumDirectory(
     const IChunkManagerPtr& chunkManager)
 {
     for (auto [mediumId, medium] : chunkManager->Media()) {
-        auto* protoItem = protoMediumDirectory->add_items();
+        auto* protoMediumDescriptor = protoMediumDirectory->add_medium_descriptors();
 
-        protoItem->set_index(medium->GetIndex());
-        protoItem->set_name(medium->GetName());
-        protoItem->set_priority(medium->GetPriority());
+        protoMediumDescriptor->set_index(medium->GetIndex());
+        protoMediumDescriptor->set_name(medium->GetName());
+        protoMediumDescriptor->set_priority(medium->GetPriority());
+        // TODO(cherepashka): add s3 config for offshore mediums when it will be supported on master side.
     }
 }
 
