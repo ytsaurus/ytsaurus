@@ -92,6 +92,7 @@ SRCS(
     exec_node/volume.proto
     exec_node/volume_counters.cpp
     exec_node/volume_manager.cpp
+    exec_node/porto_volume.cpp
 
     job_agent/job_resource_manager.cpp
 
