@@ -1,6 +1,6 @@
 from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia, enable_sequoia_acls
 
-from helpers import get_async_expiring_cache_config
+from helpers import get_async_expiring_cache_config, get_breakpoint_node, release_breakpoint, wait_breakpoint
 
 from yt_commands import (authors, write_table, create, remove, raises_yt_error, insert_rows, sync_mount_table,
                          exists, read_table)
@@ -8,6 +8,7 @@ from yt_commands import (authors, write_table, create, remove, raises_yt_error, 
 import yt.yson as yson
 
 import time
+import threading
 from flaky import flaky
 
 
@@ -229,6 +230,78 @@ class TestYtDictionaries(ClickHouseTestBase):
             for instance in instances:
                 assert clique.make_direct_query(instance, test_query) == [{"value": 2}]
 
+    @authors("buyval01")
+    def test_name_collision(self):
+        schema = [
+            {"name": "a", "type": "uint64", "sort_order": "ascending", "required": True},
+            {"name": "b", "type": "int64", "required": True},
+        ]
+        create("table", "//tmp/t", attributes={"schema": schema})
+        write_table("//tmp/t", [{"a": 0, "b": 1}])
+
+        def run_test(clique, name, table_path):
+            clique.make_query(f"CREATE DICTIONARY `{name}` (`a` Int64, `b` Int64) PRIMARY KEY a SOURCE(Yt(Path '//tmp/t')) LAYOUT(FLAT()) LIFETIME(MIN 300 MAX 600);")
+
+            # Create table after dictionary creation to prevent conflict.
+            create("table", table_path, attributes={"schema": schema})
+
+            # Test different resolve modes.
+            with raises_yt_error(QueryFailedError):
+                clique.make_query(f"select * from `{name}`")
+
+            assert clique.make_query(f"select * from `{name}` settings chyt.storage_conflict_resolve_mode='yt'") == []
+            assert clique.make_query(f"select * from `{name}` settings chyt.storage_conflict_resolve_mode='clique'") == [{"a": 0, "b": 1}]
+
+            instances = clique.get_active_instances()
+
+            clique.make_query(f"DROP TABLE `{name}`", settings={
+                "chyt.storage_conflict_resolve_mode": "yt",
+            })
+            for inst in instances:
+                assert clique.make_direct_query(inst, f"exists dictionary `{name}`") == [{"result": 1}]
+            assert not exists(table_path)
+
+            with raises_yt_error(QueryFailedError):
+                # drop TABLE on the remaining DICTIONARY should raises.
+                clique.make_query(f"DROP TABLE `{name}`")
+            for inst in instances:
+                assert clique.make_direct_query(inst, f"exists dictionary `{name}`") == [{"result": 1}]
+
+            create("table", table_path, attributes={"schema": schema})
+
+            def concurrent_drop_dictionary():
+                wait_breakpoint("drop")
+                clique.make_direct_query(instances[0], f"DROP DICTIONARY `{name}`", settings={
+                    "chyt.storage_conflict_resolve_mode": "clique",
+                })
+                # ExternalLoader performs periodic updates every 5 seconds.
+                # Let's wait for another instance to notice our deletion.
+                time.sleep(10)
+                release_breakpoint("drop")
+
+            thread = threading.Thread(target=concurrent_drop_dictionary)
+            thread.start()
+
+            clique.make_direct_query(instances[1], f"DROP DICTIONARY `{name}`", settings={
+                "chyt.storage_conflict_resolve_mode": "clique",
+                "chyt.testing.drop_table_breakpoint": get_breakpoint_node("drop")
+            })
+
+            thread.join()
+
+            assert exists(table_path)
+            for inst in instances:
+                assert clique.make_direct_query(inst, f"exists dictionary `{name}`") == [{"result": 0}]
+
+        with Clique(2) as clique:
+            run_test(clique, "//tmp/dict", "//tmp/dict")
+
+        root = "//tmp/root"
+        create("map_node", root)
+
+        with Clique(2, config_patch={"yt": {"database_directories": {"my_db": root}}, "clickhouse": {"default_database": "my_db"}}) as clique:
+            run_test(clique, "dict", "//tmp/root/dict")
+
     @authors("denmogilevec")
     def test_dictionary_persistence(self):
         schema = [
@@ -242,7 +315,7 @@ class TestYtDictionaries(ClickHouseTestBase):
             clique.make_query("CREATE DICTIONARY t_dict (`a` Int64, `b` Int64) PRIMARY KEY a SOURCE(Yt(Path '//tmp/t')) LAYOUT(FLAT()) LIFETIME(MIN 300 MAX 600);")
 
             test_query = "Select dictGetInt64('t_dict', 'b', CAST(1 as Int64)) as value"
-            dictionary_path = f"//sys/strawberry/chyt/{test_alias}/dictionaries/t_dict"
+            dictionary_path = f"//sys/strawberry/chyt/{test_alias}/storage_artifacts/t_dict"
             clique.op.suspend()
             time.sleep(5)
             clique.op.resume()

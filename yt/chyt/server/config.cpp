@@ -92,6 +92,8 @@ void TTestingSettings::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("source_generate_call_breakpoint", &TThis::SourceGenerateCallBreakpoint)
         .Default();
+    registrar.Parameter("drop_table_breakpoint", &TThis::DropTableBreakpoint)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -290,6 +292,9 @@ void TQuerySettings::Register(TRegistrar registrar)
 
     registrar.Parameter("prewhere", &TThis::Prewhere)
         .DefaultNew();
+
+    registrar.Parameter("storage_conflict_resolve_mode", &TThis::StorageConflictResolveMode)
+        .Default(EStorageConflictResolveMode::Throw);
 
     registrar.Preprocessor([] (TThis* config) {
         config->TableReader->GroupSize = 20_MB;

@@ -102,6 +102,13 @@ public:
     //! CreatedTablePath is the path of the table created in write transaction.
     std::optional<NYPath::TYPath> CreatedTablePath;
 
+    //! InterpreterDropQuery performs a basic check for matching the type of the object and the type of the query (table/dictionary).
+    //! However, there is a chance that after checking, but before the actual call of YtDatabase::dropTable,
+    //! the object was deleted, and we may unexpectedly delete an object of a different type.
+    //! For this reason, LastResolvedDictionaryName stores the name of the dictionary that was resolved last within the current query.
+    //! It helps consistently resolve storage in YtDatabase::dropTable call.
+    std::string LastResolvedDictionaryName;
+
     //! if |true|, query registry should keep QueryFinishInfo after the query context is destroyed.
     //! Invoker affinity: query registry invoker.
     bool KeepQueryFinishInfo = true;
