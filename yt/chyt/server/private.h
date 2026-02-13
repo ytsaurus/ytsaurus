@@ -253,6 +253,12 @@ DEFINE_ENUM(ETableReadLockMode,
     ((BestEffort) (2))
 );
 
+DEFINE_ENUM(EStorageConflictResolveMode,
+    ((Throw) (0))
+    ((Clique) (1))
+    ((Yt) (2))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EPreliminaryCheckPermissionResult,

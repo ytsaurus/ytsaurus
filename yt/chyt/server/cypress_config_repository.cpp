@@ -62,23 +62,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TError ValidateDictionaryName(const std::string& name)
-{
-    try {
-        auto richPath = TRichYPath::Parse(name);
-        auto path = richPath.GetPath();
-        if (path.StartsWith("//") || path.StartsWith("#")) {
-            return TError("Dictionary name cannot start with \"//\" and \"#\" to avoid collisions with a valid YPath.");
-        }
-    } catch (const std::exception& /*ex*/) { }
-
-    // If we caught an exception when parsing TRichYPath,
-    // it means that our name is not a valid path and can be safely used as a dictionary name.
-    return {};
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TCypressDictionaryConfigRepository::TCypressDictionaryConfigRepository(
     NNative::IClientPtr client,
     TDictionaryRepositoryConfigPtr config)
@@ -142,10 +125,6 @@ void TCypressDictionaryConfigRepository::WriteDictionary(
 
     host->ValidateCliquePermission(TString(context->getClientInfo().initial_user), EPermission::Manage);
 
-    if (auto error = ValidateDictionaryName(name); !error.IsOK()) {
-        THROW_ERROR_EXCEPTION("Error while creating dictionary %Qv", name) << error;
-    }
-
     std::stringstream parsedConfigStream;
     config.cast<DBPoco::Util::XMLConfiguration>()->save(parsedConfigStream);
     auto path = GetPathToConfig(name);
@@ -171,7 +150,7 @@ void TCypressDictionaryConfigRepository::DeleteDictionary(
     host->ValidateCliquePermission(TString(context->getClientInfo().initial_user), EPermission::Manage);
 
     const auto& externalDictionariesLoader = context->getExternalDictionariesLoader();
-    if (!externalDictionariesLoader.has(storageId.getFullTableName())) {
+    if (!externalDictionariesLoader.has(storageId.getInternalDictionaryName())) {
         return;
     }
 

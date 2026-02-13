@@ -121,6 +121,7 @@ public:
     std::optional<NYPath::TYPath> ConcatTableRangeBreakpoint;
     std::optional<NYPath::TYPath> ListDirsBreakpoint;
     std::optional<NYPath::TYPath> SourceGenerateCallBreakpoint;
+    std::optional<NYPath::TYPath> DropTableBreakpoint;
 
     REGISTER_YSON_STRUCT(TTestingSettings);
 
@@ -412,6 +413,8 @@ public:
     NApi::TSerializableMasterReadOptionsPtr FetchChunksReadOptions;
 
     TPrewhereSettingsPtr Prewhere;
+
+    EStorageConflictResolveMode StorageConflictResolveMode;
 
     REGISTER_YSON_STRUCT(TQuerySettings);
 
