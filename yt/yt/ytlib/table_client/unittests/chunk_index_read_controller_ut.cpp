@@ -288,7 +288,7 @@ public:
             SystemBlockCache_,
             TChunkIndexReadControllerTestingOptions{
                 .KeySlotIndexes = keySlots,
-                .FingerprintDomainSize = options.FingerprintDomainSize
+                .FingerprintDomainSize = options.FingerprintDomainSize,
             });
     }
 
@@ -544,8 +544,8 @@ TEST_F(TTestHashTableChunkIndexReadController, SlotClash)
 
 TEST_F(TTestHashTableChunkIndexReadController, ColumnFilter)
 {
-    TString keyColumns = "<id=0> 0; <id=1> k2";
-    std::vector<TString> valueColumns = {
+    std::string keyColumns = "<id=0> 0; <id=1> k2";
+    std::vector<std::string> valueColumns = {
         "<id=2;ts=100> 1",
         "<id=3;ts=100> 2",
         "<id=4;ts=100> 3.3",
@@ -610,7 +610,7 @@ TEST_F(TTestHashTableChunkIndexReadController, ColumnFilter)
 TEST_F(TTestHashTableChunkIndexReadController, LookupByTimestamp1)
 {
     std::vector<TTimestamp> timestamps = {100, 200};
-    std::vector<TString> values = {
+    std::vector<std::string> values = {
         "<id=1;ts=100> 0",
         "<id=1;ts=200> 1"
     };

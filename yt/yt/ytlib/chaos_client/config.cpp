@@ -45,7 +45,7 @@ void TChaosCellDirectorySynchronizerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TReplicationCardChannelConfig::Register(TRegistrar registrar)
+void TChaosObjectChannelConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("rpc_acknowledgement_timeout", &TThis::RpcAcknowledgementTimeout)
         .Default(TDuration::Seconds(15));

@@ -105,6 +105,18 @@ public:
             .RequiredArgument("DIRECTORY");
         Opts_
             .AddLongOption(
+                "abort-on-alert",
+                "Set AbortOnAlert flag in logger config")
+            .StoreTrue(&AbortOnAlert_)
+            .NoArgument();
+        Opts_
+            .AddLongOption(
+                "skip-invariants-check",
+                "Do not call CheckInvariants after snapshot load")
+            .StoreFalse(&CheckInvariants_)
+            .NoArgument();
+        Opts_
+            .AddLongOption(
                 "skip-tvm-service-env-validation",
                 "Do not validate TVM service files")
             .SetFlag(&SkipTvmServiceEnvValidationFlag_)
@@ -222,7 +234,7 @@ private:
         }
 
         if (IsValidateSnapshotMode()) {
-            config->SetSingletonConfig(NHydra::CreateDryRunLoggingConfig());
+            config->SetSingletonConfig(NHydra::CreateDryRunLoggingConfig(AbortOnAlert_));
         }
     }
 
@@ -249,7 +261,8 @@ private:
                 cellarNodeBootstrap->LoadSnapshot(
                     LoadSnapshotPath_,
                     meta,
-                    IsDumpSnapshotMode() ? SnapshotDumpMode_ : ESerializationDumpMode::None);
+                    IsDumpSnapshotMode() ? SnapshotDumpMode_ : ESerializationDumpMode::None,
+                    CheckInvariants_);
             }
 
             if (IsReplayChangelogsMode()) {
@@ -277,6 +290,8 @@ private:
     bool DumpSnapshotFlag_ = false;
     ESerializationDumpMode SnapshotDumpMode_ = ESerializationDumpMode::Content;
     bool ValidateSnapshotFlag_ = false;
+    bool AbortOnAlert_ = false;
+    bool CheckInvariants_ = true;
     TString LoadSnapshotPath_;
     bool ReplayChangelogsFlag_ = false;
     std::vector<TString> ReplayChangelogsPaths_;

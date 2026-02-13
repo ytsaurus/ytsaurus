@@ -25,7 +25,7 @@ struct TBlockId
     //! An offset where the block starts.
     int BlockIndex;
 
-    bool operator== (const TBlockId& other) const = default;
+    bool operator==(const TBlockId& other) const = default;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TBlockId& id, TStringBuf spec);

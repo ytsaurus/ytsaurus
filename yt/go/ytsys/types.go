@@ -474,7 +474,7 @@ type RPCProxy struct {
 	MaintenanceRequests    MaintenanceRequestMap `yson:"maintenance_requests,attr"`
 	CMSMaintenanceRequests MaintenanceRequestMap `yson:"cms_maintenance_requests,attr"`
 
-	Alive *map[string]interface{} `yson:"alive"`
+	Alive *map[string]any `yson:"alive"`
 }
 
 func (p *RPCProxy) GetAddr() *Addr {
@@ -856,14 +856,14 @@ type Chunk struct {
 type MaintenanceRequestMap map[string]*MaintenanceRequest
 
 type MaintenanceRequest struct {
-	ID           string      `yson:"id"`
-	CreationTime yson.Time   `yson:"creation_time"`
-	Issuer       string      `yson:"issuer"`
-	Comment      string      `yson:"comment"`
-	Extra        interface{} `yson:"extra"`
+	ID           string    `yson:"id"`
+	CreationTime yson.Time `yson:"creation_time"`
+	Issuer       string    `yson:"issuer"`
+	Comment      string    `yson:"comment"`
+	Extra        any       `yson:"extra"`
 }
 
-func NewMaintenanceRequest(id, issuer, comment string, extra interface{}) *MaintenanceRequest {
+func NewMaintenanceRequest(id, issuer, comment string, extra any) *MaintenanceRequest {
 	return &MaintenanceRequest{
 		ID:           id,
 		CreationTime: yson.Time(time.Now()),

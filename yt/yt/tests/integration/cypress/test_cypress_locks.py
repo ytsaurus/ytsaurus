@@ -1670,13 +1670,35 @@ class TestCypressLocksShardedTx(TestCypressLocksMulticell):
     }
 
 
+##################################################################
+
+
 @authors("kvk1920")
 @pytest.mark.enabled_multidaemon
-class TestCypressLocksMirroredTx(TestCypressLocksShardedTx):
+class TestCypressLocksSequoia(TestCypressLocksShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
-    NUM_TEST_PARTITIONS = 8
+    ENABLE_TMP_ROOTSTOCK = True
+    NUM_TEST_PARTITIONS = 12
+    NUM_SECONDARY_MASTER_CELLS = 4
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["sequoia_node_host"]},
+        # Master cell with tag 11 is reserved for portals.
+        "11": {"roles": ["cypress_node_host"]},
+        "12": {"roles": ["transaction_coordinator", "sequoia_node_host"]},
+        "13": {"roles": ["transaction_coordinator"]},
+        "14": {"roles": ["chunk_host"]},
+    }
+
+    # NB: of course, it's better to test the default configuration but it's
+    # too slow (+150ms per request).
+    DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG = {
+        "object_service": {
+            "allow_bypass_master_resolve": True,
+        },
+    }
 
     _SUPRESSED_MESSAGES = [
         "Retrieving TVM service ticket",
@@ -1711,33 +1733,5 @@ class TestCypressLocksMirroredTx(TestCypressLocksShardedTx):
             "logging": {
                 "suppressed_messages": _SUPRESSED_MESSAGES,
             },
-        },
-    }
-
-
-##################################################################
-
-
-@pytest.mark.enabled_multidaemon
-class TestCypressLocksSequoia(TestCypressLocksMirroredTx):
-    ENABLE_MULTIDAEMON = True
-    ENABLE_TMP_ROOTSTOCK = True
-    NUM_TEST_PARTITIONS = 12
-    NUM_SECONDARY_MASTER_CELLS = 4
-
-    MASTER_CELL_DESCRIPTORS = {
-        "10": {"roles": ["sequoia_node_host"]},
-        # Master cell with tag 11 is reserved for portals.
-        "11": {"roles": ["cypress_node_host"]},
-        "12": {"roles": ["transaction_coordinator", "sequoia_node_host"]},
-        "13": {"roles": ["transaction_coordinator"]},
-        "14": {"roles": ["chunk_host"]},
-    }
-
-    # NB: of course, it's better to test the default configuration but it's
-    # too slow (+150ms per request).
-    DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG = {
-        "object_service": {
-            "allow_bypass_master_resolve": True,
         },
     }

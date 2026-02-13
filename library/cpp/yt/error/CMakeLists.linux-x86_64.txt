@@ -23,6 +23,7 @@ target_compile_options(cpp-yt-error PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(cpp-yt-error PUBLIC
@@ -30,6 +31,7 @@ target_link_libraries(cpp-yt-error PUBLIC
   contrib-libs-cxxsupp
   yutil
   cpp-yt-assert
+  cpp-yt-containers
   cpp-yt-global
   cpp-yt-memory
   cpp-yt-misc

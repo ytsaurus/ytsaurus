@@ -16,7 +16,7 @@ struct TPerformanceCounters
     TEmaCounter<i64, WindowCount> DataWeight{WindowDurations};
 };
 
-TPerformanceCounters& operator +=(TPerformanceCounters& lhs, const TPerformanceCounters& rhs);
+TPerformanceCounters& operator+=(TPerformanceCounters& lhs, const TPerformanceCounters& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

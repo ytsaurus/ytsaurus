@@ -46,7 +46,7 @@ namespace NYT::NHydra {
 struct TPendingMutation final
 {
     TPendingMutation(
-        TVersion version,
+        TPhysicalVersion version,
         TMutationRequest&& request,
         TInstant timestamp,
         ui64 randomSeed,
@@ -56,7 +56,7 @@ struct TPendingMutation final
         TSharedRef serializedMutation,
         TPromise<TMutationResponse> promise = {});
 
-    TVersion Version;
+    TPhysicalVersion Version;
     TMutationRequest Request;
     TInstant Timestamp;
     ui64 RandomSeed;
@@ -128,7 +128,7 @@ public:
     TSystemLockGuard(TSystemLockGuard&& other);
     ~TSystemLockGuard();
 
-    TSystemLockGuard& operator = (TSystemLockGuard&& other);
+    TSystemLockGuard& operator=(TSystemLockGuard&& other);
 
     void Release();
 
@@ -152,7 +152,7 @@ public:
     TUserLockGuard(TUserLockGuard&& other);
     ~TUserLockGuard();
 
-    TUserLockGuard& operator = (TUserLockGuard&& other);
+    TUserLockGuard& operator=(TUserLockGuard&& other);
 
     void Release();
 
@@ -229,13 +229,13 @@ public:
 
     TReachableState GetReachableState() const;
 
-    TVersion GetAutomatonVersion() const;
+    TAutomatonVersion GetAutomatonVersion() const;
 
     void LoadSnapshot(
         int snapshotId,
         int lastMutationTerm,
         TReign lastMutationReign,
-        TVersion version,
+        TAutomatonVersion version,
         i64 sequenceNumber,
         bool readOnly,
         ui64 randomSeed,
@@ -300,7 +300,7 @@ private:
     std::atomic<EPeerState> State_ = EPeerState::Stopped;
 
     // Last applied mutation.
-    std::atomic<TVersion> AutomatonVersion_;
+    NThreading::TAtomicObject<TAutomatonVersion> AutomatonVersion_;
     std::atomic<ui64> RandomSeed_;
     std::atomic<i64> SequenceNumber_;
     std::atomic<ui64> StateHash_;
@@ -359,7 +359,7 @@ private:
     TMutationApplicationResult ApplyMutation(const TPendingMutationPtr& mutation);
     void DoApplyMutation(
         TMutationContext* mutationContext,
-        TVersion mutationVersion,
+        TPhysicalVersion physicalMutationVersion,
         TMutationApplicationResult* result);
     void PublishMutationApplicationResults(std::vector<TMutationApplicationResult>&& results);
 

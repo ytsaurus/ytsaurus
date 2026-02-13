@@ -91,7 +91,7 @@ struct TInputTableInfo
 {
     std::vector<NChunkClient::TInputChunkPtr> Chunks;
     TTableSchemaPtr Schema;
-    bool Dynamic;
+    bool Dynamic = false;
     std::optional<TRlsReadSpec> RlsReadSpec;
 };
 

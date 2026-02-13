@@ -88,12 +88,16 @@ void SetNodeInfoToRequest(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TClosure MakeJobInterrupter(TJobId jobId, const IBootstrap* bootstrap);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NExecNode
 
 template <>
 struct THash<NYT::NExecNode::TControllerAgentDescriptor>
 {
-    size_t operator () (const NYT::NExecNode::TControllerAgentDescriptor& descriptor) const;
+    size_t operator()(const NYT::NExecNode::TControllerAgentDescriptor& descriptor) const;
 };
 
 #define HELPERS_INL_H_

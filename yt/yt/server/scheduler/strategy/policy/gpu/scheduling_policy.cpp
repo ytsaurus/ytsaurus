@@ -3,11 +3,10 @@
 #include "private.h"
 #include "assignment_plan_update.h"
 #include "persistent_state.h"
+#include "helpers.h"
 
 #include <yt/yt/server/scheduler/strategy/policy/scheduling_heartbeat_context.h>
 #include <yt/yt/server/scheduler/strategy/policy/scheduling_policy.h>
-// TODO(eshcherbin): (!) Remove this include after TPostUpdateContext is not present in ISchedulingPolicy.
-#include <yt/yt/server/scheduler/strategy/policy/scheduling_policy_detail.h>
 
 #include <yt/yt/server/scheduler/strategy/helpers.h>
 #include <yt/yt/server/scheduler/strategy/pool_tree_element.h>
@@ -65,6 +64,57 @@ std::optional<std::string> GetNodeModule(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TModuleProfilingCounters
+{
+    NProfiling::TGauge TotalModuleNodes;
+    NProfiling::TGauge ModuleUnreservedNodes;
+    NProfiling::TGauge ModuleFullHostModuleBoundOperations;
+
+    explicit TModuleProfilingCounters(const NProfiling::TProfiler& profiler)
+        : TotalModuleNodes(profiler.Gauge("/total_nodes_count"))
+        , ModuleUnreservedNodes(profiler.Gauge("/unreserved_nodes_count"))
+        , ModuleFullHostModuleBoundOperations(profiler.Gauge("/full_host_module_bound_operations_count"))
+    { }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TGpuSchedulingProfilingCounters
+{
+    NProfiling::TCounter PlannedAssignments;
+    NProfiling::TCounter PreemptedAssignments;
+    NProfiling::TGauge Assignments;
+
+    NProfiling::TEventTimer TotalPlanningTime;
+    NProfiling::TEventTimer OperationResourcesUpdateTime;
+    NProfiling::TEventTimer FullHostPlanningTime;
+    NProfiling::TEventTimer ReguralPlanningTime;
+    NProfiling::TEventTimer ExtraPlanningTime;
+
+    NProfiling::TGauge EnabledOperations;
+    NProfiling::TGauge FullHostModuleBoundOperations;
+
+    NProfiling::TGauge AssignedGpu;
+
+    THashMap<std::string, TModuleProfilingCounters> ModuleCounters;
+
+    explicit TGpuSchedulingProfilingCounters(const NProfiling::TProfiler& profiler)
+        : PlannedAssignments(profiler.Counter("/planned_assignments_count"))
+        , PreemptedAssignments(profiler.Counter("/preempted_assignments_count"))
+        , Assignments(profiler.Gauge("/assignments_count"))
+        , TotalPlanningTime(profiler.Timer("/total_planning_time"))
+        , OperationResourcesUpdateTime(profiler.Timer("/operation_resources_update_time"))
+        , FullHostPlanningTime(profiler.Timer("/full_host_planning_time"))
+        , ReguralPlanningTime(profiler.Timer("/regular_planning_time"))
+        , ExtraPlanningTime(profiler.Timer("/extra_planning_time"))
+        , EnabledOperations(profiler.Gauge("/enabled_operations_count"))
+        , FullHostModuleBoundOperations(profiler.Gauge("/full_host_module_bound_operations_count"))
+        , AssignedGpu(profiler.Gauge("/assigned_gpu_count"))
+    { }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSchedulingPolicy
     : public ISchedulingPolicy
     , public TAssignmentPlanContextBase
@@ -74,7 +124,8 @@ public:
         TWeakPtr<ISchedulingPolicyHost> host,
         IStrategyHost* strategyHost,
         const std::string& treeId,
-        TGpuSchedulingPolicyConfigPtr config)
+        TGpuSchedulingPolicyConfigPtr config,
+        NProfiling::TProfiler profiler)
         : TAssignmentPlanContextBase(GetLogger(treeId))
         , Host_(std::move(host))
         , StrategyHost_(strategyHost)
@@ -84,6 +135,8 @@ public:
             StrategyHost_->GetControlInvoker(EControlQueue::GpuAssignmentPlanUpdate),
             BIND(&TSchedulingPolicy::UpdateAssignmentPlan, MakeWeak(this)),
             Config_->PlanUpdatePeriod))
+        , Profiler_(std::move(profiler))
+        , ProfilingCounters_(Profiler_)
     { }
 
     void Initialize() override
@@ -211,6 +264,7 @@ public:
                     std::move(assignmentState->ResourceUsage),
                     operation.Get(),
                     node.Get());
+                assignment->Preemptible = assignmentState->Preemptible;
 
                 node->AddAssignment(assignment);
                 operation->AddAssignment(assignment);
@@ -221,7 +275,7 @@ public:
         }
 
         YT_LOG_DEBUG(
-            "Revived node's state "
+            "Node state revived "
             "(NodeId: %v, NodeAddress: %v, SchedulingModule: %v)",
             nodeId,
             node->Address(),
@@ -279,13 +333,19 @@ public:
             }
 
             YT_LOG_DEBUG(
-                "Revived operation's state"
+                "Operation state revived "
                 "(OperationId: %v, SchedulingModule: %v)",
                 operation->GetId(),
                 operation->SchedulingModule());
         }
 
         EmplaceOrCrash(DisabledOperations_, operation->GetId(), operation);
+
+        LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::OperationRegistered)
+            .Item("operation_id").Value(operation->GetId())
+            .Item("type").Value(operation->GetType())
+            .Item("gang").Value(operation->IsGang())
+            .Item("specified_scheduling_modules").Value(operation->SpecifiedSchedulingModules());
 
         YT_LOG_DEBUG("Operation registered (OperationId: %v, OperationType: %v, Gang: %v, SpecifiedSchedulingModules: %v)",
             operation->GetId(),
@@ -321,6 +381,9 @@ public:
             "Node unregistered");
 
         DisabledOperations_.erase(it);
+
+        LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::OperationUnregistered)
+            .Item("operation_id").Value(element->GetOperationId());
 
         YT_LOG_DEBUG("Operation unregistered (OperationId: %v)", element->GetOperationId());
     }
@@ -479,13 +542,14 @@ public:
                 std::move(assignmentState->ResourceUsage),
                 operation.Get(),
                 node.Get());
+            assignment->Preemptible = assignmentState->Preemptible;
 
             node->AddAssignment(assignment);
             operation->AddAssignment(assignment);
         }
 
         YT_LOG_DEBUG(
-            "Revived operation's state "
+            "Operation state revived "
             "(OperationId: %v,SchedulingModule: %v)",
             operation->GetId(),
             operation->SchedulingModule());
@@ -527,29 +591,25 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    TPostUpdateContext CreatePostUpdateContext(TPoolTreeRootElement* /*rootElement*/) override
+    TPostUpdateContextPtr CreatePostUpdateContext(TPoolTreeRootElement* /*rootElement*/) override
     {
-        YT_UNIMPLEMENTED();
+        return nullptr;
     }
 
     void PostUpdate(
         TFairSharePostUpdateContext* /*fairSharePostUpdateContext*/,
-        TPostUpdateContext* /*postUpdateContext*/) override
-    {
-        YT_UNIMPLEMENTED();
-    }
+        TPostUpdateContextPtr* /*postUpdateContext*/) override
+    { }
 
-    TPoolTreeSnapshotStatePtr CreateSnapshotState(TPostUpdateContext* /*postUpdateContext*/) override
+    TPoolTreeSnapshotStatePtr CreateSnapshotState(TPostUpdateContextPtr* /*postUpdateContext*/) override
     {
-        YT_UNIMPLEMENTED();
+        return nullptr;
     }
 
     void OnResourceUsageSnapshotUpdate(
         const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
         const TResourceUsageSnapshotPtr& /*resourceUsageSnapshot*/) const override
-    {
-        YT_UNIMPLEMENTED();
-    }
+    { }
 
     void UpdateConfig(TStrategyTreeConfigPtr treeConfig) override
     {
@@ -580,7 +640,7 @@ public:
 
                 // TODO(eshcherbin): Should we set scheduler alert instead? It'll be more visible this way,
                 // but it'll have to be removed manually
-                YT_LOG_WARNING(ex, "Failed to deserialize gpu scheduling policy persistent state; will ignore it");
+                YT_LOG_WARNING(ex, "Failed to deserialize GPU scheduling policy persistent state; will ignore it");
             }
         } else {
             InitialPersistentState_ = New<TPersistentState>();
@@ -615,6 +675,11 @@ public:
         return Nodes_;
     }
 
+    TGpuPlanUpdateStatisticsPtr Statistics() const override
+    {
+        return Statistics_;
+    }
+
 private:
     const TWeakPtr<ISchedulingPolicyHost> Host_;
     IStrategyHost* const StrategyHost_;
@@ -634,6 +699,11 @@ private:
     TPersistentStatePtr PersistentState_;
 
     THashMap<TOperationId, THashSet<TPersistentAssignmentStatePtr>> InitialOperationAssignments_;
+
+    NProfiling::TProfiler Profiler_;
+    TGpuSchedulingProfilingCounters ProfilingCounters_;
+
+    TGpuPlanUpdateStatisticsPtr Statistics_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -655,6 +725,8 @@ private:
             return;
         }
 
+        Statistics_ = New<TGpuPlanUpdateStatistics>();
+
         {
             TForbidContextSwitchGuard contextSwitchGuard;
             auto treeSnapshot = host->GetTreeSnapshot();
@@ -666,6 +738,8 @@ private:
             for (const auto& [_, operation] : DisabledOperations_) {
                 ResetOperationResources(operation);
             }
+
+            Statistics_->UpdatingOperationResourcesDuration = Statistics_->Timer.GetElapsedTime();
         }
 
         TGpuAllocationAssignmentPlanUpdateExecutor updateExecutor(
@@ -675,6 +749,8 @@ private:
             Logger);
         updateExecutor.Run();
 
+        LogSnapshotEvent();
+        ProfileAssignmentPlanUpdating();
         UpdatePersistentState();
     }
 
@@ -692,6 +768,11 @@ private:
             return;
         }
 
+        operation->SetStarving(operationElement->GetStarvationStatus() != EStarvationStatus::NonStarving);
+        if (operation->IsStarving()) {
+            YT_LOG_DEBUG("Operation is starving (OperationId: %v)", operation->GetId());
+        }
+
         auto convertToShare = [&] (const TJobResources& allocationResources) -> TResourceVector {
             return TResourceVector::FromJobResources(allocationResources, operationElement->GetTotalResourceLimits());
         };
@@ -706,13 +787,22 @@ private:
             // TODO(eshcherbin): Sort assignments by allocation start time.
             std::ranges::sort(sortedAssignments, std::less<>(), [] (const TAssignmentPtr& assignment) { return assignment->AllocationGroupName; });
 
-            TResourceVector prefixUsageShare;
+            TResourceVector usageShare;
             for (const auto& assignment : sortedAssignments) {
-                // NB(eshcherbin): Assignment is preemptible if the total resource usage of all assignments before it is lower than fair share.
-                // In particular, the assignment which crosses the fair share boundary is not considered preemptible.
-                // TODO(eshcherbin): (!) For map operations, the assignment on the boundary should be preemptible.
-                assignment->Preemptible = Dominates(prefixUsageShare + TResourceVector::Epsilon(), fairShare);
-                prefixUsageShare += convertToShare(assignment->ResourceUsage);
+                // NB(yaishenka): Assignment is preemptible if total resource usage (including current assignment) is higher than fair share.
+                usageShare += convertToShare(assignment->ResourceUsage);
+                bool previousStatus = std::exchange(
+                    assignment->Preemptible,
+                    !Dominates(fairShare + TResourceVector::Epsilon(), usageShare));
+
+                if (previousStatus != assignment->Preemptible) {
+                    YT_LOG_DEBUG(
+                        "Changed assignment preemptible status (OperationId: %v, Preemptible: %v, FairShare: %v, UsageShare: %v)",
+                        operation->GetId(),
+                        assignment->Preemptible,
+                        fairShare,
+                        usageShare);
+                }
             }
         }
 
@@ -721,8 +811,12 @@ private:
         TResourceVector readyToAssignShare;
         operation->ReadyToAssignGroupedNeededResources().clear();
 
+        TResourceVector extraShare;
+        operation->ExtraGroupedNeededResources().clear();
+
         // Preemptible FHMB operations do not deserve resources.
         if (operation->IsFullHostModuleBound() && operation->IsPreemptible()) {
+            YT_LOG_DEBUG("Skipping FHMB operation because it is preemptible (OperationId: %v, FairShare: %v)", operation->GetId(), fairShare);
             return;
         }
 
@@ -730,11 +824,16 @@ private:
         //     ResourceUsage + EmptyAssignmentResources + ReadyToAssignResources ~= FairShare.
         // Note that ResourceUsage + EmptyAssignmentResources == AssignedResourceUsage.
         for (const auto& [neededAllocationGroupName, neededAllocationGroupResources] : GetGroupedNeededResources(operation, operationElement)) {
-            auto it = EmplaceOrCrash(
+            auto readyToAssignIt = EmplaceOrCrash(
                 operation->ReadyToAssignGroupedNeededResources(),
                 neededAllocationGroupName,
                 TAllocationGroupResources{.MinNeededResources = neededAllocationGroupResources.MinNeededResources});
-            auto& readyToAssignResources = it->second;
+            auto& readyToAssignResources = readyToAssignIt->second;
+
+            auto extraIt = operation->ExtraGroupedNeededResources().emplace(
+                neededAllocationGroupName,
+                TAllocationGroupResources{.MinNeededResources = neededAllocationGroupResources.MinNeededResources}).first;
+            auto& extraResources = extraIt->second;
 
             const auto allocationUsageShare = convertToShare(neededAllocationGroupResources.MinNeededResources);
             const auto emptyAssignmentCount = GetOrDefault(operation->EmptyAssignmentCountPerGroup(), neededAllocationGroupName);
@@ -751,22 +850,33 @@ private:
                 fairShare,
                 allocationUsageShare);
 
-            while (emptyAssignmentCount + readyToAssignResources.AllocationCount < neededAllocationGroupResources.AllocationCount) {
+            while (emptyAssignmentCount + readyToAssignResources.AllocationCount + extraResources.AllocationCount < neededAllocationGroupResources.AllocationCount) {
+                auto sumOfUsageShare = assignedUsageShare + readyToAssignShare + extraShare + allocationUsageShare;
+                bool belowFairShare = Dominates(fairShare + TResourceVector::Epsilon(), sumOfUsageShare);
+
                 YT_LOG_DEBUG(
                     "Checking if fair share is exceeded before adding another assignment "
-                    "(OperationId: %v, AllocationGroup: %v, AssignedUsageShare: %v, ReadyToAssignShare: %v, FairShare: %v)",
+                    "(OperationId: %v, AllocationGroup: %v, AssignedUsageShare: %v, "
+                    "ReadyToAssignShare: %v, FairShare: %v, ExtraShare: %v, SumOfUsageShare %v, BelowFairShare: %v)",
                     operation->GetId(),
                     neededAllocationGroupName,
                     assignedUsageShare,
                     readyToAssignShare,
-                    fairShare);
+                    fairShare,
+                    extraShare,
+                    sumOfUsageShare,
+                    belowFairShare);
 
-                if (Dominates(assignedUsageShare + readyToAssignShare + TResourceVector::Epsilon(), fairShare)) {
-                    break;
+                if (belowFairShare) {
+                    ++readyToAssignResources.AllocationCount;
+                    readyToAssignShare += allocationUsageShare;
+                } else {
+                    if (operation->IsFullHostModuleBound()) {
+                        break;
+                    }
+                    ++extraResources.AllocationCount;
+                    extraShare += allocationUsageShare;
                 }
-
-                ++readyToAssignResources.AllocationCount;
-                readyToAssignShare += allocationUsageShare;
             }
         }
     }
@@ -846,6 +956,10 @@ private:
     //! Returns true otherwise
     bool CheckInitializationTimeout()
     {
+        if (!InitialPersistentState_) {
+            return false;
+        }
+
         if (Y_LIKELY(InitialPersistentState_->NodeStates.empty() && InitialPersistentState_->OperationStates.empty())) {
             return false;
         }
@@ -912,20 +1026,21 @@ private:
                 assignmentPersistentState->AllocationGroupName = assignment->AllocationGroupName;
                 assignmentPersistentState->ResourceUsage = assignment->ResourceUsage;
                 assignmentPersistentState->CreationTime = assignment->CreationTime;
+                assignmentPersistentState->Preemptible = assignment->Preemptible;
 
                 nodePersistentState.AssignmentStates.push_back(std::move(assignmentPersistentState));
             }
 
-            YT_LOG_DEBUG("Updated persistent state for node (NodeId: %v)", nodeId);
+            YT_LOG_DEBUG("Updated node persistent state (NodeId: %v)", nodeId);
         }
 
-        auto updateOperationPersistentState = [&] (const auto& it) {
+        auto updateOperationPersistentState = [&] (auto it) {
             const auto& [operationId, operation] = it;
             auto& operationPersistentState = PersistentState_->OperationStates[operationId];
             operationPersistentState.SchedulingModule = operation->SchedulingModule();
 
             YT_LOG_DEBUG(
-                "Updated persistent state for operation (OperationId: %v, SchedulingModule %v,  Enabled %v)",
+                "Updated operation persistent state (OperationId: %v, SchedulingModule %v,  Enabled %v)",
                 operationId,
                 operation->SchedulingModule(),
                 operation->IsEnabled());
@@ -933,6 +1048,76 @@ private:
 
         std::ranges::for_each(DisabledOperations_, updateOperationPersistentState);
         std::ranges::for_each(EnabledOperations_, updateOperationPersistentState);
+    }
+
+    void LogSnapshotEvent() const
+    {
+        LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::ModulesInfo)
+            .Item("modules").DoMapFor(Statistics_->ModuleStatistics, [] (TFluentMap fluent, const auto& item) {
+                const auto& [module, moduleStatistic] = item;
+                fluent.Item(module).Value(moduleStatistic);
+            });
+
+        LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::NodesInfo)
+            .Item("nodes").DoMapFor(Nodes_, [] (TFluentMap fluent, const auto& item) {
+                const auto& [_, node] = item;
+                fluent.Item(node->Address()).Value(node);
+            });
+
+        LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::OperationsInfo)
+            .Item("operations").DoMap([&] (TFluentMap fluent) {
+                for (const auto& [operationId, operation] : EnabledOperations_) {
+                    fluent
+                        .Item(ToString(operationId)).Value(operation);
+                }
+                for (const auto& [operationId, operation] : DisabledOperations_) {
+                    fluent
+                        .Item(ToString(operationId)).Value(operation);
+                }
+            });
+    }
+
+    void ProfileAssignmentPlanUpdating()
+    {
+        ProfilingCounters_.PlannedAssignments.Increment(Statistics_->PlannedAssignments);
+        ProfilingCounters_.PreemptedAssignments.Increment(Statistics_->PreemptedAssignments);
+
+        ProfilingCounters_.TotalPlanningTime.Record(Statistics_->Timer.GetElapsedTime());
+        ProfilingCounters_.OperationResourcesUpdateTime.Record(Statistics_->UpdatingOperationResourcesDuration);
+        ProfilingCounters_.FullHostPlanningTime.Record(Statistics_->FullHostPlanningDuration);
+        ProfilingCounters_.ReguralPlanningTime.Record(Statistics_->ReguralPlanningDuration);
+        ProfilingCounters_.ExtraPlanningTime.Record(Statistics_->ExtraPlanningDuration);
+
+        ProfilingCounters_.EnabledOperations.Update(std::ssize(EnabledOperations_));
+
+        for (const auto& [module, moduleStatistic] : Statistics_->ModuleStatistics) {
+            auto it = ProfilingCounters_.ModuleCounters.find(module);
+            if (it == ProfilingCounters_.ModuleCounters.end()) {
+                it = ProfilingCounters_.ModuleCounters.emplace(module, Profiler_.WithPrefix("/module").WithTag("module", module)).first;
+            }
+
+            const auto& moduleCounters = it->second;
+            moduleCounters.TotalModuleNodes.Update(moduleStatistic.TotalNodes);
+            moduleCounters.ModuleUnreservedNodes.Update(moduleStatistic.UnreservedNodes);
+            moduleCounters.ModuleFullHostModuleBoundOperations.Update(moduleStatistic.FullHostModuleBoundOperations);
+        }
+
+        int assignments = 0;
+        int assignedGpu = 0;
+        int fullHostModuleBoundOperations = 0;
+
+        for (const auto& [_, operation] : EnabledOperations_) {
+            assignments += std::ssize(operation->Assignments());
+            assignedGpu += operation->AssignedResourceUsage().GetGpu();
+
+            if (operation->IsFullHostModuleBound()) {
+                fullHostModuleBoundOperations += 1;
+            }
+        }
+
+        ProfilingCounters_.Assignments.Update(assignments);
+        ProfilingCounters_.AssignedGpu.Update(assignedGpu);
+        ProfilingCounters_.FullHostModuleBoundOperations.Update(fullHostModuleBoundOperations);
     }
 };
 
@@ -1058,29 +1243,25 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    TPostUpdateContext CreatePostUpdateContext(TPoolTreeRootElement* /*rootElement*/) override
+    TPostUpdateContextPtr CreatePostUpdateContext(TPoolTreeRootElement* /*rootElement*/) override
     {
-        YT_UNIMPLEMENTED();
+        return nullptr;
     }
 
     void PostUpdate(
         TFairSharePostUpdateContext* /*fairSharePostUpdateContext*/,
-        TPostUpdateContext* /*postUpdateContext*/) override
-    {
-        YT_UNIMPLEMENTED();
-    }
+        TPostUpdateContextPtr* /*postUpdateContext*/) override
+    { }
 
-    TPoolTreeSnapshotStatePtr CreateSnapshotState(TPostUpdateContext* /*postUpdateContext*/) override
+    TPoolTreeSnapshotStatePtr CreateSnapshotState(TPostUpdateContextPtr* /*postUpdateContext*/) override
     {
-        YT_UNIMPLEMENTED();
+        return nullptr;
     }
 
     virtual void OnResourceUsageSnapshotUpdate(
         const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
         const TResourceUsageSnapshotPtr& /*resourceUsageSnapshot*/) const override
-    {
-        YT_UNIMPLEMENTED();
-    }
+    { }
 
     void UpdateConfig(TStrategyTreeConfigPtr config) override
     {
@@ -1112,7 +1293,8 @@ ISchedulingPolicyPtr CreateSchedulingPolicy(
     TWeakPtr<ISchedulingPolicyHost> host,
     IStrategyHost* strategyHost,
     const std::string& treeId,
-    const TStrategyTreeConfigPtr& config)
+    const TStrategyTreeConfigPtr& config,
+    NProfiling::TProfiler profiler)
 {
     const auto& Logger = GetLogger(treeId);
 
@@ -1127,7 +1309,8 @@ ISchedulingPolicyPtr CreateSchedulingPolicy(
                 std::move(host),
                 strategyHost,
                 treeId,
-                config->GpuSchedulingPolicy);
+                config->GpuSchedulingPolicy,
+                std::move(profiler));
         }
     }
 }

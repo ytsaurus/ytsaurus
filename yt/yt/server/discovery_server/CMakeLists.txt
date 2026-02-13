@@ -23,6 +23,7 @@ target_compile_options(yt-server-discovery_server PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_include_directories(yt-server-discovery_server PUBLIC

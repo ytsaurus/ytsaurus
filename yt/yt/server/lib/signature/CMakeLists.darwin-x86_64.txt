@@ -21,6 +21,7 @@ target_compile_options(server-lib-signature PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(server-lib-signature PUBLIC
@@ -37,7 +38,6 @@ target_sources(server-lib-signature PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/crypto.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/cypress_key_store.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/dynamic.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/key_info.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/key_pair.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/key_rotator.cpp

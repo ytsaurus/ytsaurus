@@ -194,10 +194,9 @@ private:
         NLogging::GetDynamicTableLogWriterFactory()->SetClient(RootClient_);
 
         {
+            auto address = NNet::BuildServiceAddress(NNet::GetLocalHostName(), Config_->RpcPort);
             TCypressRegistrarOptions options{
-                .RootPath = "//sys/master_caches/" + NNet::BuildServiceAddress(
-                    NNet::GetLocalHostName(),
-                    Config_->RpcPort),
+                .RootPath = Format("//sys/master_caches/%v", NYPath::ToYPathLiteral(address)),
                 .OrchidRemoteAddresses = GetLocalAddresses(/*addresses*/ {}, Config_->RpcPort),
                 .ExpireSelf = true,
             };

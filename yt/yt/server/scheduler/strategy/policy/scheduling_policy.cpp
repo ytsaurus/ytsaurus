@@ -6,6 +6,16 @@ namespace NYT::NScheduler::NStrategy::NPolicy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TPostUpdateContext::TPostUpdateContext(EPolicyKind policyKind)
+    : PolicyKind(policyKind)
+{ }
+
+TPoolTreeSnapshotState::TPoolTreeSnapshotState(EPolicyKind policyKind)
+    : PolicyKind(policyKind)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 ISchedulingPolicyPtr CreateSchedulingPolicy(
     std::string treeId,
     NLogging::TLogger logger,

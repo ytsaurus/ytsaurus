@@ -20,11 +20,15 @@ bool IsCachingEnabled(
         case EMasterChannelKind::Leader:
         case EMasterChannelKind::Follower:
             return false;
-        case EMasterChannelKind::ClientSideCache:
         case EMasterChannelKind::MasterSideCache:
             return true;
+        case EMasterChannelKind::ClientSideCache:
+            if (connection->GetMasterCellDirectory()->IsClientSideCacheEnabled()) {
+                return true;
+            }
+            [[fallthrough]];
         case EMasterChannelKind::Cache:
-            return connection->GetMasterCellDirectory()->IsMasterCacheConfigured();
+            return connection->GetMasterCellDirectory()->IsMasterCacheEnabled();
     }
     YT_ABORT();
 }

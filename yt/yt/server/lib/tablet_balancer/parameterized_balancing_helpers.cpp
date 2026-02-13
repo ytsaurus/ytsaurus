@@ -141,7 +141,7 @@ class TParameterizedMetricsCalculator
 {
 public:
     TParameterizedMetricsCalculator(
-        TString metric,
+        std::string metric,
         std::vector<std::string> performanceCountersKeys,
         TTableSchemaPtr performanceCountersTableSchema,
         const TLogger& logger)
@@ -177,7 +177,7 @@ public:
 protected:
     const std::vector<std::string> PerformanceCountersKeys_;
     const TTableSchemaPtr PerformanceCountersTableSchema_;
-    const TString Metric_;
+    const std::string Metric_;
     const TLogger Logger;
     NOrm::NQuery::IExpressionEvaluatorPtr Evaluator_;
 
@@ -226,7 +226,7 @@ class TReplicaMetricsCalculator
 {
 public:
     TReplicaMetricsCalculator(
-        TString metric,
+        std::string metric,
         std::vector<std::string> performanceCountersKeys,
         TTableSchemaPtr performanceCountersTableSchema,
         THashMap<TClusterName, TTableSchemaPtr> perClusterPerformanceCountersTableSchemas,
@@ -1088,11 +1088,6 @@ void TParameterizedReassignSolver::ApplyBestAction(int* availableActionCount)
             BestActionInfo_.Tablet->Metric * TableNodeFactors_[BestActionInfo_.Tablet->TableIndex];
         TableByNodeMetric_[BestActionInfo_.Tablet->TableIndex][BestActionInfo_.DestinationCell->Node->Index] +=
             BestActionInfo_.Tablet->Metric * TableNodeFactors_[BestActionInfo_.Tablet->TableIndex];
-    } else {
-        YT_LOG_WARNING("The best action is between cells on the same node "
-            "(Node: %v, TabletId: %v)",
-            BestActionInfo_.SourceCell->Node->Address,
-            BestActionInfo_.Tablet->Id);
     }
 
     YT_LOG_DEBUG("Applying best action: moving tablet to another cell "

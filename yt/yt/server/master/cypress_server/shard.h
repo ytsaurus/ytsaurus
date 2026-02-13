@@ -27,10 +27,10 @@ struct TCypressShardAccountStatistics
 
 void Serialize(const TCypressShardAccountStatistics& statistics, NYson::IYsonConsumer* consumer);
 
-TCypressShardAccountStatistics& operator +=(
+TCypressShardAccountStatistics& operator+=(
     TCypressShardAccountStatistics& lhs,
     const TCypressShardAccountStatistics& rhs);
-TCypressShardAccountStatistics operator +(
+TCypressShardAccountStatistics operator+(
     const TCypressShardAccountStatistics& lhs,
     const TCypressShardAccountStatistics& rhs);
 
@@ -61,7 +61,7 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
-    NYPath::TYPath MaybeRewritePath(const NYPath::TYPath& path);
+    NYPath::TYPath MaybeRewritePath(const NYPath::TYPath& path, bool useBetterCheckWhenRewritingPath);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TCypressShard)

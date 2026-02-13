@@ -583,8 +583,14 @@ struct TJobCommonConfig
 
     bool TreatJobProxyFailureAsAbort;
 
+    // These are panic buttons.
+    // They should not live for too long (we eventually should turn on
+    // TreatJobProxyFailureAsAbort).
+    bool TreatJobProxyPreparationFailureAsAbort;
+    bool TreatJobProxyIOErrorAsAbort;
+
     std::optional<TShellCommandConfigPtr> JobSetupCommand;
-    TString SetupCommandUser;
+    std::string SetupCommandUser;
 
     std::optional<int> StatisticsOutputTableCountLimit;
 
@@ -600,6 +606,9 @@ struct TJobCommonConfig
     TDuration JobCleanupTimeout;
 
     TDuration JobFinishTimeoutAfterInterruptionCallFailed;
+
+    //! Period between statistics reports to operations archive for running jobs.
+    std::optional<TDuration> StatisticsReportingPeriod;
 
     REGISTER_YSON_STRUCT(TJobCommonConfig);
 

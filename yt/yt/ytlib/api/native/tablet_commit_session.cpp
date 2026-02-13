@@ -59,7 +59,7 @@ public:
             TTabletRequestBatcherOptions{
                 .MaxRowsPerBatch = Config_->MaxRowsPerWriteRequest,
                 .MaxDataWeightPerBatch = Config_->MaxDataWeightPerWriteRequest,
-                .MaxRowsPerTablet = maxRowsPerTablet
+                .MaxRowsPerTablet = maxRowsPerTablet,
             },
             TableInfo_->Schemas[ETableSchemaKind::Primary],
             std::move(columnEvaluator));

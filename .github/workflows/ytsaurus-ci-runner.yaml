@@ -2,6 +2,17 @@ name: YTsaurus CI runner
 
 on:
   workflow_call:
+    inputs:
+      scenario:
+        description: "Name of the scenario"
+        required: true
+        type: string
+      ref_name:
+        required: false
+        type: string
+      image_tag:
+        required: false
+        type: string
     secrets:
       GH_PERSONAL_ACCESS_TOKEN:
         required: true
@@ -16,22 +27,40 @@ jobs:
     steps:
       - name: Checkout ytsaurus
         uses: actions/checkout@v4
-        with:
-          path: ytsaurus
-          sparse-checkout-cone-mode: false
-          sparse-checkout: '.github/ytsaurus-ci'
-
       - name: Prepare
         run: |
-          pip install -r ytsaurus/.github/ytsaurus-ci/requirements.txt
-          ln -s ytsaurus/.github/ytsaurus-ci/configs configs
-          ln -s ytsaurus/.github/ytsaurus-ci/templates templates
+          ./ya make -r yt/admin/ytsaurus_ci
       - name: Call task creator
         id: call-task-creator
+        shell: bash
         run: |
-          python3 ytsaurus/.github/ytsaurus-ci/main.py \
-                  run-scenario \
-                  --scenario nightly-dev \
-                  --git-token "${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}" \
-                  --cloud-functions-token "${{ secrets.YTSAURUS_CI_K8S_EDITOR_TOKEN }}" \
-                  --apply
+          set -euo pipefail
+
+          ref='${{ inputs.ref_name }}'
+          tag='${{ inputs.image_tag }}'
+
+          tmp="${tag#*-}"
+          ver="${tmp%%-*}"
+
+          component=""
+          case "$ref" in
+            query-tracker/*) component="query_tracker" ;;
+            stable/*)        component="ytsaurus" ;;
+            chyt/*)          component="chyt" ;;
+          esac
+
+          version_filter_json="{}"
+          if [[ -n "$component" && -n "$ver" ]]; then
+            version_filter_json="$(jq -cn --arg k "$component" --arg v "$ver" '{($k): $v}')"
+          fi
+
+          args=(
+            run-scenario
+            --scenario "${{ inputs.scenario }}"
+            --git-token "${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}"
+            --cloud-function-token "${{ secrets.YTSAURUS_CI_K8S_EDITOR_TOKEN }}"
+            --version-filter "$version_filter_json"
+            --apply
+          )
+
+          ./yt/admin/ytsaurus_ci/ytsaurus_ci "${args[@]}"

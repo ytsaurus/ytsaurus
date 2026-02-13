@@ -67,6 +67,13 @@ message TTableReplicaDescriptor
     optional int32 atomicity = 8; // EAtomicity
 }
 
+message TOriginatorTablet
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required int64 inherited_compressed_data_size = 2;
+    required int64 originator_compressed_data_size = 3;
+}
+
 message TLockDescriptor
 {
     required NYT.NProto.TGuid transaction_id = 1;
@@ -114,9 +121,11 @@ message TReplicatableTabletContent
     required int64 trimmed_row_count = 3;
     repeated TLockDescriptor locks = 4;
     optional uint64 retained_timestamp = 5;
+    optional uint64 conflict_horizon_timestamp = 13;
     optional int64 cumulative_data_weight = 6;
     required TTableSettings table_settings = 7;
     optional bytes custom_runtime_data = 8; // YSON-serialized
+    repeated TOriginatorTablet originator_tablets = 12;
 
     repeated TTableReplicaDescriptor replicas = 9;
     optional NYT.NChaosClient.NProto.TReplicationProgress replication_progress = 10;
@@ -238,6 +247,17 @@ message TReqUnfreezeTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
     repeated NYT.NProto.TGuid dynamic_store_ids = 2;
+}
+
+message TReqProvisionalFlush
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required NYT.NProto.TGuid dynamic_store_id = 2;
+}
+
+message TReqReportTabletProvisionallyFlushed
+{
+    required NYT.NProto.TGuid tablet_id = 1;
 }
 
 message TReqCancelTabletTransition
@@ -491,6 +511,7 @@ message TReqMountHunkTablet
     required NYT.NProto.TGuid master_avenue_endpoint_id = 7;
     required THunkStorageSettings hunk_storage_settings = 3;
     repeated NYT.NProto.TGuid store_ids = 6;
+    optional string path = 8;
 
     reserved 4, 5;
 }

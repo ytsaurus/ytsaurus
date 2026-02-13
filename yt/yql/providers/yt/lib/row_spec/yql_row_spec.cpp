@@ -59,9 +59,11 @@ ui64 GetNativeYtTypeFlagsImpl(const TTypeAnnotationNode* itemType) {
             case EDataSlot::TzDate:
             case EDataSlot::TzDatetime:
             case EDataSlot::TzTimestamp:
+                return NTCF_TZDATE;
             case EDataSlot::TzDate32:
             case EDataSlot::TzDatetime64:
             case EDataSlot::TzTimestamp64:
+                return NTCF_BIGTZDATE;
             case EDataSlot::DyNumber:
             case EDataSlot::JsonDocument:
                 return NTCF_NO_YT_SUPPORT;
@@ -103,6 +105,8 @@ ui64 GetNativeYtTypeFlagsImpl(const TTypeAnnotationNode* itemType) {
             return NTCF_COMPLEX;
         case ETypeAnnotationKind::World:
         case ETypeAnnotationKind::Unit:
+        case ETypeAnnotationKind::Universal:
+        case ETypeAnnotationKind::UniversalStruct:
         case ETypeAnnotationKind::Item:
         case ETypeAnnotationKind::Callable:
         case ETypeAnnotationKind::Generic:

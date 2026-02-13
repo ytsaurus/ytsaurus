@@ -287,7 +287,7 @@ public:
     {
         std::vector<std::string> reasons;
 
-        constexpr int ExpectedMutationHandlerCount = 79;
+        constexpr int ExpectedMutationHandlerCount = 81;
         if (Automaton_->GetRegisteredMethodCount() != ExpectedMutationHandlerCount) {
             reasons.push_back(Format(
                 "new mutation handler registered (ExpectedCount: %v, ActualCount: %v)",
@@ -326,7 +326,7 @@ public:
         };
 
         validateProto(NProto::TReqMountTablet::GetDescriptor(),            31, 5);
-        validateProto(NProto::TReplicatableTabletContent::GetDescriptor(), 11, 0);
+        validateProto(NProto::TReplicatableTabletContent::GetDescriptor(), 13, 0);
         validateProto(NProto::TEssentialTabletContent::GetDescriptor(),     8, 0);
         validateProto(NProto::TChunkViewDescriptor::GetDescriptor(),        5, 0);
         validateProto(NProto::TAddStoreDescriptor::GetDescriptor(),         6, 0);
@@ -347,7 +347,7 @@ public:
                Two relevant parts of code:
                - TTabletManager::PrepareReplicateTabletContentRequest
                  Populated at source servant. May throw on unsupported features.
-               - HydraReplcateTabletContent
+               - HydraReplicateTabletContent
                  Executed at target servant. Must not throw.
 
             - Mutation forwarding. Most mutations (particularly those affecting
@@ -550,6 +550,9 @@ private:
             mailboxCookie.FirstOutcomingMessageId,
             inFlightTime);
 
+        // NB: There are no backing stores on the target servant. To ensure that no conflicts are lost, sync the transient timestamp.
+        tablet->ResetTransientConflictHorizonTimestamp();
+
         tablet->SetMasterAvenueEndpointId(masterEndpointId);
         Host_->RegisterMasterAvenue(tabletId, masterEndpointId, std::move(mailboxCookie));
         YT_VERIFY(!tablet->RuntimeData()->SmoothMovementData.IsActiveServant.load());
@@ -635,6 +638,22 @@ private:
         CheckTablet(tablet);
     }
 
+    bool ShouldRotateStoreOnTargetActivation(TTablet* tablet) const
+    {
+        // TODO(ifsmirnov): YT-17388 - frozen tablets.
+        if (!tablet->GetActiveStore()) {
+            return false;
+        }
+
+        if (tablet->IsPhysicallySorted()) {
+            // We cannot reliably check that sorted dynamic store
+            // is empty with regard to persistent state.
+            return true;
+        } else {
+            return !tablet->GetActiveStore()->IsEmpty();
+        }
+    }
+
     void ChangeStageAtSource(
         TTablet* tablet,
         ESmoothMovementStage expectedStage,
@@ -666,10 +685,45 @@ private:
                 YT_VERIFY(!tabletWriteManager->HasUnfinishedPersistentTransactions());
                 YT_VERIFY(!tabletWriteManager->HasUnfinishedTransientTransactions());
 
-                ReleaseReservedDynamicStore(tablet);
+                int availableDynamicStoreCount = tablet->GetUnreservedDynamicStoreIdCount();
+                availableDynamicStoreCount += ReleaseReservedDynamicStore(tablet);
 
-                // TODO(ifsmirnov): YT-17388 - frozen tablets.
-                if (tablet->GetActiveStore()) {
+                if (ShouldRotateStoreOnTargetActivation(tablet)) {
+                    if (const auto& store = tablet->GetActiveStore();
+                        store->GetLockCount() > 0)
+                    {
+                        YT_LOG_ALERT("Active store has locks when smooth movement rotation "
+                            "is requested (%v, StoreId: %v, LockCount: %v)",
+                            tablet->GetLoggingTag(),
+                            store->GetId(),
+                            store->GetLockCount());
+
+                        // COMPAT(ifsmirnov)
+                        if (static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) >=
+                            ETabletReign::SmoothMovementOrdered)
+                        {
+                            RejectMovement(
+                                tablet,
+                                TError(
+                                    "Active store has locks when smooth movement rotation "
+                                    "is requested")
+                                    << TErrorAttribute("store_id", store->GetId()));
+                            break;
+                        }
+                    }
+
+                    if (tablet->GetSettings().MountConfig->EnableDynamicStoreRead &&
+                        availableDynamicStoreCount == 0)
+                    {
+                        YT_LOG_DEBUG("Cannot rotate store on smooth movement request, "
+                            "no dynamic store was provided and pool is empty (%v)",
+                            tablet->GetLoggingTag());
+                        RejectMovement(
+                            tablet,
+                            TError("Cannot rotate store, dynamic store id pool is empty"));
+                        break;
+                    }
+
                     tablet->GetStoreManager()->Rotate(
                         /*createNewStore*/ true,
                         NLsm::EStoreRotationReason::None,
@@ -845,7 +899,7 @@ private:
         Host_->PostMasterMessage(tablet, rsp);
     }
 
-    void ReleaseReservedDynamicStore(TTablet* tablet)
+    int ReleaseReservedDynamicStore(TTablet* tablet)
     {
         auto reason = EDynamicStoreIdReservationReason::SmoothMovement;
 
@@ -855,6 +909,8 @@ private:
         if (reservedCount == 1) {
             tablet->ReleaseReservedDynamicStoreId(reason);
         }
+
+        return reservedCount;
     }
 
     bool ApplyTestingDelayBeforeStageChange(TTablet* tablet)

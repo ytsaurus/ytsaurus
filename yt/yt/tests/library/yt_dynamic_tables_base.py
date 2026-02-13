@@ -19,6 +19,18 @@ from yt.common import YtError
 
 import yt.yson as yson
 
+from concurrent.futures import ThreadPoolExecutor
+
+##################################################################
+
+
+def map_in_parallel(mapper, args):
+    mapped = []
+    with ThreadPoolExecutor() as executor:
+        for r in executor.map(mapper, args):
+            mapped.append(r)
+    return mapped
+
 
 class DynamicTablesBase(YTEnvSetup):
     NUM_MASTERS = 1
@@ -37,6 +49,39 @@ class DynamicTablesBase(YTEnvSetup):
         "chunk_manager": {
             "allow_multiple_erasure_parts_per_node": True
         }
+    }
+
+    @staticmethod
+    def _testing_delay(delay=30):
+        return {"testing": {"random_delay": delay}}
+
+    DELTA_NODE_CONFIG = {
+        "tablet_node": {
+            "hydra_manager": {
+                "recovery_min_log_level": "debug",
+            },
+        },
+        "rpc_server": {
+            "services": {
+                "TabletService": {
+                    "methods": {
+                        "Write": _testing_delay(),
+                        "RegisterTransactionActions": _testing_delay(),
+                    },
+                },
+                "TransactionSupervisorService": {
+                    "methods": {
+                        "CommitTransaction": _testing_delay(),
+                    },
+                },
+                "TransactionParticipantService": {
+                    "methods": {
+                        "CommitTransaction": _testing_delay(),
+                        "PrepareTransaction": _testing_delay(),
+                    },
+                },
+            },
+        },
     }
 
     class CellsDisabled():
@@ -230,6 +275,12 @@ class DynamicTablesBase(YTEnvSetup):
                 }
             )
         create_dynamic_table(path, **attributes)
+
+    def _create_table(self, path, sorted, **attributes):
+        if sorted:
+            self._create_sorted_table(path, **attributes)
+        else:
+            self._create_ordered_table(path, **attributes)
 
     def _get_recursive(self, path, result=None, driver=None):
         if result is None or result.attributes.get("opaque", False):

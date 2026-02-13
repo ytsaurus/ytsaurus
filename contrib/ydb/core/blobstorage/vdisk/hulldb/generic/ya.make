@@ -3,6 +3,7 @@ LIBRARY()
 PEERDIR(
     contrib/ydb/core/blobstorage/vdisk/hulldb/base
     contrib/ydb/core/blobstorage/vdisk/hulldb/fresh
+    contrib/ydb/core/blobstorage/vdisk/hulldb/bulksst_add
     contrib/ydb/core/blobstorage/vdisk/protos
     contrib/ydb/core/protos
 )
@@ -13,6 +14,7 @@ SRCS(
     blobstorage_hulloptlsn.cpp
     blobstorage_hulloptlsn.h
     blobstorage_hullrecmerger.h
+    blobstorage_hullwriteindexsst.h
     blobstorage_hullwritesst.h
     defs.h
     hulldb_bulksstloaded.h

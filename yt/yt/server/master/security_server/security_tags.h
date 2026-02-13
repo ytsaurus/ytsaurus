@@ -24,7 +24,7 @@ struct TSecurityTags
     void Persist(const TStreamPersistenceContext& context);
 };
 
-TSecurityTags operator + (const TSecurityTags& a, const TSecurityTags& b);
+TSecurityTags operator+(const TSecurityTags& a, const TSecurityTags& b);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -17,7 +17,7 @@ DEFINE_ENUM(EFileFormat,
 
 void ImportFilesFromS3(
     const TString& proxy,
-    const TString& url,
+    const std::string& url,
     const TString& region,
     const TString& bucket,
     const TString& prefix,

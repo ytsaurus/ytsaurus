@@ -119,6 +119,7 @@ message TReqLocationFullHeartbeat
     required NYT.NProto.TGuid location_uuid = 2;
     required NNodeTrackerClient.NProto.TChunkLocationStatistics statistics = 3;
     repeated NChunkClient.NProto.TChunkAddInfo chunks = 4;
+    optional bool is_validation = 5 [default = false];
 }
 
 message TRspLocationFullHeartbeat
@@ -178,6 +179,8 @@ message TRspIncrementalHeartbeat
 
     optional NChunkClient.NProto.TMediumDirectory medium_directory = 5;
     optional TMediumOverrides medium_overrides = 6;
+
+    optional bool schedule_validation_full_heartbeat_session = 8;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

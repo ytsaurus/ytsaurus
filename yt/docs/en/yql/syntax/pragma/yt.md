@@ -144,6 +144,14 @@ Controls the size of partitions in MapReduce operations.
 
 You can use K, M, and G suffixes to specify values in kilobytes, megabytes, and gigabytes, respectively.
 
+## yt.DockerImage
+
+| Value type | Default | Static /<br/>dynamic |
+| --- | --- | --- |
+| Path to the Docker image | — | Dynamic |
+
+The ability to specify a Docker image to create an environment in which user jobs will be executed.
+
 ## yt.MaxJobCount
 
 | Value type | Default value | Static/<br/>dynamic |
@@ -1102,7 +1110,7 @@ Sets the maximum number of columnar groups per intermediate query table. If the 
 
 | Value type | Default value | Static/<br/>dynamic |
 | --- | --- | --- |
-| Flag | true | Static |
+| Flag | true | Dynamic |
 
 Sets the `"force_job_size_adjuster"` option in the operation settings.
 

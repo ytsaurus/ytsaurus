@@ -32,6 +32,7 @@
 
 #include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
 
+#include <yt/yt/ytlib/sequoia_client/connection.h>
 #include <yt/yt/ytlib/sequoia_client/prerequisite_revision.h>
 #include <yt/yt/ytlib/sequoia_client/transaction_service_proxy.h>
 
@@ -128,12 +129,6 @@ private:
 
     const NNative::IConnectionPtr Connection_;
 
-    const IDistributedThrottlerFactoryPtr ThrottlerFactory_;
-    const TPerUserAndWorkloadRequestQueueProviderPtr RequestQueueProvider_;
-
-    class TExecuteSession;
-    using TExecuteSessionPtr = TIntrusivePtr<TExecuteSession>;
-
     class TExecuteRequestQueueProvider
         : public TPerUserAndWorkloadRequestQueueProvider
     {
@@ -144,6 +139,26 @@ private:
             : TPerUserAndWorkloadRequestQueueProvider(std::move(reconfigurationCallback))
             , Owner_(owner)
         { }
+
+        void UpdateTotalLimits(const TUserDirectoryPtr& userDirectory)
+        {
+            THashMap<TThrottlerId, std::optional<double>> newTotalLimits;
+            for (const auto& [name, descriptor] : userDirectory->GetNameOrAliasToUserDescriptor()) {
+                auto readKey = GetRequestQueueNameForKey({name, EUserWorkloadType::Read});
+                std::optional<double> limit = descriptor->ReadRequestRateLimit
+                    ? std::optional(static_cast<double>(*descriptor->ReadRequestRateLimit))
+                    : std::nullopt;
+                EmplaceOrCrash(newTotalLimits, std::move(readKey), limit);
+
+                auto writeKey = GetRequestQueueNameForKey({name, EUserWorkloadType::Write});
+                limit = descriptor->WriteRequestRateLimit
+                    ? std::optional(static_cast<double>(*descriptor->WriteRequestRateLimit))
+                    : std::nullopt;
+                EmplaceOrCrash(newTotalLimits, std::move(writeKey), limit);
+            }
+
+            Owner_->ThrottlerFactory_->UpdateTotalLimits(newTotalLimits);
+        }
 
     private:
         TObjectService* const Owner_;
@@ -170,6 +185,12 @@ private:
         }
     };
 
+    const IDistributedThrottlerFactoryPtr ThrottlerFactory_;
+    const TIntrusivePtr<TExecuteRequestQueueProvider> RequestQueueProvider_;
+
+    class TExecuteSession;
+    using TExecuteSessionPtr = TIntrusivePtr<TExecuteSession>;
+
     static TPerUserAndWorkloadRequestQueueProvider::TReconfigurationCallback CreateReconfigurationCallback(
         IBootstrap* bootstrap,
         IDistributedThrottlerFactoryPtr throttlerFactory)
@@ -182,18 +203,24 @@ private:
             const auto& dynamicConfig = bootstrap->GetDynamicConfigManager()->GetConfig()->ObjectService;
             if (!dynamicConfig->EnablePerUserRequestWeightThrottling) {
                 queue->ConfigureWeightThrottler(nullptr);
+                queue->SetQueueSizeLimit(std::nullopt);
                 return;
             }
 
-            // TODO(danilalexeev): Support queue size limit reconfiguration.
             const auto& userDirectory = bootstrap->GetUserDirectory();
             const auto descriptor = userDirectory->FindUserByName(userNameAndWorkloadType.first);
             if (!descriptor) {
                 return;
             }
 
-            auto newConfig = TThroughputThrottlerConfig::Create(GetUserRequestRateLimit(*descriptor, userNameAndWorkloadType.second));
+            auto limit = GetUserRequestRateLimit(*descriptor, userNameAndWorkloadType.second);
+            if (limit) {
+                limit = *limit * dynamicConfig->RequestRateLimitFactor;
+            }
+
+            auto newConfig = TThroughputThrottlerConfig::Create(limit);
             queue->ConfigureWeightThrottler(newConfig);
+            queue->SetQueueSizeLimit(descriptor->QueueSizeLimit);
 
             // We utilize the fact that #GetOrCreateThrottle keeps #TWrappedThrottler pointers valid,
             // including the one inside the request queue.
@@ -204,10 +231,14 @@ private:
         });
     }
 
-    void OnUserDirectoryUpdated(const std::string& userName)
+    void OnUserDirectoryUpdated(const std::vector<std::string>& users)
     {
-        RequestQueueProvider_->ReconfigureQueue({userName, EUserWorkloadType::Read});
-        RequestQueueProvider_->ReconfigureQueue({userName, EUserWorkloadType::Write});
+        for (const auto& userName : users) {
+            RequestQueueProvider_->ReconfigureQueue({userName, EUserWorkloadType::Read});
+            RequestQueueProvider_->ReconfigureQueue({userName, EUserWorkloadType::Write});
+        }
+
+        RequestQueueProvider_->UpdateTotalLimits(Bootstrap_->GetUserDirectory());
     }
 
     void OnDynamicConfigChanged(
@@ -233,7 +264,12 @@ private:
 
             YT_LOG_DEBUG("Per-user request weight throttling was %v",
                 newObjectServiceConfig->EnablePerUserRequestWeightThrottling ? "enabled" : "disabled");
+        } else if (newObjectServiceConfig->EnablePerUserRequestWeightThrottling &&
+            newObjectServiceConfig->RequestRateLimitFactor != oldObjectServiceConfig->RequestRateLimitFactor)
+        {
+            RequestQueueProvider_->ReconfigureAllQueues();
         }
+
     }
 };
 
@@ -335,6 +371,8 @@ private:
         if (!Owner_->GetDynamicConfig()->AllowBypassMasterResolve) {
             PredictNonMaster();
             InvokeMasterRequests(/*beforeSequoiaResolve*/ true);
+        } else {
+            PredictNonSequoia();
         }
 
         InvokeSequoiaRequests();
@@ -401,6 +439,19 @@ private:
 
             if (mutating != mutatingSubrequest && Owner_->GetDynamicConfig()->AlertOnMixedReadWriteBatch) {
                 YT_LOG_ALERT("Batch request contains both mutating and non-mutating subrequests");
+            }
+        }
+    }
+
+    void PredictNonSequoia()
+    {
+        for (auto& subrequest : Subrequests_) {
+            // NB: it's not just an optimization. On master startup cluster
+            // directory is synchronized via GetClusterMeta request. This
+            // request cannot be sent to Sequoia since Sequoia transactions
+            // don't work until cluster directory contains Ground cluster.
+            if (subrequest.RequestHeader->method() == "GetClusterMeta") {
+                subrequest.Target = ERequestTarget::Master;
             }
         }
     }
@@ -942,6 +993,8 @@ private:
             return response;
         }
 
+        NTracing::TChildTraceContextGuard traceContextGuard("SequoiaService.Invoke");
+
         auto invokeResult = CreateSequoiaService(Owner_->Bootstrap_)
             ->TryInvoke(context, session, resolveResult, resolvedPrerequisiteRevisions);
         return Visit(invokeResult,
@@ -949,7 +1002,9 @@ private:
                 auto error = CheckPrerequisitesAfterRequestInvocation(
                     header,
                     session,
-                    Owner_->Bootstrap_->GetSequoiaClient(),
+                    Owner_->Bootstrap_
+                        ->GetSequoiaConnection()
+                        ->CreateClient(AuthenticationIdentity_),
                     originalTargetPath,
                     prerequisiteRevisions,
                     prerequisiteTransactionIds);
@@ -976,9 +1031,12 @@ private:
         };
 
         auto relevantSubrequestCount = std::ranges::count_if(Subrequests_, isSubrequestRelevant);
-        if (relevantSubrequestCount != 0) {
-            MaybeSyncWithMaster();
+        if (relevantSubrequestCount == 0) {
+            // No Sequoia requests are present.
+            return;
         }
+
+        MaybeSyncWithMaster();
 
         const auto& invoker = Owner_->GetDefaultInvoker();
         std::vector<TFuture<std::optional<TSharedRefArray>>> asyncSubresponses;

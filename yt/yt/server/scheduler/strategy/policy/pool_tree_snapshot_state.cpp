@@ -1,5 +1,7 @@
 #include "pool_tree_snapshot_state.h"
 
+#include <yt/yt/server/scheduler/strategy/pool_tree_snapshot.h>
+
 namespace NYT::NScheduler::NStrategy::NPolicy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -20,7 +22,7 @@ const TStaticAttributes& TStaticAttributesList::AttributesOf(const TPoolTreeElem
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPoolTreeSnapshotState::TPoolTreeSnapshotState(
+TPoolTreeSnapshotStateImpl::TPoolTreeSnapshotStateImpl(
     TStaticAttributesList staticAttributesList,
     TOperationElementsBySchedulingPriority schedulableOperationsPerPriority,
     THashSet<int> ssdPriorityPreemptionMedia,
@@ -29,7 +31,8 @@ TPoolTreeSnapshotState::TPoolTreeSnapshotState(
     TOperationCountsByPreemptionPriorityParameters operationCountsByPreemptionPriorityParameters,
     TOperationStateMap operationIdToState,
     TSharedOperationStateMap operationIdToSharedState)
-    : StaticAttributesList_(std::move(staticAttributesList))
+    : TPoolTreeSnapshotState(EPolicyKind::Classic)
+    , StaticAttributesList_(std::move(staticAttributesList))
     , SchedulableOperationsPerPriority_(std::move(schedulableOperationsPerPriority))
     , SsdPriorityPreemptionMedia_(std::move(ssdPriorityPreemptionMedia))
     , CachedAllocationPreemptionStatuses_(std::move(cachedAllocationPreemptionStatuses))
@@ -39,43 +42,53 @@ TPoolTreeSnapshotState::TPoolTreeSnapshotState(
     , OperationIdToSharedState_(std::move(operationIdToSharedState))
 { }
 
-const TOperationStatePtr& TPoolTreeSnapshotState::GetOperationState(const TPoolTreeOperationElement* element) const
+const TOperationStatePtr& TPoolTreeSnapshotStateImpl::GetOperationState(const TPoolTreeOperationElement* element) const
 {
     return GetOrCrash(OperationIdToState_, element->GetOperationId());
 }
 
-const TOperationSharedStatePtr& TPoolTreeSnapshotState::GetOperationSharedState(const TPoolTreeOperationElement* element) const
+const TOperationSharedStatePtr& TPoolTreeSnapshotStateImpl::GetOperationSharedState(const TPoolTreeOperationElement* element) const
 {
     return GetOrCrash(OperationIdToSharedState_, element->GetOperationId());
 }
 
-const TOperationStatePtr& TPoolTreeSnapshotState::GetEnabledOperationState(const TPoolTreeOperationElement* element) const
+const TOperationStatePtr& TPoolTreeSnapshotStateImpl::GetEnabledOperationState(const TPoolTreeOperationElement* element) const
 {
     const auto& operationState = StaticAttributesList_.AttributesOf(element).OperationState;
     YT_ASSERT(operationState);
     return operationState;
 }
 
-const TOperationSharedStatePtr& TPoolTreeSnapshotState::GetEnabledOperationSharedState(const TPoolTreeOperationElement* element) const
+const TOperationSharedStatePtr& TPoolTreeSnapshotStateImpl::GetEnabledOperationSharedState(const TPoolTreeOperationElement* element) const
 {
     const auto& operationSharedState = StaticAttributesList_.AttributesOf(element).OperationSharedState;
     YT_ASSERT(operationSharedState);
     return operationSharedState;
 }
 
-TDynamicAttributesListSnapshotPtr TPoolTreeSnapshotState::GetDynamicAttributesListSnapshot() const
+TDynamicAttributesListSnapshotPtr TPoolTreeSnapshotStateImpl::GetDynamicAttributesListSnapshot() const
 {
     return DynamicAttributesListSnapshot_.Acquire();
 }
 
-void TPoolTreeSnapshotState::SetDynamicAttributesListSnapshot(const TDynamicAttributesListSnapshotPtr& dynamicAttributesListSnapshotPtr)
+void TPoolTreeSnapshotStateImpl::SetDynamicAttributesListSnapshot(const TDynamicAttributesListSnapshotPtr& dynamicAttributesListSnapshotPtr)
 {
     DynamicAttributesListSnapshot_.Store(dynamicAttributesListSnapshotPtr);
 }
 
-    void TPoolTreeSnapshotState::ResetDynamicAttributesListSnapshot()
+    void TPoolTreeSnapshotStateImpl::ResetDynamicAttributesListSnapshot()
 {
     DynamicAttributesListSnapshot_.Reset();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TPoolTreeSnapshotStateImpl* GetPoolTreeSnapshotState(const TPoolTreeSnapshotPtr& treeSnapshot)
+{
+    const auto& state = treeSnapshot->SchedulingPolicyState();
+    YT_ASSERT(state);
+    YT_ASSERT(state->PolicyKind == EPolicyKind::Classic);
+    return static_cast<TPoolTreeSnapshotStateImpl*>(state.Get());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

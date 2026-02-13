@@ -27,6 +27,8 @@
 
 #include <yt/yt/core/bus/tcp/config.h>
 
+#include <yt/yt/core/http/config.h>
+
 #include <yt/yt/core/concurrency/public.h>
 
 #include <yt/yt/core/net/address.h>
@@ -46,6 +48,8 @@ struct TJobProxyTestingConfig
     : public NYTree::TYsonStruct
 {
     bool FailOnJobProxySpawnedCall;
+
+    bool FailPreparation;
 
     REGISTER_YSON_STRUCT(TJobProxyTestingConfig);
 
@@ -120,7 +124,7 @@ DEFINE_REFCOUNTED_TYPE(TUserJobNetworkAddress)
 struct TTmpfsManagerConfig
     : public NYTree::TYsonStruct
 {
-    std::vector<TString> TmpfsPaths;
+    std::vector<std::string> TmpfsPaths;
 
     REGISTER_YSON_STRUCT(TTmpfsManagerConfig);
 
@@ -523,6 +527,8 @@ struct TJobProxyInternalConfig
 
     i64 AdaptiveRowCountUpperBound;
 
+    std::optional<int> OomScoreAdjOnExceededMemoryReserve;
+
     bool UseNewDeliveryFencedConnection;
 
     //! Enable root volume disk quota.
@@ -541,8 +547,14 @@ struct TJobProxyInternalConfig
     bool DumpSingleLocalClusterStatistics;
 
     bool EnableGrpcServer;
+    bool EnableHttpServer;
 
     NRpc::NGrpc::TServerConfigPtr GrpcServer;
+
+    NHttp::TServerConfigPtr HttpServer;
+    std::string HttpServerUdsPath;
+    int HttpServerPollerThreadCount;
+
     TJobApiServiceConfigPtr JobApiService;
 
     // TODO(achulkov2): Remove this once medium directory is passed to job proxy in job spec.
@@ -590,6 +602,9 @@ struct TJobProxyDynamicConfig
     NJobProxy::TJobTraceEventProcessorConfigPtr JobTraceEventProcessor;
 
     i64 AdaptiveRowCountUpperBound;
+
+    std::optional<int> OomScoreAdjOnExceededMemoryReserve;
+
     bool UseNewDeliveryFencedConnection;
 
     std::optional<TString> MemoryProfileDumpPath;
@@ -600,6 +615,7 @@ struct TJobProxyDynamicConfig
     bool DumpSingleLocalClusterStatistics;
 
     bool EnableGrpcServer;
+    bool EnableHttpServer;
 
     bool SyncMediumDirectoryOnStart;
 

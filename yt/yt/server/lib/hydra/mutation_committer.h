@@ -66,9 +66,9 @@ protected:
     const NElection::TCellManagerPtr CellManager_;
 
     NProto::TMutationHeader MutationHeader_;
-    TFuture<void> LastLoggedMutationFuture_ = VoidFuture;
+    TFuture<void> LastLoggedMutationFuture_ = OKFuture;
 
-    TFuture<void> LastOffloadedMutationsFuture_ = VoidFuture;
+    TFuture<void> LastOffloadedMutationsFuture_ = OKFuture;
 
     TCompactFlatMap<int, TFuture<IChangelogPtr>, 4> NextChangelogs_;
     IChangelogPtr Changelog_;
@@ -166,7 +166,7 @@ private:
     TReachableState CommittedState_;
     i64 LastOffloadedSequenceNumber_ = 0;
     i64 NextLoggedSequenceNumber_ = 0;
-    TVersion NextLoggedVersion_;
+    TPhysicalVersion NextLoggedVersion_;
 
     bool AcquiringChangelog_ = false;
 

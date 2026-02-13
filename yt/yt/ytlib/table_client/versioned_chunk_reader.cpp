@@ -748,7 +748,7 @@ public:
 
     TFuture<void> Open() override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
 protected:

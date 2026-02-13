@@ -9,9 +9,15 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TFunctionsFetcher = std::function<void(TRange<std::string> names, const TTypeInferrerMapPtr& typeInferrers)>;
+using TFunctionsFetcher = std::function<void(
+    TRange<std::string> names,
+    const TTypeInferrerMapPtr& typeInferrers,
+    NCodegen::EExecutionBackend executionBackend)>;
 
-void DefaultFetchFunctions(TRange<std::string> names, const TTypeInferrerMapPtr& typeInferrers);
+void DefaultFetchFunctions(
+    TRange<std::string> names,
+    const TTypeInferrerMapPtr& typeInferrers,
+    NCodegen::EExecutionBackend executionBackend);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,6 +48,7 @@ std::unique_ptr<TParsedSource> ParseSource(
 TPlanFragmentPtr PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     TStringBuf source,
+    NCodegen::EExecutionBackend executionBackend,
     NYson::TYsonStringBuf placeholderValues = {},
     int syntaxVersion = 1,
     IMemoryUsageTrackerPtr memoryTracker = nullptr);
@@ -51,9 +58,12 @@ TPlanFragmentPtr PreparePlanFragment(
     TStringBuf source,
     NAst::TQuery& query,
     NAst::TAstHead& astHead,
+    NCodegen::EExecutionBackend executionBackend,
     int builderVersion = 1,
     IMemoryUsageTrackerPtr memoryTracker = nullptr,
     int syntaxVersion = 1,
+    bool shouldRewriteCardinalityIntoHyperLogLog = false, // COMPAT(dtorilov): Remove after 25.4.
+    int hyperLogLogPrecision = 14,
     int depth = 0);
 
 ////////////////////////////////////////////////////////////////////////////////

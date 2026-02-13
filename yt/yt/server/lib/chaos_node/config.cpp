@@ -62,6 +62,15 @@ void TChaosManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("leftover_migration_period", &TThis::LeftoverMigrationPeriod)
         .Default(TDuration::Seconds(30));
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TChaosLeaseManagerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("max_migration_batch_size", &TThis::MaxMigrationBatchSize)
+        .Default(1000);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TTransactionManagerConfig::Register(TRegistrar registrar)
@@ -82,6 +91,8 @@ void TChaosNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("transaction_manager", &TThis::TransactionManager)
         .DefaultNew();
     registrar.Parameter("chaos_manager", &TThis::ChaosManager)
+        .DefaultNew();
+    registrar.Parameter("chaos_lease_manager", &TThis::ChaosLeaseManager)
         .DefaultNew();
     registrar.Parameter("coordinator_manager", &TThis::CoordinatorManager)
         .DefaultNew();

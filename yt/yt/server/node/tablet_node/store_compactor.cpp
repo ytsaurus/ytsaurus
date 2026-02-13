@@ -1090,7 +1090,7 @@ public:
                     continue;
                 }
 
-                auto futureResult = cellInfo.AsyncTasks.GetUnique();
+                auto futureResult = cellInfo.AsyncTasks.AsUnique().Get();
                 if (!futureResult.IsOK()) {
                     continue;
                 }

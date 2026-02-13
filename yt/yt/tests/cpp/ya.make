@@ -2,13 +2,14 @@ RECURSE(
     library
     test_base
     test_chunk_scraper
+    test_cross_cluster_replicated_state
     test_cypress_election
     test_data_node_rpc
     test_distributed_chunk_sessions
     test_hydra
     test_multiproxy
     test_native_api
-    test_partition_reader
+    test_readers
     test_rpc_api
     test_sequoia
 )

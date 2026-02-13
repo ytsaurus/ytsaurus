@@ -38,8 +38,8 @@ execNodes:
       - tini
       - --
       - /usr/bin/gpuagent_runner.sh
-  runtime:
-    nvidia: {}
+    runtime:
+      nvidia: {}
   privileged: true
   jobResources:
     requests:

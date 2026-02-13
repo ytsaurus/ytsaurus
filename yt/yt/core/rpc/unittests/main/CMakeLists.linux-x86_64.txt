@@ -23,6 +23,7 @@ target_compile_options(unittester-core-rpc PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(unittester-core-rpc PUBLIC
@@ -57,6 +58,7 @@ target_link_options(unittester-core-rpc PRIVATE
 )
 
 target_sources(unittester-core-rpc PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/authentificated_identity_guard_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/overload_controller_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/handle_channel_failure_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/roaming_channel_ut.cpp

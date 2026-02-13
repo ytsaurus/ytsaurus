@@ -160,13 +160,8 @@ class TokenAuth(AuthBase):
         if self.token is not None:
             request.headers["Authorization"] = "OAuth " + self.token
 
-    def handle_redirect(self, request, **kwargs):
-        self.set_token(request)
-        return request
-
     def __call__(self, request):
         self.set_token(request)
-        request.register_hook("response", self.handle_redirect)
         return request
 
 

@@ -423,6 +423,15 @@ void INode::DoAdd(TNodePtr node) {
     Y_DEBUG_ABORT_UNLESS(false, "Node is not expandable");
 }
 
+bool Init(TContext& ctx, ISource* src, const TVector<TNodePtr>& nodes) {
+    for (const TNodePtr& node : nodes) {
+        if (!node->Init(ctx, src)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 TNodeResult Wrap(TNodePtr node) {
     if (!node) {
         return std::unexpected(ESQLError::Basic);
@@ -848,6 +857,10 @@ void TAstListNodeImpl::CollectPreaggregateExprs(TContext& ctx, ISource& src, TVe
     }
 }
 
+const TString* TAstListNodeImpl::GetSourceName() const {
+    return DeriveCommonSourceName(Nodes_);
+}
+
 TNodePtr TAstListNodeImpl::DoClone() const {
     return new TAstListNodeImpl(Pos_, CloneContainer(Nodes_));
 }
@@ -1233,6 +1246,12 @@ bool TWinRank::DoInit(TContext& ctx, ISource* src) {
 
     if (Args_.empty()) {
         for (const auto& spec : orderSpec) {
+            // It relies on a fact that ORDER BY is
+            // already validated at `TSelectCore::InitSelect`.
+            if (!spec->OrderExpr->Init(ctx, src)) {
+                return false;
+            }
+
             Args_.push_back(spec->Clone()->OrderExpr);
         }
 
@@ -1817,6 +1836,10 @@ TNodePtr IAggregation::WrapIfOverState(const TNodePtr& input, bool overState, bo
     return Y(ToString("AggOverState"), extractor, BuildLambda(Pos_, Y(), input));
 }
 
+TNodePtr IAggregation::GetExtractor(bool many, TContext& ctx) const {
+    return BuildLambda(Pos_, Y("row"), GetExtractorBody(many, ctx));
+}
+
 void IAggregation::AddFactoryArguments(TNodePtr& apply) const {
     Y_UNUSED(apply);
 }
@@ -1852,9 +1875,12 @@ bool UnescapeQuoted(const TString& str, TPosition& pos, char quoteChar, TString&
     if (unescapeResult != EUnescapeResult::OK) {
         TTextWalker walker(pos, utf8Aware);
         walker.Advance(atom.Trunc(readBytes));
-        error = UnescapeResultToString(unescapeResult);
+        error = TStringBuilder()
+                << UnescapeResultToString(unescapeResult)
+                << " near byte " << readBytes;
         return false;
     }
+
     return true;
 }
 
@@ -1948,7 +1974,7 @@ StringContentInternal(TContext& ctx, TPosition pos, const TString& input, EStrin
             result.Content = UnescapeAnsiQuoted(str);
         } else {
             TString error;
-            if (!UnescapeQuoted(str, pos, str[0], result.Content, error, ctx.Settings.Antlr4Parser)) {
+            if (!UnescapeQuoted(str, pos, str[0], result.Content, error, /*utf8Aware=*/true)) {
                 ctx.Error(pos) << "Failed to parse string literal: " << error;
                 return {};
             }
@@ -2022,7 +2048,7 @@ TString IdContent(TContext& ctx, const TString& s) {
 
     auto unescapeResult = UnescapeArbitraryAtom(atom, endSym, &sout, &readBytes);
     if (unescapeResult != EUnescapeResult::OK) {
-        TTextWalker walker(pos, ctx.Settings.Antlr4Parser);
+        TTextWalker walker(pos, /*utf8Aware=*/true);
         walker.Advance(atom.Trunc(readBytes));
         ctx.Error(pos) << "Cannot parse broken identifier: " << UnescapeResultToString(unescapeResult);
         return {};
@@ -2052,7 +2078,7 @@ TString IdContentFromString(TContext& ctx, const TString& str) {
 namespace {
 class TInvalidLiteralNode final: public INode {
 public:
-    TInvalidLiteralNode(TPosition pos)
+    explicit TInvalidLiteralNode(TPosition pos)
         : INode(pos)
     {
     }
@@ -3619,7 +3645,7 @@ TNodePtr BuildNamedExprReference(TNodePtr parent, const TString& name, TMaybe<si
 
 class TNamedExprNode: public IProxyNode {
 public:
-    TNamedExprNode(TNodePtr parent)
+    explicit TNamedExprNode(TNodePtr parent)
         : IProxyNode(parent->GetPos(), parent)
         , FakeSource_(BuildFakeSource(parent->GetPos()))
         , Referenced_(false)

@@ -4,7 +4,6 @@ import typing as t
 
 from sqlglot import exp
 from sqlglot.dialects.dialect import (
-    Version,
     rename_func,
     build_like,
     unit_to_var,
@@ -15,6 +14,7 @@ from sqlglot.dialects.dialect import (
 )
 from sqlglot.dialects.hive import _build_with_ignore_nulls
 from sqlglot.dialects.spark2 import Spark2, temporary_storage_provider, _build_as_cast
+from sqlglot.typing.spark import EXPRESSION_METADATA
 from sqlglot.helper import ensure_list, seq_get
 from sqlglot.tokens import TokenType
 from sqlglot.transforms import (
@@ -100,7 +100,7 @@ def _dateadd_sql(self: Spark.Generator, expression: exp.TsOrDsAdd | exp.Timestam
 
 
 def _groupconcat_sql(self: Spark.Generator, expression: exp.GroupConcat) -> str:
-    if self.dialect.version < Version("4.0.0"):
+    if self.dialect.version < (4,):
         expr = exp.ArrayToString(
             this=exp.ArrayAgg(this=expression.this),
             expression=expression.args.get("separator") or exp.Literal.string(""),
@@ -112,6 +112,8 @@ def _groupconcat_sql(self: Spark.Generator, expression: exp.GroupConcat) -> str:
 
 class Spark(Spark2):
     SUPPORTS_ORDER_BY_ALL = True
+    SUPPORTS_NULL_TYPE = True
+    EXPRESSION_METADATA = EXPRESSION_METADATA.copy()
 
     class Tokenizer(Spark2.Tokenizer):
         STRING_ESCAPES_ALLOWED_IN_RAW_STRINGS = False
@@ -139,6 +141,7 @@ class Spark(Spark2):
             "TRY_SUBTRACT": exp.SafeSubtract.from_arg_list,
             "DATEDIFF": _build_datediff,
             "DATE_DIFF": _build_datediff,
+            "JSON_OBJECT_KEYS": exp.JSONKeys.from_arg_list,
             "LISTAGG": exp.GroupConcat.from_arg_list,
             "TIMESTAMP_LTZ": _build_as_cast("TIMESTAMP_LTZ"),
             "TIMESTAMP_NTZ": _build_as_cast("TIMESTAMP_NTZ"),
@@ -173,6 +176,12 @@ class Spark(Spark2):
             if this.expression:
                 return self.expression(exp.ComputedColumnConstraint, this=this.expression)
             return this
+
+        def _parse_pivot_aggregation(self) -> t.Optional[exp.Expression]:
+            # Spark 3+ and Databricks support non aggregate functions in PIVOT too, e.g
+            # PIVOT (..., 'foo' AS bar FOR col_to_pivot IN (...))
+            aggregate_expr = self._parse_function() or self._parse_disjunction()
+            return self._parse_alias(aggregate_expr)
 
     class Generator(Spark2.Generator):
         SUPPORTS_TO_NUMBER = True
@@ -214,6 +223,7 @@ class Spark(Spark2):
             exp.DatetimeSub: date_delta_to_binary_interval_op(cast=False),
             exp.GroupConcat: _groupconcat_sql,
             exp.EndsWith: rename_func("ENDSWITH"),
+            exp.JSONKeys: rename_func("JSON_OBJECT_KEYS"),
             exp.PartitionedByProperty: lambda self,
             e: f"PARTITIONED BY {self.wrap(self.expressions(sqls=[_normalize_partition(e) for e in e.this.expressions], skip_first=True))}",
             exp.SafeAdd: rename_func("TRY_ADD"),

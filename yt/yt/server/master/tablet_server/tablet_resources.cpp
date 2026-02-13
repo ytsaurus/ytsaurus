@@ -189,4 +189,66 @@ void FormatValue(TStringBuilderBase* builder, const TTabletResources& resources,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTabletCellBundleQuota& operator+=(
+    TTabletCellBundleQuota& lhs,
+    const TTabletCellBundleQuota& rhs)
+{
+    auto add = [] (auto lhs, auto rhs) -> std::optional<i64> {
+        if (lhs || rhs) {
+            return lhs.value_or(0) + rhs.value_or(0);
+        } else {
+            return std::nullopt;
+        }
+    };
+
+    lhs.SetCpu(add(lhs.GetCpu(), rhs.GetCpu()));
+    lhs.SetMemory(add(lhs.GetMemory(), rhs.GetMemory()));
+    lhs.SetNetBytes(add(lhs.GetNetBytes(), rhs.GetNetBytes()));
+
+    return lhs;
+}
+
+TTabletCellBundleQuota& operator-=(
+    TTabletCellBundleQuota& lhs,
+    const TTabletCellBundleQuota& rhs)
+{
+    auto subtract = [] (auto lhs, auto rhs) -> std::optional<i64> {
+        if (lhs || rhs) {
+            YT_ASSERT(lhs);
+            YT_ASSERT(lhs >= rhs.value_or(0));
+            return lhs.value_or(0) - rhs.value_or(0);
+        } else {
+            return std::nullopt;
+        }
+    };
+
+    lhs.SetCpu(subtract(lhs.GetCpu(), rhs.GetCpu()));
+    lhs.SetMemory(subtract(lhs.GetMemory(), rhs.GetMemory()));
+    lhs.SetNetBytes(subtract(lhs.GetNetBytes(), rhs.GetNetBytes()));
+
+    return lhs;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTabletCellBundleResources& operator+=(
+    TTabletCellBundleResources& lhs,
+    const TTabletCellBundleResources& rhs)
+{
+    static_cast<TTabletResources&>(lhs) += static_cast<const TTabletResources&>(rhs);
+    static_cast<TTabletCellBundleQuota&>(lhs) += static_cast<const TTabletCellBundleQuota&>(rhs);
+    return lhs;
+}
+
+TTabletCellBundleResources& operator-=(
+    TTabletCellBundleResources& lhs,
+    const TTabletCellBundleResources& rhs)
+{
+    static_cast<TTabletResources&>(lhs) -= static_cast<const TTabletResources&>(rhs);
+    static_cast<TTabletCellBundleQuota&>(lhs) -= static_cast<const TTabletCellBundleQuota&>(rhs);
+    return lhs;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTabletServer

@@ -1,0 +1,10 @@
+{
+    "test_canonizator.test_canonizator[simple_mapping.yaml]": [
+        {
+            "uri": "file://test_canonizator.test_canonizator_simple_mapping.yaml_/record.cpp"
+        },
+        {
+            "uri": "file://test_canonizator.test_canonizator_simple_mapping.yaml_/record.h"
+        }
+    ]
+}

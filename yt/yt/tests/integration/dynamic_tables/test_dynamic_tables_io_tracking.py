@@ -276,7 +276,7 @@ class TestTabletNodeIOTracking(TestDynamicTableIOTrackingBase, DynamicTablesBase
                                                filter=lambda event: event.get("data_node_method@") == "GetBlockRange")
         self._check_events(read_events, category="preload", allowed_chunk_ids=(chunk_id, ))
 
-    @authors("tea-mur")
+    @authors("tea-mur", "akozhikhov")
     def test_dictionary_builder(self):
         def _wait_dictionaries_built(path, previous_hunk_chunk_count):
             # One dictionary hunk chunk for each of two policies.
@@ -298,7 +298,12 @@ class TestTabletNodeIOTracking(TestDynamicTableIOTrackingBase, DynamicTablesBase
 
         # Build dictionary.
         from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
-        set("//tmp/table/@mount_config/value_dictionary_compression", {"enable": True})
+        set("//tmp/table/@mount_config/value_dictionary_compression", {
+            "enable": True,
+            "column_dictionary_size": 256,
+            "max_processed_chunk_count": 2,
+            "backoff_period": 1000,
+        })
         remount_table("//tmp/table")
         _wait_dictionaries_built("//tmp/table", 1)
 
@@ -312,8 +317,7 @@ class TestTabletNodeIOTracking(TestDynamicTableIOTrackingBase, DynamicTablesBase
 
 class TestReplicatedTableIOTracking(TestDynamicTableIOTrackingBase, TestReplicatedDynamicTablesBase):
     def setup_method(self, method):
-        super(TestReplicatedDynamicTablesBase, self).setup_method(method)
-        super(TestDynamicTableIOTrackingBase, self).setup_method(method)
+        super(TestReplicatedTableIOTracking, self).setup_method(method)
 
     @authors("tea-mur")
     def test_replication(self):
@@ -357,8 +361,7 @@ class TestChaosTableIOTracking(TestDynamicTableIOTrackingBase, ChaosTestBase):
     }
 
     def setup_method(self, method):
-        super(ChaosTestBase, self).setup_method(method)
-        super(TestDynamicTableIOTrackingBase, self).setup_method(method)
+        super(TestChaosTableIOTracking, self).setup_method(method)
 
     @authors("tea-mur")
     def test_pull(self):

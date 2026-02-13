@@ -66,28 +66,28 @@ PHOENIX_DEFINE_TYPE(TAllocation);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FormatValue(TStringBuilderBase* builder, const TJoblet::TDistributedGroupInfo& distributedGroupInfo, TStringBuf /*spec*/)
+void FormatValue(TStringBuilderBase* builder, const TJoblet::TCollectiveInfo& collectiveInfo, TStringBuf /*spec*/)
 {
-    if (!distributedGroupInfo) {
+    if (!collectiveInfo) {
         builder->AppendFormat("%v", std::nullopt);
         return;
     }
 
-    builder->AppendFormat("{%v:%v}", distributedGroupInfo.MainJobId, distributedGroupInfo.Index);
+    builder->AppendFormat("{%v:%v}", collectiveInfo.CollectiveId, collectiveInfo.Rank);
 }
 
-TJoblet::TDistributedGroupInfo::operator bool() const noexcept
+TJoblet::TCollectiveInfo::operator bool() const noexcept
 {
-    return static_cast<bool>(MainJobId);
+    return static_cast<bool>(CollectiveId);
 }
 
-void TJoblet::TDistributedGroupInfo::RegisterMetadata(auto&& registrar)
+void TJoblet::TCollectiveInfo::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, MainJobId);
-    PHOENIX_REGISTER_FIELD(2, Index);
+    PHOENIX_REGISTER_FIELD(1, CollectiveId);
+    PHOENIX_REGISTER_FIELD(2, Rank);
 }
 
-PHOENIX_DEFINE_TYPE(TJoblet::TDistributedGroupInfo);
+PHOENIX_DEFINE_TYPE(TJoblet::TCollectiveInfo);
 
 TJoblet::TJoblet(
     TTask* task,
@@ -180,11 +180,6 @@ bool TJoblet::IsStarted() const noexcept
     return JobState.has_value();
 }
 
-bool TJoblet::IsJobStartedOnNode() const noexcept
-{
-    return NodeJobStartTime != TInstant();
-}
-
 void TJoblet::RegisterMetadata(auto&& registrar)
 {
     PHOENIX_REGISTER_FIELD(1, JobId);
@@ -192,7 +187,7 @@ void TJoblet::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(3, NodeDescriptor);
     PHOENIX_REGISTER_FIELD(4, StartTime);
     PHOENIX_REGISTER_FIELD(5, FinishTime);
-    PHOENIX_REGISTER_FIELD(6, NodeJobStartTime);
+    PHOENIX_REGISTER_FIELD(6, PreemptibleProgressStartTime);
     PHOENIX_REGISTER_FIELD(7, WaitingForResourcesDuration);
     PHOENIX_REGISTER_FIELD(8, JobState);
     PHOENIX_REGISTER_FIELD(9, InterruptionReason);
@@ -234,7 +229,7 @@ void TJoblet::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(45, OutputStreamDescriptors);
     PHOENIX_REGISTER_FIELD(46, InputStreamDescriptors);
     PHOENIX_REGISTER_FIELD(47, UserJobMonitoringDescriptor);
-    PHOENIX_REGISTER_FIELD(48, DistributedGroupInfo,
+    PHOENIX_REGISTER_FIELD(48, CollectiveInfo,
         .SinceVersion(ESnapshotVersion::DistributedJobManagers));
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {

@@ -276,7 +276,7 @@ public:
 
     Value* GetExecutionContext() const;
 
-    TCodegenConsumer& operator[] (size_t index) const;
+    TCodegenConsumer& operator[](size_t index) const;
 
 protected:
     Value* const ExecutionContext_;

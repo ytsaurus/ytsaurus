@@ -1353,7 +1353,7 @@ class Query(Expression):
         append: bool = True,
         dialect: DialectType = None,
         copy: bool = True,
-        scalar: bool = False,
+        scalar: t.Optional[bool] = None,
         **opts,
     ) -> Q:
         """
@@ -1484,7 +1484,7 @@ class Uncache(Expression):
 
 
 class Refresh(Expression):
-    pass
+    arg_types = {"this": True, "kind": True}
 
 
 class DDL(Expression):
@@ -1972,6 +1972,10 @@ class AutoIncrementColumnConstraint(ColumnConstraintKind):
     pass
 
 
+class ZeroFillColumnConstraint(ColumnConstraint):
+    arg_types = {}
+
+
 class PeriodForSystemTimeConstraint(ColumnConstraintKind):
     arg_types = {"this": True, "expression": True}
 
@@ -2130,6 +2134,11 @@ class ComputedColumnConstraint(ColumnConstraintKind):
     arg_types = {"this": True, "persisted": False, "not_null": False, "data_type": False}
 
 
+# https://docs.oracle.com/en/database/other-databases/timesten/22.1/plsql-developer/examples-using-input-and-output-parameters-and-bind-variables.html#GUID-4B20426E-F93F-4835-88CB-6A79829A8D7F
+class InOutColumnConstraint(ColumnConstraintKind):
+    arg_types = {"input_": False, "output": False}
+
+
 class Constraint(Expression):
     arg_types = {"this": True, "expressions": True}
 
@@ -2141,6 +2150,7 @@ class Delete(DML):
         "using": False,
         "where": False,
         "returning": False,
+        "order": False,
         "limit": False,
         "tables": False,  # Multiple-Table Syntax (MySQL)
         "cluster": False,  # Clickhouse
@@ -2315,7 +2325,7 @@ class ColumnPrefix(Expression):
 
 
 class PrimaryKey(Expression):
-    arg_types = {"expressions": True, "options": False, "include": False}
+    arg_types = {"this": False, "expressions": True, "options": False, "include": False}
 
 
 # https://www.postgresql.org/docs/9.1/sql-selectinto.html
@@ -2476,6 +2486,7 @@ class OnConflict(Expression):
         "expressions": False,
         "action": False,
         "conflict_keys": False,
+        "index_predicate": False,
         "constraint": False,
         "where": False,
     }
@@ -3619,7 +3630,10 @@ class SetOperation(Query):
 
     @property
     def named_selects(self) -> t.List[str]:
-        return self.this.unnest().named_selects
+        expression = self
+        while isinstance(expression, SetOperation):
+            expression = expression.this.unnest()
+        return expression.named_selects
 
     @property
     def is_star(self) -> bool:
@@ -3627,7 +3641,10 @@ class SetOperation(Query):
 
     @property
     def selects(self) -> t.List[Expression]:
-        return self.this.unnest().selects
+        expression = self
+        while isinstance(expression, SetOperation):
+            expression = expression.this.unnest()
+        return expression.selects
 
     @property
     def left(self) -> Query:
@@ -3662,7 +3679,7 @@ class Update(DML):
     arg_types = {
         "with_": False,
         "this": False,
-        "expressions": True,
+        "expressions": False,
         "from_": False,
         "where": False,
         "returning": False,
@@ -4532,6 +4549,7 @@ class Pivot(Expression):
         "include_nulls": False,
         "default_on_null": False,
         "into": False,
+        "with_": False,
     }
 
     @property
@@ -4653,6 +4671,7 @@ class DataType(Expression):
         SIMPLEAGGREGATEFUNCTION = auto()
         BIGDECIMAL = auto()
         BIGINT = auto()
+        BIGNUM = auto()
         BIGSERIAL = auto()
         BINARY = auto()
         BIT = auto()
@@ -4672,11 +4691,13 @@ class DataType(Expression):
         DECIMAL64 = auto()
         DECIMAL128 = auto()
         DECIMAL256 = auto()
+        DECFLOAT = auto()
         DOUBLE = auto()
         DYNAMIC = auto()
         ENUM = auto()
         ENUM8 = auto()
         ENUM16 = auto()
+        FILE = auto()
         FIXEDSTRING = auto()
         FLOAT = auto()
         GEOGRAPHY = auto()
@@ -4739,6 +4760,7 @@ class DataType(Expression):
         TINYTEXT = auto()
         TIME = auto()
         TIMETZ = auto()
+        TIME_NS = auto()
         TIMESTAMP = auto()
         TIMESTAMPNTZ = auto()
         TIMESTAMPLTZ = auto()
@@ -4773,6 +4795,7 @@ class DataType(Expression):
         TDIGEST = auto()
 
     STRUCT_TYPES = {
+        Type.FILE,
         Type.NESTED,
         Type.OBJECT,
         Type.STRUCT,
@@ -4838,6 +4861,7 @@ class DataType(Expression):
         Type.DECIMAL64,
         Type.DECIMAL128,
         Type.DECIMAL256,
+        Type.DECFLOAT,
         Type.MONEY,
         Type.SMALLMONEY,
         Type.UDECIMAL,
@@ -5121,23 +5145,23 @@ class Connector(Binary):
 
 
 class BitwiseAnd(Binary):
-    pass
+    arg_types = {"this": True, "expression": True, "padside": False}
 
 
 class BitwiseLeftShift(Binary):
-    pass
+    arg_types = {"this": True, "expression": True, "requires_int128": False}
 
 
 class BitwiseOr(Binary):
-    pass
+    arg_types = {"this": True, "expression": True, "padside": False}
 
 
 class BitwiseRightShift(Binary):
-    pass
+    arg_types = {"this": True, "expression": True, "requires_int128": False}
 
 
 class BitwiseXor(Binary):
-    pass
+    arg_types = {"this": True, "expression": True, "padside": False}
 
 
 class Div(Binary):
@@ -5145,6 +5169,14 @@ class Div(Binary):
 
 
 class Overlaps(Binary):
+    pass
+
+
+class ExtendsLeft(Binary):
+    pass
+
+
+class ExtendsRight(Binary):
     pass
 
 
@@ -5283,11 +5315,13 @@ class SimilarTo(Binary, Predicate):
     pass
 
 
-class Slice(Binary):
-    arg_types = {"this": False, "expression": False}
-
-
 class Sub(Binary):
+    pass
+
+
+# https://www.postgresql.org/docs/current/functions-range.html
+# Represents range adjacency operator: -|-
+class Adjacent(Binary):
     pass
 
 
@@ -5621,7 +5655,15 @@ class CosineDistance(Func):
     arg_types = {"this": True, "expression": True}
 
 
+class DotProduct(Func):
+    arg_types = {"this": True, "expression": True}
+
+
 class EuclideanDistance(Func):
+    arg_types = {"this": True, "expression": True}
+
+
+class ManhattanDistance(Func):
     arg_types = {"this": True, "expression": True}
 
 
@@ -5726,12 +5768,42 @@ class ApproxTopKAccumulate(AggFunc):
     arg_types = {"this": True, "expression": False}
 
 
+# https://docs.snowflake.com/en/sql-reference/functions/approx_top_k_combine
+class ApproxTopKCombine(AggFunc):
+    arg_types = {"this": True, "expression": False}
+
+
+class ApproxTopKEstimate(Func):
+    arg_types = {"this": True, "expression": False}
+
+
 class ApproxTopSum(AggFunc):
     arg_types = {"this": True, "expression": True, "count": True}
 
 
 class ApproxQuantiles(AggFunc):
     arg_types = {"this": True, "expression": False}
+
+
+# https://docs.snowflake.com/en/sql-reference/functions/approx_percentile_combine
+class ApproxPercentileCombine(AggFunc):
+    pass
+
+
+# https://docs.snowflake.com/en/sql-reference/functions/minhash
+class Minhash(AggFunc):
+    arg_types = {"this": True, "expressions": True}
+    is_var_len_args = True
+
+
+# https://docs.snowflake.com/en/sql-reference/functions/minhash_combine
+class MinhashCombine(AggFunc):
+    pass
+
+
+# https://docs.snowflake.com/en/sql-reference/functions/approximate_similarity
+class ApproximateSimilarity(AggFunc):
+    _sql_names = ["APPROXIMATE_SIMILARITY", "APPROXIMATE_JACCARD_INDEX"]
 
 
 class FarmFingerprint(Func):
@@ -5790,6 +5862,12 @@ class CombinedParameterizedAgg(ParameterizedAgg):
     arg_types = {"this": True, "expressions": True, "params": True}
 
 
+# https://docs.snowflake.com/en/sql-reference/functions/hash_agg
+class HashAgg(AggFunc):
+    arg_types = {"this": True, "expressions": False}
+    is_var_len_args = True
+
+
 # https://docs.snowflake.com/en/sql-reference/functions/hll
 # https://docs.aws.amazon.com/redshift/latest/dg/r_HLL_function.html
 class Hll(AggFunc):
@@ -5822,6 +5900,10 @@ class Ascii(Func):
 # https://docs.snowflake.com/en/sql-reference/functions/to_array
 class ToArray(Func):
     pass
+
+
+class ToBoolean(Func):
+    arg_types = {"this": True, "safe": False}
 
 
 # https://materialize.com/docs/sql/types/list/
@@ -5859,6 +5941,8 @@ class ToNumber(Func):
         "nlsparam": False,
         "precision": False,
         "scale": False,
+        "safe": False,
+        "safe_name": False,
     }
 
 
@@ -5867,6 +5951,32 @@ class ToDouble(Func):
     arg_types = {
         "this": True,
         "format": False,
+        "safe": False,
+    }
+
+
+# https://docs.snowflake.com/en/sql-reference/functions/to_decfloat
+class ToDecfloat(Func):
+    arg_types = {
+        "this": True,
+        "format": False,
+    }
+
+
+# https://docs.snowflake.com/en/sql-reference/functions/try_to_decfloat
+class TryToDecfloat(Func):
+    arg_types = {
+        "this": True,
+        "format": False,
+    }
+
+
+# https://docs.snowflake.com/en/sql-reference/functions/to_file
+class ToFile(Func):
+    arg_types = {
+        "this": True,
+        "path": False,
+        "safe": False,
     }
 
 
@@ -5943,6 +6053,14 @@ class ArrayAny(Func):
     arg_types = {"this": True, "expression": True}
 
 
+class ArrayAppend(Func):
+    arg_types = {"this": True, "expression": True}
+
+
+class ArrayPrepend(Func):
+    arg_types = {"this": True, "expression": True}
+
+
 class ArrayConcat(Func):
     _sql_names = ["ARRAY_CONCAT", "ARRAY_CAT"]
     arg_types = {"this": True, "expressions": False}
@@ -5954,7 +6072,7 @@ class ArrayConcatAgg(AggFunc):
 
 
 class ArrayConstructCompact(Func):
-    arg_types = {"expressions": True}
+    arg_types = {"expressions": False}
     is_var_len_args = True
 
 
@@ -6167,6 +6285,14 @@ class CastToStrType(Func):
     arg_types = {"this": True, "to": True}
 
 
+class CheckJson(Func):
+    arg_types = {"this": True}
+
+
+class CheckXml(Func):
+    arg_types = {"this": True, "disable_auto_convert": False}
+
+
 # https://docs.teradata.com/r/Enterprise_IntelliFlex_VMware/SQL-Functions-Expressions-and-Predicates/String-Operators-and-Functions/TRANSLATE/TRANSLATE-Function-Syntax
 class TranslateCharacters(Expression):
     arg_types = {"this": True, "expression": True, "with_error": False}
@@ -6230,6 +6356,58 @@ class Cbrt(Func):
     pass
 
 
+class CurrentAccount(Func):
+    arg_types = {}
+
+
+class CurrentAccountName(Func):
+    arg_types = {}
+
+
+class CurrentAvailableRoles(Func):
+    arg_types = {}
+
+
+class CurrentClient(Func):
+    arg_types = {}
+
+
+class CurrentIpAddress(Func):
+    arg_types = {}
+
+
+class CurrentDatabase(Func):
+    arg_types = {}
+
+
+class CurrentSchemas(Func):
+    arg_types = {"this": False}
+
+
+class CurrentSecondaryRoles(Func):
+    arg_types = {}
+
+
+class CurrentSession(Func):
+    arg_types = {}
+
+
+class CurrentStatement(Func):
+    arg_types = {}
+
+
+class CurrentVersion(Func):
+    arg_types = {}
+
+
+class CurrentTransaction(Func):
+    arg_types = {}
+
+
+class CurrentWarehouse(Func):
+    arg_types = {}
+
+
 class CurrentDate(Func):
     arg_types = {"this": False}
 
@@ -6242,11 +6420,33 @@ class CurrentTime(Func):
     arg_types = {"this": False}
 
 
+# https://www.postgresql.org/docs/current/functions-datetime.html#FUNCTIONS-DATETIME-CURRENT
+# In Postgres, the difference between CURRENT_TIME vs LOCALTIME etc is that the latter does not have tz
+class Localtime(Func):
+    arg_types = {"this": False}
+
+
+class Localtimestamp(Func):
+    arg_types = {"this": False}
+
+
+class Systimestamp(Func):
+    arg_types = {"this": False}
+
+
 class CurrentTimestamp(Func):
     arg_types = {"this": False, "sysdate": False}
 
 
 class CurrentTimestampLTZ(Func):
+    arg_types = {}
+
+
+class CurrentTimezone(Func):
+    arg_types = {}
+
+
+class CurrentOrganizationName(Func):
     arg_types = {}
 
 
@@ -6256,6 +6456,30 @@ class CurrentSchema(Func):
 
 class CurrentUser(Func):
     arg_types = {"this": False}
+
+
+class CurrentCatalog(Func):
+    arg_types = {}
+
+
+class CurrentRegion(Func):
+    arg_types = {}
+
+
+class CurrentRole(Func):
+    arg_types = {}
+
+
+class CurrentRoleType(Func):
+    arg_types = {}
+
+
+class CurrentOrganizationUser(Func):
+    arg_types = {}
+
+
+class SessionUser(Func):
+    arg_types = {}
 
 
 class UtcDate(Func):
@@ -6284,11 +6508,18 @@ class DateSub(Func, IntervalOp):
 
 class DateDiff(Func, TimeUnit):
     _sql_names = ["DATEDIFF", "DATE_DIFF"]
-    arg_types = {"this": True, "expression": True, "unit": False, "zone": False, "big_int": False}
+    arg_types = {
+        "this": True,
+        "expression": True,
+        "unit": False,
+        "zone": False,
+        "big_int": False,
+        "date_part_boundary": False,
+    }
 
 
 class DateTrunc(Func):
-    arg_types = {"unit": True, "this": True, "zone": False}
+    arg_types = {"unit": True, "this": True, "zone": False, "input_type_preserved": False}
 
     def __init__(self, **args):
         # Across most dialects it's safe to unabbreviate the unit (e.g. 'Q' -> 'QUARTER') except Oracle
@@ -6356,6 +6587,10 @@ class DayOfYear(Func):
     _sql_names = ["DAY_OF_YEAR", "DAYOFYEAR"]
 
 
+class Dayname(Func):
+    arg_types = {"this": True, "abbreviated": False}
+
+
 class ToDays(Func):
     pass
 
@@ -6380,6 +6615,7 @@ class MakeInterval(Func):
     arg_types = {
         "year": False,
         "month": False,
+        "week": False,
         "day": False,
         "hour": False,
         "minute": False,
@@ -6420,8 +6656,13 @@ class Exists(Func, SubqueryPredicate):
     arg_types = {"this": True, "expression": False}
 
 
+class Elt(Func):
+    arg_types = {"this": True, "expressions": True}
+    is_var_len_args = True
+
+
 class Timestamp(Func):
-    arg_types = {"this": False, "zone": False, "with_tz": False}
+    arg_types = {"this": False, "zone": False, "with_tz": False, "safe": False}
 
 
 class TimestampAdd(Func, TimeUnit):
@@ -6438,7 +6679,7 @@ class TimestampDiff(Func, TimeUnit):
 
 
 class TimestampTrunc(Func, TimeUnit):
-    arg_types = {"this": True, "unit": True, "zone": False}
+    arg_types = {"this": True, "unit": True, "zone": False, "input_type_preserved": False}
 
 
 class TimeSlice(Func, TimeUnit):
@@ -6463,7 +6704,7 @@ class TimeTrunc(Func, TimeUnit):
 
 class DateFromParts(Func):
     _sql_names = ["DATE_FROM_PARTS", "DATEFROMPARTS"]
-    arg_types = {"year": True, "month": True, "day": True}
+    arg_types = {"year": True, "month": False, "day": False, "allow_overflow": False}
 
 
 class TimeFromParts(Func):
@@ -6509,6 +6750,30 @@ class DecodeCase(Func):
     is_var_len_args = True
 
 
+# https://docs.snowflake.com/en/sql-reference/functions/decrypt
+class Decrypt(Func):
+    arg_types = {
+        "this": True,
+        "passphrase": True,
+        "aad": False,
+        "encryption_method": False,
+        "safe": False,
+    }
+
+
+# https://docs.snowflake.com/en/sql-reference/functions/decrypt_raw
+class DecryptRaw(Func):
+    arg_types = {
+        "this": True,
+        "key": True,
+        "iv": True,
+        "aad": False,
+        "encryption_method": False,
+        "aead": False,
+        "safe": False,
+    }
+
+
 class DenseRank(AggFunc):
     arg_types = {"expressions": False}
     is_var_len_args = True
@@ -6520,6 +6785,16 @@ class DiToDate(Func):
 
 class Encode(Func):
     arg_types = {"this": True, "charset": True}
+
+
+# https://docs.snowflake.com/en/sql-reference/functions/encrypt
+class Encrypt(Func):
+    arg_types = {"this": True, "passphrase": True, "aad": False, "encryption_method": False}
+
+
+# https://docs.snowflake.com/en/sql-reference/functions/encrypt_raw
+class EncryptRaw(Func):
+    arg_types = {"this": True, "key": True, "iv": True, "aad": False, "encryption_method": False}
 
 
 class EqualNull(Func):
@@ -6598,6 +6873,10 @@ class ToBase64(Func):
     pass
 
 
+class ToBinary(Func):
+    arg_types = {"this": True, "format": False, "safe": False}
+
+
 # https://docs.snowflake.com/en/sql-reference/functions/base64_decode_binary
 class Base64DecodeBinary(Func):
     arg_types = {"this": True, "alphabet": False}
@@ -6666,21 +6945,13 @@ class GetExtract(Func):
 
 
 class Getbit(Func):
-    arg_types = {"this": True, "expression": True}
+    _sql_names = ["GETBIT", "GET_BIT"]
+    # zero_is_msb means the most significant bit is indexed 0
+    arg_types = {"this": True, "expression": True, "zero_is_msb": False}
 
 
 class Greatest(Func):
-    arg_types = {"this": True, "expressions": False}
-    is_var_len_args = True
-
-
-class GreatestIgnoreNulls(Func):
-    arg_types = {"expressions": True}
-    is_var_len_args = True
-
-
-class LeastIgnoreNulls(Func):
-    arg_types = {"expressions": True}
+    arg_types = {"this": True, "expressions": False, "ignore_nulls": True}
     is_var_len_args = True
 
 
@@ -6750,6 +7021,7 @@ class Or(Connector, Func):
 
 class Xor(Connector, Func):
     arg_types = {"this": False, "expression": False, "expressions": False}
+    is_var_len_args = True
 
 
 class If(Func):
@@ -6853,6 +7125,12 @@ class Format(Func):
     is_var_len_args = True
 
 
+class JSONKeys(Func):
+    arg_types = {"this": True, "expression": False, "expressions": False}
+    is_var_len_args = True
+    _sql_names = ["JSON_KEYS"]
+
+
 class JSONKeyValue(Expression):
     arg_types = {"this": True, "expression": True}
 
@@ -6898,7 +7176,7 @@ class JSONArray(Func):
 
 
 # https://docs.oracle.com/en/database/oracle/oracle-database/19/sqlrf/JSON_ARRAYAGG.html
-class JSONArrayAgg(Func):
+class JSONArrayAgg(AggFunc):
     arg_types = {
         "this": True,
         "order": False,
@@ -6909,7 +7187,13 @@ class JSONArrayAgg(Func):
 
 
 class JSONExists(Func):
-    arg_types = {"this": True, "path": True, "passing": False, "on_condition": False}
+    arg_types = {
+        "this": True,
+        "path": True,
+        "passing": False,
+        "on_condition": False,
+        "from_dcolonqmark": False,
+    }
 
 
 # https://docs.oracle.com/en/database/oracle/oracle-database/19/sqlrf/JSON_TABLE.html
@@ -7066,6 +7350,7 @@ class JSONExtractScalar(Binary, Func):
         "only_json_types": False,
         "expressions": False,
         "json_type": False,
+        "scalar_only": False,
     }
     _sql_names = ["JSON_EXTRACT_SCALAR"]
     is_var_len_args = True
@@ -7141,7 +7426,7 @@ class ParseDatetime(Func):
 
 
 class Least(Func):
-    arg_types = {"this": True, "expressions": False}
+    arg_types = {"this": True, "expressions": False, "ignore_nulls": True}
     is_var_len_args = True
 
 
@@ -7224,9 +7509,43 @@ class MapFromEntries(Func):
     pass
 
 
+class MapCat(Func):
+    arg_types = {"this": True, "expression": True}
+
+
+class MapContainsKey(Func):
+    arg_types = {"this": True, "key": True}
+
+
+class MapDelete(Func):
+    arg_types = {"this": True, "expressions": True}
+    is_var_len_args = True
+
+
+class MapInsert(Func):
+    arg_types = {"this": True, "key": False, "value": True, "update_flag": False}
+
+
+class MapKeys(Func):
+    pass
+
+
+class MapPick(Func):
+    arg_types = {"this": True, "expressions": True}
+    is_var_len_args = True
+
+
+class MapSize(Func):
+    pass
+
+
 # https://learn.microsoft.com/en-us/sql/t-sql/language-elements/scope-resolution-operator-transact-sql?view=sql-server-ver16
 class ScopeResolution(Expression):
     arg_types = {"this": False, "expression": True}
+
+
+class Slice(Expression):
+    arg_types = {"this": False, "expression": False, "step": False}
 
 
 class Stream(Expression):
@@ -7265,7 +7584,11 @@ class MD5(Func):
 
 
 # Represents the variant of the MD5 function that returns a binary value
+# Var len args due to Exasol:
+# https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/hashtype_md5.htm
 class MD5Digest(Func):
+    arg_types = {"this": True, "expressions": False}
+    is_var_len_args = True
     _sql_names = ["MD5_DIGEST"]
 
 
@@ -7283,6 +7606,10 @@ class Median(AggFunc):
     pass
 
 
+class Mode(AggFunc):
+    arg_types = {"this": False, "deterministic": False}
+
+
 class Min(AggFunc):
     arg_types = {"this": True, "expressions": False}
     is_var_len_args = True
@@ -7293,11 +7620,11 @@ class Month(Func):
 
 
 class Monthname(Func):
-    pass
+    arg_types = {"this": True, "abbreviated": False}
 
 
 class AddMonths(Func):
-    arg_types = {"this": True, "expression": True}
+    arg_types = {"this": True, "expression": True, "preserve_end_of_month": False}
 
 
 class Nvl2(Func):
@@ -7310,6 +7637,15 @@ class Ntile(AggFunc):
 
 class Normalize(Func):
     arg_types = {"this": True, "form": False, "is_casefold": False}
+
+
+class Normal(Func):
+    arg_types = {"this": True, "stddev": True, "gen": True}
+
+
+# https://cloud.google.com/bigquery/docs/reference/standard-sql/net_functions#nethost
+class NetHost(Func):
+    _sql_names = ["NET.HOST"]
 
 
 class Overlay(Func):
@@ -7394,6 +7730,16 @@ class ApproxQuantile(Quantile):
     }
 
 
+# https://docs.snowflake.com/en/sql-reference/functions/approx_percentile_accumulate
+class ApproxPercentileAccumulate(AggFunc):
+    pass
+
+
+# https://docs.snowflake.com/en/sql-reference/functions/approx_percentile_estimate
+class ApproxPercentileEstimate(Func):
+    arg_types = {"this": True, "percentile": True}
+
+
 class Quarter(Func):
     pass
 
@@ -7407,6 +7753,10 @@ class Rand(Func):
 
 class Randn(Func):
     arg_types = {"this": False}
+
+
+class Randstr(Func):
+    arg_types = {"this": True, "generator": False}
 
 
 class RangeN(Func):
@@ -7445,6 +7795,7 @@ class RegexpExtract(Func):
         "occurrence": False,
         "parameters": False,
         "group": False,
+        "null_if_pos_overflow": False,  # for transpilation target behavior
     }
 
 
@@ -7452,10 +7803,10 @@ class RegexpExtractAll(Func):
     arg_types = {
         "this": True,
         "expression": True,
+        "group": False,
+        "parameters": False,
         "position": False,
         "occurrence": False,
-        "parameters": False,
-        "group": False,
     }
 
 
@@ -7510,19 +7861,47 @@ class RegexpCount(Func):
     }
 
 
-class RegrValx(Func):
+class RegrValx(AggFunc):
     arg_types = {"this": True, "expression": True}
 
 
-class RegrValy(Func):
+class RegrValy(AggFunc):
     arg_types = {"this": True, "expression": True}
 
 
-class RegrAvgy(Func):
+class RegrAvgy(AggFunc):
     arg_types = {"this": True, "expression": True}
 
 
-class RegrAvgx(Func):
+class RegrAvgx(AggFunc):
+    arg_types = {"this": True, "expression": True}
+
+
+class RegrCount(AggFunc):
+    arg_types = {"this": True, "expression": True}
+
+
+class RegrIntercept(AggFunc):
+    arg_types = {"this": True, "expression": True}
+
+
+class RegrR2(AggFunc):
+    arg_types = {"this": True, "expression": True}
+
+
+class RegrSxx(AggFunc):
+    arg_types = {"this": True, "expression": True}
+
+
+class RegrSxy(AggFunc):
+    arg_types = {"this": True, "expression": True}
+
+
+class RegrSyy(AggFunc):
+    arg_types = {"this": True, "expression": True}
+
+
+class RegrSlope(AggFunc):
     arg_types = {"this": True, "expression": True}
 
 
@@ -7542,7 +7921,12 @@ class Radians(Func):
 # https://learn.microsoft.com/en-us/sql/t-sql/functions/round-transact-sql?view=sql-server-ver16
 # tsql third argument function == trunctaion if not 0
 class Round(Func):
-    arg_types = {"this": True, "decimals": False, "truncate": False}
+    arg_types = {
+        "this": True,
+        "decimals": False,
+        "truncate": False,
+        "casts_non_integer_decimals": False,
+    }
 
 
 class RowNumber(Func):
@@ -7674,16 +8058,21 @@ class Search(Func):
     }
 
 
+# Snowflake: https://docs.snowflake.com/en/sql-reference/functions/search_ip
+class SearchIp(Func):
+    arg_types = {"this": True, "expression": True}
+
+
 class StrToDate(Func):
     arg_types = {"this": True, "format": False, "safe": False}
 
 
 class StrToTime(Func):
-    arg_types = {"this": True, "format": True, "zone": False, "safe": False}
+    arg_types = {"this": True, "format": True, "zone": False, "safe": False, "target_type": False}
 
 
 # Spark allows unix_timestamp()
-# https://spark.apache.org/docs/3.1.3/api/python/reference/api/pyspark.sql.functions.unix_timestamp.html
+# https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/api/pyspark.sql.functions.unix_timestamp.html
 class StrToUnix(Func):
     arg_types = {"this": False, "format": False}
 
@@ -7834,6 +8223,10 @@ class Unicode(Func):
     pass
 
 
+class Uniform(Func):
+    arg_types = {"this": True, "expression": True, "gen": False, "seed": False}
+
+
 # https://cloud.google.com/bigquery/docs/reference/standard-sql/date_functions#unix_date
 class UnixDate(Func):
     pass
@@ -7853,6 +8246,7 @@ class UnixToTime(Func):
         "hours": False,
         "minutes": False,
         "format": False,
+        "target_type": False,
     }
 
     SECONDS = Literal.number(0)
@@ -7929,7 +8323,10 @@ class Upper(Func):
 
 
 class Corr(Binary, AggFunc):
-    pass
+    # Correlation divides by variance(column). If a column has 0 variance, the denominator
+    # is 0 - some dialects return NaN (DuckDB) while others return NULL (Snowflake).
+    # `null_on_zero_variance` is set to True at parse time for dialects that return NULL.
+    arg_types = {"this": True, "expression": True, "null_on_zero_variance": False}
 
 
 # https://docs.oracle.com/en/database/oracle/oracle-database/19/sqlrf/CUME_DIST.html
@@ -7946,20 +8343,30 @@ class VariancePop(AggFunc):
     _sql_names = ["VARIANCE_POP", "VAR_POP"]
 
 
+class Kurtosis(AggFunc):
+    pass
+
+
 class Skewness(AggFunc):
     pass
 
 
 class WidthBucket(Func):
-    arg_types = {"this": True, "min_value": True, "max_value": True, "num_buckets": True}
+    arg_types = {
+        "this": True,
+        "min_value": False,
+        "max_value": False,
+        "num_buckets": False,
+        "threshold": False,
+    }
 
 
-class CovarSamp(Binary, AggFunc):
-    pass
+class CovarSamp(AggFunc):
+    arg_types = {"this": True, "expression": True}
 
 
-class CovarPop(Binary, AggFunc):
-    pass
+class CovarPop(AggFunc):
+    arg_types = {"this": True, "expression": True}
 
 
 class Week(Func):
@@ -7976,7 +8383,12 @@ class NextDay(Func):
 
 class XMLElement(Func):
     _sql_names = ["XMLELEMENT"]
-    arg_types = {"this": True, "expressions": False}
+    arg_types = {"this": True, "expressions": False, "evalname": False}
+
+
+class XMLGet(Func):
+    _sql_names = ["XMLGET"]
+    arg_types = {"this": True, "expression": True, "instance": False}
 
 
 class XMLTable(Func):
@@ -8000,6 +8412,10 @@ class XMLKeyValueOption(Expression):
 
 class Year(Func):
     pass
+
+
+class Zipf(Func):
+    arg_types = {"this": True, "elementcount": True, "gen": True}
 
 
 class Use(Expression):
@@ -8322,7 +8738,7 @@ def _apply_cte_builder(
     append: bool = True,
     dialect: DialectType = None,
     copy: bool = True,
-    scalar: bool = False,
+    scalar: t.Optional[bool] = None,
     **opts,
 ) -> E:
     alias_expression = maybe_parse(alias, dialect=dialect, into=TableAlias, **opts)
@@ -8338,7 +8754,7 @@ def _apply_cte_builder(
         append=append,
         copy=copy,
         into=With,
-        properties={"recursive": recursive or False},
+        properties={"recursive": recursive} if recursive else {},
     )
 
 

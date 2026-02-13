@@ -570,7 +570,7 @@ void TBlockFetcher::FetchNextGroup(const TErrorOr<TMemoryUsageGuardPtr>& memoryU
                 windowIndexes.push_back(FirstUnfetchedWindowIndex_);
                 blockDescriptors.push_back(TBlockDescriptor{
                     .ReaderIndex = readerIndex,
-                    .BlockIndex = blockIndex
+                    .BlockIndex = blockIndex,
                 });
             }
         } else {

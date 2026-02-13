@@ -99,7 +99,7 @@ TAllocationBriefInfo ParseGetBreifAllocationInfoResponse(
     if (allocationInfoToRequest.NodeDescriptor) {
         YT_LOG_FATAL_IF(
             result.NodeDescriptor.IsNull(),
-            "Node descriptor is missng in scheduler response (AllocationId: %v)",
+            "Node descriptor is missing in scheduler response (AllocationId: %v)",
             allocationId);
     }
 

@@ -497,6 +497,10 @@ void TMasterConnectorDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("full_heartbeat_session_retrying_channel", &TThis::FullHeartbeatSessionRetryingChannel)
         .DefaultNew();
     registrar.Parameter("check_chunks_cell_tags_before_heartbeats", &TThis::CheckChunksCellTagsBeforeHeartbeats)
+        .Default(false);
+    registrar.Parameter("force_sync_master_cell_directory_before_check_chunks", &TThis::ForceSyncMasterCellDirectoryBeforeCheckChunks)
+        .Default(false);
+    registrar.Parameter("check_chunks_cell_tags_after_receiving_new_master_cell_configs", &TThis::CheckChunksCellTagsAfterReceivingNewMasterCellConfigs)
         .Default(true);
 }
 
@@ -538,6 +542,9 @@ void TDataNodeTestingOptions::Register(TRegistrar registrar)
         .Default(0.75);
 
     registrar.Parameter("enable_trash_scanning_barrier", &TThis::EnableTrashScanningBarrier)
+        .Default();
+
+    registrar.Parameter("delay_before_perform_put_blocks", &TThis::DelayBeforePerformPutBlocks)
         .Default();
 
     registrar.Parameter("always_throttle_location", &TThis::AlwaysThrottleLocation)
@@ -1096,6 +1103,9 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("preallocate_disk_space", &TThis::PreallocateDiskSpace)
+        .Default(false);
+
+    registrar.Parameter("use_direct_io", &TThis::UseDirectIO)
         .Default(false);
 
     registrar.Parameter("wait_preceding_blocks_received", &TThis::WaitPrecedingBlocksReceived)

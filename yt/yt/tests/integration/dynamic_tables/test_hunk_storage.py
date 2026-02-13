@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup
+from yt_dynamic_tables_base import DynamicTablesBase
 
 from yt_commands import (
     authors, create, get, set, exists, wait, remove, sync_mount_table, sync_create_cells,
@@ -9,13 +9,15 @@ from yt_commands import (
 
 from yt.test_helpers import assert_items_equal
 
+from yt_helpers import profiler_factory
+
 from yt_type_helpers import make_schema
 
 from yt.common import YtError
 
 import yt.yson as yson
 
-from yt_error_codes import ResolveErrorCode, HunkTabletStoreToggleConflict
+from yt_error_codes import ResolveErrorCode, HunkTabletStoreToggleConflict, HunkStoreAllocationFailed
 
 import pytest
 
@@ -25,11 +27,8 @@ import time
 
 
 @pytest.mark.enabled_multidaemon
-class TestHunkStorage(YTEnvSetup):
+class TestHunkStorage(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
-    NUM_MASTERS = 1
-    NUM_NODES = 6
-    USE_DYNAMIC_TABLES = True
 
     def _get_active_store_id(self, hunk_storage, tablet_index=0):
         tablets = get("{}/@tablets".format(hunk_storage))
@@ -42,6 +41,8 @@ class TestHunkStorage(YTEnvSetup):
             attributes.update({"store_rotation_period": 2000})
         if "store_removal_grace_period" not in attributes:
             attributes.update({"store_removal_grace_period": 4000})
+        if "scan_backoff_period" not in attributes:
+            attributes.update({"scan_backoff_period": 1000})
 
         return create("hunk_storage", name, attributes=attributes)
 
@@ -63,6 +64,18 @@ class TestHunkStorage(YTEnvSetup):
     def _remove_hunk_storage(self, path):
         wait(lambda: get(f"{path}/@associated_nodes") == [])
         remove(path)
+
+    def _write_hunks_with_retries(self, path, rows, tablet_index=0, retry_count=100):
+        iteration = 0
+        while iteration < retry_count:
+            iteration += 1
+            try:
+                result = write_hunks(path, rows, tablet_index=tablet_index)
+                return result
+            except YtError as e:
+                if not e.contains_code(HunkTabletStoreToggleConflict) and \
+                   not e.contains_code(HunkStoreAllocationFailed):
+                    raise e
 
     @authors("gritukan")
     def test_create_remove(self):
@@ -160,7 +173,7 @@ class TestHunkStorage(YTEnvSetup):
 
         store_id = self._get_active_store_id("//tmp/h")
         assert exists("#{}".format(store_id))
-        hunks = write_hunks("//tmp/h", ["a", "bb"])
+        hunks = self._write_hunks_with_retries("//tmp/h", ["a", "bb"])
         assert hunks == [
             {"chunk_id": store_id, "block_index": 0, "block_offset": 0, "length": 9,
              "erasure_codec": erasure_codec, "block_size": 19},
@@ -234,10 +247,10 @@ class TestHunkStorage(YTEnvSetup):
 
         store_id = self._get_active_store_id("//tmp/h")
 
-        hunk1 = write_hunks("//tmp/h", ["a"])[0]
+        hunk1 = self._write_hunks_with_retries("//tmp/h", ["a"])[0]
         wait(lambda: self._get_active_store_id("//tmp/h") != store_id)
 
-        hunk2 = write_hunks("//tmp/h", ["a"])[0]
+        hunk2 = self._write_hunks_with_retries("//tmp/h", ["a"])[0]
         assert hunk1["chunk_id"] != hunk2["chunk_id"]
 
     @authors("gritukan")
@@ -250,10 +263,10 @@ class TestHunkStorage(YTEnvSetup):
 
         store_id = self._get_active_store_id("//tmp/h")
 
-        hunk1 = write_hunks("//tmp/h", ["a" * 100])[0]
+        hunk1 = self._write_hunks_with_retries("//tmp/h", ["a" * 100])[0]
         wait(lambda: self._get_active_store_id("//tmp/h") != store_id)
 
-        hunk2 = write_hunks("//tmp/h", ["a"])[0]
+        hunk2 = self._write_hunks_with_retries("//tmp/h", ["a"])[0]
         assert hunk1["chunk_id"] != hunk2["chunk_id"]
 
     @authors("gritukan")
@@ -266,7 +279,7 @@ class TestHunkStorage(YTEnvSetup):
 
         sync_mount_table("//tmp/h")
 
-        hunk = write_hunks("//tmp/h", ["a" * 100])[0]
+        hunk = self._write_hunks_with_retries("//tmp/h", ["a" * 100])[0]
         chunk_id = hunk["chunk_id"]
         assert exists("#{}".format(chunk_id))
 
@@ -287,7 +300,7 @@ class TestHunkStorage(YTEnvSetup):
 
         sync_mount_table("//tmp/h")
 
-        hunk = write_hunks("//tmp/h", ["a" * 100])[0]
+        hunk = self._write_hunks_with_retries("//tmp/h", ["a" * 100])[0]
         store_id = hunk["chunk_id"]
         lock_hunk_store("//tmp/h", 0, store_id)
 
@@ -324,7 +337,7 @@ class TestHunkStorage(YTEnvSetup):
         set("//tmp/h/@store_rotation_period", 1000000)
         sync_mount_table("//tmp/h")
 
-        hunk = write_hunks("//tmp/h", ["arbuzich"])[0]
+        hunk = self._write_hunks_with_retries("//tmp/h", ["arbuzich"])[0]
         chunk_id = hunk["chunk_id"]
 
         sync_unmount_table("//tmp/h", force=True)
@@ -518,8 +531,8 @@ class TestHunkStorage(YTEnvSetup):
 
         assert len(get("//tmp/h/@tablets")) == 2
 
-        hunk1 = write_hunks("//tmp/h", ["a"], tablet_index=0)[0]
-        hunk2 = write_hunks("//tmp/h", ["b"], tablet_index=1)[0]
+        hunk1 = self._write_hunks_with_retries("//tmp/h", ["a"], tablet_index=0)[0]
+        hunk2 = self._write_hunks_with_retries("//tmp/h", ["b"], tablet_index=1)[0]
 
         assert hunk1["chunk_id"] != hunk2["chunk_id"]
 
@@ -530,7 +543,7 @@ class TestHunkStorage(YTEnvSetup):
         set("//tmp/h/@store_rotation_period", 1000)
         sync_mount_table("//tmp/h")
 
-        hunk_chunk_id = write_hunks("//tmp/h", ["a" * 100])[0]["chunk_id"]
+        hunk_chunk_id = self._write_hunks_with_retries("//tmp/h", ["a" * 100])[0]["chunk_id"]
         lock_hunk_store("//tmp/h", 0, hunk_chunk_id)
 
         wait(lambda: self._get_active_store_id("//tmp/h") != hunk_chunk_id)
@@ -548,6 +561,145 @@ class TestHunkStorage(YTEnvSetup):
             except YtError as e:
                 if not e.contains_code(HunkTabletStoreToggleConflict):
                     raise e
+
+    @authors("akozhikhov")
+    def test_hunk_storage_profiling_write_counters(self):
+        sync_create_cells(1)
+        self._create_hunk_storage("//tmp/h")
+        tablets = get("//tmp/h/@tablets")
+        tablet_id = tablets[0]["tablet_id"]
+        sync_mount_table("//tmp/h")
+
+        row_count = self._init_tablet_sensor(
+            "//tmp/h",
+            "write/row_count",
+            fixed_tags={"tablet_id": tablet_id})
+        data_weight = self._init_tablet_sensor(
+            "//tmp/h",
+            "write/data_weight",
+            fixed_tags={"tablet_id": tablet_id})
+        successful_row_count = self._init_tablet_sensor(
+            "//tmp/h",
+            "write/successful_row_count",
+            fixed_tags={"tablet_id": tablet_id})
+        successful_data_weight = self._init_tablet_sensor(
+            "//tmp/h",
+            "write/successful_data_weight",
+            fixed_tags={"tablet_id": tablet_id})
+
+        self._write_hunks_with_retries("//tmp/h", ["a" * 100])
+
+        wait(lambda: row_count.get_delta() > 0)
+        wait(lambda: data_weight.get_delta() > 0)
+        wait(lambda: successful_row_count.get_delta() > 0)
+        wait(lambda: successful_data_weight.get_delta() > 0)
+
+    @authors("akozhikhov")
+    def test_hunk_storage_profiling_tablet_service(self):
+        sync_create_cells(1)
+        self._create_hunk_storage("//tmp/h")
+        tablets = get("//tmp/h/@tablets")
+        tablet_id = tablets[0]["tablet_id"]
+        sync_mount_table("//tmp/h")
+
+        write_hunks_sensor = self._init_tablet_sensor(
+            "//tmp/h",
+            "write_hunks/request_count",
+            fixed_tags={"tablet_id": tablet_id})
+
+        self._write_hunks_with_retries("//tmp/h", ["a" * 100])
+
+        wait(lambda: write_hunks_sensor.get_delta() > 0)
+
+    @authors("akozhikhov")
+    def test_hunk_storage_profiling_tablet_counters(self):
+        sync_create_cells(1)
+        self._create_hunk_storage("//tmp/h")
+        tablets = get("//tmp/h/@tablets")
+        tablet_id = tablets[0]["tablet_id"]
+        set("//tmp/h/@store_removal_grace_period", 30000)
+        sync_mount_table("//tmp/h")
+
+        store_count = profiler_factory().at_tablet_node(
+            "//tmp/h",
+            fixed_tags={"tablet_id": tablet_id}).counter(name="hunk_tablet/store_count")
+        passive_store_count = profiler_factory().at_tablet_node(
+            "//tmp/h",
+            fixed_tags={"tablet_id": tablet_id}).counter(name="hunk_tablet/passive_store_count")
+
+        wait(lambda: store_count.get_delta() > 2)
+        wait(lambda: passive_store_count.get_delta() > 2)
+
+        store_count_value = store_count.get_delta()
+        passive_store_count_value = passive_store_count.get_delta()
+
+        wait(lambda: store_count.get_delta() > store_count_value)
+        wait(lambda: passive_store_count.get_delta() > passive_store_count_value)
+
+    @authors("akozhikhov")
+    def test_hunk_storage_profiling_hunk_tablet_scanner(self):
+        sync_create_cells(1)
+        self._create_hunk_storage("//tmp/h")
+        tablets = get("//tmp/h/@tablets")
+        tablet_id = tablets[0]["tablet_id"]
+        set("//tmp/h/@store_removal_grace_period", 1000)
+        sync_mount_table("//tmp/h")
+
+        store_allocation_count = profiler_factory().at_tablet_node(
+            "//tmp/h",
+            fixed_tags={"tablet_id": tablet_id}).counter(name="hunk_tablet_scanner/store_allocation_count")
+        store_rotation_count = profiler_factory().at_tablet_node(
+            "//tmp/h",
+            fixed_tags={"tablet_id": tablet_id}).counter(name="hunk_tablet_scanner/store_rotation_count")
+        store_seal_count = profiler_factory().at_tablet_node(
+            "//tmp/h",
+            fixed_tags={"tablet_id": tablet_id}).counter(name="hunk_tablet_scanner/store_seal_count")
+        store_removal_count = profiler_factory().at_tablet_node(
+            "//tmp/h",
+            fixed_tags={"tablet_id": tablet_id}).counter(name="hunk_tablet_scanner/store_removal_count")
+
+        wait(lambda: store_allocation_count.get_delta() > 2)
+        wait(lambda: store_rotation_count.get_delta() > 2)
+        wait(lambda: store_seal_count.get_delta() > 2)
+        wait(lambda: store_removal_count.get_delta() > 2)
+
+        store_allocation_count_value = store_allocation_count.get_delta()
+        store_rotation_count_value = store_rotation_count.get_delta()
+        store_seal_count_value = store_seal_count.get_delta()
+        store_removal_count_value = store_removal_count.get_delta()
+
+        wait(lambda: store_allocation_count.get_delta() > store_allocation_count_value)
+        wait(lambda: store_rotation_count.get_delta() > store_rotation_count_value)
+        wait(lambda: store_seal_count.get_delta() > store_seal_count_value)
+        wait(lambda: store_removal_count.get_delta() > store_removal_count_value)
+
+    @authors("akozhikhov")
+    def test_hunk_storage_profiling_journal_writer(self):
+        sync_create_cells(1)
+        self._create_hunk_storage("//tmp/h")
+        tablets = get("//tmp/h/@tablets")
+        tablet_id = tablets[0]["tablet_id"]
+        set("//tmp/h/@store_removal_grace_period", 1000)
+        sync_mount_table("//tmp/h")
+
+        medium_written_bytes = self._init_tablet_sensor(
+            "//tmp/h",
+            "journal_writer/medium_written_bytes",
+            fixed_tags={"tablet_id": tablet_id})
+        journal_written_bytes = self._init_tablet_sensor(
+            "//tmp/h",
+            "journal_writer/journal_written_bytes",
+            fixed_tags={"tablet_id": tablet_id})
+        io_request_count = self._init_tablet_sensor(
+            "//tmp/h",
+            "journal_writer/io_request_count",
+            fixed_tags={"tablet_id": tablet_id})
+
+        self._write_hunks_with_retries("//tmp/h", ["a" * 100])
+
+        wait(lambda: medium_written_bytes.get_delta() > 0)
+        wait(lambda: journal_written_bytes.get_delta() > 0)
+        wait(lambda: io_request_count.get_delta() > 0)
 
 
 @pytest.mark.enabled_multidaemon
@@ -589,11 +741,9 @@ class TestHunkStorageMulticell(TestHunkStorage):
 
 
 @pytest.mark.enabled_multidaemon
-class TestHunkStoragePortal(YTEnvSetup):
+class TestHunkStoragePortal(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
-    NUM_MASTERS = 1
     NUM_NODES = 3
-    USE_DYNAMIC_TABLES = True
     ENABLE_TMP_PORTAL = True
     NUM_SECONDARY_MASTER_CELLS = 4
 
@@ -609,6 +759,8 @@ class TestHunkStoragePortal(YTEnvSetup):
             attributes.update({"store_rotation_period": 2000})
         if "store_removal_grace_period" not in attributes:
             attributes.update({"store_removal_grace_period": 4000})
+        if "scan_backoff_period" not in attributes:
+            attributes.update({"scan_backoff_period": 1000})
 
         return create("hunk_storage", name, attributes=attributes)
 

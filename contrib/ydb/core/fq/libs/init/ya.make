@@ -1,0 +1,64 @@
+LIBRARY()
+
+SRCS(
+    init.cpp
+)
+
+PEERDIR(
+    contrib/ydb/core/base
+    contrib/ydb/core/fq/libs/actors
+    contrib/ydb/core/fq/libs/audit
+    contrib/ydb/core/fq/libs/checkpoint_storage
+    contrib/ydb/core/fq/libs/checkpointing
+    contrib/ydb/core/fq/libs/cloud_audit
+    contrib/ydb/core/fq/libs/common
+    contrib/ydb/core/fq/libs/compute/ydb/control_plane
+    contrib/ydb/core/fq/libs/control_plane_config
+    contrib/ydb/core/fq/libs/control_plane_proxy
+    contrib/ydb/core/fq/libs/control_plane_storage
+    contrib/ydb/core/fq/libs/db_id_async_resolver_impl
+    contrib/ydb/core/fq/libs/events
+    contrib/ydb/core/fq/libs/gateway
+    contrib/ydb/core/fq/libs/health
+    contrib/ydb/core/fq/libs/quota_manager
+    contrib/ydb/core/fq/libs/rate_limiter/control_plane_service
+    contrib/ydb/core/fq/libs/rate_limiter/quoter_service
+    contrib/ydb/core/fq/libs/row_dispatcher
+    contrib/ydb/core/fq/libs/shared_resources
+    contrib/ydb/core/fq/libs/test_connection
+    contrib/ydb/core/protos
+    contrib/ydb/library/actors/core
+    contrib/ydb/library/actors/http
+    contrib/ydb/library/folder_service
+    contrib/ydb/library/folder_service/proto
+    contrib/ydb/library/security
+    contrib/ydb/library/yql/dq/actors/compute
+    contrib/ydb/library/yql/dq/actors/input_transforms
+    contrib/ydb/library/yql/dq/transform
+    contrib/ydb/library/yql/providers/dq/actors
+    contrib/ydb/library/yql/providers/dq/api/protos
+    contrib/ydb/library/yql/providers/dq/provider
+    contrib/ydb/library/yql/providers/dq/task_runner
+    contrib/ydb/library/yql/providers/dq/worker_manager
+    contrib/ydb/library/yql/providers/dq/worker_manager/interface
+    contrib/ydb/library/yql/providers/generic/actors
+    contrib/ydb/library/yql/providers/pq/async_io
+    contrib/ydb/library/yql/providers/pq/cm_client
+    contrib/ydb/library/yql/providers/pq/gateway/native
+    contrib/ydb/library/yql/providers/pq/provider
+    contrib/ydb/library/yql/providers/s3/actors
+    contrib/ydb/library/yql/providers/s3/proto
+    contrib/ydb/library/yql/providers/s3/provider
+    contrib/ydb/library/yql/providers/solomon/actors
+    contrib/ydb/library/yql/providers/solomon/gateway
+    contrib/ydb/library/yql/providers/solomon/proto
+    contrib/ydb/library/yql/providers/solomon/provider
+    contrib/ydb/library/yql/utils/actor_log
+    yql/essentials/minikql/comp_nodes
+    yql/essentials/providers/common/comp_nodes
+    yql/essentials/providers/common/metrics
+)
+
+YQL_LAST_ABI_VERSION()
+
+END()

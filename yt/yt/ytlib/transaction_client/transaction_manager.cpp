@@ -499,7 +499,7 @@ public:
         SetAborted(TError("Transaction aborted by user request"));
 
         if (Atomicity_ != EAtomicity::Full) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         return SendAbort(options);
@@ -510,7 +510,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (Atomicity_ != EAtomicity::Full) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         return SendPing(options);
@@ -634,7 +634,7 @@ public:
     TFuture<void> ValidateNoDownedParticipants()
     {
         if (Atomicity_ != EAtomicity::Full) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         auto participantIds = Owner_->DownedCellTracker_->RetainDowned(GetRegisteredParticipantIds());
@@ -1067,7 +1067,7 @@ private:
         YT_VERIFY(Ping_);
         RunPeriodicPings();
 
-        return VoidFuture;
+        return OKFuture;
     }
 
     TFuture<void> StartNonAtomicTabletTransaction()
@@ -1088,7 +1088,7 @@ private:
             Id_,
             Durability_);
 
-        return VoidFuture;
+        return OKFuture;
     }
 
     void FireCommitted()
@@ -1280,7 +1280,7 @@ private:
     TFuture<void> CheckDownedParticipants(std::vector<TCellId> participantIds)
     {
         if (participantIds.empty()) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         YT_VERIFY(CoordinatorCellId_);
@@ -1479,7 +1479,7 @@ private:
 
         auto connection = Owner_->ClusterDirectory_->FindConnection(CellTagFromId(cellId));
         if (!connection) {
-            THROW_ERROR_EXCEPTION("No cell with id %v is known", cellId);
+            THROW_ERROR_EXCEPTION("No cluster connection for cell with id %v is known", cellId);
         }
 
         return connection->GetCellDirectory()->GetChannelByCellIdOrThrow(cellId);
@@ -1609,18 +1609,19 @@ private:
             return;
         }
 
-        SendPing().Subscribe(BIND([=, this, this_ = MakeStrong(this), startTime = TInstant::Now()] (const TError& /*error*/) {
-            if (!IsPingableState()) {
-                YT_LOG_DEBUG("Transaction is not in pingable state (TransactionId: %v, State: %v)",
-                    Id_,
-                    GetState());
-                return;
-            }
+        SendPing()
+            .Subscribe(BIND_NO_PROPAGATE([=, this, this_ = MakeStrong(this), startTime = TInstant::Now()] (const TError& /*error*/) {
+                if (!IsPingableState()) {
+                    YT_LOG_DEBUG("Transaction is not in pingable state (TransactionId: %v, State: %v)",
+                        Id_,
+                        GetState());
+                    return;
+                }
 
-            auto pingPeriod = std::min(PingPeriod_.value_or(Owner_->Config_.Acquire()->DefaultPingPeriod), GetTimeout() / 2);
-            auto pingDeadline = startTime + pingPeriod;
-            TDelayedExecutor::Submit(BIND(&TImpl::RunPeriodicPings, MakeWeak(this)), pingDeadline);
-        }));
+                auto pingPeriod = std::min(PingPeriod_.value_or(Owner_->Config_.Acquire()->DefaultPingPeriod), GetTimeout() / 2);
+                auto pingDeadline = startTime + pingPeriod;
+                TDelayedExecutor::Submit(BIND(&TImpl::RunPeriodicPings, MakeWeak(this)), pingDeadline);
+            }));
     }
 
     bool IsPingableState()
@@ -1718,7 +1719,7 @@ private:
     {
         auto channel = FindParticipantChannel(cellId);
         if (!channel) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         YT_LOG_DEBUG("Sending abort to participant (TransactionId: %v, ParticipantCellId: %v)",

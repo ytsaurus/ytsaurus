@@ -39,10 +39,13 @@ struct TTable
 
     bool Dynamic = false;
 
+    // TODO(alexelexa): Sugar is harmful, especially the syntactic kind.
+    // Make them methods if you want it so badly.
     i64 CompressedDataSize = 0;
     i64 UncompressedDataSize = 0;
 
     EInMemoryMode InMemoryMode = EInMemoryMode::None;
+    // TODO(alexelexa): Rename to Config.
     TTableTabletBalancerConfigPtr TableConfig;
 
     THashMap<TClusterName, std::vector<TAlienTablePtr>> AlienTables;
@@ -69,6 +72,8 @@ struct TTable
 
     THashMap<TClusterName, std::vector<NYPath::TYPath>> GetReplicaBalancingMinorTables(
         const std::string& selfClusterName) const;
+
+    TTablePtr Clone(TTabletCellBundle* bundle, bool copyExtendedAttributes) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTable)

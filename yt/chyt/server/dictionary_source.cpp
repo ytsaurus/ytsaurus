@@ -111,7 +111,7 @@ public:
 
         auto source = CreateSecondaryQuerySource(
             reader,
-            BuildSimpleReadPlan(table->Schema->Columns()),
+            BuildSimpleReadPlan(table->Schema->Columns(), /*columnAttributes*/ {}),
             /*traceContext*/ nullptr,
             Host_,
             Host_->GetConfig()->QuerySettings,
@@ -187,7 +187,7 @@ private:
 
     void ValidateSchema(const TTableSchema& schema)
     {
-        auto namesAndTypesList = ToNamesAndTypesList(schema, New<TCompositeSettings>());
+        auto namesAndTypesList = ToNamesAndTypesList(schema, /*columnAttributes*/ {}, New<TCompositeSettings>());
         if (namesAndTypesList != NamesAndTypesList_) {
             THROW_ERROR_EXCEPTION("Dictionary table schema does not match schema from config")
                 << TErrorAttribute("config_schema", NamesAndTypesList_.toString())
@@ -198,7 +198,7 @@ private:
     TTablePtr FetchTable() {
         auto fakeQueryContext = TQueryContext::CreateFake(Host_, Host_->GetRootClient());
 
-        auto table = FetchTables(
+        auto table = FetchTablesSoft(
             fakeQueryContext.Get(),
             {Path_},
             /*skipUnsuitableNodes*/ false,
@@ -217,7 +217,7 @@ private:
             "ChytDictionarySource");
         const auto* queryContext = GetQueryContext(context);
         // We don't want to distribute this query so we set SelectPolicy to local.
-        queryContext->Settings->Execution->SelectPolicy = ESelectPolicy::Local;
+        queryContext->SessionSettings->Execution->SelectPolicy = ESelectPolicy::Local;
         return context;
     }
 };

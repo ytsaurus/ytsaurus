@@ -36,7 +36,7 @@ public:
         TAsyncExpiringCacheConfigPtr config,
         NNative::IConnectionPtr connection,
         TLogger logger)
-        : TAsyncExpiringCache(std::move(config), NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker(), logger.WithTag("Cache: UserBan"))
+        : TAsyncExpiringCache(std::move(config), NRpc::TDispatcher::Get()->GetHeavyInvoker(), logger.WithTag("Cache: UserBan"))
         , Connection_(std::move(connection))
         , Logger(std::move(logger))
         , Client_(Connection_->CreateNativeClient(NNative::TClientOptions::Root()))
@@ -71,14 +71,18 @@ private:
         try {
             auto guard = Guard(RemoteClientMapLock_);
 
-            const auto& [it, inserted] = RemoteClientMap_.emplace(*cluster, nullptr);
-            if (inserted) {
+            auto it = RemoteClientMap_.find(*cluster);
+            if (it == RemoteClientMap_.end()) {
                 auto remoteClusterConnection = Connection_->GetClusterDirectory()->GetConnectionOrThrow(*cluster);
-                it->second = remoteClusterConnection->CreateNativeClient(NNative::TClientOptions::Root());
+                remoteClient = remoteClusterConnection->CreateNativeClient(NNative::TClientOptions::Root());
+                RemoteClientMap_.emplace(*cluster, remoteClient);
+            } else {
+                remoteClient = it->second;
             }
-            remoteClient = it->second;
         } catch (const std::exception& ex) {
-            return MakeFuture<void>(ex);
+            auto error = TError("Cannot resolve multiproxy target cluster")
+                << ex;
+            return MakeFuture<void>(error);
         }
         futures.push_back(CheckUser(remoteClient, user));
 
@@ -91,6 +95,7 @@ private:
         options.ReadFrom = EMasterChannelKind::Cache;
         options.SuppressUpstreamSync = true;
         options.SuppressTransactionCoordinatorSync = true;
+        options.SuppressStronglyOrderedTransactionBarrier = true;
         auto clusterName = client->GetNativeConnection()->GetStaticConfig()->ClusterName;
         return client->GetNode("//sys/users/" + ToYPathLiteral(user) + "/@banned", options).Apply(
             BIND([user, clusterName, this, this_ = MakeStrong(this)] (const TErrorOr<TYsonString>& resultOrError) {

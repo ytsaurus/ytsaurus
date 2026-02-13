@@ -12,9 +12,7 @@ struct IReshardIteration
     : public TRefCounted
 {
     virtual void StartIteration() const = 0;
-    virtual void Prepare(
-        const TTabletBalancingGroupConfigPtr& groupConfig,
-        const TTableRegistryPtr& tableRegistry) = 0;
+    virtual void Prepare(const TTabletBalancingGroupConfigPtr& groupConfig) = 0;
     virtual void FinishIteration(int actionCount) const = 0;
 
     virtual std::vector<TTablePtr> GetTablesToReshard(const TTabletCellBundlePtr& bundle) const = 0;
@@ -24,7 +22,6 @@ struct IReshardIteration
 
     virtual void UpdateProfilingCounters(
         const TTable* table,
-        TTableProfilingCounters& profilingCounters,
         const TReshardDescriptor& descriptor) = 0;
 
     virtual bool IsGroupBalancingEnabled(const TTabletBalancingGroupConfigPtr& /*groupConfig*/) const = 0;
@@ -34,7 +31,7 @@ struct IReshardIteration
     virtual bool IsPickPivotKeysEnabled() const = 0;
 
     virtual const std::string& GetBundleName() const = 0;
-    virtual const TString& GetGroupName() const = 0;
+    virtual const TGroupName& GetGroupName() const = 0;
     virtual const TTabletCellBundlePtr GetBundle() const = 0;
     virtual const TTabletBalancerDynamicConfigPtr& GetDynamicConfig() const = 0;
 };
@@ -45,19 +42,19 @@ DEFINE_REFCOUNTED_TYPE(IReshardIteration)
 
 IReshardIterationPtr CreateSizeReshardIteration(
     TBundleSnapshotPtr bundleSnapshot,
-    TString groupName,
+    TGroupName groupName,
     TTabletBalancerDynamicConfigPtr dynamicConfig);
 
 IReshardIterationPtr CreateParameterizedReshardIteration(
     TBundleSnapshotPtr bundleSnapshot,
-    TString groupName,
+    TGroupName groupName,
     TTabletBalancerDynamicConfigPtr dynamicConfig);
 
 IReshardIterationPtr CreateReplicaReshardIteration(
     TBundleSnapshotPtr bundleSnapshot,
-    TString groupName,
+    TGroupName groupName,
     TTabletBalancerDynamicConfigPtr dynamicConfig,
-    std::string clusterName);
+    TClusterName clusterName);
 
 ////////////////////////////////////////////////////////////////////////////////
 

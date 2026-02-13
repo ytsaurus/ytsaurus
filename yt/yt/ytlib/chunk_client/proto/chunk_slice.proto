@@ -16,6 +16,8 @@ message TChunkSlice
     // Upper boundary, exclusive.
     required TReadLimit upper_limit = 3;
 
+    // This is an approximation that do not account any selectivity factors.
+    // Thus, it has different semantics compared to TChunkSpec.
     optional int64 row_count_override = 4;
     optional int64 data_weight_override = 5;
     optional int64 compressed_data_size_override = 6;

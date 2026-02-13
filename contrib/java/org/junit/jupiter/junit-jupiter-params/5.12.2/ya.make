@@ -1,0 +1,18 @@
+JAVA_CONTRIB()
+
+VERSION(5.12.2)
+
+LICENSE(EPL-1.0)
+
+ORIGINAL_SOURCE(https://repo1.maven.org/maven2)
+
+PEERDIR(
+    contrib/java/org/junit/jupiter/junit-jupiter-api/5.12.2
+    contrib/java/org/apiguardian/apiguardian-api/1.1.2
+)
+
+JAR_RESOURCE(8819745302)
+
+SRC_RESOURCE(8819739285)
+
+END()

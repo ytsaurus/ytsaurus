@@ -10,13 +10,14 @@ pragma config.flags(
     "EmitPruneKeys",
     "FilterPushdownEnableMultiusage",
     "PushdownComplexFiltersOverAggregate",
-    "ExtractCommonPredicatesFromLogicalOps",
     "PullUpExtendOverEquiJoin",
     "DisableEmitSkipNullOnPushDown",
     "DropAnyOverEquiJoinInputs",
     "PredicatePushdownOverEquiJoinBothSides",
     "FuseEquiJoinsInputMultiLabels",
-    "KeepPruneKeysOnInputTables"
+    "KeepPruneKeysOnInputTables",
+    "EqualityFilterOverJoin",
+    "NormalizeEqualityFilterOverJoin"
 );
 pragma yt.AutoMerge = "disabled";
 pragma yt.DataSizePerPartition = "64M";
@@ -41,8 +42,8 @@ pragma yt.JobBlockTableContent;
 pragma BlockEngine='auto';
 pragma yt.BlockMapJoin;
 pragma CostBasedOptimizer="native";
-pragma CostBasedOptimizerVersion="1";
 pragma FilterPushdownOverJoinOptionalSide;
 pragma yt.TableContentMinAvgChunkSize="0";
 pragma yt.TemporaryCompressionCodec="zstd_1";
 pragma yt.IntermediateReplicationFactor="1";
+pragma yt.MaxJobCount="200";

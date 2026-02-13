@@ -4,6 +4,7 @@ SRCS(
     datastore.go
     fs_watcher.go
     inotify_watcher.go
+    skipped_rows_writer.go
     timbertruck.go
     timbertruck_metrics.go
 )
@@ -12,6 +13,7 @@ GO_TEST_SRCS(
     datastore_migrations_test.go
     datastore_test.go
     fs_watcher_test.go
+    skipped_rows_writer_test.go
     timbertruck_internal_test.go
 )
 

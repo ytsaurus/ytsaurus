@@ -263,6 +263,8 @@ private:
         if (request->has_statistics()) {
             auto ysonStatistics = TYsonString(request->statistics());
             job->SetStatistics(ysonStatistics);
+
+            // NB(bystrovserg): Always report statistics when job is finished.
             jobReport.SetStatistics(job->GetStatistics());
         }
 
@@ -344,6 +346,10 @@ private:
             job->SetOutputDataStatistics(FromProto<std::vector<TDataStatistics>>(request->output_data_statistics()));
             job->SetStderrSize(stderrSize);
             job->SetHasJobTrace(hasJobTrace);
+            if (request->has_last_progress_save_time()) {
+                job->SetLastProgressSaveTime(FromProto<TInstant>(request->last_progress_save_time()));
+            }
+            job->TryReportStatistics();
         }
 
         context->Reply();

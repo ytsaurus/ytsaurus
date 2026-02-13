@@ -421,7 +421,7 @@ TOwnerRows MakeUnversionedStringLikeRows(
 {
     YT_VERIFY(column.size() > 0);
 
-    std::vector<TString> buffer;
+    std::vector<std::string> buffer;
 
     auto nameTable = New<TNameTable>();
 
@@ -501,7 +501,7 @@ TOwnerRows MakeUnversionedNullableStringRows(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString BinaryYsonFromTextYson(const TString& ysonString) {
+std::string BinaryYsonFromTextYson(const std::string& ysonString) {
     TStringStream binaryYsonString;
 
     TYsonWriter ysonWriter(&binaryYsonString, EYsonFormat::Binary);
@@ -512,14 +512,14 @@ TString BinaryYsonFromTextYson(const TString& ysonString) {
 
 template <bool Nullable>
 TOwnerRows MakeUnversionedAnyRowsFromYsonImpl(
-    const std::vector<TColumn<TString, Nullable>>& columns,
+    const std::vector<TColumn<std::string, Nullable>>& columns,
     const std::vector<std::string>& columnNames)
 {
     int columnCount = columns.size();
     int rowCount = columns[0].size();
 
-    std::vector<TColumn<TString, Nullable>> binaryColumns;
-    binaryColumns.assign(columnCount, TColumn<TString, Nullable>(rowCount));
+    std::vector<TColumn<std::string, Nullable>> binaryColumns;
+    binaryColumns.assign(columnCount, TColumn<std::string, Nullable>(rowCount));
 
     for (int columnIndex = 0; columnIndex < columnCount; ++columnIndex) {
         for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
@@ -533,18 +533,18 @@ TOwnerRows MakeUnversionedAnyRowsFromYsonImpl(
         }
     }
 
-    return MakeUnversionedStringLikeRows<TString, EValueType::Any, Nullable>(binaryColumns, columnNames);
+    return MakeUnversionedStringLikeRows<std::string, EValueType::Any, Nullable>(binaryColumns, columnNames);
 }
 
 TOwnerRows MakeUnversionedAnyRowsFromYson(
-    const std::vector<std::vector<TString>>& columns,
+    const std::vector<std::vector<std::string>>& columns,
     const std::vector<std::string>& columnNames)
 {
     return MakeUnversionedAnyRowsFromYsonImpl<false>(columns, columnNames);
 }
 
 TOwnerRows MakeUnversionedNullableAnyRowsFromYson(
-    const std::vector<std::vector<std::optional<TString>>>& columns,
+    const std::vector<std::vector<std::optional<std::string>>>& columns,
     const std::vector<std::string>& columnNames)
 {
     return MakeUnversionedAnyRowsFromYsonImpl<true>(columns, columnNames);
@@ -663,7 +663,7 @@ TEST(TArrowWriterTest, YT_20699_WrongAlign)
         .Get()
         .ThrowOnError();
 
-    TString data(outputStream.Data(), outputStream.Size());
+    std::string data(outputStream.Data(), outputStream.Size());
     auto ptr = outputStream.Data();
     auto restSize =  outputStream.Size();
     while (restSize > 0) {
@@ -1946,9 +1946,9 @@ TEST(TArrowWriterComplexTest, BasicStruct)
     std::vector<std::string> columnNames = {"struct"};
 
     auto structType = StructLogicalType({
-        TStructField{"a", SimpleLogicalType(ESimpleLogicalValueType::String)},
-        TStructField{"b", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-    });
+        TStructField{"a", "a", SimpleLogicalType(ESimpleLogicalValueType::String)},
+        TStructField{"b", "b", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+    }, /*removedFieldStableNames*/ {});
 
     tableSchemas.push_back(New<TTableSchema>(std::vector{
         TColumnSchema(columnNames[0], structType),
@@ -1956,7 +1956,7 @@ TEST(TArrowWriterComplexTest, BasicStruct)
 
     TStringStream outputStream;
 
-    std::vector<TString> ysonStrings = {
+    std::vector<std::string> ysonStrings = {
         "[foo;123;]",
         "[bar;456;]",
     };
@@ -2005,7 +2005,7 @@ TEST(TArrowWriterComplexTest, BasicList)
 
     TStringStream outputStream;
 
-    std::vector<TString> ysonStrings = {
+    std::vector<std::string> ysonStrings = {
         "[1;2;3;]",
         "[5;8;]",
     };
@@ -2056,7 +2056,7 @@ TEST(TArrowWriterComplexTest, BasicDict)
 
     TStringStream outputStream;
 
-    std::vector<TString> ysonStrings = {
+    std::vector<std::string> ysonStrings = {
         "[[12;\"foo\";];[34;\"bar\";];]",
         "[[56;\"\"];]",
     };
@@ -2101,14 +2101,14 @@ TEST(TArrowWriterComplexTest, OptionalStruct)
     std::vector<std::string> columnNames = {"optional"};
 
     auto listType = OptionalLogicalType(StructLogicalType({
-        TStructField{"integer", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-    }));
+        TStructField{"integer", "integer", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+    }, /*removedFieldStableNames*/ {}));
 
     tableSchemas.push_back(New<TTableSchema>(std::vector{
         TColumnSchema(columnNames[0], listType),
     }));
 
-    std::vector<std::optional<TString>> ysonStrings = {
+    std::vector<std::optional<std::string>> ysonStrings = {
         "[12;]",
         std::nullopt,
         "[34;]",
@@ -2151,14 +2151,18 @@ TEST(TArrowWriterComplexTest, StructOptional)
     std::vector<std::string> columnNames = {"struct"};
 
     auto listType = StructLogicalType({
-        TStructField{"integer", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-    });
+        TStructField{
+            .Name = "integer",
+            .StableName = "integer",
+            .Type = OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)),
+        },
+    }, /*removedFieldStableNames*/ {});
 
     tableSchemas.push_back(New<TTableSchema>(std::vector{
         TColumnSchema(columnNames[0], listType),
     }));
 
-    std::vector<TString> ysonStrings = {
+    std::vector<std::string> ysonStrings = {
         "[12;]",
         "[#;]",
         "[34;]",
@@ -2202,9 +2206,17 @@ TEST(TArrowWriterComplexTest, DictionaryStruct)
     std::vector<std::string> columnNames = {"struct"};
 
     auto structType = OptionalLogicalType(StructLogicalType({
-        TStructField{"a", SimpleLogicalType(ESimpleLogicalValueType::String)},
-        TStructField{"b", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-    }));
+        TStructField{
+            .Name = "a",
+            .StableName = "a",
+            .Type = SimpleLogicalType(ESimpleLogicalValueType::String),
+        },
+        TStructField{
+            .Name = "b",
+            .StableName = "b",
+            .Type = SimpleLogicalType(ESimpleLogicalValueType::Int64),
+        },
+    }, /*removedFieldStableNames*/ {}));
 
     tableSchemas.push_back(New<TTableSchema>(std::vector{
         TColumnSchema(columnNames[0], structType),
@@ -2214,7 +2226,7 @@ TEST(TArrowWriterComplexTest, DictionaryStruct)
 
     const int copiesCount = 10;
 
-    std::vector<std::optional<TString>> ysonStrings;
+    std::vector<std::optional<std::string>> ysonStrings;
     std::vector<std::optional<std::string>> strings;
     std::vector<std::optional<int64_t>> integers;
     for (int i = 0; i < copiesCount; ++i) {
@@ -2279,7 +2291,7 @@ TEST(TArrowWriterComplexTest, OptionalOptional)
         TColumnSchema(columnNames[0], listType),
     }));
 
-    std::vector<std::optional<TString>> ysonStrings = {
+    std::vector<std::optional<std::string>> ysonStrings = {
         std::nullopt,
         "[#;]",
         "[-42;]",
@@ -2333,12 +2345,12 @@ TEST(TArrowWriterTest, EmptyStruct)
     std::vector<std::string> columnNames = {"struct"};
 
     tableSchemas.push_back(New<TTableSchema>(std::vector{
-        TColumnSchema(columnNames[0], StructLogicalType({})),
+        TColumnSchema(columnNames[0], StructLogicalType({}, /*removedFieldStableNames*/ {})),
     }));
 
     TStringStream outputStream;
 
-    std::vector<TString> ysonStrings(3, "[]");
+    std::vector<std::string> ysonStrings(3, "[]");
 
     auto rows = MakeUnversionedAnyRowsFromYson({ysonStrings}, columnNames);
 
@@ -2372,13 +2384,13 @@ TEST(TArrowWriterComplexTest, OptionalEmptyStruct)
     std::vector<TTableSchemaPtr> tableSchemas;
     std::vector<std::string> columnNames = {"optional"};
 
-    auto optionalType = OptionalLogicalType(StructLogicalType({}));
+    auto optionalType = OptionalLogicalType(StructLogicalType({}, /*removedFieldStableNames*/ {}));
 
     tableSchemas.push_back(New<TTableSchema>(std::vector{
         TColumnSchema(columnNames[0], optionalType),
     }));
 
-    std::vector<std::optional<TString>> ysonStrings = {
+    std::vector<std::optional<std::string>> ysonStrings = {
         "[]",
         std::nullopt,
         std::nullopt,
@@ -2426,18 +2438,22 @@ TEST(TArrowWriterComplexTest, NullTypes)
     std::vector<TTableSchemaPtr> tableSchemas;
     std::vector<std::string> columnNames = {"null", "null_struct"};
 
-    auto optionalType = OptionalLogicalType(StructLogicalType({}));
+    auto optionalType = OptionalLogicalType(StructLogicalType({}, /*removedFieldStableNames*/ {}));
 
     tableSchemas.push_back(New<TTableSchema>(std::vector{
         TColumnSchema(columnNames[0], NullLogicalType()),
-        TColumnSchema(columnNames[1], OptionalLogicalType(StructLogicalType({{"null", NullLogicalType()}}))),
+        TColumnSchema(
+            columnNames[1],
+            OptionalLogicalType(StructLogicalType(
+                {{"null", "null", NullLogicalType()}},
+                /*removedFieldStableNames*/ {}))),
     }));
 
-    std::vector<std::optional<TString>> nulls = {
+    std::vector<std::optional<std::string>> nulls = {
         std::nullopt,
         std::nullopt,
     };
-    std::vector<std::optional<TString>> nullStructs = {
+    std::vector<std::optional<std::string>> nullStructs = {
         "[#;]",
         std::nullopt,
     };
@@ -2481,9 +2497,9 @@ TEST(TArrowWriterComplexTest, NestedTzType)
     std::vector<std::string> columnNames = {"tz"};
 
     auto type = StructLogicalType({
-        {"a", SimpleLogicalType(ESimpleLogicalValueType::String)},
-        {"b", SimpleLogicalType(ESimpleLogicalValueType::TzTimestamp)},
-    });
+        {"a", "a", SimpleLogicalType(ESimpleLogicalValueType::String)},
+        {"b", "b", SimpleLogicalType(ESimpleLogicalValueType::TzTimestamp)},
+    }, /*removedFieldStableNames*/ {});
 
     tableSchemas.push_back(New<TTableSchema>(std::vector{
         TColumnSchema(columnNames[0], type),
@@ -2492,7 +2508,7 @@ TEST(TArrowWriterComplexTest, NestedTzType)
     constexpr ESimpleLogicalValueType UnderlyingDateType = GetUnderlyingDateType<ESimpleLogicalValueType::TzTimestamp>();
     using TInt = TUnderlyingTimestampIntegerType<UnderlyingDateType>;
 
-    std::vector<TString> ysonStrings = {
+    std::vector<std::string> ysonStrings = {
         "[\"123\";\"" + MakeTzString<TInt>(0, GetTzName(0)) + "\";]",
         "[\"456\";\"" + MakeTzString<TInt>(1, GetTzName(1)) + "\";]",
     };
@@ -2536,9 +2552,9 @@ TEST(TArrowWriterComplexTest, NestedTzTypeWithIndices)
     std::vector<std::string> columnNames = {"tz"};
 
     auto type = StructLogicalType({
-        {"a", SimpleLogicalType(ESimpleLogicalValueType::String)},
-        {"b", SimpleLogicalType(ESimpleLogicalValueType::TzTimestamp)},
-    });
+        {"a", "a", SimpleLogicalType(ESimpleLogicalValueType::String)},
+        {"b", "b", SimpleLogicalType(ESimpleLogicalValueType::TzTimestamp)},
+    }, /*removedFieldStableNames*/ {});
 
     tableSchemas.push_back(New<TTableSchema>(std::vector{
         TColumnSchema(columnNames[0], type),
@@ -2547,7 +2563,7 @@ TEST(TArrowWriterComplexTest, NestedTzTypeWithIndices)
     constexpr ESimpleLogicalValueType UnderlyingDateType = GetUnderlyingDateType<ESimpleLogicalValueType::TzTimestamp>();
     using TInt = TUnderlyingTimestampIntegerType<UnderlyingDateType>;
 
-    std::vector<TString> ysonStrings = {
+    std::vector<std::string> ysonStrings = {
         "[\"123\";\"" + MakeTzString<TInt>(0, GetTzName(0)) + "\";]",
         "[\"456\";\"" + MakeTzString<TInt>(1, GetTzName(1)) + "\";]",
     };

@@ -25,6 +25,7 @@ target_compile_options(yt-server-log_tailer PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(yt-server-log_tailer PUBLIC

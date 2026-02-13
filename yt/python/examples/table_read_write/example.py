@@ -15,7 +15,7 @@ def main():
 
     table = "//tmp/{}-read-write".format(getpass.getuser())
 
-    # Просто пишем данные в таблицу, если таблица существует, её перезапишут.
+    # Writing data to the table. If the table exists already than it will be overwritten.
     client.write_table(
         table,
         [
@@ -24,8 +24,8 @@ def main():
         ],
     )
 
-    # Дописываем данные в конец таблицы, придётся поступить хитрее.
-    # Используем класс TablePath и его опцию append.
+    # Writing data to the end of the table. Let`s use a trick.
+    # Use the `TablePath` class and its append option.
     client.write_table(
         yt.wrapper.TablePath(table, append=True),
         [
@@ -33,33 +33,33 @@ def main():
         ],
     )
 
-    # Читаем всю таблицу.
+    # Reading the entire table.
     print("*** ALL TABLE ***")
     for row in client.read_table(table):
         print("english:", row["english"], "; russian:", row["russian"])
     print("*****************")
     print("")
 
-    # Читаем первые 2 строки таблицы.
+    # Reading the first 2 rows of the table.
     print("*** FIRST TWO ROWS ***")
     for row in client.read_table(
-        yt.wrapper.TablePath(table, start_index=0, end_index=2)  # читаем с 0й по 2ю строки, 2я строка невключительно
+        yt.wrapper.TablePath(table, start_index=0, end_index=2)  # reading from zero to second row. The 2nd row is no need to read.
     ):
         print("english:", row["english"], "; russian:", row["russian"])
     print("*****************")
     print("")
 
-    #  Если мы отсортируем таблицу, то можно будет читать записи по ключам.
+    # We can read records using keys if we sort the table.
     client.run_sort(table, sort_by=["english"])
 
-    # И читаем запись по одному ключу.
+    # Reading the record using one key.
     print("*** EXACT KEY ***")
     for row in client.read_table(
         yt.wrapper.TablePath(
             table,
-            exact_key=["three"]  # В качестве ключа передаём список значений ключевых колонок
-            # (тех колонок по которым отсортирована таблица).
-            # Тут у нас простой случай, одна ключевая колонка, но их может быть больше.
+            exact_key=["three"]  # passing a list of key columns values as a key
+            # (that columns by which the table is sorted).
+            # Here we have a simple case with one key column, but there can be more of them.
         )
     ):
         print("english:", row["english"], "; russian:", row["russian"])

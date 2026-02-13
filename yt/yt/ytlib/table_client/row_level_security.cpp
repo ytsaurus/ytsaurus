@@ -175,7 +175,7 @@ public:
                 }));
     }
 
-    ESecurityAction Check(TUnversionedRow row, const TRowBufferPtr& rowBuffer) const override
+    ESecurityAction Check(TUnversionedRow row, const TRowBufferPtr& rowBuffer, int chunkValuesPrefix) const override
     {
         // NB(coteeq): Although RLS only acts on schemaful rows,
         // this checker is created per-datasource, not per-chunk (so there is
@@ -184,7 +184,7 @@ public:
         // per-chunk expression compilation, but YMMV. Maybe, I should add
         // an option to compile per-chunk and some heuristic to choose between
         // per-chunk and per-datasource compilation.
-        auto reorderedRow = ReorderRow(row, rowBuffer);
+        auto reorderedRow = ReorderRow(row, rowBuffer, chunkValuesPrefix);
 
         auto value = MakeUnversionedSentinelValue(EValueType::Null);
 
@@ -221,7 +221,7 @@ private:
     const int RemappedValueCount_;
     const TNameTableToSchemaIdMapping ChunkToExpressionIdMapping_;
 
-    TUnversionedRow ReorderRow(TUnversionedRow row, const TRowBufferPtr& rowBuffer) const
+    TUnversionedRow ReorderRow(TUnversionedRow row, const TRowBufferPtr& rowBuffer, int chunkValuesPrefix) const
     {
         auto reorderedRow = rowBuffer->AllocateUnversioned(ValueCount_);
         for (int index = 0; index < ValueCount_; ++index) {
@@ -229,8 +229,11 @@ private:
         }
 
         int remappedValueCount = 0;
-        for (const auto& value : row) {
-            if (value.Id > std::ssize(ChunkToExpressionIdMapping_)) {
+        for (const auto& [index, value] : SEnumerate(row)) {
+            if (index >= chunkValuesPrefix) {
+                break;
+            }
+            if (value.Id >= std::ssize(ChunkToExpressionIdMapping_)) {
                 continue;
             }
             auto newId = ChunkToExpressionIdMapping_[value.Id];
@@ -241,7 +244,9 @@ private:
                 ++remappedValueCount;
             }
         }
-        YT_VERIFY(remappedValueCount == RemappedValueCount_);
+        YT_VERIFY(
+            remappedValueCount == RemappedValueCount_,
+            Format("%v != %v", remappedValueCount, RemappedValueCount_));
         return reorderedRow;
     }
 };
@@ -372,6 +377,18 @@ void FromProto(
 
     if (protoRlsReadSpec.has_table_schema()) {
         rlsReadSpec->TableSchema_ = NYT::FromProto<TTableSchemaPtr>(protoRlsReadSpec.table_schema());
+    }
+}
+
+void FormatValue(TStringBuilderBase* builder, const TRlsReadSpec& rlsReadSpec, TStringBuf /*spec*/)
+{
+    if (rlsReadSpec.IsTrivialDeny()) {
+        Format(builder, "{TrivialDeny}");
+    } else {
+        Format(
+            builder,
+            "{Predicate: %v}",
+            rlsReadSpec.GetPredicate());
     }
 }
 

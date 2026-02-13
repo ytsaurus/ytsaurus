@@ -346,6 +346,11 @@ public:
         ChunkIdsQueue_->OnLocatedUnavailable(chunkId);
     }
 
+    i64 GetChunkCount() const
+    {
+        return ChunkIdsQueue_->GetSize();
+    }
+
 private:
     const TChunkScraperConfigPtr Config_;
     const IThroughputThrottlerPtr Throttler_;
@@ -465,7 +470,8 @@ private:
             [&] (TMetadataAvailablePolicy) { return replicas.empty(); });
     }
 
-    void UpdateQueue(const TScrapedChunkInfo& info) {
+    void UpdateQueue(const TScrapedChunkInfo& info)
+    {
         auto chunkId = info.ChunkId;
         switch (info.Availability) {
             case EChunkAvailability::Available:
@@ -555,8 +561,9 @@ TChunkScraper::TScraperTask& TChunkScraper::GetTaskForChunk(TChunkId chunkId)
 void TChunkScraper::Add(TChunkId chunkId)
 {
     auto& task = GetTaskForChunk(chunkId);
+    bool wasEmpty = task.GetChunkCount() == 0;
     task.Add(chunkId);
-    if (IsStarted_) {
+    if (wasEmpty && IsStarted_) {
         task.Start();
     }
 }

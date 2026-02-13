@@ -1,5 +1,11 @@
 package tech.ytsaurus.core.common;
 
+import java.util.Map;
+import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 public enum YTsaurusErrorCode {
     Ok(0),
     Generic(1),
@@ -51,6 +57,9 @@ public enum YTsaurusErrorCode {
 
     NoSuchTransaction(11000);
 
+    private static final Map<Integer, YTsaurusErrorCode> CODE_INDEX = Stream.of(values())
+            .collect(Collectors.toMap(YTsaurusErrorCode::getCode, Function.identity()));
+
     @SuppressWarnings("checkstyle:VisibilityModifier")
     public final int code;
 
@@ -63,5 +72,16 @@ public enum YTsaurusErrorCode {
      */
     public int getCode() {
         return code;
+    }
+
+    /**
+     * Find the {@code YTsaurusErrorCode} corresponding to the given error code.
+     *
+     * @param code the error code to look up
+     * @return the {@code YTsaurusErrorCode} associated with the given code
+     * or {@code Optional.empty()} if no such error code exists
+     */
+    public static Optional<YTsaurusErrorCode> findByCode(int code) {
+        return Optional.ofNullable(CODE_INDEX.get(code));
     }
 }

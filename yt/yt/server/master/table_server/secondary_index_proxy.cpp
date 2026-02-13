@@ -53,8 +53,8 @@ private:
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::TableToIndexCorrespondence)
             .SetWritable(true)
             .SetReplicated(true));
-        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::UnfoldedColumn)
-            .SetPresent(secondaryIndex->UnfoldedColumn().has_value()));
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::UnfoldedColumns)
+            .SetPresent(secondaryIndex->UnfoldedColumns().has_value()));
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::Predicate)
             .SetPresent(secondaryIndex->Predicate().has_value()));
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::EvaluatedColumnsSchema)
@@ -104,10 +104,13 @@ private:
                 }
                 return false;
 
-            case EInternedAttributeKey::UnfoldedColumn:
-                if (secondaryIndex->UnfoldedColumn()) {
-                    BuildYsonFluently(consumer)
-                        .Value(*secondaryIndex->UnfoldedColumn());
+            case EInternedAttributeKey::UnfoldedColumns:
+                if (const auto& unfoldedColumns = secondaryIndex->UnfoldedColumns()) {
+                    BuildYsonFluently(consumer).DoMap([&] (TFluentMap fluent) {
+                        fluent
+                            .Item("table_column").Value(unfoldedColumns->TableColumn)
+                            .Item("index_column").Value(unfoldedColumns->IndexColumn);
+                    });
                     return true;
                 }
                 return false;

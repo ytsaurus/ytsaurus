@@ -49,7 +49,7 @@ TFuture<bool> TSignatureValidator::Validate(const TSignaturePtr& signature) cons
     TSignatureHeader header;
     if (!signature->Header_) {
         YT_LOG_WARNING("Signature is missing header");
-        return FalseFuture;
+        return MakeFuture(false);
     }
 
     try {
@@ -59,7 +59,7 @@ TFuture<bool> TSignatureValidator::Validate(const TSignaturePtr& signature) cons
             ex,
             "Received invalid signature header (Header: %v)",
             signature->Header_.ToString());
-        return FalseFuture;
+        return MakeFuture(false);
     }
 
     auto signatureId = std::visit([] (auto&& header_) { return header_.SignatureId; }, header);

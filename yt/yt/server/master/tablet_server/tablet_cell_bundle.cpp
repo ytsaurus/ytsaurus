@@ -13,6 +13,8 @@
 
 #include <yt/yt/ytlib/object_client/config.h>
 
+#include <yt/yt/core/misc/maybe_inf.h>
+
 namespace NYT::NTabletServer {
 
 using namespace NCellMaster;
@@ -101,6 +103,69 @@ void TTabletCellBundle::RecomputeClusterResourceUsage()
     }
 }
 
+void TTabletCellBundle::ValidateResourceLimitsChange(
+    const TTabletCellBundleResources& delta,
+    bool increase) const
+{
+    // TODO(ifsmirnov): unify this code with one in security server.
+
+    using TLimit64 = TMaybeInf<ui64>;
+
+    THashSet<std::string> violatedInfinityChecks;
+    THashSet<std::string> violatedResources;
+
+    auto check = [&] <class TType, class TResources> (
+        bool (TLimit64::*check)(TLimit64) const,
+        TType (TResources::*getter)() const,
+        const char* name)
+    {
+        TLimit64 currentValue;
+        TLimit64 deltaValue;
+
+        // NB: though fields of |delta| are signed integers, they are always
+        // nonnegative. See TTabletCellBundleResources::Deserialize.
+        if constexpr (requires { typename TType::value_type; }) {
+            currentValue.UnsafeAssign((ResourceLimits_.*getter)().value_or(0));
+            deltaValue.UnsafeAssign((delta.*getter)().value_or(0));
+        } else {
+            currentValue.UnsafeAssign((ResourceLimits_.*getter)());
+            deltaValue.UnsafeAssign((delta.*getter)());
+        }
+
+        if (!(currentValue.*check)(deltaValue)) {
+            if (!increase && currentValue < deltaValue) {
+                violatedResources.insert(name);
+            } else {
+                violatedInfinityChecks.insert(name);
+            }
+        }
+    };
+
+    auto checker = increase
+        ? &TLimit64::CanIncrease
+        : &TLimit64::CanDecrease;
+
+    check(checker, &TTabletCellBundleResources::GetTabletCount, "tablet_count");
+    check(checker, &TTabletCellBundleResources::GetTabletStaticMemory, "tablet_static_memory");
+    check(checker, &TTabletCellBundleResources::GetCpu, "cpu");
+    check(checker, &TTabletCellBundleResources::GetMemory, "memory");
+    check(checker, &TTabletCellBundleResources::GetNetBytes, "net_bytes");
+
+    if (!violatedResources.empty()) {
+        THROW_ERROR_EXCEPTION("Failed to change resource limits of tablet cell bundle %Qv "
+            "since it does not have enough resources",
+            GetName())
+            << TErrorAttribute("violated_resources", violatedResources);
+    }
+
+    if (!violatedInfinityChecks.empty()) {
+        THROW_ERROR_EXCEPTION("Failed to change resource limits of tablet cell bundle %Qv: "
+            "either invalid infinity-related operation or just an integer overflow occurred",
+            GetName())
+            << TErrorAttribute("violated_resources", violatedResources);
+    }
+}
+
 std::string TTabletCellBundle::GetLowercaseObjectName() const
 {
     return Format("tablet cell bundle %Qv", GetName());
@@ -113,7 +178,7 @@ std::string TTabletCellBundle::GetCapitalizedObjectName() const
 
 TYPath TTabletCellBundle::GetObjectPath() const
 {
-    return Format("//sys/tablet_cell_bundles/%v", GetName());
+    return Format("//sys/tablet_cell_bundles/%v", NYPath::ToYPathLiteral(GetName()));
 }
 
 void TTabletCellBundle::Save(NCellMaster::TSaveContext& context) const
@@ -177,4 +242,3 @@ TTabletCellBundleProfilingCounters::TTabletCellBundleProfilingCounters(const std
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletServer
-

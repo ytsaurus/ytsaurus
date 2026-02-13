@@ -80,8 +80,26 @@ public:
                 << TErrorAttribute("index_table_cell_tag", CellTagFromId(indexTableId));
         }
 
-        auto unfoldedColumnName = (kind == ESecondaryIndexKind::Unfolding)
-            ? std::optional<std::string>(attributes->Get<std::string>("unfolded_column"))
+        auto getUnfoldedColumns = [&] {
+            if (auto unfoldedColumn = attributes->Find<std::string>("unfolded_column")) {
+                // TODO(sabdenovch): remove "unfolded_column" from attributes
+                // after next stable release.
+                attributes->Set("unfolded_table_column", *unfoldedColumn);
+                attributes->Set("unfolded_index_column", *unfoldedColumn);
+                return TUnfoldedColumns{
+                    .TableColumn = *unfoldedColumn,
+                    .IndexColumn = *unfoldedColumn,
+                };
+            } else {
+                return TUnfoldedColumns{
+                    .TableColumn = attributes->Get<std::string>("unfolded_table_column"),
+                    .IndexColumn = attributes->Get<std::string>("unfolded_index_column"),
+                };
+            }
+        };
+
+        auto unfoldedColumns = kind == ESecondaryIndexKind::Unfolding
+            ? std::optional(getUnfoldedColumns())
             : std::nullopt;
 
         ValidateIndexSchema(
@@ -90,7 +108,7 @@ public:
             *indexTableSchema,
             predicate,
             evaluatedColumnsSchema,
-            unfoldedColumnName);
+            unfoldedColumns);
 
         attributes->Set("table_id", tableId);
         attributes->Set("index_table_id", indexTableId);

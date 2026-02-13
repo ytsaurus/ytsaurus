@@ -49,7 +49,7 @@ TString GetParentFor(const TString& type)
 
 #ifdef _linux_
 
-std::vector<TString> ReadAllValues(const TString& fileName)
+std::vector<std::string> ReadAllValues(const std::string& fileName)
 {
     auto raw = TUnbufferedFileInput(fileName)
         .ReadAll();
@@ -58,7 +58,7 @@ std::vector<TString> ReadAllValues(const TString& fileName)
         fileName,
         raw);
 
-    TVector<TString> values;
+    TVector<std::string> values;
     StringSplitter(raw.data())
         .SplitBySet(" \n")
         .SkipEmpty()

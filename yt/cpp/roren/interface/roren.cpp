@@ -24,7 +24,9 @@ NPrivate::TAttributeSetter SetStreamId(TString streamId)
 ////////////////////////////////////////////////////////////////////////////////
 
 TPipeline::TPipeline(IExecutorPtr executor)
-    : TPCollection<void>({}, NYT::New<NPrivate::TRawPipeline>())
+    : TPCollection<void>(
+        NYT::New<NPrivate::TPCollectionNode>(NPrivate::MakeRowVtable<void>(), 0, 0, nullptr),
+        NYT::New<NPrivate::TRawPipeline>())
     , Executor_(std::move(executor))
 {
     if (!Executor_) {

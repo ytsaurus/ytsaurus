@@ -503,7 +503,7 @@ class TVanillaUserJobReadController
 public:
     TCallback<TFuture<void>()> PrepareJobInputTransfer(const IAsyncOutputStreamPtr& /*asyncOutput*/) override
     {
-        return BIND([] { return VoidFuture; });
+        return BIND([] { return OKFuture; });
     }
 
     double GetProgress() const override

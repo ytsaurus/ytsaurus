@@ -27,6 +27,8 @@ struct TAccountStatistics
     TClusterResources CommittedResourceUsage;
 
     void Persist(const NCellMaster::TPersistenceContext& context);
+
+    bool operator==(const TAccountStatistics&) const = default;
 };
 
 void ToProto(NProto::TAccountStatistics* protoStatistics, const TAccountStatistics& statistics);
@@ -37,10 +39,11 @@ void Serialize(
     NYson::IYsonConsumer* consumer,
     const NCellMaster::TBootstrap* bootstrap);
 
-TAccountStatistics& operator += (TAccountStatistics& lhs, const TAccountStatistics& rhs);
+TAccountStatistics& operator+=(TAccountStatistics& lhs, const TAccountStatistics& rhs);
 TAccountStatistics  operator +  (const TAccountStatistics& lhs, const TAccountStatistics& rhs);
-TAccountStatistics& operator -= (TAccountStatistics& lhs, const TAccountStatistics& rhs);
+TAccountStatistics& operator-=(TAccountStatistics& lhs, const TAccountStatistics& rhs);
 TAccountStatistics  operator -  (const TAccountStatistics& lhs, const TAccountStatistics& rhs);
+TAccountStatistics  operator -  (const TAccountStatistics& accountStatistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -93,8 +96,7 @@ class TAccount
 {
 public:
     DEFINE_BYREF_RW_PROPERTY(TAccountMulticellStatistics, MulticellStatistics);
-    DEFINE_BYVAL_RW_PROPERTY(TAccountStatistics*, LocalStatisticsPtr);
-    DEFINE_BYREF_RW_PROPERTY(TAccountStatistics, ClusterStatistics);
+    DEFINE_BYREF_RO_PROPERTY(TAccountStatistics, ClusterStatistics);
     DEFINE_BYREF_RW_PROPERTY(TClusterResourceLimits, ClusterResourceLimits);
     DEFINE_BYVAL_RW_PROPERTY(bool, AllowChildrenLimitOvercommit);
     DEFINE_BYVAL_RW_PROPERTY(int, ChunkMergerNodeTraversalConcurrency, 1);
@@ -128,8 +130,16 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
+    void SetLocalStatisticsPtr(TAccountStatistics *value);
+
     //! Dereferences the local statistics pointer.
-    TAccountStatistics& LocalStatistics();
+    const TAccountStatistics& LocalStatistics();
+
+    void SetLocalStatistics(const TAccountStatistics& statistics);
+
+    void SetClusterStatistics(const TAccountStatistics& statistics);
+
+    void IncreaseStatistics(const TAccountStatistics& delta);
 
     //! Returns |true| if disk space limit is exceeded for at least one medium,
     //! i.e. no more disk space could be allocated.
@@ -200,7 +210,12 @@ public:
     void DecrementChunkMergerNodeTraversals();
 
 private:
+    TAccountStatistics* LocalStatisticsPtr_{};
+
     int MergeJobRateLimit_ = 1;
+
+    void IncreaseLocalStatistics(const TAccountStatistics& delta);
+    void IncreaseClusterStatistics(const TAccountStatistics& statistics);
 
     //! Indicates the number of nodes currently being processed by the chunk
     //! merger that belong to this account.

@@ -33,7 +33,7 @@ struct IImageReader
 
     virtual TReadersStatistics GetStatistics() const = 0;
 
-    virtual TString GetPath() const = 0;
+    virtual std::string GetPath() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IImageReader)

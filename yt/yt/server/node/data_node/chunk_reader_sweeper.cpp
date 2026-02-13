@@ -38,7 +38,7 @@ void TChunkReaderSweeper::ScheduleChunkReaderSweep(IChunkPtr chunk)
     auto dynamicConfig = DynamicConfigManager_->GetConfig();
     ChunkReaderSweepStack_.Enqueue({
         .Chunk = std::move(chunk),
-        .Deadline = TInstant::Now() + dynamicConfig->DataNode->ChunkReaderRetentionTimeout
+        .Deadline = TInstant::Now() + dynamicConfig->DataNode->ChunkReaderRetentionTimeout,
     });
 }
 

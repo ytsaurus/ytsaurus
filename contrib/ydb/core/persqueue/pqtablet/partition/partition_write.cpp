@@ -6,6 +6,10 @@
 #include <contrib/ydb/core/persqueue/pqtablet/common/constants.h>
 #include <contrib/ydb/core/persqueue/pqtablet/common/event_helpers.h>
 #include <contrib/ydb/core/persqueue/pqtablet/common/logging.h>
+#include <contrib/ydb/core/persqueue/writer/source_id_encoding.h>
+
+#include <contrib/ydb/core/protos/counters_pq.pb.h>
+#include <contrib/ydb/core/protos/msgbus.pb.h>
 
 #include <contrib/ydb/core/base/appdata.h>
 #include <contrib/ydb/core/base/blobstorage.h>
@@ -13,14 +17,12 @@
 #include <contrib/ydb/core/base/feature_flags.h>
 #include <contrib/ydb/core/base/path.h>
 #include <contrib/ydb/core/quoter/public/quoter.h>
-#include <contrib/ydb/core/persqueue/writer/source_id_encoding.h>
-#include <contrib/ydb/core/protos/counters_pq.pb.h>
-#include <contrib/ydb/core/protos/msgbus.pb.h>
 #include <contrib/ydb/library/persqueue/topic_parser/topic_parser.h>
 #include <contrib/ydb/public/lib/base/msgbus.h>
 #include <library/cpp/html/pcdata/pcdata.h>
 #include <library/cpp/monlib/service/pages/templates.h>
 #include <library/cpp/time_provider/time_provider.h>
+
 #include <util/folder/path.h>
 #include <util/string/escape.h>
 #include <util/system/byteorder.h>
@@ -322,6 +324,8 @@ void TPartition::AnswerCurrentWrites(const TActorContext& ctx) {
                 }
             }
 
+            already = already || writeResponse.DeduplicatedByMessageId;
+
             if (!already) {
                 if (wrOffset) {
                     PQ_ENSURE(*wrOffset >= offset);
@@ -424,10 +428,6 @@ void TPartition::SyncMemoryStateWithKVState(const TActorContext& ctx) {
     LOG_T("TPartition::SyncMemoryStateWithKVState.");
 
     BlobEncoder.SyncHeadKeys();
-
-    // New blocks have been recorded. You can now delete the keys of the repackaged blocks.
-    DefferedKeysForDeletion.clear();
-
     BlobEncoder.SyncNewHeadKey();
 
     if (BlobEncoder.IsNothingWritten()) { //Nothing writed at all
@@ -479,6 +479,8 @@ void TPartition::OnHandleWriteResponse(const TActorContext& ctx)
     HandleWriteResponse(ctx);
     ProcessTxsAndUserActs(ctx);
     TryRunCompaction();
+
+    MessageIdDeduplicator.Commit();
 
     if (DeletePartitionState == DELETION_IN_PROCESS) {
         DestroyActor(ctx);
@@ -1121,7 +1123,13 @@ ui32 TPartition::RenameTmpCmdWrites(TEvKeyValue::TEvRequest* request)
 {
     ui32 curWrites = 0;
     for (ui32 i = 0; i < request->Record.CmdWriteSize(); ++i) { //change keys for yet to be writed KV pairs
-        auto key = TKey::FromString(request->Record.GetCmdWrite(i).GetKey());
+        const auto& k = request->Record.GetCmdWrite(i).GetKey();
+        if ((k.front() != TKeyPrefix::TypeTmpData) &&
+            (k.front() != TKeyPrefix::ServiceTypeTmpData)) {
+            continue;
+        }
+        // оптимизация. можно не создавать ключ. достаточно проверить первый символ и перевести с учётом типа партиции
+        auto key = TKey::FromString(k);
         if (key.GetType() == TKeyPrefix::TypeTmpData) {
             key.SetType(TKeyPrefix::TypeData);
             request->Record.MutableCmdWrite(i)->SetKey(key.Data(), key.Size());
@@ -1288,6 +1296,20 @@ bool TPartition::ExecRequest(TWriteMsg& p, ProcessParameters& parameters, TEvKey
             return false;
         }
         curOffset = poffset;
+    }
+
+    auto deduplicationResult = DeduplicateByMessageId(p.Msg, curOffset);
+    if (deduplicationResult) {
+        LOG_D("Deduplicate message " << p.Msg.SeqNo << " by MessageDeduplicationId");
+        p.DeduplicatedByMessageId = true;
+        p.Offset = deduplicationResult.value();
+
+        TabletCounters.Cumulative()[COUNTER_PQ_WRITE_ALREADY].Increment(1);
+        MsgsDiscarded.Inc();
+        TabletCounters.Cumulative()[COUNTER_PQ_WRITE_BYTES_ALREADY].Increment(p.Msg.Data.size());
+        BytesDiscarded.Inc(p.Msg.Data.size());
+
+        return true;
     }
 
     if (p.Msg.PartNo == 0) { //create new PartitionedBlob
@@ -1576,8 +1598,15 @@ bool TPartition::RequestBlobQuota()
     }
 
     size_t quotaSize = 0;
+    size_t deduplicationIdQuotaSize = 0;
     for (auto& r : PendingRequests) {
         quotaSize += r.GetWriteSize();
+        if (r.IsWrite()) {
+            auto& write = r.GetWrite();
+            if (write.Msg.MessageDeduplicationId && write.Msg.PartNo == 0) {
+                ++deduplicationIdQuotaSize;
+            }
+        }
     }
 
     if (!quotaSize) {
@@ -1590,7 +1619,7 @@ bool TPartition::RequestBlobQuota()
     }
 
     RemovePendingRequests(QuotaWaitingRequests);
-    RequestBlobQuota(quotaSize);
+    RequestBlobQuota(quotaSize, deduplicationIdQuotaSize);
 
     return true;
 }
@@ -1781,7 +1810,7 @@ bool TPartition::WaitingForSubDomainQuota(const ui64 withSize) const {
     return UserDataSize() + withSize > ReserveSize();
 }
 
-void TPartition::RequestBlobQuota(size_t quotaSize)
+void TPartition::RequestBlobQuota(size_t quotaSize, size_t deduplicationIdQuotaSize)
 {
     LOG_T("TPartition::RequestBlobQuota.");
 
@@ -1789,6 +1818,7 @@ void TPartition::RequestBlobQuota(size_t quotaSize)
 
     TopicQuotaRequestCookie = NextTopicWriteQuotaRequestCookie++;
     BlobQuotaSize = quotaSize;
+    DeduplicationIdQuotaSize = deduplicationIdQuotaSize;
     RequestQuotaForWriteBlobRequest(quotaSize, TopicQuotaRequestCookie);
 }
 
@@ -1799,7 +1829,7 @@ void TPartition::ConsumeBlobQuota()
     }
 
     PQ_ENSURE(TopicQuotaRequestCookie != 0);
-    Send(WriteQuotaTrackerActor, new TEvPQ::TEvConsumed(BlobQuotaSize, TopicQuotaRequestCookie, {}));
+    Send(WriteQuotaTrackerActor, new TEvPQ::TEvConsumed(BlobQuotaSize, DeduplicationIdQuotaSize, TopicQuotaRequestCookie, {}));
 }
 
 } // namespace NKikimr::NPQ

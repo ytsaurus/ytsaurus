@@ -74,6 +74,8 @@ struct TTestingOptions
 
     bool AbortOutputTransactionAfterCompletionTransactionCommit;
 
+    bool EnableEventsOnFs;
+
     REGISTER_YSON_STRUCT(TTestingOptions);
 
     static void Register(TRegistrar registrar);
@@ -533,6 +535,7 @@ struct TSortOperationOptionsBase
     NChunkPools::TJobSizeAdjusterConfigPtr PartitionJobSizeAdjuster;
     NChunkPools::TJobSizeAdjusterConfigPtr SortedMergeJobSizeAdjuster;
     TDataBalancerOptionsPtr DataBalancer;
+    i64 DefaultPartitionDataWeightForMerging;
 
     REGISTER_YSON_STRUCT(TSortOperationOptionsBase);
 
@@ -597,7 +600,6 @@ DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationOptions)
 struct TGangManagerConfig
     : public NYTree::TYsonStruct
 {
-
     TDuration JobReincarnationTimeout;
 
     REGISTER_YSON_STRUCT(TGangManagerConfig);
@@ -1325,7 +1327,16 @@ struct TControllerAgentConfig
     // and all masters will be 25.2.
     bool AllowBulkInsertUnderUserTransaction;
 
+    // Only for sorted dynamic tables.
+    i64 MaxUnversionedDynamicTableOutputChunkSize;
+    i64 MaxUnversionedDynamicTableOutputBlockSize;
+
+    //! If set, the sizes of unversioned blocks and chunks will be checked for sorted dynamic tables.
+    bool EnableDynamicTableOutputChunkConstraintValidation;
+
     NServer::TOperationEventReporterConfigPtr OperationEventsReporter;
+
+    bool FailOperationsInEmptyTrees;
 
     REGISTER_YSON_STRUCT(TControllerAgentConfig);
 

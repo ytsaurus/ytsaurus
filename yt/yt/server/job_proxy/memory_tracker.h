@@ -17,7 +17,7 @@ struct TProcessMemoryStatistics
     : public NYTree::TYsonStruct
 {
     int Pid;
-    std::vector<TString> Cmdline;
+    std::vector<std::string> Cmdline;
     i64 Rss;
     i64 Shared;
 

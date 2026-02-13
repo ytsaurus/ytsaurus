@@ -217,7 +217,7 @@ void TGpuManager::Initialize()
             descriptor.DeviceIndex,
             TGpuInfo{
                 .UpdateTime = now,
-                .Index = descriptor.DeviceIndex
+                .Index = descriptor.DeviceIndex,
             });
     }
 

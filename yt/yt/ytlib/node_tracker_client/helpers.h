@@ -119,19 +119,19 @@ void ValidateNodeTags(const std::vector<std::string>& tags);
 namespace NProto {
 
 TNodeResources  operator +  (const TNodeResources& lhs, const TNodeResources& rhs);
-TNodeResources& operator += (TNodeResources& lhs, const TNodeResources& rhs);
+TNodeResources& operator+=(TNodeResources& lhs, const TNodeResources& rhs);
 
 TNodeResources  operator -  (const TNodeResources& lhs, const TNodeResources& rhs);
-TNodeResources& operator -= (TNodeResources& lhs, const TNodeResources& rhs);
+TNodeResources& operator-=(TNodeResources& lhs, const TNodeResources& rhs);
 
 TNodeResources  operator *  (const TNodeResources& lhs, i64 rhs);
 TNodeResources  operator *  (const TNodeResources& lhs, double rhs);
-TNodeResources& operator *= (TNodeResources& lhs, i64 rhs);
-TNodeResources& operator *= (TNodeResources& lhs, double rhs);
+TNodeResources& operator*=(TNodeResources& lhs, i64 rhs);
+TNodeResources& operator*=(TNodeResources& lhs, double rhs);
 
 TNodeResources  operator -  (const TNodeResources& resources);
 
-bool operator == (const TNodeResources& a, const TNodeResources& b);
+bool operator==(const TNodeResources& a, const TNodeResources& b);
 
 NProto::TNodeResources MakeNonnegative(const NProto::TNodeResources& resources);
 bool Dominates(const NProto::TNodeResources& lhs, const TNodeResources& rhs);

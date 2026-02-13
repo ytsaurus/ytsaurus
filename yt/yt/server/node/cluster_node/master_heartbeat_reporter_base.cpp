@@ -122,12 +122,12 @@ void TMasterHeartbeatReporterBase::StartNodeHeartbeatsToCells(const THashSet<TCe
             }
             if (!guardsOrError.IsOK()) {
                 YT_LOG_ALERT(
-                        guardsOrError,
-                        "Failed to acquire lock writer guards to start heartbeat reports to masters (MasterCellTags: %v)",
-                        allowedMasterCellTags);
-                    const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
-                    clusterNodeMasterConnector->ResetAndRegisterAtMaster(ERegistrationReason::HeartbeatFailure);
-                    return;
+                    guardsOrError,
+                    "Failed to acquire lock writer guards to start heartbeat reports to masters (MasterCellTags: %v)",
+                    allowedMasterCellTags);
+                const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
+                clusterNodeMasterConnector->ResetAndRegisterAtMaster(ERegistrationReason::HeartbeatFailure);
+                return;
             }
             std::vector<TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>> guards;
             for (auto guardOrError: guardsOrError.Value()) {

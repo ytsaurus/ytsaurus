@@ -1,6 +1,7 @@
 #pragma once
 
 #include "artifact_cache.h"
+#include "preparation_options.h"
 #include "public.h"
 
 #include <yt/yt/core/actions/future.h>
@@ -47,7 +48,7 @@ struct IVolume
     //! Get unique volume id.
     virtual const TVolumeId& GetId() const = 0;
     //! Get absolute path to volume mount point.
-    virtual const TString& GetPath() const = 0;
+    virtual const std::string& GetPath() const = 0;
     //! Overlayfs stores its upper/work directories in root volume.
     virtual bool IsRootVolume() const = 0;
     //! Link volume mount point to target.
@@ -56,6 +57,8 @@ struct IVolume
         const TString& target) = 0;
     //! Remove volume and links where it points to.
     virtual TFuture<void> Remove() = 0;
+
+    virtual bool IsCached() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IVolume)
@@ -70,13 +73,16 @@ struct IVolumeManager
     //! Prepare root overlayfs volume.
     virtual TFuture<IVolumePtr> PrepareVolume(
         const std::vector<TArtifactKey>& artifactKeys,
-        const TVolumePreparationOptions& options,
-        const std::optional<TString>& slotPath = std::nullopt) = 0;
+        const TVolumePreparationOptions& options) = 0;
 
     //! Prepare tmpfs volumes.
     virtual TFuture<std::vector<TTmpfsVolumeResult>> PrepareTmpfsVolumes(
         const std::optional<TString>& sandboxPath,
         const std::vector<TTmpfsVolumeParams>& volumes) = 0;
+
+    virtual TFuture<IVolumePtr> RbindRootVolume(
+        const IVolumePtr& volume,
+        const TString& slotPath) = 0;
 
     //! Link tmpfs volumes into destination directory.
     virtual TFuture<void> LinkTmpfsVolumes(

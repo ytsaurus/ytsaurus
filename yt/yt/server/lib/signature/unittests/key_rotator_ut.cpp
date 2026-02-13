@@ -20,7 +20,6 @@ using testing::Ne;
 using testing::NotNull;
 using testing::Pointee;
 using testing::Return;
-using testing::ReturnRef;
 using testing::SizeIs;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,7 +49,7 @@ TEST_F(TKeyRotatorTest, RotateOutOfBand)
 {
     EXPECT_CALL(*Store, RegisterKey(_))
         .Times(2)
-        .WillRepeatedly(Return(VoidFuture));
+        .WillRepeatedly(Return(OKFuture));
 
     Rotator = New<TKeyRotator>(Config, GetCurrentInvoker(), Store, Generator);
 
@@ -70,7 +69,7 @@ TEST_F(TKeyRotatorTest, RotateOutOfBand)
 TEST_F(TKeyRotatorTest, RotateOnStart)
 {
     EXPECT_CALL(*Store, RegisterKey(_))
-        .WillOnce(Return(VoidFuture));
+        .WillOnce(Return(OKFuture));
 
     Rotator = New<TKeyRotator>(Config, GetCurrentInvoker(), Store, Generator);
     WaitFor(Rotator->Start())
@@ -85,7 +84,7 @@ TEST_F(TKeyRotatorTest, PeriodicRotate)
 {
     EXPECT_CALL(*Store, RegisterKey(_))
         .Times(Between(3, 50))
-        .WillRepeatedly(Return(VoidFuture));
+        .WillRepeatedly(Return(OKFuture));
 
     Config->KeyRotationOptions.Period = TDuration::MilliSeconds(10);
     Rotator = New<TKeyRotator>(Config, GetCurrentInvoker(), Store, Generator);
@@ -103,7 +102,7 @@ TEST_F(TKeyRotatorTest, RotateRetry)
     EXPECT_CALL(*Store, RegisterKey(_))
         .Times(AtLeast(2))
         .WillOnce(Return(MakeFuture<void>(TError("error"))))
-        .WillRepeatedly(Return(VoidFuture));
+        .WillRepeatedly(Return(OKFuture));
 
     Config->KeyRotationOptions.Period = TDuration::Hours(10);
     Config->KeyRotationOptions.MinBackoff = TDuration::MilliSeconds(1);
@@ -122,7 +121,7 @@ TEST_F(TKeyRotatorTest, ReconfigureChangesRotationInterval)
 {
     EXPECT_CALL(*Store, RegisterKey(_))
         .Times(Between(5, 30))
-        .WillRepeatedly(Return(VoidFuture));
+        .WillRepeatedly(Return(OKFuture));
 
     Config->KeyRotationOptions.Period = TDuration::Hours(10);
     Rotator = New<TKeyRotator>(Config, GetCurrentInvoker(), Store, Generator);
@@ -145,7 +144,7 @@ TEST_F(TKeyRotatorTest, ReconfigureWhileStopped)
 {
     EXPECT_CALL(*Store, RegisterKey(_))
         .Times(Between(5, 30))
-        .WillRepeatedly(Return(VoidFuture));
+        .WillRepeatedly(Return(OKFuture));
 
     Rotator = New<TKeyRotator>(Config, GetCurrentInvoker(), Store, Generator);
 
@@ -174,7 +173,7 @@ TEST_F(TKeyRotatorTest, MultipleReconfigures)
 
     EXPECT_CALL(*Store, RegisterKey(_))
         .Times(Between(50, 500))
-        .WillRepeatedly(Return(VoidFuture));
+        .WillRepeatedly(Return(OKFuture));
 
     Config->KeyRotationOptions.Period = TDuration::Hours(10);
     Rotator = New<TKeyRotator>(Config, GetCurrentInvoker(), Store, Generator);
@@ -205,7 +204,7 @@ TEST_F(TKeyRotatorTest, GetNextRotation)
 {
     EXPECT_CALL(*Store, RegisterKey(_))
         .Times(Between(2, 5))
-        .WillRepeatedly(Return(VoidFuture));
+        .WillRepeatedly(Return(OKFuture));
 
     Config->KeyRotationOptions.Period = TDuration::MilliSeconds(50);
     Rotator = New<TKeyRotator>(Config, GetCurrentInvoker(), Store, Generator);
@@ -228,7 +227,7 @@ TEST_F(TKeyRotatorTest, GetNextRotationWithReconfigure)
 {
     EXPECT_CALL(*Store, RegisterKey(_))
         .Times(2)
-        .WillRepeatedly(Return(VoidFuture));
+        .WillRepeatedly(Return(OKFuture));
 
     Config->KeyRotationOptions.Period = TDuration::Hours(1);
     Rotator = New<TKeyRotator>(Config, GetCurrentInvoker(), Store, Generator);

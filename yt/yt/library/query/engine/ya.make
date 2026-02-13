@@ -74,23 +74,165 @@ LLVM_BC(
     udf/hyperloglog.cpp
     NAME hyperloglog
     SYMBOLS
-        cardinality_init
-        cardinality_update
-        cardinality_merge
-        cardinality_finalize
-        cardinality_state_init
-        cardinality_state_update
-        cardinality_state_merge
-        cardinality_state_finalize
-        cardinality_merge_init
-        cardinality_merge_update
-        cardinality_merge_merge
-        cardinality_merge_finalize
-        cardinality_merge_state_init
-        cardinality_merge_state_update
-        cardinality_merge_state_merge
-        cardinality_merge_state_finalize
+        hll_7_init
+        hll_7_update
+        hll_7_merge
+        hll_7_finalize
+        hll_7_state_init
+        hll_7_state_update
+        hll_7_state_merge
+        hll_7_state_finalize
+        hll_7_merge_init
+        hll_7_merge_update
+        hll_7_merge_merge
+        hll_7_merge_finalize
+        hll_7_merge_state_init
+        hll_7_merge_state_update
+        hll_7_merge_state_merge
+        hll_7_merge_state_finalize
+
+        hll_8_init
+        hll_8_update
+        hll_8_merge
+        hll_8_finalize
+        hll_8_state_init
+        hll_8_state_update
+        hll_8_state_merge
+        hll_8_state_finalize
+        hll_8_merge_init
+        hll_8_merge_update
+        hll_8_merge_merge
+        hll_8_merge_finalize
+        hll_8_merge_state_init
+        hll_8_merge_state_update
+        hll_8_merge_state_merge
+        hll_8_merge_state_finalize
+
+        hll_9_init
+        hll_9_update
+        hll_9_merge
+        hll_9_finalize
+        hll_9_state_init
+        hll_9_state_update
+        hll_9_state_merge
+        hll_9_state_finalize
+        hll_9_merge_init
+        hll_9_merge_update
+        hll_9_merge_merge
+        hll_9_merge_finalize
+        hll_9_merge_state_init
+        hll_9_merge_state_update
+        hll_9_merge_state_merge
+        hll_9_merge_state_finalize
+
+        hll_10_init
+        hll_10_update
+        hll_10_merge
+        hll_10_finalize
+        hll_10_state_init
+        hll_10_state_update
+        hll_10_state_merge
+        hll_10_state_finalize
+        hll_10_merge_init
+        hll_10_merge_update
+        hll_10_merge_merge
+        hll_10_merge_finalize
+        hll_10_merge_state_init
+        hll_10_merge_state_update
+        hll_10_merge_state_merge
+        hll_10_merge_state_finalize
+
+        hll_11_init
+        hll_11_update
+        hll_11_merge
+        hll_11_finalize
+        hll_11_state_init
+        hll_11_state_update
+        hll_11_state_merge
+        hll_11_state_finalize
+        hll_11_merge_init
+        hll_11_merge_update
+        hll_11_merge_merge
+        hll_11_merge_finalize
+        hll_11_merge_state_init
+        hll_11_merge_state_update
+        hll_11_merge_state_merge
+        hll_11_merge_state_finalize
+
+        hll_12_init
+        hll_12_update
+        hll_12_merge
+        hll_12_finalize
+        hll_12_state_init
+        hll_12_state_update
+        hll_12_state_merge
+        hll_12_state_finalize
+        hll_12_merge_init
+        hll_12_merge_update
+        hll_12_merge_merge
+        hll_12_merge_finalize
+        hll_12_merge_state_init
+        hll_12_merge_state_update
+        hll_12_merge_state_merge
+        hll_12_merge_state_finalize
+
+        hll_13_init
+        hll_13_update
+        hll_13_merge
+        hll_13_finalize
+        hll_13_state_init
+        hll_13_state_update
+        hll_13_state_merge
+        hll_13_state_finalize
+        hll_13_merge_init
+        hll_13_merge_update
+        hll_13_merge_merge
+        hll_13_merge_finalize
+        hll_13_merge_state_init
+        hll_13_merge_state_update
+        hll_13_merge_state_merge
+        hll_13_merge_state_finalize
+
+        hll_14_init
+        hll_14_update
+        hll_14_merge
+        hll_14_finalize
+        hll_14_state_init
+        hll_14_state_update
+        hll_14_state_merge
+        hll_14_state_finalize
+        hll_14_merge_init
+        hll_14_merge_update
+        hll_14_merge_merge
+        hll_14_merge_finalize
+        hll_14_merge_state_init
+        hll_14_merge_state_update
+        hll_14_merge_state_merge
+        hll_14_merge_state_finalize
 )
+
+LLVM_BC(
+    udf/uniq.cpp
+    NAME uniq
+    SYMBOLS
+        uniq_init
+        uniq_update
+        uniq_merge
+        uniq_finalize
+        uniq_state_init
+        uniq_state_update
+        uniq_state_merge
+        uniq_state_finalize
+        uniq_merge_init
+        uniq_merge_update
+        uniq_merge_merge
+        uniq_merge_finalize
+        uniq_merge_state_init
+        uniq_merge_state_update
+        uniq_merge_state_merge
+        uniq_merge_state_finalize
+)
+
 
 LLVM_BC(
     udf/array_agg.cpp

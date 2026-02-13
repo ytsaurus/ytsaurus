@@ -5,7 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
+	"sync"
+	"time"
 
 	"go.ytsaurus.tech/yt/admin/timbertruck/pkg/pipelines"
 	"go.ytsaurus.tech/yt/go/yson"
@@ -52,94 +55,75 @@ func ParseLine(line []byte) (result ParsedLine, err error) {
 	return
 }
 
-func NewParseLineTransform(logger *slog.Logger) pipelines.Transform[[]byte, ParsedLine] {
+func NewParseLineTransform(logger *slog.Logger, onSkippedRow func(data io.WriterTo, info pipelines.SkippedRowInfo)) pipelines.Transform[[]byte, ParsedLine] {
 	return pipelines.NewFuncTransform(func(ctx context.Context, meta pipelines.RowMeta, line []byte, emit pipelines.EmitFunc[ParsedLine]) {
 		result, err := ParseLine(line)
 		if err != nil {
-			logger.Warn("Detected broken line", "offset", meta.Begin)
-		} else {
-			emit(ctx, meta, result)
+			onSkippedRow(bytes.NewReader(line), pipelines.SkippedRowInfo{
+				Reason: pipelines.SkipRowReasonUnparsed,
+				Offset: meta.Begin,
+				Attrs:  map[string]any{"format": "text", "row_size": len(line), "error": err.Error()},
+			})
+			return
 		}
+		emit(ctx, meta, result)
 	})
 }
 
-//
-// TskvCursor
-//
-
-type tskvTransform struct {
-	buffer      bytes.Buffer
-	bufferLimit int
-	cluster     string
-	tskvFormat  string
-
-	meta pipelines.RowMeta
-}
-
-func (t *tskvTransform) Process(ctx context.Context, meta pipelines.RowMeta, parsedLine ParsedLine, emit pipelines.EmitFunc[[]byte]) {
-	if t.buffer.Len() == 0 {
-		t.meta.Begin = meta.Begin
-	}
-	lenBefore := t.buffer.Len()
-
-	t.buffer.WriteString("tskv\ttskv_format=")
-	t.buffer.WriteString(t.tskvFormat)
-	t.buffer.WriteString("\tcluster=")
-	t.buffer.WriteString(t.cluster)
-
-	t.buffer.WriteString("\ttimestamp=")
-	t.buffer.Write(parsedLine.timestamp)
-
-	t.buffer.WriteString("\tlog_level=")
-	t.buffer.Write(parsedLine.logLevel)
-
-	t.buffer.WriteString("\tlog_category=")
-	t.buffer.Write(parsedLine.logCategory)
-
-	t.buffer.WriteString("\tlog_message=")
-	t.buffer.Write(parsedLine.logMessage)
-
-	if t.buffer.Bytes()[t.buffer.Len()-1] != '\n' {
-		t.buffer.WriteByte('\n')
-	}
-
-	if t.buffer.Len() > t.bufferLimit {
-		t.flush(ctx, lenBefore, emit)
-		t.meta.Begin = meta.Begin
-	}
-	t.meta.End = meta.End
-}
-
-func (t *tskvTransform) flush(ctx context.Context, size int, emit pipelines.EmitFunc[[]byte]) {
-	record := t.buffer.Bytes()[:size]
-	emit(ctx, t.meta, record)
-	remainData := t.buffer.Bytes()[size:]
-	copy(t.buffer.Bytes(), remainData)
-	t.buffer.Truncate(len(remainData))
-}
-
-func (t *tskvTransform) Close(ctx context.Context, emit pipelines.EmitFunc[[]byte]) {
-	len := t.buffer.Len()
-	if len > 0 {
-		t.flush(ctx, len, emit)
+// TskvLineTransform converts ParsedLine to tskv-formatted bytes.
+func NewTskvLineTransform(cluster string, tskvFormat string) pipelines.Transform[ParsedLine, []byte] {
+	return &tskvLineTransform{
+		cluster:    cluster,
+		tskvFormat: tskvFormat,
 	}
 }
 
-func NewTskvTransform(bufferLimit int, cluster string, tskvFormat string) pipelines.Transform[ParsedLine, []byte] {
-	return &tskvTransform{
-		bufferLimit: bufferLimit,
-		cluster:     cluster,
-		tskvFormat:  tskvFormat,
+type tskvLineTransform struct {
+	cluster    string
+	tskvFormat string
+}
+
+func (t *tskvLineTransform) Process(ctx context.Context, meta pipelines.RowMeta, parsedLine ParsedLine, emit pipelines.EmitFunc[[]byte]) {
+	var buf bytes.Buffer
+
+	buf.WriteString("tskv\ttskv_format=")
+	buf.WriteString(t.tskvFormat)
+	buf.WriteString("\tcluster=")
+	buf.WriteString(t.cluster)
+
+	buf.WriteString("\ttimestamp=")
+	buf.Write(parsedLine.timestamp)
+
+	buf.WriteString("\tlog_level=")
+	buf.Write(parsedLine.logLevel)
+
+	buf.WriteString("\tlog_category=")
+	buf.Write(parsedLine.logCategory)
+
+	buf.WriteString("\tlog_message=")
+	buf.Write(parsedLine.logMessage)
+
+	if buf.Bytes()[buf.Len()-1] != '\n' {
+		buf.WriteByte('\n')
 	}
+
+	emit(ctx, meta, buf.Bytes())
+}
+
+func (t *tskvLineTransform) Close(ctx context.Context, emit pipelines.EmitFunc[[]byte]) {
 }
 
 // Create new pipelines.TextLine -> pipelines.TextLine transform.
 //
 // This transform filters out lines that are not valid json.
-func NewValidateJSONTransform(logger *slog.Logger) pipelines.Transform[[]byte, []byte] {
+func NewValidateJSONTransform(logger *slog.Logger, onSkippedRow func(data io.WriterTo, info pipelines.SkippedRowInfo)) pipelines.Transform[[]byte, []byte] {
 	return pipelines.NewFuncTransform(func(ctx context.Context, meta pipelines.RowMeta, in []byte, emit pipelines.EmitFunc[[]byte]) {
 		if !json.Valid(in) {
-			logger.Warn("found invalid json", "offset", meta.Begin)
+			onSkippedRow(bytes.NewReader(in), pipelines.SkippedRowInfo{
+				Reason: pipelines.SkipRowReasonUnparsed,
+				Offset: meta.Begin,
+				Attrs:  map[string]any{"format": "json", "row_size": len(in)},
+			})
 			return
 		}
 		emit(ctx, meta, in)
@@ -147,59 +131,115 @@ func NewValidateJSONTransform(logger *slog.Logger) pipelines.Transform[[]byte, [
 }
 
 // This transform filters out lines that are not valid yson.
-func NewValidateYSONTransform(logger *slog.Logger) pipelines.Transform[[]byte, []byte] {
+func NewValidateYSONTransform(logger *slog.Logger, onSkippedRow func(data io.WriterTo, info pipelines.SkippedRowInfo)) pipelines.Transform[[]byte, []byte] {
 	return pipelines.NewFuncTransform(func(ctx context.Context, meta pipelines.RowMeta, in []byte, emit pipelines.EmitFunc[[]byte]) {
 		if err := yson.ValidListFragment(in); err != nil {
-			logger.Warn("found invalid yson", "offset", meta.Begin)
+			onSkippedRow(bytes.NewReader(in), pipelines.SkippedRowInfo{
+				Reason: pipelines.SkipRowReasonUnparsed,
+				Offset: meta.Begin,
+				Attrs:  map[string]any{"format": "yson", "row_size": len(in), "error": err.Error()},
+			})
 			return
 		}
 		emit(ctx, meta, in)
 	})
 }
 
-func NewBatchLinesTransform(bufferLimit int) pipelines.Transform[[]byte, []byte] {
-	return &batchLinesTransform{
-		bufferLimit: bufferLimit,
+func NewBatchLinesTransform(bufferLimit int, flushTimeout time.Duration) pipelines.Transform[[]byte, []byte] {
+	t := &batchLinesTransform{
+		bufferLimit:  bufferLimit,
+		flushTimeout: flushTimeout,
+		stopTimerCh:  make(chan struct{}),
+		doneTimerCh:  make(chan struct{}),
 	}
+	if flushTimeout > 0 {
+		t.timer = time.NewTimer(flushTimeout)
+		t.timer.Stop()
+	}
+	return t
 }
 
 type batchLinesTransform struct {
+	mu          sync.Mutex
 	buffer      bytes.Buffer
 	bufferLimit int
 
+	flushTimeout time.Duration
+	timer        *time.Timer
+	timerStarted bool
+	stopTimerCh  chan struct{}
+	doneTimerCh  chan struct{}
+
 	meta pipelines.RowMeta
+	ctx  context.Context
 }
 
 func (b *batchLinesTransform) Process(ctx context.Context, meta pipelines.RowMeta, line []byte, emit pipelines.EmitFunc[[]byte]) {
-	if b.buffer.Len() == 0 {
-		b.meta.Begin = meta.Begin
+	if b.timer != nil && !b.timerStarted {
+		b.timerStarted = true
+		go b.timerLoop(emit)
 	}
-	lenBefore := b.buffer.Len()
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.buffer.Len()+len(line) >= b.bufferLimit {
+		b.flushLocked(emit)
+	}
+
+	if b.buffer.Len() == 0 {
+		b.meta = meta
+		if b.timer != nil {
+			b.timer.Reset(b.flushTimeout)
+		}
+	}
 
 	b.buffer.Write(line)
-
 	if b.buffer.Bytes()[b.buffer.Len()-1] != '\n' {
 		b.buffer.WriteByte('\n')
 	}
-
-	if b.buffer.Len() > b.bufferLimit {
-		b.flush(ctx, lenBefore, emit)
-		b.meta.Begin = meta.Begin
-	}
+	b.ctx = ctx
 	b.meta.End = meta.End
 }
 
-func (b *batchLinesTransform) flush(ctx context.Context, size int, emit pipelines.EmitFunc[[]byte]) {
-	record := b.buffer.Bytes()[:size]
-	emit(ctx, b.meta, record)
-	remainData := b.buffer.Bytes()[size:]
-	copy(b.buffer.Bytes(), remainData)
-	b.buffer.Truncate(len(remainData))
+func (b *batchLinesTransform) timerLoop(emit pipelines.EmitFunc[[]byte]) {
+	defer close(b.doneTimerCh)
+
+	for {
+		select {
+		case <-b.stopTimerCh:
+			return
+		case <-b.timer.C:
+			b.flush(emit)
+		}
+	}
+}
+
+func (b *batchLinesTransform) flush(emit pipelines.EmitFunc[[]byte]) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	b.flushLocked(emit)
+}
+
+func (b *batchLinesTransform) flushLocked(emit pipelines.EmitFunc[[]byte]) {
+	if b.buffer.Len() == 0 {
+		return
+	}
+
+	if b.timer != nil {
+		b.timer.Stop()
+	}
+
+	emit(b.ctx, b.meta, b.buffer.Bytes())
+	b.buffer.Reset()
+	b.meta = pipelines.RowMeta{}
 }
 
 func (b *batchLinesTransform) Close(ctx context.Context, emit pipelines.EmitFunc[[]byte]) {
-	len := b.buffer.Len()
-	if len > 0 {
-		b.flush(ctx, len, emit)
+	close(b.stopTimerCh)
+	if b.timerStarted {
+		<-b.doneTimerCh
 	}
+	b.flush(emit)
 }

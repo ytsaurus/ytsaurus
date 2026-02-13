@@ -16,7 +16,7 @@ using namespace NYTree;
 
 //////////////////////////////////////////////////////////////////////////////
 
-TString YsonToYaml(const TYsonString& yson, const TYsonString& formatAttributes = TYsonString(TStringBuf("{}")))
+std::string YsonToYaml(const TYsonString& yson, const TYsonString& formatAttributes = TYsonString(TStringBuf("{}")))
 {
     TStringStream outputStream;
     auto config = ConvertTo<TYamlFormatConfigPtr>(formatAttributes);
@@ -30,10 +30,10 @@ TString YsonToYaml(const TYsonString& yson, const TYsonString& formatAttributes 
 
 TEST(TYamlWriterTest, Simple)
 {
-    TString yson = "hello";
+    std::string yson = "hello";
     // Here and in the rest of the tests we introduce an extra leading \n for the better readabilty, which we later
     // strip off in the comparison.
-    TString expectedYaml = R"(
+    std::string expectedYaml = R"(
 hello
 )";
 
@@ -42,8 +42,8 @@ hello
 
 TEST(TYamlWriterTest, IntegersWithoutUintTag)
 {
-    TString yson = "{a=1; b=1u; c=-1; d=9223372036854775808u; e=-9223372036854775808; f=18446744073709551615u}";
-    TString expectedYaml = R"(
+    std::string yson = "{a=1; b=1u; c=-1; d=9223372036854775808u; e=-9223372036854775808; f=18446744073709551615u}";
+    std::string expectedYaml = R"(
 a: 1
 b: 1
 c: -1
@@ -56,9 +56,9 @@ f: 18446744073709551615
 
 TEST(TYamlWriterTest, IntegersWithUintTag)
 {
-    TString formatAttributes = "{write_uint_tag=%true}";
-    TString yson = "{a=1; b=1u; c=-1; d=9223372036854775808u; e=-9223372036854775808; f=18446744073709551615u}";
-    TString expectedYaml = R"(
+    std::string formatAttributes = "{write_uint_tag=%true}";
+    std::string yson = "{a=1; b=1u; c=-1; d=9223372036854775808u; e=-9223372036854775808; f=18446744073709551615u}";
+    std::string expectedYaml = R"(
 a: 1
 b: !yt/uint64 1
 c: -1
@@ -71,8 +71,8 @@ f: !yt/uint64 18446744073709551615
 
 TEST(TYamlWriterTest, Doubles)
 {
-    TString yson = "{a=2.7; b=-3.14; c=0.0; d=4.; e=1e30; f=%nan; g=%inf; h=%-inf}";
-    TString expectedYaml = R"(
+    std::string yson = "{a=2.7; b=-3.14; c=0.0; d=4.; e=1e30; f=%nan; g=%inf; h=%-inf}";
+    std::string expectedYaml = R"(
 a: 2.7
 b: -3.14
 c: 0.
@@ -87,8 +87,8 @@ h: -.inf
 
 TEST(TYamlWriterTest, Entity)
 {
-    TString yson = "{a=#}";
-    TString expectedYaml = R"(
+    std::string yson = "{a=#}";
+    std::string expectedYaml = R"(
 a: null
 )";
     EXPECT_EQ(YsonToYaml(TYsonString(yson)), expectedYaml.substr(1));
@@ -96,8 +96,8 @@ a: null
 
 TEST(TYamlWriterTest, Booleans)
 {
-    TString yson = "{a=%true; b=%false}";
-    TString expectedYaml = R"(
+    std::string yson = "{a=%true; b=%false}";
+    std::string expectedYaml = R"(
 a: true
 b: false
 )";
@@ -109,8 +109,8 @@ TEST(TYamlWriterTest, Strings)
     // a and b may be represented as plain scalars.
     // c-e must be quoted on syntactical level, so libyaml chooses a single-quoted style.
     // f-i must be quoted because they meet regexps for non-string types, so we force a double-quoted style.
-    TString yson = R"({a=hello; b="23asd"; c=" "; d="foo\nbar"; e=""; f="42"; g="TRUE"; h="1e4000"; i="~";})";
-    TString expectedYaml = R"(
+    std::string yson = R"({a=hello; b="23asd"; c=" "; d="foo\nbar"; e=""; f="42"; g="TRUE"; h="1e4000"; i="~";})";
+    std::string expectedYaml = R"(
 a: hello
 b: 23asd
 c: ' '
@@ -128,8 +128,8 @@ i: "~"
 
 TEST(TYamlWriterTest, Mappings)
 {
-    TString yson("{a={x=1;y={foo=bar;bar=foo}};b={z=3};c={};}");
-    TString expectedYaml = R"(
+    std::string yson("{a={x=1;y={foo=bar;bar=foo}};b={z=3};c={};}");
+    std::string expectedYaml = R"(
 a:
   x: 1
   y:
@@ -144,8 +144,8 @@ c: {}
 
 TEST(TYamlWriterTest, Sequences)
 {
-    TString yson = "[foo; [1; 2; 3]; bar; []; [[[#]]]]";
-    TString expectedYaml = R"(
+    std::string yson = "[foo; [1; 2; 3]; bar; []; [[[#]]]]";
+    std::string expectedYaml = R"(
 - foo
 - - 1
   - 2
@@ -159,8 +159,8 @@ TEST(TYamlWriterTest, Sequences)
 
 TEST(TYamlWriterTest, MultiDocument)
 {
-    TString yson = "foo;{a=1;b=2};[x;y];{};#;bar;[]";
-    TString expectedYaml = R"(
+    std::string yson = "foo;{a=1;b=2};[x;y];{};#;bar;[]";
+    std::string expectedYaml = R"(
 foo
 ---
 a: 1
@@ -178,8 +178,8 @@ b: 2
 
 TEST(TYamlWriterTest, Attributes)
 {
-    TString yson = "<x=1;y=2>{a=<>42; b=<x=#>[1;2;3]; c=<foo=1>#;}";
-    TString expectedYaml = R"(
+    std::string yson = "<x=1;y=2>{a=<>42; b=<x=#>[1;2;3]; c=<foo=1>#;}";
+    std::string expectedYaml = R"(
 !yt/attrnode
 - x: 1
   y: 2
@@ -202,8 +202,8 @@ TEST(TYamlWriterTest, Attributes)
 
 TEST(TYamlWriterTest, EmptyStream)
 {
-    TString yson = "";
-    TString expectedYaml = "";
+    std::string yson = "";
+    std::string expectedYaml = "";
     EXPECT_EQ(YsonToYaml(TYsonString(yson, EYsonType::ListFragment)), expectedYaml);
 }
 
@@ -212,8 +212,8 @@ TEST(TYamlWriterTest, EmptyStream)
 //! There is a reverse test in yaml_reader_ut.cpp.
 TEST(TYamlWriterTest, RealExample)
 {
-    TString formatAttributes = "{write_uint_tag=%true}";
-    TString yson = R"(
+    std::string formatAttributes = "{write_uint_tag=%true}";
+    std::string yson = R"(
 {
     "mount_config" = {};
     "schema" = <
@@ -268,7 +268,7 @@ TEST(TYamlWriterTest, RealExample)
 }
     )";
 
-    TString expectedYaml = R"(
+    std::string expectedYaml = R"(
 mount_config: {}
 schema: !yt/attrnode
 - strict: true

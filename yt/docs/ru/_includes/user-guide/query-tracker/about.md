@@ -86,6 +86,12 @@ Query Tracker позволяет:
 
 Возвращает результаты запроса.
 
+{% note warning "Внимание" %}
+
+Query Tracker хранит внутри себя только первые 10 000 строк ответа &mdash; все последующие обрезаются, и выставляется флаг `is_truncated`. Если результат запроса ожидается большего размера, этот результат должен быть вставлен в таблицу средствами движка и прочитан оттуда. Например, в случае с YQL, можно использовать операцию `insert`.
+
+{% endnote %}
+
 Обязательные параметры:
 
 + `query_id` — идентификатор запроса.
@@ -146,7 +152,7 @@ Query Tracker позволяет:
 + `annotations` — новые аннотации для запроса.
 + `access_control_objects` — новый список access control object для запроса.
 
-Пример: `alter_query(query_id="my_query_id", access_control_object=["my_new_aco"])`.
+Пример: `alter_query(query_id="my_query_id", access_control_objects=["my_new_aco"])`.
 
 ## Access control {#access-control}
 

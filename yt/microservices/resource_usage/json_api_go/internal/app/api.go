@@ -30,13 +30,14 @@ func NewAPI(l log.Structured, resourceUsageConfig *resourceusage.Config, accessC
 	if err != nil {
 		l.Fatal("failed to create access checker", log.Error(err))
 	}
+	resourceUsage, err := resourceusage.NewResourceUsage(resourceUsageConfig, resourceUsageL)
+	if err != nil {
+		l.Fatal("failed to create resource usage", log.Error(err))
+	}
 
 	return &API{
-		l: l,
-		resourceUsage: resourceusage.NewResourceUsage(
-			resourceUsageConfig,
-			resourceUsageL,
-		),
+		l:             l,
+		resourceUsage: resourceUsage,
 		accessChecker: accessChecker,
 	}
 }
@@ -261,15 +262,12 @@ func (a *API) resourceUsageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	passContinuationToken, err := a.accessChecker.CheckAccess(ctx, req.Cluster, user.Login, resourceUsage.Items)
+	err = a.accessChecker.CheckAccess(ctx, req.Cluster, user.Login, resourceUsage.Items)
 	if err != nil {
-		w.WriteHeader(http.StatusForbidden)
+		w.WriteHeader(http.StatusInternalServerError)
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(GetResourceUsageResponse{Error: err.Error()})
 		return
-	}
-	if !passContinuationToken {
-		resourceUsage.ContinuationToken = ""
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -343,15 +341,12 @@ func (a *API) resourceUsageDiffHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	passContinuationToken, err := a.accessChecker.CheckAccess(ctx, req.Cluster, user.Login, resourceUsageDiff.Items)
+	err = a.accessChecker.CheckAccess(ctx, req.Cluster, user.Login, resourceUsageDiff.Items)
 	if err != nil {
 		w.WriteHeader(http.StatusForbidden)
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(GetResourceUsageResponse{Error: err.Error()})
 		return
-	}
-	if !passContinuationToken {
-		resourceUsageDiff.ContinuationToken = ""
 	}
 
 	w.Header().Set("Content-Type", "application/json")

@@ -20,11 +20,11 @@ YT_DECLARE_RECONFIGURABLE_SINGLETON(TQueryEngineConfig, TQueryEngineDynamicConfi
 struct TQueryEngineConfig
     : public NYTree::TYsonStruct
 {
-  TCodegenCacheConfigPtr CodegenCache;
+    TCodegenCacheConfigPtr CodegenCache;
 
-  REGISTER_YSON_STRUCT(TQueryEngineConfig);
+    REGISTER_YSON_STRUCT(TQueryEngineConfig);
 
-  static void Register(TRegistrar registrar);
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueryEngineConfig)
@@ -38,6 +38,8 @@ struct TQueryEngineDynamicConfig
     std::optional<EStatisticsAggregation> StatisticsAggregation;
     std::optional<bool> UseOrderByInJoinSubqueries;
     std::optional<int> ExpressionBuilderVersion;
+    std::optional<NCodegen::EOptimizationLevel> OptimizationLevel;
+    std::optional<bool> RewriteCardinalityIntoHyperLogLogWithPrecision; // COMPAT(dtorilov): Remove after 25.4.
 
     REGISTER_YSON_STRUCT(TQueryEngineDynamicConfig);
 

@@ -71,12 +71,12 @@ protected:
         return inputChunk;
     }
 
-    IPersistentChunkPoolPtr CreateUnorderedChunkPool(int jobCount = 1)
+    IPersistentChunkPoolPtr CreateUnorderedChunkPool(int jobCount = 1, bool explicitJobCount = true)
     {
         TUnorderedChunkPoolOptions options{
             .JobSizeConstraints = CreateExplicitJobSizeConstraints(
                 /*canAdjustDataSizePerJob*/ false,
-                /*isExplicitJobCount*/ true,
+                /*isExplicitJobCount*/ explicitJobCount,
                 /*jobCount*/ jobCount,
                 /*dataWeightPerJob*/ Inf64,
                 /*primaryDataWeightPerJob*/ Inf64,
@@ -413,10 +413,10 @@ TEST_F(TChunkPoolOutputMergerTest, LostJob)
 
     EXPECT_FALSE(Merger_->IsCompleted());
     CheckCounters({
-        .JobCounter = {.Total = 2, .Pending = 1, .Completed = 1, .Lost = 1},
-        .DataWeightCounter = {.Total = 4_KBs, .Pending = 2_KBs, .Completed = 2_KBs, .Lost = 2_KBs},
-        .RowCounter = {.Total = 4000, .Pending = 2000, .Completed = 2000, .Lost = 2000},
-        .DataSliceCounter = {.Total = 4, .Pending = 2, .Completed = 2, .Lost = 2},
+        .JobCounter = {.Total = 1, .Pending = 1, .Lost = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Pending = 2_KBs, .Lost = 2_KBs},
+        .RowCounter = {.Total = 2000, .Pending = 2000, .Lost = 2000},
+        .DataSliceCounter = {.Total = 2, .Pending = 2, .Lost = 2},
     });
 
     // Can extract again after lost.
@@ -425,10 +425,10 @@ TEST_F(TChunkPoolOutputMergerTest, LostJob)
     EXPECT_EQ(Merger_->Extract(), IChunkPoolOutput::NullCookie);
 
     CheckCounters({
-        .JobCounter = {.Total = 2, .Running = 1, .Completed = 1, .Lost = 1},
-        .DataWeightCounter = {.Total = 4_KBs, .Running = 2_KBs, .Completed = 2_KBs, .Lost = 2_KBs},
-        .RowCounter = {.Total = 4000, .Running = 2000, .Completed = 2000, .Lost = 2000},
-        .DataSliceCounter = {.Total = 4, .Running = 2, .Completed = 2, .Lost = 2},
+        .JobCounter = {.Total = 1, .Running = 1, .Lost = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Running = 2_KBs, .Lost = 2_KBs},
+        .RowCounter = {.Total = 2000, .Running = 2000, .Lost = 2000},
+        .DataSliceCounter = {.Total = 2, .Running = 2, .Lost = 2},
     });
 
     Merger_->Completed(cookie2, summary);
@@ -437,10 +437,10 @@ TEST_F(TChunkPoolOutputMergerTest, LostJob)
     EXPECT_EQ(Merger_->Extract(), IChunkPoolOutput::NullCookie);
 
     CheckCounters({
-        .JobCounter = {.Total = 2, .Completed = 2, .Lost = 1},
-        .DataWeightCounter = {.Total = 4_KBs, .Completed = 4_KBs, .Lost = 2_KBs},
-        .RowCounter = {.Total = 4000, .Completed = 4000, .Lost = 2000},
-        .DataSliceCounter = {.Total = 4, .Completed = 4, .Lost = 2},
+        .JobCounter = {.Total = 1, .Completed = 1, .Lost = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Completed = 2_KBs, .Lost = 2_KBs},
+        .RowCounter = {.Total = 2000, .Completed = 2000, .Lost = 2000},
+        .DataSliceCounter = {.Total = 2, .Completed = 2, .Lost = 2},
     });
 }
 
@@ -574,26 +574,43 @@ TEST_F(TChunkPoolOutputMergerTest, Persistence)
     });
 }
 
-TEST_F(TChunkPoolOutputMergerTest, EmptyUnfinishedPool)
+TEST_PI(
+    TChunkPoolOutputMergerTest,
+    EmptyUnfinishedPool,
+    Bool())
 {
-    auto pool1 = CreateUnorderedChunkPool();
+    bool isExplicitJobCount = GetParam();
+
+    auto pool1 = CreateUnorderedChunkPool(/*jobCount*/ 1, /*explicitJobCount*/ isExplicitJobCount);
     pool1->Finish();
 
-    auto pool2 = CreateUnorderedChunkPool();
+    auto pool2 = CreateUnorderedChunkPool(/*jobCount*/ 1, /*explicitJobCount*/ isExplicitJobCount);
+
+    ASSERT_FALSE(pool2->IsCompleted());
 
     Merger_ = MergeChunkPoolOutputs({pool1, pool2}, GetTestLogger());
 
-    EXPECT_FALSE(Merger_->IsCompleted());
+    ASSERT_FALSE(Merger_->IsCompleted());
     EXPECT_EQ(Merger_->Extract(), IChunkPoolOutput::NullCookie);
 
-    CheckCounters({
-        .JobCounter = {.Total = 1, .Suspended = 1},
-        .DataWeightCounter = {.Total = 0},
-        .RowCounter = {.Total = 0},
-        .DataSliceCounter = {.Total = 0},
-    });
+    if (isExplicitJobCount) {
+        CheckCounters({
+            .JobCounter = {.Total = 1, .Suspended = 1},
+            .DataWeightCounter = {.Total = 0},
+            .RowCounter = {.Total = 0},
+            .DataSliceCounter = {.Total = 0},
+        });
+    } else {
+        CheckCounters({
+            .JobCounter = {.Total = 0},
+            .DataWeightCounter = {.Total = 0},
+            .RowCounter = {.Total = 0},
+            .DataSliceCounter = {.Total = 0},
+        });
+    }
 
     pool2->Finish();
+    ASSERT_TRUE(pool2->IsCompleted());
 
     EXPECT_TRUE(Merger_->IsCompleted());
     EXPECT_EQ(Merger_->Extract(), IChunkPoolOutput::NullCookie);
@@ -837,10 +854,10 @@ TEST_PI(
             EXPECT_TRUE(Merger_->IsCompleted());
             Merger_->Lost(cookie);
             CheckCounters({
-                .JobCounter = {.Total = 2, .Pending = 1, .Completed = 1, .Lost = 1},
-                .DataWeightCounter = {.Total = 2_KBs, .Pending = 1_KB, .Completed = 1_KB, .Lost = 1_KB},
-                .RowCounter = {.Total = 2000, .Pending = 1000, .Completed = 1000, .Lost = 1000},
-                .DataSliceCounter = {.Total = 2, .Pending = 1, .Completed = 1, .Lost = 1},
+                .JobCounter = {.Total = 1, .Pending = 1, .Lost = 1},
+                .DataWeightCounter = {.Total = 1_KB, .Pending = 1_KB, .Lost = 1_KB},
+                .RowCounter = {.Total = 1000, .Pending = 1000, .Lost = 1000},
+                .DataSliceCounter = {.Total = 1, .Pending = 1, .Lost = 1},
             });
             break;
     }
@@ -883,13 +900,699 @@ TEST_PI(
             break;
         case EJobOutcome::Lost:
             CheckCounters({
-                .JobCounter = {.Total = 2, .Completed = 2, .Lost = 1},
-                .DataWeightCounter = {.Total = 2_KBs, .Completed = 2_KBs, .Lost = 1_KB},
-                .RowCounter = {.Total = 2000, .Completed = 2000, .Lost = 1000},
-                .DataSliceCounter = {.Total = 2, .Completed = 2, .Lost = 1},
+                .JobCounter = {.Total = 1, .Completed = 1, .Lost = 1},
+                .DataWeightCounter = {.Total = 1_KB, .Completed = 1_KB, .Lost = 1_KB},
+                .RowCounter = {.Total = 1000, .Completed = 1000, .Lost = 1000},
+                .DataSliceCounter = {.Total = 1, .Completed = 1, .Lost = 1},
             });
             break;
     }
+}
+
+TEST_F(TChunkPoolOutputMergerTest, SuspendedChunksInUnderlyingPool)
+{
+    auto chunk1 = CreateChunk();
+    auto chunk2 = CreateChunk();
+    auto chunk3 = CreateChunk();
+
+    auto pool1 = CreateUnorderedChunkPool();
+    pool1->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk1)));
+    pool1->Finish();
+
+    auto pool2 = CreateUnorderedChunkPool();
+    pool2->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk2)));
+    auto inputCookie3 = pool2->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk3)));
+    pool2->Suspend(inputCookie3);
+    pool2->Finish();
+
+    Merger_ = MergeChunkPoolOutputs({pool1, pool2}, GetTestLogger());
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Suspended = 1},
+        .DataWeightCounter = {.Total = 3_KBs, .Suspended = 3_KBs},
+        .RowCounter = {.Total = 3000, .Suspended = 3000},
+        .DataSliceCounter = {.Total = 3, .Suspended = 3},
+    });
+
+    EXPECT_EQ(Merger_->Extract(), IChunkPoolOutput::NullCookie);
+
+    pool2->Resume(inputCookie3);
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Pending = 1},
+        .DataWeightCounter = {.Total = 3_KBs, .Pending = 3_KBs},
+        .RowCounter = {.Total = 3000, .Pending = 3000},
+        .DataSliceCounter = {.Total = 3, .Pending = 3},
+    });
+
+    auto cookie = Merger_->Extract();
+    EXPECT_NE(IChunkPoolOutput::NullCookie, cookie);
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Running = 1},
+        .DataWeightCounter = {.Total = 3_KBs, .Running = 3_KBs},
+        .RowCounter = {.Total = 3000, .Running = 3000},
+        .DataSliceCounter = {.Total = 3, .Running = 3},
+    });
+
+    auto stripeList = Merger_->GetStripeList(cookie);
+    EXPECT_EQ(2u, stripeList->Stripes().size());
+
+    TCompletedJobSummary summary;
+    Merger_->Completed(cookie, summary);
+
+    EXPECT_TRUE(Merger_->IsCompleted());
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Completed = 1},
+        .DataWeightCounter = {.Total = 3_KBs, .Completed = 3_KBs},
+        .RowCounter = {.Total = 3000, .Completed = 3000},
+        .DataSliceCounter = {.Total = 3, .Completed = 3},
+    });
+}
+
+TEST_F(TChunkPoolOutputMergerTest, MultipleSuspendedChunksInDifferentPools)
+{
+    auto chunk1 = CreateChunk();
+    auto chunk2 = CreateChunk();
+    auto chunk3 = CreateChunk();
+    auto chunk4 = CreateChunk();
+
+    auto pool1 = CreateUnorderedChunkPool();
+    pool1->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk1)));
+    auto inputCookie2 = pool1->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk2)));
+    pool1->Suspend(inputCookie2);
+    pool1->Finish();
+
+    auto pool2 = CreateUnorderedChunkPool();
+    pool2->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk3)));
+    auto inputCookie4 = pool2->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk4)));
+    pool2->Suspend(inputCookie4);
+    pool2->Finish();
+
+    Merger_ = MergeChunkPoolOutputs({pool1, pool2}, GetTestLogger());
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Suspended = 1},
+        .DataWeightCounter = {.Total = 4_KBs, .Suspended = 4_KBs},
+        .RowCounter = {.Total = 4000, .Suspended = 4000},
+        .DataSliceCounter = {.Total = 4, .Suspended = 4},
+    });
+
+    EXPECT_EQ(Merger_->Extract(), IChunkPoolOutput::NullCookie);
+
+    pool1->Resume(inputCookie2);
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Suspended = 1},
+        .DataWeightCounter = {.Total = 4_KBs, .Suspended = 4_KBs},
+        .RowCounter = {.Total = 4000, .Suspended = 4000},
+        .DataSliceCounter = {.Total = 4, .Suspended = 4},
+    });
+
+    EXPECT_EQ(Merger_->Extract(), IChunkPoolOutput::NullCookie);
+
+    pool2->Resume(inputCookie4);
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Pending = 1},
+        .DataWeightCounter = {.Total = 4_KBs, .Pending = 4_KBs},
+        .RowCounter = {.Total = 4000, .Pending = 4000},
+        .DataSliceCounter = {.Total = 4, .Pending = 4},
+    });
+
+    auto cookie = Merger_->Extract();
+    EXPECT_NE(IChunkPoolOutput::NullCookie, cookie);
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Running = 1},
+        .DataWeightCounter = {.Total = 4_KBs, .Running = 4_KBs},
+        .RowCounter = {.Total = 4000, .Running = 4000},
+        .DataSliceCounter = {.Total = 4, .Running = 4},
+    });
+
+    auto stripeList = Merger_->GetStripeList(cookie);
+    EXPECT_EQ(2u, stripeList->Stripes().size());
+
+    TCompletedJobSummary summary;
+    Merger_->Completed(cookie, summary);
+
+    EXPECT_TRUE(Merger_->IsCompleted());
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Completed = 1},
+        .DataWeightCounter = {.Total = 4_KBs, .Completed = 4_KBs},
+        .RowCounter = {.Total = 4000, .Completed = 4000},
+        .DataSliceCounter = {.Total = 4, .Completed = 4},
+    });
+}
+
+TEST_F(TChunkPoolOutputMergerTest, SuspendChunkAfterMergerCreated)
+{
+    auto chunk1 = CreateChunk();
+    auto chunk2 = CreateChunk();
+    auto chunk3 = CreateChunk();
+
+    auto pool1 = CreateUnorderedChunkPool();
+    pool1->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk1)));
+    pool1->Finish();
+
+    auto pool2 = CreateUnorderedChunkPool();
+    pool2->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk2)));
+    auto inputCookie3 = pool2->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk3)));
+    pool2->Finish();
+
+    Merger_ = MergeChunkPoolOutputs({pool1, pool2}, GetTestLogger());
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Pending = 1},
+        .DataWeightCounter = {.Total = 3_KBs, .Pending = 3_KBs},
+        .RowCounter = {.Total = 3000, .Pending = 3000},
+        .DataSliceCounter = {.Total = 3, .Pending = 3},
+    });
+
+    pool2->Suspend(inputCookie3);
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Suspended = 1},
+        .DataWeightCounter = {.Total = 3_KBs, .Suspended = 3_KBs},
+        .RowCounter = {.Total = 3000, .Suspended = 3000},
+        .DataSliceCounter = {.Total = 3, .Suspended = 3},
+    });
+
+    EXPECT_EQ(Merger_->Extract(), IChunkPoolOutput::NullCookie);
+
+    pool2->Resume(inputCookie3);
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Pending = 1},
+        .DataWeightCounter = {.Total = 3_KBs, .Pending = 3_KBs},
+        .RowCounter = {.Total = 3000, .Pending = 3000},
+        .DataSliceCounter = {.Total = 3, .Pending = 3},
+    });
+
+    auto cookie = Merger_->Extract();
+    EXPECT_NE(IChunkPoolOutput::NullCookie, cookie);
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Running = 1},
+        .DataWeightCounter = {.Total = 3_KBs, .Running = 3_KBs},
+        .RowCounter = {.Total = 3000, .Running = 3000},
+        .DataSliceCounter = {.Total = 3, .Running = 3},
+    });
+
+    TCompletedJobSummary summary;
+    Merger_->Completed(cookie, summary);
+
+    EXPECT_TRUE(Merger_->IsCompleted());
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Completed = 1},
+        .DataWeightCounter = {.Total = 3_KBs, .Completed = 3_KBs},
+        .RowCounter = {.Total = 3000, .Completed = 3000},
+        .DataSliceCounter = {.Total = 3, .Completed = 3},
+    });
+}
+
+TEST_F(TChunkPoolOutputMergerTest, SuspendAndResumeWhileJobRunning)
+{
+    auto chunk1 = CreateChunk();
+    auto chunk2 = CreateChunk();
+
+    auto pool1 = CreateUnorderedChunkPool();
+    pool1->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk1)));
+    pool1->Finish();
+
+    auto pool2 = CreateUnorderedChunkPool();
+    auto inputCookie2 = pool2->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk2)));
+    pool2->Finish();
+
+    Merger_ = MergeChunkPoolOutputs({pool1, pool2}, GetTestLogger());
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Pending = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Pending = 2_KBs},
+        .RowCounter = {.Total = 2000, .Pending = 2000},
+        .DataSliceCounter = {.Total = 2, .Pending = 2},
+    });
+
+    auto cookie = Merger_->Extract();
+    EXPECT_NE(IChunkPoolOutput::NullCookie, cookie);
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Running = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Running = 2_KBs},
+        .RowCounter = {.Total = 2000, .Running = 2000},
+        .DataSliceCounter = {.Total = 2, .Running = 2},
+    });
+
+    pool2->Suspend(inputCookie2);
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Running = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Running = 2_KBs},
+        .RowCounter = {.Total = 2000, .Running = 2000},
+        .DataSliceCounter = {.Total = 2, .Running = 2},
+    });
+
+    TCompletedJobSummary summary;
+    Merger_->Completed(cookie, summary);
+
+    EXPECT_TRUE(Merger_->IsCompleted());
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Completed = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Completed = 2_KBs},
+        .RowCounter = {.Total = 2000, .Completed = 2000},
+        .DataSliceCounter = {.Total = 2, .Completed = 2},
+    });
+}
+
+TEST_F(TChunkPoolOutputMergerTest, FailedJobWithSuspendedChunks)
+{
+    auto chunk1 = CreateChunk();
+    auto chunk2 = CreateChunk();
+
+    auto pool1 = CreateUnorderedChunkPool();
+    pool1->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk1)));
+    pool1->Finish();
+
+    auto pool2 = CreateUnorderedChunkPool();
+    auto inputCookie2 = pool2->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk2)));
+    pool2->Finish();
+
+    Merger_ = MergeChunkPoolOutputs({pool1, pool2}, GetTestLogger());
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Pending = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Pending = 2_KBs},
+        .RowCounter = {.Total = 2000, .Pending = 2000},
+        .DataSliceCounter = {.Total = 2, .Pending = 2},
+    });
+
+    auto cookie = Merger_->Extract();
+    EXPECT_NE(IChunkPoolOutput::NullCookie, cookie);
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Running = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Running = 2_KBs},
+        .RowCounter = {.Total = 2000, .Running = 2000},
+        .DataSliceCounter = {.Total = 2, .Running = 2},
+    });
+
+    Merger_->Failed(cookie);
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Pending = 1, .Failed = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Pending = 2_KBs, .Failed = 2_KBs},
+        .RowCounter = {.Total = 2000, .Pending = 2000, .Failed = 2000},
+        .DataSliceCounter = {.Total = 2, .Pending = 2, .Failed = 2},
+    });
+
+    pool2->Suspend(inputCookie2);
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Suspended = 1, .Failed = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Suspended = 2_KBs, .Failed = 2_KBs},
+        .RowCounter = {.Total = 2000, .Suspended = 2000, .Failed = 2000},
+        .DataSliceCounter = {.Total = 2, .Suspended = 2, .Failed = 2},
+    });
+
+    EXPECT_EQ(Merger_->Extract(), IChunkPoolOutput::NullCookie);
+
+    pool2->Resume(inputCookie2);
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Pending = 1, .Failed = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Pending = 2_KBs, .Failed = 2_KBs},
+        .RowCounter = {.Total = 2000, .Pending = 2000, .Failed = 2000},
+        .DataSliceCounter = {.Total = 2, .Pending = 2, .Failed = 2},
+    });
+
+    auto cookie2 = Merger_->Extract();
+    EXPECT_NE(IChunkPoolOutput::NullCookie, cookie2);
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Running = 1, .Failed = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Running = 2_KBs, .Failed = 2_KBs},
+        .RowCounter = {.Total = 2000, .Running = 2000, .Failed = 2000},
+        .DataSliceCounter = {.Total = 2, .Running = 2, .Failed = 2},
+    });
+
+    TCompletedJobSummary summary;
+    Merger_->Completed(cookie2, summary);
+
+    EXPECT_TRUE(Merger_->IsCompleted());
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Completed = 1, .Failed = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Completed = 2_KBs, .Failed = 2_KBs},
+        .RowCounter = {.Total = 2000, .Completed = 2000, .Failed = 2000},
+        .DataSliceCounter = {.Total = 2, .Completed = 2, .Failed = 2},
+    });
+}
+
+TEST_F(TChunkPoolOutputMergerTest, AbortedJobWithSuspendedChunks)
+{
+    auto chunk1 = CreateChunk();
+    auto chunk2 = CreateChunk();
+
+    auto pool1 = CreateUnorderedChunkPool();
+    pool1->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk1)));
+    pool1->Finish();
+
+    auto pool2 = CreateUnorderedChunkPool();
+    auto inputCookie2 = pool2->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk2)));
+    pool2->Finish();
+
+    Merger_ = MergeChunkPoolOutputs({pool1, pool2}, GetTestLogger());
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Pending = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Pending = 2_KBs},
+        .RowCounter = {.Total = 2000, .Pending = 2000},
+        .DataSliceCounter = {.Total = 2, .Pending = 2},
+    });
+
+    auto cookie = Merger_->Extract();
+    EXPECT_NE(IChunkPoolOutput::NullCookie, cookie);
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Running = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Running = 2_KBs},
+        .RowCounter = {.Total = 2000, .Running = 2000},
+        .DataSliceCounter = {.Total = 2, .Running = 2},
+    });
+
+    Merger_->Aborted(cookie, EAbortReason::Scheduler);
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Pending = 1, .Aborted = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Pending = 2_KBs, .Aborted = 2_KBs},
+        .RowCounter = {.Total = 2000, .Pending = 2000, .Aborted = 2000},
+        .DataSliceCounter = {.Total = 2, .Pending = 2, .Aborted = 2},
+    });
+
+    pool2->Suspend(inputCookie2);
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Suspended = 1, .Aborted = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Suspended = 2_KBs, .Aborted = 2_KBs},
+        .RowCounter = {.Total = 2000, .Suspended = 2000, .Aborted = 2000},
+        .DataSliceCounter = {.Total = 2, .Suspended = 2, .Aborted = 2},
+    });
+
+    EXPECT_EQ(Merger_->Extract(), IChunkPoolOutput::NullCookie);
+
+    pool2->Resume(inputCookie2);
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Pending = 1, .Aborted = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Pending = 2_KBs, .Aborted = 2_KBs},
+        .RowCounter = {.Total = 2000, .Pending = 2000, .Aborted = 2000},
+        .DataSliceCounter = {.Total = 2, .Pending = 2, .Aborted = 2},
+    });
+
+    auto cookie2 = Merger_->Extract();
+    EXPECT_NE(IChunkPoolOutput::NullCookie, cookie2);
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Running = 1, .Aborted = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Running = 2_KBs, .Aborted = 2_KBs},
+        .RowCounter = {.Total = 2000, .Running = 2000, .Aborted = 2000},
+        .DataSliceCounter = {.Total = 2, .Running = 2, .Aborted = 2},
+    });
+
+    TCompletedJobSummary summary;
+    Merger_->Completed(cookie2, summary);
+
+    EXPECT_TRUE(Merger_->IsCompleted());
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Completed = 1, .Aborted = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Completed = 2_KBs, .Aborted = 2_KBs},
+        .RowCounter = {.Total = 2000, .Completed = 2000, .Aborted = 2000},
+        .DataSliceCounter = {.Total = 2, .Completed = 2, .Aborted = 2},
+    });
+}
+
+TEST_F(TChunkPoolOutputMergerTest, LostJobWithSuspendedChunks)
+{
+    auto chunk1 = CreateChunk();
+    auto chunk2 = CreateChunk();
+
+    auto pool1 = CreateUnorderedChunkPool();
+    pool1->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk1)));
+    pool1->Finish();
+
+    auto pool2 = CreateUnorderedChunkPool();
+    auto inputCookie2 = pool2->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk2)));
+    pool2->Finish();
+
+    Merger_ = MergeChunkPoolOutputs({pool1, pool2}, GetTestLogger());
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Pending = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Pending = 2_KBs},
+        .RowCounter = {.Total = 2000, .Pending = 2000},
+        .DataSliceCounter = {.Total = 2, .Pending = 2},
+    });
+
+    auto cookie = Merger_->Extract();
+    EXPECT_NE(IChunkPoolOutput::NullCookie, cookie);
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Running = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Running = 2_KBs},
+        .RowCounter = {.Total = 2000, .Running = 2000},
+        .DataSliceCounter = {.Total = 2, .Running = 2},
+    });
+
+    TCompletedJobSummary summary;
+    Merger_->Completed(cookie, summary);
+
+    EXPECT_TRUE(Merger_->IsCompleted());
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Completed = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Completed = 2_KBs},
+        .RowCounter = {.Total = 2000, .Completed = 2000},
+        .DataSliceCounter = {.Total = 2, .Completed = 2},
+    });
+
+    Merger_->Lost(cookie);
+
+    EXPECT_FALSE(Merger_->IsCompleted());
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Pending = 1, .Lost = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Pending = 2_KBs, .Lost = 2_KBs},
+        .RowCounter = {.Total = 2000, .Pending = 2000, .Lost = 2000},
+        .DataSliceCounter = {.Total = 2, .Pending = 2, .Lost = 2},
+    });
+
+    pool2->Suspend(inputCookie2);
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Suspended = 1, .Lost = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Suspended = 2_KBs, .Lost = 2_KBs},
+        .RowCounter = {.Total = 2000, .Suspended = 2000, .Lost = 2000},
+        .DataSliceCounter = {.Total = 2, .Suspended = 2, .Lost = 2},
+    });
+
+    EXPECT_EQ(Merger_->Extract(), IChunkPoolOutput::NullCookie);
+
+    pool2->Resume(inputCookie2);
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Pending = 1, .Lost = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Pending = 2_KBs, .Lost = 2_KBs},
+        .RowCounter = {.Total = 2000, .Pending = 2000, .Lost = 2000},
+        .DataSliceCounter = {.Total = 2, .Pending = 2, .Lost = 2},
+    });
+
+    auto cookie2 = Merger_->Extract();
+    EXPECT_NE(IChunkPoolOutput::NullCookie, cookie2);
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Running = 1, .Lost = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Running = 2_KBs, .Lost = 2_KBs},
+        .RowCounter = {.Total = 2000, .Running = 2000, .Lost = 2000},
+        .DataSliceCounter = {.Total = 2, .Running = 2, .Lost = 2},
+    });
+
+    Merger_->Completed(cookie2, summary);
+
+    EXPECT_TRUE(Merger_->IsCompleted());
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Completed = 1, .Lost = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Completed = 2_KBs, .Lost = 2_KBs},
+        .RowCounter = {.Total = 2000, .Completed = 2000, .Lost = 2000},
+        .DataSliceCounter = {.Total = 2, .Completed = 2, .Lost = 2},
+    });
+}
+
+TEST_F(TChunkPoolOutputMergerTest, AllChunksSuspended)
+{
+    auto chunk1 = CreateChunk();
+    auto chunk2 = CreateChunk();
+
+    auto pool1 = CreateUnorderedChunkPool();
+    auto inputCookie1 = pool1->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk1)));
+    pool1->Finish();
+
+    auto pool2 = CreateUnorderedChunkPool();
+    auto inputCookie2 = pool2->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk2)));
+    pool2->Finish();
+
+    Merger_ = MergeChunkPoolOutputs({pool1, pool2}, GetTestLogger());
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Pending = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Pending = 2_KBs},
+        .RowCounter = {.Total = 2000, .Pending = 2000},
+        .DataSliceCounter = {.Total = 2, .Pending = 2},
+    });
+
+    pool1->Suspend(inputCookie1);
+    pool2->Suspend(inputCookie2);
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Suspended = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Suspended = 2_KBs},
+        .RowCounter = {.Total = 2000, .Suspended = 2000},
+        .DataSliceCounter = {.Total = 2, .Suspended = 2},
+    });
+
+    EXPECT_EQ(Merger_->Extract(), IChunkPoolOutput::NullCookie);
+
+    pool1->Resume(inputCookie1);
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Suspended = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Suspended = 2_KBs},
+        .RowCounter = {.Total = 2000, .Suspended = 2000},
+        .DataSliceCounter = {.Total = 2, .Suspended = 2},
+    });
+
+    EXPECT_EQ(Merger_->Extract(), IChunkPoolOutput::NullCookie);
+
+    pool2->Resume(inputCookie2);
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Pending = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Pending = 2_KBs},
+        .RowCounter = {.Total = 2000, .Pending = 2000},
+        .DataSliceCounter = {.Total = 2, .Pending = 2},
+    });
+
+    auto cookie = Merger_->Extract();
+    EXPECT_NE(IChunkPoolOutput::NullCookie, cookie);
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Running = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Running = 2_KBs},
+        .RowCounter = {.Total = 2000, .Running = 2000},
+        .DataSliceCounter = {.Total = 2, .Running = 2},
+    });
+
+    TCompletedJobSummary summary;
+    Merger_->Completed(cookie, summary);
+
+    EXPECT_TRUE(Merger_->IsCompleted());
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Completed = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Completed = 2_KBs},
+        .RowCounter = {.Total = 2000, .Completed = 2000},
+        .DataSliceCounter = {.Total = 2, .Completed = 2},
+    });
+}
+
+TEST_F(TChunkPoolOutputMergerTest, CompletedThenSuspendThenLostThenCompleted)
+{
+    auto chunk1 = CreateChunk();
+    auto chunk2 = CreateChunk();
+
+    auto pool1 = CreateUnorderedChunkPool();
+    pool1->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk1)));
+    pool1->Finish();
+
+    auto pool2 = CreateUnorderedChunkPool();
+    auto inputCookie2 = pool2->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk2)));
+    pool2->Finish();
+
+    Merger_ = MergeChunkPoolOutputs({pool1, pool2}, GetTestLogger());
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Pending = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Pending = 2_KBs},
+        .RowCounter = {.Total = 2000, .Pending = 2000},
+        .DataSliceCounter = {.Total = 2, .Pending = 2},
+    });
+
+    auto cookie = Merger_->Extract();
+    EXPECT_NE(IChunkPoolOutput::NullCookie, cookie);
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Running = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Running = 2_KBs},
+        .RowCounter = {.Total = 2000, .Running = 2000},
+        .DataSliceCounter = {.Total = 2, .Running = 2},
+    });
+
+    TCompletedJobSummary summary;
+    Merger_->Completed(cookie, summary);
+
+    EXPECT_TRUE(Merger_->IsCompleted());
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Completed = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Completed = 2_KBs},
+        .RowCounter = {.Total = 2000, .Completed = 2000},
+        .DataSliceCounter = {.Total = 2, .Completed = 2},
+    });
+
+    pool2->Suspend(inputCookie2);
+
+    EXPECT_TRUE(Merger_->IsCompleted());
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Completed = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Completed = 2_KBs},
+        .RowCounter = {.Total = 2000, .Completed = 2000},
+        .DataSliceCounter = {.Total = 2, .Completed = 2},
+    });
+
+    Merger_->Lost(cookie);
+
+    EXPECT_FALSE(Merger_->IsCompleted());
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Suspended = 1, .Lost = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Suspended = 2_KBs, .Lost = 2_KBs},
+        .RowCounter = {.Total = 2000, .Suspended = 2000, .Lost = 2000},
+        .DataSliceCounter = {.Total = 2, .Suspended = 2, .Lost = 2},
+    });
+
+    EXPECT_EQ(Merger_->Extract(), IChunkPoolOutput::NullCookie);
+
+    pool2->Resume(inputCookie2);
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Pending = 1, .Lost = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Pending = 2_KBs, .Lost = 2_KBs},
+        .RowCounter = {.Total = 2000, .Pending = 2000, .Lost = 2000},
+        .DataSliceCounter = {.Total = 2, .Pending = 2, .Lost = 2},
+    });
+
+    auto cookie2 = Merger_->Extract();
+    EXPECT_NE(IChunkPoolOutput::NullCookie, cookie2);
+
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Running = 1, .Lost = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Running = 2_KBs, .Lost = 2_KBs},
+        .RowCounter = {.Total = 2000, .Running = 2000, .Lost = 2000},
+        .DataSliceCounter = {.Total = 2, .Running = 2, .Lost = 2},
+    });
+
+    Merger_->Completed(cookie2, summary);
+
+    EXPECT_TRUE(Merger_->IsCompleted());
+    CheckCounters({
+        .JobCounter = {.Total = 1, .Completed = 1, .Lost = 1},
+        .DataWeightCounter = {.Total = 2_KBs, .Completed = 2_KBs, .Lost = 2_KBs},
+        .RowCounter = {.Total = 2000, .Completed = 2000, .Lost = 2000},
+        .DataSliceCounter = {.Total = 2, .Completed = 2, .Lost = 2},
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

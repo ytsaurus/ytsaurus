@@ -63,7 +63,7 @@ using TTestYsonStatePtr = TIntrusivePtr<TTestYsonState>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TestYsonStateTest, Schema)
+TEST(TYsonStateTest, Schema)
 {
     auto stateSchema = GetYsonStateSchema<TTestYsonState>();
 
@@ -155,7 +155,7 @@ std::optional<TUnversionedOwningRow> ApplyMutation(const std::optional<TUnversio
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TestYsonStateTest, FullMutation)
+TEST(TYsonStateTest, FullMutation)
 {
     auto stateSchema = GetYsonStateSchema<TTestYsonState>();
 
@@ -180,7 +180,7 @@ TEST(TestYsonStateTest, FullMutation)
     EXPECT_EQ(otherYsonState->Packable->Value, 345);
 }
 
-TEST(TestYsonStateTest, RepeatMutation)
+TEST(TYsonStateTest, RepeatMutation)
 {
 
     auto stateSchema = GetYsonStateSchema<TTestYsonState>();
@@ -215,7 +215,7 @@ TEST(TestYsonStateTest, RepeatMutation)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TestYsonStateTest, Update)
+TEST(TYsonStateTest, Update)
 {
     auto stateSchema = GetYsonStateSchema<TTestYsonState>();
 
@@ -298,12 +298,12 @@ TEST(TestYsonStateTest, Update)
 struct TTestDefaultYsonState
     : public virtual TYsonStruct
 {
-    TString Simple;
-    TString SimpleWithDefault;
-    TString Packable;
-    TString PackableWithDefault;
-    TString Compressed;
-    TString CompressedWithDefault;
+    std::string Simple;
+    std::string SimpleWithDefault;
+    std::string Packable;
+    std::string PackableWithDefault;
+    std::string Compressed;
+    std::string CompressedWithDefault;
 
     REGISTER_YSON_STRUCT(TTestDefaultYsonState);
 
@@ -332,7 +332,7 @@ struct TTestDefaultYsonState
 
 using TTestDefaultYsonStatePtr = TIntrusivePtr<TTestDefaultYsonState>;
 
-TEST(TestYsonStateTest, Default)
+TEST(TYsonStateTest, Default)
 {
     const auto defaultYsonStruct = New<TTestDefaultYsonState>();
     auto stateSchema = GetYsonStateSchema<TTestDefaultYsonState>();

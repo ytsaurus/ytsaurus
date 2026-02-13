@@ -23,7 +23,7 @@ def main():
 
     client.remove(table, force=True)
 
-    # Просто пишем данные в таблицу, если таблица существует, её перезапишут.
+    # Writing data to the table. The table will be overwritten if it exists already.
     client.write_table_structured(
         table,
         TranslationRow,
@@ -33,8 +33,8 @@ def main():
         ],
     )
 
-    # Дописываем данные в конец таблицы, придётся поступить хитрее.
-    # Используем класс TablePath и его опцию append.
+    # Writing data to the end of the table. We need to do something unusual.
+    # Use the `TablePath` class and its append option.
     client.write_table_structured(
         yt.wrapper.TablePath(table, append=True),
         TranslationRow,
@@ -43,39 +43,39 @@ def main():
         ],
     )
 
-    # Читаем всю таблицу.
+    # Reading the entire table.
     print("*** ALL TABLE ***")
     for row in client.read_table_structured(table, TranslationRow):
         print("english: {}; russian: {}".format(row.english, row.russian))
     print("*****************\n")
 
-    # Читаем первые 2 строки таблицы.
+    # Reading the first 2 table rows.
     print("*** FIRST TWO ROWS ***")
     for row in client.read_table_structured(
-        # читаем с 0й по 2ю строки, 2я строка невключительно.
+        # reading from zero to the second row. Do not read the 2nd row.
         yt.wrapper.TablePath(table, start_index=0, end_index=2),
         TranslationRow,
     ):
         print("english: {}; russian: {}".format(row.english, row.russian))
     print("*****************\n")
 
-    # Метод with_context у итератора позволяет получить индексы строк.
+    # The `with_context` method of the iterator helps to get row indices.
     print("*** ALL ROWS WITH CONTEXT ***")
     for row, ctx in client.read_table_structured(table, TranslationRow).with_context():
         print("Row{}: english: {}; russian: {}".format(ctx.get_row_index(), row.english, row.russian))
     print("*****************\n")
 
-    #  Если мы отсортируем таблицу, то можно будет читать записи по ключам.
+    # We can read records by keys if we sort the table.
     client.run_sort(table, sort_by=["english"])
 
-    # И читаем запись по одному ключу.
+    # Reading a record using one key.
     print("*** EXACT KEY ***")
     for row in client.read_table_structured(
         yt.wrapper.TablePath(
             table,
-            exact_key=["three"]  # В качестве ключа передаём список значений ключевых колонок
-            # (тех колонок по которым отсортирована таблица).
-            # Тут у нас простой случай, одна ключевая колонка, но их может быть больше.
+            exact_key=["three"]  # pass a list of key columns values as the key
+            # (that columns by which the table was sorted).
+            # We have a simple case with one key column. But there can be more of them.
         ),
         TranslationRow,
     ):

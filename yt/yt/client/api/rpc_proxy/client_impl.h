@@ -236,19 +236,25 @@ public:
         NYTree::INodePtr acl,
         const NApi::TCheckPermissionByAclOptions& options) override;
 
+    // Accounting.
     TFuture<void> TransferAccountResources(
         const std::string& srcAccount,
         const std::string& dstAccount,
         NYTree::INodePtr resourceDelta,
         const TTransferAccountResourcesOptions& options) override;
 
-    // Scheduler pools.
-    virtual TFuture<void> TransferPoolResources(
-        const TString& srcPool,
-        const TString& dstPool,
-        const TString& poolTree,
+    TFuture<void> TransferPoolResources(
+        const std::string& srcPool,
+        const std::string& dstPool,
+        const std::string& poolTree,
         NYTree::INodePtr resourceDelta,
         const TTransferPoolResourcesOptions& options) override;
+
+    TFuture<void> TransferBundleResources(
+        const std::string& srcBundle,
+        const std::string& dstBundle,
+        NYTree::INodePtr resourceDelta,
+        const TTransferBundleResourcesOptions& options) override;
 
     // Scheduler.
     TFuture<NScheduler::TOperationId> StartOperation(
@@ -355,6 +361,12 @@ public:
         const NYson::TYsonString& parameters,
         const NApi::TPollJobShellOptions& options) override;
 
+    TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> RunJobShellCommand(
+        NJobTrackerClient::TJobId jobId,
+        const std::optional<std::string>& shellName,
+        const std::string& command,
+        const NApi::TRunJobShellCommandOptions& options) override;
+
     TFuture<void> AbortJob(
         NJobTrackerClient::TJobId jobId,
         const NApi::TAbortJobOptions& options) override;
@@ -388,6 +400,16 @@ public:
         const TTablePartitionCookiePtr& tablePartitionDescriptor,
         const TReadTablePartitionOptions& options) override;
 
+    TFuture<IFormattedTableReaderPtr> CreateFormattedTableReader(
+        const NYPath::TRichYPath& path,
+        const NYson::TYsonString& format,
+        const TTableReaderOptions& options) override;
+
+    TFuture<IFormattedTableReaderPtr> CreateFormattedTablePartitionReader(
+        const TTablePartitionCookiePtr& cookie,
+        const NYson::TYsonString& format,
+        const TReadTablePartitionOptions& options) override;
+
     TFuture<void> TruncateJournal(
         const NYPath::TYPath& path,
         i64 rowCount,
@@ -409,6 +431,9 @@ public:
 
     TFuture<void> MasterExitReadOnly(
         const TMasterExitReadOnlyOptions& options) override;
+
+    TFuture<void> ResetDynamicallyPropagatedMasterCells(
+        const TResetDynamicallyPropagatedMasterCellsOptions& options) override;
 
     TFuture<void> DiscombobulateNonvotingPeers(
         NHydra::TCellId cellId,
@@ -627,7 +652,7 @@ public:
 
     TFuture<TFlowExecuteResult> FlowExecute(
         const NYPath::TYPath& pipelinePath,
-        const TString& command,
+        const std::string& command,
         const NYson::TYsonString& argument,
         const TFlowExecuteOptions& options = {}) override;
 

@@ -57,6 +57,18 @@ const std::unordered_map<std::string, EBinaryOp> BinaryOpNameToOpCode
     {"or", EBinaryOp::Or},
 };
 
+const std::unordered_map<EBinaryOp, EBinaryOp> BinaryOpToConversedOp
+{
+    {EBinaryOp::Equal, EBinaryOp::Equal},
+    {EBinaryOp::NotEqual, EBinaryOp::NotEqual},
+    {EBinaryOp::Less, EBinaryOp::Greater},
+    {EBinaryOp::LessOrEqual, EBinaryOp::GreaterOrEqual},
+    {EBinaryOp::Greater, EBinaryOp::Less},
+    {EBinaryOp::GreaterOrEqual, EBinaryOp::LessOrEqual},
+    {EBinaryOp::And, EBinaryOp::And},
+    {EBinaryOp::Or, EBinaryOp::Or},
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 NYT::TSharedRange<TUnversionedRow> ConvertPreparedSetToSharedRange(const DB::DataTypePtr& targetDataType, const DB::QueryTreeNodePtr& node)
@@ -66,21 +78,32 @@ NYT::TSharedRange<TUnversionedRow> ConvertPreparedSetToSharedRange(const DB::Dat
         return {};
     }
 
-    if (constantNode->getResultType()->getTypeId() != DB::TypeIndex::Tuple) {
-        return {};
-    }
-    auto tupleType = dynamic_pointer_cast<const DB::DataTypeTuple>(constantNode->getResultType());
-    auto tupleElementTypes = tupleType->getElements();
-
-    const auto& tupleValues = constantNode->getValue().safeGet<DB::Tuple>();
     std::vector<DB::Field> convertedValues;
-    convertedValues.reserve(tupleValues.size());
-    for (const auto& [value, data] : Zip(tupleValues, tupleElementTypes)) {
-        auto convertedValue = DB::convertFieldToTypeStrict(value, *data, *targetDataType);
-        if (!convertedValue.has_value()) {
-            return {};
+    if (constantNode->getResultType()->getTypeId() == DB::TypeIndex::Tuple) {
+        auto tupleType = dynamic_pointer_cast<const DB::DataTypeTuple>(constantNode->getResultType());
+        const auto& types = tupleType->getElements();
+        const auto& values = constantNode->getValue().safeGet<DB::Tuple>();
+
+        convertedValues.reserve(values.size());
+        for (const auto& [value, type] : Zip(values, types)) {
+            auto convertedValue = DB::convertFieldToTypeStrict(value, *type, *targetDataType);
+            if (!convertedValue.has_value()) {
+                convertedValues.clear();
+                break;
+            }
+            convertedValues.emplace_back(std::move(*convertedValue));
         }
-        convertedValues.emplace_back(std::move(*convertedValue));
+
+    } else {
+        // Assume "value in (42)".
+        auto convertedValue = DB::convertFieldToTypeStrict(constantNode->getValue(), *constantNode->getResultType(), *targetDataType);
+        if (convertedValue.has_value()) {
+            convertedValues.emplace_back(std::move(*convertedValue));
+        }
+    }
+
+    if (convertedValues.empty()) {
+        return {};
     }
 
     // NB: QL range inferrer expects that values to be sorted.
@@ -146,7 +169,12 @@ std::optional<ExpressionConvertionResult> ConnverterImpl(
                 result->Expression =  New<TReferenceExpression>(
                     SimpleLogicalType(ESimpleLogicalValueType::Null),
                     columnNode.getColumnName());
-                result->DataType = ToDataType(*columnSchema, settings);
+                // NB: Read range inference depends on the matching of the data types.
+                // This is very similar to type conversion for write queries. That's why we need to use the same converters.
+                // For example, both YT Timestamp (unsigned int) and Timestamp64 (signed int) types correspond to DateTime64(6),
+                // but at this step of the reverse conversion, DateTime64(6) must be dispatched to different ValueType
+                // in order for the constant node to be processed correctly.
+                result->DataType = ToDataType(*columnSchema, settings, /*isLowCardinality*/ false, /*isReadConversion*/ false);
                 result->ValueType = columnSchema->GetWireType();
             }
             break;
@@ -207,12 +235,15 @@ std::optional<ExpressionConvertionResult> ConnverterImpl(
                     result.emplace();
                     result->Expression = std::move(expr);
                 }
-            } else if (BinaryOpNameToOpCode.contains(name)) {
+            } else if (auto it = BinaryOpNameToOpCode.find(name); it != BinaryOpNameToOpCode.end()) {
+                auto opCode = it->second;
+
                 auto lhsNode = arguments[0];
                 auto rhsNode = arguments[1];
 
                 if (rhsNode->getNodeType() == DB::QueryTreeNodeType::COLUMN) {
                     lhsNode.swap(rhsNode);
+                    opCode = BinaryOpToConversedOp.at(opCode);
                 }
 
                 DB::DataTypePtr desiredLhsDataType;
@@ -238,7 +269,7 @@ std::optional<ExpressionConvertionResult> ConnverterImpl(
                     result.emplace();
                     result->Expression = New<TBinaryOpExpression>(
                         EValueType::Boolean,
-                        BinaryOpNameToOpCode.at(name),
+                        opCode,
                         std::move(lhsExpr->Expression),
                         std::move(rhsExpr->Expression));
                 }
@@ -288,7 +319,7 @@ TConstExpressionPtr ConvertToConstExpression(const TTableSchemaPtr& schema, DB::
         node,
         GetDataTypeBoolean(),
         EValueType::Boolean);
-    return result->Expression;
+    return result ? result->Expression : nullptr;
 }
 
 std::vector<TReadRange> InferReadRange(

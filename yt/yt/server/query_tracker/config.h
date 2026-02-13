@@ -161,6 +161,7 @@ struct TQueryTrackerDynamicConfig
     TDuration ActiveQueryPingPeriod;
     TDuration QueryFinishBackoff;
     TDuration HealthCheckPeriod;
+    TDuration NotIndexedQueriesTTL;
 
     TEngineConfigBasePtr MockEngine;
     TQLEngineConfigPtr QLEngine;

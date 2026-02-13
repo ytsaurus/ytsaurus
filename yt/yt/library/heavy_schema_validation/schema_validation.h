@@ -2,6 +2,7 @@
 
 #include <yt/yt/library/query/base/public.h>
 
+#include <yt/yt/client/complex_types/check_type_compatibility.h>
 #include <yt/yt/client/table_client/schema.h>
 
 namespace NYT::NTableClient {
@@ -12,13 +13,20 @@ struct TSchemaUpdateEnabledFeatures
 {
     bool EnableStaticTableDropColumn = false;
     bool EnableDynamicTableDropColumn = false;
+
+    bool EnableStaticTableStructFieldRenaming = false;
+    bool EnableDynamicTableStructFieldRenaming = false;
+
+    bool EnableStaticTableStructFieldRemoval = false;
+    bool EnableDynamicTableStructFieldRemoval = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void ValidateColumnSchemaUpdate(
     const TColumnSchema& oldColumn,
-    const TColumnSchema& newColumn);
+    const TColumnSchema& newColumn,
+    const NComplexTypes::TTypeCompatibilityOptions& typeCompatibilityOptions);
 
 void ValidateTableSchemaUpdateInternal(
     const TTableSchema& oldSchema,
@@ -67,6 +75,31 @@ NQueryClient::TColumnSet ValidateComputedColumnExpression(
     const TTableSchema& schema,
     bool isTableDynamic,
     bool allowDependenceOnNonKeyColumns);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Validates that constraints corresponds to constrained schema.
+void ValidateConstraintsMatch(
+    const TConstrainedTableSchema& schema,
+    const TColumnNameToConstraintMap& constraints);
+
+//! Validates that constraints correspond to old schema, i.e.:
+// - all constrained columns are present in schema
+// - no constraints were added to already existing columns
+// - new constraints are compatible to old ones
+// - constrained columns have the same type as before alteration
+void ValidateConstrainedTableSchemaAlter(
+    const TTableSchema& oldSchema,
+    const TTableSchema& newSchema,
+    const TColumnStableNameToConstraintMap& oldConstraints,
+    const TColumnStableNameToConstraintMap& newConstraints,
+    bool isTableEmpty);
+
+//! Validates that constraints correspond to schema, i.e.:
+// - all constrained columns are present in schema
+void ValidateConstrainedTableSchemaCreation(
+    const TTableSchema& schema,
+    const TColumnStableNameToConstraintMap& constraints);
 
 ////////////////////////////////////////////////////////////////////////////////
 

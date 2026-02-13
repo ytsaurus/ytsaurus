@@ -6,6 +6,7 @@
 #include <yt/yt/library/query/base/query_preparer.h>
 #include <yt/yt/library/query/base/functions.h>
 
+#include <yt/yt/client/table_client/constrained_schema.h>
 #include <yt/yt/client/table_client/column_sort_schema.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/logical_type.h>
@@ -34,13 +35,17 @@ using namespace NChunkClient;
  *  - Column aggregate method either was introduced or remains the same.
  *  - Column sort order either changes to std::nullopt or remains the same.
  */
-void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSchema& newColumn)
+void ValidateColumnSchemaUpdate(
+    const TColumnSchema& oldColumn,
+    const TColumnSchema& newColumn,
+    const NComplexTypes::TTypeCompatibilityOptions& typeCompatibilityOptions)
 {
     YT_VERIFY(oldColumn.StableName() == newColumn.StableName());
 
     auto compatibility = NComplexTypes::CheckTypeCompatibility(
         oldColumn.LogicalType(),
-        newColumn.LogicalType());
+        newColumn.LogicalType(),
+        typeCompatibilityOptions);
 
     if (compatibility.first != ESchemaCompatibility::FullyCompatible) {
         THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::IncompatibleSchemas, "Type mismatch for column %v",
@@ -170,7 +175,10 @@ static void ValidateColumnsNotInserted(const TTableSchema& oldSchema, const TTab
  *  - Key columns are not removed (but they may become non-key).
  *  - If any key columns are removed, the unique_keys is set to false.
  */
-static void ValidateColumnsMatch(const TTableSchema& oldSchema, const TTableSchema& newSchema)
+static void ValidateColumnsMatch(
+    const TTableSchema& oldSchema,
+    const TTableSchema& newSchema,
+    const NComplexTypes::TTypeCompatibilityOptions& typeCompatibilityOptions)
 {
     int commonKeyColumnPrefix = 0;
     for (int oldColumnIndex = 0; oldColumnIndex < oldSchema.GetColumnCount(); ++oldColumnIndex) {
@@ -181,7 +189,7 @@ static void ValidateColumnsMatch(const TTableSchema& oldSchema, const TTableSche
             continue;
         }
         const auto& newColumn = *newColumnPtr;
-        ValidateColumnSchemaUpdate(oldColumn, newColumn);
+        ValidateColumnSchemaUpdate(oldColumn, newColumn, typeCompatibilityOptions);
 
         if (oldColumn.SortOrder() && newColumn.SortOrder()) {
             int newColumnIndex = newSchema.GetColumnIndex(newColumn);
@@ -285,14 +293,8 @@ static void ValidateAggregatedColumns(const TTableSchema& schema)
 
             auto typeInferrer = GetBuiltinTypeInferrers()->GetFunction(aggregateName);
             if (typeInferrer->IsAggregate()) {
-                std::vector<TTypeSet> typeConstraints;
-                std::vector<int> argumentIndexes;
-
-                auto [_, resultIndex] = typeInferrer->GetNormalizedConstraints(
-                    &typeConstraints,
-                    &argumentIndexes,
-                    aggregateName);
-                auto& resultConstraint = typeConstraints[resultIndex];
+                auto constraints = typeInferrer->GetNormalizedConstraints(aggregateName);
+                auto& resultConstraint = constraints.TypeConstraints[constraints.ReturnType];
 
                 if (!resultConstraint.Get(elementType)) {
                     THROW_ERROR_EXCEPTION("Aggregate function %Qv result type set %Qlv differs from column %v type %Qlv",
@@ -431,7 +433,16 @@ void ValidateTableSchemaUpdateInternal(
         } else {
             ValidateColumnsNotInserted(oldSchema, newSchema);
         }
-        ValidateColumnsMatch(oldSchema, newSchema);
+
+        NComplexTypes::TTypeCompatibilityOptions typeCompatibilityOptions{
+            .AllowStructFieldRenaming = isTableDynamic
+                ? enabledFeatures.EnableDynamicTableStructFieldRenaming
+                : enabledFeatures.EnableStaticTableStructFieldRenaming,
+            .AllowStructFieldRemoval = isTableDynamic
+                ? enabledFeatures.EnableDynamicTableStructFieldRemoval
+                : enabledFeatures.EnableStaticTableStructFieldRemoval,
+        };
+        ValidateColumnsMatch(oldSchema, newSchema, typeCompatibilityOptions);
 
         // We allow adding computed columns only on creation of the table.
         if (!oldSchema.IsEmpty() || !isTableEmpty) {
@@ -464,15 +475,14 @@ void ValidateTableSchemaUpdate(
         oldSchema,
         newSchema,
         TSchemaUpdateEnabledFeatures{
-            false,  /* EnableStaticTableDropColumn */
-            false  /* EnableDynamicTableDropColumn */
+            .EnableStaticTableDropColumn = false,
+            .EnableDynamicTableDropColumn = false,
         },
         isTableDynamic,
         isTableEmpty);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 void ValidateTableSchemaHeavy(
     const TTableSchema& schema,
@@ -521,6 +531,119 @@ TError ValidateComputedColumnsCompatibility(
     }
 
     return TError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Validates that no new constraints were added for columns that are already present in old table schema.
+static void ValidateNoNewConstraintsForExistingColumns(
+    const TTableSchema& schema,
+    const TColumnStableNameToConstraintMap& oldConstraints,
+    const TColumnStableNameToConstraintMap& newConstraints,
+    bool isTableEmpty)
+{
+    // For empty tables we allow constraints transitions.
+    if (isTableEmpty) {
+        return;
+    }
+
+    for (const auto& column : schema.Columns()) {
+        THROW_ERROR_EXCEPTION_IF(
+            newConstraints.contains(column.StableName()) && !oldConstraints.contains(column.StableName()),
+            "Constraint cannot be added for existing column %Qv",
+            column.StableName());
+    }
+}
+
+//! Validates that all constrained columns are present in schema.
+static void ValidateAllConstrainedColumnsExist(
+    const TTableSchema& schema,
+    const TColumnStableNameToConstraintMap& constraints)
+{
+    for (const auto& [column, constraint] : constraints) {
+        if (!schema.FindColumnByStableName(column)) {
+            THROW_ERROR_EXCEPTION("Constraint for unknown column %Qv was found", column)
+                << TErrorAttribute("constraint", constraint);
+        }
+    }
+}
+
+//! Validates that
+// - constraints expressions have remained the same or have been dropped
+// - types of constrained columns have remained the same
+static void ValidateConstraintsCompatibility(
+    const TTableSchema& oldSchema,
+    const TTableSchema& newSchema,
+    const TColumnStableNameToConstraintMap& oldConstraints,
+    const TColumnStableNameToConstraintMap& newConstraints,
+    bool isTableEmpty)
+{
+    // For empty tables we allow constraints transitions.
+    if (isTableEmpty) {
+        return;
+    }
+
+    for (const auto& [column, constraint] : newConstraints) {
+        auto it = oldConstraints.find(column);
+        if (it != oldConstraints.end() && it->second != constraint) {
+            THROW_ERROR_EXCEPTION("Constraint for column %Qv cannot be changed", column)
+                << TErrorAttribute("old_constraint", constraint)
+                << TErrorAttribute("new_constraint", it->second);
+        }
+    }
+
+    for (const auto& [column, constraint]: newConstraints) {
+        const auto* oldColumn = oldSchema.FindColumnByStableName(column);
+        const auto* newColumn = newSchema.FindColumnByStableName(column);
+
+        if (!newColumn || !oldColumn) {
+            continue;
+        }
+
+        const auto& oldType = oldColumn->LogicalType();
+        const auto& newType = newColumn->LogicalType();
+        auto typeChanged = (oldType && !newType)
+            || (!oldType && newType)
+            || (*oldType != *newType);
+
+        if (typeChanged) {
+            THROW_ERROR_EXCEPTION("Altering type for constrained column is forbidden")
+                << TErrorAttribute("column_name", column)
+                << TErrorAttribute("old_type", oldType)
+                << TErrorAttribute("new_type", newType)
+                << TErrorAttribute("column_constraint", constraint);
+        }
+    }
+}
+
+void ValidateConstraintsMatch(
+    const TConstrainedTableSchema& schema,
+    const TColumnNameToConstraintMap& constraints)
+{
+    if (schema.ColumnToConstraint() != constraints) {
+        THROW_ERROR_EXCEPTION("Received conflicting constraints")
+            << TErrorAttribute("schema_constraints", schema.ColumnToConstraint())
+            << TErrorAttribute("constraints", constraints);
+    }
+}
+
+void ValidateConstrainedTableSchemaAlter(
+    const TTableSchema& oldSchema,
+    const TTableSchema& newSchema,
+    const TColumnStableNameToConstraintMap& oldConstraints,
+    const TColumnStableNameToConstraintMap& newConstraints,
+    bool isTableEmpty)
+{
+    ValidateConstrainedTableSchemaCreation(newSchema, newConstraints);
+    ValidateNoNewConstraintsForExistingColumns(oldSchema, oldConstraints, newConstraints, isTableEmpty);
+    ValidateConstraintsCompatibility(oldSchema, newSchema, oldConstraints, newConstraints, isTableEmpty);
+}
+
+void ValidateConstrainedTableSchemaCreation(
+    const TTableSchema& schema,
+    const TColumnStableNameToConstraintMap& constraints)
+{
+    ValidateAllConstrainedColumnsExist(schema, constraints);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

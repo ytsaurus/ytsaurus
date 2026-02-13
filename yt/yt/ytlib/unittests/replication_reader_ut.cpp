@@ -382,9 +382,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GenerateRandomString(size_t size, TRandomGenerator* generator)
+std::string GenerateRandomString(size_t size, TRandomGenerator* generator)
 {
-    TString result;
+    std::string result;
     result.reserve(size + sizeof(ui64));
     while (result.size() < size) {
         ui64 value = generator->Generate<ui64>();
@@ -1026,11 +1026,11 @@ INSTANTIATE_TEST_SUITE_P(
             .ProbeResults = {{
                 TProbeStatistics{
                     .DiskQueueSize = 10,
-                    .NetQueueSize = 1000
+                    .NetQueueSize = 1000,
                 },
                 TProbeStatistics{
                     .DiskQueueSize = 100,
-                    .NetQueueSize = 100
+                    .NetQueueSize = 100,
                 },
                 TProbeStatistics{
                     .DiskQueueSize = 1000,

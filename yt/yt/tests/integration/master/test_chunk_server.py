@@ -7,11 +7,15 @@ from yt_commands import (
     sync_control_chunk_replicator, get_singular_chunk_id, multicell_sleep, update_nodes_dynamic_config,
     switch_leader, set_node_banned, add_maintenance, remove_maintenance, set_node_decommissioned, execute_command,
     is_active_primary_master_leader, is_active_primary_master_follower, get_active_primary_master_leader_address,
-    get_active_primary_master_follower_address, create_tablet_cell_bundle, get_nodes, raises_yt_error)
+    get_active_primary_master_follower_address, create_tablet_cell_bundle, get_nodes, raises_yt_error,
+    create_domestic_medium,
+)
 
 from yt_helpers import profiler_factory
 
-from yt.environment.helpers import assert_items_equal, are_items_equal
+from yt_sequoia_helpers import cannot_be_implemented_in_sequoia
+
+from yt.environment.helpers import are_items_equal
 import yt.yson as yson
 
 import pytest
@@ -42,6 +46,11 @@ class TestChunkServer(YTEnvSetup):
             "store_locations": [{"disk_health_checker": {"check_period": 1000}}],
         },
     }
+
+    @authors("kvk1920")
+    def test_invalid_medium_name(self):
+        with raises_yt_error("Invalid object name: starts with #"):
+            create_domestic_medium("#invalid-name")
 
     @authors("babenko", "ignat")
     def test_owning_nodes1(self):
@@ -485,6 +494,22 @@ class TestChunkServer(YTEnvSetup):
         # First last seen replica is the newest one.
         assert nodes[0] == last_seen_replicas[0]
 
+    @authors("grphil")
+    def test_fetch_only_online_replicas(self):
+        set("//sys/@config/chunk_manager/always_fetch_non_online_replicas", False)
+
+        create("table", "//tmp/t")
+        write_table("//tmp/t", [{"a": "b"}])
+        chunk_id = get_singular_chunk_id("//tmp/t")
+
+        set("//sys/@config/node_tracker/max_locations_being_disposed", 0)
+
+        with Restarter(self.Env, NODES_SERVICE, wait_offline=False):
+            wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 0)
+            set("//sys/@config/node_tracker/max_locations_being_disposed", 10)
+
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 3)
+
 
 ##################################################################
 
@@ -918,6 +943,14 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
                 "enable_per_location_full_heartbeats": True,
             },
         },
+        "cell_master": {
+            "logging": {
+                "message_level_overrides": {
+                    "Computed regular chunk statistics": "debug",
+                    "Computed chunk statistics on refresh": "debug",
+                },
+            },
+        },
     }
 
     DELTA_NODE_CONFIG = {
@@ -960,6 +993,7 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
                 "pending_restart_lease_timeout": 100000
             },
         })
+        set("//sys/@config/chunk_manager/always_fetch_non_online_replicas", False)
         self._wait_for_profiler_ready()
 
         create("table", "//tmp/t", attributes={"replication_factor": 3})
@@ -985,8 +1019,8 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
         self.Env.start_nodes()
 
         wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "restarted")
-        assert node in get(f"#{chunk_id}/@stored_replicas")
-        assert len(get(f"#{chunk_id}/@stored_replicas")) == 3
+        assert node not in get(f"#{chunk_id}/@stored_replicas")
+        assert len(get(f"#{chunk_id}/@stored_replicas")) == 2
 
         wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "online")
         assert node in get(f"#{chunk_id}/@stored_replicas")
@@ -1237,6 +1271,7 @@ class TestNoDisposalForRestartingNodesSequoia(TestNoDisposalForRestartingNodes):
             "sequoia_chunk_replicas": {
                 "enable": True,
                 "enable_sequoia_chunk_refresh": True,
+                "enable_global_sequoia_chunk_refresh": False,  # TODO(grphil): Do not apply DELTA_DYNAMIC_MASTER_CONFIG to ground
                 "sequoia_chunk_refresh_period": 100,
                 "replicas_percentage": 100,
                 "fetch_replicas_from_sequoia": True,
@@ -1261,6 +1296,7 @@ class TestNoDisposalForRestartingNodesSequoiaOnly(TestNoDisposalForRestartingNod
             "sequoia_chunk_replicas": {
                 "enable": True,
                 "enable_sequoia_chunk_refresh": True,
+                "enable_global_sequoia_chunk_refresh": False,  # TODO(grphil): Do not apply DELTA_DYNAMIC_MASTER_CONFIG to ground
                 "replicas_percentage": 100,
                 "fetch_replicas_from_sequoia": True,
                 "store_sequoia_replicas_on_master": False,
@@ -1369,11 +1405,12 @@ class TestChunkServerMulticell(TestChunkServer):
 
     @authors("babenko")
     def test_validate_chunk_host_cell_role1(self):
-        set("//sys/@config/multicell_manager/cell_descriptors", {"12": {"roles": ["cypress_node_host"]}})
+        set("//sys/@config/multicell_manager/cell_descriptors/12", {"roles": ["cypress_node_host"]})
         with raises_yt_error("cannot host chunks"):
             create("table", "//tmp/t", attributes={"external": True, "external_cell_tag": 12})
 
     @authors("aleksandra-zh")
+    @cannot_be_implemented_in_sequoia("to be dropped")
     def test_validate_chunk_host_cell_role2(self):
         set("//sys/@config/multicell_manager/cell_descriptors", {})
         with raises_yt_error("cannot host chunks"):
@@ -1410,17 +1447,18 @@ class TestChunkServerMulticell(TestChunkServer):
         assert len(chunk_ids) == 1
         chunk_id = chunk_ids[0]
 
-        assert_items_equal(get("#" + chunk_id + "/@owning_nodes"), ["//tmp/t0", "//tmp/t1", "//tmp/t2"])
+        expected = ["//tmp/t0", "//tmp/t1", "//tmp/t2"]
+        wait(lambda: are_items_equal(get("#" + chunk_id + "/@owning_nodes"), expected))
 
     @authors("cherepashka")
     @pytest.mark.parametrize("to_concatenate", [True, False])
     def test_owning_nodes4(self, to_concatenate):
         def check_owning_nodes(object_id, owning_nodes):
-            cell_indicies = {0}  # primary cell
-            cell_indicies.add(get(f"#{object_id}/@native_cell_tag") - 10)
+            cell_indices = {0}  # primary cell
+            cell_indices.add(get(f"#{object_id}/@native_cell_tag") - 10)
 
-            print_debug(f"Will check #{object_id} for {cell_indicies} cells")
-            for cell_index in cell_indicies:
+            print_debug(f"Will check #{object_id} for {cell_indices} cells")
+            for cell_index in cell_indices:
                 print_debug(f"Check #{object_id} for master cell {cell_index}, expect {owning_nodes} owning nodes")
                 wait(lambda: are_items_equal(get(f"#{object_id}/@owning_nodes", driver=get_driver(cell_index)), owning_nodes))
 
@@ -1469,10 +1507,13 @@ class TestChunkServerMulticell(TestChunkServer):
 
     @authors("h0pless")
     def test_dedicated_chunk_host_roles_only(self):
+        # NB: Do not drop the "sequoia_node_host" role from cells to avoid
+        # the "cannot host Sequoia nodes" error.
         set("//sys/@config/multicell_manager/cell_descriptors", {
+            "10": {"roles": ["sequoia_node_host"]},
             "11": {"roles": ["dedicated_chunk_host", "cypress_node_host"]},
             "12": {"roles": ["dedicated_chunk_host"]},
-            "13": {"roles": ["dedicated_chunk_host"]}})
+            "13": {"roles": ["dedicated_chunk_host", "sequoia_node_host"]}})
 
         with raises_yt_error("No secondary masters with a chunk host role were found"):
             create("table", "//tmp/t", attributes={
@@ -1488,8 +1529,10 @@ class TestChunkServerMulticell(TestChunkServer):
         chunk_host_cell_tag = 11
 
         set("//sys/@config/multicell_manager/cell_descriptors", {
+            "10": {"roles": ["sequoia_node_host"]},
             "11": {"roles": ["chunk_host", "cypress_node_host"]},
-            "12": {"roles": ["dedicated_chunk_host"]}})
+            "12": {"roles": ["dedicated_chunk_host"]},
+            "13": {"roles": ["sequoia_node_host"]}})
 
         create("table", "//tmp/t1", attributes={
             "schema": [
@@ -1546,16 +1589,16 @@ class TestChunkServerMulticell(TestChunkServer):
     @authors("cherepashka")
     def test_revoke_chunk_host_role_validation(self):
         set("//sys/@config/multicell_manager/allow_master_cell_role_invariant_check", True)
-        set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["chunk_host", "cypress_node_host"]}})
+        set("//sys/@config/multicell_manager/cell_descriptors/11", {"roles": ["chunk_host", "cypress_node_host"]})
         create("table", "//tmp/t", attributes={"external_cell_tag": 11})
         for i in range(10):
             write_table("<append=%true>//tmp/t", [{"a": i}])
         with raises_yt_error("it still hosts chunks"):
-            set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["cypress_node_host"]}})
+            set("//sys/@config/multicell_manager/cell_descriptors/11", {"roles": ["cypress_node_host"]})
 
-        set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["dedicated_chunk_host", "cypress_node_host"]}})
+        set("//sys/@config/multicell_manager/cell_descriptors/11", {"roles": ["dedicated_chunk_host", "cypress_node_host"]})
         with raises_yt_error("it still hosts chunks"):
-            set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["cypress_node_host"]}})
+            set("//sys/@config/multicell_manager/cell_descriptors/11", {"roles": ["cypress_node_host"]})
 
 
 class TestChunkServerPortal(TestChunkServerMulticell):
@@ -1565,6 +1608,21 @@ class TestChunkServerPortal(TestChunkServerMulticell):
         "11": {"roles": ["chunk_host", "cypress_node_host"]},
         "12": {"roles": ["chunk_host"]},
         "13": {"roles": ["chunk_host"]},
+    }
+
+
+@pytest.mark.enabled_multidaemon
+class TestChunkServerSequoia(TestChunkServerMulticell):
+    ENABLE_MULTIDAEMON = True
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host", "sequoia_node_host"]},
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+        "13": {"roles": ["chunk_host", "sequoia_node_host"]},
     }
 
 
@@ -2232,7 +2290,7 @@ class TestConsistentChunkReplicaPlacementSnapshotLoading(TestConsistentChunkRepl
 
         replicas_before = get("#{}/@stored_replicas".format(chunk_ids[0]))
 
-        build_snapshot(cell_id=None)
+        build_snapshot(cell_id=get("//sys/@cell_id"))
 
         with Restarter(self.Env, MASTERS_SERVICE):
             pass
@@ -2380,7 +2438,7 @@ class TestChunkWeightStatisticsHistogram(YTEnvSetup):
 
         next(checker_state)
 
-        build_snapshot(cell_id=None)
+        build_snapshot(cell_id=get("//sys/@cell_id"))
 
         with Restarter(self.Env, MASTERS_SERVICE):
             pass

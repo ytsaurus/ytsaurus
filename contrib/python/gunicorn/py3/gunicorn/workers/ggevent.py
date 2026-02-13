@@ -11,11 +11,11 @@ import time
 try:
     import gevent
 except ImportError:
-    raise RuntimeError("gevent worker requires gevent 1.4 or higher")
+    raise RuntimeError("gevent worker requires gevent 24.10.1 or higher")
 else:
     from packaging.version import parse as parse_version
-    if parse_version(gevent.__version__) < parse_version('1.4'):
-        raise RuntimeError("gevent worker requires gevent 1.4 or higher")
+    if parse_version(gevent.__version__) < parse_version('24.10.1'):
+        raise RuntimeError("gevent worker requires gevent 24.10.1 or higher")
 
 from gevent.pool import Pool
 from gevent.server import StreamServer
@@ -41,7 +41,7 @@ class GeventWorker(AsyncWorker):
         sockets = []
         for s in self.sockets:
             sockets.append(socket.socket(s.FAMILY, socket.SOCK_STREAM,
-                                         fileno=s.sock.fileno()))
+                                         fileno=s.sock.detach()))
         self.sockets = sockets
 
     def notify(self):
@@ -89,10 +89,7 @@ class GeventWorker(AsyncWorker):
         try:
             # Stop accepting requests
             for server in servers:
-                if hasattr(server, 'close'):  # gevent 1.0
-                    server.close()
-                if hasattr(server, 'kill'):  # gevent < 1.0
-                    server.kill()
+                server.close()
 
             # Handle current requests until graceful_timeout
             ts = time.time()
@@ -109,7 +106,7 @@ class GeventWorker(AsyncWorker):
                 self.notify()
                 gevent.sleep(1.0)
 
-            # Force kill all active the handlers
+            # Force kill all the active handlers
             self.log.warning("Worker graceful timeout (pid:%s)", self.pid)
             for server in servers:
                 server.stop(timeout=1)

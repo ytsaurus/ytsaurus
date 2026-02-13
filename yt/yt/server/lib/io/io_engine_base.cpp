@@ -471,6 +471,25 @@ int TIOEngineBase::GetLockOp(ELockFileMode mode)
     }
 }
 
+TSharedMutableRef TIOEngineBase::AllocateWriteBlob(
+    i64 size,
+    i64 directIoBlockSize)
+{
+    TSharedMutableRef hugePageBlob;
+    if (HugePageManager_ && HugePageManager_->IsEnabled() && HugePageManager_->GetHugePageBlobSize() >= size) {
+        auto hugePageBlobReservingResult = HugePageManager_->ReserveHugePageBlob();
+        if (hugePageBlobReservingResult.IsOK()) {
+            hugePageBlob = hugePageBlobReservingResult.Value();
+        } else {
+            YT_LOG_DEBUG(hugePageBlobReservingResult, "Failed to reserve huge page blob");
+            return TSharedMutableRef::AllocateAligned(size, directIoBlockSize, {.InitializeStorage = false}, {});
+        }
+    } else {
+        return TSharedMutableRef::AllocateAligned(size, directIoBlockSize, {.InitializeStorage = false}, {});
+    }
+    return hugePageBlob;
+}
+
 TSharedMutableRef TIOEngineBase::AllocateHugeBlob()
 {
     TSharedMutableRef hugePageBlob;

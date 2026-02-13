@@ -423,6 +423,7 @@ func (a *API) Create(
 
 	txOptions := &yt.TransactionOptions{TransactionID: tx.ID()}
 
+	acl, _ := acoOptions.Attributes["principal_acl"].([]yt.ACE)
 	// Create "main" node.
 	_, err = a.Ytc.CreateNode(
 		ctx,
@@ -432,6 +433,7 @@ func (a *API) Create(
 				"strawberry_persistent_state": map[string]any{
 					"creator": user,
 				},
+				"acl": acl,
 			},
 			TransactionOptions: txOptions,
 		})

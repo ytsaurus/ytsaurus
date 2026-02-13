@@ -137,8 +137,8 @@ void TPartitionChunkReader::InitFirstBlock()
             FromProto<EChunkFormat>(ChunkMeta_->format()),
             FromProto<EChunkFeatures>(ChunkMeta_->features()),
             schema),
-        /*hunkChunkMetasExt*/ {},
-        /*hunkChunkRefsExt*/ {},
+        /*hunkChunkMetasExt*/ nullptr,
+        /*hunkChunkRefsExt*/ nullptr,
         ChunkToReaderIdMapping_,
         SortOrders_,
         SortOrders_.size(),
@@ -201,7 +201,7 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
         multiReaderMemoryManager = CreateParallelReaderMemoryManager(
             TParallelReaderMemoryManagerOptions{
                 .TotalReservedMemorySize = config->MaxBufferSize,
-                .MaxInitialReaderReservedMemory = config->WindowSize
+                .MaxInitialReaderReservedMemory = config->WindowSize,
             },
             NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
     }

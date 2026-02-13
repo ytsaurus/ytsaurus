@@ -199,6 +199,8 @@ protected:
             TColumnSchema("key_ui64", EValueType::Uint64).SetSortOrder(ESortOrder::Ascending),
             TColumnSchema("key_dbl", EValueType::Double).SetSortOrder(ESortOrder::Ascending),
             TColumnSchema("key_str", EValueType::String).SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("key_ts", ESimpleLogicalValueType::Timestamp).SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("key_ts64", ESimpleLogicalValueType::Timestamp64).SetSortOrder(ESortOrder::Ascending),
             TColumnSchema("value1", EValueType::Int64),
             TColumnSchema("value2", EValueType::Int64)});
     }
@@ -211,7 +213,7 @@ TEST_P(TQueryTreeConverterTest, Simple)
     auto context = CreateQueryContext();
 
     auto compositeSettings = TCompositeSettings::Create(true);
-    auto columns = DB::ColumnsDescription(ToNamesAndTypesList(*schema, compositeSettings));
+    auto columns = DB::ColumnsDescription(ToNamesAndTypesList(*schema, /*columnAttributes*/ {}, compositeSettings));
     auto storage = std::make_shared<DB::StorageDummy>(DB::StorageID{"YT", "test"}, columns);
 
     auto tableNode = std::make_shared<DB::TableNode>(storage, context);
@@ -260,7 +262,17 @@ INSTANTIATE_TEST_SUITE_P(
             MakeBinaryExpression(EBinaryOp::Equal,
                 MakeReferenceExpression("key_str"),
                 MakeLiteralExpression(MakeUnversionedStringValue("90"))),
-            "key_str = \'90\'")
+            "key_str = \'90\'"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            MakeBinaryExpression(EBinaryOp::Equal,
+                MakeReferenceExpression("key_ts"),
+                MakeLiteralExpression(MakeUnversionedUint64Value(90000000))),
+            "key_ts = 90"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            MakeBinaryExpression(EBinaryOp::Equal,
+                MakeReferenceExpression("key_ts64"),
+                MakeLiteralExpression(MakeUnversionedInt64Value(90000000))),
+            "key_ts64 = 90")
     )
 );
 

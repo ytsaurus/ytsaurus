@@ -1,5 +1,5 @@
 # sql/_typing.py
-# Copyright (C) 2022-2025 the SQLAlchemy authors and contributors
+# Copyright (C) 2022-2026 the SQLAlchemy authors and contributors
 # <see AUTHORS file>
 #
 # This module is part of SQLAlchemy and is released under
@@ -186,6 +186,19 @@ _T8 = TypeVar("_T8", bound=Any)
 _T9 = TypeVar("_T9", bound=Any)
 
 
+_OnlyColumnArgument = Union[
+    "ColumnElement[_T]",
+    _HasClauseElement[_T],
+    roles.DMLColumnRole,
+]
+"""A narrow type that is looking for a ColumnClause (e.g. table column with a
+name) or an ORM element that produces this.
+
+This is used for constructs that need a named column to represent a
+position in a selectable, like TextClause().columns() or values(...).
+
+"""
+
 _ColumnExpressionArgument = Union[
     "ColumnElement[_T]",
     _HasClauseElement[_T],
@@ -228,6 +241,7 @@ _InfoType = Dict[Any, Any]
 
 _FromClauseArgument = Union[
     roles.FromClauseRole,
+    roles.TypedColumnsClauseRole[Any],
     Type[Any],
     Inspectable[_HasClauseElement[Any]],
     _HasClauseElement[Any],

@@ -30,8 +30,11 @@ message TReqExecuteExt
 message TReqExecute
 {
     required TQuery query = 1;
+
     repeated TExternalFunctionImpl external_functions = 5;
     required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 6;
+    optional TExternalSdkImpl sdk = 9;
+
     required TQueryOptions options = 2;
     repeated TDataSource data_sources = 3;
     // TODO(kiselyovp) move codec to header

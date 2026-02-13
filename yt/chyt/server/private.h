@@ -45,10 +45,23 @@ constexpr int YqlOperationIdLength = 24;
 
 constexpr int MaxSupportedCHDecimalPrecision = 76;
 
-extern const TString CacheUserName;
-extern const TString ChytSqlObjectsUserName;
-extern const TString InternalRemoteUserName;
+DEFINE_ENUM(ELowCardinalityMode,
+    (None)
+    (FromStatistics)
+    (StringOnly)
+    (All)
+);
+
+constexpr std::string_view LowCardinalityAttribute = "low_cardinality";
+
+extern const std::string CacheUserName;
+extern const std::string ChytSqlObjectsUserName;
+extern const std::string InternalRemoteUserName;
+
+//! Contains the main attributes of the table that are used in CHYT, with the exception of schema and schema_id.
 extern const std::vector<std::string> TableAttributesToFetch;
+extern const std::string TableSchemaAttribute;
+extern const std::string TableSchemaIdAttribute;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -98,7 +111,6 @@ DECLARE_REFCOUNTED_STRUCT(IClickHouseHost)
 DECLARE_REFCOUNTED_STRUCT(IClickHouseServer)
 DECLARE_REFCOUNTED_CLASS(TQuerySettings)
 DECLARE_REFCOUNTED_CLASS(THost)
-DECLARE_REFCOUNTED_STRUCT(TSecurityManagerConfig)
 DECLARE_REFCOUNTED_STRUCT(TLauncherConfig)
 DECLARE_REFCOUNTED_STRUCT(TMemoryConfig)
 DECLARE_REFCOUNTED_CLASS(TMemoryWatchdog)
@@ -123,6 +135,8 @@ DECLARE_REFCOUNTED_STRUCT(TReadPlanWithFilter)
 DECLARE_REFCOUNTED_CLASS(TSecondaryQueryReadTaskPuller)
 DECLARE_REFCOUNTED_CLASS(TSecondaryQueryReadTaskIterator)
 DECLARE_REFCOUNTED_CLASS(TCypressDictionaryConfigRepository)
+DECLARE_REFCOUNTED_CLASS(TTableSchemaCache)
+DECLARE_REFCOUNTED_CLASS(TCachedTableSchema)
 
 struct TValue;
 struct TSubquerySpec;

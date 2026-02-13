@@ -143,8 +143,6 @@ using TSerializedTabletOwnerSettings = std::variant<
 >;
 
 extern const std::string DefaultTabletCellBundleName;
-extern const std::string SequoiaChunksTabletCellBundleName;
-extern const std::string SequoiaCypressTabletCellBundleName;
 
 extern const TTimeFormula DefaultTabletBalancerSchedule;
 

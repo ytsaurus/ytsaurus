@@ -1,4 +1,5 @@
 from collections.abc import Iterable, Mapping
+from datetime import timezone
 from inspect import isclass, ismethod
 from uuid import uuid4
 
@@ -11,6 +12,8 @@ from apscheduler.util import (
     obj_to_ref,
     ref_to_obj,
 )
+
+UTC = timezone.utc
 
 
 class Job:
@@ -38,21 +41,21 @@ class Job:
     """
 
     __slots__ = (
-        "_scheduler",
+        "__weakref__",
         "_jobstore_alias",
-        "id",
-        "trigger",
+        "_scheduler",
+        "args",
+        "coalesce",
         "executor",
         "func",
         "func_ref",
-        "args",
+        "id",
         "kwargs",
-        "name",
-        "misfire_grace_time",
-        "coalesce",
         "max_instances",
+        "misfire_grace_time",
+        "name",
         "next_run_time",
-        "__weakref__",
+        "trigger",
     )
 
     def __init__(self, scheduler, id=None, **kwargs):
@@ -145,7 +148,7 @@ class Job:
         """
         run_times = []
         next_run_time = self.next_run_time
-        while next_run_time and next_run_time <= now:
+        while next_run_time and next_run_time.astimezone(UTC) <= now.astimezone(UTC):
             run_times.append(next_run_time)
             next_run_time = self.trigger.get_next_fire_time(next_run_time, now)
 

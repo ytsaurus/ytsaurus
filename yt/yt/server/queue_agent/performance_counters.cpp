@@ -10,14 +10,14 @@ const TEmaCounterWindowDurations<TPerformanceCounters::WindowCount> TPerformance
     TDuration::Days(1),
 };
 
-TPerformanceCounters& operator +=(TPerformanceCounters& lhs, const TPerformanceCounters& rhs)
+TPerformanceCounters& operator+=(TPerformanceCounters& lhs, const TPerformanceCounters& rhs)
 {
     lhs.RowCount += rhs.RowCount;
     lhs.DataWeight += rhs.DataWeight;
     return lhs;
 }
 
-TPerformanceCounters& operator *(TPerformanceCounters& lhs, double coefficient)
+TPerformanceCounters& operator*(TPerformanceCounters& lhs, double coefficient)
 {
     lhs.RowCount *= coefficient;
     lhs.DataWeight *= coefficient;

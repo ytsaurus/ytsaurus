@@ -34,10 +34,9 @@ struct IBootstrap
     virtual const NApi::NNative::IClientPtr& GetNativeRootClient() const = 0;
 
     virtual bool IsSequoiaEnabled() const = 0;
-    virtual NSequoiaClient::ISequoiaClientPtr GetSequoiaClient() const = 0;
+    virtual const NSequoiaClient::ISequoiaConnectionPtr& GetSequoiaConnection() const = 0;
 
     virtual NApi::IClientPtr GetRootClient() const = 0;
-
     virtual const ISequoiaResponseKeeperPtr& GetResponseKeeper() const = 0;
 
     virtual const IMasterConnectorPtr& GetMasterConnector() const = 0;

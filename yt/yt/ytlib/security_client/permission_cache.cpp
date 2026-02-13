@@ -49,7 +49,7 @@ TPermissionKey::operator size_t() const
     return result;
 }
 
-bool TPermissionKey::operator == (const TPermissionKey& other) const
+bool TPermissionKey::operator==(const TPermissionKey& other) const
 {
     return
         Path == other.Path &&
@@ -97,7 +97,7 @@ TPermissionCache::TPermissionCache(
     NProfiling::TProfiler profiler)
     : TAsyncExpiringCache(
         config,
-        NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker(),
+        NRpc::TDispatcher::Get()->GetHeavyInvoker(),
         SecurityClientLogger().WithTag("Cache: Permission"),
         std::move(profiler))
     , Config_(std::move(config))
@@ -111,7 +111,7 @@ TFuture<TPermissionValue> TPermissionCache::DoGet(const TPermissionKey& key, boo
         return MakeFuture<TPermissionValue>(TError(NYT::EErrorCode::Canceled, "Connection destroyed"));
     }
 
-    if (auto error = TryGetShouldNotPointToAttributesError(key.Path); !error.IsOK()) {
+    if (auto error = CheckPathDoesNotPointToAttributes(key.Path); !error.IsOK()) {
         return MakeFuture<TPermissionValue>(std::move(error));
     }
 
@@ -156,7 +156,7 @@ TFuture<std::vector<TErrorOr<TPermissionValue>>> TPermissionCache::DoGetMany(
     std::vector<bool> isResultSet(keys.size(), false);
     int validPathsCount = 0;
     for (const auto& [index, key] : SEnumerate(keys)) {
-        if (auto error = TryGetShouldNotPointToAttributesError(key.Path); !error.IsOK()) {
+        if (auto error = CheckPathDoesNotPointToAttributes(key.Path); !error.IsOK()) {
             results[index] = std::move(error);
             isResultSet[index] = true;
         } else {
@@ -282,13 +282,12 @@ TErrorOr<TPermissionValue> TPermissionCache::ParseCheckPermissionResponse(
                 .RowLevelAcl = FromProto<std::vector<TRowLevelAccessControlEntry>>(rsp->row_level_acl().items()),
             };
         } else {
-            auto error = TError(
+            return TError(
                 NSecurityClient::EErrorCode::AuthorizationError,
                 "Access denied for user %Qv: row-level ACL is present, but is not supported by this method yet",
-                key.User);
-            error <<= TErrorAttribute("user", key.User);
-            error <<= TErrorAttribute("permission", key.Permission);
-            return error;
+                key.User)
+                << TErrorAttribute("user", key.User)
+                << TErrorAttribute("permission", key.Permission);
         }
     }
 

@@ -244,7 +244,7 @@ protected:
     static TString GetRelativeChunkPath(TChunkId chunkId);
     static void ForceHashDirectories(const TString& rootPath);
 
-    virtual bool ShouldSkipFileName(const TString& fileName) const;
+    virtual bool ShouldSkipFileName(const std::string& fileName) const;
 
     virtual void DoStart();
     virtual std::vector<TChunkDescriptor> DoScan();

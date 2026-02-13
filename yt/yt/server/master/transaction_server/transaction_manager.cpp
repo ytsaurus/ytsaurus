@@ -547,7 +547,12 @@ public:
         auto transactionId = objectManager->GenerateId(transactionObjectType, hintId);
 
         auto transactionHolder = TPoolAllocator::New<TTransaction>(transactionId, upload);
-        auto* transaction = TransactionMap_.Insert(transactionId, std::move(transactionHolder));
+        // COMPAT(shakurov): this is a hotfix. Replace TryInsert with Insert and remove TryInsert altogether.
+        auto [transaction, inserted] = TransactionMap_.TryInsert(transactionId, std::move(transactionHolder));
+        if (!inserted) {
+            YT_LOG_ALERT("Skipped duplicate transaction start (TransactionId: %v)", transactionId);
+            return transaction;
+        }
 
         // Every active transaction has a fake reference to itself.
         YT_VERIFY(transaction->RefObject() == 1);
@@ -619,7 +624,13 @@ public:
         auto* user = securityManager->GetAuthenticatedUser();
         transaction->Acd().SetOwner(user);
 
-        objectManager->FillAttributes(transaction, attributes);
+        try {
+            objectManager->FillAttributes(transaction, attributes);
+        } catch (const std::exception& ex) {
+            FinishTransaction(transaction);
+
+            throw;
+        }
 
         if (!replicatedToCellTags.empty()) {
             // Never include native cell tag into ReplicatedToCellTags.
@@ -677,6 +688,7 @@ public:
                 if (!transaction->IsReplicatedToCell(cellTag)) {
                     alreadyReplicated = false;
                     transaction->ReplicatedToCellTags().push_back(cellTag);
+                    SortUnique(transaction->ReplicatedToCellTags());
                 }
             }
             if (alreadyReplicated) {
@@ -1104,6 +1116,7 @@ public:
                         continue;
                     }
                     currentTransaction->ReplicatedToCellTags().push_back(dstCellTag);
+                    SortUnique(currentTransaction->ReplicatedToCellTags());
                 }
 
                 transactionsToDstCells.back().second.push_back(dstCellTag);
@@ -1463,7 +1476,7 @@ public:
             cellIdsToSyncWith.empty() &&
             !transactionIdToRevokeLeases)
         {
-            return VoidFuture;
+            return OKFuture;
         }
 
         std::vector<TFuture<void>> asyncResults;
@@ -3308,7 +3321,7 @@ private:
             case ETransactionLeasesState::Revoking:
                 return transaction->LeasesRevokedPromise().ToFuture().ToUncancelable();
             case ETransactionLeasesState::Revoked:
-                return VoidFuture;
+                return OKFuture;
         }
     }
 
@@ -3665,7 +3678,7 @@ private:
     {
         const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
         if (!transactionSupervisor) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         return transactionSupervisor->WaitUntilPreparedTransactionsFinished();
@@ -3679,7 +3692,7 @@ private:
             GetObjectId(transaction->GetParent()),
             transaction->GetTimeout(),
             transaction->GetDeadline(),
-            BIND(&TTransactionManager::OnTransactionExpired, MakeStrong(this))
+            BIND_NO_PROPAGATE(&TTransactionManager::OnTransactionExpired, MakeStrong(this))
                 .Via(hydraFacade->GetEpochAutomatonInvoker(EAutomatonThreadQueue::TransactionSupervisor)));
     }
 
@@ -3782,7 +3795,7 @@ private:
         if (!IsObjectAlive(transaction) ||
             transaction->GetPersistentState() != ETransactionState::Active)
         {
-            return VoidFuture;
+            return OKFuture;
         }
 
         if (transaction->GetTransactionLeasesState() == ETransactionLeasesState::Active) {
@@ -3791,7 +3804,7 @@ private:
                 "(TransactionId: %v, LeasesState: %v)",
                 transaction->GetId(),
                 transaction->GetTransactionLeasesState());
-            return VoidFuture;
+            return OKFuture;
         }
 
         if (GetDynamicConfig()->Testing->ThrowOnLeaseRevocation) {
@@ -3883,6 +3896,10 @@ private:
         const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
         if (transactionSupervisor) {
             transactionSupervisor->OnProfiling(&buffer);
+        }
+
+        if (const auto& transactionFinisher = Bootstrap_->GetTransactionFinisher()) {
+            transactionFinisher->OnProfiling(&buffer);
         }
 
         BufferedProducer_->Update(std::move(buffer));

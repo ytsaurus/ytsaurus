@@ -613,6 +613,7 @@ void SerializationObject::serializeBinaryBulkWithMultipleStreams(
     }
 
     const auto & column_object = assert_cast<const ColumnObject &>(column);
+    column_object.validateDynamicPathsSizes();
     const auto & typed_paths = column_object.getTypedPaths();
     const auto & dynamic_paths = column_object.getDynamicPaths();
     const auto & shared_data = column_object.getSharedDataPtr();
@@ -791,10 +792,13 @@ void SerializationObject::deserializeBinaryBulkWithMultipleStreams(
         settings.path.pop_back();
     }
 
+    size_t shared_data_previous_size = shared_data->size();
     settings.path.push_back(Substream::ObjectSharedData);
     shared_data_serialization->deserializeBinaryBulkWithMultipleStreams(shared_data, limit, settings, object_state->shared_data_state, cache);
     settings.path.pop_back();
     settings.path.pop_back();
+
+    column_object.repairDuplicatesInDynamicPathsAndSharedData(shared_data_previous_size);
 }
 
 void SerializationObject::serializeBinary(const Field & field, WriteBuffer & ostr, const DB::FormatSettings & settings) const
@@ -830,8 +834,12 @@ void SerializationObject::serializeBinary(const IColumn & col, size_t row_num, W
     size_t offset = shared_data_offsets[ssize_t(row_num) - 1];
     size_t end = shared_data_offsets[ssize_t(row_num)];
 
+    /// Calculate number of non-null dynamic paths.
+    size_t non_null_dynamic_pats = 0;
+    for (const auto & [_, column] : dynamic_paths)
+        non_null_dynamic_pats += !column->isNullAt(row_num);
     /// Serialize number of paths and then pairs (path, value).
-    writeVarUInt(typed_paths.size() + dynamic_paths.size() + (end - offset), ostr);
+    writeVarUInt(typed_paths.size() + non_null_dynamic_pats + (end - offset), ostr);
 
     for (const auto & [path, column] : typed_paths)
     {
@@ -841,8 +849,11 @@ void SerializationObject::serializeBinary(const IColumn & col, size_t row_num, W
 
     for (const auto & [path, column] : dynamic_paths)
     {
-        writeStringBinary(path, ostr);
-        dynamic_serialization->serializeBinary(*column, row_num, ostr, settings);
+        if (!column->isNullAt(row_num))
+        {
+            writeStringBinary(path, ostr);
+            dynamic_serialization->serializeBinary(*column, row_num, ostr, settings);
+        }
     }
 
     const auto [shared_data_paths, shared_data_values] = column_object.getSharedDataPathsAndValues();
@@ -976,11 +987,12 @@ void SerializationObject::deserializeBinary(IColumn & col, ReadBuffer & istr, co
                 /// Otherwise this path should go to shared data.
                 else
                 {
-                    auto tmp_dynamic_column = ColumnDynamic::create();
-                    tmp_dynamic_column->reserve(1);
                     String value;
-                    readParsedValueIntoString(value, istr, [&](ReadBuffer & buf){ dynamic_serialization->deserializeBinary(*tmp_dynamic_column, buf, settings); });
-                    paths_and_values_for_shared_data.emplace_back(std::move(path), std::move(value));
+                    Field field;
+                    readParsedValueIntoString(value, istr, [&](ReadBuffer & buf){ dynamic_serialization->deserializeBinary(field, buf, settings); });
+                    /// Don't write nulls into shared data.
+                    if (!field.isNull())
+                        paths_and_values_for_shared_data.emplace_back(std::move(path), std::move(value));
                 }
             }
             else

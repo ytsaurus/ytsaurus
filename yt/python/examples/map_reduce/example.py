@@ -5,11 +5,8 @@ import os
 
 import yt.wrapper
 
-
-#
-# Для того чтобы запустить операцию mapreduce, нам нужны обычные маппер и редьюсер
-# (их даже можно использовать в других местах в отдельных операциях map/reduce).
-#
+# Use standard mapper and reducer to run mapreduce operation.
+# You can use them in other parts for standalone operations map/reduce also.
 
 
 def normalize_name_mapper(row):
@@ -36,9 +33,8 @@ def main():
 
     output_table = "//tmp/{}-pytutorial-name-stat".format(getpass.getuser())
 
-    # Запуск операции MapReduce несильно отличается от запуска других операций.
-    # Нам надо указать список ключей, по которым мы будем редьюсить,
-    # а так же маппер и редьюсер.
+    # Running MapReduce operation looks like running other operations.
+    # Specify keys list for reducing and mapper and reducer also.
     client.run_map_reduce(
         normalize_name_mapper,
         count_names_reducer,

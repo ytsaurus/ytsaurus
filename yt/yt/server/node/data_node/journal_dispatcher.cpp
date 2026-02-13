@@ -46,7 +46,7 @@ struct TCachedChangelogKey
     }
 
     // Comparer.
-    bool operator == (const TCachedChangelogKey& other) const
+    bool operator==(const TCachedChangelogKey& other) const
     {
         return
             Location == other.Location &&
@@ -138,8 +138,10 @@ public:
 
     ~TCachedChangelog()
     {
-        YT_LOG_DEBUG("Cached changelog destroyed (LocationId: %v, ChunkId: %v)",
+        YT_LOG_DEBUG("Cached changelog destroyed (LocationId: %v, LocationUuid: %v, LocationIndex: %v, ChunkId: %v)",
             Location_->GetId(),
+            Location_->GetUuid(),
+            Location_->GetIndex(),
             ChunkId_);
     }
 
@@ -201,7 +203,7 @@ public:
                     })));
                 }
 
-                return RejectedMultiplexedAppends_ ? flushResult : VoidFuture;
+                return RejectedMultiplexedAppends_ ? flushResult : OKFuture;
             }))
             .ToUncancelable();
     }
@@ -366,8 +368,10 @@ void TJournalDispatcher::OnAdded(const TCachedChangelogPtr& changelog)
     TAsyncSlruCacheBase::OnAdded(changelog);
 
     auto key = changelog->GetKey();
-    YT_LOG_DEBUG("Changelog added to cache (LocationId: %v, ChunkId: %v)",
+    YT_LOG_DEBUG("Changelog added to cache (LocationId: %v, LocationUuid: %v, LocationIndex: %v, ChunkId: %v)",
         key.Location->GetId(),
+        key.Location->GetUuid(),
+        key.Location->GetIndex(),
         key.ChunkId);
 }
 
@@ -378,8 +382,10 @@ void TJournalDispatcher::OnRemoved(const TCachedChangelogPtr& changelog)
     TAsyncSlruCacheBase::OnRemoved(changelog);
 
     auto key = changelog->GetKey();
-    YT_LOG_DEBUG("Changelog removed from cache (LocationId: %v, ChunkId: %v)",
+    YT_LOG_DEBUG("Changelog removed from cache (LocationId: %v, LocationUuid: %v, LocationIndex: %v, ChunkId: %v)",
         key.Location->GetId(),
+        key.Location->GetUuid(),
+        key.Location->GetIndex(),
         key.ChunkId);
 }
 

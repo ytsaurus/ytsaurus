@@ -40,6 +40,8 @@
 
 #include <yt/yt/core/net/address.h>
 
+#include <yt/yt/core/ypath/token.h>
+
 #include <atomic>
 
 namespace NYT::NNodeTrackerServer {
@@ -169,6 +171,18 @@ int TNode::GetConsistentReplicaPlacementTokenCount(int mediumIndex) const
 {
     auto it = ConsistentReplicaPlacementTokenCount_.find(mediumIndex);
     return it == ConsistentReplicaPlacementTokenCount_.end() ? 0 : it->second;
+}
+
+void TNode::ValidateAllMasterCellsAreReliable() const
+{
+    for (const auto& [cellTag, descriptor] : MulticellDescriptors_) {
+        if (!descriptor.IsReliable()) {
+            THROW_ERROR_EXCEPTION("Node %v thinks cell %v is in %v state, so it is unreliable",
+                GetDefaultAddress(),
+                cellTag,
+                descriptor.CellReliability);
+        }
+    }
 }
 
 void TNode::ComputeAggregatedState()
@@ -428,6 +442,7 @@ void TNode::InitializeStates(
     const THashSet<TCellTag>& dynamicallyPropagatedMastersCellTags,
     bool allowMasterCellRemoval)
 {
+    // MulticellDescriptors_ are only needed for primary, do something with it.
     auto addCell = [&] (TCellTag cellTag) {
         if (!MulticellDescriptors_.contains(cellTag)) {
             auto reliability = dynamicallyPropagatedMastersCellTags.contains(cellTag)
@@ -499,11 +514,12 @@ void TNode::SetLocalState(ENodeState state)
 {
     if (LocalDescriptorPtr_->State != state) {
         LocalDescriptorPtr_->State = state;
-        ComputeAggregatedState();
 
         if (state == ENodeState::Unregistered) {
             ClearCellStatistics();
         }
+
+        ComputeAggregatedState();
     }
 }
 
@@ -520,9 +536,8 @@ ECellAggregatedStateReliability TNode::GetLocalCellAggregatedStateReliability() 
 
 void TNode::SetLocalCellAggregatedStateReliability(ECellAggregatedStateReliability reliability)
 {
-    ValidateReliabilityTransition(LocalDescriptorPtr_->CellReliability, reliability);
-
     if (LocalDescriptorPtr_->CellReliability != reliability) {
+        ValidateReliabilityTransition(LocalDescriptorPtr_->CellReliability, reliability);
         LocalDescriptorPtr_->CellReliability = reliability;
         ComputeAggregatedState();
     }
@@ -632,7 +647,7 @@ std::string TNode::GetCapitalizedObjectName() const
 
 TYPath TNode::GetObjectPath() const
 {
-    return Format("//sys/cluster_nodes/%v", GetDefaultAddress());
+    return Format("//sys/cluster_nodes/%v", NYPath::ToYPathLiteral(GetDefaultAddress()));
 }
 
 void TNode::Save(NCellMaster::TSaveContext& context) const
@@ -670,6 +685,7 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, ConsistentReplicaPlacementTokenCount_);
     Save(context, NextDisposedLocationIndex_);
     Save(context, LastGossipState_);
+    Save(context, NextValidationFullHeartbeatTime_);
 }
 
 namespace {
@@ -726,6 +742,10 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, ConsistentReplicaPlacementTokenCount_);
     Load(context, NextDisposedLocationIndex_);
     Load(context, LastGossipState_);
+    // COMPAT(danilalexeev)
+    if (context.GetVersion() >= EMasterReign::DataNodeValidationFullHeartbeats) {
+        Load(context, NextValidationFullHeartbeatTime_);
+    }
 
     ComputeDefaultAddress();
     ComputeFillFactorsAndTotalSpace();
@@ -915,20 +935,19 @@ void TNode::ValidateReliabilityTransition(
             });
             break;
         case ECellAggregatedStateReliability::StaticallyKnown:
-            maybeLogAlertReliability({ECellAggregatedStateReliability::Unknown});
+            maybeLogAlertReliability({});
             break;
         case ECellAggregatedStateReliability::DuringPropagation:
             maybeLogAlertReliability({
-                ECellAggregatedStateReliability::Unknown,
                 ECellAggregatedStateReliability::DynamicallyDiscovered,
+                ECellAggregatedStateReliability::StaticallyKnown,
             });
             break;
         case ECellAggregatedStateReliability::DynamicallyDiscovered:
             maybeLogAlertReliability({
-                ECellAggregatedStateReliability::Unknown,
-                // Node could re-register and then they should re-discover the new master cell.
+                // On node restart.
                 ECellAggregatedStateReliability::DuringPropagation,
-            });
+                ECellAggregatedStateReliability::StaticallyKnown});
             break;
         default:
             YT_ABORT();
@@ -1163,7 +1182,6 @@ bool TNode::WasValidWriteTarget(EWriteTargetValidityChange reason) const
     auto reportedDataNodeHeartbeat = ReportedDataNodeHeartbeat();
     auto decommissioned = IsDecommissioned();
     auto disableWriteSessions = AreWriteSessionsDisabled();
-
     switch (reason) {
         case EWriteTargetValidityChange::None:
             break;

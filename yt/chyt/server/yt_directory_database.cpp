@@ -112,11 +112,11 @@ private:
             }
         }
 
-        return FetchTables(
+        return FetchTablesSoft(
             queryContext,
             std::move(itemPaths),
             /*skipUnsuitableNodes*/ true,
-            queryContext->Settings->DynamicTable->EnableDynamicStoreRead,
+            queryContext->SessionSettings->DynamicTable->EnableDynamicStoreRead,
             queryContext->Logger);
     }
 
@@ -129,13 +129,13 @@ private:
     TListNodeOptions BuildListTablesOptions(TQueryContext* queryContext) const
     {
         TListNodeOptions options;
-        static_cast<TMasterReadOptions&>(options) = *queryContext->Settings->CypressReadOptions;
+        static_cast<TMasterReadOptions&>(options) = *queryContext->SessionSettings->CypressReadOptions;
         options.Attributes = {
             "path",
         };
         options.SuppressAccessTracking = true;
         options.SuppressExpirationTimeoutRenewal = true;
-        if (queryContext->Settings->Execution->TableReadLockMode == ETableReadLockMode::Sync) {
+        if (queryContext->SessionSettings->Execution->TableReadLockMode == ETableReadLockMode::Sync) {
             options.TransactionId = queryContext->ReadTransactionId;
         }
 

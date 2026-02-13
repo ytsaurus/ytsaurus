@@ -21,6 +21,7 @@ target_compile_options(yt-yt-client-hedging-unittests PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(yt-yt-client-hedging-unittests PUBLIC

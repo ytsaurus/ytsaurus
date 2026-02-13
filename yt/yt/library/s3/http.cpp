@@ -258,7 +258,7 @@ public:
 
     TFuture<void> Start() override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     TFuture<NHttp::IResponsePtr> MakeRequest(THttpRequest request) override
@@ -302,6 +302,7 @@ private:
             Address_,
             Invoker_,
             EMessageType::Response,
+            request.Method,
             Config_);
 
         auto headers = FormHeaders(request);

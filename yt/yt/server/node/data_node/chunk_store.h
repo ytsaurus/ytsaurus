@@ -164,12 +164,16 @@ public:
     //! Returns registered chunks per location. Empty locations are omitted.
     TPerLocationChunkMap GetPerLocationChunks();
 
+    // Same as above, but the caller must hold lock.
+    TPerLocationChunkMap GetPerLocationChunksUnsafe(
+        NThreading::TReaderGuard<NThreading::TReaderWriterSpinLock> guard);
+
     //! Iterates over all registered chunks and checks that their cell tags are from existing master cell tags.
     /*!
      *  \note
      *  Thread affinity: any
      */
-    void CheckAllChunksHaveValidCellTags(THashSet<NObjectClient::TCellTag> masterCellTags) const;
+    void CheckAllChunksHaveValidCellTags(const THashSet<NObjectClient::TCellTag>& masterCellTags) const;
 
     //! Physically removes or move to trash the location chunk. This method called with registering in location actions.
     /*!
@@ -211,6 +215,8 @@ public:
         const TSessionOptions& options);
 
     bool ShouldPublishDisabledLocations();
+
+    NThreading::TReaderGuard<NThreading::TReaderWriterSpinLock> AcquireChunkMapReaderLock();
 
     //! Storage locations.
     DEFINE_BYREF_RO_PROPERTY(std::vector<TStoreLocationPtr>, Locations);
@@ -258,10 +264,6 @@ private:
     // copies are placed on distinct media.
     // Such copies may have different sizes, too.
     THashMultiMap<TChunkId, TChunkEntry> ChunkMap_;
-
-    bool CanStartNewSession(
-        const TStoreLocationPtr& location,
-        int mediumIndex);
 
     bool ShouldChooseLocationBasedOnIOWeight();
 

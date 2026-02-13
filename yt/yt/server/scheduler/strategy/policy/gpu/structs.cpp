@@ -32,6 +32,7 @@ void Serialize(const TAssignment& assignment, NYson::IYsonConsumer* consumer)
             .Item("allocation_group_name").Value(assignment.AllocationGroupName)
             .Item("resource_usage").Value(assignment.ResourceUsage.ToJobResources())
             .Item("creation_time").Value(assignment.CreationTime)
+            .Item("preemptible").Value(assignment.Preemptible)
         .EndMap();
 }
 
@@ -89,13 +90,21 @@ int TOperation::GetReadyToAssignNeededAllocationCount() const
     return DoGetNeededAllocationCount(ReadyToAssignGroupedNeededResources_);
 }
 
-void TOperation::AddPlannedAssignment(const TAssignmentPtr& assignment)
+int TOperation::GetExtraNeededAllocationCount() const
+{
+    return DoGetNeededAllocationCount(ExtraGroupedNeededResources_);
+}
+
+void TOperation::AddPlannedAssignment(const TAssignmentPtr& assignment, bool withExtraResources)
 {
     YT_VERIFY(assignment->Operation == this);
 
     AddAssignment(assignment);
 
-    auto& allocationGroupResources = GetOrCrash(ReadyToAssignGroupedNeededResources_, assignment->AllocationGroupName);
+    auto& allocationGroupResources = withExtraResources
+        ? GetOrCrash(ExtraGroupedNeededResources_, assignment->AllocationGroupName)
+        : GetOrCrash(ReadyToAssignGroupedNeededResources_, assignment->AllocationGroupName);
+
     YT_VERIFY(allocationGroupResources.AllocationCount > 0);
     --allocationGroupResources.AllocationCount;
 }
@@ -167,6 +176,8 @@ void Serialize(const TOperation& operation, NYson::IYsonConsumer* consumer)
             .Item("waiting_for_module_binding_since").Value(operation.WaitingForModuleBindingSince())
             .Item("waiting_for_assignments_since").Value(operation.WaitingForAssignmentsSince())
             .Item("preemptible").Value(operation.IsPreemptible())
+            .Item("starving").Value(operation.IsStarving())
+            .Item("scheduling_module").Value(operation.SchedulingModule())
         .EndMap();
 }
 
@@ -248,6 +259,18 @@ void Serialize(const TNode& node, NYson::IYsonConsumer* consumer)
                     .Item("resourse_limits").Value(node.Descriptor()->ResourceLimits)
                     .Item("resourse_usage").Value(node.Descriptor()->ResourceUsage);
             })
+        .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Serialize(const TGpuModuleStatistics& statistic, NYson::IYsonConsumer* consumer)
+{
+    NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("node_count").Value(statistic.TotalNodes)
+            .Item("unreserved_node_count").Value(statistic.UnreservedNodes)
+            .Item("full_host_bound_operation_count").Value(statistic.FullHostModuleBoundOperations)
         .EndMap();
 }
 

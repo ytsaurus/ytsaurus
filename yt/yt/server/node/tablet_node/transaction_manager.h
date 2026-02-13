@@ -19,6 +19,34 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TProto, class TState>
+struct TTypedTransactionActionDescriptor
+    : public NTransactionSupervisor::TTypedTransactionActionDescriptor<TTransaction,
+        TProto,
+        TState
+    >
+{
+    using TBase = NTransactionSupervisor::TTypedTransactionActionDescriptor<TTransaction, TProto, TState>;
+
+    TCallback<bool(TTransaction*, TProto*, TTabletId)>
+    NeedsExternalization = {};
+};
+
+struct TTypeErasedTransactionActionDescriptor
+    : public NTransactionSupervisor::TTypeErasedTransactionActionDescriptor<
+        TTransaction,
+        TSaveContext,
+        TLoadContext
+    >
+{
+    using TBase = NTransactionSupervisor::TTypeErasedTransactionActionDescriptor<TTransaction, TSaveContext, TLoadContext>;
+
+    TCallback<bool(TTransaction*, TStringBuf, TTabletId)>
+    NeedsExternalization = {};
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Transaction manager is tightly coupled to the tablet slot which acts as a host
 //! for it. The following interface specifies methods of the tablet slot
 //! required by the transaction manager and provides means for unit-testing of transaction manager.
@@ -121,6 +149,11 @@ struct ITransactionManager
     //! Forcefully aborts all transactions externalized to this cell with a certain token.
     virtual void AbortTransactionsExternalizedToThisCell(
         TTransactionExternalizationToken token) = 0;
+
+    virtual bool RegisterExternalizerTablet(
+        TTransaction* transaction,
+        TTabletId tabletId,
+        TTransactionExternalizationToken externalizationToken) = 0;
 
     //! Schedules a mutation that creates a given transaction (if missing) and
     //! registers a set of actions.

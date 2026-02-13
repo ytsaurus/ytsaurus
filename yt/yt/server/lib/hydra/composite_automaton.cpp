@@ -204,7 +204,7 @@ void TCompositeAutomatonPart::CheckInvariants()
 
 TFuture<void> TCompositeAutomatonPart::GetReadyToEnterReadOnlyMode()
 {
-    return VoidFuture;
+    return OKFuture;
 }
 
 void TCompositeAutomatonPart::StartEpoch()
@@ -335,7 +335,7 @@ TFuture<void> TCompositeAutomaton::SaveSnapshot(const TSnapshotSaveContext& cont
         });
 
     if (AsyncSavers_.empty()) {
-        return VoidFuture;
+        return OKFuture;
     }
 
     YT_VERIFY(AsyncSnapshotInvoker_);
@@ -488,7 +488,9 @@ void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
     } else {
         NProfiling::TWallTimer timer;
 
-        YT_LOG_DEBUG("Applying mutation (Version: %v, SequenceNumber: %v, RandomSeed: %x, PrevRandomSeed: %x, StateHash: %x, MutationType: %v, MutationId: %v, WaitTime: %v)",
+        YT_LOG_DEBUG(
+            "Applying mutation (Version: %v, SequenceNumber: %v, RandomSeed: %x, PrevRandomSeed: %x, "
+            "StateHash: %x, MutationType: %v, MutationId: %v, WaitTime: %v)",
             version,
             context->GetSequenceNumber(),
             context->GetRandomSeed(),

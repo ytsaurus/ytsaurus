@@ -12,6 +12,8 @@
 #include <yt/yt/library/query/engine_api/builtin_function_profiler.h>
 #include <yt/yt/library/query/engine_api/position_independent_value_transfer.h>
 
+#include <yt/yt/core/crypto/crypto.h>
+
 #include <library/cpp/yt/memory/shared_range.h>
 
 namespace NYT::NQueryClient {
@@ -541,7 +543,8 @@ public:
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
         bool useCanonicalNullRelations,
         EExecutionBackend executionBackend,
-        TUsedWebAssemblyFiles* const usedWebAssemblyFiles)
+        NWebAssembly::TModuleBytecodeHashSet* const usedWebAssemblyFiles,
+        const NWebAssembly::TModuleBytecode* const sdk)
         : TSchemaProfiler(id)
         , Variables_(variables)
         , FunctionProfilers_(functionProfilers)
@@ -550,6 +553,7 @@ public:
         , UseCanonicalNullRelations_(useCanonicalNullRelations)
         , ExecutionBackend_(executionBackend)
         , UsedWebAssemblyFiles_(usedWebAssemblyFiles)
+        , Sdk_(sdk)
     {
         YT_VERIFY(Variables_);
     }
@@ -674,7 +678,8 @@ protected:
     const TComparerManagerPtr ComparerManager_;
     const bool UseCanonicalNullRelations_;
     const EExecutionBackend ExecutionBackend_;
-    TUsedWebAssemblyFiles* const UsedWebAssemblyFiles_;
+    NWebAssembly::TModuleBytecodeHashSet* const UsedWebAssemblyFiles_;
+    const NWebAssembly::TModuleBytecode* const Sdk_;
 };
 
 size_t* TryGetSubexpressionRef(
@@ -789,7 +794,38 @@ size_t TExpressionProfiler::Profile(
     }
 
     Fold(id);
-    const auto& function = FunctionProfilers_->GetFunction(functionExpr->FunctionName);
+
+    // Logic is placed here to preserve compatibility with coordinator.
+    auto functionName = functionExpr->FunctionName;
+
+    if (functionName == "try_get_int64") {
+        YT_VERIFY(functionExpr->Arguments.size() == 2);
+        auto ysonType = functionExpr->Arguments[0]->LogicalType;
+
+        if (ysonType->GetMetatype() == ELogicalMetatype::Optional) {
+            ysonType = ysonType->GetElement();
+        }
+
+        if (ysonType->GetMetatype() == ELogicalMetatype::List &&
+            ysonType->GetElement()->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::Int64)
+        {
+            if (auto ysonPath = functionExpr->Arguments[1]->As<TLiteralExpression>()) {
+                if (static_cast<TUnversionedValue>(ysonPath->Value).AsStringBuf() == "/0") {
+                    functionName = "try_get_front_int64_from_list";
+                }
+            }
+        }
+    } else if (functionName == "farm_hash") {
+        if (functionExpr->Arguments.size() == 1) {
+            auto argumentType = functionExpr->Arguments[0]->LogicalType;
+
+            if (GetWireType(argumentType) == EValueType::Int64) {
+                functionName = "farm_hash_int64";
+            }
+        }
+    }
+
+    const auto& function = FunctionProfilers_->GetFunction(functionName);
 
     std::vector<bool> nullableArgs;
     for (size_t argId : argIds) {
@@ -812,7 +848,7 @@ size_t TExpressionProfiler::Profile(
         function->IsNullable(nullableArgs));
 
     if (ExecutionBackend_ == EExecutionBackend::WebAssembly) {
-        if (auto bytecode = function->GetWebAssemblyBytecodeFile(); !bytecode.Empty()) {
+        if (auto bytecode = function->GetWebAssemblyBytecodeFile(); !bytecode.Data.Empty()) {
             UsedWebAssemblyFiles_->emplace(bytecode);
         }
     }
@@ -1190,7 +1226,7 @@ size_t TExpressionProfiler::Profile(
         ++fragments->Items[*escapeCharacterId].UseCount;
     }
 
-    bool nullable = false;
+    bool nullable = true;
     nullable |= fragments->Items[textId].Nullable;
     nullable |= fragments->Items[patternId].Nullable;
     if (escapeCharacterId) {
@@ -1428,7 +1464,7 @@ size_t TExpressionProfiler::Profile(
                 Id_));
 
             if (ExecutionBackend_ == EExecutionBackend::WebAssembly) {
-                if (auto bytecode = aggregate->GetWebAssemblyBytecodeFile(); !bytecode.Empty()) {
+                if (auto bytecode = aggregate->GetWebAssemblyBytecodeFile(); !bytecode.Data.Empty()) {
                     UsedWebAssemblyFiles_->emplace(bytecode);
                 }
             }
@@ -1573,8 +1609,9 @@ public:
         EOptimizationLevel optimizationLevel,
         bool allowUnorderedGroupByWithLimit,
         i64 maxJoinBatchSize,
-        TUsedWebAssemblyFiles* const usedWebAssemblyFiles)
-        : TExpressionProfiler(id, variables, functionProfilers, aggregateProfilers, useCanonicalNullRelations, executionBackend, usedWebAssemblyFiles)
+        NWebAssembly::TModuleBytecodeHashSet* const usedWebAssemblyFiles,
+        const NWebAssembly::TModuleBytecode* const sdk)
+        : TExpressionProfiler(id, variables, functionProfilers, aggregateProfilers, useCanonicalNullRelations, executionBackend, usedWebAssemblyFiles, sdk)
         , MaxJoinBatchSize_(maxJoinBatchSize)
         , OptimizationLevel_(optimizationLevel)
         , AllowUnorderedGroupByWithLimit_(allowUnorderedGroupByWithLimit)
@@ -1969,7 +2006,7 @@ void TQueryProfiler::Profile(
                 Id_));
 
             if (ExecutionBackend_ == EExecutionBackend::WebAssembly) {
-                if (auto bytecode = aggregate->GetWebAssemblyBytecodeFile(); !bytecode.Empty()) {
+                if (auto bytecode = aggregate->GetWebAssemblyBytecodeFile(); !bytecode.Data.Empty()) {
                     UsedWebAssemblyFiles_->emplace(bytecode);
                 }
             }
@@ -2459,21 +2496,14 @@ void TQueryProfiler::Profile(
 
             int equationCount = joinClause->SelfEquations.size();
 
-            std::vector<std::pair<size_t, bool>> selfKeys(equationCount);
+            std::vector<size_t> selfKeys(equationCount);
             std::vector<EValueType> lookupKeyTypes(equationCount);
             for (int index = 0; index < equationCount; ++index) {
-                const auto& [expression, evaluated] = joinClause->SelfEquations[index];
-                const auto& expressionSchema = evaluated ? joinClause->Schema.Original : schema;
-
-                selfKeys[index] = {
-                    TExpressionProfiler::Profile(
-                        expression,
-                        expressionSchema,
-                        &equationFragments,
-                        evaluated),
-                    evaluated,
-                };
-                lookupKeyTypes[index] = expression->GetWireType();
+                selfKeys[index] = TExpressionProfiler::Profile(
+                    joinClause->SelfEquations[index],
+                    schema,
+                    &equationFragments);
+                lookupKeyTypes[index] = joinClause->SelfEquations[index]->GetWireType();
             }
 
             TSingleJoinCGParameters codegenParameters{
@@ -2612,11 +2642,12 @@ TCGExpressionGenerator Profile(
     TCGVariables* variables,
     bool useCanonicalNullRelations,
     EExecutionBackend executionBackend,
-    const TConstFunctionProfilerMapPtr& functionProfilers)
+    const TConstFunctionProfilerMapPtr& functionProfilers,
+    const NWebAssembly::TModuleBytecode& sdk)
 {
     TConstAggregateProfilerMapPtr aggregateProfilers;
 
-    auto usedWebAssemblyFiles = New<TUsedWebAssemblyFiles>();
+    auto usedWebAssemblyFiles = New<NWebAssembly::TModuleBytecodeHashSet>();
 
     auto profiler = TExpressionProfiler(
         id,
@@ -2625,7 +2656,8 @@ TCGExpressionGenerator Profile(
         aggregateProfilers,
         useCanonicalNullRelations,
         executionBackend,
-        usedWebAssemblyFiles.get());
+        usedWebAssemblyFiles.get(),
+        &sdk);
 
     auto fragments = TExpressionFragments();
     auto exprId = profiler.Profile(expr, schema, &fragments);
@@ -2635,7 +2667,7 @@ TCGExpressionGenerator Profile(
             fragmentInfos = fragments.ToFragmentInfos("fragment"),
             exprId = std::move(exprId)
         ] {
-            return CodegenStandaloneExpression(fragmentInfos, exprId, executionBackend, *usedWebAssemblyFiles);
+            return CodegenStandaloneExpression(fragmentInfos, exprId, executionBackend, sdk, *usedWebAssemblyFiles);
         };
 }
 
@@ -2649,10 +2681,11 @@ TCGQueryGenerator Profile(
     EOptimizationLevel optimizationLevel,
     const TConstFunctionProfilerMapPtr& functionProfilers,
     const TConstAggregateProfilerMapPtr& aggregateProfilers,
+    const NWebAssembly::TModuleBytecode& sdk,
     bool allowUnorderedGroupByWithLimit,
     i64 maxJoinBatchSize)
 {
-    auto usedWebAssemblyFiles = New<TUsedWebAssemblyFiles>();
+    auto usedWebAssemblyFiles = New<NWebAssembly::TModuleBytecodeHashSet>();
 
     auto profiler = TQueryProfiler(
         id,
@@ -2664,7 +2697,8 @@ TCGQueryGenerator Profile(
         optimizationLevel,
         allowUnorderedGroupByWithLimit,
         maxJoinBatchSize,
-        usedWebAssemblyFiles.get());
+        usedWebAssemblyFiles.get(),
+        &sdk);
 
     size_t slotCount = 0;
     TCodegenSource codegenSource = &CodegenEmptyOp;
@@ -2681,7 +2715,7 @@ TCGQueryGenerator Profile(
             =,
             codegenSource = std::move(codegenSource)
         ] {
-            return CodegenQuery(&codegenSource, slotCount, executionBackend, optimizationLevel, *usedWebAssemblyFiles);
+            return CodegenQuery(&codegenSource, slotCount, executionBackend, optimizationLevel, sdk, *usedWebAssemblyFiles);
         };
 }
 

@@ -6,6 +6,7 @@
 #include <yt/yt/client/table_client/versioned_row.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/private.h>
+#include <yt/yt/client/table_client/lightweight_yson_list_parser.h>
 
 #include <yt/yt/core/misc/heap.h>
 
@@ -88,7 +89,50 @@ void AggregateMaxDouble(TUnversionedValue* state, const TUnversionedValue& value
     }
 }
 
-TNestedColumnsSchema GetNestedColumnsSchema(TTableSchemaPtr tableSchema)
+void AggregateMaxString(TUnversionedValue* state, const TUnversionedValue& value)
+{
+    if (state->Type == EValueType::Null) {
+        *state = value;
+    } else if (value.Type != EValueType::Null) {
+        if (value.AsStringBuf() > state->AsStringBuf()) {
+            *state = value;
+        }
+    }
+}
+
+TAggregateFunction* GetSimpleAggregateFunction(TStringBuf name, EValueType type)
+{
+    if (name == "sum") {
+        if (type == EValueType::Int64) {
+            return &AggregateSumInt64;
+        } else if (type == EValueType::Uint64) {
+            return &AggregateSumUint64;
+        } else if (type == EValueType::Double) {
+            return &AggregateSumDouble;
+        } else {
+            THROW_ERROR_EXCEPTION("Unsupported simple aggregate for type")
+                << TErrorAttribute("type", type);
+        }
+    } else if (name == "max") {
+        if (type == EValueType::Int64) {
+            return &AggregateMaxInt64;
+        } else if (type == EValueType::Uint64) {
+            return &AggregateMaxUint64;
+        } else if (type == EValueType::Double) {
+            return &AggregateMaxDouble;
+        } else if (type == EValueType::String) {
+            return &AggregateMaxString;
+        } else {
+            THROW_ERROR_EXCEPTION("Unsupported simple aggregate for type")
+                << TErrorAttribute("type", type);
+        }
+    } else {
+        THROW_ERROR_EXCEPTION("Unsupported simple aggregate")
+            << TErrorAttribute("aggregate_function", name);
+    }
+}
+
+TNestedColumnsSchema GetNestedColumnsSchema(const TTableSchema& tableSchema)
 {
     std::vector<TNestedKeyColumn> keyColumns;
     std::vector<TNestedValueColumn> valueColumns;
@@ -96,7 +140,7 @@ TNestedColumnsSchema GetNestedColumnsSchema(TTableSchemaPtr tableSchema)
     // TODO(lukyan): Support multiple nested tables.
     TStringBuf nestedTableName;
 
-    for (const auto& column : tableSchema->Columns()) {
+    for (const auto& column : tableSchema.Columns()) {
         const auto& aggregate = column.Aggregate();
 
         if (!aggregate) {
@@ -125,7 +169,7 @@ TNestedColumnsSchema GetNestedColumnsSchema(TTableSchemaPtr tableSchema)
         auto elementType = GetNestedColumnElementType(column.LogicalType().Get());
 
         if (nestedColumn->IsKey) {
-            keyColumns.push_back({static_cast<ui16>(tableSchema->GetColumnIndex(column)), elementType});
+            keyColumns.push_back({static_cast<ui16>(tableSchema.GetColumnIndex(column)), elementType});
         } else {
             TAggregateFunction* aggregateFunction = AggregateReplace;
 
@@ -159,7 +203,7 @@ TNestedColumnsSchema GetNestedColumnsSchema(TTableSchemaPtr tableSchema)
             }
 
             valueColumns.push_back({
-                static_cast<ui16>(tableSchema->GetColumnIndex(column)),
+                static_cast<ui16>(tableSchema.GetColumnIndex(column)),
                 elementType,
                 aggregateFunction});
         }
@@ -221,6 +265,23 @@ const TNestedValueColumn* FindNestedColumnById(TRange<TNestedValueColumn> keyCol
     }
 
     return nullptr;
+}
+
+int UnpackNestedValuesListFast(std::vector<TUnversionedValue>* parsedValues, TStringBuf data, EValueType listItemType)
+{
+    int itemCount = 0;
+    DoUnpackValuesTyped(
+        [&] (const TUnversionedValue& value) {
+            if (parsedValues) {
+                parsedValues->push_back(value);
+            }
+            ++itemCount;
+            return false;
+        },
+        data,
+        listItemType);
+
+    return itemCount;
 }
 
 int UnpackNestedValuesList(std::vector<TUnversionedValue>* parsedValues, TStringBuf data, EValueType listItemType)
@@ -295,16 +356,180 @@ int UnpackNestedValuesList(std::vector<TUnversionedValue>* parsedValues, TString
     }
 }
 
-// Build yson list from values.
-TUnversionedValue PackValues(TRange<TUnversionedValue> values, TRowBuffer* rowBuffer)
+////////////////////////////////////////////////////////////////////////////////
+
+Y_FORCE_INLINE ui32 TSimpleOutputBuffer::RemainingBytes() const
+{
+    ui32 currentSize = CurrentPtr_ - Data_.get();
+    return Capacity_ - currentSize;
+}
+
+Y_FORCE_INLINE char* TSimpleOutputBuffer::Current() const
+{
+    return CurrentPtr_;
+}
+
+Y_FORCE_INLINE void TSimpleOutputBuffer::Advance(ui32 count)
+{
+    CurrentPtr_ += count;
+}
+
+Y_FORCE_INLINE void TSimpleOutputBuffer::PushBack(char ch)
+{
+    Reserve(1);
+    *CurrentPtr_++ = ch;
+}
+
+Y_FORCE_INLINE void TSimpleOutputBuffer::Write(const void* data, ui32 length)
+{
+    Reserve(length);
+    ::memcpy(CurrentPtr_, data, length);
+    Advance(length);
+}
+
+Y_FORCE_INLINE void TSimpleOutputBuffer::Clear()
+{
+    CurrentPtr_ = Data_.get();
+}
+
+Y_FORCE_INLINE void TSimpleOutputBuffer::Reserve(ui32 count)
+{
+    ui32 currentSize = CurrentPtr_ - Data_.get();
+    if (currentSize + count <= Capacity_) {
+        return;
+    }
+
+    auto newCapacity = FastClp2(currentSize + count);
+    auto newData = std::make_unique<char[]>(newCapacity);
+    ::memcpy(newData.get(), Data_.get(), currentSize);
+    Data_ = std::move(newData);
+    Capacity_ = newCapacity;
+    CurrentPtr_ = Data_.get() + currentSize;
+}
+
+Y_FORCE_INLINE TStringBuf TSimpleOutputBuffer::GetBuffer() const
+{
+    return {Data_.get(), CurrentPtr_};
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename T>
+void WriteVarInt(TSimpleOutputBuffer* writer, T value)
+{
+    writer->Reserve(MaxVarIntSize<T>);
+    auto size = NYT::WriteVarInt(writer->Current(), value);
+    writer->Advance(size);
+}
+
+void DoPackValuesTyped(TRange<TUnversionedValue> values, TRange<char> discard, EValueType type, TSimpleOutputBuffer* output)
+{
+    using namespace NYson::NDetail;
+
+    output->PushBack(BeginListSymbol);
+
+    int index = 0;
+
+    auto writeList = [&] (auto onItem) {
+        for (const auto& valueArg : values) {
+            if (discard[index++]) {
+                continue;
+            }
+
+            if (valueArg.Type == type) {
+                onItem(valueArg);
+            } else if (valueArg.Type == EValueType::Null) {
+                output->PushBack(EntitySymbol);
+            } else {
+                THROW_ERROR_EXCEPTION("Unexpected type");
+            }
+            output->PushBack(ItemSeparatorSymbol);
+        }
+    };
+
+    switch (type) {
+        case EValueType::Int64:
+            writeList([&] (const auto& valueArg) {
+                output->PushBack(Int64Marker);
+                WriteVarInt(output, valueArg.Data.Int64);
+            });
+            break;
+        case EValueType::Uint64:
+            writeList([&] (const auto& valueArg) {
+                output->PushBack(Uint64Marker);
+                WriteVarInt(output, valueArg.Data.Uint64);
+            });
+            break;
+        case EValueType::Double:
+            writeList([&] (const auto& valueArg) {
+                output->PushBack(DoubleMarker);
+                output->Write(&valueArg.Data.Double, sizeof(double));
+            });
+            break;
+        case EValueType::Boolean:
+            writeList([&] (const auto& valueArg) {
+                output->PushBack(valueArg.Data.Boolean ? TrueMarker : FalseMarker);
+            });
+            break;
+        case EValueType::String:
+            writeList([&] (const auto& valueArg) {
+                auto stringData = valueArg.AsStringBuf();
+                output->PushBack(StringMarker);
+                WriteVarInt(output, static_cast<i32>(stringData.length()));
+                output->Write(stringData.begin(), stringData.length());
+            });
+            break;
+        case EValueType::Any:
+        case EValueType::Composite:
+            writeList([&] (const auto& valueArg) {
+                auto stringData = valueArg.AsStringBuf();
+                output->Write(stringData.begin(), stringData.length());
+            });
+            break;
+        default:
+            THROW_ERROR_EXCEPTION("Unexpected type %Qlv",
+                type);
+    }
+
+    output->PushBack(EndListSymbol);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Build YSON list from values.
+TUnversionedValue TNestedTableMerger::PackValuesFast(
+    TRange<TUnversionedValue> values,
+    TRange<char> discard,
+    EValueType type,
+    TChunkedMemoryPool* memoryPool)
+{
+    PackBuffer_.Clear();
+    DoPackValuesTyped(values, discard, type, &PackBuffer_);
+    auto result = MakeUnversionedCompositeValue(PackBuffer_.GetBuffer());
+
+    // Do not use TRowBuffer because of extra memory tracking.
+    char* dst = memoryPool->AllocateUnaligned(result.Length);
+    memcpy(dst, result.Data.String, result.Length);
+    result.Data.String = dst;
+
+    return result;
+}
+
+TUnversionedValue PackValues(TRange<TUnversionedValue> values, TRange<char> discard, EValueType /*type*/, TChunkedMemoryPool* memoryPool)
 {
     TString resultYson;
     TStringOutput output(resultYson);
     NYson::TYsonWriter writer(&output);
 
+    YT_ASSERT(values.size() == discard.size());
+
     writer.OnBeginList();
     for (int index = 0; index < std::ssize(values); ++index) {
         const auto& valueArg = values[index];
+
+        if (discard[index]) {
+            continue;
+        }
 
         writer.OnListItem();
 
@@ -338,8 +563,33 @@ TUnversionedValue PackValues(TRange<TUnversionedValue> values, TRowBuffer* rowBu
     }
     writer.OnEndList();
 
-    return rowBuffer->CaptureValue(MakeUnversionedCompositeValue(resultYson));
+    auto result = MakeUnversionedCompositeValue(resultYson);
+
+    // Do not use TRowBuffer because of extra memory tracking.
+    char* dst = memoryPool->AllocateUnaligned(result.Length);
+    memcpy(dst, result.Data.String, result.Length);
+    result.Data.String = dst;
+
+    return result;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TNestedRowDiscardPolicy::Register(TRegistrar registrar)
+{
+    registrar.Parameter("discard_rows_with_zero_values", &TThis::DiscardRowsWithZeroValues)
+        .Default(false);
+    registrar.Parameter("floating_point_tolerance", &TThis::FloatingPointTolerance)
+        .GreaterThanOrEqual(0.0)
+        .Default(0.0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TNestedTableMerger::TNestedTableMerger(bool orderNestedRows, bool useFastYsonRoutines)
+    : OrderNestedRows_(orderNestedRows)
+    , UseFastYsonRoutines_(useFastYsonRoutines)
+{ }
 
 void TNestedTableMerger::UnpackKeyColumn(
     ui16 keyColumnId,
@@ -366,7 +616,7 @@ void TNestedTableMerger::UnpackKeyColumn(
         auto timestamp = keyColumn[index].Timestamp;
 
         if (keyColumn[index].Type != EValueType::Null) {
-            UnpackNestedValuesList(
+            (UseFastYsonRoutines_ ? UnpackNestedValuesListFast : UnpackNestedValuesList)(
                 &unpackedColumn,
                 keyColumn[index].AsStringBuf(),
                 keyColumnSchema.Type);
@@ -375,7 +625,7 @@ void TNestedTableMerger::UnpackKeyColumn(
         if (keyColumnId == 0) {
             YT_ASSERT(Timestamps_.empty() || timestamp >= Timestamps_.back());
             Timestamps_.push_back(timestamp);
-            Offsets_.push_back(unpackedColumn.size());
+            EndOffsets_.push_back(unpackedColumn.size());
         } else {
             if (Timestamps_[index] != timestamp) {
                 THROW_ERROR_EXCEPTION("Timestamp mismatch in nested key columns")
@@ -384,10 +634,10 @@ void TNestedTableMerger::UnpackKeyColumn(
                     << TErrorAttribute("actual", timestamp);
             }
 
-            if (Offsets_[index + 1] != std::ssize(unpackedColumn)) {
+            if (EndOffsets_[index] != std::ssize(unpackedColumn)) {
                 THROW_ERROR_EXCEPTION("Mismatch item count in nested key columns")
                     << TErrorAttribute("column_id", keyColumnId)
-                    << TErrorAttribute("expected", Offsets_[index + 1])
+                    << TErrorAttribute("expected", EndOffsets_[index])
                     << TErrorAttribute("actual", std::ssize(unpackedColumn));
             }
         }
@@ -397,15 +647,20 @@ void TNestedTableMerger::UnpackKeyColumn(
 void TNestedTableMerger::Reset(int keyWidth, int mergeStreamCount)
 {
     Timestamps_.clear();
-    UnpackedKeys_.clear();
-    Offsets_ = {0};
+    EndOffsets_.clear();
+    ResultKeys_.clear();
+    ResultValues_.clear();
+    Discarded_.clear();
 
     Timestamps_.reserve(mergeStreamCount);
     UnpackedKeys_.resize(keyWidth);
+    for (auto& column : UnpackedKeys_) {
+        column.clear();
+    }
 }
 
 void TNestedTableMerger::UnpackKeyColumns(
-    TRange<TMutableRange<TVersionedValue>> keyColumns,
+    TRange<TRange<TVersionedValue>> keyColumns,
     TRange<TNestedKeyColumn> keyColumnsSchema)
 {
     if (keyColumns.Empty()) {
@@ -421,16 +676,17 @@ void TNestedTableMerger::UnpackKeyColumns(
         UnpackKeyColumn(keyColumnId, mergeStreamCount, keyColumns[keyColumnId], keyColumnsSchema[keyColumnId]);
     }
 
-    OrderingTranslationLayer_.resize(Offsets_.back());
-    std::iota(OrderingTranslationLayer_.begin(), OrderingTranslationLayer_.end(), 0);
-
     BuildMergeScript();
+
+    ApplyMergeScriptToKeys(keyWidth);
 }
 
 void TNestedTableMerger::UnpackKeyColumns(
     TRange<std::vector<TVersionedValue>> keyColumns,
     TRange<TNestedKeyColumn> keyColumnsSchema)
 {
+    YT_VERIFY(OrderNestedRows_);
+
     if (keyColumns.Empty()) {
         return;
     }
@@ -444,25 +700,210 @@ void TNestedTableMerger::UnpackKeyColumns(
         UnpackKeyColumn(keyColumnId, mergeStreamCount, keyColumns[keyColumnId], keyColumnsSchema[keyColumnId]);
     }
 
-    OrderingTranslationLayer_.resize(Offsets_.back());
-    std::iota(OrderingTranslationLayer_.begin(), OrderingTranslationLayer_.end(), 0);
-
-    for (int rowIndex = 0; rowIndex < mergeStreamCount; ++rowIndex) {
-        int from = Offsets_[rowIndex];
-        int to = Offsets_[rowIndex + 1];
-
-        for (int keyColumnId = keyWidth - 1; keyColumnId >= 0; --keyColumnId) {
-            auto& unpackedColumn = UnpackedKeys_[keyColumnId];
-            YT_ASSERT(OrderingTranslationLayer_.size() == unpackedColumn.size());
-
-            std::stable_sort(
-                OrderingTranslationLayer_.begin() + from,
-                OrderingTranslationLayer_.begin() + to,
-                [&] (int lhs, int rhs) { return unpackedColumn[lhs] < unpackedColumn[rhs]; });
+    // Split each group of values into groups with one value.
+    {
+        Timestamps_.clear();
+        int startOffset = 0;
+        for (int i = 0; i < std::ssize(EndOffsets_); ++i) {
+            if (startOffset == EndOffsets_[i]) {
+                Timestamps_.push_back(i);
+            } else {
+                while (startOffset < EndOffsets_[i]) {
+                    Timestamps_.push_back(i);
+                    ++startOffset;
+                }
+            }
         }
     }
 
+#ifndef NDEBUG
+    std::vector<int> newOffsets;
+    {
+        int startOffset = 0;
+        for (int i = 0; i < std::ssize(EndOffsets_); ++i) {
+            if (startOffset == EndOffsets_[i]) {
+                newOffsets.push_back(startOffset);
+            } else {
+                while (startOffset < EndOffsets_[i]) {
+                    newOffsets.push_back(++startOffset);
+                }
+            }
+        }
+    }
+#endif
+
+    // Split each group of values into groups with one value. Inplace for EndOffsets_.
+    {
+        auto originalOffsetCount = std::ssize(EndOffsets_);
+        YT_VERIFY(originalOffsetCount <= std::ssize(Timestamps_));
+        EndOffsets_.resize(Timestamps_.size());
+        std::rotate(EndOffsets_.begin(), EndOffsets_.begin() + originalOffsetCount, EndOffsets_.end());
+
+        auto originalOffsets = TRange(EndOffsets_.data() + EndOffsets_.size() - originalOffsetCount, originalOffsetCount);
+
+        auto resultOffsets = EndOffsets_.begin();
+
+        int startOffset = 0;
+        for (int i = 0; i < std::ssize(originalOffsets); ++i) {
+            if (startOffset == originalOffsets[i]) {
+                *resultOffsets++ = startOffset;
+            } else {
+                // Last originalOffsets[i] can be modified but to the same value.
+                int endOffset = originalOffsets[i];
+                while (startOffset < endOffset) {
+                    *resultOffsets++ = ++startOffset;
+                }
+            }
+        }
+
+// Extra ifdef for ASAN build.
+#ifndef NDEBUG
+        YT_ASSERT(EndOffsets_ == newOffsets);
+#endif
+    }
+
+    YT_VERIFY(EndOffsets_.size() == Timestamps_.size());
+
     BuildMergeScript();
+
+    ApplyMergeScriptToKeys(keyWidth);
+}
+
+void TNestedTableMerger::UnpackValueColumn(
+    TRange<TVersionedValue> values,
+    EValueType elementType,
+    TAggregateFunction* aggregateFunction)
+{
+    // Unpack values.
+    auto& unpackedValues = ValueBuffer_;
+    unpackedValues.clear();
+    CurrentOffsets_.assign(Timestamps_.size(), -1);
+
+    YT_VERIFY(values.Size() <= Timestamps_.size());
+
+    for (const auto& value : values) {
+        auto timestampIt = LowerBound(Timestamps_.begin(), Timestamps_.end(), value.Timestamp);
+
+        if (timestampIt == Timestamps_.end() && *timestampIt != value.Timestamp) {
+            THROW_ERROR_EXCEPTION("Cannot find matching timestamp for value column")
+                << TErrorAttribute("timestamp", value.Timestamp);
+        }
+
+        if (value.Type == EValueType::Null) {
+            continue;
+        }
+
+        int id = timestampIt - Timestamps_.begin();
+
+        auto savedSize = unpackedValues.size();
+        // TODO(lukyan): Set aggregate flag from initial versioned value.
+        (UseFastYsonRoutines_ ? UnpackNestedValuesListFast : UnpackNestedValuesList)(&unpackedValues, value.AsStringBuf(), elementType);
+
+        CurrentOffsets_[id++] = savedSize++;
+
+        if (OrderNestedRows_) {
+            while (savedSize < unpackedValues.size()) {
+                CurrentOffsets_[id++] = savedSize++;
+            }
+        }
+    }
+
+    const auto* rowIdPtr = RowIds_.cbegin();
+
+    ResultValues_.push_back({});
+    auto& resultValues = ResultValues_.back();
+
+    for (auto count : NestedRowCounts_) {
+        // Ids and timestamps in increasing order.
+
+        auto rowId = *rowIdPtr++;
+
+        TUnversionedValue mergeState = MakeUnversionedNullValue();
+
+        // Do not merge if CurrentOffsets_[id] is -1 (npos).
+        if (CurrentOffsets_[rowId] != -1) {
+            mergeState = unpackedValues[CurrentOffsets_[rowId]++];
+        }
+
+        for (int index = 1; index < count; ++index) {
+            rowId = *rowIdPtr++;
+            auto value = MakeUnversionedNullValue();
+            // Do not merge if CurrentOffsets_[id] is -1 (npos).
+            if (CurrentOffsets_[rowId] != -1) {
+                value = unpackedValues[CurrentOffsets_[rowId]++];
+            }
+            (*aggregateFunction)(&mergeState, value);
+        }
+
+        resultValues.push_back(mergeState);
+    }
+}
+
+void TNestedTableMerger::DiscardZeroes(const TNestedRowDiscardPolicyPtr& nestedRowDiscardPolicy)
+{
+    if (!nestedRowDiscardPolicy || !nestedRowDiscardPolicy->DiscardRowsWithZeroValues || ResultValues_.empty()) {
+        Discarded_.resize(NestedRowCounts_.size(), false);
+        return;
+    }
+
+    Discarded_.resize(NestedRowCounts_.size(), true);
+
+    auto shouldDiscard = [&] (TUnversionedValue value) {
+        switch (value.Type) {
+            case EValueType::Int64:
+                return value.Data.Int64 == 0;
+                break;
+
+            case EValueType::Uint64:
+                return value.Data.Uint64 == 0;
+                break;
+
+            case EValueType::Double:
+                return std::abs(value.Data.Double) < nestedRowDiscardPolicy->FloatingPointTolerance;
+                break;
+
+            default:
+                YT_ABORT();
+        }
+    };
+
+    for (const auto& valueColumn : ResultValues_) {
+        YT_ASSERT(valueColumn.size() == NestedRowCounts_.size());
+
+        for (int index = 0; index < std::ssize(NestedRowCounts_); ++index) {
+            Discarded_[index] = static_cast<bool>(Discarded_[index]) && shouldDiscard(valueColumn[index]);
+        }
+    }
+}
+
+TVersionedValue TNestedTableMerger::GetPackedKeyColumn(
+    int index,
+    NTableClient::EValueType type,
+    TChunkedMemoryPool* memoryPool)
+{
+    TVersionedValue value;
+    static_cast<TUnversionedValue&>(value) = UseFastYsonRoutines_
+        ? PackValuesFast(ResultKeys_[index], Discarded_, type, memoryPool)
+        : PackValues(ResultKeys_[index], Discarded_, type, memoryPool);
+
+    value.Timestamp = Timestamps_.back();
+
+    return value;
+}
+
+TVersionedValue TNestedTableMerger::GetPackedValueColumn(
+    int index,
+    NTableClient::EValueType type,
+    TChunkedMemoryPool* memoryPool)
+{
+    TVersionedValue value;
+    static_cast<TUnversionedValue&>(value) = UseFastYsonRoutines_
+        ? PackValuesFast(ResultValues_[index], Discarded_, type, memoryPool)
+        : PackValues(ResultValues_[index], Discarded_, type, memoryPool);
+
+    value.Timestamp = Timestamps_.back();
+
+    return value;
 }
 
 void TNestedTableMerger::BuildMergeScript()
@@ -470,19 +911,23 @@ void TNestedTableMerger::BuildMergeScript()
     RowIds_.clear();
     NestedRowCounts_.clear();
 
-    if (Offsets_.size() == 1) {
+    if (EndOffsets_.empty()) {
         return;
     }
 
     int keyWidth = std::ssize(UnpackedKeys_);
 
     // Make heap to merge values.
-
-    CurrentOffsets_ = Offsets_;
+    {
+        CurrentOffsets_.resize(std::ssize(EndOffsets_));
+        int startOffset = 0;
+        for (int index = 0; index < std::ssize(CurrentOffsets_); ++index) {
+            CurrentOffsets_[index] = startOffset;
+            startOffset = EndOffsets_[index];
+        }
+    }
 
     auto compareKey = [&] (int lhsIndex, int rhsIndex) {
-        lhsIndex = OrderingTranslationLayer_[lhsIndex];
-        rhsIndex = OrderingTranslationLayer_[rhsIndex];
         for (ui16 keyColumnId = 0; keyColumnId < keyWidth; ++keyColumnId) {
             if (UnpackedKeys_[keyColumnId][lhsIndex] != UnpackedKeys_[keyColumnId][rhsIndex]) {
                 return UnpackedKeys_[keyColumnId][lhsIndex] < UnpackedKeys_[keyColumnId][rhsIndex] ? -1 : 1;
@@ -494,7 +939,7 @@ void TNestedTableMerger::BuildMergeScript()
 
     // Returns true once stream is depleted.
     auto advanceStream = [&] (int id) {
-        auto endOffset = Offsets_[id + 1];
+        auto endOffset = EndOffsets_[id];
         YT_VERIFY(CurrentOffsets_[id] != endOffset);
 
         return ++CurrentOffsets_[id] == endOffset;
@@ -502,8 +947,8 @@ void TNestedTableMerger::BuildMergeScript()
 
     RowIdHeap_.clear();
 
-    for (int id = 0; id < std::ssize(CurrentOffsets_) - 1; ++id) {
-        if (CurrentOffsets_[id] != Offsets_[id + 1]) {
+    for (int id = 0; id < std::ssize(CurrentOffsets_); ++id) {
+        if (CurrentOffsets_[id] != EndOffsets_[id]) {
             RowIdHeap_.push_back(id);
         }
     }
@@ -549,114 +994,31 @@ void TNestedTableMerger::BuildMergeScript()
     }
 }
 
-TUnversionedValue TNestedTableMerger::BuildMergedKeyColumns(
-    TRange<int> counts,
-    TRange<int> rowIds,
-    TRange<TUnversionedValue> unpackedKeys,
-    TRowBuffer* rowBuffer)
+void TNestedTableMerger::ApplyMergeScriptToKeys(int keyWidth)
 {
-    CurrentOffsets_ = Offsets_;
-
-    const auto* idPtr = rowIds.Begin();
-    ResultValues_.clear();
-    for (auto count : counts) {
-        // Ids and timestamps are in increasing order.
-
-        auto id = *idPtr++;
-        ResultValues_.push_back(unpackedKeys[OrderingTranslationLayer_[CurrentOffsets_[id]++]]);
-
-        for (int i = 1; i < count; ++i) {
-            ++CurrentOffsets_[*idPtr++];
-        }
-    }
-
-    return PackValues(ResultValues_, rowBuffer);
-}
-
-TVersionedValue TNestedTableMerger::BuildMergedValueColumn(
-    TRange<int> counts,
-    TRange<int> rowIds,
-    TRange<TTimestamp> timestamps,
-    TRange<TVersionedValue> values,
-    EValueType elementType,
-    TAggregateFunction* aggregateFunction,
-    TRowBuffer* rowBuffer)
-{
-    // Unpack values.
-    UnpackedValues_.clear();
-    CurrentOffsets_.assign(timestamps.size(), -1);
-
-    YT_VERIFY(values.Size() <= timestamps.Size());
-
-    for (const auto& value : values) {
-        auto timestampIt = LowerBound(timestamps.Begin(), timestamps.End(), value.Timestamp);
-
-        if (timestampIt == timestamps.End() && *timestampIt != value.Timestamp) {
-            THROW_ERROR_EXCEPTION("Cannot find matching timestamp for value column")
-                << TErrorAttribute("timestamp", value.Timestamp);
-        }
-
-        if (value.Type == EValueType::Null) {
-            continue;
-        }
-
-        int id = timestampIt - timestamps.Begin();
-
-        CurrentOffsets_[id] = UnpackedValues_.size();
-
-        // TODO(lukyan): Set aggregate flag from initial versioned value.
-        UnpackNestedValuesList(&UnpackedValues_, value.AsStringBuf(), elementType);
-    }
-
-    const auto* rowIdPtr = rowIds.Begin();
-
-    ResultValues_.clear();
-    for (auto count : counts) {
-        // Ids and timestamps in increasing order.
-
-        auto rowId = *rowIdPtr++;
-
-        TUnversionedValue mergeState = MakeUnversionedNullValue();
-
-        // Do not merge if CurrentOffsets_[id] is -1 (npos).
-        if (CurrentOffsets_[rowId] != -1) {
-            mergeState = UnpackedValues_[OrderingTranslationLayer_[CurrentOffsets_[rowId]++]];
-        }
-
-        for (int index = 1; index < count; ++index) {
-            rowId = *rowIdPtr++;
-            auto value = MakeUnversionedNullValue();
-            // Do not merge if CurrentOffsets_[id] is -1 (npos).
-            if (CurrentOffsets_[rowId] != -1) {
-                value = UnpackedValues_[OrderingTranslationLayer_[CurrentOffsets_[rowId]++]];
+    ResultKeys_.resize(keyWidth);
+    for (int index = 0; index < keyWidth; ++index) {
+        {
+            CurrentOffsets_.resize(std::ssize(EndOffsets_));
+            int startOffset = 0;
+            for (int index = 0; index < std::ssize(CurrentOffsets_); ++index) {
+                CurrentOffsets_[index] = startOffset;
+                startOffset = EndOffsets_[index];
             }
-            (*aggregateFunction)(&mergeState, value);
         }
 
-        ResultValues_.push_back(mergeState);
+        const auto* idPtr = RowIds_.begin();
+        for (auto count : NestedRowCounts_) {
+            // Ids and timestamps are in increasing order.
+
+            auto id = *idPtr++;
+            ResultKeys_[index].push_back(UnpackedKeys_[index][CurrentOffsets_[id]++]);
+
+            for (int i = 1; i < count; ++i) {
+                ++CurrentOffsets_[*idPtr++];
+            }
+        }
     }
-
-    TVersionedValue result;
-    static_cast<TUnversionedValue&>(result) = PackValues(ResultValues_, rowBuffer);
-    result.Timestamp = timestamps.Back();
-    return result;
-}
-
-TVersionedValue TNestedTableMerger::BuildMergedKeyColumns(int index, TRowBuffer* rowBuffer)
-{
-    TVersionedValue state;
-    static_cast<TUnversionedValue&>(state) = BuildMergedKeyColumns(NestedRowCounts_, RowIds_, UnpackedKeys_[index], rowBuffer);
-    state.Timestamp = Timestamps_.back();
-    return state;
-}
-
-TVersionedValue TNestedTableMerger::BuildMergedValueColumn(
-    TRange<TVersionedValue> values,
-    EValueType elementType,
-    TAggregateFunction* aggregateFunction,
-    TRowBuffer* rowBuffer)
-{
-    return BuildMergedValueColumn(NestedRowCounts_, RowIds_, Timestamps_, values, elementType, aggregateFunction, rowBuffer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

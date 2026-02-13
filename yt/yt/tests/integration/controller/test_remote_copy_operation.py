@@ -25,6 +25,7 @@ from yt_type_helpers import make_column, make_schema, normalize_schema, normaliz
 import yt_error_codes
 
 from yt.common import YtError
+from yt.common import YtResponseError
 from yt.environment.helpers import assert_items_equal
 import yt.yson as yson
 
@@ -32,6 +33,7 @@ import pytest
 
 from functools import partial
 import time
+import datetime
 import builtins
 from math import ceil
 from copy import deepcopy
@@ -642,6 +644,10 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
             driver=self.remote_driver,
         ) == "lz4"
 
+        extra_spec = {}
+        if self.Env.get_component_version("ytserver-controller-agent").abi < (25, 4):
+            extra_spec = {"force_copy_system_attributes": True}
+
         remote_copy(
             in_="//tmp/t_in",
             out="//tmp/t_out",
@@ -649,7 +655,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
                 "cluster_name": self.REMOTE_CLUSTER_NAME,
                 "copy_attributes": copy_user_attributes,
                 "attribute_keys": ["custom_attr", "compression_codec"],
-                "force_copy_system_attributes": True,
+                **extra_spec,
             },
         )
 
@@ -662,42 +668,6 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
         assert get("//tmp/t_out/@erasure_codec") == "reed_solomon_6_3"
         if object_type == "table":
             assert get("//tmp/t_out/@optimize_for") == "lookup"
-
-    # COMPAT(coteeq): This is a test for the runtime switch flag
-    @authors("coteeq")
-    @pytest.mark.parametrize("copy_user_attributes", [True, False])
-    def test_no_copy_basic_attributes_by_default(self, copy_user_attributes):
-        create("table", "//tmp/t_in", driver=self.remote_driver)
-        create("table", "//tmp/t_out")
-
-        set("//tmp/t_in/@custom_attr", "attr_value", driver=self.remote_driver)
-
-        attributes = {
-            "compression_codec": "none",
-            "erasure_codec": "reed_solomon_6_3",
-            "optimize_for": "scan",
-        }
-
-        write_attributes = ';'.join(f"{k}={v}" for k, v in attributes.items())
-        write_table(f"<{write_attributes}>//tmp/t_in", [{"column": "value"}], driver=self.remote_driver)
-
-        for attr, value in attributes.items():
-            assert get("//tmp/t_in/@" + attr, driver=self.remote_driver) == value
-
-        remote_copy(
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            spec={
-                "cluster_name": self.REMOTE_CLUSTER_NAME,
-                "copy_attributes": copy_user_attributes
-            },
-        )
-
-        assert exists("//tmp/t_out/@custom_attr") == copy_user_attributes
-
-        assert get("//tmp/t_out/@compression_codec") == "lz4"  # NB: lz4 is the default
-        assert get("//tmp/t_out/@erasure_codec") == "none"
-        assert get("//tmp/t_out/@optimize_for") == "lookup"
 
     @authors("asaitgalin", "ignat")
     def test_copy_attributes(self):
@@ -807,6 +777,11 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
             chunk_id = get_singular_chunk_id("//tmp/t1", driver=self.remote_driver)
 
+            # COMPAT(coteeq)
+            compat_repair_erasure_chunks = {}
+            if self.Env.get_component_version("ytserver-controller-agent").abi < (26, 1):
+                compat_repair_erasure_chunks["repair_erasure_chunks"] = True
+
             def run_operation():
                 op = remote_copy(
                     track=False,
@@ -817,8 +792,8 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
                         "max_failed_job_count": 1,
                         "delay_in_copy_chunk": 5000,
                         "erasure_chunk_repair_delay": 2000,
-                        "repair_erasure_chunks": True,
                         "chunk_availability_policy": "repairable",
+                        **compat_repair_erasure_chunks,
                     },
                 )
                 wait(lambda: len(op.get_running_jobs()) == 1)
@@ -1443,19 +1418,6 @@ class TestSchedulerRemoteCopyCommandsSequoiaRemote(TestSchedulerRemoteCopyComman
     }
     REMOTE_TRANSACTION_COORDINATOR = hex(21)[2:]
 
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "sequoia_manager": {
-            "enable_ground_update_queues": True,
-        },
-    }
-
-    DELTA_CYPRESS_PROXY_CONFIG = {
-        "testing": {
-            "enable_ground_update_queues_sync": True,
-            "enable_user_directory_per_request_sync": True,
-        },
-    }
-
 
 class TestSchedulerRemoteCopyCommandsSequoiaPrimary(TestSchedulerRemoteCopyCommands):
     USE_SEQUOIA = True
@@ -1469,19 +1431,6 @@ class TestSchedulerRemoteCopyCommandsSequoiaPrimary(TestSchedulerRemoteCopyComma
         "11": {"roles": ["cypress_node_host", "transaction_coordinator"]},
         "12": {"roles": ["chunk_host"]},
         "13": {"roles": ["sequoia_node_host"]}
-    }
-
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "sequoia_manager": {
-            "enable_ground_update_queues": True,
-        },
-    }
-
-    DELTA_CYPRESS_PROXY_CONFIG = {
-        "testing": {
-            "enable_ground_update_queues_sync": True,
-            "enable_user_directory_per_request_sync": True,
-        },
     }
 
 
@@ -1505,19 +1454,6 @@ class TestSchedulerRemoteCopyCommandsSequoia(TestSchedulerRemoteCopyCommands):
         "23": {"roles": ["sequoia_node_host"]}
     }
     REMOTE_TRANSACTION_COORDINATOR = hex(21)[2:]
-
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "sequoia_manager": {
-            "enable_ground_update_queues": True,
-        },
-    }
-
-    DELTA_CYPRESS_PROXY_CONFIG = {
-        "testing": {
-            "enable_ground_update_queues_sync": True,
-            "enable_user_directory_per_request_sync": True,
-        },
-    }
 
 
 ##################################################################
@@ -2513,6 +2449,16 @@ class TestSchedulerRemoteCopyDynamicTablesWithHunksMulticell(TestSchedulerRemote
 
 class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyCommandsBase):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
+    NUM_DISCOVERY_SERVERS = 1
+    NUM_NODES = 1
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "cypress_manager": {
+            "default_table_replication_factor": 1,
+            "default_file_replication_factor": 1,
+        }
+    }
+
     DELTA_NODE_CONFIG = {
         "exec_node": {
             # Enable job throttler on exe node.
@@ -2529,6 +2475,7 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
+            "snapshot_period": 500,
             "operations_update_period": 100,
             "operation_alerts_push_period": 100,
             "alert_manager": {
@@ -2543,16 +2490,17 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
         },
     }
 
-    CHUNK_COUNT = 3
-    BANDWIDTH_LIMIT = 10 ** 6
+    CHUNK_COUNT = 32
+    BANDWIDTH_LIMIT = 10 ** 7
     THROTTLER_JITTER_MULTIPLIER = 0.5
     DATA_WEIGHT_SIZE_PER_CHUNK = 10 ** 7
 
-    # Setup //sys/cluster_throttlers on local cluster.
-    def setup_cluster_throttlers(self):
-        remove('//sys/cluster_throttlers', force=True)
-        cluster_throttlers_config = {
+    LEASE_TIMEOUT_SECONDS = 1
+
+    def _create_default_cluster_throttlers_config(self):
+        return {
             "enabled": True,
+            "update_period": 600,
             "cluster_limits": {
                 # Limit bandwidth from remote cluster to local cluster.
                 self.REMOTE_CLUSTER_NAME: {
@@ -2563,35 +2511,109 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
             },
             "distributed_throttler": {
                 "member_client": {
-                    "heartbeat_period": 50,
-                    "attribute_update_period": 300,
-                    "heartbeat_throttler_count_limit": 2,
+                    "lease_timeout": self.LEASE_TIMEOUT_SECONDS * 1000,
                 },
-                "limit_update_period": 100,
-                "leader_update_period": 1500,
+                "heartbeat_period": 200,
+                "attribute_update_period": 600,
+                "heartbeat_throttler_count_limit": 2,
+                "limit_update_period": 600,
+                "leader_update_period": 600,
             },
         }
-        set('//sys/cluster_throttlers', cluster_throttlers_config)
 
-    # Setup empty //sys/cluster_throttlers on local cluster.
-    def setup_empty_cluster_throttlers(self):
-        remove('//sys/cluster_throttlers', force=True)
-        create('document', '//sys/cluster_throttlers')
+    def _create_empty_cluster_throttlers_config(self):
+        return {}
 
-    # Setup malformed //sys/cluster_throttlers on local cluster.
-    def setup_malformed_cluster_throttlers(self):
-        remove('//sys/cluster_throttlers', force=True)
-        set('//sys/cluster_throttlers', '{ malformed_config ')
+    def _create_malformed_cluster_throttlers_config(self):
+        return '{ malformed_config '
 
-    @authors("yuryalekseev")
-    def test_cluster_throttlers(self):
-        self.setup_cluster_throttlers()
+    # Setup cluster throttlers config on local cluster.
+    def _setup_cluster_throttlers_config(self, config=None):
+        create('document', '//sys/cluster_throttlers', force=True)
+        if config is None:
+            config = self._create_default_cluster_throttlers_config()
+        set('//sys/cluster_throttlers', config)
 
-        # Restart exe nodes to initialize cluster throttlers after //sys/cluster_throttlers setup.
+    # Restart exe nodes to initialize cluster throttlers after config setup.
+    def _restart_nodes(self):
         with Restarter(self.Env, NODES_SERVICE):
             time.sleep(1)
 
         wait_for_nodes()
+
+    # Create and initialize cluster throttlers config on all exe nodes.
+    def _init_cluster_throttlers_config(self, config=None):
+        # Create and set cluster throttlers config on local cluster.
+        self._setup_cluster_throttlers_config(config=config)
+
+        # Restart exe nodes to pick up new cluster throttlers config.
+        self._restart_nodes()
+
+        # Wait for exe nodes to apply new cluster throttlers config.
+        self._wait_for_all_remote_cluster_throttlers_group_members()
+
+    # Wait for all exe nodes to register in remote_cluster_throttlers_group.
+    def _wait_for_all_remote_cluster_throttlers_group_members(self):
+        def has_all_remote_cluster_throttlers_group_members():
+            try:
+                sys = ls("//sys")
+                if len(sys) == 0:
+                    return False
+                if 'discovery_servers' not in sys:
+                    return False
+                servers = ls("//sys/discovery_servers")
+                if len(servers) == 0:
+                    return False
+                discovery_server = servers[0]
+                groups = ls("//sys/discovery_servers/{}/orchid/discovery_server".format(discovery_server))
+                if 'remote_cluster_throttlers_group' not in groups:
+                    return False
+                group_members = ls("//sys/discovery_servers/{}/orchid/discovery_server/remote_cluster_throttlers_group/@members".format(discovery_server))
+                return len(group_members) >= self.NUM_NODES
+            except YtResponseError:
+                return False
+
+        # Wait for all exe nodes to register in discovery service.
+        wait(lambda: has_all_remote_cluster_throttlers_group_members(), timeout=60)
+
+    # Wait for all exe nodes to unregister from remote_cluster_throttlers_group.
+    def _wait_for_no_remote_cluster_throttlers_group_members(self):
+        def has_no_remote_cluster_throttlers_group_members():
+            try:
+                sys = ls("//sys")
+                if len(sys) == 0:
+                    return False
+                if 'discovery_servers' not in sys:
+                    return False
+                servers = ls("//sys/discovery_servers")
+                if len(servers) == 0:
+                    return False
+                discovery_server = servers[0]
+                groups = ls("//sys/discovery_servers/{}/orchid/discovery_server".format(discovery_server))
+                if 'remote_cluster_throttlers_group' not in groups:
+                    return True
+                group_members = ls("//sys/discovery_servers/{}/orchid/discovery_server/remote_cluster_throttlers_group/@members".format(discovery_server))
+                return len(group_members) == 0
+            except YtResponseError:
+                return False
+
+        # Wait for all exe nodes to unregister from discovery service.
+        wait(lambda: has_no_remote_cluster_throttlers_group_members(), timeout=60)
+
+    # Wait for bandwidth to become unavailable in CA.
+    def _wait_for_bandwidth_to_become_unavailable(self, op):
+        wait(lambda: exists(op.get_orchid_path() + "/controller/network_bandwidth_availability"))
+
+        def is_not_available(cluster, op):
+            value = get(op.get_orchid_path() + "/controller/network_bandwidth_availability")
+            return str(value.get(cluster, None)) == "false"
+
+        wait(lambda: is_not_available(self.REMOTE_CLUSTER_NAME, op))
+
+    @authors("yuryalekseev")
+    def test_cluster_throttlers(self):
+        # Create and initialize default cluster throttlers config on all exe nodes.
+        self._init_cluster_throttlers_config()
 
         # Create table on remote cluster.
         create(
@@ -2628,12 +2650,12 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
 
         remote_copy_end_time = time.time()
 
-        # Check that throttling has happened.
-        assert (remote_copy_end_time - remote_copy_start_time) > (self.CHUNK_COUNT * self.DATA_WEIGHT_SIZE_PER_CHUNK * self.THROTTLER_JITTER_MULTIPLIER / self.BANDWIDTH_LIMIT)
-
         # Check result table on local cluster.
         assert read_table("//tmp/local_table") == [{"v": "0" * self.DATA_WEIGHT_SIZE_PER_CHUNK} for c in range(self.CHUNK_COUNT)]
         assert not get("//tmp/local_table/@sorted")
+
+        # Check that throttling has happened.
+        assert (remote_copy_end_time - remote_copy_start_time) > (self.CHUNK_COUNT * self.DATA_WEIGHT_SIZE_PER_CHUNK * self.THROTTLER_JITTER_MULTIPLIER / self.BANDWIDTH_LIMIT)
 
         # Check that solomon counters have showed up.
         for job_id in op.list_jobs():
@@ -2644,18 +2666,18 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
             wait(lambda: profiler.get("exec_node/throttler_manager/distributed_throttler/usage", {"throttler_id": "bandwidth_{}".format(self.REMOTE_CLUSTER_NAME)}) is not None)
 
     @authors("yuryalekseev")
-    @pytest.mark.parametrize("config", ["empty", "malformed"])
-    def test_absent_cluster_throttlers(self, config):
-        if config == "empty":
-            self.setup_empty_cluster_throttlers()
-        if config == "malformed":
-            self.setup_malformed_cluster_throttlers()
+    @pytest.mark.parametrize("config_type", ["empty", "malformed"])
+    def test_absent_cluster_throttlers(self, config_type):
+        if config_type == "empty":
+            config = self._create_empty_cluster_throttlers_config()
+        if config_type == "malformed":
+            config = self._create_malformed_cluster_throttlers_config()
 
-        # Restart exe nodes to initialize cluster throttlers after //sys/cluster_throttlers setup.
-        with Restarter(self.Env, NODES_SERVICE):
-            time.sleep(1)
+        # Create default cluster throttlers config.
+        self._setup_cluster_throttlers_config(config)
 
-        wait_for_nodes()
+        # Restart exe nodes to pick up new cluster throttlers config.
+        self._restart_nodes()
 
         # Create table on remote cluster.
         create(
@@ -2700,40 +2722,27 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
         assert not get("//tmp/local_table/@sorted")
 
     @authors("yuryalekseev")
-    @pytest.mark.skip("This test is broken")
-    def test_rate_limit_ratio_hard_threshold(self):
-        bandwidth_limit = self.BANDWIDTH_LIMIT * 8
+    def test_cluster_throttlers_all_nodes_banned(self):
+        # Create and initialize default cluster throttlers config on all exe nodes.
+        self._init_cluster_throttlers_config()
 
-        # Create //sys/cluster_throttlers
-        remove('//sys/cluster_throttlers', force=True)
-        cluster_throttlers_config = {
-            "enabled": True,
-            "rate_limit_ratio_hard_threshold": -1,
-            "cluster_limits": {
-                # Limit bandwidth from remote cluster to local cluster.
-                self.REMOTE_CLUSTER_NAME: {
-                    "bandwidth": {
-                        "limit": bandwidth_limit,
-                    },
-                },
-            },
-            "distributed_throttler": {
-                "member_client": {
-                    "heartbeat_period": 50,
-                    "attribute_update_period": 300,
-                    "heartbeat_throttler_count_limit": 2,
-                },
-                "limit_update_period": 100,
-                "leader_update_period": 1500,
+        # Ban all nodes on local cluster.
+        set_all_nodes_banned(True)
+
+        # Wait for all nodes to disappear from group.
+        self._wait_for_no_remote_cluster_throttlers_group_members()
+
+    @authors("yuryalekseev")
+    def test_rate_limit_ratio_hard_threshold(self):
+        config = self._create_default_cluster_throttlers_config()
+        # Set parameters to disable scheduling of operations.
+        config["rate_limit_ratio_hard_threshold"] = -1
+        config["cluster_limits"][self.REMOTE_CLUSTER_NAME] = {
+            "bandwidth": {
+                "limit": 0,
             },
         }
-        set('//sys/cluster_throttlers', cluster_throttlers_config)
-
-        # Restart exe nodes to initialize cluster throttlers after //sys/cluster_throttlers setup.
-        with Restarter(self.Env, NODES_SERVICE):
-            time.sleep(1)
-
-        wait_for_nodes()
+        self._init_cluster_throttlers_config(config)
 
         # Create table on remote cluster.
         create(
@@ -2750,38 +2759,7 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
         # Create table on local cluster.
         create("table", "//tmp/local_table")
 
-        remote_copy_start_time = time.time()
-
-        # Warm up CAs, let them run single remote copy operation with single job.
-
-        remote_copy_start_time = time.time()
-
-        # Copy table from remote cluster to local cluster.
-        op = remote_copy(
-            in_="//tmp/remote_table",
-            out="//tmp/local_table",
-            spec={
-                "cluster_name": self.REMOTE_CLUSTER_NAME,
-                "job_io": {
-                    "table_reader": {
-                        "enable_local_throttling": True,
-                    },
-                },
-                "job_count": 1,
-                "use_cluster_throttlers": True,
-            },
-        )
-
-        remote_copy_end_time = time.time()
-
-        remote_copy_run_time = remote_copy_end_time - remote_copy_start_time
-
-        # Check that throttling has been disabled.
-        assert remote_copy_run_time > (self.CHUNK_COUNT * self.DATA_WEIGHT_SIZE_PER_CHUNK * self.THROTTLER_JITTER_MULTIPLIER / bandwidth_limit)
-
-        # Because of negative "rate_limit_ratio_hard_threshold" CAs should now effectively disable scheduling of remote copy operations, check it.
-
-        remote_copy_time_limit = 2 * min(remote_copy_run_time, 30) * 1000
+        operation_time_limit_seconds = 30
 
         # Copy table from remote cluster to local cluster.
         op = remote_copy(
@@ -2795,29 +2773,18 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
                         "enable_local_throttling": True,
                     },
                 },
-                "job_count": 1,
+                "job_count": self.CHUNK_COUNT,
                 "use_cluster_throttlers": True,
-                "time_limit": remote_copy_time_limit,
+                "time_limit": operation_time_limit_seconds * 1000,
             },
         )
 
-        # Wait for network bandwidth to become unavailable.
-
-        op.wait_for_state("running")
-        wait(lambda: exists(op.get_orchid_path() + "/controller/network_bandwidth_availability"))
-
-        def is_not_available(cluster, op):
-            value = get(op.get_orchid_path() + "/controller/network_bandwidth_availability")
-            assert cluster in value
-            return str(value[cluster]) == "false"
-
-        wait(lambda: is_not_available(self.REMOTE_CLUSTER_NAME, op))
+        # Wait for bandwidth to become unavailable in CA.
+        self._wait_for_bandwidth_to_become_unavailable(op)
 
         # Wait for operation abortion by time limit.
         with pytest.raises(YtError) as err:
-            op.track()
+            op.track(timeout=datetime.timedelta(seconds=2*operation_time_limit_seconds))
 
-        assert 'Operation is running for too long' in str(err)
-
-        # Check that operation scheduling was paused due to unavailable network bandwidth.
+        assert 'has not finished in' in str(err.value) or 'running for too long' in str(err.value)
         assert 'unavailable_network_bandwidth_to_clusters' in op.get_alerts()

@@ -15,13 +15,13 @@ prepare-bin:
 .PHONY: build-hydra
 build-hydra: prepare-bin
 	rm -f hydra_persistence_uploader/bin/hydra_persistence_uploader
-	ya make hydra_persistence_uploader/bin/ -r
+	../../../ya make hydra_persistence_uploader/bin/ -r
 	cp hydra_persistence_uploader/bin/hydra_persistence_uploader bin/hydra_persistence_uploader
 
 .PHONY: build-timbertruck
 build-timbertruck:
 	rm -f ../../admin/timbertruck/cmd/timbertruck_os/timbertruck_os
-	ya make ../../admin/timbertruck/cmd/timbertruck_os/ -r
+	../../../ya make ../../admin/timbertruck/cmd/timbertruck_os/ -r
 	cp ../../admin/timbertruck/cmd/timbertruck_os/timbertruck_os bin/timbertruck_os
 
 .PHONY: docker-push

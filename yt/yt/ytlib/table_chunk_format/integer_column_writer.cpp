@@ -156,7 +156,7 @@ public:
     i64 GetMemoryUsage() const
     {
         return GetVectorMemoryUsage(Values_) +
-            DistinctValues_.size() * sizeof(i64) +
+            DistinctValues_.capacity() * sizeof(typename decltype(DistinctValues_)::value_type) +
             TVersionedColumnWriterBase::GetMemoryUsage();
     }
 

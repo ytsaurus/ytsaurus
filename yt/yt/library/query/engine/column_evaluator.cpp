@@ -200,7 +200,7 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
 
         if (schema->Columns()[index].Aggregate()) {
             const auto& aggregateName = *schema->Columns()[index].Aggregate();
-            if (auto nested = TryParseNestedAggregate(aggregateName)) {
+            if (TryParseNestedAggregate(aggregateName)) {
                 continue;
             }
             auto type = schema->Columns()[index].LogicalType();
@@ -220,6 +220,7 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
                     {wireType},
                     wireType,
                     EExecutionBackend::Native,
+                    NWebAssembly::GetBuiltinSdk(),
                     {});
             }
             column.AggregateInstance = column.AggregateImage.Instantiate();

@@ -2,6 +2,7 @@ GO_LIBRARY()
 
 SRCS(
     cluster.go
+    continuation_token.go
     models.go
     resource_usage.go
     table.go

@@ -211,7 +211,7 @@ def log_bad_response(response):
         return s
 
     header_text = io.StringIO()
-    for name, value in response.headers.items():
+    for name, value in hide_auth_headers(response.headers).items():
         header_text.write("\t{}: {}\n".format(name, value))
     header_text = trim(header_text.getvalue())
 

@@ -97,7 +97,7 @@ public:
         auto guard = WriterGuard(SpinLock_);
 
         if (FlushQueue_.empty() && AppendQueue_.empty()) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         FlushForced_.store(true);
@@ -393,7 +393,7 @@ public:
 
     TFuture<IFileChangelogPtr> CreateChangelog(
         int id,
-        const TString& path,
+        const std::string& path,
         const TChangelogMeta& meta,
         const TFileChangelogConfigPtr& config) override
     {
@@ -405,7 +405,7 @@ public:
 
     TFuture<IFileChangelogPtr> OpenChangelog(
         int id,
-        const TString& path,
+        const std::string& path,
         const TFileChangelogConfigPtr& config) override
     {
         return BIND(&TFileChangelogDispatcher::DoOpenChangelog, MakeStrong(this))
@@ -599,7 +599,7 @@ private:
 
     IFileChangelogPtr DoCreateChangelog(
         int id,
-        const TString& path,
+        const std::string& path,
         const TChangelogMeta& meta,
         const TFileChangelogConfigPtr& config)
     {
@@ -610,7 +610,7 @@ private:
 
     IFileChangelogPtr DoOpenChangelog(
         int id,
-        const TString& path,
+        const std::string& path,
         const TFileChangelogConfigPtr& config)
     {
         auto unbufferedChangelog = CreateUnbufferedFileChangelog(IOEngine_, MemoryUsageTracker_, path, config);

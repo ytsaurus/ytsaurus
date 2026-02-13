@@ -89,7 +89,7 @@ private:
                 if (!cell->IsAlienPeer(peerId)) {
                     descriptor.AlienPeers.push_back({
                         .PeerId = peerId,
-                        .NodeDescriptor = cell->Peers()[peerId].Descriptor
+                        .NodeDescriptor = cell->Peers()[peerId].Descriptor,
                     });
                 }
             }

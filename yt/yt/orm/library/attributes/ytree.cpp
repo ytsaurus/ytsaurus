@@ -15,10 +15,10 @@ INodePtr GetNodeByPathOrEntity(
     const TYPath& path)
 {
     static const TNodeWalkOptions WalkOptions{
-        .MissingAttributeHandler = [] (const TString& /*key*/) {
+        .MissingAttributeHandler = [] (const std::string& /*key*/) {
             return GetEphemeralNodeFactory()->CreateEntity();
         },
-        .MissingChildKeyHandler = [] (const IMapNodePtr& /*node*/, const TString& /*key*/) {
+        .MissingChildKeyHandler = [] (const IMapNodePtr& /*node*/, const std::string& /*key*/) {
             return GetEphemeralNodeFactory()->CreateEntity();
         },
         .MissingChildIndexHandler = [] (const IListNodePtr& /*node*/, int /*index*/) {

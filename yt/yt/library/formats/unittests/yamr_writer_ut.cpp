@@ -86,7 +86,7 @@ TEST_F(TSchemalessWriterForYamrTest, Simple)
         .Get()
         .ThrowOnError();
 
-    TString output =
+    std::string output =
         "key1\tvalue1\n"
         "key2\tvalue2\n";
 
@@ -115,7 +115,7 @@ TEST_F(TSchemalessWriterForYamrTest, SimpleWithSubkey)
         .Get()
         .ThrowOnError();
 
-    TString output =
+    std::string output =
         "key1\tsubkey1\tvalue1\n"
         "key2\tsubkey2\tvalue2\n";
 
@@ -138,7 +138,7 @@ TEST_F(TSchemalessWriterForYamrTest, SubkeyCouldBeSkipped)
         .Get()
         .ThrowOnError();
 
-    TString output = "key\t\tvalue\n";
+    std::string output = "key\t\tvalue\n";
     EXPECT_EQ(output, OutputStream_.Str());
 }
 
@@ -159,7 +159,7 @@ TEST_F(TSchemalessWriterForYamrTest, SubkeyCouldBeNull)
         .Get()
         .ThrowOnError();
 
-    TString output = "key\t\tvalue\n";
+    std::string output = "key\t\tvalue\n";
     EXPECT_EQ(output, OutputStream_.Str());
 }
 
@@ -181,7 +181,7 @@ TEST_F(TSchemalessWriterForYamrTest, NonNullTerminatedStrings)
         .Get()
         .ThrowOnError();
 
-    TString output = "key\tsubkey\tvalue\n";
+    std::string output = "key\tsubkey\tvalue\n";
     EXPECT_EQ(output, OutputStream_.Str());
 }
 
@@ -254,7 +254,7 @@ TEST_F(TSchemalessWriterForYamrTest, ExtraItem)
         .Get()
         .ThrowOnError();
 
-    TString output = "key\tvalue\n";
+    std::string output = "key\tvalue\n";
     EXPECT_EQ(output, OutputStream_.Str());
 }
 
@@ -276,7 +276,7 @@ TEST_F(TSchemalessWriterForYamrTest, Escaping)
         .Get()
         .ThrowOnError();
 
-    TString output = "\\n\t\\t\t\\n\n";
+    std::string output = "\\n\t\\t\t\\n\n";
     EXPECT_EQ(output, OutputStream_.Str());
 }
 
@@ -313,7 +313,7 @@ TEST_F(TSchemalessWriterForYamrTest, SimpleWithTableIndex)
         .Get()
         .ThrowOnError();
 
-    TString output =
+    std::string output =
         "42\n"
         "key1\tvalue1\n"
         "key2\tvalue2\n"
@@ -365,7 +365,7 @@ TEST_F(TSchemalessWriterForYamrTest, SimpleWithRowIndexAndTableIndex)
         .Get()
         .ThrowOnError();
 
-    TString output =
+    std::string output =
         "42\n0\n"
         "key1\tvalue1\n"
         "key2\tvalue2\n"
@@ -401,7 +401,7 @@ TEST_F(TSchemalessWriterForYamrTest, Lenval)
         .Get()
         .ThrowOnError();
 
-    TString output = TString(
+    std::string output = std::string(
         "\x04\x00\x00\x00" "key1"
         "\x07\x00\x00\x00" "subkey1"
         "\x06\x00\x00\x00" "value1"
@@ -442,7 +442,7 @@ TEST_F(TSchemalessWriterForYamrTest, LenvalWithEmptyFields)
         .Get()
         .ThrowOnError();
 
-    TString output = TString(
+    std::string output = std::string(
         "\x00\x00\x00\x00" ""
         "\x07\x00\x00\x00" "subkey1"
         "\x06\x00\x00\x00" "value1"
@@ -506,7 +506,7 @@ TEST_F(TSchemalessWriterForYamrTest, LenvalWithKeySwitch)
         .Get()
         .ThrowOnError();
 
-    TString output = TString(
+    std::string output = std::string(
         "\x04\x00\x00\x00" "key1"
         "\x07\x00\x00\x00" "subkey1"
         "\x06\x00\x00\x00" "value1"
@@ -566,7 +566,7 @@ TEST_F(TSchemalessWriterForYamrTest, LenvalWithTableIndex)
         .Get()
         .ThrowOnError();
 
-    TString output(
+    std::string output(
         "\xff\xff\xff\xff" "\x2a\x00\x00\x00" // 42
 
         "\x04\x00\x00\x00" "key1"
@@ -622,7 +622,7 @@ TEST_F(TSchemalessWriterForYamrTest, LenvalWithRangeAndRowIndex)
         .Get()
         .ThrowOnError();
 
-    TString output(
+    std::string output(
         "\xfd\xff\xff\xff" "\x2a\x00\x00\x00" // 42
         "\xfc\xff\xff\xff" "\x17\x00\x00\x00\x00\x00\x00\x00" // 23
 

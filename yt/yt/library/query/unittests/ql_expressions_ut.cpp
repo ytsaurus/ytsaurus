@@ -2754,14 +2754,11 @@ TEST_F(TEvaluateAggregationTest, AggregateFlag)
         {EValueType::Int64},
         EValueType::Int64,
         EValueType::Int64,
-        "xor_aggregate",
-        ECallingConvention::UnversionedValue);
+        EValueType::Null,
+        "xor_aggregate");
 
-    auto usedWebAssemblyFiles = New<TUsedWebAssemblyFiles>();
-    usedWebAssemblyFiles->emplace(
-        ::NResource::Has("libwasm-udfs-builtin-ytql-udfs.so")
-            ? TSharedRef::FromString(::NResource::Find("libwasm-udfs-builtin-ytql-udfs.so"))
-            : TSharedRef());
+    auto usedWebAssemblyFiles = New<NWebAssembly::TModuleBytecodeHashSet>();
+    usedWebAssemblyFiles->insert(NWebAssembly::GetBuiltinYtQlUdfs());
 
     // TODO(dtorilov): Test both execution backends.
     auto image = CodegenAggregate(
@@ -2774,6 +2771,7 @@ TEST_F(TEvaluateAggregationTest, AggregateFlag)
         {EValueType::Int64},
         EValueType::Int64,
         EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native,
+        NWebAssembly::GetBuiltinSdk(),
         *usedWebAssemblyFiles);
     auto instance = image.Instantiate();
 
@@ -2830,14 +2828,11 @@ TEST_F(TEvaluateAggregationTest, Aliasing)
         {EValueType::String},
         EValueType::String,
         EValueType::String,
-        "concat_all",
-        ECallingConvention::UnversionedValue);
+        EValueType::Null,
+        "concat_all");
 
-    auto usedWebAssemblyFiles = New<TUsedWebAssemblyFiles>();
-    usedWebAssemblyFiles->emplace(
-        ::NResource::Has("libwasm-udfs-builtin-ytql-udfs.so")
-            ? TSharedRef::FromString(::NResource::Find("libwasm-udfs-builtin-ytql-udfs.so"))
-            : TSharedRef());
+    auto usedWebAssemblyFiles = New<NWebAssembly::TModuleBytecodeHashSet>();
+    usedWebAssemblyFiles->insert(NWebAssembly::GetBuiltinYtQlUdfs());
 
     auto stringType = MakeLogicalType(ESimpleLogicalValueType::String, /*required*/ false);
 
@@ -2851,6 +2846,7 @@ TEST_F(TEvaluateAggregationTest, Aliasing)
         /* argumentTypes */ {EValueType::String},
         /* stateType */ EValueType::String,
         EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native,
+        NWebAssembly::GetBuiltinSdk(),
         *usedWebAssemblyFiles);
 
     auto instance = image.Instantiate();
@@ -2936,6 +2932,7 @@ TEST_P(TEvaluateAggregationTest, Basic)
         {wireType},
         wireType,
         EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native,
+        NWebAssembly::GetBuiltinSdk(),
         {});
     auto instance = image.Instantiate();
 
@@ -3065,6 +3062,7 @@ TEST_P(TEvaluateAggregationWithStringStateTest, Basic)
         ToWireTypes(argumentTypes),
         GetWireType(stateType),
         EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native,
+        NWebAssembly::GetBuiltinSdk(),
         {});
     auto instance = image.Instantiate();
 

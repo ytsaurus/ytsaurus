@@ -707,6 +707,16 @@ private:
                         TimestampToInstant(timestamp).first - TimestampToInstant(*firstBatchTimestamp).second >
                             mountConfig->MaxReplicationBatchSpan)
                     {
+                        YT_LOG_INFO("Replication batch saturated (Rows: %v/%v, DataWeight: %v/%v, TimestampCount: %v/%v, BatchSpan: %v/%v)",
+                            rowCount,
+                            mountConfig->MaxRowsPerReplicationCommit,
+                            dataWeight,
+                            mountConfig->MaxDataWeightPerReplicationCommit,
+                            timestampCount,
+                            mountConfig->MaxTimestampsPerReplicationCommit,
+                            TimestampToInstant(timestamp).first - TimestampToInstant(*firstBatchTimestamp).second,
+                            mountConfig->MaxReplicationBatchSpan);
+
                         result = EReaderTerminationReason::SaturatedBatch;
                         break;
                     }

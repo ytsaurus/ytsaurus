@@ -37,13 +37,14 @@ const (
 )
 
 type ACE struct {
-	Action           SecurityAction  `yson:"action,omitempty"`
-	Subjects         []string        `yson:"subjects,omitempty"`
-	Permissions      []Permission    `yson:"permissions,omitempty"`
-	InheritanceMode  InheritanceMode `yson:"inheritance_mode,omitempty"`
-	Columns          []string        `yson:"columns,omitempty"`
-	Vital            *bool           `yson:"vital,omitempty"`
-	SubjectTagFilter string          `yson:"subject_tag_filter,omitempty"`
+	Action             SecurityAction  `yson:"action,omitempty"`
+	Subjects           []string        `yson:"subjects,omitempty"`
+	Permissions        []Permission    `yson:"permissions,omitempty"`
+	InheritanceMode    InheritanceMode `yson:"inheritance_mode,omitempty"`
+	Columns            []string        `yson:"columns,omitempty"`
+	RowAccessPredicate string          `yson:"row_access_predicate,omitempty"`
+	Vital              *bool           `yson:"vital,omitempty"`
+	SubjectTagFilter   string          `yson:"subject_tag_filter,omitempty"`
 }
 
 func ConvertPermissionType(typ *Permission) (*int32, error) {

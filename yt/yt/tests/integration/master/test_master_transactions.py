@@ -426,19 +426,6 @@ class TestMasterTransactions(YTEnvSetup):
         assert r4 > r1
         assert r4 > r3
 
-    @authors("babenko")
-    def test_revision4(self):
-        if self.is_multicell():
-            pytest.skip("@current_commit_revision not supported with sharded transactions")
-
-        r1 = get("//sys/@current_commit_revision")
-        set("//tmp/t", 1)
-        r2 = get("//tmp/t/@revision")
-        assert r1 <= r2
-        remove("//tmp/t")
-        r3 = get("//sys/@current_commit_revision")
-        assert r2 < r3
-
     @authors("babenko", "ignat")
     def test_abort_snapshot_lock(self):
         create("file", "//tmp/file")
@@ -690,6 +677,21 @@ class TestMasterTransactions(YTEnvSetup):
             commit_transaction(tx, mutation_id=mutation_id)
         rsp2 = commit_transaction(tx, mutation_id=mutation_id, retry=True)
         assert rsp1 == rsp2
+
+    @authors("kvk1920")
+    def test_start_tx_failure(self):
+        set("//sys/@config/transaction_manager/transaction_finisher", {
+            "retries": {
+                "invocation_count": 2,
+                "min_backoff": 50,
+                "backoff_multiplier": 1.1,
+            },
+            "scan_period": 50,
+        })
+        with raises_yt_error("Builtin attribute \"type\" cannot be set"):
+            start_transaction(timeout=1000, attributes={"type": "tablet"})
+        # Should not crash or alert.
+        sleep(3.0)
 
 
 @pytest.mark.enabled_multidaemon

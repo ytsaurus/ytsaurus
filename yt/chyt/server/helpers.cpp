@@ -342,7 +342,15 @@ TQuerySettingsPtr ParseCustomSettings(
                 "Invalid setting name %Qv; CHYT settings should start with \"chyt.\" prefix",
                 change.name);
         }
-        TYPath ypath = "/" + change.name.substr(/*strlen("chyt.")*/ 5);
+        auto changeName = change.name.substr(/*strlen("chyt.")*/ 5);
+        #ifdef NDEBUG
+        if (changeName.starts_with("testing")) {
+            continue;
+        }
+        #endif
+        TYPath ypath = Format("/%v", std::move(changeName));
+
+
         for (auto& character : ypath) {
             if (character == '.') {
                 character = '/';

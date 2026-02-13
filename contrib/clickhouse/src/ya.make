@@ -13,7 +13,7 @@ LICENSE(
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
 
-VERSION(25.3.6.56)
+VERSION(25.3.14.14)
 
 PEERDIR(
     contrib/clickhouse/base/poco/Crypto
@@ -1184,6 +1184,7 @@ SRCS(
     GLOBAL Functions/filesystem.cpp
     GLOBAL Functions/finalizeAggregation.cpp
     GLOBAL Functions/firstLine.cpp
+    GLOBAL Functions/firstNonDefault.cpp
     GLOBAL Functions/flattenTuple.cpp
     GLOBAL Functions/format.cpp
     GLOBAL Functions/formatDateTime.cpp
@@ -1863,6 +1864,7 @@ SRCS(
     Interpreters/replaceAliasColumnsInQuery.cpp
     Interpreters/replaceForPositionalArguments.cpp
     Interpreters/replaceMissedSubcolumnsInQuery.cpp
+    Interpreters/replaceSubcolumnsToGetSubcolumnFunctionInQuery.cpp
     Interpreters/sortBlock.cpp
     Loggers/ExtendedLogChannel.cpp
     Loggers/Loggers.cpp

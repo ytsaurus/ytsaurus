@@ -80,6 +80,7 @@ struct ICellarOccupant
 
     // Auxiliary.
     virtual i64 EstimateChangelogMediumBytes(i64 payload) const = 0;
+    virtual void AccountChangelogPayloadBytes(i64 payloadBytes) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICellarOccupant)

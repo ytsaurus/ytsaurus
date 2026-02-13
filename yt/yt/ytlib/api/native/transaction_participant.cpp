@@ -106,7 +106,7 @@ public:
     {
         auto supportsStronglyOrderedTransactions = SupportsStronglyOrderedTransactions();
         if (!supportsStronglyOrderedTransactions) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         return SendRequest<TTransactionParticipantServiceProxy::TReqMakeTransactionReadyToCommit>(

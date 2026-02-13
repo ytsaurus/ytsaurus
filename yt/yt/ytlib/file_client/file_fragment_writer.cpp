@@ -80,7 +80,7 @@ public:
         ValidateNotClosed();
 
         if (UnderlyingWriter_->Write(data)) {
-            return VoidFuture;
+            return OKFuture;
         }
         return UnderlyingWriter_->GetReadyEvent();
     }

@@ -123,24 +123,6 @@ enum EAttributeSensorPolicy
     ASP_UPDATE = 2;
 }
 
-enum EObjectWithReferenceRemovalPolicy
-{
-    // Both sides of reference can be removed independently. The reference between them also gets removed.
-    OWRRP_REMOVAL_ALLOWED = 0;
-
-    // Removal of the defined part of the reference is forbidden.
-    //
-    // E.g. in the one-to-many reference removal of `one` part is forbidden
-    // if there exists any `many` object connected to it.
-    OWRRP_SOURCE_REMOVAL_FORBIDDEN = 1;
-
-    // Removal of generated part of the reference is forbidden.
-    OWRRP_TARGET_REMOVAL_FORBIDDEN = 2;
-
-    // Both sides of reference cannot be removed until the reference itself is removed.
-    OWRRP_REMOVAL_FORBIDDEN = 3;
-}
-
 enum ECascadingRemovalPolicy
 {
     // Remove object with all its descendants.
@@ -153,7 +135,7 @@ enum ECascadingRemovalPolicy
     // Forbid object removal with existing descendants.
     CRP_FORBID = 2;
     // If object has no descendants, it becomes removed.
-    // Otherwise add `_orm_descendants` finalizer to it and leave descendants untouched.
+    // Otherwise add `_orm_children` finalizer to it and leave descendants untouched.
     // When all descendants become removed, foreign object itself may be removed.
     // The system may try to remove it with last removed descendant.
     CRP_AWAIT_FOREIGN = 3;
@@ -209,7 +191,7 @@ message TLocalAttributeMigration
     optional string old_lock_group = 4;
 }
 
-// Next field number 58.
+// Next field number 59.
 message TObjectTypeOption
 {
     reserved 6, 7, 15, 17, 20, 21, 28, 29, 34, 35, 37, 38, 46;
@@ -324,6 +306,23 @@ message TObjectTypeOption
 
     // Attributes allowed to update when object is finalizing.
     repeated string update_allowed_while_finalizing = 57;
+
+    // When an object is removed, keep it in the object table for a while, in which case
+    // non-empty non-zero value of removal_time column actually marks the object as removed.
+    // Object-specific *_pending_removals table holds the keys of removed objects and is used
+    // to sweep the removed objects from the object table after a period of time set by
+    // "removed_objects_grace_timeout" object manager config option.
+    // If true, mode can be overridden with "remove_mode" object manager config option.
+    optional bool enable_asynchronous_removals = 58;
+}
+
+message TIndexKeyPart
+{
+    optional string path = 1;
+    optional string expression = 2;
+    // Type specification for index on expression since type cannot be auto-resolved.
+    optional string type = 3;
+    optional string column_name = 4;
 }
 
 message TIndexOption
@@ -339,7 +338,8 @@ message TIndexOption
     optional string object_type_snake_case_name = 1;
     optional string camel_case_name = 2;
     optional string snake_case_name = 3;
-    repeated string key = 4;
+    repeated string key = 4 [deprecated = true];
+    repeated TIndexKeyPart key_columns = 11;
     // Path to a TReference. The keys in the ref become indexed by the tabular backref.
     optional string reference = 10;
     optional string hash_expression = 5;
@@ -431,7 +431,7 @@ message TColumnsOptions
     repeated TLockGroup lock_groups = 1;
 }
 
-// Next field 30057.
+// Next field 30058.
 extend google.protobuf.FileOptions
 {
     repeated TObjectTypeOption object_type = 30000;
@@ -501,10 +501,12 @@ extend google.protobuf.FileOptions
     // Default policy is CRP_CLEAR.
     optional ECascadingRemovalPolicy generated_backref_removal_policy = 30048;
 
-    // Whether to create and use by default pending_removals table for object deletion.
-    // If true, mode can be overridden with remove_mode option in object manager.
-    optional bool enable_asynchronous_removals = 30033 [default = true];
-    // Only actual with `enable_asynchronous_removals=false` option.
+    // Enable asynchronous removals for all object types (see respective object type option for details).
+    optional bool enable_asynchronous_removals = 30033;
+    // Enable asynchronous removals for all object types. A global pending_removals table
+    // will be used for objects without enable_asynchronous_removals option.
+    optional bool enable_communal_asynchronous_removals = 30057 [default = true];
+    // For compatibility, keep removal_time column even when asynchronous removals are off.
     optional bool keep_removal_time = 30049;
 
     optional bool enable_finalizers = 30030;
@@ -792,7 +794,7 @@ message TJoinedColumnOption
     optional string aggregation = 5;
 }
 
-// Next field 31060.
+// Next field 31061.
 extend google.protobuf.FieldOptions
 {
     optional bool column = 31001;
@@ -826,6 +828,9 @@ extend google.protobuf.FieldOptions
     optional uint32 min_length = 31007;
     optional uint32 max_length = 31008;
     optional string valid_charset = 31011;
+
+    // Supported only for string-like columns, enables hunks for specified column.
+    optional uint64 max_inline_hunk_size = 31012;
 
     // Supported only for integer key fields. Use any expression that will convert to the
     // appropriate type in C++.
@@ -913,8 +918,8 @@ extend google.protobuf.FieldOptions
     // Sets custom field name in generated cpp code.
     optional string custom_cpp_camel_case_name = 31054;
 
-    // Allows to overwrite certain base options.
-    repeated string allow_mixin_overwrite_options = 31036;
+    // List of option names that must not be overridden by mixins.
+    repeated string pin_field_options = 31036;
 
     // Defines attribute used to store latest touch timestamp only.
     optional bool is_timestamp_attribute = 31037;
@@ -953,6 +958,10 @@ extend google.protobuf.FieldOptions
 
     // Allow to use the same counter in difference counting references.
     optional bool is_multiple_referencable = 31058;
+
+    // Saves the attribute value only within the transaction.
+    // Triggers history and watch logs, if they are enabled for field's path.
+    optional bool ephemeral = 31060;
 }
 
 // Next field 32016.
@@ -1004,6 +1013,12 @@ extend google.protobuf.EnumOptions
 {
     // The file into which this enum should be exported.
     optional string enum_output_filename = 33006;
+}
+
+extend google.protobuf.EnumValueOptions
+{
+    // List of option names that must not be overridden by mixins.
+    repeated string pin_enum_value_options = 33007;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

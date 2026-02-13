@@ -69,6 +69,7 @@ DECLARE_MASTER_OBJECT_TYPE(TLinkNode)
 DECLARE_MASTER_OBJECT_TYPE(TDocumentNode)
 
 class TInheritedAttributeDictionary;
+using TInheritedAttributeDictionaryPtr = TIntrusivePtr<TInheritedAttributeDictionary>;
 using TConstInheritedAttributeDictionaryPtr = TIntrusivePtr<const TInheritedAttributeDictionary>;
 
 using TCypressNodeList = TCompactVector<TCypressNode*, 8>;

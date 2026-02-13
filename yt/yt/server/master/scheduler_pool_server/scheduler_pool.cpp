@@ -343,7 +343,7 @@ std::string TSchedulerPoolTree::GetCapitalizedObjectName() const
 
 TYPath TSchedulerPoolTree::GetObjectPath() const
 {
-    return Format("//sys/pool_trees/%v", TreeName_);
+    return Format("//sys/pool_trees/%v", NYPath::ToYPathLiteral(TreeName_));
 }
 
 void TSchedulerPoolTree::Save(NCellMaster::TSaveContext& context) const

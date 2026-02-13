@@ -30,6 +30,7 @@ target_compile_options(query-unittests-udf INTERFACE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_include_directories(query-unittests-udf INTERFACE
@@ -54,6 +55,7 @@ target_compile_options(query-unittests-udf.global PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_include_directories(query-unittests-udf.global PRIVATE

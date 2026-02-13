@@ -146,6 +146,7 @@ DEFINE_ENUM(EMasterReign,
     ((SupportMaxNodeChildCountInSequoia)                            (3045))  // babenko
     ((MountPermissionToSequoiaNodes)                                (3046))  // danilalexeev
     ((FixSecurityTagsMessingWithChunkListStructure)                 (3047))  // h0pless
+    ((SortUniqueTxReplicatedToCellTags_25_3)                        (3048))  // shakurov
     // 25.4 starts here.
     ((Start_25_4)                                                   (3100))  // community bot
     ((HunksInStaticTables)                                          (3101))  // akozhikhov
@@ -173,6 +174,47 @@ DEFINE_ENUM(EMasterReign,
     ((ChangeSequoiaChunkPurgatory)                                  (3123))  // grphil
     ((ChunkRequisitionActiveEntries)                                (3124))  // shakurov
     ((AddHasRowLevelAceAttribute)                                   (3125))  // coteeq
+    ((ColumnConstraintsForTablesOnMaster)                           (3126))  // cherepashka
+    ((HydraLogicalRecordId)                                         (3127))  // h0pless
+    ((FixStatisticsAccountingUponHunkJournalChunkSeal)              (3128))  // akozhikhov
+    ((AddStrongerTxAccessValidationCheck)                           (3129))  // h0pless
+    ((StructFieldRenamingAndRemoval)                                (3130))  // s-berdnikov
+    ((SequoiaChunkPurgatoryRecordsCount)                            (3131))  // grphil
+    ((UnbuiltinSequoiaTabletCellBundles)                            (3132))  // danilalexeev
+    ((TransferBundleResources)                                      (3133))  // ifsmirnov
+    ((ProvisionalFlush)                                             (3134))  // atalmenev
+    ((RerunUpdateModeMigration)                                     (3135))  // h0pless
+    ((SetTouchAndAccessTimeInMutationsSynchronously)                (3136))  // koloshmet
+    ((ChangedExpirationResetApi)                                    (3137))  // koloshmet
+    ((ExplicitAccountSetOnSequoiaNodeCreation)                      (3138))  // danilalexeev
+    ((PersistAccountStatisticsGossip)                               (3139))  // theevilbird
+    ((RemoveRecalculationMaxReplicasPerFailureDomainFlag)           (3140))  // theevilbird
+    ((IncreaseTabletToCellRatioDefaultToEffectiveInfinity)          (3141))  // alexelexa
+    ((AddConstraintsIntoMasterSnapshot)                             (3142))  // cherepashka
+    ((SaveOriginatorTabletsAfterReshard)                            (3143))  // atalmenev
+    ((RemoveChunkReplicaReasonFix)                                  (3144))  // grphil
+    ((SmoothMovementOrdered)                                        (3145))  // ifsmirnov
+    ((FixSequoiaNodeAclParsing)                                     (3146))  // danilalexeev
+    ((AddPerTabletConflictHorizonTimestamp)                         (3147))  // ponasenko-rs
+    ((UserClusterwideRequestRateLimits)                             (3148))  // shakurov
+    ((SortUniqueTxReplicatedToCellTags)                             (3149))  // shakurov
+    ((FixMirroredTransactionCreationFailure)                        (3150))  // kvk1920
+    ((SafeRemovalJobScheduling)                                     (3151))  // grphil
+    ((ReturnSecondaryMastersCellConfigAsResponseForNodeHeartbeat)   (3152))  // cherepashka
+    ((FixDynamicallyPropagatedMastersCellTags)                      (3153))  // aleksandra-zh
+    ((DataNodeValidationFullHeartbeats)                             (3154))  // danilalexeev
+    ((FillAttributesOnNativeCellDuringMaterialization)              (3155))  // h0pless
+    ((LocationIndiciesInChunkConfirmation)                          (3156))  // cherepashka
+    ((KulenovClock)                                                 (3157))  // aleksandra-zh
+    ((ReignInHiveMessages_25_4)                                     (3158))  // ifsmirnov
+    ((TransferableInheritedAttributes_25_4)                         (3159))  // kvk1920
+    // 26.1 starts here.
+    ((Start_26_1)                                                   (3200))  // community bot
+    ((SecondaryIndexUnfoldedNames)                                  (3201))  // sabdenovch
+    ((LocationIndiciesInChunkConfirmation_26_1)                     (3202))  // cherepashka
+    ((KulenovClock_26_1)                                            (3203))  // aleksandra-zh
+    ((ReignInHiveMessages)                                          (3204))  // ifsmirnov
+    ((TransferableInheritedAttributes)                              (3205))  // kvk1920
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

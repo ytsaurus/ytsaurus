@@ -9,7 +9,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TYsonParserAdapter::Object::find(const std::string_view & key, Element & result) const
+bool TYsonParserAdapter::Object::find(const std::string_view& key, Element& result) const
 {
     auto child = MapNode_->FindChild(TString(key));
     if (!child) {

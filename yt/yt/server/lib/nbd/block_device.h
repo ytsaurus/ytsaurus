@@ -73,9 +73,10 @@ struct IBlockDevice
     virtual const TError& GetError() const = 0;
     //! Set an error (error.IsOK() == false) for device.
     virtual void SetError(TError error) = 0;
-
-    virtual void OnShouldStopUsingDevice() const = 0;
-    DECLARE_INTERFACE_SIGNAL(void(), ShouldStopUsingDevice);
+    //! Subscribe #id (e.g. job id) for device errors.
+    virtual bool SubscribeForErrors(TGuid id, const TCallback<void()>& callback) = 0;
+    //! Unsubscribe #id (e.g. job id) from device errors.
+    virtual bool UnsubscribeFromErrors(TGuid id) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IBlockDevice)
@@ -86,15 +87,18 @@ class TBaseBlockDevice
     : public IBlockDevice
 {
 public:
-    const TError& GetError() const override;
-    void SetError(TError error) override;
+    const TError& GetError() const final;
+    void SetError(TError error) final;
 
-    void OnShouldStopUsingDevice() const override;
-    DEFINE_SIGNAL_OVERRIDE(void(), ShouldStopUsingDevice);
+    bool SubscribeForErrors(TGuid id, const TCallback<void()>& callback) final;
+    bool UnsubscribeFromErrors(TGuid id) final;
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    THashMap<TGuid, TCallback<void()>> SubscriberCallbacks_;
     TError Error_;
+
+    void CallSubscribers() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

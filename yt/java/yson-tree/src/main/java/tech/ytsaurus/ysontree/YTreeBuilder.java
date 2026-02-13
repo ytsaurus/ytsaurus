@@ -71,6 +71,8 @@ public class YTreeBuilder implements YsonConsumer {
             return value((float) obj);
         } else if (obj instanceof Double) {
             return value((double) obj);
+        } else if (obj instanceof Short) {
+            return value((short) obj);
         } else if (obj instanceof Integer) {
             return value((int) obj);
         } else if (obj instanceof Long) {
@@ -151,6 +153,10 @@ public class YTreeBuilder implements YsonConsumer {
 
     public YTreeBuilder unsignedValue(@Nullable Long value) {
         return value == null ? entity() : push(attributes -> new YTreeIntegerNodeImpl(false, value, attributes));
+    }
+
+    public YTreeBuilder value(short value) {
+        return push(attributes -> new YTreeIntegerNodeImpl(true, value, attributes));
     }
 
     public YTreeBuilder value(int value) {

@@ -221,7 +221,7 @@ public:
 protected:
     //! Registers the children of the job in the job splitting tree. If there is only one child,
     //! it is marked as unsplittable.
-    void RegisterChildCookies(TCookie cookie, std::vector<TCookie> childCookies);
+    void RegisterChildCookies(NControllerAgent::TJobId jobId, TCookie cookie, std::vector<TCookie> childCookies);
 
     // The method below is a part of an internal interface between a derived class and this base.
     // It does not participate in IChunkPoolOutput::Completed overriding, thus should always
@@ -232,6 +232,11 @@ protected:
 
     //! Used in tests to ensure that we do not resize vectors more than needed.
     size_t GetMaxVectorSize() const;
+
+    void ValidateChildJobSizes(
+        TOutputCookie parentCookie,
+        const std::vector<TOutputCookie>& childCookies,
+        const std::function<TChunkStripeListPtr(TOutputCookie)>& getStripeList) const;
 
 private:
     //! List of children output cookies for split jobs. Empty list corresponds to a job that was not split.
@@ -247,7 +252,7 @@ private:
     std::vector<bool> CookieShouldBeSplitProperly_;
 
     //! Mark all descendants of the cookie as unsplittable.
-    void MarkDescendantsUnsplittable(TCookie cookie);
+    void MarkDescendantsUnsplittable(NControllerAgent::TJobId jobId, TCookie cookie);
 
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TJobSplittingBase, 0x9e867d80);
 };
@@ -283,6 +288,8 @@ struct IShuffleChunkPool
 {
     virtual IPersistentChunkPoolInputPtr GetInput() = 0;
     virtual IPersistentChunkPoolOutputPtr GetOutput(int partitionIndex) = 0;
+
+    // TODO(apollo1321): These methods should be removed. It is better to fix and use counters.
     virtual i64 GetTotalDataSliceCount() const = 0;
     virtual i64 GetTotalJobCount() const = 0;
 };

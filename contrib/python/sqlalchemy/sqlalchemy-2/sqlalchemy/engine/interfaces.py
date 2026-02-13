@@ -1,5 +1,5 @@
 # engine/interfaces.py
-# Copyright (C) 2005-2025 the SQLAlchemy authors and contributors
+# Copyright (C) 2005-2026 the SQLAlchemy authors and contributors
 # <see AUTHORS file>
 #
 # This module is part of SQLAlchemy and is released under
@@ -1224,6 +1224,13 @@ class Dialect(EventTarget):
 
     tuple_in_values: bool
     """target database supports tuple IN, i.e. (x, y) IN ((q, p), (r, z))"""
+
+    requires_name_normalize: bool
+    """Indicates symbol names are returned by the database in
+    UPPERCASED if they are case insensitive within the database.
+    If this is True, the methods normalize_name()
+    and denormalize_name() must be provided.
+    """
 
     _bind_typing_render_casts: bool
 

@@ -238,7 +238,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (ControlState_ == EPeerState::Stopped) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         YT_LOG_INFO("Hydra instance is finalizing");
@@ -292,7 +292,7 @@ public:
         return DecoratedAutomaton_->GetState();
     }
 
-    TVersion GetAutomatonVersion() const override
+    TAutomatonVersion GetAutomatonVersion() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -366,7 +366,7 @@ public:
                 .AsyncVia(epochContext->EpochControlInvoker)
                 .Run();
         }
-        return VoidFuture;
+        return OKFuture;
     }
 
     bool IsEnteringReadOnlyMode() const override
@@ -435,6 +435,15 @@ public:
         if (setReadOnly) {
             epochContext->EnteringReadOnlyMode = true;
             if (enableAutomatonReadOnlyBarrier) {
+                // After we start entering read-only mode, no more mutations that make transactions
+                // prepared (hopefully) can be scheduled. We commit a heartbeat mutation here to ensure
+                // all already scheduled mutations are flushed and applied, so then
+                // we can wait for barrier.
+                auto result = WaitFor(CommitMutation(MakeSystemMutationRequest(HeartbeatMutationType)));
+                if (!result.IsOK()) {
+                    epochContext->EnteringReadOnlyMode = false;
+                    result.ThrowOnError();
+                }
                 auto readyToEnterReadOnlyMode = WaitForFast(DecoratedAutomaton_->GetReadyToEnterReadOnlyMode());
                 if (!readyToEnterReadOnlyMode.IsOK()) {
                     epochContext->EnteringReadOnlyMode = false;
@@ -476,8 +485,6 @@ public:
                             .Item("entering_read_only_mode").Value(epochContext->EnteringReadOnlyMode);
                             // TODO(aleksandra-zh): add stuff.
                     })
-                    .Item("committed_version").Value(ToString(DecoratedAutomaton_->GetAutomatonVersion()))
-
                     .Item("state").Value(DecoratedAutomaton_->GetState())
 
                     .Item("automaton_version").Value(ToString(DecoratedAutomaton_->GetAutomatonVersion()))
@@ -523,7 +530,7 @@ public:
             epochContext->Discombobulated)
         {
             // NB: Leader lease is already checked in IsActive.
-            return VoidFuture;
+            return OKFuture;
         }
 
         return epochContext->LeaderSyncBatcher->Run();
@@ -1457,7 +1464,7 @@ private:
         MutationDraftQueue_->Enqueue({
             .Request = request,
             .Promise = std::move(promise),
-            .RandomSeed = randomSeed
+            .RandomSeed = randomSeed,
         });
 
         if (Config_->Get()->MinimizeCommitLatency) {
@@ -2792,7 +2799,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (GetAutomatonState() == EPeerState::Leading) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         YT_LOG_DEBUG("Synchronizing with leader");

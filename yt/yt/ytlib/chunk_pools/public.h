@@ -14,6 +14,7 @@ DECLARE_REFCOUNTED_CLASS(TChunkStripeList)
 
 DECLARE_REFCOUNTED_STRUCT(IChunkPoolInput)
 DECLARE_REFCOUNTED_STRUCT(IChunkPoolOutput)
+DECLARE_REFCOUNTED_STRUCT(IChunkPoolOutputWithOrderedCookies)
 DECLARE_REFCOUNTED_STRUCT(IChunkPool)
 
 struct TPersistentChunkStripeStatistics;

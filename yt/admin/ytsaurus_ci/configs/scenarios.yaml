@@ -1,0 +1,44 @@
+scenarios:
+  nightly-dev:
+      type: simple
+      k8s_template: base-spec.yaml
+      checks:
+        - common
+      ttl: 600
+      operator:
+        version_filter: main
+      components:
+        ytsaurus:
+          version_filter: main
+        strawberry:
+          version_filter: main
+        query_tracker:
+          version_filter: main
+        chyt:
+          version_filter: main
+  release-tests:
+      type: compat
+      k8s_template: base-spec.yaml
+      checks:
+        - common
+      ttl: 600
+      operator:
+        version_filter: null
+      components:
+        ytsaurus:
+          version_filter: null
+        strawberry:
+          version_filter: null
+        query_tracker:
+          version_filter: null
+        chyt:
+          version_filter: null
+        spyt:
+          version_filter: null
+checks:
+  common:
+    type: ODIN
+    description:
+      helmUrl: oci://ghcr.io/ytsaurus/odin-chart
+      releaseName: odin
+      version: 0.0.4

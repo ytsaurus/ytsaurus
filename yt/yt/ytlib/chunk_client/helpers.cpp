@@ -66,6 +66,8 @@
 
 #include <yt/yt/core/phoenix/type_def.h>
 
+#include <library/cpp/yt/memory/non_null_ptr.h>
+
 #include <library/cpp/yt/misc/enum.h>
 
 #include <util/generic/cast.h>
@@ -94,6 +96,56 @@ using namespace NStatisticPath;
 using NYT::FromProto;
 using NYT::ToProto;
 using NNodeTrackerClient::TNodeId;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+void BuildOriginalColumnNames(
+    TNonNullPtr<std::vector<std::string>> columns,
+    const TColumnRenameDescriptors& renameDescriptors)
+{
+    THashMap<TStringBuf, TStringBuf> newNameToOriginalName;
+    for (const auto& descriptor : renameDescriptors) {
+        auto [iter, inserted] = newNameToOriginalName.emplace(descriptor.NewName, descriptor.OriginalName);
+        if (!inserted) {
+            THROW_ERROR_EXCEPTION(
+                "Found duplicate target names in \"rename_columns\" attribute")
+                << TErrorAttribute("first_renamed_column", iter->second)
+                << TErrorAttribute("second_renamed_column", descriptor.OriginalName);
+        }
+    }
+
+    for (auto& column : *columns) {
+        if (auto iter = newNameToOriginalName.find(column); iter != newNameToOriginalName.end()) {
+            column = iter->second;
+        }
+    }
+
+    // It's okay if we did not use all the rename descriptors. The access to
+    // some of the renamed columns could be allowed.
+}
+
+void RenameInaccessibleColumns(
+    TNonNullPtr<std::vector<std::string>> omittedInaccessibleColumns,
+    const NTableClient::TColumnRenameDescriptors& renameDescriptors)
+{
+    if (omittedInaccessibleColumns->empty()) {
+        return;
+    }
+    THashMap<TStringBuf, TStringBuf> mapping;
+    for (const auto& descriptor : renameDescriptors) {
+        EmplaceOrCrash(mapping, descriptor.OriginalName, descriptor.NewName);
+    }
+
+    for (auto& column : *omittedInaccessibleColumns) {
+        if (auto iter = mapping.find(column); iter != mapping.end()) {
+            column = iter->second;
+        }
+    }
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -172,6 +224,11 @@ void GetUserObjectBasicAttributes(
         req->set_omit_inaccessible_rows(options.OmitInaccessibleRows);
         req->set_populate_security_tags(options.PopulateSecurityTags);
         if (auto optionalColumns = userObject->Path.GetColumns()) {
+            if (options.RenameColumns) {
+                if (auto renameDescriptors = userObject->Path.GetColumnRenameDescriptors()) {
+                    BuildOriginalColumnNames(&*optionalColumns, *renameDescriptors);
+                }
+            }
             auto* protoColumns = req->mutable_columns();
             for (const auto& column : *optionalColumns) {
                 protoColumns->add_items(ToProto(column));
@@ -205,6 +262,13 @@ void GetUserObjectBasicAttributes(
 
         if (rsp->has_omitted_inaccessible_columns()) {
             userObject->OmittedInaccessibleColumns = FromProto<std::vector<std::string>>(rsp->omitted_inaccessible_columns().items());
+            if (options.RenameColumns) {
+                if (auto renameDescriptors = userObject->Path.GetColumnRenameDescriptors()) {
+                    RenameInaccessibleColumns(
+                        &userObject->OmittedInaccessibleColumns,
+                        *renameDescriptors);
+                }
+            }
         }
         if (rsp->has_security_tags()) {
             userObject->SecurityTags = FromProto<std::vector<TSecurityTag>>(rsp->security_tags().items());

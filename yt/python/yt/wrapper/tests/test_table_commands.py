@@ -17,9 +17,8 @@ from yt.yson import YsonMap
 
 from yt.local import start, stop
 
+import yt.type_info as ti
 import yt.wrapper as yt
-
-import yt.type_info as typing
 
 import mock
 import os
@@ -140,11 +139,11 @@ class TestTableCommands(object):
 
         table = TEST_DIR + "/table"
         schema = TableSchema() \
-            .add_column("x", typing.Int64) \
-            .add_column("y", typing.Optional[typing.Double]) \
-            .add_column("z", typing.Struct[
-                "foo": typing.Variant["a": typing.Uint8, "b": typing.String],
-                "bar": typing.String,
+            .add_column("x", ti.Int64) \
+            .add_column("y", ti.Optional[ti.Double]) \
+            .add_column("z", ti.Struct[
+                "foo": ti.Variant["a": ti.Uint8, "b": ti.String],
+                "bar": ti.String,
             ])
         yt.create("table", table, attributes={"schema": schema})
         check_rows_equality([], yt.read_table(table))
@@ -264,7 +263,7 @@ class TestTableCommands(object):
 
     @authors("levysotsky")
     def test_schemaful_parallel_write_typed_schema(self):
-        schema = TableSchema().add_column("id", typing.Int64).add_column("value", typing.Double)
+        schema = TableSchema().add_column("id", ti.Int64).add_column("value", ti.Double)
         yt.create("table", "//tmp/table", recursive=True, attributes={"schema": schema})
 
         data = [{"id": i, "value": 0.9 * i} for i in range(64)]
@@ -615,6 +614,24 @@ class TestTableCommands(object):
             assert len(range_data) <= 2
             table_data.extend(range_data)
         check_rows_equality(rows, table_data)
+
+    @authors("denvr")
+    def test_guess_schema_from_table(self):
+        table_wo_schema = yt.ypath.ypath_join(TEST_DIR, "/table_wo_schema")
+        yt.write_table(
+            table_wo_schema,
+            [{
+                "f1": 1,
+                "f2": "one",
+                "f3": b"bytes",
+                "f4": [1, 2],
+                "f5": None,
+            }]
+        )
+        retrieved_schema = yt.get_table_schema(table_wo_schema)
+        assert not retrieved_schema.columns
+        retrieved_schema = yt.infer_table_schema(table_wo_schema)
+        assert list(map(lambda c: c.type.item, retrieved_schema.columns)) == [ti.Int64, ti.Utf8, ti.Utf8, ti.Yson, ti.Yson]
 
 
 @pytest.mark.usefixtures("yt_env_with_authentication")
@@ -1324,7 +1341,7 @@ class TestTableCommandsMultiChunk(object):
     def test_storage_attributes_preserved_on_multi_chunk(self, write_parallel):
         storage_attributes = {
             'compression_codec': 'zlib_3',
-            'schema': yt.schema.TableSchema().add_column("a", typing.Int8),
+            'schema': yt.schema.TableSchema().add_column("a", ti.Int8),
             'optimize_for': 'scan'
         }
         with set_config_option("write_parallel/enable", write_parallel):
@@ -1354,7 +1371,7 @@ class TestTableCommandsMultiChunk(object):
     @pytest.mark.parametrize("write_parallel", [True, False])
     def test_table_specific_storage_attributes_from_directory_are_ignored_on_multi_chunk(self, write_parallel):
         specials_set = TEST_DIR + '/specials_set'
-        dir_attributes = {"schema": yt.schema.TableSchema().add_column("a", typing.Int8)}
+        dir_attributes = {"schema": yt.schema.TableSchema().add_column("a", ti.Int8)}
         yt.create("map_node", specials_set, attributes=dir_attributes, recursive=True)
         table_path = specials_set + "/table"
         with set_config_option("write_parallel/enable", write_parallel):

@@ -30,7 +30,7 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/misc/hedging_manager.h>
+#include <yt/yt/core/misc/adaptive_hedging_manager.h>
 #include <yt/yt/core/misc/sync_expiring_cache.h>
 
 #include <yt/yt/core/profiling/timing.h>
@@ -118,20 +118,21 @@ bool IsChunkLost(const TReplicasWithRevision& replicasWithRevision, NErasure::EC
         return true;
     }
 
-    NErasure::TPartIndexList partIndexes;
-    partIndexes.reserve(replicasWithRevision.Replicas.size());
-    for (const auto& replica : replicasWithRevision.Replicas) {
-        partIndexes.push_back(replica.ReplicaIndex);
-    }
-    SortUnique(partIndexes);
-
     auto* codec = NErasure::GetCodec(codecId);
-    auto safeReplicaCount = codec->GetTotalPartCount() - codec->GetGuaranteedRepairablePartCount();
-    if (std::ssize(partIndexes) >= safeReplicaCount) {
+
+    NErasure::TPartIndexSet erasedPartIndexes;
+    for (int index = 0; index < codec->GetTotalPartCount(); ++index) {
+        erasedPartIndexes.set(index);
+    }
+    for (const auto& replica : replicasWithRevision.Replicas) {
+        erasedPartIndexes.reset(replica.ReplicaIndex);
+    }
+
+    if (static_cast<int>(erasedPartIndexes.count()) <= codec->GetGuaranteedRepairablePartCount()) {
         return false;
     }
 
-    return !codec->CanRepair(partIndexes);
+    return !codec->CanRepair(erasedPartIndexes);
 }
 
 TProbingPenalty PenalizeSuspciousNode(TProbingPenalty penalty)
@@ -645,7 +646,7 @@ private:
                 if (emplaced) {
                     it->second = probingInfos.size();
                     probingInfos.push_back({
-                        .NodeId = nodeId
+                        .NodeId = nodeId,
                     });
                     nodeIds.push_back(nodeId);
                 }
@@ -1105,6 +1106,8 @@ private:
     std::optional<TError> CancelationError_;
     std::vector<TFuture<void>> PendingFutures_;
 
+    TInstant PrimaryRequestStartTime_;
+
 
     static bool IsFatalError(const TError& error)
     {
@@ -1339,19 +1342,6 @@ private:
         NextRound(/*isHedged*/ false);
     }
 
-    void OnHedgingDeadlineReached(TDuration delay)
-    {
-        // Shortcut.
-        if (Promise_.IsSet()) {
-            return;
-        }
-
-        YT_LOG_DEBUG("Hedging deadline reached (Delay: %v)",
-            delay);
-
-        NextRound(/*isHedged*/ true);
-    }
-
     void NextRound(bool isHedged)
     {
         auto peerInfoToPlan = MakePlans();
@@ -1365,21 +1355,40 @@ private:
 
         RequestFragments(std::move(peerInfoToPlan), isHedged);
 
-        if (!isHedged && peerCount > 0) {
+        if (!isHedged) {
             // TODO(akozhikhov): Support cancellation of primary requests?
-            auto hedgingDelay = Reader_->Config_->FragmentReadHedgingDelay;
-
-            if (hedgingDelay) {
-                if (*hedgingDelay == TDuration::Zero()) {
-                    OnHedgingDeadlineReached(*hedgingDelay);
+            PrimaryRequestStartTime_ = TInstant::Now();
+            if (Options_.AdaptiveHedgingManager) {
+                Options_.AdaptiveHedgingManager->RegisterRequest(
+                    Promise_.ToFuture().AsVoid(),
+                    BIND(&TSimpleReadFragmentsSession::StartSecondaryRequest, MakeWeak(this))
+                        .Via(SessionInvoker_));
+            } else if (auto hedgingDelay = Reader_->Config_->FragmentReadHedgingDelay) {
+                if (hedgingDelay == TDuration::Zero()) {
+                    StartSecondaryRequest();
                 } else {
                     TDelayedExecutor::Submit(
-                        BIND(&TSimpleReadFragmentsSession::OnHedgingDeadlineReached, MakeStrong(this), *hedgingDelay),
+                        BIND(&TSimpleReadFragmentsSession::StartSecondaryRequest, MakeStrong(this)),
                         *hedgingDelay,
                         SessionInvoker_);
                 }
             }
         }
+    }
+
+    void StartSecondaryRequest()
+    {
+        YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
+
+        // Shortcut.
+        if (Promise_.IsSet()) {
+            return;
+        }
+
+        YT_LOG_DEBUG("Hedging deadline reached (Delay: %v)",
+            TInstant::Now() - PrimaryRequestStartTime_);
+
+        NextRound(/*isHedged*/ true);
     }
 
     THashMap<TPeerInfoPtr, TPerPeerPlanPtr> MakePlans()
@@ -1406,7 +1415,7 @@ private:
                     perPeerPlan->Items.push_back({
                         .ChunkState = &chunkState,
                         .Plan = plan,
-                        .PeerIndex = peerIndex
+                        .PeerIndex = peerIndex,
                     });
                 }
             }
@@ -1524,6 +1533,8 @@ private:
             SetRequestWorkloadDescriptor(req, Options_.WorkloadDescriptor);
             ToProto(req->mutable_read_session_id(), Options_.ReadSessionId);
             req->set_use_direct_io(Reader_->Config_->UseDirectIO);
+            req->set_read_and_cache_whole_blocks(Reader_->Config_->ReadAndCacheWholeBlocks);
+            req->set_block_count_to_precache(Reader_->Config_->BlockCountToPrecache);
 
             for (auto& item : plan->Items) {
                 auto* subrequest = req->add_subrequests();
@@ -1536,9 +1547,10 @@ private:
 
             i64 dataByteSize = GetDataByteSize(req);
 
-            YT_LOG_DEBUG("Requesting chunk fragments (Address: %v, ByteSize: %v, ChunkIds: %v)",
+            YT_LOG_DEBUG("Requesting chunk fragments (Address: %v, ByteSize: %v, IsHedged: %v, ChunkIds: %v)",
                 peerInfo->Address,
                 dataByteSize,
+                isHedged,
                 MakeFormattableView(req->subrequests(), [] (auto* builder, const auto& subrequest) {
                     builder->AppendFormat("%v", FromProto<TChunkId>(subrequest.chunk_id()));
                 }));
@@ -1668,11 +1680,8 @@ private:
         const auto& rsp = rspOrError.Value();
 
         if (rsp->net_throttling()) {
-            auto error = TError(
-                NChunkClient::EErrorCode::ChunkBlockFetchFailed,
-                "Peer net is throttled")
+            auto error = TError("Peer net is throttled")
                 << TErrorAttribute("address", peerInfo->Address);
-            MaybeMarkNodeSuspicious(error, peerInfo);
             OnError(error);
             return;
         }
@@ -1873,7 +1882,7 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CancelationSpinLock_);
     std::optional<TError> CancelationError_;
-    TFuture<void> SessionFuture_ = VoidFuture;
+    TFuture<void> SessionFuture_ = OKFuture;
 
 
     void OnFatalError(TError error)

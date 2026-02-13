@@ -56,7 +56,7 @@ TEST(TQueryOptimizerTest, OptimizeJoin)
             "p"),
         false);
 
-    TString expectedSql = "p.`meta.id`, i.book_id FROM `//index` AS i"
+    TStringBuf expectedSql = "p.`meta.id`, i.book_id FROM `//index` AS i"
                           " JOIN `//books` AS p ON (i.book_id) = (p.`meta.id`)"
                           " WHERE F(p.`meta.id`)"
                           " GROUP BY p.`meta.id`"
@@ -66,7 +66,7 @@ TEST(TQueryOptimizerTest, OptimizeJoin)
 
     EXPECT_TRUE(TryOptimizeJoin(&query));
 
-    TString optimizedSql = "i.book_id, i.book_id FROM `//index` AS i"
+    TStringBuf optimizedSql = "i.book_id, i.book_id FROM `//index` AS i"
                            " WHERE F(i.book_id)"
                            " GROUP BY i.book_id"
                            " HAVING (i.book_id)=(1)"
@@ -95,7 +95,7 @@ TEST(TQueryOptimizerTest, DoesNotOptimizeJoin)
         "F",
         MakeExpression<TReferenceExpression>(&objectsHolder, NQueryClient::TSourceLocation(), "meta.parent_id", "p"));
 
-    TString expectedSql = "p.`meta.id`, i.book_id FROM `//index` AS i"
+    TStringBuf expectedSql = "p.`meta.id`, i.book_id FROM `//index` AS i"
                           " JOIN `//books` AS p ON (i.book_id) = (p.`meta.id`)"
                           " WHERE F(p.`meta.parent_id`)";
     EXPECT_EQ(expectedSql, FormatQuery(query));
@@ -130,20 +130,20 @@ TEST(TQueryOptimizerTest, OptimizeWhenUsingSelectExpressionInOrderBy)
             "meta_id"),
         false);
 
-    TString expectedSql = "(p.`meta.id` as meta_id) FROM `//index` AS i "
+    TStringBuf expectedSql = "(p.`meta.id` as meta_id) FROM `//index` AS i "
                           "JOIN `//books` AS p ON (i.book_id) = (p.`meta.id`) "
                           "ORDER BY meta_id";
     EXPECT_EQ(expectedSql, FormatQuery(query));
 
     EXPECT_TRUE(TryOptimizeJoin(&query));
 
-    TString optimizedSql = "(i.book_id as meta_id) FROM `//index` AS i ORDER BY meta_id";
+    TStringBuf optimizedSql = "(i.book_id as meta_id) FROM `//index` AS i ORDER BY meta_id";
     EXPECT_EQ(optimizedSql, FormatQuery(query));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool RunGroupByOptimization(const TString& filter, const std::vector<std::string>& refs, const TString& tableName)
+bool RunGroupByOptimization(const std::string& filter, const std::vector<std::string>& refs, const std::string& tableName)
 {
     auto parsedQuery = ParseSource(filter, NQueryClient::EParseMode::Expression);
     auto expression = std::get<NQueryClient::NAst::TExpressionPtr>(parsedQuery->AstHead.Ast);
@@ -155,7 +155,7 @@ TEST(TQueryOptimizerTest, OptimizeGroupBy)
 {
     TObjectsHolder objectsHolder;
     std::vector<std::string> references{"permalink_ids"};
-    TString tableName{"i"};
+    std::string tableName{"i"};
 
     EXPECT_TRUE(
         RunGroupByOptimization(
@@ -202,7 +202,7 @@ TEST(TQueryOptimizerTest, OptimizeGroupBy)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool RunPushDownGroupByOptimization(const TString& querySource)
+bool RunPushDownGroupByOptimization(const std::string& querySource)
 {
     auto parsedQuery = ParseSource(querySource, NQueryClient::EParseMode::Query);
     auto query = std::get<NQueryClient::NAst::TQuery>(parsedQuery->AstHead.Ast);

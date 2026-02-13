@@ -113,4 +113,33 @@ message TReqRemoveMigratedReplicationCards
     repeated TMigratedCard migrated_cards = 1;
 }
 
+message TReqSetState
+{
+    required int32 next_state = 1; // EChaosLeaseManagerState
+    required int32 expected_current_state = 2; // EChaosLeaseManagerState
+}
+
+message TRspSetState
+{ }
+
+message TReqMigrateChaosLeases
+{
+    message TChaosLease
+    {
+        required NYT.NProto.TGuid chaos_lease_id = 1;
+        repeated NYT.NProto.TGuid nested_chaos_lease_ids = 2;
+        optional NYT.NProto.TGuid root_chaos_lease_id = 3;
+        optional NYT.NProto.TGuid parent_chaos_lease_id = 4;
+        required int64 timeout = 5;
+    }
+
+    repeated TChaosLease chaos_leases = 3;
+}
+
+message TReqConfirmChaosObjectsMigration
+{
+    repeated NYT.NProto.TGuid chaos_object_ids = 1;
+    required NYT.NProto.TGuid migration_token = 2;
+}
+
 ////////////////////////////////////////////////////////////////////////////////

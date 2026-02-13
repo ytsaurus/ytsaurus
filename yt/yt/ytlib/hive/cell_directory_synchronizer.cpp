@@ -39,7 +39,7 @@ public:
             NRpc::TDispatcher::Get()->GetLightInvoker(),
             TPeriodicExecutorOptions{
                 .Period = config->SyncPeriod,
-                .Splay = config->SyncPeriodSplay
+                .Splay = config->SyncPeriodSplay,
             },
             std::move(logger))
         , Config_(std::move(config))

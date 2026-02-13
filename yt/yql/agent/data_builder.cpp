@@ -37,9 +37,12 @@ TLogicalTypePtr SkipTagged(const TLogicalTypePtr& type)
         case ELogicalMetatype::List:
             return ListLogicalType(SkipTagged(type->AsListTypeRef().GetElement()));
         case ELogicalMetatype::Struct:
-            return StructLogicalType(skipTaggedOnStructBase(type->AsStructTypeRef().GetFields()));
+            return StructLogicalType(
+                skipTaggedOnStructBase(type->AsStructTypeRef().GetFields()),
+                type->AsStructTypeRef().GetRemovedFieldStableNames());
         case ELogicalMetatype::VariantStruct:
-            return VariantStructLogicalType(skipTaggedOnStructBase(type->AsVariantStructTypeRef().GetFields()));
+            return VariantStructLogicalType(
+                skipTaggedOnStructBase(type->AsVariantStructTypeRef().GetFields()));
         case ELogicalMetatype::Tuple:
             return TupleLogicalType(skipTaggedOnTupleBase(type->AsTupleTypeRef().GetElements()));
         case ELogicalMetatype::VariantTuple:

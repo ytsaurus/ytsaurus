@@ -21,7 +21,7 @@ using namespace NClusterNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TVersionedChunkMetaCacheKey::operator ==(const TVersionedChunkMetaCacheKey& other) const
+bool TVersionedChunkMetaCacheKey::operator==(const TVersionedChunkMetaCacheKey& other) const
 {
     return
         ChunkId == other.ChunkId &&

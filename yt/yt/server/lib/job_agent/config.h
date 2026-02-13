@@ -88,7 +88,7 @@ DEFINE_REFCOUNTED_TYPE(TMemoryPressureDetectorConfig)
 struct TJobResourceManagerConfig
     : public NYTree::TYsonStruct
 {
-    //! Port set has higher priority than StartPort ans PortCount if it is specified.
+    //! Port set has higher priority than StartPort and PortCount if it is specified.
     std::optional<THashSet<int>> PortSet;
     int StartPort;
     int PortCount;

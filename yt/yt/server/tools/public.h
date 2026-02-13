@@ -36,6 +36,8 @@ DECLARE_REFCOUNTED_STRUCT(TDirectoryBuilderConfig)
 
 DECLARE_REFCOUNTED_STRUCT(TMkFsConfig)
 
+DECLARE_REFCOUNTED_STRUCT(TChangeOomScoreAdjAsRootConfig)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

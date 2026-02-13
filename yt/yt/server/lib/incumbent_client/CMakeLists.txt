@@ -37,6 +37,7 @@ target_compile_options(server-lib-incumbent_client PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_include_directories(server-lib-incumbent_client PUBLIC

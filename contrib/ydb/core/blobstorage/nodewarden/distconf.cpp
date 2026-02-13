@@ -104,16 +104,7 @@ namespace NKikimr::NStorage {
             }
 
             // now extract the additional storage section
-            StorageConfigYaml.reset();
-            if (config.HasCompressedStorageYaml()) {
-                try {
-                    TStringInput ss(config.GetCompressedStorageYaml());
-                    TZstdDecompress zstd(&ss);
-                    StorageConfigYaml.emplace(zstd.ReadAll());
-                } catch (const std::exception& ex) {
-                    Y_ABORT("CompressedStorageYaml format incorrect: %s", ex.what());
-                }
-            }
+            StorageConfigYaml = GetStorageYaml(config);
 
             SelfManagementEnabled = (!IsSelfStatic || BaseConfig->GetSelfManagementConfig().GetEnabled()) &&
                 config.GetSelfManagementConfig().GetEnabled() &&
@@ -143,10 +134,6 @@ namespace NKikimr::NStorage {
             }
 
             QuorumValid = false;
-
-            if (BridgeInfo && !BridgeInfo->SelfNodePile->IsPrimary) {
-                UnbindNodesFromOtherPiles("not primary pile anymore");
-            }
 
             return true;
         } else if (StorageConfig->GetGeneration() && StorageConfig->GetGeneration() == config.GetGeneration() &&
@@ -231,24 +218,19 @@ namespace NKikimr::NStorage {
 
 #ifndef NDEBUG
     void TDistributedConfigKeeper::ConsistencyCheck() {
+        THashMap<ui32, TNodeIdentifier> allBoundNodesMap;
+        for (const auto& [nodeIdentifier, info] : AllBoundNodes) {
+            const auto [it, inserted] = allBoundNodesMap.emplace(nodeIdentifier.NodeId(), nodeIdentifier);
+            Y_ABORT_UNLESS(inserted);
+        }
         for (const auto& [nodeId, info] : DirectBoundNodes) { // validate incoming binding
-            if (std::ranges::binary_search(NodeIdsForIncomingBinding, nodeId) ||
-                    std::ranges::binary_search(NodeIdsForOutgoingBinding, nodeId)) {
-                continue; // okay
-            } else if (BridgeInfo && BridgeInfo->SelfNodePile->IsPrimary && !NodesFromSamePile.contains(nodeId) &&
-                    AllNodeIds.contains(nodeId) && (!Binding || !Binding->RootNodeId)) {
-                continue; // okay too -- other pile connecting to primary
-            }
-            Y_ABORT_S("unexpected incoming bound node NodeId# " << nodeId
-                << " NodeIdsForIncomingBinding# " << FormatList(NodeIdsForIncomingBinding)
-                << " NodeIdsForOutgoingBinding# " << FormatList(NodeIdsForOutgoingBinding)
-                << " NodesFromSamePile# " << FormatList(NodesFromSamePile)
-                << " Binding# " << (Binding ? Binding->ToString() : "<null>"));
+            Y_ABORT_UNLESS(allBoundNodesMap.contains(nodeId));
+            Y_ABORT_UNLESS(AllBoundNodes.contains(allBoundNodesMap[nodeId]));
         }
         if (Binding) { // validate outgoing binding
             Y_ABORT_UNLESS(std::ranges::binary_search(NodeIdsForOutgoingBinding, Binding->NodeId) ||
                 std::ranges::binary_search(NodeIdsForIncomingBinding, Binding->NodeId) ||
-                std::ranges::binary_search(NodeIdsForPrimaryPileOutgoingBinding, Binding->NodeId));
+                std::ranges::binary_search(NodeIdsForOtherPilesOutgoingBinding, Binding->NodeId));
         }
 
         for (const auto& [cookie, task] : ScatterTasks) {
@@ -353,8 +335,6 @@ namespace NKikimr::NStorage {
 
         if (IsSelfStatic && StorageConfig && NodeListObtained) {
             Y_VERIFY_S(HasConnectedNodeQuorum(*StorageConfig) == GlobalQuorum, "GlobalQuorum# " << GlobalQuorum);
-            //Y_VERIFY_S((BridgeInfo && HasConnectedNodeQuorum(*StorageConfig, true)) == LocalPileQuorum,
-            //    "LocalPileQuorum# " << LocalPileQuorum);
         }
 
         if (Scepter) {
@@ -538,6 +518,18 @@ namespace NKikimr::NStorage {
             return ex.what();
         }
         return std::nullopt;
+    }
+
+    std::optional<TString> GetStorageYaml(const NKikimrBlobStorage::TStorageConfig& config) {
+        if (!config.HasCompressedStorageYaml()) {
+            return std::nullopt;
+        }
+        try {
+            TStringInput s(config.GetCompressedStorageYaml());
+            return TZstdDecompress(&s).ReadAll();
+        } catch (const std::exception& ex) {
+            Y_ABORT("CompressedStorageYaml format incorrect: %s", ex.what());
+        }
     }
 
     TBridgeInfo::TPtr TDistributedConfigKeeper::GenerateBridgeInfo(const NKikimrBlobStorage::TStorageConfig& config) {

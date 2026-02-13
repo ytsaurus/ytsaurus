@@ -23,6 +23,7 @@ target_compile_options(cpp-integration-test-sequoia PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(cpp-integration-test-sequoia PUBLIC

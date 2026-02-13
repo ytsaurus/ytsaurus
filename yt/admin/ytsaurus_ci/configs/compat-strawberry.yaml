@@ -1,0 +1,10 @@
+main:
+  source: dev
+0.0.12: &strawberry_0_0_12
+  source: stable
+0.0.13:
+ <<: *strawberry_0_0_12
+0.0.14:
+ <<: *strawberry_0_0_12
+0.0.15:
+ <<: *strawberry_0_0_12

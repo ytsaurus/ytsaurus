@@ -299,6 +299,11 @@ public:
         return std::numeric_limits<i64>::max();
     }
 
+    i64 GetBlockSize() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
 private:
     const TIOEngineMockConfig Config_;
     const IThreadPoolPtr ThreadPool_;

@@ -1,5 +1,5 @@
 # pool/base.py
-# Copyright (C) 2005-2025 the SQLAlchemy authors and contributors
+# Copyright (C) 2005-2026 the SQLAlchemy authors and contributors
 # <see AUTHORS file>
 #
 # This module is part of SQLAlchemy and is released under
@@ -599,7 +599,7 @@ class ConnectionPoolEntry(ManagesConnection):
     connection on behalf of a :class:`_pool.Pool` instance.
 
     The :class:`.ConnectionPoolEntry` object represents the long term
-    maintainance of a particular connection for a pool, including expiring or
+    maintenance of a particular connection for a pool, including expiring or
     invalidating that connection to have it replaced with a new one, which will
     continue to be maintained by that same :class:`.ConnectionPoolEntry`
     instance. Compared to :class:`.PoolProxiedConnection`, which is the

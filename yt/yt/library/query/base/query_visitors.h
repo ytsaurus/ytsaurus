@@ -844,7 +844,7 @@ struct TAbstractExpressionPrinter
 struct TSelfifyRewriter
     : public TRewriter<TSelfifyRewriter>
 {
-    const std::vector<TSelfEquation>& SelfEquations;
+    const std::vector<TConstExpressionPtr>& SelfEquations;
     const THashMap<std::string, int>& ForeignReferenceToIndexMap;
     bool Success = true;
 

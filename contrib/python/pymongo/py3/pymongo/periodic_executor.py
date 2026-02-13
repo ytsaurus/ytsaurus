@@ -4,7 +4,7 @@
 # may not use this file except in compliance with the License.  You
 # may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+# https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,26 +14,129 @@
 
 """Run a target function on a background thread."""
 
+from __future__ import annotations
+
+import asyncio
 import sys
 import threading
 import time
 import weakref
+from typing import Any, Optional
 
-from pymongo.monotonic import time as _time
+from pymongo import _csot
+from pymongo._asyncio_task import create_task
+from pymongo.lock import _create_lock
+
+_IS_SYNC = False
 
 
-class PeriodicExecutor(object):
-    def __init__(self, interval, min_interval, target, name=None):
-        """ "Run a target function periodically on a background thread.
+class AsyncPeriodicExecutor:
+    def __init__(
+        self,
+        interval: float,
+        min_interval: float,
+        target: Any,
+        name: Optional[str] = None,
+    ):
+        """Run a target function periodically on a background task.
 
         If the target's return value is false, the executor stops.
 
-        :Parameters:
-          - `interval`: Seconds between calls to `target`.
-          - `min_interval`: Minimum seconds between calls if `wake` is
+        :param interval: Seconds between calls to `target`.
+        :param min_interval: Minimum seconds between calls if `wake` is
             called very often.
-          - `target`: A function.
-          - `name`: A name to give the underlying thread.
+        :param target: A function.
+        :param name: A name to give the underlying task.
+        """
+        self._event = False
+        self._interval = interval
+        self._min_interval = min_interval
+        self._target = target
+        self._stopped = False
+        self._task: Optional[asyncio.Task[Any]] = None
+        self._name = name
+        self._skip_sleep = False
+
+    def __repr__(self) -> str:
+        return f"<{self.__class__.__name__}(name={self._name}) object at 0x{id(self):x}>"
+
+    def open(self) -> None:
+        """Start. Multiple calls have no effect."""
+        self._stopped = False
+
+        if self._task is None or (
+            self._task.done() and not self._task.cancelled() and not self._task.cancelling()  # type: ignore[unused-ignore, attr-defined]
+        ):
+            self._task = create_task(self._run(), name=self._name)
+
+    def close(self, dummy: Any = None) -> None:
+        """Stop. To restart, call open().
+
+        The dummy parameter allows an executor's close method to be a weakref
+        callback; see monitor.py.
+        """
+        self._stopped = True
+        if self._task is not None:
+            self._task.cancel()
+
+    async def join(self, timeout: Optional[int] = None) -> None:
+        if self._task is not None:
+            await asyncio.wait([self._task], timeout=timeout)  # type-ignore: [arg-type]
+
+    def wake(self) -> None:
+        """Execute the target function soon."""
+        self._event = True
+
+    def update_interval(self, new_interval: int) -> None:
+        self._interval = new_interval
+
+    def skip_sleep(self) -> None:
+        self._skip_sleep = True
+
+    async def _run(self) -> None:
+        # The CSOT contextvars must be cleared inside the executor task before execution begins
+        _csot.reset_all()
+        while not self._stopped:
+            if self._task and self._task.cancelling():  # type: ignore[unused-ignore, attr-defined]
+                raise asyncio.CancelledError
+            try:
+                if not await self._target():
+                    self._stopped = True
+                    break
+            # Catch KeyboardInterrupt, CancelledError, etc. and cleanup.
+            except BaseException:
+                self._stopped = True
+                raise
+
+            if self._skip_sleep:
+                self._skip_sleep = False
+            else:
+                deadline = time.monotonic() + self._interval
+                while not self._stopped and time.monotonic() < deadline:
+                    await asyncio.sleep(self._min_interval)
+                    if self._event:
+                        break  # Early wake.
+
+            self._event = False
+
+
+class PeriodicExecutor:
+    def __init__(
+        self,
+        interval: float,
+        min_interval: float,
+        target: Any,
+        name: Optional[str] = None,
+    ):
+        """Run a target function periodically on a background thread.
+
+        If the target's return value is false, the executor stops.
+
+        :param interval: Seconds between calls to `target`.
+        :param min_interval: Minimum seconds between calls if `wake` is
+            called very often.
+        :param target: A function.
+        :param name: A name to give the underlying thread.
         """
         # threading.Event and its internal condition variable are expensive
         # in Python 2, see PYTHON-983. Use a boolean to know when to wake.
@@ -44,17 +147,16 @@ class PeriodicExecutor(object):
         self._min_interval = min_interval
         self._target = target
         self._stopped = False
-        self._thread = None
+        self._thread: Optional[threading.Thread] = None
         self._name = name
         self._skip_sleep = False
-
         self._thread_will_exit = False
-        self._lock = threading.Lock()
+        self._lock = _create_lock()
 
-    def __repr__(self):
-        return "<%s(name=%s) object at 0x%x>" % (self.__class__.__name__, self._name, id(self))
+    def __repr__(self) -> str:
+        return f"<{self.__class__.__name__}(name={self._name}) object at 0x{id(self):x}>"
 
-    def open(self):
+    def open(self) -> None:
         """Start. Multiple calls have no effect.
 
         Not safe to call from multiple threads at once.
@@ -66,13 +168,14 @@ class PeriodicExecutor(object):
                 # join should not block indefinitely because there is no
                 # other work done outside the while loop in self._run.
                 try:
+                    assert self._thread is not None
                     self._thread.join()
                 except ReferenceError:
                     # Thread terminated.
                     pass
             self._thread_will_exit = False
             self._stopped = False
-        started = False
+        started: Any = False
         try:
             started = self._thread and self._thread.is_alive()
         except ReferenceError:
@@ -94,7 +197,7 @@ class PeriodicExecutor(object):
                     return
                 raise
 
-    def close(self, dummy=None):
+    def close(self, dummy: Any = None) -> None:
         """Stop. To restart, call open().
 
         The dummy parameter allows an executor's close method to be a weakref
@@ -102,7 +205,7 @@ class PeriodicExecutor(object):
         """
         self._stopped = True
 
-    def join(self, timeout=None):
+    def join(self, timeout: Optional[int] = None) -> None:
         if self._thread is not None:
             try:
                 self._thread.join(timeout)
@@ -110,30 +213,31 @@ class PeriodicExecutor(object):
                 # Thread already terminated, or not yet started.
                 pass
 
-    def wake(self):
+    def wake(self) -> None:
         """Execute the target function soon."""
         self._event = True
 
-    def update_interval(self, new_interval):
+    def update_interval(self, new_interval: int) -> None:
         self._interval = new_interval
 
-    def skip_sleep(self):
+    def skip_sleep(self) -> None:
         self._skip_sleep = True
 
-    def __should_stop(self):
+    def _should_stop(self) -> bool:
         with self._lock:
             if self._stopped:
                 self._thread_will_exit = True
                 return True
             return False
 
-    def _run(self):
-        while not self.__should_stop():
+    def _run(self) -> None:
+        while not self._should_stop():
             try:
                 if not self._target():
                     self._stopped = True
                     break
-            except:
+            # Catch KeyboardInterrupt, etc. and cleanup.
+            except BaseException:
                 with self._lock:
                     self._stopped = True
                     self._thread_will_exit = True
@@ -143,8 +247,8 @@ class PeriodicExecutor(object):
             if self._skip_sleep:
                 self._skip_sleep = False
             else:
-                deadline = _time() + self._interval
-                while not self._stopped and _time() < deadline:
+                deadline = time.monotonic() + self._interval
+                while not self._stopped and time.monotonic() < deadline:
                     time.sleep(self._min_interval)
                     if self._event:
                         break  # Early wake.
@@ -161,16 +265,16 @@ class PeriodicExecutor(object):
 _EXECUTORS = set()
 
 
-def _register_executor(executor):
+def _register_executor(executor: PeriodicExecutor) -> None:
     ref = weakref.ref(executor, _on_executor_deleted)
     _EXECUTORS.add(ref)
 
 
-def _on_executor_deleted(ref):
+def _on_executor_deleted(ref: weakref.ReferenceType[PeriodicExecutor]) -> None:
     _EXECUTORS.remove(ref)
 
 
-def _shutdown_executors():
+def _shutdown_executors() -> None:
     if _EXECUTORS is None:
         return
 

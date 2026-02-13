@@ -7,6 +7,8 @@
 #include <yt/yt/library/query/engine_api/evaluator.h>
 #include <yt/yt/library/query/engine_api/config.h>
 
+#include <yt/yt/library/query/row_comparer_api/row_comparer_generator.h>
+
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
 #include <yt/yt/ytlib/query_client/functions_cache.h>
@@ -78,6 +80,7 @@ void RunQuery(
         /*joinProfilers*/ {},
         functionGenerators,
         aggregateGenerators,
+        /*sdk*/ {},
         GetDefaultMemoryChunkProvider(),
         TQueryOptions(),
         MostFreshFeatureFlags(),
@@ -150,6 +153,24 @@ int GetJobFirstOutputTableFDFromSpec(const TUserJobSpec& spec)
     return spec.redirect_stdout_to_stderr()
         ? JobFirstOutputTableFDWithRedirectStdoutToStderr
         : JobFirstOutputTableFDDefault;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TComparator BuildComparator(
+    const TTableSchemaPtr& schema,
+    bool enableCodegen)
+{
+    TCallback<NQueryClient::TUUComparerSignature> cgComparer;
+    if (!enableCodegen) {
+        YT_LOG_DEBUG("Using default comparator because codegen is disabled (Schema: %v)", schema);
+    } else if (!schema->IsCGComparatorApplicable()) {
+        YT_LOG_DEBUG("Using default comparator because codegen is not applicable (Schema: %v)", schema);
+    } else {
+        YT_LOG_DEBUG("Using codegen comparator (Schema: %v)", schema);
+        cgComparer = NQueryClient::GenerateStaticTableKeyComparer(schema->GetKeyColumnTypes());
+    }
+    return schema->ToComparator(std::move(cgComparer));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

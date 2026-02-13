@@ -37,6 +37,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(EMissingFieldPolicy, MissingFieldPolicy, EMissingFieldPolicy::Throw);
     // Visit all fields/entries when the path has a "*".
     DEFINE_BYVAL_RW_PROPERTY(bool, AllowAsterisk, false);
+    // How to handle relative indexes.
+    DEFINE_BYVAL_RW_PROPERTY(ERelativeIndexPolicy, RelativeIndexPolicy, ERelativeIndexPolicy::Allow);
 
 protected:
     /// Control flags.
@@ -79,6 +81,7 @@ protected:
     // Methods for examining the tokenizer and the stack.
     NYPath::ETokenType GetTokenizerType() const;
     TStringBuf GetTokenizerInput() const;
+    TStringBuf GetTokenizerPrefix() const;
     TStringBuf GetToken() const;
     const TString& GetLiteralValue() const;
     const NYPath::TYPath& GetCurrentPath() const;
@@ -206,10 +209,16 @@ protected:
     void OnMapKeyError(TVisitParam&& target, TMapKey mapKey, TString key, EVisitReason reason);
 
     // Other section.
+    // The parameter is an INodePtr.
+    template <typename TVisitParam>
+    void VisitNode(TVisitParam&& target, EVisitReason reason);
+
     // The parameter is any other C++ type.
     template <typename TVisitParam>
     void VisitOther(TVisitParam&& target, EVisitReason reason);
 }; // TPathVisitor
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NOrm::NAttributes
 

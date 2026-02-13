@@ -70,7 +70,7 @@ public:
     TFuture<void> ApplyQuota(const TString& path, const TJobDirectoryProperties& properties) override
     {
         if (!EnableDiskQuota_) {
-            return VoidFuture;
+            return OKFuture;
         }
         return DoCreateVolume(path, properties, false);
     }
@@ -98,8 +98,8 @@ public:
         }
 
         // Sort from longest paths, to shortest.
-        std::sort(toRelease.begin(), toRelease.end(), [] (const TString& lhs, const TString& rhs) {
-            return SplitString(lhs, "/").size() > SplitString(rhs, "/").size();
+        std::sort(toRelease.begin(), toRelease.end(), [] (const std::string& lhs, const std::string& rhs) {
+            return StringSplitter(lhs).Split('/').Count() > StringSplitter(rhs).Split('/').Count();
         });
 
         std::vector<TFuture<void>> asyncUnlinkResults;
@@ -136,7 +136,7 @@ private:
         } else if (properties.DiskSpaceLimit || properties.InodeLimit) {
             volumeProperties["backend"] = "quota";
         } else {
-            return VoidFuture;
+            return OKFuture;
         }
 
         volumeProperties["user"] = ToString(properties.UserId);
@@ -192,7 +192,7 @@ public:
         for (int attempt = 0; attempt < TmpfsRemoveAttemptCount; ++attempt) {
             auto mountPoints = NFS::GetMountPoints("/proc/mounts");
             for (const auto& mountPoint : mountPoints) {
-                if (mountPoint.Path.StartsWith(Path_ + "/")) {
+                if (mountPoint.Path.starts_with(Path_ + "/")) {
                     Directories_.insert(mountPoint.Path);
                 }
             }
@@ -209,7 +209,7 @@ public:
     TFuture<void> ApplyQuota(const TString& path, const TJobDirectoryProperties& properties) override
     {
         if (!properties.InodeLimit && !properties.DiskSpaceLimit) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         auto config = New<TFSQuotaConfig>();
@@ -246,16 +246,16 @@ public:
     TFuture<void> CleanDirectories(const TString& pathPrefix) override
     {
         return BIND([=, this, this_ = MakeStrong(this)] {
-            std::vector<TString> toRelease;
+            std::vector<std::string> toRelease;
             auto it = Directories_.lower_bound(pathPrefix);
-            while (it != Directories_.end() && (*it == pathPrefix || it->StartsWith(pathPrefix + "/"))) {
+            while (it != Directories_.end() && (*it == pathPrefix || it->starts_with(pathPrefix + "/"))) {
                 toRelease.push_back(*it);
                 it = Directories_.erase(it);
             }
 
             // Sort from longest paths, to shortest.
-            std::sort(toRelease.begin(), toRelease.end(), [] (const TString& lhs, const TString& rhs) {
-                return SplitString(lhs, "/").size() > SplitString(rhs, "/").size();
+            std::sort(toRelease.begin(), toRelease.end(), [] (const std::string& lhs, const std::string& rhs) {
+                return StringSplitter(lhs).Split('/').Count() > StringSplitter(rhs).Split('/').Count();
             });
 
             for (const auto& path : toRelease) {
@@ -288,7 +288,7 @@ private:
     const TString Path_;
     const bool DetachedTmpfsUmount_;
 
-    std::set<TString> Directories_;
+    std::set<std::string> Directories_;
 };
 
 IJobDirectoryManagerPtr CreateSimpleJobDirectoryManager(

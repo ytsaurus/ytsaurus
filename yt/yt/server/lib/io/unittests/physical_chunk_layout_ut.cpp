@@ -17,10 +17,6 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "TestLogger");
-
-////////////////////////////////////////////////////////////////////////////////
-
 TString GenerateRandomString(size_t size, TRandomGenerator* generator)
 {
     TString result;
@@ -46,15 +42,6 @@ std::vector<NChunkClient::TBlock> CreateBlocks(int count, TRandomGenerator* gene
     return blocks;
 }
 
-void DumpBrokenMeta(TRef /*block*/)
-{ }
-
-void DumpBrokenBlock(
-    int /*blockIndex*/,
-    const TBlockInfo& /*blockInfo*/,
-    TRef /*block*/)
-{ }
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TPhysicalChunkLayout, SerializeAndDeserialize)
@@ -63,40 +50,46 @@ TEST(TPhysicalChunkLayout, SerializeAndDeserialize)
 
     auto chunkId = MakeRandomId(NCypressClient::EObjectType::Chunk, NObjectClient::TCellTag(0xf003));
     auto generator = TRandomGenerator(42);
-
-    auto reader = New<TPhysicalChunkLayoutReader>(
-        chunkId,
-        Format("%v", chunkId),
-        Format("%v.meta", chunkId),
-        TPhysicalChunkLayoutReader::TOptions{},
-        Logger(),
-        BIND(&DumpBrokenBlock),
-        BIND(&DumpBrokenMeta));
-    auto writer = New<TPhysicalChunkLayoutWriter>(chunkId);
-
     auto originalBlocks = CreateBlocks(BlocksCount, &generator);
+    NChunkClient::NProto::TBlocksExt protoBlocksExt;
 
-    auto writeRequest = writer->AddBlocks(originalBlocks);
-    auto deferredMeta = New<NChunkClient::TDeferredChunkMeta>();
-    auto metaBlob = writer->Close(std::move(deferredMeta));
-
-    auto blocksExt = New<TBlocksExt>(GetProtoExtension<NChunkClient::NProto::TBlocksExt>(writer->GetChunkMeta()->extensions()));
+    auto writeRequest = SerializeBlocks(0, originalBlocks, protoBlocksExt);
 
     struct TMyTag {};
     auto blocksBlob = MergeRefsToRef<TMyTag>(std::move(writeRequest.Buffers));
-    auto deserializedBlocks = reader->DeserializeBlocks(
+    auto deserializedBlocks = DeserializeBlocks(
         blocksBlob,
-        TPhysicalChunkLayoutReader::TBlockRange{
+        TBlockRange{
             .StartBlockIndex = 0,
-            .EndBlockIndex = BlocksCount
+            .EndBlockIndex = BlocksCount,
         },
-        blocksExt,
-        New<NChunkClient::TChunkReaderStatistics>());
+        /*validateBlockChecksums*/ true,
+        Format("%v", chunkId),
+        New<TBlocksExt>(protoBlocksExt),
+        /*dumpBrokenBlockCallback*/ {});
 
     EXPECT_EQ(BlocksCount, std::ssize(deserializedBlocks));
     for (int i = 0; i < BlocksCount; ++i) {
         EXPECT_EQ(originalBlocks[i].GetOrComputeChecksum(), deserializedBlocks[i].GetOrComputeChecksum());
     }
+}
+
+TEST(TPhysicalChunkLayout, SerializeAndDeserializeMeta)
+{
+    auto chunkId = MakeRandomId(NCypressClient::EObjectType::Chunk, NObjectClient::TCellTag(0xf003));
+
+    NChunkClient::NProto::TBlocksExt protoBlocksExt;
+
+    auto finalizedMeta = FinalizeChunkMeta(New<NChunkClient::TDeferredChunkMeta>(), protoBlocksExt);
+    auto metaBlob = SerializeChunkMeta(chunkId, finalizedMeta);
+
+    auto deserializedMeta = DeserializeMeta(
+        metaBlob,
+        Format("%v.meta", chunkId),
+        chunkId,
+        /*dumpBrokenMeta*/ {});
+
+    EXPECT_TRUE(google::protobuf::util::MessageDifferencer::Equals(*deserializedMeta.ChunkMeta, *finalizedMeta));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

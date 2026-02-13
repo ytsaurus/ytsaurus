@@ -50,9 +50,9 @@ std::vector<TChecksum> BlocksToChecksums(const std::vector<TBlock>& blocks)
     return checksums;
 }
 
-TString GenerateRandomString(int size, TRandomGenerator* generator)
+std::string GenerateRandomString(int size, TRandomGenerator* generator)
 {
-    TString result;
+    std::string result;
     result.reserve(size + sizeof(ui64));
     while (std::ssize(result) < size) {
         ui64 value = generator->Generate<ui64>();

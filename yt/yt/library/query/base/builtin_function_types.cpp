@@ -68,13 +68,14 @@ public:
         std::vector<TType> argumentTypes,
         TType resultType,
         TType stateType,
+        TType repeatedArgType,
         TStringBuf /*implementationFile*/,
-        ECallingConvention /*callingConvention*/,
         bool /*isFirst*/) override
     {
         TypeInferrers_->emplace(aggregateName, CreateAggregateTypeInferrer(
             resultType,
             std::move(argumentTypes),
+            repeatedArgType,
             stateType,
             typeParameterConstraints));
     }
@@ -239,13 +240,14 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
         result->emplace(name, CreateAggregateTypeInferrer(
             /*resultType*/ 1,
             /*argumentTypes*/ {1, 0},
-            EValueType::String,
+            /*repeatedArgType*/ EValueType::Null,
+            /*stateType*/ EValueType::String,
             argMinMaxConstraints));
     }
 
     result->emplace("avg", CreateAggregateTypeInferrer(
         EValueType::Double,
-        std::vector<TType>{summable},
+        summable,
         EValueType::String,
         sumConstraints));
 

@@ -56,6 +56,7 @@ var (
 	AddMaintenanceResultDecoder             AnyValueResultDecoder       = newValueResultDecoder()
 	RemoveMaintenanceResultDecoder          AnyValueResultDecoder       = newValueResultDecoder()
 	CheckPermissionResultDecoder            AnyValueResultDecoder       = newValueResultDecoder()
+	CheckOperationPermissionResultDecoder   AnyValueResultDecoder       = newValueResultDecoder()
 	StartTxResultDecoder                    AnyValueResultDecoder       = newSingleValueResultDecoder("transaction_id")
 	StartTabletTxResultDecoder              AnyValueResultDecoder       = newSingleValueResultDecoder("transaction_id")
 	StartOperationResultDecoder             AnyValueResultDecoder       = newSingleValueResultDecoder("operation_id")

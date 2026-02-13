@@ -20,6 +20,8 @@
 #include <yt/yt/server/lib/controller_agent/helpers.h>
 #include <yt/yt/server/lib/controller_agent/statistics.h>
 
+#include <yt/yt/server/lib/job_proxy/events_on_fs.h>
+
 #include <yt/yt/server/lib/exec_node/proto/supervisor_service.pb.h>
 
 #include <yt/yt/server/lib/rpc_proxy/access_checker.h>
@@ -29,6 +31,9 @@
 #include <yt/yt/server/lib/shuffle_server/shuffle_service.h>
 
 #include <yt/yt/server/lib/user_job/config.h>
+
+#include <yt/yt/server/tools/proc.h>
+#include <yt/yt/server/tools/tools.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -94,6 +99,7 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/thread_pool_poller.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/yt/core/tracing/trace_context.h>
@@ -108,13 +114,18 @@
 
 #include <yt/yt/core/rpc/grpc/server.h>
 
+#include <yt/yt/core/rpc/http/server.h>
+
 #include <yt/yt/core/rpc/retrying_channel.h>
 #include <yt/yt/core/rpc/server.h>
+
+#include <yt/yt/core/http/server.h>
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/public.h>
 #include <yt/yt/core/ytree/virtual.h>
 
+#include <yt/yt/core/net/listener.h>
 #include <yt/yt/core/net/local_address.h>
 
 #include <yt/yt/library/profiling/sensor.h>
@@ -140,7 +151,6 @@ using namespace NControllerAgent::NProto;
 using namespace NControllerAgent;
 using namespace NExecNode::NProto;
 using namespace NExecNode;
-using namespace NJobProber;
 using namespace NJobProberClient;
 using namespace NJobProxy;
 using namespace NLogging;
@@ -239,6 +249,11 @@ std::string TJobProxy::GetJobProxyGrpcUnixDomainSocketPath() const
     YT_VERIFY(addresses[0]->Address.starts_with(prefix));
 
     return AdjustPath(TString(addresses[0]->Address.substr(prefix.size())));
+}
+
+std::string TJobProxy::GetJobProxyHttpUnixDomainSocketPath() const
+{
+    return AdjustPath(TString(Config_->HttpServerUdsPath));
 }
 
 std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext(TTransactionId transactionId)
@@ -387,6 +402,9 @@ void TJobProxy::SendHeartbeat()
     req->set_stderr_size(job->GetStderrSize());
     req->set_has_job_trace(job->HasJobTrace());
     req->set_epoch(epoch);
+    if (auto time = job->GetLastProgressSaveTime(); time.has_value()) {
+        req->set_last_progress_save_time(ToProto(*time));
+    }
 
     req->Invoke().Subscribe(BIND(&TJobProxy::OnHeartbeatResponse, MakeWeak(this)));
 }
@@ -599,10 +617,16 @@ void TJobProxy::DoRun()
     }
 
 
-    if (GrpcServer_ != nullptr) {
+    if (GrpcServer_) {
         auto error = WaitFor(GrpcServer_->Stop()
             .WithTimeout(RpcServerShutdownTimeout));
         YT_LOG_ERROR_UNLESS(error.IsOK(), error, "Error stopping GRPC server");
+    }
+
+    if (HttpServer_) {
+        auto error = WaitFor(HttpServer_->Stop()
+            .WithTimeout(RpcServerShutdownTimeout));
+        YT_LOG_ERROR_UNLESS(error.IsOK(), error, "Error stopping HTTP server");
     }
 
     FillJobResult(&result);
@@ -733,14 +757,18 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
 {
     YT_VERIFY(Config_->OriginalClusterConnection);
 
-    auto connection = CreateNativeConnection(Config_->OriginalClusterConnection);
+    NApi::NNative::TConnectionOptions options;
+    options.CreateQueueConsumerRegistrationManager = Config_->StartQueueConsumerRegistrationManager;
+
+    auto connection = CreateNativeConnection(Config_->OriginalClusterConnection, std::move(options));
     connection->GetClusterDirectorySynchronizer()->Start();
     connection->GetNodeDirectorySynchronizer()->Start();
     if (Config_->StartQueueConsumerRegistrationManager) {
-        connection->GetQueueConsumerRegistrationManager()->StartSync();
+        connection->GetQueueConsumerRegistrationManagerOrThrow()->StartSync();
     }
 
     ApiServiceThreadPool_ = CreateThreadPool(rpcProxyWorkerThreadPoolSize, "RpcProxy");
+    auto apiInvoker = ApiServiceThreadPool_->GetInvoker();
 
     auto signatureGenerator = New<TProxySignatureGenerator>(*SupervisorProxy_, JobId_);
     connection->SetSignatureGenerator(std::move(signatureGenerator));
@@ -759,7 +787,7 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
 
         auto localServerAddress = BuildServiceAddress(NNet::GetLocalHostName(), *Config_->BusServer->Port);
         auto shuffleService = CreateShuffleService(
-            ApiServiceThreadPool_->GetInvoker(),
+            apiInvoker,
             rootClient,
             localServerAddress);
         PublicRpcServer_->RegisterService(std::move(shuffleService));
@@ -779,9 +807,8 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
 
     auto apiService = CreateApiService(
         Config_->JobProxyApiServiceStatic,
-        GetControlInvoker(),
-        ApiServiceThreadPool_->GetInvoker(),
-        ApiServiceThreadPool_->GetInvoker(),
+        apiInvoker,
+        [=] (const std::string&, const TFairShareThreadPoolTag&) { return apiInvoker; },
         connection,
         authenticationManager->GetRpcAuthenticator(),
         proxyCoordinator,
@@ -875,6 +902,18 @@ TJobResult TJobProxy::RunJob()
             GrpcServer_ = NRpc::NGrpc::CreateServer(Config_->GrpcServer);
             GrpcServer_->RegisterService(jobApiService);
             GrpcServer_->Start();
+        }
+
+        if (Config_->EnableHttpServer) {
+            auto address = TNetworkAddress::CreateUnixDomainSocketAddress(NFS::GetShortestPath(Config_->HttpServerUdsPath));
+            auto poller = CreateThreadPoolPoller(Config_->HttpServerPollerThreadCount, Config_->HttpServer->ServerName);
+            auto acceptor = poller;
+            HttpServer_ = NRpc::NHttp::CreateServer(::NYT::NHttp::CreateServer(
+                Config_->HttpServer,
+                CreateListener(address, poller, acceptor),
+                poller));
+            HttpServer_->RegisterService(jobApiService);
+            HttpServer_->Start();
         }
 
         if (TvmBridge_) {
@@ -1049,6 +1088,10 @@ TJobResult TJobProxy::RunJob()
         Abort(EJobProxyExitCode::JobProxyPrepareFailed);
     }
 
+    if (Config_->TestingConfig->FailPreparation) {
+        Abort(EJobProxyExitCode::JobProxyPrepareFailed);
+    }
+
     job->PrepareArtifacts();
     OnArtifactsPrepared();
 
@@ -1064,10 +1107,21 @@ TJobResult TJobProxy::RunJob()
         environment->StartSidecars(GetJobSpecHelper()->GetJobSpecExt());
     }
 
+    if (auto eventsOnFsConfig = Config_->JobTestingOptions->EventsOnFs) {
+        WaitFor(
+            GetBreakpointEvent(
+                eventsOnFsConfig,
+                JobId_,
+                EBreakpointType::BeforeRun))
+            .ThrowOnError();
+    }
+
     return job->Run();
 }
 
-NApi::NNative::IConnectionPtr TJobProxy::CreateNativeConnection(NApi::NNative::TConnectionCompoundConfigPtr config) const
+NApi::NNative::IConnectionPtr TJobProxy::CreateNativeConnection(
+    NApi::NNative::TConnectionCompoundConfigPtr config,
+    NApi::NNative::TConnectionOptions options) const
 {
     if (TvmBridge_ && config->Dynamic->TvmId) {
         YT_LOG_DEBUG("Ensuring destination service id (ServiceId: %v)", *config->Dynamic->TvmId);
@@ -1078,7 +1132,6 @@ NApi::NNative::IConnectionPtr TJobProxy::CreateNativeConnection(NApi::NNative::T
         YT_LOG_DEBUG("Destination service id is ready");
     }
 
-    NNative::TConnectionOptions options;
     options.RetryRequestQueueSizeLimitExceeded = true;
 
     return NApi::NNative::CreateConnection(std::move(config), std::move(options));
@@ -1239,7 +1292,7 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
         auto extendedStatistics = job->GetStatistics();
         statistics = std::move(extendedStatistics.Statistics);
 
-        if (job->HasInputStatistics()) {
+        if (job->HasInput()) {
             statistics.AddSample("/data/input"_SP, extendedStatistics.TotalInputStatistics.DataStatistics);
             DumpCodecStatistics(extendedStatistics.TotalInputStatistics.CodecStatistics, "/codec/cpu/decode"_SP, &statistics);
         }
@@ -1301,7 +1354,7 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
                 statistics.AddSample(path / "bytes"_L, pipeStatistics.Bytes);
             };
 
-            if (job->HasInputStatistics()) {
+            if (job->HasInput()) {
                 dumpPipeStatistics("/user_job/pipes/input"_SP, *pipeStatistics->InputPipeStatistics);
             }
             dumpPipeStatistics("/user_job/pipes/output/total"_SP, pipeStatistics->TotalOutputPipeStatistics);
@@ -1332,6 +1385,21 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
             statistics.AddSample(
                 "/latency/output/total/min_time_to_first_read_batch"_SP,
                 minOutputTimeToFirstBatch);
+        }
+
+        for (const auto& [index, timingStatistics] : SEnumerate(extendedStatistics.WriterTimingStatistics)) {
+            statistics.AddSample(
+                "/chunk_writer_statistics"_SP / TStatisticPathLiteral(ToString(index)) / "write_time"_L,
+                timingStatistics.WriteTime);
+            statistics.AddSample(
+                "/chunk_writer_statistics"_SP / TStatisticPathLiteral(ToString(index)) / "wait_time"_L,
+                timingStatistics.WaitTime);
+            statistics.AddSample(
+                "/chunk_writer_statistics"_SP / TStatisticPathLiteral(ToString(index)) / "idle_time"_L,
+                timingStatistics.IdleTime);
+            statistics.AddSample(
+                "/chunk_writer_statistics"_SP / TStatisticPathLiteral(ToString(index)) / "close_time"_L,
+                timingStatistics.CloseTime);
         }
     }
 
@@ -1447,13 +1515,13 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
             GetSandboxRelPath(ESandboxKind::Tmp));
 
         rootFS.Binds.push_back(TBind{
-            .SourcePath = tmpPath,
+            .SourcePath = TString(tmpPath),
             .TargetPath = "/tmp",
             .ReadOnly = false,
         });
 
         rootFS.Binds.push_back(TBind{
-            .SourcePath = tmpPath,
+            .SourcePath = TString(tmpPath),
             .TargetPath = "/var/tmp",
             .ReadOnly = false,
         });
@@ -1486,7 +1554,7 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
                 .TargetPath = NFS::CombinePaths(
                     slotPath,
                     ExecutorConfigFileName),
-                .ReadOnly = true,
+                .ReadOnly = false,
             });
         }
 
@@ -1502,8 +1570,8 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
                 target);
 
             rootFS.Binds.push_back(TBind{
-                .SourcePath = source,
-                .TargetPath = target,
+                .SourcePath = TString(source),
+                .TargetPath = TString(target),
                 .ReadOnly = false,
             });
         }
@@ -1569,7 +1637,7 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
     } else {
         environmentOptions.Places.push_back(NFS::CombinePaths(Config_->SlotPath, "place"));
         // COMPAT(yuryalekseev): Remove this after tasklets move to using default place.
-        environmentOptions.Places.push_back(All);
+        environmentOptions.Places.push_back(AnyTarget);
     }
 
     if (options.EnableCoreDumps) {
@@ -1774,6 +1842,11 @@ void TJobProxy::CheckMemoryUsage()
     } catch (const std::exception& ex) {
         YT_LOG_WARNING(ex, "Failed to get process memory usage");
         return;
+    }
+
+    if (Config_->OomScoreAdjOnExceededMemoryReserve.has_value()) {
+        int targetOomScore = jobProxyMemoryUsage > JobProxyMemoryReserve_ ? *Config_->OomScoreAdjOnExceededMemoryReserve : 0;
+        SetOomScoreAdj(targetOomScore);
     }
 
     JobProxyMaxMemoryUsage_ = std::max(JobProxyMaxMemoryUsage_.load(), jobProxyMemoryUsage);
@@ -2070,6 +2143,35 @@ void TJobProxy::LogSystemStats() const
 void TJobProxy::OnProgressSaved(TInstant when)
 {
     GetJobOrThrow()->OnProgressSaved(when);
+    HeartbeatExecutor_->ScheduleOutOfBand();
+}
+
+void TJobProxy::SetOomScoreAdj(int score)
+{
+    if (OomScoreAdj_.has_value() && *OomScoreAdj_ == score) {
+        return;
+    }
+
+    pid_t pid = GetPID();
+
+    YT_LOG_DEBUG(
+        "Changing oom_score_adj of a job proxy process (Pid: %v, OomScoreAdj: %v)",
+        pid,
+        score);
+
+    auto config = New<NTools::TChangeOomScoreAdjAsRootConfig>();
+    config->Pid = pid;
+    config->Score = score;
+
+    try {
+        RunTool<NTools::TChangeOomScoreAdjAsRootTool>(config);
+        OomScoreAdj_ = score;
+    } catch (const std::exception& ex) {
+        YT_LOG_WARNING(
+            ex,
+            "Failed to set oom_score_adj of a job proxy process (Pid: %v)",
+            pid);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

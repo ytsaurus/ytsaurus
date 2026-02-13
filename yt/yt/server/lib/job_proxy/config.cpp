@@ -14,6 +14,9 @@ void TJobProxyTestingConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("fail_on_job_proxy_spawned_call", &TThis::FailOnJobProxySpawnedCall)
         .Default(false);
+
+    registrar.Parameter("fail_preparation", &TThis::FailPreparation)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -462,6 +465,11 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
         .Default(40000)
         .GreaterThan(0);
 
+    registrar.Parameter("oom_score_adj_on_exceeded_memory_reserve", &TThis::OomScoreAdjOnExceededMemoryReserve)
+        .Default()
+        .GreaterThanOrEqual(-1000)
+        .LessThanOrEqual(1000);
+
     registrar.Parameter("use_new_delivery_fenced_connection", &TThis::UseNewDeliveryFencedConnection)
         .Default(true);
 
@@ -475,10 +483,20 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_grpc_server", &TThis::EnableGrpcServer)
         .Default(false);
+    registrar.Parameter("enable_http_server", &TThis::EnableHttpServer)
+        .Default(false);
+
+    registrar.Parameter("grpc_server", &TThis::GrpcServer)
+        .DefaultNew();
+
+    registrar.Parameter("http_server", &TThis::HttpServer)
+        .DefaultNew();
+    registrar.Parameter("http_server_uds_path", &TThis::HttpServerUdsPath);
+    registrar.Parameter("http_server_poller_thread_count", &TThis::HttpServerPollerThreadCount)
+        .GreaterThan(0)
+        .Default(1);
 
     registrar.Parameter("job_api_service", &TThis::JobApiService)
-        .DefaultNew();
-    registrar.Parameter("grpc_server", &TThis::GrpcServer)
         .DefaultNew();
 
     registrar.Parameter("sync_medium_directory_on_start", &TThis::SyncMediumDirectoryOnStart)
@@ -545,6 +563,11 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
         .Default(40000)
         .GreaterThan(0);
 
+    registrar.Parameter("oom_score_adj_on_exceeded_memory_reserve", &TThis::OomScoreAdjOnExceededMemoryReserve)
+        .Default()
+        .GreaterThanOrEqual(-1000)
+        .LessThanOrEqual(1000);
+
     registrar.Parameter("use_new_delivery_fenced_connection", &TThis::UseNewDeliveryFencedConnection)
         .Default(true);
 
@@ -562,9 +585,10 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_grpc_server", &TThis::EnableGrpcServer)
         .Default(false);
+    registrar.Parameter("enable_http_server", &TThis::EnableHttpServer)
+        .Default(false);
 
     registrar.Parameter("sync_medium_directory_on_start", &TThis::SyncMediumDirectoryOnStart)
-        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

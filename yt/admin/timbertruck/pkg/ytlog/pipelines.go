@@ -2,17 +2,22 @@ package ytlog
 
 import (
 	"context"
+	"time"
 
 	"go.ytsaurus.tech/yt/admin/timbertruck/pkg/pipelines"
 	"go.ytsaurus.tech/yt/admin/timbertruck/pkg/timbertruck"
 )
 
-const TextFileBufferLimit = 20 * 1024 * 1024
+const (
+	// BufferSizeReserve is the extra space added to TextFileLineLimit for buffer size.
+	BufferSizeReserve = 4 * 1024 * 1024
+)
 
 type BaseLogPipelineOptions struct {
-	AntisecretTransform pipelines.Transform[[]byte, []byte]
-	QueueBatchSize      int
-	TextFileLineLimit   int
+	AntisecretTransform    pipelines.Transform[[]byte, []byte]
+	QueueBatchSize         int
+	QueueBatchFlushTimeout time.Duration
+	TextFileLineLimit      int
 }
 
 type TextLogPipelineOptions struct {
@@ -30,8 +35,9 @@ func NewTextLogPipeline(task timbertruck.TaskArgs, output pipelines.Output[pipel
 		panic("TskvFormat is not specified")
 	}
 	p, lineInfos, err := pipelines.NewTextPipeline(task.Controller.Logger(), task.Path, task.Position, pipelines.TextPipelineOptions{
-		LineLimit:   options.TextFileLineLimit,
-		BufferLimit: TextFileBufferLimit,
+		LineLimit:      options.TextFileLineLimit,
+		BufferLimit:    options.TextFileLineLimit + BufferSizeReserve,
+		OnTruncatedRow: task.Controller.OnSkippedRow,
 	})
 	if err != nil {
 		return
@@ -39,10 +45,11 @@ func NewTextLogPipeline(task timbertruck.TaskArgs, output pipelines.Output[pipel
 
 	notEmptyLineInfos := pipelines.Apply(pipelines.NewDiscardEmptyLinesTransform(task.Controller.Logger()), lineInfos)
 	lines := pipelines.Apply(pipelines.NewDiscardTruncatedLinesTransform(task.Controller.Logger()), notEmptyLineInfos)
-	parsed := pipelines.Apply(NewParseLineTransform(task.Controller.Logger()), lines)
-	tskv := pipelines.Apply(NewTskvTransform(options.QueueBatchSize, options.Cluster, options.TskvFormat), parsed)
+	parsed := pipelines.Apply(NewParseLineTransform(task.Controller.Logger(), task.Controller.OnSkippedRow), lines)
+	tskv := pipelines.Apply(NewTskvLineTransform(options.Cluster, options.TskvFormat), parsed)
+	batched := pipelines.Apply(NewBatchLinesTransform(options.QueueBatchSize, options.QueueBatchFlushTimeout), tskv)
 	if options.AntisecretTransform != nil {
-		tskv = pipelines.Apply(options.AntisecretTransform, tskv)
+		batched = pipelines.Apply(options.AntisecretTransform, batched)
 	}
 
 	rows := pipelines.ApplyFunc(func(ctx context.Context, meta pipelines.RowMeta, value []byte, emit pipelines.EmitFunc[pipelines.Row]) {
@@ -50,7 +57,7 @@ func NewTextLogPipeline(task timbertruck.TaskArgs, output pipelines.Output[pipel
 			Payload: value,
 			SeqNo:   meta.End.LogicalOffset,
 		})
-	}, tskv)
+	}, batched)
 
 	pipelines.ApplyOutput(output, rows)
 	return
@@ -62,16 +69,17 @@ type JSONLogPipelineOptions struct {
 
 func NewJSONLogPipeline(task timbertruck.TaskArgs, output pipelines.Output[pipelines.Row], options JSONLogPipelineOptions) (p *pipelines.Pipeline, err error) {
 	p, lineInfos, err := pipelines.NewTextPipeline(task.Controller.Logger(), task.Path, task.Position, pipelines.TextPipelineOptions{
-		LineLimit:   options.TextFileLineLimit,
-		BufferLimit: TextFileBufferLimit,
+		LineLimit:      options.TextFileLineLimit,
+		BufferLimit:    options.TextFileLineLimit + BufferSizeReserve,
+		OnTruncatedRow: task.Controller.OnSkippedRow,
 	})
 	if err != nil {
 		return
 	}
 
 	lines := pipelines.Apply(pipelines.NewDiscardTruncatedLinesTransform(task.Controller.Logger()), lineInfos)
-	lines = pipelines.Apply(NewValidateJSONTransform(task.Controller.Logger()), lines)
-	batched := pipelines.Apply(NewBatchLinesTransform(options.QueueBatchSize), lines)
+	lines = pipelines.Apply(NewValidateJSONTransform(task.Controller.Logger(), task.Controller.OnSkippedRow), lines)
+	batched := pipelines.Apply(NewBatchLinesTransform(options.QueueBatchSize, options.QueueBatchFlushTimeout), lines)
 	if options.AntisecretTransform != nil {
 		batched = pipelines.Apply(options.AntisecretTransform, batched)
 	}
@@ -93,16 +101,17 @@ type YSONLogPipelineOptions struct {
 
 func NewYSONLogPipeline(task timbertruck.TaskArgs, output pipelines.Output[pipelines.Row], options YSONLogPipelineOptions) (p *pipelines.Pipeline, err error) {
 	p, lineInfos, err := pipelines.NewTextPipeline(task.Controller.Logger(), task.Path, task.Position, pipelines.TextPipelineOptions{
-		LineLimit:   options.TextFileLineLimit,
-		BufferLimit: TextFileBufferLimit,
+		LineLimit:      options.TextFileLineLimit,
+		BufferLimit:    options.TextFileLineLimit + BufferSizeReserve,
+		OnTruncatedRow: task.Controller.OnSkippedRow,
 	})
 	if err != nil {
 		return
 	}
 
 	lines := pipelines.Apply(pipelines.NewDiscardTruncatedLinesTransform(task.Controller.Logger()), lineInfos)
-	lines = pipelines.Apply(NewValidateYSONTransform(task.Controller.Logger()), lines)
-	batched := pipelines.Apply(NewBatchLinesTransform(options.QueueBatchSize), lines)
+	lines = pipelines.Apply(NewValidateYSONTransform(task.Controller.Logger(), task.Controller.OnSkippedRow), lines)
+	batched := pipelines.Apply(NewBatchLinesTransform(options.QueueBatchSize, options.QueueBatchFlushTimeout), lines)
 	if options.AntisecretTransform != nil {
 		batched = pipelines.Apply(options.AntisecretTransform, batched)
 	}

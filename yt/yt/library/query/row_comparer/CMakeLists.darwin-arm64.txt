@@ -21,6 +21,7 @@ target_compile_options(library-query-row_comparer INTERFACE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(library-query-row_comparer INTERFACE
@@ -42,6 +43,7 @@ target_compile_options(library-query-row_comparer.global PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(library-query-row_comparer.global PUBLIC

@@ -6,6 +6,8 @@
 
 #include <yt/yt/library/web_assembly/engine/wavm_private_imports.h>
 
+#include <yt/yt/core/concurrency/action_queue.h>
+
 #include <yt/yt/core/misc/finally.h>
 
 #include <yt/yt/core/test_framework/framework.h>
@@ -26,13 +28,13 @@ TEST_F(TWebAssemblyTest, Create)
 {
     std::vector<std::unique_ptr<IWebAssemblyCompartment>> compartments;
     for (int i = 0; i < 128; ++i) {
-        compartments.push_back(CreateEmptyImage());
+        compartments.push_back(CreateMinimalRuntimeImage());
     }
 }
 
 TEST_F(TWebAssemblyTest, AllocateAndFree)
 {
-    auto compartment = CreateEmptyImage();
+    auto compartment = CreateMinimalRuntimeImage();
     std::vector<uintptr_t> offsets;
     for (int i = 0; i < 1024; ++i) {
         uintptr_t offset = compartment->AllocateBytes(1024);
@@ -44,7 +46,7 @@ TEST_F(TWebAssemblyTest, AllocateAndFree)
     }
 }
 
-static const TString AddAndMul = R"(
+static const TStringBuf AddAndMul = R"(
     (module
         (type (;0;) (func (param i64 i64) (result i64)))
 
@@ -67,14 +69,14 @@ static const TString AddAndMul = R"(
 
 TEST_F(TWebAssemblyTest, LinkAndStrip)
 {
-    auto compartment = CreateEmptyImage();
+    auto compartment = CreateMinimalRuntimeImage();
     compartment->AddModule(AddAndMul);
     compartment->Strip();
 }
 
 TEST_F(TWebAssemblyTest, RunSimple)
 {
-    auto compartment = CreateEmptyImage();
+    auto compartment = CreateMinimalRuntimeImage();
     compartment->AddModule(AddAndMul);
 
     auto add = TCompartmentFunction<i64(i64, i64)>(compartment.get(), "add");
@@ -94,7 +96,7 @@ TEST_F(TWebAssemblyTest, RunSimple)
     }
 }
 
-static const TString Divide = R"(
+static const TStringBuf Divide = R"(
     (module
         (type (;0;) (func (param i64 i64) (result i64)))
 
@@ -109,7 +111,7 @@ static const TString Divide = R"(
 
 TEST_F(TWebAssemblyTest, BadDivision)
 {
-    auto compartment = CreateEmptyImage();
+    auto compartment = CreateMinimalRuntimeImage();
     compartment->AddModule(Divide);
     auto div = TCompartmentFunction<i64(i64, i64)>(compartment.get(), "div");
 
@@ -131,7 +133,7 @@ TEST_F(TWebAssemblyTest, BadDivision)
 
 TEST_F(TWebAssemblyTest, Clone)
 {
-    auto compartment = CreateEmptyImage();
+    auto compartment = CreateMinimalRuntimeImage();
     compartment->AddModule(AddAndMul);
 
     for (int i = 0; i < 1024; ++i) {
@@ -155,7 +157,7 @@ TEST_F(TWebAssemblyTest, Clone)
     }
 }
 
-static const TString ArraySum = R"(
+static const TStringBuf ArraySum = R"(
     (module
         (import "env" "memory" (memory i64 8 2097152))
 
@@ -190,7 +192,7 @@ static const TString ArraySum = R"(
 
 TEST_F(TWebAssemblyTest, SimpleArraySum)
 {
-    auto compartment = CreateEmptyImage();
+    auto compartment = CreateMinimalRuntimeImage();
     compartment->AddModule(ArraySum);
     auto sum = TCompartmentFunction<i64(i64, i64)>(compartment.get(), "sum");
 
@@ -216,7 +218,7 @@ TEST_F(TWebAssemblyTest, SimpleArraySum)
 
 TEST_F(TWebAssemblyTest, DataTransfer)
 {
-    auto compartment = CreateEmptyImage();
+    auto compartment = CreateMinimalRuntimeImage();
     compartment->AddModule(ArraySum);
     auto sum = TCompartmentFunction<i64(i64, i64)>(compartment.get(), "sum");
 
@@ -250,7 +252,7 @@ TEST_F(TWebAssemblyTest, DataTransfer)
     ASSERT_EQ(secondActualSum, secondExpectedSum);
 }
 
-static const TString PointerDereference = R"(
+static const TStringBuf PointerDereference = R"(
     (module
         (import "env" "memory" (memory i64 8 2097152))
 
@@ -269,7 +271,7 @@ static const TString PointerDereference = R"(
 
 TEST_F(TWebAssemblyTest, BadPointerDereference)
 {
-    auto compartment = CreateEmptyImage();
+    auto compartment = CreateMinimalRuntimeImage();
     compartment->AddModule(PointerDereference);
     auto arrayAt = TCompartmentFunction<i64(i64, i64)>(compartment.get(), "arrayAt");
 
@@ -312,7 +314,7 @@ TEST_F(TWebAssemblyTest, BadPointerDereference)
 
 TEST_F(TWebAssemblyTest, MemoryPoolAlignedAlloc)
 {
-    auto compartment = CreateEmptyImage();
+    auto compartment = CreateMinimalRuntimeImage();
 
     SetCurrentCompartment(compartment.get());
     auto unsetCompartment = Finally([] {
@@ -333,7 +335,7 @@ TEST_F(TWebAssemblyTest, MemoryPoolAlignedAlloc)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TString MathematicalConstants = R"(
+static const TStringBuf MathematicalConstants = R"(
     (module
         (type $t1 (func (result i64)))
 
@@ -356,7 +358,7 @@ static const TString MathematicalConstants = R"(
         (data $.data (global.get $__memory_base) "3.1415\002.71828\00")
     ))";
 
-static const TString Algorithms = R"(
+static const TStringBuf Algorithms = R"(
     (module
         (type $t1 (func (result i64)))
 
@@ -381,7 +383,7 @@ static const TString Algorithms = R"(
 
 TEST_F(TWebAssemblyTest, DynamicLinkingMemory)
 {
-    auto compartment = CreateEmptyImage();
+    auto compartment = CreateMinimalRuntimeImage();
     compartment->AddModule(MathematicalConstants);
 
     {
@@ -451,7 +453,7 @@ TEST_F(TWebAssemblyTest, DynamicLinkingMemory)
  * }
  */
 
-static const TString ModuleWithWeakSymbols = R"(
+static const TStringBuf ModuleWithWeakSymbols = R"(
     (module
         (type $t0 (func (result i32)))
         (type $t1 (func (param i64) (result i32)))
@@ -491,7 +493,7 @@ static const TString ModuleWithWeakSymbols = R"(
 
 TEST_F(TWebAssemblyTest, DynamicLinkingWeakSymbols)
 {
-    auto compartment = CreateEmptyImage();
+    auto compartment = CreateMinimalRuntimeImage();
     compartment->AddModule(ModuleWithWeakSymbols);
 
     SetCurrentCompartment(compartment.get());
@@ -503,7 +505,7 @@ TEST_F(TWebAssemblyTest, DynamicLinkingWeakSymbols)
     ASSERT_EQ(function(), 42);
 }
 
-static const TString ModuleWithWeakSymbols2 = R"(
+static const TStringBuf ModuleWithWeakSymbols2 = R"(
     (module
         (type $t0 (func (result i32)))
         (type $t1 (func (param i64) (result i32)))
@@ -564,7 +566,7 @@ static const TString ModuleWithWeakSymbols2 = R"(
 
 TEST_F(TWebAssemblyTest, DynamicLinkingWeakSymbols2)
 {
-    auto compartment = CreateEmptyImage();
+    auto compartment = CreateMinimalRuntimeImage();
     compartment->AddModule(ModuleWithWeakSymbols2);
 
     SetCurrentCompartment(compartment.get());
@@ -591,7 +593,7 @@ TEST_F(TWebAssemblyTest, DynamicLinkingWeakSymbols2)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TString FunctionPointers1 = R"(
+static const TStringBuf FunctionPointers1 = R"(
     (module
         (type $t0 (func (result i64)))
         (type $t1 (func (param i64) (result i64)))
@@ -633,7 +635,7 @@ static const TString FunctionPointers1 = R"(
 
 TEST_F(TWebAssemblyTest, FunctionPointers1)
 {
-    auto compartment = CreateEmptyImage();
+    auto compartment = CreateMinimalRuntimeImage();
     compartment->AddModule(FunctionPointers1);
 
     SetCurrentCompartment(compartment.get());
@@ -652,7 +654,7 @@ TEST_F(TWebAssemblyTest, FunctionPointers1)
     ASSERT_EQ(TStringBuf(PtrFromVM(compartment.get(), select1(1))), "bar");
 }
 
-static const TString FunctionPointers2 = R"(
+static const TStringBuf FunctionPointers2 = R"(
     (module
         (type $t0 (func (result i64)))
         (type $t1 (func (param i64) (result i64)))
@@ -694,7 +696,7 @@ static const TString FunctionPointers2 = R"(
 
 TEST_F(TWebAssemblyTest, FunctionPointers2)
 {
-    auto compartment = CreateEmptyImage();
+    auto compartment = CreateMinimalRuntimeImage();
     compartment->AddModule(FunctionPointers1);
 
     {
@@ -773,7 +775,7 @@ TEST_F(TWebAssemblyTest, FunctionPointers2)
  * }
  */
 
-static const TString FunctionPointers3 = R"(
+static const TStringBuf FunctionPointers3 = R"(
     (module
         (type $t0 (func (result i64)))
         (type $t1 (func))
@@ -841,7 +843,7 @@ static const TString FunctionPointers3 = R"(
 
 TEST_F(TWebAssemblyTest, FunctionPointers3)
 {
-    auto compartment = CreateEmptyImage();
+    auto compartment = CreateMinimalRuntimeImage();
     compartment->AddModule(FunctionPointers1);
 
     {
@@ -947,7 +949,7 @@ TEST_F(TWebAssemblyTest, FunctionPointers3)
  * }
  */
 
-static const TString ModuleWithStaticVariables = R"(
+static const TStringBuf ModuleWithStaticVariables = R"(
     (module
         (type $t0 (func (result i64)))
 
@@ -1016,7 +1018,7 @@ static const TString ModuleWithStaticVariables = R"(
 
 TEST_F(TWebAssemblyTest, StaticVariables)
 {
-    auto compartment = CreateEmptyImage();
+    auto compartment = CreateMinimalRuntimeImage();
     compartment->AddModule(ModuleWithStaticVariables);
 
     SetCurrentCompartment(compartment.get());
@@ -1086,7 +1088,7 @@ TEST_F(TWebAssemblyTest, StaticVariables)
  * }
  */
 
-static const TString ModuleWithVirtualFunctionCall = R"(
+static const TStringBuf ModuleWithVirtualFunctionCall = R"(
     (module
         (type $t0 (func (param i64) (result i64)))
         (type $t1 (func (param i64)))
@@ -1321,7 +1323,7 @@ static const TString ModuleWithVirtualFunctionCall = R"(
 
 TEST_F(TWebAssemblyTest, VirtualFunctionCall)
 {
-    static const TString FakeLibcxx = R"(
+    static const TStringBuf FakeLibcxx = R"(
         (module
             (type $t0 (func (param i64)))
 
@@ -1347,7 +1349,7 @@ TEST_F(TWebAssemblyTest, VirtualFunctionCall)
             (data $.data (global.get $__memory_base) "foobar\00")
         ))";
 
-    auto compartment = CreateEmptyImage();
+    auto compartment = CreateMinimalRuntimeImage();
     compartment->AddModule(FakeLibcxx);
     compartment->AddModule(ModuleWithVirtualFunctionCall);
 
@@ -1389,7 +1391,7 @@ TEST_F(TWebAssemblyTest, VirtualFunctionCall)
  * }
  */
 
-static const TString ModuleWithPureVirtualFunctionCall = R"(
+static const TStringBuf ModuleWithPureVirtualFunctionCall = R"(
     (module
         (type $t0 (func))
         (type $t1 (func (result i64)))
@@ -1494,7 +1496,7 @@ static const TString ModuleWithPureVirtualFunctionCall = R"(
 
 TEST_F(TWebAssemblyTest, PureVirtualFunctionCall)
 {
-    static const TString FakeLibcxx = R"(
+    static const TStringBuf FakeLibcxx = R"(
         (module
             (type $t0 (func (param i64)))
             (type $t3 (func))
@@ -1527,7 +1529,7 @@ TEST_F(TWebAssemblyTest, PureVirtualFunctionCall)
             (data $.data (global.get $__memory_base) "foobar\00")
         ))";
 
-    auto compartment = CreateEmptyImage();
+    auto compartment = CreateMinimalRuntimeImage();
     compartment->AddModule(FakeLibcxx);
     compartment->AddModule(ModuleWithPureVirtualFunctionCall);
 
@@ -1573,6 +1575,52 @@ TEST_F(TWebAssemblyTest, DLMalloc)
         auto* offset = std::bit_cast<char*>(compartment->AllocateBytes(40));
         ::memset(PtrFromVM(compartment.get(), offset), 'a', 40);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const TStringBuf InfiniteRecursion = R"(
+    (module
+        (type $t0 (func (param i64) (result i64)))
+        (func $recurse (type $t0) (param $n i64) (result i64)
+            local.get $n
+            i64.const 1
+            i64.sub
+            call $recurse)
+        (export "recurse" (func $recurse))
+    ))";
+
+TEST_F(TWebAssemblyTest, InfiniteRecursion)
+{
+    auto compartment = CreateMinimalRuntimeImage();
+    compartment->AddModule(InfiniteRecursion);
+    auto recurse = TCompartmentFunction<i64(i64)>(compartment.get(), "recurse");
+
+    auto actionQueue = New<NConcurrency::TActionQueue>("WebAssemblyTest");
+    auto finally = Finally([&] {
+        actionQueue->Shutdown();
+    });
+
+    auto runInFiberContext = [&] {
+        BIND([&] {
+            SetCurrentCompartment(compartment.get());
+            auto unsetCompartment = Finally([] {
+                SetCurrentCompartment(nullptr);
+            });
+
+            recurse(1000000);
+        })
+            .AsyncVia(actionQueue->GetInvoker())
+            .Run()
+            .Get()
+            .ThrowOnError();
+    };
+
+    EXPECT_THROW_THAT(
+        runInFiberContext(),
+        testing::HasSubstr("Expression depth causes stack overflow"));
+
+    actionQueue->Shutdown();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

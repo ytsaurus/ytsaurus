@@ -6,24 +6,24 @@ import os
 import yt.wrapper
 
 
-# Для того чтобы обращаться к свойствам строк таблиц (например, из какой таблицы пришла строка)
-# нужно воспользоваться декоратором yt.wrapper.with_context и добавить к аргументам функции `context'
-# Этот новый аргумент как раз и поможет нам со свойствами строк.
+# In order to call parameters of tables rows you should use decorator `yt.wrapper.with_context`
+# for example if you need to know the table from which the row comes
+# A new argument will help with rows properties.
 @yt.wrapper.with_context
 def filter_robots_reducer(key, input_row_iterator, context):
 
     login_row = None
     is_robot = False
     for input_row in input_row_iterator:
-        # Свойство `table_index' вернёт нам индекс таблицы откуда была прочитана текущая строка.
+        # The `table_index` property will return the table index from which the current row was read.
         if context.table_index == 0:
-            # Таблица с логинами.
+            # Table with logins.
             login_row = input_row
         elif context.table_index == 1:
-            # Таблица про роботов.
+            # Table about robots.
             is_robot = input_row["is_robot"]
         else:
-            # Какая-то фигня, такого индекса быть не может.
+            # An unexpected error, such an index could not exist.
             raise RuntimeError("Unknown table index")
 
     assert login_row is not None
@@ -55,9 +55,9 @@ def main():
 
     client.run_reduce(
         filter_robots_reducer,
-        # В source_table мы указываем список из двух таблиц.
-        # Внутри редьюсера table_index для записи будет равен индексу соответсвующей таблицы внутри этого списка.
-        # 0 для записей из sorted_staff_table, 1 для записей из sorted_is_robot_table.
+        # We specify the list with two tables into source_table.
+        # Table_index for writing wil be equal to index of the corresponding table inside this list in the reducer.
+        # 0 for the records from `sorted_staff_table`, 1 for the records from `sorted_is_robot_table`.
         source_table=[sorted_staff_table, sorted_is_robot_table],
         destination_table=output_table,
         reduce_by=["uid"],

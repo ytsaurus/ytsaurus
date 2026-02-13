@@ -12,10 +12,10 @@ NChunkClient::TMediumDirectoryPtr CreateDefaultMediumDirectory()
 {
     // TODO(ignat): support custom medium in simulator.
     NChunkClient::NProto::TMediumDirectory protoDirectory;
-    auto* item = protoDirectory.add_medium_descriptors();
-    item->set_name(NChunkClient::DefaultSlotsMediumName);
-    item->set_index(NChunkClient::DefaultSlotsMediumIndex);
-    item->set_priority(0);
+    auto* protoMediumDescriptor = protoDirectory.add_medium_descriptors();
+    protoMediumDescriptor->set_name(NChunkClient::DefaultSlotsMediumName);
+    protoMediumDescriptor->set_index(NChunkClient::DefaultSlotsMediumIndex);
+    protoMediumDescriptor->set_priority(0);
 
     auto mediumDirectory = New<NChunkClient::TMediumDirectory>();
     mediumDirectory->LoadFrom(protoDirectory);

@@ -857,9 +857,10 @@ private:
 
             writtenReplicas.emplace_back(
                 replicas.front().GetNodeId(),
-                index,
+                /*replicaIndex*/ index,
                 replicas.front().GetMediumIndex(),
-                replicas.front().GetChunkLocationUuid());
+                replicas.front().GetChunkLocationUuid(),
+                replicas.front().GetChunkLocationIndex());
         }
 
         chunkInfo.set_disk_space(diskSpace);
@@ -979,13 +980,12 @@ private:
         bool useLocationUuids = std::all_of(writtenReplicas.begin(), writtenReplicas.end(), [] (const TChunkReplicaWithLocation& replica) {
             return replica.GetChunkLocationUuid() != InvalidChunkLocationUuid;
         });
+        bool useLocationIndicies = std::all_of(writtenReplicas.begin(), writtenReplicas.end(), [] (const TChunkReplicaWithLocation& replica) {
+            return replica.GetChunkLocationIndex() != InvalidChunkLocationIndex;
+        });
 
-        if (useLocationUuids) {
-            for (const auto& replica : writtenReplicas) {
-                auto* replicaInfo = req->add_replicas();
-                replicaInfo->set_replica(ToProto(TChunkReplicaWithMedium(replica)));
-                ToProto(replicaInfo->mutable_location_uuid(), replica.GetChunkLocationUuid());
-            }
+        if (useLocationUuids || useLocationIndicies) {
+            ToProto(req->mutable_replicas(), writtenReplicas);
         }
 
         auto rspOrError = WaitFor(req->Invoke());

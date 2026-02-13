@@ -494,7 +494,7 @@ TFuture<void> TColumnarRangeChunkReaderBase::RequestFirstBlocks()
     }
 
     if (PendingBlocks_.empty()) {
-        return VoidFuture;
+        return OKFuture;
     } else {
         return AllSucceeded(blockFetchResult);
     }
@@ -655,7 +655,7 @@ TFuture<void> TColumnarLookupChunkReaderBase::RequestFirstBlocks()
     TCurrentTraceContextGuard guard(TraceContext_);
 
     if (RowIndexes_[NextKeyIndex_] >= ChunkMeta_->Misc().row_count()) {
-        return VoidFuture;
+        return OKFuture;
     }
 
     PendingBlocks_.clear();

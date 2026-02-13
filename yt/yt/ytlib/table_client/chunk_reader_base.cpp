@@ -6,11 +6,11 @@
 
 #include <yt/yt/client/table_client/private.h>
 
-#include <yt/yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
-
 #include <yt/yt/library/numeric/algorithm_helpers.h>
 
-#include <yt/yt/core/misc/range_formatters.h>
+#include <yt/yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
+
+#include <library/cpp/yt/misc/range_formatters.h>
 
 #include <algorithm>
 
@@ -73,7 +73,7 @@ TFuture<void> TChunkReaderBase::DoOpen(
         // NB(psushin): typically memory manager is finalized by block fetcher.
         // When block fetcher is not created, we should do it explicitly.
         YT_UNUSED_FUTURE(MemoryManagerHolder_->Get()->Finalize());
-        return VoidFuture;
+        return OKFuture;
     }
 
     SequentialBlockFetcher_ = New<TSequentialBlockFetcher>(

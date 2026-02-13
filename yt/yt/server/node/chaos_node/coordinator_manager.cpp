@@ -240,13 +240,20 @@ private:
             return;
         }
 
+        auto reign = static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign);
         auto cellIds = GetMetadataCellIds();
         for (auto cellId : cellIds) {
             NChaosNode::NProto::TReqSuspendCoordinator req;
             ToProto(req.mutable_coordinator_cell_id(), Slot_->GetCellId());
 
             const auto& hiveManager = Slot_->GetHiveManager();
-            if (auto mailbox = hiveManager->FindMailbox(cellId)) {
+            // COMPAT(gryzlov-ad)
+            if (reign < EChaosReign::CoordinatorSuspendEnforcment) {
+                if (auto mailbox = hiveManager->FindMailbox(cellId)) {
+                    hiveManager->PostMessage(mailbox, req);
+                }
+            } else {
+                auto mailbox = hiveManager->GetOrCreateCellMailbox(cellId);
                 hiveManager->PostMessage(mailbox, req);
             }
         }
@@ -263,13 +270,20 @@ private:
             return;
         }
 
+        auto reign = static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign);
         auto cellIds = GetMetadataCellIds();
         for (auto cellId : cellIds) {
             NChaosNode::NProto::TReqResumeCoordinator req;
             ToProto(req.mutable_coordinator_cell_id(), Slot_->GetCellId());
 
             const auto& hiveManager = Slot_->GetHiveManager();
-            if (auto mailbox = hiveManager->FindMailbox(cellId)) {
+            // COMPAT(gryzlov-ad)
+            if (reign < EChaosReign::CoordinatorSuspendEnforcment) {
+                if (auto mailbox = hiveManager->FindMailbox(cellId)) {
+                    hiveManager->PostMessage(mailbox, req);
+                }
+            } else {
+                auto mailbox = hiveManager->GetOrCreateCellMailbox(cellId);
                 hiveManager->PostMessage(mailbox, req);
             }
         }
@@ -344,6 +358,9 @@ private:
             }
 
             auto& shortcut = Shortcuts_[chaosObjectId];
+            if (IsChaosLeaseType(TypeFromId(chaosObjectId))) {
+                shortcut.CellId = chaosCellId;
+            }
 
             if (shortcut.Era != era) {
                 YT_LOG_ALERT("Revoking shortcut with invalid era "

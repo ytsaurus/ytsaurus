@@ -324,6 +324,14 @@ public:
         return FileGateway_->Dump(std::move(options));
     }
 
+    NThreading::TFuture<TDownloadTableResult> DownloadTable(TDownloadTableOptions&& options) override {
+        return NativeGateway_->DownloadTable(std::move(options));
+    }
+
+    IYtTokenResolver::TPtr GetYtTokenResolver() const override {
+        return NativeGateway_->GetYtTokenResolver();
+    }
+
 private:
     NFile::TYtFileServices::TPtr FileServices_;
     IYtGateway::TPtr FileGateway_;

@@ -38,6 +38,8 @@
 
 #include <yt/yt/ytlib/chunk_client/proto/data_node_service.pb.h>
 
+#include <yt/yt/ytlib/node_tracker_client/node_directory_builder.h>
+
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/chunk_slice.h>
@@ -137,19 +139,22 @@ THashMap<std::string, std::string> MakeReadIOTags(
 {
     THashMap<std::string, std::string> result{
         {FormatIOTag(EAggregateIOTag::DataNodeMethod), std::move(method)},
-        {FormatIOTag(ERawIOTag::LocationId), ToString(location->GetId())},
-        {FormatIOTag(EAggregateIOTag::LocationType), FormatEnum(location->GetType())},
-        {FormatIOTag(EAggregateIOTag::Medium), location->GetMediumName()},
-        {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
         {FormatIOTag(EAggregateIOTag::User), context->GetAuthenticationIdentity().User},
         {FormatIOTag(EAggregateIOTag::Direction), "read"},
     };
+    if (location) {
+        result[FormatIOTag(ERawIOTag::LocationId)] = ToString(location->GetId());
+        result[FormatIOTag(EAggregateIOTag::LocationType)] = FormatEnum(location->GetType());
+        result[FormatIOTag(EAggregateIOTag::Medium)] = location->GetMediumName();
+        result[FormatIOTag(EAggregateIOTag::DiskFamily)] = location->GetDiskFamily();
+    }
     if (chunkId) {
         result[FormatIOTag(ERawIOTag::ChunkId)] = ToString(DecodeChunkId(chunkId).Id);
     }
     if (readSessionId) {
         result[FormatIOTag(ERawIOTag::ReadSessionId)] = ToString(readSessionId);
     }
+
     return result;
 }
 
@@ -261,6 +266,7 @@ public:
 private:
     struct TGetBlockResponseTemplate
     {
+        TChunkId ChunkId;
         IChunkPtr Chunk;
         TWorkloadDescriptor WorkloadDescriptor;
         bool HasCompleteChunk;
@@ -303,9 +309,10 @@ private:
         options.DisableSendBlocks = GetDynamicConfig()->UseDisableSendBlocks && request->disable_send_blocks();
         options.UseProbePutBlocks = GetDynamicConfig()->UseProbePutBlocks && request->use_probe_put_blocks();
         options.PreallocateDiskSpace = GetDynamicConfig()->PreallocateDiskSpace && request->preallocate_disk_space();
+        options.UseDirectIo = GetDynamicConfig()->UseDirectIO && request->use_direct_io();
 
         context->SetRequestInfo("SessionId: %v, Workload: %v, SyncOnClose: %v, EnableMultiplexing: %v, PlacementId: %v,"\
-            "DisableSendBlocks: %v, UseProbePutBlocks: %v, PreallocateDiskSpace: %v",
+            "DisableSendBlocks: %v, UseProbePutBlocks: %v, PreallocateDiskSpace: %v, UseDirectIo: %v",
             sessionId,
             options.WorkloadDescriptor,
             options.SyncOnClose,
@@ -313,7 +320,8 @@ private:
             options.PlacementId,
             options.DisableSendBlocks,
             options.UseProbePutBlocks,
-            options.PreallocateDiskSpace);
+            options.PreallocateDiskSpace,
+            options.UseDirectIo);
 
         ValidateOnline();
 
@@ -321,6 +329,7 @@ private:
         auto session = sessionManager->StartSession(sessionId, options);
         response->set_use_probe_put_blocks(session->ShouldUseProbePutBlocks());
         ToProto(response->mutable_location_uuid(), session->GetStoreLocation()->GetUuid());
+        response->set_location_index(ToProto<ui32>(session->GetStoreLocation()->GetIndex()));
         context->ReplyFrom(session->Start());
     }
 
@@ -836,6 +845,19 @@ private:
         }
     }
 
+    void FillNodeDirectory(
+        NNodeTrackerClient::NProto::TNodeDirectory* protoDirectory,
+        const std::vector<TP2PSuggestion>& blockPeers)
+    {
+        TNodeDirectoryBuilder nodeDirectoryBuilder(Bootstrap_->GetNodeDirectory(), protoDirectory);
+
+        for (const auto& suggestion : blockPeers) {
+            for (const auto& peer : suggestion.Peers) {
+                nodeDirectoryBuilder.Add(peer);
+            }
+        }
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ProbeChunkSet)
     {
         auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
@@ -922,6 +944,8 @@ private:
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         auto blockIndexes = FromProto<std::vector<int>>(request->block_indexes());
         auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
+        bool enableP2P = request->enable_p2p();
+        bool fetchNodeDescriptors = request->fetch_node_descriptors();
 
         context->SetRequestInfo("ChunkId: %v, Blocks: %v, BlockCount: %v, Workload: %v",
             chunkId,
@@ -967,8 +991,15 @@ private:
 
         SuggestAllyReplicas(context);
 
-        const auto& p2pSnooper = Bootstrap_->GetP2PSnooper();
-        AddBlockPeers(response->mutable_peer_descriptors(), p2pSnooper->OnBlockProbe(chunkId, blockIndexes));
+        if (enableP2P) {
+            const auto& p2pSnooper = Bootstrap_->GetP2PSnooper();
+            auto blockPeers = p2pSnooper->OnBlockProbe(chunkId, blockIndexes);
+
+            AddBlockPeers(response->mutable_peer_descriptors(), blockPeers);
+            if (fetchNodeDescriptors) {
+                FillNodeDirectory(response->mutable_node_directory(), blockPeers);
+            }
+        }
 
         auto cachedBlockSize = 0L;
 
@@ -983,11 +1014,12 @@ private:
         }
 
         context->SetResponseInfo(
-            "HasCompleteChunk: %v, "
+            "ChunkId: %v, HasCompleteChunk: %v, "
             "NetThrottling: %v, NetQueueSize: %v, "
             "DiskThrottling: %v, DiskQueueSize: %v, "
             "PeerDescriptorCount: %v, CachedBlockCount: %v, "
             "CachedBlockSize: %v",
+            chunkId,
             hasCompleteChunk,
             netThrottling.Enabled,
             netThrottling.QueueSize,
@@ -1083,11 +1115,13 @@ private:
             [] (const auto& block) -> bool { return static_cast<bool>(block); });
 
         context->SetResponseInfo(
-            "HasCompleteChunk: %v, "
+            "ChunkId: %v, HasCompleteChunk: %v, "
             "NetThrottling: %v, NetQueueSize: %v, "
             "DiskThrottling: %v, DiskQueueSize: %v, "
             "ThrottledLargeBlock: %v, "
-            "BlocksWithData: %v, BlocksSize: %v",
+            "BlocksWithData: %v, BlocksSize: %v"
+            "DataBytesReadFromDisk: %v, DataBytesReadFromCache: %v",
+            responseTemplate.ChunkId,
             hasCompleteChunk,
             netThrottling,
             responseTemplate.NetQueueSize,
@@ -1095,10 +1129,12 @@ private:
             responseTemplate.DiskQueueSize,
             responseTemplate.ThrottledLargeBlock,
             blocksWithData,
-            blocksSize);
+            blocksSize,
+            chunkReaderStatistics->DataBytesReadFromDisk.load(),
+            chunkReaderStatistics->DataBytesReadFromCache.load());
 
         if (blocksSize == 0) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         // NB: We throttle only heavy responses that contain a non-empty attachment
@@ -1131,8 +1167,9 @@ private:
 
                     // Override response info.
                     context->SetResponseInfo(
-                        "HasCompleteChunk: %v,"
+                        "ChunkId: %v, HasCompleteChunk: %v,"
                         "NetThrottling: %v",
+                        responseTemplate.ChunkId,
                         hasCompleteChunk,
                         true);
                 }
@@ -1198,6 +1235,8 @@ private:
         bool populateCache = request->populate_cache();
         bool fetchFromCache = request->fetch_from_cache();
         bool fetchFromDisk = request->fetch_from_disk();
+        bool enableP2P = request->enable_p2p();
+        bool fetchNodeDescriptors = request->fetch_node_descriptors();
 
         context->SetRequestInfo(
             "ChunkId: %v, Blocks: %v, "
@@ -1256,7 +1295,7 @@ private:
                     fetchFromDisk && !netThrottling.Enabled && !diskThrottling.Enabled,
                     chunkReaderStatistics);
 
-                if (!chunk && options.FetchFromCache) {
+                if (!chunk && options.FetchFromCache && enableP2P) {
                     readFromP2P = true;
 
                     auto blocks = Bootstrap_->GetP2PBlockCache()->LookupBlocks(chunkId, blockIndexes);
@@ -1297,21 +1336,28 @@ private:
             auto readFromP2P = result.ReadFromP2P;
             auto& blocks = result.Blocks;
 
-            // NB: P2P manager might steal blocks and assign null values.
-            const auto& p2pSnooper = Bootstrap_->GetP2PSnooper();
             bool throttledLargeBlock = false;
-            auto blockPeers = p2pSnooper->OnBlockRead(
-                chunkId,
-                blockIndexes,
-                &blocks,
-                &throttledLargeBlock,
-                readFromP2P);
-            AddBlockPeers(response->mutable_peer_descriptors(), blockPeers);
+
+            if (enableP2P) {
+                // NB: P2P manager might steal blocks and assign null values.
+                const auto& p2pSnooper = Bootstrap_->GetP2PSnooper();
+                auto blockPeers = p2pSnooper->OnBlockRead(
+                    chunkId,
+                    blockIndexes,
+                    &blocks,
+                    &throttledLargeBlock,
+                    readFromP2P);
+                AddBlockPeers(response->mutable_peer_descriptors(), blockPeers);
+                if (fetchNodeDescriptors) {
+                    FillNodeDirectory(response->mutable_node_directory(), blockPeers);
+                }
+            }
 
             return PrepareGetBlocksResponse(
                 context,
                 response,
                 TGetBlockResponseTemplate{
+                    .ChunkId = chunkId,
                     .Chunk = chunk,
                     .WorkloadDescriptor = workloadDescriptor,
                     .HasCompleteChunk = hasCompleteChunk,
@@ -1389,6 +1435,7 @@ private:
                 context,
                 response,
                 TGetBlockResponseTemplate{
+                    .ChunkId = chunkId,
                     .Chunk = chunk,
                     .WorkloadDescriptor = workloadDescriptor,
                     .HasCompleteChunk = hasCompleteChunk,
@@ -1405,11 +1452,194 @@ private:
         context->ReplyFrom(blocksFuture.Apply(onBlocksRead));
     }
 
+    template <class TRequest, class TResponse, class TContext>
+    void ReadWholeBlocksAndExtractFragments(
+        TRequest* request,
+        TResponse* response,
+        const TIntrusivePtr<TContext>& context,
+        std::vector<IChunkPtr> chunksToReadWholeBlocks,
+        TWorkloadDescriptor workloadDescriptor,
+        TReadSessionId readSessionId,
+        int blockCountToPrecache)
+    {
+        YT_VERIFY(std::ssize(chunksToReadWholeBlocks) == request->subrequests_size());
+
+        struct TChunkWithBlockRequests
+        {
+            IChunkPtr Chunk;
+            THashMap<int, int> BlockIndexToIndexInResponse;
+        };
+
+        std::vector<TChunkWithBlockRequests> chunkWithBlockRequestsList;
+        chunkWithBlockRequestsList.resize(chunksToReadWholeBlocks.size());
+        for (int index = 0; index < std::ssize(chunksToReadWholeBlocks); ++index) {
+            chunkWithBlockRequestsList[index].Chunk = std::move(chunksToReadWholeBlocks[index]);
+        }
+
+        auto chunkReaderStatistics = New<TChunkReaderStatistics>();
+
+        std::vector<TFuture<std::vector<TBlock>>> futures;
+        futures.reserve(chunkWithBlockRequestsList.size());
+
+        int requestedChunkCount = 0;
+        int requestedBlockCount = 0;
+        for (int index = 0; index < std::ssize(chunkWithBlockRequestsList); ++index) {
+            const auto& subrequest = request->subrequests(index);
+            auto& chunkWithBlockRequests = chunkWithBlockRequestsList[index];
+            if (!chunkWithBlockRequests.Chunk) {
+                futures.push_back(MakeFuture<std::vector<TBlock>>({}));
+                continue;
+            }
+
+            ++requestedChunkCount;
+
+            TChunkReadOptions options;
+            options.WorkloadDescriptor = workloadDescriptor;
+            options.PopulateCache = true;
+            options.FetchFromCache = true;
+            options.FetchFromDisk = true;
+            options.BlockCache = Bootstrap_->GetBlockCache();
+            options.EnableSequentialIORequests =
+                GetDynamicConfig()->EnableSequentialIORequests.value_or(Config_->EnableSequentialIORequests);
+            options.ChunkReaderStatistics = chunkReaderStatistics;
+            options.ReadSessionId = readSessionId;
+            options.MemoryUsageTracker = Bootstrap_->GetReadBlockMemoryUsageTracker();
+            // Specific options.
+            options.ReadCompleteBlockSetAndCache = true;
+            options.BlockType = EBlockType::ChunkFragmentsData;
+            options.BlockCountToPrecache = blockCountToPrecache;
+
+            std::vector<int> blockIndexes;
+            blockIndexes.reserve(subrequest.fragments_size());
+            for (int fragmentIndex = 0; fragmentIndex < subrequest.fragments_size(); ++fragmentIndex) {
+                const auto& fragment = subrequest.fragments(fragmentIndex);
+                blockIndexes.push_back(fragment.block_index());
+            }
+
+            SortUnique(blockIndexes);
+            requestedBlockCount += std::ssize(blockIndexes);
+
+            int indexInRequest = 0;
+            for (auto blockIndex : blockIndexes) {
+                EmplaceOrCrash(
+                    chunkWithBlockRequests.BlockIndexToIndexInResponse,
+                    blockIndex,
+                    indexInRequest++);
+            }
+
+            YT_VERIFY(indexInRequest == std::ssize(blockIndexes));
+
+            futures.push_back(chunkWithBlockRequests.Chunk->ReadBlockSet(blockIndexes, options));
+        }
+
+        YT_LOG_DEBUG("Will fetch blocks to extract fragments (ReadSessionId: %v, ChunkCount: %v, BlockCount: %v)",
+            readSessionId,
+            requestedChunkCount,
+            requestedBlockCount);
+
+        context->ReplyFrom(AllSucceeded(std::move(futures)).Apply(BIND([
+            =,
+            this,
+            this_ = MakeStrong(this),
+            chunkWithBlockRequestsList = std::move(chunkWithBlockRequestsList)
+        ] (const std::vector<std::vector<TBlock>>& blockResponsesPerChunk) {
+            YT_VERIFY(blockResponsesPerChunk.size() == chunkWithBlockRequestsList.size());
+
+            for (int index = 0; index < std::ssize(blockResponsesPerChunk); ++index) {
+                const auto& subrequest = request->subrequests(index);
+                const auto& chunkWithBlockRequests = chunkWithBlockRequestsList[index];
+                const auto& blockResponses = blockResponsesPerChunk[index];
+
+                auto previousAttachmentCount = response->Attachments().size();
+                if (!chunkWithBlockRequests.Chunk) {
+                    response->Attachments().resize(previousAttachmentCount + subrequest.fragments_size());
+                    continue;
+                }
+
+                YT_VERIFY(blockResponses.size() == chunkWithBlockRequests.BlockIndexToIndexInResponse.size());
+
+                for (const auto& fragment : subrequest.fragments()) {
+                    auto indexInResponse = GetOrCrash(
+                        chunkWithBlockRequests.BlockIndexToIndexInResponse,
+                        fragment.block_index());
+
+                    YT_VERIFY(fragment.length() != WholeBlockFragmentRequestLength);
+                    auto fragmentData = blockResponses[indexInResponse].Data.Slice(
+                        fragment.block_offset(),
+                        fragment.block_offset() + fragment.length());
+                    response->Attachments().push_back(std::move(fragmentData));
+                }
+
+                YT_VERIFY(response->Attachments().size() == previousAttachmentCount + subrequest.fragments_size());
+            }
+
+            auto bytesReadFromDisk =
+                chunkReaderStatistics->DataBytesReadFromDisk.load(std::memory_order::relaxed) +
+                chunkReaderStatistics->MetaBytesReadFromDisk.load(std::memory_order::relaxed);
+            auto ioRequests =
+                chunkReaderStatistics->DataIORequests.load(std::memory_order::relaxed) +
+                chunkReaderStatistics->MetaIORequests.load(std::memory_order::relaxed);
+
+            const auto& ioTracker = Bootstrap_->GetIOTracker();
+            if (bytesReadFromDisk > 0 && ioTracker->IsEnabled()) {
+                ioTracker->Enqueue(
+                    TIOCounters{
+                        .Bytes = bytesReadFromDisk,
+                        .IORequests = ioRequests,
+                    },
+                    MakeReadIOTags(
+                        "GetChunkFragmentSetFromWholeBlocks",
+                        /*location*/ nullptr,
+                        context,
+                        NullChunkId,
+                        readSessionId));
+            }
+
+            ToProto(response->mutable_chunk_reader_statistics(), chunkReaderStatistics);
+            if (const auto* traceContext = TryGetCurrentTraceContext()) {
+                FlushCurrentTraceContextElapsedTime();
+                response->mutable_chunk_reader_statistics()->set_remote_cpu_time(
+                    traceContext->GetElapsedTime().GetValue());
+            }
+
+            auto totalFragmentSize = GetByteSize(response->Attachments());
+
+            context->SetResponseInfo(
+                "ReadSessionId: %v, Workload: %v, "
+                "TotalFragmentSize: %v, DataBytesReadFromCache: %v, BytesReadFromDisk: %v, IORequests: %v",
+                readSessionId,
+                workloadDescriptor,
+                totalFragmentSize,
+                chunkReaderStatistics->DataBytesReadFromCache.load(std::memory_order::relaxed),
+                bytesReadFromDisk,
+                ioRequests);
+
+            const auto& netThrottler = Bootstrap_->GetOutThrottler(workloadDescriptor);
+            if (netThrottler->IsOverdraft()) {
+                context->SetComplete();
+                return netThrottler->Throttle(totalFragmentSize);
+            } else {
+                netThrottler->Acquire(totalFragmentSize);
+                return OKFuture;
+            }
+        })
+            .AsyncVia(Bootstrap_->GetStorageLookupInvoker())));
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkFragmentSet)
     {
         auto readSessionId = FromProto<TReadSessionId>(request->read_session_id());
         auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
         auto useDirectIO = request->use_direct_io();
+        bool readAndCacheWholeBlocks = request->read_and_cache_whole_blocks();
+        int blockCountToPrecache = request->block_count_to_precache();
+
+        if (blockCountToPrecache < 0) {
+            THROW_ERROR_EXCEPTION("BlockCountToPrecache cannot be negative");
+        }
+        if (!readAndCacheWholeBlocks && blockCountToPrecache != 0) {
+            THROW_ERROR_EXCEPTION("BlockCountToPrecache cannot be nonzero when ReadAndCacheWholeBlocks is set to false");
+        }
 
         int totalFragmentCount = 0;
         i64 totalFragmentSize = 0;
@@ -1418,13 +1648,19 @@ private:
                 totalFragmentCount += 1;
                 if (fragment.length() != WholeBlockFragmentRequestLength) {
                     totalFragmentSize += fragment.length();
+                } else if (readAndCacheWholeBlocks) {
+                    THROW_ERROR_EXCEPTION("Currently GetChunkFragmentSet call in ReadAndCacheWholeBlocks mode "
+                        "only supports requests of specific fragments, so that whole block requests are not accepted");
                 }
             }
         }
 
-        context->SetRequestInfo("ReadSessionId: %v, Workload: %v, SubrequestCount: %v, FragmentsSize: %v/%v",
+        context->SetRequestInfo("ReadSessionId: %v, Workload: %v, ReadAndCacheWholeBlocks: %v, BlockCountToPrecache: %v, "
+            "SubrequestCount: %v, FragmentsSize: %v/%v",
             readSessionId,
             workloadDescriptor,
+            readAndCacheWholeBlocks,
+            blockCountToPrecache,
             request->subrequests_size(),
             totalFragmentSize,
             totalFragmentCount);
@@ -1436,7 +1672,9 @@ private:
 
         auto enableThrottling = GetDynamicConfig()->EnableGetChunkFragmentSetThrottling;
         if (enableThrottling && netThrottling.Enabled) {
-            context->SetResponseInfo("NetThrottling: %v", netThrottling.Enabled);
+            context->SetResponseInfo("NetThrottling: %v, NetQueueSize: %v",
+                netThrottling.Enabled,
+                netThrottling.QueueSize);
             context->Reply();
             return;
         }
@@ -1454,78 +1692,101 @@ private:
 
         std::vector<TFuture<void>> prepareReaderFutures;
 
-        const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
-        {
-            for (const auto& subrequest : request->subrequests()) {
-                auto chunkId = FromProto<TChunkId>(subrequest.chunk_id());
-                auto chunk = chunkRegistry->FindChunk(chunkId);
-
-                auto* subresponse = response->add_subresponses();
-
-                const auto& allyReplicaManager = Bootstrap_->GetAllyReplicaManager();
-                if (auto allyReplicas = allyReplicaManager->GetAllyReplicas(chunkId)) {
-                    auto allyReplicasRevision = FromProto<NHydra::TRevision>(subrequest.ally_replicas_revision());
-                    if (allyReplicas.Revision > allyReplicasRevision) {
-                        ToProto(subresponse->mutable_ally_replicas(), allyReplicas);
-                        YT_LOG_DEBUG("Ally replicas suggested "
-                            "(ChunkId: %v, AllyReplicas: %v, ClientAllyReplicasRevision: %v)",
-                            chunkId,
-                            allyReplicas,
-                            allyReplicasRevision);
-                    }
-                }
-
-                bool chunkAvailable = false;
-                if (chunk) {
-                    auto diskThrottling = chunk
-                        ? chunk->GetLocation()->CheckReadThrottling(workloadDescriptor)
-                        : TChunkLocation::TDiskThrottlingResult{.Enabled = false, .QueueSize = 0};
-                    auto diskThrottlingEnabled = enableThrottling && diskThrottling.Enabled;
-                    subresponse->set_disk_throttling(diskThrottlingEnabled);
-
-                    YT_LOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), diskThrottling.Error);
-
-                    if (auto guard = TChunkReadGuard::TryAcquire(std::move(chunk));
-                        guard && !diskThrottlingEnabled)
-                    {
-                        auto* location = guard.GetChunk()->GetLocation().Get();
-                        auto [it, emplaced] = locationToLocationIndex.try_emplace(
-                            location,
-                            std::ssize(locationToLocationIndex));
-                        if (emplaced) {
-                            requestedLocations.emplace_back(location, 0);
-                        }
-                        requestedLocations[it->second].second += subrequest.fragments_size();
-
-                        TClientChunkReadOptions options{
-                            .WorkloadDescriptor = workloadDescriptor,
-                            .ReadSessionId = readSessionId,
-                            .MemoryUsageTracker = Bootstrap_->GetReadBlockMemoryUsageTracker()
-                        };
-
-                        if (auto future = guard.GetChunk()->PrepareToReadChunkFragments(options, useDirectIO)) {
-                            YT_LOG_DEBUG("Will wait for chunk reader to become prepared (ChunkId: %v)",
-                                guard.GetChunk()->GetId());
-                            prepareReaderFutures.push_back(std::move(future));
-                        }
-                        chunkRequestInfos.push_back({
-                            .Guard = std::move(guard),
-                            .LocationIndex = it->second
-                        });
-                        chunkAvailable = true;
-                    }
-                }
-
-                if (!chunkAvailable) {
-                    chunkRequestInfos.emplace_back();
-                }
-
-                subresponse->set_has_complete_chunk(chunkAvailable);
-            }
+        std::vector<IChunkPtr> chunksToReadWholeBlocks;
+        if (readAndCacheWholeBlocks) {
+            chunksToReadWholeBlocks.reserve(request->subrequests_size());
         }
 
-        auto enableMemoryTracking = GetDynamicConfig()->EnableGetChunkFragmentSetMemoryTracking;
-        auto memoryTracker = Bootstrap_->GetReadBlockMemoryUsageTracker();
+        const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
+        for (const auto& subrequest : request->subrequests()) {
+            auto chunkId = FromProto<TChunkId>(subrequest.chunk_id());
+            auto chunk = chunkRegistry->FindChunk(chunkId);
+
+            auto* subresponse = response->add_subresponses();
+
+            const auto& allyReplicaManager = Bootstrap_->GetAllyReplicaManager();
+            if (auto allyReplicas = allyReplicaManager->GetAllyReplicas(chunkId)) {
+                auto allyReplicasRevision = FromProto<NHydra::TRevision>(subrequest.ally_replicas_revision());
+                if (allyReplicas.Revision > allyReplicasRevision) {
+                    ToProto(subresponse->mutable_ally_replicas(), allyReplicas);
+                    YT_LOG_DEBUG("Ally replicas suggested "
+                        "(ChunkId: %v, AllyReplicas: %v, ClientAllyReplicasRevision: %v)",
+                        chunkId,
+                        allyReplicas,
+                        allyReplicasRevision);
+                }
+            }
+
+            auto diskThrottling = chunk
+                ? chunk->GetLocation()->CheckReadThrottling(workloadDescriptor)
+                : TChunkLocation::TDiskThrottlingResult{ .Enabled = false };
+            YT_LOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(),
+                diskThrottling.Error);
+
+            auto diskThrottlingActive = enableThrottling && diskThrottling.Enabled;
+
+            bool chunkAvailable = false;
+            if (chunk) {
+                subresponse->set_disk_throttling(diskThrottlingActive);
+
+                if (readAndCacheWholeBlocks && !diskThrottlingActive) {
+                    chunksToReadWholeBlocks.push_back(std::move(chunk));
+                    chunkAvailable = true;
+                } else if (
+                    auto guard = TChunkReadGuard::TryAcquire(std::move(chunk));
+                    guard && !diskThrottlingActive)
+                {
+                    auto* location = guard.GetChunk()->GetLocation().Get();
+                    auto [it, emplaced] = locationToLocationIndex.try_emplace(
+                        location,
+                        std::ssize(locationToLocationIndex));
+                    if (emplaced) {
+                        requestedLocations.emplace_back(location, 0);
+                    }
+                    requestedLocations[it->second].second += subrequest.fragments_size();
+
+                    TClientChunkReadOptions options{
+                        .WorkloadDescriptor = workloadDescriptor,
+                        .ReadSessionId = readSessionId,
+                        .MemoryUsageTracker = Bootstrap_->GetReadBlockMemoryUsageTracker()
+                    };
+
+                    if (auto future = guard.GetChunk()->PrepareToReadChunkFragments(options, useDirectIO)) {
+                        YT_LOG_DEBUG("Will wait for chunk reader to become prepared (ChunkId: %v)",
+                            guard.GetChunk()->GetId());
+                        prepareReaderFutures.push_back(std::move(future));
+                    }
+                    chunkRequestInfos.push_back({
+                        .Guard = std::move(guard),
+                        .LocationIndex = it->second,
+                    });
+
+                    chunkAvailable = true;
+                }
+            }
+
+            if (!chunkAvailable) {
+                if (readAndCacheWholeBlocks) {
+                    chunksToReadWholeBlocks.emplace_back();
+                } else {
+                    chunkRequestInfos.emplace_back();
+                }
+            }
+
+            subresponse->set_has_complete_chunk(chunkAvailable);
+        }
+
+        if (readAndCacheWholeBlocks) {
+            ReadWholeBlocksAndExtractFragments(
+                request,
+                response,
+                context,
+                std::move(chunksToReadWholeBlocks),
+                workloadDescriptor,
+                readSessionId,
+                blockCountToPrecache);
+            return;
+        }
 
         auto afterReadersPrepared =
             [
@@ -1542,7 +1803,6 @@ private:
 
                 std::vector<std::vector<int>> locationFragmentIndices(requestedLocations.size());
                 std::vector<std::vector<TReadRequest>> locationRequests(requestedLocations.size());
-                std::vector<TMemoryUsageTrackerGuard> locationMemoryGuards(requestedLocations.size());
 
                 for (auto [_, locationRequestCount] : requestedLocations) {
                     locationFragmentIndices.reserve(locationRequestCount);
@@ -1550,6 +1810,7 @@ private:
                 }
 
                 int fragmentIndex = 0;
+                int fragmentsSizeToRead = 0;
                 try {
                     for (int subrequestIndex = 0; subrequestIndex < request->subrequests_size(); ++subrequestIndex) {
                         const auto& subrequest = request->subrequests(subrequestIndex);
@@ -1561,7 +1822,6 @@ private:
                         }
 
                         auto locationIndex = chunkRequestInfo.LocationIndex;
-                        i64 totalSize = 0L;
                         for (const auto& fragment : subrequest.fragments()) {
                             auto readRequest = chunk->MakeChunkFragmentReadRequest(
                                 TChunkFragmentDescriptor{
@@ -1570,25 +1830,24 @@ private:
                                     .BlockOffset = fragment.block_offset()
                                 },
                                 useDirectIO);
-                            totalSize += readRequest.Size;
+
+                            fragmentsSizeToRead += readRequest.Size;
                             locationRequests[locationIndex].push_back(std::move(readRequest));
                             locationFragmentIndices[locationIndex].push_back(fragmentIndex);
                             ++fragmentIndex;
                         }
-
-                        TMemoryUsageTrackerGuard memoryGuard;
-                        if (enableMemoryTracking) {
-                            memoryGuard = TMemoryUsageTrackerGuard::TryAcquire(
-                                memoryTracker,
-                                totalSize)
-                                .ValueOrThrow();
-                        }
-
-                        locationMemoryGuards[locationIndex] = std::move(memoryGuard);
                     }
                 } catch (const std::exception& ex) {
                     context->Reply(ex);
                     return;
+                }
+
+                TMemoryUsageTrackerGuard memoryGuard;
+                if (GetDynamicConfig()->EnableGetChunkFragmentSetMemoryTracking) {
+                    memoryGuard = TMemoryUsageTrackerGuard::TryAcquire(
+                        Bootstrap_->GetReadBlockMemoryUsageTracker(),
+                        fragmentsSizeToRead)
+                        .ValueOrThrow();
                 }
 
                 response->Attachments().resize(fragmentIndex);
@@ -1599,38 +1858,20 @@ private:
                 for (int index = 0; index < std::ssize(requestedLocations); ++index) {
                     auto [location, locationRequestCount] = requestedLocations[index];
                     YT_VERIFY(locationRequestCount == std::ssize(locationRequests[index]));
-                    YT_LOG_DEBUG("Reading block fragments (LocationId: %v, FragmentCount: %v)",
+                    YT_LOG_DEBUG("Reading block fragments (LocationId: %v, LocationUuid: %v, LocationIndex: %v, FragmentCount: %v)",
                         location->GetId(),
+                        location->GetUuid(),
+                        location->GetIndex(),
                         locationRequestCount);
                     const auto& ioEngine = location->GetIOEngine();
 
                     struct TChunkFragmentBuffer
                     { };
-                    auto readFuture = ioEngine->Read(
+                    readFutures.push_back(ioEngine->Read(
                         std::move(locationRequests[index]),
                         workloadDescriptor.Category,
                         GetRefCountedTypeCookie<TChunkFragmentBuffer>(),
-                        readSessionId);
-
-                    if (!enableMemoryTracking) {
-                        readFuture = readFuture.AsUnique().Apply(BIND([
-                            =,
-                            memoryGuard = std::move(locationMemoryGuards[index]),
-                            resultIndex = index] (TReadResponse&& result) mutable {
-                            const auto& fragmentIndices = locationFragmentIndices[resultIndex];
-                            YT_VERIFY(result.OutputBuffers.size() == fragmentIndices.size());
-
-                            for (int index = 0; index < std::ssize(fragmentIndices); ++index) {
-                                result.OutputBuffers[index] = TrackMemory(memoryTracker, std::move(result.OutputBuffers[index]));
-                            }
-
-                            memoryGuard.Release();
-
-                            return result;
-                        }));
-                    }
-
-                    readFutures.push_back(std::move(readFuture));
+                        readSessionId));
                 }
 
                 AllSucceeded(std::move(readFutures))
@@ -1639,6 +1880,7 @@ private:
                             =,
                             this,
                             this_ = MakeStrong(this),
+                            memoryGuard = std::move(memoryGuard),
                             chunkRequestInfos = std::move(chunkRequestInfos),
                             locationFragmentIndices = std::move(locationFragmentIndices),
                             requestedLocations = std::move(requestedLocations)
@@ -1666,7 +1908,7 @@ private:
                                     ioTracker->Enqueue(
                                         TIOCounters{
                                             .Bytes = result.PaddedBytes,
-                                            .IORequests = result.IORequests
+                                            .IORequests = result.IORequests,
                                         },
                                         // NB: Now we do not track chunk id for this method.
                                         MakeReadIOTags(
@@ -1818,7 +2060,7 @@ private:
                 }
                 ToProto(response->mutable_chunk_reader_statistics(), chunkReaderStatistics);
 
-                 auto bytesReadFromDisk =
+                auto bytesReadFromDisk =
                     chunkReaderStatistics->DataBytesReadFromDisk.load(std::memory_order::relaxed) +
                     chunkReaderStatistics->MetaBytesReadFromDisk.load(std::memory_order::relaxed);
                 const auto& ioTracker = Bootstrap_->GetIOTracker();

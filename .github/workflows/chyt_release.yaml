@@ -1,9 +1,21 @@
 name: Release CHYT
 
 on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag like 2.18.dev"
+        required: true
+        type: string
+      build_types:
+        description: 'JSON array: ["release"], ["relwithdebinfo"], or ["release","relwithdebinfo"]'
+        required: false
+        default: '["relwithdebinfo"]'
+        type: string
   push:
     tags:
       - 'chyt/[0-9]+\.[0-9]+\.[0-9]+'
+      - 'chyt-test/[0-9]+\.[0-9]+\.[0-9]+'
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
@@ -38,9 +50,50 @@ jobs:
           ttl: PT24H
           runner-home-dir: /actions-runner
 
+  tag:
+    name: Parse tag
+    needs:
+      - start-vm
+    outputs:
+      test-image-tag: stable-${{ steps.tag.outputs.TEST_IMAGE_TAG }}
+      prod-image-tag: stable-${{ steps.tag.outputs.PROD_IMAGE_TAG }}
+      release-type: ${{ steps.tag.outputs.RELEASE_TYPE }}
+      build-types: ${{ steps.tag.outputs.BUILD_TYPES }}
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    steps:
+      - name: Parse tag
+        id: tag
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "RELEASE_TYPE=test" >> $GITHUB_OUTPUT
+            PROD_IMAGE_TAG="${{ github.event.inputs.tag }}"
+          else
+            tmp="${GITHUB_REF#refs/*/}"; if [[ "${tmp%%/*}" == "chyt-test" ]]
+            then
+                echo "RELEASE_TYPE=test" >> $GITHUB_OUTPUT
+            elif [[ "${tmp%%/*}" == "chyt" ]]
+            then
+                echo "RELEASE_TYPE=prod" >> $GITHUB_OUTPUT
+            fi
+
+            PROD_IMAGE_TAG="${tmp#chyt/}"
+            PROD_IMAGE_TAG="${PROD_IMAGE_TAG#chyt-test/}"
+          fi
+
+          echo "PROD_IMAGE_TAG=$PROD_IMAGE_TAG" >> "$GITHUB_OUTPUT"
+          echo "TEST_IMAGE_TAG=dev-$PROD_IMAGE_TAG" >> $GITHUB_OUTPUT
+
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo 'BUILD_TYPES=${{ github.event.inputs.build_types }}' >> "$GITHUB_OUTPUT"
+          else
+            echo 'BUILD_TYPES=["release","relwithdebinfo"]' >> "$GITHUB_OUTPUT"
+          fi
+
   checkout:
     name: Checkout
-    needs: start-vm
+    needs:
+      - start-vm
+      - tag
     runs-on: ${{ needs.start-vm.outputs.label }}
     steps:
       - name: Checkout
@@ -53,50 +106,88 @@ jobs:
     needs:
       - start-vm
       - checkout
+      - tag
+    if: ${{ needs.tag.outputs.release-type == 'test' }}
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
       build-python: true
       build-chyt: true
+      build-types: ${{ needs.tag.outputs.build-types }}
     secrets:
       BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
       BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
     uses: ./.github/workflows/build-jobs.yaml
 
-  tag:
-    name: Parse tag
+  release:
+    name: Release Test
     needs:
       - start-vm
       - build
-    outputs:
-      image-tag: ${{ steps.tag.outputs.IMAGE_TAG }}
-    runs-on: ${{ needs.start-vm.outputs.label }}
-    steps:
-      - name: Parse tag
-        id: tag
-        run: |
-          IMAGE_TAG=${GITHUB_REF#refs/*/chyt/}
-          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
-  release:
-    name: Release
-    needs:
-      - start-vm
       - tag
+    if: ${{ needs.tag.outputs.release-type == 'test' }}
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
+      cpp-build-system: ya-make
       publish-chyt: true
-      image-tag: ${{ needs.tag.outputs.image-tag }}
-      nightly-image-tag: ${{ needs.tag.outputs.image-tag }}
+      image-tag: ${{ needs.tag.outputs.test-image-tag }}
+      nightly-image-tag: ${{ needs.tag.outputs.test-image-tag }}
+      build-types: ${{ needs.tag.outputs.build-types }}
     secrets:
       GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
       GH_USERNAME: ${{ secrets.GH_USERNAME }}
     uses: ./.github/workflows/docker-jobs.yaml
+
+  push-test-to-prod:
+    name: Release Prod
+    if: ${{ needs.tag.outputs.release-type == 'prod' }}
+    needs:
+      - start-vm
+      - tag
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    steps:
+      - name: Decide which images to push
+        id: types
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BUILD_TYPES='${{ needs.tag.outputs.build-types }}'
+
+          has() {
+            python3 -c 'import json,sys; arr=json.loads(sys.argv[1]); print("true" if sys.argv[2] in arr else "false")' \
+              "$BUILD_TYPES" "$1"
+          }
+
+          echo "release=$(has release)" >> "$GITHUB_OUTPUT"
+          echo "relwithdebinfo=$(has relwithdebinfo)" >> "$GITHUB_OUTPUT"
+
+      - name: Docker login
+        run: |
+          echo '${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}' | docker login ghcr.io --username ${{ secrets.GH_USERNAME }} --password-stdin
+
+      - name: Docker Pull And Push (release)
+        if: ${{ steps.types.outputs.release == 'true' }}
+        run: |
+          docker pull ghcr.io/ytsaurus/chyt-nightly:${{ needs.tag.outputs.test-image-tag }}
+          docker tag  ghcr.io/ytsaurus/chyt-nightly:${{ needs.tag.outputs.test-image-tag }} \
+                      ghcr.io/ytsaurus/chyt:${{ needs.tag.outputs.prod-image-tag }}
+          docker push ghcr.io/ytsaurus/chyt:${{ needs.tag.outputs.prod-image-tag }}
+
+      - name: Docker Pull And Push (relwithdebinfo)
+        if: ${{ steps.types.outputs.relwithdebinfo == 'true' }}
+        run: |
+          docker pull ghcr.io/ytsaurus/chyt-nightly:${{ needs.tag.outputs.test-image-tag }}-relwithdebinfo
+          docker tag  ghcr.io/ytsaurus/chyt-nightly:${{ needs.tag.outputs.test-image-tag }}-relwithdebinfo \
+                      ghcr.io/ytsaurus/chyt:${{ needs.tag.outputs.prod-image-tag }}-relwithdebinfo
+          docker push ghcr.io/ytsaurus/chyt:${{ needs.tag.outputs.prod-image-tag }}-relwithdebinfo
 
   stop-vm:
     name: Stop VM
     needs:
       - start-vm
       - release
+      - push-test-to-prod
     runs-on: trampoline
     if: ${{ always() }}
     steps:

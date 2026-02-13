@@ -13,7 +13,6 @@ namespace NYT::NCellMaster {
 struct IConfigManager
     : public virtual TRefCounted
 {
-public:
     virtual void Initialize() = 0;
 
     virtual const TDynamicClusterConfigPtr& GetConfig() const = 0;

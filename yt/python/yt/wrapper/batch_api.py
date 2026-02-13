@@ -19,6 +19,6 @@ from .job_commands import get_job, list_jobs  # noqa
 from .transaction_commands import start_transaction, abort_transaction, commit_transaction, ping_transaction  # noqa
 from .job_commands import abort_job  # noqa
 from .etc_commands import generate_timestamp, transfer_account_resources, transfer_pool_resources  # noqa
-from .chaos_commands import alter_replication_card # noqa
+from .chaos_commands import alter_replication_card, ping_chaos_lease # noqa
 
 _batch_commands = [_key for _key in locals().keys() if not _key.startswith("_")]

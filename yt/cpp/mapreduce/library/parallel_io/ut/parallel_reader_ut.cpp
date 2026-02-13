@@ -233,7 +233,7 @@ public:
     };
 
     template <typename T>
-    friend bool operator < (const TRowWithInfo<T>& lhs, const TRowWithInfo<T>& rhs)
+    friend bool operator<(const TRowWithInfo<T>& lhs, const TRowWithInfo<T>& rhs)
     {
         return std::tie(lhs.TableIndex, lhs.RowIndex) < std::tie(rhs.TableIndex, rhs.RowIndex);
     }

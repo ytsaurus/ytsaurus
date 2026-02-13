@@ -42,23 +42,7 @@ PRIMARY_SCHEMA_WITH_EXTRA_KEY = [
     {"name": "valueB", "type": "boolean"},
 ]
 
-PRIMARY_SCHEMA_WITH_EXPRESSION = [
-    {"name": "__hash__", "type": "uint64", "sort_order": "ascending", "expression": "farm_hash(keyA)"},
-    {"name": "keyA", "type": "int64", "sort_order": "ascending"},
-    {"name": "keyB", "type": "string", "sort_order": "ascending"},
-    {"name": "valueA", "type": "int64"},
-    {"name": "valueB", "type": "boolean"},
-]
-
 INDEX_ON_VALUE_SCHEMA = [
-    {"name": "valueA", "type": "int64", "sort_order": "ascending"},
-    {"name": "keyA", "type": "int64", "sort_order": "ascending"},
-    {"name": "keyB", "type": "string", "sort_order": "ascending"},
-    {"name": "valueB", "type": "boolean"},
-]
-
-INDEX_ON_VALUE_SCHEMA_WITH_EXPRESSION = [
-    {"name": "__hash__", "type": "uint64", "sort_order": "ascending", "expression": "farm_hash(valueA)"},
     {"name": "valueA", "type": "int64", "sort_order": "ascending"},
     {"name": "keyA", "type": "int64", "sort_order": "ascending"},
     {"name": "keyB", "type": "string", "sort_order": "ascending"},
@@ -104,6 +88,13 @@ UNIQUE_KEY_VALUE_PAIR_INDEX_SCHEMA = [
     {"name": "keyB", "type": "string", "sort_order": "ascending"},
     {"name": "keyA", "type": "int64"},
 ]
+
+
+def prepend_hash(schema):
+    hash_column = {"name": "__hash__", "sort_order": "ascending", "type": "uint64"}
+    hash_column["expression"] = f"farm_hash(`{schema[0]["name"]}`)"
+
+    return [hash_column] + schema
 
 ##################################################################
 
@@ -377,12 +368,12 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
             "table_to_index_correspondence": "bijective",
         }
 
-        self._create_table("//tmp/secondary_2", INDEX_ON_VALUE_SCHEMA_WITH_EXPRESSION)
+        self._create_table("//tmp/secondary_2", prepend_hash(INDEX_ON_VALUE_SCHEMA))
         with raises_yt_error("Cannot create secondary index for a secondary index"):
             create_secondary_index("//tmp/secondary", "//tmp/secondary_2", kind="full_sync")
         with raises_yt_error("Index cannot have multiple primary tables"):
             create_secondary_index("//tmp/secondary_2", "//tmp/secondary", kind="full_sync")
-        self._create_table("//tmp/super_table", PRIMARY_SCHEMA_WITH_EXPRESSION)
+        self._create_table("//tmp/super_table", prepend_hash(PRIMARY_SCHEMA))
         with raises_yt_error("Cannot use a table with indices as an index"):
             create_secondary_index("//tmp/super_table", "//tmp/table", kind="full_sync")
 
@@ -467,7 +458,7 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
             table_schema=kind_and_schemas[1],
             index_schema=kind_and_schemas[3],
             kind=kind_and_schemas[0],
-            **({"unfolded_column": "value"} if kind_and_schemas[0] == "unfolding" else {}))
+            **({"unfolded_index_column": "value", "unfolded_table_column": "value"} if kind_and_schemas[0] == "unfolding" else {}))
 
         with raises_yt_error():
             alter_table("//tmp/table", schema=kind_and_schemas[2])
@@ -524,12 +515,21 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
         assert get("//tmp/table/@secondary_indices")[secondary_index_id]["evaluated_columns_schema"][0]["expression"] \
             == evaluated_columns_schema[0]["expression"]
 
-        with raises_yt_error("Name collision"):
+        with raises_yt_error("Columns collision"):
             self._add_index("secondary_2", schema=index_schema, evaluated_columns_schema=[{
                 "name": "eva01",
                 "type": "int64", "expression":
                 "try_get_int64(value, \"/inner_field_other\")",
             }])
+
+        self._add_index(
+            "secondary_3",
+            schema=index_schema,
+            evaluated_columns_schema=[
+                {"name": "eva01", "type": "int64", "expression": "try_get_int64(value, \"/inner_field\")"}
+            ],
+            mount=False,
+        )
 
 
 ##################################################################
@@ -654,12 +654,16 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
             index_schema=UNFOLDING_INDEX_SCHEMA,
             kind="unfolding",
             mount=True,
-            unfolded_column="value",
+            unfolded_table_column="value",
+            unfolded_index_column="value",
         )
 
         index_table_path = self._get_index_path()
 
-        assert get("//tmp/table/@secondary_indices")[secondary_index_id]["unfolded_column"] == "value"
+        assert get("//tmp/table/@secondary_indices")[secondary_index_id]["unfolded_columns"] == {
+            "table_column": "value",
+            "index_column": "value",
+        }
 
         # Avoid "twin nulls" problem.
         format = yson.YsonString(b"yson")
@@ -709,8 +713,8 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
         assert explain_query(query)["query"]["constraints"] != "Constraints: <universe>"
 
     @authors("sabdenovch")
-    @pytest.mark.parametrize("table_schema", (PRIMARY_SCHEMA, PRIMARY_SCHEMA_WITH_EXPRESSION))
-    @pytest.mark.parametrize("index_schema", (INDEX_ON_VALUE_SCHEMA, INDEX_ON_VALUE_SCHEMA_WITH_EXPRESSION))
+    @pytest.mark.parametrize("table_schema", (PRIMARY_SCHEMA, prepend_hash(PRIMARY_SCHEMA)))
+    @pytest.mark.parametrize("index_schema", (INDEX_ON_VALUE_SCHEMA, prepend_hash(INDEX_ON_VALUE_SCHEMA)))
     def test_different_evaluated_columns(self, table_schema, index_schema):
         self._create_basic_tables(table_schema=table_schema, index_schema=index_schema, mount=True)
 
@@ -764,7 +768,7 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
             }},
         ]
         index_schema = [
-            {"name": "tokens", "type": "string", "sort_order": "ascending"},
+            {"name": "token", "type": "string", "sort_order": "ascending"},
             {"name": "key", "type": "int64", "sort_order": "ascending"},
             {"name": "count", "type": "int64", "aggregate": "sum"}
         ]
@@ -773,7 +777,8 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
             index_schema=index_schema,
             kind="unfolding",
             mount=True,
-            unfolded_column="tokens",
+            unfolded_index_column="token",
+            unfolded_table_column="tokens",
             evaluated_columns_schema=[{"name": "count", "type": "int64", "expression": "1"}]
         )
 
@@ -794,10 +799,13 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
 
         index_table_path = self._get_index_path()
 
+        print("FDDAFDS", select_rows("* from [//tmp/table]"))
+        print("DFAFDSF", select_rows(f"* from [{index_table_path}]"))
+
         # lines with token eu
         query = f"""
             key from [//tmp/table] with index [{index_table_path}] I
-            where tokens in ("eu") group by key
+            where I.token in ("eu") group by key
         """
         rows = select_rows(query)
         assert builtins.set([3, 4, 5]) == builtins.set([row["key"] for row in rows])
@@ -806,13 +814,13 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
         # lines with tokens starting with ma
         query = f"""
             key from [//tmp/table] with index [{index_table_path}] AS Unfolded
-            where is_prefix("ma", Unfolded.tokens) group by key
+            where is_prefix("ma", Unfolded.token) group by key
         """
         rows = select_rows(query)
         assert builtins.set([3, 4, 7, 8]) == builtins.set([row["key"] for row in rows])
         assert explain_query(query)["query"]["constraints"] != "Constraints: <universe>"
 
-        query = f"[count] as c from [{index_table_path}] where key = 9 and tokens = 'АБЫР'"
+        query = f"[count] as c from [{index_table_path}] where key = 9 and token = 'АБЫР'"
         assert select_rows(query)[0]["c"] == 15
 
         insert_rows("//tmp/table", [
@@ -1020,7 +1028,8 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
             index_schema=UNFOLDING_INDEX_SCHEMA,
             kind="unfolding",
             mount=True,
-            unfolded_column="value",
+            unfolded_index_column="value",
+            unfolded_table_column="value",
         )
 
         # Avoid "twin nulls" problem.
@@ -1081,13 +1090,35 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
         ])
 
     @authors("sabdenovch")
-    @pytest.mark.parametrize("table_schema", (PRIMARY_SCHEMA, PRIMARY_SCHEMA_WITH_EXPRESSION))
-    @pytest.mark.parametrize("index_table_schema", (INDEX_ON_VALUE_SCHEMA, INDEX_ON_VALUE_SCHEMA_WITH_EXPRESSION))
-    def test_different_evaluated_columns(self, table_schema, index_table_schema):
+    @pytest.mark.parametrize("schemas", (
+        (PRIMARY_SCHEMA, prepend_hash(INDEX_ON_VALUE_SCHEMA)),
+        (prepend_hash(PRIMARY_SCHEMA), INDEX_ON_VALUE_SCHEMA),
+        (prepend_hash(PRIMARY_SCHEMA), prepend_hash(INDEX_ON_VALUE_SCHEMA)),
+    ))
+    def test_different_evaluated_columns(self, schemas):
+        table_schema, index_table_schema = schemas
         self._create_basic_tables(table_schema=table_schema, index_schema=index_table_schema, mount=True)
         index_row = {"keyA": 1, "keyB": "alpha", "valueA": 3, "valueB": True}
         self._insert_rows([{"keyA": 1, "keyB": "alpha", "valueA": 3, "valueB": True}])
         self._expect_from_index([index_row])
+
+    @authors("sabdenovch")
+    @pytest.mark.parametrize("schemas", (
+        (PRIMARY_SCHEMA_WITH_LIST, prepend_hash(UNFOLDING_INDEX_SCHEMA)),
+        (prepend_hash(PRIMARY_SCHEMA_WITH_LIST), UNFOLDING_INDEX_SCHEMA),
+        (prepend_hash(PRIMARY_SCHEMA_WITH_LIST), prepend_hash(UNFOLDING_INDEX_SCHEMA)),
+    ))
+    def test_different_evaluated_columns_unfolding(self, schemas):
+        table_schema, index_table_schema = schemas
+        self._create_basic_tables(
+            table_schema=table_schema,
+            index_schema=index_table_schema,
+            kind="unfolding",
+            unfolded_index_column="value",
+            unfolded_table_column="value",
+            mount=True)
+        self._insert_rows([{"key": 1, "value": [3]}])
+        self._expect_from_index([{"key": 1, "value": 3, EMPTY_COLUMN_NAME: None}])
 
     @authors("sabdenovch")
     def test_predicate(self):
@@ -1151,7 +1182,7 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
     @authors("sabdenovch")
     def test_secondary_index_unique_value(self):
         self._create_basic_tables(
-            table_schema=PRIMARY_SCHEMA_WITH_EXPRESSION,
+            table_schema=prepend_hash(PRIMARY_SCHEMA),
             index_schema=UNIQUE_VALUE_INDEX_SCHEMA,
             kind="unique",
             mount=True,
@@ -1200,7 +1231,7 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
     @authors("sabdenovch")
     def test_secondary_index_unique_key_value_pair(self):
         self._create_basic_tables(
-            table_schema=PRIMARY_SCHEMA_WITH_EXPRESSION,
+            table_schema=prepend_hash(PRIMARY_SCHEMA),
             index_schema=UNIQUE_KEY_VALUE_PAIR_INDEX_SCHEMA,
             kind="unique",
             mount=True,
@@ -1306,33 +1337,50 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
 
     @authors("sabdenovch")
     def test_evaluated(self):
+        table_schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "any"},
+        ]
+        duplicated_evaluated_column = {"name": "eva01", "type": "int64", "expression": 'try_get_int64(value, "/field")'}
+
+        index_name = "secondary"
         index_schema = [
             {"name": "eva01", "type": "int64", "sort_order": "ascending"},
             {"name": "key", "type": "int64", "sort_order": "ascending"},
             {"name": EMPTY_COLUMN_NAME, "type": "int64"},
         ]
-        table_schema = [
-            {"name": "key", "type": "int64", "sort_order": "ascending"},
-            {"name": "value", "type": "any"},
-        ]
         self._create_basic_tables(
+            index_name=index_name,
             table_schema=table_schema,
             index_schema=index_schema,
-            mount=True,
-            evaluated_columns_schema=[{
-                "name": "eva01",
-                "type": "int64",
-                "expression": "try_get_int64(value, \"/field\")",
-            }],
+            evaluated_columns_schema=[duplicated_evaluated_column],
+            mount=False,
         )
+        index_table_path = self._get_index_path(index_name=index_name)
 
-        self._insert_rows([
-            {"key": 0, "value": {"field": 31, "name": "Biel"}},
-            {"key": 1, "value": {"field": 13, "name": "Hathaway"}},
-            {"key": 2, "value": {"field": 33, "name": "Coleman"}},
-        ])
+        another_index_name = "seconary_2"
+        another_index_schema = [{"name": "eva00", "type": "string", "sort_order": "ascending"}] + index_schema
+        self._add_index(
+            index_name=another_index_name,
+            schema=another_index_schema,
+            evaluated_columns_schema=[
+                {"name": "eva00", "type": "string", "expression": 'try_get_string(value, "/name")'},
+                duplicated_evaluated_column,
+            ],
+            mount=False,
+        )
+        another_index_table_path = self._get_index_path(index_name=another_index_name)
 
-        index_table_path = self._get_index_path()
+        self._sync_create_cells()
+        self._mount("//tmp/table", index_table_path, another_index_table_path)
+
+        self._insert_rows(
+            [
+                {"key": 0, "value": {"field": 31, "name": "Biel"}},
+                {"key": 1, "value": {"field": 13, "name": "Hathaway"}},
+                {"key": 2, "value": {"field": 33, "name": "Coleman"}},
+            ]
+        )
 
         assert select_rows(f"key, eva01 from [{index_table_path}] limit 20") == [
             {"key": 1, "eva01": 13},
@@ -1346,6 +1394,18 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
         assert plan["query"]["constraints"] == "Constraints:\n33: <universe>"
 
         query = "key, value from [//tmp/table] where try_get_int64(value, \"/field\") = 33"
+        assert select_rows(query) == select_rows(index_query)
+
+        assert select_rows(f"key, eva00, eva01 from [{another_index_table_path}] limit 20") == [
+            {"eva00": "Biel", "eva01": 31, "key": 0},
+            {"eva00": "Coleman", "eva01": 33, "key": 2},
+            {"eva00": "Hathaway", "eva01": 13, "key": 1},
+        ]
+
+        prefix = "key, try_get_int64(value, \"/field\") from [//tmp/table]"
+        suffix = "where try_get_string(value, \"/name\") = \"Biel\""
+        query = f"{prefix} {suffix}"
+        index_query = f"{prefix} with index [{another_index_table_path}] as i {suffix}"
         assert select_rows(query) == select_rows(index_query)
 
 

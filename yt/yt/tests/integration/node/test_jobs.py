@@ -17,6 +17,9 @@ from yt.common import YtError
 import pytest
 import builtins
 
+import json
+import os
+
 
 ##################################################################
 
@@ -259,6 +262,52 @@ class TestJobProxyCallFailed(YTEnvSetup):
                     "job_proxy": {
                         "testing_config": {
                             "fail_on_job_proxy_spawned_call": False,
+                        },
+                    },
+                },
+            },
+        })
+
+        op.track()
+
+
+class TestJobProxyPreparationFailed(YTEnvSetup):
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "job_proxy": {
+                        "testing_config": {
+                            "fail_preparation": True,
+                        },
+                    },
+                },
+            },
+        }
+    }
+
+    @authors("coteeq")
+    def test_job_proxy_preparation_failed(self):
+        aborted_job_profiler = JobCountProfiler(
+            "aborted", tags={"tree": "default", "job_type": "vanilla", "abort_reason": "job_proxy_failed"})
+        failed_job_profiler = JobCountProfiler(
+            "failed", tags={"tree": "default", "job_type": "vanilla"})
+
+        op = run_test_vanilla("sleep 1", job_count=1)
+
+        wait(lambda: aborted_job_profiler.get_job_count_delta() >= 5)
+
+        assert failed_job_profiler.get_job_count_delta() == 0
+
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "job_proxy": {
+                        "testing_config": {
+                            "fail_preparation": False,
                         },
                     },
                 },
@@ -518,6 +567,135 @@ if job_index == 0:
         release_breakpoint()
 
         op.track()
+
+
+@authors("dann239")
+class TestJobOomScore(YTEnvSetup):
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "footprint_memory": 0,
+        },
+    }
+
+    def _get_oom_score_adj(self, pid: int) -> int:
+        return int(open(f"/proc/{pid}/oom_score_adj").read())
+
+    def _get_ppid(self, pid: int) -> int:
+        return int(open(f"/proc/{pid}/stat").read().split()[3])
+
+    def _find_pid(self, inner_pid: int, cgroup: str) -> int:
+        for dir in os.listdir("/proc"):
+            try:
+                pid = int(dir)
+                if cgroup != open(f"/proc/{pid}/cgroup").read():
+                    continue
+                for line in open(f"/proc/{pid}/status").readlines():
+                    if not line.startswith("NSpid:"):
+                        continue
+                    if int(line.split()[-1]) == inner_pid:
+                        return pid
+                    break
+                else:
+                    assert False, "No relevant line in status"
+            except Exception:
+                continue
+        assert False, "Could not find pid"
+
+    def test_job_oom_score(self):
+        target_score = 67
+        memory = int(500 * (2 ** 20))
+
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "job_proxy": {
+                        "oom_score_adj_on_exceeded_memory_reserve": target_score,
+                    },
+                },
+            },
+        })
+
+        script = with_breakpoint(
+f"""
+import json
+import multiprocessing
+import os
+import sys
+import subprocess
+import time
+
+data = {{
+    "pid": int(os.getpid()),
+    "cgroup": open("/proc/self/cgroup").read(),
+}}
+
+print(json.dumps(data), file=sys.stderr, flush=True)
+
+def eat_memory():
+    data = "a" * {memory}
+    time.sleep(100500)
+
+eater = multiprocessing.Process(target=eat_memory)
+eater.start()
+
+subprocess.call('''BREAKPOINT''', shell=True, executable="/bin/bash")
+eater.terminate()
+
+time.sleep(100500)
+"""  # noqa
+        ).encode()
+
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+
+        create("file", "//tmp/script.py", attributes={"replication_factor": 1})
+        write_file("//tmp/script.py", script)
+
+        op = map(
+            track=False,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            job_count=1,
+            command="python3 script.py",
+            spec={
+                "mapper": {
+                    "file_paths": ["//tmp/script.py"],
+                    "memory_limit": memory * 2,
+                    "memory_reserve_factor": 0.5,
+                    "job_proxy_memory_digest": {
+                        "lower_bound": 1e-8,
+                        "upper_bound": 1.,
+                        "default_value": 1e-8,
+                        "relative_precision": 1.,
+                    },
+                },
+            },
+        )
+
+        job_id, = wait_breakpoint(job_count=1)
+
+        data_str = op.read_stderr(job_id).decode()
+        data = json.loads(data_str)
+        pid = self._find_pid(data["pid"], data["cgroup"])
+
+        # Check user job oom_score_adj.
+        wait(lambda: self._get_oom_score_adj(pid) == target_score)
+        release_breakpoint()
+        wait(lambda: self._get_oom_score_adj(pid) == 0)
+
+        if not self.USE_PORTO:
+            # Check job proxy oom_score_adj.
+            assert self._get_oom_score_adj(self._get_ppid(pid)) == target_score
+
+
+@authors("dann239")
+class TestJobOomScorePorto(TestJobOomScore):
+    USE_PORTO = True
 
 
 @pytest.mark.skipif(is_asan_build(), reason="This test does not work under ASAN")

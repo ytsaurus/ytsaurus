@@ -125,6 +125,7 @@ message TReqOnJobProgress
     optional uint64 stderr_size = 4;
     optional bool has_job_trace = 7;
     required int64 epoch = 8;
+    optional uint64 last_progress_save_time = 9;
 }
 
 message TRspOnJobProgress

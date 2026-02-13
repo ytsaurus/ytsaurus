@@ -26,6 +26,8 @@
 
 #include <yt/yt/ytlib/hive/public.h>
 
+#include <yt/yt/client/signature/public.h>
+
 #include <yt/yt/ytlib/yql_client/public.h>
 
 #include <yt/yt/ytlib/sequoia_client/public.h>
@@ -49,6 +51,8 @@ namespace NYT::NApi::NNative {
 struct IConnection
     : public NApi::IConnection
 {
+    using TConnectionOptions = NNative::TConnectionOptions;
+
     virtual const TConnectionStaticConfigPtr& GetStaticConfig() const = 0;
     virtual TConnectionDynamicConfigPtr GetConfig() const = 0;
     virtual TConnectionCompoundConfigPtr GetCompoundConfig() const = 0;
@@ -120,12 +124,12 @@ struct IConnection
     virtual NRpc::IChannelPtr GetChaosChannelByCellTag(
         NObjectClient::TCellTag cellTag,
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader) = 0;
-    virtual NRpc::IChannelPtr GetChaosChannelByCardIdOrThrow(
-        NChaosClient::TReplicationCardId replicationCardId,
+    virtual NRpc::IChannelPtr GetChaosChannelByObjectIdOrThrow(
+        NChaosClient::TChaosObjectId chaosObjectId,
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader) = 0;
 
     virtual NRpc::IChannelPtr FindQueueAgentChannel(TStringBuf stage) const = 0;
-    virtual const NQueueClient::IQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const = 0;
+    virtual const NQueueClient::IQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManagerOrThrow() const = 0;
 
     virtual std::pair<NRpc::IRoamingChannelProviderPtr, NYqlClient::TYqlAgentChannelConfigPtr> GetYqlAgentChannelProviderOrThrow(TStringBuf stage) const = 0;
 
@@ -179,8 +183,9 @@ struct IConnection
     virtual NRpc::IChannelPtr CreateChannelByAddress(const std::string& address) = 0;
 
     virtual bool IsSequoiaConfigured() = 0;
-    //! If Sequoia is not configured then this client will be failing each request.
-    virtual NSequoiaClient::ISequoiaClientPtr GetSequoiaClient() = 0;
+    //! If Sequoia is not configured then this connection will produce clients
+    //! that fail each request.
+    virtual const NSequoiaClient::ISequoiaConnectionPtr& GetSequoiaConnection() = 0;
 
     using TReconfiguredSignature = void(const TConnectionDynamicConfigPtr& newConfig);
     DECLARE_INTERFACE_SIGNAL(TReconfiguredSignature, Reconfigured);
@@ -203,7 +208,7 @@ public:
         TSharedRefArray Message;
 
         operator size_t() const;
-        bool operator == (const TKey& other) const;
+        bool operator==(const TKey& other) const;
     };
 
     TStickyGroupSizeCache(
@@ -227,6 +232,10 @@ struct TConnectionOptions
 {
     bool RetryRequestQueueSizeLimitExceeded = false;
 
+    //! If false, local (per-connection) object service caching will disabled.
+    //! This affects both the local connection and remote cluster connections.
+    bool EnableClientSideCache = true;
+
     //! If non-null, provides an externally-controlled block cache.
     NChunkClient::IBlockCachePtr BlockCache;
 
@@ -235,6 +244,13 @@ struct TConnectionOptions
 
     //! If non-null, provides a TVM service for authentication.
     NAuth::IDynamicTvmServicePtr TvmService;
+
+    //! If set, used as connection's signature generator instead of dummy.
+    NSignature::ISignatureGeneratorPtr SignatureGenerator;
+
+    //! If true, creates a queue consumer registration manager for this connection.
+    //! Otherwise, it is null and #GetQueueConsumerRegistrationManagerOrThrow throws.
+    bool CreateQueueConsumerRegistrationManager = false;
 
     EChaosResidencyCacheType ChaosResidencyCacheMode = EChaosResidencyCacheType::Client;
 

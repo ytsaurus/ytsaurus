@@ -43,6 +43,7 @@ type Agent struct {
 
 	backgroundStopCh chan struct{}
 	healthState      *agentHealthState
+	cjMonitor        *crashedJobMonitor
 
 	opletInfoBatchCh chan []strawberry.OpletInfoForScaler
 	scalingTargetCh  chan []scalingRequest
@@ -107,7 +108,7 @@ func (a *Agent) updateACLs() error {
 	return nil
 }
 
-func (a *Agent) processRunningOperations(runningOps []yt.OperationStatus) error {
+func (a *Agent) processRunningOperations(runningOps []OperationStatus) error {
 	family := a.controller.Family()
 	l := log.With(a.l, log.String("family", family))
 
@@ -157,7 +158,7 @@ func (a *Agent) processRunningOperations(runningOps []yt.OperationStatus) error 
 		}
 
 		if opState != op.State {
-			oplet.UpdateOpStatus(&op)
+			oplet.UpdateOpStatus(&op.OperationStatus)
 		}
 	}
 
@@ -423,6 +424,8 @@ func (a *Agent) background() {
 				continue
 			}
 
+			a.cjMonitor.registerCrashedJobs(event.Operations)
+
 			if err := a.processRunningOperations(event.Operations); err != nil {
 				err = yterrors.Err("failed to process running operations", err)
 				a.healthState.SetTrackOpsState(err)
@@ -533,15 +536,18 @@ func (a *Agent) Start() {
 
 	a.aliasToOp = make(map[string]*strawberry.Oplet)
 
+	a.cjMonitor = newCrashedJobMonitor(time.Duration(a.config.CrashedJobEventExpirationTimeoutOrDefault()))
+
 	revisionCollectPeriod := time.Duration(a.config.RevisionCollectPeriodOrDefault())
 	a.nodeCh = TrackChildren(a.ctx, a.root, revisionCollectPeriod, a.ytc, a.l)
 
 	a.runningOpsCh = CollectOperations(
 		a.ctx,
 		a.ytc,
+		a.l,
 		time.Duration(a.config.CollectOperationsPeriodOrDefault()),
 		a.OperationNamespace(),
-		a.l)
+		a.config.JobCheckerConfigOrDefault())
 
 	a.opletInfoBatchCh = make(chan []strawberry.OpletInfoForScaler)
 	a.scalingTargetCh = make(chan []scalingRequest)
@@ -646,6 +652,10 @@ func (a *Agent) OperationNamespace() string {
 
 func (a *Agent) CheckHealth() error {
 	return a.healthState.Get()
+}
+
+func (a *Agent) CheckCores() error {
+	return a.cjMonitor.getCoreAlert()
 }
 
 type scalingRequest struct {

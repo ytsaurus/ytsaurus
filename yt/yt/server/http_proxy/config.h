@@ -15,6 +15,8 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/ytlib/cell_master_client/public.h>
+
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/yt/ytlib/security_client/public.h>
@@ -339,6 +341,9 @@ struct TProxyBootstrapConfig
 
     bool AbortOnUnrecognizedOptions;
 
+    //! Sets default value for option `cancel_fiber_on_connection_close` in all http-servers (http/https/tvm/chyt/etc)
+    bool CancelFiberOnConnectionClose;
+
     TString DefaultNetwork;
     THashMap<TString, std::vector<NNet::TIP6Network>> Networks;
 
@@ -405,6 +410,8 @@ struct TProxyDynamicConfig
     TMemoryLimitsConfigPtr MemoryLimits;
 
     NSignature::TSignatureComponentsConfigPtr SignatureComponents;
+
+    std::optional<NCellMasterClient::TCellDirectorySynchronizerConfigPtr> MasterCellDirectorySynchronizer;
 
     REGISTER_YSON_STRUCT(TProxyDynamicConfig);
 

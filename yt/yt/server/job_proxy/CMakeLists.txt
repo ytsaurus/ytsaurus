@@ -25,6 +25,7 @@ target_compile_options(yt-server-job_proxy PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(yt-server-job_proxy PUBLIC
@@ -39,6 +40,7 @@ target_link_libraries(yt-server-job_proxy PUBLIC
   server-lib-shuffle_server
   server-lib-user_job
   yt-server-tools
+  core-rpc-http
   yt-library-containers
   library-containers-cri
   yt-library-orchid

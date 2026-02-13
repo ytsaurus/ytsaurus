@@ -129,8 +129,10 @@ TSessionBase::TSessionBase(
     , Lease_(std::move(lease))
     , MasterEpoch_(Bootstrap_->GetMasterEpoch())
     , SessionInvoker_(CreateSerializedInvoker(Location_->GetAuxPoolInvoker()))
-    , Logger(DataNodeLogger().WithTag("LocationId: %v, ChunkId: %v",
+    , Logger(DataNodeLogger().WithTag("LocationId: %v, LocationUuid: %v, LocationIndex: %v, ChunkId: %v",
         Location_->GetId(),
+        Location_->GetUuid(),
+        Location_->GetIndex(),
         SessionId_))
     , StartTime_(TInstant::Now())
     , LockedChunkGuard_(std::move(lockedChunkGuard))

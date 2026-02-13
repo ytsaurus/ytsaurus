@@ -46,7 +46,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ConvertToSkiffSchemaShortDebugString(INodePtr node)
+std::string ConvertToSkiffSchemaShortDebugString(INodePtr node)
 {
     auto skiffFormatConfig = ConvertTo<TSkiffFormatConfigPtr>(std::move(node));
     auto skiffSchemas = ParseSkiffSchemas(skiffFormatConfig->SkiffSchemaRegistry, skiffFormatConfig->TableSkiffSchemas);
@@ -358,7 +358,7 @@ ISchemalessFormatWriterPtr CreateSkiffWriter(
         keyColumnCount);
 }
 
-TString TableToSkiff(
+std::string TableToSkiff(
     const TLogicalTypePtr& logicalType,
     const std::shared_ptr<TSkiffSchema>& typeSchema,
     const TNamedValue::TValue& value)
@@ -383,7 +383,7 @@ TString TableToSkiff(
         .ThrowOnError();
 
     auto result = resultStream.Str();
-    if (!TStringBuf(result).StartsWith(TString(2, '\0'))) {
+    if (!TStringBuf(result).StartsWith(std::string(2, '\0'))) {
         THROW_ERROR_EXCEPTION("Expected skiff value to start with \\x00\\x00, but prefix is %Qv",
                 EscapeC(result.substr(0, 2)));
     }
@@ -394,7 +394,7 @@ TString TableToSkiff(
 TNamedValue::TValue SkiffToTable(
     const TLogicalTypePtr& logicalType,
     const std::shared_ptr<TSkiffSchema>& typeSchema,
-    const TString& skiffValue)
+    const std::string& skiffValue)
 {
     auto schema = CreateSingleValueTableSchema(logicalType);
     auto skiffSchema = CreateTupleSchema({
@@ -404,7 +404,7 @@ TNamedValue::TValue SkiffToTable(
 
     TCollectingValueConsumer rowCollector(schema);
     auto parser = CreateParserForSkiff(skiffSchema, &rowCollector);
-    parser->Read(TString(2, 0));
+    parser->Read(std::string(2, 0));
     parser->Read(skiffValue);
     parser->Finish();
 
@@ -422,7 +422,7 @@ TNamedValue::TValue SkiffToTable(
             TLogicalTypePtr logicalType = (logicalTypeArg);                                        \
             std::shared_ptr<TSkiffSchema> skiffSchema = (skiffSchemaArg);                          \
             TNamedValue::TValue tableValue = (tableValueArg);                                      \
-            TString hexSkiff = (hexSkiffArg);                                                      \
+            std::string hexSkiff = (hexSkiffArg);                                                      \
             auto nameTable = New<TNameTable>();                                                    \
             auto actualSkiff = TableToSkiff(logicalType, skiffSchema, tableValue);                 \
             EXPECT_EQ(HexEncode(actualSkiff), hexSkiff);                                           \
@@ -513,7 +513,7 @@ void TestAllWireTypes(bool useSchema)
                 {"opt_double_2", 7.0},
                 {"opt_boolean", false},
                 {"opt_string32", "eight"},
-                {TString(TableIndexColumnName), 0},
+                {TableIndexColumnName, 0},
             }).Get(),
         });
         if (!isWriterReady) {
@@ -536,7 +536,7 @@ void TestAllWireTypes(bool useSchema)
                 {"opt_double_2", nullptr},
                 {"opt_boolean", nullptr},
                 {"opt_string32", nullptr},
-                {TString(TableIndexColumnName), 0},
+                {TableIndexColumnName, 0},
             }).Get()
         }));
 
@@ -618,7 +618,7 @@ class TSkiffYsonWireTypeP
     : public ::testing::TestWithParam<std::tuple<
         TLogicalTypePtr,
         TNamedValue::TValue,
-        TString
+        std::string
     >>
 {
 public:
@@ -721,7 +721,7 @@ TEST(TSkiffWriterTest, TestYsonWireType)
         // Row 0 (Null)
         write({
             MakeRow(nameTable, {
-                {TString(TableIndexColumnName), 0},
+                {TableIndexColumnName, 0},
 
                 {"yson32", nullptr},
                 {"opt_yson32", nullptr},
@@ -731,7 +731,7 @@ TEST(TSkiffWriterTest, TestYsonWireType)
         // Row 1 (Int64)
         write({
             MakeRow(nameTable, {
-                {TString(TableIndexColumnName), 0},
+                {TableIndexColumnName, 0},
 
                 {"yson32", -5},
                 {"opt_yson32", -6},
@@ -741,7 +741,7 @@ TEST(TSkiffWriterTest, TestYsonWireType)
         // Row 2 (Uint64)
         write({
             MakeRow(nameTable, {
-                {TString(TableIndexColumnName), 0},
+                {TableIndexColumnName, 0},
 
                 {"yson32", 42u},
                 {"opt_yson32", 43u},
@@ -751,7 +751,7 @@ TEST(TSkiffWriterTest, TestYsonWireType)
         // Row 3 ((Double)
         write({
             MakeRow(nameTable, {
-                {TString(TableIndexColumnName), 0},
+                {TableIndexColumnName, 0},
 
                 {"yson32", 2.7182818},
                 {"opt_yson32", 3.1415926},
@@ -761,7 +761,7 @@ TEST(TSkiffWriterTest, TestYsonWireType)
         // Row 4 ((Boolean)
         write({
             MakeRow(nameTable, {
-                {TString(TableIndexColumnName), 0},
+                {TableIndexColumnName, 0},
 
                 {"yson32", true},
                 {"opt_yson32", false},
@@ -771,7 +771,7 @@ TEST(TSkiffWriterTest, TestYsonWireType)
         // Row 5 ((String)
         write({
             MakeRow(nameTable, {
-                {TString(TableIndexColumnName), 0},
+                {TableIndexColumnName, 0},
 
                 {"yson32", "Yin"},
                 {"opt_yson32", "Yang"},
@@ -781,7 +781,7 @@ TEST(TSkiffWriterTest, TestYsonWireType)
         // Row 6 ((Any)
         write({
             MakeRow(nameTable, {
-                {TString(TableIndexColumnName), 0},
+                {TableIndexColumnName, 0},
 
                 {"yson32", EValueType::Any, "{foo=bar;}"},
                 {"opt_yson32", EValueType::Any, "{bar=baz;}"},
@@ -791,7 +791,7 @@ TEST(TSkiffWriterTest, TestYsonWireType)
         // Row 7 ((missing optional values)
         write({
             MakeRow(nameTable, {
-                {TString(TableIndexColumnName), 0},
+                {TableIndexColumnName, 0},
             }).Get(),
         });
 
@@ -804,7 +804,7 @@ TEST(TSkiffWriterTest, TestYsonWireType)
     TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
 
     auto parseYson = [] (TCheckedSkiffParser* parser) {
-        auto yson = TString{parser->ParseYson32()};
+        auto yson = std::string{parser->ParseYson32()};
         return ConvertToNode(TYsonString(yson));
     };
 
@@ -872,7 +872,7 @@ class TSkiffFormatSmallIntP
     std::shared_ptr<TSkiffSchema>,
     TLogicalTypePtr,
     TNamedValue::TValue,
-    TString
+    std::string
 >>
 {
 public:
@@ -889,7 +889,7 @@ public:
             TStringBuf skiffValue)
         {
             auto simpleSkiffSchema = CreateSimpleTypeSchema(wireType);
-            auto simpleSkiffData = TString(2, 0) + skiffValue;
+            auto simpleSkiffData = std::string(2, 0).append(skiffValue);
             result.emplace_back(simpleSkiffSchema, logicalType, value, simpleSkiffData);
         };
 
@@ -900,7 +900,7 @@ public:
             TStringBuf skiffValue)
         {
             auto listSkiffSchema = CreateRepeatedVariant8Schema({CreateSimpleTypeSchema(wireType)});
-            auto listSkiffData = TString(3, 0) + skiffValue + TString(1, '\xff');
+            auto listSkiffData = std::string(3, 0).append(skiffValue) + std::string(1, '\xff');
             auto listValue = TNamedValue::TValue{
                 TNamedValue::TComposite{
                     BuildYsonStringFluently()
@@ -1121,7 +1121,7 @@ class TSkiffFormatUuidTestP : public ::testing::TestWithParam<std::tuple<
     TTableSchemaPtr,
     std::shared_ptr<TSkiffSchema>,
     std::vector<TUnversionedOwningRow>,
-    TString
+    std::string
 >>
 {
 public:
@@ -1167,7 +1167,7 @@ public:
             std::vector<TUnversionedOwningRow>{
                 MakeRow(nameTable, {{"uuid", stringUuidValue}}),
             },
-            TString(2, '\0') + uint128UuidValue);
+            std::string(2, '\0').append(uint128UuidValue));
 
         result.emplace_back(
             nameTable,
@@ -1176,7 +1176,9 @@ public:
             std::vector<TUnversionedOwningRow>{
                 MakeRow(nameTable, {{"uuid", stringUuidValue}}),
             },
-            TString(2, '\0') + uint128UuidValue);
+            std::string(2, '\0').append(uint128UuidValue));
+
+        auto n = TString() + TStringBuf();
 
         result.emplace_back(
             nameTable,
@@ -1185,7 +1187,7 @@ public:
             std::vector<TUnversionedOwningRow>{
                 MakeRow(nameTable, {{"uuid", stringUuidValue}}),
             },
-            TString(2, '\0') + "\1" + uint128UuidValue);
+            std::string(2, '\0').append("\1").append(uint128UuidValue));
 
         result.emplace_back(
             nameTable,
@@ -1194,9 +1196,9 @@ public:
             std::vector<TUnversionedOwningRow>{
                 MakeRow(nameTable, {{"uuid", stringUuidValue}}),
             },
-            TString(2, '\0') + "\1" + uint128UuidValue);
+            std::string(2, '\0').append("\1").append(uint128UuidValue));
 
-        const TString uuidLen = TString(TStringBuf("\x10\x00\x00\x00"sv));
+        const std::string uuidLen = std::string(TStringBuf("\x10\x00\x00\x00"sv));
 
         result.emplace_back(
             nameTable,
@@ -1205,7 +1207,7 @@ public:
             std::vector<TUnversionedOwningRow>{
                 MakeRow(nameTable, {{"uuid", stringUuidValue}}),
             },
-            TString(2, '\0') + uuidLen + stringUuidValue);
+            std::string(2, '\0').append(uuidLen).append(stringUuidValue));
 
         result.emplace_back(
             nameTable,
@@ -1214,7 +1216,7 @@ public:
             std::vector<TUnversionedOwningRow>{
                 MakeRow(nameTable, {{"uuid", stringUuidValue}}),
             },
-            TString(2, '\0') + uuidLen + stringUuidValue);
+            std::string(2, '\0').append(uuidLen).append(stringUuidValue));
 
         result.emplace_back(
             nameTable,
@@ -1223,7 +1225,7 @@ public:
             std::vector<TUnversionedOwningRow>{
                 MakeRow(nameTable, {{"uuid", stringUuidValue}}),
             },
-            TString(2, '\0') + "\1" + uuidLen + stringUuidValue);
+            std::string(2, '\0').append("\1").append(uuidLen).append(stringUuidValue));
 
         result.emplace_back(
             nameTable,
@@ -1232,7 +1234,7 @@ public:
             std::vector<TUnversionedOwningRow>{
                 MakeRow(nameTable, {{"uuid", stringUuidValue}}),
             },
-            TString(2, '\0') + "\1" + uuidLen + stringUuidValue);
+            std::string(2, '\0').append("\1").append(uuidLen).append(stringUuidValue));
 
         return result;
     }
@@ -1324,7 +1326,7 @@ TEST_P(TSkiffWriterSingular, TestOptionalSingular)
         // Row 0
         auto isReady = writer->Write({
             MakeRow(nameTable, {
-                {TString(TableIndexColumnName), 0},
+                {TableIndexColumnName, 0},
                 {"opt_null", nullptr},
             }).Get(),
         });
@@ -1334,7 +1336,7 @@ TEST_P(TSkiffWriterSingular, TestOptionalSingular)
         // Row 1
         Y_UNUSED(writer->Write({
             MakeRow(nameTable, {
-                {TString(TableIndexColumnName), 0},
+                {TableIndexColumnName, 0},
                 {"opt_null", EValueType::Composite, "[#]"},
             }).Get(),
         }));
@@ -1382,21 +1384,21 @@ TEST(TSkiffWriterTest, TestRearrange)
         };
 
         write(MakeRow(nameTable, {
-            {TString(TableIndexColumnName), 0},
+            {TableIndexColumnName, 0},
             {"number", 1},
             {"eng", "one"},
             {"rus", nullptr},
         }).Get());
 
         write(MakeRow(nameTable, {
-            {TString(TableIndexColumnName), 0},
+            {TableIndexColumnName, 0},
             {"eng", nullptr},
             {"number", 2},
             {"rus", "dva"},
         }).Get());
 
         write(MakeRow(nameTable, {
-            {TString(TableIndexColumnName), 0},
+            {TableIndexColumnName, 0},
             {"rus", "tri"},
             {"eng", "three"},
             {"number", 3},
@@ -1451,7 +1453,7 @@ TEST(TSkiffWriterTest, TestMissingRequiredField)
 
         Y_UNUSED(writer->Write({
             MakeRow(nameTable, {
-                {TString(TableIndexColumnName), 0},
+                {TableIndexColumnName, 0},
                 {"number", 1},
             }).Get()
         }));
@@ -1486,31 +1488,31 @@ TEST(TSkiffWriterTest, TestSparse)
     };
 
     write(MakeRow(nameTable, {
-        {TString(TableIndexColumnName), 0},
+        {TableIndexColumnName, 0},
         {"int64", -1},
         {"string32", "minus one"},
     }).Get());
 
     write(MakeRow(nameTable, {
-        {TString(TableIndexColumnName), 0},
+        {TableIndexColumnName, 0},
         {"string32", "minus five"},
         {"int64", -5},
     }).Get());
 
     write(MakeRow(nameTable, {
-        {TString(TableIndexColumnName), 0},
+        {TableIndexColumnName, 0},
         {"uint64", 42u},
     }).Get());
 
     write(MakeRow(nameTable, {
-        {TString(TableIndexColumnName), 0},
+        {TableIndexColumnName, 0},
         {"int64", -8},
         {"uint64", nullptr},
         {"string32", nullptr},
     }).Get());
 
     write(MakeRow(nameTable, {
-        {TString(TableIndexColumnName), 0},
+        {TableIndexColumnName, 0},
     }).Get());
 
     writer->Close()
@@ -1570,7 +1572,7 @@ TEST(TSkiffWriterTest, TestMissingFields)
 
         Y_UNUSED(writer->Write({
             MakeRow(nameTable, {
-                {TString(TableIndexColumnName), 0},
+                {TableIndexColumnName, 0},
                 {"unknown_column", "four"},
             }).Get(),
         }));
@@ -1592,7 +1594,7 @@ TEST(TSkiffWriterTest, TestMissingFields)
 
         Y_UNUSED(writer->Write({
             MakeRow(nameTable, {
-                {TString(TableIndexColumnName), 0},
+                {TableIndexColumnName, 0},
                 {"unknown_column", "four"},
             }).Get(),
         }));
@@ -1628,19 +1630,19 @@ TEST(TSkiffWriterTest, TestOtherColumns)
 
     // Row 0.
     write(MakeRow(nameTable, {
-        {TString(TableIndexColumnName), 0},
+        {TableIndexColumnName, 0},
         {"string_column", "foo"},
     }).Get());
 
     // Row 1.
     write(MakeRow(nameTable, {
-        {TString(TableIndexColumnName), 0},
+        {TableIndexColumnName, 0},
         {"int64_column", 42},
     }).Get());
 
     // Row 2.
     write(MakeRow(nameTable, {
-        {TString(TableIndexColumnName), 0},
+        {TableIndexColumnName, 0},
         {"other_string_column", "bar"},
     }).Get());
     writer->Close()
@@ -1651,7 +1653,7 @@ TEST(TSkiffWriterTest, TestOtherColumns)
     TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
 
     auto parseYson = [] (TCheckedSkiffParser* parser) {
-        auto yson = TString{parser->ParseYson32()};
+        auto yson = parser->ParseYson32();
         return ConvertToYsonTextStringStable(ConvertToNode(TYsonString(yson)));
     };
 
@@ -1696,17 +1698,17 @@ TEST(TSkiffWriterTest, TestKeySwitch)
     // Row 0.
     write(MakeRow(nameTable, {
         {"value", "one"},
-        {TString(TableIndexColumnName), 0},
+        {TableIndexColumnName, 0},
     }).Get());
     // Row 1.
     write(MakeRow(nameTable, {
         {"value", "one"},
-        {TString(TableIndexColumnName), 0},
+        {TableIndexColumnName, 0},
     }).Get());
     // Row 2.
     write(MakeRow(nameTable, {
         {"value", "two"},
-        {TString(TableIndexColumnName), 0},
+        {TableIndexColumnName, 0},
     }).Get());
     writer->Close()
         .Get()
@@ -1715,7 +1717,7 @@ TEST(TSkiffWriterTest, TestKeySwitch)
     TStringInput resultInput(resultStream.Str());
     TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
 
-    TString buf;
+    std::string buf;
 
     // Row 0.
     ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
@@ -1756,12 +1758,12 @@ TEST(TSkiffWriterTest, TestEndOfStream)
     // Row 0.
     write(MakeRow(nameTable, {
         {"value", "zero"},
-        {TString(TableIndexColumnName), 0},
+        {TableIndexColumnName, 0},
     }).Get());
     // Row 1.
     write(MakeRow(nameTable, {
         {"value", "one"},
-        {TString(TableIndexColumnName), 0},
+        {TableIndexColumnName, 0},
     }).Get());
     writer->Close()
         .Get()
@@ -1770,7 +1772,7 @@ TEST(TSkiffWriterTest, TestEndOfStream)
     TStringInput resultInput(resultStream.Str());
     TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
 
-    TString buf;
+    std::string buf;
 
     // Row 0.
     ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
@@ -1808,13 +1810,13 @@ TEST(TSkiffWriterTest, TestRowRangeIndex)
     };
     auto generateUnversionedRow = [] (const TRow& row, const TNameTablePtr& nameTable) {
         std::vector<TNamedValue> values = {
-            {TString(TableIndexColumnName), row.TableIndex},
+            {TableIndexColumnName, row.TableIndex},
         };
         if (row.RangeIndex) {
-            values.emplace_back(TString(RangeIndexColumnName), *row.RangeIndex);
+            values.emplace_back(RangeIndexColumnName, *row.RangeIndex);
         }
         if (row.RowIndex) {
-            values.emplace_back(TString(RowIndexColumnName), *row.RowIndex);
+            values.emplace_back(RowIndexColumnName, *row.RowIndex);
         }
         return MakeRow(nameTable, values);
     };
@@ -1988,7 +1990,7 @@ TEST(TSkiffWriterTest, TestRowIndexOnlyOrRangeIndexOnly)
             CreateVariant8Schema({
                 CreateSimpleTypeSchema(EWireType::Nothing),
                 CreateSimpleTypeSchema(EWireType::Int64),
-            })->SetName(TString(columnName)),
+            })->SetName(std::string(columnName)),
         });
 
         TStringStream resultStream;
@@ -1998,7 +2000,7 @@ TEST(TSkiffWriterTest, TestRowIndexOnlyOrRangeIndexOnly)
         // Row 0.
         Y_UNUSED(writer->Write({
             MakeRow(nameTable, {
-                {TString(columnName), 0},
+                {std::string(columnName), 0},
             }).Get(),
         }));
         writer->Close()
@@ -2037,16 +2039,17 @@ TEST(TSkiffWriterTest, TestComplexType)
         auto nameTable = New<TNameTable>();
         auto tableSchema = New<TTableSchema>(std::vector{
             TColumnSchema("value", StructLogicalType({
-                {"name",   SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"name", "name", SimpleLogicalType(ESimpleLogicalValueType::String)},
                 {
+                    "points",
                     "points",
                     ListLogicalType(
                         StructLogicalType({
-                            {"x", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-                            {"y", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-                        }))
+                            {"x", "x", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+                            {"y", "y", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+                        }, /*removedFieldStableNames*/ {}))
                 }
-            })),
+            }, /*removedFieldStableNames*/ {})),
         });
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, std::vector{tableSchema});
 
@@ -2054,7 +2057,7 @@ TEST(TSkiffWriterTest, TestComplexType)
         Y_UNUSED(writer->Write({
             MakeRow(nameTable, {
                 {"value", EValueType::Composite, "[foo;[[0; 1];[2;3]]]"},
-                {TString(TableIndexColumnName), 0},
+                {TableIndexColumnName, 0},
             }).Get(),
         }));
         writer->Close()
@@ -2237,11 +2240,11 @@ TEST(TSkiffWriterTest, TestRemainingRowBytes)
     auto dataValue2 = "xyz";
     Y_UNUSED(writer->Write({
         MakeRow(nameTable, {
-            {TString(RowIndexColumnName), 0},
+            {RowIndexColumnName, 0},
             {"data", dataValue1},
         }).Get(),
         MakeRow(nameTable, {
-            {TString(RowIndexColumnName), 2},
+            {RowIndexColumnName, 2},
             {"data", dataValue2},
         }).Get(),
     }));
@@ -2311,9 +2314,9 @@ TEST(TSkiffWriterTest, TestEmptyComplexType)
         auto tableSchema = New<TTableSchema>(std::vector{
             TColumnSchema("value", OptionalLogicalType(
                 StructLogicalType({
-                    {"name",   SimpleLogicalType(ESimpleLogicalValueType::String)},
-                    {"value",   SimpleLogicalType(ESimpleLogicalValueType::String)},
-                }))),
+                    {"name", "name", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                    {"value", "value", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                }, /*removedFieldStableNames*/ {}))),
         });
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, std::vector{tableSchema});
 
@@ -2321,7 +2324,7 @@ TEST(TSkiffWriterTest, TestEmptyComplexType)
         Y_UNUSED(writer->Write({
             MakeRow(nameTable, {
                 {"value", nullptr},
-                {TString(TableIndexColumnName), 0},
+                {TableIndexColumnName, 0},
             }).Get(),
         }));
         writer->Close()
@@ -2357,9 +2360,9 @@ TEST(TSkiffWriterTest, TestSparseComplexType)
         auto tableSchema = New<TTableSchema>(std::vector{
             TColumnSchema("value", OptionalLogicalType(
                 StructLogicalType({
-                    {"name",   SimpleLogicalType(ESimpleLogicalValueType::String)},
-                    {"value",   SimpleLogicalType(ESimpleLogicalValueType::String)},
-                }))),
+                    {"name", "name", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                    {"value", "value", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                }, /*removedFieldStableNames*/ {}))),
         });
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, std::vector{tableSchema});
 
@@ -2367,7 +2370,7 @@ TEST(TSkiffWriterTest, TestSparseComplexType)
         Y_UNUSED(writer->Write({
             MakeRow(nameTable, {
                 {"value", EValueType::Composite, "[foo;bar;]"},
-                {TString(TableIndexColumnName), 0},
+                {TableIndexColumnName, 0},
             }).Get(),
         }));
         writer->Close()
@@ -2408,9 +2411,9 @@ TEST(TSkiffWriterTest, TestSparseComplexTypeWithExtraOptional)
     auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("value", OptionalLogicalType(
             StructLogicalType({
-                {"name", SimpleLogicalType(ESimpleLogicalValueType::String)},
-                {"value", SimpleLogicalType(ESimpleLogicalValueType::String)},
-            }))),
+                {"name", "name", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"value", "value", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            }, /*removedFieldStableNames*/ {}))),
     });
 
     auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, std::vector{tableSchema});
@@ -2419,7 +2422,7 @@ TEST(TSkiffWriterTest, TestSparseComplexTypeWithExtraOptional)
     Y_UNUSED(writer->Write({
         MakeRow(nameTable, {
             {"value", EValueType::Composite, "[foo;bar;]"},
-            {TString(TableIndexColumnName), 0},
+            {TableIndexColumnName, 0},
         }).Get(),
     }));
     writer->Close()
@@ -2527,8 +2530,8 @@ TEST(TSkiffWriterTest, TestSkippedFields)
                 MakeRow(nameTable, {
                     {"number", 1},
                     {"string", "hello"},
-                    {TString(RangeIndexColumnName), 0},
-                    {TString(RowIndexColumnName), 0},
+                    {RangeIndexColumnName, 0},
+                    {RowIndexColumnName, 0},
                     {"double", 1.5},
                 }).Get()
             }))
@@ -2538,8 +2541,8 @@ TEST(TSkiffWriterTest, TestSkippedFields)
         Y_UNUSED(writer->Write({
             MakeRow(nameTable, {
                 {"number", 1},
-                {TString(RangeIndexColumnName), 5},
-                {TString(RowIndexColumnName), 1},
+                {RangeIndexColumnName, 5},
+                {RowIndexColumnName, 1},
                 {"double", 2.5},
             }).Get()
         }));
@@ -2593,7 +2596,7 @@ TEST(TSkiffWriterTest, TestSkippedFieldsOutOfRange)
         if (!writer->Write({
                 MakeRow(nameTable, {
                     {"string", "hello"},
-                    {TString(RangeIndexColumnName), 0},
+                    {RangeIndexColumnName, 0},
                 }).Get()
             }))
         {
@@ -2601,7 +2604,7 @@ TEST(TSkiffWriterTest, TestSkippedFieldsOutOfRange)
         }
         Y_UNUSED(writer->Write({
             MakeRow(nameTable, {
-                {TString(RangeIndexColumnName), 5},
+                {RangeIndexColumnName, 5},
             }).Get()
         }));
         writer->Close()
@@ -2647,19 +2650,19 @@ TEST(TSkiffWriterTest, TestSkippedFieldsAndKeySwitch)
     write(MakeRow(nameTable, {
         {"value", "one"},
         {"value1", 0},
-        {TString(TableIndexColumnName), 0},
+        {TableIndexColumnName, 0},
     }).Get());
     // Row 1.
     write(MakeRow(nameTable, {
         {"value", "one"},
         {"value1", 1},
-        {TString(TableIndexColumnName), 0},
+        {TableIndexColumnName, 0},
     }).Get());
     // Row 2.
     write(MakeRow(nameTable, {
         {"value", "two"},
         {"value1", 2},
-        {TString(TableIndexColumnName), 0},
+        {TableIndexColumnName, 0},
     }).Get());
     writer->Close()
         .Get()
@@ -2668,7 +2671,7 @@ TEST(TSkiffWriterTest, TestSkippedFieldsAndKeySwitch)
     TStringInput resultInput(resultStream.Str());
     TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
 
-    TString buf;
+    std::string buf;
 
     // Row 0.
     ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
@@ -3021,9 +3024,9 @@ TEST(TSkiffParserTest, TestComplexColumn)
     TCollectingValueConsumer rowCollector(
         New<TTableSchema>(std::vector{
             TColumnSchema("column", NTableClient::StructLogicalType({
-                {"key", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::String)},
-                {"value", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::Int64)}
-            }))
+                {"key", "key", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"value", "value", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::Int64)}
+            }, /*removedFieldStableNames*/ {}))
         }));
     auto parser = CreateParserForSkiff(skiffSchema, &rowCollector);
 
@@ -3277,9 +3280,9 @@ TEST(TSkiffParserTest, TestSparseComplexType)
         New<TTableSchema>(std::vector{
             TColumnSchema("value", OptionalLogicalType(
                 StructLogicalType({
-                    {"name", SimpleLogicalType(ESimpleLogicalValueType::String)},
-                    {"value", SimpleLogicalType(ESimpleLogicalValueType::Int64)}
-                })))
+                    {"name", "name", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                    {"value", "value", SimpleLogicalType(ESimpleLogicalValueType::Int64)}
+                }, /*removedFieldStableNames*/ {})))
         }));
     auto parser = CreateParserForSkiff(skiffSchema, &rowCollector);
 
@@ -3325,9 +3328,9 @@ TEST(TSkiffParserTest, TestSparseComplexTypeWithExtraOptional)
         New<TTableSchema>(std::vector{
             TColumnSchema("column", OptionalLogicalType(
                 StructLogicalType({
-                    {"key", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::String)},
-                    {"value", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::Int64)}
-                })))
+                    {"key", "key", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::String)},
+                    {"value", "value", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::Int64)}
+                }, /*removedFieldStableNames*/ {})))
         }));
     auto parser = CreateParserForSkiff(skiffSchema, &rowCollector);
 
@@ -3407,9 +3410,9 @@ TEST(TSkiffFormatTest, ComplexTzType)
 
     auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("column", NTableClient::StructLogicalType({
-            {"key", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::String)},
-            {"value", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::TzTimestamp64)}
-        }))
+            {"key", "key", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"value", "value", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::TzTimestamp64)}
+        }, /*removedFieldStableNames*/ {}))
     });
 
     TCollectingValueConsumer rowCollector(tableSchema);

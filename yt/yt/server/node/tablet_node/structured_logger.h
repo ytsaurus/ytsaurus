@@ -34,7 +34,6 @@ DEFINE_ENUM(ELogEntryType,
 struct IStructuredLogger
     : public TRefCounted
 {
-public:
     //! Log arbitrary event fluently.
     //! Thread affinity: any.
     virtual NLogging::TOneShotFluentLogEvent LogEvent(TStringBuf eventType) = 0;

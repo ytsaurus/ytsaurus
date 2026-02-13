@@ -85,6 +85,7 @@ DatNodeInternal =  ProjectSensor("dat_node_internal",   "yt-data-node.*")  # noq
 DatNodePorto =     ProjectSensor("dat_node_porto",      "yt-data-node.*")  # noqa: E222
 DatNodeRpc =       ProjectSensor("dat_node_rpc",        "yt-data-node.*", base=RpcBase)  # noqa: E222
 DatNodeRpcClient = ProjectSensor("dat_node_rpc_client", "yt-data-node.*", base=RpcBase)  # noqa: E222
+DatNodeAll =       ProjectSensor("dat_node*",           "yt-data-node.*")  # noqa: E222
 
 # Exec nodes.
 ExeNode =          ProjectSensor("exe_node",            "yt-exec-node.*")  # noqa: E222
@@ -120,6 +121,13 @@ MasterMemory =     ProjectSensor("master_memory",     "yt-master")  # noqa: E222
 MasterInternal =   ProjectSensor("master_internal",   "yt-master")  # noqa: E222
 MasterRpc =        ProjectSensor("master_rpc",        "yt-master")  # noqa: E222
 MasterRpcClient =  ProjectSensor("master_rpc_client", "yt-master", base=RpcBase)  # noqa: E222
+
+# Cypress Proxy.
+CypressProxy =           ProjectSensor("cypress_proxy",            "yt-cypress_proxy.*")  # noqa: E222
+CypressProxyCpu =        ProjectSensor("cypress_proxy_cpu",        "yt-cypress_proxy.*")  # noqa: E222
+CypressProxyMemory =     ProjectSensor("cypress_proxy_memory",     "yt-cypress_proxy.*")  # noqa: E222
+CypressProxyRpc =        ProjectSensor("cypress_proxy_rpc",        "yt-cypress_proxy.*")  # noqa: E222
+CypressProxyRpcClient =  ProjectSensor("cypress_proxy_rpc_client", "yt-cypress_proxy.*", base=RpcBase)  # noqa: E222
 
 # Misc.
 HttpProxy =           ProjectSensor("http_proxy",             "yt-http-proxy.*")  # noqa: E222

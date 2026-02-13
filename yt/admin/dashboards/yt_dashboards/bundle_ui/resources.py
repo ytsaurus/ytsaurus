@@ -1,6 +1,6 @@
 # flake8: noqa
 from yt_dashboard_generator.dashboard import Rowset
-from yt_dashboard_generator.sensor import MultiSensor, Text, EmptyCell
+from yt_dashboard_generator.sensor import MultiSensor, Text, Title, EmptyCell
 from yt_dashboard_generator.backends.monitoring import MonitoringTag
 from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
 
@@ -34,6 +34,108 @@ anon_memory_usage = MonitoringExpr(TabNodePorto("yt.porto.memory.anon_usage")
 oom_tracker_threshold = MonitoringExpr(TabNodeMemory("yt.memory.tcmalloc.desired_usage_limit_bytes"))
 
 
+def disk_statistics(row, medium_name=None):
+    Medium = "Medium" if medium_name else "Disk"
+
+    def _throttler_statistics(type):
+        if not medium_name:
+            return []
+
+        def _medium_throttler(type, metric):
+            return MonitoringExpr(NodeTablet(f"yt.tablet_node.distributed_throttlers.{metric}")
+                .value("throttler_id", f"{medium_name}_medium_{type}"))
+
+        return [
+            _medium_throttler(type, "configured_limit")
+                .all(MonitoringTag("host"))
+                .series_min()
+                .alias(f"{Medium} {type} limit"),
+            _medium_throttler(type, "usage")
+                .aggr(MonitoringTag("host"))
+                .alias(f"{Medium} {type} usage")
+        ]
+
+    def _with_medium_selector(expr):
+        return expr.value("medium", medium_name) if medium_name else expr.aggr("medium")
+
+    def _changelog_written_bytes():
+        return _with_medium_selector(
+            MonitoringExpr(NodeTablet("yt.tablet_node.remote_changelog.medium_written_bytes.rate")))
+
+    def _chunk_writer_disk_space(writer_type):
+        if writer_type and writer_type != '*':
+            writer_type += "."
+
+        return _with_medium_selector(
+            MonitoringExpr(NodeTablet(f"yt.tablet_node.chunk_writer.{writer_type}disk_space.rate")))
+
+    def _chunk_bytes_read(reader_type):
+        if reader_type and reader_type != '*':
+            reader_type += "."
+
+        return _with_medium_selector(
+            MonitoringExpr(NodeTablet(f"yt.tablet_node.{reader_type}chunk_reader_statistics.*_bytes_read_from_disk.rate")))
+
+    return (row
+        .row()
+            .cell(f"{Medium} write total", MultiSensor(
+                *_throttler_statistics("write"),
+                MonitoringExpr
+                    .flatten_sensors(
+                        _changelog_written_bytes().alias("journal_writes")
+                            .aggr(MonitoringTag("host"), "cell_id"),
+                        _chunk_writer_disk_space("").all("method").alias("{{method}}")
+                            .aggr(MonitoringTag("host"), "table_path", "table_tag", "account"),
+                        _chunk_writer_disk_space("hunks").all("method").alias("hunks_{{method}}")
+                            .aggr(MonitoringTag("host"), "table_path", "table_tag", "account"))
+                    .sensor_stack())
+                    .stack(False))
+            .cell(f"{Medium} write per container",
+                MonitoringExpr
+                    .flatten_sensors(
+                        _changelog_written_bytes()
+                            .aggr("cell_id"),
+                        _chunk_writer_disk_space("*")
+                            .aggr("method", "table_path", "table_tag", "account"))
+                    .series_sum("container")
+                    .alias("{{container}}")
+                    .all(MonitoringTag("host"))
+                    .top_avg(10)
+                    .stack(False))
+        .row()
+            .cell(f"{Medium} read total", MultiSensor(
+                *_throttler_statistics("read"),
+                MonitoringExpr
+                    .flatten_sensors(
+                        _chunk_bytes_read("").all("method").series_sum("method").alias("{{method}}"),
+                        _chunk_bytes_read("chunk_reader.hunks").all("method").series_sum("method").alias("hunks_{{method}}"),
+                        _chunk_bytes_read("lookup").series_sum().alias("lookup"),
+                        _chunk_bytes_read("lookup.hunks").series_sum().alias("hunks_lookup"),
+                        _chunk_bytes_read("select").series_sum().alias("select"),
+                        _chunk_bytes_read("select.hunks").series_sum().alias("hunks_select"))
+                    .aggr(MonitoringTag("host"), "table_path", "table_tag", "account", "user")
+                    .sensor_stack())
+                    .stack(False))
+            .cell(f"{Medium} read per container",
+                _chunk_bytes_read("*")
+                    .aggr("method", "table_path", "table_tag", "account", "user")
+                    .series_sum("container")
+                    .alias("{{container}}")
+                    .all(MonitoringTag("host"))
+                    .top_avg(10)
+                    .stack(False)))
+
+
+def build_disk_statistics_rowsets(medium_names=["default", "ssd_blobs", "ssd_journals", "nvme_blobs"]):
+        rowsets = [Rowset().row(height=2).cell("", Title("Disk statistics per medium", size="TITLE_SIZE_M")).owner]
+
+        for medium_name in medium_names:
+            rowsets.append(Rowset().row(height=2).cell("", Title(f"Medium: {medium_name}", size="TITLE_SIZE_S")).owner)
+            rowsets.append(Rowset().apply_func(lambda r: disk_statistics(r, medium_name)).owner)
+
+        return rowsets
+
+
 def build_user_resource_overview_rowset(has_porto):
     net_guarantee = lambda direction: MonitoringExpr(TabNodePorto(f"yt.porto.network.{direction}_limit")
         .value("container_category", "pod"))
@@ -58,11 +160,6 @@ def build_user_resource_overview_rowset(has_porto):
                 *top_max_bottom_min(f"yt.porto.network.{direction}_bytes")),
                 skip_cell=not has_porto))
 
-    def chunk_reader_statistics(reader_type):
-        if reader_type:
-            reader_type += "."
-        return MonitoringExpr(NodeTablet(
-            f"yt.tablet_node.{reader_type}chunk_reader_statistics.data_bytes_read_from_disk.rate"))
 
     cpu_vs_vcpu_hint = """\
 About the difference between CPU and vCPU:
@@ -122,33 +219,7 @@ About the difference between CPU and vCPU:
                 skip_cell=not has_porto)
         .apply_func(lambda row: net(row, "tx"))
         .apply_func(lambda row: net(row, "rx"))
-        .row()
-            .stack(True)
-            .cell("Disk Write Total", MonitoringExpr(NodeTablet("yt.tablet_node.chunk_writer.disk_space.rate")
-                .aggr(MonitoringTag("host"), "table_path", "table_tag", "account", "medium")
-                .all("method")).alias("{{method}}"))
-            .cell("Disk Write per container" if has_porto else "Disk Write per pod", MonitoringExpr(NodeTablet("yt.tablet_node.chunk_writer.disk_space.rate")
-                .aggr("method", "table_path", "table_tag", "account", "medium"))
-                .alias("{{container}}")
-                .all(MonitoringTag("host"))
-                .top()
-                .stack(False))
-        .row()
-            .cell("Disk Read Total", MultiSensor(
-                    chunk_reader_statistics("").all("method").alias("{{method}}"),
-                    chunk_reader_statistics("lookup").alias("lookup"),
-                    chunk_reader_statistics("select").alias("select"))
-                .aggr("table_path", "table_tag", "account", "medium", "user")
-                .aggr(MonitoringTag("host"))
-                .stack())
-            .cell(
-                "Disk Read per container" if has_porto else "Disk Read per pod",
-                (chunk_reader_statistics("") + chunk_reader_statistics("lookup") + chunk_reader_statistics("select"))
-                    .aggr("method", "table_path", "table_tag", "account", "medium", "user")
-                    .alias("{{container}}")
-                    .all(MonitoringTag("host"))
-                    .top_avg(10)
-                    .stack(False))
+        .apply_func(disk_statistics)
         # Not really useful signal at the moment, removed it from the dashboard to avoid confusion.
         #  .row()
         #      .stack(True)

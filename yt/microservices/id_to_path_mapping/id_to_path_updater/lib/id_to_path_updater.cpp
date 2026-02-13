@@ -90,11 +90,20 @@ NRoren::TParDoApplicator<NJson::TJsonValue, TIdToPathRow> MakeUpdateItem(TString
     }, std::move(forceCluster));
 }
 
-NRoren::TParDoApplicator<TIdToPathRow, TIdToPathRow> FilterClusters(THashSet<TString> clusterFilter)
+NRoren::TParDoApplicator<TIdToPathRow, TIdToPathRow> AllowClusters(THashSet<std::string> clusters)
 {
-    return NRoren::ParDo([](TIdToPathRow&& input, NRoren::TOutput<TIdToPathRow>& output, const THashSet<TString>& clusterFilter) {
-        if (clusterFilter.contains(input.GetCluster())) {
+    return NRoren::ParDo([](TIdToPathRow&& input, NRoren::TOutput<TIdToPathRow>& output, const THashSet<std::string>& clusters) {
+        if (clusters.contains(input.GetCluster())) {
             output.Add(std::move(input));
         }
-    }, std::move(clusterFilter));
+    }, std::move(clusters));
+}
+
+NRoren::TParDoApplicator<TIdToPathRow, TIdToPathRow> DenyClusters(THashSet<std::string> clusters)
+{
+    return NRoren::ParDo([](TIdToPathRow&& input, NRoren::TOutput<TIdToPathRow>& output, const THashSet<std::string>& clusters) {
+        if (!clusters.contains(input.GetCluster())) {
+            output.Add(std::move(input));
+        }
+    }, std::move(clusters));
 }

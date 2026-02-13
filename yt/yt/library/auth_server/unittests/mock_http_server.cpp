@@ -8,7 +8,7 @@ namespace NYT::NTests {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString HttpResponse(int code, TString body)
+TString HttpResponse(int code, TStringBuf body)
 {
     TString result;
     result += "HTTP/1.1 " + ToString(code) + " ";

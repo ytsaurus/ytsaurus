@@ -5,6 +5,7 @@ import subprocess
 
 from native_snapshot_exporter import SnapshotBuilderBase
 from yt_commands import get, wait
+from yt_env_setup import search_binary_path
 from yt_sequoia_helpers import get_ground_driver, select_rows_from_ground
 from yt_helpers import master_exit_read_only_sync
 
@@ -60,7 +61,7 @@ class SequoiaReconstructor(SnapshotBuilderBase):
             shutil.rmtree(self.output_dir)
         os.mkdir(self.output_dir)
 
-        config = {"single_cell": True}
+        config = {"single_cell_single_run": True}
         for table_name in table_names:
             config[f"{table_name}_output"] = {"file_name": self.reconstructed_table_path(table_name)}
 
@@ -74,7 +75,6 @@ class SequoiaReconstructor(SnapshotBuilderBase):
         reconstructor_config = self.create_reconstructor_config(table_names)
 
         return self._reconstruct_sequoia(
-            self.binary,
             self.snapshot_path,
             self.config_path,
             reconstructor_config,
@@ -82,16 +82,18 @@ class SequoiaReconstructor(SnapshotBuilderBase):
 
     def _reconstruct_sequoia(
             self,
-            binary,
             snapshot_path,
             config_path,
             reconstructor_config,
             table_names):
+        ytserver_binary = search_binary_path("ytserver-all")
+
         command = [
-            binary,
-            "--reconstruct-sequoia", snapshot_path,
-            "--config", config_path,
-            "--sequoia-reconstructor-config", reconstructor_config,
+            ytserver_binary,
+            "ytserver-sequoia-reconstructor",
+            "--master-config", config_path,
+            "--snapshot-path", snapshot_path,
+            "--reconstructor-config", reconstructor_config,
         ]
 
         command = shlex.join(command)

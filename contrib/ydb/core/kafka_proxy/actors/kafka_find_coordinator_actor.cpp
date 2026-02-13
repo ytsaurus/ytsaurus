@@ -1,0 +1,79 @@
+#include "kafka_find_coordinator_actor.h"
+
+#include <contrib/ydb/core/kafka_proxy/kafka_events.h>
+
+
+namespace NKafka {
+
+NActors::IActor* CreateKafkaFindCoordinatorActor(const TContext::TPtr context, const ui64 correlationId, const TMessagePtr<TFindCoordinatorRequestData>& message) {
+    return new TKafkaFindCoordinatorActor(context, correlationId, message);
+}
+
+TString TKafkaFindCoordinatorActor::LogPrefix() {
+    TStringBuilder sb;
+    sb << "TKafkaFindCoordinatorActor " << SelfId().ToString() << ": ";
+    return sb;
+}
+
+void TKafkaFindCoordinatorActor::Bootstrap(const NActors::TActorContext& ctx) {
+    if (!SUPPORTED_KEY_TYPES.contains(Message->KeyType)) {
+        SendResponseFailAndDie(EKafkaErrors::INVALID_REQUEST, TStringBuilder() << "Unsupported coordinator KeyType: " << Message->KeyType, ctx);
+        return;
+    }
+
+    bool withProxy = Context->Config.HasProxy() && !Context->Config.GetProxy().GetHostname().empty();
+    if (withProxy) {
+        SendResponseOkAndDie(Context->Config.GetProxy().GetHostname(), Context->Config.GetProxy().GetPort(), NKafka::ProxyNodeId, ctx);
+        return;
+    }
+
+    SendResponseOkAndDie(Context->Config.GetPublicHost(), Context->Config.GetListeningPort(), ctx.SelfID.NodeId(), ctx);
+}
+
+void TKafkaFindCoordinatorActor::SendResponseOkAndDie(const TString& host, i32 port, ui64 nodeId, const NActors::TActorContext& ctx) {
+    TFindCoordinatorResponseData::TPtr response = std::make_shared<TFindCoordinatorResponseData>();
+
+    for (auto coordinatorKey: Message->CoordinatorKeys) {
+        KAFKA_LOG_I("FIND_COORDINATOR incoming request for group# " << coordinatorKey);
+
+        TFindCoordinatorResponseData::TCoordinator coordinator;
+        coordinator.ErrorCode = NONE_ERROR;
+        coordinator.Host = host;
+        coordinator.Port = port;
+        coordinator.NodeId = nodeId;
+        coordinator.Key = coordinatorKey;
+
+        response->Coordinators.push_back(coordinator);
+    }
+
+    response->ErrorCode = NONE_ERROR;
+    response->Host = host;
+    response->Port = port;
+    response->NodeId = nodeId;
+
+    KAFKA_LOG_D("FIND_COORDINATOR response. Host#: " << host << ", Port#: " << port << ", NodeId# " << nodeId);
+
+    Send(Context->ConnectionId, new TEvKafka::TEvResponse(CorrelationId, response, static_cast<EKafkaErrors>(response->ErrorCode)));
+    Die(ctx);
+}
+
+void TKafkaFindCoordinatorActor::SendResponseFailAndDie(EKafkaErrors error, const TString& message, const NActors::TActorContext& ctx) {
+    TFindCoordinatorResponseData::TPtr response = std::make_shared<TFindCoordinatorResponseData>();
+
+    for (auto coordinatorKey: Message->CoordinatorKeys) {
+        KAFKA_LOG_CRIT("FIND_COORDINATOR request failed. Reason# " << message);
+
+        TFindCoordinatorResponseData::TCoordinator coordinator;
+        coordinator.ErrorCode = error;
+        coordinator.Key = coordinatorKey;
+        coordinator.ErrorMessage = message;
+
+        response->Coordinators.push_back(coordinator);
+    }
+
+    response->ErrorCode = error;
+
+    Send(Context->ConnectionId, new TEvKafka::TEvResponse(CorrelationId, response, static_cast<EKafkaErrors>(response->ErrorCode)));
+    Die(ctx);
+}
+} // NKafka

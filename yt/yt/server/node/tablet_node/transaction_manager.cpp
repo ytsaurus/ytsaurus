@@ -190,7 +190,7 @@ public:
         TTransactionExternalizationToken token = {}) override
     {
         if (token) {
-            return ExternalizedTransactionMap_.Get({transactionId, token});
+            return PersistentExternalizedTransactionMap_.Get({transactionId, token});
         } else {
             return PersistentTransactionMap_.Get(transactionId);
         }
@@ -203,7 +203,8 @@ public:
         TTransaction* transaction = nullptr;
 
         if (externalizationToken) {
-            transaction = ExternalizedTransactionMap_.Find({transactionId, externalizationToken});
+            transaction = PersistentExternalizedTransactionMap_.Find(
+                {transactionId, externalizationToken});
         } else {
             transaction = PersistentTransactionMap_.Find(transactionId);
         }
@@ -224,7 +225,9 @@ public:
         TTransactionExternalizationToken externalizationToken = {}) override
     {
         if (externalizationToken) {
-            if (auto* transaction = ExternalizedTransactionMap_.Find({transactionId, externalizationToken})) {
+            if (auto* transaction = PersistentExternalizedTransactionMap_.Find(
+                {transactionId, externalizationToken}))
+            {
                 return transaction;
             }
             return nullptr;
@@ -271,7 +274,9 @@ public:
         YT_VERIFY(!externalizationToken || !transient);
 
         if (externalizationToken) {
-            if (auto* transaction = ExternalizedTransactionMap_.Find({transactionId, externalizationToken})) {
+            if (auto* transaction = PersistentExternalizedTransactionMap_.Find(
+                {transactionId, externalizationToken}))
+            {
                 return transaction;
             }
         } else {
@@ -310,7 +315,7 @@ public:
         ValidateNotDecommissioned(transaction);
 
         if (externalizationToken) {
-            ExternalizedTransactionMap_.Insert(
+            PersistentExternalizedTransactionMap_.Insert(
                 {transactionId, externalizationToken},
                 std::move(externalizedTransactionHolder));
             EmplaceOrCrash(
@@ -347,7 +352,7 @@ public:
             TokenToExternalizedTransactions_.erase(it);
         }
 
-        ExternalizedTransactionMap_.Remove({transaction->GetId(), token});
+        PersistentExternalizedTransactionMap_.Remove({transaction->GetId(), token});
     }
 
     TTransaction* MakeTransactionPersistentOrThrow(TTransactionId transactionId) override
@@ -383,7 +388,7 @@ public:
         for (auto [transactionId, transaction] : PersistentTransactionMap_) {
             transactions.push_back(transaction);
         }
-        for (auto [transactionId, transaction] : ExternalizedTransactionMap_) {
+        for (auto [transactionId, transaction] : PersistentExternalizedTransactionMap_) {
             transactions.push_back(transaction);
         }
         return transactions;
@@ -413,6 +418,42 @@ public:
 
             AbortTransaction(transaction->GetId(), token, options);
         }
+    }
+
+    bool RegisterExternalizerTablet(
+        TTransaction* transaction,
+        TTabletId tabletId,
+        TTransactionExternalizationToken externalizationToken) override
+    {
+        YT_VERIFY(HasHydraContext());
+        YT_VERIFY(!transaction->GetTransient());
+        YT_VERIFY(!transaction->IsExternalizedToThisCell());
+
+        auto it = transaction->ExternalizerTablets().find(tabletId);
+        if (it != transaction->ExternalizerTablets().end()) {
+            YT_VERIFY(it->second.ExternalizationToken == externalizationToken);
+            return false;
+        }
+
+        it = transaction->ExternalizerTablets().emplace(
+            tabletId,
+            TTransaction::TExternalizerTablet{
+                .ExternalizationToken = externalizationToken,
+            }).first;
+
+        for (const auto& action : transaction->Actions()) {
+            auto handler = GetOrDefault(
+                NeedActionExternalizationHandlers_,
+                action.Type,
+                {});
+
+            if (!handler || handler(transaction, action.Value, tabletId)) {
+                transaction->SetHasNonForwardedActions(true);
+                break;
+            }
+        }
+
+        return true;
     }
 
     TFuture<void> RegisterTransactionActions(
@@ -446,7 +487,7 @@ public:
         const std::vector<TTransactionId>& /*prerequisiteTransactionIds*/,
         const std::vector<TCellId>& /*cellIdsToSyncWith*/) override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     void PrepareTransactionCommit(
@@ -500,17 +541,29 @@ public:
                 prepareSignature);
         }
 
-        if (transaction->IsExternalizedFromThisCell() && transaction->GetHasUnforwardedActions()) {
-            THROW_ERROR_EXCEPTION(
-                "Transaction %v is externalized but has actions which were not forwarded",
-                transactionId);
+        if (transaction->GetHasNonForwardedActions()) {
+            // COMPAT(ifsmirnov): this condition is necessary only for old transactions.
+            // Non-externalized transactions created after ETabletReign::PerTabletTxActionForwarding
+            // should never have nonforwarded action flag set. Remove the condition when 25.4 is deployed.
+            if (transaction->IsExternalizedFromThisCell()) {
+                THROW_ERROR_EXCEPTION(
+                    "Transaction %v is externalized but has actions which were not forwarded",
+                    transactionId);
+            }
         }
 
         NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&transaction->AuthenticationIdentity());
 
         if (persistent) {
             const auto* context = GetCurrentMutationContext();
-            transaction->SetPrepareRevision(context->GetVersion().ToRevision());
+
+            TVersion version = context->GetVersion();
+            // COMPAT(h0pless): HydraLogicalRecordId.
+            auto mutationReign = static_cast<ETabletReign>(context->Request().Reign);
+            if (mutationReign < ETabletReign::HydraLogicalRecordId) {
+                version = context->GetPhysicalVersion();
+            }
+            transaction->SetPrepareRevision(version.ToRevision());
         }
 
         if (state == ETransactionState::Active) {
@@ -541,7 +594,14 @@ public:
                 YT_LOG_DEBUG("Forwarding externalized transaction prepare "
                     "(TransactionId: %v, ExternalizerTabletIds: %v, PrepareTimestamp: %v)",
                     transaction->GetId(),
-                    transaction->ExternalizerTablets(),
+                    MakeFormattableView(
+                        transaction->ExternalizerTablets(),
+                        [] (auto* builder, const auto& pair) {
+                            builder->AppendFormat(
+                                "%v:%v",
+                                pair.first,
+                                pair.second.ExternalizationToken);
+                        }),
                     options.PrepareTimestamp);
             }
 
@@ -881,6 +941,12 @@ public:
 
     void RegisterTransactionActionHandlers(TTypeErasedTransactionActionDescriptor descriptor) override
     {
+        if (descriptor.NeedsExternalization) {
+            NeedActionExternalizationHandlers_.emplace(
+                descriptor.Type(),
+                std::move(descriptor.NeedsExternalization));
+        }
+
         TTransactionManagerBase::RegisterTransactionActionHandlers(std::move(descriptor));
     }
 
@@ -908,8 +974,10 @@ private:
 
     TEntityMap<TTransaction> PersistentTransactionMap_;
     TEntityMap<TTransaction> TransientTransactionMap_;
-    TEntityMap<TExternalizedTransaction> ExternalizedTransactionMap_;
+    TEntityMap<TExternalizedTransaction> PersistentExternalizedTransactionMap_;
     THashMap<TTransactionExternalizationToken, THashSet<TTransaction*>> TokenToExternalizedTransactions_;
+    THashMap<TString, TCallback<bool(TTransaction*, TStringBuf, TTabletId)>>
+        NeedActionExternalizationHandlers_;
 
     NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
     NConcurrency::TPeriodicExecutorPtr BarrierCheckExecutor_;
@@ -955,7 +1023,8 @@ private:
                                     fluent
                                         .Item().BeginMap()
                                             .Item("tablet_id").Value(pair.first)
-                                            .Item("externalization_token").Value(pair.second)
+                                            .Item("externalization_token").Value(
+                                                pair.second.ExternalizationToken)
                                         .EndMap();
                                 });
                     })
@@ -967,19 +1036,8 @@ private:
             .BeginMap()
                 .DoFor(TransientTransactionMap_, dumpTransaction)
                 .DoFor(PersistentTransactionMap_, dumpTransaction)
-                .DoFor(ExternalizedTransactionMap_, dumpTransaction)
+                .DoFor(PersistentExternalizedTransactionMap_, dumpTransaction)
             .EndMap();
-    }
-
-    TString FormatTransactionId(
-        TTransactionId transactionId,
-        TTransactionExternalizationToken externalizationToken)
-    {
-        if (externalizationToken) {
-            return Format("%v@%v", transactionId, externalizationToken);
-        } else {
-            return ToString(transactionId);
-        }
     }
 
     void CreateLease(TTransaction* transaction)
@@ -1077,7 +1135,7 @@ private:
             UpdateMinCommitTimestamp(heap);
         }
 
-        for (auto [transactionId, transaction] : ExternalizedTransactionMap_) {
+        for (auto [transactionId, transaction] : PersistentExternalizedTransactionMap_) {
             EmplaceOrCrash(
                 TokenToExternalizedTransactions_[transaction->GetExternalizationToken()],
                 transaction);
@@ -1178,7 +1236,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         PersistentTransactionMap_.SaveKeys(context);
-        ExternalizedTransactionMap_.SaveKeys(context);
+        PersistentExternalizedTransactionMap_.SaveKeys(context);
     }
 
     void SaveValues(TSaveContext& context)
@@ -1187,7 +1245,7 @@ private:
 
         using NYT::Save;
         PersistentTransactionMap_.SaveValues(context);
-        ExternalizedTransactionMap_.SaveValues(context);
+        PersistentExternalizedTransactionMap_.SaveValues(context);
         Save(context, LastSerializedCommitTimestamps_);
         Save(context, Decommission_);
         Save(context, Removing_);
@@ -1200,7 +1258,7 @@ private:
         PersistentTransactionMap_.LoadKeys(context);
         // COMPAT(ifsmirnov)
         if (context.GetVersion() >= ETabletReign::SmoothMovementForwardWrites) {
-            ExternalizedTransactionMap_.LoadKeys(context);
+            PersistentExternalizedTransactionMap_.LoadKeys(context);
         }
     }
 
@@ -1212,7 +1270,7 @@ private:
         PersistentTransactionMap_.LoadValues(context);
         // COMPAT(ifsmirnov)
         if (context.GetVersion() >= ETabletReign::SmoothMovementForwardWrites) {
-            ExternalizedTransactionMap_.LoadValues(context);
+            PersistentExternalizedTransactionMap_.LoadValues(context);
         }
         Load(context, LastSerializedCommitTimestamps_);
         Load(context, Decommission_);
@@ -1227,7 +1285,7 @@ private:
 
         TransientTransactionMap_.Clear();
         PersistentTransactionMap_.Clear();
-        ExternalizedTransactionMap_.Clear();
+        PersistentExternalizedTransactionMap_.Clear();
         TokenToExternalizedTransactions_.clear();
         SerializingTransactionHeaps_.clear();
         PreparedTransactions_.clear();
@@ -1250,8 +1308,13 @@ private:
 
         YT_VERIFY(!transaction->IsExternalizedToThisCell());
 
-        for (auto [tabletId, token] : transaction->ExternalizerTablets()) {
-            ForwardTransactionIfExternalized(transaction, tabletId, token, request, options);
+        for (auto [tabletId, tabletInfo] : transaction->ExternalizerTablets()) {
+            ForwardTransactionIfExternalized(
+                transaction,
+                tabletId,
+                tabletInfo.ExternalizationToken,
+                request,
+                options);
         }
 
         return true;
@@ -1334,8 +1397,41 @@ private:
             transaction->ThrowInvalidState();
         }
 
-        for (const auto& protoData : request->actions()) {
-            auto data = FromProto<TTransactionActionData>(protoData);
+        std::vector<std::pair<TTabletId, int>> externalizedActionIndexes;
+
+        for (int index = 0; index < request->actions().size(); ++index) {
+            auto data = FromProto<TTransactionActionData>(request->actions()[index]);
+
+            if (transaction->IsExternalizedFromThisCell()) {
+                // Transaction actions may be specific to certain tablets, so we
+                // should be picky in what actions will be forwarded to each tablet.
+                auto handler = GetOrDefault(
+                    NeedActionExternalizationHandlers_,
+                    data.Type,
+                    {});
+
+                for (auto [tabletId, tabletInfo] : transaction->ExternalizerTablets()) {
+                    if (!handler || handler(transaction, data.Value, tabletId)) {
+                        externalizedActionIndexes.emplace_back(tabletId, index);
+                        YT_LOG_DEBUG("Forwarding transaction action "
+                            "(TransactionId: %v, Type: %v, TabletId: %v, ExternalizationToken: %v)",
+                            transaction->GetId(),
+                            data.Type,
+                            tabletId,
+                            tabletInfo.ExternalizationToken);
+                    } else {
+                        YT_LOG_DEBUG("Will not forward transaction action "
+                            "(TransactionId: %v, Type: %v, TabletId: %v, ExternalizationToken: %v)",
+                            transaction->GetId(),
+                            data.Type,
+                            tabletId,
+                            tabletInfo.ExternalizationToken);
+                    }
+                }
+            }
+
+            // #data is moved from so we store the action in the transaction
+            // after externalization is dealt with.
             auto& action = transaction->Actions().emplace_back(std::move(data));
 
             YT_LOG_DEBUG("Transaction action registered (TransactionId: %v, ActionType: %v, Signature: %x)",
@@ -1344,12 +1440,57 @@ private:
                 signature);
         }
 
-        if (!ForwardTransactionIfExternalized(transaction, *request, /*options*/ {})) {
+        {
+            std::sort(externalizedActionIndexes.begin(), externalizedActionIndexes.end());
+            auto beginTabletRange = externalizedActionIndexes.begin();
+            auto endTabletRange = externalizedActionIndexes.begin();
+
+            for (auto tabletIt : GetSortedIterators(transaction->ExternalizerTablets())) {
+                auto tabletId = tabletIt->first;
+                auto token = tabletIt->second.ExternalizationToken;
+
+                while (endTabletRange != externalizedActionIndexes.end() &&
+                    endTabletRange->first == tabletId)
+                {
+                    ++endTabletRange;
+                }
+
+                if (beginTabletRange == endTabletRange) {
+                    continue;
+                }
+
+                // NB: Full copy is intentional. It is more expensive because
+                // action data is copied but less error prone when new fields
+                // are added to the request.
+                TReqRegisterTransactionActions clonedRequest(*request);
+                clonedRequest.clear_actions();
+
+                for (auto it = beginTabletRange; it != endTabletRange; ++it) {
+                    *clonedRequest.add_actions() = request->actions()[it->second];
+                }
+
+                ForwardTransactionIfExternalized(
+                    transaction,
+                    tabletId,
+                    token,
+                    std::move(clonedRequest),
+                    /*options*/ {});
+
+                beginTabletRange = endTabletRange;
+            }
+
+            YT_VERIFY(beginTabletRange == externalizedActionIndexes.end());
+        }
+
+        if (!transaction->IsExternalizedFromThisCell()) {
             // COMPAT(ifsmirnov)
-            if (static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) >=
-                ETabletReign::UnforwardedTransactionActions)
+            auto reign = static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign);
+            if ((reign >= ETabletReign::NonForwardedTransactionActions &&
+                reign < ETabletReign::PerTabletTxActionForwarding_25_3) ||
+                (reign >= ETabletReign::Start_25_4 &&
+                reign < ETabletReign::PerTabletTxActionForwarding))
             {
-                transaction->SetHasUnforwardedActions(true);
+                transaction->SetHasNonForwardedActions(true);
             }
         }
 
@@ -1446,10 +1587,7 @@ private:
             transaction->ThrowInvalidState();
         }
 
-        EmplaceOrCrash(
-            transaction->ExternalizerTablets(),
-            tabletId,
-            token);
+        RegisterExternalizerTablet(transaction, tabletId, token);
 
         YT_LOG_DEBUG("Transaction externalized "
             "(TabletId: %v, TransactionId: %v, ExternalizationToken: %v)",
@@ -1621,6 +1759,10 @@ private:
 
     void RegisterPrepareTimestamp(TTransaction* transaction)
     {
+        if (transaction->IsExternalizedToThisCell()) {
+            return;
+        }
+
         auto prepareTimestamp = transaction->GetPrepareTimestamp();
         if (prepareTimestamp == NullTimestamp) {
             return;
@@ -1630,14 +1772,28 @@ private:
 
     void UnregisterPrepareTimestamp(TTransaction* transaction)
     {
+        if (transaction->IsExternalizedToThisCell()) {
+            return;
+        }
+
         auto prepareTimestamp = transaction->GetPrepareTimestamp();
         if (prepareTimestamp == NullTimestamp) {
             return;
         }
+
         auto pair = std::pair(prepareTimestamp, transaction);
         auto it = PreparedTransactions_.find(pair);
-        YT_VERIFY(it != PreparedTransactions_.end());
-        PreparedTransactions_.erase(it);
+        if (it != PreparedTransactions_.end()) {
+            PreparedTransactions_.erase(it);
+        } else {
+            YT_LOG_ALERT("Attempted to unregister nonexistent transaction prepare timestamp "
+                "(%v, PrepareTimestamp: %v)",
+                FormatTransactionId(
+                    transaction->GetId(),
+                    transaction->GetExternalizationToken()),
+                prepareTimestamp);
+        }
+
         CheckBarrier();
     }
 

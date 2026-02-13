@@ -8,6 +8,8 @@ from yt.yson import dumps, to_yson_type
 
 from collections import defaultdict
 
+import yt.wrapper
+
 import pytest
 
 
@@ -70,17 +72,27 @@ class TestPartitionTablesBase(YTEnvSetup):
 
         return get(f"{table}/@data_weight")
 
-
-@pytest.mark.enabled_multidaemon
-class TestPartitionTablesCommand(TestPartitionTablesBase):
-    ENABLE_MULTIDAEMON = True
-    NUM_MASTERS = 1
-    NUM_NODES = 1
-    NUM_SCHEDULERS = 1
-    USE_DYNAMIC_TABLES = True
-
+    # NB(achains): Checks the ascending order of row ranges of partitions of a SINGLE table.
     @staticmethod
-    def check_partitions(tables, partitions, check_cookies=False):
+    def check_partitions_row_order(partitions):
+        lower_limits = []
+        for p in partitions:
+            table_ranges = p["table_ranges"]
+            assert len(table_ranges) == 1
+
+            ranges = table_ranges[0].attributes["ranges"]
+            for r in ranges:
+                lower_limits.append(r["lower_limit"]["row_index"])
+
+        assert sorted(lower_limits) == lower_limits
+
+    # NB(achains): Checks the ascending order of row ranges of partitions of a SINGLE table.
+    @staticmethod
+    def check_partitions(tables, partitions, check_cookies=False, check_row_order=False):
+        if check_row_order:
+            assert len(tables) == 1, "check_row_order supported only for a single table partitions"
+            TestPartitionTablesBase.check_partitions_row_order(partitions)
+
         rows = []
         for t in tables:
             rows += read_table(t)
@@ -100,6 +112,15 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
 
         if check_cookies:
             assert sorted_dicts(rows) == sorted_dicts(partitioned_rows_by_cookie)
+
+
+@pytest.mark.enabled_multidaemon
+class TestPartitionTablesCommand(TestPartitionTablesBase):
+    ENABLE_MULTIDAEMON = True
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+    USE_DYNAMIC_TABLES = True
 
     @staticmethod
     def check_aggregate_statistics(
@@ -695,7 +716,7 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
 
         partitions = partition_tables([table], data_weight_per_partition=data_weight * 2, partition_mode="ordered")
 
-        self.check_partitions([table], partitions)
+        self.check_partitions([table], partitions, check_row_order=True)
 
     @authors("psushin")
     def test_read_ordered_dynamic_table_partition(self):
@@ -735,6 +756,51 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
 
         assert len(actual_rows) == len(expected_rows)
         assert actual_rows == expected_rows
+
+
+class OrderedPartitionLargeTableBase(TestPartitionTablesBase):
+    ENABLE_MULTIDAEMON = True
+    NUM_NODES = 3
+    ENABLE_HTTP_PROXY = True
+    ENABLE_RPC_PROXY = True
+
+    @authors("achains")
+    def test_ordered_partition_small_chunks(self):
+        table = "//tmp/static-table"
+        data = [{"a": i, "b": str(i) * 1024 * 100} for i in range(1_000)]
+
+        # Client default chunk options allow to reproduce YT-27013.
+        client = yt.wrapper.YtClient(proxy=self.Env.get_proxy_address())
+        client.write_table(table, data, force_create=True)
+        partitions = client.partition_tables([table], data_weight_per_partition=50 * 1024**2, partition_mode="ordered")
+
+        self.check_partitions([table], partitions, check_row_order=True)
+
+
+class TestOrderedPartitionLargeTableNative(OrderedPartitionLargeTableBase):
+    DRIVER_BACKEND = "native"
+
+
+class TestOrderedPartitionLargeTableRpc(OrderedPartitionLargeTableBase):
+    DRIVER_BACKEND = "rpc"
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "signature_components": {
+            "validation": {
+                "cypress_key_reader": dict(),
+            },
+            "generation": {
+                "cypress_key_writer": dict(),
+                "key_rotator": dict(),
+                "generator": dict(),
+            },
+        },
+    }
+
+    # NB(pavook): to avoid key owner collision.
+    NUM_RPC_PROXIES = 1
+
+    OWNERS_PATH = "//sys/public_keys/by_owner"
 
 
 class PartitionTablesRlsBase(TestPartitionTablesBase):
@@ -795,9 +861,3 @@ class TestPartitionTablesRlsRpc(PartitionTablesRlsBase):
     NUM_RPC_PROXIES = 1
 
     OWNERS_PATH = "//sys/public_keys/by_owner"
-
-    @authors("coteeq")
-    def test_read_partition_rls(self):
-        # This is actually an xfail, because RPC driver does not know how to output partitions yet.
-        with raises_yt_error("Table schemas are unknown"):
-            super().test_read_partition_rls()

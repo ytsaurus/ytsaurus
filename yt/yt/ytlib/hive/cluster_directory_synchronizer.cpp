@@ -68,8 +68,6 @@ private:
     const TWeakPtr<IConnection> DirectoryConnection_;
     const TWeakPtr<TClusterDirectory> ClusterDirectory_;
 
-    const TPeriodicExecutorPtr SyncExecutor_;
-
     void DoSync() override
     {
         try {

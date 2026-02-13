@@ -33,10 +33,7 @@ Options:
 
 The usage of other options corresponds to their description in `spark-submit` documentation (the full list is available with `spark-submit --help` command). Almost all of the options can be used except these:
 
-- `--conf spark.dynamicAllocation.enabled` — dynamic allocation of executors is not yet implemented so setting this option to `true` will have ho effect;
-- `--py-files, --files, --archives` — these options are not working with local files. All required files must be uploaded to Cypress before submitting an application.
-
-In this mode the support for History server is not implemented. For diagnostics you can use {{product-name}} logs. Two thigs need to be considered: first, only logs that are written to stderr are available so it is needed to make appropriate configurations in Spark application logging settings. Second, the driver and executors are launched in separate {{product-name}} operations so logs need to be viewed in both.
+- `--files, --archives` — do not work with local files, you can only use those that have been pre-loaded to Cypress.
 
 ## Launching inner Spark Standalone cluster { #standalone }
 

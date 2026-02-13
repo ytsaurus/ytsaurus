@@ -2,9 +2,9 @@ RECURSE(
     build-env
     cron
     local
-    microservices
     sidecars
     ya-build
+    ytmsvc
     ytsaurus
     ytsaurus-bundle
 )

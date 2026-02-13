@@ -2,14 +2,27 @@ GO_LIBRARY()
 
 SRCS(
     common.go
+    crypto.go
     http.go
 )
 
-IF (NOT OPENSOURCE AND NOT RUN_MANUAL_TESTS)
+GO_TEST_SRCS(crypto_test.go)
+
+IF (OPENSOURCE)
     SRCS(
-        common_internal.go
+        auth_external.go
+        metrics_external.go
+    )
+ELSE()
+    SRCS(
         auth_internal.go
+        common_internal.go
+        metrics_internal.go
     )
 ENDIF()
 
 END()
+
+RECURSE(
+    gotest
+)

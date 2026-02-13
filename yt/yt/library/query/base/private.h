@@ -9,6 +9,10 @@ namespace NYT::NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 constexpr int MaxExpressionDepth = 50;
+constexpr int MaxConciseStringLength = 16;
+constexpr int ElidedStringLength = 8;
+constexpr int MaxConciseListLength = 3;
+constexpr int ElidedListLength = 2;
 
 ////////////////////////////////////////////////////////////////////////////////
 

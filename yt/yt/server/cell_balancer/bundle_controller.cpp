@@ -7,6 +7,8 @@
 #include "chaos_scheduler.h"
 #include "config.h"
 #include "cypress_bindings.h"
+#include "input_state.h"
+#include "mutations.h"
 #include "orchid_bindings.h"
 
 #include <yt/yt/server/lib/cypress_election/election_manager.h>
@@ -134,6 +136,7 @@ public:
         , InstanceCypressNodeRemovalCounter_(Profiler.Counter("/instance_cypress_node_removal_counter"))
         , ChangedNodeUserTagCounter_(Profiler.Counter("/changed_node_user_tag_counter"))
         , ChangedDecommissionedFlagCounter_(Profiler.Counter("/changed_decommissioned_flag_counter"))
+        , ChangedBannedFlagCounter_(Profiler.Counter("/changed_banned_flag_counter"))
         , ChangedEnableBundleBalancerFlagCounter_(Profiler.Counter("/changed_enable_bundle_balancer_flag_counter"))
         , ChangedNodeAnnotationCounter_(Profiler.Counter("/changed_node_annotation_counter"))
         , ChangedBundleShortNameCounter_(Profiler.Counter("/changed_bundle_short_name_counter"))
@@ -189,6 +192,7 @@ private:
 
     TCounter ChangedNodeUserTagCounter_;
     TCounter ChangedDecommissionedFlagCounter_;
+    TCounter ChangedBannedFlagCounter_;
     TCounter ChangedEnableBundleBalancerFlagCounter_;
     TCounter ChangedNodeAnnotationCounter_;
 
@@ -202,7 +206,8 @@ private:
     TCounter ChangedResourceLimitCounter_;
 
     THashMap<std::string, TBundleSensorsPtr> BundleSensors_;
-    THashMap<std::string, TZoneSensorsPtr> ZoneSensors_;
+    // (ZoneName, DataCenter) -> sensors.
+    THashMap<std::pair<std::string, std::string>, TZoneSensorsPtr> ZoneSensors_;
 
     NOrchid::TBundlesInfo OrchidBundlesInfo_;
     NOrchid::TZonesRacksInfo OrchidRacksInfo_;
@@ -482,6 +487,7 @@ private:
     inline static const std::string AttributeBundleControllerAnnotations = "bundle_controller_annotations";
     inline static const std::string NodeAttributeUserTags = "user_tags";
     inline static const std::string NodeAttributeDecommissioned = "decommissioned";
+    inline static const std::string NodeAttributeBanned = "banned";
     inline static const std::string NodeAttributeEnableBundleBalancer = "enable_bundle_balancer";
     inline static const std::string ProxyAttributeRole = "role";
     inline static const std::string AccountAttributeResourceLimits = "resource_limits";
@@ -510,9 +516,10 @@ private:
         CompleteHulkRequests(transaction, Config_->HulkAllocationsPath, mutations.CompletedAllocations);
         CypressSet(transaction, GetBundlesStatePath(), mutations.ChangedStates);
 
-        SetNodeAttributes(transaction, AttributeBundleControllerAnnotations, mutations.ChangeNodeAnnotations);
+        SetNodeAttributes(transaction, AttributeBundleControllerAnnotations, mutations.ChangedNodeAnnotations);
         SetNodeAttributes(transaction, NodeAttributeUserTags, mutations.ChangedNodeUserTags);
         SetNodeAttributes(transaction, NodeAttributeDecommissioned, mutations.ChangedDecommissionedFlag);
+        SetNodeAttributes(transaction, NodeAttributeBanned, mutations.ChangedBannedFlag);
         SetNodeAttributes(transaction, NodeAttributeEnableBundleBalancer, mutations.ChangedEnableBundleBalancerFlag);
 
         SetProxyAttributes(transaction, AttributeBundleControllerAnnotations, mutations.ChangedProxyAnnotations);
@@ -548,8 +555,9 @@ private:
         CellRemovalCounter_.Increment(mutations.CellsToRemove.size());
         ChangedNodeUserTagCounter_.Increment(mutations.ChangedNodeUserTags.size());
         ChangedDecommissionedFlagCounter_.Increment(mutations.ChangedDecommissionedFlag.size());
+        ChangedBannedFlagCounter_.Increment(mutations.ChangedBannedFlag.size());
         ChangedEnableBundleBalancerFlagCounter_.Increment(mutations.ChangedEnableBundleBalancerFlag.size());
-        ChangedNodeAnnotationCounter_.Increment(mutations.ChangeNodeAnnotations.size());
+        ChangedNodeAnnotationCounter_.Increment(mutations.ChangedNodeAnnotations.size());
         InstanceCypressNodeRemovalCounter_.Increment(mutations.ProxiesToCleanup.size() + mutations.NodesToCleanup.size());
 
         ChangedProxyRoleCounter_.Increment(mutations.ChangedProxyRole.size());
@@ -1083,7 +1091,9 @@ private:
 
     TZoneSensorsPtr GetZoneSensors(const std::string& zoneName, const std::string& dataCenter)
     {
-        auto it = ZoneSensors_.find(zoneName);
+        std::pair key(zoneName, dataCenter);
+
+        auto it = ZoneSensors_.find(key);
         if (it != ZoneSensors_.end()) {
             return it->second;
         }
@@ -1107,7 +1117,7 @@ private:
         sensors->ScheduledForMaintenanceSpareProxyCount = zoneProfiler.Gauge("/scheduled_for_maintenance_spare_proxy_count");
         sensors->RequiredSpareNodeCount = zoneProfiler.Gauge("/required_spare_node_count");
 
-        ZoneSensors_[zoneName] = sensors;
+        ZoneSensors_[key] = sensors;
         return sensors;
     }
 
@@ -1247,7 +1257,9 @@ private:
     {
         TListNodeOptions options;
         options.MaxSize = DefaultMaxSize;
-        options.Attributes = TEntryInfo::GetAttributes();
+
+        auto attributeSet = New<TEntryInfo>()->GetRegisteredKeys();
+        options.Attributes = std::vector(attributeSet.begin(), attributeSet.end());
 
         auto yson = WaitFor(transaction->ListNode(path, options))
             .ValueOrThrow();
@@ -1278,7 +1290,9 @@ private:
     {
         TGetNodeOptions options;
         options.MaxSize = DefaultMaxSize;
-        options.Attributes = TEntryInfo::GetAttributes();
+
+        auto attributeSet = New<TEntryInfo>()->GetRegisteredKeys();
+        options.Attributes = std::vector(attributeSet.begin(), attributeSet.end());
 
         auto yson = WaitFor(transaction->GetNode(path, options))
             .ValueOrThrow();
@@ -1409,8 +1423,6 @@ private:
         for (const auto& [requestId, requestBody] : requests) {
             auto path = Format("%v/%v", basePath, NYPath::ToYPathLiteral(requestId));
 
-            TSetNodeOptions setOptions;
-            setOptions.Recursive = true;
             auto result = WaitFor(transaction->SetNode(path, ConvertToYsonString(requestBody)));
             MoveBundleToJailAndThrowOnError(result, requestBody->BundleName);
         }
@@ -1442,8 +1454,7 @@ private:
                 NYPath::ToYPathLiteral(instanceName),
                 attributeName);
 
-            TSetNodeOptions setOptions;
-            WaitFor(client->SetNode(path, ConvertToYsonString(attribute), setOptions))
+            WaitFor(client->SetNode(path, ConvertToYsonString(attribute)))
                 .ThrowOnError();
         }
     }
@@ -1461,8 +1472,7 @@ private:
                 NYPath::ToYPathLiteral(instanceName),
                 attributeName);
 
-            TSetNodeOptions setOptions;
-            auto result = WaitFor(client->SetNode(path, ConvertToYsonString(attribute.Mutation), setOptions));
+            auto result = WaitFor(client->SetNode(path, ConvertToYsonString(attribute.Mutation)));
             MoveBundleToJailAndThrowOnError(result, attribute.BundleName);
         }
     }
@@ -1480,8 +1490,7 @@ private:
                 NYPath::ToYPathLiteral(bundleName),
                 attributeName);
 
-            TSetNodeOptions setOptions;
-            auto result = WaitFor(client->SetNode(path, ConvertToYsonString(attribute), setOptions));
+            auto result = WaitFor(client->SetNode(path, ConvertToYsonString(attribute)));
             MoveBundleToJailAndThrowOnError(result, bundleName);
         }
     }
@@ -1586,8 +1595,7 @@ private:
         }
 
         auto path = Format("%v/@%v", BundleSystemQuotasPath, AccountAttributeResourceLimits);
-        TSetNodeOptions setOptions;
-        auto result = WaitFor(transaction->SetNode(path, ConvertToYsonString(limits), setOptions));
+        auto result = WaitFor(transaction->SetNode(path, ConvertToYsonString(limits)));
         MoveBundleToJailAndThrowOnError(result, lastBundle);
     }
 
@@ -1631,8 +1639,7 @@ private:
         const ITransactionPtr& transaction,
         const TBundlesDynamicConfig& config)
     {
-        TSetNodeOptions setOptions;
-        WaitFor(transaction->SetNode(TabletCellBundlesDynamicConfigPath, ConvertToYsonString(config), setOptions))
+        WaitFor(transaction->SetNode(TabletCellBundlesDynamicConfigPath, ConvertToYsonString(config)))
             .ThrowOnError();
     }
 

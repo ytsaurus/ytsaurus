@@ -111,7 +111,7 @@ private:
         TTableSchema tableSchema({
             TColumnSchema("k", EValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending)
-                .SetExpression(std::string("l * 2")),
+                .SetExpression("l * 2"),
             TColumnSchema("l", EValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending),
             TColumnSchema("m", EValueType::Int64)
@@ -216,7 +216,7 @@ TEST_F(TComputedColumnTest, ConstantBeforeReferenceInExpression)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("2 * l")),
+            .SetExpression("2 * l"),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64),
@@ -240,7 +240,7 @@ TEST_F(TComputedColumnTest, ComputedColumnLast)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("k + 3")),
+            .SetExpression("k + 3"),
         TColumnSchema("a", EValueType::Int64),
     });
 
@@ -262,10 +262,10 @@ TEST_F(TComputedColumnTest, Complex1)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("n + 1")),
+            .SetExpression("n + 1"),
         TColumnSchema("m", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("o + 2")),
+            .SetExpression("o + 2"),
         TColumnSchema("n", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("o", EValueType::Int64)
@@ -291,10 +291,10 @@ TEST_F(TComputedColumnTest, Complex2)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("n + 1")),
+            .SetExpression("n + 1"),
         TColumnSchema("m", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("o + 2")),
+            .SetExpression("o + 2"),
         TColumnSchema("n", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("o", EValueType::Int64)
@@ -322,10 +322,10 @@ TEST_F(TComputedColumnTest, Complex3)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("o + 1")),
+            .SetExpression("o + 1"),
         TColumnSchema("m", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("o + 2")),
+            .SetExpression("o + 2"),
         TColumnSchema("n", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("o", EValueType::Int64)
@@ -349,7 +349,7 @@ TEST_F(TComputedColumnTest, Far0)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("l + 1")),
+            .SetExpression("l + 1"),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("m", EValueType::Int64)
@@ -373,7 +373,7 @@ TEST_F(TComputedColumnTest, Far1)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("m + 1")),
+            .SetExpression("m + 1"),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("m", EValueType::Int64)
@@ -397,7 +397,7 @@ TEST_F(TComputedColumnTest, Far2)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("n + 1")),
+            .SetExpression("n + 1"),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("m", EValueType::Int64)
@@ -423,7 +423,7 @@ TEST_F(TComputedColumnTest, Far3)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("n + 1")),
+            .SetExpression("n + 1"),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("m", EValueType::Int64)
@@ -451,7 +451,7 @@ TEST_F(TComputedColumnTest, Far4)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("n + 1")),
+            .SetExpression("n + 1"),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("m", EValueType::Int64)
@@ -504,7 +504,7 @@ TEST_F(TComputedColumnTest, Modulo0)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("l % 2")),
+            .SetExpression("l % 2"),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -526,7 +526,7 @@ TEST_F(TComputedColumnTest, Modulo1)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("l % 2")),
+            .SetExpression("l % 2"),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -554,10 +554,10 @@ TEST_F(TComputedColumnTest, Modulo2)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("n % 1u")),
+            .SetExpression("n % 1u"),
         TColumnSchema("l", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("n % 1u")),
+            .SetExpression("n % 1u"),
         TColumnSchema("m", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("n", EValueType::Uint64)
@@ -587,10 +587,10 @@ TEST_F(TComputedColumnTest, Modulo3)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("m % 1u")),
+            .SetExpression("m % 1u"),
         TColumnSchema("l", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("m % 1u")),
+            .SetExpression("m % 1u"),
         TColumnSchema("m", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -612,7 +612,7 @@ TEST_F(TComputedColumnTest, Modulo4)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("m % 2")),
+            .SetExpression("m % 2"),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("m", EValueType::Int64)
@@ -642,10 +642,10 @@ TEST_F(TComputedColumnTest, Modulo5)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("n % 2")),
+            .SetExpression("n % 2"),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("m + 1")),
+            .SetExpression("m + 1"),
         TColumnSchema("m", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("n", EValueType::Uint64)
@@ -675,7 +675,7 @@ TEST_F(TComputedColumnTest, Divide0)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("l / 2")),
+            .SetExpression("l / 2"),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -699,7 +699,7 @@ TEST_F(TComputedColumnTest, Divide1)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("l / 2")),
+            .SetExpression("l / 2"),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -721,10 +721,10 @@ TEST_F(TComputedColumnTest, Divide2)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("m / 3")),
+            .SetExpression("m / 3"),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("m / 4")),
+            .SetExpression("m / 4"),
         TColumnSchema("m", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -752,10 +752,10 @@ TEST_F(TComputedColumnTest, Divide3)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("m / 2u")),
+            .SetExpression("m / 2u"),
         TColumnSchema("l", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("n % 1u")),
+            .SetExpression("n % 1u"),
         TColumnSchema("m", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("n", EValueType::Uint64)
@@ -785,7 +785,7 @@ TEST_F(TComputedColumnTest, Divide4)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("l / -9223372036854775808")),
+            .SetExpression("l / -9223372036854775808"),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -809,7 +809,7 @@ TEST_F(TComputedColumnTest, Divide5)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("l / -1")),
+            .SetExpression("l / -1"),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -828,7 +828,7 @@ TEST_F(TComputedColumnTest, Divide6)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("l / -1")),
+            .SetExpression("l / -1"),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -853,7 +853,7 @@ TEST_F(TComputedColumnTest, DivideEmptyRange)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("l")),
+            .SetExpression("l"),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -872,7 +872,7 @@ TEST_F(TComputedColumnTest, DivideSingleRange)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("l")),
+            .SetExpression("l"),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -894,7 +894,7 @@ TEST_F(TComputedColumnTest, DivideComplex)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("l / 3 + l / 5")),
+            .SetExpression("l / 3 + l / 5"),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -933,7 +933,7 @@ TEST_F(TComputedColumnTest, DivideComplex2)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("l / 6148914691236517205u + l / 9223372036854775808u")),
+            .SetExpression("l / 6148914691236517205u + l / 9223372036854775808u"),
         TColumnSchema("l", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -972,7 +972,7 @@ TEST_F(TComputedColumnTest, DivideNull)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("l / 7")),
+            .SetExpression("l / 7"),
         TColumnSchema("l", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -1003,7 +1003,7 @@ TEST_F(TComputedColumnTest, DivideOneBound)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("l / 7")),
+            .SetExpression("l / 7"),
         TColumnSchema("l", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -1034,7 +1034,7 @@ TEST_F(TComputedColumnTest, DivideTypeCast)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("l / -1")),
+            .SetExpression("l / -1"),
         TColumnSchema("l", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -1059,7 +1059,7 @@ TEST_F(TComputedColumnTest, EstimationOverflow)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("farm_hash(l / 1, m)")),
+            .SetExpression("farm_hash(l / 1, m)"),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("m", EValueType::Int64)
@@ -1083,7 +1083,7 @@ TEST_F(TComputedColumnTest, FarDivide1)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("m / 2")),
+            .SetExpression("m / 2"),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("m", EValueType::Int64)
@@ -1109,10 +1109,10 @@ TEST_F(TComputedColumnTest, ModuloDivide)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("m % 2")),
+            .SetExpression("m % 2"),
         TColumnSchema("l", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("m / 3")),
+            .SetExpression("m / 3"),
         TColumnSchema("m", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -1146,7 +1146,7 @@ TEST_F(TComputedColumnTest, ModuloDivide2)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("(l / 3) % 2")),
+            .SetExpression("(l / 3) % 2"),
         TColumnSchema("l", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -1171,7 +1171,7 @@ TEST_F(TComputedColumnTest, ModuloDivide3)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("(l / 3) % 2")),
+            .SetExpression("(l / 3) % 2"),
         TColumnSchema("l", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -1197,7 +1197,7 @@ TEST_F(TComputedColumnTest, ContianuationKeyToken)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("l")),
+            .SetExpression("l"),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("m", EValueType::Int64)
@@ -1221,7 +1221,7 @@ TEST_F(TComputedColumnTest, ContianuationKeyToken2)
     TTableSchema tableSchema({
         TColumnSchema("h", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("farm_hash(k)")),
+            .SetExpression("farm_hash(k)"),
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("l", EValueType::Int64)
@@ -1245,7 +1245,7 @@ TEST_F(TComputedColumnTest, ContianuationKeyTokenModulo)
     TTableSchema tableSchema({
         TColumnSchema("h", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("farm_hash(k) % 10")),
+            .SetExpression("farm_hash(k) % 10"),
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("l", EValueType::Int64)
@@ -1324,7 +1324,7 @@ TEST_F(TComputedColumnTest, RangeExpansionLimit)
     TTableSchema tableSchema({
         TColumnSchema("h", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("k + 1")),
+            .SetExpression("k + 1"),
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("l", EValueType::Int64)
@@ -1472,7 +1472,7 @@ TEST_F(TComputedColumnTest, BigBKeySchema)
     TTableSchema tableSchema({
         TColumnSchema("Hash", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("bigb_hash(UniqID) % 768")),
+            .SetExpression("bigb_hash(UniqID) % 768"),
         TColumnSchema("UniqID", EValueType::String)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("Value", EValueType::Int64)
@@ -1494,10 +1494,10 @@ TEST_F(TComputedColumnTest, TwoComputedColumns)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("n")),
+            .SetExpression("n"),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("m")),
+            .SetExpression("m"),
         TColumnSchema("m", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("n", EValueType::Int64)
@@ -1527,7 +1527,7 @@ TEST_F(TComputedColumnTest, YabsGoodEvent)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("farm_hash(l)")),
+            .SetExpression("farm_hash(l)"),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("v", EValueType::Int64)
@@ -1549,7 +1549,7 @@ TEST_F(TComputedColumnTest, Null)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(std::string("farm_hash(l)")),
+            .SetExpression("farm_hash(l)"),
         TColumnSchema("l", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("v", EValueType::Int64)

@@ -20,7 +20,7 @@
 #include <yt/yt/ytlib/chaos_client/chaos_cell_channel_factory.h>
 #include <yt/yt/ytlib/chaos_client/config.h>
 #include <yt/yt/ytlib/chaos_client/native_replication_card_cache_detail.h>
-#include <yt/yt/ytlib/chaos_client/replication_card_channel_factory.h>
+#include <yt/yt/ytlib/chaos_client/chaos_object_channel_factory.h>
 #include <yt/yt/ytlib/chaos_client/chaos_residency_cache.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_cache.h>
@@ -82,10 +82,8 @@
 
 #include <yt/yt/ytlib/transaction_client/config.h>
 #include <yt/yt/ytlib/transaction_client/clock_manager.h>
-#include <yt/yt/client/transaction_client/timestamp_provider.h>
 
-#include <yt/yt/ytlib/sequoia_client/client.h>
-#include <yt/yt/ytlib/sequoia_client/ground_channel_wrapper.h>
+#include <yt/yt/ytlib/sequoia_client/connection.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
@@ -96,10 +94,12 @@
 #include <yt/yt/client/sequoia_client/public.h>
 
 #include <yt/yt/client/signature/generator.h>
+#include <yt/yt/client/signature/provided.h>
 
 #include <yt/yt/client/transaction_client/config.h>
 #include <yt/yt/client/transaction_client/noop_timestamp_provider.h>
 #include <yt/yt/client/transaction_client/remote_timestamp_provider.h>
+#include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt/library/tvm/service/tvm_service.h>
 
@@ -130,6 +130,7 @@ using namespace NAuth;
 using namespace NChaosClient;
 using namespace NChunkClient;
 using namespace NConcurrency;
+using namespace NDiscoveryClient;
 using namespace NHiveClient;
 using namespace NHydra;
 using namespace NJobProberClient;
@@ -139,18 +140,18 @@ using namespace NProfiling;
 using namespace NQueryClient;
 using namespace NQueryTrackerClient;
 using namespace NQueueClient;
+using namespace NRpc;
 using namespace NScheduler;
 using namespace NSecurityClient;
+using namespace NSequoiaClient;
 using namespace NSignature;
 using namespace NTabletClient;
 using namespace NThreading;
 using namespace NTransactionClient;
-using namespace NYTree;
-using namespace NYson;
-using namespace NDiscoveryClient;
-using namespace NRpc;
-using namespace NYqlClient;
 using namespace NYPath;
+using namespace NYTree;
+using namespace NYqlClient;
+using namespace NYson;
 
 using std::placeholders::_1;
 
@@ -245,7 +246,9 @@ public:
         , MemoryTracker_(std::move(memoryTracker))
         , ClusterDirectoryOverride_(std::move(clusterDirectoryOverride))
         // NB(pavook): we can't hurt anybody by generating fake signatures.
-        , SignatureGenerator_(GetDummySignatureGenerator())
+        , SignatureGenerator_(Options_.SignatureGenerator
+            ? Options_.SignatureGenerator
+            : GetDummySignatureGenerator())
     { }
 
     void Initialize()
@@ -279,6 +282,7 @@ public:
             StaticConfig_,
             Options_,
             ChannelFactory_,
+            MakeWeak(this),
             Logger);
         MasterCellDirectorySynchronizer_ = NCellMasterClient::CreateCellDirectorySynchronizer(
             StaticConfig_->MasterCellDirectorySynchronizer,
@@ -311,12 +315,16 @@ public:
             this);
 
         InitializeQueueAgentChannels();
-        QueueConsumerRegistrationManager_ = CreateQueueConsumerRegistrationManager(
-            config->QueueAgent->QueueConsumerRegistrationManager,
-            this,
-            GetInvoker(),
-            Profiler_.WithPrefix("/queue_consumer_registration_manager"),
-            Logger);
+
+        if (Options_.CreateQueueConsumerRegistrationManager) {
+            QueueConsumerRegistrationManager_ = CreateQueueConsumerRegistrationManager(
+                config->QueueAgent->QueueConsumerRegistrationManager,
+                MakeWeak(this),
+                GetClusterName(),
+                GetInvoker(),
+                Profiler_.WithPrefix("/queue_consumer_registration_manager"),
+                Logger);
+        }
 
         PermissionCache_ = New<TPermissionCache>(
             config->PermissionCache,
@@ -335,7 +343,21 @@ public:
             MakeWeak(this),
             CreateNodeChannelFactory(ChannelFactory_, GetNetworks()));
 
-        ClusterDirectory_ = New<TClusterDirectory>(Options_);
+        auto clusterDirectoryOptions = Options_;
+        clusterDirectoryOptions.SignatureGenerator =
+            New<NSignature::TProvidedSignatureGenerator>(
+                BIND_NO_PROPAGATE([weakThis = MakeWeak(this)] {
+                    if (auto this_ = weakThis.Lock()) {
+                        return this_->GetSignatureGenerator();
+                    }
+                    return GetDummySignatureGenerator();
+                }));
+
+        // NB(apachee): We only use queue consumer registration manager from the bootstrapped connection (exception are multi proxies).
+        // TODO(apachee): Fix this for multi proxies.
+        clusterDirectoryOptions.CreateQueueConsumerRegistrationManager = false;
+
+        ClusterDirectory_ = New<TClusterDirectory>(std::move(clusterDirectoryOptions));
         ClusterDirectorySynchronizer_ = CreateClusterDirectorySynchronizer(
             config->ClusterDirectorySynchronizer,
             this,
@@ -379,7 +401,7 @@ public:
             Options_.ChaosResidencyCacheMode,
             Logger);
 
-        ReplicationCardChannelFactory_ = CreateReplicationCardChannelFactory(
+        ChaosObjectChannelFactory_ = CreateChaosObjectChannelFactory(
             CellDirectory_,
             ChaosResidencyCache_,
             ChaosCellDirectorySynchronizer_,
@@ -425,6 +447,10 @@ public:
                 this,
                 Logger);
         }
+
+        SequoiaConnection_ = CreateSequoiaConnection(
+            config->SequoiaConnection,
+            MakeWeak(this));
 
         SyncReplicaCache_ = New<TSyncReplicaCache>(
             StaticConfig_->SyncReplicaCache,
@@ -477,6 +503,11 @@ public:
     const std::optional<std::string>& GetClusterName() const override
     {
         return StaticConfig_->ClusterName;
+    }
+
+    const std::optional<NAuth::TTvmId>& GetTvmId() const override
+    {
+        return Config_.Acquire()->TvmId;
     }
 
     bool IsSameCluster(const NApi::IConnectionPtr& other) const override
@@ -622,30 +653,31 @@ public:
         EMasterChannelKind kind,
         TCellTag cellTag = PrimaryMasterCellTagSentinel) override
     {
-        return MasterCellDirectory_->FindMasterChannel(kind, cellTag);
+        auto effectiveKind = GetEffectiveMasterChannelKind(kind);
+        return MasterCellDirectory_->FindMasterChannel(effectiveKind, cellTag);
     }
 
     IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,
         TCellTag cellTag = PrimaryMasterCellTagSentinel) override
     {
-        return MasterCellDirectory_->GetMasterChannelOrThrow(kind, cellTag);
+        auto effectiveKind = GetEffectiveMasterChannelKind(kind);
+        return MasterCellDirectory_->GetMasterChannelOrThrow(effectiveKind, cellTag);
     }
 
     IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,
         TCellId cellId) override
     {
-        return MasterCellDirectory_->GetMasterChannelOrThrow(kind, cellId);
+        auto effectiveKind = GetEffectiveMasterChannelKind(kind);
+        return MasterCellDirectory_->GetMasterChannelOrThrow(effectiveKind, cellId);
     }
 
     IChannelPtr GetCypressChannelOrThrow(
         EMasterChannelKind kind,
         TCellTag cellTag = PrimaryMasterCellTagSentinel) override
     {
-        auto effectiveKind = kind == EMasterChannelKind::Cache && !MasterCellDirectory_->IsMasterCacheConfigured()
-            ? EMasterChannelKind::Follower
-            : kind;
+        auto effectiveKind = GetEffectiveMasterChannelKind(kind);
 
         auto effectiveCellTag = cellTag == PrimaryMasterCellTagSentinel
             ? GetPrimaryMasterCellTag()
@@ -658,6 +690,23 @@ public:
         return canUseCypressProxy && CypressProxyChannel_
             ? New<TTargetMasterPeerInjectingChannel>(CypressProxyChannel_, effectiveCellTag, effectiveKind)
             : GetMasterChannelOrThrow(effectiveKind, effectiveCellTag);
+    }
+
+    EMasterChannelKind GetEffectiveMasterChannelKind(EMasterChannelKind kind) const
+    {
+        if (kind == EMasterChannelKind::ClientSideCache &&
+            !MasterCellDirectory_->IsClientSideCacheEnabled())
+        {
+            kind = EMasterChannelKind::Cache;
+        }
+
+        if (kind == EMasterChannelKind::Cache &&
+            !MasterCellDirectory_->IsMasterCacheEnabled())
+        {
+            kind = EMasterChannelKind::Follower;
+        }
+
+        return kind;
     }
 
     const IChannelPtr& GetSchedulerChannel() override
@@ -685,14 +734,16 @@ public:
         return WrapChaosChannel(ChaosCellChannelFactory_->CreateChannel(cellTag, peerKind));
     }
 
-    IChannelPtr GetChaosChannelByCardIdOrThrow(TReplicationCardId replicationCardId, EPeerKind peerKind) override
+    IChannelPtr GetChaosChannelByObjectIdOrThrow(TChaosObjectId chaosObjectId, EPeerKind peerKind) override
     {
-        if (TypeFromId(replicationCardId) != EObjectType::ReplicationCard) {
-            THROW_ERROR_EXCEPTION("Malformed replication card id %v",
-                replicationCardId);
+        if (TypeFromId(chaosObjectId) != EObjectType::ReplicationCard &&
+            TypeFromId(chaosObjectId) != EObjectType::ChaosLease)
+        {
+            THROW_ERROR_EXCEPTION("Malformed chaos object id %v",
+                chaosObjectId);
         }
 
-        return WrapChaosChannel(ReplicationCardChannelFactory_->CreateChannel(replicationCardId, peerKind));
+        return WrapChaosChannel(ChaosObjectChannelFactory_->CreateChannel(chaosObjectId, peerKind));
     }
 
     IChannelPtr FindQueueAgentChannel(TStringBuf stage) const override
@@ -704,8 +755,11 @@ public:
         return it->second;
     }
 
-    const IQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const override
+    const IQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManagerOrThrow() const override
     {
+        if (!QueueConsumerRegistrationManager_) {
+            THROW_ERROR_EXCEPTION("Queue consumer registration manager is not configured for this connection");
+        }
         return QueueConsumerRegistrationManager_;
     }
 
@@ -906,8 +960,10 @@ public:
     {
         Terminated_ = true;
 
-        QueueConsumerRegistrationManager_->Clear();
-        QueueConsumerRegistrationManager_->StopSync();
+        if (QueueConsumerRegistrationManager_) {
+            QueueConsumerRegistrationManager_->Clear();
+            QueueConsumerRegistrationManager_->StopSync();
+        }
 
         ClusterDirectory_->Clear();
         ClusterDirectoryOverride_.Store(nullptr);
@@ -970,13 +1026,19 @@ public:
         DownedCellTracker_->Reconfigure(dynamicConfig->DownedCellTracker);
         SyncReplicaCache_->Reconfigure(StaticConfig_->SyncReplicaCache->ApplyDynamic(dynamicConfig->SyncReplicaCache));
         TableMountCache_->Reconfigure(StaticConfig_->TableMountCache->ApplyDynamic(dynamicConfig->TableMountCache));
-        TimestampProvider_->Reconfigure(StaticConfig_->TimestampProvider->ApplyDynamic(dynamicConfig->TimestampProvider));
+        if (dynamicConfig->TimestampProvider) {
+            TimestampProvider_->Reconfigure(
+                GetTimestampProviderStaticConfig()->ApplyDynamic(dynamicConfig->TimestampProvider));
+        }
+
         ClockManager_->Reconfigure(StaticConfig_->ClockManager->ApplyDynamic(dynamicConfig->ClockManager));
         ChunkReplicaCache_->Reconfigure(StaticConfig_->ChunkReplicaCache->ApplyDynamic(dynamicConfig->ChunkReplicaCache));
         ChaosResidencyCache_->Reconfigure(StaticConfig_->ChaosResidencyCache->ApplyDynamic(dynamicConfig->ChaosResidencyCache));
         if (ReplicationCardCache_ && dynamicConfig->ReplicationCardCache) {
             ReplicationCardCache_->Reconfigure(StaticConfig_->ReplicationCardCache->ApplyDynamic(dynamicConfig->ReplicationCardCache));
         }
+
+        SequoiaConnection_->Reconfigure(dynamicConfig->SequoiaConnection);
 
         Config_.Store(dynamicConfig);
         Reconfigured_.Fire(dynamicConfig);
@@ -992,54 +1054,9 @@ public:
         return static_cast<bool>(Config_.Acquire()->SequoiaConnection);
     }
 
-    NSequoiaClient::ISequoiaClientPtr GetSequoiaClient() override
+    const ISequoiaConnectionPtr& GetSequoiaConnection() override
     {
-        // Fast path: return the cached client.
-        if (auto existingSequoiaClient = CachedSequoiaClient_.Acquire()) {
-            return existingSequoiaClient;
-        }
-
-        // Slow path: create a new client.
-        auto config = Config_.Acquire()->SequoiaConnection;
-        auto groundClientFuture = [&] {
-            if (config) {
-                return InsistentGetRemoteConnection(this, config->GroundClusterName)
-                    .Apply(BIND([] (const IConnectionPtr& groundConnection) -> IClientPtr {
-                        auto options = NNative::TClientOptions::Root();
-                        options.ChannelWrapper = BIND_NO_PROPAGATE(NSequoiaClient::WrapGroundChannel);
-                        options.ChannelFactoryWrapper = BIND_NO_PROPAGATE(NSequoiaClient::WrapGroundChannelFactory);
-                        return groundConnection->CreateNativeClient(options);
-                    }));
-            } else {
-                return MakeFuture<IClientPtr>(TError("Sequoia is not configured"));
-            }
-        }();
-
-        auto sequoiaClient = NSequoiaClient::CreateSequoiaClient(
-            config,
-            this,
-            std::move(groundClientFuture));
-
-        if (auto existingSequoiaClient = CachedSequoiaClient_.Exchange(sequoiaClient)) {
-            // This was a race.
-            return existingSequoiaClient;
-        }
-
-        YT_LOG_DEBUG("Sequoia client recreated");
-
-        if (config) {
-            // Keep this cached client for a while but reset it after a given period of time
-            // to ensure changes to cluster directory are propagated to sequoia clients.
-            TDelayedExecutor::Submit(
-                BIND([weakThis = MakeWeak(this)] {
-                    if (auto this_ = weakThis.Lock()) {
-                        this_->CachedSequoiaClient_.Reset();
-                    }
-                }),
-                config->GroundClusterConnectionUpdatePeriod);
-        }
-
-        return sequoiaClient;
+        return SequoiaConnection_;
     }
 
 private:
@@ -1112,16 +1129,16 @@ private:
     IThreadPoolPtr ConnectionThreadPool_;
 
     IChaosResidencyCachePtr ChaosResidencyCache_;
-    IReplicationCardChannelFactoryPtr ReplicationCardChannelFactory_;
+    IChaosObjectChannelFactoryPtr ChaosObjectChannelFactory_;
     IChaosCellChannelFactoryPtr ChaosCellChannelFactory_;
 
     TServerAddressPoolPtr DiscoveryServerAddressPool_;
 
     std::string ShuffleServiceAddress_;
 
-    ISignatureGeneratorPtr SignatureGenerator_;
+    TAtomicIntrusivePtr<ISignatureGenerator> SignatureGenerator_;
 
-    TAtomicIntrusivePtr<NSequoiaClient::ISequoiaClient> CachedSequoiaClient_;
+    NSequoiaClient::ISequoiaConnectionPtr SequoiaConnection_;
 
     std::atomic<bool> Terminated_ = false;
 
@@ -1172,16 +1189,30 @@ private:
                     .BeginMap()
                         .Item("channel_attributes").Value(TimestampProviderChannel_->GetEndpointAttributes())
                     .EndMap()
-                .Item("queue_consumer_registration_manager").Do(std::bind(&IQueueConsumerRegistrationManager::BuildOrchid, QueueConsumerRegistrationManager_, _1))
+                .Item("queue_consumer_registration_manager").Do([this] (TFluentAny fluent) {
+                    if (!QueueConsumerRegistrationManager_) {
+                        fluent.Entity();
+                        return;
+                    }
+
+                    QueueConsumerRegistrationManager_->BuildOrchid(fluent);
+                })
             .EndMap();
     }
 
-    void InitializeTimestampProvider()
+    TRemoteTimestampProviderConfigPtr GetTimestampProviderStaticConfig() const
     {
         auto timestampProviderConfig = StaticConfig_->TimestampProvider;
         if (!timestampProviderConfig) {
             timestampProviderConfig = CreateRemoteTimestampProviderConfig(StaticConfig_->PrimaryMaster);
         }
+
+        return timestampProviderConfig;
+    }
+
+    void InitializeTimestampProvider()
+    {
+        auto timestampProviderConfig = GetTimestampProviderStaticConfig();
 
         TimestampProviderChannel_ = timestampProviderConfig->EnableTimestampProviderDiscovery ?
             CreateNodeAddressesChannel(
@@ -1427,12 +1458,12 @@ private:
 
     ISignatureGeneratorPtr GetSignatureGenerator() const override
     {
-        return SignatureGenerator_;
+        return SignatureGenerator_.Acquire();
     }
 
     void SetSignatureGenerator(ISignatureGeneratorPtr signatureGenerator) override
     {
-        SignatureGenerator_ = std::move(signatureGenerator);
+        SignatureGenerator_.Store(signatureGenerator);
     }
 };
 
@@ -1490,7 +1521,7 @@ TStickyGroupSizeCache::TKey::operator size_t() const
     return result;
 }
 
-bool TStickyGroupSizeCache::TKey::operator == (const TKey& other) const
+bool TStickyGroupSizeCache::TKey::operator==(const TKey& other) const
 {
     return
         Key == other.Key &&

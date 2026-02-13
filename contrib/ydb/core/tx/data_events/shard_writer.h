@@ -9,6 +9,7 @@
 #include <contrib/ydb/library/signals/owner.h>
 #include <contrib/ydb/core/tx/columnshard/columnshard.h>
 #include <contrib/ydb/core/tx/long_tx_service/public/events.h>
+#include <contrib/ydb/core/protos/config.pb.h>
 
 #include <contrib/ydb/library/accessor/accessor.h>
 #include <contrib/ydb/library/actors/core/actor_bootstrapped.h>
@@ -190,7 +191,8 @@ private:
 
     void SendWriteRequest();
     static TDuration OverloadTimeout() {
-        return TDuration::MilliSeconds(OverloadedDelayMs);
+        ui32 overloadedDelayMs = std::min(AppData() ? AppData()->ColumnShardConfig.GetProxyOverloadedDelayMs() : OverloadedDelayMs, ui32(TDuration::Hours(1).MilliSeconds()));
+        return TDuration::MilliSeconds(overloadedDelayMs + RandomNumber<ui32>(overloadedDelayMs));
     }
     void SendToTablet(THolder<IEventBase> event) {
         Send(LeaderPipeCache, new TEvPipeCache::TEvForward(event.Release(), ShardId, true), IEventHandle::FlagTrackDelivery, 0,
@@ -224,5 +226,6 @@ protected:
 private:
     bool RetryWriteRequest(const bool delayed = true);
     bool IsMaxRetriesReached() const;
+    ui32 GetMaxRetriesPerShard() const;
 };
 }   // namespace NKikimr::NEvWrite

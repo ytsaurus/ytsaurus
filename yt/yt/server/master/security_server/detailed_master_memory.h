@@ -18,17 +18,17 @@ namespace NYT::NSecurityServer {
 class TDetailedMasterMemory
 {
 public:
-    i64 operator[] (EMasterMemoryType type) const;
-    i64& operator[] (EMasterMemoryType type);
+    i64 operator[](EMasterMemoryType type) const;
+    i64& operator[](EMasterMemoryType type);
 
-    TDetailedMasterMemory& operator += (const TDetailedMasterMemory& other);
-    TDetailedMasterMemory operator + (const TDetailedMasterMemory& other) const;
+    TDetailedMasterMemory& operator+=(const TDetailedMasterMemory& other);
+    TDetailedMasterMemory operator+(const TDetailedMasterMemory& other) const;
 
-    TDetailedMasterMemory& operator -= (const TDetailedMasterMemory& other);
-    TDetailedMasterMemory operator - (const TDetailedMasterMemory& other) const;
+    TDetailedMasterMemory& operator-=(const TDetailedMasterMemory& other);
+    TDetailedMasterMemory operator-(const TDetailedMasterMemory& other) const;
 
-    TDetailedMasterMemory& operator *= (i64 other);
-    TDetailedMasterMemory operator * (i64 other) const;
+    TDetailedMasterMemory& operator*=(i64 other);
+    TDetailedMasterMemory operator*(i64 other) const;
 
     TDetailedMasterMemory operator-() const;
 

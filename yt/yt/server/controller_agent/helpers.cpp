@@ -85,6 +85,8 @@ void TUserFile::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(11, AccessMethod);
     PHOENIX_REGISTER_FIELD(12, GpuCheck,
         .SinceVersion(ESnapshotVersion::PrepareGpuCheckFSDuration));
+    PHOENIX_REGISTER_FIELD(13, RlsReadSpec,
+        .SinceVersion(ESnapshotVersion::FileRlsReadSpec));
 }
 
 PHOENIX_DEFINE_TYPE(TUserFile);
@@ -110,6 +112,7 @@ void BuildFileSpec(
             file.Path.GetColumnRenameDescriptors().value_or(TColumnRenameDescriptors()));
         dataSource->SetObjectId(file.ObjectId);
         dataSource->SetAccount(file.Account);
+        dataSource->SetRlsReadSpec(file.RlsReadSpec);
 
         ToProto(descriptor->mutable_data_source(), dataSource);
     } else {
@@ -123,6 +126,7 @@ void BuildFileSpec(
                 file.Path.GetColumnRenameDescriptors().value_or(TColumnRenameDescriptors()));
         dataSource->SetObjectId(file.ObjectId);
         dataSource->SetAccount(file.Account);
+        dataSource->SetRlsReadSpec(file.RlsReadSpec);
 
         ToProto(descriptor->mutable_data_source(), dataSource);
     }
@@ -169,26 +173,26 @@ void BuildFileSpecs(
     bool enableBypassArtifactCache)
 {
     for (const auto& file : files) {
-        NProto::TFileDescriptor* oldDescriptor;
+        NProto::TFileDescriptor* descriptor;
         if (file.GpuCheck) {
-            oldDescriptor = jobSpec->add_gpu_check_volume_layers();
+            descriptor = jobSpec->add_gpu_check_volume_layers();
         } else if (file.Layer) {
-            oldDescriptor = jobSpec->add_root_volume_layers();
+            // COMPAT (krasovav)
+            descriptor = jobSpec->add_root_volume_layers();
             for (const auto& [name, volume] : config->Volumes) {
-                // COMPAT (krasovav)
                 for (const auto& layer : volume->Layers) {
                     if (layer->Path == file.Path) {
-                        auto* newDescriptor = (*jobSpec->mutable_volumes())[name].add_layers();
-                        BuildFileSpec(newDescriptor, file, config->CopyFiles, enableBypassArtifactCache);
+                        auto* volumeDescriptor = (*jobSpec->mutable_volumes())[name].add_layers();
+                        BuildFileSpec(volumeDescriptor, file, config->CopyFiles, enableBypassArtifactCache);
                         break;
                     }
                 }
             }
         } else {
-            oldDescriptor = jobSpec->add_files();
+            descriptor = jobSpec->add_files();
         }
 
-        BuildFileSpec(oldDescriptor, file, config->CopyFiles, enableBypassArtifactCache);
+        BuildFileSpec(descriptor, file, config->CopyFiles, enableBypassArtifactCache);
     }
 }
 

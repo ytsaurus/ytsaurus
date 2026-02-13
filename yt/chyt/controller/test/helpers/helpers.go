@@ -209,7 +209,7 @@ func CreateAgent(env *Env, stage string) *agent.Agent {
 	passPeriod := yson.Duration(time.Millisecond * 400)
 	collectOpsPeriod := yson.Duration(time.Millisecond * 200)
 	config := &agent.Config{
-		Root:                    env.StrawberryRoot,
+		Root:                    &env.StrawberryRoot,
 		PassPeriod:              &passPeriod,
 		CollectOperationsPeriod: &collectOpsPeriod,
 		Stage:                   stage,

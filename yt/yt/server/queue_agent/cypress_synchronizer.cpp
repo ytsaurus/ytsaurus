@@ -1,6 +1,7 @@
 #include "cypress_synchronizer.h"
 #include "config.h"
 #include "helpers.h"
+#include "pass_profiler.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -608,11 +609,14 @@ private:
 
                 auto [revision, kind] = *objectInfo;
 
+                // NB(apachee): Treating any revision change as an object update instead of checking for a revision increase is a deliberate choice.
+                // It is not completely foolproof (portals, sequoia, cluster rebuild), but it should make it basically impossible
+                // to miss an object update.
                 // NB(apachee): Replicated table attributes change is handled in other part below and here we only
                 // care about revision change.
                 // TODO(apachee): In future it might be beneficial to limit fetched attributes for replicated objects to only those
                 // needed for replicated table mapping, as other attributes change results in revision change.
-                if (!object.Revision || revision > *object.Revision) {
+                if (!object.Revision || revision != *object.Revision) {
                     YT_LOG_DEBUG(
                         "Object Cypress revision changed (Cluster: %v, Path: %v, Revision: %x -> %x)",
                         cluster,
@@ -978,6 +982,7 @@ public:
             ControlInvoker_,
             BIND(&TCypressSynchronizer::Pass, MakeWeak(this)),
             DynamicConfig_->PassPeriod))
+        , PassProfiler_(QueueAgentProfilerGlobal().WithPrefix("/cypress_synchronizer"))
         , OrchidService_(IYPathService::FromProducer(BIND(&TCypressSynchronizer::BuildOrchid, MakeWeak(this)))->Via(ControlInvoker_))
         , AlertCollector_(CreateAlertCollectorCallback_())
     { }
@@ -991,10 +996,7 @@ public:
     {
         Active_ = true;
 
-        {
-            auto guard = Guard(AlertCollectorLock_);
-            AlertCollector_ = CreateAlertCollectorCallback_();
-        }
+        AlertCollector_.Store(CreateAlertCollectorCallback_());
         PassExecutor_->Start();
     }
 
@@ -1003,10 +1005,7 @@ public:
         // NB: We can't have context switches happen in this callback, so sync operations could potentially be performed
         // after a call to CypressSynchronizer::Stop().
         YT_UNUSED_FUTURE(PassExecutor_->Stop());
-        {
-            auto guard = Guard(AlertCollectorLock_);
-            AlertCollector_->Stop();
-        }
+        AlertCollector_.Acquire()->Stop();
 
         Active_ = false;
     }
@@ -1019,14 +1018,11 @@ public:
 
         auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("CypressSynchronizer"));
 
-        IAlertCollectorPtr alertCollector;
-        {
-            auto guard = Guard(AlertCollectorLock_);
-            alertCollector = AlertCollector_;
-        }
+        IAlertCollectorPtr alertCollector = AlertCollector_.Acquire();
 
         auto finalizePass = Finally([&] {
             alertCollector->PublishAlerts();
+            PassProfiler_.OnFinish(TInstant::Now() - PassInstant_);
         });
 
         if (!DynamicConfig_->Enable) {
@@ -1036,6 +1032,7 @@ public:
 
         PassInstant_ = TInstant::Now();
         ++PassIndex_;
+        PassProfiler_.OnStart(PassIndex_, PassInstant_);
 
         auto dynamicConfigSnapshot = CloneYsonStruct(DynamicConfig_);
 
@@ -1052,6 +1049,7 @@ public:
             PassError_ = TError();
         } catch (const std::exception& ex) {
             PassError_ = TError(ex);
+            PassProfiler_.OnError();
             alertCollector->StageAlert(CreateAlert(
                 NAlerts::EErrorCode::CypressSynchronizerPassFailed,
                 "Error performing Cypress synchronizer pass",
@@ -1086,10 +1084,10 @@ private:
     const TClientDirectoryPtr ClientDirectory_;
     const TCallback<IAlertCollectorPtr()> CreateAlertCollectorCallback_;
     const TPeriodicExecutorPtr PassExecutor_;
+    const TPassProfiler PassProfiler_;
     const IYPathServicePtr OrchidService_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, AlertCollectorLock_);
-    IAlertCollectorPtr AlertCollector_;
+    TAtomicIntrusivePtr<IAlertCollector> AlertCollector_;
 
     //! Whether this instance is actively performing passes.
     std::atomic<bool> Active_ = false;

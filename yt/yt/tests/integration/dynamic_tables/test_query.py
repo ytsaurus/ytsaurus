@@ -157,8 +157,7 @@ class TestQuery(DynamicTablesBase):
         select_rows(
             "sum(1) from [//tmp/t] join [//tmp/t] J on (b / 10) % 3 * 3 = J.a group by 1",
             response_parameters=response_parameters,
-            enable_statistics=True,
-            statistics_aggregation="depth")
+            enable_statistics=True)
 
         while "inner_statistics" in response_parameters:
             assert len(response_parameters["inner_statistics"]) == 1
@@ -2074,80 +2073,79 @@ class TestQuery(DynamicTablesBase):
             select_rows("a from [//tmp/t] where b != 0 limit 3", use_canonical_null_relations=True),
             [{"a": 1}])
 
-    @authors("sabdenovch")
-    def test_read_without_merge_sorted(self):
+    @authors("lukyan")
+    def test_read_without_merge_agg(self):
         sync_create_cells(1)
+
+        int64_list = {"type_name": "list", "item": "int64"}
+        optional_int64_list = {"type_name": "optional", "item": int64_list}
+
+        schema = [
+            {"name": "k1", "type": "int64", "sort_order": "ascending"},
+            {"name": "k2", "type": "int64", "sort_order": "ascending"},
+            {"name": "v1", "type": "int64", "aggregate": "sum"},
+            {"name": "v2", "type": "int64", "aggregate": "sum"},
+            {"name": "nk1", "type_v3": int64_list, "aggregate": "nested_key(n)"},
+            {"name": "nk2", "type_v3": int64_list, "aggregate": "nested_key(n)"},
+            {"name": "nv1", "type_v3": optional_int64_list, "aggregate": "nested_value(n, sum)"},
+            {"name": "nv2", "type_v3": optional_int64_list, "aggregate": "nested_value(n, sum)"},
+        ]
+
         create(
             "table",
             "//tmp/t",
             attributes={
                 "dynamic": True,
                 "optimize_for": "scan",
-                "schema": [
-                    {"name": "key1", "type": "int64", "sort_order": "ascending"},
-                    {"name": "key2", "type": "string", "sort_order": "ascending"},
-                    {"name": "value1", "type": "int64"},
-                    {"name": "value2", "type": "string"},
-                    {"name": "aggr", "type": "int64", "aggregate": "sum"},
-                ],
+                "schema": schema,
                 "single_column_group_by_default": False,
             })
 
         sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", [
-            {"key1": 1, "key2": "2", "value1": 0, "value2": "value", "aggr": 0},
-            {"key1": 2, "value1": 2},
-        ], update=True, aggregate=True)
 
-        ts2 = "$timestamp:value2"
-
-        def find(rows, key1, value2):
-            return list(filter(lambda x: x["key1"] == key1 and x["value2"] == value2, rows))[0]
-
-        assert_items_equal(
-            select_rows("key1, value2 from [//tmp/t]", merge_versioned_rows=False),
-            [{"key1": 1, "value2": "value"}, {"key1": 2, "value2": None}],
-        )
-
-        timestamped_rows = select_rows(
-            f"key1, value2, [{ts2}] from [//tmp/t]",
-            merge_versioned_rows=False,
-            with_timestamps=True,
-        )
-        ts_value1 = find(timestamped_rows, 1, "value")[ts2]
-        ts_value2 = find(timestamped_rows, 2, None)[ts2]
-        assert not isinstance(ts_value1, yson.YsonEntity)
-        assert isinstance(ts_value2, yson.YsonEntity)
-
-        sync_flush_table("//tmp/t")
         insert_rows(
             "//tmp/t",
             [
-                {"key1": 1, "key2": "2", "value1": 2, "value2": "new_value", "aggr": 1},
-                {"key1": 1, "key2": "2", "value1": 2, "value2": "new_value", "aggr": 2},
+                {"k1": 1, "k2": 10, "v1": 1, "v2": 10, "nk1": [1, 2], "nk2": [10, 20], "nv1": [100, 200], "nv2": [1000, 2000]},
+                {"k1": 2, "k2": 10, "v1": 1, "v2": 10, "nk1": [2, 1], "nk2": [20, 10], "nv1": [200, 100]},
             ],
+            update=True,
+        )
+
+        insert_rows(
+            "//tmp/t",
+            [
+                {"k1": 1, "k2": 10, "v1": 1, "v2": 10, "nk1": [2, 3], "nk2": [20, 30], "nv1": [200, 300], "nv2": [2000, 3000]},
+                {"k1": 2, "k2": 10, "v1": 0, "v2": 0, "nk1": [1, 2], "nk2": [10, 20], "nv2": [1000, 2000]},
+            ],
+            update=True,
             aggregate=True,
         )
 
-        assert_items_equal(
-            select_rows("key1, value2, aggr from [//tmp/t]", merge_versioned_rows=False),
-            [
-                {"key1": 1, "value2": "value", "aggr": 0},
-                {"key1": 1, "value2": "new_value", "aggr": 3},
-                {"key1": 2, "value2": None, "aggr": None}
-            ],
-        )
+        def test_query(query):
+            res1 = select_rows(query, merge_versioned_rows=False)
+            res2 = select_rows(query, merge_versioned_rows=True)
+            assert_items_equal(res1, res2)
 
-        timestamped_rows = select_rows(
-            f"key1, value2, aggr, [{ts2}] from [//tmp/t]",
-            merge_versioned_rows=False,
-            with_timestamps=True,
-        )
-        ts_value1 = find(timestamped_rows, 1, "value")[ts2]
-        ts_value2 = find(timestamped_rows, 1, "new_value")[ts2]
-        ts_value3 = find(timestamped_rows, 2, None)[ts2]
-        assert ts_value1 < ts_value2
-        assert isinstance(ts_value3, yson.YsonEntity)
+        test_query(
+            "k1, nk1_, sum(v1) as sv1, sum(v2) as sv2, sum(nv1_) as snv1, sum(nv2_) as snv2 "
+            "from [//tmp/t] array join nk1 as nk1_, nv1 as nv1_, nv2 as nv2_ "
+            "group by k1, nk1_")
+
+        test_query(
+            "k2, nk1_, sum(v1) as sv1, sum(v2) as sv2, sum(nv1_) as snv1, sum(nv2_) as snv2 "
+            "from [//tmp/t] array join nk1 as nk1_, nv1 as nv1_, nv2 as nv2_ "
+            "group by k2, nk1_")
+
+        test_query(
+            "k1, nk2_, sum(v1) as sv1, sum(v2) as sv2, sum(nv1_) as snv1, sum(nv2_) as snv2 "
+            "from [//tmp/t] array join nk2 as nk2_, nv1 as nv1_, nv2 as nv2_ "
+            "group by k1, nk2_")
+
+        test_query(
+            "k2, nk2_, sum(v1) as sv1, sum(v2) as sv2, sum(nv1_) as snv1, sum(nv2_) as snv2 "
+            "from [//tmp/t] array join nk2 as nk2_, nv1 as nv1_, nv2 as nv2_ "
+            "group by k2, nk2_")
 
     @authors("sabdenovch")
     def test_array_join(self):
@@ -2660,11 +2658,11 @@ class TestQuery(DynamicTablesBase):
                         "(SELECT T.k_1 as k_1, T.v, D.s FROM [//tmp/t] T JOIN [//tmp/d] D on T.k_1 = D.k_1) X group by X.k_1"))
 
         assert select_rows("""
-            cardinality_merge(Subquery_2.x) AS c
+            uniq_merge(Subquery_2.x) AS c
             FROM (
-                SELECT cardinality_merge_state(Subquery_1.y) AS x
+                SELECT uniq_merge_state(Subquery_1.y) AS x
                 FROM (
-                    SELECT cardinality_state(k_2) as y, g
+                    SELECT uniq_state(k_2) as y, g
                     FROM `//tmp/t`
                     GROUP BY k_1 as g
                 ) AS Subquery_1
@@ -3123,6 +3121,7 @@ class TestQuerySequoia(TestQuery):
             "sequoia_chunk_replicas": {
                 "enable": True,
                 "enable_sequoia_chunk_refresh": True,
+                "enable_global_sequoia_chunk_refresh": False,  # TODO(grphil): Do not apply DELTA_DYNAMIC_MASTER_CONFIG to ground
                 "sequoia_chunk_refresh_period": 100,
                 "replicas_percentage": 100,
                 "fetch_replicas_from_sequoia": True,

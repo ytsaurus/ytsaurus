@@ -52,7 +52,8 @@ class TGroupBlockHolder;
 
 using TBlockManagerFactory = std::function<std::unique_ptr<IBlockManager>(
     std::vector<TGroupBlockHolder> blockHolders,
-    TRange<TSpanMatching> windowsList)>;
+    TRange<TSpanMatching> windowsList,
+    TRange<ui32> blockUncompressedSizes)>;
 
 struct TKeysWithHints
 {

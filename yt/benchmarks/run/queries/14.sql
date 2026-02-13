@@ -7,7 +7,7 @@ $bla1 = (select iss.i_brand_id brand_id
      cross join date_dim d1
  where ss_item_sk = iss.i_item_sk
    and ss_sold_date_sk = d1.d_date_sk
-   and d1.d_year between 2000 AND 2000 + 2);
+   and d1.d_year between 1999 AND 1999 + 2);
 $bla2 = (select ics.i_brand_id brand_id
      ,ics.i_class_id class_id
      ,ics.i_category_id category_id
@@ -16,7 +16,7 @@ $bla2 = (select ics.i_brand_id brand_id
      cross join date_dim d2
  where cs_item_sk = ics.i_item_sk
    and cs_sold_date_sk = d2.d_date_sk
-   and d2.d_year between 2000 AND 2000 + 2);
+   and d2.d_year between 1999 AND 1999 + 2);
 $bla3 = (select iws.i_brand_id brand_id
      ,iws.i_class_id class_id
      ,iws.i_category_id category_id
@@ -25,7 +25,7 @@ $bla3 = (select iws.i_brand_id brand_id
      cross join date_dim d3
  where ws_item_sk = iws.i_item_sk
    and ws_sold_date_sk = d3.d_date_sk
-   and d3.d_year between 2000 AND 2000 + 2);
+   and d3.d_year between 1999 AND 1999 + 2);
 
 $cross_items = (select i_item_sk ss_item_sk
  from item cross join
@@ -49,33 +49,33 @@ $avg_sales =
        from store_sales
            cross join date_dim
        where ss_sold_date_sk = d_date_sk
-         and d_year between 2000 and 2000 + 2
+         and d_year between 1999 and 1999 + 2
        union all
        select cs_quantity quantity
              ,cs_list_price list_price
        from catalog_sales
            cross join date_dim
        where cs_sold_date_sk = d_date_sk
-         and d_year between 2000 and 2000 + 2
+         and d_year between 1999 and 1999 + 2
        union all
        select ws_quantity quantity
              ,ws_list_price list_price
        from web_sales
            cross join date_dim
        where ws_sold_date_sk = d_date_sk
-          and d_year between 2000 and 2000 + 2) x);
+          and d_year between 1999 and 1999 + 2) x);
 
 $week_seq_2001 = (select d_week_seq
                      from date_dim
-                     where d_year = 2000 + 1
+                     where d_year = 1999 + 1
                        and d_moy = 12
-                       and d_dom = 15);
+                       and d_dom = 11);
 
 $week_seq_2000 = (select d_week_seq
                      from date_dim
-                     where d_year = 2000
+                     where d_year = 1999
                        and d_moy = 12
-                       and d_dom = 15);
+                       and d_dom = 11);
 
 
 -- start query 1 in stream 0 using template query14.tpl and seed 1819994127
@@ -91,7 +91,7 @@ $week_seq_2000 = (select d_week_seq
        where ss_item_sk in $cross_items
          and ss_item_sk = i_item_sk
          and ss_sold_date_sk = d_date_sk
-         and d_year = 2000+2
+         and d_year = 1999+2
          and d_moy = 11
        group by item.i_brand_id,item.i_class_id,item.i_category_id
        having sum(ss_quantity*ss_list_price) > $avg_sales
@@ -103,7 +103,7 @@ $week_seq_2000 = (select d_week_seq
        where cs_item_sk in $cross_items
          and cs_item_sk = i_item_sk
          and cs_sold_date_sk = d_date_sk
-         and d_year = 2000+2
+         and d_year = 1999+2
          and d_moy = 11
        group by item.i_brand_id,item.i_class_id,item.i_category_id
        having sum(cs_quantity*cs_list_price) > $avg_sales
@@ -115,7 +115,7 @@ $week_seq_2000 = (select d_week_seq
        where ws_item_sk in $cross_items
          and ws_item_sk = i_item_sk
          and ws_sold_date_sk = d_date_sk
-         and d_year = 2000+2
+         and d_year = 1999+2
          and d_moy = 11
        group by item.i_brand_id,item.i_class_id,item.i_category_id
        having sum(ws_quantity*ws_list_price) > $avg_sales

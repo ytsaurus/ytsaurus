@@ -129,11 +129,12 @@ DECLARE_REFCOUNTED_STRUCT(TTableReplicaSnapshot)
 DECLARE_REFCOUNTED_STRUCT(IPullerReplicaCache)
 DECLARE_REFCOUNTED_STRUCT(TRefCountedReplicationProgress)
 DECLARE_REFCOUNTED_CLASS(TTableProfiler)
+DECLARE_REFCOUNTED_CLASS(THunkTabletProfiler)
 DECLARE_REFCOUNTED_CLASS(TChunkIOProfiler)
 
 DECLARE_ENTITY_TYPE(TTransaction, TTransactionId, ::THash<TTransactionId>)
 
-using TTransactionExternalizationToken = TGuid;
+YT_DEFINE_STRONG_TYPEDEF(TTransactionExternalizationToken, TGuid);
 
 using TExternalizedTransactionId = std::pair<TTransactionId, TTransactionExternalizationToken>;
 DECLARE_ENTITY_TYPE(TExternalizedTransaction, TExternalizedTransactionId, ::THash<TExternalizedTransactionId>)
@@ -247,6 +248,7 @@ DECLARE_REFCOUNTED_STRUCT(TCompressionDictionaryBuilderConfig)
 DECLARE_REFCOUNTED_STRUCT(TCompressionDictionaryBuilderDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TSmoothMovementTrackerTestingConfig)
 DECLARE_REFCOUNTED_STRUCT(TSmoothMovementTrackerDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TUserBanDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TTabletNodeDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(THintManagerConfig)
 DECLARE_REFCOUNTED_STRUCT(TTabletNodeConfig)
@@ -278,19 +280,6 @@ DECLARE_REFCOUNTED_STRUCT(IHunkTabletManager)
 DECLARE_REFCOUNTED_STRUCT(IHunkTabletScanner)
 
 DECLARE_REFCOUNTED_CLASS(THunkStore)
-
-template <class TProto, class TState>
-using TTypedTransactionActionDescriptor = NTransactionSupervisor::TTypedTransactionActionDescriptor<
-    TTransaction,
-    TProto,
-    TState
->;
-
-using TTypeErasedTransactionActionDescriptor = NTransactionSupervisor::TTypeErasedTransactionActionDescriptor<
-    TTransaction,
-    TSaveContext,
-    TLoadContext
->;
 
 ////////////////////////////////////////////////////////////////////////////////
 

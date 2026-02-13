@@ -2,8 +2,6 @@
 
 #include "evaluation_helpers.h"
 
-#include <yt/yt/library/query/base/vector_over_memory_chunk_provider.h>
-
 namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -33,6 +31,8 @@ private:
         i64 ContextIndex = -1;
     };
 
+    using THeap = std::vector<TRowAndBuffer, TAllocatorOverChunkProvider<TRowAndBuffer>>;
+
     void AccountGarbage(const TPIValue* row);
     void CollectGarbageAndAllocateNewContextIfNeeded();
     TRowAndBuffer Capture(const TPIValue* row, TPIValue* destination);
@@ -52,7 +52,7 @@ private:
     std::vector<TExpressionContext> StringLikeValueContexts_;
     std::vector<int> StringLikeValueEmptyContextIds_;
 
-    TVectorOverMemoryChunkProvider<TRowAndBuffer> Heap_;
+    THeap Heap_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

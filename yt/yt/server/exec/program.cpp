@@ -13,7 +13,6 @@
 #include <yt/yt/core/logging/log_manager.h>
 
 #include <yt/yt/core/misc/proc.h>
-#include <yt/yt/core/misc/fs.h>
 
 #include <library/cpp/yt/system/handle_eintr.h>
 
@@ -51,6 +50,7 @@ private:
         auto config = GetConfig();
         std::vector<int> reservedDescriptors;
         reservedDescriptors.push_back(STDOUT_FILENO);
+        reservedDescriptors.push_back(STDIN_FILENO);
         if (config->Pty) {
             reservedDescriptors.push_back(*config->Pty);
         }
@@ -67,6 +67,12 @@ private:
 
         auto config = GetConfig();
 
+        // Truncate the config file immediately after reading it, as it can contain secrets.
+        if (!TFile(GetConfigPath(), EOpenModeFlag::CreateAlways | EOpenModeFlag::WrOnly).IsOpen()) {
+            LogToStderr(Format("Failed to overwrite executor config file: %v", TError::FromSystem()));
+            Exit(ToUnderlying(EProgramExitCode::ExecutorError));
+        }
+
         JobId_ = config->JobId;
 
         try {
@@ -74,8 +80,6 @@ private:
         } catch (const std::exception& ex) {
             Exit(ToUnderlying(EProgramExitCode::ExecutorStderrOpenError));
         }
-
-        std::vector<TString> logs;
 
         {
             std::vector<int> fdsToLeave;
@@ -241,7 +245,7 @@ private:
 
     void LogToStderr(const TString& message)
     {
-        auto logRecord = Format("%v (JobId: %v)", message, JobId_);
+        auto logRecord = Format("%v (JobId: %v)\n", message, JobId_);
 
         if (!ExecutorStderr_.IsOpen()) {
             Cerr << logRecord << Endl;

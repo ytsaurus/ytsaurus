@@ -482,6 +482,7 @@ public:
     {
         SetAllowAsterisk(true);
         SetVisitEverythingAfterPath(true);
+        SetRelativeIndexPolicy(ERelativeIndexPolicy::Throw);
     }
 
     DEFINE_BYVAL_RW_PROPERTY(bool, Equal, true);
@@ -590,13 +591,6 @@ protected:
                 }
                 auto indexParseResults = errorOrIndexParseResults.ValueOrThrow();
 
-                if (indexParseResults.first.IndexType != EListIndexType::Relative ||
-                    indexParseResults.second.IndexType != EListIndexType::Relative)
-                {
-                    THROW_ERROR_EXCEPTION(NAttributes::EErrorCode::MalformedPath,
-                        "Unexpected relative path specifier %v",
-                        GetToken());
-                }
                 AdvanceOver(indexParseResults.first.Index);
 
                 if (fieldDescriptor->type() == NProtoBuf::FieldDescriptor::TYPE_MESSAGE) {

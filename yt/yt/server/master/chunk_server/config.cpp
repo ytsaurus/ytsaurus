@@ -312,12 +312,44 @@ void TDynamicDataNodeTrackerConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("enable_per_location_full_heartbeats", &TThis::EnablePerLocationFullHeartbeats)
         .Default(false);
+    registrar.Parameter("enable_validation_full_heartbeats", &TThis::EnableValidationFullHeartbeats)
+        .Default(false);
+    registrar.Parameter("validation_full_heartbeat_period", &TThis::ValidationFullHeartbeatPeriod)
+        .Default(TDuration::Days(1));
+    registrar.Parameter("validation_full_heartbeat_splay", &TThis::ValidationFullHeartbeatSplay)
+        .Default(TDuration::Hours(4));
     registrar.Parameter("enable_chunk_replicas_throttling_in_heartbeats", &TThis::EnableChunkReplicasThrottlingInHeartbeats)
         .Default(false);
     registrar.Parameter("enable_location_indexes_in_data_node_heartbeats", &TThis::EnableLocationIndexesInDataNodeHeartbeats)
         .Default(false);
+    registrar.Parameter("use_location_indexes_in_sequoia_chunk_confirmation", &TThis::UseLocationIndexesInSequoiaChunkConfirmation)
+        .Alias("enable_location_indexes_in_chunk_confirmation")
+        .Default(false);
+    registrar.Parameter("use_location_indexes_to_search_location_on_confirmation", &TThis::UseLocationIndexesToSearchLocationOnConfirmation)
+        .Default(false);
+    registrar.Parameter("check_location_convergence_by_index_and_uuid_on_confirmation", &TThis::CheckLocationConvergenceByIndexAndUuidOnConfirmation)
+        .Default(false);
     registrar.Parameter("verify_all_locations_are_reported_in_full_heartbeats", &TThis::VerifyAllLocationsAreReportedInFullHeartbeats)
         .Default(false);
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->EnableValidationFullHeartbeats && !config->EnablePerLocationFullHeartbeats) {
+            THROW_ERROR_EXCEPTION("Validation full heartbeats requires location full heartbeats to be enabled");
+        }
+
+        if (!config->EnableLocationIndexesInDataNodeHeartbeats) {
+            if (config->UseLocationIndexesInSequoiaChunkConfirmation) {
+                THROW_ERROR_EXCEPTION("Location indices in chunk confirmation requires location indices in data node heartbeats to be enabled");
+            }
+            if (config->UseLocationIndexesToSearchLocationOnConfirmation) {
+                THROW_ERROR_EXCEPTION("Usage of location indices to search location in chunk confirmation requires location indices in data node heartbeats to be enabled");
+            }
+
+            if (config->CheckLocationConvergenceByIndexAndUuidOnConfirmation) {
+                THROW_ERROR_EXCEPTION("Location convergence by index and uuid check in chunk confirmation requires location indices in data node heartbeats to be enabled");
+            }
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -403,6 +435,14 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
     registrar.Parameter("removal_batch_size", &TThis::RemovalBatchSize)
         .Default(1000);
 
+    registrar.Parameter("confirm_period", &TThis::ConfirmPeriod)
+        .Default(TDuration::MilliSeconds(500))
+        .DontSerializeDefault();
+
+    registrar.Parameter("confirm_batch_size", &TThis::ConfirmBatchSize)
+        .Default(5000)
+        .DontSerializeDefault();
+
     registrar.Parameter("replicas_percentage", &TThis::ReplicasPercentage)
         .Default(0)
         .InRange(0, 100);
@@ -446,6 +486,22 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
     registrar.Parameter("always_include_unapproved_replicas", &TThis::AlwaysIncludeUnapprovedReplicas)
         .Default(true);
 
+    registrar.Parameter("batch_chunk_confirmation", &TThis::BatchChunkConfirmation)
+        .Default(false)
+        .DontSerializeDefault();
+
+    registrar.Parameter("enable_global_sequoia_chunk_refresh", &TThis::EnableGlobalSequoiaChunkRefresh)
+        .Default(true);
+
+    registrar.Parameter("global_sequoia_chunk_refresh_period", &TThis::GlobalSequoiaChunkRefreshPeriod)
+        .Default(TDuration::Seconds(10));
+
+    registrar.Parameter("global_sequoia_chunk_refresh_batch_size", &TThis::GlobalSequoiaChunkRefreshBatchSize)
+        .Default(100'000);
+
+    registrar.Parameter("max_unsuccessful_global_sequoia_chunk_refresh_iterations", &TThis::MaxUnsuccessfulGlobalSequoiaChunkRefreshIterations)
+        .Default(10);
+
     registrar.Postprocessor([] (TThis* config) {
         if (config->StoreSequoiaReplicasOnMaster && !config->ProcessRemovedSequoiaReplicasOnMaster) {
             THROW_ERROR_EXCEPTION("Cannot disable removed Sequoia replicas processing on master while master still stores "
@@ -454,10 +510,6 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
 
         if (!config->StoreSequoiaReplicasOnMaster && config->ValidateSequoiaReplicasFetch) {
             THROW_ERROR_EXCEPTION("Cannot validate Sequoia replicas fetch as they are not stored on master");
-        }
-
-        if (config->Enable && !config->EnableSequoiaChunkRefresh) {
-            THROW_ERROR_EXCEPTION("Cannot enable Sequoia chunk replicas without enabling Sequoia chunk refresh");
         }
     });
 }
@@ -807,6 +859,11 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("max_lost_vital_chunks_to_log", &TThis::MaxLostVitalChunksToLog)
         .Default(100)
+        .DontSerializeDefault();
+
+    // COMPAT(grphil)
+    registrar.Parameter("always_fetch_non_online_replicas", &TThis::AlwaysFetchNonOnlineReplicas)
+        .Default(true)
         .DontSerializeDefault();
 
     registrar.Postprocessor([] (TThis* config) {

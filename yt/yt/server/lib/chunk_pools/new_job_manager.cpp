@@ -743,19 +743,6 @@ std::vector<IChunkPoolOutput::TCookie> TNewJobManager::DecreaseJobCount(int delt
     return cookies;
 }
 
-std::vector<TLegacyDataSlicePtr> TNewJobManager::ReleaseForeignSlices(IChunkPoolInput::TCookie inputCookie)
-{
-    YT_VERIFY(0 <= inputCookie && inputCookie < std::ssize(Jobs_));
-    std::vector<TLegacyDataSlicePtr> foreignSlices;
-    for (const auto& stripe : Jobs_[inputCookie].StripeList()->Stripes()) {
-        if (stripe->IsForeign()) {
-            std::move(stripe->DataSlices().begin(), stripe->DataSlices().end(), std::back_inserter(foreignSlices));
-            stripe->DataSlices().clear();
-        }
-    }
-    return foreignSlices;
-}
-
 void TNewJobManager::RegisterMetadata(auto&& registrar)
 {
     PHOENIX_REGISTER_FIELD(1, DataWeightCounter_);

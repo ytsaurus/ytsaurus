@@ -1156,7 +1156,7 @@ void TChunkMerger::RescheduleMerge(TObjectId nodeId, TAccountId accountId)
 
     if (backoff == maxBackoffPeriod) {
         if (rescheduleIteration + 1 > GetDynamicConfig()->MaxAllowedBackoffReschedulingsPerSession) {
-            YT_LOG_ALERT("Node is suspected in being stuck in merge pipeline (NodeId: %v, RescheduleIteration: %v, AccountId: %v)",
+            YT_LOG_DEBUG("Node is suspected in being stuck in merge pipeline (NodeId: %v, RescheduleIteration: %v, AccountId: %v)",
                 nodeId,
                 rescheduleIteration,
                 accountId);
@@ -1238,7 +1238,7 @@ void TChunkMerger::RegisterPermanentlyFailedSessionTransient(TObjectId nodeId, T
 
     SessionsAwaitingFinalization_.push({
         .NodeId = nodeId,
-        .Result = EMergeSessionResult::PermanentFailure
+        .Result = EMergeSessionResult::PermanentFailure,
     });
 
     YT_LOG_DEBUG("Starting new permanently failed merge job session (NodeId: %v, AccountId: %v)",
@@ -1794,6 +1794,16 @@ void TChunkMerger::OnJobFinished(const TMergeJobPtr& job)
             "Chunks do not satisfy shallow merge criteria, will not try merging them again (JobId: %v)",
             job->GetJobId());
         result = EMergeSessionResult::PermanentFailure;
+    } else if (state != EJobState::Completed) {
+        YT_LOG_DEBUG(
+            job->Error(),
+            "Chunk merger job did not finish successfully (JobState: %v, JobId: %v, Address: %v, NodeId: %v, AccountId: %v, ChunkId: %v)",
+            state,
+            job->GetJobId(),
+            job->NodeAddress(),
+            job->JobInfo().NodeId,
+            job->JobInfo().AccountId,
+            job->GetChunkIdWithIndexes());
     }
 
     {

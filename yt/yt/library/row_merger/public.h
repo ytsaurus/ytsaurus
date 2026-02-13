@@ -1,5 +1,7 @@
 #pragma once
 
+#include <library/cpp/yt/memory/ref_counted.h>
+
 namespace NYT::NRowMerger {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -9,6 +11,8 @@ class TUnversionedRowMerger;
 class TSamplingRowMerger;
 
 struct IVersionedRowMerger;
+
+DECLARE_REFCOUNTED_STRUCT(TNestedRowDiscardPolicy);
 
 ////////////////////////////////////////////////////////////////////////////////
 

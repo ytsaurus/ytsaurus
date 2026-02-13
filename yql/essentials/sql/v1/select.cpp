@@ -9,6 +9,8 @@
 
 #include <library/cpp/charset/ci_string.h>
 
+#include <util/generic/scope.h>
+
 using namespace NYql;
 
 namespace NSQLTranslationV1 {
@@ -93,13 +95,77 @@ TNodePtr BuildSubquery(TSourcePtr source, const TString& alias, bool inSubquery,
     return new TSubqueryNode(std::move(source), alias, inSubquery, ensureTupleSize, scoped);
 }
 
+class TYqlSubqueryNode final: public INode {
+public:
+    TYqlSubqueryNode(TNodePtr source, TString alias)
+        : INode(source->GetPos())
+        , Source_(std::move(source))
+        , Alias_(std::move(alias))
+    {
+    }
+
+    bool DoInit(TContext& ctx, ISource* src) final {
+        TBlocks dependencies;
+        {
+            ctx.PushCurrentBlocks(&dependencies);
+            Y_DEFER {
+                ctx.PopCurrentBlocks();
+            };
+
+            if (!Source_->Init(ctx, src)) {
+                return false;
+            }
+        }
+
+        TNodePtr block = Y();
+        for (TNodePtr& dependency : dependencies) {
+            block->Add(std::move(dependency));
+        }
+        block->Add(Y("return", Q(Y("world", Source_))));
+
+        Node_ = Y("let", Alias_, Y("block", Q(std::move(block))));
+        IsUsed_ = true;
+        return true;
+    }
+
+    TAstNode* Translate(TContext& ctx) const final {
+        return Node_->Translate(ctx);
+    }
+
+    TNodePtr DoClone() const final {
+        return new TYqlSubqueryNode(Source_->Clone(), Alias_);
+    }
+
+    // Is used at the TYqlProgramNode
+    const TString* SubqueryAlias() const final {
+        return &Alias_;
+    }
+
+    // Is used at the TYqlProgramNode
+    bool UsedSubquery() const final {
+        return IsUsed_;
+    }
+
+private:
+    TNodePtr Source_;
+    TString Alias_;
+    bool IsUsed_;
+
+    TNodePtr Node_;
+};
+
+TNodePtr BuildYqlSubquery(TNodePtr source, TString alias) {
+    return new TYqlSubqueryNode(std::move(source), std::move(alias));
+}
+
 class TSourceNode: public INode {
 public:
-    TSourceNode(TPosition pos, TSourcePtr&& source, bool checkExist, bool withTables)
+    TSourceNode(TPosition pos, TSourcePtr&& source, bool checkExist, bool withTables, bool isInlineScalar)
         : INode(pos)
         , Source_(std::move(source))
         , CheckExist_(checkExist)
         , WithTables_(withTables)
+        , IsInlineScalar_(isInlineScalar)
     {
     }
 
@@ -108,6 +174,13 @@ public:
     }
 
     bool DoInit(TContext& ctx, ISource* src) override {
+        if (IsInlineScalar_ &&
+            !ctx.IsBackwardCompatibleFeatureAvailable(MakeLangVersion(2025, 04))) {
+            ctx.Error(Source_->GetPos())
+                << "Inline subquery is not available before 2025.04";
+            return false;
+        }
+
         if (AsInner_) {
             Source_->UseAsInner();
         }
@@ -166,7 +239,7 @@ public:
     }
 
     TPtr DoClone() const final {
-        return new TSourceNode(Pos_, Source_->CloneSource(), CheckExist_, WithTables_);
+        return new TSourceNode(Pos_, Source_->CloneSource(), CheckExist_, WithTables_, IsInlineScalar_);
     }
 
 protected:
@@ -174,10 +247,11 @@ protected:
     TNodePtr Node_;
     bool CheckExist_;
     bool WithTables_;
+    bool IsInlineScalar_;
 };
 
-TNodePtr BuildSourceNode(TPosition pos, TSourcePtr source, bool checkExist, bool withTables) {
-    return new TSourceNode(pos, std::move(source), checkExist, withTables);
+TNodePtr BuildSourceNode(TPosition pos, TSourcePtr source, bool checkExist, bool withTables, bool isInlineScalar) {
+    return new TSourceNode(pos, std::move(source), checkExist, withTables, isInlineScalar);
 }
 
 class TFakeSource: public ISource {
@@ -404,7 +478,7 @@ protected:
 
 class IRealSource: public ISource {
 protected:
-    IRealSource(TPosition pos)
+    explicit IRealSource(TPosition pos)
         : ISource(pos)
     {
     }
@@ -671,9 +745,54 @@ bool IsSubqueryRef(const TSourcePtr& source) {
     return dynamic_cast<const TSubqueryRefNode*>(source.Get()) != nullptr;
 }
 
+class TYqlSubqueryRefNode final: public INode {
+public:
+    TYqlSubqueryRefNode(TNodePtr subquery, TString ref)
+        : INode(subquery->GetPos())
+        , Subquery_(std::move(subquery))
+        , Ref_(std::move(ref))
+    {
+    }
+
+    bool DoInit(TContext& ctx, ISource* src) final {
+        if (!Subquery_->Init(ctx, nullptr)) {
+            return false;
+        }
+
+        Node_ = BuildAtom(Pos_, Ref_, TNodeFlags::Default);
+        if (!Node_->Init(ctx, src)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    TAstNode* Translate(TContext& ctx) const final {
+        return Node_->Translate(ctx);
+    }
+
+    TPtr DoClone() const final {
+        return new TYqlSubqueryRefNode(Subquery_, Ref_);
+    }
+
+private:
+    TNodePtr Subquery_;
+    TString Ref_;
+
+    TNodePtr Node_;
+};
+
+TNodePtr BuildYqlSubqueryRef(TNodePtr subquery, TString ref) {
+    return new TYqlSubqueryRefNode(std::move(subquery), ref);
+}
+
+bool IsYqlSubqueryRef(const TNodePtr& source) {
+    return dynamic_cast<const TYqlSubqueryRefNode*>(source.Get()) != nullptr;
+}
+
 class TInvalidSubqueryRefNode: public ISource {
 public:
-    TInvalidSubqueryRefNode(TPosition pos)
+    explicit TInvalidSubqueryRefNode(TPosition pos)
         : ISource(pos)
         , Pos_(pos)
     {
@@ -956,7 +1075,9 @@ TSourcePtr BuildInnerSource(TPosition pos, TNodePtr node, const TString& service
     return new TInnerSource(pos, node, service, cluster, label);
 }
 
-static bool IsComparableExpression(TContext& ctx, const TNodePtr& expr, bool assume, const char* sqlConstruction) {
+namespace {
+
+bool IsComparableExpression(TContext& ctx, const TNodePtr& expr, bool assume, const char* sqlConstruction) {
     if (assume && !expr->IsPlainColumn()) {
         ctx.Error(expr->GetPos()) << "Only column names can be used in " << sqlConstruction;
         return false;
@@ -979,6 +1100,8 @@ static bool IsComparableExpression(TContext& ctx, const TNodePtr& expr, bool ass
     }
     return true;
 }
+
+} // namespace
 
 /// \todo move to reduce.cpp? or mapreduce.cpp?
 class TReduceSource: public IRealSource {
@@ -1996,6 +2119,20 @@ private:
             src->SetLegacyHoppingWindowSpec(LegacyHoppingWindowSpec_);
         }
 
+        for (auto iter : WinSpecs_) {
+            auto winSpec = *iter.second;
+            for (auto orderSpec : winSpec.OrderBy) {
+                // Ensure the ORDER BY is correct before terms
+                // (potentially containing window functions)
+                // initialization to avoid window function
+                // recursive dependency, e.g.:
+                // `Rank() OVER (PARTITION BY x ORDER BY Rank())`
+                if (!orderSpec->OrderExpr->Init(ctx, src)) {
+                    hasError = true;
+                }
+            }
+        }
+
         for (auto& term : Terms_) {
             if (!term->Init(ctx, src)) {
                 hasError = true;
@@ -2042,15 +2179,6 @@ private:
                     CompositeTerms_ = L(CompositeTerms_, Y("let", "row", Y("AddMember", "row", BuildQuotedAtom(Pos_, column), Y("Nothing", Y("MatchType",
                                                                                                                                              Y("StructMemberType", Y("ListItemType", Y("TypeOf", tableName)), Q(column)),
                                                                                                                                              Q("Optional"), Y("lambda", Q(Y("item")), "item"), Y("lambda", Q(Y("item")), Y("OptionalType", "item")))))));
-                }
-            }
-        }
-
-        for (auto iter : WinSpecs_) {
-            auto winSpec = *iter.second;
-            for (auto orderSpec : winSpec.OrderBy) {
-                if (!orderSpec->OrderExpr->Init(ctx, src)) {
-                    hasError = true;
                 }
             }
         }
@@ -3017,7 +3145,7 @@ public:
         return {};
     }
 
-    bool HasSkip() const {
+    bool HasSkip() const override {
         return IsSkipProvided_;
     }
 
@@ -3153,7 +3281,7 @@ TSourcePtr BuildSelect(TPosition pos, TSourcePtr source, TNodePtr skipTake) {
 
 class TAnyColumnSource final: public ISource {
 public:
-    TAnyColumnSource(TPosition pos)
+    explicit TAnyColumnSource(TPosition pos)
         : ISource(pos)
     {
     }

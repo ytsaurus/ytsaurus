@@ -32,6 +32,9 @@ public:
     std::optional<ui32> SkipToBlock(ui32 rowIndex);
 
     TRange<ui32> GetBlockIds() const;
+    TRange<ui32> GetBlockChunkRowCounts() const;
+
+    DEFINE_BYVAL_RW_PROPERTY(bool, ContainsKeyColumn, false);
 
 private:
     const TRange<ui32> BlockIds_;
@@ -62,7 +65,7 @@ struct IBlockManager
     virtual ~IBlockManager() = default;
 
     virtual void ClearUsedBlocks() = 0;
-    virtual bool TryUpdateWindow(ui32 rowIndex, TReaderStatistics* readerStatistics = nullptr) = 0;
+    virtual bool TryUpdateWindow(ui32 rowIndex, TReaderStatistics* readerStatistics, bool onlyKeyBlocks = false) = 0;
 
     virtual TFuture<void> GetReadyEvent() const = 0;
 

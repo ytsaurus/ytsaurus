@@ -78,10 +78,9 @@ type MutatingOptions struct {
 type ReadKind string
 
 const (
-	ReadFromLeader      ReadKind = "leader"
-	ReadFromFollower    ReadKind = "follower"
-	ReadFromCache       ReadKind = "cache"
-	ReadFromMasterCache ReadKind = "master_cache"
+	ReadFromLeader   ReadKind = "leader"
+	ReadFromFollower ReadKind = "follower"
+	ReadFromCache    ReadKind = "cache"
 )
 
 // ReadRetryOptions is marker for distinguishing requests that might be safely retried.
@@ -606,17 +605,19 @@ type ListOperationsOptions struct {
 
 	*ReadRetryOptions
 
-	FromTime       *yson.Time      `http:"from_time,omitnil"`
-	ToTime         *yson.Time      `http:"to_time,omitnil"`
-	Cursor         *yson.Time      `http:"cursor_time,omitnil"`
-	User           *string         `http:"user,omitnil"`
-	State          *OperationState `http:"state,omitnil"`
-	Type           *OperationType  `http:"type,omitnil"`
-	Filter         *string         `http:"filter,omitnil"`
-	Limit          *int            `http:"limit,omitnil"`
-	Pool           *string         `http:"pool,omitnil"`
-	PoolTree       *string         `http:"pool_tree,omitnil"`
-	IncludeArchive *bool           `http:"include_archive,omitnil"`
+	FromTime        *yson.Time              `http:"from_time,omitnil"`
+	ToTime          *yson.Time              `http:"to_time,omitnil"`
+	Cursor          *yson.Time              `http:"cursor_time,omitnil"`
+	CursorDirection *OperationSortDirection `http:"cursor_direction,omitnil"`
+	User            *string                 `http:"user,omitnil"`
+	State           *OperationState         `http:"state,omitnil"`
+	Type            *OperationType          `http:"type,omitnil"`
+	Filter          *string                 `http:"filter,omitnil"`
+	Limit           *int                    `http:"limit,omitnil"`
+	Pool            *string                 `http:"pool,omitnil"`
+	PoolTree        *string                 `http:"pool_tree,omitnil"`
+	IncludeArchive  *bool                   `http:"include_archive,omitnil"`
+	Attributes      []string                `http:"attributes,omitnil"`
 }
 
 type ListJobsOptions struct {
@@ -712,6 +713,7 @@ type OperationStatus struct {
 	Result            *OperationResult           `yson:"result"`
 	Type              OperationType              `yson:"type"`
 	BriefProgress     OperationBriefProgress     `yson:"brief_progress"`
+	Progress          yson.RawValue              `yson:"progress"`
 	BriefSpec         map[string]any             `yson:"brief_spec"`
 	FullSpec          yson.RawValue              `yson:"full_spec"`
 	StartTime         yson.Time                  `yson:"start_time"`
@@ -729,6 +731,7 @@ type TotalJobCounter struct {
 	Total     int64 `yson:"total"`
 	Completed int64 `yson:"completed"`
 	Running   int64 `yson:"running"`
+	Failed    int64 `yson:"failed"`
 }
 
 type OperationStartClient interface {
@@ -872,7 +875,9 @@ type RevokeTokenOptions struct{}
 
 type ListUserTokensOptions struct{}
 
-type WhoAmIOptions struct{}
+type WhoAmIOptions struct {
+	*ReadRetryOptions
+}
 
 type AddMaintenanceOptions struct {
 }
@@ -916,6 +921,9 @@ type CheckPermissionByACLOptions struct {
 	IgnoreMissingSubjects bool `http:"ignore_missing_subjects,omitfalse"`
 }
 
+type CheckOperationPermissionOptions struct {
+}
+
 type DisableChunkLocationsOptions struct {
 }
 
@@ -940,6 +948,14 @@ type CheckPermissionResponse struct {
 	CheckPermissionResult
 
 	Columns []CheckPermissionResult `yson:"columns,omitempty"`
+}
+
+type CheckOperationPermissionResult struct {
+	Action SecurityAction `yson:"action"`
+}
+
+type CheckOperationPermissionResponse struct {
+	CheckOperationPermissionResult
 }
 
 type BuildMasterSnapshot struct {
@@ -1069,6 +1085,16 @@ type AdminClient interface {
 		ACL []ACE,
 		options *CheckPermissionByACLOptions,
 	) (result *CheckPermissionResponse, err error)
+
+	// http:verb:"check_operation_permission"
+	// http:params:"operation_id","user","permission"
+	CheckOperationPermission(
+		ctx context.Context,
+		operationID OperationID,
+		user string,
+		permission Permission,
+		options *CheckOperationPermissionOptions,
+	) (result *CheckOperationPermissionResponse, err error)
 
 	// http:verb:"disable_chunk_locations"
 	// http:params:"node_address","location_uuids"

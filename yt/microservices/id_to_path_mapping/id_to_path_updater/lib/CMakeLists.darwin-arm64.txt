@@ -44,6 +44,8 @@ target_proto_messages(id_to_path_mapping-id_to_path_updater-lib PRIVATE
 )
 
 target_sources(id_to_path_mapping-id_to_path_updater-lib PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/microservices/id_to_path_mapping/id_to_path_updater/lib/metrics.cpp
+  ${PROJECT_SOURCE_DIR}/yt/microservices/id_to_path_mapping/id_to_path_updater/lib/pipeline.cpp
   ${PROJECT_SOURCE_DIR}/yt/microservices/id_to_path_mapping/id_to_path_updater/lib/id_to_path_updater.cpp
   ${PROJECT_BINARY_DIR}/yt/microservices/id_to_path_mapping/id_to_path_updater/lib/messages.pb.h
 )

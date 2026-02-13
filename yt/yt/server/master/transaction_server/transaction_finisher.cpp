@@ -443,7 +443,7 @@ public:
         }
 
         if (!Requests_.contains(transaction)) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         // NB: active request has to be unregistered to allow transaction to be

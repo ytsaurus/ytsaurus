@@ -1,0 +1,14 @@
+JAVA_CONTRIB(logback-core-1.2.3)
+
+VERSION(1.2.3)
+
+LICENSE(
+    LGPL-2.1-or-later AND
+    EPL-1.0
+)
+
+JAR_RESOURCE(502328047)
+
+SRC_RESOURCE(502330944)
+
+END()

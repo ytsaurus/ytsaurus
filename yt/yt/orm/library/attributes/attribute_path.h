@@ -20,11 +20,15 @@ bool AreAttributesRelated(NYPath::TYPathBuf lhs, NYPath::TYPathBuf rhs);
 //! |path| must be free of asterisks.
 EAttributePathMatchResult MatchAttributePathToPattern(NYPath::TYPathBuf pattern, NYPath::TYPathBuf path);
 
-using TSplitResult = std::pair<NYPath::TYPath, std::optional<NYPath::TYPath>>;
-// return first literal from the path (with starting slash) if any.
+using TSplitResult = std::pair<std::optional<NYPath::TYPath>, NYPath::TYPath>;
+// If the path is a full prefix of the pattern (up to the list-index indicators on asterisk places)
+// returns the prefix(from patterm) and remaining pattern suffix.
+TSplitResult TryConsumePrefix(const NYPath::TYPath& pattern, const NYPath::TYPath& path);
+// Return first literal from the path (with starting slash) if any.
 TSplitResult GetAttributePathRoot(const NYPath::TYPath& path, int rootLength = 1);
-// split pattern by asterisk
-TSplitResult SplitPatternByAsterisk(const NYPath::TYPath& path);
+
+// Split pattern by asterisk. Always return first part, optional part is set if there is asterisk.
+std::pair<NYPath::TYPath, std::optional<NYPath::TYPath>> SplitPatternByAsterisk(const NYPath::TYPath& path);
 
 ////////////////////////////////////////////////////////////////////////////////
 

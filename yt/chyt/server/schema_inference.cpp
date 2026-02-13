@@ -19,6 +19,14 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr TTypeCompatibilityOptions TypeCompatibilityOptions{
+    .AllowStructFieldRenaming = false,
+    .AllowStructFieldRemoval = false,
+    .IgnoreUnknownRemovedFieldNames = false,
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TLogicalTypePtr MakeNullableIfNot(TLogicalTypePtr element) {
     if (element->IsNullable()) {
         return element;
@@ -119,7 +127,7 @@ std::optional<TColumnSchema> InferCommonColumnSchema(
 
             // Update commonType if current column type is more general (e.g. i32 -> i64).
             // We will handle incompatible types (e.g. i32 and String) later.
-            auto [compatibility, _] = CheckTypeCompatibility(commonType, columnType);
+            auto [compatibility, _] = CheckTypeCompatibility(commonType, columnType, TypeCompatibilityOptions);
             if (compatibility == ESchemaCompatibility::FullyCompatible) {
                 commonType = std::move(columnType);
                 tableIndexWithColumn = tableIndex;
@@ -174,7 +182,7 @@ std::optional<TColumnSchema> InferCommonColumnSchema(
             auto columnType = column.LogicalType();
 
             // Check that all columns can be read as 'the most common' type.
-            auto [compatibility, _] = CheckTypeCompatibility(columnType, commonType);
+            auto [compatibility, _] = CheckTypeCompatibility(columnType, commonType, TypeCompatibilityOptions);
 
             if (compatibility != ESchemaCompatibility::FullyCompatible) {
                 onTypeMismatch(

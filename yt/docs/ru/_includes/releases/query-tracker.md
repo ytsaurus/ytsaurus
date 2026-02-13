@@ -8,6 +8,49 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**0.1.2**" %}
+
+**Release date:** 2026-01-27
+
+
+**Features**
+- [experimental] Allow handling YQL queries in separate processes
+
+**Fixes**
+- Fixed lang version list in UI
+
+
+**NB!** Аvailable only with proxy version [25.2.2](https://github.com/ytsaurus/ytsaurus/releases/tag/docker%2Fytsaurus%2F25.2.2) and later, UI [3.3.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.3.1) and later.
+
+
+{% endcut %}
+
+
+{% cut "**0.1.1**" %}
+
+**Release date:** 2025-12-18
+
+
+This is an alpha release, please update to [0.1.2](https://github.com/ytsaurus/ytsaurus/releases/tag/docker%2Fquery-tracker%2F0.1.2) or later
+
+**Features**
+- Support YQL language versioning
+- Support Spark Connect (SPYT Connect)
+- New possibilities for processing partitioned tables in YQL
+
+**Fixes**
+- Fixed running big queries by compressing 'progress' column
+- Fix running big queries by compressing 'progress' column
+- Fix possible network socket stall (between QT and YQL agent) on YQL query abortion.
+
+**Known bugs**
+- Incorrect lang versions in UI
+
+**NB!** Аvailable only with proxy version [25.2.2](https://github.com/ytsaurus/ytsaurus/releases/tag/docker%2Fytsaurus%2F25.2.2) and later
+
+{% endcut %}
+
+
 {% cut "**0.0.11**" %}
 
 **Release date:** 2025-09-08
@@ -19,7 +62,7 @@ Is released as a docker image.
 - Made YQL queries timeout configurable
 - Supported YQL language versions in QT cli\sdk.
 https://ytsaurus.tech/docs/en/yql/changelog/#general-description-of-yql-versions
-- Supported returning AST of YQL queries in get_query cli\sdk 
+- Supported returning AST of YQL queries in get_query cli\sdk
 
 **Improvements**
 - Improved mechanics of additional secrets in YQL queries
@@ -103,7 +146,7 @@ https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release%2F0.23.1
 
 - **Important fix.** Fixed YQL queries results corruption. Issue: https://github.com/ytsaurus/ytsaurus/issues/707
 - Fixed YQL DQ launching
-- Fixed bug caused UTF-8 errors in yql-agent logs 
+- Fixed bug caused UTF-8 errors in yql-agent logs
 - Fixed multiple deadlocks in yql-agent
 - Added support for SPYT discovery groups
 - Added support for SPYT queries parameters
@@ -166,7 +209,7 @@ yt create access_control_object --attr '{namespace=queries;name=nobody}'
 **NB:**
 - Compatible only with operator version [0.6.0](https://github.com/ytsaurus/yt-k8s-operator/releases/tag/release%2F0.6.0) and later
 - Compatible only with proxies version [23.2](https://github.com/ytsaurus/ytsaurus/releases/tag/docker%2Fytsaurus%2F23.2.0) and later
-- Before updating, please read the [documentation](https://ytsaurus.tech/docs/ru/user-guide/query-tracker/about#access-control) section containing information about the new query access control.
+- Before updating, please read the [documentation](https://ytsaurus.tech/docs/ru/user-guide/query-tracker#access-control) section containing information about the new query access control.
 
 **New related issues:**
 - [Problems with QT ACOs](https://github.com/ytsaurus/yt-k8s-operator/issues/176)
@@ -209,7 +252,7 @@ https://github.com/ytsaurus/yt-k8s-operator/releases/tag/release%2F0.5.0
 **Release date:** 2023-11-14
 
 
-- Fixed a bug that caused the user transaction to expire before the completion of the yql query on IPv4 only networks. 
+- Fixed a bug that caused the user transaction to expire before the completion of the yql query on IPv4 only networks.
 - System query_tracker tables have been moved to sys bundle
 
 

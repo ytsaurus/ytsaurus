@@ -98,7 +98,9 @@ void TSimpleHydraManagerMock::DoApplyUpTo(int sequenceNumber)
         const auto& request = MutationRequests_[AppliedSequenceNumber_];
 
         TMutationContext mutationContext(
-            TVersion(0, AppliedSequenceNumber_),
+            TLogicalVersion(0, AppliedSequenceNumber_),
+            TPhysicalVersion(0, AppliedSequenceNumber_),
+            TPhysicalVersion(0, AppliedSequenceNumber_),
             &request,
             TInstant::Now(),
             /*randomSeed*/ 0,
@@ -177,7 +179,9 @@ void TSimpleHydraManagerMock::DoLoadSnapshot(const TSnapshot& snapshot)
     }
 
     THydraContext hydraContext(
-        TVersion(),
+        TLogicalVersion(),
+        TPhysicalVersion(),
+        TPhysicalVersion(),
         /*timestamp*/ TInstant::Zero(),
         /*randomSeed*/ 0,
         /*localHostNameOverride*/ TSharedRef::FromString("<mock-host>"));
@@ -241,7 +245,7 @@ TCancelableContextPtr TSimpleHydraManagerMock::GetAutomatonCancelableContext() c
 TFuture<void> TSimpleHydraManagerMock::Reconfigure(TDynamicDistributedHydraManagerConfigPtr /*config*/)
 {
     // Do nothing.
-    return VoidFuture;
+    return OKFuture;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

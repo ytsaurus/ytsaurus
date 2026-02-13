@@ -2,14 +2,12 @@
 
 PY3_LIBRARY()
 
-VERSION(4.11.0)
+VERSION(4.12.1)
 
 LICENSE(MIT)
 
 PEERDIR(
     contrib/python/idna
-    contrib/python/sniffio
-    contrib/python/typing-extensions
 )
 
 NO_LINT()
@@ -50,6 +48,7 @@ PY_SRCS(
     anyio/abc/_tasks.py
     anyio/abc/_testing.py
     anyio/from_thread.py
+    anyio/functools.py
     anyio/lowlevel.py
     anyio/pytest_plugin.py
     anyio/streams/__init__.py

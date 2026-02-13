@@ -5,7 +5,7 @@ from yt_commands import (
     authors, print_debug, wait, create, get, set, create_user, remount_table,
     create_tablet_cell_bundle, remove_tablet_cell, update_nodes_dynamic_config,
     insert_rows, select_rows, lookup_rows, sync_create_cells, pull_queue,
-    sync_mount_table, sync_flush_table, generate_uuid, sync_reshard_table)
+    sync_mount_table, sync_unmount_table, sync_flush_table, generate_uuid, sync_reshard_table)
 
 from yt_helpers import profiler_factory
 
@@ -548,7 +548,7 @@ class TestStatisticsReporter(TestStatisticsReporterBase, TestSortedDynamicTables
     def _get_counter(self, statistics_path, table_id, tablet_id, name, counter):
         response = lookup_rows(statistics_path, [{"table_id": table_id, "tablet_id": tablet_id}])
         if len(response) == 0:
-            return 0
+            return None
         return response[0][name][counter]
 
     @authors("dave11ar")
@@ -563,6 +563,54 @@ class TestStatisticsReporter(TestStatisticsReporterBase, TestSortedDynamicTables
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
 
         wait(lambda: len(lookup_rows(statistics_path, [{"table_id": table_id, "tablet_id": tablet_id}])) == 1)
+
+    @authors("atalmenev")
+    def test_update_statistics_in_statistics_reporter(self):
+        statistics_path = "//tmp/statistics_reporter_table"
+        self._setup_statistics_reporter(statistics_path)
+
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        table_id = get("//tmp/t/@id")
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        def _check_dynamic_row_write_counter_after_unmount(expected_value, rows=None):
+            sync_unmount_table("//tmp/t")
+            sync_mount_table("//tmp/t")
+
+            if rows is None:
+                self._create_sorted_table("//tmp/t1")
+                sync_mount_table("//tmp/t1")
+                wait(lambda: self._get_counter(
+                    statistics_path,
+                    get("//tmp/t1/@id"),
+                    get("//tmp/t1/@tablets/0/tablet_id"),
+                    "dynamic_row_write", "count") == 0)
+            else:
+                insert_rows("//tmp/t", rows)
+
+            wait(lambda: self._get_counter(
+                statistics_path,
+                table_id,
+                tablet_id,
+                "dynamic_row_write", "count") == expected_value)
+
+        insert_rows("//tmp/t", [{"key": 1, "value": "F"}])
+        wait(lambda: self._get_counter(
+            statistics_path,
+            table_id,
+            tablet_id,
+            "dynamic_row_write", "count") == 1)
+        _check_dynamic_row_write_counter_after_unmount(expected_value=1)
+
+        _check_dynamic_row_write_counter_after_unmount(
+            expected_value=2,
+            rows=[{"key": 2, "value": "F"}])
+
+        _check_dynamic_row_write_counter_after_unmount(
+            expected_value=9,
+            rows=[{"key": i, "value": "F"} for i in range(3, 10)])
 
     @authors("sabdenovch")
     def test_select_cpu_performance_counters(self):

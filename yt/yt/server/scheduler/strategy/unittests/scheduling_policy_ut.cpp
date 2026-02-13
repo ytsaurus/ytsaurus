@@ -10,6 +10,7 @@
 #include <yt/yt/server/scheduler/strategy/scheduling_heartbeat_context.h>
 
 #include <yt/yt/server/scheduler/strategy/policy/scheduling_policy_detail.h>
+#include <yt/yt/server/scheduler/strategy/policy/pool_tree_snapshot_state.h>
 
 #include <yt/yt/server/scheduler/common/public.h>
 #include <yt/yt/server/scheduler/common/exec_node.h>
@@ -54,10 +55,10 @@ public:
         , MediumDirectory_(New<NChunkClient::TMediumDirectory>())
     {
         NChunkClient::NProto::TMediumDirectory protoDirectory;
-        auto* item = protoDirectory.add_medium_descriptors();
-        item->set_name(NChunkClient::DefaultSlotsMediumName);
-        item->set_index(NChunkClient::DefaultSlotsMediumIndex);
-        item->set_priority(0);
+        auto* protoMediumDescriptor = protoDirectory.add_medium_descriptors();
+        protoMediumDescriptor->set_name(NChunkClient::DefaultSlotsMediumName);
+        protoMediumDescriptor->set_index(NChunkClient::DefaultSlotsMediumIndex);
+        protoMediumDescriptor->set_priority(0);
         MediumDirectory_->LoadFrom(protoDirectory);
 
         for (const auto& node : ExecNodes_) {
@@ -192,7 +193,7 @@ public:
         const TError& /*alert*/,
         std::optional<TDuration> /*timeout*/) override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     NYson::IYsonConsumer* GetEventLogConsumer() override
@@ -245,7 +246,7 @@ public:
 
     TFuture<void> UpdateLastMeteringLogTime(TInstant /*time*/) override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     const THashMap<std::string, TString>& GetUserDefaultParentPoolMap() const override
@@ -998,6 +999,79 @@ TEST_F(TSchedulingPolicyTest, TestUpdatePreemptibleAllocationsList)
     for (int i = 100; i < 150; ++i) {
         EXPECT_EQ(EAllocationPreemptionStatus::Preemptible, SchedulingPolicy_->GetAllocationPreemptionStatusInTest(operationElementX.Get(), allocationIds[i]));
     }
+
+    // Both allocations on border (49 and 99) have fs ~= us, so we should not move them with new policy.
+    TreeConfig_->ConsiderAllocationOnFairShareBoundPreemptible = true;
+    DoFairShareUpdate(strategyHost.Get(), rootElement);
+
+    for (int i = 0; i < 50; ++i) {
+        EXPECT_EQ(EAllocationPreemptionStatus::NonPreemptible, SchedulingPolicy_->GetAllocationPreemptionStatusInTest(operationElementX.Get(), allocationIds[i]));
+    }
+    for (int i = 50; i < 100; ++i) {
+        EXPECT_EQ(EAllocationPreemptionStatus::AggressivelyPreemptible, SchedulingPolicy_->GetAllocationPreemptionStatusInTest(operationElementX.Get(), allocationIds[i]));
+    }
+    for (int i = 100; i < 150; ++i) {
+        EXPECT_EQ(EAllocationPreemptionStatus::Preemptible, SchedulingPolicy_->GetAllocationPreemptionStatusInTest(operationElementX.Get(), allocationIds[i]));
+    }
+}
+
+TEST_F(TSchedulingPolicyTest, ConsiderAllocationOnFairShareBoundPreemptible)
+{
+    TJobResourcesWithQuota nodeResources;
+    nodeResources.SetUserSlots(10);
+    nodeResources.SetCpu(10);
+    nodeResources.SetMemory(100);
+
+    TJobResourcesWithQuota allocationResources;
+    allocationResources.SetUserSlots(1);
+    allocationResources.SetCpu(2);
+    allocationResources.SetMemory(20);
+
+    auto operationOptions = New<TOperationPoolTreeRuntimeParameters>();
+    operationOptions->Weight = 1.0;
+
+    auto strategyHost = CreateTestStrategyHost(CreateTestExecNodeList(10, nodeResources));
+    InitializeTestSchedulingPolicy(strategyHost);
+
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
+
+    auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(10, allocationResources));
+    auto operationElementX = CreateTestOperationElement(strategyHost.Get(), operationX, rootElement.Get(), operationOptions);
+
+    std::vector<TAllocationId> allocationIds;
+    for (int i = 0; i < 75; ++i) {
+        auto allocationId = TAllocationId(TGuid::Create());
+        allocationIds.push_back(allocationId);
+        SchedulingPolicy_->OnAllocationStartedInTest(operationElementX.Get(), allocationId, allocationResources);
+    }
+
+    DoFairShareUpdate(strategyHost.Get(), rootElement);
+
+    EXPECT_EQ(1.0, MaxComponent(operationElementX->Attributes().FairShare.Total));
+    EXPECT_EQ(1.7, MaxComponent(operationElementX->Attributes().DemandShare));
+
+    for (int i = 0; i < 25; ++i) {
+        EXPECT_EQ(EAllocationPreemptionStatus::NonPreemptible, SchedulingPolicy_->GetAllocationPreemptionStatusInTest(operationElementX.Get(), allocationIds[i]));
+    }
+    for (int i = 25; i < 50; ++i) {
+        EXPECT_EQ(EAllocationPreemptionStatus::AggressivelyPreemptible, SchedulingPolicy_->GetAllocationPreemptionStatusInTest(operationElementX.Get(), allocationIds[i]));
+    }
+    for (int i = 50; i < 75; ++i) {
+        EXPECT_EQ(EAllocationPreemptionStatus::Preemptible, SchedulingPolicy_->GetAllocationPreemptionStatusInTest(operationElementX.Get(), allocationIds[i]));
+    }
+
+    TreeConfig_->ConsiderAllocationOnFairShareBoundPreemptible = true;
+    DoFairShareUpdate(strategyHost.Get(), rootElement);
+
+    for (int i = 0; i < 24; ++i) {
+        EXPECT_EQ(EAllocationPreemptionStatus::NonPreemptible, SchedulingPolicy_->GetAllocationPreemptionStatusInTest(operationElementX.Get(), allocationIds[i]));
+    }
+    for (int i = 24; i < 49; ++i) {
+        EXPECT_EQ(EAllocationPreemptionStatus::AggressivelyPreemptible, SchedulingPolicy_->GetAllocationPreemptionStatusInTest(operationElementX.Get(), allocationIds[i]));
+    }
+    for (int i = 49; i < 75; ++i) {
+        EXPECT_EQ(EAllocationPreemptionStatus::Preemptible, SchedulingPolicy_->GetAllocationPreemptionStatusInTest(operationElementX.Get(), allocationIds[i]));
+    }
 }
 
 TEST_F(TSchedulingPolicyTest, DontSuggestMoreResourcesThanOperationNeeds)
@@ -1187,12 +1261,12 @@ TEST_F(TSchedulingPolicyTest, TestSchedulableOperationsOrder)
 
             YT_LOG_INFO("Checking operation index (ExpectedIndex: %v, ActualIndex: %v, Weight: %v)",
                 expectedOperationIndices[opIndex],
-                treeSnapshot->SchedulingPolicyState()->StaticAttributesList().AttributesOf(element.Get()).SchedulingIndex,
+                GetPoolTreeSnapshotState(treeSnapshot)->StaticAttributesList().AttributesOf(element.Get()).SchedulingIndex,
                 element->GetWeight());
 
             EXPECT_EQ(
                 expectedOperationIndices[opIndex],
-                treeSnapshot->SchedulingPolicyState()->StaticAttributesList().AttributesOf(element.Get()).SchedulingIndex);
+                GetPoolTreeSnapshotState(treeSnapshot)->StaticAttributesList().AttributesOf(element.Get()).SchedulingIndex);
         }
 
         auto doCheckOrderDuringSchedulingStage = [&] (auto getBestOperation) {
@@ -1353,10 +1427,10 @@ TEST_F(TSchedulingPolicyTest, TestSchedulableChildSetWithBatchScheduling)
 
         auto sortedOperationElements = operationElements;
         SortBy(sortedOperationElements, [&] (const TPoolTreeOperationElementPtr& element) {
-            return treeSnapshot->SchedulingPolicyState()->StaticAttributesList().AttributesOf(element.Get()).SchedulingIndex;
+            return GetPoolTreeSnapshotState(treeSnapshot)->StaticAttributesList().AttributesOf(element.Get()).SchedulingIndex;
         });
 
-        const auto& schedulableOperations = treeSnapshot->SchedulingPolicyState()->SchedulableOperationsPerPriority()[EOperationSchedulingPriority::Medium];
+        const auto& schedulableOperations = GetPoolTreeSnapshotState(treeSnapshot)->SchedulableOperationsPerPriority()[EOperationSchedulingPriority::Medium];
         ASSERT_EQ(OperationCount, std::ssize(schedulableOperations));
 
         {
@@ -1466,7 +1540,7 @@ TEST_F(TSchedulingPolicyTest, TestSchedulableChildSetWithBatchScheduling)
         auto scheduleAllocationsContextWithDependencies = PrepareScheduleAllocationsContext(strategyHost.Get(), treeSnapshot, execNode);
         auto context = scheduleAllocationsContextWithDependencies.ScheduleAllocationsContext;
 
-        const auto& schedulableOperations = treeSnapshot->SchedulingPolicyState()->SchedulableOperationsPerPriority()[EOperationSchedulingPriority::Medium];
+        const auto& schedulableOperations = GetPoolTreeSnapshotState(treeSnapshot)->SchedulableOperationsPerPriority()[EOperationSchedulingPriority::Medium];
         ASSERT_EQ(NewOperationCount, std::ssize(schedulableOperations));
 
         {
@@ -1935,9 +2009,9 @@ TEST_F(TSchedulingPolicyTest, TestGuaranteePriorityScheduling)
         auto scheduleAllocationsContextWithDependencies = PrepareScheduleAllocationsContext(strategyHost.Get(), treeSnapshot, execNode);
         auto context = scheduleAllocationsContextWithDependencies.ScheduleAllocationsContext;
 
-        const auto& staticAttributesList = treeSnapshot->SchedulingPolicyState()->StaticAttributesList();
-        const auto& schedulableOperationsHigh = treeSnapshot->SchedulingPolicyState()->SchedulableOperationsPerPriority()[EOperationSchedulingPriority::High];
-        const auto& schedulableOperationsMedium = treeSnapshot->SchedulingPolicyState()->SchedulableOperationsPerPriority()[EOperationSchedulingPriority::Medium];
+        const auto& staticAttributesList = GetPoolTreeSnapshotState(treeSnapshot)->StaticAttributesList();
+        const auto& schedulableOperationsHigh = GetPoolTreeSnapshotState(treeSnapshot)->SchedulableOperationsPerPriority()[EOperationSchedulingPriority::High];
+        const auto& schedulableOperationsMedium = GetPoolTreeSnapshotState(treeSnapshot)->SchedulableOperationsPerPriority()[EOperationSchedulingPriority::Medium];
 
         EXPECT_EQ(std::ssize(expectedHighPriorityOperations), std::ssize(schedulableOperationsHigh));
         for (const auto& operationElement : expectedHighPriorityOperations) {

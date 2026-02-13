@@ -11,15 +11,15 @@ namespace NYT::NTabletBalancer {
 
 namespace {
 
-TString BuildMetric(const TString& requestType, const TString& duration)
+std::string BuildMetric(const std::string& requestType, const std::string& duration)
 {
-    static const std::vector<TString> sources{"dynamic", "static_chunk", "static_hunk_chunk"};
+    static const std::vector<std::string> sources{"dynamic", "static_chunk", "static_hunk_chunk"};
 
     if (requestType == "lookup_cpu" || requestType == "select_cpu") {
         return Format("double([/performance_counters/%v_time_%v_rate])", requestType, duration);
     }
 
-    std::vector<TString> metrics;
+    std::vector<std::string> metrics;
     for (const auto& source : sources) {
         metrics.push_back(Format("double([/performance_counters/%v_row_%v_data_weight_%v_rate])", source, requestType, duration));
     }
@@ -30,12 +30,12 @@ TString BuildMetric(const TString& requestType, const TString& duration)
     return Format("(%v)", JoinSeq(" + ", metrics));
 }
 
-THashMap<TString, TString> BuildMetricAliases()
+THashMap<std::string, std::string> BuildMetricAliases()
 {
-    static const std::vector<TString> durations{"10m", "1h"};
-    static const std::vector<TString> requestTypes{"write", "read", "lookup", "lookup_cpu", "select_cpu"};
+    static const std::vector<std::string> durations{"10m", "1h"};
+    static const std::vector<std::string> requestTypes{"write", "read", "lookup", "lookup_cpu", "select_cpu"};
 
-    THashMap<TString, TString> aliases;
+    THashMap<std::string, std::string> aliases;
     for (const auto& duration : durations) {
         for (const auto& requestType : requestTypes) {
             EmplaceOrCrash(
@@ -52,16 +52,16 @@ THashMap<TString, TString> BuildMetricAliases()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ReplaceAliases(const TString& metric)
+std::string ReplaceAliases(const std::string& metric)
 {
     static const auto aliases = BuildMetricAliases();
 
-    std::vector<TString> parts;
+    std::vector<std::string> parts;
     StringSplitter(metric).Split('[').Collect(&parts);
-    std::vector<TString> resultMetric;
+    std::vector<std::string> resultMetric;
 
     for (int partIndex = 0; partIndex < std::ssize(parts); ++partIndex) {
-        std::vector<TString> subParts;
+        std::vector<std::string> subParts;
         StringSplitter(parts[partIndex]).Split(']').Collect(&subParts);
 
         THROW_ERROR_EXCEPTION_IF(subParts.size() > 2 || partIndex == 0 && subParts.size() > 1,

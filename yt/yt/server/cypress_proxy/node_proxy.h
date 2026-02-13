@@ -4,8 +4,6 @@
 
 #include <yt/yt/ytlib/sequoia_client/public.h>
 
-#include <yt/yt/core/rpc/authentication_identity.h>
-
 namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////

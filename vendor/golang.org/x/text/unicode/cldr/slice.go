@@ -36,7 +36,7 @@ func MakeSlice(slicePtr interface{}) Slice {
 	if sl.Kind() != reflect.Slice {
 		panic(fmt.Sprintf("MakeSlice: argument must point to a slice, found %v", sl.Type()))
 	}
-	intf := reflect.TypeOf((*Elem)(nil)).Elem()
+	intf := reflect.TypeFor[Elem]()
 	if !sl.Type().Elem().Implements(intf) {
 		panic(fmt.Sprintf("MakeSlice: element type of slice (%v) does not implement Elem", sl.Type().Elem()))
 	}

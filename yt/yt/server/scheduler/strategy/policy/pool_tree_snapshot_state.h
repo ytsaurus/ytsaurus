@@ -4,6 +4,7 @@
 #include "private.h"
 #include "structs.h"
 #include "operation_shared_state.h"
+#include "scheduling_policy.h"
 
 namespace NYT::NScheduler::NStrategy::NPolicy {
 
@@ -41,8 +42,8 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPoolTreeSnapshotState
-    : public TRefCounted
+class TPoolTreeSnapshotStateImpl
+    : public TPoolTreeSnapshotState
 {
 public:
     DEFINE_BYREF_RO_PROPERTY(TStaticAttributesList, StaticAttributesList);
@@ -53,7 +54,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TOperationCountsByPreemptionPriorityParameters, OperationCountsByPreemptionPriorityParameters);
 
 public:
-    TPoolTreeSnapshotState(
+    TPoolTreeSnapshotStateImpl(
         TStaticAttributesList staticAttributesList,
         TOperationElementsBySchedulingPriority schedulableOperationsPerPriority,
         THashSet<int> ssdPriorityPreemptionMedia,
@@ -86,7 +87,11 @@ private:
     friend class TSchedulingPolicy;
 };
 
-DEFINE_REFCOUNTED_TYPE(TPoolTreeSnapshotState)
+DEFINE_REFCOUNTED_TYPE(TPoolTreeSnapshotStateImpl)
+
+////////////////////////////////////////////////////////////////////////////////
+
+TPoolTreeSnapshotStateImpl* GetPoolTreeSnapshotState(const TPoolTreeSnapshotPtr& treeSnapshot);
 
 ////////////////////////////////////////////////////////////////////////////////
 

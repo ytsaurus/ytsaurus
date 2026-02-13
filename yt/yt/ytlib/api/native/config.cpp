@@ -134,8 +134,6 @@ void TSequoiaConnectionConfig::Register(TRegistrar registrar)
     registrar.Parameter("ground_cluster_name", &TThis::GroundClusterName)
         // COMPAT(babenko): drop once trunk_vs_25_2 are no more.
         .Default("<invalid>");
-    registrar.Parameter("ground_cluster_connection_update_period", &TThis::GroundClusterConnectionUpdatePeriod)
-        .Default(TDuration::Seconds(5));
     registrar.Parameter("enable_ground_reign_validation", &TThis::EnableGroundReignValidation)
         .Default(true);
     registrar.Parameter("sequoia_root_path", &TThis::SequoiaRootPath)
@@ -144,6 +142,10 @@ void TSequoiaConnectionConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(1));
     registrar.Parameter("client_cache", &TThis::ClientCache)
         .DefaultNew();
+
+    registrar.Postprocessor([] (TThis* config) {
+        config->ClientCache->Capacity = 1'000;
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -173,6 +175,8 @@ void TConnectionStaticConfig::Register(TRegistrar registrar)
     registrar.Parameter("connection_name", &TThis::ConnectionName)
         .Alias("name")
         .Default("default");
+    registrar.Parameter("region", &TThis::Region)
+        .Default();
     registrar.Parameter("banned_replica_tracker_cache", &TThis::BannedReplicaTrackerCache)
         .DefaultNew();
 }
@@ -531,7 +535,7 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("disable_adaptive_ordered_schemaful_reader", &TThis::DisableAdaptiveOrderedSchemafulReader)
         .Default(false);
 
-    registrar.Parameter("use_web_assembly", &TThis::UseWebAssembly)
+    registrar.Parameter("allow_web_assembly", &TThis::UseWebAssembly)
         .Default(false);
 
     registrar.Parameter("group_by_with_limit_is_unordered", &TThis::GroupByWithLimitIsUnordered)
@@ -560,6 +564,9 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("strict_operation_info_access_validation", &TThis::StrictOperationInfoAccessValidation)
         .Default(false);
+
+    registrar.Parameter("enable_reshard_with_slicing_by_default", &TThis::EnableReshardWithSlicingByDefault)
+        .Default(true);
 
     registrar.Parameter("get_job_trace_batch_size", &TThis::GetJobTraceBatchSize)
         .Default(2'500)

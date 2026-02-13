@@ -83,7 +83,7 @@ private:
             return;
         }
 
-        auto [builtResponse, refs] = WaitForUnique(responseFuture)
+        auto [builtResponse, refs] = WaitFor(responseFuture.AsUnique())
             .ValueOrThrow();
 
         response->MergeFrom(builtResponse);
@@ -116,7 +116,7 @@ private:
         static const auto EmptyMap = TYsonString(TString("{}"));
         auto responseFuture = YqlAgent_->GetDeclaredParametersInfo(user, request->query(), request->has_settings() ? TYsonString(request->settings()) : EmptyMap);
 
-        auto result = WaitForUnique(responseFuture)
+        auto result = WaitFor(responseFuture.AsUnique())
             .ValueOrThrow();
 
         response->MergeFrom(result);

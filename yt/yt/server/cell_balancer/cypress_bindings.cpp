@@ -91,6 +91,8 @@ void TBundleConfig::Register(TRegistrar registrar)
         .Default(0);
     registrar.Parameter("enable_drills_mode", &TThis::EnableDrillsMode)
         .Default(false);
+    registrar.Parameter("redundant_rpc_proxy_data_center_count", &TThis::RedundantRpcProxyDataCenterCount)
+        .Default();
     registrar.Parameter("forbidden_data_centers", &TThis::ForbiddenDataCenters)
         .Optional();
 }
@@ -127,7 +129,7 @@ void TAbcInfo::Register(TRegistrar registrar)
 
 void TTabletCellInfo::Register(TRegistrar registrar)
 {
-    RegisterAttribute(registrar, "peers", &TThis::Peers)
+    registrar.Parameter("peers", &TThis::Peers)
         .Default();
 }
 
@@ -171,123 +173,123 @@ void TDataCenterInfo::Register(TRegistrar registrar)
 
 void TBundleInfo::Register(TRegistrar registrar)
 {
-    RegisterAttribute(registrar, "health", &TThis::Health)
+    registrar.Parameter("health", &TThis::Health)
         .Default();
-    RegisterAttribute(registrar, "zone", &TThis::Zone)
+    registrar.Parameter("zone", &TThis::Zone)
         .Default();
-    RegisterAttribute(registrar, "node_tag_filter", &TThis::NodeTagFilter)
+    registrar.Parameter("node_tag_filter", &TThis::NodeTagFilter)
         .Default();
-    RegisterAttribute(registrar, "short_name", &TThis::ShortName)
+    registrar.Parameter("short_name", &TThis::ShortName)
         .Optional();
-    RegisterAttribute(registrar, "rpc_proxy_role", &TThis::RpcProxyRole)
+    registrar.Parameter("rpc_proxy_role", &TThis::RpcProxyRole)
         .Optional();
-    RegisterAttribute(registrar, "areas", &TThis::Areas)
+    registrar.Parameter("areas", &TThis::Areas)
         .Optional();
-    RegisterAttribute(registrar, "enable_bundle_controller", &TThis::EnableBundleController)
+    registrar.Parameter("enable_bundle_controller", &TThis::EnableBundleController)
         .Default(false);
-    RegisterAttribute(registrar, "enable_instance_allocation", &TThis::EnableInstanceAllocation)
+    registrar.Parameter("enable_instance_allocation", &TThis::EnableInstanceAllocation)
         .Default(true);
-    RegisterAttribute(registrar, "enable_tablet_cell_management", &TThis::EnableTabletCellManagement)
+    registrar.Parameter("enable_tablet_cell_management", &TThis::EnableTabletCellManagement)
         .Default(true);
-    RegisterAttribute(registrar, "enable_node_tag_filter_management", &TThis::EnableNodeTagFilterManagement)
+    registrar.Parameter("enable_node_tag_filter_management", &TThis::EnableNodeTagFilterManagement)
         .Default(true);
-    RegisterAttribute(registrar, "enable_tablet_node_dynamic_config", &TThis::EnableTabletNodeDynamicConfig)
+    registrar.Parameter("enable_tablet_node_dynamic_config", &TThis::EnableTabletNodeDynamicConfig)
         .Default(true);
-    RegisterAttribute(registrar, "enable_rpc_proxy_management", &TThis::EnableRpcProxyManagement)
+    registrar.Parameter("enable_rpc_proxy_management", &TThis::EnableRpcProxyManagement)
         .Default(true);
-    RegisterAttribute(registrar, "enable_system_account_management", &TThis::EnableSystemAccountManagement)
+    registrar.Parameter("enable_system_account_management", &TThis::EnableSystemAccountManagement)
         .Default(true);
-    RegisterAttribute(registrar, "enable_resource_limits_management", &TThis::EnableResourceLimitsManagement)
+    registrar.Parameter("enable_resource_limits_management", &TThis::EnableResourceLimitsManagement)
         .Default(true);
-    RegisterAttribute(registrar, "bundle_controller_target_config", &TThis::TargetConfig)
+    registrar.Parameter("bundle_controller_target_config", &TThis::TargetConfig)
         .Default();
-    RegisterAttribute(registrar, "tablet_cell_ids", &TThis::TabletCellIds)
+    registrar.Parameter("tablet_cell_ids", &TThis::TabletCellIds)
         .Default();
-    RegisterAttribute(registrar, "options", &TThis::Options)
+    registrar.Parameter("options", &TThis::Options)
         .DefaultNew();
-    RegisterAttribute(registrar, "resource_quota", &TThis::ResourceQuota)
+    registrar.Parameter("resource_quota", &TThis::ResourceQuota)
         .Default();
-    RegisterAttribute(registrar, "resource_limits", &TThis::ResourceLimits)
+    registrar.Parameter("resource_limits", &TThis::ResourceLimits)
         .DefaultNew();
-    RegisterAttribute(registrar, "system_account_quota_multiplier", &TThis::SystemAccountQuotaMultiplier)
+    registrar.Parameter("system_account_quota_multiplier", &TThis::SystemAccountQuotaMultiplier)
         .GreaterThan(0)
         .Default(1.3);
-    RegisterAttribute(registrar, "folder_id", &TThis::FolderId)
+    registrar.Parameter("folder_id", &TThis::FolderId)
         .Default();
-    RegisterAttribute(registrar, "abc", &TThis::Abc)
+    registrar.Parameter("abc", &TThis::Abc)
         .DefaultNew();
 
-    RegisterAttribute(registrar, "mute_tablet_cells_check", &TThis::MuteTabletCellsCheck)
+    registrar.Parameter("mute_tablet_cells_check", &TThis::MuteTabletCellsCheck)
         .Default(false);
-    RegisterAttribute(registrar, "mute_tablet_cell_snapshots_check", &TThis::MuteTabletCellSnapshotsCheck)
+    registrar.Parameter("mute_tablet_cell_snapshots_check", &TThis::MuteTabletCellSnapshotsCheck)
         .Default(false);
-    RegisterAttribute(registrar, "bc_hotfix", &TThis::BundleHotfix)
+    registrar.Parameter("bc_hotfix", &TThis::BundleHotfix)
         .Default(false);
 }
 
 void TBundleArea::Register(TRegistrar registrar)
 {
-    RegisterAttribute(registrar, "id", &TThis::Id)
+    registrar.Parameter("id", &TThis::Id)
         .Default();
-    RegisterAttribute(registrar, "cell_count", &TThis::CellCount)
+    registrar.Parameter("cell_count", &TThis::CellCount)
         .Default();
-    RegisterAttribute(registrar, "node_tag_filter", &TThis::NodeTagFilter)
+    registrar.Parameter("node_tag_filter", &TThis::NodeTagFilter)
         .Default();
 }
 
 void TChaosBundleInfo::Register(TRegistrar registrar)
 {
-    RegisterAttribute(registrar, "id", &TThis::Id)
+    registrar.Parameter("id", &TThis::Id)
         .Default();
 
     // The attribute name is misleading, ids are actually chaos cell ones.
-    RegisterAttribute(registrar, "tablet_cell_ids", &TThis::ChaosCellIds)
+    registrar.Parameter("tablet_cell_ids", &TThis::ChaosCellIds)
         .Default();
 
-    RegisterAttribute(registrar, "options", &TThis::Options)
+    registrar.Parameter("options", &TThis::Options)
         .DefaultNew();
-    RegisterAttribute(registrar, "areas", &TThis::Areas)
+    registrar.Parameter("areas", &TThis::Areas)
         .Default();
-    RegisterAttribute(registrar, "metadata_cell_ids", &TThis::MetadataCellIds)
+    registrar.Parameter("metadata_cell_ids", &TThis::MetadataCellIds)
         .Default();
 }
 
 void TZoneInfo::Register(TRegistrar registrar)
 {
-    RegisterAttribute(registrar, "yp_cluster", &TThis::DefaultYPCluster)
+    registrar.Parameter("yp_cluster", &TThis::DefaultYPCluster)
         .Default();
-    RegisterAttribute(registrar, "max_tablet_node_count", &TThis::MaxTabletNodeCount)
+    registrar.Parameter("max_tablet_node_count", &TThis::MaxTabletNodeCount)
         .Default(10);
-    RegisterAttribute(registrar, "max_rpc_proxy_count", &TThis::MaxRpcProxyCount)
+    registrar.Parameter("max_rpc_proxy_count", &TThis::MaxRpcProxyCount)
         .Default(10);
-    RegisterAttribute(registrar, "tablet_node_nanny_service", &TThis::DefaultTabletNodeNannyService)
+    registrar.Parameter("tablet_node_nanny_service", &TThis::DefaultTabletNodeNannyService)
         .Default();
-    RegisterAttribute(registrar, "rpc_proxy_nanny_service", &TThis::DefaultRpcProxyNannyService)
+    registrar.Parameter("rpc_proxy_nanny_service", &TThis::DefaultRpcProxyNannyService)
         .Default();
-    RegisterAttribute(registrar, "short_name", &TThis::ShortName)
+    registrar.Parameter("short_name", &TThis::ShortName)
         .Optional();
 
-    RegisterAttribute(registrar, "tablet_node_sizes", &TThis::TabletNodeSizes)
+    registrar.Parameter("tablet_node_sizes", &TThis::TabletNodeSizes)
         .Default();
-    RegisterAttribute(registrar, "rpc_proxy_sizes", &TThis::RpcProxySizes)
+    registrar.Parameter("rpc_proxy_sizes", &TThis::RpcProxySizes)
         .Default();
 
-    RegisterAttribute(registrar, "spare_target_config", &TThis::SpareTargetConfig)
+    registrar.Parameter("spare_target_config", &TThis::SpareTargetConfig)
         .DefaultNew();
-    RegisterAttribute(registrar, "spare_bundle_name", &TThis::SpareBundleName)
+    registrar.Parameter("spare_bundle_name", &TThis::SpareBundleName)
         .Default(DefaultSpareNodeName);
-    RegisterAttribute(registrar, "disrupted_threshold_factor", &TThis::DisruptedThresholdFactor)
+    registrar.Parameter("disrupted_threshold_factor", &TThis::DisruptedThresholdFactor)
         .GreaterThan(0)
         .Default(1);
 
-    RegisterAttribute(registrar, "requires_minus_one_rack_guarantee", &TThis::RequiresMinusOneRackGuarantee)
+    registrar.Parameter("requires_minus_one_rack_guarantee", &TThis::RequiresMinusOneRackGuarantee)
         .Default(true);
 
-    RegisterAttribute(registrar, "redundant_data_center_count", &TThis::RedundantDataCenterCount)
+    registrar.Parameter("redundant_data_center_count", &TThis::RedundantDataCenterCount)
         .GreaterThanOrEqual(0)
         .Default(0);
 
-    RegisterAttribute(registrar, "data_centers", &TThis::DataCenters)
+    registrar.Parameter("data_centers", &TThis::DataCenters)
         .Default();
 }
 
@@ -359,25 +361,25 @@ void TDrillsModeState::Register(TRegistrar registrar)
 
 void TBundleControllerState::Register(TRegistrar registrar)
 {
-    RegisterAttribute(registrar, "node_allocations", &TThis::NodeAllocations)
+    registrar.Parameter("node_allocations", &TThis::NodeAllocations)
         .Default();
-    RegisterAttribute(registrar, "node_deallocations", &TThis::NodeDeallocations)
+    registrar.Parameter("node_deallocations", &TThis::NodeDeallocations)
         .Default();
-    RegisterAttribute(registrar, "removing_cells", &TThis::RemovingCells)
+    registrar.Parameter("removing_cells", &TThis::RemovingCells)
         .Default();
-    RegisterAttribute(registrar, "proxy_allocations", &TThis::ProxyAllocations)
+    registrar.Parameter("proxy_allocations", &TThis::ProxyAllocations)
         .Default();
-    RegisterAttribute(registrar, "proxy_deallocations", &TThis::ProxyDeallocations)
+    registrar.Parameter("proxy_deallocations", &TThis::ProxyDeallocations)
         .Default();
-    RegisterAttribute(registrar, "bundle_node_assignments", &TThis::BundleNodeAssignments)
+    registrar.Parameter("bundle_node_assignments", &TThis::BundleNodeAssignments)
         .Default();
-    RegisterAttribute(registrar, "spare_node_assignments", &TThis::SpareNodeAssignments)
+    registrar.Parameter("spare_node_assignments", &TThis::SpareNodeAssignments)
         .Default();
-    RegisterAttribute(registrar, "bundle_node_releasements", &TThis::BundleNodeReleasements)
+    registrar.Parameter("bundle_node_releasements", &TThis::BundleNodeReleasements)
         .Default();
-    RegisterAttribute(registrar, "spare_node_releasements", &TThis::SpareNodeReleasements)
+    registrar.Parameter("spare_node_releasements", &TThis::SpareNodeReleasements)
         .Default();
-    RegisterAttribute(registrar, "drills_mode", &TThis::DrillsMode)
+    registrar.Parameter("drills_mode", &TThis::DrillsMode)
         .DefaultNew();
 }
 
@@ -486,37 +488,41 @@ void TTabletNodeStatistics::Register(TRegistrar registrar)
         .DefaultNew();
 }
 
+void TInstanceInfoBase::Register(TRegistrar registrar)
+{
+    registrar.Parameter("bundle_controller_annotations", &TThis::BundleControllerAnnotations)
+        .DefaultNew();
+    registrar.Parameter("annotations", &TThis::CypressAnnotations)
+        .DefaultNew();
+    registrar.Parameter("cms_maintenance_requests", &TThis::CmsMaintenanceRequests)
+        .Default();
+}
+
 void TTabletNodeInfo::Register(TRegistrar registrar)
 {
-    RegisterAttribute(registrar, "banned", &TThis::Banned)
+    registrar.Parameter("banned", &TThis::Banned)
         .Default();
-    RegisterAttribute(registrar, "decommissioned", &TThis::Decommissioned)
+    registrar.Parameter("decommissioned", &TThis::Decommissioned)
         .Default();
-    RegisterAttribute(registrar, "disable_tablet_cells", &TThis::DisableTabletCells)
+    registrar.Parameter("disable_tablet_cells", &TThis::DisableTabletCells)
         .Default(false);
-    RegisterAttribute(registrar, "enable_bundle_balancer", &TThis::EnableBundleBalancer)
+    registrar.Parameter("enable_bundle_balancer", &TThis::EnableBundleBalancer)
         .Optional();
-    RegisterAttribute(registrar, "host", &TThis::Host)
+    registrar.Parameter("host", &TThis::Host)
         .Default();
-    RegisterAttribute(registrar, "state", &TThis::State)
+    registrar.Parameter("state", &TThis::State)
         .Default();
-    RegisterAttribute(registrar, "tags", &TThis::Tags)
+    registrar.Parameter("tags", &TThis::Tags)
         .Default();
-    RegisterAttribute(registrar, "user_tags", &TThis::UserTags)
+    registrar.Parameter("user_tags", &TThis::UserTags)
         .Default();
-    RegisterAttribute(registrar, "bundle_controller_annotations", &TThis::BundleControllerAnnotations)
-        .DefaultNew();
-    RegisterAttribute(registrar, "annotations", &TThis::CypressAnnotations)
-        .DefaultNew();
-    RegisterAttribute(registrar, "tablet_slots", &TThis::TabletSlots)
+    registrar.Parameter("tablet_slots", &TThis::TabletSlots)
         .Default();
-    RegisterAttribute(registrar, "cms_maintenance_requests", &TThis::CmsMaintenanceRequests)
+    registrar.Parameter("last_seen_time", &TThis::LastSeenTime)
         .Default();
-    RegisterAttribute(registrar, "last_seen_time", &TThis::LastSeenTime)
+    registrar.Parameter("rack", &TThis::Rack)
         .Default();
-    RegisterAttribute(registrar, "rack", &TThis::Rack)
-        .Default();
-    RegisterAttribute(registrar, "statistics", &TThis::Statistics)
+    registrar.Parameter("statistics", &TThis::Statistics)
         .DefaultNew();
 }
 
@@ -546,17 +552,11 @@ void TRpcProxyAlive::Register(TRegistrar /*registrar*/)
 
 void TRpcProxyInfo::Register(TRegistrar registrar)
 {
-    RegisterAttribute(registrar, "banned", &TThis::Banned)
+    registrar.Parameter("banned", &TThis::Banned)
         .Default();
-    RegisterAttribute(registrar, "role", &TThis::Role)
+    registrar.Parameter("role", &TThis::Role)
         .Default();
-    RegisterAttribute(registrar, "bundle_controller_annotations", &TThis::BundleControllerAnnotations)
-        .DefaultNew();
-    RegisterAttribute(registrar, "annotations", &TThis::CypressAnnotations)
-        .DefaultNew();
-    RegisterAttribute(registrar, "cms_maintenance_requests", &TThis::CmsMaintenanceRequests)
-        .Default();
-    RegisterAttribute(registrar, "modification_time", &TThis::ModificationTime)
+    registrar.Parameter("modification_time", &TThis::ModificationTime)
         .Default();
 
     registrar.Parameter("alive", &TThis::Alive)
@@ -577,10 +577,10 @@ void TAccountResources::Register(TRegistrar registrar)
 
 void TSystemAccount::Register(TRegistrar registrar)
 {
-    RegisterAttribute(registrar, "resource_limits", &TThis::ResourceLimits)
+    registrar.Parameter("resource_limits", &TThis::ResourceLimits)
         .DefaultNew();
 
-    RegisterAttribute(registrar, "resource_usage", &TThis::ResourceUsage)
+    registrar.Parameter("resource_usage", &TThis::ResourceUsage)
         .DefaultNew();
 }
 
@@ -604,13 +604,6 @@ void TBundleSystemOptions::Register(TRegistrar registrar)
 
     registrar.Parameter("clock_cluster_tag", &TThis::ClockClusterTag)
         .Optional();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-auto TAlert::GetKey() const -> TKey
-{
-    return {Id, DataCenter};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

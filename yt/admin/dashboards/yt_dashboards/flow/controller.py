@@ -184,15 +184,33 @@ def build_watermark_heuristics():
                 .unit("UNIT_COUNT")
         )
 
+    def build_computation_partitions(suffix):
+        return (
+            FlowController(f"yt.flow.controller.computation.{suffix}")
+                .all("computation_id")
+                .unit("UNIT_COUNT")
+        )
+
     return (Rowset()
         .stack(False)
         .row()
             .cell(
-                "Idle partitions",
-                FlowController("yt.flow.controller.computation.idle_partitions")
-                    .all("computation_id")
-                    .unit("UNIT_COUNT"),
+                "Idle partitions detected",
+                build_computation_partitions("idle_partitions_detected"),
                 description=description)
+            .cell(
+                "Idle partitions ignored",
+                build_computation_partitions("idle_partitions_ignored"),
+                description=description)
+            .cell(
+                "Late data partitions detected",
+                build_computation_partitions("late_data_partitions_detected"),
+                description=description)
+            .cell(
+                "Late data partitions ignored",
+                build_computation_partitions("late_data_partitions_ignored"),
+                description=description)
+        .row()
             .cell(
                 "Unavailable partitions",
                 build_availability_partitions("unavailable_partitions"),
@@ -205,6 +223,7 @@ def build_watermark_heuristics():
                 "Confirmed unavailable partitions",
                 build_availability_partitions("confirmed_unavailable_partitions"),
                 description=confirmed_unavailable_description)
+            .cell("", EmptyCell())
     )
 
 

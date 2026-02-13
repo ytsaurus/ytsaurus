@@ -7,8 +7,8 @@ $ss =
       date_dim cross join
       store
  where ss_sold_date_sk = d_date_sk
-       and cast(d_date as date) between cast('2000-08-16' as date)
-                  and (cast('2000-08-16' as date) +  DateTime::IntervalFromDays(30))
+       and cast(d_date as date) between cast('2000-08-23' as date)
+                  and (cast('2000-08-23' as date) +  DateTime::IntervalFromDays(30))
        and ss_store_sk = s_store_sk
  group by store.s_store_sk);
 
@@ -20,8 +20,8 @@ $ss =
       date_dim cross join
       store
  where sr_returned_date_sk = d_date_sk
-       and cast(d_date as date) between cast('2000-08-16' as date)
-                  and (cast('2000-08-16' as date) +  DateTime::IntervalFromDays(30))
+       and cast(d_date as date) between cast('2000-08-23' as date)
+                  and (cast('2000-08-23' as date) +  DateTime::IntervalFromDays(30))
        and sr_store_sk = s_store_sk
  group by store.s_store_sk);
  $cs =
@@ -31,8 +31,8 @@ $ss =
  from catalog_sales cross join
       date_dim
  where cs_sold_date_sk = d_date_sk
-       and cast(d_date as date) between cast('2000-08-16' as date)
-                  and (cast('2000-08-16' as date) +  DateTime::IntervalFromDays(30))
+       and cast(d_date as date) between cast('2000-08-23' as date)
+                  and (cast('2000-08-23' as date) +  DateTime::IntervalFromDays(30))
  group by catalog_sales.cs_call_center_sk
  );
  $cr =
@@ -42,8 +42,8 @@ $ss =
  from catalog_returns cross join
       date_dim
  where cr_returned_date_sk = d_date_sk
-       and cast(d_date as date) between cast('2000-08-16' as date)
-                  and (cast('2000-08-16' as date) +  DateTime::IntervalFromDays(30))
+       and cast(d_date as date) between cast('2000-08-23' as date)
+                  and (cast('2000-08-23' as date) +  DateTime::IntervalFromDays(30))
  group by catalog_returns.cr_call_center_sk
  );
  $ws =
@@ -54,8 +54,8 @@ $ss =
       date_dim cross join
       web_page
  where ws_sold_date_sk = d_date_sk
-       and cast(d_date as date) between cast('2000-08-16' as date)
-                  and (cast('2000-08-16' as date) +  DateTime::IntervalFromDays(30))
+       and cast(d_date as date) between cast('2000-08-23' as date)
+                  and (cast('2000-08-23' as date) +  DateTime::IntervalFromDays(30))
        and ws_web_page_sk = wp_web_page_sk
  group by web_page.wp_web_page_sk);
  $wr =
@@ -66,8 +66,8 @@ $ss =
       date_dim cross join
       web_page
  where wr_returned_date_sk = d_date_sk
-       and cast(d_date as date) between cast('2000-08-16' as date)
-                  and (cast('2000-08-16' as date) +  DateTime::IntervalFromDays(30))
+       and cast(d_date as date) between cast('2000-08-23' as date)
+                  and (cast('2000-08-23' as date) +  DateTime::IntervalFromDays(30))
        and wr_web_page_sk = wp_web_page_sk
  group by web_page.wp_web_page_sk);
 -- start query 1 in stream 0 using template query77.tpl and seed 1819994127

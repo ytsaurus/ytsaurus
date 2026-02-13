@@ -314,7 +314,7 @@ Unlike resharding by size, this type of resharding doesn't take the `min_tablet_
 
 ### Disabling { #shutdown }
 
-To disable a certain type of lock, set the value of the corresponding attribute to `%false` (see the table below). You need to specify this value in the following configs:
+To disable a certain type of balancing, set the value of the corresponding attribute to `%false` (see the table below). You need to specify this value in the following configs:
 - For bundles: `//sys/tablet_cell_bundles/<bundle>/@tablet_balancer_config/<attribute>`
 - For groups: `//sys/tablet_cell_bundles/<bundle>/@tablet_balancer_config/groups/<group>/<attribute>`
 - For tables: `//path/to/table/@tablet_balancer_config/<attribute>`

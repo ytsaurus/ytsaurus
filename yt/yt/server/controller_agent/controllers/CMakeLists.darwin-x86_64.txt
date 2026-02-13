@@ -21,6 +21,7 @@ target_compile_options(server-controller_agent-controllers PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(server-controller_agent-controllers PUBLIC
@@ -44,7 +45,7 @@ target_sources(server-controller_agent-controllers PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/competitive_job_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/data_balancer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/data_flow_graph.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/distributed_job_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/job_collective_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/experiment_job_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/extended_job_resources.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/extra_job_manager.cpp

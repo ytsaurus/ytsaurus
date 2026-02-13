@@ -32,7 +32,10 @@ struct ICellDirectory
         const THashSet<NObjectClient::TCellTag>& removedSecondaryMasterCellTags);
     DECLARE_INTERFACE_SIGNAL(TCellReconfigurationSignature, CellDirectoryChanged);
 
-    virtual void Update(const NCellMasterClient::NProto::TCellDirectory& protoDirectory) = 0;
+    virtual void Update(
+        const NCellMasterClient::NProto::TCellDirectory& protoDirectory,
+        // NB: Used for testing purposes only.
+        bool duplicate) = 0;
     virtual void UpdateDefault() = 0;
 
     virtual NObjectClient::TCellId GetPrimaryMasterCellId() = 0;
@@ -40,7 +43,8 @@ struct ICellDirectory
     virtual NObjectClient::TCellTagList GetSecondaryMasterCellTags() = 0;
     virtual THashSet<NObjectClient::TCellId> GetSecondaryMasterCellIds() = 0;
 
-    virtual bool IsMasterCacheConfigured() = 0;
+    virtual bool IsClientSideCacheEnabled() const = 0;
+    virtual bool IsMasterCacheEnabled() const = 0;
 
     virtual NRpc::IChannelPtr FindMasterChannel(
         NApi::EMasterChannelKind kind,
@@ -66,6 +70,18 @@ struct ICellDirectory
 
     //! Throws when passed EMasterCellRole::Unknown. Throws if no cells have the specified role.
     virtual NObjectClient::TCellId GetRandomMasterCellWithRoleOrThrow(EMasterCellRole role) = 0;
+
+    //! Returns secondary masters connection configuration.
+    virtual TSecondaryMasterConnectionConfigs GetSecondaryMasterConnectionConfigs() = 0;
+
+    //! Reconfigures master connection directory.
+    virtual void ReconfigureMasterCellDirectory(
+        const TSecondaryMasterConnectionConfigs& secondaryMasterConnectionConfigs) = 0;
+
+    // TODO(cherepashka): make it static function or just separate from ICellDirectory.
+    virtual bool ClusterMasterCompositionChanged(
+        const TSecondaryMasterConnectionConfigs& oldSecondaryMasterConnectionConfigs,
+        const TSecondaryMasterConnectionConfigs& newSecondaryMasterConnectionConfigs) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICellDirectory)
@@ -76,7 +92,14 @@ ICellDirectoryPtr CreateCellDirectory(
     TCellDirectoryConfigPtr config,
     NApi::NNative::TConnectionOptions options,
     NRpc::IChannelFactoryPtr channelFactory,
+    TWeakPtr<NApi::NNative::IConnection> connection,
     NLogging::TLogger logger);
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO(cherepashka): move into helpers file.
+NObjectClient::TCellTagList GetMasterCellTags(const TSecondaryMasterConnectionConfigs& masterConnectionConfigs);
+THashSet<NObjectClient::TCellId> GetMasterCellIds(const TSecondaryMasterConnectionConfigs& masterConnectionConfigs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

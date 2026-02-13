@@ -19,6 +19,7 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/profiling/timing.h>
+#include <yt/yt/core/yson/protobuf_helpers.h>
 
 #include <yt/yt/library/profiling/producer.h>
 
@@ -672,7 +673,8 @@ private:
         for (auto attribute : attributesToRemove) {
             auto targetAttribute = targetPath + "/@" + attribute.Unintern();
 
-            auto req = TYPathProxy::Remove(targetAttribute);
+            auto req = TYPathProxy::Set(targetAttribute);
+            req->set_value(ToProto(NYson::ConvertToYsonString(std::string())));
             auto* prerequisitesExt = req->Header()
                 .MutableExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
             auto* prerequisiteRevision = prerequisitesExt->add_revisions();

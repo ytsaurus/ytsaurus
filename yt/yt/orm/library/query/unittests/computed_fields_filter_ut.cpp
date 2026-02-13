@@ -18,7 +18,7 @@ auto Detector(size_t bound)
     };
 }
 
-void ParseAndCheck(TExpressionPtr expression, const TString& source, size_t bound, bool isComputed)
+void ParseAndCheck(TExpressionPtr expression, const std::string& source, size_t bound, bool isComputed)
 {
     auto parsedExpr = ParseSource(source, NQueryClient::EParseMode::Expression);
     auto* correctExpr = std::get<TExpressionPtr>(parsedExpr->AstHead.Ast);
@@ -31,13 +31,13 @@ void ParseAndCheck(TExpressionPtr expression, const TString& source, size_t boun
 
 TEST(TFilterSplitterTest, JustWorks)
 {
-    TString filterQuery = "[c] = 5 AND [nc] = 10";
+    TStringBuf filterQuery = "[c] = 5 AND [nc] = 10";
     auto parsedQuery = ParseSource(filterQuery, NQueryClient::EParseMode::Expression);
     auto* queryExpression = std::get<TExpressionPtr>(parsedQuery->AstHead.Ast);
 
     auto splitTree = SplitIntoSubTrees(&parsedQuery->AstHead, queryExpression);
 
-    std::vector<TString> subTrees = {
+    std::vector<std::string> subTrees = {
         "[c] = 5",
         "[nc] = 10"
     };
@@ -54,7 +54,7 @@ TEST(TFilterSplitterTest, JustWorks)
 
 TEST(TFilterSplitterTest, NestedNot)
 {
-    TString filterQuery = "NOT (NOT (NOT [c]))";
+    TStringBuf filterQuery = "NOT (NOT (NOT [c]))";
 
     auto parsedQuery = ParseSource(filterQuery, NQueryClient::EParseMode::Expression);
     auto* queryExpression = std::get<TExpressionPtr>(parsedQuery->AstHead.Ast);
@@ -68,14 +68,14 @@ TEST(TFilterSplitterTest, NestedNot)
 
 TEST(TFilterSplitterTest, Complex)
 {
-    TString filterQuery = "NOT (NOT ([c] AND [nc]) OR [nc] AND [nc] OR NOT (([c] OR [nc]) AND NOT [c]))";
+    TStringBuf filterQuery = "NOT (NOT ([c] AND [nc]) OR [nc] AND [nc] OR NOT (([c] OR [nc]) AND NOT [c]))";
 
     auto parsedQuery = ParseSource(filterQuery, NQueryClient::EParseMode::Expression);
     auto* queryExpression = std::get<TExpressionPtr>(parsedQuery->AstHead.Ast);
 
     auto splitTree = SplitIntoSubTrees(&parsedQuery->AstHead, queryExpression);
 
-    std::vector<TString> subTrees = {
+    std::vector<std::string> subTrees = {
         "[c]",
         "[nc]",
         "NOT ([nc] AND [nc])",
@@ -97,14 +97,14 @@ TEST(TFilterSplitterTest, Complex)
 
 TEST(TFilterSplitterTest, Function)
 {
-    TString filterQuery = "NOT [nc] AND numeric_to_string([c])";
+    TStringBuf filterQuery = "NOT [nc] AND numeric_to_string([c])";
 
     auto parsedQuery = ParseSource(filterQuery, NQueryClient::EParseMode::Expression);
     auto* queryExpression = std::get<TExpressionPtr>(parsedQuery->AstHead.Ast);
 
     auto splitTree = SplitIntoSubTrees(&parsedQuery->AstHead, queryExpression);
 
-    std::vector<TString> subTrees = {
+    std::vector<std::string> subTrees = {
         "NOT [nc]",
         "numeric_to_string([c])"
     };

@@ -36,7 +36,7 @@ public:
     TFileChangelogIndex(
         NIO::IIOEnginePtr ioEngine,
         IMemoryUsageTrackerPtr memoryUsageTracker,
-        TString fileName,
+        std::string fileName,
         TFileChangelogConfigPtr config,
         EWorkloadCategory workloadCategory);
 
@@ -110,7 +110,7 @@ public:
 
 private:
     const NIO::IIOEnginePtr IOEngine_;
-    const TString FileName_;
+    const std::string FileName_;
     const TFileChangelogConfigPtr Config_;
     EWorkloadCategory WorkloadCategory_;
 
@@ -127,7 +127,7 @@ private:
     i64 DataFileLength_ = -1;
 
     std::atomic<bool> Flushing_ = false;
-    TFuture<void> FlushFuture_ = VoidFuture;
+    TFuture<void> FlushFuture_ = OKFuture;
 
     struct TRecord
     {

@@ -103,6 +103,7 @@ struct TProxyMemoryLimits
 {
     std::optional<i64> Total;
     std::optional<i64> HeavyRequest;
+    std::optional<i64> Rpc;
 
     REGISTER_YSON_STRUCT(TProxyMemoryLimits);
 
@@ -158,6 +159,8 @@ struct TProxyBootstrapConfig
 
     NSignature::TSignatureComponentsConfigPtr SignatureComponents;
 
+    TAsyncExpiringCacheConfigPtr PoolWeightCache;
+
     REGISTER_YSON_STRUCT(TProxyBootstrapConfig);
 
     static void Register(TRegistrar registrar);
@@ -197,6 +200,10 @@ struct TProxyDynamicConfig
     TProxyMemoryLimitsPtr MemoryLimits;
 
     NSignature::TSignatureComponentsConfigPtr SignatureComponents;
+
+    std::optional<NCellMasterClient::TCellDirectorySynchronizerConfigPtr> MasterCellDirectorySynchronizer;
+
+    THashMap<std::string, double> WorkerPoolWeightOverrides;
 
     REGISTER_YSON_STRUCT(TProxyDynamicConfig);
 

@@ -65,7 +65,7 @@ using NNative::IClientPtr;
 
 namespace {
 
-const auto& Logger = SequoiaClientLogger;
+constinit const auto Logger = SequoiaClientLogger;
 
 void ValidateSequoiaTableSchema(ESequoiaTable table, const TTableSchemaPtr& actualSchema)
 {
@@ -160,16 +160,16 @@ public:
     TSequoiaTransaction(
         ISequoiaClientPtr sequoiaClient,
         ESequoiaTransactionType type,
-        const NNative::IConnectionPtr& localConnection,
+        NNative::IClientPtr authenticatedLocalClient,
         IClientPtr groundClient,
         const TSequoiaTransactionOptions& sequoiaTransactionOptions)
         : SequoiaClient_(std::move(sequoiaClient))
         , Type_(type)
-        , AuthenticatedLocalClient_(SequoiaClient_->GetOrCreateAuthenticatedLocalClient(
-            sequoiaTransactionOptions.AuthenticationIdentity))
+        , AuthenticatedLocalClient_(std::move(authenticatedLocalClient))
         , GroundClient_(std::move(groundClient))
-        // Maybe just pass invoker instead of connection.
-        , SerializedInvoker_(CreateSerializedInvoker(localConnection->GetInvoker()))
+        , SerializedInvoker_(
+            CreateSerializedInvoker(
+                AuthenticatedLocalClient_->GetConnection()->GetInvoker()))
         , SequoiaTransactionOptions_(sequoiaTransactionOptions)
         , Logger(SequoiaClient_->GetLogger())
     { }
@@ -895,6 +895,7 @@ private:
                 AuthenticatedLocalClient_->GetOptions().GetAuthenticationIdentity());
             req->set_sequoia_reign(NYT::ToProto(GetCurrentSequoiaReign()));
             ToProto(req->mutable_prerequisite_transaction_ids(), SequoiaTransactionOptions_.CypressPrerequisiteTransactionIds);
+            req->set_suppress_strongly_ordered_transaction_barrier(SequoiaTransactionOptions_.SuppressStronglyOrderedTransactionBarrier);
 
             futures.push_back(req->Invoke().AsVoid());
         }
@@ -910,7 +911,7 @@ private:
         futures.reserve(TabletCommitSessions_.size());
         if (SequoiaTransactionOptions_.SequenceTabletCommitSessions) {
             for (const auto& [tabletId, tabletCommitSession] : SortHashMapByKeys(TabletCommitSessions_)) {
-                auto previousFuture = futures.empty() ? VoidFuture : futures.back();
+                auto previousFuture = futures.empty() ? OKFuture : futures.back();
                 futures.push_back(previousFuture.Apply(
                     BIND([session = tabletCommitSession] (const TError& /*error*/) {
                         return session->Invoke();
@@ -960,22 +961,21 @@ namespace NDetail {
 TFuture<ISequoiaTransactionPtr> StartSequoiaTransaction(
     ISequoiaClientPtr sequoiaClient,
     ESequoiaTransactionType type,
-    const NNative::IConnectionPtr& localConnection,
+    NNative::IClientPtr authenticatedLocalClient,
     IClientPtr groundClient,
     TTransactionStartOptions transactionStartOptions,
     const TSequoiaTransactionOptions& sequoiaTransactionOptions)
 {
-    YT_VERIFY(!sequoiaTransactionOptions.AuthenticationIdentity.User.empty());
 
     if (!transactionStartOptions.Timeout) {
-        auto connectionConfig = localConnection->GetConfig();
+        auto connectionConfig = authenticatedLocalClient->GetNativeConnection()->GetConfig();
         transactionStartOptions.Timeout = GetOrDefault(connectionConfig->SequoiaTransactionTypeToTimeout, type, std::nullopt);
     }
 
     auto transaction = New<TSequoiaTransaction>(
         std::move(sequoiaClient),
         type,
-        localConnection,
+        std::move(authenticatedLocalClient),
         std::move(groundClient),
         sequoiaTransactionOptions);
     return transaction->Start(transactionStartOptions);

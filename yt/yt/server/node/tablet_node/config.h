@@ -12,11 +12,19 @@
 
 #include <yt/yt/server/lib/transaction_supervisor/public.h>
 
+#include <yt/yt/ytlib/chaos_client/public.h>
+
+#include <yt/yt/ytlib/distributed_throttler/public.h>
+
 #include <yt/yt/client/misc/workload.h>
 
-#include <yt/yt/core/compression/public.h>
+#include <yt/yt/library/dynamic_config/public.h>
 
-#include <yt/yt/ytlib/chaos_client/public.h>
+#include <yt/yt/library/query/base/public.h>
+
+#include <yt/yt/library/re2/public.h>
+
+#include <yt/yt/core/compression/public.h>
 
 #include <yt/yt/core/concurrency/config.h>
 
@@ -24,10 +32,6 @@
 
 #include <yt/yt/core/ytree/polymorphic_yson_struct.h>
 #include <yt/yt/core/ytree/yson_struct.h>
-
-#include <yt/yt/library/dynamic_config/public.h>
-
-#include <yt/yt/library/query/base/public.h>
 
 namespace NYT::NTabletNode {
 
@@ -618,6 +622,23 @@ DEFINE_REFCOUNTED_TYPE(TSmoothMovementTrackerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TUserBanDynamicConfig
+    : public NYTree::TYsonStruct
+{
+    std::string BanMessage;
+    NRe2::TRe2Ptr BannedUserRegex;
+    std::optional<double> FailureProbability;
+    THashSet<std::string> AllowedUsers;
+
+    REGISTER_YSON_STRUCT(TUserBanDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TUserBanDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TTabletNodeDynamicConfig
     : public NYTree::TYsonStruct
 {
@@ -634,6 +655,8 @@ struct TTabletNodeDynamicConfig
     TTabletHunkLockManagerDynamicConfigPtr HunkLockManager;
 
     TEnumIndexedArray<ETabletNodeThrottlerKind, NConcurrency::TRelativeThroughputThrottlerConfigPtr> Throttlers;
+
+    TEnumIndexedArray<ETabletDistributedThrottlerKind, NDistributedThrottler::TDistributedThrottlerConfigPtr> DistributedThrottlers;
 
     TStoreCompactorDynamicConfigPtr StoreCompactor;
     TStoreFlusherDynamicConfigPtr StoreFlusher;
@@ -655,6 +678,8 @@ struct TTabletNodeDynamicConfig
     TSecurityManagerDynamicConfigPtr SecurityManager;
     TBackupManagerDynamicConfigPtr BackupManager;
     TSmoothMovementTrackerDynamicConfigPtr SmoothMovementTracker;
+
+    TUserBanDynamicConfigPtr UserBan;
 
     NRpc::TOverloadControllerConfigPtr OverloadController;
 

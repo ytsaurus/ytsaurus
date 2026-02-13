@@ -17,6 +17,7 @@
 
 #include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 
+#include <yt/yt/ytlib/sequoia_client/connection.h>
 #include <yt/yt/ytlib/sequoia_client/prerequisite_revision.h>
 #include <yt/yt/ytlib/sequoia_client/record_helpers.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
@@ -397,11 +398,12 @@ TTransactionId TSequoiaSession::GetCurrentCypressTransactionId() const
 
 TSequoiaSessionPtr TSequoiaSession::Start(
     IBootstrap* bootstrap,
-    TAuthenticationIdentity authenticationIdentity,
+    const TAuthenticationIdentity& authenticationIdentity,
     TTransactionId cypressTransactionId,
     const std::vector<TTransactionId>& cypressPrerequisiteTransactionIds)
 {
-    auto sequoiaClient = bootstrap->GetSequoiaClient();
+    const auto& sequoiaConnection = bootstrap->GetSequoiaConnection();
+    auto sequoiaClient = sequoiaConnection->CreateClient(authenticationIdentity);
     auto dynamicConfig = bootstrap->GetDynamicConfigManager()->GetConfig();
 
     // Best effort pre-check for mutating requests before starting execution of master commit sessions,
@@ -423,7 +425,6 @@ TSequoiaSessionPtr TSequoiaSession::Start(
         StartCypressProxyTransaction(
             sequoiaClient,
             ESequoiaTransactionType::CypressModification,
-            std::move(authenticationIdentity),
             cypressPrerequisiteTransactionIds))
         .ValueOrThrow();
 
@@ -479,9 +480,12 @@ void TSequoiaSession::MaybeLockAndReplicateCypressTransaction()
     }
 
     // To prevent concurrent finishing of this Cypress tx.
+    // NB: to figure out the reason of usage shared write lock instead of shared
+    // read see comment above TSequoiaMutation in
+    // lib/sequoia/cypress_transaction.cpp.
     SequoiaTransaction_->LockRow(
         NRecords::TTransactionKey{.TransactionId = cypressTransactionId},
-        ELockType::SharedStrong);
+        ELockType::SharedWrite);
 
     auto affectedCellTags = SequoiaTransaction_->GetAffectedMasterCellTags();
     Erase(affectedCellTags, CellTagFromId(cypressTransactionId));

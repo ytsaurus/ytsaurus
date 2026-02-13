@@ -1,8 +1,11 @@
 #include "distributed_throttler_manager.h"
 #include "bootstrap.h"
+#include "config.h"
 #include "private.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
+
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
@@ -36,14 +39,22 @@ public:
         NDiscoveryClient::TMemberId memberId)
         : Bootstrap_(bootstrap)
         , MemberId_(std::move(memberId))
-    { }
+        , DynamicConfigCallback_(BIND_NO_PROPAGATE(&TDistributedThrottlerManager::OnDynamicConfigChanged, MakeWeak(this)))
+    {
+        Bootstrap_->GetDynamicConfigManager()->SubscribeConfigChanged(DynamicConfigCallback_);
+    }
+
+    ~TDistributedThrottlerManager()
+    {
+        Bootstrap_->GetDynamicConfigManager()->UnsubscribeConfigChanged(DynamicConfigCallback_);
+    }
 
     IReconfigurableThroughputThrottlerPtr GetOrCreateThrottler(
         const TYPath& tablePath,
         TCellTag cellTag,
         const TThroughputThrottlerConfigPtr& config,
         const TThrottlerId& throttlerId,
-        EDistributedThrottlerMode mode,
+        ETabletDistributedThrottlerKind kind,
         TDuration rpcTimeout,
         bool admitUnlimitedThrottler,
         NProfiling::TProfiler profiler) override
@@ -54,7 +65,7 @@ public:
                 : nullptr;
         }
 
-        TKey key(tablePath, mode);
+        TKey key(tablePath, kind);
 
         IDistributedThrottlerFactoryPtr factory;
 
@@ -74,21 +85,21 @@ public:
             auto [it, inserted] = Factories_.emplace(key, nullptr);
             if (inserted) {
                 try {
-                    auto factoryName = MakeFactoryName(tablePath, mode);
+                    auto factoryName = MakeFactoryName(tablePath, kind);
 
                     YT_LOG_DEBUG("Creating distributed throttler factory "
-                        "(TablePath: %v, ThrottlerMode: %v, RpcTimeout: %v, GroupId: %v)",
+                        "(TablePath: %v, ThrottlerKind: %v, RpcTimeout: %v, GroupId: %v)",
                         tablePath,
-                        mode,
+                        kind,
                         rpcTimeout,
                         factoryName);
 
-                    it->second = DoCreateFactory(factoryName, cellTag, mode, profiler);
+                    it->second = DoCreateFactory(factoryName, cellTag, kind, profiler);
                 } catch (const std::exception& ex) {
                     YT_LOG_ERROR(ex, "Failed to create distributed throttler factory "
-                        "(TablePath: %v, ThrottlerMode: %v, RpcTimeout: %v)",
+                        "(TablePath: %v, ThrottlerKind: %v, RpcTimeout: %v)",
                         tablePath,
-                        mode,
+                        kind,
                         rpcTimeout);
 
                     Factories_.erase(it);
@@ -105,7 +116,10 @@ public:
     }
 
 private:
-    using TKey = std::tuple<TYPath, EDistributedThrottlerMode>;
+    using TDynamicConfigChangedCallback = TCallback<void(
+        const TClusterNodeDynamicConfigPtr& oldNodeConfig,
+        const TClusterNodeDynamicConfigPtr& newNodeConfig)>;
+    using TKey = std::tuple<TYPath, ETabletDistributedThrottlerKind>;
 
     IBootstrap* const Bootstrap_;
     const NDiscoveryClient::TMemberId MemberId_;
@@ -113,27 +127,32 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     THashMap<TKey, IDistributedThrottlerFactoryPtr> Factories_;
 
-    static NDiscoveryClient::TGroupId MakeFactoryName(const TYPath& tablePath, EDistributedThrottlerMode mode)
+    const TDynamicConfigChangedCallback DynamicConfigCallback_;
+
+    static NDiscoveryClient::TGroupId MakeFactoryName(const TYPath& tablePath, ETabletDistributedThrottlerKind kind)
     {
         return Format("/dynamic_table_node%v/%v",
             tablePath.substr(1),
-            mode);
+            kind);
+    }
+
+    static TDistributedThrottlerConfigPtr GetThrottlerConfig(
+        TEnumIndexedArray<ETabletDistributedThrottlerKind, TDistributedThrottlerConfigPtr> throttlerConfigs,
+        ETabletDistributedThrottlerKind kind)
+    {
+        return throttlerConfigs[kind] ? throttlerConfigs[kind] : New<TDistributedThrottlerConfig>();
     }
 
     IDistributedThrottlerFactoryPtr DoCreateFactory(
         const NDiscoveryClient::TGroupId& factoryName,
         NObjectClient::TCellTag /*cellTag*/,
-        EDistributedThrottlerMode mode,
+        ETabletDistributedThrottlerKind kind,
         NProfiling::TProfiler profiler)
     {
-        auto config = New<TDistributedThrottlerConfig>();
-        config->Mode = mode;
-
-        // TODO(ifsmirnov,aleksandra-zh): YT-13318, reconfigure factories on the fly
-        // via dynamic node config.
+        auto throttlerConfigs = Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->DistributedThrottlers;
 
         return CreateDistributedThrottlerFactory(
-            config,
+            GetThrottlerConfig(throttlerConfigs, kind),
             Bootstrap_->GetConnection()->GetChannelFactory(),
             Bootstrap_->GetConnection(),
             Bootstrap_->GetControlInvoker(),
@@ -144,6 +163,20 @@ private:
             TabletNodeLogger(),
             Bootstrap_->GetNativeAuthenticator(),
             profiler);
+    }
+
+    void OnDynamicConfigChanged(
+        const TClusterNodeDynamicConfigPtr& /*oldNodeConfig*/,
+        const TClusterNodeDynamicConfigPtr& newNodeConfig)
+    {
+        const auto& throttlerConfigs = newNodeConfig->TabletNode->DistributedThrottlers;
+
+        auto guard = ReaderGuard(SpinLock_);
+
+        for (const auto& [key, factory] : Factories_) {
+            const auto& [path, kind] = key;
+            factory->Reconfigure(GetThrottlerConfig(throttlerConfigs, kind));
+        }
     }
 };
 

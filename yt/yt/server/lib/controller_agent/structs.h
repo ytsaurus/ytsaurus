@@ -156,6 +156,8 @@ struct TRunningJobSummary
     double Progress = 0;
     i64 StderrSize = 0;
 
+    std::optional<TInstant> LastProgressSaveTime;
+
     inline static constexpr EJobState ExpectedState = EJobState::Running;
 };
 

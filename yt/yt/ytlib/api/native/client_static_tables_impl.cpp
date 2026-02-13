@@ -1,4 +1,5 @@
 #include "client_impl.h"
+#include "encoded_row_stream.h"
 #include "table_reader.h"
 #include "partition_tables.h"
 #include "skynet.h"
@@ -21,7 +22,10 @@
 
 #include <yt/yt/ytlib/table_client/proto/table_partition_cookie.pb.h>
 
+#include <yt/yt/client/api/formatted_table_reader.h>
 #include <yt/yt/client/api/table_partition_reader.h>
+
+#include <yt/yt/client/formats/config.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
@@ -112,8 +116,9 @@ std::vector<TColumnarStatistics> TClient::DoGetColumnarStatistics(
     std::vector<TColumnarStatistics> allStatistics;
     allStatistics.reserve(paths.size());
 
-    std::vector<ui64> chunkCount;
-    chunkCount.reserve(paths.size());
+    std::vector<i64> chunkCounts;
+    chunkCounts.reserve(paths.size());
+    i64 totalChunkCount = 0;
 
     auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
     auto fetcher = New<TColumnarStatisticsFetcher>(
@@ -126,10 +131,16 @@ std::vector<TColumnarStatistics> TClient::DoGetColumnarStatistics(
             .StoreChunkStatistics = true,
             .EnableEarlyFinish = options.EnableEarlyFinish,
             .Logger = Logger,
+            .EnableReadSizeEstimation = options.EnableReadSizeEstimation,
         });
 
     for (const auto& path : paths) {
         YT_LOG_INFO("Collecting table input chunks (Path: %v)", path);
+
+        if (!path.GetColumns().has_value()) {
+            THROW_ERROR_EXCEPTION("Received ypath without column selectors")
+                << TErrorAttribute("ypath", path);
+        }
 
         auto transactionId = path.GetTransactionId();
 
@@ -152,28 +163,29 @@ std::vector<TColumnarStatistics> TClient::DoGetColumnarStatistics(
 
         YT_VERIFY(!inputTableInfo.RlsReadSpec);
 
-        YT_LOG_INFO("Fetching columnar statistics (Columns: %v, FetcherMode: %v)",
-            *path.GetColumns(),
-            options.FetcherMode);
+        chunkCounts.push_back(std::ssize(inputTableInfo.Chunks));
+        totalChunkCount += std::ssize(inputTableInfo.Chunks);
 
-        YT_VERIFY(path.GetColumns().operator bool());
         auto stableColumnNames = MapNamesToStableNames(*inputTableInfo.Schema, *path.GetColumns(), NonexistentColumnName);
-        for (const auto& inputChunk : inputTableInfo.Chunks) {
-            fetcher->AddChunk(inputChunk, stableColumnNames);
+        for (auto& inputChunk : inputTableInfo.Chunks) {
+            fetcher->AddChunk(std::move(inputChunk), stableColumnNames, inputTableInfo.Schema);
         }
-        chunkCount.push_back(inputTableInfo.Chunks.size());
     }
+
+    YT_LOG_INFO("Fetching columnar statistics (FetcherMode: %v, TotalChunkCount: %v)",
+        options.FetcherMode,
+        totalChunkCount);
 
     WaitFor(fetcher->Fetch())
         .ThrowOnError();
 
     const auto& chunkStatistics = fetcher->GetChunkStatistics();
 
-    ui64 statisticsIndex = 0;
+    i64 statisticsIndex = 0;
 
     for (int pathIndex = 0; pathIndex < std::ssize(paths); ++pathIndex) {
         allStatistics.push_back(TColumnarStatistics::MakeEmpty(paths[pathIndex].GetColumns()->size()));
-        for (ui64 chunkIndex = 0; chunkIndex < chunkCount[pathIndex]; ++statisticsIndex, ++chunkIndex) {
+        for (i64 chunkIndex = 0; chunkIndex < chunkCounts[pathIndex]; ++statisticsIndex, ++chunkIndex) {
             allStatistics[pathIndex] += chunkStatistics[statisticsIndex];
         }
     }
@@ -260,6 +272,51 @@ TFuture<ITablePartitionReaderPtr> TClient::CreateTablePartitionReader(
     }
 
     return MakeFuture(NApi::CreateTablePartitionReader(reader, schemas, columnFilters));
+}
+
+TFuture<IFormattedTableReaderPtr> TClient::CreateFormattedTableReader(
+    const TRichYPath& path,
+    const TYsonString& format,
+    const TTableReaderOptions& options)
+{
+    return CreateTableReader(path, options).Apply(BIND([=] (const ITableReaderPtr& tableReader) {
+        auto controlAttributesConfig = New<NFormats::TControlAttributesConfig>();
+        controlAttributesConfig->EnableRowIndex = options.EnableRowIndex;
+        controlAttributesConfig->EnableTableIndex = options.EnableTableIndex;
+        controlAttributesConfig->EnableRangeIndex = options.EnableRangeIndex;
+
+        return CreateEncodedRowStream(
+            tableReader,
+            tableReader->GetNameTable(),
+            ConvertTo<NFormats::TFormat>(format),
+            tableReader->GetTableSchema(),
+            path.GetColumns(),
+            std::move(controlAttributesConfig));
+    }));
+}
+
+TFuture<IFormattedTableReaderPtr> TClient::CreateFormattedTablePartitionReader(
+    const TTablePartitionCookiePtr& cookie,
+    const TYsonString& format,
+    const TReadTablePartitionOptions& options)
+{
+    return CreateTablePartitionReader(cookie, options).Apply(BIND([=] (const ITablePartitionReaderPtr& tableReader) {
+        auto controlAttributesConfig = New<NFormats::TControlAttributesConfig>();
+        controlAttributesConfig->EnableRowIndex = options.EnableRowIndex;
+        controlAttributesConfig->EnableTableIndex = options.EnableTableIndex;
+        controlAttributesConfig->EnableRangeIndex = options.EnableRangeIndex;
+
+        auto schemas = NDetail::GetTableSchemas(tableReader);
+        auto columnFilters = NDetail::GetColumnFilters(tableReader);
+
+        return CreateEncodedRowStream(
+            tableReader,
+            tableReader->GetNameTable(),
+            ConvertTo<NFormats::TFormat>(format),
+            std::move(schemas[0]),
+            std::move(columnFilters[0]),
+            std::move(controlAttributesConfig));
+    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

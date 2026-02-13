@@ -122,7 +122,7 @@ private:
     {
         while (true) {
             if (Controller_->IsFinished()) {
-                return VoidFuture;
+                return OKFuture;
             }
 
             auto request = Controller_->GetReadRequest();
@@ -179,14 +179,14 @@ private:
 
         if (fragmentsFuture) {
             YT_VERIFY(fragmentsFuture.IsSet());
-            auto result = fragmentsFuture.GetUnique();
+            auto result = fragmentsFuture.AsUnique().Get();
             YT_VERIFY(result.IsOK());
             response.Fragments = std::move(result.Value().Fragments);
         }
 
         if (blocksFuture) {
             YT_VERIFY(blocksFuture.IsSet());
-            auto result = blocksFuture.GetUnique();
+            auto result = blocksFuture.AsUnique().Get();
             YT_VERIFY(result.IsOK());
             response.SystemBlocks = std::move(result.Value());
         }

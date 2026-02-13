@@ -45,6 +45,18 @@ class RecordType:
     key_verbatim: Optional[str]
     descriptor_verbatim: Optional[str]
     sorted: bool = True
+    add_empty_field: bool = False
+    add_equality_operator: bool = False
+
+    def __post_init__(self):
+        if not self.add_empty_field and not self._has_non_empty_field():
+            raise ValueError("Record for sorted dynamic table should have at least one non-expression value field or specify add_empty_field to add $empty value field")
+        if self.add_empty_field and self._has_non_empty_field():
+            raise ValueError("Record for sorted dynamic table has both $empty field and at leat one non-expression value field")
+
+    def _has_non_empty_field(self):
+        # NB(apachee): Keep this condition in sync with the one in cpp.j2.
+        return any(not field.sort_order and not field.expression for field in self.fields)
 
 
 @dataclass

@@ -1586,6 +1586,21 @@ class TestChunkMergerPortal(TestChunkMergerMulticell):
 
 
 @pytest.mark.enabled_multidaemon
+class TestChunkMergerSequoia(TestChunkMergerMulticell):
+    ENABLE_MULTIDAEMON = True
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host", "sequoia_node_host"]},
+        "11": {"roles": ["sequoia_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+        "13": {"roles": ["chunk_host"]},
+    }
+
+
+@pytest.mark.enabled_multidaemon
 class TestTableDataStatisticsConsistency(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 1

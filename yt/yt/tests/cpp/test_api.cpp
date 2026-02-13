@@ -972,7 +972,7 @@ TEST_F(TClusterIdentificationTest, FetchFromMaster)
 
     {
         auto clusterNameFuture = Client_->GetClusterName();
-        auto clusterName = clusterNameFuture.TryGetUnique();
+        auto clusterName = clusterNameFuture.AsUnique().TryGet();
         ASSERT_TRUE(clusterName);
         ASSERT_EQ(clusterName->ValueOrThrow(), ClusterName_);
     }
@@ -982,7 +982,7 @@ TEST_F(TClusterIdentificationTest, FetchFromMaster)
             .ValueOrThrow();
 
         auto clusterNameFuture = transaction->GetClient()->GetClusterName();
-        auto clusterName = clusterNameFuture.TryGetUnique();
+        auto clusterName = clusterNameFuture.AsUnique().TryGet();
 
         ASSERT_TRUE(clusterName);
         ASSERT_EQ(clusterName->ValueOrThrow(), ClusterName_);

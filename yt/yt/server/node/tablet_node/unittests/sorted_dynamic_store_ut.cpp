@@ -244,7 +244,7 @@ protected:
     }
 
 
-    TString DumpStore()
+    std::string DumpStore()
     {
         TStringBuilder builder;
         builder.AppendFormat("RowCount=%v ValueCount=%v MinTimestamp=%v MaxTimestamp=%v\n",
@@ -628,8 +628,8 @@ protected:
 
 TEST_P(TSortedDynamicRowKeyComparerTest, Test)
 {
-    auto str1 = TString(std::get<0>(GetParam()));
-    auto str2 = TString(std::get<1>(GetParam()));
+    auto str1 = TStringBuf(std::get<0>(GetParam()));
+    auto str2 = TStringBuf(std::get<1>(GetParam()));
 
     auto urow1 = BuildRow(str1, false);
     auto urow2 = BuildRow(str2, false);
@@ -877,7 +877,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, PrelockManyWritesAndCommit)
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, AsyncLastCommittedTimestamp), "key=1;a=99"));
 
     for (int i = 0; i < 100; ++i) {
-        EXPECT_TRUE(AreRowsEqual(LookupRow(key, timestamps[i]), TString("key=1;a=" + ToString(i))));
+        EXPECT_TRUE(AreRowsEqual(LookupRow(key, timestamps[i]), std::string("key=1;a=" + ToString(i))));
     }
 }
 
@@ -1153,6 +1153,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, ReadNotBlocked)
         TDuration /*timeout*/)
     {
         blocked = true;
+        return TSortedDynamicStore::TRowBlockedWaitingResult();
     }));
 
     // Not blocked.
@@ -1184,6 +1185,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, ReadBlockedAbort)
         AbortTransaction(transaction.get());
         AbortRow(transaction.get(), row);
         blocked = true;
+        return TSortedDynamicStore::TRowBlockedWaitingResult();
     }));
 
     // Blocked, old value is read.
@@ -1215,6 +1217,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, ReadBlockedCommit)
         WriteRow(transaction.get(), dynamicRow, row);
         CommitRow(transaction.get(), dynamicRow);
         blocked = true;
+        return TSortedDynamicStore::TRowBlockedWaitingResult();
     }));
 
     // Blocked, new value is read.
@@ -1241,6 +1244,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, ReadBlockedTimeout)
     {
         blocked = true;
         Sleep(TDuration::MilliSeconds(10));
+        return TSortedDynamicStore::TRowBlockedWaitingResult();
     }));
 
     // Blocked, timeout.
@@ -1422,7 +1426,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, SerializeSnapshot2)
 
     auto snapshot = BeginReserializeStore();
 
-    TString expectedDump =
+    auto expectedDump =
         Format("RowCount=1 ValueCount=1 MinTimestamp=%v MaxTimestamp=%v\n", ts1, ts1) +
         Format("[ 0#1 ] -> [ 1#1#1@%x] wts#0: [ %v ] dts: [ ]\n", ts1, ts1);
 
@@ -1436,7 +1440,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, SerializeSnapshot2)
     EndReserializeStore(snapshot);
 
     // Values written after serialization are not saved and restored.
-    TString expectedDump2 =
+    auto expectedDump2 =
         Format("RowCount=1 ValueCount=1 MinTimestamp=%v MaxTimestamp=%v\n", ts1, ts1) +
         Format("[ 0#1 ] -> [ 1#1#1@%x] wts#0: [ %v ] dts: [ ]\n", ts1, ts1);
 
@@ -1597,8 +1601,8 @@ protected:
         // NB: Key columns must go first.
         return New<TTableSchema>(std::vector{
             TColumnSchema(TColumnSchema("key", EValueType::Int64).SetSortOrder(ESortOrder::Ascending)),
-            TColumnSchema(TColumnSchema("a", EValueType::Int64).SetLock(TString("l1"))),
-            TColumnSchema(TColumnSchema("b", EValueType::Double).SetLock(TString("l2"))),
+            TColumnSchema(TColumnSchema("a", EValueType::Int64).SetLock("l1")),
+            TColumnSchema(TColumnSchema("b", EValueType::Double).SetLock("l2")),
             TColumnSchema(TColumnSchema("c", EValueType::String))
         });
     }
@@ -1878,6 +1882,7 @@ TEST_F(TMultiLockSortedDynamicStoreTest, WriteNotBlocked)
         TDuration /*timeout*/)
     {
         blocked = true;
+        return TSortedDynamicStore::TRowBlockedWaitingResult();
     }));
 
     // Not blocked, not conflicted.
@@ -1994,16 +1999,16 @@ protected:
         // NB: Key columns must go first.
         return New<TTableSchema>(std::vector{
             TColumnSchema(TColumnSchema("key", EValueType::Int64).SetSortOrder(ESortOrder::Ascending)),
-            TColumnSchema(TColumnSchema("a", EValueType::Int64).SetLock(TString("l1"))),
-            TColumnSchema(TColumnSchema("b", EValueType::Int64).SetLock(TString("l1"))),
-            TColumnSchema(TColumnSchema("c", EValueType::Int64).SetLock(TString("l1"))),
-            TColumnSchema(TColumnSchema("d", EValueType::Int64).SetLock(TString("l1"))),
-            TColumnSchema(TColumnSchema("e", EValueType::Int64).SetLock(TString("l1"))),
-            TColumnSchema(TColumnSchema("f", EValueType::Int64).SetLock(TString("l1"))),
-            TColumnSchema(TColumnSchema("g", EValueType::Int64).SetLock(TString("l1"))),
-            TColumnSchema(TColumnSchema("x", EValueType::Int64).SetLock(TString("l2"))),
-            TColumnSchema(TColumnSchema("y", EValueType::Int64).SetLock(TString("l3"))),
-            TColumnSchema(TColumnSchema("z", EValueType::Int64).SetLock(TString("l4")))
+            TColumnSchema(TColumnSchema("a", EValueType::Int64).SetLock("l1")),
+            TColumnSchema(TColumnSchema("b", EValueType::Int64).SetLock("l1")),
+            TColumnSchema(TColumnSchema("c", EValueType::Int64).SetLock("l1")),
+            TColumnSchema(TColumnSchema("d", EValueType::Int64).SetLock("l1")),
+            TColumnSchema(TColumnSchema("e", EValueType::Int64).SetLock("l1")),
+            TColumnSchema(TColumnSchema("f", EValueType::Int64).SetLock("l1")),
+            TColumnSchema(TColumnSchema("g", EValueType::Int64).SetLock("l1")),
+            TColumnSchema(TColumnSchema("x", EValueType::Int64).SetLock("l2")),
+            TColumnSchema(TColumnSchema("y", EValueType::Int64).SetLock("l3")),
+            TColumnSchema(TColumnSchema("z", EValueType::Int64).SetLock("l4"))
         });
     }
 
@@ -2250,7 +2255,7 @@ TEST_F(TNonAtomicSortedDynamicStoreTest, Write3)
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, AsyncLastCommittedTimestamp), "key=1;a=99"));
 
     for (int i = 0; i < 100; ++i) {
-        EXPECT_TRUE(AreRowsEqual(LookupRow(key, timestamps[i]), TString("key=1;a=" + ToString(i))));
+        EXPECT_TRUE(AreRowsEqual(LookupRow(key, timestamps[i]), std::string("key=1;a=" + ToString(i))));
     }
 }
 

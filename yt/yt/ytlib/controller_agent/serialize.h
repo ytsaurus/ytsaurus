@@ -100,6 +100,17 @@ DEFINE_ENUM(ESnapshotVersion,
     ((StorePhysicalChildPartitionBounds)     (302120))
     ((UseMultiplePartitionTagsInChunkStripe) (302121))
     ((CreateFinalPartitionsLazily)           (302122))
+    ((SupportMergingFinalPartitions)         (302123))
+    ((DropUnusedOutputCookieGenerator)       (302124))
+    ((StorePreemptibleProgressInJoblets)     (302125))
+    // 26.1 starts here
+    ((BumpTo_26_1)                           (302200))
+    ((UseCounterGuardsInChunkPoolMerger)     (302201))
+    ((FileRlsReadSpec)                       (302202))
+    ((DropExcessFieldsInOrderedController)   (302203))
+    ((ChunkPoolStatistics)                   (302204))
+    ((FixSimpleSort)                         (302205))
+    ((ValidateRootFS)                        (302206))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

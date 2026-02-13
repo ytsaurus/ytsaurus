@@ -177,7 +177,7 @@ protected:
         int chunkCountLimit = Context_->IsSynchronous()
             ? std::numeric_limits<int>::max()
             : ChunkCount_ + maxChunksPerIteration;
-        auto rescheduleAfterFuture = VoidFuture;
+        auto rescheduleAfterFuture = OKFuture;
 
         while (ChunkCount_ < chunkCountLimit) {
             if (IsStackEmpty()) {

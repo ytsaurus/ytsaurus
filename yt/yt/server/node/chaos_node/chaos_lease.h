@@ -17,6 +17,7 @@ DEFINE_ENUM(EChaosLeaseState,
     ((Normal)                           (0))
     ((RevokingShortcutsForRemoval)      (1))
     ((Migrated)                         (2))
+    ((RevokingShortcutsForMigration)    (3))
 );
 
 class TChaosLease
@@ -24,8 +25,11 @@ class TChaosLease
     , public TRefTracked<TChaosLease>
 {
 public:
+    // Root of the lease tree.
+    DEFINE_BYVAL_RW_PROPERTY(TChaosLeaseId, RootId);
+    // Direct parent of the lease.
     DEFINE_BYVAL_RW_PROPERTY(TChaosLeaseId, ParentId);
-    DEFINE_BYREF_RW_PROPERTY(THashSet<TChaosLeaseId>, NestedLeases);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TChaosLeaseId>, NestedLeaseIds);
 
     DEFINE_BYVAL_RW_PROPERTY(TDuration, Timeout);
     DEFINE_BYVAL_RW_PROPERTY(EChaosLeaseState, State);
@@ -34,6 +38,9 @@ public:
 
 public:
     using TChaosObjectBase::TChaosObjectBase;
+
+    bool IsNormalState() const override;
+    bool IsRoot() const;
 
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);

@@ -150,7 +150,7 @@ public:
         jobSpecExt->set_body_chunk_replica_lag_limit(bodyChunk->GetReplicaLagLimit());
 
         // This chunk better not have Sequoia replicas.
-        const auto& bodyChunkReplicas = bodyChunk->StoredReplicas();
+        auto bodyChunkReplicas = bodyChunk->GetStoredReplicaList(/*includeNonOnlineReplicas*/ false);
         ToProto(jobSpecExt->mutable_body_chunk_replicas(), bodyChunkReplicas);
         builder.Add(bodyChunkReplicas);
 

@@ -214,6 +214,12 @@ public:
         CurrentDynamicGatewaysConfig_ = config.GatewaysConfig;
         ++DynamicConfigVersion_;
 
+        if (config.MaxSupportedYqlVersion) {
+            CurrentDynamicMaxYqlLangVersion_ = config.MaxSupportedYqlVersion.ToString();
+        } else {
+            CurrentDynamicMaxYqlLangVersion_.reset();
+        }
+
         if (DqControllerYqlPlugin_) {
             DqControllerYqlPlugin_->OnDynamicConfigChanged(config);
         }
@@ -246,6 +252,7 @@ private:
 
     int DynamicConfigVersion_;
     std::optional<TYsonString> CurrentDynamicGatewaysConfig_;
+    std::optional<TString> CurrentDynamicMaxYqlLangVersion_;
 
     TActionQueuePtr Queue_;
     IInvokerPtr Invoker_;
@@ -478,6 +485,10 @@ private:
         config->SetSingletonConfig(config->SingletonsConfig->GetSingletonConfig<NLogging::TLogManagerConfig>());
 
         config->DynamicGatewaysConfig = CurrentDynamicGatewaysConfig_;
+
+        if (CurrentDynamicMaxYqlLangVersion_.has_value()) {
+            config->MaxSupportedYqlVersion = CurrentDynamicMaxYqlLangVersion_.value();
+        }
 
         return config;
     }

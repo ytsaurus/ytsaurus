@@ -77,14 +77,14 @@ struct TDiskRequest
         , MediumIndex(mediumIndex)
     { }
 
-    auto operator <=>(const TDiskRequest& other) const = default;
+    auto operator<=>(const TDiskRequest& other) const = default;
 
-    TDiskRequest operator +(const TDiskRequest& other) const
+    TDiskRequest operator+(const TDiskRequest& other) const
     {
         return TDiskRequest{DiskSpace + other.DiskSpace, MediumIndex};
     }
 
-    TDiskRequest operator *(auto multiplier) const
+    TDiskRequest operator*(auto multiplier) const
     {
         return TDiskRequest{DiskSpace * multiplier, MediumIndex};
     }
@@ -131,6 +131,7 @@ public:
         : TAssignmentPlanContextBase(std::move(logger))
         , Operations_(operations)
         , Nodes_(nodes)
+        , GpuPlanUpdateStatistic_(New<TGpuPlanUpdateStatistics>())
     { }
 
     const TOperationMap& Operations() const override
@@ -143,9 +144,16 @@ public:
         return Nodes_;
     }
 
+    TGpuPlanUpdateStatisticsPtr Statistics() const override
+    {
+        return GpuPlanUpdateStatistic_;
+    }
+
 private:
     const TOperationMap& Operations_;
     const TNodeMap& Nodes_;
+
+    TGpuPlanUpdateStatisticsPtr GpuPlanUpdateStatistic_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -235,7 +243,7 @@ protected:
                 TestAllocationGroupName,
                 TAllocationGroupResources{
                     .MinNeededResources = std::move(jobResourcesWithQuota),
-                    .AllocationCount = allocationCount
+                    .AllocationCount = allocationCount,
                 },
             },
         };
@@ -291,6 +299,31 @@ protected:
             std::move(specifiedSchedulingModules),
             std::move(schedulingTagFilter),
             gang.value_or(defaultGang));
+    }
+
+    TOperationPtr CreateSingleGroupTestOperationWithExtraResources(
+        TJobResourcesWithQuota allocationResources,
+        int allocationCount,
+        TJobResourcesWithQuota extraResources,
+        int extraAllocationCount,
+        EOperationType type = EOperationType::Vanilla,
+        std::optional<THashSet<std::string>> specifiedSchedulingModules = {},
+        TSchedulingTagFilter schedulingTagFilter = {},
+        std::optional<bool> gang = {})
+    {
+        auto operation = CreateSingleGroupTestOperation(
+            std::move(allocationResources),
+            allocationCount,
+            type,
+            std::move(specifiedSchedulingModules),
+            std::move(schedulingTagFilter),
+            gang);
+
+        operation->ExtraGroupedNeededResources() = GetSingleGroupOperationNeededResources(
+            std::move(extraResources),
+            extraAllocationCount);
+
+        return operation;
     }
 
     TOperationPtr CreateFullHostTestOperation(
@@ -360,7 +393,7 @@ protected:
     }
 
     void DoAllocationAssignmentPlanUpdate(
-        IAssignmentPlanContext* context,
+        IAssignmentPlanUpdateContext* context,
         TGpuSchedulingPolicyConfigPtr config = GetTestConfig(),
         TInstant now = {})
     {
@@ -2152,14 +2185,12 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSchedulingTagFilters)
             module,
             TestNodeResources,
             TestSingleMediumDiskResources,
-            TBooleanFormulaTags(THashSet<std::string>({"a"}))
-        ),
+            TBooleanFormulaTags(THashSet<std::string>({"a"}))),
         CreateTestNode(
             module,
             TestNodeResources,
             TestSingleMediumDiskResources,
-            TBooleanFormulaTags(THashSet<std::string>({"b"}))
-        ),
+            TBooleanFormulaTags(THashSet<std::string>({"b"}))),
     };
     std::vector<TOperationPtr> operations = {
         CreateFullHostTestOperation(
@@ -2191,6 +2222,45 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSchedulingTagFilters)
     ASSERT_EQ(1, std::ssize(nodes[1]->Assignments()));
     auto node2Assignment = *nodes[1]->Assignments().begin();
     EXPECT_EQ(operations[2].Get(), node2Assignment->Operation);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Opportunistic operation tests.
+
+TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSimpleOpportunisticOperation)
+{
+
+    auto nodes = CreateSingleModuleTestNodes();
+    std::vector<TOperationPtr> operations{
+        CreateSingleGroupTestOperationWithExtraResources(
+            UnitResources * 4,
+            /*allocationCount*/ 1,
+            UnitResources * 4,
+            /*extraAllocationCount*/ 1)
+    };
+
+    DoAllocationAssignmentPlanUpdate(operations, nodes);
+
+    ASSERT_EQ(2, std::ssize(operations[0]->Assignments()));
+
+    THashSet<TAssignmentPtr> preemptibleAssignments;
+    for (const auto& assignment : operations[0]->Assignments()) {
+        if (assignment->Preemptible) {
+            preemptibleAssignments.insert(assignment);
+        }
+    }
+    ASSERT_EQ(1, std::ssize(preemptibleAssignments));
+
+    operations.push_back(CreateSimpleTestOperation(4, 1));
+    operations[1]->SetStarving(true);
+
+    DoAllocationAssignmentPlanUpdate(operations, nodes);
+
+    ASSERT_TRUE((*preemptibleAssignments.begin())->Preempted);
+
+    ASSERT_EQ(1, std::ssize(operations[0]->Assignments()));
+    ASSERT_EQ(1, std::ssize(operations[1]->Assignments()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

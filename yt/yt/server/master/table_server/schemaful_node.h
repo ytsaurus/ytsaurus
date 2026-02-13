@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/master/object_server/object.h>
 
+#include <yt/yt/client/table_client/constrained_schema.h>
+
 #include <yt/yt/core/misc/property.h>
 
 namespace NYT::NTableServer {
@@ -23,12 +25,18 @@ public:
 public:
     virtual NSecurityServer::TAccount* GetAccount() const = 0;
 
+    const NTableClient::TColumnStableNameToConstraintMap& Constraints() const;
+    void SetConstraints(NTableClient::TColumnStableNameToConstraintMap constraints);
+
     // COMPAT(h0pless): This is a temporary workaround until schemaful node typehandler is introduced.
     virtual NObjectClient::TCellTag GetExternalCellTag() const = 0;
     virtual bool IsExternal() const = 0;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
+
+private:
+    std::unique_ptr<NTableClient::TColumnStableNameToConstraintMap> Constraints_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

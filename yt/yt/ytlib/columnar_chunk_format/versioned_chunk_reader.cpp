@@ -96,13 +96,12 @@ TCompactVector<TValueSchema, 32> GetValuesSchema(
 // Need to build all read windows at once to prepare block indexes for block fetcher.
 template <class TItem, class TPredicate>
 std::vector<TSpanMatching> DoBuildReadWindows(
-    const TCachedVersionedChunkMetaPtr& chunkMeta,
+    TRange<TUnversionedRow> blockLastKeys,
+    TRange<ui32> blockChunkRowCounts,
+    ui32 chunkRowCount,
     TRange<TItem> items,
     TPredicate pred)
 {
-    const auto& blockLastKeys = chunkMeta->BlockLastKeys();
-    const auto& blockMeta = chunkMeta->DataBlockMeta();
-
     std::vector<TSpanMatching> readWindows;
 
     using NQueryClient::GroupItemsByShards;
@@ -118,7 +117,6 @@ std::vector<TSpanMatching> DoBuildReadWindows(
         const TItem* itemItEnd)
     {
         if (shardIt == blockLastKeys.end()) {
-            auto chunkRowCount = chunkMeta->Misc().row_count();
             TReadSpan controlSpan(itemIt - items.begin(), itemItEnd - items.begin());
             // Add window for ranges after chunk end bound. It will be used go generate sentinel rows for lookup.
             readWindows.emplace_back(TReadSpan(chunkRowCount, chunkRowCount), controlSpan);
@@ -126,14 +124,14 @@ std::vector<TSpanMatching> DoBuildReadWindows(
         }
 
         auto shardIndex = shardIt - blockLastKeys.begin();
-        auto upperRowLimit = blockMeta->data_blocks(shardIndex).chunk_row_count();
+        auto upperRowLimit = blockChunkRowCounts[shardIndex];
 
         // TODO(lukyan): Rewrite calculation of start index.
-        while (shardIndex > 0 && blockMeta->data_blocks(shardIndex - 1).chunk_row_count() == upperRowLimit) {
+        while (shardIndex > 0 && blockChunkRowCounts[shardIndex - 1] == upperRowLimit) {
             --shardIndex;
         }
 
-        ui32 startIndex = shardIndex > 0 ? blockMeta->data_blocks(shardIndex - 1).chunk_row_count() : 0;
+        ui32 startIndex = shardIndex > 0 ? blockChunkRowCounts[shardIndex - 1] : 0;
 
         if (startIndex < checkLastLimit) {
             return;
@@ -152,22 +150,25 @@ std::vector<TSpanMatching> DoBuildReadWindows(
 
 std::vector<TSpanMatching> BuildReadWindows(
     TRange<TRowRange> keyRanges,
-    const TCachedVersionedChunkMetaPtr& chunkMeta,
-    int keyColumnCount)
+    TRange<TUnversionedRow> blockLastKeys,
+    TRange<ui32> blockChunkRowCounts,
+    ui32 chunkRowCount,
+    int keyColumnCount,
+    int chunkKeyColumnCount)
 {
     struct TPredicate
     {
         const int CommonKeyPrefix;
         const int KeyColumnCount;
 
-        bool operator() (const TRowRange* itemIt, const TLegacyKey* shardIt) const
+        bool operator()(const TRowRange* itemIt, const TLegacyKey* shardIt) const
         {
             return !TestKeyWithWidening(
                 ToKeyRef(*shardIt, CommonKeyPrefix),
                 ToKeyBoundRef(itemIt->second, true, KeyColumnCount));
         }
 
-        bool operator() (const TLegacyKey* shardIt, const TRowRange* itemIt) const
+        bool operator()(const TLegacyKey* shardIt, const TRowRange* itemIt) const
         {
             return !TestKeyWithWidening(
                 ToKeyRef(*shardIt, CommonKeyPrefix),
@@ -180,15 +181,20 @@ std::vector<TSpanMatching> BuildReadWindows(
     }
 
     return DoBuildReadWindows(
-        chunkMeta,
+        blockLastKeys,
+        blockChunkRowCounts,
+        chunkRowCount,
         keyRanges,
-        TPredicate{chunkMeta->GetChunkKeyColumnCount(), keyColumnCount});
+        TPredicate{chunkKeyColumnCount, keyColumnCount});
 }
 
 std::vector<TSpanMatching> BuildReadWindows(
     TRange<TLegacyKey> keys,
-    const TCachedVersionedChunkMetaPtr& chunkMeta,
-    int /*keyColumnCount*/)
+    TRange<TUnversionedRow> blockLastKeys,
+    TRange<ui32> blockChunkRowCounts,
+    ui32 chunkRowCount,
+    int /*keyColumnCount*/,
+    int chunkKeyColumnCount)
 {
     // Strong typedef.
     struct TItem
@@ -201,14 +207,14 @@ std::vector<TSpanMatching> BuildReadWindows(
     {
         const int CommonKeyPrefix;
 
-        bool operator() (const TItem* itemIt, const TLegacyKey* shardIt) const
+        bool operator()(const TItem* itemIt, const TLegacyKey* shardIt) const
         {
             return CompareWithWidening(
                 ToKeyRef(*shardIt, CommonKeyPrefix),
                 ToKeyRef(*itemIt)) >= 0;
         }
 
-        bool operator() (const TLegacyKey* shardIt, const TItem* itemIt) const
+        bool operator()(const TLegacyKey* shardIt, const TItem* itemIt) const
         {
             return CompareWithWidening(
                 ToKeyRef(*shardIt, CommonKeyPrefix),
@@ -217,23 +223,26 @@ std::vector<TSpanMatching> BuildReadWindows(
     };
 
     return DoBuildReadWindows(
-        chunkMeta,
+        blockLastKeys,
+        blockChunkRowCounts,
+        chunkRowCount,
         TRange(static_cast<const TItem*>(keys.begin()), keys.size()),
-        TPredicate{chunkMeta->GetChunkKeyColumnCount()});
+        TPredicate{chunkKeyColumnCount});
 }
 
 std::vector<TSpanMatching> BuildReadWindows(
     const TKeysWithHints& keysWithHints,
-    const TCachedVersionedChunkMetaPtr& chunkMeta,
-    int /*keyColumnCount*/)
+    TRange<TUnversionedRow> /*blockLastKeys*/,
+    TRange<ui32> blockChunkRowCounts,
+    ui32 chunkRowCount,
+    int /*keyColumnCount*/,
+    int /*chunkKeyColumnCount*/)
 {
-    const auto& blockMeta = chunkMeta->DataBlockMeta();
-
     std::vector<TSpanMatching> readWindows;
 
     size_t blockIndex = 0;
 
-    size_t dataBlocksSize = blockMeta->data_blocks_size();
+    size_t dataBlocksSize = blockChunkRowCounts.Size();
 
     auto it = keysWithHints.RowIndexesToKeysIndexes.begin();
     auto startIt = it;
@@ -246,18 +255,17 @@ std::vector<TSpanMatching> BuildReadWindows(
         auto currentChunkRowIndex = it->first;
 
         blockIndex = ExponentialSearch(blockIndex, dataBlocksSize, [&] (size_t index) {
-            return blockMeta->data_blocks(index).chunk_row_count() <= currentChunkRowIndex;
+            return blockChunkRowCounts[index] <= currentChunkRowIndex;
         });
 
-        auto upperRowLimit = blockMeta->data_blocks(blockIndex).chunk_row_count();
+        auto upperRowLimit = blockChunkRowCounts[blockIndex];
 
         auto i = blockIndex;
-        while (i > 0 && blockMeta->data_blocks(i - 1).chunk_row_count() == upperRowLimit) {
+        while (i > 0 && blockChunkRowCounts[i - 1] == upperRowLimit) {
             --i;
         }
 
-        ui32 startIndex = i > 0 ? blockMeta->data_blocks(i - 1).chunk_row_count() : 0;
-
+        ui32 startIndex = i > 0 ? blockChunkRowCounts[i - 1] : 0;
 
         while (it != keysWithHints.RowIndexesToKeysIndexes.end() && (it->first == SentinelRowIndex || it->first < upperRowLimit)) {
             ++it;
@@ -270,7 +278,6 @@ std::vector<TSpanMatching> BuildReadWindows(
     }
 
     if (startIt != it) {
-        auto chunkRowCount = chunkMeta->Misc().row_count();
         TReadSpan controlSpan(startIt - keysWithHints.RowIndexesToKeysIndexes.begin(), it - keysWithHints.RowIndexesToKeysIndexes.begin());
         // Add window for ranges after chunk end bound. It will be used go generate sentinel rows for lookup.
         readWindows.emplace_back(TReadSpan(chunkRowCount, chunkRowCount), controlSpan);
@@ -310,14 +317,16 @@ public:
         std::unique_ptr<IRowsetBuilder> rowsetBuilder,
         std::vector<TSpanMatching>&& windowsList,
         TReaderStatisticsPtr readerStatistics,
-        NTableClient::TKeyFilterStatisticsPtr keyFilterStatistics)
+        NTableClient::TKeyFilterStatisticsPtr keyFilterStatistics,
+        bool skipValueBlocksForMissingKeys)
         : BlockManager_(std::move(blockManager))
         , ReaderStatistics_(std::move(readerStatistics))
         , KeyFilterStatistics_(std::move(keyFilterStatistics))
         , RowsetBuilder_(std::move(rowsetBuilder))
-        , WindowsList_(std::move(windowsList))
+        , WindowList_(std::move(windowsList))
+        , SkipValueBlocksForMissingKeys_(skipValueBlocksForMissingKeys)
     {
-        std::reverse(WindowsList_.begin(), WindowsList_.end());
+        std::reverse(WindowList_.begin(), WindowList_.end());
     }
 
     bool ReadRows(std::vector<TMutableVersionedRow>* rows, ui32 readCount, ui64* dataWeight)
@@ -331,7 +340,22 @@ public:
         RowsetBuilder_->ClearBuffer();
         ui32 offset = 0;
 
+        bool hasMoreRows = true;
         while (offset < readCount) {
+            // Check that window is ready.
+            if (NeedUpdateWindow_) {
+                if (WindowList_.empty()) {
+                    hasMoreRows = false;
+                    break;
+                }
+
+                if (!UpdateWindow()) {
+                    break;
+                } else {
+                    NeedUpdateWindow_ = false;
+                }
+            }
+
             if (!RowsetBuilder_->IsReadListEmpty()) {
                 // Read rows within window.
                 offset += RowsetBuilder_->ReadRowsByList(
@@ -340,18 +364,14 @@ public:
                     dataWeight,
                     ReaderStatistics_.Get());
                 // Segment limit reached, readCount reached, or read list exhausted.
-            } else if (WindowsList_.empty()) {
-                rows->resize(offset);
-                ReaderStatistics_->RowCount += rows->size();
-                return false;
-            } else if (!UpdateWindow()) {
-                break;
+            } else {
+                NeedUpdateWindow_ = true;
             }
         }
 
         rows->resize(offset);
         ReaderStatistics_->RowCount += rows->size();
-        return true;
+        return hasMoreRows;
     }
 
     TChunkedMemoryPool* GetPool()
@@ -370,14 +390,22 @@ private:
 
     // Vector is used as a stack. No need to keep ReadRangeIndex and RowIndex.
     // Also use stack for WindowsList and do not keep NextWindowIndex.
-    std::vector<TSpanMatching> WindowsList_;
+    std::vector<TSpanMatching> WindowList_;
+
+    const bool SkipValueBlocksForMissingKeys_;
+
+    // State variable for ReadRows method.
+    bool NeedUpdateWindow_ = true;
+
+    // State variable for UpdateWindow method.
+    bool OnlyKeyBlocks_ = true;
 
     // Returns false if need wait for ready event.
-    bool UpdateWindow()
+    bool UpdateWindowSimple()
     {
-        YT_VERIFY(!WindowsList_.empty());
+        YT_VERIFY(!WindowList_.empty());
 
-        if (!BlockManager_->TryUpdateWindow(WindowsList_.back().Chunk.Lower, ReaderStatistics_.Get())) {
+        if (!BlockManager_->TryUpdateWindow(WindowList_.back().Chunk.Lower, ReaderStatistics_.Get())) {
             return false;
         }
 
@@ -386,9 +414,47 @@ private:
             YT_VERIFY(RowsetBuilder_->IsReadListEmpty());
 
             // Update read list.
-            RowsetBuilder_->BuildReadListForWindow(WindowsList_.back(), KeyFilterStatistics_);
-            WindowsList_.pop_back();
+            RowsetBuilder_->BuildReadListForWindow(WindowList_.back(), KeyFilterStatistics_);
+
+            WindowList_.pop_back();
         }
+
+        return true;
+    }
+
+    // Returns false if need wait for ready event.
+    bool UpdateWindow()
+    {
+        if (!SkipValueBlocksForMissingKeys_) {
+            return UpdateWindowSimple();
+        }
+
+        YT_VERIFY(!WindowList_.empty());
+
+        if (!BlockManager_->TryUpdateWindow(WindowList_.back().Chunk.Lower, ReaderStatistics_.Get(), OnlyKeyBlocks_)) {
+            return false;
+        }
+
+        if (OnlyKeyBlocks_) {
+            {
+                TCpuDurationIncrementingGuard timingGuard(&ReaderStatistics_->BuildRangesTime);
+                YT_VERIFY(RowsetBuilder_->IsReadListEmpty());
+
+                // Update read list.
+                RowsetBuilder_->BuildReadListForWindow(WindowList_.back(), KeyFilterStatistics_);
+            }
+
+            // If read list is not empty TryUpdateWindow for value columns.
+            if (!RowsetBuilder_->IsReadListEmpty()) {
+                OnlyKeyBlocks_ = false;
+                if (!BlockManager_->TryUpdateWindow(WindowList_.back().Chunk.Lower, ReaderStatistics_.Get(), OnlyKeyBlocks_)) {
+                    return false;
+                }
+            }
+        }
+
+        WindowList_.pop_back();
+        OnlyKeyBlocks_ = true;
 
         return true;
     }
@@ -456,6 +522,7 @@ public:
         std::unique_ptr<IRowsetBuilder> rowsetBuilder,
         std::vector<TSpanMatching>&& windowsList,
         bool lookup,
+        bool skipValueBlocksForMissingKeys,
         TReaderStatisticsPtr readerStatistics,
         NTableClient::TKeyFilterStatisticsPtr keyFilterStatistics,
         int lookupKeyCount)
@@ -464,7 +531,8 @@ public:
             std::move(rowsetBuilder),
             std::move(windowsList),
             std::move(readerStatistics),
-            std::move(keyFilterStatistics))
+            std::move(keyFilterStatistics),
+            skipValueBlocksForMissingKeys)
         , PreparedMeta_(std::move(preparedMeta))
         , ChunkMeta_(std::move(chunkMeta))
         , ColumnHunkFlags_(std::move(columnHunkFlags))
@@ -479,7 +547,7 @@ public:
 
     TFuture<void> Open() override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
@@ -660,7 +728,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     bool produceAll,
     TReaderStatisticsPtr readerStatistics,
     NTableClient::TKeyFilterStatisticsPtr keyFilterStatistics,
-    IMemoryUsageTrackerPtr memoryUsageTracker)
+    IMemoryUsageTrackerPtr memoryUsageTracker,
+    bool skipValueBlocksForMissingKeys)
 {
     if (!readerStatistics) {
         readerStatistics = New<TReaderStatistics>();
@@ -695,7 +764,13 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     auto keyColumnIndexes = ExtractKeyColumnIndexes(columnFilter, tableKeyColumnCount, IsKeys(readItems));
 
     auto preparedChunkMeta = chunkMeta->GetPreparedChunkMeta();
-    auto windowsList = BuildReadWindows(readItems, chunkMeta, tableKeyColumnCount);
+    auto windowsList = BuildReadWindows(
+        readItems,
+        chunkMeta->BlockLastKeys(),
+        preparedChunkMeta->BlockChunkRowCounts,
+        chunkMeta->Misc().row_count(),
+        tableKeyColumnCount,
+        chunkMeta->GetChunkKeyColumnCount());
     readerStatistics->BuildReadWindowsTime = getDurationAndReset();
 
     auto valuesIdMapping = chunkColumnMapping
@@ -723,33 +798,46 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     // Use raw data pointer because TCompactVector has branch in index operator.
     auto* columnInfosData = columnInfos.data();
 
-    auto makeColumnBase = [&] (const TPreparedChunkMeta::TColumnInfo& columnInfo, ui16 columnId) {
+    auto getBlockHolderIndex = [&] (const TPreparedChunkMeta::TColumnInfo& columnInfo) {
         auto groupId = columnInfo.GroupId;
         auto blockHolderIndex = LowerBound(groupIds.begin(), groupIds.end(), groupId) - groupIds.begin();
         YT_VERIFY(blockHolderIndex < std::ssize(groupIds) && groupIds[blockHolderIndex] == groupId);
-        const auto* blockRef = &groupBlockHolders[blockHolderIndex];
+        return blockHolderIndex;
+    };
 
+    auto makeColumnBase = [&] (const TPreparedChunkMeta::TColumnInfo& columnInfo, ui16 columnId) {
+        const auto* blockRef = &groupBlockHolders[getBlockHolderIndex(columnInfo)];
         *columnInfosData++ = {blockRef, columnInfo.IndexInGroup, columnId};
     };
 
-    auto makeKeyColumnBase = [&] (int keyColumnIndex) {
+    for (int keyColumnIndex = 0; keyColumnIndex < readItemWidth; ++keyColumnIndex) {
         if (keyColumnIndex < chunkKeyColumnCount) {
-            makeColumnBase(preparedChunkMeta->ColumnInfos[keyColumnIndex], keyColumnIndex);
+            const auto columnInfo = preparedChunkMeta->ColumnInfos[keyColumnIndex];
+
+            auto blockHolderIndex = getBlockHolderIndex(columnInfo);
+            const auto* blockRef = &groupBlockHolders[blockHolderIndex];
+            *columnInfosData++ = {blockRef, columnInfo.IndexInGroup, ui16(keyColumnIndex)};
+
+            // Mark key block holders with flags.
+            groupBlockHolders[blockHolderIndex].SetContainsKeyColumn(true);
         } else {
+            // Null column.
             *columnInfosData++ = {nullptr, 0, ui16(keyColumnIndex)};
         }
-    };
-
-    for (int keyColumnIndex = 0; keyColumnIndex < readItemWidth; ++keyColumnIndex) {
-        makeKeyColumnBase(keyColumnIndex);
     }
 
+    // Some key columns may be skipped.
     for (auto keyColumnIndex : keyColumnIndexes) {
         if (keyColumnIndex < readItemWidth) {
             continue;
         }
 
-        makeKeyColumnBase(keyColumnIndex);
+        if (keyColumnIndex < chunkKeyColumnCount) {
+            makeColumnBase(preparedChunkMeta->ColumnInfos[keyColumnIndex], keyColumnIndex);
+        } else {
+            // Null column.
+            *columnInfosData++ = {nullptr, 0, ui16(keyColumnIndex)};
+        }
     }
 
     for (auto [chunkSchemaIndex, readerSchemaIndex] : valuesIdMapping) {
@@ -765,7 +853,10 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
     readerStatistics->BuildColumnInfosTime = getDurationAndReset();
 
-    auto blockManager = blockManagerFactory(std::move(groupBlockHolders), windowsList);
+    auto blockManager = blockManagerFactory(
+        std::move(groupBlockHolders),
+        windowsList,
+        preparedChunkMeta->BlockUncompressedSizes);
     readerStatistics->CreateBlockManagerTime = getDurationAndReset();
 
     // Do not log in case of reading from memory.
@@ -813,6 +904,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         std::move(rowsetBuilder),
         std::move(windowsList),
         IsKeys(readItems),
+        skipValueBlocksForMissingKeys,
         readerStatistics,
         std::move(keyFilterStatistics),
         readItemCount);
@@ -830,7 +922,8 @@ IVersionedReaderPtr CreateVersionedChunkReader<TSharedRange<TRowRange>>(
     bool produceAll,
     TReaderStatisticsPtr readerStatistics,
     NTableClient::TKeyFilterStatisticsPtr keyFilterStatistics,
-    IMemoryUsageTrackerPtr memoryUsageTracker);
+    IMemoryUsageTrackerPtr memoryUsageTracker,
+    bool skipValueBlocksForMissingKeys);
 
 template
 IVersionedReaderPtr CreateVersionedChunkReader<TSharedRange<TLegacyKey>>(
@@ -844,7 +937,8 @@ IVersionedReaderPtr CreateVersionedChunkReader<TSharedRange<TLegacyKey>>(
     bool produceAll,
     TReaderStatisticsPtr readerStatistics,
     NTableClient::TKeyFilterStatisticsPtr keyFilterStatistics,
-    IMemoryUsageTrackerPtr memoryUsageTracker);
+    IMemoryUsageTrackerPtr memoryUsageTracker,
+    bool skipValueBlocksForMissingKeys);
 
 template
 IVersionedReaderPtr CreateVersionedChunkReader<TKeysWithHints>(
@@ -858,7 +952,8 @@ IVersionedReaderPtr CreateVersionedChunkReader<TKeysWithHints>(
     bool produceAll,
     TReaderStatisticsPtr readerStatistics,
     NTableClient::TKeyFilterStatisticsPtr keyFilterStatistics,
-    IMemoryUsageTrackerPtr memoryUsageTracker);
+    IMemoryUsageTrackerPtr memoryUsageTracker,
+    bool skipValueBlocksForMissingKeys);
 
 ////////////////////////////////////////////////////////////////////////////////
 

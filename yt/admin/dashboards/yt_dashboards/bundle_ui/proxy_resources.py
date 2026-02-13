@@ -10,6 +10,13 @@ from ..common.sensors import *
 
 ##################################################################
 
+memory_guarantee = MonitoringExpr(RpcProxyPorto("yt.porto.memory.memory_limit")
+    .value("container_category", "pod"))
+anon_memory_limit = MonitoringExpr(RpcProxyPorto("yt.porto.memory.anon_limit")
+    .value("container_category", "pod"))
+anon_memory_usage = MonitoringExpr(RpcProxyPorto("yt.porto.memory.anon_usage")
+    .value("container_category", "pod"))
+oom_tracker_threshold = MonitoringExpr(RpcProxyMemory("yt.memory.tcmalloc.desired_usage_limit_bytes"))
 
 def top_max_bottom_min(sensor):
     return common.top_max_bottom_min(RpcProxyPorto(sensor))
@@ -36,14 +43,14 @@ def build_rpc_proxy_resource_overview_rowset():
                                     *[x / 100 for x in top_max_bottom_min("yt.porto.vcpu.total")]))
             .row()
                 .cell("Memory Total", MultiSensor(
-                                    MonitoringExpr(RpcProxyPorto("yt.porto.memory.memory_limit").value("container_category", "pod")
-                                        .aggr(MonitoringTag("host"))).alias("Container Memory Guarantee"),
-                                    MonitoringExpr(RpcProxyPorto("yt.porto.memory.anon_usage").value("container_category", "pod")
-                                        .aggr(MonitoringTag("host"))).alias("Container Memory Usage")))
+                                    memory_guarantee.aggr(MonitoringTag("host")).alias("Container Memory Guarantee"),
+                                    anon_memory_limit.aggr(MonitoringTag("host")).alias("Anon Memory Limit"),
+                                    oom_tracker_threshold.aggr(MonitoringTag("host")).alias("OOM tracker threshold"),
+                                    anon_memory_usage.aggr(MonitoringTag("host")).alias("Anon Memory Usage")))
                 .cell("Memory per container", MultiSensor(
-                                    MonitoringExpr(RpcProxyPorto("yt.porto.memory.memory_limit").value("container_category", "pod")
-                                        .all(MonitoringTag("host"))).alias("Guarantee {{container}}")
-                                        .top(1),
+                                    memory_guarantee.all(MonitoringTag("host")).series_min().alias("Container Memory Guarantee"),
+                                    anon_memory_limit.all(MonitoringTag("host")).series_min().alias("Anon Memory Limit"),
+                                    oom_tracker_threshold.all(MonitoringTag("host")).series_min().alias("OOM tracker threshold"),
                                     *top_max_bottom_min("yt.porto.memory.anon_usage")))
             .row()
                 .cell("Net TX total", MultiSensor(

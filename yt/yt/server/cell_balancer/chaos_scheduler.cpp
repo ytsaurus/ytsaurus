@@ -1,6 +1,7 @@
 #include "chaos_scheduler.h"
 
 #include "config.h"
+#include "mutations.h"
 
 #include <yt/yt/client/object_client/helpers.h>
 

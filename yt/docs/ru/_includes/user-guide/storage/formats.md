@@ -171,7 +171,7 @@ yt read --proxy {{prestable-cluster}} --format '<format=pretty>yson' '//home/tut
 Строки в {{product-name}} — YSON-строки — являются байтовыми, в то время как JSON использует кодирование Unicode.
 У формата есть настройка `encode_utf8`, позволяющая управлять конверсией. `encode_utf8` по умолчанию равен `%true`.
 
-- encode_utf8=%true { #utf8-true }
+- `encode_utf8=%true` { #utf8-true }
 
 Чтобы преобразовать YSON-строку в JSON-строку, нужно перевести каждый байт в unicode-символ с соответствующим номером и закодировать в UTF-8. Такое преобразование происходит, например, при чтении табличных данных командой [`read_table`](../../../api/commands.md#read_table).
 
@@ -183,7 +183,7 @@ yt read --proxy {{prestable-cluster}} --format '<format=pretty>yson' '//home/tut
 
 {% endnote %}
 
-- encode_utf8=%false { #utf8-false }
+- `encode_utf8=%false` { #utf8-false }
 
 Чтобы преобразовать YSON-строку в JSON-строку требуется, чтобы в YSON-строке находилась последовательность, допустимая UTF-8. Она будет преобразована в unicode-строку JSON.
 

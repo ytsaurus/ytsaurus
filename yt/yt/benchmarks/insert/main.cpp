@@ -80,8 +80,8 @@ struct TTestConfig
     : public TYsonStructLite
 {
     std::string User;
-    TString Token;
-    TString Table;
+    std::string Token;
+    std::string Table;
 
     int MaxInflight;
     int MaxRps;
@@ -558,7 +558,7 @@ private:
         if (!Config_.User.empty()) {
             clientOptions.User = Config_.User;
         }
-        if (Config_.Token) {
+        if (!Config_.Token.empty()) {
             clientOptions.Token = Config_.Token;
         }
 

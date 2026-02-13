@@ -2,13 +2,17 @@
 
 #include "config.h"
 #include "cypress_key_store.h"
-#include "dynamic.h"
 #include "key_rotator.h"
 #include "private.h"
 #include "signature_generator.h"
 #include "signature_validator.h"
 
+#include <yt/yt/client/signature/dynamic.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+
+#include <yt/yt/client/security_client/public.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
 
@@ -27,10 +31,13 @@ using namespace NThreading;
 TSignatureComponents::TSignatureComponents(
     const TSignatureComponentsConfigPtr& config,
     TOwnerId ownerId,
-    IClientPtr client,
+    const IConnectionPtr& connection,
     IInvokerPtr rotateInvoker)
     : OwnerId_(std::move(ownerId))
-    , Client_(std::move(client))
+    , Client_(connection->CreateNativeClient(
+        config->UseRootUser
+            ? TClientOptions::Root()
+            : TClientOptions::FromUser(NSecurityClient::SignatureKeysmithUserName)))
     , RotateInvoker_(std::move(rotateInvoker))
     , CypressKeyReader_(config->Validation
         ? New<TCypressKeyReader>(config->Validation->CypressKeyReader, Client_)
@@ -76,7 +83,7 @@ TFuture<void> TSignatureComponents::Reconfigure(const TSignatureComponentsConfig
     auto guard = Guard(ReconfigureSpinLock_);
     TForbidContextSwitchGuard contextSwitchGuard;
 
-    auto returnFuture = VoidFuture;
+    auto returnFuture = OKFuture;
 
     InitializeCryptographyIfRequired(config);
     if (config->Generation) {
@@ -156,16 +163,16 @@ TFuture<void> TSignatureComponents::DoStartRotation() const
                 if (auto keyRotator = weakRotator.Lock()) {
                     return keyRotator->Start();
                 }
-                return VoidFuture;
+                return OKFuture;
             }));
     }
-    return VoidFuture;
+    return OKFuture;
 }
 
 TFuture<void> TSignatureComponents::StopRotation()
 {
     auto guard = Guard(ReconfigureSpinLock_);
-    return KeyRotator_ ? KeyRotator_->Stop() : VoidFuture;
+    return KeyRotator_ ? KeyRotator_->Stop() : OKFuture;
 }
 
 TFuture<void> TSignatureComponents::DoRotateOutOfBand() const
@@ -178,10 +185,10 @@ TFuture<void> TSignatureComponents::DoRotateOutOfBand() const
                 if (auto keyRotator = weakRotator.Lock()) {
                     return keyRotator->Rotate();
                 }
-                return VoidFuture;
+                return OKFuture;
             }));
     }
-    return VoidFuture;
+    return OKFuture;
 }
 
 TFuture<void> TSignatureComponents::RotateOutOfBand()

@@ -62,6 +62,7 @@ DECLARE_REFCOUNTED_STRUCT(ITransactionParticipantProvider)
 DECLARE_REFCOUNTED_STRUCT(ITransactionLeaseTrackerThreadPool)
 DECLARE_REFCOUNTED_STRUCT(ITransactionLeaseTracker)
 
+DECLARE_REFCOUNTED_STRUCT(TTransactionSupervisorTestingConfig)
 DECLARE_REFCOUNTED_STRUCT(TTransactionSupervisorConfig)
 DECLARE_REFCOUNTED_STRUCT(TTransactionLeaseTrackerConfig)
 

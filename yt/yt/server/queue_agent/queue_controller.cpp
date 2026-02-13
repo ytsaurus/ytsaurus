@@ -1,13 +1,14 @@
 #include "queue_controller.h"
 
-#include "snapshot.h"
-#include "snapshot_representation.h"
 #include "config.h"
 #include "helpers.h"
+#include "pass_profiler.h"
 #include "profile_manager.h"
 #include "queue_exporter.h"
 #include "queue_exporter_old.h"
-#include "queue_export_manager.h"
+#include "queue_exporter_profile_manager.h"
+#include "snapshot.h"
+#include "snapshot_representation.h"
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 #include <yt/yt/ytlib/hive/cell_directory.h>
@@ -18,6 +19,8 @@
 
 #include <yt/yt/client/api/internal_client.h>
 #include "yt/yt/client/api/table_client.h"
+
+#include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/table_client/helpers.h>
 
@@ -332,6 +335,8 @@ public:
         const IObjectStore* store,
         const IQueueExportManagerPtr& queueExportManager,
         const TQueueControllerDynamicConfigPtr& dynamicConfig,
+        const TProfiler& profiler,
+        const TLogger& logger,
         TQueueAgentClientDirectoryPtr clientDirectory,
         IInvokerPtr invoker)
         : Leading_(leading)
@@ -342,7 +347,7 @@ public:
         , DynamicConfig_(dynamicConfig)
         , ClientDirectory_(std::move(clientDirectory))
         , Invoker_(std::move(invoker))
-        , Logger(QueueControllerLogger().WithTag("Queue: %v, Leading: %v", QueueRef_, Leading_))
+        , Logger(logger)
         , PassExecutor_(New<TPeriodicExecutor>(
             Invoker_,
             BIND(&TOrderedDynamicTableController::Pass, MakeWeak(this)),
@@ -350,20 +355,15 @@ public:
                 .Period = dynamicConfig->PassPeriod,
                 .Splay = dynamicConfig->PassPeriod,
             }))
-        , ProfileManager_(CreateQueueProfileManager(
-            QueueAgentProfilerGlobal()
-                .WithRequiredTag("queue_path", TrimProfilingTagValue(QueueRef_.Path))
-                .WithRequiredTag("queue_cluster", QueueRef_.Cluster),
-            Logger))
+        , BaseProfiler_(profiler)
+        , ProfileManager_(CreateQueueProfileManager(profiler, Logger, queueRow, leading))
+        , PassProfiler_(New<TPassProfiler>(ProfileManager_.Acquire()->GetProfiler(EProfilerScope::ObjectPass)))
         , AlertManager_(CreateAlertManager(
             Logger,
-            QueueAgentProfilerGlobal()
-                .WithTag("queue_path", TrimProfilingTagValue(QueueRef_.Path))
-                .WithTag("queue_cluster", QueueRef_.Cluster)
-                .WithPrefix("/queue"),
+            ProfileManager_.Acquire()->GetProfiler(EProfilerScope::AlertManager),
             Invoker_))
-        , TrimAlertCollector_(CreateAlertCollector(AlertManager_))
-        , QueueExportsAlertCollector_(CreateAlertCollector(AlertManager_))
+        , TrimAlertCollector_(CreateAlertCollector(AlertManager_.Acquire()))
+        , QueueExportsAlertCollector_(CreateAlertCollector(AlertManager_.Acquire()))
         , QueueExportManager_(queueExportManager)
     {
         // Prepare initial erroneous snapshot.
@@ -377,7 +377,7 @@ public:
     void Initialize() const
     {
         PassExecutor_->Start();
-        AlertManager_->Start();
+        AlertManager_.Acquire()->Start();
 
         YT_LOG_INFO("Queue controller started");
     }
@@ -397,7 +397,7 @@ public:
             .Item("pass_instant").Value(queueSnapshot->PassInstant)
             .Item("row").Value(queueSnapshot->Row)
             .Item("replicated_table_mapping_row").Value(queueSnapshot->ReplicatedTableMappingRow)
-            .Item("status").Do(std::bind(BuildQueueStatusYson, queueSnapshot, AlertManager_, queueExportsProgressOrError, _1))
+            .Item("status").Do(std::bind(BuildQueueStatusYson, queueSnapshot, AlertManager_.Acquire(), queueExportsProgressOrError, _1))
             .Item("partitions").Do(std::bind(BuildQueuePartitionListYson, queueSnapshot, _1))
             .Item("exporters").Do(std::bind(&TOrderedDynamicTableController::BuildExporterMappingYson, this, _1))
         .EndMap();
@@ -409,7 +409,10 @@ public:
 
         const auto& queueRow = std::any_cast<const TQueueTableRow&>(row);
 
-        QueueRow_.Store(queueRow);
+        auto oldRow = QueueRow_.Exchange(queueRow);
+        if (oldRow.QueueProfilingTag != queueRow.QueueProfilingTag) {
+            UpdateProfilers();
+        }
     }
 
     void OnReplicatedTableMappingRowUpdated(const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& row) override
@@ -429,7 +432,7 @@ public:
 
         PassExecutor_->SetPeriod(newConfig->PassPeriod);
 
-        AlertManager_->Reconfigure(oldConfig->AlertManager, newConfig->AlertManager);
+        AlertManager_.Acquire()->Reconfigure(oldConfig->AlertManager, newConfig->AlertManager);
 
         {
             auto guard = ReaderGuard(QueueExportsLock_);
@@ -448,8 +451,8 @@ public:
 
     void Stop() override
     {
-        TrimAlertCollector_->Stop();
-        QueueExportsAlertCollector_->Stop();
+        TrimAlertCollector_.Acquire()->Stop();
+        QueueExportsAlertCollector_.Acquire()->Stop();
 
         {
             auto guard = ReaderGuard(QueueExportsLock_);
@@ -497,11 +500,15 @@ private:
 
     const TLogger Logger;
     const TPeriodicExecutorPtr PassExecutor_;
-    const IQueueProfileManagerPtr ProfileManager_;
-    const IAlertManagerPtr AlertManager_;
+
+    const TProfiler BaseProfiler_;
+
+    TAtomicIntrusivePtr<IQueueProfileManager> ProfileManager_;
+    TAtomicIntrusivePtr<TPassProfiler> PassProfiler_;
+    TAtomicIntrusivePtr<IAlertManager> AlertManager_;
     // TODO(achulkov2, nadya73): Separate trim into separate periodic executor.
-    const IAlertCollectorPtr TrimAlertCollector_;
-    const IAlertCollectorPtr QueueExportsAlertCollector_;
+    TAtomicIntrusivePtr<IAlertCollector> TrimAlertCollector_;
+    TAtomicIntrusivePtr<IAlertCollector> QueueExportsAlertCollector_;
 
     const IQueueExportManagerPtr QueueExportManager_;
 
@@ -509,9 +516,43 @@ private:
     TQueueExportsMappingOrError QueueExports_;
     TReaderWriterSpinLock QueueExportsLock_;
 
+    void UpdateProfilers()
+    {
+        ProfileManager_.Store(CreateQueueProfileManager(BaseProfiler_, Logger, QueueRow_.Load(), Leading_));
+        PassProfiler_.Store(New<TPassProfiler>(ProfileManager_.Acquire()->GetProfiler(EProfilerScope::ObjectPass)));
+
+        auto alertManager = CreateAlertManager(
+            Logger,
+            ProfileManager_.Acquire()->GetProfiler(EProfilerScope::AlertManager),
+            Invoker_);
+
+        TrimAlertCollector_.Acquire()->Stop();
+        QueueExportsAlertCollector_.Acquire()->Stop();
+
+        TrimAlertCollector_.Store(CreateAlertCollector(alertManager));
+        QueueExportsAlertCollector_.Store(CreateAlertCollector(alertManager));
+        alertManager->Start();
+        AlertManager_.Store(alertManager);
+
+        auto guard = WriterGuard(QueueExportsLock_);
+        if (!QueueExports_.IsOK()) {
+            return;
+        }
+        for (const auto& [_, exporter] : QueueExports_.Value()) {
+            exporter->Stop();
+        }
+        QueueExports_ = TError("Updating exports due to profiling tag update");
+    }
+
     void Pass()
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+        auto startTime = TInstant::Now();
+        auto previousQueueSnapshot = QueueSnapshot_.Acquire();
+        auto passProfiler = PassProfiler_.Acquire();
+        if (previousQueueSnapshot) {
+            passProfiler->OnStart(previousQueueSnapshot->PassIndex + 1, startTime);
+        }
 
         auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("QueueControllerPass"));
 
@@ -552,13 +593,13 @@ private:
         auto nextQueueSnapshot = New<TQueueSnapshotBuildSession>(
             QueueRow_.Load(),
             ReplicatedTableMappingRow_.Load(),
-            QueueSnapshot_.Acquire(),
+            previousQueueSnapshot,
             std::move(registrations),
             Logger,
             ClientDirectory_,
             enableVerboseLogging)
             ->Build();
-        auto previousQueueSnapshot = QueueSnapshot_.Exchange(nextQueueSnapshot);
+        QueueSnapshot_.Store(nextQueueSnapshot);
 
         // XXX(apachee): Is it ok that we do not check snapshot error here?
 
@@ -566,6 +607,7 @@ private:
 
         auto finalizePass = Finally([&] {
             YT_LOG_INFO("Queue controller pass finished");
+            passProfiler->OnFinish(TInstant::Now() - startTime);
         });
 
         if (nextQueueSnapshot->Banned) {
@@ -583,7 +625,7 @@ private:
         if (Leading_) {
             YT_LOG_DEBUG("Queue controller is leading, performing mutating operations");
 
-            ProfileManager_->Profile(previousQueueSnapshot, nextQueueSnapshot);
+            ProfileManager_.Acquire()->Profile(previousQueueSnapshot, nextQueueSnapshot);
 
             UpdateExports(nextQueueSnapshot);
 
@@ -603,7 +645,7 @@ private:
         // to allow trimming exported rows, but prevent trimming past them.
 
         auto finalizeUpdate = Finally([&] {
-            QueueExportsAlertCollector_->PublishAlerts();
+            QueueExportsAlertCollector_.Acquire()->PublishAlerts();
         });
 
         auto queueExporterConfig = DynamicConfig_.Acquire()->QueueExporter;
@@ -612,6 +654,7 @@ private:
         // COMPAT(apachee): Create queue exporter depending on implementation set in config.
         // NB(apachee): We re-create exporters here and not in OnDynamicConfigChanged for simplicity.
         auto createQueueExporter = [&] (TString name, TQueueStaticExportConfigPtr exportConfig) -> IQueueExporterPtr {
+            auto exporterProfileManager = CreateQueueExporterProfileManager(BaseProfiler_, name, Logger, QueueRow_.Load(), Leading_);
             switch (queueExporterConfig.Implementation) {
                 case EQueueExporterImplementation::New:
                     return CreateQueueExporter(
@@ -622,8 +665,8 @@ private:
                         ClientDirectory_->GetUnderlyingClientDirectory(),
                         Invoker_,
                         QueueExportManager_,
-                        CreateAlertCollector(AlertManager_),
-                        ProfileManager_->GetQueueProfiler(),
+                        CreateAlertCollector(AlertManager_.Acquire()),
+                        std::move(exporterProfileManager),
                         Logger);
                 case EQueueExporterImplementation::Old:
                     return New<TQueueExporterOld>(
@@ -633,8 +676,8 @@ private:
                         queueExporterConfig,
                         ClientDirectory_->GetUnderlyingClientDirectory(),
                         Invoker_,
-                        CreateAlertCollector(AlertManager_),
-                        ProfileManager_->GetQueueProfiler(),
+                        CreateAlertCollector(AlertManager_.Acquire()),
+                        std::move(exporterProfileManager),
                         Logger);
             }
 
@@ -654,7 +697,7 @@ private:
             queueExporterConfig.Implementation);
         if (!staticExportConfigError.IsOK()) {
             QueueExports_ = staticExportConfigError;
-            QueueExportsAlertCollector_->StageAlert(CreateAlert(
+            QueueExportsAlertCollector_.Acquire()->StageAlert(CreateAlert(
                 NAlerts::EErrorCode::QueueAgentQueueControllerStaticExportMisconfiguration,
                 "Failed to update exports due to misconfiguration",
                 /*tags*/ {},
@@ -767,14 +810,14 @@ private:
             GuardedTrim();
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Error while trimming queue");
-            TrimAlertCollector_->StageAlert(CreateAlert(
+            TrimAlertCollector_.Acquire()->StageAlert(CreateAlert(
                 NAlerts::EErrorCode::QueueAgentQueueControllerTrimFailed,
                 "Error while trimming queue",
                 /*tags*/ {},
                 ex));
         }
 
-        TrimAlertCollector_->PublishAlerts();
+        TrimAlertCollector_.Acquire()->PublishAlerts();
     }
 
     struct TPartitionTrimContext
@@ -1372,7 +1415,7 @@ private:
                     TGetOrderedTabletSafeTrimRowCountRequest{
                         Context.ObjectPath,
                         partitionContext.PartitionIndex,
-                        maxTimestampToTrim
+                        maxTimestampToTrim,
                     });
             }
 
@@ -1623,14 +1666,17 @@ bool UpdateQueueController(
     // Recreating an error controller on each iteration seems ok as it does
     // not have any state. By doing so we make sure that the error of a queue controller
     // is not stale.
+    const auto Logger = QueueControllerLogger().WithTag("Queue: %v, Leading: %v", row.Ref, leading);
 
     if (row.SynchronizationError && !row.SynchronizationError->IsOK()) {
         controller = New<TErrorQueueController>(row, replicatedTableMappingRow, TError("Queue synchronization error") << *row.SynchronizationError);
+        YT_LOG_WARNING(row.SynchronizationError.value(), "Queue synchronization error");
         return true;
     }
 
     auto queueFamily = DeduceQueueFamily(row, replicatedTableMappingRow);
     if (!queueFamily.IsOK()) {
+        YT_LOG_WARNING(queueFamily, "Error while deducing queue family");
         controller = New<TErrorQueueController>(row, replicatedTableMappingRow, queueFamily);
         return true;
     }
@@ -1650,6 +1696,8 @@ bool UpdateQueueController(
                 store,
                 queueExportManager,
                 dynamicConfig,
+                QueueAgentProfiler(),
+                Logger,
                 std::move(clientDirectory),
                 std::move(invoker));
             newController->Initialize();

@@ -567,6 +567,11 @@ public:
         return Underlying_->GetWriteRequestLimit();
     }
 
+    i64 GetBlockSize() const override
+    {
+        return Underlying_->GetBlockSize();
+    }
+
 private:
     const IIOEnginePtr Underlying_;
     const NLogging::TLogger Logger;

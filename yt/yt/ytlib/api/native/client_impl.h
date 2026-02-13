@@ -137,6 +137,9 @@ public:
         NObjectClient::TObjectId prerequisiteId,
         const TPrerequisiteAttachOptions& options) override;
 
+    TFuture<NYson::TYsonString> GetConnectionOrchidValue(
+        const NApi::TGetConnectionOrchidValueOptions& options = {}) override;
+
 #define DROP_BRACES(...) __VA_ARGS__
 #define IMPLEMENT_OVERLOADED_METHOD(returnType, method, doMethod, signature, args) \
 private: \
@@ -408,6 +411,11 @@ public: \
         NObjectClient::EObjectType type,
         const TCreateNodeOptions& options),
         (path, type, options))
+    IMPLEMENT_METHOD(TLockNodeDetailedResult, LockNodeDetailed, (
+        const NYPath::TYPath& path,
+        NCypressClient::ELockMode mode,
+        const TLockNodeOptions& options),
+        (path, mode, options))
     IMPLEMENT_METHOD(TLockNodeResult, LockNode, (
         const NYPath::TYPath& path,
         NCypressClient::ELockMode mode,
@@ -518,6 +526,16 @@ public: \
         const TTablePartitionCookiePtr& cookie,
         const TReadTablePartitionOptions& options) override;
 
+    TFuture<IFormattedTableReaderPtr> CreateFormattedTableReader(
+        const NYPath::TRichYPath& path,
+        const NYson::TYsonString& format,
+        const TTableReaderOptions& options) override;
+
+    TFuture<IFormattedTableReaderPtr> CreateFormattedTablePartitionReader(
+        const TTablePartitionCookiePtr& cookie,
+        const NYson::TYsonString& format,
+        const TReadTablePartitionOptions& options) override;
+
     IMPLEMENT_METHOD(void, TruncateJournal, (
         const NYPath::TYPath& path,
         i64 rowCount,
@@ -569,12 +587,19 @@ public: \
         (srcAccount, dstAccount, resourceDelta, options))
 
     IMPLEMENT_METHOD(void, TransferPoolResources, (
-        const TString& srcPool,
-        const TString& dstPool,
-        const TString& poolTree,
+        const std::string& srcPool,
+        const std::string& dstPool,
+        const std::string& poolTree,
         NYTree::INodePtr resourceDelta,
         const TTransferPoolResourcesOptions& options),
         (srcPool, dstPool, poolTree, resourceDelta, options))
+
+    IMPLEMENT_METHOD(void, TransferBundleResources, (
+        const std::string& srcBundle,
+        const std::string& dstBundle,
+        NYTree::INodePtr resourceDelta,
+        const TTransferBundleResourcesOptions& options),
+        (srcBundle, dstBundle, resourceDelta, options))
 
     IMPLEMENT_METHOD(NScheduler::TOperationId, StartOperation, (
         NScheduler::EOperationType type,
@@ -684,6 +709,12 @@ public: \
         const NYson::TYsonString& parameters,
         const TPollJobShellOptions& options),
         (jobId, shellName, parameters, options))
+    IMPLEMENT_METHOD(NConcurrency::IAsyncZeroCopyInputStreamPtr, RunJobShellCommand, (
+        NScheduler::TJobId jobId,
+        const std::optional<std::string>& shellName,
+        const std::string& command,
+        const TRunJobShellCommandOptions& options),
+        (jobId, shellName, command, options))
     IMPLEMENT_METHOD(void, AbortJob, (
         NScheduler::TJobId jobId,
         const TAbortJobOptions& options),
@@ -717,6 +748,9 @@ public: \
         (cellId, options))
     IMPLEMENT_METHOD(void, MasterExitReadOnly, (
         const TMasterExitReadOnlyOptions& options),
+        (options))
+    IMPLEMENT_METHOD(void, ResetDynamicallyPropagatedMasterCells, (
+        const TResetDynamicallyPropagatedMasterCellsOptions& options),
         (options))
     IMPLEMENT_METHOD(void, DiscombobulateNonvotingPeers, (
         NObjectClient::TCellId cellId,
@@ -958,7 +992,7 @@ public: \
         (pipelinePath, viewPath, options))
     IMPLEMENT_METHOD(TFlowExecuteResult, FlowExecute, (
         const NYPath::TYPath& pipelinePath,
-        const TString& command,
+        const std::string& command,
         const NYson::TYsonString& argument,
         const TFlowExecuteOptions& options),
         (pipelinePath, command, argument, options))
@@ -1296,8 +1330,8 @@ private:
     NRpc::IChannelPtr GetChaosChannelByCellTag(
         NObjectClient::TCellTag cellTag,
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader);
-    NRpc::IChannelPtr GetChaosChannelByCardIdOrThrow(
-        NChaosClient::TReplicationCardId replicationCardId,
+    NRpc::IChannelPtr GetChaosChannelByObjectIdOrThrow(
+        NChaosClient::TChaosObjectId chaosObjectId,
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader);
 
     //
@@ -1583,9 +1617,9 @@ private:
     // Flow
     //
 
-    TString DiscoverPipelineControllerLeader(const NYPath::TYPath& pipelinePath);
+    std::string DiscoverPipelineControllerLeader(const NYPath::TYPath& pipelinePath);
 
-    NFlow::NController::TControllerServiceProxy CreatePipelineControllerLeaderProxy(const TString& address);
+    NFlow::NController::TControllerServiceProxy CreatePipelineControllerLeaderProxy(const std::string& address);
 
     void ValidatePipelinePermission(const NYPath::TYPath& pipelinePath, NYTree::EPermission permission);
 };

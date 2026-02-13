@@ -63,12 +63,14 @@ public:
         return TReadersStatistics();
     }
 
-    TString GetPath() const override
+    const std::string& GetPath() const override
     {
-        return "MockRandomAccessFileReader";
+        return Path_;
     }
 
 private:
+    const std::string Path_ = "MockRandomAccessFileReader";
+
     i64 Size_ = 0;
 };
 
@@ -81,13 +83,13 @@ IRandomAccessFileReaderPtr CreateMockReader(i64 size)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString BuildAndGetText(ISquashFSLayoutBuilderPtr builder)
+std::string BuildAndGetText(ISquashFSLayoutBuilderPtr builder)
 {
     auto layout = builder->Build();
     TBlobOutput blobOutput;
     layout->DumpHexText(blobOutput);
     TBlob& blob = blobOutput.Blob();
-    return TString(blob.Begin(), blob.End());
+    return std::string(blob.Begin(), blob.End());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -98,7 +100,7 @@ TEST(TSquashFSCanondataTest, EmptySquashFS)
         .BlockSize = 512_KB
     };
     auto builder = CreateSquashFSLayoutBuilder(options);
-    TString result = BuildAndGetText(builder);
+    auto result = BuildAndGetText(builder);
     EXPECT_THAT(result, GoldenFileEq(SRC_("canondata/1_empty_squash_fs")));
 }
 
@@ -120,7 +122,7 @@ TEST(TSquashFSCanondataTest, SimpleSquashFS)
         /*path*/ "/d.txt",
         /*permissions*/ 0777,
         /*reader*/ CreateMockReader(/*size*/ 3));
-    TString result = BuildAndGetText(builder);
+    auto result = BuildAndGetText(builder);
     EXPECT_THAT(result, GoldenFileEq(SRC_("canondata/2_simple_squash_fs")));
 }
 
@@ -134,7 +136,7 @@ TEST(TSquashFSCanondataTest, BigFileSquashFS)
         /*path*/ "/a",
         /*permissions*/ 0777,
         /*reader*/ CreateMockReader(/*size*/ 5000));
-    TString result = BuildAndGetText(builder);
+    auto result = BuildAndGetText(builder);
     EXPECT_THAT(result, GoldenFileEq(SRC_("canondata/3_big_file_squash_fs")));
 }
 
@@ -151,7 +153,7 @@ TEST(TSquashFSCanondataTest, ManyFilesSquashFS)
             /*reader*/ CreateMockReader(/*size*/ 1));
     }
 
-    TString result = BuildAndGetText(builder);
+    auto result = BuildAndGetText(builder);
     EXPECT_THAT(result, GoldenFileEq(SRC_("canondata/4_many_files_squash_fs")));
 }
 
@@ -159,9 +161,9 @@ TEST(TSquashFSCanondataTest, ManyFilesSquashFS)
 
 void BuildAndDump(
     const ISquashFSLayoutBuilderPtr& builder,
-    const TString& folderName)
+    const std::string& folderName)
 {
-    TString fileName = folderName + ".img";
+    auto fileName = folderName + ".img";
     auto layout = builder->Build();
     TFileOutput fileOutput(fileName);
     layout->Dump(fileOutput);
@@ -169,7 +171,7 @@ void BuildAndDump(
 
 bool Unsquash(const TString& folderName)
 {
-    TString fileName = folderName + ".img";
+    auto fileName = folderName + ".img";
     if (!NFS::Exists(fileName)) {
         return false;
     }
@@ -182,13 +184,13 @@ bool Unsquash(const TString& folderName)
 
 bool VerifyDirectory(
     const TYPath& path,
-    const std::set<TString>& expectedEntries)
+    const std::set<std::string>& expectedEntries)
 {
     if (!NFS::Exists(path)) {
         return false;
     }
 
-    std::set<TString> realEntries;
+    std::set<std::string> realEntries;
     for (auto entry : NFS::EnumerateDirectories(path)) {
         realEntries.insert(entry);
     }
@@ -306,7 +308,7 @@ TEST(TSquashFSUnsquashfsTest, BigFileSquashFS)
 
 TEST(TSquashFSUnsquashfsTest, ManyFilesSquashFS)
 {
-    std::set<TString> entries;
+    std::set<std::string> entries;
     {
         // Prepare.
         TSquashFSLayoutBuilderOptions options = {

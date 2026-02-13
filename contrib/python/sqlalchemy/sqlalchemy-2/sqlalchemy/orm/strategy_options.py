@@ -1,5 +1,5 @@
 # orm/strategy_options.py
-# Copyright (C) 2005-2025 the SQLAlchemy authors and contributors
+# Copyright (C) 2005-2026 the SQLAlchemy authors and contributors
 # <see AUTHORS file>
 #
 # This module is part of SQLAlchemy and is released under
@@ -1252,7 +1252,7 @@ class Load(_AbstractLoad):
             )
 
         elif path_is_property(self.path):
-            # re-use the lookup which will raise a nicely formatted
+            # reuse the lookup which will raise a nicely formatted
             # LoaderStrategyException
             if strategy:
                 self.path.prop._strategy_lookup(self.path.prop, strategy[0])

@@ -394,11 +394,11 @@ class TestUsers(YTEnvSetup):
         create_tablet_cell_bundle("tcb1")
         create_tablet_cell_bundle("tcb2")
         set("//sys/tablet_cell_bundles/tcb1/@acl", [make_ace("allow", "u", "use")])
-        assert sorted(get("//sys/users/u/@usable_tablet_cell_bundles")) == ['default', "sequoia-chunks", "sequoia-cypress", "tcb1"]
+        assert sorted(get("//sys/users/u/@usable_tablet_cell_bundles")) == ["default", "tcb1"]
         create_group("g")
         add_member("u", "g")
         set("//sys/tablet_cell_bundles/tcb2/@acl", [make_ace("allow", "g", "use")])
-        assert sorted(get("//sys/users/u/@usable_tablet_cell_bundles")) == ['default', "sequoia-chunks", "sequoia-cypress", "tcb1", "tcb2"]
+        assert sorted(get("//sys/users/u/@usable_tablet_cell_bundles")) == ["default", "tcb1", "tcb2"]
 
     @authors("babenko", "kiselyovp")
     def test_delayed_membership_closure(self):
@@ -714,7 +714,7 @@ class TestUsers(YTEnvSetup):
         check_profiling_counters("u", False)
         check_profiling_counters("v", True)
 
-        build_snapshot(cell_id=None)
+        build_snapshot(cell_id=get("//sys/@cell_id"))
 
         # Shutdown masters and wait a bit.
         with Restarter(self.Env, MASTERS_SERVICE):

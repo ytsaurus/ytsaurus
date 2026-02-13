@@ -64,6 +64,7 @@ struct TNameSource
     // Columns from current source.
     THashSet<std::string>* ForeignJoinedColumns = nullptr;
     THashSet<std::string> SharedColumns = {};
+    TTableSchemaPtr ModifiedSchemaHolder = {};
 };
 
 class TReferenceResolver
@@ -93,13 +94,13 @@ private:
     std::vector<TNameSource> NameSources_;
 };
 
-class TExprBuilder
+class TExpressionBuilder
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(TStringBuf, Source);
     DEFINE_BYREF_RO_PROPERTY(TConstTypeInferrerMapPtr, Functions);
 
-    TExprBuilder(
+    TExpressionBuilder(
         TStringBuf source,
         const TConstTypeInferrerMapPtr& functions);
 
@@ -127,15 +128,15 @@ public:
             EValueType::Composite
         }) = 0;
 
-    virtual ~TExprBuilder() = default;
+    virtual ~TExpressionBuilder() = default;
 };
 
-std::unique_ptr<TExprBuilder> CreateExpressionBuilderV1(
+std::unique_ptr<TExpressionBuilder> CreateExpressionBuilderV1(
     TStringBuf source,
     const TConstTypeInferrerMapPtr& functions,
     const NAst::TAliasMap& aliasMap);
 
-std::unique_ptr<TExprBuilder> CreateExpressionBuilderV2(
+std::unique_ptr<TExpressionBuilder> CreateExpressionBuilderV2(
     TStringBuf source,
     const TConstTypeInferrerMapPtr& functions,
     const NAst::TAliasMap& aliasMap);

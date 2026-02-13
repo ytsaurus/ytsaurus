@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "master_table_schema.h"
+#include "secondary_index.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 
@@ -20,7 +21,6 @@ namespace NYT::NTableServer {
 struct ITableManager
     : public virtual TRefCounted
 {
-public:
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(MasterTableSchema, TMasterTableSchema);
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(TableCollocation, TTableCollocation);
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(SecondaryIndex, TSecondaryIndex);
@@ -143,14 +143,21 @@ public:
         NCypressClient::TVersionedNodeId nodeId,
         const TCompactTableSchemaPtr& tableSchema,
         TMasterTableSchemaId schemaId,
+        const TCompactTableSchemaPtr& tableSchemaFromConstrainedSchema = nullptr,
         bool isChunkSchema = false) = 0;
 
     virtual TCompactTableSchemaPtr ProcessSchemaFromAttributes(
         TCompactTableSchemaPtr& tableSchema,
         TMasterTableSchemaId schemaId,
+        const TCompactTableSchemaPtr& tableSchemaFromConstrainedSchema,
         bool dynamic,
         bool chaos,
         NCypressClient::TVersionedNodeId nodeId) = 0;
+
+    virtual NTableClient::TColumnStableNameToConstraintMap ProcessConstraintsFromAttributes(
+        const NTableClient::TTableSchema& schema,
+        std::optional<NTableClient::TConstrainedTableSchema> constrainedSchema,
+        std::optional<NTableClient::TColumnNameToConstraintMap> constraints) = 0;
 
     // Secondary index management.
     virtual TSecondaryIndex* CreateSecondaryIndex(
@@ -159,7 +166,7 @@ public:
         TTableId table,
         TTableId secondaryIndex,
         std::optional<std::string> predicate,
-        std::optional<std::string> unfoldedColumnName,
+        std::optional<NTabletClient::TUnfoldedColumns> unfoldedColumns,
         NTableClient::TTableSchemaPtr evaluatedColumns) = 0;
 
     // Table collocation management.

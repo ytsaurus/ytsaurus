@@ -40,6 +40,8 @@
 
 #include <yt/yt/ytlib/api/native/config.h>
 
+#include <yt/yt/ytlib/auth/config.h>
+
 #include <yt/yt/ytlib/election/config.h>
 
 #include <yt/yt/ytlib/hive/config.h>
@@ -55,6 +57,10 @@
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/client/transaction_client/config.h>
+
+#include <yt/yt/core/logging/config.h>
+
+#include <yt/yt/core/misc/fs.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -157,8 +163,6 @@ void TTestConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("frozen_hive_edges", &TThis::FrozenHiveEdges)
         .Default();
-    registrar.Parameter("discovered_masters_cell_tags", &TThis::DiscoveredMastersCellTags)
-        .Default();
     registrar.Parameter("allow_master_cell_with_empty_role", &TThis::AllowMasterCellWithEmptyRole)
         .Default(false);
 
@@ -195,6 +199,7 @@ void TDynamicMulticellManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("sync_hive_clocks_period", &TThis::SyncHiveClocksPeriod)
         .Default(TDuration::Seconds(10));
+
     registrar.Parameter("testing", &TThis::Testing)
         .DefaultNew();
 
@@ -346,6 +351,26 @@ void TCellMasterBootstrapConfig::Register(TRegistrar registrar)
 void TCellMasterProgramConfig::Register(TRegistrar /*registrar*/)
 { }
 
+void TweakConfigForDryRun(TCellMasterProgramConfigPtr config, bool skipTvmServiceEnvValidation)
+{
+    config->EnablePortoResourceTracker = false;
+    config->DryRun->EnableDryRun = true;
+    config->DryRun->EnableHostNameValidation = false;
+
+    auto loggingConfig = config->GetSingletonConfig<NLogging::TLogManagerConfig>();
+    loggingConfig->ShutdownGraceTimeout = TDuration::Seconds(10);
+
+    config->Snapshots->Path = NFS::GetDirectoryName(".");
+    config->Snapshots->CleanTemporaryFilesOnStoreInitialize = false;
+
+    if (skipTvmServiceEnvValidation) {
+        auto authManagerConfig = config->GetSingletonConfig<NAuth::TNativeAuthenticationManagerConfig>();
+        authManagerConfig->EnableValidation = false;
+        authManagerConfig->EnableSubmission = false;
+        authManagerConfig->TvmService = nullptr;
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TDynamicCellMasterConfig::Register(TRegistrar registrar)
@@ -394,6 +419,8 @@ void TDynamicClusterConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("enable_descending_sort_order_dynamic", &TThis::EnableDescendingSortOrderDynamic)
         .Default(false);
+
+    // Column renaming and removal.
     registrar.Parameter("enable_table_column_renaming", &TThis::EnableTableColumnRenaming)
         .Default(false);
     registrar.Parameter("enable_dynamic_table_column_renaming", &TThis::EnableDynamicTableColumnRenaming)
@@ -402,6 +429,29 @@ void TDynamicClusterConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("enable_dynamic_table_drop_column", &TThis::EnableDynamicTableDropColumn)
         .Default(false);
+
+    // Struct field renaming and removal.
+    registrar.Parameter("enable_struct_field_renaming", &TThis::EnableStructFieldRenaming)
+        .Default(false);
+    registrar.Parameter("enable_struct_field_removal", &TThis::EnableStructFieldRemoval)
+        .Default(false);
+    registrar.Parameter(
+        "enable_static_table_struct_field_renaming",
+        &TThis::EnableStaticTableStructFieldRenaming)
+        .Default(false);
+    registrar.Parameter(
+        "enable_dynamic_table_struct_field_renaming",
+        &TThis::EnableDynamicTableStructFieldRenaming)
+        .Default(false);
+    registrar.Parameter(
+        "enable_static_table_struct_field_removal",
+        &TThis::EnableStaticTableStructFieldRemoval)
+        .Default(false);
+    registrar.Parameter(
+        "enable_dynamic_table_struct_field_removal",
+        &TThis::EnableDynamicTableStructFieldRemoval)
+        .Default(false);
+
     registrar.Parameter("enable_secondary_index_copy", &TThis::EnableSecondaryIndexCopy)
         .Default(true);
     registrar.Parameter("allow_alter_key_column_to_any", &TThis::AllowAlterKeyColumnToAny)

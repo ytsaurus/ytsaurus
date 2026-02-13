@@ -43,6 +43,7 @@ target_compile_options(yt-yt-core PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(yt-yt-core PUBLIC
@@ -73,7 +74,6 @@ target_link_libraries(yt-yt-core PUBLIC
   cpp-yt-string
   cpp-yt-yson
   cpp-yt-yson_string
-  cpp-ytalloc-api
   yt-yt-build
   isa-l_crc_yt_patch
   yt_proto-yt-core
@@ -131,6 +131,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/async_semaphore.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/async_stream_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/async_stream_pipe.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/bounded_concurrency_invoker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/coroutine.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/delayed_executor.cpp
@@ -141,6 +142,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/fair_share_queue_scheduler_thread.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/fair_share_thread_pool.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/fair_throttler.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/fair_throttler_ipc.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/fiber_scheduler_thread.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/fiber.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/fiber_manager.cpp
@@ -153,12 +155,15 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/periodic_executor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/periodic_yielder.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/pollable_detail.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/prioritized_invoker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/profiling_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/propagating_storage.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/quantized_executor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/scheduler_thread.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/serialized_invoker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/single_queue_scheduler_thread.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/suspendable_action_queue.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/suspendable_invoker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/system_invokers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/thread_affinity.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/thread_pool_detail.cpp
@@ -166,6 +171,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/thread_pool.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/throughput_throttler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/two_level_fair_share_thread_pool.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/watchdog_invoker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/retrying_periodic_executor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/scheduled_executor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/crypto/config.cpp
@@ -200,10 +206,10 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/error.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/fs.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/hazard_ptr.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/hedging_manager.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/new_hedging_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/adaptive_hedging_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/histogram.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/adjusted_exponential_moving_average.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/duration_moving_average.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/id_generator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/inotify.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/fair_share_hierarchical_queue.cpp
@@ -269,6 +275,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/overload_controller.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/overload_controlling_service_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/peer_discovery.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/peer_priority_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/per_key_request_queue_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/protocol_version.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/public.cpp
@@ -363,9 +370,6 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/json/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/json/json_parser.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/json/json_writer.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/ytalloc/bindings.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/ytalloc/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/ytalloc/statistics_producer.cpp
 )
 
 
@@ -380,6 +384,7 @@ target_compile_options(yt-yt-core.global PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(yt-yt-core.global PUBLIC
@@ -410,7 +415,6 @@ target_link_libraries(yt-yt-core.global PUBLIC
   cpp-yt-string
   cpp-yt-yson
   cpp-yt-yson_string
-  cpp-ytalloc-api
   yt-yt-build
   isa-l_crc_yt_patch
   yt_proto-yt-core

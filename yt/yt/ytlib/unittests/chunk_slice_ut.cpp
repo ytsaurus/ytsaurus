@@ -1617,7 +1617,7 @@ TEST_P(TChunkSlicerStressTest, StressTest)
                 .LowerLimit = lastKey,
                 .UpperLimit = upperLimit,
                 .StartRowIndex = totalRowCount,
-                .EndRowIndex = totalRowCount + rowCount
+                .EndRowIndex = totalRowCount + rowCount,
             });
             chunkBuilder.AddBlock(
                 MakeRow({lastKey}),

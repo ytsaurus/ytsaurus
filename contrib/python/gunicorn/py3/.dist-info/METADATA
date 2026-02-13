@@ -1,28 +1,25 @@
-Metadata-Version: 2.1
+Metadata-Version: 2.4
 Name: gunicorn
-Version: 23.0.0
+Version: 24.1.1
 Summary: WSGI HTTP Server for UNIX
 Author-email: Benoit Chesneau <benoitc@gunicorn.org>
-License: MIT
+License-Expression: MIT
 Project-URL: Homepage, https://gunicorn.org
-Project-URL: Documentation, https://docs.gunicorn.org
+Project-URL: Documentation, https://gunicorn.org
 Project-URL: Issue tracker, https://github.com/benoitc/gunicorn/issues
 Project-URL: Source code, https://github.com/benoitc/gunicorn
-Project-URL: Changelog, https://docs.gunicorn.org/en/stable/news.html
+Project-URL: Changelog, https://gunicorn.org/news/
 Classifier: Development Status :: 5 - Production/Stable
 Classifier: Environment :: Other Environment
 Classifier: Intended Audience :: Developers
-Classifier: License :: OSI Approved :: MIT License
 Classifier: Operating System :: MacOS :: MacOS X
 Classifier: Operating System :: POSIX
 Classifier: Programming Language :: Python
 Classifier: Programming Language :: Python :: 3
-Classifier: Programming Language :: Python :: 3.7
-Classifier: Programming Language :: Python :: 3.8
-Classifier: Programming Language :: Python :: 3.9
 Classifier: Programming Language :: Python :: 3.10
 Classifier: Programming Language :: Python :: 3.11
 Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
 Classifier: Programming Language :: Python :: 3 :: Only
 Classifier: Programming Language :: Python :: Implementation :: CPython
 Classifier: Programming Language :: Python :: Implementation :: PyPy
@@ -33,29 +30,30 @@ Classifier: Topic :: Internet :: WWW/HTTP
 Classifier: Topic :: Internet :: WWW/HTTP :: WSGI
 Classifier: Topic :: Internet :: WWW/HTTP :: WSGI :: Server
 Classifier: Topic :: Internet :: WWW/HTTP :: Dynamic Content
-Requires-Python: >=3.7
+Requires-Python: >=3.10
 Description-Content-Type: text/x-rst
 License-File: LICENSE
 Requires-Dist: packaging
-Requires-Dist: importlib-metadata ; python_version < "3.8"
-Provides-Extra: eventlet
-Requires-Dist: eventlet !=0.36.0,>=0.24.1 ; extra == 'eventlet'
 Provides-Extra: gevent
-Requires-Dist: gevent >=1.4.0 ; extra == 'gevent'
+Requires-Dist: gevent>=24.10.1; extra == "gevent"
+Provides-Extra: eventlet
+Requires-Dist: eventlet>=0.40.3; extra == "eventlet"
+Provides-Extra: tornado
+Requires-Dist: tornado>=6.5.0; extra == "tornado"
 Provides-Extra: gthread
 Provides-Extra: setproctitle
-Requires-Dist: setproctitle ; extra == 'setproctitle'
+Requires-Dist: setproctitle; extra == "setproctitle"
 Provides-Extra: testing
-Requires-Dist: gevent ; extra == 'testing'
-Requires-Dist: eventlet ; extra == 'testing'
-Requires-Dist: coverage ; extra == 'testing'
-Requires-Dist: pytest ; extra == 'testing'
-Requires-Dist: pytest-cov ; extra == 'testing'
-Provides-Extra: tornado
-Requires-Dist: tornado >=0.2 ; extra == 'tornado'
+Requires-Dist: gevent>=24.10.1; extra == "testing"
+Requires-Dist: eventlet>=0.40.3; extra == "testing"
+Requires-Dist: coverage; extra == "testing"
+Requires-Dist: pytest; extra == "testing"
+Requires-Dist: pytest-cov; extra == "testing"
+Requires-Dist: pytest-asyncio; extra == "testing"
+Dynamic: license-file
 
 Gunicorn
---------
+========
 
 .. image:: https://img.shields.io/pypi/v/gunicorn.svg?style=flat
     :alt: PyPI version
@@ -69,60 +67,65 @@ Gunicorn
     :alt: Build Status
     :target: https://github.com/benoitc/gunicorn/actions/workflows/tox.yml
 
-.. image:: https://github.com/benoitc/gunicorn/actions/workflows/lint.yml/badge.svg
-    :alt: Lint Status
-    :target: https://github.com/benoitc/gunicorn/actions/workflows/lint.yml
-
 Gunicorn 'Green Unicorn' is a Python WSGI HTTP Server for UNIX. It's a pre-fork
 worker model ported from Ruby's Unicorn_ project. The Gunicorn server is broadly
 compatible with various web frameworks, simply implemented, light on server
 resource usage, and fairly speedy.
 
-Feel free to join us in `#gunicorn`_ on `Libera.chat`_.
+**New in v24**: Native ASGI support (beta) for async frameworks like FastAPI!
+
+Quick Start
+-----------
+
+.. code-block:: bash
+
+    pip install gunicorn
+    gunicorn myapp:app --workers 4
+
+For ASGI applications (FastAPI, Starlette):
+
+.. code-block:: bash
+
+    gunicorn myapp:app --worker-class asgi
+
+Features
+--------
+
+- WSGI support for Django, Flask, Pyramid, and any WSGI framework
+- **ASGI support** (beta) for FastAPI, Starlette, Quart
+- uWSGI binary protocol for nginx integration
+- Multiple worker types: sync, gthread, gevent, eventlet, asgi
+- Graceful worker process management
+- Compatible with Python 3.12+
 
 Documentation
 -------------
 
-The documentation is hosted at https://docs.gunicorn.org.
+Full documentation at https://gunicorn.org
 
-Installation
-------------
+- `Quickstart <https://gunicorn.org/quickstart/>`_
+- `Configuration <https://gunicorn.org/configure/>`_
+- `Deployment <https://gunicorn.org/deploy/>`_
+- `Settings Reference <https://gunicorn.org/reference/settings/>`_
 
-Gunicorn requires **Python 3.x >= 3.7**.
+Community
+---------
 
-Install from PyPI::
+- Report bugs on `GitHub Issues <https://github.com/benoitc/gunicorn/issues>`_
+- Chat in `#gunicorn`_ on `Libera.chat`_
+- See `CONTRIBUTING.md <CONTRIBUTING.md>`_ for contribution guidelines
 
-    $ pip install gunicorn
+Sponsors
+--------
 
+Gunicorn is maintained thanks to our sponsors. `Become a sponsor <https://github.com/sponsors/benoitc>`_.
 
-Usage
------
-
-Basic usage::
-
-    $ gunicorn [OPTIONS] APP_MODULE
-
-Where ``APP_MODULE`` is of the pattern ``$(MODULE_NAME):$(VARIABLE_NAME)``. The
-module name can be a full dotted path. The variable name refers to a WSGI
-callable that should be found in the specified module.
-
-Example with test app::
-
-    $ cd examples
-    $ gunicorn --workers=2 test:app
-
-
-Contributing
-------------
-
-See `our complete contributor's guide <CONTRIBUTING.md>`_ for more details.
-
+.. Sponsor logos will appear here
 
 License
 -------
 
-Gunicorn is released under the MIT License. See the LICENSE_ file for more
-details.
+Gunicorn is released under the MIT License. See the LICENSE_ file for details.
 
 .. _Unicorn: https://bogomips.org/unicorn/
 .. _`#gunicorn`: https://web.libera.chat/?channels=#gunicorn

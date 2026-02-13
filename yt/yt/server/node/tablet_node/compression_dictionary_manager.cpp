@@ -360,10 +360,10 @@ struct TCompressionDictionaryCacheKey
     TChunkId ChunkId;
     // Content differs for compression and decompression modes.
     bool IsDecompression;
-    // This field is used for proper column id mapping in case of schema alteration.
+    // This field is used for proper column id mapping in case of table schema alter.
     TObjectId SchemaId;
 
-    bool operator == (const TCompressionDictionaryCacheKey& other) const
+    bool operator==(const TCompressionDictionaryCacheKey& other) const
     {
         return
             ChunkId == other.ChunkId &&

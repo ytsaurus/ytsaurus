@@ -38,7 +38,7 @@ struct TIdentityComparableVersionedRow
     TVersionedRow Row;
 };
 
-bool operator == (TIdentityComparableVersionedRow lhs, TIdentityComparableVersionedRow rhs)
+bool operator==(TIdentityComparableVersionedRow lhs, TIdentityComparableVersionedRow rhs)
 {
     return TBitwiseVersionedRowEqual()(lhs.Row, rhs.Row);
 }
@@ -83,15 +83,15 @@ protected:
         New<TColumnEvaluatorCacheConfig>());
 
     TVersionedRow BuildVersionedRow(
-        const TString& keyYson,
-        const TString& valueYson,
+        const std::string& keyYson,
+        const std::string& valueYson,
         const std::vector<TTimestamp>& deleteTimestamps = {},
         const std::vector<TTimestamp>& extraWriteTimestamps = {})
     {
         return YsonToVersionedRow(Buffer_, keyYson, valueYson, deleteTimestamps, extraWriteTimestamps);
     }
 
-    TUnversionedRow BuildUnversionedRow(const TString& valueYson)
+    TUnversionedRow BuildUnversionedRow(const std::string& valueYson)
     {
         auto row = YsonToSchemalessRow(valueYson);
         return Buffer_->CaptureRow(row);
@@ -143,7 +143,7 @@ protected:
             TColumnSchema("l", EValueType::Int64),
             TColumnSchema("m", EValueType::Int64),
             TColumnSchema("n", EValueType::Int64)
-                .SetAggregate(TString("sum"))
+                .SetAggregate(std::string("sum"))
         });
         return schema;
     }
@@ -557,7 +557,7 @@ TEST_F(TUnversionedRowMergerTest, MergeNestedColumns1)
         schema.Columns().size(),
         schema.GetKeyColumnCount(),
         evaluator,
-        GetNestedColumnsSchema(schemaPtr));
+        GetNestedColumnsSchema(*schemaPtr));
 
     {
         auto row = BuildUnversionedRow("<id=0>0; <id=1;>0; <id=2;aggregate=true>[]; <id=3;aggregate=true>[]");
@@ -619,7 +619,7 @@ TEST_F(TUnversionedRowMergerTest, MergeNestedColumns2)
         schema.Columns().size(),
         schema.GetKeyColumnCount(),
         evaluator,
-        GetNestedColumnsSchema(schemaPtr));
+        GetNestedColumnsSchema(*schemaPtr));
 
     {
         auto row = BuildUnversionedRow("<id=0>0; <id=1;aggregate=true>[1;1;1]; <id=2;aggregate=true>[1;2;3]");
@@ -1966,7 +1966,7 @@ TTableSchema GetAggregateMinSchema()
         TColumnSchema("l", EValueType::Int64),
         TColumnSchema("m", EValueType::Int64),
         TColumnSchema("n", EValueType::Uint64)
-            .SetAggregate(TString("min"))
+            .SetAggregate(std::string("min"))
     });
     return schema;
 }
@@ -2430,6 +2430,124 @@ TEST_F(TVersionedRowMergerTest, MergeNestedColumns3)
         TIdentityComparableVersionedRow{merger->BuildMergedRow()});
 }
 
+TEST_F(TVersionedRowMergerTest, DiscardZeroNestedRows)
+{
+    TTableSchema schema({
+        TColumnSchema("k", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("v", EValueType::Int64),
+        TColumnSchema("nk", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))
+            .SetAggregate("nested_key(n)"),
+        TColumnSchema("nv1", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))
+            .SetAggregate("nested_value(n, sum)"),
+        TColumnSchema("nv2", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Uint64)))
+            .SetAggregate("nested_value(n, sum)"),
+        TColumnSchema("nv3", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Double)))
+            .SetAggregate("nested_value(n, sum)"),
+    });
+
+    auto schemaPtr = New<TTableSchema>(schema);
+    auto evaluator = ColumnEvaluatorCache_->Find(schemaPtr);
+
+    auto nestedRowDiscardPolicy = New<TNestedRowDiscardPolicy>();
+    nestedRowDiscardPolicy->DiscardRowsWithZeroValues = true;
+    nestedRowDiscardPolicy->FloatingPointTolerance = 0.01;
+
+    auto merger = CreateVersionedRowMerger(
+        ERowMergerType::New,
+        MergedRowBuffer_,
+        std::move(schemaPtr),
+        TColumnFilter(),
+        New<TRetentionConfig>(),
+        SyncLastCommittedTimestamp,
+        MaxTimestamp,
+        evaluator,
+        {},
+        /*mergeRowsOnFlush*/ false,
+        /*useTtlColumn*/ false,
+        /*mergeDeletionsOnFlush*/ false,
+        nestedRowDiscardPolicy);
+
+    merger->AddPartialRow(BuildVersionedRow(
+        "<id=0> 0",
+        "<id=1;ts=10>1; "
+        "<id=2;ts=10;aggregate=true>[1; 2; 3]; "
+        "<id=3;ts=10;aggregate=true>[0; 10; 0]; "
+        "<id=4;ts=10;aggregate=true>[0u; 20u; 0u]; "
+        "<id=5;ts=10;aggregate=true>[0.0; 50.0; 0.0001]"));
+
+    auto result = merger->BuildMergedRow();
+
+    EXPECT_EQ(
+        TIdentityComparableVersionedRow{BuildVersionedRow(
+            "<id=0> 0",
+            "<id=1;ts=10>1; "
+            "<id=2;ts=10;aggregate=true>[2]; "
+            "<id=3;ts=10;aggregate=true>[10]; "
+            "<id=4;ts=10;aggregate=true>[20u]; "
+            "<id=5;ts=10;aggregate=true>[50.0]")},
+        TIdentityComparableVersionedRow{result});
+}
+
+TEST_F(TVersionedRowMergerTest, DiscardZeroNestedRowsAfterMerge)
+{
+    TTableSchema schema({
+        TColumnSchema("k", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("v", EValueType::Int64),
+        TColumnSchema("nk", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))
+            .SetAggregate("nested_key(n)"),
+        TColumnSchema("nv1", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))
+            .SetAggregate("nested_value(n, sum)"),
+    });
+
+    auto schemaPtr = New<TTableSchema>(schema);
+    auto evaluator = ColumnEvaluatorCache_->Find(schemaPtr);
+
+    auto nestedRowDiscardPolicy = New<TNestedRowDiscardPolicy>();
+    nestedRowDiscardPolicy->DiscardRowsWithZeroValues = true;
+
+    auto merger = CreateVersionedRowMerger(
+        ERowMergerType::New,
+        MergedRowBuffer_,
+        std::move(schemaPtr),
+        TColumnFilter(),
+        New<TRetentionConfig>(),
+        SyncLastCommittedTimestamp,
+        MaxTimestamp,
+        evaluator,
+        {},
+        /*mergeRowsOnFlush*/ false,
+        /*useTtlColumn*/ false,
+        /*mergeDeletionsOnFlush*/ false,
+        nestedRowDiscardPolicy);
+
+    // Add two partial rows that when merged will create a zero row
+    // First row: key [1, 2], values [5, -3]
+    // Second row: key [1, 2], values [-5, 3]
+    // After merge: key [1, 2], values [0, 0] - both should be discarded
+    merger->AddPartialRow(BuildVersionedRow(
+        "<id=0> 0",
+        "<id=1;ts=5>1; "
+        "<id=2;ts=5;aggregate=true>[1; 2]; "
+        "<id=3;ts=5;aggregate=true>[5; -3]"));
+
+    merger->AddPartialRow(BuildVersionedRow(
+        "<id=0> 0",
+        "<id=1;ts=10>2; "
+        "<id=2;ts=10;aggregate=true>[1; 2]; "
+        "<id=3;ts=10;aggregate=true>[-5; 3]"));
+
+    auto result = merger->BuildMergedRow();
+
+    // Expected: after merging, both nested rows have sum=0 and should be discarded
+    EXPECT_EQ(
+        TIdentityComparableVersionedRow{BuildVersionedRow(
+            "<id=0> 0",
+            "<id=1;ts=10>2; "
+            "<id=2;ts=10;aggregate=true>[]; "
+            "<id=3;ts=10;aggregate=true>[]")},
+        TIdentityComparableVersionedRow{result});
+}
+
 TEST_F(TVersionedRowMergerTest, DeleteByTtlColumn)
 {
     auto config = GetRetentionConfig();
@@ -2854,7 +2972,7 @@ public:
 
     TFuture<void> Open() override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
@@ -2876,7 +2994,7 @@ public:
 
     TFuture<void> GetReadyEvent() const override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     TDataStatistics GetDataStatistics() const override

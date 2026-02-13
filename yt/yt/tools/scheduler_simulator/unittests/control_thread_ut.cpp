@@ -193,7 +193,7 @@ protected:
     TOperationDescription CreateOperationDescription(
         std::vector<TJobDescription> jobDescriptions,
         TInstant startTime,
-        std::optional<TString> pool = std::nullopt)
+        std::optional<std::string> pool = std::nullopt)
     {
         TOperationDescription operation;
 

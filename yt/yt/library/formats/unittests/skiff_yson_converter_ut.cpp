@@ -37,7 +37,7 @@ std::shared_ptr<TSkiffSchema> SkiffOptional(std::shared_ptr<TSkiffSchema> skiffS
     });
 }
 
-TString ConvertYsonHex(
+std::string ConvertYsonHex(
     const TLogicalTypePtr& logicalType,
     const std::shared_ptr<TSkiffSchema>& skiffSchema,
     TStringBuf ysonString,
@@ -49,7 +49,7 @@ TString ConvertYsonHex(
         config);
 
     // Yson parsers have a bug when they can't parse some values that end unexpectedly.
-    TString spacedYsonInput = TString{ysonString} + " ";
+    std::string spacedYsonInput = std::string{ysonString} + " ";
 
     TStringStream out;
     {
@@ -81,7 +81,7 @@ TString ConvertHexToTextYson(
 
     TStringStream binaryOut;
     {
-        TString binaryString = HexDecode(hexString);
+        std::string binaryString = HexDecode(hexString);
         TMemoryInput in(binaryString);
         TCheckedInDebugSkiffParser parser(skiffSchema, &in);
 
@@ -336,7 +336,7 @@ TEST(TYsonSkiffConverterTest, TestStruct)
 
 TEST(TYsonSkiffConverterTest, TestSkippedFields)
 {
-    TString skiffString;
+    std::string skiffString;
     skiffString = ConvertYsonHex(
         Struct(
             "key", String(),
@@ -388,7 +388,7 @@ TEST(TYsonSkiffConverterTest, TestSkippedFields)
 
 TEST(TYsonSkiffConverterTest, TestUnknownSkiffFields)
 {
-    TString skiffString;
+    std::string skiffString;
     skiffString = ConvertYsonHex(
         Struct(
             "key", String(),
@@ -474,7 +474,7 @@ TEST(TYsonSkiffConverterTest, TestTuple)
 
 TEST(TYsonSkiffConverterTest, TestTupleSkippedFields)
 {
-    TString skiffString;
+    std::string skiffString;
     skiffString = ConvertYsonHex(
         Tuple(String(), Int64(), Bool()),
         CreateTupleSchema({
@@ -621,6 +621,7 @@ public:
             for (size_t i = 0; i < elements.size(); ++i) {
                 fields.push_back({
                     .Name = Format("field%v", i),
+                    .StableName = Format("field%v", i),
                     .Type = elements[i],
                 });
             }
@@ -642,7 +643,7 @@ public:
         Y_UNREACHABLE();
     }
 
-    TString VariantTagInfix() const
+    std::string VariantTagInfix() const
     {
         auto [metatype, wireType] = GetParam();
         if (wireType == EWireType::Variant16) {

@@ -76,6 +76,7 @@ using namespace NSecurityClient;
 using namespace NTransactionClient;
 using namespace NScheduler;
 using namespace NServer;
+using namespace NTracing;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -848,6 +849,8 @@ private:
         bool shouldUpdateProgress,
         bool shouldUpdateLightOperationAttributes)
     {
+        TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("UpdateOperationProgress"));
+
         YT_LOG_DEBUG(
             "Updating operation progress and failed jobs existence "
             "(OperationId: %v, ShouldUpdateProgress: %v, ShouldUpdateLightOperationAttributes: %v)",

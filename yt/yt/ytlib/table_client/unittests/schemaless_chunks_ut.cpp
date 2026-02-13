@@ -48,7 +48,7 @@ const int RowCount = 60000;
 const TStringBuf StringValue = "She sells sea shells on a sea shore";
 const TStringBuf AnyValueList = "[one; two; three]";
 const TStringBuf AnyValueMap = "{a=b; c=d}";
-const std::vector<TString> ColumnNames = {"c0", "c1", "c2", "c3", "c4", "c5", "c6"};
+const std::vector<std::string> ColumnNames = {"c0", "c1", "c2", "c3", "c4", "c5", "c6"};
 
 ////////////////////////////////////////////////////////////////////////////////
 

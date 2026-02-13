@@ -9,12 +9,14 @@ namespace NYT::NChunkClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TDerived>
-TIntrusivePtr<TDerived> TMediumDescriptor::As() {
+TIntrusivePtr<TDerived> TMediumDescriptor::As()
+{
     return dynamic_cast<TDerived*>(this);
 }
 
 template <class TDerived>
-TIntrusivePtr<const TDerived> TMediumDescriptor::As() const {
+TIntrusivePtr<const TDerived> TMediumDescriptor::As() const
+{
     return dynamic_cast<const TDerived*>(this);
 }
 

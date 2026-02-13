@@ -86,6 +86,14 @@ Example: `get_query_result(query_id="my_query_id", result_index=0)`.
 
 Returns the query results.
 
+```
+{% note warning %}
+
+Query Tracker stores only the first 10,000 rows of the response internally — all subsequent ones are truncated, and the `is_truncated` flag is set. If the expected query result is larger, this result should be inserted into a table using the engine and read from there. For example, in the case of YQL, you can use the `insert` operation.
+
+{% endnote %}
+```
+
 Required parameters:
 
 + `query_id`: Query ID.
@@ -146,7 +154,7 @@ Optional parameters:
 + `annotations`: New annotations for the query.
 + `access_control_objects`: New access control object list for the query.
 
-Example: `alter_query(query_id="my_query_id", access_control_object=["my_new_aco"])`.
+Example: `alter_query(query_id="my_query_id", access_control_objects=["my_new_aco"])`.
 
 ## Access control {#access-control}
 

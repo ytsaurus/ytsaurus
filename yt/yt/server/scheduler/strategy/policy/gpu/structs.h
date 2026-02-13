@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/core/profiling/timing.h>
+
 #include <yt/yt/server/scheduler/strategy/policy/public.h>
 
 #include <yt/yt/server/lib/scheduler/scheduling_segment_map.h>
@@ -63,8 +65,9 @@ public:
     using TAssignmentCountPerGroup = TCompactFlatMap<std::string, int, 8>;
     DEFINE_BYREF_RO_PROPERTY(TAssignmentCountPerGroup, EmptyAssignmentCountPerGroup);
 
-    // TODO(eshcherbin): (!) Support opportunistic jobs.
     DEFINE_BYREF_RW_PROPERTY(TAllocationGroupResourcesMap, ReadyToAssignGroupedNeededResources);
+
+    DEFINE_BYREF_RW_PROPERTY(TAllocationGroupResourcesMap, ExtraGroupedNeededResources);
 
     // Works only for full-host module-bound operations and smaller gangs.
     DEFINE_BYREF_RO_PROPERTY(std::optional<THashSet<std::string>>, SpecifiedSchedulingModules);
@@ -106,8 +109,9 @@ public:
 
     int GetInitialNeededAllocationCount() const;
     int GetReadyToAssignNeededAllocationCount() const;
+    int GetExtraNeededAllocationCount() const;
 
-    void AddPlannedAssignment(const TAssignmentPtr& assignment);
+    void AddPlannedAssignment(const TAssignmentPtr& assignment, bool withExtraResources = false);
     void RemoveAssignment(const TAssignmentPtr& assignment);
 
     //! Inserts assignment without modifying groupedNeededResources.
@@ -170,6 +174,36 @@ using TNodeMap = THashMap<NNodeTrackerClient::TNodeId, TNodePtr>;
 void Serialize(const TNode& node, NYson::IYsonConsumer* consumer);
 
 DEFINE_REFCOUNTED_TYPE(TNode)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TGpuModuleStatistics final
+{
+    int TotalNodes;
+    int UnreservedNodes;
+    int FullHostModuleBoundOperations;
+};
+
+void Serialize(const TGpuModuleStatistics& node, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TGpuPlanUpdateStatistics final
+{
+    NProfiling::TWallTimer Timer;
+
+    TDuration UpdatingOperationResourcesDuration;
+    TDuration FullHostPlanningDuration;
+    TDuration ReguralPlanningDuration;
+    TDuration ExtraPlanningDuration;
+
+    int PlannedAssignments = 0;
+    int PreemptedAssignments = 0;
+
+    THashMap<std::string, TGpuModuleStatistics> ModuleStatistics;
+};
+
+DEFINE_REFCOUNTED_TYPE(TGpuPlanUpdateStatistics)
 
 ////////////////////////////////////////////////////////////////////////////////
 

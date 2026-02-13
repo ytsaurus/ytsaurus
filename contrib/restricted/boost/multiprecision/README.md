@@ -26,7 +26,7 @@ requiring extended range and precision.
 
 Multiprecision consists of a generic interface to the mathematics
 of large numbers as well as a selection of big number backends.
-This includes interfaces to GMP, MPFR, MPIR and TomMath
+These include interfaces to GMP, MPFR, MPIR and TomMath
 and also Multiprecision's own collection of Boost-licensed,
 header-only backends for integers, rationals, floats and complex-floats.
 
@@ -41,6 +41,9 @@ Most of the multiprecision types are expression-template-enabled by default.
 This usually provides better performance than using types configured without expression templates.
 
 The full documentation is available on [boost.org](http://www.boost.org/doc/libs/release/libs/multiprecision/index.html).
+
+A practical, comprehensive, instructive, clear and very helpful video regarding the use of Multiprecision
+can be found [here](https://www.youtube.com/watch?v=mK4WjpvLj4c).
 
 ## Using Multiprecision
 

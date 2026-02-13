@@ -17,6 +17,7 @@ namespace NYT::NChunkPools {
 using namespace NChunkClient;
 using namespace NControllerAgent;
 using namespace NNodeTrackerClient;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -214,7 +215,8 @@ void TJobSplittingBase::Completed(TCookie cookie, const TCompletedJobSummary& jo
     // If we cannot find input row count field in statistics, something is wrong,
     // so do not affect splittability of anybody.
     YT_LOG_DEBUG(
-        "Input row count extracted from job summary (OutputCookie: %v, InputRowCount: %v)",
+        "Input row count extracted from job summary (JobId: %v, OutputCookie: %v, InputRowCount: %v)",
+        jobSummary.Id,
         cookie,
         inputRowCount);
     if (!inputRowCount || *inputRowCount != 0) {
@@ -232,7 +234,7 @@ void TJobSplittingBase::Completed(TCookie cookie, const TCompletedJobSummary& jo
     auto parentCookie = VectorAtOr(CookieToParentCookie_, cookie, /*defaultValue*/ IChunkPoolOutput::NullCookie);
     // If we are a root job, we affect splittability of nobody.
     if (parentCookie == IChunkPoolOutput::NullCookie) {
-        YT_LOG_DEBUG("Job is a root job, doing nothing (OutputCookie: %v)", cookie);
+        YT_LOG_DEBUG("Job is a root job, doing nothing (JobId: %v, OutputCookie: %v)", jobSummary.Id, cookie);
         return;
     }
 
@@ -241,7 +243,8 @@ void TJobSplittingBase::Completed(TCookie cookie, const TCompletedJobSummary& jo
     if (!IsSplittable(parentCookie)) {
         YT_VERIFY(!VectorAtOr(CookieIsSplittable_, cookie, /*defaultValue*/ true));
         YT_LOG_DEBUG(
-            "Parent is already unsplittable, doing nothing (OutputCookie: %v, ParentOutputCookie: %v)",
+            "Parent is already unsplittable, doing nothing (JobId: %v, OutputCookie: %v, ParentOutputCookie: %v)",
+            jobSummary.Id,
             cookie,
             parentCookie);
         return;
@@ -250,7 +253,8 @@ void TJobSplittingBase::Completed(TCookie cookie, const TCompletedJobSummary& jo
     EnsureVectorIndex(CookieToEmptyChildCount_, parentCookie);
     auto parentEmptyChildCount = ++CookieToEmptyChildCount_[parentCookie];
     YT_LOG_DEBUG(
-        "Empty split child detected (OutputCookie: %v, ParentOutputCookie: %v, ParentEmptyChildCount: %v)",
+        "Empty split child detected (JobId: %v, OutputCookie: %v, ParentOutputCookie: %v, ParentEmptyChildCount: %v)",
+        jobSummary.Id,
         cookie,
         parentCookie,
         parentEmptyChildCount);
@@ -259,10 +263,11 @@ void TJobSplittingBase::Completed(TCookie cookie, const TCompletedJobSummary& jo
     if (parentEmptyChildCount + 1 >= std::ssize(CookieToChildCookies_[parentCookie])) {
         YT_LOG_DEBUG(
             "All but one sibling of a cookie are empty, marking descendants of a "
-            "parent as unsplittable (OutputCookie: %v, ParentOutputCookie: %v)",
+            "parent as unsplittable (JobId: %v, OutputCookie: %v, ParentOutputCookie: %v)",
+            jobSummary.Id,
             cookie,
             parentCookie);
-        MarkDescendantsUnsplittable(parentCookie);
+        MarkDescendantsUnsplittable(jobSummary.Id, parentCookie);
     }
 }
 
@@ -271,7 +276,7 @@ bool TJobSplittingBase::IsSplittable(TCookie cookie) const
     return VectorAtOr(CookieIsSplittable_, cookie, /*defaultValue*/ true);
 }
 
-void TJobSplittingBase::RegisterChildCookies(TCookie cookie, std::vector<TCookie> childCookies)
+void TJobSplittingBase::RegisterChildCookies(TJobId jobId, TCookie cookie, std::vector<TCookie> childCookies)
 {
     // I am not really sure if this is possible, but let us handle that trivially.
     if (childCookies.empty()) {
@@ -279,7 +284,8 @@ void TJobSplittingBase::RegisterChildCookies(TCookie cookie, std::vector<TCookie
     }
 
     YT_LOG_DEBUG(
-        "Job was split (OutputCookie: %v, ChildOutputCookies: %v",
+        "Job was split (JobId: %v, OutputCookie: %v, ChildOutputCookies: %v",
+        jobId,
         cookie,
         childCookies);
 
@@ -288,7 +294,8 @@ void TJobSplittingBase::RegisterChildCookies(TCookie cookie, std::vector<TCookie
     // before these two events by all-siblings-were-empty condition).
     YT_LOG_ALERT_UNLESS(
         childCookies.size() == 1 || IsSplittable(cookie),
-        "Unexpected call to RegisterChildCookies (IsSplittable: %v, ChildCookies: %v)",
+        "Unexpected call to RegisterChildCookies (JobId: %v, IsSplittable: %v, ChildCookies: %v)",
+        jobId,
         IsSplittable(cookie),
         childCookies);
 
@@ -299,14 +306,16 @@ void TJobSplittingBase::RegisterChildCookies(TCookie cookie, std::vector<TCookie
     bool markChildrenUnsplittable = false;
     if (childCookies.size() == 1 && VectorAtOr(CookieShouldBeSplitProperly_, cookie)) {
         YT_LOG_DEBUG(
-            "Splitting resulted in a single child, marking him as unsplittable (OutputCookie: %v, ChildOutputCookie: %v)",
+            "Splitting resulted in a single child, marking him as unsplittable (JobId: %v, OutputCookie: %v, ChildOutputCookie: %v)",
+            jobId,
             cookie,
             childCookies.back());
         markChildrenUnsplittable = true;
     }
     if (!IsSplittable(cookie)) {
         YT_LOG_DEBUG(
-            "Propagating unsplittability to children (OutputCookie: %v, ChildOutputCookies: %v)",
+            "Propagating unsplittability to children (JobId: %v, OutputCookie: %v, ChildOutputCookies: %v)",
+            jobId,
             cookie,
             childCookies);
         markChildrenUnsplittable = true;
@@ -323,7 +332,7 @@ void TJobSplittingBase::RegisterChildCookies(TCookie cookie, std::vector<TCookie
     AssignVectorAt(CookieToChildCookies_, cookie, std::move(childCookies));
 }
 
-void TJobSplittingBase::MarkDescendantsUnsplittable(TCookie cookie)
+void TJobSplittingBase::MarkDescendantsUnsplittable(TJobId jobId, TCookie cookie)
 {
     if (!IsSplittable(cookie)) {
         return;
@@ -352,7 +361,8 @@ void TJobSplittingBase::MarkDescendantsUnsplittable(TCookie cookie)
     }
 
     YT_LOG_DEBUG(
-        "Descendants of a cookie marked as unsplittable (OutputCookie: %v, NewUnsplittableDescendants: %v)",
+        "Descendants of a cookie marked as unsplittable (JobId: %v, OutputCookie: %v, NewUnsplittableDescendants: %v)",
+        jobId,
         cookie,
         visitedCookies);
 }
@@ -366,6 +376,72 @@ size_t TJobSplittingBase::GetMaxVectorSize() const
         CookieIsSplittable_.size(),
         CookieShouldBeSplitProperly_.size(),
     });
+}
+
+void TJobSplittingBase::ValidateChildJobSizes(
+    TOutputCookie parentCookie,
+    const std::vector<TOutputCookie>& childCookies,
+    const std::function<TChunkStripeListPtr(TOutputCookie)>& getStripeList) const
+{
+    auto getPrimaryAndForeignStatistics = [&] (TOutputCookie cookie) -> std::pair<TChunkStripeStatistics, TChunkStripeStatistics> {
+        TChunkStripeStatistics primaryStatistics;
+        TChunkStripeStatistics foreignStatistics;
+
+        for (auto stripeList = getStripeList(cookie); const auto& stripe : stripeList->Stripes()) {
+            if (!stripe->IsForeign()) {
+                primaryStatistics += stripe->GetStatistics();
+            } else {
+                foreignStatistics += stripe->GetStatistics();
+            }
+        }
+
+        return {primaryStatistics, foreignStatistics};
+    };
+
+    auto [parentPrimaryStatistics, parentForeignStatistics] = getPrimaryAndForeignStatistics(parentCookie);
+
+    TChunkStripeStatistics totalChildPrimaryStatistics;
+    TChunkStripeStatistics totalChildForeignStatistics;
+
+    auto hasGreaterComponent = [] (const TChunkStripeStatistics& childStatistics, const TChunkStripeStatistics& parentStatistics) {
+        return childStatistics.DataWeight > parentStatistics.DataWeight ||
+            childStatistics.CompressedDataSize > parentStatistics.CompressedDataSize ||
+            childStatistics.RowCount > parentStatistics.RowCount ||
+            childStatistics.ChunkCount > parentStatistics.ChunkCount;
+    };
+
+    for (auto childCookie : childCookies) {
+        auto [childPrimaryStatistics, childForeignStatistics] = getPrimaryAndForeignStatistics(childCookie);
+
+        YT_LOG_ALERT_IF(
+            hasGreaterComponent(childPrimaryStatistics, parentPrimaryStatistics) ||
+            hasGreaterComponent(childForeignStatistics, parentForeignStatistics),
+            "Child job is greater than parent job "
+            "(ParentCookie: %v, ChildCookie: %v, ParentPrimaryStatistics: %v, ChildPrimaryStatistics: %v, "
+            "ParentForeignStatistics: %v, ChildForeignStatistics: %v)",
+            parentCookie,
+            childCookie,
+            parentPrimaryStatistics,
+            childPrimaryStatistics,
+            parentForeignStatistics,
+            childForeignStatistics);
+
+        totalChildPrimaryStatistics += childPrimaryStatistics;
+        totalChildForeignStatistics += childForeignStatistics;
+    }
+
+    YT_LOG_ALERT_IF(
+        totalChildPrimaryStatistics.DataWeight > parentPrimaryStatistics.DataWeight ||
+        totalChildPrimaryStatistics.RowCount > parentPrimaryStatistics.RowCount,
+        "Child jobs have greater primary data weight or primary row count than parent job "
+        "(ParentCookie: %v, ChildCookies: %v, ParentPrimaryStatistics: %v, ParentForeignStatistics: %v, "
+        "TotalChildPrimaryStatistics: %v, TotalChildForeignStatistics: %v)",
+        parentCookie,
+        childCookies,
+        parentPrimaryStatistics,
+        parentForeignStatistics,
+        totalChildPrimaryStatistics,
+        totalChildForeignStatistics);
 }
 
 void TJobSplittingBase::RegisterMetadata(auto&& registrar)

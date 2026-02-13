@@ -1,6 +1,7 @@
 #include "table.h"
 
 #include "host.h"
+#include "table_schema_cache.h"
 #include "query_context.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -17,6 +18,9 @@
 
 #include <yt/yt/core/logging/log.h>
 
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
+
 namespace NYT::NClickHouseServer {
 
 using namespace NYPath;
@@ -27,6 +31,87 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NConcurrency;
 using namespace NApi;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+void FetchTableSchemas(TQueryContext* queryContext, const std::vector<TTablePtr>& tables)
+{
+    const auto& client = queryContext->Client();
+    // TableSchemaCache may be not configured.
+    const auto& tableSchemaCache = queryContext->Host->GetTableSchemaCache();
+
+    THashMap<TGuid, std::vector<TTablePtr>> schemaIdToTables;
+    for (const auto& table : tables) {
+        schemaIdToTables[table->SchemaId].push_back(table);
+    }
+
+    THashMap<TCellTag, std::vector<TGuid>> cellTagToSchemaIds;
+    // Iterate over schemaIds and filter those that are not in the cache and must be additionally fetched.
+    // Group missed schemaIds by externall cell of table.
+    for (auto& [schemaId, tablesWithIdenticalSchema] : schemaIdToTables) {
+        auto schema = tableSchemaCache ? tableSchemaCache->Get(schemaId) : nullptr;
+        if (!schema) {
+            const auto& table = schemaIdToTables[schemaId].front();
+            cellTagToSchemaIds[table->ExternalCellTag].push_back(schemaId);
+            continue;
+        }
+
+        for (const auto& table : tablesWithIdenticalSchema) {
+            table->Schema = schema;
+        }
+    }
+
+    std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
+    asyncResults.reserve(cellTagToSchemaIds.size());
+    for (const auto& [cellTag, cellSchemaIds] : cellTagToSchemaIds) {
+        auto proxy = CreateObjectServiceReadProxy(client, NApi::EMasterChannelKind::Follower, cellTag);
+        auto batchReq = proxy.ExecuteBatch();
+
+        // NB: Schemas can be accessed by ID without the use of transactions, thus no need to specify one here.
+        for (const auto& schemaId : cellSchemaIds) {
+            auto req = TTableYPathProxy::Get(FromObjectId(schemaId));
+            const auto& table = schemaIdToTables[schemaId].front();
+            AddCellTagToSyncWith(req, table->ObjectId);
+
+            req->Tag() = schemaId;
+            batchReq->AddRequest(req);
+        }
+
+        asyncResults.push_back(batchReq->Invoke());
+    }
+
+    auto checkError = [] (const auto& error) {
+        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error fetching table schemas");
+    };
+
+    auto result = WaitFor(AllSucceeded(asyncResults));
+    checkError(result);
+
+    for (const auto& batchRsp : result.Value()) {
+        checkError(GetCumulativeError(batchRsp));
+        for (const auto& rspOrError : batchRsp->GetResponses<TTableYPathProxy::TRspGet>()) {
+            const auto& rsp = rspOrError.Value();
+            auto ysonSchema = NYson::TYsonString(rsp->value());
+            auto schemaId = std::any_cast<TGuid>(rsp->Tag());
+            auto schema = ConvertTo<TTableSchemaPtr>(ysonSchema);
+            for (const auto& table : schemaIdToTables[schemaId]) {
+                table->Schema = schema;
+            }
+
+            if (tableSchemaCache) {
+                tableSchemaCache->Insert(schemaId, std::move(schema));
+            }
+        }
+    }
+
+    for (const auto& table : tables) {
+        table->Comparator = table->Schema->ToComparator();
+    }
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,9 +128,13 @@ TTable::TTable(TRichYPath path, const IAttributeDictionaryPtr& attributes)
         : CellTagFromId(ObjectId);
     ChunkCount = attributes->Get<i64>("chunk_count", 0);
     Revision = attributes->Get<NHydra::TRevision>("revision");
-    Schema = attributes->Get<TTableSchemaPtr>("schema");
-    Comparator = Schema->ToComparator();
     RowCount = attributes->Find<i64>("row_count");
+
+    SchemaId = attributes->Get<TObjectId>("schema_id", NullObjectId);
+    Schema = attributes->Find<TTableSchemaPtr>("schema");
+    if (Schema) {
+        Comparator = Schema->ToComparator();
+    }
 }
 
 bool TTable::IsSortedDynamic() const
@@ -119,6 +208,7 @@ std::vector<TTablePtr> FetchTables(
     TQueryContext* queryContext,
     const std::vector<TRichYPath>& richPaths,
     bool skipUnsuitableNodes,
+    bool ignoreFetchErrors,
     bool enableDynamicStoreRead,
     TLogger logger)
 {
@@ -138,47 +228,66 @@ std::vector<TTablePtr> FetchTables(
 
     std::vector<TTablePtr> tables;
     std::vector<TError> errors;
+    std::vector<TError> unsuitableErrors;
     for (int index = 0; index < static_cast<int>(richPaths.size()); ++index) {
         const auto& path = richPaths[index];
         const auto& attributesOrError = attributesOrErrors[index];
 
-        try {
-            const auto& attributes = attributesOrError.ValueOrThrow();
-            auto type = attributes->Get<EObjectType>("type", EObjectType::Null);
-            static THashSet<EObjectType> allowedTypes = {EObjectType::Table};
-            if (!allowedTypes.contains(type)) {
-                THROW_ERROR_EXCEPTION("Path %Qv does not correspond to a table; expected one of types %Qlv, actual type %Qlv",
-                    path,
-                    allowedTypes,
-                    type);
-            }
-            if (attributes->Get<bool>("dynamic", false) &&
-                enableDynamicStoreRead && !attributes->Get<bool>("enable_dynamic_store_read", false))
-            {
-                THROW_ERROR_EXCEPTION(
-                    "Dynamic store read for table %Qv is disabled; in order to read dynamic stores, "
-                    "set attribute \"enable_dynamic_store_read\" to true and remount table; "
-                    "if you indeed want to read only static part of dynamic table, "
-                    "pass setting chyt.dynamic_table.enable_dynamic_store_read = 0",
-                    path.GetPath());
-            }
-
-            auto& table = tables.emplace_back(New<TTable>(path, attributes));
-
-            if (auto it = queryContext->SnapshotLocks.find(path.GetPath()); it != queryContext->SnapshotLocks.end()) {
-                table->ExternalTransactionId = it->second.ExternalTransactionId;
-            }
-
-            if (table->Dynamic) {
-                ++dynamicTableCount;
-            }
-        } catch (const std::exception& ex) {
-            if (!skipUnsuitableNodes) {
-                errors.emplace_back(TError("Error fetching table %v", path)
-                    << ex
-                    << TErrorAttribute("path", path));
-            }
+        if (attributesOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+            unsuitableErrors.emplace_back(std::move(attributesOrError).Wrap());
+            YT_LOG_DEBUG("Skip %Qv because it wasn't resolved", path);
+            continue;
         }
+
+        if (!attributesOrError.IsOK()) {
+            errors.emplace_back(TError("Error fetching table %v", path)
+                << std::move(attributesOrError).Wrap()
+                << TErrorAttribute("path", path));
+            continue;
+        }
+
+        const auto& attributes = attributesOrError.Value();
+        auto type = attributes->Get<EObjectType>("type", EObjectType::Null);
+        static THashSet<EObjectType> allowedTypes = {EObjectType::Table};
+        if (!allowedTypes.contains(type)) {
+            unsuitableErrors.emplace_back(TError("Path %Qv does not correspond to a table; expected one of types %Qlv, actual type %Qlv",
+                path,
+                allowedTypes,
+                type));
+            YT_LOG_DEBUG("Skip %Qv because it's not a table", path);
+            continue;
+        }
+
+        if (attributes->Get<bool>("dynamic", false) &&
+            enableDynamicStoreRead && !attributes->Get<bool>("enable_dynamic_store_read", false))
+        {
+            unsuitableErrors.emplace_back(TError(
+                "Dynamic store read for table %Qv is disabled; in order to read dynamic stores, "
+                "set attribute \"enable_dynamic_store_read\" to true and remount table; "
+                "if you indeed want to read only static part of dynamic table, "
+                "pass setting chyt.dynamic_table.enable_dynamic_store_read = 0",
+                path.GetPath()));
+            YT_LOG_DEBUG("Skip %Qv because it has disabled dynamic store read when required", path);
+            continue;
+        }
+
+        auto& table = tables.emplace_back(New<TTable>(path, attributes));
+        if (table->Dynamic) {
+            ++dynamicTableCount;
+        }
+
+        if (auto it = queryContext->SnapshotLocks.find(path.GetPath()); it != queryContext->SnapshotLocks.end()) {
+            table->ExternalTransactionId = it->second.ExternalTransactionId;
+        }
+    }
+
+    if (ignoreFetchErrors) {
+        errors.clear();
+    }
+
+    if (!skipUnsuitableNodes) {
+        std::move(unsuitableErrors.begin(), unsuitableErrors.end(), std::back_inserter(errors));
+        unsuitableErrors.clear();
     }
 
     auto throwOnErrors = [&] {
@@ -194,6 +303,11 @@ std::vector<TTablePtr> FetchTables(
     throwOnErrors();
 
     YT_LOG_INFO("Tables fetched (SkippedCount: %v)", richPaths.size() - tables.size());
+
+    if (queryContext->Host->GetConfig()->EnableSchemaIdFetching) {
+        FetchTableSchemas(queryContext, tables);
+        YT_LOG_INFO("Table schemas fetched");
+    }
 
     if (dynamicTableCount) {
         // Let's fetch table mount infos.
@@ -231,6 +345,22 @@ std::vector<TTablePtr> FetchTables(
     }
 
     return tables;
+}
+
+std::vector<TTablePtr> FetchTablesSoft(
+    TQueryContext* queryContext,
+    const std::vector<TRichYPath>& richPaths,
+    bool skipUnsuitableNodes,
+    bool enableDynamicStoreRead,
+    TLogger logger)
+{
+    return FetchTables(
+        queryContext,
+        richPaths,
+        skipUnsuitableNodes,
+        /*ignoreFetchErrors*/ false,
+        enableDynamicStoreRead,
+        logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

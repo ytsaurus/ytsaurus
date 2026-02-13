@@ -23,6 +23,7 @@
 #include <yt/yt/server/replicated_table_tracker/program.h>
 #include <yt/yt/server/offshore_data_gateway/program.h>
 #include <yt/yt/server/multidaemon/program.h>
+#include <yt/yt/server/sequoia_reconstructor/program.h>
 
 #include <yt/yt/library/program/program.h>
 #include <yt/yt/library/program/helpers.h>
@@ -117,7 +118,8 @@ const TProgramMap& GetProgramMap()
             .Add(NCellMaster::RunCellMasterProgram, "master")
             .Add(NClusterClock::RunClusterClockProgram, "clock")
             .Add(NHttpProxy::RunHttpProxyProgram, "http-proxy")
-            // TODO(babenko): rename to rpc-proxy
+            .Add(NRpcProxy::RunRpcProxyProgram, "rpc-proxy")
+            // COMPAT(ponasenko-rs, YT-27171): Remove later.
             .Add(NRpcProxy::RunRpcProxyProgram, "proxy")
             .Add(NClusterNode::RunClusterNodeProgram, "node")
             .Add(NJobProxy::RunJobProxyProgram, "job-proxy")
@@ -142,6 +144,7 @@ const TProgramMap& GetProgramMap()
             .Add(NReplicatedTableTracker::RunReplicatedTableTrackerProgram, "replicated-table-tracker")
             .Add(NOffshoreDataGateway::RunOffshoreDataGatewayProgram, "offshore-data-gateway")
             .Add(NMultidaemon::RunMultidaemonProgram, "multi")
+            .Add(NSequoiaReconstructor::RunSequoiaReconstructorProgram, "sequoia-reconstructor")
             .Finish();
     }();
     return result;

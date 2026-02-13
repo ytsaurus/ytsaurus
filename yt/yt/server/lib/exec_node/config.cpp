@@ -685,6 +685,12 @@ void TJobCommonConfig::Register(TRegistrar registrar)
     registrar.Parameter("treat_job_proxy_failure_as_abort", &TThis::TreatJobProxyFailureAsAbort)
         .Default(false);
 
+    registrar.Parameter("treat_job_proxy_preparation_failure_as_abort", &TThis::TreatJobProxyPreparationFailureAsAbort)
+        .Default(true);
+
+    registrar.Parameter("treat_job_proxy_io_error_as_abort", &TThis::TreatJobProxyIOErrorAsAbort)
+        .Default(true);
+
     registrar.Parameter("job_setup_command", &TThis::JobSetupCommand)
         .Default();
 
@@ -708,6 +714,9 @@ void TJobCommonConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("job_finish_timeout_after_interruption_call_failed", &TThis::JobFinishTimeoutAfterInterruptionCallFailed)
         .Default(TDuration::Seconds(5));
+
+    registrar.Parameter("statistics_reporting_period", &TThis::StatisticsReportingPeriod)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

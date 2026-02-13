@@ -38,32 +38,32 @@ public:
         : AttributePath_(attributePath)
     { }
 
-    TOptionalLiteralValueWrapper Run(TExpressionPtr expression)
+    TOptionalLiteralValueWrapper Run(const TExpressionPtr expression)
     {
         return Visit(expression);
     }
 
-    TOptionalLiteralValueWrapper OnLiteral(TLiteralExpressionPtr /*literalExpr*/)
+    TOptionalLiteralValueWrapper OnLiteral(const TLiteralExpressionPtr /*literalExpr*/)
     {
         return TOptionalLiteralValueWrapper{};
     }
 
-    TOptionalLiteralValueWrapper OnReference(TReferenceExpressionPtr /*referenceExpr*/)
+    TOptionalLiteralValueWrapper OnReference(const TReferenceExpressionPtr /*referenceExpr*/)
     {
         return TOptionalLiteralValueWrapper{};
     }
 
-    TOptionalLiteralValueWrapper OnAlias(TAliasExpressionPtr /*aliasExpr*/)
+    TOptionalLiteralValueWrapper OnAlias(const TAliasExpressionPtr /*aliasExpr*/)
     {
         return TOptionalLiteralValueWrapper{};
     }
 
-    TOptionalLiteralValueWrapper OnUnary(TUnaryOpExpressionPtr /*unaryExpr*/)
+    TOptionalLiteralValueWrapper OnUnary(const TUnaryOpExpressionPtr /*unaryExpr*/)
     {
         return TOptionalLiteralValueWrapper{};
     }
 
-    TOptionalLiteralValueWrapper OnBinary(TBinaryOpExpressionPtr binaryExpr)
+    TOptionalLiteralValueWrapper OnBinary(const TBinaryOpExpressionPtr binaryExpr)
     {
         switch (binaryExpr->Opcode) {
             case EBinaryOp::Equal: {
@@ -103,32 +103,32 @@ public:
         }
     }
 
-    TOptionalLiteralValueWrapper OnFunction(TFunctionExpressionPtr /*functionExpr*/)
+    TOptionalLiteralValueWrapper OnFunction(const TFunctionExpressionPtr /*functionExpr*/)
     {
         return TOptionalLiteralValueWrapper{};
     }
 
-    TOptionalLiteralValueWrapper OnIn(TInExpressionPtr /*inExpr*/)
+    TOptionalLiteralValueWrapper OnIn(const TInExpressionPtr /*inExpr*/)
     {
         return TOptionalLiteralValueWrapper{};
     }
 
-    TOptionalLiteralValueWrapper OnBetween(TBetweenExpressionPtr /*betweenExpr*/)
+    TOptionalLiteralValueWrapper OnBetween(const TBetweenExpressionPtr /*betweenExpr*/)
     {
         return TOptionalLiteralValueWrapper{};
     }
 
-    TOptionalLiteralValueWrapper OnTransform(TTransformExpressionPtr /*transformExpr*/)
+    TOptionalLiteralValueWrapper OnTransform(const TTransformExpressionPtr /*transformExpr*/)
     {
         return TOptionalLiteralValueWrapper{};
     }
 
-    TOptionalLiteralValueWrapper OnCase(TCaseExpressionPtr /*caseExpr*/)
+    TOptionalLiteralValueWrapper OnCase(const TCaseExpressionPtr /*caseExpr*/)
     {
         return TOptionalLiteralValueWrapper{};
     }
 
-    TOptionalLiteralValueWrapper OnLike(TLikeExpressionPtr /*likeExpr*/)
+    TOptionalLiteralValueWrapper OnLike(const TLikeExpressionPtr /*likeExpr*/)
     {
         return TOptionalLiteralValueWrapper{};
     }
@@ -160,32 +160,32 @@ public:
         , AllowValueRange_(allowValueRange)
     { }
 
-    bool Run(TExpressionPtr expression)
+    bool Run(const TExpressionPtr expression)
     {
         return Visit(expression);
     }
 
-    bool OnLiteral(TLiteralExpressionPtr /*literalExpr*/)
+    bool OnLiteral(const TLiteralExpressionPtr /*literalExpr*/)
     {
         return false;
     }
 
-    bool OnReference(TReferenceExpressionPtr /*referenceExpr*/)
+    bool OnReference(const TReferenceExpressionPtr /*referenceExpr*/)
     {
         return false;
     }
 
-    bool OnAlias(TAliasExpressionPtr /*aliasExpr*/)
+    bool OnAlias(const TAliasExpressionPtr /*aliasExpr*/)
     {
         return false;
     }
 
-    bool OnUnary(TUnaryOpExpressionPtr /*unaryExpr*/)
+    bool OnUnary(const TUnaryOpExpressionPtr /*unaryExpr*/)
     {
         return false;
     }
 
-    bool OnBinary(TBinaryOpExpressionPtr binaryExpr)
+    bool OnBinary(const TBinaryOpExpressionPtr binaryExpr)
     {
         switch (binaryExpr->Opcode) {
             case EBinaryOp::Or:
@@ -208,32 +208,32 @@ public:
         }
     }
 
-    bool OnFunction(TFunctionExpressionPtr /*functionExpr*/)
+    bool OnFunction(const TFunctionExpressionPtr /*functionExpr*/)
     {
         return false;
     }
 
-    bool OnIn(TInExpressionPtr inExpr)
+    bool OnIn(const TInExpressionPtr inExpr)
     {
         return IsAnyExprATargetReference(inExpr->Expr, Reference_);
     }
 
-    bool OnBetween(TBetweenExpressionPtr betweenExpr)
+    bool OnBetween(const TBetweenExpressionPtr betweenExpr)
     {
         return IsAnyExprATargetReference(betweenExpr->Expr, Reference_) && AllowValueRange_;
     }
 
-    bool OnTransform(TTransformExpressionPtr /*transformExpr*/)
+    bool OnTransform(const TTransformExpressionPtr /*transformExpr*/)
     {
         return false;
     }
 
-    bool OnCase(TCaseExpressionPtr /*caseExpr*/)
+    bool OnCase(const TCaseExpressionPtr /*caseExpr*/)
     {
         return false;
     }
 
-    bool OnLike(TLikeExpressionPtr /*likeExpr*/)
+    bool OnLike(const TLikeExpressionPtr /*likeExpr*/)
     {
         return false;
     }
@@ -259,9 +259,6 @@ class TQueryVisitorForDefinedAlwaysFalse
     : public TBaseAstVisitor<bool, TQueryVisitorForDefinedAlwaysFalse>
 {
 public:
-    TQueryVisitorForDefinedAlwaysFalse()
-    { }
-
     bool Run(const TExpressionPtr expression)
     {
         return Visit(expression);
@@ -352,12 +349,12 @@ public:
         : Inserter_(std::move(inserter))
     { }
 
-    void Run(TExpressionPtr expression)
+    void Run(const TExpressionPtr expression)
     {
         Visit(expression);
     }
 
-    void OnReference(TReferenceExpressionPtr referenceExpr)
+    void OnReference(const TReferenceExpressionPtr referenceExpr)
     {
         THROW_ERROR_EXCEPTION_IF(
             referenceExpr->Reference.TableName,
@@ -366,12 +363,12 @@ public:
         Inserter_(referenceExpr->Reference.ColumnName);
     }
 
-    void OnAlias(TAliasExpressionPtr aliasExpr)
+    void OnAlias(const TAliasExpressionPtr aliasExpr)
     {
         Visit(aliasExpr->Expression);
     }
 
-    void OnTransform(TTransformExpressionPtr transformExpr)
+    void OnTransform(const TTransformExpressionPtr transformExpr)
     {
         Visit(transformExpr->Expr);
         if (auto defaultExpr = transformExpr->DefaultExpr) {
@@ -505,7 +502,7 @@ TOptionalLiteralValueWrapper IntrospectFilterForDefinedAttributeValue(
 ////////////////////////////////////////////////////////////////////////////////
 
 bool IntrospectFilterForDefinedReference(
-    TExpressionPtr filterExpression,
+    const TExpressionPtr filterExpression,
     const NQueryClient::NAst::TReference& reference,
     bool allowValueRange)
 {
@@ -515,9 +512,10 @@ bool IntrospectFilterForDefinedReference(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int IntrospectFilterInValueCount(TExpressionPtr filterExpression)
+int IntrospectFilterInValueCount(const TExpressionPtr filterExpression)
 {
-    return TQueryVisitorForInValueCount().Run(filterExpression);
+    return TQueryVisitorForInValueCount()
+        .Run(filterExpression);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -529,13 +527,15 @@ void ExtractFilterAttributeReferences(TStringBuf filterQuery, std::function<void
     }
     auto parsedQuery = ParseSource(filterQuery, NQueryClient::EParseMode::Expression);
     auto* queryExpression = std::get<TExpressionPtr>(parsedQuery->AstHead.Ast);
+    YT_ASSERT(queryExpression);
 
-    TQueryVisitorForAttributeReferences(std::move(inserter)).Run(queryExpression);
+    ExtractFilterAttributeReferences(queryExpression, std::move(inserter));
 }
 
-void ExtractFilterAttributeReferences(TExpressionPtr filterExpression, std::function<void(TYPathBuf)> inserter)
+void ExtractFilterAttributeReferences(const TExpressionPtr filterExpression, std::function<void(TYPathBuf)> inserter)
 {
-    TQueryVisitorForAttributeReferences(std::move(inserter)).Run(filterExpression);
+    TQueryVisitorForAttributeReferences(std::move(inserter))
+        .Run(filterExpression);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -591,7 +591,7 @@ bool IntrospectQueryForFullScan(
     return !filteredByPrimaryKey;
 }
 
-bool IntrospectFilterIsAlwaysFalse(NQueryClient::NAst::TExpressionPtr filterExpression)
+bool IntrospectFilterIsAlwaysFalse(const NQueryClient::NAst::TExpressionPtr filterExpression)
 {
     return TQueryVisitorForDefinedAlwaysFalse()
         .Run(filterExpression);

@@ -25,6 +25,7 @@ target_compile_options(yt-library-formats PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(yt-library-formats PUBLIC
@@ -39,6 +40,7 @@ target_link_libraries(yt-library-formats PUBLIC
 )
 
 target_sources(yt-library-formats PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/arrow_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/arrow_parser.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/arrow_writer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/blob_writer.cpp

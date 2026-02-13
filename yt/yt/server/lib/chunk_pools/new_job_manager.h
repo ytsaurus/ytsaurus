@@ -24,6 +24,7 @@ class TNewJobStub
 public:
     //! Barriers are special entries in job manager internal job list that designate the fact
     //! that adjacent jobs may not be joined together.
+    // TODO(apollo1321): Barrier jobs should be removed.
     DEFINE_BYVAL_RW_PROPERTY(bool, IsBarrier, false);
 
     DEFINE_BYVAL_RW_PROPERTY(NTableClient::TKeyBound, PrimaryLowerBound);
@@ -124,8 +125,6 @@ public:
     // Used if we know which cookie we want to extract.
     void ExtractCookie(IChunkPoolOutput::TCookie cookie);
 
-    std::vector<NChunkClient::TLegacyDataSlicePtr> ReleaseForeignSlices(IChunkPoolInput::TCookie inputCookie);
-
     NTableClient::TChunkStripeStatisticsVector GetApproximateStripeStatistics() const;
 
     const TChunkStripeListPtr& GetStripeList(IChunkPoolOutput::TCookie cookie) const;
@@ -164,7 +163,7 @@ private:
     public:
         explicit TStripeListComparator(TNewJobManager* owner);
 
-        bool operator ()(IChunkPoolOutput::TCookie lhs, IChunkPoolOutput::TCookie rhs) const;
+        bool operator()(IChunkPoolOutput::TCookie lhs, IChunkPoolOutput::TCookie rhs) const;
     private:
         TNewJobManager* Owner_;
     };

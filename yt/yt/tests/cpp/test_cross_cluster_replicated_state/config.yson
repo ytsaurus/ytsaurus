@@ -1,0 +1,8 @@
+{
+    NUM_MASTERS = 3;
+    NUM_NODES = 0;
+    NUM_SCHEDULERS = 0;
+    NUM_CONTROLLER_AGENTS = 0;
+    DRIVER_BACKEND = native;
+    NUM_RPC_PROXIES = 0;
+}

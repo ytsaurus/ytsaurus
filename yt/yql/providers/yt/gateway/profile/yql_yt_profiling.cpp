@@ -207,6 +207,16 @@ public:
         return Slave_->Dump(std::move(options));
     }
 
+    NThreading::TFuture<TDownloadTableResult> DownloadTable(TDownloadTableOptions&& options) override {
+        YQL_PROFILE_FUNC(TRACE);
+        return Slave_->DownloadTable(std::move(options));
+    }
+
+    IYtTokenResolver::TPtr GetYtTokenResolver() const override {
+        YQL_PROFILE_FUNC(TRACE);
+        return Slave_->GetYtTokenResolver();
+    }
+
 private:
     IYtGateway::TPtr Slave_;
 };

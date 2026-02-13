@@ -7,7 +7,7 @@ $customer_total_return =
       cross join date_dim
      cross join customer_address
  where cr_returned_date_sk = d_date_sk
-   and d_year =1998
+   and d_year =2000
    and cr_returning_addr_sk = ca_address_sk
  group by catalog_returns.cr_returning_customer_sk
          ,customer_address.ca_state );
@@ -22,7 +22,7 @@ $avg_ctr_total_return = (select ctr_state, avg(ctr_total_return) as ctr_total_re
 cross join customer
  where ctr1.ctr_total_return > ctr2.ctr_total_return*1.2
        and ca_address_sk = c_current_addr_sk
-       and ca_state = 'TX'
+       and ca_state = 'GA'
        and ctr1.ctr_customer_sk = c_customer_sk
  order by c_customer_id,c_salutation,c_first_name,c_last_name,ca_street_number,ca_street_name
                    ,ca_street_type,ca_suite_number,ca_city,ca_county,ca_state,ca_zip,ca_country,ca_gmt_offset

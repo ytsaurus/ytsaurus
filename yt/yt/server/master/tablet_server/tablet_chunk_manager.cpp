@@ -227,6 +227,7 @@ public:
         int firstTabletIndex,
         int lastTabletIndex,
         int newTabletCount,
+        const std::vector<TTabletId>& oldTabletIds,
         const std::vector<TOwningKeyBound>& oldPivotKeyBounds,
         const std::vector<TLegacyOwningKey>& newPivotKeys,
         const THashSet<TStoreId>& oldEdenStoreIds) override
@@ -271,6 +272,8 @@ public:
             // properly destroyed.
             std::vector<TChunkView*> temporarilyReferencedChunkViews;
 
+            std::vector<i64> oldTabletSizes(oldTabletCount);
+
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
                 auto* mainTabletChunkList = oldRootChunkLists[EChunkListContentType::Main]->Children()[index]->AsChunkList();
                 auto tabletStores = EnumerateStoresInChunkTree(mainTabletChunkList);
@@ -279,8 +282,10 @@ public:
                 const auto& upperPivot = oldPivotKeyBounds[index - firstTabletIndex + 1];
 
                 for (auto chunkTree : tabletStores) {
+                    TChunk* chunk = nullptr;
                     if (chunkTree->GetType() == EObjectType::ChunkView) {
                         auto* chunkView = chunkTree->AsChunkView();
+                        chunk = chunkView->GetUnderlyingTree()->AsChunk();
                         auto readRange = chunkView->GetCompleteReadRange(comparator);
 
                         // Check if chunk view fits into the old tablet completely.
@@ -315,9 +320,21 @@ public:
 
                             chunkTree = newChunkView;
                         }
+                    } else if (IsPhysicalChunkType(chunkTree->GetType())) {
+                        chunk = chunkTree->AsChunk();
+                    } else {
+                        YT_LOG_ALERT(
+                            "Unexpected chunk tree kind encountered during reshard "
+                            "(TableId: %v, TabletId: %v, ChunkTreeId: %v)",
+                            table->GetId(),
+                            oldTabletIds[index - firstTabletIndex],
+                            chunkTree->GetId());
                     }
 
                     chunksOrViews.push_back(chunkTree);
+                    if (chunk) {
+                        oldTabletSizes[index - firstTabletIndex] += chunk->GetCompressedDataSize();
+                    }
                 }
             }
 
@@ -339,6 +356,9 @@ public:
             std::vector<std::vector<TChunkView*>> newTabletChildrenToBeMerged(newTablets.size());
             std::vector<std::vector<TChunkTreeRawPtr>> newTabletHunkChunks(newTablets.size());
             std::vector<std::vector<TStoreId>> newEdenStoreIds(newTablets.size());
+
+            // |new_tablet_index| -> {|old_tablet_index| -> |inherited_size|}.
+            std::vector<THashMap<int, i64>> inheritedTabletSizes(newTablets.size());
 
             for (auto* chunkOrView : chunksOrViews) {
                 NChunkClient::TReadRange readRange;
@@ -367,29 +387,56 @@ public:
                     auto upperPivot = tablet->GetIndex() == std::ssize(tablets) - 1
                         ? TOwningKeyBound::MakeEmpty(/*isUpper*/ false)
                         : tablets[tablet->GetIndex() + 1]->As<TTablet>()->GetPivotKeyBound();
-                    int relativeIndex = it - newTablets.Begin();
 
-                    newTabletHunkChunks[relativeIndex].insert(
-                        newTabletHunkChunks[relativeIndex].end(),
+                    int relativeNewTabletIndex = std::distance(newTablets.Begin(), it);
+                    newTabletHunkChunks[relativeNewTabletIndex].insert(
+                        newTabletHunkChunks[relativeNewTabletIndex].end(),
                         referencedHunkChunks.begin(),
                         referencedHunkChunks.end());
+
+                    auto truncatedReadRange = IntersectReadRanges(
+                        readRange,
+                        TReadRange{
+                            NChunkClient::TReadLimit(lowerPivot),
+                            NChunkClient::TReadLimit(upperPivot.Invert())
+                        },
+                        comparator);
+
+                    auto [beginRelativeOldTabletIndex, endRelativeOldTabletIndex] = GetIntersectingTablets(
+                        TRange(oldPivotKeyBounds.begin(), std::prev(oldPivotKeyBounds.end())),
+                        truncatedReadRange,
+                        comparator);
+                    YT_LOG_ALERT_IF(
+                        beginRelativeOldTabletIndex == endRelativeOldTabletIndex,
+                        "Chunk didn't belong to any of the old tablets during reshard "
+                        "(TableId: %v, ChunkId: %v, ReadRange: %v)",
+                        table->GetId(),
+                        chunk->GetId(),
+                        readRange);
+
+                    for (int relativeOldTabletIndex = beginRelativeOldTabletIndex;
+                        relativeOldTabletIndex < endRelativeOldTabletIndex;
+                        ++relativeOldTabletIndex)
+                    {
+                        inheritedTabletSizes[relativeNewTabletIndex][relativeOldTabletIndex] += chunk->GetCompressedDataSize();
+                    }
 
                     // Chunks or chunk views created directly from chunks may be attached to tablets as is.
                     // On the other hand, old chunk views may link to the same chunk and have adjacent ranges,
                     // so we handle them separately.
                     if (chunkOrView->GetType() == EObjectType::ChunkView) {
                         // Read range given by tablet's pivot keys will be enforced later.
-                        newTabletChildrenToBeMerged[relativeIndex].push_back(chunkOrView->AsChunkView());
+                        newTabletChildrenToBeMerged[relativeNewTabletIndex].push_back(chunkOrView->AsChunkView());
                     } else if (IsPhysicalChunkType(chunkOrView->GetType())) {
                         if (comparator.CompareKeyBounds(lowerPivot, readRange.LowerLimit().KeyBound()) <= 0 &&
                             comparator.CompareKeyBounds(readRange.UpperLimit().KeyBound(), upperPivot) <= 0)
                         {
                             // Chunk fits into the tablet.
                             chunkManager->AttachToChunkList(
-                                newTabletChunkLists[EChunkListContentType::Main][relativeIndex]->AsChunkList(),
+                                newTabletChunkLists[EChunkListContentType::Main][relativeNewTabletIndex]->AsChunkList(),
                                 {chunk});
                             if (oldEdenStoreIds.contains(chunk->GetId())) {
-                                newEdenStoreIds[relativeIndex].push_back(chunk->GetId());
+                                newEdenStoreIds[relativeNewTabletIndex].push_back(chunk->GetId());
                             }
                         } else {
                             // Chunk does not fit into the tablet, create chunk view.
@@ -402,10 +449,10 @@ public:
                                 chunk,
                                 TChunkViewModifier().WithReadRange(newReadRange));
                             chunkManager->AttachToChunkList(
-                                newTabletChunkLists[EChunkListContentType::Main][relativeIndex]->AsChunkList(),
+                                newTabletChunkLists[EChunkListContentType::Main][relativeNewTabletIndex]->AsChunkList(),
                                 {newChunkView});
                             if (oldEdenStoreIds.contains(chunk->GetId())) {
-                                newEdenStoreIds[relativeIndex].push_back(newChunkView->GetId());
+                                newEdenStoreIds[relativeNewTabletIndex].push_back(newChunkView->GetId());
                             }
                         }
                     } else {
@@ -449,6 +496,32 @@ public:
                     SortUnique(newTabletHunkChunks[relativeIndex], TObjectIdComparer());
                     auto* hunkChunkList = newTabletChunkLists[EChunkListContentType::Hunk][relativeIndex]->AsChunkList();
                     chunkManager->AttachToChunkList(hunkChunkList, newTabletHunkChunks[relativeIndex]);
+                }
+            }
+
+            for (int relativeNewTabletIndex = 0; relativeNewTabletIndex < std::ssize(newTablets); ++relativeNewTabletIndex) {
+                auto* newTablet = newTablets[relativeNewTabletIndex]->As<TTablet>();
+
+                auto& originatorTablets = newTablet->OriginatorTablets();
+                originatorTablets.reserve(inheritedTabletSizes[relativeNewTabletIndex].size());
+
+                auto lowerPivot = newTablet->GetPivotKeyBound();
+                auto upperPivot = relativeNewTabletIndex == std::ssize(newTablets) - 1
+                    ? TOwningKeyBound::MakeEmpty(/*isUpper*/ false)
+                    : tablets[relativeNewTabletIndex + 1]->As<TTablet>()->GetPivotKeyBound();
+
+                auto [relativeOldTabletIndex, endRelativeOldTabletIndex] = GetIntersectingTablets(
+                    TRange(oldPivotKeyBounds.begin(), std::prev(oldPivotKeyBounds.end())),
+                    TReadRange{
+                        NChunkClient::TReadLimit(lowerPivot),
+                        NChunkClient::TReadLimit(upperPivot.Invert())
+                    },
+                    comparator);
+                for (; relativeOldTabletIndex < endRelativeOldTabletIndex; ++relativeOldTabletIndex) {
+                    originatorTablets.emplace_back(
+                        oldTabletIds[relativeOldTabletIndex],
+                        GetOrDefault(inheritedTabletSizes[relativeNewTabletIndex], relativeOldTabletIndex),
+                        oldTabletSizes[relativeOldTabletIndex]);
                 }
             }
 
@@ -1663,38 +1736,81 @@ private:
         return hunkChunks;
     }
 
-    static TMutableRange<TTabletBaseRawPtr> GetIntersectingTablets(
-        TMutableRange<TTabletBaseRawPtr> tablets,
+    template <class TCallback>
+    static std::pair<int, int> GetIntersectingTabletIndexes(
+        int tabletCount,
+        TCallback&& getPivotKey,
         const TReadRange& readRange,
         const TComparator& comparator)
     {
         YT_VERIFY(readRange.LowerLimit().KeyBound());
         YT_VERIFY(readRange.UpperLimit().KeyBound());
 
-        auto beginIt = std::partition_point(
-            tablets.begin(),
-            tablets.end(),
-            [&] (TTabletBase* tablet) {
+        auto beginTabletIndex = *std::ranges::partition_point(
+            std::ranges::iota_view{0, tabletCount},
+            [&] (int tabletIndex) {
                 return comparator.IsRangeEmpty(
                     readRange.LowerLimit().KeyBound(),
-                    tablet->As<TTablet>()->GetPivotKeyBound().Invert());
+                    getPivotKey(tabletIndex).Invert());
             });
 
-        if (beginIt != tablets.begin()) {
-            --beginIt;
+        if (beginTabletIndex != 0) {
+            --beginTabletIndex;
         }
 
-        auto endIt = beginIt;
-        while (endIt != tablets.end() &&
+        auto endTabletIndex = beginTabletIndex;
+        while (endTabletIndex != tabletCount &&
             !comparator.IsRangeEmpty(
-                (*endIt)->As<TTablet>()->GetPivotKeyBound(),
+                getPivotKey(endTabletIndex),
                 readRange.UpperLimit().KeyBound()))
         {
-            ++endIt;
+            ++endTabletIndex;
         }
 
-        return {beginIt, endIt};
+        return {beginTabletIndex, endTabletIndex};
     }
+
+    static TMutableRange<TTabletBaseRawPtr> GetIntersectingTablets(
+        TMutableRange<TTabletBaseRawPtr> tablets,
+        const TReadRange& readRange,
+        const TComparator& comparator)
+    {
+        auto [beginTabletIndex, endTabletIndex] = GetIntersectingTabletIndexes(
+            tablets.Size(),
+            [&] (int tabletIndex) {
+                return tablets[tabletIndex]->As<TTablet>()->GetPivotKeyBound();
+            },
+            readRange,
+            comparator);
+
+        return tablets.Slice(beginTabletIndex, endTabletIndex);
+    }
+
+    std::pair<int, int> GetIntersectingTablets(
+        TRange<TOwningKeyBound> pivotKeyBounds,
+        const TReadRange& readRange,
+        const TComparator& comparator)
+    {
+        return GetIntersectingTabletIndexes(
+            pivotKeyBounds.size(),
+            [&] (int tabletIndex) {
+                return pivotKeyBounds[tabletIndex];
+            },
+            readRange,
+            comparator);
+    }
+
+    TReadRange IntersectReadRanges(
+        const TReadRange& first,
+        const TReadRange& second,
+        const TComparator& comparator)
+    {
+        TReadRange result = first;
+        comparator.ReplaceIfStrongerKeyBound(result.LowerLimit().KeyBound(), second.LowerLimit().KeyBound());
+        comparator.ReplaceIfStrongerKeyBound(result.UpperLimit().KeyBound(), second.UpperLimit().KeyBound());
+
+        return result;
+     }
 
     // If there are several otherwise identical chunk views with adjacent read ranges
     // we merge them into one chunk view with the joint range.

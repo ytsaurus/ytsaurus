@@ -55,9 +55,11 @@ SRCS(
     api/native/journal_writer.cpp
     api/native/list_operations.cpp
     api/native/options.cpp
+    api/native/encoded_row_stream.cpp
     api/native/partition_tables.cpp
     api/native/pick_replica_session.cpp
     api/native/pipeline_type_handler.cpp
+    api/native/pool_weight_provider.cpp
     api/native/queue_producer_type_handler.cpp
     api/native/register_transaction_actions_request_factory.cpp
     api/native/replicated_table_replica_type_handler.cpp
@@ -105,6 +107,8 @@ SRCS(
     cell_master_client/config.cpp
     cell_master_client/protobuf_helpers.cpp
 
+    cell_master_client/proto/cell_master_service.proto
+
     cellar_client/proto/tablet_cell_service.proto
 
     cellar_node_tracker_client/proto/cellar_node_tracker_service.proto
@@ -114,12 +118,11 @@ SRCS(
     chaos_client/banned_replica_tracker.cpp
     chaos_client/chaos_cell_channel_factory.cpp
     chaos_client/chaos_cell_directory_synchronizer.cpp
+    chaos_client/chaos_object_channel_factory.cpp
     chaos_client/chaos_residency_cache.cpp
     chaos_client/config.cpp
-    chaos_client/helpers.cpp
     chaos_client/master_cache_channel.cpp
     chaos_client/native_replication_card_cache_detail.cpp
-    chaos_client/replication_card_channel_factory.cpp
     chaos_client/replication_card_updates_batcher.cpp
     chaos_client/replication_card_updates_batcher_serialization.cpp
     chaos_client/replication_cards_watcher.cpp
@@ -381,6 +384,7 @@ SRCS(
     queue_client/queue_producer_init.cpp
     queue_client/registration_manager.cpp
     queue_client/registration_manager_base.cpp
+    queue_client/registration_manager_new.cpp
 
     replicated_table_tracker_client/proto/replicated_table_tracker_client.proto
 
@@ -413,6 +417,7 @@ SRCS(
     security_client/proto/user_ypath.proto
 
     sequoia_client/client.cpp
+    sequoia_client/connection.cpp
     sequoia_client/helpers.cpp
     sequoia_client/ground_channel_wrapper.cpp
     sequoia_client/prerequisite_revision.cpp
@@ -771,6 +776,13 @@ GENERATE_YT_RECORD(
         yt/yt/ytlib/queue_client/public.h
 )
 
+GENERATE_YT_RECORD(
+    queue_client/records/replica_mapping.yaml
+    OUTPUT_INCLUDES
+        yt/yt/core/yson/string.h
+        yt/yt/ytlib/queue_client/public.h
+)
+
 ADDINCL(
     contrib/libs/sparsehash/src
 )
@@ -800,6 +812,7 @@ PEERDIR(
     yt/yt/library/tvm/service
     yt/yt/library/xor_filter
     yt/yt/client
+    yt/yt/client/federated
     yt/yt/client/logging
     yt/yt/library/formats
     yt/yt/library/orchid

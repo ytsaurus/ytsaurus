@@ -30,6 +30,7 @@ public:
     std::optional<int> TryAddIndex(TOperationId operationId);
     bool TryRemoveIndex(TOperationId operationId, int index);
     bool TryRemoveOperation(TOperationId operationId);
+    void RemoveAllOperations();
 
 private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);

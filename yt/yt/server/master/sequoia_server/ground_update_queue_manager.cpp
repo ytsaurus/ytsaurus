@@ -10,6 +10,8 @@
 #include <yt/yt/server/master/cell_master/serialize.h>
 #include <yt/yt/server/master/cell_master/config.h>
 
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
+
 #include <yt/yt/server/master/transaction_server/transaction.h>
 #include <yt/yt/server/master/transaction_server/transaction_manager.h>
 
@@ -18,8 +20,9 @@
 #include <yt/yt/ytlib/transaction_client/action.h>
 #include <yt/yt/ytlib/transaction_client/transaction_manager.h>
 
-#include <yt/yt/ytlib/sequoia_client/transaction.h>
+#include <yt/yt/ytlib/sequoia_client/connection.h>
 #include <yt/yt/ytlib/sequoia_client/client.h>
+#include <yt/yt/ytlib/sequoia_client/transaction.h>
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 
@@ -188,11 +191,18 @@ public:
         queueState.Records.push_back(std::move(record));
     }
 
+    i64 GetLastRecordSequenceNumber(EGroundUpdateQueue queue) const override
+    {
+        const auto& queueState = QueueStates_[queue];
+        // Turns into -1 if no records were ever enqueued, seems OK.
+        return queueState.NextRecordSequenceNumber - 1;
+    }
+
     TFuture<void> Sync(EGroundUpdateQueue queue) override
     {
         auto& queueState = QueueStates_[queue];
         if (queueState.Records.empty()) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         auto& syncPromise = queueState.Records.back().SyncPromise;
@@ -292,6 +302,12 @@ private:
             startSequenceNumber,
             endSequenceNumber,
             recordCount);
+
+        // I don't like it here.
+        if (queue == EGroundUpdateQueue::Sequoia) {
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            cypressManager->DrainGroundUpdateQueueManagerSequenceNumber(endSequenceNumber);
+        }
     }
 
     void HydraAbortFlushTableUpdateQueue(
@@ -361,16 +377,14 @@ private:
         }
 
         Y_UNUSED(WaitFor(Bootstrap_
-            ->GetSequoiaClient()
-            ->StartTransaction(
-                ESequoiaTransactionType::GroundUpdateQueueFlush,
-                {},
-                {.AuthenticationIdentity = NRpc::GetRootAuthenticationIdentity()})
+            ->GetSequoiaConnection()
+            ->CreateClient(NRpc::GetRootAuthenticationIdentity())
+            ->StartTransaction(ESequoiaTransactionType::GroundUpdateQueueFlush)
             .Apply(BIND([queue, this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
                 auto& queueState = QueueStates_[queue];
 
                 if (!queueState.IsFlushNeeded()) {
-                    return VoidFuture;
+                    return OKFuture;
                 }
 
                 const auto& config = GetDynamicConfig();

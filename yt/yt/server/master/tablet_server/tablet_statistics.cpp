@@ -110,7 +110,7 @@ void TTabletStatisticsAggregate::Load(NCellMaster::TLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletCellStatisticsBase& operator += (TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs)
+TTabletCellStatisticsBase& operator+=(TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs)
 {
     lhs.UnmergedRowCount += rhs.UnmergedRowCount;
     lhs.UncompressedDataSize += rhs.UncompressedDataSize;
@@ -138,14 +138,14 @@ TTabletCellStatisticsBase& operator += (TTabletCellStatisticsBase& lhs, const TT
     return lhs;
 }
 
-TTabletCellStatisticsBase operator + (const TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs)
+TTabletCellStatisticsBase operator+(const TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs)
 {
     auto result = lhs;
     result += rhs;
     return result;
 }
 
-TTabletCellStatisticsBase& operator -= (TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs)
+TTabletCellStatisticsBase& operator-=(TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs)
 {
     lhs.UnmergedRowCount -= rhs.UnmergedRowCount;
     lhs.UncompressedDataSize -= rhs.UncompressedDataSize;
@@ -173,14 +173,14 @@ TTabletCellStatisticsBase& operator -= (TTabletCellStatisticsBase& lhs, const TT
     return lhs;
 }
 
-TTabletCellStatisticsBase operator - (const TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs)
+TTabletCellStatisticsBase operator-(const TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs)
 {
     auto result = lhs;
     result -= rhs;
     return result;
 }
 
-bool operator == (const TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs)
+bool operator==(const TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs)
 {
     return
         lhs.UnmergedRowCount == rhs.UnmergedRowCount &&
@@ -211,7 +211,7 @@ bool operator == (const TTabletCellStatisticsBase& lhs, const TTabletCellStatist
             });
 }
 
-TTabletStatistics& operator += (TTabletStatistics& lhs, const TTabletStatistics& rhs)
+TTabletStatistics& operator+=(TTabletStatistics& lhs, const TTabletStatistics& rhs)
 {
     static_cast<TTabletCellStatisticsBase&>(lhs) += rhs;
 
@@ -219,14 +219,14 @@ TTabletStatistics& operator += (TTabletStatistics& lhs, const TTabletStatistics&
     return lhs;
 }
 
-TTabletStatistics operator + (const TTabletStatistics& lhs, const TTabletStatistics& rhs)
+TTabletStatistics operator+(const TTabletStatistics& lhs, const TTabletStatistics& rhs)
 {
     auto result = lhs;
     result += rhs;
     return result;
 }
 
-TTabletStatistics& operator -= (TTabletStatistics& lhs, const TTabletStatistics& rhs)
+TTabletStatistics& operator-=(TTabletStatistics& lhs, const TTabletStatistics& rhs)
 {
     static_cast<TTabletCellStatisticsBase&>(lhs) -= rhs;
 
@@ -235,14 +235,14 @@ TTabletStatistics& operator -= (TTabletStatistics& lhs, const TTabletStatistics&
     return lhs;
 }
 
-TTabletStatistics operator - (const TTabletStatistics& lhs, const TTabletStatistics& rhs)
+TTabletStatistics operator-(const TTabletStatistics& lhs, const TTabletStatistics& rhs)
 {
     auto result = lhs;
     result -= rhs;
     return result;
 }
 
-bool operator == (const TTabletStatistics& lhs, const TTabletStatistics& rhs)
+bool operator==(const TTabletStatistics& lhs, const TTabletStatistics& rhs)
 {
     return static_cast<const TTabletCellStatisticsBase&>(lhs) == static_cast<const TTabletCellStatisticsBase&>(rhs) &&
         lhs.OverlappingStoreCount == rhs.OverlappingStoreCount;

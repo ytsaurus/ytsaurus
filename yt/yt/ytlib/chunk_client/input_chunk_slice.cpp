@@ -510,35 +510,59 @@ TInputChunkSlice::TInputChunkSlice(
     OverrideSize(inputChunk, protoChunkSpec);
 }
 
-template <class TProtoChunkSpec>
-void TInputChunkSlice::OverrideSize(const TInputChunkPtr& inputChunk, const TProtoChunkSpec& protoChunkSpec)
+void TInputChunkSlice::OverrideSize(const TInputChunkPtr& inputChunk, const NProto::TChunkSlice& protoChunkSlice)
 {
-    if (!protoChunkSpec.has_row_count_override() && !protoChunkSpec.has_data_weight_override()) {
+    YT_VERIFY(
+        protoChunkSlice.has_row_count_override() &&
+        protoChunkSlice.has_data_weight_override() &&
+        protoChunkSlice.has_compressed_data_size_override() &&
+        protoChunkSlice.has_uncompressed_data_size_override());
+
+    auto computeSize = [] (i64 sizeOverride, double selectivityFactor) {
+        return std::max(1l, SignedSaturationConversion(sizeOverride * selectivityFactor));
+    };
+
+    OverrideSize(
+        protoChunkSlice.row_count_override(),
+        computeSize(protoChunkSlice.data_weight_override(), inputChunk->GetDataWeightSelectivityFactor()),
+        computeSize(protoChunkSlice.compressed_data_size_override(), inputChunk->GetReadSizeSelectivityFactor()),
+        computeSize(protoChunkSlice.uncompressed_data_size_override(), inputChunk->GetReadSizeSelectivityFactor()));
+}
+
+void TInputChunkSlice::OverrideSize(const TInputChunkPtr& inputChunk, const NProto::TChunkSpec& protoChunkSpec)
+{
+    if (!protoChunkSpec.has_row_count_override()) {
+        YT_VERIFY(
+            !protoChunkSpec.has_data_weight_override() &&
+            !protoChunkSpec.has_compressed_data_size_override() &&
+            !protoChunkSpec.has_uncompressed_data_size_override());
         return;
     }
-    YT_VERIFY((protoChunkSpec.has_row_count_override() && protoChunkSpec.has_data_weight_override()));
+    YT_VERIFY(
+        protoChunkSpec.has_data_weight_override() &&
+        protoChunkSpec.has_compressed_data_size_override() &&
+        protoChunkSpec.has_uncompressed_data_size_override());
 
-    i64 dataWeightOverride = std::max<i64>(1, protoChunkSpec.data_weight_override() * inputChunk->GetDataWeightSelectivityFactor());
-    double dataWeightOverrideFactor = static_cast<double>(protoChunkSpec.data_weight_override()) / inputChunk->GetDataWeight();
-    i64 compressedDataSizeOverride;
-    if (protoChunkSpec.has_compressed_data_size_override()) {
-        compressedDataSizeOverride = protoChunkSpec.compressed_data_size_override() * inputChunk->GetReadSizeSelectivityFactor();
-    } else {
-        // COMPAT(apollo1321): make compressed_data_size required field after 25.1 release.
-        compressedDataSizeOverride = inputChunk->GetCompressedDataSize() * dataWeightOverrideFactor;
+    // COMPAT(apollo1321): Remove in 26.1.
+    if (!protoChunkSpec.use_new_override_semantics()) {
+        auto computeSize = [] (i64 sizeOverride, double selectivityFactor) {
+            return std::max(1l, SignedSaturationConversion(sizeOverride * selectivityFactor));
+        };
+
+        OverrideSize(
+            protoChunkSpec.row_count_override(),
+            computeSize(protoChunkSpec.data_weight_override(), inputChunk->GetDataWeightSelectivityFactor()),
+            computeSize(protoChunkSpec.compressed_data_size_override(), inputChunk->GetReadSizeSelectivityFactor()),
+            computeSize(protoChunkSpec.uncompressed_data_size_override(), inputChunk->GetReadSizeSelectivityFactor()));
+
+        return;
     }
-    i64 uncompressedDataSizeOverride;
-    if (protoChunkSpec.has_uncompressed_data_size_override()) {
-        uncompressedDataSizeOverride = protoChunkSpec.uncompressed_data_size_override() * inputChunk->GetReadSizeSelectivityFactor();
-    } else {
-        // COMPAT(apollo1321): make compressed_data_size required field after 25.3 release.
-        uncompressedDataSizeOverride = inputChunk->GetUncompressedDataSize() * dataWeightOverrideFactor;
-    }
+
     OverrideSize(
         protoChunkSpec.row_count_override(),
-        dataWeightOverride,
-        compressedDataSizeOverride,
-        uncompressedDataSizeOverride);
+        protoChunkSpec.data_weight_override(),
+        protoChunkSpec.compressed_data_size_override(),
+        protoChunkSpec.uncompressed_data_size_override());
 
 }
 
@@ -1029,6 +1053,8 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkSlicePtr& inputSlic
 
     chunkSpec->set_compressed_data_size_override(inputSlice->GetCompressedDataSize());
     chunkSpec->set_uncompressed_data_size_override(inputSlice->GetUncompressedDataSize());
+    // COMPAT(apollo1321): Remove in 26.1.
+    chunkSpec->set_use_new_override_semantics(true);
 
     if (inputSlice->GetInputChunk()->IsDynamicStore()) {
         SetTabletId(chunkSpec, inputSlice->GetInputChunk()->GetTabletId());

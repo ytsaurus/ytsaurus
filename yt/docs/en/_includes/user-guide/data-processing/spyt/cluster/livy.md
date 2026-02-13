@@ -33,7 +33,7 @@ Livy server endpoints are described in the [official documentation](https://livy
 To use {{product-name}}, during the initialization of a Livy session, specify two configuration parameters — the paths to the Java (`spark.yt.jars`) and Python (`spark.yt.pyFiles`) libraries — in the `spark_conf` field:
 
 ```python
-data = {'kind': 'spark', 'conf': {'spark.yt.version': '1.75.4', 'spark.yt.jars': 'yt:///home/spark/spyt/releases/1.75.4/spark-yt-data-source.jar', 'spark.yt.pyFiles': 'yt:///home/spark/spyt/releases/1.75.4/spyt.zip'}}
+data = {'kind': 'spark', 'conf': {'spark.yt.version': '{{spyt-version}}', 'spark.yt.jars': 'yt:///home/spark/spyt/releases/{{spyt-version}}/spark-yt-data-source.jar', 'spark.yt.pyFiles': 'yt:///home/spark/spyt/releases/{{spyt-version}}/spyt.zip'}}
 req = requests.post(host + '/sessions', data=json.dumps(data))
 resp = req.json()
 ```
@@ -41,3 +41,12 @@ resp = req.json()
 ## Sparkmagic {#sparkmagic}
 
 You can connect to the Livy server via [Sparkmagic](https://github.com/jupyter-incubator/sparkmagic) to work with a SPYT cluster in a Jupyter notebook over a REST interface. This reduces the number of network accesses required to use interactive Python while maintaining all functionality. In addition to Python, Sparkmagic also supports Scala and SQL.
+
+## Running a separate Livy server { #livy-launch-yt }
+
+To run the Livy server, you can use the `livy-launch-yt` command that comes with the SPYT distribution. Its basic parameters match those of the spark-launch-yt command, with a few differences given in the table:
+
+| **Parameter** | **Required** | **Default value** | **Description** | **Starting with version** |
+| ------------ | ---------------- | ------------------------- | ------------ | ------------------ |
+| `--spark-master-address` | Yes | - | Address of the Spark master that will be used to run executors. It can be `ytsaurus://<Cluster endpoint>` for launching tasks using the {{product-name}} scheduler. | - |
+| `--master-group-id` | No | - | Name of the group in the {{product-name}} Discovery server, used for launching via Strawberry. | - |

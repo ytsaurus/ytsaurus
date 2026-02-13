@@ -15,6 +15,8 @@
 #include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
+#include <yt/yt/ytlib/cell_master_client/cell_master_service_proxy.h>
+
 #include <yt/yt/ytlib/controller_agent/controller_agent_service_proxy.h>
 
 #include <yt/yt/ytlib/coverage/coverage_proxy.h>
@@ -71,6 +73,7 @@ using namespace NScheduler;
 using namespace NTabletClient;
 using namespace NYson;
 using namespace NYTree;
+using namespace NCellMasterClient;
 
 using NApi::ValidateMaintenanceComment;
 
@@ -365,6 +368,25 @@ void TClient::DoMasterExitReadOnly(
             THROW_ERROR(rspOrError);
         }
     }
+}
+
+void TClient::DoResetDynamicallyPropagatedMasterCells(const TResetDynamicallyPropagatedMasterCellsOptions& options)
+{
+    ValidatePermissionsWithAcn(
+        EAccessControlObject::ResetDynamicallyPropagatedMasterCells,
+        EPermission::Use);
+
+    auto cellId = Connection_->GetPrimaryMasterCellId();
+    auto channel = Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellId);
+
+    TCellMasterServiceProxy proxy(channel);
+    auto req = proxy.ResetDynamicallyPropagatedMasterCells();
+
+    // TODO(nadya02): Set the correct timeout here.
+    req->SetTimeout(options.Timeout.value_or(NRpc::HugeDoNotUseRpcRequestTimeout));
+
+    WaitFor(req->Invoke())
+        .ThrowOnError();
 }
 
 void TClient::DoDiscombobulateNonvotingPeers(

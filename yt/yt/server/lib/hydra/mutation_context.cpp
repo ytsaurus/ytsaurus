@@ -20,21 +20,25 @@ TMutationContext::TMutationContext(
     TMutationContext* parent,
     const TMutationRequest* request)
     : THydraContext(
-        parent->GetVersion(),
-        parent->GetTimestamp(),
-        parent->GetRandomSeed(),
-        parent->RandomGenerator(),
-        parent->GetLocalHostName())
+        parent,
+        parent->GetLastUsedVersion().Advance())
     , Parent_(parent)
     , Request_(request)
     , PrevRandomSeed_(Parent_->GetPrevRandomSeed())
     , SequenceNumber_(Parent_->GetSequenceNumber())
     , StateHash_(Parent_->GetStateHash())
     , Term_(Parent_->GetTerm())
-{ }
+{
+    while (parent) {
+        parent->CumulativeVersionDelta_ += 1;
+        parent = parent->Parent_;
+    }
+}
 
 TMutationContext::TMutationContext(
-    TVersion version,
+    TLogicalVersion logicalVersion,
+    TPhysicalVersion physicalVersion,
+    TPhysicalVersion compatOnlyPhysicalVersion,
     const TMutationRequest* request,
     TInstant timestamp,
     ui64 randomSeed,
@@ -44,7 +48,9 @@ TMutationContext::TMutationContext(
     int term,
     TSharedRef localHostNameOverride)
     : THydraContext(
-        version,
+        logicalVersion,
+        physicalVersion,
+        compatOnlyPhysicalVersion,
         timestamp,
         randomSeed,
         std::move(localHostNameOverride))
@@ -58,7 +64,9 @@ TMutationContext::TMutationContext(
 
 TMutationContext::TMutationContext(TTestingTag)
     : THydraContext(
-        TVersion(),
+        TLogicalVersion(),
+        TPhysicalVersion(),
+        TPhysicalVersion(),
         /*timestamp*/ TInstant::Zero(),
         /*randomSeed*/ 0,
         /*localHostNameOverride*/ TSharedRef::FromString("<unknown-testing>"))
@@ -128,6 +136,15 @@ void TMutationContext::SetResponseKeeperSuppressed(bool value)
 bool TMutationContext::GetResponseKeeperSuppressed()
 {
     return ResponseKeeperSuppressed_;
+}
+
+TLogicalVersion TMutationContext::GetLastUsedVersion() const
+{
+    if (CumulativeVersionDelta_ == 0) {
+        return GetVersion();
+    }
+
+    return GetVersion().Advance(CumulativeVersionDelta_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

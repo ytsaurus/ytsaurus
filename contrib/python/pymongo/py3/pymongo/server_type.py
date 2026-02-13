@@ -4,7 +4,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+# https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,20 +13,21 @@
 # limitations under the License.
 
 """Type codes for MongoDB servers."""
+from __future__ import annotations
 
-from collections import namedtuple
+from typing import NamedTuple
 
-SERVER_TYPE = namedtuple(
-    "ServerType",
-    [
-        "Unknown",
-        "Mongos",
-        "RSPrimary",
-        "RSSecondary",
-        "RSArbiter",
-        "RSOther",
-        "RSGhost",
-        "Standalone",
-        "LoadBalancer",
-    ],
-)(*range(9))
+
+class _ServerType(NamedTuple):
+    Unknown: int
+    Mongos: int
+    RSPrimary: int
+    RSSecondary: int
+    RSArbiter: int
+    RSOther: int
+    RSGhost: int
+    Standalone: int
+    LoadBalancer: int
+
+
+SERVER_TYPE = _ServerType(*range(9))

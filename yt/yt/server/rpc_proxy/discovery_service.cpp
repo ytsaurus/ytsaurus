@@ -93,7 +93,7 @@ public:
         IInvokerPtr workerInvoker,
         const NNodeTrackerClient::TAddressMap& localAddresses)
         : TServiceBase(
-            workerInvoker,
+            std::move(workerInvoker),
             GetDescriptor(),
             RpcProxyLogger())
         , Config_(std::move(config))
@@ -230,7 +230,7 @@ private:
             descriptors.push_back({
                 .Addresses = grpcProxyAddressMap,
                 .CypressPath = *GrpcProxyPath_,
-                .IsGrpc = true
+                .IsGrpc = true,
             });
         }
 

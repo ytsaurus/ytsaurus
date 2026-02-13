@@ -8,11 +8,11 @@ namespace NYT::NIOTest {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString Uname()
+std::string Uname()
 {
     struct utsname buf;
     YT_VERIFY(uname(&buf) == 0);
-    return TString(buf.sysname) + " " +
+    return std::string(buf.sysname) + " " +
         buf.nodename + " " +
         buf.release + " " +
         buf.version + " " +

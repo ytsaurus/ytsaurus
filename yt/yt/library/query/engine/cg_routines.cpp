@@ -18,6 +18,8 @@
 #include <yt/yt/library/query/engine_api/position_independent_value_transfer.h>
 #include <yt/yt/library/query/engine_api/top_collector.h>
 
+#include <yt/yt/library/query/misc/allocator.h>
+
 #include <yt/yt/client/security_client/acl.h>
 #include <yt/yt/client/security_client/helpers.h>
 
@@ -30,6 +32,7 @@
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/validate_logical_type.h>
+#include <yt/yt/client/table_client/lightweight_yson_list_parser.h>
 
 #include <yt/yt/client/node_tracker_client/public.h>
 
@@ -116,9 +119,6 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
-
-using THLL = NYT::THyperLogLog<14>;
-static_assert(std::is_trivially_destructible<THLL>::value);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -459,6 +459,12 @@ TPIValue* AllocateJoinKeys(
     return reinterpret_cast<TPIValue*>(AllocateAlignedBytes(&closure->Context, primaryRowSize));
 }
 
+// Define here to inline.
+size_t GetUnversionedRowByteSize(ui32 valueCount)
+{
+    return sizeof(TUnversionedRowHeader) + sizeof(TUnversionedValue) * valueCount;
+}
+
 bool StorePrimaryRow(
     TExecutionContext* context,
     TMultiJoinClosure* closure,
@@ -480,9 +486,11 @@ bool StorePrimaryRow(
             *PtrFromVM(compartment, primaryValues) + columnIndex);
     }
 
-    for (size_t joinId = 0; joinId < closure->Items.size(); ++joinId) {
-        auto& item = closure->Items[joinId];
-        auto* key = PtrFromVM(compartment, keysPtr, closure->Items.size())[joinId];
+    auto joinItems = TMutableRange(closure->Items);
+
+    for (size_t joinId = 0; joinId < joinItems.size(); ++joinId) {
+        auto& item = joinItems[joinId];
+        auto* key = PtrFromVM(compartment, keysPtr, joinItems.size())[joinId];
 
         if (!item.LastKey || !item.PrefixEqComparer(key, item.LastKey)) {
             closure->ProcessSegment(joinId);
@@ -498,7 +506,7 @@ bool StorePrimaryRow(
             for (size_t columnIndex = 0; columnIndex < item.KeySize; ++columnIndex) {
                 CapturePIValue(
                     compartment,
-                    &closure->Items[joinId].Context,
+                    &joinItems[joinId].Context,
                     &key[columnIndex]);
             }
 
@@ -507,12 +515,12 @@ bool StorePrimaryRow(
             auto* data = PtrFromVM(compartment, offset, length);
             auto row = TMutableRow::Create(data, item.KeySize);
             auto* rowBeginOffset = PtrToVM(compartment, row.Begin(), row.GetCount());
-            PtrFromVM(compartment, keysPtr, closure->Items.size())[joinId] = std::bit_cast<TPIValue*>(rowBeginOffset);
+            PtrFromVM(compartment, keysPtr, joinItems.size())[joinId] = std::bit_cast<TPIValue*>(rowBeginOffset);
         }
 
         auto* insertedOffset = std::bit_cast<TSlot*>(*inserted.first + item.KeySize);
         auto** arrayOffset = std::bit_cast<TSlot**>(*PtrFromVM(compartment, primaryValues) + closure->PrimaryRowSize);
-        auto** array = PtrFromVM(compartment, arrayOffset, closure->Items.size());
+        auto** array = PtrFromVM(compartment, arrayOffset, joinItems.size());
         array[joinId] = insertedOffset;
     }
 
@@ -524,8 +532,8 @@ bool StorePrimaryRow(
         }
 
         // Allocate all keys
-        for (size_t joinId = 0; joinId < closure->Items.size(); ++joinId) {
-            auto& item = closure->Items[joinId];
+        for (size_t joinId = 0; joinId < joinItems.size(); ++joinId) {
+            auto& item = joinItems[joinId];
             char* data = AllocateAlignedBytes(
                 &item.Context,
                 GetUnversionedRowByteSize(item.KeySize) + sizeof(TSlot));
@@ -536,7 +544,7 @@ bool StorePrimaryRow(
         }
     }
 
-    size_t primaryRowSize = closure->PrimaryRowSize * sizeof(TValue) + sizeof(TSlot*) * closure->Items.size();
+    size_t primaryRowSize = closure->PrimaryRowSize * sizeof(TValue) + sizeof(TSlot*) * joinItems.size();
 
     *PtrFromVM(compartment, primaryValues) = std::bit_cast<TPIValue*>(AllocateAlignedBytes(&closure->Context, primaryRowSize));
 
@@ -957,117 +965,164 @@ void MultiJoinOpHelper(
     closure.ProcessJoinBatch();
 }
 
+int DoUnpackComplex(
+    TExpressionContext* context,
+    std::vector<TPIValue*>& nestedRows,
+    EValueType listItemType,
+    TPIValue* arrayAtHost,
+    int arrayCount,
+    int currentArrayIndex,
+    int index)
+{
+    auto* compartment = GetCurrentCompartment();
+
+    TMemoryInput memoryInput;
+    std::string buffer;
+    if (compartment) {
+        buffer = arrayAtHost->AsStringBuf();
+        memoryInput = TMemoryInput(TStringBuf(buffer));
+    } else {
+        memoryInput = TMemoryInput(FromPositionIndependentValue<NYson::TYsonStringBuf>(*arrayAtHost).AsStringBuf());
+    }
+
+    auto parser = TYsonPullParser(&memoryInput, EYsonType::Node);
+    auto cursor = TYsonPullParserCursor(&parser);
+
+    TPIValue parsedValue;
+
+    auto validateType = [] (EValueType expected, EValueType actual) {
+        THROW_ERROR_EXCEPTION_IF(expected != actual, "Type mismatch in array join: expected %Qlv, actual %Qlv",
+            expected,
+            actual);
+    };
+
+    cursor.ParseList([&] (TYsonPullParserCursor* cursor) {
+        const auto current = cursor->GetCurrent();
+        switch (current.GetType()) {
+            case EYsonItemType::EntityValue: {
+                MakePositionIndependentNullValue(&parsedValue);
+                break;
+            }
+            case EYsonItemType::Int64Value: {
+                validateType(listItemType, EValueType::Int64);
+
+                auto value = current.UncheckedAsInt64();
+                MakePositionIndependentInt64Value(&parsedValue, value);
+                break;
+            }
+            case EYsonItemType::Uint64Value: {
+                validateType(listItemType, EValueType::Uint64);
+
+                auto value = current.UncheckedAsUint64();
+                MakePositionIndependentUint64Value(&parsedValue, value);
+                break;
+            }
+            case EYsonItemType::DoubleValue: {
+                validateType(listItemType, EValueType::Double);
+
+                auto value = current.UncheckedAsDouble();
+                MakePositionIndependentDoubleValue(&parsedValue, value);
+                break;
+            }
+            case EYsonItemType::StringValue: {
+                validateType(listItemType, EValueType::String);
+
+                auto value = current.UncheckedAsString();
+                MakePositionIndependentStringLikeValue(&parsedValue, EValueType::String, value);
+                break;
+            }
+            case EYsonItemType::BeginList:
+            case EYsonItemType::BeginMap: {
+                THROW_ERROR_EXCEPTION_IF(listItemType != EValueType::Any && listItemType != EValueType::Composite,
+                    "Type mismatch in array join: expected %Qlv or %Qlv, actual %Qlv",
+                    EValueType::Any,
+                    EValueType::Composite,
+                    listItemType);
+
+                NDetail::TContextStringOutput output(context);
+                TCheckedInDebugYsonTokenWriter writer(&output);
+
+                cursor->TransferComplexValue(&writer);
+
+                writer.Finish();
+
+                MakePositionIndependentStringLikeValue(&parsedValue, listItemType, output.GetHostView());
+                break;
+            }
+            default:
+                THROW_ERROR_EXCEPTION("Unexpected item in array join: expected value of type %Qlv, encountered %Qlv",
+                    current.GetType(),
+                    listItemType);
+        }
+
+        if (currentArrayIndex >= std::ssize(nestedRows)) {
+            int nestedRowSize = arrayCount;
+            auto mutableRange = AllocatePIValueRange(context, nestedRowSize, EAddressSpace::WebAssembly);
+            for (int leadingRowIndex = 0; leadingRowIndex < index; ++leadingRowIndex) {
+                MakePositionIndependentNullValue(PtrFromVM(compartment, &mutableRange[leadingRowIndex]));
+            }
+            nestedRows.push_back(mutableRange.Begin());
+        }
+
+        CopyPositionIndependent(
+            PtrFromVM(compartment, &nestedRows[currentArrayIndex][index]),
+            parsedValue);
+        currentArrayIndex++;
+
+        // NB(sabdenovch): If a composite value has been transferred, cursor has already been advanced.
+        if (current.GetType() != EYsonItemType::BeginList && current.GetType() != EYsonItemType::BeginMap) {
+            cursor->Next();
+        }
+    });
+
+    return currentArrayIndex;
+}
+
 std::vector<TPIValue*> UnpackRows(TExpressionContext* context, std::vector<EValueType> types, TPIValue* lists)
 {
     auto* compartment = GetCurrentCompartment();
 
     int arrayCount = types.size();
+
+    // TODO(lukyan): Reuse.
     std::vector<TPIValue*> nestedRows;
 
+    TToken token;
+    TStatelessLexer lexer;
+
     for (int index = 0; index < arrayCount; ++index) {
+        auto listItemType = types[index];
+
         auto* arrayAtHost = PtrFromVM(compartment, &lists[index]);
         int currentArrayIndex = 0;
 
         if (arrayAtHost->Type != EValueType::Null) {
-            TMemoryInput memoryInput;
-            std::string buffer;
-            if (compartment) {
-                buffer = arrayAtHost->AsStringBuf();
-                memoryInput = TMemoryInput(TStringBuf(buffer));
+            if (listItemType != EValueType::Any && listItemType != EValueType::Composite) {
+                DoUnpackValuesTyped([&] (const TUnversionedValue& value) {
+                    if (currentArrayIndex >= std::ssize(nestedRows)) {
+                        int nestedRowSize = arrayCount;
+                        auto mutableRange = AllocatePIValueRange(context, nestedRowSize, EAddressSpace::WebAssembly);
+                        for (int leadingRowIndex = 0; leadingRowIndex < index; ++leadingRowIndex) {
+                            MakePositionIndependentNullValue(PtrFromVM(compartment, &mutableRange[leadingRowIndex]));
+                        }
+                        nestedRows.push_back(mutableRange.Begin());
+                    }
+
+                    MakePositionIndependentFromUnversioned(
+                        PtrFromVM(compartment, &nestedRows[currentArrayIndex][index]),
+                        value);
+                    currentArrayIndex++;
+
+                    return false;
+                },
+                arrayAtHost->AsStringBuf(),
+                listItemType,
+                &lexer,
+                &token);
+
             } else {
-                memoryInput = TMemoryInput(FromPositionIndependentValue<NYson::TYsonStringBuf>(*arrayAtHost).AsStringBuf());
+                currentArrayIndex = DoUnpackComplex(context, nestedRows, listItemType, arrayAtHost, arrayCount, currentArrayIndex, index);
             }
-
-            auto parser = TYsonPullParser(&memoryInput, EYsonType::Node);
-            auto cursor = TYsonPullParserCursor(&parser);
-
-            auto listItemType = types[index];
-            TPIValue parsedValue;
-
-            auto validateType = [] (EValueType expected, EValueType actual) {
-                THROW_ERROR_EXCEPTION_IF(expected != actual, "Type mismatch in array join: expected %Qlv, actual %Qlv",
-                    expected,
-                    actual);
-            };
-
-            cursor.ParseList([&] (TYsonPullParserCursor* cursor) {
-                const auto current = cursor->GetCurrent();
-                switch (current.GetType()) {
-                    case EYsonItemType::EntityValue: {
-                        MakePositionIndependentNullValue(&parsedValue);
-                        break;
-                    }
-                    case EYsonItemType::Int64Value: {
-                        validateType(listItemType, EValueType::Int64);
-
-                        auto value = current.UncheckedAsInt64();
-                        MakePositionIndependentInt64Value(&parsedValue, value);
-                        break;
-                    }
-                    case EYsonItemType::Uint64Value: {
-                        validateType(listItemType, EValueType::Uint64);
-
-                        auto value = current.UncheckedAsUint64();
-                        MakePositionIndependentUint64Value(&parsedValue, value);
-                        break;
-                    }
-                    case EYsonItemType::DoubleValue: {
-                        validateType(listItemType, EValueType::Double);
-
-                        auto value = current.UncheckedAsDouble();
-                        MakePositionIndependentDoubleValue(&parsedValue, value);
-                        break;
-                    }
-                    case EYsonItemType::StringValue: {
-                        validateType(listItemType, EValueType::String);
-
-                        auto value = current.UncheckedAsString();
-                        MakePositionIndependentStringLikeValue(&parsedValue, EValueType::String, value);
-                        break;
-                    }
-                    case EYsonItemType::BeginList:
-                    case EYsonItemType::BeginMap: {
-                        THROW_ERROR_EXCEPTION_IF(listItemType != EValueType::Any && listItemType != EValueType::Composite,
-                            "Type mismatch in array join: expected %Qlv or %Qlv, actual %Qlv",
-                            EValueType::Any,
-                            EValueType::Composite,
-                            listItemType);
-
-                        NDetail::TContextStringOutput output(context);
-                        TCheckedInDebugYsonTokenWriter writer(&output);
-
-                        cursor->TransferComplexValue(&writer);
-
-                        writer.Finish();
-
-                        MakePositionIndependentStringLikeValue(&parsedValue, listItemType, output.GetHostView());
-                        break;
-                    }
-                    default:
-                        THROW_ERROR_EXCEPTION("Unexpected item in array join: expected value of type %Qlv, encountered %Qlv",
-                            current.GetType(),
-                            listItemType);
-                }
-
-                if (currentArrayIndex >= std::ssize(nestedRows)) {
-                    int nestedRowSize = arrayCount;
-                    auto mutableRange = AllocatePIValueRange(context, nestedRowSize, EAddressSpace::WebAssembly);
-                    for (int leadingRowIndex = 0; leadingRowIndex < index; ++leadingRowIndex) {
-                        MakePositionIndependentNullValue(PtrFromVM(compartment, &mutableRange[leadingRowIndex]));
-                    }
-                    nestedRows.push_back(mutableRange.Begin());
-                }
-
-                CopyPositionIndependent(
-                    PtrFromVM(compartment, &nestedRows[currentArrayIndex][index]),
-                    parsedValue);
-                currentArrayIndex++;
-
-                // NB(sabdenovch): If a composite value has been transferred, cursor has already been advanced.
-                if (current.GetType() != EYsonItemType::BeginList && current.GetType() != EYsonItemType::BeginMap) {
-                    cursor->Next();
-                }
-            });
         }
 
         for (int trailingIndex = currentArrayIndex; trailingIndex < std::ssize(nestedRows); ++trailingIndex) {
@@ -1253,7 +1308,7 @@ private:
     // This function compares prefixes of length P.
     const NWebAssembly::TCompartmentFunction<TComparerFunction> PrefixEqComparer_;
 
-    TLookupRows GroupedIntermediateRows_;
+    TGroupRows GroupedIntermediateRows_;
     const int GroupKeySize_;
     const int GroupStateSize_;
     const int OrderKeySize_;
@@ -1280,9 +1335,9 @@ private:
     const TWebAssemblyRowsConsumer ConsumeTotals_;
 
     const TPIValue* LastKey_ = nullptr;
-    std::vector<const TPIValue*> Intermediate_;
-    std::vector<const TPIValue*> Aggregated_;
-    std::vector<const TPIValue*> Totals_;
+    TGroupVector Intermediate_;
+    TGroupVector Aggregated_;
+    TGroupVector Totals_;
 
     // Defines the stage of the stream processing.
     EGroupOpProcessingStage CurrentSegment_ = EGroupOpProcessingStage::LeftBorder;
@@ -1339,7 +1394,8 @@ TGroupByClosure::TGroupByClosure(
     , GroupedIntermediateRows_(
         InitialGroupOpHashtableCapacity,
         groupHasher,
-        groupComparer)
+        groupComparer,
+        TGroupRows::allocator_type(chunkProvider, GetRefCountedTypeCookie<TLookupRows>()))
     , GroupKeySize_(groupKeySize)
     , GroupStateSize_(groupStateSize)
     , OrderKeySize_(orderKeySize)
@@ -1353,6 +1409,9 @@ TGroupByClosure::TGroupByClosure(
     , ConsumeDelta_(consumeDelta)
     , ConsumeTotalsClosure_(consumeTotalsClosure)
     , ConsumeTotals_(consumeTotals)
+    , Intermediate_(TGroupVector::allocator_type(chunkProvider, GetRefCountedTypeCookie<TGroupVector>()))
+    , Aggregated_(TGroupVector::allocator_type(chunkProvider, GetRefCountedTypeCookie<TGroupVector>()))
+    , Totals_(TGroupVector::allocator_type(chunkProvider, GetRefCountedTypeCookie<TGroupVector>()))
     , FlushContext_(MakeExpressionContext(TIntermediateBufferTag(), chunkProvider))
 {
     GroupedIntermediateRows_.set_empty_key(
@@ -2028,7 +2087,10 @@ TPIValue* LookupInRowset(
 
     auto& lookupTable = (*lookupContext)->LookupTable;
     if (lookupTable == nullptr) {
-        lookupTable = std::make_unique<TLookupRows>(rowset->Size(), hasher, eqComparer);
+        lookupTable = std::make_unique<TLookupRows>(
+            rowset->Size(),
+            hasher,
+            eqComparer);
         lookupTable->set_empty_key(nullptr);
 
         if (GetCurrentCompartment()) {
@@ -2484,6 +2546,52 @@ DEFINE_YPATH_GET(Double)
 DEFINE_YPATH_GET(Boolean)
 DEFINE_YPATH_GET_STRING
 DEFINE_YPATH_GET_ANY
+
+void TryGetFrontAsInt64(
+    TPIValue* result,
+    TPIValue* anyValue)
+{
+    auto* compartment = GetCurrentCompartment();
+
+    TPIValue* anyValueAtHost = PtrFromVM(compartment, anyValue);
+    TPIValue* resultAtHost = PtrFromVM(compartment, result);
+
+    int count = 0;
+    if (anyValueAtHost->Type != EValueType::Null) {
+        DoUnpackValuesTyped(
+            [&] (const TUnversionedValue& value) {
+                ++count;
+                MakePositionIndependentFromUnversioned(resultAtHost, value);
+                // Break.
+                return true;
+            },
+            anyValueAtHost->AsStringBuf(),
+            EValueType::Int64);
+    }
+
+    if (count == 0) {
+        MakePositionIndependentFromUnversioned(resultAtHost, MakeUnversionedNullValue());
+    }
+}
+
+void GetFarmHashInt64(
+    TPIValue* result,
+    TPIValue* anyValue)
+{
+    auto* compartment = GetCurrentCompartment();
+
+    TPIValue* valueAtHost = PtrFromVM(compartment, anyValue);
+    TPIValue* resultAtHost = PtrFromVM(compartment, result);
+
+    i64 intValue = valueAtHost->Type != EValueType::Null ? BitCast<ui64>(valueAtHost->Data.Int64) : 0;
+
+    // Compatible with farm_hash function.
+    ui64 resultHash = 0xdeadc0de;
+    resultHash = FarmFingerprint(resultHash, NYT::FarmFingerprint(intValue));
+    resultHash = resultHash ^ 1;
+
+    MakePositionIndependentUint64Value(resultAtHost, resultHash);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3164,6 +3272,80 @@ DEFINE_CONVERT_STRING(Double)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#define DEFINE_HLL(PRECISION) \
+    static_assert(std::is_trivially_destructible<THyperLogLog<PRECISION>>::value); \
+\
+    void HyperLogLogAllocate ## PRECISION(TExpressionContext* context, TValue* result) \
+    { \
+        auto* compartment = GetCurrentCompartment(); \
+        auto* hllOffset = AllocateBytes(context, sizeof(THyperLogLog<PRECISION>)); \
+        auto* hll = PtrFromVM(compartment, hllOffset, sizeof(THyperLogLog<PRECISION>)); \
+        new (hll) THyperLogLog<PRECISION>(); \
+\
+        auto* resultAtHost = PtrFromVM(compartment, result); \
+        *resultAtHost = MakeUnversionedStringValue(TStringBuf(hllOffset, sizeof(THyperLogLog<PRECISION>))); \
+    } \
+\
+    void HyperLogLogAdd ## PRECISION(void* hll, uint64_t value) \
+    { \
+        auto* hllAtHost = PtrFromVM(GetCurrentCompartment(), static_cast<THyperLogLog<PRECISION>*>(hll)); \
+        hllAtHost->Add(value); \
+    } \
+\
+    void HyperLogLogMerge ## PRECISION(void* hll1, void* hll2) \
+    { \
+        auto* compartment = GetCurrentCompartment(); \
+        auto* hll1AtHost = PtrFromVM(compartment, static_cast<THyperLogLog<PRECISION>*>(hll1)); \
+        auto* hll2AtHost = PtrFromVM(compartment, static_cast<THyperLogLog<PRECISION>*>(hll2)); \
+        hll1AtHost->Merge(*hll2AtHost); \
+    } \
+\
+    void HyperLogLogMergeWithValidation ## PRECISION(void* hll1, void* hll2, uint64_t incomingStateLength) \
+    { \
+        THROW_ERROR_EXCEPTION_IF(incomingStateLength != sizeof(THyperLogLog<PRECISION>), \
+            "State size mismatch in hyperloglog: expected %v, got %v; " \
+            "this potentially signals a misuse of function \"cardinality_*\"", \
+            sizeof(THyperLogLog<PRECISION>), \
+            incomingStateLength); \
+        HyperLogLogMerge ## PRECISION(hll1, hll2); \
+    } \
+\
+    ui64 HyperLogLogEstimateCardinality ## PRECISION(void* hll) \
+    { \
+        auto* hllAtHost = PtrFromVM(GetCurrentCompartment(), static_cast<THyperLogLog<PRECISION>*>(hll)); \
+        return hllAtHost->EstimateCardinality(); \
+    }
+
+ui64 HyperLogLogGetFingerprint(TValue* value)
+{
+    auto* compartment = GetCurrentCompartment();
+    auto valueAtHost = *PtrFromVM(compartment, value);
+    if (IsStringLikeType(valueAtHost.Type)) {
+        valueAtHost.Data.String = PtrFromVM(compartment, valueAtHost.Data.String);
+    }
+    return NTableClient::GetFarmFingerprint(valueAtHost);
+}
+
+ui64 UniqGetFingerprint(TValue* valueBegin, int valueCount)
+{
+    return GetFarmFingerprint(valueBegin, valueBegin + valueCount);
+}
+
+DEFINE_HLL(7)
+DEFINE_HLL(8)
+DEFINE_HLL(9)
+DEFINE_HLL(10)
+DEFINE_HLL(11)
+DEFINE_HLL(12)
+DEFINE_HLL(13)
+DEFINE_HLL(14)
+
+// COMPAT(dtorilov): Remove after 25.4.
+// COMPAT BEGIN {
+
+using THLL = NYT::THyperLogLog<14>;
+static_assert(std::is_trivially_destructible<THLL>::value);
+
 void HyperLogLogAllocate(TExpressionContext* context, TValue* result)
 {
     auto* compartment = GetCurrentCompartment();
@@ -3205,15 +3387,7 @@ ui64 HyperLogLogEstimateCardinality(void* hll)
     return hllAtHost->EstimateCardinality();
 }
 
-ui64 HyperLogLogGetFingerprint(TValue* value)
-{
-    auto* compartment = GetCurrentCompartment();
-    auto valueAtHost = *PtrFromVM(compartment, value);
-    if (IsStringLikeType(valueAtHost.Type)) {
-        valueAtHost.Data.String = PtrFromVM(compartment, valueAtHost.Data.String);
-    }
-    return NTableClient::GetFarmFingerprint(valueAtHost);
-}
+// } COMPAT END
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4262,6 +4436,7 @@ TUnversionedValue PackValues(TRange<TUnversionedValue> values, TExpressionContex
                     index);
         }
     }
+
     writer.OnEndList();
 
     return MakeUnversionedStringLikeValue(EValueType::Composite, output.GetVMView());
@@ -4485,6 +4660,13 @@ struct RegisterLLVMRoutine
     REGISTER_ROUTINE(routine ## Localtime); \
     REGISTER_ROUTINE(routine ## TZ)
 
+#define REGISTER_HLL_ROUTINE(PRECISION) \
+    REGISTER_ROUTINE(HyperLogLogAllocate ## PRECISION) \
+    REGISTER_ROUTINE(HyperLogLogAdd ## PRECISION) \
+    REGISTER_ROUTINE(HyperLogLogMerge ## PRECISION) \
+    REGISTER_ROUTINE(HyperLogLogMergeWithValidation ## PRECISION) \
+    REGISTER_ROUTINE(HyperLogLogEstimateCardinality ## PRECISION)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 REGISTER_ROUTINE(WriteRow);
@@ -4535,6 +4717,8 @@ REGISTER_YPATH_GET_ROUTINE(Double);
 REGISTER_YPATH_GET_ROUTINE(Boolean);
 REGISTER_YPATH_GET_ROUTINE(String);
 REGISTER_YPATH_GET_ROUTINE(Any);
+REGISTER_ROUTINE(TryGetFrontAsInt64);
+REGISTER_ROUTINE(GetFarmHashInt64);
 REGISTER_ROUTINE(AnyToInt64);
 REGISTER_ROUTINE(AnyToUint64);
 REGISTER_ROUTINE(AnyToDouble);
@@ -4551,12 +4735,24 @@ REGISTER_ROUTINE(NumericToString);
 REGISTER_ROUTINE(StringToInt64);
 REGISTER_ROUTINE(StringToUint64);
 REGISTER_ROUTINE(StringToDouble);
+REGISTER_ROUTINE(HyperLogLogGetFingerprint);
+REGISTER_ROUTINE(UniqGetFingerprint);
+// COMPAT(dtorilov): Remove after 25.4.
+// COMPAT BEGIN {
 REGISTER_ROUTINE(HyperLogLogAllocate);
 REGISTER_ROUTINE(HyperLogLogAdd);
 REGISTER_ROUTINE(HyperLogLogMerge);
 REGISTER_ROUTINE(HyperLogLogMergeWithValidation);
 REGISTER_ROUTINE(HyperLogLogEstimateCardinality);
-REGISTER_ROUTINE(HyperLogLogGetFingerprint);
+// } COMPAT END
+REGISTER_HLL_ROUTINE(7);
+REGISTER_HLL_ROUTINE(8);
+REGISTER_HLL_ROUTINE(9);
+REGISTER_HLL_ROUTINE(10);
+REGISTER_HLL_ROUTINE(11);
+REGISTER_HLL_ROUTINE(12);
+REGISTER_HLL_ROUTINE(13);
+REGISTER_HLL_ROUTINE(14);
 REGISTER_ROUTINE(StoredReplicaSetMerge);
 REGISTER_ROUTINE(StoredReplicaSetFinalize);
 REGISTER_ROUTINE(LastSeenReplicaSetMerge);

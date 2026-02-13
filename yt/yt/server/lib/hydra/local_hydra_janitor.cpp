@@ -23,8 +23,8 @@ class TLocalHydraJanitor
 {
 public:
     TLocalHydraJanitor(
-        TString snapshotPath,
-        TString changelogPath,
+        std::string snapshotPath,
+        std::string changelogPath,
         TLocalHydraJanitorConfigPtr config,
         IInvokerPtr ioInvoker)
         : SnapshotPath_(std::move(snapshotPath))
@@ -71,24 +71,25 @@ public:
     }
 
 private:
-    const TString SnapshotPath_;
-    const TString ChangelogPath_;
+    const std::string SnapshotPath_;
+    const std::string ChangelogPath_;
 
     const TPeriodicExecutorPtr PeriodicExecutor_;
 
     TAtomicIntrusivePtr<TLocalHydraJanitorConfig> Config_;
 
-    static int ParseFileId(const TString& fileName, const TString& suffix)
+    static int ParseFileId(const std::string& fileName, const std::string& suffix)
     {
         return FromString<int>(fileName.substr(0, fileName.length() - suffix.length()));
     }
 
-    std::vector<THydraFileInfo> ListFiles(const TString& path, const TString& suffix)
+    std::vector<THydraFileInfo> ListFiles(const std::string& path, const std::string& suffix)
     {
         std::vector<THydraFileInfo> result;
-        auto fileNames = NFS::EnumerateFiles(path);
+        // TODO(babenko): migrate to std::string
+        auto fileNames = NFS::EnumerateFiles(TString(path));
         for (const auto& fileName : fileNames) {
-            if (!fileName.EndsWith(suffix)) {
+            if (!fileName.ends_with(suffix)) {
                 continue;
             }
 
@@ -109,12 +110,13 @@ private:
         return result;
     }
 
-    void RemoveFiles(const TString& path, const TString& suffix, int thresholdId)
+    void RemoveFiles(const std::string& path, const std::string& suffix, int thresholdId)
     {
         std::vector<THydraFileInfo> result;
-        auto fileNames = NFS::EnumerateFiles(path);
+        // TODO(babenko): migrate to std::string
+        auto fileNames = NFS::EnumerateFiles(TString(path));
         for (const auto& fileName : fileNames) {
-            if (!fileName.EndsWith(suffix)) {
+            if (!fileName.ends_with(suffix)) {
                 continue;
             }
 
@@ -162,8 +164,8 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 ILocalHydraJanitorPtr CreateLocalHydraJanitor(
-    TString snapshotPath,
-    TString changelogPath,
+    std::string snapshotPath,
+    std::string changelogPath,
     TLocalHydraJanitorConfigPtr config,
     IInvokerPtr ioInvoker)
 {

@@ -1,5 +1,0 @@
-click==8.1.0
-PyYAML==5.1
-jinja2==3.1.6
-pytest==7.0.0
-curlify==3.0.0

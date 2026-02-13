@@ -116,6 +116,7 @@ private:
         const TChunkReplicaWithMedium ChunkReplica;
 
         TChunkLocationUuid TargetLocationUuid = InvalidChunkLocationUuid;
+        TChunkLocationIndex TargetLocationIndex = InvalidChunkLocationIndex;
 
         TPeriodicExecutorPtr PingExecutor;
         TChunkInfo ChunkInfo;
@@ -214,6 +215,10 @@ private:
         for (int index = 0; index < std::ssize(Nodes_); ++index) {
             YT_VERIFY(responses[index]->has_location_uuid());
             Nodes_[index].TargetLocationUuid = FromProto<TChunkLocationUuid>(responses[index]->location_uuid());
+            // COMPAT(cherepashka)
+            if (responses[index]->has_location_index()) {
+                Nodes_[index].TargetLocationIndex = FromProto<TChunkLocationIndex>(responses[index]->location_index());
+            }
             Nodes_[index].PingExecutor = New<TPeriodicExecutor>(
                 SerializedInvoker_,
                 BIND(&TDistributedChunkSessionController::SendDataNodePing, MakeWeak(this), index),
@@ -534,6 +539,7 @@ private:
             auto* replicaInfo = req->add_replicas();
             replicaInfo->set_replica(ToProto(node->ChunkReplica));
             ToProto(replicaInfo->mutable_location_uuid(), node->TargetLocationUuid);
+            replicaInfo->set_location_index(ToProto<ui32>(node->TargetLocationIndex));
         }
 
         return req->Invoke().AsVoid();

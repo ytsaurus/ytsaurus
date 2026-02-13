@@ -9,14 +9,14 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString AsString(TBuffer buf)
+std::string AsString(TBuffer buf)
 {
     TString result;
     buf.AsString(result);
     return result;
 }
 
-TString Extract(TTeeInputStream& stream, size_t count)
+std::string Extract(TTeeInputStream& stream, size_t count)
 {
     TBuffer buf(count);
     stream.ExtractFromBuffer(&buf, count);
@@ -42,7 +42,7 @@ TEST(TTeeInputStreamTest, Simple)
 
     EXPECT_EQ(Extract(stream, 4), "Hell");
 
-    TString rest = stream.ReadAll();
+    auto rest = stream.ReadAll();
     EXPECT_EQ(rest, " world!");
 
     EXPECT_EQ(Extract(stream, stream.Size()), "o world!");

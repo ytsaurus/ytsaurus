@@ -55,13 +55,13 @@ TEST(TAttributePathTest, MatchAttributePathToPattern)
 
 TEST(TAttributeAsteriskSplitTest, SplitPatternByAsterisk)
 {
-    EXPECT_EQ(TSplitResult("/spec", "/doozer/foo"), SplitPatternByAsterisk("/spec/*/doozer/foo"));
-    EXPECT_EQ(TSplitResult("/spec", ""), SplitPatternByAsterisk("/spec/*"));
-    EXPECT_EQ(TSplitResult("", ""), SplitPatternByAsterisk("/*"));
+    EXPECT_EQ(std::pair("/spec", "/doozer/foo"), SplitPatternByAsterisk("/spec/*/doozer/foo"));
+    EXPECT_EQ(std::pair("/spec", ""), SplitPatternByAsterisk("/spec/*"));
+    EXPECT_EQ(std::pair("", ""), SplitPatternByAsterisk("/*"));
 
-    EXPECT_EQ(TSplitResult("", std::nullopt), SplitPatternByAsterisk(""));
-    EXPECT_EQ(TSplitResult("/", std::nullopt), SplitPatternByAsterisk("/"));
-    EXPECT_EQ(TSplitResult("/a/b/c", std::nullopt), SplitPatternByAsterisk("/a/b/c"));
+    EXPECT_EQ(std::pair("", std::nullopt), SplitPatternByAsterisk(""));
+    EXPECT_EQ(std::pair("/", std::nullopt), SplitPatternByAsterisk("/"));
+    EXPECT_EQ(std::pair("/a/b/c", std::nullopt), SplitPatternByAsterisk("/a/b/c"));
 }
 
 TEST(TAttributePathRootTest, GetAttribitePathRoot)
@@ -72,15 +72,43 @@ TEST(TAttributePathRootTest, GetAttribitePathRoot)
     EXPECT_EQ(TSplitResult("/spec/doozer", ""), GetAttributePathRoot("/spec/doozer", 2));
     EXPECT_EQ(TSplitResult("/spec/doozer/foo", ""), GetAttributePathRoot("/spec/doozer/foo", 3));
 
-    EXPECT_EQ(TSplitResult("", ""), GetAttributePathRoot("", 1));
+    EXPECT_EQ(TSplitResult(std::nullopt, ""), GetAttributePathRoot("", 1));
 
     EXPECT_EQ(TSplitResult("/spec", ""), GetAttributePathRoot("/spec"));
-    EXPECT_EQ(TSplitResult("", "/*/a/b"), GetAttributePathRoot("/*/a/b"));
-    EXPECT_EQ(TSplitResult("", "/a/*/b"), GetAttributePathRoot("/a/*/b", 2));
+    EXPECT_EQ(TSplitResult(std::nullopt, ""), GetAttributePathRoot("/*/a/b"));
+    EXPECT_EQ(TSplitResult(std::nullopt, ""), GetAttributePathRoot("/a/*/b", 2));
     EXPECT_EQ(TSplitResult("/a", "/*/b"), GetAttributePathRoot("/a/*/b", 1));
 
-    EXPECT_EQ(TSplitResult("", "/"), GetAttributePathRoot("/"));
-    EXPECT_EQ(TSplitResult("", "/*/*"), GetAttributePathRoot("/*/*"));
+    EXPECT_EQ(TSplitResult(std::nullopt, ""), GetAttributePathRoot("/"));
+    EXPECT_EQ(TSplitResult(std::nullopt, ""), GetAttributePathRoot("/*/*"));
+}
+
+TEST(TTryConsumePrefixTest, TryConsumePrefix)
+{
+    using namespace NYPath;
+
+    EXPECT_EQ(TSplitResult("/spec", "/foo"), TryConsumePrefix("/spec/foo", "/spec"));
+    EXPECT_EQ(TSplitResult("/spec", "/a/b/c"), TryConsumePrefix("/spec/a/b/c", "/spec"));
+    EXPECT_EQ(TSplitResult("/spec/a", "/b/c"), TryConsumePrefix("/spec/a/b/c", "/spec/a"));
+    EXPECT_EQ(TSplitResult("/spec/a/b", "/c"), TryConsumePrefix("/spec/a/b/c", "/spec/a/b"));
+    EXPECT_EQ(TSplitResult("/spec/a/b/c", ""), TryConsumePrefix("/spec/a/b/c", "/spec/a/b/c"));
+    EXPECT_EQ(TSplitResult("", ""), TryConsumePrefix("", ""));
+    EXPECT_EQ(TSplitResult("", "/*"), TryConsumePrefix("/*", ""));
+    EXPECT_EQ(TSplitResult("/*", ""), TryConsumePrefix("/*", "/1"));
+    EXPECT_EQ(TSplitResult("/spec/list/*", "/item"), TryConsumePrefix("/spec/list/*/item", "/spec/list/*"));
+    EXPECT_EQ(TSplitResult("/spec/list/*", "/item"), TryConsumePrefix("/spec/list/*/item", "/spec/list/begin"));
+    EXPECT_EQ(TSplitResult("/spec/list/*/x", "/y"), TryConsumePrefix("/spec/list/*/x/y", "/spec/list/100/x"));
+    EXPECT_EQ(TSplitResult("/spec/l", "/*"), TryConsumePrefix("/spec/l/*", "/spec/l"));
+    EXPECT_EQ(TSplitResult("/spec/foo", "/*/bar"), TryConsumePrefix("/spec/foo/*/bar", "/spec/foo"));
+
+    EXPECT_FALSE(TryConsumePrefix("/spec/a/b", "/xxx").first.has_value());
+    EXPECT_FALSE(TryConsumePrefix("/spec/a/b", "/spe").first.has_value());
+    EXPECT_FALSE(TryConsumePrefix("/spec/a/b", "/spec/a/b/c").first.has_value());
+    EXPECT_FALSE(TryConsumePrefix("/spec/list/*/item", "/spec/list/0/item/extra").first.has_value());
+    EXPECT_FALSE(TryConsumePrefix("/spec/list/*/item", "/spec/other/0").first.has_value());
+    EXPECT_FALSE(TryConsumePrefix("/spec/list/*/item", "/spec/list/foo/1").first.has_value());
+    EXPECT_FALSE(TryConsumePrefix("/spec/root/*/y/*/k", "/spec/root/0/x/3").first.has_value());
+    EXPECT_FALSE(TryConsumePrefix("/spec/root/*/sub/k", "/spec/root/end/sub/x").first.has_value());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

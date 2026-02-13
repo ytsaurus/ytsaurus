@@ -395,7 +395,7 @@ void TApi::BuildOrchid(IYsonConsumer* consumer)
                 fluent.GetConsumer(),
                 {
                     HttpProxyUserAllocationTagKey,
-                    HttpProxyCommandAllocationTagKey
+                    HttpProxyCommandAllocationTagKey,
                 });
         });
 }

@@ -161,7 +161,6 @@ struct TSequoiaConnectionConfig
     : public virtual NYTree::TYsonStruct
 {
     std::string GroundClusterName;
-    TDuration GroundClusterConnectionUpdatePeriod;
     bool EnableGroundReignValidation;
     NYTree::TYPath SequoiaRootPath;
     TDuration SequoiaTransactionTimeout;
@@ -216,6 +215,9 @@ struct TConnectionStaticConfig
 
     //! Visible in profiling as tag `connection_name`.
     TString ConnectionName;
+
+    //! Region defines geographical location, largest tier in cloud hierarchy.
+    std::optional<std::string> Region;
 
     TSlruCacheConfigPtr BannedReplicaTrackerCache;
 
@@ -371,7 +373,7 @@ struct TConnectionDynamicConfig
 
     TSlruCacheDynamicConfigPtr BannedReplicaTrackerCache;
 
-    NChaosClient::TReplicationCardChannelConfigPtr ChaosCellChannel;
+    NChaosClient::TChaosObjectChannelConfigPtr ChaosCellChannel;
 
     NRpc::TRetryingChannelConfigPtr HydraAdminChannel;
 
@@ -425,6 +427,8 @@ struct TConnectionDynamicConfig
 
     //! Enables strict access validation in operation info commands.
     bool StrictOperationInfoAccessValidation;
+
+    bool EnableReshardWithSlicingByDefault;
 
     i64 GetJobTraceBatchSize;
 

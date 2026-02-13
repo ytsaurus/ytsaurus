@@ -138,6 +138,8 @@ bool CheckItemReadPermissions(
     return securityManager->CheckPermission(child, user, EPermission::Read).Action == ESecurityAction::Allow;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -400,7 +402,7 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetExternalBuiltinAttribu
             if (code == NYTree::EErrorCode::ResolveError || code == NTransactionClient::EErrorCode::NoSuchTransaction) {
                 return TYsonString();
             }
-            THROW_ERROR_EXCEPTION("Error requesting attribute %Qv of object %v from cell %v",
+            THROW_ERROR_EXCEPTION(code, "Error requesting attribute %Qv of object %v from cell %v",
                 key,
                 GetVersionedId(),
                 externalCellTag)
@@ -423,7 +425,7 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey
             const auto& securityManager = Bootstrap_->GetSecurityManager();
 
             auto name = ConvertTo<std::string>(value);
-            auto* account = securityManager->GetAccountByNameOrThrow(name, true /*activeLifeStageOnly*/);
+            auto* account = securityManager->GetAccountByNameOrThrow(name, /*activeLifeStageOnly*/ true);
 
             ValidateStorageParametersUpdate();
             ValidatePermission(account, EPermission::Use);
@@ -474,6 +476,36 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey
             auto* node = LockThisImpl(lockRequest);
 
             cypressManager->SetExpirationTimeout(node, timeout);
+
+            return true;
+        }
+
+        case EInternedAttributeKey::ExpirationTimeUser: {
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            auto user = ConvertTo<std::string>(value);
+            if (securityManager->GetAuthenticatedUser() != securityManager->GetRootUser() || !user.empty()) {
+                THROW_ERROR_EXCEPTION(R"("expiration_time_user" is not writable)");
+            }
+
+            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
+            auto* node = LockThisImpl(lockRequest);
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            cypressManager->SetExpirationTime(node, TSetExpirationResetTime{});
+
+            return true;
+        }
+
+        case EInternedAttributeKey::ExpirationTimeoutUser: {
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            auto user = ConvertTo<std::string>(value);
+            if (securityManager->GetAuthenticatedUser() != securityManager->GetRootUser() || !user.empty()) {
+                THROW_ERROR_EXCEPTION(R"("expiration_timeout_user" is not writable)");
+            }
+
+            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
+            auto* node = LockThisImpl(lockRequest);
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            cypressManager->SetExpirationTimeout(node, TSetExpirationResetTime{});
 
             return true;
         }
@@ -536,34 +568,6 @@ bool TNontemplateCypressNodeProxyBase::RemoveBuiltinAttribute(TInternedAttribute
             auto* node = LockThisImpl(lockRequest);
             const auto& cypressManager = Bootstrap_->GetCypressManager();
             cypressManager->SetExpirationTimeout(node, TRemoveExpiration{});
-
-            return true;
-        }
-
-        case EInternedAttributeKey::ExpirationTimeUser: {
-            const auto& securityManager = Bootstrap_->GetSecurityManager();
-            if (securityManager->GetAuthenticatedUser() != securityManager->GetRootUser()) {
-                return false;
-            }
-
-            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
-            auto* node = LockThisImpl(lockRequest);
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
-            cypressManager->SetExpirationTime(node, TSetExpirationResetTime{});
-
-            return true;
-        }
-
-        case EInternedAttributeKey::ExpirationTimeoutUser: {
-            const auto& securityManager = Bootstrap_->GetSecurityManager();
-            if (securityManager->GetAuthenticatedUser() != securityManager->GetRootUser()) {
-                return false;
-            }
-
-            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
-            auto* node = LockThisImpl(lockRequest);
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
-            cypressManager->SetExpirationTimeout(node, TSetExpirationResetTime{});
 
             return true;
         }
@@ -639,15 +643,16 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     descriptors->push_back(EInternedAttributeKey::AccessTime);
     descriptors->push_back(EInternedAttributeKey::AccessCounter);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::NativeContentRevision)
-        .SetExternal(isExternal));
+        .SetExternal(true)
+        .SetOpaque(true)
+        .SetPresent(isExternal));
     descriptors->push_back(EInternedAttributeKey::ResourceUsage);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RecursiveResourceUsage)
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Account)
         .SetWritable(true)
         .SetReplicated(true));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::AccountId)
-        .SetReplicated(true));
+    descriptors->push_back(EInternedAttributeKey::AccountId);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Opaque)
         .SetWritable(true)
         .SetRemovable(true));
@@ -661,15 +666,17 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::AnnotationPath)
         .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ImmediateAnnotation)
+        .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TouchTime)
         .SetPresent(node && node->IsTrunk() && node->GetTouchTime())
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExpirationTimeUser)
         .SetPresent(node->GetExpirationTimeUser().value_or(nullptr) != nullptr)
-        .SetRemovable(true));
+        .SetWritable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExpirationTimeoutUser)
         .SetPresent(node->GetExpirationTimeoutUser().value_or(nullptr) != nullptr)
-        .SetRemovable(true));
+        .SetWritable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExpirationTimeLastResetTime)
         .SetPresent(node->GetExpirationTimeLastResetTime().has_value()));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExpirationTimeoutLastResetTime)
@@ -928,6 +935,17 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
             return true;
         }
 
+        case EInternedAttributeKey::ImmediateAnnotation: {
+            if (auto annotation = node->TryGetAnnotation()) {
+                BuildYsonFluently(consumer)
+                    .Value(*annotation);
+            } else {
+                BuildYsonFluently(consumer)
+                    .Entity();
+            }
+            return true;
+        }
+
         case EInternedAttributeKey::TouchTime:
             if (!node->GetTouchTime()) {
                 break;
@@ -1064,6 +1082,7 @@ void TNontemplateCypressNodeProxyBase::AfterInvoke(const IYPathServiceContextPtr
     SetAccessed();
     SetTouched();
     SequoiaNodeEffectiveAcl_.reset();
+    SequoiaNodeDeserializedEffectiveAcl_.reset();
     TObjectProxyBase::AfterInvoke(context);
 }
 
@@ -1411,14 +1430,28 @@ TPermissionCheckResponse TNontemplateCypressNodeProxyBase::DoCheckPermission(
                 "Permission validation through this API is not supported for Sequoia nodes");
         }
 
-        auto effectiveAclProducer = [&] {
-            auto aclNode = ConvertToNode(*SequoiaNodeEffectiveAcl_);
-            return DeserializeAclOrThrow(aclNode, securityManager);
-        };
+        if (!SequoiaNodeDeserializedEffectiveAcl_.has_value()) {
+            auto aclNode = ConvertToNode(TYsonStringBuf(*SequoiaNodeEffectiveAcl_));
+            // After removed, the Sequoia ACL table still contains the subject
+            // until the next GUQM sync.
+            auto result = DeserializeAclGatherMissingAndPendingRemovalSubjectsOrThrow(
+                aclNode,
+                securityManager,
+                /*ignoreMissingSubjects*/ true,
+                /*ignorePendingRemovalSubjects*/ false);
+            SequoiaNodeDeserializedEffectiveAcl_ = std::move(result.Acl);
+
+            YT_LOG_DEBUG_IF(!result.MissingSubjects.empty(),
+                "Missing subjects mentioned in effective ACL for Sequoia node "
+                "(NodeId: %v, MissingSubjects: %v)",
+                TrunkNode_->GetId(),
+                result.MissingSubjects);
+        }
+
         return securityManager->CheckPermission(
             user,
             permission,
-            effectiveAclProducer,
+            *SequoiaNodeDeserializedEffectiveAcl_,
             std::move(options));
     } else {
         return securityManager->CheckPermission(
@@ -1929,12 +1962,12 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 
     std::optional<TYPath> optionalTargetPath;
     if (explicitAttributes) {
-        optionalTargetPath = explicitAttributes->Find<TYPath>("target_path");
+        optionalTargetPath = explicitAttributes->Find<TYPath>(EInternedAttributeKey::TargetPath.Unintern());
 
-        auto optionalAccount = explicitAttributes->FindAndRemove<std::string>("account");
+        auto optionalAccount = explicitAttributes->FindAndRemove<std::string>(EInternedAttributeKey::Account.Unintern());
         if (optionalAccount) {
             const auto& securityManager = Bootstrap_->GetSecurityManager();
-            account = securityManager->GetAccountByNameOrThrow(*optionalAccount, true /*activeLifeStageOnly*/);
+            account = securityManager->GetAccountByNameOrThrow(*optionalAccount, /*activeLifeStageOnly*/ true);
         }
     }
 
@@ -2428,7 +2461,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, CalculateInherited
             &keyToChildMapStorage);
 
         auto* currentCompositeNode = currentNode->As<TCompositeCypressNode>();
-        auto childInheritedAttributes = currentCompositeNode->MaybePatchInheritableAttributes(inheritedAttributes);
+        auto childInheritedAttributes = currentCompositeNode->MaybePatchInheritableAttributes(
+            inheritedAttributes,
+            ENodeMaterializationReason::Copy);
 
         for (const auto& [key, trunkChild] : keyToChildMap) {
             auto* child = cypressManager->GetVersionedNode(trunkChild, node->GetTransaction());
@@ -2763,7 +2798,10 @@ void TNontemplateCypressNodeProxyBase::ValidateAccessTransaction()
         return;
     }
 
-    if (Object_->GetNativeCellTag() == Transaction_->GetNativeCellTag()) {
+    auto useWeakerAccessValidationCheck = GetDynamicCypressManagerConfig()->UseWeakerAccessValidationCheck;
+    if ((Transaction_->IsExternalized() || useWeakerAccessValidationCheck) &&
+        Object_->GetNativeCellTag() == Transaction_->GetNativeCellTag())
+    {
         return;
     }
 
@@ -2796,46 +2834,47 @@ void TNontemplateCompositeCypressNodeProxyBase::ListSystemAttributes(std::vector
 
     const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->ChunkMerger; \
 
-#define XX(camelCaseName, snakeCaseName) \
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::camelCaseName) \
-        .SetPresent(hasInheritableAttributes && node->Has##camelCaseName()) \
+#define INHERITABLE_ATTRIBUTE_DESCRIPTOR(FieldName, AttributeKey) \
+    TAttributeDescriptor(EInternedAttributeKey::AttributeKey) \
+        .SetPresent(hasInheritableAttributes && node->Has##FieldName()) \
         .SetWritable(true) \
-        .SetRemovable(true)); \
-    \
-    if (EInternedAttributeKey::camelCaseName == EInternedAttributeKey::ChunkMergerMode && \
-        !config->AllowSettingChunkMergerMode) \
-    { \
-        descriptors->back().SetWritePermission(EPermission::Administer); \
-    } \
+        .SetRemovable(true)
 
+#define XX(FieldName, AttributeKey) \
+    descriptors->push_back(INHERITABLE_ATTRIBUTE_DESCRIPTOR(FieldName, AttributeKey));
     FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX)
 #undef XX
 
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PrimaryMedium)
-        .SetPresent(hasInheritableAttributes && node->HasPrimaryMediumIndex())
-        .SetWritable(true)
-        .SetRemovable(true));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HunkPrimaryMedium)
-        .SetPresent(hasInheritableAttributes && node->HasHunkPrimaryMediumIndex())
-        .SetWritable(true)
-        .SetRemovable(true));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Media)
-        .SetPresent(hasInheritableAttributes && node->HasMedia())
-        .SetWritable(true)
-        .SetRemovable(true));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HunkMedia)
-        .SetPresent(hasInheritableAttributes && node->HasHunkMedia())
-        .SetWritable(true)
-        .SetRemovable(true));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCellBundle)
-        .SetPresent(hasInheritableAttributes && node->HasTabletCellBundle())
-        .SetWritable(true)
-        .SetRemovable(true));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChaosCellBundle)
-        .SetPresent(hasInheritableAttributes && node->HasChaosCellBundle())
-        .SetWritable(true)
-        .SetRemovable(true));
+    auto descriptorCompressionCodec = INHERITABLE_ATTRIBUTE_DESCRIPTOR(CompressionCodec, CompressionCodec);
+    auto descriptorErasureCodec = INHERITABLE_ATTRIBUTE_DESCRIPTOR(ErasureCodec, ErasureCodec);
+    auto descriptorPrimaryMedium = INHERITABLE_ATTRIBUTE_DESCRIPTOR(PrimaryMediumIndex, PrimaryMedium);
+    auto descriptorHunkPrimaryMedium = INHERITABLE_ATTRIBUTE_DESCRIPTOR(HunkPrimaryMediumIndex, HunkPrimaryMedium);
+    auto descriptorReplicationFactor = INHERITABLE_ATTRIBUTE_DESCRIPTOR(ReplicationFactor, ReplicationFactor);
+    auto descriptorTabletCellBundle = INHERITABLE_ATTRIBUTE_DESCRIPTOR(TabletCellBundle, TabletCellBundle);
+    auto descriptorChaosCellBundle = INHERITABLE_ATTRIBUTE_DESCRIPTOR(ChaosCellBundle, ChaosCellBundle);
+    auto descriptorMedia = INHERITABLE_ATTRIBUTE_DESCRIPTOR(Media, Media);
+    auto descriptorHunkMedia = INHERITABLE_ATTRIBUTE_DESCRIPTOR(HunkMedia, HunkMedia);
+
+    auto descriptorChunkMergerMode = INHERITABLE_ATTRIBUTE_DESCRIPTOR(ChunkMergerMode, ChunkMergerMode);
+    if (!config->AllowSettingChunkMergerMode) {
+        descriptorChunkMergerMode.SetWritePermission(EPermission::Administer);
+    }
+
+#define XX(FieldName, AttributeKey) \
+    descriptors->push_back(descriptor##AttributeKey);
+    FOR_EACH_COMPLICATED_INHERITABLE_ATTRIBUTE(XX)
+#undef XX
+
+    // NB: attribute aliases are read-only.
+#define XX(FieldName, AttributeKey, AliasAttributeKey) \
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::AliasAttributeKey) \
+        .SetPresent(hasInheritableAttributes && node->Has##FieldName()));
+    FOR_EACH_INHERITABLE_ATTRIBUTE_TRANSFERABLE_ALIAS(XX)
+#undef XX
+
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EffectiveInheritableAttributes)
+        .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TransferableEffectiveInheritableAttributes)
         .SetOpaque(true));
 }
 
@@ -2843,101 +2882,112 @@ bool TNontemplateCompositeCypressNodeProxyBase::GetBuiltinAttribute(TInternedAtt
 {
     const auto* node = GetThisImpl<TCompositeCypressNode>();
 
+    auto doProduceValue = [&] (const auto& value) {
+        BuildYsonFluently(consumer)
+            .Value(value);
+    };
+
+    auto doProduceObjectId = [&] (const auto* object) {
+        YT_ASSERT(object);
+        doProduceValue(object->GetId());
+    };
+
+    auto doProduceTransferableMedia = [&] (const TChunkReplication& replication) {
+        doProduceValue(TSerializableTransferableChunkReplication(replication, Bootstrap_->GetChunkManager()));
+    };
+
+    auto doProduceMedia = [&] (const TChunkReplication& replication) {
+        doProduceValue(TSerializableChunkReplication(replication, Bootstrap_->GetChunkManager()));
+    };
+
+    auto doProduceObjectName = [&] (const auto* object) {
+        doProduceValue(object->GetName());
+    };
+
+    auto doProduceMediumName = [&] (int mediumIndex) {
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
+        doProduceObjectName(medium);
+    };
+
+    auto doProduceMediumId = [&] (int mediumIndex) {
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
+        doProduceObjectId(medium);
+    };
+
+    // Complicated inheritable attributes.
+    auto produceCompressionCodec = doProduceValue;
+    auto produceErasureCodec = doProduceValue;
+    auto produceTabletCellBundle = doProduceObjectName;
+    auto produceChaosCellBundle = doProduceObjectName;
+    auto produceMedia = doProduceMedia;
+    auto produceHunkMedia = doProduceMedia;
+    auto producePrimaryMedium = doProduceMediumName;
+    auto produceHunkPrimaryMedium = doProduceMediumName;
+    auto produceReplicationFactor = doProduceValue;
+    auto produceChunkMergerMode = doProduceValue;
+
+    // Inheritable attribute aliases.
+    auto produceTabletCellBundleId = doProduceObjectId;
+    auto produceChaosCellBundleId = doProduceObjectId;
+    auto producePrimaryMediumId = doProduceMediumId;
+    auto produceHunkPrimaryMediumId = doProduceMediumId;
+    auto produceTransferableMedia = doProduceTransferableMedia;
+    auto produceTransferableHunkMedia = doProduceTransferableMedia;
+
     switch (key) {
+    #define XX(FieldName, AttributeKey) \
+        case EInternedAttributeKey::AttributeKey: { \
+            auto value = node->TryGet##FieldName(); \
+            if (!value) { \
+                break; \
+            } \
+            doProduceValue(*value); \
+            return true; \
+        }
+
+        FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX)
+    #undef XX
+
+    #define XX(FieldName, AttributeKey) \
+        case EInternedAttributeKey::AttributeKey: { \
+            auto value = node->TryGet##FieldName(); \
+            if (!value) { \
+                break; \
+            } \
+            produce##AttributeKey(*value); \
+            return true; \
+        }
+        FOR_EACH_COMPLICATED_INHERITABLE_ATTRIBUTE(XX)
+    #undef XX
+
+    #define XX(FieldName, AttributeKey, AliasAttributeKey) \
+        case EInternedAttributeKey::AliasAttributeKey: { \
+            auto value = node->TryGet##FieldName(); \
+            if (!value) { \
+                break; \
+            } \
+            produce##AliasAttributeKey(*value); \
+            return true; \
+        }
+        FOR_EACH_INHERITABLE_ATTRIBUTE_TRANSFERABLE_ALIAS(XX)
+    #undef XX
+
         case EInternedAttributeKey::Count:
             BuildYsonFluently(consumer)
                 .Value(GetChildCount());
             return true;
 
-#define XX(camelCaseName, snakeCaseName) \
-        case EInternedAttributeKey::camelCaseName: { \
-            auto value = node->TryGet##camelCaseName(); \
-            if (!value) { \
-                break; \
-            } \
-            BuildYsonFluently(consumer) \
-                .Value(*value); \
-            return true; \
-        }
-
-        FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX)
-#undef XX
-
-        case EInternedAttributeKey::PrimaryMedium: {
-            auto optionalPrimaryMediumIndex = node->TryGetPrimaryMediumIndex();
-            if (!optionalPrimaryMediumIndex) {
-                break;
-            }
-            const auto& chunkManager = Bootstrap_->GetChunkManager();
-            auto* medium = chunkManager->GetMediumByIndex(*optionalPrimaryMediumIndex);
-            BuildYsonFluently(consumer)
-                .Value(medium->GetName());
-            return true;
-        }
-
-        case EInternedAttributeKey::HunkPrimaryMedium: {
-            auto optionalPrimaryMediumIndex = node->TryGetHunkPrimaryMediumIndex();
-            if (!optionalPrimaryMediumIndex) {
-                break;
-            }
-            const auto& chunkManager = Bootstrap_->GetChunkManager();
-            auto* medium = chunkManager->GetMediumByIndex(*optionalPrimaryMediumIndex);
-            BuildYsonFluently(consumer)
-                .Value(medium->GetName());
-            return true;
-        }
-
-        case EInternedAttributeKey::Media: {
-            auto optionalMedia = node->TryGetMedia();
-            if (!optionalMedia) {
-                break;
-            }
-            const auto& chunkManager = Bootstrap_->GetChunkManager();
-            BuildYsonFluently(consumer)
-                .Value(TSerializableChunkReplication(*optionalMedia, chunkManager));
-            return true;
-        }
-
-        case EInternedAttributeKey::HunkMedia: {
-            auto optionalHunkMedia = node->TryGetHunkMedia();
-            if (!optionalHunkMedia) {
-                break;
-            }
-            const auto& chunkManager = Bootstrap_->GetChunkManager();
-            BuildYsonFluently(consumer)
-                .Value(TSerializableChunkReplication(*optionalHunkMedia, chunkManager));
-            return true;
-        }
-
-        case EInternedAttributeKey::TabletCellBundle: {
-            auto optionalBundle = node->TryGetTabletCellBundle();
-            if (!optionalBundle) {
-                break;
-            }
-            const auto& bundle = *optionalBundle;
-            YT_VERIFY(bundle);
-            BuildYsonFluently(consumer)
-                .Value(bundle->GetName());
-            return true;
-        }
-
-        case EInternedAttributeKey::ChaosCellBundle: {
-            auto optionalBundle = node->TryGetChaosCellBundle();
-            if (!optionalBundle) {
-                break;
-            }
-            const auto& bundle = *optionalBundle;
-            YT_VERIFY(bundle);
-            BuildYsonFluently(consumer)
-                .Value(bundle->GetName());
-            return true;
-        }
-
-        case EInternedAttributeKey::EffectiveInheritableAttributes: {
+        case EInternedAttributeKey::EffectiveInheritableAttributes:
+        case EInternedAttributeKey::TransferableEffectiveInheritableAttributes: {
             auto inheritedAttributes = New<TInheritedAttributeDictionary>(Bootstrap_);
             GatherInheritableAttributes(
                 node->As<TCypressNode>(),
                 &inheritedAttributes->MutableAttributes());
+            if (key == EInternedAttributeKey::EffectiveInheritableAttributes) {
+                inheritedAttributes = inheritedAttributes->ToNonTransferableView();
+            }
 
             BuildYsonFluently(consumer)
                 .Value(inheritedAttributes);
@@ -2953,8 +3003,6 @@ bool TNontemplateCompositeCypressNodeProxyBase::GetBuiltinAttribute(TInternedAtt
 
 bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value, bool force)
 {
-    auto* node = GetThisImpl<TCompositeCypressNode>();
-
     // Attributes "media", "primary_medium", "replication_factor" are interrelated
     // and nullable, which greatly complicates their modification.
     //
@@ -2965,85 +3013,86 @@ bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(TInternedAtt
     // set. Without it, it's impossible to tell which medium the "replication_factor"
     // pertains to, and these attributes may be modified virtually independently.
 
+    auto* node = GetThisImpl<TCompositeCypressNode>();
+
+    auto doSetPrimaryMedium = [&] (bool isHunk) {
+        SetPrimaryMedium(isHunk, ConvertTo<std::string>(value));
+    };
+
+    auto doSetMedia = [&] (bool isHunk) {
+        SetMedia(isHunk, ConvertTo<TSerializableChunkReplication>(value));
+    };
+
+    auto doLockAndSet = [&] (auto setter, auto value) {
+        auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
+        auto* lockedNode = LockThisImpl<TCompositeCypressNode>(lockRequest);
+        (lockedNode->*setter)(value);
+    };
+
+    // Complicated inheritable attributes.
+    auto setCompressionCodec = [&] {
+        const auto& chunkManagerConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager;
+        ValidateCompressionCodec(
+            value,
+            chunkManagerConfig->ForbiddenCompressionCodecs,
+            chunkManagerConfig->ForbiddenCompressionCodecNameToAlias);
+
+        doLockAndSet(&TCompositeCypressNode::SetCompressionCodec, ConvertTo<NCompression::ECodec>(value));
+    };
+
+    auto setErasureCodec = [&] {
+        ValidateErasureCodec(
+            value,
+            Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->ForbiddenErasureCodecs);
+        doLockAndSet(&TCompositeCypressNode::SetErasureCodec, ConvertTo<NErasure::ECodec>(value));
+    };
+
+    auto setTabletCellBundle = [&] {
+        ValidateNoTransaction();
+
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
+        auto* newBundle = tabletManager->GetTabletCellBundleByNameOrThrow(ConvertTo<std::string>(value), /*isActiveLifeStageOnly*/ true);
+        node->SetTabletCellBundle(TTabletCellBundlePtr(newBundle));
+    };
+
+    auto setChaosCellBundle = [&] {
+        ValidateNoTransaction();
+
+        const auto& chaosManager = Bootstrap_->GetChaosManager();
+        auto* newBundle = chaosManager->GetChaosCellBundleByNameOrThrow(ConvertTo<std::string>(value), /*activeLifeStageOnly*/ true);
+        node->SetChaosCellBundle(TChaosCellBundlePtr(newBundle));
+    };
+
+    auto setPrimaryMedium = std::bind(doSetPrimaryMedium, /*isHunk*/ false);
+    auto setHunkPrimaryMedium = std::bind(doSetPrimaryMedium, /*isHunk*/ true);
+    auto setMedia = std::bind(doSetMedia, /*isHunk*/ false);
+    auto setHunkMedia = std::bind(doSetMedia, /*isHunk*/ true);
+
+    auto setReplicationFactor = [&] {
+        SetReplicationFactor(ConvertTo<int>(value));
+    };
+
+    auto setChunkMergerMode = [&] {
+        doLockAndSet(&TCompositeCypressNode::SetChunkMergerMode, ConvertTo<EChunkMergerMode>(value));
+    };
+
     switch (key) {
-        case EInternedAttributeKey::PrimaryMedium: {
-            auto primaryMediumName = ConvertTo<std::string>(value);
-            SetPrimaryMedium</*IsHunk*/ false>(primaryMediumName);
-            return true;
-        }
-
-        case EInternedAttributeKey::HunkPrimaryMedium: {
-            auto primaryMediumName = ConvertTo<std::string>(value);
-            SetPrimaryMedium</*IsHunk*/ true>(primaryMediumName);
-            return true;
-        }
-
-        case EInternedAttributeKey::Media: {
-            auto serializableReplication = ConvertTo<TSerializableChunkReplication>(value);
-            SetMedia</*IsHunk*/ false>(serializableReplication);
-            return true;
-        }
-
-        case EInternedAttributeKey::HunkMedia: {
-            auto serializableReplication = ConvertTo<TSerializableChunkReplication>(value);
-            SetMedia</*IsHunk*/ true>(serializableReplication);
-            return true;
-        }
-
-        case EInternedAttributeKey::TabletCellBundle: {
-            ValidateNoTransaction();
-
-            auto name = ConvertTo<std::string>(value);
-
-            const auto& tabletManager = Bootstrap_->GetTabletManager();
-            auto* newBundle = tabletManager->GetTabletCellBundleByNameOrThrow(name, true /*activeLifeStageOnly*/);
-            node->SetTabletCellBundle(TTabletCellBundlePtr(newBundle));
-
-            return true;
-        }
-
-        case EInternedAttributeKey::ChaosCellBundle: {
-            ValidateNoTransaction();
-
-            auto name = ConvertTo<std::string>(value);
-
-            const auto& chaosManager = Bootstrap_->GetChaosManager();
-            auto* newBundle = chaosManager->GetChaosCellBundleByNameOrThrow(name, true /*activeLifeStageOnly*/);
-            node->SetChaosCellBundle(TChaosCellBundlePtr(newBundle));
-
-            return true;
-        }
-
-#define XX(camelCaseName, snakeCaseName) \
-        case EInternedAttributeKey::camelCaseName: \
-            if (key == EInternedAttributeKey::ReplicationFactor) { \
-                auto replicationFactor = ConvertTo<int>(value); \
-                SetReplicationFactor(replicationFactor); \
-                return true; \
-            } \
-            \
-            if (key == EInternedAttributeKey::CompressionCodec) { \
-                const auto& chunkManagerConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager; \
-                ValidateCompressionCodec( \
-                    value, \
-                    chunkManagerConfig->ForbiddenCompressionCodecs, \
-                    chunkManagerConfig->ForbiddenCompressionCodecNameToAlias); \
-            } \
-            if (key == EInternedAttributeKey::ErasureCodec) { \
-                ValidateErasureCodec( \
-                    value, \
-                    Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->ForbiddenErasureCodecs); \
-            } \
+    #define XX(FieldName, AttributeKey) \
+        case EInternedAttributeKey::AttributeKey: \
             { \
-                auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern()); \
-                auto* lockedNode = LockThisImpl<TCompositeCypressNode>(lockRequest); \
-                using TAttr = decltype(std::declval<TCompositeCypressNode::TPersistentAttributes>().camelCaseName)::TValue; \
-                lockedNode->Set##camelCaseName(ConvertTo<TAttr>(value)); \
+                using TAttr = decltype(std::declval<TCompositeCypressNode::TPersistentAttributes>().FieldName)::TValue; \
+                doLockAndSet(&TCompositeCypressNode::Set##FieldName, ConvertTo<TAttr>(value)); \
             } \
-            return true; \
-
+            return true;
         FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX)
-#undef XX
+    #undef XX
+
+    #define XX(FieldName, AttributeKey) \
+        case EInternedAttributeKey::AttributeKey: \
+            set##AttributeKey(); \
+            return true;
+        FOR_EACH_COMPLICATED_INHERITABLE_ATTRIBUTE(XX)
+    #undef XX
 
         default:
             break;
@@ -3079,17 +3128,18 @@ void TNontemplateCompositeCypressNodeProxyBase::SetReplicationFactor(int replica
     node->SetReplicationFactor(replicationFactor);
 }
 
-template <bool IsHunk>
-void TNontemplateCompositeCypressNodeProxyBase::SetPrimaryMedium(const std::string& primaryMediumName)
+void TNontemplateCompositeCypressNodeProxyBase::SetPrimaryMedium(
+    bool isHunk,
+    const std::string& primaryMediumName)
 {
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     auto& newPrimaryMedium = *chunkManager->GetMediumByNameOrThrow(primaryMediumName);
     auto* node = GetThisImpl<TCompositeCypressNode>();
 
-    auto oldPrimaryMediumIndex = IsHunk
+    auto oldPrimaryMediumIndex = isHunk
         ? node->TryGetHunkPrimaryMediumIndex()
         : node->TryGetPrimaryMediumIndex();
-    auto oldReplication = IsHunk
+    auto oldReplication = isHunk
         ? node->TryGetHunkMedia()
         : node->TryGetMedia();
 
@@ -3105,7 +3155,7 @@ void TNontemplateCompositeCypressNodeProxyBase::SetPrimaryMedium(const std::stri
 
     auto newPrimaryMediumIndex = newPrimaryMedium.GetIndex();
 
-    if constexpr (!IsHunk) { // There's no dedicated replication factor for hunks.
+    if (!isHunk) { // There's no dedicated replication factor for hunks.
         if (auto replicationFactor = node->TryGetReplicationFactor();
             replicationFactor &&
             *replicationFactor != newReplication.Get(newPrimaryMediumIndex).GetReplicationFactor())
@@ -3114,7 +3164,7 @@ void TNontemplateCompositeCypressNodeProxyBase::SetPrimaryMedium(const std::stri
         }
     }
 
-    if constexpr (IsHunk) {
+    if (isHunk) {
         node->SetHunkPrimaryMediumIndex(newPrimaryMediumIndex);
         if (newReplication.GetSize() != 0) {
             node->SetHunkMedia(newReplication);
@@ -3127,22 +3177,22 @@ void TNontemplateCompositeCypressNodeProxyBase::SetPrimaryMedium(const std::stri
     }
 }
 
-template <bool IsHunk>
-void TNontemplateCompositeCypressNodeProxyBase::RemovePrimaryMedium()
+void TNontemplateCompositeCypressNodeProxyBase::RemovePrimaryMedium(bool isHunk)
 {
     ValidateNoTransaction();
 
     auto* node = GetThisImpl<TCompositeCypressNode>();
 
-    if constexpr (IsHunk) {
+    if (isHunk) {
         node->RemoveHunkPrimaryMediumIndex();
     } else {
         node->RemovePrimaryMediumIndex();
     }
 }
 
-template <bool IsHunk>
-void TNontemplateCompositeCypressNodeProxyBase::SetMedia(const TSerializableChunkReplication& serializableReplication)
+void TNontemplateCompositeCypressNodeProxyBase::SetMedia(
+    bool isHunk,
+    const TSerializableChunkReplication& serializableReplication)
 {
     ValidateNoTransaction();
 
@@ -3154,10 +3204,10 @@ void TNontemplateCompositeCypressNodeProxyBase::SetMedia(const TSerializableChun
     newReplication.SetVital(true);
     serializableReplication.ToChunkReplication(&newReplication, chunkManager);
 
-    auto primaryMediumIndex = IsHunk
+    auto primaryMediumIndex = isHunk
         ? node->TryGetHunkPrimaryMediumIndex()
         : node->TryGetPrimaryMediumIndex();
-    auto oldReplication = IsHunk
+    auto oldReplication = isHunk
         ? node->TryGetHunkMedia()
         : node->TryGetMedia();
 
@@ -3165,7 +3215,7 @@ void TNontemplateCompositeCypressNodeProxyBase::SetMedia(const TSerializableChun
         return;
     }
 
-    if constexpr (!IsHunk) { // There's no dedicated replication factor for hunks.
+    if (!isHunk) { // There's no dedicated replication factor for hunks.
         if (auto replicationFactor = node->TryGetReplicationFactor();
             primaryMediumIndex &&
             replicationFactor &&
@@ -3179,7 +3229,7 @@ void TNontemplateCompositeCypressNodeProxyBase::SetMedia(const TSerializableChun
     // parts of validation will be skipped.
     ValidateMediaChange(oldReplication, primaryMediumIndex, newReplication);
 
-    if constexpr (IsHunk) {
+    if (isHunk) {
         node->SetHunkMedia(newReplication);
     } else {
         node->SetMedia(newReplication);
@@ -3199,49 +3249,47 @@ bool TNontemplateCompositeCypressNodeProxyBase::RemoveBuiltinAttribute(TInterned
 {
     auto* node = GetThisImpl<TCompositeCypressNode>();
 
+    auto doLockAndRemove = [&] (auto remover) {
+        auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
+        auto* lockedNode = LockThisImpl<TCompositeCypressNode>(lockRequest);
+        (lockedNode->*remover)();
+    };
+
+    auto doNotLockAndRemove = [&] (auto remover) {
+        ValidateNoTransaction();
+        (node->*remover)();
+    };
+
+    auto doRemovePrimaryMedium = [&] (bool isHunk) {
+        RemovePrimaryMedium(isHunk);
+    };
+
+    // Complicated inheritable attributes.
+    auto removeCompressionCodec = std::bind(doLockAndRemove, &TCompositeCypressNode::RemoveCompressionCodec);
+    auto removeErasureCodec = std::bind(doLockAndRemove, &TCompositeCypressNode::RemoveErasureCodec);
+    auto removeReplicationFactor = std::bind(doLockAndRemove, &TCompositeCypressNode::RemoveReplicationFactor);
+    auto removeChunkMergerMode = std::bind(doLockAndRemove, &TCompositeCypressNode::RemoveChunkMergerMode);
+    auto removeTabletCellBundle = std::bind(doNotLockAndRemove, &TCompositeCypressNode::RemoveTabletCellBundle);
+    auto removeChaosCellBundle = std::bind(doNotLockAndRemove, &TCompositeCypressNode::RemoveChaosCellBundle);
+    auto removeMedia = std::bind(doNotLockAndRemove, &TCompositeCypressNode::RemoveMedia);
+    auto removeHunkMedia = std::bind(doNotLockAndRemove, &TCompositeCypressNode::RemoveHunkMedia);
+    auto removePrimaryMedium = std::bind(doRemovePrimaryMedium, /*isHunk*/ false);
+    auto removeHunkPrimaryMedium = std::bind(doRemovePrimaryMedium, /*isHunk*/ true);
+
     switch (key) {
-
-#define XX(camelCaseName, snakeCaseName) \
-        case EInternedAttributeKey::camelCaseName: { \
-            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern()); \
-            auto* lockedNode = LockThisImpl<TCompositeCypressNode>(lockRequest); \
-            lockedNode->Remove##camelCaseName(); \
-            return true; \
-        }
-
+    #define XX(FieldName, AttributeKey) \
+        case EInternedAttributeKey::AttributeKey: \
+            doLockAndRemove(&TCompositeCypressNode::Remove##FieldName); \
+            return true;
         FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX);
-#undef XX
+    #undef XX
 
-        case EInternedAttributeKey::Media:
-            ValidateNoTransaction();
-            node->RemoveMedia();
+    #define XX(FieldName, AttributeKey) \
+        case EInternedAttributeKey::AttributeKey: \
+            remove##AttributeKey(); \
             return true;
-
-        case EInternedAttributeKey::HunkMedia:
-            ValidateNoTransaction();
-            node->RemoveHunkMedia();
-            return true;
-
-        case EInternedAttributeKey::PrimaryMedium:
-            RemovePrimaryMedium</*IsHunk*/ false>();
-            return true;
-
-        case EInternedAttributeKey::HunkPrimaryMedium:
-            RemovePrimaryMedium</*IsHunk*/ true>();
-            return true;
-
-        case EInternedAttributeKey::TabletCellBundle: {
-            ValidateNoTransaction();
-            node->RemoveTabletCellBundle();
-
-            return true;
-        }
-
-        case EInternedAttributeKey::ChaosCellBundle: {
-            ValidateNoTransaction();
-            node->RemoveChaosCellBundle();
-            return true;
-        }
+        FOR_EACH_COMPLICATED_INHERITABLE_ATTRIBUTE(XX)
+    #undef XX
 
         default:
             break;
@@ -3265,10 +3313,13 @@ void TNontemplateCompositeCypressNodeProxyBase::AttachChild(TCypressNode* child)
 
 void TNontemplateCompositeCypressNodeProxyBase::DetachChild(TCypressNode* child)
 {
-    DetachChildFromNode(TrunkNode_->As<TCompositeCypressNode>(), child);
     if (GetThisImpl()->GetReachable()) {
+        // It is important child has a parent when becoming unreachable for proper Sequoia syncs.
+        // It is pretty fragile but I like it more than other options, it also makes sense to
+        // set unreachable and remove parent in order opposite to AttachChild.
         SetUnreachableSubtreeNodes(child);
     }
+    DetachChildFromNode(TrunkNode_->As<TCompositeCypressNode>(), child);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

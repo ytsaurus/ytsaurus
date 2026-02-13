@@ -1,0 +1,266 @@
+apiVersion: cluster.ytsaurus.tech/v1
+kind: Ytsaurus
+metadata:
+  name: {{ cluster_name }}
+spec:
+  coreImage: {{ images.ytsaurus }}
+  jobImage: ghcr.io/ytsaurus/job-environment:0.0.1
+
+  adminCredentials:
+    name: ytadminsec
+
+  discovery:
+    instanceCount: 1
+    loggers: &loggers
+      - name: debug
+        compression: zstd
+        minLogLevel: debug
+        writerType: file
+        rotationPolicy: &rotationPolicy
+          maxTotalSizeToKeep: 1073741824 # 1 GiB
+          rotationPeriodMilliseconds: 900000 # 15 Min
+          maxSegmentCountToKeep: 1000
+        categoriesFilter: &categoriesFilter
+          type: exclude
+          values: ["Bus", "Logging"]
+      - name: info
+        minLogLevel: info
+        writerType: file
+        rotationPolicy: *rotationPolicy
+        categoriesFilter: *categoriesFilter
+      - name: info-stderr
+        minLogLevel: info
+        writerType: stderr
+        categoriesFilter: *categoriesFilter
+
+    locations:
+      - locationType: Logs
+        path: /yt/discovery-logs
+
+    volumeMounts:
+      - name: discovery-logs
+        mountPath: /yt/discovery-logs
+
+    volumeClaimTemplates:
+      - metadata:
+          name: discovery-logs
+        spec: &logsVolumeSpec
+          accessModes: [ "ReadWriteOnce" ]
+          resources:
+            requests:
+              storage: 10Gi
+
+  primaryMasters:
+    instanceCount: 3
+    cellTag: 1
+    loggers: *loggers
+
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchExpressions:
+            - key: yt_component
+              operator: In
+              values:
+              - {{ cluster_name }}-yt-master
+          topologyKey: "kubernetes.io/hostname"
+
+    locations:
+      - locationType: Logs
+        path: /yt/master-logs
+      - locationType: MasterChangelogs
+        path: /yt/master-data/master-changelogs
+      - locationType: MasterSnapshots
+        path: /yt/master-data/master-snapshots
+
+    volumeMounts:
+      - name: master-logs
+        mountPath: /yt/master-logs
+      - name: master-data
+        mountPath: /yt/master-data
+
+    volumeClaimTemplates:
+      - metadata:
+          name: master-data
+        spec:
+          storageClassName: "yc-network-ssd"
+          accessModes: [ "ReadWriteOnce" ]
+          resources:
+            requests:
+              storage: 99857989632 # 93 GiB
+      - metadata:
+          name: master-logs
+        spec: *logsVolumeSpec
+
+  httpProxies:
+    - serviceType: NodePort
+      instanceCount: 1
+      loggers: *loggers
+
+      locations:
+        - locationType: Logs
+          path: /yt/http-proxy-logs
+
+      volumeMounts:
+        - name: http-proxy-logs
+          mountPath: /yt/http-proxy-logs
+
+      volumeClaimTemplates:
+        - metadata:
+            name: http-proxy-logs
+          spec: *logsVolumeSpec
+
+  rpcProxies:
+    - instanceCount: 1
+
+  dataNodes:
+    - instanceCount: 3
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: yt_component
+                operator: In
+                values:
+                - ytbench-yt-data-node
+            topologyKey: "kubernetes.io/hostname"
+
+      loggers: *loggers
+
+      locations:
+        - locationType: Logs
+          path: /yt/data-node-logs
+        - locationType: ChunkStore
+          path: /yt/node-data/chunk-store
+
+      volumeMounts:
+        - name: data-node-logs
+          mountPath: /yt/data-node-logs
+        - name: node-data
+          mountPath: /yt/node-data
+
+      volumeClaimTemplates:
+        - metadata:
+            name: node-data
+          spec:
+            accessModes: [ "ReadWriteOnce" ]
+            storageClassName: "yc-network-ssd"
+            resources:
+              requests:
+                storage: 53687091200 # 50 GiB
+        - metadata:
+            name: data-node-logs
+          spec: *logsVolumeSpec
+
+  execNodes:
+    - instanceCount: 3
+
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: yt_component
+                operator: In
+                values:
+                - ytbench-yt-exec-node
+            topologyKey: "kubernetes.io/hostname"
+
+      loggers: *loggers
+      jobProxyLoggers:
+        - name: debug
+          compression: zstd
+          minLogLevel: debug
+          writerType: file
+          useTimestampSuffix: true
+          rotationPolicy: &rotationPolicyJobs
+            maxTotalSizeToKeep: 10485760  # 10Mi
+            rotationPeriodMilliseconds: 900000  # 15Min
+          categoriesFilter:
+            type: exclude
+            values: [ "Bus", "Concurrency" ]
+        - name: info
+          minLogLevel: info
+          writerType: file
+          rotationPolicy: *rotationPolicyJobs
+        - name: error
+          minLogLevel: error
+          writerType: stderr
+
+      locations:
+        - locationType: ChunkCache
+          path: /yt/node-data/chunk-cache
+        - locationType: Slots
+          path: /yt/node-data/slots
+        - locationType: Logs
+          path: /yt/exec-node-logs
+        - locationType: ImageCache
+          path: /yt/node-data/image-cache
+
+      volumeMounts:
+        - name: node-data
+          mountPath: /yt/node-data
+        - name: exec-node-logs
+          mountPath: /yt/exec-node-logs
+
+      volumes:
+        - name: node-data
+          emptyDir:
+            sizeLimit: 26843545600 # 25 GiB
+
+      volumeClaimTemplates:
+        - metadata:
+            name: exec-node-logs
+          spec: *logsVolumeSpec
+
+      jobEnvironment:
+        cri:
+          apiRetryTimeoutSeconds: 180
+
+      jobResources:
+        requests:
+          cpu: 16
+          memory: 32768Mi
+
+  tabletNodes:
+    - instanceCount: 1
+
+  queryTrackers:
+    image: {{ images.query_tracker }}
+    instanceCount: 1
+
+  yqlAgents:
+    image: {{ images.query_tracker }}
+    instanceCount: 1
+
+  schedulers:
+    instanceCount: 1
+
+  controllerAgents:
+    instanceCount: 1
+
+  strawberry:
+    image: {{ images.strawberry }}
+---
+apiVersion: cluster.ytsaurus.tech/v1
+kind: Chyt
+metadata:
+  name: mychyt
+spec:
+  image: {{ images.chyt }}
+  makeDefault: true
+  createPublicClique: true
+  ytsaurus:
+    name: {{ cluster_name }}
+---
+apiVersion: cluster.ytsaurus.tech/v1
+kind: Spyt
+metadata:
+  name: myspyt
+spec:
+  ytsaurus:
+    name:
+      {{ cluster_name }}
+  image: {{ images.spyt }}

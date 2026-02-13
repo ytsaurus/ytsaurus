@@ -156,7 +156,7 @@ public:
             const auto& stderrPath = config->StderrPath;
             if (stderrPath) {
                 process->AddArguments({
-                    "--stderr-path", *stderrPath
+                    "--stderr-path", *stderrPath,
                 });
             }
 
@@ -1046,9 +1046,9 @@ private:
             Bootstrap_);
 
         return WaitFor(future)
-                .ValueOrThrow(
-                    EErrorCode::PortoVolumeManagerFailure,
-                    "Failed to initialize volume manager");
+            .ValueOrThrow(
+                EErrorCode::PortoVolumeManagerFailure,
+                "Failed to initialize volume manager");
     }
 };
 
@@ -1349,7 +1349,7 @@ private:
         spec->Credentials.Gid = ::getgid();
 
         if (!spec->Environment.contains("USER")) {
-            TString username;
+            std::string username;
             if (config->DoNotSetUserId) {
                 username = ::GetUsername();
             } else {

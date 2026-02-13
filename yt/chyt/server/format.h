@@ -41,4 +41,4 @@ void FormatValue(NYT::TStringBuilderBase* builder, const DB::DataTypePtr& dataTy
 
 #define FORMAT_INL_H_
 #include "format-inl.h"
-#undef FFORMAT_INL_H_
+#undef FORMAT_INL_H_

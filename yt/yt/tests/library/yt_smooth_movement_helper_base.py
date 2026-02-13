@@ -105,9 +105,14 @@ class SmoothMovementHelperBase(CommandProvider):
         self._set_breakpoint(None)
         self.wait_for_action()
 
+    def get_action_state(self):
+        state = self.get(f"#{self.action_id}/@state")
+        self.print_debug(f"State of action {self.action_id} is {state}")
+        return state
+
     def wait_for_action(self, ignore_errors=False):
         def _check():
-            state = self._get_action_state()
+            state = self.get_action_state()
             if state == "completed":
                 return True
             elif state == "failed":
@@ -161,11 +166,6 @@ class SmoothMovementHelperBase(CommandProvider):
                 "expiration_timeout": 60000,
             })
         self.print_debug(f"Action started, id = {self.action_id}")
-
-    def _get_action_state(self):
-        state = self.get(f"#{self.action_id}/@state")
-        self.print_debug(f"State of action {self.action_id} is {state}")
-        return state
 
     def _set_breakpoint(self, stage):
         if stage is not None:

@@ -99,9 +99,9 @@ class TestParquet(object):
             assert column_names[1] == "value"
             assert table[column_names[1]].to_pylist() == [1, 2, 3]
 
-    @authors("nadya02")
+    @authors("nadya02", "denvr")
     @pytest.mark.parametrize("enable_parallel", [False])
-    def test_dump_parquet_gzip(self, enable_parallel):
+    def test_dump_parquet_compression(self, enable_parallel):
         with tempfile.NamedTemporaryFile() as temp_file:
             filename = temp_file.name
             table = TEST_DIR + "/table"
@@ -110,6 +110,7 @@ class TestParquet(object):
                 Row(key="one", value=1),
                 Row(key="two", value=2),
                 Row(key="three", value=3),
+                Row(key="12321" * 10, value=999999),
             ])
 
             with set_config_option("read_parallel/enable", enable_parallel):
@@ -123,6 +124,13 @@ class TestParquet(object):
             for column_index in range(row_group.num_columns):
                 col = row_group.column(column_index)
                 assert col.compression == "GZIP"
+
+            with set_config_option("read_parallel/enable", enable_parallel):
+                yt.dump_parquet(table, filename, enable_several_files=False, file_compression_codec="zstd", file_compression_level=1)
+                size_level_1 = os.path.getsize(filename)
+                yt.dump_parquet(table, filename, enable_several_files=False, file_compression_codec="zstd", file_compression_level=9)
+                size_level_9 = os.path.getsize(filename)
+            assert size_level_9 < size_level_1
 
     @authors("nadya02")
     @pytest.mark.parametrize("enable_parallel", [True, False])
@@ -559,8 +567,8 @@ class TestParquet(object):
                 .add_column("z", type_info.Optional[type_info.Struct[
                     "foo": type_info.Optional[type_info.Struct[
                         "a": type_info.Optional[type_info.Uint8],
-                        "b": type_info.Optional[type_info.String]]],
-                    "bar": type_info.Optional[type_info.String]]])
+                        "b": type_info.Optional[type_info.Utf8]]],
+                    "bar": type_info.Optional[type_info.Utf8]]])
 
             schema_from_attr = TableSchema.from_yson_type(yt.get(output_table + "/@schema"))
             assert schema == schema_from_attr

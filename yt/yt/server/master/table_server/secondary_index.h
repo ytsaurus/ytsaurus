@@ -2,7 +2,11 @@
 
 #include "public.h"
 
+#include <yt/yt/server/master/cell_master/serialize.h>
+
 #include <yt/yt/server/master/object_server/object.h>
+
+#include <yt/yt/library/query/secondary_index/schema.h>
 
 namespace NYT::NTableServer {
 
@@ -18,7 +22,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(ESecondaryIndexKind, Kind);
     DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TCellTag, ExternalCellTag, NObjectClient::NotReplicatedCellTagSentinel);
     DEFINE_BYREF_RW_PROPERTY(std::optional<std::string>, Predicate);
-    DEFINE_BYREF_RW_PROPERTY(std::optional<std::string>, UnfoldedColumn);
+    DEFINE_BYREF_RW_PROPERTY(std::optional<NTabletClient::TUnfoldedColumns>, UnfoldedColumns);
     DEFINE_BYVAL_RW_PROPERTY(ETableToIndexCorrespondence, TableToIndexCorrespondence, ETableToIndexCorrespondence::Invalid);
     DEFINE_BYREF_RW_PROPERTY(NTableClient::TTableSchemaPtr, EvaluatedColumnsSchema);
 

@@ -298,13 +298,13 @@ void SplitRangesByTablets(
         }
 
         // itemIt PRECEDES shardIt
-        bool operator() (const TRowRange* itemIt, TShardIt shardIt) const
+        bool operator()(const TRowRange* itemIt, TShardIt shardIt) const
         {
             return itemIt->second <= GetKey(shardIt);
         }
 
         // itemIt FOLLOWS shardIt
-        bool operator() (TShardIt shardIt, const TRowRange* itemIt) const
+        bool operator()(TShardIt shardIt, const TRowRange* itemIt) const
         {
             return GetKey(shardIt) <= itemIt->first;
         }
@@ -362,13 +362,13 @@ void SplitKeysByTablets(
         }
 
         // itemIt PRECEDES shardIt
-        bool operator() (const TRow* itemIt, TShardIt shardIt) const
+        bool operator()(const TRow* itemIt, TShardIt shardIt) const
         {
             return Less(*itemIt, GetKey(shardIt));
         }
 
         // itemIt FOLLOWS shardIt
-        bool operator() (TShardIt shardIt, const TRow* itemIt) const
+        bool operator()(TShardIt shardIt, const TRow* itemIt) const
         {
             // Less?
             return LessOrEqual(GetKey(shardIt), *itemIt);
@@ -417,13 +417,13 @@ void GroupRangesByPartition(TRange<TRowRange> ranges, TRange<T> partitions, cons
         }
 
         // itemIt PRECEDES shardIt
-        bool operator() (TRangeIt itemIt, TShardIt shardIt) const
+        bool operator()(TRangeIt itemIt, TShardIt shardIt) const
         {
             return itemIt->second <= GetKey(shardIt);
         }
 
         // itemIt FOLLOWS shardIt
-        bool operator() (TShardIt shardIt, TRangeIt itemIt) const
+        bool operator()(TShardIt shardIt, TRangeIt itemIt) const
         {
             return GetKey(shardIt) <= itemIt->first;
         }
@@ -473,13 +473,13 @@ std::vector<TSharedRange<TRowRange>> SplitTablet(
         }
 
         // itemIt PRECEDES shardIt
-        bool operator() (const TRowRange* itemIt, const TRow* shardIt) const
+        bool operator()(const TRowRange* itemIt, const TRow* shardIt) const
         {
             return itemIt->second <= GetKey(shardIt);
         }
 
         // itemIt FOLLOWS shardIt
-        bool operator() (const TRow* shardIt, const TRowRange* itemIt) const
+        bool operator()(const TRow* shardIt, const TRowRange* itemIt) const
         {
             return GetKey(shardIt) <= itemIt->first;
         }

@@ -46,7 +46,7 @@ TEST(TSymbolizeTest, SingleLocation)
     auto function = profile.function(0);
 
     auto name = profile.string_table(function.name());
-    ASSERT_TRUE(name.find("SingleLocation") != TString::npos)
+    ASSERT_TRUE(name.find("SingleLocation") != std::string::npos)
         << "function name is " << name;
 }
 
@@ -60,7 +60,7 @@ TEST(TSymbolizeTest, GetBuildId)
 
     auto buildId = GetBuildId();
     ASSERT_TRUE(buildId);
-    ASSERT_NE(*buildId, TString{""});
+    ASSERT_NE(*buildId, std::string{""});
 }
 
 TEST(TBuildInfoTest, Test)

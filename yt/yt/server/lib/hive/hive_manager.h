@@ -29,12 +29,16 @@ bool IsHiveMutation();
 //! by a current fiber or null id if that mutation is not a Hive one.
 TCellId GetHiveMutationSenderId();
 
+//! Returns the reign of the cell that posted a mutation currently handed
+//! by a current fiber or 0 if that mutation is not a Hive one.
+NHydra::TReign GetHiveMutationSenderReign();
+
 //! Installs the mutation sender id into FLS.
 class THiveMutationGuard
     : private TNonCopyable
 {
 public:
-    explicit THiveMutationGuard(TCellId senderId);
+    THiveMutationGuard(TCellId senderId, NHydra::TReign senderReign);
     ~THiveMutationGuard();
 };
 
@@ -48,6 +52,7 @@ public:
 
 private:
     const TCellId SenderId_;
+    const NHydra::TReign SenderReign_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

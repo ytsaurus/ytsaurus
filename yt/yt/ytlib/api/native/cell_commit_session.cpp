@@ -57,7 +57,7 @@ public:
     TFuture<void> Invoke() override
     {
         if (Actions_.empty()) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         auto transaction = Transaction_.Lock();

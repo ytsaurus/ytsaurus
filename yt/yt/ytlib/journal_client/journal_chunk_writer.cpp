@@ -30,6 +30,8 @@
 #include <yt/yt/core/rpc/dispatcher.h>
 #include <yt/yt/core/rpc/retrying_channel.h>
 
+#include <util/random/shuffle.h>
+
 namespace NYT::NJournalClient {
 
 using namespace NApi;
@@ -51,12 +53,14 @@ public:
         TSessionId sessionId,
         TJournalChunkWriterOptionsPtr options,
         TJournalChunkWriterConfigPtr config,
+        TJournalWriterPerformanceCounters counters,
         const NLogging::TLogger& logger)
         : Client_(std::move(client))
         , SessionId_(sessionId)
         , ChunkId_(SessionId_.ChunkId)
         , Options_(std::move(options))
         , Config_(std::move(config))
+        , Counters_(std::move(counters))
         , ReplicaCount_(GetReplicaCount(Options_))
         , Logger(logger.WithTag("ChunkId: %v", ChunkId_))
     { }
@@ -76,7 +80,8 @@ public:
 
         return BIND(&TJournalChunkWriter::DoClose, MakeStrong(this))
             .AsyncVia(Invoker_)
-            .Run();
+            .Run()
+            .ToUncancelable();
     }
 
     TFuture<void> WriteRecord(TSharedRef record) override
@@ -121,6 +126,7 @@ private:
 
     const TJournalChunkWriterOptionsPtr Options_;
     const TJournalChunkWriterConfigPtr Config_;
+    const TJournalWriterPerformanceCounters Counters_;
 
     const int ReplicaCount_;
 
@@ -139,6 +145,7 @@ private:
         TPeriodicExecutorPtr PingExecutor;
 
         TChunkLocationUuid TargetLocationUuid = InvalidChunkLocationUuid;
+        TChunkLocationIndex TargetLocationIndex = InvalidChunkLocationIndex;
 
         bool IsFlushing = false;
 
@@ -178,6 +185,8 @@ private:
         TPromise<void> QuorumFlushedPromise = NewPromise<void>();
 
         int FlushedReplicaCount = 0;
+
+        TCpuInstant StartTime = GetCpuInstant();
     };
 
     using TRecordPtr = TIntrusivePtr<TRecord>;
@@ -189,7 +198,8 @@ private:
 
     i64 NextRecordIndex_ = 0;
 
-    bool Closed_ = false;
+    TPromise<void> ClosingPromise_;
+
 
     void DoOpen()
     {
@@ -223,6 +233,8 @@ private:
             SessionId_,
             ReplicaCount_);
 
+        TEventTimerGuard timingGuard(Counters_.AllocateWriteTargetsTimer);
+
         auto replicas = NChunkClient::AllocateWriteTargets(
             Client_,
             SessionId_,
@@ -233,6 +245,8 @@ private:
             /*forbiddenAddresses*/ {},
             /*allocatedAddresses*/ {},
             Logger);
+
+        Shuffle(replicas.begin(), replicas.end());
 
         YT_VERIFY(std::ssize(replicas) == ReplicaCount_);
         if (Options_->ErasureCodec != NErasure::ECodec::None) {
@@ -280,6 +294,8 @@ private:
         YT_LOG_DEBUG("Starting chunk sessions at nodes (SessionId: %v)",
             SessionId_);
 
+        TEventTimerGuard timingGuard(Counters_.StartNodeSessionTimer);
+
         std::vector<TFuture<void>> futures;
         futures.reserve(Nodes_.size());
         for (const auto& node : Nodes_) {
@@ -311,6 +327,9 @@ private:
             if (rsp->has_location_uuid()) {
                 node->TargetLocationUuid = FromProto<TChunkLocationUuid>(rspOrError.Value()->location_uuid());
             }
+            if (rsp->has_location_index()) {
+                node->TargetLocationIndex = FromProto<TChunkLocationIndex>(rspOrError.Value()->location_index());
+            }
 
             node->PingExecutor = New<TPeriodicExecutor>(
                 Invoker_,
@@ -318,9 +337,10 @@ private:
                 Config_->NodePingPeriod);
             node->PingExecutor->Start();
 
-            YT_LOG_DEBUG("Chunk session started at node (Address: %v, TargetLocationUuid: %v)",
+            YT_LOG_DEBUG("Chunk session started at node (Address: %v, TargetLocationUuid: %v, TargetLocationIndex: %v)",
                 node->Descriptor.GetDefaultAddress(),
-                node->TargetLocationUuid);
+                node->TargetLocationUuid,
+                node->TargetLocationIndex);
         } else {
             auto error = TError("Failed to start chunk session at %v",
                 node->Descriptor.GetDefaultAddress())
@@ -335,6 +355,8 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         YT_LOG_DEBUG("Confirming chunk");
+
+        TEventTimerGuard timingGuard(Counters_.ConfirmChunkTimer);
 
         YT_VERIFY(!replicas.empty());
         YT_VERIFY(Nodes_.size() == replicas.size());
@@ -354,6 +376,7 @@ private:
             auto* replicaInfo = req->add_replicas();
             replicaInfo->set_replica(ToProto(replicas[index]));
             ToProto(replicaInfo->mutable_location_uuid(), Nodes_[index]->TargetLocationUuid);
+            replicaInfo->set_location_index(ToProto<ui32>(Nodes_[index]->TargetLocationIndex));
         }
 
         auto* meta = req->mutable_chunk_meta();
@@ -420,7 +443,7 @@ private:
             return MakeFuture<void>(Error_);
         }
 
-        if (Closed_) {
+        if (ClosingPromise_) {
             auto error = TError("Journal chunk writer was closed");
             return MakeFuture<void>(error);
         }
@@ -436,13 +459,19 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-        if (std::ssize(PendingRecords_) >= Config_->MaxBatchRowCount) {
+        if (!Error_.IsOK()) {
+            return;
+        }
+
+        UpdateReplicaLagTimes();
+
+        if (Config_->MaxBatchDelay == TDuration::Zero() ||
+            std::ssize(PendingRecords_) >= Config_->MaxBatchRowCount)
+        {
             DoFlushNodes();
         }
 
-        if (Config_->MaxBatchDelay == TDuration::Zero()) {
-            DoFlushNodes();
-        } else if (!CurrentRecordsFlushCookie_) {
+        if (Config_->MaxBatchDelay != TDuration::Zero() && !CurrentRecordsFlushCookie_) {
             CurrentRecordsFlushCookie_ = TDelayedExecutor::Submit(
                 BIND(&TJournalChunkWriter::DoFlushNodes, MakeWeak(this))
                     .Via(Invoker_),
@@ -450,9 +479,43 @@ private:
         }
     }
 
+    void UpdateReplicaLagTimes()
+    {
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+
+        auto now = GetCpuInstant();
+
+        auto lastPendingRecordIndex = GetLastPendingRecordIndex();
+        std::vector<std::pair<NProfiling::TCpuDuration, int>> replicaLagTimes;
+        for (int index = 0; index < std::ssize(Nodes_); ++index) {
+            const auto& node = Nodes_[index];
+            auto nodeLagTime = node->FirstUnflushedRecordIndex == lastPendingRecordIndex + 1
+                ? 0
+                : now - GetPendingRecord(node->FirstUnflushedRecordIndex)->StartTime;
+
+            replicaLagTimes.emplace_back(nodeLagTime, index);
+        }
+
+        std::sort(replicaLagTimes.begin(), replicaLagTimes.end());
+
+        Counters_.WriteQuorumLag.Record(CpuDurationToDuration(replicaLagTimes[Options_->WriteQuorum - 1].first));
+        Counters_.MaxReplicaLag.Record(CpuDurationToDuration(replicaLagTimes.back().first));
+
+        YT_LOG_DEBUG("Hunk journal replicas lag updated (Replicas: %v)",
+            MakeFormattableView(replicaLagTimes, [&] (auto* builder, const auto& replicaInfo) {
+                builder->AppendFormat("%v=>%v",
+                    Nodes_[replicaInfo.second]->Descriptor.GetDefaultAddress(),
+                    CpuDurationToDuration(replicaInfo.first));
+            }));
+    }
+
     void DoFlushNodes()
     {
         TDelayedExecutor::CancelAndClear(CurrentRecordsFlushCookie_);
+
+        if (!Error_.IsOK()) {
+            return;
+        }
 
         for (const auto& node : Nodes_) {
             MaybeFlushNode(node);
@@ -479,7 +542,7 @@ private:
 
         auto req = node->HeavyProxy.PutBlocks();
         req->SetResponseHeavy(true);
-        req->SetMultiplexingBand(EMultiplexingBand::Heavy);
+        req->SetMultiplexingBand(EMultiplexingBand::Journal);
         ToProto(req->mutable_session_id(), GetSessionIdForNode(node));
         req->set_flush_blocks(true);
         req->set_first_block_index(node->FirstUnflushedRecordIndex);
@@ -487,7 +550,7 @@ private:
         i64 flushRecordCount = 0;
         i64 flushDataSize = 0;
 
-        i64 lastPendingRecordIndex = FirstPendingRecordIndex_ + std::ssize(PendingRecords_) - 1;
+        i64 lastPendingRecordIndex = GetLastPendingRecordIndex();
         for (
             int recordIndex = node->FirstUnflushedRecordIndex;
             recordIndex <= lastPendingRecordIndex;
@@ -526,13 +589,18 @@ private:
             flushDataSize);
 
         req->Invoke().Subscribe(
-            BIND_NO_PROPAGATE(&TJournalChunkWriter::OnRecordsFlushed, MakeWeak(this), node, flushRecordCount)
+            BIND_NO_PROPAGATE(&TJournalChunkWriter::OnRecordsFlushed,
+                MakeWeak(this),
+                node,
+                flushRecordCount,
+                flushDataSize)
                 .Via(Invoker_));
     }
 
     void OnRecordsFlushed(
         const TNodePtr& node,
         i64 recordCount,
+        i64 flushDataSize,
         const TDataNodeServiceProxy::TErrorOrRspPutBlocksPtr& rspOrError)
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
@@ -545,6 +613,11 @@ private:
             OnFailed(error);
             return;
         }
+
+        const auto& rsp = rspOrError.Value();
+        Counters_.JournalWrittenBytes.Increment(flushDataSize);
+        Counters_.MediumWrittenBytes.Increment(rsp->statistics().data_bytes_written_to_medium());
+        Counters_.IORequestCount.Increment(rsp->statistics().io_requests());
 
         auto firstRecordIndex = node->FirstUnflushedRecordIndex;
         auto lastRecordIndex = firstRecordIndex + recordCount - 1;
@@ -573,6 +646,10 @@ private:
                 YT_VERIFY(recordIndex == FirstPendingRecordIndex_);
                 ++FirstPendingRecordIndex_;
                 PendingRecords_.pop_front();
+
+                if (PendingRecords_.empty() && ClosingPromise_) {
+                    ClosingPromise_.TrySet();
+                }
             }
         }
 
@@ -603,15 +680,21 @@ private:
         }
     }
 
-    void OnFailed(const TError& error)
+    void OnFailed(const TError& innerError)
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-        YT_LOG_INFO(error, "Journal chunk writer failed");
+        auto error = TError("Journal chunk writer failed")
+            << innerError;
+        YT_LOG_ERROR(error);
         Error_ = error;
 
         for (const auto& record : PendingRecords_) {
             record->QuorumFlushedPromise.TrySet(error);
+        }
+
+        if (ClosingPromise_) {
+            ClosingPromise_.TrySet(error);
         }
 
         OnWriterFinished();
@@ -626,13 +709,50 @@ private:
         }
     }
 
-    void DoClose()
+    TFuture<void> DoClose()
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
+        if (!Error_.IsOK()) {
+            return MakeFuture(Error_);
+        }
+
         YT_LOG_DEBUG("Closing journal chunk writer");
 
-        OnWriterFinished();
+        ClosingPromise_ = NewPromise<void>();
+        if (PendingRecords_.empty()) {
+            ClosingPromise_.TrySet();
+        }
+
+        DoFlushNodes();
+
+        std::vector<TFuture<void>> quorumFlushFutures;
+        quorumFlushFutures.reserve(PendingRecords_.size());
+        for (const auto& record : PendingRecords_) {
+            quorumFlushFutures.push_back(record->QuorumFlushedPromise);
+        }
+
+        return AllSucceeded(std::move(quorumFlushFutures)).Apply(BIND([
+            =,
+            this,
+            this_ = MakeStrong(this)
+        ] {
+            YT_LOG_DEBUG("Will gracefully wait before finalizing journal chunk writer close (MaxWaitPeriod: %v)",
+                Config_->ChunkCloseGracePeriod);
+
+            // NB: We wait for the grace period to let replicas remaining after quorum flush
+            // to finish as well so subsequent seal will not trigger undesireable recovery.
+            return ClosingPromise_.ToFuture()
+                .WithTimeout(Config_->ChunkCloseGracePeriod)
+                .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
+                    OnWriterFinished();
+                    if (!error.IsOK()) {
+                        THROW_ERROR(error);
+                    }
+                })
+                .AsyncVia(Invoker_));
+        })
+            .AsyncVia(Invoker_));
     }
 
     void OnWriterFinished()
@@ -645,6 +765,8 @@ private:
                 node->PingExecutor.Reset();
             }
         }
+
+        TDelayedExecutor::CancelAndClear(CurrentRecordsFlushCookie_);
 
         YT_LOG_DEBUG("Journal chunk writer finished");
     }
@@ -688,12 +810,17 @@ private:
 
         YT_VERIFY(
             index >= FirstPendingRecordIndex_ &&
-            index < FirstPendingRecordIndex_ + std::ssize(PendingRecords_));
+            index <= GetLastPendingRecordIndex());
 
         const auto& record = PendingRecords_[index - FirstPendingRecordIndex_];
         YT_VERIFY(record->Index == index);
 
         return record;
+    }
+
+    i64 GetLastPendingRecordIndex() const
+    {
+        return FirstPendingRecordIndex_ + std::ssize(PendingRecords_) - 1;
     }
 };
 
@@ -704,6 +831,7 @@ IJournalChunkWriterPtr CreateJournalChunkWriter(
     TSessionId sessionId,
     TJournalChunkWriterOptionsPtr options,
     TJournalChunkWriterConfigPtr config,
+    TJournalWriterPerformanceCounters counters,
     const NLogging::TLogger& logger)
 {
     return New<TJournalChunkWriter>(
@@ -711,6 +839,7 @@ IJournalChunkWriterPtr CreateJournalChunkWriter(
         sessionId,
         std::move(options),
         std::move(config),
+        std::move(counters),
         logger);
 }
 

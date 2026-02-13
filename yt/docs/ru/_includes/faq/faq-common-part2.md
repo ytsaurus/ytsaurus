@@ -136,7 +136,7 @@ yt merge --src '_path/to/src/table[#100:#500]' --dst _path/to/dst/table --mode o
 ------
 #### **Q: При запуске операции из python wrapper от роботного пользователя получаю ошибку "permission for node //tmp/yt_wrapper/file_storage is not allowed by any matching ACE"** {#python-wrapper-permission-error}
 
-**A:** У робота нет доступа к `/tmp`, необходимо запросить для робота роль **group member yandex** через [IDM](https://idm.yandex-team.ru/). Подробнее можно узнать в разделе [Аутентификация](../../user-guide/storage/auth.md#getting_token_for_robot).
+**A:** У робота нет доступа к `//tmp`, необходимо запросить для робота роль **group member yandex** через [IDM](https://idm.yandex-team.ru/). Подробнее можно узнать в разделе [Аутентификация](../../user-guide/storage/auth.md#getting_token_for_robot).
 
 ------
 #### **Q: Как узнать, валиден ли токен, от какого он пользователя и принимает ли его конкретный кластер?** {#check-token-validity}

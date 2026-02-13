@@ -19,6 +19,8 @@
 
 #include <yt/yt/server/lib/tablet_node/table_settings.h>
 
+#include <yt/yt/server/lib/tablet_server/originator_tablet.h>
+
 #include <yt/yt/server/lib/hive/public.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
@@ -545,6 +547,9 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NHiveServer::TAvenueEndpointId, SiblingAvenueEndpointId);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TStoreId>, CommonDynamicStoreIds);
 
+    using TStoreRowCountMap = THashMap<TStoreId, i64>;
+    DEFINE_BYREF_RW_PROPERTY(TStoreRowCountMap, StoreRowCountOverride);
+
     // Transient.
     DEFINE_BYVAL_RW_PROPERTY(bool, StageChangeScheduled);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastStageChangeTime);
@@ -599,6 +604,8 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::ECommitOrdering, CommitOrdering);
     DEFINE_BYVAL_RO_PROPERTY(NTabletClient::TTableReplicaId, UpstreamReplicaId);
 
+    DEFINE_BYREF_RW_PROPERTY(std::vector<NTabletServer::TOriginatorTablet>, OriginatorTablets);
+
     DEFINE_BYVAL_RO_PROPERTY(int, HashTableSize);
 
     DEFINE_BYVAL_RO_PROPERTY(int, OverlappingStoreCount);
@@ -608,6 +615,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(IDynamicStorePtr, ActiveStore);
     DEFINE_BYVAL_RW_PROPERTY(int, DynamicStoreCount);
 
+    DEFINE_BYVAL_RW_PROPERTY(TStoreId, ProvisionallyFlushingStoreId);
+
     // NB: This field is transient.
     // Flush index of last rotated (last passive dynamic) store.
     DEFINE_BYVAL_RW_PROPERTY(ui32, StoreFlushIndex, 0);
@@ -616,6 +625,27 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TReplicaMap, Replicas);
 
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetainedTimestamp);
+
+    // ConflictHorizonTimestamp is a monotonic timestamp that accounts for versions that were present
+    // in the tablet's chunks, including would-be empty ones.
+    //
+    // An empty rowset can be produced without chunk creation, either on flush or on compaction.
+    // In both cases, some stores are removed with their row versions, without leaving a trace in the tablet's metadata.
+    //
+    // ConflictHorizonTimestamp is advanced every time a chunk store is added or an empty dynamic store is flushed.
+    //
+    // It is separated into persistent and transient parts to avoid lock conflicts while dynamic store is available as a backing one.
+    // The transient part is advanced every time a backing store (unleashed or ordinary) is removed.
+    //
+    // The transient part should never be greater than the persistent one.
+    DEFINE_BYVAL_RO_PROPERTY(
+        NTransactionClient::TTimestamp,
+        PersistentConflictHorizonTimestamp,
+        NTransactionClient::MinTimestamp);
+    DEFINE_BYVAL_RO_PROPERTY(
+        NTransactionClient::TTimestamp,
+        TransientConflictHorizonTimestamp,
+        NTransactionClient::MinTimestamp);
 
     DEFINE_BYVAL_RO_PROPERTY(NConcurrency::TAsyncSemaphorePtr, StoresUpdateCommitSemaphore);
 
@@ -710,7 +740,8 @@ public:
         TTimestamp retainedTimestamp,
         i64 cumulativeDataWeight,
         NTableClient::ETabletTransactionSerializationType serializationType,
-        TInstant mountTime);
+        TInstant mountTime,
+        TTimestamp conflictHorizonTimestamp);
 
     ETabletState GetPersistentState() const;
 
@@ -825,6 +856,11 @@ public:
 
     void UpdateUnflushedTimestamp() const;
 
+    void AdvancePersistentConflictHorizonTimestamp(TTimestamp timestamp);
+    void AdvanceTransientConflictHorizonTimestamp(TTimestamp timestamp);
+    // Advances the transient timestamp up to the persistent one.
+    void ResetTransientConflictHorizonTimestamp();
+
     // Returns |true| if tablet either participates in smooth movement and holds master avenue connection
     // or does not participate in it at all.
     bool IsActiveServant() const;
@@ -919,6 +955,11 @@ public:
     void ResetRowCache(const ITabletSlotPtr& slot);
 
     INodeMemoryTrackerPtr MaybeGetNodeMemoryUsageTracker() const;
+
+    void OnDynamicConfigChanged(
+        const ITabletSlotPtr& slot,
+        const NClusterNode::TClusterNodeDynamicConfigPtr& oldConfig,
+        const NClusterNode::TClusterNodeDynamicConfigPtr& newConfig);
 
 private:
     struct TTabletSizeMetrics

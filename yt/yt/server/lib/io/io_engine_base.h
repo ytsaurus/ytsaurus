@@ -22,8 +22,6 @@ namespace NYT::NIO {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr auto DefaultBlockSize = 512;
-constexpr auto DefaultPageSize = 4_KB;
 constexpr auto MaxIovCountPerRequest = 64;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -232,6 +230,9 @@ protected:
     void DoResize(const TResizeRequest& request);
     void AddWriteWaitTimeSample(TDuration duration);
     void AddReadWaitTimeSample(TDuration duration);
+    TSharedMutableRef AllocateWriteBlob(
+        i64 size,
+        i64 directIoBlockSize);
     TSharedMutableRef AllocateHugeBlob();
     void Reconfigure(const NYTree::INodePtr& node) override;
 

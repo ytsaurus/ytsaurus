@@ -726,6 +726,20 @@ class TestJournalsPortal(TestJournalsMulticell):
         assert read_journal("//portals/j") == PAYLOAD
 
 
+@pytest.mark.enabled_multidaemon
+class TestJournalsSequoia(TestJournalsMulticell):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host", "sequoia_node_host"]},
+        "11": {"roles": ["chunk_host", "cypress_node_host"]},
+        "12": {"roles": ["chunk_host", "sequoia_node_host"]},
+    }
+
+
 class TestJournalsRpcProxy(TestJournals):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     DRIVER_BACKEND = "rpc"

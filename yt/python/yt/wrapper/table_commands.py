@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Optional, List, Literal
 
 if TYPE_CHECKING:
     from typing import Mapping
@@ -31,6 +31,7 @@ from .stream import ItemStream, _ChunkStream
 from .ypath import TablePath, YPath, ypath_join
 
 import yt.json_wrapper as json
+import yt.type_info as ti
 import yt.yson as yson
 import yt.logger as logger
 
@@ -1071,7 +1072,7 @@ def is_sorted(table, client=None):
 
 
 def alter_table(path, schema=None, schema_id=None, dynamic=None, upstream_replica_id=None,
-                replication_progress=None, clip_timestamp=None, client=None):
+                replication_progress=None, clip_timestamp=None, constrained_schema=None, constraints=None, client=None):
     """Performs schema and other table meta information modifications.
        Applicable to static and dynamic tables.
 
@@ -1083,6 +1084,8 @@ def alter_table(path, schema=None, schema_id=None, dynamic=None, upstream_replic
     :param str upstream_replica_id: upstream_replica_id
     :param dict replication_progress: replication progress for chaos dynamic table
     :param int clip_timestamp: new clip_timestamp to set on table
+    :param constrained_schema: new schema with constraints to set on table
+    :param dict constraints: constraint per column map for table schema
     """
 
     params = {"path": TablePath(path, client=client)}
@@ -1092,6 +1095,8 @@ def alter_table(path, schema=None, schema_id=None, dynamic=None, upstream_replic
     set_param(params, "upstream_replica_id", upstream_replica_id)
     set_param(params, "replication_progress", replication_progress)
     set_param(params, "clip_timestamp", clip_timestamp)
+    set_param(params, "constrained_schema", constrained_schema)
+    set_param(params, "constraints", constraints)
 
     return make_request("alter_table", params, client=client)
 
@@ -1160,7 +1165,7 @@ class FileFormat(enum.Enum):
     PARQUET = 1
 
 
-def _dump_file(table, output_file, output_path, enable_several_files, unordered, file_compression_codec, format, client):
+def _dump_file(table, output_file, output_path, enable_several_files, unordered, file_compression_codec, file_compression_level, format, client):
     if not output_path:
         if output_file:
             output_path = output_file
@@ -1251,7 +1256,8 @@ def _dump_file(table, output_file, output_path, enable_several_files, unordered,
                 data_size_per_thread=data_size_per_thread,
                 stream=response,
                 min_batch_row_count=min_batch_row_count,
-                file_compression_codec=file_compression_codec)
+                file_compression_codec=file_compression_codec,
+            )
         elif format == FileFormat.PARQUET:
             yson.async_dump_parquet(
                 output_path=output_path,
@@ -1260,7 +1266,9 @@ def _dump_file(table, output_file, output_path, enable_several_files, unordered,
                 data_size_per_thread=data_size_per_thread,
                 stream=response,
                 min_batch_row_count=min_batch_row_count,
-                file_compression_codec=file_compression_codec)
+                file_compression_codec=file_compression_codec,
+                file_compression_level=file_compression_level,
+            )
         else:
             raise YtError('The format "{0}" is not supported for dumping table'.format(format.name))
 
@@ -1269,12 +1277,21 @@ def _dump_file(table, output_file, output_path, enable_several_files, unordered,
         if format == FileFormat.ORC:
             yson.dump_orc(output_path, stream, min_batch_row_count, file_compression_codec=file_compression_codec)
         elif format == FileFormat.PARQUET:
-            yson.dump_parquet(output_path, stream, min_batch_row_count, file_compression_codec=file_compression_codec)
+            yson.dump_parquet(output_path, stream, min_batch_row_count, file_compression_codec=file_compression_codec, file_compression_level=file_compression_level)
         else:
             raise YtError('The format "{0}" is not supported for dumping table'.format(format.name))
 
 
-def dump_parquet(table, output_file=None, output_path=None, enable_several_files=False, unordered=False, file_compression_codec=None, client=None):
+def dump_parquet(
+    table: Union[str, TablePath],
+    output_file: Optional[str] = None,
+    output_path: Optional[str] = None,
+    enable_several_files: Optional[bool] = False,
+    unordered: Optional[bool] = False,
+    file_compression_codec: Optional[Union[Literal["uncompressed"], Literal["snappy"], Literal["gzip"], Literal["brotli"], Literal["zstd"], Literal["lz4"], Literal["lz4_frame"], Literal["lzo"], Literal["bz2"], Literal["lz4_hadoop"]]] = None,  # noqa
+    file_compression_level: Optional[int] = None,
+    client=None,
+):
     """Dump table with a strict schema as `Parquet <https://parquet.apache.org/docs>` file
 
     :param table: table
@@ -1296,7 +1313,7 @@ def dump_parquet(table, output_file=None, output_path=None, enable_several_files
             'Bindings are shipped as additional package and '
             'can be installed ' + YSON_PACKAGE_INSTALLATION_TEXT)
 
-    _dump_file(table, output_file, output_path, enable_several_files, unordered, file_compression_codec, FileFormat.PARQUET, client)
+    _dump_file(table, output_file, output_path, enable_several_files, unordered, file_compression_codec, file_compression_level, FileFormat.PARQUET, client)
 
 
 def _merge_items_into_chunks(items, chunk_size, next_chunk):
@@ -1373,7 +1390,7 @@ def dump_orc(table, output_file=None, output_path=None, enable_several_files=Fal
             'YSON bindings required.'
             'Bindings are shipped as additional package and '
             'can be installed ' + YSON_PACKAGE_INSTALLATION_TEXT)
-    _dump_file(table, output_file, output_path, enable_several_files, unordered, file_compression_codec, FileFormat.ORC, client)
+    _dump_file(table, output_file, output_path, enable_several_files, unordered, file_compression_codec, None, FileFormat.ORC, client)
 
 
 def upload_orc(table, input_file, client=None):
@@ -1395,3 +1412,48 @@ def upload_orc(table, input_file, client=None):
     table = TablePath(table, client=client)
     table.attributes["schema"] = TableSchema.from_yson_type(yson.loads(schema))
     write_table(table, ItemStreamForArrowFormat(stream), raw=True, format="arrow", client=client)
+
+
+def infer_table_schema(table: Union[str, YPath], optional_only: Optional[List] = None, client=None) -> TableSchema:
+    """Infer table schema from table content.
+
+    :param table: path to table.
+    :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param optional_only: List of optional fields (by default - all)
+    """
+    table_schema = get_table_schema(table, client=client)
+    if table_schema.columns:
+        return table_schema
+
+    table_header_path = TablePath(table, ranges=[{'lower_limit': {'row_index': 0}, 'upper_limit': {"row_index": 1}}])
+
+    raw_data = b"".join(read_table(table_header_path, raw=True, format="yson", client=client))
+    if not raw_data:
+        return TableSchema()
+
+    data = next(yson.loads(raw_data, yson_type="list_fragment"))
+
+    def _get_type(name, value):
+        known_mapping = {
+            yson.yson_types.YsonString: ti.typing.String,
+            yson.yson_types.YsonUnicode: ti.typing.Utf8,
+        }
+        ti_type = known_mapping.get(
+            type(value),
+            ti.typing.PRIMITIVES_V1.get(
+                value.get_yson_type_str(),
+                ti.Yson
+            )
+        )
+        if ti_type == ti.Yson or not optional_only or name in optional_only:
+            ti_type = ti.Optional[ti_type]
+        return ti_type
+
+    table_schema = TableSchema()
+    for name, value in data.items():
+        table_schema.add_column(
+            name=name,
+            type=_get_type(name, value),
+        )
+
+    return table_schema

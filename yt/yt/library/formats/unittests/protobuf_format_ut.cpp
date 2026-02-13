@@ -71,13 +71,13 @@ DEFINE_ENUM(EProtoFormatType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ConvertToTextYson(const INodePtr& node)
+std::string ConvertToTextYson(const INodePtr& node)
 {
     return ConvertToYsonString(node, EYsonFormat::Text).ToString();
 }
 
 // Hardcoded serialization of file descriptor used in old format description.
-TString FileDescriptorLegacy = "\x0a\xb6\x03\x0a\x29\x6a\x75\x6e\x6b\x2f\x65\x72\x6d\x6f\x6c\x6f\x76\x64\x2f\x74\x65\x73\x74\x2d\x70\x72\x6f\x74\x6f\x62"
+std::string FileDescriptorLegacy = "\x0a\xb6\x03\x0a\x29\x6a\x75\x6e\x6b\x2f\x65\x72\x6d\x6f\x6c\x6f\x76\x64\x2f\x74\x65\x73\x74\x2d\x70\x72\x6f\x74\x6f\x62"
     "\x75\x66\x2f\x6d\x65\x73\x73\x61\x67\x65\x2e\x70\x72\x6f\x74\x6f\x22\x2d\x0a\x0f\x54\x45\x6d\x62\x65\x64\x65\x64\x4d\x65\x73\x73\x61\x67\x65\x12"
     "\x0b\x0a\x03\x4b\x65\x79\x18\x01\x20\x01\x28\x09\x12\x0d\x0a\x05\x56\x61\x6c\x75\x65\x18\x02\x20\x01\x28\x09\x22\xb3\x02\x0a\x08\x54\x4d\x65\x73"
     "\x73\x61\x67\x65\x12\x0e\x0a\x06\x44\x6f\x75\x62\x6c\x65\x18\x01\x20\x01\x28\x01\x12\x0d\x0a\x05\x46\x6c\x6f\x61\x74\x18\x02\x20\x01\x28\x02\x12"
@@ -91,9 +91,9 @@ TString FileDescriptorLegacy = "\x0a\xb6\x03\x0a\x29\x6a\x75\x6e\x6b\x2f\x65\x72
     "\x6d\x62\x65\x64\x65\x64\x4d\x65\x73\x73\x61\x67\x65\x2a\x24\x0a\x05\x45\x45\x6e\x75\x6d\x12\x07\x0a\x03\x4f\x6e\x65\x10\x01\x12\x07\x0a\x03\x54"
     "\x77\x6f\x10\x02\x12\x09\x0a\x05\x54\x68\x72\x65\x65\x10\x03";
 
-TString GenerateRandomLenvalString(TFastRng64& rng, ui32 size)
+std::string GenerateRandomLenvalString(TFastRng64& rng, ui32 size)
 {
-    TString result;
+    std::string result;
     result.append(reinterpret_cast<const char*>(&size), sizeof(size));
 
     size += sizeof(ui32);
@@ -126,7 +126,7 @@ static TProtobufFormatConfigPtr MakeProtobufFormatConfig(const std::vector<const
         }
         fileDescriptor->CopyTo(fileDescriptorSet.add_file());
     };
-    std::vector<TString> typeNames;
+    std::vector<std::string> typeNames;
 
     for (const auto* descriptor : descriptorList) {
         addFile(descriptor->file());
@@ -144,7 +144,7 @@ static TProtobufFormatConfigPtr MakeProtobufFormatConfig(const std::vector<const
 
 INodePtr ParseYson(TStringBuf data)
 {
-    return ConvertToNode(NYson::TYsonString(TString{data}));
+    return ConvertToNode(NYson::TYsonString(data));
 }
 
 TString LenvalBytes(const ::google::protobuf::Message& message)
@@ -243,9 +243,9 @@ INodePtr CreateFileDescriptorConfig(std::optional<EComplexTypeMode> complexTypeM
     for (auto fileDescriptor : fileDescriptors) {
         fileDescriptor->CopyTo(fileDescriptorSetProto.add_file());
     }
-    TString fileDescriptorSetText;
+    TProtoStringType fileDescriptorSetText;
     ::google::protobuf::TextFormat::Printer().PrintToString(fileDescriptorSetProto, &fileDescriptorSetText);
-    std::vector<TString> typeNames = {Ts::descriptor()->full_name()...};
+    std::vector<std::string> typeNames = {Ts::descriptor()->full_name()...};
     return BuildYsonNodeFluently()
         .BeginAttributes()
             .Item("file_descriptor_set_text").Value(fileDescriptorSetText)
@@ -669,21 +669,21 @@ TTableSchemaPtr BuildEmbeddedSchema()
         {"num", SimpleLogicalType(ESimpleLogicalValueType::Uint64)},
         {"embedded_num", SimpleLogicalType(ESimpleLogicalValueType::Uint64)},
         {"variant", VariantStructLogicalType({
-            {"str_variant", SimpleLogicalType(ESimpleLogicalValueType::String)},
-            {"uint_variant", SimpleLogicalType(ESimpleLogicalValueType::Uint64)},
+            {"str_variant", "str_variant", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"uint_variant", "uint_variant", SimpleLogicalType(ESimpleLogicalValueType::Uint64)},
         })},
         {"extra_column", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Uint64))},
         {"embedded2_num", SimpleLogicalType(ESimpleLogicalValueType::Uint64)},
         {"embedded2_struct", StructLogicalType({
-            {"float1", SimpleLogicalType(ESimpleLogicalValueType::Float)},
-            {"string1", SimpleLogicalType(ESimpleLogicalValueType::String)},
-        })},
+            {"float1", "float1", SimpleLogicalType(ESimpleLogicalValueType::Float)},
+            {"string1", "string1", SimpleLogicalType(ESimpleLogicalValueType::String)},
+        }, /*removedFieldStableNames*/ {})},
         {"embedded2_repeated", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
         {"other_complex_field", StructLogicalType({
-            {"one", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-            {"two", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-            {"three", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-        })},
+            {"one", "one", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"two", "two", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"three", "three", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        }, /*removedFieldStableNames*/ {})},
         {"extra_int", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
     });
     return schema;
@@ -756,10 +756,10 @@ TEST(TProtobufFormatTest, TestConfigParsing)
 
     auto schemaForEmbedded = New<TTableSchema>(std::vector{
         TColumnSchema("field1", StructLogicalType({
-            {"embedded_message2", StructLogicalType({
-                {"field2", SimpleLogicalType(ESimpleLogicalValueType::String)},
-            })},
-        }))
+            {"embedded_message2", "embedded_message2", StructLogicalType({
+                {"field2", "field2", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            }, /*removedFieldStableNames*/ {})},
+        }, /*removedFieldStableNames*/ {}))
     });
 
     EXPECT_THROW_WITH_SUBSTRING(
@@ -875,7 +875,7 @@ TEST(TProtobufFormatTest, TestConfigParsing)
         .EndMap();
 
     auto schema = New<TTableSchema>(std::vector{
-        TColumnSchema("SomeColumn", StructLogicalType({})),
+        TColumnSchema("SomeColumn", StructLogicalType({}, /*removedFieldStableNames*/ {})),
     });
 
     EXPECT_THROW_WITH_SUBSTRING(
@@ -1404,11 +1404,11 @@ TEST(TProtobufFormatTest, TestTabletIndex)
 
     EXPECT_EQ(true, writer->Write({
         MakeRow(nameTable, {
-            {TString(TabletIndexColumnName), 1LL << 50},
+            {TabletIndexColumnName, 1LL << 50},
             {"int64_field", -2345},
         }).Get(),
         MakeRow(nameTable, {
-            {TString(TabletIndexColumnName), 12},
+            {TabletIndexColumnName, 12},
             {"int64_field", 2345},
         }).Get(),
     }));
@@ -1462,7 +1462,7 @@ TEST(TProtobufFormatTest, TestContext)
         ConvertTo<TProtobufFormatConfigPtr>(config),
         0);
 
-    TString context;
+    std::string context;
     try {
         TMessage message;
         message.set_string_field("PYSHCH-PYSHCH");
@@ -1470,9 +1470,9 @@ TEST(TProtobufFormatTest, TestContext)
         parser->Finish();
         GTEST_FATAL_FAILURE_("expected to throw");
     } catch (const NYT::TErrorException& e) {
-        context = *e.Error().Attributes().Find<TString>("context");
+        context = *e.Error().Attributes().Find<std::string>("context");
     }
-    ASSERT_NE(context.find("PYSHCH-PYSHCH"), TString::npos);
+    ASSERT_NE(context.find("PYSHCH-PYSHCH"), std::string::npos);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1480,49 +1480,49 @@ TEST(TProtobufFormatTest, TestContext)
 TTableSchemaPtr CreateSchemaWithStructuredMessage()
 {
     auto keyValueStruct = StructLogicalType({
-        {"key", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
-        {"value", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
-    });
+        {"key", "key", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+        {"value", "value", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+    }, /*removedFieldStableNames*/ {});
 
     return New<TTableSchema>(std::vector<TColumnSchema>{
         {"first", StructLogicalType({
-            {"field_missing_from_proto1", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
-            {"enum_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
-            {"int64_field", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-            {"repeated_int64_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-            {"another_repeated_int64_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-            {"message_field", keyValueStruct},
-            {"repeated_message_field", ListLogicalType(keyValueStruct)},
-            {"any_int64_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-            {"any_map_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any))},
-            {"optional_int64_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-            {"repeated_optional_any_field", ListLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any)))},
-            {"packed_repeated_enum_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
-            {"optional_repeated_bool_field", OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean)))},
-            {"oneof_field", VariantStructLogicalType({
-                {"oneof_string_field_1", SimpleLogicalType(ESimpleLogicalValueType::String)},
-                {"oneof_string_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
-                {"oneof_message_field", keyValueStruct},
+            {"field_missing_from_proto1", "field_missing_from_proto1", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
+            {"enum_field", "enum_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"int64_field", "int64_field", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"repeated_int64_field", "repeated_int64_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"another_repeated_int64_field", "another_repeated_int64_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"message_field", "message_field", keyValueStruct},
+            {"repeated_message_field", "repeated_message_field", ListLogicalType(keyValueStruct)},
+            {"any_int64_field", "any_int64_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"any_map_field", "any_map_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any))},
+            {"optional_int64_field", "optional_int64_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"repeated_optional_any_field", "repeated_optional_any_field", ListLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any)))},
+            {"packed_repeated_enum_field", "packed_repeated_enum_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+            {"optional_repeated_bool_field", "optional_repeated_bool_field", OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean)))},
+            {"oneof_field", "oneof_field", VariantStructLogicalType({
+                {"oneof_string_field_1", "oneof_string_field_1", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"oneof_string_field", "oneof_string_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"oneof_message_field", "oneof_message_field", keyValueStruct},
             })},
-            {"optional_oneof_field", OptionalLogicalType(VariantStructLogicalType({
-                {"oneof_string_field_1", SimpleLogicalType(ESimpleLogicalValueType::String)},
-                {"oneof_string_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
-                {"oneof_message_field", keyValueStruct},
+            {"optional_oneof_field", "optional_oneof_field", OptionalLogicalType(VariantStructLogicalType({
+                {"oneof_string_field_1", "oneof_string_field_1", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"oneof_string_field", "oneof_string_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"oneof_message_field", "oneof_message_field", keyValueStruct},
             }))},
-            {"map_field", DictLogicalType(
+            {"map_field", "map_field", DictLogicalType(
                 SimpleLogicalType(ESimpleLogicalValueType::Int64),
                 OptionalLogicalType(keyValueStruct))
             },
-            {"field_missing_from_proto2", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
-        })},
+            {"field_missing_from_proto2", "field_missing_from_proto2", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
+        }, /*removedFieldStableNames*/ {})},
         {"repeated_int64_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
         {"another_repeated_int64_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
         {"repeated_message_field", ListLogicalType(keyValueStruct)},
         {"second", StructLogicalType({
-            {"one", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-            {"two", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-            {"three", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-        })},
+            {"one", "one", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"two", "two", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"three", "three", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        }, /*removedFieldStableNames*/ {})},
         {"any_field", SimpleLogicalType(ESimpleLogicalValueType::Any)},
 
         {"int64_field", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
@@ -1537,10 +1537,10 @@ TTableSchemaPtr CreateSchemaWithStructuredMessage()
         {"repeated_optional_any_field", ListLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any)))},
 
         {"other_complex_field", StructLogicalType({
-            {"one", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-            {"two", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-            {"three", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-        })},
+            {"one", "one", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"two", "two", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"three", "three", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        }, /*removedFieldStableNames*/ {})},
 
         {"utf8_field", SimpleLogicalType(ESimpleLogicalValueType::Utf8)},
 
@@ -1549,15 +1549,15 @@ TTableSchemaPtr CreateSchemaWithStructuredMessage()
         {"optional_repeated_int64_field", OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))},
 
         {"oneof_field", VariantStructLogicalType({
-            {"oneof_string_field_1", SimpleLogicalType(ESimpleLogicalValueType::String)},
-            {"oneof_string_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
-            {"oneof_message_field", keyValueStruct},
+            {"oneof_string_field_1", "oneof_string_field_1", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"oneof_string_field", "oneof_string_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"oneof_message_field", "oneof_message_field", keyValueStruct},
         })},
 
         {"optional_oneof_field", OptionalLogicalType(VariantStructLogicalType({
-            {"oneof_string_field_1", SimpleLogicalType(ESimpleLogicalValueType::String)},
-            {"oneof_string_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
-            {"oneof_message_field", keyValueStruct},
+            {"oneof_string_field_1", "oneof_string_field_1", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"oneof_string_field", "oneof_string_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"oneof_message_field", "oneof_message_field", keyValueStruct},
         }))},
 
         {"map_field", DictLogicalType(
@@ -1574,7 +1574,7 @@ INodePtr CreateConfigWithStructuredMessage(EComplexTypeMode complexTypeMode, EPr
     }
     YT_VERIFY(formatType == EProtoFormatType::Structured);
 
-    auto buildOneofConfig = [] (TString prefix, int fieldNumberOffset) {
+    auto buildOneofConfig = [] (std::string prefix, int fieldNumberOffset) {
         return BuildYsonNodeFluently()
             .BeginMap()
                 .Item("name").Value(prefix + "oneof_field")
@@ -2575,16 +2575,16 @@ TEST_P(TProtobufFormatStructuredMessage, EmbeddedParse)
         ASSERT_EQ(embedded2_repeatedNode->GetType(), ENodeType::List);
         const auto& embedded2_repeatedList = embedded2_repeatedNode->AsList();
         ASSERT_EQ(embedded2_repeatedList->GetChildCount(), 3);
-        EXPECT_EQ(embedded2_repeatedList->GetChildValueOrThrow<TString>(0), "a");
-        EXPECT_EQ(embedded2_repeatedList->GetChildValueOrThrow<TString>(1), "b");
-        EXPECT_EQ(embedded2_repeatedList->GetChildValueOrThrow<TString>(2), "c");
+        EXPECT_EQ(embedded2_repeatedList->GetChildValueOrThrow<std::string>(0), "a");
+        EXPECT_EQ(embedded2_repeatedList->GetChildValueOrThrow<std::string>(1), "b");
+        EXPECT_EQ(embedded2_repeatedList->GetChildValueOrThrow<std::string>(2), "c");
 
         auto embedded2_structNode = GetComposite(rowCollector.GetRowValue(rowIndex, "embedded2_struct"));
         ASSERT_EQ(embedded2_structNode->GetType(), ENodeType::List);
         const auto& embedded2_structList = embedded2_structNode->AsList();
         ASSERT_EQ(embedded2_structList->GetChildCount(), 2);
         EXPECT_EQ(embedded2_structList->GetChildValueOrThrow<double>(0), 1.5f);
-        EXPECT_EQ(embedded2_structList->GetChildValueOrThrow<TString>(1), "abc");
+        EXPECT_EQ(embedded2_structList->GetChildValueOrThrow<std::string>(1), "abc");
     }
 }
 
@@ -2730,7 +2730,7 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
         ASSERT_EQ(firstList->GetChildCount(), 17);
 
         EXPECT_EQ(firstList->GetChildOrThrow(0)->GetType(), ENodeType::Entity);
-        EXPECT_EQ(firstList->GetChildValueOrThrow<TString>(1), "Two");
+        EXPECT_EQ(firstList->GetChildValueOrThrow<std::string>(1), "Two");
         EXPECT_EQ(firstList->GetChildValueOrThrow<i64>(2), 44);
 
         ASSERT_EQ(firstList->GetChildOrThrow(3)->GetType(), ENodeType::List);
@@ -2740,8 +2740,8 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
         EXPECT_EQ(ConvertTo<std::vector<i64>>(firstList->GetChildOrThrow(4)), (std::vector<i64>{}));
 
         ASSERT_EQ(firstList->GetChildOrThrow(5)->GetType(), ENodeType::List);
-        EXPECT_EQ(firstList->GetChildOrThrow(5)->AsList()->GetChildValueOrThrow<TString>(0), "key");
-        EXPECT_EQ(firstList->GetChildOrThrow(5)->AsList()->GetChildValueOrThrow<TString>(1), "value");
+        EXPECT_EQ(firstList->GetChildOrThrow(5)->AsList()->GetChildValueOrThrow<std::string>(0), "key");
+        EXPECT_EQ(firstList->GetChildOrThrow(5)->AsList()->GetChildValueOrThrow<std::string>(1), "value");
 
         ASSERT_EQ(firstList->GetChildOrThrow(6)->GetType(), ENodeType::List);
         ASSERT_EQ(firstList->GetChildOrThrow(6)->AsList()->GetChildCount(), 2);
@@ -2749,14 +2749,14 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
         const auto& firstSubNode1 = firstList->GetChildOrThrow(6)->AsList()->GetChildOrThrow(0);
         ASSERT_EQ(firstSubNode1->GetType(), ENodeType::List);
         ASSERT_EQ(firstSubNode1->AsList()->GetChildCount(), 2);
-        EXPECT_EQ(firstSubNode1->AsList()->GetChildValueOrThrow<TString>(0), "key1");
-        EXPECT_EQ(firstSubNode1->AsList()->GetChildValueOrThrow<TString>(1), "value1");
+        EXPECT_EQ(firstSubNode1->AsList()->GetChildValueOrThrow<std::string>(0), "key1");
+        EXPECT_EQ(firstSubNode1->AsList()->GetChildValueOrThrow<std::string>(1), "value1");
 
         const auto& firstSubNode2 = firstList->GetChildOrThrow(6)->AsList()->GetChildOrThrow(1);
         ASSERT_EQ(firstSubNode2->GetType(), ENodeType::List);
         ASSERT_EQ(firstSubNode2->AsList()->GetChildCount(), 2);
-        EXPECT_EQ(firstSubNode2->AsList()->GetChildValueOrThrow<TString>(0), "key2");
-        EXPECT_EQ(firstSubNode2->AsList()->GetChildValueOrThrow<TString>(1), "value2");
+        EXPECT_EQ(firstSubNode2->AsList()->GetChildValueOrThrow<std::string>(0), "key2");
+        EXPECT_EQ(firstSubNode2->AsList()->GetChildValueOrThrow<std::string>(1), "value2");
 
         ASSERT_EQ(firstList->GetChildOrThrow(7)->GetType(), ENodeType::Int64);
         EXPECT_EQ(firstList->GetChildValueOrThrow<i64>(7), 4422);
@@ -2841,14 +2841,14 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
         const auto& subNode1 = repeatedMessageNode->AsList()->GetChildOrThrow(0);
         ASSERT_EQ(subNode1->GetType(), ENodeType::List);
         ASSERT_EQ(subNode1->AsList()->GetChildCount(), 2);
-        EXPECT_EQ(subNode1->AsList()->GetChildValueOrThrow<TString>(0), "key11");
-        EXPECT_EQ(subNode1->AsList()->GetChildValueOrThrow<TString>(1), "value11");
+        EXPECT_EQ(subNode1->AsList()->GetChildValueOrThrow<std::string>(0), "key11");
+        EXPECT_EQ(subNode1->AsList()->GetChildValueOrThrow<std::string>(1), "value11");
 
         const auto& subNode2 = repeatedMessageNode->AsList()->GetChildOrThrow(1);
         ASSERT_EQ(subNode2->GetType(), ENodeType::List);
         ASSERT_EQ(subNode2->AsList()->GetChildCount(), 2);
-        EXPECT_EQ(subNode2->AsList()->GetChildValueOrThrow<TString>(0), "key21");
-        EXPECT_EQ(subNode2->AsList()->GetChildValueOrThrow<TString>(1), "value21");
+        EXPECT_EQ(subNode2->AsList()->GetChildValueOrThrow<std::string>(0), "key21");
+        EXPECT_EQ(subNode2->AsList()->GetChildValueOrThrow<std::string>(1), "value21");
 
         auto repeatedInt64Node = GetComposite(rowCollector.GetRowValue(rowIndex, "repeated_int64_field"));
         EXPECT_EQ(ConvertTo<std::vector<i64>>(repeatedInt64Node), (std::vector<i64>{31, 32, 33}));
@@ -2911,9 +2911,9 @@ std::vector<TTableSchemaPtr> CreateSeveralTablesSchemas()
     return {
         New<TTableSchema>(std::vector<TColumnSchema>{
             {"embedded", StructLogicalType({
-                {"enum_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
-                {"int64_field", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-            })},
+                {"enum_field", "enum_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"int64_field", "int64_field", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            }, /*removedFieldStableNames*/ {})},
             {"repeated_int64_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
             {"any_field", SimpleLogicalType(ESimpleLogicalValueType::Any)},
         }),
@@ -3261,14 +3261,14 @@ TEST(TProtobufFormatTest, SchemaConfigMismatch)
 
     auto schema_struct_with_int64 = New<TTableSchema>(std::vector<TColumnSchema>{
         {"struct", StructLogicalType({
-            {"int64_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-        })},
+            {"int64_field", "int64_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        }, /*removedFieldStableNames*/ {})},
     });
 
     auto schema_struct_with_uint64 = New<TTableSchema>(std::vector<TColumnSchema>{
         {"struct", StructLogicalType({
-            {"int64_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Uint64))},
-        })},
+            {"int64_field", "int64_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Uint64))},
+        }, /*removedFieldStableNames*/ {})},
     });
 
     auto config_struct_with_int64 = BuildYsonNodeFluently()
@@ -3410,9 +3410,9 @@ TEST(TProtobufFormatTest, SchemaConfigMismatch)
 
     auto schema_struct_with_both = New<TTableSchema>(std::vector<TColumnSchema>{
         {"struct", StructLogicalType({
-            {"required_field", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-            {"optional_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-        })},
+            {"required_field", "required_field", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"optional_field", "optional_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        }, /*removedFieldStableNames*/ {})},
     });
 
     auto config_struct_with_required = BuildYsonNodeFluently()
@@ -3565,12 +3565,12 @@ TEST(TProtobufFormatTest, SchemaConfigMismatch)
 
     auto schema_variant_with_int = New<TTableSchema>(std::vector<TColumnSchema>{
         {"variant", VariantStructLogicalType({
-            {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"a", "a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
         })},
     });
     auto schema_variant_with_optional_int = New<TTableSchema>(std::vector<TColumnSchema>{
         {"variant", VariantStructLogicalType({
-            {"a", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"a", "a", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
         })},
     });
 
@@ -3641,11 +3641,11 @@ TEST(TProtobufFormatTest, MultipleOtherColumns)
     EXPECT_EQ(true, protoWriter->Write(
         std::vector<TUnversionedRow>{
             NNamedValue::MakeRow(nameTable, {
-                {TString(TableIndexColumnName), 0},
+                {TableIndexColumnName, 0},
                 {"field1", "foo"},
             }),
             NNamedValue::MakeRow(nameTable, {
-                {TString(TableIndexColumnName), 1},
+                {TableIndexColumnName, 1},
                 {"field2", "bar"},
             }),
         }));
@@ -3653,7 +3653,7 @@ TEST(TProtobufFormatTest, MultipleOtherColumns)
     WaitFor(protoWriter->Close())
         .ThrowOnError();
 
-    std::vector<TString> otherColumnsValue;
+    std::vector<std::string> otherColumnsValue;
     auto parser = TLenvalParser(data);
     while (auto item = parser.Next()) {
         TOtherColumnsMessage message;
@@ -3664,7 +3664,7 @@ TEST(TProtobufFormatTest, MultipleOtherColumns)
 
     EXPECT_EQ(
         otherColumnsValue,
-        std::vector<TString>({
+        std::vector<std::string>({
             CanonizeYson("{field1=foo}"),
             CanonizeYson("{field2=bar}"),
         }));
@@ -3765,7 +3765,7 @@ TEST_P(TProtobufFormatAllFields, Writer)
     TEmbeddedMessage embeddedMessage;
     embeddedMessage.set_key("embedded_key");
     embeddedMessage.set_value("embedded_value");
-    TString embeddedMessageBytes;
+    TProtoStringType embeddedMessageBytes;
     ASSERT_TRUE(embeddedMessage.SerializeToString(&embeddedMessageBytes));
 
     auto mapNode = BuildYsonNodeFluently()
@@ -3879,7 +3879,7 @@ TEST_P(TProtobufFormatAllFields, Writer)
             auto otherColumnsMap = ConvertToNode(TYsonString(message.other_columns_field()))->AsMap();
             EXPECT_EQ(otherColumnsMap->GetChildValueOrThrow<i64>("OtherInt64Column"), -123);
             EXPECT_DOUBLE_EQ(otherColumnsMap->GetChildValueOrThrow<double>("OtherDoubleColumn"), -123.456);
-            EXPECT_EQ(otherColumnsMap->GetChildValueOrThrow<TString>("OtherStringColumn"), "some_string");
+            EXPECT_EQ(otherColumnsMap->GetChildValueOrThrow<std::string>("OtherStringColumn"), "some_string");
             EXPECT_EQ(otherColumnsMap->GetChildValueOrThrow<bool>("OtherBooleanColumn"), true);
             EXPECT_TRUE(AreNodesEqual(otherColumnsMap->GetChildOrThrow("OtherAnyColumn"), mapNode));
             EXPECT_EQ(otherColumnsMap->GetChildOrThrow("OtherNullColumn")->GetType(), ENodeType::Entity);
@@ -4024,7 +4024,7 @@ public:
     {
         static const auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
             {"a", OptionalLogicalType(VariantStructLogicalType({
-                {"f1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+                {"f1", "f1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
             }))},
         });
         return schema;
@@ -4034,12 +4034,12 @@ public:
     {
         static const auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
             {"a", OptionalLogicalType(VariantStructLogicalType({
-                {"f1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-                {"f2", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"f1", "f1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+                {"f2", "f2", SimpleLogicalType(ESimpleLogicalValueType::String)},
             }))},
             {"b", OptionalLogicalType(StructLogicalType({
-                {"x", SimpleLogicalType(ESimpleLogicalValueType::String)},
-            }))},
+                {"x", "x", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            }, /*removedFieldStableNames*/ {}))},
         });
         return schema;
     }
@@ -4048,13 +4048,13 @@ public:
     {
         static const auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
             {"a", OptionalLogicalType(VariantStructLogicalType({
-                {"f1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-                {"f2", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"f1", "f1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+                {"f2", "f2", SimpleLogicalType(ESimpleLogicalValueType::String)},
             }))},
             {"b", OptionalLogicalType(StructLogicalType({
-                {"x", SimpleLogicalType(ESimpleLogicalValueType::String)},
-                {"y", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
-            }))},
+                {"x", "x", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"y", "y", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+            }, /*removedFieldStableNames*/ {}))},
         });
         return schema;
     }
@@ -4063,14 +4063,14 @@ public:
     {
         static const auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
             {"a", OptionalLogicalType(VariantStructLogicalType({
-                {"f1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-                {"f2", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"f1", "f1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+                {"f2", "f2", SimpleLogicalType(ESimpleLogicalValueType::String)},
             }))},
             {"b", OptionalLogicalType(StructLogicalType({
-                {"x", SimpleLogicalType(ESimpleLogicalValueType::String)},
-                {"y", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
-                {"z", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
-            }))},
+                {"x", "x", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"y", "y", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+                {"z", "z", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+            }, /*removedFieldStableNames*/ {}))},
         });
         return schema;
     }
@@ -4079,16 +4079,16 @@ public:
     {
         static const auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
             {"a", OptionalLogicalType(VariantStructLogicalType({
-                {"f1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-                {"f2", SimpleLogicalType(ESimpleLogicalValueType::String)},
-                {"f3", SimpleLogicalType(ESimpleLogicalValueType::Boolean)},
+                {"f1", "f1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+                {"f2", "f2", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"f3", "f3", SimpleLogicalType(ESimpleLogicalValueType::Boolean)},
             }))},
             {"c", OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean)))},
             {"b", OptionalLogicalType(StructLogicalType({
-                {"x", SimpleLogicalType(ESimpleLogicalValueType::String)},
-                {"y", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
-                {"z", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
-            }))},
+                {"x", "x", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"y", "y", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+                {"z", "z", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+            }, /*removedFieldStableNames*/ {}))},
         });
         return schema;
     }
@@ -4362,11 +4362,11 @@ public:
             {"repeated_enum", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
             {"packed_repeated_enum", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
             {"inner", OptionalLogicalType(StructLogicalType({
-                {"optional_enum", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
-                {"required_enum", SimpleLogicalType(ESimpleLogicalValueType::String)},
-                {"repeated_enum", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
-                {"packed_repeated_enum", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
-            }))},
+                {"optional_enum", "optional_enum", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+                {"required_enum", "required_enum", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"repeated_enum", "repeated_enum", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+                {"packed_repeated_enum", "packed_repeated_enum", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+            }, /*removedFieldStableNames*/ {}))},
         });
         return schema;
     }
@@ -4520,8 +4520,8 @@ public:
     static TTableSchemaPtr GetSchemaWithVariant(bool optional = false)
     {
         auto variantType = VariantStructLogicalType({
-            {"f1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-            {"f2", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"f1", "f1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"f2", "f2", SimpleLogicalType(ESimpleLogicalValueType::String)},
         });
         return New<TTableSchema>(std::vector<TColumnSchema>{
             {"a", optional ? OptionalLogicalType(variantType) : variantType},
@@ -4531,9 +4531,9 @@ public:
     static TTableSchemaPtr GetSchemaWithStruct(bool optional = false)
     {
         auto structType = StructLogicalType({
-            {"f1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-            {"f2", SimpleLogicalType(ESimpleLogicalValueType::String)},
-        });
+            {"f1", "f1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"f2", "f2", SimpleLogicalType(ESimpleLogicalValueType::String)},
+        }, /*removedFieldStableNames*/ {});
         return New<TTableSchema>(std::vector<TColumnSchema>{
             {"a", optional ? OptionalLogicalType(structType) : structType},
         });

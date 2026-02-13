@@ -151,7 +151,8 @@ TQueryHandlerBase::TQueryHandlerBase(
     const NYPath::TYPath& stateRoot,
     const IInvokerPtr controlInvoker,
     const TEngineConfigBasePtr& config,
-    const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery)
+    const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery,
+    const TDuration notIndexedQueriesTTL)
     : StateClient_(stateClient)
     , StateRoot_(stateRoot)
     , ControlInvoker_(std::move(controlInvoker))
@@ -165,6 +166,7 @@ TQueryHandlerBase::TQueryHandlerBase(
     , AcquisitionTime_(TInstant::Now())
     , Logger(NQueryTracker::Logger().WithTag("QueryId: %v, Engine: %v", activeQuery.Key.QueryId, activeQuery.Engine))
     , ProgressWriter_(New<TPeriodicExecutor>(ControlInvoker_, BIND(&TQueryHandlerBase::TryWriteProgress, MakeWeak(this)), Config_->QueryProgressWritePeriod))
+    , NotIndexedQueriesTTL_(notIndexedQueriesTTL)
 {
     YT_LOG_INFO("Query handler instantiated");
 }
@@ -198,6 +200,7 @@ std::pair<ITransactionPtr, TActiveQuery> TQueryHandlerBase::StartIncarnationTran
         idMapping.StartTime,
         idMapping.State,
         idMapping.Annotations,
+        idMapping.IsIndexed,
     };
     options.KeepMissingRows = true;
     TActiveQueryKey key{.QueryId = QueryId_};
@@ -434,6 +437,9 @@ bool TQueryHandlerBase::TryWriteQueryState(EQueryState state, EQueryState previo
                         .Index = i64(index),
                     },
                 };
+                if (!record.IsIndexed) {
+                    newRecord.TTL = NotIndexedQueriesTTL_.MilliSeconds();
+                }
                 if (wireRowsetOrError.IsOK()) {
                     NDetail::ProcessRowset(newRecord, wireRowsetOrError.Value(), Config_->ResultingRowsetValueLengthLimit);
                 } else {

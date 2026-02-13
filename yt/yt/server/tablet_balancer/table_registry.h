@@ -30,35 +30,22 @@ struct TTableProfilingCounters
     NProfiling::TCounter ReplicaNonTrivialReshards;
 };
 
+// Per bundle entity.
+// TODO(alexelexa): Remove everything except profiling counters
+// and rename it to something more appropriate.
 class TTableRegistry final
 {
 public:
-    using TTableMap = THashMap<TTableId, TTablePtr>;
-
-    using TAlienTableTag = std::tuple<TString, NYPath::TYPath>;
-    using TAlienTablePathMap = THashMap<TAlienTableTag, TTableId>;
-    using TAlienTableMap = THashMap<TTableId, TAlienTablePtr>;
-
-    DEFINE_BYREF_RO_PROPERTY(TTableMap, Tables);
-    DEFINE_BYREF_RO_PROPERTY(TAlienTablePathMap, AlienTablePaths);
-    DEFINE_BYREF_RO_PROPERTY(TAlienTableMap, AlienTables);
-
-public:
-    void AddTable(const TTablePtr& table);
-    void RemoveTable(const TTableId& tableId);
-    void RemoveBundle(const TTabletCellBundlePtr& bundle);
-
-    void AddAlienTablePath(const TClusterName& cluster, const NYPath::TYPath& path, TTableId tableId);
-    void AddAlienTable(const TAlienTablePtr& table, const std::vector<TTableId>& majorTableIds);
-    void DropAllAlienTables();
     TTableProfilingCounters& GetProfilingCounters(const TTable* table, const TString& groupName);
 
 private:
     THashSet<TTableId> TablesWithAlienTable_;
-    THashMap<TTableId, TTableProfilingCounters> ProfilingCounters_;
 
-    void UnlinkTableFromOldBundle(const TTablePtr& table);
-    void UnlinkTabletFromCell(const TTabletPtr& tablet);
+    // Never remove profiling counters, even for removed tables.
+    // It allowes us to use one instance of table registry in different bundle snapshots.
+    THashMap<TTableId, TTableProfilingCounters> ProfilingCounters_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ProfilingCountersLock_);
+
     TTableProfilingCounters InitializeProfilingCounters(const TTable* table, const TString& groupName) const;
 };
 

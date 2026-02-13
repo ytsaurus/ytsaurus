@@ -120,8 +120,18 @@ using TSubConsumerSnapshotConstPtr = TIntrusivePtr<const TSubConsumerSnapshot>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(IQueueProfileManager)
-DECLARE_REFCOUNTED_STRUCT(IConsumerProfileManager)
+template <typename TSnapshotPtr>
+struct IProfileManager;
+
+using IQueueProfileManager = IProfileManager<TQueueSnapshotPtr>;
+using IQueueProfileManagerPtr = TIntrusivePtr<IProfileManager<TQueueSnapshotPtr>>;
+
+using IConsumerProfileManager = IProfileManager<TConsumerSnapshotPtr>;
+using IConsumerProfileManagerPtr = TIntrusivePtr<IProfileManager<TConsumerSnapshotPtr>>;
+
+// TODO(panesher): Change to real snapshot when implemented Profile.
+using IQueueExporterProfileManager = IProfileManager<int>;
+using IQueueExporterProfileManagerPtr = TIntrusivePtr<IProfileManager<int>>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -141,7 +151,8 @@ DEFINE_ENUM(EConsumerPartitionDisposition,
 ////////////////////////////////////////////////////////////////////////////////
 
 inline const std::string NoneQueueAgentStage = "none";
-inline const TString NoneObjectType = "none";
+inline const std::string NoneObjectType = "none";
+inline const std::string NoneProfilingTag = "none";
 
 ////////////////////////////////////////////////////////////////////////////////
 

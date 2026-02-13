@@ -69,11 +69,8 @@ def qt(
     queries: list[int] | None,
     use_hand_optimized: bool,
     query_path: str,
-    optimized_path: str,
-    query_source: common.QuerySource,
+    hand_optimized_path: str,
     proxy: str,
-    pragma_add: list[str],
-    pragma_file: str | None,
     pragma_preset: list[str],
     poller_interval: str,
     stage: str,
@@ -98,7 +95,7 @@ def qt(
     if token is None:
         raise RuntimeError("YT token is not specified")
 
-    runnable_queries = common.get_runnable_queries(queries, use_hand_optimized, query_path, optimized_path, query_source, pragma_add, pragma_file, pragma_preset)
+    runnable_queries = common.get_runnable_queries(queries, use_hand_optimized, query_path, hand_optimized_path, pragma_preset)
 
     with common.ArtifactLogger(artifact_path) as logger:
         logger.dump_launch(arguments)
@@ -112,7 +109,7 @@ def qt(
             query_title = ""
             try:
                 logger.start_query(runnable)
-                query = common.make_query(runnable, query_path, optimized_path, query_source)
+                query = common.make_query(runnable, query_path, hand_optimized_path)
                 logger.dump_query(query)
 
                 settings = {

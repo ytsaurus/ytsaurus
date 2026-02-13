@@ -4,7 +4,7 @@ namespace NYT::NLsm::NTesting {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStatistics& operator+= (TStatistics& lhs, const TStatistics& rhs)
+TStatistics& operator+=(TStatistics& lhs, const TStatistics& rhs)
 {
     lhs.BytesWritten += rhs.BytesWritten;
     lhs.BytesFlushed += rhs.BytesFlushed;
@@ -13,12 +13,12 @@ TStatistics& operator+= (TStatistics& lhs, const TStatistics& rhs)
     return lhs;
 }
 
-TStatistics operator+ (TStatistics lhs, const TStatistics& rhs)
+TStatistics operator+(TStatistics lhs, const TStatistics& rhs)
 {
     return lhs += rhs;
 }
 
-TStatistics& operator-= (TStatistics& lhs, const TStatistics& rhs)
+TStatistics& operator-=(TStatistics& lhs, const TStatistics& rhs)
 {
     lhs.BytesWritten -= rhs.BytesWritten;
     lhs.BytesFlushed -= rhs.BytesFlushed;
@@ -27,12 +27,12 @@ TStatistics& operator-= (TStatistics& lhs, const TStatistics& rhs)
     return lhs;
 }
 
-TStatistics operator- (TStatistics lhs, const TStatistics& rhs)
+TStatistics operator-(TStatistics lhs, const TStatistics& rhs)
 {
     return lhs -= rhs;
 }
 
-TStatistics operator/ (TStatistics lhs, int rhs)
+TStatistics operator/(TStatistics lhs, int rhs)
 {
     lhs.BytesWritten /= rhs;
     lhs.BytesFlushed /= rhs;

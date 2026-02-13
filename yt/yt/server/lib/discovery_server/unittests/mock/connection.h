@@ -186,8 +186,8 @@ public:
     {
         YT_UNIMPLEMENTED();
     }
-    NRpc::IChannelPtr GetChaosChannelByCardIdOrThrow(
-        NChaosClient::TReplicationCardId /*replicationCardId*/,
+    NRpc::IChannelPtr GetChaosChannelByObjectIdOrThrow(
+        NChaosClient::TChaosObjectId /*chaosObjectId*/,
         NHydra::EPeerKind /*peerKind*/) override
     {
         YT_UNIMPLEMENTED();
@@ -203,7 +203,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    const NQueueClient::IQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const override
+    const NQueueClient::IQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManagerOrThrow() const override
     {
         YT_UNIMPLEMENTED();
     }
@@ -291,7 +291,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    NSequoiaClient::ISequoiaClientPtr GetSequoiaClient() override
+    NSequoiaClient::ISequoiaConnectionPtr& GetSequoiaConnection() override
     {
         YT_UNIMPLEMENTED();
     }
@@ -317,6 +317,11 @@ public:
     }
 
     const std::optional<std::string>& GetClusterName() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    const std::optional<NAuth::TTvmId>& GetTvmId() const override
     {
         YT_UNIMPLEMENTED();
     }

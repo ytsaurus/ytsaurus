@@ -34,7 +34,7 @@ TEST(TSubprocessTest, PipeOutput)
 
     auto result = subprocess.Execute();
     EXPECT_TRUE(result.Status.IsOK());
-    TString output(result.Output.Begin(), result.Output.End());
+    std::string output(result.Output.Begin(), result.Output.End());
     EXPECT_TRUE(output == "hello\n") << output;
 }
 
@@ -46,12 +46,12 @@ TEST(TSubprocessTest, PipeStdin)
         TSubprocess subprocess("/bin/cat");
         subprocess.AddArgument("-");
 
-        auto input = TString("TEST test TEST");
+        auto input = std::string("TEST test TEST");
         auto inputRef = TSharedRef::FromString(input);
         auto result = subprocess.Execute(inputRef);
         EXPECT_TRUE(result.Status.IsOK());
 
-        TString output(result.Output.Begin(), result.Output.End());
+        TStringBuf output(result.Output.Begin(), result.Output.End());
         EXPECT_EQ(input, output);
     }).AsyncVia(queue->GetInvoker()).Run().Get().ThrowOnError();
 }

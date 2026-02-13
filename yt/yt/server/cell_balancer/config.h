@@ -62,6 +62,7 @@ struct TBundleControllerConfig
     TDuration CellRemovalTimeout;
     TDuration NodeAssignmentTimeout;
     TDuration MuteTabletCellsCheckGracePeriod;
+    TDuration DecommissionedNodeDrainTimeout;
 
     NYPath::TYPath RootPath;
 

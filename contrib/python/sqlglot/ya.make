@@ -2,7 +2,7 @@
 
 PY3_LIBRARY()
 
-VERSION(28.0.0)
+VERSION(28.6.0)
 
 LICENSE(MIT)
 
@@ -77,6 +77,7 @@ PY_SRCS(
     sqlglot/optimizer/qualify.py
     sqlglot/optimizer/qualify_columns.py
     sqlglot/optimizer/qualify_tables.py
+    sqlglot/optimizer/resolver.py
     sqlglot/optimizer/scope.py
     sqlglot/optimizer/simplify.py
     sqlglot/optimizer/unnest_subqueries.py
@@ -91,8 +92,10 @@ PY_SRCS(
     sqlglot/typing/__init__.py
     sqlglot/typing/bigquery.py
     sqlglot/typing/hive.py
+    sqlglot/typing/mysql.py
     sqlglot/typing/presto.py
     sqlglot/typing/snowflake.py
+    sqlglot/typing/spark.py
     sqlglot/typing/spark2.py
     sqlglot/typing/tsql.py
 )

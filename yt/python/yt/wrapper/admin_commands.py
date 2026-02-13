@@ -42,6 +42,12 @@ def switch_leader(cell_id=None, new_leader_address=None, client=None):
     return make_request("switch_leader", params=params, client=client)
 
 
+def reset_dynamically_propagated_master_cells(client=None):
+    """Make all master cells statically known."""
+
+    return make_request("reset_dynamically_propagated_master_cells", client=client)
+
+
 def add_switch_leader_parser(subparsers):
     parser = subparsers.add_parser("switch-leader", help="Switch master cell leader")
     parser.set_defaults(func=switch_leader)

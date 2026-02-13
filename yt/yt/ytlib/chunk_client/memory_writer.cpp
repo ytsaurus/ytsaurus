@@ -23,12 +23,12 @@ TFuture<void> TMemoryWriter::Open()
 
     Open_ = true;
 
-    return VoidFuture;
+    return OKFuture;
 }
 
 TFuture<void> TMemoryWriter::Cancel()
 {
-    return VoidFuture;
+    return OKFuture;
 }
 
 bool TMemoryWriter::WriteBlock(
@@ -61,7 +61,7 @@ TFuture<void> TMemoryWriter::GetReadyEvent()
     YT_VERIFY(Open_);
     YT_VERIFY(!Closed_);
 
-    return VoidFuture;
+    return OKFuture;
 }
 
 TFuture<void> TMemoryWriter::Close(
@@ -83,7 +83,7 @@ TFuture<void> TMemoryWriter::Close(
 
     ChunkMeta_ = chunkMeta;
     Closed_ = true;
-    return VoidFuture;
+    return OKFuture;
 }
 
 const TChunkInfo& TMemoryWriter::GetChunkInfo() const

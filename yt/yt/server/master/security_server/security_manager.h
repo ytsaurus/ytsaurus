@@ -25,8 +25,6 @@
 
 #include <yt/yt/core/rpc/authentication_identity.h>
 
-#include <util/generic/function_ref.h>
-
 namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -80,10 +78,16 @@ struct TUserWorkload
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSuccessfulPermissionValidationResult
+{
+    bool HasRowLevelAce = false;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct ISecurityManager
     : public virtual TRefCounted
 {
-public:
     virtual void Initialize() = 0;
 
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Account, TAccount);
@@ -313,25 +317,18 @@ public:
         const TAccessControlList& acl,
         TPermissionCheckOptions options = {}) = 0;
 
-    //! Checks if given ACL allows access with #permission.
-    virtual TPermissionCheckResponse CheckPermission(
-        TUser* user,
-        EPermission permission,
-        TFunctionRef<TAccessControlList()> aclProducer,
-        TPermissionCheckOptions options = {}) = 0;
-
     //! Checks if given user is a member of superusers group.
     virtual bool IsSuperuser(const TUser* user) const = 0;
 
     //! Similar to #CheckPermission but throws a human-readable exception on failure.
-    virtual void ValidatePermission(
+    virtual TSuccessfulPermissionValidationResult ValidatePermission(
         NObjectServer::TObject* object,
         TUser* user,
         EPermission permission,
         TPermissionCheckOptions options = {}) = 0;
 
     //! Another overload that uses the current user.
-    virtual void ValidatePermission(
+    virtual TSuccessfulPermissionValidationResult ValidatePermission(
         NObjectServer::TObject* object,
         EPermission permission,
         TPermissionCheckOptions options = {}) = 0;

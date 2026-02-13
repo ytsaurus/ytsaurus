@@ -63,7 +63,20 @@ void TInputStatisticsCollector::AddChunk(const TLegacyDataSlicePtr& dataSlice, b
 {
     AddChunkImpl(Statistics_, dataSlice, isPrimary);
     Statistics_.ValueCount += dataSlice->GetValueCount();
-    TotalInputDataWeight_ += dataSlice->GetDataWeight();
+    for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+        TotalInputDataWeight_ += chunkSlice->GetInputChunk()->GetTotalDataWeight();
+    }
+}
+
+TInputStatistics TInputStatisticsCollector::FromChunks(const std::vector<TLegacyDataSlicePtr>& dataSlices, bool isPrimary) noexcept
+{
+    TInputStatisticsCollector collector;
+
+    for (const auto& slice : dataSlices) {
+        collector.AddChunk(slice, isPrimary);
+    }
+
+    return std::move(collector).Finish();
 }
 
 TInputStatistics TInputStatisticsCollector::Finish() && noexcept

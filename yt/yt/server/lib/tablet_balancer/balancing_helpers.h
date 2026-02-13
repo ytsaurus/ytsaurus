@@ -32,11 +32,12 @@ struct TMoveDescriptor
     TTabletId TabletId;
     TTabletCellId TabletCellId;
     TGuid CorrelationId;
+    bool Smooth = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsTabletReshardable(const TTabletPtr& tablet, bool ignoreConfig);
+bool IsTabletReshardable(const TTabletPtr& tablet);
 
 i64 GetTabletBalancingSize(const TTabletPtr& tablet);
 

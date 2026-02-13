@@ -93,7 +93,7 @@ TFuture<void> TDiscoveryBase::UpdateList(TDuration maxDivergency)
 {
     auto guard = WriterGuard(Lock_);
     if (LastUpdate_ + maxDivergency >= TInstant::Now()) {
-        return VoidFuture;
+        return OKFuture;
     }
     if (!ScheduledForceUpdate_ || ScheduledForceUpdate_.IsSet()) {
         ScheduledForceUpdate_ = BIND(&TDiscoveryBase::DoUpdateList, MakeStrong(this))

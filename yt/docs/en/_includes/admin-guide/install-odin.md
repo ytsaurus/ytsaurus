@@ -2,15 +2,20 @@
 
 ## Overview
 
-Odin is a service that provides qualitative monitoring of a {{producer-name}} cluster. For more details, see the [Monitoring](../../admin-guide/monitoring.md#odin) section.
+Odin is a service that provides qualitative monitoring of a {{product-name}} cluster. For more details, see the [Monitoring](../../admin-guide/monitoring.md#odin) section.
 
 ## Prerequisites
 
 Before proceeding, you should have:
 
 * Helm 3.x;
-* a running {{product-name}} cluster and the address of its HTTP proxy (`http_proxy`);
-* a dedicated service user `robot-odin` with an issued token (see [Token Management](../../user-guide/storage/auth.md#token-management)).
+* a running {{product-name}} cluster and internal address of its HTTP proxy;
+* a dedicated service user `robot-odin` with an issued token (see [Token Management](../../user-guide/storage/auth.md#token-management)):
+
+```
+yt create user --attr "{name=robot-odin}"
+yt issue-token robot-odin
+```
 
 ## Configuration
 
@@ -37,9 +42,9 @@ kubectl create secret generic odin-secrets \
     -n <namespace>
 ```
 
-#### Preparing `values.yaml`
+#### Preparing `values.yaml` {#prepare-values}
 
-A minimal example of Odin configuration for connecting to {{produce-name}} via HTTP proxy and exposing Odin’s web service on port 9002:
+A minimal example of Odin configuration for connecting to {{product-name}} via HTTP proxy and exposing Odin’s web service on port 9002:
 
 ```yaml
 config:
@@ -65,7 +70,7 @@ webservice:
   * `tokenEnvVariable` — environment variable name in the container to read the token from (see secrets above).
 * `webservice.service.port` — Odin web service port.
 
-> Verify DNS names of the services: `http-proxies.default.svc.cluster.local` is an example for a `http-proxies` service in the `default` namespace. Use `kubectl get svc -A | grep http-proxies` to confirm your actual service name.
+> Verify DNS names of the services: `http-proxies.default.svc.cluster.local` is an example for a `http-proxies` service in the `default` namespace.
 
 By default, an Init Job will run to create the necessary tables for storing state. You can disable it by setting `config.odin.db.initialize: false`.
 
@@ -102,7 +107,7 @@ kubectl logs deploy/odin-odin-chart -n <namespace> --tail=200
 
 The UI must be installed as a Helm chart (see [installation guide](install-ytsaurus#ui)).
 
-Specify the Odin web service address in the `values.yaml` file under `.ui.settings.odinBaseUrl`. Example address when Odin is deployed in the `default` namespace and exposed on port 9002 (default):
+Specify the Odin web service address in the `values.yaml` file under `.settings.odinBaseUrl`. Example address when Odin is deployed in the `default` namespace and exposed on port 9002 (default):
 `"http://odin-odin-chart-web.default.svc.cluster.local:9002"`.
 
 ## Enabling and Disabling Checks

@@ -165,7 +165,7 @@ protected:
         {
             Expectation expectation = EXPECT_CALL(*ChunkSliceFetcher, Fetch())
                 .After(AllChunksAreAdded)
-                .WillOnce(Return(VoidFuture));
+                .WillOnce(Return(OKFuture));
 
             EXPECT_CALL(*ChunkSliceFetcher, GetChunkSlices())
                 .After(expectation)
@@ -2085,6 +2085,113 @@ TEST_F(TSortedChunkPoolNewKeysTest, JoinReduce)
     CheckEverything(stripeLists);
 }
 
+DEFINE_ENUM(ESliceByRowsWithForeignKind,
+    (Left)
+    (LeftCover)
+    (Inside)
+    (RightCover)
+    (Right)
+);
+
+class TSortedChunkPoolNewKeysSliceByRowsTest
+    : public WithParamInterface<ESliceByRowsWithForeignKind>
+    , public TSortedChunkPoolNewKeysTest
+{ };
+
+TEST_P(TSortedChunkPoolNewKeysSliceByRowsTest, SliceByRowsAndAttachForeign)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    DataWeightPerJob_ = 100_KB;
+    PrimaryDataWeightPerJob_ = 10_KB;
+    InitTables(
+        /*isForeign*/ {false, true},
+        /*isTeleportable*/ {false, false},
+        /*isVersioned*/ {false, false});
+    InitPrimaryComparator(2);
+    InitForeignComparator(1);
+    InitJobConstraints();
+    PrepareNewMock();
+
+    auto primarySlice = CreateDataSlice(CreateChunk(BuildRow({101, 5}), BuildRow({201, 5}), 0, 100_KB, 100'000));
+
+    std::vector<std::pair<bool, TLegacyDataSlicePtr>> foreignSlices;
+
+    switch (GetParam()) {
+        case ESliceByRowsWithForeignKind::Left: {
+            foreignSlices.emplace_back(false, CreateDataSlice(CreateChunk(BuildRow({100}), BuildRow({100}), 1, 10_KB)));
+            foreignSlices.emplace_back(true, CreateDataSlice(CreateChunk(BuildRow({100}), BuildRow({101}), 1, 10_KB)));
+            foreignSlices.emplace_back(true, CreateDataSlice(CreateChunk(BuildRow({101}), BuildRow({101}), 1, 10_KB)));
+            break;
+        }
+        case ESliceByRowsWithForeignKind::LeftCover: {
+            foreignSlices.emplace_back(false, CreateDataSlice(CreateChunk(BuildRow({100}), BuildRow({100}), 1, 10_KB)));
+            foreignSlices.emplace_back(true, CreateDataSlice(CreateChunk(BuildRow({100}), BuildRow({102}), 1, 10_KB)));
+            break;
+        }
+        case ESliceByRowsWithForeignKind::Inside: {
+            foreignSlices.emplace_back(true, CreateDataSlice(CreateChunk(BuildRow({120}), BuildRow({180}), 1, 10_KB)));
+            break;
+        }
+        case ESliceByRowsWithForeignKind::RightCover: {
+            foreignSlices.emplace_back(true, CreateDataSlice(CreateChunk(BuildRow({200}), BuildRow({202}), 1, 10_KB)));
+            foreignSlices.emplace_back(false, CreateDataSlice(CreateChunk(BuildRow({202}), BuildRow({202}), 1, 10_KB)));
+            break;
+        }
+        case ESliceByRowsWithForeignKind::Right: {
+            foreignSlices.emplace_back(true, CreateDataSlice(CreateChunk(BuildRow({201}), BuildRow({201}), 1, 10_KB)));
+            foreignSlices.emplace_back(true, CreateDataSlice(CreateChunk(BuildRow({201}), BuildRow({202}), 1, 10_KB)));
+            foreignSlices.emplace_back(false, CreateDataSlice(CreateChunk(BuildRow({202}), BuildRow({202}), 1, 10_KB)));
+            break;
+        }
+    }
+
+    CurrentMock().RegisterTriviallySliceableUnversionedDataSlice(primarySlice);
+
+    for (const auto& [_, slice] : foreignSlices) {
+        CurrentMock().RegisterTriviallySliceableUnversionedDataSlice(slice);
+    }
+
+    CreateChunkPool();
+
+    AddDataSlice(primarySlice);
+    for (const auto& [_, slice] : foreignSlices) {
+        AddDataSlice(slice);
+    }
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+
+    EXPECT_EQ(stripeLists.size(), 10u);
+    for (const auto& [mustAttach, originalForeignSlice] : foreignSlices) {
+        for (const auto& stripeList : stripeLists) {
+            ASSERT_EQ(stripeList->Stripes().size(), 2u);
+            const auto& foreignStripe = stripeList->Stripes()[1];
+            bool attached = false;
+            for (const auto& slice : foreignStripe->DataSlices()) {
+                if (originalForeignSlice->GetSingleUnversionedChunk()->GetChunkId() == slice->GetSingleUnversionedChunk()->GetChunkId()) {
+                    ASSERT_FALSE(attached);
+                    attached = true;
+                }
+            }
+            EXPECT_EQ(attached, mustAttach);
+        }
+    }
+
+    EXPECT_THAT(TeleportChunks_, IsEmpty());
+
+    CheckEverything(stripeLists);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Instantiate,
+    TSortedChunkPoolNewKeysSliceByRowsTest,
+    ValuesIn(TEnumTraits<ESliceByRowsWithForeignKind>::GetDomainValues()),
+    [](const TestParamInfo<ESliceByRowsWithForeignKind>& info) {
+        return Format("%v", info.param);
+    });
+
 TEST_F(TSortedChunkPoolNewKeysTest, ManiacIsSliced)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
@@ -2427,7 +2534,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingWithForeigns)
     }
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, TestJobSplitSimple)
+TEST_F(TSortedChunkPoolNewKeysTest, JobSplitSimple)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2473,7 +2580,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestJobSplitSimple)
     ASSERT_LE(stripeLists.size(), 12u);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, TestJobSplitWithForeign)
+TEST_F(TSortedChunkPoolNewKeysTest, JobSplitWithForeign)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2540,9 +2647,60 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestJobSplitWithForeign)
     }
 }
 
+TEST_F(TSortedChunkPoolNewKeysTest, JobSplitResultedInSingleJob)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = true;
+    InitTables(
+        /*isForeign*/ {false},
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
+    InitPrimaryComparator(1);
+
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    AddDataSlice(CreateChunk(
+        BuildRow({0}),
+        BuildRow({0}),
+        /*tableIndex*/ 0,
+        /*size*/ 1000,
+        /*rowCount*/ 100,
+        /*compressedDataSize*/ 50));
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    ASSERT_EQ(std::ssize(ExtractedCookies_), 1);
+
+    auto cookie = ExtractedCookies_[0];
+
+    ASSERT_TRUE(ChunkPool_->IsSplittable(cookie));
+
+    auto stripeLists = GetAllStripeLists();
+    TCompletedJobSummary jobSummary;
+    jobSummary.InterruptionReason = EInterruptionReason::JobSplit;
+    jobSummary.UnreadInputDataSlices = std::vector<TLegacyDataSlicePtr>(
+        stripeLists[0]->Stripes()[0]->DataSlices().begin(),
+        stripeLists[0]->Stripes()[0]->DataSlices().end());
+    jobSummary.SplitJobCount = 10;
+    jobSummary.Statistics = std::make_shared<TStatistics>();
+    ChunkPool_->Completed(*OutputCookies_.begin(), jobSummary);
+
+    OutputCookies_.clear();
+
+    ExtractOutputCookiesWhilePossible();
+    ASSERT_EQ(std::ssize(OutputCookies_), 1);
+
+    cookie = *OutputCookies_.begin();
+
+    ASSERT_FALSE(ChunkPool_->IsSplittable(cookie));
+}
+
 TEST_F(TSortedChunkPoolNewKeysTest, SuchForeignMuchData)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    Options_.ChunkPoolStatistics = New<TSortedChunkPoolStatistics>();
     InitTables(
         /*isForeign*/ {false, true},
         /*isTeleportable*/ {false, false},
@@ -2577,6 +2735,73 @@ TEST_F(TSortedChunkPoolNewKeysTest, SuchForeignMuchData)
     auto stripeLists = GetAllStripeLists();
     EXPECT_GE(stripeLists.size(), 90u);
     EXPECT_LE(stripeLists.size(), 110u);
+
+    EXPECT_GE(Options_.ChunkPoolStatistics->ForeignSlicesCheckCountInDecideRowSliceability, 900);
+    // NB: This line checks that check count is proportional
+    // to (slice count + foreign slice count)
+    // rather than (slice count * foreign slice count).
+    // 1100 might be too strict for future code modifications, but for now
+    // there is no reason for it to be much greater.
+    EXPECT_LE(Options_.ChunkPoolStatistics->ForeignSlicesCheckCountInDecideRowSliceability, 1100);
+
+    CheckEverything(stripeLists);
+}
+
+TEST_F(TSortedChunkPoolNewKeysTest, SuchForeignWithPivotKeys)
+{
+    InitTables(
+        /*isForeign*/ {false, true},
+        /*isTeleportable*/ {false, false},
+        /*isVersioned*/ {false, false});
+    InitPrimaryComparator(1);
+    InitForeignComparator(1);
+    DataWeightPerJob_ = 10_KB;
+    InitJobConstraints();
+
+    std::vector<TLegacyDataSlicePtr> dataSlices;
+
+    auto pushSlice = [&] (int firstKey, int lastKey, int tableIndex = 0) {
+        auto chunk = CreateChunk(BuildRow({firstKey}), BuildRow({lastKey}), tableIndex);
+        dataSlices.emplace_back(CreateDataSlice(chunk));
+    };
+
+    auto pushPivot = [&] (int key) {
+        Options_.SortedJobOptions.PivotKeys.emplace_back(BuildRow({key}));
+    };
+
+    // The setup looks like this:
+    // primary    [    ][                  ][    ]
+    // foreign    <         >         <         >
+    // pivots           |  |     |    |     |
+    // key axis   ^    ^    ^    ^    ^    ^    ^
+    //            0    5    10   15   20   25   30
+
+    // Foreign.
+    pushSlice(0, 10, 1);
+    pushSlice(20, 30, 1);
+
+    // Primary & pivots.
+    pushPivot(0);
+    pushSlice(0, 5);
+    pushPivot(6);
+    pushSlice(6, 25, 0);
+    pushPivot(9);
+    pushPivot(15);
+    pushPivot(20);
+    pushPivot(26);
+    pushSlice(26, 31, 0);
+
+    CreateChunkPool();
+
+    for (const auto& dataSlice : dataSlices) {
+        AddDataSlice(dataSlice);
+    }
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+
+    auto stripeLists = GetAllStripeLists();
 
     CheckEverything(stripeLists);
 }
@@ -2754,7 +2979,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, InterruptRowSlicedAfterAdjustment)
         return std::vector({
             unreadSecond,  // s0
             dataSlices[2], // s1
-            dataSlices[3], // s2
+            dataSlices[3], // s2,
         });
     };
 
@@ -2773,6 +2998,79 @@ TEST_F(TSortedChunkPoolNewKeysTest, InterruptRowSlicedAfterAdjustment)
         }
         ChunkPool_->Completed(cookie, jobSummary);
     }
+
+    ExtractOutputCookiesWhilePossible();
+}
+
+TEST_F(TSortedChunkPoolNewKeysTest, SplitMustRespectSingleJobness)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    DataWeightPerJob_ = 2048;
+    CompressedDataSizePerJob_ = 2048;
+    InitTables(
+        /*isForeign*/ {false, false},
+        /*isTeleportable*/ {false, false},
+        /*isVersioned*/ {false, false});
+    InitPrimaryComparator(1);
+    InitJobConstraints();
+    PrepareNewMock();
+
+    // Create a couple of chunks.
+    auto chunkA = CreateChunk(BuildRow({1}), BuildRow({2}), 0, 1_KB, 100, 1_KB);
+    auto chunkB = CreateChunk(BuildRow({3}), BuildRow({4}), 1, 1_KB, 100, 1_KB);
+    auto chunkC = CreateChunk(BuildRow({5}), BuildRow({6}), 0, 1_KB, 100, 1_KB);
+    auto chunkD = CreateChunk(BuildRow({7}), BuildRow({8}), 1, 1_KB, 100, 1_KB);
+    auto dataSliceA = CreateDataSlice(chunkA);
+    auto dataSliceB = CreateDataSlice(chunkB);
+    auto dataSliceC = CreateDataSlice(chunkC);
+    auto dataSliceD = CreateDataSlice(chunkD);
+    CurrentMock().RegisterTriviallySliceableUnversionedDataSlice(dataSliceA);
+    CurrentMock().RegisterTriviallySliceableUnversionedDataSlice(dataSliceB);
+    CurrentMock().RegisterTriviallySliceableUnversionedDataSlice(dataSliceC);
+    CurrentMock().RegisterTriviallySliceableUnversionedDataSlice(dataSliceD);
+
+    CreateChunkPool();
+
+    AddDataSlice(dataSliceA);
+    AddDataSlice(dataSliceB);
+    AddDataSlice(dataSliceC);
+    AddDataSlice(dataSliceD);
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+    EXPECT_EQ(ExtractedCookies_.size(), 2u);
+
+    const auto& stripeList = stripeLists[0];
+    std::vector<TLegacyDataSlicePtr> unreadDataSlices;
+    for (const auto& stripe : stripeList->Stripes()) {
+        for (const auto& dataSlice : stripe->DataSlices()) {
+            for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+                // Lie a little to the chunk pool - make unread slice
+                // larger than the original slice.
+                // Originally, a bug in ReadSelectivityFactor was the trigger,
+                // but since it is fixed, we can emulate the bug by hand.
+                // Moreover, for scan chunks the estimation of unread size
+                // is just an estimation, so it can be inaccurate on its own.
+                chunkSlice->OverrideSize(
+                    chunkSlice->GetRowCount(),
+                    chunkSlice->GetDataWeight() * 10,
+                    chunkSlice->GetCompressedDataSize() * 10,
+                    chunkSlice->GetUncompressedDataSize() * 10);
+            }
+            unreadDataSlices.push_back(CreateInputDataSlice(dataSlice));
+        }
+    }
+
+    TCompletedJobSummary jobSummary;
+    jobSummary.InterruptionReason = EInterruptionReason::JobSplit;
+    jobSummary.UnreadInputDataSlices = unreadDataSlices;
+    jobSummary.SplitJobCount = 1;
+    jobSummary.Statistics = std::make_shared<TStatistics>();
+    ChunkPool_->Completed(ExtractedCookies_[0], jobSummary);
+
+    EXPECT_EQ(ChunkPool_->GetJobCounter()->GetPending(), 1);
 
     ExtractOutputCookiesWhilePossible();
 }

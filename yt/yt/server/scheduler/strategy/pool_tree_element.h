@@ -213,7 +213,6 @@ protected:
     // Assigned in preupdate, used in fair share update.
     TJobResources TotalResourceLimits_;
     i64 PendingAllocationCount_ = 0;
-    TInstant StartTime_;
 
     const std::string TreeId_;
 };
@@ -298,8 +297,6 @@ public:
 
     NVectorHdrf::TCompositeElement* GetParentElement() const override;
     const NVectorHdrf::TJobResourcesConfig* GetStrongGuaranteeResourcesConfig() const override;
-
-    TInstant GetStartTime() const;
 
     //! Post fair share update methods.
     virtual void UpdateStarvationStatuses(TInstant now, bool enablePoolStarvation);
@@ -516,7 +513,7 @@ public:
     virtual std::optional<TDuration> GetSpecifiedWaitingForResourcesOnNodeTimeout() const = 0;
 
     //! Schedule allocations related methods.
-    bool HasHigherPriorityInFifoMode(const TPoolTreeElement* lhs, const TPoolTreeElement* rhs) const;
+    bool HasHigherPriorityInFifoMode(const TPoolTreeOperationElement* lhs, const TPoolTreeOperationElement* rhs) const;
 
     NYPath::TYPath GetFullPath(bool explicitOnly, bool withTreeId = true) const;
 
@@ -785,6 +782,8 @@ protected:
 
     // Fixed in preupdate and used to calculate resource limits.
     TSchedulingTagFilter SchedulingTagFilter_;
+
+    TInstant StartTime_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -820,6 +819,8 @@ public:
     TPoolTreeElementPtr Clone(TPoolTreeCompositeElement* clonedParent) override;
 
     ESchedulerElementType GetType() const override;
+
+    TInstant GetStartTime() const;
 
     TString GetId() const override;
     TOperationId GetOperationId() const;

@@ -9,6 +9,8 @@
 
 #include <yt/yt/ytlib/cypress_transaction_client/proto/cypress_transaction_service.pb.h>
 
+#include <yt/yt/ytlib/sequoia_client/connection.h>
+
 #include <yt/yt/client/hive/timestamp_map.h>
 
 #include <yt/yt/core/rpc/service_detail.h>
@@ -42,10 +44,11 @@ void StartCypressTransactionInSequoiaAndReply(
     const ITransactionManager::TCtxStartCypressTransactionPtr& context)
 {
     context->ReplyFrom(StartCypressTransaction(
-        bootstrap->GetSequoiaClient(),
+        bootstrap
+            ->GetSequoiaConnection()
+            ->CreateClient(context->GetAuthenticationIdentity()),
         bootstrap->GetCellId(),
         &context->Request(),
-        context->GetAuthenticationIdentity(),
         TDispatcher::Get()->GetHeavyInvoker(),
         TransactionServerLogger())
         .Apply(CreateStartTransactionResponse));
@@ -58,10 +61,11 @@ TFuture<void> DoomCypressTransactionInSequoia(
     const NProto::TTransactionFinishRequest& request)
 {
     return DoomCypressTransaction(
-        bootstrap->GetSequoiaClient(),
+        bootstrap
+            ->GetSequoiaConnection()
+            ->CreateClient(std::move(authenticationIdentity)),
         bootstrap->GetCellId(),
         transactionId,
-        std::move(authenticationIdentity),
         request,
         TDispatcher::Get()->GetHeavyInvoker(),
         TransactionServerLogger());
@@ -76,11 +80,12 @@ TFuture<TSharedRefArray> AbortCypressTransactionInSequoia(
     bool retry)
 {
     return AbortCypressTransaction(
-        bootstrap->GetSequoiaClient(),
+        bootstrap
+            ->GetSequoiaConnection()
+            ->CreateClient(std::move(authenticationIdentity)),
         bootstrap->GetCellId(),
         transactionId,
         force,
-        authenticationIdentity,
         mutationId,
         retry,
         TDispatcher::Get()->GetHeavyInvoker(),
@@ -92,7 +97,9 @@ TFuture<TSharedRefArray> AbortExpiredCypressTransactionInSequoia(
     TTransactionId transactionId)
 {
     return AbortExpiredCypressTransaction(
-        bootstrap->GetSequoiaClient(),
+        bootstrap
+            ->GetSequoiaConnection()
+            ->CreateClient(GetRootAuthenticationIdentity()),
         bootstrap->GetCellId(),
         transactionId,
         TDispatcher::Get()->GetHeavyInvoker(),
@@ -109,13 +116,14 @@ TFuture<TSharedRefArray> CommitCypressTransactionInSequoia(
     bool retry)
 {
     return CommitCypressTransaction(
-        bootstrap->GetSequoiaClient(),
+        bootstrap
+            ->GetSequoiaConnection()
+            ->CreateClient(std::move(authenticationIdentity)),
         bootstrap->GetCellId(),
         transactionId,
         std::move(prerequisiteTransactionIds),
         bootstrap->GetPrimaryCellTag(),
         commitTimestamp,
-        std::move(authenticationIdentity),
         mutationId,
         retry,
         TDispatcher::Get()->GetHeavyInvoker(),
@@ -129,7 +137,9 @@ TFuture<TSharedRefArray> FinishNonAliveCypressTransactionInSequoia(
     bool retry)
 {
     return FinishNonAliveCypressTransaction(
-        bootstrap->GetSequoiaClient(),
+        bootstrap
+            ->GetSequoiaConnection()
+            ->CreateClient(GetRootAuthenticationIdentity()),
         transactionId,
         mutationId,
         retry,
@@ -141,7 +151,9 @@ TFuture<void> ReplicateCypressTransactionsInSequoiaAndSyncWithLeader(
     std::vector<TTransactionId> transactionIds)
 {
     return ReplicateCypressTransactions(
-        bootstrap->GetSequoiaClient(),
+        bootstrap
+            ->GetSequoiaConnection()
+            ->CreateClient(GetRootAuthenticationIdentity()),
         std::move(transactionIds),
         {bootstrap->GetCellTag()},
         bootstrap->GetCellId(),
@@ -149,9 +161,14 @@ TFuture<void> ReplicateCypressTransactionsInSequoiaAndSyncWithLeader(
         TransactionServerLogger())
         .Apply(BIND([hydraManager = bootstrap->GetHydraFacade()->GetHydraManager()] {
             // NB: |sequoiaTransaction->Commit()| is set when Sequoia tx is
-            // committed on leader (and probably some of followers). Since we
+            // prepared on leader (and probably some of followers). Since we
             // want to know when replicated tx is actually available on _this_
             // peer sync with leader is needed.
+            // Note that waiting for strongly ordered tx barrier isn't needed
+            // here because Sequoia transaction is coordinated by current cell:
+            // thanks to late prepare mode after transaction is prepared on
+            // coordinator its effects can be immediately observed on
+            // coordinator.
             return hydraManager->SyncWithLeader();
         }));
 }

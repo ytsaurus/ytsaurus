@@ -99,7 +99,7 @@ void TBufferedStream::Finish()
 TFuture<void> TBufferedStream::Close()
 {
     Finish();
-    return VoidFuture;
+    return OKFuture;
 }
 
 TFuture<void> TBufferedStream::Write(const TSharedRef& data)
@@ -134,13 +134,13 @@ TFuture<void> TBufferedStream::Write(const TSharedRef& data)
             .ToFuture()
             .ToImmediatelyCancelable();
     } else {
-        return VoidFuture;
+        return OKFuture;
     }
 }
 
 TFuture<void> TBufferedStream::Flush()
 {
-    return VoidFuture;
+    return OKFuture;
 }
 
 void TBufferedStream::Reallocate(size_t len)

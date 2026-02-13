@@ -343,7 +343,7 @@ void TClusterNodeBootstrapConfig::Register(TRegistrar registrar)
         .Default({
             NNodeTrackerClient::ENodeFlavor::Data,
             NNodeTrackerClient::ENodeFlavor::Exec,
-            NNodeTrackerClient::ENodeFlavor::Tablet
+            NNodeTrackerClient::ENodeFlavor::Tablet,
         });
 
     registrar.Parameter("master_connector", &TThis::MasterConnector)

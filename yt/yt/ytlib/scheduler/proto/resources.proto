@@ -39,7 +39,7 @@ message TNbdDisk
     optional int64 data_node_nbd_service_make_timeout = 7 [default = 10000];
 }
 
-message TDiskRequest
+message TDeprecatedDiskRequest
 {
     optional int64 disk_space = 1;
     optional int64 inode_count = 2;
@@ -48,6 +48,35 @@ message TDiskRequest
     optional TNbdDisk nbd_disk = 4;
     optional int64 tmpfs_index = 5;
     optional int32 type = 6; // NYT::NExecNode::EVolumeType
+}
+
+message TStorageRequestCommonParameters
+{
+    required int64 disk_space = 1;
+}
+
+message TTmpfsStorageRequest
+{
+    required TStorageRequestCommonParameters storage_request_common_parameters = 1;
+    optional int64 tmpfs_index = 2;
+}
+
+message TDiskRequest
+{
+    required TStorageRequestCommonParameters storage_request_common_parameters = 1;
+    optional int64 inode_count = 2;
+    optional int64 medium_index = 3;
+}
+
+message TLocalDiskRequest
+{
+    required TDiskRequest disk_request = 1;
+}
+
+message TNbdDiskRequest
+{
+    required TDiskRequest disk_request = 1;
+    required TNbdDisk nbd = 2;
 }
 
 // TODO(babenko): consider renaming
@@ -69,7 +98,7 @@ message TAllocationAttributes
     optional string cuda_toolkit_version = 2;
     required bool allow_idle_cpu_policy = 3;
     required int64 port_count = 4;
-    required TDiskRequest disk_request = 5;
+    required TDeprecatedDiskRequest disk_request = 5;
     optional bool enable_multiple_jobs = 6;
     optional bool allocate_job_proxy_rpc_server_port = 7;
 }

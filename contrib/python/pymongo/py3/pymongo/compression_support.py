@@ -4,51 +4,61 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+# https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from __future__ import annotations
 
+import sys
 import warnings
+from typing import Any, Iterable, Optional, Union
 
-try:
-    import snappy
+from pymongo.hello import HelloCompat
+from pymongo.helpers_shared import _SENSITIVE_COMMANDS
 
-    _HAVE_SNAPPY = True
-except ImportError:
-    # python-snappy isn't available.
-    _HAVE_SNAPPY = False
-
-try:
-    import zlib
-
-    _HAVE_ZLIB = True
-except ImportError:
-    # Python built without zlib support.
-    _HAVE_ZLIB = False
-
-try:
-    from zstandard import ZstdCompressor, ZstdDecompressor
-
-    _HAVE_ZSTD = True
-except ImportError:
-    _HAVE_ZSTD = False
-
-from pymongo.hello_compat import HelloCompat
-from pymongo.monitoring import _SENSITIVE_COMMANDS
-
-_SUPPORTED_COMPRESSORS = set(["snappy", "zlib", "zstd"])
-_NO_COMPRESSION = set([HelloCompat.CMD, HelloCompat.LEGACY_CMD])
+_SUPPORTED_COMPRESSORS = {"snappy", "zlib", "zstd"}
+_NO_COMPRESSION = {HelloCompat.CMD, HelloCompat.LEGACY_CMD}
 _NO_COMPRESSION.update(_SENSITIVE_COMMANDS)
 
 
-def validate_compressors(dummy, value):
+def _have_snappy() -> bool:
+    try:
+        import snappy  # type:ignore[import-untyped]  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
+
+
+def _have_zlib() -> bool:
+    try:
+        import zlib  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
+
+
+def _have_zstd() -> bool:
+    try:
+        if sys.version_info >= (3, 14):
+            from compression import zstd
+        else:
+            from backports import zstd  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
+
+
+def validate_compressors(dummy: Any, value: Union[str, Iterable[str]]) -> list[str]:
     try:
         # `value` is string.
-        compressors = value.split(",")
+        compressors = value.split(",")  # type: ignore[union-attr]
     except AttributeError:
         # `value` is an iterable.
         compressors = list(value)
@@ -56,44 +66,56 @@ def validate_compressors(dummy, value):
     for compressor in compressors[:]:
         if compressor not in _SUPPORTED_COMPRESSORS:
             compressors.remove(compressor)
-            warnings.warn("Unsupported compressor: %s" % (compressor,))
-        elif compressor == "snappy" and not _HAVE_SNAPPY:
+            warnings.warn(f"Unsupported compressor: {compressor}", stacklevel=2)
+        elif compressor == "snappy" and not _have_snappy():
             compressors.remove(compressor)
             warnings.warn(
                 "Wire protocol compression with snappy is not available. "
-                "You must install the python-snappy module for snappy support."
+                "You must install the python-snappy module for snappy support.",
+                stacklevel=2,
             )
-        elif compressor == "zlib" and not _HAVE_ZLIB:
+        elif compressor == "zlib" and not _have_zlib():
             compressors.remove(compressor)
             warnings.warn(
                 "Wire protocol compression with zlib is not available. "
-                "The zlib module is not available."
+                "The zlib module is not available.",
+                stacklevel=2,
             )
-        elif compressor == "zstd" and not _HAVE_ZSTD:
+        elif compressor == "zstd" and not _have_zstd():
             compressors.remove(compressor)
-            warnings.warn(
-                "Wire protocol compression with zstandard is not available. "
-                "You must install the zstandard module for zstandard support."
-            )
+            if sys.version_info >= (3, 14):
+                warnings.warn(
+                    "Wire protocol compression with zstandard is not available. "
+                    "The compression.zstd module is not available.",
+                    stacklevel=2,
+                )
+            else:
+                warnings.warn(
+                    "Wire protocol compression with zstandard is not available. "
+                    "You must install the backports.zstd module for zstandard support.",
+                    stacklevel=2,
+                )
     return compressors
 
 
-def validate_zlib_compression_level(option, value):
+def validate_zlib_compression_level(option: str, value: Any) -> int:
     try:
         level = int(value)
-    except:
-        raise TypeError("%s must be an integer, not %r." % (option, value))
+    except Exception:
+        raise TypeError(f"{option} must be an integer, not {value!r}") from None
     if level < -1 or level > 9:
         raise ValueError("%s must be between -1 and 9, not %d." % (option, level))
     return level
 
 
-class CompressionSettings(object):
-    def __init__(self, compressors, zlib_compression_level):
+class CompressionSettings:
+    def __init__(self, compressors: list[str], zlib_compression_level: int):
         self.compressors = compressors
         self.zlib_compression_level = zlib_compression_level
 
-    def get_compression_context(self, compressors):
+    def get_compression_context(
+        self, compressors: Optional[list[str]]
+    ) -> Union[SnappyContext, ZlibContext, ZstdContext, None]:
         if compressors:
             chosen = compressors[0]
             if chosen == "snappy":
@@ -102,62 +124,64 @@ class CompressionSettings(object):
                 return ZlibContext(self.zlib_compression_level)
             elif chosen == "zstd":
                 return ZstdContext()
+            return None
+        return None
 
 
-def _zlib_no_compress(data):
-    """Compress data with zlib level 0."""
-    cobj = zlib.compressobj(0)
-    return b"".join([cobj.compress(data), cobj.flush()])
-
-
-class SnappyContext(object):
+class SnappyContext:
     compressor_id = 1
 
     @staticmethod
-    def compress(data):
+    def compress(data: bytes) -> bytes:
+        import snappy
+
         return snappy.compress(data)
 
 
-class ZlibContext(object):
+class ZlibContext:
     compressor_id = 2
 
-    def __init__(self, level):
-        # Jython zlib.compress doesn't support -1
-        if level == -1:
-            self.compress = zlib.compress
-        # Jython zlib.compress also doesn't support 0
-        elif level == 0:
-            self.compress = _zlib_no_compress
-        else:
-            self.compress = lambda data: zlib.compress(data, level)
+    def __init__(self, level: int):
+        self.level = level
+
+    def compress(self, data: bytes) -> bytes:
+        import zlib
+
+        return zlib.compress(data, self.level)
 
 
-class ZstdContext(object):
+class ZstdContext:
     compressor_id = 3
 
     @staticmethod
-    def compress(data):
-        # ZstdCompressor is not thread safe.
-        # TODO: Use a pool?
-        return ZstdCompressor().compress(data)
+    def compress(data: bytes) -> bytes:
+        if sys.version_info >= (3, 14):
+            from compression import zstd
+        else:
+            from backports import zstd
+
+        return zstd.compress(data)
 
 
-def decompress(data, compressor_id):
+def decompress(data: bytes | memoryview, compressor_id: int) -> bytes:
     if compressor_id == SnappyContext.compressor_id:
         # python-snappy doesn't support the buffer interface.
         # https://github.com/andrix/python-snappy/issues/65
         # This only matters when data is a memoryview since
         # id(bytes(data)) == id(data) when data is a bytes.
-        # NOTE: bytes(memoryview) returns the memoryview repr
-        # in Python 2.7. The right thing to do in 2.7 is call
-        # memoryview.tobytes(), but we currently only use
-        # memoryview in Python 3.x.
+        import snappy
+
         return snappy.uncompress(bytes(data))
     elif compressor_id == ZlibContext.compressor_id:
+        import zlib
+
         return zlib.decompress(data)
     elif compressor_id == ZstdContext.compressor_id:
-        # ZstdDecompressor is not thread safe.
-        # TODO: Use a pool?
-        return ZstdDecompressor().decompress(data)
+        if sys.version_info >= (3, 14):
+            from compression import zstd
+        else:
+            from backports import zstd
+
+        return zstd.decompress(data)
     else:
         raise ValueError("Unknown compressorId %d" % (compressor_id,))

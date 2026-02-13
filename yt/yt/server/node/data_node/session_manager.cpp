@@ -409,7 +409,7 @@ void TSessionManager::CancelLocationSessions(const TChunkLocationPtr& location)
 
     for (const auto& [sessionId, session] : sessionMap) {
         if (location == session->GetStoreLocation()) {
-            session->Cancel(TError("Location disabled (LocationUuid: %v)", location->GetUuid()));
+            session->Cancel(TError("Location disabled (LocationUuid: %v, LocationIndex: %v)", location->GetUuid(), location->GetIndex()));
         }
     }
 }

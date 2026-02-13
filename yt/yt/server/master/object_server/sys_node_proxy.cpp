@@ -54,7 +54,7 @@ private:
         descriptors->push_back(EInternedAttributeKey::PrimaryCellTag);
         descriptors->push_back(EInternedAttributeKey::CellId);
         descriptors->push_back(EInternedAttributeKey::PrimaryCellId);
-        descriptors->push_back(EInternedAttributeKey::CurrentCommitRevision);
+        descriptors->push_back(EInternedAttributeKey::CurrentHydraVersion);
         descriptors->push_back(EInternedAttributeKey::ChunkReplicatorEnabled);
         descriptors->push_back(EInternedAttributeKey::ChunkRefreshEnabled);
         descriptors->push_back(EInternedAttributeKey::ChunkRequisitionUpdateEnabled);
@@ -151,9 +151,9 @@ private:
                     .Value(multicellManager->GetPrimaryCellId());
                 return true;
 
-            case EInternedAttributeKey::CurrentCommitRevision:
+            case EInternedAttributeKey::CurrentHydraVersion:
                 BuildYsonFluently(consumer)
-                    .Value(hydraManager->GetAutomatonVersion().ToRevision());
+                    .Value(ToString(hydraManager->GetAutomatonVersion()));
                 return true;
 
             case EInternedAttributeKey::ChunkReplicatorEnabled:
@@ -191,7 +191,7 @@ private:
 
             case EInternedAttributeKey::DynamicallyPropagatedMastersCellTags:
                 BuildYsonFluently(consumer)
-                    .Value(multicellManager->GetDynamicallyPropagatedMastersCellTags());
+                    .Value(multicellManager->GetDynamicallyPropagatedMasterCellTags());
                 return true;
 
             case EInternedAttributeKey::LostVitalChunkCount:

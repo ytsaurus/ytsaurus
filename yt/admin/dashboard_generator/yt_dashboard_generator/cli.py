@@ -38,10 +38,6 @@ class FacadeBase(ABC):
         pass
 
     @abstractmethod
-    def diff(self):
-        pass
-
-    @abstractmethod
     def show(self):
         pass
 
@@ -61,22 +57,13 @@ class FacadeBase(ABC):
     def json(self, file):
         pass
 
-    def try_diff(self):
-        try:
-            self.diff()
-        except Exception:
-            logger.exception(f"Failed to show diff for dashboard '{self.dashboard_name}' with backend '{self.get_backend_name()}'")
-
     def submit(self, need_confirmation, verbose):
-        self.try_diff()
         if need_confirmation:
             self._confirm('You are about to submit dashboard "{}" to {} (dashboard_id: {}), continue?'.format(
                 self.slug, self.get_backend_name(), self.dashboard_name))
         self.do_submit(verbose=verbose)
 
     def submit_cypress(self, need_confirmation, verbose, cypress_path, cypress_document_name):
-        self.try_diff()
-
         if cypress_document_name is None:
             cypress_document_name = self.slug
         dashboard_path = f"{cypress_path}/{cypress_document_name}"
@@ -85,8 +72,9 @@ class FacadeBase(ABC):
             self._confirm('You are about to submit dashboard "{}" to cypress (backend_type: {}, dashboard_id: {}, cluster_proxy: {}, dashboard_path: {}), continue?'.format(
                 self.slug, self.get_backend_name(), self.dashboard_name, yt.config["proxy"]["url"], dashboard_path))
         serialized_dashboard = self.generate_serialized_dashboard(verbose=verbose)
-        yt.create("document", dashboard_path, ignore_existing=True)
-        yt.set(dashboard_path, serialized_dashboard)
+        client = yt.YtClient(config=yt.config.config)
+        client.create("document", dashboard_path, ignore_existing=True)
+        client.set(dashboard_path, serialized_dashboard)
         logger.info(f'Dashboard "{self.slug}" with backend "{self.get_backend_name()}" was submitted to cypress')
 
     @staticmethod
@@ -172,8 +160,12 @@ class Cli():
             return
 
         if args.command in ["diff", "show", "submit"]:
-            for cls in self.backend_classes.values():
-                cls.on_args_parsed(args)
+            if args.backend is not None:
+                for backend_name in args.backend:
+                    self.backend_classes[backend_name].on_args_parsed(args)
+            else:
+                for cls in self.backend_classes.values():
+                    cls.on_args_parsed(args)
 
         selected_dashboards = []
         if "all" in args.dashboards:

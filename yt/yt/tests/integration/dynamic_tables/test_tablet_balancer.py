@@ -6,7 +6,7 @@ from yt_commands import (
     authors, set, get, ls, update, wait, sync_mount_table, sync_reshard_table,
     insert_rows, sync_create_cells, sync_flush_table, remove, get_driver,
     sync_compact_table, wait_for_tablet_state, create_tablet_cell_bundle,
-    sync_unmount_table, print_debug, select_rows,
+    sync_unmount_table, print_debug, select_rows, WaitFailed,
     create, create_table_replica, sync_enable_table_replica)
 
 from yt.common import update_inplace
@@ -14,6 +14,7 @@ from yt.common import update_inplace
 import pytest
 
 from time import sleep
+import builtins
 
 ##################################################################
 
@@ -90,6 +91,19 @@ class TestStandaloneTabletBalancerBase:
         first_iteration_start_time = self._get_last_iteration_start_time(instances)
         wait(lambda: first_iteration_start_time < self._get_last_iteration_start_time(instances))
 
+    def _get_state_freshness_time(self):
+        if self.bundle_state_freshness_time is None:
+            self.bundle_state_freshness_time = get(self.config_path + "/bundle_state_provider/state_freshness_time") / 1000
+        return self.bundle_state_freshness_time
+
+    def _set_allowed_replica_clusters(self, clusters):
+        self._apply_dynamic_config_patch({
+            "allowed_replica_clusters": clusters,
+        })
+
+    def _wait_until_config_change_applied(self):
+        sleep(self._get_state_freshness_time())
+
     @classmethod
     def modify_tablet_balancer_config(cls, config, multidaemon_config):
         update_inplace(config, {
@@ -100,6 +114,7 @@ class TestStandaloneTabletBalancerBase:
             "election_manager": {
                 "transaction_ping_period": 100,
                 "leader_cache_update_period": 100,
+                "lock_acquisition_period": 100,
             }
         })
         if "logging" in config:
@@ -115,12 +130,14 @@ class TestStandaloneTabletBalancerBase:
         tablet_balancer_config = cls.Env._cluster_configuration["tablet_balancer"][0]
         cls.root_path = tablet_balancer_config.get("root", "//sys/tablet_balancer")
         cls.config_path = tablet_balancer_config.get("dynamic_config_path", cls.root_path + "/config")
+        cls.bundle_state_freshness_time = None
 
     @classmethod
     def _apply_dynamic_config_patch(cls, patch, driver=None):
         config = get(cls.config_path, driver=driver)
         update_inplace(config, patch)
         set(cls.config_path, config, driver=driver)
+        effective_config = None
 
         instances = ls(cls.root_path + "/instances", driver=driver)
 
@@ -132,13 +149,19 @@ class TestStandaloneTabletBalancerBase:
                     return False
             return True
 
-        wait(config_updated_on_all_instances)
+        try:
+            wait(config_updated_on_all_instances)
+        except WaitFailed:
+            print_debug("Effective config:", effective_config)
+            print_debug("Expected config:", update(effective_config, config))
+            raise
 
     def setup_method(self, method):
         super(TestStandaloneTabletBalancerBase, self).setup_method(method)
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_verbose_logging", True)
 
 
+@authors("alexelexa")
 @pytest.mark.enabled_multidaemon
 class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalancerBase):
     ENABLE_MULTIDAEMON = True
@@ -152,30 +175,25 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
         sync_mount_table("//tmp/t2")
         wait(lambda: get("//tmp/t2/@tablet_count") == 1)
 
-    @authors("alexelexa")
     def test_builtin_tablet_balancer_disabled(self):
         assert not get("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer")
 
-    @authors("alexelexa")
     def test_standalone_tablet_balancer_on(self):
         assert self._get_enable_tablet_balancer()
         assert get("//sys/tablet_balancer/config/enable_everywhere")
 
-    @authors("alexelexa")
     def test_non_existent_group_config(self):
         self._create_sorted_table("//tmp/t")
         set("//tmp/t/@tablet_balancer_config/group", "non-existent")
         sleep(1)
         assert get("//tmp/t/@tablet_balancer_config/group") == "non-existent"
 
-    @authors("alexelexa")
     def test_fetch_cell_only_from_secondary_in_multicell(self):
         self._apply_dynamic_config_patch({
             "fetch_tablet_cells_from_secondary_masters": True
         })
         self._test_simple_reshard()
 
-    @authors("alexelexa")
     def test_pick_pivot_keys_merge(self):
         self._apply_dynamic_config_patch({
             "pick_reshard_pivot_keys": True,
@@ -183,7 +201,6 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
 
         self._test_simple_reshard()
 
-    @authors("alexelexa")
     @pytest.mark.parametrize("in_memory_mode", ["none", "uncompressed"])
     @pytest.mark.parametrize("with_hunks", [True, False])
     def test_pick_pivot_keys_split(self, in_memory_mode, with_hunks):
@@ -197,7 +214,6 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
             with_hunks=with_hunks,
             with_slicing=True)
 
-    @authors("alexelexa")
     def test_by_bundle_errors(self):
         instances = get("//sys/tablet_balancer/instances")
 
@@ -229,7 +245,6 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
 
         wait(lambda: len(_get_last_iteration_instance_retryable_errors(instances)) == 0)
 
-    @authors("alexelexa")
     def test_move_table_between_bundles(self):
         create_tablet_cell_bundle("another")
         self._configure_bundle("default")
@@ -263,7 +278,93 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
         wait(lambda: get("//tmp/t3/@tablet_count") == 1)
         wait(lambda: get("//tmp/t4/@tablet_count") == 1)
 
+    @authors("ifsmirnov")
+    def test_smooth_movement(self):
+        self._configure_bundle("default")
+        cell_ids = sync_create_cells(2)
 
+        existing_action_ids = builtins.set(ls("//sys/tablet_actions"))
+
+        def _get_singular_new_action_id():
+            nonlocal existing_action_ids
+
+            new_action_ids = builtins.set(ls("//sys/tablet_actions"))
+            diff = new_action_ids - existing_action_ids
+            if len(diff) != 1:
+                print_debug(diff)
+            assert len(diff) == 1
+            existing_action_ids = new_action_ids
+
+            return diff.pop()
+
+        self._create_sorted_table(
+            "//tmp/t",
+            in_memory_mode="compressed",
+            pivot_keys=[[], [1]],
+            tablet_balancer_config={
+                "enable_auto_reshard": False,
+                "enable_auto_tablet_move": True,
+            })
+        sync_mount_table("//tmp/t", cell_id=cell_ids[0])
+        insert_rows("//tmp/t", [{"key": 0, "value": "a"}, {"key": 1, "value": "b"}])
+
+        def _run_and_get_action():
+            sync_unmount_table("//tmp/t")
+            self._wait_full_iteration()
+            sync_mount_table("//tmp/t", cell_id=cell_ids[0])
+
+            wait(lambda: len(builtins.set(t["cell_id"] for t in get("//tmp/t/@tablets"))) == 2)
+
+            action_id = _get_singular_new_action_id()
+
+            action = None
+
+            def _check():
+                nonlocal action
+                # Error is requested only to be displayed in test logs.
+                action = get(f"#{action_id}/@", attributes=["kind", "state", "error"])
+                return action["state"] == "completed"
+
+            wait(_check)
+            return action
+
+        assert _run_and_get_action()["kind"] == "move"
+
+        set("//tmp/t/@tablet_balancer_config/enable_smooth_movement", True)
+        assert _run_and_get_action()["kind"] == "smooth_move"
+
+        remove("//tmp/t/@tablet_balancer_config/enable_smooth_movement")
+        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_smooth_movement", True)
+        assert _run_and_get_action()["kind"] == "smooth_move"
+
+        set("//tmp/t/@tablet_balancer_config/enable_smooth_movement", False)
+        assert _run_and_get_action()["kind"] == "move"
+
+        set("//tmp/t/@tablet_balancer_config/enable_smooth_movement", True)
+        set("//sys/tablet_balancer/config/enable_smooth_movement", False)
+        assert _run_and_get_action()["kind"] == "move"
+
+    def test_many_bundles(self):
+        bundles = ["default", "another", "third", "fourth"]
+
+        create_tablet_cell_bundle("another")
+        create_tablet_cell_bundle("third")
+        create_tablet_cell_bundle("fourth")
+
+        for i, bundle in enumerate(bundles):
+            self._configure_bundle(bundle)
+            sync_create_cells(1, tablet_cell_bundle=bundle)
+            self._create_sorted_table(f"//tmp/t{i}", tablet_cell_bundle=bundle)
+
+        for index in range(len(bundles)):
+            sync_reshard_table(f"//tmp/t{index}", [[], [1]])
+            sync_mount_table(f"//tmp/t{index}")
+
+        for index in range(len(bundles)):
+            wait(lambda: get(f"//tmp/t{index}/@tablet_count") == 1)
+
+
+@authors("alexelexa")
 @pytest.mark.enabled_multidaemon
 class TestStandaloneTabletBalancerSlow(TestStandaloneTabletBalancerBase, TabletActionsBase):
     ENABLE_MULTIDAEMON = True
@@ -277,7 +378,6 @@ class TestStandaloneTabletBalancerSlow(TestStandaloneTabletBalancerBase, TabletA
             },
         })
 
-    @authors("alexelexa")
     def test_action_hard_limit(self):
         self._set_enable_tablet_balancer(False)
         self._apply_dynamic_config_patch({
@@ -324,6 +424,7 @@ class TestStandaloneTabletBalancerSlow(TestStandaloneTabletBalancerBase, TabletA
         })
 
 
+@authors("alexelexa")
 @pytest.mark.enabled_multidaemon
 class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
@@ -334,10 +435,12 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         update_inplace(config, {
             "tablet_balancer": {
                 "period" : 5000,
+                # Prevent cross-test interference when waiting for perf counter recalculation
+                # on a bundle with the same (default) name.
+                "parameterized_timeout": 5000,
             },
         })
 
-    @authors("alexelexa")
     def test_auto_move(self):
         cells = sync_create_cells(2)
 
@@ -347,6 +450,7 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
             "enable_auto_tablet_move": False,
         }
         set("//tmp/t/@tablet_balancer_config", config)
+        self._wait_until_config_change_applied()
 
         self._set_default_metric("double([/statistics/uncompressed_data_size])")
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_parameterized_by_default", True)
@@ -367,7 +471,6 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
 
         wait(lambda: not all(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets")))
 
-    @authors("alexelexa")
     def test_parameterized_by_default(self):
         cells = sync_create_cells(2)
 
@@ -377,6 +480,7 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
             "enable_auto_tablet_move": False,
         }
         set("//tmp/t/@tablet_balancer_config", config)
+        self._wait_until_config_change_applied()
 
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_parameterized_by_default", True)
 
@@ -400,12 +504,12 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
 
         wait(lambda: not all(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets")))
 
-    @authors("alexelexa")
     def test_config(self):
         cells = sync_create_cells(2)
 
         self._create_sorted_table("//tmp/t")
         set("//tmp/t/@tablet_balancer_config/enable_auto_reshard", False)
+        self._wait_until_config_change_applied()
 
         parameterized_balancing_metric = "double([/statistics/uncompressed_data_size])"
         self._set_default_metric(parameterized_balancing_metric)
@@ -430,7 +534,6 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         remove("//tmp/t/@tablet_balancer_config/enable_parameterized")
         wait(lambda: not all(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets")))
 
-    @authors("alexelexa")
     @pytest.mark.parametrize(
         "parameterized_balancing_metric",
         [
@@ -476,7 +579,6 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         assert tablets[0]["cell_id"] == tablets[1]["cell_id"]
         assert tablets[2]["cell_id"] == tablets[3]["cell_id"]
 
-    @authors("alexelexa")
     @pytest.mark.parametrize("trigger_by", ["node", "cell"])
     def test_move_trigger(self, trigger_by):
         parameterized_balancing_metric = "double([/statistics/uncompressed_data_size])"
@@ -525,7 +627,6 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
 
         wait(lambda: sum(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets")) == 10)
 
-    @authors("alexelexa")
     @pytest.mark.parametrize(
         "parameterized_balancing_metric",
         [
@@ -558,18 +659,17 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         assert get("//tmp/t/@tablet_count") == 1
 
         set("//tmp/t/@tablet_balancer_config/enable_auto_reshard", False)
-        self._wait_full_iteration()
+        self._wait_until_config_change_applied()
 
         insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(400)])
         sync_flush_table("//tmp/t")
 
         set("//tmp/t/@tablet_balancer_config/enable_auto_reshard", True)
-        self._wait_full_iteration()
+        self._wait_until_config_change_applied()
 
         wait(lambda: get("//tmp/t/@tablet_count") == 2)
         remove("//sys/tablet_balancer/config/pick_reshard_pivot_keys")
 
-    @authors("alexelexa")
     @pytest.mark.parametrize(
         "parameterized_balancing_metric",
         [
@@ -684,7 +784,6 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
             tablets = get(table + "/@tablets")
             assert tablets[0]["cell_id"] != tablets[1]["cell_id"]
 
-    @authors("alexelexa")
     def test_aliases(self):
         cells = sync_create_cells(2)
 
@@ -771,11 +870,6 @@ class TestReplicaBalancing(TestStandaloneTabletBalancerBase, TestStatisticsRepor
             remove(self.statistics_path, driver=driver)
         super(TestReplicaBalancing, self).teardown_method(method)
 
-    def _set_allowed_replica_clusters(self, clusters):
-        self._apply_dynamic_config_patch({
-            "allowed_replica_clusters": clusters,
-        })
-
     @authors("alexelexa")
     def test_balancing_one_table_by_another(self):
         self._set_default_metric("double([/statistics/uncompressed_data_size])")
@@ -787,10 +881,14 @@ class TestReplicaBalancing(TestStandaloneTabletBalancerBase, TestStatisticsRepor
         cells = []
         tables = []
         for driver in (self.remote_driver, None):
-            self._create_sorted_table("//tmp/t", driver=driver)
+            self._create_sorted_table(
+                "//tmp/t",
+                tablet_balancer_config={
+                    "enable_auto_reshard": False,
+                    "enable_auto_tablet_move": False,
+                },
+                driver=driver)
             tables.append((get("//tmp/t/@id", driver=driver), driver))
-
-            self._disable_table_balancing("//tmp/t", driver=driver)
 
         sync_reshard_table("//tmp/t", [[], [100], [200], [300]], driver=None)
         sync_reshard_table("//tmp/t", [[], [10], [100], [200], [300]], driver=self.remote_driver)
@@ -837,6 +935,7 @@ class TestReplicaBalancing(TestStandaloneTabletBalancerBase, TestStatisticsRepor
         self._set_default_metric("double([/statistics/uncompressed_data_size])")
         self._set_allowed_replica_clusters(self.get_cluster_names())
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups/default/parameterized/replica_clusters", self.get_cluster_names())
+        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_parameterized_by_default", True)
 
         self._apply_dynamic_config_patch({
             "action_manager": {"max_tablet_count_per_action": 3}
@@ -848,6 +947,7 @@ class TestReplicaBalancing(TestStandaloneTabletBalancerBase, TestStatisticsRepor
 
         create("replicated_table", "//tmp/replicated", attributes={"schema": schema, "dynamic": True}, driver=self.remote_driver)
         self._disable_table_balancing("//tmp/replicated", driver=self.remote_driver)
+        self._wait_until_config_change_applied()
 
         modes = ["async", "sync"]
         replicas = []
@@ -860,13 +960,18 @@ class TestReplicaBalancing(TestStandaloneTabletBalancerBase, TestStatisticsRepor
                 driver=self.remote_driver,
             ))
 
-        self._create_sorted_table("//tmp/t", schema=schema, upstream_replica_id=replicas[0])
-        self._create_sorted_table("//tmp/t", driver=self.remote_driver, schema=schema, upstream_replica_id=replicas[1])
-
         tables = []
-        for driver in (self.remote_driver, None):
+        for replica_id, driver in zip(replicas, (None, self.remote_driver)):
+            self._create_sorted_table(
+                "//tmp/t",
+                schema=schema,
+                upstream_replica_id=replica_id,
+                tablet_balancer_config={
+                    "enable_auto_reshard": False,
+                    "enable_auto_tablet_move": False,
+                },
+                driver=driver)
             tables.append((get("//tmp/t/@id", driver=driver), driver))
-            self._disable_table_balancing("//tmp/t", driver=driver)
 
         major_pivot_keys = [[], [100], [200], [300]]
         sync_reshard_table("//tmp/t", [[], [10], [100], [200], [300]])
@@ -885,7 +990,6 @@ class TestReplicaBalancing(TestStandaloneTabletBalancerBase, TestStatisticsRepor
 
         sync_mount_table("//tmp/replicated", driver=self.remote_driver)
 
-        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_parameterized_by_default", True)
         set("//tmp/t/@tablet_balancer_config/enable_auto_reshard", True)
 
         for table_id, driver in tables:
@@ -937,16 +1041,32 @@ class TestReplicaBalancing(TestStandaloneTabletBalancerBase, TestStatisticsRepor
 ##################################################################
 
 
-class TestMultiClusterTabletBalancer(TestStandaloneTabletBalancerBase, DynamicTablesBase):
+class TestMultiClusterTabletBalancer(TestStandaloneTabletBalancerBase, TestStatisticsReporterBase, DynamicTablesBase):
     NUM_REMOTE_CLUSTERS = 1
     NUM_MASTERS_REMOTE_0 = 1
 
     REMOTE_CLUSTER_NAME = "remote_0"
 
     @classmethod
+    def modify_tablet_balancer_config(cls, config, multidaemon_config):
+        super(TestMultiClusterTabletBalancer, cls).modify_tablet_balancer_config(config, multidaemon_config)
+        update_inplace(config, {
+            "tablet_balancer": {
+                "parameterized_timeout": 1000,
+            },
+        })
+
+    @classmethod
     def setup_class(cls):
         super(TestMultiClusterTabletBalancer, cls).setup_class()
         cls.remote_driver = get_driver(cluster=cls.REMOTE_CLUSTER_NAME)
+
+    def teardown_method(self, method):
+        if hasattr(self, "statistics_path"):
+            for driver in (self.remote_driver, None):
+                remove(self.statistics_path, driver=driver)
+            set("//sys/tablet_cell_bundles/default/@node_tag_filter", "", driver=self.remote_driver)
+        super(TestMultiClusterTabletBalancer, self).teardown_method(method)
 
     @authors("alexelexa")
     def test_failed_replica_bundle(self):
@@ -955,7 +1075,7 @@ class TestMultiClusterTabletBalancer(TestStandaloneTabletBalancerBase, DynamicTa
         wait(lambda: get("//sys/tablet_cell_bundles/default/@health", driver=self.remote_driver) == "failed")
 
         self._apply_dynamic_config_patch({
-            "clusters_for_bundle_health_check": [self.REMOTE_CLUSTER_NAME],
+            "cluster_state_provider": {"clusters_for_bundle_health_check": [self.REMOTE_CLUSTER_NAME]}
         })
 
         sync_create_cells(1)
@@ -974,8 +1094,10 @@ class TestMultiClusterTabletBalancer(TestStandaloneTabletBalancerBase, DynamicTa
     @authors("alexelexa")
     def test_too_many_unhealthy_bundles(self):
         self._apply_dynamic_config_patch({
-            "clusters_for_bundle_health_check": [self.REMOTE_CLUSTER_NAME],
-            "max_unhealthy_bundles_on_replica_cluster": 3
+            "max_unhealthy_bundles_on_replica_cluster": 3,
+            "cluster_state_provider": {
+                "clusters_for_bundle_health_check": [self.REMOTE_CLUSTER_NAME],
+            }
         })
 
         for bundle in ("one", "two", "three"):
@@ -989,9 +1111,7 @@ class TestMultiClusterTabletBalancer(TestStandaloneTabletBalancerBase, DynamicTa
         sync_reshard_table("//tmp/t", [[], [1]])
         sync_mount_table("//tmp/t")
 
-        self._wait_full_iteration()
-        self._wait_full_iteration()
-        self._wait_full_iteration()
+        sleep(5)
         assert get("//tmp/t/@tablet_count") == 2
 
         set("//sys/tablet_cell_bundles/one/@node_tag_filter", "", driver=self.remote_driver)
@@ -1007,7 +1127,7 @@ class TestMultiClusterTabletBalancer(TestStandaloneTabletBalancerBase, DynamicTa
         wait(lambda: get("//sys/tablet_cell_bundles/default/@health", driver=self.remote_driver) == "failed")
 
         self._apply_dynamic_config_patch({
-            "clusters_for_bundle_health_check": [self.REMOTE_CLUSTER_NAME],
+            "cluster_state_provider": {"clusters_for_bundle_health_check": [self.REMOTE_CLUSTER_NAME]}
         })
 
         sync_create_cells(1)
@@ -1024,3 +1144,99 @@ class TestMultiClusterTabletBalancer(TestStandaloneTabletBalancerBase, DynamicTa
         wait(lambda: get("//tmp/t/@tablet_count") == 1)
 
         set("//sys/tablet_cell_bundles/default/@node_tag_filter", "", driver=self.remote_driver)
+
+    @authors("alexelexa")
+    def test_banned_replica_clusters_for_replica_balancing(self):
+        self.statistics_path = "//sys/tablet_balancer/performance_counters"
+        self._set_default_metric("double([/statistics/uncompressed_data_size])")
+
+        self._apply_dynamic_config_patch({
+            "allowed_replica_clusters": self.get_cluster_names(),
+            "cluster_state_provider": {"meta_cluster_for_banned_replicas": self.get_cluster_name(0)}
+        })
+
+        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups/default/parameterized/replica_clusters", self.get_cluster_names())
+        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_parameterized_by_default", True)
+
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"}]
+
+        create("replicated_table", "//tmp/replicated", attributes={"schema": schema, "dynamic": True})
+        self._disable_table_balancing("//tmp/replicated")
+        self._wait_until_config_change_applied()
+
+        replica_id = create_table_replica(
+            "//tmp/replicated",
+            self.get_cluster_name(0),
+            "//tmp/t",
+            attributes={"mode": "async"}
+        )
+
+        self._create_sorted_table(
+            "//tmp/t",
+            schema=schema,
+            upstream_replica_id=replica_id,
+            tablet_balancer_config={
+                "enable_auto_reshard": False,
+                "enable_auto_tablet_move": False,
+            })
+
+        # A fake replica without upstream_replica_id should fail replica balancing iteration.
+        self._create_sorted_table(
+            "//tmp/t",
+            schema=schema,
+            tablet_balancer_config={
+                "enable_auto_reshard": False,
+                "enable_auto_tablet_move": False,
+            },
+            driver=self.remote_driver)
+
+        sync_reshard_table("//tmp/t", [[], [10]])
+        sync_reshard_table("//tmp/t", [[]], driver=self.remote_driver)
+
+        for driver in (self.remote_driver, None):
+            sync_create_cells(1, driver=driver)
+            sync_mount_table("//tmp/t", driver=driver)
+            self._setup_statistics_reporter(self.statistics_path, driver=driver, tablet_cell_bundle="system")
+            self._apply_dynamic_config_patch({
+                "use_statistics_reporter": True,
+            }, driver=driver)
+
+        sync_enable_table_replica(replica_id)
+
+        set("//tmp/t/@tablet_balancer_config/enable_auto_reshard", True)
+
+        sync_mount_table("//tmp/replicated")
+
+        self._wait_full_iteration()
+        self._wait_full_iteration()
+        assert len(get("//tmp/t/@pivot_keys")) == 2
+
+        set("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/banned_replica_clusters", [self.REMOTE_CLUSTER_NAME])
+
+        wait(lambda: len(get("//tmp/t/@pivot_keys")) == 1)
+
+        set("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/banned_replica_clusters", [])
+
+        sync_unmount_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[], [10]])
+        sync_mount_table("//tmp/t")
+
+        self._apply_dynamic_config_patch({
+            "cluster_state_provider": {"meta_cluster_for_banned_replicas": self.REMOTE_CLUSTER_NAME}
+        })
+
+        set("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/banned_replica_clusters", [self.REMOTE_CLUSTER_NAME])
+
+        # Banned replica cluster on a different cluster than the meta cluster should do nothing.
+        self._wait_full_iteration()
+        assert len(get("//tmp/t/@pivot_keys")) == 2
+
+        set(
+            "//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/banned_replica_clusters",
+            [self.REMOTE_CLUSTER_NAME],
+            driver=self.remote_driver,
+        )
+
+        wait(lambda: len(get("//tmp/t/@pivot_keys")) == 1)

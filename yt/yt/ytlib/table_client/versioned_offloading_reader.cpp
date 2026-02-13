@@ -140,7 +140,7 @@ private:
     void DoOpen()
     {
         if (LookupKeys_.Empty()) {
-            ReadyEvent_ = VoidFuture;
+            ReadyEvent_ = OKFuture;
             return;
         }
 

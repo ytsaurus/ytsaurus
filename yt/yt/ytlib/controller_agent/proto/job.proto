@@ -72,6 +72,7 @@ message TTimeStatistics
     optional int64 gpu_check_duration = 5;
     optional int64 prepare_gpu_check_fs_duration = 7;
     optional int64 prepare_tmpfs_duration = 8;
+    optional int64 validate_root_fs_duration = 9;
 }
 
 // Describes the current job status.
@@ -101,6 +102,8 @@ message TJobStatus
     optional bool job_execution_completed = 17 [default = false];
 
     optional uint64 start_time = 22;
+
+    optional uint64 last_progress_save_time = 23;
 }
 
 message TCoreInfo
@@ -194,15 +197,19 @@ message TSidecarJobSpec
 
 message TVolume
 {
-    optional NYT.NScheduler.NProto.TDiskRequest disk_request = 1;
-    repeated TFileDescriptor layers = 2;
+    repeated TFileDescriptor layers = 1;
+    oneof disk_request {
+        NYT.NScheduler.NProto.TLocalDiskRequest local_disk_request = 2;
+        NYT.NScheduler.NProto.TTmpfsStorageRequest tmpfs_storage_request = 3;
+        NYT.NScheduler.NProto.TNbdDiskRequest nbd_disk_request = 4;
+    }
 }
 
 message TVolumeMount
 {
     required string volume_id = 1;
     required string mount_path = 2;
-    required bool is_read_only = 3 [default = false];
+    required bool read_only = 3 [default = false];
 }
 
 // Specification for starting user code during a job.
@@ -278,7 +285,7 @@ message TUserJobSpec
     optional int64 disk_space_limit = 31;
     optional int64 inode_limit = 32;
 
-    optional NYT.NScheduler.NProto.TDiskRequest disk_request = 51;
+    optional NYT.NScheduler.NProto.TDeprecatedDiskRequest disk_request = 51;
 
     // Number of requested ports.
     required int32 port_count = 35;

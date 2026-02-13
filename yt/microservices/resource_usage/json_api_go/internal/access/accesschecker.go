@@ -10,16 +10,15 @@ import (
 	resourceusage "go.ytsaurus.tech/yt/microservices/resource_usage/json_api_go/internal/resource_usage"
 )
 
-func (a *AccessChecker) CheckAccess(ctx context.Context, cluster string, user string, items *[]resourceusage.Item) (bool, error) {
+func (a *AccessChecker) CheckAccess(ctx context.Context, cluster string, user string, items *[]resourceusage.Item) error {
 	if a.conf.DisableACL {
-		return true, nil
+		return nil
 	}
-	passContinuationToken := false
 	paths := map[string]struct{}{}
 	for _, item := range *items {
 		path, ok := item["path"]
 		if !ok {
-			return passContinuationToken, errors.New("path not found")
+			return errors.New("path not found")
 		}
 		paths[path.(string)] = struct{}{}
 		parentPath := parent(path.(string))
@@ -35,11 +34,11 @@ func (a *AccessChecker) CheckAccess(ctx context.Context, cluster string, user st
 
 	response, err := a.aclClient.CheckACL(ctx, request)
 	if err != nil {
-		return passContinuationToken, err
+		return err
 	}
 
 	if len(response.Actions) != len(request.Paths) {
-		return passContinuationToken, fmt.Errorf("bulk_acl_checker returned %d actions for %d paths", len(response.Actions), len(request.Paths))
+		return fmt.Errorf("bulk_acl_checker returned %d actions for %d paths", len(response.Actions), len(request.Paths))
 	}
 
 	aclMap := map[string]string{}
@@ -56,11 +55,5 @@ func (a *AccessChecker) CheckAccess(ctx context.Context, cluster string, user st
 		}
 	}
 
-	// If the last item in Items has an empty path, it means that the user does not have access to this node.
-	// Therefore, the ContinuationToken from which the path of last item can be extracted must be cleared.
-	if lastItemPath, ok := item["path"].(string); ok && lastItemPath != "" {
-		passContinuationToken = true
-	}
-
-	return passContinuationToken, nil
+	return nil
 }

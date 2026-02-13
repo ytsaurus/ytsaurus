@@ -20,6 +20,7 @@ DECLARE_REFCOUNTED_CLASS(TSyncReplicaCache)
 DECLARE_REFCOUNTED_CLASS(TTabletSyncReplicaCache)
 DECLARE_REFCOUNTED_STRUCT(IStickyMountCache)
 DECLARE_REFCOUNTED_STRUCT(ITableReplicaSynchronicityCache)
+DECLARE_REFCOUNTED_STRUCT(ICypressPoolWeightProvider)
 
 DECLARE_REFCOUNTED_STRUCT(ICellCommitSession)
 DECLARE_REFCOUNTED_STRUCT(ICellCommitSessionProvider)
@@ -75,6 +76,15 @@ struct TListJobsFromControllerAgentResult
     int TotalFinishedJobCount = 0;
     std::vector<TJob> InProgressJobs;
     int TotalInProgressJobCount = 0;
+};
+
+struct TLockNodeDetailedResult
+{
+    NCypressClient::TLockId LockId;
+    NCypressClient::TNodeId NodeId;
+    NCypressClient::TTransactionId ExternalizedTransactionId = NCypressClient::NullTransactionId;
+    NObjectClient::TCellTag ExternalCellTag = NObjectClient::InvalidCellTag;
+    NHydra::TRevision Revision = NHydra::NullRevision;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

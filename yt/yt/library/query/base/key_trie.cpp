@@ -20,17 +20,17 @@ TKeyTriePtr ReduceKeyTrie(TKeyTriePtr keyTrie)
 
 struct TKeyTrieComparer
 {
-    bool operator () (const std::pair<TValue, TKeyTriePtr>& element, TValue pivot) const
+    bool operator()(const std::pair<TValue, TKeyTriePtr>& element, TValue pivot) const
     {
         return element.first < pivot;
     }
 
-    bool operator () (TValue pivot, const std::pair<TValue, TKeyTriePtr>& element) const
+    bool operator()(TValue pivot, const std::pair<TValue, TKeyTriePtr>& element) const
     {
         return pivot < element.first;
     }
 
-    bool operator () (const std::pair<TValue, TKeyTriePtr>& lhs, const std::pair<TValue, TKeyTriePtr>& rhs) const
+    bool operator()(const std::pair<TValue, TKeyTriePtr>& lhs, const std::pair<TValue, TKeyTriePtr>& rhs) const
     {
         return lhs.first < rhs.first;
     }

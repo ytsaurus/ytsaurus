@@ -567,6 +567,14 @@ private:
             for (auto& descriptor : flushResult.HunkChunksToAdd) {
                 *updateTabletStoresReq.add_hunk_chunks_to_add() = std::move(descriptor);
             }
+            if (tablet->IsPhysicallySorted()) {
+                if (flushResult.StoresToAdd.empty()) {
+                    ToProto(updateTabletStoresReq.mutable_unleashed_backing_store_id(), store->GetId());
+                }
+
+                updateTabletStoresReq.set_conflict_horizon_timestamp(store->GetMaxTimestamp());
+            }
+
             updateTabletStoresReq.set_create_hunk_chunks_during_prepare(true);
 
             ToProto(updateTabletStoresReq.add_stores_to_remove()->mutable_store_id(), store->GetId());

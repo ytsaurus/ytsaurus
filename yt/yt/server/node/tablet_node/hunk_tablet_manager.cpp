@@ -93,17 +93,17 @@ public:
     void Initialize() override
     {
         const auto& transactionManager = Slot_->GetTransactionManager();
-        transactionManager->RegisterTransactionActionHandlers<TReqUpdateHunkTabletStores>({
+        transactionManager->RegisterTransactionActionHandlers<TReqUpdateHunkTabletStores>({{
             .Prepare = BIND_NO_PROPAGATE(&THunkTabletManager::HydraPrepareUpdateHunkTabletStores, Unretained(this)),
             .Commit = BIND_NO_PROPAGATE(&THunkTabletManager::HydraCommitUpdateHunkTabletStores, Unretained(this)),
             .Abort = BIND_NO_PROPAGATE(&THunkTabletManager::HydraAbortUpdateHunkTabletStores, Unretained(this)),
-        });
+        }});
 
-        transactionManager->RegisterTransactionActionHandlers<NTabletClient::NProto::TReqToggleHunkTabletStoreLock>({
+        transactionManager->RegisterTransactionActionHandlers<NTabletClient::NProto::TReqToggleHunkTabletStoreLock>({{
             .Prepare = BIND_NO_PROPAGATE(&THunkTabletManager::HydraPrepareToggleHunkTabletStoreLock, Unretained(this)),
             .Commit = BIND_NO_PROPAGATE(&THunkTabletManager::HydraCommitToggleHunkTabletStoreLock, Unretained(this)),
             .Abort = BIND_NO_PROPAGATE(&THunkTabletManager::HydraAbortToggleHunkTabletStoreLock, Unretained(this)),
-        });
+        }});
     }
 
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Tablet, THunkTablet);
@@ -144,7 +144,7 @@ private:
 
         std::unique_ptr<THunkTablet> Create(TTabletId id) const
         {
-            return std::make_unique<THunkTablet>(MakeStrong(Host_), id);
+            return std::make_unique<THunkTablet>(MakeStrong(Host_), id, /*hunkStoragePath*/ TYPath{});
         }
 
     private:
@@ -278,6 +278,8 @@ private:
 
         const auto& avenueDirectory = Slot_->GetAvenueDirectory();
         for (auto [tabletId, tablet] : TabletMap_) {
+            tablet->OnAfterSnapshotLoaded();
+
             if (auto masterEndpointId = tablet->GetMasterAvenueEndpointId()) {
                 auto masterCellId = Bootstrap_->GetCellId(CellTagFromId(tablet->GetId()));
                 avenueDirectory->UpdateEndpoint(masterEndpointId, masterCellId);
@@ -304,8 +306,9 @@ private:
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         auto masterAvenueEndpointId = FromProto<TAvenueEndpointId>(request->master_avenue_endpoint_id());
+        auto hunkStoragePath = request->path();
 
-        auto tabletHolder = std::make_unique<THunkTablet>(MakeStrong(this), tabletId);
+        auto tabletHolder = std::make_unique<THunkTablet>(MakeStrong(this), tabletId, hunkStoragePath);
         auto* tablet = TabletMap_.Insert(tabletId, std::move(tabletHolder));
 
         tablet->SetState(ETabletState::Mounted);
@@ -313,6 +316,7 @@ private:
 
         auto settings = DeserializeHunkStorageSettings(*request, tabletId);
         tablet->Reconfigure(settings);
+        tablet->ConfigureProfiler();
 
         for (const auto& protoStoreId : request->store_ids()) {
             auto storeId = FromProto<TStoreId>(protoStoreId);
@@ -486,6 +490,7 @@ private:
                     sessionId,
                     tablet->StoreWriterOptions(),
                     tablet->StoreWriterConfig(),
+                    *tablet->Profiler()->GetJournalWriterCounters(),
                     Logger);
                 store->SetWriter(std::move(writer));
                 store->SetLastWriteTime(now);
@@ -685,6 +690,8 @@ private:
 
         store->Unlock(transaction->GetId(), EObjectLockMode::Shared);
 
+        tablet->RecomputeLockingTabletCount();
+
         YT_LOG_DEBUG(
             "Hunk tablet store lock toggle committed "
             "(TransactionId: %v, TabletId: %v, StoreId: %v, LockerTabletId: %v, Lock: %v)",
@@ -823,6 +830,11 @@ private:
             EpochAutomatonInvoker_->Invoke(
                 BIND(&THunkTabletManager::ScanTablet, MakeStrong(this), tabletId));
         }
+    }
+
+    const std::string& GetTabletCellBundleName() const override
+    {
+        return Slot_->GetTabletCellBundleName();
     }
 
     void ScanTablet(TTabletId tabletId)

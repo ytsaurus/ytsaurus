@@ -704,7 +704,7 @@ public:
     TFuture<void> Open() override
     {
         UpdateLimits();
-        return VoidFuture;
+        return OKFuture;
     }
 
     IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
@@ -746,7 +746,7 @@ public:
 
     TFuture<void> GetReadyEvent() const override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     TDataStatistics GetDataStatistics() const override
@@ -848,12 +848,12 @@ public:
 
     TFuture<void> Open() override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     TFuture<void> GetReadyEvent() const override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
@@ -1034,14 +1034,23 @@ void TSortedDynamicStore::WaitOnBlockedRow(
             break;
         }
 
-        auto throwError = [&] (NTabletClient::EErrorCode errorCode, const TFormatString<>& message) {
-            THROW_ERROR_EXCEPTION(errorCode, message)
+        auto throwError = [&] (
+            NTabletClient::EErrorCode errorCode,
+            const TFormatString<>& message,
+            TTransactionId blockingTransactionId = {})
+        {
+            auto error = TError(errorCode, message)
                 << TErrorAttribute("lock", LockIndexToName_[lockIndex])
                 << TErrorAttribute("tablet_id", TabletId_)
                 << TErrorAttribute("table_path", TablePath_)
                 << TErrorAttribute("key", RowToKey(row))
                 << TErrorAttribute("timeout", maxBlockedRowWaitTime)
                 << TErrorAttribute("timestamp", timestamp);
+            if (blockingTransactionId) {
+                error <<= TErrorAttribute("blocking_transaction_id", blockingTransactionId);
+            }
+
+            THROW_ERROR(std::move(error));
         };
 
         auto handler = GetRowBlockedHandler();
@@ -1051,7 +1060,7 @@ void TSortedDynamicStore::WaitOnBlockedRow(
 
         auto timeLeft = NProfiling::CpuDurationToDuration(deadline - NProfiling::GetCpuInstant());
 
-        handler.Run(
+        auto blockingTransactionId = handler.Run(
             row,
             TConflictInfo{
                 .LockIndex = lockIndex,
@@ -1060,7 +1069,10 @@ void TSortedDynamicStore::WaitOnBlockedRow(
             timeLeft);
 
         if (NProfiling::GetCpuInstant() > deadline) {
-            throwError(NTabletClient::EErrorCode::BlockedRowWaitTimeout, "Timed out waiting on blocked row");
+            throwError(
+                NTabletClient::EErrorCode::BlockedRowWaitTimeout,
+                "Timed out waiting on blocked row",
+                blockingTransactionId.TransactionId);
         }
     }
 }
@@ -2567,6 +2579,8 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
     auto tableReader = CreateSnapshotReader();
     auto revision = GetSnapshotRevision();
 
+    auto nodeMemoryUsageTracker = Tablet_->MaybeGetNodeMemoryUsageTracker();
+
     return BIND([=, this, this_ = MakeStrong(this)] (TSaveContext& context) {
         YT_LOG_DEBUG("Store snapshot serialization started");
 
@@ -2586,6 +2600,10 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
         tableWriterOptions->OptimizeFor = EOptimizeFor::Scan;
         // Ensure deterministic snapshots.
         tableWriterOptions->SetChunkCreationTime = false;
+        if (nodeMemoryUsageTracker) {
+            tableWriterOptions->MemoryUsageTracker = nodeMemoryUsageTracker
+                ->WithCategory(EMemoryCategory::TabletBackground);
+        }
         tableWriterOptions->Postprocess();
 
         auto tableWriter = CreateVersionedChunkWriter(

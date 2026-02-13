@@ -520,7 +520,7 @@ private:
             const auto& chunkState = InputChunkStates_[chunkIndex];
             for (int blockIndex = 0; blockIndex < chunkState.BlockCount; ++blockIndex) {
                 try {
-                    auto block = WaitForUniqueFast(blockFetcher->FetchBlock(chunkIndex, blockIndex))
+                    auto block = WaitForFast(blockFetcher->FetchBlock(chunkIndex, blockIndex).AsUnique())
                         .ValueOrThrow();
 
                     if (!Writer_->WriteBlock(WriteBlocksOptions_, ReaderConfig_->WorkloadDescriptor, block)) {

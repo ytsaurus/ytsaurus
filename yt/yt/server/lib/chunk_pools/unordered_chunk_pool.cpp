@@ -32,12 +32,6 @@ using namespace NYson;
 
 namespace {
 
-// COMPAT(apollo1321): Remove in 25.2.
-DEFINE_ENUM(EUnorderedChunkPoolMode,
-    (Normal)
-    (AutoMerge)
-);
-
 DEFINE_ENUM(EFinishAddingStripesReason,
     (NoMoreStripes)
     (SufficientDataWeight)
@@ -86,6 +80,7 @@ public:
         , FreeCompressedDataSizeCounter_(New<TProgressCounter>())
         , FreeRowCounter_(New<TProgressCounter>())
         , SingleChunkTeleportStrategy_(options.SingleChunkTeleportStrategy)
+        , BuildFirstJobOnFinishedInput_(options.BuildFirstJobOnFinishedInput)
     {
         Logger = options.Logger;
         ValidateLogger(Logger);
@@ -116,7 +111,8 @@ public:
             "Unordered chunk pool created (DataWeightPerJob: %v, MaxDataWeightPerJob: %v, "
             "CompressedDataSizePerJob: %v, MaxCompressedDataSizePerJob: %v, "
             "MaxDataSlicesPerJob: %v, InputSliceDataWeight: %v, InputSliceRowCount: %v, "
-            "SamplingRate: %v, JobCount: %v, IsExplicitJobCount: %v, HasJobSizeAdjuster: %v)",
+            "SamplingRate: %v, JobCount: %v, IsExplicitJobCount: %v, HasJobSizeAdjuster: %v, "
+            "BuildFirstJobOnFinishedInput: %v)",
             JobSizeConstraints_->GetDataWeightPerJob(),
             JobSizeConstraints_->GetMaxDataWeightPerJob(),
             JobSizeConstraints_->GetCompressedDataSizePerJob(),
@@ -127,7 +123,8 @@ public:
             JobSizeConstraints_->GetSamplingRate(),
             JobSizeConstraints_->GetJobCount(),
             JobSizeConstraints_->IsExplicitJobCount(),
-            static_cast<bool>(JobSizeAdjuster_));
+            static_cast<bool>(JobSizeAdjuster_),
+            BuildFirstJobOnFinishedInput_);
 
         UpdateFreeJobCounter();
     }
@@ -157,11 +154,19 @@ public:
 
     void Finish() override
     {
-        if (!Finished) {
-            TChunkPoolInputBase::Finish();
+        if (Finished) {
+            return;
         }
 
+        TChunkPoolInputBase::Finish();
+
         UpdateFreeJobCounter();
+
+        // Option allows building only single job to allow job size adjuster adjust the size of future jobs.
+        if (BuildFirstJobOnFinishedInput_ && AddJobToJobManager()) {
+            YT_LOG_DEBUG("Job was build after input finish (JobCounter: %v)", JobCounter_);
+        }
+
         CheckCompleted();
     }
 
@@ -271,7 +276,7 @@ public:
         return it == NodeIdToEntry_.end() ? 0 : it->second.Locality;
     }
 
-    IChunkPoolOutput::TCookie Extract(TNodeId nodeId) override
+    TOutputCookie Extract(TNodeId nodeId) override
     {
         auto cookie = IChunkPoolOutput::NullCookie;
         const auto& jobCounter = GetJobCounter();
@@ -280,119 +285,43 @@ public:
             const auto& jobManagerJobCounter = JobManager_->JobCounter();
             if (jobManagerJobCounter->GetPending() == 0) {
                 YT_VERIFY(!FreeStripes_.empty());
-
-                i64 idealDataWeightPerJob = GetAdjustedDataWeightPerJob();
-                i64 idealCompressedDataSizePerJob = GetAdjustedCompressedDataSizePerJob();
-
-                auto jobStub = std::make_unique<TNewJobStub>();
-
-                // Take local chunks first.
-                std::optional<int> stripeIndexesSize;
-                if (nodeId != InvalidNodeId) {
-                    auto it = NodeIdToEntry_.find(nodeId);
-                    if (it != NodeIdToEntry_.end()) {
-                        const auto& entry = it->second;
-                        stripeIndexesSize = std::ssize(entry.StripeIndexes);
-                        AddStripesToJob(
-                            jobStub.get(),
-                            entry.StripeIndexes.begin(),
-                            entry.StripeIndexes.end(),
-                            idealDataWeightPerJob,
-                            idealCompressedDataSizePerJob);
-                    }
-                }
-
-                // Take non-local chunks.
-                int freeStripesSize = std::ssize(FreeStripes_);
-                AddStripesToJob(
-                    jobStub.get(),
-                    FreeStripes_.begin(),
-                    FreeStripes_.end(),
-                    idealDataWeightPerJob,
-                    idealCompressedDataSizePerJob);
-
-                jobStub->Finalize();
-
-                if (jobStub->GetStripeList()->GetAggregateStatistics().ChunkCount == 1) {
-                    YT_VERIFY(std::ssize(jobStub->GetStripeList()->Stripes()) == 1);
-                    auto dataSlice = jobStub->GetStripeList()->Stripes().back()->DataSlices().back();
-                    if (SingleChunkTeleportStrategy_ == ESingleChunkTeleportStrategy::Enabled &&
-                        TryTeleportChunk(dataSlice))
-                    {
-                        YT_LOG_DEBUG("Teleported single chunk (ChunkId: %v, NodeId: %v, IdealDataWeightPerJob: %v, TableIndex: %v, "
-                                "ChunkCount: %v, DataWeight: %v, RowCount: %v, ValueCount: %v, MaxBlockSize: %v, RangeIndex: %v, IsTrivial: %v, "
-                                "IsTeleportable: %v, IsLegacy: %v, HasLimits: %v, LegacyLowerLimit: %v, LegacyUpperLimit: %v, "
-                                "LowerLimit: %v, UpperLimit: %v, StripeIndexesSize: %v, FreeStripesSize: %v, Pending: %v, Blocked: %v)",
-                            dataSlice->GetSingleUnversionedChunk()->GetChunkId(),
-                            nodeId,
-                            idealDataWeightPerJob,
-                            dataSlice->GetTableIndex(),
-                            dataSlice->GetChunkCount(),
-                            dataSlice->GetDataWeight(),
-                            dataSlice->GetRowCount(),
-                            dataSlice->GetValueCount(),
-                            dataSlice->GetMaxBlockSize(),
-                            dataSlice->GetRangeIndex(),
-                            dataSlice->IsTrivial(),
-                            dataSlice->IsTeleportable,
-                            dataSlice->IsLegacy,
-                            dataSlice->HasLimits(),
-                            dataSlice->LegacyLowerLimit(),
-                            dataSlice->LegacyUpperLimit(),
-                            dataSlice->LowerLimit(),
-                            dataSlice->UpperLimit(),
-                            stripeIndexesSize,
-                            freeStripesSize,
-                            jobCounter->GetPending(),
-                            jobCounter->GetBlocked());
-
-                        // We have teleported single chunk so there is no need for a job.
-                        UpdateFreeJobCounter();
-                        CheckCompleted();
-                        continue;
-                    }
-                }
-
-                JobManager_->AddJob(std::move(jobStub));
-
-                if (JobSizeConstraints_->IsExplicitJobCount()) {
-                    FreeJobCounter_->AddPending(-1);
-                    YT_VERIFY(FreeJobCounter_->GetPending() >= 0);
-                }
+                AddJobToJobManager(nodeId);
             }
 
-            YT_VERIFY(jobManagerJobCounter->GetPending() > 0);
             cookie = JobManager_->ExtractCookie();
 
-            UpdateFreeJobCounter();
             CheckCompleted();
         }
 
         return cookie;
     }
 
-    TChunkStripeListPtr GetStripeList(IChunkPoolOutput::TCookie cookie) override
+    TChunkStripeListPtr GetStripeList(TOutputCookie cookie) override
     {
         return JobManager_->GetStripeList(cookie);
     }
 
-    int GetStripeListSliceCount(IChunkPoolOutput::TCookie cookie) const override
+    int GetStripeListSliceCount(TOutputCookie cookie) const override
     {
         return JobManager_->GetStripeList(cookie)->GetAggregateStatistics().ChunkCount;
     }
 
-    void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override
+    void Completed(TOutputCookie cookie, const TCompletedJobSummary& jobSummary) override
     {
         TJobSplittingBase::Completed(cookie, jobSummary);
 
         if (jobSummary.InterruptionReason != EInterruptionReason::None) {
             YT_LOG_DEBUG(
-                "Splitting job (OutputCookie: %v, InterruptionReason: %v, SplitJobCount: %v)",
+                "Splitting job (JobId: %v, OutputCookie: %v, InterruptionReason: %v, SplitJobCount: %v)",
+                jobSummary.Id,
                 cookie,
                 jobSummary.InterruptionReason,
                 jobSummary.SplitJobCount);
             auto childCookies = SplitJob(jobSummary.UnreadInputDataSlices, jobSummary.SplitJobCount);
-            RegisterChildCookies(cookie, std::move(childCookies));
+            ValidateChildJobSizes(cookie, childCookies, [this] (TOutputCookie cookie) {
+                return GetStripeList(cookie);
+            });
+            RegisterChildCookies(jobSummary.Id, cookie, std::move(childCookies));
         }
 
         //! If we don't have enough pending jobs - don't adjust data size per job.
@@ -405,7 +334,7 @@ public:
         CheckCompleted();
     }
 
-    std::vector<IChunkPoolOutput::TCookie> SplitJob(
+    std::vector<TOutputCookie> SplitJob(
         const std::vector<TLegacyDataSlicePtr>& dataSlices,
         int jobCount)
     {
@@ -415,11 +344,12 @@ public:
         int sliceIndex = 0;
         auto currentDataSlice = dataSlices[0];
         TChunkStripePtr stripe = New<TChunkStripe>(false /*foreign*/);
-        std::vector<IChunkPoolOutput::TCookie> childCookies;
+        std::vector<TOutputCookie> childCookies;
         auto flushStripe = [&] {
             auto outputCookie = AddStripe(std::move(stripe), /*solid*/ true);
-            if (outputCookie != IChunkPoolOutput::NullCookie) {
-                childCookies.push_back(outputCookie);
+            YT_VERIFY(outputCookie.has_value());
+            if (*outputCookie != IChunkPoolOutput::NullCookie) {
+                childCookies.push_back(*outputCookie);
             }
             stripe = New<TChunkStripe>(false /*foreign*/);
         };
@@ -450,17 +380,17 @@ public:
         return childCookies;
     }
 
-    void Failed(IChunkPoolOutput::TCookie cookie) override
+    void Failed(TOutputCookie cookie) override
     {
         JobManager_->Failed(cookie);
     }
 
-    void Aborted(IChunkPoolOutput::TCookie cookie, EAbortReason reason) override
+    void Aborted(TOutputCookie cookie, EAbortReason reason) override
     {
         JobManager_->Aborted(cookie, reason);
     }
 
-    void Lost(IChunkPoolOutput::TCookie cookie) override
+    void Lost(TOutputCookie cookie) override
     {
         JobManager_->Lost(cookie);
         CheckCompleted();
@@ -502,8 +432,6 @@ private:
 
     THashMap<TNodeId, TLocalityEntry> NodeIdToEntry_;
 
-    TIdGenerator OutputCookieGenerator_;
-
     i64 MinTeleportChunkSize_ = std::numeric_limits<i64>::max() / 4;
     i64 MinTeleportChunkDataWeight_ = std::numeric_limits<i64>::max() / 4;
     bool SliceErasureChunksByParts_ = false;
@@ -523,6 +451,8 @@ private:
 
     ESingleChunkTeleportStrategy SingleChunkTeleportStrategy_ = ESingleChunkTeleportStrategy::Disabled;
 
+    bool BuildFirstJobOnFinishedInput_ = false;
+
     //! Teleport (move to destination pool) trivial (complete), unversioned, teleportable chunk.
     bool TryTeleportChunk(const TLegacyDataSlicePtr& dataSlice)
     {
@@ -536,12 +466,98 @@ private:
 
         const auto& chunk = dataSlice->GetSingleUnversionedChunk();
 
-        if (chunk->IsCompleteChunk()) {
-            if (Sampler_.Sample()) {
-                ChunkTeleported_.Fire(chunk, /*tag=*/std::any{});
-            } else {
-                // Drop this teleport chunk.
+        if (!chunk->IsCompleteChunk()) {
+            return false;
+        }
+
+        if (Sampler_.Sample()) {
+            ChunkTeleported_.Fire(chunk, /*tag=*/std::any{});
+        } else {
+            // Drop this teleport chunk.
+        }
+
+        const auto& jobCounter = GetJobCounter();
+
+        YT_LOG_DEBUG(
+            "Teleported single chunk (ChunkId: %v, TableIndex: %v, ChunkCount: %v, DataWeight: %v, "
+            "RowCount: %v, ValueCount: %v, MaxBlockSize: %v, RangeIndex: %v, IsTrivial: %v, "
+            "IsTeleportable: %v, IsLegacy: %v, HasLimits: %v, LegacyLowerLimit: %v, LegacyUpperLimit: %v, "
+            "LowerLimit: %v, UpperLimit: %v, Pending: %v, Blocked: %v)",
+            dataSlice->GetSingleUnversionedChunk()->GetChunkId(),
+            dataSlice->GetTableIndex(),
+            dataSlice->GetChunkCount(),
+            dataSlice->GetDataWeight(),
+            dataSlice->GetRowCount(),
+            dataSlice->GetValueCount(),
+            dataSlice->GetMaxBlockSize(),
+            dataSlice->GetRangeIndex(),
+            dataSlice->IsTrivial(),
+            dataSlice->IsTeleportable,
+            dataSlice->IsLegacy,
+            dataSlice->HasLimits(),
+            dataSlice->LegacyLowerLimit(),
+            dataSlice->LegacyUpperLimit(),
+            dataSlice->LowerLimit(),
+            dataSlice->UpperLimit(),
+            jobCounter->GetPending(),
+            jobCounter->GetBlocked());
+
+        return true;
+    }
+
+    bool AddJobToJobManager(TNodeId nodeId = InvalidNodeId)
+    {
+        while (!FreeStripes_.empty()) {
+            i64 idealDataWeightPerJob = GetAdjustedDataWeightPerJob();
+            i64 idealCompressedDataSizePerJob = GetAdjustedCompressedDataSizePerJob();
+
+            auto jobStub = std::make_unique<TNewJobStub>();
+
+            // Take local chunks first.
+            if (nodeId != InvalidNodeId) {
+                auto it = NodeIdToEntry_.find(nodeId);
+                if (it != NodeIdToEntry_.end()) {
+                    const auto& entry = it->second;
+                    AddStripesToJob(
+                        jobStub.get(),
+                        entry.StripeIndexes.begin(),
+                        entry.StripeIndexes.end(),
+                        idealDataWeightPerJob,
+                        idealCompressedDataSizePerJob);
+                }
             }
+
+            // Take non-local chunks.
+            AddStripesToJob(
+                jobStub.get(),
+                FreeStripes_.begin(),
+                FreeStripes_.end(),
+                idealDataWeightPerJob,
+                idealCompressedDataSizePerJob);
+
+            jobStub->Finalize();
+
+            if (jobStub->GetStripeList()->GetAggregateStatistics().ChunkCount == 1) {
+                YT_VERIFY(std::ssize(jobStub->GetStripeList()->Stripes()) == 1);
+                auto dataSlice = jobStub->GetStripeList()->Stripes().back()->DataSlices().back();
+                if (SingleChunkTeleportStrategy_ == ESingleChunkTeleportStrategy::Enabled &&
+                    TryTeleportChunk(dataSlice))
+                {
+                    // We have teleported single chunk so there is no need for a job.
+                    UpdateFreeJobCounter();
+                    CheckCompleted();
+                    continue;
+                }
+            }
+
+            JobManager_->AddJob(std::move(jobStub));
+
+            if (JobSizeConstraints_->IsExplicitJobCount()) {
+                FreeJobCounter_->AddPending(-1);
+                YT_VERIFY(FreeJobCounter_->GetPending() >= 0);
+            }
+
+            UpdateFreeJobCounter();
 
             return true;
         }
@@ -649,10 +665,10 @@ private:
             Stripes_.size() - oldSize);
     }
 
-    IChunkPoolOutput::TCookie AddStripe(TChunkStripePtr stripe, bool solid)
+    std::optional<TOutputCookie> AddStripe(TChunkStripePtr stripe, bool solid)
     {
         if (!solid && !Sampler_.Sample()) {
-            return IChunkPoolOutput::NullCookie;
+            return std::nullopt;
         }
 
         int internalCookie = Stripes_.size();
@@ -663,8 +679,9 @@ private:
 
         GetDataSliceCounter()->AddUncategorized(Stripes_.back().GetStripe()->DataSlices().size());
 
+        std::optional<TOutputCookie> result;
         if (solid) {
-            AddSolid(internalCookie);
+            result = AddSolid(internalCookie);
         } else {
             Register(internalCookie);
         }
@@ -679,7 +696,7 @@ private:
             }
         }
 
-        return internalCookie;
+        return result;
     }
 
     i64 GetAdjustedDataWeightPerJob() const
@@ -829,7 +846,7 @@ private:
         YT_VERIFY(FreeStripes_.insert(stripeIndex).second);
     }
 
-    void AddSolid(int stripeIndex)
+    TOutputCookie AddSolid(int stripeIndex)
     {
         const auto& suspendableStripe = Stripes_[stripeIndex];
         YT_VERIFY(!FreeStripes_.contains(stripeIndex));
@@ -841,7 +858,7 @@ private:
         }
         jobStub->Finalize();
 
-        JobManager_->AddJob(std::move(jobStub));
+        return JobManager_->AddJob(std::move(jobStub));
     }
 
     void Unregister(int stripeIndex)
@@ -976,7 +993,9 @@ private:
 
     void CheckCompleted()
     {
-        bool completed =
+        bool wasCompleted = IsCompleted_;
+
+        IsCompleted_ =
             Finished &&
             FreeDataWeightCounter_->GetTotal() == 0 &&
             JobCounter_->GetRunning() == 0 &&
@@ -984,13 +1003,11 @@ private:
             JobCounter_->GetPending() == 0 &&
             JobCounter_->GetBlocked() == 0;
 
-        if (!IsCompleted_ && completed) {
+        if (!wasCompleted && IsCompleted_) {
             Completed_.Fire();
-        } else if (IsCompleted_ && !completed) {
+        } else if (wasCompleted && !IsCompleted_) {
             Uncompleted_.Fire();
         }
-
-        IsCompleted_ = completed;
     }
 
     PHOENIX_DECLARE_FRIEND();
@@ -1013,13 +1030,6 @@ void TUnorderedChunkPool::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(8, ExtractedStripes_);
     PHOENIX_REGISTER_FIELD(9, MaxBlockSize_);
     PHOENIX_REGISTER_FIELD(10, NodeIdToEntry_);
-    PHOENIX_REGISTER_FIELD(11, OutputCookieGenerator_);
-    // COMPAT(apollo1321): Remove in 25.2.
-    registrar
-        .template VirtualField<12>("Mode_", [] (TThis* /*this_*/, auto& context) {
-            Load<EUnorderedChunkPoolMode>(context);
-        })
-        .BeforeVersion(ESnapshotVersion::NewUnorderedChunkPoolSlicing)();
     PHOENIX_REGISTER_FIELD(13, MinTeleportChunkSize_);
     PHOENIX_REGISTER_FIELD(14, MinTeleportChunkDataWeight_);
     PHOENIX_REGISTER_FIELD(15, SliceErasureChunksByParts_);
@@ -1029,12 +1039,9 @@ void TUnorderedChunkPool::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(19, FreeDataWeightCounter_);
     PHOENIX_REGISTER_FIELD(20, FreeRowCounter_);
     PHOENIX_REGISTER_FIELD(21, IsCompleted_);
-
-    PHOENIX_REGISTER_FIELD(22, SingleChunkTeleportStrategy_,
-        .SinceVersion(ESnapshotVersion::SingleChunkTeleportStrategy));
-
-    PHOENIX_REGISTER_DELETED_FIELD(23, bool, UseNewSlicingImplementation_, ESnapshotVersion::RemoveOldUnorderedChunkPoolSlicing);
+    PHOENIX_REGISTER_FIELD(22, SingleChunkTeleportStrategy_);
     PHOENIX_REGISTER_FIELD(24, FreeCompressedDataSizeCounter_);
+    PHOENIX_REGISTER_FIELD(25, BuildFirstJobOnFinishedInput_);
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         ValidateLogger(this_->Logger);

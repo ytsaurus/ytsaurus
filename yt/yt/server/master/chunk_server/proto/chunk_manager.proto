@@ -1,7 +1,9 @@
 package NYT.NChunkServer.NProto;
 
-import "yt_proto/yt/core/misc/proto/guid.proto";
+import "yt/ytlib/chunk_client/proto/chunk_info.proto";
 import "yt_proto/yt/client/chunk_client/proto/confirm_chunk_replica_info.proto";
+import "yt_proto/yt/client/chunk_client/proto/chunk_meta.proto";
+import "yt_proto/yt/core/misc/proto/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,10 +55,33 @@ message TSequoiaReplicaInfo
     reserved 2;
 }
 
+message TPurgatoryChunkRecord
+{
+    required NYT.NProto.TGuid chunk_id = 1;
+    required int32 record_count = 2;
+}
+
 message TReqRemoveDeadSequoiaChunkReplicas
 {
     repeated TSequoiaReplicaInfo replicas = 1;
-    repeated NYT.NProto.TGuid chunk_ids = 2;
+    repeated TPurgatoryChunkRecord chunk_records = 3;
+
+    reserved 2;
+}
+
+message TReqConfirmMultipleChunks
+{
+    message TChunkConfirmation
+    {
+        required NYT.NProto.TGuid chunk_id = 1;
+        repeated  NYT.NChunkClient.NProto.TConfirmChunkReplicaInfo replicas = 2;
+
+        required NYT.NChunkClient.NProto.TChunkMeta chunk_meta = 3;
+        required NYT.NChunkClient.NProto.TChunkInfo chunk_info = 4;
+        optional NYT.NProto.TGuid schema_id = 5;
+    }
+
+    repeated TChunkConfirmation chunk_confirmations = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

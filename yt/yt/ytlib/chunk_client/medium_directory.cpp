@@ -12,6 +12,8 @@ namespace NYT::NChunkClient {
 
 using namespace NConcurrency;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TMediumDescriptorPtr TMediumDirectory::FindByIndex(int index) const
@@ -64,7 +66,7 @@ void TMediumDirectory::LoadFrom(const NProto::TMediumDirectory& protoDirectory)
     IndexToDescriptor_.clear();
     NameToDescriptor_.clear();
     for (const auto& protoItem : protoDirectory.medium_descriptors()) {
-        auto descriptor = TMediumDescriptor::CreateFromProto(protoItem);
+        auto descriptor = FromProto<TMediumDescriptorPtr>(protoItem);
 
         // Let's keep the same pointer if the medium configuration did not change since the descriptor
         // sometimes caches things, e.g. S3 client in S3 medium descriptor.
@@ -72,9 +74,8 @@ void TMediumDirectory::LoadFrom(const NProto::TMediumDirectory& protoDirectory)
         if (oldIt != oldIndexToDescriptor.end() && *oldIt->second == *descriptor) {
             descriptor = std::move(oldIt->second);
         }
-        auto [it, inserted] = IndexToDescriptor_.emplace(descriptor->GetIndex(), descriptor);
-        YT_VERIFY(inserted);
-        EmplaceOrCrash(NameToDescriptor_, descriptor->Name(), it);
+        EmplaceOrCrash(IndexToDescriptor_, descriptor->GetIndex(), descriptor);
+        EmplaceOrCrash(NameToDescriptor_, descriptor->Name(), descriptor);
     }
 }
 

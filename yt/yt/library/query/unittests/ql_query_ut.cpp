@@ -186,7 +186,7 @@ TEST_F(TQueryPrepareTest, KeywordAlias)
         "else",
         "end",
         "inf",
-        "cast"
+        "cast",
     };
 
     for (const auto* keyword : Keywords) {
@@ -228,7 +228,7 @@ TEST_F(TQueryPrepareTest, TooBigQuery)
 
 TEST_F(TQueryPrepareTest, TooBigQuery2)
 {
-    auto query = std::string(R"(
+    auto query = TStringBuf(R"(
         * from [//t]
         where
         (a = 3735 and s = 'd0b160b8-1d27-40ad-8cad-1b69c2187195') or
@@ -431,7 +431,7 @@ TEST_F(TQueryPrepareTest, SelectColumns)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillRepeatedly(Return(MakeFuture(MakeSplit({
             TColumnSchema("h", EValueType::Int64, ESortOrder::Ascending)
-                .SetExpression(std::string("a")),
+                .SetExpression("a"),
             TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending),
             TColumnSchema("b", EValueType::Int64, ESortOrder::Ascending),
             TColumnSchema("c", EValueType::Int64),
@@ -466,7 +466,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//bids"))
         .WillRepeatedly(Return(MakeFuture(MakeSplit({
         TColumnSchema("hash", EValueType::Int64, ESortOrder::Ascending)
-            .SetExpression(std::string("int64(farm_hash(cid))")),
+            .SetExpression("int64(farm_hash(cid))"),
         TColumnSchema("cid", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("pid", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("id", EValueType::Int64),
@@ -478,7 +478,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//DirectPhraseStat"))
         .WillRepeatedly(Return(MakeFuture(MakeSplit({
         TColumnSchema("ExportIDHash", EValueType::Int64, ESortOrder::Ascending)
-            .SetExpression(std::string("int64(farm_hash(ExportID))")),
+            .SetExpression("int64(farm_hash(ExportID))"),
         TColumnSchema("ExportID", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("GroupExportID", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("PhraseID", EValueType::Uint64, ESortOrder::Ascending),
@@ -490,7 +490,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//phrases"))
         .WillRepeatedly(Return(MakeFuture(MakeSplit({
         TColumnSchema("hash", EValueType::Int64, ESortOrder::Ascending)
-            .SetExpression(std::string("int64(farm_hash(pid))")),
+            .SetExpression("int64(farm_hash(pid))"),
         TColumnSchema("pid", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("__shard__", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("status", EValueType::Int64),
@@ -499,14 +499,14 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//campaigns"))
         .WillRepeatedly(Return(MakeFuture(MakeSplit({
         TColumnSchema("hash", EValueType::Int64, ESortOrder::Ascending)
-            .SetExpression(std::string("int64(farm_hash(cid))")),
+            .SetExpression("int64(farm_hash(cid))"),
         TColumnSchema("cid", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("__shard__", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("value", EValueType::Int64),
     }))));
 
     {
-        auto queryString = std::string(R"(* from [//bids] D
+        auto queryString = TStringBuf(R"(* from [//bids] D
             left join [//campaigns] C on D.cid = C.cid
             left join [//DirectPhraseStat] S on (D.cid, D.pid, uint64(D.PhraseID)) = (S.ExportID, S.GroupExportID, S.PhraseID)
             left join [//phrases] P on (D.pid, D.__shard__) = (P.pid, P.__shard__))");
@@ -527,7 +527,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     }
 
     {
-        auto queryString = std::string(R"(* from [//bids] D
+        auto queryString = TStringBuf(R"(* from [//bids] D
             left join [//campaigns] C on (D.cid, D.__shard__) = (C.cid, C.__shard__)
             left join [//DirectPhraseStat] S on (D.cid, D.pid, uint64(D.PhraseID)) = (S.ExportID, S.GroupExportID, S.PhraseID)
             left join [//phrases] P on (D.pid, D.__shard__) = (P.pid, P.__shard__))");
@@ -548,7 +548,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     }
 
     {
-        auto queryString = std::string(R"(* from [//bids] D
+        auto queryString = TStringBuf(R"(* from [//bids] D
             left join [//DirectPhraseStat] S on (D.cid, D.pid, uint64(D.PhraseID)) = (S.ExportID, S.GroupExportID, S.PhraseID)
             left join [//campaigns] C on (D.cid, D.__shard__) = (C.cid, C.__shard__)
             left join [//phrases] P on (D.pid, D.__shard__) = (P.pid, P.__shard__))");
@@ -584,7 +584,7 @@ TEST_F(TQueryPrepareTest, TableAliasIsKeyword)
     }))));
 
     {
-        auto queryString = std::string(R"(* from [//index] as index
+        auto queryString = TStringBuf(R"(* from [//index] as index
             join [//order] as order on index.id = order.id)");
 
         auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
@@ -702,7 +702,7 @@ TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
 
     llvm::FoldingSetNodeID id1;
     {
-        auto queryString = std::string(R"(
+        auto queryString = TStringBuf(R"(
             *
             FROM [//a] e
             LEFT JOIN [//b] l ON (e.ride_date, e.ride_time, e.log_time, e.rover) = (l.ride_date, l.ride_time, l.log_time, l.rover)
@@ -718,7 +718,7 @@ TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
 
     llvm::FoldingSetNodeID id2;
     {
-        auto queryString = std::string(R"(
+        auto queryString = TStringBuf(R"(
             *
             FROM [//a] e
             LEFT JOIN [//b] l ON (e.ride_date, e.ride_time, e.log_time, e.rover) = (l.ride_date, l.ride_time, l.log_time, l.rover)
@@ -753,7 +753,7 @@ TEST_F(TQueryPrepareTest, DisjointGroupBy)
 
     llvm::FoldingSetNodeID id1;
     {
-        auto queryString = std::string("* FROM [//t] GROUP by a");
+        auto queryString = TStringBuf("* FROM [//t] GROUP by a");
         auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
@@ -762,7 +762,7 @@ TEST_F(TQueryPrepareTest, DisjointGroupBy)
 
     llvm::FoldingSetNodeID id2;
     {
-        auto queryString = std::string("* FROM [//s] GROUP by a");
+        auto queryString = TStringBuf("* FROM [//s] GROUP by a");
         auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
@@ -804,26 +804,26 @@ TEST_F(TQueryPrepareTest, GroupByPrimaryKey)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillRepeatedly(Return(MakeFuture(MakeSplit({
             TColumnSchema("hash", EValueType::Int64, ESortOrder::Ascending)
-                .SetExpression(std::string("int64(farm_hash(a))")),
+                .SetExpression("int64(farm_hash(a))"),
             TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending),
             TColumnSchema("b", EValueType::Int64, ESortOrder::Ascending),
             TColumnSchema("v", EValueType::Int64),
         }))));
 
     {
-        auto queryString = std::string("* from [//t] group by hash, a, b");
+        auto queryString = TStringBuf("* from [//t] group by hash, a, b");
         auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
         EXPECT_TRUE(query->UseDisjointGroupBy);
     }
 
     {
-        auto queryString = std::string("* from [//t] group by a, b");
+        auto queryString = TStringBuf("* from [//t] group by a, b");
         auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
         EXPECT_TRUE(query->UseDisjointGroupBy);
     }
 
     {
-        auto queryString = std::string("* from [//t] group by a, v");
+        auto queryString = TStringBuf("* from [//t] group by a, v");
         auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
         EXPECT_EQ(query->GroupClause->CommonPrefixWithPrimaryKey, 1u);
         EXPECT_FALSE(query->UseDisjointGroupBy);
@@ -835,7 +835,7 @@ TEST_F(TQueryPrepareTest, OrderByPrimaryKeyPrefix)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillRepeatedly(Return(MakeFuture(MakeSplit({
             TColumnSchema("hash", EValueType::Int64, ESortOrder::Ascending)
-                .SetExpression(std::string("int64(farm_hash(a))")),
+                .SetExpression("int64(farm_hash(a))"),
             TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending),
             TColumnSchema("b", EValueType::Int64, ESortOrder::Ascending),
             TColumnSchema("v", EValueType::Int64),
@@ -1074,7 +1074,7 @@ TEST_F(TQueryPrepareTest, SubqueryAliases)
             {"a", EValueType::String}
         }))));
 
-    auto source = std::string("b as c from (SELECT a as b from [//t])");
+    auto source = TStringBuf("b as c from (SELECT a as b from [//t])");
 
     auto parsedSource = ParseSource(source, EParseMode::Query);
 
@@ -1085,7 +1085,8 @@ TEST_F(TQueryPrepareTest, SubqueryAliases)
         &PrepareMock_,
         source,
         topQuery,
-        parsedSource->AstHead);
+        parsedSource->AstHead,
+        EExecutionBackend::Native);
 
     EXPECT_TRUE(topAliasMap.contains("c"));
     EXPECT_EQ(topAliasMap.size(), 1ul);
@@ -1119,7 +1120,7 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
     };
 
     {
-        auto query = std::string(R"(select sum(C.value_1) from [//left] L
+        auto query = TStringBuf(R"(select sum(C.value_1) from [//left] L
             left join [//center] C with hint "{push_down_group_by=%true}"
             on (L.key_0) = (C.key_0)
             group by C.key_0)");
@@ -1127,10 +1128,10 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
         auto plan = ParseAndPreparePlanFragment(&PrepareMock_, query);
 
         ASSERT_TRUE(plan->Query->JoinClauses[0]->GroupClause);
-        EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), std::string("`C.key_0`"));
+        EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), TStringBuf("`C.key_0`"));
     }
     {
-        auto query = std::string(R"(select sum(C.value_1) from [//left] L
+        auto query = TStringBuf(R"(select sum(C.value_1) from [//left] L
             left join [//center] C with hint "{push_down_group_by=%true}"
             on (L.key_0) = (C.key_0)
             group by L.key_0)");
@@ -1138,10 +1139,10 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
         auto plan = ParseAndPreparePlanFragment(&PrepareMock_, query);
 
         ASSERT_TRUE(plan->Query->JoinClauses[0]->GroupClause);
-        EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), std::string("`C.key_0`"));
+        EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), TStringBuf("`C.key_0`"));
     }
     {
-        auto query = std::string(R"(select sum(value_1) from [//left]
+        auto query = TStringBuf(R"(select sum(value_1) from [//left]
             left join [//center] with hint "{push_down_group_by=%true}"
             using key_0
             group by key_0)");
@@ -1149,10 +1150,10 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
         auto plan = ParseAndPreparePlanFragment(&PrepareMock_, query);
 
         ASSERT_TRUE(plan->Query->JoinClauses[0]->GroupClause);
-        EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), std::string("key_0"));
+        EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), TStringBuf("key_0"));
     }
     {
-        auto query = std::string(R"(select sum(value_1) from [//left]
+        auto query = TStringBuf(R"(select sum(value_1) from [//left]
             left join [//center] with hint "{push_down_group_by=%true}"
             on 1 = 1
             group by value_0 + key_1)");
@@ -1160,10 +1161,10 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
         auto plan = ParseAndPreparePlanFragment(&PrepareMock_, query);
 
         ASSERT_TRUE(plan->Query->JoinClauses[0]->GroupClause);
-        EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), std::string("key_1"));
+        EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), TStringBuf("key_1"));
     }
     {
-        auto query = std::string(R"(select sum(value_1 * value_0) from [//left]
+        auto query = TStringBuf(R"(select sum(value_1 * value_0) from [//left]
             left join [//center] with hint "{push_down_group_by=%true}"
             on 1 = 1
             group by value_0 % 10)");
@@ -1173,7 +1174,7 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
             HasSubstr("neither idempotent nor can be pushed behind join clause"));
     }
     {
-        auto query = std::string(R"(select sum(value_1) from [//left]
+        auto query = TStringBuf(R"(select sum(value_1) from [//left]
             left join [//center] with hint "{push_down_group_by=%true}"
             using key_0
             group by value_0 + key_1)");
@@ -1183,7 +1184,7 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
         EXPECT_FALSE(plan->Query->JoinClauses[0]->GroupClause);
     }
     {
-        auto query = std::string(R"(select sum(1) from [//left]
+        auto query = TStringBuf(R"(select sum(1) from [//left]
             left join [//center] with hint "{push_down_group_by=%true}"
             on 1 = 1
             left join [//center]
@@ -1193,6 +1194,96 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
         EXPECT_THROW_THAT(
             ParseAndPreparePlanFragment(&PrepareMock_, query),
             HasSubstr("is not supported at the current moment"));
+    }
+}
+
+TEST_F(TQueryPrepareTest, RewriteCardinalityIntoHyperLogLogWithPrecision)
+{
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
+            {"k", EValueType::Int64, ESortOrder::Ascending},
+            {"v", EValueType::Int64},
+        }))));
+
+    auto getFingerprint = [this] (TStringBuf query) -> std::string {
+        auto parsedSource = ParseSource(query, EParseMode::Query, {}, /*syntaxVersion*/ 1);
+        auto plan = PreparePlanFragment(
+            &PrepareMock_,
+            parsedSource->Source,
+            std::get<NAst::TQuery>(parsedSource->AstHead.Ast),
+            parsedSource->AstHead,
+            NCodegen::EExecutionBackend::Native,
+            DefaultExpressionBuilderVersion,
+            /*memoryTracker*/ nullptr,
+            /*syntaxVersion*/ 2,
+            /*shouldRewriteCardinalityIntoHyperLogLog*/ true,
+            /*hyperLogLogPrecision*/ 7);
+        return InferName(plan->Query, {.OmitValues = true});
+    };
+
+    {
+        auto fingerprint = getFingerprint("select cardinality(v) from [//t] group by 0");
+        EXPECT_TRUE(fingerprint.starts_with("SELECT hll_7(v) AS hll_7(v) GROUP BY"));
+    }
+    {
+        auto fingerprint = getFingerprint("select * from [//t] group by 0 having cardinality(v) > 42");
+        EXPECT_TRUE(fingerprint.contains("HAVING hll_7(v) >"));
+    }
+    {
+        auto fingerprint = getFingerprint("select k from [//t] group by k order by 1, (25 + cardinality(v)) limit 10");
+        EXPECT_TRUE(fingerprint.contains("ORDER BY ? ASC, ? + hll_7(v) ASC LIMIT ?"));
+    }
+    {
+        auto query = R"(
+            cardinality_merge(Subquery_2.x) AS c
+            FROM (
+                SELECT cardinality_merge_state(Subquery_1.y) AS x
+                FROM (
+                    SELECT cardinality_state(v) as y, g
+                    FROM `//t`
+                    GROUP BY k as g
+                ) AS Subquery_1
+                GROUP BY Subquery_1.g % 2 as g
+            ) AS Subquery_2
+            GROUP BY 0)";
+
+        auto parsedSource = ParseSource(query, EParseMode::Query, {}, /*syntaxVersion*/ 1);
+
+        auto plan = PreparePlanFragment(
+            &PrepareMock_,
+            parsedSource->Source,
+            std::get<NAst::TQuery>(parsedSource->AstHead.Ast),
+            parsedSource->AstHead,
+            NCodegen::EExecutionBackend::Native,
+            DefaultExpressionBuilderVersion,
+            /*memoryTracker*/ nullptr,
+            /*syntaxVersion*/ 2,
+            /*shouldRewriteCardinalityIntoHyperLogLog*/ true,
+            /*hyperLogLogPrecision*/ 7);
+
+        auto fingerprint0 = InferName(plan->Query, {.OmitValues = true});
+        EXPECT_TRUE(fingerprint0.contains("hll_7_merge(`Subquery_2.x`) AS c"));
+
+        auto fingerprint1 = InferName(plan->SubqueryFragment->Query, {.OmitValues = true});
+        EXPECT_TRUE(fingerprint1.contains("SELECT hll_7_merge_state(`Subquery_1.y`) AS x"));
+
+        auto fingerprint2 = InferName(plan->SubqueryFragment->SubqueryFragment->Query, {.OmitValues = true});
+        EXPECT_TRUE(fingerprint2.contains("SELECT hll_7_state(v) AS y"));
+    }
+    {
+        EXPECT_THROW_THAT(
+            getFingerprint("select * from [//t] where cardinality(v) > 42 group by 0"),
+            HasSubstr("Misuse of aggregate function \"hll_7\""));
+    }
+    {
+        EXPECT_THROW_THAT(
+            getFingerprint("select * from [//t] group by cardinality(v)"),
+            HasSubstr("Misuse of aggregate function \"hll_7\""));
+    }
+    {
+        EXPECT_THROW_THAT(
+            getFingerprint("select max(cardinality(v)) from [//t] group by 0"),
+            HasSubstr("Misuse of aggregate function \"hll_7\""));
     }
 }
 
@@ -1207,7 +1298,7 @@ TEST_F(TQueryPrepareTest, OmitOrderByUsingFixedInferredPrefix)
     TRangeExtractorMapPtr rangeExtractorMap = New<TRangeExtractorMap>();
     MergeFrom(rangeExtractorMap.Get(), *GetBuiltinRangeExtractors());
 
-    auto source = std::string(R"(select * from [//t] where k = 1 and l = 1 order by m limit 10)");
+    auto source = TStringBuf(R"(select * from [//t] where k = 1 and l = 1 order by m limit 10)");
 
     auto fragment = ParseAndPreparePlanFragment(&PrepareMock_, source);
 
@@ -1232,6 +1323,30 @@ TEST_F(TQueryPrepareTest, OmitOrderByUsingFixedInferredPrefix)
 
     EXPECT_EQ(query->OrderClause, nullptr);
     EXPECT_TRUE(query->IsOrdered(false));
+}
+
+TEST_F(TQueryPrepareTest, LeftJoinOptionalizesType)
+{
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//table"))
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
+            {"key_0", EValueType::Int64, ESortOrder::Ascending},
+            {"value_0", EValueType::Int64},
+        }))));
+
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//join"))
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
+            {"key_0", SimpleLogicalType(ESimpleLogicalValueType::Int16), ESortOrder::Ascending},
+            {"value_1", EValueType::Int64},
+        }))));
+
+    auto query = ParseAndPreparePlanFragment(
+        &PrepareMock_,
+        "select * from [//table] left join [//join] using key_0")
+        ->Query;
+
+    EXPECT_FALSE(query->JoinClauses[0]->ForeignEquations[0]->LogicalType->IsNullable());
+    auto outputSchema = query->GetTableSchema();
+    EXPECT_TRUE(outputSchema->GetColumnOrThrow("value_1").LogicalType()->IsNullable());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1341,12 +1456,12 @@ TEST_F(TQueryEvaluateTest, Simple)
 
     auto source = TSource{
         "a=4;b=5",
-        "a=10;b=11"
+        "a=10;b=11",
     };
 
     auto result = YsonToRows({
         "a=4;b=5",
-        "a=10;b=11"
+        "a=10;b=11",
     }, split);
 
     Evaluate("a, b FROM [//t]", split, source, ResultMatcher(result));
@@ -1369,7 +1484,7 @@ TEST_F(TQueryEvaluateTest, SimpleOffsetLimit)
         "a=5",
         "a=6",
         "a=7",
-        "a=8"
+        "a=8",
     };
 
     {
@@ -1378,7 +1493,7 @@ TEST_F(TQueryEvaluateTest, SimpleOffsetLimit)
             "a=1",
             "a=2",
             "a=3",
-            "a=4"
+            "a=4",
         }, split);
 
         Evaluate("a FROM [//t] limit 5", split, source, ResultMatcher(result));
@@ -1386,7 +1501,7 @@ TEST_F(TQueryEvaluateTest, SimpleOffsetLimit)
 
     {
         auto result = YsonToRows({
-            "a=5"
+            "a=5",
         }, split);
 
         Evaluate("a FROM [//t] offset 5 limit 1", split, source, ResultMatcher(result));
@@ -1402,12 +1517,12 @@ TEST_F(TQueryEvaluateTest, SimpleAlias)
 
     auto source = TSource{
         "a=4;b=5",
-        "a=10;b=11"
+        "a=10;b=11",
     };
 
     auto result = YsonToRows({
         "a=16;b=5",
-        "a=100;b=11"
+        "a=100;b=11",
     }, split);
 
     Evaluate("a * a as a, b FROM [//t]", split, source, ResultMatcher(result));
@@ -1422,12 +1537,12 @@ TEST_F(TQueryEvaluateTest, SelectAll)
 
     auto source = TSource{
         "a=4;b=5",
-        "a=10;b=11"
+        "a=10;b=11",
     };
 
     auto result = YsonToRows({
         "a=4;b=5",
-        "a=10;b=11"
+        "a=10;b=11",
     }, split);
 
     Evaluate("* FROM [//t]", split, source, ResultMatcher(result));
@@ -1443,12 +1558,12 @@ TEST_F(TQueryEvaluateTest, FilterNulls1)
     auto source = TSource{
         "a=4;b=5",
         "a=6",
-        "a=10;b=11"
+        "a=10;b=11",
     };
 
     auto result = YsonToRows({
         "a=4;b=5",
-        "a=10;b=11"
+        "a=10;b=11",
     }, split);
 
     Evaluate("a, b FROM [//t] where b > 0", split, source, ResultMatcher(result));
@@ -1464,13 +1579,13 @@ TEST_F(TQueryEvaluateTest, FilterNulls2)
     auto source = TSource{
         "a=4;b=5",
         "a=6",
-        "a=10;b=11"
+        "a=10;b=11",
     };
 
     auto result = YsonToRows({
         "a=4;b=5",
         "a=6",
-        "a=10;b=11"
+        "a=10;b=11",
     }, split);
 
     Evaluate("a, b FROM [//t] where b > 0 or is_null(b)", split, source, ResultMatcher(result));
@@ -1486,12 +1601,12 @@ TEST_F(TQueryEvaluateTest, FilterNulls3)
     auto source = TSource{
         "a=4;b=5",
         "a=6",
-        "a=10;b=11"
+        "a=10;b=11",
     };
 
     auto result = YsonToRows({
         "a=4;b=5",
-        "a=10;b=11"
+        "a=10;b=11",
     }, split);
 
     Evaluate(
@@ -1511,7 +1626,7 @@ TEST_F(TQueryEvaluateTest, SimpleCmpInt)
 
     auto source = TSource{
         "a=4;b=5",
-        "a=6;b=6"
+        "a=6;b=6",
     };
 
     auto resultSplit = MakeSplit({
@@ -1524,7 +1639,7 @@ TEST_F(TQueryEvaluateTest, SimpleCmpInt)
 
     auto result = YsonToRows({
         "r1=%true;r2=%false;r3=%true;r4=%false;r5=%false",
-        "r1=%false;r2=%false;r3=%true;r4=%true;r5=%true"
+        "r1=%false;r2=%false;r3=%true;r4=%true;r5=%true",
     }, resultSplit);
 
     Evaluate(
@@ -1543,7 +1658,7 @@ TEST_F(TQueryEvaluateTest, SimpleCmpString)
 
     auto source = TSource{
         "a=\"a\";b=\"aa\"",
-        "a=\"aa\";b=\"aa\""
+        "a=\"aa\";b=\"aa\"",
     };
 
     auto resultSplit = MakeSplit({
@@ -1556,7 +1671,7 @@ TEST_F(TQueryEvaluateTest, SimpleCmpString)
 
     auto result = YsonToRows({
         "r1=%true;r2=%false;r3=%true;r4=%false;r5=%false",
-        "r1=%false;r2=%false;r3=%true;r4=%true;r5=%true"
+        "r1=%false;r2=%false;r3=%true;r4=%true;r5=%true",
     }, resultSplit);
 
     Evaluate(
@@ -1576,11 +1691,11 @@ TEST_F(TQueryEvaluateTest, SimpleBetweenAnd)
     auto source = TSource{
         "a=4;b=5",
         "a=10;b=11",
-        "a=15;b=11"
+        "a=15;b=11",
     };
 
     auto result = YsonToRows({
-        "a=10;b=11"
+        "a=10;b=11",
     }, split);
 
     Evaluate("a, b FROM [//t] where a between 9 and 11", split, source, ResultMatcher(result));
@@ -1607,7 +1722,7 @@ TEST_F(TQueryEvaluateTest, MultipleBetweenAnd)
         "a=5;b=5",
         "a=6;b=5",
         "a=10;b=11",
-        "a=15;b=11"
+        "a=15;b=11",
     };
 
     auto result = YsonToRows({
@@ -1617,7 +1732,7 @@ TEST_F(TQueryEvaluateTest, MultipleBetweenAnd)
         "a=3;b=50",
         "a=3;b=60",
         "a=4;b=5",
-        "a=5;b=5"
+        "a=5;b=5",
     }, split);
 
     Evaluate(R"(
@@ -1728,15 +1843,15 @@ TEST_F(TQueryEvaluateTest, SimpleIn)
     auto source = TSource{
         "a=4;b=5",
         "a=-10;b=11",
-        "a=15;b=11"
+        "a=15;b=11",
     };
 
     auto resultIn = YsonToRows({
         "a=4;b=5",
-        "a=-10;b=11"
+        "a=-10;b=11",
     }, split);
     auto resultNotIn = YsonToRows({
-        "a=15;b=11"
+        "a=15;b=11",
     }, split);
 
     Evaluate("a, b FROM [//t] where a in (4.0, -10)", split, source, ResultMatcher(resultIn));
@@ -1792,7 +1907,7 @@ TEST_F(TQueryEvaluateTest, SimpleInWithNull)
         "b=1",
         "a=2",
         "a=2;b=1",
-        ""
+        "",
     };
 
     auto result = YsonToRows({
@@ -1812,7 +1927,7 @@ TEST_F(TQueryEvaluateTest, SimpleTransform)
     auto source = TSource{
         "a=4",
         "a=-10",
-        "a=15"
+        "a=15",
     };
 
     auto resultSplit = MakeSplit({
@@ -1887,7 +2002,7 @@ TEST_F(TQueryEvaluateTest, SimpleTransform2)
         "a=4;b=p",
         "a=-10;b=q",
         "a=-10;b=s",
-        "a=15"
+        "a=15",
     };
 
     auto resultSplit = MakeSplit({
@@ -1919,7 +2034,7 @@ TEST_F(TQueryEvaluateTest, SimpleTransformWithDefault)
         "a=4;b=p",
         "a=-10;b=q",
         "a=-10;b=s",
-        "a=15"
+        "a=15",
     };
 
     auto resultSplit = MakeSplit({
@@ -1964,13 +2079,13 @@ TEST_F(TQueryEvaluateTest, SimpleWithNull)
     auto source = TSource{
         "a=4;b=5",
         "a=10;b=11;c=9",
-        "a=16"
+        "a=16",
     };
 
     auto result = YsonToRows({
         "a=4;b=5",
         "a=10;b=11;c=9",
-        "a=16"
+        "a=16",
     }, split);
 
     Evaluate("a, b, c FROM [//t] where a > 3", split, source, ResultMatcher(result));
@@ -1990,7 +2105,7 @@ TEST_F(TQueryEvaluateTest, SimpleWithNull2)
         "a=5;b=5",
         "a=7;c=8",
         "a=10;b=1",
-        "a=10;c=1"
+        "a=10;c=1",
     };
 
     auto resultSplit = MakeSplit({
@@ -2002,7 +2117,7 @@ TEST_F(TQueryEvaluateTest, SimpleWithNull2)
         "a=1;x=5",
         "a=4;",
         "a=5;",
-        "a=7;"
+        "a=7;",
     }, resultSplit);
 
     Evaluate("a, b + c as x FROM [//t] where a < 10", split, source, ResultMatcher(result));
@@ -2015,7 +2130,7 @@ TEST_F(TQueryEvaluateTest, Strings)
     });
 
     auto source = TSource{
-        ""
+        "",
     };
 
     auto resultSplit = MakeSplit({
@@ -2023,7 +2138,7 @@ TEST_F(TQueryEvaluateTest, Strings)
     });
 
     auto result = YsonToRows({
-        "result=\"\\x0F\\xC7\\x84~\\0@\\0\\0<\\0\\0@\\x99l`\\x16\""
+        "result=\"\\x0F\\xC7\\x84~\\0@\\0\\0<\\0\\0@\\x99l`\\x16\"",
     }, resultSplit);
 
     Evaluate("\"\\x0F\\xC7\\x84~\\0@\\0\\0<\\0\\0@\\x99l`\\x16\" as result FROM [//t]", split, source,
@@ -2039,13 +2154,13 @@ TEST_F(TQueryEvaluateTest, SimpleStrings)
     auto source = TSource{
         "s=foo",
         "s=bar",
-        "s=baz"
+        "s=baz",
     };
 
     auto result = YsonToRows({
         "s=foo",
         "s=bar",
-        "s=baz"
+        "s=baz",
     }, split);
 
     Evaluate("s FROM [//t]", split, source, ResultMatcher(result));
@@ -2062,12 +2177,12 @@ TEST_F(TQueryEvaluateTest, SimpleStrings2)
         "s=foo; u=x",
         "s=bar; u=y",
         "s=baz; u=x",
-        "s=olala; u=z"
+        "s=olala; u=z",
     };
 
     auto result = YsonToRows({
         "s=foo; u=x",
-        "s=baz; u=x"
+        "s=baz; u=x",
     }, split);
 
     Evaluate("s, u FROM [//t] where u = \"x\"", split, source, ResultMatcher(result));
@@ -2082,11 +2197,11 @@ TEST_F(TQueryEvaluateTest, IsPrefixStrings)
     auto source = TSource{
         "s=foobar",
         "s=bar",
-        "s=baz"
+        "s=baz",
     };
 
     auto result = YsonToRows({
-        "s=foobar"
+        "s=foobar",
     }, split);
 
     Evaluate("s FROM [//t] where is_prefix(\"foo\", s)", split, source, ResultMatcher(result));
@@ -2105,14 +2220,14 @@ TEST_F(TQueryEvaluateTest, IsSubstrStrings)
         "s=\"baz foo bar\"",
         "s=\"baz fo bar\"",
         "s=xyz",
-        "s=baz"
+        "s=baz",
     };
 
     auto result = YsonToRows({
         "s=foobar",
         "s=barfoo",
         "s=\"baz foo bar\"",
-        "s=baz"
+        "s=baz",
     }, split);
 
     Evaluate("s FROM [//t] where is_substr(\"foo\", s) or is_substr(s, \"XX baz YY\")", split, source, ResultMatcher(result));
@@ -2134,7 +2249,7 @@ TEST_F(TQueryEvaluateTest, GroupByBool)
         "a=6;b=60",
         "a=7;b=70",
         "a=8;b=80",
-        "a=9;b=90"
+        "a=9;b=90",
     };
 
     auto resultSplit = MakeSplit({
@@ -2144,7 +2259,7 @@ TEST_F(TQueryEvaluateTest, GroupByBool)
 
     auto result = YsonToRows({
         "x=%false;t=200",
-        "x=%true;t=240"
+        "x=%true;t=240",
     }, resultSplit);
 
     Evaluate("x, sum(b) as t FROM [//t] where a > 1 group by a % 2 = 1 as x", split, source, ResultMatcher(result));
@@ -2510,6 +2625,42 @@ TEST_F(TQueryEvaluateTest, GroupByWithAvgCoordinated)
         OrderedResultMatcher(result, {"av"}));
 }
 
+TEST_F(TQueryEvaluateTest, ClickBenchQ22)
+{
+    auto columns = std::vector<TColumnSchema>{
+        {"k0", EValueType::Int64, ESortOrder::Ascending},
+        {"SearchPhrase", EValueType::String},
+        {"URL", EValueType::String},
+    };
+
+    for (auto& column : columns) {
+        column.SetRequired(true);
+    }
+
+    auto split = MakeSplit(columns);
+
+    auto source = TSource();
+
+    {
+        auto resultSplit = MakeSplit({
+            {"SearchPhrase", EValueType::String},
+            {"m", EValueType::String},
+            {"c", EValueType::Int64},
+        });
+
+        auto resultRows = TSource();
+
+        auto result = YsonToRows(resultRows, resultSplit);
+
+        EvaluateFullCoordinatedGroupBy(
+            "SearchPhrase, min(URL) as m, sum(1) AS c FROM [//t] WHERE URL LIKE '%google%' AND SearchPhrase != '' GROUP BY SearchPhrase ORDER BY c DESC LIMIT 10",
+            split,
+            source,
+            ResultMatcher(result),
+            /*iterations*/ 1);
+    }
+}
+
 TEST_F(TQueryEvaluateTest, GroupByWithAvgFullCoordinated)
 {
     auto split = MakeSplit({
@@ -2559,6 +2710,25 @@ TEST_F(TQueryEvaluateTest, GroupByWithAvgFullCoordinated)
             source,
             ResultMatcher(result),
             /*iterations*/ 1);
+
+        {
+            // TODO(dtorilov): Rebuild wasm UDFs.
+            auto sources = RandomSplitData(source);
+
+            EvaluateFullCoordinatedGroupByImpl(
+                "hll_14(v) as av FROM [//t] group by k0",
+                split,
+                sources,
+                OrderedResultMatcher(result, {"av"}),
+                EExecutionBackend::Native);
+
+            EvaluateFullCoordinatedGroupByImpl(
+                "hll_14(v) as av FROM [//t] group by k0 limit 10000",
+                split,
+                sources,
+                ResultMatcher(result),
+                EExecutionBackend::Native);
+        }
     }
 }
 
@@ -3480,7 +3650,7 @@ TEST_F(TQueryEvaluateTest, GroupByAlias)
         "a=6;b=60",
         "a=7;b=70",
         "a=8;b=80",
-        "a=9;b=90"
+        "a=9;b=90",
     };
 
     auto resultSplit = MakeSplit({
@@ -3491,7 +3661,7 @@ TEST_F(TQueryEvaluateTest, GroupByAlias)
     auto result = YsonToRows({
         "a=1;b=123",
         "a=2;b=156",
-        "a=0;b=180"
+        "a=0;b=180",
     }, resultSplit);
 
     Evaluate("a % 3 as a, sum(a + b) as b FROM [//t] group by a", split, source, ResultMatcher(result));
@@ -3515,7 +3685,7 @@ TEST_F(TQueryEvaluateTest, GroupByConstantWithTotals)
         "a=6;b=60",
         "a=7;b=70",
         "a=8;b=80",
-        "a=9;b=90"
+        "a=9;b=90",
     };
 
     // Group by constant expression with totals.
@@ -3529,7 +3699,7 @@ TEST_F(TQueryEvaluateTest, GroupByConstantWithTotals)
         auto resultWithTotals = YsonToRows({
             "x=%false;q=1;t=200",
             "x=%true;q=1;t=240",
-            "t=440"
+            "t=440",
         }, resultSplit);
 
         Evaluate("x, q, sum(b) as t FROM [//t] where a > 1 group by a % 2 = 1 as x, 1 as q with totals", split,
@@ -3553,7 +3723,7 @@ TEST_F(TQueryEvaluateTest, GroupByExprAndSubexpWithTotals)
         "a=6;b=60",
         "a=7;b=70",
         "a=8;b=80",
-        "a=9;b=90"
+        "a=9;b=90",
     };
 
     // Group by expression and its subexpression.
@@ -3567,7 +3737,7 @@ TEST_F(TQueryEvaluateTest, GroupByExprAndSubexpWithTotals)
         auto resultWithTotals = YsonToRows({
             "x=0;q=1;t=200",
             "x=1;q=2;t=240",
-            "t=440"
+            "t=440",
         }, resultSplit);
 
         Evaluate("a % 2 as x, x + 1 as q, sum(b) as t FROM [//t] where a > 1 group by x, q with totals", split,
@@ -3591,7 +3761,7 @@ TEST_F(TQueryEvaluateTest, GroupByWithTotals)
         "a=6;b=60",
         "a=7;b=70",
         "a=8;b=80",
-        "a=9;b=90"
+        "a=9;b=90",
     };
 
     auto resultSplitNoAggregate = MakeSplit({
@@ -3601,7 +3771,7 @@ TEST_F(TQueryEvaluateTest, GroupByWithTotals)
     auto resultWithTotalsNoAggregate = YsonToRows({
         "x=%false",
         "x=%true",
-        ""
+        "",
     }, resultSplitNoAggregate);
 
     Evaluate("x FROM [//t] where a > 1 group by a % 2 = 1 as x with totals", split,
@@ -3615,7 +3785,7 @@ TEST_F(TQueryEvaluateTest, GroupByWithTotals)
     auto resultWithTotals = YsonToRows({
         "x=%false;t=200",
         "x=%true;t=240",
-        "t=440"
+        "t=440",
     }, resultSplit);
 
     Evaluate("x, sum(b) as t FROM [//t] where a > 1 group by a % 2 = 1 as x with totals", split,
@@ -3623,7 +3793,7 @@ TEST_F(TQueryEvaluateTest, GroupByWithTotals)
 
     auto resultWithTotalsAfterHaving = YsonToRows({
         "x=%true;t=240",
-        "t=240"
+        "t=240",
     }, resultSplit);
 
     Evaluate("x, sum(b) as t FROM [//t] where a > 1 group by a % 2 = 1 as x having t > 200 with totals", split,
@@ -3631,7 +3801,7 @@ TEST_F(TQueryEvaluateTest, GroupByWithTotals)
 
     auto resultWithTotalsBeforeHaving = YsonToRows({
         "x=%true;t=240",
-        "t=440"
+        "t=440",
     }, resultSplit);
 
     Evaluate("x, sum(b) as t FROM [//t] where a > 1 group by a % 2 = 1 as x with totals having t > 200", split,
@@ -3639,7 +3809,7 @@ TEST_F(TQueryEvaluateTest, GroupByWithTotals)
 
     auto resultWithTotalsBeforeHaving2 = YsonToRows({
         "x=%false;t=200",
-        "t=440"
+        "t=440",
     }, resultSplit);
 
     Evaluate("x, sum(b) as t FROM [//t] where a > 1 group by a % 2 = 1 as x with totals having t < 220", split,
@@ -3718,7 +3888,7 @@ TEST_F(TQueryEvaluateTest, GroupByWithLimitFirst)
     });
 
     auto result = YsonToRows({
-        "f=0"
+        "f=0",
     }, resultSplit);
 
     auto rowsRead = EvaluateWithQueryStatistics(
@@ -3749,7 +3919,7 @@ TEST_F(TQueryEvaluateTest, GroupByWithLimitFirstString)
     });
 
     auto result = YsonToRows({
-        "f=\"0\""
+        "f=\"0\"",
     }, resultSplit);
 
     auto queryStatistics = EvaluateWithQueryStatistics(
@@ -3760,6 +3930,31 @@ TEST_F(TQueryEvaluateTest, GroupByWithLimitFirstString)
     EXPECT_EQ(queryStatistics.RowsRead.GetTotal(), 3);
 
     SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TrickyAggregateResolve)
+{
+    auto split = MakeSplit({});
+
+    TSource source;
+    for (int i = 0; i < 100; i++) {
+        source.push_back("");
+    }
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Uint64},
+        {"y", EValueType::Double}
+    });
+
+    auto result = YsonToRows({
+        "x=100u;y=100.0"
+    }, resultSplit);
+
+    Evaluate(
+        "sum(1u) as x, double(sum(0)) + sum(1u) as y from [//t] group by 1",
+        split,
+        source,
+        ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, ComplexWithAliases)
@@ -3778,7 +3973,7 @@ TEST_F(TQueryEvaluateTest, ComplexWithAliases)
         "a=6;b=60",
         "a=7;b=70",
         "a=8;b=80",
-        "a=9;b=90"
+        "a=9;b=90",
     };
 
     auto resultSplit = MakeSplit({
@@ -3788,7 +3983,7 @@ TEST_F(TQueryEvaluateTest, ComplexWithAliases)
 
     auto result = YsonToRows({
         "x=0;t=200",
-        "x=1;t=241"
+        "x=1;t=241",
     }, resultSplit);
 
     Evaluate("a % 2 as x, sum(b) + x as t FROM [//t] where a > 1 group by x", split, source, ResultMatcher(result));
@@ -3812,7 +4007,7 @@ TEST_F(TQueryEvaluateTest, Complex)
         "a=6;b=60",
         "a=7;b=70",
         "a=8;b=80",
-        "a=9;b=90"
+        "a=9;b=90",
     };
 
     auto resultSplit = MakeSplit({
@@ -3822,7 +4017,7 @@ TEST_F(TQueryEvaluateTest, Complex)
 
     auto result = YsonToRows({
         "x=0;t=200",
-        "x=1;t=241"
+        "x=1;t=241",
     }, resultSplit);
 
     Evaluate("x, sum(b) + x as t FROM [//t] where a > 1 group by a % 2 as x", split, source, ResultMatcher(result));
@@ -3846,7 +4041,7 @@ TEST_F(TQueryEvaluateTest, Complex2)
         "a=6;b=60",
         "a=7;b=70",
         "a=8;b=80",
-        "a=9;b=90"
+        "a=9;b=90",
     };
 
     auto resultSplit = MakeSplit({
@@ -3857,7 +4052,7 @@ TEST_F(TQueryEvaluateTest, Complex2)
 
     auto result = YsonToRows({
         "x=0;q=0;t=200",
-        "x=1;q=0;t=241"
+        "x=1;q=0;t=241",
     }, resultSplit);
 
     Evaluate(
@@ -3915,7 +4110,7 @@ TEST_F(TQueryEvaluateTest, ComplexWithNull)
         "a=10",
         "b=1",
         "b=2",
-        "b=3"
+        "b=3",
     };
 
     auto resultSplit = MakeSplit({
@@ -3927,7 +4122,7 @@ TEST_F(TQueryEvaluateTest, ComplexWithNull)
     auto result = YsonToRows({
         "x=1;t=251;y=250",
         "x=0;t=200;y=200",
-        "y=6"
+        "y=6",
     }, resultSplit);
 
     Evaluate("x, sum(b) + x as t, sum(b) as y FROM [//t] group by a % 2 as x", split, source, ResultMatcher(result));
@@ -4032,7 +4227,7 @@ TEST_F(TQueryEvaluateTest, GroupByDisjointTotalsLimit)
 
     std::vector<TOwningRow> result;
     for (auto [a, b] : orderedKeys) {
-        std::string resultRow = Format("x=%v;y=%v;s=%v", a, b, groupedValues[std::pair(a, b)]);
+        auto resultRow = Format("x=%v;y=%v;s=%v", a, b, groupedValues[std::pair(a, b)]);
         result.push_back(YsonToRow(resultRow, resultSplit, false));
     }
     // TODO(lukyan): Try to make stable order of totals row
@@ -4211,7 +4406,7 @@ TEST_F(TQueryEvaluateTest, IsNull)
         "a=10",
         "b=1",
         "b=2",
-        "b=3"
+        "b=3",
     };
 
     auto resultSplit = MakeSplit({
@@ -4221,7 +4416,7 @@ TEST_F(TQueryEvaluateTest, IsNull)
     auto result = YsonToRows({
         "b=1",
         "b=2",
-        "b=3"
+        "b=3",
     }, resultSplit);
 
     Evaluate("b FROM [//t] where is_null(a)", split, source, ResultMatcher(result));
@@ -4238,7 +4433,7 @@ TEST_F(TQueryEvaluateTest, DoubleSum)
     auto source = TSource{
         "a=1.",
         "a=1.",
-        ""
+        "",
     };
 
     auto resultSplit = MakeSplit({
@@ -4247,7 +4442,7 @@ TEST_F(TQueryEvaluateTest, DoubleSum)
     });
 
     auto result = YsonToRows({
-        "x=2.;t=3"
+        "x=2.;t=3",
     }, resultSplit);
 
     Evaluate("sum(a) as x, sum(1) as t FROM [//t] group by 1", split, source, ResultMatcher(result));
@@ -4286,7 +4481,7 @@ TEST_F(TQueryEvaluateTest, ComplexStrings)
         "x=x;t=120",
         "t=199",
         "x=z;t=160",
-        "x=\"\";t=11"
+        "x=\"\";t=11",
     }, resultSplit);
 
     Evaluate("x, sum(a) as t FROM [//t] where a > 10 group by s as x", split, source, ResultMatcher(result));
@@ -4307,7 +4502,7 @@ TEST_F(TQueryEvaluateTest, ComplexStringsLower)
         "a=cs1dv;s=three",
         "a=HDs;s=four",
         "a=kIu;s=five",
-        "a=trg1t;s=six"
+        "a=trg1t;s=six",
     };
 
     auto resultSplit = MakeSplit({
@@ -4318,7 +4513,7 @@ TEST_F(TQueryEvaluateTest, ComplexStringsLower)
         "s=one",
         "s=two",
         "s=four",
-        "s=five"
+        "s=five",
     }, resultSplit);
 
     Evaluate("s FROM [//t] where lower(a) in (\"xyz\",\"ab1c\",\"hds\",\"kiu\")", split, source, ResultMatcher(result));
@@ -4342,7 +4537,7 @@ TEST_F(TQueryEvaluateTest, If)
         "a=6;b=60",
         "a=7;b=70",
         "a=8;b=80",
-        "a=9;b=90"
+        "a=9;b=90",
     };
 
     auto resultSplit = MakeSplit({
@@ -4352,7 +4547,7 @@ TEST_F(TQueryEvaluateTest, If)
 
     auto result = YsonToRows({
         "x=b;t=251.",
-        "x=a;t=201."
+        "x=a;t=201.",
     }, resultSplit);
 
     Evaluate("if(q = 4, \"a\", \"b\") as x, double(sum(b)) + 1.0 as t FROM [//t] group by if(a % 2 = 0, 4, 5) as q",
@@ -4377,12 +4572,12 @@ TEST_F(TQueryEvaluateTest, InputRowLimit)
         "a=6;b=60",
         "a=7;b=70",
         "a=8;b=80",
-        "a=9;b=90"
+        "a=9;b=90",
     };
 
     auto result = YsonToRows({
         "a=2;b=20",
-        "a=3;b=30"
+        "a=3;b=30",
     }, split);
 
     Evaluate("a, b FROM [//t] where uint64(a) > 1 and uint64(a) < 9", split, source, ResultMatcher(result), {.InputRowLimit = 3});
@@ -4406,13 +4601,13 @@ TEST_F(TQueryEvaluateTest, OutputRowLimit)
         "a=6;b=60",
         "a=7;b=70",
         "a=8;b=80",
-        "a=9;b=90"
+        "a=9;b=90",
     };
 
     auto result = YsonToRows({
         "a=2;b=20",
         "a=3;b=30",
-        "a=4;b=40"
+        "a=4;b=40",
     }, split);
 
     Evaluate("a, b FROM [//t] where a > 1 and a < 9", split, source, ResultMatcher(result), {.OutputRowLimit = 3});
@@ -4482,7 +4677,7 @@ TEST_F(TQueryEvaluateTest, TypeInference)
         "a=6;b=60",
         "a=7;b=70",
         "a=8;b=80",
-        "a=9;b=90"
+        "a=9;b=90",
     };
 
     auto resultSplit = MakeSplit({
@@ -4492,7 +4687,7 @@ TEST_F(TQueryEvaluateTest, TypeInference)
 
     auto result = YsonToRows({
         "x=b;t=251.",
-        "x=a;t=201."
+        "x=a;t=201.",
     }, resultSplit);
 
     Evaluate("if(int64(q) = 4, \"a\", \"b\") as x, double(sum(uint64(b) * 1)) + 1 as t FROM [//t] group by if"
@@ -4713,13 +4908,21 @@ TEST_F(TQueryEvaluateTest, ArrayJoinComposite)
 
     auto split = MakeSplit({
         {"a", EValueType::Int64},
-        {"nestedA", ListLogicalType(StructLogicalType({{"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)}}))},
+        {"nestedA", ListLogicalType(StructLogicalType(
+            {
+                {"a", "a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            },
+            /*removedFieldStableNames*/ {}))},
         {"nestedB", ListLogicalType(TupleLogicalType({SimpleLogicalType(ESimpleLogicalValueType::Int64)}))},
     });
 
     auto resultSplit = MakeSplit({
         {"a", EValueType::Int64},
-        {"flattenedA", StructLogicalType({{"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)}})},
+        {"flattenedA", StructLogicalType(
+            {
+                {"a", "a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            },
+            /*removedFieldStableNames*/ {})},
         {"flattenedB", TupleLogicalType({SimpleLogicalType(ESimpleLogicalValueType::Int64)})},
     });
 
@@ -4759,7 +4962,7 @@ TEST_F(TQueryEvaluateTest, JoinEmpty)
         "a=3;b=30",
         "a=5;b=50",
         "a=7;b=70",
-        "a=9;b=90"
+        "a=9;b=90",
     });
 
     auto rightSplit = MakeSplit({
@@ -4772,7 +4975,7 @@ TEST_F(TQueryEvaluateTest, JoinEmpty)
         "c=2;b=20",
         "c=4;b=40",
         "c=6;b=60",
-        "c=8;b=80"
+        "c=8;b=80",
     });
 
     auto resultSplit = MakeSplit({
@@ -4804,7 +5007,7 @@ TEST_F(TQueryEvaluateTest, JoinSimple2)
     splits["//left"] = leftSplit;
     sources.push_back({
         "a=1",
-        "a=2"
+        "a=2",
     });
 
     auto rightSplit = MakeSplit({
@@ -4814,7 +5017,7 @@ TEST_F(TQueryEvaluateTest, JoinSimple2)
     splits["//right"] = rightSplit;
     sources.push_back({
         "a=2",
-        "a=1"
+        "a=1",
     });
 
     auto resultSplit = MakeSplit({
@@ -4823,7 +5026,7 @@ TEST_F(TQueryEvaluateTest, JoinSimple2)
 
     auto result = YsonToRows({
         "x=1",
-        "x=2"
+        "x=2",
     }, resultSplit);
 
     Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, OrderedResultMatcher(result, {"x"}));
@@ -4843,7 +5046,7 @@ TEST_F(TQueryEvaluateTest, JoinSimple3)
     splits["//left"] = leftSplit;
     sources.push_back({
         "a=1",
-        "a=1"
+        "a=1",
     });
 
     auto rightSplit = MakeSplit({
@@ -4853,7 +5056,7 @@ TEST_F(TQueryEvaluateTest, JoinSimple3)
     splits["//right"] = rightSplit;
     sources.push_back({
         "a=2",
-        "a=1"
+        "a=1",
     });
 
     auto resultSplit = MakeSplit({
@@ -4862,7 +5065,7 @@ TEST_F(TQueryEvaluateTest, JoinSimple3)
 
     auto result = YsonToRows({
         "x=1",
-        "x=1"
+        "x=1",
     }, resultSplit);
 
     Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, ResultMatcher(result));
@@ -4882,7 +5085,7 @@ TEST_F(TQueryEvaluateTest, JoinSimple4)
     splits["//left"] = leftSplit;
     sources.push_back({
         "a=1",
-        "a=2"
+        "a=2",
     });
 
     auto rightSplit = MakeSplit({
@@ -4892,7 +5095,7 @@ TEST_F(TQueryEvaluateTest, JoinSimple4)
     splits["//right"] = rightSplit;
     sources.push_back({
         "a=1",
-        "a=1"
+        "a=1",
     });
 
     auto resultSplit = MakeSplit({
@@ -4901,7 +5104,7 @@ TEST_F(TQueryEvaluateTest, JoinSimple4)
 
     auto result = YsonToRows({
         "x=1",
-        "x=1"
+        "x=1",
     }, resultSplit);
 
     Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, ResultMatcher(result));
@@ -4922,7 +5125,7 @@ TEST_F(TQueryEvaluateTest, JoinSimple5)
     sources.push_back({
         "a=1",
         "a=1",
-        "a=1"
+        "a=1",
     });
 
     auto rightSplit = MakeSplit({
@@ -4933,7 +5136,7 @@ TEST_F(TQueryEvaluateTest, JoinSimple5)
     sources.push_back({
         "a=1",
         "a=1",
-        "a=1"
+        "a=1",
     });
 
     auto resultSplit = MakeSplit({
@@ -4949,7 +5152,7 @@ TEST_F(TQueryEvaluateTest, JoinSimple5)
         "x=1",
         "x=1",
         "x=1",
-        "x=1"
+        "x=1",
     }, resultSplit);
 
     Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, ResultMatcher(result));
@@ -4976,7 +5179,7 @@ TEST_F(TQueryEvaluateTest, JoinWithComplexEvaluatedColumn)
 
     splits["//B"] = MakeSplit({
         TColumnSchema("bk0", EValueType::Int64, ESortOrder::Ascending)
-            .SetExpression(std::string("bk1 + bk3")),
+            .SetExpression("bk1 + bk3"),
         TColumnSchema("bk1", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("bk2", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("bk3", EValueType::Int64, ESortOrder::Ascending),
@@ -5018,7 +5221,7 @@ TEST_F(TQueryEvaluateTest, JoinRowLimit)
         "a=2",
         "a=3",
         "a=4",
-        "a=5"
+        "a=5",
     });
 
     auto rightSplit = MakeSplit({
@@ -5031,7 +5234,7 @@ TEST_F(TQueryEvaluateTest, JoinRowLimit)
         "a=3",
         "a=4",
         "a=5",
-        "a=6"
+        "a=6",
     });
 
     auto resultSplit = MakeSplit({
@@ -5061,7 +5264,7 @@ TEST_F(TQueryEvaluateTest, JoinRowLimit2)
     splits["//left"] = leftSplit;
     sources.push_back({
         "a=1",
-        "a=1"
+        "a=1",
     });
 
     auto rightSplit = MakeSplit({
@@ -5084,7 +5287,7 @@ TEST_F(TQueryEvaluateTest, JoinRowLimit2)
         "x=1",
         "x=1",
         "x=1",
-        "x=1"
+        "x=1",
     }, resultSplit);
 
     Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, ResultMatcher(result), {.OutputRowLimit = 5});
@@ -5109,7 +5312,7 @@ TEST_F(TQueryEvaluateTest, JoinWithLimit)
         "a=4",
         "a=5",
         "a=6",
-        "a=7"
+        "a=7",
     });
 
     auto rightSplit = MakeSplit({
@@ -5121,7 +5324,7 @@ TEST_F(TQueryEvaluateTest, JoinWithLimit)
         "a=7",
         "a=5",
         "a=3",
-        "a=1"
+        "a=1",
     });
 
     auto resultSplit = MakeSplit({
@@ -5130,7 +5333,7 @@ TEST_F(TQueryEvaluateTest, JoinWithLimit)
 
     auto result = YsonToRows({
         "x=1",
-        "x=3"
+        "x=3",
     }, resultSplit);
 
     Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, OrderedResultMatcher(result, {"x"}), {.OutputRowLimit = 4});
@@ -5139,7 +5342,7 @@ TEST_F(TQueryEvaluateTest, JoinWithLimit)
         "x=1",
         "x=3",
         "x=5",
-        "x=7"
+        "x=7",
     }, resultSplit);
 
     Evaluate(
@@ -5170,7 +5373,7 @@ TEST_F(TQueryEvaluateTest, JoinWithLimit2)
         "a=2;ut=3;b=10",
         "a=2;ut=4;b=30",
         "a=3;ut=5;b=20",
-        "a=4;ut=6;b=10"
+        "a=4;ut=6;b=10",
     });
 
     auto rightSplit = MakeSplit({
@@ -5182,7 +5385,7 @@ TEST_F(TQueryEvaluateTest, JoinWithLimit2)
     sources.push_back({
         "b=10;c=100",
         "b=20;c=200",
-        "b=30;c=300"
+        "b=30;c=300",
     });
 
     auto resultSplit = MakeSplit({
@@ -5198,7 +5401,7 @@ TEST_F(TQueryEvaluateTest, JoinWithLimit2)
         "\"a.ut\"=3;\"b.c\"=100;\"a.b\"=10;\"b.b\"=10",
         "\"a.ut\"=4;\"b.c\"=300;\"a.b\"=30;\"b.b\"=30",
         "\"a.ut\"=5;\"b.c\"=200;\"a.b\"=20;\"b.b\"=20",
-        "\"a.ut\"=6;\"b.c\"=100;\"a.b\"=10;\"b.b\"=10"
+        "\"a.ut\"=6;\"b.c\"=100;\"a.b\"=10;\"b.b\"=10",
     }, resultSplit);
 
     for (size_t limit = 1; limit <= 6; ++limit) {
@@ -5237,7 +5440,7 @@ TEST_F(TQueryEvaluateTest, JoinWithLimit3)
         "publisherId=\"5915869a7ddde805266009bb\";itemId=-6883609521883689",
         "publisherId=\"5918c7f8e3cda83873187c37\";itemId=-896633843529240754",
         "publisherId=\"591939f67ddde8632415d4ce\";itemId=-2679935711711852631",
-        "publisherId=\"59195b327ddde8632415d4d1\";itemId=8410938732504570842"
+        "publisherId=\"59195b327ddde8632415d4d1\";itemId=8410938732504570842",
     });
 
     auto rightSplit = MakeSplit({
@@ -5270,7 +5473,7 @@ TEST_F(TQueryEvaluateTest, JoinWithLimit3)
         "publisherId=\"5915869a7ddde805266009bb\"",
         "publisherId=\"5918c7f8e3cda83873187c37\"",
         "publisherId=\"591939f67ddde8632415d4ce\"",
-        "publisherId=\"59195b327ddde8632415d4d1\""
+        "publisherId=\"59195b327ddde8632415d4d1\"",
     }, resultSplit);
 
     for (size_t limit = 1; limit <= 13; ++limit) {
@@ -5299,7 +5502,7 @@ TEST_F(TQueryEvaluateTest, JoinNonPrefixColumns)
     sources.push_back({
         "x=a",
         "x=b",
-        "x=c"
+        "x=c",
     });
 
     auto rightSplit = MakeSplit({
@@ -5311,7 +5514,7 @@ TEST_F(TQueryEvaluateTest, JoinNonPrefixColumns)
     sources.push_back({
         "a=1;x=a",
         "a=2;x=b",
-        "a=3;x=c"
+        "a=3;x=c",
     });
 
     auto resultSplit = MakeSplit({
@@ -5323,7 +5526,7 @@ TEST_F(TQueryEvaluateTest, JoinNonPrefixColumns)
     auto result = YsonToRows({
         "a=1;x=a",
         "a=2;x=b",
-        "a=3;x=c"
+        "a=3;x=c",
     }, resultSplit);
 
     Evaluate("x, a, y FROM [//left] join [//right] using x", splits, sources, OrderedResultMatcher(result, {"a"}));
@@ -5343,7 +5546,7 @@ TEST_F(TQueryEvaluateTest, JoinManySimple)
     sources.push_back({
         "a=2;c=b",
         "a=3;c=c",
-        "a=4;c=a"
+        "a=4;c=a",
     });
 
     splits["//b"] = MakeSplit({
@@ -5357,7 +5560,7 @@ TEST_F(TQueryEvaluateTest, JoinManySimple)
         "b=300;c=c;d=X",
         "b=400;c=a;d=Y",
         "b=500;c=b;d=X",
-        "b=600;c=c;d=Y"
+        "b=600;c=c;d=Y",
     });
 
     splits["//c"] = MakeSplit({
@@ -5366,7 +5569,7 @@ TEST_F(TQueryEvaluateTest, JoinManySimple)
     });
     sources.push_back({
         "d=X;e=1234",
-        "d=Y;e=5678"
+        "d=Y;e=5678",
     });
 
     auto resultSplit = MakeSplit({
@@ -5383,7 +5586,7 @@ TEST_F(TQueryEvaluateTest, JoinManySimple)
         "a=3;c=c;b=300;d=X;e=1234",
         "a=3;c=c;b=600;d=Y;e=5678",
         "a=4;c=a;b=100;d=X;e=1234",
-        "a=4;c=a;b=400;d=Y;e=5678"
+        "a=4;c=a;b=400;d=Y;e=5678",
     }, resultSplit);
 
     Evaluate(
@@ -5404,7 +5607,7 @@ TEST_F(TQueryEvaluateTest, Multijoin)
         {"a", EValueType::Int64}
     });
     sources.push_back({
-        "a=0"
+        "a=0",
     });
 
     splits["//y"] = MakeSplit({
@@ -5413,7 +5616,7 @@ TEST_F(TQueryEvaluateTest, Multijoin)
     });
     sources.push_back({
         "a=0;b=1",
-        "a=0;b=2"
+        "a=0;b=2",
     });
 
     splits["//z"] = MakeSplit({
@@ -5423,7 +5626,7 @@ TEST_F(TQueryEvaluateTest, Multijoin)
     sources.push_back({
         "a=0;c=1",
         "a=0;c=2",
-        "a=0;c=3"
+        "a=0;c=3",
     });
 
     splits["//q"] = MakeSplit({
@@ -5444,7 +5647,7 @@ TEST_F(TQueryEvaluateTest, Multijoin)
         "a=0;b=1;c=2",
         "a=0;b=2;c=2",
         "a=0;b=1;c=3",
-        "a=0;b=2;c=3"
+        "a=0;b=2;c=3",
     }, resultSplit);
 
     Evaluate(
@@ -5472,7 +5675,7 @@ TEST_F(TQueryEvaluateTest, SortMergeJoin)
         "a=3;b=30",
         "a=5;b=50",
         "a=7;b=70",
-        "a=9;b=90"
+        "a=9;b=90",
     });
 
     auto rightSplit = MakeSplit({
@@ -5487,7 +5690,7 @@ TEST_F(TQueryEvaluateTest, SortMergeJoin)
         "c=4;d=40",
         "c=5;d=50",
         "c=7;d=70",
-        "c=8;d=80"
+        "c=8;d=80",
     });
 
     auto resultSplit = MakeSplit({
@@ -5499,7 +5702,7 @@ TEST_F(TQueryEvaluateTest, SortMergeJoin)
     auto result = YsonToRows({
         "a=1;b=10;d=10",
         "a=5;b=50;d=50",
-        "a=7;b=70;d=70"
+        "a=7;b=70;d=70",
     }, resultSplit);
 
     auto query = Evaluate("a, b, d FROM [//left] join [//right] on a = c", splits, sources, ResultMatcher(result));
@@ -5539,7 +5742,7 @@ TEST_F(TQueryEvaluateTest, PartialSortMergeJoin)
         "a=3;b=3;c=11",
         "a=3;b=2;c=12",
         "a=4;b=8;c=13",
-        "a=4;b=7;c=14"
+        "a=4;b=7;c=14",
     });
 
     auto rightSplit = MakeSplit({
@@ -5626,7 +5829,7 @@ TEST_F(TQueryEvaluateTest, PartialSortMergeJoin)
             "d=3;e=4;f=10",
             "d=3;e=1;f=9 ",
             "d=4;e=7;f=14",
-            "d=4;e=8;f=13"
+            "d=4;e=8;f=13",
         };
 
         auto query = Evaluate("a, b, c, d, e, f FROM [//left] join [//right] on (a, b) = (d, e)",
@@ -5664,7 +5867,7 @@ TEST_F(TQueryEvaluateTest, Join)
         "a=6;b=60",
         "a=7;b=70",
         "a=8;b=80",
-        "a=9;b=90"
+        "a=9;b=90",
     });
 
     auto rightSplit = MakeSplit({
@@ -5682,7 +5885,7 @@ TEST_F(TQueryEvaluateTest, Join)
         "c=6;b=60",
         "c=7;b=70",
         "c=8;b=80",
-        "c=9;b=90"
+        "c=9;b=90",
     });
 
     auto resultSplit = MakeSplit({
@@ -5722,7 +5925,7 @@ TEST_F(TQueryEvaluateTest, LeftJoin)
         "a=6;b=60",
         "a=7;b=70",
         "a=8;b=80",
-        "a=9;b=90"
+        "a=9;b=90",
     });
 
     auto rightSplit = MakeSplit({
@@ -5736,7 +5939,7 @@ TEST_F(TQueryEvaluateTest, LeftJoin)
         "c=3;b=30",
         "c=5;b=50",
         "c=8;b=80",
-        "c=9;b=90"
+        "c=9;b=90",
     });
 
     auto resultSplit = MakeSplit({
@@ -5754,7 +5957,7 @@ TEST_F(TQueryEvaluateTest, LeftJoin)
         "a=6;b=60",
         "a=7;b=70",
         "a=8;b=80;c=8",
-        "a=9;b=90;c=9"
+        "a=9;b=90;c=9",
     }, resultSplit);
 
     Evaluate(
@@ -5780,7 +5983,7 @@ TEST_F(TQueryEvaluateTest, LeftJoinWithCondition)
         "a=1",
         "a=2",
         "a=3",
-        "a=4"
+        "a=4",
     });
 
     auto rightSplit = MakeSplit({
@@ -5796,7 +5999,7 @@ TEST_F(TQueryEvaluateTest, LeftJoinWithCondition)
         "a=1;b=3;c=1",
         "a=2;b=1;c=1",
         "a=2;b=3;c=1",
-        "a=3;b=1;c=1"
+        "a=3;b=1;c=1",
     });
 
     auto resultSplit = MakeSplit({
@@ -5806,7 +6009,7 @@ TEST_F(TQueryEvaluateTest, LeftJoinWithCondition)
 
     auto result = YsonToRows({
         "a=1;s=1",
-        "a=4"
+        "a=4",
     }, resultSplit);
 
     Evaluate(
@@ -5819,7 +6022,7 @@ TEST_F(TQueryEvaluateTest, LeftJoinWithCondition)
         "a=1;s=1",
         "a=2",
         "a=3",
-        "a=4"
+        "a=4",
     }, resultSplit);
 
     Evaluate(
@@ -5850,7 +6053,7 @@ TEST_F(TQueryEvaluateTest, ComplexAlias)
         "a=72",
         "a=80;s=y",
         "a=85",
-        "a=90;s=z"
+        "a=90;s=z",
     };
 
     auto resultSplit = MakeSplit({
@@ -5862,7 +6065,7 @@ TEST_F(TQueryEvaluateTest, ComplexAlias)
         "x=y;t=160",
         "x=x;t=120",
         "t=199",
-        "x=z;t=160"
+        "x=z;t=160",
     }, resultSplit);
 
     Evaluate("x, sum(p.a) as t FROM [//t] as p where p.a > 10 group by p.s as x", split, source, ResultMatcher(result));
@@ -5888,7 +6091,7 @@ TEST_F(TQueryEvaluateTest, JoinMany)
         "a=6;b=60",
         "a=7;b=70",
         "a=8;b=80",
-        "a=9;b=90"
+        "a=9;b=90",
     });
 
     splits["//secondary"] = MakeSplit({
@@ -5904,7 +6107,7 @@ TEST_F(TQueryEvaluateTest, JoinMany)
         "c=6;b=60",
         "c=7;b=70",
         "c=8;b=80",
-        "c=9;b=90"
+        "c=9;b=90",
     });
 
     splits["//tertiary"] = MakeSplit({
@@ -5920,7 +6123,7 @@ TEST_F(TQueryEvaluateTest, JoinMany)
         "c=6;d=60",
         "c=7;d=70",
         "c=8;d=80",
-        "c=9;d=90"
+        "c=9;d=90",
     });
 
 
@@ -5932,7 +6135,7 @@ TEST_F(TQueryEvaluateTest, JoinMany)
 
     auto result = YsonToRows({
         "x=20;y=200;z=0",
-        "x=25;y=250;z=1"
+        "x=25;y=250;z=1",
     }, resultSplit);
 
     Evaluate(
@@ -5956,12 +6159,12 @@ TEST_F(TQueryEvaluateTest, TwoLeftJoinOneToMany)
     });
 
     TSource phrases = {
-        "cid=49353617;pid=4098243503"
+        "cid=49353617;pid=4098243503",
     };
 
     splits["//tag_group"] = MakeSplit({
         TColumnSchema("__hash__", EValueType::Int64, ESortOrder::Ascending)
-            .SetExpression(std::string("int64(farm_hash(pid) % 64)")),
+            .SetExpression("int64(farm_hash(pid) % 64)"),
         TColumnSchema("pid", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("tag_id", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("value", EValueType::Int64),
@@ -5969,12 +6172,12 @@ TEST_F(TQueryEvaluateTest, TwoLeftJoinOneToMany)
 
     TSource tag_group = {
         "__hash__=13;pid=4098243503;tag_id=39139420",
-        "__hash__=13;pid=4098243503;tag_id=39139421"
+        "__hash__=13;pid=4098243503;tag_id=39139421",
     };
 
     splits["//DirectPhraseStatV2"] = MakeSplit({
         TColumnSchema("YTHash", EValueType::Int64, ESortOrder::Ascending)
-            .SetExpression(std::string("int64(farm_hash(ExportID))")),
+            .SetExpression("int64(farm_hash(ExportID))"),
         TColumnSchema("ExportID", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("GroupExportID", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("UpdateTime", EValueType::Int64, ESortOrder::Ascending),
@@ -5984,7 +6187,7 @@ TEST_F(TQueryEvaluateTest, TwoLeftJoinOneToMany)
     TSource DirectPhraseStatV2 = {
         "YTHash=-9217565170028083870;ExportID=49353617;GroupExportID=4098243503;UpdateTime=1579813200",
         "YTHash=-9217565170028083870;ExportID=49353617;GroupExportID=4098243503;UpdateTime=1580072400",
-        "YTHash=-9217565170028083870;ExportID=49353617;GroupExportID=4098243503;UpdateTime=1580158800"
+        "YTHash=-9217565170028083870;ExportID=49353617;GroupExportID=4098243503;UpdateTime=1580158800",
     };
 
     auto resultSplit = MakeSplit({
@@ -6017,7 +6220,7 @@ TEST_F(TQueryEvaluateTest, TwoLeftJoinOneToMany)
             "tag_id=39139420;UpdateTime=1580158800",
             "tag_id=39139421;UpdateTime=1579813200",
             "tag_id=39139421;UpdateTime=1580072400",
-            "tag_id=39139421;UpdateTime=1580158800"
+            "tag_id=39139421;UpdateTime=1580158800",
         }, resultSplit);
 
         Evaluate(R"(
@@ -6189,7 +6392,7 @@ TEST_F(TQueryEvaluateTest, Udf)
         "a=1;b=10",
         "a=-2;b=20",
         "a=9;b=90",
-        "a=-10"
+        "a=-10",
     };
 
     auto resultSplit = MakeSplit({
@@ -6200,7 +6403,7 @@ TEST_F(TQueryEvaluateTest, Udf)
         "x=1",
         "x=2",
         "x=9",
-        "x=10"
+        "x=10",
     }, resultSplit);
 
     Evaluate("abs_udf(a) as x FROM [//t]", split, source, ResultMatcher(result));
@@ -6229,7 +6432,7 @@ TEST_F(TQueryEvaluateTest, ZeroArgumentUdf)
 
     auto result = YsonToRows({
         "a=75u",
-        "a=75u"
+        "a=75u",
     }, resultSplit);
 
     Evaluate("a FROM [//t] where a = seventyfive()", split, source, ResultMatcher(result));
@@ -6248,7 +6451,7 @@ TEST_F(TQueryEvaluateTest, UdfNullPropagation)
         "a=1;",
         "a=-2;b=-20",
         "a=9;",
-        "b=-10"
+        "b=-10",
     };
 
     auto resultSplit = MakeSplit({
@@ -6259,7 +6462,7 @@ TEST_F(TQueryEvaluateTest, UdfNullPropagation)
         "",
         "x=20",
         "",
-        "x=10"
+        "x=10",
     }, resultSplit);
 
     Evaluate("abs_udf(b) as x FROM [//t]", split, source, ResultMatcher(result));
@@ -6278,7 +6481,7 @@ TEST_F(TQueryEvaluateTest, UdfNullPropagation2)
         "a=1;",
         "a=2;b=10",
         "b=9",
-        ""
+        "",
     };
 
     auto resultSplit = MakeSplit({
@@ -6289,7 +6492,7 @@ TEST_F(TQueryEvaluateTest, UdfNullPropagation2)
         "",
         "x=1024",
         "",
-        ""
+        "",
     }, resultSplit);
 
     Evaluate("exp_udf(a, b) as x FROM [//t]", split, source, ResultMatcher(result));
@@ -6307,7 +6510,7 @@ TEST_F(TQueryEvaluateTest, UdfStringArgument)
         "a=\"123\"",
         "a=\"50\"",
         "a=\"\"",
-        ""
+        "",
     };
 
     auto resultSplit = MakeSplit({
@@ -6318,7 +6521,7 @@ TEST_F(TQueryEvaluateTest, UdfStringArgument)
         "x=123u",
         "x=50u",
         "x=0u",
-        ""
+        "",
     }, resultSplit);
 
     Evaluate("strtol_udf(a) as x FROM [//t]", split, source, ResultMatcher(result));
@@ -6336,7 +6539,7 @@ TEST_F(TQueryEvaluateTest, UdfStringResult)
         "a=\"HELLO\"",
         "a=\"HeLlO\"",
         "a=\"\"",
-        ""
+        "",
     };
 
     auto resultSplit = MakeSplit({
@@ -6347,7 +6550,7 @@ TEST_F(TQueryEvaluateTest, UdfStringResult)
         "x=\"hello\"",
         "x=\"hello\"",
         "x=\"\"",
-        ""
+        "",
     }, resultSplit);
 
     Evaluate("tolower_udf(a) as x FROM [//t]", split, source, ResultMatcher(result));
@@ -6364,7 +6567,7 @@ TEST_F(TQueryEvaluateTest, UnversionedValueUdf)
     auto source = TSource{
         "a=\"Hello\"",
         "a=\"\"",
-        ""
+        "",
     };
 
     auto resultSplit = MakeSplit({
@@ -6374,7 +6577,7 @@ TEST_F(TQueryEvaluateTest, UnversionedValueUdf)
     auto result = YsonToRows({
         "x=%false",
         "x=%false",
-        "x=%true"
+        "x=%true",
     }, resultSplit);
 
     Evaluate("is_null_udf(a) as x FROM [//t]", split, source, ResultMatcher(result));
@@ -6468,6 +6671,35 @@ TEST_F(TQueryEvaluateTest, YPathTryGetInt64)
     }, resultSplit);
 
     Evaluate("try_get_int64(yson, ypath) as result FROM [//t]", split, source, ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, YPathTryGetInt64FromList)
+{
+    auto split = MakeSplit({
+        {"yson", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+    });
+
+    auto source = TSource{
+        "yson=[1; 2; 3]",
+        "yson=[4]",
+        "yson=[]",
+        "",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"result", EValueType::Int64}
+    });
+
+    auto result = YsonToRows({
+        "result=1",
+        "result=4",
+        "result=#",
+        "result=#",
+    }, resultSplit);
+
+    Evaluate("try_get_int64(yson, \"/0\") as result FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -7028,7 +7260,7 @@ TEST_F(TQueryEvaluateTest, CompareAnyMixed)
         "r1=%false;r2=%false;r3=%true;r4=%true;r5=%true;r6=%false;r7=%true",
     }, resultSplit);
 
-    auto query = std::string("a < b as r1, a > b as r2, a <= b as r3, a >= b as r4, a = b as r5, a != b as r6, a < b = b "
+    auto query = TStringBuf("a < b as r1, a > b as r2, a <= b as r3, a >= b as r4, a = b as r5, a != b as r6, a < b = b "
         "> a and a > b = b < a as r7 FROM [//t]");
 
     Evaluate(query, MakeSplit({
@@ -7084,7 +7316,7 @@ TEST_F(TQueryEvaluateTest, ToAnyAndCompare)
         "r=%true",
     }, resultSplit);
 
-    auto query = std::string("to_any(a) = a FROM [//t]");
+    auto query = TStringBuf("to_any(a) = a FROM [//t]");
 
     Evaluate(query, MakeSplit({
             {"a", EValueType::Boolean}
@@ -7250,11 +7482,22 @@ TEST_F(TQueryEvaluateTest, YsonStringToAny)
 TEST_F(TQueryEvaluateTest, CompositeMemberAccessorStruct)
 {
     auto split = MakeSplit({
-        {"struct", StructLogicalType({
-            {"a", StructLogicalType({
-                {"b", StructLogicalType({
-                    {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}})}})},
-            {"d", SimpleLogicalType(ESimpleLogicalValueType::String)}})}});
+        {"struct", StructLogicalType(
+            {
+                {"a", "a", StructLogicalType(
+                    {
+                        {"b", "b", StructLogicalType(
+                            {
+                                {"c", "c", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
+                            },
+                            /*removedFieldStableNames*/ {}),
+                        },
+                    },
+                    /*removedFieldStableNames*/ {}),
+                },
+                {"d", "d", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            },
+            /*removedFieldStableNames*/ {})}});
 
     auto source = TSource{
         "struct={a={b={c=1}};d=a}",
@@ -7272,8 +7515,11 @@ TEST_F(TQueryEvaluateTest, CompositeMemberAccessorStruct)
     }
     {
         auto resultSplit = MakeSplit({
-            {"b", StructLogicalType({
-                {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}})}});
+            {"b", StructLogicalType(
+                {
+                    {"c", "c", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
+                },
+                /*removedFieldStableNames*/ {})}});
         auto result = YsonToRows({"b={c=1}", "b={c=2}", "b={c=3}", "b=#"}, resultSplit);
         EvaluateWithSyntaxV2("t.struct.a.b as b from `//t` as t", split, source, ResultMatcher(result));
     }
@@ -7295,10 +7541,22 @@ TEST_F(TQueryEvaluateTest, CompositeMemberAccessorStruct)
 TEST_F(TQueryEvaluateTest, CompositeMemberAccessorStruct2)
 {
     auto split = MakeSplit({
-        {"struct", StructLogicalType({
-            {"a", StructLogicalType({
-                {"b", StructLogicalType({
-                    {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}})}})}})}});
+        {"struct", StructLogicalType(
+            {
+                {"a", "a", StructLogicalType(
+                    {
+                        {"b", "b", StructLogicalType(
+                            {
+                                {"c", "c", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
+                            },
+                            /*removedFieldStableNames*/ {}),
+                        },
+                    },
+                    /*removedFieldStableNames*/ {}),
+                },
+            },
+            /*removedFieldStableNames*/ {}),
+        }});
 
     auto source = TSource{
         "struct={a={b={c=1}}}",
@@ -7320,8 +7578,11 @@ TEST_F(TQueryEvaluateTest, CompositeMemberAccessorStruct2)
 
     {
         auto resultSplit = MakeSplit({
-            {"b", StructLogicalType({
-                    {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}})}});
+            {"b", StructLogicalType(
+                {
+                    {"c", "c", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
+                },
+                /*removedFieldStableNames*/ {})}});
         auto result = YsonToRows({"b={c=1}", "b={}", "b=abc", "b=#", "b=#", "b=#", "b=#", "b=#"}, resultSplit);
         EvaluateWithSyntaxV2("t.struct.a.b as b from `//t` as t", split, source, ResultMatcher(result));
     }
@@ -7330,18 +7591,29 @@ TEST_F(TQueryEvaluateTest, CompositeMemberAccessorStruct2)
 TEST_F(TQueryEvaluateTest, CompositeMemberAccessorStructPositionalEncoding)
 {
     auto split = MakeSplit({
-        {"struct", StructLogicalType({
-            {"a", StructLogicalType({
-                {"b", StructLogicalType({
-                    {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}})}})},
-            {"d", SimpleLogicalType(ESimpleLogicalValueType::String)}})}});
+        {"struct", StructLogicalType(
+            {
+                {"a", "a", StructLogicalType(
+                    {
+                        {"b", "b", StructLogicalType(
+                            {
+                                {"c", "c", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
+                            },
+                            /*removedFieldStableNames*/ {}),
+                        },
+                    },
+                    /*removedFieldStableNames*/ {}),
+                },
+                {"d", "d", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            },
+            /*removedFieldStableNames*/ {})}});
 
-    auto source = TSource{
-        "struct=[[[1]];a]",
-        "struct=[[[2]];b]",
-        "struct=[[[3]];c]",
-        "struct=[[];d]",
-    };
+        auto source = TSource{
+            "struct=[[[1]];a]",
+            "struct=[[[2]];b]",
+            "struct=[[[3]];c]",
+            "struct=[[];d]",
+        };
 
     {
         auto resultSplit = MakeSplit({
@@ -7352,8 +7624,11 @@ TEST_F(TQueryEvaluateTest, CompositeMemberAccessorStructPositionalEncoding)
     }
     {
         auto resultSplit = MakeSplit({
-            {"b", StructLogicalType({
-                {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}})}});
+            {"b", StructLogicalType(
+                {
+                    {"c", "c", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
+                },
+                /*removedFieldStableNames*/ {})}});
         auto result = YsonToRows({"b=[1;]", "b=[2;]", "b=[3;]", "b=#"}, resultSplit);
         EvaluateWithSyntaxV2("t.struct.a.b as b from `//t` as t", split, source, ResultMatcher(result));
     }
@@ -7376,9 +7651,17 @@ TEST_F(TQueryEvaluateTest, CompositeMemberAccessorTuple)
 {
     auto split = MakeSplit({
         {"tuple", TupleLogicalType({
-            {StructLogicalType({
-                {"b", StructLogicalType({
-                    {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}})}})},
+            {StructLogicalType(
+                {
+                    {"b", "b", StructLogicalType(
+                        {
+                            {"c", "c", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
+                        },
+                        /*removedFieldStableNames*/ {}),
+                    },
+                },
+                /*removedFieldStableNames*/ {}),
+            },
             {SimpleLogicalType(ESimpleLogicalValueType::String)}})}});
 
     auto source = TSource{
@@ -7397,8 +7680,11 @@ TEST_F(TQueryEvaluateTest, CompositeMemberAccessorTuple)
     }
     {
         auto resultSplit = MakeSplit({
-            {"b", StructLogicalType({
-                {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}})}});
+            {"b", StructLogicalType(
+                {
+                    {"c", "c", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
+                },
+                /*removedFieldStableNames*/ {})}});
         auto result = YsonToRows({"b={c=1}", "b={c=2}", "b={c=3}", "b=#"}, resultSplit);
         EvaluateWithSyntaxV2("t.tuple.0.b as b from `//t` as t", split, source, ResultMatcher(result));
     }
@@ -7420,13 +7706,25 @@ TEST_F(TQueryEvaluateTest, CompositeMemberAccessorTuple)
 TEST_F(TQueryEvaluateTest, CompositeMemberAccessorListAndDict)
 {
     auto split = MakeSplit({
-        {"struct", StructLogicalType({
-            {"a", StructLogicalType({
-                {"b", StructLogicalType({
-                    {"list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
-                    {"dict", DictLogicalType(
-                        SimpleLogicalType(ESimpleLogicalValueType::String),
-                        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32)))}})}})}})},
+        {"struct", StructLogicalType(
+            {
+                {"a", "a", StructLogicalType(
+                    {
+                        {"b", "b", StructLogicalType(
+                            {
+                                {"list", "list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
+                                {"dict", "dict", DictLogicalType(
+                                    SimpleLogicalType(ESimpleLogicalValueType::String),
+                                    OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32)))},
+                            },
+                            /*removedFieldStableNames*/ {})
+                        },
+                    },
+                    /*removedFieldStableNames*/ {}),
+                },
+            },
+            /*removedFieldStableNames*/ {}),
+        },
         {"dict", DictLogicalType(
             SimpleLogicalType(ESimpleLogicalValueType::String),
             OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)))}});
@@ -7494,19 +7792,23 @@ TEST_F(TQueryEvaluateTest, CompositeMemberAccessorListAndDict)
 TEST_F(TQueryEvaluateTest, CompositeMemberAccessorDifferentTypes)
 {
     auto split = MakeSplit({
-        {"struct", StructLogicalType({
-            {"i64", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-            {"ui64", SimpleLogicalType(ESimpleLogicalValueType::Uint64)},
-            {"double", SimpleLogicalType(ESimpleLogicalValueType::Double)},
-            {"boolean", SimpleLogicalType(ESimpleLogicalValueType::Boolean)},
-            {"string", SimpleLogicalType(ESimpleLogicalValueType::String)},
-            {"any", SimpleLogicalType(ESimpleLogicalValueType::Any)},
-            {"i8", SimpleLogicalType(ESimpleLogicalValueType::Int8)},
-            {"ui8", SimpleLogicalType(ESimpleLogicalValueType::Uint8)},
-            {"i16", SimpleLogicalType(ESimpleLogicalValueType::Int16)},
-            {"ui16", SimpleLogicalType(ESimpleLogicalValueType::Uint16)},
-            {"i32", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
-            {"ui32", SimpleLogicalType(ESimpleLogicalValueType::Uint32)}})}});
+        {"struct", StructLogicalType(
+            {
+                {"i64", "i64", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+                {"ui64", "ui64", SimpleLogicalType(ESimpleLogicalValueType::Uint64)},
+                {"double", "double", SimpleLogicalType(ESimpleLogicalValueType::Double)},
+                {"boolean", "boolean", SimpleLogicalType(ESimpleLogicalValueType::Boolean)},
+                {"string", "string", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"any", "any", SimpleLogicalType(ESimpleLogicalValueType::Any)},
+                {"i8", "i8", SimpleLogicalType(ESimpleLogicalValueType::Int8)},
+                {"ui8", "ui8", SimpleLogicalType(ESimpleLogicalValueType::Uint8)},
+                {"i16", "i16", SimpleLogicalType(ESimpleLogicalValueType::Int16)},
+                {"ui16", "ui16", SimpleLogicalType(ESimpleLogicalValueType::Uint16)},
+                {"i32", "i32", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
+                {"ui32", "ui32", SimpleLogicalType(ESimpleLogicalValueType::Uint32)},
+            },
+            /*removedFieldStableNames*/ {}
+        )}});
 
     auto source = TSource{
         "struct={i64=1;ui64=5u;double=0.5;boolean=%true;string=abc;any={a={b=1}};i8=1;ui8=5u;i16=9;ui16=13u;i32=17;ui32=21u}",
@@ -7576,13 +7878,25 @@ TEST_F(TQueryEvaluateTest, CompositeMemberAccessorDifferentTypes)
 TEST_F(TQueryEvaluateTest, CompositeMemberAccessorWithIncorrectPath)
 {
     auto split = MakeSplit({
-        {"struct", StructLogicalType({
-            {"a", StructLogicalType({
-                {"b", StructLogicalType({
-                    {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}})}})},
-            {"d", SimpleLogicalType(ESimpleLogicalValueType::String)},
-            {"tuple", TupleLogicalType({
-                SimpleLogicalType(ESimpleLogicalValueType::Int32)})}})}});
+        {"struct", StructLogicalType(
+            {
+                {"a", "a", StructLogicalType(
+                    {
+                        {"b", "b", StructLogicalType(
+                            {
+                                {"c", "c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}
+                            },
+                            /*removedFieldStableNames*/ {})
+                        }
+                    },
+                    /*removedFieldStableNames*/ {}),
+                },
+                {"d", "d", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"tuple", "tuple", TupleLogicalType({
+                    SimpleLogicalType(ESimpleLogicalValueType::Int32)})},
+            },
+            /*removedFieldStableNames*/ {}),
+        }});
 
     auto source = TSource{
         "struct={a={b={c=1}};d=a;tuple=[1]}",
@@ -7629,13 +7943,25 @@ TEST_F(TQueryEvaluateTest, CompositeMemberWhere)
     std::vector<std::vector<std::string>> sources;
 
     auto schema = MakeSplit({
-        {"struct", StructLogicalType({
-            {"a", StructLogicalType({
-                {"b", StructLogicalType({
-                    {"list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
-                    {"dict", DictLogicalType(
-                        SimpleLogicalType(ESimpleLogicalValueType::String),
-                        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32)))}})}})}})},
+        {"struct", StructLogicalType(
+            {
+                {"a", "a", StructLogicalType(
+                    {
+                        {"b", "b", StructLogicalType(
+                            {
+                                {"list", "list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
+                                {"dict", "dict", DictLogicalType(
+                                    SimpleLogicalType(ESimpleLogicalValueType::String),
+                                    OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32)))},
+                            },
+                            /*removedFieldStableNames*/ {}),
+                        },
+                    },
+                    /*removedFieldStableNames*/ {}),
+                },
+            },
+            /*removedFieldStableNames*/ {}),
+        },
         {"dict", DictLogicalType(
             SimpleLogicalType(ESimpleLogicalValueType::String),
             OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)))}});
@@ -7651,13 +7977,25 @@ TEST_F(TQueryEvaluateTest, CompositeMemberWhere)
     sources.push_back(data);
 
     auto resultSplit = MakeSplit({
-        {"r.struct", StructLogicalType({
-            {"a", StructLogicalType({
-                {"b", StructLogicalType({
-                    {"list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
-                    {"dict", DictLogicalType(
-                        SimpleLogicalType(ESimpleLogicalValueType::String),
-                        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32)))}})}})}})},
+        {"r.struct", StructLogicalType(
+            {
+                {"a", "a", StructLogicalType(
+                    {
+                        {"b", "b", StructLogicalType(
+                            {
+                                {"list", "list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
+                                {"dict", "dict", DictLogicalType(
+                                    SimpleLogicalType(ESimpleLogicalValueType::String),
+                                    OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32)))},
+                            },
+                            /*removedFieldStableNames*/ {}),
+                        },
+                    },
+                    /*removedFieldStableNames*/ {}),
+                },
+            },
+            /*removedFieldStableNames*/ {}),
+        },
         {"r.dict", DictLogicalType(
             SimpleLogicalType(ESimpleLogicalValueType::String),
             OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)))},
@@ -7684,13 +8022,25 @@ TEST_F(TQueryEvaluateTest, CompositeMemberJoin)
     std::vector<std::vector<std::string>> sources;
 
     auto schema = MakeSplit({
-        {"struct", StructLogicalType({
-            {"a", StructLogicalType({
-                {"b", StructLogicalType({
-                    {"list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
-                    {"dict", DictLogicalType(
-                        SimpleLogicalType(ESimpleLogicalValueType::String),
-                        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32)))}})}})}})},
+        {"struct", StructLogicalType(
+            {
+                {"a", "a", StructLogicalType(
+                    {
+                        {"b", "b", StructLogicalType(
+                            {
+                                {"list", "list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
+                                {"dict", "dict", DictLogicalType(
+                                    SimpleLogicalType(ESimpleLogicalValueType::String),
+                                    OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32)))},
+                            },
+                            /*removedFieldStableNames*/ {}),
+                        },
+                    },
+                    /*removedFieldStableNames*/ {}),
+                },
+            },
+            /*removedFieldStableNames*/ {}),
+        },
         {"dict", DictLogicalType(
             SimpleLogicalType(ESimpleLogicalValueType::String),
             OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)))}});
@@ -7709,24 +8059,48 @@ TEST_F(TQueryEvaluateTest, CompositeMemberJoin)
     sources.push_back(data);
 
     auto resultSplit = MakeSplit({
-        {"r.struct", StructLogicalType({
-            {"a", StructLogicalType({
-                {"b", StructLogicalType({
-                    {"list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
-                    {"dict", DictLogicalType(
-                        SimpleLogicalType(ESimpleLogicalValueType::String),
-                        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32)))}})}})}})},
+        {"r.struct", StructLogicalType(
+            {
+                {"a", "a", StructLogicalType(
+                    {
+                        {"b", "b", StructLogicalType(
+                            {
+                                {"list", "list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
+                                {"dict", "dict", DictLogicalType(
+                                    SimpleLogicalType(ESimpleLogicalValueType::String),
+                                    OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32)))},
+                            },
+                            /*removedFieldStableNames*/ {}),
+                        },
+                    },
+                    /*removedFieldStableNames*/ {}),
+                },
+            },
+            /*removedFieldStableNames*/ {}),
+        },
         {"r.dict", DictLogicalType(
             SimpleLogicalType(ESimpleLogicalValueType::String),
             OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)))},
 
-        {"s.struct", StructLogicalType({
-            {"a", StructLogicalType({
-                {"b", StructLogicalType({
-                    {"list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
-                    {"dict", DictLogicalType(
-                        SimpleLogicalType(ESimpleLogicalValueType::String),
-                        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32)))}})}})}})},
+        {"s.struct", StructLogicalType(
+            {
+                {"a", "a", StructLogicalType(
+                    {
+                        {"b", "b", StructLogicalType(
+                            {
+                                {"list", "list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
+                                {"dict", "dict", DictLogicalType(
+                                    SimpleLogicalType(ESimpleLogicalValueType::String),
+                                    OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32)))},
+                            },
+                            /*removedFieldStableNames*/ {}),
+                        },
+                    },
+                    /*removedFieldStableNames*/ {}),
+                },
+            },
+            /*removedFieldStableNames*/ {}),
+        },
         {"s.dict", DictLogicalType(
             SimpleLogicalType(ESimpleLogicalValueType::String),
             OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)))}
@@ -7735,7 +8109,7 @@ TEST_F(TQueryEvaluateTest, CompositeMemberJoin)
     auto result = YsonToRows({
         "r.struct={a={b={list=[2;3];dict={i=2}}}};s.struct={a={b={list=[1;2;3];dict={i=1;j=2;k=3}}}};s.dict={a=b;c=d}",
         "r.struct={a={b={list=[3;4];dict={i=3}}}};s.struct={a={b={list=[2;3];dict={i=2}}}}",
-        "r.struct={a={b={list=[];dict={}}}};s.struct={a={b={list=[];dict={}}}}"
+        "r.struct={a={b={list=[];dict={}}}};s.struct={a={b={list=[];dict={}}}}",
     }, resultSplit);
 
     Evaluate(R"(
@@ -7757,7 +8131,7 @@ TEST_F(TQueryEvaluateTest, VarargUdf)
 
     auto source = TSource{
         "a=1",
-        "a=2"
+        "a=2",
     };
 
     auto resultSplit = MakeSplit({
@@ -7766,7 +8140,7 @@ TEST_F(TQueryEvaluateTest, VarargUdf)
 
     auto result = YsonToRows({
         "x=1",
-        "x=2"
+        "x=2",
     }, resultSplit);
 
     Evaluate("a as x FROM [//t] where sum_udf(7, 3, a) in (11u, 12)", split, source, ResultMatcher(result));
@@ -7784,7 +8158,7 @@ TEST_F(TQueryEvaluateTest, FarmHash)
 
     auto source = TSource{
         "a=3;b=\"hello\";c=%true",
-        "a=54;c=%false"
+        "a=54;c=%false",
     };
 
     auto resultSplit = MakeSplit({
@@ -7793,7 +8167,7 @@ TEST_F(TQueryEvaluateTest, FarmHash)
 
     auto result = YsonToRows({
         "x=13185060272037541714u",
-        "x=1607147011416532415u"
+        "x=1607147011416532415u",
     }, resultSplit);
 
     Evaluate("farm_hash(a, b, c) as x FROM [//t]", split, source, ResultMatcher(result));
@@ -8038,7 +8412,7 @@ TEST_F(TQueryEvaluateTest, AverageAgg)
         "a=53",
         "a=8",
         "a=24",
-        "a=33"
+        "a=33",
     };
 
     auto resultSplit = MakeSplit({
@@ -8063,7 +8437,7 @@ TEST_F(TQueryEvaluateTest, GroupByTransform)
         "a=53",
         "a=8",
         "a=24",
-        "a=33"
+        "a=33",
     };
 
     auto resultSplit = MakeSplit({
@@ -8095,7 +8469,7 @@ TEST_F(TQueryEvaluateTest, AverageAgg2)
         "a=33;b=4;c=9",
         "a=33;b=3;c=43",
         "a=23;b=0;c=0",
-        "a=33;b=8;c=2"
+        "a=33;b=8;c=2",
     };
 
     auto resultSplit = MakeSplit({
@@ -8108,7 +8482,7 @@ TEST_F(TQueryEvaluateTest, AverageAgg2)
 
     auto result = YsonToRows({
         "r1=17.0;x=1;r2=43;r3=20.0;r4=3",
-        "r1=35.5;x=0;r2=9;r3=3.5;r4=23"
+        "r1=35.5;x=0;r2=9;r3=3.5;r4=23",
     }, resultSplit);
 
     Evaluate(
@@ -8139,7 +8513,7 @@ TEST_F(TQueryEvaluateTest, AverageAgg3)
 
     auto result = YsonToRows({
         "b=1;x=5.0",
-        "b=0"
+        "b=0",
     }, resultSplit);
 
     Evaluate("b, avg(a) as x from [//t] group by b", split, source, ResultMatcher(result));
@@ -8184,7 +8558,7 @@ TEST_F(TQueryEvaluateTest, ArgMin)
         "any={x=1};     double=3.33;    integer=2",
         "any=\"aleph\"; double=4.44;    integer=2",
         "any=0;         double=1.11;    integer=1",
-        "any=#;         double=6.66;    integer=2"
+        "any=#;         double=6.66;    integer=2",
     };
 
     auto resultSplit = MakeSplit({
@@ -8194,7 +8568,7 @@ TEST_F(TQueryEvaluateTest, ArgMin)
 
     auto result = YsonToRows({
         "integer=1;c=0",
-        "integer=2;c={x=1}"
+        "integer=2;c={x=1}",
     }, resultSplit);
 
     Evaluate("integer, argmin(any, double) as c from [//t] group by integer", split, source, ResultMatcher(result));
@@ -8219,7 +8593,7 @@ TEST_F(TQueryEvaluateTest, CardinalityAggregate)
     });
 
     auto result = YsonToRows({
-        "upper=%true;lower=%true"
+        "upper=%true;lower=%true",
     }, resultSplit);
 
     Evaluate(
@@ -8227,6 +8601,37 @@ TEST_F(TQueryEvaluateTest, CardinalityAggregate)
         split,
         source,
         ResultMatcher(result));
+}
+
+TEST_F(TQueryEvaluateTest, UniqAggregate)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    int value = 0;
+    std::vector<TSource> sources(4);
+    for (auto& source : sources) {
+        source.reserve(20000);
+        for (int j = 0; j < 20000; j++) {
+            source.push_back("a=" + std::to_string(value++));
+        }
+    }
+
+    auto resultSplit = MakeSplit({
+        {"stable_cardinality", EValueType::Uint64},
+    });
+
+    auto result = YsonToRows({
+        "stable_cardinality=80176u"
+    }, resultSplit);
+
+    EvaluateCoordinatedGroupByImpl(
+        "uniq(a) as stable_cardinality from [//t] group by 1",
+        split,
+        sources,
+        ResultMatcher(result),
+        EExecutionBackend::Native);
 }
 
 TEST_F(TQueryEvaluateTest, CardinalityAggregateTotals)
@@ -8249,7 +8654,7 @@ TEST_F(TQueryEvaluateTest, CardinalityAggregateTotals)
 
     auto result = YsonToRows({
         "upper=%true;lower=%true",
-        "upper=%true;lower=%true"
+        "upper=%true;lower=%true",
     }, resultSplit);
 
     Evaluate(
@@ -8282,7 +8687,7 @@ TEST_F(TQueryEvaluateTest, CardinalityAggregateTotals2)
     auto result = YsonToRows({
         "result=%true;total=%false;b=2",
         "result=%true;total=%true;b=3",
-        "result=%true;total=%true"
+        "result=%true;total=%true",
     }, resultSplit);
 
     Evaluate(
@@ -8317,7 +8722,7 @@ TEST_F(TQueryEvaluateTest, CardinalityAggregateTotals3)
     auto result = YsonToRows({
         "result=%true;total=%false;b=1",
         "result=%true;total=%false;b=2",
-        "result=%false;total=%true"
+        "result=%false;total=%true",
     }, resultSplit);
 
     Evaluate(
@@ -8390,7 +8795,7 @@ TEST_F(TQueryEvaluateTest, MakeMapSuccess)
     });
 
     auto source = TSource{
-        "v_any={hello=world}"
+        "v_any={hello=world}",
     };
 
     auto resultSplit = MakeSplit({
@@ -8428,7 +8833,7 @@ TEST_F(TQueryEvaluateTest, MakeMapFailure)
     });
 
     auto source = TSource{
-        "a=1"
+        "a=1",
     };
 
     auto resultSplit = MakeSplit({
@@ -8456,7 +8861,7 @@ TEST_F(TQueryEvaluateTest, DecimalExpr)
         {"a", DecimalLogicalType(5, 2)}
     });
     auto source = TSource{
-        "a=\"\\x80\\x00\\x2a\\x3a\""
+        "a=\"\\x80\\x00\\x2a\\x3a\"",
     };
 
     auto result = YsonToRows(source, split);
@@ -8472,7 +8877,7 @@ TEST_F(TQueryEvaluateTest, TypeV1Propagation)
         {"a", SimpleLogicalType(ESimpleLogicalValueType::Int32)}
     });
     auto source = TSource{
-        "a=5"
+        "a=5",
     };
 
     auto result = YsonToRows(source, split);
@@ -8637,12 +9042,12 @@ protected:
     {
         TIntValue a, b, c;
 
-        bool operator< (const TPrimaryKey& other) const
+        bool operator<(const TPrimaryKey& other) const
         {
             return std::tie(a, b, c) < std::tie(other.a, other.b, other.c);
         }
 
-        bool operator== (const TPrimaryKey& other) const
+        bool operator==(const TPrimaryKey& other) const
         {
             return std::tie(a, b, c) == std::tie(other.a, other.b, other.c);
         }
@@ -8662,12 +9067,12 @@ protected:
     {
         TIntValue d, e;
 
-        bool operator< (const TSecondaryKey& other) const
+        bool operator<(const TSecondaryKey& other) const
         {
             return std::tie(d, e) < std::tie(other.d, other.e);
         }
 
-        bool operator== (const TSecondaryKey& other) const
+        bool operator==(const TSecondaryKey& other) const
         {
             return std::tie(d, e) == std::tie(other.d, other.e);
         }
@@ -8687,12 +9092,12 @@ protected:
     {
         TIntValue x, y, z;
 
-        bool operator< (const TGroupKey& other) const
+        bool operator<(const TGroupKey& other) const
         {
             return std::tie(x, y, z) < std::tie(other.x, other.y, other.z);
         }
 
-        bool operator== (const TGroupKey& other) const
+        bool operator==(const TGroupKey& other) const
         {
             return std::tie(x, y, z) == std::tie(other.x, other.y, other.z);
         }
@@ -8702,7 +9107,7 @@ protected:
     {
         TIntValue count, sumv, sumw;
 
-        void operator+= (const TAggregates& other)
+        void operator+=(const TAggregates& other)
         {
             count += other.count;
             sumv += other.sumv;
@@ -8996,7 +9401,7 @@ INSTANTIATE_TEST_SUITE_P(1, TQueryEvaluateComplexTest,
     ::testing::Combine(
         ::testing::ValuesIn({
             "",
-            "left"
+            "left",
         }), // join type
         ::testing::ValuesIn({
             TJoinColumns{"a, b", "d, e"},
@@ -9013,7 +9418,7 @@ INSTANTIATE_TEST_SUITE_P(1, TQueryEvaluateComplexTest,
         }), // group by
         ::testing::ValuesIn({
             "",
-            "with totals"
+            "with totals",
         })));
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -9447,7 +9852,7 @@ TEST_P(TQueryEvaluateCaseTest, Simple)
         "a=6;b=4",
         "a=7;b=3",
         "a=8;b=2",
-        "a=9;b=1"
+        "a=9;b=1",
     };
 
     const auto& args = GetParam();
@@ -9895,14 +10300,14 @@ TEST_F(TQueryEvaluateTest, Greatest)
     auto source = TSource{
         "a=1;b=1u;c=1.;d=%true;e=\"a\"",
         "a=-10;b=10u;c=-10.;d=%false;e=\"xa\"",
-        "a=1333;b=1333u;c=1333.3;d=%true;e=\"abac\""
+        "a=1333;b=1333u;c=1333.3;d=%true;e=\"abac\"",
     };
 
     auto resultMatcherInt = ResultMatcher(
         YsonToRows({
             "r1=1;r2=5;r3=7",
             "r1=-10;r2=5;r3=7",
-            "r1=1333;r2=1333;r3=1333"
+            "r1=1333;r2=1333;r3=1333",
         },
         MakeSplit({
             {"r1", EValueType::Int64},
@@ -9914,7 +10319,7 @@ TEST_F(TQueryEvaluateTest, Greatest)
         YsonToRows({
             "r1=1u;r2=5u",
             "r1=10u;r2=10u",
-            "r1=1333u;r2=1333u"
+            "r1=1333u;r2=1333u",
         },
         MakeSplit({
             {"r1", EValueType::Uint64},
@@ -9925,7 +10330,7 @@ TEST_F(TQueryEvaluateTest, Greatest)
         YsonToRows({
             "r1=1.;r2=5.",
             "r1=-10.;r2=5.",
-            "r1=1333.3;r2=1333.3"
+            "r1=1333.3;r2=1333.3",
         },
         MakeSplit({
             {"r1", EValueType::Double},
@@ -9936,7 +10341,7 @@ TEST_F(TQueryEvaluateTest, Greatest)
         YsonToRows({
             "r1=%true;r2=%true",
             "r1=%false;r2=%false",
-            "r1=%true;r2=%true"
+            "r1=%true;r2=%true",
         },
         MakeSplit({
             {"r1", EValueType::Boolean},
@@ -9947,7 +10352,7 @@ TEST_F(TQueryEvaluateTest, Greatest)
         YsonToRows({
             "r1=\"a\";r2=\"ada\"",
             "r1=\"xa\";r2=\"xa\"",
-            "r1=\"abac\";r2=\"ada\""
+            "r1=\"abac\";r2=\"ada\"",
         },
         MakeSplit({
             {"r1", EValueType::String},
@@ -9981,7 +10386,7 @@ TEST_F(TQueryEvaluateTest, MathAbs)
         "a=-4;b=-109.4;c=10;d=95u",
         "a=-6;b=153.9;c=#;d=#",
         "a=2;b=-98.2;c=-92;d=63u",
-        "a=#;b=#;c=#;d=#"
+        "a=#;b=#;c=#;d=#",
     };
 
     auto result = YsonToRows({
@@ -9991,7 +10396,7 @@ TEST_F(TQueryEvaluateTest, MathAbs)
         "a=4;b=109.4;c=10;d=95u",
         "a=6;b=153.9;c=#;d=#",
         "a=2;b=98.2;c=92;d=63u",
-        "a=#;b=#;c=#;d=#"
+        "a=#;b=#;c=#;d=#",
     }, split);
 
     Evaluate(
@@ -10019,12 +10424,12 @@ TEST_F(TQueryEvaluateTest, MathAcos)
 
     auto source = TSource{
         "a=1.",
-        "a=0.2"
+        "a=0.2",
     };
 
     auto result = YsonToRows({
         "a=0.",
-        "a=1.3694384"
+        "a=1.3694384",
     }, MakeSplit({{"a", EValueType::Double}}));
 
     Evaluate(
@@ -10044,12 +10449,12 @@ TEST_F(TQueryEvaluateTest, MathAsin)
 
     auto source = TSource{
         "a=0.",
-        "a=0.2"
+        "a=0.2",
     };
 
     auto result = YsonToRows({
         "a=0.",
-        "a=0.2013579"
+        "a=0.2013579",
     }, MakeSplit({{"a", EValueType::Double}}));
 
     Evaluate(
@@ -10069,12 +10474,12 @@ TEST_F(TQueryEvaluateTest, MathCeil)
 
     auto source = TSource{
         "a=2.2",
-        "a=-14.2"
+        "a=-14.2",
     };
 
     auto result = YsonToRows({
         "a=3",
-        "a=-14"
+        "a=-14",
     }, MakeSplit({{"a", EValueType::Int64}}));
 
     Evaluate(
@@ -10094,12 +10499,12 @@ TEST_F(TQueryEvaluateTest, MathCbrt)
 
     auto source = TSource{
         "a=8.",
-        "a=16.4"
+        "a=16.4",
     };
 
     auto result = YsonToRows({
         "a=2.",
-        "a=2.5406681"
+        "a=2.5406681",
     }, MakeSplit({{"a", EValueType::Double}}));
 
     Evaluate(
@@ -10119,12 +10524,12 @@ TEST_F(TQueryEvaluateTest, MathCos)
 
     auto source = TSource{
         "a=0.",
-        "a=0.3"
+        "a=0.3",
     };
 
     auto result = YsonToRows({
         "a=1.",
-        "a=0.95533648912"
+        "a=0.95533648912",
     }, MakeSplit({{"a", EValueType::Double}}));
 
     Evaluate(
@@ -10144,12 +10549,12 @@ TEST_F(TQueryEvaluateTest, MathCot)
 
     auto source = TSource{
         "a=0.5",
-        "a=12.3"
+        "a=12.3",
     };
 
     auto result = YsonToRows({
         "a=1.830487721712452",
-        "a=-3.664954802"
+        "a=-3.664954802",
     }, MakeSplit({{"a", EValueType::Double}}));
 
     Evaluate(
@@ -10169,12 +10574,12 @@ TEST_F(TQueryEvaluateTest, MathDegrees)
 
     auto source = TSource{
         "a=0.",
-        "a=1.7"
+        "a=1.7",
     };
 
     auto result = YsonToRows({
         "a=0.",
-        "a=97.402825"
+        "a=97.402825",
     }, MakeSplit({{"a", EValueType::Double}}));
 
     Evaluate(
@@ -10221,12 +10626,12 @@ TEST_F(TQueryEvaluateTest, MathExp)
 
     auto source = TSource{
         "a=3.",
-        "a=6.3"
+        "a=6.3",
     };
 
     auto result = YsonToRows({
         "a=20.085536923187",
-        "a=544.5719101"
+        "a=544.5719101",
     }, MakeSplit({{"a", EValueType::Double}}));
 
     Evaluate(
@@ -10246,12 +10651,12 @@ TEST_F(TQueryEvaluateTest, MathFloor)
 
     auto source = TSource{
         "a=2.2",
-        "a=-1.125"
+        "a=-1.125",
     };
 
     auto result = YsonToRows({
         "a=2",
-        "a=-2"
+        "a=-2",
     }, MakeSplit({{"a", EValueType::Int64}}));
 
     Evaluate(
@@ -10271,12 +10676,12 @@ TEST_F(TQueryEvaluateTest, MathGamma)
 
     auto source = TSource{
         "a=3.0",
-        "a=5.2"
+        "a=5.2",
     };
 
     auto result = YsonToRows({
         "a=2.0",
-        "a=32.578096"
+        "a=32.578096",
     }, MakeSplit({{"a", EValueType::Double}}));
 
     Evaluate(
@@ -10296,12 +10701,12 @@ TEST_F(TQueryEvaluateTest, MathIsinf)
 
     auto source = TSource{
         "a=2.2",
-        "a=%inf"
+        "a=%inf",
     };
 
     auto result = YsonToRows({
         "a=%false",
-        "a=%true"
+        "a=%true",
     }, MakeSplit({{"a", EValueType::Boolean}}));
 
     Evaluate(
@@ -10321,12 +10726,12 @@ TEST_F(TQueryEvaluateTest, MathLgamma)
 
     auto source = TSource{
         "a=3.0",
-        "a=5.0"
+        "a=5.0",
     };
 
     auto result = YsonToRows({
         "a=0.693147",
-        "a=3.1780538303479458"
+        "a=3.1780538303479458",
     }, MakeSplit({{"a", EValueType::Double}}));
 
     Evaluate(
@@ -10346,12 +10751,12 @@ TEST_F(TQueryEvaluateTest, MathLn)
 
     auto source = TSource{
         "a=2.2",
-        "a=5.0"
+        "a=5.0",
     };
 
     auto result = YsonToRows({
         "a=0.788457",
-        "a=1.60943791243"
+        "a=1.60943791243",
     }, MakeSplit({{"a", EValueType::Double}}));
 
     Evaluate(
@@ -10431,12 +10836,12 @@ TEST_F(TQueryEvaluateTest, MathRadians)
 
     auto source = TSource{
         "a=180.",
-        "a=45."
+        "a=45.",
     };
 
     auto result = YsonToRows({
         "a=3.141592653589793",
-        "a=0.785398"
+        "a=0.785398",
     }, MakeSplit({{"a", EValueType::Double}}));
 
     Evaluate(
@@ -10508,12 +10913,12 @@ TEST_F(TQueryEvaluateTest, MathSin)
 
     auto source = TSource{
         "a=0.",
-        "a=0.5"
+        "a=0.5",
     };
 
     auto result = YsonToRows({
         "a=0.",
-        "a=0.4794255386"
+        "a=0.4794255386",
     }, MakeSplit({{"a", EValueType::Double}}));
 
     Evaluate(
@@ -10560,12 +10965,12 @@ TEST_F(TQueryEvaluateTest, MathTan)
 
     auto source = TSource{
         "a=0.",
-        "a=0.5"
+        "a=0.5",
     };
 
     auto result = YsonToRows({
         "a=0.",
-        "a=0.54630248984"
+        "a=0.54630248984",
     }, MakeSplit({{"a", EValueType::Double}}));
 
     Evaluate(
@@ -10641,7 +11046,7 @@ TEST_F(TQueryEvaluateTest, MathAtan2)
 
     auto result = YsonToRows({
         "a=0.785398",
-        "a=0.463647609"
+        "a=0.463647609",
     }, MakeSplit({{"a", EValueType::Double}}));
 
     Evaluate(
@@ -10668,7 +11073,7 @@ TEST_F(TQueryEvaluateTest, MathFactorial)
     auto result = YsonToRows({
         "a=1u",
         "a=2u",
-        "a=1307674368000u"
+        "a=1307674368000u",
     }, MakeSplit({{"a", EValueType::Uint64}}));
 
     Evaluate(
@@ -10689,7 +11094,7 @@ TEST_F(TQueryEvaluateTest, MathGcd)
 
     auto source = TSource{
         "a=1u;b=1u",
-        "a=8u;b=6u"
+        "a=8u;b=6u",
     };
 
     auto result = YsonToRows({
@@ -10715,12 +11120,12 @@ TEST_F(TQueryEvaluateTest, MathLcm)
 
     auto source = TSource{
         "a=1u;b=1u",
-        "a=8u;b=6u"
+        "a=8u;b=6u",
     };
 
     auto result = YsonToRows({
         "a=1u",
-        "a=24u"
+        "a=24u",
     }, MakeSplit({{"a", EValueType::Uint64}}));
 
     Evaluate(
@@ -10740,7 +11145,7 @@ TEST_F(TQueryEvaluateTest, MathRound)
 
     auto source = TSource{
         "a=1.5",
-        "a=-1.5"
+        "a=-1.5",
     };
 
     auto result = YsonToRows({
@@ -10766,12 +11171,12 @@ TEST_F(TQueryEvaluateTest, MathXor)
 
     auto source = TSource{
         "a=1u;b=1u",
-        "a=13u;b=7u"
+        "a=13u;b=7u",
     };
 
     auto result = YsonToRows({
         "a=0u",
-        "a=10u"
+        "a=10u",
     }, MakeSplit({{"a", EValueType::Uint64}}));
 
     Evaluate(
@@ -10792,7 +11197,7 @@ TEST_F(TQueryEvaluateTest, GreatestError)
 
     auto source = TSource{
         "a=1",
-        "b=%false"
+        "b=%false",
     };
 
     EvaluateExpectingError("greatest(a, null) FROM [//t]", split, source);

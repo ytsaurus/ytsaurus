@@ -22,7 +22,7 @@ public:
     void Set(bool value) noexcept;
     bool Get() const noexcept;
 
-    void operator = (bool value) noexcept;
+    void operator=(bool value) noexcept;
 
     operator bool () const noexcept;
 

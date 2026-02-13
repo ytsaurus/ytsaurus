@@ -25,6 +25,7 @@ target_compile_options(yt-yt-library-profiling-unittests PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(yt-yt-library-profiling-unittests PUBLIC
@@ -36,6 +37,7 @@ target_link_libraries(yt-yt-library-profiling-unittests PUBLIC
   library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main
+  cpp-json-yson
   yt-core-test_framework
   yt-library-profiling
   library-profiling-solomon

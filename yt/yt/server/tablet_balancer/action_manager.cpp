@@ -40,13 +40,15 @@ public:
     TActionManager(
         TActionManagerConfigPtr config,
         NApi::NNative::IClientPtr client,
-        IBootstrap* bootstrap);
+        IBootstrap* bootstrap,
+        IMulticellThrottlerPtr throttler);
 
     void ScheduleActionCreation(const std::string& bundleName, const TActionDescriptor& descriptor) override;
     void CreateActions(const std::string& bundleName) override;
 
-    bool HasUnfinishedActions(const std::string& bundleName) const override;
-    bool IsKnownAction(const std::string& bundleName, TTabletActionId actionId) const override;
+    bool HasUnfinishedActions(
+        const std::string& bundleName,
+        const std::vector<TTabletActionId>& knownBundleActionIds) const override;
 
     bool HasPendingActions(const std::string& bundleName) const override;
     void CancelPendingActions(const std::string& bundleName) override;
@@ -61,20 +63,28 @@ private:
     {
         NProfiling::TGauge RunningActions;
         NProfiling::TCounter FailedActions;
+        NProfiling::TCounter StartedSmoothMovementActions;
+        NProfiling::TCounter FailedAtStartSmoothMovementActions;
+        NProfiling::TCounter FailedAtRuntimeSmoothMovementActions;
     };
 
     const NApi::NNative::IClientPtr Client_;
     const IInvokerPtr Invoker_;
+    const IMulticellThrottlerPtr MasterRequestThrottler_;
 
     TActionManagerConfigPtr Config_;
     NConcurrency::TPeriodicExecutorPtr PollExecutor_;
     NConcurrency::TPeriodicExecutorPtr CreateActionExecutor_;
 
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, PendingActionsLock_);
     THashMap<std::string, std::deque<TActionDescriptor>> PendingActionDescriptors_;
+
+    // Only to use from Invoker.
     THashMap<std::string, THashSet<TTabletActionPtr>> RunningActions_;
     THashMap<std::string, std::deque<TTabletActionPtr>> FinishedActions_;
     THashMap<std::string, TBundleProfilingCounters> ProfilingCounters_;
 
+    // For bundles with confirmed pending actions we cannot add more pending actions.
     std::queue<std::pair<std::string, TInstant>> BundlesWithPendingActions_;
 
     bool Started_ = false;
@@ -89,9 +99,19 @@ private:
 
     int GetRunningActionCount() const;
 
+    bool AreAllActionsKnown(
+        const std::string& bundleName,
+        std::vector<TTabletActionId> actionIds) const;
+
     IAttributeDictionaryPtr MakeActionAttributes(const TActionDescriptor& descriptor);
+
+    bool IsSmoothMovementAction(const TActionDescriptor& descriptor) const;
+
     void MoveFinishedActionsFromRunningToFinished();
+
     const TBundleProfilingCounters& GetOrCreateProfilingCounters(const std::string& bundleName);
+
+    void DropFrontBundleWithPendingActions(const std::string& bundleName);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -99,9 +119,11 @@ private:
 TActionManager::TActionManager(
     TActionManagerConfigPtr config,
     NApi::NNative::IClientPtr client,
-    IBootstrap* bootstrap)
+    IBootstrap* bootstrap,
+    IMulticellThrottlerPtr throttler)
     : Client_(std::move(client))
     , Invoker_(bootstrap->GetControlInvoker())
+    , MasterRequestThrottler_(throttler)
     , Config_(std::move(config))
     , PollExecutor_(New<TPeriodicExecutor>(
         Invoker_,
@@ -115,7 +137,9 @@ TActionManager::TActionManager(
 
 void TActionManager::ScheduleActionCreation(const std::string& bundleName, const TActionDescriptor& descriptor)
 {
-    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    auto guard = WriterGuard(PendingActionsLock_);
 
     PendingActionDescriptors_[bundleName].emplace_back(descriptor);
 }
@@ -132,7 +156,10 @@ void TActionManager::CreateActions(const std::string& bundleName)
             bundleName);
     }
 
-    YT_VERIFY(PendingActionDescriptors_.contains(bundleName));
+    {
+        auto guard = ReaderGuard(PendingActionsLock_);
+        YT_VERIFY(PendingActionDescriptors_.contains(bundleName));
+    }
 
     BundlesWithPendingActions_.emplace(bundleName, TInstant::Now() + Config_->TabletActionCreationTimeout);
 }
@@ -149,6 +176,8 @@ void TActionManager::TryCreatePendingActions()
 
 void TActionManager::CreatePendingActions()
 {
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+
     auto runningActionCount = GetRunningActionCount();
     if (BundlesWithPendingActions_.empty()) {
         YT_LOG_DEBUG("No action to create in any bundle");
@@ -176,22 +205,24 @@ void TActionManager::CreatePendingActions()
     while (actionCount < Config_->CreateActionBatchSizeLimit && !BundlesWithPendingActions_.empty()) {
         auto [bundleName, timeout] = BundlesWithPendingActions_.front();
         if (timeout < iterationStartTime) {
+            auto guard = WriterGuard(PendingActionsLock_);
             YT_LOG_WARNING(
                 "Actions were dropped due to timeout (Bundle: %v, ActionCount: %v, Timeout: %v)",
                 bundleName,
                 std::ssize(PendingActionDescriptors_[bundleName]),
                 Config_->TabletActionCreationTimeout);
 
-            BundlesWithPendingActions_.pop();
-            EraseOrCrash(PendingActionDescriptors_, bundleName);
+            DropFrontBundleWithPendingActions(bundleName);
             continue;
         }
 
         actionCount += CreatePendingBundleActions(bundleName, Config_->CreateActionBatchSizeLimit - actionCount);
 
-        if (PendingActionDescriptors_[bundleName].empty()) {
-            BundlesWithPendingActions_.pop();
-            EraseOrCrash(PendingActionDescriptors_, bundleName);
+        {
+            auto guard = WriterGuard(PendingActionsLock_);
+            if (PendingActionDescriptors_[bundleName].empty()) {
+                DropFrontBundleWithPendingActions(bundleName);
+            }
         }
     }
 
@@ -202,6 +233,8 @@ void TActionManager::CreatePendingActions()
 
 int TActionManager::GetRunningActionCount() const
 {
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+
     return std::accumulate(
         RunningActions_.begin(),
         RunningActions_.end(),
@@ -213,14 +246,24 @@ int TActionManager::GetRunningActionCount() const
 
 int TActionManager::CreatePendingBundleActions(const std::string& bundleName, int actionCountLimit)
 {
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+
     YT_LOG_DEBUG("Creating pending actions (Bundle: %v, ActionCountLimit: %v)",
         bundleName,
         actionCountLimit);
 
-    auto& descriptors = PendingActionDescriptors_[bundleName];
+    std::deque<TActionDescriptor> descriptors;
+
+    {
+        auto guard = ReaderGuard(PendingActionsLock_);
+        descriptors = PendingActionDescriptors_[bundleName];
+    }
+
     actionCountLimit = std::min<int>(actionCountLimit, std::ssize(descriptors));
 
     std::vector<TFuture<NObjectClient::TObjectId>> futures;
+
+    int createdSmoothMovementActionCount = 0;
 
     for (int index = 0; index < actionCountLimit; ++index) {
         auto attributes = MakeActionAttributes(descriptors[index]);
@@ -231,6 +274,13 @@ int TActionManager::CreatePendingBundleActions(const std::string& bundleName, in
         options.Attributes = std::move(attributes);
         options.PrerequisiteTransactionIds.push_back(PrerequisiteTransactionId_);
         futures.emplace_back(Client_->CreateObject(EObjectType::TabletAction, std::move(options)));
+
+        createdSmoothMovementActionCount += IsSmoothMovementAction(descriptors[index]);
+    }
+
+    if (createdSmoothMovementActionCount) {
+        GetOrCreateProfilingCounters(bundleName).StartedSmoothMovementActions.Increment(
+            createdSmoothMovementActionCount);
     }
 
     auto responses = WaitFor(AllSet(std::move(futures)))
@@ -245,6 +295,23 @@ int TActionManager::CreatePendingBundleActions(const std::string& bundleName, in
                 "Failed to create tablet action (BundleName: %v, ActionDescriptor: %v)",
                 bundleName,
                 descriptors[index]);
+
+            // Retry smooth movement actions with regular move.
+            if (IsSmoothMovementAction(descriptors[index])) {
+                auto moveDescriptor = std::get<TMoveDescriptor>(descriptors[index]);
+
+                YT_LOG_DEBUG("Smooth movement action failed, scheduling regular action creation instead "
+                    "(BundleName: %v, TabletId: %v, CorrelationId: %v)",
+                    bundleName,
+                    moveDescriptor.TabletId,
+                    moveDescriptor.CorrelationId);
+
+                GetOrCreateProfilingCounters(bundleName).FailedAtRuntimeSmoothMovementActions.Increment();
+
+                moveDescriptor.Smooth = false;
+                descriptors.push_back(moveDescriptor);
+            }
+
             continue;
         }
 
@@ -261,6 +328,11 @@ int TActionManager::CreatePendingBundleActions(const std::string& bundleName, in
         descriptors.pop_front();
     }
 
+    {
+        auto guard = WriterGuard(PendingActionsLock_);
+        PendingActionDescriptors_[bundleName] = descriptors;
+    }
+
     int createdActionCount = std::ssize(runningActions);
     if (!runningActions.empty()) {
         auto it = RunningActions_.emplace(bundleName, THashSet<TTabletActionPtr>{}).first;
@@ -271,57 +343,69 @@ int TActionManager::CreatePendingBundleActions(const std::string& bundleName, in
     YT_LOG_INFO("Created tablet actions for bundle (ActionCount: %v, BundleName: %v)",
         createdActionCount,
         bundleName);
+
     return createdActionCount;
 }
 
-bool TActionManager::HasUnfinishedActions(const std::string& bundleName) const
+bool TActionManager::HasUnfinishedActions(
+    const std::string& bundleName,
+    const std::vector<TTabletActionId>& knownBundleActionIds) const
 {
     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-    return PendingActionDescriptors_.contains(bundleName) || RunningActions_.contains(bundleName);
+    auto guard = ReaderGuard(PendingActionsLock_);
+
+    return PendingActionDescriptors_.contains(bundleName) ||
+        RunningActions_.contains(bundleName) ||
+        !AreAllActionsKnown(bundleName, knownBundleActionIds);
 }
 
-bool TActionManager::IsKnownAction(const std::string& bundleName, TTabletActionId actionId) const
+bool TActionManager::AreAllActionsKnown(
+    const std::string& bundleName,
+    std::vector<TTabletActionId> actionIds) const
 {
     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-    if (auto it = RunningActions_.find(bundleName); it != RunningActions_.end()) {
-        auto action = std::find_if(
-            it->second.begin(),
-            it->second.end(),
-            [actionId = actionId] (const TTabletActionPtr& action) {
-                return action->GetId() == actionId;
-            });
-
-        if (action != it->second.end()) {
-            return true;
+    auto collectActionIds = [] (const auto& actions) {
+        THashSet<TTabletActionId> actionIds;
+        for (const TTabletActionPtr& action : actions) {
+            actionIds.insert(action->GetId());
         }
+        return actionIds;
+    };
+
+    auto filterKnownActionIds = [&] (const THashSet<TTabletActionId>& knownActionIds) {
+        std::erase_if(actionIds, [&] (const TTabletActionId& actionId) {
+            return knownActionIds.contains(actionId);
+        });
+    };
+
+    if (auto it = RunningActions_.find(bundleName); it != RunningActions_.end()) {
+        filterKnownActionIds(collectActionIds(it->second));
     }
 
     if (auto it = FinishedActions_.find(bundleName); it != FinishedActions_.end()) {
-        auto action = std::find_if(
-            it->second.begin(),
-            it->second.end(),
-            [actionId = actionId] (const TTabletActionPtr& action) {
-                return action->GetId() == actionId;
-            });
-
-        return action != it->second.end();
+        filterKnownActionIds(collectActionIds(it->second));
     }
 
-    return false;
+    return actionIds.empty();
 }
 
 bool TActionManager::HasPendingActions(const std::string& bundleName) const
 {
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+
+    auto guard = ReaderGuard(PendingActionsLock_);
     return PendingActionDescriptors_.contains(bundleName);
 }
 
 void TActionManager::CancelPendingActions(const std::string& bundleName)
 {
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+
+    auto guard = WriterGuard(PendingActionsLock_);
     PendingActionDescriptors_.erase(bundleName);
 }
-
 
 void TActionManager::Start(TTransactionId prerequisiteTransactionId)
 {
@@ -333,6 +417,8 @@ void TActionManager::Start(TTransactionId prerequisiteTransactionId)
 
     YT_VERIFY(prerequisiteTransactionId);
     PrerequisiteTransactionId_ = prerequisiteTransactionId;
+
+    auto guard = WriterGuard(PendingActionsLock_);
 
     RunningActions_.clear();
     PendingActionDescriptors_.clear();
@@ -391,7 +477,7 @@ void TActionManager::Poll()
     YT_LOG_DEBUG("Started fetching tablet action states (ActionCount: %v)", actionIds.size());
 
     static const std::vector<std::string> attributeKeys{"state", "error"};
-    auto actionToAttributes = FetchAttributes(Client_, actionIds, attributeKeys);
+    auto actionToAttributes = FetchAttributes(Client_, actionIds, attributeKeys, MasterRequestThrottler_);
 
     YT_LOG_DEBUG("Finished fetching tablet action states (ActionCount: %v)", actionToAttributes.size());
 
@@ -410,9 +496,10 @@ void TActionManager::Poll()
                     auto error = attributes->Get<TError>("error");
                     action->Error() = error;
                     YT_LOG_WARNING(error,
-                        "Tablet action failed (TabletActionId: %v, CorrelationId: %v)",
+                        "Tablet action failed (TabletActionId: %v, CorrelationId: %v, Kind: %v)",
                         action->GetId(),
-                        action->GetCorrelationId());
+                        action->GetCorrelationId(),
+                        action->GetKind());
                 }
             } else if (!actionIds.contains(action->GetId())) {
                 YT_LOG_DEBUG("Tablet action status is unknown "
@@ -441,12 +528,17 @@ void TActionManager::MoveFinishedActionsFromRunningToFinished()
     for (auto& [bundleName, runningActions] : RunningActions_) {
         auto& finishedActions = FinishedActions_[bundleName];
         int failedActionCount = 0;
+        int failedSmoothMovementActionCount = 0;
 
         for (auto it = runningActions.begin(); it != runningActions.end(); ) {
             const auto& action = *it;
             if (action->IsFinished()) {
                 if (action->GetState() == ETabletActionState::Failed) {
                     ++failedActionCount;
+
+                    if (action->GetKind() == ETabletActionKind::SmoothMove) {
+                        ++failedSmoothMovementActionCount;
+                    }
                 }
 
                 finishedActions.push_back(action);
@@ -466,6 +558,8 @@ void TActionManager::MoveFinishedActionsFromRunningToFinished()
         const auto& profilingCounters = GetOrCreateProfilingCounters(bundleName);
         profilingCounters.RunningActions.Update(runningActions.size());
         profilingCounters.FailedActions.Increment(failedActionCount);
+        profilingCounters.FailedAtRuntimeSmoothMovementActions.Increment(
+            failedSmoothMovementActionCount);
     }
 
     DropMissingKeys(RunningActions_, relevantBundles);
@@ -476,13 +570,25 @@ const TActionManager::TBundleProfilingCounters& TActionManager::GetOrCreateProfi
     if (auto it = ProfilingCounters_.find(bundleName); it != ProfilingCounters_.end()) {
         return it->second;
     }
+
+    auto profiler = TabletBalancerProfiler()
+        .WithTag("tablet_cell_bundle", bundleName)
+        .WithPrefix("/action_manager");
+
     return EmplaceOrCrash(ProfilingCounters_, bundleName, TBundleProfilingCounters{
-        .RunningActions = TabletBalancerProfiler()
-            .WithTag("tablet_cell_bundle", bundleName)
-            .Gauge("/action_manager/running_actions"),
-        .FailedActions = TabletBalancerProfiler()
-            .WithTag("tablet_cell_bundle", bundleName)
-            .Counter("/action_manager/failed_actions")
+        .RunningActions = profiler.Gauge("/running_actions"),
+        .FailedActions = profiler.Counter("/failed_actions"),
+        .StartedSmoothMovementActions = profiler
+            .WithSparse()
+            .Counter("/started_smooth_movement_actions"),
+        .FailedAtStartSmoothMovementActions = profiler
+            .WithSparse()
+            .WithTag("at_start", "true")
+            .Counter("/failed_smooth_movement_actions"),
+        .FailedAtRuntimeSmoothMovementActions = profiler
+            .WithSparse()
+            .WithTag("at_start", "false")
+            .Counter("/failed_smooth_movement_actions"),
     })->second;
 }
 
@@ -491,7 +597,7 @@ IAttributeDictionaryPtr TActionManager::MakeActionAttributes(const TActionDescri
     auto attributes = CreateEphemeralAttributes();
     Visit(descriptor,
         [&] (const TMoveDescriptor& descriptor) {
-            attributes->Set("kind", "move");
+            attributes->Set("kind", descriptor.Smooth ? "smooth_move" : "move");
             attributes->Set("tablet_ids", std::vector<TTabletId>{descriptor.TabletId});
             attributes->Set("cell_ids", std::vector<TTabletCellId>{descriptor.TabletCellId});
             attributes->Set("correlation_id", descriptor.CorrelationId);
@@ -511,17 +617,34 @@ IAttributeDictionaryPtr TActionManager::MakeActionAttributes(const TActionDescri
     return attributes;
 }
 
+bool TActionManager::IsSmoothMovementAction(const TActionDescriptor& descriptor) const
+{
+    auto moveDescriptor = std::get_if<TMoveDescriptor>(&descriptor);
+    return moveDescriptor && moveDescriptor->Smooth;
+}
+
+void TActionManager::DropFrontBundleWithPendingActions(const std::string& bundleName)
+{
+    YT_ASSERT_WRITER_SPINLOCK_AFFINITY(PendingActionsLock_);
+
+    YT_VERIFY(BundlesWithPendingActions_.front().first == bundleName);
+    BundlesWithPendingActions_.pop();
+    EraseOrCrash(PendingActionDescriptors_, bundleName);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 IActionManagerPtr CreateActionManager(
     TActionManagerConfigPtr config,
     NApi::NNative::IClientPtr client,
-    IBootstrap* bootstrap)
+    IBootstrap* bootstrap,
+    IMulticellThrottlerPtr throttler)
 {
     return New<TActionManager>(
         std::move(config),
         std::move(client),
-        bootstrap);
+        bootstrap,
+        throttler);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

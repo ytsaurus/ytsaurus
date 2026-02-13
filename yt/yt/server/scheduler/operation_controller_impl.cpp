@@ -356,7 +356,7 @@ TFuture<void> TOperationControllerImpl::Terminate(EOperationState finalState)
 
     if (!IncarnationId_) {
         YT_LOG_INFO("Operation has no agent assigned; terminate request ignored");
-        return VoidFuture;
+        return OKFuture;
     }
 
     YT_VERIFY(finalState == EOperationState::Aborted || finalState == EOperationState::Failed);
@@ -443,7 +443,7 @@ TFuture<void> TOperationControllerImpl::UpdateRuntimeParameters(TOperationRuntim
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
     if (!IncarnationId_) {
-        return VoidFuture;
+        return OKFuture;
     }
 
     auto req = ControllerAgentTrackerProxy_->UpdateOperationRuntimeParameters();
@@ -670,7 +670,7 @@ TFuture<void> TOperationControllerImpl::GetFullHeartbeatProcessed()
 
     auto agent = Agent_.Lock();
     if (!agent) {
-        return VoidFuture;
+        return OKFuture;
     }
     return agent->GetFullHeartbeatProcessed();
 }
@@ -680,7 +680,7 @@ TFuture<TControllerScheduleAllocationResultPtr> TOperationControllerImpl::Schedu
     const TJobResources& allocationLimits,
     const TDiskResources& diskResourceLimits,
     const std::string& treeId,
-    const TString& poolPath,
+    const TYPath& poolPath,
     std::optional<TDuration> waitingForResourcesOnNodeTimeout)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();

@@ -123,12 +123,23 @@ TFuture<TYsonString> GetQueueAgentAttributeAsync(
 TSchemaUpdateEnabledFeatures GetSchemaUpdateEnabledFeatures(TDynamicClusterConfigPtr config)
 {
     return TSchemaUpdateEnabledFeatures{
-        config->EnableTableColumnRenaming && config->EnableStaticTableDropColumn,
+        .EnableStaticTableDropColumn = config->EnableTableColumnRenaming &&
+            config->EnableStaticTableDropColumn,
 
-        // TODO(orlovorlov) YT-16507 add && config->EnableDynamicTableColumnRenaming here when
-        // review/3730137 is merged.
-        config->EnableTableColumnRenaming && config->EnableStaticTableDropColumn &&
-            config->EnableDynamicTableDropColumn
+        .EnableDynamicTableDropColumn = config->EnableTableColumnRenaming &&
+            config->EnableDynamicTableColumnRenaming &&
+            config->EnableStaticTableDropColumn &&
+            config->EnableDynamicTableDropColumn,
+
+        .EnableStaticTableStructFieldRenaming = config->EnableStructFieldRenaming &&
+            config->EnableStaticTableStructFieldRenaming,
+        .EnableDynamicTableStructFieldRenaming = config->EnableStructFieldRenaming &&
+            config->EnableDynamicTableStructFieldRenaming,
+
+        .EnableStaticTableStructFieldRemoval = config->EnableStructFieldRemoval &&
+            config->EnableStaticTableStructFieldRemoval,
+        .EnableDynamicTableStructFieldRemoval = config->EnableStructFieldRemoval &&
+            config->EnableDynamicTableStructFieldRemoval,
     };
 }
 

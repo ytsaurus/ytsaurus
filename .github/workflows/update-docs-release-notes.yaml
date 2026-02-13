@@ -30,6 +30,8 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Configure Git
         run: |
@@ -55,7 +57,7 @@ jobs:
           commit-message: Update Documentation Release Notes
           branch: ci/update-documentation-release-notes/${{ steps.tag.outputs.TAG_NAME }}
           base: main
-          title: "Update Release Notes"
+          title: "[docs] Update Release Notes"
           labels: |
             documentation
             release-notes

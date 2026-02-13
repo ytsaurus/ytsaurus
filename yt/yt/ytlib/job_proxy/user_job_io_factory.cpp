@@ -21,6 +21,8 @@
 #include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
 #include <yt/yt/ytlib/table_client/sorted_merging_reader.h>
 
+#include <yt/yt/library/query/row_comparer_api/row_comparer_generator.h>
+
 #include <yt/yt/client/api/public.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
@@ -154,6 +156,66 @@ TSharedRange<TUnversionedRow> DedupRows(
     keys.erase(std::unique(keys.begin(), keys.end()), keys.end());
 
     return MakeSharedRange<TUnversionedRow>(keys, std::move(rowBuffer));
+}
+
+TComparator BuildComparatorForFirstInputTable(
+    const TDataSourceDirectoryPtr& dataSourceDirectory,
+    const TSortColumns& sortColumns,
+    bool enableCodegen)
+{
+    const auto& Logger = JobProxyClientLogger();
+    auto sortOrders = GetSortOrders(sortColumns);
+
+    if (!enableCodegen) {
+        YT_LOG_DEBUG("Using default comparator because codegen is disabled");
+        return TComparator(std::move(sortOrders));
+    }
+
+    if (!dataSourceDirectory || dataSourceDirectory->DataSources().empty()) {
+        YT_LOG_DEBUG("Using default comparator because of missing or empty data source directory");
+        return TComparator(std::move(sortOrders));
+    }
+
+    auto schema = dataSourceDirectory->DataSources()[0]->Schema();
+    if (!schema) {
+        YT_LOG_DEBUG("Using default comparator because of missing schema");
+        return TComparator(std::move(sortOrders));
+    }
+
+    // Check that the schema's key columns match the sort columns.
+    auto keyColumns = schema->GetKeyColumns();
+    if (keyColumns.size() < sortColumns.size()) {
+        YT_LOG_DEBUG(
+            "Using default comparator because of column count mismatch (Actual: %v, Expected: at least %v, Schema: %v)",
+            keyColumns.size(),
+            sortColumns.size(),
+            schema);
+        return TComparator(std::move(sortOrders));
+    }
+
+    for (int i = 0; i < std::ssize(sortColumns); ++i) {
+        if (keyColumns[i] != sortColumns[i].Name) {
+            YT_LOG_DEBUG(
+                "Using default comparator because of column name mismatch (Actual: %v, Expected: %v, Schema: %v)",
+                keyColumns[i],
+                sortColumns[i].Name,
+                schema);
+            return TComparator(std::move(sortOrders));
+        }
+    }
+
+
+    if (!schema->IsCGComparatorApplicable(sortColumns.size())) {
+        YT_LOG_DEBUG("Using default comparator because codegen is not applicable (Schema: %v)", schema);
+        return TComparator(std::move(sortOrders));
+    }
+
+    YT_LOG_DEBUG("Using codegen comparator (Schema: %v)", schema);
+
+    auto keyTypes = schema->GetKeyColumnTypes();
+    keyTypes.resize(sortColumns.size());
+    auto cgComparer = NQueryClient::GenerateStaticTableKeyComparer(keyTypes);
+    return TComparator(std::move(sortOrders), std::move(cgComparer));
 }
 
 ISchemalessMultiChunkReaderPtr CreateRegularReader(
@@ -340,7 +402,7 @@ TCreateUserJobReaderResult CreateSortedReduceJobReader(
     TNameTablePtr nameTable,
     const TColumnFilter& columnFilter)
 {
-    auto& Logger = JobProxyClientLogger();
+    const auto& Logger = JobProxyClientLogger();
     auto rowBuffer = New<TRowBuffer>(TCreateSortedReduceJobReaderTag());
 
     YT_VERIFY(nameTable->GetSize() == 0 && columnFilter.IsUniversal());
@@ -600,7 +662,7 @@ public:
                 for (const auto& keyColumn : keyColumns) {
                     sortColumns.push_back(TColumnSortSchema{
                         .Name = keyColumn,
-                        .SortOrder = ESortOrder::Ascending
+                        .SortOrder = ESortOrder::Ascending,
                     });
                 }
             }
@@ -706,12 +768,17 @@ TCreateUserJobReaderResult CreatePartitionReduceJobReader(
         };
     }
 
+    auto comparator = BuildComparatorForFirstInputTable(
+        dataSourceDirectory,
+        sortColumns,
+        jobSpecExt.enable_codegen_comparator());
+
     return {
         CreatePartitionSortReader(
             jobSpecHelper->GetJobIOConfig()->TableReader,
             // NB(coteeq): Partition reader never reads from a remote cluster.
             chunkReaderHost->CreateHostForCluster(LocalClusterName),
-            GetComparator(sortColumns),
+            std::move(comparator),
             nameTable,
             std::move(onNetworkReleased),
             dataSourceDirectory,

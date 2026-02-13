@@ -52,10 +52,10 @@ void TPortalExitNode::FillInheritableAttributes(TTransientAttributes *attributes
     TCompositeCypressNode::FillInheritableAttributes(attributes, reason);
 
     if (EffectiveInheritableAttributes_) {
-#define XX(camelCaseName, snakeCaseName) \
-        if (!attributes->camelCaseName.IsSet()) { \
-            if (EffectiveInheritableAttributes_->camelCaseName.IsSet()) { \
-                attributes->camelCaseName.Set(EffectiveInheritableAttributes_->camelCaseName.Unbox()); \
+#define XX(FieldName, AttributeKey) \
+        if (!attributes->FieldName.IsSet()) { \
+            if (EffectiveInheritableAttributes_->FieldName.IsSet()) { \
+                attributes->FieldName.Set(EffectiveInheritableAttributes_->FieldName.Unbox()); \
             } \
         }
 

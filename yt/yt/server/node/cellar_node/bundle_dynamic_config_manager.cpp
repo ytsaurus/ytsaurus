@@ -34,7 +34,7 @@ TBundleDynamicConfigManager::TBundleDynamicConfigManager(NClusterNode::IBootstra
         TDynamicConfigManagerOptions{
             .ConfigPath = "//sys/tablet_cell_bundles/@config",
             .Name = "TabletCellBundle",
-            .ConfigIsTagged = true
+            .ConfigIsTagged = true,
         },
         MakeManagerConfig(bootstrap),
         bootstrap->GetClient(),

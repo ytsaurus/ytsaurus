@@ -34,6 +34,7 @@ PEERDIR(
     yt/yt/server/query_tracker
     yt/yt/server/rpc_proxy
     yt/yt/server/scheduler
+    yt/yt/server/sequoia_reconstructor
     yt/yt/server/tablet_balancer
     yt/yt/server/tcp_proxy
     yt/yt/server/timestamp_provider

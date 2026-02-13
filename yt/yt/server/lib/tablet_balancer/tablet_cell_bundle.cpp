@@ -2,6 +2,8 @@
 
 #include "config.h"
 #include "private.h"
+#include "table.h"
+#include "tablet.h"
 #include "tablet_cell.h"
 
 #include <yt/yt/core/ytree/convert.h>
@@ -35,25 +37,61 @@ TTabletCellBundle::TTabletCellBundle(TString name)
     : Name(std::move(name))
 { }
 
-TTabletCellBundlePtr TTabletCellBundle::DeepCopy() const
+TTabletCellBundlePtr TTabletCellBundle::DeepCopy(bool copyCells, bool copyTabletsAndStatistics) const
 {
+    // No reason to copy statistics without copying cells.
+    YT_VERIFY(copyCells || !copyTabletsAndStatistics);
+
     auto bundle = New<TTabletCellBundle>(Name);
     bundle->Config = Config;
 
-    // Fake deep for now. Applying move tablet action may change cell->Statistics.MemorySize
-    bundle->TabletCells = TabletCells;
+    if (copyTabletsAndStatistics) {
+        bundle->NodeStatistics = NodeStatistics;
+    }
 
-    // Fake deep for now. New bundle fetch may change it
-    bundle->Tables = Tables;
+    THashMap<TTabletId, TTabletPtr> newTablets;
 
-    // Fake deep for now. Applying move tablet action may change tablet->Cell
-    bundle->Tablets = Tablets;
+    for (const auto& [id, table] : Tables) {
+        auto newTable = table->Clone(bundle.Get(), copyTabletsAndStatistics);
+        EmplaceOrCrash(bundle->Tables, id, newTable);
 
-    bundle->NodeStatistics = NodeStatistics;
-    bundle->PerformanceCountersTableSchema = PerformanceCountersTableSchema;
-    bundle->PerClusterPerformanceCountersTableSchemas = PerClusterPerformanceCountersTableSchemas;
+        if (copyTabletsAndStatistics) {
+            for (const auto& tablet : table->Tablets) {
+                auto newTablet = tablet->Clone(newTable.Get());
+                newTable->Tablets.push_back(newTablet);
+                EmplaceOrCrash(newTablets, tablet->Id, newTablet);
+                EmplaceOrCrash(bundle->Tablets, tablet->Id, std::move(newTablet));
+            }
+        }
+    }
+
+    if (copyCells) {
+        for (const auto& [id, cell] : TabletCells) {
+            auto newCell = cell->Clone();
+            EmplaceOrCrash(bundle->TabletCells, id, newCell);
+
+            for (const auto& [tabletId, tablet] : cell->Tablets) {
+                if (auto it = newTablets.find(tabletId); it != newTablets.end()) {
+                    EmplaceOrCrash(newCell->Tablets, tabletId, it->second);
+                    it->second->Cell = newCell;
+                }
+            }
+        }
+    }
 
     return bundle;
+}
+
+THashSet<TGroupName> TTabletCellBundle::GetBalancingGroups() const
+{
+    THashSet<TGroupName> groups;
+    for (const auto& [id, table] : Tables) {
+        if (auto groupName = table->GetBalancingGroup()) {
+            groups.insert(*groupName);
+        }
+    }
+
+    return groups;
 }
 
 void Deserialize(TTabletCellBundle::TNodeStatistics& value, NYTree::INodePtr node)

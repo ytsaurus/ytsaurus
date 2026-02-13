@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"hash"
 	"maps"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -15,6 +16,7 @@ import (
 	"strings"
 
 	"go.ytsaurus.tech/library/go/core/log"
+	"go.ytsaurus.tech/library/go/ptr"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
@@ -39,17 +41,19 @@ type ResourcesConfig struct {
 type Config struct {
 	// LocalBinariesDir is set if we want to execute local binaries on the clique.
 	// This directory should contain trampoline and chyt binaries.
-	LocalBinariesDir          *string              `yson:"local_binaries_dir"`
-	LogRotationMode           *LogRotationModeType `yson:"log_rotation_mode"`
-	AddressResolver           map[string]any       `yson:"address_resolver"`
-	BusServer                 map[string]any       `yson:"bus_server"`
-	EnableYandexSpecificLinks *bool                `yson:"enable_yandex_specific_links"`
-	ExportSystemLogTables     *bool                `yson:"export_system_log_tables"`
-	EnableGeodata             *bool                `yson:"enable_geodata"`
-	EnableRuntimeData         *bool                `yson:"enable_runtime_data"`
-	ResourcesConfig           *ResourcesConfig     `yson:"resources_config"`
-	SecureVaultFiles          map[string]string    `yson:"secure_vault_files"`
-	DefaultSpeclet            *Speclet             `yson:"default_speclet"`
+	LocalBinariesDir           *string                 `yson:"local_binaries_dir"`
+	LogRotationMode            *LogRotationModeType    `yson:"log_rotation_mode"`
+	AddressResolver            map[string]any          `yson:"address_resolver"`
+	BusServer                  map[string]any          `yson:"bus_server"`
+	EnableYandexSpecificLinks  *bool                   `yson:"enable_yandex_specific_links"`
+	ExportSystemLogTables      *bool                   `yson:"export_system_log_tables"`
+	EnableGeodata              *bool                   `yson:"enable_geodata"`
+	EnableRuntimeData          *bool                   `yson:"enable_runtime_data"`
+	ResourcesConfig            *ResourcesConfig        `yson:"resources_config"`
+	SecureVaultFiles           map[string]string       `yson:"secure_vault_files"`
+	DefaultSpeclet             *Speclet                `yson:"default_speclet"`
+	SpecletConfigExclusionTree map[string]any          `yson:"speclet_config_exclusion_tree"`
+	DefaultOpletHealth         *strawberry.OpletHealth `yson:"default_oplet_health"`
 }
 
 type controllerSnapshot struct {
@@ -58,10 +62,11 @@ type controllerSnapshot struct {
 }
 
 const (
-	DefaultEnableYandexSpecificLinks = false
-	DefaultExportSystemLogTables     = false
-	DefaultEnableGeodata             = false
-	DefaultEnableRuntimeData         = false
+	DefaultEnableYandexSpecificLinks                        = false
+	DefaultExportSystemLogTables                            = false
+	DefaultEnableGeodata                                    = false
+	DefaultEnableRuntimeData                                = false
+	DefaultDefaultOpletHealth        strawberry.OpletHealth = strawberry.OpletHealthUnknown
 )
 
 func (c *Config) LogRotationModeOrDefault() LogRotationModeType {
@@ -99,6 +104,13 @@ func (c *Config) EnableRuntimeDataOrDefault() bool {
 	return DefaultEnableRuntimeData
 }
 
+func (c *Config) DefaultOpletHealthOrDefault() strawberry.OpletHealth {
+	if c.DefaultOpletHealth != nil {
+		return *c.DefaultOpletHealth
+	}
+	return DefaultDefaultOpletHealth
+}
+
 func (c *Config) getDefaultInstanceCPU() uint64 {
 	if c.ResourcesConfig != nil && c.ResourcesConfig.DefaultInstanceCPU != nil {
 		return *c.ResourcesConfig.DefaultInstanceCPU
@@ -120,6 +132,7 @@ type chytOpletInfo struct {
 
 type Controller struct {
 	ytc                     yt.Client
+	dc                      yt.DiscoveryClient
 	l                       log.Logger
 	cachedClusterConnection map[string]any
 	root                    ypath.Path
@@ -372,7 +385,7 @@ func (c *Controller) ParseSpeclet(specletYson yson.RawValue) (any, error) {
 	return speclet, nil
 }
 
-func (c *Controller) CheckState(ctx context.Context, oplet *strawberry.Oplet) (bool, error) {
+func (c *Controller) needsRestart(ctx context.Context, oplet *strawberry.Oplet) (bool, error) {
 	speclet := oplet.ControllerSpeclet().(Speclet)
 	if !speclet.RestartOnVersionDriftOrDefault() {
 		return false, nil
@@ -395,6 +408,45 @@ func (c *Controller) CheckState(ctx context.Context, oplet *strawberry.Oplet) (b
 		return true, nil
 	}
 	return false, nil
+}
+
+func (c *Controller) checkHealth(ctx context.Context, oplet *strawberry.Oplet) (strawberry.OpletHealth, string) {
+	// If discovery client hasn't been initialized for any reason, we consider this as the default case.
+	if c.dc == nil {
+		return c.config.DefaultOpletHealthOrDefault(), ""
+	}
+
+	group := "/chyt/" + oplet.Alias()
+	// NB: Strawberry doesn't limit the number of instances, but ListMember requires an explicit limit.
+	members, err := c.dc.ListMembers(ctx, group, &yt.ListMembersOptions{Limit: ptr.Int32(math.MaxInt32)})
+	if err != nil && !yterrors.ContainsErrorCode(err, yterrors.CodeNoSuchGroup) {
+		return strawberry.OpletHealthUnknown, fmt.Sprintf("failed to discover instances: %s", err)
+	}
+
+	if yterrors.ContainsErrorCode(err, yterrors.CodeNoSuchGroup) || len(members) == 0 {
+		return strawberry.OpletHealthPending, "There are no active instances yet."
+	}
+
+	return strawberry.OpletHealthGood, ""
+}
+
+const (
+	versionDriftRestartReason = "Current clique version and version from speclet are differ. The restart was scheduled."
+)
+
+func (c *Controller) CheckState(ctx context.Context, oplet *strawberry.Oplet) (state strawberry.ControllerOpletState, err error) {
+	state.NeedsRestart, err = c.needsRestart(ctx, oplet)
+	if err != nil {
+		return
+	}
+	if state.NeedsRestart {
+		state.Health = strawberry.OpletHealthPending
+		state.Reason = versionDriftRestartReason
+		return
+	}
+
+	state.Health, state.Reason = c.checkHealth(ctx, oplet)
+	return
 }
 
 func (c *Controller) UpdateState() (changed bool, err error) {
@@ -627,10 +679,42 @@ func parseConfig(rawConfig yson.RawValue) Config {
 	return controllerConfig
 }
 
+func createDiscoveryClient(ctx context.Context, ytc yt.Client) (yt.DiscoveryClient, error) {
+	var discoveryConnection struct {
+		Addresses *[]string `yson:"addresses"`
+		Endpoints *struct {
+			EndpointSetId string   `yson:"endpoint_set_id"`
+			Clusters      []string `yson:"clusters"`
+		} `yson:"endpoints"`
+	}
+
+	err := ytc.GetNode(ctx, ypath.Path("//sys/@cluster_connection/discovery_connection"), &discoveryConnection, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var cfg yt.DiscoveryConfig
+	if discoveryConnection.Addresses != nil {
+		cfg.DiscoveryServers = *discoveryConnection.Addresses
+	}
+	if discoveryConnection.Endpoints != nil {
+		cfg.EndpointSet = discoveryConnection.Endpoints.EndpointSetId
+		cfg.YPClusters = discoveryConnection.Endpoints.Clusters
+	}
+
+	return newDiscoveryClient(cfg)
+}
+
 func NewController(l log.Logger, ytc yt.Client, root ypath.Path, cluster string, rawConfig yson.RawValue) strawberry.Controller {
+	dc, err := createDiscoveryClient(context.Background(), ytc)
+	if err != nil {
+		panic(err)
+	}
+
 	c := &Controller{
 		l:       l,
 		ytc:     ytc,
+		dc:      dc,
 		root:    root,
 		cluster: cluster,
 		secrets: make(map[string][]byte),

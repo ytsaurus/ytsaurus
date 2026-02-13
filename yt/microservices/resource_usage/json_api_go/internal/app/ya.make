@@ -4,7 +4,6 @@ SRCS(
     api.go
     app.go
     config.go
-    helpers.go
     middleware.go
     models.go
 )

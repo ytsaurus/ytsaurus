@@ -176,6 +176,8 @@ private:
                         "User pending for removal has accessed chunk service (User: %v)",
                         user->GetName());
 
+                    queue->SetQueueSizeLimit(10'000);
+
                     const auto& chunkServiceConfig = bootstrap->GetConfigManager()->GetConfig()->ChunkService;
                     auto weightThrottlingEnabled = chunkServiceConfig->EnablePerUserRequestWeightThrottling;
                     auto bytesThrottlingEnabled = chunkServiceConfig->EnablePerUserRequestBytesThrottling;
@@ -309,7 +311,7 @@ private:
         TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory(), addressType);
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        auto revision = hydraManager->GetAutomatonVersion().ToRevision();
+        auto revision = hydraManager->GetAutomatonVersion().GetLogicalRevision();
 
         THashMap<NRpc::IChannelPtr, NChunkClient::NProto::TReqTouchChunks> channelToTouchChunksRequest;
 
@@ -422,7 +424,7 @@ private:
                         ? std::make_optional(dynamicStore->GetTableRowIndex())
                         : std::nullopt;
 
-                    auto replicas = chunkReplicaFetcher->GetChunkReplicas(ephemeralChunk)
+                    auto replicas = chunkReplicaFetcher->GetChunkReplicas(ephemeralChunk, /*includeUnapproved*/ true)
                         .ValueOrThrow();
 
                     BuildChunkSpec(
@@ -520,7 +522,9 @@ private:
             chunks.emplace_back(chunk);
         }
 
-        auto replicas = chunkReplicaFetcher->GetChunkReplicas(chunks);
+        auto replicas = chunkReplicaFetcher->GetChunkReplicas(
+            chunks,
+            /*includeUnapproved*/ true);
 
         for (const auto& subrequest : request->subrequests()) {
             auto sessionId = FromProto<TSessionId>(subrequest.session_id());
@@ -947,10 +951,25 @@ private:
         const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
         const auto& chunkManagerConfig = configManager->GetConfig()->ChunkManager;
+
         // COMPAT(kvk1920)
-        YT_LOG_ALERT_UNLESS(
-            request->location_uuids_supported(),
-            "Chunk confirmation request without location uuids is received");
+        if (!request->location_uuids_supported()) {
+            THROW_ERROR_EXCEPTION("Chunk confirmation without location uuids is forbidden");
+        }
+
+        ValidateChunkMetaOnConfirmation(request->chunk_meta());
+
+        // Fastpath.
+        auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
+        if (chunk->IsConfirmed()) {
+            YT_LOG_DEBUG("Chunk is already confirmed (ChunkId: %v)",
+                chunkId);
+            if (context->Request().request_statistics()) {
+                ToProto(context->Response().mutable_statistics(), chunk->GetStatistics().ToDataStatistics());
+            }
+            context->Reply();
+            return;
+        }
 
         auto isSequoia = [&] {
             if (!chunkManagerConfig->SequoiaChunkReplicas->Enable) {
@@ -965,16 +984,17 @@ private:
 
         if (isSequoia()) {
             auto requestStatistics = context->Request().request_statistics();
-            WaitFor(chunkManager->ConfirmSequoiaChunk(&context->Request()))
-                .ThrowOnError();
+            if (chunkManagerConfig->SequoiaChunkReplicas->BatchChunkConfirmation) {
+                // Be carefull with raw request.
+                WaitFor(chunkManager->ConfirmSequoiaChunkBatched(&context->Request()))
+                    .ThrowOnError();
+            } else {
+                WaitFor(chunkManager->ConfirmSequoiaChunk(&context->Request()))
+                    .ThrowOnError();
+            }
             ValidatePeer(EPeerKind::Leader);
 
             if (requestStatistics) {
-                const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
-                WaitFor(transactionSupervisor->WaitUntilPreparedTransactionsFinished())
-                    .ThrowOnError();
-                ValidatePeer(EPeerKind::Leader);
-
                 auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
                 if (!chunk->IsConfirmed()) {
                     YT_LOG_ALERT("Chunk is not confirmed after confirm (ChunkId: %v)", chunkId);

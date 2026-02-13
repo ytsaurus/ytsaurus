@@ -3,6 +3,7 @@ package strawberry
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"reflect"
 	"time"
 
@@ -318,6 +319,7 @@ const (
 	OpletHealthGood    OpletHealth = "good"
 	OpletHealthPending OpletHealth = "pending"
 	OpletHealthFailed  OpletHealth = "failed"
+	OpletHealthUnknown OpletHealth = "unknown"
 )
 
 func (oplet *Oplet) Health() (health OpletHealth, healthReason string) {
@@ -358,7 +360,11 @@ func (oplet *Oplet) Health() (health OpletHealth, healthReason string) {
 		}
 	}
 
-	return OpletHealthGood, ""
+	if len(oplet.infoState.Health) == 0 {
+		return OpletHealthGood, ""
+	}
+
+	return oplet.infoState.Health, oplet.infoState.HealthReason
 }
 
 // setBroken sets oplet state to broken and returns corresponding error.
@@ -447,11 +453,18 @@ func (oplet *Oplet) EnsureOperationInValidState(ctx context.Context) error {
 		}
 	}
 
-	if ok, err := oplet.c.CheckState(ctx, oplet); err != nil || ok {
-		if err != nil {
-			return err
-		}
-		if err := oplet.restartOp(ctx, "conroller state changed"); err != nil {
+	ctlOpletState, err := oplet.c.CheckState(ctx, oplet)
+	if err != nil {
+		oplet.l.Error("error while controller check state", log.Error(err))
+		oplet.infoState.Health = OpletHealthUnknown
+		oplet.infoState.HealthReason = fmt.Sprintf("check state failed with error: %s", err)
+		return err
+	}
+	oplet.infoState.Health = ctlOpletState.Health
+	oplet.infoState.HealthReason = ctlOpletState.Reason
+
+	if ctlOpletState.NeedsRestart {
+		if err := oplet.restartOp(ctx, "controller decided to restart the oplet"); err != nil {
 			return err
 		}
 	}
@@ -1174,6 +1187,13 @@ func (oplet *Oplet) updateOpParameters(ctx context.Context, reason string) error
 		return err
 	}
 
+	if !reflect.DeepEqual(oplet.getOpACL(), oplet.persistentState.YTOpACL) {
+		err := oplet.systemClient.SetNode(ctx, oplet.cypressNode.Attr("acl"), oplet.acl, nil)
+		if err != nil {
+			oplet.l.Error("error updating strawberry acl", log.Error(err))
+		}
+	}
+
 	oplet.l.Info("operation parameters updated")
 
 	oplet.persistentState.YTOpACL = opACL
@@ -1376,4 +1396,10 @@ type OpletInfoForScaler struct {
 	Alias             string
 	OperationID       yt.OperationID
 	ControllerSpeclet any
+}
+
+type ControllerOpletState struct {
+	Health       OpletHealth
+	NeedsRestart bool
+	Reason       string
 }

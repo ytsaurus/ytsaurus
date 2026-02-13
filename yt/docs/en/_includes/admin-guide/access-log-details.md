@@ -4,18 +4,24 @@ For this, there is a special log that records events involving Cypress nodes tha
 
 Logs are written by master servers. Due to technical reasons, several servers produce the same sequence of entries, so duplication is to be expected. On top of that, some actions (for example, writing to a table) are represented as a sequence of several different events on different master servers (from different shards). This is covered in more detailed below.
 
-Each log entry (table row) contains one command applied to a certain Cypress node.
+Each log entry (table row) contains one command. This can either be a command applied to a specific cypress node or a command controlling a particular transaction.
 
-Only the commands applied to the following types of nodes are recorded:
+The following transaction control commands are logged:
 
-* Table
-* File
-* Document
-* Journal
+* StartTransaction;
+* CommitTransaction;;
+* AbortTransaction.
 
-It must be noted that directories _are not included_ in this list.
+Commands applied to nodes are logged only if they are applied to the following node types:
 
-The following commands are recorded:
+* table;
+* file;
+* document;
+* journal;
+* link;
+* directory.
+
+The following commands for working with nodes are logged:
 
 * Basic (CRUD):
    * Create
@@ -76,6 +82,8 @@ The difference between `original_path` and `path` (as well as between `original_
 * If this path leads to a shard, its log will feature the actual path under `original_path`, while the path relative to the root of the shard will be written in `path`.
 
 Overall, this means that if you grep a relative path to a symbolic link, the command will always return entries containing the actual path to the node, while grepping the actual path finds accesses, including via symbolic links. **The key takeaway here is that you should search both by `path` and by `original_path`.**
+
+For transaction control commands all fields containing paths are empty. Information about the target transaction is presented, as in other cases, in the `transaction_info` field.
 
 {% endnote %}
 

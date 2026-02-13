@@ -90,7 +90,7 @@ TEST_F(TSignatureGeneratorTest, SimpleSign)
     EXPECT_EQ(signature->Payload(), data);
 
     auto signatureYson = ConvertToNode(ConvertToYsonString(signature));
-    auto headerString = signatureYson->AsMap()->GetChildValueOrThrow<TString>("header");
+    auto headerString = signatureYson->AsMap()->GetChildValueOrThrow<std::string>("header");
     auto header = ConvertTo<TSignatureHeader>(TYsonString(headerString));
 
     // Sanity check.
@@ -182,9 +182,9 @@ TEST_F(TSignatureGeneratorTest, ReconfigureChangesExpirationDelta)
     auto now = Now();
     auto signature = Gen->Sign("data");
     auto header = ConvertTo<TSignatureHeader>(
-        TYsonString(
+        TYsonString(TStringBuf(
             ConvertToNode(signature)->AsMap()
-                ->GetChildValueOrThrow<TString>("header")));
+                ->GetChildValueOrThrow<std::string>("header"))));
 
     auto expiresAt = std::visit([](const auto& h) { return h.ExpiresAt; }, header);
     auto validAfter = std::visit([](const auto& h) { return h.ValidAfter; }, header);

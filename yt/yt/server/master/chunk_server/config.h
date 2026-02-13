@@ -316,10 +316,23 @@ struct TDynamicDataNodeTrackerConfig
     // COMPAT(danilalexeev): YT-23781.
     bool EnablePerLocationFullHeartbeats;
 
+    bool EnableValidationFullHeartbeats;
+    TDuration ValidationFullHeartbeatPeriod;
+    TDuration ValidationFullHeartbeatSplay;
+
     // COMPAT(cherepashka)
     bool EnableChunkReplicasThrottlingInHeartbeats;
 
     bool EnableLocationIndexesInDataNodeHeartbeats;
+
+    // COMPAT(cherepashka)
+    bool UseLocationIndexesInSequoiaChunkConfirmation;
+
+    // COMPAT(cherepashka)
+    bool UseLocationIndexesToSearchLocationOnConfirmation;
+
+    // COMPAT(cherepashka)
+    bool CheckLocationConvergenceByIndexAndUuidOnConfirmation;
 
     bool VerifyAllLocationsAreReportedInFullHeartbeats;
 
@@ -507,6 +520,9 @@ struct TDynamicSequoiaChunkReplicasConfig
     TDuration RemovalPeriod;
     int RemovalBatchSize;
 
+    TDuration ConfirmPeriod;
+    int ConfirmBatchSize;
+
     //! Probability (in percents) that chunk replicas will be Sequoia.
     int ReplicasPercentage;
 
@@ -538,6 +554,14 @@ struct TDynamicSequoiaChunkReplicasConfig
 
     // COMPAT(aleksandra-zh).
     bool AlwaysIncludeUnapprovedReplicas;
+
+    // COMPAT(aleksandra-zh).
+    bool BatchChunkConfirmation;
+
+    bool EnableGlobalSequoiaChunkRefresh;
+    TDuration GlobalSequoiaChunkRefreshPeriod;
+    int GlobalSequoiaChunkRefreshBatchSize;
+    int MaxUnsuccessfulGlobalSequoiaChunkRefreshIterations;
 
     REGISTER_YSON_STRUCT(TDynamicSequoiaChunkReplicasConfig);
 
@@ -784,6 +808,9 @@ struct TDynamicChunkManagerConfig
     bool EnableRepairViaReplication;
 
     int MaxLostVitalChunksToLog;
+
+    // COMPAT(grphil)
+    bool AlwaysFetchNonOnlineReplicas;
 
     REGISTER_YSON_STRUCT(TDynamicChunkManagerConfig);
 

@@ -21,7 +21,6 @@ namespace NYT::NCellMaster {
 struct IHydraFacade
     : public TRefCounted
 {
-public:
     virtual void Initialize() = 0;
 
     virtual const TMasterAutomatonPtr& GetAutomaton() = 0;

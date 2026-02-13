@@ -2,29 +2,11 @@
 
 #include <yt/yt/core/misc/parser_helpers.h>
 
+#include <yt/yt/core/yson/parser.h>
+
 #include <library/cpp/yt/yson_string/format.h>
 
-#include <ranges>
-
 namespace NYT::NOrm::NAttributes {
-namespace {
-
-////////////////////////////////////////////////////////////////////////////////
-
-TStringBuf TrimSpaces(TStringBuf buf)
-{
-    int prefixSpaces = std::ranges::find_if_not(buf, IsSpace) - buf.begin();
-    int suffixSpaces = std::ranges::find_if_not(buf | std::views::reverse, IsSpace) - buf.rbegin();
-    if (prefixSpaces + suffixSpaces >= std::ssize(buf)) {
-        return TStringBuf{};
-    } else {
-        return buf.SubString(prefixSpaces, buf.size() - prefixSpaces - suffixSpaces);
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,19 +25,23 @@ void TUnwrappingConsumer::OnMyEndMap()
 void TUnwrappingConsumer::OnMyEntity()
 { }
 
-void TUnwrappingConsumer::OnMyRaw(TStringBuf yson, NYson::EYsonType type)
+void TUnwrappingConsumer::OnMyRaw(TStringBuf buffer, NYson::EYsonType type)
 {
-    yson = TrimSpaces(yson);
-    if (type == NYson::EYsonType::Node &&
-        yson.size() >= 2 &&
-        yson.front() == NYson::NDetail::BeginMapSymbol &&
-        yson.back() == NYson::NDetail::EndMapSymbol)
-    {
-        Underlying_->OnRaw(yson.SubStr(1, yson.size() - 2), NYson::EYsonType::MapFragment);
-        return;
+    if (type == NYson::EYsonType::Node) {
+        auto [nodeType, leftStrippedYson] = NYson::ParseYsonStringNodeType(buffer);
+        if (nodeType == NYTree::ENodeType::Map) {
+            auto strippedYson = StripStringRight(leftStrippedYson, &IsSpacePtr);
+            THROW_ERROR_EXCEPTION_UNLESS(
+                strippedYson.front() == NYson::NDetail::BeginMapSymbol &&
+                strippedYson.back() == NYson::NDetail::EndMapSymbol,
+                "Cannot unwrap invalid yson map %Qv",
+                strippedYson);
+            Underlying_->OnRaw(strippedYson.SubStr(1, strippedYson.size() - 2), NYson::EYsonType::MapFragment);
+            return;
+        }
     }
 
-    TYsonConsumerBase::OnRaw(yson, type);
+    TYsonConsumerBase::OnRaw(buffer, type);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

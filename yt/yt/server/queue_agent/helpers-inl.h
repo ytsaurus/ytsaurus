@@ -118,6 +118,14 @@ TQueueAgentClientDirectory::TNativeClientContext TQueueAgentClientDirectory::Get
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
+std::optional<std::string> ToOptionalString(const std::optional<T>& value)
+{
+    return value ? std::optional<std::string>{ToString(value.value())} : std::nullopt;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
 std::optional<T> MinOrValue(std::optional<T> lhs, std::optional<T> rhs)
 {
     if (lhs && rhs) {

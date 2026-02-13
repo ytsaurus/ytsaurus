@@ -263,8 +263,15 @@ public:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (!Config_->EnableWaitUntilPreparedTransactionsFinished) {
-            return VoidFuture;
+            return OKFuture;
         }
+
+        auto delayed = [&] (TFuture<void> future) {
+            if (auto delay = Config_->Testing->PreparedTransactionsBarrierDelay) {
+                return AllSucceeded<void>({std::move(future), TDelayedExecutor::MakeDelayed(*delay)});
+            }
+            return future;
+        };
 
         auto guard = Guard(SequencerLock_);
 
@@ -272,14 +279,14 @@ public:
             YT_LOG_DEBUG(
                 "No prepared transactions (NextStronglyOrderedTxSequenceNumber: %v)",
                 NextStronglyOrderedTransactionSequenceNumber_);
-            return VoidFuture;
+            return delayed(OKFuture);
         }
 
         auto lastStronglyOrderedTransactionSequenceNumber = NextStronglyOrderedTransactionSequenceNumber_ - 1;
         auto it = Barriers_.find(lastStronglyOrderedTransactionSequenceNumber);
         if (it != Barriers_.end()) {
             YT_LOG_DEBUG("Barrier already exists (NextStronglyOrderedTransactionSequenceNumber: %v)", lastStronglyOrderedTransactionSequenceNumber);
-            return it->second.Promise.ToFuture().ToUncancelable();
+            return delayed(it->second.Promise.ToFuture().ToUncancelable());
         }
 
         YT_LOG_DEBUG("Creating barrier (NextStronglyOrderedTxSequenceNumber: %v)", lastStronglyOrderedTransactionSequenceNumber);
@@ -287,7 +294,7 @@ public:
             Barriers_,
             lastStronglyOrderedTransactionSequenceNumber,
             TBarrier(NewPromise<void>(), GetInstant()));
-        return it->second.Promise.ToFuture().ToUncancelable();
+        return delayed(it->second.Promise.ToFuture().ToUncancelable());
     }
 
     TTimestamp GetLastCoordinatorCommitTimestamp() override
@@ -1133,14 +1140,20 @@ private:
                 cellIdsToSyncWith,
                 stronglyOrdered);
 
+            auto owner = GetOwnerOrThrow();
+            if (owner->HydraManager_->IsEnteringReadOnlyMode() && stronglyOrdered) {
+                THROW_ERROR_EXCEPTION(
+                    NRpc::EErrorCode::Unavailable,
+                    "Cannot prepare a strongly ordered transaction %v while entering read-only mode",
+                    transactionId);
+            }
+
             NTransactionSupervisor::NProto::TReqParticipantPrepareTransaction hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
             hydraRequest.set_prepare_timestamp(prepareTimestamp);
             hydraRequest.set_prepare_timestamp_cluster_tag(prepareTimestampClusterTag);
             hydraRequest.set_strongly_ordered(stronglyOrdered);
             NRpc::WriteAuthenticationIdentityToProto(&hydraRequest, NRpc::GetCurrentAuthenticationIdentity());
-
-            auto owner = GetOwnerOrThrow();
 
             auto readyEvent = owner->TransactionManager_->GetReadyToPrepareTransactionCommit(
                 {} /*prerequisiteTransactionIds*/,
@@ -1583,7 +1596,7 @@ private:
             YT_VERIFY(TryParseResponseHeader(message, &header));
             return header.has_error()
                 ? MakeFuture<void>(FromProto<TError>(header.error()))
-                : VoidFuture;
+                : OKFuture;
         }));
     }
 
@@ -3325,6 +3338,7 @@ private:
 
                 case ECommitState::Commit:
                 case ECommitState::Abort:
+                case ECommitState::ReadyToCommit:
                     YT_LOG_DEBUG(error, "Coordinator observes participant failure; will retry "
                         "(TransactionId: %v, ParticipantCellId: %v, State: %v)",
                         commit->GetTransactionId(),

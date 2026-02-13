@@ -59,9 +59,9 @@ public:
 
     const T* GetData() const;
 
-    T& operator[] (size_t index);
+    T& operator[](size_t index);
 
-    const T& operator[] (size_t index) const;
+    const T& operator[](size_t index) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

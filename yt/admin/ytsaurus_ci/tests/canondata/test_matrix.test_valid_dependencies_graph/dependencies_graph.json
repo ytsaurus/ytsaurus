@@ -1,0 +1,474 @@
+{
+    "0": {
+        "chyt": "2.16.0",
+        "operator": "0.23.1",
+        "query_tracker": "0.0.8",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.12",
+        "ytsaurus": "24.2"
+    },
+    "1": {
+        "chyt": "2.16.0",
+        "operator": "0.24.0",
+        "query_tracker": "0.0.8",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.12",
+        "ytsaurus": "24.2"
+    },
+    "2": {
+        "chyt": "2.16.0",
+        "operator": "0.25.0",
+        "query_tracker": "0.0.8",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.12",
+        "ytsaurus": "24.2"
+    },
+    "3": {
+        "chyt": "2.16.0",
+        "operator": "0.26.0",
+        "query_tracker": "0.0.8",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.12",
+        "ytsaurus": "24.2"
+    },
+    "4": {
+        "chyt": "2.17.3",
+        "operator": "0.26.0",
+        "query_tracker": "0.0.10",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.13",
+        "ytsaurus": "25.1"
+    },
+    "5": {
+        "chyt": "2.17.3",
+        "operator": "0.26.0",
+        "query_tracker": "0.0.11",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.13",
+        "ytsaurus": "25.1"
+    },
+    "6": {
+        "chyt": "2.17.3",
+        "operator": "0.27.0",
+        "query_tracker": "0.0.10",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.13",
+        "ytsaurus": "25.1"
+    },
+    "7": {
+        "chyt": "2.17.3",
+        "operator": "0.27.0",
+        "query_tracker": "0.0.11",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.13",
+        "ytsaurus": "25.1"
+    },
+    "8": {
+        "chyt": "2.17.3",
+        "operator": "0.27.0",
+        "query_tracker": "0.1",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.13",
+        "ytsaurus": "25.1"
+    },
+    "9": {
+        "chyt": "2.17.4",
+        "operator": "0.26.0",
+        "query_tracker": "0.0.10",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.13",
+        "ytsaurus": "25.1"
+    },
+    "10": {
+        "chyt": "2.17.4",
+        "operator": "0.26.0",
+        "query_tracker": "0.0.11",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.13",
+        "ytsaurus": "25.1"
+    },
+    "11": {
+        "chyt": "2.17.4",
+        "operator": "0.27.0",
+        "query_tracker": "0.0.10",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.13",
+        "ytsaurus": "25.1"
+    },
+    "12": {
+        "chyt": "2.17.4",
+        "operator": "0.27.0",
+        "query_tracker": "0.0.11",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.13",
+        "ytsaurus": "25.1"
+    },
+    "13": {
+        "chyt": "2.17.4",
+        "operator": "0.27.0",
+        "query_tracker": "0.0.11",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.2"
+    },
+    "14": {
+        "chyt": "2.17.4",
+        "operator": "0.27.0",
+        "query_tracker": "0.0.11",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.3"
+    },
+    "15": {
+        "chyt": "2.17.4",
+        "operator": "0.27.0",
+        "query_tracker": "0.0.11",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.4"
+    },
+    "16": {
+        "chyt": "2.17.4",
+        "operator": "0.27.0",
+        "query_tracker": "0.1",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.13",
+        "ytsaurus": "25.1"
+    },
+    "17": {
+        "chyt": "2.17.4",
+        "operator": "0.27.0",
+        "query_tracker": "0.1",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.2"
+    },
+    "18": {
+        "chyt": "2.17.4",
+        "operator": "0.27.0",
+        "query_tracker": "0.1",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.3"
+    },
+    "19": {
+        "chyt": "2.17.4",
+        "operator": "0.27.0",
+        "query_tracker": "0.1",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.4"
+    },
+    "20": {
+        "chyt": "2.17.4",
+        "operator": "0.28.0",
+        "query_tracker": "0.0.11",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.2"
+    },
+    "21": {
+        "chyt": "2.17.4",
+        "operator": "0.28.0",
+        "query_tracker": "0.0.11",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.3"
+    },
+    "22": {
+        "chyt": "2.17.4",
+        "operator": "0.28.0",
+        "query_tracker": "0.0.11",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.4"
+    },
+    "23": {
+        "chyt": "2.17.4",
+        "operator": "0.28.0",
+        "query_tracker": "0.1",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.2"
+    },
+    "24": {
+        "chyt": "2.17.4",
+        "operator": "0.28.0",
+        "query_tracker": "0.1",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.3"
+    },
+    "25": {
+        "chyt": "2.17.4",
+        "operator": "0.28.0",
+        "query_tracker": "0.1",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.4"
+    },
+    "26": {
+        "chyt": "2.17.4",
+        "operator": "0.29.0",
+        "query_tracker": "0.0.11",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.2"
+    },
+    "27": {
+        "chyt": "2.17.4",
+        "operator": "0.29.0",
+        "query_tracker": "0.0.11",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.3"
+    },
+    "28": {
+        "chyt": "2.17.4",
+        "operator": "0.29.0",
+        "query_tracker": "0.0.11",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.4"
+    },
+    "29": {
+        "chyt": "2.17.4",
+        "operator": "0.29.0",
+        "query_tracker": "0.1",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.2"
+    },
+    "30": {
+        "chyt": "2.17.4",
+        "operator": "0.29.0",
+        "query_tracker": "0.1",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.3"
+    },
+    "31": {
+        "chyt": "2.17.4",
+        "operator": "0.29.0",
+        "query_tracker": "0.1",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.4"
+    },
+    "32": {
+        "chyt": "2.17.4",
+        "operator": "main",
+        "query_tracker": "0.0.11",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.3"
+    },
+    "33": {
+        "chyt": "2.17.4",
+        "operator": "main",
+        "query_tracker": "0.0.11",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.4"
+    },
+    "34": {
+        "chyt": "2.17.4",
+        "operator": "main",
+        "query_tracker": "0.1",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.3"
+    },
+    "35": {
+        "chyt": "2.17.4",
+        "operator": "main",
+        "query_tracker": "0.1",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.4"
+    },
+    "36": {
+        "chyt": "2.18",
+        "operator": "0.27.0",
+        "query_tracker": "0.0.11",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.2"
+    },
+    "37": {
+        "chyt": "2.18",
+        "operator": "0.27.0",
+        "query_tracker": "0.0.11",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.3"
+    },
+    "38": {
+        "chyt": "2.18",
+        "operator": "0.27.0",
+        "query_tracker": "0.0.11",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.4"
+    },
+    "39": {
+        "chyt": "2.18",
+        "operator": "0.27.0",
+        "query_tracker": "0.1",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.2"
+    },
+    "40": {
+        "chyt": "2.18",
+        "operator": "0.27.0",
+        "query_tracker": "0.1",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.3"
+    },
+    "41": {
+        "chyt": "2.18",
+        "operator": "0.27.0",
+        "query_tracker": "0.1",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.4"
+    },
+    "42": {
+        "chyt": "2.18",
+        "operator": "0.28.0",
+        "query_tracker": "0.0.11",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.2"
+    },
+    "43": {
+        "chyt": "2.18",
+        "operator": "0.28.0",
+        "query_tracker": "0.0.11",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.3"
+    },
+    "44": {
+        "chyt": "2.18",
+        "operator": "0.28.0",
+        "query_tracker": "0.0.11",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.4"
+    },
+    "45": {
+        "chyt": "2.18",
+        "operator": "0.28.0",
+        "query_tracker": "0.1",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.2"
+    },
+    "46": {
+        "chyt": "2.18",
+        "operator": "0.28.0",
+        "query_tracker": "0.1",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.3"
+    },
+    "47": {
+        "chyt": "2.18",
+        "operator": "0.28.0",
+        "query_tracker": "0.1",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.4"
+    },
+    "48": {
+        "chyt": "2.18",
+        "operator": "0.29.0",
+        "query_tracker": "0.0.11",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.2"
+    },
+    "49": {
+        "chyt": "2.18",
+        "operator": "0.29.0",
+        "query_tracker": "0.0.11",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.3"
+    },
+    "50": {
+        "chyt": "2.18",
+        "operator": "0.29.0",
+        "query_tracker": "0.0.11",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.4"
+    },
+    "51": {
+        "chyt": "2.18",
+        "operator": "0.29.0",
+        "query_tracker": "0.1",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.2"
+    },
+    "52": {
+        "chyt": "2.18",
+        "operator": "0.29.0",
+        "query_tracker": "0.1",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.3"
+    },
+    "53": {
+        "chyt": "2.18",
+        "operator": "0.29.0",
+        "query_tracker": "0.1",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.4"
+    },
+    "54": {
+        "chyt": "2.18",
+        "operator": "main",
+        "query_tracker": "0.0.11",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.3"
+    },
+    "55": {
+        "chyt": "2.18",
+        "operator": "main",
+        "query_tracker": "0.0.11",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.4"
+    },
+    "56": {
+        "chyt": "2.18",
+        "operator": "main",
+        "query_tracker": "0.1",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.3"
+    },
+    "57": {
+        "chyt": "2.18",
+        "operator": "main",
+        "query_tracker": "0.1",
+        "spyt": "2.6.5",
+        "strawberry": "0.0.15",
+        "ytsaurus": "25.4"
+    },
+    "58": {
+        "chyt": "main",
+        "operator": "main",
+        "query_tracker": "main",
+        "spyt": "2.6.5",
+        "strawberry": "main",
+        "ytsaurus": "main"
+    }
+}

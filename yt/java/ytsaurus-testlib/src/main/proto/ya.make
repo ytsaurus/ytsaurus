@@ -1,5 +1,7 @@
 PROTO_LIBRARY(ytsaurus-testlib-proto)
 
+DEFAULT_JDK_VERSION(11)
+
 PROTO_NAMESPACE(yt/java/ytsaurus-testlib/src/main/proto)
 
 SRCS(

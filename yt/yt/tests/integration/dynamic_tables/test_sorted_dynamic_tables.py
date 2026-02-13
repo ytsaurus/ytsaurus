@@ -4,7 +4,7 @@ from yt_env_setup import parametrize_external
 
 from yt_commands import (
     authors, print_debug, wait, create, ls, get, set,
-    remove, exists,
+    remove, exists, move, copy,
     create_tablet_cell_bundle, start_transaction, abort_transaction, commit_transaction, lock,
     insert_rows, select_rows, lookup_rows, delete_rows,
     lock_rows, alter_table, read_table, write_table, remount_table,
@@ -237,7 +237,8 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
                 insert_rows(path, rows)
                 return
             except YtError as e:
-                if not e.contains_code(yt_error_codes.HunkTabletStoreToggleConflict):
+                if not e.contains_code(yt_error_codes.HunkTabletStoreToggleConflict) and \
+                   not e.contains_code(yt_error_codes.HunkStoreAllocationFailed):
                     raise e
 
 
@@ -346,6 +347,36 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             commit_transaction(tx2)
 
     @authors("ponasenko-rs")
+    @pytest.mark.parametrize("check_conflict_horizon", [True, False])
+    def test_conflict_with_conflict_horizon_timestamp(self, check_conflict_horizon):
+        sync_create_cells(1)
+
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "int64", "lock": "value_lock"}
+        ]
+
+        create_dynamic_table("//tmp/t", schema=schema)
+        set("//tmp/t/@mount_config/backing_store_retention_time", 0)
+        set("//tmp/t/@mount_config/check_conflict_horizon", check_conflict_horizon)
+        sync_mount_table("//tmp/t")
+
+        tx_to_conflict = start_transaction(type="tablet")
+
+        lock_tx = start_transaction(type="tablet")
+        lock_rows("//tmp/t", [{"key": 0}], locks=["value_lock"], lock_type="exclusive", tx=lock_tx)
+        commit_transaction(lock_tx)
+
+        sync_flush_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": 0, "value": 0}], tx=tx_to_conflict)
+        if check_conflict_horizon:
+            with raises_yt_error(yt_error_codes.CannotCheckConflictsAgainstChunkStore):
+                commit_transaction(tx_to_conflict)
+        else:
+            commit_transaction(tx_to_conflict)
+
+    @authors("ponasenko-rs")
     @pytest.mark.parametrize("lock_type", ["exclusive", "shared_write", "shared_strong"])
     def test_tablet_locks_persist_in_snapshots(self, lock_type):
         sync_create_cells(1)
@@ -357,8 +388,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         ]
 
         create_dynamic_table("//tmp/t", schema=schema, serialization_type="coarse")
-        # TODO(ponasenko-rs): Remove after YT-21404.
-        set("//tmp/t/@dynamic_store_auto_flush_period", None)
         sync_mount_table("//tmp/t")
 
         tx_to_conflict_after_recovery = start_transaction(type="tablet")
@@ -373,7 +402,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             commit_transaction(tx_to_conflict_before_recovery)
 
         build_snapshot(cell_id=cell_id)
-        snapshots = ls("//sys/tablet_cells/" + cell_id + "/snapshots")
+        snapshots = ls(f"//sys/tablet_cells/{cell_id}/snapshots")
         assert len(snapshots) == 1
 
         with self.CellsDisabled(clusters=["primary"], tablet_bundles=[get(f'#{cell_id}/@tablet_cell_bundle')]):
@@ -1948,6 +1977,204 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         assert saved_size == data_bytes_counter2.get_delta()
 
+    @authors("lukyan")
+    def test_skip_value_blocks_for_missing_keys(self):
+        sync_create_cells(1)
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "dynamic": True,
+                "optimize_for": "scan",
+                "schema": [
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string", "group": "b"}]
+            })
+
+        set("//tmp/t/@mount_config/skip_value_blocks_for_missing_keys", True)
+
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": 'V' * 10000} for i in range(1, 30, 10)]
+        insert_rows("//tmp/t", rows)
+
+        # flush table
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        res = select_rows("* from [//tmp/t]")
+        print_debug(res)
+        assert_items_equal(res, rows)
+
+        # wait more than update_sensor_service_tree_period
+        time.sleep(3)
+
+        profiler = profiler_factory().at_tablet_node("//tmp/t", fixed_tags={
+            "table_path": "//tmp/t",
+            "medium": "default",
+        })
+
+        data_bytes_counter = profiler.counter("select/chunk_reader_statistics/data_bytes_read_from_cache")
+
+        assert_items_equal(select_rows("* from [//tmp/t] where key between 2 and 8"), [])
+        wait(lambda: data_bytes_counter.get_delta() > 0)
+        metric_value = data_bytes_counter.get_delta()
+        assert metric_value < 10000
+
+        assert_items_equal(select_rows("* from [//tmp/t] where key between 10 and 12"), [{"key": 11, "value": 'V' * 10000}])
+        wait(lambda: data_bytes_counter.get_delta() > metric_value)
+        metric_value2 = data_bytes_counter.get_delta()
+        assert metric_value2 > 10000
+
+        set("//tmp/t/@mount_config/skip_value_blocks_for_missing_keys", False)
+
+        remount_table("//tmp/t")
+
+        assert_items_equal(select_rows("* from [//tmp/t] where key between 2 and 8"), [])
+        wait(lambda: data_bytes_counter.get_delta() > metric_value2)
+        metric_value3 = data_bytes_counter.get_delta()
+        assert metric_value3 > 10000
+
+    @authors("ifsmirnov")
+    def test_empty_chunk_view_range(self):
+        sync_create_cells(1)
+
+        schema = [
+            {"name": "k1", "type": "int64", "sort_order": "ascending"},
+            {"name": "k2", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ]
+
+        rows = [{"k1": i, "k2": i*100, "value": str(i)} for i in range(10)]
+
+        self._create_simple_table("//tmp/t", schema=schema)
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", rows)
+        sync_unmount_table("//tmp/t")
+
+        # Create chunk view with ranges <[5], [5;#]> in the second tablet.
+        # This range is effectively empty.
+        # Remove all other chunks.
+        sync_reshard_table("//tmp/t", [[], [5], [5, None]])
+        set("//tmp/t/@forced_compaction_revision", 1)
+        mount_table("//tmp/t", first_tablet_index=0, last_tablet_index=0)
+        mount_table("//tmp/t", first_tablet_index=2, last_tablet_index=2)
+        wait(lambda: len(builtins.set(get("//tmp/t/@chunk_ids"))) == 3)
+        sync_unmount_table("//tmp/t")
+        remove("//tmp/t/@forced_compaction_revision")
+
+        def _check():
+            actual = select_rows("* from [//tmp/t]")
+            assert_items_equal(actual, rows)
+
+            actual = lookup_rows(
+                "//tmp/t",
+                [{k: r[k] for k in ("k1", "k2")} for r in rows])
+            assert_items_equal(actual, rows)
+
+        # Second tablet now has chunk view <[5], [5;#]> and pivot key [5].
+        # After alter, when lower pivot key is widened in reader, the range becomes
+        # <[5;#;#], [5;#]>, and so end may appear less than begin unless
+        # correct comparator is used.
+        sync_reshard_table("//tmp/t", [[], [5]])
+
+        root_chunk_list = get("//tmp/t/@chunk_list_id")
+        get(f"#{root_chunk_list}/@tree")
+
+        sync_mount_table("//tmp/t")
+        _check()
+        sync_unmount_table("//tmp/t")
+
+        schema[2:2] = [
+            {"name": "k3", "type": "int64", "sort_order": "ascending"},
+        ]
+        alter_table("//tmp/t", schema=schema)
+        sync_mount_table("//tmp/t")
+
+        rows = [{**row, "k3": yson.YsonEntity()} for row in rows]
+        _check()
+
+    @authors("ponasenko-rs")
+    @pytest.mark.parametrize("reshard_way", ["split", "merge"])
+    def test_conflict_horizon_timestamp_persistence_on_reshard(self, reshard_way):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+
+        def _get_tablets_horizon_timestamps(expected_tablet_count):
+            tablet_ids = [tablet["tablet_id"] for tablet in get("//tmp/t/@tablets")]
+            assert len(tablet_ids) == expected_tablet_count
+            return [get(f"#{tablet_id}/@conflict_horizon_timestamp") for tablet_id in tablet_ids]
+
+        if reshard_way == "split":
+            sync_mount_table("//tmp/t")
+            insert_rows("//tmp/t", [{"key": 1, "value": "a"}])
+            sync_unmount_table("//tmp/t")
+
+            expected_timestamp = _get_tablets_horizon_timestamps(expected_tablet_count=1)[0]
+
+            sync_reshard_table("//tmp/t", [[], [5]])
+
+            assert all(timestamp == expected_timestamp for timestamp in _get_tablets_horizon_timestamps(expected_tablet_count=2))
+        elif reshard_way == "merge":
+            sync_reshard_table("//tmp/t", [[], [5]])
+
+            sync_mount_table("//tmp/t")
+            insert_rows("//tmp/t", [{"key": 1, "value": "a"}])
+            insert_rows("//tmp/t", [{"key": 10, "value": "b"}])
+            sync_unmount_table("//tmp/t")
+
+            max_timestamp = max(_get_tablets_horizon_timestamps(expected_tablet_count=2))
+
+            sync_reshard_table("//tmp/t", [[]])
+
+            assert _get_tablets_horizon_timestamps(expected_tablet_count=1)[0] == max_timestamp
+        else:
+            assert False
+
+    @authors("ponasenko-rs")
+    @pytest.mark.parametrize("recreation_way", ["copy", "move"])
+    @pytest.mark.parametrize("unmount_way", ["unmount", "freeze"])
+    def test_conflict_horizon_timestamp_persistence_on_recreation(self, recreation_way, unmount_way):
+        if recreation_way == "move" and unmount_way == "freeze":
+            pytest.skip("unmount is required for move")
+
+        from_path = "//tmp/t"
+        to_path = "//t"
+
+        sync_create_cells(1)
+        self._create_simple_table(from_path)
+
+        def _get_horizon_timestamp(path: str) -> int:
+            tablet_ids = [tablet["tablet_id"] for tablet in get(f"{path}/@tablets")]
+            assert len(tablet_ids) == 1
+            return get(f"#{tablet_ids[0]}/@conflict_horizon_timestamp")
+
+        sync_mount_table(from_path)
+        insert_rows(from_path, [{"key": 1, "value": "a"}])
+
+        if unmount_way == "unmount":
+            sync_unmount_table(from_path)
+        elif unmount_way == "freeze":
+            sync_freeze_table(from_path)
+        else:
+            assert False
+
+        expected_timestamp = _get_horizon_timestamp(from_path)
+        assert expected_timestamp > 1  # MinTimestamp
+
+        # NB: cross-portal/sequoia paths.
+        if recreation_way == "copy":
+            copy(from_path, to_path)
+        elif recreation_way == "move":
+            move(from_path, to_path)
+        else:
+            assert False
+
+        assert _get_horizon_timestamp(to_path) == expected_timestamp
+
+        # NB: There is no cleanup for /.
+        remove("//t")
+
 
 @pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesMulticell(TestSortedDynamicTables):
@@ -1976,6 +2203,20 @@ class TestSortedDynamicTablesPortal(TestSortedDynamicTablesMulticell):
     MASTER_CELL_DESCRIPTORS = {
         "11": {"roles": ["chunk_host", "cypress_node_host"]},
         "12": {"roles": ["chunk_host"]},
+    }
+
+
+@pytest.mark.enabled_multidaemon
+class TestSortedDynamicTablesSequoia(TestSortedDynamicTablesMulticell):
+    ENABLE_MULTIDAEMON = True
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host", "sequoia_node_host"]},
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host", "sequoia_node_host"]},
     }
 
 
@@ -2289,6 +2530,21 @@ class TestSortedDynamicTablesSpecialColumnsPortal(TestSortedDynamicTablesSpecial
         "11": {"roles": ["chunk_host", "cypress_node_host"]},
         "12": {"roles": ["chunk_host"]},
     }
+
+
+@pytest.mark.enabled_multidaemon
+class TestSortedDynamicTablesSpecialColumnsSequoia(TestSortedDynamicTablesSpecialColumnsMulticell):
+    ENABLE_MULTIDAEMON = True
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host", "sequoia_node_host"]},
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host", "sequoia_node_host"]},
+    }
+
 
 ################################################################################
 
@@ -2681,12 +2937,20 @@ class TestSortedDynamicTablesMultipleSlotsPerNode(TestSortedDynamicTablesBase):
 class TestReshardWithSlicing(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 2
+    ENABLE_SLICING_BY_DEFAULT = True
 
     @staticmethod
     def _value_by_optimize_for(optimize_for):
         if optimize_for == 'scan':
             return 'a' * 66000
         return 'value'
+
+    def _expect_error_without_slicing_by_default(self, func):
+        if self.ENABLE_SLICING_BY_DEFAULT:
+            func(None)
+        else:
+            with pytest.raises(YtError):
+                func(True)
 
     @authors("alexelexa")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
@@ -2696,15 +2960,16 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
             "//tmp/t",
             optimize_for=optimize_for)
         tablet_count = 3
-        with pytest.raises(YtError):
-            sync_reshard_table("//tmp/t", tablet_count, enable_slicing=True)
-        with pytest.raises(YtError):
-            sync_reshard_table(
-                "//tmp/t",
-                tablet_count,
-                enable_slicing=True,
-                first_tablet_index=0,
-                last_tablet_index=0)
+        self._expect_error_without_slicing_by_default(lambda enable_slicing: sync_reshard_table(
+            "//tmp/t",
+            tablet_count,
+            enable_slicing=enable_slicing))
+        self._expect_error_without_slicing_by_default(lambda enable_slicing: sync_reshard_table(
+            "//tmp/t",
+            tablet_count,
+            enable_slicing=enable_slicing,
+            first_tablet_index=0,
+            last_tablet_index=0))
 
     @authors("alexelexa")
     @pytest.mark.parametrize(
@@ -2712,6 +2977,9 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
         [(0, 0), (0, 1), (1, 3), (3, 4), (4, 4), (0, 4), (None, None)])
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_reshard_sizes(self, first_tablet_index, last_tablet_index, optimize_for):
+        if not self.ENABLE_SLICING_BY_DEFAULT:
+            pytest.skip()
+
         sync_create_cells(1)
         self._create_simple_table(
             "//tmp/t",
@@ -2722,7 +2990,6 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
             sync_reshard_table(
                 "//tmp/t",
                 tablet_count,
-                enable_slicing=True,
                 first_tablet_index=first_tablet_index,
                 last_tablet_index=last_tablet_index)
             assert get("//tmp/t/@tablet_count") == tablet_count_expected
@@ -2770,7 +3037,7 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
             sync_reshard_table(
                 "//tmp/t",
                 tablet_count,
-                enable_slicing=True,
+                enable_slicing=True if not self.ENABLE_SLICING_BY_DEFAULT else None,
                 first_tablet_index=first_tablet_index,
                 last_tablet_index=last_tablet_index)
             sync_compact_table("//tmp/t")
@@ -2781,8 +3048,10 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
         value = self._value_by_optimize_for(optimize_for)
         rows = [{"key": i, "value": value} for i in range(10)]
         insert_rows("//tmp/t", rows)
-        with pytest.raises(YtError):
-            reshard_and_check(2 * len(rows), 2 * len(rows), first_tablet_index=None, last_tablet_index=None)
+
+        self._expect_error_without_slicing_by_default(
+            lambda _: reshard_and_check(2 * len(rows), 1, first_tablet_index=None, last_tablet_index=None))
+
         reshard_and_check(3, 3, first_tablet_index=0, last_tablet_index=0)
         reshard_and_check(5, 5, first_tablet_index=None, last_tablet_index=None)
 
@@ -2802,7 +3071,7 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
             sync_reshard_table(
                 "//tmp/t",
                 tablet_count,
-                enable_slicing=True,
+                enable_slicing=True if not self.ENABLE_SLICING_BY_DEFAULT else None,
                 first_tablet_index=first_tablet_index,
                 last_tablet_index=last_tablet_index)
             if with_compaction:
@@ -2850,10 +3119,10 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
     @pytest.mark.parametrize("with_after_alter_reshard", [True, False])
     def test_reshard_after_alter(self, with_alter, with_pivots, optimize_for, with_after_alter_reshard):
         if with_after_alter_reshard and not with_alter:
-            return
+            pytest.skip()
 
         if with_after_alter_reshard and not with_pivots:
-            return
+            pytest.skip()
 
         sync_create_cells(1)
         self._create_simple_table(
@@ -2913,7 +3182,10 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
 
         def reshard_and_check(tablet_count):
             sync_unmount_table("//tmp/t")
-            sync_reshard_table("//tmp/t", tablet_count, enable_slicing=True)
+            sync_reshard_table(
+                "//tmp/t",
+                tablet_count,
+                enable_slicing=True if not self.ENABLE_SLICING_BY_DEFAULT else None)
             assert get("//tmp/t/@tablet_count") == tablet_count
 
         sync_mount_table("//tmp/t")
@@ -2961,8 +3233,12 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         sync_unmount_table("//tmp/t")
-        with pytest.raises(YtError):
-            sync_reshard_table("//tmp/t", 4, enable_slicing=True, first_tablet_index=0, last_tablet_index=1)
+        self._expect_error_without_slicing_by_default(lambda enable_slicing: sync_reshard_table(
+            "//tmp/t",
+            4,
+            enable_slicing=enable_slicing,
+            first_tablet_index=0,
+            last_tablet_index=1))
 
     @authors("alexelexa")
     def test_replicated_table_reshard(self):
@@ -2977,7 +3253,7 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
             "replication_factor": 1})
 
         with pytest.raises(YtError):
-            sync_reshard_table("//tmp/t", 4, enable_slicing=True)
+            sync_reshard_table("//tmp/t", 4, enable_slicing=True if not self.ENABLE_SLICING_BY_DEFAULT else None)
 
     @authors("alexelexa")
     def test_too_many_chunks_reshard(self):
@@ -3011,6 +3287,17 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
         set("//sys/@config/chunk_manager/max_chunks_per_fetch", 100)
         sync_reshard_table("//tmp/t", 4, enable_slicing=True)
         assert get("//tmp/t/@tablet_count") == 4
+
+
+##################################################################
+
+
+class TestReshardWithSlicingOnDemand(TestReshardWithSlicing):
+    ENABLE_SLICING_BY_DEFAULT = False
+
+    DELTA_DRIVER_CONFIG = {
+        "enable_reshard_with_slicing_by_default": False,
+    }
 
 
 ##################################################################

@@ -107,20 +107,20 @@ void ProfileResources(NProfiling::ISensorWriter* writer, const TJobResources& re
 const TJobResources& ZeroJobResources();
 const TJobResources& InfiniteJobResources();
 
-TJobResources  operator + (const TJobResources& lhs, const TJobResources& rhs);
-TJobResources& operator += (TJobResources& lhs, const TJobResources& rhs);
+TJobResources  operator+(const TJobResources& lhs, const TJobResources& rhs);
+TJobResources& operator+=(TJobResources& lhs, const TJobResources& rhs);
 
-TJobResources  operator - (const TJobResources& lhs, const TJobResources& rhs);
-TJobResources& operator -= (TJobResources& lhs, const TJobResources& rhs);
+TJobResources  operator-(const TJobResources& lhs, const TJobResources& rhs);
+TJobResources& operator-=(TJobResources& lhs, const TJobResources& rhs);
 
-TJobResources  operator * (const TJobResources& lhs, i64 rhs);
-TJobResources  operator * (const TJobResources& lhs, double rhs);
-TJobResources& operator *= (TJobResources& lhs, i64 rhs);
-TJobResources& operator *= (TJobResources& lhs, double rhs);
+TJobResources  operator*(const TJobResources& lhs, i64 rhs);
+TJobResources  operator*(const TJobResources& lhs, double rhs);
+TJobResources& operator*=(TJobResources& lhs, i64 rhs);
+TJobResources& operator*=(TJobResources& lhs, double rhs);
 
-TJobResources  operator - (const TJobResources& resources);
+TJobResources  operator-(const TJobResources& resources);
 
-bool operator == (const TJobResources& lhs, const TJobResources& rhs);
+bool operator==(const TJobResources& lhs, const TJobResources& rhs);
 
 TJobResources MakeNonnegative(const TJobResources& resources);
 bool Dominates(const TJobResources& lhs, const TJobResources& rhs);

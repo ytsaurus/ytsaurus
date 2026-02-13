@@ -54,16 +54,16 @@ struct TWhenThenExpression
 };
 using TWhenThenExpressionList = std::vector<TWhenThenExpression>;
 
-bool operator == (const TIdentifierList& lhs, const TIdentifierList& rhs);
+bool operator==(const TIdentifierList& lhs, const TIdentifierList& rhs);
 
-bool operator == (const TExpressionList& lhs, const TExpressionList& rhs);
+bool operator==(const TExpressionList& lhs, const TExpressionList& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TNullLiteralValue
 { };
 
-bool operator == (TNullLiteralValue, TNullLiteralValue);
+bool operator==(TNullLiteralValue, TNullLiteralValue);
 
 using TLiteralValue = std::variant<
     TNullLiteralValue,
@@ -111,17 +111,17 @@ struct TColumnReference
         , TableName(tableName)
     { }
 
-    bool operator == (const TColumnReference& other) const = default;
+    bool operator==(const TColumnReference& other) const = default;
 };
 
 struct TColumnReferenceHasher
 {
-    size_t operator() (const TColumnReference& reference) const;
+    size_t operator()(const TColumnReference& reference) const;
 };
 
 struct TColumnReferenceEqComparer
 {
-    bool operator() (const TColumnReference& lhs, const TColumnReference& rhs) const;
+    bool operator()(const TColumnReference& lhs, const TColumnReference& rhs) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -138,7 +138,7 @@ struct TCompositeTypeMemberAccessor
 
     bool IsEmpty() const;
 
-    bool operator == (const TCompositeTypeMemberAccessor& other) const = default;
+    bool operator==(const TCompositeTypeMemberAccessor& other) const = default;
 };
 
 struct TReference
@@ -156,17 +156,17 @@ struct TReference
         , CompositeTypeAccessor(compositeTypeAccessor)
     { }
 
-    bool operator == (const TReference& other) const = default;
+    bool operator==(const TReference& other) const = default;
 };
 
 struct TReferenceHasher
 {
-    size_t operator() (const TReference& reference) const;
+    size_t operator()(const TReference& reference) const;
 };
 
 struct TReferenceEqComparer
 {
-    bool operator() (const TReference& lhs, const TReference& rhs) const;
+    bool operator()(const TReference& lhs, const TReference& rhs) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -202,7 +202,7 @@ TExpressionList MakeExpression(TObjectsHolder* holder, TArgs&& ... args)
     return TExpressionList(1, holder->Register(new T(std::forward<TArgs>(args)...)));
 }
 
-bool operator == (const TExpression& lhs, const TExpression& rhs);
+bool operator==(const TExpression& lhs, const TExpression& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -431,7 +431,7 @@ struct TTableHint
     bool RequireSyncReplica;
     bool PushDownGroupBy;
 
-    bool operator == (const TTableHint& other) const = default;
+    bool operator==(const TTableHint& other) const = default;
 
     REGISTER_YSON_STRUCT(TTableHint);
 
@@ -460,7 +460,7 @@ struct TTableDescriptor
     { }
 };
 
-bool operator == (const TTableDescriptor& lhs, const TTableDescriptor& rhs);
+bool operator==(const TTableDescriptor& lhs, const TTableDescriptor& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -500,7 +500,7 @@ struct TJoin
     { }
 };
 
-bool operator == (const TJoin& lhs, const TJoin& rhs);
+bool operator==(const TJoin& lhs, const TJoin& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -593,7 +593,6 @@ struct TQueryExpression
 
 TStringBuf GetSource(TSourceLocation sourceLocation, TStringBuf source);
 
-void FormatIdFinal(TStringBuilderBase* builder, TStringBuf id);
 std::string FormatId(TStringBuf id);
 std::string FormatLiteralValue(const TLiteralValue& value);
 std::string FormatReference(const TReference& ref);
@@ -602,6 +601,7 @@ std::string FormatExpression(const TExpressionList& exprs);
 std::string FormatJoin(const TJoin& join);
 std::string FormatArrayJoin(const TArrayJoin& join);
 std::string FormatQuery(const TQuery& query);
+std::string FormatQueryConcise(const TQuery& query);
 std::string InferColumnName(const TExpression& expr);
 std::string InferColumnName(const TColumnReference& ref);
 void FormatValue(TStringBuilderBase* builder, const TTableHint& hint, TStringBuf spec);

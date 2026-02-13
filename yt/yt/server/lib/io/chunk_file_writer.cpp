@@ -34,18 +34,28 @@ static constexpr auto FileMode =
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPhysicalChunkLayoutWriter::TPhysicalChunkLayoutWriter(TChunkId chunkId, bool syncOnClose)
-    : ChunkId_(chunkId)
-    , Logger(IOLogger().WithTag("ChunkId: %v", ChunkId_))
+i64 TruncateBlocks(NChunkClient::NProto::TBlocksExt& blocksExt, int truncateBlockCount, i64 oldDataSize)
 {
-    BlocksExt_.set_sync_on_close(syncOnClose);
+    YT_LOG_FATAL_IF(
+        truncateBlockCount > blocksExt.blocks_size() || truncateBlockCount < 0,
+        "Invalid truncate block count (TruncateBlockCount: %v, BlockCount: %v)",
+        truncateBlockCount,
+        blocksExt.blocks_size());
+
+    i64 truncateDataSize = 0;
+    for (int index = truncateBlockCount; index < blocksExt.blocks_size(); ++index) {
+        truncateDataSize += blocksExt.blocks(index).size();
+    }
+    blocksExt.mutable_blocks()->Truncate(truncateBlockCount);
+    YT_VERIFY(truncateDataSize <= oldDataSize);
+    return oldDataSize - truncateDataSize;
 }
 
-TPhysicalChunkLayoutWriter::TWriteRequest TPhysicalChunkLayoutWriter::AddBlocks(const std::vector<TBlock>& blocks)
+TSerializedBlocksRequest SerializeBlocks(i64 startOffset, const std::vector<TBlock>& blocks, NChunkClient::NProto::TBlocksExt& blocksExt)
 {
-    TWriteRequest request;
+    TSerializedBlocksRequest request;
 
-    request.StartOffset = GetDataSize();
+    request.StartOffset = startOffset;
     request.EndOffset = request.StartOffset;
 
     request.Buffers.reserve(blocks.size());
@@ -57,7 +67,7 @@ TPhysicalChunkLayoutWriter::TWriteRequest TPhysicalChunkLayoutWriter::AddBlocks(
             error,
             "Block checksum mismatch during file writing");
 
-        auto* blockInfo = BlocksExt_.add_blocks();
+        auto* blockInfo = blocksExt.add_blocks();
         blockInfo->set_offset(request.EndOffset);
         blockInfo->set_size(ToProto<i64>(block.Size()));
         blockInfo->set_checksum(block.GetOrComputeChecksum());
@@ -66,92 +76,41 @@ TPhysicalChunkLayoutWriter::TWriteRequest TPhysicalChunkLayoutWriter::AddBlocks(
         request.Buffers.push_back(block.Data);
     }
 
-    DataSize_ = request.EndOffset;
-
     return request;
 }
 
-TSharedMutableRef TPhysicalChunkLayoutWriter::PrepareChunkMetaBlob()
-{
-    auto metaData = SerializeProtoToRefWithEnvelope(*GetChunkMeta());
-
-    TChunkMetaHeader_2 header;
-    header.Signature = header.ExpectedSignature;
-    header.Checksum = GetChecksum(metaData);
-    header.ChunkId = ChunkId_;
-
-    MetaDataSize_ = metaData.Size() + sizeof(header);
-
-    struct TMetaBufferTag
-    { };
-
-    auto buffer = TSharedMutableRef::Allocate<TMetaBufferTag>(GetMetaDataSize(), {.InitializeStorage = false});
-    ::memcpy(buffer.Begin(), &header, sizeof(header));
-    ::memcpy(buffer.Begin() + sizeof(header), metaData.Begin(), metaData.Size());
-
-    return buffer;
-}
-
-void TPhysicalChunkLayoutWriter::UpdateChunkInfoDiskSpace()
-{
-    ChunkInfo_.set_disk_space(GetDataSize() + GetMetaDataSize());
-}
-
-void TPhysicalChunkLayoutWriter::FinalizeChunkMeta(TDeferredChunkMetaPtr chunkMeta)
+TRefCountedChunkMetaPtr FinalizeChunkMeta(TDeferredChunkMetaPtr chunkMeta, const NChunkClient::NProto::TBlocksExt& blocksExt)
 {
     if (!chunkMeta->IsFinalized()) {
         auto& mapping = chunkMeta->BlockIndexMapping();
-        mapping = std::vector<int>(BlocksExt_.blocks().size());
+        mapping = std::vector<int>(blocksExt.blocks().size());
         std::iota(mapping->begin(), mapping->end(), 0);
         chunkMeta->Finalize();
     }
 
-    ChunkMeta_->CopyFrom(*chunkMeta);
-    SetProtoExtension(ChunkMeta_->mutable_extensions(), BlocksExt_);
+    SetProtoExtension(chunkMeta->mutable_extensions(), blocksExt);
+    return chunkMeta;
 }
 
-TSharedMutableRef TPhysicalChunkLayoutWriter::Close(TDeferredChunkMetaPtr chunkMeta)
+TSharedMutableRef SerializeChunkMeta(TChunkId chunkId, const TRefCountedChunkMetaPtr& chunkMeta)
 {
-    FinalizeChunkMeta(std::move(chunkMeta));
+    auto metaData = SerializeProtoToRefWithEnvelope(*chunkMeta);
 
-    auto chunkMetaBlob = PrepareChunkMetaBlob();
-    UpdateChunkInfoDiskSpace();
-    return chunkMetaBlob;
-}
+    TChunkMetaHeader_2 header;
+    header.Signature = header.ExpectedSignature;
+    header.Checksum = GetChecksum(metaData);
+    header.ChunkId = chunkId;
 
-void TPhysicalChunkLayoutWriter::UpdateDataSize(i64 dataSizeDelta)
-{
-    DataSize_ += dataSizeDelta;
-}
+    auto metaDataSize = metaData.Size() + sizeof(header);
 
-i64 TPhysicalChunkLayoutWriter::GetDataSize() const
-{
-    return DataSize_;
-}
+    struct TMetaBufferTag
+    { };
 
-i64 TPhysicalChunkLayoutWriter::GetMetaDataSize() const
-{
-    return MetaDataSize_;
-}
+    auto buffer = TSharedMutableRef::Allocate<TMetaBufferTag>(metaDataSize, {.InitializeStorage = false});
+    ::memcpy(buffer.Begin(), &header, sizeof(header));
+    ::memcpy(buffer.Begin() + sizeof(header), metaData.Begin(), metaData.Size());
 
-NChunkClient::NProto::TBlocksExt& TPhysicalChunkLayoutWriter::MutableBlocksExt()
-{
-    return BlocksExt_;
-}
-
-const TRefCountedChunkMetaPtr& TPhysicalChunkLayoutWriter::GetChunkMeta() const
-{
-    return ChunkMeta_;
-}
-
-const NChunkClient::NProto::TChunkInfo& TPhysicalChunkLayoutWriter::GetChunkInfo() const
-{
-    return ChunkInfo_;
-}
-
-TChunkId TPhysicalChunkLayoutWriter::GetChunkId() const
-{
-    return ChunkId_;
+    return buffer;
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -160,13 +119,22 @@ TChunkFileWriter::TChunkFileWriter(
     IIOEnginePtr ioEngine,
     TChunkId chunkId,
     TString fileName,
-    bool syncOnClose)
+    bool syncOnClose,
+    bool useDirectIO)
     : IOEngine_(std::move(ioEngine))
     , FileName_(std::move(fileName))
     , SyncOnClose_(syncOnClose)
-    , PhysicalChunkLayoutWriter_(New<TPhysicalChunkLayoutWriter>(chunkId, syncOnClose))
-    , Logger(IOLogger())
+    , UseDirectIO_(useDirectIO)
 { }
+
+TFlags<EOpenModeFlag> TChunkFileWriter::GetFileMode() const
+{
+    auto flags = FileMode;
+    if (UseDirectIO_) {
+        flags |= DirectAligned;
+    }
+    return flags;
+}
 
 void TChunkFileWriter::TryLockDataFile(TPromise<void> promise)
 {
@@ -223,7 +191,7 @@ TFuture<void> TChunkFileWriter::Open()
 
     // NB: Races are possible between file creation and a call to flock.
     // Unfortunately in Linux we can't create'n'flock a file atomically.
-    return IOEngine_->Open({FileName_ + NFS::TempFileSuffix, FileMode})
+    return IOEngine_->Open({FileName_ + NFS::TempFileSuffix, GetFileMode()})
         .Apply(BIND([
             this,
             this_ = MakeStrong(this)
@@ -261,7 +229,7 @@ TFuture<void> TChunkFileWriter::PreallocateDiskSpace(
         DiskSpace_ = spaceSize;
         return IOEngine_->Allocate(TAllocateRequest{.Handle = DataFile_, .Size = DiskSpace_}, workloadDescriptor.Category);
     } else {
-        return VoidFuture;
+        return OKFuture;
     }
 }
 
@@ -301,8 +269,7 @@ bool TChunkFileWriter::WriteBlocks(
         return false;
     }
 
-    auto oldDataSize = GetDataSize();
-    auto writeRequest = PhysicalChunkLayoutWriter_->AddBlocks(blocks);
+    auto writeRequest = SerializeBlocks(DataSize_, blocks, BlocksExt_);
 
     ReadyEvent_ =
         IOEngine_->Write({
@@ -317,7 +284,6 @@ bool TChunkFileWriter::WriteBlocks(
             this,
             this_ = MakeStrong(this),
             newDataSize = writeRequest.EndOffset,
-            oldDataSize,
             blockCount = blocks.size(),
             chunkWriterStatistics = options.ClientOptions.ChunkWriterStatistics
         ] (const TErrorOr<TWriteResponse>& rspOrError) {
@@ -372,20 +338,7 @@ TFuture<void> TChunkFileWriter::Close(
     }
 
     if (truncateBlockCount.has_value()) {
-        auto& blocksExt = PhysicalChunkLayoutWriter_->MutableBlocksExt();
-        YT_LOG_FATAL_IF(
-            *truncateBlockCount > blocksExt.blocks_size() || *truncateBlockCount < 0,
-            "Invalid truncate block count (TruncateBlockCount: %v, BlockCount: %v)",
-            *truncateBlockCount,
-            blocksExt.blocks_size());
-
-        i64 truncateDataSize = 0;
-        for (int index = *truncateBlockCount; index < blocksExt.blocks_size(); ++index) {
-            truncateDataSize += blocksExt.blocks(index).size();
-        }
-        blocksExt.mutable_blocks()->Truncate(*truncateBlockCount);
-        YT_VERIFY(truncateDataSize <= GetDataSize());
-        PhysicalChunkLayoutWriter_->UpdateDataSize(-truncateDataSize);
+        DataSize_ = TruncateBlocks(BlocksExt_, *truncateBlockCount, DataSize_);
     }
 
     auto metaFileName = FileName_ + ChunkMetaSuffix;
@@ -399,11 +352,11 @@ TFuture<void> TChunkFileWriter::Close(
         ] (const TCloseResponse& rsp) {
             YT_VERIFY(State_.load() == EState::Closing);
 
-            PhysicalChunkLayoutWriter_->FinalizeChunkMeta(std::move(chunkMeta));
+            ChunkMeta_->CopyFrom(*FinalizeChunkMeta(std::move(chunkMeta), BlocksExt_));
 
             chunkWriterStatistics->DataIOSyncRequests.fetch_add(rsp.IOSyncRequests, std::memory_order::relaxed);
 
-            return IOEngine_->Open({metaFileName + NFS::TempFileSuffix, FileMode});
+            return IOEngine_->Open({metaFileName + NFS::TempFileSuffix, GetFileMode()});
         }).AsyncVia(IOEngine_->GetAuxPoolInvoker()))
         .Apply(BIND([
             this,
@@ -414,7 +367,8 @@ TFuture<void> TChunkFileWriter::Close(
         ] (const TIOEngineHandlePtr& chunkMetaFile) {
             YT_VERIFY(State_.load() == EState::Closing);
 
-            auto buffer = PhysicalChunkLayoutWriter_->PrepareChunkMetaBlob();
+            auto buffer = SerializeChunkMeta(ChunkId_, ChunkMeta_);
+            MetaDataSize_ = buffer.size();
 
             return
                 IOEngine_->Write({
@@ -460,7 +414,7 @@ TFuture<void> TChunkFileWriter::Close(
             NFS::Rename(FileName_ + NFS::TempFileSuffix, FileName_);
 
             if (!SyncOnClose_) {
-                return VoidFuture;
+                return OKFuture;
             }
 
             return IOEngine_->FlushDirectory({NFS::GetDirectoryName(FileName_)})
@@ -483,7 +437,6 @@ TFuture<void> TChunkFileWriter::Close(
                     << error;
             }
 
-            PhysicalChunkLayoutWriter_->UpdateChunkInfoDiskSpace();
             State_.store(EState::Closed);
         }).AsyncVia(IOEngine_->GetAuxPoolInvoker()));
 }

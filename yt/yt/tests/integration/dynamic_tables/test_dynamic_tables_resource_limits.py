@@ -3,10 +3,11 @@ from yt_dynamic_tables_base import DynamicTablesBase
 from yt_commands import (
     authors, wait, create, ls, get, set, copy, move,
     remove, exists,
-    create_account, create_tablet_cell_bundle, insert_rows, alter_table, write_table, mount_table, reshard_table, remount_table, reshard_table_automatic, sync_create_cells,
+    create_account, create_tablet_cell_bundle, insert_rows, alter_table, write_table,
+    mount_table, reshard_table, remount_table, reshard_table_automatic, sync_create_cells,
     sync_mount_table, sync_unmount_table, sync_reshard_table, sync_flush_table, sync_compact_table,
-    build_snapshot,
-    multicell_sleep, raises_yt_error, get_driver)
+    build_snapshot, multicell_sleep, raises_yt_error, get_driver,
+    transfer_bundle_resources, create_user, make_ace)
 
 import yt_error_codes
 
@@ -77,8 +78,8 @@ class TestDynamicTablesResourceLimits(DynamicTablesResourceLimitsBase):
 
     def setup_method(self, method):
         super().setup_method(method)
-        set("//sys/@config/security_manager/enable_tablet_resource_validation", True)
-        set("//sys/@config/tablet_manager/enable_tablet_resource_validation", False)
+        self._multicell_set("//sys/@config/security_manager/enable_tablet_resource_validation", True)
+        self._multicell_set("//sys/@config/tablet_manager/enable_tablet_resource_validation", False)
 
     @authors("savrus")
     @pytest.mark.parametrize("resource", ["chunk_count", "disk_space_per_medium/default"])
@@ -605,12 +606,19 @@ class TestDynamicTablesResourceLimitsShardedTx(TestDynamicTablesResourceLimitsPo
     }
 
 
-@authors("kvk1920")
 @pytest.mark.enabled_multidaemon
-class TestDynamicTablesResourceLimitsMirroredTx(TestDynamicTablesResourceLimitsShardedTx):
+class TestDynamicTablesResourceLimitsSequoia(TestDynamicTablesResourceLimitsShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host", "sequoia_node_host"]},
+        "11": {"roles": ["chunk_host", "cypress_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+        "13": {"roles": ["transaction_coordinator", "sequoia_node_host"]},
+    }
 
 
 ##################################################################
@@ -986,6 +994,145 @@ class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
         with raises_yt_error():
             set(f"{path}/@resource_quota/memory", -1)
 
+    @authors("ifsmirnov")
+    def test_transfer_bundle_resources_core(self):
+        create_tablet_cell_bundle("b1")
+        create_tablet_cell_bundle("b2")
+
+        path1 = "//sys/tablet_cell_bundles/b1/@resource_limits"
+        path2 = "//sys/tablet_cell_bundles/b2/@resource_limits"
+
+        with raises_yt_error():
+            transfer_bundle_resources("b1", "b2", 100500)
+        with raises_yt_error():
+            transfer_bundle_resources("b1", "b2", {"tablet_count": -1})
+        with raises_yt_error():
+            transfer_bundle_resources("b1", "b2", {"cpu": -1})
+
+        set(path2, {})
+        set(path1, {"tablet_count": 100, "tablet_static_memory": 200})
+        transfer_bundle_resources("b1", "b2", {"tablet_count": 10, "tablet_static_memory": 20})
+        assert get(path1) == {"tablet_count": 90, "tablet_static_memory": 180}
+        assert get(path2) == {"tablet_count": 10, "tablet_static_memory": 20}
+
+        with raises_yt_error("does not have enough resources"):
+            transfer_bundle_resources("b1", "b2", {"tablet_count": 91})
+        with raises_yt_error("does not have enough resources"):
+            transfer_bundle_resources("b1", "b2", {"tablet_static_memory": 181})
+
+        assert not exists(path1 + "/@cpu")
+        assert not exists(path2 + "/@cpu")
+        assert get("//sys/tablet_cell_bundles/b1/@resource_quota") == {}
+        assert get("//sys/tablet_cell_bundles/b2/@resource_quota") == {}
+
+        with raises_yt_error("does not have enough resources"):
+            transfer_bundle_resources("b1", "b2", {"cpu": 1})
+
+        set(path1 + "/cpu", 300)
+        with raises_yt_error("does not have enough resources"):
+            transfer_bundle_resources("b1", "b2", {"cpu": 400})
+        transfer_bundle_resources("b1", "b2", {"cpu": 300})
+        assert get(path1 + "/cpu") == 0
+        assert get(path2 + "/cpu") == 300
+
+        set(path1 + "/memory", 400)
+        set(path1 + "/net_bytes", 500)
+        transfer_bundle_resources("b1", "b2", {"memory": 40, "net_bytes": 50})
+        assert get(path1) == {
+            "tablet_count": 90,
+            "tablet_static_memory": 180,
+            "cpu": 0,
+            "memory": 360,
+            "net_bytes": 450,
+        }
+        assert get(path2) == {
+            "tablet_count": 10,
+            "tablet_static_memory": 20,
+            "cpu": 300,
+            "memory": 40,
+            "net_bytes": 50,
+        }
+
+        assert get("//sys/tablet_cell_bundles/b1/@resource_quota") == {
+            "cpu": 0,
+            "memory": 360,
+            "net_bytes": 450,
+        }
+        assert get("//sys/tablet_cell_bundles/b2/@resource_quota") == {
+            "cpu": 300,
+            "memory": 40,
+            "net_bytes": 50,
+        }
+
+        for i in range(self.NUM_SECONDARY_MASTER_CELLS):
+            driver = get_driver(i + 1)
+            assert get(path1, driver=driver) == {
+                "tablet_count": 90,
+                "tablet_static_memory": 180,
+                "cpu": 0,
+                "memory": 360,
+                "net_bytes": 450,
+            }
+            assert get(path2, driver=driver) == {
+                "tablet_count": 10,
+                "tablet_static_memory": 20,
+                "cpu": 300,
+                "memory": 40,
+                "net_bytes": 50,
+            }
+
+    @authors("ifsmirnov")
+    def DISABLED_test_transfer_resources_cannot_overflow_YT_26186(self):
+        create_tablet_cell_bundle("b1")
+        create_tablet_cell_bundle("b2")
+
+        path1 = "//sys/tablet_cell_bundles/b1/@resource_limits"
+        path2 = "//sys/tablet_cell_bundles/b2/@resource_limits"
+
+        set(path1 + "/tablet_count", 9 * 10**18)
+        set(path2 + "/tablet_count", 9 * 10**18)
+
+        # Should fail.
+        with raises_yt_error():
+            transfer_bundle_resources("b1", "b2", {"tablet_count": 10**18})
+
+        # Shouldn't fail.
+        assert get(path2 + "/tablet_count") > 0
+
+    @authors("ifsmirnov")
+    def test_transfer_bundle_resources_permissions(self):
+        create_tablet_cell_bundle("b1")
+        create_tablet_cell_bundle("b2")
+        create_user("u")
+
+        set("//sys/tablet_cell_bundles/b1/@inherit_acl", False)
+        set("//sys/tablet_cell_bundles/b2/@inherit_acl", False)
+
+        set("//sys/tablet_cell_bundles/b1/@resource_limits/tablet_count", 100)
+
+        with raises_yt_error():
+            transfer_bundle_resources("b1", "b2", {"tablet_count": 1}, authenticated_user="u")
+
+        set("//sys/tablet_cell_bundles/b1/@acl/end", make_ace("allow", "u", "write"))
+        with raises_yt_error():
+            transfer_bundle_resources("b1", "b2", {"tablet_count": 1}, authenticated_user="u")
+
+        set("//sys/tablet_cell_bundles/b2/@acl/end", make_ace("allow", "u", "write"))
+        transfer_bundle_resources("b1", "b2", {"tablet_count": 1}, authenticated_user="u")
+
+        remove("//sys/tablet_cell_bundles/b1/@acl/-1")
+        with raises_yt_error():
+            transfer_bundle_resources("b1", "b2", {"tablet_count": 1}, authenticated_user="u")
+
+    @authors("ifsmirnov")
+    def transfer_bundle_resources_between_same_bundle(self):
+        create_tablet_cell_bundle("b")
+        set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_count", 100)
+        transfer_bundle_resources("b", "b", {"tablet_count": 50})
+        assert get("//sys/tablet_cell_bundles/b/@resource_limits/tablet_count") == 100
+        with raises_yt_error():
+            transfer_bundle_resources("b", "b", {"tablet_count": 200})
+
 
 @pytest.mark.enabled_multidaemon
 class TestPerBundleAccountingMulticell(TestPerBundleAccounting):
@@ -996,6 +1143,13 @@ class TestPerBundleAccountingMulticell(TestPerBundleAccounting):
         "11": {"roles": ["chunk_host"]},
         "12": {"roles": ["chunk_host"]},
     }
+
+
+@pytest.mark.enabled_multidaemon
+class TestPerBundleAccountingRpcProxy(TestPerBundleAccounting):
+    ENABLE_MULTIDAEMON = True
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
 
 
 @pytest.mark.enabled_multidaemon
@@ -1022,10 +1176,17 @@ class TestPerBundleAccountingShardedTx(TestPerBundleAccountingPortal):
     }
 
 
-@authors("kvk1920")
 @pytest.mark.enabled_multidaemon
-class TestPerBundleAccountingMirroredTx(TestPerBundleAccountingShardedTx):
+class TestPerBundleAccountingSequoia(TestPerBundleAccountingShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     NUM_TEST_PARTITIONS = 2
+    ENABLE_TMP_ROOTSTOCK = True
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host", "sequoia_node_host"]},
+        "11": {"roles": ["chunk_host", "cypress_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+        "13": {"roles": ["transaction_coordinator", "sequoia_node_host"]},
+    }

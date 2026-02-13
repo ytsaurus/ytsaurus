@@ -6,6 +6,8 @@
 
 #include <yt/yt/library/query/row_comparer_api/row_comparer_generator.h>
 
+#include <yt/yt/core/concurrency/throughput_throttler.h>
+
 namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////

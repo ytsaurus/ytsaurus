@@ -32,7 +32,8 @@ ISchedulingPolicyPtr CreateSchedulingPolicy(
     TWeakPtr<ISchedulingPolicyHost> host,
     IStrategyHost* strategyHost,
     const std::string& treeId,
-    const TStrategyTreeConfigPtr& config);
+    const TStrategyTreeConfigPtr& config,
+    NProfiling::TProfiler profiler);
 
 ////////////////////////////////////////////////////////////////////////////////
 

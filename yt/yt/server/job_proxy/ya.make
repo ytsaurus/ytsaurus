@@ -45,6 +45,8 @@ PEERDIR(
     yt/yt/server/lib/user_job
     yt/yt/server/tools
 
+    yt/yt/core/rpc/http
+
     yt/yt/library/containers
     yt/yt/library/containers/cri
     yt/yt/library/orchid

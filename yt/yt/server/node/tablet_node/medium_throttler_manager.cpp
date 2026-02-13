@@ -147,23 +147,29 @@ public:
         DynamicConfigManager_->UnsubscribeConfigChanged(DynamicConfigCallback_);
     }
 
-    IReconfigurableThroughputThrottlerPtr GetOrCreateMediumWriteThrottler(const std::string& mediumName)
+    IReconfigurableThroughputThrottlerPtr GetOrCreateMediumWriteThrottler(
+        const std::string& mediumName,
+        ETabletDistributedThrottlerKind kind)
     {
-        RegisteredWriteThrottlers_.Insert(mediumName);
+        TKey key(mediumName, kind);
+        RegisteredWriteThrottlers_.Insert(key);
 
         return GetOrCreateThrottler(
             EMediumLoadDirection::Write,
-            mediumName,
+            key,
             DynamicConfigManager_->GetConfig());
     }
 
-    IReconfigurableThroughputThrottlerPtr GetOrCreateMediumReadThrottler(const std::string& mediumName)
+    IReconfigurableThroughputThrottlerPtr GetOrCreateMediumReadThrottler(
+        const std::string& mediumName,
+        ETabletDistributedThrottlerKind kind)
     {
-        RegisteredReadThrottlers_.Insert(mediumName);
+        TKey key(mediumName, kind);
+        RegisteredReadThrottlers_.Insert(key);
 
         return GetOrCreateThrottler(
             EMediumLoadDirection::Read,
-            mediumName,
+            key,
             DynamicConfigManager_->GetConfig());
     }
 
@@ -171,6 +177,7 @@ private:
     using TDynamicConfigCallback = TCallback<void(
         const TBundleDynamicConfigPtr& oldConfig,
         const TBundleDynamicConfigPtr& newConfig)>;
+    using TKey = std::tuple<std::string, ETabletDistributedThrottlerKind>;
 
     const std::string BundleName_;
     const NYPath::TYPath BundlePath_;
@@ -178,8 +185,8 @@ private:
     const IDistributedThrottlerManagerPtr DistributedThrottlerManager_;
     const NProfiling::TProfiler Profiler_;
 
-    TCopyOnWriteSet<std::string> RegisteredWriteThrottlers_;
-    TCopyOnWriteSet<std::string> RegisteredReadThrottlers_;
+    TCopyOnWriteSet<TKey> RegisteredWriteThrottlers_;
+    TCopyOnWriteSet<TKey> RegisteredReadThrottlers_;
 
     TEnumIndexedArray<EMediumLoadDirection, THashMap<std::string, NProfiling::TGauge>> ConfiguredLimits_ = {
         {EMediumLoadDirection::Write, { }},
@@ -191,13 +198,14 @@ private:
 
     IReconfigurableThroughputThrottlerPtr GetOrCreateThrottler(
         const EMediumLoadDirection& direction,
-        const std::string& mediumName,
+        const TKey& key,
         const TBundleDynamicConfigPtr& bundleConfig)
     {
         if (!DistributedThrottlerManager_) {
             return GetUnlimitedThrottler();
         }
 
+        const auto& [mediumName, kind] = key;
         auto throttlerName = GetMediumThrottlerName(direction, mediumName);
 
         return DistributedThrottlerManager_->GetOrCreateThrottler(
@@ -205,7 +213,7 @@ private:
             /*cellTag*/ {},
             GetMediumThrottlerConfig(direction, mediumName, bundleConfig),
             throttlerName,
-            EDistributedThrottlerMode::Adaptive,
+            kind,
             WriteThrottlerRpcTimeout,
             /*admitUnlimitedThrottler*/ true,
             Profiler_);
@@ -218,12 +226,12 @@ private:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         // In order to apply new parameters we have to just call GetOrCreateThrottler with a new config.
-        for (const auto& mediumName : *RegisteredWriteThrottlers_.MakeSnapshot()) {
-            GetOrCreateThrottler(EMediumLoadDirection::Write, mediumName, newConfig);
+        for (const auto& key : *RegisteredWriteThrottlers_.MakeSnapshot()) {
+            GetOrCreateThrottler(EMediumLoadDirection::Write, key, newConfig);
         }
 
-        for (const auto& mediumName : *RegisteredReadThrottlers_.MakeSnapshot()) {
-            GetOrCreateThrottler(EMediumLoadDirection::Read, mediumName, newConfig);
+        for (const auto& key : *RegisteredReadThrottlers_.MakeSnapshot()) {
+            GetOrCreateThrottler(EMediumLoadDirection::Read, key, newConfig);
         }
 
         for (auto direction : TEnumTraits<EMediumLoadDirection>::GetDomainValues()) {

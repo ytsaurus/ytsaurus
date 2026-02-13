@@ -15,12 +15,14 @@ ENDIF()
 PEERDIR(
     library/cpp/getopt
     library/cpp/uri
+    yt/yql/providers/yt/lib/yt_download
     yt/yql/providers/yt/fmr/worker/impl
     yt/yql/providers/yt/fmr/worker/server
     yt/yql/providers/yt/fmr/coordinator/client
     yt/yql/providers/yt/fmr/job_factory/impl
     yt/yql/providers/yt/fmr/job/impl
     yt/yql/providers/yt/fmr/job_launcher
+    yt/yql/providers/yt/fmr/job_preparer/impl
     yt/yql/providers/yt/fmr/table_data_service/client/impl
     yt/yql/providers/yt/fmr/table_data_service/local/impl
     yt/yql/providers/yt/fmr/table_data_service/discovery/file
@@ -33,6 +35,11 @@ PEERDIR(
     yql/essentials/public/udf/service/terminate_policy
     yql/essentials/sql/pg
     yql/essentials/utils/log
+    yql/essentials/core/file_storage/proto
+)
+
+RESOURCE(
+    yt/yql/providers/yt/fmr/cfg/fs.conf fs.conf
 )
 
 YQL_LAST_ABI_VERSION()

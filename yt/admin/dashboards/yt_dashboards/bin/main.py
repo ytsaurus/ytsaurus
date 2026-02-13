@@ -5,6 +5,7 @@ from yt_dashboards.common.runner import run
 from yt_dashboards.master import (
     build_master_global, build_master_local, build_master_node_tracker, build_master_cpu, build_master_merge_jobs,
     build_master_accounts)
+from yt_dashboards.cypress_proxies import build_cypress_proxies
 from yt_dashboards.artemis import (
     build_local_artemis, build_bundle_artemis, build_global_artemis, build_local_artemis_container)
 from yt_dashboards.scheduler_internal import build_scheduler_internal
@@ -17,6 +18,7 @@ from yt_dashboards.chyt import build_chyt_monitoring
 from yt_dashboards.key_filter import build_key_filter
 from yt_dashboards.exe_nodes import build_exe_nodes
 from yt_dashboards.data_nodes import build_data_nodes_common
+from yt_dashboards.data_node_local import build_data_node_local
 from yt_dashboards.user_load import build_user_load
 from yt_dashboards.http_proxies import build_http_proxies
 
@@ -231,6 +233,10 @@ dashboards = {
         "monitoring": {},
         "grafana": {},
     },
+    "cypress-proxy": {
+        "func": build_cypress_proxies,
+        "monitoring": {},
+    },
     "chyt-monitoring-test": {
         "func": build_chyt_monitoring,
         "monitoring": {},
@@ -247,6 +253,17 @@ dashboards = {
     "data-nodes-common": {
         "func": build_data_nodes_common,
         "monitoring": {},
+    },
+    "data-node-local": {
+        "func": build_data_node_local,
+        "monitoring": {
+            # has_porto = True
+            "args": [True],
+        },
+        "grafana": {
+            # has_porto = False
+            "args": [False],
+        },
     },
     "flow-general": {
         "func": flow.build_flow_general,
@@ -275,6 +292,10 @@ dashboards = {
     },
     "flow-message-transfering": {
         "func": flow.build_flow_message_transfering,
+        "monitoring": {},
+    },
+    "flow-one-worker": {
+        "func": flow.build_flow_one_worker,
         "monitoring": {},
     },
     "flow-state-cache": {

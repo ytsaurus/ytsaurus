@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup, Restarter, CONTROLLER_AGENTS_SERVICE
 
 from yt_commands import (
     alter_table, authors, wait, create, ls, get, set, remove, exists,
-    insert_rows, delete_rows,
+    insert_rows, delete_rows, make_random_string,
     write_table, map, merge, sort, vanilla, remote_copy, get_table_columnar_statistics,
     sync_create_cells, sync_mount_table, sync_flush_table, sync_compact_table,
     raises_yt_error)
@@ -19,8 +19,6 @@ from yt.common import YtError
 from yt.yson.yson_types import YsonEntity
 
 import pytest
-import random
-import string
 
 
 class _TestColumnarStatisticsBase(YTEnvSetup):
@@ -80,9 +78,10 @@ class _TestColumnarStatisticsBase(YTEnvSetup):
             "#" + str(lower_row_index) if lower_row_index is not None else "",
             "#" + str(upper_row_index) if upper_row_index is not None else "",
         )
-        statistics = get_table_columnar_statistics(path,
-                                                   fetcher_mode=fetcher_mode,
-                                                   enable_early_finish=enable_early_finish)[0]
+        statistics = get_table_columnar_statistics(
+            path,
+            fetcher_mode=fetcher_mode,
+            enable_early_finish=enable_early_finish)[0]
         assert statistics["legacy_chunks_data_weight"] == expected_legacy_data_weight
         assert statistics["column_data_weights"] == dict(zip(columns.split(","), expected_data_weights))
         if expected_timestamp_weight is not None:
@@ -187,9 +186,9 @@ class TestColumnarStatistics(_TestColumnarStatisticsBase):
         with pytest.raises(YtError):
             get_table_columnar_statistics('["//tmp/t";]')
         self._expect_data_weight_statistics(2, 2, "a,b,c", [0, 0, 0])
-        self._expect_data_weight_statistics(0, 6, "a,b,c", [1300, 8, 17], expected_estimated_unique_counts=[3, 1, 2])
-        self._expect_data_weight_statistics(0, 6, "a,c,x", [1300, 17, 0], expected_estimated_unique_counts=[3, 2, 0])
-        self._expect_data_weight_statistics(1, 5, "a,b,c", [1300, 8, 17], expected_estimated_unique_counts=[3, 1, 2])
+        self._expect_data_weight_statistics(0, 6, "a,b,c", [1300, 8, 17], expected_estimated_unique_counts=[2, 1, 2])
+        self._expect_data_weight_statistics(0, 6, "a,c,x", [1300, 17, 0], expected_estimated_unique_counts=[2, 2, 0])
+        self._expect_data_weight_statistics(1, 5, "a,b,c", [1300, 8, 17], expected_estimated_unique_counts=[2, 1, 2])
         self._expect_data_weight_statistics(2, 5, "a", [1200], expected_estimated_unique_counts=[2])
         self._expect_data_weight_statistics(1, 4, "", [])
 
@@ -200,12 +199,12 @@ class TestColumnarStatistics(_TestColumnarStatisticsBase):
         write_table("<append=%true>//tmp/t", [{"a": "x" * 100, "b": 42}, {"c": 1.2}])
         write_table("<append=%true>//tmp/t", [{"a": "x" * 200}, {"c": True}])
         write_table("<append=%true>//tmp/t", [{"b": None, "c": 0}, {"a": "x" * 1000}])
-        self._expect_data_weight_statistics(0, 6, "a,b,c", [1300, 8, 17], table="//tmp/t", expected_estimated_unique_counts=[3, 1, 2])
+        self._expect_data_weight_statistics(0, 6, "a,b,c", [1300, 8, 17], table="//tmp/t", expected_estimated_unique_counts=[2, 1, 2])
         op = merge(in_="//tmp/t{a,b,c}", out="//tmp/d", spec={"combine_chunks": True})
 
         op.track()
         assert 1 == get('//tmp/d/@chunk_count')
-        self._expect_data_weight_statistics(0, 6, "a,b,c", [1300, 8, 17], table="//tmp/d", expected_estimated_unique_counts=[3, 1, 3])
+        self._expect_data_weight_statistics(0, 6, "a,b,c", [1300, 8, 17], table="//tmp/d", expected_estimated_unique_counts=[2, 1, 2])
 
     @authors("gritukan")
     def test_get_table_approximate_statistics(self):
@@ -1137,25 +1136,7 @@ class TestReadSizeEstimation(_TestColumnarStatisticsBase):
 
     NUM_NODES = 16
 
-    @staticmethod
-    def _make_random_string(size) -> str:
-        return ''.join(random.choice(string.ascii_letters) for _ in range(size))
-
-    @authors("apollo1321")
-    @pytest.mark.timeout(300)
-    @pytest.mark.parametrize("strict", [False, True])
-    @pytest.mark.parametrize("mode", ["from_nodes", "from_master"])
-    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    @pytest.mark.parametrize("erasure_codec", ["none", "isa_reed_solomon_6_3", "isa_lrc_12_2_2"])
-    @pytest.mark.parametrize("striped_erasure", [False, True])
-    @pytest.mark.parametrize("use_groups", [True, False])
-    def test_estimated_input_statistics_with_column_groups(self, strict, mode, optimize_for, erasure_codec, striped_erasure, use_groups):
-        if striped_erasure and erasure_codec != "isa_lrc_12_2_2":
-            pytest.skip()
-
-        if not use_groups and (optimize_for != "scan" or erasure_codec != "none" or striped_erasure):
-            pytest.skip()
-
+    def _prepare_input_table(self, strict: bool, optimize_for: str, erasure_codec: str, striped_erasure: bool, use_groups: bool):
         create("table", "//tmp/t_in", attributes={
             "schema": make_schema([
                 {"name": "small", "type": "string", "group": "group_1"},
@@ -1178,29 +1159,46 @@ class TestReadSizeEstimation(_TestColumnarStatisticsBase):
         if striped_erasure:
             writer_config["erasure_stripe_size"] = 512
 
-        for row_batch in range(3):
+        for _ in range(3):
             rows = []
-            for index in range(50):
+            for _ in range(50):
                 rows += [
                     {
-                        "small": self._make_random_string(200),
-                        "large_1": self._make_random_string(400),
-                        "large_2": self._make_random_string(800),
+                        "small": make_random_string(200),
+                        "large_1": make_random_string(400),
+                        "large_2": make_random_string(800),
                     },
                     {
-                        "large_2": self._make_random_string(1600),
+                        "large_2": make_random_string(1600),
                     },
                     {
-                        "small": self._make_random_string(3200),
-                        "large_1": self._make_random_string(6400),
+                        "small": make_random_string(3200),
+                        "large_1": make_random_string(6400),
                     },
                 ]
 
                 if not strict:
-                    rows[1]["unknown1"] = self._make_random_string(12800)
-                    rows[2]["unknown2"] = self._make_random_string(25600)
+                    rows[-2]["unknown1"] = make_random_string(12800)
+                    rows[-3]["unknown2"] = make_random_string(25600)
 
             write_table("<append=%true>//tmp/t_in", rows, table_writer=writer_config)
+
+    @authors("apollo1321")
+    @pytest.mark.timeout(300)
+    @pytest.mark.parametrize("strict", [False, True])
+    @pytest.mark.parametrize("mode", ["from_nodes", "from_master"])
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    @pytest.mark.parametrize("erasure_codec", ["none", "isa_reed_solomon_6_3", "isa_lrc_12_2_2"])
+    @pytest.mark.parametrize("striped_erasure", [False, True])
+    @pytest.mark.parametrize("use_groups", [True, False])
+    def test_estimated_input_statistics_with_column_groups(self, strict, mode, optimize_for, erasure_codec, striped_erasure, use_groups):
+        if striped_erasure and erasure_codec != "isa_lrc_12_2_2":
+            pytest.skip()
+
+        if not use_groups and (optimize_for != "scan" or erasure_codec != "none" or striped_erasure):
+            pytest.skip()
+
+        self._prepare_input_table(strict, optimize_for, erasure_codec, striped_erasure, use_groups)
 
         create("table", "//tmp/t_out")
 
@@ -1261,9 +1259,9 @@ class TestReadSizeEstimation(_TestColumnarStatisticsBase):
         })
 
         write_table("//tmp/t_in", [{
-            "small": self._make_random_string(2**10),
-            "large_1": self._make_random_string(5 * 2**20),
-            "large_2": self._make_random_string(5 * 2**20),
+            "small": make_random_string(2**10),
+            "large_1": make_random_string(5 * 2**20),
+            "large_2": make_random_string(5 * 2**20),
         }])
 
         create("table", "//tmp/t_out")
@@ -1289,3 +1287,46 @@ class TestReadSizeEstimation(_TestColumnarStatisticsBase):
             assert 512 < estimated_compressed_data_size < 40 * 2**10
         else:
             assert 512 < estimated_compressed_data_size < 2 * 2**10
+
+    @authors("apollo1321")
+    @pytest.mark.timeout(300)
+    @pytest.mark.parametrize("strict", [False, True])
+    @pytest.mark.parametrize("mode", ["from_nodes", "from_master"])
+    def test_get_table_columnar_statistics_read_size_estimation_scan(self, strict, mode):
+        self._prepare_input_table(strict=strict, optimize_for="scan", erasure_codec="none", striped_erasure=False, use_groups=True)
+
+        statistics = get_table_columnar_statistics(
+            ["//tmp/t_in{small}", "//tmp/t_in{large_1}", "//tmp/t_in{small, large_1, large_2}", "//tmp/t_in{some_other_column}"],
+            fetcher_mode=mode,
+            enable_read_size_estimation=True)
+
+        delta = 0.03 if mode == "from_nodes" else 0.10
+
+        for statistic, expected_size in zip(statistics, [
+                (3200 + 200 + 800 + 1600) * 150,  # small + large_2.
+                (400 + 6400) * 150,  # large_1.
+                (200 + 400 + 800 + 1600 + 3200 + 6400) * 150,  # small + large_1 + large_2.
+                0 if strict else (12800 + 25600) * 150,  # unknown1 + unknown2.
+                ]):
+            assert expected_size * (1. - delta) <= statistic["read_size_estimation"] <= expected_size * (1. + delta)
+
+    @authors("apollo1321")
+    @pytest.mark.timeout(300)
+    @pytest.mark.parametrize("strict", [False, True])
+    @pytest.mark.parametrize("mode", ["from_nodes", "from_master"])
+    def test_get_table_columnar_statistics_read_size_estimation_lookup(self, strict, mode):
+        self._prepare_input_table(strict=strict, optimize_for="lookup", erasure_codec="none", striped_erasure=False, use_groups=False)
+
+        statistics = get_table_columnar_statistics(
+            ["//tmp/t_in{small}", "//tmp/t_in{large_1}", "//tmp/t_in{small, large_1, large_2}"],
+            fetcher_mode=mode,
+            enable_read_size_estimation=True)
+
+        expected_size = (200 + 400 + 800 + 1600 + 3200 + 6400) * 150
+        if not strict:
+            expected_size += (12800 + 25600) * 150
+
+        delta = 0.03 if mode == "from_nodes" else 0.10
+
+        for statistic in statistics:
+            assert expected_size * (1. - delta) <= statistic["read_size_estimation"] <= expected_size * (1. + delta)

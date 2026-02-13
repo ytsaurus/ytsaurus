@@ -19,11 +19,17 @@
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/logical_type.h>
 
+#include <yt/yt/client/transaction_client/helpers.h>
+
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <library/cpp/iterator/enumerate.h>
+#include <library/cpp/iterator/zip.h>
 
 namespace NYT::NTabletNode {
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
 
 using namespace NClusterNode;
 using namespace NConcurrency;
@@ -39,14 +45,12 @@ constinit const auto Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
 const auto PerformanceCounterStruct = StructLogicalType({
-    {"count", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-    {"rate", SimpleLogicalType(ESimpleLogicalValueType::Double)},
-    {"rate_10m", SimpleLogicalType(ESimpleLogicalValueType::Double)},
-    {"rate_1h", SimpleLogicalType(ESimpleLogicalValueType::Double)}
-});
+    {"count", "count", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+    {"rate", "rate", SimpleLogicalType(ESimpleLogicalValueType::Double)},
+    {"rate_10m", "rate_10m", SimpleLogicalType(ESimpleLogicalValueType::Double)},
+    {"rate_1h", "rate_1h", SimpleLogicalType(ESimpleLogicalValueType::Double)}
+}, /*removedFieldStableNames*/ {});
 
 const auto NameTable = TNameTable::FromSchema(TTableSchema({
     {"table_id", EValueType::String, ESortOrder::Ascending},
@@ -60,17 +64,18 @@ const auto NameTable = TNameTable::FromSchema(TTableSchema({
 }));
 
 const int ColumnCount = NameTable->GetSize();
-
-} // namespace
+const int KeyColumnCount = 2;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
 
 TStatisticsReporter::TStatisticsReporter(IBootstrap* const bootstrap)
     : Bootstrap_(bootstrap)
     , ActionQueue_(New<TActionQueue>("TabStatReporter"))
     , Executor_(New<TPeriodicExecutor>(
         ActionQueue_->GetInvoker(),
-        BIND(&TStatisticsReporter::ReportStatistics, MakeWeak(this))))
+        BIND(&TStatisticsReporter::ProcessStatistics, MakeWeak(this))))
     , Profiler_(TabletNodeProfiler().WithPrefix("/statistics_reporter"))
     , ReportCount_(Profiler_.Counter("/report_count"))
     , ReportErrorCount_(Profiler_.Counter("/report_error_count"))
@@ -138,11 +143,14 @@ std::pair<i64, i64> TStatisticsReporter::GetDataSizes(const TTabletSnapshotPtr& 
 
 TUnversionedRow TStatisticsReporter::MakeUnversionedRow(
     const TTabletSnapshotPtr& tabletSnapshot,
-    const TRowBufferPtr& rowBuffer)
+    const TRowBufferPtr& rowBuffer,
+    bool keyColumnsOnly)
 {
-    const auto& performanceCounters = tabletSnapshot->PerformanceCounters;
+    auto row = rowBuffer->AllocateUnversioned(
+        keyColumnsOnly
+            ? KeyColumnCount
+            : ColumnCount);
 
-    auto row = rowBuffer->AllocateUnversioned(ColumnCount);
     int index = 0;
 
     auto addValue = [&] (const TUnversionedValue& value) {
@@ -151,6 +159,13 @@ TUnversionedRow TStatisticsReporter::MakeUnversionedRow(
 
     addValue(rowBuffer->CaptureValue(MakeUnversionedStringValue(ToString(tabletSnapshot->TableId), index)));
     addValue(rowBuffer->CaptureValue(MakeUnversionedStringValue(ToString(tabletSnapshot->TabletId), index)));
+
+    if (keyColumnsOnly) {
+        YT_VERIFY(index == KeyColumnCount);
+        return row;
+    }
+
+    const auto& performanceCounters = tabletSnapshot->PerformanceCounters;
 
     #define XX(name, Name) \
     performanceCounters->Name.UpdateEma(); \
@@ -178,7 +193,8 @@ TUnversionedRow TStatisticsReporter::MakeUnversionedRow(
 void TStatisticsReporter::WriteRows(
     const TYPath& tablePath,
     TRange<TUnversionedRow> rows,
-    TRowBufferPtr&& rowBuffer)
+    TRowBufferPtr&& rowBuffer,
+    const std::vector<TTabletSnapshotPtr>& /*tabletSnapshots*/)
 {
     int reportedTabletCount = rows.size();
 
@@ -207,7 +223,113 @@ void TStatisticsReporter::WriteRows(
         elapsedTime);
 }
 
-void TStatisticsReporter::ReportStatistics()
+TIntrusivePtr<NApi::IUnversionedRowset> TStatisticsReporter::LookupRows(
+    const TYPath& tablePath,
+    TRange<TUnversionedRow> keys,
+    NTableClient::TRowBufferPtr&& rowBuffer)
+{
+    NApi::TLookupRowsOptions lookupOptions;
+    lookupOptions.VersionedReadOptions.ReadMode = EVersionedIOMode::LatestTimestamp;
+    lookupOptions.KeepMissingRows = true;
+
+    auto lookupFuture = Bootstrap_->GetClient()->LookupRows(
+        tablePath,
+        NameTable,
+        MakeSharedRange(keys, std::move(rowBuffer)),
+        lookupOptions);
+
+    return WaitFor(lookupFuture)
+        .ValueOrThrow()
+        .Rowset;
+}
+
+void TStatisticsReporter::LoadStatistics(
+    const TYPath& tablePath,
+    TRange<TUnversionedRow> keys,
+    NTableClient::TRowBufferPtr&& rowBuffer,
+    const std::vector<TTabletSnapshotPtr>& tabletSnapshots)
+{
+    auto tableStatisticsRowset = LookupRows(
+        tablePath,
+        keys,
+        std::move(rowBuffer));
+
+    const auto& lookupSchema = tableStatisticsRowset->GetSchema();
+
+    auto loadStatistic = [&] (
+        std::string name,
+        TUnversionedRow row,
+        TPerformanceCountersEma* performanceCounter,
+        NTabletClient::TTabletId tabletId)
+    {
+        if (!lookupSchema->FindColumn(name)) {
+            THROW_ERROR_EXCEPTION("Table %Qv has no column %Qv", tablePath, name);
+        }
+
+        auto timestampColumnIndex = lookupSchema->GetColumnIndexOrThrow("$timestamp:" + name);
+        auto measuringTime = TimestampToInstant(row[timestampColumnIndex].Data.Uint64).first;
+
+        auto valueColumnIndex = lookupSchema->GetColumnIndexOrThrow(name);
+        auto value = ConvertTo<IListNodePtr>(row[valueColumnIndex]);
+
+        const int CountFieldIndex = 0;
+        const int Rate10mFieldIndex = 2;
+        const int Rate1hFieldIndex = 3;
+
+        if (!value->FindChildValue<i64>(CountFieldIndex)) {
+            THROW_ERROR_EXCEPTION("Column %Qv does not contain value", name)
+                << TErrorAttribute("table_path", tablePath)
+                << TErrorAttribute("tablet_id", tabletId);
+        }
+
+        TEmaCounter<i64> oldCounter(performanceCounter->Ema.WindowDurations);
+        oldCounter.Count = value->GetChildValueOrThrow<i64>(CountFieldIndex);
+        oldCounter.LastTimestamp = measuringTime;
+        oldCounter.WindowRates = TEmaCounterWindowRates<TypicalWindowCount>{
+            /*rate_10m*/ value->GetChildValueOrThrow<double>(Rate10mFieldIndex),
+            /*rate_1h*/ value->GetChildValueOrThrow<double>(Rate1hFieldIndex),
+        };
+
+        performanceCounter->Merge(oldCounter);
+    };
+
+    for (auto&& [tabletSnapshot, row]: Zip(tabletSnapshots, tableStatisticsRowset->GetRows())) {
+        tabletSnapshot->PerformanceCounters->Initialized = true;
+        if (!row) {
+            continue;
+        }
+
+        auto& performanceCounters = tabletSnapshot->PerformanceCounters;
+
+        #define XX(name, Name) \
+            loadStatistic(#name, row, &performanceCounters->Name, tabletSnapshot->TabletId);
+        ITERATE_TABLET_PERFORMANCE_COUNTERS(XX)
+        ITERATE_NODE_TABLET_PERFORMANCE_COUNTERS(XX)
+        #undef XX
+    }
+
+    YT_LOG_DEBUG("Finished loading tablet statistics batch (TabletCount: %v)",
+        tableStatisticsRowset->GetRows().size());
+}
+
+THashMap<TTabletId, TTabletSnapshotPtr> TStatisticsReporter::GetLatestTabletSnapshots()
+{
+    THashMap<TTabletId, TTabletSnapshotPtr> latestTabletSnapshots;
+    for (auto&& tabletSnapshot : Bootstrap_->GetTabletSnapshotStore()->GetTabletSnapshots()) {
+        THashMap<TTabletId, TTabletSnapshotPtr>::insert_ctx context;
+        if (auto it = latestTabletSnapshots.find(tabletSnapshot->TabletId, context)) {
+            if (it->second->MountRevision < tabletSnapshot->MountRevision) {
+                it->second = std::move(tabletSnapshot);
+            }
+        } else {
+            latestTabletSnapshots.emplace_direct(context, tabletSnapshot->TabletId, std::move(tabletSnapshot));
+        }
+    }
+
+    return latestTabletSnapshots;
+}
+
+void TStatisticsReporter::ProcessStatistics()
 {
     auto guard = Guard(Spinlock_);
     if (!Enable_) {
@@ -219,11 +341,47 @@ void TStatisticsReporter::ReportStatistics()
     auto reportBackoffTime = ReportBackoffTime_;
     guard.Release();
 
+    auto latestTabletSnapshots = GetLatestTabletSnapshots();
+
+    std::vector<TTabletSnapshotPtr> tabletsWithStatistics;
+    std::vector<TTabletSnapshotPtr> tabletsWithoutStatistics;
+    for (auto&& [_, tabletSnapshot]: latestTabletSnapshots) {
+        if (tabletSnapshot->PerformanceCounters->Initialized) {
+            tabletsWithStatistics.push_back(tabletSnapshot);
+        } else {
+            tabletsWithoutStatistics.push_back(tabletSnapshot);
+        }
+    }
+
+    LoadUninitializedStatistics(
+        tabletsWithoutStatistics,
+        tablePath,
+        maxTabletsPerTransaction,
+        reportBackoffTime);
+
+    ReportStatistics(
+        tabletsWithStatistics,
+        tablePath,
+        maxTabletsPerTransaction,
+        reportBackoffTime);
+}
+
+void TStatisticsReporter::ReportStatistics(
+    const std::vector<TTabletSnapshotPtr>& tabletsWithStatistics,
+    const NYPath::TYPath& tablePath,
+    i64 maxTabletsPerTransaction,
+    TDuration reportBackoffTime)
+{
     auto context = CreateTraceContextFromCurrent("TabletStatisticsReporter");
     TTraceContextGuard contextGuard(context);
     try {
         YT_LOG_DEBUG("Started reporting tablet statistics");
-        DoReportStatistics(tablePath, maxTabletsPerTransaction);
+        DoProcessStatistics(
+            tablePath,
+            maxTabletsPerTransaction,
+            /*keyColumnsOnly*/ false,
+            tabletsWithStatistics,
+            BIND(&TStatisticsReporter::WriteRows, MakeWeak(this)));
         ReportCount_.Increment();
         YT_LOG_DEBUG("Finished reporting tablet statistics");
     } catch (const std::exception& ex) {
@@ -234,20 +392,38 @@ void TStatisticsReporter::ReportStatistics()
     }
 }
 
-void TStatisticsReporter::DoReportStatistics(const TYPath& tablePath, i64 maxTabletsPerTransaction)
+void TStatisticsReporter::LoadUninitializedStatistics(
+    const std::vector<TTabletSnapshotPtr>& tabletsWithoutStatistics,
+    const NYPath::TYPath& tablePath,
+    i64 maxTabletsPerTransaction,
+    TDuration loadBackoffTime)
 {
-    THashMap<TTabletId, TTabletSnapshotPtr> tabletSnapshots;
-    for (auto&& tabletSnapshot : Bootstrap_->GetTabletSnapshotStore()->GetTabletSnapshots()) {
-        THashMap<TTabletId, TTabletSnapshotPtr>::insert_ctx context;
-        if (auto it = tabletSnapshots.find(tabletSnapshot->TabletId, context)) {
-            if (it->second->MountRevision < tabletSnapshot->MountRevision) {
-                it->second = std::move(tabletSnapshot);
-            }
-        } else {
-            tabletSnapshots.emplace_direct(context, tabletSnapshot->TabletId, std::move(tabletSnapshot));
-        }
-    }
+    auto context = CreateTraceContextFromCurrent("TabletStatisticsReporter");
+    TTraceContextGuard contextGuard(context);
+    try {
+        YT_LOG_DEBUG("Started loading tablet statistics");
+        DoProcessStatistics(
+            tablePath,
+            maxTabletsPerTransaction,
+            /*keyColumnsOnly*/ true,
+            tabletsWithoutStatistics,
+            BIND(&TStatisticsReporter::LoadStatistics, MakeWeak(this)));
+        YT_LOG_DEBUG("Finished loading tablet statistics");
+    } catch (const std::exception& ex) {
+        LoadErrorCount_.Increment();
+        YT_LOG_ERROR(ex, "Failed to load tablet statistics");
 
+        TDelayedExecutor::WaitForDuration(loadBackoffTime);
+    }
+}
+
+void TStatisticsReporter::DoProcessStatistics(
+    const TYPath& tablePath,
+    i64 maxTabletsPerTransaction,
+    bool keyColumnsOnly,
+    const std::vector<TTabletSnapshotPtr>& tabletSnapshots,
+    TOnRowCallback processRows)
+{
     TRowBufferPtr rowBuffer;
     i64 rowsSize;
     TUnversionedRow* rows;
@@ -260,17 +436,25 @@ void TStatisticsReporter::DoReportStatistics(const TYPath& tablePath, i64 maxTab
     };
     resetRows(0);
 
-    for (const auto& [snapshotIndex, it] : Enumerate(tabletSnapshots)) {
-        rows[rowsSize++] = MakeUnversionedRow(it.second, rowBuffer);
+    for (const auto& [snapshotIndex, tabletSnapshot] : Enumerate(tabletSnapshots)) {
+        rows[rowsSize++] = MakeUnversionedRow(tabletSnapshot, rowBuffer, keyColumnsOnly);
 
         if (rowsSize == maxTabletsPerTransaction) {
-            WriteRows(tablePath, TRange(rows, rowsSize), std::move(rowBuffer));
+            processRows(
+                tablePath,
+                TRange(rows, rowsSize),
+                std::move(rowBuffer),
+                tabletSnapshots);
             resetRows(snapshotIndex);
         }
     }
 
     if (rowsSize > 0) {
-        WriteRows(tablePath, TRange(rows, rowsSize), std::move(rowBuffer));
+        processRows(
+            tablePath,
+            TRange(rows, rowsSize),
+            std::move(rowBuffer),
+            tabletSnapshots);
     }
 }
 

@@ -50,8 +50,8 @@ class ColumnSchema:
     def __init__(
         self,
         name: str,
-        type,
-        sort_order=None,
+        type: typing.Union[ti.type_base.Type, typing.Type],
+        sort_order: typing.Optional[typing.Literal["ascending", "descending"]] = None,
         group: typing.Optional[str] = None,
         aggregate: typing.Optional[str] = None,
         expression: typing.Optional[str] = None,
@@ -88,7 +88,10 @@ class ColumnSchema:
         return result
 
     @classmethod
-    def from_yson_type(cls, obj):
+    def from_yson_type(
+        cls,
+        obj: typing.Mapping,
+    ):
         if "type_v3" in obj:
             type = ti.deserialize_yson(yt.yson.dumps(obj["type_v3"]))
         else:
@@ -145,7 +148,12 @@ class TableSchema:
     See https://ytsaurus.tech/docs/en/user-guide/storage/static-schema
     """
 
-    def __init__(self, columns=None, strict=None, unique_keys=None):
+    def __init__(
+        self,
+        columns: typing.Optional[typing.List[ColumnSchema]] = None,
+        strict: typing.Optional[bool] = None,
+        unique_keys: typing.Optional[bool] = None,
+    ):
         if columns is None:
             self.columns = []
         else:
@@ -160,7 +168,12 @@ class TableSchema:
         self.unique_keys = unique_keys
 
     @classmethod
-    def from_row_type(cls, row_type, strict=None, unique_keys=False):
+    def from_row_type(
+        cls,
+        row_type: typing.Type,
+        strict: typing.Optional[bool] = None,
+        unique_keys: typing.Optional[bool] = False,
+    ) -> "TableSchema":
         """Infer schema from yt_dataclass.
 
         :param strict:
@@ -243,7 +256,12 @@ class TableSchema:
         return columns
 
     @classmethod
-    def from_yson_type(cls, obj):
+    def from_yson_type(
+        cls,
+        obj: typing.List[typing.Mapping],
+    ):
+        """Create Table schema from /@schema attribute
+        """
         columns = [ColumnSchema.from_yson_type(c) for c in obj]
         attrs = obj.attributes
         kwargs = {}

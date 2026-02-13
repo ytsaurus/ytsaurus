@@ -351,6 +351,12 @@ TPCollection<TRow> operator|(const std::vector<TPCollection<TRow>>& pCollectionL
 }
 
 template <typename TRow>
+TPCollection<TRow> operator<<(const TPCollection<TRow>& pCollection, const NPrivate::TAttributeSetter& attributeSetter)
+{
+    return pCollection | attributeSetter;
+}
+
+template <typename TRow>
 TPCollection<TRow> operator|(const TPCollection<TRow>& pCollection, const NPrivate::TAttributeSetter& attributeSetter)
 {
     NPrivate::MergeAttributes(*NPrivate::GetRawDataNode(pCollection).Get(), attributeSetter);

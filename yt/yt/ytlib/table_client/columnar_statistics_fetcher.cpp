@@ -226,6 +226,7 @@ void TColumnarStatisticsFetcher::ApplyColumnSelectivityFactors() const
             // Versioned tables are currently not supported; default to the previous estimation method.
             chunk->SetReadSizeSelectivityFactor(chunk->GetColumnSelectivityFactor());
         }
+        chunk->SetReadSizeSelectivityFactor(std::min(chunk->GetReadSizeSelectivityFactor(), 1.0));
     }
 }
 
@@ -233,7 +234,7 @@ TFuture<void> TColumnarStatisticsFetcher::Fetch()
 {
     if (Options_.Mode == EColumnarStatisticsFetcherMode::FromMaster) {
         OnFetchingStarted();
-        return VoidFuture;
+        return OKFuture;
     }
 
     return TFetcherBase::Fetch();
@@ -250,7 +251,7 @@ void TColumnarStatisticsFetcher::OnFetchingStarted()
 
 void TColumnarStatisticsFetcher::AddChunk(
     TInputChunkPtr chunk,
-    std::vector<TColumnStableName> columnStableNames,
+    const std::vector<TColumnStableName>& columnStableNames,
     const TTableSchemaPtr& tableSchema)
 {
     if (!NeedFetchFromNode_.emplace(chunk, true).second) {

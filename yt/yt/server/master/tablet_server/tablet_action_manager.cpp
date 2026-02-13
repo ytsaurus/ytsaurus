@@ -236,7 +236,7 @@ public:
                         *tabletCount);
                 }
                 if (options.InplaceReshard) {
-                    THROW_ERROR_EXCEPTION("inplace_reshard can not be set together with move action");
+                    THROW_ERROR_EXCEPTION("\"inplace_reshard\" can not be set together with move action");
                 }
                 break;
 
@@ -326,15 +326,6 @@ public:
 
             if (table->IsReplicated()) {
                 THROW_ERROR_EXCEPTION("Replicated table tablet cannot be moved");
-            }
-
-            if (!table->IsPhysicallySorted()) {
-                THROW_ERROR_EXCEPTION("Ordered table tablet cannot be moved");
-            }
-
-            if (table->GetAtomicity() != EAtomicity::Full) {
-                THROW_ERROR_EXCEPTION("Tablet with atomicity %Qlv cannot be moved",
-                    table->GetAtomicity());
             }
         }
 
@@ -481,6 +472,7 @@ public:
                 action->Error() = error;
                 break;
 
+            case ETabletActionState::ProvisionallyFlushing:
             case ETabletActionState::Mounting:
                 // Nothing can be done here.
                 action->Error() = error;
@@ -498,6 +490,7 @@ public:
                 // All tablets have been already taken care of. Do nothing.
                 break;
 
+            case ETabletActionState::ProvisionallyFlushed:
             case ETabletActionState::Mounted:
             case ETabletActionState::Frozen:
             case ETabletActionState::Unmounted:
@@ -768,6 +761,11 @@ private:
         const auto& bundle = action->Tablets()[0]->GetOwner()->TabletCellBundle();
         action->SetTabletCellBundle(bundle.Get());
         action->SetInplaceReshard(options.InplaceReshard);
+        const auto* table = action->Tablets()[0]->GetOwner()->As<TTableNode>();
+        action->SetProvisionalFlushRequired(
+            options.InplaceReshard &&
+            !action->GetFreeze() &&
+            table->IsPhysicallySorted());
         bundle->TabletActions().insert(action);
         bundle->IncreaseActiveTabletActionCount();
 
@@ -788,7 +786,7 @@ private:
             ? TTableId{}
             : action->Tablets()[0]->GetOwner()->GetId();
         YT_LOG_DEBUG("Change tablet action state (ActionId: %v, State: %v, "
-            "TableId: %v, Bundle: %v, TabletBalancerCorrelationId: %v),",
+            "TableId: %v, Bundle: %v, TabletBalancerCorrelationId: %v)",
             action->GetId(),
             state,
             tableId,
@@ -824,8 +822,6 @@ private:
                         throw;
                     }
 
-                    // TODO(ifsmirnov): YT-20959 - send updated settings to sibling
-                    // and unban remount.
                     auto serializedTableSettings = SerializeTableSettings(tableSettings);
                     Host_->AllocateAuxiliaryServant(tablet, cell, serializedTableSettings);
                     ChangeTabletActionState(
@@ -836,6 +832,42 @@ private:
                     break;
                 }
 
+                if (action->IsProvisionalFlushRequired()) {
+                    action->FlushingTablets().reserve(action->Tablets().size());
+                    for (auto tablet : action->Tablets()) {
+                        action->FlushingTablets().insert(tablet->GetId());
+                        Host_->RequestProvisionalFlush(tablet);
+                    }
+
+                    ChangeTabletActionState(action, ETabletActionState::ProvisionallyFlushing);
+                    break;
+                }
+
+                if (action->GetSkipFreezing()) {
+                    ChangeTabletActionState(action, ETabletActionState::Frozen);
+                    break;
+                }
+
+                for (auto tablet : action->Tablets()) {
+                    Host_->DoFreezeTablet(tablet);
+                }
+
+                ChangeTabletActionState(action, ETabletActionState::Freezing);
+                break;
+            }
+
+            case ETabletActionState::ProvisionallyFlushing: {
+                if (action->FlushingTablets().empty()) {
+                    auto state = action->Error().IsOK()
+                        ? ETabletActionState::ProvisionallyFlushed
+                        : ETabletActionState::Failing;
+                    ChangeTabletActionState(action, state);
+                }
+
+                break;
+            }
+
+            case ETabletActionState::ProvisionallyFlushed: {
                 if (action->GetSkipFreezing()) {
                     ChangeTabletActionState(action, ETabletActionState::Frozen);
                     break;

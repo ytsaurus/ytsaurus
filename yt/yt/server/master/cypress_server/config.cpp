@@ -81,6 +81,10 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_symlink_cyclicity_check", &TThis::EnableSymlinkCyclicityCheck)
         .Default(true);
 
+    registrar.Parameter("use_better_check_when_rewriting_path", &TThis::UseBetterCheckWhenRewritingPath)
+        .Default(false)
+        .DontSerializeDefault();
+
     registrar.Parameter("graft_synchronization_period", &TThis::GraftSynchronizationPeriod)
         .Alias("portal_synchronization_period")
         .Default(TDuration::Minutes(1));
@@ -131,6 +135,9 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("use_proper_branched_parent_in_lock_copy_destination", &TThis::UseProperBranchedParentInLockCopyDestination)
         .Default(true);
+
+    registrar.Parameter("use_weaker_access_validation_check", &TThis::UseWeakerAccessValidationCheck)
+        .Default(false);
 
     registrar.Parameter("default_optimize_for", &TThis::DefaultOptimizeFor)
         .Default(NTableClient::EOptimizeFor::Lookup);

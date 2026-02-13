@@ -120,6 +120,9 @@ public:
     bool IsOverflowRotationNeeded() const override;
     TError CheckOverflow() const override;
 
+    void AddUnleashedBackingStore(TSortedDynamicStorePtr unleashedBackingStore) override;
+    void ReleaseUnleashedBackingStore(TStoreId backingStoreId) override;
+
 private:
     struct TBoundaryDescriptor
     {
@@ -176,6 +179,10 @@ private:
 
     TSortedDynamicStorePtr ActiveStore_;
     std::multimap<TTimestamp, ISortedStorePtr> MaxTimestampToStore_;
+
+    // Dynamic stores that didn't produced chunk stores.
+    // Transiently kept for BackingStoreRetentionTime to avoid unnecessary conflicts.
+    THashMap<TDynamicStoreId, TSortedDynamicStorePtr> UnleashedBackingStores_;
 
     // During changelog replay stores may be removed out of order.
     std::set<ui32> StoreFlushIndexQueue_;
@@ -237,13 +244,13 @@ private:
 
     bool SortedStoreSerializationStateProbabilisticVerificationNeeded() const;
 
-    void OnRowBlocked(
+    TSortedDynamicStore::TRowBlockedWaitingResult OnRowBlocked(
         IStore* store,
         IInvokerPtr invoker,
         TSortedDynamicRow row,
         TSortedDynamicStore::TConflictInfo conflictInfo,
         TDuration timeout);
-    void WaitOnBlockedRow(
+    TSortedDynamicStore::TRowBlockedWaitingResult WaitOnBlockedRow(
         IStorePtr store,
         TSortedDynamicRow row,
         TSortedDynamicStore::TConflictInfo conflictInfo,

@@ -1,6 +1,5 @@
 #include "persistent_state.h"
 
-
 namespace NYT::NScheduler::NStrategy::NPolicy::NGpu {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -21,6 +20,7 @@ void TPersistentAssignmentState::Register(TRegistrar registrar)
     registrar.Parameter("allocation_group_name", &TThis::AllocationGroupName);
     registrar.Parameter("resource_usage", &TThis::ResourceUsage);
     registrar.Parameter("creation_time", &TThis::CreationTime);
+    registrar.Parameter("preemptible", &TThis::Preemptible);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -117,6 +117,16 @@ With default settings, at least one value (the last one) is always stored, along
 
 By using the listed parameters, flexible storage policies can be built. For example, `min_data_versions = 0`, `max_data_versions = 1`, `min_data_ttl = 0`, and `max_data_ttl = 86400000 (1 day)` allow any data older than one day to be deleted, saving only one version from the last day.
 
+{% note warning %}
+
+The `min_data_ttl` parameter defines an interval when the data existence is guaranteed. 
+
+It is important that all timestamp-based readings fall within the interval when all data is available: `[now() - min_data_ttl, now()]`. This applies to both: readings with an explicitly specified `timestamp` and readings within a transaction where the transaction start time is used as the timestamp.
+
+If the timestamp is **older** than `now() - min_data_ttl`, the success of the reading is **not guaranteed**. In particular, if a table has `min_data_ttl = 0`, it is recommended to read from it only with `sync_last_committed` or `async_last_committed`.
+
+{% endnote %}
+
 {% note info "Note" %}
 
 The specified parameters enable the system to delete data, but do not force it to. Combining chunks and deleting data is a background operation.
@@ -141,11 +151,11 @@ Another popular scenario involves adding fresh writes to a table by keys that ar
 
 #### Row-level TTL
 
-The primary use case for row-level `TTL` is when you need to store rows from the same table for different amounts of time depending on the data they contain. The task of determining the storage duration of each row lies with the user.
+The primary use case for row-level TTL is when you need to store rows from the same table for different amounts of time depending on the data they contain. The task of determining the storage duration of each row lies with the user.
 
-To enable row-level `TTL`, add an optional `uint64` column named `$ttl` to your table. This is a system column, which is why it has such designation. However, the task of updating this column with valid and current values still lies with the user. Writes to the table must include a valid value in milliseconds.
+To enable row-level TTL, add an optional `uint64` column named `$ttl` to your table. This is a system column, which is why it has such designation. However, the task of updating this column with valid and current values still lies with the user.
 
-Requirements for values written to the `$ttl` column:
+Writes to the table must include a value in milliseconds indicating how long the row should not be deleted. Requirements for values written to the `$ttl` column:
 
 - `min_data_ttl <= ttl`
 
@@ -156,15 +166,45 @@ How the `min_data_versions`, `max_data_versions`, `min_data_ttl`, and `max_data_
 
 When deleting data, the `$ttl` value for the corresponding key is derived from the most recent entry in this column, if possible. This doesn't apply if some data is outside the chunks being merged. The deletion rules are similar to those listed in the previous section, with the addition of one rule:
 
-- Values written earlier than `ttl` before the current point in time can't be deleted for time-related reasons.
+- Values written earlier than TTL before the current point in time can't be deleted for time-related reasons.
 
-How to manage row-level `$ttl`:
+How to manage row-level TTL:
 
 - To correctly delete a value from the `$ttl` column, delete the entire row for the corresponding key, then insert it again without specifying a value in the `$ttl` column.
 - Each insert must include a `$ttl` value for the corresponding key. Furthermore, the value must always be the same, with the exception of the scenarios described below. Otherwise, we can't guarantee the desired behavior.
 - To extend the Time to Live of data for a given key, write the entire row with the updated `$ttl` column value to the table.
 - To reduce the Time to Live of data for a given key, delete the data for that key, then insert it again, specifying your new value in the `$ttl` column.
-- You can only specify `$ttl` for previously written keys by deleting the row and inserting the new value in the `$ttl` column.
+- You can only specify TTL for previously written keys by deleting the row and inserting the new value in the `$ttl` column.
+
+#### Deleting rows using a watermark
+
+Dynamic tables support deleting rows based on user-defined timestamps. A user can set a dedicated column to store timestamps for each row, and update a special table attribute by shifting the current time boundary for data that can be deleted during compaction.
+
+{% note warning "Attention" %}
+
+Rows are only deleted during compaction, so enabling the option won't immediately delete old rows: they will remain visible when reading.
+
+{% endnote %}
+
+To enable deletion using a watermark, follow the steps below:
+
+- Set `@mount_config/row_merger_type = "watermark"` for a table and and remount this table.
+- Set the `@custom_runtime_data` attribute for the table.
+
+The `custom_runtime_data` attribute must be as follows:
+```
+{
+    "watermark" = {
+        "column_name" = "<column name>";
+        "watermark" = <value>;
+        "comparison_type" = "less";  # the other available types are less_equal, greater, and greater_equal
+    };
+}
+```
+
+As a result, for rows where the specified column value is less than (or less than or equal to, greater than, or greater than or equal to — depending on the `comparison_type` parameter value) the specified one, all versions will be deleted if their timestamp is less than or equal to the maximum timestamp of the value that satisfies the comparison. If a row has been inserted once or the specified column is part of the key, the entire row is deleted.
+
+After enabling this option, `min_data_versions` and `min_data_ttl` will continue to be taken into account, but the `max_data_versions` and `max_data_ttl` attributes will be ignored.
 
 ## Aggregation columns { #aggr_columns }
 
@@ -218,8 +258,8 @@ Common lookup metrics include:
 
 Metrics for disk reads and network transfers:
 - `yt.tablet_node.lookup.chunk_reader_statistics.data_bytes_read_from_disk.rate`
-- `yt.tablet_node.lookup.chunk_reader_statistics.data_bytes_read_from_cache.rate`
-- `yt.tablet_node.lookup.chunk_reader_statistics.data_bytes_transmitted.rate`
+-`yt.tablet_node.lookup.chunk_reader_statistics.data_bytes_read_from_cache.rate`
+-`yt.tablet_node.lookup.chunk_reader_statistics.data_bytes_transmitted.rate`
 
 If hunks are used:
 - `yt.tablet_node.lookup.hunks.chunk_reader_statistics.data_bytes_read_from_disk.rate`
@@ -308,3 +348,4 @@ Filter-specific metrics:
 - yt.tablet_node.select.range_filter.input_range_count.rate: Number of ranges that the filter received as input.
 - yt.tablet_node.select.range_filter.filtered_out_range_count.rate: Number of ranges filtered out by the filter.
 - yt.tablet_node.select.range_filter.false_positive_range_count.rate: Number of ranges that were not filtered out by the filter, even though they did not actually exist.
+

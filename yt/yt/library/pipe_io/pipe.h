@@ -15,23 +15,23 @@ class TNamedPipe
 {
 public:
     ~TNamedPipe();
-    static TNamedPipePtr Create(const TString& path, int permissions = 0660, std::optional<int> capacity = {});
-    static TNamedPipePtr FromPath(const TString& path);
+    static TNamedPipePtr Create(const std::string& path, int permissions = 0660, std::optional<int> capacity = {});
+    static TNamedPipePtr FromPath(const std::string& path);
 
     NNet::IConnectionReaderPtr CreateAsyncReader();
     NNet::IConnectionWriterPtr CreateAsyncWriter(NNet::EDeliveryFencedMode deliveryFencedMode = NNet::EDeliveryFencedMode::None);
 
-    TString GetPath() const;
+    std::string GetPath() const;
 
 private:
-    const TString Path_;
+    const std::string Path_;
     const std::optional<int> Capacity_;
 
     //! Whether pipe was created by this class
     //! and should be removed in destructor.
     const bool Owning_;
 
-    explicit TNamedPipe(const TString& path, std::optional<int> capacity, bool owning);
+    explicit TNamedPipe(const std::string& path, std::optional<int> capacity, bool owning);
     void Open(int permissions);
     DECLARE_NEW_FRIEND()
 };
@@ -43,11 +43,11 @@ DEFINE_REFCOUNTED_TYPE(TNamedPipe)
 struct TNamedPipeConfig
     : public NYTree::TYsonStruct
 {
-    TString Path;
+    std::string Path;
     int FD = 0;
     bool Write = false;
 
-    static TNamedPipeConfigPtr Create(TString path, int fd, bool write);
+    static TNamedPipeConfigPtr Create(std::string path, int fd, bool write);
 
     REGISTER_YSON_STRUCT(TNamedPipeConfig);
 

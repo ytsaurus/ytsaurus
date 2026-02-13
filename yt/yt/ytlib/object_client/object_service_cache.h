@@ -40,7 +40,7 @@ struct TObjectServiceCacheKey
         bool suppressTransactionCoordinatorSync);
 
     operator size_t() const;
-    bool operator == (const TObjectServiceCacheKey& other) const;
+    bool operator==(const TObjectServiceCacheKey& other) const;
 
     i64 ComputeExtraSpace() const;
 };

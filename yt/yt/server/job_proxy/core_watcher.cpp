@@ -64,7 +64,7 @@ TCoreResult::TCoreResult()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TGpuCoreReader::TGpuCoreReader(const TString& corePipePath)
+TGpuCoreReader::TGpuCoreReader(const std::string& corePipePath)
     : Path_(corePipePath)
 {
     Fd_ = HandleEintr(::open, corePipePath.c_str(), O_RDONLY | O_CLOEXEC | O_NONBLOCK);
@@ -96,7 +96,7 @@ IConnectionReaderPtr TGpuCoreReader::CreateAsyncReader()
 
 TCoreWatcher::TCoreWatcher(
     TCoreWatcherConfigPtr config,
-    TString coreDirectoryPath,
+    std::string coreDirectoryPath,
     IJobHostPtr jobHost,
     IInvokerPtr controlInvoker,
     TBlobTableWriterConfigPtr blobTableWriterConfig,
@@ -198,7 +198,7 @@ void TCoreWatcher::DoWatchCores()
         CoreDirectoryPath_);
 
     try {
-        for (const auto& file : TDirIterator(CoreDirectoryPath_)) {
+        for (const auto& file : TDirIterator(TString(CoreDirectoryPath_))) {
             auto fileName = TFsPath{file.fts_path}.GetName();
             if (GetFileExtension(fileName) == "pipe") {
                 auto name = GetFileNameWithoutExtension(fileName);
@@ -255,7 +255,7 @@ void TCoreWatcher::DoWatchCores()
     }
 }
 
-void TCoreWatcher::DoProcessLinuxCore(const TString& coreName, int coreIndex)
+void TCoreWatcher::DoProcessLinuxCore(const std::string& coreName, int coreIndex)
 {
     YT_ASSERT_INVOKER_AFFINITY(IOInvoker_);
 
@@ -327,7 +327,7 @@ void TCoreWatcher::DoProcessGpuCore(IAsyncInputStreamPtr coreStream, int coreInd
 {
     YT_ASSERT_INVOKER_AFFINITY(IOInvoker_);
 
-    const TString coreName = "cuda_gpu_core_dump";
+    const std::string coreName = "cuda_gpu_core_dump";
 
     TCoreInfo coreInfo;
     coreInfo.set_core_index(coreIndex);
@@ -359,7 +359,7 @@ void TCoreWatcher::DoProcessGpuCore(IAsyncInputStreamPtr coreStream, int coreInd
     DoAddCoreInfo(coreInfo);
 }
 
-i64 TCoreWatcher::DoReadCore(const IAsyncInputStreamPtr& coreStream, const TString& coreName, int coreIndex)
+i64 TCoreWatcher::DoReadCore(const IAsyncInputStreamPtr& coreStream, const std::string& coreName, int coreIndex)
 {
     YT_ASSERT_INVOKER_AFFINITY(IOInvoker_);
 

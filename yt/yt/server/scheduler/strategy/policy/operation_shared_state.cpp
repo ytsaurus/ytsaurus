@@ -221,6 +221,14 @@ void TOperationSharedState::DoUpdatePreemptibleAllocationsList(const TPoolTreeOp
         return TResourceVector::FromJobResources(allocationResources, element->GetTotalResourceLimits());
     };
 
+    auto isUsageNearBound = [&] (
+        const TJobResources& resourceUsage,
+        const TResourceVector& fairShareBound) -> bool
+    {
+        auto usageShare = convertToShare(resourceUsage);
+        return TResourceVector::Near(fairShareBound, usageShare, NVectorHdrf::Epsilon);
+    };
+
     // NB(eshcherbin): It's possible to incorporate |resourceUsageBound| into |fairShareBound|,
     // but I think it's more explicit the current way.
     auto isUsageBelowBounds = [&] (
@@ -228,8 +236,11 @@ void TOperationSharedState::DoUpdatePreemptibleAllocationsList(const TPoolTreeOp
         const TJobResources& resourceUsageBound,
         const TResourceVector& fairShareBound) -> bool
     {
+        auto usageShare = convertToShare(resourceUsage);
+
+        // TODO(yaishenka): Reconsider how IsStrictlyDominatesNonBlocked function works.
         return StrictlyDominates(resourceUsageBound, resourceUsage) ||
-            element->IsStrictlyDominatesNonBlocked(fairShareBound, convertToShare(resourceUsage));
+            element->IsStrictlyDominatesNonBlocked(fairShareBound, usageShare);
     };
 
     auto balanceLists = [&] (
@@ -239,7 +250,8 @@ void TOperationSharedState::DoUpdatePreemptibleAllocationsList(const TPoolTreeOp
         const TJobResources& resourceUsageBound,
         const TResourceVector& fairShareBound,
         const CInvocable<void(TAllocationProperties*)> auto& onMovedLeftToRight,
-        const CInvocable<void(TAllocationProperties*)> auto& onMovedRightToLeft)
+        const CInvocable<void(TAllocationProperties*)> auto& onMovedRightToLeft,
+        bool moveAllocationsWithOnBoundaryUsage = false)
     {
         auto initialResourceUsage = resourceUsage;
 
@@ -247,12 +259,30 @@ void TOperationSharedState::DoUpdatePreemptibleAllocationsList(const TPoolTreeOp
         // |operationElement->IsStrictlyDominatesNonBlocked(fairShareBound, getUsageShare(nextUsage))| to become true.
         // In particular, even if fair share is slightly less than it should be due to precision errors,
         // we expect no problems, because the allocation which crosses the fair share boundary belongs to the left list.
+        // NB(yaishenka): With moveAllocationsWithOnBoundaryUsage option allocations that cross the boundry will be moved.
+        // Allocations with usage ~ boundry will be considered less preemptible due to near check in comparison func.
+        // We expect no problems with precision errors, because we explicity check for |near(fairShareBound, resourceUsage)| case.
         while (!left->empty()) {
             auto allocationId = left->back();
             auto* allocationProperties = GetAllocationProperties(allocationId);
 
             auto nextUsage = resourceUsage - allocationProperties->ResourceUsage;
-            if (isUsageBelowBounds(nextUsage, resourceUsageBound, fairShareBound)) {
+
+            const auto& resourceUsageToCheck = moveAllocationsWithOnBoundaryUsage
+                ? resourceUsage
+                : nextUsage;
+
+            bool isBelowBounds = isUsageBelowBounds(
+                resourceUsageToCheck,
+                resourceUsageBound,
+                fairShareBound);
+
+            if (isBelowBounds) {
+                break;
+            }
+
+            // NB(yaishenka): with new flag we should not move allocation with fairShareBound ~= usageShareToCheck.
+            if (moveAllocationsWithOnBoundaryUsage && isUsageNearBound(resourceUsageToCheck, fairShareBound)) {
                 break;
             }
 
@@ -266,16 +296,34 @@ void TOperationSharedState::DoUpdatePreemptibleAllocationsList(const TPoolTreeOp
         }
 
         // Move from right to left and increase |resourceUsage|.
-        while (!right->empty() && isUsageBelowBounds(resourceUsage, resourceUsageBound, fairShareBound)) {
+        while (!right->empty()) {
             auto allocationId = right->front();
             auto* allocationProperties = GetAllocationProperties(allocationId);
+
+            auto nextUsage = resourceUsage + allocationProperties->ResourceUsage;
+
+            const auto& resourceUsageToCheck = moveAllocationsWithOnBoundaryUsage
+                ? nextUsage
+                : resourceUsage;
+
+            bool belowBounds = isUsageBelowBounds(
+                resourceUsageToCheck,
+                resourceUsageBound,
+                fairShareBound);
+
+            // NB(yaishenka) with new flag we should move allocation with fairShareBound ~= usageShareToCheck.
+            if (!belowBounds) {
+                if (!moveAllocationsWithOnBoundaryUsage || !isUsageNearBound(resourceUsageToCheck, fairShareBound)) {
+                    break;
+                }
+            }
 
             right->pop_front();
             left->push_back(allocationId);
             allocationProperties->AllocationIdListIterator = --left->end();
             onMovedRightToLeft(allocationProperties);
 
-            resourceUsage += allocationProperties->ResourceUsage;
+            resourceUsage = nextUsage;
             ++(*moveCount);
         }
 
@@ -343,7 +391,8 @@ void TOperationSharedState::DoUpdatePreemptibleAllocationsList(const TPoolTreeOp
                 nonPreemptibleResourceUsageThreshold,
                 fairShare * aggressivePreemptionSatisfactionThreshold,
                 setAggressivelyPreemptible,
-                setNonPreemptible);
+                setNonPreemptible,
+                element->TreeConfig()->ConsiderAllocationOnFairShareBoundPreemptible);
             ResourceUsagePerPreemptionStatus_[EAllocationPreemptionStatus::NonPreemptible] += usageDelta;
             ResourceUsagePerPreemptionStatus_[EAllocationPreemptionStatus::AggressivelyPreemptible] -= usageDelta;
         }
@@ -357,7 +406,8 @@ void TOperationSharedState::DoUpdatePreemptibleAllocationsList(const TPoolTreeOp
                 nonPreemptibleResourceUsageThreshold,
                 Preemptible_ ? fairShare * preemptionSatisfactionThreshold : TResourceVector::Infinity(),
                 setPreemptible,
-                setAggressivelyPreemptible);
+                setAggressivelyPreemptible,
+                element->TreeConfig()->ConsiderAllocationOnFairShareBoundPreemptible);
             ResourceUsagePerPreemptionStatus_[EAllocationPreemptionStatus::AggressivelyPreemptible] += usageDelta;
             ResourceUsagePerPreemptionStatus_[EAllocationPreemptionStatus::Preemptible] -= usageDelta;
         }

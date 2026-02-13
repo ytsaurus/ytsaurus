@@ -167,19 +167,19 @@ types:
         column_name: job_cookie
         column_type: Int64
 
-      - cpp_name: DistributedGroupJobIndex
+      - cpp_name: CollectiveMemberRank
         cpp_type: i64
-        column_name: distributed_group_job_index
+        column_name: collective_member_rank
         column_type: Int64
 
-      - cpp_name: DistributedGroupMainJobIdHi
+      - cpp_name: CollectiveIdHi
         cpp_type: ui64
-        column_name: distributed_group_main_job_id_hi
+        column_name: collective_id_hi
         column_type: Uint64
 
-      - cpp_name: DistributedGroupMainJobIdLo
+      - cpp_name: CollectiveIdLo
         cpp_type: ui64
-        column_name: distributed_group_main_job_id_lo
+        column_name: collective_id_lo
         column_type: Uint64
 
       - cpp_name: ControllerState

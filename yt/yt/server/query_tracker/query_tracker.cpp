@@ -121,12 +121,12 @@ public:
     {
         Config_ = config;
         AcquisitionExecutor_->SetPeriod(config->ActiveQueryAcquisitionPeriod);
-        Engines_[EQueryEngine::Mock]->Reconfigure(config->MockEngine);
-        Engines_[EQueryEngine::Ql]->Reconfigure(config->QLEngine);
-        Engines_[EQueryEngine::Yql]->Reconfigure(config->YqlEngine);
-        Engines_[EQueryEngine::Chyt]->Reconfigure(config->ChytEngine);
-        Engines_[EQueryEngine::Spyt]->Reconfigure(config->SpytEngine);
-        Engines_[EQueryEngine::SpytConnect]->Reconfigure(config->SpytConnectEngine);
+        Engines_[EQueryEngine::Mock]->Reconfigure(config->MockEngine, Config_->NotIndexedQueriesTTL);
+        Engines_[EQueryEngine::Ql]->Reconfigure(config->QLEngine, Config_->NotIndexedQueriesTTL);
+        Engines_[EQueryEngine::Yql]->Reconfigure(config->YqlEngine, Config_->NotIndexedQueriesTTL);
+        Engines_[EQueryEngine::Chyt]->Reconfigure(config->ChytEngine, Config_->NotIndexedQueriesTTL);
+        Engines_[EQueryEngine::Spyt]->Reconfigure(config->SpytEngine, Config_->NotIndexedQueriesTTL);
+        Engines_[EQueryEngine::SpytConnect]->Reconfigure(config->SpytConnectEngine, Config_->NotIndexedQueriesTTL);
     }
 
     IYPathServicePtr GetOrchidService() const override
@@ -632,7 +632,7 @@ private:
                 // We must copy all fields of active query except for incarnation, ping time, assigned query and abort request
                 // (which do not matter for finished query) and filter factors field (which goes to finished_queries_by_start_time,
                 // finished_queries_by_user_and_start_time, finished_queries_by_aco_and_start_time tables).
-                static_assert(TActiveQueryDescriptor::FieldCount == 23 && TFinishedQueryDescriptor::FieldCount == 18);
+                static_assert(TActiveQueryDescriptor::FieldCount == 23 && TFinishedQueryDescriptor::FieldCount == 19);
                 TFinishedQueryPartial newRecord{
                     .Key = {.QueryId = queryId},
                     .Engine = activeQueryRecord->Engine,
@@ -653,6 +653,9 @@ private:
                     .IsIndexed = activeQueryRecord->IsIndexed,
                     .IsTutorial = activeQueryRecord->IsTutorial,
                 };
+                if (!activeQueryRecord->IsIndexed) {
+                    newRecord.TTL = Config_->NotIndexedQueriesTTL.MilliSeconds();
+                }
                 std::vector newRows = {
                     newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryDescriptor::Get()->GetPartialIdMapping()),
                 };

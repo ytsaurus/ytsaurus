@@ -129,13 +129,13 @@ std::vector<TSharedRef> GetRandomTextBlocks(int blockCount, int minBlockSize, in
     return result;
 }
 
-std::vector<TString> GetRandomData(std::mt19937& gen, int blocksCount, int blockSize)
+std::vector<std::string> GetRandomData(std::mt19937& gen, int blocksCount, int blockSize)
 {
-    std::vector<TString> result;
+    std::vector<std::string> result;
     result.reserve(blocksCount);
     std::uniform_int_distribution<int> dist('a', 'z');
     for (int i = 0; i < blocksCount; ++i) {
-        TString curData;
+        std::string curData;
         curData.resize(blockSize);
         for (int i = 0; i < blockSize; ++i)
             curData[i] = dist(gen);
@@ -227,7 +227,7 @@ class TErasureMixtureTest
     , public ::testing::WithParamInterface<ECodec>
 {
 public:
-    static std::vector<TSharedRef> ToSharedRefs(const std::vector<TString>& strings)
+    static std::vector<TSharedRef> ToSharedRefs(const std::vector<std::string>& strings)
     {
         std::vector<TSharedRef> refs;
         for (const auto& str : strings) {
@@ -554,7 +554,7 @@ TEST_P(TErasureMixtureTest, Writer)
     }
 
     // Prepare data
-    std::vector<TString> dataStrings{
+    std::vector<std::string> dataStrings{
         "a",
         "b",
         "",
@@ -568,9 +568,9 @@ TEST_P(TErasureMixtureTest, Writer)
     for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
         auto filename = "part" + ToString(i + 1);
         if (i == 0) {
-            EXPECT_EQ(TString("ab"), TUnbufferedFileInput("part" + ToString(i + 1)).ReadAll());
+            EXPECT_EQ("ab", TUnbufferedFileInput("part" + ToString(i + 1)).ReadAll());
         } else if (i == 1) {
-            EXPECT_EQ(TString("Hello world"), TUnbufferedFileInput("part" + ToString(i + 1)).ReadAll());
+            EXPECT_EQ("Hello world", TUnbufferedFileInput("part" + ToString(i + 1)).ReadAll());
         } else if (i < 12) {
             EXPECT_EQ("", TUnbufferedFileInput("part" + ToString(i + 1)).ReadAll());
         } else {
@@ -590,7 +590,7 @@ TEST_P(TErasureMixtureTest, WriterStriped)
     }
 
     // Prepare data
-    std::vector<TString> dataStrings{
+    std::vector<std::string> dataStrings{
         // Stripe 0
         "0123",
         "a",
@@ -610,13 +610,13 @@ TEST_P(TErasureMixtureTest, WriterStriped)
         auto filename = "part" + ToString(i + 1);
         auto data = TUnbufferedFileInput(filename).ReadAll();
         if (i == 0) {
-            EXPECT_EQ(TString("0123x12"), data);
+            EXPECT_EQ("0123x12", data);
         } else if (i == 3) {
-            EXPECT_EQ(TString("a"), data);
+            EXPECT_EQ("a", data);
         } else if (i == 4) {
-            EXPECT_EQ(TString("b012345678"), data);
+            EXPECT_EQ("b012345678", data);
         } else if (i == 6) {
-            EXPECT_EQ(TString("x34"), data);
+            EXPECT_EQ("x34", data);
         } else if (i < 12) {
             EXPECT_EQ("", data);
         } else {
@@ -636,7 +636,7 @@ TEST_P(TErasureMixtureTest, Reader)
     }
 
     // Prepare data
-    std::vector<TString> dataStrings{
+    std::vector<std::string> dataStrings{
         "a",
         "b",
         "",
@@ -690,7 +690,7 @@ TEST_P(TErasureMixtureTest, ReaderStriped)
     }
 
     // Prepare data
-    std::vector<TString> dataStrings{
+    std::vector<std::string> dataStrings{
         // Stripe 0
         "0123",
         "a",
@@ -748,7 +748,7 @@ TEST_F(TErasureMixtureTest, Repair1)
     auto* codec = GetCodec(codecId);
 
     // Prepare data
-    std::vector<TString> dataStrings({"a"});
+    std::vector<std::string> dataStrings({"a"});
     auto dataRefs = ToSharedRefs(dataStrings);
 
     WriteErasureChunk(codecId, codec, dataRefs);
@@ -790,7 +790,7 @@ TEST_P(TErasureMixtureTest, Repair2)
     }
 
     // Prepare data
-    std::vector<TString> dataStrings{
+    std::vector<std::string> dataStrings{
         "a",
         "b",
         "",
@@ -1068,7 +1068,7 @@ TEST_P(TErasureMixtureTest, RepairStriped1)
     }
 
     // Prepare data
-    std::vector<TString> dataStrings{
+    std::vector<std::string> dataStrings{
         // Stripe 0
         "0123",
         "a",
@@ -1334,7 +1334,7 @@ TEST_P(TErasureMixtureTest, TestAdaptiveRepair2)
     }
 
     // Prepare data.
-    std::vector<TString> dataStrings{
+    std::vector<std::string> dataStrings{
         "a",
         "b",
         "",

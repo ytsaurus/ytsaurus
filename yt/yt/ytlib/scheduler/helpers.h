@@ -270,6 +270,10 @@ void ToProto(
     NControllerAgent::NProto::TSidecarJobSpec* sidecarJobSpecProto,
     const TSidecarJobSpec& sidecarJobSpec);
 
+void FromProto(
+    TVolume* volume,
+    const NControllerAgent::NProto::TVolume& volumeProto);
+
 void ToProto(
     NControllerAgent::NProto::TVolume* volumeProto,
     const TVolume& volume);
@@ -290,54 +294,6 @@ void ToProto(
     NControllerAgent::NProto::TTmpfsVolume* protoTmpfsVolume,
     const TTmpfsVolumeConfig& tmpfsVolumeConfig);
 
-void FromProto(
-    TStorageRequestConfig* diskRequestConfig,
-    const NProto::TDiskRequest& protoDiskRequest);
-
-void ToProto(
-    NProto::TDiskRequest* protoDiskRequest,
-    const TStorageRequestConfig& diskRequestConfig);
-
-void FromProto(
-    TLocalDiskRequest* diskRequestConfig,
-    const NProto::TDiskRequest& protoDiskRequest);
-
-void ToProto(
-    NProto::TDiskRequest* protoDiskRequestConfig,
-    const TLocalDiskRequest& diskRequestConfig);
-
-void FromProto(
-    TNbdDiskRequest* diskRequestConfig,
-    const NProto::TDiskRequest& protoDiskRequest);
-
-void ToProto(
-    NProto::TDiskRequest* protoDiskRequestConfig,
-    const TNbdDiskRequest& diskRequestConfig);
-
-void FromProto(
-    TDiskRequestConfig* diskRequestConfig,
-    const NProto::TDiskRequest& protoDiskRequestConfig);
-
-void ToProto(
-    NProto::TDiskRequest* protoDiskRequestConfig,
-    const TDiskRequestConfig& diskRequestConfig);
-
-void FromProto(
-    TTmpfsStorageRequest* diskRequestConfig,
-    const NProto::TDiskRequest& protoDiksRequestConfig);
-
-void ToProto(
-    NProto::TDiskRequest* protoDiskRequestConfig,
-    const TTmpfsStorageRequest& diskRequestConfig);
-
-void FromProto(
-    TStorageRequestBase* diskRequestConfig,
-    const NProto::TDiskRequest& protoDiskRequestConfig);
-
-void ToProto(
-    NProto::TDiskRequest* protoDiskRequestConfig,
-    const TStorageRequestBase& diskRequestConfig);
-
 void ToProto(
     NProto::TNbdDisk* protoNbdDisk,
     const TNbdDiskConfig& nbdDiskConfig);
@@ -346,12 +302,80 @@ void FromProto(
     TNbdDiskConfig* nbdDiskConfig,
     const NProto::TNbdDisk& protoNbdDisk);
 
+void FromProto(
+    TStorageRequestConfig* diskRequestConfig,
+    const NProto::TDiskRequest& protoDiskRequest);
+
+void ToProto(
+    NProto::TDiskRequest* protoDiskRequest,
+    const TStorageRequestConfig& diskRequestConfig);
+
+template <class TProtoDiskRequest>
+void FromProto(
+    TNbdDiskRequest* diskRequestConfig,
+    const TProtoDiskRequest& protoDiskRequestConfig);
+
+template <class TProtoDiskRequest>
+void ToProto(
+    TProtoDiskRequest* protoDiskRequestConfig,
+    const TNbdDiskRequest& diskRequestConfig);
+
+template <class TProtoDiskRequest>
+void FromProto(
+    TLocalDiskRequest* diskRequestConfig,
+    const TProtoDiskRequest& protoDiskRequestConfig);
+
+template <class TProtoDiskRequest>
+void ToProto(
+    TProtoDiskRequest* protoDiskRequestConfig,
+    const TLocalDiskRequest& diskRequestConfig);
+
+template <class TProtoDiskRequest>
+void FromProto(
+    TDiskRequestConfig* diskRequestConfig,
+    const TProtoDiskRequest& protoDiskRequestConfig);
+
+template <class TProtoDiskRequest>
+void ToProto(
+    TProtoDiskRequest* protoDiskRequestConfig,
+    const TDiskRequestConfig& diskRequestConfig);
+
+void FromProto(
+    TTmpfsStorageRequest* diskRequestConfig,
+    const NProto::TTmpfsStorageRequest& protoDiskRequestConfig);
+
+void ToProto(
+    NProto::TTmpfsStorageRequest* protoDiskRequestConfig,
+    const TTmpfsStorageRequest& diskRequestConfig);
+
+void FromProto(
+    TStorageRequestConfig* diskRequestConfig,
+    const NProto::TDeprecatedDiskRequest& protoDiskRequestConfig);
+
+template <class TProtoDiskRequest>
+void FromProto(
+    TStorageRequestBase* diskRequestConfig,
+    const TProtoDiskRequest& protoDiskRequestConfig);
+
+template <class TProtoDiskRequest>
+void ToProto(
+    TProtoDiskRequest* protoDiskRequestConfig,
+    const TStorageRequestBase& diskRequestConfig);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void ValidateTmpfsPaths(const std::vector<std::string_view>& tmpfsPaths);
 
-int CountOfNonTmpfsVolumes(const THashMap<std::string, TVolumePtr>& volumes);
+int CountNonTmpfsVolumes(const THashMap<std::string, TVolumePtr>& volumes);
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsDiskRequestTmpfs(const std::optional<NScheduler::TStorageRequestConfig>& diskRequest);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler
+
+#define HELPERS_INL_H
+#include "helpers-inl.h"
+#undef HELPERS_INL_H

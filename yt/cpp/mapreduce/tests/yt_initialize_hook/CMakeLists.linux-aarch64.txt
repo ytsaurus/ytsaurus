@@ -23,6 +23,7 @@ target_compile_options(mapreduce-tests-yt_initialize_hook INTERFACE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(mapreduce-tests-yt_initialize_hook INTERFACE
@@ -46,6 +47,7 @@ target_compile_options(mapreduce-tests-yt_initialize_hook.global PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(mapreduce-tests-yt_initialize_hook.global PUBLIC

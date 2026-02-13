@@ -95,7 +95,7 @@ public:
         TSortedStoreManagerTestBase::SetUp();
     }
 
-    TUnversionedOwningRow BuildRow(TString rowString)
+    TUnversionedOwningRow BuildRow(TStringBuf rowString)
     {
         return YsonToSchemafulRow(rowString, *TableSchema_, /*treatMissingAsNull*/ false);
     }

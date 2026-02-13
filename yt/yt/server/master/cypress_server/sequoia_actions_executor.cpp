@@ -33,6 +33,7 @@ using namespace NObjectServer;
 using namespace NSecurityClient;
 using namespace NSecurityServer;
 using namespace NSequoiaServer;
+using namespace NServer;
 using namespace NTableClient;
 using namespace NTransactionServer;
 using namespace NTransactionSupervisor;
@@ -284,13 +285,14 @@ private:
 
         auto explicitAttributes = request->has_node_attributes()
             ? FromProto(request->node_attributes())
-            : IAttributeDictionaryPtr();
+            : EmptyAttributes().Clone();
 
         auto inheritedAttributes = FromProto(request->inherited_attributes());
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto accountName = inheritedAttributes->GetAndRemove<std::string>(NServer::EInternedAttributeKey::Account.Unintern());
-        auto* account = securityManager->GetAccountByNameOrThrow(accountName, /*activeLifeStageOnly*/ true);
+        auto optionalAccount = explicitAttributes->FindAndRemove<std::string>(NServer::EInternedAttributeKey::Account.Unintern());
+        auto* account = securityManager->GetAccountByNameOrThrow(optionalAccount.value_or(accountName), /*activeLifeStageOnly*/ true);
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* cypressTransaction = cypressTransactionId

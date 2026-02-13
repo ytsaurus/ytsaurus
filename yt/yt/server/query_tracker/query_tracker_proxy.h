@@ -23,7 +23,7 @@ public:
         TQueryTrackerProxyConfigPtr config,
         int expectedTablesVersion);
 
-    void Reconfigure(const TQueryTrackerProxyConfigPtr& config);
+    void Reconfigure(const TQueryTrackerProxyConfigPtr& config, const TDuration notIndexedQueriesTTL);
 
     void StartQuery(
         const TQueryId queryId,
@@ -76,6 +76,7 @@ private:
     std::unordered_map<EQueryEngine, IProxyEngineProviderPtr> EngineProviders_;
     ISearchIndexPtr TimeBasedIndex_;
     ISearchIndexPtr TokenBasedIndex_;
+    TDuration NotIndexedQueriesTTL_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueryTrackerProxy)

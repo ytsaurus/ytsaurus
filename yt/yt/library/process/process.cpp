@@ -373,8 +373,8 @@ bool TryResetSignals()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TProcessBase::TProcessBase(const TString& path)
-    : Path_(path)
+TProcessBase::TProcessBase(TStringBuf path)
+    : Path_(TString(path))
     , ProcessId_(InvalidProcessId)
 { }
 
@@ -648,7 +648,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSimpleProcess::TSimpleProcess(const TString& path, bool copyEnv, TDuration pollPeriod)
+TSimpleProcess::TSimpleProcess(TStringBuf path, bool copyEnv, TDuration pollPeriod)
     // TString is guaranteed to be zero-terminated.
     // https://wiki.yandex-team.ru/Development/Poisk/arcadia/util/TStringAndTStringBuf#sobstvennosimvoly
     : TProcessBase(path)

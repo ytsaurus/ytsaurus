@@ -70,6 +70,12 @@ WAVM_DEFINE_INTRINSIC_FUNCTION(wavmIntrinsics,
 				function->mutableData->debugName.c_str());
 }
 
+WAVM_DEFINE_INTRINSIC_FUNCTION(wavmIntrinsics, "checkCallStackDepth", void, checkCallStackDepth)
+{
+	Context* context = getContextFromRuntimeData(contextRuntimeData);
+	if(context->checkStackDepthCallback) { context->checkStackDepthCallback(); }
+}
+
 WAVM_DEFINE_INTRINSIC_FUNCTION(wavmIntrinsics, "debugBreak", void, debugBreak)
 {
 	Log::printf(Log::debug, "================== wavmIntrinsics.debugBreak\n");

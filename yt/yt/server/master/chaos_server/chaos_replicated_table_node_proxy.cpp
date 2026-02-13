@@ -187,6 +187,8 @@ private:
             .SetWritable(true)
             .SetReplicated(true)
             .SetPresent(IsObjectAlive(impl->ChaosCellBundle())));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChaosCellBundleId)
+            .SetPresent(IsObjectAlive(impl->ChaosCellBundle())));
         descriptors->push_back(EInternedAttributeKey::Dynamic);
         descriptors->push_back(EInternedAttributeKey::ReplicationCardId);
         descriptors->push_back(EInternedAttributeKey::OwnsReplicationCard);
@@ -235,6 +237,8 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCount)
             .SetPresent(isQueue)
             .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::AllReplicasReachedLastGlobalEra)
+            .SetOpaque(true));
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
@@ -248,6 +252,15 @@ private:
                 if (const auto& bundle = trunkNode->ChaosCellBundle()) {
                     BuildYsonFluently(consumer)
                         .Value(bundle->GetName());
+                    return true;
+                } else {
+                    return false;
+                }
+
+            case EInternedAttributeKey::ChaosCellBundleId:
+                if (const auto& bundle = trunkNode->ChaosCellBundle()) {
+                    BuildYsonFluently(consumer)
+                        .Value(bundle->GetId());
                     return true;
                 } else {
                     return false;
@@ -322,7 +335,7 @@ private:
                 auto name = ConvertTo<std::string>(value);
 
                 const auto& chaosManager = Bootstrap_->GetChaosManager();
-                auto* cellBundle = chaosManager->GetChaosCellBundleByNameOrThrow(name, true /*activeLifeStageOnly*/);
+                auto* cellBundle = chaosManager->GetChaosCellBundleByNameOrThrow(name, /*activeLifeStageOnly*/ true);
 
                 auto* lockedImpl = LockThisImpl();
                 chaosManager->SetChaosCellBundle(lockedImpl, cellBundle);
@@ -450,12 +463,16 @@ private:
                 return GetReplicationCard(options)
                     .Apply(BIND([=] (const TReplicationCardPtr& card) {
                         auto replicasLags = ComputeReplicasLag(card->Replicas);
+                        auto lastEraTimestamp = GetLastEraTimestamp(card);
                         return BuildYsonStringFluently()
                             .DoMapFor(replicasLags, [&] (TFluentMap fluent, const auto& lagPair) {
                                 const auto& [replicaId, replicaLag] = lagPair;
                                 const auto& replicas = card->Replicas;
                                 const auto& replica = replicas.find(replicaId)->second;
+                                const auto& replicaHistory = replica.History;
                                 auto minTimestamp = GetReplicationProgressMinTimestamp(replica.ReplicationProgress);
+                                bool replicaReachedLastOwnEra =
+                                    (!replicaHistory.empty() && minTimestamp >= replicaHistory.back().Timestamp);
                                 fluent
                                     .Item(ToString(replicaId))
                                     .BeginMap()
@@ -467,6 +484,8 @@ private:
                                         .Item("replication_lag_timestamp").Value(minTimestamp)
                                         .Item("replication_lag_time").Value(replicaLag)
                                         .Item("replicated_table_tracker_enabled").Value(replica.EnableReplicatedTableTracker)
+                                        .Item("replica_reached_last_own_era").Value(replicaReachedLastOwnEra)
+                                        .Item("replica_reached_last_global_era").Value(minTimestamp >= lastEraTimestamp)
                                     .EndMap();
                             });
                     }));
@@ -516,6 +535,24 @@ private:
                             }));
                     }));
             }
+
+            case EInternedAttributeKey::AllReplicasReachedLastGlobalEra:
+                return GetReplicationCard(MinimalFetchOptions)
+                    .Apply(BIND([=] (const TReplicationCardPtr& card) {
+                        auto lastEraTimestamp = GetLastEraTimestamp(card);
+
+                        bool allReplicasReachedLastGlobalEra = true;
+                        for (const auto& [_, replica] : card->Replicas) {
+                            auto minTimestamp = GetReplicationProgressMinTimestamp(replica.ReplicationProgress);
+                            if (minTimestamp < lastEraTimestamp) {
+                                allReplicasReachedLastGlobalEra = false;
+                                break;
+                            }
+                        }
+
+                        return BuildYsonStringFluently()
+                            .Value(allReplicasReachedLastGlobalEra);
+                    }));
 
             case EInternedAttributeKey::TabletCount: {
                 if (!isQueue) {
@@ -586,7 +623,7 @@ private:
         TReplicationCardId replicationCardId,
         NNative::IConnectionPtr connection)
     {
-        auto proxy = TChaosNodeServiceProxy(connection->GetChaosChannelByCardIdOrThrow(replicationCardId));
+        auto proxy = TChaosNodeServiceProxy(connection->GetChaosChannelByObjectIdOrThrow(replicationCardId));
         proxy.SetDefaultTimeout(connection->GetConfig()->DefaultChaosNodeServiceTimeout);
         auto req = proxy.GetReplicationCardCollocation();
         ToProto(req->mutable_replication_card_collocation_id(), collocationId);
@@ -599,6 +636,19 @@ private:
                 return TErrorOr(
                     FromProto<std::vector<TReplicationCardId>>(result.Value()->replication_card_ids()));
             }));
+    }
+
+    static TTimestamp GetLastEraTimestamp(const TReplicationCardPtr& card)
+    {
+        for (const auto& replica : card->Replicas) {
+            for (const auto& historyItem : replica.second.History) {
+                if (historyItem.Era == card->Era) {
+                    return historyItem.Timestamp;
+                }
+            }
+        }
+
+        return NullTimestamp;
     }
 
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, GetMountInfo);
@@ -640,8 +690,20 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, GetMountInfo)
         context->ReplyFrom(tabletCountFuture.AsUnique().Apply(BIND(
             [context, response] (int&& result) {
                 response->set_tablet_count(result);
+
+                context->SetResponseInfo("TabletCount: %v, TabletCellCount: %v, ReplicaCount: %v, IndexCount: %v",
+                    response->tablets_size(),
+                    response->tablet_cells_size(),
+                    response->replicas_size(),
+                    response->indices_size());
             })));
     } else {
+        context->SetResponseInfo("TabletCount: %v, TabletCellCount: %v, ReplicaCount: %v, IndexCount: %v",
+            response->tablets_size(),
+            response->tablet_cells_size(),
+            response->replicas_size(),
+            response->indices_size());
+
         context->Reply();
     }
 }
@@ -649,6 +711,12 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, GetMountInfo)
 DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, Alter)
 {
     DeclareMutating();
+
+    if (request->has_constraints()) {
+        auto constraints = FromProto<TColumnNameToConstraintMap>(request->constraints());
+        THROW_ERROR_EXCEPTION("Table schema alter with constraints is not supported for chaos replicated tables")
+            << TErrorAttribute("constraints", constraints);
+    }
 
     TCompactTableSchemaPtr schema;
     TMasterTableSchemaId schemaId;

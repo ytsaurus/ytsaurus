@@ -21,16 +21,16 @@ using ::testing::HasSubstr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TString SecretId = "secret-id";
-static const TString SecretVersion = "secret-version";
-static const TString SecretDelegationToken = "secret-token";
-static const TString SecretSignature = "secret-signature";
-static const TString SecretKey = "secret-key";
-static const TString SecretValue = "secret-value";
-static const TString CyrillicValue = "секретное-значение";
-static const TString HighAsciiValue = "secret-value-Æ";
-static const TString SecretEncoding = "EBCDIC";
-static const TString UserTicket = "the-user-ticket";
+static const std::string SecretId = "secret-id";
+static const std::string SecretVersion = "secret-version";
+static const std::string SecretDelegationToken = "secret-token";
+static const std::string SecretSignature = "secret-signature";
+static const std::string SecretKey = "secret-key";
+static const std::string SecretValue = "secret-value";
+static const std::string CyrillicValue = "секретное-значение";
+static const std::string HighAsciiValue = "secret-value-Æ";
+static const std::string SecretEncoding = "EBCDIC";
+static const std::string UserTicket = "the-user-ticket";
 
 static const TTvmId OurTvmId = 100500;
 static const TTvmId AlsoOurTvmId = 100501;
@@ -79,7 +79,7 @@ protected:
         }
     }
 
-    void SetCallback(TString response, TTvmId tvmId = OurTvmId)
+    void SetCallback(std::string response, TTvmId tvmId = OurTvmId)
     {
         MockHttpServer_.SetCallback([=] (TClientRequest* request) {
             const auto& firstLine = request->Input().FirstLine();
@@ -107,6 +107,11 @@ private:
         explicit TMockTvmService(TTvmId tvmId)
             : TvmId_(tvmId)
         { }
+
+        const TTvmServiceConfigPtr& GetConfig() override
+        {
+            THROW_ERROR_EXCEPTION("Not implemented");
+        }
 
         TTvmId GetSelfTvmId() override
         {

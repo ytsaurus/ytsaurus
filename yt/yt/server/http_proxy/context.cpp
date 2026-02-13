@@ -114,7 +114,7 @@ bool TContext::TryPrepare()
 bool TContext::TryParseRequest()
 {
     auto userAgent = Request_->GetHeaders()->Find("User-Agent");
-    if (userAgent && userAgent->find("Trident") != TString::npos) {
+    if (userAgent && userAgent->find("Trident") != std::string::npos) {
         // XXX(sandello): IE is bugged; it fails to parse request with trailing
         // headers that include colons. Remarkable.
         OmitTrailers_ = true;
@@ -315,7 +315,7 @@ bool TContext::TryGetHeaderFormat()
 bool TContext::TryGetInputFormat()
 {
     static const std::string YTHeaderName = "X-YT-Input-Format";
-    std::optional<TString> ytHeader;
+    std::optional<std::string> ytHeader;
     try {
         ytHeader = GatherHeader(Request_->GetHeaders(), YTHeaderName);
     } catch (const std::exception& ex) {
@@ -356,8 +356,8 @@ bool TContext::TryGetInputCompression()
 
 bool TContext::TryGetOutputFormat()
 {
-    static const TString YTHeaderName = "X-YT-Output-Format";
-    std::optional<TString> ytHeader;
+    static const std::string YTHeaderName = "X-YT-Output-Format";
+    std::optional<std::string> ytHeader;
     try {
         ytHeader = GatherHeader(Request_->GetHeaders(), YTHeaderName);
     } catch (const std::exception& ex) {
@@ -399,8 +399,8 @@ bool TContext::TryGetOutputCompression()
 
 bool TContext::TryGetErrorFormat()
 {
-    static const TString YTHeaderName = "X-YT-Error-Format";
-    std::optional<TString> ytHeader;
+    static const std::string YTHeaderName = "X-YT-Error-Format";
+    std::optional<std::string> ytHeader;
     try {
         ytHeader = GatherHeader(Request_->GetHeaders(), YTHeaderName);
     } catch (const std::exception& ex) {
@@ -532,6 +532,11 @@ void TContext::SetContentDispositionAndMimeType()
                     operationIdNode->GetValue<std::string>(),
                     jobIdNode->GetValue<std::string>());
             }
+        } else if (Descriptor_->CommandName == "flow_execute_plaintext") {
+            disposition = "inline";
+            if (auto flowCommandNode = DriverRequest_.Parameters->FindChild("flow-command")) {
+                filename = Format("flow_execute_plaintext_%v", flowCommandNode->GetValue<std::string>());
+            }
         }
 
         if (auto passedFilenameNode = DriverRequest_.Parameters->FindChild("filename")) {
@@ -598,7 +603,7 @@ void TContext::LogStructuredRequest()
         return;
     }
 
-    std::optional<TString> correlationId;
+    std::optional<std::string> correlationId;
     if (auto correlationHeader = Request_->GetHeaders()->Find("X-YT-Correlation-ID")) {
         correlationId = *correlationHeader;
     }
@@ -800,7 +805,7 @@ void TContext::SetupUserMemoryLimits()
         updateUserMemoryRatio(roleMemoryLimitRatiosIt->second);
     }
 
-    Api_->GetMemoryUsageTracker()->SetPoolRatio(TString(DriverRequest_.AuthenticatedUser), userMemoryRatio);
+    Api_->GetMemoryUsageTracker()->SetPoolRatio(DriverRequest_.AuthenticatedUser, userMemoryRatio);
 }
 
 void TContext::SetupMemoryUsageTracker()
@@ -936,7 +941,7 @@ void TContext::Run()
         auto error = TError(NRpc::EErrorCode::Unavailable,
             "Request is dropped due to high memory pressure");
 
-        auto userPoolTag = TString(DriverRequest_.AuthenticatedUser);
+        auto userPoolTag = DriverRequest_.AuthenticatedUser;
 
         if (Api_->GetMemoryUsageTracker()->IsTotalExceeded()) {
             THROW_ERROR_EXCEPTION(error)
@@ -996,10 +1001,10 @@ void TContext::Run()
 
 TSharedRef DumpError(const TError& error)
 {
-    TString delimiter;
-    delimiter.append('\n');
+    std::string delimiter;
+    delimiter.push_back('\n');
     delimiter.append(80, '=');
-    delimiter.append('\n');
+    delimiter.push_back('\n');
 
     TString errorMessage;
     TStringOutput errorStream(errorMessage);

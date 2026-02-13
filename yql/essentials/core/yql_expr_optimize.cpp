@@ -137,7 +137,9 @@ namespace {
             return node;
         }
 
-        YQL_ENSURE(level < 3000U, "Too deep graph!");
+        if (level >= 3000U) {
+            throw TErrorException(0) << "Too deep graph!";
+        }
 
         if (ctx.Settings.ProcessedNodes) {
             if (ctx.Settings.ProcessedNodes->find(node->UniqueId()) != ctx.Settings.ProcessedNodes->cend()) {
@@ -277,7 +279,9 @@ namespace {
             return it->second ? it->second : node;
         }
 
-        YQL_ENSURE(level < 3000U, "Too deep graph!");
+        if (level >= 3000U) {
+            throw TErrorException(0) << "Too deep graph!";
+        }
 
         TExprNode::TPtr ret;
         if (node->Type() == TExprNode::Lambda) {
@@ -1030,6 +1034,10 @@ void VisitExpr(const TExprNode& root, const TExprVisitRefFunc& preFunc, const TE
 }
 
 void VisitExpr(const TExprNode::TPtr& root, const TExprVisitPtrFunc& func, TNodeSet& visitedNodes) {
+    VisitExprInternal(root, func, {}, visitedNodes);
+}
+
+void VisitExpr(const TExprNode& root, const TExprVisitRefFunc& func, TNodeSet& visitedNodes) {
     VisitExprInternal(root, func, {}, visitedNodes);
 }
 

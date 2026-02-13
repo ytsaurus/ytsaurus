@@ -118,7 +118,9 @@ TExprNode::TPtr TAggregateExpander::ExpandAggApply(const TExprNode::TPtr& node)
         auto itemType = node->Child(1)->GetTypeAnn()->Cast<TTypeExprType>()->GetType();
         TVector<ui32> argTypes;
         bool needRetype = false;
-        auto status = ExtractPgTypesFromMultiLambda(node->ChildRef(2), argTypes, needRetype, Ctx_);
+        bool isUniversal;
+        auto status = ExtractPgTypesFromMultiLambda(node->ChildRef(2), argTypes, needRetype, Ctx_, isUniversal);
+        YQL_ENSURE(!isUniversal);
         YQL_ENSURE(status == IGraphTransformer::TStatus::Ok);
 
         const NPg::TAggregateDesc* aggDescPtr;
@@ -2511,7 +2513,12 @@ TExprNode::TPtr TAggregateExpander::GeneratePhases() {
         }
 
         bool isAggApply = originalTrait->IsCallable("AggApply");
-        auto serializedStateType = isAggApply ? AggApplySerializedStateType(originalTrait, Ctx_) : originalTrait->Child(3)->GetTypeAnn();
+        TCheckedDerefPtr<const TTypeAnnotationNode> serializedStateType;
+        if (isAggApply) {
+            serializedStateType = AggApplySerializedStateType(originalTrait, Ctx_);
+        } else {
+            serializedStateType = originalTrait->Child(3)->GetTypeAnn();
+        }
         if (many) {
             serializedStateType = Ctx_.MakeType<TOptionalExprType>(serializedStateType);
         }
@@ -2545,8 +2552,10 @@ TExprNode::TPtr TAggregateExpander::GeneratePhases() {
                 auto func = name.substr(3);
                 TVector<ui32> argTypes;
                 bool needRetype = false;
-                auto status = ExtractPgTypesFromMultiLambda(originalTrait->ChildRef(2), argTypes, needRetype, Ctx_);
+                bool isUniversal;
+                auto status = ExtractPgTypesFromMultiLambda(originalTrait->ChildRef(2), argTypes, needRetype, Ctx_, isUniversal);
                 YQL_ENSURE(status == IGraphTransformer::TStatus::Ok);
+                YQL_ENSURE(!isUniversal);
                 const NPg::TAggregateDesc& aggDesc = NPg::LookupAggregation(TString(func), argTypes);
                 name = "pg_" + aggDesc.Name + "#" + ToString(aggDesc.AggId);
             }

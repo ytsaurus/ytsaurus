@@ -23,6 +23,7 @@ target_compile_options(yt-library-clickhouse_functions PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_include_directories(yt-library-clickhouse_functions PRIVATE
@@ -48,6 +49,7 @@ target_link_libraries(yt-library-clickhouse_functions PUBLIC
 target_sources(yt-library-clickhouse_functions PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_functions/unescaped_yson.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_functions/yson_parser_adapter.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_functions/yson_extract_tree.cpp
 )
 
 
@@ -61,6 +63,7 @@ target_compile_options(yt-library-clickhouse_functions.global PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_include_directories(yt-library-clickhouse_functions.global PRIVATE
@@ -87,6 +90,6 @@ target_sources(yt-library-clickhouse_functions.global PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_functions/convert_yson.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_functions/yson_to_json.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_functions/ypath.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_functions/yson_extract.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_functions/yson_functions.cpp
 )
 

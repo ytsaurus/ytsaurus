@@ -11,6 +11,15 @@ SRCS(
     kqp_rename_unused_stage.cpp
     kqp_constant_folding_stage.cpp
     kqp_rewrite_select.cpp
+    kqp_rbo_compute_statistics.cpp
+    kqp_rbo_statistics.cpp
+    kqp_rbo_dp_cost_based.cpp
+    kqp_prune_columns_stage.cpp
+    kqp_rbo_physical_aggregation_builder.cpp
+    kqp_rbo_physical_sort_builder.cpp
+    kqp_rbo_physical_join_builder.cpp
+    kqp_rbo_physical_map_builder.cpp
+    kqp_rbo_physical_convertion_utils.cpp
 )
 
 PEERDIR(

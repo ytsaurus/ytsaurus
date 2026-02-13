@@ -76,7 +76,7 @@ struct TUringIOEngineConfig
     //! Limits the number of concurrent (outstanding) #IIOEngine requests per a single uring thread.
     int MaxConcurrentRequestsPerThread;
 
-    int DirectIOPageSize;
+    int DirectIOBlockSize;
 
     bool FlushAfterWrite;
 
@@ -102,9 +102,10 @@ struct TUringIOEngineConfig
             .LessThanOrEqual(MaxUringConcurrentRequestsPerThread)
             .Default(22);
 
-        registrar.Parameter("direct_io_page_size", &TThis::DirectIOPageSize)
+        registrar.Parameter("direct_io_block_size", &TThis::DirectIOBlockSize)
+            .Alias("direct_io_page_size")
             .GreaterThan(0)
-            .Default(DefaultPageSize);
+            .Default(4_KB);
 
         registrar.Parameter("flush_after_write", &TThis::FlushAfterWrite)
             .Default(false);
@@ -249,7 +250,7 @@ struct TUringRequest
 {
     struct TRequestToNode
     {
-        TIntrusiveLinkedListNode<TUringRequest>* operator() (TUringRequest* request) const {
+        TIntrusiveLinkedListNode<TUringRequest>* operator()(TUringRequest* request) const {
             return request;
         }
     };
@@ -432,7 +433,7 @@ struct TUringConfigProvider final
 
     YT_DECLARE_ATOMIC_FIELD(int, UringThreadCount)
     YT_DECLARE_ATOMIC_FIELD(int, MaxConcurrentRequestsPerThread)
-    YT_DECLARE_ATOMIC_FIELD(int, DirectIOPageSize)
+    YT_DECLARE_ATOMIC_FIELD(int, DirectIOBlockSize)
     YT_DECLARE_ATOMIC_FIELD(bool, FlushAfterWrite)
     YT_DECLARE_ATOMIC_FIELD(int, DesiredRequestSize)
     YT_DECLARE_ATOMIC_FIELD(int, MinRequestSize)
@@ -454,7 +455,7 @@ struct TUringConfigProvider final
     {
         YT_STORE_ATOMIC_FIELD(newConfig, UringThreadCount)
         YT_STORE_ATOMIC_FIELD(newConfig, MaxConcurrentRequestsPerThread)
-        YT_STORE_ATOMIC_FIELD(newConfig, DirectIOPageSize)
+        YT_STORE_ATOMIC_FIELD(newConfig, DirectIOBlockSize)
         YT_STORE_ATOMIC_FIELD(newConfig, FlushAfterWrite)
         YT_STORE_ATOMIC_FIELD(newConfig, DesiredRequestSize)
         YT_STORE_ATOMIC_FIELD(newConfig, MinRequestSize)
@@ -1704,7 +1705,7 @@ public:
 
         auto combinedRequests = readRequestCombiner->Combine(
             std::move(requests),
-            Config_->GetDirectIOPageSize(),
+            Config_->GetDirectIOBlockSize(),
             tagCookie);
 
         TRequestSlicer requestSlicer(Config_->GetDesiredRequestSize(), Config_->GetMinRequestSize(), Config_->GetEnableSlicing());
@@ -1724,7 +1725,7 @@ public:
     {
         TRequestSlicer requestSlicer(Config_->GetDesiredRequestSize(), Config_->GetMinRequestSize(), Config_->GetEnableSlicing());
 
-        auto slices = requestSlicer.Slice(std::move(request));
+        auto slices = requestSlicer.Slice(std::move(request), Config_->GetDirectIOBlockSize());
 
         std::vector<TFuture<TWriteResponse>> futures;
         std::vector<TUringRequestPtr> uringRequests;
@@ -1777,6 +1778,11 @@ public:
         return MakeFuture(TFlushFileRangeResponse{});
     }
 
+    i64 GetBlockSize() const override
+    {
+        return Config_->GetDirectIOBlockSize();
+    }
+
 private:
     const TConfigPtr StaticConfig_;
     const TUringConfigProviderPtr Config_;
@@ -1816,7 +1822,7 @@ private:
         futures.reserve(combinedRequests.size());
 
         for (auto& request : combinedRequests) {
-            for (auto& slice : slicer.Slice(std::move(request.ReadRequest), request.ResultBuffer)) {
+            for (auto& slice : slicer.Slice(std::move(request.ReadRequest), request.ResultBuffer, Config_->GetDirectIOBlockSize())) {
                 auto uringRequest = std::make_unique<TReadUringRequest>(readRequestCombiner);
                 uringRequest->Type = EUringRequestType::Read;
 
@@ -1828,11 +1834,11 @@ private:
                 uringRequest->PaddedBytes += GetPaddedSize(
                     slice.Request.Offset,
                     slice.Request.Size,
-                    slice.Request.Handle->IsOpenForDirectIO() ? Config_->GetDirectIOPageSize() : DefaultPageSize);
+                    Config_->GetDirectIOBlockSize());
                 uringRequest->ReadSubrequests.push_back({
                     .Handle = std::move(slice.Request.Handle),
                     .Offset = slice.Request.Offset,
-                    .Size = slice.Request.Size
+                    .Size = slice.Request.Size,
                 });
                 uringRequest->ReadSubrequestStates.push_back({
                     .Buffer = slice.OutputBuffer,

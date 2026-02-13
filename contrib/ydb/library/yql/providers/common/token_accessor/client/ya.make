@@ -9,7 +9,7 @@ SRCS(
 
 PEERDIR(
     contrib/ydb/public/sdk/cpp/src/library/grpc/client
-    library/cpp/threading/atomic
+    library/cpp/deprecated/atomic_bool
     library/cpp/threading/future
     yql/essentials/providers/common/structured_token
     contrib/ydb/library/yql/providers/common/token_accessor/grpc

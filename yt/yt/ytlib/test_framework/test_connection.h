@@ -8,7 +8,7 @@
 #include <yt/yt/ytlib/chaos_client/chaos_cell_channel_factory.h>
 #include <yt/yt/ytlib/chaos_client/config.h>
 #include <yt/yt/ytlib/chaos_client/native_replication_card_cache_detail.h>
-#include <yt/yt/ytlib/chaos_client/replication_card_channel_factory.h>
+#include <yt/yt/ytlib/chaos_client/chaos_object_channel_factory.h>
 #include <yt/yt/ytlib/chaos_client/chaos_residency_cache.h>
 
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
@@ -172,9 +172,9 @@ public:
     MOCK_METHOD(NRpc::IChannelPtr, GetQueryTrackerChannelOrThrow, (TStringBuf), (override));
     MOCK_METHOD(NRpc::IChannelPtr, GetChaosChannelByCellId, (NObjectClient::TCellId, NHydra::EPeerKind), (override));
     MOCK_METHOD(NRpc::IChannelPtr, GetChaosChannelByCellTag, (NObjectClient::TCellTag, NHydra::EPeerKind), (override));
-    MOCK_METHOD(NRpc::IChannelPtr, GetChaosChannelByCardIdOrThrow, (NChaosClient::TReplicationCardId, NHydra::EPeerKind), (override));
+    MOCK_METHOD(NRpc::IChannelPtr, GetChaosChannelByObjectIdOrThrow, (NChaosClient::TChaosObjectId, NHydra::EPeerKind), (override));
     MOCK_METHOD(NRpc::IChannelPtr, FindQueueAgentChannel, (TStringBuf), (const, override));
-    MOCK_METHOD(const NQueueClient::IQueueConsumerRegistrationManagerPtr&, GetQueueConsumerRegistrationManager, (), (const, override));
+    MOCK_METHOD(const NQueueClient::IQueueConsumerRegistrationManagerPtr&, GetQueueConsumerRegistrationManagerOrThrow, (), (const, override));
     MOCK_METHOD((std::pair<NRpc::IRoamingChannelProviderPtr, NYqlClient::TYqlAgentChannelConfigPtr>), GetYqlAgentChannelProviderOrThrow, (TStringBuf), (const, override));
     MOCK_METHOD(const NTabletClient::ITableMountCachePtr&, GetTableMountCache, (), (override));
     MOCK_METHOD(const NChaosClient::IReplicationCardCachePtr&, GetReplicationCardCache, (), (override));
@@ -203,6 +203,7 @@ public:
     MOCK_METHOD(const std::string&, GetLoggingTag, (), (const, override));
     MOCK_METHOD(const std::string&, GetClusterId, (), (const, override));
     MOCK_METHOD(const std::optional<std::string>&, GetClusterName, (), (const, override));
+    MOCK_METHOD(const std::optional<NAuth::TTvmId>&, GetTvmId, (), (const, override));
     MOCK_METHOD(bool, IsSameCluster, (const TIntrusivePtr<NApi::IConnection>&), (const, override));
     MOCK_METHOD(NHiveClient::ITransactionParticipantPtr, CreateTransactionParticipant, (NHiveClient::TCellId, const NApi::TTransactionParticipantOptions&), (override));
     MOCK_METHOD(void, ClearMetadataCaches, (), (override));
@@ -221,7 +222,7 @@ public:
     NApi::NNative::TConnectionDynamicConfigPtr GetConfig() const override;
     NRpc::IChannelPtr CreateChannelByAddress(const std::string& address) override;
     bool IsSequoiaConfigured() override;
-    NSequoiaClient::ISequoiaClientPtr GetSequoiaClient() override;
+    const NSequoiaClient::ISequoiaConnectionPtr& GetSequoiaConnection() override;
     const NRpc::IChannelFactoryPtr& GetChannelFactory() override;
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() override;
 

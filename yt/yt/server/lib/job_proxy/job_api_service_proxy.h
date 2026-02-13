@@ -15,7 +15,7 @@ public:
     DEFINE_RPC_PROXY(TJobApiServiceProxy, JobApiService,
         .SetProtocolVersion(0));
 
-    DEFINE_RPC_PROXY_METHOD(NJobProxy::JobApi::NProto, ProgressSaved);
+    DEFINE_RPC_PROXY_METHOD(NJobProxy::NJobApi::NProto, OnProgressSaved);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

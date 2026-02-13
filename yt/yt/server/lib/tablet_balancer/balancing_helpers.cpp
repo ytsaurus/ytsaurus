@@ -64,11 +64,11 @@ i64 GetTabletBalancingSize(const TTabletPtr& tablet)
         : tablet->Statistics.UncompressedDataSize;
 }
 
-bool IsTabletReshardable(const TTabletPtr& tablet, bool ignoreConfig)
+bool IsTabletReshardable(const TTabletPtr& tablet)
 {
     return (tablet->State == ETabletState::Mounted || tablet->State == ETabletState::Frozen) &&
-        (ignoreConfig || tablet->Table->TableConfig->EnableAutoReshard) &&
-        (ignoreConfig || tablet->Table->Bundle->Config->EnableTabletSizeBalancer) &&
+        tablet->Table->TableConfig->EnableAutoReshard &&
+        tablet->Table->Bundle->Config->EnableTabletSizeBalancer &&
         tablet->Table->Sorted;
 }
 
@@ -139,17 +139,19 @@ TTabletSizeConfig GetTabletSizeConfig(
             desiredTabletSize = tabletSizeLimit;
             maxTabletSize = static_cast<i64>(desiredTabletSize * 1.9);
 
+            auto logMessage = "Tablet size config overridden by tablet to cell ratio";
             if (maxTabletCount == MaxTabletCount) {
                 // In order not to enlarge existing tablets after moving table to a smaller bundle.
                 // However, you must always consider max tablet count in one table.
                 minTabletSize = static_cast<i64>(desiredTabletSize / 1.9);
+                logMessage = "Table is too big, tablet size config overriden";
             }
 
-            YT_LOG_DEBUG_IF(enableVerboseLogging,
-                "Tablet size config overridden by tablet to cell ratio "
-                "(TableId: %v, MaxTabletCount: %v, MinTabletSize: %v, DesiredTabletSize: %v, "
-                "MaxTabletSize: %v)",
+            YT_LOG_DEBUG("%v (TableId: %v, TableSize: %v, MaxTabletCount: %v, "
+                "MinTabletSize: %v, DesiredTabletSize: %v, MaxTabletSize: %v)",
+                logMessage,
                 table->Id,
+                tableSize,
                 maxTabletCount,
                 minTabletSize,
                 desiredTabletSize,

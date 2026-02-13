@@ -73,7 +73,7 @@ struct TSortedIOTagList
         return TSortedIOTagList{std::move(srcTags)};
     }
 
-    bool operator == (const TSortedIOTagList& other) const
+    bool operator==(const TSortedIOTagList& other) const
     {
         return Tags == other.Tags;
     }
@@ -84,7 +84,7 @@ struct TAggregateTagsKey
     TSortedIOTagList InlineTags;
     std::optional<TSortedIOTagList> NestedTags;
 
-    bool operator == (const TAggregateTagsKey& other) const
+    bool operator==(const TAggregateTagsKey& other) const
     {
         return InlineTags == other.InlineTags && NestedTags == other.NestedTags;
     }

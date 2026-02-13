@@ -59,9 +59,8 @@ type Controller interface {
 	// COMPAT(buyval01): Temporary auxiliary method that is only needed to modify persistent state.
 	GetOpletInfo(ctx context.Context, oplet *Oplet) (any, error)
 
-	// CheckState checks wether oplet needs to be restarted because of some controller specific reasons
-	// (for example it may be a change of CHYT version on cluster).
-	CheckState(ctx context.Context, oplet *Oplet) (bool, error)
+	// CheckState gets family specific info about oplet health state and if it needs to be restarted.
+	CheckState(ctx context.Context, oplet *Oplet) (ControllerOpletState, error)
 }
 
 type ControllerFactory struct {

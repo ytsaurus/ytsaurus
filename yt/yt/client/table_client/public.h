@@ -51,6 +51,7 @@ class TVersionedRowDigestExt;
 class TCompressionDictionaryExt;
 class TVersionedReadOptions;
 class TVersionedWriteOptions;
+class TColumnNameToConstraintMap;
 
 } // namespace NProto
 
@@ -123,7 +124,6 @@ constexpr int MaxSchemaTotalTypeComplexity = MaxColumnId;
 constexpr int MaxSchemaDepth = 32;
 
 extern const std::string PrimaryLockName;
-
 extern const std::string SystemColumnNamePrefix;
 extern const std::string NonexistentColumnName;
 extern const std::string TableIndexColumnName;
@@ -334,6 +334,13 @@ struct TColumnarStatistics;
 class TTableSchema;
 using TTableSchemaPtr = TIntrusivePtr<TTableSchema>;
 
+class TConstrainedTableSchema;
+
+// NB: Used to store constraints on master side.
+using TColumnStableNameToConstraintMap = THashMap<TColumnStableName, std::string>;
+// NB: Used to handle constraints on user side.
+using TColumnNameToConstraintMap = THashMap<std::string, std::string>;
+
 class TLegacyLockMask;
 using TLegacyLockBitmap = ui64;
 
@@ -465,6 +472,9 @@ struct TVersionedWriteOptions;
 
 template <ESimpleLogicalValueType type>
 struct TUnderlyingTzTypeImpl;
+
+template <ESimpleLogicalValueType type>
+static constexpr ESimpleLogicalValueType TUnderlyingTzType = TUnderlyingTzTypeImpl<type>::TValue;
 
 template <ESimpleLogicalValueType type>
 struct TUnderlyingTimestampIntegerTypeImpl;

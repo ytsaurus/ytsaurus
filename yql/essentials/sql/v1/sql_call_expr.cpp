@@ -7,7 +7,9 @@ namespace NSQLTranslationV1 {
 
 using namespace NSQLv1Generated;
 
-static bool ValidateForCounters(const TString& input) {
+namespace {
+
+bool ValidateForCounters(const TString& input) {
     for (auto c : input) {
         if (!(IsAlnum(c) || c == '_')) {
             return false;
@@ -15,6 +17,8 @@ static bool ValidateForCounters(const TString& input) {
     }
     return true;
 }
+
+} // namespace
 
 TNodePtr TSqlCallExpr::BuildUdf(bool forReduce) {
     auto result = Node_ ? Node_ : BuildCallable(Pos_, Module_, Func_, Args_, forReduce);
@@ -29,14 +33,14 @@ TNodePtr TSqlCallExpr::BuildUdf(bool forReduce) {
     return result;
 }
 
-TNodePtr TSqlCallExpr::BuildCall() {
+TNodeResult TSqlCallExpr::BuildCall() {
     TVector<TNodePtr> args;
     bool warnOnYqlNameSpace = true;
 
     TUdfNode* udf_node = Node_ ? Node_->GetUdfNode() : nullptr;
     if (udf_node) {
         if (!udf_node->DoInit(Ctx_, nullptr)) {
-            return nullptr;
+            return std::unexpected(ESQLError::Basic);
         }
         TNodePtr positional_args = BuildTuple(Pos_, PositionalArgs_);
         TNodePtr positional = positional_args->Y("TypeOf", positional_args);
@@ -57,13 +61,18 @@ TNodePtr TSqlCallExpr::BuildCall() {
                 applyArgs.insert(applyArgs.end(), PositionalArgs_.begin(), PositionalArgs_.end());
             }
 
-            return new TAstListNodeImpl(Pos_, applyArgs);
+            return TNonNull(TNodePtr(new TAstListNodeImpl(Pos_, applyArgs)));
         }
 
-        return BuildSqlCall(Ctx_, Pos_, udf_node->GetModule(), udf_node->GetFunction(),
-                            args, positional_args, named_args, udf_node->GetExternalTypes(),
-                            udf_node->GetTypeConfig(), udf_node->GetRunConfig(), options,
-                            udf_node->GetDepends());
+        TString ns = udf_node->GetModule();
+        if (auto lowerNs = to_lower(ns); lowerNs == "yson" && Ctx_.PragmaYsonFast || lowerNs == "datetime") {
+            ns += "2";
+        }
+
+        return Wrap(BuildSqlCall(Ctx_, Pos_, ns, udf_node->GetFunction(),
+                                 args, positional_args, named_args, udf_node->GetExternalTypes(),
+                                 udf_node->GetTypeConfig(), udf_node->GetRunConfig(), options,
+                                 udf_node->GetDepends()));
     }
 
     if (Node_ && (!Node_->FuncName() || Node_->IsScript())) {
@@ -88,7 +97,7 @@ TNodePtr TSqlCallExpr::BuildCall() {
         Func_ = "SqlExternalFunction";
         if (Args_.size() < 2 || Args_.size() > 3) {
             Ctx_.Error(Pos_) << "EXTERNAL FUNCTION requires from 2 to 3 arguments, but got: " << Args_.size();
-            return nullptr;
+            return std::unexpected(ESQLError::Basic);
         }
 
         if (Args_.size() == 3) {
@@ -105,14 +114,16 @@ TNodePtr TSqlCallExpr::BuildCall() {
         args.insert(args.end(), Args_.begin(), Args_.end());
     }
 
-    auto result = BuildBuiltinFunc(Ctx_, Pos_, Func_, args, Module_, AggMode_, &mustUseNamed, warnOnYqlNameSpace);
+    auto result = BuildBuiltinFunc(Ctx_, Pos_, Func_, args,
+                                   /*isYqlSelect=*/IsYqlSelectProduced_,
+                                   Module_, AggMode_, &mustUseNamed, warnOnYqlNameSpace);
     if (mustUseNamed) {
         Error() << "Named args are used for call, but unsupported by function: " << Func_;
-        return nullptr;
+        return std::unexpected(ESQLError::Basic);
     }
 
-    if (WindowName_) {
-        result = BuildCalcOverWindow(Pos_, WindowName_, result);
+    if (WindowName_ && result) {
+        result = Wrap(BuildCalcOverWindow(Pos_, WindowName_, std::move(*result)));
     }
 
     return result;
@@ -256,7 +267,7 @@ void TSqlCallExpr::InitExpr(const TNodePtr& expr) {
     Node_ = expr;
 }
 
-bool TSqlCallExpr::FillArg(const TString& module, const TString& func, size_t& idx, const TRule_named_expr& node) {
+TSQLStatus TSqlCallExpr::FillArg(const TString& module, const TString& func, size_t& idx, const TRule_named_expr& node) {
     const bool isNamed = node.HasBlock2();
 
     TMaybe<EColumnRefState> status;
@@ -265,26 +276,28 @@ bool TSqlCallExpr::FillArg(const TString& module, const TString& func, size_t& i
         status = GetFunctionArgColumnStatus(Ctx_, module, func, idx);
     }
 
-    TNodePtr expr;
-    if (status) {
-        TColumnRefScope scope(Ctx_, *status, /*isTopLevelExpr=*/false);
-        expr = NamedExpr(node);
-    } else {
-        expr = NamedExpr(node);
-    }
+    TNodeResult expr = [&] {
+        if (status) {
+            TColumnRefScope scope(Ctx_, *status, /*isTopLevelExpr=*/false);
+            return NamedExpr(node);
+        } else {
+            return NamedExpr(node);
+        }
+    }();
 
     if (!expr) {
-        return false;
+        return std::unexpected(expr.error());
     }
 
-    Args_.emplace_back(std::move(expr));
+    Args_.emplace_back(std::move(*expr));
     if (!isNamed) {
         ++idx;
     }
-    return true;
+
+    return std::monostate();
 }
 
-bool TSqlCallExpr::FillArgs(const TRule_named_expr_list& node) {
+TSQLStatus TSqlCallExpr::FillArgs(const TRule_named_expr_list& node) {
     TString module = Module_;
     TString func = Func_;
     if (Node_ && Node_->FuncName() && !Node_->IsScript()) {
@@ -293,17 +306,17 @@ bool TSqlCallExpr::FillArgs(const TRule_named_expr_list& node) {
     }
 
     size_t idx = 0;
-    if (!FillArg(module, func, idx, node.GetRule_named_expr1())) {
-        return false;
+    if (auto status = FillArg(module, func, idx, node.GetRule_named_expr1()); !status) {
+        return std::unexpected(status.error());
     }
 
     for (auto& b : node.GetBlock2()) {
-        if (!FillArg(module, func, idx, b.GetRule_named_expr2())) {
-            return false;
+        if (auto status = FillArg(module, func, idx, b.GetRule_named_expr2()); !status) {
+            return std::unexpected(status.error());
         }
     }
 
-    return true;
+    return std::monostate();
 }
 
 bool TSqlCallExpr::Init(const TRule_invoke_expr& node) {

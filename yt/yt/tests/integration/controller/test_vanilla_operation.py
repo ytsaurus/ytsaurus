@@ -282,8 +282,8 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                 }
             )
 
-    @authors("max42")
-    def test_revival_with_fail_on_job_restart(self):
+    @authors("pogorelov")
+    def test_revival_with_fail_on_job_restart_simple(self):
         op = vanilla(
             track=False,
             spec={
@@ -308,29 +308,58 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         release_breakpoint()
         op.track()
 
-        with pytest.raises(YtError):
-            op = vanilla(
-                track=False,
-                spec={
-                    "tasks": {
-                        "task_a": {
-                            "job_count": 1,
-                            "command": "",  # do nothing
-                        },
-                        "task_b": {
-                            "job_count": 6,
-                            "command": with_breakpoint("BREAKPOINT"),
-                        },
+    @authors("pogorelov")
+    def test_revival_with_fail_on_job_restart_with_completed_job(self):
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "task_a": {
+                        "job_count": 1,
+                        "command": with_breakpoint("BREAKPOINT"),
                     },
-                    "fail_on_job_restart": True,
+                    "task_b": {
+                        "job_count": 1,
+                        "command": with_breakpoint("BREAKPOINT"),
+                    },
                 },
-            )
-            # 6 jobs may not be running simultaneously, so the snapshot will contain information about
-            # at most 5 running jobs plus 1 completed job, leading to operation fail on revival.
-            op.wait_for_fresh_snapshot()
-            with Restarter(self.Env, SCHEDULERS_SERVICE):
-                pass
-            op.track()
+                "fail_on_job_restart": True,
+            },
+        )
+        wait(lambda: len(op.get_running_jobs()) == 2)
+        job_ids = wait_breakpoint(job_count=2)
+        release_breakpoint(job_id=job_ids[0])
+        op.wait_for_fresh_snapshot()
+        # By this moment all 2 running jobs made it to snapshot, so operation will not fail on revival.
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+        release_breakpoint()
+        op.track()
+
+    @authors("pogorelov")
+    def test_revival_with_fail_on_job_restart_failure(self):
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "task_b": {
+                        "job_count": 7,
+                        "command": with_breakpoint("BREAKPOINT"),
+                    },
+                },
+                "fail_on_job_restart": True,
+            },
+        )
+        # 6 jobs may not be running simultaneously, so the snapshot will contain information about
+        # at most 5 running jobs plus 1 completed job, leading to operation fail on revival.
+        job_ids = wait_breakpoint(job_count=5)
+        release_breakpoint(job_id=job_ids[0])
+        wait(lambda: op.get_job_count("completed") == 1)
+        op.wait_for_fresh_snapshot()
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        op.wait_for_state("failed")
 
     @authors("max42")
     def test_abandon_job(self):
@@ -468,45 +497,45 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         )
         assert sorted_dicts(read_table("//tmp/t")) == [{"a": 1}, {"a": 2}]
 
-    @authors("faucct")
-    def test_distributed(self):
+    @authors("faucct", "pogorelov")
+    def test_job_collective(self):
         op = run_test_vanilla(
-            with_breakpoint("echo YT_DISTRIBUTED_GROUP_JOB_INDEX $YT_DISTRIBUTED_GROUP_JOB_INDEX 1>&2; env 1>&2; BREAKPOINT"),
-            task_patch={"distributed_job_options": {"factor": 2}}, job_count=1,
+            with_breakpoint("echo YT_COLLECTIVE_MEMBER_RANK $YT_COLLECTIVE_MEMBER_RANK 1>&2; env 1>&2; BREAKPOINT"),
+            task_patch={"collective_options": {"size": 2}}, job_count=1,
         )
         job_ids = wait_breakpoint(job_count=2)
-        distributed_group_main_job_id = list_jobs(op.id, attributes=["distributed_group_main_job_id"])["jobs"][0]["distributed_group_main_job_id"]
+        collective_id = list_jobs(op.id, attributes=["collective_id"])["jobs"][0]["collective_id"]
 
         jobs = [
-            get_job(op.id, job_id, attributes=["job_id", "distributed_group_job_index", "distributed_group_main_job_id"])
+            get_job(op.id, job_id, attributes=["job_id", "collective_member_rank", "collective_id"])
             for job_id in job_ids
         ]
-        jobs = sorted(jobs, key=lambda job: job["distributed_group_job_index"])
-        assert [0, 1] == [job["distributed_group_job_index"] for job in jobs]
-        assert distributed_group_main_job_id == jobs[0]["job_id"]
-        assert {distributed_group_main_job_id} == {job["distributed_group_main_job_id"] for job in jobs}
+        jobs = sorted(jobs, key=lambda job: job["collective_member_rank"])
+        assert [0, 1] == [job["collective_member_rank"] for job in jobs]
+        assert collective_id == jobs[0]["job_id"]
+        assert {collective_id} == {job["collective_id"] for job in jobs}
 
         jobs = list_jobs(
-            op.id, attributes=["job_id", "distributed_group_job_index", "distributed_group_main_job_id"],
-            distributed_group_main_job_id=distributed_group_main_job_id,
+            op.id, attributes=["job_id", "collective_member_rank", "collective_id"],
+            collective_id=collective_id,
         )["jobs"]
-        jobs = sorted(jobs, key=lambda job: job["distributed_group_job_index"])
-        assert [0, 1] == [job["distributed_group_job_index"] for job in jobs]
-        assert distributed_group_main_job_id == jobs[0]["id"]
-        assert {distributed_group_main_job_id} == {job["distributed_group_main_job_id"] for job in jobs}
+        jobs = sorted(jobs, key=lambda job: job["collective_member_rank"])
+        assert [0, 1] == [job["collective_member_rank"] for job in jobs]
+        assert collective_id == jobs[0]["id"]
+        assert {collective_id} == {job["collective_id"] for job in jobs}
 
         assert [] == list_jobs(
-            op.id, attributes=["job_id", "distributed_group_job_index", "distributed_group_main_job_id"],
-            distributed_group_main_job_id=(set(job_ids) - {distributed_group_main_job_id}).pop(),
+            op.id, attributes=["job_id", "collective_member_rank", "collective_id"],
+            collective_id=(set(job_ids) - {collective_id}).pop(),
         )["jobs"]
 
         release_breakpoint()
         op.track()
 
-    @authors("faucct")
-    def test_table_output_distributed(self):
+    @authors("faucct", "pogorelov")
+    def test_table_output_job_collective(self):
         create("table", "//tmp/t")
-        with pytest.raises(YtError, match="echo: write error: Invalid argument"):
+        with pytest.raises(YtError, match="echo: write error:"):
             vanilla(
                 spec={
                     "tasks": {
@@ -514,8 +543,8 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                             "job_count": 1,
                             "output_table_paths": ["//tmp/t"],
                             "format": "yson",
-                            "command": """if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then sleep infinity; else echo "{foo=bar}"; fi""",
-                            "distributed_job_options": {"factor": 2},
+                            "command": """if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then sleep infinity; else echo "{foo=bar}"; fi""",
+                            "collective_options": {"size": 2},
                             "close_stdout_if_unused": True,
                         },
                     },
@@ -528,8 +557,8 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                         "job_count": 1,
                         "output_table_paths": ["//tmp/t"],
                         "format": "yson",
-                        "command": """if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then echo '{a=1}'; fi""",
-                        "distributed_job_options": {"factor": 2},
+                        "command": """if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then echo '{a=1}'; fi""",
+                        "collective_options": {"size": 2},
                         "close_stdout_if_unused": True,
                     },
                 }
@@ -815,7 +844,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
 
     @authors("krasovav")
     def test_unused_volumes(self):
-        with raises_yt_error('Volume was described, but not used'):
+        with raises_yt_error('Volume was described but not used'):
             vanilla(
                 spec={
                     "tasks": {
@@ -837,7 +866,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
 
     @authors("krasovav")
     def test_not_described_volumes(self):
-        with raises_yt_error('Volume was ordered but not described'):
+        with raises_yt_error('Volume was requested but not described'):
             vanilla(
                 spec={
                     "tasks": {
@@ -858,7 +887,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
     # TODO(krasovav): Rewrite to check two different mediums after supporting two non tmpfs volumes.
     @authors("krasovav")
     def test_two_non_tmpfs_volumes(self):
-        with raises_yt_error('Volume request with 2 or more different not tmpfs disk request are not currently supported'):
+        with raises_yt_error('Volume request with two or more different non tmpfs disk request are not currently supported'):
             vanilla(
                 spec={
                     "tasks": {
@@ -1054,8 +1083,8 @@ class TestVanillaOperationRevival(YTEnvSetup):
         wait(lambda: incarnation_switch_counter.get() == 0)
         wait(lambda: started_job_profiler.get(default=0) == 3 - jobs_were_scheduled)
 
-    @authors("faucct")
-    def test_revive_before_distributed_jobs_scheduled(self):
+    @authors("faucct", "pogorelov")
+    def test_revive_before_job_collective_jobs_scheduled(self):
         started_job_profiler = JobCountProfiler(
             "started",
             tags={"tree": "default", "job_type": "vanilla"},
@@ -1070,7 +1099,7 @@ class TestVanillaOperationRevival(YTEnvSetup):
         # Will not start jobs while sleeping_op is running.
         op = run_test_vanilla(
             with_breakpoint("BREAKPOINT"),
-            task_patch={"distributed_job_options": {"factor": 3}},
+            task_patch={"collective_options": {"size": 3}},
             spec={"pool": "fake_pool"},
         )
 
@@ -2173,9 +2202,9 @@ class TestGangOperations(YTEnvSetup):
 
         assert restarted_job_profiler.get_job_count_delta() == 0
 
-    @authors("faucct")
-    def test_gang_operation_with_distributed_job_options(self):
-        with pytest.raises(YtError, match='Operation with "distributed_job_options" can not have tasks with "gang_options"'):
+    @authors("faucct", "pogorelov")
+    def test_gang_operation_with_collective_options(self):
+        with pytest.raises(YtError, match='Operation with "collective_options" can not have tasks with "gang_options"'):
             vanilla(
                 track=False,
                 spec={
@@ -2184,7 +2213,7 @@ class TestGangOperations(YTEnvSetup):
                             "job_count": 1,
                             "command": ";",
                             "gang_options": {},
-                            "distributed_job_options": {"factor": 2},
+                            "collective_options": {"size": 2},
                         },
                     },
                 },
@@ -2541,7 +2570,7 @@ class TestGangOperations(YTEnvSetup):
     @authors("pogorelov")
     def test_gang_rank_is_set(self):
         # Die with code 42 if variable is not 0.
-        command = '[[ "$YT_GANG_RANK" -eq 0 ]] && exit 0 || exit 42'
+        command = '[[ "$YT_GANG_RANK" -eq 0 ]] && [[ "$YT_TASK_GANG_RANK" -eq 0 ]] && exit 0 || exit 42'
         op = vanilla(
             spec={
                 "tasks": {
@@ -2773,7 +2802,7 @@ class TestGangOperations(YTEnvSetup):
 
         command = with_breakpoint("""
             BREAKPOINT;
-            if [ -z "$YT_GANG_RANK" ]; then
+            if [[ -z "$YT_GANG_RANK" && -z "$YT_TASK_GANG_RANK" ]]; then
                 exit 1
             else
                 exit 0

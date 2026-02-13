@@ -5,6 +5,7 @@
 #include <yt/yt/client/api/rpc_proxy/transaction_impl.h>
 
 #include <yt/yt/client/api/client.h>
+#include <yt/yt/client/api/formatted_table_reader.h>
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/transaction.h>
 #include <yt/yt/client/api/table_partition_reader.h>
@@ -22,12 +23,15 @@
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/name_table.h>
 
+#include <yt/yt/client/formats/format.h>
+
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt/client/ypath/rich.h>
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/node.h>
 
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
@@ -38,6 +42,8 @@
 #include <contrib/libs/apache/arrow_next/cpp/src/arrow/io/memory.h>
 
 #include <contrib/libs/apache/arrow_next/cpp/src/arrow/ipc/api.h>
+
+#include <library/cpp/yson/node/node_io.h>
 
 #include <util/generic/cast.h>
 
@@ -1355,6 +1361,138 @@ TEST_F(TPartitionTableTest, PartitionTableColumnFilterTest)
     }
 
     EXPECT_EQ(expectedData, readRows);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TPartitionTableTest, GetColumnarStatisticsInvalidYPath)
+{
+    auto path = MakeRandomTmpPath();
+    TCreateNodeOptions options;
+    options.Attributes = CreateEphemeralAttributes();
+    options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{
+        {"value1", ESimpleLogicalValueType::Int64},
+    }));
+
+    WaitFor(Client_->CreateNode(path, EObjectType::Table, options))
+        .ThrowOnError();
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        WaitFor(Client_->GetColumnarStatistics({TRichYPath(std::move(path))}))
+            .ValueOrThrow(),
+        "Received ypath without column selectors");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFormatReaderTest
+    : public TClearTmpTestBase
+{ };
+
+TEST_F(TFormatReaderTest, FormattedTableTest)
+{
+    auto path = MakeRandomTmpPath();
+    TCreateNodeOptions options;
+    options.Attributes = NYTree::CreateEphemeralAttributes();
+    options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{
+        {"value", ESimpleLogicalValueType::Int64},
+    }));
+    options.Attributes->Set("optimize_for", "scan");
+    options.Force = true;
+
+    WaitFor(Client_->CreateNode(path, EObjectType::Table, options))
+        .ThrowOnError();
+
+    std::vector<std::vector<NNamedValue::TNamedValue>> expectedData;
+    {
+        auto writer = WaitFor(Client_->CreateTableWriter(path))
+            .ValueOrThrow();
+
+        std::vector<TUnversionedOwningRow> owningData;
+        std::vector<TUnversionedRow> data;
+        for (int i = 0; i < 10; ++i) {
+            expectedData.push_back({{"value", i}});
+            owningData.push_back(NNamedValue::MakeRow(writer->GetNameTable(), expectedData.back()));
+            data.push_back(owningData.back());
+        }
+
+        auto written = writer->Write(data);
+        ASSERT_TRUE(written);
+        WaitFor(writer->Close())
+            .ThrowOnError();
+    }
+
+    auto format = ConvertToYsonString(NFormats::EFormatType::Yson);
+    auto formatStream = WaitFor(Client_->CreateFormattedTableReader(path, format))
+        .ValueOrThrow();
+
+    auto data = formatStream->ReadAll();
+
+    auto dataList = ConvertToNode(TYsonString(data.ToStringBuf(), EYsonType::ListFragment))->AsList();
+    EXPECT_EQ(dataList->GetChildCount(), 10);
+
+    for (int i = 0; i < 10; ++i) {
+        auto row = dataList->GetChildOrThrow(i)->AsMap();
+        EXPECT_EQ(row->GetChildValueOrThrow<i64>("value"), i);
+    }
+}
+
+TEST_F(TFormatReaderTest, FormattedPartitionTableTest)
+{
+    auto path = MakeRandomTmpPath();
+    TCreateNodeOptions options;
+    options.Attributes = NYTree::CreateEphemeralAttributes();
+    options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{
+        {"value", ESimpleLogicalValueType::Int64},
+    }));
+    options.Attributes->Set("optimize_for", "scan");
+    options.Force = true;
+
+    WaitFor(Client_->CreateNode(path, EObjectType::Table, options))
+        .ThrowOnError();
+
+    std::vector<std::vector<NNamedValue::TNamedValue>> expectedData;
+    {
+        auto writer = WaitFor(Client_->CreateTableWriter(path))
+            .ValueOrThrow();
+
+        std::vector<TUnversionedOwningRow> owningData;
+        std::vector<TUnversionedRow> data;
+        for (int i = 0; i < 10; ++i) {
+            expectedData.push_back({{"value", i}});
+            owningData.push_back(NNamedValue::MakeRow(writer->GetNameTable(), expectedData.back()));
+            data.push_back(owningData.back());
+        }
+
+        auto written = writer->Write(data);
+        ASSERT_TRUE(written);
+        WaitFor(writer->Close())
+            .ThrowOnError();
+    }
+
+    TPartitionTablesOptions partitionTablesOptions;
+    partitionTablesOptions.EnableCookies = true;
+    partitionTablesOptions.DataWeightPerPartition = 1_MB;
+    auto partitions = WaitFor(Client_->PartitionTables({path}, partitionTablesOptions))
+        .ValueOrThrow();
+
+    ASSERT_GE(std::ssize(partitions.Partitions), 1);
+
+    auto cookie = partitions.Partitions[0].Cookie;
+
+    auto format = ConvertToYsonString(NFormats::EFormatType::Yson);
+    auto formatStream = WaitFor(Client_->CreateFormattedTablePartitionReader(cookie, format))
+        .ValueOrThrow();
+
+    auto data = formatStream->ReadAll();
+
+    auto dataList = ConvertToNode(TYsonString(data.ToStringBuf(), EYsonType::ListFragment))->AsList();
+    EXPECT_EQ(dataList->GetChildCount(), 10);
+
+    for (int i = 0; i < 10; ++i) {
+        auto row = dataList->GetChildOrThrow(i)->AsMap();
+        EXPECT_EQ(row->GetChildValueOrThrow<i64>("value"), i);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

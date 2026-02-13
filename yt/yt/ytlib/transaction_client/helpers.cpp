@@ -68,6 +68,7 @@ void SetSuppressUpstreamSyncs(
 {
     request->SetSuppressUpstreamSync(options.SuppressUpstreamSync);
     request->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
+    request->SetSuppressStronglyOrderedTransactionBarrier(options.SuppressStronglyOrderedTransactionBarrier);
 }
 
 TTransactionId MakeTabletTransactionId(

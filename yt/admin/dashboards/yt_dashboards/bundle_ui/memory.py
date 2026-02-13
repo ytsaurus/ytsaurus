@@ -62,13 +62,16 @@ dynamic memory almost always means that write throughput is too large.
                 skip_cell=not has_cgroup)
         .row()
             .cell("Row cache size", memory_usage("lookup_rows_cache"), yaxis_label=BYTES_LABEL)
-            .cell("", EmptyCell(), yaxis_label=BYTES_LABEL, skip_cell=not has_cgroup)
+            .cell(
+                "Tablet background memory",
+                TabNode("yt.cluster_node.memory_usage.used").value("category", "tablet_background").host_container_legend_format(),
+                yaxis_label=BYTES_LABEL)
         ).owner.unit("UNIT_BYTES_SI")
 
 
 def build_reserved_memory():
     TabNodeMemory = TabNode("yt.cluster_node.memory_usage.{}")
-    user_categories = "block_cache|lookup_rows_cache|versioned_chunk_meta|tablet_dynamic|tablet_static"
+    user_categories = "block_cache|lookup_rows_cache|versioned_chunk_meta|tablet_dynamic|tablet_static|query"
 
     reserved_limit = (
         MonitoringExpr(TabNodeMemory("total_limit"))

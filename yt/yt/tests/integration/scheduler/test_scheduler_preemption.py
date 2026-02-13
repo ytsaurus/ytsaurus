@@ -29,6 +29,10 @@ import yt.environment.init_operations_archive as init_operations_archive
 
 import yt.yson as yson
 
+from yt_proto.yt.client.job_proxy.proto.job_api_service_pb2 import TReqOnProgressSaved, TRspOnProgressSaved
+
+import grpc
+
 from copy import deepcopy
 
 import pytest
@@ -761,6 +765,101 @@ class TestSchedulerPreemption(YTEnvSetup):
 
 
 @pytest.mark.enabled_multidaemon
+class TestEmptyPreemptibleProgrssStartTime(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "fair_share_update_period": 20,
+            "min_spare_job_resources_on_node": {
+                "cpu": 0,
+                "user_slots": 0,
+                "memory": 0,
+                "gpu": 0,
+            },
+            "allowed_node_resources_overcommit_duration": 0,
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 4,
+                "user_slots": 4
+            },
+        },
+        "resource_limits_update_period": 1,
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "waiting_jobs_timeout": 600000,
+                },
+            },
+        }
+    }
+
+    def setup_method(self, method):
+        super().setup_method(method)
+
+        update_pool_tree_config("default", {
+            "preemption_satisfaction_threshold": 0.99,
+            "aggressive_preemption_satisfaction_threshold": 0.4,
+            "fair_share_starvation_tolerance": 0.9,
+            "fair_share_starvation_timeout": 100,
+            "fair_share_aggressive_starvation_timeout": 200,
+            "non_preemptible_resource_usage_threshold": {"user_slots": 0},
+            "preemptive_scheduling_backoff": 0,
+            "allocation_graceful_preemption_timeout": 10000,
+        })
+
+    @authors("yaishenka")
+    def test_empty_preemptible_progress_start_time_preempt_first(self):
+        update_scheduler_config("nodes_attributes_update_period", 100)
+
+        update_pool_tree_config("default", {
+            "allocation_graceful_preemption_timeout": 6000000,
+            "allocation_preemption_timeout": 6000000,
+        })
+
+        create_pool("poolA", attributes={"strong_guarantee_resources": {"cpu": 2}, "enable_aggressive_starvation": True})
+        create_pool("poolB", attributes={"strong_guarantee_resources": {"cpu": 2}, "enable_aggressive_starvation": True})
+
+        op_a = run_sleeping_vanilla(
+            spec={
+                "pool": "poolA",
+            },
+            task_patch={
+                "cpu_limit": 2,
+            },
+        )
+        wait(lambda: len(op_a.get_running_jobs()) == 1)
+        job_id = list(op_a.get_running_jobs())[0]
+        allocation_id = get_allocation_id_from_job_id(job_id)
+        wait(lambda: get(f"//sys/scheduler/orchid/scheduler/allocations/{allocation_id}/preemptible_progress_start_time") != yson.YsonEntity)
+
+        update_controller_agent_config("scheduler_heartbeat_period", 6000)
+
+        op_b = run_sleeping_vanilla(
+            spec={
+                "pool": "poolB",
+            },
+            task_patch={
+                "cpu_limit": 2,
+            },
+        )
+        wait(lambda: len(op_b.get_running_jobs()) == 1)
+
+        update_nodes_dynamic_config({"resource_limits": {"overrides": {"cpu": 2}}})
+        wait(lambda: op_b.get_job_count("aborted") == 1)
+
+
+@pytest.mark.enabled_multidaemon
 class TestPreemptibleProgressUpdate(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -796,13 +895,17 @@ class TestPreemptibleProgressUpdate(YTEnvSetup):
                     "allocation": {
                         "enable_multiple_jobs": True,
                     },
+                    "job_proxy": {
+                        "enable_grpc_server": True,
+                    },
                 },
             },
         }
     }
 
     def setup_method(self, method):
-        super(TestPreemptibleProgressUpdate, self).setup_method(method)
+        super().setup_method(method)
+        self._work_dir = os.getcwd()
 
         update_pool_tree_config("default", {
             "preemption_satisfaction_threshold": 0.99,
@@ -815,14 +918,33 @@ class TestPreemptibleProgressUpdate(YTEnvSetup):
             "allocation_graceful_preemption_timeout": 10000,
         })
 
+    def teardown_method(self, method, wait_for_nodes=True):
+        os.chdir(self._work_dir)
+        return super().teardown_method(method, wait_for_nodes)
+
     def _wait_single_job_and_get_it_id(self, breakpoint_name):
         job_ids = wait_breakpoint(breakpoint_name=breakpoint_name)
         assert len(job_ids) == 1
         return job_ids[0]
 
-    @authors("pogorelov")
-    @pytest.mark.parametrize("several_jobs_in_allocation", [False, True])
-    def test_allocation_preemption(self, several_jobs_in_allocation):
+    def _notify_progress_saved(self, socket_path):
+        socket_file = os.path.basename(socket_path)
+        os.chdir(os.path.dirname(socket_path))
+
+        channel = grpc.insecure_channel(f"unix:{socket_file}")
+        endpoint = channel.unary_unary(
+            "/JobApiService/OnProgressSaved",
+            TReqOnProgressSaved.SerializeToString,
+            TRspOnProgressSaved.FromString,
+        )
+        endpoint(TReqOnProgressSaved())
+
+    @authors("pogorelov", "dann239")
+    @pytest.mark.parametrize(
+        "several_jobs_in_allocation, call_on_progress_saved",
+        [[False, False], [True, False], [True, True]]
+    )
+    def test_allocation_preemption(self, several_jobs_in_allocation, call_on_progress_saved):
         update_scheduler_config("nodes_attributes_update_period", 20)
 
         update_pool_tree_config("default", {
@@ -850,10 +972,12 @@ class TestPreemptibleProgressUpdate(YTEnvSetup):
 
         wait(lambda: get(f"//sys/scheduler/orchid/scheduler/nodes/{node}/resource_limits")["cpu"] == 1.)
 
+        env_variable = "YT_JOB_PROXY_GRPC_SOCKET_PATH"
+
         map_op = map(
             wait_for_jobs=True,
             track=False,
-            command=with_breakpoint("BREAKPOINT ; cat", breakpoint_name="map"),
+            command=with_breakpoint(f"echo ${env_variable} >&2; BREAKPOINT ; cat", breakpoint_name="map"),
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={
@@ -878,7 +1002,7 @@ class TestPreemptibleProgressUpdate(YTEnvSetup):
             wait(lambda: exists(f"//sys/scheduler/orchid/scheduler/allocations/{allocation_id}"))
 
             allocation_info = get(f"//sys/scheduler/orchid/scheduler/allocations/{allocation_id}")
-            allocation_info.update({"job_id": job_id})
+            allocation_info |= {"job_id": job_id, "allocation_id": allocation_id}
 
             return allocation_info
 
@@ -889,11 +1013,14 @@ class TestPreemptibleProgressUpdate(YTEnvSetup):
 
         sorted_map_allocation_infos = sorted(map_allocation_infos, key=lambda x: x["preemptible_progress_start_time"])
 
-        print_debug("Sorted map_allocation_infos is ", sorted_map_allocation_infos)
+        print_debug("Sorted map_allocation_infos are ", sorted_map_allocation_infos)
+
+        expected_preempted_allocation_index = 2
 
         if several_jobs_in_allocation:
-            first_allocation_info = sorted_map_allocation_infos[0]
-            job_to_release = first_allocation_info["job_id"]
+            expected_preempted_allocation_index = 0
+            info = sorted_map_allocation_infos[expected_preempted_allocation_index]
+            job_to_release = info["job_id"]
 
             release_breakpoint(job_id=job_to_release, breakpoint_name="map")
 
@@ -904,26 +1031,39 @@ class TestPreemptibleProgressUpdate(YTEnvSetup):
 
             assert first_map_allocation_infos == second_map_allocation_infos
 
+        if call_on_progress_saved:
+            expected_preempted_allocation_index = 1
+            info = sorted_map_allocation_infos[expected_preempted_allocation_index]
+            job_to_notify = info["job_id"]
+            allocation_id = info["allocation_id"]
+
+            wait(lambda: get(f"//sys/scheduler/orchid/scheduler/allocations/{allocation_id}/preemptible_progress_start_time") != yson.YsonEntity)
+            t0 = datetime.datetime.now(datetime.timezone.utc)
+
+            socket_path = map_op.read_stderr(job_to_notify).decode().strip()
+            self._notify_progress_saved(socket_path)
+
+            wait(lambda: t0 < datetime.datetime.fromisoformat(get(f"//sys/scheduler/orchid/scheduler/allocations/{allocation_id}/preemptible_progress_start_time")))
+
+        expected_preempted_allocation_id = sorted_map_allocation_infos[expected_preempted_allocation_index]["allocation_id"]
+
         vanilla_op = run_test_vanilla(with_breakpoint("BREAKPOINT", breakpoint_name="vanilla"), spec={"pool": "test_pool"})
 
         wait(lambda: map_op.get_job_count("aborted") == 1)
+        assert expected_preempted_allocation_id not in {get_allocation_id_from_job_id(job_id) for job_id in map_op.get_running_jobs()}
 
         vanilla_jobs = wait_breakpoint(breakpoint_name="vanilla")
         assert len(vanilla_jobs) == 1
 
-        allocation_expected_to_be_preempted = sorted_map_allocation_infos[0] if several_jobs_in_allocation else sorted_map_allocation_infos[-1]
-
-        print_debug("Allocation expected to be preempted is ", allocation_expected_to_be_preempted)
-
-        def check_allocation_preempted():
-            map_allocation_infos_after_preemption = {
-                get_allocation_id_from_job_id(job_id): get_allocation_info(job_id)
-                for job_id in map_job_ids_1
-            }
-
-            return not map_allocation_infos_after_preemption[get_allocation_id_from_job_id(allocation_expected_to_be_preempted["job_id"])]["running"]
-
-        wait(lambda: check_allocation_preempted())
+        def get_non_running_allocations():
+            result = []
+            for info in map_allocation_infos:
+                new_info = get_allocation_info(info["job_id"])
+                if not new_info["running"]:
+                    result.append(new_info["allocation_id"])
+            return result
+        wait(lambda: len(get_non_running_allocations()) > 0)
+        assert get_non_running_allocations() == [expected_preempted_allocation_id]
 
         vanilla_op.abort()
 
@@ -1766,6 +1906,102 @@ class TestIncreasedStarvationToleranceForFullySatisfiedDemand(YTEnvSetup):
         time.sleep(3.0)
         assert get(scheduler_orchid_operation_path(starving_op.id) + "/starvation_status") == "starving"
         assert get(scheduler_orchid_pool_path("pool") + "/starvation_status") == "non_starving"
+
+
+##################################################################
+
+class TestAbsoluteToleranceInStarvingOperationsAndPreemptionBorder(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {"scheduler": {"fair_share_update_period": 100}}
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {"controller_agent": {"safe_scheduler_online_time": 1000000000}}
+
+    DELTA_NODE_CONFIG = {"job_resource_manager": {"resource_limits": {"cpu": 10, "user_slots": 10}}}
+
+    def setup_method(self, method):
+        super(TestAbsoluteToleranceInStarvingOperationsAndPreemptionBorder, self).setup_method(method)
+        update_pool_tree_config("default", {
+            "aggressive_preemption_satisfaction_threshold": 0.2,
+            "preemption_satisfaction_threshold": 1.0,
+            "fair_share_starvation_tolerance": 0.8,
+            "non_preemptible_resource_usage_threshold": {"user_slots": 0},
+            "fair_share_starvation_timeout": 100,
+            "fair_share_aggressive_starvation_timeout": 200,
+            "preemptive_scheduling_backoff": 0,
+            "max_ephemeral_pools_per_user": 5,
+        })
+
+    def _get_op_starvation_status(self, op):
+        return get(scheduler_orchid_operation_path(op.id) + "/starvation_status", default=None)
+
+    def _get_op_fair_share(self, op):
+        return get(scheduler_orchid_operation_path(op.id) + "/detailed_dominant_fair_share/total", default=None)
+
+    @authors("yaishenka")
+    def test_allocation_on_border_not_preemptible(self):
+        create_pool("regular_pool", attributes={"strong_guarantee_resources": {"cpu": 5.0}})
+        create_pool("starving_pool", attributes={"strong_guarantee_resources": {"cpu": 5.0}})
+
+        op = run_sleeping_vanilla(task_patch={"cpu_limit": 6.0}, spec={"pool": "regular_pool"})
+        wait(lambda: len(op.get_running_jobs()) == 1)
+
+        op2 = run_sleeping_vanilla(task_patch={"cpu_limit": 5.0}, job_count=1, spec={"pool": "starving_pool"})
+
+        wait(lambda: self._get_op_fair_share(op) >= 0.5 and self._get_op_fair_share(op) < 0.6)
+        wait(lambda: self._get_op_fair_share(op2) >= 0.5)
+        wait(lambda: len(op.get_running_jobs()) == 1)
+
+        assert get(scheduler_orchid_operation_path(op.id) + "/preemptible_job_count") == 0
+
+    @authors("yaishenka")
+    def test_allocation_on_border_preemptible(self):
+        update_pool_tree_config_option("default", "consider_allocation_on_fair_share_bound_preemptible", True)
+
+        create_pool("regular_pool", attributes={"strong_guarantee_resources": {"cpu": 5.0}})
+        create_pool("starving_pool", attributes={"strong_guarantee_resources": {"cpu": 5.0}})
+
+        op = run_sleeping_vanilla(task_patch={"cpu_limit": 6.0}, spec={"pool": "regular_pool"})
+        wait(lambda: len(op.get_running_jobs()) == 1)
+
+        op2 = run_sleeping_vanilla(task_patch={"cpu_limit": 5.0}, job_count=1, spec={"pool": "starving_pool"})
+        wait(lambda: len(op2.get_running_jobs()) == 1)
+
+        wait(lambda: self._get_op_fair_share(op) >= 0.5 and self._get_op_fair_share(op) < 0.6)
+        wait(lambda: len(op.get_running_jobs()) == 0)
+
+    @authors("yaishenka")
+    def test_default_settings_starving(self):
+        create_pool("regular_pool", attributes={"strong_guarantee_resources": {"cpu": 5.0}})
+        create_pool("starving_pool", attributes={"strong_guarantee_resources": {"cpu": 5.0}})
+
+        regular_op = run_sleeping_vanilla(task_patch={"cpu_limit": 5.0}, spec={"pool": "regular_pool"})
+        wait(lambda: get(scheduler_orchid_operation_path(regular_op.id) + "/resource_usage/cpu", default=None) == 5.0)
+
+        starving_op = run_sleeping_vanilla(task_patch={"cpu_limit": 3.0}, job_count=2, spec={"pool": "starving_pool"})
+        wait(lambda: get(scheduler_orchid_operation_path(starving_op.id) + "/resource_usage/cpu", default=None) == 3.0)
+        wait(lambda: self._get_op_fair_share(starving_op) - get(scheduler_orchid_operation_path(starving_op.id) + "/resource_usage/cpu", default=None) < 3.0)
+
+        assert self._get_op_starvation_status(starving_op) == "starving"
+
+    @authors("yaishenka")
+    def test_below_fair_share_absolute_tolerance_not_starving(self):
+        update_pool_tree_config_option("default", "enable_absolute_fair_share_starvation_tolerance", True)
+
+        create_pool("regular_pool", attributes={"strong_guarantee_resources": {"cpu": 5.0}})
+        create_pool("starving_pool", attributes={"strong_guarantee_resources": {"cpu": 5.0}})
+
+        regular_op = run_sleeping_vanilla(task_patch={"cpu_limit": 5.0}, spec={"pool": "regular_pool"})
+        wait(lambda: get(scheduler_orchid_operation_path(regular_op.id) + "/resource_usage/cpu", default=None) == 5.0)
+
+        starving_op = run_sleeping_vanilla(task_patch={"cpu_limit": 3.0}, job_count=2, spec={"pool": "starving_pool"})
+        wait(lambda: get(scheduler_orchid_operation_path(starving_op.id) + "/resource_usage/cpu", default=None) == 3.0)
+        wait(lambda: self._get_op_fair_share(starving_op) - get(scheduler_orchid_operation_path(starving_op.id) + "/resource_usage/cpu", default=None) < 3.0)
+
+        assert self._get_op_starvation_status(starving_op) != "starving"
 
 
 ##################################################################

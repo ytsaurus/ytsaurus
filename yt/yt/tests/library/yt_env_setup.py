@@ -290,6 +290,23 @@ class Checker(Thread):
         self.join()
 
 
+class OverrideConfig:
+    """
+    Wrapping config in this object prevents inheritance of subclasses configs.
+
+    Usage example:
+    ```
+    class SomeTest(...):
+       DELTA_QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG = OverrideConfig({
+           ... Actual config here ...
+       })
+    ```
+    """
+
+    def __init__(self, config):
+        self.config = config
+
+
 class YTEnvSetup(object):
     NUM_MASTERS = 3
     NUM_CLOCKS = 0
@@ -334,18 +351,33 @@ class YTEnvSetup(object):
     ENABLE_DYNAMIC_TABLE_COLUMN_RENAMES = True
     ENABLE_STATIC_DROP_COLUMN = True
     ENABLE_DYNAMIC_DROP_COLUMN = True
+    ENABLE_STATIC_STRUCT_FIELD_RENAMING = False
+    ENABLE_DYNAMIC_STRUCT_FIELD_RENAMING = False
+    ENABLE_STATIC_STRUCT_FIELD_REMOVAL = False
+    ENABLE_DYNAMIC_STRUCT_FIELD_REMOVAL = False
+
     ENABLE_TLS = None
 
     JOB_PROXY_LOGGING = {"mode": "per_job_directory"}
 
     DELTA_NODE_FLAVORS = []
 
+    DELTA_QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG = {}
+
     DELTA_DRIVER_CONFIG = {}
     DELTA_DRIVER_LOGGING_CONFIG = {}
     DELTA_RPC_DRIVER_CONFIG = {}
     DELTA_MASTER_CONFIG = {}
     DELTA_DYNAMIC_MASTER_CONFIG = {}
-    DELTA_NODE_CONFIG = {}
+    DELTA_NODE_CONFIG = {
+        "tablet_node": {
+            "changelogs": {
+                "writer": {
+                    "enable_checksums": True,
+                }
+            }
+        }
+    }
     DELTA_DYNAMIC_NODE_CONFIG = {}
     DELTA_CHAOS_NODE_CONFIG = {}
     DELTA_SCHEDULER_CONFIG = {}
@@ -505,6 +537,10 @@ class YTEnvSetup(object):
     @classmethod
     def modify_timestamp_providers_configs(cls, timestamp_providers_configs, clock_configs, yt_configs):
         return False
+
+    @classmethod
+    def modify_cluster_connection_config(cls, config, cluster_index):
+        pass
 
     @classmethod
     def on_masters_started(cls):
@@ -1103,7 +1139,10 @@ class YTEnvSetup(object):
         if ground_driver is None:
             return
 
-        cls._restore_sequoia_bundle_options(cluster_index + cls.get_ground_index_offset())
+        ground_index = cluster_index + cls.get_ground_index_offset()
+        cls._ensure_sequoia_bundle_created("sequoia-cypress", ground_index)
+        cls._ensure_sequoia_bundle_created("sequoia-chunks", ground_index)
+
         # TODO(h0pless, danilalexeev): YT-25434. Use values from config for path, account and bundle names.
         yt_commands.sync_create_cells(1, tablet_cell_bundle="sequoia-cypress", driver=ground_driver)
         yt_commands.set("//sys/accounts/sequoia/@resource_limits/tablet_count", 10000, driver=ground_driver)
@@ -1345,6 +1384,14 @@ class YTEnvSetup(object):
             multidaemon_config["daemons"][f"rpc_proxy_{index}"]["config"] = config
 
         for index, config in enumerate(configs["cypress_proxy"]):
+            if cls.get_param("ENABLE_TMP_ROOTSTOCK", cluster_index) and not cls._is_ground_cluster(cluster_index):
+                update_inplace(config, {
+                    "testing": {
+                        "enable_ground_update_queues_sync": True,
+                        "enable_user_directory_per_request_sync": True,
+                    },
+                })
+
             cls._apply_effective_config_patch(config, "DELTA_CYPRESS_PROXY_CONFIG", cluster_index)
             cls.update_timestamp_provider_config(config, cluster_index)
             cls.update_sequoia_connection_config(config, cluster_index)
@@ -1357,6 +1404,7 @@ class YTEnvSetup(object):
             cls.modify_driver_config(config)
 
         cls._apply_effective_config_patch(configs["rpc_driver"], "DELTA_RPC_DRIVER_CONFIG", cluster_index)
+        cls.modify_cluster_connection_config(configs["cluster_connection"], cluster_index)
 
     @classmethod
     def update_transaction_supervisor_config(cls, config, cluster_index):
@@ -1414,9 +1462,20 @@ class YTEnvSetup(object):
 
     @classmethod
     def _apply_effective_config_patch(cls, base_config, param_name, cluster_index=None):
+        if cluster_index is not None and cls._is_ground_cluster(cluster_index):
+            # DELTA_*_CONFIG for ground cluster is not supported.
+            return
+
         param_name = param_name if cluster_index is None else cls._get_param_real_name(param_name, cluster_index)
         for base in cls.__mro__[::-1]:
             patch = base.__dict__.get(param_name, {})
+
+            if isinstance(patch, OverrideConfig):
+                assert isinstance(base_config, (list, dict))
+                base_config.clear()
+
+                patch = patch.config
+
             update_inplace(base_config, patch)
 
     @classmethod
@@ -1521,7 +1580,7 @@ class YTEnvSetup(object):
             self._setup_standalone_replicated_table_tracker_dynamic_config(driver=driver)
 
         if self._is_ground_cluster(cluster_index):
-            yt_commands.ls("//sys/cluster_nodes", attributes=["user_tags"])
+            yt_commands.ls("//sys/cluster_nodes", attributes=["user_tags"], driver=driver)
             yt_commands.set(
                 "//sys/cluster_nodes/@config/%true/tablet_node",
                 {
@@ -1602,7 +1661,7 @@ class YTEnvSetup(object):
             orchids.append("//sys/scheduler/orchid/scheduler")
             _wait_for_configs(orchids)
 
-        if not self.get_param("ENABLE_TMP_ROOTSTOCK", cluster_index) and \
+        if not self.get_param("ENABLE_SYS_OPERATIONS_ROOTSTOCK", cluster_index) and \
                 self.get_param("USE_SEQUOIA", cluster_index) and \
                 not self._is_ground_cluster(cluster_index) and \
                 any("sequoia_node_host" in cell_descriptor["roles"]
@@ -2007,9 +2066,15 @@ class YTEnvSetup(object):
         def get_object_ids_to_ignore():
             ids = []
 
-            # COMPAT(gritukan, aleksandra-zh)
-            if yt_commands.exists("//sys/tablet_cell_bundles/sequoia-cypress", driver=driver):
-                ids += yt_commands.get("//sys/tablet_cell_bundles/sequoia-cypress/@tablet_cell_ids", driver=driver)
+            for bundle in ("sequoia-cypress", "sequoia-chunks"):
+                if yt_commands.exists(f"//sys/tablet_cell_bundles/{bundle}", driver=driver):
+                    attrs = yt_commands.get(
+                        f"//sys/tablet_cell_bundles/{bundle}/@",
+                        attributes=["id", "tablet_cell_ids", "areas"],
+                        driver=driver)
+
+                    ids += [attrs["id"], *attrs["tablet_cell_ids"]]
+                    ids += [area["id"] for area in attrs["areas"].values()]
 
             return ids
 
@@ -2172,10 +2237,20 @@ class YTEnvSetup(object):
         config["multicell_manager"]["cell_descriptors"] = master_cell_descriptors
         config["enable_descending_sort_order"] = True
         config["enable_descending_sort_order_dynamic"] = True
+
+        # Table column renaming and removal.
         config["enable_table_column_renaming"] = True
         config["enable_dynamic_table_column_renaming"] = cls.ENABLE_DYNAMIC_TABLE_COLUMN_RENAMES
         config["enable_static_table_drop_column"] = cls.ENABLE_STATIC_DROP_COLUMN
         config["enable_dynamic_table_drop_column"] = cls.ENABLE_DYNAMIC_DROP_COLUMN
+
+        # Struct fields renaming and removal.
+        config["enable_struct_field_renaming"] = True
+        config["enable_struct_field_removal"] = True
+        config["enable_static_table_struct_field_renaming"] = cls.ENABLE_STATIC_STRUCT_FIELD_RENAMING
+        config["enable_static_table_struct_field_removal"] = cls.ENABLE_STATIC_STRUCT_FIELD_REMOVAL
+        config["enable_dynamic_table_struct_field_renaming"] = cls.ENABLE_DYNAMIC_STRUCT_FIELD_RENAMING
+        config["enable_dynamic_table_struct_field_removal"] = cls.ENABLE_DYNAMIC_STRUCT_FIELD_REMOVAL
 
         # COMPAT(kvk1920)
         if cls.Env.get_component_version("ytserver-master").abi < (24, 2):
@@ -2198,6 +2273,8 @@ class YTEnvSetup(object):
                             }
                         }
                     })
+            if cls.get_param("ENABLE_TMP_ROOTSTOCK", cluster_index):
+                config["sequoia_manager"]["enable_ground_update_queues"] = True
 
         # COMPAT(kvk1920)
         if cls.Env.get_component_version("ytserver-master").abi >= (24, 2):
@@ -2207,6 +2284,12 @@ class YTEnvSetup(object):
             config["node_tracker"]["forbid_maintenance_attribute_writes"] = True
 
         config.setdefault("chunk_service", {})
+
+        # COMPAT(cherepashka): YT-27231, drop after enable_location_indexes_in_data_node_heartbeats will be enabled by default.
+        if cls.combined_envs[cluster_index].yt_config.enable_multidaemon:
+            config["chunk_manager"]["data_node_tracker"]["use_location_indexes_in_sequoia_chunk_confirmation"] = False
+            config["chunk_manager"]["data_node_tracker"]["use_location_indexes_to_search_location_on_confirmation"] = False
+            config["chunk_manager"]["data_node_tracker"]["check_location_convergence_by_index_and_uuid_on_confirmation"] = False
         return config
 
     def _wait_for_dynamic_config(self, root_path, config, instances, driver=None):
@@ -2308,9 +2391,23 @@ class YTEnvSetup(object):
                 "cluster_state_provider": {
                     "bundles_freshness_time": 1000,
                     "nodes_freshness_time": 1000,
+                    # This is intended to check the case where freshness time is less than period.
+                    "unhealthy_bundles_freshness_time": 100,
+                    "banned_replicas_freshness_time": 400,
                     "bundles_fetch_period": 400,
                     "nodes_fetch_period": 10000,
+                    "unhealthy_bundles_fetch_period": 300,
+                    "banned_replicas_fetch_period": 300,
                     "fetch_planner_period": 100,
+                },
+                "bundle_state_provider": {
+                    "state_freshness_time": 5000,
+                    "statistics_freshness_time": 2000,
+                    "performance_counters_freshness_time": 0,
+                    "statistics_fetch_period": 800,
+                    "performance_counters_fetch_period": 300,
+                    "fetch_planner_period": 100,
+                    "config_freshness_time": 200,
                 }
             }
 
@@ -2382,11 +2479,35 @@ class YTEnvSetup(object):
         cls._restore_bundle_options("default", "sys", cluster_index)
 
     @classmethod
-    def _restore_sequoia_bundle_options(cls, cluster_index):
+    def _ensure_sequoia_bundle_created(cls, bundle, cluster_index):
         assert cls._is_ground_cluster(cluster_index)
+
+        driver = yt_commands.get_driver(cluster=cls.get_cluster_name(cluster_index))
+        if not yt_commands.exists(f"//sys/tablet_cell_bundles/{bundle}", driver=driver):
+            yt_commands.create_tablet_cell_bundle(
+                bundle,
+                attributes={
+                    "options": {
+                        "changelog_account": "sequoia",
+                        "snapshot_account": "sequoia",
+                    },
+                    "acl": [
+                        {
+                            "action": "allow",
+                            "permissions": ["use"],
+                            "subjects": ["users"],
+                        },
+                    ],
+                    "resource_limits": {
+                        "tablet_count": 10**5,
+                        "tablet_static_memory": 2**40,
+                    }
+                },
+                driver=driver)
+
         # TODO(kvk1920): use Sequoia bundle and account from non-ground
         # cluster's config.
-        cls._restore_bundle_options("sequoia-cypress", "sequoia", cluster_index)
+        cls._restore_bundle_options(bundle, "sequoia", cluster_index)
 
     def _remove_operations(self, driver=None):
         abort_command = "abort_operation" if driver.get_config()["api_version"] == 4 else "abort_op"

@@ -15,9 +15,12 @@ RECURSE(
     internal
     mock
     nop
+    otel
     prometheus
 )
 
 IF (NOT OPENSOURCE)
-    RECURSE(solomon)
+    RECURSE(
+        solomon
+    )
 ENDIF()

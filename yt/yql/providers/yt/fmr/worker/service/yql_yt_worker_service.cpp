@@ -1,11 +1,16 @@
 #include <library/cpp/getopt/last_getopt.h>
+#include <library/cpp/protobuf/util/pb_io.h>
 #include <library/cpp/uri/http_url.h>
+#include <util/string/strip.h>
+#include <util/system/env.h>
 #include <util/system/interrupt_signals.h>
+#include <yt/yql/providers/yt/lib/yt_download/yt_download.h>
 #include <yt/yql/providers/yt/fmr/coordinator/client/yql_yt_coordinator_client.h>
 #include <yt/yql/providers/yt/fmr/coordinator/impl/yql_yt_coordinator_impl.h>
 #include <yt/yql/providers/yt/fmr/job_launcher/yql_yt_job_launcher.h>
 #include <yt/yql/providers/yt/fmr/job/impl/yql_yt_job_impl.h>
 #include <yt/yql/providers/yt/fmr/job_factory/impl/yql_yt_job_factory_impl.h>
+#include <yt/yql/providers/yt/fmr/job_preparer/impl/yql_yt_job_preparer_impl.h>
 #include <yt/yql/providers/yt/fmr/table_data_service/client/impl/yql_yt_table_data_service_client_impl.h>
 #include <yt/yql/providers/yt/fmr/table_data_service/local/impl/yql_yt_table_data_service_local.h>
 #include <yt/yql/providers/yt/fmr/table_data_service/discovery/file/yql_yt_file_service_discovery.h>
@@ -16,6 +21,8 @@
 #include <yql/essentials/utils/log/log.h>
 #include <yql/essentials/utils/log/log_component.h>
 #include <yql/essentials/utils/mem_limit.h>
+#include <yql/essentials/core/file_storage/proto/file_storage.pb.h>
+#include <yql/essentials/protos/fmr.pb.h>
 
 using namespace NYql::NFmr;
 using namespace NYql;
@@ -31,6 +38,9 @@ struct TWorkerRunOptions {
     TString UnderlyingGatewayType;
     TString Host;
     ui16 Port;
+    TString LoggerFormat;
+    THolder<TFileStorageConfig> FsConfig;
+    THolder<TFmrFileRemoteCache> FmrRemoteCacheConfig;
 
     void InitLogger() {
         NLog::ELevel level = NLog::TLevelHelpers::FromInt(Verbosity);
@@ -44,10 +54,19 @@ void SignalHandler(int) {
     isInterrupted = 1;
 }
 
+void LoadFmrRemoteCacheConfigFromFile(TStringBuf path, TFmrFileRemoteCache& params) {
+    auto fs = TFsPath(path);
+    try {
+        ParseFromTextFormat(fs, params);
+    } catch (...) {
+        ythrow yexception() << "Bad format of fmr remote cache config settings: " << CurrentExceptionMessage();
+    }
+}
+
+
 int main(int argc, const char *argv[]) {
     try {
         SetInterruptSignalsHandler(SignalHandler);
-        NYql::NLog::YqlLoggerScope logger(&Cerr);
         TWorkerRunOptions options;
         NLastGetopt::TOpts opts = NLastGetopt::TOpts::Default();
         opts.AddHelpOption();
@@ -60,11 +79,31 @@ int main(int argc, const char *argv[]) {
         opts.AddLongOption('g', "gateway-type", "Type of underlying gateway (native, file)").StoreResult(&options.UnderlyingGatewayType).DefaultValue("native");
         opts.AddLongOption('h', "host", "Fast map reduce worker server host").StoreResult(&options.Host).DefaultValue("localhost");
         opts.AddLongOption('p', "port", "Worker server port").StoreResult(&options.Port).DefaultValue(7007);
+        opts.AddLongOption('f', "logger-format", "Logs formatting type").StoreResult(&options.LoggerFormat).DefaultValue("legacy");
+        opts.AddLongOption("fs-cfg", "Fs configuration file").Optional().RequiredArgument("FILE").Handler1T<TString>([&options](const TString& file) {
+            options.FsConfig = MakeHolder<TFileStorageConfig>();
+            LoadFsConfigFromFile(file, *options.FsConfig);
+        });
+        opts.AddLongOption("fmr-cache-cfg", "Fmr remote cache configuration file").Optional().RequiredArgument("FILE").Handler1T<TString>([&options](const TString& file) {
+            options.FmrRemoteCacheConfig = MakeHolder<TFmrFileRemoteCache>();
+            LoadFmrRemoteCacheConfigFromFile(file, *options.FmrRemoteCacheConfig);
+        });
         opts.SetFreeArgsMax(0);
 
         auto res = NLastGetopt::TOptsParseResult(&opts, argc, argv);
 
+        TString loggerFormat = options.LoggerFormat;
+        YQL_ENSURE(loggerFormat == "json" || loggerFormat == "legacy");
+        auto formatter = loggerFormat == "json" ? NYql::NLog::JsonFormat : NYql::NLog::LegacyFormat;
+        NYql::NLog::YqlLoggerScope logger(&Cerr, formatter);
+
         options.InitLogger();
+
+        if (!options.FsConfig) {
+            options.FsConfig = MakeHolder<TFileStorageConfig>();
+            YQL_ENSURE(NResource::Has("fs.conf"));
+            LoadFsConfigFromResource("fs.conf", *options.FsConfig);
+        }
 
         TString underlyingGatewayType = options.UnderlyingGatewayType;
         if (underlyingGatewayType != "native" && underlyingGatewayType != "file") {
@@ -84,7 +123,7 @@ int main(int argc, const char *argv[]) {
         coordinatorClientSettings.Host = parsedUrl.GetHost();
         auto coordinator = MakeFmrCoordinatorClient(coordinatorClientSettings);
 
-        auto fmrYtJobSerivce =  isNative ? MakeYtJobSerivce() : MakeFileYtJobSerivce();
+        auto fmrYtJobSerivce =  isNative ? MakeYtJobSerivce() : MakeFileYtJobService();
         auto jobLauncher = MakeIntrusive<TFmrUserJobLauncher>(TFmrUserJobLauncherOptions{
             .RunInSeparateProcess = true,
             .FmrJobBinaryPath = options.FmrJobBinaryPath,
@@ -92,13 +131,35 @@ int main(int argc, const char *argv[]) {
             .GatewayType = underlyingGatewayType
         });
         // TODO - add different job Settings here
-        auto func = [options, fmrYtJobSerivce, jobLauncher] (NFmr::TTask::TPtr task, std::shared_ptr<std::atomic<bool>> cancelFlag) mutable {
-            return RunJob(task, options.TableDataServiceDiscoveryFilePath, fmrYtJobSerivce, jobLauncher , cancelFlag);
+        TString tableDataServiceDiscoveryFilePath = options.TableDataServiceDiscoveryFilePath;
+        auto func = [tableDataServiceDiscoveryFilePath, fmrYtJobSerivce, jobLauncher] (NFmr::TTask::TPtr task, std::shared_ptr<std::atomic<bool>> cancelFlag) mutable {
+            return RunJob(task, tableDataServiceDiscoveryFilePath, fmrYtJobSerivce, jobLauncher , cancelFlag);
         };
 
         TFmrJobFactorySettings settings{.Function=func};
         auto jobFactory = MakeFmrJobFactory(settings);
-        auto worker = MakeFmrWorker(coordinator, jobFactory, workerSettings);
+        auto&& fmrCacheConfig = options.FmrRemoteCacheConfig;
+
+        TString ytDownloaderServer;
+        if (fmrCacheConfig) {
+            ytDownloaderServer = fmrCacheConfig->GetCluster();
+        }
+        NYql::NFS::IDownloaderPtr ytDownloader =  MakeYtDownloader(*options.FsConfig, ytDownloaderServer);
+        TFileStoragePtr fileStorage = WithAsync(CreateFileStorage(*options.FsConfig, {ytDownloader}));
+
+        auto jobPreparer = MakeFmrJobPreparer(fileStorage, tableDataServiceDiscoveryFilePath);
+        if (isNative && fmrCacheConfig && !fmrCacheConfig->GetPath().empty()) {
+            TString distFileCacheBaseUrl = "yt://" + fmrCacheConfig->GetCluster() + "/" + fmrCacheConfig->GetPath();
+            TString distCacheYtToken;
+            if (!fmrCacheConfig->GetTokenFile().empty()) {
+                TString tokenFile = fmrCacheConfig->GetTokenFile();
+                YQL_ENSURE(NFs::Exists(tokenFile), "Token file should exist, if it is passed from fmr cache config");
+                distCacheYtToken = StripStringRight(TFileInput(tokenFile).ReadLine());
+            }
+            jobPreparer->InitalizeDistributedCache(distFileCacheBaseUrl, distCacheYtToken);
+        }
+
+        auto worker = MakeFmrWorker(coordinator, jobFactory, jobPreparer, workerSettings);
         worker->Start();
         TFmrWorkerServerSettings workerServerSettings{.Port=options.Port, .Host = options.Host};
         auto workerServer = MakeFmrWorkerServer(workerServerSettings, worker);

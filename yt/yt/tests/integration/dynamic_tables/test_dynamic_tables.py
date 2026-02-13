@@ -34,7 +34,7 @@ from yt_type_helpers import make_schema, optional_type
 import yt_error_codes
 
 from yt.environment.helpers import assert_items_equal
-from yt.common import YtError, update
+from yt.common import YtError, update, update_inplace
 import yt.yson as yson
 
 import pytest
@@ -84,7 +84,6 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         "tablet_node": {
             "changelogs": {
                 "writer": {
-                    "enable_checksums": True,
                     "validate_erasure_coding": True
                 }
             }
@@ -778,8 +777,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         assert get("//tmp/t1/@profiling_tag") == "custom"
 
     @authors("sabdenovch")
-    @pytest.mark.parametrize("config", ["mount_config", "chunk_writer", "both"])
-    def test_no_column_meta_in_chunk_meta(self, config):
+    def test_no_column_meta_in_chunk_meta(self):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t", lookup_cache_rows_per_tablet=50, optimize_for="scan")
 
@@ -792,22 +790,10 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         chunk_id = get("//tmp/t/@chunk_ids")[0]
         meta_size_before_migration = get(f"#{chunk_id}/@meta_size")
 
-        if config == "mount_config":
-            set("//tmp/t/@mount_config/enable_column_meta_in_chunk_meta", False)
-            set("//tmp/t/@mount_config/enable_segment_meta_in_blocks", True)
-        elif config == "chunk_writer":
-            set("//tmp/t/@chunk_writer", {
-                "enable_column_meta_in_chunk_meta": False,
-                "enable_segment_meta_in_blocks": True,
-            })
-        else:
-            # Chunk writer config must have priority
-            set("//tmp/t/@mount_config/enable_column_meta_in_chunk_meta", True)
-            set("//tmp/t/@mount_config/enable_segment_meta_in_blocks", False)
-            set("//tmp/t/@chunk_writer", {
-                "enable_column_meta_in_chunk_meta": False,
-                "enable_segment_meta_in_blocks": True,
-            })
+        set("//tmp/t/@chunk_writer", {
+            "enable_column_meta_in_chunk_meta": False,
+            "enable_segment_meta_in_blocks": True,
+        })
 
         sync_compact_table("//tmp/t")
 
@@ -1283,7 +1269,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
     @authors("babenko")
     def test_default_cell_bundle(self):
-        assert_items_equal(ls("//sys/tablet_cell_bundles"), ["default", "sequoia-chunks", "sequoia-cypress"])
+        assert_items_equal(ls("//sys/tablet_cell_bundles"), ["default"])
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
         assert get("//tmp/t/@tablet_cell_bundle") == "default"
@@ -2027,7 +2013,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         enable_tablet_cells_on_node(node)
         assert get("//sys/tablet_cell_bundles/b/@nodes") == [node]
 
-        build_snapshot(cell_id=None)
+        build_snapshot(cell_id=get("//sys/@cell_id"))
         with Restarter(self.Env, MASTERS_SERVICE):
             pass
 
@@ -3306,6 +3292,118 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert tablet_performance_counters[0]["tablet_id"] == tablet_id
         assert "dynamic_row_write_count" in get("#" + tablet_id + "/@performance_counters")
 
+    @authors("atalmenev")
+    def test_originator_tablets(self):
+        sync_create_cells(1)
+        self._create_sorted_table(
+            "//tmp/t",
+            tablet_balancer_config={"enable_auto_reshard": False}
+        )
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 0, "value": "f"}, {"key": 103, "value": "FF"}])
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        assert get(f"#{tablet_id}/@originator_tablets") == []
+
+        sync_unmount_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[], [100]])
+
+        def _check_originators(actual_originator_tablets, expected_tablet_ids):
+            return {t["tablet_id"] for t in actual_originator_tablets} == {*expected_tablet_ids}
+
+        tablet_ids = [tablet["tablet_id"] for tablet in get("//tmp/t/@tablets")]
+        originator_tablets = get(f"#{tablet_ids[0]}/@originator_tablets")
+        assert _check_originators(originator_tablets, [tablet_id])
+
+        originator_tablets = get(f"#{tablet_ids[1]}/@originator_tablets")
+        assert _check_originators(originator_tablets, [tablet_id])
+
+        sync_reshard_table("//tmp/t", [[]])
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        originator_tablets = get(f"#{tablet_id}/@originator_tablets")
+        assert _check_originators(originator_tablets, tablet_ids)
+
+    @authors("atalmenev")
+    def test_originator_tablet_size(self):
+        sync_create_cells(1)
+
+        self._create_sorted_table(
+            "//tmp/t",
+            pivot_keys=[[]] + [[pivot] for pivot in [3, 5, 7, 10, 15]],
+            compression_codec="none",
+            enable_compaction_and_partitioning=False,
+            tablet_balancer_config={"enable_auto_reshard": False}
+        )
+
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": i, "value": "xx"} for i in range(20)])
+        sync_unmount_table("//tmp/t")
+
+        chunk_sizes = [
+            get(f"#{chunk_id}/@compressed_data_size")
+            for chunk_id in get("//tmp/t/@chunk_ids")
+        ]
+
+        def _check_size(inherited_data, originator_data):
+            for index, inherited_tablet, originator_tablet in zip(range(len(inherited_data)), inherited_data, originator_data):
+                originator_tablets = get(f"#{tablet_ids[index]}/@originator_tablets")
+
+                for originator_index, inherited_chunks, originator_chunks in zip(range(len(originator_tablet)), inherited_tablet, originator_tablet):
+                    assert originator_tablets[originator_index]["inherited_compressed_data_size"] == sum(chunk_sizes[i] for i in inherited_chunks)
+                    assert originator_tablets[originator_index]["originator_compressed_data_size"] == sum(chunk_sizes[i] for i in originator_chunks)
+
+        # old_pivot_keys 0          3          5          7          10         15         20
+        # old_tablets    | tablet_0 | tablet_1 | tablet_2 | tablet_3 | tablet_4 | tablet_5 |
+        #
+        # chunks         | chunk_0  | chunk_1  | chunk_2  | chunk_3  | chunk_4  | chunk_5  |
+        #                     \      /        \      |       /   \         |         |
+        # new_pivot_keys 0                4                   8                            20
+        # new_tablets    |    tablet_0    |     tablet_1      |          tablet_2          |
+
+        originator_data = [[[0], [1]], [[1], [2], [3]], [[3], [4], [5]]]
+        inherited_data = [[[0], [1]], [[1], [2], [3]], [[3], [4], [5]]]
+        sync_reshard_table("//tmp/t", [[]] + [[pivot] for pivot in [4, 8]])
+
+        tablet_ids = [tablet["tablet_id"] for tablet in get("//tmp/t/@tablets")]
+
+        _check_size(inherited_data, originator_data)
+
+        # old_pivot_keys 0                     4                      8                                                20
+        # old_tablets    |      tablet_0       |       tablet_1       |                   tablet_2                     |
+        #
+        #                0                3          5          7                    10                      15        20
+        # chunks         |     chunk_0    | chunk_1  | chunk_2  |      chunk_3       |        chunk_4        | chunk_5 |
+        #                      |       \    /      \    /     \     /         \                   |         \     |
+        # new_pivot_keys 0          2          4           6              9          10                    14          20
+        # new_tablets    | tablet_0 | tablet_1 | tablet_2  |  tablet_3    | tablet_4  |        tablet_5     |  tablet_6 |
+
+        originator_data = [[[0, 1]], [[0, 1]], [[1, 2, 3]], [[1, 2, 3], [3, 4, 5]], [[3, 4, 5]], [[3, 4, 5]], [[3, 4, 5]]]
+        inherited_data = [[[0]], [[0, 1]], [[1, 2]], [[2, 3], [3]], [[3]], [[4]], [[4, 5]]]
+        sync_reshard_table("//tmp/t", [[]] + [[pivot] for pivot in [2, 4, 6, 9, 10,  14]])
+
+        tablet_ids = [tablet["tablet_id"] for tablet in get("//tmp/t/@tablets")]
+        _check_size(inherited_data, originator_data)
+
+    @authors("atalmenev")
+    def test_reshard_many_to_many_tablets(self):
+        sync_create_cells(1)
+
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": i, "value": "Press F"} for i in range(100000)])
+        sync_unmount_table("//tmp/t")
+
+        first_pivot_keys = [[]] + [[i] for i in range(2, 10000, 2)]
+        second_pivot_keys = [[]] + [[i] for i in range(1, 10000, 2)]
+
+        start_time = time.time()
+        sync_reshard_table("//tmp/t", first_pivot_keys)
+        sync_reshard_table("//tmp/t", second_pivot_keys)
+        delta = time.time() - start_time
+        assert delta < 15
+
     @authors("alexelexa")
     def test_bundle_ban(self):
         sync_create_cells(1)
@@ -3350,6 +3448,63 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         wait(lambda: check_no_error(lambda: insert_rows("//tmp/t", [row])))
         assert lookup_rows("//tmp/t", keys) == rows
         assert select_rows("* from [//tmp/t]") == rows
+
+    @authors("atalmenev")
+    def test_ban_user_in_bundle(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        create_user("robot-yt")
+
+        rows = [{"key": 0, "value": "A"}]
+        keys = [{"key": 0}]
+        insert_rows("//tmp/t", rows, authenticated_user="robot-yt")
+        assert lookup_rows("//tmp/t", keys,  authenticated_user="robot-yt") == rows
+        assert select_rows("* from [//tmp/t]", authenticated_user="robot-yt") == rows
+
+        def _update_user_ban(**attributes):
+            update_nodes_dynamic_config({
+                "tablet_node": {
+                    "user_ban": attributes
+                },
+            })
+
+        ban_message = "You are banned"
+        _update_user_ban(
+            ban_message=ban_message,
+            banned_user_regex="robot-[a-z].*",
+            failure_probability=1.0)
+
+        with raises_yt_error(ban_message):
+            insert_rows("//tmp/t", rows, authenticated_user="robot-yt")
+
+        with raises_yt_error(ban_message):
+            lookup_rows("//tmp/t", keys, authenticated_user="robot-yt")
+
+        with raises_yt_error(ban_message):
+            select_rows("* from [//tmp/t]", authenticated_user="robot-yt")
+
+        insert_rows("//tmp/t", rows)
+        assert lookup_rows("//tmp/t", keys) == rows
+        assert select_rows("* from [//tmp/t]") == rows
+
+        current_config = get("//sys/cluster_nodes/@config")
+        update_inplace(current_config["%true"], patch={
+            "tablet_node": {
+                "user_ban": {
+                    "banned_user_regex": "robot-[a-z",
+                },
+            },
+        })
+
+        set("//sys/cluster_nodes/@config", current_config)
+        time.sleep(1.0)
+        assert lookup_rows("//tmp/t", keys) == rows
+
+        _update_user_ban(
+            banned_user_regex="robot-[a-z].*",
+            allowed_users=["robot-yt"])
+        insert_rows("//tmp/t", rows, authenticated_user="robot-yt")
 
     @authors("akozhikhov")
     def test_batched_get_tablet_infos(self):
@@ -3506,6 +3661,31 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         set("//sys/@config/tablet_manager/enable_unversioned_chunk_constraint_validation", True)
 
         sync_mount_table("//tmp/t")
+
+    @authors("atalmenev")
+    def test_table_values_size_validation(self):
+        sync_create_cells(1)
+        MB = 1024 * 1024
+
+        self._create_sorted_table("//tmp/t", dynamic=False)
+        set("//tmp/t/@compression_codec", "none")
+
+        rows = [{"key": 1, "value": "A" * (17 * MB)}]
+        write_table(
+            "//tmp/t",
+            rows,
+            table_writer={"max_row_weight": 20 * MB}
+        )
+
+        alter_table("//tmp/t", dynamic=True)
+
+        sync_mount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
+
+        set("//sys/@config/tablet_manager/enable_unversioned_chunk_constraint_validation", True)
+
+        with raises_yt_error("too large row or value size"):
+            sync_mount_table("//tmp/t")
 
     @authors("dave11ar")
     def test_errors_expiration(self):
@@ -3896,46 +4076,23 @@ class TestDynamicTablesShardedTx(TestDynamicTablesPortal):
 
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
-        "11": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["chunk_host", "cypress_node_host"]},
         "12": {"roles": ["chunk_host"]},
         "13": {"roles": ["transaction_coordinator"]},
     }
 
 
-class TestDynamicTablesMirroredTx(TestDynamicTablesShardedTx):
-    ENABLE_MULTIDAEMON = False  # There are component restarts.
-    USE_SEQUOIA = True
-    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
-
-
-class TestDynamicTablesSequoia(TestDynamicTablesMulticell):
+class TestDynamicTablesSequoia(TestDynamicTablesShardedTx):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True
-    NUM_SECONDARY_MASTER_CELLS = 3
+
     MASTER_CELL_DESCRIPTORS = {
-        "10": {"roles": ["sequoia_node_host"]},
+        "10": {"roles": ["cypress_node_host", "sequoia_node_host"]},
         "11": {"roles": ["chunk_host", "cypress_node_host"]},
         "12": {"roles": ["chunk_host"]},
-        "13": {"roles": ["sequoia_node_host"]},
-    }
-
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "sequoia_manager": {
-            "enable_ground_update_queues": True,
-        },
-        "tablet_manager": {
-            "leader_reassignment_timeout": 2000,
-            "peer_revocation_timeout": 3000,
-        },
-    }
-
-    DELTA_CYPRESS_PROXY_CONFIG = {
-        "testing": {
-            "enable_ground_update_queues_sync": True,
-            "enable_user_directory_per_request_sync": True,
-        },
+        "13": {"roles": ["transaction_coordinator", "sequoia_node_host"]},
     }
 
 

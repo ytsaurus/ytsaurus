@@ -37,6 +37,7 @@ target_compile_options(server-lib-discovery_server PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(server-lib-discovery_server PUBLIC

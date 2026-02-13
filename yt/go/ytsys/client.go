@@ -34,11 +34,11 @@ const (
 	TabletCellBundlesPath = ypath.Path("//sys/tablet_cell_bundles")
 
 	ChunksCountPath = ypath.Path("//sys/chunks/@count")
-	LVCCountPath    = ypath.Path("//sys/lost_vital_chunks/@count")
-	DMCCountPath    = ypath.Path("//sys/data_missing_chunks/@count")
-	PMCCountPath    = ypath.Path("//sys/parity_missing_chunks/@count")
+	LVCCountPath    = ypath.Path("//sys/@lost_vital_chunk_count")
+	DMCCountPath    = ypath.Path("//sys/@data_missing_chunk_count")
+	PMCCountPath    = ypath.Path("//sys/@parity_missing_chunk_count")
 	URCCountPath    = ypath.Path("//sys/underreplicated_chunks/@count")
-	QMCCountPath    = ypath.Path("//sys/quorum_missing_chunks/@count")
+	QMCCountPath    = ypath.Path("//sys/@quorum_missing_chunk_count")
 
 	ChunkRequisitionUpdateEnabledPath = ypath.Path("//sys/@chunk_requisition_update_enabled")
 	ChunkRefreshEnabledPath           = ypath.Path("//sys/@chunk_refresh_enabled")
@@ -545,7 +545,7 @@ func (c *Client) GetSchedulers(ctx context.Context) (SchedulerMap, error) {
 
 		connected := false
 		if err := c.yc.GetNode(ctx, p, &connected, nil); err != nil {
-			c.l.Info("error checking if scheduler is connected",
+			c.l.Debug("error checking if scheduler is connected",
 				log.String("addr", s.Addr.String()), log.Error(err))
 			s.ConnectionRequestError = err
 			continue
@@ -587,7 +587,7 @@ func (c *Client) GetControllerAgents(ctx context.Context) (ControllerAgentMap, e
 
 		connected := false
 		if err := c.yc.GetNode(ctx, p, &connected, nil); err != nil {
-			c.l.Info("error checking if controller agent is connected",
+			c.l.Debug("error checking if controller agent is connected",
 				log.String("addr", a.Addr.String()), log.Error(err))
 			a.ConnectionRequestError = err
 			continue
@@ -714,7 +714,7 @@ func (c *Client) GetPoolTrees(ctx context.Context) (PoolTrees, error) {
 
 		var reserves *PoolTreeResourceReserves
 		if err := c.yc.GetNode(ctx, p, &reserves, nil); err != nil {
-			c.l.Info("error retrieving resource reserves", log.String("tree", tree), log.Error(err))
+			c.l.Error("error retrieving resource reserves", log.String("tree", tree), log.Error(err))
 		} else {
 			ret[tree].ResourceReserves = reserves
 		}

@@ -324,7 +324,6 @@ def main():
     global DB_TABLE_CLIENT
     DB_TABLE_CLIENT = create_yt_table_client_from_db_config(config["db_config"])
 
-    global DB_TABLE_CLIENTS_FOR_CLUSTERS
     clusters = config["clusters"]
     for cluster in clusters:
         db_config = update(deepcopy(config["db_config"]), clusters[cluster]["db_config"])

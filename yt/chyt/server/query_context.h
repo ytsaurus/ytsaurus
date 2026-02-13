@@ -114,7 +114,11 @@ public:
 
     NTableClient::TRowBufferPtr RowBuffer;
 
-    TQuerySettingsPtr Settings;
+    //! Settings that are received as modification of clique speclet with session level changes
+    //! specified via SET queries or request params.
+    //! Does not include changes from the SETTINGS clause
+    //! because construction of TQueryContext happens before query execution.
+    TQuerySettingsPtr SessionSettings;
 
     TQueryContext(
         THost* host,
@@ -138,6 +142,8 @@ public:
     static TQueryContextPtr CreateFake(THost* host, NApi::NNative::IClientPtr client);
 
     const NApi::NNative::IClientPtr& Client() const;
+
+    TQuerySettingsPtr GetContextSettings(DB::ContextPtr context) const;
 
     void MoveToPhase(EQueryPhase phase);
 

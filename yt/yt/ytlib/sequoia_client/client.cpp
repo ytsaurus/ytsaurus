@@ -1,27 +1,26 @@
 #include "client.h"
 
 #include "helpers.h"
+#include "private.h"
 #include "sequoia_reign.h"
 #include "table_descriptor.h"
 #include "transaction.h"
-#include "private.h"
 
-#include <yt/yt/ytlib/transaction_client/transaction_manager.h>
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/client_cache.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 
-#include <yt/yt/ytlib/api/native/config.h>
-#include <yt/yt/ytlib/api/native/client.h>
-#include <yt/yt/ytlib/api/native/connection.h>
-#include <yt/yt/ytlib/api/native/client_cache.h>
+#include <yt/yt/ytlib/transaction_client/transaction_manager.h>
 
 #include <yt/yt/client/query_client/query_builder.h>
 
 #include <yt/yt/client/table_client/record_descriptor.h>
 
-#include <yt/yt/core/misc/range_formatters.h>
-
 #include <yt/yt/core/rpc/dispatcher.h>
+
+#include <library/cpp/yt/misc/range_formatters.h>
 
 namespace NYT::NSequoiaClient {
 
@@ -40,16 +39,16 @@ class TSequoiaClient
 {
 public:
     TSequoiaClient(
-        NNative::TSequoiaConnectionConfigPtr config,
-        NNative::IConnectionPtr localConnection,
+        NNative::IClientPtr authenticatedLocalClient,
         TFuture<NNative::IClientPtr> groundClientFuture)
-        : Config_(std::move(config))
-        , LocalConnection_(std::move(localConnection))
+        : AuthenticatedLocalClient_(std::move(authenticatedLocalClient))
         , GroundClientFuture_(std::move(groundClientFuture))
-        , AuthenticatedLocalClientCache_(New<NNative::TClientCache>(
-            Config_ ? Config_->ClientCache : New<TSlruCacheConfig>(),
-            LocalConnection_))
     { }
+
+    NRpc::TAuthenticationIdentity GetAuthenticationIdentity() const override
+    {
+        return AuthenticatedLocalClient_->GetOptions().GetAuthenticationIdentity();
+    }
 
     const TLogger& GetLogger() const override
     {
@@ -133,18 +132,10 @@ public:
     }
 
 #undef XX
-    NNative::IClientPtr GetOrCreateAuthenticatedLocalClient(const TAuthenticationIdentity& identity) override
-    {
-        return AuthenticatedLocalClientCache_->Get(
-            identity,
-            NNative::TClientOptions::FromAuthenticationIdentity(identity));
-    }
 
 private:
-    const NNative::TSequoiaConnectionConfigPtr Config_;
-    const NNative::IConnectionPtr LocalConnection_;
+    const NNative::IClientPtr AuthenticatedLocalClient_;
     const TFuture<NNative::IClientPtr> GroundClientFuture_;
-    const NNative::TClientCachePtr AuthenticatedLocalClientCache_;
 
     NNative::IClientPtr GetGroundClientOrThrow()
     {
@@ -154,7 +145,7 @@ private:
 
     NYPath::TYPath GetSequoiaTablePath(const TSequoiaTablePathDescriptor& tablePathDescriptor)
     {
-        return NSequoiaClient::GetSequoiaTablePath(LocalConnection_, tablePathDescriptor);
+        return NSequoiaClient::GetSequoiaTablePath(AuthenticatedLocalClient_, tablePathDescriptor);
     }
 
     TFuture<TUnversionedLookupRowsResult> DoLookupRows(
@@ -243,7 +234,7 @@ private:
         return NDetail::StartSequoiaTransaction(
             this,
             type,
-            LocalConnection_,
+            AuthenticatedLocalClient_,
             GetGroundClientOrThrow(),
             transactionStartOptions,
             sequoiaTransactionOptions);
@@ -253,21 +244,11 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 ISequoiaClientPtr CreateSequoiaClient(
-    NNative::TSequoiaConnectionConfigPtr config,
-    NNative::IConnectionPtr localConnection,
+    NApi::NNative::IClientPtr localAuthenticatedClient,
     TFuture<NNative::IClientPtr> groundClientFuture)
 {
-    if (config && config->EnableGroundReignValidation) {
-        groundClientFuture = groundClientFuture
-            .Apply(BIND([=] (NNative::IClientPtr client) {
-                return ValidateClusterGroundReign(client, config->SequoiaRootPath)
-                    .Apply(BIND([=] { return client; }));
-            }));
-    }
-
     return New<TSequoiaClient>(
-        std::move(config),
-        std::move(localConnection),
+        std::move(localAuthenticatedClient),
         std::move(groundClientFuture));
 }
 

@@ -253,7 +253,7 @@ void ValidateNodeTags(const std::vector<std::string>& tags)
 
 namespace NProto {
 
-TNodeResources operator + (const TNodeResources& lhs, const TNodeResources& rhs)
+TNodeResources operator+(const TNodeResources& lhs, const TNodeResources& rhs)
 {
     TNodeResources result;
     #define XX(name, Name) result.set_##name(lhs.name() + rhs.name());
@@ -262,7 +262,7 @@ TNodeResources operator + (const TNodeResources& lhs, const TNodeResources& rhs)
     return result;
 }
 
-TNodeResources& operator += (TNodeResources& lhs, const TNodeResources& rhs)
+TNodeResources& operator+=(TNodeResources& lhs, const TNodeResources& rhs)
 {
     #define XX(name, Name) lhs.set_##name(lhs.name() + rhs.name());
     ITERATE_NODE_RESOURCES(XX)
@@ -270,7 +270,7 @@ TNodeResources& operator += (TNodeResources& lhs, const TNodeResources& rhs)
     return lhs;
 }
 
-TNodeResources operator - (const TNodeResources& lhs, const TNodeResources& rhs)
+TNodeResources operator-(const TNodeResources& lhs, const TNodeResources& rhs)
 {
     TNodeResources result;
     #define XX(name, Name) result.set_##name(lhs.name() - rhs.name());
@@ -279,7 +279,7 @@ TNodeResources operator - (const TNodeResources& lhs, const TNodeResources& rhs)
     return result;
 }
 
-TNodeResources& operator -= (TNodeResources& lhs, const TNodeResources& rhs)
+TNodeResources& operator-=(TNodeResources& lhs, const TNodeResources& rhs)
 {
     #define XX(name, Name) lhs.set_##name(lhs.name() - rhs.name());
     ITERATE_NODE_RESOURCES(XX)
@@ -287,7 +287,7 @@ TNodeResources& operator -= (TNodeResources& lhs, const TNodeResources& rhs)
     return lhs;
 }
 
-TNodeResources operator * (const TNodeResources& lhs, i64 rhs)
+TNodeResources operator*(const TNodeResources& lhs, i64 rhs)
 {
     TNodeResources result;
     #define XX(name, Name) result.set_##name(lhs.name() * rhs);
@@ -296,7 +296,7 @@ TNodeResources operator * (const TNodeResources& lhs, i64 rhs)
     return result;
 }
 
-TNodeResources operator * (const TNodeResources& lhs, double rhs)
+TNodeResources operator*(const TNodeResources& lhs, double rhs)
 {
     TNodeResources result;
     #define XX(name, Name) result.set_##name(static_cast<decltype(lhs.name())>(lhs.name() * rhs + 0.5));
@@ -305,7 +305,7 @@ TNodeResources operator * (const TNodeResources& lhs, double rhs)
     return result;
 }
 
-TNodeResources& operator *= (TNodeResources& lhs, i64 rhs)
+TNodeResources& operator*=(TNodeResources& lhs, i64 rhs)
 {
     #define XX(name, Name) lhs.set_##name(lhs.name() * rhs);
     ITERATE_NODE_RESOURCES(XX)
@@ -313,7 +313,7 @@ TNodeResources& operator *= (TNodeResources& lhs, i64 rhs)
     return lhs;
 }
 
-TNodeResources& operator *= (TNodeResources& lhs, double rhs)
+TNodeResources& operator*=(TNodeResources& lhs, double rhs)
 {
     #define XX(name, Name) lhs.set_##name(static_cast<decltype(lhs.name())>(lhs.name() * rhs + 0.5));
     ITERATE_NODE_RESOURCES(XX)
@@ -321,7 +321,7 @@ TNodeResources& operator *= (TNodeResources& lhs, double rhs)
     return lhs;
 }
 
-TNodeResources  operator - (const TNodeResources& resources)
+TNodeResources  operator-(const TNodeResources& resources)
 {
     TNodeResources result;
     #define XX(name, Name) result.set_##name(-resources.name());
@@ -330,7 +330,7 @@ TNodeResources  operator - (const TNodeResources& resources)
     return result;
 }
 
-bool operator == (const TNodeResources& lhs, const TNodeResources& rhs)
+bool operator==(const TNodeResources& lhs, const TNodeResources& rhs)
 {
     return
         #define XX(name, Name) lhs.name() == rhs.name() &&

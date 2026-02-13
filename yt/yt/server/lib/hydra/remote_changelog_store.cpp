@@ -686,7 +686,7 @@ private:
 
             if (!Writer_) {
                 YT_LOG_DEBUG("Remote changelog has no underlying writer and is now closed");
-                return VoidFuture;
+                return OKFuture;
             }
 
             YT_LOG_DEBUG("Closing remote changelog with its underlying writer");
@@ -727,7 +727,7 @@ private:
         std::atomic<int> RecordCount_;
         std::atomic<i64> DataSize_;
 
-        TFuture<void> FlushFuture_ = VoidFuture;
+        TFuture<void> FlushFuture_ = OKFuture;
 
 
         IInvokerPtr GetInvoker() const
@@ -779,7 +779,7 @@ private:
             auto guard = Guard(WriterLock_);
 
             auto rows = std::exchange(PendingRecords_, {});
-            auto flushedFuture = rows.empty() ? VoidFuture : Writer_->Write(TRange(rows));
+            auto flushedFuture = rows.empty() ? OKFuture : Writer_->Write(TRange(rows));
 
             YT_VERIFY(!WriterOpened_);
             WriterOpened_ = true;

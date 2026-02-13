@@ -32,7 +32,7 @@ public:
     TCodegenCacheSingletonImpl()
         : TAsyncSlruCacheBase<llvm::FoldingSetNodeID, TCachedCGQueryImage>(
             New<TCodegenCacheConfig>(),
-            TProfiler(ProfilerName))
+            TProfiler(std::string(ProfilerName)))
     { }
 
     static TCodegenCacheSingletonImpl* GetInstance()
@@ -85,7 +85,7 @@ public:
     }
 
 private:
-    static constexpr const char* ProfilerName = "/codegen_cache";
+    static constexpr TStringBuf ProfilerName = "/codegen_cache";
 
     static TCachedCGQueryImagePtr CompileWithLogging(
         const llvm::FoldingSetNodeID& id,

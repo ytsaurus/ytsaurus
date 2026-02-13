@@ -37,6 +37,9 @@ private:
 template <typename T>
 void SetAttribute(IWithAttributes& withAttributes, const TTypeTag<std::decay_t<T>>& key, T&& value);
 
+template <typename T, class... TArgs>
+void SetAttributes(IWithAttributes& withAttributes, const TTypeTag<std::decay_t<T>>& key, T&& value, TArgs&&... args);
+
 template <typename T>
 const T* GetAttribute(const IWithAttributes& withAttributes, const TTypeTag<T>& key);
 
@@ -109,13 +112,13 @@ public:
     }
 
     template <class TTransform>
-    TTransform operator >> (TTransform transform) const
+    TTransform operator>>(TTransform transform) const
     {
         MergeAttributes(transform, *this);
         return transform;
     }
 
-    TAttributeSetter operator >> (const TAttributeSetter& other) const;
+    TAttributeSetter operator>>(const TAttributeSetter& other) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -127,6 +130,23 @@ void SetAttribute(IWithAttributes& withAttributes, const TTypeTag<std::decay_t<T
 {
     GetAttribute(withAttributes, key); // check that we don't have value of different type
     withAttributes.SetAttribute(key.GetDescription(), std::any{std::forward<T>(value)});
+}
+
+template <typename T, class... TArgs>
+void SetAttributes(IWithAttributes& withAttributes, const TTypeTag<std::decay_t<T>>& key, T&& value, TArgs&&... args)
+{
+    SetAttribute(withAttributes, key, value);
+    if constexpr (TTypeList<TArgs...>::Length > 0) {
+        SetAttributes(withAttributes, std::forward<decltype(args)>(args)...);
+    }
+}
+
+template <typename T, class... TArgs>
+TAttributes MakeAttributes(const TTypeTag<std::decay_t<T>>& key, T&& value, TArgs&&... args)
+{
+    TAttributes result;
+    SetAttributes(result, key, value, std::forward<decltype(args)>(args)...);
+    return result;
 }
 
 template <typename T>

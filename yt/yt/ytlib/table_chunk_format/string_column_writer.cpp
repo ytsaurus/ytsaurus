@@ -93,6 +93,11 @@ protected:
             Values_.size() / 8;
     }
 
+    i64 GetDictionaryMemoryUsage() const
+    {
+        return DictionaryByteSize_ + Dictionary_.capacity() * sizeof(typename decltype(Dictionary_)::value_type);
+    }
+
     TStringBuf CaptureValue(const TUnversionedValue& unversionedValue)
     {
         if (unversionedValue.Type == EValueType::Null) {
@@ -281,7 +286,7 @@ public:
     i64 GetUntrackedMemoryUsage() const
     {
         return GetVectorMemoryUsage(Values_) +
-            TStringColumnWriterBase<ValueType>::DictionaryByteSize_ +
+            TStringColumnWriterBase<ValueType>::GetDictionaryMemoryUsage() +
             TVersionedColumnWriterBase::GetMemoryUsage();
     }
 
@@ -435,8 +440,7 @@ public:
 
     i64 GetUntrackedMemoryUsage() const
     {
-        return GetVectorMemoryUsage(Values_) +
-            TStringColumnWriterBase<ValueType>::DictionaryByteSize_;
+        return GetVectorMemoryUsage(Values_) + TStringColumnWriterBase<ValueType>::GetDictionaryMemoryUsage();
     }
 
     i32 GetCurrentSegmentSize() const override

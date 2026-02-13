@@ -113,6 +113,7 @@ SRCS(
     table_functions.cpp
     table_functions_concat.cpp
     table_functions_list_dir.cpp
+    table_schema_cache.cpp
     table_traverser.cpp
     tcp_handler.cpp
     user_defined_sql_objects_storage.cpp

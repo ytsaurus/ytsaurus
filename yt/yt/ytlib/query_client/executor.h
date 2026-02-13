@@ -35,6 +35,7 @@ std::vector<std::pair<TDataSource, std::string>> CoordinateDataSources(
 
 IExecutorPtr CreateQueryExecutor(
     IMemoryChunkProviderPtr memoryChunkProvider,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     NApi::NNative::IConnectionPtr connection,
     IColumnEvaluatorCachePtr columnEvaluatorCache,
     IEvaluatorPtr evaluator,

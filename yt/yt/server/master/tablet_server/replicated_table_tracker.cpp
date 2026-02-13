@@ -155,7 +155,7 @@ public:
     explicit TBundleHealthCache(TAsyncExpiringCacheConfigPtr config)
         : TAsyncExpiringCache(
             std::move(config),
-            NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker(),
+            NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             TabletServerLogger().WithTag("Cache: BundleHealth"))
     { }
 
@@ -184,7 +184,7 @@ public:
     explicit TClusterStateCache(TAsyncExpiringCacheConfigPtr config)
         : TAsyncExpiringCache(
             std::move(config),
-            NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker(),
+            NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             TabletServerLogger().WithTag("Cache: ClusterLivenessCheck"))
     { }
 
@@ -391,7 +391,7 @@ private:
                     if (auto this_ = weakThis.Lock()) {
                         return CheckReplicaState();
                     } else {
-                        return VoidFuture;
+                        return OKFuture;
                     }
                 }));
         }
@@ -438,7 +438,7 @@ private:
                 .Via(CheckerInvoker_));
         }
 
-        bool operator == (const TReplica& other) const
+        bool operator==(const TReplica& other) const
         {
             return Id_ == other.Id_
                 && ClusterName_ == other.ClusterName_

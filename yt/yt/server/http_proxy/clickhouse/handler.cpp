@@ -949,7 +949,7 @@ private:
     {
         auto error = WaitFor(
             PermissionCache_->Get(TPermissionKey{
-                .Path = Format("//sys/access_control_object_namespaces/chyt/%v/principal", CliqueAlias_),
+                .Path = Format("//sys/access_control_object_namespaces/chyt/%v/principal", ToYPathLiteral(CliqueAlias_)),
                 .User = User_,
                 .Permission = EPermission::Use,
             }));

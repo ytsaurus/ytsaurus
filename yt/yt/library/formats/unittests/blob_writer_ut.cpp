@@ -47,13 +47,13 @@ TEST_F(TSchemalesssBlobWriterTest, Simple)
     CreateWriter();
 
     auto row1 = MakeRow(NameTable_, {
-        {TString(TBlobTableSchema::PartIndexColumn), 0},
-        {TString(TBlobTableSchema::DataColumn), "hello"}
+        {std::string(TBlobTableSchema::PartIndexColumn), 0},
+        {std::string(TBlobTableSchema::DataColumn), "hello"}
     });
 
     auto row2 = MakeRow(NameTable_, {
-        {TString(TBlobTableSchema::PartIndexColumn), 1},
-        {TString(TBlobTableSchema::DataColumn), "world"}
+        {std::string(TBlobTableSchema::PartIndexColumn), 1},
+        {std::string(TBlobTableSchema::DataColumn), "world"}
     });
 
     std::vector<TUnversionedRow> rows = {row1.Get(), row2.Get()};
@@ -63,7 +63,7 @@ TEST_F(TSchemalesssBlobWriterTest, Simple)
         .Get()
         .ThrowOnError();
 
-    TString expectedOutput = "helloworld";
+    std::string expectedOutput = "helloworld";
     EXPECT_EQ(expectedOutput, OutputStream_.Str());
 }
 
@@ -77,8 +77,8 @@ TEST_F(TSchemalesssBlobWriterTest, ConfiguredColumnNames)
     CreateWriter();
 
     auto row1 = MakeRow(NameTable_, {
-        {TString(partIndexColumnName), 0},
-        {TString(dataColumnName), "hello"}
+        {std::string(partIndexColumnName), 0},
+        {std::string(dataColumnName), "hello"}
     });
 
     EXPECT_TRUE(Writer_->Write({row1.Get()}));
@@ -86,7 +86,7 @@ TEST_F(TSchemalesssBlobWriterTest, ConfiguredColumnNames)
         .Get()
         .ThrowOnError();
 
-    TString expectedOutput = "hello";
+    std::string expectedOutput = "hello";
     EXPECT_EQ(expectedOutput, OutputStream_.Str());
 }
 
@@ -95,13 +95,13 @@ TEST_F(TSchemalesssBlobWriterTest, PartIndexStartNonZero)
     CreateWriter();
 
     auto row1 = MakeRow(NameTable_, {
-        {TString(TBlobTableSchema::PartIndexColumn), 5},
-        {TString(TBlobTableSchema::DataColumn), "hello"}
+        {std::string(TBlobTableSchema::PartIndexColumn), 5},
+        {std::string(TBlobTableSchema::DataColumn), "hello"}
     });
 
     auto row2 = MakeRow(NameTable_, {
-        {TString(TBlobTableSchema::PartIndexColumn), 6},
-        {TString(TBlobTableSchema::DataColumn), "world"}
+        {std::string(TBlobTableSchema::PartIndexColumn), 6},
+        {std::string(TBlobTableSchema::DataColumn), "world"}
     });
 
     std::vector<TUnversionedRow> rows = {row1.Get(), row2.Get()};
@@ -111,7 +111,7 @@ TEST_F(TSchemalesssBlobWriterTest, PartIndexStartNonZero)
         .Get()
         .ThrowOnError();
 
-    TString expectedOutput = "helloworld";
+    std::string expectedOutput = "helloworld";
     EXPECT_EQ(expectedOutput, OutputStream_.Str());
 }
 
@@ -120,13 +120,13 @@ TEST_F(TSchemalesssBlobWriterTest, PartIndexWrongOrder)
     CreateWriter();
 
     auto row1 = MakeRow(NameTable_, {
-        {TString(TBlobTableSchema::PartIndexColumn), 1},
-        {TString(TBlobTableSchema::DataColumn), "world"}
+        {std::string(TBlobTableSchema::PartIndexColumn), 1},
+        {std::string(TBlobTableSchema::DataColumn), "world"}
     });
 
     auto row2 = MakeRow(NameTable_, {
-        {TString(TBlobTableSchema::PartIndexColumn), 0},
-        {TString(TBlobTableSchema::DataColumn), "hello"}
+        {std::string(TBlobTableSchema::PartIndexColumn), 0},
+        {std::string(TBlobTableSchema::DataColumn), "hello"}
     });
 
     std::vector<TUnversionedRow> rows = {row1.Get(), row2.Get()};
@@ -140,12 +140,12 @@ TEST_F(TSchemalesssBlobWriterTest, MissingValue)
     CreateWriter();
 
     auto row1 = MakeRow(NameTable_, {
-        {TString(TBlobTableSchema::PartIndexColumn), 0},
-        {TString(TBlobTableSchema::DataColumn), "hello"}
+        {std::string(TBlobTableSchema::PartIndexColumn), 0},
+        {std::string(TBlobTableSchema::DataColumn), "hello"}
     });
 
     auto row2 = MakeRow(NameTable_, {
-        {TString(TBlobTableSchema::PartIndexColumn), 1},
+        {std::string(TBlobTableSchema::PartIndexColumn), 1},
     });
 
     std::vector<TUnversionedRow> rows = {row1.Get(), row2.Get()};
@@ -159,8 +159,8 @@ TEST_F(TSchemalesssBlobWriterTest, InvalidColumnType)
     CreateWriter();
 
     auto row1 = MakeRow(NameTable_, {
-        {TString(TBlobTableSchema::PartIndexColumn), false},
-        {TString(TBlobTableSchema::DataColumn), "hello"}
+        {std::string(TBlobTableSchema::PartIndexColumn), false},
+        {std::string(TBlobTableSchema::DataColumn), "hello"}
     });
 
     EXPECT_FALSE(Writer_->Write({row1.Get()}));

@@ -84,7 +84,7 @@ std::vector<TErrorOr<INodePtr>> ListDirs(
     // step (3) is omitted.
     // Note that steps (2) and (3) are needed for Sequoia nodes only.
 
-    bool sync = (queryContext->Settings->Execution->TableReadLockMode == ETableReadLockMode::Sync);
+    bool sync = (queryContext->SessionSettings->Execution->TableReadLockMode == ETableReadLockMode::Sync);
     bool shouldLock = sync && queryContext->QueryKind == EQueryKind::InitialQuery;
 
     if (shouldLock) {
@@ -102,9 +102,9 @@ std::vector<TErrorOr<INodePtr>> ListDirs(
     }
 
     const auto& client = queryContext->Client();
-    const auto& settings = queryContext->Settings->ListDir;
+    const auto& settings = queryContext->SessionSettings->ListDir;
     const auto& connection = client->GetNativeConnection();
-    TMasterReadOptions masterReadOptions = *queryContext->Settings->CypressReadOptions;
+    TMasterReadOptions masterReadOptions = *queryContext->SessionSettings->CypressReadOptions;
     auto proxy = CreateObjectServiceReadProxy(client, masterReadOptions.ReadFrom);
 
     std::vector<TError> errors;
@@ -165,7 +165,7 @@ std::vector<TErrorOr<INodePtr>> ListDirs(
         }
     }
 
-    if (auto breakpointFilename = queryContext->Settings->Testing->ListDirsBreakpoint) {
+    if (auto breakpointFilename = queryContext->SessionSettings->Testing->ListDirsBreakpoint) {
         HandleBreakpoint(*breakpointFilename, client);
     }
 
@@ -250,7 +250,7 @@ std::vector<TErrorOr<INodePtr>> GetNodeAttributes(
         return {};
     }
 
-    bool sync = (queryContext->Settings->Execution->TableReadLockMode == ETableReadLockMode::Sync);
+    bool sync = (queryContext->SessionSettings->Execution->TableReadLockMode == ETableReadLockMode::Sync);
 
     if (sync && queryContext->QueryKind == EQueryKind::InitialQuery) {
         // TODO(dakovalkov): it won't work if the path is not a cypress node (e.g. part of yson document).
@@ -259,7 +259,7 @@ std::vector<TErrorOr<INodePtr>> GetNodeAttributes(
 
     const auto& client = queryContext->Client();
     const auto& connection = DynamicPointerCast<NApi::NNative::IConnection>(client->GetConnection());
-    TMasterReadOptions masterReadOptions = *queryContext->Settings->CypressReadOptions;
+    TMasterReadOptions masterReadOptions = *queryContext->SessionSettings->CypressReadOptions;
 
     auto proxy = CreateObjectServiceReadProxy(client, masterReadOptions.ReadFrom);
     auto batchReq = proxy.ExecuteBatch();

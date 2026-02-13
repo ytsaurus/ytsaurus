@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "private.h"
 
 #include <yt/yt/ytlib/hydra/private.h>
 
@@ -22,11 +21,11 @@ DECLARE_REFCOUNTED_STRUCT(IUnbufferedFileChangelog)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const TString SnapshotExtension("snapshot");
-inline const TString ChangelogExtension("log");
-inline const TString ChangelogIndexExtension("index");
-inline const TString TermFileName("term");
-inline const TString LockFileName("lock");
+inline const std::string SnapshotExtension("snapshot");
+inline const std::string ChangelogExtension("log");
+inline const std::string ChangelogIndexExtension("index");
+inline const std::string TermFileName("term");
+inline const std::string LockFileName("lock");
 
 YT_DEFINE_GLOBAL(const NProfiling::TProfiler, HydraProfiler, "/hydra");
 

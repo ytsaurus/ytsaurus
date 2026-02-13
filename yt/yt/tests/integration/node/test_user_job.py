@@ -24,6 +24,7 @@ from yt_commands import (
     make_random_string, raises_yt_error, update_controller_agent_config, update_scheduler_config,
     get_supported_erasure_codecs)
 
+from yt_operations_archive_helpers import get_job_from_archive
 
 import subprocess
 
@@ -1459,8 +1460,7 @@ class TestUserJobIsolation(YTEnvSetup):
         job_id = wait_breakpoint()[0]
 
         # Make sure that container fails to start.
-        assert b"Cannot open directory" in get_job_stderr(op.id, job_id)
-        assert b"Cannot start container" in get_job_stderr(op.id, job_id)
+        assert b"Cannot start container: LayerNotFound:(nonexistent_layer)" in get_job_stderr(op.id, job_id)
 
         release_breakpoint()
         op.track()
@@ -1479,7 +1479,7 @@ class TestUserJobIsolation(YTEnvSetup):
         if restrict_porto_place:
             assert b"Cannot start container: Permission:(Place /nonexistent is not permitted)\n" in get_job_stderr(op.id, job_id)
         else:
-            assert b"Cannot start container: Unknown:(No such file or directory: Cannot open directory" in get_job_stderr(op.id, job_id)
+            assert b"Cannot start container: LayerNotFound:(nonexistent_layer)" in get_job_stderr(op.id, job_id)
 
         release_breakpoint()
         op.track()
@@ -2908,6 +2908,33 @@ class TestUserJobMonitoring(YTEnvSetup):
         job2_descriptor = job_info["monitoring_descriptor"]
 
         assert job1_descriptor == job2_descriptor
+
+    @authors("krasovav")
+    @pytest.mark.parametrize("use_gang_descriptor", [True, False])
+    def test_kill_scheduler(self, use_gang_descriptor):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=1,
+            task_patch={
+                "monitoring": {
+                    "use_operation_id_based_descriptors_for_gangs_jobs": use_gang_descriptor,
+                    "enable": True,
+                },
+                "gang_options": {},
+            },
+        )
+
+        wait_breakpoint()
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        controller_agent_address = get(op.get_path() + "/@controller_agent_address")
+        controller_agent_profiler = profiler_factory().at_controller_agent(controller_agent_address)
+        used_descriptor_count = controller_agent_profiler.gauge("controller_agent/user_job_monitoring/{}used_descriptor_count".format("gang_monitoring_descriptors/" if use_gang_descriptor else ""))
+        wait(lambda: used_descriptor_count.get() == 1)
+
+        release_breakpoint()
 
     @authors("eshcherbin")
     def test_no_sensors_after_job_finish(self):
@@ -4725,6 +4752,117 @@ class TestUserJobDebugOptions(YTEnvSetup):
 
 ##################################################################
 
+@authors("bystrovserg")
+class TestStatisticsReportingPeriod(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+    USE_DYNAMIC_TABLES = True
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "job_proxy": {
+                "job_proxy_heartbeat_period": 100,
+            },
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_reporter": {
+                    "reporting_period": 10,
+                    "min_repeat_delay": 10,
+                    "max_repeat_delay": 10,
+                },
+            },
+        },
+    }
+
+    def setup_method(self, method):
+        super(TestStatisticsReportingPeriod, self).setup_method(method)
+        sync_create_cells(1)
+        init_operations_archive.create_tables_latest_version(
+            self.Env.create_native_client(),
+            override_tablet_cell_bundle="default",
+        )
+
+    def test_large_statistics_reporting_period(self):
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "job_common": {
+                        "statistics_reporting_period": 600000,  # 10 minutes
+                    },
+                },
+            },
+        })
+
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+        )
+        (job_id,) = wait_breakpoint()
+
+        wait(lambda: get_job_from_archive(op.id, job_id) is not None)
+
+        initial_job = get_job_from_archive(op.id, job_id)
+        initial_statistics = initial_job.get("statistics")
+
+        # Wait some time to check statistics does not update on heartbeat.
+        time.sleep(3.0)
+
+        current_job = get_job_from_archive(op.id, job_id)
+        current_statistics = current_job.get("statistics")
+
+        assert initial_statistics == current_statistics, \
+            "Statistics should be the same because of large statistics_reporting_period"
+
+        release_breakpoint()
+        op.track()
+
+        @wait_no_assert
+        def check_final_statistics():
+            job = get_job_from_archive(op.id, job_id)
+            assert job is not None
+            final_statistics = job.get("statistics")
+            assert final_statistics is not None, "Final statistics must be reported"
+            assert final_statistics != initial_statistics, "Final statistics should differ from initial statistics"
+
+    def test_statistics_reporting_period(self):
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "job_common": {
+                        "statistics_reporting_period": 100,
+                    },
+                },
+            },
+        })
+
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+        )
+
+        (job_id,) = wait_breakpoint()
+        wait(lambda: get_job_from_archive(op.id, job_id) is not None)
+        initial_job = get_job_from_archive(op.id, job_id)
+        initial_statistics = initial_job.get("statistics")
+        time.sleep(1.0)
+
+        @wait_no_assert
+        def check_statistics_updated():
+            job = get_job_from_archive(op.id, job_id)
+            assert job is not None
+            statistics = job.get("statistics")
+            assert statistics is not None, "Statistics must be reported"
+            assert statistics != initial_statistics, "Statistics should differ from initial statistics"
+
+        release_breakpoint()
+        op.track()
+
+
+##################################################################
+
 
 class TestClosingStdoutSimple(YTEnvSetup):
     NUM_MASTERS = 1
@@ -4778,3 +4916,23 @@ class TestClosingStdoutPorto(TestClosingStdoutSimple):
 
 class TestClosingStdoutCri(TestClosingStdoutSimple):
     JOB_ENVIRONMENT_TYPE = "cri"
+
+
+@pytest.mark.enabled_multidaemon
+class TestDeletingConfigFile(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    @authors("pavook")
+    def test_executor_config_gets_truncated(self):
+        op = run_test_vanilla(
+            command=with_breakpoint("echo \"$HOME\" >&2; BREAKPOINT"),
+        )
+
+        job_id = wait_breakpoint()[0]
+        sandbox_path = op.read_stderr(job_id).decode("utf-8").strip()
+        slot_path = os.path.dirname(sandbox_path)
+        print_debug(f"Looking for config files in {slot_path}...")
+        with open(os.path.join(slot_path, "executor_config.yson")) as f:
+            assert len(f.read()) == 0

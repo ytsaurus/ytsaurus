@@ -20,7 +20,7 @@ type Config struct {
 	// CoordinationPath is the path for a lock at the coordination cluster.
 	CoordinationPath ypath.Path `yson:"coordination_path"`
 
-	// LocationProxies defines operating clusters; e.g. hume or localhost:4243.
+	// LocationProxies defines operating clusters HTTP proxy in form: name|[scheme://]fqdn[:port]
 	LocationProxies []string `yson:"location_proxies"`
 
 	// Strawberry contains strawberry-specific configuration.

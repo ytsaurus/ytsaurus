@@ -84,7 +84,7 @@ public:
 private:
     const TPeriodicExecutorPtr StoreMutationTimeExecutor_;
 
-    std::vector<TVersion> Versions_;
+    std::vector<TLogicalVersion> Versions_;
     std::vector<TInstant> Instants_;
 
     void HydraStoreMutationTime(TReqStoreMutationTime* /*request*/)
@@ -134,7 +134,7 @@ private:
     {
         TMasterAutomatonPart::SetZeroState();
 
-        Versions_ = std::vector<TVersion>(1);
+        Versions_ = std::vector<TLogicalVersion>(1);
         Instants_ = std::vector<TInstant>(1);
     }
 

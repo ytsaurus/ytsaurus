@@ -639,6 +639,10 @@ public:
 
     IChunkFragmentReaderPtr CreateChunkFragmentReader(TTablet* tablet) override
     {
+        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+        auto config = dynamicConfigManager->GetConfig();
+        bool chunkFragmentReaderThrottlingEnabled = config->TabletNode->EnableChunkFragmentReaderThrottling;
+
         auto mediumThrottler = GetChunkFragmentReaderMediumThrottler(tablet);
 
         return NChunkClient::CreateChunkFragmentReader(
@@ -648,12 +652,10 @@ public:
             Bootstrap_->GetBlockCache(),
             tablet->GetTableProfiler()->GetProfiler().WithPrefix("/chunk_fragment_reader"),
             std::move(mediumThrottler),
-            [bootstrap = Bootstrap_] (EWorkloadCategory category) -> const IThroughputThrottlerPtr& {
-                const auto& dynamicConfigManager = bootstrap->GetDynamicConfigManager();
-                auto config = dynamicConfigManager->GetConfig();
-                const auto& tabletNodeConfig = config->TabletNode;
-
-                if (!tabletNodeConfig->EnableChunkFragmentReaderThrottling) {
+            [chunkFragmentReaderThrottlingEnabled, bootstrap = Bootstrap_] (EWorkloadCategory category)
+                -> const IThroughputThrottlerPtr&
+            {
+                if (!chunkFragmentReaderThrottlingEnabled) {
                     static const IThroughputThrottlerPtr NullThrottler;
                     return NullThrottler;
                 }
@@ -674,6 +676,13 @@ public:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Occupant_->EstimateChangelogMediumBytes(payload);
+    }
+
+    void AccountChangelogPayloadBytes(i64 payloadBytes) override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        Occupant_->AccountChangelogPayloadBytes(payloadBytes);
     }
 
     TTransactionManagerDynamicConfigPtr GetTransactionManagerDynamicConfig() override
@@ -765,21 +774,27 @@ private:
         auto options = GetOptions();
         YT_VERIFY(options);
 
-        return MediumThrottlerManager_->GetOrCreateMediumWriteThrottler(options->ChangelogPrimaryMedium);
+        return MediumThrottlerManager_->GetOrCreateMediumWriteThrottler(
+            options->ChangelogPrimaryMedium,
+            ETabletDistributedThrottlerKind::ChangelogMediumWrite);
     }
 
     IReconfigurableThroughputThrottlerPtr GetOrCreateMediumWriteThrottler(const std::string& mediumName) const override
     {
         YT_VERIFY(MediumThrottlerManager_);
 
-        return MediumThrottlerManager_->GetOrCreateMediumWriteThrottler(mediumName);
+        return MediumThrottlerManager_->GetOrCreateMediumWriteThrottler(
+            mediumName,
+            ETabletDistributedThrottlerKind::BlobMediumWrite);
     }
 
     IReconfigurableThroughputThrottlerPtr GetOrCreateMediumReadThrottler(const std::string& mediumName) const override
     {
         YT_VERIFY(MediumThrottlerManager_);
 
-        return MediumThrottlerManager_->GetOrCreateMediumReadThrottler(mediumName);
+        return MediumThrottlerManager_->GetOrCreateMediumReadThrottler(
+            mediumName,
+            ETabletDistributedThrottlerKind::BlobMediumRead);
     }
 };
 

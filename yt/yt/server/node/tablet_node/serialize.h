@@ -51,13 +51,27 @@ DEFINE_ENUM(ETabletReign,
     ((PersistSerializationStatus)                  (101210)) // ponasenko-rs
     // 25.3 starts here.
     ((Start_25_3)                                  (101300)) // community bot
-    ((UnforwardedTransactionActions)               (101301)) // ifsmirnov
+    ((NonForwardedTransactionActions)              (101301)) // ifsmirnov
     ((PersistPerRowSerializingTabletIds)           (101302)) // ponasenko-rs
     ((BoggleLatePrepare)                           (101303)) // akozhikhov
     ((DoNotAccountPureLocksAsWritesWithData)       (101304)) // ponasenko-rs
     ((AddLastCoordinatorCommitTimestamp)           (101305)) // aleksandra-zh
     ((UpdateHunkTabletStoresFix)                   (101306)) // akozhikhov
-    ((FixLockingOrederUpdateHunkTabletStores)      (101307)) // akozhikhov
+    ((FixLockingOrderUpdateHunkTabletStores)       (101307)) // akozhikhov
+    ((PerTabletTxActionForwarding_25_3)            (101308)) // ifsmirnov
+    // 25.4 starts here.
+    ((Start_25_4)                                  (101400)) // h0pless
+    ((HydraLogicalRecordId)                        (101401)) // h0pless
+    ((PerTabletTxActionForwarding)                 (101402)) // ifsmirnov
+    ((ProvisionalFlush)                            (101403)) // atalmenev
+    ((PreservePreserveTimestamps)                  (101404)) // sabdenovch
+    ((SaveOriginatorTabletsAfterReshard)           (101405)) // atalmenev
+    ((SmoothMovementOrdered)                       (101406)) // ifsmirnov
+    ((AddConflictHorizon)                          (101407)) // ponasenko-rs
+    ((ReignInHiveMessages)                         (101408)) // ifsmirnov
+    // 26.1 starts here.
+    ((Start_26_1)                                  (101500)) // akozhikhov
+    ((HunkTabletSensors)                           (101501)) // akozhikhov
 );
 
 static_assert(TEnumTraits<ETabletReign>::IsMonotonic, "Tablet reign enum is not monotonic");

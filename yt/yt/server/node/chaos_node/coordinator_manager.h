@@ -22,7 +22,6 @@ using TResumeCoordinatorContextPtr = TIntrusivePtr<NYT::NRpc::TTypedServiceConte
 struct ICoordinatorManager
     : public virtual TRefCounted
 {
-public:
     virtual void Initialize() = 0;
 
     virtual NYTree::IYPathServicePtr GetOrchidService() = 0;

@@ -129,7 +129,7 @@ func BenchmarkDedup(b *testing.B) {
 	for _, bc := range benchCases {
 		b.Run(bc.name, func(b *testing.B) {
 			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
+			for i := 0; b.Loop(); i++ {
 				slices.Dedup(bc.sets[i%len(bc.sets)])
 			}
 		})

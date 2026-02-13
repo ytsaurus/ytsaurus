@@ -6,6 +6,7 @@
 #include "helpers.h"
 #include "job_info.h"
 #include "public.h"
+#include "preparation_options.h"
 #include "private.h"
 
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
@@ -216,11 +217,14 @@ public:
 
     void ReportProfile();
 
+    // Report statistics if enough time has passed since last report.
+    void TryReportStatistics();
+
     NYson::TYsonString BuildArchiveFeatures() const;
 
     void SetHasJobTrace(bool value);
 
-    void AbortJobAfterInterruptionCallFailed(const std::exception& ex);
+    void AbortJobAfterInterruptionCallFailed(TError internalError);
 
     void DoInterrupt(
         TDuration timeout,
@@ -238,6 +242,9 @@ public:
     bool ShouldResend(TDuration maxDelay) const;
     TFuture<void> GetStoredEvent() const;
 
+    void SetLastProgressSaveTime(TInstant when);
+    std::optional<TInstant> GetLastProgressSaveTime();
+
     void OnEvictedFromAllocation() noexcept;
     void PrepareResourcesRelease() noexcept;
 
@@ -247,6 +254,7 @@ public:
 
     void OnJobInterruptionTimeout(
         NScheduler::EInterruptionReason interruptionReason,
+        TDuration interruptionTimeout,
         const std::optional<TString>& preemptionReason);
 
     TControllerAgentConnectorPool::TControllerAgentConnectorPtr GetControllerAgentConnector() const noexcept;
@@ -322,8 +330,8 @@ private:
     THashSet<TString> RequestedMonitoringSensors_;
 
     // Used to terminate artifacts downloading in case of cancelation.
-    TFuture<void> ArtifactsFuture_ = VoidFuture;
-    TFuture<void> WorkspaceBuildingFuture_ = VoidFuture;
+    TFuture<void> ArtifactsFuture_ = OKFuture;
+    TFuture<void> WorkspaceBuildingFuture_ = OKFuture;
 
     double Progress_ = 0.0;
     i64 StderrSize_ = 0;
@@ -345,7 +353,10 @@ private:
     std::vector<TGpuStatisticsWithUpdateTime> GpuStatistics_;
     NChunkClient::NProto::TDataStatistics TotalInputDataStatistics_;
     std::vector<NChunkClient::NProto::TDataStatistics> OutputDataStatistics_;
+    //! Last time statistics were sent to controller agent.
     TInstant StatisticsLastSendTime_ = TInstant::Now();
+    //! Last time statistics were reported to operations archive.
+    TInstant StatisticsLastArchiveReportTime_ = TInstant::Now();
 
     NProfiling::TBufferedProducerPtr UserJobSensorProducer_;
 
@@ -371,6 +382,12 @@ private:
 
     std::optional<TInstant> PrepareGpuCheckVolumeStartTime_;
     std::optional<TInstant> PrepareGpuCheckVolumeFinishTime_;
+
+    std::optional<TInstant> LinkTmpfsVolumesStartTime_;
+    std::optional<TInstant> LinkTmpfsVolumesFinishTime_;
+
+    std::optional<TInstant> ValidateRootFSStartTime_;
+    std::optional<TInstant> ValidateRootFSFinishTime_;
 
     std::optional<TInstant> PreliminaryGpuCheckStartTime_;
     std::optional<TInstant> PreliminaryGpuCheckFinishTime_;
@@ -399,8 +416,8 @@ private:
 
     std::optional<TSandboxNbdRootVolumeData> SandboxNbdRootVolumeData_;
 
-    //! NBD export ids used by the job.
-    THashSet<TString> NbdExportIds_;
+    //! NBD device ids used by the job.
+    THashSet<TString> NbdDeviceIds_;
 
     //! Artifact name -> index of the artifact in #Artifacts_ list.
     THashMap<TString, int> UserArtifactNameToIndex_;
@@ -443,6 +460,8 @@ private:
     bool JobProxyCompleted_ = false;
 
     bool Started_ = false;
+
+    std::optional<TInstant> LastProgressSaveTime_;
 
     // IO statistics.
     i64 BytesRead_ = 0;
@@ -539,14 +558,15 @@ private:
     template <class TSourceTag, class TCallback>
     void GuardedAction(const TSourceTag& sourceTag, const TCallback& action);
 
-    void OnWorkspacePreparationFinished(const TErrorOr<TJobWorkspaceBuildingResult>& resultOrError);
+    void OnWorkspacePreparationFinished(TJobWorkspaceBuilderPtr workspaceBuilder, const TError& error);
 
     // Stop job proxy and Porto containers.
     TFuture<void> StopJobProxy();
 
     // Finalization.
     void Cleanup();
-    void TryCleanupNbdExports();
+
+    void UnsubscribeJobFromNbdDevices();
 
     // Preparation.
     std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory> PrepareNodeDirectory();
@@ -566,7 +586,7 @@ private:
 
     void InitializeSandboxNbdRootVolumeData();
 
-    THashSet<TString> InitializeNbdExportIds();
+    THashSet<TString> InitializeNbdDeviceIds();
 
     TArtifactDownloadOptions MakeArtifactDownloadOptions() const;
 

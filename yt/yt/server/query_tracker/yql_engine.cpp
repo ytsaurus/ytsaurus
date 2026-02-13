@@ -47,10 +47,9 @@ const std::string DefaultYqlAgentStageName = "production";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYqlSettings
+struct TYqlSettings
     : public TYsonStruct
 {
-public:
     std::optional<std::string> Stage;
     EExecuteMode ExecuteMode;
 
@@ -66,7 +65,7 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TYqlSettings)
-DECLARE_REFCOUNTED_CLASS(TYqlSettings)
+DECLARE_REFCOUNTED_STRUCT(TYqlSettings)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -88,8 +87,9 @@ public:
         const TYqlEngineConfigPtr& config,
         const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery,
         const NApi::NNative::IConnectionPtr& connection,
-        const IInvokerPtr& controlInvoker)
-        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery)
+        const IInvokerPtr& controlInvoker,
+        const TDuration notIndexedQueriesTTL)
+        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery, notIndexedQueriesTTL)
         , Query_(activeQuery.Query)
         , Config_(config)
         , Files_(ConvertTo<std::optional<std::vector<TQueryFilePtr>>>(activeQuery.Files).value_or(std::vector<TQueryFilePtr>()))
@@ -351,14 +351,16 @@ public:
             Config_,
             activeQuery,
             DynamicPointerCast<NNative::IConnection>(StateClient_->GetConnection()),
-            ControlQueue_->GetInvoker());
+            ControlQueue_->GetInvoker(),
+            NotIndexedQueriesTTL_);
     }
 
-    void Reconfigure(const TEngineConfigBasePtr& config) override
+    void Reconfigure(const TEngineConfigBasePtr& config, const TDuration notIndexedQueriesTTL) override
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         Config_ = DynamicPointerCast<TYqlEngineConfig>(config);
+        NotIndexedQueriesTTL_ = notIndexedQueriesTTL;
     }
 
 private:
@@ -366,6 +368,7 @@ private:
     const TYPath StateRoot_;
     const TActionQueuePtr ControlQueue_;
     TYqlEngineConfigPtr Config_;
+    TDuration NotIndexedQueriesTTL_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };

@@ -88,7 +88,7 @@ public class StartDistributedWriteSession
                 .setCookieCount(cookieCount);
 
         if (writeTimeout != null) {
-            builder.body().setTimeout(writeTimeout);
+            builder.body().setSessionTimeout(writeTimeout);
         }
 
         if (transactionalOptions != null) {

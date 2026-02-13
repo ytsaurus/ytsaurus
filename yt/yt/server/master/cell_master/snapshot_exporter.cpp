@@ -128,6 +128,7 @@ static const std::vector<std::string> PresetKeys = {
     "hunk_media", \
     "hunk_primary_medium", \
     "id", \
+    "immediate_annotation", \
     "in_memory_mode", \
     "inherit_acl", \
     "media", \

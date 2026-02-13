@@ -247,12 +247,15 @@ namespace WAVM { namespace Runtime {
 	{
 		Uptr id = UINTPTR_MAX;
 		struct ContextRuntimeData* runtimeData = nullptr;
+		void (*checkStackDepthCallback)() = nullptr;
 
 		Context(Compartment* inCompartment, std::string&& inDebugName)
 		: GCObject(ObjectKind::context, inCompartment, std::move(inDebugName))
 		{
 		}
 		~Context();
+
+		void setCheckStackDepthCallback(void (*callback)()) { checkStackDepthCallback = callback; }
 	};
 
 	struct Compartment : GCObject

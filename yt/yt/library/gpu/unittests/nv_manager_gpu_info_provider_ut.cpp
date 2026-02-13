@@ -30,7 +30,7 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TString ServiceName = "NvGpuManager";
+static const std::string ServiceName = "NvGpuManager";
 static constexpr double Epsilon = 1e-7;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -185,7 +185,7 @@ public:
 
 protected:
     NTesting::TPortHolder Port_;
-    TString Address_;
+    std::string Address_;
 
     NConcurrency::IThreadPoolPtr WorkerPool_;
     IServicePtr NvGpuManagerService_;

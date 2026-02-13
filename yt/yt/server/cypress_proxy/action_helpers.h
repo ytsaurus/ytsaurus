@@ -35,7 +35,6 @@ namespace NYT::NCypressProxy {
 TFuture<NSequoiaClient::ISequoiaTransactionPtr> StartCypressProxyTransaction(
     const NSequoiaClient::ISequoiaClientPtr& sequoiaClient,
     NSequoiaClient::ESequoiaTransactionType type,
-    NRpc::TAuthenticationIdentity authenticationIdentity,
     const std::vector<NObjectClient::TTransactionId>& cypressPrerequisiteTransactionIds = {},
     const NApi::TTransactionStartOptions& options = {});
 

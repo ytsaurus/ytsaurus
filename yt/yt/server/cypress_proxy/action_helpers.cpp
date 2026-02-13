@@ -84,15 +84,11 @@ static const TSequoiaTransactionOptions SequoiaTransactionOptionsTemplate = {
 TFuture<ISequoiaTransactionPtr> StartCypressProxyTransaction(
     const ISequoiaClientPtr& sequoiaClient,
     ESequoiaTransactionType type,
-    TAuthenticationIdentity authenticationIdentity,
     const std::vector<TTransactionId>& cypressPrerequisiteTransactionIds,
     const TTransactionStartOptions& options)
 {
-    YT_VERIFY(!authenticationIdentity.User.empty());
-
     auto sequoiaTransactionOptions = SequoiaTransactionOptionsTemplate;
     sequoiaTransactionOptions.CypressPrerequisiteTransactionIds = cypressPrerequisiteTransactionIds;
-    sequoiaTransactionOptions.AuthenticationIdentity = std::move(authenticationIdentity);
     return sequoiaClient->StartTransaction(type, options, sequoiaTransactionOptions);
 }
 

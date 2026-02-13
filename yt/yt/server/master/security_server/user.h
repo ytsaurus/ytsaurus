@@ -29,36 +29,70 @@ struct TUserWorkloadStatistics
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TUserRequestLimitsOptions
+class TUserRequestLimitsOptions
     : public NYTree::TYsonStruct
 {
-    std::optional<int> Default;
-    THashMap<NObjectServer::TCellTag, int> PerCell;
+public:
+    void SetClusterwide(std::optional<int> value);
+    std::optional<int> GetClusterwide() const;
 
-    void SetValue(NObjectServer::TCellTag cellTag, std::optional<int> value);
-    std::optional<int> GetValue(NObjectServer::TCellTag cellTag) const;
+    void SetCellDefault(std::optional<int> value);
+    std::optional<int> GetCellDefault() const;
+
+    //! Sets cell-specific limit.
+    //! NB: |cellTag| must be valid.
+    //! NB: passing null |value| removes cell-specific limit (if any), essentially
+    //! enabling fallback to the default (cf. GetForCell).
+    void SetForCell(NObjectServer::TCellTag cellTag, std::optional<int> value);
+
+    //! Returns cell-specific limit, if any, or the default.
+    std::optional<int> GetForCell(NObjectServer::TCellTag cellTag) const;
+
+    //! Returns cell-specific limits.
+    const THashMap<NObjectServer::TCellTag, int>& PerCell() const;
 
     REGISTER_YSON_STRUCT(TUserRequestLimitsOptions);
 
     static void Register(TRegistrar registrar);
+
+private:
+    std::optional<int> Clusterwide_;
+    std::optional<int> Default_;
+    THashMap<NObjectServer::TCellTag, int> PerCell_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TUserRequestLimitsOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TUserQueueSizeLimitsOptions
+class TUserQueueSizeLimitsOptions
     : public NYTree::TYsonStruct
 {
-    int Default;
-    THashMap<NObjectServer::TCellTag, int> PerCell;
+public:
+    void SetClusterwide(int value);
+    int GetClusterwide() const;
 
-    void SetValue(NObjectServer::TCellTag cellTag, int value);
-    int GetValue(NObjectServer::TCellTag cellTag) const;
+    void SetCellDefault(int value);
+    int GetCellDefault() const;
+
+    //! Sets cell-specific limit.
+    //! NB: |cellTag| must be valid.
+    void SetForCell(NObjectServer::TCellTag cellTag, int value);
+
+    //! Returns cell-specific limit, if any, or the default.
+    int GetForCell(NObjectServer::TCellTag cellTag) const;
+
+    //! Returns cell-specific limits.
+    const THashMap<NObjectServer::TCellTag, int>& PerCell() const;
 
     REGISTER_YSON_STRUCT(TUserQueueSizeLimitsOptions);
 
     static void Register(TRegistrar registrar);
+
+private:
+    int Clusterwide_;
+    int Default_;
+    THashMap<NObjectServer::TCellTag, int> PerCell_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TUserQueueSizeLimitsOptions)
@@ -115,6 +149,7 @@ public:
     static void Register(TRegistrar registrar);
 
 private:
+    std::optional<int> Clusterwide_;
     std::optional<int> Default_;
     THashMap<std::string, int> PerCell_;
 };
@@ -138,6 +173,7 @@ public:
     static void Register(TRegistrar registrar);
 
 private:
+    int Clusterwide_;
     int Default_;
     THashMap<std::string, int> PerCell_;
 };
@@ -283,6 +319,9 @@ private:
 
     void InitializeCounters();
     void UpdatePasswordRevision();
+
+    const TUserRequestLimitsOptions& RequestRateLimitsForWorkloadType(EUserWorkloadType type) const;
+    TUserRequestLimitsOptions& RequestRateLimitsForWorkloadType(EUserWorkloadType type);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TUser)

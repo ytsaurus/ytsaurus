@@ -15,11 +15,12 @@
 
 namespace NYT::NCypressServer {
 
-using namespace NYson;
-using namespace NYTree;
 using namespace NCellMaster;
 using namespace NChunkServer;
+using namespace NObjectClient;
 using namespace NServer;
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,8 +57,8 @@ void TCompositeCypressNode::TAttributes<Transient>::Persist(const NCypressServer
     requires Transient
 {
     using NYT::Persist;
-#define XX(camelCaseName, snakeCaseName) \
-    Persist(context, camelCaseName);
+#define XX(FieldName, AttributeKey) \
+    Persist(context, FieldName);
 
     FOR_EACH_INHERITABLE_ATTRIBUTE(XX);
 #undef XX
@@ -66,8 +67,8 @@ void TCompositeCypressNode::TAttributes<Transient>::Persist(const NCypressServer
 template <bool Transient>
 bool TCompositeCypressNode::TAttributes<Transient>::AreFull() const
 {
-#define XX(camelCaseName, snakeCaseName) \
-    && camelCaseName.IsSet()
+#define XX(FieldName, AttributeKey) \
+    && FieldName.IsSet()
     return true FOR_EACH_INHERITABLE_ATTRIBUTE(XX);
 #undef XX
 }
@@ -75,8 +76,8 @@ bool TCompositeCypressNode::TAttributes<Transient>::AreFull() const
 template <bool Transient>
 bool TCompositeCypressNode::TAttributes<Transient>::AreEmpty() const
 {
-#define XX(camelCaseName, snakeCaseName) \
-    && !camelCaseName.IsNull()
+#define XX(FieldName, AttributeKey) \
+    && !FieldName.IsNull()
     return true FOR_EACH_INHERITABLE_ATTRIBUTE(XX);
 #undef XX
 }
@@ -87,9 +88,9 @@ TCompositeCypressNode::TAttributes<Transient>::ToPersistent() const
     requires Transient
 {
     TPersistentAttributes result;
-#define XX(camelCaseName, snakeCaseName) \
-    if (camelCaseName.IsSet()) { \
-        result.camelCaseName.Set(TVersionedBuiltinAttributeTraits<decltype(result.camelCaseName)::TValue>::FromRaw(camelCaseName.Unbox())); \
+#define XX(FieldName, AttributeKey) \
+    if (FieldName.IsSet()) { \
+        result.FieldName.Set(TVersionedBuiltinAttributeTraits<decltype(result.FieldName)::TValue>::FromRaw(FieldName.Unbox())); \
     }
     FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
 #undef XX
@@ -102,8 +103,8 @@ TCompositeCypressNode::TAttributes<Transient>::Clone() const
     requires (!Transient)
 {
     TCompositeCypressNode::TAttributes<Transient> result;
-#define XX(camelCaseName, snakeCaseName) \
-    result.camelCaseName = camelCaseName.Clone();
+#define XX(FieldName, AttributeKey) \
+    result.FieldName = FieldName.Clone();
     FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
 #undef XX
     return result;
@@ -160,8 +161,8 @@ bool TCompositeCypressNode::CompareInheritableAttributes(
         return attributes.AreEmpty();
     }
 
-#define XX(camelCaseName, snakeCaseName) \
-    if (TryGet##camelCaseName() != attributes.camelCaseName.ToOptional()) { \
+#define XX(FieldName, AttributeKey) \
+    if (TryGet##FieldName() != attributes.FieldName.ToOptional()) { \
         return false; \
     }
 
@@ -186,9 +187,9 @@ TConstInheritedAttributeDictionaryPtr TCompositeCypressNode::MaybePatchInheritab
     auto updatedInheritedAttributeDictionary = New<TInheritedAttributeDictionary>(attributes);
     auto& underlyingAttributes = updatedInheritedAttributeDictionary->MutableAttributes();
 
-#define XX(camelCaseName, snakeCaseName) \
-    if (auto inheritedValue = TryGet##camelCaseName()) { \
-        underlyingAttributes.camelCaseName.Set(*inheritedValue); \
+#define XX(FieldName, AttributeKey) \
+    if (auto inheritedValue = TryGet##FieldName()) { \
+        underlyingAttributes.FieldName.Set(*inheritedValue); \
     }
 
     if (reason == ENodeMaterializationReason::Copy) {
@@ -203,10 +204,10 @@ TConstInheritedAttributeDictionaryPtr TCompositeCypressNode::MaybePatchInheritab
 
 void TCompositeCypressNode::FillInheritableAttributes(TTransientAttributes* attributes, ENodeMaterializationReason reason) const
 {
-#define XX(camelCaseName, snakeCaseName) \
-    if (!attributes->camelCaseName.IsSet()) { \
-        if (auto inheritedValue = TryGet##camelCaseName()) { \
-            attributes->camelCaseName.Set(*inheritedValue); \
+#define XX(FieldName, AttributeKey) \
+    if (!attributes->FieldName.IsSet()) { \
+        if (auto inheritedValue = TryGet##FieldName()) { \
+            attributes->FieldName.Set(*inheritedValue); \
         } \
     }
 
@@ -249,48 +250,48 @@ void TCompositeCypressNode::MergeAttributesFrom(const TCompositeCypressNode* bra
         return;
     }
 
-#define XX(camelCaseName, snakeCaseName) \
-    Attributes_->camelCaseName.Merge(attributes->camelCaseName, IsTrunk());
+#define XX(FieldName, AttributeKey) \
+    Attributes_->FieldName.Merge(attributes->FieldName, IsTrunk());
 
     FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
 #undef XX
 }
 
-#define XX(camelCaseName, snakeCaseName) \
-const decltype(std::declval<TCompositeCypressNode::TPersistentAttributes>().camelCaseName)* TCompositeCypressNode::DoTryGet##camelCaseName() const \
+#define XX(FieldName, AttributeKey) \
+const decltype(std::declval<TCompositeCypressNode::TPersistentAttributes>().FieldName)* TCompositeCypressNode::DoTryGet##FieldName() const \
 { \
-    return Attributes_ ? &Attributes_->camelCaseName : nullptr; \
+    return Attributes_ ? &Attributes_->FieldName : nullptr; \
 } \
 \
-auto TCompositeCypressNode::TryGet##camelCaseName() const -> std::optional<TRawVersionedBuiltinAttributeType<T##camelCaseName>> \
+auto TCompositeCypressNode::TryGet##FieldName() const -> std::optional<TRawVersionedBuiltinAttributeType<T##FieldName>> \
 { \
-    using TAttribute = decltype(TPersistentAttributes::camelCaseName); \
-    return TAttribute::TryGet(&TCompositeCypressNode::DoTryGet##camelCaseName, this); \
+    using TAttribute = decltype(TPersistentAttributes::FieldName); \
+    return TAttribute::TryGet(&TCompositeCypressNode::DoTryGet##FieldName, this); \
 } \
 \
-bool TCompositeCypressNode::Has##camelCaseName() const \
+bool TCompositeCypressNode::Has##FieldName() const \
 { \
-    return TryGet##camelCaseName().has_value(); \
+    return TryGet##FieldName().has_value(); \
 } \
 \
-void TCompositeCypressNode::Set##camelCaseName(TCompositeCypressNode::T##camelCaseName value) \
+void TCompositeCypressNode::Set##FieldName(TCompositeCypressNode::T##FieldName value) \
 { \
     if (!Attributes_) { \
         Attributes_ = std::make_unique<TPersistentAttributes>(); \
     } \
-    Attributes_->camelCaseName.Set(std::move(value)); \
+    Attributes_->FieldName.Set(std::move(value)); \
 } \
 \
-void TCompositeCypressNode::Remove##camelCaseName() \
+void TCompositeCypressNode::Remove##FieldName() \
 { \
     if (!Attributes_) { \
         return; \
     } \
 \
     if (IsTrunk()) { \
-        Attributes_->camelCaseName.Reset(); \
+        Attributes_->FieldName.Reset(); \
     } else { \
-        Attributes_->camelCaseName.Remove(); \
+        Attributes_->FieldName.Remove(); \
     } \
 \
     if (Attributes_->AreEmpty()) { \
@@ -338,9 +339,9 @@ TInheritedAttributeDictionary::TInheritedAttributeDictionary(const TConstInherit
 auto TInheritedAttributeDictionary::ListKeys() const -> std::vector<TKey>
 {
     std::vector<TKey> result;
-#define XX(camelCaseName, snakeCaseName) \
-    if (InheritedAttributes_.camelCaseName.IsSet()) {  \
-        result.push_back(#snakeCaseName); \
+#define XX(FieldName, AttributeKey) \
+    if (InheritedAttributes_.FieldName.IsSet()) {  \
+        result.push_back(EInternedAttributeKey::AttributeKey.Unintern()); \
     }
 
     FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
@@ -362,173 +363,191 @@ auto TInheritedAttributeDictionary::ListPairs() const -> std::vector<TKeyValuePa
 
 auto TInheritedAttributeDictionary::FindYson(TKeyView key) const -> TValue
 {
-#define XX(camelCaseName, snakeCaseName) \
-    if (key == #snakeCaseName) { \
-        auto optionalValue = InheritedAttributes_.camelCaseName.ToOptional(); \
-        return optionalValue ? ConvertToYsonString(*optionalValue) : TYsonString(); \
-    } \
+    auto doGetSimple = [] (const auto* field) {
+        auto optionalValue = field->ToOptional();
+        return optionalValue ? ConvertToYsonString(*optionalValue) : TYsonString();
+    };
 
-    FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX);
-#undef XX
-
-    if (key == EInternedAttributeKey::PrimaryMedium.Unintern()) {
-        auto optionalPrimaryMediumIndex = InheritedAttributes_.PrimaryMediumIndex.ToOptional();
-        if (!optionalPrimaryMediumIndex) {
-            return {};
+    auto doGetMediumNameOrId = [&] (const auto* field) {
+        std::optional<int> mediumIndex = field->ToOptional();
+        if (!mediumIndex) {
+            return TYsonString();
         }
+
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        auto* medium = chunkManager->GetMediumByIndex(*optionalPrimaryMediumIndex);
-        return ConvertToYsonString(medium->GetName());
-    }
-
-    if (key == EInternedAttributeKey::HunkPrimaryMedium.Unintern()) {
-        auto optionalHunkPrimaryMediumIndex = InheritedAttributes_.HunkPrimaryMediumIndex.ToOptional();
-        if (!optionalHunkPrimaryMediumIndex) {
-            return {};
+        auto* medium = chunkManager->GetMediumByIndex(*mediumIndex);
+        if (Transferable_) {
+            return ConvertToYsonString(FromObjectId(medium->GetId()));
+        } else {
+            return ConvertToYsonString(medium->GetName());
         }
+    };
+
+    auto doGetObjectNameOrId = [&] (const auto* field) {
+        auto optionalValue = field->ToOptional();
+        if (!optionalValue) {
+            return TYsonString();
+        } else if (Transferable_) {
+            return ConvertToYsonString(FromObjectId((*optionalValue)->GetId()));
+        } else {
+            return ConvertToYsonString((*optionalValue)->GetName());
+        }
+    };
+
+    auto doGetMedia = [&] (const auto* field) {
+        auto optionalValue = field->ToOptional();
+        if (!optionalValue) {
+            return TYsonString();
+        }
+
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        auto* medium = chunkManager->GetMediumByIndex(*optionalHunkPrimaryMediumIndex);
-        return ConvertToYsonString(medium->GetName());
-    }
-
-    if (key == EInternedAttributeKey::Media.Unintern()) {
-        auto optionalReplication = InheritedAttributes_.Media.ToOptional();
-        if (!optionalReplication) {
-            return {};
+        if (Transferable_) {
+            return ConvertToYsonString(TSerializableTransferableChunkReplication(*optionalValue, chunkManager));
+        } else {
+            return ConvertToYsonString(TSerializableChunkReplication(*optionalValue, chunkManager));
         }
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        return ConvertToYsonString(TSerializableChunkReplication(*optionalReplication, chunkManager));
-    }
+    };
 
-    if (key == EInternedAttributeKey::HunkMedia.Unintern()) {
-        auto optionalReplication = InheritedAttributes_.HunkMedia.ToOptional();
-        if (!optionalReplication) {
-            return {};
-        }
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        return ConvertToYsonString(TSerializableChunkReplication(*optionalReplication, chunkManager));
-    }
+    auto getCompressionCodec = std::bind(doGetSimple, &InheritedAttributes_.CompressionCodec);
+    auto getErasureCodec = std::bind(doGetSimple, &InheritedAttributes_.ErasureCodec);
+    auto getPrimaryMedium = std::bind(doGetMediumNameOrId, &InheritedAttributes_.PrimaryMediumIndex);
+    auto getHunkPrimaryMedium = std::bind(doGetMediumNameOrId, &InheritedAttributes_.HunkPrimaryMediumIndex);
+    auto getReplicationFactor = std::bind(doGetSimple, &InheritedAttributes_.ReplicationFactor);
+    auto getChunkMergerMode = std::bind(doGetSimple, &InheritedAttributes_.ChunkMergerMode);
+    auto getTabletCellBundle = std::bind(doGetObjectNameOrId, &InheritedAttributes_.TabletCellBundle);
+    auto getChaosCellBundle = std::bind(doGetObjectNameOrId, &InheritedAttributes_.ChaosCellBundle);
+    auto getMedia = std::bind(doGetMedia, &InheritedAttributes_.Media);
+    auto getHunkMedia = std::bind(doGetMedia, &InheritedAttributes_.HunkMedia);
 
-    if (key == EInternedAttributeKey::TabletCellBundle.Unintern()) {
-        auto optionalCellBundle = InheritedAttributes_.TabletCellBundle.ToOptional();
-        if (!optionalCellBundle) {
-            return {};
-        }
-        YT_VERIFY(*optionalCellBundle);
-        return ConvertToYsonString((*optionalCellBundle)->GetName());
-    }
+    auto internedKey = TInternedAttributeKey::Lookup(key);
+    switch (internedKey) {
+    #define XX(FieldName, AttributeKey) \
+        case EInternedAttributeKey::AttributeKey: \
+            return doGetSimple(&InheritedAttributes_.FieldName);
+        FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX);
+    #undef XX
 
-    if (key == EInternedAttributeKey::ChaosCellBundle.Unintern()) {
-        auto optionalCellBundle = InheritedAttributes_.ChaosCellBundle.ToOptional();
-        if (!optionalCellBundle) {
-            return {};
-        }
-        YT_VERIFY(*optionalCellBundle);
-        return ConvertToYsonString((*optionalCellBundle)->GetName());
-    }
+    #define XX(FieldName, AttributeKey) \
+        case EInternedAttributeKey::AttributeKey: \
+            return get##AttributeKey();
+        FOR_EACH_COMPLICATED_INHERITABLE_ATTRIBUTE(XX)
+    #undef XX
 
-    return Fallback_ ? Fallback_->FindYson(key) : TYsonString();
+        case EInternedAttributeKey::InvalidKey:
+        default:
+            return Fallback_ ? Fallback_->FindYson(key) : TYsonString();
+    }
 }
 
 void TInheritedAttributeDictionary::SetYson(TKeyView key, const TYsonString& value)
 {
-#define XX(camelCaseName, snakeCaseName) \
-    if (key == #snakeCaseName) { \
-        if (key == EInternedAttributeKey::CompressionCodec.Unintern()) { \
-            const auto& chunkManagerConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager; \
-            ValidateCompressionCodec( \
-                value, \
-                chunkManagerConfig->ForbiddenCompressionCodecs, \
-                chunkManagerConfig->ForbiddenCompressionCodecNameToAlias); \
-        } \
-        if (key == EInternedAttributeKey::ErasureCodec.Unintern()) { \
-            ValidateErasureCodec( \
-                value, \
-                Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->ForbiddenErasureCodecs); \
-        } \
-        using TAttr = decltype(InheritedAttributes_.camelCaseName)::TValue; \
-        InheritedAttributes_.camelCaseName.Set(ConvertTo<TAttr>(value)); \
-        return; \
-    }
+    auto doSet = [&] (auto* field) {
+        using TAttr = std::decay_t<decltype(*field)>::TValue; \
+        field->Set(ConvertTo<TAttr>(value));
+    };
 
-    FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX)
-#undef XX
+    auto setReplicationFactor = std::bind(doSet, &InheritedAttributes_.ReplicationFactor);
+    auto setChunkMergerMode = std::bind(doSet, &InheritedAttributes_.ChunkMergerMode);
 
-    if (key == EInternedAttributeKey::PrimaryMedium.Unintern()) {
+    auto setCompressionCodec = [&] {
+        const auto& chunkManagerConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager;
+        ValidateCompressionCodec(
+            value,
+            chunkManagerConfig->ForbiddenCompressionCodecs,
+            chunkManagerConfig->ForbiddenCompressionCodecNameToAlias);
+        doSet(&InheritedAttributes_.CompressionCodec);
+    };
+
+    auto setErasureCodec = [&] {
+        ValidateErasureCodec(
+            value,
+            Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->ForbiddenErasureCodecs);
+        doSet(&InheritedAttributes_.ErasureCodec);
+    };
+
+    auto setMedium = [&] (auto* field) {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        auto mediumName = ConvertTo<std::string>(value);
-        auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
-        InheritedAttributes_.PrimaryMediumIndex.Set(medium->GetIndex());
-        return;
-    }
+        auto* medium = chunkManager->GetMediumByNameOrThrow(ConvertTo<std::string>(value));
+        field->Set(medium->GetIndex());
+    };
 
-    if (key == EInternedAttributeKey::HunkPrimaryMedium.Unintern()) {
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        auto mediumName = ConvertTo<std::string>(value);
-        auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
-        InheritedAttributes_.HunkPrimaryMediumIndex.Set(medium->GetIndex());
-        return;
-    }
+    auto setPrimaryMedium = std::bind(setMedium, &InheritedAttributes_.PrimaryMediumIndex);
+    auto setHunkPrimaryMedium = std::bind(setMedium, &InheritedAttributes_.HunkPrimaryMediumIndex);
 
-    if (key == EInternedAttributeKey::Media.Unintern()) {
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        auto serializableReplication = ConvertTo<TSerializableChunkReplication>(value);
-        TChunkReplication replication;
-        replication.SetVital(true);
-        serializableReplication.ToChunkReplication(&replication, chunkManager);
-        InheritedAttributes_.Media.Set(replication);
-        return;
-    }
-
-    if (key == EInternedAttributeKey::HunkMedia.Unintern()) {
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        auto serializableReplication = ConvertTo<TSerializableChunkReplication>(value);
-        TChunkReplication replication;
-        replication.SetVital(true);
-        serializableReplication.ToChunkReplication(&replication, chunkManager);
-        InheritedAttributes_.HunkMedia.Set(replication);
-        return;
-    }
-
-    if (key == EInternedAttributeKey::TabletCellBundle.Unintern()) {
-        auto bundleName = ConvertTo<std::string>(value);
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-        auto* bundle = tabletManager->GetTabletCellBundleByNameOrThrow(bundleName, true /*activeLifeStageOnly*/);
-        InheritedAttributes_.TabletCellBundle.Set(bundle);
-        return;
-    }
-
-    if (key == EInternedAttributeKey::ChaosCellBundle.Unintern()) {
-        auto bundleName = ConvertTo<std::string>(value);
+    auto setChaosCellBundle = [&] {
+        auto name = ConvertTo<std::string>(value);
         const auto& chaosManager = Bootstrap_->GetChaosManager();
-        auto* bundle = chaosManager->GetChaosCellBundleByNameOrThrow(bundleName, true /*activeLifeStageOnly*/);
+        auto* bundle = chaosManager->GetChaosCellBundleByNameOrThrow(name, /*activeLifeStageOnly*/ true);
         InheritedAttributes_.ChaosCellBundle.Set(bundle);
-        return;
-    }
+    };
 
-    if (!Fallback_) {
-        Fallback_ = CreateEphemeralAttributes();
-    }
+    auto setTabletCellBundle = [&] {
+        auto name = ConvertTo<std::string>(value);
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
+        auto* bundle = tabletManager->GetTabletCellBundleByNameOrThrow(name, /*activeLifeStageOnly*/ true);
+        InheritedAttributes_.TabletCellBundle.Set(bundle);
+    };
 
-    Fallback_->SetYson(key, value);
+    auto doSetMedia = [&] (auto* field) {
+        auto serializableReplication = ConvertTo<TSerializableChunkReplication>(value);
+        TChunkReplication replication;
+        replication.SetVital(true);
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        serializableReplication.ToChunkReplication(&replication, chunkManager);
+        field->Set(replication);
+    };
+
+    auto setMedia = std::bind(doSetMedia, &InheritedAttributes_.Media);
+    auto setHunkMedia = std::bind(doSetMedia, &InheritedAttributes_.HunkMedia);
+
+    auto internedKey = TInternedAttributeKey::Lookup(key);
+    switch (internedKey) {
+    #define XX(FieldName, AttributeKey) \
+        case EInternedAttributeKey::AttributeKey: { \
+            using TAttr = decltype(InheritedAttributes_.FieldName)::TValue; \
+            InheritedAttributes_.FieldName.Set(ConvertTo<TAttr>(value)); \
+            return; \
+        }
+        FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX)
+    #undef XX
+
+    #define XX(FieldName, AttributeKey) \
+        case EInternedAttributeKey::AttributeKey: \
+            set##AttributeKey(); \
+            return;
+        FOR_EACH_COMPLICATED_INHERITABLE_ATTRIBUTE(XX)
+    #undef XX
+
+        default:
+            // NB: don't use |internedKey| here because it may be
+            // InvalidInternedAttribute for not interned attributes.
+            if (!Fallback_) {
+                Fallback_ = CreateEphemeralAttributes();
+            }
+            Fallback_->SetYson(key, value);
+    }
 }
 
 bool TInheritedAttributeDictionary::Remove(TKeyView key)
 {
-#define XX(camelCaseName, snakeCaseName) \
-    if (key == #snakeCaseName) { \
-        InheritedAttributes_.camelCaseName.Reset(); \
-        return true; \
+    auto internedKey = TInternedAttributeKey::Lookup(key);
+
+    switch (internedKey) {
+    #define XX(FieldName, AttributeKey) \
+        case EInternedAttributeKey::AttributeKey: { \
+            InheritedAttributes_.FieldName.Reset(); \
+            return true; \
+        }
+        FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
+    #undef XX
+
+        default:
+            if (Fallback_) {
+                return Fallback_->Remove(key);
+            }
+
+            return false;
     }
-
-    FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
-#undef XX
-
-    if (Fallback_) {
-        return Fallback_->Remove(key);
-    }
-
-    return false;
 }
 
 TCompositeCypressNode::TTransientAttributes& TInheritedAttributeDictionary::MutableAttributes()
@@ -539,6 +558,14 @@ TCompositeCypressNode::TTransientAttributes& TInheritedAttributeDictionary::Muta
 const TCompositeCypressNode::TTransientAttributes& TInheritedAttributeDictionary::Attributes() const
 {
     return InheritedAttributes_;
+}
+
+
+TInheritedAttributeDictionaryPtr TInheritedAttributeDictionary::ToNonTransferableView() const
+{
+    auto view = New<TInheritedAttributeDictionary>(MakeStrong(this));
+    view->Transferable_ = false;
+    return view;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

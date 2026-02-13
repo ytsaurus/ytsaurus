@@ -54,6 +54,10 @@ public:
     TFuture<std::vector<TErrorOr<EPreliminaryCheckPermissionResult>>> PreliminaryCheckPermissions(
         const std::vector<NYPath::TYPath>& paths,
         const TString& user);
+    //! Get the names of the attributes that the local cache is configured for.
+    //! NB: This is the state of THost, not some global variable,
+    //! because the set of attributes may depend on the config.
+    const std::vector<std::string>& GetObjectAttributeNamesToFetch() const;
 
     //! Get object attributes via local cache.
     std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> GetObjectAttributes(
@@ -67,6 +71,8 @@ public:
         const std::vector<std::pair<NYPath::TYPath, NHydra::TRevision>>& paths,
         EInvalidateCacheMode mode,
         TDuration timeout);
+
+    const TTableSchemaCachePtr& GetTableSchemaCache() const;
 
     const NObjectClient::TObjectAttributeCachePtr& GetObjectAttributeCache() const;
 
@@ -91,7 +97,7 @@ public:
     const IInvokerPtr& GetClickHouseFetcherInvoker() const;
 
     NApi::NNative::IClientPtr GetRootClient() const;
-    NApi::NNative::IClientPtr CreateClient(const TString& user) const;
+    NApi::NNative::IClientPtr CreateClient(const std::string& user) const;
 
     //! Return nodes available through discovery service.
     //! In some cases local node can be out of discovery protocol

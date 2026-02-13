@@ -13,4 +13,5 @@ RECURSE(
     uploader
     ytlog
     ytqueue
+    zstdsync
 )

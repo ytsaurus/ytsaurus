@@ -23,6 +23,7 @@ target_compile_options(library-ytprof-http PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(library-ytprof-http PUBLIC

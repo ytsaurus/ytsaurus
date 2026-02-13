@@ -32,13 +32,9 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::optional<NTableClient::NProto::TLargeColumnarStatisticsExt>, LargeColumnarStatisticsExt);
 
 public:
-
     explicit TColumnarChunkMeta(const NChunkClient::NProto::TChunkMeta& chunkMeta);
 
     virtual i64 GetMemoryUsage() const;
-
-    // Free space if there is prepared meta.
-    void ClearColumnMeta();
 
 private:
     i64 BlockLastKeysSize_;

@@ -14,6 +14,7 @@ RECURSE(
     mkql_helpers
     res_pull
     row_spec
+    temp_files
     schema
     secret_masker
     skiff
@@ -21,6 +22,8 @@ RECURSE(
     ut_common
     yson_helpers
     yt_download
+    yt_file_download
     yt_rpc_helpers
+    yt_token_resolver
     yt_url_lister
 )

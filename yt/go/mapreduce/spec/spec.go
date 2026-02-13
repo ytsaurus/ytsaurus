@@ -101,7 +101,7 @@ type JobCPUMonitor struct {
 
 const (
 	AutoMergeRelaxed  = "relaxed"
-	AutoMergeEconomic = "economic"
+	AutoMergeEconomy  = "economy"
 	AutoMergeDisabled = "disabled"
 	AutoMergeManual   = "manual"
 )

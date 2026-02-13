@@ -46,6 +46,33 @@ class TestMasterCellAdditionWithoutDowntime(TestMasterCellAddition):
     DOWNTIME_ALL_COMPONENTS = False
 
 
+class TestMasterCellAdditionWithoutDowntimeOldProtocolForNodes(TestMasterCellAddition):
+    ENABLE_MULTIDAEMON = False  # There are component restarts and defer start.
+    PATCHED_CONFIGS = []
+    STASHED_CELL_CONFIGS = []
+    CELL_IDS = builtins.set()
+    DOWNTIME_ALL_COMPONENTS = False
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "node_tracker": {
+            "return_master_cells_connection_configs_on_node_registration": False,
+            "return_master_cells_connection_configs_on_node_heartbeat": False,
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "data_node": {
+                "master_connector": {
+                    "check_chunks_cell_tags_before_heartbeats": True,
+                    "force_sync_master_cell_directory_before_check_chunks": True,
+                    "check_chunks_cell_tags_after_registration_on_primary_master": False,
+                    "check_chunks_cell_tags_after_receiving_new_master_cell_configs": False,
+                },
+            },
+        },
+    }
+
+
 class TestMasterCellAdditionWithoutDowntimeRpcProxy(TestMasterCellAdditionWithoutDowntime):
     ENABLE_MULTIDAEMON = False  # There are component restarts and defer start.
     PATCHED_CONFIGS = []
@@ -144,15 +171,9 @@ class TestMasterCellAdditionWithRemoteClusters(MasterCellAdditionWithRemoteClust
 
     DOWNTIME_ALL_COMPONENTS = True
 
-    @authors("ponasenko-rs")
+    @authors("cherepashka", "ponasenko-rs")
     @pytest.mark.timeout(350)
     def test_add_new_cell(self):
-        set("//sys/@config/chaos_manager/alien_cell_synchronizer", {
-            "enable": True,
-            "sync_period": 100,
-            "full_sync_period": 200,
-        })
-
         self.execute_checks_with_cell_addition(downtime=self.DOWNTIME_ALL_COMPONENTS)
 
 
@@ -163,6 +184,31 @@ class TestMasterCellAdditionWithRemoteClustersWithoutDowntime(TestMasterCellAddi
     CELL_IDS = builtins.set()
 
     DOWNTIME_ALL_COMPONENTS = False
+
+
+class TestMasterCellAdditionWithRemoteClustersWithoutDowntimeOldProtocolForNodes(TestMasterCellAdditionWithRemoteClusters):
+    ENABLE_MULTIDAEMON = False  # There are component restarts and defer start.
+    PATCHED_CONFIGS = []
+    STASHED_CELL_CONFIGS = []
+    CELL_IDS = builtins.set()
+    DOWNTIME_ALL_COMPONENTS = False
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "node_tracker": {
+            "return_master_cells_connection_configs_on_node_registration": False,
+            "return_master_cells_connection_configs_on_node_heartbeat": False,
+        },
+    }
+
+
+class TestMasterCellAdditionWithRemoteClustersWithoutDowntimeRpcProxy(TestMasterCellAdditionWithRemoteClustersWithoutDowntime):
+    ENABLE_MULTIDAEMON = False  # There are component restarts and defer start.
+    PATCHED_CONFIGS = []
+    STASHED_CELL_CONFIGS = []
+    CELL_IDS = builtins.set()
+
+    DRIVER_BACKEND = "rpc"
+    ENABLE_HTTP_PROXY = True
+    ENABLE_RPC_PROXY = True
 
 
 class TestMasterCellsListChangeWithRemoteClustersWithoutDowntime(TestMasterCellAdditionWithRemoteClusters):
@@ -229,13 +275,6 @@ class TestDynamicMasterCellListChangeWithTabletCells(MasterCellAdditionBase):
             actual_cell_tags = get(f"//sys/tablet_cells/{cell_id}/@multicell_status").keys()
             return sorted(actual_cell_tags) == sorted(expected_cell_tags)
 
-        def cell_is_healthy(cell_id):
-            multicell_status = get(f"//sys/tablet_cells/{cell_id}/@multicell_status")
-            for cell_tag in multicell_status.keys():
-                if multicell_status[cell_tag]["health"] != "good":
-                    return False
-            return True
-
         def get_cell_peer(cell_id):
             try:
                 return get(f"#{cell_id}/@peers/0/address")
@@ -249,10 +288,10 @@ class TestDynamicMasterCellListChangeWithTabletCells(MasterCellAdditionBase):
             self.Env.start_nodes()
 
             wait(lambda: get_cell_peer(cell_id) is not None)
-            wait(lambda: cell_is_healthy(cell_id))
+            wait(lambda: self.tablet_cell_is_healthy(cell_id))
 
         cell_id = sync_create_cells(1)[0]
-        assert cell_is_healthy(cell_id)
+        assert self.tablet_cell_is_healthy(cell_id)
         assert check_cell_tags(cell_id, ["10", "11", "12", "13"])
         schema = [{"name": "k", "type": "int64", "sort_order": "ascending"}, {"name": "v", "type": "string"}]
         create_dynamic_table("//tmp/dt", schema=schema)
@@ -372,6 +411,20 @@ class TestDynamicMasterCellPropagation(MasterCellAdditionBase):
         wait(lambda: self.do_with_retries(lambda: write_table("//tmp/t", [{"a" : "b"}])))
         assert read_table("//tmp/t") == [{"a" : "b"}]
 
+    def check_basic_dynamic_tables_operations(self):
+        yield
+
+        schema = [{"name": "k", "type": "int64", "sort_order": "ascending"}, {"name": "v", "type": "string"}]
+        rows = [{"k": i, "v": f"aba{i}"} for i in range(5)]
+
+        cell_id = sync_create_cells(1)[0]
+        wait(lambda: self.tablet_cell_is_healthy(cell_id))
+
+        create_dynamic_table("//tmp/dt1", schema=schema, external_cell_tag=13)
+        wait(lambda: self.do_with_retries(lambda: sync_mount_table("//tmp/dt1")))
+        insert_rows("//tmp/dt1", rows)
+        assert_items_equal(select_rows("* from [//tmp/dt1]"), rows)
+
     @authors("cherepashka")
     def test_add_cell(self):
         self.execute_checks_with_cell_addition(downtime=False)
@@ -453,7 +506,7 @@ class TestNodeRestartAfterCellAddition(MasterCellAdditionBase):
     def test_node_restart_after_cell_addition(self):
         self.execute_checks_with_cell_addition(downtime=False)
         create("table", "//tmp/t", attributes={"external_cell_tag": 13})
-        write_table("//tmp/t", [{"a" : "b"}])
+        wait(lambda: self.do_with_retries(lambda: write_table("//tmp/t", [{"a" : "b"}])))
         chunk_id = get_singular_chunk_id("//tmp/t")
         with Restarter(self.Env, NODES_SERVICE):
             wait(lambda: chunk_id in get("//sys/lost_chunks"))
@@ -482,6 +535,7 @@ class TestNodeRestartAfterCellAddition(MasterCellAdditionBase):
 ##################################################################
 
 
+@pytest.mark.skip(reason="after YT-26685 need to rewrite this tests, maybe make it uniitests on master cell directory")
 class TestMasterCellsPeersListChange(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # There are components restarts.
     NUM_SECONDARY_MASTER_CELLS = 2

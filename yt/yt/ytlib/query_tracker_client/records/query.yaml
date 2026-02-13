@@ -21,7 +21,7 @@ types:
         lock: client
 
       - cpp_name: Query
-        cpp_type: TString
+        cpp_type: std::string
         column_name: query
         column_type: String
         lock: client
@@ -177,7 +177,7 @@ types:
         column_type: String
 
       - cpp_name: Query
-        cpp_type: TString
+        cpp_type: std::string
         column_name: query
         column_type: String
 
@@ -261,6 +261,11 @@ types:
         cpp_type: bool
         column_name: is_tutorial
         column_type: Boolean
+
+      - cpp_name: TTL
+        cpp_type: std::optional<ui64>
+        column_name: $ttl
+        column_type: Uint64
 
 
   - type_name: TFinishedQueryByStartTime
@@ -455,6 +460,11 @@ types:
         cpp_type: std::optional<NYson::TYsonString>
         column_name: full_result
         column_type: Any
+
+      - cpp_name: TTL
+        cpp_type: std::optional<ui64>
+        column_name: $ttl
+        column_type: Uint64
 
 
   - type_name: TSearchIndexRecord

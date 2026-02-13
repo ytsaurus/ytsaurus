@@ -22,7 +22,6 @@ namespace NYT::NCellServer {
 struct ITamedCellManager
     : public virtual TRefCounted
 {
-public:
     virtual void Initialize() = 0;
 
     virtual const TCellSet* FindAssignedCells(const std::string& address) const = 0;

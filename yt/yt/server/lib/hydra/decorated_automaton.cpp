@@ -74,7 +74,7 @@ static constexpr auto UnknownHostName = "<unknown>";
 ////////////////////////////////////////////////////////////////////////////////
 
 TPendingMutation::TPendingMutation(
-    TVersion version,
+    TPhysicalVersion version,
     TMutationRequest&& request,
     TInstant timestamp,
     ui64 randomSeed,
@@ -299,13 +299,16 @@ public:
             meta.set_random_seed(RandomSeed_);
             meta.set_state_hash(StateHash_);
             meta.set_timestamp(Timestamp_.GetValue());
-            auto automatonVersion = Owner_->AutomatonVersion_.load();
-            meta.set_last_segment_id(automatonVersion.SegmentId);
-            meta.set_last_record_id(automatonVersion.RecordId);
+            auto automatonVersion = Owner_->AutomatonVersion_.Load();
+            auto physicalAutomatonVersion = automatonVersion.GetPhysicalVersion();
+            auto logicalAutomatonVersion = automatonVersion.GetLogicalVersion();
+            meta.set_last_segment_id(physicalAutomatonVersion.SegmentId);
+            meta.set_last_record_id(physicalAutomatonVersion.RecordId);
             meta.set_last_mutation_term(Owner_->LastMutationTerm_);
             meta.set_last_mutation_reign(Owner_->LastMutationReign_);
             meta.set_read_only(SnapshotReadOnly_);
             meta.set_logical_time(LogicalTime_.Underlying());
+            meta.set_last_logical_record_id(logicalAutomatonVersion.RecordId);
 
             SnapshotWriter_ = Owner_->SnapshotStore_->CreateWriter(SnapshotId_, meta);
 
@@ -401,7 +404,7 @@ class TDecoratedAutomaton::TForkSnapshotBuilder
 public:
     TForkSnapshotBuilder(TDecoratedAutomatonPtr owner, TForkCountersPtr counters)
         : TSnapshotBuilderBase(owner)
-        , TForkExecutor(std::move(counters))
+        , TForkExecutor(std::move(counters), /*dumpCoreOnTimeout*/ true)
     { }
 
 private:
@@ -689,7 +692,7 @@ public:
             YT_LOG_TRACE("Got sync snapshot block (Size: %v)", blockCopy.Size());
             SyncBlocks_.push_back(blockCopy);
             SyncSize_ += block.Size();
-            return SuspendedPromise_ ? SuspendedPromise_.ToFuture() : VoidFuture;
+            return SuspendedPromise_ ? SuspendedPromise_.ToFuture() : OKFuture;
         }
     }
 
@@ -714,7 +717,7 @@ private:
     i64 AsyncSize_ = 0;
     IAsyncZeroCopyOutputStreamPtr UnderlyingStream_;
     std::vector<TSharedRef> SyncBlocks_;
-    TFuture<void> LastForwardResult_ = VoidFuture;
+    TFuture<void> LastForwardResult_ = OKFuture;
 
 
     TFuture<void> ForwardBlock(const TSharedRef& block)
@@ -890,7 +893,9 @@ void TDecoratedAutomaton::ResetState()
 
     AutomatonInvoker_->Invoke(BIND([=, this, this_ = MakeStrong(this)] {
         THydraContext hydraContext(
-            TVersion(),
+            TLogicalVersion(),
+            TPhysicalVersion(),
+            TPhysicalVersion(),
             TInstant::Zero(),
             /*randomSeed*/ 0,
             /*localHostNameOverride*/ TSharedRef::FromString(UnknownHostName));
@@ -905,7 +910,7 @@ void TDecoratedAutomaton::ClearState()
 {
     YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-    AutomatonVersion_ = TVersion();
+    AutomatonVersion_.Store(TAutomatonVersion());
     RandomSeed_ = 0;
     SequenceNumber_ = 0;
     ReliablyAppliedSequenceNumber_ = 0;
@@ -1008,7 +1013,7 @@ void TDecoratedAutomaton::LoadSnapshot(
     int snapshotId,
     int lastMutationTerm,
     TReign lastMutationReign,
-    TVersion version,
+    TAutomatonVersion version,
     i64 sequenceNumber,
     bool readOnly,
     ui64 randomSeed,
@@ -1041,16 +1046,17 @@ void TDecoratedAutomaton::LoadSnapshot(
         Automaton_->LoadSnapshot(snapshotLoadContext);
 
         if (prepareState) {
-            // Snapshot preparation is a "mutation" that is executed before first mutation
-            // in changelog.
-            TVersion hydraContextVersion(snapshotId, -1);
             // NB: #randomSeed is used as a random seed for the first mutation
             // in changelog, so ad-hoc seed is used here.
             auto hydraContextRandomSeed = randomSeed;
             HashCombine(hydraContextRandomSeed, snapshotId);
 
+            // Snapshot preparation is a "mutation" that is executed before first mutation
+            // in changelog.
             THydraContext hydraContext(
-                hydraContextVersion,
+                TLogicalVersion(snapshotId, -1),
+                TPhysicalVersion(snapshotId, -1),
+                TPhysicalVersion(snapshotId, -1),
                 timestamp,
                 hydraContextRandomSeed,
                 SanitizedLocalHostName_);
@@ -1071,7 +1077,7 @@ void TDecoratedAutomaton::LoadSnapshot(
 
     YT_LOG_INFO("Finished loading snapshot");
 
-    AutomatonVersion_ = version;
+    AutomatonVersion_.Store(version);
     RandomSeed_ = randomSeed;
     SequenceNumber_ = sequenceNumber;
     ReliablyAppliedSequenceNumber_ = sequenceNumber;
@@ -1123,7 +1129,7 @@ TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutati
     TSharedRef requestData;
     DeserializeMutationRecord(recordData, &header, &requestData);
 
-    auto mutationVersion = TVersion(header.segment_id(), header.record_id());
+    auto mutationVersion = TPhysicalVersion(header.segment_id(), header.record_id());
 
     TMutationRequest request;
     request.Reign = header.reign();
@@ -1131,8 +1137,13 @@ TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutati
     request.MutationId = FromProto<TMutationId>(header.mutation_id());
     request.Data = std::move(requestData);
 
+    // NB: Physical mutation version's source of truth is changelog. It's
+    // important to avoid relying on the automaton version, which might be
+    // slightly out-of-date.
     TMutationContext mutationContext(
-        AutomatonVersion_,
+        AutomatonVersion_.Load().GetLogicalVersion().Advance(),
+        mutationVersion,
+        AutomatonVersion_.Load().GetPhysicalVersion().Advance(), // COMPAT(h0pless).
         &request,
         FromProto<TInstant>(header.timestamp()),
         header.random_seed(),
@@ -1143,7 +1154,7 @@ TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutati
         SanitizedLocalHostName_);
 
     TFiberMinLogLevelGuard minLogLevelGuard(Config_->Get()->RecoveryMinLogLevel);
-    TFiberMessageTagGuard messageTagGuard(Format("MutationVersion: %v, Recovery: %v",
+    TFiberMessageTagGuard messageTagGuard(Format("PhysicalMutationVersion: %v, Recovery: %v",
         mutationVersion,
         true));
 
@@ -1264,7 +1275,7 @@ void TDecoratedAutomaton::PublishMutationApplicationResults(std::vector<TMutatio
             if (const auto& promise = result.LocalCommitPromise) {
                 promise.TrySet(TMutationResponse{
                     EMutationResponseOrigin::Commit,
-                    result.ResponseData
+                    result.ResponseData,
                 });
             }
         } catch (const std::exception& ex) { // COMPAT(shakurov): Just being paranoid.
@@ -1317,8 +1328,13 @@ TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutati
     YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     TForbidContextSwitchGuard contextSwitchGuard;
 
+    // NB: Physical mutation version's source of truth is mutation committer.
+    // It's important avoid relying on the automaton version, which might be
+    // slightly out-of-date.
     TMutationContext mutationContext(
-        AutomatonVersion_,
+        AutomatonVersion_.Load().GetLogicalVersion().Advance(),
+        mutation->Version,
+        AutomatonVersion_.Load().GetPhysicalVersion().Advance(), // COMPAT(h0pless).
         &mutation->Request,
         mutation->Timestamp,
         mutation->RandomSeed,
@@ -1329,7 +1345,7 @@ TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutati
         SanitizedLocalHostName_);
 
     TMutationApplicationResult result;
-    TFiberMessageTagGuard messageTagGuard(Format("MutationVersion: %v", mutation->Version));
+    TFiberMessageTagGuard messageTagGuard(Format("PhysicalMutationVersion: %v", mutation->Version));
 
     {
         NTracing::TTraceContextGuard traceContextGuard(mutation->Request.TraceContext);
@@ -1359,7 +1375,7 @@ TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutati
 
 void TDecoratedAutomaton::DoApplyMutation(
     TMutationContext* mutationContext,
-    TVersion mutationVersion,
+    TPhysicalVersion physicalMutationVersion,
     TMutationApplicationResult* result)
 {
     YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -1380,13 +1396,17 @@ void TDecoratedAutomaton::DoApplyMutation(
     {
         TMutationContextGuard mutationContextGuard(mutationContext);
 
+        auto logicalMutationVersion = mutationContext->GetVersion();
+
         TCodicilGuard codicilGuard([&] (TCodicilFormatter* formatter) {
             formatter->AppendString(Logger.GetTag());
             formatter->AppendString(", Version: ");
-            formatter->AppendNumber(mutationContext->GetVersion().SegmentId);
+            formatter->AppendNumber(logicalMutationVersion.SegmentId);
             formatter->AppendString(":");
-            formatter->AppendNumber(mutationContext->GetVersion().RecordId);
-            formatter->AppendString(", SequenceNumber: ");
+            formatter->AppendNumber(physicalMutationVersion.RecordId);
+            formatter->AppendString("(");
+            formatter->AppendNumber(logicalMutationVersion.RecordId);
+            formatter->AppendString("), SequenceNumber: ");
             formatter->AppendNumber(mutationContext->GetSequenceNumber());
             formatter->AppendString(", MutationType: ");
             formatter->AppendString(mutationContext->Request().Type);
@@ -1401,7 +1421,10 @@ void TDecoratedAutomaton::DoApplyMutation(
 
             YT_LOG_DEBUG("Received %v read-only mutation (Version: %v, SequenceNumber: %v, MutationId: %v)",
                 request.Type == EnterReadOnlyMutationType ? "enable" : "disable",
-                mutationContext->GetVersion(),
+                TAutomatonVersion(
+                    physicalMutationVersion.SegmentId,
+                    physicalMutationVersion.RecordId,
+                    logicalMutationVersion.RecordId),
                 mutationContext->GetSequenceNumber(),
                 mutationId);
 
@@ -1448,13 +1471,21 @@ void TDecoratedAutomaton::DoApplyMutation(
         mutationContext->GetSequenceNumber());
     RandomSeed_ = mutationContext->GetRandomSeed();
 
-    if (mutationVersion.SegmentId == automatonVersion.SegmentId) {
-        YT_VERIFY(mutationVersion.RecordId == automatonVersion.RecordId);
+    if (physicalMutationVersion.SegmentId == automatonVersion.GetSegmentId()) {
+        YT_VERIFY(physicalMutationVersion.RecordId == automatonVersion.GetPhysicalVersion().Advance().RecordId);
     } else {
-        YT_VERIFY(mutationVersion.SegmentId > automatonVersion.SegmentId);
-        YT_VERIFY(mutationVersion.RecordId == 0);
+        YT_VERIFY(physicalMutationVersion.SegmentId > automatonVersion.GetSegmentId());
+        YT_VERIFY(physicalMutationVersion.RecordId == 0);
     }
-    AutomatonVersion_ = mutationVersion.Advance();
+
+    auto logicalMutationVersion = mutationContext->GetLastUsedVersion();
+    YT_VERIFY(physicalMutationVersion.SegmentId == logicalMutationVersion.SegmentId);
+    YT_VERIFY(physicalMutationVersion.RecordId <= logicalMutationVersion.RecordId);
+
+    AutomatonVersion_.Store(TAutomatonVersion(
+        physicalMutationVersion.SegmentId,
+        physicalMutationVersion.RecordId,
+        logicalMutationVersion.RecordId));
 
     LastMutationTerm_ = term;
     if (!isSystemMutationType) {
@@ -1550,14 +1581,14 @@ TReachableState TDecoratedAutomaton::GetReachableState() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return {AutomatonVersion_.load().SegmentId, SequenceNumber_.load()};
+    return {AutomatonVersion_.Load().GetSegmentId(), SequenceNumber_.load()};
 }
 
-TVersion TDecoratedAutomaton::GetAutomatonVersion() const
+TAutomatonVersion TDecoratedAutomaton::GetAutomatonVersion() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return AutomatonVersion_.load();
+    return AutomatonVersion_.Load();
 }
 
 bool TDecoratedAutomaton::TryAcquireUserLock()

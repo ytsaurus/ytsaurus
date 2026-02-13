@@ -47,7 +47,7 @@ struct TResourceLimitsKey
     }
 
     // Comparer.
-    bool operator == (const TResourceLimitsKey& other) const
+    bool operator==(const TResourceLimitsKey& other) const
     {
         return
             Account == other.Account &&
@@ -82,7 +82,7 @@ public:
         NCellarNode::IBootstrap* bootstrap)
         : TAsyncExpiringCache(
             std::move(config),
-            NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker(),
+            NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             TabletNodeLogger().WithTag("Cache: ResourceLimits"))
         , Bootstrap_(bootstrap)
     { }
@@ -245,7 +245,7 @@ public:
             account,
             mediumName,
             tabletCellBundle,
-            inMemoryMode
+            inMemoryMode,
         });
     }
 

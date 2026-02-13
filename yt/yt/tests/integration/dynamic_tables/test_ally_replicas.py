@@ -193,6 +193,7 @@ class TestAllyReplicasOldHeartbeats(TestAllyReplicas):
         "chunk_manager": {
             "data_node_tracker": {
                 "enable_per_location_full_heartbeats": False,
+                "enable_validation_full_heartbeats": False,
             },
         }
     }

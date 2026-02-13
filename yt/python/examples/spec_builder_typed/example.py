@@ -52,31 +52,31 @@ def main():
         ValueRow(key="b", value=2),
         ValueRow(key="a", value=3),
     ]
-    # Запишем несколько строк в таблицу.
+    # Writing several rows into the table.
     client.write_table_structured(input_table, ValueRow, rows)
 
-    # Можно создать отдельный билдер для пользовательского джоба.
+    # You can create a separate builder for a user job.
     mapper_spec_builder = (MapperSpecBuilder()
                            .command("cat")
                            .memory_limit(yt.wrapper.common.GB)
                            .format(yt.wrapper.YsonFormat()))
 
-    # И для операции.
+    # For operation.
     spec_builder = (MapSpecBuilder()
                     .input_table_paths(input_table)
                     .output_table_paths(map_output_table)
                     .mapper(mapper_spec_builder))
 
-    # Билдер можно передавать прямо в функию run_operation.
+    # You can pass the builder directly to the `run_operation` function.
     client.run_operation(spec_builder)
 
     print("*** After map operation ***")
     for row in client.read_table_structured(map_output_table, ValueRow):
         print("  {}".format(row))
 
-    # Спеку пользовательского джоба можно строить fluently
-    # внутри билдера для операции, используя функции
-    # begin_reducer()/end_reducer().
+    # User job spec can be built fluently
+    # inside the operation builder using the
+    # `begin_reducer()/end_reducer()` functions.
     spec_builder = (MapReduceSpecBuilder()
                     .input_table_paths(input_table)
                     .output_table_paths(map_reduce_output_table)

@@ -370,7 +370,8 @@ private:
                     break;
                 }
 
-                auto storedReplicas = chunk->StoredReplicas();
+                // We may have replicas from non-online nodes here.
+                auto storedReplicas = chunk->GetStoredReplicaList(/*includeNonOnlineReplicas*/ true);
                 TStoredChunkReplicaList replicaList(storedReplicas.begin(), storedReplicas.end());
                 BuildYsonReplicas(
                     consumer,
@@ -1315,7 +1316,7 @@ private:
         const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
         // This is context switch, chunk may die.
-        auto replicas = chunkReplicaFetcher->GetChunkReplicas(chunk)
+        auto replicas = chunkReplicaFetcher->GetChunkReplicas(chunk, /*includeUnapproved*/ true)
             .ValueOrThrow();
 
         TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory());

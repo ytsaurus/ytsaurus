@@ -53,7 +53,7 @@ protected:
     TStringStream OutputStream_;
     ISchemalessFormatWriterPtr Writer_;
 
-    const TString ValueColumnName_ = "value";
+    const std::string ValueColumnName_ = "value";
 
     void CreateStandardWriter(const std::vector<TTableSchemaPtr>& schemas = {New<TTableSchema>()})
     {
@@ -76,19 +76,19 @@ TEST_F(TWriterForWebJson, Simple)
             {"column_a", 100500u},
             {"column_b", true},
             {"column_c", "row1_c"},
-            {TString(RowIndexColumnName), 0},
+            {RowIndexColumnName, 0},
         }).Get(),
         MakeRow(NameTable_, {
             {"column_c", "row2_c"},
             {"column_b", "row2_b"},
-            {TString(RowIndexColumnName), 1},
+            {RowIndexColumnName, 1},
         }).Get(),
     });
     EXPECT_TRUE(written);
     WaitFor(Writer_->Close())
         .ThrowOnError();
 
-    TString expectedOutput =
+    TStringBuf expectedOutput =
         "{"
             "\"rows\":["
                 "{"
@@ -150,7 +150,7 @@ TEST_F(TWriterForWebJson, SliceColumnsByMaxCount)
     EXPECT_TRUE(written);
     YT_UNUSED_FUTURE(Writer_->Close());
 
-    TString expectedOutput =
+    std::string expectedOutput =
         "{"
             "\"rows\":["
                 "{"
@@ -208,7 +208,7 @@ TEST_F(TWriterForWebJson, SliceStrings)
     EXPECT_TRUE(written);
     YT_UNUSED_FUTURE(Writer_->Close());
 
-    TString expectedOutput =
+    std::string expectedOutput =
         "{"
             "\"rows\":["
                 "{"
@@ -281,7 +281,7 @@ TEST_F(TWriterForWebJson, ReplaceAnyWithNull)
     WaitFor(Writer_->Close())
         .ThrowOnError();
 
-    TString expectedOutput =
+    std::string expectedOutput =
         "{"
             "\"rows\":["
                 "{"
@@ -339,9 +339,9 @@ TEST_F(TWriterForWebJson, NotSkipSystemColumns)
 
     bool written = Writer_->Write({
         MakeRow(NameTable_, {
-            {TString(TableIndexColumnName), 0},
-            {TString(RowIndexColumnName), 1},
-            {TString(TabletIndexColumnName), 2},
+            {TableIndexColumnName, 0},
+            {RowIndexColumnName, 1},
+            {TabletIndexColumnName, 2},
             {ValueColumnName_, 3}
         }).Get(),
     });
@@ -349,7 +349,7 @@ TEST_F(TWriterForWebJson, NotSkipSystemColumns)
     WaitFor(Writer_->Close())
         .ThrowOnError();
 
-    TString expectedOutput =
+    std::string expectedOutput =
         "{"
             "\"rows\":["
                 "{"
@@ -393,9 +393,9 @@ TEST_F(TWriterForWebJson, SkipSystemColumns)
 
     bool written = Writer_->Write({
         MakeRow(NameTable_, {
-            {TString(TableIndexColumnName), 0},
-            {TString(RowIndexColumnName), 1},
-            {TString(TabletIndexColumnName), 2},
+            {TableIndexColumnName, 0},
+            {RowIndexColumnName, 1},
+            {TabletIndexColumnName, 2},
             {ValueColumnName_, 3}
         }).Get(),
     });
@@ -403,7 +403,7 @@ TEST_F(TWriterForWebJson, SkipSystemColumns)
     WaitFor(Writer_->Close())
         .ThrowOnError();
 
-    TString expectedOutput =
+    std::string expectedOutput =
         "{"
             "\"rows\":["
                 "{"
@@ -433,9 +433,9 @@ TEST_F(TWriterForWebJson, NotSkipRequestedSystemColumns)
 
     bool written = Writer_->Write({
         MakeRow(NameTable_, {
-            {TString(TableIndexColumnName), 0},
-            {TString(RowIndexColumnName), 1},
-            {TString(TabletIndexColumnName), 2},
+            {TableIndexColumnName, 0},
+            {RowIndexColumnName, 1},
+            {TabletIndexColumnName, 2},
             {ValueColumnName_, 3}
         }).Get(),
     });
@@ -443,7 +443,7 @@ TEST_F(TWriterForWebJson, NotSkipRequestedSystemColumns)
     WaitFor(Writer_->Close())
         .ThrowOnError();
 
-    TString expectedOutput =
+    std::string expectedOutput =
         "{"
             "\"rows\":["
                 "{"
@@ -490,7 +490,7 @@ TEST_F(TWriterForWebJson, SkipUnregisteredColumns)
     EXPECT_EQ(true, Writer_->Write(rows));
     YT_UNUSED_FUTURE(Writer_->Close());
 
-    TString expectedOutput =
+    std::string expectedOutput =
         "{"
             "\"rows\":["
                 "{"
@@ -529,7 +529,7 @@ TEST_F(TWriterForWebJson, SliceColumnsByName)
             {"column_a", 100500u},
             {"column_b", 0.42},
             {"column_c", "abracadabra"},
-            {TString(TabletIndexColumnName), 10},
+            {TabletIndexColumnName, 10},
         }).Get(),
     });
     EXPECT_TRUE(written);
@@ -537,7 +537,7 @@ TEST_F(TWriterForWebJson, SliceColumnsByName)
         .ThrowOnError();
     auto result = ParseJsonToNode(OutputStream_.Str());
 
-    TString expectedOutput =
+    std::string expectedOutput =
         "{"
             "\"rows\":["
                 "{"
@@ -575,12 +575,12 @@ void CheckYqlValue(
     const TValue& expectedValue)
 {
     using TDecayedValue = std::decay_t<TValue>;
-    if constexpr (std::is_convertible_v<TDecayedValue, TString>) {
+    if constexpr (std::is_convertible_v<TDecayedValue, std::string>) {
         ASSERT_EQ(valueNode->GetType(), ENodeType::String);
-        EXPECT_EQ(valueNode->GetValue<TString>(), expectedValue);
+        EXPECT_EQ(valueNode->GetValue<std::string>(), expectedValue);
     } else if constexpr (std::is_same_v<TDecayedValue, double>) {
         ASSERT_EQ(valueNode->GetType(), ENodeType::String);
-        EXPECT_FLOAT_EQ(FromString<double>(valueNode->GetValue<TString>()), expectedValue);
+        EXPECT_FLOAT_EQ(FromString<double>(valueNode->GetValue<std::string>()), expectedValue);
     } else if constexpr (std::is_same_v<TDecayedValue, bool>) {
         ASSERT_EQ(valueNode->GetType(), ENodeType::Boolean);
         EXPECT_EQ(valueNode->GetValue<bool>(), expectedValue);
@@ -600,7 +600,7 @@ void CheckYqlType(
     const std::vector<INodePtr>& yqlTypes)
 {
     ASSERT_EQ(typeNode->GetType(), ENodeType::String);
-    auto typeIndexString = typeNode->GetValue<TString>();
+    auto typeIndexString = typeNode->GetValue<std::string>();
     auto typeIndex = FromString<int>(typeIndexString);
     ASSERT_LT(typeIndex, std::ssize(yqlTypes));
     ASSERT_GE(typeIndex, 0);
@@ -609,8 +609,8 @@ void CheckYqlType(
 
     auto expectedTypeNode = [&] () -> INodePtr {
         using TDecayedType = std::decay_t<TType>;
-        if constexpr (std::is_convertible_v<TDecayedType, TString>) {
-            return ConvertToNode(TYsonString(TString(expectedType)));
+        if constexpr (std::is_convertible_v<TDecayedType, std::string>) {
+            return ConvertToNode(TYsonString(TStringBuf(expectedType)));
         } else if constexpr (std::is_same_v<TDecayedType, INodePtr>) {
             return expectedType;
         } else {
@@ -631,7 +631,7 @@ void CheckYqlTypeAndValue(
     const std::vector<INodePtr>& yqlTypes)
 {
     ASSERT_EQ(row->GetType(), ENodeType::Map);
-    auto entry = row->AsMap()->FindChild(TString(name));
+    auto entry = row->AsMap()->FindChild(std::string(name));
     ASSERT_TRUE(entry);
     ASSERT_EQ(entry->GetType(), ENodeType::List);
     ASSERT_EQ(entry->AsList()->GetChildCount(), 2);
@@ -661,20 +661,20 @@ TEST_F(TWriterForWebJson, YqlValueFormat_SimpleTypes)
                 {"column_a", 100500u},
                 {"column_b", true},
                 {"column_c", "row1_c"},
-                {TString(RowIndexColumnName), 0},
-                {TString(TableIndexColumnName), 0},
+                {RowIndexColumnName, 0},
+                {TableIndexColumnName, 0},
             }).Get(),
             MakeRow(NameTable_, {
                 {"column_c", "row2_c"},
                 {"column_b", "row2_b"},
-                {TString(RowIndexColumnName), 1},
-                {TString(TableIndexColumnName), 0},
+                {RowIndexColumnName, 1},
+                {TableIndexColumnName, 0},
             }).Get(),
             MakeRow(NameTable_, {
                 {"column_a", -100500},
                 {"column_b", EValueType::Any, "{x=2;y=3}"},
                 {"column_c", 2.71828},
-                {TString(RowIndexColumnName), 1},
+                {RowIndexColumnName, 1},
             }).Get(),
         });
         EXPECT_TRUE(written);
@@ -696,15 +696,15 @@ TEST_F(TWriterForWebJson, YqlValueFormat_SimpleTypes)
     ASSERT_TRUE(yqlTypeRegistry);
 
     ASSERT_EQ(incompleteColumns->GetType(), ENodeType::String);
-    EXPECT_EQ(incompleteColumns->GetValue<TString>(), "false");
+    EXPECT_EQ(incompleteColumns->GetValue<std::string>(), "false");
 
     ASSERT_EQ(incompleteAllColumnNames->GetType(), ENodeType::String);
-    EXPECT_EQ(incompleteAllColumnNames->GetValue<TString>(), "true");
+    EXPECT_EQ(incompleteAllColumnNames->GetValue<std::string>(), "true");
 
     ASSERT_EQ(allColumnNames->GetType(), ENodeType::List);
-    std::vector<TString> allColumnNamesVector;
+    std::vector<std::string> allColumnNamesVector;
     ASSERT_NO_THROW(allColumnNamesVector = ConvertTo<decltype(allColumnNamesVector)>(allColumnNames));
-    EXPECT_EQ(allColumnNamesVector, (std::vector<TString>{"column_a", "column_b"}));
+    EXPECT_EQ(allColumnNamesVector, (std::vector<std::string>{"column_a", "column_b"}));
 
     ASSERT_EQ(yqlTypeRegistry->GetType(), ENodeType::List);
     auto yqlTypes = ConvertTo<std::vector<INodePtr>>(yqlTypeRegistry);
@@ -779,9 +779,9 @@ TEST_F(TWriterForWebJson, ColumnNameEncoding)
     ASSERT_TRUE(yqlTypeRegistry);
 
     ASSERT_EQ(allColumnNames->GetType(), ENodeType::List);
-    std::vector<TString> allColumnNamesVector;
+    std::vector<std::string> allColumnNamesVector;
     ASSERT_NO_THROW(allColumnNamesVector = ConvertTo<decltype(allColumnNamesVector)>(allColumnNames));
-    EXPECT_EQ(allColumnNamesVector, (std::vector<TString>{"column_a", "column_non_ascii_\xc3\x90\xc2\x81"}));
+    EXPECT_EQ(allColumnNamesVector, (std::vector<std::string>{"column_a", "column_non_ascii_\xc3\x90\xc2\x81"}));
 
     ASSERT_EQ(yqlTypeRegistry->GetType(), ENodeType::List);
     auto yqlTypes = ConvertTo<std::vector<INodePtr>>(yqlTypeRegistry);
@@ -805,39 +805,39 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
         {"column_a", OptionalLogicalType(
             ListLogicalType(MakeLogicalType(ESimpleLogicalValueType::Int64, true)))},
         {"column_b", StructLogicalType({
-            {"key", MakeLogicalType(ESimpleLogicalValueType::String, true)},
-            {"value", MakeLogicalType(ESimpleLogicalValueType::String, true)},
-            {"variant_tuple", VariantTupleLogicalType({
+            {"key", "key", MakeLogicalType(ESimpleLogicalValueType::String, true)},
+            {"value", "value", MakeLogicalType(ESimpleLogicalValueType::String, true)},
+            {"variant_tuple", "variant_tuple", VariantTupleLogicalType({
                 MakeLogicalType(ESimpleLogicalValueType::Int8, true),
                 MakeLogicalType(ESimpleLogicalValueType::Boolean, false),
             })},
-            {"variant_struct", VariantStructLogicalType({
-                {"a", MakeLogicalType(ESimpleLogicalValueType::Int8, true)},
-                {"b", MakeLogicalType(ESimpleLogicalValueType::Boolean, false)},
+            {"variant_struct", "variant_struct", VariantStructLogicalType({
+                {"a", "a", MakeLogicalType(ESimpleLogicalValueType::Int8, true)},
+                {"b", "b", MakeLogicalType(ESimpleLogicalValueType::Boolean, false)},
             })},
-            {"dict", DictLogicalType(
+            {"dict", "dict", DictLogicalType(
                 SimpleLogicalType(ESimpleLogicalValueType::Int64),
                 SimpleLogicalType(ESimpleLogicalValueType::String)),
             },
-            {"tagged", TaggedLogicalType(
+            {"tagged", "tagged", TaggedLogicalType(
                 "MyTag",
                 SimpleLogicalType(ESimpleLogicalValueType::Int64)),
             },
-            {"timestamp", SimpleLogicalType(ESimpleLogicalValueType::Timestamp)},
-            {"date", SimpleLogicalType(ESimpleLogicalValueType::Date)},
-            {"datetime", SimpleLogicalType(ESimpleLogicalValueType::Datetime)},
-            {"interval", SimpleLogicalType(ESimpleLogicalValueType::Interval)},
-            {"date32", SimpleLogicalType(ESimpleLogicalValueType::Date32)},
-            {"datetime64", SimpleLogicalType(ESimpleLogicalValueType::Datetime64)},
-            {"timestamp64", SimpleLogicalType(ESimpleLogicalValueType::Timestamp64)},
-            {"interval64", SimpleLogicalType(ESimpleLogicalValueType::Interval64)},
-            {"json", SimpleLogicalType(ESimpleLogicalValueType::Json)},
-            {"float", SimpleLogicalType(ESimpleLogicalValueType::Float)},
-        })},
+            {"timestamp", "timestamp", SimpleLogicalType(ESimpleLogicalValueType::Timestamp)},
+            {"date", "date", SimpleLogicalType(ESimpleLogicalValueType::Date)},
+            {"datetime", "datetime", SimpleLogicalType(ESimpleLogicalValueType::Datetime)},
+            {"interval", "interval", SimpleLogicalType(ESimpleLogicalValueType::Interval)},
+            {"date32", "date32", SimpleLogicalType(ESimpleLogicalValueType::Date32)},
+            {"datetime64", "datetime64", SimpleLogicalType(ESimpleLogicalValueType::Datetime64)},
+            {"timestamp64", "timestamp64", SimpleLogicalType(ESimpleLogicalValueType::Timestamp64)},
+            {"interval64", "interval64", SimpleLogicalType(ESimpleLogicalValueType::Interval64)},
+            {"json", "json", SimpleLogicalType(ESimpleLogicalValueType::Json)},
+            {"float", "float", SimpleLogicalType(ESimpleLogicalValueType::Float)},
+        }, /*removedFieldStableNames*/ {})},
         {"column_c", ListLogicalType(StructLogicalType({
-            {"very_optional_key", OptionalLogicalType(MakeLogicalType(ESimpleLogicalValueType::String, false))},
-            {"optional_value", MakeLogicalType(ESimpleLogicalValueType::String, false)},
-        }))},
+            {"very_optional_key", "very_optional_key", OptionalLogicalType(MakeLogicalType(ESimpleLogicalValueType::String, false))},
+            {"optional_value", "optional_value", MakeLogicalType(ESimpleLogicalValueType::String, false)},
+        }, /*removedFieldStableNames*/ {}))},
     });
 
     auto secondSchema = New<TTableSchema>(std::vector<TColumnSchema>{
@@ -1040,8 +1040,8 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
                 },
                 {"column_c", EValueType::Composite, R"([[[#]; "value"]; [["key"]; #]])"},
                 {"column_d", -49},
-                {TString(TableIndexColumnName), 0},
-                {TString(RowIndexColumnName), 0},
+                {TableIndexColumnName, 0},
+                {RowIndexColumnName, 0},
             }).Get(),
             MakeRow(NameTable_, {
                 {"column_a", EValueType::Composite, R"([0; -2; -5; 177])"},
@@ -1069,7 +1069,7 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
                 },
                 {"column_c", EValueType::Composite, R"([[#; #]; [["key1"]; #]])"},
                 {"column_d", 49u},
-                {TString(RowIndexColumnName), 1},
+                {RowIndexColumnName, 1},
             }).Get(),
             MakeRow(NameTable_, {
                 {"column_a", EValueType::Composite, "[]"},
@@ -1097,7 +1097,7 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
                 },
                 {"column_c", EValueType::Composite, "[[[key]; #]]"},
                 {"column_d", "49"},
-                {TString(RowIndexColumnName), 2},
+                {RowIndexColumnName, 2},
             }).Get(),
 
             MakeRow(NameTable_, {
@@ -1128,7 +1128,7 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
                 },
                 {"column_c", EValueType::Composite, "[]"},
                 {"column_d", EValueType::Any, "{x=49}"},
-                {TString(RowIndexColumnName), 3},
+                {RowIndexColumnName, 3},
             }).Get(),
 
             // Here come rows from the second table.
@@ -1137,8 +1137,8 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
                 {"column_b", nullptr},
                 {"column_c", nullptr},
                 {"column_d", -49},
-                {TString(TableIndexColumnName), 1},
-                {TString(RowIndexColumnName), 0},
+                {TableIndexColumnName, 1},
+                {RowIndexColumnName, 0},
             }).Get(),
 
             MakeRow(NameTable_, {
@@ -1146,8 +1146,8 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
                 {"column_b", nullptr},
                 {"column_c", EValueType::Composite, "[#]"},
                 {"column_d", nullptr},
-                {TString(TableIndexColumnName), 1},
-                {TString(RowIndexColumnName), 1},
+                {TableIndexColumnName, 1},
+                {RowIndexColumnName, 1},
             }).Get(),
         });
         EXPECT_TRUE(written);
@@ -1169,15 +1169,15 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
     ASSERT_TRUE(yqlTypeRegistry);
 
     ASSERT_EQ(incompleteColumns->GetType(), ENodeType::String);
-    EXPECT_EQ(incompleteColumns->GetValue<TString>(), "false");
+    EXPECT_EQ(incompleteColumns->GetValue<std::string>(), "false");
 
     ASSERT_EQ(incompleteAllColumnNames->GetType(), ENodeType::String);
-    EXPECT_EQ(incompleteAllColumnNames->GetValue<TString>(), "false");
+    EXPECT_EQ(incompleteAllColumnNames->GetValue<std::string>(), "false");
 
     ASSERT_EQ(allColumnNames->GetType(), ENodeType::List);
-    std::vector<TString> allColumnNamesVector;
+    std::vector<std::string> allColumnNamesVector;
     ASSERT_NO_THROW(allColumnNamesVector = ConvertTo<decltype(allColumnNamesVector)>(allColumnNames));
-    EXPECT_EQ(allColumnNamesVector, (std::vector<TString>{"column_a", "column_b", "column_c", "column_d"}));
+    EXPECT_EQ(allColumnNamesVector, (std::vector<std::string>{"column_a", "column_b", "column_c", "column_d"}));
 
     ASSERT_EQ(yqlTypeRegistry->GetType(), ENodeType::List);
     auto yqlTypes = ConvertTo<std::vector<INodePtr>>(yqlTypeRegistry);
@@ -1372,19 +1372,19 @@ TEST_F(TWriterForWebJson, YqlValueFormat_Incomplete)
 
     auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
         {"column_a", StructLogicalType({
-            {"field1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-            {"list", ListLogicalType(
+            {"field1", "field1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"list", "list", ListLogicalType(
                 VariantStructLogicalType({
-                    {"a", DictLogicalType(
+                    {"a", "a", DictLogicalType(
                         SimpleLogicalType(ESimpleLogicalValueType::Int64),
                         SimpleLogicalType(ESimpleLogicalValueType::String)),
                     },
-                    {"b", SimpleLogicalType(ESimpleLogicalValueType::Any)},
+                    {"b", "b", SimpleLogicalType(ESimpleLogicalValueType::Any)},
                 })),
             },
-            {"field2", SimpleLogicalType(ESimpleLogicalValueType::String)},
-            {"field3", MakeLogicalType(ESimpleLogicalValueType::Int64, false)},
-        })},
+            {"field2", "field2", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"field3", "field3", MakeLogicalType(ESimpleLogicalValueType::Int64, false)},
+        }, /*removedFieldStableNames*/ {})},
         {"column_b", SimpleLogicalType(ESimpleLogicalValueType::Any)},
         {"column_c", MakeLogicalType(ESimpleLogicalValueType::String, false)},
     });
@@ -1451,8 +1451,8 @@ TEST_F(TWriterForWebJson, YqlValueFormat_Incomplete)
                             [
                                 0;
                                 [
-                    [-2; "UTF:)" + TString("\xF0\x90\x8D\x88") + "\xF0\x90\x8D\x88" + R"("];
-                    [2; "!UTF:)" + TString("\xFA\xFB\xFC\xFD\xFA\xFB\xFC\xFD") + R"("];
+                    [-2; "UTF:)" + std::string("\xF0\x90\x8D\x88") + "\xF0\x90\x8D\x88" + R"("];
+                    [2; "!UTF:)" + std::string("\xFA\xFB\xFC\xFD\xFA\xFB\xFC\xFD") + R"("];
                                     [0; ""];
                                 ]
                             ];
@@ -1506,7 +1506,7 @@ TEST_F(TWriterForWebJson, YqlValueFormat_Incomplete)
     ASSERT_EQ(row->GetType(), ENodeType::Map);
     EXPECT_EQ(row->AsMap()->GetChildCount(), 3);
 
-    auto rowAValue = ConvertToNode(TYsonString(R"([
+    auto rowAValue = ConvertToNode(TYsonString(TStringBuf(R"([
         "-1";
         {
             "inc" = %true;
@@ -1515,7 +1515,7 @@ TEST_F(TWriterForWebJson, YqlValueFormat_Incomplete)
                     "0";
                     {
                         "val" = [
-                            ["-2"; {"inc"=%true; "val"="UTF:)" + TString("\xF0\x90\x8D\x88") + R"("}];
+                            ["-2"; {"inc"=%true; "val"="UTF:)" "\xF0\x90\x8D\x88" R"("}];
                             ["2"; {"inc"=%true; "b64"=%true; "val"="IVVURjr6"}];
                             ["0"; ""];
                         ]
@@ -1542,7 +1542,7 @@ TEST_F(TWriterForWebJson, YqlValueFormat_Incomplete)
             "inc" = %true;
         };
         ["424242238133245"];
-    ])"));
+    ])")));
     CHECK_YQL_TYPE_AND_VALUE(row, "column_a", yqlTypeA, rowAValue, yqlTypes);
 
     // Simple values are not truncated to |StringWeightLimit|

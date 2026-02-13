@@ -11,7 +11,7 @@ spec:
   successfulJobsHistoryLimit: {{ .Values.microservices.bulkAclChecker.preprocessing.successfulJobsHistoryLimit }}
   failedJobsHistoryLimit: {{ .Values.microservices.bulkAclChecker.preprocessing.failedJobsHistoryLimit }}
   startingDeadlineSeconds: {{ .Values.microservices.bulkAclChecker.preprocessing.startingDeadlineSeconds }}
-  concurrencyPolicy: {{ .Values.microservices.bulkAclChecker.preprocessing.concurrencyPolicy | quote }}
+  concurrencyPolicy: "Forbid"
   jobTemplate:
     spec:
       ttlSecondsAfterFinished: {{ .Values.microservices.bulkAclChecker.preprocessing.ttlSecondsAfterFinished }}

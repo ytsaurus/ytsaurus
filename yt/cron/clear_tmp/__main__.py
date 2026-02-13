@@ -245,7 +245,9 @@ def main():
 
     token = None if args.token_env_variable is None else os.environ.get(args.token_env_variable)
 
-    yt_client = yt.YtClient(config=yt.default_config.get_config_from_env(), token=token)
+    config = yt.default_config.get_config_from_env()
+    config["proxy"]["request_timeout"] = 60000
+    yt_client = yt.YtClient(config=config, token=token)
 
     if args.account is not None:
         account_disk_space = yt_client.get(f"//sys/accounts/{args.account}/@resource_limits/disk_space")

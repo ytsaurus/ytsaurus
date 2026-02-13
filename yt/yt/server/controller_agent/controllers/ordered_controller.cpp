@@ -184,7 +184,7 @@ protected:
                 : TDuration::Zero();
         }
 
-        TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
+        TExtendedJobResources GetJobNeededResources(const TJobletPtr& joblet) const override
         {
             return GetMergeResources(joblet->InputStripeList->GetPerStripeStatistics());
         }
@@ -285,7 +285,7 @@ protected:
             // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
             auto totalJobCount = Controller_->GetTotalJobCounter()->GetTotal();
             return
-                !Controller_->IsExplicitJobCount_ &&
+                !Controller_->JobSizeConstraints_->IsExplicitJobCount() &&
                 2 * Controller_->Options_->MaxOutputTablesTimesJobsCount > totalJobCount * std::ssize(Controller_->GetOutputTablePaths()) &&
                 2 * Controller_->Options_->MaxJobCount > totalJobCount;
         }
@@ -299,11 +299,7 @@ protected:
 
     IJobSizeConstraintsPtr JobSizeConstraints_;
 
-    i64 InputSliceDataWeight_;
-
     bool OrderedOutputRequired_ = false;
-
-    bool IsExplicitJobCount_ = false;
 
     virtual EJobType GetJobType() const = 0;
 
@@ -359,22 +355,10 @@ protected:
                 YT_ABORT();
         }
 
-        IsExplicitJobCount_ = JobSizeConstraints_->IsExplicitJobCount();
-
-        InputSliceDataWeight_ = JobSizeConstraints_->GetInputSliceDataWeight();
-
         YT_LOG_INFO("Calculated operation parameters (JobCount: %v, MaxDataWeightPerJob: %v, InputSliceDataWeight: %v)",
             JobSizeConstraints_->GetJobCount(),
             JobSizeConstraints_->GetMaxDataWeightPerJob(),
-            InputSliceDataWeight_);
-    }
-
-    // XXX(max42): this helper seems redundant.
-    TChunkStripePtr CreateChunkStripe(TLegacyDataSlicePtr dataSlice)
-    {
-        TChunkStripePtr chunkStripe = New<TChunkStripe>(false /*foreign*/);
-        chunkStripe->DataSlices().push_back(std::move(dataSlice));
-        return chunkStripe;
+            JobSizeConstraints_->GetInputSliceDataWeight());
     }
 
     void ProcessInputs()
@@ -386,9 +370,9 @@ protected:
 
             int sliceCount = 0;
             auto yielder = CreatePeriodicYielder(PrepareYieldPeriod);
-            for (auto& slice : CollectPrimaryInputDataSlices(InputSliceDataWeight_)) {
+            for (auto& slice : CollectPrimaryInputDataSlices(JobSizeConstraints_->GetInputSliceDataWeight())) {
                 ValidateInputDataSlice(slice);
-                OrderedTask_->AddInput(CreateChunkStripe(std::move(slice)));
+                OrderedTask_->AddInput(New<TChunkStripe>(std::move(slice)));
                 ++sliceCount;
                 yielder.TryYield();
             }
@@ -504,10 +488,10 @@ void TOrderedControllerBase::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(3, JobIOConfig_);
     PHOENIX_REGISTER_FIELD(4, JobSpecTemplate_);
     PHOENIX_REGISTER_FIELD(5, JobSizeConstraints_);
-    PHOENIX_REGISTER_FIELD(6, InputSliceDataWeight_);
+    PHOENIX_REGISTER_DELETED_FIELD(6, i64, InputSliceDataWeight_, ESnapshotVersion::DropExcessFieldsInOrderedController);
     PHOENIX_REGISTER_FIELD(7, OrderedTask_);
     PHOENIX_REGISTER_FIELD(8, OrderedOutputRequired_);
-    PHOENIX_REGISTER_FIELD(9, IsExplicitJobCount_);
+    PHOENIX_REGISTER_DELETED_FIELD(9, bool, IsExplicitJobCount_, ESnapshotVersion::DropExcessFieldsInOrderedController);
 }
 
 PHOENIX_DEFINE_TYPE(TOrderedControllerBase);
@@ -652,7 +636,13 @@ private:
                 } else {
                     ValidateOutputSchemaOrdered();
                     if (!Spec_->InputQuery) {
+                        // TODO(s-berdnikov): Relax constraints.
                         ValidateOutputSchemaCompatibility({
+                            .TypeCompatibilityOptions = {
+                                .AllowStructFieldRenaming = false,
+                                .AllowStructFieldRemoval = false,
+                                .IgnoreUnknownRemovedFieldNames = false,
+                            },
                             .ForbidExtraComputedColumns = false,
                             .IgnoreStableNamesDifference = true,
                             .AllowTimestampColumns = table->TableUploadOptions.VersionedWriteOptions.WriteMode ==

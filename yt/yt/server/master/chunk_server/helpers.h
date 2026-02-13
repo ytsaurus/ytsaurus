@@ -77,9 +77,6 @@ void AppendChunkTreeChild(
 //! Apply statisticsDelta to all proper ancestors of |child|.
 //! Both statistics and cumulative statistics are updated.
 //! |statisticsDelta| should have |child|'s rank.
-void AccumulateAncestorsStatistics(
-    TChunkTree* child,
-    const TChunkTreeStatistics& statisticsDelta);
 void AccumulateUniqueAncestorsStatistics(
     TChunkTree* child,
     const TChunkTreeStatistics& statisticsDelta);
@@ -173,6 +170,8 @@ NSequoiaClient::TSelectRowsQuery BuildSelectLocationSequoiaReplicasQuery(
     NObjectClient::TCellTag cellTag,
     TNodeId nodeId,
     NNodeTrackerClient::TChunkLocationIndex locationIndex);
+
+void ValidateChunkMetaOnConfirmation(const NChunkClient::NProto::TChunkMeta& chunkMeta);
 
 ////////////////////////////////////////////////////////////////////////////////
 

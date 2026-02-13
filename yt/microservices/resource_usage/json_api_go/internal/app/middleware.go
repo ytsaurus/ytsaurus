@@ -59,12 +59,12 @@ func traceRequest(l log.Structured) func(next http.Handler) http.Handler {
 
 			traceparentParts := strings.Split(traceparent, "-")
 			if len(traceparentParts) != 4 {
-				traceID = randHexString(32)
+				traceID = ytmsvc.RandHexString(32)
 			} else {
 				traceID = traceparentParts[1]
 				parentSpanID = traceparentParts[2]
 			}
-			spanID := randHexString(16)
+			spanID := ytmsvc.RandHexString(16)
 
 			traceIDField := log.String("trace_id", traceID)
 			parentSpanIDField := log.String("parent_span_id", parentSpanID)

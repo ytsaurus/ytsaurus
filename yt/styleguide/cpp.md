@@ -23,7 +23,7 @@ For the code from the directories above, as well as any other C++ code in our re
 
 ## General
 
-We use C++20. As soon as the most of our toolchains support C++23, we aim to switch to it.
+We use C\+\+20. As soon as the most of our toolchains support C\+\+23, we aim to switch to it.
 
 As of today, we do not provide clang-format/clang-tidy configuration due to significant complications while trying to express our coding style in terms of these tools. Still, it may happen in the future; there is an issue #75 for that.
 
@@ -90,7 +90,7 @@ private:
 
 ### Variables and Enums
 
-Global variables, consts and enum values are always in PascalCase.
+Global variables, consts and enum values as well as static consts and variables are always in PascalCase.
 
 ```cpp
 constexpr i64 MaxValueSize = 128_KB;
@@ -102,6 +102,11 @@ DEFINE_ENUM(ENodeFactoryState,
     (Committed)
     (RolledBack)
 );
+
+void DoSomething()
+{
+    static const auto VariableName = DoSomethingElse();
+}
 ```
 
 Local variables and parameters are always in camelCase.

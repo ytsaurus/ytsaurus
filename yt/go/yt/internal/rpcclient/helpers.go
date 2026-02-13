@@ -483,6 +483,23 @@ func makeCheckPermissionByACLResult(result *rpc_proxy.TCheckPermissionByAclResul
 	return ret, nil
 }
 
+func makeCheckOperationPermissionResult(result *rpc_proxy.TCheckOperationPermissionResult) (yt.CheckOperationPermissionResult, error) {
+	if result == nil {
+		return yt.CheckOperationPermissionResult{}, xerrors.Errorf("unable to convert nil check operation permission result")
+	}
+
+	action, err := makeSecurityActionType(result.GetAction())
+	if err != nil {
+		return yt.CheckOperationPermissionResult{}, err
+	}
+
+	ret := yt.CheckOperationPermissionResult{
+		Action: action,
+	}
+
+	return ret, nil
+}
+
 func makeCheckPermissionResponse(response *rpc_proxy.TRspCheckPermission) (*yt.CheckPermissionResponse, error) {
 	if response == nil {
 		return nil, nil
@@ -525,6 +542,23 @@ func makeCheckPermissionByACLResponse(response *rpc_proxy.TRspCheckPermissionByA
 
 	ret := &yt.CheckPermissionResponse{
 		CheckPermissionResult: result,
+	}
+
+	return ret, nil
+}
+
+func makeCheckOperationPermissionResponse(response *rpc_proxy.TRspCheckOperationPermission) (*yt.CheckOperationPermissionResponse, error) {
+	if response == nil {
+		return nil, nil
+	}
+
+	result, err := makeCheckOperationPermissionResult(response.Result)
+	if err != nil {
+		return nil, err
+	}
+
+	ret := &yt.CheckOperationPermissionResponse{
+		CheckOperationPermissionResult: result,
 	}
 
 	return ret, nil
@@ -1355,4 +1389,18 @@ func (w *multiLookupRespWrapper) GetSubresponses() []ProtoMultiLookupSubresp {
 		result[i] = sub
 	}
 	return result
+}
+
+func convertOperationSortDirection(direction *yt.OperationSortDirection) *rpc_proxy.EOperationSortDirection {
+	if direction == nil {
+		return nil
+	}
+	switch *direction {
+	case yt.SortDirectionPast:
+		return rpc_proxy.EOperationSortDirection_OSD_PAST.Enum()
+	case yt.SortDirectionFuture:
+		return rpc_proxy.EOperationSortDirection_OSD_FUTURE.Enum()
+	default:
+		return rpc_proxy.EOperationSortDirection_OSD_NONE.Enum()
+	}
 }

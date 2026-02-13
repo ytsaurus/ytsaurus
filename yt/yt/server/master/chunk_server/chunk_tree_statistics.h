@@ -56,7 +56,7 @@ struct TChunkTreeStatistics
 
     void Persist(const NCellMaster::TPersistenceContext& context);
 
-    bool operator == (const TChunkTreeStatistics& other) const;
+    bool operator==(const TChunkTreeStatistics& other) const;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TChunkTreeStatistics& statistics, TStringBuf spec);

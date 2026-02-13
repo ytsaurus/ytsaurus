@@ -12,12 +12,12 @@ struct IMoveIteration
     : public TRefCounted
 {
     virtual void StartIteration() const = 0;
-    virtual void Prepare(const TTableRegistryPtr& tableRegistry) = 0;
+    virtual void Prepare() = 0;
     virtual void FinishIteration(int actionCount) const = 0;
 
     virtual TFuture<std::vector<TMoveDescriptor>> ReassignTablets(const IInvokerPtr& invoker) = 0;
 
-    virtual void UpdateProfilingCounters(TTableProfilingCounters& profilingCounters) = 0;
+    virtual void UpdateProfilingCounters(const TTable* table) = 0;
 
     virtual bool IsGroupBalancingEnabled() const = 0;
     virtual void LogDisabledBalancing() const = 0;

@@ -64,10 +64,10 @@ def build_node_resource_capacity_planning():
                                         .aggr(MonitoringTag("host"), "table_path", "table_tag", "account", "medium")
                                         .all("method")).alias("{{method}}"),
                                     MonitoringExpr(NodeTablet("yt.tablet_node.lookup.chunk_reader_statistics.data_bytes_read_from_disk.rate")
-                                        .aggr(MonitoringTag("host"), "table_path", "table_tag", "user"))
+                                        .aggr(MonitoringTag("host"), "table_path", "table_tag", "user", "medium"))
                                         .alias("lookup"),
                                     MonitoringExpr(NodeTablet("yt.tablet_node.select.chunk_reader_statistics.data_bytes_read_from_disk.rate")
-                                        .aggr(MonitoringTag("host"), "table_path", "table_tag", "user"))
+                                        .aggr(MonitoringTag("host"), "table_path", "table_tag", "user", "medium"))
                                         .alias("select")))
             ).owner
 

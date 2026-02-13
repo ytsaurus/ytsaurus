@@ -14,55 +14,6 @@ UNFOLDING = "unfolding"
 UNIQUE = "unique"
 
 
-# The following schema validation is less strict than the one
-# imposed during actual creation and acts merely as a sanity check.
-def validate_schemas(table_schema, index_table_schema, kind):
-    assert kind in [FULL_SYNC, UNFOLDING, UNIQUE], f"unsupported index kind {kind}"
-
-    if kind != UNIQUE:
-        for table_column in table_schema:
-            if "sort_order" not in table_column or "expression" in table_column:
-                continue
-            assert table_column in index_table_schema, \
-                f"index table must inherit all not evaluated key columns, missing {table_column}"
-
-    unfolded_column_name = None
-    for index_column in index_table_schema:
-        assert "aggregate" not in index_column, f"aggregate columns are not allowed in indices ({index_column})"
-
-        if index_column["name"] == SYSTEM_EMPTY_COLUMN_NAME or "expression" in index_column:
-            continue
-
-        table_column = [
-            table_column
-            for table_column in table_schema
-            if index_column["name"] == table_column["name"]
-        ][0]
-
-        assert "expression" not in table_column
-        assert "aggregate" not in table_column, f"indices on aggregate columns are not allowed ({table_column})"
-
-        table_type = table_column["type_v3"]
-        index_type = index_column["type_v3"]
-        types_match_exactly = (table_type == index_type)
-        if kind != UNFOLDING or unfolded_column_name is not None:
-            assert types_match_exactly, \
-                f"Type mismatch between {index_column} and {table_column}: expected equal types"
-        elif not types_match_exactly:
-            if table_type["type_name"] == "optional":
-                table_type = table_type["item"]
-            assert_failure_message = f"Type mismatch between {index_column} and {table_column}: "\
-                "expected equal types or a <type> and <list<type>> relation"
-            assert table_type["type_name"] == "list", assert_failure_message
-            assert table_type["item"] == index_type, assert_failure_message
-
-            unfolded_column_name = index_column["name"]
-
-    assert (unfolded_column_name is None) != (kind == UNFOLDING), "could not find a candidate column for unfolding"
-
-    return unfolded_column_name
-
-
 class UnfoldingMapper:
     def __init__(self, unfolded_column):
         self.unfolded_column = unfolded_column
@@ -91,9 +42,9 @@ def run_operations(
     barrier_timestamp: int,
     table_schema,
     index_table_schema,
-    unfolded_column_name: str,
+    unfolded_column: str,
     client: yt.YtClient,
-    pool=None
+    pool=None,
 ):
     output_columns = [col["name"] for col in index_table_schema if "expression" not in col]
     shared_columns = [col["name"] for col in table_schema if col["name"] in output_columns]
@@ -113,13 +64,13 @@ def run_operations(
         for col in table_schema if col["name"] in necessary_columns]
     spec = {"pool": pool} if pool else None
 
-    if unfolded_column_name is not None:
+    if unfolded_column is not None:
         logging.info("\n\t\tRunning unfolding mapper")
 
         output_schema = [
             {
                 "name": col["name"],
-                "type_v3": unfold_type(col["type_v3"]) if col["name"] == unfolded_column_name else col["type_v3"],
+                "type_v3": unfold_type(col["type_v3"]) if col["name"] == unfolded_column else col["type_v3"],
             }
             for col in current_schema]
 
@@ -128,7 +79,7 @@ def run_operations(
             expiration_timeout=EXPIRATION_TIMEOUT_MS)
 
         op = client.run_map(
-            binary=UnfoldingMapper(unfolded_column_name),
+            binary=UnfoldingMapper(unfolded_column),
             source_table=current_input,
             destination_table=output_table,
             spec=spec,
@@ -196,7 +147,19 @@ def run_operations(
     yield
 
 
-def build_secondary_index(proxy, table, index_table, kind, predicate, dry_run, online, pool=None, pools={}):
+def build_secondary_index(
+    proxy,
+    table,
+    index_table,
+    kind,
+    predicate,
+    unfolded_column,
+    dry_run,
+    online,
+    evaluated_columns_schema=None,
+    pool=None,
+    pools={},
+):
     assert not ((kind == UNIQUE) and online), "A correct unique index can only be built strictly"
 
     client = yt.YtClient(proxy=proxy, config=get_config_from_env())
@@ -221,8 +184,6 @@ def build_secondary_index(proxy, table, index_table, kind, predicate, dry_run, o
 
     table_schema = table_attrs["schema"]
     index_table_schema = index_table_attrs["schema"]
-
-    unfolded_column_name = validate_schemas(table_schema, index_table_schema, kind)
 
     if table_attrs["type"] == "replicated_table":
         cluster_infos = {
@@ -265,13 +226,14 @@ def build_secondary_index(proxy, table, index_table, kind, predicate, dry_run, o
             "kind": kind,
         }
 
-        if "query_memory_limit_in_tablet_nodes" in client.get_supported_features():
-            # major version >= 25.1
-            attributes["table_to_index_correspondence"] = "injective" if online else "bijective"
+        attributes["table_to_index_correspondence"] = "injective" if online else "bijective"
         if predicate:
             attributes["predicate"] = predicate
         if kind == UNFOLDING:
-            attributes["unfolded_column"] = unfolded_column_name
+            assert unfolded_column
+            attributes["unfolded_column"] = unfolded_column
+        if evaluated_columns_schema:
+            attributes["evaluated_columns_schema"] = evaluated_columns_schema
 
         logging.info("\n\t\tCreating secondary index link")
         secondary_index_id = client.create("secondary_index", attributes=attributes)
@@ -291,7 +253,7 @@ def build_secondary_index(proxy, table, index_table, kind, predicate, dry_run, o
                 barrier_timestamp,
                 table_schema,
                 index_table_schema,
-                unfolded_column_name,
+                unfolded_column,
                 client,
                 pool))
         else:
@@ -319,7 +281,7 @@ def build_secondary_index(proxy, table, index_table, kind, predicate, dry_run, o
                     barrier_timestamp,
                     table_schema,
                     index_table_schema,
-                    unfolded_column_name,
+                    unfolded_column,
                     yt.YtClient(proxy=cluster, config=get_config_from_env()),
                     pools.get(cluster)))
 

@@ -1,6 +1,7 @@
 #include "yql_co.h"
 #include "yql_co_sqlin.h"
 #include "yql_co_pgselect.h"
+#include "yql_co_yqlselect.h"
 
 #include <yql/essentials/core/sql_types/yql_atom_enums.h>
 #include <yql/essentials/core/yql_expr_type_annotation.h>
@@ -10,6 +11,7 @@
 #include <yql/essentials/core/yql_opt_window.h>
 #include <yql/essentials/core/yql_type_helpers.h>
 #include <yql/essentials/core/yql_expr_optimize.h>
+#include <yql/essentials/core/yql_window_features.h>
 
 #include <yql/essentials/utils/log/log.h>
 #include <yql/essentials/parser/pg_catalog/catalog.h>
@@ -1667,7 +1669,7 @@ TPredicateChainNode ParsePredicateChainNode(const TExprNode::TPtr& predicate, co
     if (isMemberOf(leftArg, topLambdaArg)) {
         // left side of IN is column reference
         result.LeftArgColumns.emplace_back(leftArg->Child(1)->Content());
-    } else if (leftArg->GetTypeAnn()->GetKind() == ETypeAnnotationKind::Tuple) {
+    } else if (leftArg->IsList()) {
         // if leftArg is tuple of members then replace tuple with its members
         for (const auto& tupleItem : leftArg->Children()) {
             if (isMemberOf(tupleItem, topLambdaArg)) {
@@ -1713,12 +1715,13 @@ TPredicateChainNode ParsePredicateChainNode(const TExprNode::TPtr& predicate, co
                     .Done()
                     .Ptr();
 
-            if (!result.LeftArgColumns.empty()) {
+            const auto tupleSize = itemType->GetItemType()->Cast<TTupleExprType>()->GetItems().size();
+            if (leftArg->IsList() && result.LeftArgColumns.size() == tupleSize) {
                 auto rowArg = Build<TCoArgument>(ctx, sqlIn.Pos())
                         .Name("row")
                         .Done();
                 auto asStructBuilder = Build<TCoAsStruct>(ctx, sqlIn.Pos());
-                for (size_t i = 0; i < itemType->GetItemType()->Cast<TTupleExprType>()->GetItems().size(); ++i) {
+                for (size_t i = 0; i < tupleSize; ++i) {
                     const TString columnName = TStringBuilder() << "_yql_sqlin_tuple_" << i;
                     asStructBuilder.Add<TCoNameValueTuple>()
                             .Name().Build(columnName)
@@ -3076,7 +3079,7 @@ TExprNode::TPtr BuildCalcOverWindowGroup(TCoCalcOverWindowGroup node, TExprNodeL
     return KeepColumnOrder(result, node.Ref(), ctx, typesCtx);
 }
 
-TExprNode::TPtr DoNormalizeFrames(const TExprNode::TPtr& frames, TExprContext& ctx) {
+TExprNode::TPtr DoNormalizeFrames(const TExprNode::TPtr& sortSpec, const TExprNode::TPtr& frames, TExprContext& ctx, TTypeAnnotationContext& typesCtx) {
     TExprNodeList normalized;
     bool changed = false;
     TExprNode::TPtr unboundedCurrentNode;
@@ -3100,8 +3103,6 @@ TExprNode::TPtr DoNormalizeFrames(const TExprNode::TPtr& frames, TExprContext& c
 
         TWindowFrameSettings frameSettings = TWindowFrameSettings::Parse(*winOn, ctx);
         if (frameSettings.GetFrameType() == EFrameType::FrameByRange) {
-            YQL_ENSURE(IsUnbounded(frameSettings.GetFirst()));
-            YQL_ENSURE(IsCurrentRow(frameSettings.GetLast()));
             continue;
         }
 
@@ -3137,6 +3138,17 @@ TExprNode::TPtr DoNormalizeFrames(const TExprNode::TPtr& frames, TExprContext& c
                         .Atom(0, "currentRow", TNodeFlags::Default)
                     .Seal()
                 .Seal()
+                .Do([&](TExprNodeBuilder& parent) -> TExprNodeBuilder & {
+                        if (!IsWindowNewPipelineEnabled(typesCtx)) {
+                            return parent;
+                        }
+                        parent.List(2)
+                                .Atom(0, "sortSpec", TNodeFlags::Default)
+                                .Add(1, sortSpec)
+                                .Seal();
+                        return parent;
+                    }
+                )
             .Seal()
             .Build());
 
@@ -3185,6 +3197,16 @@ TExprNode::TPtr DoNormalizeFrames(const TExprNode::TPtr& frames, TExprContext& c
                                 .Atom(0, "0", TNodeFlags::Default)
                             .Seal()
                         .Seal()
+                        .Do([&](TExprNodeBuilder& parent) -> TExprNodeBuilder & {
+                            if (!IsWindowNewPipelineEnabled(typesCtx)) {
+                                return parent;
+                            }
+                            parent.List(2)
+                                    .Atom(0, "sortSpec", TNodeFlags::Default)
+                                    .Add(1, sortSpec)
+                                  .Seal();
+                            return parent;
+                        })
                     .Seal()
                     .Build();
             }
@@ -3214,7 +3236,8 @@ TExprNode::TPtr DoNormalizeFrames(const TExprNode::TPtr& frames, TExprContext& c
 
 TExprNode::TPtr NormalizeFrames(TCoCalcOverWindowBase node, TExprContext& ctx, TTypeAnnotationContext& typesCtx) {
     auto origFrames = node.Frames().Ptr();
-    auto normalizedFrames = DoNormalizeFrames(origFrames, ctx);
+    auto sortSpec = node.SortSpec().Ptr();
+    auto normalizedFrames = DoNormalizeFrames(sortSpec, origFrames, ctx, typesCtx);
     if (normalizedFrames != origFrames) {
         auto result = ctx.ChangeChild(node.Ref(), TCoCalcOverWindowBase::idx_Frames, std::move(normalizedFrames));
         return KeepColumnOrder(result, node.Ref(), ctx, typesCtx);
@@ -3225,8 +3248,9 @@ TExprNode::TPtr NormalizeFrames(TCoCalcOverWindowGroup node, TExprContext& ctx, 
     TExprNodeList normalizedCalcs;
     bool changed = false;
     for (auto calc : node.Calcs()) {
+        auto sortSpec = calc.SortSpec().Ptr();
         auto origFrames = calc.Frames().Ptr();
-        auto normalizedFrames = DoNormalizeFrames(origFrames, ctx);
+        auto normalizedFrames = DoNormalizeFrames(sortSpec, origFrames, ctx, typesCtx);
         if (normalizedFrames != origFrames) {
             changed = true;
             normalizedCalcs.emplace_back(ctx.ChangeChild(calc.Ref(), TCoCalcOverWindowTuple::idx_Frames, std::move(normalizedFrames)));
@@ -3470,7 +3494,32 @@ TExprNode::TPtr RewriteAsHoppingWindowFullOutput(const TCoAggregate& aggregate, 
         .LoadHandler(loadLambda)
         .WatermarkMode<TCoAtom>().Build(ToString(false))
         .HoppingColumn<TCoAtom>().Build(hopTraits.Column);
-
+    if (TCoHoppingTraits::idx_SizeLimit < hopTraits.Traits.Raw()->ChildrenSize()) {
+        if (hopTraits.Traits.SizeLimit()) {
+            multiHoppingCoreBuilder.SizeLimit(hopTraits.Traits.SizeLimit());
+        } else {
+            multiHoppingCoreBuilder.SizeLimit<TCoVoid>().Build();
+        }
+        if (hopTraits.Traits.TimeLimit()) {
+            multiHoppingCoreBuilder.TimeLimit(hopTraits.Traits.TimeLimit());
+        } else {
+            multiHoppingCoreBuilder.TimeLimit<TCoVoid>().Build();
+        }
+        if (hopTraits.EarlyPolicy) {
+            multiHoppingCoreBuilder.EarlyPolicy<TCoUint32>()
+                .Literal().Build(ToString((ui32)*hopTraits.EarlyPolicy))
+            .Build();
+        } else {
+            multiHoppingCoreBuilder.EarlyPolicy<TCoVoid>().Build();
+        }
+        if (hopTraits.LatePolicy) {
+            multiHoppingCoreBuilder.LatePolicy<TCoUint32>()
+                .Literal().Build(ToString((ui32)*hopTraits.LatePolicy))
+            .Build();
+        } else {
+            multiHoppingCoreBuilder.LatePolicy<TCoVoid>().Build();
+        }
+    }
     return Build<TCoPartitionsByKeys>(ctx, pos)
         .Input(aggregate.Input())
         .KeySelectorLambda(keyLambda)
@@ -3955,7 +4004,7 @@ TExprNode::TPtr MemberOverFilterSkipNullMembers(const TExprNode::TPtr& node, TEx
 bool IsSqlWithNothingOrNullOpsEnabled(const TOptimizeContext& optCtx) {
     static const char OptName[] = "SqlInWithNothingOrNull";
     YQL_ENSURE(optCtx.Types);
-    return IsOptimizerEnabled<OptName>(*optCtx.Types) && !IsOptimizerDisabled<OptName>(*optCtx.Types);
+    return !IsOptimizerDisabled<OptName>(*optCtx.Types);
 }
 
 } // namespace
@@ -4105,6 +4154,11 @@ void RegisterCoSimpleCallables1(TCallableOptimizerMap& map) {
                 res = KeepWorld(res, *node, ctx, *optCtx.Types);
                 return res;
             }
+        }
+
+        if (IsIdentityLambda(*node->Child(1))) {
+            YQL_CLOG(DEBUG, Core) << "Trivial lambda: " << node->Content();
+            return node->HeadPtr();
         }
 
         return node;
@@ -6643,7 +6697,7 @@ void RegisterCoSimpleCallables1(TCallableOptimizerMap& map) {
             });
 
             EDataSlot payloadSlot;
-            const auto* payloadType = payload->GetTypeAnn();
+            const auto payloadType = payload->GetTypeAnn();
             if (payloadType->GetKind() == ETypeAnnotationKind::Null) {
                 // we treat NULL as Nothing(Utf8?)
                 payloadSlot = EDataSlot::Utf8;
@@ -7109,6 +7163,7 @@ void RegisterCoSimpleCallables1(TCallableOptimizerMap& map) {
 
     map["YqlSelect"] = &ExpandPgSelect;
     map["YqlIterate"] = &ExpandPgIterate;
+    map["YqlIterateAll"] = &ExpandPgIterate;
 
     map["PgLike"] = &ExpandPgLike;
     map["PgILike"] = &ExpandPgLike;

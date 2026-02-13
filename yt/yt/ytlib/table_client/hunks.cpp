@@ -129,9 +129,12 @@ private:
 
         THunkColumnIds hunkColumnIds;
         const auto& columnIndexes = columnFilter.GetIndexes();
-        for (int i = 0; i < std::ssize(columnIndexes); ++i) {
-            if (schema->Columns()[columnIndexes[i]].MaxInlineHunkSize()) {
-                hunkColumnIds.push_back(i);
+        for (int index = 0; index < std::ssize(columnIndexes); ++index) {
+            // NB: Skip timestamp columns if any.
+            if (columnIndexes[index] < schema->GetColumnCount() &&
+                schema->Columns()[columnIndexes[index]].MaxInlineHunkSize())
+            {
+                hunkColumnIds.push_back(index);
             }
         }
 
@@ -1854,7 +1857,7 @@ protected:
 
     const NLogging::TLogger Logger;
 
-    TFuture<void> ReadyEvent_ = VoidFuture;
+    TFuture<void> ReadyEvent_ = OKFuture;
 
     using IRowBatchPtr = typename TRowBatchTrait<TImmutableRow>::IRowBatchPtr;
 

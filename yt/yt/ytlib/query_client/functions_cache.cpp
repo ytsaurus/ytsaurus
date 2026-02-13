@@ -38,9 +38,14 @@
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
+#include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/guid.h>
+
+#include <yt/yt/core/profiling/timing.h>
 #include <yt/yt/core/misc/async_slru_cache.h>
 #include <yt/yt/core/misc/async_expiring_cache.h>
+
+#include <yt/yt/core/ypath/helpers.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
 #include <yt/yt/core/ytree/fluent.h>
@@ -76,7 +81,7 @@ struct TQueryUdfTag
 struct TCypressFunctionDescriptor
     : public NYTree::TYsonStruct
 {
-    TString Name;
+    std::string Name;
     std::vector<TDescriptorType> ArgumentTypes;
     std::optional<TDescriptorType> RepeatedArgumentType;
     TDescriptorType ResultType;
@@ -114,7 +119,7 @@ DEFINE_REFCOUNTED_TYPE(TCypressFunctionDescriptor)
 struct TCypressAggregateDescriptor
     : public NYTree::TYsonStruct
 {
-    TString Name;
+    std::string Name;
     TDescriptorType ArgumentType;
     TDescriptorType StateType;
     TDescriptorType ResultType;
@@ -142,6 +147,7 @@ DEFINE_REFCOUNTED_TYPE(TExternalCGInfo)
 
 static const std::string FunctionDescriptorAttribute("function_descriptor");
 static const std::string AggregateDescriptorAttribute("aggregate_descriptor");
+static const std::string IsWebAssemblySdkAttribute("is_web_assembly_sdk");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -151,17 +157,39 @@ TExternalCGInfo::TExternalCGInfo()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TExternalFunction::operator size_t() const
+{
+    size_t result = 0;
+    HashCombine(result, ExecutionBackend);
+    HashCombine(result, Path);
+    HashCombine(result, IsSdk);
+    HashCombine(result, Name);
+    return result;
+}
+
+bool TExternalFunction::operator==(const TExternalFunction& /*other*/) const = default;
+
+void FormatValue(TStringBuilderBase* builder, const TExternalFunction& value, TStringBuf /*spec*/)
+{
+    builder->AppendFormat(
+        "(ExecutionBackend: %v, Path: %v, IsSdk: %v, Name: %v)",
+        value.ExecutionBackend,
+        value.Path,
+        value.IsSdk,
+        value.Name);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
-TString GetUdfDescriptorPath(const TYPath& registryPath, const std::string& functionName)
+TYPath GetUdfDescriptorPath(const TYPath& registryPath, const std::string& functionName)
 {
     return registryPath + "/" + ToYPathLiteral(functionName);
 }
 
-} // namespace
-
-std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
-    const std::vector<std::pair<TYPath, std::string>>& functionNames,
+std::vector<TExternalFunctionSpec> LookupAllNativeUdfDescriptors(
+    const std::vector<TExternalFunction>& functions,
     const NNative::IClientPtr& client)
 {
     using NObjectClient::TObjectYPathProxy;
@@ -170,20 +198,29 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
     using NNodeTrackerClient::TNodeDirectory;
     using NChunkClient::TLegacyReadRange;
 
+    if (functions.empty()) {
+        return {};
+    }
+
     std::vector<TExternalFunctionSpec> result;
 
     YT_LOG_DEBUG("Looking for UDFs in Cypress");
 
+    auto timer = NProfiling::TWallTimer();
+    auto finally = Finally([&] {
+        YT_LOG_DEBUG("Finished Looking for UDFs in Cypress (LookupUdfDescriptorsTime: %v)", timer.GetElapsedTime());
+    });
+
     auto proxy = CreateObjectServiceReadProxy(client, EMasterChannelKind::Follower);
     auto batchReq = proxy.ExecuteBatch();
 
-    for (const auto& item : functionNames) {
-        auto path = GetUdfDescriptorPath(item.first, item.second);
+    for (const auto& function : functions) {
+        auto path = GetUdfDescriptorPath(function.Path, function.Name);
 
         auto getReq = TYPathProxy::Get(path);
         ToProto(getReq->mutable_attributes()->mutable_keys(), std::vector<std::string>{
             FunctionDescriptorAttribute,
-            AggregateDescriptorAttribute
+            AggregateDescriptorAttribute,
         });
         batchReq->AddRequest(getReq, "get_attributes");
 
@@ -198,17 +235,17 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
     auto basicAttributesRspsOrError = batchRsp->GetResponses<TObjectYPathProxy::TRspGetBasicAttributes>("get_basic_attributes");
 
     THashMap<NObjectClient::TCellTag, std::vector<std::pair<NObjectClient::TObjectId, size_t>>> externalCellTagToInfo;
-    for (int index = 0; index < std::ssize(functionNames); ++index) {
-        const auto& function = functionNames[index];
-        auto path = GetUdfDescriptorPath(function.first, function.second);
+    for (int index = 0; index < std::ssize(functions); ++index) {
+        const auto& function = functions[index];
+        auto path = GetUdfDescriptorPath(function.Path, function.Name);
 
         auto getRspOrError = getRspsOrError[index];
 
         THROW_ERROR_EXCEPTION_IF_FAILED(
             getRspOrError,
             "Failed to find implementation of function %Qv at %v in Cypress",
-            function.second,
-            function.first);
+            function.Name,
+            function.Path);
 
         auto getRsp = getRspOrError
             .ValueOrThrow();
@@ -221,7 +258,7 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
         auto cellTag = FromProto<TCellTag>(basicAttrsRsp->external_cell_tag());
 
         YT_LOG_DEBUG("Found UDF implementation in Cypress (Name: %v, Descriptor: %v)",
-            function.second,
+            function.Name,
             ConvertToYsonString(item, NYson::EYsonFormat::Text).AsStringBuf());
 
         TExternalFunctionSpec cypressInfo;
@@ -270,7 +307,7 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
 
             if (result[resultIndex].Chunks.empty()) {
                 THROW_ERROR_EXCEPTION("UDF file is empty")
-                    << TErrorAttribute("udf", functionNames[resultIndex]);
+                    << TErrorAttribute("udf", functions[resultIndex]);
             }
 
             nodeDirectory->DumpTo(&result[resultIndex].NodeDirectory);
@@ -280,7 +317,437 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
     return result;
 }
 
-void AppendUdfDescriptors(
+std::vector<TYPath> GetUniqueDirectories(const std::vector<TExternalFunction>& functions)
+{
+    auto allDirectories = THashSet<TYPath>();
+
+    for (const auto& function : functions) {
+        allDirectories.insert(function.Path);
+    }
+
+    auto uniqueDirectories = std::vector<TYPath>();
+
+    for (const auto& item : allDirectories) {
+        uniqueDirectories.push_back(item);
+    }
+
+    return uniqueDirectories;
+}
+
+THashMap<TExternalFunction, i64> GetResultIndices(const std::vector<TExternalFunction>& functions)
+{
+    auto functionIndices = THashMap<TExternalFunction, i64>();
+
+    for (i64 index = 0; index < std::ssize(functions); ++index) {
+        InsertOrCrash(functionIndices, std::pair(functions[index], index));
+    }
+
+    return functionIndices;
+}
+
+std::pair<TObjectServiceProxy, std::vector<TErrorOr<TIntrusivePtr<TYPathProxy::TRspGet>>>> ListDirectory(
+    const NNative::IClientPtr& client,
+    std::vector<TYPath> uniqueDirectories)
+{
+    auto proxy = CreateObjectServiceReadProxy(client, EMasterChannelKind::Follower);
+
+    auto batchReq = proxy.ExecuteBatch();
+
+    for (const auto& directory : uniqueDirectories) {
+        auto listReq = TYPathProxy::List(directory);
+        ToProto(listReq->mutable_attributes()->mutable_keys(), std::vector<std::string>{
+            FunctionDescriptorAttribute,
+            AggregateDescriptorAttribute,
+            IsWebAssemblySdkAttribute,
+        });
+
+        batchReq->AddRequest(listReq, "get_attributes");
+    }
+
+    auto batchRsp = WaitFor(batchReq->Invoke())
+        .ValueOrThrow();
+
+    auto getRspsOrError = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_attributes");
+
+    return {proxy, getRspsOrError};
+}
+
+void UnpackFunctionDescriptors(
+    const std::string& filename,
+    const TYPath& directoryPath,
+    const IAttributeDictionary& attributes,
+    THashMap<TExternalFunction, TYPath>* functionToCypressPath,
+    THashSet<TYPath>* neededBasicAttributes,
+    std::vector<TExternalFunctionSpec>* result,
+    const THashMap<TExternalFunction, i64>& resultIndices,
+    const std::string& descriptorAttribute)
+{
+    auto functionDescriptors = attributes.Get<INodePtr>(descriptorAttribute)->AsList()->GetChildren();
+
+    for (auto& item : functionDescriptors) {
+        auto functionDescriptor = item->AsMap();
+
+        auto nameNode = functionDescriptor->FindChild("name");
+        THROW_ERROR_EXCEPTION_IF(
+            !nameNode,
+            "Name expected, but found nothing in %v",
+            ConvertToYsonString(functionDescriptor, NYson::EYsonFormat::Text).AsStringBuf());
+
+        auto name = nameNode->AsString();
+        THROW_ERROR_EXCEPTION_IF(
+            !name,
+            "String name expected, but found %v",
+            ConvertToYsonString(nameNode, NYson::EYsonFormat::Text).AsStringBuf());
+
+        auto function = TExternalFunction(
+            EExecutionBackend::WebAssembly,
+            directoryPath,
+            /*IsSdk*/ false,
+            name->GetValue());
+
+        THROW_ERROR_EXCEPTION_IF(
+            functionToCypressPath->contains(function),
+            "Function %Qv in %v has more than one definition",
+            function.Name,
+            function.Path);
+
+        (*functionToCypressPath)[function] = YPathJoin(function.Path, filename);
+
+        if (auto it = resultIndices.find(function); it != resultIndices.end()) {
+            YT_LOG_DEBUG("Found UDF implementation in Cypress (NameAndPath: %v, Descriptor: %v)",
+                function,
+                ConvertToYsonString(functionDescriptor, NYson::EYsonFormat::Text).AsStringBuf());
+
+            auto buffer = GetEphemeralNodeFactory()->CreateString();
+            buffer->MutableAttributes()->Set(descriptorAttribute, functionDescriptor);
+            buffer->SetValue(name->GetValue());
+            (*result)[it->second].Descriptor = buffer;
+
+            neededBasicAttributes->insert(YPathJoin(function.Path, filename));
+        }
+    }
+}
+
+void UnpackSdkDescriptors(
+    const std::string& cypressFilename,
+    const TYPath& cypressDirectoryPath,
+    const IAttributeDictionary& attributes,
+    THashMap<TExternalFunction, TYPath>* functionToCypressPath,
+    THashSet<TYPath>* neededBasicAttributes,
+    std::vector<TExternalFunctionSpec>* result,
+    const THashMap<TExternalFunction, i64>& resultIndices)
+{
+    auto isWebAssemblySdkDescriptor = attributes.Get<INodePtr>(IsWebAssemblySdkAttribute);
+
+    auto function = TExternalFunction(
+        EExecutionBackend::WebAssembly,
+        cypressDirectoryPath,
+        /*IsSdk*/ true,
+        /*Name*/ "");
+
+    THROW_ERROR_EXCEPTION_IF(
+        functionToCypressPath->contains(function),
+        "Sdk in %v has more than one definition",
+        function.Path);
+
+    (*functionToCypressPath)[function] = YPathJoin(function.Path, cypressFilename);
+
+    if (auto it = resultIndices.find(function); it != resultIndices.end()) {
+        (*result)[it->second].Descriptor = isWebAssemblySdkDescriptor;
+        neededBasicAttributes->insert(YPathJoin(function.Path, cypressFilename));
+    }
+}
+
+THashMap<TYPath, std::pair<NObjectClient::TObjectId, TCellTag>> FetchBasicAttributes(
+    const NNative::IClientPtr& client,
+    const THashSet<TYPath>& neededBasicAttributes)
+{
+    auto paths = std::vector<TYPath>();
+    for (auto& item : neededBasicAttributes) {
+        paths.push_back(item);
+    }
+
+    auto proxy = CreateObjectServiceReadProxy(client, EMasterChannelKind::Follower);
+
+    auto batchReq = proxy.ExecuteBatch();
+
+    for (const auto& path : paths) {
+        auto basicAttributesReq = TObjectYPathProxy::GetBasicAttributes(path);
+        batchReq->AddRequest(basicAttributesReq, "get_basic_attributes");
+    }
+
+    auto batchRsp = WaitFor(batchReq->Invoke())
+        .ValueOrThrow();
+
+    auto getRspsOrError = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_attributes");
+
+    auto basicAttributesRspsOrError = batchRsp->GetResponses<TObjectYPathProxy::TRspGetBasicAttributes>("get_basic_attributes");
+
+    auto basicAttributes = THashMap<TYPath, std::pair<NObjectClient::TObjectId, TCellTag>>();
+
+    for (i64 index = 0; index < std::ssize(paths); ++index) {
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            basicAttributesRspsOrError[index],
+            "Failed to fetch basic attributes of at %v in Cypress",
+            paths[index]);
+
+        auto basicAttrsRsp = basicAttributesRspsOrError[index]
+            .ValueOrThrow();
+
+        auto objectId = NYT::FromProto<NObjectClient::TObjectId>(basicAttrsRsp->object_id());
+        auto cellTag = FromProto<TCellTag>(basicAttrsRsp->external_cell_tag());
+
+        basicAttributes[paths[index]] = {objectId, cellTag};
+    }
+
+    return basicAttributes;
+}
+
+using TExternalCellTagInfo = THashMap<NObjectClient::TCellTag, THashMap<NObjectClient::TObjectId, std::vector<TExternalFunction>>>;
+
+TExternalCellTagInfo GroupByExternalCellTag(
+    const THashMap<TExternalFunction, TYPath>& functionToCypressPath,
+    const THashMap<TExternalFunction, i64>& resultIndices,
+    const THashMap<TYPath, std::pair<NObjectClient::TObjectId, TCellTag>>& basicAttributes)
+{
+    auto externalCellInfo = TExternalCellTagInfo();
+
+    for (auto& [nameAndPath, _] : resultIndices) {
+        auto it = functionToCypressPath.find(nameAndPath);
+
+        if (it == functionToCypressPath.end()) {
+            if (nameAndPath.IsSdk) {
+                THROW_ERROR_EXCEPTION("Could not find SDK implementation in %v", nameAndPath.Path);
+            } else {
+                THROW_ERROR_EXCEPTION("Could not find UDF %Qv implementation in %v", nameAndPath.Name, nameAndPath.Path);
+            }
+        }
+
+        auto& filepath = it->second;
+
+        auto basicAttributeIt = basicAttributes.find(filepath);
+
+        THROW_ERROR_EXCEPTION_IF(
+            basicAttributeIt == basicAttributes.end(),
+            "Could not find basic attribute for UDF (Name: %v, CypressPath: %v)",
+            nameAndPath,
+            filepath);
+
+        auto& [objectId, cellTag] = basicAttributeIt->second;
+
+        externalCellInfo[cellTag][objectId].push_back(nameAndPath);
+    }
+
+    return externalCellInfo;
+}
+
+void FetchChunks(
+    const std::vector<TExternalFunction>& functions,
+    const NNative::IClientPtr& client,
+    const NObjectClient::TCellTag& externalCellTag,
+    const THashMap<NObjectClient::TObjectId, std::vector<TExternalFunction>>& infos,
+    std::vector<TExternalFunctionSpec>* result,
+    const THashMap<TExternalFunction, i64>& resultIndices)
+{
+    auto proxy = CreateObjectServiceReadProxy(
+        client,
+        EMasterChannelKind::Follower,
+        externalCellTag);
+
+    auto objectIds = std::vector<NObjectClient::TObjectId>();
+    auto groupedFunctions = std::vector<std::vector<TExternalFunction>>();
+    auto fetchBatchReq = proxy.ExecuteBatchWithRetries(client->GetNativeConnection()->GetConfig()->ChunkFetchRetries);
+
+    for (auto& [objectId, namesAndPathList] : infos) {
+        objectIds.push_back(objectId);
+        groupedFunctions.push_back(namesAndPathList);
+
+        auto fetchReq = TFileYPathProxy::Fetch(FromObjectId(objectId));
+        AddCellTagToSyncWith(fetchReq, objectId);
+        fetchReq->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+        ToProto(fetchReq->mutable_ranges(), std::vector<TLegacyReadRange>({TLegacyReadRange()}));
+        fetchBatchReq->AddRequest(fetchReq);
+    }
+
+    auto fetchBatchRsp = WaitFor(fetchBatchReq->Invoke())
+        .ValueOrThrow();
+
+    for (i64 rspIndex = 0; rspIndex < std::ssize(objectIds); ++rspIndex) {
+        for (auto& function : groupedFunctions[rspIndex]) {
+            auto it = resultIndices.find(function);
+            THROW_ERROR_EXCEPTION_IF(
+                it == resultIndices.end(),
+                "Could not find UDF (NameAndPath: %v)",
+                function);
+            i64 resultIndex = it->second;
+
+            auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
+
+            auto fetchRsp = fetchBatchRsp->GetResponse<TFileYPathProxy::TRspFetch>(rspIndex)
+                .ValueOrThrow();
+
+            NChunkClient::ProcessFetchResponse(
+                client,
+                fetchRsp,
+                externalCellTag,
+                nodeDirectory,
+                /*maxChunksPerLocateRequest*/ 10000,
+                std::nullopt,
+                QueryClientLogger(),
+                &(*result)[resultIndex].Chunks);
+
+            if ((*result)[resultIndex].Chunks.empty()) {
+                THROW_ERROR_EXCEPTION("UDF file is empty, %v %v", functions[resultIndex], resultIndex)
+                    << TErrorAttribute("udf", functions[resultIndex]);
+            }
+
+            nodeDirectory->DumpTo(&(*result)[resultIndex].NodeDirectory);
+        }
+    }
+}
+
+std::vector<TExternalFunctionSpec> LookupAllWebAssemblyUdfDescriptors(
+    const std::vector<TExternalFunction>& functions,
+    const NNative::IClientPtr& client)
+{
+    using NObjectClient::TObjectYPathProxy;
+    using NApi::EMasterChannelKind;
+    using NObjectClient::FromObjectId;
+    using NChunkClient::TLegacyReadRange;
+
+    if (functions.empty()) {
+        return {};
+    }
+
+    YT_LOG_DEBUG("Looking for WebAssembly UDFs in Cypress");
+
+    auto timer = NProfiling::TWallTimer();
+    auto finally = Finally([&] {
+        YT_LOG_DEBUG("Finished Looking for WebAssembly UDFs in Cypress (LookupUdfDescriptorsTime: %v)", timer.GetElapsedTime());
+    });
+
+    auto uniqueDirectories = GetUniqueDirectories(functions);
+    auto [proxy, getRspsOrError] = ListDirectory(client, uniqueDirectories);
+    auto resultIndices = GetResultIndices(functions);
+    auto function = THashMap<TExternalFunction, TYPath>();
+    auto result = std::vector<TExternalFunctionSpec>();
+    result.resize(std::ssize(functions));
+    auto neededBasicAttributes = THashSet<TYPath>();
+
+    for (i64 index = 0; index < std::ssize(uniqueDirectories); ++index) {
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            getRspsOrError[index],
+            "Failed to list directory %v in Cypress",
+            uniqueDirectories[index]);
+
+        auto getRsp = getRspsOrError[index]
+            .ValueOrThrow();
+
+        auto directoryListing = ConvertToNode(NYson::TYsonString(getRsp->value()));
+
+        auto directoryItems = directoryListing->AsList()->GetChildren();
+        for (auto& directoryItem : directoryItems) {
+            auto filename = directoryItem->AsString();
+
+            auto& attributes = directoryItem->Attributes();
+            if (attributes.Contains(FunctionDescriptorAttribute)) {
+                UnpackFunctionDescriptors(
+                    filename->GetValue(),
+                    uniqueDirectories[index],
+                    attributes,
+                    &function,
+                    &neededBasicAttributes,
+                    &result,
+                    resultIndices,
+                    FunctionDescriptorAttribute);
+            }
+
+            if (attributes.Contains(AggregateDescriptorAttribute)) {
+                UnpackFunctionDescriptors(
+                    filename->GetValue(),
+                    uniqueDirectories[index],
+                    attributes,
+                    &function,
+                    &neededBasicAttributes,
+                    &result,
+                    resultIndices,
+                    AggregateDescriptorAttribute);
+            }
+
+            if (attributes.Contains(IsWebAssemblySdkAttribute)) {
+                UnpackSdkDescriptors(
+                    filename->GetValue(),
+                    uniqueDirectories[index],
+                    attributes,
+                    &function,
+                    &neededBasicAttributes,
+                    &result,
+                    resultIndices);
+            }
+        }
+    }
+
+    auto basicAttributes = FetchBasicAttributes(client, neededBasicAttributes);
+    auto externalCellTagInfo = GroupByExternalCellTag(function, resultIndices, basicAttributes);
+
+    for (const auto& [externalCellTag, infos] : externalCellTagInfo) {
+        FetchChunks(functions, client, externalCellTag, infos, &result, resultIndices);
+    }
+
+    return result;
+}
+
+} // namespace
+
+std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
+    const std::vector<TExternalFunction>& functions,
+    const NNative::IClientPtr& client)
+{
+    std::vector<TExternalFunction> nativeFunctions;
+    std::vector<TExternalFunction> webAssemblyFunctions;
+
+    for (auto& function : functions) {
+        switch (function.ExecutionBackend) {
+            case EExecutionBackend::Native:
+                nativeFunctions.push_back(function);
+                break;
+
+            case EExecutionBackend::WebAssembly:
+                webAssemblyFunctions.push_back(function);
+                break;
+
+            default:
+                THROW_ERROR_EXCEPTION("Unknown execution backend: %Qv", function.ExecutionBackend);
+        }
+    }
+
+    auto nativeDescriptors = LookupAllNativeUdfDescriptors(nativeFunctions, client);
+    auto webAssemblyDescriptors = LookupAllWebAssemblyUdfDescriptors(webAssemblyFunctions, client);
+
+    auto result = std::vector<TExternalFunctionSpec>();
+
+    i64 nativeDescriptorsIndex = 0;
+    i64 webAssemblyDescriptorsIndex = 0;
+
+    for (auto& functionName : functions) {
+        switch (functionName.ExecutionBackend) {
+            case EExecutionBackend::Native:
+                result.push_back(std::move(nativeDescriptors[nativeDescriptorsIndex++]));
+                break;
+
+            case EExecutionBackend::WebAssembly:
+                result.push_back(std::move(webAssemblyDescriptors[webAssemblyDescriptorsIndex++]));
+                break;
+
+            default:
+                THROW_ERROR_EXCEPTION("Unknown execution backend: %Qv", functionName.ExecutionBackend);
+        }
+    }
+
+    return result;
+}
+
+void AppendNativeUdfDescriptors(
     const TTypeInferrerMapPtr& typeInferrers,
     const TExternalCGInfoPtr& cgInfo,
     const std::vector<std::string>& functionNames,
@@ -289,6 +756,11 @@ void AppendUdfDescriptors(
     YT_VERIFY(functionNames.size() == externalFunctionSpecs.size());
 
     YT_LOG_DEBUG("Appending UDF descriptors (Count: %v)", externalFunctionSpecs.size());
+
+    auto timer = NProfiling::TWallTimer();
+    auto finally = Finally([&] {
+        YT_LOG_DEBUG("Finished appending UDF descriptors (AppendUdfDescriptorsTime: %v)", timer.GetElapsedTime());
+    });
 
     for (size_t index = 0; index < externalFunctionSpecs.size(); ++index) {
         const auto& item = externalFunctionSpecs[index];
@@ -373,6 +845,147 @@ void AppendUdfDescriptors(
     }
 }
 
+void AppendWebAssemblyUdfDescriptors(
+    const TTypeInferrerMapPtr& typeInferrers,
+    const TExternalCGInfoPtr& cgInfo,
+    const std::vector<std::string>& functionNames,
+    const std::vector<TExternalFunctionSpec>& externalFunctionSpecs)
+{
+    YT_LOG_DEBUG("Appending WebAssembly UDF descriptors (Functions: %v, Files: %v)",
+        functionNames.size(),
+        externalFunctionSpecs.size());
+
+    auto timer = NProfiling::TWallTimer();
+    auto finally = Finally([&] {
+        YT_LOG_DEBUG("Finished appending WebAssembly UDF descriptors (AppendUdfDescriptorsTime: %v)", timer.GetElapsedTime());
+    });
+
+    if (std::ssize(functionNames) + 1 != std::ssize(externalFunctionSpecs)) {
+        YT_LOG_ALERT("Could not load WebAssembly UDFs (Functions: %v, Files: %v)",
+            functionNames.size(),
+            externalFunctionSpecs.size());
+        THROW_ERROR_EXCEPTION("Could not load WebAssembly UDFs");
+    }
+
+    for (i64 functionIndex = 0; functionIndex < std::ssize(functionNames); ++functionIndex) {
+        auto& externalFunctionSpec = externalFunctionSpecs[functionIndex];
+        auto& functionName = functionNames[functionIndex];
+
+        if (!externalFunctionSpec.Descriptor) {
+            YT_LOG_ALERT("Could not load WebAssembly UDFs descriptor (FunctionName: %v)", functionName);
+            continue;
+        }
+
+        YT_LOG_DEBUG("Appending UDF descriptor (Name: %v Descriptor: %v)",
+            functionName,
+            ConvertToYsonString(externalFunctionSpec.Descriptor, NYson::EYsonFormat::Text).AsStringBuf());
+
+        cgInfo->NodeDirectory->MergeFrom(externalFunctionSpec.NodeDirectory);
+
+        const auto& attributes = externalFunctionSpec.Descriptor->Attributes();
+        auto functionDescriptor = attributes.Find<TCypressFunctionDescriptorPtr>(
+            FunctionDescriptorAttribute);
+
+        YT_LOG_DEBUG_IF(functionDescriptor, "Appending UDF descriptor (FunctionName: %v, Descriptor: %v)",
+            functionName,
+            ConvertToYsonString(functionDescriptor, NYson::EYsonFormat::Text).AsStringBuf());
+
+        auto aggregateDescriptor = attributes.Find<TCypressAggregateDescriptorPtr>(
+            AggregateDescriptorAttribute);
+
+        YT_LOG_DEBUG_IF(aggregateDescriptor, "Appending aggregate UDF descriptor (FunctionName: %v, Descriptor: %v)",
+            functionName,
+            ConvertToYsonString(aggregateDescriptor, NYson::EYsonFormat::Text).AsStringBuf());
+
+        const auto& chunks = externalFunctionSpec.Chunks;
+
+        TExternalFunctionImpl functionBody;
+        functionBody.Name = functionName;
+        functionBody.ChunkSpecs = chunks;
+
+        YT_LOG_DEBUG("Appending UDF descriptor (Chunks: %v)",
+            MakeFormattableView(chunks, [] (TStringBuilderBase* builder, const NChunkClient::NProto::TChunkSpec& chunkSpec) {
+                builder->AppendFormat("%v", FromProto<TGuid>(chunkSpec.chunk_id()));
+            }));
+
+        if (functionDescriptor) {
+            YT_ASSERT(functionDescriptor->Name == functionName);
+
+            YT_LOG_DEBUG("Appending function UDF descriptor (Name: %v)", functionName);
+
+            functionBody.IsAggregate = false;
+            functionBody.SymbolName = functionDescriptor->Name;
+            functionBody.CallingConvention = functionDescriptor->CallingConvention;
+            functionBody.RepeatedArgType = functionDescriptor->RepeatedArgumentType
+                ? functionDescriptor->RepeatedArgumentType->Type
+                : EValueType::Null,
+            functionBody.RepeatedArgIndex = std::ssize(functionDescriptor->GetArgumentsTypes());
+            functionBody.UseFunctionContext = functionDescriptor->UseFunctionContext;
+
+            auto typer = functionDescriptor->RepeatedArgumentType
+                ? CreateFunctionTypeInferrer(
+                    functionDescriptor->ResultType.Type,
+                    functionDescriptor->GetArgumentsTypes(),
+                    /*typeParameterConstraints*/ {},
+                    functionDescriptor->RepeatedArgumentType->Type)
+                : CreateFunctionTypeInferrer(
+                    functionDescriptor->ResultType.Type,
+                    functionDescriptor->GetArgumentsTypes());
+
+            typeInferrers->emplace(functionName, typer);
+            cgInfo->Functions.push_back(std::move(functionBody));
+        } else if (aggregateDescriptor) {
+            YT_ASSERT(functionDescriptor->Name == functionName);
+
+            YT_LOG_DEBUG("Appending aggregate UDF descriptor (Name: %v)", functionName);
+
+            functionBody.IsAggregate = true;
+            functionBody.SymbolName = aggregateDescriptor->Name;
+            functionBody.CallingConvention = aggregateDescriptor->CallingConvention;
+            functionBody.RepeatedArgType = EValueType::Null;
+            functionBody.RepeatedArgIndex = -1;
+
+            auto typer = CreateAggregateTypeInferrer(
+                aggregateDescriptor->ResultType.Type,
+                aggregateDescriptor->ArgumentType.Type,
+                aggregateDescriptor->StateType.Type);
+
+            typeInferrers->emplace(functionName, typer);
+            cgInfo->Functions.push_back(std::move(functionBody));
+        } else {
+            THROW_ERROR_EXCEPTION("function %Qv has no descriptors", functionName);
+        }
+    }
+
+    auto sdk = externalFunctionSpecs.back();
+    cgInfo->Sdk.ChunkSpecs = sdk.Chunks;
+    YT_LOG_DEBUG("Appending SDK descriptor (Chunks: %v)",
+        MakeFormattableView(cgInfo->Sdk.ChunkSpecs, [] (TStringBuilderBase* builder, const NChunkClient::NProto::TChunkSpec& chunkSpec) {
+            builder->AppendFormat("%v", FromProto<TGuid>(chunkSpec.chunk_id()));
+        }));
+}
+
+void AppendUdfDescriptors(
+    const TTypeInferrerMapPtr& typeInferrers,
+    const TExternalCGInfoPtr& cgInfo,
+    const std::vector<std::string>& functionNames,
+    const std::vector<TExternalFunctionSpec>& externalFunctionSpecs,
+    EExecutionBackend executionBackend)
+{
+    switch (executionBackend) {
+        case EExecutionBackend::Native:
+            AppendNativeUdfDescriptors(typeInferrers, cgInfo, functionNames, externalFunctionSpecs);
+            break;
+
+        case EExecutionBackend::WebAssembly:
+            AppendWebAssemblyUdfDescriptors(typeInferrers, cgInfo, functionNames, externalFunctionSpecs);
+            break;
+
+        default:
+            THROW_ERROR_EXCEPTION("Unknown execution backend: %Qv", executionBackend);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_REFCOUNTED_TYPE(IFunctionRegistry)
@@ -380,7 +993,7 @@ DEFINE_REFCOUNTED_TYPE(IFunctionRegistry)
 namespace {
 
 class TCypressFunctionRegistry
-    : public TAsyncExpiringCache<std::pair<TYPath, std::string>, TExternalFunctionSpec>
+    : public TAsyncExpiringCache<TExternalFunction, TExternalFunctionSpec>
     , public IFunctionRegistry
 {
 public:
@@ -398,12 +1011,19 @@ public:
 
     TFuture<std::vector<TExternalFunctionSpec>> FetchFunctions(
         const TYPath& udfRegistryPath,
-        const std::vector<std::string>& names) override
+        const std::vector<std::string>& names,
+        NCodegen::EExecutionBackend executionBackend) override
     {
-        std::vector<std::pair<TYPath, std::string>> keys;
+        auto keys = std::vector<TExternalFunction>();
+
         for (const auto& name : names) {
-            keys.emplace_back(udfRegistryPath, name);
+            keys.emplace_back(executionBackend, udfRegistryPath, /*IsSdk*/ false, name);
         }
+
+        if (executionBackend == EExecutionBackend::WebAssembly) {
+            keys.emplace_back(executionBackend, udfRegistryPath, /*IsSdk*/ true, /*Name*/ "");
+        }
+
         return GetMany(keys)
             .Apply(BIND([names] (std::vector<TErrorOr<TExternalFunctionSpec>> specs) {
                 int index = 0;
@@ -428,7 +1048,7 @@ private:
     const IInvokerPtr Invoker_;
 
     TFuture<TExternalFunctionSpec> DoGet(
-        const std::pair<TYPath, std::string>& key,
+        const TExternalFunction& key,
         bool isPeriodicUpdate) noexcept override
     {
         return DoGetMany({key}, isPeriodicUpdate)
@@ -439,7 +1059,7 @@ private:
     }
 
     TFuture<std::vector<TErrorOr<TExternalFunctionSpec>>> DoGetMany(
-        const std::vector<std::pair<TYPath, std::string>>& keys,
+        const std::vector<TExternalFunction>& keys,
         bool /*isPeriodicUpdate*/) noexcept override
     {
         if (auto client = Client_.Lock()) {
@@ -483,7 +1103,7 @@ struct TFunctionImplKey
     operator size_t() const;
 
     // Comparer.
-    bool operator == (const TFunctionImplKey& other) const;
+    bool operator==(const TFunctionImplKey& other) const;
 };
 
 TFunctionImplKey::operator size_t() const
@@ -498,7 +1118,7 @@ TFunctionImplKey::operator size_t() const
     return result;
 }
 
-bool TFunctionImplKey::operator == (const TFunctionImplKey& other) const
+bool TFunctionImplKey::operator==(const TFunctionImplKey& other) const
 {
     if (ChunkSpecs.size() != other.ChunkSpecs.size())
         return false;
@@ -695,7 +1315,9 @@ void FetchFunctionImplementationsFromCypress(
     const TAggregateProfilerMapPtr& aggregateProfilers,
     const TConstExternalCGInfoPtr& externalCGInfo,
     const TFunctionImplCachePtr& cache,
-    const TClientChunkReadOptions& chunkReadOptions)
+    const TClientChunkReadOptions& chunkReadOptions,
+    NWebAssembly::TModuleBytecode* sdk,
+    NCodegen::EExecutionBackend executionBackend)
 {
     std::vector<TFuture<TFunctionImplCacheEntryPtr>> asyncResults;
 
@@ -709,6 +1331,23 @@ void FetchFunctionImplementationsFromCypress(
         TFunctionImplKey key;
         key.ChunkSpecs = function.ChunkSpecs;
 
+        YT_LOG_DEBUG("Fetching UDF implementation (Name: %v, ChunkSpecs: %v)",
+            name,
+            key.ChunkSpecs);
+
+        asyncResults.push_back(cache->FetchImplementation(key, externalCGInfo->NodeDirectory, chunkReadOptions));
+    }
+
+    if (executionBackend == EExecutionBackend::WebAssembly) {
+        YT_LOG_DEBUG("Fetching SDK implementation (ReadSessionId: %v)",
+            chunkReadOptions.ReadSessionId);
+
+        TFunctionImplKey key;
+        key.ChunkSpecs = externalCGInfo->Sdk.ChunkSpecs;
+
+        YT_LOG_DEBUG("Fetching SDK implementation (ChunkSpecs: %v)",
+            key.ChunkSpecs);
+
         asyncResults.push_back(cache->FetchImplementation(key, externalCGInfo->NodeDirectory, chunkReadOptions));
     }
 
@@ -719,13 +1358,17 @@ void FetchFunctionImplementationsFromCypress(
         const auto& function = externalCGInfo->Functions[index];
 
         auto implementationFiles = TEnumIndexedArray<EExecutionBackend, TSharedRef>();
-        implementationFiles[EExecutionBackend::Native] = results[index]->File;
+        implementationFiles[executionBackend] = results[index]->File;
 
         AppendFunctionImplementation(
             functionProfilers,
             aggregateProfilers,
             function,
             implementationFiles);
+    }
+
+    if (executionBackend == EExecutionBackend::WebAssembly) {
+        sdk->Data = results.back()->File;
     }
 }
 
@@ -740,7 +1383,7 @@ void FetchFunctionImplementationsFromFiles(
 
         YT_LOG_DEBUG("Fetching UDF implementation (Name: %v)", name);
 
-        auto path = TString(rootPath) + "/" + function.Name;
+        auto path = TYPath(rootPath) + "/" + function.Name;
         auto file = TUnbufferedFileInput(path);
 
         auto implementationFiles = TEnumIndexedArray<EExecutionBackend, TSharedRef>();
@@ -843,6 +1486,16 @@ void FromProto(TExternalFunctionImpl* original, const NProto::TExternalFunctionI
     original->RepeatedArgType = ConvertTo<TDescriptorType>(NYson::TYsonString(serialized.repeated_arg_type())).Type;
     original->RepeatedArgIndex = serialized.repeated_arg_index();
     original->UseFunctionContext = serialized.use_function_context();
+}
+
+void ToProto(NProto::TExternalSdkImpl* proto, const TExternalSdkImpl& object)
+{
+    ToProto(proto->mutable_chunk_specs(), object.ChunkSpecs);
+}
+
+void FromProto(TExternalSdkImpl* original, const NProto::TExternalSdkImpl& serialized)
+{
+    original->ChunkSpecs = FromProto<std::vector<NChunkClient::NProto::TChunkSpec>>(serialized.chunk_specs());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

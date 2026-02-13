@@ -108,7 +108,7 @@ void CollocateInMemoryBlocks(std::vector<NChunkClient::TBlock>& blocks, const IN
         totalSize);
 
     auto buffer = TSharedMutableRef::Allocate<TPreloadedBlockTag>(totalSize, {.InitializeStorage = false});
-    auto trackedBuffer = TrackMemory(memoryUsageTracker, EMemoryCategory::TabletStatic, buffer);
+    auto trackedBuffer = TrackMemory(memoryUsageTracker, EMemoryCategory::TabletStatic, MarkUndumpable(buffer));
 
     i64 offset = 0;
 
@@ -116,7 +116,7 @@ void CollocateInMemoryBlocks(std::vector<NChunkClient::TBlock>& blocks, const IN
         // Slice the untracked and mutable buffer to avoid const_cast.
         auto slice = TMutableRef(buffer).Slice(offset, offset + block.Data.Size());
         ::memcpy(slice.Begin(), block.Data.Begin(), block.Data.Size());
-        block.Data = MarkUndumpable(trackedBuffer.Slice(offset, offset + block.Data.Size()));
+        block.Data = trackedBuffer.Slice(offset, offset + block.Data.Size());
         offset += block.Data.Size();
     }
 }
@@ -263,7 +263,7 @@ public:
         guard.Release();
 
         if (chunkData) {
-            YT_LOG_INFO("Intercepted chunk data retrieved (ChunkId: %v, Mode: %v)",
+            YT_LOG_DEBUG("Intercepted chunk data retrieved (ChunkId: %v, Mode: %v)",
                 chunkId,
                 chunkData->InMemoryMode);
         }
@@ -937,7 +937,7 @@ private:
 
     std::vector<TNodePtr> Nodes_;
 
-    TFuture<void> ReadyEvent_ = VoidFuture;
+    TFuture<void> ReadyEvent_ = OKFuture;
     std::atomic<bool> Sending_ = false;
     std::atomic<bool> Dropped_ = false;
 
@@ -1117,7 +1117,7 @@ public:
 
     TFuture<void> Finish(const std::vector<TChunkInfo>& /*chunkInfos*/) override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 };
 

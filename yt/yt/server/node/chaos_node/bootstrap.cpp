@@ -117,7 +117,7 @@ private:
                 TDynamicConfigManagerOptions{
                     .ConfigPath = "//sys/@config/tablet_manager/replicated_table_tracker",
                     .Name = "ReplicatedTableTracker",
-                    .ConfigIsTagged = false
+                    .ConfigIsTagged = false,
                 },
                 std::move(config),
                 bootstrap->GetClient(),

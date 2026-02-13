@@ -1,5 +1,5 @@
 # util/langhelpers.py
-# Copyright (C) 2005-2025 the SQLAlchemy authors and contributors
+# Copyright (C) 2005-2026 the SQLAlchemy authors and contributors
 # <see AUTHORS file>
 #
 # This module is part of SQLAlchemy and is released under
@@ -64,7 +64,7 @@ if compat.py314:
     # vendor a minimal form of get_annotations per
     # https://github.com/python/cpython/issues/133684#issuecomment-2863841891
 
-    from annotationlib import call_annotate_function  # type: ignore
+    from annotationlib import call_annotate_function  # type: ignore[import-not-found,unused-ignore]  # noqa: E501
     from annotationlib import Format
 
     def _get_and_call_annotate(obj, format):  # noqa: A002
@@ -77,7 +77,7 @@ if compat.py314:
         return None
 
     # this is ported from py3.13.0a7
-    _BASE_GET_ANNOTATIONS = type.__dict__["__annotations__"].__get__  # type: ignore  # noqa: E501
+    _BASE_GET_ANNOTATIONS = type.__dict__["__annotations__"].__get__
 
     def _get_dunder_annotations(obj):
         if isinstance(obj, type):

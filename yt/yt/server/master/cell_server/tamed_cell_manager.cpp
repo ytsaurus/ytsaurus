@@ -5,12 +5,9 @@
 #include "bundle_node_tracker.h"
 #include "cell_base.h"
 #include "cell_bundle.h"
-#include "cell_bundle_type_handler.h"
 #include "cell_hydra_persistence_synchronizer.h"
 #include "cell_tracker.h"
-#include "cell_type_handler_base.h"
 #include "cellar_node_tracker.h"
-#include "config.h"
 #include "private.h"
 #include "tamed_cell_manager.h"
 
@@ -39,6 +36,7 @@
 #include <yt/yt/server/master/node_tracker_server/node.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 
+#include <yt/yt/server/master/object_server/helpers.h>
 #include <yt/yt/server/master/object_server/object_manager.h>
 
 #include <yt/yt/server/master/security_server/security_manager.h>
@@ -1036,7 +1034,7 @@ public:
 
     TCellBundle* FindCellBundleByName(const std::string& name, ECellarType cellarType, bool activeLifeStageOnly) override
     {
-        auto* cellBundle = DoFindCellBundleByName(name, cellarType);
+        auto* cellBundle = DoFindCellBundleByName(name, cellarType, /*throwOnInvalidId*/ false);
         if (!cellBundle) {
             return cellBundle;
         }
@@ -1050,7 +1048,7 @@ public:
 
     TCellBundle* GetCellBundleByNameOrThrow(const std::string& name, ECellarType cellarType, bool activeLifeStageOnly) override
     {
-        auto* cellBundle = DoFindCellBundleByName(name, cellarType);
+        auto* cellBundle = DoFindCellBundleByName(name, cellarType, /*throwOnInvalidId*/ true);
         if (!cellBundle) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::ResolveError,
@@ -1301,7 +1299,14 @@ private:
                 continue;
             }
 
-            EmplaceOrCrash(NameToCellBundleMap_[bundle->GetCellarType()], bundle->GetName(), bundle);
+            const auto& name = bundle->GetName();
+            if (auto error = CheckObjectName(name); !error.IsOK()) {
+                YT_LOG_ALERT(error, "Tablet cell bundle with invalid name encountered (Id: %v, Name: %v)",
+                    bundle->GetId(),
+                    name);
+            }
+
+            EmplaceOrCrash(NameToCellBundleMap_[bundle->GetCellarType()], name, bundle);
             InsertOrCrash(CellBundlesPerTypeMap_[bundle->GetCellarType()], bundle);
         }
 
@@ -2699,10 +2704,37 @@ private:
         }
     }
 
-    TCellBundle* DoFindCellBundleByName(const std::string& name, ECellarType cellarType)
+    TCellBundle* DoFindCellBundleByName(const std::string& name, ECellarType cellarType, bool throwOnInvalidId)
     {
-        auto it = NameToCellBundleMap_[cellarType].find(name);
-        return it == NameToCellBundleMap_[cellarType].end() ? nullptr : it->second;
+        return Visit(ParseObjectNameOrId(name),
+            [&] (TStringBuf bundleName) -> TCellBundle* {
+                return GetOrDefault(NameToCellBundleMap_[cellarType], bundleName, nullptr);
+            },
+            [&] (TObjectId bundleId) -> TCellBundle* {
+                EObjectType expectedType;
+                switch (cellarType) {
+                    case ECellarType::Tablet:
+                        expectedType = EObjectType::TabletCellBundle;
+                        break;
+                    case ECellarType::Chaos:
+                        expectedType = EObjectType::ChaosCellBundle;
+                        break;
+                }
+                if (TypeFromId(bundleId) != expectedType) {
+                    if (throwOnInvalidId) {
+                        THROW_ERROR_EXCEPTION("Invalid %lv cell bundle id", cellarType)
+                            << TErrorAttribute("bundle_id", bundleId);
+                    }
+                    return nullptr;
+                }
+                return FindCellBundle(bundleId);
+            },
+            [&] (TError error) -> TCellBundle* {
+                if (throwOnInvalidId) {
+                    THROW_ERROR error;
+                }
+                return nullptr;
+            });
     }
 
     static void ValidateCellBundleName(const std::string& name)
@@ -2710,6 +2742,9 @@ private:
         if (name.empty()) {
             THROW_ERROR_EXCEPTION("Cell bundle name cannot be empty");
         }
+
+        CheckObjectName(name)
+            .ThrowOnError();
     }
 
     static void ValidateAreaName(const std::string& name)

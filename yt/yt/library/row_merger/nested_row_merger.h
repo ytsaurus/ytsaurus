@@ -1,13 +1,21 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/yt/client/table_client/public.h>
 #include <yt/yt/client/tablet_client/public.h>
+
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NRowMerger {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 using TAggregateFunction = void(NTableClient::TUnversionedValue* state, const NTableClient::TUnversionedValue& value);
+
+TAggregateFunction* GetSimpleAggregateFunction(TStringBuf name, NTableClient::EValueType type);
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TNestedKeyColumn
 {
@@ -28,7 +36,7 @@ struct TNestedColumnsSchema
     std::vector<TNestedValueColumn> ValueColumns;
 };
 
-TNestedColumnsSchema GetNestedColumnsSchema(NTableClient::TTableSchemaPtr tableSchema);
+TNestedColumnsSchema GetNestedColumnsSchema(const NTableClient::TTableSchema& tableSchema);
 
 TNestedColumnsSchema FilterNestedColumnsSchema(const TNestedColumnsSchema& nestedSchema, TRange<int> columnIds);
 
@@ -37,36 +45,112 @@ const TNestedValueColumn* FindNestedColumnById(TRange<TNestedValueColumn> keyCol
 
 int UnpackNestedValuesList(std::vector<NTableClient::TUnversionedValue>* parsedValues, TStringBuf data, NTableClient::EValueType listItemType);
 
+////////////////////////////////////////////////////////////////////////////////
+
+struct TNestedRowDiscardPolicy
+    : public NYTree::TYsonStruct
+{
+    bool DiscardRowsWithZeroValues;
+    double FloatingPointTolerance;
+
+    REGISTER_YSON_STRUCT(TNestedRowDiscardPolicy);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TNestedRowDiscardPolicy)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSimpleOutputBuffer
+{
+public:
+    ui32 RemainingBytes() const;
+
+    char* Current() const;
+
+    void Advance(ui32 count);
+
+    void PushBack(char ch);
+
+    void Write(const void* data, ui32 length);
+
+    void Clear();
+
+    void Reserve(ui32 count);
+
+    TStringBuf GetBuffer() const;
+
+private:
+    std::unique_ptr<char[]> Data_;
+    char* CurrentPtr_ = nullptr;
+    ui32 Capacity_ = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TNestedTableMerger
 {
 public:
-    void UnpackKeyColumns(TRange<TMutableRange<NTableClient::TVersionedValue>> keyColumns, TRange<TNestedKeyColumn> keyColumnsSchema);
-    void UnpackKeyColumns(TRange<std::vector<NTableClient::TVersionedValue>> keyColumns, TRange<TNestedKeyColumn> keyColumnsSchema);
+    explicit TNestedTableMerger(bool orderNestedRows, bool useFastYsonRoutines = false);
 
-    NTableClient::TVersionedValue BuildMergedKeyColumns(int index, NTableClient::TRowBuffer* rowBuffer);
-    NTableClient::TVersionedValue BuildMergedValueColumn(
+    // Unpack key columns and build merge script.
+    // Method for schemaful and versioned row mergers.
+    void UnpackKeyColumns(
+        TRange<TRange<NTableClient::TVersionedValue>> keyColumns,
+        TRange<TNestedKeyColumn> keyColumnsSchema);
+    // Method for unversioned row merger.
+    void UnpackKeyColumns(
+        TRange<std::vector<NTableClient::TVersionedValue>> keyColumns,
+        TRange<TNestedKeyColumn> keyColumnsSchema);
+
+    // Unpack and merge.
+    void UnpackValueColumn(
         TRange<NTableClient::TVersionedValue> values,
         NTableClient::EValueType elementType,
-        TAggregateFunction* aggregateFunction,
-        NTableClient::TRowBuffer* rowBuffer);
+        TAggregateFunction* aggregateFunction);
+
+    void DiscardZeroes(const TNestedRowDiscardPolicyPtr& nestedRowDiscardPolicy);
+
+    NTableClient::TVersionedValue GetPackedKeyColumn(
+        int index,
+        NTableClient::EValueType type,
+        TChunkedMemoryPool* memoryPool);
+    NTableClient::TVersionedValue GetPackedValueColumn(
+        int index,
+        NTableClient::EValueType type,
+        TChunkedMemoryPool* memoryPool);
 
 private:
     std::vector<int> NestedRowCounts_;
     std::vector<int> RowIds_;
 
-    std::vector<int> Offsets_;
+    std::vector<int> EndOffsets_;
     std::vector<NTableClient::TTimestamp> Timestamps_;
-
     std::vector<std::vector<NTableClient::TUnversionedValue>> UnpackedKeys_;
 
     std::vector<int> RowIdHeap_;
+
+    // Used temporarily, keep here to reuse.
     std::vector<int> CurrentOffsets_;
 
-    std::vector<NTableClient::TUnversionedValue> UnpackedValues_;
-    std::vector<NTableClient::TUnversionedValue> ResultValues_;
+    // Temp buffer.
+    std::vector<NTableClient::TUnversionedValue> ValueBuffer_;
 
-    std::vector<int> OrderingTranslationLayer_;
+    std::vector<std::vector<NTableClient::TUnversionedValue>> ResultKeys_;
+    std::vector<std::vector<NTableClient::TUnversionedValue>> ResultValues_;
+    std::vector<char> Discarded_;
 
+    TSimpleOutputBuffer PackBuffer_;
+
+    const bool OrderNestedRows_;
+    const bool UseFastYsonRoutines_ = false;
+
+    NTableClient::TUnversionedValue PackValuesFast(
+        TRange<NTableClient::TUnversionedValue> values,
+        TRange<char> discard,
+        NTableClient::EValueType type,
+        TChunkedMemoryPool* memoryPool);
 
     void UnpackKeyColumn(
         ui16 keyColumnId,
@@ -80,20 +164,7 @@ private:
 
     void BuildMergeScript();
 
-    NTableClient::TUnversionedValue BuildMergedKeyColumns(
-        TRange<int> counts,
-        TRange<int> ids,
-        TRange<NTableClient::TUnversionedValue> unpackedKeys,
-        NTableClient::TRowBuffer* rowBuffer);
-
-    NTableClient::TVersionedValue BuildMergedValueColumn(
-        TRange<int> counts,
-        TRange<int> ids,
-        TRange<NTableClient::TTimestamp> timestamps,
-        TRange<NTableClient::TVersionedValue> values,
-        NTableClient::EValueType elementType,
-        TAggregateFunction* aggregateFunction,
-        NTableClient::TRowBuffer* rowBuffer);
+    void ApplyMergeScriptToKeys(int keyWidth);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -271,7 +271,7 @@ TError TControllerAgentConnectorPool::TControllerAgentConnector::DoSendHeartbeat
         requestTraceContext->SetRecorded();
         requestTraceContext->AddTag("node_id", nodeId);
 
-        static const TString ControllerAgentConnectorTracingUserName = "controller_agent_connector";
+        static const std::string ControllerAgentConnectorTracingUserName = "controller_agent_connector";
         ControllerAgentConnectorPool_->TracingSampler_->SampleTraceContext(ControllerAgentConnectorTracingUserName, requestTraceContext);
     }
 

@@ -202,6 +202,8 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
         {"time/prepare", "Time of job preparation before the job proxy is launched", "ms"},
         {"time/artifacts_download", "Job's artifact files downloading to the chunk cache duration", "ms"},
         {"time/prepare_root_fs", "Root Porto volume preparation duration", "ms"},
+        {"time/validate_root_fs", "Root FS validation duration", "ms"},
+        {"time/prepare_tmpfs", "Tmpfs porto volumes preparation duration", "ms"},
         {"time/gpu_check", "GPU liveness check duration", "ms"},
         {"time/exec", "Time from the start to the end of job_proxy process", "ms"},
         {"time/artifacts_caching", "Job's artifact files downloading to the chunk cache duration", "ms"},
@@ -338,6 +340,18 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
         {"user_job/gpu/cumulative_slowdown/sw_thermal", "Time during which the GPU experienced software thermal slowdown", "ms"},
         {"user_job/gpu/max_memory_used", "Maximum registered GPU memory usage", "bytes"},
         {"user_job/gpu/memory_total", "Total available GPU memory", "bytes"},
+
+        {"job/memory/major_page_faults", "Major page faults in the user process", "pieces"},
+        {"job/memory/rss", "RSS at the end of the job", "bytes"},
+        {"job/memory/mapped_file", "Memory mapped files size at the end of the job", "bytes"},
+
+        {"job/cpu/user", "User mode CPU time of the job", "ms"},
+        {"job/cpu/system", "Kernel mode CPU time of the job", "ms"},
+
+        {"job/block_io/bytes_written", "Bytes written by the job to the local block device", "bytes"},
+        {"job/block_io/bytes_read", "Bytes read by the job from the local block device", "bytes"},
+        {"job/block_io/io_read", "Number of reads from the local block device by the job", "pieces"},
+        {"job/block_io/io_write", "Number of writes to the local block device by the job", "pieces"},
 
         {"codec/cpu/decode/*", "Time spent on decompressing data", "ms"},
         {"codec/cpu/encode/*/*", "Time spent on compressing data", "ms"},

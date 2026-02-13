@@ -21,7 +21,7 @@ public:
             TDynamicConfigManagerOptions{
                 .ConfigPath = bootstrap->GetConfig()->DynamicConfigPath,
                 .Name = "HttpProxy",
-                .ConfigIsTagged = bootstrap->GetConfig()->UseTaggedDynamicConfig
+                .ConfigIsTagged = bootstrap->GetConfig()->UseTaggedDynamicConfig,
             },
             bootstrap->GetConfig()->DynamicConfigManager,
             bootstrap->GetRootClient(),

@@ -1,3 +1,7 @@
+-- This query filters data from a range of partitions using ytListTables
+-- and applies an additional filter on nomenclature_id.
+-- Useful when you need to scan multiple date partitions but still apply row-level filtering.
+
 SELECT
     o.date
    ,o.order_uuid

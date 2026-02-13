@@ -141,7 +141,7 @@ std::vector<std::pair<TTabletBase*, TTabletCell*>> ComputeTabletAssignment(
         TTabletCell* Cell;
 
         //! Compares by |(size, cellId)|.
-        bool operator < (const TCellKey& other) const
+        bool operator<(const TCellKey& other) const
         {
             if (Size < other.Size) {
                 return true;

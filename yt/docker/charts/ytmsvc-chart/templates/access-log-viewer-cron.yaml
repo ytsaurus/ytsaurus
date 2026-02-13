@@ -1,0 +1,185 @@
+{{- if and .Values.microservices.accessLogViewer.enabled .Values.microservices.accessLogViewer.preprocessing.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "ytmsvc.cronjob.fullname" (dict "root" . "suffix" "access-log-viewer-preprocessing") }}
+  labels:
+    {{- include "ytmsvc.commonLabels" . | nindent 4 }}
+    app.kubernetes.io/component: access-log-viewer-preprocessing
+spec:
+  schedule: {{ .Values.microservices.accessLogViewer.preprocessing.schedule | quote }}
+  successfulJobsHistoryLimit: {{ .Values.microservices.accessLogViewer.preprocessing.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.microservices.accessLogViewer.preprocessing.failedJobsHistoryLimit }}
+  startingDeadlineSeconds: {{ .Values.microservices.accessLogViewer.preprocessing.startingDeadlineSeconds }}
+  concurrencyPolicy: "Forbid"
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: {{ .Values.microservices.accessLogViewer.preprocessing.ttlSecondsAfterFinished }}
+      template:
+        metadata:
+          labels:
+            {{- include "ytmsvc.commonLabels" . | nindent 12 }}
+            app.kubernetes.io/component: access-log-viewer-preprocessing
+        spec:
+          {{- with (.Values.microservices.accessLogViewer.image.imagePullSecrets | default .Values.imagePullSecrets) }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          serviceAccountName: {{ include "ytmsvc.serviceAccountName" . }}
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
+          containers:
+          {{- range list "30min" "1d" }}
+            - name: {{ $.Chart.Name }}-{{ $.Values.cluster.name | replace "_" "-" }}-{{ . }}
+              securityContext:
+                {{- toYaml $.Values.securityContext | nindent 16 }}
+              image: {{ include "ytmsvc.image" (dict "image" $.Values.microservices.accessLogViewer.image "root" $) }}
+              imagePullPolicy: {{ $.Values.microservices.accessLogViewer.image.pullPolicy | default $.Values.image.pullPolicy }}
+              args:
+                - "./access-log-viewer-preprocessor"
+                - "bulk"
+                - "-c"
+                - {{ $.Values.cluster.name | quote }}
+                - "-i"
+                - {{ $.Values.microservices.accessLogViewer.preprocessing.config.inputPath | quote }}
+                - "-p"
+                - {{ . | quote }}
+                - "-o"
+                - {{ $.Values.microservices.accessLogViewer.preprocessing.config.outputPath | quote }}
+                - "-t"
+                - {{ $.Values.microservices.accessLogViewer.preprocessing.config.tmpPath | quote }}
+                - "-n"
+                - {{ $.Values.microservices.accessLogViewer.preprocessing.config.maxParallelOps | quote }}
+                - "--max-tables"
+                - {{ $.Values.microservices.accessLogViewer.preprocessing.config.maxTables | quote }}
+                - "--node-id-dict-path"
+                - {{ $.Values.microservices.idToPathUpdater.config.outputTable | quote }}
+                {{- if $.Values.microservices.accessLogViewer.preprocessing.config.pool }}
+                - "--pool"
+                - {{ $.Values.microservices.accessLogViewer.preprocessing.config.pool | quote }}
+                {{- end }}
+                {{- if $.Values.microservices.accessLogViewer.preprocessing.config.networkProject }}
+                - "--network-project"
+                - {{ $.Values.microservices.accessLogViewer.preprocessing.config.networkProject | quote }}
+                {{- end }}
+                - "--users-to-ignore"
+                - "table_mount_informer"
+              env:
+                - name: YT_PROXY
+                  value: {{ $.Values.cluster.name | quote }}
+                - name: YT_PROXY_URL_ALIASING_CONFIG
+                  value: "{\"{{ $.Values.cluster.name }}\"=\"{{ $.Values.cluster.proxy }}\";}"
+                - name: YT_CONFIG_PATCHES
+                  value: "{driver_address_resolver_config={enable_ipv4=%true}}"
+              envFrom:
+              {{- with $.Values.microservices.accessLogViewer.secretRefs | default $.Values.secretRefs }}
+                {{- range . }}
+                - secretRef:
+                    name: {{ . }}
+                {{- end }}
+              {{- end }}
+              resources:
+                {{- toYaml ($.Values.microservices.accessLogViewer.resources | default $.Values.resources) | nindent 16 }}
+              {{- with $.Values.volumeMounts }}
+              volumeMounts:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+          {{- end }}
+          {{- with .Values.volumes }}
+          volumes:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          restartPolicy: OnFailure
+{{- end }}
+
+---
+{{- if and .Values.microservices.accessLogViewer.enabled .Values.microservices.accessLogViewer.rawLogPreprocessing.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "ytmsvc.cronjob.fullname" (dict "root" . "suffix" "access-log-viewer-raw-log-preprocessing") }}
+  labels:
+    {{- include "ytmsvc.commonLabels" . | nindent 4 }}
+    app.kubernetes.io/component: access-log-viewer-raw-log-preprocessing
+spec:
+  schedule: {{ .Values.microservices.accessLogViewer.rawLogPreprocessing.schedule | quote }}
+  successfulJobsHistoryLimit: {{ .Values.microservices.accessLogViewer.rawLogPreprocessing.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.microservices.accessLogViewer.rawLogPreprocessing.failedJobsHistoryLimit }}
+  startingDeadlineSeconds: {{ .Values.microservices.accessLogViewer.rawLogPreprocessing.startingDeadlineSeconds }}
+  concurrencyPolicy: "Forbid"
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            {{- include "ytmsvc.commonLabels" . | nindent 12 }}
+            app.kubernetes.io/component: access-log-viewer-raw-log-preprocessing
+        spec:
+          {{- with (.Values.microservices.accessLogViewer.image.imagePullSecrets | default .Values.imagePullSecrets) }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          serviceAccountName: {{ include "ytmsvc.serviceAccountName" . }}
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
+          containers:
+            - name: {{ .Chart.Name }}-{{ .Values.cluster.name | replace "_" "-" }}
+              securityContext:
+                {{- toYaml .Values.securityContext | nindent 16 }}
+              image: {{ include "ytmsvc.image" (dict "image" .Values.microservices.accessLogViewer.image "root" .) }}
+              imagePullPolicy: {{ .Values.microservices.accessLogViewer.image.pullPolicy | default .Values.image.pullPolicy }}
+              args:
+                - "./raw_access_log_preprocessing"
+                - "-config"
+                - "/etc/ytmsvc/access-log-viewer/raw-log-preprocessing-config.yaml"
+              env:
+                - name: YT_PROXY_URL_ALIASING_CONFIG
+                  value: "{\"{{ .Values.cluster.name }}\"=\"{{ .Values.cluster.proxy }}\";}"
+              envFrom:
+              {{- with .Values.microservices.accessLogViewer.secretRefs | default .Values.secretRefs }}
+                {{- range . }}
+                - secretRef:
+                    name: {{ . }}
+                {{- end }}
+              {{- end }}
+              resources:
+                {{- toYaml (default .Values.resources .Values.microservices.accessLogViewer.resources) | nindent 16 }}
+              volumeMounts:
+                - name: config
+                  mountPath: /etc/ytmsvc/access-log-viewer
+                {{- if .Values.volumeMounts }}
+                {{- toYaml .Values.volumeMounts | nindent 16 }}
+                {{- end }}
+          volumes:
+            - name: config
+              configMap:
+                name: {{ include "ytmsvc.fullname" . }}-access-log-viewer-config
+            {{- if .Values.volumes }}
+            {{- toYaml .Values.volumes | nindent 12 }}
+            {{- end }}
+          {{- with .Values.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          restartPolicy: OnFailure
+{{- end }}

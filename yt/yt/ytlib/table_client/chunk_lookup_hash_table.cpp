@@ -269,8 +269,8 @@ TChunkLookupHashTablePtr CreateChunkLookupHashTable(
                     blockMeta,
                     GetCompositeColumnFlags(chunkMeta->ChunkSchema()),
                     GetHunkColumnFlags(chunkMeta->GetChunkFormat(), chunkMeta->GetChunkFeatures(), chunkMeta->ChunkSchema()),
-                    chunkMeta->HunkChunkMetas(),
-                    chunkMeta->HunkChunkRefs(),
+                    &chunkMeta->HunkChunkMetas(),
+                    &chunkMeta->HunkChunkRefs(),
                     TChunkColumnMapping(tableSchema, chunkMeta->ChunkSchema())
                         .BuildSchemalessHorizontalSchemaIdMapping(TColumnFilter()),
                     sortOrders,

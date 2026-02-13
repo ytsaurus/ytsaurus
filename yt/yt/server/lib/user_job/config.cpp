@@ -41,7 +41,7 @@ void TUserJobExecutorConfig::Register(TRegistrar registrar)
     registrar.Parameter("user_job_synchronizer_connection_config", &TThis::UserJobSynchronizerConnectionConfig)
         .Default();
 
-    registrar.Parameter("srdout_unused_action", &TThis::StdoutUnusedAction)
+    registrar.Parameter("stdout_unused_action", &TThis::StdoutUnusedAction)
         .Default(EStdoutUnusedAction::RedirrectToDevNull);
 
     registrar.Postprocessor([] (TThis* config) {

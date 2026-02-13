@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     add_member, authors, create_access_control_object, remove,
     make_ace, raises_yt_error, wait, create_user, print_debug, select_rows,
-    set, get, insert_rows, generate_uuid, ls)
+    set, get, insert_rows, sync_compact_table, generate_uuid, ls)
 
 from yt_error_codes import AuthorizationErrorCode, ResolveErrorCode
 
@@ -21,6 +21,7 @@ from collections import Counter
 from builtins import set as Set
 
 import pytest
+import time
 
 
 def expect_queries(queries, list_result, incomplete=False):
@@ -1511,6 +1512,35 @@ class TestSearch(YTEnvSetup):
                         expect_with_filters([q2], cursor_direction="future", attributes=["id"], filter="`aco:some-aco'$%^'`", search_by_token_prefix=True, **params_map)
                         expect_with_filters([], cursor_direction="future", attributes=["id"], filter="'aco:random-aco'", search_by_token_prefix=True, **params_map)
                         expect_with_filters([q1, q2], cursor_direction="future", attributes=["id"], filter="\"aco:some-aco'$%^'\" 'aco:everyone'", search_by_token_prefix=True, **params_map)
+
+
+@pytest.mark.enabled_multidaemon
+class TestTTL(YTEnvSetup):
+    QUERY_TRACKER_DYNAMIC_CONFIG = {"not_indexed_queries_ttl": 1000}
+
+    @authors("mpereskokova")
+    def test_ttl(self, query_tracker):
+        set("//sys/query_tracker/finished_queries/@min_data_ttl", 1000)
+        set("//sys/query_tracker/finished_query_results/@min_data_ttl", 1000)
+
+        q0 = start_query("mock", "complete_after", settings={"duration": 1000, 'is_indexed': False})
+        q1 = start_query("mock", "complete_after", settings={"duration": 1000, 'is_indexed': True})
+
+        q0.track()
+        q1.track()
+
+        expect_queries([q1], list_queries())
+        q0.get()
+        q1.get()
+
+        time.sleep(3)  # > row TTL (1 second)
+        sync_compact_table("//sys/query_tracker/finished_queries")
+        sync_compact_table("//sys/query_tracker/finished_query_results")
+
+        expect_queries([q1], list_queries())
+        q1.get()
+        with raises_yt_error(""):
+            q0.get()
 
 
 ##################################################################

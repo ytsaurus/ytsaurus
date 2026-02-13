@@ -44,6 +44,8 @@ public:
     void AddChunk(const NChunkClient::TInputChunkPtr& inputChunk, bool isPrimary) noexcept;
     void AddChunk(const NChunkClient::TLegacyDataSlicePtr& dataSlice, bool isPrimary) noexcept;
 
+    [[nodiscard]] static TInputStatistics FromChunks(const std::vector<NChunkClient::TLegacyDataSlicePtr>& dataSlices, bool isPrimary) noexcept;
+
     TInputStatistics Finish() && noexcept;
 
 private:

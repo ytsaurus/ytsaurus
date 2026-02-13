@@ -68,7 +68,7 @@ TObjectServiceCacheKey::operator size_t() const
     return result;
 }
 
-bool TObjectServiceCacheKey::operator == (const TObjectServiceCacheKey& other) const
+bool TObjectServiceCacheKey::operator==(const TObjectServiceCacheKey& other) const
 {
     return
         CellTag == other.CellTag &&

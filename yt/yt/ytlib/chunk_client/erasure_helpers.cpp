@@ -76,7 +76,7 @@ TPartRange::operator bool() const
     return !IsEmpty();
 }
 
-bool operator == (const TPartRange& lhs, const TPartRange& rhs)
+bool operator==(const TPartRange& lhs, const TPartRange& rhs)
 {
     return lhs.Begin == rhs.Begin && lhs.End == rhs.End;
 }
@@ -328,7 +328,7 @@ public:
         if (!Writer_->WriteBlocks(WriteBlocksOptions_, WorkloadDescriptor_, blocksToWrite)) {
             return Writer_->GetReadyEvent();
         }
-        return VoidFuture;
+        return OKFuture;
     }
 
     TChecksum GetPartChecksum() const
@@ -694,7 +694,7 @@ TDataBlocksPlacementInParts BuildDataBlocksPlacementInParts(
         result[partIndex].IndexesInPart.push_back(indexInPart);
         result[partIndex].Ranges.push_back({
             .Begin = offset,
-            .End = offset + size
+            .End = offset + size,
         });
     }
 

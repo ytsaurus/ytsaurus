@@ -1,6 +1,7 @@
 #pragma once
 
 #include "object.h"
+#include "pass_profiler.h"
 
 #include <yt/yt/server/lib/cypress_election/public.h>
 
@@ -75,6 +76,7 @@ private:
     const NAlertManager::IAlertCollectorPtr AlertCollector_;
     const NConcurrency::IThreadPoolPtr ControllerThreadPool_;
     const NConcurrency::TPeriodicExecutorPtr PassExecutor_;
+    const TPassProfiler PassProfiler_;
 
     const TString AgentId_;
 

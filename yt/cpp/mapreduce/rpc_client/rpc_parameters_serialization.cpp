@@ -1059,6 +1059,7 @@ NApi::TTableReaderOptions SerializeOptionsForReadTable(
     }
     result.EnableRowIndex = options.ControlAttributes_.EnableRowIndex_;
     result.EnableRangeIndex = options.ControlAttributes_.EnableRangeIndex_;
+    result.OmitInaccessibleRows = options.OmitInaccessibleRows_;
     return result;
 }
 
@@ -1067,6 +1068,8 @@ NApi::TReadTablePartitionOptions SerializeOptionsForReadTablePartition(
 {
     NApi::TReadTablePartitionOptions result;
     SerializeSuppressableAccessTrackingOptions(&result, options);
+    result.EnableRowIndex = options.ControlAttributes_.EnableRowIndex_;
+    result.EnableRangeIndex = options.ControlAttributes_.EnableRangeIndex_;
     return result;
 }
 
@@ -1181,17 +1184,19 @@ NApi::TPartitionTablesOptions SerializeOptionsForGetTablePartitions(
 
 NApi::TDistributedWriteSessionStartOptions SerializeOptionsForStartDistributedTableSession(
     TMutationId& /*mutationId*/,
+    const TTransactionId& transactionId,
     i64 cookieCount,
     const TStartDistributedWriteTableOptions& options)
 {
     NApi::TDistributedWriteSessionStartOptions result;
+    SetTransactionId(&result, transactionId);
 
     result.CookieCount = cookieCount;
     // TODO(achains): Uncomment when TMutatingOptions are supported in native client distributed API.
     // SetMutationId(&result, mutationId);
 
-    if (options.Timeout_) {
-        result.Timeout = *options.Timeout_;
+    if (options.SessionTimeout_) {
+        result.SessionTimeout = *options.SessionTimeout_;
     }
 
     return result;
@@ -1210,17 +1215,19 @@ NApi::TDistributedWriteSessionFinishOptions SerializeOptionsForFinishDistributed
 
 NApi::TDistributedWriteFileSessionStartOptions SerializeOptionsForStartDistributedFileSession(
     TMutationId& /*mutationId*/,
+    const TTransactionId& transactionId,
     i64 cookieCount,
     const TStartDistributedWriteFileOptions& options)
 {
     NApi::TDistributedWriteFileSessionStartOptions result;
+    SetTransactionId(&result, transactionId);
 
     result.CookieCount = cookieCount;
     // TODO(achains): Uncomment when TMutatingOptions are supported in native client distributed API.
     // SetMutationId(&result, mutationId);
 
-    if (options.Timeout_) {
-        result.Timeout = *options.Timeout_;
+    if (options.SessionTimeout_) {
+        result.SessionTimeout = *options.SessionTimeout_;
     }
 
     return result;

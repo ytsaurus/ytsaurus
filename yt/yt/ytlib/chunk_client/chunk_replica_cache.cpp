@@ -6,6 +6,7 @@
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 
 #include <yt/yt/ytlib/sequoia_client/client.h>
+#include <yt/yt/ytlib/sequoia_client/connection.h>
 #include <yt/yt/ytlib/sequoia_client/records/chunk_replicas.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/unapproved_chunk_replicas.record.h>
 
@@ -592,7 +593,7 @@ private:
         const NApi::NNative::IConnectionPtr& connection,
         const std::vector<TChunkId>& chunkIds)
     {
-        auto client = connection->GetSequoiaClient();
+        auto client = connection->GetSequoiaConnection()->CreateClient(NRpc::GetRootAuthenticationIdentity());
 
         auto approvedReplicasFuture = [&] {
             std::vector<NSequoiaClient::NRecords::TChunkReplicasKey> recordKeys;

@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"log/slog"
 	"time"
 
@@ -16,7 +17,12 @@ import (
 	"go.ytsaurus.tech/yt/go/yt/ytrpc"
 )
 
-const YTTvmID = 2031010
+const (
+	YTTvmID = 2031010
+
+	// MaxCompressedRowBytes is the hard limit on row size in YT dynamic tables (16 MiB).
+	MaxCompressedRowBytes = 16 * 1024 * 1024
+)
 
 type Config struct {
 	Cluster      string `yaml:"cluster"`
@@ -31,6 +37,19 @@ type Config struct {
 	//
 	// Default value is 0.
 	BytesPerRowsBatch int `yaml:"bytes_per_rows_batch"`
+
+	// RowsBatchFlushTimeout specifies the maximum time to keep a partially filled rows batch before flushing.
+	// If 0, flush only when batch reaches BytesPerRowsBatch.
+	//
+	// Default value is 0 (disabled).
+	RowsBatchFlushTimeout time.Duration `yaml:"rows_batch_flush_timeout"`
+
+	// MaxCompressedRowBytes specifies the maximum size in bytes of a compressed row.
+	// Rows exceeding this limit will be skipped with reason 'compressed_too_large'.
+	// Must be <= 16 MiB (YT hard limit).
+	//
+	// Default value is 16 MiB.
+	MaxCompressedRowBytes int `yaml:"max_compressed_row_bytes"`
 }
 
 type OutputConfig struct {
@@ -54,10 +73,27 @@ type OutputConfig struct {
 	// If 0, each row is pushed immediately.
 	BytesPerRowsBatch int
 
-	OnSent func(meta pipelines.RowMeta)
+	// RowsBatchFlushTimeout specifies the maximum time to keep a partially filled rows batch before flushing.
+	RowsBatchFlushTimeout time.Duration
+
+	// MaxCompressedRowBytes specifies the maximum size in bytes of a compressed row.
+	// Rows exceeding this limit will be skipped.
+	MaxCompressedRowBytes int
+
+	OnSent       func(meta pipelines.RowMeta)
+	OnSkippedRow func(data io.WriterTo, info pipelines.SkippedRowInfo)
 }
 
 func NewOutput(ctx context.Context, config OutputConfig) (out pipelines.Output[pipelines.Row], err error) {
+	maxCompressedRowBytes := config.MaxCompressedRowBytes
+	if maxCompressedRowBytes == 0 {
+		maxCompressedRowBytes = MaxCompressedRowBytes
+	}
+	if maxCompressedRowBytes > MaxCompressedRowBytes {
+		err = fmt.Errorf("max_compressed_row_bytes (%d) must not exceed %d (YT dynamic tables hard limit)", maxCompressedRowBytes, MaxCompressedRowBytes)
+		return
+	}
+
 	arcLogger := ttlog.NewArcadiaLevelCappingLogger(config.Logger, "ytclient")
 	ytConfig := yt.Config{
 		Proxy:     config.Cluster,
@@ -105,10 +141,13 @@ func NewOutput(ctx context.Context, config OutputConfig) (out pipelines.Output[p
 
 		compressor: compressor,
 
-		bytesPerRowsBatch: config.BytesPerRowsBatch,
+		bytesPerRowsBatch:     config.BytesPerRowsBatch,
+		maxCompressedRowBytes: maxCompressedRowBytes,
+		rowsBatchFlushTimeout: config.RowsBatchFlushTimeout,
 
-		logger: config.Logger,
-		onSent: config.OnSent,
+		logger:       config.Logger,
+		onSent:       config.OnSent,
+		onSkippedRow: config.OnSkippedRow,
 	}
 	o.startAsync()
 	out = o
@@ -138,13 +177,17 @@ type output struct {
 
 	logger *slog.Logger
 
-	bytesPerRowsBatch int
-	toCompress        chan sendItem
-	toSend            chan sendItem
-	compressorDone    chan struct{}
-	senderDone        chan struct{}
+	bytesPerRowsBatch     int
+	maxCompressedRowBytes int
+	rowsBatchFlushTimeout time.Duration
 
-	onSent func(meta pipelines.RowMeta)
+	toCompress     chan sendItem
+	toSend         chan sendItem
+	compressorDone chan struct{}
+	senderDone     chan struct{}
+
+	onSent       func(meta pipelines.RowMeta)
+	onSkippedRow func(data io.WriterTo, info pipelines.SkippedRowInfo)
 }
 
 type sendItem struct {
@@ -167,10 +210,24 @@ func (o *output) compressorLoop() {
 	for item := range o.toCompress {
 		if o.compressor != nil {
 			item.row.Codec = o.compressor.codec()
-			uncompressedSize := len(item.row.Value)
+			uncompressedValue := item.row.Value
 			startedAt := time.Now()
 			item.row.Value = o.compressor.compress(item.row.Value)
-			o.logger.Debug("Row compressed", "seq_no", item.row.SequenceNumber, "codec", item.row.Codec, "uncompressed_size", uncompressedSize, "compressed_size", len(item.row.Value), "duration_ms", time.Since(startedAt).Milliseconds())
+			o.logger.Debug("Row compressed", "seq_no", item.row.SequenceNumber, "codec", item.row.Codec, "uncompressed_size", len(uncompressedValue), "compressed_size", len(item.row.Value), "duration_ms", time.Since(startedAt).Milliseconds())
+
+			if len(item.row.Value) >= o.maxCompressedRowBytes {
+				if o.onSkippedRow != nil {
+					o.onSkippedRow(bytes.NewBuffer(uncompressedValue), pipelines.SkippedRowInfo{
+						Reason: pipelines.SkipRowReasonCompressedTooLarge,
+						Offset: item.meta.Begin,
+						Attrs: map[string]any{
+							"uncompressed_size": len(uncompressedValue),
+							"compressed_size":   len(item.row.Value),
+						},
+					})
+				}
+				continue
+			}
 		}
 		o.toSend <- item
 	}
@@ -179,21 +236,47 @@ func (o *output) compressorLoop() {
 }
 
 func (o *output) senderLoop() {
+	defer close(o.senderDone)
+
 	var batch []sendItem
 	var totalRowsBytes int
 
-	for item := range o.toSend {
-		batch = append(batch, item)
-		totalRowsBytes += len(item.row.Value)
-		if totalRowsBytes >= o.bytesPerRowsBatch {
-			o.flushBatch(batch)
-			batch = batch[:0]
-			totalRowsBytes = 0
+	var timer *time.Timer
+	var timerCh <-chan time.Time
+	if o.rowsBatchFlushTimeout > 0 {
+		timer = time.NewTimer(o.rowsBatchFlushTimeout)
+		timer.Stop()
+		timerCh = timer.C
+	}
+
+	flush := func() {
+		o.flushBatch(batch)
+		batch = batch[:0]
+		totalRowsBytes = 0
+		if timer != nil {
+			timer.Stop()
 		}
 	}
 
-	o.flushBatch(batch)
-	close(o.senderDone)
+	for {
+		select {
+		case item, ok := <-o.toSend:
+			if !ok {
+				flush()
+				return
+			}
+			if len(batch) == 0 && timer != nil {
+				timer.Reset(o.rowsBatchFlushTimeout)
+			}
+			batch = append(batch, item)
+			totalRowsBytes += len(item.row.Value)
+			if totalRowsBytes >= o.bytesPerRowsBatch {
+				flush()
+			}
+		case <-timerCh:
+			flush()
+		}
+	}
 }
 
 func (o *output) flushBatch(batch []sendItem) {

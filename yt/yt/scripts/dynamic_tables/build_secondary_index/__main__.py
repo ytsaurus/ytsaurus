@@ -28,6 +28,7 @@ def main():
         help="secondary index kind",
         default=FULL_SYNC, choices=[FULL_SYNC, UNFOLDING, UNIQUE])
     parser.add_argument("--predicate", type=str, required=False, help="secondary index predicate")
+    parser.add_argument("--unfolded-column", type=str, required=False, help="unfolded column name")
     parser.add_argument("--dry-run", type=bool, required=False, help="only validate schemas")
     parser.add_argument("--pool", type=str, required=False, help="pool for map-reduce operation")
     parser.add_argument("--pools", type=loads, required=False, help="dictionary {cluster:pool} for map-reduce operations")
@@ -53,6 +54,7 @@ def main():
         args.index_table,
         args.kind,
         args.predicate,
+        args.unfolded_column,
         args.dry_run,
         args.online if args.online is not None else True,
         args.pool,

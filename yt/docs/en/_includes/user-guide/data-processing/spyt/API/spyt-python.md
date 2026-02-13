@@ -21,6 +21,52 @@ spark = SparkSession.builder.appName('My Application').getOrCreate()
 spark.stop()
 ```
 
+This is because the `with spark_session()` and `spyt.connect()` functions access discovery-path created in Cypress when running a standalone cluster. This method does not involve discovery-path, because the internal cluster is not created.
+
+## Launching tasks directly in {{product-name}} in cluster mode { #submit-cluster }
+
+```python
+from spyt.submit import direct_submit
+
+# method returns YT operation id for driver, throw an exception if spin failed
+operation_id = direct_submit(
+    yt_proxy="yt_proxy_address",             # YT proxy address as string
+    num_executors=3,                         # Number of Spark executors
+    main_file="main.py",  		             # Main .py or .jar file for Spark job
+    deploy_mode="cluster",                   # 'cluster' (default) or 'client'
+    pool=pool,                               # (Optional) YT pool for the job
+    spark_base_args=spark_base_args,         # (Optional) List of extra Spark submit arguments
+    job_args=job_args,                       # (Optional) Arguments passed to the main application
+    spark_conf=spark_conf,                   # Spark configuration dictionary
+    timeout_sec=10                           # Submit timeout in seconds (default: 30)
+)
+
+# then you can monitor your operation, e.g.
+
+while True:
+    current_state = yt_client.get_operation_state(operation_id)
+    logging.info(f"Operation: {operation_id}, State: {current_state}")
+    if current_state.is_finished():
+        break
+    time.sleep(1)
+```
+
+## Running tasks directly in {{product-name}} in client mode { #submit-client }
+
+```python
+import spyt
+from pyspark import SparkConf
+
+conf = SparkConf()
+...
+
+with spyt.direct_spark_session("yt_proxy_address", conf) as spark:
+        df = spark.read.yt(path)
+        ...
+
+```
+
+
 ## Running with no dependencies { #simple }
 
 ### Main file code
@@ -121,7 +167,7 @@ with spark_session() as spark:
 
 ### Code in {{product-name}}
 
-You need to post this file to {{product-name}}.
+ You need to post this file to {{product-name}}.
 
 ### Launch
 

@@ -999,7 +999,7 @@ def create_revision_parameter(path: Union[str, YPath], transaction_id=None, revi
     return {"path": path, "transaction_id": transaction_id, "revision": revision}
 
 
-def get_table_schema(table_path: Union[str, YPath], client=None):
+def get_table_schema(table_path: Union[str, YPath], client=None) -> TableSchema:
     """Gets schema of table.
 
     :param table_path: path to table.

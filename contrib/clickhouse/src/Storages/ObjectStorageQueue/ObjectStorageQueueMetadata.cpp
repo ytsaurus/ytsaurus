@@ -18,6 +18,7 @@
 #include <Common/getRandomASCIIString.h>
 #include <Common/randomSeed.h>
 #include <Common/DNSResolver.h>
+#include <Interpreters/DDLTask.h>
 #include <shared_mutex>
 
 
@@ -234,24 +235,30 @@ ObjectStorageQueueMetadata::tryAcquireBucket(const Bucket & bucket, const Proces
 
 void ObjectStorageQueueMetadata::alterSettings(const SettingsChanges & changes, const ContextPtr & context)
 {
+    bool is_initial_query = context->getClientInfo().query_kind == ClientInfo::QueryKind::INITIAL_QUERY ||
+                            (context->getZooKeeperMetadataTransaction() && context->getZooKeeperMetadataTransaction()->isInitialQuery());
+
     const fs::path alter_settings_lock_path = zookeeper_path / "alter_settings_lock";
     zkutil::EphemeralNodeHolder::Ptr alter_settings_lock;
     auto zookeeper = getZooKeeper();
 
-    /// We will retry taking alter_settings_lock for the duration of 5 seconds.
-    /// Do we need to add a setting for this?
-    const size_t num_tries = 100;
-    for (size_t i = 0; i < num_tries; ++i)
+    if (is_initial_query)
     {
-        alter_settings_lock = zkutil::EphemeralNodeHolder::tryCreate(alter_settings_lock_path, *zookeeper, toString(getCurrentTime()));
+        /// We will retry taking alter_settings_lock for the duration of 5 seconds.
+        /// Do we need to add a setting for this?
+        const size_t num_tries = 100;
+        for (size_t i = 0; i < num_tries; ++i)
+        {
+            alter_settings_lock = zkutil::EphemeralNodeHolder::tryCreate(alter_settings_lock_path, *zookeeper, toString(getCurrentTime()));
 
-        if (alter_settings_lock)
-            break;
+            if (alter_settings_lock)
+                break;
 
-        if (i == num_tries - 1)
-            throw Exception(ErrorCodes::LOGICAL_ERROR, "Failed to take alter setting lock");
+            if (i == num_tries - 1)
+                throw Exception(ErrorCodes::LOGICAL_ERROR, "Failed to take alter setting lock");
 
-        sleepForMilliseconds(50);
+            sleepForMilliseconds(50);
+        }
     }
 
     Coordination::Stat stat;
@@ -363,7 +370,11 @@ void ObjectStorageQueueMetadata::alterSettings(const SettingsChanges & changes, 
     LOG_TRACE(log, "New metadata: {}", new_metadata_str);
 
     const fs::path table_metadata_path = zookeeper_path / "metadata";
-    zookeeper->set(table_metadata_path, new_metadata_str, stat.version);
+    /// Here we intentionally do not add zk retries,
+    /// because we modify metadata under ephemeral metadata lock,
+    /// so we do not want to retry if it expires.
+    if (is_initial_query)
+        zookeeper->set(table_metadata_path, new_metadata_str, stat.version);
 
     table_metadata.syncChangeableSettings(new_table_metadata);
 }
@@ -702,6 +713,7 @@ size_t ObjectStorageQueueMetadata::unregisterNonActive(const StorageID & storage
 
     Coordination::Error code = Coordination::Error::ZOK;
 
+    bool allow_remove_recursive = true;
     for (size_t i = 0; i < 1000; ++i)
     {
         Coordination::Requests requests;
@@ -714,7 +726,7 @@ size_t ObjectStorageQueueMetadata::unregisterNonActive(const StorageID & storage
         try
         {
             zk_client = getZooKeeper();
-            supports_remove_recursive = zk_client->isFeatureEnabled(DB::KeeperFeatureFlag::REMOVE_RECURSIVE);
+            supports_remove_recursive = allow_remove_recursive && zk_client->isFeatureEnabled(DB::KeeperFeatureFlag::REMOVE_RECURSIVE);
 
             Coordination::Stat stat;
             std::string registry_str;
@@ -756,7 +768,7 @@ size_t ObjectStorageQueueMetadata::unregisterNonActive(const StorageID & storage
                 if (supports_remove_recursive)
                 {
                     requests.push_back(zkutil::makeCheckRequest(registry_path, stat.version));
-                    requests.push_back(zkutil::makeRemoveRecursiveRequest(zookeeper_path, std::numeric_limits<uint32_t>::max()));
+                    requests.push_back(zkutil::makeRemoveRecursiveRequest(*zk_client, zookeeper_path, /*remove_nodes_limit=*/10000));
                 }
                 else
                 {
@@ -823,6 +835,12 @@ size_t ObjectStorageQueueMetadata::unregisterNonActive(const StorageID & storage
                 }
             }
             return count;
+        }
+
+        if (!responses.empty() && supports_remove_recursive && code == Coordination::Error::ZNOTEMPTY) /// potentiall we reached RemoveRecursive node limit, let's try without it
+        {
+            allow_remove_recursive = false;
+            continue;
         }
 
         if (Coordination::isHardwareError(code)

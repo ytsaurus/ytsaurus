@@ -47,9 +47,8 @@ class TClusterResolver
 {
 public:
     TClusterResolver() = default;
-    explicit TClusterResolver(const NApi::NNative::IClientPtr& client);
 
-    TFuture<void> Init();
+    TClusterResolver(NApi::NNative::IClientPtr client, std::optional<std::string> clusterName);
 
     NScheduler::TClusterName GetClusterName(const NYPath::TRichYPath& path);
 
@@ -62,6 +61,8 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TClusterResolver)
+
+TFuture<TClusterResolverPtr> CreateClusterResolver(NApi::NNative::IClientPtr client);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,13 +1,15 @@
-name: Hourly YTsaurus CI Trigger
+name: YTsaurus CI Nightly Trigger
 
 on:
   schedule:
-    - cron: '*/30 * * * *'
+    - cron: '0 * * * *'
   workflow_dispatch:
 
 jobs:
   create-task-for-ytsaurus-ci:
     uses: ./.github/workflows/ytsaurus-ci-runner.yaml
+    with:
+      scenario: nightly-dev
     secrets:
       GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
       YTSAURUS_CI_K8S_EDITOR_TOKEN: ${{ secrets.YTSAURUS_CI_K8S_EDITOR_TOKEN }}

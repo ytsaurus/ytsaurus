@@ -780,7 +780,7 @@ TQueueExporterOld::TQueueExporterOld(
     TClientDirectoryPtr clientDirectory,
     IInvokerPtr invoker,
     IAlertCollectorPtr alertCollector,
-    const TProfiler& queueProfiler,
+    IQueueExporterProfileManagerPtr profileManager,
     const TLogger& logger)
     : ExportName_(std::move(exportName))
     , Queue_(std::move(queue))
@@ -790,7 +790,7 @@ TQueueExporterOld::TQueueExporterOld(
     , ClientDirectory_(std::move(clientDirectory))
     , Invoker_(std::move(invoker))
     , AlertCollector_(std::move(alertCollector))
-    , ProfilingCounters_(New<TQueueExportProfilingCountersOld>(queueProfiler.WithPrefix("/static_export").WithTag("export_name", ExportName_)))
+    , ProfilingCounters_(New<TQueueExportProfilingCountersOld>(profileManager->GetProfiler(EProfilerScope::Object)))
     , Executor_(New<TScheduledExecutor>(
             Invoker_,
             BIND_NO_PROPAGATE(&TQueueExporterOld::Export, MakeWeak(this)),

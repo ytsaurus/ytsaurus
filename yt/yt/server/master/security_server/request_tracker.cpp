@@ -110,7 +110,7 @@ void TRequestTracker::ChargeUser(
 TFuture<void> TRequestTracker::ThrottleUserRequest(TUser* user, int requestCount, EUserWorkloadType workloadType)
 {
     const auto& throttler = user->GetRequestRateThrottler(workloadType);
-    return throttler ? throttler->Throttle(requestCount) : VoidFuture;
+    return throttler ? throttler->Throttle(requestCount) : OKFuture;
 }
 
 void TRequestTracker::SetUserRequestRateLimit(TUser* user, int limit, EUserWorkloadType type)

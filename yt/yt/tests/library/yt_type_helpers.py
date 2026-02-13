@@ -61,15 +61,16 @@ def optional_type(element_type):
 
 
 def make_struct_members(fields):
-    result = []
-    for name, type in fields:
-        result.append(
-            {
-                "name": name,
-                "type": type,
-            }
-        )
-    return result
+    def unpack_field(field):
+        if len(field) == 2:
+            name, type = field
+            return {"name": name, "type": type}
+
+        assert len(field) == 3
+        name, stable_name, type = field
+        return {"name": name, "stable_name": stable_name, "type": type}
+
+    return list(map(unpack_field, fields))
 
 
 def make_tuple_elements(elements):
@@ -83,15 +84,21 @@ def make_tuple_elements(elements):
     return result
 
 
-def struct_type(fields):
+def struct_type(fields, removed_field_stable_names=None):
     """
     Create yson description of struct type.
-    fields is a list of (name, type) pairs.
+    fields is a list of (name, type) pairs or (name, stable_name, type) triplets.
+    removed_field_stable_names is optional list of strings.
     """
     result = {
         "type_name": "struct",
         "members": make_struct_members(fields),
     }
+    if removed_field_stable_names is not None:
+        result["removed_members"] = [
+            {"stable_name": stable_name} for stable_name in removed_field_stable_names
+        ]
+
     return result
 
 
@@ -110,11 +117,10 @@ def tuple_type(elements):
 
 
 def variant_struct_type(fields):
-    result = {
+    return {
         "type_name": "variant",
         "members": make_struct_members(fields),
     }
-    return result
 
 
 def variant_tuple_type(elements):

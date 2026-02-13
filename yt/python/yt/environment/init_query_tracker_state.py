@@ -1,6 +1,8 @@
 #!/usr/bin/python3
 
-from yt.wrapper import YtClient, config
+from yt.common import update_inplace
+from yt.wrapper import YtClient
+from yt.wrapper.default_config import get_config_from_env
 
 from yt.environment.migrationlib import TableInfo, Migration, Conversion
 
@@ -1878,6 +1880,76 @@ TRANSFORMS[20] = [
     ),
 ]
 
+FINISHED_QUERIES_V21 = TableInfo(
+    [
+        ("query_id", "string"),
+    ],
+    [
+        ("engine", "string"),
+        ("query", "string"),
+        ("files", "any"),
+        ("settings", "any"),
+        ("user", "string"),
+        ("access_control_objects", "any"),
+        ("start_time", "timestamp"),
+        ("state", "string"),
+        ("progress", "string"),
+        ("error", "any"),
+        ("result_count", "int64"),
+        ("finish_time", "timestamp"),
+        ("annotations", "any"),
+        ("secrets", "any"),
+        ("assigned_tracker", "string"),
+        ("is_indexed", "boolean"),
+        ("is_tutorial", "boolean"),
+        ("$ttl", "uint64"),
+    ],
+    optimize_for="lookup",
+    attributes={
+        "tablet_cell_bundle": SYS_BUNDLE_NAME,
+        "min_data_ttl": 60000,
+        "merge_rows_on_flush": True,
+        "auto_compaction_period": 3600000,
+        "min_data_versions": 0,                     # Required with $ttl
+        "max_data_ttl": 18446744073709551615,       # (Max uint64 - 584'942'417 years) To save data with min_data_version = 0
+    },
+)
+FINISHED_QUERY_RESULTS_V21 = TableInfo(
+    [
+        ("query_id", "string"),
+        ("result_index", "int64"),
+    ],
+    [
+        ("error", "any"),
+        ("schema", "any"),
+        ("data_statistics", "any"),
+        ("rowset", "string"),
+        ("is_truncated", "boolean"),
+        ("full_result", "any"),
+        ("$ttl", "uint64"),
+    ],
+    optimize_for="lookup",
+    attributes={
+        "tablet_cell_bundle": SYS_BUNDLE_NAME,
+        "min_data_ttl": 60000,
+        "merge_rows_on_flush": True,
+        "auto_compaction_period": 3600000,
+        "min_data_versions": 0,                     # Required with $ttl
+        "max_data_ttl": 18446744073709551615,       # (Max uint64 - 584'942'417 years) To save data with min_data_version = 0
+    },
+)
+
+TRANSFORMS[21] = [
+    Conversion(
+        "finished_queries",
+        table_info=FINISHED_QUERIES_V21,
+    ),
+    Conversion(
+        "finished_query_results",
+        table_info=FINISHED_QUERY_RESULTS_V21,
+    ),
+]
+
 
 # NB(mpereskokova): don't forget to update min_required_state_version at yt/yt/server/query_tracker/config.cpp and state at yt/yt/ytlib/query_tracker_client/records/query.yaml
 
@@ -1940,7 +2012,7 @@ def build_arguments_parser():
     parser.add_argument("--force", action="store_true", default=False)
     parser.add_argument("--state-path", type=str, default=DEFAULT_STATE_PATH)
     parser.add_argument("--shard-count", type=int, default=DEFAULT_SHARD_COUNT)
-    parser.add_argument("--proxy", type=str, default=config["proxy"]["url"])
+    parser.add_argument("--proxy", type=str, default=None)
 
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--target-version", type=int)
@@ -1954,12 +2026,14 @@ def main():
     args = build_arguments_parser().parse_args()
     client = YtClient(
         proxy=args.proxy,
-        token=config["token"],
-        config={
-            "pickling": {
-                "ignore_system_modules": False,
-            },
-        },
+        config=update_inplace(
+            get_config_from_env(),
+            {
+                "pickling": {
+                    "ignore_system_modules": False,
+                },
+            }
+        ),
     )
 
     target_version = args.target_version

@@ -361,7 +361,7 @@ public:
     NChunkClient::TChunkListId ExtractOutputChunkList(NObjectClient::TCellTag cellTag) override;
     NChunkClient::TChunkListId ExtractDebugChunkList(NObjectClient::TCellTag cellTag) override;
     void ReleaseChunkTrees(
-        const std::vector<NChunkClient::TChunkListId>& chunkListIds,
+        const std::vector<NChunkClient::TChunkListId>& chunkTreeIds,
         bool unstageRecursively,
         bool waitForSnapshot) override;
     void ReleaseIntermediateStripeList(const NChunkPools::TChunkStripeListPtr& stripeList) override;
@@ -716,7 +716,7 @@ protected:
     void PrepareInputTables();
     bool HasDiskRequestsWithSpecifiedAccount() const;
     void InitAccountResourceUsageLeases();
-    void ValidateDistributedJobOptions();
+    void ValidateCollectiveOptions();
     void ValidateSecureVault();
 
     // Preparation.
@@ -746,6 +746,7 @@ protected:
     void SuppressLivePreviewIfNeeded();
     void CreateLivePreviewTables();
     void CollectTotals();
+    void UpdateEstimatedInputStatistics(const TInputStatistics& newStatisticsEstimate);
     virtual void CustomMaterialize();
     void InitializeHistograms();
     void InitializeSecurityTags();
@@ -1013,8 +1014,8 @@ protected:
 
     void ValidateUserFileCount(const NScheduler::TUserJobSpecPtr& spec, const TString& operation);
 
-    const TExecNodeDescriptorMap& GetExecNodeDescriptors();
-    const TExecNodeDescriptorMap& GetOnlineExecNodeDescriptors();
+    const TExecNodeDescriptorMap& GetOnlineSuitableExecNodeDescriptors() const;
+    const TExecNodeDescriptorMap& GetSuitableExecNodeDescriptors() const;
 
     void UpdateExecNodes();
 
@@ -1211,8 +1212,8 @@ private:
     //! Exec node count do not consider schedufling tag.
     //! But descriptors do.
     int AvailableExecNodeCount_ = 0;
-    TRefCountedExecNodeDescriptorMapPtr ExecNodesDescriptors_ = New<NScheduler::TRefCountedExecNodeDescriptorMap>();
-    TRefCountedExecNodeDescriptorMapPtr OnlineExecNodesDescriptors_ = New<NScheduler::TRefCountedExecNodeDescriptorMap>();
+    TRefCountedExecNodeDescriptorMapPtr SuitableExecNodeDescriptors_ = New<NScheduler::TRefCountedExecNodeDescriptorMap>();
+    TRefCountedExecNodeDescriptorMapPtr OnlineSuitableExecNodeDescriptors_ = New<NScheduler::TRefCountedExecNodeDescriptorMap>();
 
     std::optional<TJobResources> CachedMaxAvailableExecNodeResources_;
 
@@ -1373,6 +1374,11 @@ private:
     TError OperationFailError_;
     NConcurrency::TDelayedExecutorCookie GracefulAbortTimeoutFailureCookie_;
 
+    // Monitoring doesn't work well with objects that suddenly run out of life time.
+    NProfiling::TCounter UsedMonitoringDescriptorCount_;
+
+    NScheduler::TSchedulingTagFilter FinalSchedulingTagFilter_;
+
     void AccountExternalScheduleAllocationFailures() const;
 
     void InitializeOrchid();
@@ -1397,7 +1403,7 @@ private:
 
     void UpdateAllTasksIfNeeded();
 
-    void IncreaseNeededResources(const NScheduler::TCompositeNeededResources& resourcesDelta);
+    void UpdateNeededResources();
 
     void IncreaseAccountResourceUsageLease(const std::optional<std::string>& account, const NScheduler::TDiskQuota& delta);
 
@@ -1492,10 +1498,10 @@ private:
 
     void OnJobRunning(const TJobletPtr& joblet, std::unique_ptr<TRunningJobSummary> jobSummary);
     bool WasJobGracefullyAborted(const std::unique_ptr<TAbortedJobSummary>& jobSummary);
-    void OnJobStartTimeReceived(const TJobletPtr& joblet, const std::unique_ptr<TRunningJobSummary>& jobSummary);
+    void UpdatePreemptibleProgressStartTime(const TJobletPtr& joblet, const std::unique_ptr<TRunningJobSummary>& jobSummary);
 
     void ReportJobCookieToArchive(const TJobletPtr& joblet) const;
-    void ReportJobDistributedGroupInfo(const TJobletPtr& joblet) const;
+    void ReportJobCollectiveInfo(const TJobletPtr& joblet) const;
     void ReportControllerStateToArchive(const TJobletPtr& joblet, EJobState state) const;
     void ReportStartTimeToArchive(const TJobletPtr& joblet) const;
     void ReportFinishTimeToArchive(const TJobletPtr& joblet) const;
@@ -1540,9 +1546,6 @@ private:
     void BuildBriefProgress(NYTree::TFluentMap fluent) const;
     void BuildJobsYson(NYTree::TFluentMap fluent) const;
     void BuildRetainedFinishedJobsYson(NYTree::TFluentMap fluent) const;
-
-    // Monitoring doesn't work well with objects that suddenly run out of life time.
-    NProfiling::TCounter UsedMonitoringDescriptorCount_;
 
     PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TOperationControllerBase, 0x6715254c);

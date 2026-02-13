@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
-from yt.wrapper import config, YtClient, ypath_split, ypath_join
+from yt.wrapper import YtClient, ypath_split, ypath_join
+from yt.wrapper.default_config import get_config_from_env
 
 from yt.environment.migrationlib import TableInfo, Migration, Conversion, TypeV3
 
@@ -361,8 +362,59 @@ TRANSFORMS[3] = [
     ),
 ]
 
-# Add replica_mapping index.
+# Add profiling tags to queues, consumers tables.
 TRANSFORMS[4] = [
+    Conversion(
+        "queues",
+        table_info=TableInfo(
+            [
+                ("cluster", "string"),
+                ("path", "string"),
+            ],
+            [
+                ("row_revision", "uint64"),
+                ("revision", "uint64"),
+                ("object_type", "string"),
+                ("dynamic", "boolean"),
+                ("sorted", "boolean"),
+                ("auto_trim_config", "any"),
+                ("static_export_config", "any"),
+                ("queue_agent_stage", "string"),
+                ("object_id", "string"),
+                ("queue_agent_banned", "boolean"),
+                ("synchronization_error", "any"),
+                ("queue_profiling_tag", "string"),  # new field
+            ],
+            optimize_for="lookup",
+            attributes=DEFAULT_TABLE_ATTRIBUTES,
+        ),
+    ),
+    Conversion(
+        "consumers",
+        table_info=TableInfo(
+            [
+                ("cluster", "string"),
+                ("path", "string"),
+            ],
+            [
+                ("row_revision", "uint64"),
+                ("revision", "uint64"),
+                ("object_type", "string"),
+                ("treat_as_queue_consumer", "boolean"),
+                ("schema", "any"),
+                ("queue_agent_stage", "string"),
+                ("queue_agent_banned", "boolean"),
+                ("synchronization_error", "any"),
+                ("queue_consumer_profiling_tag", "string"),  # new field
+            ],
+            optimize_for="lookup",
+            attributes=DEFAULT_TABLE_ATTRIBUTES,
+        ),
+    ),
+]
+
+# Add replica_mapping index.
+TRANSFORMS[5] = [
     Conversion(
         "replicated_table_mapping",
         table_info=TableInfo(
@@ -408,7 +460,7 @@ TRANSFORMS[4] = [
 
 # Add secondary_index between replica_mapping and replicated_table_mapping.
 # Actual paths are set in prepare_migration.
-ACTIONS[5] = [
+ACTIONS[6] = [
     CreateSecondaryIndexAction(
         table_name="replicated_table_mapping",
         index_table_name="replica_mapping",
@@ -444,6 +496,8 @@ QUEUE_AGENT_OBJECT_MAPPING_TABLE_SCHEMA = MIGRATION_SCHEMAS["queue_agent_object_
 REGISTRATION_TABLE_SCHEMA = MIGRATION_SCHEMAS["consumer_registrations"]
 
 REPLICATED_TABLE_MAPPING_TABLE_SCHEMA = MIGRATION_SCHEMAS["replicated_table_mapping"]
+
+REPLICA_MAPPING_TABLE_SCHEMA = MIGRATION_SCHEMAS["replica_mapping"]
 
 CONSUMER_OBJECT_TABLE_SCHEMA_WITHOUT_META = [
     {"name": "queue_cluster", "type": "string", "sort_order": "ascending", "required": True},
@@ -559,7 +613,7 @@ def build_arguments_parser():
 
     parser.add_argument("--version", action="version", version=str(SCRIPT_VERSION))
 
-    parser.add_argument("--proxy", type=str, default=config["proxy"]["url"])
+    parser.add_argument("--proxy", type=str, default=None)
     parser.add_argument("--root", type=str, default=DEFAULT_ROOT,
                         help="Root directory for state tables; defaults to {}".format(DEFAULT_ROOT))
     parser.add_argument("--shard-count", type=int, default=DEFAULT_SHARD_COUNT)
@@ -592,7 +646,7 @@ def run_migration(client, root, target_version=None, shard_count=1, force=False,
 
 def main():
     args = build_arguments_parser().parse_args()
-    client = YtClient(proxy=args.proxy, token=config["token"])
+    client = YtClient(proxy=args.proxy, config=get_config_from_env())
 
     target_version = args.target_version
     if args.latest:

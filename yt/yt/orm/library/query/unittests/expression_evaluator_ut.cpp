@@ -102,7 +102,7 @@ TEST(TExpressionEvaluatorTest, OrmTypedAttributePaths)
             .TypeResolver = GetTypeResolver(EValueType::Boolean),
         },
     };
-    auto createEvaluator = [&] (const TString& filter) {
+    auto createEvaluator = [&] (const std::string& filter) {
         return CreateOrmExpressionEvaluator(
             NQueryClient::ParseSource(filter, NQueryClient::EParseMode::Expression),
             typedAttributePaths);
@@ -130,10 +130,10 @@ TEST(TExpressionEvaluatorTest, OrmTypedAttributePaths)
         "([/extras/special] OR try_get_string([/labels/details], \"/color\") IN (\"blue\", \"purple\", \"orange\"))");
 
     auto buildAndEvaluateExpression = [&] (
-        const TString& id,
+        const std::string& id,
         double weight,
         int readCount,
-        const TString& color,
+        const std::string& color,
         bool special)
     {
         std::vector<NYson::TYsonString> valueList = {
@@ -178,7 +178,7 @@ TEST(TExpressionEvaluatorTest, OrmManyFunctions)
         rowBuffer)
         .ValueOrThrow()
         .AsString();
-    EXPECT_EQ(value, TString("abacaba;25;315"));
+    EXPECT_EQ(value, std::string("abacaba;25;315"));
 }
 
 TEST(TExpressionEvaluatorTest, Simple)
@@ -188,7 +188,7 @@ TEST(TExpressionEvaluatorTest, Simple)
             "meta.x", EValueType::Int64
         },
         {
-            "lambda.y.z", EValueType::Double
+            "lambda.y.z", EValueType::Double,
         },
         {
             "theta", EValueType::Uint64
@@ -216,10 +216,10 @@ TEST(TExpressionEvaluatorTest, TableName)
 {
     NQueryClient::TSchemaColumns columns = {
         {
-            "meta.str_id", EValueType::String
+            "meta.str_id", EValueType::String,
         },
         {
-            "meta.i64_id", EValueType::Int64
+            "meta.i64_id", EValueType::Int64,
         },
         {
             "meta.ui64_id", EValueType::Uint64
@@ -240,7 +240,7 @@ TEST(TExpressionEvaluatorTest, TableName)
         .ValueOrThrow()
         .AsString();
 
-    EXPECT_EQ(value, TString("abacaba;25;315"));
+    EXPECT_EQ(value, std::string("abacaba;25;315"));
 
     EXPECT_THROW_WITH_SUBSTRING(
         CreateExpressionEvaluator("p.`meta.i64_id` + int64(s.`meta.ui64_id`)", columns),
@@ -251,7 +251,7 @@ TEST(TExpressionEvaluatorTest, NullValue)
 {
     NQueryClient::TSchemaColumns columns = {
         {
-            "value.x", EValueType::Int64
+            "value.x", EValueType::Int64,
         },
         {
             "value.y", EValueType::Int64

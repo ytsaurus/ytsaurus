@@ -134,7 +134,7 @@ TFuture<void> TUpdateExecutor<TKey, TUpdateParameters>::ExecuteUpdate(const TKey
 
     auto* updateRecord = FindUpdateRecord(key);
     if (!updateRecord) {
-        return VoidFuture;
+        return OKFuture;
     }
     return DoExecuteUpdate(updateRecord);
 }

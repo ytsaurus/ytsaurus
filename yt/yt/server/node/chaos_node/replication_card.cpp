@@ -32,6 +32,11 @@ TReplicationCard::TReplicationCard(TObjectId id)
     , ReplicatedTableOptions_(New<TReplicatedTableOptions>())
 { }
 
+bool TReplicationCard::IsNormalState() const
+{
+    return State_ == EReplicationCardState::Normal;
+}
+
 TReplicaInfo* TReplicationCard::FindReplica(TReplicaId replicaId)
 {
     auto it = Replicas_.find(replicaId);

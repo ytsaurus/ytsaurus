@@ -2,7 +2,7 @@
 
 PY3_LIBRARY()
 
-VERSION(23.0.0)
+VERSION(24.1.1)
 
 LICENSE(MIT)
 
@@ -28,6 +28,12 @@ PY_SRCS(
     gunicorn/app/pasterapp.py
     gunicorn/app/wsgiapp.py
     gunicorn/arbiter.py
+    gunicorn/asgi/__init__.py
+    gunicorn/asgi/lifespan.py
+    gunicorn/asgi/message.py
+    gunicorn/asgi/protocol.py
+    gunicorn/asgi/unreader.py
+    gunicorn/asgi/websocket.py
     gunicorn/config.py
     gunicorn/debug.py
     gunicorn/errors.py
@@ -46,9 +52,14 @@ PY_SRCS(
     gunicorn/sock.py
     gunicorn/systemd.py
     gunicorn/util.py
+    gunicorn/uwsgi/__init__.py
+    gunicorn/uwsgi/errors.py
+    gunicorn/uwsgi/message.py
+    gunicorn/uwsgi/parser.py
     gunicorn/workers/__init__.py
     gunicorn/workers/base.py
     gunicorn/workers/base_async.py
+    gunicorn/workers/gasgi.py
     gunicorn/workers/geventlet.py
     gunicorn/workers/ggevent.py
     gunicorn/workers/gthread.py

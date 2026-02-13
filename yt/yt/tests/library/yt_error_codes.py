@@ -33,6 +33,7 @@ AllWritesDisabled = 1703
 InvalidTabletState = 1706
 BundleResourceLimitExceeded = 1720
 RequestThrottled = 1725
+CannotCheckConflictsAgainstChunkStore = 1729
 SyncReplicaNotInSync = 1732
 BackupCheckpointRejected = 1733
 NoInSyncReplicas = 1736
@@ -40,6 +41,7 @@ BundleIsBanned = 1739
 UniqueIndexConflict = 1741
 ChaosReplicationEraMismatch = 1742
 HunkTabletStoreToggleConflict = 1745
+HunkStoreAllocationFailed = 1746
 RetriableArchiveError = 1911
 NoSuchOperation = 1915
 NoSuchJob = 1916
@@ -66,7 +68,7 @@ InvalidEpoch = 3101
 ZombieEpoch = 3102
 InvalidRowSequenceNumbers = 3103
 QueueAgentRetriableError = 3104
-ChaosLeaseNotKnown = 3205
+ChaosCellIsNotEnabled = 3209
 
 
 class Scheduler(object):

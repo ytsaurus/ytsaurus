@@ -54,7 +54,16 @@ public:
         TTimestamp ReadTimestamp;
     };
 
-    using TRowBlockedHandler = TCallback<void(TSortedDynamicRow row, TConflictInfo conflictInfo, TDuration timeout)>;
+    struct TRowBlockedWaitingResult
+    {
+        // Transaction id the timeout happend during waiting on blocked row if any.
+        TTransactionId TransactionId = {};
+    };
+
+    using TRowBlockedHandler = TCallback<TRowBlockedWaitingResult(
+        TSortedDynamicRow row,
+        TConflictInfo conflictInfo,
+        TDuration timeout)>;
 
     //! Sets the handler that is being invoked when read request faces a blocked row.
     void SetRowBlockedHandler(TRowBlockedHandler handler);

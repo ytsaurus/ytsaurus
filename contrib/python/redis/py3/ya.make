@@ -2,13 +2,28 @@
 
 PY3_LIBRARY()
 
-VERSION(6.4.0)
+VERSION(7.1.0)
 
 LICENSE(MIT)
 
 NO_LINT()
 
 NO_CHECK_IMPORTS(
+    redis.asyncio.multidb.client
+    redis.asyncio.multidb.command_executor
+    redis.asyncio.multidb.config
+    redis.asyncio.multidb.database
+    redis.asyncio.multidb.event
+    redis.asyncio.multidb.failover
+    redis.asyncio.multidb.failure_detector
+    redis.multidb.circuit
+    redis.multidb.client
+    redis.multidb.command_executor
+    redis.multidb.config
+    redis.multidb.database
+    redis.multidb.event
+    redis.multidb.failover
+    redis.multidb.failure_detector
     redis.ocsp
 )
 
@@ -28,7 +43,18 @@ PY_SRCS(
     redis/asyncio/client.py
     redis/asyncio/cluster.py
     redis/asyncio/connection.py
+    redis/asyncio/http/__init__.py
+    redis/asyncio/http/http_client.py
     redis/asyncio/lock.py
+    redis/asyncio/multidb/__init__.py
+    redis/asyncio/multidb/client.py
+    redis/asyncio/multidb/command_executor.py
+    redis/asyncio/multidb/config.py
+    redis/asyncio/multidb/database.py
+    redis/asyncio/multidb/event.py
+    redis/asyncio/multidb/failover.py
+    redis/asyncio/multidb/failure_detector.py
+    redis/asyncio/multidb/healthcheck.py
     redis/asyncio/retry.py
     redis/asyncio/sentinel.py
     redis/asyncio/utils.py
@@ -37,6 +63,7 @@ PY_SRCS(
     redis/auth/idp.py
     redis/auth/token.py
     redis/auth/token_manager.py
+    redis/background.py
     redis/backoff.py
     redis/cache.py
     redis/client.py
@@ -53,6 +80,7 @@ PY_SRCS(
     redis/commands/json/commands.py
     redis/commands/json/decoders.py
     redis/commands/json/path.py
+    redis/commands/policies.py
     redis/commands/redismodules.py
     redis/commands/search/__init__.py
     redis/commands/search/_util.py
@@ -61,6 +89,8 @@ PY_SRCS(
     redis/commands/search/dialect.py
     redis/commands/search/document.py
     redis/commands/search/field.py
+    redis/commands/search/hybrid_query.py
+    redis/commands/search/hybrid_result.py
     redis/commands/search/index_definition.py
     redis/commands/search/profile_information.py
     redis/commands/search/query.py
@@ -79,9 +109,24 @@ PY_SRCS(
     redis/connection.py
     redis/crc.py
     redis/credentials.py
+    redis/data_structure.py
     redis/event.py
     redis/exceptions.py
+    redis/http/__init__.py
+    redis/http/http_client.py
     redis/lock.py
+    redis/maint_notifications.py
+    redis/multidb/__init__.py
+    redis/multidb/circuit.py
+    redis/multidb/client.py
+    redis/multidb/command_executor.py
+    redis/multidb/config.py
+    redis/multidb/database.py
+    redis/multidb/event.py
+    redis/multidb/exception.py
+    redis/multidb/failover.py
+    redis/multidb/failure_detector.py
+    redis/multidb/healthcheck.py
     redis/ocsp.py
     redis/retry.py
     redis/sentinel.py

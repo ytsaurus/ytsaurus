@@ -26,7 +26,7 @@ static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "Subprocess");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSubprocess::TSubprocess(TString path, bool copyEnv)
+TSubprocess::TSubprocess(std::string path, bool copyEnv)
     : Path_(std::move(path))
     , Process_(New<TSimpleProcess>(Path_, copyEnv))
 { }
@@ -141,7 +141,7 @@ void TSubprocess::Kill(int signal)
     Process_->Kill(signal);
 }
 
-TString TSubprocess::GetCommandLine() const
+std::string TSubprocess::GetCommandLine() const
 {
     return Process_->GetCommandLine();
 }
@@ -153,7 +153,7 @@ TProcessBasePtr TSubprocess::GetProcess() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RunSubprocess(const std::vector<TString>& cmd)
+void RunSubprocess(const std::vector<std::string>& cmd)
 {
     if (cmd.empty()) {
         THROW_ERROR_EXCEPTION("Command can't be empty");
@@ -169,7 +169,7 @@ void RunSubprocess(const std::vector<TString>& cmd)
         THROW_ERROR_EXCEPTION("Failed to run %v", cmd[0])
             << result.Status
             << TErrorAttribute("command_line", process.GetCommandLine())
-            << TErrorAttribute("error", TString(result.Error.Begin(), result.Error.End()));
+            << TErrorAttribute("error", std::string(result.Error.Begin(), result.Error.End()));
     }
 }
 

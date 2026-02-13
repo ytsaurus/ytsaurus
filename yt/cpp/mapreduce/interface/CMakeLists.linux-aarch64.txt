@@ -33,6 +33,7 @@ target_compile_options(cpp-mapreduce-interface PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(cpp-mapreduce-interface PUBLIC
@@ -64,6 +65,7 @@ target_sources(cpp-mapreduce-interface PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/job_statistics.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/io.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/operation.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/patchable_field.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/protobuf_format.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/serialize.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/skiff_row.cpp

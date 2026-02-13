@@ -68,7 +68,7 @@ EJobStage JobStageFromJobState(EJobState jobState) noexcept
     }
 }
 
-std::vector<TJobId> CreateJobIdSampleForLogging(const  std::vector<TStartedAllocationInfo>& allocations, int maxSampleSize)
+std::vector<TJobId> CreateJobIdSampleForLogging(const std::vector<TStartedAllocationInfo>& allocations, int maxSampleSize)
 {
     std::vector<TJobId> result;
 
@@ -86,7 +86,7 @@ std::vector<TJobId> CreateJobIdSampleForLogging(const  std::vector<TStartedAlloc
     return result;
 }
 
-std::vector<TJobId> CreateJobIdSampleForLogging(const  std::vector<TJobToRelease>& jobs, int maxSampleSize)
+std::vector<TJobId> CreateJobIdSampleForLogging(const std::vector<TJobToRelease>& jobs, int maxSampleSize)
 {
     std::vector<TJobId> result;
 
@@ -1071,8 +1071,10 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
             (*clusterToNetworkBandwidthAvailability)[TClusterName(clusterName)] = availability.is_available();
         }
 
-        YT_LOG_DEBUG("Received cluster network bandwidth availability from leader (NetworkAvailability: %v)",
-            *clusterToNetworkBandwidthAvailability);
+        YT_LOG_DEBUG("Received cluster network bandwidth availability from leader (NetworkAvailability: %v, NodeId: %v, NodeAddress: %v)",
+            *clusterToNetworkBandwidthAvailability,
+            nodeId,
+            nodeDescriptor.GetDefaultAddress());
     }
 
     ProfileHeartbeatRequest(request);
@@ -2021,7 +2023,7 @@ void TJobTracker::DoProcessAllocationsInHeartbeat(
 
                 if (allocation.GetPostponedEvent()) {
                     context.AddAllocationEvent(allocation.ConsumePostponedEventOrCrash());
-                    addAllocationToTryToErase(allocationIt,context.OperationInfo);
+                    addAllocationToTryToErase(allocationIt, context.OperationInfo);
                 } else {
                     YT_LOG_WARNING(
                         "Allocation without postponed event has disapeared from node, looks like heartbeats to scheduler are too slow (JobId: %v, AllocationId: %v, OperationId: %v)",
@@ -2087,7 +2089,7 @@ void TJobTracker::DoProcessAllocationsInHeartbeat(
                     YT_VERIFY(!allocation.GetRunningJob());
 
                     context.AbortedAllocations.push_back(allocation.ConsumePostponedEventOrCrash<TAbortedAllocationSummary>());
-                    addAllocationToTryToErase(allocationIt,context.OperationInfo);
+                    addAllocationToTryToErase(allocationIt, context.OperationInfo);
                 }
             } else {
                 if (const auto& runningJob = allocation.GetRunningJob()) {
@@ -2110,7 +2112,7 @@ void TJobTracker::DoProcessAllocationsInHeartbeat(
                         allocationId);
 
                     context.FinishedAllocations.push_back(allocation.ConsumePostponedEventOrCrash<TFinishedAllocationSummary>());
-                    addAllocationToTryToErase(allocationIt,context.OperationInfo);
+                    addAllocationToTryToErase(allocationIt, context.OperationInfo);
                 }
             }
         }
@@ -2317,7 +2319,7 @@ bool TJobTracker::HandleRunningJobInfo(
     ToProto(
         response->add_jobs_to_store(),
         TJobToStore{
-            .JobId = jobId
+            .JobId = jobId,
         });
 
     allocation.FinishRunningJob();
@@ -2636,7 +2638,7 @@ void TJobTracker::DoRevive(
 
     for (auto& allocationInfo : allocations) {
         auto nodeId = NodeIdFromAllocationId(allocationInfo.AllocationId);
-        auto& nodeJobs = GetOrRegisterNode(nodeId, allocationInfo.NodeAddress, /* comesFromRevival */ true).Jobs;
+        auto& nodeJobs = GetOrRegisterNode(nodeId, allocationInfo.NodeAddress, /*comesFromRevival*/ true).Jobs;
 
         auto allocationIt = EmplaceOrCrash(
             nodeJobs.Allocations,
@@ -3549,7 +3551,7 @@ void TJobTracker::AbortUnconfirmedJobs(TOperationId operationId, std::vector<TJo
                 jobId,
                 operationId,
                 nodeId,
-            nodeAddress);
+                nodeAddress);
 
             auto [it, inserted] = operationIdToContext.emplace(allocation.OperationId, TOperationUpdatesProcessingContext{.OperationId = allocation.OperationId});
             auto& context = it->second;

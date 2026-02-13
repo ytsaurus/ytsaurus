@@ -8,12 +8,28 @@ Is released as packages in [maven](https://central.sonatype.com/artifact/tech.yt
 
 **Releases:**
 
+{% cut "**1.2.12**" %}
+
+**Release date:** 2025-12-11
+
+
+#### Features
+* Add methods lookupRowsV2, versionedLookupRowsV2 and multiLookupRowsV2 with partial result support.
+* Support 'omit\_inaccessible\_rows' flag in read\_table and read\_table\_partition API calls.
+
+#### Fixes
+* Make query statistics aggregates public.
+* Update log4j and log4j-slf4j versions in order to fix vulnerability in log4j.
+
+{% endcut %}
+
+
 {% cut "**1.2.11**" %}
 
 **Release date:** 2025-10-23
 
 
-### Features
+#### Features
 * Add `execute` method to `MultiYTsaurusClient`.
 * Support `YPath` empty root designator for operation spec.
 * Support `PatchOperationSpec` method.
@@ -24,7 +40,7 @@ Is released as packages in [maven](https://central.sonatype.com/artifact/tech.yt
 * Support listener (`RpcClientListener`) for tracking bytes sent by the client.
 * Add `sortOrder` flag to `ListQueries`.
 
-### Fixes
+#### Fixes
 * Fix `OperationContext.getTableIndex()` when using `ReducerWithKey`.
 
 {% endcut %}

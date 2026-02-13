@@ -25,7 +25,7 @@ std::string TNetworkProject::GetCapitalizedObjectName() const
 
 TYPath TNetworkProject::GetObjectPath() const
 {
-    return Format("//sys/network_projects/%v", GetName());
+    return Format("//sys/network_projects/%v", NYPath::ToYPathLiteral(GetName()));
 }
 
 void TNetworkProject::Save(NCellMaster::TSaveContext& context) const

@@ -95,7 +95,7 @@ public:
                 : TDuration::Zero();
         }
 
-        TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
+        TExtendedJobResources GetJobNeededResources(const TJobletPtr& joblet) const override
         {
             auto result = Controller_->GetUnorderedOperationResources(
                 joblet->InputStripeList->GetPerStripeStatistics());
@@ -355,83 +355,36 @@ protected:
         return options;
     }
 
-    std::vector<TChunkStripePtr> CollectInputChunkStripes()
+    std::vector<TLegacyDataSlicePtr> CollectInputChunkSlices()
     {
         YT_LOG_INFO("Collecting inputs");
-
-        auto periodicYielder = CreatePeriodicYielder(PrepareYieldPeriod);
-
-        auto unversionedSlices = InputManager_->CollectPrimaryUnversionedChunks();
 
         i64 inputSliceDataWeightEstimation = CreateJobSizeConstraints()->GetInputSliceDataWeight();
         YT_LOG_DEBUG(
             "Calculated input slice data weight estimation for versioned data slices (InputSliceDataWeightEstimation: %v)",
             inputSliceDataWeightEstimation);
-        auto versionedSlices = CollectPrimaryVersionedDataSlices(inputSliceDataWeightEstimation);
 
-        YT_LOG_INFO("Collected inputs (UnversionedSlices: %v, VersionedSlices: %v)",
-            std::ssize(unversionedSlices),
-            std::ssize(versionedSlices));
+        auto slices = CollectPrimaryInputDataSlices(inputSliceDataWeightEstimation);
+        UpdateEstimatedInputStatistics(TInputStatisticsCollector::FromChunks(slices, /*isPrimary*/ true));
 
-        std::vector<TChunkStripePtr> inputStripes;
-        inputStripes.reserve(std::size(unversionedSlices) + std::size(versionedSlices));
-
-        TInputStatisticsCollector statisticsCollector;
-
-        // TODO(max42): use CollectPrimaryInputDataSlices() here?
-        for (auto& chunk : unversionedSlices) {
-            const auto& comparator = InputManager_->GetInputTables()[chunk->GetTableIndex()]->Comparator;
-
-            auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
-            dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(chunk->GetTableIndex(), chunk->GetRangeIndex()));
-
-            if (comparator) {
-                dataSlice->TransformToNew(RowBuffer_, comparator.GetLength());
-                InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_, comparator);
-            } else {
-                dataSlice->TransformToNewKeyless();
-            }
-
-            statisticsCollector.AddChunk(chunk, /*isPrimary*/ true);
-
-            inputStripes.push_back(New<TChunkStripe>(std::move(dataSlice)));
-            periodicYielder.TryYield();
-        }
-
-        for (auto& slice : versionedSlices) {
-            statisticsCollector.AddChunk(slice, /*isPrimary*/ true);
-
-            inputStripes.push_back(New<TChunkStripe>(std::move(slice)));
-            periodicYielder.TryYield();
-        }
-
-
-        auto newStatisticsEstimate = std::move(statisticsCollector).Finish();
-        if (newStatisticsEstimate != *EstimatedInputStatistics_) {
-            YT_LOG_DEBUG(
-                "Estimated input statistics updated (NewEstimatedInputStatistics: %v)",
-                newStatisticsEstimate);
-            EstimatedInputStatistics_ = newStatisticsEstimate;
-        }
-
-        return inputStripes;
+        return slices;
     }
 
-    void ProcessInputs(std::vector<TChunkStripePtr> inputChunkStripes)
+    void ProcessInputs(std::vector<TLegacyDataSlicePtr> inputDataSlices)
     {
         auto periodicYielder = CreatePeriodicYielder(PrepareYieldPeriod);
 
         UnorderedTask_->SetIsInput(true);
 
-        for (auto& stripe : inputChunkStripes) {
-            UnorderedTask_->AddInput(std::move(stripe));
+        for (auto& stripe : inputDataSlices) {
+            UnorderedTask_->AddInput(New<TChunkStripe>(std::move(stripe)));
             periodicYielder.TryYield();
         }
     }
 
     void CustomMaterialize() override
     {
-        auto inputChunkStripes = CollectInputChunkStripes();
+        auto inputChunkSlices = CollectInputChunkSlices();
         InitJobSizeConstraints();
 
         auto autoMergeEnabled = TryInitAutoMerge(JobSizeConstraints_->GetJobCount());
@@ -452,7 +405,7 @@ protected:
 
         RegisterTask(UnorderedTask_);
 
-        ProcessInputs(std::move(inputChunkStripes));
+        ProcessInputs(std::move(inputChunkSlices));
 
         FinishTaskInput(UnorderedTask_);
         if (AutoMergeTask_) {
@@ -937,7 +890,13 @@ private:
                     validateOutputNotSorted();
 
                     if (!Spec_->InputQuery) {
+                        // TODO(s-berdnikov): Relax constraints.
                         ValidateOutputSchemaCompatibility({
+                            .TypeCompatibilityOptions = {
+                                .AllowStructFieldRenaming = false,
+                                .AllowStructFieldRemoval = false,
+                                .IgnoreUnknownRemovedFieldNames = false,
+                            },
                             .ForbidExtraComputedColumns = false,
                             .IgnoreStableNamesDifference = true,
                             .AllowTimestampColumns = table->TableUploadOptions.VersionedWriteOptions.WriteMode ==

@@ -365,6 +365,7 @@ private:
     TMpscStack<TExecuteSessionInfo> FinishedSessionInfos_;
 
     TStickyUserErrorCache StickyUserErrorCache_;
+    std::atomic<bool> EnablePerUserThrottling_ = false;
     std::atomic<bool> EnableTwoLevelCache_ = false;
     std::atomic<bool> EnableCypressTransactionsInSequoia_ = false;
     static constexpr auto DefaultScheduleReplyRetryBackoff = TDuration::MilliSeconds(100);
@@ -485,7 +486,7 @@ public:
 
     const std::string& GetUserName() const
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        VerifyPersistentStateRead();
 
         return Identity_.User;
     }
@@ -550,7 +551,7 @@ public:
 
     void RunRead()
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        VerifyPersistentStateRead();
 
         auto codicilGuard = MakeCodicilGuard();
         try {
@@ -680,6 +681,7 @@ private:
     std::optional<TReadRequestComplexityLimits> ReadRequestComplexityLimits_;
 
     bool SuppressTransactionCoordinatorSync_ = false;
+    bool SuppressStronglyOrderedTransactionBarrier_ = false;
     bool NeedsUserAccessValidation_ = true;
     bool RequestQueueSizeIncremented_ = false;
 
@@ -711,10 +713,12 @@ private:
         auto originalRequestId = FromProto<TRequestId>(request.original_request_id());
 
         RpcContext_->SetRequestInfo("SubrequestCount: %v, SuppressUpstreamSync: %v, "
-            "SuppressTransactionCoordinatorSync: %v, OriginalRequestId: %v, AllowResolveFromSequoiaObject: %v",
+            "SuppressTransactionCoordinatorSync: %v, SuppressStronglyOrderedTransactionBarrier: %v, "
+            "OriginalRequestId: %v, AllowResolveFromSequoiaObject: %v",
             TotalSubrequestCount_,
             GetSuppressUpstreamSync(RpcContext_),
             GetSuppressTransactionCoordinatorSync(RpcContext_),
+            GetSuppressStronglyOrderedTransactionBarrier(RpcContext_->GetRequestHeader()),
             originalRequestId,
             GetAllowResolveFromSequoiaObject(RpcContext_->GetRequestHeader()));
 
@@ -749,6 +753,7 @@ private:
 
         auto suppressUpstreamSync = GetSuppressUpstreamSync(RpcContext_);
         auto suppressTransactionCoordinatorSync = GetSuppressTransactionCoordinatorSync(RpcContext_);
+        auto suppressStronglyOrderedTransactionBarrier = GetSuppressStronglyOrderedTransactionBarrier(RpcContext_->RequestHeader());
         int currentPartIndex = 0;
         for (int subrequestIndex = 0; subrequestIndex < TotalSubrequestCount_; ++subrequestIndex) {
             auto& subrequest = Subrequests_[subrequestIndex];
@@ -806,6 +811,8 @@ private:
                 subrequest.MulticellSyncExt->suppress_upstream_sync();
             suppressTransactionCoordinatorSync = suppressTransactionCoordinatorSync ||
                 subrequest.MulticellSyncExt->suppress_transaction_coordinator_sync();
+            suppressStronglyOrderedTransactionBarrier = suppressStronglyOrderedTransactionBarrier ||
+                subrequest.MulticellSyncExt->suppress_strongly_ordered_transaction_barrier();
 
             // Store original path.
             if (!ypathExt->has_original_target_path()) {
@@ -833,10 +840,18 @@ private:
             if (ypathExt->has_read_complexity_limits()) {
                 FromProto(&subrequest.ReadRequestComplexityOverrides, ypathExt->read_complexity_limits());
             }
+            if (TraceContext_ && TraceContext_->IsRecorded()) {
+                subrequest.TraceContext = TraceContext_->CreateChild(
+                    Format("YPath%v.%v.%v",
+                        ypathExt->mutating() ? "Write"_sb : "Read"_sb,
+                        RpcContext_->GetService(),
+                        RpcContext_->GetMethod()));
+            }
         }
 
         CellSyncSession_->SetSyncWithUpstream(!suppressUpstreamSync);
         SuppressTransactionCoordinatorSync_ = suppressTransactionCoordinatorSync;
+        SuppressStronglyOrderedTransactionBarrier_ = suppressStronglyOrderedTransactionBarrier;
     }
 
     void LookupCachedSubrequests()
@@ -1042,12 +1057,18 @@ private:
                 "Cannot synchronize with cells when read-only mode is active");
         }
 
-        // NB: We always have to wait all current prepared transactions to
-        // observe side effects of Sequoia transactions.
-        const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
-        std::vector<TFuture<void>> additionalFutures = {
-            transactionSupervisor->WaitUntilPreparedTransactionsFinished(),
-        };
+        std::vector<TFuture<void>> additionalFutures;
+        if (syncPhase == ESyncPhase::One &&
+            !SuppressStronglyOrderedTransactionBarrier_) {
+            // NB: We have to wait all current prepared transactions to
+            // observe side effects of Sequoia transactions.
+            const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
+            additionalFutures.push_back(
+                hydraManager->SyncWithLeader().Apply(BIND([=] {
+                    return transactionSupervisor->WaitUntilPreparedTransactionsFinished();
+                })));
+        }
+
         if (additionalFuture) {
             additionalFutures.push_back(std::move(additionalFuture));
         }
@@ -1136,7 +1157,7 @@ private:
             const auto& objectManager = Bootstrap_->GetObjectManager();
             subrequest->Mutation = objectManager->CreateExecuteMutation(subrequest->RpcContext, subrequest->RpcContext->GetAuthenticationIdentity());
             subrequest->Mutation->SetMutationId(subrequest->RpcContext->GetMutationId(), subrequest->RpcContext->IsRetry());
-            subrequest->Mutation->SetTraceContext(TraceContext_);
+            subrequest->Mutation->SetTraceContext(subrequest->TraceContext);
             subrequest->Type = EExecutionSessionSubrequestType::LocalWrite;
             subrequest->ProfilingCounters->LocalWriteRequestCounter.Increment();
         } else {
@@ -1418,7 +1439,7 @@ private:
 
         auto future = RemoteTransactionReplicationSession_->InvokeReplicationRequests();
         if (!future) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         return future.Apply(BIND(
@@ -1756,7 +1777,7 @@ private:
     template <EUserWorkloadType WorkloadType>
     bool WaitForAndContinue(const TFuture<void>& result)
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        VerifyPersistentStateRead();
 
         if (auto optionalError = result.TryGet()) {
             optionalError->ThrowOnError();
@@ -1866,7 +1887,9 @@ private:
 
             const auto& securityManager = Bootstrap_->GetSecurityManager();
 
-            auto throttlerFuture = securityManager->ThrottleUser(User_.Get(), 1, WorkloadType);
+            auto throttlerFuture = Owner_->EnablePerUserThrottling_.load(std::memory_order::relaxed)
+                ? securityManager->ThrottleUser(User_.Get(), 1, WorkloadType)
+                : OKFuture;
 
             if constexpr (SubrequestType == EExecutionSessionSubrequestType::LocalRead) {
                 if (User_.Get() != securityManager->GetRootUser()) {
@@ -1916,13 +1939,15 @@ private:
 
     void GuardedRunRead()
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        VerifyPersistentStateRead();
 
         GuardedProcessSubrequests(EUserWorkloadType::Read);
     }
 
     void GuardedProcessSubrequests(EUserWorkloadType workloadType)
     {
+        VerifyPersistentStateRead();
+
         auto batchStartTime = GetCpuInstant();
         auto batchDeadlineTime = batchStartTime + DurationToCpuDuration(Owner_->Config_->YieldTimeout);
 
@@ -1992,10 +2017,10 @@ private:
 
     void ExecuteSubrequest(TSubrequest* subrequest)
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        VerifyPersistentStateRead();
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        subrequest->Revision = hydraManager->GetAutomatonVersion().ToRevision();
+        subrequest->Revision = hydraManager->GetAutomatonVersion().GetLogicalRevision();
 
         switch (subrequest->Type) {
             case EExecutionSessionSubrequestType::LocalRead:
@@ -2061,12 +2086,14 @@ private:
 
     void ExecuteLocalSubrequest(TSubrequest* subrequest)
     {
+        TCurrentTraceContextGuard traceContextGuard(subrequest->TraceContext);
+
         switch (subrequest->Type) {
             case EExecutionSessionSubrequestType::LocalWrite:
                 YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
                 break;
             case EExecutionSessionSubrequestType::LocalRead:
-                YT_ASSERT_THREAD_AFFINITY_ANY();
+                VerifyPersistentStateRead();
                 break;
             default:
                 YT_ABORT();
@@ -2140,7 +2167,7 @@ private:
 
     void ExecuteReadSubrequest(TSubrequest* subrequest)
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        VerifyPersistentStateRead();
 
         TWallTimer timer;
 
@@ -2148,13 +2175,6 @@ private:
         TAuthenticatedUserGuard userGuard(securityManager, User_.Get());
 
         const auto& rpcContext = subrequest->RpcContext;
-
-        if (TraceContext_ && TraceContext_->IsRecorded()) {
-            subrequest->TraceContext = TraceContext_->CreateChild(
-                ConcatToString(TStringBuf("YPathRead:"), rpcContext->GetService(), TStringBuf("."), rpcContext->GetMethod()));
-        }
-
-        TCurrentTraceContextGuard traceContextGuard(subrequest->TraceContext);
         try {
             const auto& objectManager = Bootstrap_->GetObjectManager();
             auto rootService = objectManager->GetRootService();
@@ -2258,10 +2278,6 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        // Missing subresponses are only possible for remote subrequests, and
-        // there should be no trace contexts for them.
-        YT_ASSERT(!subrequest->TraceContext);
-
         YT_VERIFY(!subrequest->Uncertain.load());
         YT_VERIFY(!subrequest->Completed.load());
 
@@ -2273,7 +2289,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        Interrupt();
+        LocalExecutionInterrupted_.store(true);
 
         if (!ReplyScheduled_.exchange(true)) {
             TObjectService::GetRpcInvoker()
@@ -2379,16 +2395,6 @@ private:
         RpcContext_->Reply();
     }
 
-
-    void Interrupt()
-    {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
-
-        if (!LocalExecutionInterrupted_.exchange(true)) {
-            YT_LOG_DEBUG("Request interrupted");
-        }
-    }
-
     void CancelPendingCacheSubrequests()
     {
         if (!Subrequests_) {
@@ -2409,7 +2415,9 @@ private:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (RpcContext_->IsCanceled() || EpochCancelableContext_->IsCanceled()) {
-            Interrupt();
+            if (!LocalExecutionInterrupted_.exchange(true)) {
+                YT_LOG_DEBUG("Request interrupted due to cancellation");
+            }
             return true;
         } else {
             return false;
@@ -2530,7 +2538,7 @@ TCallback<void()> TObjectService::TLocalReadCallbackProvider::ExtractCallback()
 
 const TDynamicObjectServiceConfigPtr& TObjectService::GetDynamicConfig()
 {
-    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+    VerifyPersistentStateRead();
 
     return Bootstrap_->GetConfigManager()->GetConfig()->ObjectService;
 }
@@ -2543,6 +2551,7 @@ void TObjectService::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig
     EnableTwoLevelCache_ = objectServiceConfig->EnableTwoLevelCache;
     ScheduleReplyRetryBackoff_ = objectServiceConfig->ScheduleReplyRetryBackoff;
     MinimizeExecuteLatency_ = objectServiceConfig->MinimizeExecuteLatency;
+    EnablePerUserThrottling_ = objectServiceConfig->EnablePerUserThrottling;
     PrematureBackoffAlarmProbability_ = objectServiceConfig->Testing->PrematureBackoffAlarmProbability.value_or(NullPrematureBackoffAlarmProbability);
 
     const auto& sequoiaConfig = Bootstrap_->GetConfigManager()->GetConfig()->SequoiaManager;
@@ -2685,7 +2694,7 @@ void TObjectService::OnUserCharged(TUser* user, const TUserWorkload& workload)
 
 void TObjectService::SetStickyUserError(const std::string& userName, const TError& error)
 {
-    YT_ASSERT_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     StickyUserErrorCache_.Put(userName, error);
 }

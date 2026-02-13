@@ -99,13 +99,13 @@ protected:
             , IsInitializationCompleted_(false)
         { }
 
-        TRemoteCopyTaskBase(TRemoteCopyController* controller)
+        explicit TRemoteCopyTaskBase(TRemoteCopyController* controller)
             : TTask(controller, controller->GetStandardStreamDescriptors(), /*inputStreamDescriptors*/ {})
             , Controller_(controller)
             , IsInitializationCompleted_(false)
         {
             if (Controller_->Spec_->ClusterName && Controller_->Spec_->UseClusterThrottlers) {
-                TClusterName clusterName{*Controller_->Spec_->ClusterName};
+                TClusterName clusterName{Controller_->Spec_->ClusterName};
                 UpdateClusterToNetworkBandwidthAvailability(
                     clusterName,
                     TaskHost_->IsNetworkBandwidthAvailable(clusterName));
@@ -195,7 +195,7 @@ protected:
                 : TDuration::Zero();
         }
 
-        TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
+        TExtendedJobResources GetJobNeededResources(const TJobletPtr& joblet) const override
         {
             return GetMergeResources(joblet->InputStripeList->GetPerStripeStatistics());
         }
@@ -329,7 +329,7 @@ protected:
             : TRemoteCopyTaskBase()
         { }
 
-        TRemoteCopyTask(TRemoteCopyController* controller)
+        explicit TRemoteCopyTask(TRemoteCopyController* controller)
             : TRemoteCopyTaskBase(controller)
         { }
 
@@ -348,7 +348,7 @@ protected:
             : TRemoteCopyTaskBase()
         { }
 
-        TRemoteCopyHunkTask(TRemoteCopyController* controller)
+        explicit TRemoteCopyHunkTask(TRemoteCopyController* controller)
             : TRemoteCopyTaskBase(controller)
         { }
 
@@ -381,7 +381,7 @@ protected:
             : TRemoteCopyTaskBase()
         { }
 
-        TRemoteCopyCompressionDictionaryTask(TRemoteCopyController* controller)
+        explicit TRemoteCopyCompressionDictionaryTask(TRemoteCopyController* controller)
             : TRemoteCopyTaskBase(controller)
         { }
 
@@ -1145,15 +1145,15 @@ private:
 
     void ValidateHunkChunksConsistency() const
     {
-        static const TStringBuf chunkName = "hunk chunks";
-        ValidateConsistency(HunkChunkIdMapping_, HunkChunkIds_, chunkName);
+        static const TStringBuf ChunkName = "hunk chunks";
+        ValidateConsistency(HunkChunkIdMapping_, HunkChunkIds_, ChunkName);
 
     }
 
     void ValidateCompressionDictionariesConsistency() const
     {
-        static const TStringBuf chunkName = "compression dictionaries";
-        ValidateConsistency(CompressionDictionaryIdMapping_, CompressionDictionaryIds_, chunkName);
+        static const TStringBuf ChunkName = "compression dictionaries";
+        ValidateConsistency(CompressionDictionaryIdMapping_, CompressionDictionaryIds_, ChunkName);
     }
 
     void FillJobSpecHunkChunkIdMapping()

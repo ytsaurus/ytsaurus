@@ -15,11 +15,21 @@ DECLARE_REFCOUNTED_CLASS(TSchedulingPolicy)
 
 DECLARE_REFCOUNTED_STRUCT(ISchedulingHeartbeatContext)
 
-DECLARE_REFCOUNTED_CLASS(TPoolTreeSnapshotState)
-
 DECLARE_REFCOUNTED_STRUCT(TPersistentSchedulingSegmentsState)
 
+DECLARE_REFCOUNTED_STRUCT(TPostUpdateContext)
+DECLARE_REFCOUNTED_STRUCT(TPoolTreeSnapshotState)
+
+DECLARE_REFCOUNTED_STRUCT(TPostUpdateContextImpl)
+DECLARE_REFCOUNTED_CLASS(TPoolTreeSnapshotStateImpl)
+
 ////////////////////////////////////////////////////////////////////////////////
+
+// TODO(eshcherbin): Choose better name for classic policy.
+DEFINE_ENUM(EPolicyKind,
+    (Classic)
+    (Gpu)
+);
 
 DEFINE_ENUM(EAllocationPreemptionStatus,
     (NonPreemptible)

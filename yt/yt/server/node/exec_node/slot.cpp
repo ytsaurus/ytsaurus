@@ -69,7 +69,7 @@ public:
         const TString& nodeTag,
         ESlotType slotType,
         NClusterNode::TCpu requestedCpu,
-        NScheduler::NProto::TDiskRequest diskRequest,
+        NScheduler::NProto::TDeprecatedDiskRequest diskRequest,
         const std::optional<TNumaNodeInfo>& numaNodeAffinity)
         : JobEnvironment_(std::move(environment))
         , Location_(std::move(location))
@@ -230,7 +230,7 @@ public:
             });
     }
 
-    TFuture<void> MakeSandboxBind(
+    TFuture<void> MakeFileForSandboxBind(
         TJobId jobId,
         const TString& artifactName,
         ESandboxKind sandboxKind,
@@ -246,7 +246,7 @@ public:
             /*actionName*/ "MakeBind",
             /*uncancelable*/ false,
             [&] {
-                return Location_->MakeSandboxBind(
+                return Location_->MakeFileForSandboxBind(
                     jobId,
                     SlotIndex_,
                     artifactName,
@@ -328,14 +328,26 @@ public:
             return MakeFuture<IVolumePtr>(TError("Porto layers and custom root FS are not supported"));
         }
 
-        // TODO(yuryalekseev): Remove me when slot rbind is removed.
-        auto slotPath = GetSlotPath();
-
         return RunPreparationAction(
             /*actionName*/ "PrepareRootVolume",
             /*uncancelable*/ false,
             [&] {
-                return VolumeManager_->PrepareVolume(layers, options, slotPath);
+                return VolumeManager_->PrepareVolume(layers, options);
+            });
+    }
+
+    // COMPAT(krasovav): Remove when LinkRootFS is ready
+    TFuture<IVolumePtr> RbindRootVolume(
+        const IVolumePtr& volume,
+        const TString& slotPath) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        return RunPreparationAction(
+            /*actionName*/ "RbindRootVolume",
+            /*uncancelable*/ false,
+            [&] {
+                return VolumeManager_->RbindRootVolume(volume, slotPath);
             });
     }
 
@@ -358,9 +370,11 @@ public:
                 return VolumeManager_->PrepareVolume(layers, options);
             });
     }
+
     TFuture<std::vector<TTmpfsVolumeResult>> PrepareTmpfsVolumes(
         const IVolumePtr& rootVolume,
-        const std::vector<TTmpfsVolumeParams>& volumeParams) override
+        const std::vector<TTmpfsVolumeParams>& volumeParams,
+        bool testRootFs) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -380,45 +394,49 @@ public:
 
         std::vector<std::string_view> tmpfsPaths;
         tmpfsPaths.reserve(volumeParams.size());
-        for (const auto& volume: volumeParams) {
+        for (const auto& volume : volumeParams) {
             tmpfsPaths.push_back(volume.Path);
         }
 
-        //! Check that no volume path is a prefix of another volume path.
+        // Check that no volume path is a prefix of another volume path.
         ValidateTmpfsPaths(tmpfsPaths);
 
-        auto userSandBoxPath = GetUserSandboxPath(rootVolume);
+        auto userSandboxPath = GetSandboxPath(ESandboxKind::User, rootVolume, testRootFs);
+        return Location_->CreateTmpfsDirectoriesInsideSandbox(userSandboxPath, volumeParams)
+            .Apply(BIND([userSandboxPath = std::move(userSandboxPath), rootVolume, volumeParams, this, this_ = MakeStrong(this)]() mutable {
+                // Check if tmpfs volumes are enabled only after tmpfs directories are created.
+                if (!Bootstrap_->GetConfig()->ExecNode->SlotManager->EnableTmpfs) {
+                    YT_LOG_INFO("Do not prepare tmpfs volumes since tmpfs is disabled in slot manager");
+                    return MakeFuture(std::vector<TTmpfsVolumeResult>{});
+                }
 
-        CreateTmpfsDirectoriesInsideSandbox(userSandBoxPath, volumeParams);
+                return RunPreparationAction(
+                    /*actionName*/ "PrepareTmpfsVolumes",
+                    /*uncancelable*/ false,
+                    [userSandboxPath = std::move(userSandboxPath), rootVolume = std::move(rootVolume), volumeParams = std::move(volumeParams), this, this_ = MakeStrong(this)] {
+                        return VolumeManager_->PrepareTmpfsVolumes(userSandboxPath, volumeParams)
+                            .AsUnique().Apply(BIND([rootVolume, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
+                                if (!volumeResultsOrError.IsOK()) {
+                                    THROW_ERROR_EXCEPTION("Failed to prepare tmpfs volumes: %v",
+                                        volumeResultsOrError);
+                                }
 
-        // Check if tmpfs volumes are enabled only after tmpfs directories are created.
-        if (!Bootstrap_->GetConfig()->ExecNode->SlotManager->EnableTmpfs) {
-            YT_LOG_INFO("Do not prepare tmpfs volumes since tmpfs is disabled in slot manager");
-            return MakeFuture(std::vector<TTmpfsVolumeResult>{});
-        }
+                                auto& volumeResults = volumeResultsOrError.Value();
 
-        return RunPreparationAction(
-            /*actionName*/ "PrepareTmpfsVolumes",
-            /*uncancelable*/ false,
-            [userSandBoxPath = std::move(userSandBoxPath), volumeParams, this, this_ = MakeStrong(this)] {
-                return VolumeManager_->PrepareTmpfsVolumes(userSandBoxPath, volumeParams)
-                    .AsUnique().Apply(BIND([volumeParams, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
-                        if (!volumeResultsOrError.IsOK()) {
-                            THROW_ERROR_EXCEPTION("Failed to prepare tmpfs volumes: %v",
-                                volumeResultsOrError);
-                        }
-
-                        // Inform slot location about tmpfses to be used.
-                        Location_->TakeIntoAccountTmpfsVolumes(SlotIndex_, volumeParams);
-                        return volumeResultsOrError.Value();
-                })
-                .AsyncVia(Bootstrap_->GetJobInvoker()));
-            });
+                                // Inform slot location about tmpfses to be used.
+                                Location_->TakeIntoAccountTmpfsVolumes(SlotIndex_, rootVolume, volumeResults);
+                                return std::move(volumeResults);
+                            })
+                            .AsyncVia(Bootstrap_->GetJobInvoker()));
+                    });
+            })
+            .AsyncVia(Bootstrap_->GetJobInvoker()));
     }
 
     TFuture<void> LinkTmpfsVolumes(
         const IVolumePtr& rootVolume,
-        const std::vector<TTmpfsVolumeResult>& volumeResults) override
+        const std::vector<TTmpfsVolumeResult>& volumeResults,
+        bool testRootFs) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -432,13 +450,13 @@ public:
 
         if (!Bootstrap_->GetConfig()->ExecNode->SlotManager->EnableTmpfs) {
             YT_LOG_INFO("Do not link tmpfs volumes since tmpfs is disabled in slot manager");
-            return VoidFuture;
+            return OKFuture;
         }
 
-        auto userSandBoxPath = GetUserSandboxPath(rootVolume);
+        auto userSandboxPath = GetSandboxPath(ESandboxKind::User, rootVolume, testRootFs);
 
         YT_LOG_DEBUG("Linking tmpfs volumes into sandbox (UserSandboxPath: %v, Volumes: %v)",
-            userSandBoxPath,
+            userSandboxPath,
             MakeFormattableView(volumeResults,
                 [] (auto* builder, const TTmpfsVolumeResult& result) {
                     builder->AppendFormat("{TmpfsPath: %v}",
@@ -448,8 +466,8 @@ public:
         return RunPreparationAction(
             /*actionName*/ "LinkTmpfsVolumes",
             /*uncancelable*/ true,
-            [userSandBoxPath = std::move(userSandBoxPath), volumeResults, this, this_ = MakeStrong(this)] {
-                return VolumeManager_->LinkTmpfsVolumes(userSandBoxPath, volumeResults);
+            [userSandboxPath = std::move(userSandboxPath), volumeResults, this, this_ = MakeStrong(this)] {
+                return VolumeManager_->LinkTmpfsVolumes(userSandboxPath, volumeResults);
             });
     }
 
@@ -472,13 +490,6 @@ public:
         VerifyEnabled();
 
         return Location_->GetSlotPath(SlotIndex_);
-    }
-
-    TString GetSandboxPath(ESandboxKind sandbox) const override
-    {
-        VerifyEnabled();
-
-        return Location_->GetSandboxPath(SlotIndex_, sandbox);
     }
 
     std::string GetMediumName() const override
@@ -631,11 +642,61 @@ public:
             Format("%v-job-proxy-%v", NodeTag_, SlotIndex_)});
     }
 
+    std::string GetJobProxyHttpUnixDomainSocketPath() const override
+    {
+        VerifyEnabled();
+
+        return NFS::CombinePaths({
+            Location_->GetSlotPath(SlotIndex_),
+            "pipes",
+            Format("%v-job-proxy-http-%v", NodeTag_, SlotIndex_)});
+    }
+
     TFuture<void> CreateSlotDirectories(const IVolumePtr& rootVolume, int userId) const override
     {
         VerifyEnabled();
 
         return Location_->CreateSlotDirectories(rootVolume, userId);
+    }
+
+    TFuture<void> ValidateRootFS(const IVolumePtr& rootVolume) const override
+    {
+        VerifyEnabled();
+
+        return Location_->ValidateRootFS(rootVolume);
+    }
+
+    TString GetSandboxPath(ESandboxKind sandboxKind, const IVolumePtr& rootVolume, bool testRootFs) const override
+    {
+        VerifyEnabled();
+
+        switch (sandboxKind) {
+            case ESandboxKind::User:
+                if (rootVolume && !testRootFs) {
+                    YT_VERIFY(!rootVolume->GetPath().empty());
+
+                    // Use user sandbox within root volume.
+                    return NFS::CombinePaths(
+                        rootVolume->GetPath(),
+                        Format("slot/%v", GetSandboxRelPath(sandboxKind)));
+                }
+                [[fallthrough]];
+            default:
+                return Location_->GetSandboxPath(
+                    SlotIndex_,
+                    sandboxKind);
+        }
+    }
+
+    void ValidateEnabled() const override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+        if (!IsEnabled_.load()) {
+            THROW_ERROR_EXCEPTION("User slot is disabled")
+                << TErrorAttribute("slot_index", SlotIndex_);
+        }
+
+        Location_->ValidateEnabled();
     }
 
 private:
@@ -696,56 +757,6 @@ private:
         }
     }
 
-    TString GetUserSandboxPath(const IVolumePtr& rootVolume) const
-    {
-        if (rootVolume) {
-            YT_VERIFY(rootVolume->GetPath());
-
-            // Use user sandbox within root volume.
-            return NFS::CombinePaths(
-                rootVolume->GetPath(),
-                Format("slot/%v", GetSandboxRelPath(ESandboxKind::User)));
-        }
-        // Use user sandbox within disk location.
-        return Location_->GetSandboxPath(
-            SlotIndex_,
-            ESandboxKind::User);
-    }
-
-    static void CreateTmpfsDirectoriesInsideSandbox(
-        const TString& userSandBoxPath,
-        const std::vector<TTmpfsVolumeParams>& volumeParams)
-    {
-        // It is assumed that userSandBoxPath already exists.
-        for (const auto& volume: volumeParams) {
-            // TODO(gritukan): GetRealPath here can be replaced with some light analogue that does not access filesystem.
-            auto tmpfsUserSandboxPath = NFS::GetRealPath(NFS::CombinePaths(userSandBoxPath, volume.Path));
-
-            auto& Logger = ExecNodeLogger();
-
-            YT_LOG_DEBUG("Creating tmpfs directory (TmpfsPath: %v, UserSandBoxPath: %v, TmpfsUserSandBoxPath: %v)",
-                volume.Path,
-                userSandBoxPath,
-                tmpfsUserSandboxPath);
-
-            try {
-                if (tmpfsUserSandboxPath != userSandBoxPath) {
-                    // If we mount directory inside sandbox, it should not exist.
-                    if (NFS::Exists(tmpfsUserSandboxPath)) {
-                        THROW_ERROR_EXCEPTION("Tmpfs path %v already exists",
-                            tmpfsUserSandboxPath);
-                    }
-                }
-                NFS::MakeDirRecursive(tmpfsUserSandboxPath);
-            } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Failed to create directory %v for tmpfs in sandbox %v",
-                    tmpfsUserSandboxPath,
-                    userSandBoxPath)
-                    << ex;
-            }
-        }
-    }
-
     TString GetJobProxyGrpcUnixDomainSocketPath() const
     {
         VerifyEnabled();
@@ -768,7 +779,7 @@ IUserSlotPtr CreateSlot(
     const TString& nodeTag,
     ESlotType slotType,
     NClusterNode::TCpu requestedCpu,
-    NScheduler::NProto::TDiskRequest diskRequest,
+    NScheduler::NProto::TDeprecatedDiskRequest diskRequest,
     const std::optional<TNumaNodeInfo>& numaNodeAffinity)
 {
     auto slot = NewWithOffloadedDtor<TUserSlot>(

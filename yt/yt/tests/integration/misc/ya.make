@@ -2,6 +2,7 @@ PY3_LIBRARY()
 
 TEST_SRCS(
     test_bootstrap.py
+    test_constraints.py
     test_clock_server.py
     test_discovery.py
     test_distributed_write.py

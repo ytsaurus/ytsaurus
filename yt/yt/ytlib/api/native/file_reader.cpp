@@ -146,7 +146,7 @@ private:
             EPermission::Read,
             TGetUserObjectBasicAttributesOptions{
                 .SuppressAccessTracking = Options_.SuppressAccessTracking,
-                .SuppressExpirationTimeoutRenewal = Options_.SuppressExpirationTimeoutRenewal
+                .SuppressExpirationTimeoutRenewal = Options_.SuppressExpirationTimeoutRenewal,
             });
 
         if (userObject.Type != EObjectType::File) {

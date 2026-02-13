@@ -126,8 +126,8 @@ static const THashSet<TString> SupportedJobsAttributes = {
     "monitoring_descriptor",
     "core_infos",
     "job_cookie",
-    "distributed_group_job_index",
-    "distributed_group_main_job_id",
+    "collective_member_rank",
+    "collective_id",
     "operation_incarnation",
     "archive_features",
     "brief_statistics",
@@ -183,8 +183,8 @@ static const THashSet<TString> DefaultListJobsAttributes = {
     "monitoring_descriptor",
     "core_infos",
     "job_cookie",
-    "distributed_group_main_job_id",
-    "distributed_group_job_index",
+    "collective_id",
+    "collective_member_rank",
     "operation_incarnation",
     "archive_features",
     "brief_statistics",
@@ -224,8 +224,8 @@ static const THashMap<std::string, std::optional<int>> JobAttributeToMinArchiveV
     {"monitoring_descriptor", {}},
     {"core_infos", {}},
     {"job_cookie", {}},
-    {"distributed_group_job_index", 65},
-    {"distributed_group_main_job_id", 65},
+    {"collective_member_rank", 65},
+    {"collective_id", 65},
     {"brief_statistics", {}},
     {"statistics", {}},
     {"exec_attributes", {}},
@@ -1503,7 +1503,7 @@ void TClient::UpdateJobTracesWithJobState(
         auto jobYsonMap = ConvertToNode(jobYsonString)->AsMap();
         jobState = jobYsonMap->GetChildValueOrThrow<EJobState>("state");
     } catch (const std::exception& ex) {
-        YT_LOG_DEBUG(ex, "Failed to fetch state from job. Skipping job trace update (OperationId: %v, JobId: %v)",
+        YT_LOG_DEBUG(ex, "Failed to fetch state from job, skipping job trace update (OperationId: %v, JobId: %v)",
             operationId,
             jobId);
         return;
@@ -1712,13 +1712,13 @@ static void AddWhereExpressions(TQueryBuilder* builder, const TListJobsOptions& 
         builder->AddWhereConjunct(Format("job_competition_id = %Qv", options.JobCompetitionId));
     }
 
-    if (options.DistributedGroupMainJobId) {
-        auto mainJobId = options.DistributedGroupMainJobId.Underlying();
+    if (options.CollectiveId) {
+        auto collectiveId = options.CollectiveId;
 
         builder->AddWhereConjunct(Format(
-            "(distributed_group_main_job_id_hi, distributed_group_main_job_id_lo) = (%vu, %vu)",
-            mainJobId.Parts64[0],
-            mainJobId.Parts64[1]));
+            "(collective_id_hi, collective_id_lo) = (%vu, %vu)",
+            collectiveId.Parts64[0],
+            collectiveId.Parts64[1]));
     }
 
     if (options.WithCompetitors) {
@@ -1871,7 +1871,7 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             .PoolTree = record.PoolTree,
             .MonitoringDescriptor = record.MonitoringDescriptor,
             .JobCookie = record.JobCookie,
-            .DistributedGroupJobIndex = record.DistributedGroupJobIndex,
+            .CollectiveMemberRank = record.CollectiveMemberRank,
             .ArchiveFeatures = record.ArchiveFeatures.value_or(TYsonString()),
             .OperationIncarnation = record.OperationIncarnation,
             .GangRank = record.GangRank,
@@ -1939,14 +1939,14 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             job.JobCompetitionId = TJobId(TGuid::FromString(*record.JobCompetitionId));
         }
 
-        if (record.DistributedGroupMainJobIdHi) {
-            job.DistributedGroupMainJobId = TJobId(TGuid(
-                *record.DistributedGroupMainJobIdHi,
-                *record.DistributedGroupMainJobIdLo));
+        if (record.CollectiveIdHi) {
+            job.CollectiveId = TGuid(
+                *record.CollectiveIdHi,
+                *record.CollectiveIdLo);
         }
 
-        if (record.DistributedGroupJobIndex) {
-            job.DistributedGroupJobIndex = *record.DistributedGroupJobIndex;
+        if (record.CollectiveMemberRank) {
+            job.CollectiveMemberRank = *record.CollectiveMemberRank;
         }
 
         if (record.ProbingJobCompetitionId) {
@@ -2006,7 +2006,7 @@ void TClient::AddSelectExpressions(
             continue;
         }
 
-        if (attribute == "job_id" || attribute == "allocation_id" || attribute == "operation_id" || attribute == "distributed_group_main_job_id") {
+        if (attribute == "job_id" || attribute == "allocation_id" || attribute == "operation_id" || attribute == "collective_id") {
             builder->AddSelectExpression(attribute + "_hi");
             builder->AddSelectExpression(attribute + "_lo");
         } else if (attribute == "start_time" || attribute == "finish_time") {
@@ -2162,8 +2162,8 @@ static void ParseJobsFromControllerAgentResponse(
     auto needTaskName = attributes.contains("task_name");
     auto needCoreInfos = attributes.contains("core_infos");
     auto needJobCookie = attributes.contains("job_cookie");
-    auto needDistributedGroupJobIndex = attributes.contains("distributed_group_job_index");
-    auto needDistributedGroupMainJobId = attributes.contains("distributed_group_main_job_id");
+    auto needCollectiveMemberRank = attributes.contains("collective_member_rank");
+    auto needCollectiveId = attributes.contains("collective_id");
     auto needMonitoringDescriptor = attributes.contains("monitoring_descriptor");
     auto needOperationIncarnation = attributes.contains("operation_incarnation");
     auto needAllocationId = attributes.contains("allocation_id");
@@ -2244,17 +2244,17 @@ static void ParseJobsFromControllerAgentResponse(
         if (needJobCookie) {
             job.JobCookie = jobMapNode->FindChildValue<ui64>("job_cookie");
         }
-        if (needDistributedGroupJobIndex) {
-            auto distributedGroupInfo = jobMapNode->FindChild("distributed_group_info");
-            if (distributedGroupInfo) {
-                job.DistributedGroupJobIndex = distributedGroupInfo->AsMap()->FindChildValue<ui64>("index");
+        if (needCollectiveMemberRank) {
+            auto collectiveInfo = jobMapNode->FindChild("collective_info");
+            if (collectiveInfo) {
+                job.CollectiveMemberRank = collectiveInfo->AsMap()->FindChildValue<ui64>("rank");
             }
         }
-        if (needDistributedGroupMainJobId) {
-            auto distributedGroupInfo = jobMapNode->FindChild("distributed_group_info");
-            if (distributedGroupInfo) {
-                if (auto mainJobId = distributedGroupInfo->AsMap()->FindChildValue<TJobId>("main_job_id")) {
-                    job.DistributedGroupMainJobId = *mainJobId;
+        if (needCollectiveId) {
+            auto collectiveInfo = jobMapNode->FindChild("collective_info");
+            if (collectiveInfo) {
+                if (auto collectiveId = collectiveInfo->AsMap()->FindChildValue<TJobId>("collective_id")) {
+                    job.CollectiveId = collectiveId->Underlying();
                 }
             }
         }
@@ -2313,10 +2313,10 @@ static void ParseJobsFromControllerAgentResponse(
         auto state = ConvertTo<EJobState>(jobMap->GetChildOrThrow("state"));
         auto stderrSize = jobMap->GetChildValueOrThrow<i64>("stderr_size");
         auto failContextSize = jobMap->GetChildValueOrDefault<i64>("fail_context_size", 0);
-        std::optional<TJobId> mainJobId;
-        if (auto distributedGroupInfo = jobMap->FindChild("distributed_group_info")) {
-            if (auto maybeMainJobId = distributedGroupInfo->AsMap()->FindChildValue<TJobId>("main_job_id")) {
-                mainJobId = *maybeMainJobId;
+        std::optional<TGuid> collectiveId;
+        if (auto collectiveInfo = jobMap->FindChild("collective_info")) {
+            if (auto maybeCollectiveId = collectiveInfo->AsMap()->FindChildValue<TJobId>("collective_id")) {
+                collectiveId = maybeCollectiveId->Underlying();
             }
         }
         auto jobCompetitionId = jobMap->GetChildValueOrThrow<TJobId>("job_competition_id");
@@ -2332,7 +2332,7 @@ static void ParseJobsFromControllerAgentResponse(
             (!options.State || options.State == state) &&
             (!options.WithStderr || *options.WithStderr == (stderrSize > 0)) &&
             (!options.WithFailContext || *options.WithFailContext == (failContextSize > 0)) &&
-            (!options.DistributedGroupMainJobId || options.DistributedGroupMainJobId == mainJobId) &&
+            (!options.CollectiveId || options.CollectiveId == collectiveId) &&
             (!options.JobCompetitionId || options.JobCompetitionId == jobCompetitionId) &&
             (!options.WithCompetitors || options.WithCompetitors == hasCompetitors) &&
             (!options.TaskName || options.TaskName == taskName) &&
@@ -2533,8 +2533,8 @@ static void MergeJobs(TJob&& controllerAgentJob, TJob* archiveJob)
     mergeNullableField(&TJob::TaskName);
     mergeNullableField(&TJob::PoolTree);
     mergeNullableField(&TJob::JobCookie);
-    mergeNullableField(&TJob::DistributedGroupJobIndex);
-    mergeNullableField(&TJob::DistributedGroupMainJobId);
+    mergeNullableField(&TJob::CollectiveMemberRank);
+    mergeNullableField(&TJob::CollectiveId);
     mergeNullableField(&TJob::OperationIncarnation);
     mergeNullableField(&TJob::AllocationId);
     mergeNullableField(&TJob::GangRank);
@@ -2825,7 +2825,7 @@ static std::vector<TString> MakeJobArchiveAttributes(const THashSet<TString>& at
         if (!DoesArchiveContainAttribute(attribute, archiveVersion)) {
             continue;
         }
-        if (attribute == "operation_id" || attribute == "job_id" || attribute == "allocation_id" || attribute == "distributed_group_main_job_id") {
+        if (attribute == "operation_id" || attribute == "job_id" || attribute == "allocation_id" || attribute == "collective_id") {
             result.push_back(attribute + "_hi");
             result.push_back(attribute + "_lo");
         } else if (attribute == "state") {

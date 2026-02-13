@@ -1,12 +1,13 @@
 #include "cell_downtime_tracker.h"
 
+#include "input_state.h"
+
 namespace NYT::NCellBalancer {
 
 using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// constinit const auto Logger = BundleControllerLogger;
 static const std::string CellStateLeading = "leading";
 
 ////////////////////////////////////////////////////////////////////////////////

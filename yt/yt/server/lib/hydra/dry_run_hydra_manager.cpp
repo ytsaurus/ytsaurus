@@ -131,13 +131,17 @@ public:
         auto params = reader->GetParams();
         const auto& meta = params.Meta;
 
+        // COMPAT(h0pless): HydraLogicalRecordId.
+        auto lastLogicalRecordId = YT_OPTIONAL_FROM_PROTO(meta, last_logical_record_id).value_or(meta.last_record_id());
+        TAutomatonVersion version(meta.last_segment_id(), meta.last_record_id(), lastLogicalRecordId);
+
         auto loadSnapshotFuture = BIND(&TDecoratedAutomaton::LoadSnapshot, DecoratedAutomaton_)
             .AsyncVia(DecoratedAutomaton_->GetSystemInvoker())
             .Run(
                 snapshotId,
                 meta.last_mutation_term(),
                 meta.last_mutation_reign(),
-                TVersion(meta.last_segment_id(), meta.last_record_id()),
+                version,
                 meta.sequence_number(),
                 meta.read_only(),
                 meta.random_seed(),
@@ -241,7 +245,7 @@ public:
 
         YT_LOG_INFO("Started building snapshot in dry run mode");
         auto sequenceNumber = DecoratedAutomaton_->GetSequenceNumber();
-        auto nextSnapshotId = DecoratedAutomaton_->GetAutomatonVersion().SegmentId + 1;
+        auto nextSnapshotId = DecoratedAutomaton_->GetAutomatonVersion().GetSegmentId() + 1;
         auto buildSnapshotFuture = BIND(&TDecoratedAutomaton::BuildSnapshot, DecoratedAutomaton_)
             .AsyncVia(DecoratedAutomaton_->GetSystemInvoker())
             .Run(nextSnapshotId, sequenceNumber, /*readOnly*/ false);
@@ -313,7 +317,7 @@ public:
     TFuture<void> Reconfigure(TDynamicDistributedHydraManagerConfigPtr /*config*/) override
     {
         // Just do nothing.
-        return VoidFuture;
+        return OKFuture;
     }
 
     DEFINE_SIGNAL_OVERRIDE(void(), StartLeading);
@@ -359,7 +363,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    TVersion GetAutomatonVersion() const override
+    TAutomatonVersion GetAutomatonVersion() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 

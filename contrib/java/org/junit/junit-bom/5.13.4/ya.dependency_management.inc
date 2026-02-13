@@ -1,0 +1,20 @@
+DEPENDENCY_MANAGEMENT(
+    contrib/java/org/junit/jupiter/junit-jupiter/5.13.4
+    contrib/java/org/junit/jupiter/junit-jupiter-api/5.13.4
+    contrib/java/org/junit/jupiter/junit-jupiter-engine/5.13.4
+    contrib/java/org/junit/jupiter/junit-jupiter-migrationsupport/5.13.4
+    contrib/java/org/junit/jupiter/junit-jupiter-params/5.13.4
+    contrib/java/org/junit/platform/junit-platform-commons/1.13.4
+    contrib/java/org/junit/platform/junit-platform-console/1.13.4
+    contrib/java/org/junit/platform/junit-platform-engine/1.13.4
+    contrib/java/org/junit/platform/junit-platform-jfr/1.13.4
+    contrib/java/org/junit/platform/junit-platform-launcher/1.13.4
+    contrib/java/org/junit/platform/junit-platform-reporting/1.13.4
+    contrib/java/org/junit/platform/junit-platform-runner/1.13.4
+    contrib/java/org/junit/platform/junit-platform-suite/1.13.4
+    contrib/java/org/junit/platform/junit-platform-suite-api/1.13.4
+    contrib/java/org/junit/platform/junit-platform-suite-commons/1.13.4
+    contrib/java/org/junit/platform/junit-platform-suite-engine/1.13.4
+    contrib/java/org/junit/platform/junit-platform-testkit/1.13.4
+    contrib/java/org/junit/vintage/junit-vintage-engine/5.13.4
+)

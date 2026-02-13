@@ -9,11 +9,11 @@ from sqlglot.dialects.dialect import (
     is_parse_json,
     pivot_column_names,
     rename_func,
-    trim_sql,
     unit_to_str,
 )
 from sqlglot.dialects.hive import Hive
 from sqlglot.helper import seq_get
+from sqlglot.parser import build_trim
 from sqlglot.tokens import TokenType
 from sqlglot.transforms import (
     preprocess,
@@ -119,6 +119,11 @@ class Spark2(Hive):
 
     EXPRESSION_METADATA = EXPRESSION_METADATA.copy()
 
+    # https://spark.apache.org/docs/latest/api/sql/index.html#initcap
+    # https://docs.databricks.com/aws/en/sql/language-manual/functions/initcap
+    # https://github.com/apache/spark/blob/master/common/unsafe/src/main/java/org/apache/spark/unsafe/types/UTF8String.java#L859-L905
+    INITCAP_DEFAULT_DELIMITER_CHARS = " "
+
     class Tokenizer(Hive.Tokenizer):
         HEX_STRINGS = [("X'", "'"), ("x'", "'")]
 
@@ -154,9 +159,11 @@ class Spark2(Hive):
                 ),
                 zone=seq_get(args, 1),
             ),
+            "LTRIM": lambda args: build_trim(args, reverse_args=True),
             "INT": _build_as_cast("int"),
             "MAP_FROM_ARRAYS": exp.Map.from_arg_list,
             "RLIKE": exp.RegexpLike.from_arg_list,
+            "RTRIM": lambda args: build_trim(args, is_left=False, reverse_args=True),
             "SHIFTLEFT": binary_from_function(exp.BitwiseLeftShift),
             "SHIFTRIGHT": binary_from_function(exp.BitwiseRightShift),
             "STRING": _build_as_cast("string"),
@@ -277,10 +284,12 @@ class Spark2(Hive):
                     transforms.any_to_exists,
                 ]
             ),
+            exp.SHA2Digest: lambda self, e: self.func(
+                "SHA2", e.this, e.args.get("length") or exp.Literal.number(256)
+            ),
             exp.StrToDate: _str_to_date,
             exp.StrToTime: lambda self, e: self.func("TO_TIMESTAMP", e.this, self.format_time(e)),
             exp.TimestampTrunc: lambda self, e: self.func("DATE_TRUNC", unit_to_str(e), e.this),
-            exp.Trim: trim_sql,
             exp.UnixToTime: _unix_to_time_sql,
             exp.VariancePop: rename_func("VAR_POP"),
             exp.WeekOfYear: rename_func("WEEKOFYEAR"),

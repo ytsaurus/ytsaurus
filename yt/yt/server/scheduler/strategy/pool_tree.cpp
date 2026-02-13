@@ -302,7 +302,8 @@ public:
             MakeWeak(this),
             StrategyHost_,
             TreeId_,
-            Config_))
+            Config_,
+            Profiler_.WithPrefix("/gpu_policy")))
         , ProfileManager_(New<TPoolTreeProfileManager>(
             Profiler_,
             Config_->SparsifyFairShareProfiling,
@@ -389,9 +390,15 @@ public:
         SchedulingPolicy_->UpdateConfig(Config_);
         GpuSchedulingPolicy_->UpdateConfig(Config_);
 
-        if (!FindPool(Config_->DefaultParentPool) && Config_->DefaultParentPool != RootPoolName) {
+        auto pool = FindPool(Config_->DefaultParentPool);
+        if (!pool && Config_->DefaultParentPool != RootPoolName) {
             auto error = TError("Default parent pool %Qv in tree %Qv is not registered", Config_->DefaultParentPool, TreeId_);
-            StrategyHost_->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
+            Host_->SetSchedulerTreeAlert(TreeId_, ESchedulerAlertType::InvalidDefaultParentPool, error);
+        } else if (pool && pool->GetMode() == ESchedulingMode::Fifo) {
+            auto error = TError("Failed to use pool %Qv in tree %Qv as default parent pool because it has FIFO mode", Config_->DefaultParentPool, TreeId_);
+            Host_->SetSchedulerTreeAlert(TreeId_, ESchedulerAlertType::InvalidDefaultParentPool, error);
+        } else {
+            Host_->SetSchedulerTreeAlert(TreeId_, ESchedulerAlertType::InvalidDefaultParentPool, TError());
         }
 
         YT_LOG_INFO("Tree has updated with new config");
@@ -2340,27 +2347,34 @@ private:
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
+        auto tryGetValidPool = [&] (const TString& poolName, const char* poolCaption, const std::string& loggedAttributes) -> TPoolTreeCompositeElementPtr {
+            auto pool = FindPool(poolName);
+            if (pool) {
+                if (pool->GetMode() != ESchedulingMode::Fifo) {
+                    return pool;
+                } else {
+                    YT_LOG_INFO("%v has FIFO mode and won't be used %v", poolCaption, loggedAttributes);
+                }
+            } else {
+                YT_LOG_INFO("%v is not registered in tree %v", poolCaption, loggedAttributes);
+            }
+            return nullptr;
+        };
+
         if (Config_->UseUserDefaultParentPoolMap) {
             const auto& userToDefaultPoolMap = StrategyHost_->GetUserDefaultParentPoolMap();
             auto it = userToDefaultPoolMap.find(userName);
             if (it != userToDefaultPoolMap.end()) {
-                const auto& userDefaultParentPoolName = it->second;
-                if (auto pool = FindPool(userDefaultParentPoolName)) {
+                auto loggedAttributes = Format("(PoolName: %v, UserName: %v)", it->second, userName);
+                if (auto pool = tryGetValidPool(it->second, "User default parent pool", loggedAttributes)) {
                     return pool;
-                } else {
-                    YT_LOG_INFO("User default parent pool is not registered in tree (PoolName: %v, UserName: %v)",
-                        userDefaultParentPoolName,
-                        userName);
                 }
             }
         }
 
-        auto defaultParentPoolName = Config_->DefaultParentPool;
-        if (auto pool = FindPool(defaultParentPoolName)) {
+        auto loggedAttributes = Format("(PoolName: %v)", Config_->DefaultParentPool);
+        if (auto pool = tryGetValidPool(Config_->DefaultParentPool, "Default parent pool", loggedAttributes)) {
             return pool;
-        } else {
-            YT_LOG_INFO("Default parent pool is not registered in tree (PoolName: %v)",
-                defaultParentPoolName);
         }
 
         YT_LOG_INFO("Using %v as default parent pool", RootPoolName);

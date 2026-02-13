@@ -161,8 +161,6 @@
 #include <yt/yt/core/phoenix/schemas.h>
 #include <yt/yt/core/phoenix/type_registry.h>
 
-#include <library/cpp/containers/absl_flat_hash/flat_hash_set.h>
-
 #include <library/cpp/yt/memory/chunked_input_stream.h>
 
 #include <library/cpp/iterator/concatenate.h>
@@ -181,6 +179,7 @@ namespace NYT::NControllerAgent::NControllers {
 using namespace NApi;
 using namespace NChunkClient;
 using namespace NChunkPools;
+using namespace NCodegen;
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NEventLog;
@@ -228,6 +227,28 @@ TError GetMaxFailedJobCountReachedError(int maxFailedJobCount)
 {
     return TError(NScheduler::EErrorCode::MaxFailedJobsLimitExceeded, "Failed jobs limit exceeded")
         << TErrorAttribute("max_failed_job_count", maxFailedJobCount);
+}
+
+TSchedulingTagFilter GetFinalSchedulingTagFilter(
+    const TBooleanFormula& operationSpecFilter,
+    const TPoolTreeControllerSettingsMap& poolTreeControllerSettingsMap)
+{
+    TSchedulingTagFilter filter;
+    for (const auto& [treeName, settings] : poolTreeControllerSettingsMap) {
+        filter = filter.IsEmpty()
+            ? settings.SchedulingTagFilter
+            : filter | settings.SchedulingTagFilter;
+    }
+
+    return filter & TSchedulingTagFilter(operationSpecFilter);
+}
+
+template <typename T>
+void DestroyViaHeavyInvoker(T value)
+{
+    NRpc::TDispatcher::Get()
+        ->GetCompressionPoolInvoker()
+        ->Invoke(BIND([dump = std::move(value)] () { Y_UNUSED(dump); }));
 }
 
 } // namespace
@@ -350,6 +371,7 @@ TOperationControllerBase::TOperationControllerBase(
         ControllerAgentProfiler()
             .WithTag("user_name", AuthenticatedUser_)
             .Counter("/user_job_monitoring/used_descriptors"))
+    , FinalSchedulingTagFilter_(GetFinalSchedulingTagFilter(Spec_->SchedulingTagFilter, PoolTreeControllerSettingsMap_))
 {
     // Attach user transaction if any. Don't ping it.
     TTransactionAttachOptions userAttachOptions;
@@ -363,9 +385,8 @@ TOperationControllerBase::TOperationControllerBase(
         ExternalScheduleAllocationFailureCounts_[reason] = 0;
     }
 
-    TSchedulingTagFilter filter(Spec_->SchedulingTagFilter);
-    ExecNodesDescriptors_ = Host_->GetExecNodeDescriptors(filter, /*onlineOnly*/ false);
-    OnlineExecNodesDescriptors_ = Host_->GetExecNodeDescriptors(filter, /*onlineOnly*/ true);
+    SuitableExecNodeDescriptors_ = Host_->GetExecNodeDescriptors(FinalSchedulingTagFilter_, /*onlineOnly*/ false);
+    OnlineSuitableExecNodeDescriptors_ = Host_->GetExecNodeDescriptors(FinalSchedulingTagFilter_, /*onlineOnly*/ true);
 
     YT_LOG_INFO("Operation controller instantiated (OperationType: %v, Address: %v)",
         OperationType_,
@@ -469,7 +490,6 @@ std::vector<TTestAllocationGuard> TOperationControllerBase::TestHeap() const
     std::function incrementer = [
         this,
         this_ = MakeStrong(this),
-        operationId = ToString(OperationId_),
         Logger = Logger
     ] {
         i64 size = TestingAllocationSize_.fetch_add(AllocationPartSize);
@@ -480,7 +500,6 @@ std::vector<TTestAllocationGuard> TOperationControllerBase::TestHeap() const
     std::function decrementer = [
         this,
         this_ = MakeStrong(this),
-        OperationId = ToString(OperationId_),
         Logger = Logger
     ] {
         i64 size = TestingAllocationSize_.fetch_sub(AllocationPartSize);
@@ -550,9 +569,8 @@ void TOperationControllerBase::InitializeInputTransactions()
         }
     }
 
-    auto clusterResolver = New<TClusterResolver>(InputClient_);
-    WaitFor(clusterResolver->Init())
-        .ThrowOnError();
+    auto clusterResolver = WaitFor(CreateClusterResolver(InputClient_))
+        .ValueOrThrow();
 
     InputTransactions_ = New<TInputTransactionManager>(
         InputClient_,
@@ -746,12 +764,12 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
     return result;
 }
 
-void TOperationControllerBase::ValidateDistributedJobOptions()
+void TOperationControllerBase::ValidateCollectiveOptions()
 {
     if (PoolTreeControllerSettingsMap_.size() > 1) {
         for (const auto& userJobSpec : GetUserJobSpecs()) {
-            if (userJobSpec->DistributedJobOptions && userJobSpec->DistributedJobOptions->Factor > 1) {
-                THROW_ERROR_EXCEPTION("Cannot combine offloading pool trees and distributed_job_options")
+            if (userJobSpec->CollectiveOptions && userJobSpec->CollectiveOptions->Size > 1) {
+                THROW_ERROR_EXCEPTION("Cannot combine offloading pool trees and collective_options")
                     << TErrorAttribute("task_title", userJobSpec->TaskTitle);
             }
         }
@@ -777,7 +795,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeClean()
         Spec_->Title);
 
     auto initializeAction = BIND([this_ = MakeStrong(this), this] {
-        ValidateDistributedJobOptions();
+        ValidateCollectiveOptions();
         ValidateSecureVault();
         InitializeClients();
         InitializeInputTransactions();
@@ -1111,32 +1129,45 @@ void TOperationControllerBase::CreateOutputTables(
     EOutputTableType outputTableType,
     EObjectType desiredType)
 {
-    std::vector<TUserObject*> tablesToCreate;
-    std::ranges::copy_if(
-        tables,
-        std::back_inserter(tablesToCreate),
-        [] (auto* table) { return table->Path.GetCreate(); });
-    if (tablesToCreate.empty()) {
-        return;
-    }
-
-    YT_LOG_DEBUG("Creating output tables (TableCount: %v, OutputTableType: %v)",
-        tablesToCreate.size(),
-        outputTableType);
-
     auto proxy = CreateObjectServiceWriteProxy(client);
     auto batchReq = proxy.ExecuteBatch();
 
-    for (auto* table : tablesToCreate) {
+    for (const auto& table: tables) {
+        bool skipTable = false;
+        std::optional<IAttributeDictionaryPtr> maybeAttributes;
+
+        Visit(
+            table->Path.GetCreate(),
+            [&] (bool create) {
+                if (!create) {
+                    skipTable = true;
+                }
+            },
+            [&] (const IAttributeDictionaryPtr& attributes) {
+                maybeAttributes = attributes;
+            });
+
+        if (skipTable) {
+            continue;
+        }
+
         auto req = TCypressYPathProxy::Create(table->Path.GetPath());
         req->set_ignore_existing(true);
         req->set_type(ToProto(desiredType));
+        if (maybeAttributes.has_value()) {
+            ToProto(req->mutable_node_attributes(), **maybeAttributes);
+        }
 
         NCypressClient::SetTransactionId(req, table->TransactionId.value_or(defaultTransactionId));
         GenerateMutationId(req);
 
         batchReq->AddRequest(req);
     }
+
+    YT_LOG_DEBUG(
+        "Creating output tables (TableCount: %v, OutputTableType: %v)",
+        batchReq->GetSize(),
+        outputTableType);
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error creating output tables");
@@ -1147,6 +1178,10 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     SleepInPrepare();
+
+    if (Spec_->JobTestingOptions && Spec_->JobTestingOptions->FindChild("events_on_fs") && !Config_->TestingOptions->EnableEventsOnFs) {
+        THROW_ERROR_EXCEPTION("\"events_on_fs\" is not enabled");
+    }
 
     // Testing purpose code.
     if (Config_->EnableControllerFailureSpecOption &&
@@ -1536,7 +1571,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
         result.RevivedAllocations.push_back(TOperationControllerReviveResult::TRevivedAllocation{
             .AllocationId = AllocationIdFromJobId(joblet->JobId),
             .StartTime = joblet->StartTime,
-            .PreemptibleProgressStartTime = joblet->NodeJobStartTime,
+            .PreemptibleProgressStartTime = joblet->PreemptibleProgressStartTime,
             .ResourceLimits = joblet->ResourceLimits,
             .DiskQuota = joblet->DiskQuota,
             .TreeId = joblet->TreeId,
@@ -1816,7 +1851,7 @@ TFuture<void> TOperationControllerBase::AbortInputTransactions() const
     if (InputTransactions_) {
         return InputTransactions_->Abort(SchedulerInputClient_);
     }
-    return VoidFuture;
+    return OKFuture;
 }
 
 void TOperationControllerBase::PickIntermediateDataCells()
@@ -2844,7 +2879,14 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                 std::vector<std::vector<TChunkTreeId>> tabletChunks(table->PivotKeys.size());
                 std::vector<THashSet<TChunkId>> tabletHunkChunks(table->PivotKeys.size());
 
+                auto maxChunkSize = Config_->MaxUnversionedDynamicTableOutputChunkSize;
+                auto maxBlockSize = Config_->MaxUnversionedDynamicTableOutputBlockSize;
+                auto enableConstraintValidation = Config_->EnableDynamicTableOutputChunkConstraintValidation;
                 for (const auto& chunk : table->OutputChunks) {
+                    if (enableConstraintValidation && OperationType_ != EOperationType::RemoteCopy) {
+                        ValidateDynamicTableOutputChunkConstraints(chunk, maxChunkSize, maxBlockSize);
+                    }
+
                     auto chunkId  = chunk->GetChunkId();
                     auto& minKey = chunk->BoundaryKeys()->MinKey;
                     auto& maxKey = chunk->BoundaryKeys()->MaxKey;
@@ -2900,7 +2942,7 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                     YT_VERIFY(table->TabletHunkChunkListIds.size() == table->TabletChunkListIds.size());
                     for (const auto& [index, chunkTrees] : SEnumerate(tabletHunkChunks)) {
                         table->OutputHunkChunkListId = table->TabletHunkChunkListIds[index];
-                        for (auto& chunkTree : chunkTrees) {
+                        for (const auto& chunkTree : chunkTrees) {
                             addChunkTree(chunkTree, /*isHunk*/ true);
                         }
                         flushSubrequest(true);
@@ -3070,7 +3112,7 @@ void TOperationControllerBase::OnJobStarted(const TJobletPtr& joblet)
     IncreaseAccountResourceUsageLease(joblet->DiskRequestAccount, joblet->DiskQuota);
 
     ReportJobCookieToArchive(joblet);
-    ReportJobDistributedGroupInfo(joblet);
+    ReportJobCollectiveInfo(joblet);
     ReportControllerStateToArchive(joblet, EJobState::Running);
     ReportStartTimeToArchive(joblet);
 
@@ -3668,7 +3710,7 @@ bool TOperationControllerBase::WasJobGracefullyAborted(const std::unique_ptr<TAb
     return false;
 }
 
-void TOperationControllerBase::OnJobStartTimeReceived(
+void TOperationControllerBase::UpdatePreemptibleProgressStartTime(
     const TJobletPtr& joblet,
     const std::unique_ptr<TRunningJobSummary>& jobSummary)
 {
@@ -3692,9 +3734,13 @@ void TOperationControllerBase::OnJobStartTimeReceived(
         nodeJobStartTime = TInstant::Now() - totalDuration;
     }
 
-    if (nodeJobStartTime && !joblet->IsJobStartedOnNode()) {
-        joblet->NodeJobStartTime = nodeJobStartTime;
-        RunningAllocationPreemptibleProgressStartTimes_[AllocationIdFromJobId(jobId)] = nodeJobStartTime;
+    TInstant preemptibleProgressStartTime = nodeJobStartTime;
+    if (jobSummary->LastProgressSaveTime.has_value()) {
+        preemptibleProgressStartTime = *jobSummary->LastProgressSaveTime;
+    }
+    if (joblet->PreemptibleProgressStartTime < preemptibleProgressStartTime) {
+        joblet->PreemptibleProgressStartTime = preemptibleProgressStartTime;
+        RunningAllocationPreemptibleProgressStartTimes_[AllocationIdFromJobId(jobId)] = preemptibleProgressStartTime;
     }
 }
 
@@ -3729,7 +3775,7 @@ void TOperationControllerBase::ProcessAllocationEvent(TAllocationEvent&& eventSu
     // NB(pogorelov): Job might be not registered in job tracker (e.g. allocation not scheduled or node did not request job settlement),
     // so joblet may still be present in allocation.
     if (allocation.Joblet) {
-        auto jobSummary = CreateAbortedJobSummary(allocation.Joblet->JobId, std::move(eventSummary));
+        auto jobSummary = CreateAbortedJobSummary(allocation.Joblet->JobId, std::forward<TAllocationEvent>(eventSummary));
         OnJobAborted(allocation.Joblet, std::move(jobSummary));
     }
 
@@ -3749,7 +3795,7 @@ void TOperationControllerBase::SafeOnAllocationFinished(TFinishedAllocationSumma
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config_->JobEventsControllerQueue));
 
-    ProcessAllocationEvent(finishedAllocationSummary, "finished");
+    ProcessAllocationEvent(std::move(finishedAllocationSummary), "finished");
 }
 
 void TOperationControllerBase::OnJobRunning(
@@ -3814,7 +3860,7 @@ void TOperationControllerBase::OnJobRunning(
 
     joblet->Task->OnJobRunning(joblet, *jobSummary);
 
-    OnJobStartTimeReceived(joblet, jobSummary);
+    UpdatePreemptibleProgressStartTime(joblet, jobSummary);
 
     if (jobSummary->Statistics) {
         // We actually got fresh running job statistics.
@@ -3938,11 +3984,11 @@ void TOperationControllerBase::BuildJobAttributes(
         .Item("speculative").Value(joblet->CompetitionType == EJobCompetitionType::Speculative)
         .Item("task_name").Value(joblet->TaskName)
         .Item("job_cookie").Value(joblet->OutputCookie)
-        .DoIf(joblet->DistributedGroupInfo, [&] (TFluentMap fluent) {
+        .DoIf(joblet->CollectiveInfo, [&] (TFluentMap fluent) {
             fluent
-                .Item("distributed_group_info").BeginMap()
-                    .Item("index").Value(joblet->DistributedGroupInfo.Index)
-                    .Item("main_job_id").Value(joblet->DistributedGroupInfo.MainJobId)
+                .Item("collective_info").BeginMap()
+                    .Item("rank").Value(joblet->CollectiveInfo.Rank)
+                    .Item("collective_id").Value(joblet->CollectiveInfo.CollectiveId)
                 .EndMap();
         })
         .DoIf(joblet->UserJobMonitoringDescriptor.has_value(), [&] (TFluentMap fluent) {
@@ -4449,23 +4495,9 @@ void TOperationControllerBase::CheckAvailableExecNodes()
     std::string observedExecNodeAddress;
     bool foundMatching = false;
     bool foundMatchingNotBanned = false;
-    int otherTreesNodeCount = 0;
     int nonMatchingFilterNodeCount = 0;
     THashMap<TString, TEnumIndexedArray<EJobResourceWithDiskQuotaType, i64>> insufficientResourcesNodeCountPerTask;
-    for (const auto& [_, descriptor] : GetExecNodeDescriptors()) {
-        bool hasSuitableTree = false;
-        for (const auto& [treeName, settings] : PoolTreeControllerSettingsMap_) {
-            if (descriptor->CanSchedule(settings.SchedulingTagFilter)) {
-                hasSuitableTree = true;
-                break;
-            }
-        }
-
-        if (!hasSuitableTree) {
-            ++otherTreesNodeCount;
-            continue;
-        }
-
+    for (const auto& [_, descriptor] : GetSuitableExecNodeDescriptors()) {
         if (!descriptor->CanSchedule(tagFilter)) {
             ++nonMatchingFilterNodeCount;
             continue;
@@ -4546,7 +4578,6 @@ void TOperationControllerBase::CheckAvailableExecNodes()
             NControllerAgent::EErrorCode::NoOnlineNodeToScheduleAllocation,
             errorMessageBuilder.Flush(),
             TError::DisableFormat)
-            << TErrorAttribute("other_trees_node_count", otherTreesNodeCount)
             << TErrorAttribute("non_matching_filter_node_count", nonMatchingFilterNodeCount)
             << TErrorAttribute("insufficient_resources_node_count_per_task", insufficientResourcesNodeCountPerTask));
         return;
@@ -4880,7 +4911,9 @@ void TOperationControllerBase::UpdateTask(TTask* task)
     int newTotalJobCount = CachedTotalJobCount_ + task->GetTotalJobCountDelta();
     CachedTotalJobCount_ = newTotalJobCount;
 
-    IncreaseNeededResources(task->GetTotalNeededResourcesDelta());
+    // First update needed resources of the task then of the operation.
+    task->UpdateNeededResources();
+    UpdateNeededResources();
 
     // TODO(max42): move this logging into pools.
     YT_LOG_DEBUG_IF(
@@ -5288,30 +5321,27 @@ void TOperationControllerBase::SetLightOperationAttributesUpdated()
     ShouldUpdateLightOperationAttributes_ = false;
 }
 
-void TOperationControllerBase::IncreaseNeededResources(const TCompositeNeededResources& resourcesDelta)
+void TOperationControllerBase::UpdateNeededResources()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    auto zeroOutNeededResources = false;
+    TCompositeNeededResources neededResources{};
     for (const auto& task : Tasks_) {
         if (task->IsCompleted()) {
             continue;
         }
 
         if (!task->IsNetworkBandwidthToClustersAvailable()) {
-            zeroOutNeededResources = true;
+            // Zero out needed resources if any of the tasks faces unavailable network bandwidth.
+            neededResources = {};
             break;
         }
+
+        neededResources = neededResources + task->GetNeededResources();
     }
 
     auto guard = WriterGuard(CachedNeededResourcesLock_);
-    if (zeroOutNeededResources) {
-        // Network bandwidth to some clusters is not available. So zero out needed resources, to temporarily stop scheduling jobs.
-        CachedNeededResources_ = {};
-    } else {
-        CachedNeededResources_ = CachedNeededResources_ + resourcesDelta;
-    }
-
+    CachedNeededResources_ = neededResources;
     CachedNeededResources_.VerifyNonNegative();
 }
 
@@ -6592,7 +6622,8 @@ void TOperationControllerBase::GetOutputTablesSchema()
         return ConcatVectors(
             GetTableUploadOptionsAttributeKeys(),
             std::vector<std::string>{
-                "schema_id"
+                "schema_id",
+                "secondary_indices",
             });
     }();
 
@@ -6659,6 +6690,15 @@ void TOperationControllerBase::GetOutputTablesSchema()
             }
 
             ValidateOutputDynamicTablesAllowed();
+
+            using TSecondaryIndicesAttribute = THashMap<TObjectId, NYTree::INodePtr>;
+            auto secondaryIndices = attributes->Find<TSecondaryIndicesAttribute>("secondary_indices");
+            if (secondaryIndices && Spec_->UpdateSecondaryIndex) {
+                auto keyView = std::views::keys(*secondaryIndices);
+                THROW_ERROR_EXCEPTION("Bulk insert into an indexed table is not supported at the moment")
+                    << TErrorAttribute("table_path", path)
+                    << TErrorAttribute("secondary_index_ids", std::vector<TObjectId>(keyView.begin(), keyView.end()));
+            }
         }
 
         if (path.GetOutputTimestamp()) {
@@ -7520,7 +7560,9 @@ void TOperationControllerBase::GetUserFilesAttributes()
             Logger().WithTag("TaskTitle: %v", userJobSpec->TaskTitle),
             EPermission::Read,
             TGetUserObjectBasicAttributesOptions{
-                .PopulateSecurityTags = true
+                .OmitInaccessibleRows = Spec_->OmitInaccessibleRows,
+                .PopulateSecurityTags = true,
+                .RenameColumns = true,
             });
     }
 
@@ -7534,7 +7576,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
             Logger,
             EPermission::Read,
             TGetUserObjectBasicAttributesOptions{
-                .PopulateSecurityTags = true
+                .PopulateSecurityTags = true,
             });
     }
 
@@ -7688,6 +7730,17 @@ void TOperationControllerBase::GetUserFilesAttributes()
                         case EObjectType::Table:
                             file.Dynamic = attributes.Get<bool>("dynamic");
                             file.Schema = attributes.Get<TTableSchemaPtr>("schema");
+                            file.RlsReadSpec = TRlsReadSpec::BuildFromRowLevelAclAndTableSchema(
+                                file.Schema,
+                                file.RowLevelAcl,
+                                Logger().WithTag("Path: %v", file.GetPath()));
+
+                            YT_LOG_INFO_IF(
+                                file.RlsReadSpec,
+                                "User file has non-trivial RLS read spec (Path: %v, RlsReadSpec: %v)",
+                                file.GetPath(),
+                                file.RlsReadSpec);
+
                             if (auto renameDescriptors = file.Path.GetColumnRenameDescriptors()) {
                                 YT_LOG_DEBUG("Start renaming columns of user file");
                                 auto description = Format("user file %v", file.GetPath());
@@ -7697,9 +7750,12 @@ void TOperationControllerBase::GetUserFilesAttributes()
                                     file.Dynamic,
                                     *renameDescriptors,
                                     /*changeStableName*/ !Config_->EnableTableColumnRenaming);
-                                YT_LOG_DEBUG("Columns of user file are renamed (Path: %v, NewSchema: %v)",
+                                YT_LOG_DEBUG(
+                                    "Columns of user file are renamed "
+                                    "(Path: %v, NewSchema: %v, RenamedOmmittedInaccessibleColumns: %v)",
                                     file.GetPath(),
-                                    *file.Schema);
+                                    *file.Schema,
+                                    file.OmittedInaccessibleColumns);
                             }
                             file.Format = attributes.FindYson("format");
                             if (!file.Format) {
@@ -7810,7 +7866,7 @@ void TOperationControllerBase::ParseInputQuery(const NScheduler::TInputlyQueryab
     // We allow hasPerTableInputQuery && hasColumnSelector because per-table input_query cannot contain ProjectClause.
 
     auto externalCGInfo = New<TExternalCGInfo>();
-    auto fetchFunctions = [&] (TRange<std::string> names, const TTypeInferrerMapPtr& typeInferrers) {
+    auto fetchFunctions = [&] (TRange<std::string> names, const TTypeInferrerMapPtr& typeInferrers, EExecutionBackend /*executionBackend*/) {
         MergeFrom(typeInferrers.Get(), *GetBuiltinTypeInferrers());
 
         std::vector<std::string> externalNames;
@@ -7828,18 +7884,18 @@ void TOperationControllerBase::ParseInputQuery(const NScheduler::TInputlyQueryab
                 << TErrorAttribute("external_names", externalNames);
         }
 
-        std::vector<std::pair<TYPath, std::string>> keys;
+        auto keys = std::vector<TExternalFunction>();
         keys.reserve(externalNames.size());
         for (const auto& name : externalNames) {
-            keys.emplace_back(*Config_->UdfRegistryPath, name);
+            keys.emplace_back(EExecutionBackend::Native, *Config_->UdfRegistryPath, /*IsSdk=*/ false, name);
         }
 
         auto descriptors = LookupAllUdfDescriptors(keys, Host_->GetClient());
 
-        AppendUdfDescriptors(typeInferrers, externalCGInfo, externalNames, descriptors);
+        AppendUdfDescriptors(typeInferrers, externalCGInfo, externalNames, descriptors, EExecutionBackend::Native);
     };
 
-    auto failOnExternalFunctions = [] (TRange<std::string> names, const TTypeInferrerMapPtr& typeInferrers) {
+    auto failOnExternalFunctions = [] (TRange<std::string> names, const TTypeInferrerMapPtr& typeInferrers, EExecutionBackend /*executionBackend*/) {
         MergeFrom(typeInferrers.Get(), *GetBuiltinTypeInferrers());
         for (const auto& name : names) {
             if (!typeInferrers->contains(name)) {
@@ -7963,9 +8019,7 @@ void TOperationControllerBase::CollectTotals()
         }
     }
 
-    EstimatedInputStatistics_.emplace(std::move(statisticsCollector).Finish());
-
-    YT_LOG_INFO("Estimated input totals collected (EstimatedInputStatistics: %v)", *EstimatedInputStatistics_);
+    UpdateEstimatedInputStatistics(std::move(statisticsCollector).Finish());
 
     for (const auto& [clusterName, dataWeight] : totalInputDataWeightPerCluster) {
         if (IsLocal(clusterName)) {
@@ -7980,6 +8034,23 @@ void TOperationControllerBase::CollectTotals()
                 << TErrorAttribute("estimated_data_weight", dataWeight)
                 << TErrorAttribute("max_data_weight", *clusterConfig->MaxTotalDataWeight);
         }
+    }
+}
+
+void TOperationControllerBase::UpdateEstimatedInputStatistics(const TInputStatistics& newStatisticsEstimate)
+{
+    if (!EstimatedInputStatistics_.has_value()) {
+        YT_LOG_INFO("Estimated input totals collected (EstimatedInputStatistics: %v)", newStatisticsEstimate);
+        EstimatedInputStatistics_ = newStatisticsEstimate;
+        return;
+    }
+
+    if (newStatisticsEstimate != *EstimatedInputStatistics_) {
+        YT_LOG_INFO(
+            "Estimated input statistics updated (NewEstimatedInputStatistics: %v, OldEstimatedInputStatistics: %v)",
+            newStatisticsEstimate,
+            EstimatedInputStatistics_);
+        EstimatedInputStatistics_ = newStatisticsEstimate;
     }
 }
 
@@ -8030,7 +8101,8 @@ void TOperationControllerBase::InitAccountResourceUsageLeases()
                     }
                 }
                 if (Config_->DeprecatedMedia.contains(mediumName) &&
-                        volume->DiskRequest->GetCurrentType() != NExecNode::EVolumeType::Nbd) {
+                    volume->DiskRequest->GetCurrentType() != NExecNode::EVolumeType::Nbd)
+                {
                     THROW_ERROR_EXCEPTION("Medium is deprecated to be used in disk requests")
                         << TErrorAttribute("medium_name", mediumName);
                 }
@@ -8098,7 +8170,7 @@ void TOperationControllerBase::InferInputRanges()
     queryOptions.VerboseLogging = true;
     queryOptions.RangeExpansionLimit = Config_->MaxRangesOnTable;
 
-    for (auto& table : InputManager_->GetInputTables()) {
+    for (const auto& table : InputManager_->GetInputTables()) {
         yielder.TryYield();
 
         auto ranges = table->Path.GetNewRanges(table->Comparator, table->Schema->GetKeyColumnTypes());
@@ -8300,6 +8372,12 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
 std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryInputDataSlices(i64 versionedSliceSize)
 {
     std::vector<std::vector<TLegacyDataSlicePtr>> dataSlicesByTableIndex(InputManager_->GetInputTables().size());
+
+    i64 unversionedSliceCount = 0;
+    i64 versionedSliceCount = 0;
+
+    auto periodicYielder = CreatePeriodicYielder(PrepareYieldPeriod);
+
     for (const auto& chunk : InputManager_->CollectPrimaryUnversionedChunks()) {
         auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
         dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(chunk->GetTableIndex(), chunk->GetRangeIndex()));
@@ -8308,14 +8386,26 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryInputDa
         dataSlice->TransformToNew(RowBuffer_, inputTable->Comparator);
 
         dataSlicesByTableIndex[dataSlice->GetTableIndex()].emplace_back(std::move(dataSlice));
+        ++unversionedSliceCount;
+
+        periodicYielder.TryYield();
     }
 
     for (auto& dataSlice : CollectPrimaryVersionedDataSlices(versionedSliceSize)) {
         dataSlicesByTableIndex[dataSlice->GetTableIndex()].emplace_back(std::move(dataSlice));
+        ++versionedSliceCount;
+
+        periodicYielder.TryYield();
     }
+
+    YT_LOG_INFO(
+        "Primary input data slices collected (UnversionedSliceCount: %v, VersionedSliceCount: %v)",
+        unversionedSliceCount,
+        versionedSliceCount);
 
     std::vector<TLegacyDataSlicePtr> dataSlices;
     std::ranges::move(dataSlicesByTableIndex | std::views::join, std::back_inserter(dataSlices));
+
     return dataSlices;
 }
 
@@ -8425,17 +8515,10 @@ bool TOperationControllerBase::IsLocalityEnabled() const
 
 TString TOperationControllerBase::GetLoggingProgress() const
 {
-    const auto& jobCounter = GetTotalJobCounter();
     return Format(
-        "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, I: %v}, "
-        "UnavailableInputChunks: %v",
-        jobCounter->GetTotal(),
-        jobCounter->GetRunning(),
-        jobCounter->GetCompletedTotal(),
+        "{JobCounter: %v, ControllerPendingJobCount: %v, UnavailableInputChunks: %v}",
+        GetTotalJobCounter(),
         GetPendingJobCount(),
-        jobCounter->GetFailed(),
-        jobCounter->GetAbortedTotal(),
-        jobCounter->GetInterruptedTotal(),
         GetUnavailableInputChunkCount());
 }
 
@@ -9324,7 +9407,9 @@ std::optional<TJobMonitoringDescriptor> TOperationControllerBase::TryAcquireMoni
 {
     auto it = MonitoringDescriptorPool_.begin();
     // This is a temporary solution. Should be removed after the logic of MonitoringDescriptor and OperationController is separated
-    for (; it != MonitoringDescriptorPool_.end() && it->Guid == OperationId_.Underlying(); ++it) { }
+    while (it != MonitoringDescriptorPool_.end() && it->Guid == OperationId_.Underlying()) {
+        ++it;
+    }
     YT_VERIFY(it != MonitoringDescriptorPool_.end());
     auto foundDescriptor = *it;
     MonitoringDescriptorPool_.erase(it);
@@ -10258,8 +10343,8 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
     if (Config_->EnableTmpfs) {
         // COMPAT(krasovav)
-        std::vector<TTmpfsVolumeConfigPtr> orderedTmpfsVolumeConfigs;
-        orderedTmpfsVolumeConfigs.resize(jobSpecConfig->Volumes.size());
+        std::vector<TTmpfsVolumeConfigPtr> requestedTmpfsVolumeConfigs;
+        requestedTmpfsVolumeConfigs.resize(jobSpecConfig->Volumes.size());
         for (const auto& volumeMount : jobSpecConfig->JobVolumeMounts) {
             const auto& tmpfsVolume = jobSpecConfig->Volumes[volumeMount->VolumeId];
 
@@ -10277,10 +10362,10 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
             volume->Size = tmpfsDiskRequest->DiskSpace;
 
             YT_VERIFY(tmpfsDiskRequest->TmpfsIndex);
-            orderedTmpfsVolumeConfigs[*tmpfsDiskRequest->TmpfsIndex] = std::move(volume);
+            requestedTmpfsVolumeConfigs[*tmpfsDiskRequest->TmpfsIndex] = std::move(volume);
         }
 
-        for (auto& tmpfsDiskRequest : orderedTmpfsVolumeConfigs) {
+        for (const auto& tmpfsDiskRequest : requestedTmpfsVolumeConfigs) {
             if (!tmpfsDiskRequest) {
                 break;
             }
@@ -10298,48 +10383,37 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
             continue;
         }
 
-        auto diskRequest = New<TOldDiskRequestConfig>();
-
         if (auto nbdDiskRequest = volume->DiskRequest->TryGetConcrete<TNbdDiskRequest>()) {
-            *diskRequest = *nbdDiskRequest;
+            ToProto(jobSpec->mutable_disk_request(), *nbdDiskRequest);
         } else if (auto localDiskRequest = volume->DiskRequest->TryGetConcrete<TLocalDiskRequest>()) {
-            *diskRequest = *localDiskRequest;
+            ToProto(jobSpec->mutable_disk_request(), *localDiskRequest);
         } else {
             YT_LOG_FATAL("Unknown volume type %v", volume->DiskRequest->GetCurrentType());
-        }
-
-        ToProto(jobSpec->mutable_disk_request(), *diskRequest);
-        if (diskRequest->InodeCount) {
-            jobSpec->set_inode_limit(*diskRequest->InodeCount);
         }
     }
 
     // COMPAT(krasovav)
-    YT_VERIFY(CountOfNonTmpfsVolumes(jobSpecConfig->Volumes) <= 1);
-
-    absl::flat_hash_set<std::string> volumesNotAllowedToBeCreate;
-    for (const auto& [name, volume] : jobSpecConfig->Volumes) {
-        if (!volume->DiskRequest) {
-            continue;
+    YT_VERIFY(CountNonTmpfsVolumes(jobSpecConfig->Volumes) <= 1);
+    {
+        THashSet<std::string> volumesNotAllowedToBeCreated;
+        for (const auto& [name, volume] : jobSpecConfig->Volumes) {
+            if (IsDiskRequestTmpfs(volume->DiskRequest) && !Config_->EnableTmpfs) {
+                volumesNotAllowedToBeCreated.insert(name);
+            }
         }
 
-        if (volume->DiskRequest->GetCurrentType() == NExecNode::EVolumeType::Tmpfs && !Config_->EnableTmpfs) {
-            volumesNotAllowedToBeCreate.insert(name);
+        for (const auto& volumeMount : jobSpecConfig->JobVolumeMounts) {
+            if (!volumesNotAllowedToBeCreated.contains(volumeMount->VolumeId)) {
+                ToProto(jobSpec->add_job_volume_mounts(), *volumeMount);
+            }
         }
 
-    }
-
-    for (const auto& volumeMount : jobSpecConfig->JobVolumeMounts) {
-        if (!volumesNotAllowedToBeCreate.contains(volumeMount->VolumeId)) {
-            ToProto(jobSpec->add_job_volume_mounts(), *volumeMount);
-        }
-    }
-
-    auto* protoVolumes = jobSpec->mutable_volumes();
-    for (const auto& [name, volume]: jobSpecConfig->Volumes) {
-        if (!volumesNotAllowedToBeCreate.contains(name)) {
-            auto& protoVolume = (*protoVolumes)[name];
-            ToProto(&protoVolume, *volume);
+        auto* protoVolumes = jobSpec->mutable_volumes();
+        for (const auto& [name, volume]: jobSpecConfig->Volumes) {
+            if (!volumesNotAllowedToBeCreated.contains(name)) {
+                auto& protoVolume = (*protoVolumes)[name];
+                ToProto(&protoVolume, *volume);
+            }
         }
     }
 
@@ -10540,8 +10614,8 @@ void TOperationControllerBase::InitUserJobSpec(
         setEnvironmentVariable("YT_TASK_JOB_INDEX", ToString(joblet->TaskJobIndex));
         setEnvironmentVariable("YT_JOB_ID", ToString(joblet->JobId));
         setEnvironmentVariable("YT_JOB_COOKIE", ToString(joblet->OutputCookie));
-        setEnvironmentVariable("YT_DISTRIBUTED_GROUP_JOB_INDEX", ToString(joblet->DistributedGroupInfo.Index));
-        setEnvironmentVariable("YT_DISTRIBUTED_GROUP_MAIN_JOB_ID", ToString(joblet->DistributedGroupInfo.MainJobId));
+        setEnvironmentVariable("YT_COLLECTIVE_MEMBER_RANK", ToString(joblet->CollectiveInfo.Rank));
+        setEnvironmentVariable("YT_COLLECTIVE_ID", ToString(joblet->CollectiveInfo.CollectiveId));
 
         for (const auto& [key, value] : joblet->Task->BuildJobEnvironment()) {
             setEnvironmentVariable(key, value);
@@ -10766,26 +10840,24 @@ int TOperationControllerBase::GetAvailableExecNodeCount() const
     return AvailableExecNodeCount_;
 }
 
-const TExecNodeDescriptorMap& TOperationControllerBase::GetOnlineExecNodeDescriptors()
+const TExecNodeDescriptorMap& TOperationControllerBase::GetOnlineSuitableExecNodeDescriptors() const
 {
-    return *OnlineExecNodesDescriptors_;
+    return *OnlineSuitableExecNodeDescriptors_;
 }
 
-const TExecNodeDescriptorMap& TOperationControllerBase::GetExecNodeDescriptors()
+const TExecNodeDescriptorMap& TOperationControllerBase::GetSuitableExecNodeDescriptors() const
 {
-    return *ExecNodesDescriptors_;
+    return *SuitableExecNodeDescriptors_;
 }
 
 void TOperationControllerBase::UpdateExecNodes()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    TSchedulingTagFilter filter(Spec_->SchedulingTagFilter);
-
     int onlineExecNodeCount = Host_->GetAvailableExecNodeCount();
-    auto execNodeDescriptors = Host_->GetExecNodeDescriptors(filter, /*onlineOnly*/ false);
-    auto onlineExecNodeDescriptors = Host_->GetExecNodeDescriptors(filter, /*onlineOnly*/ true);
-    auto maxAvailableResources = Host_->GetMaxAvailableResources(filter);
+    auto suitableExecNodeDescriptors = Host_->GetExecNodeDescriptors(FinalSchedulingTagFilter_, /*onlineOnly*/ false);
+    auto onlineSuitableExecNodeDescriptors = Host_->GetExecNodeDescriptors(FinalSchedulingTagFilter_, /*onlineOnly*/ true);
+    auto maxAvailableResources = Host_->GetMaxAvailableResources(FinalSchedulingTagFilter_);
 
     const auto& controllerInvoker = GetCancelableInvoker();
     controllerInvoker->Invoke(
@@ -10793,8 +10865,8 @@ void TOperationControllerBase::UpdateExecNodes()
             =,
             this,
             weakThis = MakeWeak(this),
-            execNodeDescriptors = std::move(execNodeDescriptors),
-            onlineExecNodeDescriptors = std::move(onlineExecNodeDescriptors)
+            suitableExecNodeDescriptors = std::move(suitableExecNodeDescriptors),
+            onlineSuitableExecNodeDescriptors = std::move(onlineSuitableExecNodeDescriptors)
         ] () mutable {
             auto this_ = weakThis.Lock();
             if (!this_) {
@@ -10809,17 +10881,17 @@ void TOperationControllerBase::UpdateExecNodes()
                 *variable = std::move(value);
 
                 // Offload old value destruction to a large thread pool.
-                NRpc::TDispatcher::Get()->GetCompressionPoolInvoker()->Invoke(
-                    BIND([value = std::move(oldValue)] { Y_UNUSED(value); }));
+                DestroyViaHeavyInvoker(std::move(oldValue));
             };
 
-            assign(&ExecNodesDescriptors_, std::move(execNodeDescriptors));
-            assign(&OnlineExecNodesDescriptors_, std::move(onlineExecNodeDescriptors));
+            assign(&SuitableExecNodeDescriptors_, std::move(suitableExecNodeDescriptors));
+            assign(&OnlineSuitableExecNodeDescriptors_, std::move(onlineSuitableExecNodeDescriptors));
 
             OnExecNodesUpdated();
 
-            YT_LOG_DEBUG("Exec nodes information updated (SuitableExecNodeCount: %v, OnlineExecNodeCount: %v)",
-                ExecNodesDescriptors_->size(),
+            YT_LOG_DEBUG("Exec nodes information updated (OnlineSuitableExecNodeCount: %v, SuitableExecNodeCount: %v, OnlineExecNodeCount: %v)",
+                OnlineSuitableExecNodeDescriptors_->size(),
+                SuitableExecNodeDescriptors_->size(),
                 AvailableExecNodeCount_);
         }));
 }
@@ -10839,6 +10911,11 @@ bool TOperationControllerBase::ShouldSkipSanityCheck()
     }
 
     if (TInstant::Now() < StartTime_ + Spec_->SanityCheckDelay) {
+        return true;
+    }
+
+    if (GetSuitableExecNodeDescriptors().empty() && !Config_->FailOperationsInEmptyTrees) {
+        YT_LOG_DEBUG("Skipping sanity check because no suitable nodes are available");
         return true;
     }
 
@@ -11792,14 +11869,14 @@ void TOperationControllerBase::ReportJobCookieToArchive(const TJobletPtr& joblet
         .JobCookie(joblet->OutputCookie));
 }
 
-void TOperationControllerBase::ReportJobDistributedGroupInfo(const TJobletPtr& joblet) const
+void TOperationControllerBase::ReportJobCollectiveInfo(const TJobletPtr& joblet) const
 {
-    if (!joblet->DistributedGroupInfo) {
+    if (!joblet->CollectiveInfo) {
         return;
     }
     HandleJobReport(joblet, TControllerJobReport()
-        .DistributedGroupJobIndex(joblet->DistributedGroupInfo.Index)
-        .DistributedGroupMainJobId(joblet->DistributedGroupInfo.MainJobId));
+        .CollectiveMemberRank(joblet->CollectiveInfo.Rank)
+        .CollectiveId(joblet->CollectiveInfo.CollectiveId));
 }
 
 void TOperationControllerBase::ReportControllerStateToArchive(const TJobletPtr& joblet, EJobState state) const

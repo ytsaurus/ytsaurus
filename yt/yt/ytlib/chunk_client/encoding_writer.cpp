@@ -145,9 +145,10 @@ TBlock TEncodingWriter::DoCompressBlock(
     std::optional<int> groupIndex,
     TAsyncSemaphoreGuard&&)
 {
-    YT_LOG_DEBUG("Started compressing block (Block: %v, Codec: %v)",
+    YT_LOG_DEBUG("Started compressing block (Block: %v, Codec: %v, UncompressedBlockSize: %v)",
         blockIndex,
-        Codec_->GetId());
+        Codec_->GetId(),
+        uncompressedBlock.Size());
 
     TBlock compressedBlock;
     compressedBlock.GroupIndex = groupIndex;
@@ -170,9 +171,11 @@ TBlock TEncodingWriter::DoCompressBlock(
         VerifyBlock(uncompressedBlock, compressedBlock.Data);
     }
 
-    YT_LOG_DEBUG("Finished compressing block (Block: %v, Codec: %v)",
+    YT_LOG_DEBUG("Finished compressing block (Block: %v, Codec: %v, UncompressedBlockSize: %v, CompressedBlockSize: %v)",
         blockIndex,
-        Codec_->GetId());
+        Codec_->GetId(),
+        uncompressedBlock.Size(),
+        compressedBlock.Size());
 
     if (Any(BlockCache_->GetSupportedBlockTypes() & blockType)) {
         YT_UNUSED_FUTURE(OpenFuture_.Apply(BIND(
@@ -196,9 +199,12 @@ TBlock TEncodingWriter::DoCompressVector(
     std::optional<int> groupIndex,
     TAsyncSemaphoreGuard&&)
 {
-    YT_LOG_DEBUG("Started compressing block (Block: %v, Codec: %v)",
+    i64 uncompressedBlockSize = GetByteSize(uncompressedVectorizedBlock);
+
+    YT_LOG_DEBUG("Started compressing vectorized block (Block: %v, Codec: %v, UncompressedBlockSize: %v)",
         blockIndex,
-        Codec_->GetId());
+        Codec_->GetId(),
+        uncompressedBlockSize);
 
     TBlock compressedBlock;
     compressedBlock.GroupIndex = groupIndex;
@@ -221,9 +227,11 @@ TBlock TEncodingWriter::DoCompressVector(
         VerifyVector(uncompressedVectorizedBlock, compressedBlock.Data);
     }
 
-    YT_LOG_DEBUG("Finished compressing block (Block: %v, Codec: %v)",
+    YT_LOG_DEBUG("Finished compressing vectorized block (Block: %v, Codec: %v, UncompressedBlockSize: %v, CompressedBlockSize: %v)",
         blockIndex,
-        Codec_->GetId());
+        Codec_->GetId(),
+        GetByteSize(uncompressedVectorizedBlock),
+        compressedBlock.Size());
 
     if (Any(BlockCache_->GetSupportedBlockTypes() & blockType)) {
         struct TMergedTag { };
@@ -239,7 +247,7 @@ TBlock TEncodingWriter::DoCompressVector(
             blockIndex)));
     }
 
-    auto sizeToRelease = -static_cast<i64>(compressedBlock.Size()) + GetByteSize(uncompressedVectorizedBlock);
+    auto sizeToRelease = -static_cast<i64>(compressedBlock.Size()) + uncompressedBlockSize;
     ProcessCompressedBlock(sizeToRelease);
 
     return compressedBlock;

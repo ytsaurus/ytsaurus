@@ -13,6 +13,7 @@ import (
 	"go.ytsaurus.tech/yt/chyt/controller/internal/app"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/chyt"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
+	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yttest"
 )
@@ -82,17 +83,23 @@ func runController(t *testing.T, c *Config, stopCh <-chan struct{}) (apiEndpoint
 	passPeriod := yson.Duration(100 * time.Millisecond)
 	collectOperationsPeriod := yson.Duration(500 * time.Millisecond)
 	revisionCollectPeriod := yson.Duration(100 * time.Millisecond)
+	jobsCheckPeriod := yson.Duration(time.Duration(collectOperationsPeriod) + time.Duration(passPeriod))
 	apiEndpoint = ":0"
+
+	strawberryRoot := ypath.Path("//sys/strawberry")
 
 	config := app.Config{
 		LocationProxies: []string{os.Getenv("YT_PROXY")},
 		Strawberry: agent.Config{
-			Root:                    "//sys/strawberry",
+			Root:                    &strawberryRoot,
 			PassPeriod:              &passPeriod,
 			CollectOperationsPeriod: &collectOperationsPeriod,
 			RevisionCollectPeriod:   &revisionCollectPeriod,
-			Stage:                   "test",
-			RobotUsername:           "root",
+			JobCheckerConfig: &agent.JobCheckerConfig{
+				CheckPeriod: &jobsCheckPeriod,
+			},
+			Stage:         "test",
+			RobotUsername: "root",
 		},
 		Controllers: map[string]yson.RawValue{
 			c.Family: c.ControllerConfig,
@@ -101,7 +108,7 @@ func runController(t *testing.T, c *Config, stopCh <-chan struct{}) (apiEndpoint
 		DisableAPIAuth:  true,
 	}
 
-	app := app.New(&config, &app.Options{}, map[string]strawberry.ControllerFactory{
+	app := app.New(&config, &app.Options{LogToStderr: true}, map[string]strawberry.ControllerFactory{
 		c.Family: c.ControllerFactory,
 	})
 	go func() {

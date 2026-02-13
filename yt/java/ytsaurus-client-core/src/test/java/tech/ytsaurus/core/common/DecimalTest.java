@@ -3,8 +3,12 @@ package tech.ytsaurus.core.common;
 import java.math.BigInteger;
 import java.util.Collections;
 
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class DecimalTest {
     @Test
@@ -21,7 +25,7 @@ public class DecimalTest {
         check(35, 2, "3.14", new byte[]{(byte) 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x3A});
         check(10, 2, "13.31", new byte[]{(byte) 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x05, 0x33});
-        check(10, 9, "-2.718281828",  new byte[]{0x7F, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
+        check(10, 9, "-2.718281828", new byte[]{0x7F, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
                 0x5D, (byte) 0xFA, 0x4F, (byte) 0x9C});
 
         check(35, 9, "-2.718281828", new byte[]{0x7F, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
@@ -32,8 +36,8 @@ public class DecimalTest {
         check(3, 2, "inf", new byte[]{(byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFE});
         check(3, 2, "-inf", new byte[]{0x00, 0x00, 0x00, 0x02});
 
-        Assert.assertArrayEquals(Decimal.textToBinary("+inf", 3, 2),
-                new byte[]{(byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFE});
+        assertArrayEquals(new byte[]{(byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFE},
+                Decimal.textToBinary("+inf", 3, 2));
 
         check(10, 2, "nan", new byte[]{(byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
                 (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
@@ -45,11 +49,11 @@ public class DecimalTest {
 
         check(10, 2, "-inf", new byte[]{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02});
 
-        Assert.assertArrayEquals(Decimal.textToBinary("+inf", 10, 2),
-                new byte[]{
+        assertArrayEquals(new byte[]{
                         (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
                         (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFE
-                });
+                },
+                Decimal.textToBinary("+inf", 10, 2));
 
         check(35, 2, "nan", new byte[]{
                 (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
@@ -70,13 +74,13 @@ public class DecimalTest {
                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02
         });
 
-        Assert.assertArrayEquals(Decimal.textToBinary("+inf", 35, 2),
-                new byte[]{
+        assertArrayEquals(new byte[]{
                         (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
                         (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
                         (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
                         (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFE
-                });
+                },
+                Decimal.textToBinary("+inf", 35, 2));
 
         checkErrorTextToBinary(3, 2, "-nan", "is not valid Decimal");
         checkErrorTextToBinary(3, 2, "infinity", "is not valid Decimal");
@@ -182,8 +186,8 @@ public class DecimalTest {
     }
 
     private void check(int precision, int scale, String text, byte[] binary) {
-        Assert.assertArrayEquals(Decimal.textToBinary(text, precision, scale), binary);
-        Assert.assertEquals(Decimal.binaryToText(binary, precision, scale), text);
+        assertArrayEquals(Decimal.textToBinary(text, precision, scale), binary);
+        assertEquals(Decimal.binaryToText(binary, precision, scale), text);
     }
 
     private void checkRoundConvert(int precision, int scale, String text) {
@@ -192,7 +196,7 @@ public class DecimalTest {
 
     private void checkRoundConvert(int precision, int scale, String text, String expectedText) {
         String roundText = Decimal.binaryToText(Decimal.textToBinary(text, precision, scale), precision, scale);
-        Assert.assertEquals("Same expected", expectedText, roundText);
+        assertEquals(expectedText, roundText, "Same expected");
     }
 
     private void checkErrorTextToBinary(int precision, int scale, String text, String expectedMessage) {
@@ -202,10 +206,10 @@ public class DecimalTest {
         } catch (IllegalArgumentException ex) {
             gotMessage = ex.getMessage();
         }
-        Assert.assertNotNull("Expected error", gotMessage);
-        Assert.assertTrue(
-                String.format("Expected error with message containing '%s', but got '%s'", expectedMessage, gotMessage),
-                gotMessage.contains(expectedMessage)
+        assertNotNull(gotMessage, "Expected error");
+        assertTrue(
+                gotMessage.contains(expectedMessage),
+                String.format("Expected error with message containing '%s', but got '%s'", expectedMessage, gotMessage)
         );
     }
 
@@ -216,10 +220,10 @@ public class DecimalTest {
         } catch (IllegalArgumentException ex) {
             gotMessage = ex.getMessage();
         }
-        Assert.assertNotNull("Expected error", gotMessage);
-        Assert.assertTrue(
-                String.format("Expected error with message containing '%s', but got '%s'", expectedMessage, gotMessage),
-                gotMessage.contains(expectedMessage)
+        assertNotNull(gotMessage, "Expected error");
+        assertTrue(
+                gotMessage.contains(expectedMessage),
+                String.format("Expected error with message containing '%s', but got '%s'", expectedMessage, gotMessage)
         );
     }
 }

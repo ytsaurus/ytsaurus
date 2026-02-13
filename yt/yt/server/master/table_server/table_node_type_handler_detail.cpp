@@ -23,6 +23,7 @@
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 #include <yt/yt/server/master/cypress_server/helpers.h>
 
+#include <yt/yt/server/master/table_server/config.h>
 #include <yt/yt/server/master/tablet_server/chaos_helpers.h>
 #include <yt/yt/server/master/tablet_server/hunk_storage_node.h>
 #include <yt/yt/server/master/tablet_server/mount_config_storage.h>
@@ -40,6 +41,7 @@
 
 #include <yt/yt/library/heavy_schema_validation/schema_validation.h>
 
+#include <yt/yt/client/table_client/constrained_schema.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/helpers.h>
 
@@ -120,7 +122,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
 
     auto combinedAttributes = OverlayAttributeDictionaries(context.ExplicitAttributes, context.InheritedAttributes);
     bool dynamic = combinedAttributes->GetAndRemove<bool>("dynamic", false);
-    auto optionalTabletCellBundleName = combinedAttributes->FindAndRemove<std::string>("tablet_cell_bundle");
+    auto optionalTabletCellBundleName = context.ExplicitAttributes->FindAndRemove<std::string>(EInternedAttributeKey::TabletCellBundle.Unintern());
     bool optimizeForIsExplicit = context.ExplicitAttributes->Contains("optimize_for");
     auto optimizeFor = combinedAttributes->GetAndRemove<EOptimizeFor>(
         "optimize_for",
@@ -164,18 +166,51 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
 
     // TODO(cherepashka): offload from Automaton thread (YT-22284).
     // TODO(cherepashka): add parsing NProto::TTableSchemaExt from Yson.
-    auto schemaFromAttributes = combinedAttributes->FindAndRemove<TTableSchema>("schema");
-    auto tableSchema = schemaFromAttributes ? New<TCompactTableSchema>(*schemaFromAttributes) : nullptr;
+    auto constrainedSchema = combinedAttributes->FindAndRemove<TConstrainedTableSchema>("schema");
+    if (constrainedSchema && !constrainedSchema->ColumnToConstraint().empty()) {
+        THROW_ERROR_EXCEPTION("Cannot specify constraints in \"schema\" option, use \"constrained_schema\" instead")
+            << TErrorAttribute("constraints", constrainedSchema->ColumnToConstraint());
+    }
+    auto tableSchema = constrainedSchema ? New<TCompactTableSchema>(constrainedSchema->TableSchema()) : nullptr;
     auto schemaId = combinedAttributes->GetAndRemove<TObjectId>("schema_id", NullObjectId);
+    constrainedSchema = combinedAttributes->FindAndRemove<TConstrainedTableSchema>("constrained_schema");
+    auto schemaFromConstrainedSchema = constrainedSchema ? New<TCompactTableSchema>(constrainedSchema->TableSchema()) : nullptr;
+    auto constraints = combinedAttributes->FindAndRemove<TColumnNameToConstraintMap>("constraints");
     auto schemaMode = combinedAttributes->GetAndRemove<ETableSchemaMode>("schema_mode", ETableSchemaMode::Weak);
+
+    auto dynamicConfig = GetBootstrap()->GetConfigManager()->GetConfig()->TableManager;
+    if ((constrainedSchema || constraints) && !dynamicConfig->EnableColumnConstraintsForTables) {
+        THROW_ERROR_EXCEPTION("Creation of tables with column constraints is prohibited by system administrator");
+    }
 
     const auto& tableManager = this->GetBootstrap()->GetTableManager();
     auto effectiveTableSchema = tableManager->ProcessSchemaFromAttributes(
         tableSchema,
         schemaId,
+        schemaFromConstrainedSchema,
         dynamic,
         /*chaos*/ false,
         id);
+
+    if ((constraints || constrainedSchema) && !effectiveTableSchema) {
+        THROW_ERROR_EXCEPTION("Cannot create table with constraints and without schema")
+            << TErrorAttribute("constraints", constraints);
+    }
+    std::optional<NTableClient::TColumnStableNameToConstraintMap> effectiveConstraints;
+    TTableSchemaPtr schema;
+    if (constraints || constrainedSchema) {
+        schema = tableManager->GetHeavyTableSchemaSync(effectiveTableSchema);
+        effectiveConstraints = tableManager->ProcessConstraintsFromAttributes(
+            *schema,
+            std::move(constrainedSchema),
+            std::move(constraints));
+    }
+
+    if (effectiveConstraints && effectiveTableSchema) {
+        ValidateConstrainedTableSchemaCreation(
+            *schema,
+            *effectiveConstraints);
+    }
 
     auto optionalTabletCount = combinedAttributes->FindAndRemove<int>("tablet_count");
     auto optionalPivotKeys = combinedAttributes->FindAndRemove<std::vector<TLegacyOwningKey>>("pivot_keys");
@@ -220,7 +255,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
 
     const auto& tabletManager = this->GetBootstrap()->GetTabletManager();
     auto* tabletCellBundle = optionalTabletCellBundleName
-        ? tabletManager->GetTabletCellBundleByNameOrThrow(*optionalTabletCellBundleName, true /*activeLifeStageOnly*/)
+        ? tabletManager->GetTabletCellBundleByNameOrThrow(*optionalTabletCellBundleName, /*activeLifeStageOnly*/ true)
         : tabletManager->GetDefaultTabletCellBundle();
 
     InternalizeMountConfigAttributes(combinedAttributes.Get());
@@ -360,6 +395,9 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
 
             auto* newHunkChunkList = chunkManager->CreateChunkList(EChunkListKind::Hunk);
             chunkManager->AttachToChunkList(newHunkRootChunkList, {newHunkChunkList});
+        }
+        if (effectiveConstraints) {
+            node->SetConstraints(std::move(*effectiveConstraints));
         }
     } catch (const std::exception&) {
         this->Zombify(node);

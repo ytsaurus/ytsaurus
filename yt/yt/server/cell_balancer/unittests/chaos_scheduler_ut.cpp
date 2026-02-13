@@ -1,5 +1,6 @@
 #include <yt/yt/server/cell_balancer/chaos_scheduler.h>
 #include <yt/yt/server/cell_balancer/config.h>
+#include <yt/yt/server/cell_balancer/mutations.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 

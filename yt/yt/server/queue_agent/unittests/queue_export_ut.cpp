@@ -21,11 +21,11 @@ class TAggregateQueueProgressTest
         std::optional<std::vector<i64>>>>
 { };
 
-TEST_P(TAggregateQueueProgressTest, Test)
+TEST_P(TAggregateQueueProgressTest, BasicAggregation)
 {
     auto [lhs, rhs, expectedResult] = GetParam();
 
-    TAggregatedQueueExportsProgress progress{};
+    TAggregatedQueueExportsProgress progress;
     progress.MergeWith(TAggregatedQueueExportsProgress::FromQueueExportProrgess(lhs));
     progress.MergeWith(TAggregatedQueueExportsProgress::FromQueueExportProrgess(rhs));
 
@@ -51,8 +51,8 @@ TEST_P(TAggregateQueueProgressTest, Test)
     }
 }
 
-static const auto LhsExportProgress = ConvertTo<TQueueExportProgressPtr>(TYsonString(TString("{tablets={\"1\"={row_count=1};\"3\"={row_count=1};\"4\"={row_count=2}}}")));
-static const auto RhsExportProgress = ConvertTo<TQueueExportProgressPtr>(TYsonString(TString("{tablets={\"2\"={row_count=1};\"3\"={row_count=2};\"4\"={row_count=1}}}")));
+const auto LhsExportProgress = ConvertTo<TQueueExportProgressPtr>(TYsonString(TStringBuf(R"({tablets={"1"={row_count=1};"3"={row_count=1};"4"={row_count=2}}})")));
+const auto RhsExportProgress = ConvertTo<TQueueExportProgressPtr>(TYsonString(TStringBuf(R"({tablets={"2"={row_count=1};"3"={row_count=2};"4"={row_count=1}}})")));
 
 INSTANTIATE_TEST_SUITE_P(
     TAggregateQueueProgressTest,
@@ -63,6 +63,8 @@ INSTANTIATE_TEST_SUITE_P(
         std::tuple{nullptr, RhsExportProgress, std::vector<i64>{-1, -1, 1, 2, 1}},
         std::tuple{LhsExportProgress, RhsExportProgress, std::vector<i64>{-1, 0, 0, 1, 1}}
     ));
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 } // namespace NYT::NQueueAgent

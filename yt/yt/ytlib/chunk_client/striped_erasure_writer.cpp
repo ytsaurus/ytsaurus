@@ -49,7 +49,7 @@ public:
         , SessionId_(sessionId)
         , WorkloadDescriptor_(workloadDescriptor)
         , Writers_(std::move(writers))
-        , WriterReadyEvents_(Writers_.size(), VoidFuture)
+        , WriterReadyEvents_(Writers_.size(), OKFuture)
         , WriterInvoker_(TDispatcher::Get()->GetWriterInvoker())
         , HeavyInvoker_(CreateFixedPriorityInvoker(
             NRpc::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
@@ -154,7 +154,8 @@ public:
                 replica.GetNodeId(),
                 /*replicaIndex*/ index,
                 replica.GetMediumIndex(),
-                replica.GetChunkLocationUuid());
+                replica.GetChunkLocationUuid(),
+                replica.GetChunkLocationIndex());
             result.Replicas.push_back(replica);
         }
 

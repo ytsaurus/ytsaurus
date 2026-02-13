@@ -52,9 +52,12 @@
 
 #include <yt/yt/server/lib/node_tracker_server/name_helpers.h>
 
+#include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/cellar_client/tablet_cell_service_proxy.h>
+
+#include <yt/yt/ytlib/cell_master_client/protobuf_helpers.h>
 
 #include <yt/yt/ytlib/cellar_node_tracker_client/proto/cellar_node_tracker_service.pb.h>
 
@@ -1143,6 +1146,20 @@ private:
         }
     }
 
+    void FillSecondaryMastersConnectionConfigs(auto* rspSecondaryMasterConnectionConfigs)
+    {
+        VerifyAutomatonThreadAffinity();
+
+        YT_VERIFY(HasMutationContext());
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& masterCellConnectionConfigs = multicellManager->GetMasterCellConnectionConfigs();
+        for (const auto& secondaryMasterConfig : masterCellConnectionConfigs->SecondaryMasters) {
+            auto* protoSecondaryMasterConfig = rspSecondaryMasterConnectionConfigs->Add();
+            NCellMasterClient::ToProto(protoSecondaryMasterConfig, secondaryMasterConfig);
+        }
+    }
+
     void EnsureNodeObjectCreated(const TNodeObjectCreationOptions& options)
     {
         YT_VERIFY(HasMutationContext());
@@ -1297,7 +1314,11 @@ private:
         }
         // NB: No guarantee that node has saved dynamically propagated information about new master cells,
         // so it is counted that it should discover new master composition again.
-        ResetCellAggregatedStateReliabilities(node);
+
+        // If we don't chahnge reliability here, it will lead to node
+        // not becoming online until it is online on new cells, which is not completely unreasonable,
+        // so I'm not sure we need that.
+        RestoreCellAggregatedStateReliabilities(node);
     }
 
     void CreateHostObject(TNode* node, const std::string& hostName, TRack* rack)
@@ -1461,6 +1482,11 @@ private:
         response->set_node_id(ToProto(node->GetId()));
 
         FillResponseNodeTags(response->mutable_tags(), node->Tags());
+
+        auto dynamicConfig = GetDynamicConfig();
+        if (dynamicConfig->ReturnMasterCellsConnectionConfigsOnNodeRegistration) {
+            FillSecondaryMastersConnectionConfigs(response->mutable_secondary_masters_configs());
+        }
 
         if (context) {
             context->SetResponseInfo("NodeId: %v",
@@ -1634,12 +1660,6 @@ private:
 
         auto nodeId = FromProto<TNodeId>(request->node_id());
         auto reliability = FromProto<ECellAggregatedStateReliability>(request->cell_reliability());
-        YT_LOG_ALERT_UNLESS(
-            reliability == ECellAggregatedStateReliability::DynamicallyDiscovered,
-            "Received unexpected cell aggregated state reliability (NodeId: %v, Reliability: %v, CellTag: %v)",
-            nodeId,
-            reliability,
-            cellTag);
 
         YT_LOG_INFO("Received node cell aggregated state reliability (NodeId: %v, Reliability: %v, CellTag: %v)",
             nodeId,
@@ -1649,6 +1669,27 @@ private:
         auto* node = FindNode(nodeId);
         if (!IsObjectAlive(node)) {
             return;
+        }
+
+        const auto& dynamicallyPropagatedMastersCellTags = multicellManager->GetDynamicallyPropagatedMasterCellTags();
+        if (dynamicallyPropagatedMastersCellTags.contains(cellTag)) {
+            // This is really-really weird, hope that never happens.
+            // Funnily enough, it is safer to make cell StaticallyKnown, so don't ignore that change.
+            // Unknown is OK here.
+            if (reliability == ECellAggregatedStateReliability::StaticallyKnown) {
+                YT_LOG_ALERT("Received a weird state reliability change for dynamically propagated cell (NodeId: %v, Reliability: %v, CellTag: %v)",
+                    nodeId,
+                    reliability,
+                    cellTag);
+            }
+        } else {
+            if (reliability != ECellAggregatedStateReliability::StaticallyKnown) {
+                YT_LOG_ALERT("Received probably outdated state reliability change for a statically known cell (NodeId: %v, Reliability: %v, CellTag: %v)",
+                    nodeId,
+                    reliability,
+                    cellTag);
+                return;
+            }
         }
 
         node->SetCellAggregatedStateReliability(cellTag, reliability);
@@ -1849,6 +1890,11 @@ private:
 
         *response->mutable_resource_limits_overrides() = node->ResourceLimitsOverrides();
         response->set_decommissioned(node->IsDecommissioned());
+
+        auto dynamicConfig = GetDynamicConfig();
+        if (dynamicConfig->ReturnMasterCellsConnectionConfigsOnNodeHeartbeat) {
+            FillSecondaryMastersConnectionConfigs(response->mutable_secondary_masters_configs());
+        }
 
         node->SetDisableWriteSessionsSentToNode(node->AreWriteSessionsDisabled());
     }
@@ -2199,16 +2245,82 @@ private:
         }
     }
 
-    void ResetCellAggregatedStateReliabilities(TNode* node)
+    void ValidateAllMasterCellsAreReliable() const override
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        const auto& dynamicallyPropagatedMastersCellTags = multicellManager->GetDynamicallyPropagatedMastersCellTags();
-        if (multicellManager->IsDynamicallyPropagatedMaster()) {
-            node->SetLastCellAggregatedStateReliability(ECellAggregatedStateReliability::DuringPropagation);
+        if (!multicellManager->IsPrimaryMaster()) {
+            return;
         }
 
-        for (auto cellTag : dynamicallyPropagatedMastersCellTags) {
-            node->SetCellAggregatedStateReliability(cellTag, ECellAggregatedStateReliability::DuringPropagation);
+        for (auto [nodeId, node] : NodeMap_) {
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
+
+            // Registration is a hive mutation from primary to secondary, so is ResetCellAggregatedStateReliabilities,
+            // node only changes state from Offline to something else via registration mutation,
+            // so if node is Offline here, it will be offline when ResetCellAggregatedStateReliabilities
+            // reaches secondary cells.
+            auto state = node->GetAggregatedState();
+            if (state == ENodeState::Offline) {
+                continue;
+            }
+
+            node->ValidateAllMasterCellsAreReliable();
+        }
+    }
+
+    void ResetCellAggregatedStateReliabilities() override
+    {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& dynamicallyPropagatedMastersCellTags = multicellManager->GetDynamicallyPropagatedMasterCellTags();
+        // Not sure what to do, let's just wait until someone fixes it.
+        if (!dynamicallyPropagatedMastersCellTags.empty()) {
+            YT_LOG_ALERT("Resetting state reliabilities with non-empty dynamically propagated list (DynamicallyPropagatedMastersCellTags: %v)",
+                dynamicallyPropagatedMastersCellTags);
+            return;
+        }
+
+        for (auto [nodeId, node] : NodeMap_) {
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
+
+            auto state = node->GetLocalState();
+            if (state != ENodeState::Offline && node->GetLocalCellAggregatedStateReliability() == ECellAggregatedStateReliability::DuringPropagation) {
+                // That seems possible as reliabilities are sent from secondary to primary and
+                // ResetDynamicallyPropagatedMasterCells from primary to secondary.
+                // However, reliability can change from something to DuringPropagation in two cases (correct me if I'm wrong)
+                // 1. When node reregisters
+                // 2. If a new node appears
+                // Both these mutations travel from primary to secondary and reliability is changed immediately
+                // on primary, so if a reliability is DuringPropagation, primary
+                // knows about it and should fail validation.
+                YT_LOG_ALERT("Node is still during propagation for cell (NodeId: %v, NodeAddress: %v)",
+                    nodeId,
+                    node->GetDefaultAddress());
+            }
+
+            SetNodeLocalCellAggregatedStateReliability(node, ECellAggregatedStateReliability::StaticallyKnown);
+        }
+    }
+
+    void RestoreCellAggregatedStateReliabilities(TNode* node)
+    {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto reliability = multicellManager->IsDynamicallyPropagatedMaster() ?
+            ECellAggregatedStateReliability::DuringPropagation :
+            ECellAggregatedStateReliability::StaticallyKnown;
+
+        // Don't set SetLastCellAggregatedStateReliability, let's send it just to be safe.
+        SetNodeLocalCellAggregatedStateReliability(node, reliability);
+
+        // We do that so that there is no race with ResetCellAggregatedStateReliabilities.
+        if (multicellManager->IsPrimaryMaster()) {
+            const auto& dynamicallyPropagatedMastersCellTags = multicellManager->GetDynamicallyPropagatedMasterCellTags();
+            for (auto cellTag : dynamicallyPropagatedMastersCellTags) {
+                node->SetCellAggregatedStateReliability(cellTag, ECellAggregatedStateReliability::DuringPropagation);
+            }
         }
     }
 
@@ -2218,7 +2330,7 @@ private:
         node->InitializeStates(
             multicellManager->GetCellTag(),
             multicellManager->GetSecondaryCellTags(),
-            multicellManager->GetDynamicallyPropagatedMastersCellTags(),
+            multicellManager->GetDynamicallyPropagatedMasterCellTags(),
             Bootstrap_->GetConfigManager()->GetConfig()->MulticellManager->Testing->AllowMasterCellRemoval);
     }
 

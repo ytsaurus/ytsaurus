@@ -13,6 +13,7 @@ namespace NYT::NCellMaster {
 namespace NProto {
 
 class TCellStatistics;
+class TReqResetDynamicallyPropagatedMasterCells;
 
 } // namespace NProto
 
@@ -112,6 +113,7 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (TabletNodeTrackerService)
     (DataNodeTracker)
     (DataNodeTrackerService)
+    (CellMasterService)
     (TableManager)
     (ChunkMerger)
     (ChaosManager)

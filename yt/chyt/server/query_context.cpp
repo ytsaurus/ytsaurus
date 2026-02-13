@@ -237,7 +237,7 @@ TQueryContext::TQueryContext(
         HttpUserAgent = clientInfo.http_user_agent;
     }
 
-    Settings = ParseCustomSettings(Host->GetConfig()->QuerySettings, context->getSettingsRef().changes(), Logger);
+    SessionSettings = ParseCustomSettings(Host->GetConfig()->QuerySettings, context->getSettingsRef().changes(), Logger);
 
     YT_LOG_INFO(
         "Query client info (CurrentUser: %v, CurrentAddress: %v, InitialUser: %v, InitialAddress: %v, "
@@ -250,7 +250,7 @@ TQueryContext::TQueryContext(
         HttpUserAgent,
         QueryKind);
 
-    if (Settings->Testing->HangControlInvoker) {
+    if (SessionSettings->Testing->HangControlInvoker) {
         auto longAction = BIND([] {
             std::this_thread::sleep_for(std::chrono::hours(1));
         });
@@ -262,7 +262,7 @@ TQueryContext::TQueryContext(
 TQueryContext::TQueryContext(THost* host, NNative::IClientPtr client)
     : QueryKind(EQueryKind::NoQuery)
     , Host(host)
-    , Settings(New<TQuerySettings>())
+    , SessionSettings(New<TQuerySettings>())
     , Client_(std::move(client))
 { }
 
@@ -313,6 +313,11 @@ const NNative::IClientPtr& TQueryContext::Client() const
     }
 
     return Client_;
+}
+
+TQuerySettingsPtr TQueryContext::GetContextSettings(DB::ContextPtr context) const
+{
+    return ParseCustomSettings(SessionSettings, context->getSettingsRef().changes(), Logger);
 }
 
 void TQueryContext::MoveToPhase(EQueryPhase nextPhase)
@@ -445,7 +450,7 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetObjectAttribute
             std::move(attributes),
             {TErrorOr(EPreliminaryCheckPermissionResult::RowLevelAceNotPresent)});
     } else if (QueryKind == EQueryKind::InitialQuery) {
-        switch (Settings->Execution->TableReadLockMode) {
+        switch (SessionSettings->Execution->TableReadLockMode) {
             case ETableReadLockMode::Sync: {
                 LockAndFetchAttributesSync(pathsToFetch);
                 break;
@@ -457,7 +462,7 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetObjectAttribute
             case ETableReadLockMode::None: {
                 auto preliminaryCheckPermissionResultsFuture = Host->PreliminaryCheckPermissions(pathsToFetch, User);
                 auto attributes = Host->GetObjectAttributes(pathsToFetch, Client());
-                auto preliminaryCheckPermissionResults = WaitForUniqueFast(preliminaryCheckPermissionResultsFuture)
+                auto preliminaryCheckPermissionResults = WaitForFast(preliminaryCheckPermissionResultsFuture.AsUnique())
                     .ValueOrThrow();
                 AddAttributesToSnapshot(
                     std::move(pathsToFetch),
@@ -516,14 +521,14 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetObjectAttribute
             .ThrowOnError();
 
         auto attributesUnderTx = attributesUnderTxFuture
-            .GetUnique()
+            .AsUnique().Get()
             .ValueOrThrow();
 
         auto preliminaryCheckPermissionResultsFromCache = preliminaryCheckPermissionResultsFromCacheFuture
-            .GetUnique()
+            .AsUnique().Get()
             .ValueOrThrow();
         auto preliminaryCheckPermissionResultsUnderTx = preliminaryCheckPermissionResultsUnderTxFuture
-            .GetUnique()
+            .AsUnique().Get()
             .ValueOrThrow();
 
         AddAttributesToSnapshot(
@@ -546,7 +551,7 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetObjectAttribute
         if (attributesOrError.IsOK()) {
             const auto& attributes = attributesOrError.Value();
 
-            if (Settings->Testing->CheckChytBanned) {
+            if (Host->GetConfig()->CheckChytBanned) {
                 if (attributes->Get<bool>("chyt_banned", false)) {
                     THROW_ERROR_EXCEPTION("Table %Qv is banned via \"chyt_banned\" attribute", path);
                 }
@@ -781,7 +786,7 @@ void TQueryContext::LockAndFetchAttributesBestEffort(std::vector<TYPath> pathsTo
         SnapshotLocks.emplace(path, TObjectLock{});
     }
 
-    auto preliminaryCheckPermissionResults = WaitForUniqueFast(preliminaryCheckPermissionResultsFuture)
+    auto preliminaryCheckPermissionResults = WaitForFast(preliminaryCheckPermissionResultsFuture.AsUnique())
             .ValueOrThrow();
     AddAttributesToSnapshot(
         std::move(pathsToFetch),
@@ -845,7 +850,7 @@ void TQueryContext::AddAttributesToSnapshot(
 TYPath TQueryContext::GetNodeIdOrPath(const TYPath& path) const
 {
     // NB: Reading by node id makes sense only for Sync mode.
-    if (Settings->Execution->TableReadLockMode != ETableReadLockMode::Sync) {
+    if (SessionSettings->Execution->TableReadLockMode != ETableReadLockMode::Sync) {
         return path;
     }
 
@@ -866,7 +871,7 @@ std::vector<TError> TQueryContext::TryAcquireSnapshotLocks(const std::vector<TYP
         return {};
     }
 
-    auto locks = WaitForUniqueFast(DoAcquireSnapshotLocks(paths))
+    auto locks = WaitForFast(DoAcquireSnapshotLocks(paths).AsUnique())
         .ValueOrThrow();
 
     SaveQueryReadTransaction();
@@ -961,7 +966,7 @@ TFuture<std::vector<TErrorOr<IAttributeDictionaryPtr>>> TQueryContext::FetchTabl
 
     auto client = Client();
     auto connection = client->GetNativeConnection();
-    TMasterReadOptions masterReadOptions = *Settings->CypressReadOptions;
+    TMasterReadOptions masterReadOptions = *SessionSettings->CypressReadOptions;
 
     auto proxy = CreateObjectServiceReadProxy(client, masterReadOptions.ReadFrom);
     auto batchReq = proxy.ExecuteBatch();
@@ -972,7 +977,7 @@ TFuture<std::vector<TErrorOr<IAttributeDictionaryPtr>>> TQueryContext::FetchTabl
         auto nodeIdOrPath = GetNodeIdOrPath(path);
         auto req = TYPathProxy::Get(Format("%v/@", nodeIdOrPath));
         req->Tag() = index;
-        NYT::ToProto(req->mutable_attributes()->mutable_keys(), TableAttributesToFetch);
+        NYT::ToProto(req->mutable_attributes()->mutable_keys(), Host->GetObjectAttributeNamesToFetch());
         SetTransactionId(req, transactionId);
         SetCachingHeader(req, connection, masterReadOptions);
 
@@ -998,7 +1003,7 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::FetchTableAttribut
     const std::vector<TYPath>& paths,
     TTransactionId transactionId)
 {
-    return WaitForUniqueFast(FetchTableAttributesAsync(paths, transactionId))
+    return WaitForFast(FetchTableAttributesAsync(paths, transactionId).AsUnique())
         .ValueOrThrow();
 }
 
@@ -1175,9 +1180,9 @@ void InvalidateCache(
     std::optional<EInvalidateCacheMode> invalidateMode)
 {
     if (!invalidateMode) {
-        invalidateMode = queryContext->Settings->Caching->TableAttributesInvalidateMode;
+        invalidateMode = queryContext->SessionSettings->Caching->TableAttributesInvalidateMode;
     }
-    auto timeout = queryContext->Settings->Caching->InvalidateRequestTimeout;
+    auto timeout = queryContext->SessionSettings->Caching->InvalidateRequestTimeout;
     queryContext->Host->InvalidateCachedObjectAttributesGlobally(paths, *invalidateMode, timeout);
 }
 

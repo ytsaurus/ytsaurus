@@ -128,7 +128,7 @@ private:
         TFuture<void> Flush() override
         {
             if (RowBuffer_->GetSize() == 0) {
-                return VoidFuture;
+                return OKFuture;
             }
 
             return
@@ -143,7 +143,7 @@ private:
 
                     bool ready = writer->Write(rows);
                     rowBuffer->Clear();
-                    return ready ? VoidFuture :  writer->GetReadyEvent();
+                    return ready ? OKFuture :  writer->GetReadyEvent();
                 })
                 .AsyncVia(Owner_->SerializedInvoker_)
                 .Run();
@@ -385,7 +385,7 @@ void TUserJobWriteController::PopulateResult(TJobResultExt* jobResultExt)
             writtenChunkSpecs.push_back(chunkSpec);
             FilterProtoExtensions(writtenChunkSpecs.back().mutable_chunk_meta()->mutable_extensions(), GetSchedulerChunkMetaExtensionTagsFilter());
         }
-        auto protoDigest = jobResultExt->add_output_digests();
+        auto* protoDigest = jobResultExt->add_output_digests();
         if (auto digest = writer->GetDigest()) {
             protoDigest->set_value(digest->Underlying());
         }

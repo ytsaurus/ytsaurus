@@ -71,7 +71,7 @@ bool RunProgram(const TString& query, const TRunSettings& runSettings) {
     fmrServices->FunctionRegistry = functionRegistry.Get();
     fmrServices->JobLauncher = MakeIntrusive<NFmr::TFmrUserJobLauncher>(NFmr::TFmrUserJobLauncherOptions{.RunInSeparateProcess = false});
     fmrServices->DisableLocalFmrWorker = false;
-    fmrServices->YtJobService = NFmr::MakeFileYtJobSerivce();
+    fmrServices->YtJobService = NFmr::MakeFileYtJobService();
     fmrServices->YtCoordinatorService = NFmr::MakeFileYtCoordinatorService();
     fmrServices->NeedToTransformTmpTablePaths = false;
 
@@ -81,6 +81,14 @@ bool RunProgram(const TString& query, const TRunSettings& runSettings) {
     SetupTableDataServiceDiscovery(discoveryFile, port);
     auto tableDataServiceServer = MakeTableDataServiceServer(port);
     fmrServices->TableDataServiceDiscoveryFilePath = discoveryFile.Name();
+
+    TFileStorageConfig fsConfig;
+    fsConfig.SetThreads(3);
+    auto fileStorage = WithAsync(CreateFileStorage(fsConfig, {}));
+
+    fmrServices->FileStorage = fileStorage;
+    auto jobPreparer = NFmr::MakeFmrJobPreparer(fileStorage, discoveryFile.Name());
+    fmrServices->JobPreparer = jobPreparer;
 
     auto [fmrGateway, worker] = InitializeFmrGateway(ytGateway, fmrServices);
 

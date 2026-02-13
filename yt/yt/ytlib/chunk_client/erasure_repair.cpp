@@ -168,7 +168,7 @@ public:
     TFuture<void> Run()
     {
         if (Readers_.empty()) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         return BIND(&TRepairAllPartsSession::DoRun, MakeStrong(this))
@@ -350,7 +350,7 @@ public:
     TFuture<void> Consume(const TPartRange& range, const TSharedRef& block) override
     {
         if (LastRange_ && *LastRange_ == range) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         YT_VERIFY(!LastRange_ || LastRange_->End <= range.Begin);
@@ -369,7 +369,7 @@ public:
             SavedBytes_ += intersection.Size();
         }
 
-        return VoidFuture;
+        return OKFuture;
     }
 
     std::vector<TBlock> GetSavedBlocks()
@@ -640,12 +640,12 @@ class TNullChunkWriter
 public:
     TFuture<void> Open() override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     TFuture<void> Cancel() override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     bool WriteBlock(const IChunkWriter::TWriteBlocksOptions&, const TWorkloadDescriptor&, const TBlock&) override
@@ -660,12 +660,12 @@ public:
 
     TFuture<void> GetReadyEvent() override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     TFuture<void> Close(const IChunkWriter::TWriteBlocksOptions&, const TWorkloadDescriptor&, const TDeferredChunkMetaPtr&, std::optional<int>) override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override
@@ -786,7 +786,7 @@ TFuture<void> AdaptiveRepairErasedParts(
 
             return future.Apply(BIND([=] (const TError& repairError) {
                 if (repairError.IsOK()) {
-                    return VoidFuture;
+                    return OKFuture;
                 }
 
                 return CancelWriters(writers)

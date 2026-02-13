@@ -205,7 +205,23 @@ void TCommitterBase::RegisterNextChangelog(int id, TFuture<IChangelogPtr> change
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-    EmplaceOrCrash(NextChangelogs_, id, changelog);
+    auto [it, emplaced] = NextChangelogs_.emplace(id, changelog);
+
+    if (!emplaced) {
+        YT_LOG_INFO(
+            "Replacing existing registered changelog (ChangelogId: %v, IsReady: %v)",
+            id,
+            it->second.IsSet());
+
+        if (auto changelogResult = it->second.TryGet();
+            !changelogResult.has_value() || changelogResult->IsOK())
+        {
+            YT_LOG_ALERT_AND_THROW("Replacing valid registered changelog (ChangelogId: %v)", id);
+        }
+
+        it->second = std::move(changelog);
+    }
+
     YT_LOG_INFO("Changelog registered (ChangelogId: %v)", id);
 }
 
@@ -292,7 +308,7 @@ TFuture<void> TLeaderCommitter::GetLastMutationFuture()
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     if (MutationQueue_.empty()) {
-        return VoidFuture;
+        return OKFuture;
     }
 
     return MutationQueue_.back()->LocalCommitPromise
@@ -418,7 +434,7 @@ void TLeaderCommitter::Start()
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     LastRandomSeed_ = DecoratedAutomaton_->GetRandomSeed();
-    NextLoggedVersion_ = {Changelog_->GetId(), 0};
+    NextLoggedVersion_ = TPhysicalVersion(Changelog_->GetId(), 0);
 
     auto sequenceNumber = DecoratedAutomaton_->GetSequenceNumber();
     YT_VERIFY(CommittedState_.SequenceNumber == sequenceNumber);
@@ -566,7 +582,7 @@ void TLeaderCommitter::FlushMutations()
         // before replying to multicell sync, but it sounds like a long and
         // dangerous journey.
         TReachableState automatonState(
-            DecoratedAutomaton_->GetAutomatonVersion().SegmentId,
+            DecoratedAutomaton_->GetAutomatonVersion().GetSegmentId(),
             DecoratedAutomaton_->GetSequenceNumber());
         // We might not yet recovered to this state, but we want followers to recover to it.
         const auto& stateToSend = std::max(automatonState, InitialState_);
@@ -1404,7 +1420,7 @@ void TFollowerCommitter::DoAcceptMutation(const TSharedRef& recordData)
 
     AcceptedMutations_.push(
         New<TPendingMutation>(
-            TVersion(MutationHeader_.segment_id(), MutationHeader_.record_id()),
+            TPhysicalVersion(MutationHeader_.segment_id(), MutationHeader_.record_id()),
             std::move(request),
             FromProto<TInstant>(MutationHeader_.timestamp()),
             MutationHeader_.random_seed(),

@@ -66,6 +66,11 @@ public:
     //! trying to keep preloaded chunk data and update metadata caches.
     DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(InplaceReshard);
 
+    //! Tablets currently being provisionally flushed.
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TTabletId>, FlushingTablets);
+
+    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(ProvisionalFlushRequired);
+
 public:
     using TObject::TObject;
 

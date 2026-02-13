@@ -258,9 +258,12 @@ class TestSortedDynamicTablesAcl(TestSortedDynamicTablesBase):
             )
             assert rows == [{"key": "1", "public": "public1"}]
         except YtError as err:
-            assert err.contains_text(
-                'Access denied for user "u": "read" permission for column "private" of node //tmp/t is denied for "u" by ACE at node //tmp/t'
-            )
+            expected_message = 'Access denied for user "u": "read" permission for column "private" of node //tmp/t'
+            if not self.ENABLE_TMP_ROOTSTOCK:
+                # TODO(danilalexeev): YT-24575. Denying ACE's object is unknown for Sequoia nodes.
+                expected_message += ' is denied for "u" by ACE at node //tmp/t'
+
+            assert err.contains_text(expected_message)
             assert not omit_inaccessible_columns
 
 
@@ -289,6 +292,20 @@ class TestSortedDynamicTablesAclPortal(TestSortedDynamicTablesAclMulticell):
 
     MASTER_CELL_DESCRIPTORS = {
         "11": {"roles": ["chunk_host", "cypress_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
+
+@pytest.mark.enabled_multidaemon
+class TestSortedDynamicTablesAclSequoia(TestSortedDynamicTablesAclMulticell):
+    ENABLE_MULTIDAEMON = True
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host", "sequoia_node_host"]},
+        "11": {"roles": ["cypress_node_host", "sequoia_node_host"]},
         "12": {"roles": ["chunk_host"]},
     }
 
@@ -383,5 +400,19 @@ class TestOrderedDynamicTablesAclPortal(TestOrderedDynamicTablesAclMulticell):
 
     MASTER_CELL_DESCRIPTORS = {
         "11": {"roles": ["chunk_host", "cypress_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
+
+@pytest.mark.enabled_multidaemon
+class TestOrderedDynamicTablesAclSequoia(TestSortedDynamicTablesAclMulticell):
+    ENABLE_MULTIDAEMON = True
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host", "sequoia_node_host"]},
+        "11": {"roles": ["cypress_node_host", "sequoia_node_host"]},
         "12": {"roles": ["chunk_host"]},
     }

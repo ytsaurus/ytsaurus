@@ -2,6 +2,8 @@
 
 #include <yt/yt/client/table_client/row_base.h>
 
+#include <yt/yt/library/query/base/query_preparer.h>
+
 namespace NYT::NOrm::NQuery {
 
 using NTableClient::EValueType;
@@ -107,6 +109,17 @@ const std::string& GetYsonExtractFunction(EValueType type)
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+TExpressionParsedSource::TExpressionParsedSource(std::string source)
+    : Source(std::move(source))
+{
+    auto parsedSource = NQueryClient::ParseSource(Source, NQueryClient::EParseMode::Expression);
+    auto expressionPtr = std::get_if<NQueryClient::NAst::TExpressionPtr>(&parsedSource->AstHead.Ast);
+    YT_VERIFY(expressionPtr);
+    Expression = *expressionPtr;
+    Merge(std::move(parsedSource->AstHead));
+}
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NOrm::NQuery

@@ -1,0 +1,74 @@
+operator:
+  requirements: configs/compat-operator.yaml
+  origins:
+    stable:
+      repo: ytsaurus
+      container: ytop-chart
+      image_tag: "(?P<version>{{ version }})"
+    dev:
+      repo: ytsaurus-k8s-operator
+      container: ytop-chart-nightly
+      image_tag: '^[\d\.]+-dev-(?P<commit_hash>\w+)$'
+ytsaurus:
+  requirements: configs/compat-ytsaurus.yaml
+  origins:
+    stable:
+      repo: ytsaurus
+      container: ytsaurus
+      image_tag: '^stable-(?P<version>{{ version }})-relwithdebinfo$'
+    release:
+      repo: ytsaurus
+      container: ytsaurus-nightly
+      image_tag: '^dev-(?P<version>{{ version }})-\d{4}-\d{2}-\d{2}-(?P<commit_hash>\w+)-relwithdebinfo$'
+    dev:
+      repo: ytsaurus
+      container: ytsaurus-nightly
+      image_tag: '^dev-\d{4}-\d{2}-\d{2}-(?P<commit_hash>\w+)-relwithdebinfo$'
+query_tracker:
+  requirements: configs/compat-query_tracker.yaml
+  origins:
+    stable:
+      repo: ytsaurus
+      container: query-tracker
+      image_tag: "(?P<version>{{ version }})-relwithdebinfo"
+    dev:
+      repo: ytsaurus
+      container: query-tracker-nightly
+      image_tag: '^dev-\d{4}-\d{2}-\d{2}-(?P<commit_hash>\w+)-relwithdebinfo$'
+    release:
+      repo: ytsaurus
+      container: query-tracker-nightly
+      image_tag: '^dev-(?P<version>{{ version }})-\d{4}-\d{2}-\d{2}-(?P<commit_hash>\w+)-relwithdebinfo$'
+strawberry:
+  requirements: configs/compat-strawberry.yaml
+  origins:
+    stable:
+      repo: ytsaurus
+      container: strawberry
+      image_tag: "(?P<version>{{ version }})-relwithdebinfo"
+    dev:
+      repo: ytsaurus
+      container: strawberry-nightly
+      image_tag: '^dev-\d{4}-\d{2}-\d{2}-(?P<commit_hash>\w+)-relwithdebinfo$'
+chyt:
+  requirements: configs/compat-chyt.yaml
+  origins:
+    stable:
+      repo: ytsaurus
+      container: chyt
+      image_tag: "(?P<version>{{ version }})-relwithdebinfo"
+    dev:
+      repo: ytsaurus
+      container: chyt-nightly
+      image_tag: '^dev-\d{4}-\d{2}-\d{2}-(?P<commit_hash>\w+)-relwithdebinfo$'
+    release:
+      repo: ytsaurus
+      container: chyt-nightly
+      image_tag: '^dev-(?P<version>{{ version }})-\d{4}-\d{2}-\d{2}-(?P<commit_hash>\w+)-relwithdebinfo$'
+spyt:
+  requirements: configs/compat-spyt.yaml
+  origins:
+    stable:
+      repo: ytsaurus
+      container: spyt
+      image_tag: "(?P<version>{{ version }})"

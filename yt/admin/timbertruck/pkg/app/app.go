@@ -503,15 +503,29 @@ type oneShotAppTask struct {
 }
 
 type oneShotAppTaskController struct {
-	logger slog.Logger
+	logger *slog.Logger
 }
 
 func (c *oneShotAppTaskController) Logger() *slog.Logger {
-	return &c.logger
+	return c.logger
 }
 
 func (c *oneShotAppTaskController) NotifyProgress(pos pipelines.FilePosition) {
 	c.logger.Debug("Task progress", "progress", pos)
+}
+
+func (c *oneShotAppTaskController) OnSkippedRow(data io.WriterTo, info pipelines.SkippedRowInfo) {
+	if _, err := data.WriteTo(io.Discard); err != nil {
+		c.logger.Warn("Failed to discard skipped row data", "error", err)
+	}
+	attrs := []any{
+		"reason", string(info.Reason),
+		"offset", info.Offset,
+	}
+	for k, v := range info.Attrs {
+		attrs = append(attrs, k, v)
+	}
+	c.logger.Warn("Row skipped", attrs...)
 }
 
 type oneShotApp struct {
@@ -566,10 +580,13 @@ func (app *oneShotApp) Run() error {
 		if app.ctx.Err() != nil {
 			break
 		}
+		taskLogger := app.logger.With(
+			"stream", app.tasks[i].config.Name,
+		)
 		taskArgs := timbertruck.TaskArgs{
 			Context:    app.ctx,
 			Path:       app.tasks[i].config.LogFile,
-			Controller: &oneShotAppTaskController{*app.logger},
+			Controller: &oneShotAppTaskController{logger: taskLogger},
 		}
 		pipeline, err := app.tasks[i].newFunc(taskArgs)
 		if err != nil {
@@ -580,6 +597,7 @@ func (app *oneShotApp) Run() error {
 		if err != nil {
 			return err
 		}
+		app.logger.Info("Task completed", "stream", app.tasks[i].config.Name)
 	}
 	return app.ctx.Err()
 }

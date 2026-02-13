@@ -359,10 +359,10 @@ void TChunk::RemoveReplica(
         }
     }
 
-    auto storedReplicas = data->GetStoredReplicas();
+    const auto& storedReplicas = data->StoredReplicaList();
     for (int replicaIndex = 0; replicaIndex < std::ssize(storedReplicas); ++replicaIndex) {
-        auto existingReplica = storedReplicas[replicaIndex];
-        auto* locationReplica = existingReplica.As<EStoredReplicaType::ChunkLocation>();
+        const auto& existingReplica = storedReplicas[replicaIndex];
+        const auto* locationReplica = existingReplica.As<EStoredReplicaType::ChunkLocation>();
         if (!locationReplica) {
             continue;
         }
@@ -407,16 +407,6 @@ int TChunk::GetApprovedReplicaCount() const
 void TChunk::SetApprovedReplicaCount(int count)
 {
     MutableReplicasData()->ApprovedReplicaCount = count;
-}
-
-void TChunk::ValidateConfirmation(const TChunkInfo& /*chunkInfo*/, const TChunkMeta& chunkMeta) const
-{
-    // YT-3251
-    if (!HasProtoExtension<TMiscExt>(chunkMeta.extensions())) {
-        THROW_ERROR_EXCEPTION("Missing TMiscExt in chunk meta");
-    }
-
-    ValidateFromProto(chunkMeta);
 }
 
 void TChunk::Confirm(const TChunkInfo& chunkInfo, const TChunkMeta& chunkMeta)
@@ -478,7 +468,7 @@ bool TChunk::IsAvailable() const
         return false;
     }
 
-    const auto& storedReplicas = ReplicasData_->GetStoredReplicas();
+    const auto& storedReplicas = ReplicasData_->StoredReplicaList();
     switch (GetType()) {
         case EObjectType::Chunk:
             return !storedReplicas.empty();
@@ -617,10 +607,7 @@ int TChunk::GetMaxReplicasPerFailureDomain(
 {
     switch (GetType()) {
         case EObjectType::Chunk: {
-            if (replicationFactorOverride) {
-                return *replicationFactorOverride;
-            }
-            auto replicationFactor = GetAggregatedReplicationFactor(mediumIndex, registry);
+            auto replicationFactor = replicationFactorOverride.value_or(GetAggregatedReplicationFactor(mediumIndex, registry));
             return std::max(replicationFactor - 1, 1);
         }
 
@@ -859,6 +846,30 @@ void TChunk::OnMiscExtUpdated(const TMiscExt& miscExt)
     SetStripedErasure(miscExt.striped_erasure());
 }
 
+TStoredChunkReplicaList TChunk::GetStoredReplicaList(bool includeNonOnlineReplicas) const
+{
+    const auto& data = ReplicasData();
+    auto replicas = data.StoredReplicaList();
+
+    // COMPAT(grphil)
+    if (!includeNonOnlineReplicas) {
+        includeNonOnlineReplicas = GetBootstrap()->GetConfigManager()->GetConfig()->ChunkManager->AlwaysFetchNonOnlineReplicas;
+    }
+
+    if (!includeNonOnlineReplicas) {
+        auto endIt = std::remove_if(replicas.begin(), replicas.end(), [] (const TAugmentedStoredChunkReplicaPtr& replica) {
+            if (replica.GetStoredReplicaType() != EStoredReplicaType::ChunkLocation) {
+                return false;
+            }
+            auto locationReplica = replica.As<EStoredReplicaType::ChunkLocation>();
+            auto node = locationReplica->AsChunkLocationPtr()->GetNode();
+            return node->GetLocalState() != NNodeTrackerClient::ENodeState::Online;
+        });
+        replicas.erase(endIt, replicas.end());
+    }
+    return replicas;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
@@ -868,9 +879,9 @@ TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::TRepl
 }
 
 template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
-TRange<TAugmentedStoredChunkReplicaPtr> TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::GetStoredReplicas() const
+const TStoredChunkReplicaList& TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::StoredReplicaList() const
 {
-    return TRange(StoredReplicas);
+    return StoredReplicas;
 }
 
 template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>

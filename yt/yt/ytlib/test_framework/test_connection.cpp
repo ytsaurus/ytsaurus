@@ -64,7 +64,7 @@ bool TTestConnection::IsSequoiaConfigured()
     return false;
 }
 
-NSequoiaClient::ISequoiaClientPtr TTestConnection::GetSequoiaClient()
+const NSequoiaClient::ISequoiaConnectionPtr& TTestConnection::GetSequoiaConnection()
 {
     YT_UNIMPLEMENTED();
 }

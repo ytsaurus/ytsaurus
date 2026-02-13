@@ -122,7 +122,7 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitUnrecognizedField(
 
     if (Self()->MissingFieldPolicy_ != EMissingFieldPolicy::Skip) {
         THROW_ERROR_EXCEPTION(NAttributes::EErrorCode::MissingField,
-            "Field %v not found in message %v",
+            "Field %Qv is not found in message %v",
             name,
             descriptor->full_name());
     }
@@ -409,8 +409,9 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitRepeatedFieldEntryRelative(
     }
 
     THROW_ERROR_EXCEPTION(NAttributes::EErrorCode::MalformedPath,
-        "Unexpected relative path specifier %v",
-        GetToken());
+        "Unexpected repeated field relative path specifier")
+        << TErrorAttribute("relative_index", Self()->GetTokenizerPrefix())
+        << TErrorAttribute("computed_index", index);
 }
 
 template <typename TWrappedMessage, typename TSelf>

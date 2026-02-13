@@ -15,6 +15,8 @@ from yt_type_helpers import (
     list_type,
 )
 
+from yt_dynamic_tables_base import map_in_parallel
+
 from yt.test_helpers import assert_items_equal
 from yt.common import YtError
 import yt.yson as yson
@@ -407,28 +409,32 @@ class TestMapOnDynamicTables(YTEnvSetup):
         insert_rows("//tmp/t", dynstore_rows, aggregate=True)
         rows = select_rows("* from [//tmp/t] limit 1000000")
 
-        def _check(*columns):
+        def _check(arguments):
+            out_table = f"//tmp/o_{arguments[0]}"
+            columns = arguments[1:]
             expected = [{column: row[column] for column in columns if column in row} for row in rows]
             ypath = "//tmp/t{" + ",".join(columns) + "}"
             actual = read_table(ypath)
             assert expected == actual
 
-            create("table", "//tmp/o")
-            merge(in_=ypath, out="//tmp/o", mode="ordered")
-            assert expected == read_table("//tmp/o")
-            remove("//tmp/o")
+            create("table", out_table)
+            merge(in_=ypath, out=out_table, mode="ordered")
+            assert expected == read_table(out_table)
+            remove(out_table)
 
-        _check("k_1")
-        _check("v_3")
-        _check("k_1", "k_1")
-        _check("v_3", "k_1")
-        _check("v_4", "v_4", "k_1")
-        _check("v_5", "k_1", "v_5", "k_1")
-        _check("oops")
-        _check("oops", "yup")
-        _check("oops", "v_6", "yup")
-        _check("oops", "v_7", "k_1")
-        _check("k_1", "k_2", "v_8", "v_4", "v_9", "v_7", "v_5")
+        map_in_parallel(_check, (
+            (1, "k_1",),
+            (2, "v_3",),
+            (3, "k_1", "k_1"),
+            (4, "v_3", "k_1"),
+            (5, "v_4", "v_4", "k_1"),
+            (6, "v_5", "k_1", "v_5", "k_1"),
+            (7, "oops",),
+            (8, "oops", "yup"),
+            (9, "oops", "v_6", "yup"),
+            (10, "oops", "v_7", "k_1"),
+            (11, "k_1", "k_2", "v_8", "v_4", "v_9", "v_7", "v_5"),
+        ))
 
     @authors("savrus")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
@@ -1084,6 +1090,20 @@ class TestMapOnDynamicTablesPortal(TestMapOnDynamicTablesMulticell):
     }
 
 
+@pytest.mark.enabled_multidaemon
+class TestMapOnDynamicTablesSequoia(TestMapOnDynamicTablesMulticell):
+    ENABLE_MULTIDAEMON = True
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host", "sequoia_node_host"]},
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host", "sequoia_node_host"]},
+    }
+
+
 ##################################################################
 
 
@@ -1520,6 +1540,20 @@ class TestInputOutputForOrderedWithTabletIndexPortal(TestInputOutputForOrderedWi
     }
 
 
+@pytest.mark.enabled_multidaemon
+class TestInputOutputForOrderedWithTabletIndexSequoia(TestInputOutputForOrderedWithTabletIndexMulticell):
+    ENABLE_MULTIDAEMON = True
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host", "sequoia_node_host"]},
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host", "sequoia_node_host"]},
+    }
+
+
 ##################################################################
 
 
@@ -1690,6 +1724,53 @@ class TestSchedulerMapReduceDynamic(MROverOrderedDynTablesHelper):
         )
         assert read_table("//tmp/t_out") == rows
 
+    @authors("apollo1321")
+    @pytest.mark.parametrize("row_batches", [
+        [
+            [{"k": 1, "v": "b"}],
+            [{"k": 2, "v": "c" * 100}],
+        ],
+        [
+            [{"k": 1, "v": "b"}, {"k": 2, "v": "c" * 100}],
+        ],
+    ])
+    def test_sort_without_partitioning(self, row_batches):
+        sync_create_cells(1)
+        create_dynamic_table(
+            "//tmp/t_input",
+            schema=[
+                {"name": "k", "type": "int64", "sort_order": "ascending"},
+                {"name": "v", "type": "string"},
+            ],
+            replication_factor=1)
+        sync_mount_table("//tmp/t_input")
+
+        for row_batch in row_batches:
+            insert_rows(
+                path="//tmp/t_input",
+                data=row_batch,
+                update=True,
+            )
+            sync_flush_table("//tmp/t_input")
+
+        sync_unmount_table("//tmp/t_input")
+        op = sort(
+            sort_by="k",
+            in_=[
+                "//tmp/t_input"
+            ],
+            out="<create=%true>//tmp/t_output",
+            spec={
+                "data_weight_per_sort_job": 50,
+            },
+        )
+        progress = get(op.get_path() + "/@progress")
+        tasks = progress["tasks"]
+        assert len(tasks) == 1
+        assert tasks[0]["task_name"] == "simple_sort"
+        assert progress["final_sort"]["total"] == 1
+        assert_items_equal(read_table("//tmp/t_output"), [{"k": 1, "v": "b"}, {"k": 2, "v": "c" * 100}])
+
 
 ##################################################################
 
@@ -1713,4 +1794,18 @@ class TestSchedulerMapReduceDynamicPortal(TestSchedulerMapReduceDynamicMulticell
     MASTER_CELL_DESCRIPTORS = {
         "11": {"roles": ["chunk_host", "cypress_node_host"]},
         "12": {"roles": ["chunk_host"]},
+    }
+
+
+@pytest.mark.enabled_multidaemon
+class TestSchedulerMapReduceDynamicSequoia(TestSchedulerMapReduceDynamicMulticell):
+    ENABLE_MULTIDAEMON = True
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host", "sequoia_node_host"]},
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host", "sequoia_node_host"]},
     }

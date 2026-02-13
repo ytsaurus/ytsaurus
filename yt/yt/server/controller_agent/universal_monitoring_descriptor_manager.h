@@ -27,6 +27,7 @@ public:
     bool TryAcqireMonitoringDescriptor(TOperationId operationId);
     bool TryReleaseMonitoringDescriptor(TOperationId operationId);
     bool TryRemoveOperation(TOperationId operationId);
+    void RemoveAllOperations();
 
 private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);

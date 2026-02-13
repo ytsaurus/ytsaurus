@@ -35,8 +35,6 @@ In a typical cluster configuration with _replication factor = 3_ and _max replic
 
 #### Removing the flag
 
-The _pending restart_ flag is removed after the node restarts, specifically when it's re-registered at the master. You can also remove the flag explicitly:
-
 ```bash
 $ yt remove-maintenance --component="cluster_node" --address="my-node.yandex.net" --id="<maintenance-id>"
 ```

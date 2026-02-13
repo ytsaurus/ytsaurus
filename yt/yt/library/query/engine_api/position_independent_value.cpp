@@ -20,16 +20,6 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TPIValue::SetStringPosition(const char* string)
-{
-    NQueryClient::SetStringPosition(this, string);
-}
-
-TStringBuf TPIValue::AsStringBuf() const
-{
-    return TStringBuf(GetStringPosition(*this), Length);
-}
-
 TFingerprint GetFarmFingerprint(const TPIValue& value)
 {
     TUnversionedValue asUnversioned{};
@@ -66,56 +56,6 @@ std::string ToString(const TPIValue& value, bool valueOnly)
 ////////////////////////////////////////////////////////////////////////////////
 
 static_assert(sizeof(TUnversionedValue) == sizeof(TPIValue), "Structs must have equal size");
-
-////////////////////////////////////////////////////////////////////////////////
-
-void MakePositionIndependentSentinelValue(TPIValue* result, EValueType type, int id, EValueFlags flags)
-{
-    auto asUnversioned = MakeUnversionedSentinelValue(type, id, flags);
-    MakePositionIndependentFromUnversioned(result, asUnversioned);
-}
-
-void MakePositionIndependentNullValue(TPIValue* result, int id, EValueFlags flags)
-{
-    auto asUnversioned = MakeUnversionedNullValue(id, flags);
-    MakePositionIndependentFromUnversioned(result, asUnversioned);
-}
-
-void MakePositionIndependentInt64Value(TPIValue* result, i64 value, int id, EValueFlags flags)
-{
-    auto asUnversioned = MakeUnversionedInt64Value(value, id, flags);
-    MakePositionIndependentFromUnversioned(result, asUnversioned);
-}
-
-void MakePositionIndependentUint64Value(TPIValue* result, ui64 value, int id, EValueFlags flags)
-{
-    auto asUnversioned = MakeUnversionedUint64Value(value, id, flags);
-    MakePositionIndependentFromUnversioned(result, asUnversioned);
-}
-
-void MakePositionIndependentDoubleValue(TPIValue* result, double value, int id, EValueFlags flags)
-{
-    auto asUnversioned = MakeUnversionedDoubleValue(value, id, flags);
-    MakePositionIndependentFromUnversioned(result, asUnversioned);
-}
-
-void MakePositionIndependentBooleanValue(TPIValue* result, bool value, int id, EValueFlags flags)
-{
-    auto asUnversioned = MakeUnversionedBooleanValue(value, id, flags);
-    MakePositionIndependentFromUnversioned(result, asUnversioned);
-}
-
-void MakePositionIndependentStringLikeValue(TPIValue* result, EValueType valueType, TStringBuf value, int id, EValueFlags flags)
-{
-    auto asUnversioned = MakeUnversionedStringLikeValue(valueType, value, id, flags);
-    MakePositionIndependentFromUnversioned(result, asUnversioned);
-}
-
-void MakePositionIndependentValueHeader(TPIValue* result, EValueType type, int id, EValueFlags flags)
-{
-    auto asUnversioned = MakeUnversionedValueHeader(type, id, flags);
-    MakePositionIndependentFromUnversioned(result, asUnversioned);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

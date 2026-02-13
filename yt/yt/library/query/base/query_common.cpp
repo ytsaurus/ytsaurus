@@ -22,11 +22,11 @@ using NCodegen::EOptimizationLevel;
 const char* GetUnaryOpcodeLexeme(EUnaryOp opcode)
 {
     switch (opcode) {
-        case EUnaryOp::Plus:  return "+";
-        case EUnaryOp::Minus: return "-";
-        case EUnaryOp::Not:   return "NOT";
-        case EUnaryOp::BitNot:return "~";
-        default:              YT_ABORT();
+        case EUnaryOp::Plus:   return "+";
+        case EUnaryOp::Minus:  return "-";
+        case EUnaryOp::Not:    return "NOT";
+        case EUnaryOp::BitNot: return "~";
+        default:               YT_ABORT();
     }
 }
 

@@ -4,6 +4,10 @@
 
 #include <yt/yt/library/web_assembly/api/compartment.h>
 
+#include <yt/yt/library/web_assembly/engine/builtins.h>
+
+#include <yt/yt/core/misc/async_slru_cache.h>
+
 #include <yt/yt/core/profiling/timing.h>
 
 #include <library/cpp/resource/resource.h>
@@ -173,7 +177,7 @@ Runtime::ModuleRef LoadModuleFromBytecode(TRef bytecode)
     return wasmModule;
 }
 
-IR::Module ParseWast(const TString& wast)
+IR::Module ParseWast(TStringBuf wast)
 {
     auto irModule = IR::Module();
     irModule.featureSpec.memory64 = true;
@@ -212,6 +216,7 @@ struct TNamedGlobalOffsetTableElements
 
 DEFINE_ENUM(EKnownImage,
     (Empty)
+    (MinimalRuntime)
     (Standard)
     (QueryLanguage)
 );
@@ -251,13 +256,66 @@ public:
         InstantiateModule(wavmModule, linkResult, name);
     }
 
-    void AddModule(const TString& wast, TStringBuf name = "") override
+    void AddModule(TStringBuf wast, TStringBuf name = "") override
     {
         auto irModule = ParseWast(wast);
         auto wavmModule = Runtime::compileModule(irModule);
         auto linkResult = LinkModule(irModule);
         AddExportsToGlobalOffsetTable(irModule);
         InstantiateModule(wavmModule, linkResult, name);
+    }
+
+    void AddSdk(const TModuleBytecode& bytecode) override
+    {
+        YT_ASSERT(!RuntimeLibraryInstance_);
+        YT_ASSERT(Compartment_->instances.size() == 1);
+
+        switch (bytecode.Format) {
+            case EBytecodeFormat::HumanReadable: {
+                THROW_ERROR_EXCEPTION("Human-readable runtime library files are not supported");
+                break;
+            }
+
+            case EBytecodeFormat::Binary: {
+                auto featureSpec = IR::FeatureSpec();
+                featureSpec.memory64 = true;
+                featureSpec.table64 = true;
+                featureSpec.exceptionHandling = true;
+
+                auto irModule = IR::Module(std::move(featureSpec));
+
+                auto loadError = WASM::LoadError();
+                bool succeeded = WASM::loadBinaryModule(
+                    std::bit_cast<U8*>(bytecode.Data.begin()),
+                    bytecode.Data.size(),
+                    irModule,
+                    &loadError);
+
+                if (!succeeded) {
+                    THROW_ERROR_EXCEPTION("Could not load WebAssembly runtime library: %v", loadError.message);
+                }
+
+                if (bytecode.ObjectCode) {
+                    auto objectCode = std::vector<U8>(bytecode.ObjectCode.size());
+                    ::memcpy(objectCode.data(), bytecode.ObjectCode.data(), bytecode.ObjectCode.size());
+                    auto sdkModule = std::make_shared<Runtime::Module>(std::move(irModule), std::move(objectCode));
+                    const auto& runtimeIR = Runtime::getModuleIR(sdkModule);
+                    auto linkResult = LinkModule(runtimeIR);
+                    AddExportsToGlobalOffsetTable(runtimeIR);
+                    InstantiateModule(sdkModule, linkResult, "env");
+                    RuntimeLibraryInstance_ = Instances_.back();
+                } else {
+                    auto linkResult = LinkModule(irModule);
+                    auto sdkModule = Runtime::compileModule(irModule);
+                    const auto& runtimeIR = Runtime::getModuleIR(sdkModule);
+                    AddExportsToGlobalOffsetTable(runtimeIR);
+                    InstantiateModule(sdkModule, linkResult, "env");
+                    RuntimeLibraryInstance_ = Instances_.back();
+                }
+
+                break;
+            }
+        }
     }
 
     // Strip erases the linking metadata. This can speed up the clone operation.
@@ -296,7 +354,7 @@ public:
     void* GetFunction(const std::string& name) override
     {
         for (const auto& it : Instances_) {
-            if (auto* function = Runtime::asFunction(Runtime::getInstanceExport(it, name.c_str())); function != nullptr) {
+            if (auto* function = Runtime::asFunction(Runtime::getInstanceExport(it, name)); function != nullptr) {
                 return static_cast<void*>(function);
             }
         }
@@ -357,12 +415,12 @@ public:
         return result;
     }
 
-    Runtime::Memory* GetLinearMemory()
+    Runtime::Memory* GetLinearMemory() const
     {
         return MemoryLayoutData_.LinearMemory;
     }
 
-    Runtime::Table* GetGlobalOffsetTable()
+    Runtime::Table* GetGlobalOffsetTable() const
     {
         return MemoryLayoutData_.GlobalOffsetTable;
     }
@@ -404,7 +462,7 @@ private:
     void InstantiateModule(const Runtime::ModuleRef& wavmModule, const Runtime::LinkResult& linkResult, TStringBuf debugName);
     void ApplyDataRelocationsAndCallConstructors(Runtime::Instance* instance);
 
-    static void Clone(const TWebAssemblyCompartment& from, TWebAssemblyCompartment* to);
+    static void Clone(const TWebAssemblyCompartment& source, TWebAssemblyCompartment* destination);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -757,13 +815,13 @@ void TWebAssemblyCompartment::AddExportsToGlobalOffsetTable(const IR::Module& ir
         }
     }
 
-    int offset = 0;
+    Uptr baseOffset = Runtime::getTableNumElements(GetGlobalOffsetTable());
     for (const auto& elementSegment : irModule.elemSegments) {
         for (int index = 0; index < std::ssize(elementSegment.contents->elemIndices); index++) {
             int functionIndex = elementSegment.contents->elemIndices[index];
             auto& functionName = disassemblyNames.functions[functionIndex].name;
             if (exportedFunctions.contains(functionName)) {
-                int globalOffsetTableIndex = offset + index;
+                int globalOffsetTableIndex = baseOffset + index;
                 GlobalOffsetTableElements_.Functions[functionName] = globalOffsetTableIndex;
             }
         }
@@ -774,7 +832,7 @@ void TWebAssemblyCompartment::AddExportsToGlobalOffsetTable(const IR::Module& ir
             continue;
         }
 
-        auto& global = irModule.globals.getDef(exportedDataEntry.index);
+        const auto& global = irModule.globals.getDef(exportedDataEntry.index);
         i64 offset = 0;
         i64 value = offset + global.initializer.i64;
         auto demangled = CppDemangle(TString(exportedDataEntry.name));
@@ -835,26 +893,37 @@ void TWebAssemblyCompartment::ApplyDataRelocationsAndCallConstructors(Runtime::I
         if (auto* function = getTypedInstanceExport(instance, name, signature)) {
             auto arguments = std::array<IR::UntaggedValue, 0>{};
             SaveAndRestoreCompartment(this, [&] {
-                Runtime::invokeFunction(Context_, function, signature, arguments.data(), {});
+                try {
+                    Runtime::invokeFunction(Context_, function, signature, arguments.data(), {});
+                } catch (WAVM::Runtime::Exception* ex) {
+                    auto description = WAVM::Runtime::describeException(ex);
+                    WAVM::Runtime::destroyException(ex);
+                    THROW_ERROR_EXCEPTION("WAVM Runtime Exception: %Qv", description);
+                }
             });
         }
     };
 
-    static const auto voidToVoidSignature = IR::FunctionType(/*inResults*/ {}, /*inParams*/ {});
-    callIfDefined(instance, voidToVoidSignature, "__wasm_apply_data_relocs");
-    callIfDefined(instance, voidToVoidSignature, "__wasm_apply_global_relocs");
-    callIfDefined(instance, voidToVoidSignature, "__wasm_call_ctors");
+    static const auto VoidToVoidSignature = IR::FunctionType(/*inResults*/ {}, /*inParams*/ {});
+    callIfDefined(instance, VoidToVoidSignature, "__wasm_apply_data_relocs");
+    callIfDefined(instance, VoidToVoidSignature, "__wasm_apply_global_relocs");
+    callIfDefined(instance, VoidToVoidSignature, "__wasm_call_ctors");
 }
 
 void TWebAssemblyCompartment::Clone(const TWebAssemblyCompartment& source, TWebAssemblyCompartment* destination)
 {
     destination->Compartment_ = Runtime::cloneCompartment(source.Compartment_);
     destination->Context_ = Runtime::cloneContext(source.Context_, destination->Compartment_);
-    YT_ASSERT(destination->Compartment_->instances.size() >= 2);
+
+    YT_ASSERT(destination->Compartment_->instances.size() >= 1);
+
     destination->IntrinsicsInstance_ = *destination->Compartment_->instances.get(0);
     destination->Instances_.push_back(destination->IntrinsicsInstance_);
-    destination->RuntimeLibraryInstance_ = *destination->Compartment_->instances.get(1);
-    destination->Instances_.push_back(destination->RuntimeLibraryInstance_);
+
+    if (source.RuntimeLibraryInstance_) {
+        destination->RuntimeLibraryInstance_ = *destination->Compartment_->instances.get(1);
+        destination->Instances_.push_back(destination->RuntimeLibraryInstance_);
+    }
 
     for (int index = 2; index < std::ssize(destination->Compartment_->instances); ++index) {
         destination->Instances_.push_back(*destination->Compartment_->instances.get(index));
@@ -863,6 +932,10 @@ void TWebAssemblyCompartment::Clone(const TWebAssemblyCompartment& source, TWebA
     destination->MemoryLayoutData_.LinearMemory = *destination->Compartment_->memories.get(0);
     destination->MemoryLayoutData_.GlobalOffsetTable = *destination->Compartment_->tables.get(0);
     destination->GlobalOffsetTableElements_ = source.GlobalOffsetTableElements_;
+
+    destination->MemoryLayoutData_.MemoryBases = source.MemoryLayoutData_.MemoryBases;
+    destination->MemoryLayoutData_.TableBases = source.MemoryLayoutData_.TableBases;
+    destination->Modules_ = source.Modules_;
 
     if (source.ExceptionType_) {
         destination->ExceptionType_ = destination->Compartment_->exceptionTypes[source.ExceptionType_->id];
@@ -889,46 +962,26 @@ void TWebAssemblyCompartment::Clone(const TWebAssemblyCompartment& source, TWebA
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Runtime::ModuleRef LoadMinimalRuntimeLibrary()
+Runtime::ModuleRef LoadMinimalRuntimeSdk()
 {
-    static const TString code = R"(
-        (module
-            (type (;0;) (func))
-            (type (;1;) (func (param i64) (result i64)))
-            (type (;2;) (func (param i64)))
-
-            (import "env" "__linear_memory" (memory (;0;) i64 0))
-            (import "env" "__heap_base" (global (;0;) (mut i64)))
-
-            (func $malloc (type 1) (param i64) (result i64)
-                (local $address i64)
-                (local.set $address (global.get 0))
-                (global.set 0 (i64.add (local.get $address) (local.get 0)))
-                (local.get $address)
-            )
-
-            (func $free (type 2) (param i64))
-
-            (export "malloc" (func $malloc))
-            (export "free" (func $free))
-        ))";
-
-    return Runtime::compileModule(ParseWast(code));
+    auto bytecode = GetBuiltinMinimalRuntimeSdk();
+    YT_VERIFY(bytecode.Format == EBytecodeFormat::HumanReadable);
+    return Runtime::compileModule(ParseWast(TString(bytecode.Data.ToStringBuf())));
 }
 
-Runtime::ModuleRef LoadSystemLibraries()
+Runtime::ModuleRef LoadBuiltinSdk()
 {
     auto featureSpec = IR::FeatureSpec();
     featureSpec.memory64 = true;
     featureSpec.exceptionHandling = true;
-
-    auto bytecode = NResource::Find("libemscripten-system-libraries-dll.so");
     auto irModule = IR::Module(std::move(featureSpec));
+
+    auto bytecode = GetBuiltinSdk();
 
     auto loadError = WASM::LoadError();
     bool succeeded = WASM::loadBinaryModule(
-        std::bit_cast<U8*>(bytecode.begin()),
-        bytecode.size(),
+        std::bit_cast<U8*>(bytecode.Data.begin()),
+        bytecode.Data.size(),
         irModule,
         &loadError);
 
@@ -936,28 +989,41 @@ Runtime::ModuleRef LoadSystemLibraries()
         THROW_ERROR_EXCEPTION("Could not load WebAssembly system libraries: %v", loadError.message);
     }
 
-    auto resource = NResource::Find("libemscripten-system-libraries-dll.so.compiled");
-    auto objectCode = std::vector<U8>(resource.size());
-    ::memcpy(objectCode.data(), resource.data(), resource.size());
+    auto objectCode = std::vector<U8>(bytecode.ObjectCode.size());
+    ::memcpy(objectCode.data(), bytecode.ObjectCode.data(), bytecode.ObjectCode.size());
 
     return std::make_shared<Runtime::Module>(std::move(irModule), std::move(objectCode));
 }
 
-Runtime::ModuleRef LoadLocalUdfs()
+Runtime::ModuleRef LoadBuiltinUdfs()
 {
-    auto bytecode = NResource::Find("libwasm-udfs-builtin-ytql-udfs.so");
-    auto asRef = TRef(bytecode.begin(), bytecode.size());
-    return LoadModuleFromBytecode(asRef);
+    auto bytecode = GetBuiltinYtQlUdfs();
+    return LoadModuleFromBytecode(bytecode.Data);
 }
+
+namespace {
+
+void CheckStackDepth()
+{
+    static const int MinimumStackFreeSpace = 8_KB;
+
+    if (!NConcurrency::CheckFreeStackSpace(MinimumStackFreeSpace)) {
+        THROW_ERROR_EXCEPTION("Expression depth causes stack overflow");
+    }
+}
+
+} // namespace
 
 std::unique_ptr<TWebAssemblyCompartment> CreateImage(EKnownImage image)
 {
     auto compartment = std::make_unique<TWebAssemblyCompartment>();
     compartment->Compartment_ = Runtime::createCompartment();
     compartment->Context_ = Runtime::createContext(compartment->Compartment_);
+    Runtime::setCheckStackDepthCallback(compartment->Context_, CheckStackDepth);
+
     compartment->MemoryLayoutData_ = BuildMemoryLayoutData(compartment->Compartment_);
 
-    if (image == EKnownImage::Empty) {
+    if (image == EKnownImage::MinimalRuntime) {
         compartment->IntrinsicsInstance_ = Intrinsics::instantiateModule(
             compartment->Compartment_,
             {WAVM_INTRINSIC_MODULE_REF(empty)},
@@ -969,7 +1035,7 @@ std::unique_ptr<TWebAssemblyCompartment> CreateImage(EKnownImage image)
             "env");
     }
 
-    if (image != EKnownImage::Empty) {
+    if (image != EKnownImage::MinimalRuntime) {
         compartment->ExceptionType_ = Runtime::createExceptionType(
             compartment->Compartment_,
             IR::ExceptionType{IR::TypeTuple{IR::ValueType::i64}},
@@ -979,24 +1045,28 @@ std::unique_ptr<TWebAssemblyCompartment> CreateImage(EKnownImage image)
     auto runtimeModule = Runtime::ModuleRef();
     switch (image) {
         case EKnownImage::Empty:
-            runtimeModule = LoadMinimalRuntimeLibrary();
+            break;
+        case EKnownImage::MinimalRuntime:
+            runtimeModule = LoadMinimalRuntimeSdk();
             break;
         case EKnownImage::Standard:
         case EKnownImage::QueryLanguage:
-            runtimeModule = LoadSystemLibraries();
+            runtimeModule = LoadBuiltinSdk();
             break;
         default:
             YT_ABORT();
     }
 
-    const auto& runtimeIR = Runtime::getModuleIR(runtimeModule);
-    auto linkResult = compartment->LinkModule(runtimeIR);
-    compartment->AddExportsToGlobalOffsetTable(runtimeIR);
-    compartment->InstantiateModule(runtimeModule, linkResult, "env");
-    compartment->RuntimeLibraryInstance_ = compartment->Instances_.back();
+    if (runtimeModule) {
+        const auto& runtimeIR = Runtime::getModuleIR(runtimeModule);
+        auto linkResult = compartment->LinkModule(runtimeIR);
+        compartment->AddExportsToGlobalOffsetTable(runtimeIR);
+        compartment->InstantiateModule(runtimeModule, linkResult, "env");
+        compartment->RuntimeLibraryInstance_ = compartment->Instances_.back();
+    }
 
     if (image == EKnownImage::QueryLanguage) {
-        auto wasmModule = LoadLocalUdfs();
+        auto wasmModule = LoadBuiltinUdfs();
         const auto& irModule = Runtime::getModuleIR(wasmModule);
         auto linkResult = compartment->LinkModule(irModule);
         compartment->AddExportsToGlobalOffsetTable(irModule);
@@ -1006,9 +1076,79 @@ std::unique_ptr<TWebAssemblyCompartment> CreateImage(EKnownImage image)
     return compartment;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCachedSdkImage
+    : public TAsyncCacheValueBase<TModuleBytecode, TCachedSdkImage>
+{
+    std::unique_ptr<IWebAssemblyCompartment> Compartment;
+
+    TCachedSdkImage(const TModuleBytecode& bytecode, std::unique_ptr<IWebAssemblyCompartment> compartment)
+        : TAsyncCacheValueBase(bytecode)
+        , Compartment(std::move(compartment))
+    { }
+};
+
+using TCachedSdkImagePtr = TIntrusivePtr<TCachedSdkImage>;
+
+class TSdkImageCacheSingleton
+    : public TAsyncSlruCacheBase<TModuleBytecode, TCachedSdkImage>
+{
+public:
+    static constexpr const i64 DefaultSdkImageCacheCapacity = 5;
+
+    TSdkImageCacheSingleton()
+        : TAsyncSlruCacheBase<TModuleBytecode, TCachedSdkImage>(
+            TSlruCacheConfig::CreateWithCapacity(DefaultSdkImageCacheCapacity),
+            NProfiling::TProfiler(ProfilerName))
+    { }
+
+    TCachedSdkImagePtr InstantiateWithCache(const TModuleBytecode& bytecode)
+    {
+        auto cookie = BeginInsert(bytecode);
+        if (cookie.IsActive()) {
+            try {
+                auto traceContextGuard = NTracing::TChildTraceContextGuard("QueryClient.InstantiateWebAssemblySdk");
+                auto compartment = CreateEmptyImage();
+                compartment->AddSdk(bytecode);
+                auto cachedImage = New<TCachedSdkImage>(bytecode, std::move(compartment));
+                cookie.EndInsert(std::move(cachedImage));
+            } catch (const std::exception& ex) {
+                cookie.Cancel(TError(ex).Wrap("Failed to instantiate webassembly sdk"));
+            }
+        }
+
+        return NConcurrency::WaitForFast(cookie.GetValue())
+            .ValueOrThrow();
+    }
+
+private:
+    static constexpr const char* ProfilerName = "/web_assembly_sdk_image_cache";
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<IWebAssemblyCompartment> CreateImageFromSdk(const TModuleBytecode& bytecode)
+{
+    if (bytecode.Data.ToStringBuf() == GetBuiltinSdk().Data.ToStringBuf()) {
+        return CreateStandardRuntimeImage();
+    }
+
+    static auto cache = New<TSdkImageCacheSingleton>();
+    auto image = cache->InstantiateWithCache(bytecode);
+    auto clone = image->Compartment->Clone();
+    return clone;
+}
+
 std::unique_ptr<IWebAssemblyCompartment> CreateEmptyImage()
 {
     static std::unique_ptr<TWebAssemblyCompartment> leakyImageSingleton = CreateImage(EKnownImage::Empty);
+    return leakyImageSingleton->Clone();
+}
+
+std::unique_ptr<IWebAssemblyCompartment> CreateMinimalRuntimeImage()
+{
+    static std::unique_ptr<TWebAssemblyCompartment> leakyImageSingleton = CreateImage(EKnownImage::MinimalRuntime);
     return leakyImageSingleton->Clone();
 }
 

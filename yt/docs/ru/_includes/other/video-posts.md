@@ -4,6 +4,24 @@
 
 ##  Конференции, публикации
 
+### 2025: Обучаем ML-модели и запускаем batch-инференс на {{product-name}}
+- **Мероприятие:** Yandex Scale 2025
+- **Материалы:** [YouTube](https://youtu.be/d1l8rH36gHM) [Habr](https://habr.com/ru/companies/yandex/articles/979336/)
+- **Докладчик:** Алексей Архипенко
+- **Язык:** русский
+
+### 2025: Перебалансировка без даунтайма в динтаблицах YTsaurus
+- **Мероприятие:** HighLoad++ 2025
+- **Материалы:** [YouTube](https://youtu.be/eHzD4TJy6XM)
+- **Докладчик:** Иван Смирнов
+- **Язык:** русский
+
+### 2025: Как мы внедрили WebAssembly в SQL-движок динамических таблиц YTsaurus
+- **Мероприятие:** HighLoad++ 2025
+- **Материалы:** [YouTube](https://youtu.be/appMbW6mVQc)
+- **Докладчик:** Дмитрий Торилов
+- **Язык:** русский
+
 ### 2025: Балансировка по нагрузке в динтаблицах YTsaurus
 - **Мероприятие:** Data Internals X 2025
 - **Материалы:** [BK Video](https://vkvideo.ru/video-228253760_456239070?list=ln-Wgu2EbKcTiStJibmbs)

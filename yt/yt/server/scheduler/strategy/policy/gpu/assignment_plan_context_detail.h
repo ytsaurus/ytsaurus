@@ -8,7 +8,7 @@ namespace NYT::NScheduler::NStrategy::NPolicy::NGpu {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAssignmentPlanContextBase
-    : public IAssignmentPlanContext
+    : public IAssignmentPlanUpdateContext
 {
 public:
     explicit TAssignmentPlanContextBase(NLogging::TLogger logger);
@@ -17,7 +17,8 @@ public:
         std::string allocationGroupName,
         TJobResourcesWithQuota resourceUsage,
         TOperation* operation,
-        TNode* node) override;
+        TNode* node,
+        bool preemptible = false) override;
 
     void PreemptAssignment(
         const TAssignmentPtr& assignment,

@@ -1,5 +1,6 @@
 RECURSE(
     json_api_go
+    tests
 )
 
 IF (NOT OPENSOURCE)

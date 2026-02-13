@@ -153,6 +153,7 @@ void TBootstrap::DoInitialize()
 
     NNative::TConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = Config_->RetryRequestQueueSizeLimitExceeded;
+    connectionOptions.CreateQueueConsumerRegistrationManager = true;
 
     MemoryUsageTracker_ = CreateNodeMemoryTracker(
         Config_->MemoryLimits->Total.value_or(std::numeric_limits<i64>::max()),
@@ -174,9 +175,8 @@ void TBootstrap::DoInitialize()
         Logger());
 
     Connection_->GetClusterDirectorySynchronizer()->Start();
-    // Force-start node directory synchronizer.
     Connection_->GetNodeDirectorySynchronizer()->Start();
-    Connection_->GetQueueConsumerRegistrationManager()->StartSync();
+    Connection_->GetQueueConsumerRegistrationManagerOrThrow()->StartSync();
     Connection_->GetMasterCellDirectorySynchronizer()->Start();
     SetupClients();
 
@@ -247,7 +247,7 @@ void TBootstrap::DoInitialize()
     SignatureComponents_ = New<TSignatureComponents>(
         Config_->SignatureComponents,
         std::move(ownerId),
-        DynamicPointerCast<NNative::IClient>(RootClient_),
+        Connection_,
         GetControlInvoker());
     Connection_->SetSignatureGenerator(SignatureComponents_->GetSignatureGenerator());
 
@@ -431,6 +431,9 @@ void TBootstrap::OnDynamicConfigChanged(
     if (newConfig->SignatureComponents) {
         YT_UNUSED_FUTURE(SignatureComponents_->Reconfigure(newConfig->SignatureComponents));
     }
+
+    Connection_->GetMasterCellDirectorySynchronizer()->Reconfigure(
+        newConfig->MasterCellDirectorySynchronizer.value_or(Config_->ClusterConnection->Static->MasterCellDirectorySynchronizer));
 }
 
 void TBootstrap::HandleRequest(

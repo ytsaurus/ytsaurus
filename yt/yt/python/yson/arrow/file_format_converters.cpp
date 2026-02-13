@@ -189,6 +189,7 @@ TAsyncDumpFileInputArguments ExtractAsyncDumpFileArguments(Py::Tuple& args, Py::
 struct TParquetConfig
 {
     arrow20::Compression::type FileCompression;
+    std::optional<i64> FileCompressionLevel;
 };
 
 struct TOrcConfig
@@ -228,14 +229,19 @@ public:
         ArrowStatusCallback_(outputFileOrError.status());
         auto outputFile = outputFileOrError.ValueOrDie();
 
-        auto properties =
-            parquet20::WriterProperties::Builder().compression(config.FileCompression)->build();
+        auto propertiesBuilder = parquet20::WriterProperties::Builder();
+        propertiesBuilder.compression(config.FileCompression);
+        propertiesBuilder.compression_level(config.FileCompressionLevel.value_or(std::numeric_limits<int>::min()));
+        auto properties = propertiesBuilder.build();
 
         auto writerOrError = parquet20::arrow20::FileWriter::Open(
             schema,
             arrow20::default_memory_pool(),
             outputFile,
-            properties);
+            std::move(properties),
+            parquet20::ArrowWriterProperties::Builder()
+                .store_schema()
+                ->build());
 
         ArrowStatusCallback_(writerOrError.status());
         Writer_ = std::move(writerOrError.ValueOrDie());
@@ -729,9 +735,17 @@ Py::Object AsyncDumpParquet(Py::Tuple& args, Py::Dict& kwargs)
     if (!AreArgumentsEmpty(args, kwargs)) {
         YT_LOG_WARNING("The AsyncDumpParquet function received unrecognized arguments");
     }
+
+    std::optional<i64> fileCompressionLevel;
+    auto fileCompressionLevelObject = ExtractArgument(args, kwargs, "file_compression_level");
+    if (!fileCompressionLevelObject.isNone()) {
+        fileCompressionLevel = Py::ConvertToLongLong(fileCompressionLevelObject);
+    }
+
     auto config = TFormatConfig{
         .ParquetConfig = TParquetConfig{
             .FileCompression = fileCompression,
+            .FileCompressionLevel = fileCompressionLevel,
         },
         .Format = EFileFormat::Parquet,
         .MinBatchRowCount = inputArguments.MinBatchRowCount,
@@ -757,9 +771,16 @@ Py::Object DumpParquet(Py::Tuple& args, Py::Dict& kwargs)
         fileCompression = GetParquetFileCompression(Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "file_compression_codec")));
     }
 
+    std::optional<i64> fileCompressionLevel;
+    auto fileCompressionLevelObject = ExtractArgument(args, kwargs, "file_compression_level");
+    if (!fileCompressionLevelObject.isNone()) {
+        fileCompressionLevel = Py::ConvertToLongLong(fileCompressionLevelObject);
+    }
+
     auto config = TFormatConfig{
         .ParquetConfig = TParquetConfig{
             .FileCompression = fileCompression,
+            .FileCompressionLevel = fileCompressionLevel,
         },
         .Format = EFileFormat::Parquet,
         .MinBatchRowCount = minBatchRowCount,

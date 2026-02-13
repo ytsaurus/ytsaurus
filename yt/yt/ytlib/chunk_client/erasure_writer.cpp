@@ -244,7 +244,7 @@ public:
         , Codec_(NErasure::GetCodec(CodecId_))
         , WorkloadDescriptor_(workloadDescriptor)
         , ErasureWindowSize_(RoundUp<i64>(Config_->ErasureWindowSize, Codec_->GetWordSize()))
-        , ReadyEvent_(VoidFuture)
+        , ReadyEvent_(OKFuture)
         , Writers_(writers)
         , BlockReorderer_(Config_)
     {
@@ -308,9 +308,10 @@ public:
             YT_VERIFY(replicas.size() == 1);
             result.Replicas.emplace_back(
                 replicas[0].GetNodeId(),
-                i,
+                /*replicaIndex*/ i,
                 replicas[0].GetMediumIndex(),
-                replicas[0].GetChunkLocationUuid());
+                replicas[0].GetChunkLocationUuid(),
+                replicas[0].GetChunkLocationIndex());
         }
         return result;
     }
@@ -510,7 +511,7 @@ TFuture<void> TErasureWriter::Flush(const IChunkWriter::TWriteBlocksOptions& opt
     YT_ASSERT_THREAD_AFFINITY(WriterThread);
 
     if (blocks.empty()) {
-        return VoidFuture;
+        return OKFuture;
     }
 
     BlockReorderer_.ReorderBlocks(blocks);

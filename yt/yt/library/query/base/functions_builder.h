@@ -44,8 +44,8 @@ struct IFunctionRegistryBuilder
         std::vector<TType> argumentTypes,
         TType resultType,
         TType stateType,
+        TType repeatedArgType,
         TStringBuf implementationFile,
-        ECallingConvention callingConvention,
         bool isFirst = false) = 0;
 };
 

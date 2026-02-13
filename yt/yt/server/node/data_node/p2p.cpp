@@ -112,18 +112,18 @@ TFuture<void> TP2PBlockCache::WaitSessionIteration(TGuid sessionId, i64 iteratio
 {
     auto config = GetConfig();
     if (!config->Enabled) {
-        return VoidFuture;
+        return OKFuture;
     }
 
     if (ActiveWaiters_.load() > config->MaxWaitingRequests) {
-        return VoidFuture;
+        return OKFuture;
     }
 
     auto guard = Guard(Lock_);
 
     auto& session = ActiveSessions_[sessionId];
     if (iteration <= session.LastIteration) {
-        return VoidFuture;
+        return OKFuture;
     }
 
     auto it = session.Waiters.find(iteration);
@@ -367,6 +367,7 @@ std::vector<TP2PSuggestion> TP2PSnooper::OnBlockRead(
             ThrottledBytes_.Increment((*blocks)[i].Size());
             ThrottledLargeBlockBytes_.Increment((*blocks)[i].Size());
             (*blocks)[i] = {};
+            YT_LOG_DEBUG("Skipping hot large block (ChunkId: %v, BlockIndex: %v)", chunkId, blockIndices[i]);
 
             if (throttledLargeBlock) {
                 *throttledLargeBlock = true;
@@ -440,6 +441,7 @@ std::vector<TP2PSuggestion> TP2PSnooper::OnBlockRead(
 
             ThrottledBytes_.Increment((*blocks)[i].Size());
             (*blocks)[i] = {};
+            YT_LOG_DEBUG("Skipping hot block (ChunkId: %v, BlockIndex: %v)", chunkId, blockIndices[i]);
         }
 
         if (!blockPeers.empty()) {

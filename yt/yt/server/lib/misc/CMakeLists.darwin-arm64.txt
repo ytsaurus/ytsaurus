@@ -21,6 +21,7 @@ target_compile_options(server-lib-misc PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(server-lib-misc PUBLIC
@@ -66,6 +67,7 @@ target_compile_options(server-lib-misc.global PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(server-lib-misc.global PUBLIC

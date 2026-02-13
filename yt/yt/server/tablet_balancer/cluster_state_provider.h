@@ -18,6 +18,8 @@ struct IClusterStateProvider
 
     virtual TFuture<NYTree::IListNodePtr> GetBundles() = 0;
     virtual TFuture<NYTree::IListNodePtr> GetNodes() = 0;
+    virtual TFuture<THashMap<std::string, std::vector<std::string>>> GetUnhealthyBundles() = 0;
+    virtual TFuture<THashSet<std::string>> GetBannedReplicasFromMetaCluster() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IClusterStateProvider)

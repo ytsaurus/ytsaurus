@@ -10,8 +10,8 @@ namespace {
 
 TEST(TXDeltaTest, Basic)
 {
-    auto data = TSharedRef::FromString(TString("abracabra"));
-    auto newData = TSharedRef::FromString(TString("bracacabra"));
+    auto data = TSharedRef::FromString(std::string("abracabra"));
+    auto newData = TSharedRef::FromString(std::string("bracacabra"));
     auto mutation = GetCodec(ECodec::XDelta)->TryComputePatch(data, newData);
     ASSERT_TRUE(mutation);
     EXPECT_FALSE(mutation->ToStringBuf().empty());
@@ -21,8 +21,8 @@ TEST(TXDeltaTest, Basic)
 
 TEST(TXDeltaTest, Equal)
 {
-    auto data = TSharedRef::FromString(TString("abracabra"));
-    auto newData = TSharedRef::FromString(TString("abracabra"));
+    auto data = TSharedRef::FromString(std::string("abracabra"));
+    auto newData = TSharedRef::FromString(std::string("abracabra"));
     auto mutation = GetCodec(ECodec::XDelta)->TryComputePatch(data, newData);
     ASSERT_TRUE(mutation);
     EXPECT_TRUE(mutation->ToStringBuf().empty());
@@ -30,7 +30,7 @@ TEST(TXDeltaTest, Equal)
 
 TEST(TXDeltaTest, EmptyPatch)
 {
-    auto data = TSharedRef::FromString(TString("abracdabra"));
+    auto data = TSharedRef::FromString(std::string("abracdabra"));
     auto result = GetCodec(ECodec::XDelta)->ApplyPatch(data, TSharedRef::MakeEmpty());
     EXPECT_EQ(data.ToStringBuf(), result.ToStringBuf());
 }
@@ -42,7 +42,7 @@ TEST(TXDeltaStateTest, EmptyState)
     const auto initialBase = TSharedRef::MakeEmpty();
     const auto initialPatch = TSharedRef::MakeEmpty();
     const auto state = TState{.Base = initialBase, .Patch = initialPatch};
-    const auto newValue = TSharedRef::FromString(TString("abracabra"));
+    const auto newValue = TSharedRef::FromString(std::string("abracabra"));
 
     for (auto algo : {EAlgorithm::ForcePatch, EAlgorithm::ZeroPatch, EAlgorithm::SizeHeuristics}) {
         auto mutation = MutateState(GetCodec(ECodec::XDelta), state, newValue, algo);
@@ -60,10 +60,10 @@ TEST(TXDeltaStateTest, EmptyState)
 
 TEST(TXDeltaStateTest, EmptyPatch)
 {
-    const auto initialBase = TSharedRef::FromString(TString("abracabra"));
+    const auto initialBase = TSharedRef::FromString(std::string("abracabra"));
     const auto initialPatch = TSharedRef::MakeEmpty();
     const auto state = TState{.Base = initialBase, .Patch = initialPatch};
-    const auto newValue = TSharedRef::FromString(TString("dracabara"));
+    const auto newValue = TSharedRef::FromString(std::string("dracabara"));
 
     {
         auto mutation = MutateState(GetCodec(ECodec::XDelta), state, newValue, EAlgorithm::ZeroPatch);
@@ -88,13 +88,13 @@ TEST(TXDeltaStateTest, EmptyPatch)
 
 TEST(TXDeltaStateTest, NonEmptyState)
 {
-    const auto initialValue = TSharedRef::FromString(TString("dracabara"));
-    const auto initialBase = TSharedRef::FromString(TString("abracabra"));
+    const auto initialValue = TSharedRef::FromString(std::string("dracabara"));
+    const auto initialBase = TSharedRef::FromString(std::string("abracabra"));
     const auto initialPatch = GetCodec(ECodec::XDelta)->TryComputePatch(initialBase, initialValue);
     ASSERT_TRUE(initialPatch);
     auto state = TState{.Base = initialBase, .Patch = *initialPatch};
 
-    const auto newValue = TSharedRef::FromString(TString("darabara"));
+    const auto newValue = TSharedRef::FromString(std::string("darabara"));
 
     {
         auto mutation = MutateState(GetCodec(ECodec::XDelta), state, newValue, EAlgorithm::ZeroPatch);

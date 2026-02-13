@@ -36,6 +36,8 @@ private:
     int ReservedNodeCount_ = 0;
 };
 
+using TModuleStateMap = THashMap<std::string, TModuleState>;
+
 void FormatValue(TStringBuilderBase* builder, const TModuleState& state, TStringBuf spec);
 void Serialize(const TModuleState& state, NYson::IYsonConsumer* consumer);
 
@@ -49,7 +51,7 @@ struct TOperationModuleBindingOutcome
     const std::vector<TOperation*> OperationsToEvict;
 };
 
-bool operator <(const TOperationModuleBindingOutcome& lhs, const TOperationModuleBindingOutcome& rhs);
+bool operator<(const TOperationModuleBindingOutcome& lhs, const TOperationModuleBindingOutcome& rhs);
 
 void FormatValue(TStringBuilderBase* builder, const TOperationModuleBindingOutcome& outcome, TStringBuf spec);
 
@@ -59,9 +61,9 @@ void FormatValue(TStringBuilderBase* builder, const TOperationModuleBindingOutco
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IAssignmentPlanContext
+struct IAssignmentPlanUpdateContext
 {
-    virtual ~IAssignmentPlanContext() = default;
+    virtual ~IAssignmentPlanUpdateContext() = default;
 
     virtual const TOperationMap& Operations() const = 0;
     virtual const TNodeMap& Nodes() const = 0;
@@ -70,12 +72,15 @@ struct IAssignmentPlanContext
         std::string allocationGroupName,
         TJobResourcesWithQuota resourceUsage,
         TOperation* operation,
-        TNode* node) = 0;
+        TNode* node,
+        bool preemptible = false) = 0;
 
     virtual void PreemptAssignment(
         const TAssignmentPtr& assignment,
         EAllocationPreemptionReason preemptionReason,
         std::string preemptionDescription) = 0;
+
+    virtual TGpuPlanUpdateStatisticsPtr Statistics() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -85,7 +90,7 @@ class TGpuAllocationAssignmentPlanUpdateExecutor
 {
 public:
     TGpuAllocationAssignmentPlanUpdateExecutor(
-        IAssignmentPlanContext* context,
+        IAssignmentPlanUpdateContext* context,
         TInstant now,
         TGpuSchedulingPolicyConfigPtr config,
         NLogging::TLogger logger);
@@ -93,7 +98,7 @@ public:
     void Run();
 
 private:
-    IAssignmentPlanContext* const Context_;
+    IAssignmentPlanUpdateContext* const Context_;
     const TOperationMap& Operations_;
     const TNodeMap& Nodes_;
     const TInstant Now_;
@@ -104,7 +109,7 @@ private:
     // NB(eshcherbin): This vector can and will be sorted in-place.
     // TODO(eshcherbin): Optimize by using set or heap instead of sorting the vector every time.
     std::vector<TNode*> SchedulableNodes_;
-    THashMap<std::string, NDetail::TModuleState> ModuleStates_;
+    NDetail::TModuleStateMap ModuleStates_;
 
     void InitializeModuleStates();
 
@@ -132,6 +137,7 @@ private:
 
     //! Other operations planning.
     void ProcessRegularOperations();
+    void ProcessRegularOperationsWithExtraResources();
 
     //! General assignment planning.
     void PreemptAllOperationAssignments(
@@ -153,6 +159,13 @@ private:
         TAllocationGroupResources allocationGroupResources,
         std::vector<TNode*>* availableNodes,
         bool useFullHostAggressivePreemption = false);
+    void PlanPreemptibleAllocationGroup(
+        const TOperationPtr& operation,
+        const std::string& allocationGroupName,
+        TAllocationGroupResources allocationGroupResources,
+        std::vector<TNode*>* availableNodes);
+
+    void DumpModuleStatistics() const;
 
     class TAllocationGroupPlannerBase
     {
@@ -200,13 +213,16 @@ private:
             const std::string& allocationGroupName,
             const TAllocationGroupResources& allocationGroupResources,
             std::vector<TNode*>* availableNodes,
-            TGpuAllocationAssignmentPlanUpdateExecutor* host);
+            TGpuAllocationAssignmentPlanUpdateExecutor* host,
+            bool preemptible = false);
 
     private:
         std::vector<TNode*>* AvailableNodes_;
         std::vector<TNode*>::iterator NextNodeIt_;
+        const bool Preemptible_;
 
-        virtual TNode* FindBestAvailableNode() override;
+        void AddAssignmentToNode(TNode* node) override;
+        TNode* FindBestAvailableNode() override;
     };
 
     class TPreemptiveAllocationGroupPlanner

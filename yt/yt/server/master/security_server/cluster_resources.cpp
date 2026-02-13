@@ -216,7 +216,7 @@ void TClusterResources::Load(NCypressServer::TMaterializeNodeContext& context)
     Load(context, DetailedMasterMemory_);
 }
 
-TClusterResources& TClusterResources::operator += (const TClusterResources& other)
+TClusterResources& TClusterResources::operator+=(const TClusterResources& other)
 {
     for (const auto& [mediumIndex, diskSpace] : other.DiskSpace()) {
         AddToMediumDiskSpace(mediumIndex, diskSpace);
@@ -230,14 +230,14 @@ TClusterResources& TClusterResources::operator += (const TClusterResources& othe
     return *this;
 }
 
-TClusterResources TClusterResources::operator + (const TClusterResources& other) const
+TClusterResources TClusterResources::operator+(const TClusterResources& other) const
 {
     auto result = *this;
     result += other;
     return result;
 }
 
-TClusterResources& TClusterResources::operator -= (const TClusterResources& other)
+TClusterResources& TClusterResources::operator-=(const TClusterResources& other)
 {
     for (const auto& [mediumIndex, diskSpace] : other.DiskSpace()) {
         AddToMediumDiskSpace(mediumIndex, -diskSpace);
@@ -251,14 +251,14 @@ TClusterResources& TClusterResources::operator -= (const TClusterResources& othe
     return *this;
 }
 
-TClusterResources TClusterResources::operator - (const TClusterResources& other) const
+TClusterResources TClusterResources::operator-(const TClusterResources& other) const
 {
     auto result = *this;
     result -= other;
     return result;
 }
 
-TClusterResources& TClusterResources::operator *= (i64 other)
+TClusterResources& TClusterResources::operator*=(i64 other)
 {
     for (const auto& [mediumIndex, diskSpace] : DiskSpace()) {
         SetMediumDiskSpace(mediumIndex, diskSpace * other);
@@ -272,14 +272,14 @@ TClusterResources& TClusterResources::operator *= (i64 other)
     return *this;
 }
 
-TClusterResources TClusterResources::operator * (i64 other) const
+TClusterResources TClusterResources::operator*(i64 other) const
 {
     auto result = *this;
     result *= other;
     return result;
 }
 
-TClusterResources TClusterResources::operator - () const
+TClusterResources TClusterResources::operator-() const
 {
     TClusterResources result;
     for (const auto& [mediumIndex, diskSpace] : DiskSpace()) {
@@ -294,7 +294,7 @@ TClusterResources TClusterResources::operator - () const
     return result;
 }
 
-bool TClusterResources::operator == (const TClusterResources& other) const
+bool TClusterResources::operator==(const TClusterResources& other) const
 {
     if (this == &other) {
         return true;
@@ -660,14 +660,14 @@ void FormatValue(TStringBuilderBase* builder, const TClusterResources& resources
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRichClusterResources& operator += (TRichClusterResources& lhs, const TRichClusterResources& rhs)
+TRichClusterResources& operator+=(TRichClusterResources& lhs, const TRichClusterResources& rhs)
 {
     lhs.ClusterResources += rhs.ClusterResources;
     lhs.TabletResources += rhs.TabletResources;
     return lhs;
 }
 
-TRichClusterResources operator + (const TRichClusterResources& lhs, const TRichClusterResources& rhs)
+TRichClusterResources operator+(const TRichClusterResources& lhs, const TRichClusterResources& rhs)
 {
     auto result = lhs;
     return result += rhs;

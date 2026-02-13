@@ -14,6 +14,8 @@
 
 #include <yt/yt/ytlib/security_client/public.h>
 
+#include <yt/yt/library/row_merger/public.h>
+
 #include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/concurrency/public.h>
@@ -291,10 +293,11 @@ struct TCustomTableMountConfig
     TMisraGriesHeavyHittersConfigPtr LookupHeavyHitters;
 
     bool SingleColumnGroupByDefault;
-    bool EnableSegmentMetaInBlocks;
-    bool EnableColumnMetaInChunkMeta;
+    bool SkipValueBlocksForMissingKeys;
 
     bool EnableHunkColumnarProfiling;
+
+    NRowMerger::TNestedRowDiscardPolicyPtr NestedRowDiscardPolicy;
 
     double MaxHunkCompactionGarbageRatio;
 
@@ -329,6 +332,10 @@ struct TCustomTableMountConfig
     i64 MaxEdenDataSizeForSplitting;
 
     bool ValidateRowIndexInChaosReplication;
+
+    // COMPAT(ponasenko-rs): Safety switch to be able to revert to pre-fix behaviour
+    // if there are too many unexpected conflicts.
+    bool CheckConflictHorizon;
 
     TTestingTableMountConfig Testing;
 
@@ -457,6 +464,8 @@ struct THunkStorageMountConfig
 
     TDuration StoreRotationPeriod;
     TDuration StoreRemovalGracePeriod;
+
+    TDuration ScanBackoffPeriod;
 
     REGISTER_YSON_STRUCT(THunkStorageMountConfig);
 

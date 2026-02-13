@@ -1,6 +1,6 @@
 # flake8: noqa
 from yt_dashboard_generator.dashboard import Rowset
-from yt_dashboard_generator.sensor import MultiSensor
+from yt_dashboard_generator.sensor import MultiSensor, EmptyCell
 from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
 from yt_dashboard_generator.specific_tags.tags import TemplateTag
 
@@ -15,16 +15,28 @@ def build_user_disk():
         NodeTablet("yt.tablet_node.{}.hunks.chunk_reader_statistics.{}.rate").host_container_legend_format("hunks"))
 
     return (Rowset()
-            .aggr("table_tag", "table_path", "user")
+            .aggr("table_tag", "table_path", "user", "medium")
             .top()
             .min(0)
             .stack(False)
             .row()
-                .cell("Table lookup data bytes read from disk", reader_stats("lookup", "data_bytes_transmitted"))
-                .cell("Table select data bytes read from disk", reader_stats("select", "data_bytes_transmitted"))
+                .cell("Table lookup data bytes read from disk", reader_stats("lookup", "data_bytes_read_from_disk"))
+                .cell("Table select data bytes read from disk", reader_stats("select", "data_bytes_read_from_disk"))
             .row()
                 .cell("Table lookup chunk meta bytes read from disk", reader_stats("lookup", "meta_bytes_read_from_disk"))
                 .cell("Table select chunk meta bytes read from disk", reader_stats("select", "meta_bytes_read_from_disk"))
+            .row()
+                .cell(
+                    "Table lookup data bytes transmitted from data node",
+                    reader_stats("lookup", "data_bytes_transmitted"),
+                    description="Data nodes are cluster storage layer. If data is not found in tablet static memory or tablet node caches it is read via network from data nodes")
+                .cell(
+                    "Table select data bytes transmitted from data node",
+                    reader_stats("select", "data_bytes_transmitted"),
+                    description="Data nodes are cluster storage layer. If data is not found in tablet static memory or tablet node caches it is read via network from data nodes")
+            .row()
+                .cell("Table lookup chunk meta bytes transmitted from data node", reader_stats("lookup", "meta_bytes_transmitted"))
+                .cell("Table select chunk meta bytes transmitted from data node", reader_stats("select", "meta_bytes_transmitted"))
             .row()
                 .cell("Table lookup data wait time", reader_stats("lookup", "data_wait_time"))
                 .cell("Table select data wait time", reader_stats("select", "data_wait_time"))
@@ -41,11 +53,11 @@ def build_user_disk():
 
 
 def build_user_background_disk():
-    top_disk = NodeTablet("yt.tablet_node.{}.{}.rate").host_container_legend_format("{{account}}")
+    top_disk = NodeTablet("yt.tablet_node.{}.{}.rate").host_container_legend_format("{{account}} {{method}}")
 
     return (Rowset()
-            .all("#AB", "method", "medium")
-            .aggr("table_tag", "table_path")
+            .all("#AB", "method")
+            .aggr("table_tag", "table_path", "medium")
             .top()
             .stack()
             .row()
@@ -68,7 +80,9 @@ def build_user_caches():
                 .cell(
                     "Versioned chunk meta cache hit weight rate",
                     NodeTablet("yt.tablet_node.versioned_chunk_meta_cache.hit_weight.rate").aggr("hit_type").host_container_legend_format())
-                .cell("Versioned chunk meta cache miss weight rate", misses("tablet", "versioned_chunk_meta_cache"))
+                .cell(
+                    "Versioned chunk meta cache miss weight rate",
+                    NodeTablet("yt.tablet_node.versioned_chunk_meta_cache.missed_weight.rate").host_container_legend_format())
             .row()
                 .cell(
                     "Block cache hit weight rate",
@@ -96,6 +110,12 @@ def build_block_cache_planning():
             MonitoringExpr(TabNode("yt.data_node.block_cache.{}_data.large_ghost_cache.missed_weight.rate".format(name))).alias("x2 larger cache missed weight rate"),
             MonitoringExpr(TabNode("yt.data_node.block_cache.{}_data.small_ghost_cache.missed_weight.rate".format(name))).alias("x/2 smaller cache missed weight rate"))
 
+    def meta_miss_weight_rate():
+        return MultiSensor(
+            MonitoringExpr(NodeTablet("yt.tablet_node.versioned_chunk_meta_cache.missed_weight.rate")).alias("current missed weight rate"),
+            MonitoringExpr(NodeTablet("yt.tablet_node.versioned_chunk_meta_cache.small_ghost_cache.missed_weight.rate")).alias("x2 larger cache missed weight rate"),
+            MonitoringExpr(NodeTablet("yt.tablet_node.versioned_chunk_meta_cache.small_ghost_cache.missed_weight.rate")).alias("x/2 smaller cache missed weight rate"))
+
     return (Rowset()
             .value("tablet_cell_bundle", TemplateTag("tablet_cell_bundle"))
             .stack(False)
@@ -104,4 +124,7 @@ def build_block_cache_planning():
             .row()
                 .cell("Compressed block cache size planning", miss_weight_rate("compressed"))
                 .cell("Uncompressed block cache size planning", miss_weight_rate("uncompressed"))
+            .row()
+                .cell("Versioned chunk meta cache size planning", meta_miss_weight_rate())
+                .cell("", EmptyCell())
     ).owner

@@ -23,6 +23,7 @@ target_compile_options(yt-library-pipe_io PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(yt-library-pipe_io PUBLIC
@@ -50,6 +51,7 @@ target_compile_options(yt-library-pipe_io.global PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(yt-library-pipe_io.global PUBLIC

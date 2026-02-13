@@ -1,9 +1,36 @@
 #include "yql_yt_request_options.h"
+#include <yql/essentials/public/issue/yql_issue.h>
 #include <yql/essentials/utils/yql_panic.h>
 #include <yt/cpp/mapreduce/common/helpers.h>
 #include <yt/cpp/mapreduce/interface/serialize.h>
 
 namespace NYql::NFmr {
+
+EFmrErrorReason ParseFmrReasonFromErrorMessage(const TString& errorMessage) {
+    TStringBuf message = errorMessage;
+    if (TryParseTerminationMessage(message).Defined()) {
+        return EFmrErrorReason::UdfTerminate;
+    } else if (message.contains(FmrNonRetryableJobExceptionMarker)) {
+        return EFmrErrorReason::RestartQuery;
+    }
+    return EFmrErrorReason::Unknown;
+}
+
+void TFmrUserJobSettings::Save(IOutputStream* buffer) const {
+    ::SaveMany(
+        buffer,
+        ThreadPoolSize,
+        QueueSizeLimit
+    );
+}
+
+void TFmrUserJobSettings::Load(IInputStream* buffer) {
+    ::LoadMany(
+        buffer,
+        ThreadPoolSize,
+        QueueSizeLimit
+    );
+}
 
 TYtTableRef::TYtTableRef()
 {
@@ -44,12 +71,17 @@ TFmrTableId::TFmrTableId(const TString& cluster, const TString& path): Id(cluste
 {
 }
 
-TTask::TPtr MakeTask(ETaskType taskType, const TString& taskId, const TTaskParams& taskParams, const TString& sessionId, const std::unordered_map<TFmrTableId, TClusterConnection>& clusterConnections, const TMaybe<NYT::TNode>& jobSettings) {
-    return MakeIntrusive<TTask>(taskType, taskId, taskParams, sessionId, clusterConnections, jobSettings);
+TTask::TPtr MakeTask(ETaskType taskType, const TString& taskId, const TTaskParams& taskParams, const TString& sessionId, const std::unordered_map<TFmrTableId, TClusterConnection>& clusterConnections, const std::vector<TFileInfo>& files, const std::vector<TYtResourceInfo>& ytResources, const std::vector<TFmrResourceTaskInfo>& fmrResources, const TMaybe<NYT::TNode>& jobSettings) {
+    return MakeIntrusive<TTask>(taskType, taskId, taskParams, sessionId, clusterConnections, files, ytResources, fmrResources, jobSettings);
 }
 
 TTaskState::TPtr MakeTaskState(ETaskStatus taskStatus, const TString& taskId, const TMaybe<TFmrError>& taskErrorMessage, const TStatistics& stats) {
     return MakeIntrusive<TTaskState>(taskStatus, taskId, taskErrorMessage, stats);
+}
+
+void TSortedUploadOperationParams::UpdateAfterPreparation(std::vector<TString> cookies, TString partitionId) {
+    Cookies = std::move(cookies);
+    PartitionId = std::move(partitionId);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -112,7 +144,10 @@ void TFmrTableInputRef::Save(IOutputStream* buffer) const {
         TableId,
         TableRanges,
         Columns,
-        SerializedColumnGroups
+        SerializedColumnGroups,
+        IsFirstRowInclusive,
+        FirstRowKeys,
+        LastRowKeys
     );
 }
 
@@ -122,7 +157,10 @@ void TFmrTableInputRef::Load(IInputStream* buffer) {
         TableId,
         TableRanges,
         Columns,
-        SerializedColumnGroups
+        SerializedColumnGroups,
+        IsFirstRowInclusive,
+        FirstRowKeys,
+        LastRowKeys
     );
 }
 
@@ -189,6 +227,23 @@ void TFmrTableId::Save(IOutputStream* buffer) const {
 
 void TFmrTableId::Load(IInputStream* buffer) {
     ::Load(buffer, Id);
+}
+
+void TSortedChunkStats::Save(IOutputStream* buffer) const {
+    ::SaveMany(
+        buffer,
+        IsSorted,
+        NYT::NodeToYsonString(FirstRowKeys),
+        NYT::NodeToYsonString(LastRowKeys)
+    );
+}
+
+void TSortedChunkStats::Load(IInputStream* buffer) {
+    TString FirstRowKeysStr;
+    TString LastRowKeysStr;
+    ::LoadMany(buffer, IsSorted, FirstRowKeysStr, LastRowKeysStr);
+    FirstRowKeys = NYT::NodeFromYsonString(FirstRowKeysStr);
+    LastRowKeys = NYT::NodeFromYsonString(LastRowKeysStr);
 }
 
 // helper functions for rich path

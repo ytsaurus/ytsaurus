@@ -63,7 +63,7 @@ public:
 
     TFuture<void> GetReadyEvent() const override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     NChunkClient::NProto::TDataStatistics GetDataStatistics() const override

@@ -9,13 +9,15 @@ from yt_commands import (
     ls, get, sorted_dicts,
     set, exists, create_user, make_ace, alter_table, write_file, read_table, write_table,
     map, merge, sort, interrupt_job, get_first_chunk_id, abort_job, get_job,
-    get_singular_chunk_id, check_all_stderrs,
+    get_singular_chunk_id, check_all_stderrs, make_random_string,
     create_test_tables, assert_statistics, extract_statistic_v2,
     set_node_banned, update_inplace, update_controller_agent_config, update_nodes_dynamic_config, get_table_columnar_statistics)
 
 from yt_type_helpers import make_schema, normalize_schema, make_column, list_type, tuple_type, optional_type
 
 from yt_helpers import skip_if_component_old, skip_if_old, skip_if_delivery_fenced_pipe_writer_not_supported
+
+from yt_sequoia_helpers import not_implemented_in_sequoia
 
 import yt.yson as yson
 from yt.test_helpers import assert_items_equal
@@ -24,7 +26,7 @@ from yt.common import YtError
 from flaky import flaky
 
 import base64
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytest
 import random
 import string
@@ -159,7 +161,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         if self.ENABLE_UNIQUE_COUNT_CHECK:
             all_statistics = get_table_columnar_statistics("[\"//tmp/t2{index}\"]")
-            assert all_statistics[0]['column_estimated_unique_counts'] == {'index': 790262}
+            assert all_statistics[0]['column_estimated_unique_counts'] == {'index': 1135017}
 
     @authors("ignat")
     def test_two_outputs_at_the_same_time(self):
@@ -189,7 +191,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         if self.ENABLE_UNIQUE_COUNT_CHECK:
             all_statistics = get_table_columnar_statistics("[\"//tmp/t_output1{index}\";\"//tmp/t_output2{value}\"]")
-            assert all_statistics[0]['column_estimated_unique_counts'] == {'index': 683}
+            assert all_statistics[0]['column_estimated_unique_counts'] == {'index': 1121}
             assert all_statistics[1]['column_estimated_unique_counts'] == {'value': 1}
 
     @authors("ignat")
@@ -1888,8 +1890,8 @@ print(json.dumps(input))
 
         assert len(op.list_jobs()) == 10
 
-    @authors("faucct")
-    def test_distributed(self):
+    @authors("faucct", "pogorelov")
+    def test_job_collective(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
@@ -1898,28 +1900,53 @@ print(json.dumps(input))
             map(
                 in_="//tmp/t1",
                 out="//tmp/t2",
-                command='if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then exit 1; fi',
-                spec={"mapper": {"distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True}},
+                command='if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then exit 1; fi',
+                spec={"mapper": {"collective_options": {"size": 2}, "close_stdout_if_unused": True}},
             )
         with pytest.raises(YtError, match="echo"):
             map(
                 in_="//tmp/t1",
                 out="//tmp/t2",
-                command='if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then sleep infinity; else echo "{foo=bar}"; fi',
-                spec={"mapper": {"distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True}},
+                command='if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then sleep infinity; else echo "{foo=bar}"; fi',
+                spec={"mapper": {"collective_options": {"size": 2}, "close_stdout_if_unused": True}},
             )
         map(
             in_="//tmp/t1",
             out="//tmp/t2",
-            command='if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then cat; fi',
-            spec={"mapper": {"distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True}},
+            command='if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; fi',
+            spec={"mapper": {"collective_options": {"size": 2}, "close_stdout_if_unused": True}},
         )
 
         res = read_table("//tmp/t2")
         assert res == [{"a": "b"}]
 
-    @authors("faucct")
-    def test_distributed_aborting(self):
+    @authors("pogorelov")
+    def test_master_job_completed_before_secondary_scheduled(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": "b"}])
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="""if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; fi""",
+            spec={
+                "mapper": {
+                    "collective_options": {
+                        "size": 2,
+                    },
+                    "close_stdout_if_unused": True,
+                },
+                "data_weight_per_job": 1,
+                "resource_limits": {"user_slots": 1},
+            },
+        )
+
+        op.track()
+        assert op.get_job_count("aborted") == 0
+
+    @authors("faucct", "pogorelov")
+    def test_job_collective_aborting(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
@@ -1927,19 +1954,20 @@ print(json.dumps(input))
             track=False,
             in_="//tmp/t1",
             out="//tmp/t2",
-            command=with_breakpoint("""read row; echo $row; BREAKPOINT; cat"""),
-            spec={"mapper": {"distributed_job_options": {"factor": 2}}},
+            command=with_breakpoint("""if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; fi; BREAKPOINT;"""),
+            spec={"mapper": {"collective_options": {"size": 2}}},
         )
-        abort_job(get_job(op.id, wait_breakpoint(job_count=2)[0], attributes=["distributed_group_main_job_id"])["distributed_group_main_job_id"])
-        wait_breakpoint(job_count=2)[0]
-        assert op.get_job_count("aborted") == 2
-        assert read_table("//tmp/t2") == []
+        wait_breakpoint(job_count=2)
+
+        abort_job(get_job(op.id, wait_breakpoint(job_count=2)[0], attributes=["collective_id"])["collective_id"])
+
+        wait(lambda: op.get_job_count("aborted") == 2)
         release_breakpoint()
         op.track()
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
-    @authors("faucct")
-    def test_distributed_interrupting(self):
+    @authors("faucct", "pogorelov")
+    def test_job_collective_interrupting(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
@@ -1947,21 +1975,22 @@ print(json.dumps(input))
             track=False,
             in_="//tmp/t1",
             out="//tmp/t2",
-            command=with_breakpoint("""read row; echo $row; BREAKPOINT; cat"""),
-            spec={"mapper": {"distributed_job_options": {"factor": 2}}},
+            command=with_breakpoint("""if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then read row; echo $row; fi; BREAKPOINT; if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; fi"""),
+            spec={"mapper": {"collective_options": {"size": 2}}},
         )
         job_ids = wait_breakpoint(job_count=2)
         print_debug("Fetched jobs: ", get_job(op.id, job_ids[0]))
-        distributed_group_main_job_id = get_job(op.id, job_ids[0], attributes=["distributed_group_main_job_id"])["distributed_group_main_job_id"]
+        # collective_id equals master job id.
+        collective_id = get_job(op.id, job_ids[0], attributes=["collective_id"])["collective_id"]
         with pytest.raises(YtError, match="Error interrupting job"):
-            interrupt_job(({*job_ids} - {distributed_group_main_job_id}).pop())
-        interrupt_job(distributed_group_main_job_id)
+            interrupt_job(({*job_ids} - {collective_id}).pop())
+        interrupt_job(collective_id)
         release_breakpoint()
         op.track()
         assert op.get_job_count("aborted") == 0
 
-    @authors("faucct")
-    def test_distributed_with_secondary_job_hang(self):
+    @authors("faucct", "pogorelov")
+    def test_job_collective_with_slave_job_fail_and_operation_completion(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
@@ -1969,42 +1998,188 @@ print(json.dumps(input))
             in_="//tmp/t1",
             out="//tmp/t2",
             command=with_breakpoint(
-                """
-                BREAKPOINT
-                if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then cat; fi
-                """
+                """BREAKPOINT; if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; elif (( "$YT_JOB_INDEX" < 2 )); then exit 1; fi"""
             ),
-            spec={"mapper": {"distributed_job_options": {"factor": 2}}},
-            track=False,
-        )
-        job_ids = wait_breakpoint(job_count=2)
-        distributed_group_main_job_id = get_job(op.id, job_ids[0], attributes=["distributed_group_main_job_id"])["distributed_group_main_job_id"]
-        release_breakpoint(job_id=distributed_group_main_job_id)
-        op.track()
-        assert read_table("//tmp/t2") == [{"a": "b"}]
-
-    @authors("faucct")
-    def test_distributed_with_secondary_job_fail_and_operation_completion(self):
-        create("table", "//tmp/t1")
-        create("table", "//tmp/t2")
-        write_table("//tmp/t1", {"a": "b"})
-        op = map(
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            command=with_breakpoint(
-                """BREAKPOINT; if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then cat; elif (( "$YT_JOB_INDEX" < 2 )); then exit 1; fi"""
-            ),
-            spec={"mapper": {"distributed_job_options": {"factor": 2}}, "max_failed_job_count": 2},
+            spec={"mapper": {"collective_options": {"size": 2}}, "max_failed_job_count": 2},
             track=False,
         )
         first_incarnation = wait_breakpoint(job_count=2)
-        distributed_group_main_job_id = get_job(op.id, first_incarnation[0], attributes=["distributed_group_main_job_id"])["distributed_group_main_job_id"]
-        secondary_job_id, = {*first_incarnation} - {distributed_group_main_job_id}
+        collective_id = get_job(op.id, first_incarnation[0], attributes=["collective_id"])["collective_id"]
+        secondary_job_id, = {*first_incarnation} - {collective_id}
         release_breakpoint(job_id=secondary_job_id)
         wait(lambda: get_job(op.id, secondary_job_id)["state"] == "failed", ignore_exceptions=True)
         wait_breakpoint(job_count=2)
         release_breakpoint()
         op.track()
+        assert read_table("//tmp/t2") == [{"a": "b"}]
+
+    @authors("pogorelov")
+    def test_master_job_completed_operation_waits_for_slave(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": "b"}])
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint(
+                """BREAKPOINT; if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; fi"""
+            ),
+            spec={
+                "mapper": {
+                    "collective_options": {"size": 2},
+                    "close_stdout_if_unused": True,
+                },
+            },
+        )
+        job_ids = wait_breakpoint(job_count=2)
+        collective_id = get_job(op.id, job_ids[0], attributes=["collective_id"])["collective_id"]
+        secondary_job_id, = {*job_ids} - {collective_id}
+
+        release_breakpoint(job_id=collective_id)
+        wait(lambda: op.get_job_count("completed") >= 1)
+        time.sleep(2)
+        assert op.get_state() == "running"
+
+        release_breakpoint(job_id=secondary_job_id)
+        op.track()
+
+        assert read_table("//tmp/t2") == [{"a": "b"}]
+        assert op.get_job_count("aborted") == 0
+
+    @authors("pogorelov")
+    def test_master_job_completed_slave_aborted(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": "b"}])
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint(
+                """BREAKPOINT; if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; fi"""
+            ),
+            spec={
+                "mapper": {
+                    "collective_options": {"size": 2},
+                    "close_stdout_if_unused": True,
+                },
+            },
+        )
+        job_ids = wait_breakpoint(job_count=2)
+        collective_id = get_job(op.id, job_ids[0], attributes=["collective_id"])["collective_id"]
+        secondary_job_id, = {*job_ids} - {collective_id}
+
+        release_breakpoint(job_id=collective_id)
+        wait(lambda: op.get_job_count("completed") >= 1)
+
+        abort_job(secondary_job_id)
+        op.track()
+
+        assert read_table("//tmp/t2") == [{"a": "b"}]
+        assert op.get_job_count("aborted") == 1
+
+    @authors("pogorelov")
+    def test_master_job_completed_slave_failed(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": "b"}])
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint(
+                """BREAKPOINT; if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; else exit 1; fi"""
+            ),
+            spec={
+                "mapper": {
+                    "collective_options": {"size": 2},
+                    "close_stdout_if_unused": True,
+                },
+                "max_failed_job_count": 2,
+            },
+        )
+        job_ids = wait_breakpoint(job_count=2)
+        collective_id = get_job(op.id, job_ids[0], attributes=["collective_id"])["collective_id"]
+        secondary_job_id, = {*job_ids} - {collective_id}
+
+        release_breakpoint(job_id=collective_id)
+        wait(lambda: op.get_job_count("completed") >= 1)
+
+        release_breakpoint(job_id=secondary_job_id)
+        op.track()
+
+        assert read_table("//tmp/t2") == [{"a": "b"}]
+        assert op.get_job_count("failed") == 1
+
+    @authors("pogorelov")
+    def test_slave_aborted_before_master_completed_collective_restarts(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": "b"}])
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint(
+                """BREAKPOINT; if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; fi"""
+            ),
+            spec={
+                "mapper": {
+                    "collective_options": {"size": 2},
+                    "close_stdout_if_unused": True,
+                },
+            },
+        )
+        first_incarnation = wait_breakpoint(job_count=2)
+        collective_id = get_job(op.id, first_incarnation[0], attributes=["collective_id"])["collective_id"]
+        secondary_job_id, = {*first_incarnation} - {collective_id}
+
+        abort_job(secondary_job_id)
+        wait(lambda: get_job(op.id, secondary_job_id)["state"] == "aborted", ignore_exceptions=True)
+
+        release_breakpoint(job_id=collective_id)
+        release_breakpoint(job_id=secondary_job_id)
+
+        wait_breakpoint(job_count=2)
+        release_breakpoint()
+        op.track()
+
+        assert read_table("//tmp/t2") == [{"a": "b"}]
+
+    @authors("pogorelov")
+    def test_slave_failed_before_master_completed_collective_restarts(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": "b"}])
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint(
+                """BREAKPOINT; if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; elif (( "$YT_JOB_INDEX" < 2 )); then exit 1; fi"""
+            ),
+            spec={
+                "mapper": {
+                    "collective_options": {"size": 2},
+                    "close_stdout_if_unused": True,
+                },
+                "max_failed_job_count": 2,
+            },
+        )
+        first_incarnation = wait_breakpoint(job_count=2)
+        collective_id = get_job(op.id, first_incarnation[0], attributes=["collective_id"])["collective_id"]
+        secondary_job_id, = {*first_incarnation} - {collective_id}
+
+        release_breakpoint(job_id=secondary_job_id)
+        wait(lambda: get_job(op.id, secondary_job_id)["state"] == "failed", ignore_exceptions=True)
+
+        release_breakpoint(job_id=collective_id)
+
+        wait_breakpoint(job_count=2)
+        release_breakpoint()
+        op.track()
+
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
     @authors("ifsmirnov")
@@ -2236,6 +2411,58 @@ print(json.dumps(input))
         assert exists("//tmp/stderr_table1")
         assert exists("//tmp/core_table1")
 
+    @authors("dann239")
+    def test_auto_create_with_attributes(self):
+        create("table", "//tmp/in")
+        write_table("//tmp/in", [{"foo": "bar"}])
+
+        map(
+            in_="//tmp/in",
+            out='<create={}>//tmp/out',
+            command="cat",
+        )
+
+        assert exists("//tmp/out")
+
+        map(
+            in_="//tmp/in",
+            out='<create={abacaba="dabacaba"}>//tmp/out2',
+            command="cat",
+        )
+
+        assert exists("//tmp/out2")
+        assert get("//tmp/out2/@abacaba") == "dabacaba"
+
+        with pytest.raises(YtError, match='Attribute "create" cannot be of type "int64"'):
+            map(
+                in_="//tmp/in",
+                out="<create=42>//tmp/out3",
+                command="cat",
+            )
+
+        with pytest.raises(YtError, match="Error parsing boolean value"):
+            map(
+                in_="//tmp/in",
+                out="<create=please>//tmp/out4",
+                command="cat",
+            )
+
+        with pytest.raises(YtError):
+            map(
+                in_="//tmp/in",
+                out='<create={}>//tmp/out2',
+                command="exit 1",
+                spec={
+                    "core_table_path": '<create={abacaba="daba"}>//tmp/core_table2',
+                    "stderr_table_path": '<create={abacaba="caba"}>//tmp/stderr_table2',
+                },
+            )
+
+        assert exists("//tmp/core_table2")
+        assert get("//tmp/core_table2/@abacaba") == "daba"
+        assert exists("//tmp/stderr_table2")
+        assert get("//tmp/stderr_table2/@abacaba") == "caba"
+
     @authors("galtsev")
     @pytest.mark.parametrize("hunks", [True, False])
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
@@ -2460,6 +2687,63 @@ print(json.dumps(input))
 
         assert first_read <= first_written <= chunk_reader_spent_time
 
+    @authors("coteeq")
+    def test_writer_timing_statistics(self):
+        skip_if_component_old(self.Env, (26, 1), "node")
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t_out0", attributes={"chunk_writer": {"tesing_delay_before_chunk_close": 100}})
+        create("table", "//tmp/t_out1", attributes={"chunk_writer": {"tesing_delay_before_chunk_close": 100}})
+        create("table", "//tmp/t_out2", attributes={"chunk_writer": {"tesing_delay_before_chunk_close": 100}})
+
+        write_table("//tmp/t1", [{"key": i, "value": "val_{i}"} for i in range(10000)])
+        op = map(
+            in_=["//tmp/t1"],
+            out=["//tmp/t_out0", "//tmp/t_out1", "//tmp/t_out2"],
+            command="sleep 1 && tee /proc/self/fd/4 | (sleep 1 && cat)",
+            spec={
+                "job_io": {
+                    # Try really hard to write as slow as possible
+                    "table_writer": {
+                        "block_size": 1,
+                        "desired_chunk_size": 1,
+                    }
+                }
+            }
+        )
+
+        statistics = get(op.get_path() + "/@progress/job_statistics_v2")
+        chunk_count = len(get("//tmp/t_out0/@chunk_ids"))
+
+        assert op.get_job_count("completed") == 1
+        job_time_ms = extract_statistic_v2(statistics, "time.exec")
+
+        eps_ms = 20
+
+        def assert_total_time(total_time):
+            assert abs(job_time_ms - total_time) < 100
+
+        for table_index in [0, 1]:
+            wait_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.wait_time")
+            write_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.write_time")
+            idle_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.idle_time")
+            close_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.close_time")
+
+            assert wait_time > eps_ms
+            assert write_time > eps_ms
+            assert close_time >= 100 * chunk_count
+            assert_total_time(idle_time + wait_time + write_time + close_time)
+
+        for table_index in [2]:
+            wait_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.wait_time")
+            write_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.write_time")
+            idle_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.idle_time")
+            close_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.close_time")
+
+            assert wait_time == 0
+            assert write_time == 0
+            assert 100 <= close_time < 100 + eps_ms  # tesing_delay_before_chunk_close + eps.
+            assert_total_time(idle_time + wait_time + write_time + close_time)
+
     @authors("apollo1321")
     def test_job_count_with_skewed_row_sizes(self):
         skip_if_component_old(self.Env, (25, 2), "controller-agent")
@@ -2514,6 +2798,248 @@ print(json.dumps(input))
 
         assert 4_000 <= max_data_weight <= 4_200
         assert "too_many_slices_in_jobs" in op.get_alerts()
+
+    @authors("coteeq")
+    @not_implemented_in_sequoia
+    def test_columnar_acl_rename_columns(self):
+        create_user("u")
+        create(
+            "table",
+            "//tmp/t_in",
+            attributes={
+                "schema": make_schema(
+                    [
+                        {"name": "public", "type": "string"},
+                        {"name": "secret", "type": "string"},
+                    ],
+                ),
+                "acl": [make_ace("deny", "u", "read", columns="secret")],
+            },
+        )
+
+        write_table("//tmp/t_in", {"secret": "secret_value", "public": "public_value"})
+
+        create("table", "//tmp/t_out")
+
+        map(
+            in_="<rename_columns={secret=public;public=secret}>//tmp/t_in",
+            out="//tmp/t_out",
+            command="cat",
+            spec={
+                "omit_inaccessible_columns": True,
+            },
+            authenticated_user="u",
+        )
+
+        assert read_table("//tmp/t_out") == [{"secret": "public_value"}]
+
+        create("table", "//tmp/t_out_as_file")
+
+        def run_with_file(file_attributes):
+            attributes = {
+                "format": "yson",
+                "file_name": "as_file.yson",
+            }
+            attributes.update(file_attributes)
+            file_path = yson.to_yson_type("//tmp/t_in", attributes=attributes)
+
+            map(
+                in_="//tmp/t_in{public}",
+                out="//tmp/t_out_as_file",
+                command="cat ./as_file.yson",
+                spec={
+                    "mapper": {
+                        "file_paths": [
+                            file_path,
+                        ],
+                        "format": yson.loads(b"<format=text>yson"),
+                    }
+                },
+                authenticated_user="u",
+            )
+
+        run_with_file({
+            "rename_columns": {
+                "secret": "public",
+                "public": "secret",
+            },
+            "columns": [
+                "secret",
+            ],
+        })
+
+        assert read_table("//tmp/t_out_as_file") == [{"secret": "public_value"}]
+
+        with raises_yt_error("permission for column \"secret\" of node //tmp/t_in is denied"):
+            run_with_file({
+                "rename_columns": {
+                    "secret": "public",
+                    "public": "secret",
+                },
+                "columns": [
+                    "public",
+                ],
+            })
+
+    @authors("coteeq")
+    def test_rename_columns_for_output_tables(self):
+        # NB: Renaming is _not_ supported here. This test just checks that controller does not mind
+        # having "rename_columns" in path.
+        create_user("u")
+        create("table", "//tmp/t_in")
+        create(
+            "table",
+            "//tmp/t_out",
+            attributes={
+                "schema": [
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"},
+                ],
+            },
+        )
+
+        write_table("//tmp/t_in", [{"key": 42, "value": "hi"}])
+
+        map(
+            in_="//tmp/t_in",
+            out="<rename_columns={key=key1;value=value2;non_existent=non_existent}>//tmp/t_out",
+            command="cat",
+        )
+
+    @authors("apollo1321")
+    @pytest.mark.parametrize("ordered", [False, True])
+    def test_interruption_with_inaccurate_columnar_statistics_estimation(self, ordered):
+        MAPPER = """
+python3 -u -c '
+import json
+import os
+import sys
+
+unbuffered_stdin = os.fdopen(sys.stdin.fileno(), "rb", buffering=0)
+input = json.loads(unbuffered_stdin.readline())
+
+print(json.dumps(input))
+'"""
+
+        table_count = 2
+        column_count = 20
+        for j in range(table_count):
+            create("table", f"//tmp/t_in{j}", attributes={
+                "schema": make_schema([
+                    {"name": f"col{i}", "type": "string"}
+                    for i in range(column_count)
+                ]),
+                "optimize_for": "scan",
+            })
+
+        def sample_size():
+            return max(int(random.gauss(200, 100)), 1)
+
+        set("//sys/@config/chunk_manager/max_heavy_columns", 1)
+
+        for q in range(table_count):
+            for _ in range(1 if ordered else 2):
+                write_table(
+                    f"<append=%true>//tmp/t_in{q}",
+                    [{f"col{i}": make_random_string(sample_size()) for i in range(column_count)} for _ in range(2)],
+                    table_writer={"block_size": 1, "desired_chunk_size": 1},
+                )
+
+        columns = [f"col{i}" for i in range(column_count)]
+
+        def choose_columns():
+            selected_columns = random.sample(columns, k=column_count - 1)
+            return "{{{}}}".format(",".join(selected_columns))
+
+        op = map(
+            ordered=True,
+            track=False,
+            in_=[f"//tmp/t_in{i}{choose_columns()}" for i in range(table_count)],
+            out=[f"<create=%true>//tmp/t_out{i}" for i in range(table_count)],
+            command=with_breakpoint(MAPPER + "; BREAKPOINT; cat"),
+            spec={
+                "mapper": {"format": "json"},
+                "max_failed_job_count": 1,
+                "ordered": ordered,
+                "job_io": {
+                    "buffer_row_count": 1,
+                    "pipe_capacity": 200,
+                },
+                "enable_job_splitting": False,
+                "max_speculative_job_count_per_task": 0,
+                "input_table_columnar_statistics": {
+                    "enabled": True,
+                    "mode": "from_master",
+                },
+                "job_count": 1,
+                "force_allow_job_interruption": True,
+            },
+        )
+
+        jobs = wait_breakpoint(job_count=1)
+
+        op.interrupt_job(jobs[0])
+
+        release_breakpoint()
+
+        op.track()
+
+    @authors("apollo1321")
+    def test_fail_tactics_with_chunk_scraper(self):
+        """
+        This test ensures that unavailable input chunk is not added to chunk scraper if
+        unavailable_chunk_tactics is set to fail. Otherwise internal invariants may be
+        violated, because when this chunk is found, `Resume` is called without preceding
+        `Suspend` call.
+        """
+
+        create("table", "//tmp/t_in")
+        set("//tmp/t_in/@replication_factor", 1)
+
+        write_table("<append=%true>//tmp/t_in", [
+            {"col": "1"},
+            {"col": "2"},
+        ])
+
+        mapper_cmd = " ; ".join(
+            [
+                "cat",
+                events_on_fs().notify_event_cmd("mapper_started"),
+                events_on_fs().wait_event_cmd("continue_mapper"),
+            ]
+        )
+
+        op = map(
+            in_="//tmp/t_in",
+            out="<create=true>//tmp/t_out",
+            command=mapper_cmd,
+            spec={
+                "job_count": 2,
+                "unavailable_chunk_strategy": "fail",
+                "unavailable_chunk_tactics": "fail",
+                "resource_limits": {"user_slots": 1},
+                "job_io": {"table_reader": {"retry_count": 1, "pass_count": 1}},
+                "testing": {
+                    "fail_operation_delay": "10s",
+                }
+            },
+            track=False,
+        )
+
+        events_on_fs().wait_event("mapper_started", timeout=timedelta(1000))
+
+        chunk_id = get_singular_chunk_id("//tmp/t_in")
+        replicas = get("#{0}/@stored_replicas".format(chunk_id))
+        set_nodes_banned(replicas, True)
+
+        events_on_fs().notify_event("continue_mapper")
+
+        time.sleep(5)
+
+        set_nodes_banned(replicas, False)
+
+        with raises_yt_error(f"Input chunk {chunk_id} is unavailable"):
+            op.track()
 
 
 ##################################################################
@@ -2585,16 +3111,11 @@ class TestSchedulerMapCommandsShardedTx(TestSchedulerMapCommandsPortal):
 
 
 @pytest.mark.enabled_multidaemon
-class TestSchedulerMapCommandsMirroredTx(TestSchedulerMapCommandsShardedTx):
+class TestSchedulerMapCommandsSysOperationsRootstock(TestSchedulerMapCommandsShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     NUM_TEST_PARTITIONS = 24
-
-
-@pytest.mark.enabled_multidaemon
-class TestSchedulerMapCommandsSysOperationsRootstock(TestSchedulerMapCommandsMirroredTx):
-    ENABLE_MULTIDAEMON = True
     ENABLE_SYS_OPERATIONS_ROOTSTOCK = True
 
     CHUNK_HOST_CELL_TAGS = [12, 14]

@@ -90,10 +90,11 @@ private:
 
         auto locationUuid = FromProto<TChunkLocationUuid>(request->location_uuid());
 
-        context->SetRequestInfo("NodeId: %v, Address: %v, LocationUuid: %v",
+        context->SetRequestInfo("NodeId: %v, Address: %v, LocationUuid: %v, Validation: %v",
             nodeId,
             node->GetDefaultAddress(),
-            locationUuid);
+            locationUuid,
+            request->is_validation());
 
         const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
         dataNodeTracker->ProcessLocationFullHeartbeat(node, context);

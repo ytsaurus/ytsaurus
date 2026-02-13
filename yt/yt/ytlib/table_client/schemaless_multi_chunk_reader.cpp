@@ -674,7 +674,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
         multiReaderMemoryManager = CreateParallelReaderMemoryManager(
             TParallelReaderMemoryManagerOptions{
                 .TotalReservedMemorySize = config->MaxBufferSize,
-                .MaxInitialReaderReservedMemory = config->WindowSize
+                .MaxInitialReaderReservedMemory = config->WindowSize,
             },
             NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
     }
@@ -724,7 +724,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
         multiReaderMemoryManager = CreateParallelReaderMemoryManager(
             TParallelReaderMemoryManagerOptions{
                 .TotalReservedMemorySize = config->MaxBufferSize,
-                .MaxInitialReaderReservedMemory = config->WindowSize
+                .MaxInitialReaderReservedMemory = config->WindowSize,
             },
             NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
     }
@@ -1201,7 +1201,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
 
     auto omitFromUserColumns = std::move(timestampOnlyColumns);
 
-    auto nestedSchema = NRowMerger::GetNestedColumnsSchema(tableSchema);
+    auto nestedSchema = NRowMerger::GetNestedColumnsSchema(*tableSchema);
     if (auto insertedNestedKeyColumns = GetMissingNestedKeyColumnsIfNeeded(columnFilter, nestedSchema);
         !insertedNestedKeyColumns.empty())
     {
@@ -1267,7 +1267,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         multiReaderMemoryManager = CreateParallelReaderMemoryManager(
             TParallelReaderMemoryManagerOptions{
                 .TotalReservedMemorySize = config->MaxBufferSize,
-                .MaxInitialReaderReservedMemory = config->WindowSize
+                .MaxInitialReaderReservedMemory = config->WindowSize,
             },
             NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
     }
@@ -1450,7 +1450,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         connection->GetColumnEvaluatorCache()->Find(versionedReadSchema),
         retentionTimestamp,
         timestampColumnMapping,
-        NRowMerger::GetNestedColumnsSchema(versionedReadSchema));
+        NRowMerger::GetNestedColumnsSchema(*versionedReadSchema));
 
     auto schemafulReader = NRowMerger::CreateSchemafulOverlappingRangeReader(
         std::move(boundaries),

@@ -1,6 +1,6 @@
 {% extends '//builtin/run.ym' %}
 
-{% block current_version %}1.25.4{% endblock %}
+{% block current_version %}1.25.5{% endblock %}
 
 {% block current_url %}
 https://go.dev/dl/go{{self.version().strip()}}.src.tar.gz

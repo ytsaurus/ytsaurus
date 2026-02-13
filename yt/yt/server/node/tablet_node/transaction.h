@@ -79,12 +79,19 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<NLeaseServer::TLeaseId>, TransientLeaseIds);
     DEFINE_BYREF_RW_PROPERTY(std::vector<NLeaseServer::TLeaseId>, PersistentLeaseIds);
 
-    using TExternalizerTabletMap = THashMap<TTabletId, TTransactionExternalizationToken>;
+    struct TExternalizerTablet
+    {
+        TTransactionExternalizationToken ExternalizationToken;
+
+        void Persist(const TPersistenceContext& context);
+    };
+
+    using TExternalizerTabletMap = THashMap<TTabletId, TExternalizerTablet>;
     DEFINE_BYREF_RW_PROPERTY(TExternalizerTabletMap, ExternalizerTablets);
 
-    DEFINE_BYVAL_RO_PROPERTY(TGuid, ExternalizationToken);
+    DEFINE_BYVAL_RO_PROPERTY(TTransactionExternalizationToken, ExternalizationToken);
 
-    DEFINE_BYVAL_RW_PROPERTY(bool, HasUnforwardedActions);
+    DEFINE_BYVAL_RW_PROPERTY(bool, HasNonForwardedActions);
 
 public:
     using TTransactionBase::TTransactionBase;
@@ -128,10 +135,16 @@ class TExternalizedTransaction
     : public TTransaction
 {
 public:
-    explicit TExternalizedTransaction(TTransactionId id, TTransactionExternalizationToken token);
+    TExternalizedTransaction(TTransactionId id, TTransactionExternalizationToken token);
 
     explicit TExternalizedTransaction(TExternalizedTransactionId id);
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString FormatTransactionId(
+    TTransactionId transactionId,
+    TTransactionExternalizationToken externalizationToken);
 
 ////////////////////////////////////////////////////////////////////////////////
 

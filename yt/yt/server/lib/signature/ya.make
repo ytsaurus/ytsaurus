@@ -7,7 +7,6 @@ SRCS(
     config.cpp
     crypto.cpp
     cypress_key_store.cpp
-    dynamic.cpp
     key_info.cpp
     key_pair.cpp
     key_rotator.cpp

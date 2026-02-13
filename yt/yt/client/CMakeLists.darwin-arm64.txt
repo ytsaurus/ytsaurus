@@ -15,6 +15,7 @@
 add_subdirectory(query_tracker_client)
 add_subdirectory(hedging)
 add_subdirectory(cache)
+add_subdirectory(federated)
 add_subdirectory(logging)
 add_subdirectory(formats)
 add_subdirectory(arrow)
@@ -24,7 +25,6 @@ add_subdirectory(signature)
 add_subdirectory(table_client)
 add_subdirectory(unittests)
 add_subdirectory(driver)
-add_subdirectory(federated)
 
 set(YT_RPC_MODIFY_ROWS_STRONG_LOCKS_VERSION 2)
 
@@ -43,6 +43,7 @@ target_compile_options(yt-yt-client PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_include_directories(yt-yt-client PUBLIC
@@ -105,32 +106,34 @@ target_sources(yt-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/table_partition_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/private.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/address_helpers.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/public.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/chaos_lease.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/client_impl.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/client_base.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/connection.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/client_impl.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/cluster_directory.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/connection_impl.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/connection.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/file_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/file_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/journal_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/journal_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/public.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/row_batch_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/row_batch_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/row_stream.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/table_mount_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/table_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/table_writer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/target_cluster_injecting_channel.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/timestamp_provider.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/transaction.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/transaction_impl.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/row_batch_reader.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/row_stream.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/row_batch_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/transaction.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/wire_row_stream.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/bundle_controller_client/bundle_controller_client.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/bundle_controller_client/bundle_controller_settings.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/election/public.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/hive/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/hive/timestamp_map.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/hydra/version.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/chaos_client/config.cpp
@@ -161,9 +164,11 @@ target_sources(yt-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/security_client/access_control.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/security_client/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/security_client/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/signature/dynamic.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/signature/generator.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/signature/provided.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/signature/signature.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/signature/validator.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/signature/generator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/adapters.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/table_output.cpp
@@ -175,6 +180,7 @@ target_sources(yt-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/column_rename_descriptor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/column_sort_schema.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/comparator.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/constrained_schema.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/key.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/key_bound.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/key_bound_compressor.cpp
@@ -238,8 +244,10 @@ target_sources(yt-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/query_client/query_statistics.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/complex_types/check_yson_token.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/complex_types/check_type_compatibility.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/complex_types/common_yson_converters.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/complex_types/infinite_entity.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/complex_types/merge_complex_types.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/complex_types/positional_yson_translation.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/complex_types/time_text.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/complex_types/uuid_text.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/complex_types/yson_format_conversion.cpp

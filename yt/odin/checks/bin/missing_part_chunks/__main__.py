@@ -1,67 +1,30 @@
 from yt_odin_checks.lib.check_runner import main
+from yt_odin_checks.lib.virtual_chunk_map_helpers import check_virtual_map_age
 
-from yt.common import datetime_to_string, date_string_to_timestamp
-from datetime import datetime, timedelta
+from datetime import timedelta
 
-FLAG_TEMPLATE = "//sys/admin/odin/{}_present_since_flag"
-MAX_AGE = timedelta(hours=4)
-AGE_THRESHOLD = datetime.utcnow() - MAX_AGE
-MISSING_CHUNKS_COUNT_THRESHOLD = 1000000
-
-STATE = {}
+DEFAULT_MAX_AGE_MINUTES = 4 * 60
+DEFAULT_CHUNK_COUNT_THRESHOLD = 1000000
 
 
 def run_check(yt_client, logger, options, states):
-    def process_state(chunk_type):
-        path = FLAG_TEMPLATE.format(chunk_type)
-        count = yt_client.get("//sys/{}/@count".format(chunk_type))
-
-        STATE[chunk_type] = {}
-        STATE[chunk_type]["count"] = count
-        STATE[chunk_type]["sample"] = [c for c in yt_client.list("//sys/{}".format(chunk_type), max_size=10)]
-
-        if count >= MISSING_CHUNKS_COUNT_THRESHOLD:
-            if not yt_client.exists(path):
-                yt_client.create("map_node", path)
-                timestamp = datetime_to_string(datetime.utcnow())
-            else:
-                timestamp = yt_client.get("{}/@creation_time".format(path))
-            STATE[chunk_type]["timestamp"] = timestamp
+    messages = {}
+    for check_name in ["data_missing", "parity_missing"]:
+        message = check_virtual_map_age(yt_client, logger, options, check_name)
+        if message is not None:
+            messages[check_name] = message
         else:
-            if yt_client.exists(path):
-                yt_client.remove(path)
+            return states.UNKNOWN_STATE
 
-    def is_age_critical(timestamp):
-        created_at = datetime.utcfromtimestamp(date_string_to_timestamp(timestamp))
-        if created_at <= AGE_THRESHOLD:
-            return True
-        else:
-            return False
+    max_age = timedelta(minutes=options.get("max_age_minutes", DEFAULT_MAX_AGE_MINUTES))
+    chunk_count_threshold = options.get("chunk_count_threshold", DEFAULT_CHUNK_COUNT_THRESHOLD)
 
-    for chunk_type in ["data_missing_chunks", "parity_missing_chunks"]:
-        process_state(chunk_type)
-
-    message = {}
-    for k, v in STATE.items():
-        message[k] = {"count": v["count"], "threshold": MISSING_CHUNKS_COUNT_THRESHOLD}
-        if "timestamp" in v:
-            human_time = datetime.fromtimestamp(date_string_to_timestamp(v["timestamp"]))
-            message[k]["since"] = str(human_time)
-            logger.info("{} count is {} since: {}".format(k, v["count"], human_time))
-        else:
-            logger.info("{} count is {}".format(k, v["count"]))
-        logger.info("threshold is {}".format(MISSING_CHUNKS_COUNT_THRESHOLD))
-        logger.info("Sample of {}: {}".format(k, v["sample"]))
-
-    message = str(message)
-
-    if any(["timestamp" in v and is_age_critical(v["timestamp"]) for v in STATE.values()]):
-        return states.UNAVAILABLE_STATE, message
-
-    if any([(v["count"] >= MISSING_CHUNKS_COUNT_THRESHOLD) for v in STATE.values()]):
-        return states.PARTIALLY_AVAILABLE_STATE, message
-
-    return states.FULLY_AVAILABLE_STATE
+    if any([message["age"] is not None and message["age"] >= max_age for message in messages.values()]):
+        return states.UNAVAILABLE_STATE, messages
+    elif any([message["count"] is not None and message["count"] >= chunk_count_threshold for message in messages.values()]):
+        return states.PARTIALLY_AVAILABLE_STATE, messages
+    else:
+        return states.FULLY_AVAILABLE_STATE
 
 
 if __name__ == "__main__":

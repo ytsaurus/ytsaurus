@@ -32,6 +32,7 @@ Contributions are very welcome in SQLGlot; read the [contribution guide](https:/
 * [Used By](#used-by)
 * [Documentation](#documentation)
 * [Run Tests and Lint](#run-tests-and-lint)
+* [Deployment](#deployment)
 * [Benchmarks](#benchmarks)
 * [Optional Dependencies](#optional-dependencies)
 * [Supported Dialects](#supported-dialects)
@@ -526,6 +527,21 @@ make test   # Unit and integration tests (or test-rs, to use the Rust tokenizer)
 make check  # Full test suite & linter checks
 ```
 
+## Deployment
+
+To deploy a new SQLGlot version, follow these steps:
+
+1. Run `git pull` to make sure the local git repo is at the head of the main branch
+2. If the Rust tokenizer code changed since the last version release:
+   1. Bump the `version` attribute under the `package` header in `sqlglotrs/Cargo.toml`
+   2. Run `make install-dev`. This will update the `Cargo.lock` file
+   3. Commit the changes made to `Cargo.toml` and `Cargo.lock`
+3. Do a `git tag` operation to bump the SQLGlot version, e.g. `git tag v28.5.0`
+4. Run `git push && git push --tags` to deploy the new version
+
+> [!IMPORTANT]
+> If there are any breaking changes since the last version release, make sure to deploy either a minor or major version for both sqlglot and sqlglotrs. Refer to SQLGlot's [versioning scheme](#versioning) for more information.
+
 ## Benchmarks
 
 [Benchmarks](https://github.com/tobymao/sqlglot/blob/main/benchmarks/bench.py) run on Python 3.10.12 in seconds.
@@ -588,3 +604,29 @@ x + interval '1' month
 **Official Dialects** are maintained by the core SQLGlot team with higher priority for bug fixes and feature additions.
 
 **Community Dialects** are developed and maintained primarily through community contributions. These are fully functional but may receive lower priority for issue resolution compared to officially supported dialects. We welcome and encourage community contributions to improve these dialects.
+
+### Creating a Dialect Plugin
+
+If your database isn't supported, you can create a plugin that registers a custom dialect via entry points. Create a package with your dialect class and register it in `setup.py`:
+
+```python
+from setuptools import setup
+
+setup(
+    name="mydb-sqlglot-dialect",
+    entry_points={
+        "sqlglot.dialects": [
+            "mydb = my_package.dialect:MyDB",
+        ],
+    },
+)
+```
+
+The dialect will be automatically discovered and can be used like any built-in dialect:
+
+```python
+from sqlglot import transpile
+transpile("SELECT * FROM t", read="mydb", write="postgres")
+```
+
+See the [Custom Dialects](#custom-dialects) section for implementation details.

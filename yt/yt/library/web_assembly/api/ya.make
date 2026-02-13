@@ -3,6 +3,7 @@ LIBRARY()
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
+    bytecode.cpp
     compartment.cpp
     data_transfer.cpp
     function.cpp

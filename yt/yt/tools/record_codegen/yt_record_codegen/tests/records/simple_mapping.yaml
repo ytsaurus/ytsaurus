@@ -1,0 +1,43 @@
+namespace: NYT::NTableClient::NTest::NRecords
+
+types:
+  - type_name: TSimpleMapping
+    add_equality_operator: true
+    fields:
+      - cpp_name: KeyA
+        cpp_type: std::string
+        column_name: key_a
+        column_type: String
+        sort_order: Ascending
+        required: True
+
+      - cpp_name: KeyB
+        cpp_type: std::string
+        column_name: key_b
+        column_type: String
+        sort_order: Ascending
+
+      - cpp_name: KeyC
+        cpp_type: NYson::TYsonString
+        column_name: key_c
+        column_type_v3:
+          type_name: list
+          item: string
+        sort_order: Ascending
+
+      - cpp_name: ValueA
+        cpp_type: std::string
+        column_name: value_a
+        column_type: String
+        required: True
+
+      - cpp_name: ValueB
+        cpp_type: std::string
+        column_name: value_b
+        column_type: String
+
+      - cpp_name: ValueC
+        cpp_type: NYson::TYsonString
+        column_name: value_c
+        column_type_v3:
+          type_name: yson

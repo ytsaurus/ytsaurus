@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/yt/client/tablet_client/public.h>
 
 #include <yt/yt/library/query/base/public.h>
@@ -53,10 +55,11 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
     NTableClient::TTimestamp currentTimestamp,
     NTableClient::TTimestamp majorTimestamp,
     NQueryClient::TColumnEvaluatorPtr columnEvaluator,
-    NYT::NYson::TYsonString customRuntimeData,
+    const NYT::NYson::TYsonString& customRuntimeData,
     bool mergeRowsOnFlush,
     bool useTtlColumn = false,
     bool mergeDeletionsOnFlush = false,
+    TNestedRowDiscardPolicyPtr nestedRowDiscardPolicy = nullptr,
     IMemoryUsageTrackerPtr memoryTracker = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////

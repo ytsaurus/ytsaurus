@@ -9,7 +9,7 @@ from .default_config import DEFAULT_WRITE_CHUNK_SIZE
 from .errors import (
     YtNoSuchService, YtTabletIsInIntermediateState, YtHunkTabletStoreToggleConflict, YtTabletTransactionLockConflict,
     YtNoSuchTablet, YtTabletNotMounted, YtResponseError, YtRowIsBlocked, YtBlockedRowWaitTimeout,
-    YtNoSuchCell, YtChunkNotPreloaded, YtNoInSyncReplicas)
+    YtNoSuchCell, YtChunkNotPreloaded, YtNoInSyncReplicas, YtHunkStoreAllocationFailed)
 from .ypath import TablePath
 from .http_helpers import get_retriable_errors
 from .transaction import null_transaction_id
@@ -134,6 +134,7 @@ def get_dynamic_table_retriable_errors():
             YtNoSuchService,
             YtTabletIsInIntermediateState,
             YtHunkTabletStoreToggleConflict,
+            YtHunkStoreAllocationFailed,
             YtTabletTransactionLockConflict,
             YtNoSuchTablet,
             YtTabletNotMounted,
@@ -202,7 +203,8 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
                 workload_descriptor=None, allow_full_scan=None, allow_join_without_index=None, format=None, raw=None,
                 execution_pool=None, response_parameters=None, retention_timestamp=None, placeholder_values=None,
                 use_canonical_null_relations=None, merge_versioned_rows=None, syntax_version=None, versioned_read_options=None,
-                with_timestamps=None, udf_registry_path=None, use_lookup_cache=None, client=None):
+                with_timestamps=None, udf_registry_path=None, use_lookup_cache=None, execution_backend=None,
+                expression_builder_version=None, client=None):
     """Executes a SQL-like query on dynamic table.
 
     .. seealso:: `supported features <https://ytsaurus.tech/docs/en/user-guide/dynamic-tables/dyn-query-language>`_
@@ -240,8 +242,10 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
     set_param(params, "merge_versioned_rows", merge_versioned_rows)
     set_param(params, "use_lookup_cache", use_lookup_cache)
     set_param(params, "syntax_version", syntax_version)
+    set_param(params, "expression_builder_version", expression_builder_version)
     set_param(params, "versioned_read_options", _get_versioned_read_options(versioned_read_options, with_timestamps))
     set_param(params, "udf_registry_path", udf_registry_path)
+    set_param(params, "execution_backend", execution_backend)
 
     _check_transaction_type(client)
 
@@ -321,7 +325,7 @@ def explain_query(
         query, timestamp=None, input_row_limit=None, output_row_limit=None, range_expansion_limit=None,
         max_subqueries=None, workload_descriptor=None, allow_full_scan=None, allow_join_without_index=None,
         format=None, raw=None, execution_pool=None, retention_timestamp=None,
-        syntax_version=None, udf_registry_path=None, client=None):
+        syntax_version=None, expression_builder_version=None, udf_registry_path=None, client=None):
     """Explains a SQL-like query on dynamic table.
 
     .. seealso:: `supported features <https://ytsaurus.tech/docs/en/user-guide/dynamic-tables/dyn-query-language>`_
@@ -351,6 +355,7 @@ def explain_query(
     set_param(params, "execution_pool", execution_pool)
     set_param(params, "timeout", get_config(client)["proxy"]["heavy_request_timeout"])
     set_param(params, "syntax_version", syntax_version)
+    set_param(params, "expression_builder_version", expression_builder_version)
     set_param(params, "udf_registry_path", udf_registry_path)
 
     _check_transaction_type(client)

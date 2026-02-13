@@ -81,7 +81,7 @@ public:
     ColumnsDescription getActualTableStructure(ContextPtr context, bool /*isInsertQuery*/) const override
     {
         auto* queryContext = GetQueryContext(context);
-        return DB::ColumnsDescription(ToNamesAndTypesList(*subquerySpec.ReadSchema, queryContext->Settings->Composite));
+        return DB::ColumnsDescription(ToNamesAndTypesList(*subquerySpec.ReadSchema, subquerySpec.ColumnAttributes, queryContext->SessionSettings->Composite));
     }
 
     StoragePtr executeImpl(

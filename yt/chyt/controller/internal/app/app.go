@@ -36,7 +36,8 @@ type Options struct {
 type App struct {
 	l *logzap.Logger
 	// ytc is a client for coordination cluster.
-	ytc       yt.Client
+	ytc yt.Client
+
 	coordPath ypath.Path
 
 	locations []*Location
@@ -81,7 +82,7 @@ func New(config *Config, options *Options, cfs map[string]strawberry.ControllerF
 		app.ytc, err = ythttp.NewClient(&yt.Config{
 			Token:  config.Token,
 			Proxy:  *config.CoordinationProxy,
-			Logger: withName(l, "yt"),
+			Logger: l.WithName("yt").(log.Structured),
 		})
 		app.coordPath = config.CoordinationPath
 		if err != nil {
@@ -97,26 +98,32 @@ func New(config *Config, options *Options, cfs map[string]strawberry.ControllerF
 		l.Debug("initializing location", log.String("location_proxy", proxy))
 		var err error
 
+		ytConfig := yt.Config{
+			Token: config.Token,
+			Proxy: proxy,
+		}
+
+		clusterURL, err := ytConfig.GetClusterURL()
+		if err != nil {
+			l.Fatal("error parsing YT proxy", log.Error(err), log.String("proxy", proxy))
+		}
+
 		loc := &Location{}
+		loc.l = newLogger("l."+clusterURL.Address, options.LogToStderr)
+		ytConfig.Logger = loc.l.WithName("yt").(log.Structured)
 
-		loc.l = newLogger("l."+proxy, options.LogToStderr)
-
-		loc.ytc, err = ythttp.NewClient(&yt.Config{
-			Token:  config.Token,
-			Proxy:  proxy,
-			Logger: withName(loc.l, "yt"),
-		})
+		loc.ytc, err = ythttp.NewClient(&ytConfig)
 		if err != nil {
 			l.Fatal("error creating YT client", log.Error(err), log.String("proxy", proxy))
 		}
 
-		locCfg := config.Strawberry.ApplyOverrides(config.LocationStrawberryOverrides[proxy])
+		aCfg := config.Strawberry.ApplyOverrides(config.LocationStrawberryOverrides[proxy])
 
 		ctlDefaultSpeclet := config.LocationControllerDefaultSpeclet[proxy]
 
 		loc.as = map[string]*agent.Agent{}
 		for family, cf := range cfs {
-			l := withName(loc.l, family)
+			l := loc.l.WithName(family)
 			l.Debug("instantiating controller for location", log.String("location", proxy), log.String("family", family))
 
 			cCfg := cf.Config
@@ -128,8 +135,8 @@ func New(config *Config, options *Options, cfs map[string]strawberry.ControllerF
 				cCfg = newCfg
 			}
 
-			c := cf.Ctor(withName(l, "c"), loc.ytc, config.Strawberry.Root.Child(family), proxy, cCfg)
-			a := agent.NewAgent(proxy, config.Token, loc.ytc, withName(l, "a"), c, &locCfg)
+			c := cf.Ctor(l.WithName("c"), loc.ytc, config.Strawberry.RootOrDefault().Child(family), proxy, cCfg)
+			a := agent.NewAgent(proxy, config.Token, loc.ytc, l.WithName("a"), c, &aCfg)
 			loc.as[family] = a
 		}
 

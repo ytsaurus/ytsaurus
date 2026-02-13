@@ -1,4 +1,5 @@
 #include <yt/yt/library/query/unittests/evaluate/ql_helpers.h>
+#include <yt/yt/library/query/unittests/evaluate/test_evaluate.h>
 
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/query_client/query_statistics.h>
@@ -167,6 +168,48 @@ TEST_F(TCastExpressionTest, Malformed)
     CheckThrows("CAST(\"1\" AS `List<Float>`)", "", "is not supported");
     CheckThrows("CAST(any AS Int64)", "any={a=b;c=2;}", "Cannot convert value");
     CheckThrows("CAST(l AS String)", "l=[1;2;3;]", "Cannot convert value");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TQueryEvaluateTest, ArrayJoinCastFromString)
+{
+    TSource source{
+        "a=1;nestedA=\"[1;2;3;4]\";nestedB=[-1;-2;-3]",
+        "a=3;nestedA=\"[5;6;7]\";nestedB=[-5;-6;-7;-8]",
+        "a=5;nestedA=\"[]\";nestedB=[]",
+        "a=6;nestedA=\"[9]\";nestedB=#",
+    };
+
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"nestedA", EValueType::String},
+        {"nestedB", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+    });
+
+    auto resultSplit = MakeSplit({
+        {"a", EValueType::Int64},
+        {"flattenedA", EValueType::Int64},
+        {"flattenedB", EValueType::Int64},
+    });
+
+    auto result = YsonToRows({
+        "a=1; flattenedA=1; flattenedB=-1",
+        "a=1; flattenedA=2; flattenedB=-2",
+        "a=1; flattenedA=3; flattenedB=-3",
+        "a=1; flattenedA=4;              ",
+        "a=3; flattenedA=5; flattenedB=-5",
+        "a=3; flattenedA=6; flattenedB=-6",
+        "a=3; flattenedA=7; flattenedB=-7",
+        "a=3;               flattenedB=-8",
+        "a=6; flattenedA=9;              ",
+    }, resultSplit);
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        "a, flattenedA, flattenedB FROM [//t] ARRAY JOIN CAST(yson_string_to_any(nestedA) AS `List<Int64>`) AS flattenedA, nestedB AS flattenedB",
+        split,
+        source,
+        ResultMatcher(result));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

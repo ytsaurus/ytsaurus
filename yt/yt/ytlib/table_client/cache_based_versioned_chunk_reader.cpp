@@ -73,12 +73,12 @@ public:
 
     TFuture<void> Open() override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     TFuture<void> GetReadyEvent() const override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
@@ -323,8 +323,8 @@ public:
             meta,
             GetCompositeColumnFlags(ChunkMeta_->ChunkSchema()),
             GetHunkColumnFlags(ChunkMeta_->GetChunkFormat(), ChunkMeta_->GetChunkFeatures(), ChunkMeta_->ChunkSchema()),
-            ChunkMeta_->HunkChunkMetas(),
-            ChunkMeta_->HunkChunkRefs(),
+            &ChunkMeta_->HunkChunkMetas(),
+            &ChunkMeta_->HunkChunkRefs(),
             ChunkToReaderIdMapping_,
             SortOrders_,
             ChunkMeta_->GetChunkKeyColumnCount(),

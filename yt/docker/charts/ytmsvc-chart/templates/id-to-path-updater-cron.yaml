@@ -11,7 +11,7 @@ spec:
   successfulJobsHistoryLimit: {{ .Values.microservices.idToPathUpdater.preprocessing.successfulJobsHistoryLimit }}
   failedJobsHistoryLimit: {{ .Values.microservices.idToPathUpdater.preprocessing.failedJobsHistoryLimit }}
   startingDeadlineSeconds: {{ .Values.microservices.idToPathUpdater.preprocessing.startingDeadlineSeconds }}
-  concurrencyPolicy: {{ .Values.microservices.idToPathUpdater.preprocessing.concurrencyPolicy | quote }}
+  concurrencyPolicy: "Forbid"
   jobTemplate:
     spec:
       ttlSecondsAfterFinished: {{ .Values.microservices.idToPathUpdater.preprocessing.ttlSecondsAfterFinished }}

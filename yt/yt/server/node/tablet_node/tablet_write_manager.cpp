@@ -645,7 +645,8 @@ public:
         }
 
         auto externalizationToken = Tablet_->SmoothMovementData().GetRole() == ESmoothMovementRole::Target
-            ? GetSiblingAvenueEndpointId(Tablet_->SmoothMovementData().GetSiblingAvenueEndpointId())
+            ? TTransactionExternalizationToken(
+                GetSiblingAvenueEndpointId(Tablet_->SmoothMovementData().GetSiblingAvenueEndpointId()))
             : TTransactionExternalizationToken{};
 
         const auto& transactionManager = Host_->GetTransactionManager();
@@ -740,7 +741,8 @@ public:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto externalizationToken = Tablet_->SmoothMovementData().GetRole() == ESmoothMovementRole::Target
-            ? GetSiblingAvenueEndpointId(Tablet_->SmoothMovementData().GetSiblingAvenueEndpointId())
+            ? TTransactionExternalizationToken(
+                GetSiblingAvenueEndpointId(Tablet_->SmoothMovementData().GetSiblingAvenueEndpointId()))
             : TTransactionExternalizationToken{};
 
         const auto& transactionManager = Host_->GetTransactionManager();

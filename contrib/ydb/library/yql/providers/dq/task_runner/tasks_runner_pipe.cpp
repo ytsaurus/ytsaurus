@@ -714,9 +714,15 @@ public:
         }
     }
 
+    void Push(TInstant watermark) override {
+        Y_UNUSED(watermark);
+        ythrow yexception() << "unimplemented";
+    }
+
     [[nodiscard]]
-    bool Pop(NKikimr::NMiniKQL::TUnboxedValueBatch& batch) override {
+    bool Pop(NKikimr::NMiniKQL::TUnboxedValueBatch& batch, TMaybe<TInstant>& watermark) override {
         Y_UNUSED(batch);
+        Y_UNUSED(watermark);
         ythrow yexception() << "unimplemented";
     }
 
@@ -726,6 +732,11 @@ public:
         } catch (...) {
             TaskRunner->RaiseException();
         }
+    }
+
+    void Bind(NActors::TActorId outputActorId, NActors::TActorId inputActorId) override { // noop
+        Y_UNUSED(outputActorId);
+        Y_UNUSED(inputActorId);
     }
 
     bool IsFinished() const override {
@@ -881,8 +892,13 @@ public:
         Push(std::move(serialized), space);
     }
 
+    void Push(TInstant watermark) override {
+        Y_UNUSED(watermark);
+        ythrow yexception() << "unimplemented";
+    }
+
     [[nodiscard]]
-    bool Pop(NKikimr::NMiniKQL::TUnboxedValueBatch& batch) override {
+    bool Pop(NKikimr::NMiniKQL::TUnboxedValueBatch& batch, TMaybe<TInstant>& /* watermark */) override {
         Y_UNUSED(batch);
         ythrow yexception() << "unimplemented";
     }
@@ -1092,6 +1108,9 @@ public:
             TaskRunner->RaiseException();
         }
     }
+
+    void Flush() override {
+    }
     // |>
 
     // <| consumer methods
@@ -1174,8 +1193,9 @@ public:
         }
     }
 
-    void UpdateSettings(const TDqOutputChannelSettings::TMutable& settings) override {
-        Y_UNUSED(settings);
+    void Bind(NActors::TActorId outputActorId, NActors::TActorId inputActorId) override { // noop
+        Y_UNUSED(outputActorId);
+        Y_UNUSED(inputActorId);
     }
 
     template<typename T>
@@ -1278,6 +1298,9 @@ public:
 
     void Finish() override {
         Y_ABORT("Unimplemented");
+    }
+
+    void Flush() override {
     }
 
     bool Pop(NDqProto::TWatermark& watermark) override {
@@ -1729,9 +1752,10 @@ public:
     }
 
     void Prepare(const TDqTaskSettings& task, const TDqTaskRunnerMemoryLimits& memoryLimits,
-        const IDqTaskRunnerExecutionContext& execCtx) override
+        const IDqTaskRunnerExecutionContext& execCtx, TDqComputeActorWatermarks* watermarksTracker) override
     {
         Y_UNUSED(execCtx);
+        Y_UNUSED(watermarksTracker);
         Y_ABORT_UNLESS(Task.GetId() == task.GetId());
         try {
             auto result = Delegate->Prepare(memoryLimits);
@@ -1800,6 +1824,10 @@ public:
 
     std::optional<std::pair<NUdf::TUnboxedValue, IDqAsyncInputBuffer::TPtr>> GetInputTransform(ui64 /*inputIndex*/) override {
         return {};
+    }
+
+    TDqComputeActorWatermarks *GetInputTransformWatermarksTracker(ui64 /*inputId*/) override {
+        return nullptr;
     }
 
     std::pair<IDqAsyncOutputBuffer::TPtr, IDqOutputConsumer::TPtr> GetOutputTransform(ui64 /*outputIndex*/) override {

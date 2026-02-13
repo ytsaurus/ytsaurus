@@ -62,7 +62,6 @@ public:
         , Index_(index)
         , SinkOf_(outputOf)
     {
-        Y_ABORT_UNLESS(IsDefined(RowVtable_));
     }
 
     int GetId() const

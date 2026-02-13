@@ -10,7 +10,7 @@
 | ------------ | ------------------------- | ------------ | ------------------ |
 | `spark.yt.write.batchSize` | `500000` | Размер данных, отправляемых через одну операцию `WriteTable` | - |
 | `spark.yt.write.miniBatchSize` | `1000` | Размер блока данных, отправляемого в `WriteTable` | - |
-| `spark.yt.write.timeout` | `60 seconds` | Ограничение на ожидание записи одного блока данных | - |
+| `spark.yt.write.timeout` | `120 seconds` | Ограничение на ожидание записи одного блока данных | - |
 | `spark.yt.write.typeV3.enabled` (`spark.yt.write.writingTypeV3.enabled` до 1.75.2) | `true` | Запись таблиц со схемой в формате [type_v3](../../../../../user-guide/storage/data-types.md) вместо `type_v1` | 1.75.3 |
 | `spark.yt.read.vectorized.capacity` | `1000` | Максимальное количество строк в батче при чтении через `wire` протокол | - |
 | `spark.yt.read.arrow.enabled` | `true` | Использовать `arrow` формат для чтения данных (если это возможно) | - |

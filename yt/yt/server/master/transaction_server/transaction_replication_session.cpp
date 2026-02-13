@@ -19,11 +19,11 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/yt/core/misc/range_formatters.h>
-
 #include <yt/yt/core/rpc/dispatcher.h>
-#include <yt/yt/core/rpc/service.h>
 #include <yt/yt/core/rpc/response_keeper.h>
+#include <yt/yt/core/rpc/service.h>
+
+#include <library/cpp/yt/misc/range_formatters.h>
 
 #include <util/generic/algorithm.h>
 
@@ -404,11 +404,7 @@ TFuture<void> TTransactionReplicationSessionWithoutBoomerangs::Run(bool syncWith
 
     auto asyncResult = InvokeReplicationRequests();
 
-    const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
-    std::vector<TFuture<void>> additionalFutures = {
-        transactionSupervisor->WaitUntilPreparedTransactionsFinished(),
-    };
-
+    std::vector<TFuture<void>> additionalFutures;
     if (asyncResult) {
         additionalFutures.push_back(asyncResult.AsVoid());
     }
@@ -418,7 +414,7 @@ TFuture<void> TTransactionReplicationSessionWithoutBoomerangs::Run(bool syncWith
     return syncSession->Sync(cellTags, std::move(additionalFutures))
         .Apply(BIND([this, this_ = MakeStrong(this), syncSession = std::move(syncSession), asyncResult = std::move(asyncResult)] {
             if (!asyncResult) {
-                return VoidFuture;
+                return OKFuture;
             }
 
             YT_VERIFY(asyncResult.IsSet());
@@ -502,7 +498,7 @@ TFuture<THashMap<TTransactionId, TFuture<void>>> TTransactionReplicationSessionW
                     this, this_ = MakeStrong(this), result = std::move(result)
                 ] () mutable {
                     for (auto mirroredTransactionId : MirroredTransactionIds_) {
-                        EmplaceOrCrash(result, mirroredTransactionId, VoidFuture);
+                        EmplaceOrCrash(result, mirroredTransactionId, OKFuture);
                     }
                     return result;
                 }));
@@ -538,12 +534,9 @@ TFuture<void> TTransactionReplicationSessionWithBoomerangs::Run(bool syncWithUps
 
     auto cellTags = GetCellTagsToSyncWithBeforeInvocation();
 
-    const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
-    auto preparedTransactionsFinished = transactionSupervisor->WaitUntilPreparedTransactionsFinished();
-
     // NB: We always have to wait all current prepared transactions to observe
     // side effects of Sequoia transactions.
-    auto syncFuture = syncSession->Sync(cellTags, std::move(preparedTransactionsFinished));
+    auto syncFuture = syncSession->Sync(cellTags);
     auto automatonInvoker = Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::TransactionManager);
     return syncFuture
         .Apply(

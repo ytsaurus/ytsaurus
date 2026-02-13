@@ -82,6 +82,19 @@ bool TUniversalMonitoringDescriptorManager::TryRemoveOperation(TOperationId oper
     return countOfUnrelesedMonitor;
 }
 
+void TUniversalMonitoringDescriptorManager::RemoveAllOperations()
+{
+    auto guard = TGuard(SpinLock_);
+
+    for (const auto& [_, countOfAcquiredMonitor] : OperationIdToCountOfAcqiredMonitor_) {
+        Size_ -= countOfAcquiredMonitor;
+    }
+
+    YT_VERIFY(Size_ == 0);
+
+    OperationIdToCountOfAcqiredMonitor_.clear();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent

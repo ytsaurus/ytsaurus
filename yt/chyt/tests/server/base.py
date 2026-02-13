@@ -12,7 +12,7 @@ from yt.environment import arcadia_interop
 from yt_env_setup import YTEnvSetup, is_asan_build
 
 from yt.wrapper import YtClient
-from yt.wrapper.common import simplify_structure
+from yt.wrapper.common import simplify_structure, GB
 
 from yt.common import update, update_inplace, YtError, wait, parts_to_uuid, YtResponseError
 
@@ -36,18 +36,18 @@ HOST_PATHS = get_host_paths(arcadia_interop, ["ytserver-clickhouse", "clickhouse
 
 DEFAULTS = {
     "memory_config": {
-        "footprint": 1 * 1024 ** 3,
-        "clickhouse": int(2.5 * 1024 ** 3),
-        "reader": 1 * 1024 ** 3,
+        "footprint": 1 * GB,
+        "clickhouse": int(2.5 * GB),
+        "reader": 1 * GB,
         "uncompressed_block_cache": 0,
         "compressed_block_cache": 0,
         "chunk_meta_cache": 0,
         "log_tailer": 0,
         "watchdog_oom_watermark": 0,
         "watchdog_window_oom_watermark": 0,
-        "clickhouse_watermark": 1 * 1024 ** 3,
-        "memory_limit": int((1 + 2.5 + 1 + 1) * 1024 ** 3),
-        "max_server_memory_usage": int((1 + 2.5 + 1) * 1024 ** 3),
+        "clickhouse_watermark": 1 * GB,
+        "memory_limit": int((1 + 2.5 + 1 + 1) * GB),
+        "max_server_memory_usage": int((1 + 2.5 + 1) * GB),
     },
     "host_ytserver_clickhouse_path": HOST_PATHS["ytserver-clickhouse"],
     "host_clickhouse_trampoline_path": HOST_PATHS["clickhouse-trampoline"],
@@ -164,8 +164,7 @@ class Clique(object):
 
         config["yt"]["dictionary_repository"] = dict()
         self.dictionaries_path = "//sys/strawberry/chyt/{}/dictionaries".format(self.alias)
-        config["yt"]["dictionary_repository"]["path"] = self.dictionaries_path
-        config["yt"]["dictionary_repository"]["enabled"] = True
+        config["yt"]["dictionary_repository"]["root_path"] = self.dictionaries_path
         create("map_node", self.dictionaries_path, recursive=True, ignore_existing=True, attributes={
             "acl": [ace],
         })
@@ -811,6 +810,12 @@ class ClickHouseTestBase(YTEnvSetup):
         },
     }
 
+    DELTA_CHYT_CONFIG = {
+        "yt" : {
+            "enable_schema_id_fetching": "1",
+        }
+    }
+
     @classmethod
     def _get_proxy_address(cls):
         return "http://" + cls.Env.get_http_proxy_address()
@@ -831,6 +836,14 @@ class ClickHouseTestBase(YTEnvSetup):
     def _signal_instance(pid, signal_number):
         print_debug("Killing instance with with os.kill({}, {})".format(pid, signal_number))
         os.kill(pid, signal_number)
+
+    @classmethod
+    def _collect_delta_chyt_config(cls):
+        result = {}
+        for base in cls.__mro__[::-1]:
+            patch = base.__dict__.get("DELTA_CHYT_CONFIG", {})
+            update_inplace(result, patch)
+        return result
 
     @classmethod
     def setup_class(cls, test_name=None, run_id=None):
@@ -891,6 +904,8 @@ class ClickHouseTestBase(YTEnvSetup):
             Clique.base_config["cluster_connection"]["bus_client"]["private_key"] = {
                 "environment_variable": "YT_SECURE_VAULT_CHYT_BUS_CLIENT_PRIVATE_KEY",
             }
+
+        Clique.base_config = update(Clique.base_config, cls._collect_delta_chyt_config())
 
         Clique.proxy_address = cls._get_proxy_address()
         Clique.chyt_http_address = cls._get_chyt_http_address()

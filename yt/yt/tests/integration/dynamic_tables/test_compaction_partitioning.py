@@ -518,7 +518,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
 
         wait(check)
 
-    @authors("ifsmirnov")
+    @authors("dave11ar")
     def test_timestamp_digest_too_many_delete_timestamps(self):
         sync_create_cells(1)
         self._create_simple_table(
@@ -544,6 +544,13 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         )
         sync_mount_table("//tmp/t")
 
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        # We use node orchid to prevent situation when update tablet stores was commited only on master as coordinator.
+        # Can check only stores in partition, because there are no chunks in eden due to disabled always_flush_to_eden.
+        def get_chunk_ids():
+            return get(f"//sys/tablets/{tablet_id}/orchid/partitions/0/stores")
+
         update_nodes_dynamic_config({
             "tablet_node": {
                 "store_compactor": {
@@ -556,8 +563,8 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         # purging delete tombstones by major timestamp.
         insert_rows("//tmp/t", [{"key": 1, "value": "a" * 16 * 2**20}])
 
-        wait(lambda: get("//tmp/t/@chunk_ids"))
-        large_chunk_id = get("//tmp/t/@chunk_ids")[0]
+        wait(lambda: get_chunk_ids())
+        large_chunk_id = get_singular_chunk_id("//tmp/t")
 
         # Insert many delete timestamps and see how chunks are compacted but to no avail.
         start_time = time()
@@ -570,8 +577,8 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         delete_timestamps = lookup_result[0].attributes["delete_timestamps"]
 
         assert delete_ts_count == len(delete_timestamps)
-        assert large_chunk_id in get("//tmp/t/@chunk_ids")
-        assert len(get("//tmp/t/@chunk_ids")) > 1
+        assert large_chunk_id in get_chunk_ids()
+        assert len(get_chunk_ids()) > 1
 
         set("//tmp/t/@mount_config/row_digest_compaction", {
             "max_obsolete_timestamp_ratio": 1,
@@ -579,7 +586,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         })
         remount_table("//tmp/t")
 
-        wait(lambda: large_chunk_id not in get("//tmp/t/@chunk_ids"))
+        wait(lambda: large_chunk_id not in get_chunk_ids())
 
         lookup_result = lookup_rows("//tmp/t", [{"key": 1}], versioned=True, verbose=False, column_names=[])
         if lookup_result:
@@ -737,7 +744,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         check(0, 1, 0.99)
         check(0, 0, 0.99)
 
-    @authors("tem-shett")
+    @authors("dave11ar")
     def test_timestamp_digest_min_data_versions_1(self):
         sync_create_cells(1)
         update_nodes_dynamic_config({
@@ -1029,9 +1036,6 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         all_chunk_ids = builtins.set()
 
         def _create_table():
-            nonlocal table_paths
-            nonlocal all_chunk_ids
-
             table = f"//tmp/t{generate_uuid()}"
             table_paths.add(table)
 

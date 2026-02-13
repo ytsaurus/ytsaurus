@@ -33,7 +33,13 @@ public:
         Y_ABORT("Shouldn't be called");
     }
 
+    void Consume(NDqProto::TWatermark&&) final {
+        Y_ABORT("Shouldn't be called");
+    }
+
     void Finish() final {}
+
+    void Flush() final {}
 
 private:
     NUdf::IApplyContext* ApplyCtx;

@@ -133,7 +133,7 @@ public:
 
     //! If |snapshotState| is null, all liveness checks will be disabled.
     //! This is used for dynamic attributes computation at post update.
-    explicit TDynamicAttributesManager(TPoolTreeSnapshotStatePtr snapshotState = {}, int size = 0);
+    explicit TDynamicAttributesManager(TPoolTreeSnapshotStateImplPtr snapshotState = {}, int size = 0);
 
     void SetAttributesList(TDynamicAttributesList attributesList);
 
@@ -159,7 +159,7 @@ public:
     int GetCompositeElementDeactivationCount() const;
 
 private:
-    const TPoolTreeSnapshotStatePtr SnapshotState_;
+    const TPoolTreeSnapshotStateImplPtr SnapshotState_;
     TDynamicAttributesList AttributesList_;
 
     int CompositeElementDeactivationCount_ = 0;
@@ -260,7 +260,7 @@ struct TAllocationWithPreemptionInfo
     EAllocationPreemptionStatus PreemptionStatus = EAllocationPreemptionStatus::NonPreemptible;
     TPoolTreeOperationElement* OperationElement;
 
-    bool operator ==(const TAllocationWithPreemptionInfo& other) const = default;
+    bool operator==(const TAllocationWithPreemptionInfo& other) const = default;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TAllocationWithPreemptionInfo& allocationInfo, TStringBuf /*spec*/);
@@ -273,7 +273,7 @@ using TAllocationWithPreemptionInfoSetMap = THashMap<int, TAllocationWithPreempt
 template <>
 struct THash<NYT::NScheduler::NStrategy::NPolicy::TAllocationWithPreemptionInfo>
 {
-    inline size_t operator ()(const NYT::NScheduler::NStrategy::NPolicy::TAllocationWithPreemptionInfo& allocationInfo) const
+    inline size_t operator()(const NYT::NScheduler::NStrategy::NPolicy::TAllocationWithPreemptionInfo& allocationInfo) const
     {
         return THash<NYT::NScheduler::TAllocationPtr>()(allocationInfo.Allocation);
     }
@@ -540,7 +540,8 @@ using TPreemptiveStageWithParametersList = TCompactVector<TPreemptiveStageWithPa
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TPostUpdateContext
+struct TPostUpdateContextImpl
+    : public TPostUpdateContext
 {
     TPoolTreeRootElement* RootElement;
 
@@ -551,7 +552,13 @@ struct TPostUpdateContext
     TSharedOperationStateMap OperationIdToSharedState;
     std::vector<TSchedulingTagFilter> KnownSchedulingTagFilters;
     TOperationCountsByPreemptionPriorityParameters OperationCountsByPreemptionPriorityParameters;
+
+    TPostUpdateContextImpl();
 };
+
+DEFINE_REFCOUNTED_TYPE(TPostUpdateContextImpl)
+
+TPostUpdateContextImpl* GetPostUpdateContext(const TPostUpdateContextPtr& postUpdateContext);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -650,11 +657,11 @@ public:
         NProfiling::ISensorWriter* writer) const override;
 
     //! Post update.
-    TPostUpdateContext CreatePostUpdateContext(TPoolTreeRootElement* rootElement) override;
+    TPostUpdateContextPtr CreatePostUpdateContext(TPoolTreeRootElement* rootElement) override;
     void PostUpdate(
         TFairSharePostUpdateContext* fairSharePostUpdateContext,
-        TPostUpdateContext* postUpdateContext) override;
-    TPoolTreeSnapshotStatePtr CreateSnapshotState(TPostUpdateContext* postUpdateContext) override;
+        TPostUpdateContextPtr* postUpdateContext) override;
+    TPoolTreeSnapshotStatePtr CreateSnapshotState(TPostUpdateContextPtr* postUpdateContext) override;
 
     void OnResourceUsageSnapshotUpdate(const TPoolTreeSnapshotPtr& treeSnapshot, const TResourceUsageSnapshotPtr& resourceUsageSnapshot) const override;
 
@@ -771,49 +778,49 @@ private:
 
     void InitializeStaticAttributes(
         TFairSharePostUpdateContext* fairSharePostUpdateContext,
-        TPostUpdateContext* postUpdateContext) const;
+        TPostUpdateContextImpl* postUpdateContext) const;
     void CollectSchedulableOperationsPerPriority(
         TFairSharePostUpdateContext* fairSharePostUpdateContext,
-        TPostUpdateContext* postUpdateContext) const;
+        TPostUpdateContextImpl* postUpdateContext) const;
 
     void PublishFairShare(
         TPoolTreeElement* element,
-        TPostUpdateContext* postUpdateContext) const;
+        TPostUpdateContextImpl* postUpdateContext) const;
     void PublishFairShareAtCompositeElement(
         TPoolTreeCompositeElement* element,
-        TPostUpdateContext* postUpdateContext) const;
+        TPostUpdateContextImpl* postUpdateContext) const;
     void PublishFairShareAtOperation(
         TPoolTreeOperationElement* element,
-        TPostUpdateContext* postUpdateContext) const;
+        TPostUpdateContextImpl* postUpdateContext) const;
 
     void UpdateEffectiveRecursiveAttributes(
         const TPoolTreeElement* element,
-        TPostUpdateContext* postUpdateContext);
+        TPostUpdateContextImpl* postUpdateContext);
     void UpdateEffectiveRecursiveAttributesAtCompositeElement(
         const TPoolTreeCompositeElement* element,
-        TPostUpdateContext* postUpdateContext);
+        TPostUpdateContextImpl* postUpdateContext);
     void UpdateEffectiveRecursiveAttributesAtOperation(
         const TPoolTreeOperationElement* element,
-        TPostUpdateContext* postUpdateContext);
+        TPostUpdateContextImpl* postUpdateContext);
 
     void ProcessUpdatedStarvationStatuses(
         TFairSharePostUpdateContext* fairSharePostUpdateContext,
-        TPostUpdateContext* postUpdateContext);
+        TPostUpdateContextImpl* postUpdateContext);
     void UpdateCachedAllocationPreemptionStatuses(
         TFairSharePostUpdateContext* fairSharePostUpdateContext,
-        TPostUpdateContext* postUpdateContext);
+        TPostUpdateContextImpl* postUpdateContext);
     void ComputeOperationSchedulingIndexes(
         TFairSharePostUpdateContext* fairSharePostUpdateContext,
-        TPostUpdateContext* context);
+        TPostUpdateContextImpl* context);
     void CollectKnownSchedulingTagFilters(
         TFairSharePostUpdateContext* fairSharePostUpdateContext,
-        TPostUpdateContext* postUpdateContext) const;
+        TPostUpdateContextImpl* postUpdateContext) const;
     void UpdateSsdNodeSchedulingAttributes(
         TFairSharePostUpdateContext* fairSharePostUpdateContext,
-        TPostUpdateContext* postUpdateContext) const;
+        TPostUpdateContextImpl* postUpdateContext) const;
     void CountOperationsByPreemptionPriority(
         TFairSharePostUpdateContext* fairSharePostUpdateContext,
-        TPostUpdateContext* postUpdateContext) const;
+        TPostUpdateContextImpl* postUpdateContext) const;
 
     void InitializeDynamicAttributesAtUpdateRecursively(
         TPoolTreeElement* element,

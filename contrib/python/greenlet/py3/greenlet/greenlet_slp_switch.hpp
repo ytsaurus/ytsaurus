@@ -36,7 +36,11 @@
 // running this code, the thread isn't exiting. This also nets us a
 // 10-12% speed improvement.
 
+#if Py_GIL_DISABLED
+thread_local greenlet::Greenlet* switching_thread_state = nullptr;
+#else
 static greenlet::Greenlet* volatile switching_thread_state = nullptr;
+#endif
 
 
 extern "C" {

@@ -216,6 +216,17 @@ TEST(TMergeAttributesTest, DeepPathWithNull)
     EXPECT_EQ(mergedYsonString.AsStringBuf(), expectedYsonString.AsStringBuf());
 }
 
+TEST(TMergeAttributesTest, MapInsideList)
+{
+    NYson::TYsonString root{R"({"a"=[{"v"={}};{}]})"sv};
+    NYson::TYsonString vBar{R"(#)"sv};
+    auto mergedYsonString = NewMergeAttributes({
+        {.Path = "", .Value = root},
+        {.Path = "/v/bar", .Value = vBar},
+    });
+    EXPECT_EQ(TStringBuf{R"({"a"=[{"v"={};};{};];"v"={"bar"=#;};})"sv}, mergedYsonString.AsStringBuf());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TValidateSortedPathsTest, SimpleOk)

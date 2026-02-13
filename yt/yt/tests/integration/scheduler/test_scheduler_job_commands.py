@@ -5,7 +5,7 @@ from yt_commands import (
     create, get, create_user,
     create_group, add_member, read_table, write_table, map, merge,
     run_test_vanilla, abort_job, abandon_job, update_op_parameters,
-    poll_job_shell, raises_yt_error)
+    poll_job_shell, run_job_shell_command, raises_yt_error)
 
 from yt_helpers import get_job_count_profiling
 
@@ -251,6 +251,30 @@ class TestJobProber(YTEnvSetup):
         op.track()
         assert len(read_table("//tmp/t2")) == 0
 
+    @authors("bystrovserg")
+    def test_run_job_shell_command(self):
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
+        job_id = wait_breakpoint()[0]
+
+        output1 = run_job_shell_command(
+            job_id,
+            command="echo " + "A" * 10000,
+        )
+
+        expected1 = b"A" * 10000 + b"\r\n"
+        assert output1 == expected1
+
+        output2 = run_job_shell_command(
+            job_id,
+            command="for((i=0;i<5;i++)); do echo A; sleep 1; done",
+        )
+
+        expected2: bytes = b"A\r\n" * 5
+        assert output2 == expected2
+
+        release_breakpoint()
+        op.track()
+
     @authors("gritukan")
     def test_poll_job_shell_command_large_output(self):
         create("table", "//tmp/t1")
@@ -474,6 +498,23 @@ class TestJobProber(YTEnvSetup):
                 value = end_profiling["abort_reason"][abort_reason] - start_profiling["abort_reason"][abort_reason]
                 assert value == (1 if abort_reason == "user_request" else 0)
 
+    @authors("krasovav")
+    def test_job_shell_try_change_yt_runtime(self):
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
+        job_id = wait_breakpoint()[0]
+        wait(lambda: op.get_job_phase(job_id) == "running")
+
+        r = poll_job_shell(
+            job_id,
+            operation="spawn",
+            command="cd /yt_runtime; ls ytserver-tools; (echo 123456 > ytserver-tools) > /dev/null 2>&1 || rm ytserver-tools > /dev/null 2>&1 || echo SUCCESS",
+        )
+
+        shell_id = r["shell_id"]
+        output = self._poll_until_shell_exited(job_id, shell_id)
+        expected = "ytserver-tools\r\nSUCCESS\r\n"
+        assert output == expected
+
 
 class TestJobProberCri(TestJobProber):
     ENABLE_MULTIDAEMON = False  # Use profiling counters.
@@ -501,8 +542,9 @@ class TestJobShellInSubcontainer(TestJobProber):
     # under the same user.
     USE_SLOT_USER_ID = False
 
-    @authors("gritukan")
-    def test_job_shell_in_subcontainer(self):
+    @authors("gritukan", "bystrovserg")
+    @pytest.mark.parametrize("use_run_job_shell_command", [True, False])
+    def test_job_shell_in_subcontainer(self, use_run_job_shell_command):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"key": "foo"})
@@ -518,6 +560,24 @@ class TestJobShellInSubcontainer(TestJobProber):
         add_member("nirvana_dev", "nirvana_devs")
         add_member("taxi_dev", "taxi_devs")
         add_member("yt_dev", "superusers")
+
+        def poll_shell(shell_name, command, job_id, authenticated_user):
+            if use_run_job_shell_command:
+                return run_job_shell_command(
+                    job_id=job_id,
+                    command=command,
+                    shell_name=shell_name,
+                    authenticated_user=authenticated_user,
+                ).decode("utf-8")
+            else:
+                r = poll_job_shell(
+                    job_id,
+                    shell_name=shell_name,
+                    operation="spawn",
+                    command=command,
+                    authenticated_user=authenticated_user,
+                )
+                return self._poll_until_shell_exited(job_id, r["shell_id"])
 
         op = run_test_vanilla(
             with_breakpoint("portoctl create N && BREAKPOINT"),
@@ -556,14 +616,7 @@ class TestJobShellInSubcontainer(TestJobProber):
 
         # Check that job shell starts in a proper container.
         def get_subcontainer_name(shell_name):
-            r = poll_job_shell(
-                job_id,
-                shell_name=shell_name,
-                operation="spawn",
-                command="echo $PORTO_NAME",
-            )
-            output = self._poll_until_shell_exited(job_id, r["shell_id"])
-
+            output = poll_shell(shell_name, "echo $PORTO_NAME", job_id, "root")
             # /path/to/uj/N/js-1234
             uj = output.find("uj/")
             js = output.find("/js")
@@ -574,31 +627,18 @@ class TestJobShellInSubcontainer(TestJobProber):
         assert get_subcontainer_name("nirvana") == "N"
 
         with raises_yt_error(yt_error_codes.ContainerDoesNotExist):
-            poll_job_shell(job_id, shell_name="non_existent", operation="spawn", command="echo hi")
+            poll_shell("non_existent", "echo $PORTO_NAME", job_id, authenticated_user="root")
         with raises_yt_error(yt_error_codes.NoSuchJobShell):
-            poll_job_shell(job_id, shell_name="brrr", operation="spawn", command="echo hi")
+            poll_shell("brrr", "echo hi", job_id, authenticated_user="root")
 
         # Check job shell permissions.
         def check_job_shell_permission(shell_name, user, allowed):
             if allowed:
-                r = poll_job_shell(
-                    job_id,
-                    shell_name=shell_name,
-                    authenticated_user=user,
-                    operation="spawn",
-                    command="echo hi",
-                )
-                output = self._poll_until_shell_exited(job_id, r["shell_id"])
+                output = poll_shell(shell_name, "echo hi", job_id, user)
                 assert output == "hi\r\n"
             else:
                 with raises_yt_error(yt_error_codes.AuthorizationErrorCode):
-                    poll_job_shell(
-                        job_id,
-                        shell_name=shell_name,
-                        authenticated_user=user,
-                        operation="spawn",
-                        command="echo hi",
-                    )
+                    poll_shell(shell_name, "echo hi", job_id, user)
 
         check_job_shell_permission("default", "nirvana_boss", allowed=True)
         check_job_shell_permission("default", "nirvana_dev", allowed=True)

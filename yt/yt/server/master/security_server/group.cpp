@@ -21,7 +21,7 @@ std::string TGroup::GetCapitalizedObjectName() const
 
 TYPath TGroup::GetObjectPath() const
 {
-    return Format("//sys/groups/%v", Name_);
+    return Format("//sys/groups/%v", NYPath::ToYPathLiteral(GetName()));
 }
 
 void TGroup::Save(NCellMaster::TSaveContext& context) const

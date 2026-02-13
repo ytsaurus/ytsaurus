@@ -229,11 +229,11 @@ public:
             .setErrorStr(&what)
             .setTargetOptions(targetOptions);
 
-        if (OptimizationLevel_ == EOptimizationLevel::None) {
-            builder.setOptLevel(llvm::CodeGenOptLevel::None);
-        } else {
-            builder.setOptLevel(llvm::CodeGenOptLevel::Default);
-        }
+        YT_LOG_DEBUG("Compiling with codegen optimization (Level: %v)", OptimizationLevel_);
+
+        builder.setOptLevel(OptimizationLevel_ == EOptimizationLevel::None
+            ? llvm::CodeGenOptLevel::None
+            : llvm::CodeGenOptLevel::Default);
 
         if (ExecutionBackend_ == EExecutionBackend::Native) {
             builder

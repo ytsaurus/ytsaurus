@@ -83,6 +83,10 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static constexpr i64 CriticalUnleashedStoreCount = 10;
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct THunkScratchBufferTag
 { };
 
@@ -523,11 +527,51 @@ bool TSortedStoreManager::CheckInactiveStoresLocks(
     TWriteContext* context)
 {
     auto* transaction = context->Transaction;
+    const auto& mountConfig = Tablet_->GetSettings().MountConfig;
 
     for (const auto& store : LockedStores_) {
         if (!store->AsSortedDynamic()->CheckRowLocks(row, lockMask, context)) {
+            YT_LOG_DEBUG("Transaction failed conflict check with locked store "
+                "(TransactionId: %v, TransactionStartTimestamp: %v, StoreId: %v, IsErrorOK: %v)",
+                transaction->GetId(),
+                transaction->GetStartTimestamp(),
+                store->GetId(),
+                context->Error.IsOK());
+
             return false;
         }
+    }
+
+    if (mountConfig->CheckConflictHorizon &&
+        transaction->GetStartTimestamp() < Tablet_->GetTransientConflictHorizonTimestamp())
+    {
+        YT_LOG_DEBUG("Transaction failed conflict check with transient conflict horizon timestamp "
+            "(TransactionId: %v, TransactionStartTimestamp: %v, "
+            "TransientConflictHorizonTimestamp: %v, PersistentConflictHorizonTimestamp: %v, IsErrorOK: %v)",
+            transaction->GetId(),
+            transaction->GetStartTimestamp(),
+            Tablet_->GetTransientConflictHorizonTimestamp(),
+            Tablet_->GetPersistentConflictHorizonTimestamp(),
+            false);
+
+        // NB: Reused error code. However, the actions expected from the user are the same.
+        context->Error = TError(
+            NTabletClient::EErrorCode::CannotCheckConflictsAgainstChunkStore,
+            "Checking for transaction conflicts against versions behind conflict horizon is not supported; "
+            "consider reducing transaction duration or increasing store retention time")
+            << TErrorAttribute("transaction_id", transaction->GetId())
+            << TErrorAttribute("transaction_start_time", transaction->GetStartTime())
+            << TErrorAttribute("tablet_id", Tablet_->GetId())
+            << TErrorAttribute("table_path", Tablet_->GetTablePath())
+            << TErrorAttribute("row", row)
+            << TErrorAttribute(
+                "transient_conflict_horizon_timestamp",
+                Tablet_->GetTransientConflictHorizonTimestamp())
+            << TErrorAttribute(
+                "persistent_conflict_horizon_timestamp",
+                Tablet_->GetPersistentConflictHorizonTimestamp());
+
+        return false;
     }
 
     for (auto it = MaxTimestampToStore_.rbegin();
@@ -543,6 +587,45 @@ bool TSortedStoreManager::CheckInactiveStoresLocks(
         }
 
         if (!store->CheckRowLocks(row, lockMask, context)) {
+            YT_LOG_DEBUG("Transaction failed conflict check with backing, passive or chunk store "
+                "(TransactionId: %v, TransactionStartTimestamp: %v, StoreId: %v, IsErrorOK: %v)",
+                transaction->GetId(),
+                transaction->GetStartTimestamp(),
+                store->GetId(),
+                context->Error.IsOK());
+
+            return false;
+        }
+    }
+
+    // COMPAT(ponasenko-rs)
+    if (!mountConfig->CheckConflictHorizon) {
+        // There is no reason to check UnleashedBackingStores_ without checking conflict horizon.
+        return true;
+    }
+
+    // Number of unleashed backing stores is expected to be small. So checking every such store is ok.
+    for (const auto& [_, store] : UnleashedBackingStores_) {
+        YT_ASSERT(store->GetType() == EStoreType::SortedDynamic);
+
+        // Avoid checking locked stores twice.
+        if (store->AsSortedDynamic()->GetLockCount() > 0) {
+            continue;
+        }
+
+        if (store->GetMaxTimestamp() <= transaction->GetStartTimestamp()) {
+            // NB: There is no transaction in that store whose interval could intersect with current transaction.
+            continue;
+        }
+
+        if (!store->CheckRowLocks(row, lockMask, context)) {
+            YT_LOG_DEBUG("Transaction failed conflict check with unleashed backing store "
+                "(TransactionId: %v, TransactionStartTimestamp: %v, StoreId: %v, IsErrorOK: %v)",
+                transaction->GetId(),
+                transaction->GetStartTimestamp(),
+                store->GetId(),
+                context->Error.IsOK());
+
             return false;
         }
     }
@@ -678,6 +761,20 @@ void TSortedStoreManager::Mount(
         storeDescriptors,
         hunkChunkDescriptors,
         std::move(options));
+
+    // COMPAT(ponasenko-rs)
+    if (auto* context = TryGetCurrentMutationContext();
+        context && static_cast<ETabletReign>(context->Request().Reign) >=
+            ETabletReign::AddConflictHorizon)
+    {
+        // ConflictHorizonTimestamp updated on master only on unmount and freeze.
+        // So the timestamp from TReqMountTablet may be incomplete e.g. in case dynamic table was converted from static.
+        for (const auto& [_, store] : MaxTimestampToStore_) {
+            Tablet_->AdvancePersistentConflictHorizonTimestamp(store->GetMaxTimestamp());
+        }
+
+        Tablet_->ResetTransientConflictHorizonTimestamp();
+    }
 }
 
 void TSortedStoreManager::Remount(const NTabletNode::TTableSettings& settings)
@@ -1065,6 +1162,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             /*mergeRowsOnFlush*/ false,
             /*useTtlColumn*/ false,
             /*mergeDeletionsOnFlush*/ false,
+            mountConfig->NestedRowDiscardPolicy,
             memoryUsageTracker);
 
         // Retained timestamp according to compactionRowMerger.
@@ -1493,6 +1591,8 @@ void TSortedStoreManager::StartEpoch(ITabletSlotPtr slot)
     }
 
     SchedulePartitionsSampling(0, Tablet_->PartitionList().size());
+
+    Tablet_->ResetTransientConflictHorizonTimestamp();
 }
 
 void TSortedStoreManager::StopEpoch()
@@ -1502,6 +1602,8 @@ void TSortedStoreManager::StopEpoch()
             store->AsSortedDynamic()->ResetRowBlockedHandler();
         }
     }
+
+    UnleashedBackingStores_.clear();
 
     TStoreManagerBase::StopEpoch();
 }
@@ -1515,11 +1617,26 @@ TSortedDynamicStore::TRowBlockedHandler TSortedStoreManager::CreateRowBlockedHan
         return TSortedDynamicStore::TRowBlockedHandler();
     }
 
-    return BIND_NO_PROPAGATE(
-        &TSortedStoreManager::OnRowBlocked,
-        MakeWeak(this),
-        Unretained(store.Get()),
-        std::move(epochInvoker));
+    return BIND_NO_PROPAGATE([
+        weakThis = MakeWeak(this),
+        rawStore = store.Get(),
+        invoker = std::move(epochInvoker)
+    ] (
+        TSortedDynamicRow row,
+        TSortedDynamicStore::TConflictInfo conflictInfo,
+        TDuration timeout)
+    {
+        if (auto this_ = weakThis.Lock()) {
+            return this_->OnRowBlocked(
+                rawStore,
+                invoker,
+                row,
+                conflictInfo,
+                timeout);
+        }
+
+        return TSortedDynamicStore::TRowBlockedWaitingResult();
+    });
 }
 
 void TSortedStoreManager::DrainSerializationHeap(
@@ -1641,14 +1758,14 @@ void TSortedStoreManager::CommitPerRowsSerializedLockGroup(
     transaction->DecrementPartsLeftToPerRowSerialize();
 }
 
-void TSortedStoreManager::OnRowBlocked(
+TSortedDynamicStore::TRowBlockedWaitingResult TSortedStoreManager::OnRowBlocked(
     IStore* store,
     IInvokerPtr invoker,
     TSortedDynamicRow row,
     TSortedDynamicStore::TConflictInfo conflictInfo,
     TDuration timeout)
 {
-    Y_UNUSED(WaitFor(
+    return WaitFor(
         BIND(
             &TSortedStoreManager::WaitOnBlockedRow,
             MakeStrong(this),
@@ -1656,11 +1773,12 @@ void TSortedStoreManager::OnRowBlocked(
             row,
             conflictInfo,
             timeout)
-        .AsyncVia(invoker)
-        .Run()));
+        .AsyncVia(std::move(invoker))
+        .Run())
+    .ValueOrThrow();
 }
 
-void TSortedStoreManager::WaitOnBlockedRow(
+TSortedDynamicStore::TRowBlockedWaitingResult TSortedStoreManager::WaitOnBlockedRow(
     IStorePtr /*store*/,
     TSortedDynamicRow row,
     TSortedDynamicStore::TConflictInfo conflictInfo,
@@ -1669,22 +1787,31 @@ void TSortedStoreManager::WaitOnBlockedRow(
     const auto& lock = row.BeginLocks(Tablet_->GetPhysicalSchema()->GetKeyColumnCount())[conflictInfo.LockIndex];
     const auto* transaction = lock.PreparedTransaction;
 
+    TSortedDynamicStore::TRowBlockedWaitingResult result;
+
     if (!transaction) {
-        return;
+        return result;
     }
 
     if (lock.PrepareTimestamp.load() >= conflictInfo.ReadTimestamp) {
-        return;
+        return result;
     }
 
+    auto transactionId = transaction->GetId();
     YT_LOG_DEBUG("Waiting on blocked row (Key: %v, LockIndex: %v, TransactionId: %v, ReadTimestamp: %v, Timeout: %v)",
         RowToKey(*Tablet_->GetPhysicalSchema(), row),
         conflictInfo.LockIndex,
-        transaction->GetId(),
+        transactionId,
         conflictInfo.ReadTimestamp,
         timeout);
 
-    Y_UNUSED(WaitFor(transaction->GetFinished().WithTimeout(timeout)));
+    auto waitResult = WaitFor(transaction->GetFinished().WithTimeout(timeout));
+    if (!waitResult.IsOK() && waitResult.GetCode() != NYT::EErrorCode::Timeout) {
+        THROW_ERROR(std::move(waitResult));
+    }
+
+    result.TransactionId = transactionId;
+    return result;
 }
 
 bool TSortedStoreManager::IsOverflowRotationNeeded() const
@@ -1714,6 +1841,47 @@ TError TSortedStoreManager::CheckOverflow() const
     }
 
     return TStoreManagerBase::CheckOverflow();
+}
+
+void TSortedStoreManager::AddUnleashedBackingStore(TSortedDynamicStorePtr unleashedBackingStore)
+{
+    InsertOrCrash(
+        UnleashedBackingStores_,
+        std::pair{unleashedBackingStore->GetId(), unleashedBackingStore});
+
+    YT_LOG_DEBUG("Added unleashed backing store (StoreId: %v, UnleashedBackingStoreCount: %v)",
+        unleashedBackingStore->GetId(),
+        UnleashedBackingStores_.size());
+
+    YT_LOG_ALERT_IF(UnleashedBackingStores_.size() >= CriticalUnleashedStoreCount,
+        "Too many unleashed backing stores (UnleashedBackingStoreCount: %v, CriticalUnleashedStoreCount: %v)",
+        UnleashedBackingStores_.size(),
+        CriticalUnleashedStoreCount);
+}
+
+void TSortedStoreManager::ReleaseUnleashedBackingStore(TDynamicStoreId unleashedBackingStoreId)
+{
+    auto it = UnleashedBackingStores_.find(unleashedBackingStoreId);
+
+    if (it == UnleashedBackingStores_.end()) {
+        // This branch should be quite rare.
+        // It is known to be used if while ReleaseUnleashedBackingStoreWeak callback was waiting to execute
+        // tablet was unmounted and mounted back to the same cell.
+
+        YT_LOG_DEBUG("Could not find unleashed backing store by its id (StoreId: %v, UnleashedBackingStoreCount: %v)",
+            unleashedBackingStoreId,
+            UnleashedBackingStores_.size());
+
+        return;
+    }
+
+    Tablet_->AdvanceTransientConflictHorizonTimestamp(it->second->GetMaxTimestamp());
+
+    UnleashedBackingStores_.erase(it);
+
+    YT_LOG_DEBUG("Removed unleashed backing store (StoreId: %v, UnleashedBackingStoreCount: %v)",
+        unleashedBackingStoreId,
+        UnleashedBackingStores_.size());
 }
 
 TSortedStoreManager::TSerializationStateByLockMap* TSortedStoreManager::FindKeySerializationState(TSortedDynamicRow row)

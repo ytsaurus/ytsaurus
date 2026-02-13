@@ -61,6 +61,7 @@ add_subdirectory(shell)
 add_subdirectory(shuffle_server)
 add_subdirectory(alert_manager)
 add_subdirectory(component_state_checker)
+add_subdirectory(cross_cluster_replicated_state)
 
 add_library(ytserver INTERFACE)
 
@@ -71,6 +72,7 @@ target_compile_options(ytserver INTERFACE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(ytserver INTERFACE

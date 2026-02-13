@@ -33,12 +33,6 @@ class TestSequoiaCompatibility(YTEnvSetup):
         "12": {"roles": ["sequoia_node_host"]},
     }
 
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "sequoia_manager": {
-            "enable_ground_update_queues": True
-        },
-    }
-
     DELTA_CYPRESS_PROXY_CONFIG = {
         "logging": {
             "abort_on_alert": False,  # Incompatible schemas of Sequoia table.

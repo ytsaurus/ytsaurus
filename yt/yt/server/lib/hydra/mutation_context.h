@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "private.h"
 #include "hydra_context.h"
 
 #include <yt/yt/client/hydra/version.h>
@@ -55,7 +56,9 @@ public:
         const TMutationRequest* request);
 
     TMutationContext(
-        TVersion version,
+        TLogicalVersion logicalVersion,
+        TPhysicalVersion physicalVersion,
+        TPhysicalVersion compatOnlyPhysicalVersion,
         const TMutationRequest* request,
         TInstant timestamp,
         ui64 randomSeed,
@@ -66,6 +69,16 @@ public:
         TSharedRef localHostNameOverride);
 
     explicit TMutationContext(TTestingTag);
+
+    // NB: Nested mutation contexts rely on the parent to be alive when they
+    // themselves are destroyed. Since this class is not refcounted, if a
+    // parent class is created on the stack, the lack of copy / move
+    // constructors ensures that it will outlive the nested contexts.
+    TMutationContext(const TMutationContext& other) = delete;
+    TMutationContext(TMutationContext&& other) = delete;
+
+    TMutationContext& operator=(const TMutationContext& other) = delete;
+    TMutationContext& operator=(TMutationContext&& other) = delete;
 
     const TMutationRequest& Request() const;
     ui64 GetPrevRandomSeed() const;
@@ -98,6 +111,11 @@ private:
     ui64 StateHash_;
     int Term_;
     bool ResponseKeeperSuppressed_ = false;
+
+    int CumulativeVersionDelta_ = 0;
+
+    TLogicalVersion GetLastUsedVersion() const;
+    friend TDecoratedAutomaton;
 };
 
 TMutationContext* TryGetCurrentMutationContext();

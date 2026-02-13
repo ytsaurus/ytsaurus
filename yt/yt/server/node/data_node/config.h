@@ -476,6 +476,11 @@ struct TMasterConnectorDynamicConfig
 
     bool CheckChunksCellTagsBeforeHeartbeats;
 
+    // COMPAT(cherepashka)
+    bool ForceSyncMasterCellDirectoryBeforeCheckChunks;
+
+    bool CheckChunksCellTagsAfterReceivingNewMasterCellConfigs;
+
     REGISTER_YSON_STRUCT(TMasterConnectorDynamicConfig);
 
     static void Register(TRegistrar registrar);
@@ -536,6 +541,8 @@ struct TDataNodeTestingOptions
 
     // Stop trash scanning at initialization
     std::optional<bool> EnableTrashScanningBarrier;
+
+    std::optional<TDuration> DelayBeforePerformPutBlocks;
 
     //! TChunkLocation::CheckWriteThrottling/TChunkLocation::CheckReadThrottling always return throttled.
     bool AlwaysThrottleLocation;
@@ -1102,6 +1109,7 @@ struct TDataNodeDynamicConfig
     bool UseDisableSendBlocks;
     bool UseProbePutBlocks;
     bool PreallocateDiskSpace;
+    bool UseDirectIO;
 
     bool WaitPrecedingBlocksReceived;
 

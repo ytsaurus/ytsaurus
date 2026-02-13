@@ -243,7 +243,7 @@ TReplicationCardCache::TReplicationCardCache(
     TReplicationCardCacheConfigPtr config,
     NNative::IConnectionPtr connection,
     const NLogging::TLogger& logger)
-    : TAsyncExpiringCache(config, NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker())
+    : TAsyncExpiringCache(config, NRpc::TDispatcher::Get()->GetHeavyInvoker())
     , Config_(std::move(config))
     , Connection_(connection)
     , ChaosCacheChannel_(CreateChaosCacheChannel(std::move(connection), Config_))

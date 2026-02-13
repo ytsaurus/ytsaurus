@@ -1,5 +1,5 @@
 from yt_env_setup import (
-    YTEnvSetup, with_additional_threads)
+    YTEnvSetup, with_additional_threads, Restarter, MASTERS_SERVICE)
 
 from yt_commands import (
     authors, create, ls, get, remove, build_master_snapshots, raises_yt_error,
@@ -20,6 +20,8 @@ from yt_sequoia_helpers import (
 from yt.sequoia_tools import DESCRIPTORS
 
 from yt_helpers import profiler_factory
+
+from yt_driver_bindings import Driver
 
 import yt.yson as yson
 
@@ -86,19 +88,14 @@ class TestSequoiaInternals(YTEnvSetup):
         "13": {"roles": ["chunk_host"]},
     }
 
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "sequoia_manager": {
-            "enable_ground_update_queues": True
-        },
-    }
-
     DELTA_CYPRESS_PROXY_CONFIG = {
         "user_directory_synchronizer": {
             "sync_period": 100,
             "sync_period_splay": 100,
         },
-        "dynamic_config_manager": {
-            "update_period": 100,
+        "testing": {
+            "enable_ground_update_queues_sync": False,
+            "enable_user_directory_per_request_sync": False,
         },
     }
 
@@ -199,7 +196,7 @@ class TestSequoiaInternals(YTEnvSetup):
         set(f"{root}/level_1_map_0/level_2_map/level_3_string", "level_3_value")
 
         # First off, check that root node cannot appear opaque.
-        expected_result = {"level_1_map_0": yson.YsonEntity(), "level_1_map_1": {}, "level_1_string": "level_1_value"}
+        expected_result = {"level_1_map_0": yson.YsonEntity(), "level_1_map_1": yson.YsonEntity(), "level_1_string": "level_1_value"}
         set("//sys/cypress_proxies/@config/default_get_response_size_limit", 1)
         sleep(0.5)
         assert get(root) == expected_result
@@ -243,7 +240,7 @@ class TestSequoiaInternals(YTEnvSetup):
         create("map_node", f"{root}/child_1/grandchild_1")
         set(f"{root}/child_1/grandchild_1/@opaque", True)
 
-        expected_string = '<"opaque"=%false;>{"child_1"=<"opaque"=%true;>#;"child_2"=<"opaque"=%false;>{};}'
+        expected_string = '<"opaque"=%false;>{"child_1"=<"opaque"=%true;>#;"child_2"=<"opaque"=%true;>#;}'
         assert get(root, attributes=["opaque"]) == yson.loads(expected_string.encode())
 
         root_id = get(f"{root}/@id")
@@ -252,7 +249,7 @@ class TestSequoiaInternals(YTEnvSetup):
 
         expected_string = \
             f'<"id"="{root_id}";"opaque"=%false;>' \
-            f'{{"child_1"=<"id"="{child_1_id}";"opaque"=%true;>#;"child_2"=<"id"="{child_2_id}";"opaque"=%false;>{{}};}}'
+            f'{{"child_1"=<"id"="{child_1_id}";"opaque"=%true;>#;"child_2"=<"id"="{child_2_id}";"opaque"=%true;>#;}}'
         assert get(root, attributes=["opaque", "id"]) == yson.loads(expected_string.encode())
 
         set("//sys/cypress_proxies/@config/default_get_response_size_limit", 100)
@@ -595,7 +592,7 @@ class TestSequoiaInternals(YTEnvSetup):
         username = "JohnathanPicklehands"
         create_user(username)
         create("table", "//tmp/t")
-        set(f"//sys/users/{username}/@request_limits/read_request_rate/default", 100)
+        set(f"//sys/users/{username}/@request_limits/read_request_rate/clusterwide", 100)
 
         set("//sys/cypress_proxies/@config", {
             "object_service": {
@@ -610,11 +607,15 @@ class TestSequoiaInternals(YTEnvSetup):
             }
         })
 
-        NUM_REQUESTS = 10
+        BASE_REQUEST_COUNT = 10
+        REQUEST_COUNT_FACTOR = 1 + self.NUM_SECONDARY_MASTER_CELLS
+        REQUEST_COUNT = BASE_REQUEST_COUNT * REQUEST_COUNT_FACTOR
+        set("//sys/cypress_proxies/@config/object_service/request_rate_limit_factor", REQUEST_COUNT_FACTOR)
+        sleep(1)
 
         def measure_read_time():
             start_time = datetime.now()
-            for _ in range(NUM_REQUESTS):
+            for _ in range(REQUEST_COUNT):
                 get("//tmp/t/@id", authenticated_user=username)
             return (datetime.now() - start_time).total_seconds()
 
@@ -622,7 +623,7 @@ class TestSequoiaInternals(YTEnvSetup):
         measure_read_time()
         sleep(1)
 
-        set(f"//sys/users/{username}/@request_limits/read_request_rate/default", 1)
+        set(f"//sys/users/{username}/@request_limits/read_request_rate/clusterwide", 1)
         sleep(1)
 
         cypress_proxy_address = ls("//sys/cypress_proxies")[0]
@@ -636,11 +637,16 @@ class TestSequoiaInternals(YTEnvSetup):
         checker = self.spawn_additional_thread(name="wait for profiling counter to change",
                                                target=wait_for_counter_to_change)
 
-        assert measure_read_time() > NUM_REQUESTS * 0.7
+        # Last request empties the throttler, but we don't wait for it to be replenished.
+        expected_time = BASE_REQUEST_COUNT - 1
+
+        # Since requests are very quick and throttlers take time to synchronize,
+        # add the multiplier to the expected time.
+        assert measure_read_time() > expected_time * 0.9
 
         checker.join()
 
-        set(f"//sys/users/{username}/@request_limits/read_request_rate/default", 100)
+        set(f"//sys/users/{username}/@request_limits/read_request_rate/clusterwide", 100)
         sleep(1)
 
         assert measure_read_time() < 2
@@ -2940,3 +2946,76 @@ class TestSequoiaTmpCleanup(YTEnvSetup):
 
     def test2(self):
         self._do_test()
+
+
+##################################################################
+
+
+class TestSequoiaClusterDirectoryInitialization(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False
+    USE_SEQUOIA = True
+    NUM_SECONDARY_MASTER_CELLS = 1
+    ENABLE_TMP_ROOTSTOCK = True
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["sequoia_node_host"]},
+    }
+
+    DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG = {
+        "object_service": {
+            "allow_bypass_master_resolve": True,
+        },
+        "response_keeper": {
+            "enable": True,
+        },
+        "testing": {
+            "enable_ground_update_queues_sync": True,
+        },
+    }
+
+    @authors("kvk1920")
+    def test_cluster_directory_initialization(self):
+        # The problem this test is about:
+        # Cluster directory synchronizer in master sends ObjectService.Execute
+        # with GetClusterMeta to Cypress proxies. If
+        # "allow_bypass_master_resolve" is true then this request is considered
+        # as Sequoia by default. Every Sequoia request waits for sync with QUGM.
+        # But GUQM cannot be flushed until cluster directory contains Ground
+        # cluster.
+
+        create_user("u-1")
+
+        create("map_node", "//tmp/m")
+
+        set("//sys/@config/ground_update_queue_manager/queues/sequoia", {"pause_flush": True})
+
+        # This ACL update is stored at ground update queue but not flushed.
+        set("//tmp/m/@acl", [{"action": "allow", "permissions": ["read", "write"], "subjects": ["u-1"]}])
+
+        # Sync is impossible here because every request to Cypress has to sync
+        # with GUQM, but GUQM is paused. GUQM needs to be unpaused first.
+        with Restarter(self.Env, MASTERS_SERVICE, sync=False):
+            pass
+
+        # GUQM cannot be unpaused via regular driver since every request to
+        # Cypress waits for sync with GUQM on Cypress proxy. Therefore, request
+        # has to be sent to master directly.
+        config_without_cypress_proxy = deepcopy(self.Env.configs["driver"])
+        config_without_cypress_proxy["api_version"] = 4
+        del config_without_cypress_proxy["cypress_proxy"]
+        cypress_proxy_bypass_driver = Driver(config=config_without_cypress_proxy)
+
+        def try_reset_guqm_config():
+            print_debug("Trying to remove GUQM config...")
+            remove("//sys/@config/ground_update_queue_manager/queues/sequoia", driver=cypress_proxy_bypass_driver)
+            print_debug("GUQM config removed!")
+            return True
+
+        wait(try_reset_guqm_config, ignore_exceptions=True)
+
+        # From this point requests to Cypress should work as usual.
+
+        self.Env.synchronize()
+
+        # Just check that Sequoia resolve works.
+        assert get("//tmp/m/@acl")[0]["subjects"] == ["u-1"]

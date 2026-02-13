@@ -113,6 +113,9 @@ public:
         TPartition* partition,
         const TSharedRange<TLegacyKey>& keys) override;
 
+    void AddUnleashedBackingStore(TSortedDynamicStorePtr unleashedBackingStore) override;
+    void ReleaseUnleashedBackingStore(TDynamicStoreId backingStoreId) override;
+
 private:
     const TTabletManagerConfigPtr Config_;
     TTablet* const Tablet_;

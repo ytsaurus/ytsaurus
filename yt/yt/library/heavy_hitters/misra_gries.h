@@ -23,11 +23,11 @@ public:
     };
 
     TMisraGriesHeavyHitters(double threshold, TDuration window, i64 defaultLimit);
-    explicit TMisraGriesHeavyHitters(const TMisraGriesHeavyHittersConfigPtr config);
+    explicit TMisraGriesHeavyHitters(const TMisraGriesHeavyHittersConfigPtr& config);
 
     void Register(const std::vector<TKey>& keys, TInstant now);
     void RegisterWeighted(const std::vector<std::pair<TKey, double>>& weightedKeys, TInstant now);
-    void Reconfigure(const TMisraGriesHeavyHittersConfigPtr newConfig);
+    void Reconfigure(const TMisraGriesHeavyHittersConfigPtr& newConfig);
     TStatistics GetStatistics(TInstant now, std::optional<i64> limit = {}) const;
 
 private:
@@ -61,10 +61,13 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
 
-private:
     void DoRegister(const TKey& key, double increment);
     void CleanUpSummary();
-    static void UpdateState(std::set<std::pair<double, TSummaryElementRef>>& set, TSummaryElementRef summaryRef, double oldValue, double newValue);
+    static void UpdateState(
+        std::set<std::pair<double, TSummaryElementRef>>& set,
+        TSummaryElementRef summaryRef,
+        double oldValue,
+        double newValue);
     double GetNormalizationFactor(TInstant now) const;
     void EnsureSummaryTimestampFreshness(TInstant now, bool force = false);
     void Clear();

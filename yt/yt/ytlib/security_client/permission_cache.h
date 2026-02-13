@@ -32,7 +32,7 @@ struct TPermissionKey
     operator size_t() const;
 
     // Comparer.
-    bool operator == (const TPermissionKey& other) const;
+    bool operator==(const TPermissionKey& other) const;
 
     // Formatter.
     friend void FormatValue(TStringBuilderBase* builder, const TPermissionKey& key, TStringBuf /*spec*/);

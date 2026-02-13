@@ -245,7 +245,7 @@ public:
         TClusterClientCachePtr clusterClientCache)
         : TAsyncExpiringCache(
             std::move(config),
-            NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker(),
+            NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             Logger().WithTag("Cache: ClusterLivenessCheck"))
         , ClusterClientCache_(std::move(clusterClientCache))
     { }
@@ -290,7 +290,7 @@ public:
         TClusterClientCachePtr clusterClientCache)
         : TAsyncExpiringCache(
             std::move(config),
-            NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker(),
+            NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             Logger().WithTag("Cache: ClusterIncomingReplicationCheck"))
         , ClusterClientCache_(std::move(clusterClientCache))
     { }
@@ -343,7 +343,7 @@ public:
         TClusterClientCachePtr clusterClientCache)
         : TAsyncExpiringCache(
             std::move(config),
-            NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker(),
+            NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             Logger().WithTag("Cache: ClusterSafeModeCheck"))
         , ClusterClientCache_(std::move(clusterClientCache))
     { }
@@ -390,7 +390,7 @@ public:
         TClusterClientCachePtr clusterClientCache)
         : TAsyncExpiringCache(
             std::move(config),
-            NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker(),
+            NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             Logger().WithTag("Cache: HydraReadOnlyCheck"))
         , ClusterClientCache_(std::move(clusterClientCache))
     { }
@@ -431,7 +431,7 @@ struct TBundleHealthKey
     std::string ClusterKey;
     std::string BundleName;
 
-    bool operator == (const TBundleHealthKey& other) const
+    bool operator==(const TBundleHealthKey& other) const
     {
         return ClusterKey == other.ClusterKey &&
             BundleName == other.BundleName;
@@ -465,7 +465,7 @@ public:
         TClusterClientCachePtr clusterClientCache)
         : TAsyncExpiringCache(
             std::move(config),
-            NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker(),
+            NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             Logger().WithTag("Cache: BundleHealth"))
         , ClusterClientCache_(std::move(clusterClientCache))
     { }
@@ -1393,7 +1393,7 @@ private:
             TTableId TableId;
             ETableReplicaContentType ContentType;
 
-            bool operator == (const TReplicaFamily& other) const
+            bool operator==(const TReplicaFamily& other) const
             {
                 return TableId == other.TableId && ContentType == other.ContentType;
             }
@@ -1623,7 +1623,7 @@ private:
                 if (currentMode != targetMode) {
                     commands.push_back(TChangeReplicaModeCommand{
                         .ReplicaId = replica->GetId(),
-                        .TargetMode = targetMode
+                        .TargetMode = targetMode,
                     });
                     replica->GetReplicaModeSwitchCounter().Increment();
                 }

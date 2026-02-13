@@ -98,7 +98,7 @@ TEST_F(TSignatureValidatorTest, ValidateGoodSignature)
         BuildYsonMapFragmentFluently(&writer)
             .Item("header").Value(headerString.ToString())
             .Item("payload").Value(Payload)
-            .Item("signature").Value(TString(
+            .Item("signature").Value(std::string(
                 reinterpret_cast<const char*>(signatureBytes.data()),
                 signatureBytes.size()));
         writer.OnEndMap();
@@ -130,7 +130,7 @@ TEST_F(TSignatureValidatorTest, ValidateBadSignature)
     BuildYsonMapFragmentFluently(&writer)
         .Item("header").Value(headerString.ToString())
         .Item("payload").Value(Payload)
-        .Item("signature").Value(TString(SignatureSize, 'a'));
+        .Item("signature").Value(std::string(SignatureSize, 'a'));
     writer.OnEndMap();
     writer.Flush();
 
@@ -155,7 +155,7 @@ TEST_F(TSignatureValidatorTest, ValidateInvalidSignature)
         BuildYsonMapFragmentFluently(&writer)
             .Item("header").Value("abacaba")
             .Item("payload").Value(Payload)
-            .Item("signature").Value(TString(SignatureSize, 'a'));
+            .Item("signature").Value(std::string(SignatureSize, 'a'));
         writer.OnEndMap();
         writer.Flush();
 

@@ -3,6 +3,7 @@
 #include "config.h"
 #include "hunk_chunk.h"
 #include "in_memory_manager.h"
+#include "ordered_dynamic_store.h"
 #include "private.h"
 #include "serialize.h"
 #include "store.h"
@@ -24,7 +25,7 @@
 
 #include <yt/yt/core/utilex/random.h>
 
-#include <library/cpp/iterator/zip.h>
+#include <library/cpp/iterator/enumerate.h>
 
 #include <util/generic/cast.h>
 
@@ -227,7 +228,15 @@ void TStoreManagerBase::DiscardAllStores()
     }
 
     const auto* context = GetCurrentMutationContext();
-    Tablet_->SetLastDiscardStoresRevision(context->GetVersion().ToRevision());
+
+    TVersion version = context->GetVersion();
+    // COMPAT(h0pless): HydraLogicalRecordId.
+    auto mutationReign = static_cast<ETabletReign>(context->Request().Reign);
+    if (mutationReign < ETabletReign::HydraLogicalRecordId) {
+        version = context->GetPhysicalVersion();
+    }
+
+    Tablet_->SetLastDiscardStoresRevision(version.ToRevision());
 }
 
 void TStoreManagerBase::RemoveStore(IStorePtr store)
@@ -558,26 +567,46 @@ void TStoreManagerBase::LoadReplicatedContent(
     }
 
     auto partitionIds = FromProto<std::vector<TPartitionId>>(request->store_partition_ids());
-    YT_VERIFY(replicatableContent.stores().size() == ssize(partitionIds));
-    for (const auto& [descriptor, partitionId] : Zip(replicatableContent.stores(), partitionIds)) {
+    if (Tablet_->IsPhysicallySorted()) {
+        YT_VERIFY(replicatableContent.stores().size() == ssize(partitionIds));
+    } else {
+        YT_VERIFY(partitionIds.empty());
+    }
+
+    for (const auto& [index, descriptor] : Enumerate(replicatableContent.stores())) {
         auto type = FromProto<EStoreType>(descriptor.store_type());
         auto storeId = FromProto<TChunkId>(descriptor.store_id());
+
+        if (type == EStoreType::OrderedDynamic &&
+            storeId != activeStoreId)
+        {
+            YT_VERIFY(static_cast<int>(index + 1) < replicatableContent.stores().size());
+            i64 rowCount = replicatableContent.stores()[index + 1].starting_row_index() - descriptor.starting_row_index();
+            YT_VERIFY(rowCount > 0);
+            EmplaceOrCrash(movementData.StoreRowCountOverride(), storeId, rowCount);
+        }
 
         if (storeId == activeStoreId) {
             CreateActiveStore(activeStoreId);
         } else {
             auto store = TabletContext_->CreateStore(Tablet_, type, storeId, &descriptor);
+
             if (store->IsDynamic()) {
                 store->SetStoreState(EStoreState::PassiveDynamic);
                 InsertOrCrash(movementData.CommonDynamicStoreIds(), store->GetId());
+
+                if (store->IsOrdered()) {
+                    store->AsOrdered()->SetStartingRowIndex(descriptor.starting_row_index());
+                }
             }
 
             store->Initialize();
-            AddStore(
-                store,
-                TAddStoreOptions{
-                    .PartitionIdHint = partitionId,
-                });
+            TAddStoreOptions options;
+            if (Tablet_->IsPhysicallySorted()) {
+                options.PartitionIdHint = partitionIds[index];
+            }
+
+            AddStore(store, options);
 
             if (store->IsChunk()) {
                 for (const auto& ref : store->AsChunk()->HunkChunkRefs()) {
@@ -605,6 +634,10 @@ void TStoreManagerBase::LoadReplicatedContent(
 
     for (const auto& [_, hunkChunk] : Tablet_->HunkChunkMap()) {
         Tablet_->UpdateDanglingHunkChunks(hunkChunk);
+    }
+
+    if (Tablet_->IsPhysicallyOrdered()) {
+        Tablet_->UpdateTotalRowCount();
     }
 }
 
@@ -860,7 +893,7 @@ void TStoreManagerBase::InvalidateCachedChunkReaders()
 {
     for (const auto& [storeId, store] : Tablet_->StoreIdMap()) {
         if (store->IsChunk()) {
-            store->AsChunk()->InvalidateCachedReaders(Tablet_->GetSettings());
+            store->AsChunk()->InvalidateCachedReaders(Tablet_->GetSettings().StoreReaderConfig);
         }
     }
 }

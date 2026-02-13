@@ -65,7 +65,7 @@ TSnapshotBuilder::TSnapshotBuilder(
     IInvokerPtr ioInvoker,
     TIncarnationId incarnationId,
     TForkCountersPtr counters)
-    : TForkExecutor(std::move(counters))
+    : TForkExecutor(std::move(counters), /*dumpCoreOnTimeout*/ false)
     , Config_(config)
     , Client_(client)
     , IOInvoker_(ioInvoker)
@@ -438,7 +438,7 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
         YT_LOG_INFO("Snapshot uploaded successfully (SnapshotIndex: %v)",
             job->Cookie.SnapshotIndex);
 
-        auto future = VoidFuture;
+        auto future = OKFuture;
         if (auto controller = job->WeakController.Lock()) {
             if (controller->IsRunning()) {
                 future = BIND(&IOperationController::OnSnapshotCompleted, controller)

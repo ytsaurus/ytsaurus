@@ -41,10 +41,12 @@ public:
     TAugmentedPtr(T* ptr, int firstIndex, int secondIndex, EChunkReplicaState = EChunkReplicaState::Generic)
         requires (WithReplicaState && IndexCount == 2);
 
-    explicit TAugmentedPtr(TAugmentedPtr<T, true, IndexCount, TAugmentationAccessor> other)
+    TAugmentedPtr(const TAugmentedPtr& other) = default;
+
+    explicit TAugmentedPtr(const TAugmentedPtr<T, true, IndexCount, TAugmentationAccessor>& other)
         requires (!WithReplicaState);
 
-    explicit TAugmentedPtr(TAugmentedPtr<T, false, IndexCount, TAugmentationAccessor> other)
+    explicit TAugmentedPtr(const TAugmentedPtr<T, false, IndexCount, TAugmentationAccessor>& other)
         requires WithReplicaState;
 
     TAugmentedPtr(
@@ -52,15 +54,16 @@ public:
         EChunkReplicaState state)
         requires WithReplicaState;
 
+    TAugmentedPtr& operator=(const TAugmentedPtr& other) = default;
 
     T* GetPtr() const;
 
     size_t GetHash() const;
 
     bool operator==(TAugmentedPtr other) const;
-    bool operator< (TAugmentedPtr other) const;
+    bool operator<(TAugmentedPtr other) const;
     bool operator<=(TAugmentedPtr other) const;
-    bool operator> (TAugmentedPtr other) const;
+    bool operator>(TAugmentedPtr other) const;
     bool operator>=(TAugmentedPtr other) const;
 
     template <class C>

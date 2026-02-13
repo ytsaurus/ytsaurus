@@ -157,7 +157,7 @@ private:
         auto emptyNode = ConvertToNode(NYson::TYsonString(TString("{}")));
         auto [it, _] = NodesWithAttributes_.insert({nodeId, std::move(emptyNode)});
 
-        auto shouldAppearOpaque = currentNodeDepth == MaxAllowedNodeDepth_ && !GetOrCrash(NodeIdToChildren_, nodeId).empty();
+        auto shouldAppearOpaque = currentNodeDepth == MaxAllowedNodeDepth_;
         it->second->MutableAttributes()->Set("opaque", shouldAppearOpaque);
     }
 
@@ -199,10 +199,7 @@ private:
     void VisitMap(TNodeId nodeId, int currentNodeDepth)
     {
         const auto& children = GetOrCrash(NodeIdToChildren_, nodeId);
-        // If map node has no children, then it's better to return an empty map,
-        // since returning entity could result in an extra request from user.
-        // TODO(h0pless): Think about adding other heuristics from opaque setter script.
-        if (currentNodeDepth == MaxAllowedNodeDepth_ && !children.empty()) {
+        if (currentNodeDepth == MaxAllowedNodeDepth_) {
             Consumer_->OnEntity();
             return;
         }

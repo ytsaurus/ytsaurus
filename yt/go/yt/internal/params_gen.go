@@ -1139,6 +1139,10 @@ func writeListOperationsOptions(w *yson.Writer, o *yt.ListOperationsOptions) {
 		w.MapKeyString("cursor_time")
 		w.Any(o.Cursor)
 	}
+	if o.CursorDirection != nil {
+		w.MapKeyString("cursor_direction")
+		w.Any(o.CursorDirection)
+	}
 	if o.User != nil {
 		w.MapKeyString("user")
 		w.Any(o.User)
@@ -1171,6 +1175,10 @@ func writeListOperationsOptions(w *yson.Writer, o *yt.ListOperationsOptions) {
 		w.MapKeyString("include_archive")
 		w.Any(o.IncludeArchive)
 	}
+	if o.Attributes != nil {
+		w.MapKeyString("attributes")
+		w.Any(o.Attributes)
+	}
 	writeMasterReadOptions(w, o.MasterReadOptions)
 	writeReadRetryOptions(w, o.ReadRetryOptions)
 }
@@ -1188,6 +1196,9 @@ func logListOperationsOptions(o *yt.ListOperationsOptions) []log.Field {
 	}
 	if o.Cursor != nil {
 		fields = append(fields, log.Any("cursor_time", o.Cursor))
+	}
+	if o.CursorDirection != nil {
+		fields = append(fields, log.Any("cursor_direction", o.CursorDirection))
 	}
 	if o.User != nil {
 		fields = append(fields, log.Any("user", o.User))
@@ -1212,6 +1223,9 @@ func logListOperationsOptions(o *yt.ListOperationsOptions) []log.Field {
 	}
 	if o.IncludeArchive != nil {
 		fields = append(fields, log.Any("include_archive", o.IncludeArchive))
+	}
+	if o.Attributes != nil {
+		fields = append(fields, log.Any("attributes", o.Attributes))
 	}
 	fields = append(fields, logMasterReadOptions(o.MasterReadOptions)...)
 	fields = append(fields, logReadRetryOptions(o.ReadRetryOptions)...)
@@ -1563,6 +1577,7 @@ func writeWhoAmIOptions(w *yson.Writer, o *yt.WhoAmIOptions) {
 	if o == nil {
 		return
 	}
+	writeReadRetryOptions(w, o.ReadRetryOptions)
 }
 
 func logWhoAmIOptions(o *yt.WhoAmIOptions) []log.Field {
@@ -1570,6 +1585,7 @@ func logWhoAmIOptions(o *yt.WhoAmIOptions) []log.Field {
 		return nil
 	}
 	fields := []log.Field{}
+	fields = append(fields, logReadRetryOptions(o.ReadRetryOptions)...)
 	return fields
 }
 
@@ -1683,6 +1699,20 @@ func logCheckPermissionByACLOptions(o *yt.CheckPermissionByACLOptions) []log.Fie
 	}
 	fields = append(fields, logPrerequisiteOptions(o.PrerequisiteOptions)...)
 	fields = append(fields, logMasterReadOptions(o.MasterReadOptions)...)
+	return fields
+}
+
+func writeCheckOperationPermissionOptions(w *yson.Writer, o *yt.CheckOperationPermissionOptions) {
+	if o == nil {
+		return
+	}
+}
+
+func logCheckOperationPermissionOptions(o *yt.CheckOperationPermissionOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
 	return fields
 }
 
@@ -5048,6 +5078,59 @@ func (p *CheckPermissionByACLParams) MasterReadOptions() **yt.MasterReadOptions 
 	return &p.options.MasterReadOptions
 }
 
+type CheckOperationPermissionParams struct {
+	verb        Verb
+	operationID yt.OperationID
+	user        string
+	permission  yt.Permission
+	options     *yt.CheckOperationPermissionOptions
+}
+
+func NewCheckOperationPermissionParams(
+	operationID yt.OperationID,
+	user string,
+	permission yt.Permission,
+	options *yt.CheckOperationPermissionOptions,
+) *CheckOperationPermissionParams {
+	if options == nil {
+		options = &yt.CheckOperationPermissionOptions{}
+	}
+	optionsCopy := *options
+	return &CheckOperationPermissionParams{
+		Verb("check_operation_permission"),
+		operationID,
+		user,
+		permission,
+		&optionsCopy,
+	}
+}
+
+func (p *CheckOperationPermissionParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *CheckOperationPermissionParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *CheckOperationPermissionParams) Log() []log.Field {
+	fields := []log.Field{
+		log.Any("operationID", p.operationID),
+		log.Any("user", p.user),
+		log.Any("permission", p.permission),
+	}
+	fields = append(fields, logCheckOperationPermissionOptions(p.options)...)
+	return fields
+}
+
+func (p *CheckOperationPermissionParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("operation_id")
+	w.Any(p.operationID)
+	w.MapKeyString("user")
+	w.Any(p.user)
+	w.MapKeyString("permission")
+	w.Any(p.permission)
+	writeCheckOperationPermissionOptions(w, p.options)
+}
+
 type DisableChunkLocationsParams struct {
 	verb          Verb
 	nodeAddress   string
@@ -6790,6 +6873,10 @@ func (p *WhoAmIParams) Log() []log.Field {
 
 func (p *WhoAmIParams) MarshalHTTP(w *yson.Writer) {
 	writeWhoAmIOptions(w, p.options)
+}
+
+func (p *WhoAmIParams) ReadRetryOptions() **yt.ReadRetryOptions {
+	return &p.options.ReadRetryOptions
 }
 
 type GenerateTimestampParams struct {

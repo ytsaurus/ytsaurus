@@ -39,7 +39,7 @@ class TGpuCoreReader
     : public TRefCounted
 {
 public:
-    explicit TGpuCoreReader(const TString& corePipePath);
+    explicit TGpuCoreReader(const std::string& corePipePath);
 
     //! Returns number of bytes available to read.
     i64 GetBytesAvailable() const;
@@ -47,7 +47,7 @@ public:
     NNet::IConnectionReaderPtr CreateAsyncReader();
 
 private:
-    const TString Path_;
+    const std::string Path_;
     int Fd_;
 };
 
@@ -65,7 +65,7 @@ class TCoreWatcher
 public:
     TCoreWatcher(
         TCoreWatcherConfigPtr config,
-        TString coreDirectoryPath,
+        std::string coreDirectoryPath,
         IJobHostPtr jobHost,
         IInvokerPtr controlInvoker,
         NTableClient::TBlobTableWriterConfigPtr blobTableWriterConfig,
@@ -90,7 +90,7 @@ private:
 
     NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
 
-    TString CoreDirectoryPath_;
+    std::string CoreDirectoryPath_;
 
     const IJobHostPtr JobHost_;
     const NTableClient::TBlobTableWriterConfigPtr BlobTableWriterConfig_;
@@ -99,7 +99,7 @@ private:
     const NChunkClient::TChunkListId ChunkList_;
     const NTableClient::TMasterTableSchemaId SchemaId_;
 
-    THashSet<TString> SeenCoreNames_;
+    THashSet<std::string> SeenCoreNames_;
 
     int NextCoreIndex_ = 0;
 
@@ -118,9 +118,9 @@ private:
 
     void DoWatchCores();
 
-    void DoProcessLinuxCore(const TString& coreName, int coreIndex);
+    void DoProcessLinuxCore(const std::string& coreName, int coreIndex);
     void DoProcessGpuCore(NConcurrency::IAsyncInputStreamPtr coreStream, int coreIndex);
-    i64 DoReadCore(const NConcurrency::IAsyncInputStreamPtr& coreStream, const TString& coreName, int coreIndex);
+    i64 DoReadCore(const NConcurrency::IAsyncInputStreamPtr& coreStream, const std::string& coreName, int coreIndex);
     void DoAddCoreInfo(const NControllerAgent::NProto::TCoreInfo& coreInfo);
 };
 

@@ -65,6 +65,7 @@ struct TTabletBalancingGroupConfig
 {
     bool EnableMove;
     bool EnableReshard;
+    std::optional<bool> EnableSmoothMovement;
 
     EBalancingType Type;
     TParameterizedBalancingConfigPtr Parameterized;
@@ -123,6 +124,7 @@ struct TBundleTabletBalancerConfig
     std::optional<TString> DefaultInMemoryGroup;
     bool EnablePickPivotKeys;
     double SafeUsedTabletStaticRatio;
+    std::optional<bool> EnableSmoothMovement;
 
     THashMap<TString, TTabletBalancingGroupConfigPtr> Groups;
 
@@ -177,6 +179,7 @@ struct TTableTabletBalancerConfig
     std::optional<bool> EnableParameterized;
     std::optional<TString> Group;
     THashMap<TClusterName, std::vector<NYPath::TYPath>> ReplicaPathOverrides;
+    std::optional<bool> EnableSmoothMovement;
 
     REGISTER_YSON_STRUCT(TTableTabletBalancerConfig);
 

@@ -733,7 +733,7 @@ public:
 
         operation->UpdateJobShellOptions(update->OptionsPerJobShell);
 
-        return VoidFuture;
+        return OKFuture;
     }
 
     TFuture<void> PatchSpec(TOperationId operationId, INodePtr newCumulativeSpecPatch, bool dryRun)
@@ -790,7 +790,7 @@ public:
                     transactionIds.AsyncId,
                     transactionIds.InputId,
                     transactionIds.OutputId,
-                    transactionIds.DebugId
+                    transactionIds.DebugId,
                 });
                 watchTransactionIds.push_back(operation->GetUserTransactionId());
 
@@ -944,7 +944,7 @@ public:
         if (!controller) {
             YT_LOG_DEBUG("No controller to abort (OperationId: %v)",
                 operation->GetId());
-            return VoidFuture;
+            return OKFuture;
         }
 
         if (!controller->GetCancelableContext()->IsCanceled()) {
@@ -1104,7 +1104,7 @@ public:
             auto alert = TError();
             if (GangJobMonitoringDescriptorManager_.GetResidualCapacity() == 0) {
                 alert = TError(
-                    "Limit of  monitored user gangs jobs per controller agent reached, "
+                    "Limit of monitored user gangs jobs per controller agent reached, "
                     "some jobs may be not monitored")
                     << TErrorAttribute(
                         "limit_per_controller_agent",
@@ -1202,7 +1202,7 @@ private:
     const std::unique_ptr<TMasterConnector> MasterConnector_;
     const TJobTrackerPtr JobTracker_;
 
-    bool Connected_= false;
+    bool Connected_ = false;
     bool ConnectScheduled_ = false;
     std::atomic<TInstant> ConnectionTime_ = TInstant::Zero();
     TIncarnationId IncarnationId_;
@@ -1494,6 +1494,10 @@ private:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         TForbidContextSwitchGuard contextSwitchGuard;
+
+        JobMonitoringIndexManager_.RemoveAllOperations();
+
+        GangJobMonitoringDescriptorManager_.RemoveAllOperations();
 
         if (Connected_) {
             YT_LOG_WARNING(error, "Disconnecting scheduler");

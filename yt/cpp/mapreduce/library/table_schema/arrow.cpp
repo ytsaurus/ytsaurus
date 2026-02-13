@@ -1,5 +1,8 @@
 #include "arrow.h"
 
+#include <yt/yt/library/formats/arrow_helpers.h>
+#include <yt/yt/library/formats/arrow_metadata_constants.h>
+
 #include <yt/yt/core/misc/error.h>
 
 #include <library/cpp/yt/assert/assert.h>
@@ -15,12 +18,13 @@ namespace {
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NArrow;
+using namespace NFormats;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 NTi::TTypePtr GetYTType(const std::shared_ptr<arrow20::Field>& arrowType);
 
-NTi::TTypePtr GetYTType(const std::shared_ptr<arrow20::DataType>& arrowType)
+NTi::TTypePtr GetYTType(const std::shared_ptr<arrow20::DataType>& arrowType, const std::optional<std::string>& metadataYTType)
 {
     switch (arrowType->id()) {
         case arrow20::Type::type::BOOL:
@@ -56,8 +60,12 @@ NTi::TTypePtr GetYTType(const std::shared_ptr<arrow20::DataType>& arrowType)
             return NTi::Double();
 
         case arrow20::Type::type::STRING:
+            return NTi::Utf8();
         case arrow20::Type::type::BINARY:
         case arrow20::Type::type::FIXED_SIZE_BINARY:
+            if (metadataYTType && *metadataYTType == YTTypeMetadataValueYson) {
+                return NTi::Yson();
+            }
             return NTi::String();
 
         case arrow20::Type::type::LIST:
@@ -106,7 +114,7 @@ NTi::TTypePtr GetYTType(const std::shared_ptr<arrow20::DataType>& arrowType)
 
 NTi::TTypePtr GetYTType(const std::shared_ptr<arrow20::Field>& arrowField)
 {
-    NTi::TTypePtr resultType = GetYTType(arrowField->type());
+    NTi::TTypePtr resultType = GetYTType(arrowField->type(), GetArrowMetadataYTType(arrowField));
     // YT type Optional<Null> will not be correctly denullified.
     if (arrowField->nullable() && !resultType->IsNull()) {
         return NTi::Optional(resultType);

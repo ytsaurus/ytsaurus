@@ -36,6 +36,7 @@ public:
     void Lock(TTabletId tabletId);
     void Unlock(TTabletId tabletId);
     bool IsLockedByTablet(TTabletId tabletId) const;
+    int GetLockingTabletCount() const;
 
     bool CanLockExclusively(TTransactionId transactionId) const;
     TTransactionId GetLockingTransactionId() const;
@@ -49,6 +50,8 @@ public:
     bool IsReadyToWrite() const;
 
     void BuildOrchidYson(NYson::IYsonConsumer* consumer) const;
+
+    bool IsClosing() const;
 
 private:
     const THunkTablet* const Tablet_;
@@ -64,6 +67,8 @@ private:
 
     NJournalClient::IJournalHunkChunkWriterPtr Writer_;
     TFuture<void> WriterOpenedFuture_;
+
+    std::atomic<bool> Closing_ = false;
 };
 
 DEFINE_REFCOUNTED_TYPE(THunkStore)

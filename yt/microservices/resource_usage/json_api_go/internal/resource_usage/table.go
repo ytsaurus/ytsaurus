@@ -2,7 +2,6 @@ package resourceusage
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"slices"
@@ -65,7 +64,7 @@ func (rut *ResourceUsageTable) GetFieldsDiffs(ctx context.Context, rutB *Resourc
 }
 
 func (rut *ResourceUsageTable) SelectRowsDiff(ctx context.Context, input selectRowsDiffInput) (*[]Item, string, error) {
-	paginationWhereClauses, paginationOffsetClause, err := validateAndPreparePagination(*input.pageSelector, input.sortOrders)
+	paginationWhereClauses, placeholderValues, paginationOffsetClause, err := rut.validateAndPreparePagination(*input.pageSelector, input.sortOrders)
 	if err != nil {
 		return nil, "", err
 	}
@@ -87,10 +86,15 @@ func (rut *ResourceUsageTable) SelectRowsDiff(ctx context.Context, input selectR
 		fmt.Sprintf("%d", input.pageSelector.Size),
 	}, " ")
 
-	return rut.executeSelectQueryAndProcessResults(ctx, query, input.pageSelector)
+	return rut.executeSelectQueryAndProcessResults(ctx, query, placeholderValues, input.pageSelector)
 }
 
-func (rut *ResourceUsageTable) executeSelectQueryAndProcessResults(ctx context.Context, query string, pageSelector *PageSelector) (*[]Item, string, error) {
+func (rut *ResourceUsageTable) executeSelectQueryAndProcessResults(
+	ctx context.Context,
+	query string,
+	placeholderValues map[string]any,
+	pageSelector *PageSelector,
+) (*[]Item, string, error) {
 	yc, err := ythttp.NewClient(&yt.Config{
 		Proxy:  rut.Proxy,
 		Logger: rut.l,
@@ -102,8 +106,9 @@ func (rut *ResourceUsageTable) executeSelectQueryAndProcessResults(ctx context.C
 	}
 
 	r, err := yc.SelectRows(ctx, query, &yt.SelectRowsOptions{
-		InputRowLimit:  ptr.Int(6_000_000),
-		OutputRowLimit: ptr.Int(6_000_000),
+		InputRowLimit:     ptr.Int(6_000_000),
+		OutputRowLimit:    ptr.Int(6_000_000),
+		PlaceholderValues: placeholderValues,
 	})
 	if err != nil {
 		ctxlog.Error(ctx, rut.l.Logger(), "error selecting rows", log.Error(err), log.String("query", query))
@@ -127,7 +132,7 @@ func (rut *ResourceUsageTable) executeSelectQueryAndProcessResults(ctx context.C
 
 	var continuationToken string
 	if pageSelector.EnableContinuationToken && len(*items) > 0 {
-		continuationToken, err = continuationTokenFromItem(item)
+		continuationToken, err = rut.continuationTokenFromItem(ctx, item)
 		if err != nil {
 			ctxlog.Error(ctx, rut.l.Logger(), "error generating continuation token", log.Error(err), log.String("query", query), log.Any("item", item))
 			return nil, "", err
@@ -301,7 +306,18 @@ func (rut *ResourceUsageTable) buildWhereClauseDiff(ctx context.Context, account
 	if filter.FieldFilters != nil {
 		for _, fieldFilter := range filter.FieldFilters {
 			if _, ok := intersection[fieldFilter.Field]; ok {
-				whereClause = append(whereClause, fmt.Sprintf("if(is_null(newer.[%s]), 0, newer.[%s]) - if(is_null(older.[%s]), 0, older.[%s]) %s %d", fieldFilter.Field, fieldFilter.Field, fieldFilter.Field, fieldFilter.Field, fieldFilter.Comparison, fieldFilter.Value))
+				whereClause = append(
+					whereClause,
+					fmt.Sprintf(
+						"if(is_null(newer.[%s]), 0, newer.[%s]) - if(is_null(older.[%s]), 0, older.[%s]) %s %d",
+						fieldFilter.Field,
+						fieldFilter.Field,
+						fieldFilter.Field,
+						fieldFilter.Field,
+						fieldFilter.Comparison,
+						fieldFilter.Value,
+					),
+				)
 			}
 			if _, ok := olderOnly[fieldFilter.Field]; ok {
 				whereClause = append(whereClause, fmt.Sprintf("-if(is_null(older.[%s]), 0, older.[%s]) %s %d", fieldFilter.Field, fieldFilter.Field, fieldFilter.Comparison, fieldFilter.Value))
@@ -332,7 +348,7 @@ func (rut *ResourceUsageTable) buildSortClause(sortOrders []*SortOrder) string {
 }
 
 func (rut *ResourceUsageTable) SelectRows(ctx context.Context, input selectRowsInput) (*[]Item, string, error) {
-	paginationWhereClauses, paginationOffsetClause, err := validateAndPreparePagination(*input.pageSelector, input.sortOrders)
+	paginationWhereClauses, placeholderValues, paginationOffsetClause, err := rut.validateAndPreparePagination(*input.pageSelector, input.sortOrders)
 	if err != nil {
 		return nil, "", err
 	}
@@ -349,7 +365,7 @@ func (rut *ResourceUsageTable) SelectRows(ctx context.Context, input selectRowsI
 		fmt.Sprintf("%d", input.pageSelector.Size),
 	}, " ")
 
-	return rut.executeSelectQueryAndProcessResults(ctx, query, input.pageSelector)
+	return rut.executeSelectQueryAndProcessResults(ctx, query, placeholderValues, input.pageSelector)
 }
 
 func (rut *ResourceUsageTable) CountRows(ctx context.Context, input countRowsInput) (int, error) {
@@ -611,37 +627,49 @@ func (rut *ResourceUsageTable) buildSortClauseDiff(ctx context.Context, sortOrde
 	return "ORDER BY " + strings.Join(sortClause, ", ")
 }
 
-func validateAndPreparePagination(pageSelector PageSelector, sortOrders []*SortOrder) ([]string, string, error) {
+func (rut *ResourceUsageTable) validateAndPreparePagination(pageSelector PageSelector, sortOrders []*SortOrder) ([]string, map[string]any, string, error) {
 	if (pageSelector.EnableContinuationToken || pageSelector.ContinuationToken != "") && len(sortOrders) > 0 {
-		return nil, "", fmt.Errorf("you cannot use sort_order and continuation_token at the same time")
+		return nil, nil, "", fmt.Errorf("you cannot use sort_order and continuation_token at the same time")
 	}
 
 	if pageSelector.ContinuationToken != "" {
-		decodedContinuationToken, err := base64.StdEncoding.DecodeString(pageSelector.ContinuationToken)
+		continuationToken, err := rut.ContinuationTokenSerializer.Decode(pageSelector.ContinuationToken)
 		if err != nil {
-			return nil, "", fmt.Errorf("error while decoding continuation_token: %w", err)
+			return nil, nil, "", fmt.Errorf("error while decoding continuation_token: %w", err)
 		}
-		return []string{string(decodedContinuationToken)}, "", nil
+		continuationTokenExpression, continuationTokenPlaceholderValues := continuationToken.GetExpressionAndPlaceholderValues()
+		return []string{continuationTokenExpression}, continuationTokenPlaceholderValues, "", nil
 	}
 
-	return nil, fmt.Sprintf("OFFSET %d", pageSelector.Index*pageSelector.Size), nil
+	return nil, nil, fmt.Sprintf("OFFSET %d", pageSelector.Index*pageSelector.Size), nil
 }
 
-func continuationTokenFromItem(item Item) (string, error) {
-	lastAccount, ok := item["account"]
-	if !ok {
+func (rut *ResourceUsageTable) continuationTokenFromItem(ctx context.Context, item Item) (string, error) {
+	continuationToken := &ContinuationToken{}
+
+	var err error
+	if continuationToken.Features, err = rut.GetFeatures(ctx); err != nil {
+		return "", err
+	}
+
+	var ok bool
+	if continuationToken.Account, ok = item["account"].(string); !ok {
 		return "", errors.New("`account` field is not present in last item")
 	}
 
-	lastDepth, ok := item["depth"]
-	if !ok {
+	if continuationToken.Depth, ok = item["depth"].(int64); !ok {
 		return "", errors.New("`depth` field is not present in last item")
 	}
 
-	lastPath, ok := item["path"]
-	if !ok {
+	if continuationToken.Path, ok = item["path"].(string); !ok {
 		return "", errors.New("`path` field is not present in last item")
 	}
 
-	return base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("(account, depth, path) > ('%s', %d, '%s')", lastAccount, lastDepth, lastPath))), nil
+	if continuationToken.Features.TypeInKey > 0 {
+		if continuationToken.Type, ok = item["type"].(string); !ok {
+			return "", errors.New("`type` field is not present in last item")
+		}
+	}
+
+	return rut.ContinuationTokenSerializer.Encode(*continuationToken)
 }

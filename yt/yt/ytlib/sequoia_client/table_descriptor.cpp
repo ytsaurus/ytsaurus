@@ -46,18 +46,25 @@ void FormatValue(TStringBuilderBase* builder, const TSequoiaTablePathDescriptor&
 
 void ITableDescriptor::ScheduleInitialization()
 {
-    static IThreadPoolPtr ThreadPool;
     static std::atomic<bool> InitializationStarted = false;
 
     if (InitializationStarted.exchange(true)) {
         return;
     }
 
-    ThreadPool = CreateThreadPool(TEnumTraits<ESequoiaTable>::GetDomainSize(), "SequoiaInit");
+    auto threadPool = CreateThreadPool(TEnumTraits<ESequoiaTable>::GetDomainSize(), "SequoiaInit");
 
+    std::vector<TFuture<void>> futures;
     for (auto table : TEnumTraits<ESequoiaTable>::GetDomainValues()) {
-        ThreadPool->GetInvoker()->Invoke(BIND([table] { ITableDescriptor::Get(table); }));
+        futures.emplace_back(BIND([table] { ITableDescriptor::Get(table); })
+            .AsyncVia(threadPool->GetInvoker())
+            .Run());
     }
+    YT_UNUSED_FUTURE(AllSet(std::move(futures))
+        .Apply(BIND([threadPool = std::move(threadPool)] (const std::vector<TError>&) {
+            threadPool->Shutdown();
+        })
+            .AsyncVia(GetFinalizerInvoker())));
 }
 
 const ITableDescriptor* ITableDescriptor::Get(ESequoiaTable table)

@@ -1,7 +1,7 @@
 #include "query_executor.h"
 #include "config.h"
-#include "session.h"
 #include "helpers.h"
+#include "session.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 
@@ -29,8 +29,8 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
-#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/replication_reader.h>
 
@@ -59,14 +59,20 @@
 #include <yt/yt/client/table_client/unversioned_writer.h>
 #include <yt/yt/client/table_client/versioned_io_options.h>
 
-#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
+#include <yt/yt/core/concurrency/scheduler.h>
+
+#include <yt/yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/mpsc_queue.h>
+#include <yt/yt/core/misc/tls_cache.h>
+
+#include <yt/yt/core/rpc/authentication_identity.h>
 
 #include <yt/yt/library/query/base/coordination_helpers.h>
 #include <yt/yt/library/query/base/helpers.h>
 #include <yt/yt/library/query/base/private.h>
+#include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_common.h>
 #include <yt/yt/library/query/base/query_helpers.h>
-#include <yt/yt/library/query/base/query.h>
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 #include <yt/yt/library/query/engine_api/coordinator.h>
@@ -74,16 +80,11 @@
 
 #include <yt/yt/library/query/misc/rowset_subrange_reader.h>
 
-#include <yt/yt/core/concurrency/scheduler.h>
-
-#include <yt/yt/core/misc/collection_helpers.h>
-#include <yt/yt/core/misc/mpsc_queue.h>
-#include <yt/yt/core/misc/range_formatters.h>
-#include <yt/yt/core/misc/tls_cache.h>
-
-#include <yt/yt/core/rpc/authentication_identity.h>
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
 
 #include <library/cpp/yt/memory/chunked_memory_pool.h>
+
+#include <library/cpp/yt/misc/range_formatters.h>
 
 #include <algorithm>
 
@@ -556,19 +557,18 @@ private:
         auto aggregateGenerators = New<TAggregateProfilerMap>();
         MergeFrom(functionGenerators.Get(), *GetBuiltinFunctionProfilers());
         MergeFrom(aggregateGenerators.Get(), *GetBuiltinAggregateProfilers());
+        auto sdk = NWebAssembly::TModuleBytecode{NWebAssembly::EBytecodeFormat::Binary};
 
         FetchFunctionImplementationsFromCypress(
             functionGenerators,
             aggregateGenerators,
             ExternalCGInfo_,
             FunctionImplCache_,
-            ChunkReadOptions_);
+            ChunkReadOptions_,
+            &sdk,
+            QueryOptions_.ExecutionBackend);
 
         auto [frontQuery, bottomQueryPattern] = GetDistributedQueryPattern(Query_);
-
-        int splitCount;
-        TGetSubreader getSubqueryReader;
-        TGetPrefetchJoinSubDataSource getPrefetchJoinDataSource;
 
         bool ordered = frontQuery->IsOrdered(QueryOptions_.AllowUnorderedGroupByWithLimit);
         auto classifiedDataSources = GetClassifiedDataSources();
@@ -578,15 +578,61 @@ private:
             ? CoordinateDataSourcesOld(std::move(classifiedDataSources))
             : CoordinateDataSourcesNew(std::move(classifiedDataSources));
 
-        splitCount = std::ssize(groupedDataSplits);
+        int splitCount = std::ssize(groupedDataSplits);
+
+        bool regroupByTablets = Query_->GroupClause && Query_->GroupClause->CommonPrefixWithPrimaryKey > 0;
+
+        YT_LOG_DEBUG("Coordinating query (Ordered: %v, Prefetching: %v, RegroupByTablets: %v, MergeVersionedRows: %v)",
+            Query_->IsOrdered(QueryOptions_.AllowUnorderedGroupByWithLimit),
+            Query_->IsPrefetching(),
+            regroupByTablets,
+            QueryOptions_.MergeVersionedRows);
+
+        TGetSubreader getSubqueryReader;
+        if (!QueryOptions_.MergeVersionedRows && !regroupByTablets && !Query_->IsOrdered(QueryOptions_.AllowUnorderedGroupByWithLimit)) {
+            splitCount = std::min(splitCount, 16);
+
+            auto dataSourceQueue = MakeDataSourcesQueue(groupedDataSplits);
+            getSubqueryReader = [=, this, this_ = MakeStrong(this)] (int subqueryIndex) {
+                return CreateOrderedSchemafulReader([dataSourceQueue, subqueryIndex, this, this_ = MakeStrong(this)] () -> ISchemafulUnversionedReaderPtr {
+                    TPlainDataSource dataSource;
+                    if (!dataSourceQueue->DataSources.Dequeue(&dataSource)) {
+                        return nullptr;
+                    }
+
+                    auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(dataSource.TabletId);
+                    auto [columnFilter, timestampReadOptions] = GetColumnFilter(*Query_->GetReadSchema(), *tabletSnapshot->QuerySchema);
+
+                    auto reader = DoCreateScanReader(
+                        tabletSnapshot,
+                        columnFilter,
+                        GetStoresAndBounds(tabletSnapshot, dataSource.PartitionIndex, MakeSharedRange(dataSource.Bounds, RowBuffer_)),
+                        QueryOptions_.TimestampRange,
+                        ChunkReadOptions_,
+                        ETabletDistributedThrottlerKind::Select,
+                        ChunkReadOptions_.WorkloadDescriptor.Category,
+                        std::move(timestampReadOptions),
+                        QueryOptions_.MergeVersionedRows);
+
+                    return New<TProfilingReaderWrapper>(
+                        reader,
+                        *tabletSnapshot->TableProfiler->GetSelectRowsCounters(GetProfilingUser(Identity_)),
+                        tabletSnapshot->Settings.MountConfig->EnableDetailedProfiling,
+                        dataSource.TabletId,
+                        subqueryIndex,
+                        TabletRatios_);
+                });
+            };
+        } else {
+            getSubqueryReader = [=, this, this_ = MakeStrong(this)] (int subqueryIndex) {
+                // TODO(lukyan): std::move(groupedDataSplits[subqueryIndex])
+                return CreateReaderForDataSources(groupedDataSplits[subqueryIndex], subqueryIndex);
+            };
+        }
 
         TabletRatios_->resize(splitCount);
 
-        getSubqueryReader = [=, this, this_ = MakeStrong(this)] (int subqueryIndex) {
-            return CreateReaderForDataSources(groupedDataSplits[subqueryIndex], subqueryIndex);
-        };
-
-        getPrefetchJoinDataSource = [
+        TGetPrefetchJoinSubDataSource getPrefetchJoinDataSource = [
             =,
             this,
             this_ = MakeStrong(this)
@@ -614,6 +660,8 @@ private:
             [
                 &,
                 getSubqueryReader = std::move(getSubqueryReader),
+                functionGenerators,
+                aggregateGenerators,
                 getPrefetchJoinDataSource = std::move(getPrefetchJoinDataSource),
                 bottomQueryPattern = std::move(bottomQueryPattern),
                 executePlanCallback = GetExecutePlanCallback(),
@@ -663,15 +711,18 @@ private:
                     .AsyncVia(Invoker_)
                     .Run(
                         bottomQuery,
-                        getSubqueryReader(subqueryIndex++),
+                        getSubqueryReader(subqueryIndex),
                         pipe->GetWriter(),
                         joinProfilers,
                         functionGenerators,
                         aggregateGenerators,
+                        sdk,
                         MemoryChunkProvider_,
                         QueryOptions_,
                         RequestFeatureFlags_,
                         responseFeatureFlags);
+
+                ++subqueryIndex;
 
                 asyncStatistics = asyncStatistics.AsUnique().Apply(BIND([
                     =,
@@ -715,6 +766,7 @@ private:
                     /*joinProfilers*/ {},
                     functionGenerators,
                     aggregateGenerators,
+                    sdk,
                     MemoryChunkProvider_,
                     QueryOptions_,
                     RequestFeatureFlags_,
@@ -852,6 +904,7 @@ private:
 
         auto remoteExecutor = CreateQueryExecutor(
             MemoryChunkProvider_,
+            Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::Query),
             client->GetNativeConnection(),
             ColumnEvaluatorCache_,
             Evaluator_,
@@ -1169,13 +1222,13 @@ private:
             struct TPredicate
             {
                 // itemIt PRECEDES partitionIt
-                bool operator() (TRangeIt itemIt, TPartitionIt partitionIt) const
+                bool operator()(TRangeIt itemIt, TPartitionIt partitionIt) const
                 {
                     return itemIt->second <= (*partitionIt)->NextPivotKey;
                 }
 
                 // itemIt FOLLOWS partitionIt
-                bool operator() (TPartitionIt partitionIt, TRangeIt itemIt) const
+                bool operator()(TPartitionIt partitionIt, TRangeIt itemIt) const
                 {
                     return (*partitionIt)->NextPivotKey <= itemIt->first;
                 }
@@ -1194,13 +1247,13 @@ private:
                 struct TPredicate
                 {
                     // itemIt PRECEDES shardIt
-                    bool operator() (const TRowRange* itemIt, const TKeyRef* shardIt) const
+                    bool operator()(const TRowRange* itemIt, const TKeyRef* shardIt) const
                     {
                         return CompareValueRanges(ToKeyRef(itemIt->second), *shardIt) <= 0;
                     }
 
                     // itemIt FOLLOWS shardIt
-                    bool operator() (const TKeyRef* shardIt, const TRowRange* itemIt) const
+                    bool operator()(const TKeyRef* shardIt, const TRowRange* itemIt) const
                     {
                         return CompareValueRanges(*shardIt, ToKeyRef(itemIt->first)) <= 0;
                     }
@@ -1333,6 +1386,8 @@ private:
 
         auto minWeightPerSubquery = QueryOptions_.MinRowCountPerSubquery;
         int maxGroups = std::min(QueryOptions_.MaxSubqueries, Config_->MaxSubqueries);
+
+        maxGroups = 64;
         YT_VERIFY(maxGroups > 0);
 
         auto weightPerSubquery = std::max(maxWeight, std::min(minWeightPerSubquery, totalWeight));
@@ -1358,6 +1413,9 @@ private:
         TRow lowerBound;
         const TRowRange* lastRowRange;
 
+        ui64 currentGroupWeight = 0;
+        ui64 groupIndex = 0;
+
         for (const auto& [partitionRanges, tabletId, ranges, keys] : tabletRanges) {
             if (!ranges.empty() || !keys.empty()) {
                 YT_VERIFY(tabletBoundsGroup.empty());
@@ -1370,6 +1428,7 @@ private:
 
                 for (const auto& sampleRange : sampleRanges) {
                     currentSummaryWeight += sampleRange.Weight;
+                    currentGroupWeight += sampleRange.Weight;
 
                     if (tabletBoundsGroup.empty() || tabletBoundsGroup.back().TabletId != tabletId) {
                         tabletBoundsGroup.push_back({.TabletId = tabletId});
@@ -1419,6 +1478,8 @@ private:
                             }
                         }
 
+                        YT_LOG_DEBUG("Making group (GroupIndex: %v, Weight: %v)", groupIndex++, currentGroupWeight);
+
                         groupedReadRanges.push_back(std::move(tabletBoundsGroup));
 
                         // Initialize new group.
@@ -1427,6 +1488,8 @@ private:
 
                         ++groupId;
                         nextWeight = (groupId + 1) * totalWeight / targetGroupCount;
+
+                        currentGroupWeight = 0;
                     }
                 }
             }
@@ -1603,6 +1666,40 @@ private:
         };
 
         return CreatePrefetchingOrderedSchemafulReader(std::move(bottomSplitReaderGenerator));
+    }
+
+    struct TPlainDataSource
+    {
+        TTabletId TabletId;
+
+        std::vector<NTableClient::TRowRange> Bounds;
+        int PartitionIndex;
+    };
+
+    struct TDataSourceQueue final
+    {
+        TLockFreeStack<TPlainDataSource> DataSources;
+    };
+
+    TIntrusivePtr<TDataSourceQueue> MakeDataSourcesQueue(TSharedRange<std::vector<TTabletReadItems>> dataSources)
+    {
+        auto result = New<TDataSourceQueue>();
+        int count = 0;
+        for (const auto& group : dataSources) {
+            for (const auto& tabletReadRanges : group) {
+                auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(tabletReadRanges.TabletId);
+                auto [columnFilter, timestampReadOptions] = GetColumnFilter(*Query_->GetReadSchema(), *tabletSnapshot->QuerySchema);
+
+                for (const auto& [bounds, partitionIndex] : tabletReadRanges.PartitionBounds) {
+                    result->DataSources.Enqueue({tabletReadRanges.TabletId, bounds, partitionIndex});
+                    ++count;
+                }
+            }
+        }
+
+        YT_LOG_DEBUG("Creating reader balancing queue (Size:% v)", count);
+
+        return result;
     }
 
     void AccountCpuTimeToTablets(const TQueryStatistics& statistics)

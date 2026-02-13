@@ -191,7 +191,7 @@ To avoid synchronization and even out the load, a random shift is added to `auto
 This section details the structure of tablets. It's not mandatory for reading, but it may be helpful to those who want to tweak some of the settings on their own.
 
 {% if audience == "internal" %}
-To learn more, see page 73 onward in the [presentation](https://docs.yandex.ru/docs/view?url=ya-disk-public%3A%2F%2Fi847DzRWoKk%2Fi0Xox19Rn1ITfuoLOyZvivqdJcyuW%2Bc%3D&name=dyntables.pdf&nosw=1) [here](dynamic_tables_internals#2018:-arhitektura-dinamicheskih-tablic).
+To learn more, see page 73 onward in the [presentation](https://docs.yandex.ru/docs/view?url=ya-disk-public%3A%2F%2Fi847DzRWoKk%2Fi0Xox19Rn1ITfuoLOyZvivqdJcyuW%2Bc%3D&name=dyntables.pdf&nosw=1) [here](../../../other/video-posts.md#2018-arhitektura-dinamicheskih-tablic).
 {% endif %}
 
 ### Structure { #tablet_description }

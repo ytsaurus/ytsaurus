@@ -42,11 +42,18 @@ func (a HTTPLeaderMonitoring) HandleIsLeader(w http.ResponseWriter, r *http.Requ
 	}
 }
 
-func (a HTTPHealthMonitoring) HandleIsHealthy(w http.ResponseWriter, r *http.Request) {
+func (a HTTPHealthMonitoring) isLeaderRequire(w http.ResponseWriter, r *http.Request) bool {
 	if !a.leaderChecker.IsLeader() {
 		a.Reply(w, http.StatusServiceUnavailable, map[string]any{
 			"error": yterrors.Err("not a leader"),
 		})
+		return false
+	}
+	return true
+}
+
+func (a HTTPHealthMonitoring) HandleIsHealthy(w http.ResponseWriter, r *http.Request) {
+	if ok := a.isLeaderRequire(w, r); !ok {
 		return
 	}
 
@@ -54,6 +61,19 @@ func (a HTTPHealthMonitoring) HandleIsHealthy(w http.ResponseWriter, r *http.Req
 		a.Reply(w, http.StatusServiceUnavailable, map[string]any{
 			"error": yterrors.FromError(healthErr),
 		})
+		return
+	}
+
+	a.ReplyOK(w, struct{}{})
+}
+
+func (a HTTPHealthMonitoring) HandleCoreMonitor(w http.ResponseWriter, r *http.Request) {
+	if ok := a.isLeaderRequire(w, r); !ok {
+		return
+	}
+
+	if coresErr := a.healthChecker.CheckCores(); coresErr != nil {
+		a.Reply(w, http.StatusServiceUnavailable, coresErr)
 		return
 	}
 

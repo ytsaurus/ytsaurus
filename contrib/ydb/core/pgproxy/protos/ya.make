@@ -1,0 +1,10 @@
+PROTO_LIBRARY()
+PROTOC_FATAL_WARNINGS()
+
+SRCS(
+    pgproxy.proto
+)
+
+EXCLUDE_TAGS(GO_PROTO)
+
+END()

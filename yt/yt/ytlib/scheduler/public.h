@@ -47,7 +47,12 @@ class TResourceLimits;
 class TQueryFilterOptions;
 class TQuerySpec;
 class TDiskQuota;
+class TDeprecatedDiskRequest;
+class TStorageRequestCommonParameters;
+class TTmpfsStorageReuqest;
 class TDiskRequest;
+class TLocalDiskRequest;
+class TNbdDiskRequest;
 
 } // namespace NProto
 
@@ -102,7 +107,7 @@ DECLARE_REFCOUNTED_STRUCT(TJobResourcesConfig)
 DECLARE_REFCOUNTED_STRUCT(TJobResourcesWithDiskConfig)
 DECLARE_REFCOUNTED_STRUCT(TTmpfsVolumeConfig)
 DECLARE_REFCOUNTED_STRUCT(TNbdDiskConfig)
-DECLARE_REFCOUNTED_STRUCT(TOldDiskRequestConfig)
+DECLARE_REFCOUNTED_STRUCT(TDeprecatedDiskRequestConfig)
 DECLARE_REFCOUNTED_STRUCT(TStorageRequestBase)
 DECLARE_REFCOUNTED_STRUCT(TTmpfsStorageRequest)
 DECLARE_REFCOUNTED_STRUCT(TDiskRequestConfig)
@@ -120,7 +125,7 @@ DECLARE_REFCOUNTED_STRUCT(TJobFailsTolerance);
 DECLARE_REFCOUNTED_STRUCT(TFastIntermediateMediumTableWriterConfig)
 DECLARE_REFCOUNTED_STRUCT(TGracefulShutdownSpec)
 DECLARE_REFCOUNTED_STRUCT(TSidecarJobSpec)
-DECLARE_REFCOUNTED_STRUCT(TDistributedJobOptions)
+DECLARE_REFCOUNTED_STRUCT(TCollectiveOptions)
 DECLARE_REFCOUNTED_STRUCT(TVolume)
 DECLARE_REFCOUNTED_STRUCT(TVolumeMount)
 DECLARE_REFCOUNTED_STRUCT(TLayer)

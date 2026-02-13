@@ -1,25 +1,32 @@
 from functools import partial
 from yt_env_setup import YTEnvSetup
 from yt_commands import (
+    alter_table,
     authors,
-    create,
     create_user,
+    create,
     join_reduce,
+    ls,
+    make_ace,
+    map_reduce,
+    map,
+    merge,
     raises_yt_error,
     read_table,
-    remove,
-    write_table,
-    sorted_dicts,
-    map,
-    map_reduce,
-    merge,
     reduce,
+    remove,
+    set as yt_set,
     sort,
-    make_ace,
+    sorted_dicts,
+    wait,
+    write_file,
+    write_table,
 )
 import pytest
 from random import Random
-from yt_type_helpers import make_column, make_sorted_column
+from yt_type_helpers import make_column, make_sorted_column, optional_type
+
+from textwrap import dedent
 
 
 @authors("coteeq")
@@ -341,3 +348,104 @@ class TestSchedulerRowLevelSecurityCommands(YTEnvSetup):
 
         # No restrictions if we can prove that row indices are not broken.
         run_merge(in_="//tmp/t[#1]", out="<create=%true>//tmp/t_out", authenticated_user="full_read_user")
+
+    def test_omit_rows_in_files(self, optimize_for):
+        self._prepare_simple_test(optimize_for)
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"max": 42}])
+        one_node = list(ls("//sys/exec_nodes"))[0]
+
+        def run_map(user):
+            map(
+                in_="//tmp/t_in",
+                out=[
+                    "<create=%true>//tmp/t_out_input",
+                    "<create=%true>//tmp/t_out_file",
+                ],
+                spec={
+                    "omit_inaccessible_rows": True,
+                    "mapper": {
+                        "format": "yson",
+                    },
+                    "scheduling_tag_filter": one_node,
+                },
+                command="cat && cat ./t > /proc/self/fd/4",
+                file=["<format=yson>//tmp/t"],
+                authenticated_user=user,
+            )
+
+        run_map("prime_user")
+
+        assert read_table("//tmp/t_out_input") == [{"max": 42}]
+        assert sorted_dicts(read_table("//tmp/t_out_file")) == sorted_dicts(self._rows(2, 3, 5, 7))
+
+        # Check that artifact is not cached with different rls parameters.
+        run_map("basic_read_user")
+
+        assert read_table("//tmp/t_out_input") == [{"max": 42}]
+        assert read_table("//tmp/t_out_file") == []
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("use_columns", [False, True], ids=["use_columns", "no_use_columns"])
+    def test_key_widening(self, optimize_for, use_columns):
+        self._prepare_simple_test(optimize_for, sorted=True)
+
+        new_schema = [
+            make_sorted_column("int", "int64"),
+            make_sorted_column("int2", optional_type("int64")),
+            make_column("str", "string"),
+        ]
+        alter_table("//tmp/t", schema=new_schema)
+
+        reducer = dedent(
+            """
+            import json
+            from sys import stdin
+
+            control_attributes = {}
+            for line in stdin:
+                try:
+                    row = json.loads(line)
+                except Exception as ex:
+                    raise RuntimeError(f"line was {line}") from ex
+                if "$value" in row:
+                    assert row["$value"] is None
+                    control_attributes.update(row["$attributes"])
+                    continue
+
+                row.update({
+                    key.removeprefix("$"): value
+                    for key, value in control_attributes.items()
+                })
+                control_attributes = {}
+                print(json.dumps(row))
+            """
+        )
+
+        create("file", "//tmp/reducer.py")
+        write_file("//tmp/reducer.py", reducer.encode("utf-8"))
+
+        yt_set("//tmp/t/@acl", [
+            self._make_rl_ace("prime_user", """str in ("val_5", "val_7")"""),
+            self._make_rl_ace("prime_user", """str in ("val_2", "val_3")"""),
+            make_ace("allow", "prime_user", "read"),
+        ])
+
+        path = "//tmp/t{str,int,int2}" if use_columns else "//tmp/t"
+        op = reduce(
+            track=False,
+            in_=path,
+            out="<create=%true>//tmp/t_out",
+            spec={
+                "omit_inaccessible_rows": True,
+                "reducer": {"format": "json"},
+            },
+            authenticated_user="prime_user",
+            command="python3 reducer.py",
+            file="//tmp/reducer.py",
+            reduce_by=["int", "int2"],
+        )
+
+        # This effectively asserts that operation will have inifinitely aborting jobs.
+        wait(lambda: op.get_job_count("aborted") > 10)
+        op.abort()

@@ -14,7 +14,7 @@ namespace NYT::NOrm::NServer::NObjects::NTests {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TExpressionPtr ParseInto(TString query, TObjectsHolder* holder)
+TExpressionPtr ParseInto(std::string query, TObjectsHolder* holder)
 {
     auto parsed = ParseSource(query, NQueryClient::EParseMode::Expression);
     auto expr = std::get<TExpressionPtr>(parsed->AstHead.Ast);

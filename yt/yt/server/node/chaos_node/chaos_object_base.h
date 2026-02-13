@@ -41,6 +41,8 @@ class TChaosObjectBase
     : public NTabletNode::TObjectBase
 {
 public:
+    virtual ~TChaosObjectBase() = default;
+
     using TCoordinators = THashMap<NObjectClient::TCellId, TCoordinatorInfo>;
     DEFINE_BYREF_RW_PROPERTY(TCoordinators, Coordinators);
 
@@ -54,6 +56,8 @@ public:
 
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
+
+    virtual bool IsNormalState() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

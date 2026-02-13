@@ -6,7 +6,6 @@ ALLOCATOR(TCMALLOC)
 
 SRCS(
     cypress_key_store_ut.cpp
-    dynamic_ut.cpp
     helpers.cpp
     key_info_ut.cpp
     key_pair_ut.cpp

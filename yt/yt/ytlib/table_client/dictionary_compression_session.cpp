@@ -78,7 +78,7 @@ public:
             chunkReadOptions,
             dictionaryIdSet);
 
-        if (auto maybeDecompressors = decompressorsFuture.TryGetUnique();
+        if (auto maybeDecompressors = decompressorsFuture.AsUnique().TryGet();
             maybeDecompressors && maybeDecompressors->IsOK())
         {
             DoDecompressValues(

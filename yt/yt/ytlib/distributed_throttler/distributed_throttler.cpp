@@ -77,8 +77,12 @@ public:
         TDistributedThrottlerConfigPtr config,
         TThroughputThrottlerConfigPtr throttlerConfig,
         TDuration throttleRpcTimeout,
+        const NLogging::TLogger& logger,
         TProfiler profiler)
-        : Underlying_(CreateReconfigurableThroughputThrottler(throttlerConfig))
+        : Underlying_(CreateReconfigurableThroughputThrottler(
+            throttlerConfig,
+            logger,
+            profiler))
         , ThrottlerId_(std::move(throttlerId))
         , Config_(std::move(config))
         , ThrottlerConfig_(std::move(throttlerConfig))
@@ -294,6 +298,10 @@ public:
         Usage_ = Profiler_.Gauge("/usage");
         Usage_.Update(0);
 
+        Acquired_ = Profiler_.Counter("/acquired");
+
+        TotalUsage_ = Profiler_.Counter("/total_usage");
+
         QueueTotalAmount_ = Profiler_.Gauge("/queue_total_amount");
         QueueTotalAmount_.Update(0);
 
@@ -316,7 +324,9 @@ private:
 
     TProfiler Profiler_;
     TGauge Limit_;
+    TCounter Acquired_;
     TGauge Usage_;
+    TCounter TotalUsage_;
     TGauge QueueTotalAmount_;
     TTimeGauge EstimatedOverdraftDuration_;
     std::atomic<bool> Initialized_ = false;
@@ -329,12 +339,15 @@ private:
     {
         auto guard = Guard(HistoricUsageAggregatorLock_);
         HistoricUsageAggregator_.UpdateAt(TInstant::Now(), amount);
+        Acquired_.Increment(amount);
         if (amount > 0) {
             Initialize();
         }
         if (Initialized_) {
             Usage_.Update(HistoricUsageAggregator_.GetAverage());
         }
+
+        TotalUsage_.Increment(amount);
     }
 };
 
@@ -1410,6 +1423,7 @@ public:
                 config,
                 std::move(throttlerConfig),
                 throttleRpcTimeout,
+                Logger,
                 Profiler_);
             wrappedThrottler->SetLeaderChannel(leaderChannel);
 
@@ -1704,7 +1718,7 @@ private:
         options.AttributeKeys = {AddressAttributeKey, RealmIdAttributeKey};
 
         auto rspFuture = DiscoveryClient_->ListMembers(GroupId_, options);
-        auto rspOrError = WaitForUnique(rspFuture);
+        auto rspOrError = WaitFor(rspFuture.AsUnique());
         if (!rspOrError.IsOK()) {
             YT_LOG_WARNING(rspOrError, "Error updating leader");
             return;

@@ -59,6 +59,8 @@ struct ITabletSnapshotStore
         const TTabletSnapshotPtr& tabletSnapshot,
         const ITabletSlotPtr& slot = nullptr) = 0;
 
+    virtual void ValidateUserNotBanned(const std::string& userName) = 0;
+
     //! Informs the manager that some slot now serves #tablet.
     //! It is fine to update an already registered snapshot.
     virtual void RegisterTabletSnapshot(

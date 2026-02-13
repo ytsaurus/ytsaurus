@@ -15,14 +15,15 @@ namespace NYT::NS3 {
 using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NThreading;
+using namespace NIO;
 
 ////////////////////////////////////////////////////////////////////////////
 
 namespace {
 
-std::vector<NIO::TPhysicalChunkLayoutReader::TBlockRange> GetBlockRanges(const std::vector<int>& blockIndexes)
+std::vector<TBlockRange> GetBlockRanges(const std::vector<int>& blockIndexes)
 {
-    std::vector<NIO::TPhysicalChunkLayoutReader::TBlockRange> blockRanges;
+    std::vector<TBlockRange> blockRanges;
 
     int localIndex = 0;
     while (localIndex < std::ssize(blockIndexes)) {
@@ -32,19 +33,19 @@ std::vector<NIO::TPhysicalChunkLayoutReader::TBlockRange> GetBlockRanges(const s
             ++endLocalIndex;
         }
 
-        blockRanges.push_back({blockIndexes[localIndex], blockIndexes[localIndex] + (endLocalIndex - localIndex)});
+        blockRanges.emplace_back(blockIndexes[localIndex], blockIndexes[localIndex] + (endLocalIndex - localIndex));
         localIndex = endLocalIndex;
     }
 
     return blockRanges;
 }
 
-std::vector<NIO::TPhysicalChunkLayoutReader::TBlockRange> GetBlockRanges(int startBlockIndex, int blockCount)
+std::vector<TBlockRange> GetBlockRanges(int startBlockIndex, int blockCount)
 {
     return {{startBlockIndex, startBlockIndex + blockCount}};
 }
 
-NIO::TReadRequest MakeSimpleReadRequest(const TString& chunkFileName, NIO::TPhysicalChunkLayoutReader::TBlockRange blockRange, const NIO::TBlocksExtPtr& blocksExt)
+TReadRequest MakeSimpleReadRequest(const std::string& chunkFileName, TBlockRange blockRange, const TBlocksExtPtr& blocksExt)
 {
     YT_VERIFY(blockRange.StartBlockIndex >= 0);
     YT_VERIFY(blockRange.EndBlockIndex > blockRange.StartBlockIndex);
@@ -83,19 +84,10 @@ public:
         TS3ReaderConfigPtr config,
         TChunkId chunkId)
         : Client_(std::move(client))
+        , Config_(std::move(config))
         , ChunkId_(std::move(chunkId))
         , ChunkPlacement_(mediumDescriptor->GetChunkPlacement(ChunkId_))
         , ChunkMetaPlacement_(mediumDescriptor->GetChunkMetaPlacement(ChunkId_))
-        , PhysicalChunkLayoutReader_(New<NIO::TPhysicalChunkLayoutReader>(
-            ChunkId_,
-            ChunkPlacement_.Key,
-            ChunkMetaPlacement_.Key,
-            NIO::TPhysicalChunkLayoutReader::TOptions{
-                .ValidateBlockChecksums = config->ValidateBlockChecksums,
-            },
-            ChunkClientLogger(),
-            BIND(&TS3Reader::DumpBrokenBlock, MakeWeak(this)),
-            BIND(&TS3Reader::DumpBrokenMeta, MakeWeak(this))))
         , Logger(ChunkClientLogger())
     { }
 
@@ -115,22 +107,17 @@ public:
     }
 
     TFuture<TRefCountedChunkMetaPtr> GetMeta(
-        const TGetMetaOptions& options,
-        const std::optional<TPartitionTags>& partitionTags = std::nullopt,
-        const std::optional<std::vector<int>>& extensionTags = {}) override
+        const TGetMetaOptions& /*options*/,
+        const std::optional<TPartitionTags>& /*partitionTags*/,
+        const std::optional<std::vector<int>>& extensionTags) override
     {
-        if (partitionTags) {
-            // YT_LOG_ALERT("Get meta request for S3 media was formed with partition tags (PartitionTags: %v)", partitionTag);
-            // THROW_ERROR_EXCEPTION("Partiton tags are not supported in get meta request")
-            //     << TErrorAttribute("partition_tags", partitionTags);
-        }
         if (extensionTags) {
             YT_LOG_ALERT("Get meta request for S3 media was formed with extension tags (ExtensionTags: %v)", extensionTags);
             THROW_ERROR_EXCEPTION("Extension tags are not supported in get meta request")
                 << TErrorAttribute("extension_tags", extensionTags);
         }
 
-        return DoGetMeta(options.ClientOptions);
+        return DoGetMeta();
     }
 
     TChunkId GetChunkId() const override
@@ -146,15 +133,15 @@ public:
 
 private:
     const IClientPtr Client_;
+    const TS3ReaderConfigPtr Config_;
     const TChunkId ChunkId_;
+    const TString ChunkFileName_;
     const TS3MediumDescriptor::TS3ObjectPlacement ChunkPlacement_;
     const TS3MediumDescriptor::TS3ObjectPlacement ChunkMetaPlacement_;
-    const NIO::TPhysicalChunkLayoutReaderPtr PhysicalChunkLayoutReader_;
     const NLogging::TLogger Logger;
 
     YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, MetaLock_);
     TRefCountedChunkMetaPtr ChunkMeta_;
-    NIO::TBlocksExtPtr BlocksExt_;
 
     IInvokerPtr GetSessionInvoker(const TReadBlocksOptions& options) const
     {
@@ -163,11 +150,11 @@ private:
 
     TFuture<std::vector<TBlock>> ReadBlockRanges(
         const TReadBlocksOptions& options,
-        const std::vector<NIO::TPhysicalChunkLayoutReader::TBlockRange>& blockRanges,
-        const NIO::TBlocksExtPtr& blocksExt = nullptr)
+        const std::vector<TBlockRange>& blockRanges,
+        const TBlocksExtPtr& blocksExt = nullptr)
     {
         if (!blocksExt) {
-            return GetBlocksExt(options.ClientOptions, GetSessionInvoker(options))
+            return GetBlocksExt(GetSessionInvoker(options))
                 .Apply(BIND(&TS3Reader::ReadBlockRanges, MakeStrong(this), options, blockRanges).AsyncVia(GetSessionInvoker(options)));
         }
 
@@ -175,7 +162,7 @@ private:
         futures.reserve(blockRanges.size());
 
         for (const auto& blockRange : blockRanges) {
-            futures.push_back(ReadBlockRange(options, blockRange, blocksExt));
+            futures.emplace_back(ReadBlockRange(options, blockRange, blocksExt));
         }
 
         return AllSet(std::move(futures))
@@ -191,10 +178,10 @@ private:
 
     TFuture<std::vector<TBlock>> ReadBlockRange(
         const TReadBlocksOptions& options,
-        const NIO::TPhysicalChunkLayoutReader::TBlockRange& blockRange,
-        const NIO::TBlocksExtPtr& blocksExt)
+        const TBlockRange& blockRange,
+        const TBlocksExtPtr& blocksExt)
     {
-        auto readRequest = MakeSimpleReadRequest(PhysicalChunkLayoutReader_->GetChunkFileName(), blockRange, blocksExt);
+        auto readRequest = MakeSimpleReadRequest(ChunkPlacement_.Key, blockRange, blocksExt);
         YT_VERIFY(readRequest.Offset >= 0);
         YT_VERIFY(readRequest.Size >= 1);
 
@@ -204,14 +191,19 @@ private:
         request.Range = Format("bytes=%v-%v", readRequest.Offset, readRequest.Offset + readRequest.Size - 1);
 
         return Client_->GetObject(request)
-            .Apply(BIND([this, this_ = MakeStrong(this), blockRange, blocksExt, options] (const TGetObjectResponse& response) {
-                return PhysicalChunkLayoutReader_->DeserializeBlocks(response.Data, blockRange, blocksExt, options.ClientOptions.ChunkReaderStatistics);
+            .Apply(BIND([this, this_ = MakeStrong(this), blockRange, blocksExt] (const TGetObjectResponse& response) {
+                return DeserializeBlocks(
+                    std::move(response.Data),
+                    blockRange,
+                    Config_->ValidateBlockChecksums,
+                    ChunkPlacement_.Key,
+                    blocksExt,
+                    /*dumpBrokenBlocks*/ {});
             })
             .AsyncVia(GetSessionInvoker(options)));
     }
 
     TFuture<TRefCountedChunkMetaPtr> DoGetMeta(
-        const TClientChunkReadOptions& options,
         IInvokerPtr invoker = nullptr)
     {
         {
@@ -226,43 +218,32 @@ private:
         request.Bucket = ChunkMetaPlacement_.Bucket;
         request.Key = ChunkMetaPlacement_.Key;
         return Client_->GetObject(request)
-            .Apply(BIND([options, this, this_ = MakeStrong(this)] (const TGetObjectResponse& response) {
-                auto metaWithChunkId = PhysicalChunkLayoutReader_->DeserializeMeta(response.Data, options.ChunkReaderStatistics);
+            .Apply(BIND([this, this_ = MakeStrong(this)] (const TGetObjectResponse& response) {
+                auto meta = DeserializeMeta(
+                    std::move(response.Data),
+                    ChunkMetaPlacement_.Key,
+                    ChunkId_,
+                    /*dumpBrokenMeta*/ {});
 
                 auto guard = WriterGuard(MetaLock_);
 
                 if (!ChunkMeta_) {
-                    ChunkMeta_ = metaWithChunkId.ChunkMeta;
-                    BlocksExt_ = New<NIO::TBlocksExt>(GetProtoExtension<NChunkClient::NProto::TBlocksExt>(ChunkMeta_->extensions()));
+                    ChunkMeta_ = std::move(meta);
                 }
 
                 return ChunkMeta_;
             }).AsyncVia(invoker ? invoker : GetCurrentInvoker()));
     }
 
-
-    TFuture<NIO::TBlocksExtPtr> GetBlocksExt(
-        const TClientChunkReadOptions& options,
+    TFuture<TBlocksExtPtr> GetBlocksExt(
         IInvokerPtr invoker = nullptr)
     {
-        return DoGetMeta(options, invoker)
+        return DoGetMeta(invoker)
             .AsVoid()
-            .Apply(BIND([this, this_ = MakeStrong(this)] () {
+            .Apply(BIND([this, this_ = MakeStrong(this)] {
                 auto guard = ReaderGuard(MetaLock_);
-                return BlocksExt_;
+                return New<TBlocksExt>(GetProtoExtension<NChunkClient::NProto::TBlocksExt>(ChunkMeta_->extensions()));
             }));
-    }
-
-
-    void DumpBrokenMeta(TRef /*block*/) const
-    {
-    }
-
-    void DumpBrokenBlock(
-        int /*blockIndex*/,
-        const NIO::TBlockInfo& /*blockInfo*/,
-        TRef /*block*/) const
-    {
     }
 };
 

@@ -59,6 +59,8 @@ items:
                  href: user-guide/storage/access-control.md
                - name: Managing access to table columns
                  href: user-guide/storage/columnar-acl.md
+               - name: Managing row-level access to tables
+                 href: user-guide/storage/row-level-security.md
            - name: Resource quotas
              items:
                - name: Quotas
@@ -120,6 +122,8 @@ items:
                href: user-guide/dynamic-tables/queues.md
          - name: Replicated tables
            href: user-guide/dynamic-tables/replicated-dynamic-tables.md
+         - name: Chaos replicated tables
+           href: user-guide/dynamic-tables/chaos-dynamic-tables.md   
          - name: Multi-versioning and transactions of dynamic tables
            href: user-guide/dynamic-tables/transactions.md
          - name: Sharding
@@ -287,6 +291,16 @@ items:
                href: user-guide/data-processing/spyt/overview.md
              - name: Launching Spark tasks in {{product-name}}
                href: user-guide/data-processing/spyt/launch.md
+             - name: Direct submit
+               items:
+               - name: Description
+                 href: user-guide/data-processing/spyt/direct-submit/desc.md
+               - name: Dynamic allocation
+                 href: user-guide/data-processing/spyt/direct-submit/dyn-allocation.md
+               - name: Diagnostics
+                 href: user-guide/data-processing/spyt/direct-submit/diagnostics.md
+               - name: History server
+                 href: user-guide/data-processing/spyt/direct-submit/shs.md
              - name: SPYT cluster
                items:
                - name: SPYT cluster
@@ -323,6 +337,8 @@ items:
                    href: user-guide/data-processing/spyt/API/spyt-java.md
              - name: Thesaurus
                items:
+                 - name: Data type mapping
+                   href: user-guide/data-processing/spyt/thesaurus/data-types.md
                  - name: Configuration parameters
                    href: user-guide/data-processing/spyt/thesaurus/configuration.md
                  - name: Read options
@@ -455,14 +471,22 @@ items:
              href: admin-guide/install-odin.md
            - name: Tutorial
              href: admin-guide/install-tutorial.md
+           - name: Microservices
+             href: admin-guide/install-ytmsvc.md
+           - name: Monitoring
+             href: admin-guide/install-monitoring.md
        - name: Getting the YTsaurus specification ready
          items:
           - name: Description
             href: admin-guide/prepare-spec.md
+          - name: Configuration overrides
+            href: admin-guide/config-overrides.md
           - name: Setting up locations
             href: admin-guide/locations.md
           - name: Configuring server component logging
             href: admin-guide/logging.md
+          - name: Uploading snapshots to Cypress
+            href: admin-guide/persistence-uploader.md
        - name: Setting up SSO
          href: admin-guide/oauth.md
          when: audience == "public"
@@ -470,12 +494,16 @@ items:
          href: admin-guide/monitoring.md
        - name: Updating YTsaurus server components
          href: admin-guide/update-ytsaurus.md
+       - name: Updating volumes
+         href: admin-guide/update-volumes.md
        - name: Cluster operation
          href: admin-guide/cluster-operations.md
        - name: Node administration
          href: admin-guide/node-maintenance.md
        - name: Tagging cluster nodes
          href: admin-guide/node-tags.md
+       - name: CRI for job container runtime
+         href: admin-guide/node-cri.md
        - name: Possible problems
          href: admin-guide/problems.md
        - name: Cell addition

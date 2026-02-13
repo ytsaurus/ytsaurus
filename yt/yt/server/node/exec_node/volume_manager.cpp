@@ -3,7 +3,6 @@
 #include "artifact.h"
 #include "artifact_cache.h"
 #include "bootstrap.h"
-#include "job_controller.h"
 #include "helpers.h"
 #include "private.h"
 
@@ -135,7 +134,6 @@ IImageReaderPtr CreateCypressFileImageReader(
     const TLogger& logger)
 {
     YT_VERIFY(artifactKey.has_filesystem());
-    YT_VERIFY(artifactKey.has_nbd_export_id());
 
     std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs(
         artifactKey.chunk_specs().begin(),
@@ -164,12 +162,12 @@ public:
         : VolumeProfiler_("/volumes")
     { }
 
-    NProfiling::TCounter GetCounter(const NProfiling::TTagSet& tagSet, const TString& name)
+    TCounter GetCounter(const TTagSet& tagSet, const TString& name)
     {
         auto key = CreateKey(tagSet, name);
 
         auto guard = Guard(Lock_);
-        auto [it, inserted] = Counters_.emplace(key, NProfiling::TCounter());
+        auto [it, inserted] = Counters_.emplace(key, TCounter());
         if (inserted) {
             it->second = VolumeProfiler_.WithTags(tagSet).Counter(name);
         }
@@ -177,12 +175,12 @@ public:
         return it->second;
     }
 
-    NProfiling::TGauge GetGauge(const NProfiling::TTagSet& tagSet, const TString& name)
+    TGauge GetGauge(const TTagSet& tagSet, const TString& name)
     {
         auto key = CreateKey(tagSet, name);
 
         auto guard = Guard(Lock_);
-        auto [it, inserted] = Gauges_.emplace(key, NProfiling::TGauge());
+        auto [it, inserted] = Gauges_.emplace(key, TGauge());
         if (inserted) {
             it->second = VolumeProfiler_.WithTags(tagSet).Gauge(name);
         }
@@ -190,12 +188,12 @@ public:
         return it->second;
     }
 
-    NProfiling::TEventTimer GetTimeHistogram(const NProfiling::TTagSet& tagSet, const TString& name)
+    TEventTimer GetTimeHistogram(const TTagSet& tagSet, const TString& name)
     {
         auto key = CreateKey(tagSet, name);
 
         auto guard = Guard(Lock_);
-        auto [it, inserted] = EventTimers_.emplace(key, NProfiling::TEventTimer());
+        auto [it, inserted] = EventTimers_.emplace(key, TEventTimer());
         if (inserted) {
             std::vector<TDuration> bounds{
                 TDuration::Zero(),
@@ -211,12 +209,12 @@ public:
         return it->second;
     }
 
-    NProfiling::TEventTimer GetTimer(const NProfiling::TTagSet& tagSet, const TString& name)
+    TEventTimer GetTimer(const TTagSet& tagSet, const TString& name)
     {
         auto key = CreateKey(tagSet, name);
 
         auto guard = Guard(Lock_);
-        auto [it, inserted] = EventTimers_.emplace(key, NProfiling::TEventTimer());
+        auto [it, inserted] = EventTimers_.emplace(key, TEventTimer());
         if (inserted) {
             it->second = VolumeProfiler_.WithTags(tagSet).Timer(name);
         }
@@ -224,9 +222,9 @@ public:
         return it->second;
     }
 
-    static NProfiling::TTagSet MakeTagSet(const TString& volumeType, const TString& volumeFilePath)
+    static TTagSet MakeTagSet(const TString& volumeType, const TString& volumeFilePath)
     {
-        return NProfiling::TTagSet({{"type", volumeType}, {"file_path", volumeFilePath}});
+        return TTagSet({{"type", volumeType}, {"file_path", volumeFilePath}});
     }
 
     static TVolumeProfilerCounters* Get()
@@ -235,9 +233,9 @@ public:
     }
 
 private:
-    using TKey = NProfiling::TTagList;
+    using TKey = TTagList;
 
-    static TKey CreateKey(const NProfiling::TTagSet& tagSet, const TString& name)
+    static TKey CreateKey(const TTagSet& tagSet, const TString& name)
     {
         auto key = tagSet.Tags();
         key.push_back({"name", name});
@@ -245,17 +243,17 @@ private:
     }
 
 private:
-    const NProfiling::TProfiler VolumeProfiler_;
+    const TProfiler VolumeProfiler_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
-    THashMap<TKey, NProfiling::TCounter> Counters_;
-    THashMap<TKey, NProfiling::TGauge> Gauges_;
-    THashMap<TKey, NProfiling::TEventTimer> EventTimers_;
+    THashMap<TKey, TCounter> Counters_;
+    THashMap<TKey, TGauge> Gauges_;
+    THashMap<TKey, TEventTimer> EventTimers_;
 };
 
-NProfiling::TTaggedCounters<int>& VolumeCounters()
+TTaggedCounters<int>& VolumeCounters()
 {
-    static NProfiling::TTaggedCounters<int> result;
+    static TTaggedCounters<int> result;
     return result;
 }
 
@@ -278,6 +276,32 @@ public:
 
 private:
     TArtifactPtr Artifact_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TKey, class TValue>
+using TAsyncMapValueBase = TAsyncCacheValueBase<TKey, TValue>;
+
+// NB(pogorelov): It is pretty dirty map.
+// The cache shard capacity is calculated to be 1,
+// so since we have the weight of each element equal to 2,
+// we get that the cache does not work as a cache, but works as a ValueMap.
+template <class TKey, class TValue>
+class TAsyncMapBase
+    : public TAsyncSlruCacheBase<TKey, TValue>
+{
+    using TBase = TAsyncSlruCacheBase<TKey, TValue>;
+public:
+    TAsyncMapBase(const TProfiler& profiler = {})
+        : TBase(TSlruCacheConfig::CreateWithCapacity(0, /*shardCount*/ 1), profiler)
+    { }
+
+private:
+    i64 GetWeight(const TBase::TValuePtr& /*value*/) const override
+    {
+        return 2;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -336,7 +360,7 @@ struct TLayerMetaHeader
 struct TLayerMeta
     : public NProto::TLayerMeta
 {
-    TString Path;
+    std::string Path;
     TLayerId Id;
 };
 
@@ -353,32 +377,31 @@ struct TVolumeMeta
 
 struct TCreateNbdVolumeOptions
 {
-    TString ExportId;
+    TJobId JobId;
+    TString DeviceId;
     TString Filesystem;
     bool IsReadOnly;
-    bool IsRoot;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TPrepareNbdVolumeOptions
+struct TPrepareRONbdVolumeOptions
 {
     TJobId JobId;
-
     TArtifactKey ArtifactKey;
     IImageReaderPtr ImageReader;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TPrepareNbdRootVolumeOptions
+struct TPrepareRWNbdVolumeOptions
 {
     TJobId JobId;
 
     i64 Size;
     int MediumIndex;
     EFilesystemType Filesystem;
-    TString ExportId;
+    TString DeviceId;
     IChannelPtr DataNodeChannel;
     TSessionId SessionId;
 
@@ -390,7 +413,6 @@ struct TPrepareNbdRootVolumeOptions
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TLayer)
-DECLARE_REFCOUNTED_CLASS(TNbdVolume)
 
 class TOverlayData
 {
@@ -405,7 +427,7 @@ public:
         : Variant_(std::move(volume))
     { }
 
-    const TString& GetPath() const;
+    const std::string& GetPath() const;
 
     bool IsLayer() const
     {
@@ -452,13 +474,13 @@ struct TLayerLocationPerformanceCounters
         ImportLayerTimer = profiler.Timer("/import_layer_time");
     }
 
-    NProfiling::TGauge LayerCount;
-    NProfiling::TGauge VolumeCount;
+    TGauge LayerCount;
+    TGauge VolumeCount;
 
-    NProfiling::TGauge TotalSpace;
-    NProfiling::TGauge UsedSpace;
-    NProfiling::TGauge AvailableSpace;
-    NProfiling::TGauge Full;
+    TGauge TotalSpace;
+    TGauge UsedSpace;
+    TGauge AvailableSpace;
+    TGauge Full;
 
     TEventTimer ImportLayerTimer;
 };
@@ -545,7 +567,6 @@ public:
     TFuture<TVolumeMeta> CreateNbdVolume(
         TGuid tag,
         TTagSet tagSet,
-        TEventTimerGuard volumeCreateTimeGuard,
         TNbdConfigPtr nbdConfig,
         TCreateNbdVolumeOptions options)
     {
@@ -554,7 +575,6 @@ public:
             MakeStrong(this),
             tag,
             Passed(std::move(tagSet)),
-            Passed(std::move(volumeCreateTimeGuard)),
             Passed(std::move(nbdConfig)),
             Passed(std::move(options)))
             .AsyncVia(LocationQueue_->GetInvoker())
@@ -591,7 +611,8 @@ public:
         };
 
         return BIND([volume, slotPath, volumeProperties = std::move(volumeProperties), this, this_ = MakeStrong(this)]() {
-            auto path = NFS::CombinePaths(volume->GetPath(), "slot");
+            // TODO(dgolear): Switch to std::string.
+            TString path = NFS::CombinePaths(volume->GetPath(), "slot");
 
             if (!NFS::Exists(path)) {
                 YT_LOG_DEBUG("Creating rbind directory (Path: %v)",
@@ -607,17 +628,17 @@ public:
             // The rbind volume is destroyed when the passed in root volume is destroyed.
             return VolumeExecutor_->CreateVolume(path, volumeProperties);
         })
-        .AsyncVia(LocationQueue_->GetInvoker())
-        .Run()
-        .Apply(BIND([volume](const TString&) {
-            // Just return the passed in volume.
-            return volume;
-        }));
+            .AsyncVia(LocationQueue_->GetInvoker())
+            .Run()
+            .Apply(BIND([volume](const TString&) {
+                // Just return the passed in volume.
+                return volume;
+            }));
     }
 
     TFuture<TVolumeMeta> CreateOverlayVolume(
         TGuid tag,
-        NProfiling::TTagSet tagSet,
+        TTagSet tagSet,
         TEventTimerGuard volumeCreateTimeGuard,
         const TUserSandboxOptions& options,
         const std::vector<TOverlayData>& overlayDataArray)
@@ -636,7 +657,7 @@ public:
 
     TFuture<TVolumeMeta> CreateSquashFSVolume(
         TGuid tag,
-        NProfiling::TTagSet tagSet,
+        TTagSet tagSet,
         TEventTimerGuard volumeCreateTimeGuard,
         const TArtifactKey& artifactKey,
         const std::string& squashFSFilePath)
@@ -653,7 +674,7 @@ public:
             .Run();
     }
 
-    TFuture<void> RemoveVolume(NProfiling::TTagSet tagSet, TVolumeId volumeId)
+    TFuture<void> RemoveVolume(TTagSet tagSet, TVolumeId volumeId)
     {
         return BIND(&TLayerLocation::DoRemoveVolume, MakeStrong(this), std::move(tagSet), std::move(volumeId))
             .AsyncVia(LocationQueue_->GetInvoker())
@@ -872,22 +893,22 @@ private:
     i64 UsedSpace_ = 0;
     TError Alert_;
 
-    TString GetLayerPath(const TLayerId& id) const
+    std::string GetLayerPath(const TLayerId& id) const
     {
         return NFS::CombinePaths(LayersPath_, ToString(id));
     }
 
-    TString GetLayerMetaPath(const TLayerId& id) const
+    std::string GetLayerMetaPath(const TLayerId& id) const
     {
         return NFS::CombinePaths(LayersMetaPath_, ToString(id)) + ".meta";
     }
 
-    TString GetVolumePath(const TVolumeId& id) const
+    std::string GetVolumePath(const TVolumeId& id) const
     {
         return NFS::CombinePaths(VolumesPath_, ToString(id));
     }
 
-    TString GetVolumeMetaPath(const TVolumeId& id) const
+    std::string GetVolumeMetaPath(const TVolumeId& id) const
     {
         return NFS::CombinePaths(VolumesMetaPath_, ToString(id)) + ".meta";
     }
@@ -908,7 +929,7 @@ private:
         THashSet<TGuid> fileIds;
         for (const auto& fileName : fileNames) {
             auto filePath = NFS::CombinePaths(LayersMetaPath_, fileName);
-            if (fileName.EndsWith(NFS::TempFileSuffix)) {
+            if (fileName.ends_with(NFS::TempFileSuffix)) {
                 YT_LOG_DEBUG(
                     "Remove temporary file (Path: %v)",
                     filePath);
@@ -1058,25 +1079,7 @@ private:
         }
 
         try {
-            // Volumes are not expected to be used since all jobs must be dead by now.
-            auto volumePaths = WaitFor(VolumeExecutor_->ListVolumePaths())
-                .ValueOrThrow();
-
-            std::vector<TFuture<void>> unlinkFutures;
-            for (const auto& volumePath : volumePaths) {
-                if (volumePath.StartsWith(VolumesPath_)) {
-                    unlinkFutures.push_back(VolumeExecutor_->UnlinkVolume(volumePath, "self"));
-                }
-            }
-
-            auto unlinkResults = WaitFor(AllSet(unlinkFutures))
-                .ValueOrThrow();
-
-            for (const auto& unlinkError : unlinkResults) {
-                if (!unlinkError.IsOK() && unlinkError.GetCode() != EPortoErrorCode::VolumeNotLinked && unlinkError.GetCode() != EPortoErrorCode::VolumeNotFound) {
-                    THROW_ERROR(unlinkError);
-                }
-            }
+            RemoveVolumes();
 
             RunTool<TRemoveDirAsRootTool>(VolumesPath_);
             RunTool<TRemoveDirAsRootTool>(VolumesMetaPath_);
@@ -1120,7 +1123,7 @@ private:
         header.MetaChecksum = GetChecksum(metaBlob);
 
         auto layerMetaFileName = GetLayerMetaPath(layerMeta.Id);
-        auto temporaryLayerMetaFileName = layerMetaFileName + NFS::TempFileSuffix;
+        auto temporaryLayerMetaFileName = layerMetaFileName + std::string(NFS::TempFileSuffix);
 
         TFile metaFile(
             temporaryLayerMetaFileName,
@@ -1309,9 +1312,9 @@ private:
 
     TVolumeMeta DoCreateVolume(
         TGuid tag,
-        NProfiling::TTagSet tagSet,
-        TEventTimerGuard volumeCreateTimeGuard,
-        TVolumeMeta&& volumeMeta,
+        TTagSet tagSet,
+        std::optional<TEventTimerGuard> volumeCreateTimeGuard,
+        TVolumeMeta volumeMeta,
         THashMap<TString, TString>&& volumeProperties)
     {
         ValidateEnabled();
@@ -1321,7 +1324,8 @@ private:
         auto volumeId = TVolumeId::Create();
         auto volumePath = GetVolumePath(volumeId);
         auto volumeType = FromProto<EVolumeType>(volumeMeta.type());
-        auto mountPath = NFS::CombinePaths(volumePath, MountSuffix);
+        // TODO(dgolear): Switch to std::string.
+        TString mountPath = NFS::CombinePaths(volumePath, MountSuffix);
 
         try {
             YT_LOG_DEBUG(
@@ -1374,11 +1378,11 @@ private:
             header.MetaChecksum = GetChecksum(metaBlob);
 
             auto volumeMetaFileName = GetVolumeMetaPath(volumeId);
-            auto tempVolumeMetaFileName = volumeMetaFileName + NFS::TempFileSuffix;
+            auto tempVolumeMetaFileName = volumeMetaFileName + std::string(NFS::TempFileSuffix);
 
             {
                 auto metaFile = std::make_unique<TFile>(
-                    tempVolumeMetaFileName ,
+                    tempVolumeMetaFileName,
                     CreateAlways | WrOnly | Seq | CloseOnExec);
                 metaFile->Write(&header, sizeof(header));
                 metaFile->Write(metaBlob.Begin(), metaBlob.Size());
@@ -1417,6 +1421,7 @@ private:
 
             TVolumeProfilerCounters::Get()->GetGauge(tagSet, "/count")
                 .Update(VolumeCounters().Increment(tagSet));
+            TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
 
             volumeGuard.Release();
             volumeMetaGuard.Release();
@@ -1451,8 +1456,8 @@ private:
                 case EPortoErrorCode::NbdProtoError:
                 case EPortoErrorCode::NbdSocketError:
                 case EPortoErrorCode::NbdSocketTimeout:
-                case EPortoErrorCode::NbdSocketUnavaliable:
-                case EPortoErrorCode::NbdUnkownExport:
+                case EPortoErrorCode::NbdSocketUnavailable:
+                case EPortoErrorCode::NbdUnknownExport:
                     break;
 
                 default:
@@ -1470,8 +1475,7 @@ private:
 
     TVolumeMeta DoCreateNbdVolume(
         TGuid tag,
-        NProfiling::TTagSet tagSet,
-        TEventTimerGuard volumeCreateTimeGuard,
+        TTagSet tagSet,
         TNbdConfigPtr nbdConfig,
         TCreateNbdVolumeOptions options)
     {
@@ -1504,7 +1508,7 @@ private:
         }
 
         builder.AppendFormat("&num-connections=%v", connectionCount);
-        builder.AppendFormat("&export=%v", options.ExportId);
+        builder.AppendFormat("&export=%v", options.DeviceId);
         builder.AppendFormat("&fs-type=%v", options.Filesystem);
         volumeProperties["storage"] = builder.Flush();
 
@@ -1514,14 +1518,14 @@ private:
         return DoCreateVolume(
             tag,
             std::move(tagSet),
-            std::move(volumeCreateTimeGuard),
+            /*volumeCreateTimeGuard*/std::nullopt,
             std::move(volumeMeta),
             std::move(volumeProperties));
     }
 
     TVolumeMeta DoCreateOverlayVolume(
         TGuid tag,
-        NProfiling::TTagSet tagSet,
+        TTagSet tagSet,
         TEventTimerGuard volumeCreateTimeGuard,
         const TUserSandboxOptions& options,
         const std::vector<TOverlayData>& overlayDataArray)
@@ -1559,15 +1563,13 @@ private:
         };
 
         // NB: Root volume quota is independent from sandbox quota but enforces the same limits.
-        if (options.EnableRootVolumeDiskQuota) {
+        if (options.EnableDiskQuota && options.EnableRootVolumeDiskQuota) {
             if (options.DiskSpaceLimit) {
-                // TODO(yuryalekseev): Do not set "space_limit" for now, see RTCSUPPORT-43697.
-                // volumeProperties["space_limit"] = ToString(*options.DiskSpaceLimit);
+                volumeProperties["space_limit"] = ToString(*options.DiskSpaceLimit);
             }
 
             if (options.InodeLimit) {
-                // TODO(yuryalekseev): Do not set "inode_limit" for now, see RTCSUPPORT-43697.
-                // volumeProperties["inode_limit"] = ToString(*options.InodeLimit);
+                volumeProperties["inode_limit"] = ToString(*options.InodeLimit);
             }
         }
 
@@ -1604,7 +1606,7 @@ private:
 
     TVolumeMeta DoCreateSquashFSVolume(
         TGuid tag,
-        NProfiling::TTagSet tagSet,
+        TTagSet tagSet,
         TEventTimerGuard volumeCreateTimeGuard,
         const TArtifactKey& artifactKey,
         const std::string& squashFSFilePath)
@@ -1656,10 +1658,11 @@ private:
             std::move(volumeProperties));
     }
 
-    void DoRemoveVolume(NProfiling::TTagSet tagSet, TVolumeId volumeId)
+    void DoRemoveVolume(TTagSet tagSet, TVolumeId volumeId)
     {
         auto volumePath = GetVolumePath(volumeId);
-        auto mountPath = NFS::CombinePaths(volumePath, MountSuffix);
+        // TODO(dgolear): Switch to std::string.
+        TString mountPath = NFS::CombinePaths(volumePath, MountSuffix);
         auto volumeMetaPath = GetVolumeMetaPath(volumeId);
 
         {
@@ -1693,6 +1696,10 @@ private:
             NFS::RemoveRecursive(volumePath);
             NFS::Remove(volumeMetaPath);
 
+            TVolumeProfilerCounters::Get()->GetGauge(tagSet, "/count")
+                .Update(VolumeCounters().Decrement(tagSet));
+            TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/removed").Increment(1);
+
             YT_LOG_INFO(
                 "Volume directory and meta removed (VolumeId: %v, VolumePath: %v, VolumeMetaPath: %v)",
                 volumeId,
@@ -1716,9 +1723,12 @@ private:
                 }
             }
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Failed to remove volume (VolumeId: %v)", volumeId);
-
             TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/remove_errors").Increment(1);
+
+            YT_LOG_ERROR(
+                ex,
+                "Failed to remove volume (VolumeId: %v)",
+                volumeId);
 
             auto error = TError("Failed to remove volume")
                 << ex
@@ -1731,8 +1741,8 @@ private:
                 case EPortoErrorCode::NbdProtoError:
                 case EPortoErrorCode::NbdSocketError:
                 case EPortoErrorCode::NbdSocketTimeout:
-                case EPortoErrorCode::NbdSocketUnavaliable:
-                case EPortoErrorCode::NbdUnkownExport:
+                case EPortoErrorCode::NbdSocketUnavailable:
+                case EPortoErrorCode::NbdUnknownExport:
                     THROW_ERROR(error);
                 default:
                     break;
@@ -1777,10 +1787,511 @@ private:
         WaitFor(VolumeExecutor_->UnlinkVolume(source, "self", target))
             .ThrowOnError();
     }
+
+    //! Remove porto volumes that belong to this location.
+    //! Volumes are not expected to be used since all jobs must be dead by now.
+    void RemoveVolumes(TDuration timeout = TDuration::Minutes(30))
+    {
+        auto startTime = TInstant::Now();
+        auto deadLine = startTime + timeout;
+
+        YT_LOG_DEBUG("Removing volumes (DeadLine: %v)",
+            deadLine);
+
+        auto checkDeadLine = [&] {
+            auto now = TInstant::Now();
+            if (now > deadLine) {
+                THROW_ERROR_EXCEPTION("Failed to wait for volumes already being unlinked")
+                    << TErrorAttribute("timeout", timeout);
+            }
+        };
+
+        int volumesRemoved = 0;
+
+        while (true) {
+            checkDeadLine();
+
+            auto volumes = WaitFor(VolumeExecutor_->GetVolumes())
+                .ValueOrThrow();
+
+            auto waitForVolumesToBecomeReady = false;
+            std::vector<TFuture<void>> unlinkFutures;
+            for (const auto& volume : volumes) {
+                if (!volume.Path.StartsWith(VolumesPath_)) {
+                    // This volume is not from my location.
+                    continue;
+                }
+
+                static const TString ReadyState = "ready";
+                if (volume.State != ReadyState) {
+                    waitForVolumesToBecomeReady = true;
+                    YT_LOG_DEBUG("Volume is not ready (Path: %v, State: %v)",
+                        volume.Path,
+                        volume.State);
+                    continue;
+                }
+
+                YT_LOG_DEBUG("Trying to unlink volume (Path: %v, State: %v)",
+                    volume.Path,
+                    volume.State);
+
+                // Unlink volume even if it was linked to a different container.
+                unlinkFutures.push_back(VolumeExecutor_->UnlinkVolume(volume.Path, AnyContainer));
+            }
+
+            if (!waitForVolumesToBecomeReady && unlinkFutures.empty()) {
+                // All volumes have been unlinked.
+                break;
+            }
+
+            auto unlinkResults = WaitFor(AllSet(unlinkFutures))
+                .ValueOrThrow();
+
+            for (const auto& unlinkError : unlinkResults) {
+                if (unlinkError.IsOK()) {
+                    ++volumesRemoved;
+                } else if (unlinkError.GetCode() != EPortoErrorCode::VolumeNotLinked && unlinkError.GetCode() != EPortoErrorCode::VolumeNotFound) {
+                    THROW_ERROR(unlinkError);
+                }
+            }
+
+            if (waitForVolumesToBecomeReady) {
+                checkDeadLine();
+
+                static const TDuration Duration = TDuration::Seconds(30);
+
+                YT_LOG_DEBUG("Waiting for volumes to become ready (Duration: %v)",
+                    Duration);
+
+                TDelayedExecutor::WaitForDuration(Duration);
+            }
+        }
+
+        YT_LOG_DEBUG("Removed volumes (Count: %v, Duration: %v)",
+            volumesRemoved,
+            (TInstant::Now() - startTime));
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TLayerLocation)
 DECLARE_REFCOUNTED_CLASS(TLayerLocation)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPortoVolumeBase
+    : public IVolume
+{
+public:
+    TPortoVolumeBase(
+        TTagSet tagSet,
+        TVolumeMeta volumeMeta,
+        TLayerLocationPtr layerLocation)
+        : TagSet_(std::move(tagSet))
+        , VolumeMeta_(std::move(volumeMeta))
+        , LayerLocation_(std::move(layerLocation))
+    { }
+
+    const TVolumeId& GetId() const override final
+    {
+        return VolumeMeta_.Id;
+    }
+
+    const std::string& GetPath() const override final
+    {
+        return VolumeMeta_.MountPath;
+    }
+
+    TFuture<void> Link(
+        TGuid tag,
+        const TString& target) override final
+    {
+        return TAsyncLockWriterGuard::Acquire(&Lock_)
+            .AsUnique().Apply(BIND([tag, target, this, this_ = MakeStrong(this)] (
+                TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>&& guard)
+            {
+                // Targets_ is protected with guard.
+                Y_UNUSED(guard);
+
+                Targets_.push_back(target);
+
+                // TODO(dgolear): Switch to std::string.
+                auto source = TString(GetPath());
+                return LayerLocation_->LinkVolume(tag, source, target);
+            }));
+    }
+
+    TFuture<void> Remove() override final
+    {
+        if (!RemovalRequested_.exchange(true)) {
+            TAsyncLockWriterGuard::Acquire(&Lock_).AsUnique().Subscribe(BIND(
+                [
+                    removalCallback = RemoveCallback_,
+                    removePromise = RemovePromise_,
+                    targets = Targets_,
+                    volumePath = VolumeMeta_.MountPath
+                ] (TErrorOr<TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>>&& guardOrError) mutable {
+                    YT_LOG_FATAL_UNLESS(guardOrError.IsOK(), guardOrError, "Failed to acquire lock (VolumePath: %v)", volumePath);
+
+                    auto guard = std::move(guardOrError.Value());
+                    auto removeFuture = removalCallback(targets).Apply(BIND(
+                        [guard = std::move(guard), volumePath = std::move(volumePath)] (const TError& error) {
+                            if (!error.IsOK()) {
+                                YT_LOG_ERROR(
+                                    error,
+                                    "Failed to remove volume (VolumePath: %v)",
+                                    volumePath);
+                            }
+                            return error;
+                        }));
+                    removePromise.SetFrom(removeFuture);
+                }));
+        }
+
+        return RemovePromise_;
+    }
+
+    bool IsCached() const override
+    {
+        return false;
+    }
+
+protected:
+    const TTagSet TagSet_;
+    const TVolumeMeta VolumeMeta_;
+    const TLayerLocationPtr LayerLocation_;
+
+    TPromise<void> RemovePromise_ = NewPromise<void>();
+    std::atomic<bool> RemovalRequested_{false};
+
+    static TFuture<void> DoRemoveVolumeCommon(
+        const TString& volumeType,
+        TTagSet tagSet,
+        TLayerLocationPtr location,
+        TVolumeMeta volumeMeta,
+        TCallback<TFuture<void>(const TLogger&)> postRemovalCleanup = {})
+    {
+        TEventTimerGuard volumeRemoveTimeGuard(
+            TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/remove_time"));
+
+        const auto& volumeId = volumeMeta.Id;
+        const auto& volumePath = volumeMeta.MountPath;
+
+        auto Logger = ExecNodeLogger()
+            .WithTag("VolumeType: %v, VolumeId: %v, VolumePath: %v",
+                volumeType,
+                volumeId,
+                volumePath);
+
+        YT_LOG_DEBUG("Removing volume");
+
+        return location->RemoveVolume(tagSet, volumeId)
+            .Apply(BIND(
+                [
+                    Logger,
+                    cleanup = std::move(postRemovalCleanup),
+                    volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)
+                ] (const TError& error) {
+                    if (!error.IsOK()) {
+                        YT_LOG_WARNING(error, "Failed to remove volume");
+                    } else {
+                        YT_LOG_DEBUG("Removed volume");
+                    }
+
+                    // Perform post-removal cleanup if provided (e.g., device finalization, overlay cleanup)
+                    if (cleanup) {
+                        return cleanup(Logger);
+                    }
+                    return VoidFuture;
+                }))
+            .ToUncancelable();
+    }
+
+    void SetRemoveCallback(TCallback<TFuture<void>()> callback)
+    {
+        // Unlink targets prior to removing volume.
+        RemoveCallback_ = BIND(
+            [
+                location = LayerLocation_,
+                volumePath = VolumeMeta_.MountPath,
+                callback = std::move(callback)
+            ] (const std::vector<TString>& targets) {
+                return UnlinkTargets(location, volumePath, targets)
+                    .AsUnique().Apply(BIND([volumePath, callback = std::move(callback)] (TError&& error) {
+                        if (!error.IsOK()) {
+                            YT_LOG_WARNING(error, "Failed to unlink targets (VolumePath: %v)",
+                                volumePath);
+                        } else {
+                            YT_LOG_DEBUG("Unlinked targets (VolumePath: %v)",
+                                volumePath);
+                        }
+                        // Now remove the actual volume.
+                        return callback();
+                    }));
+            });
+    }
+
+private:
+    TAsyncReaderWriterLock Lock_;
+    std::vector<TString> Targets_;
+
+    TCallback<TFuture<void>(const std::vector<TString>&)> RemoveCallback_;
+
+    static TFuture<void> UnlinkTargets(TLayerLocationPtr location, TString source, std::vector<TString> targets)
+    {
+        YT_LOG_DEBUG("Unlinking targets (VolumePath: %v, Targets: %v)",
+            source,
+            targets);
+
+        if (targets.empty()) {
+            return OKFuture;
+        }
+
+        std::vector<TFuture<void>> futures;
+        futures.reserve(targets.size());
+        for (const auto& target : targets) {
+            futures.emplace_back(location->UnlinkVolume(source, target));
+        }
+
+        return AllSucceeded(std::move(futures))
+            .ToUncancelable();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename TKey>
+class TCachedVolume
+    : public TPortoVolumeBase
+    , public TAsyncMapValueBase<TKey, TCachedVolume<TKey>>
+{
+public:
+    TCachedVolume(
+        TTagSet tagSet,
+        TVolumeMeta volumeMeta,
+        TLayerLocationPtr layerLocation,
+        const TKey& key)
+        : TPortoVolumeBase(
+            std::move(tagSet),
+            std::move(volumeMeta),
+            std::move(layerLocation))
+        , TAsyncMapValueBase<TKey, TCachedVolume<TKey>>(key)
+    { }
+
+    bool IsCached() const override final
+    {
+        return true;
+    }
+
+    bool IsRootVolume() const override final
+    {
+        return false;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSquashFSVolume
+    : public TCachedVolume<TArtifactKey>
+{
+public:
+    TSquashFSVolume(
+        TTagSet tagSet,
+        TVolumeMeta volumeMeta,
+        IVolumeArtifactPtr artifact,
+        TLayerLocationPtr location,
+        const TArtifactKey& artifactKey)
+        : TCachedVolume(
+            std::move(tagSet),
+            std::move(volumeMeta),
+            std::move(location),
+            artifactKey)
+        , Artifact_(std::move(artifact))
+    {
+        SetRemoveCallback(BIND(
+            &TSquashFSVolume::DoRemove,
+            TagSet_,
+            LayerLocation_,
+            VolumeMeta_));
+    }
+
+    ~TSquashFSVolume() override
+    {
+        YT_UNUSED_FUTURE(Remove());
+    }
+
+private:
+    // We store chunk cache artifact here to make sure that SquashFS file outlives SquashFS volume.
+    const IVolumeArtifactPtr Artifact_;
+
+    static TFuture<void> DoRemove(
+        TTagSet tagSet,
+        TLayerLocationPtr location,
+        TVolumeMeta volumeMeta)
+    {
+        return DoRemoveVolumeCommon(
+            "SquashFS",
+            std::move(tagSet),
+            std::move(location),
+            std::move(volumeMeta));
+    }
+};
+
+DECLARE_REFCOUNTED_CLASS(TSquashFSVolume)
+DEFINE_REFCOUNTED_TYPE(TSquashFSVolume)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRWNbdVolume
+    : public TPortoVolumeBase
+{
+public:
+    TRWNbdVolume(
+        TTagSet tagSet,
+        TVolumeMeta volumeMeta,
+        TLayerLocationPtr layerLocation,
+        TString nbdDeviceId,
+        INbdServerPtr nbdServer)
+        : TPortoVolumeBase(
+            std::move(tagSet),
+            std::move(volumeMeta),
+            std::move(layerLocation))
+        , NbdDeviceId_(std::move(nbdDeviceId))
+        , NbdServer_(std::move(nbdServer))
+    {
+        SetRemoveCallback(BIND(
+            &TRWNbdVolume::DoRemove,
+            TagSet_,
+            LayerLocation_,
+            VolumeMeta_,
+            NbdDeviceId_,
+            NbdServer_));
+    }
+
+    ~TRWNbdVolume() override
+    {
+        YT_UNUSED_FUTURE(Remove());
+    }
+
+    bool IsRootVolume() const override final
+    {
+        return true;
+    }
+
+private:
+    const TString NbdDeviceId_;
+    const INbdServerPtr NbdServer_;
+
+    static TFuture<void> DoRemove(
+        TTagSet tagSet,
+        TLayerLocationPtr location,
+        TVolumeMeta volumeMeta,
+        TString nbdDeviceId,
+        INbdServerPtr nbdServer)
+    {
+        // First, unregister device. At this point device is removed from the
+        // server but it remains in existing device connections.
+        auto device = nbdServer->TryUnregisterDevice(nbdDeviceId);
+
+        // Second, remove volume. At this point all device connections are going
+        // be terminated.
+        auto postRemovalCleanup = BIND_NO_PROPAGATE(
+            [device = std::move(device)] (const TLogger& Logger) -> TFuture<void> {
+                if (device) {
+                    YT_LOG_DEBUG("Finalizing RW NBD device");
+                    return device->Finalize();
+                } else {
+                    YT_LOG_WARNING("Failed to finalize device; unknown device");
+                    return VoidFuture;
+                }
+            })
+            .AsyncVia(nbdServer->GetInvoker());
+
+        return DoRemoveVolumeCommon(
+            "RW NBD",
+            std::move(tagSet),
+            std::move(location),
+            std::move(volumeMeta),
+            std::move(postRemovalCleanup));
+    }
+};
+
+DECLARE_REFCOUNTED_CLASS(TRWNbdVolume)
+DEFINE_REFCOUNTED_TYPE(TRWNbdVolume)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRONbdVolume
+    : public TCachedVolume<TString>
+{
+public:
+    TRONbdVolume(
+        TTagSet tagSet,
+        TVolumeMeta volumeMeta,
+        TLayerLocationPtr layerLocation,
+        TString nbdDeviceId,
+        INbdServerPtr nbdServer)
+        : TCachedVolume(
+            std::move(tagSet),
+            std::move(volumeMeta),
+            std::move(layerLocation),
+            nbdDeviceId)
+        , NbdDeviceId_(std::move(nbdDeviceId))
+        , NbdServer_(std::move(nbdServer))
+    {
+        SetRemoveCallback(BIND(
+            &TRONbdVolume::DoRemove,
+            TagSet_,
+            LayerLocation_,
+            VolumeMeta_,
+            NbdDeviceId_,
+            NbdServer_));
+    }
+
+    ~TRONbdVolume() override
+    {
+        YT_UNUSED_FUTURE(Remove());
+    }
+
+private:
+    const TString NbdDeviceId_;
+    const INbdServerPtr NbdServer_;
+
+    static TFuture<void> DoRemove(
+        TTagSet tagSet,
+        TLayerLocationPtr location,
+        TVolumeMeta volumeMeta,
+        TString nbdDeviceId,
+        INbdServerPtr nbdServer)
+    {
+        // First, unregister device. At this point device is removed from the
+        // server but it remains in existing device connections.
+        auto device = nbdServer->TryUnregisterDevice(nbdDeviceId);
+
+        // Second, remove volume. At this point all device connections are going
+        // be terminated.
+        auto postRemovalCleanup = BIND_NO_PROPAGATE(
+            [device = std::move(device)] (const TLogger& Logger) -> TFuture<void> {
+                if (device) {
+                    YT_LOG_DEBUG("Finalizing RO NBD device");
+                    return device->Finalize();
+                } else {
+                    YT_LOG_WARNING("Failed to finalize device; unknown device");
+                    return VoidFuture;
+                }
+            })
+            .AsyncVia(nbdServer->GetInvoker());
+
+        return DoRemoveVolumeCommon(
+            "RO NBD",
+            std::move(tagSet),
+            std::move(location),
+            std::move(volumeMeta),
+            std::move(postRemovalCleanup));
+    }
+};
+
+DECLARE_REFCOUNTED_CLASS(TRONbdVolume)
+DEFINE_REFCOUNTED_TYPE(TRONbdVolume)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1858,7 +2369,7 @@ public:
         return GetKey().data_source().path();
     }
 
-    const TString& GetPath() const
+    const std::string& GetPath() const
     {
         return LayerMeta_.Path;
     }
@@ -1909,16 +2420,16 @@ DEFINE_REFCOUNTED_TYPE(TLayer)
 class TTmpfsLayerCacheCounters
 {
 public:
-    explicit TTmpfsLayerCacheCounters(NProfiling::TProfiler profiler)
+    explicit TTmpfsLayerCacheCounters(TProfiler profiler)
         : Profiler_(std::move(profiler))
     { }
 
-    NProfiling::TCounter GetCounter(const NProfiling::TTagSet& tagSet, const TString& name)
+    TCounter GetCounter(const TTagSet& tagSet, const TString& name)
     {
         auto key = CreateKey(tagSet, name);
 
         auto guard = Guard(Lock_);
-        auto [it, inserted] = Counters_.emplace(key, NProfiling::TCounter());
+        auto [it, inserted] = Counters_.emplace(key, TCounter());
         if (inserted) {
             it->second = Profiler_.WithTags(tagSet).Counter(name);
         }
@@ -1927,19 +2438,19 @@ public:
     }
 
 private:
-    using TKey = NProfiling::TTagList;
+    using TKey = TTagList;
 
-    static TKey CreateKey(const NProfiling::TTagSet& tagSet, const TString& name)
+    static TKey CreateKey(const TTagSet& tagSet, const TString& name)
     {
         auto key = tagSet.Tags();
         key.push_back({"name", name});
         return key;
     }
 
-    const NProfiling::TProfiler Profiler_;
+    const TProfiler Profiler_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
-    THashMap<TKey, NProfiling::TCounter> Counters_;
+    THashMap<TKey, TCounter> Counters_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1995,7 +2506,7 @@ public:
 
             // The following counter can help find layers that do not benefit from residing in tmpfs layer cache.
             auto cacheHitsCypressPathCounter = TmpfsLayerCacheCounters_.GetCounter(
-                NProfiling::TTagSet({{"cypress_path", artifactKey.data_source().path()}}),
+                TTagSet({{"cypress_path", artifactKey.data_source().path()}}),
                 "/tmpfs_layer_hits");
 
             cacheHitsCypressPathCounter.Increment();
@@ -2004,7 +2515,7 @@ public:
         } else {
             // The following counter can help find layers that could benefit from residing in tmpfs layer cache.
             auto cacheMissesCypressPathCounter = TmpfsLayerCacheCounters_.GetCounter(
-                NProfiling::TTagSet({{"cypress_path", artifactKey.data_source().path()}}),
+                TTagSet({{"cypress_path", artifactKey.data_source().path()}}),
                 "/tmpfs_layer_misses");
 
             cacheMissesCypressPathCounter.Increment();
@@ -2015,14 +2526,14 @@ public:
     TFuture<void> Initialize()
     {
         if (!Config_->LayersDirectoryPath) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         auto path = NFS::CombinePaths(NFs::CurrentWorkingDirectory(), Format("%v_tmpfs_layers", CacheName_));
 
         {
             YT_LOG_DEBUG("Cleanup tmpfs layer cache volume (Path: %v)", path);
-            auto error = WaitFor(PortoExecutor_->UnlinkVolume(path, "self"));
+            auto error = WaitFor(PortoExecutor_->UnlinkVolume(TString(path), "self"));
             if (!error.IsOK()) {
                 YT_LOG_DEBUG(error, "Failed to unlink volume (Path: %v)", path);
             }
@@ -2039,7 +2550,7 @@ public:
             volumeProperties["permissions"] = "0777";
             volumeProperties["space_limit"] = ToString(Config_->Capacity);
 
-            WaitFor(PortoExecutor_->CreateVolume(path, volumeProperties))
+            WaitFor(PortoExecutor_->CreateVolume(TString(path), volumeProperties))
                 .ThrowOnError();
 
             MemoryUsageTracker_->Acquire(Config_->Capacity);
@@ -2096,10 +2607,10 @@ public:
                     .Apply(BIND(&TLayerLocation::Disable, TmpfsLocation_, error, persistentDisable));
             } else {
                 TmpfsLocation_->Disable(error, persistentDisable);
-                return VoidFuture;
+                return OKFuture;
             }
         } else {
-            return VoidFuture;
+            return OKFuture;
         }
     }
 
@@ -2150,7 +2661,7 @@ private:
 
     TPromise<void> Initialized_ = NewPromise<void>();
 
-    const NProfiling::TProfiler Profiler_;
+    const TProfiler Profiler_;
 
     TCounter HitCounter_;
     TGauge UpdateFailedCounter_;
@@ -2372,6 +2883,584 @@ DECLARE_REFCOUNTED_CLASS(TTmpfsLayerCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! This class caches volumes generated from cypress files (layers).
+template <typename TKey>
+class TVolumeCacheBase
+    : public TAsyncMapBase<TKey, TCachedVolume<TKey>>
+{
+public:
+    TVolumeCacheBase(
+        const TProfiler& profiler,
+        IBootstrap* const bootstrap,
+        std::vector<TLayerLocationPtr> layerLocations)
+        : TAsyncMapBase<TKey, TCachedVolume<TKey>>(profiler)
+        , Bootstrap_(bootstrap)
+        , LayerLocations_(std::move(layerLocations))
+    { }
+
+    bool IsEnabled() const
+    {
+        for (const auto& location : LayerLocations_) {
+            if (location->IsEnabled()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+protected:
+    const IBootstrap* const Bootstrap_;
+    const std::vector<TLayerLocationPtr> LayerLocations_;
+
+    TLayerLocationPtr PickLocation()
+    {
+        return DoPickLocation(LayerLocations_, [] (const TLayerLocationPtr& candidate, const TLayerLocationPtr& current) {
+            return candidate->GetVolumeCount() < current->GetVolumeCount();
+        });
+    }
+
+    void OnAdded(const TIntrusivePtr<TCachedVolume<TKey>>& volume) override
+    {
+        YT_LOG_DEBUG("Volume added to cache (VolumeId: %v)",
+            volume->GetId());
+    }
+
+    void OnRemoved(const TIntrusivePtr<TCachedVolume<TKey>>& volume) override
+    {
+        YT_LOG_DEBUG("Volume removed from cache (VolumeId: %v)",
+            volume->GetId());
+    }
+
+    void OnWeightUpdated(i64 weightDelta) override
+    {
+        YT_LOG_DEBUG("Volume cache total weight updated (WeightDelta: %v)",
+            weightDelta);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TVolumeCacheBase<TArtifactKey>)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! This class caches volumes generated from cypress files (layers).
+class TSquashFSVolumeCache
+    : public TVolumeCacheBase<TArtifactKey>
+{
+public:
+    TSquashFSVolumeCache(
+        IBootstrap* const bootstrap,
+        std::vector<TLayerLocationPtr> layerLocations,
+        IVolumeArtifactCachePtr artifactCache)
+        : TVolumeCacheBase(
+            ExecNodeProfiler().WithPrefix("/squashfs_volume_cache"),
+            bootstrap,
+            std::move(layerLocations))
+        , ArtifactCache_(std::move(artifactCache))
+    { }
+
+    TFuture<IVolumePtr> GetOrCreateVolume(
+        TGuid tag,
+        const TArtifactKey& artifactKey,
+        const TArtifactDownloadOptions& downloadOptions)
+    {
+        auto Logger = ExecNodeLogger()
+            .WithTag("Tag: %v, CypressPath: %v",
+                tag,
+                artifactKey.data_source().path());
+
+        auto cookie = BeginInsert(artifactKey);
+        auto value = cookie.GetValue();
+        if (cookie.IsActive()) {
+            DownloadAndPrepareVolume(artifactKey, downloadOptions, tag)
+                .Subscribe(BIND([=, cookie = std::move(cookie)] (const TErrorOr<TIntrusivePtr<TCachedVolume<TArtifactKey>>>& volumeOrError) mutable {
+                    if (volumeOrError.IsOK()) {
+                        YT_LOG_DEBUG(
+                            "Squashfs volume has been inserted into cache (VolumeId: %v)",
+                            volumeOrError.Value()->GetId());
+                        cookie.EndInsert(volumeOrError.Value());
+                    } else {
+                        YT_LOG_DEBUG(
+                            volumeOrError,
+                            "Canceling insertion of Squashfs volume into cache");
+                        cookie.Cancel(volumeOrError);
+                    }
+                })
+                .Via(GetCurrentInvoker()));
+        } else {
+            YT_LOG_DEBUG(
+                "Squashfs volume is either already in the cache or is being inserted (VolumeId: %v)",
+                value.IsSet() && value.Get().IsOK() ? ToString(value.Get().Value()->GetId()) : "<importing>");
+        }
+
+        return value.As<IVolumePtr>();
+    }
+
+private:
+    const IVolumeArtifactCachePtr ArtifactCache_;
+
+    TFuture<TSquashFSVolumePtr> DownloadAndPrepareVolume(
+        const TArtifactKey& artifactKey,
+        const TArtifactDownloadOptions& downloadOptions,
+        TGuid tag)
+    {
+        YT_VERIFY(!artifactKey.has_access_method() || FromProto<ELayerAccessMethod>(artifactKey.access_method()) == ELayerAccessMethod::Local);
+        YT_VERIFY(FromProto<ELayerFilesystem>(artifactKey.filesystem()) == ELayerFilesystem::SquashFS);
+
+        YT_LOG_DEBUG(
+            "Downloading and preparing squashfs volume (Tag: %v, CypressPath: %v)",
+            tag,
+            artifactKey.data_source().path());
+
+        return ArtifactCache_->DownloadArtifact(artifactKey, downloadOptions)
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& artifact) {
+                auto tagSet = TVolumeProfilerCounters::MakeTagSet(
+                    /*volume type*/ "squashfs",
+                    /*Cypress path*/ "n/a");
+                TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
+
+                // We pass artifact here to later save it in SquashFS volume so that SquashFS file outlives SquashFS volume.
+                return CreateSquashFSVolume(
+                    tag,
+                    std::move(tagSet),
+                    std::move(volumeCreateTimeGuard),
+                    artifactKey,
+                    artifact);
+            }).AsyncVia(GetCurrentInvoker()));
+    }
+
+    TSquashFSVolumePtr CreateSquashFSVolume(
+        TGuid tag,
+        TTagSet tagSet,
+        TEventTimerGuard volumeCreateTimeGuard,
+        const TArtifactKey& artifactKey,
+        IVolumeArtifactPtr artifact)
+    {
+        auto squashFSFilePath = artifact->GetFileName();
+
+        YT_LOG_DEBUG(
+            "Creating squashfs volume (Tag: %v, SquashFSFilePath: %v)",
+            tag,
+            squashFSFilePath);
+
+        auto location = PickLocation();
+        auto volumeMetaFuture = location->CreateSquashFSVolume(tag, tagSet, std::move(volumeCreateTimeGuard), artifactKey, squashFSFilePath);
+        auto volumeFuture = volumeMetaFuture.AsUnique().Apply(BIND(
+            [
+                tagSet = std::move(tagSet),
+                artifactKey,
+                artifact = std::move(artifact),
+                location = std::move(location)
+            ] (TVolumeMeta&& volumeMeta) mutable {
+            return New<TSquashFSVolume>(
+                std::move(tagSet),
+                std::move(volumeMeta),
+                std::move(artifact),
+                std::move(location),
+                std::move(artifactKey));
+        })).ToUncancelable();
+        // This uncancelable future ensures that TSquashFSVolume object owning the volume will be created
+        // and protects from Porto volume leak.
+
+        auto volume = WaitFor(volumeFuture)
+            .ValueOrThrow();
+
+        YT_LOG_INFO(
+            "Created squashfs volume (Tag: %v, VolumeId: %v, SquashFSFilePath: %v)",
+            tag,
+            volume->GetId(),
+            squashFSFilePath);
+
+        return volume;
+    }
+};
+
+DECLARE_REFCOUNTED_CLASS(TSquashFSVolumeCache)
+DEFINE_REFCOUNTED_TYPE(TSquashFSVolumeCache)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! This class caches volumes generated from cypress files (layers).
+class TRONbdVolumeCache
+    : public TVolumeCacheBase<TString>
+{
+public:
+    using TVolumePtr = TIntrusivePtr<TCachedVolume<TString>>;
+
+    TRONbdVolumeCache(
+        IBootstrap* const bootstrap,
+        TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
+        std::vector<TLayerLocationPtr> layerLocations)
+        : TVolumeCacheBase(
+            ExecNodeProfiler().WithPrefix("/ronbd_volume_cache"),
+            bootstrap,
+            std::move(layerLocations))
+        , DynamicConfigManager_(std::move(dynamicConfigManager))
+    { }
+
+    TFuture<IVolumePtr> GetOrCreateVolume(
+        TGuid tag,
+        TPrepareRONbdVolumeOptions options)
+    {
+        ValidatePrepareNbdVolumeOptions(options);
+
+        const auto artifactKey = options.ArtifactKey;
+        const auto deviceId = artifactKey.nbd_device_id();
+        const auto jobId = options.JobId;
+
+        auto Logger = ExecNodeLogger()
+            .WithTag("Tag: %v, JobId: %v, DeviceId: %v, CypressPath: %v",
+                tag,
+                jobId,
+                deviceId,
+                artifactKey.data_source().path());
+
+        YT_LOG_DEBUG("Getting RO NBD volume");
+
+        auto nbdConfig = DynamicConfigManager_->GetConfig()->ExecNode->Nbd;
+        auto nbdServer = Bootstrap_->GetNbdServer();
+        if (!nbdServer || !nbdConfig || !nbdConfig->Enabled) {
+            auto error = TError("Nbd server is not present")
+                << TErrorAttribute("device_id", deviceId)
+                << TErrorAttribute("job_id", jobId)
+                << TErrorAttribute("path", artifactKey.data_source().path())
+                << TErrorAttribute("filesystem", FromProto<ELayerFilesystem>(artifactKey.filesystem()));
+
+            YT_LOG_ERROR(error, "Failed to get RO NBD volume");
+            return MakeFuture<IVolumePtr>(std::move(error));
+        }
+
+        auto cookie = GetInsertCookie(deviceId, nbdServer);
+        auto value = cookie.GetValue();
+
+        if (cookie.IsActive()) {
+            PrepareRONbdVolume(tag, std::move(options))
+                .Subscribe(BIND(
+                    [
+                        Logger = Logger,
+                        cookie = std::move(cookie)
+                    ] (const TErrorOr<TVolumePtr>& volumeOrError) mutable {
+                        if (volumeOrError.IsOK()) {
+                            YT_LOG_DEBUG(
+                                "RO NBD volume has been inserted into cache (VolumeId: %v)",
+                                volumeOrError.Value()->GetId());
+                            cookie.EndInsert(volumeOrError.Value());
+                        } else {
+                            YT_LOG_WARNING(
+                                volumeOrError,
+                                "Canceling insertion of RO NBD volume into cache");
+                            cookie.Cancel(volumeOrError);
+                        }
+                    })
+                    .Via(nbdServer->GetInvoker()));
+        } else {
+            YT_LOG_DEBUG(
+                "RO NBD volume is either already in the cache or is being inserted (VolumeId: %v)",
+                value.IsSet() && value.Get().IsOK() ? ToString(value.Get().Value()->GetId()) : "<importing>");
+        }
+
+        // Subscribe job for NBD device errors.
+        return value
+            .Apply(
+                MakeJobSubscriberForDeviceErrors(
+                    jobId,
+                    deviceId,
+                    nbdServer,
+                    Logger)
+                .AsyncVia(nbdServer->GetInvoker()))
+            .As<IVolumePtr>();
+    }
+
+private:
+    const TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, InsertLock_);
+
+    static void ValidatePrepareNbdVolumeOptions(const TPrepareRONbdVolumeOptions& options)
+    {
+        const auto& artifactKey = options.ArtifactKey;
+        YT_VERIFY(artifactKey.has_access_method());
+        YT_VERIFY(FromProto<ELayerAccessMethod>(artifactKey.access_method()) == ELayerAccessMethod::Nbd);
+        YT_VERIFY(artifactKey.has_filesystem());
+        YT_VERIFY(artifactKey.has_nbd_device_id());
+        const auto& deviceId = artifactKey.nbd_device_id();
+        YT_VERIFY(!deviceId.empty());
+    }
+
+    TInsertCookie GetInsertCookie(const TString& deviceId, const INbdServerPtr& nbdServer)
+    {
+        auto guard = TGuard(InsertLock_);
+
+        auto cookie = BeginInsert(deviceId);
+        if (!cookie.IsActive()) {
+            // This is either a cached or a being inserted volume.
+            if (auto device = nbdServer->FindDevice(deviceId)) {
+                // Remove volume from cache if its device has any errors.
+                if (auto error = device->GetError(); !error.IsOK()) {
+                    YT_LOG_WARNING(
+                        error,
+                        "Cached RO NBD device has errors, removing it from cache and recreating it");
+                    // Remove volume from cache.
+                    TryRemove(deviceId, /*forbidResurrection*/ true);
+                    // Start a new insertion.
+                    cookie = BeginInsert(deviceId);
+                }
+            }
+        }
+
+        return cookie;
+    }
+
+    //! Make callback that subscribes job for NBD device errors.
+    TExtendedCallback<TVolumePtr(const TErrorOr<TVolumePtr>&)> MakeJobSubscriberForDeviceErrors(
+        TJobId jobId,
+        const TString& deviceId,
+        const INbdServerPtr& nbdServer,
+        const TLogger& Logger)
+    {
+        return BIND_NO_PROPAGATE(
+            [
+                Logger,
+                nbdServer,
+                deviceId,
+                jobId,
+                this,
+                this_ = MakeStrong(this)
+            ] (const TErrorOr<TVolumePtr>& volumeOrError) {
+                if (!volumeOrError.IsOK()) {
+                    THROW_ERROR_EXCEPTION("Failed to prepare RO NBD volume")
+                        << TErrorAttribute("job_id", jobId)
+                        << TErrorAttribute("device_id", deviceId)
+                        << volumeOrError;
+                }
+
+                auto device = nbdServer->FindDevice(deviceId);
+                if (!device) {
+                    THROW_ERROR_EXCEPTION("Failed to find RO NBD device")
+                        << TErrorAttribute("job_id", jobId)
+                        << TErrorAttribute("device_id", deviceId);
+                }
+
+                YT_LOG_DEBUG("Subscribing job for NBD device errors");
+                auto res = device->SubscribeForErrors(
+                    jobId.Underlying(),
+                    MakeJobInterrupter(jobId, Bootstrap_));
+                if (!res) {
+                    THROW_ERROR_EXCEPTION("Failed to subscribe job for NBD device errors")
+                        << TErrorAttribute("job_id", jobId)
+                        << TErrorAttribute("device_id", deviceId);
+                } else {
+                    YT_LOG_DEBUG("Subscribed job for NBD device errors");
+                }
+
+                return volumeOrError.Value();
+        });
+    }
+
+    IImageReaderPtr CreateArtifactReader(
+        const TLogger& Logger,
+        const TArtifactKey& artifactKey)
+    {
+        YT_LOG_DEBUG("Creating NBD artifact reader");
+
+        return CreateCypressFileImageReader(
+            artifactKey,
+            Bootstrap_->GetLayerReaderHost(),
+            Bootstrap_->GetDefaultInThrottler(),
+            Bootstrap_->GetReadRpsOutThrottler(),
+            Bootstrap_->GetNbdServer()->GetInvoker(),
+            Bootstrap_->GetNbdServer()->GetLogger());
+    }
+
+    TFuture<IBlockDevicePtr> CreateRONbdDevice(
+        TGuid tag,
+        TPrepareRONbdVolumeOptions options)
+    {
+        const auto& artifactKey = options.ArtifactKey;
+        const auto& deviceId = artifactKey.nbd_device_id();
+
+        auto Logger = ExecNodeLogger()
+            .WithTag("Tag: %v, JobId: %v, DeviceId: %v, CypressPath: %v, Filesystem: %v",
+                tag,
+                options.JobId,
+                deviceId,
+                artifactKey.data_source().path(),
+                FromProto<ELayerFilesystem>(artifactKey.filesystem()));
+
+        YT_LOG_DEBUG("Creating RO NBD device");
+
+        auto device = CreateFileSystemBlockDevice(
+            deviceId,
+            New<TFileSystemBlockDeviceConfig>(),
+            options.ImageReader,
+            Bootstrap_->GetNbdServer()->GetInvoker(),
+            Bootstrap_->GetNbdServer()->GetLogger());
+
+        return device->Initialize()
+            .Apply(BIND(
+                [
+                    Logger,
+                    device
+                ] (const TError& error) {
+                    if (!error.IsOK()) {
+                        YT_UNUSED_FUTURE(device->Finalize());
+                        THROW_ERROR_EXCEPTION("Failed to create RO NBD device")
+                            << error;
+                    } else {
+                        YT_LOG_DEBUG("Created RO NBD device");
+                        return device;
+                    }
+                })
+                .AsyncVia(Bootstrap_->GetNbdServer()->GetInvoker()))
+            .ToUncancelable();
+    }
+
+    TFuture<TRONbdVolumePtr> CreateRONbdVolume(
+        TGuid tag,
+        TTagSet tagSet,
+        TCreateNbdVolumeOptions options)
+    {
+        auto Logger = ExecNodeLogger()
+            .WithTag("Tag: %v, JobId: %v, DeviceId: %v, Filesystem: %v",
+                tag,
+                options.JobId,
+                options.DeviceId,
+                options.Filesystem);
+
+        YT_LOG_DEBUG("Creating RO NBD volume");
+
+        auto nbdServer = Bootstrap_->GetNbdServer();
+
+        auto location = PickLocation();
+        auto volumeMetaFuture = location->CreateNbdVolume(
+            tag,
+            tagSet,
+            DynamicConfigManager_->GetConfig()->ExecNode->Nbd,
+            options);
+
+        return volumeMetaFuture
+            .Apply(BIND(
+                [
+                    Logger,
+                    tagSet = std::move(tagSet),
+                    location = std::move(location),
+                    deviceId = options.DeviceId,
+                    nbdServer = nbdServer
+                ] (const TErrorOr<TVolumeMeta>& errorOrVolumeMeta) mutable {
+                    if (!errorOrVolumeMeta.IsOK()) {
+                        THROW_ERROR_EXCEPTION("Failed to create RO NBD volume")
+                            << errorOrVolumeMeta;
+                    }
+
+                    YT_LOG_DEBUG("Created RO NBD volume");
+
+                    return New<TRONbdVolume>(
+                        std::move(tagSet),
+                        errorOrVolumeMeta.Value(),
+                        std::move(location),
+                        std::move(deviceId),
+                        std::move(nbdServer));
+                })
+                .AsyncVia(nbdServer->GetInvoker()))
+            .ToUncancelable();
+        // NB. ToUncancelable is needed to make sure that object owning
+        // the volume will be created so there is no porto volume leak.
+    }
+
+    //! Create RO NBD volume. The order of creation is as follows:
+    //! 1. Create RO NBD device.
+    //! 2. Register RO NBD device with NBD server.
+    //! 3. Create RO NBD porto volume connected to RO NBD device.
+    TFuture<TRONbdVolumePtr> PrepareRONbdVolume(
+        TGuid tag,
+        TPrepareRONbdVolumeOptions options)
+    {
+        auto nbdServer = Bootstrap_->GetNbdServer();
+        const auto artifactKey = options.ArtifactKey;
+        const auto jobId = options.JobId;
+
+        auto Logger = ExecNodeLogger()
+            .WithTag("Tag: %v, JobId: %v, DeviceId: %v, CypressPath: %v",
+                tag,
+                jobId,
+                artifactKey.nbd_device_id(),
+                artifactKey.data_source().path());
+
+        YT_LOG_DEBUG("Preparing RO NBD volume");
+
+        if (!options.ImageReader) {
+            options.ImageReader = CreateArtifactReader(
+                Logger,
+                artifactKey);
+        }
+
+        auto tagSet = TVolumeProfilerCounters::MakeTagSet(
+            /*volume type*/ "nbd",
+            /*Cypress path*/ artifactKey.data_source().path());
+        TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
+
+        return CreateRONbdDevice(tag, std::move(options))
+            .Apply(BIND(
+                [
+                    tag,
+                    tagSet,
+                    jobId,
+                    deviceId = artifactKey.nbd_device_id(),
+                    filesystem = FromProto<ELayerFilesystem>(artifactKey.filesystem()),
+                    this,
+                    this_ = MakeStrong(this)
+                ] (const TErrorOr<IBlockDevicePtr>& errorOrDevice) {
+                    if (!errorOrDevice.IsOK()) {
+                        THROW_ERROR_EXCEPTION("Failed to prepare RO NBD volume")
+                            << errorOrDevice;
+                    }
+
+                    Bootstrap_->GetNbdServer()->RegisterDevice(deviceId, errorOrDevice.Value());
+
+                    return CreateRONbdVolume(
+                        tag,
+                        std::move(tagSet),
+                        TCreateNbdVolumeOptions{
+                            .JobId = jobId,
+                            .DeviceId = deviceId,
+                            .Filesystem = ToString(filesystem),
+                            .IsReadOnly = true
+                        });
+                })
+                .AsyncVia(nbdServer->GetInvoker()))
+            .Apply(BIND(
+                [
+                    Logger,
+                    tagSet,
+                    nbdServer,
+                    deviceId = artifactKey.nbd_device_id(),
+                    volumeCreateTimeGuard = std::move(volumeCreateTimeGuard)
+                ] (const TErrorOr<TRONbdVolumePtr>& errorOrVolume) {
+                    if (!errorOrVolume.IsOK()) {
+                        if (auto device = nbdServer->TryUnregisterDevice(deviceId)) {
+                            YT_LOG_DEBUG("Finalizing RO NBD device");
+                            YT_UNUSED_FUTURE(device->Finalize());
+                        } else {
+                            YT_LOG_WARNING("Failed to unregister RO NBD device");
+                        }
+
+                        THROW_ERROR_EXCEPTION("Failed to prepare RO NBD volume")
+                            << errorOrVolume;
+                    }
+
+                    YT_LOG_DEBUG("Prepared RO NBD volume");
+
+                    return errorOrVolume.Value();
+                })
+                .AsyncVia(nbdServer->GetInvoker()))
+            .ToUncancelable();
+    }
+};
+
+DECLARE_REFCOUNTED_CLASS(TRONbdVolumeCache)
+DEFINE_REFCOUNTED_TYPE(TRONbdVolumeCache)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TLayerCache
     : public TAsyncSlruCacheBase<TArtifactKey, TLayer>
 {
@@ -2386,10 +3475,7 @@ public:
         IMemoryUsageTrackerPtr memoryUsageTracker,
         IBootstrap* bootstrap)
         : TAsyncSlruCacheBase(
-            TSlruCacheConfig::CreateWithCapacity(
-                config->EnableLayersCache
-                ? static_cast<i64>(GetCacheCapacity(layerLocations) * config->CacheCapacityFraction)
-                : 0),
+            CreateCacheConfig(config, layerLocations),
             ExecNodeProfiler().WithPrefix("/layer_cache"))
         , DynamicConfigManager_(dynamicConfigManager)
         , ArtifactCache_(std::move(artifactCache))
@@ -2563,7 +3649,7 @@ public:
                 "Layer is already being loaded into cache (Tag: %v, ArtifactPath: %v, LayerId: %v)",
                 tag,
                 artifactKey.data_source().path(),
-                value.IsSet() && value.Get().IsOK() ? ToString(value.Get().Value()->GetMeta().Id) : "Importing");
+                value.IsSet() && value.Get().IsOK() ? ToString(value.Get().Value()->GetMeta().Id) : "<importing>");
         }
 
         return value;
@@ -2641,14 +3727,44 @@ private:
 
     TPeriodicExecutorPtr ProfilingExecutor_;
 
-    bool IsResurrectionSupported() const override
+    static TSlruCacheConfigPtr CreateCacheConfig(
+        const NDataNode::TVolumeManagerConfigPtr& config,
+        const std::vector<TLayerLocationPtr>& layerLocations)
     {
-        return false;
+        auto cacheConfig = TSlruCacheConfig::CreateWithCapacity(
+            config->EnableLayersCache
+            ? static_cast<i64>(GetCacheCapacity(layerLocations) * config->CacheCapacityFraction)
+            : 0,
+            /*shardCount*/ 1);
+        return cacheConfig;
     }
 
     i64 GetWeight(const TLayerPtr& layer) const override
     {
         return layer->GetSize();
+    }
+
+    void OnAdded(const TLayerPtr& layer) override
+    {
+        YT_LOG_DEBUG(
+            "Layer added to cache (LayerId: %v, ArtifactPath: %v, Size: %v)",
+            layer->GetMeta().Id,
+            layer->GetCypressPath(),
+            layer->GetSize());
+    }
+
+    void OnRemoved(const TLayerPtr& layer) override
+    {
+        YT_LOG_DEBUG(
+            "Layer removed from cache (LayerId: %v, ArtifactPath: %v, Size: %v)",
+            layer->GetMeta().Id,
+            layer->GetCypressPath(),
+            layer->GetSize());
+    }
+
+    void OnWeightUpdated(i64 weightDelta) override
+    {
+        YT_LOG_DEBUG("Layer cache weight updated (WeightDelta: %v)", weightDelta);
     }
 
     void ProfileLocation(const TLayerLocationPtr& location) {
@@ -2770,219 +3886,32 @@ DEFINE_REFCOUNTED_TYPE(TLayerCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPortoVolumeBase
-    : public IVolume
-{
-public:
-    TPortoVolumeBase(
-        NProfiling::TTagSet tagSet,
-        TVolumeMeta&& volumeMeta,
-        TLayerLocationPtr location)
-        : TagSet_(std::move(tagSet))
-        , VolumeMeta_(std::move(volumeMeta))
-        , Location_(std::move(location))
-    { }
-
-    ~TPortoVolumeBase() override = default;
-
-    const TVolumeId& GetId() const override final
-    {
-        return VolumeMeta_.Id;
-    }
-
-    const TString& GetPath() const override final
-    {
-        return VolumeMeta_.MountPath;
-    }
-
-    TFuture<void> Link(
-        TGuid tag,
-        const TString& target) override final
-    {
-        return TAsyncLockWriterGuard::Acquire(&Lock_)
-            .AsUnique().Apply(BIND([tag, target, this, this_ = MakeStrong(this)] (TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>&& guard) {
-                // Targets_ is protected with guard.
-                Y_UNUSED(guard);
-
-                Targets_.push_back(target);
-
-                const auto& source = GetPath();
-                return Location_->LinkVolume(tag, source, target);
-            }));
-    }
-
-    TFuture<void> Remove() override final
-    {
-        // Use MakeWeak here since Removed is called from derived class destructors.
-        auto this_ = MakeWeak(this).Lock();
-        if (!this_) {
-            YT_LOG_DEBUG("Trying to remove already destroyed volume object.");
-            return VoidFuture;
-        }
-
-        return TAsyncLockWriterGuard::Acquire(&Lock_)
-            .AsUnique().Apply(BIND([this, this_] (TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>&& guard) {
-                if (RemoveFuture_) {
-                    return RemoveFuture_;
-                }
-
-                // Unlink targets prior to removing volume.
-                RemoveFuture_ = UnlinkTargets()
-                    .Apply(BIND([guard = std::move(guard), this, this_] (const TErrorOr<void>& error) {
-                        if (!error.IsOK()) {
-                            YT_LOG_WARNING(error, "Failed to unlink targets (VolumePath: %v)",
-                                GetPath());
-                        } else {
-                            YT_LOG_DEBUG("Unlinked targets (VolumePath: %v)",
-                                GetPath());
-                        }
-
-                        // Now remove the actual volume.
-                        return DoRemoveImpl();
-                }));
-
-                return RemoveFuture_;
-            }));
-    }
-
-protected:
-    //! Remove the actual volume.
-    virtual TFuture<void> DoRemoveImpl() = 0;
-
-    TFuture<void> UnlinkTargets()
-    {
-        const auto& source = GetPath();
-
-        YT_LOG_DEBUG("Unlinking targets (VolumePath: %v, Targets: %v)",
-            source,
-            Targets_);
-
-        if (Targets_.empty()) {
-            return VoidFuture;
-        }
-
-        std::vector<TFuture<void>> futures;
-        futures.reserve(Targets_.size());
-        for (const auto& target : Targets_) {
-            futures.emplace_back(Location_->UnlinkVolume(source, target));
-        }
-        return AllSucceeded(std::move(futures))
-            .ToUncancelable();
-    }
-
-    const NProfiling::TTagSet TagSet_;
-    const TVolumeMeta VolumeMeta_;
-    const TLayerLocationPtr Location_;
-
-private:
-    TAsyncReaderWriterLock Lock_;
-    std::vector<TString> Targets_;
-    TFuture<void> RemoveFuture_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TNbdVolume
-    : public TPortoVolumeBase
-{
-public:
-    TNbdVolume(
-        bool isRootVolume,
-        TVolumeMeta&& volumeMeta,
-        TLayerLocationPtr location,
-        TString nbdExportId,
-        INbdServerPtr nbdServer,
-        NProfiling::TTagSet tagSet)
-        : TPortoVolumeBase(
-            std::move(tagSet),
-            std::move(volumeMeta),
-            std::move(location))
-        , IsRootVolume_(isRootVolume)
-        , NbdExportId_(std::move(nbdExportId))
-        , NbdServer_(std::move(nbdServer))
-    { }
-
-    ~TNbdVolume() override
-    {
-        YT_UNUSED_FUTURE(Remove());
-    }
-
-    bool IsRootVolume() const override final
-    {
-        return IsRootVolume_;
-    }
-
-private:
-    TFuture<void> DoRemoveImpl() override final
-    {
-        TVolumeProfilerCounters::Get()->GetGauge(TagSet_, "/count")
-            .Update(VolumeCounters().Decrement(TagSet_));
-
-        TVolumeProfilerCounters::Get()->GetCounter(TagSet_, "/removed").Increment(1);
-
-        TEventTimerGuard volumeRemoveTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(TagSet_, "/remove_time"));
-
-        const auto volumeType = EVolumeType::Nbd;
-        const auto& volumeId = VolumeMeta_.Id;
-        const auto& volumePath = VolumeMeta_.MountPath;
-
-        YT_LOG_DEBUG("Removing volume (Type: %v, Id: %v, Path: %v, ExportId: %v)",
-            volumeType,
-            volumeId,
-            volumePath,
-            NbdExportId_);
-
-        // At first remove volume, then unregister export.
-        auto future = Location_->RemoveVolume(TagSet_, volumeId);
-        return future.Apply(BIND(
-            [
-                volumeType = volumeType,
-                volumeId = volumeId,
-                nbdExportId = NbdExportId_,
-                nbdServer = NbdServer_,
-                volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)
-            ] {
-                YT_LOG_DEBUG("Removed volume (Type: %v, Id: %v)",
-                    volumeType,
-                    volumeId);
-
-                if (auto device = nbdServer->FindDevice(nbdExportId)) {
-                    nbdServer->TryUnregisterDevice(nbdExportId);
-                    return device->Finalize();
-                }
-
-                return VoidFuture;
-        })).ToUncancelable();
-    }
-
-    //! Overlayfs stores its upper/work directories in root volume.
-    const bool IsRootVolume_;
-    const TString NbdExportId_;
-    const INbdServerPtr NbdServer_;
-};
-
-DEFINE_REFCOUNTED_TYPE(TNbdVolume)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TOverlayVolume
     : public TPortoVolumeBase
 {
 public:
     TOverlayVolume(
-        NProfiling::TTagSet tagSet,
-        TVolumeMeta&& meta,
+        TTagSet tagSet,
+        TVolumeMeta volumeMeta,
         TLayerLocationPtr location,
         std::vector<TOverlayData> overlayDataArray)
         : TPortoVolumeBase(
             std::move(tagSet),
-            std::move(meta),
+            std::move(volumeMeta),
             std::move(location))
         , OverlayDataArray_(std::move(overlayDataArray))
-    { }
+    {
+        SetRemoveCallback(BIND(
+            &TOverlayVolume::DoRemove,
+            TagSet_,
+            LayerLocation_,
+            VolumeMeta_,
+            OverlayDataArray_));
+    }
 
     ~TOverlayVolume() override
     {
+        YT_LOG_DEBUG("Overlay volume object is destroyed (VolumeId: %v)", GetId());
         YT_UNUSED_FUTURE(Remove());
     }
 
@@ -2992,115 +3921,36 @@ public:
     }
 
 private:
-    TFuture<void> DoRemoveImpl() override final
-    {
-        TVolumeProfilerCounters::Get()->GetGauge(TagSet_, "/count")
-            .Update(VolumeCounters().Decrement(TagSet_));
-
-        TVolumeProfilerCounters::Get()->GetCounter(TagSet_, "/removed").Increment(1);
-
-        TEventTimerGuard volumeRemoveTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(TagSet_, "/remove_time"));
-
-        const auto volumeType = EVolumeType::Local;
-        const auto& volumeId = VolumeMeta_.Id;
-        const auto& volumePath = VolumeMeta_.MountPath;
-
-        YT_LOG_DEBUG("Removing volume (Type: %v, Id: %v, Path: %v)",
-            volumeType,
-            volumeId,
-            volumePath);
-
-        // At first remove overlay volume, then remove constituent volumes and layers.
-        auto future = Location_->RemoveVolume(TagSet_, volumeId);
-        return future.Apply(BIND(
-            [
-                volumeType = volumeType,
-                volumeId = volumeId,
-                overlayDataArray = OverlayDataArray_,
-                volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)
-            ] () mutable {
-                YT_LOG_DEBUG("Removed volume (Type: %v, Id: %v)",
-                    volumeType,
-                    volumeId);
-
-                std::vector<TFuture<void>> futures;
-                futures.reserve(overlayDataArray.size());
-                for (auto& overlayData : overlayDataArray) {
-                    futures.push_back(overlayData.Remove());
-                }
-                return AllSucceeded(std::move(futures));
-        })).ToUncancelable();
-    }
-
     // Holds volumes and layers (so that they are not destroyed) while they are needed.
     const std::vector<TOverlayData> OverlayDataArray_;
+
+    static TFuture<void> DoRemove(
+        TTagSet tagSet,
+        TLayerLocationPtr location,
+        TVolumeMeta volumeMeta,
+        std::vector<TOverlayData> overlayDataArray)
+    {
+        // At first remove overlay volume, then remove constituent volumes and layers.
+        auto postRemovalCleanup = BIND_NO_PROPAGATE([overlayDataArray = std::move(overlayDataArray)] (const TLogger&) mutable -> TFuture<void> {
+            std::vector<TFuture<void>> futures;
+            futures.reserve(overlayDataArray.size());
+            for (auto& overlayData : overlayDataArray) {
+                futures.push_back(overlayData.Remove());
+            }
+            return AllSucceeded(std::move(futures));
+        });
+
+        return DoRemoveVolumeCommon(
+            "Overlay",
+            std::move(tagSet),
+            std::move(location),
+            std::move(volumeMeta),
+            std::move(postRemovalCleanup));
+    }
 };
 
 DECLARE_REFCOUNTED_CLASS(TOverlayVolume)
 DEFINE_REFCOUNTED_TYPE(TOverlayVolume)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSquashFSVolume
-    : public TPortoVolumeBase
-{
-public:
-    TSquashFSVolume(
-        NProfiling::TTagSet tagSet,
-        TVolumeMeta&& volumeMeta,
-        IVolumeArtifactPtr artifact,
-        TLayerLocationPtr location)
-        : TPortoVolumeBase(
-            std::move(tagSet),
-            std::move(volumeMeta),
-            std::move(location))
-        , Artifact_(std::move(artifact))
-    { }
-
-    ~TSquashFSVolume() override
-    {
-        YT_UNUSED_FUTURE(Remove());
-    }
-
-    bool IsRootVolume() const override final
-    {
-        return false;
-    }
-
-private:
-    TFuture<void> DoRemoveImpl() override final
-    {
-        TVolumeProfilerCounters::Get()->GetGauge(TagSet_, "/count")
-            .Update(VolumeCounters().Decrement(TagSet_));
-
-        TVolumeProfilerCounters::Get()->GetCounter(TagSet_, "/removed").Increment(1);
-
-        TEventTimerGuard volumeRemoveTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(TagSet_, "/remove_time"));
-
-        const auto volumeType = EVolumeType::Local;
-        const auto& volumeId = VolumeMeta_.Id;
-        const auto& volumePath = VolumeMeta_.MountPath;
-
-        YT_LOG_DEBUG("Removing volume (Type: %v, Id: %v, Path: %v)",
-            volumeType,
-            volumeId,
-            volumePath);
-
-        return Location_->RemoveVolume(TagSet_, volumeId)
-            .Apply(BIND([volumeType = volumeType, volumeId = volumeId, volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)] {
-                YT_LOG_DEBUG("Removed volume (Type: %v, Id: %v)",
-                    volumeType,
-                    volumeId);
-            })).ToUncancelable();
-    }
-
-    const TArtifactKey ArtifactKey_;
-    // We store chunk cache artifact here to make sure that SquashFS file outlives SquashFS volume.
-    const IVolumeArtifactPtr Artifact_;
-};
-
-DECLARE_REFCOUNTED_CLASS(TSquashFSVolume)
-DEFINE_REFCOUNTED_TYPE(TSquashFSVolume)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3109,14 +3959,20 @@ class TTmpfsVolume
 {
 public:
     TTmpfsVolume(
-        NProfiling::TTagSet tagSet,
-        TVolumeMeta&& meta,
+        TTagSet tagSet,
+        TVolumeMeta volumeMeta,
         TLayerLocationPtr location)
         : TPortoVolumeBase(
             std::move(tagSet),
-            std::move(meta),
+            std::move(volumeMeta),
             std::move(location))
-    { }
+    {
+        SetRemoveCallback(BIND(
+            &TTmpfsVolume::DoRemove,
+            TagSet_,
+            LayerLocation_,
+            VolumeMeta_));
+    }
 
     ~TTmpfsVolume() override
     {
@@ -3129,30 +3985,16 @@ public:
     }
 
 private:
-    TFuture<void> DoRemoveImpl() override final
+    static TFuture<void> DoRemove(
+        TTagSet tagSet,
+        TLayerLocationPtr location,
+        TVolumeMeta volumeMeta)
     {
-        TVolumeProfilerCounters::Get()->GetGauge(TagSet_, "/count")
-            .Update(VolumeCounters().Decrement(TagSet_));
-
-        TVolumeProfilerCounters::Get()->GetCounter(TagSet_, "/removed").Increment(1);
-
-        TEventTimerGuard volumeRemoveTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(TagSet_, "/remove_time"));
-
-        const auto volumeType = EVolumeType::Tmpfs;
-        const auto& volumeId = VolumeMeta_.Id;
-        const auto& volumePath = VolumeMeta_.MountPath;
-
-        YT_LOG_DEBUG("Removing volume (Type: %v, Id: %v, Path: %v)",
-            volumeType,
-            volumeId,
-            volumePath);
-
-        return Location_->RemoveVolume(TagSet_, volumeId)
-            .Apply(BIND([volumeType = volumeType, volumeId = volumeId, volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)] {
-                YT_LOG_DEBUG("Removed volume (Type: %v, Id: %v)",
-                    volumeType,
-                    volumeId);
-            })).ToUncancelable();
+        return DoRemoveVolumeCommon(
+            "Tmpfs",
+            std::move(tagSet),
+            std::move(location),
+            std::move(volumeMeta));
     }
 };
 
@@ -3165,8 +4007,8 @@ class TSimpleTmpfsVolume
 {
 public:
     TSimpleTmpfsVolume(
-        NProfiling::TTagSet tagSet,
-        const TString& path,
+        TTagSet tagSet,
+        const std::string& path,
         IInvokerPtr invoker,
         bool detachUnmount)
         : TagSet_(std::move(tagSet))
@@ -3185,6 +4027,11 @@ public:
         YT_UNUSED_FUTURE(Remove());
     }
 
+    bool IsCached() const final
+    {
+        return false;
+    }
+
     TFuture<void> Link(
         TGuid,
         const TString&) override final
@@ -3199,33 +4046,50 @@ public:
             return RemoveFuture_;
         }
 
-        TVolumeProfilerCounters::Get()->GetGauge(TagSet_, "/count")
-            .Update(VolumeCounters().Decrement(TagSet_));
-
-        TVolumeProfilerCounters::Get()->GetCounter(TagSet_, "/removed").Increment(1);
-
         TEventTimerGuard volumeRemoveTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(TagSet_, "/remove_time"));
 
         const auto volumeType = EVolumeType::Tmpfs;
         const auto& volumeId = VolumeId_;
         const auto& volumePath = Path_;
 
-        YT_LOG_DEBUG("Removing volume (Type: %v, Id: %v, Path: %v)",
-            volumeType,
-            volumeId,
-            volumePath);
+        auto Logger = ExecNodeLogger()
+            .WithTag("VolumeType: %v, VolumeId: %v, VolumePath: %v",
+                volumeType,
+                volumeId,
+                volumePath);
 
-        RemoveFuture_ = BIND([=, this, this_ = MakeStrong(this)] {
-            RunTool<TRemoveDirContentAsRootTool>(Path_);
+        RemoveFuture_ = BIND(
+            [
+                tagSet = TagSet_,
+                Logger,
+                this,
+                this_ = MakeStrong(this)
+            ] {
+                try {
+                    RunTool<TRemoveDirContentAsRootTool>(Path_);
 
-            auto config = New<TUmountConfig>();
-            config->Path = Path_;
-            config->Detach = DetachUnmount_;
-            RunTool<TUmountAsRootTool>(config);
-        })
-        .AsyncVia(Invoker_)
-        .Run()
-        .ToUncancelable();
+                    auto config = New<TUmountConfig>();
+                    config->Path = Path_;
+                    config->Detach = DetachUnmount_;
+                    RunTool<TUmountAsRootTool>(config);
+
+                    TVolumeProfilerCounters::Get()->GetGauge(tagSet, "/count")
+                        .Update(VolumeCounters().Decrement(tagSet));
+                    TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/removed").Increment(1);
+                } catch (const std::exception& ex) {
+                    TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/remove_errors").Increment(1);
+
+                    YT_LOG_ERROR(
+                        ex,
+                        "Failed to remove volume");
+
+                    THROW_ERROR_EXCEPTION("Failed to remove volume")
+                        << ex;
+                }
+            })
+            .AsyncVia(Invoker_)
+            .Run()
+            .ToUncancelable();
 
         return RemoveFuture_;
     }
@@ -3235,7 +4099,7 @@ public:
         return VolumeId_;
     }
 
-    const TString& GetPath() const override final
+    const std::string& GetPath() const override final
     {
         return Path_;
     }
@@ -3246,8 +4110,8 @@ public:
     }
 
 private:
-    const NProfiling::TTagSet TagSet_;
-    const TString Path_;
+    const TTagSet TagSet_;
+    const std::string Path_;
     const TVolumeId VolumeId_;
     const IInvokerPtr Invoker_;
     const bool DetachUnmount_;
@@ -3258,7 +4122,7 @@ DEFINE_REFCOUNTED_TYPE(TSimpleTmpfsVolume)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TString& TOverlayData::GetPath() const
+const std::string& TOverlayData::GetPath() const
 {
     if (std::holds_alternative<TLayerPtr>(Variant_)) {
         return std::get<TLayerPtr>(Variant_)->GetPath();
@@ -3270,10 +4134,15 @@ const TString& TOverlayData::GetPath() const
 TFuture<void> TOverlayData::Remove()
 {
     if (IsLayer()) {
-        return VoidFuture;
+        return OKFuture;
     }
 
-    return GetVolume()->Remove();
+    const auto& self = GetVolume();
+    if (self->IsCached()) {
+        return OKFuture;
+    }
+
+    return self->Remove();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3292,8 +4161,7 @@ public:
     //! Prepare root overlayfs volume.
     TFuture<IVolumePtr> PrepareVolume(
         const std::vector<TArtifactKey>&,
-        const TVolumePreparationOptions&,
-        const std::optional<TString>&) override
+        const TVolumePreparationOptions&) override
     {
         YT_UNIMPLEMENTED("PrepareVolume is not implemented for SimpleVolumeManager");
     }
@@ -3315,6 +4183,13 @@ public:
         return AllSucceeded(std::move(futures));
     }
 
+    TFuture<IVolumePtr> RbindRootVolume(
+        const IVolumePtr&,
+        const TString&) override
+    {
+        YT_UNIMPLEMENTED("RbindRootVolume is not implemented for SimpleVolumeManager");
+    }
+
     TFuture<void> LinkTmpfsVolumes(
         const TString&,
         const std::vector<TTmpfsVolumeResult>&) override
@@ -3329,14 +4204,14 @@ public:
         // To avoid problems with undeleting tmpfs ordered by user in sandbox
         // we always try to remove it several times.
         for (int attempt = 0; attempt < TmpfsRemoveAttemptCount; ++attempt) {
-            std::vector<TString> mountPaths;
+            std::vector<std::string> mountPaths;
             for (const auto& location : locations) {
                 FindTmpfsMountPathsInLocation(location->Path, mountPaths);
             }
 
             // Sort from longest paths, to shortest.
-            std::sort(mountPaths.begin(), mountPaths.end(), [] (const TString& lhs, const TString& rhs) {
-                return SplitString(lhs, "/").size() > SplitString(rhs, "/").size();
+            std::sort(mountPaths.begin(), mountPaths.end(), [] (const std::string& lhs, const std::string& rhs) {
+                return StringSplitter(lhs).Split('/').Count() > StringSplitter(rhs).Split('/').Count();
             });
 
             auto error = WaitFor(CleanupTmpfsMountPaths(std::move(mountPaths)));
@@ -3346,7 +4221,7 @@ public:
             }
         }
 
-        return VoidFuture;
+        return OKFuture;
     }
 
     bool IsLayerCached(const TArtifactKey&) const override
@@ -3369,12 +4244,12 @@ public:
 
     TFuture<void> GetVolumeReleaseEvent() override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     TFuture<void> DisableLayerCache(const TError&) override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     bool IsEnabled() const override
@@ -3388,6 +4263,9 @@ public:
     { }
 
 private:
+    const IInvokerPtr Invoker_;
+    const bool DetachUnmount_;
+
     TFuture<TTmpfsVolumeResult> CreateTmpfsVolume(
         TGuid tag,
         const TString& sandboxPath,
@@ -3395,8 +4273,13 @@ private:
     {
         YT_VERIFY(sandboxPath);
 
-        auto tagSet = TVolumeProfilerCounters::MakeTagSet(/*volumeType*/ "tmpfs", /*volumeFilePath*/ "n/a");
-        auto path = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, volume.Path));
+        auto tagSet = TVolumeProfilerCounters::MakeTagSet(
+            /*volume type*/ "tmpfs",
+            /*Cypress path*/ "n/a");
+        TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
+
+        // TODO(dgolear): Switch to std::string.
+        TString path = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, volume.Path));
 
         auto config = New<TMountTmpfsConfig>();
         config->Path = path;
@@ -3407,33 +4290,50 @@ private:
             tag,
             ConvertToYsonString(config, EYsonFormat::Text));
 
-        return BIND([=, this, this_ = MakeStrong(this)] {
-            RunTool<TMountTmpfsAsRootTool>(config);
+        return BIND(
+            [
+                tagSet,
+                volumeCreateTimeGuard = std::move(volumeCreateTimeGuard),
+                config = std::move(config),
+                this,
+                this_ = MakeStrong(this)
+            ] {
+                try {
+                    RunTool<TMountTmpfsAsRootTool>(config);
 
-            return TTmpfsVolumeResult{
-                .Path = path,
-                .Volume = New<TSimpleTmpfsVolume>(
-                    tagSet,
-                    path,
-                    Invoker_,
-                    DetachUnmount_)};
-        })
-        .AsyncVia(Invoker_)
-        .Run()
-        .ToUncancelable();
+                    TVolumeProfilerCounters::Get()->GetGauge(tagSet, "/count")
+                        .Update(VolumeCounters().Increment(tagSet));
+                    TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
+
+                    return TTmpfsVolumeResult{
+                        .Path = config->Path,
+                        .Volume = New<TSimpleTmpfsVolume>(
+                            tagSet,
+                            config->Path,
+                            Invoker_,
+                            DetachUnmount_)
+                    };
+                } catch (const std::exception& ex) {
+                    TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/create_errors").Increment(1);
+                    throw;
+                }
+            })
+            .AsyncVia(Invoker_)
+            .Run()
+            .ToUncancelable();
     }
 
-    void FindTmpfsMountPathsInLocation(const TString& locationPath, std::vector<TString>& mountPaths)
+    void FindTmpfsMountPathsInLocation(const std::string& locationPath, std::vector<std::string>& mountPaths)
     {
         auto mountPoints = NFS::GetMountPoints("/proc/mounts");
         for (const auto& mountPoint : mountPoints) {
-            if (mountPoint.Path.StartsWith(locationPath + "/")) {
+            if (mountPoint.Path.starts_with(locationPath + "/")) {
                 mountPaths.push_back(mountPoint.Path);
             }
         }
     }
 
-    TFuture<void> CleanupTmpfsMountPaths(std::vector<TString>&& mountPaths) const
+    TFuture<void> CleanupTmpfsMountPaths(std::vector<std::string>&& mountPaths) const
     {
         return BIND([mountPaths = std::move(mountPaths), detachUnmount = DetachUnmount_] {
             for (const auto& path : mountPaths) {
@@ -3457,10 +4357,8 @@ private:
         .AsyncVia(Invoker_)
         .Run();
     }
-
-    const IInvokerPtr Invoker_;
-    const bool DetachUnmount_;
 };
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPortoVolumeManager
@@ -3528,12 +4426,23 @@ public:
         LayerCache_ = New<TLayerCache>(
             Config_->VolumeManager,
             DynamicConfigManager_,
-            std::move(locations),
+            locations,
             tmpfsExecutor,
             ArtifactCache_,
             ControlInvoker_,
             MemoryUsageTracker_,
             Bootstrap_);
+
+        SquashFSVolumeCache_ = New<TSquashFSVolumeCache>(
+            Bootstrap_,
+            locations,
+            ArtifactCache_);
+
+        RONbdVolumeCache_ = New<TRONbdVolumeCache>(
+            Bootstrap_,
+            DynamicConfigManager_,
+            locations);
+
         return LayerCache_->Initialize();
     }
 
@@ -3556,8 +4465,7 @@ public:
 
     TFuture<IVolumePtr> PrepareVolume(
         const std::vector<TArtifactKey>& artifactKeys,
-        const TVolumePreparationOptions& options,
-        const std::optional<TString>& slotPath) override
+        const TVolumePreparationOptions& options) override
     {
         YT_VERIFY(!artifactKeys.empty());
 
@@ -3588,18 +4496,15 @@ public:
 
         for (const auto& artifactKey : artifactKeys) {
             if (FromProto<ELayerAccessMethod>(artifactKey.access_method()) == ELayerAccessMethod::Nbd) {
-                auto reader = PrepareCypressFileImageReader(
+                overlayDataFutures.push_back(GetOrCreateRONbdVolume(
                     tag,
-                    artifactKey);
-                overlayDataFutures.push_back(PrepareNbdVolume(
-                    tag,
-                    TPrepareNbdVolumeOptions{
-                        options.JobId,
-                        artifactKey,
-                        std::move(reader),
+                    TPrepareRONbdVolumeOptions{
+                        .JobId = options.JobId,
+                        .ArtifactKey = artifactKey,
+                        .ImageReader = nullptr,
                     }));
             } else if (FromProto<ELayerFilesystem>(artifactKey.filesystem()) == ELayerFilesystem::SquashFS) {
-                overlayDataFutures.push_back(PrepareSquashFSVolume(
+                overlayDataFutures.push_back(GetOrCreateSquashFSVolume(
                     tag,
                     artifactKey,
                     options.ArtifactDownloadOptions));
@@ -3611,69 +4516,93 @@ public:
             }
         }
 
-        if (userSandboxOptions.VirtualSandboxData) {
-            TArtifactKey virtualArtifactKey;
-
-            virtualArtifactKey.set_access_method(ToProto(NControllerAgent::ELayerAccessMethod::Nbd));
-            virtualArtifactKey.set_filesystem(ToProto(NControllerAgent::ELayerFilesystem::SquashFS));
-            virtualArtifactKey.set_nbd_export_id(userSandboxOptions.VirtualSandboxData->NbdExportId);
-
-            NChunkClient::NProto::TDataSource* dataSource = virtualArtifactKey.mutable_data_source();
-            dataSource->set_type(ToProto(NChunkClient::EDataSourceType::File));
-            dataSource->set_path("virtual");
-
-            overlayDataFutures.push_back(PrepareNbdVolume(
+        if (auto data = userSandboxOptions.VirtualSandboxData) {
+            overlayDataFutures.push_back(GetOrCreateRONbdVolume(
                 tag,
-                TPrepareNbdVolumeOptions{
-                    options.JobId,
-                    virtualArtifactKey,
-                    userSandboxOptions.VirtualSandboxData->Reader,
+                TPrepareRONbdVolumeOptions{
+                    .JobId = options.JobId,
+                    .ArtifactKey = data->ArtifactKey,
+                    .ImageReader = data->Reader,
                 }));
         }
 
         if (userSandboxOptions.SandboxNbdRootVolumeData) {
-            auto future = PrepareNbdSession(*userSandboxOptions.SandboxNbdRootVolumeData).Apply(BIND(
-                [
-                    this,
-                    this_ = MakeStrong(this),
-                    tag = tag,
-                    jobId = options.JobId,
-                    data = *userSandboxOptions.SandboxNbdRootVolumeData
-                ] (const TErrorOr<std::optional<std::tuple<IChannelPtr, TSessionId>>>& rspOrError) {
-                    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
+            auto future = PrepareNbdSession(*userSandboxOptions.SandboxNbdRootVolumeData)
+                .Apply(BIND(
+                    [
+                        tag = tag,
+                        jobId = options.JobId,
+                        data = *userSandboxOptions.SandboxNbdRootVolumeData,
+                        this,
+                        this_ = MakeStrong(this)
+                    ] (const TErrorOr<std::optional<std::tuple<IChannelPtr, TSessionId>>>& rspOrError) {
+                        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
 
-                    const auto& response = rspOrError.Value();
-                    if (!response) {
-                        THROW_ERROR_EXCEPTION("Could not find suitable data node to host NBD disk")
-                            << TErrorAttribute("medium_index", data.MediumIndex)
-                            << TErrorAttribute("size", data.Size)
-                            << TErrorAttribute("fs_type", data.FsType);
-                    }
+                        const auto& response = rspOrError.Value();
+                        if (!response) {
+                            THROW_ERROR_EXCEPTION("Could not find suitable data node to host NBD disk")
+                                << TErrorAttribute("medium_index", data.MediumIndex)
+                                << TErrorAttribute("size", data.Size)
+                                << TErrorAttribute("fs_type", data.FsType);
+                        }
 
-                    const auto& [channel, sessionId] = *response;
+                        const auto& [channel, sessionId] = *response;
 
-                    YT_LOG_DEBUG(
-                        "Prepared NBD session (SessionId: %v, MediumIndex: %v, Size: %v, FsType: %v, ExportId: %v)",
-                        sessionId,
-                        data.MediumIndex,
-                        data.Size,
-                        data.FsType,
-                        data.ExportId);
+                        YT_LOG_DEBUG(
+                            "Prepared NBD session (SessionId: %v, MediumIndex: %v, Size: %v, FsType: %v, DeviceId: %v)",
+                            sessionId,
+                            data.MediumIndex,
+                            data.Size,
+                            data.FsType,
+                            data.DeviceId);
 
-                    return PrepareNbdRootVolume(
-                        tag,
-                        TPrepareNbdRootVolumeOptions{
-                            .JobId = jobId,
-                            .Size = data.Size,
-                            .MediumIndex = data.MediumIndex,
-                            .Filesystem = data.FsType,
-                            .ExportId = data.ExportId,
-                            .DataNodeChannel = channel,
-                            .SessionId = sessionId,
-                            .DataNodeNbdServiceRpcTimeout = data.DataNodeNbdServiceRpcTimeout,
-                            .DataNodeNbdServiceMakeTimeout = data.DataNodeNbdServiceMakeTimeout,
-                        });
-            }));
+                        return PrepareRWNbdVolume(
+                            tag,
+                            TPrepareRWNbdVolumeOptions{
+                                .JobId = jobId,
+                                .Size = data.Size,
+                                .MediumIndex = data.MediumIndex,
+                                .Filesystem = data.FsType,
+                                .DeviceId = data.DeviceId,
+                                .DataNodeChannel = channel,
+                                .SessionId = sessionId,
+                                .DataNodeNbdServiceRpcTimeout = data.DataNodeNbdServiceRpcTimeout,
+                                .DataNodeNbdServiceMakeTimeout = data.DataNodeNbdServiceMakeTimeout,
+                            });
+                    }))
+                .Apply(BIND(
+                    [
+                        jobId = options.JobId,
+                        data = *userSandboxOptions.SandboxNbdRootVolumeData,
+                        this,
+                        this_ = MakeStrong(this)
+                    ] (const TErrorOr<TRWNbdVolumePtr>& errorOrVolume) {
+                        if (!errorOrVolume.IsOK()) {
+                            THROW_ERROR_EXCEPTION("Failed to find RW NBD volume")
+                                << TErrorAttribute("job_id", jobId)
+                                << TErrorAttribute("device_id", data.DeviceId);
+                        }
+
+                        auto device = Bootstrap_->GetNbdServer()->FindDevice(data.DeviceId);
+                        if (!device) {
+                            THROW_ERROR_EXCEPTION("Failed to find RW NBD device")
+                                << TErrorAttribute("job_id", jobId)
+                                << TErrorAttribute("device_id", data.DeviceId);
+                        }
+
+                        YT_LOG_DEBUG("Subscribing job for RW NBD device errors");
+                        auto res = device->SubscribeForErrors(
+                            jobId.Underlying(),
+                            MakeJobInterrupter(jobId, Bootstrap_));
+                        if (!res) {
+                            THROW_ERROR_EXCEPTION("Failed to subscribe job for RW NBD device errors")
+                                << TErrorAttribute("job_id", jobId)
+                                << TErrorAttribute("device_id", data.DeviceId);
+                        }
+                        YT_LOG_DEBUG("Subscribed job for RW NBD device errors");
+                        return errorOrVolume.Value();
+                    }))
+                .As<TOverlayData>();
 
             overlayDataFutures.push_back(std::move(future));
         }
@@ -3682,8 +4611,9 @@ public:
         // Avoid sync calls to WaitFor, to respect job preparation context switch guards.
         auto future = AllSucceeded(std::move(overlayDataFutures))
             .Apply(BIND([=, this, this_ = MakeStrong(this)] (const std::vector<TOverlayData>& overlayDataArray) {
-                auto tagSet = TVolumeProfilerCounters::MakeTagSet(/*volumeType*/ "overlay", /*volumeFilePath*/ "n/a");
-                TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
+                auto tagSet = TVolumeProfilerCounters::MakeTagSet(
+                    /*volume type*/ "overlay",
+                    /*Cypress path*/ "n/a");
                 TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
                 return CreateOverlayVolume(
                     tag,
@@ -3695,14 +4625,7 @@ public:
             .ToImmediatelyCancelable()
             .As<IVolumePtr>();
 
-        if (!slotPath || options.UserSandboxOptions.EnableRootVolumeDiskQuota) {
-            return future;
-        }
-
-        // TODO(yuryalekseev): Remove me when slot rbind is removed.
-        return future.Apply(BIND([slotPath = *slotPath, this, this_ = MakeStrong(this)] (const IVolumePtr& volume) {
-            return RbindRootVolume(volume, slotPath);
-        }).AsyncVia(GetCurrentInvoker()));
+        return future;
     }
 
     //! Prepare tmpfs volumes.
@@ -3731,7 +4654,7 @@ public:
         std::vector<TFuture<void>> futures;
         futures.reserve(volumes.size());
         for (const auto& volume : volumes) {
-            const auto& target = NFS::GetRealPath(NFS::CombinePaths(destinationDirectory, volume.Path));
+            TString target = NFS::GetRealPath(NFS::CombinePaths(destinationDirectory, volume.Path));
             futures.push_back(volume.Volume->Link(tag, target));
         }
 
@@ -3771,6 +4694,15 @@ public:
         LayerCache_->OnDynamicConfigChanged(oldConfig->LayerCache, newConfig->LayerCache);
     }
 
+    //! TODO(yuryalekseev): Remove me when slot rbind is removed.
+    TFuture<IVolumePtr> RbindRootVolume(
+        const IVolumePtr& volume,
+        const TString& slotPath) override
+    {
+        auto location = LayerCache_->PickLocation();
+        return location->RbindRootVolume(volume, slotPath);
+    }
+
 private:
     IBootstrap* const Bootstrap_;
     const NDataNode::TDataNodeConfigPtr Config_;
@@ -3781,173 +4713,63 @@ private:
     const IMemoryUsageTrackerPtr MemoryUsageTracker_;
 
     TLayerCachePtr LayerCache_;
+    TSquashFSVolumeCachePtr SquashFSVolumeCache_;
+    TRONbdVolumeCachePtr RONbdVolumeCache_;
 
     void BuildOrchid(NYTree::TFluentAny fluent) const override
     {
         LayerCache_->BuildOrchid(fluent);
     }
 
-    TClosure MakeJobInterrupter(TJobId jobId)
-    {
-        return BIND_NO_PROPAGATE([
-                this,
-                this_ = MakeStrong(this),
-                jobId,
-                jobInterrupted = std::make_unique<std::atomic<bool>>(false)
-            ] () mutable {
-                // Interrupt job only once.
-                if (!jobInterrupted->exchange(true)) {
-                    Bootstrap_->GetJobController()->InterruptJob(
-                        jobId,
-                        EInterruptionReason::NbdDeviceStopping,
-                        TDuration::Zero());
-                }
-            });
-    }
-
-    //! Create NBD exports (devices) prior to creating NBD volumes.
-    TFuture<void> PrepareNbdExport(
+    TFuture<IBlockDevicePtr> CreateRWNbdDevice(
         TGuid tag,
-        TTagSet tagSet,
-        const TPrepareNbdVolumeOptions& options)
+        TPrepareRWNbdVolumeOptions options)
     {
-        auto future = VoidFuture;
-
-        const auto& layer = options.ArtifactKey;
-
-        try {
-            THROW_ERROR_EXCEPTION_IF(
-                !layer.has_filesystem(),
-                "NBD layer %v does not have filesystem",
-                layer.data_source().path());
-
-            THROW_ERROR_EXCEPTION_IF(
-                !layer.has_nbd_export_id(),
-                "NBD layer %v does not have export id",
-                layer.data_source().path());
-
-            YT_LOG_DEBUG(
-                "Preparing NBD export (Tag: %v, ExportId: %v, Path: %v, Filesystem: %v)",
+        auto Logger = ExecNodeLogger()
+            .WithTag("Tag: %v, JobId: %v, DeviceId: %v, DiskSize: %v, DiskMediumIndex: %v, DiskFilesystem: %v",
                 tag,
-                layer.nbd_export_id(),
-                layer.data_source().path(),
-                FromProto<ELayerFilesystem>(layer.filesystem()));
-
-            auto nbdServer = Bootstrap_->GetNbdServer();
-            if (!nbdServer) {
-                auto error = TError("NBD server is not present")
-                    << TErrorAttribute("export_id", layer.nbd_export_id())
-                    << TErrorAttribute("path", layer.data_source().path())
-                    << TErrorAttribute("filesystem", FromProto<ELayerFilesystem>(layer.filesystem()));
-
-                THROW_ERROR(error);
-            }
-
-            auto config = New<TFileSystemBlockDeviceConfig>();
-
-            auto device = CreateFileSystemBlockDevice(
-                layer.nbd_export_id(),
-                std::move(config),
-                options.ImageReader,
-                nbdServer->GetInvoker(),
-                nbdServer->GetLogger());
-
-            if (options.JobId) {
-                device->SubscribeShouldStopUsingDevice(MakeJobInterrupter(options.JobId));
-            }
-
-            auto initializeFuture = device->Initialize();
-            nbdServer->RegisterDevice(layer.nbd_export_id(), std::move(device));
-
-            future = initializeFuture.Apply(BIND([tag = tag, layer = layer, Logger = Logger] {
-                YT_LOG_DEBUG(
-                    "Prepared NBD export (Tag: %v, ExportId: %v, Path: %v, Filesystem: %v)",
-                    tag,
-                    layer.nbd_export_id(),
-                    layer.data_source().path(),
-                    FromProto<ELayerFilesystem>(layer.filesystem()));
-            })).ToUncancelable();
-        } catch (const std::exception& ex) {
-            TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/create_errors").Increment(1);
-
-            auto error = TError(ex);
-            YT_LOG_ERROR(error, "Failed to prepare NBD export");
-            future = MakeFuture<void>(std::move(error));
-        }
-
-        return future;
-    }
-
-    TFuture<void> PrepareNbdRootExport(
-        TGuid tag,
-        TTagSet tagSet,
-        const TPrepareNbdRootVolumeOptions& options)
-    {
-        auto future = VoidFuture;
-        try {
-            YT_LOG_DEBUG(
-                "Preparing NBD root export (Tag: %v, ExportId: %v, DiskSize: %v, DiskMediumIndex: %v, DiskFilesystem: %v)",
-                tag,
-                options.ExportId,
+                options.JobId,
+                options.DeviceId,
                 options.Size,
                 options.MediumIndex,
                 options.Filesystem);
 
-            auto nbdServer = Bootstrap_->GetNbdServer();
-            if (!nbdServer) {
-                THROW_ERROR_EXCEPTION("NBD server is not present")
-                    << TErrorAttribute("export_id", options.ExportId);
-            }
+        auto config = New<TChunkBlockDeviceConfig>();
+        config->Size = options.Size;
+        config->MediumIndex = options.MediumIndex;
+        config->FsType = options.Filesystem;
+        config->DataNodeNbdServiceRpcTimeout = options.DataNodeNbdServiceRpcTimeout;
+        config->DataNodeNbdServiceMakeTimeout = options.DataNodeNbdServiceMakeTimeout;
 
-            auto config = New<TChunkBlockDeviceConfig>();
-            config->Size = options.Size;
-            config->MediumIndex = options.MediumIndex;
-            config->FsType = options.Filesystem;
-            config->DataNodeNbdServiceRpcTimeout = options.DataNodeNbdServiceRpcTimeout;
-            config->DataNodeNbdServiceMakeTimeout = options.DataNodeNbdServiceMakeTimeout;
+        YT_LOG_DEBUG("Creating RW NBD device");
 
-            auto device = CreateChunkBlockDevice(
-                options.ExportId,
-                std::move(config),
-                Bootstrap_->GetDefaultInThrottler(),
-                Bootstrap_->GetDefaultOutThrottler(),
-                nbdServer->GetInvoker(),
-                options.DataNodeChannel,
-                options.SessionId,
-                nbdServer->GetLogger());
+        auto device = CreateChunkBlockDevice(
+            std::move(options.DeviceId),
+            std::move(config),
+            Bootstrap_->GetDefaultInThrottler(),
+            Bootstrap_->GetDefaultOutThrottler(),
+            Bootstrap_->GetNbdServer()->GetInvoker(),
+            std::move(options.DataNodeChannel),
+            std::move(options.SessionId),
+            Bootstrap_->GetNbdServer()->GetLogger());
 
-            if (options.JobId) {
-                device->SubscribeShouldStopUsingDevice(MakeJobInterrupter(options.JobId));
-            }
-
-            auto initializeFuture = device->Initialize();
-            nbdServer->RegisterDevice(options.ExportId, std::move(device));
-
-            future = initializeFuture.Apply(BIND([tag = tag, options = options, Logger = Logger] {
-                YT_LOG_DEBUG(
-                    "Prepared NBD root export (Tag: %v, ExportId: %v, DiskSize: %v, DiskMediumIndex: %v, DiskFilesystem: %v)",
-                    tag,
-                    options.ExportId,
-                    options.Size,
-                    options.MediumIndex,
-                    options.Filesystem);
-            })).ToUncancelable();
-        } catch (const std::exception& ex) {
-            TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/create_errors").Increment(1);
-
-            auto error = TError(ex);
-            YT_LOG_ERROR(
-                error,
-                "Failed to prepare NBD root export (Tag: %v, ExportId: %v, DiskSize: %v, DiskMediumIndex: %v, DiskFilesystem: %v)",
-                tag,
-                options.ExportId,
-                options.Size,
-                options.MediumIndex,
-                options.Filesystem);
-            future = MakeFuture<void>(error);
-        }
-
-        return future;
+        return device->Initialize()
+            .Apply(BIND(
+                [
+                    Logger,
+                    device
+                ] (const TError& error) {
+                    if (!error.IsOK()) {
+                        YT_UNUSED_FUTURE(device->Finalize());
+                        THROW_ERROR_EXCEPTION("Failed to create RW NBD device")
+                            << error;
+                    } else {
+                        YT_LOG_DEBUG("Created RW NBD device");
+                        return device;
+                    }
+                })
+                .AsyncVia(Bootstrap_->GetNbdServer()->GetInvoker()))
+            .ToUncancelable();
     }
 
     //! Download and extract tar archive (tar layer).
@@ -3957,215 +4779,119 @@ private:
         const TArtifactDownloadOptions& downloadOptions)
     {
         YT_LOG_DEBUG(
-            "Prepare layer (Tag: %v, Path: %v)",
+            "Prepare layer (Tag: %v, CypressPath: %v)",
             tag,
             artifactKey.data_source().path());
 
         YT_VERIFY(!artifactKey.has_access_method() || FromProto<ELayerAccessMethod>(artifactKey.access_method()) == ELayerAccessMethod::Local);
         YT_VERIFY(!artifactKey.has_filesystem() || FromProto<ELayerFilesystem>(artifactKey.filesystem()) == ELayerFilesystem::Archive);
-        YT_VERIFY(!artifactKey.has_nbd_export_id());
 
         return LayerCache_->PrepareLayer(artifactKey, downloadOptions, tag).As<TOverlayData>();
     }
 
-    IImageReaderPtr PrepareCypressFileImageReader(
+    //! Create RW NBD volume. The order of creation is as follows:
+    //! 1. Create RW NBD device.
+    //! 2. Register RW NBD device with NBD server.
+    //! 3. Create RW NBD porto volume connected to RW NBD device.
+    TFuture<TRWNbdVolumePtr> PrepareRWNbdVolume(
         TGuid tag,
-        const TArtifactKey& artifactKey)
+        TPrepareRWNbdVolumeOptions options)
     {
-        YT_LOG_DEBUG(
-            "Prepare cypress file image reader (Tag: %v, Path: %v)",
-            tag,
-            artifactKey.data_source().path());
-
+        const auto jobId = options.JobId;
+        const auto deviceId = options.DeviceId;
+        const auto filesystem = options.Filesystem;
         auto nbdServer = Bootstrap_->GetNbdServer();
-        if (!nbdServer) {
-            auto error = TError("Nbd server is not present")
-                << TErrorAttribute("tag", tag)
-                << TErrorAttribute("path", artifactKey.data_source().path());
-            THROW_ERROR(error);
-        }
 
-        YT_VERIFY(FromProto<ELayerAccessMethod>(artifactKey.access_method()) == ELayerAccessMethod::Nbd);
-        YT_VERIFY(artifactKey.has_filesystem());
-        YT_VERIFY(artifactKey.has_nbd_export_id());
+        auto Logger = ExecNodeLogger()
+            .WithTag("Tag: %v, JobId: %v, DeviceId: %v, VolumeSize: %v, VolumeMediumIndex: %v, VolumeFilesystem: %v",
+                tag,
+                options.JobId,
+                options.DeviceId,
+                options.Size,
+                options.MediumIndex,
+                options.Filesystem);
 
-        return CreateCypressFileImageReader(
-            artifactKey,
-            Bootstrap_->GetLayerReaderHost(),
-            Bootstrap_->GetDefaultInThrottler(),
-            Bootstrap_->GetReadRpsOutThrottler(),
-            nbdServer->GetInvoker(),
-            nbdServer->GetLogger());
-    }
+        YT_LOG_DEBUG("Preparing RW NBD volume");
 
-    //! Create NBD volume.
-    TFuture<TOverlayData> PrepareNbdVolume(
-        TGuid tag,
-        const TPrepareNbdVolumeOptions& options)
-    {
-        YT_VERIFY(options.ImageReader);
-        const auto& artifactKey = options.ArtifactKey;
-
-        YT_LOG_DEBUG(
-            "Prepare NBD volume (Tag: %v, ExportId: %v, Path: %v)",
-            tag,
-            artifactKey.nbd_export_id(),
-            artifactKey.data_source().path());
-
-        YT_VERIFY(FromProto<ELayerAccessMethod>(artifactKey.access_method()) == ELayerAccessMethod::Nbd);
-        YT_VERIFY(artifactKey.has_filesystem());
-        YT_VERIFY(artifactKey.has_nbd_export_id());
-
-        auto tagSet = TVolumeProfilerCounters::MakeTagSet(/*volumeType*/ "nbd", /*volumeFilePath*/ artifactKey.data_source().path());
-        TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
+        auto tagSet = TTagSet({{"type", "nbd"}});
         TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
 
-        return PrepareNbdExport(tag, tagSet, options)
-            .Apply(BIND(
-                &TPortoVolumeManager::CreateNbdVolume,
-                MakeStrong(this),
-                tag,
-                Passed(std::move(tagSet)),
-                Passed(std::move(volumeCreateTimeGuard)),
-                Passed(TCreateNbdVolumeOptions{
-                    .ExportId = artifactKey.nbd_export_id(),
-                    .Filesystem = ToString(FromProto<ELayerFilesystem>(artifactKey.filesystem())),
-                    .IsReadOnly = true,
-                    .IsRoot = false
-                }))
-            .AsyncVia(GetCurrentInvoker()))
-            .Apply(BIND([this, this_ = MakeStrong(this), tag = tag, artifactKey = artifactKey] (const TErrorOr<TNbdVolumePtr>& errorOrVolume) {
-                if (!errorOrVolume.IsOK()) {
-                    if (auto nbdServer = Bootstrap_->GetNbdServer()) {
-                        nbdServer->TryUnregisterDevice(artifactKey.nbd_export_id());
-                    }
-
-                    YT_LOG_ERROR(
-                        errorOrVolume,
-                        "Failed to prepare NBD volume (Tag: %v, ExportId: %v, Path: %v)",
-                        tag,
-                        artifactKey.nbd_export_id(),
-                        artifactKey.data_source().path());
-
-                    THROW_ERROR(errorOrVolume);
-                }
-
-                YT_LOG_DEBUG(
-                    "Prepared NBD volume (Tag: %v, ExportId: %v, Path: %v)",
-                    tag,
-                    artifactKey.nbd_export_id(),
-                    artifactKey.data_source().path());
-
-                return errorOrVolume.Value();
-            })
-            .AsyncVia(GetCurrentInvoker()))
-            .ToUncancelable()
-            .As<TOverlayData>();
-    }
-
-    //! Create NBD root export (device) prior to creating NBD root volume.
-    TFuture<TOverlayData> PrepareNbdRootVolume(
-        TGuid tag,
-        const TPrepareNbdRootVolumeOptions& options)
-    {
-        YT_LOG_DEBUG(
-            "Prepare NBD root volume (Tag: %v, ExportId: %v, VolumeSize: %v, VolumeMediumIndex: %v, VolumeFilesystem: %v)",
-            tag,
-            options.ExportId,
-            options.Size,
-            options.MediumIndex,
-            options.Filesystem);
-
-        auto tagSet = NProfiling::TTagSet({{"type", "nbd"}});
-        TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
-        TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
-
-        return PrepareNbdRootExport(tag, tagSet, options)
-            .Apply(BIND(
-                &TPortoVolumeManager::CreateNbdVolume,
-                MakeStrong(this),
-                tag,
-                Passed(std::move(tagSet)),
-                Passed(std::move(volumeCreateTimeGuard)),
-                Passed(TCreateNbdVolumeOptions{
-                    .ExportId = options.ExportId,
-                    .Filesystem = ToString(options.Filesystem),
-                    .IsReadOnly = false,
-                    .IsRoot = true,
-                }))
-            .AsyncVia(GetCurrentInvoker()))
+        return CreateRWNbdDevice(tag, std::move(options))
             .Apply(BIND(
                 [
+                    tag,
+                    tagSet,
+                    jobId,
+                    deviceId,
+                    filesystem = filesystem,
                     this,
-                    this_ = MakeStrong(this),
-                    tag = tag,
-                    nbdExportId = options.ExportId
-                ] (const TErrorOr<TNbdVolumePtr>& errorOrVolume) {
-
-                    if (!errorOrVolume.IsOK()) {
-                        if (auto nbdServer = Bootstrap_->GetNbdServer()) {
-                            nbdServer->TryUnregisterDevice(nbdExportId);
-                        }
-
-                        YT_LOG_ERROR(
-                            errorOrVolume,
-                            "Failed to prepare NBD root volume (Tag: %v, ExportId: %v)",
-                            tag,
-                            nbdExportId);
-
-                        THROW_ERROR(errorOrVolume);
+                    this_ = MakeStrong(this)
+                ] (const TErrorOr<IBlockDevicePtr>& errorOrDevice) {
+                    if (!errorOrDevice.IsOK()) {
+                        THROW_ERROR_EXCEPTION("Failed to prepare RW NBD volume")
+                            << errorOrDevice;
                     }
 
-                    YT_LOG_DEBUG(
-                        "Prepared NBD root volume (Tag: %v, ExportId: %v)",
+                    Bootstrap_->GetNbdServer()->RegisterDevice(deviceId, errorOrDevice.Value());
+
+                    return CreateRWNbdVolume(
                         tag,
-                        nbdExportId);
+                        std::move(tagSet),
+                        TCreateNbdVolumeOptions{
+                            .JobId = jobId,
+                            .DeviceId = deviceId,
+                            .Filesystem = ToString(filesystem),
+                            .IsReadOnly = false
+                        });
+                })
+                .AsyncVia(nbdServer->GetInvoker()))
+            .Apply(BIND(
+                [
+                    Logger,
+                    tagSet,
+                    nbdServer,
+                    deviceId,
+                    volumeCreateTimeGuard = std::move(volumeCreateTimeGuard)
+                ] (const TErrorOr<TRWNbdVolumePtr>& errorOrVolume) {
+                    if (!errorOrVolume.IsOK()) {
+                        if (auto device = nbdServer->TryUnregisterDevice(deviceId)) {
+                            YT_LOG_DEBUG("Finalizing RW NBD device");
+                            YT_UNUSED_FUTURE(device->Finalize());
+                        } else {
+                            YT_LOG_WARNING("Failed to unregister RW NBD device");
+                        }
+
+                        THROW_ERROR_EXCEPTION("Failed to prepare RW NBD volume")
+                            << errorOrVolume;
+                    }
+
+                    YT_LOG_DEBUG("Prepared RW NBD volume");
 
                     return errorOrVolume.Value();
-            })
-            .AsyncVia(GetCurrentInvoker()))
-            .ToUncancelable()
+                })
+                .AsyncVia(Bootstrap_->GetNbdServer()->GetInvoker()))
+            .ToUncancelable();
+    }
+
+    TFuture<TOverlayData> GetOrCreateRONbdVolume(
+        TGuid tag,
+        TPrepareRONbdVolumeOptions options)
+    {
+        return RONbdVolumeCache_->GetOrCreateVolume(tag, std::move(options))
             .As<TOverlayData>();
     }
 
     //! Download SquashFS file and create volume from it.
-    TFuture<TOverlayData> PrepareSquashFSVolume(
+    TFuture<TOverlayData> GetOrCreateSquashFSVolume(
         TGuid tag,
         const TArtifactKey& artifactKey,
         const TArtifactDownloadOptions& downloadOptions)
     {
-        YT_LOG_DEBUG(
-            "Prepare squashfs volume (Tag: %v, Path: %v)",
-            tag,
-            artifactKey.data_source().path());
-
         YT_VERIFY(!artifactKey.has_access_method() || FromProto<ELayerAccessMethod>(artifactKey.access_method()) == ELayerAccessMethod::Local);
         YT_VERIFY(FromProto<ELayerFilesystem>(artifactKey.filesystem()) == ELayerFilesystem::SquashFS);
-        YT_VERIFY(!artifactKey.has_nbd_export_id());
 
-        return ArtifactCache_->DownloadArtifact(artifactKey, downloadOptions)
-            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& artifact) {
-                auto tagSet = TVolumeProfilerCounters::MakeTagSet(/*volumeType*/ "squashfs", /*volumeFilePath*/ "n/a");
-                TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
-                TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
-
-                // We pass artifact here to later save it in SquashFS volume so that SquashFS file outlives SquashFS volume.
-                return CreateSquashFSVolume(
-                    tag,
-                    std::move(tagSet),
-                    std::move(volumeCreateTimeGuard),
-                    artifactKey,
-                    artifact);
-            }).AsyncVia(GetCurrentInvoker())).As<TOverlayData>();
-    }
-
-    //! TODO(yuryalekseev): Remove me when slot rbind is removed.
-    TFuture<IVolumePtr> RbindRootVolume(
-        const IVolumePtr& volume,
-        const TString& slotPath)
-    {
-        auto location = LayerCache_->PickLocation();
-        return location->RbindRootVolume(volume, slotPath);
+        return SquashFSVolumeCache_->GetOrCreateVolume(tag, artifactKey, downloadOptions)
+            .As<TOverlayData>();
     }
 
     TFuture<TTmpfsVolumeResult> CreateTmpfsVolume(
@@ -4179,8 +4905,9 @@ private:
             volumeParams.Size,
             volumeParams.UserId);
 
-        auto tagSet = TVolumeProfilerCounters::MakeTagSet(/*volumeType*/ "tmpfs", /*volumeFilePath*/ "n/a");
-        TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
+        auto tagSet = TVolumeProfilerCounters::MakeTagSet(
+            /*volume type*/ "tmpfs",
+            /*Cypress path*/ "n/a");
         TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
 
         auto location = LayerCache_->PickLocation();
@@ -4190,118 +4917,79 @@ private:
             std::move(volumeCreateTimeGuard),
             volumeParams);
 
-        return future.AsUnique().Apply(BIND(
-            [
-                tmpfsPath = volumeParams.Path,
-                tagSet = std::move(tagSet),
-                location = std::move(location)
-            ] (TVolumeMeta&& meta) mutable {
-                TTmpfsVolumeResult result;
-                result.Path = std::move(tmpfsPath);
-                result.Volume = New<TTmpfsVolume>(
+        return future.AsUnique()
+            .Apply(BIND(
+                [
+                    tmpfsPath = volumeParams.Path,
+                    tagSet = std::move(tagSet),
+                    location = std::move(location)
+                ] (TVolumeMeta&& volumeMeta) mutable {
+                    TTmpfsVolumeResult result;
+                    result.Path = std::move(tmpfsPath);
+                    result.Volume = New<TTmpfsVolume>(
                         std::move(tagSet),
-                        std::move(meta),
+                        std::move(volumeMeta),
                         std::move(location));
-                return result;
-        }))
-        .ToUncancelable();
+                    return result;
+                }))
+            .ToUncancelable();
     }
 
-    TNbdVolumePtr CreateNbdVolume(
+    TFuture<TRWNbdVolumePtr> CreateRWNbdVolume(
         TGuid tag,
-        NProfiling::TTagSet tagSet,
-        TEventTimerGuard volumeCreateTimeGuard,
+        TTagSet tagSet,
         TCreateNbdVolumeOptions options)
     {
-        YT_LOG_DEBUG(
-            "Creating NBD volume (Tag: %v, ExportId: %v, Filesytem: %v, IsReadOnly: %v, IsRoot: %v)",
-            tag,
-            options.ExportId,
-            options.Filesystem,
-            options.IsReadOnly,
-            options.IsRoot);
+        auto Logger = ExecNodeLogger()
+            .WithTag("Tag: %v, JobId: %v, DeviceId: %v, Filesystem: %v",
+                tag,
+                options.JobId,
+                options.DeviceId,
+                options.Filesystem);
+
+        YT_LOG_DEBUG("Creating RW NBD volume");
 
         auto nbdServer = Bootstrap_->GetNbdServer();
 
-        try {
-            auto nbdConfig = DynamicConfigManager_->GetConfig()->ExecNode->Nbd;
+        auto location = LayerCache_->PickLocation();
+        auto volumeMetaFuture = location->CreateNbdVolume(
+            tag,
+            tagSet,
+            DynamicConfigManager_->GetConfig()->ExecNode->Nbd,
+            options);
 
-            if (!nbdConfig || !nbdConfig->Enabled || !nbdServer) {
-                TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/create_errors").Increment(1);
-
-                auto error = TError("NBD is not configured")
-                    << TErrorAttribute("export_id", options.ExportId)
-                    << TErrorAttribute("filesystem", options.Filesystem);
-
-                THROW_ERROR(error);
-            }
-
-            auto location = LayerCache_->PickLocation();
-            auto volumeMetaFuture = location->CreateNbdVolume(
-                tag,
-                tagSet,
-                std::move(volumeCreateTimeGuard),
-                std::move(nbdConfig),
-                options);
-            auto volumeFuture = volumeMetaFuture.AsUnique().Apply(BIND(
+        return volumeMetaFuture
+            .Apply(BIND(
                 [
+                    Logger,
                     tagSet = std::move(tagSet),
                     location = std::move(location),
-                    nbdServer = nbdServer,
-                    options = options
-                ] (TVolumeMeta&& volumeMeta) mutable {
-                    return New<TNbdVolume>(
-                        options.IsRoot,
-                        std::move(volumeMeta),
-                        std::move(location),
-                        std::move(options.ExportId),
-                        std::move(nbdServer),
-                        std::move(tagSet));
-            })).ToUncancelable();
-            // This uncancelable future ensures that TNbdVolume object owning the volume will be created
-            // and protects from Porto volume leak.
-
-            auto volume = WaitFor(volumeFuture)
-                .ValueOrThrow();
-
-            YT_LOG_DEBUG(
-                "Created NBD volume (Tag: %v, VolumeId: %v, ExportId: %v, Filesytem: %v, IsReadOnly: %v, IsRoot: %v)",
-                tag,
-                volume->GetId(),
-                options.ExportId,
-                options.Filesystem,
-                options.IsReadOnly,
-                options.IsRoot);
-
-            return volume;
-        } catch (const std::exception& ex) {
-            YT_LOG_ERROR(
-                ex,
-                "Failed to create NBD volume (Tag: %v, ExportId: %v, Filesytem: %v, IsReadOnly: %v, IsRoot: %v)",
-                tag,
-                options.ExportId,
-                options.Filesystem,
-                options.IsReadOnly,
-                options.IsRoot);
-
-                if (auto device = nbdServer->FindDevice(options.ExportId)) {
-                    nbdServer->TryUnregisterDevice(options.ExportId);
-                    auto error = WaitFor(device->Finalize());
-                    if (!error.IsOK()) {
-                        YT_LOG_ERROR(
-                            error,
-                            "Failed to finalize NBD export (ExportId: %v)",
-                            options.ExportId);
+                    deviceId = options.DeviceId,
+                    nbdServer = nbdServer
+                ] (const TErrorOr<TVolumeMeta>& errorOrVolumeMeta) mutable {
+                    if (!errorOrVolumeMeta.IsOK()) {
+                        THROW_ERROR_EXCEPTION("Failed to create RW NBD volume")
+                            << errorOrVolumeMeta;
                     }
-                }
 
-            throw;
-        }
+                    YT_LOG_DEBUG("Created RW NBD volume");
+
+                    return New<TRWNbdVolume>(
+                        std::move(tagSet),
+                        errorOrVolumeMeta.Value(),
+                        std::move(location),
+                        std::move(deviceId),
+                        std::move(nbdServer));
+                })
+                .AsyncVia(nbdServer->GetInvoker()))
+            .ToUncancelable();
+        // NB. ToUncancelable is needed to make sure that object owning
+        // the volume will be created so there is no porto volume leak.
     }
 
     TOverlayVolumePtr CreateOverlayVolume(
         TGuid tag,
-        NProfiling::TTagSet tagSet,
+        TTagSet tagSet,
         TEventTimerGuard volumeCreateTimeGuard,
         const TUserSandboxOptions& options,
         const std::vector<TOverlayData>& overlayDataArray)
@@ -4362,50 +5050,6 @@ private:
             "Created overlay volume (Tag: %v, VolumeId: %v)",
             tag,
             volume->GetId());
-
-        return volume;
-    }
-
-    TSquashFSVolumePtr CreateSquashFSVolume(
-        TGuid tag,
-        NProfiling::TTagSet tagSet,
-        TEventTimerGuard volumeCreateTimeGuard,
-        const TArtifactKey& artifactKey,
-        IVolumeArtifactPtr artifact)
-    {
-        auto squashFSFilePath = artifact->GetFileName();
-
-        YT_LOG_DEBUG(
-            "Creating squashfs volume (Tag: %v, SquashFSFilePath: %v)",
-            tag,
-            squashFSFilePath);
-
-        auto location = LayerCache_->PickLocation();
-        auto volumeMetaFuture = location->CreateSquashFSVolume(tag, tagSet, std::move(volumeCreateTimeGuard), artifactKey, squashFSFilePath);
-        auto volumeFuture = volumeMetaFuture.AsUnique().Apply(BIND(
-            [
-                tagSet = std::move(tagSet),
-                artifactKey,
-                artifact = std::move(artifact),
-                location = std::move(location)
-            ] (TVolumeMeta&& volumeMeta) {
-            return New<TSquashFSVolume>(
-                std::move(tagSet),
-                std::move(volumeMeta),
-                std::move(artifact),
-                std::move(location));
-        })).ToUncancelable();
-        // This uncancelable future ensures that TSquashFSVolume object owning the volume will be created
-        // and protects from Porto volume leak.
-
-        auto volume = WaitFor(volumeFuture)
-            .ValueOrThrow();
-
-        YT_LOG_INFO(
-            "Created squashfs volume (Tag: %v, VolumeId: %v, SquashFSFilePath: %v)",
-            tag,
-            volume->GetId(),
-            squashFSFilePath);
 
         return volume;
     }
@@ -4531,12 +5175,12 @@ private:
         auto sessionId = GenerateSessionId(data.MediumIndex);
 
         YT_LOG_DEBUG(
-            "Prepare NBD session (SessionId: %v, MediumIndex: %v, Size: %v, FsType: %v, ExportId: %v)",
+            "Prepare NBD session (SessionId: %v, MediumIndex: %v, Size: %v, FsType: %v, DeviceId: %v)",
             sessionId,
             data.MediumIndex,
             data.Size,
             data.FsType,
-            data.ExportId);
+            data.DeviceId);
 
         return FindDataNodesWithMedium(sessionId, data).Apply(BIND(
             [

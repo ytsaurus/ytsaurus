@@ -170,7 +170,7 @@ std::optional<TJobEnvironmentCpuStatistics> TJob::GetUserJobCpuStatistics() cons
     return std::nullopt;
 }
 
-bool TJob::HasInputStatistics() const
+bool TJob::HasInput() const
 {
     return true;
 }
@@ -186,6 +186,11 @@ void TJob::FinalizeJobTrace()
 void TJob::OnProgressSaved(TInstant /*when*/)
 {
     YT_UNIMPLEMENTED();
+}
+
+std::optional<TInstant> TJob::GetLastProgressSaveTime()
+{
+    return std::nullopt;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -332,6 +337,9 @@ IJob::TStatistics TSimpleJobBase::GetStatistics() const
         // skipped |InputTimeToFirstWrittenBatch| entirely :/.
         result.LatencyStatistics.OutputTimeToFirstReadBatch.push_back(
             Writer_->GetTimeToFirstBatch());
+
+        result.WriterTimingStatistics.push_back(
+            Writer_->GetTimingStatistics());
     }
 
     return result;

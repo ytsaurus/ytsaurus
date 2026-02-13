@@ -1,9 +1,12 @@
-from yt_env_setup import YTEnvSetup, Restarter,  MASTERS_SERVICE
+from yt_env_setup import (
+    YTEnvSetup, Restarter,  MASTERS_SERVICE, with_additional_threads)
 
 from yt_commands import (
-    authors, raises_yt_error, wait, get, set, ls, switch_leader, is_active_primary_master_leader, is_active_primary_master_follower,
-    get_active_primary_master_leader_address, get_active_primary_master_follower_address, build_snapshot,
-    reset_state_hash, build_master_snapshots, discombobulate_nonvoting_peers, get_master_consistent_state)
+    authors, raises_yt_error, wait, get, set, ls, switch_leader, build_snapshot,
+    is_active_primary_master_leader, is_active_primary_master_follower, create,
+    get_active_primary_master_leader_address, get_master_consistent_state,
+    reset_state_hash, build_master_snapshots, discombobulate_nonvoting_peers,
+    get_active_primary_master_follower_address, start_transaction, remove)
 
 from yt_helpers import master_exit_read_only_sync
 
@@ -60,6 +63,8 @@ class TestMasterLeaderSwitch(YTEnvSetup):
         assert _get_master_grace_delay_status(new_leader_rpc_address) == "previous_lease_abandoned"
 
 
+##################################################################
+
 @pytest.mark.enabled_multidaemon
 class TestMasterResetStateHash(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
@@ -79,6 +84,8 @@ class TestMasterResetStateHash(YTEnvSetup):
         _test(new_state_hash=None)
         _test(new_state_hash=0xbebebebe)
 
+
+##################################################################
 
 class TestDiscombobulate(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
@@ -148,6 +155,8 @@ class TestDiscombobulate(YTEnvSetup):
                 default=True)
 
 
+##################################################################
+
 @pytest.mark.enabled_multidaemon
 class TestLamportClock(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
@@ -169,6 +178,8 @@ class TestLamportClock(YTEnvSetup):
         for cell_id in new_state:
             assert new_state[cell_id] >= state[cell_id]
 
+
+##################################################################
 
 @pytest.mark.enabled_multidaemon
 class TestHydraLogicalTime(YTEnvSetup):
@@ -208,6 +219,8 @@ class TestHydraLogicalTime(YTEnvSetup):
         time.sleep(2.0)  # Just don't crash...
 
 
+##################################################################
+
 @pytest.mark.enabled_multidaemon
 class TestLocalJanitor(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
@@ -245,6 +258,8 @@ class TestLocalJanitor(YTEnvSetup):
         assert len(os.listdir(snapshot_dir)) == 4
 
 
+##################################################################
+
 class TestChangelogRecovery(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 5
@@ -277,3 +292,60 @@ class TestChangelogRecovery(YTEnvSetup):
 
         assert get_monitoring_param("last_snapshot_id_used_for_recovery", 1) == -1
         assert get_monitoring_param("read_only", 2) == read_only
+
+
+##################################################################
+
+
+class TestHydraLogicalVersion(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+    NUM_MASTERS = 3
+    NUM_SECONDARY_MASTER_CELLS = 2
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["transaction_coordinator"]},
+    }
+
+    @authors("h0pless")
+    @with_additional_threads
+    def test_recovery(self):
+        time.sleep(5)  # Let some more mutations accumulate.
+
+        src_cell_tag = 12
+        dst_cell_tag = 10
+
+        set("//sys/@config/multicell_manager/testing/frozen_hive_edges", [[src_cell_tag, dst_cell_tag]])
+
+        tx1 = start_transaction()
+        tx2 = start_transaction()
+
+        def wait_for_counter_to_change_1():
+            wait(lambda: create("table", "//tmp/table_1", tx=tx1), ignore_exceptions=True)
+
+        def wait_for_counter_to_change_2():
+            wait(lambda: create("table", "//tmp/table_2", tx=tx2), ignore_exceptions=True)
+
+        first_request = self.spawn_additional_thread(name="create first table",
+                                                     target=wait_for_counter_to_change_1)
+
+        second_request = self.spawn_additional_thread(name="create second table",
+                                                      target=wait_for_counter_to_change_2)
+
+        time.sleep(1)  # Let some more mutations accumulate.
+
+        remove("//sys/@config/multicell_manager/testing/frozen_hive_edges",
+               suppress_transaction_coordinator_sync=True)
+
+        first_request.join()
+        second_request.join()
+
+        table_1_revision = get("//tmp/table_1/@revision", tx=tx1)
+        table_2_revision = get("//tmp/table_2/@revision", tx=tx2)
+        assert table_1_revision != table_2_revision
+
+        with Restarter(self.Env, MASTERS_SERVICE):
+            pass
+
+        assert table_1_revision == get("//tmp/table_1/@revision", tx=tx1)
+        assert table_2_revision == get("//tmp/table_2/@revision", tx=tx2)

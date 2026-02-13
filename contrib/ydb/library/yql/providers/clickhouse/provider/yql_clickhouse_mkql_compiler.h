@@ -1,0 +1,12 @@
+#pragma once
+
+#include "yql_clickhouse_provider.h"
+
+#include <yql/essentials/providers/common/mkql/yql_provider_mkql.h>
+#include <contrib/ydb/library/yql/providers/clickhouse/expr_nodes/yql_clickhouse_expr_nodes.h>
+
+namespace NYql {
+
+void RegisterDqClickHouseMkqlCompilers(NCommon::TMkqlCallableCompilerBase& compiler, const TClickHouseState::TPtr& state);
+
+}

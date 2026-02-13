@@ -473,12 +473,14 @@ class TestCypressAcls(CheckPermissionBase):
         with pytest.raises(YtError):
             create("table", "//tmp/t2", authenticated_user="u")
 
-    @authors("babenko")
+    @authors("kvk1920")
     def test_schema_acl2(self):
         create_user("u")
         start_transaction(authenticated_user="u")
         set("//sys/schemas/transaction/@acl/end", make_ace("deny", "u", "create"))
-        with pytest.raises(YtError):
+        with raises_yt_error(
+                "Access denied for user \"u\": \"create\" permission for \"transaction\" "
+                "schema is denied for \"u\" by ACE at \"transaction\" schema"):
             start_transaction(authenticated_user="u")
 
     @authors("danilalexeev")
@@ -838,6 +840,17 @@ class TestCypressAcls(CheckPermissionBase):
         create_user("u2")
         with pytest.raises(YtError):
             set("//sys/users/u1/@name", "u2")
+
+    @authors("danilalexeev")
+    def test_user_rename_ace(self):
+        create_user("u1")
+        create("map_node", "//tmp/d", attributes={
+            "inherit_acl": False,
+            "acl": [make_ace("allow", "u1", "read")]
+        })
+        set("//sys/users/u1/@name", "u2")
+        wait(lambda: get("//tmp/d/@acl/0/subjects/0") == "u2")
+        assert get("//tmp/d", authenticated_user="u2") == {}
 
     @authors("babenko", "ignat")
     def test_deny_create(self):
@@ -1261,8 +1274,7 @@ class TestCypressAcls(CheckPermissionBase):
         with pytest.raises(YtError):
             check_permission("u", "read", "//tmp")
 
-    @authors("levysotsky")
-    @not_implemented_in_sequoia
+    @authors("danilalexeev")
     def test_effective_acl(self):
         create_user("u")
         for ch in "abcd":
@@ -1648,7 +1660,7 @@ class TestCypressAcls(CheckPermissionBase):
         gc_collect()
 
         # Must not crash.
-        build_snapshot(cell_id=None, set_read_only=False)
+        build_snapshot(cell_id=get("//sys/@cell_id"), set_read_only=False)
         get("//sys/users/u1/@")
 
     @authors("shakurov", "danilalexeev")
@@ -2197,8 +2209,13 @@ class TestRowAcls(YTEnvSetup):
         "11": {"roles": ["chunk_host"]},
     }
 
-    def _read(self, user, path="//tmp/t", omit_inaccessible_rows=True):
-        return read_table(path, authenticated_user=user, omit_inaccessible_rows=omit_inaccessible_rows)
+    def _read(self, user, path="//tmp/t", omit_inaccessible_rows=True, **kwargs):
+        return read_table(
+            path,
+            authenticated_user=user,
+            omit_inaccessible_rows=omit_inaccessible_rows,
+            **kwargs,
+        )
 
     def _rows(self, *int_seq):
         return [
@@ -2206,7 +2223,8 @@ class TestRowAcls(YTEnvSetup):
             for i in int_seq
         ]
 
-    def _create_and_write_table(self, acl, optimize_for="scan", schema=None):
+    def _create_and_write_table(self, acl, optimize_for="scan", schema=None, sorted=False):
+        sort_order = {"sort_order": "ascending"} if sorted else {}
         create(
             "table",
             "//tmp/t",
@@ -2214,7 +2232,7 @@ class TestRowAcls(YTEnvSetup):
                 "inherit_acl": False,
                 "acl": acl,
                 "schema": schema or [
-                    {"name": "col1", "type": "int64"},
+                    {"name": "col1", "type": "int64", **sort_order},
                     {"name": "col2", "type": "string"},
                 ],
                 "optimize_for": optimize_for,
@@ -2607,6 +2625,33 @@ class TestRowAcls(YTEnvSetup):
 
     @authors("coteeq")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    @pytest.mark.parametrize("use_columns", [False, True], ids=["use_columns", "no_use_columns"])
+    def test_extra_columns(self, optimize_for, use_columns):
+        create_user("u")
+
+        self._create_and_write_table(
+            [
+                make_rl_ace("u"),
+                make_rl_ace("u", "col1 = 4"),
+                make_rl_ace("u", "col1 = 5"),
+            ],
+            optimize_for,
+        )
+
+        path = "//tmp/t{col1,col2}" if use_columns else "//tmp/t"
+        actual = self._read(
+            "u",
+            path=path,
+            control_attributes={
+                "enable_row_index": True,
+            },
+        )
+        # Drop control attributes.
+        actual = [row for row in actual if not isinstance(row, yson.yson_types.YsonEntity)]
+        assert actual == self._rows(4, 5)
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_rls_does_not_affect_writes(self, optimize_for):
         create_user("u")
         create_user("writer")
@@ -2627,6 +2672,31 @@ class TestRowAcls(YTEnvSetup):
         write_table("<append=%true>//tmp/t", self._rows(10, 11), authenticated_user="writer")
         # Check that 'writer' has row-level acl in effect.
         assert self._read("writer") == []
+
+    @authors("coteeq")
+    def test_row_count_attribute(self):
+        create_user("u")
+        create_user("data_owner")
+
+        self._create_and_write_table(
+            [
+                make_rl_ace("u"),
+                make_rl_ace("u", "col1 = 4"),
+                make_rl_ace("u", "col1 = 5"),
+                make_ace("allow", "data_owner", "full_read"),
+            ],
+            "lookup",
+        )
+
+        with raises_yt_error("Attribute \"row_count\" is not found"):
+            get("//tmp/t/@row_count", authenticated_user="u")
+
+        # Even owner cannot see @row_count.
+        with raises_yt_error("Attribute \"row_count\" is not found"):
+            get("//tmp/t/@row_count", authenticated_user="data_owner")
+
+        # Request as root.
+        get("//tmp/t/@row_count")
 
 
 ##################################################################
@@ -2696,7 +2766,7 @@ class TestCypressAclsPortal(TestCypressAclsMulticell):
         wait(lambda: not exists("#" + portal_exit_id))
 
         # Must not crash.
-        build_snapshot(cell_id=None, set_read_only=False)
+        build_snapshot(cell_id=get("//sys/@cell_id"), set_read_only=False)
         get("//sys/users/u1/@")
 
 
@@ -2717,17 +2787,4 @@ class TestCypressAclsSequoia(TestCypressAclsMulticell):
         "11": {"roles": ["chunk_host", "cypress_node_host"]},
         "12": {"roles": ["sequoia_node_host"]},
         "13": {"roles": ["chunk_host"]},
-    }
-
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "sequoia_manager": {
-            "enable_ground_update_queues": True,
-        },
-    }
-
-    DELTA_CYPRESS_PROXY_CONFIG = {
-        "testing": {
-            "enable_ground_update_queues_sync": True,
-            "enable_user_directory_per_request_sync": True,
-        },
     }

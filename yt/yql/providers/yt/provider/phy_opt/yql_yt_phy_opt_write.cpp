@@ -275,7 +275,6 @@ TMaybeNode<TExprBase> TYtPhysicalOptProposalTransformer::YtDqProcessWrite(TExprB
         [] (const TExprNode::TPtr& node) { return node->IsCallable({TCoToFlow::CallableName(), TCoIterator::CallableName()}) && node->Head().IsCallable(TYtTableContent::CallableName()); });
         !contents.empty()) {
         TNodeOnNodeOwnedMap replaces(contents.size());
-        const bool addToken = !State_->Configuration->Auth.Get().GetOrElse(TString()).empty();
 
         for (const auto& cont : contents) {
             const TYtTableContent content(cont->HeadPtr());
@@ -285,9 +284,10 @@ TMaybeNode<TExprBase> TYtPhysicalOptProposalTransformer::YtDqProcessWrite(TExprB
             if (output) {
                 input = ConvertContentInputToRead(output.Cast(), {}, ctx);
             }
+
+            const auto cluster = input.Cast<TYtReadTable>().DataSource().Cluster().StringValue();
             TMaybeNode<TCoSecureParam> secParams;
-            if (addToken) {
-                const auto cluster = input.Cast<TYtReadTable>().DataSource().Cluster();
+            if (State_->ResolveClusterToken(cluster)) {
                 secParams = Build<TCoSecureParam>(ctx, node.Pos()).Name().Build(TString("cluster:default_").append(cluster)).Done();
             }
 
@@ -820,13 +820,18 @@ TMaybeNode<TExprBase> TYtPhysicalOptProposalTransformer::Fill(TExprBase node, TE
         return {};
     }
 
+    const bool keepWorld =
+        State_->Configuration->KeepWorldDepForFillOp.Get().GetOrElse(DEFAULT_KEEP_WORLD_DEP_FOR_FILL_OP);
+
+    auto fillWorld = keepWorld ? write.World().Ptr() : ctx.NewWorld(write.Pos());
+
     return Build<TYtPublish>(ctx, write.Pos())
         .World(write.World())
         .DataSink(write.DataSink())
         .Input()
             .Add()
                 .Operation<TYtFill>()
-                    .World(ApplySyncListToWorld(ctx.NewWorld(write.Pos()), syncList, ctx))
+                    .World(ApplySyncListToWorld(fillWorld, syncList, ctx))
                     .DataSink(write.DataSink())
                     .Content(MakeJobLambdaNoArg(cleanup.Cast(), ctx))
                     .Output()
@@ -862,8 +867,13 @@ TMaybeNode<TExprBase> TYtPhysicalOptProposalTransformer::FillToMaterialize(TExpr
         return node;
     }
 
+    const bool keepWorld =
+        State_->Configuration->KeepWorldDepForFillOp.Get().GetOrElse(DEFAULT_KEEP_WORLD_DEP_FOR_FILL_OP);
+
+    auto materializeWorld = keepWorld ? write.World().Ptr() : ctx.NewWorld(write.Pos());
+
     content = Build<TYtMaterialize>(ctx, content.Pos())
-        .World(ctx.NewWorld(write.Pos())/*TODO: write.World()*/)
+        .World(materializeWorld)
         .DataSink(write.DataSink())
         .Input(content)
         .Settings().Build()

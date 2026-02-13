@@ -6,14 +6,14 @@ import os
 import yt.wrapper
 
 
-# Reducer это обычная функция-генератор, она принимает на вход:
-#   - текущий ключ
-#   - итератор по всем записям входной таблицы с данным ключом
-# на выходе она должна вернуть (как и функция mapper) все записи, которые мы хотим записать в выходные таблицы.
+# A reducer is a regular generator function. For input it gets:
+#   - the current key
+#   - an iterator over all the records of the input table with given key
+# The output should be like that: all the records we want to write to the output tables (the same as the mapper function).
 def count_names_reducer(key, input_row_iterator):
 
-    # В данном случае ключ у нас состоит лишь из одной колонки "name", но вообще он может состоять из нескольких колонок.
-    # Читать конкретные поля ключа можно как из dict'а.
+    # In this case the key consists of only one column "name". But generally it could be several columns.
+    # You can read specific fields of the key like a dictionary.
     name = key["name"]
 
     count = 0

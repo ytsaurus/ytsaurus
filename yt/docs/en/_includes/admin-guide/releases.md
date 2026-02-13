@@ -313,9 +313,18 @@ Publishes as docker images.
 
 Publishes as docker images.
 
-**Current release:** 2.8.0 (`ghcr.io/ytsaurus/spyt:2.8.0`)
+**Current release:** 2.8.2 (`ghcr.io/ytsaurus/spyt:2.8.2`)
 
 **All releases:**
+
+{% cut "**2.8.2**" %}
+
+Maintenance release with minor enhancements
+
+- Improving stability of distributed write and read API support
+- Other minor fixes
+
+{% endcut %}
 
 {% cut "**2.8.0**" %}
 

@@ -51,6 +51,7 @@ struct TChecksRequest {
     EMode Mode = EMode::Default;
     const TUdfFilter* UdfFilter = nullptr;
     TMaybe<TVector<TCheckFilter>> Filters;
+    TString IssueReportTarget;
 };
 
 struct TCheckResponse {

@@ -24,7 +24,8 @@ void AppendFunctionImplementation(
         aggregateProfilers->emplace(functionName, New<TExternalAggregateCodegen>(
             functionName,
             implementationFiles,
-            functionCallingConvention,
+            functionRepeatedArgIndex,
+            functionRepeatedArgType,
             /*isFirst*/ false,
             functionChunkSpecsFingerprint));
     } else {

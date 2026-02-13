@@ -44,10 +44,9 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSpytSettings
+struct TSpytSettings
     : public TYsonStruct
 {
-public:
     std::optional<std::string> Cluster;
 
     std::optional<TYPath> DiscoveryPath;
@@ -80,7 +79,7 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TSpytSettings)
-DECLARE_REFCOUNTED_CLASS(TSpytSettings)
+DECLARE_REFCOUNTED_STRUCT(TSpytSettings)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -133,8 +132,9 @@ public:
         const IChannelFactoryPtr& channelFactory,
         const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery,
         const NHiveClient::TClusterDirectoryPtr& clusterDirectory,
-        const IInvokerPtr& controlInvoker)
-        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery)
+        const IInvokerPtr& controlInvoker,
+        const TDuration notIndexedQueriesTTL)
+        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery, notIndexedQueriesTTL)
         , Settings_(ConvertTo<TSpytSettingsPtr>(SettingsNode_))
         , Config_(config)
         , Cluster_(Settings_->Cluster.value_or(Config_->DefaultCluster))
@@ -246,7 +246,7 @@ private:
         return builder->EndTree();
     }
 
-    INodePtr ExecuteGetQuery(const TString& url) const
+    INodePtr ExecuteGetQuery(const std::string& url) const
     {
         YT_LOG_DEBUG("Executing HTTP GET request (Url: %v)", url);
         auto rsp = WaitFor(HttpClient_->Get(url))
@@ -257,7 +257,7 @@ private:
         return jsonRoot;
     }
 
-    TString WaitSessionStatusChange(const TString& url, const TString& defaultState)
+    TString WaitSessionStatusChange(const std::string& url, const TString& defaultState)
     {
         auto state = defaultState;
         while (state == defaultState) {
@@ -267,7 +267,7 @@ private:
         return state;
     }
 
-    TString WaitStatementStatusChange(const TString& url, const TString& defaultState)
+    TString WaitStatementStatusChange(const std::string& url, const TString& defaultState)
     {
         auto state = defaultState;
         while (state == defaultState) {
@@ -672,21 +672,24 @@ public:
             ChannelFactory_,
             activeQuery,
             ClusterDirectory_,
-            ControlQueue_->GetInvoker());
+            ControlQueue_->GetInvoker(),
+            NotIndexedQueriesTTL_);
     }
 
-    void Reconfigure(const TEngineConfigBasePtr& config) override
+    void Reconfigure(const TEngineConfigBasePtr& config, const TDuration notIndexedQueriesTTL) override
     {
         Config_ = DynamicPointerCast<TSpytEngineConfig>(config);
+        NotIndexedQueriesTTL_ = notIndexedQueriesTTL;
     }
 
 private:
     const IClientPtr StateClient_;
     const TYPath StateRoot_;
     const TActionQueuePtr ControlQueue_;
-    TSpytEngineConfigPtr Config_;
     const NHiveClient::TClusterDirectoryPtr ClusterDirectory_;
     const IChannelFactoryPtr ChannelFactory_;
+    TSpytEngineConfigPtr Config_;
+    TDuration NotIndexedQueriesTTL_;
 };
 
 IQueryEnginePtr CreateSpytEngine(IClientPtr stateClient, TYPath stateRoot)

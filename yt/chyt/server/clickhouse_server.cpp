@@ -318,8 +318,8 @@ private:
 
         DictionaryGuard_ = ServerContext_->getExternalDictionariesLoader().addConfigRepository(CreateDictionaryConfigRepository(Config_->Dictionaries));
 
-        if (Host_->GetConfig()->DictionaryRepository->Enabled) {
-            YT_LOG_DEBUG("Adding repository for loading dictionaries from cypress");
+        if (Host_->GetConfig()->DictionaryRepository) {
+            YT_LOG_DEBUG("Adding repository for loading dictionaries from Cypress");
 
             CypressDictionaryGuard_ = ServerContext_->getExternalDictionariesLoader().addConfigRepository(
                 CreateExternalLoaderFromCypressConfigRepository(Host_->GetCypressDictionaryConfigRepository()));
@@ -371,7 +371,7 @@ private:
     {
         YT_LOG_INFO("Warming up dictionaries");
         ServerContext_->getEmbeddedDictionaries();
-        if (Host_->GetConfig()->DictionaryRepository->Enabled) {
+        if (Host_->GetConfig()->DictionaryRepository) {
             ServerContext_->getExternalDictionariesLoader().reloadConfig(TCypressDictionaryConfigRepository::CypressConfigRepositoryName);
         }
         YT_LOG_INFO("Finished warming up");

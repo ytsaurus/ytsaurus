@@ -17,7 +17,7 @@ config:
       proxy: "ytsaurus.http.proxy.tech"
       tokenEnvVariable: "YT_TOKEN"
       table: "//sys/odin/checks"
-      tabletCellBundle: "default"
+      tabletCellBundle: "sys"
     clusters:
       - proxy: "ytsaurus.http.proxy.tech"
         cluster: "minisaurus"
@@ -84,6 +84,13 @@ config:
       config:
         options:
           monitoring_port: 10010
+    quorum_missing_chunks:
+      displayName: Quorum Missing Chunks
+      enable: true
+      config:
+        options:
+          max_size: 10
+          chunk_count_threshold: 1
     tablet_cells:
       displayName: Tablet Cells
       enable: true
@@ -143,6 +150,14 @@ config:
       enable: false
       config:
         enable: false
+    inconsistently_placed_chunks:
+      displayName: Inconsistently Placed Chunks
+      enable: true
+      config:
+        options:
+          max_size: 10
+          max_age_minutes: 240
+          chunk_count_threshold: 1000000
     register_watcher:
       displayName: Register Watcher
       enable: true
@@ -232,7 +247,11 @@ config:
     missing_part_chunks:
       displayName: Missing Part Chunks
       enable: true
-      config: {}
+      config:
+        options:
+          max_size: 10
+          max_age_minutes: 240
+          chunk_count_threshold: 1000000
     oauth_health:
       displayName: Oauth Health
       enable: true

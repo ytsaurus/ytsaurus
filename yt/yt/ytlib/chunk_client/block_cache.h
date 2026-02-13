@@ -20,9 +20,9 @@ struct TBlockInfo
     i32 BlockIndex;
     i64 BlockSize;
 
-    bool operator < (const TBlockInfo& other) const;
+    bool operator<(const TBlockInfo& other) const;
     operator size_t() const;
-    bool operator == (const TBlockInfo& other) const;
+    bool operator==(const TBlockInfo& other) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,0 +1,21 @@
+main:
+  source: dev
+0.0.8:
+  source: stable
+0.0.9: &query_tracker_0_0_9
+  source: stable
+  constraints:
+    operator: ">=0.23.1"
+    ytsaurus: ">=24.2"
+0.0.10:
+  <<: *query_tracker_0_0_9
+0.0.11:
+  source: stable
+  constraints:
+    operator: ">=0.26.0 && main"
+    ytsaurus: ">=24.2"
+0.1:
+  source: release
+  constraints:
+    operator: ">=0.27.0 && main"
+    ytsaurus: ">24.2"

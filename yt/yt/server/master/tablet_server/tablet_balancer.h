@@ -11,7 +11,6 @@ namespace NYT::NTabletServer {
 struct ITabletBalancer
     : public TRefCounted
 {
-public:
     virtual void Start() = 0;
     virtual void Stop() = 0;
 

@@ -84,7 +84,6 @@ TCachedVersionedChunkMeta::TCachedVersionedChunkMeta(
             ChunkFormat_);
     }
 
-
     if (auto optionalSystemBlockMetaExt = FindProtoExtension<TSystemBlockMetaExt>(chunkMeta.extensions())) {
         ParseHashTableChunkIndexMeta(*optionalSystemBlockMetaExt);
         ParseXorFilterMeta(*optionalSystemBlockMetaExt);
@@ -93,7 +92,8 @@ TCachedVersionedChunkMeta::TCachedVersionedChunkMeta(
 
     if (ColumnarMetaPrepared_) {
         GetPreparedChunkMeta();
-        ClearColumnMeta();
+        ColumnMeta_.Reset();
+        DataBlockMeta_.Reset();
     }
 
     // Do not keep large columnar statistics

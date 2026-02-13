@@ -7,6 +7,8 @@
 #include <yt/yt/library/query/engine_api/coordinator.h>
 #include <yt/yt/library/query/engine_api/evaluator.h>
 
+#include <yt/yt/library/web_assembly/engine/builtins.h>
+
 #include <yt/yt/client/query_client/query_statistics.h>
 #include <yt/yt/client/table_client/pipe.h>
 #include <yt/yt/client/table_client/unordered_schemaful_reader.h>
@@ -146,7 +148,7 @@ TQueryStatistics DoExecuteQuery(
     EXPECT_CALL(*readerMock, Read(_))
         .WillRepeatedly(Invoke(readRows));
     ON_CALL(*readerMock, GetReadyEvent())
-        .WillByDefault(Return(VoidFuture));
+        .WillByDefault(Return(OKFuture));
 
     return evaluator->Run(
         query,
@@ -155,6 +157,7 @@ TQueryStatistics DoExecuteQuery(
         joinProfilers,
         functionProfilers,
         aggregateProfilers,
+        NWebAssembly::GetBuiltinSdk(),
         GetDefaultMemoryChunkProvider(),
         options,
         MostFreshFeatureFlags(),
@@ -770,7 +773,7 @@ TQueryStatistics TQueryEvaluateTest::EvaluateCoordinatedGroupByImpl(
         EXPECT_CALL(*readerMock, Read(_))
             .WillRepeatedly(Invoke(readRows));
         ON_CALL(*readerMock, GetReadyEvent())
-            .WillByDefault(Return(VoidFuture));
+            .WillByDefault(Return(OKFuture));
 
         auto pipe = New<NTableClient::TSchemafulPipe>(GetDefaultMemoryChunkProvider());
         resultStatistics[index] = Evaluator_->Run(
@@ -780,6 +783,7 @@ TQueryStatistics TQueryEvaluateTest::EvaluateCoordinatedGroupByImpl(
             /*joinProfilers*/ {},
             FunctionProfilers_,
             AggregateProfilers_,
+            NWebAssembly::GetBuiltinSdk(),
             GetDefaultMemoryChunkProvider(),
             TQueryOptions{{.ExecutionBackend = executionBackend, .AllowUnorderedGroupByWithLimit = true}},
             MostFreshFeatureFlags(),
@@ -803,6 +807,7 @@ TQueryStatistics TQueryEvaluateTest::EvaluateCoordinatedGroupByImpl(
         /*joinProfilers*/ {},
         FunctionProfilers_,
         AggregateProfilers_,
+        NWebAssembly::GetBuiltinSdk(),
         GetDefaultMemoryChunkProvider(),
         TQueryOptions{{.ExecutionBackend = executionBackend, .AllowUnorderedGroupByWithLimit = true}},
         MostFreshFeatureFlags(),
@@ -862,7 +867,7 @@ TSchemafulPipePtr TQueryEvaluateTest::RunOnNodeThread(
     EXPECT_CALL(*readerMock, Read(_))
         .WillRepeatedly(Invoke(readRows));
     ON_CALL(*readerMock, GetReadyEvent())
-        .WillByDefault(Return(VoidFuture));
+        .WillByDefault(Return(OKFuture));
 
     auto pipe = New<TSchemafulPipe>(GetDefaultMemoryChunkProvider());
 
@@ -873,6 +878,7 @@ TSchemafulPipePtr TQueryEvaluateTest::RunOnNodeThread(
         /*joinProfilers*/ {},
         FunctionProfilers_,
         AggregateProfilers_,
+        NWebAssembly::GetBuiltinSdk(),
         GetDefaultMemoryChunkProvider(),
         TQueryOptions{{.ExecutionBackend = executionBackend, .AllowUnorderedGroupByWithLimit = true}},
         MostFreshFeatureFlags(),
@@ -920,6 +926,7 @@ TSchemafulPipePtr TQueryEvaluateTest::RunOnNode(
         /*joinProfilers*/ {},
         FunctionProfilers_,
         AggregateProfilers_,
+        NWebAssembly::GetBuiltinSdk(),
         GetDefaultMemoryChunkProvider(),
         TQueryOptions{{.ExecutionBackend = executionBackend, .AllowUnorderedGroupByWithLimit = true}},
         MostFreshFeatureFlags(),
@@ -964,6 +971,7 @@ TSharedRange<TUnversionedRow> TQueryEvaluateTest::RunOnCoordinator(
         /*joinProfilers*/ {},
         FunctionProfilers_,
         AggregateProfilers_,
+        NWebAssembly::GetBuiltinSdk(),
         GetDefaultMemoryChunkProvider(),
         TQueryOptions{{.ExecutionBackend = executionBackend, .AllowUnorderedGroupByWithLimit = true}},
         MostFreshFeatureFlags(),

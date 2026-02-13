@@ -7,9 +7,12 @@ from yt_commands import (
     raises_yt_error
 )
 
+from yt.common import YtResponseError
+
 import yt.yson as yson
 
 import pytest
+import time
 
 
 @pytest.mark.enabled_multidaemon
@@ -33,6 +36,23 @@ class TestDistributedWrite(YTEnvSetup):
         finish_distributed_write_session(session, results)
 
         assert read_table(self.TABLE_PATH) == rows
+
+    @authors("achains")
+    def test_session_timeout(self):
+        create_table(self.TABLE_PATH, schema=self.TABLE_SCHEMA)
+
+        options = {
+            "session_timeout": 1,
+        }
+
+        session_with_cookies = start_distributed_write_session(self.TABLE_PATH, cookie_count=1, **options)
+        time.sleep(2)
+        with pytest.raises(YtResponseError):
+            try:
+                finish_distributed_write_session(session_with_cookies["session"], [])
+            except YtResponseError as e:
+                assert "No such transaction" in str(e)
+                raise e
 
 
 @pytest.mark.enabled_multidaemon

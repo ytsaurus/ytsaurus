@@ -42,7 +42,7 @@ public:
         return UnreadRows_.size();
     }
 
-    TString GetFirstUnreadRow() const
+    std::string GetFirstUnreadRow() const
     {
         return ToString(UnreadRows_.front());
     }
@@ -60,8 +60,8 @@ private:
 
 struct TRawTableData
 {
-    TString Schema;
-    std::vector<TString> Rows;
+    std::string Schema;
+    std::vector<std::string> Rows;
 };
 
 struct TTableData
@@ -167,7 +167,7 @@ public:
 
     TFuture<void> GetReadyEvent() const override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
@@ -284,8 +284,8 @@ protected:
         int rowsPerRead,
         int interruptRowCount,
         int expectedReadRowCount,
-        TString expectedLastReadRow,
-        std::vector<std::pair<int, TString>> expectedResult)
+        std::string expectedLastReadRow,
+        std::vector<std::pair<int, std::string>> expectedResult)
     {
         auto reader = createReader(resultStorage);
 
@@ -294,7 +294,7 @@ protected:
         };
 
         int readRowCount = 0;
-        TString lastReadRow;
+        std::string lastReadRow;
 
         bool interrupted = false;
         auto maybeInterrupt = [&] {
@@ -330,11 +330,11 @@ protected:
         }
     }
 
-    std::vector<TString> ReadAll(
+    std::vector<std::string> ReadAll(
         TReaderFactory createReader,
         std::vector<TResultStorage>* resultStorage)
     {
-        std::vector<TString> result;
+        std::vector<std::string> result;
         auto reader = createReader(resultStorage);
         while (auto batch = reader->Read()) {
             if (batch->IsEmpty()) {
@@ -466,7 +466,7 @@ TEST_F(TSortedMergingReaderTest, SortedMergingReaderSingleTable)
     auto rows = ReadAll(createReader, &resultStorage);
     for (int interruptRowCount = 0; interruptRowCount < std::ssize(rows); ++interruptRowCount) {
         int rowsPerRead = 1;
-        auto lastRow = interruptRowCount != 0 ? rows[interruptRowCount - 1] : TString("");
+        auto lastRow = interruptRowCount != 0 ? rows[interruptRowCount - 1] : std::string("");
         ReadAndCheckResult(
             createReader,
             &resultStorage,
@@ -760,8 +760,8 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderForeignBeforeMultiplePrimary
         3,
         rows[2],
         {
-            {6, TString("[0#\"ab\", 1#1, 2#21u, 3#1]")},
-            {8, TString("[0#\"ab\", 1#3, 2#3u, 3#2]")},
+            {6, std::string("[0#\"ab\", 1#1, 2#21u, 3#1]")},
+            {8, std::string("[0#\"ab\", 1#3, 2#3u, 3#2]")},
         });
     interruptRowCount = 4;
     rowsPerRead = 2;
@@ -773,8 +773,8 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderForeignBeforeMultiplePrimary
         5,
         rows[4],
         {
-            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#1]")},
-            {8, TString("[0#\"ab\", 1#3, 2#3u, 3#2]")},
+            {4, std::string("[0#\"bb\", 1#2, 2#23u, 3#1]")},
+            {8, std::string("[0#\"ab\", 1#3, 2#3u, 3#2]")},
         });
     interruptRowCount = 5;
     rowsPerRead = 5;
@@ -786,8 +786,8 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderForeignBeforeMultiplePrimary
         5,
         rows[4],
         {
-            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#1]")},
-            {8, TString("[0#\"ab\", 1#3, 2#3u, 3#2]")},
+            {4, std::string("[0#\"bb\", 1#2, 2#23u, 3#1]")},
+            {8, std::string("[0#\"ab\", 1#3, 2#3u, 3#2]")},
         });
     interruptRowCount = 6;
     rowsPerRead = 2;
@@ -799,8 +799,8 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderForeignBeforeMultiplePrimary
         6,
         rows[5],
         {
-            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#1]")},
-            {7, TString("[0#\"ac\", 1#5, 2#5u, 3#2]")},
+            {4, std::string("[0#\"bb\", 1#2, 2#23u, 3#1]")},
+            {7, std::string("[0#\"ac\", 1#5, 2#5u, 3#2]")},
         });
     interruptRowCount = 7;
     rowsPerRead = 7;
@@ -812,8 +812,8 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderForeignBeforeMultiplePrimary
         7,
         rows[6],
         {
-            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#1]")},
-            {7, TString("[0#\"ac\", 1#5, 2#5u, 3#2]")},
+            {4, std::string("[0#\"bb\", 1#2, 2#23u, 3#1]")},
+            {7, std::string("[0#\"ac\", 1#5, 2#5u, 3#2]")},
         });
 }
 
@@ -880,8 +880,8 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderMultiplePrimaryBeforeForeign
         5,
         rows[5],
         {
-            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#0]")},
-            {8, TString("[0#\"ab\", 1#3, 2#3u, 3#1]")},
+            {4, std::string("[0#\"bb\", 1#2, 2#23u, 3#0]")},
+            {8, std::string("[0#\"ab\", 1#3, 2#3u, 3#1]")},
         });
     interruptRowCount = 4;
     rowsPerRead = 2;
@@ -893,8 +893,8 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderMultiplePrimaryBeforeForeign
         5,
         rows[5],
         {
-            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#0]")},
-            {8, TString("[0#\"ab\", 1#3, 2#3u, 3#1]")},
+            {4, std::string("[0#\"bb\", 1#2, 2#23u, 3#0]")},
+            {8, std::string("[0#\"ab\", 1#3, 2#3u, 3#1]")},
         });
     interruptRowCount = 5;
     rowsPerRead = 5;
@@ -906,8 +906,8 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderMultiplePrimaryBeforeForeign
         6,
         rows[5],
         {
-            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#0]")},
-            {7, TString("[0#\"ac\", 1#5, 2#5u, 3#1]")},
+            {4, std::string("[0#\"bb\", 1#2, 2#23u, 3#0]")},
+            {7, std::string("[0#\"ac\", 1#5, 2#5u, 3#1]")},
         });
     interruptRowCount = 6;
     rowsPerRead = 2;
@@ -919,8 +919,8 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderMultiplePrimaryBeforeForeign
         6,
         rows[5],
         {
-            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#0]")},
-            {7, TString("[0#\"ac\", 1#5, 2#5u, 3#1]")},
+            {4, std::string("[0#\"bb\", 1#2, 2#23u, 3#0]")},
+            {7, std::string("[0#\"ac\", 1#5, 2#5u, 3#1]")},
         });
     interruptRowCount = 7;
     rowsPerRead = 7;
@@ -932,8 +932,8 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderMultiplePrimaryBeforeForeign
         8,
         rows[7],
         {
-            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#0]")},
-            {6, TString("[0#\"ba\", 1#7, 2#7u, 3#1]")},
+            {4, std::string("[0#\"bb\", 1#2, 2#23u, 3#0]")},
+            {6, std::string("[0#\"ba\", 1#7, 2#7u, 3#1]")},
         });
 }
 
@@ -988,7 +988,7 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderMultipleForeignBeforePrimary
         4,
         rows[3],
         {
-            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#2]")},
+            {4, std::string("[0#\"bb\", 1#2, 2#23u, 3#2]")},
         });
     interruptRowCount = 4;
     rowsPerRead = 2;
@@ -1000,7 +1000,7 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderMultipleForeignBeforePrimary
         4,
         rows[3],
         {
-            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#2]")},
+            {4, std::string("[0#\"bb\", 1#2, 2#23u, 3#2]")},
         });
     interruptRowCount = 5;
     rowsPerRead = 5;
@@ -1012,7 +1012,7 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderMultipleForeignBeforePrimary
         5,
         rows[4],
         {
-            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#2]")},
+            {4, std::string("[0#\"bb\", 1#2, 2#23u, 3#2]")},
         });
     interruptRowCount = 6;
     rowsPerRead = 2;
@@ -1024,7 +1024,7 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderMultipleForeignBeforePrimary
         6,
         rows[5],
         {
-            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#2]")},
+            {4, std::string("[0#\"bb\", 1#2, 2#23u, 3#2]")},
         });
     interruptRowCount = 7;
     rowsPerRead = 7;
@@ -1036,7 +1036,7 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderMultipleForeignBeforePrimary
         8,
         rows[7],
         {
-            {2, TString("[0#\"cb\", 1#3, 2#25u, 3#2]")},
+            {2, std::string("[0#\"cb\", 1#3, 2#25u, 3#2]")},
         });
 }
 
@@ -1091,7 +1091,7 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderPrimaryBeforeMultipleForeign
         4,
         rows[3],
         {
-            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#0]")},
+            {4, std::string("[0#\"bb\", 1#2, 2#23u, 3#0]")},
         });
     interruptRowCount = 4;
     rowsPerRead = 2;
@@ -1103,7 +1103,7 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderPrimaryBeforeMultipleForeign
         4,
         rows[3],
         {
-            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#0]")},
+            {4, std::string("[0#\"bb\", 1#2, 2#23u, 3#0]")},
         });
     interruptRowCount = 5;
     rowsPerRead = 5;
@@ -1115,7 +1115,7 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderPrimaryBeforeMultipleForeign
         8,
         rows[7],
         {
-            {2, TString("[0#\"cb\", 1#3, 2#25u, 3#0]")},
+            {2, std::string("[0#\"cb\", 1#3, 2#25u, 3#0]")},
         });
     interruptRowCount = 6;
     rowsPerRead = 2;
@@ -1127,7 +1127,7 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderPrimaryBeforeMultipleForeign
         8,
         rows[7],
         {
-            {2, TString("[0#\"cb\", 1#3, 2#25u, 3#0]")},
+            {2, std::string("[0#\"cb\", 1#3, 2#25u, 3#0]")},
         });
     interruptRowCount = 7;
     rowsPerRead = 7;
@@ -1139,7 +1139,7 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderPrimaryBeforeMultipleForeign
         8,
         rows[7],
         {
-            {2, TString("[0#\"cb\", 1#3, 2#25u, 3#0]")},
+            {2, std::string("[0#\"cb\", 1#3, 2#25u, 3#0]")},
         });
 }
 
@@ -1194,7 +1194,7 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderForeignBeforePrimary)
         3,
         rows[2],
         {
-            {5, TString("[0#\"ab\", 1#1, 2#22u, 3#2]")},
+            {5, std::string("[0#\"ab\", 1#1, 2#22u, 3#2]")},
         });
     interruptRowCount = 4;
     rowsPerRead = 2;
@@ -1206,7 +1206,7 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderForeignBeforePrimary)
         4,
         rows[3],
         {
-            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#2]")},
+            {4, std::string("[0#\"bb\", 1#2, 2#23u, 3#2]")},
         });
     interruptRowCount = 5;
     rowsPerRead = 5;
@@ -1218,7 +1218,7 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderForeignBeforePrimary)
         5,
         rows[4],
         {
-            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#2]")},
+            {4, std::string("[0#\"bb\", 1#2, 2#23u, 3#2]")},
         });
     interruptRowCount = 6;
     rowsPerRead = 2;
@@ -1230,7 +1230,7 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderForeignBeforePrimary)
         6,
         rows[5],
         {
-            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#2]")},
+            {4, std::string("[0#\"bb\", 1#2, 2#23u, 3#2]")},
         });
     interruptRowCount = 7;
     rowsPerRead = 7;
@@ -1242,7 +1242,7 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderForeignBeforePrimary)
         7,
         rows[6],
         {
-            {3, TString("[0#\"bb\", 1#2, 2#24u, 3#2]")},
+            {3, std::string("[0#\"bb\", 1#2, 2#24u, 3#2]")},
         });
 }
 
@@ -1297,7 +1297,7 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderPrimaryBeforeForeign)
         4,
         rows[3],
         {
-            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#0]")},
+            {4, std::string("[0#\"bb\", 1#2, 2#23u, 3#0]")},
         });
     interruptRowCount = 4;
     rowsPerRead = 2;
@@ -1309,7 +1309,7 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderPrimaryBeforeForeign)
         4,
         rows[3],
         {
-            {4, TString("[0#\"bb\", 1#2, 2#23u, 3#0]")},
+            {4, std::string("[0#\"bb\", 1#2, 2#23u, 3#0]")},
         });
     interruptRowCount = 5;
     rowsPerRead = 5;
@@ -1321,7 +1321,7 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderPrimaryBeforeForeign)
         7,
         rows[7], // Note: rows[6] should be skipped
         {
-            {3, TString("[0#\"bb\", 1#2, 2#24u, 3#0]")},
+            {3, std::string("[0#\"bb\", 1#2, 2#24u, 3#0]")},
         });
     interruptRowCount = 6;
     rowsPerRead = 2;
@@ -1333,7 +1333,7 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderPrimaryBeforeForeign)
         8,
         rows[7],
         {
-            {2, TString("[0#\"cb\", 1#3, 2#25u, 3#0]")},
+            {2, std::string("[0#\"cb\", 1#3, 2#25u, 3#0]")},
         });
     interruptRowCount = 7;
     rowsPerRead = 7;
@@ -1345,7 +1345,7 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderPrimaryBeforeForeign)
         8,
         rows[7],
         {
-            {2, TString("[0#\"cb\", 1#3, 2#25u, 3#0]")},
+            {2, std::string("[0#\"cb\", 1#3, 2#25u, 3#0]")},
         });
 }
 
@@ -1385,7 +1385,7 @@ TEST_F(TSortedMergingReaderTest, InterruptOnReduceKeyChange)
         4,
         rows[5],
         {
-            {2, TString("[0#\"a\", 1#3, 2#0]")},
+            {2, std::string("[0#\"a\", 1#3, 2#0]")},
         });
 }
 
@@ -1492,7 +1492,7 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderCheckLastRows)
         8,
         rows[7],
         {
-            {0, TString("")},
+            {0, std::string("")},
         });
 }
 

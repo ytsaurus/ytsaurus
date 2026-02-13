@@ -253,12 +253,15 @@ DEFINE_REFCOUNTED_TYPE(TChunkTeleporterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! NB: This class is part of master snapshots, consider reign promotion when changing it.
 struct TS3MediumConfig
     : public NS3::TS3ConnectionConfig
 {
     //! Name of the bucket to use.
     TString Bucket;
+
+    //! Credentials.
+    std::string AccessKeyId;
+    std::string SecretAccessKey;
 
     REGISTER_YSON_STRUCT(TS3MediumConfig);
 

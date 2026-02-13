@@ -351,7 +351,7 @@ protected:
                     .CommitSignature = commitSignature,
                     .Generation = generation,
                     .RowCount = static_cast<int>(std::ssize(rows)),
-                    .DataWeight = dataWeight
+                    .DataWeight = dataWeight,
                 });
 
             // NB: We are not going to return future since it will be set only when
@@ -449,7 +449,7 @@ protected:
                     .CommitSignature = signature,
                     .RowCount = static_cast<int>(std::ssize(rows)),
                     .DataWeight = dataWeight,
-                    .Versioned = true
+                    .Versioned = true,
                 });
 
             // NB: We are not going to return the future since it will be set only when

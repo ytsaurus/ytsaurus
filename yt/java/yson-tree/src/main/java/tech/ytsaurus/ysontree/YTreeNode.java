@@ -126,6 +126,15 @@ public interface YTreeNode {
     }
 
     /**
+     * Shortcut for `(short) node.getLong()`
+     *
+     * @see #longValue()
+     */
+    default short shortValue() {
+        return (short) longValue();
+    }
+
+    /**
      * Get floating point value assuming node contains it.
      *
      * @throws RuntimeException if node is of unexpected type.

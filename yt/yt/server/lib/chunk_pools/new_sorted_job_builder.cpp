@@ -45,7 +45,7 @@ DEFINE_ENUM(ERowSliceabilityDecision,
     (NoJobSizeTracker)
     (VersionedSlicesPresent)
     (NonSingletonSliceCountIsAtLeastTwo)
-    (NextPrimaryLowerBoundTooClose)
+    (NextEndpointLowerBoundTooClose)
     (OverlapsWithStagedDataSlice)
     (TooMuchForeignData)
 );
@@ -148,6 +148,7 @@ public:
         const std::vector<TInputChunkPtr>& teleportChunks,
         int retryIndex,
         const TInputStreamDirectory& inputStreamDirectory,
+        TSortedChunkPoolStatisticsPtr chunkPoolStatistics,
         TLogger logger,
         TLogger structuredLogger)
         : Options_(options)
@@ -162,6 +163,7 @@ public:
         , RowBuffer_(std::move(rowBuffer))
         , InputStreamDirectory_(inputStreamDirectory)
         , TeleportChunkUpperBounds_(BuildTeleportChunkUpperBounds(Options_, teleportChunks, RowBuffer_))
+        , ChunkPoolStatistics_(std::move(chunkPoolStatistics))
     {
         SegmentPrimaryEndpoints_.resize(teleportChunks.size() + 1);
 
@@ -461,6 +463,8 @@ private:
 
     const std::vector<TKeyBound> TeleportChunkUpperBounds_;
 
+    const TSortedChunkPoolStatisticsPtr ChunkPoolStatistics_;
+
     //! Consider teleport chunks. They divide key space into segments. Each segment may be processed
     //! independently. Some segments may remain empty.
     //! There are two tricky details in this statement (obvious at the first glance)
@@ -573,7 +577,7 @@ private:
     {
         YT_LOG_DEBUG("Sorting primary endpoints (Count: %v)", endpoints.size());
         // We sort endpoints by their location. In each group of endpoints at the same point
-        // we sort them by type: barriers first, then foreign endpoints, then primary ones.
+        // we sort them by type: barriers first, then primary endpoints.
         // NB(coteeq): stable_sort is needed not to mess up row-sliced slices.
         // See TSortedChunkPoolNewKeysTest::InterruptRowSlicedAfterAdjustment.
         std::stable_sort(
@@ -734,7 +738,7 @@ private:
 
     //! Decide if range of slices defined by their left endpoints must be added as a whole, or if it
     //! may be added one by one with row slicing.
-    ERowSliceabilityDecision DecideRowSliceability(TRange<TPrimaryEndpoint> endpoints, TKeyBound nextPrimaryLowerBound)
+    ERowSliceabilityDecision DecideRowSliceability(TRange<TPrimaryEndpoint> endpoints, TKeyBound nextEndpointLowerBound)
     {
         YT_VERIFY(!endpoints.empty());
 
@@ -789,10 +793,10 @@ private:
         }
 
         // If next primary data slice is too close to us, we also cannot use row slicing.
-        if (nextPrimaryLowerBound &&
-            !Options_.PrimaryComparator.IsInteriorEmpty(nextPrimaryLowerBound, maxUpperBound))
+        if (nextEndpointLowerBound &&
+            !Options_.PrimaryComparator.IsInteriorEmpty(nextEndpointLowerBound, maxUpperBound))
         {
-            return ERowSliceabilityDecision::NextPrimaryLowerBoundTooClose;
+            return ERowSliceabilityDecision::NextEndpointLowerBoundTooClose;
         }
 
         // Finally, if some of the already staged data slices overlaps with us, we also discard row slicing.
@@ -809,7 +813,11 @@ private:
         // Refer to SuchForeignMuchData unittest for an example, or to "TFilterRedirectsReducer" operation
         // by Jupiter.
         auto foreignVector = StagingArea_->GetForeignResourceVector();
-        for (const auto& dataSlice : ForeignSlices_) {
+        for (const auto& dataSlice : ForeignSlices_ | std::views::drop(FirstUnstagedForeignIndex_)) {
+            if (ChunkPoolStatistics_) {
+                ChunkPoolStatistics_->ForeignSlicesCheckCountInDecideRowSliceability++;
+            }
+
             if (Options_.PrimaryComparator.IsRangeEmpty(dataSlice->LowerLimit().KeyBound, maxUpperBound)) {
                 break;
             }
@@ -976,7 +984,7 @@ private:
     //! Stage several data slices without row slicing "atomically".
     void StageRangeWithoutRowSlicing(
         TRange<TPrimaryEndpoint> endpoints,
-        TKeyBound nextPrimaryLowerBound,
+        TKeyBound nextEndpointLowerBound,
         ERowSliceabilityDecision decision,
         const TPeriodicYielderGuard& periodicYielder)
     {
@@ -984,6 +992,8 @@ private:
             "Processing endpoint range without row slicing (EndpointCount: %v, Decision: %v)",
             endpoints.size(),
             decision);
+
+        YT_VERIFY(nextEndpointLowerBound);
 
         // Note that data slices may still be sliced by key in staging area.
 
@@ -1023,10 +1033,6 @@ private:
             }
         }
 
-        if (!nextPrimaryLowerBound) {
-            nextPrimaryLowerBound = TKeyBound::MakeEmpty(/*isUpper*/ false);
-        }
-
         auto tryFlush = [&] {
             if (JobSizeTracker_) {
                 if (auto overflowToken = JobSizeTracker_->CheckOverflow()) {
@@ -1040,10 +1046,13 @@ private:
 
         for (size_t foreignDataSliceIndex = FirstUnstagedForeignIndex_; foreignDataSliceIndex < ForeignSlices_.size(); ++foreignDataSliceIndex) {
             const auto& dataSlice = ForeignSlices_[foreignDataSliceIndex];
-            if (Options_.PrimaryComparator.CompareKeyBounds(dataSlice->LowerLimit().KeyBound, nextPrimaryLowerBound) >= 0) {
+            if (Options_.PrimaryComparator.CompareKeyBounds(dataSlice->LowerLimit().KeyBound, nextEndpointLowerBound) >= 0) {
                 break;
             }
 
+            YT_LOG_TRACE(
+                "Trying to flush since a new foreign slice can be attached (ForeignSliceIndex: %v)",
+                foreignDataSliceIndex);
             auto upperBound = dataSlice->LowerLimit().KeyBound.Invert();
             PromoteUpperBound(upperBound, periodicYielder);
             tryFlush();
@@ -1068,7 +1077,7 @@ private:
 
         // Iterate over groups of coinciding endpoints.
         // Recall that coinciding endpoints are ordered by their type as follows:
-        // Barrier < Foreign < Primary.
+        // Barrier < Primary.
         for (int startIndex = 0, endIndex = 0; startIndex < std::ssize(endpoints); startIndex = endIndex) {
             periodicYielder.TryYield();
 
@@ -1077,7 +1086,7 @@ private:
 
             int primaryIndex = startIndex;
 
-            // Extract contiguous group of barrier & foreign endpoints.
+            // Extract contiguous group of barriers.
             while (
                 primaryIndex != std::ssize(endpoints) &&
                 Options_.PrimaryComparator.CompareKeyBounds(endpoints[startIndex].KeyBound, endpoints[primaryIndex].KeyBound) == 0 &&
@@ -1108,19 +1117,15 @@ private:
                 continue;
             }
 
-            int nextPrimaryIndex = endIndex;
-            while (nextPrimaryIndex != std::ssize(endpoints) && endpoints[nextPrimaryIndex].Type != EPrimaryEndpointType::Primary) {
-                ++nextPrimaryIndex;
-            }
-            TKeyBound nextPrimaryLowerBound = (nextPrimaryIndex == std::ssize(endpoints))
-                ? TKeyBound()
-                : endpoints[nextPrimaryIndex].KeyBound;
+            TKeyBound nextEndpointLowerBound = (endIndex == std::ssize(endpoints))
+                ? TKeyBound::MakeEmpty(/*isUpper*/ false)
+                : endpoints[endIndex].KeyBound;
 
-            auto decision = DecideRowSliceability(primaryEndpoints, nextPrimaryLowerBound);
+            auto decision = DecideRowSliceability(primaryEndpoints, nextEndpointLowerBound);
             if (decision == ERowSliceabilityDecision::SliceByRows) {
                 StageRangeWithRowSlicing(primaryEndpoints, periodicYielder);
             } else {
-                StageRangeWithoutRowSlicing(primaryEndpoints, nextPrimaryLowerBound, decision, periodicYielder);
+                StageRangeWithoutRowSlicing(primaryEndpoints, nextEndpointLowerBound, decision, periodicYielder);
             }
         }
 
@@ -1167,6 +1172,7 @@ INewSortedJobBuilderPtr CreateNewSortedJobBuilder(
     const std::vector<TInputChunkPtr>& teleportChunks,
     int retryIndex,
     const TInputStreamDirectory& inputStreamDirectory,
+    TSortedChunkPoolStatisticsPtr chunkPoolStatistics,
     TLogger logger,
     TLogger structuredLogger)
 {
@@ -1177,6 +1183,7 @@ INewSortedJobBuilderPtr CreateNewSortedJobBuilder(
         teleportChunks,
         retryIndex,
         inputStreamDirectory,
+        std::move(chunkPoolStatistics),
         std::move(logger),
         std::move(structuredLogger));
 }

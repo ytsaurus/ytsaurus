@@ -645,6 +645,8 @@ void TAllocation::OnResourcesAcquired() noexcept
 
     State_ = EAllocationState::Running;
 
+    static_cast<IUserSlot*>(ResourceHolder_->GetUserSlot().Get())->SetAllocationId(GetId());
+
     // NB(arkady-e1ppa): In non-legacy version of
     // allocation preparation resources are acquired
     // immediately. That is, before the spec
@@ -850,6 +852,19 @@ void TAllocation::OnJobFinished(TJobPtr job)
                     Complete(EAllocationFinishReason::AgentDisconnected);
 
                     return;
+                }
+
+                if (auto slot = StaticPointerCast<IUserSlot>(GetResourceHolder()->GetUserSlot())) {
+                    try {
+                        slot->ValidateEnabled();
+                    } catch (const std::exception& ex) {
+                        YT_LOG_INFO(ex,
+                            "User slot is disabled, skip new job settlement (JobId: %v)",
+                            jobId);
+
+                        Complete(EAllocationFinishReason::UserSlotDisabled);
+                        return;
+                    }
                 }
 
                 YT_LOG_INFO(

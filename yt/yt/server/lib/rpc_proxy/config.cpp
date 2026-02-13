@@ -153,10 +153,6 @@ void TApiServiceDynamicConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("enable_allocation_tags", &TThis::EnableAllocationTags)
         .Default(true);
-    registrar.Parameter(
-        "enable_low_latency_generate_timestamps_invoker",
-        &TThis::EnableLowLatencyGenerateTimestampsInvoker)
-        .Default(false);
     registrar.Parameter("multiproxy", &TThis::Multiproxy)
         .DefaultNew();
 }

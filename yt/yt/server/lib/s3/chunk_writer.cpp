@@ -25,10 +25,9 @@ using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
 using namespace NThreading;
+using namespace NIO;
 
 ////////////////////////////////////////////////////////////////////////////
-
-// TODO(achulkov2): [PDuringReview] Compute/add timings to logging.
 
 class TS3UploadSessionBase
     : public TRefCounted
@@ -41,13 +40,7 @@ public:
         : Client_(std::move(client))
         , ObjectPlacement_(std::move(objectPlacement))
         , Logger(logger.WithTag("Bucket: %v, Key: %v", ObjectPlacement_.Bucket, ObjectPlacement_.Key))
-    {
-        // Only errors are expected to be set to this future, it should never complete successfully.
-        GetStateFuture()
-            .Subscribe(BIND([] (const TError& error) {
-                YT_VERIFY(!error.IsOK());
-            }));
-    }
+    { }
 
     //! Aborts the upload session with the given error.
     //! This will cancel intermediate upload requests in a best-effort manner.
@@ -115,6 +108,12 @@ public:
             : AbortIncompleteUpload();
     }
 
+    bool IsUploadCompleted() const
+    {
+        auto completionFuture = GetCompletionFuture();
+        return completionFuture.IsSet() && completionFuture.Get().IsOK();
+    }
+
 protected:
     const IClientPtr Client_;
     const TS3MediumDescriptor::TS3ObjectPlacement ObjectPlacement_;
@@ -123,12 +122,6 @@ protected:
 private:
     //! This promise should never be set successfully, only errors are expected.
     TPromise<void> StateError_ = NewPromise<void>();
-
-    bool IsUploadCompleted()
-    {
-        auto completionFuture = GetCompletionFuture();
-        return completionFuture.IsSet() && completionFuture.Get().IsOK();
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////
@@ -195,7 +188,7 @@ public:
     }
 
     //! Session must be started before calling Add.
-    bool Add(const std::vector<TSharedRef>& data)
+    bool Add(std::vector<TSharedRef> data)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -204,7 +197,7 @@ public:
             return false;
         }
 
-        auto guard = Guard(SpinLock_);
+        auto guard = WriterGuard(SpinLock_);
 
         // You should not add data to a session that has not been started (or that is already completing).
         YT_VERIFY(State_ == ES3UploadSessionState::Started);
@@ -212,7 +205,7 @@ public:
         auto size = GetByteSize(data);
         UploadWindowSemaphore_->Acquire(size);
 
-        BufferedData_.insert(BufferedData_.end(), data.begin(), data.end());
+        BufferedData_.insert(BufferedData_.end(), std::make_move_iterator(data.begin()), std::make_move_iterator(data.end()));
         BufferedDataSize_ += size;
 
         GuardedSchedulePartUploadIfNeeded();
@@ -231,7 +224,7 @@ public:
         auto promise = NewPromise<void>();
         promise.TrySetFrom(GetStateFuture());
         promise.TrySetFrom(UploadWindowSemaphore_->GetReadyEvent());
-        // Both futures we are setting from are uncancelable, but it is wise to show our intent anyway.
+        // Futures, that we are setting from, are uncancelable, but it is wise to show our intent anyway.
         return promise.ToFuture().ToUncancelable();
     }
 
@@ -262,7 +255,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        auto guard = Guard(SpinLock_);
+        auto guard = ReaderGuard(SpinLock_);
         return CurrentObjectOffset_;
     }
 
@@ -273,7 +266,7 @@ private:
     TAsyncSemaphorePtr UploadWindowSemaphore_;
 
     //! Protects the fields below.
-    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SpinLock_);
     //! This state is not an atomic because it lives in the same plane as the data buffer and pending uploads.
     ES3UploadSessionState State_ = ES3UploadSessionState::Created;
     //! Filled after upload is started. Read-only afterwards.
@@ -297,7 +290,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        auto guard = Guard(SpinLock_);
+        auto guard = ReaderGuard(SpinLock_);
         return State_;
     }
 
@@ -305,7 +298,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        auto guard = Guard(SpinLock_);
+        auto guard = WriterGuard(SpinLock_);
         if (State_ == expected) {
             State_ = desired;
             return true;
@@ -323,7 +316,7 @@ private:
             return;
         }
 
-        // TODO(achulkov2): [PLater] Cancel this future if the session is aborted.
+        // TODO(cherepashka, achulkov2): Cancel this future if the session is aborted.
         auto multiPartUploadOrError = WaitFor(Client_->CreateMultipartUpload(TCreateMultipartUploadRequest{
             .Bucket = ObjectPlacement_.Bucket,
             .Key = ObjectPlacement_.Key,
@@ -337,7 +330,7 @@ private:
         const auto& multiPartUpload = multiPartUploadOrError.Value();
 
         {
-            auto guard = Guard(SpinLock_);
+            auto guard = WriterGuard(SpinLock_);
 
             YT_VERIFY(State_ == ES3UploadSessionState::Starting);
 
@@ -362,7 +355,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        auto guard = Guard(SpinLock_);
+        auto guard = ReaderGuard(SpinLock_);
         GuardedSchedulePartUploadIfNeeded();
     }
 
@@ -460,7 +453,7 @@ private:
         std::vector<TFuture<TUploadPartResponse>> pendingPartUploads;
 
         {
-            auto guard = Guard(SpinLock_);
+            auto guard = WriterGuard(SpinLock_);
             pendingPartUploads.swap(PendingPartUploads_);
         }
 
@@ -514,7 +507,7 @@ private:
             return;
         }
 
-        // TODO(achulkov2): [PLater] Cancel this future if the session is aborted.
+        // TODO(cherepashka, achulkov2): Cancel this future if the session is aborted.
         auto multiPartUploadOrError = WaitFor(Client_->CompleteMultipartUpload(TCompleteMultipartUploadRequest{
             .Bucket = ObjectPlacement_.Bucket,
             .Key = ObjectPlacement_.Key,
@@ -544,7 +537,7 @@ private:
     void DoAbortUpload()
     {
         {
-            auto guard = Guard(SpinLock_);
+            auto guard = ReaderGuard(SpinLock_);
             // There is no point in aborting if the upload was not started or is already completed.
             // The latter is unlikely because we check for it before running this method.
             if (State_ == ES3UploadSessionState::Created || State_ == ES3UploadSessionState::Starting || State_ == ES3UploadSessionState::Completed) {
@@ -649,7 +642,6 @@ public:
         TSessionId sessionId)
         : Client_(std::move(client))
         , SessionId_(sessionId)
-        , PhysicalChunkLayoutWriter_(New<NIO::TPhysicalChunkLayoutWriter>(SessionId_.ChunkId))
         , Logger(ChunkClientLogger().WithTag("ChunkId: %v", SessionId_.ChunkId))
         , ChunkUploadSession_(New<TS3MultiPartUploadSession>(
             Client_,
@@ -669,7 +661,6 @@ public:
 
     TFuture<void> Open() override
     {
-        // TODO(achulkov2): [PForReview] Log some more information here.
         YT_LOG_INFO("Offshore S3 writer opened");
 
         return ChunkUploadSession_->Start();
@@ -688,8 +679,10 @@ public:
         const TWorkloadDescriptor& /*workloadDescriptor*/,
         const std::vector<TBlock>& blocks) override
     {
-        auto writeRequest = PhysicalChunkLayoutWriter_->AddBlocks(blocks);
-        return ChunkUploadSession_->Add(writeRequest.Buffers);
+
+        auto writeRequest = SerializeBlocks(DataSize_, blocks, BlocksExt_);
+        DataSize_ = writeRequest.EndOffset;
+        return ChunkUploadSession_->Add(std::move(writeRequest.Buffers));
     }
 
     TFuture<void> GetReadyEvent() override
@@ -701,15 +694,19 @@ public:
         const IChunkWriter::TWriteBlocksOptions& /*options*/,
         const TWorkloadDescriptor& /*workloadDescriptor*/,
         const TDeferredChunkMetaPtr& chunkMeta,
-        std::optional<int> /*truncateBlockCount*/) override
+        std::optional<int> truncateBlockCount) override
     {
         // Journal chunks are not supported.
         YT_VERIFY(chunkMeta);
 
+        if (truncateBlockCount.has_value()) {
+            DataSize_ = TruncateBlocks(BlocksExt_, *truncateBlockCount, DataSize_);
+        }
+
         // Some uploads may still be running, but no more blocks can be added, so we can safely
         // finalize the meta in parallel with the completion of the chunk upload itself.
-        auto chunkMetaBlob = PhysicalChunkLayoutWriter_->Close(chunkMeta);
-
+        ChunkMeta_->CopyFrom(*FinalizeChunkMeta(std::move(chunkMeta), BlocksExt_));
+        auto chunkMetaBlob = SerializeChunkMeta(GetChunkId(), ChunkMeta_);
         auto closeFutures = std::vector{
             ChunkUploadSession_->Complete(),
             ChunkMetaUploadSession_->Upload(std::move(chunkMetaBlob)),
@@ -722,14 +719,13 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return PhysicalChunkLayoutWriter_->GetChunkInfo();
+        return ChunkInfo_;
     }
 
     const NChunkClient::NProto::TDataStatistics& GetDataStatistics() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        // TODO(achulkov2): [PForReview] What should we return here, if anything?
         YT_UNIMPLEMENTED();
     }
 
@@ -739,11 +735,14 @@ public:
 
         // This method may only be called if the chunk was closed successfully,
         // so we can assume that the upload session was completed.
+        YT_VERIFY(ChunkUploadSession_->IsUploadCompleted());
+
         TChunkReplicaWithLocation replica(
             OffshoreNodeId,
             GenericChunkReplicaIndex,
             SessionId_.MediumIndex,
-            InvalidChunkLocationUuid);
+            InvalidChunkLocationUuid,
+            InvalidChunkLocationIndex);
 
         return {
             .Replicas = {std::move(replica)},
@@ -767,39 +766,25 @@ public:
         return false;
     }
 
-    // TODO(achulkov2): [PLater] Cancellation was written by me before I realized that it should be implemented much later.
-    // So, for now, it is left in a conserved state, and will be finished up at a later time.
     TFuture<void> Cancel() override
     {
-        auto cancelFutures = std::vector{
-            ChunkUploadSession_->Cancel(),
-            ChunkMetaUploadSession_->Cancel(),
-        };
-
-        return AllSet(std::move(cancelFutures))
-            .Apply(BIND([] (const std::vector<TErrorOr<void>>& errors) {
-                std::vector<TError> cancellationErrors;
-                for (const auto& error : errors) {
-                    if (!error.IsOK()) {
-                        cancellationErrors.push_back(error);
-                    }
-                }
-
-                if (!cancellationErrors.empty()) {
-                    THROW_ERROR_EXCEPTION("Failed to cancel S3 chunk writer") << cancellationErrors;
-                }
-            }));
+        YT_UNIMPLEMENTED();
     }
 
 private:
     const IClientPtr Client_;
     const TSessionId SessionId_;
-    const NIO::TPhysicalChunkLayoutWriterPtr PhysicalChunkLayoutWriter_;
 
     const NLogging::TLogger Logger;
 
     const TS3MultiPartUploadSessionPtr ChunkUploadSession_;
     const TS3ChunkMetaUploadSessionPtr ChunkMetaUploadSession_;
+
+    const NChunkClient::TRefCountedChunkMetaPtr ChunkMeta_ = New<NChunkClient::TRefCountedChunkMeta>();
+    NChunkClient::NProto::TChunkInfo ChunkInfo_;
+    NChunkClient::NProto::TBlocksExt BlocksExt_;
+
+    i64 DataSize_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////

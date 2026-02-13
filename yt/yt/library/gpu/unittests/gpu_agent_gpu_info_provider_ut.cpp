@@ -30,7 +30,7 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TString ServiceName = "GpuAgent";
+static const std::string ServiceName = "GpuAgent";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -127,7 +127,7 @@ public:
 
 protected:
     NTesting::TPortHolder Port_;
-    TString Address_;
+    std::string Address_;
 
     NConcurrency::IThreadPoolPtr WorkerPool_;
     IServicePtr GpuAgentService_;

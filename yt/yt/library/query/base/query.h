@@ -228,7 +228,7 @@ struct TCompositeMemberAccessorPath
     void AppendTupleItem(TTupleItemIndexAccessor index);
     void Reserve(int length);
 
-    bool operator == (const TCompositeMemberAccessorPath& other) const = default;
+    bool operator==(const TCompositeMemberAccessorPath& other) const = default;
 };
 
 struct TCompositeMemberAccessorExpression
@@ -345,12 +345,6 @@ struct TMappedSchema
     TTableSchemaPtr GetRenamedSchema() const;
 };
 
-struct TSelfEquation
-{
-    TConstExpressionPtr Expression;
-    bool Evaluated;
-};
-
 struct TJoinClause
     : public TRefCounted
 {
@@ -361,7 +355,7 @@ struct TJoinClause
     TConstExpressionPtr Predicate;
 
     std::vector<TConstExpressionPtr> ForeignEquations;
-    std::vector<TSelfEquation> SelfEquations;
+    std::vector<TConstExpressionPtr> SelfEquations;
 
     size_t CommonKeyPrefix = 0;
     size_t ForeignKeyPrefix = 0;

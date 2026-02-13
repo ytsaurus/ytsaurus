@@ -3,10 +3,11 @@
 #include "config.h"
 #include "consumer_controller.h"
 #include "helpers.h"
-#include "snapshot.h"
 #include "object.h"
+#include "pass_profiler.h"
 #include "queue_controller.h"
 #include "queue_export_manager.h"
+#include "snapshot.h"
 
 #include <yt/yt/server/lib/cypress_election/election_manager.h>
 
@@ -178,12 +179,12 @@ public:
 
 private:
     // The queue agent is not supposed to be destroyed, so raw pointer is fine.
-    const TQueueAgent* Owner_;
+    const TQueueAgent* const Owner_;
     const EObjectKind ObjectKind_;
 
     struct TProxyConfig
     {
-        bool Enable;
+        bool Enable = false;
         TString RemoteQueryRoot;
     };
     const TProxyConfig ProxyConfig_;
@@ -205,7 +206,7 @@ TTaggedProfilingCounters::TTaggedProfilingCounters(TProfiler profiler)
 class TQueueAgent::TControllerInfoProducer final
 {
 public:
-    TControllerInfoProducer(const TQueueAgent* queueAgent)
+    explicit TControllerInfoProducer(const TQueueAgent* queueAgent)
         : QueueAgent_(queueAgent)
         , ControlInvoker_(queueAgent->ControlInvoker_)
     { }
@@ -219,7 +220,7 @@ public:
 
         {
             auto guard = ReaderGuard(QueueAgent_->ObjectLock_);
-            for (const auto& objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
+            for (auto objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
                 auto& partialControllerPasses = controllerPasses[objectKind];
                 for (const auto& [path, object] : QueueAgent_->Objects_[objectKind]) {
                     auto snapshot = DynamicPointerCast<TObjectSnapshotBase>(object.Controller->GetLatestSnapshot());
@@ -239,14 +240,14 @@ public:
 
         TEnumIndexedArray<EObjectKind, int> errorCounts;
         for (const auto& [_, partialErrorCounts] : clusterToErrorCounts) {
-            for (const auto& objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
+            for (auto objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
                 errorCounts[objectKind] += partialErrorCounts[objectKind];
             }
         }
 
         THashMap<std::string, TEnumIndexedArray<EObjectKind, std::vector<TControllerPassInfo>>> clusterToControllerPasses;
 
-        for (const auto& objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
+        for (auto objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
             for (const auto& controllerPass : controllerPasses[objectKind]) {
                 clusterToControllerPasses[*controllerPass.Path.GetCluster()][objectKind].push_back(controllerPass);
             }
@@ -284,7 +285,7 @@ private:
     struct TControllerPassInfo
     {
         TInstant PassInstant;
-        bool Leading;
+        bool Leading = false;
         NYPath::TRichYPath Path;
     };
 
@@ -300,7 +301,7 @@ private:
             return passInfo.PassInstant;
         };
 
-        for (const auto& objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
+        for (auto objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
             SortBy(controllerPasses[objectKind], getPassInstant);
         }
 
@@ -333,7 +334,7 @@ private:
             }
         };
 
-        for (const auto& objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
+        for (auto objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
             leadingControllerPasses[objectKind] = filterLeading(controllerPasses[objectKind]);
             followingControllerPasses[objectKind] = std::move(controllerPasses[objectKind]);
 
@@ -398,6 +399,7 @@ TQueueAgent::TQueueAgent(
         ControlInvoker_,
         BIND(&TQueueAgent::Pass, MakeWeak(this)),
         DynamicConfig_->PassPeriod))
+    , PassProfiler_(QueueAgentProfiler())
     , AgentId_(std::move(agentId))
     , QueueAgentChannelFactory_(nativeConnection->GetChannelFactory())
     , QueueExportManager_(CreateQueueExportManager(
@@ -534,6 +536,7 @@ void TQueueAgent::Pass()
 
     PassInstant_ = TInstant::Now();
     ++PassIndex_;
+    PassProfiler_.OnStart(PassIndex_, PassInstant_);
 
     auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("QueueAgent"));
 
@@ -544,6 +547,7 @@ void TQueueAgent::Pass()
     YT_LOG_INFO("Pass started");
     auto finalizePass = Finally([&] {
         AlertCollector_->PublishAlerts();
+        PassProfiler_.OnFinish(TInstant::Now() - PassInstant_);
         YT_LOG_INFO("Pass finished");
     });
 
@@ -569,16 +573,17 @@ void TQueueAgent::Pass()
             "Error while reading dynamic state",
             /*tags*/ {},
             error));
+        PassProfiler_.OnError();
         return;
     }
-    auto queueRows = asyncQueueRows.GetUnique().Value();
-    auto consumerRows = asyncConsumerRows.GetUnique().Value();
+    auto queueRows = asyncQueueRows.AsUnique().Get().Value();
+    auto consumerRows = asyncConsumerRows.AsUnique().Get().Value();
     const auto& registrationRows = asyncRegistrationRows.Get().Value();
     const auto& objectMappingRows = asyncObjectMappingRows.Get().Value();
 
     std::vector<TReplicatedTableMappingTableRow> replicatedTableMappingRows;
     // NB: This table might not exist and we should still perform passes.
-    auto replicatedTableMappingRowsOrError = WaitForUnique(DynamicState_->ReplicatedTableMapping->Select());
+    auto replicatedTableMappingRowsOrError = WaitFor(DynamicState_->ReplicatedTableMapping->Select().AsUnique());
     if (replicatedTableMappingRowsOrError.IsOK()) {
         replicatedTableMappingRows = std::move(replicatedTableMappingRowsOrError.Value());
     } else {

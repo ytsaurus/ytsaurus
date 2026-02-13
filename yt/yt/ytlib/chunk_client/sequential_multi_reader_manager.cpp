@@ -116,7 +116,7 @@ void TSequentialMultiReaderManager::OnReaderFinished()
 TFuture<void> TSequentialMultiReaderManager::WaitForNextReader()
 {
     if (NextReaderIndex_ == std::ssize(ReaderFactories_)) {
-        return VoidFuture;
+        return OKFuture;
     }
 
     return NextReaders_[NextReaderIndex_].ToFuture().Apply(

@@ -30,6 +30,8 @@ struct TDynamicTableManagerConfig
     TAsyncExpiringCacheConfigPtr TableSchemaCache;
     TYsonTableSchemaCacheConfigPtr YsonTableSchemaCache;
     bool CacheHeavySchemaOnCreation;
+    int ColumnToConstraintLogLimit;
+    bool EnableColumnConstraintsForTables;
 
     REGISTER_YSON_STRUCT(TDynamicTableManagerConfig)
 

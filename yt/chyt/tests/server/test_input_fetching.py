@@ -164,6 +164,9 @@ class TestInputFetching(ClickHouseTestBase):
             clique.make_query_and_validate_read_row_count(
                 "select * from (select * from `//tmp/t` where key == 'k4')", exact=1
             )
+            assert clique.make_query("select * from (select key, value from `//tmp/t` where key in (select key from `//tmp/t` where key = 'k1')) t") == [
+                {"key": "k1", "value": "v1"}
+            ]
 
     @authors("max42")
     def test_dynamic_table_farm_hash_two_components(self):
@@ -1013,15 +1016,16 @@ class TestInputFetching(ClickHouseTestBase):
             with raises_yt_error(QueryFailedError):
                 clique.make_query('select * from "//tmp/table_banned"')
 
-            assert clique.make_query('select * from "//tmp/table_banned"', settings={'chyt.testing.check_chyt_banned': 0}) == data
+            with raises_yt_error(QueryFailedError):
+                clique.make_query('exists "//tmp/table_banned"')
+
             assert clique.make_query('select * from "//tmp/table_implicitly_not_banned"') == data
             assert clique.make_query('select * from "//tmp/table_explicitly_not_banned"') == data
-
             assert clique.make_query('exists "//tmp/table_surely_nonexisting"') == [{'result': 0}]
-            assert clique.make_query('exists "//tmp/table_banned"', settings={'chyt.testing.check_chyt_banned': 0}) == [{'result': 1}]
 
-            with raises_yt_error(QueryFailedError):
-                clique.make_query('exists "//tmp/table_banned"', settings={'chyt.testing.check_chyt_banned': 1})
+        with Clique(1, config_patch={"yt": {"check_chyt_banned": 0}}) as clique:
+            assert clique.make_query('select * from "//tmp/table_banned"') == data
+            assert clique.make_query('exists "//tmp/table_banned"') == [{'result': 1}]
 
     @authors("denvid")
     def test_min_max_filtering(self):
@@ -1634,13 +1638,21 @@ class TestInferReadRange(ClickHouseTestBase):
             )
 
     @authors("buyval01")
+    @pytest.mark.timeout(0)
     def test_supported_ranges(self):
         create(
             "table",
-            "//tmp/t",
+            "//tmp/t_ts64",
             attributes={
-                # TODO (buyval01) : check with narrow timestamp type cause it has difference in YT <-> CH conversion
                 "schema": [{"name": "ts", "type": "timestamp64", "sort_order": "ascending"}],
+            }
+        )
+
+        create(
+            "table",
+            "//tmp/t_ts",
+            attributes={
+                "schema": [{"name": "ts", "type": "timestamp", "sort_order": "ascending"}],
             }
         )
 
@@ -1665,16 +1677,31 @@ class TestInferReadRange(ClickHouseTestBase):
 
         for chunk_tss in timestamps:
             write_table(
-                "<append=%true>//tmp/t",
+                "<append=%true>//tmp/t_ts64",
+                [{"ts": int(datetime.strptime(ts_str, ts_pattern).timestamp() * 10**6)} for ts_str in chunk_tss]
+            )
+            write_table(
+                "<append=%true>//tmp/t_ts",
                 [{"ts": int(datetime.strptime(ts_str, ts_pattern).timestamp() * 10**6)} for ts_str in chunk_tss]
             )
 
         with Clique(1, config_patch=self._get_config_patch(), export_query_log=True) as clique:
-            def check(predicate, exact, expected=None):
-                query = f"select ts from '//tmp/t' where {predicate}"
+            def base_check(table, predicate, exact, expected=None):
+                query = f"select ts from '{table}' where {predicate}"
                 res = clique.make_query_and_validate_prewhered_row_count(query, exact=exact)
                 if expected is not None:
                     assert_items_equal(res, expected)
+
+            # Validation of the case of working with a timestamp type whose conversion differs between YT <-> CH.
+            base_check(
+                "//tmp/t_ts",
+                "ts BETWEEN toDateTime('2025-07-07T00:00:00') AND toDateTime('2025-09-09T00:00:00')",
+                2,
+                expected=[{"ts": "2025-07-07 12:27:00.000000"}, {"ts": "2025-08-08 12:28:00.000000"}]
+            )
+
+            def check(predicate, exact, expected=None):
+                base_check("//tmp/t_ts64", predicate, exact, expected)
 
             check("ts < toDateTime('2025-02-01T00:00:00')", 1, expected=[{"ts": "2025-01-01 12:21:00.000000"}])
             check("ts >= toDateTime('2025-08-08T12:28:00')", 2, expected=[{"ts": "2025-08-08 12:28:00.000000"}, {"ts": "2025-09-09 12:29:00.000000"}])
@@ -1684,11 +1711,13 @@ class TestInferReadRange(ClickHouseTestBase):
                 2,
                 expected=[{"ts": "2025-01-01 12:21:00.000000"}, {"ts": "2025-03-03 12:23:00.000000"}]
             )
-            check(
-                "ts BETWEEN toDateTime('2025-07-07T00:00:00') AND toDateTime('2025-09-09T00:00:00')",
-                2,
-                expected=[{"ts": "2025-07-07 12:27:00.000000"}, {"ts": "2025-08-08 12:28:00.000000"}]
-            )
+
+            expected_result = [{"ts": "2025-07-07 12:27:00.000000"}, {"ts": "2025-08-08 12:28:00.000000"}]
+            check("ts BETWEEN toDateTime('2025-07-07T00:00:00') AND toDateTime('2025-09-09T00:00:00')", 2, expected=expected_result)
+            check("ts >= toDateTime('2025-07-07T00:00:00') AND ts <= toDateTime('2025-09-09T00:00:00')", 2, expected=expected_result)
+            check("toDateTime('2025-07-07T00:00:00') <= ts  AND ts <= toDateTime('2025-09-09T00:00:00')", 2, expected=expected_result)
+
+            check("ts IN (toDateTime('2025-05-05T12:25:00'))", 1, expected=[{"ts": "2025-05-05 12:25:00.000000"}])
             check(
                 "ts IN (toDateTime('2025-02-02T12:22:00'), toDateTime('2025-05-05T12:25:00'), toDateTime('2025-08-08T12:28:00'))",
                 3,
@@ -1737,6 +1766,39 @@ class TestInferReadRange(ClickHouseTestBase):
 
             # Inferrer treats only columns as arguments to the IN operator.
             check('(key != 0) IN (0, 1)', 3, [{"key": 0}, {"key": 1},])
+
+    # CHYT-1387
+    @authors("buyval01")
+    def test_read_range_with_sorted_pool(self):
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "id", "type": "int64", "required": True, "sort_order": "ascending"}]
+        })
+
+        value_cnt = 8
+        data = []
+        for i in range(4):
+            data += [{"id": i} for _ in range(value_cnt)]
+        # It is necessary to have approximately one block for each group of values.
+        write_table("//tmp/t", data, table_writer={"block_size": 8 * value_cnt},)
+
+        config_patch = {
+            "yt": {
+                "settings": {
+                    "execution": {
+                        "enable_read_range_inferring": True,
+                    },
+                },
+                "subquery": {
+                    # The default minimum limit is too high for this test.
+                    # It is necessary to save the value that will be calculated when constructing JobSizeConstraints.
+                    "min_slice_data_weight": 1,
+                },
+            }
+        }
+        with Clique(1, config_patch=config_patch) as clique:
+            # To have explicit key bounds on the input block, need to request a range within the chunk: [1, 2] in [0, 3].
+            res = clique.make_query("select id, count(*) as cnt from `//tmp/t` where id between 1 and 2 group by id")
+            assert_items_equal(res, [{"id": 1, "cnt": value_cnt}, {"id": 2, "cnt": value_cnt}])
 
 
 class TestInputFetchingYPath(ClickHouseTestBase):

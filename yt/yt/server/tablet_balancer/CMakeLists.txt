@@ -23,6 +23,7 @@ target_compile_options(yt-server-tablet_balancer PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(yt-server-tablet_balancer PUBLIC

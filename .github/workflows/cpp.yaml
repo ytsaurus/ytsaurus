@@ -1,10 +1,19 @@
 name: C++ CI
 
 on:
+  workflow_dispatch:
+    inputs:
+      build_types:
+        description: 'JSON array: ["release"], ["relwithdebinfo"], or ["release","relwithdebinfo"]'
+        required: false
+        default: '["relwithdebinfo"]'
+        type: string
   push:
     branches:
       - main
       - stable/[0-9]+\.[0-9]+
+      - query-tracker/[0-9]+\.[0-9]+
+      - chyt/[0-9]+\.[0-9]+
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
@@ -58,24 +67,41 @@ jobs:
     outputs:
       image-tag: ${{ steps.tag.outputs.IMAGE_TAG }}
       nightly-image-tag: ${{ steps.tag.outputs.NIGHTLY_IMAGE_TAG }}
+      build-types: ${{ steps.tag.outputs.BUILD_TYPES }}
     steps:
       - name: Calculate docker tag
         id: tag
         run: |
-          if [[ $GITHUB_REF =~ main$ ]];
-          then
-            IMAGE_TAG=dev
-          elif [[ $GITHUB_REF =~ stable ]];
-          then
-            IMAGE_TAG=dev-${GITHUB_REF#refs/*/stable/}
-          else
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             IMAGE_TAG=dev-test
+          else
+            if [[ $GITHUB_REF =~ main$ ]];
+            then
+              IMAGE_TAG=dev
+            elif [[ $GITHUB_REF =~ stable ]];
+            then
+              IMAGE_TAG=dev-${GITHUB_REF#refs/*/stable/}
+            elif [[ $GITHUB_REF =~ "query-tracker" ]];
+            then
+              IMAGE_TAG=dev-${GITHUB_REF#refs/*/query-tracker/}
+            elif [[ $GITHUB_REF =~ "chyt" ]];
+            then
+              IMAGE_TAG=dev-${GITHUB_REF#refs/*/chyt/}
+            else
+              IMAGE_TAG=dev-test
+            fi
           fi
 
           NIGHTLY_IMAGE_TAG=${IMAGE_TAG}-$(git -C ytsaurus show -s --pretty=%cs)-${GITHUB_SHA}
 
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
           echo "NIGHTLY_IMAGE_TAG=$NIGHTLY_IMAGE_TAG" >> $GITHUB_OUTPUT
+
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo 'BUILD_TYPES=${{ github.event.inputs.build_types }}' >> "$GITHUB_OUTPUT"
+          else
+            echo 'BUILD_TYPES=["release","relwithdebinfo"]' >> "$GITHUB_OUTPUT"
+          fi
 
   build-strawberry:
     name: Build Strawberry controller
@@ -85,7 +111,8 @@ jobs:
       - tag
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
-      build-strawberry: true
+      build-strawberry: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'stable/') }}
+      build-types: ${{ needs.tag.outputs.build-types }}
     secrets:
       BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
       BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
@@ -97,6 +124,7 @@ jobs:
       - start-vm
       - checkout
       - build-strawberry
+      - tag
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: cmake
@@ -104,6 +132,7 @@ jobs:
       build-chyt: ${{ github.ref_name == 'main' }}
       build-python: true
       update-remote-cache: true
+      build-types: ${{ needs.tag.outputs.build-types }}
     secrets:
       BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
       BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
@@ -122,6 +151,7 @@ jobs:
       publish-strawberry: ${{ github.ref_name == 'main' }}
       image-tag: ${{ needs.tag.outputs.image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
+      build-types: ${{ needs.tag.outputs.build-types }}
     secrets:
       GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
       GH_USERNAME: ${{ secrets.GH_USERNAME }}
@@ -133,6 +163,7 @@ jobs:
       - start-vm
       - checkout
       - build-strawberry
+      - tag
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
@@ -140,7 +171,9 @@ jobs:
       build-ytsaurus-tests: true
       build-query-tracker: true
       build-python: true
+      build-chyt: true
       update-remote-cache: true
+      build-types: ${{ needs.tag.outputs.build-types }}
     secrets:
       BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
       BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
@@ -155,16 +188,33 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
-      publish-query-tracker: ${{ github.ref_name == 'main' }}
-      publish-ytsaurus: true
-      publish-local: true
-      publish-chyt: ${{ github.ref_name == 'main' }}
+      publish-query-tracker: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'query-tracker/') }}
+      publish-ytsaurus: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'stable/') }}
+      publish-local: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'stable/') }}
+      publish-chyt: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'chyt/') }}
       image-tag: ${{ needs.tag.outputs.image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
+      build-types: ${{ needs.tag.outputs.build-types }}
     secrets:
       GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
       GH_USERNAME: ${{ secrets.GH_USERNAME }}
     uses: ./.github/workflows/docker-jobs.yaml
+
+  create-task-for-ytsaurus-ci:
+    name: Make task for YTsaurus CI
+    if: ${{ startsWith(github.ref_name, 'stable/')
+          || startsWith(github.ref_name, 'query-tracker/')
+          || startsWith(github.ref_name, 'chyt/') }}
+    needs:
+      - docker-ya-make
+    uses: ./.github/workflows/ytsaurus-ci-runner.yaml
+    with:
+      scenario: release-tests
+      ref_name: ${{ github.ref_name }}
+      image_tag: ${{ needs.docker-ya-make.outputs.image-tag }}
+    secrets:
+      GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+      YTSAURUS_CI_K8S_EDITOR_TOKEN: ${{ secrets.YTSAURUS_CI_K8S_EDITOR_TOKEN }}
 
   check:
     name: Check

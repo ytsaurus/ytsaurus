@@ -114,6 +114,7 @@ TChunkStripeListPtr MergeStripeLists(const std::vector<TChunkStripeListPtr>& str
 
         for (const auto& stripe : stripeList->Stripes()) {
             if (!hasPartitionTags) {
+                // This path is currently used only for tests.
                 result->AddStripe(stripe);
                 continue;
             }
@@ -133,7 +134,7 @@ TChunkStripeListPtr MergeStripeLists(const std::vector<TChunkStripeListPtr>& str
 
             auto chunkId = dataSlice->GetSingleUnversionedChunk()->GetChunkId();
 
-            YT_VERIFY(chunkIdsInStripeList.insert(chunkId).second);
+            InsertOrCrash(chunkIdsInStripeList, chunkId);
 
             if (seenChunkIds.insert(chunkId).second) {
                 result->AddStripe(stripe);

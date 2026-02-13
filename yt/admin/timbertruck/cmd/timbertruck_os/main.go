@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"go.ytsaurus.tech/yt/admin/timbertruck/pkg/app"
 	"go.ytsaurus.tech/yt/admin/timbertruck/pkg/pipelines"
@@ -33,10 +34,16 @@ type JSONLogConfig struct {
 	timbertruck.StreamConfig `yaml:",inline"`
 
 	// QueueBatchSize is the buffer size at which a flush to the output is triggered.
-	// It must be greater than or equal to TextFileLineLimit.
+	// Lines larger than QueueBatchSize will be flushed individually.
 	//
 	// Default value is 16777216 (16 MiB).
 	QueueBatchSize int `yaml:"queue_batch_size"`
+
+	// QueueBatchFlushTimeout defines maximum time to keep a partially filled buffer before flushing.
+	// If 0, flush only when buffer reaches QueueBatchSize or on file completion.
+	//
+	// Default value is 0 (disabled).
+	QueueBatchFlushTimeout time.Duration `yaml:"queue_batch_flush_timeout"`
 
 	// TextFileLineLimit specifies the maximum allowed length of a line in the text file.
 	// Lines longer than this value will be truncated.
@@ -53,9 +60,6 @@ func (c *JSONLogConfig) SetDefaults() {
 	}
 	if c.QueueBatchSize == 0 {
 		c.QueueBatchSize = DefaultQueueBatchSize
-	}
-	if c.QueueBatchSize < c.TextFileLineLimit {
-		panic(fmt.Sprintf("queueBatchSize (%d) MUST BE >= textFileLineLimit (%d)", c.QueueBatchSize, c.TextFileLineLimit))
 	}
 }
 
@@ -82,19 +86,22 @@ func newOutput(config *Config, logConfig JSONLogConfig, task timbertruck.TaskArg
 	if logConfig.YtQueue != nil {
 		for _, ytQueueConfig := range logConfig.YtQueue {
 			ytConfig := ytqueue.OutputConfig{
-				Cluster:           ytQueueConfig.Cluster,
-				QueuePath:         ytQueueConfig.QueuePath,
-				ProducerPath:      ytQueueConfig.ProducerPath,
-				RPCProxyRole:      ytQueueConfig.RPCProxyRole,
-				CompressionCodec:  ytQueueConfig.CompressionCodec,
-				SessionID:         sessionID,
-				Token:             ytToken,
-				Logger:            task.Controller.Logger(),
-				BytesPerRow:       logConfig.QueueBatchSize,
-				BytesPerRowsBatch: ytQueueConfig.BytesPerRowsBatch,
+				Cluster:               ytQueueConfig.Cluster,
+				QueuePath:             ytQueueConfig.QueuePath,
+				ProducerPath:          ytQueueConfig.ProducerPath,
+				RPCProxyRole:          ytQueueConfig.RPCProxyRole,
+				CompressionCodec:      ytQueueConfig.CompressionCodec,
+				SessionID:             sessionID,
+				Token:                 ytToken,
+				Logger:                task.Controller.Logger(),
+				BytesPerRow:           logConfig.QueueBatchSize,
+				BytesPerRowsBatch:     ytQueueConfig.BytesPerRowsBatch,
+				RowsBatchFlushTimeout: ytQueueConfig.RowsBatchFlushTimeout,
+				MaxCompressedRowBytes: ytQueueConfig.MaxCompressedRowBytes,
 				OnSent: func(meta pipelines.RowMeta) {
 					task.Controller.NotifyProgress(meta.End)
 				},
+				OnSkippedRow: task.Controller.OnSkippedRow,
 			}
 
 			var ytOutput pipelines.Output[pipelines.Row]
@@ -132,8 +139,9 @@ func main() {
 			}
 			p, err = ytlog.NewJSONLogPipeline(task, output, ytlog.JSONLogPipelineOptions{
 				BaseLogPipelineOptions: ytlog.BaseLogPipelineOptions{
-					QueueBatchSize:    jsonLogConfig.QueueBatchSize,
-					TextFileLineLimit: jsonLogConfig.TextFileLineLimit,
+					QueueBatchSize:         jsonLogConfig.QueueBatchSize,
+					QueueBatchFlushTimeout: jsonLogConfig.QueueBatchFlushTimeout,
+					TextFileLineLimit:      jsonLogConfig.TextFileLineLimit,
 				}})
 			return
 		})

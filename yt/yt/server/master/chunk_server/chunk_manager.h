@@ -321,7 +321,7 @@ struct IChunkManager
     virtual void SetMediumConfig(TDomesticMedium* medium, TDomesticMediumConfigPtr newConfig) = 0;
 
     //! Returns the medium with a given name (|nullptr| if none).
-    virtual TMedium* FindMediumByName(const std::string& name) const = 0;
+    virtual TMedium* FindMediumByName(const std::string& name, bool throwOnInvalidId) const = 0;
 
     //! Returns the medium with a given name (throws if none).
     virtual TMedium* GetMediumByNameOrThrow(const std::string& name) const = 0;
@@ -382,6 +382,8 @@ struct IChunkManager
         std::unique_ptr<NDataNodeTrackerClient::NProto::TReqReplaceLocationReplicas> request) = 0;
 
     virtual TFuture<void> ConfirmSequoiaChunk(
+        NChunkClient::NProto::TReqConfirmChunk* request) = 0;
+    virtual TFuture<void> ConfirmSequoiaChunkBatched(
         NChunkClient::NProto::TReqConfirmChunk* request) = 0;
 
 private:

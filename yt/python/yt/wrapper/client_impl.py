@@ -16,6 +16,7 @@ from .format import Format
 from .job_commands import GetJobJobType, JobSpecType, ListJobTracesType, ListJobsType
 from .operation_commands import CheckOperationPermissionResultType, GetOperationOperationType, ListOperationsType, OperationState
 from .query_commands import Query
+from .schema.table_schema import TableSchema
 from .spec_builders import SpecCommonType, SpecMapReduceType, SpecMapType, SpecReduceType, SpecSortType
 from .ypath import YPath
 
@@ -343,7 +344,7 @@ class YtClient(ClientState):
             self,
             path,
             schema=None, schema_id=None, dynamic=None, upstream_replica_id=None, replication_progress=None,
-            clip_timestamp=None):
+            clip_timestamp=None, constrained_schema=None, constraints=None):
         """
         Performs schema and other table meta information modifications.
         Applicable to static and dynamic tables.
@@ -356,13 +357,16 @@ class YtClient(ClientState):
         :param str upstream_replica_id: upstream_replica_id
         :param dict replication_progress: replication progress for chaos dynamic table
         :param int clip_timestamp: new clip_timestamp to set on table
+        :param constrained_schema: new schema with constraints to set on table
+        :param dict constraints: constraint per column map for table schema
 
         """
         return client_api.alter_table(
             path,
             client=self,
             schema=schema, schema_id=schema_id, dynamic=dynamic, upstream_replica_id=upstream_replica_id,
-            replication_progress=replication_progress, clip_timestamp=clip_timestamp)
+            replication_progress=replication_progress, clip_timestamp=clip_timestamp, constrained_schema=constrained_schema,
+            constraints=constraints)
 
     def alter_table_replica(
             self,
@@ -777,8 +781,10 @@ class YtClient(ClientState):
 
     def dump_parquet(
             self,
-            table,
-            output_file=None, output_path=None, enable_several_files=False, unordered=False, file_compression_codec=None):
+            table: "Union[str, TablePath]",
+            output_file: "Optional[str]" = None, output_path: "Optional[str]" = None, enable_several_files: "Optional[bool]" = False,
+            unordered: "Optional[bool]" = False, file_compression_codec: "Optional[Union[Literal['uncompressed'], Literal['snappy'], Literal['gzip'], Literal['brotli'], Literal['zstd'], Literal['lz4'], Literal['lz4_frame'], Literal['lzo'], Literal['bz2'], Literal['lz4_hadoop']]]" = None,  # noqa
+            file_compression_level: "Optional[int]" = None):
         """
         Dump table with a strict schema as `Parquet <https://parquet.apache.org/docs>` file
 
@@ -800,7 +806,7 @@ class YtClient(ClientState):
             table,
             client=self,
             output_file=output_file, output_path=output_path, enable_several_files=enable_several_files,
-            unordered=unordered, file_compression_codec=file_compression_codec)
+            unordered=unordered, file_compression_codec=file_compression_codec, file_compression_level=file_compression_level)
 
     def execute_batch(
             self,
@@ -838,7 +844,7 @@ class YtClient(ClientState):
             timestamp=None, input_row_limit=None, output_row_limit=None, range_expansion_limit=None,
             max_subqueries=None, workload_descriptor=None, allow_full_scan=None, allow_join_without_index=None,
             format=None, raw=None, execution_pool=None, retention_timestamp=None, syntax_version=None,
-            udf_registry_path=None):
+            expression_builder_version=None, udf_registry_path=None):
         """
         Explains a SQL-like query on dynamic table.
 
@@ -858,7 +864,7 @@ class YtClient(ClientState):
             range_expansion_limit=range_expansion_limit, max_subqueries=max_subqueries, workload_descriptor=workload_descriptor,
             allow_full_scan=allow_full_scan, allow_join_without_index=allow_join_without_index, format=format,
             raw=raw, execution_pool=execution_pool, retention_timestamp=retention_timestamp, syntax_version=syntax_version,
-            udf_registry_path=udf_registry_path)
+            expression_builder_version=expression_builder_version, udf_registry_path=udf_registry_path)
 
     def externalize(
             self,
@@ -1358,7 +1364,7 @@ class YtClient(ClientState):
 
     def get_table_schema(
             self,
-            table_path: Union[str, YPath]):
+            table_path: Union[str, YPath]) -> TableSchema:
         """
         Gets schema of table.
 
@@ -1441,6 +1447,23 @@ class YtClient(ClientState):
         return client_api.has_attribute(
             path, attribute,
             client=self)
+
+    def infer_table_schema(
+            self,
+            table: "Union[str, YPath]",
+            optional_only: "Optional[List]" = None) -> "TableSchema":
+        """
+        Infer table schema from table content.
+
+        :param table: path to table.
+        :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param optional_only: List of optional fields (by default - all)
+
+        """
+        return client_api.infer_table_schema(
+            table,
+            client=self,
+            optional_only=optional_only)
 
     def insert_rows(
             self,
@@ -1902,6 +1925,19 @@ class YtClient(ClientState):
         """
         return client_api.pause_pipeline(
             pipeline_path,
+            client=self)
+
+    def ping_chaos_lease(
+            self,
+            chaos_lease_id):
+        """
+        Ping chaos lease.
+
+        :param str chaos_lease_id: chaos lease id.
+
+        """
+        return client_api.ping_chaos_lease(
+            chaos_lease_id,
             client=self)
 
     def ping_distributed_write_session(
@@ -2540,6 +2576,23 @@ class YtClient(ClientState):
             client=self,
             shell_name=shell_name, timeout=timeout, command=command)
 
+    def run_job_shell_command(
+            self,
+            job_id: str, command: str,
+            shell_name: Optional[str] = None) -> bytes:
+        """
+        Runs a command in the job sandbox and returns the output.
+
+        :param str job_id: job id.
+        :param str command: command to execute.
+        :param str shell_name: shell name.
+
+        """
+        return client_api.run_job_shell_command(
+            job_id, command,
+            client=self,
+            shell_name=shell_name)
+
     def run_join_reduce(
             self,
             binary, source_table, destination_table,
@@ -2871,7 +2924,8 @@ class YtClient(ClientState):
             workload_descriptor=None, allow_full_scan=None, allow_join_without_index=None, format=None,
             raw=None, execution_pool=None, response_parameters=None, retention_timestamp=None, placeholder_values=None,
             use_canonical_null_relations=None, merge_versioned_rows=None, syntax_version=None, versioned_read_options=None,
-            with_timestamps=None, udf_registry_path=None, use_lookup_cache=None):
+            with_timestamps=None, udf_registry_path=None, use_lookup_cache=None, execution_backend=None,
+            expression_builder_version=None):
         """
         Executes a SQL-like query on dynamic table.
 
@@ -2894,7 +2948,8 @@ class YtClient(ClientState):
             format=format, raw=raw, execution_pool=execution_pool, response_parameters=response_parameters,
             retention_timestamp=retention_timestamp, placeholder_values=placeholder_values, use_canonical_null_relations=use_canonical_null_relations,
             merge_versioned_rows=merge_versioned_rows, syntax_version=syntax_version, versioned_read_options=versioned_read_options,
-            with_timestamps=with_timestamps, udf_registry_path=udf_registry_path, use_lookup_cache=use_lookup_cache)
+            with_timestamps=with_timestamps, udf_registry_path=udf_registry_path, use_lookup_cache=use_lookup_cache,
+            execution_backend=execution_backend, expression_builder_version=expression_builder_version)
 
     def set(
             self,

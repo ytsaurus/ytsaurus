@@ -21,10 +21,6 @@ public:
     TMediumDescriptor() = default;
     TMediumDescriptor(std::string name, int index, int priority);
 
-    //! Creates polymorphic descriptor from the protobuf according to the type-specific descriptor field.
-    //! If no type-specific descriptor is set, a domestic medium instance is created.
-    static TMediumDescriptorPtr CreateFromProto(const NProto::TMediumDirectory::TMediumDescriptor& protoItem);
-
     virtual bool IsDomestic() const = 0;
     bool IsOffshore() const;
 
@@ -35,11 +31,6 @@ public:
     TIntrusivePtr<const TDerived> As() const;
 
     bool operator==(const TMediumDescriptor& other) const;
-
-protected:
-    virtual void LoadFrom(const NProto::TMediumDirectory::TMediumDescriptor& protoItem);
-
-    virtual bool Equals(const TMediumDescriptor& other) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TMediumDescriptor)
@@ -56,10 +47,6 @@ public:
     TDomesticMediumDescriptor(std::string name);
 
 private:
-    void LoadFrom(const NProto::TMediumDirectory::TMediumDescriptor& protoItem) override;
-    //! The dynamic type of `other` must be convertible to TDomesticMediumDescriptor.
-    bool Equals(const TMediumDescriptor& other) const override;
-
     bool IsDomestic() const override;
 };
 
@@ -87,10 +74,6 @@ public:
     TS3ObjectPlacement GetChunkMetaPlacement(TChunkId chunkId) const;
 
 private:
-    void LoadFrom(const NProto::TMediumDirectory::TMediumDescriptor& protoItem) override;
-    //! The dynamic type of `other` must be convertible to TS3MediumDescriptor.
-    bool Equals(const TMediumDescriptor& other) const override;
-
     bool IsDomestic() const override;
 };
 
@@ -99,6 +82,8 @@ DEFINE_REFCOUNTED_TYPE(TS3MediumDescriptor)
 ////////////////////////////////////////////////////////////////////////////////
 
 void Serialize(const TMediumDescriptorPtr& mediumDescriptor, NYson::IYsonConsumer* consumer);
+void ToProto(NProto::TMediumDirectory::TMediumDescriptor* protoMediumDescriptor, const TMediumDescriptorPtr& mediumDescriptor);
+void FromProto(TMediumDescriptorPtr* mediumDescriptor, const NProto::TMediumDirectory::TMediumDescriptor& protoMediumDescriptor);
 
 ////////////////////////////////////////////////////////////////////////////////
 

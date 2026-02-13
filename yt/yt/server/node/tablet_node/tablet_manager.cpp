@@ -255,6 +255,8 @@ public:
         RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraUpdateTabletSettings, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraFreezeTablet, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraUnfreezeTablet, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraProvisionalFlush, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraReportTabletProvisionallyFlushed, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraCancelTabletTransition, Unretained(this)));
         RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraSetTabletState, Unretained(this)));
         RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraTrimRows, Unretained(this)));
@@ -285,30 +287,39 @@ public:
         const auto& transactionManager = Slot_->GetTransactionManager();
 
         transactionManager->RegisterTransactionActionHandlers<TReqReplicateRows>({
-            .Prepare = BIND_NO_PROPAGATE(&TTabletManager::HydraPrepareReplicateRows, Unretained(this)),
-            .Commit = BIND_NO_PROPAGATE(&TTabletManager::HydraCommitReplicateRows, Unretained(this)),
-            .Abort = BIND_NO_PROPAGATE(&TTabletManager::HydraAbortReplicateRows, Unretained(this)),
+            {
+                .Prepare = BIND_NO_PROPAGATE(&TTabletManager::HydraPrepareReplicateRows, Unretained(this)),
+                .Commit = BIND_NO_PROPAGATE(&TTabletManager::HydraCommitReplicateRows, Unretained(this)),
+                .Abort = BIND_NO_PROPAGATE(&TTabletManager::HydraAbortReplicateRows, Unretained(this)),
+            },
+            BIND_NO_PROPAGATE(&TTabletManager::HydraNeedExternalizeReplicateRows, Unretained(this)),
         });
         transactionManager->RegisterTransactionActionHandlers<TReqWritePulledRows>({
-            .Prepare = BIND_NO_PROPAGATE(&TTabletManager::HydraPrepareWritePulledRows, Unretained(this)),
-            .Commit = BIND_NO_PROPAGATE(&TTabletManager::HydraCommitWritePulledRows, Unretained(this)),
-            .Abort = BIND_NO_PROPAGATE(&TTabletManager::HydraAbortWritePulledRows, Unretained(this)),
-            .Serialize = BIND_NO_PROPAGATE(&TTabletManager::HydraSerializeWritePulledRows, Unretained(this)),
+            {
+                .Prepare = BIND_NO_PROPAGATE(&TTabletManager::HydraPrepareWritePulledRows, Unretained(this)),
+                .Commit = BIND_NO_PROPAGATE(&TTabletManager::HydraCommitWritePulledRows, Unretained(this)),
+                .Abort = BIND_NO_PROPAGATE(&TTabletManager::HydraAbortWritePulledRows, Unretained(this)),
+                .Serialize = BIND_NO_PROPAGATE(&TTabletManager::HydraSerializeWritePulledRows, Unretained(this)),
+            },
+            BIND_NO_PROPAGATE(&TTabletManager::HydraNeedExternalizeWritePullRows, Unretained(this)),
         });
         transactionManager->RegisterTransactionActionHandlers<TReqAdvanceReplicationProgress>({
-            .Prepare = BIND_NO_PROPAGATE(&TTabletManager::HydraPrepareAdvanceReplicationProgress, Unretained(this)),
-            .Abort = BIND_NO_PROPAGATE(&TTabletManager::HydraAbortAdvanceReplicationProgress, Unretained(this)),
-            .Serialize = BIND_NO_PROPAGATE(&TTabletManager::HydraSerializeAdvanceReplicationProgress, Unretained(this)),
+            {
+                .Prepare = BIND_NO_PROPAGATE(&TTabletManager::HydraPrepareAdvanceReplicationProgress, Unretained(this)),
+                .Abort = BIND_NO_PROPAGATE(&TTabletManager::HydraAbortAdvanceReplicationProgress, Unretained(this)),
+                .Serialize = BIND_NO_PROPAGATE(&TTabletManager::HydraSerializeAdvanceReplicationProgress, Unretained(this)),
+            },
+            BIND_NO_PROPAGATE(&TTabletManager::HydraNeedExternalizeAdvanceReplicationProgress, Unretained(this)),
         });
-        transactionManager->RegisterTransactionActionHandlers<TReqUpdateTabletStores>({
+        transactionManager->RegisterTransactionActionHandlers<TReqUpdateTabletStores>({{
             .Prepare = BIND_NO_PROPAGATE(&TTabletManager::HydraPrepareUpdateTabletStores, Unretained(this)),
             .Commit = BIND_NO_PROPAGATE(&TTabletManager::HydraCommitUpdateTabletStores, Unretained(this)),
             .Abort = BIND_NO_PROPAGATE(&TTabletManager::HydraAbortUpdateTabletStores, Unretained(this)),
-        });
+        }});
         // Coordinator: TReqBoggleHunkTabletStoreLock, late prepare.
-        transactionManager->RegisterTransactionActionHandlers<TReqBoggleHunkTabletStoreLock>({
+        transactionManager->RegisterTransactionActionHandlers<TReqBoggleHunkTabletStoreLock>({{
             .Prepare = BIND_NO_PROPAGATE(&TTabletManager::HydraPrepareAndCommitBoggleHunkTabletStoreLock, Unretained(this)),
-        });
+        }});
 
         BackupManager_->Initialize();
 
@@ -668,7 +679,7 @@ public:
     {
         Slot_->UnregisterSiblingTabletAvenue(siblingEndpointId);
         Slot_->GetTransactionManager()->AbortTransactionsExternalizedToThisCell(
-            GetSiblingAvenueEndpointId(siblingEndpointId));
+            TTransactionExternalizationToken(GetSiblingAvenueEndpointId(siblingEndpointId)));
     }
 
     void RegisterMasterAvenue(
@@ -707,12 +718,19 @@ public:
                         const auto& [clusterName, replicationStatus] = *replicationStatusEntry;
                         bool hasReplicationActivity = replicationStatus.PreparedReplicatorTransactionCount != 0 ||
                             replicationStatus.ActiveReplicatorIterationCount != 0;
+                        bool hasSyncReplicas = replicationStatus.SyncReplicaCount != 0 ||
+                            replicationStatus.SyncToAsyncReplicaCount != 0 ||
+                            replicationStatus.AsyncToSyncReplicaCount != 0;
 
                         fluent.Item(clusterName)
                             .BeginMap()
                                 .Item("prepared_replicator_transaction_count").Value(replicationStatus.PreparedReplicatorTransactionCount)
                                 .Item("active_replicator_iteration_count").Value(replicationStatus.ActiveReplicatorIterationCount)
                                 .Item("has_replication_activity").Value(hasReplicationActivity)
+                                .Item("sync_replica_count").Value(replicationStatus.SyncReplicaCount)
+                                .Item("sync_to_async_replica_count").Value(replicationStatus.SyncToAsyncReplicaCount)
+                                .Item("async_to_sync_replica_count").Value(replicationStatus.AsyncToSyncReplicaCount)
+                                .Item("has_sync_replicas").Value(hasSyncReplicas)
                             .EndMap();
                     })
             .EndMap();
@@ -960,6 +978,9 @@ private:
     {
         int PreparedReplicatorTransactionCount = 0;
         int ActiveReplicatorIterationCount = 0;
+        int SyncReplicaCount = 0;
+        int AsyncToSyncReplicaCount = 0;
+        int SyncToAsyncReplicaCount = 0;
     };
 
     TTabletContext TabletContext_;
@@ -1228,10 +1249,24 @@ private:
         auto retainedTimestamp = GET_FROM_REPLICATABLE(has_retained_timestamp)
             ? FromProto<TTimestamp>(GET_FROM_REPLICATABLE(retained_timestamp))
             : MinTimestamp;
+        auto conflictHorizonTimestamp = MinTimestamp;
+        // COMPAT(ponasenko-rs)
+        if (static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) >=
+            ETabletReign::AddConflictHorizon)
+        {
+            if (request->replicatable_content().has_conflict_horizon_timestamp()) {
+                conflictHorizonTimestamp = FromProto<TTimestamp>(
+                    request->replicatable_content().conflict_horizon_timestamp());
+            }
+        }
+
         const auto& mountHint = request->mount_hint();
         auto cumulativeDataWeight = GET_FROM_REPLICATABLE(cumulative_data_weight);
         bool isSmoothMovementTarget = request->has_movement_source_cell_id();
         auto useRetainedPreloadedChunks = request->use_retained_preloaded_chunks();
+        auto originatorTablets = request->has_replicatable_content()
+            ? FromProto<std::vector<NTabletServer::TOriginatorTablet>>(request->replicatable_content().originator_tablets())
+            : std::vector<NTabletServer::TOriginatorTablet>();
         auto customRuntimeData = request->has_replicatable_content() && request->replicatable_content().has_custom_runtime_data()
             ? TYsonString(request->replicatable_content().custom_runtime_data())
             : TYsonString();
@@ -1284,10 +1319,16 @@ private:
             retainedTimestamp,
             cumulativeDataWeight,
             serializationType,
-            mountTime);
+            mountTime,
+            conflictHorizonTimestamp);
         tabletHolder->RawSettings() = rawSettings;
 
         tabletHolder->CustomRuntimeData() = std::move(customRuntimeData);
+        // COMPAT(atalmenev)
+        auto reign = GetCurrentMutationContext()->Request().Reign;
+        if (static_cast<ETabletReign>(reign) >= ETabletReign::SaveOriginatorTabletsAfterReshard) {
+            tabletHolder->OriginatorTablets() = std::move(originatorTablets);
+        }
 
         InitializeTablet(tabletHolder.get());
 
@@ -1438,12 +1479,16 @@ private:
 
     TReqReplicateTabletContent PrepareReplicateTabletContentRequest(TTablet* tablet) override
     {
+        // COMPAT(ifsmirnov)
+        if (static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) < ETabletReign::SmoothMovementOrdered) {
+            if (tablet->IsPhysicallyOrdered()) {
+                THROW_ERROR_EXCEPTION("Ordered and replicated tables are not supported");
+            }
+        }
+
         // Validation against not implemented features.
-        if (tablet->IsPhysicallyLog() ||
-            tablet->IsPhysicallyOrdered() ||
-            tablet->IsReplicated())
-        {
-            THROW_ERROR_EXCEPTION("Ordered and replicated tables are not supported");
+        if (tablet->IsReplicated()) {
+            THROW_ERROR_EXCEPTION("Replicated tables are not supported");
         }
 
         if (!tablet->GetLockManager()->IsEmpty()) {
@@ -1551,6 +1596,17 @@ private:
 
             auto tabletHolder = TabletMap_.Release(tabletId);
 
+            if (auto endpointId = tablet->SmoothMovementData().GetSiblingAvenueEndpointId()) {
+                UnregisterSiblingTabletAvenue(endpointId);
+            }
+
+            if (auto endpointId = tablet->GetMasterAvenueEndpointId()) {
+                UnregisterMasterAvenue(endpointId);
+            }
+
+            // NB: UnregisterXxxAvenue methods may abort transactions that hold locks
+            // to the tablet and cause its destruction, so we handle orphaned tablets
+            // at the end.
             if (tablet->GetTotalTabletLockCount() > 0) {
                 SetTabletOrphaned(std::move(tabletHolder));
             } else {
@@ -1565,14 +1621,6 @@ private:
             const auto& storeManager = tablet->GetStoreManager();
             for (const auto& store : storeManager->GetLockedStores()) {
                 SetStoreOrphaned(tablet, store);
-            }
-
-            if (auto endpointId = tablet->SmoothMovementData().GetSiblingAvenueEndpointId()) {
-                UnregisterSiblingTabletAvenue(endpointId);
-            }
-
-            if (auto endpointId = tablet->GetMasterAvenueEndpointId()) {
-                UnregisterMasterAvenue(endpointId);
             }
 
             if (!IsRecovery()) {
@@ -1775,6 +1823,63 @@ private:
         TRspUnfreezeTablet response;
         ToProto(response.mutable_tablet_id(), tabletId);
         response.set_mount_revision(ToProto(tablet->GetMountRevision()));
+        PostMasterMessage(tablet, response);
+    }
+
+    void HydraProvisionalFlush(TReqProvisionalFlush* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        YT_VERIFY(tablet->SmoothMovementData().GetRole() == ESmoothMovementRole::None);
+
+        auto state = tablet->GetState();
+        if (state != ETabletState::Mounted) {
+            YT_LOG_DEBUG("Requested provisional flush of a tablet in a wrong state, ignored (State: %v, %v)",
+                state,
+                tablet->GetLoggingTag());
+            return;
+        }
+
+        if (tablet->GetProvisionallyFlushingStoreId()) {
+            return;
+        }
+
+        if (tablet->GetSettings().MountConfig->EnableDynamicStoreRead) {
+            auto storeId = FromProto<TDynamicStoreId>(request->dynamic_store_id());
+            tablet->PushDynamicStoreIdToPool(storeId);
+        }
+
+        tablet->SetProvisionallyFlushingStoreId(tablet->GetActiveStore()->GetId());
+
+        YT_LOG_DEBUG("Provisionally flushing tablet (%v)",
+            tablet->GetLoggingTag());
+
+        const auto& storeManager = tablet->GetStoreManager();
+        storeManager->Rotate(
+            /*createNewStore*/ true,
+            EStoreRotationReason::None,
+            /*allowEmptyStore*/ true);
+
+        CheckIfTabletFullyFlushed(tablet);
+    }
+
+    void HydraReportTabletProvisionallyFlushed(TReqReportTabletProvisionallyFlushed* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        YT_LOG_DEBUG("Tablet provisionally flushed (%v)",
+            tablet->GetLoggingTag());
+
+        TRspProvisionalFlush response;
+        ToProto(response.mutable_tablet_id(), tablet->GetId());
         PostMasterMessage(tablet, response);
     }
 
@@ -2041,6 +2146,16 @@ private:
                 }
                 response.set_mount_revision(ToProto(tablet->GetMountRevision()));
 
+                // COMPAT(ponasenko-rs)
+                if (static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) >=
+                    ETabletReign::AddConflictHorizon)
+                {
+                    if (tablet->IsPhysicallySorted()) {
+                        response.set_conflict_horizon_timestamp(
+                            tablet->GetPersistentConflictHorizonTimestamp());
+                    }
+                }
+
                 // NB: Do not unregister master avenue since it still has pending messages.
                 // It will be unregistered later by TReqUnregisterMasterAvenueEndpoint message.
 
@@ -2107,6 +2222,17 @@ private:
                     ToProto(response.mutable_tablet_id(), tablet->GetId());
                     *response.mutable_mount_hint() = tablet->GetMountHint();
                     response.set_mount_revision(ToProto(tablet->GetMountRevision()));
+
+                    // COMPAT(ponasenko-rs)
+                    if (static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) >=
+                        ETabletReign::AddConflictHorizon)
+                    {
+                        if (tablet->IsPhysicallySorted()) {
+                            response.set_conflict_horizon_timestamp(
+                                tablet->GetPersistentConflictHorizonTimestamp());
+                        }
+                    }
+
                     PostMasterMessage(tablet, response);
                 }
 
@@ -2846,6 +2972,12 @@ private:
                     registerBackingStore(backingStore);
                 }
             }
+
+            if (request->has_unleashed_backing_store_id()) {
+                auto backingStoreId = FromProto<TStoreId>(request->unleashed_backing_store_id());
+                auto backingStore = tablet->GetStore(backingStoreId);
+                registerBackingStore(backingStore);
+            }
         }
 
         std::vector<TChunkId> compressionDictionaryIds;
@@ -3015,6 +3147,67 @@ private:
                         storeId,
                         ref,
                         hunkChunk->GetStoreRefCount());
+                }
+
+                if (store->IsSorted()) {
+                    // COMPAT(ponasenko-rs)
+                    if (static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) >=
+                        ETabletReign::AddConflictHorizon)
+                    {
+                        auto storeTimestamp = store->GetMaxTimestamp();
+                        tablet->AdvancePersistentConflictHorizonTimestamp(storeTimestamp);
+
+                        if (!backingStoreId) {
+                            tablet->AdvanceTransientConflictHorizonTimestamp(storeTimestamp);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (request->has_unleashed_backing_store_id()) {
+            YT_VERIFY(request->has_conflict_horizon_timestamp());
+
+            YT_VERIFY(tablet->IsPhysicallySorted());
+
+            // COMPAT(ponasenko-rs)
+            if (static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) >=
+                ETabletReign::AddConflictHorizon)
+            {
+                tablet->AdvancePersistentConflictHorizonTimestamp(
+                    FromProto<TTimestamp>(request->conflict_horizon_timestamp()));
+            }
+
+            if (!IsRecovery() &&
+                IsBackingStoreRequired(tablet) &&
+                tablet->IsActiveServant())
+            {
+                auto backingStoreId = FromProto<TStoreId>(request->unleashed_backing_store_id());
+                const auto& backingStore = GetOrCrash(idToBackingStore, backingStoreId);
+
+                YT_VERIFY(request->conflict_horizon_timestamp() == backingStore->GetMaxTimestamp());
+
+                YT_LOG_DEBUG("Adding unleashed backing store (%v, BackingStoreId: %v, MaxTimestamp: %v)",
+                    tablet->GetLoggingTag(),
+                    backingStoreId,
+                    backingStore->GetMaxTimestamp());
+
+                // COMPAT(ponasenko-rs)
+                if (static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) >=
+                    ETabletReign::AddConflictHorizon)
+                {
+                    AddUnleashedBackingStore(tablet, backingStore->AsSortedDynamic());
+                }
+            } else {
+                // NB: It is important to use conflict_horizon_timestamp instead of backingStore->GetMaxTimestamp()
+                // on non-active servant and for other cases it is also safe.
+
+                // COMPAT(ponasenko-rs)
+                if (static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) >=
+                    ETabletReign::AddConflictHorizon)
+                {
+                    tablet->AdvanceTransientConflictHorizonTimestamp(
+                        FromProto<TTimestamp>(request->conflict_horizon_timestamp()));
                 }
             }
         }
@@ -3202,7 +3395,7 @@ private:
                 TChunkedMemoryPool::DefaultStartChunkSize,
                 Bootstrap_
                     ->GetNodeMemoryUsageTracker()
-                    ->WithCategory(EMemoryCategory::TabletInternal)));
+                    ->WithCategory(EMemoryCategory::TabletFootprint)));
         auto sampleKeys = reader->ReadUnversionedRowset(true);
 
         auto storeManager = tablet->GetStoreManager()->AsSorted();
@@ -3417,6 +3610,11 @@ private:
     void HydraSerializeWritePulledRows(TTransaction* transaction, TReqWritePulledRows* request)
     {
         FinalizeWritePulledRows(transaction, request, false);
+    }
+
+    bool HydraNeedExternalizeWritePullRows(TTransaction* /*transaction*/, TReqWritePulledRows* request, TTabletId tabletId)
+    {
+        return tabletId == FromProto<TTabletId>(request->tablet_id());
     }
 
     void FinalizeWritePulledRows(TTransaction* transaction, TReqWritePulledRows* request, bool inCommit)
@@ -3691,6 +3889,14 @@ private:
             transaction->GetId());
     }
 
+    bool HydraNeedExternalizeAdvanceReplicationProgress(
+        TTransaction* /*transaction*/,
+        TReqAdvanceReplicationProgress* request,
+        TTabletId tabletId)
+    {
+        return tabletId == FromProto<TTabletId>(request->tablet_id());
+    }
+
     void HydraAdvanceReplicationEra(
         TReqAdvanceReplicationEra* request)
     {
@@ -3959,6 +4165,14 @@ private:
             request->new_replication_timestamp());
 
         ReplicationTransactionFinished_.Fire(tablet, replicaInfo);
+    }
+
+    bool HydraNeedExternalizeReplicateRows(
+        TTransaction* /*transaction*/,
+        TReqReplicateRows* request,
+        TTabletId tabletId)
+    {
+        return tabletId == FromProto<TTabletId>(request->tablet_id());
     }
 
     void HydraDecommissionTabletCell(TReqDecommissionTabletCellOnNode* /*request*/)
@@ -4435,6 +4649,15 @@ private:
             return;
         }
 
+        if (auto storeId = tablet->GetProvisionallyFlushingStoreId();
+            storeId && !tablet->FindStore(storeId))
+        {
+            tablet->SetProvisionallyFlushingStoreId(NullStoreId);
+            TReqReportTabletProvisionallyFlushed request;
+            ToProto(request.mutable_tablet_id(), tablet->GetId());
+            Slot_->CommitTabletMutation(request);
+        }
+
         auto state = tablet->GetState();
         if (state != ETabletState::UnmountFlushing && state != ETabletState::FreezeFlushing) {
             return;
@@ -4600,7 +4823,6 @@ private:
         tablet->SmoothMovementData().SetStageChangeScheduled(false);
     }
 
-
     void StartTableReplicaEpoch(TTablet* tablet, TTableReplicaInfo* replicaInfo)
     {
         YT_VERIFY(!replicaInfo->GetReplicator());
@@ -4713,13 +4935,48 @@ private:
             tablet->GetSettings().MountConfig->BackingStoreRetentionTime);
     }
 
+    void AddUnleashedBackingStore(TTablet* tablet, const TSortedDynamicStorePtr& backingStore)
+    {
+        tablet->GetStoreManager()->AsSorted()->AddUnleashedBackingStore(backingStore);
+
+        TDelayedExecutor::Submit(
+            // NB: Submit the callback via the epoch automaton invoker which is a different approach from the one in SetBackingStore.
+            // TSortedStoreManager::UnleashedBackingStores_ will be cleared on epoch end.
+            BIND(
+                &TTabletManager::ReleaseUnleashedBackingStoreWeak,
+                MakeWeak(this),
+                tablet->GetId(),
+                backingStore->GetId())
+                .Via(Slot_->GetEpochAutomatonInvoker()),
+            tablet->GetSettings().MountConfig->BackingStoreRetentionTime);
+    }
+
     void ReleaseBackingStoreWeak(const TWeakPtr<IChunkStore>& storeWeak)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (auto store = storeWeak.Lock()) {
             ReleaseBackingStore(store);
+
+            if (auto* tablet = FindTablet(store->GetTabletId())) {
+                tablet->AdvanceTransientConflictHorizonTimestamp(store->GetMaxTimestamp());
+            }
         }
+    }
+
+    void ReleaseUnleashedBackingStoreWeak(TTabletId tabletId, TDynamicStoreId backingStoreToRemoveId)
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        // It is possible that at this point this tablet is a recreated c++ object after unmount and mount.
+        // Sorted store manager is ready for this.
+        // TODO(ponasenko-rs): Use TTablet::CancelableContext_ to simplify interface.
+        tablet->GetStoreManager()->AsSorted()->ReleaseUnleashedBackingStore(backingStoreToRemoveId);
     }
 
     void ValidateMemoryLimit(const std::optional<std::string>& poolTag) override
@@ -5286,7 +5543,7 @@ private:
                 tablet->GetLoggingTag(),
                 transaction->GetId());
 
-            return VoidFuture;
+            return OKFuture;
         } catch (const std::exception& ex) {
             return MakeFuture(TError(ex));
         }
@@ -5408,6 +5665,10 @@ private:
             for (auto& [tabletId, tablet] : Tablets()) {
                 RowDigestFetcher_->ResetCompactionHints(tablet);
             }
+        }
+
+        for (auto& [_, tablet] : Tablets()) {
+            tablet->OnDynamicConfigChanged(Slot_, oldConfig, newConfig);
         }
     }
 
@@ -5688,6 +5949,25 @@ private:
 
                 if (replicaInfo.GetPreparedReplicationTransactionId()) {
                     replicaReplicationStatus.PreparedReplicatorTransactionCount++;
+                }
+
+                if (auto state = replicaInfo.GetState(); state == ETableReplicaState::Enabled || state == ETableReplicaState::Enabling) {
+                    switch (replicaInfo.GetMode()) {
+                        case ETableReplicaMode::Sync: {
+                            ++replicaReplicationStatus.SyncReplicaCount;
+                            break;
+                        }
+                        case ETableReplicaMode::AsyncToSync: {
+                            ++replicaReplicationStatus.AsyncToSyncReplicaCount;
+                            break;
+                        }
+                        case ETableReplicaMode::SyncToAsync: {
+                            ++replicaReplicationStatus.SyncToAsyncReplicaCount;
+                            break;
+                        }
+                        default:
+                            break;
+                    }
                 }
 
                 auto replicator = replicaInfo.GetReplicator();

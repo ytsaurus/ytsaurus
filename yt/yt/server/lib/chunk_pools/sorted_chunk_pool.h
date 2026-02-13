@@ -13,6 +13,17 @@ namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSortedChunkPoolStatistics final
+{
+    i64 ForeignSlicesCheckCountInDecideRowSliceability = 0;
+
+    PHOENIX_DECLARE_TYPE(TSortedChunkPoolStatistics, 0x71181524);
+};
+
+using TSortedChunkPoolStatisticsPtr = TIntrusivePtr<TSortedChunkPoolStatistics>;
+
+void FormatValue(TStringBuilderBase* builder, const TSortedChunkPoolStatisticsPtr& statistics, TStringBuf spec);
+
 struct TSortedChunkPoolOptions
 {
     TSortedJobOptions SortedJobOptions;
@@ -31,6 +42,7 @@ struct TSortedChunkPoolOptions
     // Only for new pool.
     std::optional<i64> MinManiacDataWeight;
     TJobSizeAdjusterConfigPtr JobSizeAdjusterConfig;
+    TSortedChunkPoolStatisticsPtr ChunkPoolStatistics;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,0 +1,30 @@
+{{- if .Values.microservices.accessLogViewer.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ytmsvc.fullname" . }}-access-log-viewer-config
+  labels:
+    {{- include "ytmsvc.commonLabels" . | nindent 4 }}
+data:
+  {{- if .Values.microservices.accessLogViewer.rawLogPreprocessing.enabled }}
+  raw-log-preprocessing-config.yaml: |
+    proxy: {{ .Values.cluster.proxy }}
+    token_env_variable: YT_ACCESS_LOG_VIEWER_TOKEN
+    lock_path: {{ .Values.microservices.accessLogViewer.rawLogPreprocessing.config.lockPath }}
+    force_cluster_name: {{ .Values.cluster.name }}
+    access_log_export_path: {{ .Values.microservices.accessLogViewer.rawLogPreprocessing.config.accessLogExportPath }}
+    work_path: {{ .Values.microservices.accessLogViewer.rawLogPreprocessing.config.workPath }}
+    max_input_tables: {{ .Values.microservices.accessLogViewer.rawLogPreprocessing.config.maxInputTables }}
+    processings:
+      30min:
+        output_path: {{ .Values.microservices.accessLogViewer.rawLogPreprocessing.config.accessLogExportPath }}-parsed/30min
+        interval: 30m
+        table_format: "2006-01-02T15:04:05"
+        cutoff_time: 1h
+      1d:
+        output_path: {{ .Values.microservices.accessLogViewer.rawLogPreprocessing.config.accessLogExportPath }}-parsed/1d
+        interval: 24h
+        table_format: "2006-01-02"
+        cutoff_time: 1h
+  {{- end }}
+{{- end }}

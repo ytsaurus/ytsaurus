@@ -40,7 +40,7 @@ struct IRandomAccessFileReader
 
     virtual TReadersStatistics GetStatistics() const = 0;
 
-    virtual NYPath::TYPath GetPath() const = 0;
+    virtual const std::string& GetPath() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IRandomAccessFileReader);
@@ -49,7 +49,7 @@ DEFINE_REFCOUNTED_TYPE(IRandomAccessFileReader);
 
 IRandomAccessFileReaderPtr CreateRandomAccessFileReader(
     std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs,
-    NYPath::TYPath path,
+    std::string path,
     NChunkClient::TChunkReaderHostPtr readerHost,
     NConcurrency::IThroughputThrottlerPtr inThrottler,
     NConcurrency::IThroughputThrottlerPtr outRpsThrottler,

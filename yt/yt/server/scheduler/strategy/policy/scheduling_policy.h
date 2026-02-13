@@ -24,7 +24,27 @@ DEFINE_REFCOUNTED_TYPE(ISchedulingPolicyHost)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TPostUpdateContext;
+struct TPostUpdateContext
+    : public TRefCounted
+{
+    const EPolicyKind PolicyKind;
+
+protected:
+    explicit TPostUpdateContext(EPolicyKind policyKind);
+};
+
+DEFINE_REFCOUNTED_TYPE(TPostUpdateContext)
+
+struct TPoolTreeSnapshotState
+    : public TRefCounted
+{
+    const EPolicyKind PolicyKind;
+
+protected:
+    explicit TPoolTreeSnapshotState(EPolicyKind policyKind);
+};
+
+DEFINE_REFCOUNTED_TYPE(TPoolTreeSnapshotState)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -94,11 +114,11 @@ struct ISchedulingPolicy
         NProfiling::ISensorWriter* writer) const = 0;
 
     //! Post update.
-    virtual TPostUpdateContext CreatePostUpdateContext(TPoolTreeRootElement* rootElement) = 0;
+    virtual TPostUpdateContextPtr CreatePostUpdateContext(TPoolTreeRootElement* rootElement) = 0;
     virtual void PostUpdate(
         TFairSharePostUpdateContext* fairSharePostUpdateContext,
-        TPostUpdateContext* postUpdateContext) = 0;
-    virtual TPoolTreeSnapshotStatePtr CreateSnapshotState(TPostUpdateContext* postUpdateContext) = 0;
+        TPostUpdateContextPtr* postUpdateContext) = 0;
+    virtual TPoolTreeSnapshotStatePtr CreateSnapshotState(TPostUpdateContextPtr* postUpdateContext) = 0;
 
     virtual void OnResourceUsageSnapshotUpdate(
         const TPoolTreeSnapshotPtr& treeSnapshot,

@@ -98,14 +98,14 @@ public:
         const IChunkWriter::TWriteBlocksOptions& options,
         int firstBlockIndex,
         std::vector<TBlock> blocks,
-        TFairShareSlotId fairShareSlotId)
+        TLocationFairShareSlotPtr fairShareQueueSlot)
     {
         return EnqueueCommand(BIND(&TBlobWritePipeline::DoWriteBlocks,
             MakeStrong(this),
             options,
             firstBlockIndex,
             std::move(blocks),
-            fairShareSlotId));
+            std::move(fairShareQueueSlot)));
     }
 
     TFuture<void> Close(
@@ -166,7 +166,7 @@ private:
         auto promise = NewPromise<void>();
         CommandQueue_.push(TCommandEntry{
             .Command = std::move(command),
-            .Promise = promise
+            .Promise = promise,
         });
         RunCommands();
         return promise.ToFuture();
@@ -238,7 +238,7 @@ private:
         const IChunkWriter::TWriteBlocksOptions& options,
         int firstBlockIndex,
         const std::vector<TBlock>& blocks,
-        TFairShareSlotId fairShareSlotId)
+        TLocationFairShareSlotPtr fairShareQueueSlot)
     {
         YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
@@ -252,10 +252,10 @@ private:
         TWallTimer timer;
 
         // This is how TFileWriter works.
-        YT_VERIFY(!Writer_->WriteBlocks(options, Options_.WorkloadDescriptor, blocks, fairShareSlotId));
+        YT_VERIFY(!Writer_->WriteBlocks(options, Options_.WorkloadDescriptor, blocks, fairShareQueueSlot->GetSlot()->GetSlotId()));
 
         return Writer_->GetReadyEvent().Apply(
-            BIND([=, this, this_ = MakeStrong(this)] {
+            BIND([=, fairShareQueueSlot = std::move(fairShareQueueSlot), this, this_ = MakeStrong(this)] {
                 auto time = timer.GetElapsedTime();
 
                 YT_LOG_DEBUG("Finished writing blocks (Blocks: %v, Time: %v)",
@@ -368,7 +368,7 @@ TFuture<void> TBlobSession::DoStart()
             .Via(SessionInvoker_));
 
     // No need to wait for the writer to get opened.
-    return VoidFuture;
+    return OKFuture;
 }
 
 void TBlobSession::OnStarted(const TError& error)
@@ -622,7 +622,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
             .Apply(BIND([this, this_ = MakeStrong(this), fairShareQueueSlot = std::move(fairShareQueueSlot)] () mutable {
                 DoPerformPutBlocks(std::move(fairShareQueueSlot));
                 return NIO::TIOCounters{};
-            }));
+            }).AsyncVia(SessionInvoker_));
     }
 
     return PreparePutBlocks(
@@ -656,7 +656,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
                     fairShareQueueSlot = std::move(fairShareQueueSlot), precedingBlockReceivedFutures = std::move(precedingBlockReceivedFutures)] () mutable {
                         DoPerformPutBlocks(std::move(fairShareQueueSlot));
                         return NIO::TIOCounters{};
-                    }));
+                    }).AsyncVia(SessionInvoker_));
             } else {
                 allPrecedingBlocksReceivedFuture.Subscribe(BIND([this, this_ = MakeStrong(this),
                     fairShareQueueSlot = std::move(fairShareQueueSlot), precedingBlockReceivedFutures = std::move(precedingBlockReceivedFutures)] (const TError& error) mutable {
@@ -666,7 +666,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
                             YT_LOG_ALERT(error, "Error in allPrecedingBlocksReceivedFuture with fully async blocks writing. Session will be canceled");
                             Cancel(error);
                         }
-                    }));
+                    }).Via(SessionInvoker_));
                 return MakeFuture(NIO::TIOCounters{});
             }
         }));
@@ -784,6 +784,12 @@ TFuture<void> TBlobSession::PreparePutBlocks(
         MakeCompactIntervalView(receivedBlockIndexes),
         totalSize);
 
+    if (auto delay =
+        Bootstrap_->GetDataNodeBootstrap()->GetDynamicConfigManager()->GetConfig()->DataNode->TestingOptions->DelayBeforePerformPutBlocks) {
+            YT_LOG_DEBUG("Sleeping before performing put blocks (SleepDuration: %v)", delay.value());
+            TDelayedExecutor::WaitForDuration(delay.value());
+    }
+
     const auto& netThrottler = Bootstrap_->GetInThrottler(Options_.WorkloadDescriptor);
     const auto& diskThrottler = Location_->GetInThrottler(Options_.WorkloadDescriptor);
     return AllSucceeded(std::vector{
@@ -796,7 +802,8 @@ void TBlobSession::DoPerformPutBlocks(TLocationFairShareSlotPtr fairShareQueueSl
 {
     YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
-    auto fairShareSlotId = fairShareQueueSlot->GetSlot()->GetSlotId();
+    // Run the validation again since the context could have been switched since the last check.
+    ValidateActive();
 
     // Organize blocks in packs of BytesPerWrite size and pass them to the pipeline.
     int firstBlockIndex = WindowIndex_;
@@ -809,14 +816,14 @@ void TBlobSession::DoPerformPutBlocks(TLocationFairShareSlotPtr fairShareQueueSl
             return;
         }
 
-        TFuture<void> preallocateDiskSpace = VoidFuture;
+        TFuture<void> preallocateDiskSpace = OKFuture;
 
         if (PreallocateDiskSpace_) {
             preallocateDiskSpace = Pipeline_->PreallocateDiskSpace(MaxCumulativeBlockSize_);
         }
 
         preallocateDiskSpace
-            .Apply(BIND(&TBlobWritePipeline::WriteBlocks, Pipeline_, WriteBlocksOptions_, firstBlockIndex, blocksToWrite, fairShareSlotId))
+            .Apply(BIND(&TBlobWritePipeline::WriteBlocks, Pipeline_, WriteBlocksOptions_, firstBlockIndex, blocksToWrite, fairShareQueueSlot))
             .Subscribe(
                 BIND(&TBlobSession::OnBlocksWritten, MakeStrong(this), firstBlockIndex, WindowIndex_)
                     .Via(SessionInvoker_));
@@ -932,7 +939,7 @@ TFuture<TBlobSession::TSendBlocksResult> TBlobSession::DoSendBlocks(
 
     const auto& throttler = Bootstrap_->GetOutThrottler(Options_.WorkloadDescriptor);
     auto netIsThrottling = !throttler->TryAcquire(requestSize);
-    auto throttleFuture = VoidFuture;
+    auto throttleFuture = OKFuture;
     if (netIsThrottling) {
         if (instantReplyOnThrottling) {
             return MakeFuture<TSendBlocksResult>(TSendBlocksResult{.NetThrottling = true});

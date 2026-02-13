@@ -1,0 +1,213 @@
+LIBRARY(run)
+
+ADDINCL(
+    contrib/ydb/public/sdk/cpp
+)
+
+SRCS(
+    auto_config_initializer.cpp
+    config.cpp
+    config.h
+    config_helpers.cpp
+    config_parser.cpp
+    config_parser.h
+    driver.h
+    factories.h
+    factories.cpp
+    grpc_servers_manager.h
+    kikimr_services_initializers.cpp
+    kikimr_services_initializers.h
+    main.h
+    main.cpp
+    run.cpp
+    run.h
+    service_initializer.cpp
+    service_initializer.h
+)
+
+PEERDIR(
+    contrib/libs/protobuf
+    library/cpp/getopt/small
+    library/cpp/logger
+    library/cpp/malloc/api
+    library/cpp/messagebus
+    library/cpp/monlib/dynamic_counters
+    library/cpp/monlib/messagebus
+    library/cpp/sighandler
+    library/cpp/string_utils/parse_size
+    library/cpp/svnversion
+    contrib/ydb/core/actorlib_impl
+    contrib/ydb/core/audit
+    contrib/ydb/core/audit/audit_config
+    contrib/ydb/core/audit/heartbeat_actor
+    contrib/ydb/core/backup/controller
+    contrib/ydb/core/base
+    contrib/ydb/core/blob_depot
+    contrib/ydb/core/blobstorage
+    contrib/ydb/core/blobstorage/backpressure
+    contrib/ydb/core/blobstorage/nodewarden
+    contrib/ydb/core/blobstorage/other
+    contrib/ydb/core/blobstorage/pdisk
+    contrib/ydb/core/blobstorage/vdisk/common
+    contrib/ydb/core/client/minikql_compile
+    contrib/ydb/core/client/scheme_cache_lib
+    contrib/ydb/core/client/server
+    contrib/ydb/core/cms
+    contrib/ydb/core/cms/console
+    contrib/ydb/core/control
+    contrib/ydb/core/counters_info
+    contrib/ydb/core/driver_lib/base_utils
+    contrib/ydb/core/driver_lib/cli_config_base
+    contrib/ydb/core/driver_lib/cli_utils
+    contrib/ydb/core/driver_lib/version
+    contrib/ydb/core/formats
+    contrib/ydb/core/fq/libs/init
+    contrib/ydb/core/fq/libs/logs
+    contrib/ydb/core/graph/service
+    contrib/ydb/core/graph/shard
+    contrib/ydb/core/grpc_services
+    contrib/ydb/core/grpc_services/base
+    contrib/ydb/core/health_check
+    contrib/ydb/core/http_proxy
+    contrib/ydb/core/jaeger_tracing
+    contrib/ydb/core/kafka_proxy
+    contrib/ydb/core/kesus/proxy
+    contrib/ydb/core/kesus/tablet
+    contrib/ydb/core/keyvalue
+    contrib/ydb/core/kqp
+    contrib/ydb/core/kqp/federated_query/actors
+    contrib/ydb/core/kqp/finalize_script_service
+    contrib/ydb/core/kqp/rm_service
+    contrib/ydb/core/load_test
+    contrib/ydb/core/local_pgwire
+    contrib/ydb/core/log_backend
+    contrib/ydb/core/memory_controller
+    contrib/ydb/core/metering
+    contrib/ydb/core/mind
+    contrib/ydb/core/mind/address_classification
+    contrib/ydb/core/mind/bscontroller
+    contrib/ydb/core/mind/hive
+    contrib/ydb/core/mon
+    contrib/ydb/core/mon_alloc
+    contrib/ydb/core/node_whiteboard
+    contrib/ydb/core/persqueue
+    contrib/ydb/core/protos
+    contrib/ydb/core/public_http
+    contrib/ydb/core/quoter
+    contrib/ydb/core/scheme
+    contrib/ydb/core/scheme_types
+    contrib/ydb/core/security
+    contrib/ydb/core/security/ldap_auth_provider
+    contrib/ydb/core/security/token_manager
+    contrib/ydb/core/statistics/aggregator
+    contrib/ydb/core/statistics/service
+    contrib/ydb/core/sys_view/processor
+    contrib/ydb/core/sys_view/service
+    contrib/ydb/core/tablet
+    contrib/ydb/core/tablet_flat
+    contrib/ydb/core/test_tablet
+    contrib/ydb/core/tracing
+    contrib/ydb/core/transfer
+    contrib/ydb/core/tx
+    contrib/ydb/core/tx/columnshard
+    contrib/ydb/core/tx/conveyor/service
+    contrib/ydb/core/tx/general_cache
+    contrib/ydb/core/tx/columnshard/data_accessor/cache_policy
+    contrib/ydb/core/tx/columnshard/column_fetching
+    contrib/ydb/core/tx/coordinator
+    contrib/ydb/core/tx/datashard
+    contrib/ydb/core/tx/limiter/grouped_memory/usage
+    contrib/ydb/core/tx/long_tx_service
+    contrib/ydb/core/tx/long_tx_service/public
+    contrib/ydb/core/tx/mediator
+    contrib/ydb/core/tx/replication/controller
+    contrib/ydb/core/tx/replication/service
+    contrib/ydb/core/tx/scheme_board
+    contrib/ydb/core/tx/schemeshard
+    contrib/ydb/core/tx/sequenceproxy
+    contrib/ydb/core/tx/sequenceshard
+    contrib/ydb/core/tx/time_cast
+    contrib/ydb/core/tx/tx_allocator
+    contrib/ydb/core/tx/tx_proxy
+    contrib/ydb/core/util
+    contrib/ydb/core/viewer
+    contrib/ydb/core/ymq/actor
+    contrib/ydb/core/ymq/http
+    contrib/ydb/library/actors/core
+    contrib/ydb/library/actors/dnsresolver
+    contrib/ydb/library/actors/interconnect
+    contrib/ydb/library/actors/memory_log
+    contrib/ydb/library/actors/prof
+    contrib/ydb/library/actors/protos
+    contrib/ydb/library/actors/util
+    contrib/ydb/library/folder_service
+    contrib/ydb/library/folder_service/proto
+    contrib/ydb/library/global_plugins
+    contrib/ydb/library/grpc/server
+    contrib/ydb/library/grpc/server/actors
+    contrib/ydb/library/pdisk_io
+    contrib/ydb/library/security
+    contrib/ydb/library/yql/providers/pq/cm_client
+    contrib/ydb/library/slide_limiter/service
+    contrib/ydb/library/yql/providers/s3/actors
+    contrib/ydb/public/lib/base
+    contrib/ydb/public/lib/deprecated/client
+    contrib/ydb/public/sdk/cpp/src/library/grpc/client
+    contrib/ydb/services/auth
+    contrib/ydb/services/backup
+    contrib/ydb/services/bridge
+    contrib/ydb/services/cms
+    contrib/ydb/services/config
+    contrib/ydb/services/datastreams
+    contrib/ydb/services/deprecated/persqueue_v0
+    contrib/ydb/services/discovery
+    contrib/ydb/services/dynamic_config
+    contrib/ydb/services/ext_index/metadata
+    contrib/ydb/services/ext_index/service
+    contrib/ydb/services/fq
+    contrib/ydb/services/kesus
+    contrib/ydb/services/keyvalue
+    contrib/ydb/services/local_discovery
+    contrib/ydb/services/maintenance
+    contrib/ydb/services/metadata
+    contrib/ydb/services/metadata/ds_table
+    contrib/ydb/services/monitoring
+    contrib/ydb/services/persqueue_cluster_discovery
+    contrib/ydb/services/persqueue_v1
+    contrib/ydb/services/rate_limiter
+    contrib/ydb/services/replication
+    contrib/ydb/services/tablet
+    contrib/ydb/services/test_shard
+    contrib/ydb/services/view
+    contrib/ydb/services/ydb
+    yql/essentials/minikql/comp_nodes/llvm16
+    yql/essentials/public/udf/service/exception_policy
+    yt/yql/providers/yt/codec/codegen
+    yt/yql/providers/yt/comp_nodes/dq/llvm16
+    yt/yql/providers/yt/comp_nodes/llvm16
+)
+
+IF (OS_LINUX)
+    PEERDIR(
+        contrib/ydb/services/nbs
+    )
+ENDIF()
+
+IF (NOT OS_WINDOWS)
+    PEERDIR(
+        contrib/ydb/library/signal_backtrace
+    )
+ENDIF()
+
+YQL_LAST_ABI_VERSION()
+
+END()
+
+RECURSE_FOR_TESTS(
+    ut
+)
+
+RECURSE_ROOT_RELATIVE(
+    contrib/ydb/core
+    contrib/ydb/services
+)

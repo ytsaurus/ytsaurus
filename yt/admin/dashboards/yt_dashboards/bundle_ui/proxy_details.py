@@ -6,6 +6,8 @@ from yt_dashboard_generator.specific_tags.tags import TemplateTag
 
 from .common import action_queue_utilization
 
+from .proxy_resources import memory_guarantee, anon_memory_limit, anon_memory_usage, oom_tracker_threshold
+
 from ..common.sensors import *
 
 ##################################################################
@@ -30,11 +32,10 @@ def build_rpc_proxy_cpu(has_porto):
                                         .alias("Container CPU Usage {{container}}")/100),
                                     skip_cell=not has_porto)
                 .cell("Memory Total", MultiSensor(
-                                    MonitoringExpr(RpcProxyPorto("yt.porto.memory.memory_limit").value("container_category", "pod"))
-                                        .alias("Container Memory Guarantee {{container}}"),
-                                    MonitoringExpr(RpcProxyPorto("yt.porto.memory.anon_usage").value("container_category", "pod"))
-                                        .alias("Container Memory Usage {{container}}")),
-                                    skip_cell=not has_porto)
+                                    memory_guarantee.series_min().alias("Container Memory Guarantee") if has_porto else None,
+                                    anon_memory_limit.series_min().alias("Anon Memory Limit") if has_porto else None,
+                                    oom_tracker_threshold.series_min().alias("OOM tracker threshold"),
+                                    anon_memory_usage.alias("Anon Memory Usage {{container}}") if has_porto else None))
             .row()
                 .cell(
                     "Memory usage per method",

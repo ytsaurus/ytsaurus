@@ -96,7 +96,7 @@ public:
         : Description_(description)
     { }
 
-    void operator() (PyObject* obj, TCheckedInDebugSkiffWriter* writer)
+    void operator()(PyObject* obj, TCheckedInDebugSkiffWriter* writer)
     {
         TError error;
         try {
@@ -369,7 +369,7 @@ public:
         }
     }
 
-    void operator() (PyObject* obj, TCheckedInDebugSkiffWriter* writer)
+    void operator()(PyObject* obj, TCheckedInDebugSkiffWriter* writer)
     {
         for (int i = 0; i < std::ssize(FieldConverters_); ++i) {
             auto field = PyObjectPtr(PyObject_GetAttrString(obj, FieldNames_[i].c_str()));
@@ -402,7 +402,7 @@ public:
                 validateOptionalOnRuntime))
     { }
 
-    void operator() (PyObject* obj, TCheckedInDebugSkiffWriter* writer)
+    void operator()(PyObject* obj, TCheckedInDebugSkiffWriter* writer)
     {
         auto iterator = PyObjectPtr(PyObject_GetIter(obj));
         if (!iterator) {
@@ -441,7 +441,7 @@ public:
         }
     }
 
-    void operator() (PyObject* obj, TCheckedInDebugSkiffWriter* writer)
+    void operator()(PyObject* obj, TCheckedInDebugSkiffWriter* writer)
     {
         for (int i = 0; i < std::ssize(ElementConverters_); i++) {
             auto element = PyTuple_GetItem(obj, i);
@@ -479,7 +479,7 @@ public:
             validateOptionalOnRuntime))
     { }
 
-    void operator() (PyObject* obj, TCheckedInDebugSkiffWriter* writer)
+    void operator()(PyObject* obj, TCheckedInDebugSkiffWriter* writer)
     {
         PyObject *key, *value;
         Py_ssize_t pos = 0;
@@ -519,7 +519,7 @@ public:
         }
     }
 
-    void operator() (PyObject* obj, TCheckedInDebugSkiffWriter* writer)
+    void operator()(PyObject* obj, TCheckedInDebugSkiffWriter* writer)
     {
         StructConverter_(obj, writer);
 

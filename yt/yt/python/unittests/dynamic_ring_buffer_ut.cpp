@@ -56,12 +56,12 @@ TEST(TDynamicRingBufferTest, Ring)
 {
     TDynamicRingBuffer buffer;
 
-    TVector<TString> alphabet;
+    TVector<std::string> alphabet;
     for (char c = 'a'; c <= 'z'; ++c) {
-        alphabet.push_back(TString(1, c));
+        alphabet.push_back(std::string(1, c));
     }
 
-    auto sub = Accumulate(alphabet.begin(), alphabet.begin() + 16, TString());
+    auto sub = Accumulate(alphabet.begin(), alphabet.begin() + 16, std::string());
     buffer.Push(sub);
 
     size_t old_capacity = buffer.Capacity();

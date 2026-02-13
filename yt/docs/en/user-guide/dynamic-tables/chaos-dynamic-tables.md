@@ -1,0 +1,1 @@
+{% include [chaotic tables](../../_includes/user-guide/dynamic-tables/chaos-dynamic-tables.md) %}

@@ -66,18 +66,18 @@ constexpr int ChunkSize = 64_KB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GenerateString(int length)
+std::string GenerateString(int length)
 {
-    TString result;
+    std::string result;
     for (int j = 0; j < length; j++) {
-        result.append('a' + std::rand() % 26);
+        result.push_back('a' + std::rand() % 26);
     }
     return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<int64_t> ReadIntegersFromTable(const NYT::IClientPtr& client, const TString& tablePath)
+std::vector<int64_t> ReadIntegersFromTable(const NYT::IClientPtr& client, const TYPath& tablePath)
 {
     auto reader = client->CreateTableReader<TNode>(tablePath);
 
@@ -89,7 +89,7 @@ std::vector<int64_t> ReadIntegersFromTable(const NYT::IClientPtr& client, const 
     return data;
 }
 
-std::vector<bool> ReadBooleanFromTable(const NYT::IClientPtr& client, const TString& tablePath)
+std::vector<bool> ReadBooleanFromTable(const NYT::IClientPtr& client, const TYPath& tablePath)
 {
     auto reader = client->CreateTableReader<TNode>(tablePath);
 
@@ -101,7 +101,7 @@ std::vector<bool> ReadBooleanFromTable(const NYT::IClientPtr& client, const TStr
     return data;
 }
 
-std::vector<double> ReadDoubleFromTable(const NYT::IClientPtr& client, const TString& tablePath)
+std::vector<double> ReadDoubleFromTable(const NYT::IClientPtr& client, const TYPath& tablePath)
 {
     auto reader = client->CreateTableReader<TNode>(tablePath);
 
@@ -113,7 +113,7 @@ std::vector<double> ReadDoubleFromTable(const NYT::IClientPtr& client, const TSt
     return data;
 }
 
-std::vector<std::string> ReadStringFromTable(const NYT::IClientPtr& client, const TString& tablePath)
+std::vector<std::string> ReadStringFromTable(const NYT::IClientPtr& client, const TYPath& tablePath)
 {
     auto reader = client->CreateTableReader<TNode>(tablePath);
 
@@ -128,7 +128,7 @@ std::vector<std::string> ReadStringFromTable(const NYT::IClientPtr& client, cons
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-TString GenerateIntegerParquet(const std::vector<T>& data, const std::shared_ptr<arrow20::DataType>& dataType)
+std::string GenerateIntegerParquet(const std::vector<T>& data, const std::shared_ptr<arrow20::DataType>& dataType)
 {
     auto* pool = arrow20::default_memory_pool();
     std::shared_ptr<arrow20::Array> intArray;
@@ -154,7 +154,7 @@ TString GenerateIntegerParquet(const std::vector<T>& data, const std::shared_ptr
     auto outputStream = arrow20::io::BufferOutputStream::Create().ValueOrDie();
     NArrow::ThrowOnError(parquet20::arrow20::WriteTable(*table, pool, outputStream, ChunkSize));
     auto buffer = outputStream->Finish().ValueOrDie();
-    return TString(buffer->ToString());
+    return std::string(buffer->ToString());
 }
 
 class StringOutputStream
@@ -227,7 +227,7 @@ struct MultiTypeData
     std::vector<std::string> StringData;
 };
 
-TString GenerateMultiTypesParquet(const MultiTypeData& data)
+std::string GenerateMultiTypesParquet(const MultiTypeData& data)
 {
     auto* pool = arrow20::default_memory_pool();
 
@@ -266,7 +266,7 @@ TString GenerateMultiTypesParquet(const MultiTypeData& data)
     auto outputStream = arrow20::io::BufferOutputStream::Create().ValueOrDie();
     NArrow::ThrowOnError(parquet20::arrow20::WriteTable(*table, pool, outputStream, ChunkSize));
     auto buffer = outputStream->Finish().ValueOrDie();
-    return TString(buffer->ToString());
+    return std::string(buffer->ToString());
 }
 
 class IParquetGenerator
@@ -274,11 +274,11 @@ class IParquetGenerator
 public:
     virtual ~IParquetGenerator() = default;
 
-    virtual void VerifyAnswer(const NYT::IClientPtr& client, const TString& resultTable) = 0;
+    virtual void VerifyAnswer(const NYT::IClientPtr& client, const TYPath& resultTable) = 0;
 
-    virtual std::vector<TString> GenerateFileNames() = 0;
+    virtual std::vector<std::string> GenerateFileNames() = 0;
 
-    virtual std::vector<TString> GenerateFormatData() = 0;
+    virtual std::vector<std::string> GenerateFormatData() = 0;
 };
 
 class TDifferentSchemaParquetGenerator
@@ -287,24 +287,24 @@ class TDifferentSchemaParquetGenerator
 public:
     ~TDifferentSchemaParquetGenerator() = default;
 
-    void VerifyAnswer(const NYT::IClientPtr& client, const TString& resultTable) override
+    void VerifyAnswer(const NYT::IClientPtr& client, const TYPath& resultTable) override
     {
         auto tableData = ReadIntegersFromTable(client, resultTable);
         EXPECT_EQ(tableData, ResultData_);
     }
 
-    std::vector<TString> GenerateFileNames() override
+    std::vector<std::string> GenerateFileNames() override
     {
-        std::vector<TString> fileNames;
+        std::vector<std::string> fileNames;
         for (int fileIndex = 0; fileIndex < FileCount_; fileIndex++) {
             fileNames.emplace_back(ToString(fileIndex) + ".parquet");
         }
         return fileNames;
     }
 
-    std::vector<TString> GenerateFormatData() override
+    std::vector<std::string> GenerateFormatData() override
     {
-        std::vector<TString> formatData;
+        std::vector<std::string> formatData;
 
         std::vector<i16> firstFileData;
         std::vector<i32> secondFileData;
@@ -352,15 +352,15 @@ public:
 
     ~TSmallParquetGenerator() = default;
 
-    void VerifyAnswer(const NYT::IClientPtr& client, const TString& resultTable) override
+    void VerifyAnswer(const NYT::IClientPtr& client, const TYPath& resultTable) override
     {
         auto tableData = ReadIntegersFromTable(client, resultTable);
         EXPECT_EQ(tableData, ResultData_);
     }
 
-    std::vector<TString> GenerateFileNames() override
+    std::vector<std::string> GenerateFileNames() override
     {
-        std::vector<TString> fileNames;
+        std::vector<std::string> fileNames;
         for (int fileIndex = 0; fileIndex < FileCount_; fileIndex++) {
             switch (Format_) {
                 case EFileFormat::Parquet:
@@ -374,9 +374,9 @@ public:
         return fileNames;
     }
 
-    std::vector<TString> GenerateFormatData() override
+    std::vector<std::string> GenerateFormatData() override
     {
-        std::vector<TString> formatData;
+        std::vector<std::string> formatData;
         for (int fileIndex = 0; fileIndex < FileCount_; fileIndex++) {
             std::vector<i64> fileData;
             for (int elemIndex = 0; elemIndex < ElementCount_; elemIndex++) {
@@ -417,7 +417,7 @@ class TBigParquetGenerator
 public:
     ~TBigParquetGenerator() = default;
 
-    void VerifyAnswer(const NYT::IClientPtr& client, const TString& resultTable) override
+    void VerifyAnswer(const NYT::IClientPtr& client, const TYPath& resultTable) override
     {
         auto tableData = ReadIntegersFromTable(client, resultTable);
         EXPECT_EQ(tableData.size(), ResultData_.IntegerData.size());
@@ -433,25 +433,25 @@ public:
         EXPECT_EQ(stringData, ResultData_.StringData);
     }
 
-    std::vector<TString> GenerateFileNames() override
+    std::vector<std::string> GenerateFileNames() override
     {
-        std::vector<TString> fileNames;
+        std::vector<std::string> fileNames;
         for (int fileIndex = 0; fileIndex < FileCount_; fileIndex++) {
             fileNames.emplace_back(ToString(fileIndex) + ".parquet");
         }
         return fileNames;
     }
 
-    std::vector<TString> GenerateFormatData() override
+    std::vector<std::string> GenerateFormatData() override
     {
-        std::vector<TString> formatData;
+        std::vector<std::string> formatData;
         for (int fileIndex = 0; fileIndex < FileCount_; fileIndex++) {
             MultiTypeData fileData;
             for (int elemIndex = 0; elemIndex < ElementCount_; elemIndex++) {
                 i64 intValue = rand();
                 double doubleValue = 3.14;
                 bool boolValue = ((rand() % 2) == 0);
-                TString stringValue = GenerateString(StringLength_);
+                auto stringValue = GenerateString(StringLength_);
                 AddData(fileData, intValue, doubleValue, boolValue, stringValue);
                 AddData(ResultData_, intValue, doubleValue, boolValue, stringValue);
             }
@@ -472,7 +472,7 @@ private:
         i64 intValue,
         double doubleValue,
         bool boolValue,
-        const TString& stringValue)
+        const std::string& stringValue)
     {
         data.IntegerData.push_back(intValue);
         data.FloatData.push_back(doubleValue);
@@ -487,22 +487,22 @@ class TWrongParquetGenerator
 public:
     ~TWrongParquetGenerator() = default;
 
-     void VerifyAnswer(const NYT::IClientPtr& /*client*/, const TString& /*resultTable*/) override
+     void VerifyAnswer(const NYT::IClientPtr& /*client*/, const TYPath& /*resultTable*/) override
     {
         YT_ABORT();
     }
 
-    std::vector<TString> GenerateFileNames() override
+    std::vector<std::string> GenerateFileNames() override
     {
         return {"0.parquet"};
     }
 
-    std::vector<TString> GenerateFormatData() override
+    std::vector<std::string> GenerateFormatData() override
     {
         char data[8];
         int metadataSize = 1e9;
         memcpy(data, &metadataSize, 4);
-        return {TString(data, 8)};
+        return {std::string(data, 8)};
     }
 };
 
@@ -512,7 +512,7 @@ class THuggingfaceListOfFilesHttpHandler
     : public IHttpHandler
 {
 public:
-    THuggingfaceListOfFilesHttpHandler(const TString& testUrl, const std::vector<TString>& parquetFilesUrls)
+    THuggingfaceListOfFilesHttpHandler(const std::string& testUrl, const std::vector<std::string>& parquetFilesUrls)
         : TestUrl_(testUrl)
         , ParquetFilesUrls_(parquetFilesUrls)
     { }
@@ -537,15 +537,15 @@ public:
     }
 
 private:
-    TString TestUrl_;
-    std::vector<TString> ParquetFilesUrls_;
+    std::string TestUrl_;
+    std::vector<std::string> ParquetFilesUrls_;
 };
 
 class THuggingfaceDownloaderFilesHttpHandler
     : public IHttpHandler
 {
 public:
-    THuggingfaceDownloaderFilesHttpHandler(TString data)
+    THuggingfaceDownloaderFilesHttpHandler(std::string data)
         : Data_(std::move(data))
     { }
 
@@ -564,7 +564,7 @@ public:
 private:
     const i64 BatchSize_ = 1024;
 
-    TString Data_;
+    std::string Data_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -597,12 +597,9 @@ private:
         TestUrl = Format("http://localhost:%v", TestPort);
         Poller = CreateThreadPoolPoller(4, "HttpTest");
 
-        auto serverConfig = New<NHttps::TServerConfig>();
-        serverConfig->Credentials = New<NHttps::TServerCredentialsConfig>();
-        serverConfig->Credentials->PrivateKey = CreateTestKeyBlob("key.pem");
-        serverConfig->Credentials->CertificateChain = CreateTestKeyBlob("cert.pem");
+        auto serverConfig = New<NHttp::TServerConfig>();
         SetupServer(serverConfig);
-        Server = NHttps::CreateServer(serverConfig, Poller);
+        Server = NHttp::CreateServer(serverConfig, Poller);
 
         auto path = NYT::Format("/api/datasets/%v/parquet/%v/%v", Dataset, "default", Split);
         auto parquetFilesUrls = Generator->GenerateFileNames();
@@ -647,7 +644,7 @@ TEST_F(TSmallHuggingfaceServerTest, SimpleImportTableFromHuggingface)
     TString resultTable = workingDir + "/result_table";
     TConfig::Get()->RemoteTempTablesDirectory = workingDir + "/table_storage";
 
-    TString proxy = GetEnv("YT_PROXY");
+    auto proxy = GetEnv("YT_PROXY");
 
     NTools::NImporter::ImportFilesFromHuggingface(
         proxy,
@@ -942,7 +939,7 @@ TEST_F(TWrongServerTest, ExceptionThrown)
     TString resultTable = workingDir + "/result_table";
     TConfig::Get()->RemoteTempTablesDirectory = workingDir + "/table_storage";
 
-    TString proxy = GetEnv("YT_PROXY");
+    auto proxy = GetEnv("YT_PROXY");
 
     EXPECT_THROW_MESSAGE_HAS_SUBSTR(
         NTools::NImporter::ImportFilesFromS3(

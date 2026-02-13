@@ -225,6 +225,8 @@ struct IIOEngine
     virtual i64 GetInFlightWriteRequestCount() const  = 0;
     virtual i64 GetWriteRequestLimit() const  = 0;
 
+    virtual i64 GetBlockSize() const = 0;
+
     // Extension methods.
     TFuture<TReadResponse> ReadAll(
         const TString& path,

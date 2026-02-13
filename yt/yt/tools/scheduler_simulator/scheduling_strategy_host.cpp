@@ -235,7 +235,7 @@ TFuture<void> TStrategyHost::SetOperationAlert(
     const TError& /*alert*/,
     std::optional<TDuration> /*timeout*/)
 {
-    return VoidFuture;
+    return OKFuture;
 }
 
 void TStrategyHost::LogResourceMetering(
@@ -259,7 +259,7 @@ void TStrategyHost::InvokeStoringStrategyState(NStrategy::TPersistentStrategySta
 
 TFuture<void> TStrategyHost::UpdateLastMeteringLogTime(TInstant /*time*/)
 {
-    return VoidFuture;
+    return OKFuture;
 }
 
 void TStrategyHost::CloseEventLogger()

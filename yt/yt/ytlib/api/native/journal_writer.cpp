@@ -196,8 +196,7 @@ private:
 
             YT_VERIFY(!Closing_);
 
-            auto result = VoidFuture;
-            int payloadBytes = 0;
+            auto result = OKFuture;
 
             for (const auto& row : rows) {
                 YT_VERIFY(row);
@@ -205,17 +204,6 @@ private:
                 // NB: We can form a handful of batches but since flushes are monotonic,
                 // the last one will do.
                 result = AppendToBatch(batch, row);
-
-                payloadBytes += row.Size();
-            }
-
-            if (auto writeObserver = Counters_.JournalWritesObserver) {
-                result.Subscribe(BIND([writeObserver, payloadBytes] (TError error) {
-                    if (!error.IsOK()) {
-                        return;
-                    }
-                    writeObserver->RegisterPayloadWrite(payloadBytes);
-                }));
             }
 
             QueueTrace_.Join(CurrentRowIndex_);
@@ -225,7 +213,7 @@ private:
         TFuture<void> Close()
         {
             if (Config_->DontClose) {
-                return VoidFuture;
+                return OKFuture;
             }
 
             EnqueueCommand(TCloseCommand());
@@ -309,6 +297,7 @@ private:
 
             bool Started = false;
             TChunkLocationUuid TargetLocationUuid = InvalidChunkLocationUuid;
+            TChunkLocationIndex TargetLocationIndex = InvalidChunkLocationIndex;
 
             i64 FirstPendingBlockIndex = 0;
             i64 FirstPendingRowIndex = -1;
@@ -854,11 +843,16 @@ private:
                     return node->TargetLocationUuid != InvalidChunkLocationUuid;
                 });
 
-                if (useLocationUuids) {
+                bool useLocationIndicies = std::all_of(session->Nodes.begin(), session->Nodes.end(), [] (const auto& node) {
+                    return node->TargetLocationIndex != InvalidChunkLocationIndex;
+                });
+
+                if (useLocationUuids || useLocationIndicies) {
                     for (int i = 0; i < std::ssize(replicas); ++i) {
                         auto* replicaInfo = req->add_replicas();
                         replicaInfo->set_replica(ToProto(replicas[i]));
                         ToProto(replicaInfo->mutable_location_uuid(), session->Nodes[i]->TargetLocationUuid);
+                        replicaInfo->set_location_index(ToProto<ui32>(session->Nodes[i]->TargetLocationIndex));
                     }
                 }
 
@@ -1466,6 +1460,9 @@ private:
                 if (rspOrError.Value()->has_location_uuid()) {
                     node->TargetLocationUuid = FromProto<TChunkLocationUuid>(rspOrError.Value()->location_uuid());
                 }
+                if (rspOrError.Value()->has_location_index()) {
+                    node->TargetLocationIndex = FromProto<TChunkLocationIndex>(rspOrError.Value()->location_index());
+                }
                 node->Started = true;
                 if (CurrentChunkSession_ == session) {
                     MaybeFlushBlocks(CurrentChunkSession_, node);
@@ -1527,7 +1524,7 @@ private:
 
             auto req = node->HeavyProxy.PutBlocks();
             req->SetResponseHeavy(true);
-            req->SetMultiplexingBand(EMultiplexingBand::Heavy);
+            req->SetMultiplexingBand(EMultiplexingBand::Journal);
             ToProto(req->mutable_session_id(), GetSessionIdForNode(CurrentChunkSession_, node));
             req->set_flush_blocks(true);
 

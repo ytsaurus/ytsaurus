@@ -1,6 +1,5 @@
 from .. import grafana
 from ... import cli
-from ...diff import diff as diff_dashboards
 
 import tabulate
 
@@ -61,27 +60,6 @@ class GrafanaFacade(cli.FacadeBase):
             cls.datasource = json.loads(args.grafana_datasource)
         if args.grafana_folder is not None:
             cls.folder_uid = args.grafana_folder
-
-    def diff(self):
-        # TODO: Current implementation with pretty dashboard rendering in text format is impossible to maintain,
-        # given various features of Grafana. To be fair, it is not very useful either.
-        # Should make it similar to Monitoring dashboard generator CLI,
-        # i.e. no "diff" command and just output final JSON for "show" and "preview" commands.
-        raise NotImplementedError()
-
-        dashboard = self.func()
-        serializer = grafana.GrafanaDictSerializer(None, self.tag_postprocessor)
-        ours = dashboard.serialize(serializer)
-        ours = grafana.GrafanaDashboardParser().parse(ours, diff_format=True)
-
-        proxy = grafana.GrafanaProxy(self.base_url, self.api_key)
-        dashboard = proxy.fetch_dashboard(self.dashboard_id)
-        theirs = grafana.GrafanaDashboardParser().parse(
-            dashboard["dashboard"]["panels"],
-            diff_format=True)
-
-        result = diff_dashboards(theirs, ours)
-        print(tabulate.tabulate(result, tablefmt="grid"))
 
     def show(self):
         # NB: See comment for diff().

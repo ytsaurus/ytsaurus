@@ -21,6 +21,7 @@
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/server/node/data_node/bootstrap.h>
+#include <yt/yt/server/node/data_node/config.h>
 #include <yt/yt/server/node/data_node/chunk.h>
 #include <yt/yt/server/node/data_node/location.h>
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
@@ -43,6 +44,8 @@
 
 #include <yt/yt/server/lib/signature/config.h>
 
+#include <yt/yt/server/lib/squash_fs/squash_fs_layout_builder.h>
+
 #include <yt/yt/server/lib/job_agent/structs.h>
 
 #include <yt/yt/server/lib/job_proxy/job_probe.h>
@@ -50,7 +53,9 @@
 #include <yt/yt/server/lib/misc/job_reporter.h>
 
 #include <yt/yt/server/lib/nbd/block_device.h>
+#include <yt/yt/server/lib/nbd/image_reader.h>
 #include <yt/yt/server/lib/nbd/profiler.h>
+#include <yt/yt/server/lib/nbd/random_access_file_reader.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
 
@@ -509,6 +514,19 @@ void TJob::Start() noexcept
         return;
     }
 
+    if (auto slot = GetUserSlot()) {
+        try {
+            slot->ValidateEnabled();
+        } catch (const std::exception& ex) {
+            auto error = TError("Can not start job")
+                << TErrorAttribute("abort_reason", EAbortReason::UserSlotDisabled)
+                << ex;
+            YT_LOG_WARNING(error);
+            Abort(std::move(error));
+            return;
+        }
+    }
+
     YT_VERIFY(!std::exchange(Started_, true));
 
     PreparationStartTime_ = TInstant::Now();
@@ -516,8 +534,6 @@ void TJob::Start() noexcept
     YT_LOG_INFO("Starting job");
 
     SetJobState(EJobState::Running);
-
-    GetUserSlot()->SetAllocationId(GetAllocationId());
 
     TFuture<std::vector<TNameWithAddress>> resolveFuture;
 
@@ -789,8 +805,10 @@ void TJob::Terminate(EJobState finalState, TError error)
         case EJobPhase::CachingArtifacts:
         case EJobPhase::PreparingRootVolume:
         case EJobPhase::PreparingTmpfsVolumes:
-        case EJobPhase::RunningCustomPreparations:
         case EJobPhase::PreparingGpuCheckVolume:
+        case EJobPhase::LinkingVolumes:
+        case EJobPhase::ValidatingRootFS:
+        case EJobPhase::RunningCustomPreparations:
         case EJobPhase::PreparingSandboxDirectories:
         case EJobPhase::RunningSetupCommands:
         case EJobPhase::RunningGpuCheckCommand:
@@ -989,10 +1007,11 @@ void TJob::OnResultReceived(TJobResult jobResult)
             // Check if we had any NBD errors.
             TError nbdError;
             if (auto nbdServer = Bootstrap_->GetNbdServer()) {
-                for (const auto& exportId : NbdExportIds_) {
-                    if (auto device = nbdServer->FindDevice(exportId)) {
+                for (const auto& deviceId : NbdDeviceIds_) {
+                    if (auto device = nbdServer->FindDevice(deviceId)) {
                         if (auto error = device->GetError(); !error.IsOK()) {
-                            YT_LOG_ERROR(error, "NBD error occured during job execution (ExportId: %v)", exportId);
+                            YT_LOG_ERROR(error, "NBD error occurred during job execution (DeviceId: %v)",
+                                deviceId);
 
                             // Save the first found NBD error.
                             if (nbdError.IsOK()) {
@@ -1005,6 +1024,9 @@ void TJob::OnResultReceived(TJobResult jobResult)
                                 }
                             }
                         }
+                    } else {
+                        YT_LOG_WARNING("NBD device not found (DeviceId: %v)",
+                            deviceId);
                     }
                 }
             }
@@ -1170,8 +1192,10 @@ NJobAgent::TTimeStatistics TJob::GetTimeStatistics() const
         .PrepareDuration = sumOptionals(getDuration(PreparationStartTime_, ExecStartTime_), fakePrepareDuration),
         .ArtifactsCachingDuration = getDuration(NodeDirectoryPreparationStartTime_, ArtifactsDownloadedTime_),
         .PrepareRootFSDuration = getDuration(PrepareRootVolumeStartTime_, PrepareRootVolumeFinishTime_),
-        .ExecDuration = getDuration(ExecStartTime_, FinishTime_),
+        .PrepareTmpfsDuration = getDuration(PrepareTmpfsVolumesStartTime_, PrepareTmpfsVolumesFinishTime_),
         .PrepareGpuCheckFSDuration = getDuration(PrepareGpuCheckVolumeStartTime_, PrepareGpuCheckVolumeFinishTime_),
+        .ValidateRootFSDuration = getDuration(ValidateRootFSStartTime_, ValidateRootFSFinishTime_),
+        .ExecDuration = getDuration(ExecStartTime_, FinishTime_),
         .GpuCheckDuration = sumOptionals(
             getDuration(PreliminaryGpuCheckStartTime_, PreliminaryGpuCheckFinishTime_),
             getDuration(ExtraGpuCheckStartTime_, ExtraGpuCheckFinishTime_)),
@@ -1424,9 +1448,6 @@ void TJob::SetStatistics(const TYsonString& statisticsYson)
     UpdateIOStatistics(statistics);
 
     StatisticsYson_ = ConvertToYsonString(statistics);
-
-    HandleJobReport(MakeDefaultJobReport()
-        .Statistics(StatisticsYson_));
 
     UpdateUserJobMonitoring();
 }
@@ -1718,12 +1739,30 @@ void TJob::ReportProfile()
             .Profile(std::move(profile)));
     }
 }
-void TJob::AbortJobAfterInterruptionCallFailed(const std::exception& ex)
+
+void TJob::TryReportStatistics()
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    auto now = TInstant::Now();
+    auto statisticsReportingPeriod = CommonConfig_->StatisticsReportingPeriod;
+
+    bool shouldReport = !statisticsReportingPeriod ||
+        now - StatisticsLastArchiveReportTime_ >= *statisticsReportingPeriod;
+
+    if (shouldReport) {
+        HandleJobReport(MakeDefaultJobReport()
+            .Statistics(StatisticsYson_));
+        StatisticsLastArchiveReportTime_ = now;
+    }
+}
+
+void TJob::AbortJobAfterInterruptionCallFailed(TError internalError)
 {
     if (JobPhase_ == NControllerAgent::EJobPhase::Running) {
         auto error = TError(NExecNode::EErrorCode::InterruptionFailed, "Error interrupting job on job proxy")
             << TErrorAttribute("interruption_reason", InterruptionReason_)
-            << ex;
+            << internalError;
         Abort(std::move(error));
     }
 }
@@ -1823,6 +1862,7 @@ void TJob::DoInterrupt(
                     &TJob::OnJobInterruptionTimeout,
                     MakeWeak(this),
                     InterruptionReason_,
+                    timeout,
                     preemptionReason),
                 timeout,
                 Bootstrap_->GetJobInvoker());
@@ -1833,8 +1873,9 @@ void TJob::DoInterrupt(
     } catch (const std::exception& ex) {
         YT_LOG_INFO(ex, "Failed to interrupt job via job prober service; graceful job phase check scheduled (Tmeout: %v)", timeout);
 
+        TError error(ex);
         TDelayedExecutor::Submit(
-            BIND(&TJob::AbortJobAfterInterruptionCallFailed, MakeWeak(this), ex)
+            BIND(&TJob::AbortJobAfterInterruptionCallFailed, MakeWeak(this), error)
                 .Via(Invoker_),
             CommonConfig_->JobFinishTimeoutAfterInterruptionCallFailed);
     }
@@ -1943,6 +1984,18 @@ TFuture<void> TJob::GetStoredEvent() const
     return StoredEventPromise_.ToFuture();
 }
 
+void TJob::SetLastProgressSaveTime(TInstant when)
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+    LastProgressSaveTime_ = when;
+}
+
+std::optional<TInstant> TJob::GetLastProgressSaveTime()
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+    return LastProgressSaveTime_;
+}
+
 void TJob::OnEvictedFromAllocation() noexcept
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -1981,12 +2034,14 @@ bool TJob::IsInterruptible() const noexcept
 
 void TJob::OnJobInterruptionTimeout(
     EInterruptionReason interruptionReason,
+    TDuration interruptionTimeout,
     const std::optional<TString>& preemptionReason)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     auto error = TError(NJobProxy::EErrorCode::InterruptionTimeout, "Interruption is timed out")
         << TErrorAttribute("interruption_reason", InterruptionReason_)
+        << TErrorAttribute("interruption_timeout", interruptionTimeout)
         << TErrorAttribute("abort_reason", EAbortReason::InterruptionTimeout);
 
     if (interruptionReason == EInterruptionReason::Preemption) {
@@ -2417,9 +2472,6 @@ void TJob::RunWithWorkspaceBuilder()
                 return;
             }
 
-            PreliminaryGpuCheckStartTime_ = timePoints.GpuCheckStartTime;
-            PreliminaryGpuCheckFinishTime_ = timePoints.GpuCheckFinishTime;
-
             PrepareRootVolumeStartTime_ = timePoints.PrepareRootVolumeStartTime;
             PrepareRootVolumeFinishTime_ = timePoints.PrepareRootVolumeFinishTime;
 
@@ -2428,17 +2480,26 @@ void TJob::RunWithWorkspaceBuilder()
 
             PrepareGpuCheckVolumeStartTime_ = timePoints.PrepareGpuCheckVolumeStartTime;
             PrepareGpuCheckVolumeFinishTime_ = timePoints.PrepareGpuCheckVolumeFinishTime;
+
+            LinkTmpfsVolumesStartTime_ = timePoints.LinkTmpfsVolumesStartTime;
+            LinkTmpfsVolumesFinishTime_ = timePoints.LinkTmpfsVolumesFinishTime;
+
+            ValidateRootFSStartTime_ = timePoints.ValidateRootFSStartTime;
+            ValidateRootFSFinishTime_ = timePoints.ValidateRootFSFinishTime;
+
+            PreliminaryGpuCheckStartTime_ = timePoints.GpuCheckStartTime;
+            PreliminaryGpuCheckFinishTime_ = timePoints.GpuCheckFinishTime;
         })
             .Via(Invoker_));
 
     auto workspaceFuture = workspaceBuilder->Run();
     workspaceFuture.Subscribe(
-        BIND(&TJob::OnWorkspacePreparationFinished, MakeStrong(this))
+        BIND(&TJob::OnWorkspacePreparationFinished, MakeStrong(this), Passed(std::move(workspaceBuilder)))
             .Via(Invoker_));
     WorkspaceBuildingFuture_ = workspaceFuture.AsVoid();
 }
 
-void TJob::OnWorkspacePreparationFinished(const TErrorOr<TJobWorkspaceBuildingResult>& resultOrError)
+void TJob::OnWorkspacePreparationFinished(TJobWorkspaceBuilderPtr workspaceBuilder, const TError& error)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -2447,21 +2508,20 @@ void TJob::OnWorkspacePreparationFinished(const TErrorOr<TJobWorkspaceBuildingRe
         TDelayedExecutor::WaitForDuration(*delay);
     }
 
+    YT_LOG_DEBUG_IF(!error.IsOK(), error, "Failed to build job workspace");
+
+    auto result = workspaceBuilder->ExtractResult();
+    RootVolume_ = std::move(result.RootVolume);
+    TmpfsVolumes_ = std::move(result.TmpfsVolumes);
+    GpuCheckVolume_ = std::move(result.GpuCheckVolume);
+    // Workspace builder may add or replace docker image.
+    DockerImage_ = std::move(result.DockerImage);
+    DockerImageId_ = std::move(result.DockerImageId);
+    SetupCommandCount_ = result.SetupCommandCount;
+
     GuardedAction(
         "OnWorkspacePreparationFinished",
         [&] {
-            // There may be a possible cancellation, but this is not happening now.
-            YT_VERIFY(resultOrError.IsOK());
-
-            auto& result = resultOrError.Value();
-            RootVolume_ = result.RootVolume;
-            TmpfsVolumes_ = result.TmpfsVolumes;
-            GpuCheckVolume_ = result.GpuCheckVolume;
-            // Workspace builder may add or replace docker image.
-            DockerImage_ = result.DockerImage;
-            DockerImageId_ = result.DockerImageId;
-            SetupCommandCount_ = result.SetupCommandCount;
-
             if (!result.LastBuildError.IsOK()) {
                 THROW_ERROR_EXCEPTION("Job preparation failed")
                     << TErrorAttribute("job_id", GetId())
@@ -2828,14 +2888,14 @@ void TJob::Cleanup()
     };
 
     // Remove tmpfs volumes prior to root volume.
-    for (auto& volume: TmpfsVolumes_) {
+    for (auto& volume : TmpfsVolumes_) {
         removeVolume(volume.Volume);
     }
+
     removeVolume(RootVolume_);
     removeVolume(GpuCheckVolume_);
 
-    // Make sure job's NBD exports are unregistered.
-    TryCleanupNbdExports();
+    UnsubscribeJobFromNbdDevices();
 
     if (const auto& slot = GetUserSlot()) {
         if (ShouldCleanSandboxes()) {
@@ -2873,20 +2933,26 @@ void TJob::Cleanup()
     YT_LOG_INFO("Job finished (JobState: %v)", GetState());
 }
 
-//! Make sure NBD exports are unregistered.
-void TJob::TryCleanupNbdExports()
+void TJob::UnsubscribeJobFromNbdDevices()
 {
-    if (auto nbdServer = Bootstrap_->GetNbdServer()) {
-        for (const auto& exportId : NbdExportIds_) {
-            if (nbdServer->IsDeviceRegistered(exportId) && nbdServer->TryUnregisterDevice(exportId)) {
-                TNbdProfilerCounters::Get()->GetCounter(
-                    {},
-                    "/device/unregistered_unexpected").Increment(1);
+    auto nbdServer = Bootstrap_->GetNbdServer();
+    if (!nbdServer) {
+        return;
+    }
 
-                YT_LOG_ERROR(
-                    "Unregistered unexpected NBD export (ExportId: %v)",
-                    exportId);
+    for (const auto& deviceId : NbdDeviceIds_) {
+        YT_LOG_DEBUG("Unsubscribing job from NBD device errors (DeviceId: %v)",
+            deviceId);
+
+        if (auto device = nbdServer->FindDevice(deviceId)) {
+            auto res = device->UnsubscribeFromErrors(Id_.Underlying());
+            if (!res) {
+                YT_LOG_WARNING("Failed to unsubscribe job from NBD device errors (DeviceId: %v)",
+                    deviceId);
             }
+        } else {
+            YT_LOG_DEBUG("Failed to unsubscribe from NBD device error; device not found (DeviceId: %v)",
+                deviceId);
         }
     }
 }
@@ -3019,7 +3085,7 @@ std::vector<TBind> TJob::GetRootFSBinds()
         binds.push_back(TBind{
             .SourcePath = bindConfig->ExternalPath,
             .TargetPath = bindConfig->InternalPath,
-            .ReadOnly = bindConfig->ReadOnly
+            .ReadOnly = bindConfig->ReadOnly,
         });
     }
 
@@ -3069,6 +3135,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
 
     proxyInternalConfig->BusServer = GetUserSlot()->GetBusServerConfig();
     proxyInternalConfig->GrpcServer = GetUserSlot()->GetGrpcServerConfig();
+    proxyInternalConfig->HttpServerUdsPath = GetUserSlot()->GetJobProxyHttpUnixDomainSocketPath();
 
     proxyInternalConfig->TmpfsManager = New<TTmpfsManagerConfig>();
     for (const auto& tmpfsVolume : TmpfsVolumes_) {
@@ -3219,7 +3286,10 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     {
         auto userSlot = GetUserSlot();
         ExecAttributes_.SlotIndex = userSlot->GetSlotIndex();
-        ExecAttributes_.SandboxPath = userSlot->GetSandboxPath(ESandboxKind::User);
+        ExecAttributes_.SandboxPath = userSlot->GetSandboxPath(
+            ESandboxKind::User,
+            RootVolume_,
+            Bootstrap_->GetConfig()->ExecNode->JobProxy->TestRootFS);
         ExecAttributes_.MediumName = userSlot->GetMediumName();
 
         ExecAttributes_.JobProxySocketPath = userSlot->GetJobProxyUnixDomainSocketPath();
@@ -3258,6 +3328,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         proxyInternalConfig->RetryingChannel = proxyDynamicConfig->RetryingChannel;
         proxyInternalConfig->PipeReaderTimeoutThreshold = proxyDynamicConfig->PipeReaderTimeoutThreshold;
         proxyInternalConfig->AdaptiveRowCountUpperBound = proxyDynamicConfig->AdaptiveRowCountUpperBound;
+        proxyInternalConfig->OomScoreAdjOnExceededMemoryReserve = proxyDynamicConfig->OomScoreAdjOnExceededMemoryReserve;
         proxyInternalConfig->UseNewDeliveryFencedConnection = proxyDynamicConfig->UseNewDeliveryFencedConnection;
         proxyInternalConfig->EnablePerClusterChunkReaderStatistics = proxyDynamicConfig->EnablePerClusterChunkReaderStatistics;
         proxyInternalConfig->DumpSingleLocalClusterStatistics = proxyDynamicConfig->DumpSingleLocalClusterStatistics;
@@ -3274,6 +3345,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         proxyInternalConfig->JobProxyApiService = proxyDynamicConfig->JobProxyApiService;
 
         proxyInternalConfig->EnableGrpcServer = proxyDynamicConfig->EnableGrpcServer;
+        proxyInternalConfig->EnableHttpServer = proxyDynamicConfig->EnableHttpServer;
 
         proxyInternalConfig->SyncMediumDirectoryOnStart = proxyDynamicConfig->SyncMediumDirectoryOnStart;
     }
@@ -3315,7 +3387,7 @@ void TJob::BuildVirtualSandbox()
     auto nbdServer = Bootstrap_->GetNbdServer();
     if (!nbdServer) {
         THROW_ERROR_EXCEPTION("NBD server is not present")
-            << TErrorAttribute("export_id", VirtualSandboxData_->NbdExportId);
+            << TErrorAttribute("device_id", VirtualSandboxData_->NbdDeviceId);
     }
 
     auto readerHost = Bootstrap_->GetFileReaderHost();
@@ -3372,6 +3444,7 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
         .Via(Invoker_);
     // TODO(khlebnikov): Move into volume manager.
     options.EnableRootVolumeDiskQuota = RootVolumeDiskQuotaEnabled_;
+    options.EnableDiskQuota = Bootstrap_->GetConfig()->DataNode->VolumeManager->EnableDiskQuota;
     options.UserId = GetUserSlot()->GetUserId();
 
     if (UserJobSpec_) {
@@ -3478,21 +3551,20 @@ void TJob::InitializeSandboxNbdRootVolumeData()
     SandboxNbdRootVolumeData_->MaxDataNodeCount = nbdDisk.max_data_node_count();
 }
 
-THashSet<TString> TJob::InitializeNbdExportIds()
+THashSet<TString> TJob::InitializeNbdDeviceIds()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    THashSet<TString> nbdExportIds;
+    THashSet<TString> nbdDeviceIds;
 
-    // Mark NBD layers with NBD export ids.
-    auto nbdExportCount = 0;
+    // Mark NBD layers with NBD device ids.
+    auto nbdDeviceCount = 0;
     for (auto& layer : RootVolumeLayerArtifactKeys_) {
         if (FromProto<ELayerAccessMethod>(layer.access_method()) == ELayerAccessMethod::Nbd) {
-            auto nbdExportId = MakeNbdExportId(Id_, nbdExportCount);
-            EmplaceOrCrash(nbdExportIds, nbdExportId);
-            ++nbdExportCount;
-
-            ToProto(layer.mutable_nbd_export_id(), nbdExportId);
+            auto deviceId = layer.GetRuntimeGuid();
+            EmplaceOrCrash(nbdDeviceIds, deviceId);
+            ToProto(layer.mutable_nbd_device_id(), deviceId);
+            ++nbdDeviceCount;
         }
     }
 
@@ -3501,37 +3573,60 @@ THashSet<TString> TJob::InitializeNbdExportIds()
         RootVolumeDiskQuotaEnabled_ &&
         JobSpecExt_.enable_virtual_sandbox())
     {
-        // Mark artifacts that will be accessed via virtual layer.
-        int virtualSandboxArtifactCount = 0;
+        // Mark artifacts that will be accessed via virtual layer and create virtual artifact key.
+        std::optional<TArtifactKey> virtualArtifactKey;
         for (auto& artifact : Artifacts_) {
+            // NB. The order of virtual artifacts and chunk specs within each artifact does matter.
+            // Differences in order will result in different artifact keys.
             if (CanBeAccessedViaVirtualSandbox(artifact)) {
                 artifact.AccessedViaVirtualSandbox = true;
-                ++virtualSandboxArtifactCount;
+
+                if (!virtualArtifactKey) {
+                    virtualArtifactKey.emplace();
+                    virtualArtifactKey->set_access_method(ToProto(NControllerAgent::ELayerAccessMethod::Nbd));
+                    virtualArtifactKey->set_filesystem(ToProto(NControllerAgent::ELayerFilesystem::SquashFS));
+
+                    auto* dataSource = virtualArtifactKey->mutable_data_source();
+                    dataSource->set_type(ToProto(NChunkClient::EDataSourceType::File));
+                }
+
+                // Construct concatenated data source path of the form "path1;path2;path3".
+                auto* dataSource = virtualArtifactKey->mutable_data_source();
+                if (dataSource->path().empty()) {
+                    dataSource->set_path(artifact.Key.data_source().path());
+                } else {
+                    dataSource->set_path(Format("%v;%v", dataSource->path(), artifact.Key.data_source().path()));
+                }
+
+                for (const auto& chunkSpec : artifact.Key.chunk_specs()) {
+                    virtualArtifactKey->add_chunk_specs()->CopyFrom(chunkSpec);
+                }
             }
         }
 
-        if (virtualSandboxArtifactCount != 0) {
-            // The virtual layer can be used. Make nbd export id.
-            auto nbdExportId = MakeNbdExportId(Id_, nbdExportCount);
-            EmplaceOrCrash(nbdExportIds, nbdExportId);
-            ++nbdExportCount;
+        if (virtualArtifactKey) {
+            auto deviceId = virtualArtifactKey->GetRuntimeGuid();
+            EmplaceOrCrash(nbdDeviceIds, deviceId);
+            ToProto(virtualArtifactKey->mutable_nbd_device_id(), deviceId);
+            ++nbdDeviceCount;
 
             VirtualSandboxData_ = TVirtualSandboxData({
-                .NbdExportId = nbdExportId
+                .NbdDeviceId = deviceId,
+                .ArtifactKey = *virtualArtifactKey,
             });
-        }
+         }
     }
 
-    // Create NBD export id for NBD root volume.
+    // Create NBD device id for NBD root volume.
     if (SandboxNbdRootVolumeData_) {
-        auto nbdExportId = MakeNbdExportId(Id_, nbdExportCount);
-        EmplaceOrCrash(nbdExportIds, nbdExportId);
-        ++nbdExportCount;
+        auto deviceId = MakeNbdExportId(Id_, nbdDeviceCount);
+        EmplaceOrCrash(nbdDeviceIds, deviceId);
+        ++nbdDeviceCount;
 
-        SandboxNbdRootVolumeData_->ExportId = nbdExportId;
+        SandboxNbdRootVolumeData_->DeviceId = deviceId;
     }
 
-    return nbdExportIds;
+    return nbdDeviceIds;
 }
 
 // Build artifacts.
@@ -3548,7 +3643,7 @@ void TJob::InitializeArtifacts()
                 .BypassArtifactCache = descriptor.bypass_artifact_cache(),
                 .CopyFile = descriptor.copy_file(),
                 .Key = TArtifactKey(descriptor),
-                .Artifact = nullptr
+                .Artifact = nullptr,
             });
             YT_VERIFY(UserArtifactNameToIndex_.emplace(descriptor.file_name(), Artifacts_.size() - 1).second);
         }
@@ -3602,14 +3697,14 @@ void TJob::InitializeArtifacts()
                 .BypassArtifactCache = false,
                 .CopyFile = false,
                 .Key = key,
-                .Artifact = nullptr
+                .Artifact = nullptr,
             });
         }
     }
 
     InitializeSandboxNbdRootVolumeData();
 
-    NbdExportIds_ = InitializeNbdExportIds();
+    NbdDeviceIds_ = InitializeNbdDeviceIds();
 
     // Mark artifacts that will be accessed via bind.
     for (auto& artifact : Artifacts_) {
@@ -3851,25 +3946,38 @@ std::optional<EAbortReason> TJob::DeduceAbortReason()
             return EAbortReason::Other;
         }
         if (auto processError = resultError.FindMatching(EProcessErrorCode::NonZeroExitCode)) {
-            auto exitCode = NExecNode::EJobProxyExitCode(processError->Attributes().Get<int>("exit_code"));
-            switch (exitCode) {
-                case EJobProxyExitCode::SupervisorCommunicationFailed:
-                case EJobProxyExitCode::ResultReportFailed:
-                case EJobProxyExitCode::ResourcesUpdateFailed:
-                case EJobProxyExitCode::GetJobSpecFailed:
-                case EJobProxyExitCode::InvalidSpecVersion:
-                case EJobProxyExitCode::PortoManagementFailed:
-                    return EAbortReason::Other;
+            auto exitCode = processError->Attributes().Get<int>("exit_code");
+            if (CommonConfig_->TreatJobProxyIOErrorAsAbort && exitCode == static_cast<int>(EProcessExitCode::IOError)) {
+                return EAbortReason::JobProxyFailed;
+            }
 
-                case EJobProxyExitCode::ResourceOverdraft:
-                    return EAbortReason::ResourceOverdraft;
+            auto jobProxyExitCode = EJobProxyExitCode(processError->Attributes().Get<int>("exit_code"));
+            if (TEnumTraits<EJobProxyExitCode>::IsKnownValue(jobProxyExitCode)) {
+                switch (jobProxyExitCode) {
+                    case EJobProxyExitCode::SupervisorCommunicationFailed:
+                    case EJobProxyExitCode::ResultReportFailed:
+                    case EJobProxyExitCode::ResourcesUpdateFailed:
+                    case EJobProxyExitCode::GetJobSpecFailed:
+                    case EJobProxyExitCode::InvalidSpecVersion:
+                    case EJobProxyExitCode::PortoManagementFailed:
+                        return EAbortReason::Other;
 
-                default: {
-                    if (CommonConfig_->TreatJobProxyFailureAsAbort) {
-                        return EAbortReason::JobProxyFailed;
-                    }
-                    break;
+                    case EJobProxyExitCode::JobProxyPrepareFailed:
+                        if (CommonConfig_->TreatJobProxyPreparationFailureAsAbort) {
+                            return EAbortReason::JobProxyFailed;
+                        }
+                        break;
+
+                    case EJobProxyExitCode::ResourceOverdraft:
+                        return EAbortReason::ResourceOverdraft;
+
+                    default:
+                        break;
                 }
+            }
+
+            if (CommonConfig_->TreatJobProxyFailureAsAbort) {
+                return EAbortReason::JobProxyFailed;
             }
         }
         if (auto processSignal = resultError.FindMatching(EProcessErrorCode::Signal)) {
@@ -4549,6 +4657,10 @@ void FillJobStatus(NControllerAgent::NProto::TJobStatus* status, const TJobPtr& 
 
     if (auto startTime = job->GetStartTime()) {
         status->set_start_time(startTime->GetValue());
+    }
+
+    if (auto lastProgressSaveTime = job->GetLastProgressSaveTime(); lastProgressSaveTime.has_value()) {
+        status->set_last_progress_save_time(ToProto(*lastProgressSaveTime));
     }
 
     status->set_status_timestamp(ToProto(TInstant::Now()));

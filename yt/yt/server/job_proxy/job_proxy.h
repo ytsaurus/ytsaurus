@@ -75,6 +75,7 @@ public:
     TString GetSlotPath() const override;
     TString GetJobProxyUnixDomainSocketPath() const override;
     std::string GetJobProxyGrpcUnixDomainSocketPath() const override;
+    std::string GetJobProxyHttpUnixDomainSocketPath() const override;
     TString AdjustPath(const TString& path) const override;
 
     NChunkClient::TTrafficMeterPtr GetTrafficMeter() const override;
@@ -84,7 +85,9 @@ public:
     NConcurrency::IThroughputThrottlerPtr GetOutRpsThrottler() const override;
     NConcurrency::IThroughputThrottlerPtr GetUserJobContainerCreationThrottler() const override;
 
-    NApi::NNative::IConnectionPtr CreateNativeConnection(NApi::NNative::TConnectionCompoundConfigPtr config) const override;
+    NApi::NNative::IConnectionPtr CreateNativeConnection(
+        NApi::NNative::TConnectionCompoundConfigPtr config,
+        NApi::NNative::TConnectionOptions options = {}) const override;
 
     TDuration GetSpentCpuTime() const;
 
@@ -139,9 +142,10 @@ private:
 
     NNodeTrackerClient::TNodeDescriptor LocalDescriptor_;
 
-    // Local RPC and GRPC servers accessible only via Unix domain sockets.
+    // Local servers accessible only via Unix domain sockets.
     NRpc::IServerPtr RpcServer_;
     NRpc::IServerPtr GrpcServer_;
+    NRpc::IServerPtr HttpServer_;
 
     // Public RPC server that listens on TCP port for external access.
     // Separated from the private server to limit exposed services.
@@ -190,6 +194,8 @@ private:
     i64 HeartbeatEpoch_ = 0;
 
     NChunkClient::TMultiChunkReaderHostPtr MultiChunkReaderHost_;
+
+    std::optional<int> OomScoreAdj_;
 
     NYTree::IYPathServicePtr CreateOrchidService();
     void InitializeOrchid();
@@ -273,6 +279,8 @@ private:
     void Abort(EJobProxyExitCode exitCode);
 
     void LogSystemStats() const;
+
+    void SetOomScoreAdj(int score);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobProxy)

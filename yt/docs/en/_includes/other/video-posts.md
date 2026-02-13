@@ -4,6 +4,18 @@ This page features video content and publications from {{product-name}} develope
 
 ## Conferences, publications
 
+### 2025: Rebalancing without downtime in YTsaurus dynamic tables
+- **Event:** HighLoad++ 2025
+- **Materials:** [YouTube](https://youtu.be/eHzD4TJy6XM)
+- **Speaker:** Ivan Smirnov
+- **Language:** Russian
+
+### 2025: How we implemented WebAssembly in the YTsaurus dynamic tables SQL engine
+- **Event:** HighLoad++ 2025
+- **Materials:** [YouTube](https://youtu.be/appMbW6mVQc)
+- **Speaker:** Dmitry Torilov
+- **Language:** Russian
+
 ### 2025: Balancing of the load in the YTsaurus dynamic tables
 - **Event:** Data Internals X 2025
 - **Materials:** [VK Video](https://vkvideo.ru/video-228253760_456239070?list=ln-Wgu2EbKcTiStJibmbs)

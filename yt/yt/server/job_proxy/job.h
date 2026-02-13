@@ -11,6 +11,7 @@
 #include <yt/yt/library/containers/porto_resource_tracker.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
@@ -19,6 +20,7 @@
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
 #include <yt/yt/ytlib/job_proxy/job_spec_helper.h>
+#include <yt/yt/ytlib/job_proxy/profiling_writer.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
@@ -100,6 +102,7 @@ struct IJobHost
     virtual TString GetSlotPath() const = 0;
     virtual TString GetJobProxyUnixDomainSocketPath() const = 0;
     virtual std::string GetJobProxyGrpcUnixDomainSocketPath() const = 0;
+    virtual std::string GetJobProxyHttpUnixDomainSocketPath() const = 0;
 
     virtual NChunkClient::TTrafficMeterPtr GetTrafficMeter() const = 0;
 
@@ -112,7 +115,9 @@ struct IJobHost
 
     virtual IInvokerPtr GetControlInvoker() const = 0;
 
-    virtual NApi::NNative::IConnectionPtr CreateNativeConnection(NApi::NNative::TConnectionCompoundConfigPtr config) const = 0;
+    virtual NApi::NNative::IConnectionPtr CreateNativeConnection(
+        NApi::NNative::TConnectionCompoundConfigPtr config,
+        NApi::NNative::TConnectionOptions options = {}) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobHost)
@@ -156,6 +161,7 @@ struct IJob
     virtual void FinalizeJobTrace() = 0;
 
     virtual void OnProgressSaved(TInstant when) = 0;
+    virtual std::optional<TInstant> GetLastProgressSaveTime() = 0;
 
     //! Schematized subset which is more or less common among different kinds of jobs.
     //! Used to reduce boilerplate in job implementations and to explicitly specify
@@ -167,6 +173,7 @@ struct IJob
         //! but the original statistics is sent as a separate protobuf field.
         std::vector<NChunkClient::TChunkWriterStatisticsPtr> ChunkWriterStatistics;
         NTableClient::TTimingStatistics TimingStatistics;
+        std::vector<TWriterTimingStatistics> WriterTimingStatistics;
 
         struct TPipeStatistics
         {
@@ -208,7 +215,7 @@ struct IJob
 
     virtual TStatistics GetStatistics() const = 0;
 
-    virtual bool HasInputStatistics() const = 0;
+    virtual bool HasInput() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJob)

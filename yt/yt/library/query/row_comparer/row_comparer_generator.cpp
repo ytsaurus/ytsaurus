@@ -471,7 +471,7 @@ void TComparerBuilder::BuildStringCmp(Value* lhsLength, Value* lhsData, Value* r
         {
             lhsData,
             rhsData,
-            minLength
+            minLength,
         });
     auto* trueBB = CreateBB("memcmp.is.not.zero");
     auto* falseBB = CreateBB("memcmp.is.zero");
@@ -490,7 +490,7 @@ void TComparerBuilder::BuildYsonCmp(Value* lhsLength, Value* lhsData, Value* rhs
             lhsLength,
             lhsData,
             rhsLength,
-            rhsData
+            rhsData,
         });
     auto* trueBB = CreateBB("ysoncmp.is.not.zero");
     auto* falseBB = CreateBB("ysoncmp.is.zero");
@@ -506,7 +506,7 @@ void TComparerBuilder::BuildDoubleCmp(Value* lhs, Value* rhs, int index)
         Module_->GetRoutine("doublecmp"),
         {
             lhs,
-            rhs
+            rhs,
         });
     auto* trueBB = CreateBB("doublecmp.is.not.zero");
     auto* falseBB = CreateBB("doublecmp.is.zero");

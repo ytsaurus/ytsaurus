@@ -45,6 +45,9 @@ public:
     //! Starts the dynamic config manager.
     void Start();
 
+    //! Checks whether last config update contains any errors.
+    bool HasErrors() const;
+
     //! Returns the list of last config update attempt errors.
     std::vector<TError> GetErrors() const;
 

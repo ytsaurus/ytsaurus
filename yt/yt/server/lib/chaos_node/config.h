@@ -91,6 +91,20 @@ DEFINE_REFCOUNTED_TYPE(TChaosManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TChaosLeaseManagerConfig
+    : public NYTree::TYsonStruct
+{
+    i64 MaxMigrationBatchSize;
+
+    REGISTER_YSON_STRUCT(TChaosLeaseManagerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TChaosLeaseManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TCoordinatorManagerConfig
     : public NYTree::TYsonStruct
 {
@@ -127,6 +141,7 @@ struct TChaosNodeConfig
     TTransactionManagerConfigPtr TransactionManager;
 
     TChaosManagerConfigPtr ChaosManager;
+    TChaosLeaseManagerConfigPtr ChaosLeaseManager;
     NChaosClient::TReplicationCardsWatcherConfigPtr ReplicationCardsWatcher;
 
     TCoordinatorManagerConfigPtr CoordinatorManager;

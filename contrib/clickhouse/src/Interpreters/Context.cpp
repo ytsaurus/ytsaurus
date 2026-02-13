@@ -887,7 +887,13 @@ struct ContextSharedPart : boost::noncopyable
 
             /// Stop trace collector if any
             trace_collector.reset();
+        }
+
+        {
             /// Stop zookeeper connection
+            std::lock_guard lock(zookeeper_mutex);
+            if (zookeeper)
+                zookeeper->finalize("shutdown");
             zookeeper.reset();
         }
 
@@ -5909,6 +5915,12 @@ ReadTaskCallback Context::getReadTaskCallback() const
 void Context::setReadTaskCallback(ReadTaskCallback && callback)
 {
     next_task_callback = callback;
+}
+
+
+bool Context::hasReadTaskCallback() const
+{
+    return next_task_callback.has_value();
 }
 
 

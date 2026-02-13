@@ -93,7 +93,7 @@ public:
         ui64 NextValue = 0;
         ui64 Divisor;
 
-        bool operator < (const TQueueItem& other) const
+        bool operator<(const TQueueItem& other) const
         {
             return NextValue < other.NextValue;
         }

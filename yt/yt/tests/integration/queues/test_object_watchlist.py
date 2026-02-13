@@ -143,7 +143,7 @@ class TestQueueAgentObjectRevisions(ChaosTestBase, YTEnvSetup):
                                "schema": [{"name": "data", "type": "string"},
                                           {"name": "test", "type": "string"}],
                                "treat_as_queue_consumer": True})
-        with raises_yt_error('Either "schema" or "schema_id" must be specified for dynamic tables'):
+        with raises_yt_error('Either "schema", "schema_id" or "constrained_schema" must be specified for dynamic tables'):
             create("replicated_table",
                    "//tmp/rep_c3",
                    attributes={"dynamic": True})
@@ -161,7 +161,7 @@ class TestQueueAgentObjectRevisions(ChaosTestBase, YTEnvSetup):
                                "schema": [{"name": "data", "type": "string"},
                                           {"name": "test", "type": "string"}],
                                "treat_as_queue_producer": True})
-        with raises_yt_error('Either "schema" or "schema_id" must be specified for dynamic tables'):
+        with raises_yt_error('Either "schema", "schema_id" or "constrained_schema" must be specified for dynamic tables'):
             create("replicated_table",
                    "//tmp/rep_p3",
                    attributes={"dynamic": True})

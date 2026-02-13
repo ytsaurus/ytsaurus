@@ -11,11 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from __future__ import annotations
 
+import struct
+import warnings
+from enum import Enum
+from typing import TYPE_CHECKING, Any, Optional, Sequence, Tuple, Type, Union, overload
 from uuid import UUID
-from warnings import warn
-
-from bson.py3compat import PY3
 
 """Tools for representing BSON binary data.
 """
@@ -41,7 +43,10 @@ OLD_UUID_SUBTYPE = 3
 """Old BSON binary subtype for a UUID.
 
 :class:`uuid.UUID` instances will automatically be encoded
-by :mod:`bson` using this subtype.
+by :mod:`bson` using this subtype when using
+:data:`UuidRepresentation.PYTHON_LEGACY`,
+:data:`UuidRepresentation.JAVA_LEGACY`, or
+:data:`UuidRepresentation.CSHARP_LEGACY`.
 
 .. versionadded:: 2.1
 """
@@ -49,12 +54,19 @@ by :mod:`bson` using this subtype.
 UUID_SUBTYPE = 4
 """BSON binary subtype for a UUID.
 
-This is the new BSON binary subtype for UUIDs. The
-current default is :data:`OLD_UUID_SUBTYPE`.
-
-.. versionchanged:: 2.1
-   Changed to subtype 4.
+This is the standard BSON binary subtype for UUIDs.
+:class:`uuid.UUID` instances will automatically be encoded
+by :mod:`bson` using this subtype when using
+:data:`UuidRepresentation.STANDARD`.
 """
+
+
+if TYPE_CHECKING:
+    from array import array as _array
+    from mmap import mmap as _mmap
+
+    import numpy as np
+    import numpy.typing as npt
 
 
 class UuidRepresentation:
@@ -69,8 +81,8 @@ class UuidRepresentation:
     code. When decoding a BSON binary field with a UUID subtype, a
     :class:`~bson.binary.Binary` instance will be returned instead of a
     :class:`uuid.UUID` instance.
-    
-    See :ref:`unspecified-representation-details` for details.
+
+    See `unspecified representation details <https://www.mongodb.com/docs/languages/python/pymongo-driver/current/data-formats/uuid/#unspecified>`_ for details.
 
     .. versionadded:: 3.11
     """
@@ -81,8 +93,8 @@ class UuidRepresentation:
     :class:`uuid.UUID` instances will automatically be encoded to
     and decoded from BSON binary, using RFC-4122 byte order with
     binary subtype :data:`UUID_SUBTYPE`.
-    
-    See :ref:`standard-representation-details` for details.
+
+    See `standard representation details <https://www.mongodb.com/docs/languages/python/pymongo-driver/current/data-formats/uuid/#standard>`_ for details.
 
     .. versionadded:: 3.11
     """
@@ -93,8 +105,8 @@ class UuidRepresentation:
     :class:`uuid.UUID` instances will automatically be encoded to
     and decoded from BSON binary, using RFC-4122 byte order with
     binary subtype :data:`OLD_UUID_SUBTYPE`.
-    
-    See :ref:`python-legacy-representation-details` for details.
+
+    See `python legacy representation details <https://www.mongodb.com/docs/languages/python/pymongo-driver/current/data-formats/uuid/#python_legacy>`_ for details.
 
     .. versionadded:: 3.11
     """
@@ -105,8 +117,8 @@ class UuidRepresentation:
     :class:`uuid.UUID` instances will automatically be encoded to
     and decoded from BSON binary subtype :data:`OLD_UUID_SUBTYPE`,
     using the Java driver's legacy byte order.
-    
-    See :ref:`java-legacy-representation-details` for details.
+
+    See `Java Legacy UUID <https://www.mongodb.com/docs/languages/python/pymongo-driver/current/data-formats/uuid/#java_legacy>`_ for details.
 
     .. versionadded:: 3.11
     """
@@ -117,8 +129,8 @@ class UuidRepresentation:
     :class:`uuid.UUID` instances will automatically be encoded to
     and decoded from BSON binary subtype :data:`OLD_UUID_SUBTYPE`,
     using the C# driver's legacy byte order.
-    
-    See :ref:`csharp-legacy-representation-details` for details.
+
+    See `C# Legacy UUID <https://www.mongodb.com/docs/languages/python/pymongo-driver/current/data-formats/uuid/#csharp_legacy>`_ for details.
 
     .. versionadded:: 3.11
     """
@@ -172,43 +184,135 @@ MD5_SUBTYPE = 5
 """BSON binary subtype for an MD5 hash.
 """
 
+COLUMN_SUBTYPE = 7
+"""BSON binary subtype for columns.
+
+.. versionadded:: 4.0
+"""
+
+SENSITIVE_SUBTYPE = 8
+"""BSON binary subtype for sensitive data.
+
+.. versionadded:: 4.5
+"""
+
+
+VECTOR_SUBTYPE = 9
+"""BSON binary subtype for densely packed vector data.
+
+.. versionadded:: 4.10
+"""
+
+
 USER_DEFINED_SUBTYPE = 128
 """BSON binary subtype for any user defined structure.
 """
 
 
+class BinaryVectorDtype(Enum):
+    """Datatypes of vector subtype.
+
+    :param FLOAT32: (0x27) Pack list of :class:`float` as float32
+    :param INT8: (0x03) Pack list of :class:`int` in [-128, 127] as signed int8
+    :param PACKED_BIT: (0x10) Pack list of :class:`int` in [0, 255] as unsigned uint8
+
+    The `PACKED_BIT` value represents a special case where vector values themselves
+    can only be of two values (0 or 1) but these are packed together into groups of 8,
+    a byte. In Python, these are displayed as ints in range [0, 255]
+
+    Each value is of type bytes with a length of one.
+
+    .. versionadded:: 4.10
+    """
+
+    INT8 = b"\x03"
+    FLOAT32 = b"\x27"
+    PACKED_BIT = b"\x10"
+
+
+class BinaryVector:
+    """Vector of numbers along with metadata for binary interoperability.
+    .. versionadded:: 4.10
+    """
+
+    __slots__ = ("data", "dtype", "padding")
+
+    def __init__(
+        self,
+        data: Union[Sequence[float | int], npt.NDArray[np.number]],
+        dtype: BinaryVectorDtype,
+        padding: int = 0,
+    ):
+        """
+        :param data: Sequence of numbers representing the mathematical vector.
+        :param dtype:  The data type stored in binary
+        :param padding: The number of bits in the final byte that are to be ignored
+          when a vector element's size is less than a byte
+          and the length of the vector is not a multiple of 8.
+          (Padding is equivalent to a negative value of `count` in
+          `numpy.unpackbits <https://numpy.org/doc/stable/reference/generated/numpy.unpackbits.html>`_)
+        """
+        self.data = data
+        self.dtype = dtype
+        self.padding = padding
+
+    def __repr__(self) -> str:
+        return f"BinaryVector(dtype={self.dtype}, padding={self.padding}, data={self.data})"
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, BinaryVector):
+            return False
+        return (
+            self.dtype == other.dtype and self.padding == other.padding and self.data == other.data
+        )
+
+    def __len__(self) -> int:
+        return len(self.data)
+
+
 class Binary(bytes):
     """Representation of BSON binary data.
 
-    This is necessary because we want to represent Python strings as
-    the BSON string type. We need to wrap binary data so we can tell
+    We want to represent Python strings as the BSON string type.
+    We need to wrap binary data so that we can tell
     the difference between what should be considered binary data and
     what should be considered a string when we encode to BSON.
 
-    Raises TypeError if `data` is not an instance of :class:`bytes`
-    (:class:`str` in python 2) or `subtype` is not an instance of
-    :class:`int`. Raises ValueError if `subtype` is not in [0, 256).
+    Subtype 9 provides a space-efficient representation of 1-dimensional vector data.
+    Its data is prepended with two bytes of metadata.
+    The first (dtype) describes its data type, such as float32 or int8.
+    The second (padding) prescribes the number of bits to ignore in the final byte.
+    This is relevant when the element size of the dtype is not a multiple of 8.
+
+    Raises TypeError if `subtype` is not an instance of :class:`int`.
+    Raises ValueError if `subtype` is not in [0, 256).
 
     .. note::
-      In python 3 instances of Binary with subtype 0 will be decoded
-      directly to :class:`bytes`.
+      Instances of Binary with subtype 0 will be decoded directly to :class:`bytes`.
 
-    :Parameters:
-      - `data`: the binary data to represent. Can be any bytes-like type
+    :param data: the binary data to represent. Can be any bytes-like type
         that implements the buffer protocol.
-      - `subtype` (optional): the `binary subtype
+    :param subtype: the `binary subtype
         <https://bsonspec.org/spec.html>`_
         to use
 
     .. versionchanged:: 3.9
-      Support any bytes-like type that implements the buffer protocol.
+       Support any bytes-like type that implements the buffer protocol.
+
+    .. versionchanged:: 4.10
+       Addition of vector subtype.
     """
 
     _type_marker = 5
+    __subtype: int
 
-    def __new__(cls, data, subtype=BINARY_SUBTYPE):
+    def __new__(
+        cls: Type[Binary],
+        data: Union[memoryview, bytes, bytearray, _mmap, _array[Any]],
+        subtype: int = BINARY_SUBTYPE,
+    ) -> Binary:
         if not isinstance(subtype, int):
-            raise TypeError("subtype must be an instance of int")
+            raise TypeError(f"subtype must be an instance of int, not {type(subtype)}")
         if subtype >= 256 or subtype < 0:
             raise ValueError("subtype must be contained in [0, 256)")
         # Support any type that implements the buffer protocol.
@@ -217,7 +321,9 @@ class Binary(bytes):
         return self
 
     @classmethod
-    def from_uuid(cls, uuid, uuid_representation=UuidRepresentation.STANDARD):
+    def from_uuid(
+        cls: Type[Binary], uuid: UUID, uuid_representation: int = UuidRepresentation.STANDARD
+    ) -> Binary:
         """Create a BSON Binary object from a Python UUID.
 
         Creates a :class:`~bson.binary.Binary` object from a
@@ -228,21 +334,20 @@ class Binary(bytes):
         Raises :exc:`TypeError` if `uuid` is not an instance of
         :class:`~uuid.UUID`.
 
-        :Parameters:
-          - `uuid`: A :class:`uuid.UUID` instance.
-          - `uuid_representation`: A member of
+        :param uuid: A :class:`uuid.UUID` instance.
+        :param uuid_representation: A member of
             :class:`~bson.binary.UuidRepresentation`. Default:
             :const:`~bson.binary.UuidRepresentation.STANDARD`.
-            See :ref:`handling-uuid-data-example` for details.
+            See `UUID representations <https://www.mongodb.com/docs/languages/python/pymongo-driver/current/data-formats/uuid/#universally-unique-ids--uuids->`_ for details.
 
         .. versionadded:: 3.11
         """
         if not isinstance(uuid, UUID):
-            raise TypeError("uuid must be an instance of uuid.UUID")
+            raise TypeError(f"uuid must be an instance of uuid.UUID, not {type(uuid)}")
 
         if uuid_representation not in ALL_UUID_REPRESENTATIONS:
             raise ValueError(
-                "uuid_representation must be a value " "from bson.binary.UuidRepresentation"
+                "uuid_representation must be a value from bson.binary.UuidRepresentation"
             )
 
         if uuid_representation == UuidRepresentation.UNSPECIFIED:
@@ -270,7 +375,7 @@ class Binary(bytes):
 
         return cls(payload, subtype)
 
-    def as_uuid(self, uuid_representation=UuidRepresentation.STANDARD):
+    def as_uuid(self, uuid_representation: int = UuidRepresentation.STANDARD) -> UUID:
         """Create a Python UUID from this BSON Binary object.
 
         Decodes this binary object as a native :class:`uuid.UUID` instance
@@ -279,20 +384,19 @@ class Binary(bytes):
         Raises :exc:`ValueError` if this :class:`~bson.binary.Binary` instance
         does not contain a UUID.
 
-        :Parameters:
-          - `uuid_representation`: A member of
+        :param uuid_representation: A member of
             :class:`~bson.binary.UuidRepresentation`. Default:
             :const:`~bson.binary.UuidRepresentation.STANDARD`.
-            See :ref:`handling-uuid-data-example` for details.
+            See `UUID representations <https://www.mongodb.com/docs/languages/python/pymongo-driver/current/data-formats/uuid/#universally-unique-ids--uuids->`_ for details.
 
         .. versionadded:: 3.11
         """
         if self.subtype not in ALL_UUID_SUBTYPES:
-            raise ValueError("cannot decode subtype %s as a uuid" % (self.subtype,))
+            raise ValueError(f"cannot decode subtype {self.subtype} as a uuid")
 
         if uuid_representation not in ALL_UUID_REPRESENTATIONS:
             raise ValueError(
-                "uuid_representation must be a value from " "bson.binary.UuidRepresentation"
+                "uuid_representation must be a value from bson.binary.UuidRepresentation"
             )
 
         if uuid_representation == UuidRepresentation.UNSPECIFIED:
@@ -312,23 +416,235 @@ class Binary(bytes):
                 return UUID(bytes=self)
 
         raise ValueError(
-            "cannot decode subtype %s to %s"
-            % (self.subtype, UUID_REPRESENTATION_NAMES[uuid_representation])
+            f"cannot decode subtype {self.subtype} to {UUID_REPRESENTATION_NAMES[uuid_representation]}"
         )
 
+    @classmethod
+    @overload
+    def from_vector(cls: Type[Binary], vector: BinaryVector) -> Binary:
+        ...
+
+    @classmethod
+    @overload
+    def from_vector(
+        cls: Type[Binary],
+        vector: Union[list[int], list[float]],
+        dtype: BinaryVectorDtype,
+        padding: int = 0,
+    ) -> Binary:
+        ...
+
+    @classmethod
+    @overload
+    def from_vector(
+        cls: Type[Binary],
+        vector: npt.NDArray[np.number],
+        dtype: BinaryVectorDtype,
+        padding: int = 0,
+    ) -> Binary:
+        ...
+
+    @classmethod
+    def from_vector(
+        cls: Type[Binary],
+        vector: Union[BinaryVector, list[int], list[float], npt.NDArray[np.number]],
+        dtype: Optional[BinaryVectorDtype] = None,
+        padding: Optional[int] = None,
+    ) -> Binary:
+        """Create a BSON :class:`~bson.binary.Binary` of Vector subtype.
+
+        To interpret the representation of the numbers, a data type must be included.
+        See :class:`~bson.binary.BinaryVectorDtype` for available types and descriptions.
+
+        The dtype and padding are prepended to the binary data's value.
+
+        :param vector: Either a List of values, or a :class:`~bson.binary.BinaryVector` dataclass.
+        :param dtype: Data type of the values
+        :param padding: For fractional bytes, number of bits to ignore at end of vector.
+        :return: Binary packed data identified by dtype and padding.
+
+        .. versionchanged:: 4.14
+           When padding is non-zero, ignored bits should be zero. Raise exception on encoding, warn on decoding.
+
+        .. versionadded:: 4.10
+        """
+        if isinstance(vector, BinaryVector):
+            if dtype or padding:
+                raise ValueError(
+                    "The first argument, vector, has type BinaryVector. "
+                    "dtype or padding cannot be separately defined, but were."
+                )
+            dtype = vector.dtype
+            padding = vector.padding
+            vector = vector.data  # type: ignore
+
+        padding = 0 if padding is None else padding
+        if not isinstance(dtype, BinaryVectorDtype):
+            raise TypeError(
+                "dtype must be a bson.BinaryVectorDtype of BinaryVectorDType.INT8, PACKED_BIT, FLOAT32"
+            )
+        metadata = struct.pack("<sB", dtype.value, padding)
+
+        if isinstance(vector, list):
+            if dtype == BinaryVectorDtype.INT8:  # pack ints in [-128, 127] as signed int8
+                format_str = "b"
+                if padding:
+                    raise ValueError(f"padding does not apply to {dtype=}")
+            elif dtype == BinaryVectorDtype.PACKED_BIT:  # pack ints in [0, 255] as unsigned uint8
+                format_str = "B"
+                if 0 <= padding > 7:
+                    raise ValueError(f"{padding=}. It must be in [0,1, ..7].")
+                if padding and not vector:
+                    raise ValueError("Empty vector with non-zero padding.")
+            elif dtype == BinaryVectorDtype.FLOAT32:  # pack floats as float32
+                format_str = "f"
+                if padding:
+                    raise ValueError(f"padding does not apply to {dtype=}")
+            else:
+                raise NotImplementedError("%s not yet supported" % dtype)
+            data = struct.pack(f"<{len(vector)}{format_str}", *vector)
+        else:  # vector is numpy array or incorrect type.
+            try:
+                import numpy as np
+            except ImportError as exc:
+                raise ImportError(
+                    "Failed to create binary from vector. Check type. If numpy array, numpy must be installed."
+                ) from exc
+            if not isinstance(vector, np.ndarray):
+                raise TypeError(
+                    "Could not create Binary. Vector must be a BinaryVector, list[int], list[float] or numpy ndarray."
+                )
+            if vector.ndim != 1:
+                raise ValueError(
+                    "from_numpy_vector only supports 1D arrays as it creates a single vector."
+                )
+
+            if dtype == BinaryVectorDtype.FLOAT32:
+                vector = vector.astype(np.dtype("float32"), copy=False)
+            elif dtype == BinaryVectorDtype.INT8:
+                if vector.min() >= -128 and vector.max() <= 127:
+                    vector = vector.astype(np.dtype("int8"), copy=False)
+                else:
+                    raise ValueError("Values found outside INT8 range.")
+            elif dtype == BinaryVectorDtype.PACKED_BIT:
+                if vector.min() >= 0 and vector.max() <= 127:
+                    vector = vector.astype(np.dtype("uint8"), copy=False)
+                else:
+                    raise ValueError("Values found outside UINT8 range.")
+            else:
+                raise NotImplementedError("%s not yet supported" % dtype)
+            data = vector.tobytes()
+
+        if padding and len(vector) and not (data[-1] & ((1 << padding) - 1)) == 0:
+            raise ValueError(
+                "Vector has a padding P, but bits in the final byte lower than P are non-zero. They must be zero."
+            )
+        return cls(metadata + data, subtype=VECTOR_SUBTYPE)
+
+    def as_vector(self, return_numpy: bool = False) -> BinaryVector:
+        """From the Binary, create a list or 1-d numpy array of numbers, along with dtype and padding.
+
+        :param return_numpy: If True, BinaryVector.data will be a one-dimensional numpy array. By default, it is a list.
+        :return: BinaryVector
+
+        .. versionadded:: 4.10
+        """
+
+        if self.subtype != VECTOR_SUBTYPE:
+            raise ValueError(f"Cannot decode subtype {self.subtype} as a vector")
+
+        dtype, padding = struct.unpack_from("<sB", self)
+        dtype = BinaryVectorDtype(dtype)
+        offset = 2
+        n_bytes = len(self) - offset
+
+        if padding and dtype != BinaryVectorDtype.PACKED_BIT:
+            raise ValueError(
+                f"Corrupt data. Padding ({padding}) must be 0 for all but PACKED_BIT dtypes. ({dtype=})"
+            )
+
+        if not return_numpy:
+            if dtype == BinaryVectorDtype.INT8:
+                dtype_format = "b"
+                format_string = f"<{n_bytes}{dtype_format}"
+                vector = list(struct.unpack_from(format_string, self, offset))
+                return BinaryVector(vector, dtype, padding)
+
+            elif dtype == BinaryVectorDtype.FLOAT32:
+                n_values = n_bytes // 4
+                if n_bytes % 4:
+                    raise ValueError(
+                        "Corrupt data. N bytes for a float32 vector must be a multiple of 4."
+                    )
+                dtype_format = "f"
+                format_string = f"<{n_values}{dtype_format}"
+                vector = list(struct.unpack_from(format_string, self, offset))
+                return BinaryVector(vector, dtype, padding)
+
+            elif dtype == BinaryVectorDtype.PACKED_BIT:
+                # data packed as uint8
+                if padding and not n_bytes:
+                    raise ValueError("Corrupt data. Vector has a padding P, but no data.")
+                if padding > 7 or padding < 0:
+                    raise ValueError(f"Corrupt data. Padding ({padding}) must be between 0 and 7.")
+                dtype_format = "B"
+                format_string = f"<{n_bytes}{dtype_format}"
+                unpacked_uint8s = list(struct.unpack_from(format_string, self, offset))
+                if padding and n_bytes and unpacked_uint8s[-1] & (1 << padding) - 1 != 0:
+                    warnings.warn(
+                        "Vector has a padding P, but bits in the final byte lower than P are non-zero. For pymongo>=5.0, they must be zero.",
+                        DeprecationWarning,
+                        stacklevel=2,
+                    )
+                return BinaryVector(unpacked_uint8s, dtype, padding)
+
+            else:
+                raise NotImplementedError("Binary Vector dtype %s not yet supported" % dtype.name)
+        else:  # create a numpy array
+            try:
+                import numpy as np
+            except ImportError as exc:
+                raise ImportError(
+                    "Converting binary to numpy.ndarray requires numpy to be installed."
+                ) from exc
+            if dtype == BinaryVectorDtype.INT8:
+                data = np.frombuffer(self[offset:], dtype="int8")
+            elif dtype == BinaryVectorDtype.FLOAT32:
+                if n_bytes % 4:
+                    raise ValueError(
+                        "Corrupt data. N bytes for a float32 vector must be a multiple of 4."
+                    )
+                data = np.frombuffer(self[offset:], dtype="float32")
+            elif dtype == BinaryVectorDtype.PACKED_BIT:
+                # data packed as uint8
+                if padding and not n_bytes:
+                    raise ValueError("Corrupt data. Vector has a padding P, but no data.")
+                if padding > 7 or padding < 0:
+                    raise ValueError(f"Corrupt data. Padding ({padding}) must be between 0 and 7.")
+                data = np.frombuffer(self[offset:], dtype="uint8")
+                if padding and np.unpackbits(data[-1])[-padding:].sum() > 0:
+                    warnings.warn(
+                        "Vector has a padding P, but bits in the final byte lower than P are non-zero. For pymongo>=5.0, they must be zero.",
+                        DeprecationWarning,
+                        stacklevel=2,
+                    )
+            else:
+                raise NotImplementedError("Binary Vector dtype %s not yet supported" % dtype.name)
+            return BinaryVector(data, dtype, padding)
+
     @property
-    def subtype(self):
+    def subtype(self) -> int:
         """Subtype of this binary data."""
         return self.__subtype
 
-    def __getnewargs__(self):
+    def __getnewargs__(self) -> Tuple[bytes, int]:  # type: ignore[override]
         # Work around http://bugs.python.org/issue7382
-        data = super(Binary, self).__getnewargs__()[0]
-        if PY3 and not isinstance(data, bytes):
+        data = super().__getnewargs__()[0]
+        if not isinstance(data, bytes):
             data = data.encode("latin-1")
         return data, self.__subtype
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         if isinstance(other, Binary):
             return (self.__subtype, bytes(self)) == (other.subtype, bytes(other))
         # We don't return NotImplemented here because if we did then
@@ -336,101 +652,14 @@ class Binary(bytes):
         # subclass of str...
         return False
 
-    def __hash__(self):
-        return super(Binary, self).__hash__() ^ hash(self.__subtype)
+    def __hash__(self) -> int:
+        return super().__hash__() ^ hash(self.__subtype)
 
-    def __ne__(self, other):
+    def __ne__(self, other: Any) -> bool:
         return not self == other
 
-    def __repr__(self):
-        return "Binary(%s, %s)" % (bytes.__repr__(self), self.__subtype)
-
-
-class UUIDLegacy(Binary):
-    """**DEPRECATED** - UUID wrapper to support working with UUIDs stored as
-    PYTHON_LEGACY.
-
-    .. note:: This class has been deprecated and will be removed in
-       PyMongo 4.0. Use :meth:`~bson.binary.Binary.from_uuid` and
-       :meth:`~bson.binary.Binary.as_uuid` with the appropriate
-       :class:`~bson.binary.UuidRepresentation` to handle legacy-formatted
-       UUIDs instead.::
-
-            from bson import Binary, UUIDLegacy, UuidRepresentation
-            import uuid
-
-            my_uuid = uuid.uuid4()
-            legacy_uuid = UUIDLegacy(my_uuid)
-            binary_uuid = Binary.from_uuid(
-                my_uuid, UuidRepresentation.PYTHON_LEGACY)
-
-            assert legacy_uuid == binary_uuid
-            assert legacy_uuid.uuid == binary_uuid.as_uuid(
-                UuidRepresentation.PYTHON_LEGACY)
-
-    .. doctest::
-
-      >>> import uuid
-      >>> from bson.binary import Binary, UUIDLegacy, STANDARD
-      >>> from bson.codec_options import CodecOptions
-      >>> my_uuid = uuid.uuid4()
-      >>> coll = db.get_collection('test',
-      ...                          CodecOptions(uuid_representation=STANDARD))
-      >>> coll.insert_one({'uuid': Binary(my_uuid.bytes, 3)}).inserted_id
-      ObjectId('...')
-      >>> coll.count_documents({'uuid': my_uuid})
-      0
-      >>> coll.count_documents({'uuid': UUIDLegacy(my_uuid)})
-      1
-      >>> coll.find({'uuid': UUIDLegacy(my_uuid)})[0]['uuid']
-      UUID('...')
-      >>>
-      >>> # Convert from subtype 3 to subtype 4
-      >>> doc = coll.find_one({'uuid': UUIDLegacy(my_uuid)})
-      >>> coll.replace_one({"_id": doc["_id"]}, doc).matched_count
-      1
-      >>> coll.count_documents({'uuid': UUIDLegacy(my_uuid)})
-      0
-      >>> coll.count_documents({'uuid': {'$in': [UUIDLegacy(my_uuid), my_uuid]}})
-      1
-      >>> coll.find_one({'uuid': my_uuid})['uuid']
-      UUID('...')
-
-    Raises :exc:`TypeError` if `obj` is not an instance of :class:`~uuid.UUID`.
-
-    :Parameters:
-      - `obj`: An instance of :class:`~uuid.UUID`.
-
-    .. versionchanged:: 3.11
-       Deprecated. The same functionality can be replicated using the
-       :meth:`~Binary.from_uuid` and :meth:`~Binary.to_uuid` methods with
-       :data:`~UuidRepresentation.PYTHON_LEGACY`.
-    .. versionadded:: 2.1
-    """
-
-    def __new__(cls, obj):
-        warn(
-            "The UUIDLegacy class has been deprecated and will be removed "
-            "in PyMongo 4.0. Use the Binary.from_uuid() and Binary.to_uuid() "
-            "with the appropriate UuidRepresentation to handle "
-            "legacy-formatted UUIDs instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        if not isinstance(obj, UUID):
-            raise TypeError("obj must be an instance of uuid.UUID")
-        self = Binary.__new__(cls, obj.bytes, OLD_UUID_SUBTYPE)
-        self.__uuid = obj
-        return self
-
-    def __getnewargs__(self):
-        # Support copy and deepcopy
-        return (self.__uuid,)
-
-    @property
-    def uuid(self):
-        """UUID instance wrapped by this UUIDLegacy instance."""
-        return self.__uuid
-
-    def __repr__(self):
-        return "UUIDLegacy('%s')" % self.__uuid
+    def __repr__(self) -> str:
+        if self.__subtype == SENSITIVE_SUBTYPE:
+            return f"<Binary(REDACTED, {self.__subtype})>"
+        else:
+            return f"Binary({bytes.__repr__(self)}, {self.__subtype})"

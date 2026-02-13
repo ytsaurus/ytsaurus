@@ -11,6 +11,7 @@
 
 #include <yt/yt/server/node/data_node/bootstrap.h>
 #include <yt/yt/server/node/data_node/chunk_store.h>
+#include <yt/yt/server/node/data_node/config.h>
 #include <yt/yt/server/node/data_node/location.h>
 #include <yt/yt/server/node/data_node/medium_directory_manager.h>
 #include <yt/yt/server/node/data_node/medium_updater.h>
@@ -29,6 +30,7 @@
 
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 #include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
+#include <yt/yt/ytlib/cell_master_client/protobuf_helpers.h>
 
 #include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
 
@@ -125,8 +127,7 @@ public:
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
         Bootstrap_->SubscribeSecondaryMasterCellListChanged(
-            BIND_NO_PROPAGATE(&TMasterConnector::OnSecondaryMasterCellListChanged, MakeWeak(this))
-                .Via(Bootstrap_->GetControlInvoker()));
+            BIND_NO_PROPAGATE(&TMasterConnector::OnSecondaryMasterCellListChanged, MakeWeak(this)));
 
         UpdateLocalHostName(/*useHostObjects*/ false);
 
@@ -214,6 +215,9 @@ public:
         auto rack = response->has_rack() ? std::make_optional(response->rack()) : std::nullopt;
         auto dataCenter = response->has_data_center() ? std::make_optional(response->data_center()) : std::nullopt;
         auto tags = FromProto<std::vector<std::string>>(response->tags());
+
+        auto newSecondaryMastersConnectionConfigs = ParseSecondaryMasterConnectionConfigsFromResponse(response->secondary_masters_configs());
+
         UpdateLocalDescriptor(hostName, rack, dataCenter, std::move(tags));
 
         Bootstrap_->SetDecommissioned(response->decommissioned());
@@ -223,6 +227,8 @@ public:
 
         const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
         jobResourceManager->SetResourceLimitsOverrides(response->resource_limits_overrides());
+
+        MaybeUpdateSecondaryMasterConnectionConfigs(newSecondaryMastersConnectionConfigs);
     }
 
     NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() const override
@@ -394,6 +400,42 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MasterCellTagsLock_);
     THashSet<TCellTag> MasterCellTags_;
+
+    TSecondaryMasterConnectionConfigs ParseSecondaryMasterConnectionConfigsFromResponse(const auto& protoSecondaryMastersConfigs)
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        TSecondaryMasterConnectionConfigs newSecondaryMasterConnectionConfigs;
+        for (const auto& protoSecondaryMasterConfig : protoSecondaryMastersConfigs) {
+            TMasterConnectionConfigPtr masterConnectionConfig;
+            FromProto(&masterConnectionConfig, protoSecondaryMasterConfig);
+            EmplaceOrCrash(newSecondaryMasterConnectionConfigs, CellTagFromId(masterConnectionConfig->CellId), std::move(masterConnectionConfig));
+        }
+
+        return newSecondaryMasterConnectionConfigs;
+    }
+
+    void MaybeUpdateSecondaryMasterConnectionConfigs(const TSecondaryMasterConnectionConfigs& newSecondaryMastersConnectionConfigs)
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        if (newSecondaryMastersConnectionConfigs.empty()) {
+            return;
+        }
+
+        const auto& masterCellDirectory = Bootstrap_->GetConnection()->GetMasterCellDirectory();
+        auto oldSecondaryMastersConnectionConfigs = masterCellDirectory->GetSecondaryMasterConnectionConfigs();
+        if (!masterCellDirectory->ClusterMasterCompositionChanged(masterCellDirectory->GetSecondaryMasterConnectionConfigs(), newSecondaryMastersConnectionConfigs)) {
+            return;
+        }
+
+        YT_LOG_INFO("Master cell membership configuration has changed, starting reconfiguration "
+            "(SecondaryMasterCellTags: %v, ReceivedSecondaryMasterCellTags: %v)",
+            GetMasterCellTags(),
+            NCellMasterClient::GetMasterCellTags(newSecondaryMastersConnectionConfigs));
+
+        masterCellDirectory->ReconfigureMasterCellDirectory(newSecondaryMastersConnectionConfigs);
+    }
 
     std::vector<TError> GetAlerts()
     {
@@ -660,6 +702,9 @@ private:
             UpdateTags(std::move(tags));
         }
 
+        auto newSecondaryMastersConnectionConfigs = ParseSecondaryMasterConnectionConfigsFromResponse(rsp->secondary_masters_configs());
+        MaybeUpdateSecondaryMasterConnectionConfigs(newSecondaryMastersConnectionConfigs);
+
         Bootstrap_->CompleteNodeRegistration();
 
         if (Bootstrap_->NeedDataNodeBootstrap()) {
@@ -745,7 +790,7 @@ private:
 
     void OnSecondaryMasterCellListChanged(const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs)
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto guard = WriterGuard(MasterCellTagsLock_);
         for (const auto& [cellTag, _] : newSecondaryMasterConfigs) {

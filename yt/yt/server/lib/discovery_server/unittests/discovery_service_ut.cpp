@@ -225,7 +225,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestListGroups)
         .ThrowOnError();
 
     auto discoveryClient = CreateDiscoveryClient();
-    auto checkGroups = [&] (TGroupId groupId, std::vector<TString> expectedGroups) {
+    auto checkGroups = [&] (TGroupId groupId, std::vector<TGroupId> expectedGroups) {
         auto groupsFuture = discoveryClient->ListGroups(groupId, {1000});
         if (!groupsFuture.Wait()) {
             return false;
@@ -304,8 +304,8 @@ TEST_F(TDiscoveryServiceTestSuite, TestAttributes)
     const TGroupId groupId = "/sample_group";
     const TMemberId memberId = "sample_member";
 
-    const TString key = "key";
-    const TString value = "value";
+    const std::string key = "key";
+    const std::string value = "value";
 
     const auto& addresses = GetDiscoveryServersAddresses();
 
@@ -347,7 +347,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestAttributes)
             return false;
         }
 
-        return members[0].Attributes->Find<TString>(key) == value;
+        return members[0].Attributes->Find<std::string>(key) == value;
     };
     WaitForPredicate(checkAttributes2);
 }
@@ -476,7 +476,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestWrongParameters)
 
 TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestNestedGroups)
 {
-    const std::vector<std::pair<TString, TString>> testMembers = {
+    const std::vector<std::pair<TGroupId, std::string>> testMembers = {
         {"/sample_group", "sample_member_1"},
         {"/sample_group/subgroup", "sample_member_2"},
         {"/sample_group/subgroup/subgroup", "sample_member_3"},
@@ -587,25 +587,25 @@ TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestYPath)
     {
         auto result = SyncYPathList(ypathService, "/");
         std::sort(result.begin(), result.end());
-        ASSERT_EQ((std::vector<TString>{"sample_group1", "test"}), result);
+        ASSERT_EQ((std::vector<std::string>{"sample_group1", "test"}), result);
     }
 
     {
         auto result = SyncYPathList(ypathService, "/@");
         std::sort(result.begin(), result.end());
-        ASSERT_EQ((std::vector<TString>{"child_count", "type"}), result);
+        ASSERT_EQ((std::vector<std::string>{"child_count", "type"}), result);
     }
 
     {
         auto result = SyncYPathList(ypathService, "/sample_group1/@");
         std::sort(result.begin(), result.end());
-        ASSERT_EQ((std::vector<TString>{"child_count", "member_count", "members", "type"}), result);
+        ASSERT_EQ((std::vector<std::string>{"child_count", "member_count", "members", "type"}), result);
     }
 
-    ASSERT_EQ((std::vector<TString>{"sample_member1"}), SyncYPathList(ypathService, "/sample_group1/@members"));
+    ASSERT_EQ((std::vector<std::string>{"sample_member1"}), SyncYPathList(ypathService, "/sample_group1/@members"));
     {
         auto result = SyncYPathList(ypathService, "/sample_group1/@members/sample_member1/@");
-        std::vector<TString> expected{"priority", "revision", "last_heartbeat_time", "last_attributes_update_time"};
+        std::vector<std::string> expected{"priority", "revision", "last_heartbeat_time", "last_attributes_update_time"};
         ASSERT_EQ(expected, result);
     }
 
@@ -651,9 +651,9 @@ TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestYPath)
     ASSERT_EQ(ConvertToYsonString("e", EYsonFormat::Binary),
         SyncYPathGet(ypathService, "/sample_group1/@members/sample_member1/@q2/q/w"));
 
-    ASSERT_EQ(std::vector<TString>{"q"},
+    ASSERT_EQ(std::vector<std::string>{"q"},
         SyncYPathList(ypathService, "/sample_group1/@members/sample_member1/@q2"));
-    ASSERT_EQ(std::vector<TString>{"w"},
+    ASSERT_EQ(std::vector<std::string>{"w"},
         SyncYPathList(ypathService, "/sample_group1/@members/sample_member1/@q2/q"));
 
     ASSERT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/@child_count"));
@@ -812,7 +812,7 @@ TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestGroupRemoval)
     {
         auto result = SyncYPathList(ypathService, "/");
         std::sort(result.begin(), result.end());
-        ASSERT_EQ((std::vector<TString>{"sample_group1", "sample_group2"}), result);
+        ASSERT_EQ((std::vector<std::string>{"sample_group1", "sample_group2"}), result);
     }
 
     YT_UNUSED_FUTURE(memberClient1->Stop());
@@ -821,7 +821,8 @@ TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestGroupRemoval)
     });
 
     auto checkMembers = [&] {
-        return SyncYPathList(ypathService, "/") == std::vector<TString>{"sample_group2"};
+        auto result = SyncYPathList(ypathService, "/");
+        return result.size() == 1 && result[0] == "sample_group2";
     };
     WaitForPredicate(checkMembers);
 }

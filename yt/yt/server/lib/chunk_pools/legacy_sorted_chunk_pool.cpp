@@ -168,14 +168,15 @@ public:
 
         if (jobSummary.InterruptionReason != EInterruptionReason::None) {
             YT_LOG_DEBUG(
-                "Splitting job (OutputCookie: %v, InterruptionReason: %v, SplitJobCount: %v)",
+                "Splitting job (JobId: %v, OutputCookie: %v, InterruptionReason: %v, SplitJobCount: %v)",
+                jobSummary.Id,
                 cookie,
                 jobSummary.InterruptionReason,
                 jobSummary.SplitJobCount);
             auto foreignSlices = JobManager_->ReleaseForeignSlices(cookie);
 
             auto childCookies = SplitJob(jobSummary.UnreadInputDataSlices, std::move(foreignSlices), jobSummary.SplitJobCount);
-            RegisterChildCookies(cookie, std::move(childCookies));
+            RegisterChildCookies(jobSummary.Id, cookie, std::move(childCookies));
         }
         JobManager_->Completed(cookie, jobSummary.InterruptionReason);
         CheckCompleted();

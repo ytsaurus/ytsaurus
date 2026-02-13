@@ -316,6 +316,9 @@ void TProxyBootstrapConfig::Register(TRegistrar registrar)
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
 
+    registrar.Parameter("cancel_fiber_on_connection_close", &TThis::CancelFiberOnConnectionClose)
+        .Default(false);
+
     registrar.Parameter("default_network", &TThis::DefaultNetwork)
         .Default(NBus::DefaultNetworkName);
     registrar.Parameter("networks", &TThis::Networks)
@@ -360,6 +363,19 @@ void TProxyBootstrapConfig::Register(TRegistrar registrar)
         if ((config->TvmOnlyHttpServer || config->TvmOnlyHttpsServer) && !config->TvmOnlyAuth) {
             THROW_ERROR_EXCEPTION("\"tvm_only_auth\" must be configured when using \"tvm_only_http_server\" or \"tvm_only_https_server\"");
         }
+    });
+    registrar.Postprocessor([] (TThis* config) {
+        auto setCancelFiberOnConnectionClose = [&] (const auto& serverConfig) {
+            if (serverConfig && !serverConfig->CancelFiberOnConnectionClose) {
+                serverConfig->CancelFiberOnConnectionClose = config->CancelFiberOnConnectionClose;
+            }
+        };
+        setCancelFiberOnConnectionClose(config->HttpServer);
+        setCancelFiberOnConnectionClose(config->HttpsServer);
+        setCancelFiberOnConnectionClose(config->TvmOnlyHttpServer);
+        setCancelFiberOnConnectionClose(config->TvmOnlyHttpsServer);
+        setCancelFiberOnConnectionClose(config->ChytHttpServer);
+        setCancelFiberOnConnectionClose(config->ChytHttpsServer);
     });
 }
 
@@ -406,6 +422,9 @@ void TProxyDynamicConfig::Register(TRegistrar registrar)
     // NB(pavook): Static config is used when the dynamic config is missing.
     registrar.Parameter("signature_components", &TThis::SignatureComponents)
         .Optional();
+
+    registrar.Parameter("master_cell_directory_synchronizer", &TThis::MasterCellDirectorySynchronizer)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

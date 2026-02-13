@@ -39,4 +39,12 @@ int GetJobFirstOutputTableFDFromSpec(const NControllerAgent::NProto::TUserJobSpe
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Builds a comparator from schema. If enableCodegen is true and the schema supports codegen,
+// a JIT-compiled comparator will be generated for better performance.
+NTableClient::TComparator BuildComparator(
+    const NTableClient::TTableSchemaPtr& schema,
+    bool enableCodegen);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NJobProxy

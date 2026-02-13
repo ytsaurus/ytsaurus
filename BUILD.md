@@ -1,9 +1,13 @@
 ## Building YTsaurus from sources
 
-#### Build Requirements
- We have tested YTsaurus builds using Ubuntu 18.04 and 20.04. Other Linux distributions are likely to work, but additional effort may be needed. Only x86_64 Linux is currently supported.
 
- Below is a list of packages that need to be installed before building YTsaurus. 'How to Build' section contains step by step instructions to obtain these packages.
+### Building with CMake
+
+#### Requirements
+
+We have tested YTsaurus builds using Ubuntu 18.04 and 20.04. Other Linux distributions are likely to work, but additional effort may be needed. Only x86_64 Linux is currently supported.
+
+Below is a list of packages that need to be installed before building YTsaurus. 'How to Build' section contains step by step instructions to obtain these packages.
 
  - cmake 3.22+
  - clang-18
@@ -99,3 +103,58 @@
     ```
     yt/yt/server/all/ytserver-all
     ```
+
+### Building with ya make
+
+#### Requirements
+
+Ya make build is self-contained, so only `git` of version `2.20+` need to be installed.
+
+We have tested YTsaurus builds using Ubuntu 18+
+
+#### How to build
+
+YTsaurus can also be built using `ya make`, which is a high-level universal build system from [Yatool](https://github.com/yandex/yatool). The `ya` tool is included in the repository.
+
+ 1. Clone the YTsaurus repository and navigate to it:
+
+    ```
+    git clone https://github.com/ytsaurus/ytsaurus.git
+    cd ytsaurus
+    ```
+
+ 1. Build the project
+
+    **Note**: recommended to use `-r` for faster and optimized release build.
+    
+    To build server-side of the project:
+    ```
+    ./ya make -r yt/yt
+    ```
+    
+    To build a specific target (main server-side binary in the example):
+    ```
+    ./ya make -r yt/yt/server/all
+    ```
+    
+    The build artifacts will be placed in the repository directory structure.
+    
+    #### Ya make options
+    
+    Some useful build options:
+       - `-r` - Build in release mode (optimized, **recommended**)
+       - `-d` - Build in debug mode (default)
+       - `-j<N>` - Use N parallel jobs
+    
+    Options to run tests:
+       - `-t` - Run small tests (marked as `SIZE(SMALL)`)
+       - `-tt` - Run medium tests (marked as `SIZE(MEDIUM)`)
+       - `-ttt` - Run large tests (marked as `SIZE(LARGE)`)
+    
+    To use public build cache (optional, speeds up builds significantly) create `~/.ya/ya.conf` file with the following content:
+    ```
+    bazel_remote_store = true
+    bazel_remote_baseuri = "http://build-cache.dev.ytsaurus.tech"
+    ```
+    
+    This will enable downloading pre-built artifacts from the public cache server.

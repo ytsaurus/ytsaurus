@@ -1,8 +1,10 @@
-#include <optional>
-
 #include <yt/yt/server/cell_balancer/bundle_scheduler.h>
 #include <yt/yt/server/cell_balancer/config.h>
+#include <yt/yt/server/cell_balancer/mutations.h>
 #include <yt/yt/server/cell_balancer/orchid_bindings.h>
+#include <yt/yt/server/cell_balancer/input_state.h>
+
+#include <yt/yt/core/logging/log_manager.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 
@@ -574,6 +576,11 @@ class TBundleSchedulerTest
     , public ::testing::WithParamInterface<std::tuple<EZoneSetup, int>>
 {
 protected:
+    static void SetUpTestSuite()
+    {
+        NLogging::TLogManager::Get()->ConfigureFromEnv();
+    }
+
     TSchedulerInputState GenerateInputContext(int nodeCount, int writeThreadCount = 0, int proxyCount = 0)
     {
         auto setup = std::get<0>(GetParam());
@@ -671,7 +678,7 @@ TEST_P(TBundleSchedulerTest, PreventAllocatingNodeTwice)
     EXPECT_EQ(0, std::ssize(spareNodesInfo.FreeNodes));
     EXPECT_EQ(1, std::ssize(spareNodesInfo.UsedByBundle[bundleName]));
 
-    bool allocatedViaNormal = std::ssize(mutations.ChangeNodeAnnotations) > 0;
+    bool allocatedViaNormal = std::ssize(mutations.ChangedNodeAnnotations) > 0;
     bool allocatedViaEmergency = std::ssize(mutations.ChangedNodeUserTags) > 0;
 
     // One of
@@ -893,8 +900,8 @@ TEST_P(TBundleSchedulerTest, AllocationProgressTrackCompleted)
         VerifyNodeAllocationRequests(mutations, 0);
         EXPECT_EQ(1, std::ssize(input.BundleStates["bigd"]->NodeAllocations));
 
-        EXPECT_EQ(1, std::ssize(mutations.ChangeNodeAnnotations));
-        const auto& annotations = GetOrCrash(mutations.ChangeNodeAnnotations, nodeId);
+        EXPECT_EQ(1, std::ssize(mutations.ChangedNodeAnnotations));
+        const auto& annotations = GetOrCrash(mutations.ChangedNodeAnnotations, nodeId);
         EXPECT_EQ(annotations->YPCluster, Format("yp-%v", dataCenterName));
         EXPECT_EQ(annotations->DataCenter, dataCenterName);
         EXPECT_EQ(annotations->AllocatedForBundle, "bigd");
@@ -928,7 +935,7 @@ TEST_P(TBundleSchedulerTest, AllocationProgressTrackCompleted)
     EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->NodeAllocations));
-    EXPECT_EQ(0, std::ssize(mutations.ChangeNodeAnnotations));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeAnnotations));
     VerifyNodeAllocationRequests(mutations, 0);
     EXPECT_NO_THROW(NOrchid::GetBundlesInfo(input, mutations));
     EXPECT_EQ(0, std::ssize(mutations.NodesToCleanup));
@@ -1064,7 +1071,7 @@ TEST_P(TBundleSchedulerTest, DisableAllocationsCausesAllocationFromSpare)
         EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
 
         EXPECT_EQ(/*nodeCount=*/ 1 + /*proxyCount=*/ 1, std::ssize(mutations.NewAllocations));
-        EXPECT_EQ(0, std::ssize(mutations.ChangeNodeAnnotations));
+        EXPECT_EQ(0, std::ssize(mutations.ChangedNodeAnnotations));
     }
     {
         auto input = GenerateInputContext(1, TabletCellCount);
@@ -1094,9 +1101,9 @@ TEST_P(TBundleSchedulerTest, DisableAllocationsCausesAllocationFromSpare)
         EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
 
         EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
-        EXPECT_EQ(1, std::ssize(mutations.ChangeNodeAnnotations));
+        EXPECT_EQ(1, std::ssize(mutations.ChangedNodeAnnotations));
         EXPECT_EQ(1, std::ssize(mutations.ChangedProxyAnnotations));
-        for (const auto& annotations : mutations.ChangeNodeAnnotations) {
+        for (const auto& annotations : mutations.ChangedNodeAnnotations) {
             EXPECT_EQ(bundleName, annotations.second->AllocatedForBundle);
         }
     }
@@ -1147,11 +1154,11 @@ TEST_P(TBundleSchedulerTest, DisableAllocationsCausesDeallocationToSpare)
         EXPECT_EQ(0, CountAlertsExcept(mutations.AlertsToFire, {"no_free_spare_nodes"}));
         EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
         EXPECT_EQ(0, std::ssize(mutations.ChangedDecommissionedFlag));
-        EXPECT_EQ(0, std::ssize(mutations.ChangeNodeAnnotations));
-        EXPECT_EQ(std::ssize(mutations.ChangeNodeAnnotations), std::ssize(mutations.ChangedDecommissionedFlag));
+        EXPECT_EQ(0, std::ssize(mutations.ChangedNodeAnnotations));
+        EXPECT_EQ(std::ssize(mutations.ChangedNodeAnnotations), std::ssize(mutations.ChangedDecommissionedFlag));
         // TODO: check proxy
 
-        for (const auto& [nodeName, annotations] : mutations.ChangeNodeAnnotations) {
+        for (const auto& [nodeName, annotations] : mutations.ChangedNodeAnnotations) {
             EXPECT_EQ(SpareBundleName, annotations->AllocatedForBundle);
         }
     }
@@ -1421,9 +1428,9 @@ TEST_P(TBundleSchedulerTest, DeallocationProgressTrackCompleted)
         EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
         EXPECT_EQ(GetDataCenterCount(), std::ssize(input.BundleStates["bigd"]->NodeDeallocations));
 
-        EXPECT_EQ(GetDataCenterCount(), std::ssize(mutations.ChangeNodeAnnotations));
+        EXPECT_EQ(GetDataCenterCount(), std::ssize(mutations.ChangedNodeAnnotations));
 
-        for (const auto& [nodeId, annotations] : mutations.ChangeNodeAnnotations) {
+        for (const auto& [nodeId, annotations] : mutations.ChangedNodeAnnotations) {
             EXPECT_TRUE(annotations->YPCluster.empty());
             EXPECT_TRUE(annotations->AllocatedForBundle.empty());
             EXPECT_TRUE(annotations->NannyService.empty());
@@ -1445,7 +1452,7 @@ TEST_P(TBundleSchedulerTest, DeallocationProgressTrackCompleted)
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
     EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->NodeAllocations));
-    EXPECT_EQ(0, std::ssize(mutations.ChangeNodeAnnotations));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeAnnotations));
 
     EXPECT_EQ(0, std::ssize(mutations.NodesToCleanup));
 }
@@ -1748,30 +1755,6 @@ TEST_P(TBundleSchedulerTest, CheckMediumThroughputLimits)
     // Dynamic config is changed.
     EXPECT_TRUE(mutations.DynamicConfig);
     CheckEmptyAlerts(mutations);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TFooBarStruct
-    : public TYsonStructAttributes<TFooBarStruct>
-{
-    std::string Foo;
-    int Bar;
-
-    REGISTER_YSON_STRUCT(TFooBarStruct);
-
-    static void Register(TRegistrar registrar)
-    {
-        RegisterAttribute(registrar, "foo", &TThis::Foo)
-            .Default();
-        RegisterAttribute(registrar, "bar", &TThis::Bar)
-            .Default(0);
-    }
-};
-
-TEST(TBundleSchedulerTest, CheckCypressBindings)
-{
-    EXPECT_EQ(TFooBarStruct::GetAttributes().size(), 2u);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3265,9 +3248,9 @@ TEST_P(TBundleSchedulerTest, DeallocateAdoptedNodes)
 
     // Check Setting node attributes
     {
-        EXPECT_EQ(3 * GetDataCenterCount(), std::ssize(mutations.ChangeNodeAnnotations));
+        EXPECT_EQ(3 * GetDataCenterCount(), std::ssize(mutations.ChangedNodeAnnotations));
         for (auto& nodeId : nodesToRemove) {
-            const auto& annotations = GetOrCrash(mutations.ChangeNodeAnnotations, nodeId);
+            const auto& annotations = GetOrCrash(mutations.ChangedNodeAnnotations, nodeId);
             EXPECT_TRUE(annotations->YPCluster.empty());
             EXPECT_TRUE(annotations->AllocatedForBundle.empty());
             EXPECT_TRUE(annotations->NannyService.empty());
@@ -3489,6 +3472,66 @@ TEST_P(TProxyRoleManagement, TestBundleProxyRolesAssigned)
 
     CheckEmptyAlerts(mutations);
 
+    EXPECT_EQ(0, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedProxyRole));
+}
+
+TEST_P(TProxyRoleManagement, TestCustomRedundantDataCenterCount)
+{
+    if (GetDataCenterCount() == 1) {
+        return;
+    }
+
+    auto input = GenerateInputContext(DefaultNodeCount, DefaultCellCount, 2 * GetDataCenterCount());
+    input.Bundles["bigd"]->EnableRpcProxyManagement = true;
+    input.Bundles["bigd"]->TargetConfig->RedundantRpcProxyDataCenterCount = 0;
+    auto dataCenters = GetDataCenters(input);
+
+    for (const auto& dataCenter : dataCenters) {
+        GenerateProxiesForBundle(input, "bigd", 2, false, dataCenter);
+    }
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    CheckEmptyAlerts(mutations);
+
+    EXPECT_EQ(2 * GetDataCenterCount(), std::ssize(mutations.ChangedProxyRole));
+
+    THashMap<std::string, THashSet<std::string>> roleToProxies;
+    for (const auto& [proxyName, role] : mutations.ChangedProxyRole) {
+        roleToProxies[role.Mutation].insert(proxyName);
+        input.RpcProxies[proxyName]->Role = role;
+    }
+
+    EXPECT_EQ(2 * GetDataCenterCount(), std::ssize(roleToProxies["bigd"]));
+    EXPECT_EQ(0, std::ssize(roleToProxies[GetReleasedProxyRole("bigd")]));
+
+    // New round: set redundant_rpc_proxy_data_center_count to 1.
+    input.Bundles["bigd"]->TargetConfig->RedundantRpcProxyDataCenterCount = 1;
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    roleToProxies.clear();
+    for (const auto& [proxyName, role] : mutations.ChangedProxyRole) {
+        roleToProxies[role.Mutation].insert(proxyName);
+        input.RpcProxies[proxyName]->Role = role;
+    }
+
+    EXPECT_EQ(0, std::ssize(roleToProxies["bigd"]));
+    EXPECT_EQ(2 * GetRedundantDataCenterCount(), std::ssize(roleToProxies[GetReleasedProxyRole("bigd")]));
+
+    EXPECT_EQ(0, std::ssize(mutations.ChangedDecommissionedFlag));
+
+    CheckEmptyAlerts(mutations);
+
+    // New round: set redundant_rpc_proxy_data_center_count to 3 and expect alerts.
+    input.Bundles["bigd"]->TargetConfig->RedundantRpcProxyDataCenterCount = 3;
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(ssize(mutations.AlertsToFire), 1);
+    EXPECT_EQ(mutations.AlertsToFire.front().Id, "invalid_bundle_config");
     EXPECT_EQ(0, std::ssize(mutations.ChangedDecommissionedFlag));
     EXPECT_EQ(0, std::ssize(mutations.ChangedProxyRole));
 }

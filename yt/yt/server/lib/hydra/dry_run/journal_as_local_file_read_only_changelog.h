@@ -12,7 +12,7 @@ class TJournalAsLocalFileReadOnlyChangelog
 public:
     explicit TJournalAsLocalFileReadOnlyChangelog(int changelogId = -1);
 
-    void Open(const TString& path);
+    void Open(const std::string& path);
 
     int GetId() const override;
 
@@ -44,7 +44,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IChangelogPtr CreateJournalAsLocalFileReadOnlyChangelog(const TString& path, int changelogId = -1);
+IChangelogPtr CreateJournalAsLocalFileReadOnlyChangelog(const std::string& path, int changelogId = -1);
 
 ////////////////////////////////////////////////////////////////////////////////
 

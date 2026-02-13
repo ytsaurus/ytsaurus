@@ -7,13 +7,24 @@
 #include <yt/yt/server/master/security_server/account.h>
 #include <yt/yt/server/master/cypress_server/portal_exit_node.h>
 
+#include <yt/yt/core/ypath/tokenizer.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NCypressServer {
 
 using namespace NCellMaster;
+using namespace NObjectClient;
+using namespace NYPath;
 using namespace NYson;
 using namespace NYTree;
+
+using NYPath::TTokenizer;
+using NYPath::ETokenType;
+
+////////////////////////////////////////////////////////////////////////////////
+
+constinit const auto Logger = CypressServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,7 +47,7 @@ void Serialize(const TCypressShardAccountStatistics& statistics, IYsonConsumer* 
         .EndMap();
 }
 
-TCypressShardAccountStatistics& operator +=(
+TCypressShardAccountStatistics& operator+=(
     TCypressShardAccountStatistics& lhs,
     const TCypressShardAccountStatistics& rhs)
 {
@@ -44,7 +55,7 @@ TCypressShardAccountStatistics& operator +=(
     return lhs;
 }
 
-TCypressShardAccountStatistics operator +(
+TCypressShardAccountStatistics operator+(
     const TCypressShardAccountStatistics& lhs,
     const TCypressShardAccountStatistics& rhs)
 {
@@ -95,17 +106,63 @@ void TCypressShard::Load(NCellMaster::TLoadContext& context)
     Load(context, Name_);
 }
 
-NYPath::TYPath TCypressShard::MaybeRewritePath(const NYPath::TYPath& path)
+NYPath::TYPath TCypressShard::MaybeRewritePath(const NYPath::TYPath& path, bool useBetterCheckWhenRewritingPath)
 {
     auto rootNode = GetRoot();
-    if (rootNode->GetType() == NCypressClient::EObjectType::PortalExit) {
-        auto exitNode = rootNode->As<TPortalExitNode>();
+    if (rootNode->GetType() != NCypressClient::EObjectType::PortalExit) {
+        // Fast path.
+        return path;
+    }
+
+    auto exitNode = rootNode->As<TPortalExitNode>();
+
+    if (!useBetterCheckWhenRewritingPath) {
         auto pathPrefix = exitNode->GetPath();
         if (path.length() != pathPrefix.length() && path.StartsWith(pathPrefix)) {
             return NObjectClient::FromObjectId(exitNode->GetId()) + path.substr(pathPrefix.length());
         }
+
+        return path;
     }
-    return path;
+
+    TTokenizer prefixTokenizer(exitNode->GetPath());
+    TTokenizer pathTokenizer(path);
+
+    auto prefixTokenType = prefixTokenizer.Advance();
+    auto pathTokenType = pathTokenizer.Advance();
+
+    while (prefixTokenType != ETokenType::EndOfStream &&
+        pathTokenType != ETokenType::EndOfStream)
+    {
+        if (prefixTokenizer.GetToken() != pathTokenizer.GetToken()) {
+            return path;
+        }
+
+        prefixTokenizer.Advance();
+        prefixTokenizer.Skip(ETokenType::Ampersand);
+        prefixTokenType = prefixTokenizer.GetType();
+
+        pathTokenizer.Advance();
+        pathTokenizer.Skip(ETokenType::Ampersand);
+        pathTokenType = pathTokenizer.GetType();
+    }
+
+    if (pathTokenType == ETokenType::EndOfStream && prefixTokenType == ETokenType::EndOfStream) {
+        return FromObjectId(exitNode->GetId());
+    }
+
+    if (pathTokenType == ETokenType::EndOfStream) {
+        return path;
+    }
+
+    YT_LOG_ALERT_UNLESS(pathTokenType == ETokenType::Slash,
+        "Unexpected token sequence encountered when attempting to rewrite path "
+        "(ExpectedTokenType: %v, ActualTokenType: %v, Token: %v)",
+        ETokenType::Slash,
+        pathTokenType,
+        pathTokenizer.GetToken());
+
+    return FromObjectId(exitNode->GetId()) + pathTokenizer.GetInput();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

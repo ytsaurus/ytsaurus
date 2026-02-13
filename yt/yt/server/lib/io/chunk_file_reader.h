@@ -56,71 +56,33 @@ DEFINE_ENUM(EDirectIOFlag,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! The purpose of this class is to isolate all reading logic related to the physical layout of a chunk file.
-//! It acts as a guarantee that different chunk readers read the same binary chunk file in the same way.
-class TPhysicalChunkLayoutReader
-    : public TRefCounted
+// TODO(cherepashka): move these usings below somewhere more suitable for S3 chunk readers & writers.
+using TDumpBrokenMetaCallback = TCallback<void(TRef /*block*/)>;
+using TDumpBrokenBlockCallback = TCallback<void(int /*blockIndex*/, const NIO::TBlockInfo& /*blockInfo*/, TRef /*block*/)>;
+
+//! Deserializes chunk meta from blob with format validation.
+//! For chunk meta version 2+, the local chunk id stored in this class is validated against the one
+//! stored in the meta file. Passing NullChunkId to this class suppresses this check.
+NChunkClient::TRefCountedChunkMetaPtr DeserializeMeta(
+    TSharedRef metaFileBlob,
+    const std::string& chunkMetaFilename,
+    NChunkClient::TChunkId chunkId,
+    TDumpBrokenMetaCallback dumpBrokenMeta);
+
+struct TBlockRange
 {
-private:
-    using TDumpBrokenBlockCallback = TCallback<void(int /*blockIndex*/, const NIO::TBlockInfo& /*blockInfo*/, TRef /*block*/)>;
-    using TDumpBrokenMetaCallback = TCallback<void(TRef /*block*/)>;
-public:
-
-    struct TOptions
-    {
-        bool ValidateBlockChecksums = true;
-    };
-
-    TPhysicalChunkLayoutReader(
-        NChunkClient::TChunkId chunkId,
-        TString chunkFileName,
-        TString chunkMetaFileName,
-        const TOptions& options,
-        NLogging::TLogger logger,
-        TDumpBrokenBlockCallback dumpBrokenBlockCallback,
-        TDumpBrokenMetaCallback dumpBrokenMetaCallback);
-
-    struct TBlockRange
-    {
-        i64 StartBlockIndex = 0;
-        i64 EndBlockIndex = 0;
-    };
-
-    struct TChunkMetaWithChunkId
-    {
-        NChunkClient::TChunkId ChunkId;
-        NChunkClient::TRefCountedChunkMetaPtr ChunkMeta;
-    };
-    //! Deserializes chunk meta from blob with format validation.
-    //! For chunk meta version 2+, the local chunk id stored in this class is validated against the one
-    //! stored in the meta file. Passing NullChunkId to this class suppresses this check.
-    TChunkMetaWithChunkId DeserializeMeta(
-        TSharedRef metaFileBlob,
-        NChunkClient::TChunkReaderStatisticsPtr chunkReaderStatistics);
-
-    //! Deserializes blocks according to blocks extension. Validates checksums if configured.
-    std::vector<NChunkClient::TBlock> DeserializeBlocks(
-        TSharedRef blocksBlob,
-        TBlockRange blockRange,
-        const TBlocksExtPtr& blocksExt,
-        NChunkClient::TChunkReaderStatisticsPtr chunkReaderStatistics);
-
-    const TString& GetChunkFileName() const;
-    const TString& GetChunkMetaFileName() const;
-    NChunkClient::TChunkId GetChunkId() const;
-
-private:
-    const TString ChunkFileName_;
-    const TString ChunkMetaFileName_;
-    const TOptions Options_;
-    const NLogging::TLogger Logger;
-    const NChunkClient::TChunkId ChunkId_;
-
-    const TDumpBrokenBlockCallback DumpBrokenBlockCallback_;
-    const TDumpBrokenMetaCallback DumpBrokenMetaCallback_;
+    i64 StartBlockIndex = 0;
+    i64 EndBlockIndex = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TPhysicalChunkLayoutReader)
+//! Deserializes chunk blocks from blob with optional checksum validation.
+std::vector<NChunkClient::TBlock> DeserializeBlocks(
+    TSharedRef blocksBlob,
+    TBlockRange blockRange,
+    bool validateBlockChecksums,
+    const std::string& chunkFileName,
+    const TBlocksExtPtr& blocksExt,
+    TDumpBrokenBlockCallback dumpBrokenBlockCallback);
 
 ////////////////////////////////////////////////////////////////////////////
 
@@ -154,6 +116,8 @@ public:
         NIO::TBlocksExtPtr blocksExt = nullptr);
 
     i64 GetMetaSize() const;
+
+    i64 GetBlockAlignment() const;
 
     TFuture<NChunkClient::TRefCountedChunkMetaPtr> GetMeta(
         const NChunkClient::TClientChunkReadOptions& options,
@@ -218,7 +182,7 @@ private:
 
     TFuture<TIOEngineHandlePtr> OpenDataFile(EDirectIOFlag useDirectIO);
     TIOEngineHandlePtr OnDataFileOpened(EDirectIOFlag useDirectIO, const TIOEngineHandlePtr& file);
-    EDirectIOFlag GetDirectIOFlag(bool useDirectIO);
+    EDirectIOFlag GetDirectIOFlag(bool useDirectIO) const;
 
     void DumpBrokenBlock(
         int blockIndex,

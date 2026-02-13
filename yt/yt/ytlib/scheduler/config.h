@@ -803,7 +803,7 @@ struct TNbdDiskConfig
 
 DEFINE_REFCOUNTED_TYPE(TNbdDiskConfig)
 
-struct TOldDiskRequestConfig
+struct TDeprecatedDiskRequestConfig
     : public NYTree::TYsonStruct
 {
     //! Required disk space in bytes, may be enforced as a limit.
@@ -819,21 +819,17 @@ struct TOldDiskRequestConfig
     //! Use Network Block Device (NBD) disk.
     TNbdDiskConfigPtr NbdDisk;
 
-    TOldDiskRequestConfig& operator=(const TStorageRequestBase& config);
-    TOldDiskRequestConfig& operator=(const TDiskRequestConfig& config);
-    TOldDiskRequestConfig& operator=(const TLocalDiskRequest& config);
-    TOldDiskRequestConfig& operator=(const TNbdDiskRequest& config);
+    TDeprecatedDiskRequestConfig& operator=(const TStorageRequestBase& config);
+    TDeprecatedDiskRequestConfig& operator=(const TDiskRequestConfig& config);
+    TDeprecatedDiskRequestConfig& operator=(const TLocalDiskRequest& config);
+    TDeprecatedDiskRequestConfig& operator=(const TNbdDiskRequest& config);
 
-    REGISTER_YSON_STRUCT(TOldDiskRequestConfig);
+    REGISTER_YSON_STRUCT(TDeprecatedDiskRequestConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TOldDiskRequestConfig)
-
-void ToProto(
-    NProto::TDiskRequest* protoDiskRequest,
-    const TOldDiskRequestConfig& diskRequestConfig);
+DEFINE_REFCOUNTED_TYPE(TDeprecatedDiskRequestConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1321,6 +1317,9 @@ struct TOperationSpecBase
     //! If |true|, exec node will reuse allocation for multiple jobs.
     std::optional<bool> EnableMultipleJobsInAllocation;
 
+    //! If |false|, bulk insert into an indexed table will not update index.
+    bool UpdateSecondaryIndex;
+
     REGISTER_YSON_STRUCT(TOperationSpecBase);
 
     static void Register(TRegistrar registrar);
@@ -1352,7 +1351,7 @@ struct TVolumeMount
 {
     std::string VolumeId;
     std::string MountPath;
-    bool IsReadOnly;
+    bool ReadOnly;
 
     REGISTER_YSON_STRUCT(TVolumeMount);
 
@@ -1433,16 +1432,16 @@ DEFINE_REFCOUNTED_TYPE(TSidecarJobSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDistributedJobOptions
+struct TCollectiveOptions
     : public NYTree::TYsonStruct
 {
-    int Factor;
+    int Size;
 
-    REGISTER_YSON_STRUCT(TDistributedJobOptions);
+    REGISTER_YSON_STRUCT(TCollectiveOptions);
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TDistributedJobOptions)
+DEFINE_REFCOUNTED_TYPE(TCollectiveOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1451,7 +1450,7 @@ struct TStorageRequestBase
 {
     i64 DiskSpace;
 
-    TStorageRequestBase& operator=(TOldDiskRequestConfigPtr& oldRequest);
+    TStorageRequestBase& operator=(TDeprecatedDiskRequestConfigPtr& oldRequest);
 
     REGISTER_YSON_STRUCT(TStorageRequestBase);
 
@@ -1483,7 +1482,7 @@ struct TDiskRequestConfig
     std::optional<int> MediumIndex;
     std::optional<std::string> Account;
 
-    TStorageRequestBase& operator=(TOldDiskRequestConfigPtr& oldRequest);
+    TStorageRequestBase& operator=(TDeprecatedDiskRequestConfigPtr& oldRequest);
 
     REGISTER_YSON_STRUCT(TDiskRequestConfig);
 
@@ -1495,7 +1494,7 @@ DEFINE_REFCOUNTED_TYPE(TDiskRequestConfig)
 struct TLocalDiskRequest
     : public TDiskRequestConfig
 {
-    TStorageRequestBase& operator=(TOldDiskRequestConfigPtr& oldRequest);
+    TStorageRequestBase& operator=(TDeprecatedDiskRequestConfigPtr& oldRequest);
 
     REGISTER_YSON_STRUCT(TLocalDiskRequest);
 
@@ -1509,7 +1508,7 @@ struct TNbdDiskRequest
 {
     TNbdDiskConfigPtr NbdDisk;
 
-    TStorageRequestBase& operator=(TOldDiskRequestConfigPtr& oldRequest);
+    TStorageRequestBase& operator=(TDeprecatedDiskRequestConfigPtr& oldRequest);
     REGISTER_YSON_STRUCT(TNbdDiskRequest);
 
     static void Register(TRegistrar registrar);
@@ -1550,7 +1549,8 @@ struct TUserJobSpec
     TString TaskTitle;
 
     std::vector<NYPath::TRichYPath> FilePaths;
-    std::vector<NYPath::TRichYPath> LayerPaths;
+    // COMPAT(krasovav)
+    std::vector<NYPath::TRichYPath> DeprecatedLayerPaths;
 
     std::optional<NFormats::TFormat> Format;
     std::optional<NFormats::TFormat> InputFormat;
@@ -1592,13 +1592,15 @@ struct TUserJobSpec
     std::optional<i64> TmpfsSize;
     std::optional<TString> TmpfsPath;
 
-    std::vector<TTmpfsVolumeConfigPtr> TmpfsVolumes;
+    // COMPAT(krasovav)
+    std::vector<TTmpfsVolumeConfigPtr> DeprecatedTmpfsVolumes;
 
     // COMPAT(ignat)
     std::optional<i64> DiskSpaceLimit;
     std::optional<i64> InodeLimit;
 
-    TOldDiskRequestConfigPtr DiskRequest;
+    // COMPAT(krasovav)
+    TDeprecatedDiskRequestConfigPtr DeprecatedDiskRequest;
 
     bool CopyFiles;
 
@@ -1631,7 +1633,7 @@ struct TUserJobSpec
     //! This option applicable only in case of separate root volume.
     bool EnableGpuCheck;
 
-    TDistributedJobOptionsPtr DistributedJobOptions;
+    TCollectiveOptionsPtr CollectiveOptions;
 
     //! Force running speculative job after this timeout. Has higher priority than `JobSpeculationTimeout`
     //! from TOperationBaseSpec.
@@ -1700,8 +1702,10 @@ struct TUserJobSpec
     THashMap<std::string, TVolumePtr> Volumes;
     std::vector<TVolumeMountPtr> JobVolumeMounts;
 
-    bool IsFirstPostprocessorDone = false;
+private:
+    bool IsFirstIterationPostprocessorComplete = false;
 
+public:
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig);
 
     REGISTER_YSON_STRUCT(TUserJobSpec);
@@ -2117,6 +2121,9 @@ struct TSortOperationSpecBase
     std::optional<i64> PartitionDataWeight;
     std::optional<int> PartitionCount;
 
+    //! Maximum data weight of a partition after merging physical partitions.
+    std::optional<i64> PartitionDataWeightForMerging;
+
     //! Maximum number of child partitions of a partition.
     std::optional<int> MaxPartitionFactor;
 
@@ -2193,6 +2200,8 @@ struct TSortOperationSpecBase
 
     // This option is used for partition/partition_map and sorted_reduce/sorted_merge jobs.
     bool ForceJobSizeAdjuster;
+
+    bool EnableFinalPartitionsMerging;
 
     REGISTER_YSON_STRUCT(TSortOperationSpecBase);
 

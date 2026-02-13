@@ -105,13 +105,13 @@ public:
         const TTableSchema& indexTableSchema,
         const std::optional<std::string>& predicate,
         const TTableSchemaPtr& evaluatedColumnsSchema,
-        const std::optional<std::string>& unfoldedColumnName)
+        const std::optional<TUnfoldedColumns>& unfoldedColumns)
         : Kind_(kind)
         , TableSchema_(tableSchema)
         , IndexTableSchema_(indexTableSchema)
         , Predicate_(predicate)
         , EvaluatedColumnsSchema_(evaluatedColumnsSchema)
-        , UnfoldedColumnName_(unfoldedColumnName)
+        , UnfoldedColumns_(unfoldedColumns)
     {
         THROW_ERROR_EXCEPTION_IF(!TableSchema_.IsSorted(),
             "Table must be sorted");
@@ -145,7 +145,7 @@ private:
     const TTableSchema& IndexTableSchema_;
     const std::optional<std::string>& Predicate_;
     const TTableSchemaPtr& EvaluatedColumnsSchema_;
-    const std::optional<std::string>& UnfoldedColumnName_;
+    const std::optional<TUnfoldedColumns>& UnfoldedColumns_;
 
     TLockGroupValidator LockValidator_;
 
@@ -159,43 +159,46 @@ private:
 
     void ValidateUnfoldingIndexSchema()
     {
-        YT_VERIFY(UnfoldedColumnName_);
+        YT_VERIFY(UnfoldedColumns_);
 
         auto typeMismatchCallback = [&] (const TColumnSchema& indexColumn, const TColumnSchema& tableColumn) {
-            if (indexColumn.Name() == UnfoldedColumnName_) {
-                THROW_ERROR_EXCEPTION_IF(!IsValidUnfoldedColumnPair(tableColumn.LogicalType(), indexColumn.LogicalType()),
-                    "Type mismatch for the unfolded column %Qv: %v is not a list of %v",
-                    UnfoldedColumnName_,
-                    *tableColumn.LogicalType(),
-                    *indexColumn.LogicalType());
-            } else {
+            if (tableColumn.Name() != UnfoldedColumns_->TableColumn ||
+                indexColumn.Name() != UnfoldedColumns_->IndexColumn)
+            {
                 ThrowExpectedTypeMatch(indexColumn, tableColumn);
+            }
+        };
+
+        auto extraIndexColumnCallback = [&] (const TColumnSchema& indexColumn) {
+            if (indexColumn.Name() != UnfoldedColumns_->IndexColumn) {
+                ThrowIfNonKey(indexColumn);
             }
         };
 
         ValidateIndexSchema(
             typeMismatchCallback,
             ThrowExpectedKeyColumn,
-            ThrowIfNonKey);
+            extraIndexColumnCallback);
 
-        const auto& unfoldingColumn = IndexTableSchema_.GetColumnOrThrow(*UnfoldedColumnName_);
+        const auto& indexUnfoldingColumn = IndexTableSchema_.GetColumnOrThrow(UnfoldedColumns_->IndexColumn);
         const TColumnSchema* unfoldedColumn = nullptr;
-        if (const auto* tableUnfoldedColumn = TableSchema_.FindColumn(*UnfoldedColumnName_)) {
+        if (const auto* tableUnfoldedColumn = TableSchema_.FindColumn(UnfoldedColumns_->TableColumn)) {
             unfoldedColumn = tableUnfoldedColumn;
-        } else if (EvaluatedColumnsSchema_) {
-            unfoldedColumn = EvaluatedColumnsSchema_->FindColumn(*UnfoldedColumnName_);
-        }
-
-        if (!unfoldedColumn) {
+        } else if (const auto* evaluatedUnfoldedColumn = EvaluatedColumnsSchema_
+            ? EvaluatedColumnsSchema_->FindColumn(UnfoldedColumns_->TableColumn)
+            : nullptr)
+        {
+            unfoldedColumn = evaluatedUnfoldedColumn;
+        } else {
             THROW_ERROR_EXCEPTION("Neither indexed table schema not index evaluated columns contain unfolded column %Qv",
-                *UnfoldedColumnName_);
+                UnfoldedColumns_->TableColumn);
         }
 
-        THROW_ERROR_EXCEPTION_IF(!IsValidUnfoldedColumnPair(unfoldedColumn->LogicalType(), unfoldingColumn.LogicalType()),
+        THROW_ERROR_EXCEPTION_IF(!IsValidUnfoldedColumnPair(unfoldedColumn->LogicalType(), indexUnfoldingColumn.LogicalType()),
             "Type mismatch for the unfolded column %Qv: %v is not a list of %v",
-            unfoldingColumn.Name(),
+            indexUnfoldingColumn.Name(),
             *unfoldedColumn->LogicalType(),
-            *unfoldingColumn.LogicalType());
+            *indexUnfoldingColumn.LogicalType());
     }
 
     void ValidateUniqueIndexSchema()
@@ -208,9 +211,9 @@ private:
     }
 
     void ValidateIndexSchema(
-        TColumnMismatchCallback typeMismatchCallback,
-        TBadColumnCallback tableKeyIsNotIndexKeyCallback,
-        TExtraIndexColumnCallback extraIndexColumnCallback)
+        const TColumnMismatchCallback& typeMismatchCallback,
+        const TBadColumnCallback& tableKeyIsNotIndexKeyCallback,
+        const TExtraIndexColumnCallback& extraIndexColumnCallback)
     {
         THROW_ERROR_EXCEPTION_IF(!IndexTableSchema_.IsSorted(),
             "Index table must be sorted");
@@ -230,7 +233,7 @@ private:
                 continue;
             }
 
-            auto* indexColumn = IndexTableSchema_.FindColumn(tableColumn.Name());
+            const auto* indexColumn = IndexTableSchema_.FindColumn(tableColumn.Name());
             if (!indexColumn) {
                 THROW_ERROR_EXCEPTION("Key column %Qv missing in the index schema",
                     tableColumn.Name());
@@ -242,7 +245,7 @@ private:
         }
 
         for (const auto& indexColumn : IndexTableSchema_.Columns()) {
-            if (auto* tableColumn = TableSchema_.FindColumn(indexColumn.Name())) {
+            if (const auto* tableColumn = TableSchema_.FindColumn(indexColumn.Name())) {
                 if (indexColumn.Expression()) {
                     THROW_ERROR_EXCEPTION_UNLESS(tableColumn->Expression(),
                         "Column %Qv is evaluated in index and not evaluated in table",
@@ -310,13 +313,13 @@ private:
         }
     }
 
-    void ValidateIndexEvaluatedColumns(TColumnMismatchCallback typeMismatchCallback)
+    void ValidateIndexEvaluatedColumns(const TColumnMismatchCallback& typeMismatchCallback)
     {
         if (!EvaluatedColumnsSchema_) {
             return;
         }
 
-        ValidateNoNameCollisions(TableSchema_, *EvaluatedColumnsSchema_);
+        ValidateColumnsCollision(TableSchema_, *EvaluatedColumnsSchema_);
 
         for (const auto& column : EvaluatedColumnsSchema_->Columns()) {
             THROW_ERROR_EXCEPTION_IF(!column.Expression(), "Expected an expression for the evaluated column %Qv",
@@ -325,13 +328,10 @@ private:
             THROW_ERROR_EXCEPTION_IF(column.Aggregate(), "Evaluated column %Qv cannot be aggregate",
                 column.Name());
 
-            auto* indexColumn = IndexTableSchema_.FindColumn(column.Name());
-
-            THROW_ERROR_EXCEPTION_IF(!indexColumn, "Evaluated column %Qv not found in index schema",
-                column);
-
-            if (*indexColumn->LogicalType() != *column.LogicalType()) {
-                typeMismatchCallback(*indexColumn, column);
+            if (const auto* indexColumn = IndexTableSchema_.FindColumn(column.Name())) {
+                if (*indexColumn->LogicalType() != *column.LogicalType()) {
+                    typeMismatchCallback(*indexColumn, column);
+                }
             }
 
             auto references = ValidateComputedColumnExpression(
@@ -352,28 +352,29 @@ private:
 void ValidateIndexSchema(
     ESecondaryIndexKind kind,
     const TTableSchema& tableSchema,
-    const TTableSchema& IndexTableSchema_,
+    const TTableSchema& indexTableSchema,
     const std::optional<std::string>& predicate,
     const TTableSchemaPtr& evaluatedColumnsSchema,
-    const std::optional<std::string> UnfoldedColumnName_)
+    const std::optional<TUnfoldedColumns>& unfoldedColumns)
 {
     TIndexSchemaValidator(
         kind,
         tableSchema,
-        IndexTableSchema_,
+        indexTableSchema,
         predicate,
         evaluatedColumnsSchema,
-        UnfoldedColumnName_)
+        unfoldedColumns)
         .Validate();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateNoNameCollisions(const TTableSchema& lhs, const TTableSchema& rhs)
+void ValidateColumnsCollision(const TTableSchema& lhs, const TTableSchema& rhs)
 {
-    for (auto& lhsColumn : rhs.Columns()) {
-        if (auto* rhsColumn = lhs.FindColumn(lhsColumn.Name())) {
-            THROW_ERROR_EXCEPTION("Name collision on %Qv between columns %v and %v",
+    for (const auto& lhsColumn : rhs.Columns()) {
+        if (const auto* rhsColumn = lhs.FindColumn(lhsColumn.Name())) {
+            THROW_ERROR_EXCEPTION_IF(lhsColumn != *rhsColumn,
+                "Columns collision on %Qv between %v and %v",
                 lhsColumn.Name(),
                 lhsColumn,
                 *rhsColumn);

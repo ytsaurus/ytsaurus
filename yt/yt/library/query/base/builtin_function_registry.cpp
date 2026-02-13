@@ -265,8 +265,8 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         {typeParameter},
         typeParameter,
         typeParameter,
+        /*repeatedArgType*/ EValueType::Null,
         "first",
-        ECallingConvention::UnversionedValue,
         true);
 
     auto xdeltaConstraints = std::unordered_map<TTypeParameter, TUnionType>();
@@ -280,56 +280,68 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         {typeParameter},
         typeParameter,
         typeParameter,
-        "xdelta",
-        ECallingConvention::UnversionedValue);
+        /*repeatedArgType*/ EValueType::Null,
+        "xdelta");
 
-    builder->RegisterAggregate(
-        "cardinality",
-        {},
-        {TUnionType{
-            EValueType::String,
-            EValueType::Uint64,
-            EValueType::Int64,
-            EValueType::Double,
-            EValueType::Boolean,
-        }},
-        EValueType::Uint64,
-        EValueType::String,
-        "hyperloglog",
-        ECallingConvention::UnversionedValue);
+    for (auto merge : {false, true}) {
+        for (auto state : {false, true}) {
+            auto argType = merge
+                ? TType(EValueType::String)
+                : TUnionType{
+                    EValueType::String,
+                    EValueType::Uint64,
+                    EValueType::Int64,
+                    EValueType::Double,
+                    EValueType::Boolean,
+                };
+            auto returnType = state ? EValueType::String : EValueType::Uint64;
 
-    builder->RegisterAggregate(
-        "cardinality_state",
-        std::unordered_map<TTypeParameter, TUnionType>(),
-        {TUnionType{
-            EValueType::String,
-            EValueType::Uint64,
-            EValueType::Int64,
-            EValueType::Double,
-            EValueType::Boolean,
-        }},
-        EValueType::String,
-        EValueType::String,
-        "hyperloglog",
-        ECallingConvention::UnversionedValue);
+            // COMPAT(dtorilov): Remove after 25.4.
+            // COMPAT BEGIN {
 
-    builder->RegisterAggregate(
-        "cardinality_merge",
-        std::unordered_map<TTypeParameter, TUnionType>(),
-        {EValueType::String},
-        EValueType::Uint64,
-        EValueType::String,
-        "hyperloglog",
-        ECallingConvention::UnversionedValue);
+            builder->RegisterAggregate(
+                Format("cardinality%v%v", merge ? "_merge" : "", state ? "_state" : ""),
+                {},
+                {argType},
+                returnType,
+                EValueType::String,
+                /*repeatedArgType*/ EValueType::Null,
+                "hyperloglog");
 
-    builder->RegisterAggregate(
-        "cardinality_merge_state",
-        std::unordered_map<TTypeParameter, TUnionType>(),
-        {EValueType::String},
-        EValueType::String,
-        EValueType::String,
-        "hyperloglog",
-        ECallingConvention::UnversionedValue);
+            // } COMPAT END
+
+            for (int i = 7; i <= 14; ++i) {
+                builder->RegisterAggregate(
+                    Format("hll_%v%v%v", i, merge ? "_merge" : "", state ? "_state" : ""),
+                    {},
+                    {argType},
+                    returnType,
+                    EValueType::String,
+                    /*repeatedArgType*/EValueType::Null,
+                    "hyperloglog");
+            }
+        }
+    }
+
+    for (auto merge : {false, true}) {
+        for (auto state : {false, true}) {
+            builder->RegisterAggregate(
+                Format("uniq%v%v", merge ? "_merge" : "", state ? "_state" : ""),
+                {},
+                /*argumentTypes*/ merge ? std::vector<TType>{EValueType::String} : std::vector<TType>{},
+                /*returnType*/ state ? EValueType::String : EValueType::Uint64,
+                /*stateType*/ EValueType::String,
+                /*repeatedArgType*/ merge ? TType(EValueType::Null) : TUnionType{
+                    EValueType::String,
+                    EValueType::Uint64,
+                    EValueType::Int64,
+                    EValueType::Double,
+                    EValueType::Boolean,
+                    EValueType::Any,
+                },
+                "uniq");
+        }
+    }
 
     builder->RegisterAggregate(
         "array_agg",
@@ -347,8 +359,8 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         },
         EValueType::Any,
         EValueType::String,
-        "array_agg",
-        ECallingConvention::UnversionedValue);
+        /*repeatedArgType*/ EValueType::Null,
+        "array_agg");
 
     builder->RegisterAggregate(
         "dict_sum",
@@ -356,8 +368,8 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         {EValueType::Any},
         EValueType::Any,
         EValueType::Any,
-        "dict_sum",
-        ECallingConvention::UnversionedValue);
+        /*repeatedArgType*/ EValueType::Null,
+        "dict_sum");
 
     for (const auto& name : std::vector<std::string>{
         "format_timestamp",
@@ -521,8 +533,8 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         {EValueType::Any},
         EValueType::Any,
         EValueType::Any,
-        "stored_replica_set",
-        ECallingConvention::UnversionedValue);
+        /*repeatedArgType*/ EValueType::Null,
+        "stored_replica_set");
 
     builder->RegisterAggregate(
         "_yt_last_seen_replica_set",
@@ -530,8 +542,8 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         {EValueType::Any},
         EValueType::Any,
         EValueType::Any,
-        "last_seen_replica_set",
-        ECallingConvention::UnversionedValue);
+        /*repeatedArgType*/ EValueType::Null,
+        "last_seen_replica_set");
 
     const TTypeParameter typeParameterGreatest = 0;
     auto anyConstraintsGreatest = std::unordered_map<TTypeParameter, TUnionType>();

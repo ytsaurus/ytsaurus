@@ -28,7 +28,8 @@ public:
     void CollectSensors(ISensorWriter* writer) override
     {
         try {
-            auto snapshotsStorageDiskSpaceStatistics = NFS::GetDiskSpaceStatistics(Config_->Snapshots->Path);
+            // TODO(babenko): migrate to std::string
+            auto snapshotsStorageDiskSpaceStatistics = NFS::GetDiskSpaceStatistics(TString(Config_->Snapshots->Path));
             writer->AddGauge("/snapshots/free_space", snapshotsStorageDiskSpaceStatistics.FreeSpace);
             writer->AddGauge("/snapshots/available_space", snapshotsStorageDiskSpaceStatistics.AvailableSpace);
         } catch (const std::exception& ex) {
@@ -36,7 +37,8 @@ public:
         }
 
         try {
-            auto changelogsStorageDiskSpaceStatistics = NFS::GetDiskSpaceStatistics(Config_->Changelogs->Path);
+            // TODO(babenko): migrate to std::string
+            auto changelogsStorageDiskSpaceStatistics = NFS::GetDiskSpaceStatistics(TString(Config_->Changelogs->Path));
             writer->AddGauge("/changelogs/free_space", changelogsStorageDiskSpaceStatistics.FreeSpace);
             writer->AddGauge("/changelogs/available_space", changelogsStorageDiskSpaceStatistics.AvailableSpace);
         } catch (const std::exception& ex) {

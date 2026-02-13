@@ -462,12 +462,13 @@ public:
             TLangVersionBuffer buf;
             TStringBuf versionStringBuf;
 
-            ParseLangVersion(options.MaxYqlLangVersion, MaxYqlLangVersion_);
+            ParseLangVersion(options.MaxYqlLangVersion, MaxYqlLangVersionInitial_);
+            MaxYqlLangVersion_ = MaxYqlLangVersionInitial_;
             YQL_LOG(INFO) << Format("Maximum supported YQL version is set (Version: %v)", options.MaxYqlLangVersion);
 
             DefaultYqlApiLangVersion_ = MinLangVersion;
             FormatLangVersion(DefaultYqlApiLangVersion_, buf, versionStringBuf);
-            YQL_LOG(INFO) << Format("Deafult YQL version for API and CLI is set (Version: %v)", versionStringBuf);
+            YQL_LOG(INFO) << Format("Default YQL version for API and CLI is set (Version: %v)", versionStringBuf);
 
         } catch (const std::exception& ex) {
             // NB: YQL_LOG may be not initialized yet (for example, during singletons config parse),
@@ -864,6 +865,20 @@ public:
         YQL_LOG(DEBUG) << __FUNCTION__ << ": newGatewaysConfig = " << newGatewaysConfig.ShortDebugString();
 
         DynamicConfig_.Store(CreateDynamicConfig(std::move(newGatewaysConfig)));
+
+        if (!config.MaxSupportedYqlVersion) {
+            MaxYqlLangVersion_ = MaxYqlLangVersionInitial_;
+        } else {
+            const auto maxVersionStr = config.MaxSupportedYqlVersion.ToString();
+            YQL_LOG(DEBUG) << __FUNCTION__ << ": config.MaxSupportedYqlVersion = " << maxVersionStr;
+            TLangVersion maxVersion;
+            if (ParseLangVersion(maxVersionStr, maxVersion)) {
+                MaxYqlLangVersion_ = maxVersion;
+            } else {
+                YQL_LOG(DEBUG) << __FUNCTION__ << ": cannot parse config.MaxSupportedYqlVersion";
+                MaxYqlLangVersion_ = MaxYqlLangVersionInitial_;
+            }
+        }
         YQL_LOG(INFO) << "Dynamic config update finished";
     }
 
@@ -880,7 +895,8 @@ private:
     TYsonString OperationAttributes_;
     TString YqlAgentToken_;
 
-    TLangVersion MaxYqlLangVersion_;
+    std::atomic<TLangVersion> MaxYqlLangVersion_;
+    TLangVersion MaxYqlLangVersionInitial_;
     TLangVersion DefaultYqlApiLangVersion_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ProgressSpinLock_);
@@ -947,6 +963,7 @@ private:
         auto dynamicConfig = New<TDynamicConfig>();
         dynamicConfig->GatewaysConfig = std::move(gatewaysConfig);
         auto* gatewayYtConfig = dynamicConfig->GatewaysConfig.MutableYt();
+        auto* gatewayPqConfig = dynamicConfig->GatewaysConfig.MutablePq();
 
         // Ignore MrJobUdfsDir in dynamic config (we won't reload udfs and won't restart DqManager_).
         gatewayYtConfig->ClearMrJobUdfsDir();
@@ -961,6 +978,10 @@ private:
             if (mapping.GetDefault()) {
                 dynamicConfig->DefaultCluster = mapping.name();
             }
+        }
+        for (const auto& mapping : gatewayPqConfig->GetClusterMapping()) {
+            dynamicConfig->Clusters.insert({mapping.name(), TString(NYql::PqProviderName)});
+            dynamicConfig->ClusterAddresses.insert({mapping.name(), mapping.endpoint()});
         }
         YQL_LOG(DEBUG) << __FUNCTION__ << ": Clusters ready";
 

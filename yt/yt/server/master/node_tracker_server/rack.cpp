@@ -21,7 +21,7 @@ std::string TRack::GetCapitalizedObjectName() const
 
 TYPath TRack::GetObjectPath() const
 {
-    return Format("//sys/racks/%v", GetName());
+    return Format("//sys/racks/%v", NYPath::ToYPathLiteral(GetName()));
 }
 
 void TRack::Save(NCellMaster::TSaveContext& context) const

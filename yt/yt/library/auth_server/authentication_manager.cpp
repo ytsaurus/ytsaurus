@@ -7,7 +7,7 @@
 #include "cypress_cookie_manager.h"
 #include "cypress_token_authenticator.h"
 #include "cypress_user_manager.h"
-#include "yc_iam_token_authenticator.h"
+#include "yc_authenticator.h"
 #include "oauth_cookie_authenticator.h"
 #include "oauth_token_authenticator.h"
 #include "oauth_service.h"
@@ -162,12 +162,17 @@ public:
                 CreateTicketAuthenticatorWrapper(TicketAuthenticator_));
         }
 
-        if (config->YCIamTokenAuthenticator && CypressUserManager_) {
+        if (config->YCAuthenticator && CypressUserManager_) {
             tokenAuthenticators.push_back(CreateYCIamTokenAuthenticator(
-                config->YCIamTokenAuthenticator,
+                config->YCAuthenticator,
                 poller,
                 CypressUserManager_,
                 AuthProfiler().WithPrefix("/yc_iam_token")));
+            cookieAuthenticators.push_back(CreateYCSessionCookieAuthenticator(
+                config->YCAuthenticator,
+                poller,
+                CypressUserManager_,
+                AuthProfiler().WithPrefix("/yc_session_cookie")));
         }
 
         if (!tokenAuthenticators.empty()) {

@@ -70,22 +70,22 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TDetailedMasterMemory, DetailedMasterMemory);
 
 public:
-    TClusterResources& operator += (const TClusterResources& other);
-    TClusterResources operator + (const TClusterResources& other) const;
+    TClusterResources& operator+=(const TClusterResources& other);
+    TClusterResources operator+(const TClusterResources& other) const;
 
-    TClusterResources& operator -= (const TClusterResources& rhs);
-    TClusterResources operator - (const TClusterResources& rhs) const;
+    TClusterResources& operator-=(const TClusterResources& rhs);
+    TClusterResources operator-(const TClusterResources& rhs) const;
 
-    TClusterResources& operator *= (i64 rhs);
-    TClusterResources operator * (i64 rhs) const;
+    TClusterResources& operator*=(i64 rhs);
+    TClusterResources operator*(i64 rhs) const;
 
-    TClusterResources operator - () const;
+    TClusterResources operator-() const;
 
     #define XX(Name) void Increase##Name(NMpl::TCallTraits<decltype(Name##_)>::TType delta);
     FOR_EACH_CLUSTER_RESOURCE(XX)
     #undef XX
 
-    bool operator == (const TClusterResources& rhs) const;
+    bool operator==(const TClusterResources& rhs) const;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
@@ -132,7 +132,7 @@ public:
     NTabletServer::TTabletResources TabletResources;
 };
 
-TRichClusterResources& operator += (TRichClusterResources& lhs, const TRichClusterResources& rhs);
+TRichClusterResources& operator+=(TRichClusterResources& lhs, const TRichClusterResources& rhs);
 TRichClusterResources  operator +  (const TRichClusterResources& lhs, const TRichClusterResources& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////

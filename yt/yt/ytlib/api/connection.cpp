@@ -17,8 +17,7 @@ using namespace NYTree;
 
 IConnectionPtr CreateConnection(
     INodePtr config,
-    TConnectionOptions options,
-    IDynamicTvmServicePtr tvmService)
+    NNative::TConnectionOptions options)
 {
     if (config->GetType() != ENodeType::Map) {
         THROW_ERROR_EXCEPTION("Cluster configuration must be a map node");
@@ -28,21 +27,16 @@ IConnectionPtr CreateConnection(
     switch (genericConfig->ConnectionType) {
         case EConnectionType::Native: {
             auto typedConfig = ConvertTo<NNative::TConnectionCompoundConfigPtr>(config);
-            NNative::TConnectionOptions typedOptions;
-            typedOptions.ConnectionInvoker = std::move(options.ConnectionInvoker);
-            typedOptions.TvmService = std::move(tvmService);
             return NNative::CreateConnection(
                 std::move(typedConfig),
-                std::move(typedOptions));
+                std::move(options));
         }
 
         case EConnectionType::Rpc: {
             auto typedConfig = ConvertTo<NRpcProxy::TConnectionConfigPtr>(config);
-            NRpcProxy::TConnectionOptions typedOptions;
-            typedOptions.ConnectionInvoker = std::move(options.ConnectionInvoker);
             return NRpcProxy::CreateConnection(
                 std::move(typedConfig),
-                std::move(typedOptions));
+                std::move(options));
         }
 
         default:

@@ -47,7 +47,7 @@ protected:
     {
         auto type = GetIOEngineType();
         auto config = NYTree::ConvertTo<NYTree::INodePtr>(
-            NYson::TYsonString(TString(std::get<1>(GetParam()))));
+            NYson::TYsonString(TStringBuf(std::get<1>(GetParam()))));
 
         return NIO::CreateIOEngine(type, config);
     }

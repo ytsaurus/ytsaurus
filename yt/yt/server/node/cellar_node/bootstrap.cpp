@@ -183,9 +183,9 @@ public:
         };
 
         if (GetConfig()->EnableFairThrottler) {
-            ChangelogOutThrottler_ = ClusterNodeBootstrap_->GetOutThrottler(FormatEnum(
+            ChangelogOutThrottler_ = ClusterNodeBootstrap_->CreateOutThrottler(FormatEnum(
                 NTabletNode::ETabletNodeThrottlerKind::ChangelogOut));
-            SnapshotOutThrottler_ = ClusterNodeBootstrap_->GetOutThrottler(FormatEnum(
+            SnapshotOutThrottler_ = ClusterNodeBootstrap_->CreateOutThrottler(FormatEnum(
                 NTabletNode::ETabletNodeThrottlerKind::SnapshotOut));
         } else {
             ChangelogOutThrottler_ = GetUnlimitedThrottler();
@@ -237,9 +237,10 @@ public:
     void LoadSnapshot(
         const TString& fileName,
         NHydra::NProto::TSnapshotMeta meta,
-        ESerializationDumpMode dumpMode) override
+        ESerializationDumpMode dumpMode,
+        bool checkInvariants) override
     {
-        BIND(&TBootstrap::DoLoadSnapshot, MakeStrong(this), fileName, meta, dumpMode)
+        BIND(&TBootstrap::DoLoadSnapshot, MakeStrong(this), fileName, meta, dumpMode, checkInvariants)
             .AsyncVia(GetControlInvoker())
             .Run()
             .Get()
@@ -323,7 +324,8 @@ private:
     void DoLoadSnapshot(
         const TString& fileName,
         const NHydra::NProto::TSnapshotMeta& meta,
-        ESerializationDumpMode dumpMode)
+        ESerializationDumpMode dumpMode,
+        bool checkInvariants)
     {
         YT_LOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Snapshot meta received (Meta: %v)",
             meta);
@@ -347,7 +349,7 @@ private:
             InvalidSegmentId,
             /*prepareState*/ dumpMode == ESerializationDumpMode::None);
 
-        if (dumpMode == ESerializationDumpMode::None) {
+        if (checkInvariants) {
             dryRunHydraManager->DryRunCheckInvariants();
         }
     }

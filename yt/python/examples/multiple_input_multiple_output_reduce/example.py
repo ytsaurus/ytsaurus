@@ -20,7 +20,7 @@ def filter_robots_reducer(key, input_row_iterator, context):
 
     assert login_row is not None
 
-    # Функция create_table_switch переключает запись последующих строк в таблицу с указанным индексом.
+    # The `create_table_switch` function writing the next rows into the table with specified index.
     if is_robot:
         yield yt.wrapper.create_table_switch(0)
     else:
@@ -54,7 +54,7 @@ def main():
     client.run_reduce(
         filter_robots_reducer,
         source_table=[sorted_staff_table, sorted_is_robot_table],
-        # Индексы выходных таблиц так же определяются тем порядком в котором они указываются в параметре destination_table
+        # The output tables indexes are determined in the same way as they are specified in `destination_table` parameter.
         destination_table=[robot_table, human_table],
         reduce_by=["uid"],
     )

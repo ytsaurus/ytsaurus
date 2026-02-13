@@ -15,7 +15,7 @@ struct THedgingUnit
     std::optional<std::string> UserTag;
     bool HunkChunk;
 
-    bool operator == (const THedgingUnit& other) const;
+    bool operator==(const THedgingUnit& other) const;
 
     explicit operator size_t() const;
 };
@@ -28,7 +28,7 @@ struct ITabletHedgingManagerRegistry
     //! Returns hedging manager for specific #hedgingUnit
     //! and creates one if not present.
     //! May return null in case of disabled hedging determined via config.
-    virtual INewHedgingManagerPtr GetOrCreateHedgingManager(const THedgingUnit& hedgingUnit) = 0;
+    virtual IAdaptiveHedgingManagerPtr GetOrCreateHedgingManager(const THedgingUnit& hedgingUnit) = 0;
 
     virtual void CollectStatistics() = 0;
 };

@@ -22,12 +22,15 @@ struct IChunkReader
         std::optional<i64> EstimatedSize;
         IInvokerPtr SessionInvoker;
         bool DisableBandwidthThrottler = false;
+        bool EnableP2P = true;
+        bool FetchNodeDescriptors = false;
     };
 
     struct TGetMetaOptions
     {
         TClientChunkReadOptions ClientOptions;
         std::optional<i64> MetaSize;
+        IInvokerPtr SessionInvoker;
     };
 
     //! Asynchronously reads a given set of blocks.
@@ -50,7 +53,7 @@ struct IChunkReader
         const std::optional<TPartitionTags>& partitionTags = {},
         const std::optional<std::vector<int>>& extensionTags = {}) = 0;
 
-    //! Returns the id of the read this reader is assigned to read.
+    //! Returns the id of the chunk this reader is assigned to read.
     virtual TChunkId GetChunkId() const = 0;
 
     //! Upon fatal failures reader updates its failure time.

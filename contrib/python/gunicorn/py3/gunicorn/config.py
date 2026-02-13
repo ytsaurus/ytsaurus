@@ -47,6 +47,8 @@ class Config:
 
     def __init__(self, usage=None, prog=None):
         self.settings = make_settings()
+        self._forwarded_allow_networks = None
+        self._proxy_allow_networks = None
         self.usage = usage
         self.prog = prog or os.path.basename(sys.argv[0])
         self.env_orig = os.environ.copy()
@@ -62,6 +64,8 @@ class Config:
         return "\n".join(lines)
 
     def __getattr__(self, name):
+        if name == "settings":
+            raise AttributeError()
         if name not in self.settings:
             raise AttributeError("No configuration setting for: %s" % name)
         return self.settings[name].get()
@@ -171,6 +175,26 @@ class Config:
     @property
     def is_ssl(self):
         return self.certfile or self.keyfile
+
+    def forwarded_allow_networks(self):
+        """Return cached network objects for forwarded_allow_ips (internal use)."""
+        if self._forwarded_allow_networks is None:
+            self._forwarded_allow_networks = [
+                ipaddress.ip_network(addr)
+                for addr in self.forwarded_allow_ips
+                if addr != "*"
+            ]
+        return self._forwarded_allow_networks
+
+    def proxy_allow_networks(self):
+        """Return cached network objects for proxy_allow_ips (internal use)."""
+        if self._proxy_allow_networks is None:
+            self._proxy_allow_networks = [
+                ipaddress.ip_network(addr)
+                for addr in self.proxy_allow_ips
+                if addr != "*"
+            ]
+        return self._proxy_allow_networks
 
     @property
     def ssl_options(self):
@@ -408,7 +432,11 @@ def validate_string_to_addr_list(val):
     for addr in val:
         if addr == "*":
             continue
-        _vaid_ip = ipaddress.ip_address(addr)
+        # Validate that it's a valid IP address or CIDR network
+        # but keep the string representation for backward compatibility.
+        # Use strict mode to detect mistakes like 192.168.1.1/24 where
+        # host bits are set (should be 192.168.1.0/24).
+        ipaddress.ip_network(addr)
 
     return val
 
@@ -678,11 +706,11 @@ class WorkerClass(Setting):
         A string referring to one of the following bundled classes:
 
         * ``sync``
-        * ``eventlet`` - Requires eventlet >= 0.24.1 (or install it via
+        * ``eventlet`` - Requires eventlet >= 0.40.3 (or install it via
           ``pip install gunicorn[eventlet]``)
-        * ``gevent``   - Requires gevent >= 1.4 (or install it via
+        * ``gevent``   - Requires gevent >= 24.10.1 (or install it via
           ``pip install gunicorn[gevent]``)
-        * ``tornado``  - Requires tornado >= 0.2 (or install it via
+        * ``tornado``  - Requires tornado >= 6.5.0 (or install it via
           ``pip install gunicorn[tornado]``)
         * ``gthread``  - Python 2 requires the futures package to be installed
           (or install it via ``pip install gunicorn[gthread]``)
@@ -807,7 +835,7 @@ class GracefulTimeout(Setting):
     type = int
     default = 30
     desc = """\
-        Timeout for graceful workers restart.
+        Timeout for graceful workers restart in seconds.
 
         After receiving a restart signal, workers have this much time to finish
         serving requests. Workers still alive after the timeout (starting from
@@ -1177,7 +1205,7 @@ class Group(Setting):
         Switch worker process to run as this group.
 
         A valid group id (as an integer) or the name of a user that can be
-        retrieved with a call to ``pwd.getgrnam(value)`` or ``None`` to not
+        retrieved with a call to ``grp.getgrnam(value)`` or ``None`` to not
         change the worker processes group.
         """
 
@@ -1276,8 +1304,11 @@ class ForwardedAllowIPS(Setting):
     validator = validate_string_to_addr_list
     default = os.environ.get("FORWARDED_ALLOW_IPS", "127.0.0.1,::1")
     desc = """\
-        Front-end's IPs from which allowed to handle set secure headers.
-        (comma separated).
+        Front-end's IP addresses or networks from which allowed to handle
+        set secure headers. (comma separated).
+
+        Supports both individual IP addresses (e.g., ``192.168.1.1``) and
+        CIDR networks (e.g., ``192.168.0.0/16``).
 
         Set to ``*`` to disable checking of front-end IPs. This is useful for setups
         where you don't know in advance the IP address of front-end, but
@@ -1568,6 +1599,15 @@ class SyslogTo(Setting):
     else:
         default = "udp://localhost:514"
 
+    default_doc = """\
+    Platform-specific:
+
+    * macOS: ``'unix:///var/run/syslog'``
+    * FreeBSD/DragonFly: ``'unix:///var/run/log'``
+    * OpenBSD: ``'unix:///dev/log'``
+    * Linux/other: ``'udp://localhost:514'``
+    """
+
     desc = """\
     Address to send syslog messages.
 
@@ -1672,7 +1712,7 @@ class DogstatsdTags(Setting):
     validator = validate_string
     desc = """\
     A comma-delimited list of datadog statsd (dogstatsd) tags to append to
-    statsd metrics.
+    statsd metrics. e.g. ``'tag1:value1,tag2:value2'``
 
     .. versionadded:: 20
     """
@@ -1690,6 +1730,21 @@ class StatsdPrefix(Setting):
     if not provided).
 
     .. versionadded:: 19.2
+    """
+
+
+class BacklogMetric(Setting):
+    name = "enable_backlog_metric"
+    section = "Logging"
+    cli = ["--enable-backlog-metric"]
+    validator = validate_bool
+    default = False
+    action = "store_true"
+    desc = """\
+    Enable socket backlog metric (only supported on Linux).
+
+    When enabled, gunicorn will emit a ``gunicorn.backlog`` histogram metric
+    showing the number of connections waiting in the socket backlog.
     """
 
 
@@ -1938,7 +1993,8 @@ class PostRequest(Setting):
         Called after a worker processes the request.
 
         The callable needs to accept two instance variables for the Worker and
-        the Request.
+        the Request. If a third parameter is defined it will be passed the
+        environment. If a fourth parameter is defined it will be passed the Response.
         """
 
 
@@ -2049,20 +2105,57 @@ class NewSSLContext(Setting):
         """
 
 
+def validate_proxy_protocol(val):
+    """Validate proxy_protocol setting.
+
+    Accepts: off, false, v1, v2, auto, true
+    Returns normalized value: off, v1, v2, or auto
+    """
+    if val is None:
+        return "off"
+    if isinstance(val, bool):
+        return "auto" if val else "off"
+    if not isinstance(val, str):
+        raise TypeError("proxy_protocol must be string or bool")
+
+    val = val.lower().strip()
+    mapping = {
+        "false": "off", "off": "off", "0": "off", "none": "off",
+        "true": "auto", "auto": "auto", "1": "auto",
+        "v1": "v1", "v2": "v2",
+    }
+    if val not in mapping:
+        raise ValueError("proxy_protocol must be: off, v1, v2, or auto")
+    return mapping[val]
+
+
 class ProxyProtocol(Setting):
     name = "proxy_protocol"
     section = "Server Mechanics"
     cli = ["--proxy-protocol"]
-    validator = validate_bool
-    default = False
-    action = "store_true"
+    meta = "MODE"
+    validator = validate_proxy_protocol
+    default = "off"
+    nargs = "?"
+    const = "auto"
     desc = """\
-        Enable detect PROXY protocol (PROXY mode).
+        Enable PROXY protocol support.
 
-        Allow using HTTP and Proxy together. It may be useful for work with
-        stunnel as HTTPS frontend and Gunicorn as HTTP server.
+        Allow using HTTP and PROXY protocol together. It may be useful for work
+        with stunnel as HTTPS frontend and Gunicorn as HTTP server, or with
+        HAProxy.
 
-        PROXY protocol: http://haproxy.1wt.eu/download/1.5/doc/proxy-protocol.txt
+        Accepted values:
+
+        * ``off`` - Disabled (default)
+        * ``v1`` - PROXY protocol v1 only (text format)
+        * ``v2`` - PROXY protocol v2 only (binary format)
+        * ``auto`` - Auto-detect v1 or v2
+
+        Using ``--proxy-protocol`` without a value is equivalent to ``auto``.
+
+        PROXY protocol v1: http://haproxy.1wt.eu/download/1.5/doc/proxy-protocol.txt
+        PROXY protocol v2: https://www.haproxy.org/download/1.8/doc/proxy-protocol.txt
 
         Example for stunnel config::
 
@@ -2072,6 +2165,9 @@ class ProxyProtocol(Setting):
             connect = 80
             cert = /etc/ssl/certs/stunnel.pem
             key = /etc/ssl/certs/stunnel.key
+
+        .. versionchanged:: 24.1.0
+           Extended to support version selection (v1, v2, auto).
         """
 
 
@@ -2082,12 +2178,63 @@ class ProxyAllowFrom(Setting):
     validator = validate_string_to_addr_list
     default = "127.0.0.1,::1"
     desc = """\
-        Front-end's IPs from which allowed accept proxy requests (comma separated).
+        Front-end's IP addresses or networks from which allowed accept
+        proxy requests (comma separated).
+
+        Supports both individual IP addresses (e.g., ``192.168.1.1``) and
+        CIDR networks (e.g., ``192.168.0.0/16``).
 
         Set to ``*`` to disable checking of front-end IPs. This is useful for setups
         where you don't know in advance the IP address of front-end, but
         instead have ensured via other means that only your
         authorized front-ends can access Gunicorn.
+
+        .. note::
+
+            This option does not affect UNIX socket connections. Connections not associated with
+            an IP address are treated as allowed, unconditionally.
+        """
+
+
+class Protocol(Setting):
+    name = "protocol"
+    section = "Server Mechanics"
+    cli = ["--protocol"]
+    meta = "STRING"
+    validator = validate_string
+    default = "http"
+    desc = """\
+        The protocol for incoming connections.
+
+        * ``http`` - Standard HTTP/1.x (default)
+        * ``uwsgi`` - uWSGI binary protocol (for nginx uwsgi_pass)
+
+        When using the uWSGI protocol, Gunicorn can receive requests from
+        nginx using the uwsgi_pass directive::
+
+            upstream gunicorn {
+                server 127.0.0.1:8000;
+            }
+            location / {
+                uwsgi_pass gunicorn;
+                include uwsgi_params;
+            }
+        """
+
+
+class UWSGIAllowFrom(Setting):
+    name = "uwsgi_allow_ips"
+    section = "Server Mechanics"
+    cli = ["--uwsgi-allow-from"]
+    validator = validate_string_to_addr_list
+    default = "127.0.0.1,::1"
+    desc = """\
+        IPs allowed to send uWSGI protocol requests (comma separated).
+
+        Set to ``*`` to allow all IPs. This is useful for setups where you
+        don't know in advance the IP address of front-end, but instead have
+        ensured via other means that only your authorized front-ends can
+        access Gunicorn.
 
         .. note::
 
@@ -2439,4 +2586,95 @@ class HeaderMap(Setting):
         on a proxy in front of Gunicorn.
 
         .. versionadded:: 22.0.0
+        """
+
+
+def validate_asgi_loop(val):
+    if val is None:
+        return "auto"
+    if not isinstance(val, str):
+        raise TypeError("Invalid type for casting: %s" % val)
+    val = val.lower().strip()
+    if val not in ("auto", "asyncio", "uvloop"):
+        raise ValueError("Invalid ASGI loop: %s" % val)
+    return val
+
+
+def validate_asgi_lifespan(val):
+    if val is None:
+        return "auto"
+    if not isinstance(val, str):
+        raise TypeError("Invalid type for casting: %s" % val)
+    val = val.lower().strip()
+    if val not in ("auto", "on", "off"):
+        raise ValueError("Invalid ASGI lifespan: %s" % val)
+    return val
+
+
+class ASGILoop(Setting):
+    name = "asgi_loop"
+    section = "Worker Processes"
+    cli = ["--asgi-loop"]
+    meta = "STRING"
+    validator = validate_asgi_loop
+    default = "auto"
+    desc = """\
+        Event loop implementation for ASGI workers.
+
+        - auto: Use uvloop if available, otherwise asyncio
+        - asyncio: Use Python's built-in asyncio event loop
+        - uvloop: Use uvloop (must be installed separately)
+
+        This setting only affects the ``asgi`` worker type.
+
+        uvloop typically provides better performance but requires
+        installing the uvloop package.
+
+        .. versionadded:: 24.0.0
+        """
+
+
+class ASGILifespan(Setting):
+    name = "asgi_lifespan"
+    section = "Worker Processes"
+    cli = ["--asgi-lifespan"]
+    meta = "STRING"
+    validator = validate_asgi_lifespan
+    default = "auto"
+    desc = """\
+        Control ASGI lifespan protocol handling.
+
+        - auto: Detect if app supports lifespan, enable if so
+        - on: Always run lifespan protocol (fail if unsupported)
+        - off: Never run lifespan protocol
+
+        The lifespan protocol allows ASGI applications to run code at
+        startup and shutdown. This is essential for frameworks like
+        FastAPI that need to initialize database connections, caches,
+        or other resources.
+
+        This setting only affects the ``asgi`` worker type.
+
+        .. versionadded:: 24.0.0
+        """
+
+
+class RootPath(Setting):
+    name = "root_path"
+    section = "Server Mechanics"
+    cli = ["--root-path"]
+    meta = "STRING"
+    validator = validate_string
+    default = ""
+    desc = """\
+        The root path for ASGI applications.
+
+        This is used to set the ``root_path`` in the ASGI scope, which
+        allows applications to know their mount point when behind a
+        reverse proxy.
+
+        For example, if your application is mounted at ``/api``, set
+        this to ``/api``.
+
+        .. versionadded:: 24.0.0
         """

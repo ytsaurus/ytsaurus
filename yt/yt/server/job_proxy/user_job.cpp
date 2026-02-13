@@ -170,9 +170,9 @@ static TNullOutput NullOutput;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TString CreateNamedPipePath()
+static std::string CreateNamedPipePath()
 {
-    const TString& name = CreateGuidAsString();
+    std::string name = CreateGuidAsString();
     return GetRealPath(CombinePaths("./pipes", name));
 }
 
@@ -333,7 +333,8 @@ public:
             TDelayedExecutorCookie timeLimitCookie;
             if (UserJobSpec_.has_job_time_limit()) {
                 auto timeLimit = FromProto<TDuration>(UserJobSpec_.job_time_limit());
-                YT_LOG_INFO("Setting job time limit (Limit: %v)",
+                YT_LOG_INFO(
+                    "Setting job time limit (Limit: %v)",
                     timeLimit);
                 timeLimitCookie = TDelayedExecutor::Submit(
                     BIND(&TUserJob::OnJobTimeLimitExceeded, MakeWeak(this))
@@ -393,17 +394,20 @@ public:
             std::optional<TDuration> finalizationTimeout;
             if (coreDumped) {
                 finalizationTimeout = Config_->CoreWatcher->FinalizationTimeout;
-                YT_LOG_INFO("Job seems to produce core dump, core watcher will wait for it (FinalizationTimeout: %v)",
+                YT_LOG_INFO(
+                    "Job seems to produce core dump, core watcher will wait for it (FinalizationTimeout: %v)",
                     finalizationTimeout);
             }
             auto coreResult = CoreWatcher_->Finalize(finalizationTimeout);
 
-            YT_LOG_INFO("Core watcher finalized (CoreDumpCount: %v)",
+            YT_LOG_INFO(
+                "Core watcher finalized (CoreDumpCount: %v)",
                 coreResult.CoreInfos.size());
 
             if (!coreResult.CoreInfos.empty()) {
                 for (const auto& coreInfo : coreResult.CoreInfos) {
-                    YT_LOG_INFO("Core file found (Pid: %v, ExecutableName: %v, Size: %v)",
+                    YT_LOG_INFO(
+                        "Core file found (Pid: %v, ExecutableName: %v, Size: %v)",
                         coreInfo.process_id(),
                         coreInfo.executable_name(),
                         coreInfo.size());
@@ -523,7 +527,8 @@ public:
             artifactPath);
 
         auto onError = [&] (const TError& error) {
-            Host_->OnArtifactPreparationFailed(artifactName, artifactPath, error);
+            // TODO(dgolear): Switch to std::string.
+            Host_->OnArtifactPreparationFailed(artifactName, TString(artifactPath), error);
         };
 
         try {
@@ -538,7 +543,8 @@ public:
             TFile artifactFile(artifactPath, CreateAlways | WrOnly | Seq | CloseOnExec);
             artifactFile.Flock(LOCK_EX);
 
-            Host_->PrepareArtifact(artifactName, pipePath);
+            // TODO(dgolear): Switch to std::string.
+            Host_->PrepareArtifact(artifactName, TString(pipePath));
 
             // Now pipe is opened and O_NONBLOCK is not required anymore.
             auto fcntlResult = HandleEintr(::fcntl, pipeFd, F_SETFL, O_RDONLY);
@@ -615,7 +621,7 @@ private:
     const TActionQueuePtr AuxQueue_;
     const IInvokerPtr ReadStderrInvoker_;
 
-    TString InputPipePath_;
+    std::string InputPipePath_;
 
     std::optional<int> UserId_;
 
@@ -700,6 +706,8 @@ private:
     i64 PageFaultLimitOverflowCount_ = 0;
 
     std::atomic<TInstant> LastProgressSaveTime_ = TInstant::Zero();
+
+    THashMap<pid_t, int> OomScoreAdjs_;
 
     TFuture<void> SpawnUserProcess()
     {
@@ -912,7 +920,8 @@ private:
             contextOutput.Finish();
 
             auto contextChunkId = contextOutput.GetChunkId();
-            YT_LOG_INFO("Input context chunk generated (ChunkId: %v, InputIndex: %v)",
+            YT_LOG_INFO(
+                "Input context chunk generated (ChunkId: %v, InputIndex: %v)",
                 contextChunkId,
                 index);
 
@@ -1016,7 +1025,8 @@ private:
                 } else {
                     auto pids = GetPidsForInterrupt();
 
-                    YT_LOG_INFO("Sending interrupt signal to user job (SignalName: %v, UserJobPids: %v)",
+                    YT_LOG_INFO(
+                        "Sending interrupt signal to user job (SignalName: %v, UserJobPids: %v)",
                         signal,
                         pids);
 
@@ -1159,6 +1169,14 @@ private:
 
     void PrepareInputTablePipe()
     {
+        if (!HasInput()) {
+            YT_LOG_DEBUG(
+                "Input table pipe is not needed (JobType: %v, IsSecondaryDistributed: %v)",
+                JobType_,
+                Host_->GetJobSpecHelper()->GetJobSpecExt().user_job_spec().is_secondary_distributed());
+            return;
+        }
+
         int jobDescriptor = 0;
         InputPipePath_= CreateNamedPipePath();
 
@@ -1409,6 +1427,7 @@ private:
         }
 
         SetEnvironmentVariable("YT_JOB_PROXY_GRPC_SOCKET_PATH", ToString(Host_->GetJobProxyGrpcUnixDomainSocketPath()));
+        SetEnvironmentVariable("YT_JOB_PROXY_HTTP_SOCKET_PATH", ToString(Host_->GetJobProxyHttpUnixDomainSocketPath()));
 
         for (const auto& pair : UserJobSpec_.environment()) {
             SetEnvironmentVariable(formatter.Format(pair));
@@ -1486,7 +1505,7 @@ private:
             statistics = CustomStatistics_;
         }
 
-        if (HasInputStatistics()) {
+        if (HasInput()) {
             if (auto dataStatistics = UserJobReadController_->GetDataStatistics()) {
                 result.TotalInputStatistics.DataStatistics = *dataStatistics;
             }
@@ -1507,7 +1526,9 @@ private:
         result.LatencyStatistics.OutputTimeToFirstReadBatch.reserve(writers.size());
         for (const auto& writer : writers) {
             result.LatencyStatistics.OutputTimeToFirstReadBatch.emplace_back(
-                    writer->GetTimeToFirstBatch());
+                writer->GetTimeToFirstBatch());
+            result.WriterTimingStatistics.emplace_back(
+                writer->GetTimingStatistics());
         }
 
         for (const auto& writeBlocksOptions : UserJobWriteController_->GetOutputWriteBlocksOptions()) {
@@ -1577,7 +1598,7 @@ private:
         if (Prepared_) {
             IJob::TStatistics::TMultiPipeStatistics pipeStatistics;
 
-            if (HasInputStatistics()) {
+            if (HasInput()) {
                 pipeStatistics.InputPipeStatistics = {
                     .ConnectionStatistics = TablePipeWriters_[0]->GetWriteStatistics(),
                     .Bytes = TablePipeWriters_[0]->GetWriteByteCount(),
@@ -1876,7 +1897,8 @@ private:
         }
 
         auto memoryLimit = UserJobSpec_.memory_limit();
-        YT_LOG_DEBUG("Checking memory usage (MemoryUsage: %v, MemoryLimit: %v)",
+        YT_LOG_DEBUG(
+            "Checking memory usage (MemoryUsage: %v, MemoryLimit: %v)",
             memoryUsage,
             memoryLimit);
 
@@ -1901,6 +1923,11 @@ private:
                 << TErrorAttribute("processes", processesStatistics);
             JobErrorPromise_.TrySet(error);
             CleanupUserProcesses();
+        }
+
+        if (UserJobSpec_.has_memory_reserve() && Config_->OomScoreAdjOnExceededMemoryReserve.has_value()) {
+            int targetOomScore = memoryUsage > UserJobSpec_.memory_reserve() ? *Config_->OomScoreAdjOnExceededMemoryReserve : 0;
+            SetOomScoreAdj(targetOomScore);
         }
 
         Host_->SetUserJobMemoryUsage(memoryUsage);
@@ -1987,7 +2014,8 @@ private:
                 blockIOStats->IOOps.value() > static_cast<i64>(UserJobSpec_.iops_threshold()) &&
                 !Woodpecker_)
             {
-                YT_LOG_INFO("Woodpecker detected (IORead: %v, IOTotal: %v, Threshold: %v)",
+                YT_LOG_INFO(
+                    "Woodpecker detected (IORead: %v, IOTotal: %v, Threshold: %v)",
                     blockIOStats->IOReadOps.value(),
                     blockIOStats->IOOps.value(),
                     UserJobSpec_.iops_threshold());
@@ -2016,6 +2044,10 @@ private:
     // NB(psushin): YT-5629.
     void BlinkInputPipe() const
     {
+        if (!HasInput()) {
+            return;
+        }
+
         // This method is called after preparation and before finalization.
         // Reader must be opened and ready, so open must succeed.
         // Still an error can occur in case of external forced sandbox clearance (e.g. in integration tests).
@@ -2036,14 +2068,82 @@ private:
         }
     }
 
-    bool HasInputStatistics() const override
+    bool HasInput() const override
     {
-        return JobType_ != EJobType::Vanilla;
+        return JobType_ != EJobType::Vanilla && !Host_->GetJobSpecHelper()->GetJobSpecExt().user_job_spec().is_secondary_distributed();
     }
 
     void OnProgressSaved(TInstant when) override
     {
         LastProgressSaveTime_.store(when);
+    }
+
+    std::optional<TInstant> GetLastProgressSaveTime() override
+    {
+        if (auto time = LastProgressSaveTime_.load(); time != TInstant::Zero()) {
+            return time;
+        } else {
+            return std::nullopt;
+        }
+    }
+
+    void SetOomScoreAdj(int score)
+    {
+        // We have two possible approaches here: either mark only the root process for an oom kill
+        // or mark them all.
+        //
+        // The downsides of the former approach are that root processes are not representative of
+        // the job's memory consumption, and might not contain enough memory in themselves to
+        // satisfy the oom killer as there's generally no guarantee that its children would be
+        // reaped immediately after the parent, so it might potentially move on to reap innocent jobs.
+        //
+        // The downside of the latter approach is that killing a child within a job leaves it in an
+        // undefined state which is generally undesirable. It could be mitigated by setting
+        // memory.oom.group if cgroup v2 is available, or by monitoring for oom kills and finishing
+        // off any job that had one.
+        //
+        // Here, we go with the latter approach.
+
+        // TODO(dann239): Set memory.oom.group if cgroup v2 is available.
+        // TODO(dann239): Monitor for oom kills and finish off any job that had one.
+
+        std::vector<pid_t> pids;
+
+        if (auto maybePid = UserJobEnvironment_->GetJobRootPid()) {
+            pids.push_back(*maybePid);
+        }
+        for (auto pid : UserJobEnvironment_->GetJobPids()) {
+            pids.push_back(pid);
+        }
+
+        const THashMap<pid_t, int> oldOomScoreAdjs = std::move(OomScoreAdjs_);
+        OomScoreAdjs_.clear();
+
+        for (auto pid : pids) {
+            if (auto it = oldOomScoreAdjs.find(pid); it != oldOomScoreAdjs.end() && it->second == score) {
+                OomScoreAdjs_[pid] = score;
+                continue;
+            }
+
+            YT_LOG_DEBUG(
+                "Changing oom_score_adj of a user job process (Pid: %v, OomScoreAdj: %v)",
+                pid,
+                score);
+
+            auto config = New<TChangeOomScoreAdjAsRootConfig>();
+            config->Pid = pid;
+            config->Score = score;
+
+            try {
+                RunTool<TChangeOomScoreAdjAsRootTool>(config);
+                OomScoreAdjs_[pid] = score;
+            } catch (const std::exception& ex) {
+                YT_LOG_WARNING(
+                    ex,
+                    "Failed to set oom_score_adj of a user job process (Pid: %v)",
+                    pid);
+            }
+        }
     }
 };
 

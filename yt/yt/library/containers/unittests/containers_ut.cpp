@@ -27,7 +27,7 @@ class TContainersTest
     }
 };
 
-static TString GetUniqueName()
+TString GetUniqueName()
 {
     return "yt_ut_" + ToString(TGuid::Create());
 }

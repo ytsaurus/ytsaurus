@@ -58,7 +58,7 @@ public:
             ioRequests.push_back({
                 .Offset = requests[index].Offset,
                 .Size = requests[index].Size,
-                .Index = index
+                .Index = index,
             });
 
             if (requests[index].Handle->IsOpenForDirectIO()) {

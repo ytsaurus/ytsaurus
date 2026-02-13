@@ -97,6 +97,10 @@ TDriverConfig& TDriverConfig::SetEndpoint(const std::string& endpoint) {
     return *this;
 }
 
+const std::string& TDriverConfig::GetEndpoint() const {
+    return Impl_->Endpoint;
+}
+
 TDriverConfig& TDriverConfig::SetNetworkThreadsNum(size_t sz) {
     Impl_->NetworkThreadsNum = sz;
     return *this;
@@ -137,6 +141,10 @@ TDriverConfig& TDriverConfig::SetDatabase(const std::string& database) {
     Impl_->Database = database;
     Impl_->Log.SetFormatter(GetPrefixLogFormatter(GetDatabaseLogPrefix(Impl_->Database)));
     return *this;
+}
+
+const std::string& TDriverConfig::GetDatabase() const {
+    return Impl_->Database;
 }
 
 TDriverConfig& TDriverConfig::SetCredentialsProviderFactory(std::shared_ptr<ICredentialsProviderFactory> credentialsProviderFactory) {

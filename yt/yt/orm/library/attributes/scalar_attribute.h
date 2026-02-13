@@ -28,7 +28,7 @@ void ClearProtobufFieldByPath(
     bool skipMissing = false);
 
 template <class T>
-void ClearFieldByPath(T&& from, NYPath::TYPathBuf path);
+void ClearFieldByPath(T&& from, NYPath::TYPathBuf path, bool skipMissing = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 

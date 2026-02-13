@@ -69,7 +69,7 @@ class TFakeChunkScraper
 {
     TFuture<void> ScrapeChunks(const THashSet<TInputChunkPtr>& /*chunkSpecs*/) override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     i64 GetUnavailableChunkCount() const override
@@ -115,7 +115,7 @@ public:
 
         if (!scenario.NodeResponses.empty() && scenario.NodeResponses.back() != ENodeResponse::OK) {
             OnNodeFailed(nodeId, chunkIndexes);
-            return VoidFuture;
+            return OKFuture;
         }
 
         for (const auto& chunkIndex : chunkIndexes) {
@@ -135,7 +135,7 @@ public:
             TryPopBack(chunkResponses);
         }
 
-        return VoidFuture;
+        return OKFuture;
     }
 
     void OnFetchingCompleted() override

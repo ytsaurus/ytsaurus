@@ -6,20 +6,20 @@
 #include <yt/yt/client/table_client/row_base.h>
 
 #include <library/cpp/yt/memory/leaky_singleton.h>
-
+{%- if includes %}
 {% for include in includes %}
 #include <{{include}}>
-{% endfor %}
-
-{% if h_verbatim %}
+{%- endfor -%}
+{%- endif %}
+{%- if h_verbatim %}
 {{h_verbatim}}
-{% endif %}
+{%- endif %}
 
 namespace {{namespace}} {
 
 ////////////////////////////////////////////////////////////////////////////////
+{%- for type in types %}
 
-{% for type in types %}
 struct {{type.type_name}};
 struct {{type.type_name}}Partial;
 {% if type.sorted -%}
@@ -31,22 +31,22 @@ class {{type.type_name}}Descriptor;
 
 struct {{type.type_name}}IdMapping
 {
-{% for field in type.fields if field.expression is none -%}
+{%- for field in type.fields if field.expression is none %}
     const int {{field.cpp_name}};
-{% endfor -%}
+{%- endfor %}
 
     explicit {{type.type_name}}IdMapping(const NYT::NTableClient::TNameTablePtr& nameTable);
 };
 
 struct {{type.type_name}}PartialIdMapping
 {
-{% if not type.sorted -%}
+{%- if not type.sorted %}
     const std::optional<int> TabletIndex;
     const std::optional<int> RowIndex;
-{% endif -%}
-{% for field in type.fields if field.expression is none -%}
+{%- endif %}
+{%- for field in type.fields if field.expression is none %}
     const std::optional<int> {{field.cpp_name}};
-{% endfor -%}
+{%- endfor %}
 
     explicit {{type.type_name}}PartialIdMapping(const NYT::NTableClient::TNameTablePtr& nameTable);
 };
@@ -63,12 +63,12 @@ public:
     using TIdMapping = {{type.type_name}}IdMapping;
     using TPartialIdMapping = {{type.type_name}}PartialIdMapping;
     static constexpr int FieldCount = {{type.fields | length}};
-{% if type.verbatim %}
+{%- if type.verbatim %}
 {{type.verbatim}}
-{% endif -%}
-{% if type.descriptor_verbatim %}
+{%- endif %}
+{%- if type.descriptor_verbatim %}
 {{type.descriptor_verbatim}}
-{% endif -%}
+{%- endif %}
 
     static const {{type.type_name}}Descriptor* Get();
 
@@ -95,15 +95,19 @@ private:
 struct {{type.type_name}}Key
 {
     using TRecordDescriptor = {{type.type_name}}Descriptor;
-{% if type.verbatim %}
+{%- if type.verbatim %}
 {{type.verbatim}}
-{% endif %}
-{% if type.key_verbatim %}
+{%- endif %}
+{%- if type.key_verbatim %}
 {{type.key_verbatim}}
-{% endif %}
-{%- for field in type.fields if field.sort_order and field.expression is none %}
+{%- endif %}
+{% for field in type.fields if field.sort_order and field.expression is none %}
     {{field.cpp_type}} {{field.cpp_name}}{};
 {%- endfor %}
+{%- if type.add_equality_operator %}
+
+    bool operator==(const {{type.type_name}}Key& rhs) const = default;
+{%- endif %}
 
     NYT::NTableClient::TLegacyKey ToKey(const NYT::NTableClient::TRowBufferPtr& rowBuffer) const;
     static {{type.type_name}}Key FromKey(NYT::NTableClient::TLegacyKey key);
@@ -113,21 +117,26 @@ struct {{type.type_name}}Key
 struct {{type.type_name}}
 {
     using TRecordDescriptor = {{type.type_name}}Descriptor;
-{% if type.verbatim %}
+{%- if type.verbatim %}
 {{type.verbatim}}
-{% endif %}
-{% if type.record_verbatim %}
+{%- endif %}
+{%- if type.record_verbatim %}
 {{type.record_verbatim}}
-{% endif %}
-{% if type.sorted -%}
+{%- endif %}
+{% if type.sorted %}
     {{type.type_name}}Key Key;
-{%- else -%}
+{%- else %}
     i64 TabletIndex = -1;
     i64 RowIndex = -1;
 {%- endif %}
-{% for field in type.fields if not field.sort_order and field.expression is none %}
+{%- for field in type.fields if not field.sort_order and field.expression is none %}
     {{field.cpp_type}} {{field.cpp_name}}{};
 {%- endfor %}
+{%- if type.add_equality_operator %}
+
+    bool operator==(const {{type.type_name}}& rhs) const = default;
+{%- endif %}
+
     NYT::NTableClient::TUnversionedRow ToUnversionedRow(
         const NYT::NTableClient::TRowBufferPtr& rowBuffer,
         const {{type.type_name}}PartialIdMapping& idMapping,
@@ -140,21 +149,25 @@ struct {{type.type_name}}
 struct {{type.type_name}}Partial
 {
     using TRecordDescriptor = {{type.type_name}}Descriptor;
-{% if type.verbatim %}
+{%- if type.verbatim %}
 {{type.verbatim}}
-{% endif %}
-{% if type.record_verbatim %}
+{%- endif %}
+{%- if type.record_verbatim %}
 {{type.record_verbatim}}
-{% endif %}
-{% if type.sorted -%}
+{%- endif %}
+{% if type.sorted %}
     {{type.type_name}}Key Key;
-{%- else -%}
+{%- else %}
     i64 TabletIndex = -1;
     i64 RowIndex = -1;
 {%- endif %}
-{% for field in type.fields if not field.sort_order and field.expression is none %}
+{%- for field in type.fields if not field.sort_order and field.expression is none %}
     std::optional<{{field.cpp_type}}> {{field.cpp_name}}{};
 {%- endfor %}
+{%- if type.add_equality_operator %}
+
+    bool operator==(const {{type.type_name}}Partial& rhs) const = default;
+{%- endif %}
 
     NYT::NTableClient::TUnversionedRow ToUnversionedRow(
         const NYT::NTableClient::TRowBufferPtr& rowBuffer,
@@ -164,8 +177,8 @@ struct {{type.type_name}}Partial
         NYT::NTableClient::TUnversionedRow row,
         const {{type.type_name}}PartialIdMapping& idMapping);
 };
+{%- endfor %}
 
-{% endfor %}
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace {{namespace}}

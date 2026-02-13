@@ -1,6 +1,7 @@
 #pragma once
 
 #include "private.h"
+#include "public.h"
 
 #include <yt/yt/client/bundle_controller_client/bundle_controller_settings.h>
 
@@ -12,42 +13,24 @@ namespace NYT::NCellBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(TSysConfig)
-DECLARE_REFCOUNTED_STRUCT(TBundleInfo)
 DECLARE_REFCOUNTED_STRUCT(TBundleArea)
 DECLARE_REFCOUNTED_STRUCT(TChaosBundleInfo)
-DECLARE_REFCOUNTED_STRUCT(TResourceQuota)
 DECLARE_REFCOUNTED_STRUCT(TResourceLimits)
 DECLARE_REFCOUNTED_STRUCT(THulkInstanceResources)
-DECLARE_REFCOUNTED_STRUCT(TBundleConfig)
 DECLARE_REFCOUNTED_STRUCT(TBundleSystemOptions)
-DECLARE_REFCOUNTED_STRUCT(TBundleControllerState)
-DECLARE_REFCOUNTED_STRUCT(TZoneInfo)
 DECLARE_REFCOUNTED_STRUCT(TAllocationRequestSpec)
 DECLARE_REFCOUNTED_STRUCT(TAllocationRequestStatus)
-DECLARE_REFCOUNTED_STRUCT(TAllocationRequest)
 DECLARE_REFCOUNTED_STRUCT(TDeallocationRequestSpec)
 DECLARE_REFCOUNTED_STRUCT(TDeallocationRequestStatus)
-DECLARE_REFCOUNTED_STRUCT(TDeallocationRequest)
-DECLARE_REFCOUNTED_STRUCT(TDeallocationRequestState)
-DECLARE_REFCOUNTED_STRUCT(TBundleControllerInstanceAnnotations)
-DECLARE_REFCOUNTED_STRUCT(TCypressAnnotations)
-DECLARE_REFCOUNTED_STRUCT(TTabletNodeInfo)
 DECLARE_REFCOUNTED_STRUCT(TTabletNodeMemoryStatistics)
 DECLARE_REFCOUNTED_STRUCT(TMemoryCategory)
 DECLARE_REFCOUNTED_STRUCT(TTabletNodeStatistics)
 DECLARE_REFCOUNTED_STRUCT(TTabletCellStatus)
-DECLARE_REFCOUNTED_STRUCT(TTabletCellInfo)
 DECLARE_REFCOUNTED_STRUCT(TTabletCellPeer)
 DECLARE_REFCOUNTED_STRUCT(TTabletSlot)
-DECLARE_REFCOUNTED_STRUCT(TBundleDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TRpcProxyAlive)
 DECLARE_REFCOUNTED_STRUCT(TCmsMaintenanceRequest)
-DECLARE_REFCOUNTED_STRUCT(TRpcProxyInfo)
-DECLARE_REFCOUNTED_STRUCT(TAccountResources)
-DECLARE_REFCOUNTED_STRUCT(TSystemAccount)
 DECLARE_REFCOUNTED_STRUCT(TNodeTagFilterOperationState)
-DECLARE_REFCOUNTED_STRUCT(TDataCenterInfo)
 DECLARE_REFCOUNTED_STRUCT(TMediumThroughputLimits)
 DECLARE_REFCOUNTED_STRUCT(TAbcInfo)
 DECLARE_REFCOUNTED_STRUCT(TCellTagInfo)
@@ -55,8 +38,6 @@ DECLARE_REFCOUNTED_STRUCT(TGlobalCellRegistry)
 DECLARE_REFCOUNTED_STRUCT(TDrillsModeOperationState)
 DECLARE_REFCOUNTED_STRUCT(TDrillsModeState)
 
-template <class TEntryInfo>
-using TIndexedEntries = THashMap<std::string, TIntrusivePtr<TEntryInfo>>;
 using TChaosCellId = NObjectClient::TObjectId;
 
 constexpr int YTRoleTypeTabNode = 1;
@@ -89,33 +70,6 @@ struct TSysConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TSysConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TDerived>
-class TYsonStructAttributes
-    : public NYTree::TYsonStruct
-{
-public:
-    static const std::vector<std::string>& GetAttributes()
-    {
-        // Making sure attributes are registered.
-        // YSON struct registration takes place in constructor.
-        static auto holder = New<TDerived>();
-        return holder->Attributes_;
-    }
-
-    template <class TRegistrar, class TValue>
-    static auto& RegisterAttribute(TRegistrar registrar, const std::string& attribute, TValue(TDerived::*field))
-    {
-        Attributes_.push_back(attribute);
-        // TODO(babenko): switch to std::string
-        return registrar.Parameter(TString(attribute), field);
-    }
-
-private:
-    inline static std::vector<std::string> Attributes_;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -187,6 +141,7 @@ struct TBundleConfig
     bool InitChaosBundles;
     int AdditionalChaosCellCount;
     bool EnableDrillsMode;
+    std::optional<int> RedundantRpcProxyDataCenterCount;
 
     THashSet<std::string> ForbiddenDataCenters;
 
@@ -283,7 +238,7 @@ DEFINE_REFCOUNTED_TYPE(TGlobalCellRegistry)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTabletCellInfo
-    : public TYsonStructAttributes<TTabletCellInfo>
+    : public NYTree::TYsonStruct
 {
     std::vector<TTabletCellPeerPtr> Peers;
 
@@ -297,7 +252,7 @@ DEFINE_REFCOUNTED_TYPE(TTabletCellInfo)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TBundleInfo
-    : public TYsonStructAttributes<TBundleInfo>
+    : public NYTree::TYsonStruct
 {
     NTabletClient::ETabletCellHealth Health;
     std::string Zone;
@@ -341,7 +296,7 @@ DEFINE_REFCOUNTED_TYPE(TBundleInfo)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TBundleArea
-    : public TYsonStructAttributes<TBundleArea>
+    : public NYTree::TYsonStruct
 {
     std::string Id;
     int CellCount;
@@ -357,7 +312,7 @@ DEFINE_REFCOUNTED_TYPE(TBundleArea)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChaosBundleInfo
-    : public TYsonStructAttributes<TChaosBundleInfo>
+    : public NYTree::TYsonStruct
 {
     std::string Id;
     THashSet<TChaosCellId> ChaosCellIds;
@@ -393,7 +348,7 @@ DEFINE_REFCOUNTED_TYPE(TDataCenterInfo)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TZoneInfo
-    : public TYsonStructAttributes<TZoneInfo>
+    : public NYTree::TYsonStruct
 {
     std::string DefaultYPCluster;
     std::string DefaultTabletNodeNannyService;
@@ -615,7 +570,7 @@ DEFINE_REFCOUNTED_TYPE(TDrillsModeState)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TBundleControllerState
-    : public TYsonStructAttributes<TBundleControllerState>
+    : public NYTree::TYsonStruct
 {
     TIndexedEntries<TAllocationRequestState> NodeAllocations;
     TIndexedEntries<TDeallocationRequestState> NodeDeallocations;
@@ -752,8 +707,24 @@ DEFINE_REFCOUNTED_TYPE(TTabletNodeStatistics)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TInstanceInfoBase
+    : public NYTree::TYsonStruct
+{
+    TBundleControllerInstanceAnnotationsPtr BundleControllerAnnotations;
+    TCypressAnnotationsPtr CypressAnnotations;
+    THashMap<std::string, TCmsMaintenanceRequestPtr> CmsMaintenanceRequests;
+
+    REGISTER_YSON_STRUCT(TInstanceInfoBase);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TInstanceInfoBase)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TTabletNodeInfo
-    : public TYsonStructAttributes<TTabletNodeInfo>
+    : public TInstanceInfoBase
 {
     bool Banned;
     bool Decommissioned;
@@ -763,10 +734,7 @@ struct TTabletNodeInfo
     std::string State;
     THashSet<std::string> Tags;
     THashSet<std::string> UserTags;
-    TBundleControllerInstanceAnnotationsPtr BundleControllerAnnotations;
-    TCypressAnnotationsPtr CypressAnnotations;
     std::vector<TTabletSlotPtr> TabletSlots;
-    THashMap<std::string, TCmsMaintenanceRequestPtr> CmsMaintenanceRequests;
     TInstant LastSeenTime;
     TTabletNodeStatisticsPtr Statistics;
     std::string Rack;
@@ -793,13 +761,10 @@ DEFINE_REFCOUNTED_TYPE(TRpcProxyAlive)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TRpcProxyInfo
-    : public TYsonStructAttributes<TRpcProxyInfo>
+    : public TInstanceInfoBase
 {
     bool Banned;
     std::string Role;
-    TBundleControllerInstanceAnnotationsPtr BundleControllerAnnotations;
-    TCypressAnnotationsPtr CypressAnnotations;
-    THashMap<std::string, TCmsMaintenanceRequestPtr> CmsMaintenanceRequests;
     TInstant ModificationTime;
 
     TRpcProxyAlivePtr Alive;
@@ -861,7 +826,7 @@ DEFINE_REFCOUNTED_TYPE(TAccountResources)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSystemAccount
-    : public TYsonStructAttributes<TSystemAccount>
+    : public NYTree::TYsonStruct
 {
     TAccountResourcesPtr ResourceLimits;
     TAccountResourcesPtr ResourceUsage;
@@ -894,23 +859,6 @@ struct TBundleSystemOptions
 };
 
 DEFINE_REFCOUNTED_TYPE(TBundleSystemOptions)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TAlert
-{
-    std::string Id;
-    std::optional<std::string> BundleName;
-    std::optional<std::string> DataCenter;
-    std::string Description;
-
-    using TKey = std::tuple<
-        /*Id*/ std::string,
-        /*DataCenter*/ std::optional<std::string>
-    >;
-
-    TKey GetKey() const;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

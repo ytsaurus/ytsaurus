@@ -50,10 +50,10 @@ public:
         , MediumDirectory_(New<NChunkClient::TMediumDirectory>())
     {
         NChunkClient::NProto::TMediumDirectory protoDirectory;
-        auto* item = protoDirectory.add_medium_descriptors();
-        item->set_name(NChunkClient::DefaultSlotsMediumName);
-        item->set_index(NChunkClient::DefaultSlotsMediumIndex);
-        item->set_priority(0);
+        auto* protoMediumDescriptor = protoDirectory.add_medium_descriptors();
+        protoMediumDescriptor->set_name(NChunkClient::DefaultSlotsMediumName);
+        protoMediumDescriptor->set_index(NChunkClient::DefaultSlotsMediumIndex);
+        protoMediumDescriptor->set_priority(0);
         MediumDirectory_->LoadFrom(protoDirectory);
     }
 
@@ -188,7 +188,7 @@ public:
         const TError& /*alert*/,
         std::optional<TDuration> /*timeout*/) override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     NYson::IYsonConsumer* GetEventLogConsumer() override
@@ -241,7 +241,7 @@ public:
 
     TFuture<void> UpdateLastMeteringLogTime(TInstant /*time*/) override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     const THashMap<std::string, TString>& GetUserDefaultParentPoolMap() const override
@@ -1151,6 +1151,66 @@ TEST_F(TPoolTreeElementTest, TestIncorrectStatusDueToPrecisionError)
         pool->Attributes().FairShare.Total));
 
     EXPECT_EQ(ESchedulableStatus::Normal, pool->GetStatus());
+}
+
+TEST_F(TPoolTreeElementTest, TestBelowFairShareAbsoluteTolerance)
+{
+    TJobResourcesWithQuota nodeResources;
+    nodeResources.SetUserSlots(10);
+    nodeResources.SetCpu(20);
+    nodeResources.SetMemory(100);
+    nodeResources.SetNetwork(100);
+    nodeResources.SetGpu(8);
+    auto execNode = CreateTestExecNode(nodeResources);
+
+    auto strategyHost = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(1, nodeResources));
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
+    auto pool = CreateTestPool(strategyHost.Get(), "pool", CreateSimplePoolConfig());
+
+    pool->AttachParent(rootElement.Get());
+
+    TJobResources allocationResourcesA;
+    allocationResourcesA.SetUserSlots(1);
+    allocationResourcesA.SetCpu(11);
+    allocationResourcesA.SetMemory(50);
+    allocationResourcesA.SetNetwork(0);
+    allocationResourcesA.SetGpu(1);
+
+    auto operationA = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
+    auto operationElementA = CreateTestOperationElement(strategyHost.Get(), operationA, pool.Get());
+    IncreaseOperationResourceUsage(operationElementA, allocationResourcesA);
+
+    TJobResourcesWithQuota allocationResourcesB;
+    allocationResourcesB.SetUserSlots(1);
+    allocationResourcesB.SetCpu(20);
+    allocationResourcesB.SetMemory(50);
+    allocationResourcesB.SetNetwork(0);
+    allocationResourcesB.SetGpu(1);
+
+    auto operationB = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(2, allocationResourcesB));
+    auto operationElementB = CreateTestOperationElement(strategyHost.Get(), operationB, pool.Get());
+
+    DoFairShareUpdate(strategyHost.Get(), rootElement);
+
+    EXPECT_TRUE(Dominates(
+        operationElementB->Attributes().DemandShare + TResourceVector::Epsilon(),
+        operationElementB->Attributes().FairShare.Total));
+
+    EXPECT_TRUE(
+        Dominates(
+            operationElementB->Attributes().FairShare.Total,
+            operationElementB->Attributes().UsageShare));
+
+    EXPECT_TRUE(
+        Dominates(
+            TResourceVector::FromJobResources(allocationResourcesB, nodeResources),
+            operationElementB->Attributes().FairShare.Total - operationElementB->Attributes().UsageShare));
+
+    EXPECT_EQ(ESchedulableStatus::BelowFairShare, operationElementB->GetStatus());
+
+    TreeConfig_->EnableAbsoluteFairShareStarvationTolerance = true;
+
+    EXPECT_EQ(ESchedulableStatus::Normal, operationElementB->GetStatus());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

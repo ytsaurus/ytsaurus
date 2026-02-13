@@ -20,9 +20,22 @@ public class YTreeTest {
         Assert.assertTrue(node instanceof YTreeIntegerNode);
         Assert.assertEquals(4243L, node.longValue());
         Assert.assertEquals(4243, node.intValue());
+        Assert.assertEquals(4243, node.shortValue());
         node = YTree.builder().value(Long.MAX_VALUE).build();
         Assert.assertEquals(Long.MAX_VALUE, node.longValue());
         Assert.assertEquals((int) Long.MAX_VALUE, node.intValue());
+        Assert.assertEquals((short) Long.MAX_VALUE, node.shortValue());
+    }
+
+    @Test
+    public void integerNodeFromShortValue() {
+        short value = 500;
+
+        YTreeNode node = YTree.builder().value((Object) value).build();
+        Assert.assertTrue(node instanceof YTreeIntegerNode);
+        Assert.assertEquals(500, node.longValue());
+        Assert.assertEquals(500, node.intValue());
+        Assert.assertEquals(500, node.shortValue());
     }
 
     @Test

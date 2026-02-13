@@ -658,6 +658,7 @@ TFuture<IFileReaderPtr> TClientBase::CreateFileReader(
     const TFileReaderOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
+    PatchProxyForStallRequests(GetRpcProxyConnection()->GetConfig(), &proxy);
     auto req = proxy.ReadFile();
     InitStreamingRequest(*req);
 
@@ -751,24 +752,11 @@ TFuture<ITableReaderPtr> TClientBase::CreateTableReader(
     const TTableReaderOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
+    PatchProxyForStallRequests(GetRpcProxyConnection()->GetConfig(), &proxy);
     auto req = proxy.ReadTable();
     InitStreamingRequest(*req);
 
-    ToProto(req->mutable_path(), path);
-
-    req->set_unordered(options.Unordered);
-    req->set_omit_inaccessible_columns(options.OmitInaccessibleColumns);
-    req->set_omit_inaccessible_rows(options.OmitInaccessibleRows);
-    req->set_enable_table_index(options.EnableTableIndex);
-    req->set_enable_row_index(options.EnableRowIndex);
-    req->set_enable_range_index(options.EnableRangeIndex);
-    req->set_enable_any_unpacking(options.EnableAnyUnpacking);
-    if (options.Config) {
-        req->set_config(ToProto(ConvertToYsonString(*options.Config)));
-    }
-
-    ToProto(req->mutable_transactional_options(), options);
-    ToProto(req->mutable_suppressable_access_tracking_options(), options);
+    FillRequest(req.Get(), path, /*format*/ std::nullopt, options);
 
     return NRpc::CreateRpcClientInputStream(std::move(req))
         .AsUnique().Apply(BIND([] (IAsyncZeroCopyInputStreamPtr&& inputStream) {
@@ -949,6 +937,12 @@ TFuture<TUnversionedLookupRowsResult> TClientBase::LookupRows(
 
     YT_OPTIONAL_TO_PROTO(req, execution_pool, options.ExecutionPool);
 
+    auto* ext = req->Header().MutableExtension(NProto::TReqFairSharePoolExt::req_fair_share_pool_ext);
+    YT_OPTIONAL_TO_PROTO(ext, execution_pool, options.ExecutionPool);
+    if (auto* traceContext = NTracing::TryGetCurrentTraceContext()) {
+        ext->set_execution_tag(ToString(traceContext->GetTraceId()));
+    }
+
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspLookupRowsPtr& rsp) {
         auto rowset = DeserializeRowset<TUnversionedRow>(
             rsp->rowset_descriptor(),
@@ -995,7 +989,13 @@ TFuture<TVersionedLookupRowsResult> TClientBase::VersionedLookupRows(
         THROW_ERROR_EXCEPTION("Versioned lookup does not support versioned read mode %Qlv",
             options.VersionedReadOptions.ReadMode);
     }
+
     YT_OPTIONAL_TO_PROTO(req, execution_pool, options.ExecutionPool);
+    auto* ext = req->Header().MutableExtension(NProto::TReqFairSharePoolExt::req_fair_share_pool_ext);
+    YT_OPTIONAL_TO_PROTO(ext, execution_pool, options.ExecutionPool);
+    if (auto* traceContext = NTracing::TryGetCurrentTraceContext()) {
+        ext->set_execution_tag(ToString(traceContext->GetTraceId()));
+    }
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspVersionedLookupRowsPtr& rsp) {
         auto rowset = DeserializeRowset<TVersionedRow>(
@@ -1074,6 +1074,14 @@ TFuture<std::vector<TUnversionedLookupRowsResult>> TClientBase::MultiLookupRows(
     req->set_multiplexing_band(static_cast<NProto::EMultiplexingBand>(options.MultiplexingBand));
     ToProto(req->mutable_tablet_read_options(), options);
 
+    YT_OPTIONAL_TO_PROTO(req, execution_pool, options.ExecutionPool);
+
+    auto* ext = req->Header().MutableExtension(NProto::TReqFairSharePoolExt::req_fair_share_pool_ext);
+    YT_OPTIONAL_TO_PROTO(ext, execution_pool, options.ExecutionPool);
+    if (auto* traceContext = NTracing::TryGetCurrentTraceContext()) {
+        ext->set_execution_tag(ToString(traceContext->GetTraceId()));
+    }
+
     return req->Invoke().Apply(BIND([subrequestCount = std::ssize(subrequests)] (const TApiServiceProxy::TRspMultiLookupPtr& rsp) {
         YT_VERIFY(subrequestCount == rsp->subresponses_size());
 
@@ -1117,6 +1125,9 @@ void FillRequestBySelectRowsOptionsBase(
         request->set_udf_registry_path(*defaultUdfRegistryPath);
     }
     request->set_syntax_version(options.SyntaxVersion);
+    if (options.HyperLogLogPrecision) {
+        request->set_hyper_log_log_precision(*options.HyperLogLogPrecision);
+    }
 }
 
 TFuture<TSelectRowsResult> TClientBase::SelectRows(
@@ -1155,6 +1166,12 @@ TFuture<TSelectRowsResult> TClientBase::SelectRows(
     req->set_allow_join_without_index(options.AllowJoinWithoutIndex);
 
     YT_OPTIONAL_TO_PROTO(req, execution_pool, options.ExecutionPool);
+    auto* ext = req->Header().MutableExtension(NProto::TReqFairSharePoolExt::req_fair_share_pool_ext);
+    YT_OPTIONAL_TO_PROTO(ext, execution_pool, options.ExecutionPool);
+    if (auto* traceContext = NTracing::TryGetCurrentTraceContext()) {
+        ext->set_execution_tag(ToString(traceContext->GetTraceId()));
+    }
+
     if (options.PlaceholderValues) {
         req->set_placeholder_values(ToProto(options.PlaceholderValues));
     }

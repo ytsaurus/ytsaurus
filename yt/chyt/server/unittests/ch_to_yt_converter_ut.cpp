@@ -612,9 +612,9 @@ TEST_F(TCHToYTConversionTest, NamedTupleInt8Double)
     };
 
     auto expectedLogicalType = StructLogicalType({
-        {"my_precious_int8", SimpleLogicalType(ESimpleLogicalValueType::Int8)},
-        {"their_ugly_float64", SimpleLogicalType(ESimpleLogicalValueType::Double)},
-    });
+        {"my_precious_int8", "my_precious_int8", SimpleLogicalType(ESimpleLogicalValueType::Int8)},
+        {"their_ugly_float64", "their_ugly_float64", SimpleLogicalType(ESimpleLogicalValueType::Double)},
+    }, /*removedFieldStableNames*/ {});
 
     Converter_.emplace(dataType, Settings_);
 

@@ -49,8 +49,14 @@ cluster:
   proxy: "http-proxies-lb.ytsaurus-dev.svc.cluster.local"
   name: "ytsaurus"
 
+cors:
+  allowedHosts: []
+  allowedHostSuffixes: []
+
+authCookieName: "YTCypressCookie"
+
 image:
-  repository: ghcr.io/ytsaurus/microservices
+  repository: ghcr.io/ytsaurus/ytmsvc
   pullPolicy: Always
   tag: "0.0.0-alpha"
 imagePullSecrets: []
@@ -73,10 +79,6 @@ microservices:
         httpHandlerTimeout: 120s
         debugHttpAddr: "[::]:81"
         apiPrefix: "/"
-        cors:
-          allowedHosts: []
-          allowedHostSuffixes: []
-        authCookieName: "YTCypressCookie"
         snapshotRoot: "//sys/admin/yt-microservices/resource_usage"
         logToStderr: true
         logsDir: "/resource-usage/logs"
@@ -88,18 +90,16 @@ microservices:
     preprocessing:
       enabled: true
       schedule: "0 * * * *"
-      successfulJobsHistoryLimit: 5
-      failedJobsHistoryLimit: 5
+      successfulJobsHistoryLimit: 1
+      failedJobsHistoryLimit: 2
       startingDeadlineSeconds: 5
-      concurrencyPolicy: "Forbid"
       ttlSecondsAfterFinished: 43200
     removeExcessive:
       enabled: true
       schedule: "0 0 * * *"
-      successfulJobsHistoryLimit: 5
-      failedJobsHistoryLimit: 5
+      successfulJobsHistoryLimit: 1
+      failedJobsHistoryLimit: 2
       startingDeadlineSeconds: 5
-      concurrencyPolicy: "Forbid"
       ttlSecondsAfterFinished: 43200
       config:
         denominator: 1.4
@@ -120,10 +120,9 @@ microservices:
     preprocessing:
       enabled: true
       schedule: "0 * * * *"
-      successfulJobsHistoryLimit: 5
-      failedJobsHistoryLimit: 5
+      successfulJobsHistoryLimit: 1
+      failedJobsHistoryLimit: 2
       startingDeadlineSeconds: 5
-      concurrencyPolicy: "Forbid"
       ttlSecondsAfterFinished: 43200
     secretRefs: []
   idToPathUpdater:
@@ -131,20 +130,54 @@ microservices:
     image: {}
     resources: {}
     config:
-      tmpPath: "//tmp/microservices/id_to_path_updater"
+      tmpPath: "//sys/admin/yt-microservices/tmp/id_to_path_updater"
       outputTable: "//sys/admin/yt-microservices/node_id_dict/data"
       inputTablesSource: "//sys/admin/logs/export/master-access"
     preprocessing:
       enabled: true
       schedule: "0 * * * *"
-      successfulJobsHistoryLimit: 5
-      failedJobsHistoryLimit: 5
+      successfulJobsHistoryLimit: 1
+      failedJobsHistoryLimit: 2
       startingDeadlineSeconds: 5
-      concurrencyPolicy: "Forbid"
       ttlSecondsAfterFinished: 43200
     secretRefs: []
     init:
       enabled: true
       tabletCellBundle: sys
       primaryMedium: default
-
+  accessLogViewer:
+    enabled: true
+    image: {}
+    resources: {}
+    api:
+      enabled: true
+      service:
+        type: NodePort
+        port: 80
+      config:
+        chytAlias: "ch_public"
+    rawLogPreprocessing:
+      enabled: true
+      schedule: "*/15 * * * *"
+      successfulJobsHistoryLimit: 1
+      failedJobsHistoryLimit: 2
+      startingDeadlineSeconds: 5
+      config:
+        accessLogExportPath: "//sys/admin/logs/export/master-access"
+        lockPath: "//sys/admin/yt-microservices/raw_log_processing/lock"
+        workPath: "//sys/admin/yt-microservices/raw_log_processing"
+        maxInputTables: 16
+    preprocessing:
+      enabled: true
+      schedule: "*/15 * * * *"
+      successfulJobsHistoryLimit: 1
+      failedJobsHistoryLimit: 2
+      startingDeadlineSeconds: 5
+      config:
+        inputPath: "//sys/admin/logs/export/master-access-parsed"
+        outputPath: "//sys/admin/yt-microservices/access_log_viewer"
+        tmpPath: "//sys/admin/yt-microservices/tmp/access_log_viewer"
+        maxParallelOps: 1
+        maxTables: 100
+        networkProject: null
+    secretRefs: []

@@ -4,10 +4,10 @@ from yt_env_setup import YTEnvSetup, parametrize_external, Restarter, NODES_SERV
 
 from yt_commands import (
     authors, print_debug, wait, create, ls, get, set,
-    remove, exists, multicell_sleep, create_dynamic_table,
+    remove, exists, multicell_sleep, build_snapshot, create_dynamic_table,
     create_account, create_user, create_tablet_cell_bundle, remove_tablet_cell_bundle, create_table_replica, make_ace,
     insert_rows, mount_table, unmount_table, freeze_table,
-    unfreeze_table, reshard_table, wait_for_tablet_state, sync_create_cells, sync_mount_table,
+    unfreeze_table, remount_table, reshard_table, wait_for_tablet_state, sync_create_cells, sync_mount_table,
     sync_unmount_table, sync_freeze_table, sync_reshard_table,
     sync_flush_table, sync_compact_table, sync_remove_tablet_cells,
     sync_reshard_table_automatic, sync_balance_tablet_cells, raises_yt_error,
@@ -395,6 +395,139 @@ class TestTabletActions(TabletActionsBase):
         wait(lambda: get(f"#{action}/@state") == "completed")
 
         wait(lambda: get("//tmp/t/@preload_state") == "complete", timeout=5)
+
+    @authors("atalmenev")
+    def test_provisional_flush(self):
+        sync_create_cells(1)
+
+        self._create_sorted_table(
+            "//tmp/t",
+            pivot_keys=[[], [15]],
+            tablet_balancer_config={
+                "enable_auto_reshard": False,
+            },
+            mount_config={
+                "testing": {
+                    "flush_failure_probability": 1.0,
+                },
+            },
+        )
+        sync_mount_table("//tmp/t")
+
+        def _create_action(table_path, **attributes):
+            tablet_ids = [tablet["tablet_id"] for tablet in get(f"{table_path}/@tablets")]
+
+            attributes.update({
+                "kind": "reshard",
+                "keep_finished": True,
+                "tablet_ids": tablet_ids,
+                "inplace_reshard": True,
+            })
+            return create("tablet_action", "", attributes=attributes)
+
+        def _set_flush_enabled(enabled):
+            set("//tmp/t/@mount_config/testing", {
+                "flush_failure_probability": 0.0 if enabled else 1.0,
+            })
+            remount_table("//tmp/t")
+
+        # Empty store.
+        action = _create_action("//tmp/t", pivot_keys=[[], [5], [10]])
+        wait(lambda: get(f"#{action}/@state") == "provisionally_flushing")
+        insert_rows("//tmp/t", [{"key": i, "value": "FFF"} for i in range(30)])
+        _set_flush_enabled(True)
+        wait(lambda: get(f"#{action}/@state") == "completed")
+
+        # Non empty store.
+        _set_flush_enabled(False)
+        action = _create_action("//tmp/t", tablet_count=5)
+        wait(lambda: get(f"#{action}/@state") == "provisionally_flushing")
+        insert_rows("//tmp/t", [{"key": i, "value": "FFF"} for i in range(30, 60)])
+        _set_flush_enabled(True)
+        wait(lambda: get(f"#{action}/@state") == "completed")
+
+        # Table is frozen.
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t", freeze=True)
+
+        action = _create_action("//tmp/t", tablet_count=4)
+        wait(lambda: get(f"#{action}/@state") == "completed")
+
+        # Action created when cell is down.
+        set("//sys/tablet_cell_bundles/default/@node_tag_filter", "invalid")
+        action = _create_action("//tmp/t", tablet_count=1)
+        set("//sys/tablet_cell_bundles/default/@node_tag_filter", "")
+        wait(lambda: get(f"#{action}/@state") == "completed")
+
+    @authors("atalmenev")
+    def test_cell_failover_during_provisional_flush(self):
+        cell_ids = sync_create_cells(1)
+
+        self._create_sorted_table(
+            "//tmp/t",
+            pivot_keys=[[], [1]],
+            tablet_balancer_config={
+                "enable_auto_reshard": False,
+            },
+            mount_config={
+                "testing": {
+                    "flush_failure_probability": 1.0,
+                },
+            },
+        )
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": i, "value": "FF"} for i in range(20)])
+
+        tablet_ids = [tablet["tablet_id"] for tablet in get("//tmp/t/@tablets")]
+
+        action = create(
+            "tablet_action",
+            "",
+            attributes={
+                "kind": "reshard",
+                "keep_finished": True,
+                "tablet_ids": tablet_ids,
+                "pivot_keys": [[]] + [[i] for i in range(1, 20, 1)],
+                "inplace_reshard": True,
+            },
+        )
+        wait(lambda: get("//tmp/t/@tablet_error_count") > 1)
+        build_snapshot(cell_id=cell_ids[0])
+        set("//sys/tablet_cell_bundles/default/@node_tag_filter", "invalid")
+        wait(lambda: get(f"#{cell_ids[0]}/@health") == "failed")
+        set("//sys/tablet_cell_bundles/default/@node_tag_filter", "")
+        wait(lambda: get(f"#{cell_ids[0]}/@health") == "good")
+        set("//tmp/t/@mount_config/testing", {
+            "flush_failure_probability": 0.0,
+        })
+        remount_table("//tmp/t")
+        wait(lambda: get(f"#{action}/@state") == "completed")
+
+    @authors("atalmenev")
+    def test_provisional_flush_ordered_table_with_empty_store(self):
+        sync_create_cells(1)
+
+        self._create_ordered_table(
+            "//tmp/t",
+            tablet_balancer_config={
+                "enable_auto_reshard": False,
+            },
+        )
+        sync_mount_table("//tmp/t")
+
+        tablet_ids = [tablet["tablet_id"] for tablet in get("//tmp/t/@tablets")]
+        action = create(
+            "tablet_action",
+            "",
+            attributes={
+                "kind": "reshard",
+                "keep_finished": True,
+                "tablet_ids": tablet_ids,
+                "tablet_count": 3,
+                "inplace_reshard": True,
+            },
+        )
+        wait(lambda: get(f"#{action}/@state") == "completed")
 
     @authors("ifsmirnov", "ilpauzner")
     @pytest.mark.parametrize("skip_freezing", [False, True])
@@ -1292,37 +1425,45 @@ class TabletBalancerBase(TabletActionsBase):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
         set("//tmp/t/@tablet_balancer_config/enable_auto_reshard", False)
+
         sync_reshard_table("//tmp/t", [[], [1]])
         sync_mount_table("//tmp/t")
+
         sleep(1)
         assert get("//tmp/t/@tablet_count") == 2
-        set(
-            "//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_tablet_size_balancer",
-            False,
-        )
+
+        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_tablet_size_balancer", False)
+
         self._wait_full_iteration()
+        if self.ENABLE_STANDALONE_TABLET_BALANCER:
+            sleep(self._get_state_freshness_time())
+
         assert get("//tmp/t/@tablet_count") == 2
+
         remove("//tmp/t/@tablet_balancer_config/enable_auto_reshard")
-        sleep(1)
+        self._wait_full_iteration()
+        if self.ENABLE_STANDALONE_TABLET_BALANCER:
+            sleep(self._get_state_freshness_time())
+
         assert get("//tmp/t/@tablet_count") == 2
-        set(
-            "//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_tablet_size_balancer",
-            True,
-        )
+
+        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_tablet_size_balancer", True)
+
         wait(lambda: get("//tmp/t/@tablet_count") == 1)
 
     @authors("ifsmirnov")
     def test_tablet_balancer_table_config(self):
         cells = sync_create_cells(2)
-        self._create_sorted_table("//tmp/t", in_memory_mode="uncompressed")
-        sync_reshard_table("//tmp/t", [[], [1]])
-        set(
-            "//tmp/t/@tablet_balancer_config",
-            {
+        self._create_sorted_table(
+            "//tmp/t",
+            pivot_keys=[[], [1]],
+            in_memory_mode="uncompressed",
+            tablet_balancer_config={
                 "enable_auto_reshard": False,
                 "enable_auto_tablet_move": False,
             },
         )
+
         sync_mount_table("//tmp/t", cell_id=cells[0])
         insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(2)])
         sync_flush_table("//tmp/t")
@@ -1497,9 +1638,9 @@ class TabletBalancerBase(TabletActionsBase):
         self._create_sorted_table("//tmp/t")
 
         def check_balancer_is_active(should_be_active):
-            if self.ENABLE_STANDALONE_TABLET_BALANCER:
-                sleep(1)
             sync_reshard_table("//tmp/t", [[], [1]])
+            if self.ENABLE_STANDALONE_TABLET_BALANCER:
+                sleep(self._get_state_freshness_time())
             sync_mount_table("//tmp/t")
             if should_be_active:
                 wait(lambda: get("//tmp/t/@tablet_count") == 1)

@@ -720,14 +720,14 @@ private:
     IReconfigurableThroughputThrottlerPtr LegacyRawTotalInThrottler_;
     IThroughputThrottlerPtr LegacyTotalInThrottler_;
 
-    TFairThrottlerPtr InThrottler_;
+    IFairThrottlerPtr InThrottler_;
     IThroughputThrottlerPtr DefaultInThrottler_;
     THashSet<std::string> EnabledInThrottlers_;
 
     IReconfigurableThroughputThrottlerPtr LegacyRawTotalOutThrottler_;
     IThroughputThrottlerPtr LegacyTotalOutThrottler_;
 
-    TFairThrottlerPtr OutThrottler_;
+    IFairThrottlerPtr OutThrottler_;
     IThroughputThrottlerPtr DefaultOutThrottler_;
     THashSet<std::string> EnabledOutThrottlers_;
 
@@ -857,7 +857,8 @@ private:
 
         // Cycles are fine for bootstrap.
         Connection_->GetMasterCellDirectory()->SubscribeCellDirectoryChanged(
-            BIND_NO_PROPAGATE(&TBootstrap::OnMasterCellDirectoryChanged, MakeStrong(this)));
+            BIND_NO_PROPAGATE(&TBootstrap::OnMasterCellDirectoryChanged, MakeStrong(this))
+            .Via(GetControlInvoker()));
 
         NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(Connection_);
 
@@ -880,18 +881,18 @@ private:
 
         if (Config_->EnableFairThrottler) {
             Config_->InThrottler->TotalLimit = GetNetworkThrottlerLimit(nullptr, {});
-            InThrottler_ = New<TFairThrottler>(
+            InThrottler_ = CreateFairThrottler(
                 Config_->InThrottler,
                 ClusterNodeLogger().WithTag("Direction: %v", "In"),
                 ClusterNodeProfiler().WithPrefix("/in_throttler"));
-            DefaultInThrottler_ = GetInThrottler("default");
+            DefaultInThrottler_ = CreateInThrottler("default");
 
             Config_->OutThrottler->TotalLimit = GetNetworkThrottlerLimit(nullptr, {});
-            OutThrottler_ = New<TFairThrottler>(
+            OutThrottler_ = CreateFairThrottler(
                 Config_->OutThrottler,
                 ClusterNodeLogger().WithTag("Direction: %v", "Out"),
                 ClusterNodeProfiler().WithPrefix("/out_throttler"));
-            DefaultOutThrottler_ = GetOutThrottler("default");
+            DefaultOutThrottler_ = CreateOutThrottler("default");
         } else {
             auto getThrottlerConfig = [&] (EDataNodeThrottlerKind kind) {
                 return PatchRelativeNetworkThrottlerConfig(Config_->DataNode->Throttlers[kind]);
@@ -1349,13 +1350,13 @@ private:
         }
     }
 
-    NConcurrency::IThroughputThrottlerPtr GetInThrottler(const TString& bucket) override
+    NConcurrency::IThroughputThrottlerPtr CreateInThrottler(const TString& bucket) override
     {
         EnabledInThrottlers_.insert(bucket);
         return InThrottler_->CreateBucketThrottler(bucket, Config_->InThrottlers[bucket]);
     }
 
-    NConcurrency::IThroughputThrottlerPtr GetOutThrottler(const TString& bucket) override
+    NConcurrency::IThroughputThrottlerPtr CreateOutThrottler(const TString& bucket) override
     {
         EnabledOutThrottlers_.insert(bucket);
         return OutThrottler_->CreateBucketThrottler(bucket, Config_->OutThrottlers[bucket]);
@@ -1667,16 +1668,28 @@ private:
     }
 
     void OnMasterCellDirectoryChanged(
-        const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs,
+        const TSecondaryMasterConnectionConfigs& potentiallyNewSecondaryMasterConfigs,
         const TSecondaryMasterConnectionConfigs& changedSecondaryMasterConfigs,
         const THashSet<TCellTag>& removedSecondaryMasterCellTags)
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_ALERT_UNLESS(
             removedSecondaryMasterCellTags.empty(),
             "Some cells disappeared in received configuration of secondary masters (RemovedCellTags: %v)",
             removedSecondaryMasterCellTags);
+
+        TSecondaryMasterConnectionConfigs newSecondaryMasterConfigs;
+        {
+            // NB: Attempt to update masters configuration with same diff could happen, so filter out already appended masters.
+            // If "new" masters connection configuration change, further updates will change it too.
+            auto guard = ReaderGuard(SecondaryMasterConnectionLock_);
+            for (const auto& [cellTag, masterConfig] : potentiallyNewSecondaryMasterConfigs) {
+                if (!SecondaryMasterConnectionConfigs_.contains(cellTag)) {
+                    EmplaceOrCrash(newSecondaryMasterConfigs, cellTag, masterConfig);
+                }
+            }
+        }
 
         const auto& hiveCellDirectory = Connection_->GetCellDirectory();
 
@@ -1716,6 +1729,20 @@ private:
         // for this purpose there are two signals: the first triggers different node-flavors state update and the second performs change of heartbeats to masters.
         SecondaryMasterCellListChanged_.Fire(newSecondaryMasterConfigs);
         ReadyToUpdateHeartbeatStream_.Fire(newSecondaryMasterConfigs);
+
+        if (NeedDataNodeBootstrap() && !newSecondaryMasterConfigs.empty()) {
+            const auto& dataNodeBootstrap = GetDataNodeBootstrap();
+            if (GetDynamicConfigManager()->GetConfig()->DataNode->MasterConnector->CheckChunksCellTagsAfterReceivingNewMasterCellConfigs) {
+                YT_UNUSED_FUTURE(
+                    // NB: Master cell tags were updated during firing the above signals.
+                    BIND([weakThis = MakeWeak(this), dataNodeBootstrap, masterCellTags = GetMasterConnector()->GetMasterCellTags()] {
+                        if (auto this_ = weakThis.Lock()) {
+                            dataNodeBootstrap->GetChunkStore()->CheckAllChunksHaveValidCellTags(masterCellTags);
+                        }
+                    }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+                    .Run());
+            }
+        }
 
         {
             auto guard = WriterGuard(SecondaryMasterConnectionLock_);

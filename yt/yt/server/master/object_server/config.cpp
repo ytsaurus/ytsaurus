@@ -46,7 +46,7 @@ void TDynamicObjectManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("prohibit_prerequisite_revisions_differ_from_execution_paths", &TThis::ProhibitPrerequisiteRevisionsDifferFromExecutionPaths)
         .Default(true);
     registrar.Parameter("fix_resolve_prerequisite_path_to_local_object_for_symlinks", &TThis::FixResolvePrerequisitePathToLocalObjectForSymlinks)
-        .Default(false)
+        .Default(true)
         .DontSerializeDefault();
 }
 
@@ -155,6 +155,10 @@ void TDynamicObjectServiceConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_read_request_complexity_limits", &TThis::EnableReadRequestComplexityLimits)
         .Default(false);
+
+    registrar.Parameter("enable_per_user_throttling", &TThis::EnablePerUserThrottling)
+        .Default(true)
+        .DontSerializeDefault();
 
     registrar.Parameter("local_read_request_throttler", &TThis::LocalReadRequestThrottler)
         .DefaultNew();

@@ -42,6 +42,7 @@
 #include <yt/yt/server/master/incumbent_server/incumbent_detail.h>
 #include <yt/yt/server/master/incumbent_server/incumbent_manager.h>
 
+#include <yt/yt/server/master/object_server/helpers.h>
 #include <yt/yt/server/master/object_server/map_object_type_handler.h>
 #include <yt/yt/server/master/object_server/map_object.h>
 #include <yt/yt/server/master/object_server/object_manager.h>
@@ -106,6 +107,7 @@ using namespace NProfiling;
 using namespace NSecurityClient;
 using namespace NSequoiaServer;
 using namespace NSequoiaClient;
+using namespace NServer;
 using namespace NTableServer;
 using namespace NTransactionServer;
 using namespace NYPath;
@@ -225,6 +227,14 @@ protected:
     TCellTagList DoGetReplicationCellTags(const TAccount* /*account*/) override
     {
         return TNonversionedMapObjectTypeHandlerBase<TAccount>::AllSecondaryCellTags();
+    }
+
+    void ValidateObjectName(const std::string& name) override
+    {
+        TNonversionedMapObjectTypeHandlerBase<TAccount>::ValidateObjectName(name);
+
+        CheckObjectName(name)
+            .ThrowOnError();
     }
 
 private:
@@ -500,6 +510,7 @@ public:
         const auto& incumbentManager = Bootstrap_->GetIncumbentManager();
         incumbentManager->RegisterIncumbent(this);
 
+        RegisterMethod(BIND_NO_PROPAGATE(&TSecurityManager::HydraSendAccountStatisticsGossip, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TSecurityManager::HydraSetAccountStatistics, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TSecurityManager::HydraRecomputeMembershipClosure, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TSecurityManager::HydraUpdateAccountMasterMemoryUsage, Unretained(this)));
@@ -720,13 +731,11 @@ public:
 
         auto usageDelta = -account->LocalStatistics().ResourceUsage;
         auto committedUsageDelta = -account->LocalStatistics().CommittedResourceUsage;
+        const auto statisticsDelta = TAccountStatistics(usageDelta, committedUsageDelta);
         ChargeAccountAncestry(
             account,
             [&] (TAccount* account) {
-                account->ClusterStatistics().ResourceUsage += usageDelta;
-                account->LocalStatistics().ResourceUsage += usageDelta;
-                account->ClusterStatistics().CommittedResourceUsage += committedUsageDelta;
-                account->LocalStatistics().CommittedResourceUsage += committedUsageDelta;
+                UpdateLocalAndClusterAccountStatistics(account, statisticsDelta);
             });
     }
 
@@ -747,27 +756,35 @@ public:
         return account;
     }
 
-    TAccount* DoFindAccountByName(const std::string& name)
+    TAccount* DoFindAccountByName(const std::string& name, bool throwOnInvalidId)
     {
-        // Access buggy parentless accounts by id.
-        if (name.starts_with(NObjectClient::ObjectIdPathPrefix)) {
-            TStringBuf idString(name, NObjectClient::ObjectIdPathPrefix.size());
-            auto id = TObjectId::FromString(idString);
-            auto* account = AccountMap_.Find(id);
-            if (!IsObjectAlive(account) || account->GetName() != name) {
+        auto* account = Visit(ParseObjectNameOrId(name),
+            [&] (TStringBuf accountName) {
+                return GetOrDefault(AccountNameMap_, accountName, nullptr);
+            },
+            [&] (TObjectId id) -> TAccount* {
+                if (TypeFromId(id) != EObjectType::Account) {
+                    if (throwOnInvalidId) {
+                        THROW_ERROR_EXCEPTION("Invalid account id")
+                            << TErrorAttribute("account_id", id);
+                    }
+                    return nullptr;
+                }
+                return AccountMap_.Find(id);
+            },
+            [&] (TError error) -> TAccount* {
+                if (throwOnInvalidId) {
+                    THROW_ERROR error;
+                }
                 return nullptr;
-            }
-            return account;
-        }
+            });
 
-        auto it = AccountNameMap_.find(name);
-        auto* account = it == AccountNameMap_.end() ? nullptr : it->second;
         return IsObjectAlive(account) ? account : nullptr;
     }
 
     TAccount* FindAccountByName(const std::string& name, bool activeLifeStageOnly) override
     {
-        auto* account = DoFindAccountByName(name);
+        auto* account = DoFindAccountByName(name, /*throwOnInvalidId=*/ false);
         if (!account) {
             return account;
         }
@@ -781,7 +798,7 @@ public:
 
     TAccount* GetAccountByNameOrThrow(const std::string& name, bool activeLifeStageOnly) override
     {
-        auto* account = DoFindAccountByName(name);
+        auto* account = DoFindAccountByName(name, /*throwOnInvalidId*/ true);
         if (!account) {
             THROW_ERROR_EXCEPTION(
                 NSecurityClient::EErrorCode::NoSuchAccount,
@@ -799,12 +816,12 @@ public:
     void RegisterAccountName(const std::string& name, TAccount* account) noexcept
     {
         YT_VERIFY(account);
-        YT_VERIFY(AccountNameMap_.emplace(name, account).second);
+        EmplaceOrCrash(AccountNameMap_, name, account);
     }
 
     void UnregisterAccountName(const std::string& name) noexcept
     {
-        YT_VERIFY(AccountNameMap_.erase(name) == 1);
+        EraseOrCrash(AccountNameMap_, name);
     }
 
     TAccount* GetRootAccount() override
@@ -1085,7 +1102,6 @@ public:
             {
                 auto newLimits = account->ClusterResourceLimits();
 
-                THashSet<TCellTag> cellsWithInfiniteMasterMemoryChange;
                 if (auto failed = (newLimits.*modification.Check)(delta)) {
                     ThrowInvalidResourceLimitsChange(
                         account->GetName(),
@@ -1145,11 +1161,6 @@ public:
     {
         YT_VERIFY(chunk->IsNative());
 
-        auto doCharge = [] (TClusterResources* usage, int mediumIndex, i64 chunkCount, i64 diskSpace) {
-            usage->AddToMediumDiskSpace(mediumIndex, diskSpace);
-            usage->SetChunkCount(usage->GetChunkCount() + chunkCount);
-        };
-
         ComputeChunkResourceDelta(
             chunk,
             requisition,
@@ -1157,12 +1168,15 @@ public:
             [&] (TAccount* account, int mediumIndex, i64 chunkCount, i64 diskSpace, i64 chunkMasterMemory, bool committed) {
                 account->DetailedMasterMemoryUsage()[EMasterMemoryType::Chunks] += chunkMasterMemory;
 
-                doCharge(&account->ClusterStatistics().ResourceUsage, mediumIndex, chunkCount, diskSpace);
-                doCharge(&account->LocalStatistics().ResourceUsage, mediumIndex, chunkCount, diskSpace);
+                auto statisticsDelta = TAccountStatistics();
+                statisticsDelta.ResourceUsage.SetChunkCount(chunkCount);
+                statisticsDelta.ResourceUsage.AddToMediumDiskSpace(mediumIndex, diskSpace);
                 if (committed) {
-                    doCharge(&account->ClusterStatistics().CommittedResourceUsage, mediumIndex, chunkCount, diskSpace);
-                    doCharge(&account->LocalStatistics().CommittedResourceUsage, mediumIndex, chunkCount, diskSpace);
+                    statisticsDelta.CommittedResourceUsage.SetChunkCount(chunkCount);
+                    statisticsDelta.CommittedResourceUsage.AddToMediumDiskSpace(mediumIndex, diskSpace);
                 }
+
+                UpdateLocalAndClusterAccountStatistics(account, statisticsDelta);
             });
     }
 
@@ -1493,8 +1507,9 @@ public:
         ChargeAccountAncestry(
             account,
             [&] (TAccount* account) {
-                account->ClusterStatistics().ResourceUsage += resources;
-                account->LocalStatistics().ResourceUsage += resources;
+                auto statisticsDelta = TAccountStatistics(resources, TClusterResources());
+
+                UpdateLocalAndClusterAccountStatistics(account, statisticsDelta);
             });
 
         if (transaction) {
@@ -1504,8 +1519,9 @@ public:
             ChargeAccountAncestry(
                 account,
                 [&] (TAccount* account) {
-                    account->ClusterStatistics().CommittedResourceUsage += resources;
-                    account->LocalStatistics().CommittedResourceUsage += resources;
+                    auto statisticsDelta = TAccountStatistics(TClusterResources(), resources);
+
+                    UpdateLocalAndClusterAccountStatistics(account, std::move(statisticsDelta));
                 });
         }
     }
@@ -1543,12 +1559,11 @@ public:
         ChargeAccountAncestry(
             account,
             [&] (TAccount* account) {
-                account->ClusterStatistics().ResourceUsage += resourceUsageDelta;
-                account->LocalStatistics().ResourceUsage += resourceUsageDelta;
-                if (committed) {
-                    account->ClusterStatistics().CommittedResourceUsage += resourceUsageDelta;
-                    account->LocalStatistics().CommittedResourceUsage += resourceUsageDelta;
-                }
+                auto statisticsDelta = TAccountStatistics(
+                    resourceUsageDelta,
+                    committed ? resourceUsageDelta : TClusterResources());
+
+                UpdateLocalAndClusterAccountStatistics(account, statisticsDelta);
             });
     }
 
@@ -2137,6 +2152,13 @@ public:
             .Item("new_name").Value(newName);
 
         subject->SetName(newName);
+
+        // Update the Sequoia ACL table entries.
+        for (auto [object, _] : subject->LinkedObjects()) {
+            for (auto acd : ListAcds(object)) {
+                OnObjectAcdUpdated(acd.Underlying());
+            }
+        }
     }
 
     TWrappedAccessControlDescriptorPtr FindAcd(TObject* object) override
@@ -2395,33 +2417,6 @@ public:
         return std::move(checker).GetResponse();
     }
 
-    TPermissionCheckResponse CheckPermission(
-        TUser* user,
-        EPermission permission,
-        TFunctionRef<TAccessControlList()> aclProducer,
-        TPermissionCheckOptions options = {}) override
-    {
-        TPermissionChecker checker(
-            this,
-            user,
-            permission,
-            &options);
-
-        if (!checker.ShouldProceed()) {
-            return std::move(checker).GetResponse();
-        }
-
-        auto acl = aclProducer();
-        for (const auto& ace : acl.Entries) {
-            checker.ProcessAce(ace, nullptr, nullptr, 0);
-            if (!checker.ShouldProceed()) {
-                break;
-            }
-        }
-
-        return std::move(checker).GetResponse();
-    }
-
     bool IsSuperuser(const TUser* user) const override
     {
         // NB: This is also useful for migration when "superusers" is initially created.
@@ -2436,7 +2431,7 @@ public:
         return false;
     }
 
-    void ValidatePermission(
+    TSuccessfulPermissionValidationResult ValidatePermission(
         TObject* object,
         TUser* user,
         EPermission permission,
@@ -2449,14 +2444,16 @@ public:
             object->GetId());
 
         if (IsPermissionValidationSuppressed()) {
-            return;
+            return {};
         }
 
         YT_VERIFY(!options.Columns);
 
         auto response = CheckPermission(object, user, permission, std::move(options));
         if (response.Action == ESecurityAction::Allow) {
-            return;
+            return {
+                .HasRowLevelAce = response.HasRowLevelAce,
+            };
         }
 
         TPermissionCheckTarget target;
@@ -2466,14 +2463,16 @@ public:
             user,
             permission,
             response);
+
+        YT_UNREACHABLE();
     }
 
-    void ValidatePermission(
+    TSuccessfulPermissionValidationResult ValidatePermission(
         TObject* object,
         EPermission permission,
         TPermissionCheckOptions options = {}) override
     {
-        ValidatePermission(
+        return ValidatePermission(
             object,
             GetAuthenticatedUser(),
             permission,
@@ -2913,6 +2912,11 @@ public:
                 .NodeId = object->GetId(),
             });
         }
+        auto lastRecordSequenceNumber = queueManager->GetLastRecordSequenceNumber(EGroundUpdateQueue::Sequoia);
+        auto* node = object->As<TCypressNode>();
+        // No need to update parent here as ACLs don't affect parents in any way.
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        cypressManager->UpdateGroundUpdateQueueManagerSequenceNumber(node, lastRecordSequenceNumber);
 
         YT_LOG_DEBUG("Scheduled ACLs table update (ObjectId: %v)",
             object->GetId());
@@ -3352,8 +3356,14 @@ private:
                 YT_LOG_ALERT("Unattended account found in snapshot (Id: %v)",
                     account->GetId());
             } else {
+                auto name = account->GetName();
+                if (auto error = CheckObjectName(name); !error.IsOK()) {
+                    YT_LOG_ALERT(error, "Account with invalid name encountered (Id: %v, Name: %v)",
+                        account->GetId(),
+                        name);
+                }
                 // Reconstruct account name map.
-                RegisterAccountName(account->GetName(), account);
+                RegisterAccountName(name, account);
             }
         }
 
@@ -3555,7 +3565,7 @@ private:
         bool mismatchFound = false;
         auto mismatchLogLevel = recompute ? ELogLevel::Alert : ELogLevel::Fatal;
 
-        auto& actualUsage = account->LocalStatistics().ResourceUsage;
+        const auto& actualUsage = account->LocalStatistics().ResourceUsage;
         const auto& expectedUsage = expectedResourceUsage.Usage;
         if (!resourceUsageMatch(
             account,
@@ -3572,7 +3582,7 @@ private:
             mismatchFound = true;
         }
 
-        auto& actualCommittedUsage = account->LocalStatistics().CommittedResourceUsage;
+        const auto& actualCommittedUsage = account->LocalStatistics().CommittedResourceUsage;
         const auto& expectedCommittedUsage = expectedResourceUsage.CommittedUsage;
         if (!resourceUsageMatch(
             account,
@@ -3593,8 +3603,10 @@ private:
             YT_LOG_ALERT("Setting recomputed resource usage for account (Account: %v)",
                 account->GetName());
 
-            actualUsage = expectedUsage;
-            actualCommittedUsage = expectedCommittedUsage;
+            auto newLocalStatistics = TAccountStatistics(
+                expectedUsage,
+                expectedCommittedUsage);
+            account->SetLocalStatistics(std::move(newLocalStatistics));
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             if (multicellManager->IsPrimaryMaster()) {
@@ -4242,7 +4254,21 @@ private:
         account->DetailedMasterMemoryUsage() = multicellStatistics[selfCellTag].ResourceUsage.DetailedMasterMemory();
     }
 
+    void UpdateLocalAndClusterAccountStatistics(TAccount* account, const TAccountStatistics& delta)
+    {
+        account->IncreaseStatistics(delta);
+    }
+
     void OnAccountStatisticsGossip()
+    {
+        NProto::TReqSendAccountStatisticsGossip request;
+        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+        YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
+            ->CommitAndLog(Logger()));
+    }
+
+
+    void HydraSendAccountStatisticsGossip(NProto::TReqSendAccountStatisticsGossip* /*request*/)
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (!multicellManager->IsLocalMasterCellRegistered()) {
@@ -4256,7 +4282,7 @@ private:
             // This is done because cell statistics on the primary master might be outdated for any particular cell.
             for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
                 NProto::TReqSetAccountStatistics request;
-                for (auto [accountId, account] : AccountMap_) {
+                for (auto account : GetValuesSortedByKey(AccountMap_)) {
                     if (!IsObjectAlive(account)) {
                         continue;
                     }
@@ -4267,13 +4293,13 @@ private:
                     ToProto(entry->mutable_account_id(), account->GetId());
                     ToProto(entry->mutable_statistics(), clusterStatistics - cellStatistics);
                 }
-                multicellManager->PostToMaster(request, cellTag, false);
+                multicellManager->PostToMaster(request, cellTag, true);
             }
         } else {
             YT_LOG_INFO("Sending account statistics gossip message to primary cell");
             NProto::TReqSetAccountStatistics request;
             request.set_cell_tag(multicellManager->GetCellTag().Underlying());
-            for (auto [accountId, account] : AccountMap_) {
+            for (auto account : GetValuesSortedByKey(AccountMap_)) {
                 if (!IsObjectAlive(account)) {
                     continue;
                 }
@@ -4282,7 +4308,7 @@ private:
                 ToProto(entry->mutable_account_id(), account->GetId());
                 ToProto(entry->mutable_statistics(), account->LocalStatistics());
             }
-            multicellManager->PostToPrimaryMaster(request, false);
+            multicellManager->PostToPrimaryMaster(request, true);
         }
     }
 
@@ -4339,8 +4365,8 @@ private:
                 continue;
             }
 
-            auto& clusterStatistics = account->ClusterStatistics();
-            clusterStatistics = FromProto<TAccountStatistics>(entry.statistics()) + account->LocalStatistics();
+            auto newClusterStatistics = FromProto<TAccountStatistics>(entry.statistics()) + account->LocalStatistics();
+            account->SetClusterStatistics(newClusterStatistics);
         }
     }
 
@@ -4384,23 +4410,18 @@ private:
             auto newDetailedMasterMemory = FromProto<TDetailedMasterMemory>(entry.detailed_master_memory_usage());
             auto masterMemoryUsageDelta = newDetailedMasterMemory - account->LocalStatistics().ResourceUsage.DetailedMasterMemory();
 
-            account->LocalStatistics().ResourceUsage.DetailedMasterMemory() = newDetailedMasterMemory;
-            account->ClusterStatistics().ResourceUsage.IncreaseDetailedMasterMemory(masterMemoryUsageDelta);
+            auto statisticsDelta = TAccountStatistics();
 
-            account->LocalStatistics().CommittedResourceUsage.DetailedMasterMemory() = newDetailedMasterMemory;
-            account->ClusterStatistics().CommittedResourceUsage.IncreaseDetailedMasterMemory(masterMemoryUsageDelta);
+            statisticsDelta.ResourceUsage.IncreaseDetailedMasterMemory(masterMemoryUsageDelta);
+            statisticsDelta.CommittedResourceUsage.IncreaseDetailedMasterMemory(masterMemoryUsageDelta);
 
             if (IsChunkHostCell_) {
-                auto newChunkHostCellMasterMemoryUsage = newDetailedMasterMemory.GetTotal();
                 auto chunkHostCellMasterMemoryUsageDelta = masterMemoryUsageDelta.GetTotal();
-                auto& clusterStatistics = account->ClusterStatistics();
-                auto& localStatistics = account->LocalStatistics();
 
-                localStatistics.ResourceUsage.SetChunkHostCellMasterMemory(newChunkHostCellMasterMemoryUsage);
-                localStatistics.CommittedResourceUsage.SetChunkHostCellMasterMemory(newChunkHostCellMasterMemoryUsage);
-                clusterStatistics.ResourceUsage.IncreaseChunkHostCellMasterMemory(chunkHostCellMasterMemoryUsageDelta);
-                clusterStatistics.CommittedResourceUsage.IncreaseChunkHostCellMasterMemory(chunkHostCellMasterMemoryUsageDelta);
+                statisticsDelta.ResourceUsage.IncreaseChunkHostCellMasterMemory(chunkHostCellMasterMemoryUsageDelta);
+                statisticsDelta.CommittedResourceUsage.IncreaseChunkHostCellMasterMemory(chunkHostCellMasterMemoryUsageDelta);
             }
+            UpdateLocalAndClusterAccountStatistics(account, statisticsDelta);
         }
     }
 
@@ -4416,8 +4437,9 @@ private:
         ChargeAccountAncestry(
             account,
             [&] (TAccount* account) {
-                account->ClusterStatistics().ResourceUsage += resourcesDelta;
-                account->LocalStatistics().ResourceUsage += resourcesDelta;
+                auto statisticsDelta = TAccountStatistics(resourcesDelta, TClusterResources());
+
+                UpdateLocalAndClusterAccountStatistics(account, statisticsDelta);
             });
 
         auto* transactionResources = GetTransactionAccountUsage(transaction, account);
@@ -4760,35 +4782,32 @@ private:
                     continue;
                 }
 
-                auto& localStatistics = account->LocalStatistics();
-                auto& clusterStatistics = account->ClusterStatistics();
-
-                auto& localResourceUsage = localStatistics.ResourceUsage;
-                auto& localCommittedUsage = localStatistics.CommittedResourceUsage;
-
-                auto& clusterResourceUsage = clusterStatistics.ResourceUsage;
-                auto& clusterCommittedUsage = clusterStatistics.CommittedResourceUsage;
+                const auto& localStatistics = account->LocalStatistics();
+                const auto& localResourceUsage = localStatistics.ResourceUsage;
+                const auto& localCommittedUsage = localStatistics.CommittedResourceUsage;
 
                 if (wasChunkHostCell) {
-                    clusterResourceUsage.SetChunkHostCellMasterMemory(clusterResourceUsage.GetChunkHostCellMasterMemory() - localResourceUsage.GetChunkHostCellMasterMemory());
-                    clusterCommittedUsage.SetChunkHostCellMasterMemory(clusterCommittedUsage.GetChunkHostCellMasterMemory() - localCommittedUsage.GetChunkHostCellMasterMemory());
+                    auto statisticsDelta = TAccountStatistics(
+                        TClusterResources().SetChunkHostCellMasterMemory(-localResourceUsage.GetChunkHostCellMasterMemory()),
+                        TClusterResources().SetChunkHostCellMasterMemory(-localCommittedUsage.GetChunkHostCellMasterMemory())
+                    );
 
-                    if (clusterResourceUsage.GetChunkHostCellMasterMemory() < 0) {
+                    UpdateLocalAndClusterAccountStatistics(account, statisticsDelta);
+
+                    if (account->ClusterStatistics().ResourceUsage.GetChunkHostCellMasterMemory() < 0) {
                         YT_LOG_ALERT("Chunk host cell memory is negative after removing chunk host role from cell %v", cellTag);
                     }
 
-                    if (clusterCommittedUsage.GetChunkHostCellMasterMemory() < 0) {
+                    if (account->ClusterStatistics().CommittedResourceUsage.GetChunkHostCellMasterMemory() < 0) {
                         YT_LOG_ALERT("Committed chunk host cell memory is negative after removing chunk host role from cell %v", cellTag);
                     }
-
-                    localResourceUsage.SetChunkHostCellMasterMemory(0);
-                    localCommittedUsage.SetChunkHostCellMasterMemory(0);
                 } else {
-                    localResourceUsage.SetChunkHostCellMasterMemory(localResourceUsage.DetailedMasterMemory().GetTotal());
-                    localCommittedUsage.SetChunkHostCellMasterMemory(localCommittedUsage.DetailedMasterMemory().GetTotal());
+                    auto statisticsDelta = TAccountStatistics(
+                        TClusterResources().SetChunkHostCellMasterMemory(localResourceUsage.DetailedMasterMemory().GetTotal()),
+                        TClusterResources().SetChunkHostCellMasterMemory(localCommittedUsage.DetailedMasterMemory().GetTotal())
+                    );
 
-                    clusterResourceUsage.SetChunkHostCellMasterMemory(clusterResourceUsage.GetChunkHostCellMasterMemory() + localResourceUsage.GetChunkHostCellMasterMemory());
-                    clusterCommittedUsage.SetChunkHostCellMasterMemory(clusterCommittedUsage.GetChunkHostCellMasterMemory() + localCommittedUsage.GetChunkHostCellMasterMemory());
+                    UpdateLocalAndClusterAccountStatistics(account, statisticsDelta);
                 }
             }
         }
@@ -4812,7 +4831,10 @@ TObject* TAccountTypeHandler::CreateObject(
     TObjectId hintId,
     IAttributeDictionary* attributes)
 {
-    auto name = attributes->GetAndRemove<std::string>("name");
+    auto name = attributes->GetAndRemove<std::string>(EInternedAttributeKey::Name.Unintern());
+    CheckObjectName(name)
+        .ThrowOnError();
+
     auto parentName = attributes->GetAndRemove<std::string>("parent_name", NSecurityClient::RootAccountName);
     auto* parent = Owner_->GetAccountByNameOrThrow(parentName, true /*activeLifeStageOnly*/);
     attributes->Set("hint_id", hintId);
@@ -4876,6 +4898,7 @@ TObject* TAccountResourceUsageLeaseTypeHandler::CreateObject(
     IAttributeDictionary* attributes)
 {
     auto transactionId = attributes->GetAndRemove<TTransactionId>("transaction_id");
+
     auto accountName = attributes->GetAndRemove<std::string>("account");
 
     return Owner_->CreateAccountResourceUsageLease(accountName, transactionId, hintId);
@@ -4935,7 +4958,7 @@ TObject* TGroupTypeHandler::CreateObject(
     TObjectId hintId,
     IAttributeDictionary* attributes)
 {
-    auto name = attributes->GetAndRemove<std::string>("name");
+    auto name = attributes->GetAndRemove<std::string>(EInternedAttributeKey::Name.Unintern());
 
     return Owner_->CreateGroup(name, hintId);
 }
@@ -4956,7 +4979,7 @@ void TGroupTypeHandler::DoZombifyObject(TGroup* group)
 std::optional<TObject*> TGroupTypeHandler::FindObjectByAttributes(
     const NYTree::IAttributeDictionary* attributes)
 {
-    auto name = attributes->Get<std::string>("name");
+    auto name = attributes->Get<std::string>(EInternedAttributeKey::Name.Unintern());
 
     return Owner_->FindGroupByNameOrAlias(name);
 }
@@ -4972,7 +4995,7 @@ TObject* TNetworkProjectTypeHandler::CreateObject(
     TObjectId hintId,
     IAttributeDictionary* attributes)
 {
-    auto name = attributes->GetAndRemove<std::string>("name");
+    auto name = attributes->GetAndRemove<std::string>(EInternedAttributeKey::Name.Unintern());
 
     return Owner_->CreateNetworkProject(name, hintId);
 }
@@ -5001,8 +5024,8 @@ TObject* TProxyRoleTypeHandler::CreateObject(
     TObjectId hintId,
     IAttributeDictionary* attributes)
 {
-    auto name = attributes->GetAndRemove<std::string>("name");
-    auto proxyKind = attributes->GetAndRemove<NApi::EProxyKind>("proxy_kind");
+    auto name = attributes->GetAndRemove<std::string>(EInternedAttributeKey::Name.Unintern());
+    auto proxyKind = attributes->GetAndRemove<NApi::EProxyKind>(EInternedAttributeKey::ProxyKind.Unintern());
 
     return Owner_->CreateProxyRole(name, proxyKind, hintId);
 }

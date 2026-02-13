@@ -44,6 +44,7 @@ target_compile_options(yt-server-node PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_include_directories(yt-server-node PUBLIC
@@ -217,6 +218,7 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/hunk_lock_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/hunk_store.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/hunk_tablet.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/hunk_tablet_profiling.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/hunk_tablet_scanner.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/hunk_tablet_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/hunks_serialization.cpp
@@ -272,6 +274,7 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/tablet_memory_statistics.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/tablet_cell_write_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/tablet_profiling.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/tablet_profiling_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/tablet_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/tablet_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/tablet_slot.cpp

@@ -8,9 +8,9 @@
 
 namespace NYT::NControllerAgent {
 
+using namespace NScheduler;
 using namespace NYTree;
 using namespace NYson;
-using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,7 +74,7 @@ i64 TProgressCounter::GetAbortedNonScheduled() const
 {
     i64 sum = 0;
     for (auto reason : TEnumTraits<EAbortReason>::GetDomainValues()) {
-        if (NScheduler::IsSchedulingReason(reason)) {
+        if (IsSchedulingReason(reason)) {
             sum += Aborted_[reason];
         }
     }
@@ -266,7 +266,7 @@ void FormatValue(TStringBuilderBase* builder, const TProgressCounterPtr& counter
 {
     Format(
         builder,
-        "{T: %v, R: %v, C: %v, F: %v, P: %v, S: %v, A: %v, L: %v, I: %v, B: %v}",
+        "{T: %v, R: %v, C: %v, F: %v, P: %v, S: %v, A: %v, L: %v, I: %v, B: %v, U: %v}",
         counter->GetTotal(),
         counter->GetRunning(),
         counter->GetCompletedTotal(),
@@ -276,7 +276,8 @@ void FormatValue(TStringBuilderBase* builder, const TProgressCounterPtr& counter
         counter->GetAbortedTotal(),
         counter->GetLost(),
         counter->GetInvalidated(),
-        counter->GetBlocked());
+        counter->GetBlocked(),
+        counter->GetUncategorized());
 }
 
 void Serialize(const TProgressCounterPtr& counter, IYsonConsumer* consumer)
@@ -384,17 +385,17 @@ void TProgressCounterGuard::SetCompletedCategory(EInterruptionReason interruptio
 
 void TProgressCounterGuard::OnFailed()
 {
-    ProgressCounter_->AddFailed(+1);
+    ProgressCounter_->AddFailed(Value_);
 }
 
 void TProgressCounterGuard::OnAborted(EAbortReason abortReason)
 {
-    ProgressCounter_->AddAborted(+1, abortReason);
+    ProgressCounter_->AddAborted(Value_, abortReason);
 }
 
 void TProgressCounterGuard::OnLost()
 {
-    ProgressCounter_->AddLost(+1);
+    ProgressCounter_->AddLost(Value_);
 }
 
 void TProgressCounterGuard::RegisterMetadata(auto&& registrar)

@@ -45,10 +45,9 @@ using namespace spark::connect;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSpytConnectSettings
+struct TSpytConnectSettings
     : public TYsonStruct
 {
-public:
     std::optional<std::string> Cluster;
 
     std::string Proxy;
@@ -103,7 +102,7 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TSpytConnectSettings);
-DECLARE_REFCOUNTED_CLASS(TSpytConnectSettings);
+DECLARE_REFCOUNTED_STRUCT(TSpytConnectSettings);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -126,8 +125,9 @@ public:
         const IInvokerPtr& controlInvoker,
         const TSpytConnectEngineConfigPtr& config,
         const TActiveQuery& activeQuery,
-        const TClusterDirectoryPtr& clusterDirectory
-    ) : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery)
+        const TClusterDirectoryPtr& clusterDirectory,
+        const TDuration notIndexedQueriesTTL)
+    : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery, notIndexedQueriesTTL)
     , Settings_(ConvertTo<TSpytConnectSettingsPtr>(SettingsNode_))
     , SettingsHash_(ComputeSettingsHash())
     , Config_(config)
@@ -238,6 +238,7 @@ private:
         command.AppendFormat(" --conf spark.driver.extraJavaOptions='-Djava.net.preferIPv6Addresses=%v'", Config_->PreferIpv6);
         command.AppendFormat(" --conf spark.connect.grpc.binding.port=%v", Config_->GrpcPort);
         command.AppendFormat(" --conf spark.ytsaurus.connect.token.refresh.period=%vs", Config_->RefreshTokenPeriod.Seconds());
+        command.AppendString(" --conf spark.ytsaurus.arrow.stringToBinary=true");
         for (auto confEntry : Settings_->SparkConf) {
             command.AppendFormat(" --conf %v=%v", confEntry.first, confEntry.second);
         }
@@ -608,21 +609,24 @@ public:
             ControlQueue_->GetInvoker(),
             Config_,
             activeQuery,
-            ClusterDirectory_
+            ClusterDirectory_,
+            NotIndexedQueriesTTL_
         );
     }
 
-    void Reconfigure(const TEngineConfigBasePtr& config) override
+    void Reconfigure(const TEngineConfigBasePtr& config, const TDuration notIndexedQueriesTTL) override
     {
         Config_ = DynamicPointerCast<TSpytConnectEngineConfig>(config);
+        NotIndexedQueriesTTL_ = notIndexedQueriesTTL;
     }
 
 private:
     const IClientPtr StateClient_;
     const TYPath StateRoot_;
     const TActionQueuePtr ControlQueue_;
-    TSpytConnectEngineConfigPtr Config_;
     const TClusterDirectoryPtr ClusterDirectory_;
+    TSpytConnectEngineConfigPtr Config_;
+    TDuration NotIndexedQueriesTTL_;
 };
 
 IQueryEnginePtr CreateSpytConnectEngine(IClientPtr stateClient, TYPath stateRoot)

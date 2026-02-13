@@ -12,8 +12,6 @@
 
 #include <yt/yt/core/rpc/public.h>
 
-#include <yt/yt/core/misc/new_hedging_manager.h>
-
 namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,9 +32,8 @@ struct TClientChunkReadOptions
     // |ChunkReaderStatistics|.
     NTableClient::IHunkChunkReaderStatisticsPtr HunkChunkReaderStatistics;
 
-    // COMPAT(akozhikhov): Rename to HedgingManager after dropping old hedging manager.
-    // Unless null, |NewHedgingManager| determines hedging policy shared between various chunk readers.
-    INewHedgingManagerPtr NewHedgingManager;
+    // Unless null, |AdaptiveHedgingManager| determines hedging policy shared between various chunk readers.
+    IAdaptiveHedgingManagerPtr AdaptiveHedgingManager;
 
     IMemoryUsageTrackerPtr MemoryUsageTracker;
 

@@ -119,7 +119,7 @@ void TFileChunkOutput::EnsureOpen()
         NullTableSchemaId, // Schema is inapplicable to file chunks.
         NullChunkListId,
         Client_,
-        /*localHostName*/ TString(), // Locality is not important for files.
+        /*localHostName*/ std::string(), // Locality is not important for files.
         GetNullBlockCache(),
         TrafficMeter_,
         Throttler_);

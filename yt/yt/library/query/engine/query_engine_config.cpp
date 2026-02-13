@@ -6,14 +6,12 @@
 
 namespace NYT::NQueryClient {
 
-////////////////////////////////////////////////////////////////////////////////
-
 using namespace NYson;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef VERBOSE_CHANGING_QUERY_ENGINE_CONFIG
+#ifdef YT_VERBOSE_CHANGING_QUERY_ENGINE_CONFIG
 
 constinit const auto Logger = QueryClientLogger;
 
@@ -40,6 +38,12 @@ void TQueryEngineDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("expression_builder_version", &TThis::ExpressionBuilderVersion)
         .Optional();
+
+    registrar.Parameter("codegen_optimization_level", &TThis::OptimizationLevel)
+        .Optional();
+
+    registrar.Parameter("rewrite_cardinality_into_hyper_log_log_with_precision", &TThis::RewriteCardinalityIntoHyperLogLogWithPrecision)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,8 +60,8 @@ void SetupSingletonConfigParameter(TYsonStructParameter<TQueryEngineDynamicConfi
 
 void ConfigureSingleton(const TQueryEngineConfigPtr& config)
 {
-#ifdef VERBOSE_CHANGING_QUERY_ENGINE_CONFIG
-    YT_LOG_DEBUG("Configure QueryEngine (Config: %v)", ConvertToYsonString(config, EYsonFormat::Text));
+#ifdef YT_VERBOSE_CHANGING_QUERY_ENGINE_CONFIG
+    YT_LOG_INFO("Configure QueryEngine (Config: %v)", ConvertToYsonString(config, EYsonFormat::Text));
 #else
     Y_UNUSED(config);
 #endif
@@ -71,8 +75,8 @@ void ReconfigureSingleton(
         TCodegenCacheSingleton::Reconfigure(dynamicConfig->CodegenCache);
     }
 
-#ifdef VERBOSE_CHANGING_QUERY_ENGINE_CONFIG
-    YT_LOG_DEBUG("Reconfigure QueryEngine (Config: %v)", ConvertToYsonString(dynamicConfig, EYsonFormat::Text));
+#ifdef YT_VERBOSE_CHANGING_QUERY_ENGINE_CONFIG
+    YT_LOG_INFO("Reconfigure QueryEngine (Config: %v)", ConvertToYsonString(dynamicConfig, EYsonFormat::Text));
 #endif
 }
 

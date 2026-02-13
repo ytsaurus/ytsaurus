@@ -61,6 +61,8 @@ items:
                 href: user-guide/storage/access-control.md
               - name: Управление доступом к колонкам таблиц
                 href: user-guide/storage/columnar-acl.md
+              - name: Управление доступом к строкам таблиц
+                href: user-guide/storage/row-level-security.md
           - name: Квотирование ресурсов
             items:
               - name: Квоты
@@ -220,6 +222,9 @@ items:
         - name: Настройки операций
           when: audience == "public"
           href: user-guide/data-processing/operations/operations-options.md
+        - name: Коллективы джобов
+          when: audience == "public"
+          href: user-guide/data-processing/operations/job-collectives.md
         - name: Автоматическое слияние чанков на выходе операций
           when: audience == "public"
           href: user-guide/data-processing/operations/automerge.md
@@ -341,6 +346,8 @@ items:
                   href: user-guide/data-processing/spyt/API/spyt-java.md
             - name: Справочник
               items:
+                - name: Соответствие типов данных
+                  href: user-guide/data-processing/spyt/thesaurus/data-types.md
                 - name: Конфигурационные параметры
                   href: user-guide/data-processing/spyt/thesaurus/configuration.md
                 - name: Опции чтения
@@ -474,14 +481,20 @@ items:
             href: admin-guide/install-cron.md
           - name: Odin
             href: admin-guide/install-odin.md
+          - name: Excel-интеграция
+            href: admin-guide/install-excel.md
           - name: Tutorial
             href: admin-guide/install-tutorial.md
           - name: Микросервисы
             href: admin-guide/install-ytmsvc.md
+          - name: Мониторинг
+            href: admin-guide/install-monitoring.md
       - name: Подготовка спецификации {{product-name}}
         items:
           - name: Описание
             href: admin-guide/prepare-spec.md
+          - name: Переопределение конфигурации
+            href: admin-guide/config-overrides.md
           - name: Разметка дисков и локаций
             href: admin-guide/locations.md
           - name: Настройка логирования
@@ -499,6 +512,8 @@ items:
           #        href: admin-guide/configuration.md
       - name: Обновление серверных компонент
         href: admin-guide/update-ytsaurus.md
+      - name: Обновление томов
+        href: admin-guide/update-volumes.md
       - name: Эксплуатация кластера
         href: admin-guide/cluster-operations.md
           #      - name: Как построить production-инсталляцию
@@ -507,6 +522,8 @@ items:
         href: admin-guide/node-maintenance.md
       - name: Тегирование нод кластера
         href: admin-guide/node-tags.md
+      - name: CRI для контейнеризации джобов
+        href: admin-guide/node-cri.md
       - name: Расширение мастер-сервера
         href: admin-guide/cell-addition.md
       - name: Поддержка GPU

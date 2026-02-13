@@ -68,6 +68,7 @@ message TRspUnmountTablet
     optional NYT.NTabletNode.NProto.TMountHint mount_hint = 2;
     optional NYT.NChaosClient.NProto.TReplicationProgress replication_progress = 3;
     optional uint64 mount_revision = 4;
+    optional uint64 conflict_horizon_timestamp = 5;
 }
 
 message TRspFreezeTablet
@@ -75,12 +76,18 @@ message TRspFreezeTablet
     required NYT.NProto.TGuid tablet_id = 1;
     optional NYT.NTabletNode.NProto.TMountHint mount_hint = 2;
     optional uint64 mount_revision = 3;
+    optional uint64 conflict_horizon_timestamp = 4;
 }
 
 message TRspUnfreezeTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
     optional uint64 mount_revision = 2;
+}
+
+message TRspProvisionalFlush
+{
+    required NYT.NProto.TGuid tablet_id = 1;
 }
 
 message TRspCancelTabletTransition
@@ -105,10 +112,12 @@ message TReqUpdateTabletStores
     repeated NTabletNode.NProto.TAddHunkChunkDescriptor hunk_chunks_to_add = 8;
     repeated NTabletNode.NProto.TRemoveHunkChunkDescriptor hunk_chunks_to_remove = 9;
     required uint64 retained_timestamp = 5;
+    optional uint64 conflict_horizon_timestamp = 12;
     optional int32 update_reason = 6 [default = 0]; // ETabletStoresUpdateReason
     optional bool request_dynamic_store_id = 7 [default = false];
     // COMPAT(aleksandra-zh)
     optional bool create_hunk_chunks_during_prepare = 10 [default = false];
+    optional NYT.NProto.TGuid unleashed_backing_store_id = 11;
 }
 
 message TReqUpdateTabletTrimmedRowCount

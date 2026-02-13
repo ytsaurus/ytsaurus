@@ -26,6 +26,7 @@ DEFINE_ENUM(ESequoiaTransactionType,
     (DeadChunkReplicaRemoval)
     (GroundUpdateQueueFlush)
     (ObjectDestruction)
+    (GlobalRefresh)
 );
 
 DEFINE_ENUM(ESequoiaTable,
@@ -83,6 +84,7 @@ struct TSequoiaResponseKeeper;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_STRUCT(ISequoiaConnection)
 DECLARE_REFCOUNTED_STRUCT(ISequoiaClient)
 DECLARE_REFCOUNTED_STRUCT(ISequoiaTransaction)
 

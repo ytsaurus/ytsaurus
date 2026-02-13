@@ -23,6 +23,7 @@ target_compile_options(server-lib-distributed_chunk_session_server PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(server-lib-distributed_chunk_session_server PUBLIC
@@ -34,7 +35,7 @@ target_link_libraries(server-lib-distributed_chunk_session_server PUBLIC
 
 target_sources(server-lib-distributed_chunk_session_server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/distributed_chunk_session_server/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/distributed_chunk_session_server/distributed_chunk_session_coordinator.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/distributed_chunk_session_server/distributed_chunk_session_sequencer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/distributed_chunk_session_server/distributed_chunk_session_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/distributed_chunk_session_server/distributed_chunk_session_service.cpp
 )

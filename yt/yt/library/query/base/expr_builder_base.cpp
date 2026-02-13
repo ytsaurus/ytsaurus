@@ -611,7 +611,7 @@ TLogicalTypePtr TReferenceResolver::Resolve(const NAst::TColumnReference& refere
     }
 
     for (; sourceIndex < std::ssize(NameSources_); ++sourceIndex) {
-        const auto& [schema, alias, mapping, selfColumns, foreignColumns, sharedColumns] = NameSources_[sourceIndex];
+        const auto& [schema, alias, mapping, selfColumns, foreignColumns, sharedColumns, _] = NameSources_[sourceIndex];
 
         auto formattedName = InferColumnName(reference);
 
@@ -683,7 +683,7 @@ void TReferenceResolver::Finish()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TExprBuilder::TExprBuilder(
+TExpressionBuilder::TExpressionBuilder(
     TStringBuf source,
     const TConstTypeInferrerMapPtr& functions)
     : Source_(source)

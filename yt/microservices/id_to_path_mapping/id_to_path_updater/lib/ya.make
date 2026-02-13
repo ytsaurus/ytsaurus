@@ -9,6 +9,8 @@ PEERDIR(
 
 SRCS(
     messages.proto
+    metrics.cpp
+    pipeline.cpp
     id_to_path_updater.cpp
 )
 

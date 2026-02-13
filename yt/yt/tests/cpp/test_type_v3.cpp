@@ -185,21 +185,44 @@ TEST_F(TTypeV3Test, TestCreateDynamicTable)
 
     EXPECT_THROW_MESSAGE_HAS_SUBSTR(
         createKvDynamicTable(
-            StructLogicalType({TStructField{"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)}}),
+            StructLogicalType(
+                {
+                    TStructField{
+                        .Name = "a",
+                        .StableName = "a",
+                        .Type = SimpleLogicalType(ESimpleLogicalValueType::Int64),
+                    },
+                },
+                /*removedFieldStableNames*/ {}),
             SimpleLogicalType(ESimpleLogicalValueType::String)),
         std::exception,
         "Key column cannot be of");
 
     EXPECT_THROW_MESSAGE_HAS_SUBSTR(
         createKvDynamicTable(
-            ListLogicalType(StructLogicalType({TStructField{"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)}})),
+            ListLogicalType(StructLogicalType(
+                {
+                    TStructField{
+                        .Name = "a",
+                        .StableName = "a",
+                        .Type = SimpleLogicalType(ESimpleLogicalValueType::Int64),
+                    },
+                },
+                /*removedFieldStableNames*/ {}
+            )),
             SimpleLogicalType(ESimpleLogicalValueType::String)),
         std::exception,
         "Key column cannot be of");
 
     EXPECT_THROW_MESSAGE_HAS_SUBSTR(
         createKvDynamicTable(
-            VariantStructLogicalType({TStructField{"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)}}),
+            VariantStructLogicalType({
+                TStructField{
+                    .Name = "a",
+                    .StableName = "a",
+                    .Type = SimpleLogicalType(ESimpleLogicalValueType::Int64),
+                },
+            }),
             SimpleLogicalType(ESimpleLogicalValueType::String)),
         std::exception,
         "Key column cannot be of");

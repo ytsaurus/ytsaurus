@@ -22,6 +22,7 @@
 #include "data_node_tracker.h"
 #include "dynamic_store.h"
 #include "dynamic_store_type_handler.h"
+#include "global_sequoia_chunk_refresher.h"
 #include "helpers.h"
 #include "job.h"
 #include "job_controller.h"
@@ -63,6 +64,7 @@
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 #include <yt/yt/server/master/node_tracker_server/rack.h>
 
+#include <yt/yt/server/master/object_server/helpers.h>
 #include <yt/yt/server/master/object_server/object_manager.h>
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 
@@ -71,9 +73,6 @@
 #include <yt/yt/server/master/security_server/security_manager.h>
 
 #include <yt/yt/server/master/sequoia_server/config.h>
-
-// COMPAT(gritukan)
-#include <yt/yt/server/master/table_server/table_node.h>
 
 #include <yt/yt/server/master/tablet_server/tablet.h>
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
@@ -105,8 +104,9 @@
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <yt/yt/ytlib/sequoia_client/helpers.h>
+#include <yt/yt/ytlib/sequoia_client/connection.h>
 #include <yt/yt/ytlib/sequoia_client/client.h>
+#include <yt/yt/ytlib/sequoia_client/helpers.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 #include <yt/yt/ytlib/sequoia_client/table_descriptor.h>
 
@@ -202,7 +202,7 @@ constinit const auto Logger = ChunkServerLogger;
 
 struct TChunkToLinkedListNode
 {
-    auto operator() (TChunk* chunk) const
+    auto operator()(TChunk* chunk) const
     {
         return &chunk->GetDynamicData()->LinkedListNode;
     }
@@ -400,6 +400,7 @@ public:
             CreateMasterCellChunkStatisticsCollector(
                 Bootstrap_,
                 {CreateChunkCreationTimeHistogramBuilder(bootstrap)}))
+        , GlobalSequoiaChunkRefresher_(CreateGlobalSequoiaChunkRefresher(bootstrap))
         , MediumMap_(TEntityMapTypeTraits<TMedium>(Bootstrap_))
     {
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraConfirmChunkListsRequisitionTraverseFinished, Unretained(this)));
@@ -508,6 +509,9 @@ public:
         });
         transactionManager->RegisterTransactionActionHandlers<NProto::TReqRemoveDeadSequoiaChunkReplicas>({
             .Prepare = BIND_NO_PROPAGATE(&TChunkManager::HydraRemoveDeadSequoiaChunkReplicas, Unretained(this)),
+        });
+        transactionManager->RegisterTransactionActionHandlers<NProto::TReqConfirmMultipleChunks>({
+            .Prepare = BIND_NO_PROPAGATE(&TChunkManager::HydraPrepareConfirmMultipleChunks, Unretained(this)),
         });
 
         BufferedProducer_ = New<TBufferedProducer>();
@@ -871,8 +875,8 @@ public:
                 continue;
             }
 
-            auto* location = FindLocationOnConfirmation(chunk->GetId(), node, replica);
-            if (!location) {
+            auto* location = FindLocationOnConfirmation(chunk->GetId(), node, replica, /*failOnLocationByIndexAndUuidMismatch*/ true);
+            if (!IsObjectAlive(location)) {
                 // Failure has been already logged inside FindLocationOnConfirmation.
                 continue;
             }
@@ -917,33 +921,37 @@ public:
         }
     }
 
-    void ConfirmChunk(
+    struct TConfirmChunkSuccessfulValidationResult
+    {
+        std::vector<TChunk*> ReferencedHunkChunks;
+        TMasterTableSchema* MasterTableSchema = nullptr;
+    };
+
+    TConfirmChunkSuccessfulValidationResult ValidateConfirmChunk(
         TChunk* chunk,
-        const TChunkReplicaWithLocationList& replicas,
-        const TChunkInfo& chunkInfo,
         const TChunkMeta& chunkMeta,
-        TMasterTableSchemaId schemaId)
+        TMasterTableSchemaId schemaId,
+        bool validateChunkMeta)
     {
         auto id = chunk->GetId();
-
         if (chunk->IsConfirmed()) {
             YT_LOG_DEBUG("Chunk is already confirmed (ChunkId: %v)",
                 id);
-            return;
+            // We won't need anything.
+            return {};
         }
 
+        TConfirmChunkSuccessfulValidationResult result;
         const auto& tableManager = Bootstrap_->GetTableManager();
         // TODO(h0pless): Maybe think of a better exception here.
-        auto* temporarySchema = GetDynamicConfig()->EnableChunkSchemas && schemaId != NullTableSchemaId
-            ? tableManager->GetMasterTableSchemaOrThrow(schemaId)
-            : nullptr;
+        if (GetDynamicConfig()->EnableChunkSchemas && schemaId != NullTableSchemaId) {
+            result.MasterTableSchema = tableManager->GetMasterTableSchemaOrThrow(schemaId);
+        }
 
         // NB: Figure out and validate all hunk chunks we are about to reference _before_ confirming
         // the chunk and storing its meta. Otherwise, in DestroyChunk one may end up having
         // dangling references to hunk chunks.
-        std::vector<TChunk*> referencedHunkChunks;
         if (auto hunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(chunkMeta.extensions())) {
-            referencedHunkChunks.reserve(hunkChunkRefsExt->refs_size());
             for (const auto& protoRef : hunkChunkRefsExt->refs()) {
                 auto hunkChunkId = FromProto<TChunkId>(protoRef.chunk_id());
                 auto* hunkChunk = FindChunk(hunkChunkId);
@@ -952,23 +960,62 @@ public:
                         id,
                         hunkChunkId);
                 }
-                referencedHunkChunks.push_back(hunkChunk);
+                result.ReferencedHunkChunks.push_back(hunkChunk);
             }
         }
 
-        chunk->ValidateConfirmation(chunkInfo, chunkMeta);
+        if (validateChunkMeta) {
+            ValidateChunkMetaOnConfirmation(chunkMeta);
+        }
 
-        // No exceptions below this point, please. Thank you kindly.
+        return result;
+    }
+
+    // Could have been noexcept, but @shakurov doesn't want to die.
+    void ConfirmChunk(
+        TChunk* chunk,
+        const TChunkReplicaWithLocationList& replicas,
+        const TChunkInfo& chunkInfo,
+        const TChunkMeta& chunkMeta,
+        const TConfirmChunkSuccessfulValidationResult& validationResult) /*noexcept*/
+    {
+        try {
+            GuardedConfirmChunk(chunk, replicas, chunkInfo, chunkMeta, validationResult);
+        } catch (const std::exception& ex) {
+            YT_LOG_ALERT(
+                ex,
+                "An exception during chunk confirmation was thrown (ChunkId: %v)",
+                chunk->GetId());
+            throw; // For now.
+        }
+    }
+
+    void GuardedConfirmChunk(
+        TChunk* chunk,
+        const TChunkReplicaWithLocationList& replicas,
+        const TChunkInfo& chunkInfo,
+        const TChunkMeta& chunkMeta,
+        const TConfirmChunkSuccessfulValidationResult& validationResult) /*noexcept*/
+    {
+        auto id = chunk->GetId();
+        if (chunk->IsConfirmed()) {
+            YT_LOG_DEBUG("Chunk is already confirmed (ChunkId: %v)",
+                id);
+            return;
+        }
+
+        const auto& tableManager = Bootstrap_->GetTableManager();
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        for (auto* hunkChunk : referencedHunkChunks) {
+        for (auto* hunkChunk : validationResult.ReferencedHunkChunks) {
+            YT_VERIFY(IsObjectAlive(hunkChunk));
             objectManager->RefObject(hunkChunk);
         }
 
         chunk->Confirm(chunkInfo, chunkMeta);
 
-        if (temporarySchema) {
-            tableManager->GetOrCreateNativeMasterTableSchema(temporarySchema->AsCompactTableSchema(), chunk);
+        if (validationResult.MasterTableSchema) {
+            tableManager->GetOrCreateNativeMasterTableSchema(validationResult.MasterTableSchema->AsCompactTableSchema(), chunk);
         }
 
         UpdateChunkWeightStatisticsHistogram(chunk, /*add*/ true);
@@ -990,7 +1037,7 @@ public:
         YT_LOG_DEBUG("Chunk confirmed (ChunkId: %v, Replicas: %v, ReferencedHunkChunkIds: %v)",
             chunk->GetId(),
             replicas,
-            MakeFormattableView(referencedHunkChunks, TObjectIdFormatter()));
+            MakeFormattableView(validationResult.ReferencedHunkChunks, TObjectIdFormatter()));
     }
 
     // Adds #chunk to its staging transaction resource usage.
@@ -1223,6 +1270,77 @@ public:
             /*response*/ nullptr);
     }
 
+    void HydraPrepareConfirmMultipleChunks(
+        TTransaction* transaction,
+        NProto::TReqConfirmMultipleChunks* request,
+        const NTransactionSupervisor::TTransactionPrepareOptions& options)
+    {
+        YT_VERIFY(options.Persistent);
+        YT_VERIFY(options.LatePrepare);
+
+        YT_LOG_DEBUG("Confirming multiple chunks (ChunkCount: %v, TransactionId: %v)",
+            request->chunk_confirmations_size(),
+            GetObjectId(transaction));
+
+        THashMap<TChunkId, TConfirmChunkSuccessfulValidationResult> chunkToConfirmationValidationResult;
+        chunkToConfirmationValidationResult.reserve(request->chunk_confirmations_size());
+        for (const auto& protoChunkInfo : request->chunk_confirmations()) {
+            auto chunkId = FromProto<TChunkId>(protoChunkInfo.chunk_id());
+            YT_LOG_TRACE("Confirming chunk during multiple chunks confirmation (ChunkId: %v)",
+                chunkId);
+
+            auto schemaId = FromProto<TMasterTableSchemaId>(protoChunkInfo.schema_id());
+            auto* chunk = FindChunk(chunkId);
+            if (!IsObjectAlive(chunk)) {
+                // Chunk is dead, but we consider it a "success" here, so that we don't fail
+                // the whole batch. The rows in unapproved replica table will expire anyway,
+                // and we will also check if chunk is alive after 2pc, so we would reply with an error
+                // to this specific confirm request.
+                continue;
+            }
+
+            auto result = ValidateConfirmChunk(
+                chunk,
+                protoChunkInfo.chunk_meta(),
+                schemaId,
+                /*validateChunkMeta*/ false);
+
+            if (!chunkToConfirmationValidationResult.emplace(chunkId, result).second) {
+                YT_LOG_ALERT("A chunk was found in confirmation batch multiple times (ChunkId: %v)",
+                    chunkId);
+                THROW_ERROR_EXCEPTION("A chunk %v was found in confirmation batch multiple times",
+                    chunkId);
+            }
+        }
+
+       for (const auto& protoChunkInfo : request->chunk_confirmations()) {
+            auto chunkId = FromProto<TChunkId>(protoChunkInfo.chunk_id());
+            auto* chunk = FindChunk(chunkId);
+            if (!IsObjectAlive(chunk)) {
+                // Same.
+                continue;
+            }
+
+            auto replicas = FromProto<TChunkReplicaWithLocationList>(protoChunkInfo.replicas());
+
+            auto it = chunkToConfirmationValidationResult.find(chunkId);
+            if (it == chunkToConfirmationValidationResult.end()) {
+                YT_LOG_ALERT("Chunk is not present in confirmation validation result list (ChunkId: %v)",
+                    chunkId);
+                THROW_ERROR_EXCEPTION("Chunk %v is not present in confirmation validation result list",
+                    chunkId);
+            }
+
+            const auto& confirmationResult = it->second;
+            ConfirmChunk(
+                chunk,
+                replicas,
+                protoChunkInfo.chunk_info(),
+                protoChunkInfo.chunk_meta(),
+                confirmationResult);
+        }
+    }
+
     void DestroyChunk(TChunk* chunk) override
     {
         if (chunk->IsForeign()) {
@@ -1283,9 +1401,9 @@ public:
 
         UpdateChunkWeightStatisticsHistogram(chunk, /*add*/ false);
 
-        // Unregister chunk replicas from all known locations.
+        // Unregister chunk replicas from all known locations including non-online nodes.
         // Schedule removal jobs.
-        for (auto storedReplica : chunk->StoredReplicas()) {
+        for (auto storedReplica : chunk->GetStoredReplicaList(/*includeNonOnlineReplicas*/ true)) {
             auto* locationReplica = storedReplica.As<EStoredReplicaType::ChunkLocation>();
             if (!locationReplica) {
                 // TODO(cherepashka): handle this when offshore media will be supported.
@@ -1306,7 +1424,7 @@ public:
         }
 
         if (chunk->IsNative() && ChunkReplicaFetcher_->CanHaveSequoiaReplicas(chunk->GetId())) {
-            SequoiaChunkPurgatory_.insert(chunk->GetId());
+            ++SequoiaChunkPurgatory_[chunk->GetId()];
         }
 
         chunk->UnrefUsedRequisitions(
@@ -1660,7 +1778,9 @@ public:
         TouchChunk(chunk);
 
         auto ephemeralChunk = TEphemeralObjectPtr<TChunk>(chunk);
-        auto replicasOrError = ChunkReplicaFetcher_->GetChunkReplicas(ephemeralChunk);
+        auto replicasOrError = ChunkReplicaFetcher_->GetChunkReplicas(
+            ephemeralChunk,
+            /*includeUnapproved*/ true);
         if (!replicasOrError.IsOK()) {
             return TError(replicasOrError);
         }
@@ -2123,7 +2243,7 @@ public:
     {
         ValidateMediumName(name);
 
-        if (FindMediumByName(name)) {
+        if (FindMediumByName(name, /*throwOnInvalidId*/ true)) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::AlreadyExists,
                 "Medium %Qv already exists",
@@ -2193,7 +2313,7 @@ public:
             THROW_ERROR_EXCEPTION("Builtin medium cannot be renamed");
         }
 
-        if (FindMediumByName(newName)) {
+        if (FindMediumByName(newName, /*throwOnInvalidId*/ true)) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::AlreadyExists,
                 "Medium %Qv already exists",
@@ -2234,15 +2354,34 @@ public:
         ChunkReplicator_->ScheduleGlobalChunkRefresh();
     }
 
-    TMedium* FindMediumByName(const std::string& name) const override
+    TMedium* FindMediumByName(const std::string& name, bool throwOnInvalidId) const override
     {
-        auto it = NameToMediumMap_.find(name);
-        return it == NameToMediumMap_.end() ? nullptr : it->second;
+        return Visit(ParseObjectNameOrId(name),
+            [&] (TObjectId mediumId) -> TMedium* {
+                auto specifiedType = TypeFromId(mediumId);
+                if (!IsMediumType(specifiedType)) {
+                    if (throwOnInvalidId) {
+                        THROW_ERROR_EXCEPTION("Invalid medium id")
+                            << TErrorAttribute("medium_id", mediumId);
+                    }
+                    return nullptr;
+                }
+                return FindMedium(mediumId);
+            },
+            [&] (TStringBuf name) -> TMedium* {
+                return GetOrDefault(NameToMediumMap_, name, nullptr);
+            },
+            [&] (TError error) -> TMedium* {
+                if (throwOnInvalidId) {
+                    THROW_ERROR error;
+                }
+                return nullptr;
+            });
     }
 
     TMedium* GetMediumByNameOrThrow(const std::string& name) const override
     {
-        auto* medium = FindMediumByName(name);
+        auto* medium = FindMediumByName(name, /*throwOnInvalidId*/ true);
         if (!IsObjectAlive(medium)) {
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::NoSuchMedium,
@@ -2543,6 +2682,11 @@ private:
 
     TPeriodicExecutorPtr RedistributeConsistentReplicaPlacementTokensExecutor_;
 
+    TPeriodicExecutorPtr SequoiaChunkBatchConfirmExecutor_;
+
+    std::vector<TReqConfirmChunk*> WaitingConfirmRequests_;
+    TPromise<void> BatchConfirmTransactionCommitPromise_;
+
     // Unlike chunk replicator and sealer, this is maintained on all
     // peers and is not cleared on epoch change.
     const TConsistentChunkPlacementPtr ConsistentChunkPlacement_;
@@ -2560,6 +2704,8 @@ private:
 
     const IMasterCellChunkStatisticsCollectorPtr MasterCellChunkStatisticsCollector_;
 
+    const IGlobalSequoiaChunkRefresherPtr GlobalSequoiaChunkRefresher_;
+
     // Global chunk lists; cf. TChunkDynamicData.
     using TGlobalChunkList = TIntrusiveLinkedList<TChunk, TChunkToLinkedListNode>;
     using TShardedGlobalChunkList = std::array<TGlobalChunkList, ChunkShardCount>;
@@ -2569,7 +2715,7 @@ private:
 
     TPeriodicExecutorPtr SequoiaChunkRefreshExecutor_;
     TPeriodicExecutorPtr SequoiaReplicaRemovalExecutor_;
-    THashSet<TChunkId> SequoiaChunkPurgatory_;
+    THashMap<TChunkId, int> SequoiaChunkPurgatory_;
     // Transient.
     bool ChunksBeingPurged_ = false;
     std::atomic<bool> FetchingSequoiaChunksToRefresh_ = false;
@@ -2607,26 +2753,103 @@ private:
     TChunkLocation* FindLocationOnConfirmation(
         TChunkId chunkId,
         TNode* node,
-        const TChunkReplicaWithLocation& replica)
+        const TChunkReplicaWithLocation& replica,
+        bool failOnLocationByIndexAndUuidMismatch)
     {
-        auto locationUuid = replica.GetChunkLocationUuid();
+        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+        auto dataNodeTrackerDynamicConfig = GetDynamicConfig()->DataNodeTracker;
+        auto shouldUseLocationIndicies = dataNodeTrackerDynamicConfig->UseLocationIndexesToSearchLocationOnConfirmation;
 
-        if (locationUuid == InvalidChunkLocationUuid || locationUuid == EmptyChunkLocationUuid) {
-            YT_LOG_ALERT(
-                "Chunk confirmation request does not have location UUID (ChunkId: %v, NodeId: %v, NodeAddress: %v)",
-                chunkId,
-                node->GetId(),
-                node->GetDefaultAddress());
-            return nullptr;
+        auto locationIndex = replica.GetChunkLocationIndex();
+        // COMPAT(cherepashka)
+        auto locationUuid = replica.GetChunkLocationUuid();
+        // NB: Use optional to differ existing null location case from unknown location.
+        std::optional<TChunkLocation*> locationByIndex;
+        std::optional<TChunkLocation*> locationByUuid;
+        if (shouldUseLocationIndicies) {
+            if (locationIndex != InvalidChunkLocationIndex) {
+                locationByIndex = dataNodeTracker->FindChunkLocationByIndex(locationIndex);
+            } else {
+                YT_LOG_ALERT(
+                    "Chunk confirmation request does not have location index (ChunkId: %v, NodeId: %v, NodeAddress: %v, LocationUuid: %v)",
+                    chunkId,
+                    node->GetId(),
+                    node->GetDefaultAddress(),
+                    locationUuid);
+            }
+        }
+        // Fallback: will find location via uuid if location by index was not found or if flag to use location indices is disabled.
+        if (!shouldUseLocationIndicies || !locationByIndex.has_value()) {
+            if (locationUuid == InvalidChunkLocationUuid || locationUuid == EmptyChunkLocationUuid) {
+                YT_LOG_ALERT(
+                    "Chunk confirmation request does not have location UUID (ChunkId: %v, NodeId: %v, NodeAddress: %v)",
+                    chunkId,
+                    node->GetId(),
+                    node->GetDefaultAddress());
+            } else {
+                locationByUuid = dataNodeTracker->FindChunkLocationByUuid(locationUuid);
+                if (IsObjectAlive(locationByUuid.value())) {
+                    YT_LOG_ALERT_IF(shouldUseLocationIndicies,
+                        "Failed to find location via index, but succeeded to find via uuid "
+                        "(LocationIndex: %v, LocationUuid: %v, NodeId: %v, NodeAddress: %v)",
+                        replica.GetChunkLocationIndex(),
+                        locationUuid,
+                        node->GetId(),
+                        node->GetDefaultAddress());
+                }
+            }
         }
 
-        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
-        auto* location = dataNodeTracker->FindChunkLocationByUuid(locationUuid);
+        if (dataNodeTrackerDynamicConfig->CheckLocationConvergenceByIndexAndUuidOnConfirmation) {
+            if (!locationByIndex.has_value()) {
+                locationByIndex = dataNodeTracker->FindChunkLocationByIndex(locationIndex);
+            }
+            if (!locationByUuid.has_value()) {
+                locationByUuid = dataNodeTracker->FindChunkLocationByUuid(locationUuid);
+            }
+
+            if (locationIndex != InvalidChunkLocationIndex && locationUuid != InvalidChunkLocationUuid && locationUuid != EmptyChunkLocationUuid && locationByIndex.value() != locationByUuid.value()) {
+                YT_LOG_ALERT("UUID and index for the same location points to different locations "
+                    "(ChunkId: %v, NodeId: %v, NodeAddress: %v, LocationByIndexId: %v, LocationIndex: %v, LocationByUuidId: %v, LocationUuid: %v)",
+                    chunkId,
+                    node->GetId(),
+                    node->GetDefaultAddress(),
+                    locationByIndex.value() ? locationByIndex.value()->GetId() : NullObjectId,
+                    locationIndex,
+                    locationByUuid.value() ? locationByUuid.value()->GetId() : NullObjectId,
+                    locationUuid);
+
+                if (failOnLocationByIndexAndUuidMismatch) {
+                    THROW_ERROR_EXCEPTION("UUID and index for the same location points to different locations")
+                        << TErrorAttribute("chunk_id", chunkId)
+                        << TErrorAttribute("node_id", node->GetId())
+                        << TErrorAttribute("node_address", node->GetDefaultAddress())
+                        << TErrorAttribute("location_index", locationIndex)
+                        << TErrorAttribute("location_uuid", locationUuid)
+                        << TErrorAttribute("location_by_index_id", locationByIndex.value() ? locationByIndex.value()->GetId() : NullObjectId)
+                        << TErrorAttribute("location_by_uuid_id", locationByUuid.value() ? locationByUuid.value()->GetId() : NullObjectId);
+                } else {
+                    // NB: If locations mismatch and we cannot throw, better to return nullptr.
+                    return nullptr;
+                }
+            }
+        }
+
+        TChunkLocation* location = nullptr;
+        // NB: All checks and alerts were performed above.
+        // If location indices in confirmation are enabled and we found corresponding location, then will use it, otherwise will use one that was found via uuid.
+        if (shouldUseLocationIndicies && locationByIndex.has_value() && locationByIndex.value()) {
+            location = locationByIndex.value();
+        } else if (locationByUuid.has_value()) {
+            location = locationByUuid.value();
+        }
+
         if (IsObjectAlive(location)) {
             if (location->GetNode() == nullptr) {
                 YT_LOG_ALERT(
                     "Chunk location without a node encountered "
-                    "(LocationUuid: %v, NodeId: %v, NodeAddress: %v)",
+                    "(LocationIndex: %v, LocationUuid: %v, NodeId: %v, NodeAddress: %v)",
+                    locationIndex,
                     locationUuid,
                     node->GetId(),
                     node->GetDefaultAddress());
@@ -2637,11 +2860,12 @@ private:
         }
 
         YT_LOG_DEBUG(
-            "Chunk confirmation request has invalid location UUID "
-            "(ChunkId: %v, NodeId: %v, NodeAddress: %v, LocationUuid: %v)",
+            "Chunk confirmation request has invalid location index or UUID "
+            "(ChunkId: %v, NodeId: %v, NodeAddress: %v, LocationIndex: %v, LocationUuid: %v)",
             chunkId,
             node->GetId(),
             node->GetDefaultAddress(),
+            locationIndex,
             locationUuid);
 
         return nullptr;
@@ -2679,6 +2903,7 @@ private:
                 })
                 .Item("endorsement_count").Value(EndorsementCount_)
                 .Item("chunk_replicator_enabled").Value(ChunkReplicator_->IsReplicatorEnabled())
+                .Item("global_sequoia_chunk_refresh_status").Value(GlobalSequoiaChunkRefresher_->GetStatus())
             .EndMap();
     }
 
@@ -2787,7 +3012,8 @@ private:
         ScheduleNodeRefresh(node);
     }
 
-    void ProcessNodeUnregisteredOrRestarted(TNode* node) {
+    void OnNodeUnregisteredOrRestarted(TNode* node)
+    {
         ChunkPlacement_->OnNodeUnregistered(node);
 
         YT_VERIFY(!node->ReportedDataNodeHeartbeat());
@@ -2799,26 +3025,62 @@ private:
         for (const auto& job : jobs) {
             AbortAndRemoveJob(job);
         }
-    }
 
-    void FinishNodeUnregisteredOrRestarted(TNode* node) {
+        ChunkReplicator_->OnNodeUnregistered(node);
+
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         node->Reset(nodeTracker);
     }
 
     void OnNodeUnregistered(TNode* node)
     {
-        ProcessNodeUnregisteredOrRestarted(node);
-
-        ChunkReplicator_->OnNodeUnregistered(node);
-
-        FinishNodeUnregisteredOrRestarted(node);
+        OnNodeUnregisteredOrRestarted(node);
     }
 
     void OnNodeRestarted(TNode* node)
     {
-        ProcessNodeUnregisteredOrRestarted(node);
-        FinishNodeUnregisteredOrRestarted(node);
+        YT_VERIFY(HasMutationContext());
+
+        OnNodeUnregisteredOrRestarted(node);
+        for (auto location : node->ChunkLocations()) {
+            // All requests for the node are lost, so we should reset endorsements.
+            DiscardEndorsements(location);
+        }
+        ChunkReplicator_->OnNodeDisposedOrRestarted(node);
+        // Now the following fields should be reset:
+        // * All SessionHints
+        // * ChunkPushReplicationQueues
+        // * ChunkPullReplicationQueues
+        // * PushReplicationTargetNodeIds
+        // * LoadFactorIterators
+        // * AwaitingHeartbeatChunkIds
+        // * RemovalJobScheduledChunkIds
+        // For these chunks refresh will be scheduled and they will be removed from RemovalLockedChunkIds
+        // * location->ChunkRemovalQueue
+        // * location->ChunkSealQueue
+        // * location->ReplicaEndorsements
+
+        // We do not reset following fields:
+        // * ChunkLocations
+        // We need to keep all replicas and some other fields for them.
+        // * location->Replicas
+        // We will iterate over them during initial heartbeats and process removed and added ones.
+        // * Sequoia chunk_replicas and location_replicas
+        // We will iterate over them during initial heartbeats and process removed and added ones.
+        // * Sequoia unapproved_chunk_replicas
+        // These replicas will either appear during the initial heartbeat, or will be removed by ttl.
+        // * location->DestroyedReplicas
+        // This field is not reset only for optimization purpose.
+        // In initial heartbeat all destroyed replicas that are still stored on node will be processed in initial heartbeats.
+        // The replicas that are stored in master will be added to DestroyedReplicas.
+        // For Sequoia replicas, all dead Sequoia replicas should already be in purgatory and will be processed by it.
+        // Sequoia replicas that are already removed from Sequoia will be added to Sequoia and refresh queue and later will be processed by purgatory.
+        // * location->UnapprovedReplicas
+        // Some unapproved replicas may be already stored by node and will become approved in initial heartbeat.
+        // When node will send heartbeats, we will iterate through all stored on master unapproved replicas and remove expired ones.
+
+        // We also do not abort all jobs associated with node.
+        // All jobs that were scheduled before node restart will not appear in job heartbeat and will be aborted.
     }
 
     void OnNodeDecommissionChanged(TNode* node)
@@ -2886,7 +3148,7 @@ private:
 
         ChunkPlacement_->OnNodeDisposed(node);
 
-        ChunkReplicator_->OnNodeDisposed(node);
+        ChunkReplicator_->OnNodeDisposedOrRestarted(node);
     }
 
     void DisposeLocation(TChunkLocation* location) override
@@ -2912,9 +3174,10 @@ private:
 
             auto chunkId = chunk->GetId();
             if (approved && ChunkReplicaFetcher_->CanHaveSequoiaReplicas(chunkId)) {
-                YT_LOG_ALERT("Removing Sequoia replica in a non-Sequoia way (ChunkId: %v, LocationUuid: %v)",
+                YT_LOG_ALERT("Removing Sequoia replica in a non-Sequoia way (ChunkId: %v, LocationUuid: %v, LocationIndex: %v)",
                     chunkId,
-                    location->GetUuid());
+                    location->GetUuid(),
+                    location->GetIndex());
             }
 
             if (chunk->IsBlob()) {
@@ -2928,9 +3191,10 @@ private:
                 if (ChunkReplicaFetcher_->CanHaveSequoiaReplicas(chunkId)) {
                     YT_LOG_INFO(
                         "Removing destroyed Sequoia replica in a non-Sequoia way "
-                        "(ChunkId: %v, LocationUuid: %v)",
+                        "(ChunkId: %v, LocationUuid: %v, LocationIndex: %v)",
                         chunkId,
-                        location->GetUuid());
+                        location->GetUuid(),
+                        location->GetIndex());
                 }
             }
         }
@@ -3059,7 +3323,8 @@ private:
 
             auto* request = announcements->add_replica_announcement_requests();
             ToProto(request->mutable_chunk_id(), chunk->GetId());
-            ToProto(request->mutable_replicas(), chunk->StoredReplicas());
+            // We may have replicas from non-online nodes here.
+            ToProto(request->mutable_replicas(), chunk->GetStoredReplicaList(/*includeNonOnlineReplicas*/ true));
             request->set_confirmation_needed(confirmationNeeded);
 
             if (!clusterIsStableEnough) {
@@ -3128,6 +3393,11 @@ private:
         auto locationUuid = FromProto<TChunkLocationUuid>(request->location_uuid());
         // We've checked everything in TDataNodeTracker::HydraProcessLocationFullHeartbeat.
         auto* location = dataNodeTracker->GetChunkLocationByUuid(locationUuid);
+
+        if (request->is_validation()) {
+            ValidateLocationNonSequoiaReplicasEqual(node, location, request->chunks());
+            return;
+        }
 
         std::vector<TChunk*> announceReplicaRequests;
         if (location->GetState() == EChunkLocationState::Restarted) {
@@ -3238,7 +3508,8 @@ private:
     {
         TChunkLocation* locationWithMaxId = nullptr;
 
-        for (auto replica : chunk->StoredReplicas()) {
+        // We may have replicas from non-online nodes here.
+        for (auto replica : chunk->GetStoredReplicaList(/*includeNonOnlineReplicas*/ true)) {
             auto* locationReplica = replica.As<EStoredReplicaType::ChunkLocation>();
             if (!locationReplica) {
                 continue;
@@ -3281,10 +3552,11 @@ private:
         ++EndorsementCount_;
 
         YT_LOG_TRACE(
-            "Chunk replica endorsement added (ChunkId: %v, NodeAddress: %v, LocationUuid: %v)",
+            "Chunk replica endorsement added (ChunkId: %v, NodeAddress: %v, LocationUuid: %v, LocationIndex: %v)",
             chunk->GetId(),
             locationWithMaxId->GetNode()->GetDefaultAddress(),
-            locationWithMaxId->GetUuid());
+            locationWithMaxId->GetUuid(),
+            locationWithMaxId->GetIndex());
     }
 
     void RemoveEndorsement(TChunk* chunk, TChunkLocation* location)
@@ -3337,6 +3609,153 @@ private:
         }
     }
 
+    void OnSequoiaReplicaConfirm()
+    {
+        if (WaitingConfirmRequests_.empty()) {
+            return;
+        }
+
+        const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
+        const auto& retriableErrorCodes = config->RetriableErrorCodes;
+        auto storeSequoiaReplicasOnMaster = config->StoreSequoiaReplicasOnMaster;
+
+        auto promise = std::exchange(BatchConfirmTransactionCommitPromise_, NewPromise<void>());
+        YT_LOG_ALERT_IF(
+            promise.IsSet(),
+            "Chunk confirmation promise is already set (Result: %v)",
+            promise.TryGet());
+        auto requests = std::exchange(WaitingConfirmRequests_, std::vector<TReqConfirmChunk*>());
+
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        // COMPAT(cherepashka): remove this after 25.4.
+        THashMap<TChunkId, std::vector<TChunkReplicaWithLocationIndex>> sequoiaChunkReplicas;
+        for (const auto& request : requests) {
+            auto chunkId = FromProto<TChunkId>(request->chunk_id());
+
+            for (const auto& protoReplica : request->replicas()) {
+                auto replica = FromProto<TChunkReplicaWithLocation>(protoReplica);
+                auto nodeId = replica.GetNodeId();
+                auto locationIndex = replica.GetChunkLocationIndex();
+                auto useLocationIndexesInSequoiaChunkConfirmation = GetDynamicConfig()->DataNodeTracker->UseLocationIndexesInSequoiaChunkConfirmation;
+                if (!useLocationIndexesInSequoiaChunkConfirmation || locationIndex == InvalidChunkLocationIndex) {
+                    YT_LOG_ALERT_IF(useLocationIndexesInSequoiaChunkConfirmation,
+                        "Sequoia chunk replica confirmation is missing location index "
+                        "(ChunkId: %v, LocationUuid: %v, NodeId: %v)",
+                        chunkId,
+                        replica.GetChunkLocationUuid(),
+                        nodeId);
+                    auto* node = nodeTracker->FindNode(nodeId);
+                    if (!IsObjectAlive(node)) {
+                        continue;
+                    }
+
+                    auto* location = FindLocationOnConfirmation(chunkId, node, replica, /*failOnLocationByIndexAndUuidMismatch*/ false);
+                    if (!IsObjectAlive(location)) {
+                        continue;
+                    }
+                    locationIndex = location->GetIndex();
+                }
+
+                TChunkReplicaWithLocationIndex replicaWithLocationIndex(
+                    nodeId,
+                    replica.GetReplicaIndex(),
+                    locationIndex);
+                sequoiaChunkReplicas[chunkId].push_back(replicaWithLocationIndex);
+            }
+        }
+
+        auto future = Bootstrap_
+            ->GetSequoiaConnection()
+            ->CreateClient(GetRootAuthenticationIdentity())
+            ->StartTransaction(
+                ESequoiaTransactionType::ChunkConfirmation,
+                {.CellTag = Bootstrap_->GetCellTag()})
+            .Apply(BIND([=,
+                requests = std::move(requests),
+                sequoiaChunkReplicas = std::move(sequoiaChunkReplicas),
+                promise = std::move(promise),
+                this,
+                this_ = MakeStrong(this)
+            ] (const ISequoiaTransactionPtr& transaction) mutable {
+                try {
+                    // TODO: validate requests are the same for the same chunks.
+                    // sequoiaChunkReplicas might actually contain replicas from separate confirm requests,
+                    // I hope they are the same and I am okay with this for now.
+                    SortUniqueBy(requests, [] (const auto* request) {
+                        return FromProto<TChunkId>(request->chunk_id());
+                    });
+
+                    NProto::TReqConfirmMultipleChunks confirmChunksRequest;
+                    for (const auto& request : requests) {
+                        auto* chunkConfirmation = confirmChunksRequest.add_chunk_confirmations();
+                        *chunkConfirmation->mutable_chunk_id() = request->chunk_id();
+                        if (storeSequoiaReplicasOnMaster) {
+                            *chunkConfirmation->mutable_replicas() = std::move(request->replicas());
+                        }
+                        *chunkConfirmation->mutable_chunk_meta() = std::move(request->chunk_meta());
+                        *chunkConfirmation->mutable_chunk_info() = std::move(request->chunk_info());
+                        *chunkConfirmation->mutable_schema_id() = request->schema_id();
+
+                        auto chunkId = FromProto<TChunkId>(request->chunk_id());
+
+                        auto it = sequoiaChunkReplicas.find(chunkId);
+                        const auto& replicas = it == sequoiaChunkReplicas.end() ? std::vector<TChunkReplicaWithLocationIndex>() : it->second;
+                        NRecords::TUnapprovedChunkReplicas chunkReplicas{
+                            .Key = {
+                                .ChunkId = chunkId,
+                            },
+                            .StoredReplicas = GetReplicasYson(replicas, {}),
+                            .ConfirmationTime = TInstant::Now(),
+                        };
+                        transaction->WriteRow(
+                            chunkReplicas,
+                            NTableClient::ELockType::SharedWrite,
+                            NTableClient::EValueFlags::Aggregate);
+
+                    }
+                    transaction->AddTransactionAction(
+                        Bootstrap_->GetCellTag(),
+                        NTransactionClient::MakeTransactionActionData(confirmChunksRequest));
+
+                    NApi::TTransactionCommitOptions commitOptions{
+                        .CoordinatorCellId = Bootstrap_->GetCellId(),
+                        .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
+                        .StronglyOrdered = true,
+                    };
+
+                    auto result = WaitFor(transaction->Commit(commitOptions));
+                    ThrowOnSequoiaReplicasError(result, retriableErrorCodes);
+                } catch (const std::exception& ex) {
+                    promise.Set(TError(ex));
+                    return;
+                }
+                promise.Set(TError());
+            }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
+
+        YT_UNUSED_FUTURE(future);
+    }
+
+    TFuture<void> ConfirmSequoiaChunkBatched(TReqConfirmChunk* request) override
+    {
+        const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
+        if (std::ssize(WaitingConfirmRequests_) > config->ConfirmBatchSize) {
+            YT_LOG_DEBUG("Flushing Sequoia confirms due to batch size limit (ConfirmRequestCount: %v)",
+                std::ssize(WaitingConfirmRequests_));
+            OnSequoiaReplicaConfirm();
+        }
+
+        WaitingConfirmRequests_.push_back(request);
+        if (!BatchConfirmTransactionCommitPromise_) {
+            YT_LOG_ALERT("Confirm transaction promise was not created");
+            BatchConfirmTransactionCommitPromise_ = NewPromise<void>();
+        }
+
+        return BatchConfirmTransactionCommitPromise_
+            .ToFuture()
+            .ToUncancelable();
+    }
+
+    // COMPAT(aleksandra-zh).
     TFuture<void> ConfirmSequoiaChunk(TReqConfirmChunk* request) override
     {
         const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
@@ -3351,29 +3770,40 @@ private:
         for (const auto& protoReplica : request->replicas()) {
             auto replica = FromProto<TChunkReplicaWithLocation>(protoReplica);
             auto nodeId = replica.GetNodeId();
-            auto* node = nodeTracker->FindNode(nodeId);
-            if (!IsObjectAlive(node)) {
-                continue;
-            }
+            auto locationIndex = replica.GetChunkLocationIndex();
+            auto useLocationIndexesInSequoiaChunkConfirmation = GetDynamicConfig()->DataNodeTracker->UseLocationIndexesInSequoiaChunkConfirmation;
+            if (!useLocationIndexesInSequoiaChunkConfirmation || locationIndex == InvalidChunkLocationIndex) {
+                YT_LOG_ALERT_IF(useLocationIndexesInSequoiaChunkConfirmation,
+                    "Received Sequoia chunk replica confirmation request without location index "
+                    "(ChunkId: %v, LocationUuid: %v, NodeId: %v)",
+                    chunkId,
+                    replica.GetChunkLocationUuid(),
+                    nodeId);
+                auto* node = nodeTracker->FindNode(nodeId);
+                if (!IsObjectAlive(node)) {
+                    continue;
+                }
 
-            auto* location = FindLocationOnConfirmation(chunkId, node, replica);
-            if (!location) {
-                continue;
+                auto* location = FindLocationOnConfirmation(chunkId, node, replica, /*failOnLocationByIndexAndUuidMismatch*/ false);
+                if (!location) {
+                    continue;
+                }
+                locationIndex = location->GetIndex();
             }
 
             TChunkReplicaWithLocationIndex replicaWithLocationIndex(
                 nodeId,
                 replica.GetReplicaIndex(),
-                location->GetIndex());
+                locationIndex);
             sequoiaReplicas.push_back(replicaWithLocationIndex);
         }
 
         return Bootstrap_
-            ->GetSequoiaClient()
+            ->GetSequoiaConnection()
+            ->CreateClient(GetRootAuthenticationIdentity())
             ->StartTransaction(
                 ESequoiaTransactionType::ChunkConfirmation,
-                {.CellTag = Bootstrap_->GetCellTag()},
-                {.AuthenticationIdentity = GetRootAuthenticationIdentity()})
+                {.CellTag = Bootstrap_->GetCellTag()})
             .Apply(BIND([=, request = std::move(request), sequoiaReplicas = std::move(sequoiaReplicas), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
                 auto chunkId = FromProto<TChunkId>(request->chunk_id());
 
@@ -3462,81 +3892,96 @@ private:
         }
     }
 
-    std::vector<TChunk*> ProcessRestartedLocationNonSequoiaReplicas(
+    struct TSymmetricDifference
+    {
+        std::vector<const TChunkAddInfo*> AddedReplicas;
+        THashSet<TChunkIdWithIndex> ReplicasToRemove;
+    };
+
+    TSymmetricDifference ComputeLocationNonSequoiaReplicasDifference(
         TNode* node,
         TChunkLocation* location,
-        const auto& chunks)
+        const auto& chunks,
+        bool validation)
     {
         THashSet<TChunkIdWithIndex> existingReplicas;
-
         existingReplicas.reserve(location->Replicas().size());
 
         for (const auto& replica : location->Replicas()) {
             const auto* chunk = replica.GetPtr();
-            if (!IsObjectAlive(chunk)) {
-                // If the chunk is destroyed, all replicas for this chunk should be removed from location in TChunkManager::DestroyChunk.
-                YT_LOG_ALERT(
-                    "Restarted location has dead chunk replica (NodeId: %v, NodeAddress: %v, LocationUuid: %v)",
-                    node->GetId(),
-                    node->GetDefaultAddress(),
-                    location->GetUuid());
-                THROW_ERROR_EXCEPTION(
-                    "Restarted location has dead chunk replica")
-                    << TErrorAttribute("node_id", node->GetId())
-                    << TErrorAttribute("node_address", node->GetDefaultAddress())
-                    << TErrorAttribute("location_uuid", location->GetUuid());
-            }
             if (ChunkReplicaFetcher_->CanHaveSequoiaReplicas(chunk->GetId())) {
                 continue;
             }
+
+            if (auto replicaWithoutState = TChunkPtrWithReplicaIndex(replica);
+                validation && location->HasUnapprovedReplica(replicaWithoutState))
+            {
+                continue;
+            }
+
             existingReplicas.emplace(chunk->GetId(), replica.GetReplicaIndex());
         }
 
-        std::vector<TChunk*> announceReplicaRequests;
+        TSymmetricDifference result;
 
         for (const auto& chunkInfo : chunks) {
             auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
             if (chunkInfo.caused_by_medium_change()) {
                 YT_LOG_ALERT(
-                    "Chunk is added after node restart caused by medium change (NodeId: %v, NodeAddress: %v, ChunkId: %v, ReplicaIndex: %v)",
+                    "Chunk is added after node restart caused by medium change "
+                    "(NodeId: %v, NodeAddress: %v, ChunkId: %v, ReplicaIndex: %v, Validation: %v)",
                     node->GetId(),
                     node->GetDefaultAddress(),
                     chunkIdWithIndex.Id,
-                    chunkIdWithIndex.ReplicaIndex);
+                    chunkIdWithIndex.ReplicaIndex,
+                    validation);
                 continue;
             }
 
             if (ChunkReplicaFetcher_->CanHaveSequoiaReplicas(chunkIdWithIndex.Id)) {
-                YT_LOG_ALERT(
-                    "Processing restarted location Sequoia chunk in non-Sequoia way (NodeId: %v, NodeAddress: %v, LocationUuid: %v, ChunkId: %v, ReplicaIndex: %v)",
+                YT_LOG_ALERT_AND_THROW(
+                    "Processing Sequoia replica in non-Sequoia way "
+                    "(NodeId: %v, NodeAddress: %v, LocationUuid: %v, LocationIndex: %v, ChunkId: %v, ReplicaIndex: %v, Validation: %v)",
                     node->GetId(),
                     node->GetDefaultAddress(),
                     location->GetUuid(),
+                    location->GetIndex(),
                     chunkIdWithIndex.Id,
-                    chunkIdWithIndex.ReplicaIndex);
-                THROW_ERROR_EXCEPTION(
-                    "Processing restarted location Sequoia chunk in non-Sequoia way")
-                    << TErrorAttribute("node_id", node->GetId())
-                    << TErrorAttribute("node_address", node->GetDefaultAddress())
-                    << TErrorAttribute("location_uuid", location->GetUuid())
-                    << TErrorAttribute("chunk_id", chunkIdWithIndex.Id)
-                    << TErrorAttribute("replica_index", chunkIdWithIndex.ReplicaIndex);
+                    chunkIdWithIndex.ReplicaIndex,
+                    validation);
             }
 
             if (!existingReplicas.contains(chunkIdWithIndex)) {
-                YT_VERIFY(FromProto<TChunkLocationIndex>(chunkInfo.location_index()) == location->GetIndex());
-                if (auto* chunk = ProcessAddedChunk(
-                    node,
-                    location,
-                    chunkInfo,
-                    false))
-                {
-                    if (chunk->IsBlob()) {
-                        announceReplicaRequests.push_back(chunk);
-                    }
-                }
+                result.AddedReplicas.push_back(&chunkInfo);
             } else {
                 existingReplicas.erase(chunkIdWithIndex);
+            }
+        }
+
+        result.ReplicasToRemove = std::move(existingReplicas);
+        return result;
+    }
+
+    std::vector<TChunk*> ProcessRestartedLocationNonSequoiaReplicas(
+        TNode* node,
+        TChunkLocation* location,
+        const auto& chunks)
+    {
+        auto difference = ComputeLocationNonSequoiaReplicasDifference(node, location, chunks, /*validation*/ false);
+
+        std::vector<TChunk*> announceReplicaRequests;
+
+        for (const auto* chunkInfo : difference.AddedReplicas) {
+            YT_VERIFY(FromProto<TChunkLocationIndex>(chunkInfo->location_index()) == location->GetIndex());
+            if (auto* chunk = ProcessAddedChunk(
+                node,
+                location,
+                *chunkInfo,
+                /*incremental*/ false))
+            {
+                if (chunk->IsBlob()) {
+                    announceReplicaRequests.push_back(chunk);
+                }
             }
         }
 
@@ -3554,15 +3999,16 @@ private:
                     continue;
                 } else {
                     YT_LOG_ALERT(
-                        "Removing restarted location Sequoia chunk in non-Sequoia way (NodeAddress: %v, LocationUuid: %v, ChunkId: %v, ReplicaIndex: %v)",
+                        "Removing restarted location Sequoia chunk in non-Sequoia way (NodeAddress: %v, LocationUuid: %v, LocationIndex: %v, ChunkId: %v, ReplicaIndex: %v)",
                         node->GetDefaultAddress(),
                         location->GetUuid(),
+                        location->GetIndex(),
                         chunk->GetId(),
                         replica.GetReplicaIndex());
                 }
             }
 
-            if (existingReplicas.contains(TChunkIdWithIndex(chunk->GetId(), replica.GetReplicaIndex()))) {
+            if (difference.ReplicasToRemove.contains(TChunkIdWithIndex(chunk->GetId(), replica.GetReplicaIndex()))) {
                 replicasToRemove.emplace_back(replica);
             }
         }
@@ -3591,9 +4037,10 @@ private:
 
         auto chunkId = chunk->GetId();
         if (approved && ChunkReplicaFetcher_->CanHaveSequoiaReplicas(chunkId)) {
-            YT_LOG_ALERT("Removing Sequoia replica in a non-Sequoia way (ChunkId: %v, LocationUuid: %v)",
+            YT_LOG_ALERT("Removing Sequoia replica in a non-Sequoia way (ChunkId: %v, LocationUuid: %v, LocationIndex: %v)",
                 chunkId,
-                location->GetUuid());
+                location->GetUuid(),
+                location->GetIndex());
         }
 
         if (chunk->IsBlob()) {
@@ -3671,6 +4118,46 @@ private:
                 }
             }
         }
+    }
+
+    void ValidateLocationNonSequoiaReplicasEqual(
+        TNode* node,
+        TChunkLocation* location,
+        const auto& chunks)
+    {
+        auto difference = ComputeLocationNonSequoiaReplicasDifference(
+            node,
+            location,
+            chunks,
+            /*validation*/ true);
+
+        std::vector<TChunkIdWithIndex> masterMissingReplicas;
+        for (const auto* chunkInfo : difference.AddedReplicas) {
+            auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo->chunk_id()));
+            if (!location->HasDestroyedReplica(chunkIdWithIndex)) {
+                masterMissingReplicas.push_back(chunkIdWithIndex);
+            }
+        }
+
+        std::vector<TChunkIdWithIndex> masterRedundantReplicas;
+        for (const auto& chunkIdWithIndex : difference.ReplicasToRemove) {
+        if (!location->ChunkRemovalQueue().contains(chunkIdWithIndex)) {
+                masterRedundantReplicas.push_back(chunkIdWithIndex);
+            }
+        }
+
+        YT_LOG_ALERT_AND_THROW_IF(
+            !masterMissingReplicas.empty() || !masterRedundantReplicas.empty(),
+            "Master state is inconsistent for data node location "
+            "(NodeId: %v, NodeAddress: %v, LocationUuid: %v, MissingChunkCount: %v, RedundantChunkCount: %v, "
+            "MissingChunkIdsSample: %v, RedundantChunkIdsSample: %v)",
+            node->GetId(),
+            node->GetDefaultAddress(),
+            location->GetUuid(),
+            masterMissingReplicas.size(),
+            masterRedundantReplicas.size(),
+            MakeShrunkFormattableView(masterMissingReplicas, TDefaultFormatter(), /*limit*/ 10),
+            MakeShrunkFormattableView(masterRedundantReplicas, TDefaultFormatter(), /*limit*/ 10));
     }
 
     void UpdateChunkRemovalLockedMap(TNode* node, THeartbeatSequenceNumber heartbeatSequenceNumber)
@@ -4445,7 +4932,6 @@ private:
     void HydraUnstageExpiredChunks(NProto::TReqUnstageExpiredChunks* request) noexcept
     {
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-
         for (const auto& protoId : request->chunk_ids()) {
             auto chunkId = FromProto<TChunkId>(protoId);
             auto* chunk = FindChunk(chunkId);
@@ -4697,12 +5183,17 @@ private:
         auto schemaId = FromProto<TMasterTableSchemaId>(subrequest->schema_id());
 
         auto* chunk = GetChunkOrThrow(chunkId);
+        auto validationResult = ValidateConfirmChunk(
+            chunk,
+            subrequest->chunk_meta(),
+            schemaId,
+            /*validateChunkMeta*/ true);
         ConfirmChunk(
             chunk,
             replicas,
             subrequest->chunk_info(),
             subrequest->chunk_meta(),
-            schemaId);
+            validationResult);
 
         if (subresponse) {
             if (subrequest->request_statistics()) {
@@ -4960,6 +5451,13 @@ private:
 
         // COMPAT(kvk1920): move to OnAfterSnapshotLoaded
         for (auto [mediumId, medium] : MediumMap_) {
+            if (auto error = CheckObjectName(medium->GetName()); !error.IsOK()) {
+                YT_LOG_ALERT(error, "Medium with invalid name encountered (Id: %v, Index: %v, Name: %v)",
+                    mediumId,
+                    medium->GetIndex(),
+                    medium->GetName());
+            }
+
             RegisterMedium(medium);
         }
 
@@ -4979,7 +5477,13 @@ private:
             THashMap<TChunkId, TCompactVector<TSequoiaChunkReplica, 3>> legacySequoiaChunkPurgatory;
             Load(context, legacySequoiaChunkPurgatory);
             for (const auto& [chunkId, replicas] : legacySequoiaChunkPurgatory) {
-                InsertOrCrash(SequoiaChunkPurgatory_, chunkId);
+                InsertOrCrash(SequoiaChunkPurgatory_, std::make_pair(chunkId, 1));
+            }
+        } else if (context.GetVersion() < EMasterReign::SequoiaChunkPurgatoryRecordsCount) {
+            THashSet<TChunkId> legacySequoiaChunkPurgatory;
+            Load(context, legacySequoiaChunkPurgatory);
+            for (const auto& chunkId : legacySequoiaChunkPurgatory) {
+                InsertOrCrash(SequoiaChunkPurgatory_, std::make_pair(chunkId, 1));
             }
         } else {
             Load(context, SequoiaChunkPurgatory_);
@@ -5033,7 +5537,8 @@ private:
                 }
 
                 // TODO(aleksandra-zh): account for Sequoia replicas.
-                TotalReplicaCount_ += std::ssize(chunk->StoredReplicas());
+                // We may have replicas from non-online nodes here.
+                TotalReplicaCount_ += std::ssize(chunk->GetStoredReplicaList(/*includeNonOnlineReplicas*/ true));
 
                 runner.Add(chunk);
 
@@ -5043,7 +5548,8 @@ private:
             runner.Run([] (TChunk* chunk) {
                 YT_ASSERT_THREAD_AFFINITY_ANY();
 
-                for (auto replica : chunk->StoredReplicas()) {
+                // We may have replicas from non-online nodes here.
+                for (auto replica : chunk->GetStoredReplicaList(/*includeNonOnlineReplicas*/ true)) {
                     auto* locationReplica = replica.As<EStoredReplicaType::ChunkLocation>();
                     if (!locationReplica) {
                         continue;
@@ -5467,7 +5973,7 @@ private:
                     cumulativeStatistics.PushBack(TCumulativeStatisticsEntry{
                         childStatistics.LogicalRowCount,
                         childStatistics.ChunkCount,
-                        childStatistics.UncompressedDataSize
+                        childStatistics.UncompressedDataSize,
                     });
                 }
 
@@ -5531,6 +6037,13 @@ private:
             BIND(&TChunkManager::OnSequoiaReplicaRemoval, MakeWeak(this)),
             GetDynamicConfig()->SequoiaChunkReplicas->RemovalPeriod);
         SequoiaReplicaRemovalExecutor_->Start();
+
+        BatchConfirmTransactionCommitPromise_ = NewPromise<void>();
+        SequoiaChunkBatchConfirmExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkManager),
+            BIND(&TChunkManager::OnSequoiaReplicaConfirm, MakeWeak(this)),
+            GetDynamicConfig()->SequoiaChunkReplicas->ConfirmPeriod);
+        SequoiaChunkBatchConfirmExecutor_->Start();
     }
 
     void OnStopLeading() override
@@ -5544,6 +6057,16 @@ private:
         if (SequoiaReplicaRemovalExecutor_) {
             YT_UNUSED_FUTURE(SequoiaReplicaRemovalExecutor_->Stop());
             SequoiaReplicaRemovalExecutor_.Reset();
+        }
+
+        if (SequoiaChunkBatchConfirmExecutor_) {
+            YT_UNUSED_FUTURE(SequoiaChunkBatchConfirmExecutor_->Stop());
+            SequoiaChunkBatchConfirmExecutor_.Reset();
+        }
+
+        if (BatchConfirmTransactionCommitPromise_) {
+            BatchConfirmTransactionCommitPromise_.TrySet(TError("Hydra peer has stopped"));
+            BatchConfirmTransactionCommitPromise_.Reset();
         }
     }
 
@@ -5572,6 +6095,8 @@ private:
             BIND(&TChunkManager::OnSequoiaChunkRefresh, MakeWeak(this)),
             GetDynamicConfig()->SequoiaChunkReplicas->SequoiaChunkRefreshPeriod);
         SequoiaChunkRefreshExecutor_->Start();
+
+        GlobalSequoiaChunkRefresher_->AdjustRefresherState();
     }
 
     void OnEpochFinished()
@@ -5587,6 +6112,8 @@ private:
         }
 
         FetchingSequoiaChunksToRefresh_ = false;
+
+        GlobalSequoiaChunkRefresher_->AdjustRefresherState();
     }
 
     void RegisterChunk(TChunk* chunk)
@@ -5628,23 +6155,21 @@ private:
         YT_LOG_DEBUG("Starting Sequoia replica removal (PurgatorySize: %v)",
             SequoiaChunkPurgatory_.size());
 
-        std::vector<TChunkId> chunkIds;
-        chunkIds.reserve(std::min<ssize_t>(std::ssize(SequoiaChunkPurgatory_), config->RemovalBatchSize));
-        for (const auto& chunkId : SequoiaChunkPurgatory_) {
-            chunkIds.push_back(chunkId);
-            if (std::ssize(chunkIds) >= config->RemovalBatchSize) {
+        auto request = std::make_unique<NProto::TReqRemoveDeadSequoiaChunkReplicas>();
+
+        for (const auto& [chunkId, recordCount] : SequoiaChunkPurgatory_) {
+            auto* chunkRecord = request->add_chunk_records();
+            ToProto(chunkRecord->mutable_chunk_id(), chunkId);
+            chunkRecord->set_record_count(recordCount);
+
+            if (request->chunk_records_size() >= config->RemovalBatchSize) {
                 break;
             }
         }
 
-        if (ChunksBeingPurged_) {
-            YT_LOG_DEBUG("Chunks are still being purged");
-            return;
-        }
-
         ChunksBeingPurged_ = true;
 
-        auto result = WaitFor(RemoveDeadSequoiaChunkReplicas(std::move(chunkIds)));
+        auto result = WaitFor(RemoveDeadSequoiaChunkReplicas(std::move(request)));
 
         if (!result.IsOK()) {
             YT_LOG_DEBUG(result, "Error purging dead Sequoia chunks");
@@ -5654,6 +6179,7 @@ private:
 
     void OnSequoiaChunkRefresh()
     {
+        YT_LOG_DEBUG("Sequoia chunk refresh iteration started");
         const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
         if (!config->Enable || !config->EnableSequoiaChunkRefresh) {
             return;
@@ -5691,6 +6217,14 @@ private:
                     return;
                 }
 
+                const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+                // We should have state not older than the state at which chunks were added to refresh queue.
+                auto leaderSyncResult = WaitFor(hydraManager->SyncWithLeader());
+                if (!leaderSyncResult.IsOK()) {
+                    YT_LOG_WARNING(leaderSyncResult, "Error syncing with leader");
+                    return;
+                }
+
                 const auto& results = allSetResult.Value();
                 std::vector<TChunkId> chunkIdsToRefresh;
                 THashMap<int, i64> indexToTrimmedRowCount;
@@ -5713,6 +6247,10 @@ private:
                 SortUnique(chunkIdsToRefresh);
 
                 auto refreshChunks = BIND([chunkIdsToRefresh = std::move(chunkIdsToRefresh), this, this_ = MakeStrong(this)] {
+                    if (!Bootstrap_->GetHydraFacade()->GetHydraManager()->IsActive()) {
+                        THROW_ERROR_EXCEPTION("Hydra is not active");
+                    }
+
                     NProto::TReqTopUpSequoiaChunkPurgatory topUpSequoiaChunkPurgatoryRequest;
 
                     for (auto chunkId : chunkIdsToRefresh) {
@@ -5755,7 +6293,8 @@ private:
                         trimmedRowCount);
                     // Index is both replicator shard index and tablet index.
                     trimFutures.push_back(Bootstrap_
-                        ->GetSequoiaClient()
+                        ->GetSequoiaConnection()
+                        ->CreateClient(GetRootAuthenticationIdentity())
                         ->TrimTable(descriptor, index, trimmedRowCount));
                 }
                 auto trimResult = WaitFor(AllSucceeded(trimFutures));
@@ -5769,24 +6308,27 @@ private:
     {
         for (const auto& protoChunkId : request->chunk_ids()) {
             auto chunkId = FromProto<TChunkId>(protoChunkId);
-            SequoiaChunkPurgatory_.insert(chunkId);
+            ++SequoiaChunkPurgatory_[chunkId];
         }
     }
 
-    TFuture<void> RemoveDeadSequoiaChunkReplicas(std::vector<TChunkId>&& chunkIds)
+    TFuture<void> RemoveDeadSequoiaChunkReplicas(std::unique_ptr<NProto::TReqRemoveDeadSequoiaChunkReplicas> request)
     {
         return Bootstrap_
-            ->GetSequoiaClient()
+            ->GetSequoiaConnection()
+            ->CreateClient(GetRootAuthenticationIdentity())
             ->StartTransaction(
                 ESequoiaTransactionType::DeadChunkReplicaRemoval,
-                {.CellTag = Bootstrap_->GetCellTag()},
-                {.AuthenticationIdentity = GetRootAuthenticationIdentity()})
-            .Apply(BIND([chunkIds = std::move(chunkIds), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
+                {.CellTag = Bootstrap_->GetCellTag()})
+            .Apply(BIND([request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
+                std::vector<TChunkId> chunkIds;
+                chunkIds.reserve(request->chunk_records().size());
+                for (const auto& chunkRecord : request->chunk_records()) {
+                    chunkIds.push_back(FromProto<TChunkId>(chunkRecord.chunk_id()));
+                }
+
                 auto sequoiaReplicas = WaitFor(ChunkReplicaFetcher_->GetApprovedSequoiaChunkReplicas(chunkIds, transaction))
                     .ValueOrThrow();
-
-                auto request = std::make_unique<NProto::TReqRemoveDeadSequoiaChunkReplicas>();
-                ToProto(request->mutable_chunk_ids(), chunkIds);
 
                 THashSet<TChunkId> chunksWithReplicas;
                 for (const auto& replica : sequoiaReplicas) {
@@ -5828,10 +6370,24 @@ private:
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
 
-        for (const auto& protoChunkId : request->chunk_ids()) {
-            auto chunkId = FromProto<TChunkId>(protoChunkId);
-            if (!SequoiaChunkPurgatory_.contains(chunkId)) {
+        // We can ignore any chunks in compat request->chunk_ids() because
+        // that chunks will remain in purgatory and will be processed later.
+        for (const auto& chunkRecord : request->chunk_records()) {
+            auto chunkId = FromProto<TChunkId>(chunkRecord.chunk_id());
+
+            auto purgatoryRecordIt = SequoiaChunkPurgatory_.find(chunkId);
+            if (purgatoryRecordIt == SequoiaChunkPurgatory_.end()) {
+                YT_LOG_ALERT("Chunk with dead replicas is not present in purgatory (ChunkId: %v)",
+                    chunkId);
                 THROW_ERROR_EXCEPTION("Chunk %v is not present in purgatory", chunkId);
+            }
+            if (purgatoryRecordIt->second < chunkRecord.record_count()) {
+                YT_LOG_ALERT(
+                    "Chunk with dead replicas has less records in purgatory than in request (ChunkId: %v, PurgatoryRecords: %v, RequestRecords: %v)",
+                    chunkId,
+                    purgatoryRecordIt->second,
+                    chunkRecord.record_count());
+                THROW_ERROR_EXCEPTION("Chunk %v has less records in purgatory than in request", chunkId);
             }
         }
 
@@ -5884,15 +6440,22 @@ private:
             if (location->AddDestroyedReplica(chunkIdWithIndexes)) {
                 ++DestroyedReplicaCount_;
             } else {
-                YT_LOG_TRACE("Replica is already present in destroyed set (LocationUuid: %v, ChunkId: %v)",
+                YT_LOG_TRACE("Replica is already present in destroyed set (LocationIndex: %v, ChunkId: %v)",
                     locationIndex,
                     replica.ChunkId);
             }
         }
 
-        for (const auto& protoChunkId : request->chunk_ids()) {
-            auto chunkId = FromProto<TChunkId>(protoChunkId);
-            EraseOrCrash(SequoiaChunkPurgatory_, chunkId);
+        for (const auto& chunkRecord : request->chunk_records()) {
+            auto chunkId = FromProto<TChunkId>(chunkRecord.chunk_id());
+            int recordCount = chunkRecord.record_count();
+
+            auto purgatoryRecordIt = SequoiaChunkPurgatory_.find(chunkId);
+            if (purgatoryRecordIt->second > recordCount) {
+                purgatoryRecordIt->second -= recordCount;
+            } else {
+                SequoiaChunkPurgatory_.erase(purgatoryRecordIt);
+            }
         }
 
         ChunksBeingPurged_ = false;
@@ -5976,7 +6539,8 @@ private:
         if (!chunkLocation->HasReplica(replica) && (
                 reason == ERemoveReplicaReason::IncrementalHeartbeat ||
                 reason == ERemoveReplicaReason::SequoiaModified ||
-                reason == ERemoveReplicaReason::NodeDisposed))
+                reason == ERemoveReplicaReason::NodeDisposed ||
+                reason == ERemoveReplicaReason::SequoiaNodeDisposed))
         {
             return;
         }
@@ -6108,7 +6672,7 @@ private:
             }
 
             if (ChunkReplicaFetcher_->CanHaveSequoiaReplicas(chunkIdWithIndexes.Id)) {
-                SequoiaChunkPurgatory_.insert(chunkIdWithIndexes.Id);
+                ++SequoiaChunkPurgatory_[chunkIdWithIndexes.Id];
                 YT_LOG_DEBUG(
                     "Sequoia chunk is added to purgatory (NodeId: %v, Address: %v, ChunkId: %v)",
                     nodeId,
@@ -6364,6 +6928,11 @@ private:
             buffer.AddCounter("/chunk_lists_created", ChunkListsCreated_);
             buffer.AddCounter("/chunk_lists_destroyed", ChunkListsDestroyed_);
             buffer.AddGauge("/sequoia_chunk_purgatory_size", SequoiaChunkPurgatory_.size());
+            buffer.AddGauge("/sequoia_chunks_awaiting_confirm", WaitingConfirmRequests_.size());
+
+            buffer.AddGauge(
+                "/sequoia_global_refresh_chunks_processed",
+                GlobalSequoiaChunkRefresher_->GetStatus().ChunksProcessed);
 
             {
                 TWithTagGuard guard(&buffer, "mode", "immediate");
@@ -6465,6 +7034,11 @@ private:
 
         YT_VERIFY(!IndexToMediumMap_[mediumIndex]);
         IndexToMediumMap_[mediumIndex] = medium;
+
+        YT_LOG_INFO("Medium created (Id: %v, Name: %v, Index: %v)",
+            medium->GetId(),
+            medium->GetName(),
+            medium->GetIndex());
     }
 
     void UnregisterMedium(TMedium* medium)
@@ -6695,6 +7269,12 @@ private:
         if (SequoiaReplicaRemovalExecutor_) {
             SequoiaReplicaRemovalExecutor_->SetPeriod(GetDynamicConfig()->SequoiaChunkReplicas->RemovalPeriod);
         }
+
+        if (SequoiaChunkBatchConfirmExecutor_) {
+            SequoiaChunkBatchConfirmExecutor_->SetPeriod(GetDynamicConfig()->SequoiaChunkReplicas->ConfirmPeriod);
+        }
+
+        GlobalSequoiaChunkRefresher_->AdjustRefresherState();
     }
 };
 

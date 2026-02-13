@@ -41,10 +41,6 @@ class MonitoringFacade(cli.FacadeBase):
             cls.endpoint = args.monitoring_endpoint
         cls.set_name = not args.disable_monitoring_set_name
 
-    def diff(self):
-        # TODO: Implement some kind of JSON diff?
-        raise NotImplementedError()
-
     def show(self):
         proxy = monitoring.MonitoringProxy(self.endpoint, self.token)
         print(proxy.fetch_dashboard(self.dashboard_id))

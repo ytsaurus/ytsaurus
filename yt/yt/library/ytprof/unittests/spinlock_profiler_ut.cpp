@@ -25,7 +25,7 @@ namespace {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TProfiler>
-void RunUnderProfiler(const TString& name, std::function<void()> work, bool checkSamples = true)
+void RunUnderProfiler(const std::string& name, std::function<void()> work, bool checkSamples = true)
 {
     TSpinlockProfilerOptions options;
     options.ProfileFraction = 10;
@@ -46,9 +46,9 @@ void RunUnderProfiler(const TString& name, std::function<void()> work, bool chec
     Symbolize(&profile, true);
     AddBuildInfo(&profile, TBuildInfo::GetDefault());
     SymbolizeByExternalPProf(&profile, TSymbolizationOptions{
-        .TmpDir = GetOutputPath(),
+        .TmpDir = GetOutputPath().GetPath(),
         .KeepTmpDir = true,
-        .RunTool = [] (const std::vector<TString>& args) {
+        .RunTool = [] (const std::vector<std::string>& args) {
             TShellCommand command{args[0], TList<TString>{args.begin()+1, args.end()}};
             command.Run();
 

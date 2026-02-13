@@ -433,33 +433,65 @@ protected:
                 ToProto(chunkLowerLimit->mutable_key_bound_prefix(), firstUnreadKey.AsOwningRow());
                 chunkLowerLimit->set_key_bound_is_inclusive(true);
             }
-            i64 unreadRowCount = std::max(1l, chunk.row_count_override() - RowCount_ + std::ssize(unreadRows));
-            unreadRowCount = std::min(unreadRowCount, upperRowIndex - rowIndex);
-            chunk.set_row_count_override(unreadRowCount);
 
-            double rowSelectivityFactor = static_cast<double>(unreadRowCount) / misc.row_count();
+            if (chunk.use_new_override_semantics()) {
+                i64 unreadRowCount = std::max(1l, chunk.row_count_override() - RowCount_ + std::ssize(unreadRows));
+                unreadRowCount = std::min(unreadRowCount, upperRowIndex - rowIndex);
 
-            auto estimateSize = [&] (i64 size, std::optional<i64> sizeOverride) {
-                i64 result = SignedSaturationConversion(size * rowSelectivityFactor);
-                result = std::max(result, 1l);
-                if (sizeOverride.has_value()) {
-                    result = std::min(result, *sizeOverride);
-                }
-                return result;
-            };
+                YT_VERIFY(chunk.row_count_override() > 0);
+                double rowSelectivityFactor = std::min(static_cast<double>(unreadRowCount) / chunk.row_count_override(), 1.);
 
-            // NB(gritukan): Some old chunks might have zero data weight.
-            chunk.set_data_weight_override(estimateSize(
-                std::max<i64>(misc.has_data_weight() ? misc.data_weight() : misc.uncompressed_data_size(), 1),
-                YT_OPTIONAL_FROM_PROTO(chunk, data_weight_override)));
+                chunk.set_row_count_override(unreadRowCount);
 
-            chunk.set_compressed_data_size_override(estimateSize(
-                misc.compressed_data_size(),
-                YT_OPTIONAL_FROM_PROTO(chunk, compressed_data_size_override)));
+                auto estimateSize = [&] (i64 size, std::optional<i64> sizeOverride) {
+                    if (sizeOverride.has_value()) {
+                        return std::clamp(SignedSaturationConversion(std::ceil(*sizeOverride * rowSelectivityFactor)), 1l, *sizeOverride);
+                    }
+                    return std::clamp(SignedSaturationConversion(std::ceil(size * rowSelectivityFactor)), 1l, size);
+                };
 
-            chunk.set_uncompressed_data_size_override(estimateSize(
-                misc.uncompressed_data_size(),
-                YT_OPTIONAL_FROM_PROTO(chunk, uncompressed_data_size_override)));
+                // NB(gritukan): Some old chunks might have zero data weight.
+                chunk.set_data_weight_override(estimateSize(
+                    std::max(misc.has_data_weight() ? misc.data_weight() : misc.uncompressed_data_size(), 1l),
+                    YT_OPTIONAL_FROM_PROTO(chunk, data_weight_override)));
+
+                chunk.set_compressed_data_size_override(estimateSize(
+                    misc.compressed_data_size(),
+                    YT_OPTIONAL_FROM_PROTO(chunk, compressed_data_size_override)));
+
+                chunk.set_uncompressed_data_size_override(estimateSize(
+                    misc.uncompressed_data_size(),
+                    YT_OPTIONAL_FROM_PROTO(chunk, uncompressed_data_size_override)));
+            } else {
+                // COMPAT(apollo1321): Remove in 26.1.
+                i64 unreadRowCount = std::max(1l, chunk.row_count_override() - RowCount_ + std::ssize(unreadRows));
+                unreadRowCount = std::min(unreadRowCount, upperRowIndex - rowIndex);
+                chunk.set_row_count_override(unreadRowCount);
+
+                double rowSelectivityFactor = static_cast<double>(unreadRowCount) / misc.row_count();
+
+                auto estimateSize = [&] (i64 size, std::optional<i64> sizeOverride) {
+                    i64 result = SignedSaturationConversion(size * rowSelectivityFactor);
+                    result = std::max(result, 1l);
+                    if (sizeOverride.has_value()) {
+                        result = std::min(result, *sizeOverride);
+                    }
+                    return result;
+                };
+
+                // NB(gritukan): Some old chunks might have zero data weight.
+                chunk.set_data_weight_override(estimateSize(
+                    std::max<i64>(misc.has_data_weight() ? misc.data_weight() : misc.uncompressed_data_size(), 1),
+                    YT_OPTIONAL_FROM_PROTO(chunk, data_weight_override)));
+
+                chunk.set_compressed_data_size_override(estimateSize(
+                    misc.compressed_data_size(),
+                    YT_OPTIONAL_FROM_PROTO(chunk, compressed_data_size_override)));
+
+                chunk.set_uncompressed_data_size_override(estimateSize(
+                    misc.uncompressed_data_size(),
+                    YT_OPTIONAL_FROM_PROTO(chunk, uncompressed_data_size_override)));
+            }
         }
 
         // Sometimes scheduler sends us empty slices (when both, row index and key limits are present).
@@ -467,34 +499,71 @@ protected:
         if (RowCount_ > std::ssize(unreadRows) || rowIndex >= upperRowIndex) {
             readDescriptors.emplace_back(chunkSpec);
             auto& chunk = readDescriptors[0].ChunkSpecs[0];
-            chunk.mutable_upper_limit()->set_row_index(rowIndex);
-            i64 readRowCount = RowCount_ - unreadRows.Size();
-            YT_VERIFY(readRowCount >= 0);
-            chunk.set_row_count_override(readRowCount);
-            YT_VERIFY(rowIndex >= readRowCount);
-            chunk.mutable_lower_limit()->set_row_index(rowIndex - readRowCount);
 
-            double rowSelectivityFactor = static_cast<double>(readRowCount) / misc.row_count();
+            if (chunk.use_new_override_semantics()) {
+                chunk.mutable_upper_limit()->set_row_index(rowIndex);
+                i64 readRowCount = RowCount_ - unreadRows.Size();
+                YT_VERIFY(readRowCount >= 0);
 
-            auto estimateSize = [&] (i64 size, std::optional<i64> sizeOverride) {
-                i64 result = SignedSaturationConversion(size * rowSelectivityFactor);
-                if (sizeOverride.has_value()) {
-                    result = std::min(result, *sizeOverride);
-                }
-                return result;
-            };
+                YT_VERIFY(chunk.row_count_override() > 0);
+                double rowSelectivityFactor = std::min(static_cast<double>(readRowCount) / chunk.row_count_override(), 1.);
 
-            chunk.set_data_weight_override(estimateSize(
-                misc.has_data_weight() ? misc.data_weight() : misc.uncompressed_data_size(),
-                YT_OPTIONAL_FROM_PROTO(chunk, data_weight_override)));
+                chunk.set_row_count_override(readRowCount);
 
-            chunk.set_compressed_data_size_override(estimateSize(
-                misc.compressed_data_size(),
-                YT_OPTIONAL_FROM_PROTO(chunk, compressed_data_size_override)));
+                YT_VERIFY(rowIndex >= readRowCount);
+                chunk.mutable_lower_limit()->set_row_index(rowIndex - readRowCount);
 
-            chunk.set_uncompressed_data_size_override(estimateSize(
-                misc.uncompressed_data_size(),
-                YT_OPTIONAL_FROM_PROTO(chunk, uncompressed_data_size_override)));
+                auto estimateSize = [&] (i64 size, std::optional<i64> sizeOverride) {
+                    if (sizeOverride.has_value()) {
+                        return std::clamp(SignedSaturationConversion(std::ceil(*sizeOverride * rowSelectivityFactor)), 1l, *sizeOverride);
+                    }
+                    return std::clamp(SignedSaturationConversion(std::ceil(size * rowSelectivityFactor)), 1l, size);
+                };
+
+                chunk.set_data_weight_override(estimateSize(
+                    misc.has_data_weight() ? misc.data_weight() : misc.uncompressed_data_size(),
+                    YT_OPTIONAL_FROM_PROTO(chunk, data_weight_override)));
+
+                chunk.set_compressed_data_size_override(estimateSize(
+                    misc.compressed_data_size(),
+                    YT_OPTIONAL_FROM_PROTO(chunk, compressed_data_size_override)));
+
+                chunk.set_uncompressed_data_size_override(estimateSize(
+                    misc.uncompressed_data_size(),
+                    YT_OPTIONAL_FROM_PROTO(chunk, uncompressed_data_size_override)));
+            } else {
+                // COMPAT(apollo1321): Remove in 26.1.
+                readDescriptors.emplace_back(chunkSpec);
+                auto& chunk = readDescriptors[0].ChunkSpecs[0];
+                chunk.mutable_upper_limit()->set_row_index(rowIndex);
+                i64 readRowCount = RowCount_ - unreadRows.Size();
+                YT_VERIFY(readRowCount >= 0);
+                chunk.set_row_count_override(readRowCount);
+                YT_VERIFY(rowIndex >= readRowCount);
+                chunk.mutable_lower_limit()->set_row_index(rowIndex - readRowCount);
+
+                double rowSelectivityFactor = static_cast<double>(readRowCount) / misc.row_count();
+
+                auto estimateSize = [&] (i64 size, std::optional<i64> sizeOverride) {
+                    i64 result = SignedSaturationConversion(size * rowSelectivityFactor);
+                    if (sizeOverride.has_value()) {
+                        result = std::min(result, *sizeOverride);
+                    }
+                    return result;
+                };
+
+                chunk.set_data_weight_override(estimateSize(
+                    misc.has_data_weight() ? misc.data_weight() : misc.uncompressed_data_size(),
+                    YT_OPTIONAL_FROM_PROTO(chunk, data_weight_override)));
+
+                chunk.set_compressed_data_size_override(estimateSize(
+                    misc.compressed_data_size(),
+                    YT_OPTIONAL_FROM_PROTO(chunk, compressed_data_size_override)));
+
+                chunk.set_uncompressed_data_size_override(estimateSize(
+                    misc.uncompressed_data_size(),
+                    YT_OPTIONAL_FROM_PROTO(chunk, uncompressed_data_size_override)));
+            }
         }
         return {std::move(unreadDescriptors), std::move(readDescriptors)};
     }
@@ -571,6 +640,15 @@ public:
     {
         YT_VERIFY(CommonKeyPrefix_ <= std::ssize(SortOrders_));
 
+        // FIXME(coteeq)
+        bool keyIsWidened = !KeyWideningOptions_.InsertedColumnIds.empty();
+        THROW_ERROR_EXCEPTION_IF(
+            RlsChecker_ && keyIsWidened,
+            "Cannot read a chunk with widened key and active RLS");
+        THROW_ERROR_EXCEPTION_IF(
+            ChunkMeta_->ChunkSchema()->HasNonMaterializedComputedColumns() && keyIsWidened,
+            "Cannot read a chunk with widened key and non-materialized computed columns");
+
         if (chunkState->DataSource) {
             PackBaggageForChunkReader(TraceContext_, *chunkState->DataSource, MakeExtraChunkTags(ChunkMeta_->Misc()));
         }
@@ -627,7 +705,7 @@ protected:
 
         auto action = ESecurityAction::Allow;
         if (RlsChecker_) {
-            action = RlsChecker_->Check(row, EphemeralRowBuffer_);
+            action = RlsChecker_->Check(row, EphemeralRowBuffer_, prefixToRemapSize);
         }
 
         auto firstIndexToSkip = GetFirstIndexToSkipRemappingInRow(row.GetCount());
@@ -818,8 +896,8 @@ void THorizontalSchemalessRangeChunkReader::InitFirstBlock()
         blockMeta,
         GetCompositeColumnFlags(ChunkMeta_->ChunkSchema()),
         GetHunkColumnFlags(ChunkMeta_->GetChunkFormat(), ChunkMeta_->GetChunkFeatures(), ChunkMeta_->ChunkSchema()),
-        ChunkMeta_->HunkChunkRefs(),
-        ChunkMeta_->HunkChunkMetas(),
+        &ChunkMeta_->HunkChunkRefs(),
+        &ChunkMeta_->HunkChunkMetas(),
         ChunkToReaderIdMapping_,
         SortOrders_,
         CommonKeyPrefix_,
@@ -1248,8 +1326,8 @@ void THorizontalSchemalessLookupChunkReaderBase::InitFirstBlock()
         blockMeta,
         GetCompositeColumnFlags(ChunkMeta_->ChunkSchema()),
         GetHunkColumnFlags(ChunkMeta_->GetChunkFormat(), ChunkMeta_->GetChunkFeatures(), ChunkMeta_->ChunkSchema()),
-        ChunkMeta_->HunkChunkRefs(),
-        ChunkMeta_->HunkChunkMetas(),
+        &ChunkMeta_->HunkChunkRefs(),
+        &ChunkMeta_->HunkChunkMetas(),
         ChunkToReaderIdMapping_,
         SortOrders_,
         CommonKeyPrefix_,
@@ -1708,7 +1786,7 @@ public:
 
         auto action = ESecurityAction::Allow;
         if (RlsChecker_) {
-            action = RlsChecker_->Check(row, EphemeralRowBuffer_);
+            action = RlsChecker_->Check(row, EphemeralRowBuffer_, prefixToRemapSize);
         }
 
         ApplyColumnIdMapping(row, chunkToReaderIdMapping, prefixToRemapSize, firstIndexToSkip, lastIndexToSkip);
@@ -1807,6 +1885,15 @@ public:
             KeyWideningOptions_,
             SortOrders_,
             chunkState->RlsChecker);
+
+        // FIXME(coteeq)
+        bool keyIsWidened = !KeyWideningOptions_.InsertedColumnIds.empty();
+        THROW_ERROR_EXCEPTION_IF(
+            RlsChecker_ && keyIsWidened,
+            "Cannot read a chunk with widened key and active RLS");
+        THROW_ERROR_EXCEPTION_IF(
+            ChunkMeta_->ChunkSchema()->HasNonMaterializedComputedColumns() && keyIsWidened,
+            "Cannot read a chunk with widened key and non-materialized computed columns");
 
         YT_VERIFY(std::ssize(KeyColumnReaders_) == std::ssize(SortOrders_));
 
@@ -2432,6 +2519,15 @@ public:
             KeyWideningOptions_,
             SortOrders_,
             chunkState->RlsChecker);
+
+        // FIXME(coteeq)
+        bool keyIsWidened = !KeyWideningOptions_.InsertedColumnIds.empty();
+        THROW_ERROR_EXCEPTION_IF(
+            RlsChecker_ && keyIsWidened,
+            "Cannot read a chunk with widened key and active RLS");
+        THROW_ERROR_EXCEPTION_IF(
+            ChunkMeta_->ChunkSchema()->HasNonMaterializedComputedColumns() && keyIsWidened,
+            "Cannot read a chunk with widened key and non-materialized computed columns");
 
         Initialize();
 

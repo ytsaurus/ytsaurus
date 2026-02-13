@@ -34,6 +34,7 @@ struct TPersistentAssignmentState
     std::string AllocationGroupName;
     TJobResourcesWithQuota ResourceUsage;
     TInstant CreationTime;
+    bool Preemptible{false};
 
     REGISTER_YSON_STRUCT(TPersistentAssignmentState);
 

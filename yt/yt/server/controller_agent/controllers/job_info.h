@@ -85,7 +85,7 @@ struct TJoblet
     TInstant FinishTime;
     TInstant LastUpdateTime;
     TInstant LastStatisticsUpdateTime;
-    TInstant NodeJobStartTime;
+    TInstant PreemptibleProgressStartTime;
 
     std::optional<TDuration> WaitingForResourcesDuration;
 
@@ -120,18 +120,18 @@ struct TJoblet
     TEnumIndexedArray<EJobCompetitionType, bool> HasCompetitors;
     TString TaskName;
 
-    struct TDistributedGroupInfo
+    struct TCollectiveInfo
     {
-        TJobId MainJobId;
-        int Index = 0;
+        TGuid CollectiveId;
+        int Rank = 0;
 
-        friend void FormatValue(TStringBuilderBase* builder, const TDistributedGroupInfo& DistributedGroupInfo, TStringBuf spec);
+        friend void FormatValue(TStringBuilderBase* builder, const TCollectiveInfo& CollectiveInfo, TStringBuf spec);
 
         operator bool () const noexcept;
 
-        PHOENIX_DECLARE_TYPE(TDistributedGroupInfo, 0x2301c8d7);
+        PHOENIX_DECLARE_TYPE(TCollectiveInfo, 0x2301c8d7);
     };
-    TDistributedGroupInfo DistributedGroupInfo;
+    TCollectiveInfo CollectiveInfo;
 
     // Controller encapsulates lifetime of both, tasks and joblets.
     TTask* Task;
@@ -217,7 +217,6 @@ struct TJoblet
 
     bool ShouldLogFinishedEvent() const;
     bool IsStarted() const noexcept;
-    bool IsJobStartedOnNode() const noexcept;
 
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TJoblet, 0x2301c8d6);
 };

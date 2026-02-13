@@ -4,6 +4,8 @@
 
 #include <library/cpp/yt/misc/enum.h>
 
+#include <util/generic/size_literals.h>
+
 namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,6 +69,8 @@ DEFINE_ENUM(EJobPhase,
     ((PreparingRootVolume)          ( 15))
     ((PreparingTmpfsVolumes)        ( 16))
     ((PreparingGpuCheckVolume)      ( 20))
+    ((LinkingVolumes)               ( 21))
+    ((ValidatingRootFS)             ( 22))
     ((RunningCustomPreparations)    ( 24))
     ((PreparingSandboxDirectories)  ( 25))
     ((RunningSetupCommands)         ( 26))
@@ -83,6 +87,10 @@ DEFINE_ENUM(EJobPhase,
 );
 
 DEFINE_ENUM_UNKNOWN_VALUE(EJobPhase, Missing);
+
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr i64 MaxNbdDiskSize = 60_GB;
 
 ////////////////////////////////////////////////////////////////////////////////
 

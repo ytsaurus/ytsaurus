@@ -44,11 +44,15 @@ void TApiTestBase::SetUpTestCase()
         YT_VERIFY(configPath);
         TIFStream configStream(configPath);
         auto config = ConvertToNode(&configStream)->AsMap();
-        auto connection = NApi::CreateConnection(config);
+        NNative::TConnectionOptions options;
+        options.CreateQueueConsumerRegistrationManager = true;
+        auto connection = NApi::CreateConnection(
+            config,
+            options);
 
         if (auto nativeConnection = DynamicPointerCast<NNative::IConnection>(connection)) {
             nativeConnection->GetClusterDirectorySynchronizer()->Start();
-            nativeConnection->GetQueueConsumerRegistrationManager()->StartSync();
+            nativeConnection->GetQueueConsumerRegistrationManagerOrThrow()->StartSync();
         }
 
         Connection_ = connection;

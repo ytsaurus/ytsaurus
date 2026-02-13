@@ -14,7 +14,7 @@ using TProcessId = TString;
 
 std::vector<TString> ReadProcessStat(TProcessId processId);
 
-std::vector<TProcessId> FindProcessIds(TString command);
+std::vector<TProcessId> FindProcessIds(TStringBuf command);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -3,8 +3,7 @@ package NYT.NChunkClient.NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 message TDomesticMediumDescriptor
-{
-}
+{ }
 
 message TS3MediumDescriptor
 {

@@ -1,6 +1,9 @@
 #include "assignment_plan_context_detail.h"
 
 #include "private.h"
+#include "helpers.h"
+
+#include <yt/yt/server/scheduler/common/public.h>
 
 #include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
 
@@ -18,7 +21,8 @@ void TAssignmentPlanContextBase::AddPlannedAssignment(
     std::string allocationGroupName,
     TJobResourcesWithQuota resourceUsage,
     TOperation* operation,
-    TNode* node)
+    TNode* node,
+    bool preemptible)
 {
     auto assignment = New<TAssignment>(
         std::move(allocationGroupName),
@@ -26,13 +30,21 @@ void TAssignmentPlanContextBase::AddPlannedAssignment(
         operation,
         node);
 
-    assignment->Node->AddAssignment(assignment);
-    assignment->Operation->AddPlannedAssignment(assignment);
+    assignment->Preemptible = preemptible;
 
-    YT_LOG_DEBUG("Added assignment (AllocationGroupName: %v, ResourceUsage: %v, NodeAddress: %v, OperationId: %v)",
+    assignment->Node->AddAssignment(assignment);
+    assignment->Operation->AddPlannedAssignment(assignment, preemptible);
+
+    LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::AssignmentAdded)
+            .Item("operation_id").Value(operation->GetId())
+            .Item("node_address").Value(node->Address())
+            .Item("assignment").Value(assignment);
+
+    YT_LOG_DEBUG("Added assignment (AllocationGroupName: %v, ResourceUsage: %v, NodeAddress: %v,  Preemptible: %v, OperationId: %v)",
         assignment->AllocationGroupName,
         assignment->ResourceUsage,
         assignment->Node->Descriptor()->GetDefaultAddress(),
+        assignment->Preemptible,
         assignment->Operation->GetId());
 }
 
@@ -46,6 +58,11 @@ void TAssignmentPlanContextBase::PreemptAssignment(
     assignment->PreemptionDescription = std::move(preemptionDescription);
     assignment->Node->PreemptAssignment(assignment);
     assignment->Operation->RemoveAssignment(assignment);
+
+    LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::AssignmentPreempted)
+            .Item("assignment").Value(assignment)
+            .Item("reason").Value(preemptionReason)
+            .Item("description").Value(preemptionDescription);
 
     YT_LOG_DEBUG(
         "Preempted assignment "

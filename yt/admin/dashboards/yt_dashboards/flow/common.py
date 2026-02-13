@@ -39,6 +39,7 @@ def get_dashboards_meta():
         "controller",
         "worker",
         "computation",
+        "one-worker",
         "message-transfering",
         "state-cache"
     ]:
@@ -113,7 +114,7 @@ def build_dashboard_links(dashboard_short_name: str):
     ]
 
 
-def build_versions():
+def build_versions(worker_host_aggr: bool = True):
     spec_version_change_query_transformation = "sign(derivative({query}))"
 
     def make_url(name):
@@ -126,6 +127,12 @@ def build_versions():
     ]
     description_text = "\n".join(description_rows)
 
+    worker_versions = MonitoringExpr(FlowWorker("yt.build.version")).alias("{{version}}")
+    if worker_host_aggr:
+        worker_versions = worker_versions.aggr("host")
+    else:
+        worker_versions = worker_versions.value("host", TemplateTag("host"))
+
     return (Rowset()
         .stack(True)
         .row()
@@ -137,9 +144,7 @@ def build_versions():
                 description="Color change on this graph means deploying new controller binary")
             .cell(
                 "Worker versions",
-                MonitoringExpr(FlowWorker("yt.build.version"))
-                    .alias("{{version}}")
-                    .aggr("host"),
+                worker_versions,
                 description="Color change on this graph means deploying new worker binary")
             .cell(
                 "Specs version change",
@@ -312,13 +317,13 @@ def add_common_dashboard_parameters(dashboard):
     dashboard.add_parameter("pipeline_path", "Pipeline path", MonitoringTextDashboardParameter(default_value="-"))
 
 
-def create_dashboard(short_name: str, filler: Callable[Dashboard, None]):
+def create_dashboard(short_name: str, filler: Callable[Dashboard, None], worker_host_aggr: bool = True):
     d = Dashboard()
     d.set_title(f"[YT Flow] {DASHBOARDS_META[short_name].title}")
     d.set_monitoring_links(build_dashboard_links(short_name))
     add_common_dashboard_parameters(d)
 
-    d.add(build_versions())
+    d.add(build_versions(worker_host_aggr=worker_host_aggr))
 
     filler(d)
 

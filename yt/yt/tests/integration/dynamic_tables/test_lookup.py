@@ -12,7 +12,7 @@ from yt_commands import (
     sync_flush_table, sync_compact_table, update_nodes_dynamic_config, set_node_banned,
     get_cell_leader_address, get_tablet_leader_address, WaitFailed, raises_yt_error,
     wait_for_cells, build_snapshot, sort, merge, create_tablet_cell_bundle,
-    AsyncLastCommittedTimestamp, create_user, make_ace)
+    AsyncLastCommittedTimestamp, create_user, make_ace, enable_local_throttling)
 
 from yt_type_helpers import make_schema
 
@@ -317,8 +317,6 @@ class TestLookup(TestSortedDynamicTablesBase):
         timestamps = []
 
         def _random_write(table, keys):
-            global timestamps
-
             for key in keys:
                 for v in "v1", "v2", "v3":
                     if random.randint(0, 99) < value_probability:
@@ -608,12 +606,11 @@ class TestLookup(TestSortedDynamicTablesBase):
         assert lookup_rows("//tmp/t", keys) == rows
 
     @authors("akozhikhov")
-    @pytest.mark.skip(reason="Fix with YT-23396")
     def test_hedging_manager_sensors(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", chunk_reader={
             "hedging_manager": {
-                "max_backup_request_ratio": 0.5,
+                "secondary_request_ratio": 0.5,
             },
             "prefer_local_replicas": False,
             "use_block_cache": False,
@@ -1205,9 +1202,8 @@ class TestLookup(TestSortedDynamicTablesBase):
 
         wait(lambda: exists(f"//sys/cluster_nodes/{node}/orchid/sensors/yt"))
 
-        assert rows == lookup_rows(table_path, keys, execution_pool="bassein")
-
         def _wait_metrics():
+            assert rows == lookup_rows(table_path, keys, execution_pool="bassein", authenticated_user="u")
             return any([x["tags"].get("thread") == "Query" and x["tags"].get("bucket") == "bassein" and x["value"] > 0
                         for x in get(f"//sys/cluster_nodes/{node}/orchid/sensors/yt/fair_share_queue/buckets")])
 
@@ -1698,14 +1694,27 @@ class TestAlternativeLookupMethods(TestSortedDynamicTablesBase):
         for use_lookup_cache in [False, True, True]:
             assert lookup_rows("//tmp/t", all_keys, use_lookup_cache=use_lookup_cache) == all_rows
 
-    @authors("akozhikhov")
-    def test_error_upon_net_throttler_overdraft(self):
-        return
+    @authors("akozhikhov", "tea-mur")
+    @pytest.mark.parametrize("throttler_type", ["net", "disk"])
+    def test_read_throttling(self, throttler_type):
+        if throttler_type == "disk":
+            bundle_dynamic_config = {
+                "%true": {
+                    "config_annotation": "foo",
+                    "medium_throughput_limits" : {
+                        "default" : {
+                            "read_byte_rate" : 50
+                        }
+                    }
+                }
+            }
+            set("//sys/tablet_cell_bundles/@config", bundle_dynamic_config)
 
         sync_create_cells(1)
+        # TODO(tea-mur): Unconditionally account disk usage in medium throttlers for collocated data nodes, YT-24813
+        enable_local_throttling()
 
         self._create_simple_table("//tmp/t", chunk_reader={
-            "enable_local_throttling": True,
             "use_block_cache": False,
             "use_uncompressed_block_cache": False,
             "prefer_local_replicas": False,
@@ -1716,19 +1725,38 @@ class TestAlternativeLookupMethods(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", row)
         sync_flush_table("//tmp/t")
 
-        update_nodes_dynamic_config({
-            "tablet_node": {
-                "throttlers": {
+        def _get_lookup_time(lookup_count=1):
+            start_time = time.time()
+
+            for _ in range(lookup_count):
+                assert lookup_rows("//tmp/t", [{"key": 1}]) == row
+
+            return time.time() - start_time
+
+        assert _get_lookup_time(lookup_count=5) < 1
+
+        if throttler_type == "disk":
+            update_nodes_dynamic_config({
+                "tablet_node" : {
+                    "medium_throttlers" : {
+                        "enable_blob_throttling" : True,
+                    }
+                }
+            })
+        elif throttler_type == "net":
+            update_nodes_dynamic_config({
+                "in_throttlers": {
                     "user_backend_in": {
                         "limit": 50,
                     }
                 }
-            }
-        })
+            })
 
-        assert lookup_rows("//tmp/t", [{"key": 1}]) == row
-        with raises_yt_error(yt_error_codes.RequestThrottled):
-            lookup_rows("//tmp/t", [{"key": 1}])
+        # Wait for throttler to update inner state
+        wait(lambda: _get_lookup_time() > 3)
+
+        # Verify that timings are consistent
+        assert _get_lookup_time() > 3
 
     @authors("akozhikhov")
     @pytest.mark.parametrize("enable_data_node_lookup, enable_hash_chunk_index", [
@@ -1759,7 +1787,7 @@ class TestAlternativeLookupMethods(TestSortedDynamicTablesBase):
             assert lookup_rows("//tmp/t", keys) == rows
 
         remove("//tmp/t/@chunk_reader/lookup_rpc_hedging_delay")
-        set("//tmp/t/@chunk_reader/hedging_manager", {"max_backup_request_ratio": 1.0, "max_hedging_delay": 0})
+        set("//tmp/t/@chunk_reader/hedging_manager", {"secondary_request_ratio": 1.0, "max_hedging_delay": 0})
         sync_unmount_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
@@ -2554,6 +2582,7 @@ class TestLookupSequoia(TestLookup):
             "sequoia_chunk_replicas": {
                 "enable": True,
                 "enable_sequoia_chunk_refresh": True,
+                "enable_global_sequoia_chunk_refresh": False,  # TODO(grphil): Do not apply DELTA_DYNAMIC_MASTER_CONFIG to ground
                 "sequoia_chunk_refresh_period": 100,
                 "replicas_percentage": 100,
                 "fetch_replicas_from_sequoia": True,

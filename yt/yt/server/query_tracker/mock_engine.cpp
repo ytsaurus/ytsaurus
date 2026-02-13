@@ -17,10 +17,9 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMockResult
+struct TMockResult
     : public TYsonStruct
 {
-public:
     TError Error;
     TTableSchemaPtr Schema;
     std::vector<INodePtr> Rows;
@@ -51,14 +50,13 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TMockResult)
-DECLARE_REFCOUNTED_CLASS(TMockResult)
+DECLARE_REFCOUNTED_STRUCT(TMockResult)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMockSettings
+struct TMockSettings
     : public TYsonStruct
 {
-public:
     TDuration Duration;
 
     std::vector<TMockResultPtr> Results;
@@ -75,7 +73,7 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TMockSettings)
-DECLARE_REFCOUNTED_CLASS(TMockSettings)
+DECLARE_REFCOUNTED_STRUCT(TMockSettings)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -88,8 +86,9 @@ public:
         const NYPath::TYPath& stateRoot,
         const TEngineConfigBasePtr& config,
         const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery,
-        const IInvokerPtr& controlInvoker)
-        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery)
+        const IInvokerPtr& controlInvoker,
+        const TDuration notIndexedQueriesTTL)
+        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery, notIndexedQueriesTTL)
         , Settings_(ConvertTo<TMockSettingsPtr>(SettingsNode_))
     { }
 
@@ -167,18 +166,20 @@ public:
 
     IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
     {
-        return New<TMockQueryHandler>(StateClient_, StateRoot_, Config_, activeQuery, GetCurrentInvoker());
+        return New<TMockQueryHandler>(StateClient_, StateRoot_, Config_, activeQuery, GetCurrentInvoker(), NotIndexedQueriesTTL_);
     }
 
-    void Reconfigure(const TEngineConfigBasePtr& config) override
+    void Reconfigure(const TEngineConfigBasePtr& config, const TDuration notIndexedQueriesTTL) override
     {
         Config_ = config;
+        NotIndexedQueriesTTL_ = notIndexedQueriesTTL;
     }
 
 private:
     const IClientPtr StateClient_;
     const TYPath StateRoot_;
     TEngineConfigBasePtr Config_;
+    TDuration NotIndexedQueriesTTL_;
 };
 
 IQueryEnginePtr CreateMockEngine(const NApi::IClientPtr& stateClient, const NYPath::TYPath& stateRoot)

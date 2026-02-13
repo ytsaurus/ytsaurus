@@ -329,9 +329,12 @@ TTableSchemaPtr TJoinClause::GetTableSchema(const TTableSchema& source) const
     }
 
     auto renamedSchema = Schema.GetRenamedSchema();
-    for (const auto& column : renamedSchema->Columns()) {
+    for (auto column : renamedSchema->Columns()) {
         if (ForeignJoinedColumns.contains(column.Name())) {
-            result.push_back(column);
+            if (IsLeft && !column.LogicalType()->IsNullable()) {
+                column.SetLogicalType(OptionalLogicalType(column.LogicalType()));
+            }
+            result.emplace_back(std::move(column));
         }
     }
 
@@ -665,10 +668,12 @@ std::string InferName(TConstBaseQueryPtr query, const TInferNameOptions& options
                     JoinToString(arrayExpressions)));
             } else {
                 std::vector<std::string> selfJoinEquation;
+                selfJoinEquation.reserve(joinClause->SelfEquations.size());
                 for (const auto& equation : joinClause->SelfEquations) {
-                    selfJoinEquation.push_back(InferName(equation.Expression, options));
+                    selfJoinEquation.push_back(InferName(equation, options));
                 }
                 std::vector<std::string> foreignJoinEquation;
+                foreignJoinEquation.reserve(joinClause->ForeignEquations.size());
                 for (const auto& equation : joinClause->ForeignEquations) {
                     foreignJoinEquation.push_back(InferName(equation, options));
                 }
@@ -941,9 +946,7 @@ std::vector<size_t> GetJoinGroups(
             TExtraColumnsChecker extraColumnsChecker(names);
 
             for (const auto& equation : joinClause->SelfEquations) {
-                if (!equation.Evaluated) {
-                    extraColumnsChecker.Visit(equation.Expression);
-                }
+                extraColumnsChecker.Visit(equation);
             }
 
             if (extraColumnsChecker.HasExtraColumns && counter > 0) {
@@ -1461,16 +1464,14 @@ void FromProto(TAggregateItem* original, const NProto::TAggregateItem& serialize
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NProto::TSelfEquation* proto, const TSelfEquation& original)
+void ToProto(NProto::TSelfEquation* proto, const TConstExpressionPtr& original)
 {
-    ToProto(proto->mutable_expression(), original.Expression);
-    proto->set_evaluated(original.Evaluated);
+    ToProto(proto->mutable_expression(), original);
 }
 
-void FromProto(TSelfEquation* original, const NProto::TSelfEquation& serialized)
+void FromProto(TConstExpressionPtr* original, const NProto::TSelfEquation& serialized)
 {
-    FromProto(&original->Expression, serialized.expression());
-    FromProto(&original->Evaluated, serialized.evaluated());
+    FromProto(original, serialized.expression());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

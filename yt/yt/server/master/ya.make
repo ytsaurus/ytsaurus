@@ -8,6 +8,7 @@ SRCS(
     cell_master/alert_manager.cpp
     cell_master/automaton.cpp
     cell_master/bootstrap.cpp
+    cell_master/cell_master_service.cpp
     cell_master/cell_statistics.cpp
     cell_master/config_manager.cpp
     cell_master/config.cpp
@@ -28,7 +29,6 @@ SRCS(
     cell_master/proto/multicell_node_statistics.proto
     cell_master/proto/response_keeper_manager.proto
     cell_master/response_keeper_manager.cpp
-    cell_master/sequoia_reconstructor.cpp
     cell_master/serialize.cpp
     cell_master/snapshot_exporter.cpp
     cell_master/world_initializer.cpp
@@ -129,6 +129,7 @@ SRCS(
     chunk_server/dynamic_store_proxy.cpp
     chunk_server/dynamic_store_type_handler.cpp
     chunk_server/dynamic_store.cpp
+    chunk_server/global_sequoia_chunk_refresher.cpp
     chunk_server/helpers.cpp
     chunk_server/job_controller.cpp
     chunk_server/job_registry.cpp

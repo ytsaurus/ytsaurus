@@ -31,6 +31,7 @@ PEERDIR(
     contrib/ydb/library/yql/dq/actors/compute
     contrib/ydb/library/yql/dq/proto
     contrib/ydb/library/yql/providers/pq/common
+    contrib/ydb/library/yql/providers/pq/gateway/abstract
     contrib/ydb/library/yql/providers/pq/provider
 
     contrib/ydb/public/sdk/cpp/adapters/issue

@@ -178,7 +178,7 @@ private:
         }
     }
 
-    void TraverseShardingDirectoryAndScheduleRemovals(TInstant currentTime, const TString& shardingDirPath) noexcept
+    void TraverseShardingDirectoryAndScheduleRemovals(TInstant currentTime, const std::string& shardingDirPath) noexcept
     {
         auto Logger = ExecNodeLogger()
             .WithTag("ShardingDirPath: %v", shardingDirPath);
@@ -186,7 +186,7 @@ private:
         auto guard = TAsyncSemaphoreGuard();
         if (DynamicConfig_.Acquire()->DirectoryTraversalConcurrency.value_or(Config_->DirectoryTraversalConcurrency) != 0) {
             YT_LOG_INFO("Waiting semaphore to traverse job directory");
-            guard = WaitForUnique(AsyncSemaphore_->AsyncAcquire()).ValueOrThrow();
+            guard = WaitFor(AsyncSemaphore_->AsyncAcquire().AsUnique()).ValueOrThrow();
         }
 
         auto logsStoragePeriod = DynamicConfig_.Acquire()->LogsStoragePeriod.value_or(Config_->LogsStoragePeriod);
@@ -197,7 +197,7 @@ private:
 
         for (const auto& jobDirName : NFS::EnumerateDirectories(shardingDirPath)) {
             auto jobDirPath = NFS::CombinePaths(shardingDirPath, jobDirName);
-            auto jobLogsDirModificationTime = TInstant::Seconds(TFileStat(jobDirPath).MTime);
+            auto jobLogsDirModificationTime = TInstant::Seconds(TFileStat(TString(jobDirPath)).MTime);
             auto removeJobDirectory = BIND(&TJobProxyLogManager::RemoveJobDirectory, MakeStrong(this), Passed(std::move(jobDirPath)));
             if (jobLogsDirModificationTime + logsStoragePeriod <= currentTime) {
                 Bootstrap_->GetStorageHeavyInvoker()->Invoke(std::move(removeJobDirectory));

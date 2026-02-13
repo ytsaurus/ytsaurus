@@ -18,6 +18,7 @@ struct TTable
     : public TRefCounted
     , public NChunkClient::TUserObject
 {
+    NObjectClient::TObjectId SchemaId;
     NTableClient::TTableSchemaPtr Schema;
     NTableClient::TComparator Comparator;
     //! Operand index according to JOIN clause (if any):
@@ -49,9 +50,20 @@ void FormatValue(TStringBuilderBase* builder, const TTablePtr& table, TStringBuf
 ////////////////////////////////////////////////////////////////////////////////
 
 // Fetches tables for given paths.
-// If `skipUnsuitableNodes` is set, skips all non-static-table items,
-// otherwise throws an error for them.
+//
+// * `skipUnsuitableNodes` helps to skip all non-table items and tables that cannot be read
+//   (for example, dyntable with disabled dynamic store read while expected).
+// * `ignoreFetchErrors` helps to ignore errors that may occur during fetch.
+// Otherwise both cases will be considered errors and will be thrown.
 std::vector<TTablePtr> FetchTables(
+    TQueryContext* queryContext,
+    const std::vector<NYPath::TRichYPath>& richPaths,
+    bool skipUnsuitableNodes,
+    bool ignoreFetchErrors,
+    bool enableDynamicStoreRead,
+    NLogging::TLogger logger);
+
+std::vector<TTablePtr> FetchTablesSoft(
     TQueryContext* queryContext,
     const std::vector<NYPath::TRichYPath>& richPaths,
     bool skipUnsuitableNodes,

@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include <yt/yt/library/row_merger/nested_row_merger.h>
+
 #include <yt/yt/core/concurrency/config.h>
 
 #include <yt/yt/core/misc/public.h>
@@ -386,13 +388,14 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("single_column_group_by_default", &TThis::SingleColumnGroupByDefault)
         .Default(true);
 
-    registrar.Parameter("enable_segment_meta_in_blocks", &TThis::EnableSegmentMetaInBlocks)
+    registrar.Parameter("skip_value_blocks_for_missing_keys", &TThis::SkipValueBlocksForMissingKeys)
         .Default(false);
-    registrar.Parameter("enable_column_meta_in_chunk_meta", &TThis::EnableColumnMetaInChunkMeta)
-        .Default(true);
 
     registrar.Parameter("enable_hunk_columnar_profiling", &TThis::EnableHunkColumnarProfiling)
         .Default(false);
+
+    registrar.Parameter("nested_row_discard_policy", &TThis::NestedRowDiscardPolicy)
+        .Optional();
 
     registrar.Parameter("max_hunk_compaction_garbage_ratio", &TThis::MaxHunkCompactionGarbageRatio)
         .InRange(0.0, 1.0)
@@ -451,6 +454,9 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("validate_row_index_in_chaos_replication", &TThis::ValidateRowIndexInChaosReplication)
         .Default(false);
+
+    registrar.Parameter("check_conflict_horizon", &TThis::CheckConflictHorizon)
+        .Default(true);
 
     registrar.Parameter("testing", &TThis::Testing)
         .Default();
@@ -566,6 +572,10 @@ void THunkStorageMountConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(5));
     registrar.Parameter("store_removal_grace_period", &TThis::StoreRemovalGracePeriod)
         .Default(TDuration::Seconds(10));
+
+    registrar.Parameter("scan_backoff_period", &TThis::ScanBackoffPeriod)
+        .Default(TDuration::Minutes(1))
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

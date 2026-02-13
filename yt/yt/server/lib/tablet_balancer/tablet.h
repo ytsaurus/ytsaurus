@@ -55,6 +55,8 @@ struct TTablet final
     NYson::TYsonString GetPerformanceCountersYson(
         const std::vector<std::string>& performanceCountersKeys,
         const NTableClient::TTableSchemaPtr& performanceCountersTableSchema) const;
+
+    TTabletPtr Clone(TTable* table) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTablet)

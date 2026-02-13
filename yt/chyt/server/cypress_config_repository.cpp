@@ -3,9 +3,11 @@
 #include "host.h"
 #include "query_context.h"
 
-#include <yt/yt/ytlib/api/native/client.h>
-
 #include <yt/yt/client/api/cypress_client.h>
+
+#include <yt/yt/core/ytree/convert.h>
+
+#include <yt/yt/ytlib/api/native/client.h>
 
 #include <DBPoco/Util/LayeredConfiguration.h>
 #include <DBPoco/Util/XMLConfiguration.h>
@@ -14,9 +16,10 @@
 
 namespace NYT::NClickHouseServer {
 
-using namespace NYTree;
+using namespace NApi;
 using namespace NConcurrency;
-using namespace NApi::NNative;
+using namespace NYTree;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,9 +46,9 @@ public:
         return Handler_->DictionaryExists(dictionaryName);
     }
 
-    std::optional<DBPoco::Timestamp> getUpdateTime(const std::string& /*dictionaryName*/) override
+    std::optional<DBPoco::Timestamp> getUpdateTime(const std::string& dictionaryName) override
     {
-        return DBPoco::Timestamp::TIMEVAL_MAX;
+        return Handler_->GetDictionaryUpdateTime(dictionaryName);
     }
 
     DB::LoadablesConfigurationPtr load(const std::string& dictionaryName) override
@@ -54,30 +57,47 @@ public:
     }
 
 private:
-    TCypressDictionaryConfigRepositoryPtr Handler_;
+    const TCypressDictionaryConfigRepositoryPtr Handler_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TError ValidateDictionaryName(const std::string& name)
+{
+    try {
+        auto richPath = TRichYPath::Parse(name);
+        auto path = richPath.GetPath();
+        if (path.StartsWith("//") || path.StartsWith("#")) {
+            return TError("Dictionary name cannot start with \"//\" and \"#\" to avoid collisions with a valid YPath.");
+        }
+    } catch (const std::exception& /*ex*/) { }
+
+    // If we caught an exception when parsing TRichYPath,
+    // it means that our name is not a valid path and can be safely used as a dictionary name.
+    return {};
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TCypressDictionaryConfigRepository::TCypressDictionaryConfigRepository(
-    IClientPtr client,
+    NNative::IClientPtr client,
     TDictionaryRepositoryConfigPtr config)
     : Client_(client)
-    , PathToDictionaries_(config->Path)
+    , RootPath_(config->RootPath)
 { }
 
 std::set<std::string> TCypressDictionaryConfigRepository::GetAllDictionaryNames()
 {
-    NApi::TListNodeOptions options;
+    TListNodeOptions options;
     options.Attributes = {"key"};
-    auto resultOrError = WaitFor(Client_->ListNode(PathToDictionaries_, options));
+    auto resultOrError = WaitFor(Client_->ListNode(RootPath_, options));
     if (!resultOrError.IsOK()) {
-        THROW_ERROR_EXCEPTION("Error while loading dictionaries from cypress") << resultOrError;
+        THROW_ERROR_EXCEPTION("Error while loading dictionaries from Cypress") << resultOrError;
     }
     auto node = ConvertTo<IListNodePtr>(resultOrError.Value());
     std::set<std::string> names;
-    for (auto& child : node->GetChildren()) {
-        names.insert(child->Attributes().Get<TString>("key"));
+    for (const auto& child : node->GetChildren()) {
+        names.insert(child->Attributes().Get<std::string>("key"));
     }
     return names;
 }
@@ -87,13 +107,25 @@ bool TCypressDictionaryConfigRepository::DictionaryExists(const std::string& dic
     return WaitFor(Client_->NodeExists(GetPathToConfig(dictionaryName))).ValueOrDefault(false);
 }
 
+std::optional<DBPoco::Timestamp> TCypressDictionaryConfigRepository::GetDictionaryUpdateTime(const std::string& dictionaryName)
+{
+    auto attrYson = WaitFor(Client_->GetNode(Format("%v/@modification_time", GetPathToConfig(dictionaryName))))
+        .ValueOrThrow();
+    auto modificationTime = ConvertTo<TInstant>(attrYson);
+
+    return DBPoco::Timestamp::fromEpochTime(modificationTime.TimeT());
+}
+
 DB::LoadablesConfigurationPtr TCypressDictionaryConfigRepository::LoadDictionary(const std::string& dictionaryName)
 {
-    auto pathToConfig = GetPathToConfig(dictionaryName);
-    NApi::TGetNodeOptions options;
+    TGetNodeOptions options;
     options.Attributes = {"value"};
-    auto configNode = ConvertTo<IStringNodePtr>(WaitFor(Client_->GetNode(pathToConfig, options)).ValueOrThrow());
-    std::stringstream configStream(configNode->GetValue());
+
+    auto configYson = WaitFor(Client_->GetNode(GetPathToConfig(dictionaryName), options))
+        .ValueOrThrow();
+
+    std::stringstream configStream(ConvertTo<IStringNodePtr>(configYson)->GetValue());
+
     DBPoco::AutoPtr<DBPoco::Util::XMLConfiguration> config(new DBPoco::Util::XMLConfiguration);
     config->load(configStream);
     return config;
@@ -110,9 +142,10 @@ void TCypressDictionaryConfigRepository::WriteDictionary(
 
     host->ValidateCliquePermission(TString(context->getClientInfo().initial_user), EPermission::Manage);
 
-    if (name.starts_with("//")) {
-        THROW_ERROR_EXCEPTION("Error while creating dictionary %Qv. Dictionary name cannot start with //.", name);
+    if (auto error = ValidateDictionaryName(name); !error.IsOK()) {
+        THROW_ERROR_EXCEPTION("Error while creating dictionary %Qv", name) << error;
     }
+
     std::stringstream parsedConfigStream;
     config.cast<DBPoco::Util::XMLConfiguration>()->save(parsedConfigStream);
     auto path = GetPathToConfig(name);
@@ -121,17 +154,16 @@ void TCypressDictionaryConfigRepository::WriteDictionary(
     options.Attributes->Set("value", parsedConfigStream.str());
 
     auto resultOrError = WaitFor(client->CreateNode(path, NCypressClient::EObjectType::Document, options));
-    if (resultOrError.IsOK()) {
-        host->ReloadDictionaryGlobally(name);
-    } else {
+    if (!resultOrError.IsOK()) {
         THROW_ERROR_EXCEPTION("Error while writing dictionary %Qv", name) << resultOrError;
     }
+
+    host->ReloadDictionaryGlobally(name);
 }
 
-bool TCypressDictionaryConfigRepository::DeleteDictionary(
+void TCypressDictionaryConfigRepository::DeleteDictionary(
     const DB::ContextPtr& context,
-    const std::string& name,
-    const std::string& databaseName)
+    const DB::StorageID& storageId)
 {
     const auto* queryContext = GetQueryContext(context);
     const auto& client = queryContext->Client();
@@ -139,32 +171,32 @@ bool TCypressDictionaryConfigRepository::DeleteDictionary(
     host->ValidateCliquePermission(TString(context->getClientInfo().initial_user), EPermission::Manage);
 
     const auto& externalDictionariesLoader = context->getExternalDictionariesLoader();
-    if (!externalDictionariesLoader.has(DB::StorageID(databaseName, name).getFullTableName())) {
-        return false;
+    if (!externalDictionariesLoader.has(storageId.getFullTableName())) {
+        return;
     }
 
-    auto path = GetPathToConfig(name);
+    auto path = GetPathToConfig(storageId.table_name);
     auto resultOrError = WaitFor(client->RemoveNode(path));
-    if (resultOrError.IsOK()) {
-        host->ReloadDictionaryGlobally(name);
-        return true;
-    } else if (resultOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-        return false;
-    } else {
-        THROW_ERROR_EXCEPTION("Error while deleting dictionary %Qv", name) << resultOrError;
+    if (!resultOrError.IsOK()) {
+        THROW_ERROR_EXCEPTION("Error while deleting dictionary %Qv", storageId.table_name) << resultOrError;
     }
+
+    // Global reload may fail, but eventually all instances will notice that the dictionary has been deleted
+    // due to periodic updates to ExternalLoader.
+    host->ReloadDictionaryGlobally(storageId.table_name);
 }
 
-TYPath TCypressDictionaryConfigRepository::GetPathToConfig(const std::string& dictionaryName)
+TYPath TCypressDictionaryConfigRepository::GetPathToConfig(const std::string& dictionaryName) const
 {
-    return TYPath(Format("%v/%v", PathToDictionaries_, dictionaryName));
+    return TYPath(Format("%v/%v", RootPath_, ToYPathLiteral(dictionaryName)));
 }
 
 const std::string TCypressDictionaryConfigRepository::CypressConfigRepositoryName = "YT_Cypress";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<DB::IExternalLoaderConfigRepository> CreateExternalLoaderFromCypressConfigRepository(TCypressDictionaryConfigRepositoryPtr cypressDictionaryConfigRepository)
+std::unique_ptr<DB::IExternalLoaderConfigRepository>
+CreateExternalLoaderFromCypressConfigRepository(TCypressDictionaryConfigRepositoryPtr cypressDictionaryConfigRepository)
 {
     return std::make_unique<TExternalLoaderFromCypressConfigRepository>(cypressDictionaryConfigRepository);
 }

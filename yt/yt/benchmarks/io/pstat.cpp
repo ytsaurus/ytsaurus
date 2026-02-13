@@ -39,7 +39,7 @@ TString GetProcessCommand(TProcessId processId)
     return TString(command.data(), 1, command.size() - 2);
 }
 
-std::vector<TProcessId> FindProcessIds(TString command)
+std::vector<TProcessId> FindProcessIds(TStringBuf command)
 {
     std::vector<TProcessId> result;
 

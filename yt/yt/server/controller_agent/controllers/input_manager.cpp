@@ -791,6 +791,7 @@ void TInputManager::FetchInputTablesAttributes()
                     .OmitInaccessibleColumns = Host_->GetSpec()->OmitInaccessibleColumns,
                     .OmitInaccessibleRows = Host_->GetSpec()->OmitInaccessibleRows,
                     .PopulateSecurityTags = true,
+                    .RenameColumns = true,
                 });
 
             for (const auto& table : cluster->InputTables()) {
@@ -919,6 +920,12 @@ void TInputManager::FetchInputTablesAttributes()
             table->Schema,
             table->RowLevelAcl,
             Logger().WithTag("TableIndex: %v", index));
+        YT_LOG_INFO_IF(
+            table->RlsReadSpec,
+            "Input table has non-trivial RLS read spec (Path: %v, TableIndex: %v, RlsReadSpec: %v)",
+            table->GetPath(),
+            index,
+            table->RlsReadSpec);
     }
 
     bool haveTablesWithEnabledDynamicStoreRead = false;
@@ -975,9 +982,12 @@ void TInputManager::FetchInputTablesAttributes()
                 table->Dynamic,
                 table->ColumnRenameDescriptors,
                 /*changeStableName*/ !Host_->GetConfig()->EnableTableColumnRenaming);
-            YT_LOG_DEBUG("Columns of input table are renamed (Path: %v, NewSchema: %v)",
+            YT_LOG_DEBUG(
+                "Columns of input table are renamed "
+                "(Path: %v, NewSchema: %v, RenamedOmittedInaccessibleColumns: %v)",
                 table->GetPath(),
-                *table->Schema);
+                *table->Schema,
+                table->OmittedInaccessibleColumns);
         }
 
         if (Host_->GetOperationType() == EOperationType::RemoteCopy) {
@@ -1058,7 +1068,7 @@ void TInputManager::InitInputChunkScrapers()
                 MakeWeak(Host_),
                 BIND(&TInputManager::OnInputChunkBatchLocated, MakeWeak(this))),
             Host_->GetChunkAvailabilityPolicy(),
-            Logger.WithTag("Cluster", clusterName));
+            Logger.WithTag("Cluster: %v", clusterName));
     }
 
     for (const auto& [chunkId, chunkDescriptor] : InputChunkMap_) {
@@ -1364,10 +1374,13 @@ bool TInputManager::OnInputChunkFailed(TChunkId chunkId, TJobId jobId)
     if (it != InputChunkMap_.end()) {
         YT_LOG_DEBUG("Input chunk has failed (ChunkId: %v, JobId: %v)", chunkId, jobId);
         auto* descriptor = &it->second;
-        auto scraper = GetClusterOrCrash(*descriptor)->ChunkScraper();
-        YT_VERIFY(scraper);
-        scraper->OnChunkBecameUnavailable(chunkId);
-        scraper->Start();
+        if (Host_->GetSpec()->UnavailableChunkTactics == EUnavailableChunkAction::Wait) {
+            // Scrap unavailable chunk only if we need it.
+            auto scraper = GetClusterOrCrash(*descriptor)->ChunkScraper();
+            YT_VERIFY(scraper);
+            scraper->OnChunkBecameUnavailable(chunkId);
+            scraper->Start();
+        }
         OnInputChunkUnavailable(chunkId, descriptor);
         return true;
     }

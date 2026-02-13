@@ -1,4 +1,5 @@
 RECURSE(
+    access_log_viewer
     bulk_acl_checker
     bulk_acl_checker_roren
     id_to_path_mapping
@@ -9,7 +10,7 @@ RECURSE(
 
 IF (NOT OPENSOURCE)
     RECURSE(
-        access_log_viewer
+        abcdapter
         error_manager
         excel
         firehose

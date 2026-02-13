@@ -1,7 +1,7 @@
 #include "bundle_scheduler.h"
 #include "config.h"
-
-#include <span>
+#include "input_state.h"
+#include "mutations.h"
 
 namespace NYT::NCellBalancer {
 
@@ -197,13 +197,31 @@ THashSet<std::string> GetDataCentersToPopulate(
     const std::string& rpcProxyRole,
     const THashMap<std::string, THashSet<std::string>>& perDataCenterAliveProxies,
     const TPerDataCenterSpareProxiesInfo& spareProxies,
-    const TSchedulerInputState& input)
+    const TSchedulerInputState& input,
+    TSchedulerMutations* mutations)
 {
     const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
     const auto& targetConfig = bundleInfo->TargetConfig;
     const auto& zoneInfo = GetOrCrash(input.Zones, bundleInfo->Zone);
 
-    int activeDataCenterCount = std::ssize(zoneInfo->DataCenters) - zoneInfo->RedundantDataCenterCount;
+    if (auto redundantCount = targetConfig->RedundantRpcProxyDataCenterCount;
+        redundantCount && (redundantCount < 0 || *redundantCount >= ssize(zoneInfo->DataCenters)))
+    {
+        mutations->AlertsToFire.push_back({
+            .Id = "invalid_bundle_config",
+            .Description = Format("Invalid value for \"redundant_rpc_proxy_data_center_count\": "
+                "expected in range [%v, %v], got %v",
+                0,
+                ssize(zoneInfo->DataCenters) - 1,
+                redundantCount)
+        });
+
+        return {};
+    }
+
+    int redundantDataCenterCount = targetConfig->RedundantRpcProxyDataCenterCount.value_or(
+         zoneInfo->RedundantDataCenterCount);
+    int activeDataCenterCount = std::ssize(zoneInfo->DataCenters) - redundantDataCenterCount;
     YT_VERIFY(activeDataCenterCount > 0);
     int perDataCenterProxyCount = targetConfig->RpcProxyCount / std::ssize(zoneInfo->DataCenters);
 
@@ -400,7 +418,13 @@ void SetProxyRole(
         proxyRole,
         perDataCenterAliveProxies,
         perDataCenterSpareProxies,
-        input);
+        input,
+        mutations);
+
+    // May happen in case of invalid bundle config (see YT-26888).
+    if (dataCentersToPopulate.empty()) {
+        return;
+    }
 
     const auto& targetConfig = bundleInfo->TargetConfig;
     const auto& zoneInfo = GetOrCrash(input.Zones, bundleInfo->Zone);

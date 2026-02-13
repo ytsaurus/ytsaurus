@@ -38,9 +38,9 @@ void WriteZstdLog(
     output->Flush();
 }
 
-std::vector<TString> ReadZstdLogFrames(const TString& fileName)
+std::vector<std::string> ReadZstdLogFrames(const std::string& fileName)
 {
-    std::vector<TString> frames;
+    std::vector<std::string> frames;
     auto reader = CreateSequentialZstdReader(fileName);
     while (auto frameReader = reader->TryBeginNextFrame()) {
         auto frame = frameReader->ReadAll();
@@ -57,7 +57,7 @@ std::vector<TString> ReadZstdLogFrames(const TString& fileName)
 TEST(TZstdReaderTest, AllowBreakLines)
 {
     auto fileName = GenerateRandomLogFileName();
-    auto payload = TString("first\nsecond");
+    auto payload = std::string("first\nsecond");
     WriteZstdLog(fileName, payload, {.TryNotBreakLines = false});
     auto frames = ReadZstdLogFrames(fileName);
     auto expectedFrames = std::vector{payload};
@@ -67,10 +67,10 @@ TEST(TZstdReaderTest, AllowBreakLines)
 TEST(TZstdReaderTest, TryNotBreakLines)
 {
     auto fileName = GenerateRandomLogFileName();
-    auto payload = TString("first\nsecond\nthird");
+    auto payload = std::string("first\nsecond\nthird");
     WriteZstdLog(fileName, payload, {.TryNotBreakLines = true});
     auto frames = ReadZstdLogFrames(fileName);
-    auto expectedFrames = std::vector{TString("first\nsecond\n"), TString("third")};
+    auto expectedFrames = std::vector{std::string("first\nsecond\n"), std::string("third")};
     EXPECT_EQ(frames, expectedFrames);
 }
 

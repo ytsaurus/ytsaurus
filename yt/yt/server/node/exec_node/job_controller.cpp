@@ -1355,7 +1355,7 @@ private:
 
         const auto& jobReporter = Bootstrap_->GetExecNodeBootstrap()->GetJobReporter();
         request->set_job_reporter_write_failures_count(jobReporter->ExtractWriteFailuresCount());
-        request->set_job_reporter_queue_is_too_large(jobReporter->GetQueueIsTooLarge());
+        request->set_job_reporter_queue_is_too_large(jobReporter->IsQueueIsTooLarge());
 
         // Only for scheduler `cpu` stores `vcpu` actually.
         // In all resource limits and usages we send and get back vcpu instead of cpu.

@@ -138,11 +138,12 @@ private:
         auto originalLinkPath = cypressManager->GetNodePath(context.ServiceTrunkNode, context.Transaction) + context.UnresolvedPathSuffix;
 
         auto enableSymlinkCyclicityCheck = GetDynamicCypressManagerConfig()->EnableSymlinkCyclicityCheck;
+        auto useBetterCheckWhenRewritingPath = GetDynamicCypressManagerConfig()->UseBetterCheckWhenRewritingPath;
         if (enableSymlinkCyclicityCheck) {
             //  Make sure originalLinkPath and originalTargetPath get resolved properly.
             auto* shard = context.Shard;
-            auto linkPath = shard->MaybeRewritePath(originalLinkPath);
-            auto targetPath = shard->MaybeRewritePath(originalTargetPath);
+            auto linkPath = shard->MaybeRewritePath(originalLinkPath, useBetterCheckWhenRewritingPath);
+            auto targetPath = shard->MaybeRewritePath(originalTargetPath, useBetterCheckWhenRewritingPath);
 
             static const std::string nullService;
             static const std::string nullMethod;
@@ -259,6 +260,22 @@ private:
         return implHolder;
     }
 
+    void UpdateGroundUpdateQueueManagerSequenceNumber(TLinkNode* node)
+    {
+        const auto& queueManager = GetBootstrap()->GetGroundUpdateQueueManager();
+        const auto& cypressManager = GetBootstrap()->GetCypressManager();
+
+        auto lastRecordSequenceNumber = queueManager->GetLastRecordSequenceNumber(EGroundUpdateQueue::Sequoia);
+        cypressManager->UpdateGroundUpdateQueueManagerSequenceNumber(node, lastRecordSequenceNumber);
+
+        // Make sure it is correct if node is a branch.
+
+        // We update sequence number for parent to ensure it returns correct child count.
+        if (auto parent = node->GetParent()) {
+            cypressManager->UpdateGroundUpdateQueueManagerSequenceNumber(parent, lastRecordSequenceNumber);
+        }
+    }
+
     void DoSetReachable(TLinkNode* node) override
     {
         TBase::DoSetReachable(node);
@@ -297,6 +314,8 @@ private:
             .TargetPath = node->GetTargetPath(),
         });
 
+        UpdateGroundUpdateQueueManagerSequenceNumber(node);
+
         YT_LOG_DEBUG("Link is reachable (LinkId: %v, LinkPath: %v)",
             node->GetVersionedId(),
             linkPath);
@@ -322,6 +341,8 @@ private:
             .NodeId = node->GetId(),
             .TransactionId = transactionId,
         });
+
+        UpdateGroundUpdateQueueManagerSequenceNumber(node);
 
         YT_LOG_DEBUG("Link is unreachable (LinkId: %v, LinkPath: %v)",
             node->GetVersionedId(),

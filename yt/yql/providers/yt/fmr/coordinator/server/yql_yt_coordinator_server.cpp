@@ -26,7 +26,8 @@ enum class EOperationHandler {
     Ping,
     OpenSession,
     PingSession,
-    ListSessions
+    ListSessions,
+    PrepareOperation
 };
 
 class TReplier: public TRequestReplier {
@@ -98,6 +99,9 @@ private:
         } else if (queryPath == "list_sessions") {
             YQL_ENSURE(httpRequest.Method == "GET");
             return EOperationHandler::ListSessions;
+        } else if (queryPath == "prepare_partition") {
+            YQL_ENSURE(httpRequest.Method == "POST");
+            return EOperationHandler::PrepareOperation;
         }
         return Nothing();
     }
@@ -123,6 +127,7 @@ public:
         THandler openSessionHandler = std::bind(&TFmrCoordinatorServer::OpenSessionHandler, this, std::placeholders::_1);
         THandler pingSessionHandler = std::bind(&TFmrCoordinatorServer::PingSessionHandler, this, std::placeholders::_1);
         THandler listSessionsHandler = std::bind(&TFmrCoordinatorServer::ListSessionsHandler, this, std::placeholders::_1);
+        THandler PrepareOperationHandler = std::bind(&TFmrCoordinatorServer::PrepareOperationHandler, this, std::placeholders::_1);
 
         Handlers_ = std::unordered_map<EOperationHandler, THandler>{
             {EOperationHandler::StartOperation, startOperationHandler},
@@ -135,7 +140,8 @@ public:
             {EOperationHandler::Ping, pingHandler},
             {EOperationHandler::OpenSession, openSessionHandler},
             {EOperationHandler::PingSession, pingSessionHandler},
-            {EOperationHandler::ListSessions, listSessionsHandler}
+            {EOperationHandler::ListSessions, listSessionsHandler},
+            {EOperationHandler::PrepareOperation, PrepareOperationHandler}
         };
     }
 
@@ -303,6 +309,20 @@ private:
 
         auto response = Coordinator_->ListSessions(ListSessionsRequestFromProto(protoRequest)).GetValueSync();
         auto protoResponse = ListSessionsResponseToProto(response);
+
+        THttpResponse httpResponse(HTTP_OK);
+        httpResponse.SetContentType("application/x-protobuf");
+        httpResponse.SetContent(protoResponse.SerializeAsString());
+        return httpResponse;
+    }
+
+    THttpResponse PrepareOperationHandler(THttpInput& input) {
+        YQL_LOG_CTX_ROOT_SESSION_SCOPE(GetLogContext(input));
+        NProto::TPrepareOperationRequest protoRequest;
+        YQL_ENSURE(protoRequest.ParseFromString(input.ReadAll()));
+
+        auto response = Coordinator_->PrepareOperation(PrepareOperationRequestFromProto(protoRequest)).GetValueSync();
+        auto protoResponse = PrepareOperationResponseToProto(response);
 
         THttpResponse httpResponse(HTTP_OK);
         httpResponse.SetContentType("application/x-protobuf");

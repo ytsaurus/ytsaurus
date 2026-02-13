@@ -32,7 +32,7 @@ TEST(TErasureChunkFragmentReadControllerTest, StressTest)
 
         for (int blockIndex = 0; blockIndex < Blocks; ++blockIndex) {
             int blockSize = rng() % MaxBlockSize + 1;
-            TString block;
+            std::string block;
             for (int index = 0; index < blockSize; ++index) {
                 block += static_cast<char>('a' + rng() % 26);
             }
@@ -41,7 +41,7 @@ TEST(TErasureChunkFragmentReadControllerTest, StressTest)
             std::vector<TSharedRef> parts;
             auto partSize = DivCeil<int>(block.size(), codec->GetDataPartCount());
             for (int partIndex = 0; partIndex < codec->GetDataPartCount(); ++partIndex) {
-                TString part;
+                std::string part;
                 for (int index = partIndex * partSize; index < (partIndex + 1) * partSize; ++index) {
                     if (index < std::ssize(block)) {
                         part += block[index];
@@ -106,7 +106,7 @@ TEST(TErasureChunkFragmentReadControllerTest, StressTest)
         replicas.Revision = NHydra::NullRevision;
         for (int index = 0; index < codec->GetTotalPartCount(); ++index) {
             replicas.Replicas.push_back(TChunkReplicaInfo{
-                .ReplicaIndex = index
+                .ReplicaIndex = index,
             });
         }
         controller->SetReplicas(replicas);

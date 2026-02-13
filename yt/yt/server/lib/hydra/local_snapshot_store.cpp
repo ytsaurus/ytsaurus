@@ -44,7 +44,7 @@ class TLocalSnapshotReader
 {
 public:
     TLocalSnapshotReader(
-        TString fileName,
+        std::string fileName,
         int snapshotId,
         IInvokerPtr ioInvoker)
         : FileName_(std::move(fileName))
@@ -83,7 +83,7 @@ public:
     }
 
 private:
-    const TString FileName_;
+    const std::string FileName_;
     const int SnapshotId_;
     const IInvokerPtr IOInvoker_;
 
@@ -106,7 +106,8 @@ private:
             if (!fileHandle.IsOpen()) {
                 THROW_ERROR_EXCEPTION(NHydra::EErrorCode::NoSuchSnapshot, "Failed to open snapshot file");
             }
-            File_.reset(new TFile(fileHandle.Release(), FileName_));
+            // TODO(babenko): migrate to std::string
+            File_.reset(new TFile(fileHandle.Release(), TString(FileName_)));
 
             TUnbufferedFileInput input(*File_);
 
@@ -188,7 +189,7 @@ DEFINE_REFCOUNTED_TYPE(TLocalSnapshotReader)
 ////////////////////////////////////////////////////////////////////////////////
 
 ISnapshotReaderPtr CreateLocalSnapshotReader(
-    TString fileName,
+    std::string fileName,
     int snapshotId,
     IInvokerPtr ioInvoker)
 {
@@ -205,7 +206,7 @@ class TLocalSnapshotWriter
 {
 public:
     TLocalSnapshotWriter(
-        TString fileName,
+        std::string fileName,
         ECodec codec,
         int snapshotId,
         TSnapshotMeta meta,
@@ -229,10 +230,12 @@ public:
                 if (File_) {
                     File_->Close();
                 }
-                NFS::Remove(FileName_ + TempFileSuffix);
+                // TODO(babenko): migrate to std::string
+                NFS::Remove(TString(FileName_) + TempFileSuffix);
             } catch (const std::exception& ex) {
                 YT_LOG_WARNING(ex, "Error removing temporary local snapshot, ignored (FileName: %v)",
-                    FileName_ + TempFileSuffix);
+                    // TODO(babenko): migrate to std::string
+                    TString(FileName_) + TempFileSuffix);
             }
         }
     }
@@ -267,7 +270,7 @@ public:
     DEFINE_SIGNAL_OVERRIDE(void(), Closed);
 
 private:
-    const TString FileName_;
+    const std::string FileName_;
     const ECodec Codec_;
     const int SnapshotId_;
     const TSnapshotMeta Meta_;
@@ -303,7 +306,8 @@ private:
             Codec_);
 
         try {
-            File_.reset(new TFile(FileName_ + TempFileSuffix, CreateAlways | CloseOnExec));
+            // TODO(babenko): migrate to std::string
+            File_.reset(new TFile(TString(FileName_) + TempFileSuffix, CreateAlways | CloseOnExec));
             FileOutput_.reset(new TUnbufferedFileOutput(*File_));
 
             TSnapshotHeader header;
@@ -393,7 +397,8 @@ private:
         File_->Flush();
         File_->Close();
 
-        NFS::Rename(FileName_ + TempFileSuffix, FileName_);
+        // TODO(babenko): migrate to std::string
+        NFS::Rename(TString(FileName_) + TempFileSuffix, TString(FileName_));
 
         Closed_.Fire();
 
@@ -412,7 +417,7 @@ class TUncompressedHeaderlessLocalSnapshotReader
 {
 public:
     TUncompressedHeaderlessLocalSnapshotReader(
-        TString fileName,
+        std::string fileName,
         NProto::TSnapshotMeta meta,
         IInvokerPtr ioInvoker)
         : FileName_(std::move(fileName))
@@ -441,7 +446,7 @@ public:
     }
 
 private:
-    const TString FileName_;
+    const std::string FileName_;
     const NProto::TSnapshotMeta Meta_;
     const IInvokerPtr IOInvoker_;
     const NLogging::TLogger Logger;
@@ -459,7 +464,8 @@ private:
             if (!fileHandle.IsOpen()) {
                 THROW_ERROR_EXCEPTION(NHydra::EErrorCode::NoSuchSnapshot, "Failed to open snapshot file");
             }
-            File_.reset(new TFile(fileHandle.Release(), FileName_));
+            // TODO(babenko): migrate to std::string
+            File_.reset(new TFile(fileHandle.Release(), TString(FileName_)));
 
             FileInput_.reset(new TUnbufferedFileInput(*File_));
 
@@ -487,7 +493,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 ISnapshotReaderPtr CreateUncompressedHeaderlessLocalSnapshotReader(
-    TString fileName,
+    std::string fileName,
     NProto::TSnapshotMeta meta,
     IInvokerPtr ioInvoker)
 {
@@ -504,7 +510,7 @@ class TUncompressedHeaderlessLocalSnapshotWriter
 {
 public:
     TUncompressedHeaderlessLocalSnapshotWriter(
-        TString fileName,
+        std::string fileName,
         IInvokerPtr ioInvoker)
         : FileName_(std::move(fileName))
         , IOInvoker_(std::move(ioInvoker))
@@ -519,10 +525,12 @@ public:
                 if (File_) {
                     File_->Close();
                 }
-                NFS::Remove(FileName_ + TempFileSuffix);
+                // TODO(babenko): migrate to std::string
+                NFS::Remove(TString(FileName_) + TempFileSuffix);
             } catch (const std::exception& ex) {
                 YT_LOG_WARNING(ex, "Error removing temporary local snapshot, ignored (FileName: %v)",
-                    FileName_ + TempFileSuffix);
+                    // TODO(babenko): migrate to std::string
+                    TString(FileName_) + TempFileSuffix);
             }
         }
     }
@@ -557,7 +565,7 @@ public:
     DEFINE_SIGNAL_OVERRIDE(void(), Closed);
 
 private:
-    const TString FileName_;
+    const std::string FileName_;
     const IInvokerPtr IOInvoker_;
     const NLogging::TLogger Logger;
 
@@ -581,7 +589,8 @@ private:
         YT_LOG_DEBUG("Opening uncompressed headerless local snapshot writer");
 
         try {
-            File_.reset(new TFile(FileName_ + TempFileSuffix, CreateAlways | CloseOnExec));
+            // TODO(babenko): migrate to std::string
+            File_.reset(new TFile(TString(FileName_) + TempFileSuffix, CreateAlways | CloseOnExec));
             FileOutput_.reset(new TUnbufferedFileOutput(*File_));
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error opening snapshot %v for writing",
@@ -612,7 +621,8 @@ private:
         File_->Flush();
         File_->Close();
 
-        NFS::Rename(FileName_ + TempFileSuffix, FileName_);
+        // TODO(babenko): migrate to std::string
+        NFS::Rename(TString(FileName_) + TempFileSuffix, TString(FileName_));
 
         Closed_.Fire();
 
@@ -719,15 +729,18 @@ private:
 
         YT_LOG_INFO("Preparing snapshot directory");
 
-        NFS::MakeDirRecursive(path);
+        // TODO(babenko): migrate to std::string
+        NFS::MakeDirRecursive(TString(path));
 
         if (Config_->CleanTemporaryFilesOnStoreInitialize) {
-            NFS::CleanTempFiles(path);
+            // TODO(babenko): migrate to std::string
+            NFS::CleanTempFiles(TString(path));
         }
 
         YT_LOG_INFO("Snapshot scan started");
 
-        auto fileNames = EnumerateFiles(path);
+        // TODO(babenko): migrate to std::string
+        auto fileNames = EnumerateFiles(TString(path));
         for (const auto& fileName : fileNames) {
             auto extension = NFS::GetFileExtension(fileName);
             if (extension != SnapshotExtension) {

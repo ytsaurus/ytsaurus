@@ -1,5 +1,5 @@
 # dialects/postgresql/asyncpg.py
-# Copyright (C) 2005-2025 the SQLAlchemy authors and contributors <see AUTHORS
+# Copyright (C) 2005-2026 the SQLAlchemy authors and contributors <see AUTHORS
 # file>
 #
 # This module is part of SQLAlchemy and is released under
@@ -819,7 +819,7 @@ class AsyncAdapt_asyncpg_connection(AsyncAdapt_terminate, AdaptedConnection):
 
     async def _async_ping(self):
         if self._transaction is None and self.isolation_level != "autocommit":
-            # create a tranasction explicitly to support pgbouncer
+            # create a transaction explicitly to support pgbouncer
             # transaction mode.   See #10226
             tr = self._connection.transaction()
             await tr.start()

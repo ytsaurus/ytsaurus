@@ -1,6 +1,7 @@
 #include "artifact.h"
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/sync_cache.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
@@ -96,10 +97,24 @@ TArtifactKey::operator size_t() const
 
     YT_VERIFY(!data_source().has_table_schema_id());
 
-    if (data_source().has_table_schema()) {
-        for (const auto& column : data_source().table_schema().columns()) {
+    auto hashSchema = [&] (const auto& schemaProto) {
+        for (const auto& column : schemaProto.columns()) {
             HashCombine(result, column.name());
             HashCombine(result, column.type());
+        }
+    };
+
+    if (data_source().has_table_schema()) {
+        hashSchema(data_source().table_schema());
+    }
+
+    if (data_source().has_rls_read_spec()) {
+        HashCombine(result, data_source().rls_read_spec().has_trivial_deny());
+        if (data_source().rls_read_spec().has_predicate()) {
+            HashCombine(result, data_source().rls_read_spec().predicate());
+        }
+        if (data_source().rls_read_spec().has_table_schema()) {
+            hashSchema(data_source().rls_read_spec().table_schema());
         }
     }
 
@@ -130,7 +145,7 @@ TArtifactKey::operator size_t() const
     return result;
 }
 
-bool TArtifactKey::operator == (const TArtifactKey& other) const
+bool TArtifactKey::operator==(const TArtifactKey& other) const
 {
     if (data_source().type() != other.data_source().type())
         return false;
@@ -167,6 +182,36 @@ bool TArtifactKey::operator == (const TArtifactKey& other) const
         auto rhsColumns = FromProto<std::vector<TString>>(other.data_source().column_filter().admitted_names());
         if (lhsColumns != rhsColumns) {
             return false;
+        }
+    }
+
+    if (data_source().has_rls_read_spec() != other.data_source().has_rls_read_spec()) {
+        return false;
+    }
+
+    if (data_source().has_rls_read_spec()) {
+        const auto& rlsReadSpec = data_source().rls_read_spec();
+        const auto& otherRlsReadSpec = other.data_source().rls_read_spec();
+        if (rlsReadSpec.has_trivial_deny() != otherRlsReadSpec.has_trivial_deny()) {
+            return false;
+        }
+        if (rlsReadSpec.has_predicate() != otherRlsReadSpec.has_predicate()) {
+            return false;
+        }
+        if (rlsReadSpec.has_predicate() && rlsReadSpec.predicate() != otherRlsReadSpec.predicate()) {
+            return false;
+        }
+
+        if (rlsReadSpec.has_table_schema() != otherRlsReadSpec.has_table_schema()) {
+            return false;
+        }
+        if (rlsReadSpec.has_table_schema()) {
+            auto lhsSchema = FromProto<TTableSchema>(rlsReadSpec.table_schema());
+            auto rhsSchema = FromProto<TTableSchema>(otherRlsReadSpec.table_schema());
+
+            if (lhsSchema != rhsSchema) {
+                return false;
+            }
         }
     }
 
@@ -222,6 +267,27 @@ bool TArtifactKey::operator == (const TArtifactKey& other) const
     }
 
     return true;
+}
+
+TString TArtifactKey::GetRuntimeGuid() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    // It is a global cache with unique artifact ids of a bounded size CacheMaxSize. It is
+    // hoped for that the number of unique TArtifactKey keys will rarely exceed CacheMaxSize.
+    static constexpr size_t CacheMaxSize = 100'000;
+    static TSimpleLruCache<TArtifactKey, TString> Cache(CacheMaxSize);
+    static YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CacheLock);
+
+    // NB. It is all right that guids can be evicted.
+
+    auto guard = Guard(CacheLock);
+    auto* guid = Cache.Find(*this);
+    if (!guid) {
+        guid = Cache.Insert(*this, ToString(TGuid::Create()));
+    }
+
+    return *guid;
 }
 
 void FormatValue(TStringBuilderBase* builder, const TArtifactKey& key, TStringBuf /*spec*/)

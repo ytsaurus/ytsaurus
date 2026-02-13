@@ -139,6 +139,12 @@ void TDynamicNodeTrackerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("no_restarting_nodes_disposal", &TThis::NoRestartingNodesDisposal)
         .Default(false);
+
+    registrar.Parameter("return_master_cells_connection_configs_on_node_registration", &TThis::ReturnMasterCellsConnectionConfigsOnNodeRegistration)
+        .Default(false);
+
+    registrar.Parameter("return_master_cells_connection_configs_on_node_heartbeat", &TThis::ReturnMasterCellsConnectionConfigsOnNodeHeartbeat)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

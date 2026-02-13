@@ -33,13 +33,24 @@ struct TQueryInput
     std::optional<NTableClient::TColumnarStatistics> TableStatistics;
 };
 
+std::optional<NTableClient::TColumnarStatistics> FetchStatistics(
+    TStorageContext* storageContext,
+    std::vector<NTableClient::TTableSchemaPtr> operandSchemas,
+    std::vector<std::vector<TTablePtr>> tables,
+    const std::vector<std::string>& realColumnNames,
+    NTransactionClient::TTransactionId transactionId);
+
 //! Fetch data slices for given input tables.
 TQueryInput FetchInput(
     TStorageContext* storageContext,
-    const TQueryAnalysisResult& queryAnalysisResult,
+    std::vector<NTableClient::TTableSchemaPtr> operandSchemas,
+    std::vector<std::vector<TTablePtr>> tables,
+    std::vector<std::optional<DB::KeyCondition>> keyConditions,
+    std::vector<NChunkClient::TReadRange> keyReadRanges,
+    bool needTableStatistics,
     const std::vector<std::string>& realColumnNames,
     const std::vector<std::string>& virtualColumnNames,
-    const TClickHouseIndexBuilder& indexBuilder,
+    std::optional<TClickHouseIndexBuilder> indexBuilder,
     NTransactionClient::TTransactionId transactionId);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -32,6 +32,15 @@ extern "C" {
 
 // pycore_code.h ----------------
 #define _PyCode_CODE(CO) _Py_RVALUE((_Py_CODEUNIT *)(CO)->co_code_adaptive)
+
+#ifdef Py_GIL_DISABLED
+static inline _PyCodeArray *
+_PyCode_GetTLBCArray(PyCodeObject *co)
+{
+    return _Py_STATIC_CAST(_PyCodeArray *,
+                           _Py_atomic_load_ptr_acquire(&co->co_tlbc));
+}
+#endif
 // End pycore_code.h ----------
 
 // pycore_interpframe.h ----------

@@ -12,6 +12,7 @@ TEST_SRCS(
     test_producer.py
     test_queue_agent.py
     test_queue_agent_stages.py
+    test_queue_profiling.py
 )
 
 PEERDIR(

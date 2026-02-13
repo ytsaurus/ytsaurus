@@ -1,5 +1,5 @@
 # sql/crud.py
-# Copyright (C) 2005-2025 the SQLAlchemy authors and contributors
+# Copyright (C) 2005-2026 the SQLAlchemy authors and contributors
 # <see AUTHORS file>
 #
 # This module is part of SQLAlchemy and is released under
@@ -104,7 +104,7 @@ _CrudParamSequence = List[_CrudParamElement]
 
 
 class _CrudParams(NamedTuple):
-    single_params: _CrudParamSequence
+    single_params: List[_CrudParamElementStr]
     all_multi_params: List[Sequence[_CrudParamElementStr]]
     is_default_metavalue_only: bool = False
     use_insertmanyvalues: bool = False
@@ -260,7 +260,7 @@ def _get_crud_params(
         }
 
     # create a list of column assignment clauses as tuples
-    values: List[_CrudParamElement] = []
+    values: List[_CrudParamElementStr] = []
 
     if stmt_parameter_tuples is not None:
         _get_stmt_parameter_tuples_params(
@@ -1622,7 +1622,7 @@ def _get_returning_modifiers(compiler, stmt, compile_state, toplevel):
     implicit_returning = (
         # statement itself can veto it
         need_pks
-        # the dialect can veto it if it just doesnt support RETURNING
+        # the dialect can veto it if it just doesn't support RETURNING
         # with INSERT
         and dialect.insert_returning
         # user-defined implicit_returning on Table can veto it
@@ -1634,7 +1634,7 @@ def _get_returning_modifiers(compiler, stmt, compile_state, toplevel):
         and (
             # since we support MariaDB and SQLite which also support lastrowid,
             # decide if we should use lastrowid or RETURNING.  for insert
-            # that didnt call return_defaults() and has just one set of
+            # that didn't call return_defaults() and has just one set of
             # parameters, we can use lastrowid.   this is more "traditional"
             # and a lot of weird use cases are supported by it.
             # SQLite lastrowid times 3x faster than returning,

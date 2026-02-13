@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/master/security_server/detailed_master_memory.h>
 
+#include <yt/yt/server/lib/security_server/helpers.h>
+
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -28,6 +30,8 @@ using namespace NApi::NNative;
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NObjectClient;
+using namespace NSecurityClient;
+using namespace NSecurityServer;
 using namespace NSequoiaClient;
 using namespace NServer;
 using namespace NYson;
@@ -209,7 +213,7 @@ public:
     i64 ChunkHostCellMasterMemory = 0;
     NSecurityServer::TDetailedMasterMemory DetailedMasterMemory;
 
-    TResourceUsage& operator += (const TResourceUsage& other)
+    TResourceUsage& operator+=(const TResourceUsage& other)
     {
         NodeCount += other.NodeCount;
         ChunkCount += other.ChunkCount;
@@ -433,37 +437,67 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+    requires std::is_same_v<T, TInstant> || std::is_same_v<T, TDuration>
+struct TEffectiveExpirationField
+{
+    T Value;
+    TString Path;
+};
+
+struct TEffectiveExpiration
+{
+    std::optional<TEffectiveExpirationField<TInstant>> Time;
+    std::optional<TEffectiveExpirationField<TDuration>> Timeout;
+};
+
+template <class T>
+void Serialize(const TEffectiveExpirationField<T>& field, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("value").Value(field.Value)
+            .Item("path").Value(field.Path)
+        .EndMap();
+}
+
+void Serialize(const TEffectiveExpiration& effectiveExpiration, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("time").Value(effectiveExpiration.Time)
+            .Item("timeout").Value(effectiveExpiration.Timeout)
+        .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TEffectiveAttributeCalculator
     : public INodeVisitor<TCypressChildDescriptor>
 {
 public:
     TEffectiveAttributeCalculator(
         const std::vector<TInternedAttributeKey>& attributeKeys,
-        THashMap<TNodeId, INodePtr>* fetchedNodes)
+        THashMap<TNodeId, INodePtr>* fetchedNodes,
+        TNodeAncestry rootAncestry)
         : AttributeKeys_(attributeKeys)
         , FetchedNodes_(fetchedNodes)
+        , RootAncestry_(rootAncestry)
+        , CurrentPath_(rootAncestry.Back().Path)
     {
         YT_ASSERT(fetchedNodes);
     }
 
-    void ProcessChild(TNodeId parentId, TNodeId childId)
+    void Initialize()
     {
-        const auto* parent = GetNodeAttributes(parentId);
-        auto* child = GetNodeAttributes(childId);
-        for (const auto& key : AttributeKeys_) {
-            switch (key) {
-                case EInternedAttributeKey::Annotation: {
-                    DoInheritAnnotationAttribute(key.Unintern(), parent, child);
-                    break;
-                }
-                case EInternedAttributeKey::AnnotationPath: {
-                    DoInheritAnnotationAttribute(key.Unintern(), parent, child);
-                    break;
-                }
-                default:
-                    YT_ABORT();
-            }
+        CurrentStack_.push_back(TInheritedState::CreateEmpty());
+
+        for (const auto& descriptor : RootAncestry_.Slice(0, std::ssize(RootAncestry_) - 1)) {
+            ProcessNode(descriptor.Id, descriptor.Path, /*serialize*/ false);
         }
+
+        const auto& root = RootAncestry_.Back();
+        ProcessNode(root.Id, root.Path, /*serialize*/ true);
     }
 
     bool ShouldVisit(const TCypressChildDescriptor& descriptor) override
@@ -473,15 +507,78 @@ public:
 
     void OnNodeEntered(const TCypressChildDescriptor& descriptor) override
     {
-        ProcessChild(descriptor.ParentId, descriptor.ChildId);
+        CurrentStack_.emplace_back(CurrentStack_.back());
+        CurrentPath_.Append(descriptor.ChildKey);
+        ProcessNode(descriptor.ChildId, CurrentPath_, /*serialize*/ true);
     }
 
     void OnNodeExited(const TCypressChildDescriptor& /*descriptor*/) override
-    { }
+    {
+        CurrentPath_.RemoveLastSegment();
+        CurrentStack_.pop_back();
+    }
 
 private:
     const std::vector<TInternedAttributeKey>& AttributeKeys_;
     THashMap<TNodeId, INodePtr>* const FetchedNodes_;
+    const TNodeAncestry RootAncestry_;
+
+    TAbsolutePath CurrentPath_;
+
+    struct TInheritedState
+    {
+        IConstNodePtr Annotation;
+        IConstNodePtr AnnotationPath;
+        std::shared_ptr<const TSerializableAccessControlList> Acl;
+        TEffectiveExpiration Expiration;
+        IConstAttributeDictionaryPtr InheritableAttributes;
+
+        static TInheritedState CreateEmpty()
+        {
+            static const TInheritedState EmptyState = {
+                .Annotation = GetEphemeralNodeFactory()->CreateEntity(),
+                .AnnotationPath = GetEphemeralNodeFactory()->CreateEntity(),
+                .Acl = std::make_shared<TSerializableAccessControlList>(),
+                .Expiration = TEffectiveExpiration{},
+                .InheritableAttributes = EmptyAttributes().Clone(),
+            };
+
+            return EmptyState;
+        }
+    };
+    std::vector<TInheritedState> CurrentStack_;
+
+    void ProcessNode(TNodeId nodeId, TAbsolutePathBuf path, bool serialize)
+    {
+        auto& state = CurrentStack_.back();
+        auto* node = GetNodeAttributes(nodeId);
+        for (const auto& key : AttributeKeys_) {
+            switch (key) {
+                case EInternedAttributeKey::Annotation: {
+                    InheritAnnotationAttribute(key.Unintern(), &state.Annotation, node, serialize);
+                    break;
+                }
+                case EInternedAttributeKey::AnnotationPath: {
+                    InheritAnnotationAttribute(key.Unintern(), &state.AnnotationPath, node, serialize);
+                    break;
+                }
+                case EInternedAttributeKey::EffectiveAcl: {
+                    InheritEffectiveAclAttribute(&state.Acl, node, serialize);
+                    break;
+                }
+                case EInternedAttributeKey::EffectiveExpiration: {
+                    InheritEffectiveExpirationAttribute(&state.Expiration, node, path, serialize);
+                    break;
+                }
+                case EInternedAttributeKey::EffectiveInheritableAttributes: {
+                    InheritEffectiveInheritableAttributes(&state.InheritableAttributes, node, serialize);
+                    break;
+                }
+                default:
+                    YT_ABORT();
+            }
+        }
+    }
 
     IAttributeDictionary* GetNodeAttributes(TNodeId nodeId)
     {
@@ -489,19 +586,127 @@ private:
         return node->MutableAttributes();
     }
 
-    static void DoInheritAnnotationAttribute(
+    static void InheritAnnotationAttribute(
         TStringBuf key,
-        const IAttributeDictionary* parent,
-        IAttributeDictionary* child)
+        IConstNodePtr* inheritedState,
+        IAttributeDictionary* node,
+        bool serialize)
     {
-        if (auto value = child->GetYson(key);
-            ConvertToNode(value)->GetType() != ENodeType::Entity)
+        auto value = node->Get<INodePtr>(key);
+
+        if (value->GetType() != ENodeType::Entity) {
+            *inheritedState = value;
+        }
+
+        if (serialize) {
+            node->Set(key, *inheritedState);
+        }
+    }
+
+    static void InheritEffectiveAclAttribute(
+        std::shared_ptr<const TSerializableAccessControlList>* inheritedState,
+        IAttributeDictionary* node,
+        bool serialize)
+    {
+        bool inherit = node->Get<bool>(EInternedAttributeKey::InheritAcl.Unintern());
+        auto acl = node->Get<TSerializableAccessControlList>(EInternedAttributeKey::Acl.Unintern());
+
+        if (inherit &&
+            acl.Entries.empty() &&
+            std::ranges::all_of((*inheritedState)->Entries, [] (const TSerializableAccessControlEntry& ace) {
+                return GetInheritedInheritanceMode(ace.InheritanceMode, 1) == ace.InheritanceMode;
+            }))
         {
+            if (serialize) {
+                node->Set(EInternedAttributeKey::EffectiveAcl.Unintern(), **inheritedState);
+            }
             return;
         }
 
-        auto value = parent->GetYson(key);
-        child->SetYson(key, value);
+        auto effectiveAcl = inherit ? **inheritedState : TSerializableAccessControlList{};
+
+        auto it = std::partition(
+            acl.Entries.begin(),
+            acl.Entries.end(),
+            [] (const TSerializableAccessControlEntry& ace) -> bool {
+                return GetInheritedInheritanceMode(ace.InheritanceMode, 0).has_value();
+            });
+
+        effectiveAcl.Entries.insert(
+            effectiveAcl.Entries.end(),
+            std::make_move_iterator(acl.Entries.begin()),
+            std::make_move_iterator(it));
+
+        if (serialize) {
+            node->Set(EInternedAttributeKey::EffectiveAcl.Unintern(), effectiveAcl);
+        }
+
+        effectiveAcl.Entries.insert(
+            effectiveAcl.Entries.end(),
+            std::make_move_iterator(it),
+            std::make_move_iterator(acl.Entries.end()));
+
+        std::erase_if(
+            effectiveAcl.Entries,
+            [] (TSerializableAccessControlEntry& ace) -> bool {
+                if (auto inheritedMode = GetInheritedInheritanceMode(ace.InheritanceMode, 1)) {
+                    ace.InheritanceMode = *inheritedMode;
+                    return false;
+                }
+                return true;
+            });
+
+        *inheritedState = std::make_shared<const TSerializableAccessControlList>(std::move(effectiveAcl));
+    }
+
+    static void InheritEffectiveExpirationAttribute(
+        TEffectiveExpiration* state,
+        IAttributeDictionary* node,
+        TAbsolutePathBuf path,
+        bool serialize)
+    {
+        if (auto time = node->Find<TInstant>(EInternedAttributeKey::ExpirationTime.Unintern());
+            time.has_value() && (!state->Time.has_value() || *time < state->Time->Value))
+        {
+            auto& field = state->Time.emplace();
+            field.Value = *time;
+            field.Path = path.ToRealPath().Underlying();
+        }
+
+        if (auto timeout = node->Find<TDuration>(EInternedAttributeKey::ExpirationTimeout.Unintern());
+            timeout.has_value() && (!state->Timeout.has_value() || *timeout < state->Timeout->Value))
+        {
+            auto& field = state->Timeout.emplace();
+            field.Value = *timeout;
+            field.Path = path.ToRealPath().Underlying();
+        }
+
+        if (serialize) {
+            node->Set(EInternedAttributeKey::EffectiveExpiration.Unintern(), *state);
+        }
+    }
+
+    static void InheritEffectiveInheritableAttributes(
+        IConstAttributeDictionaryPtr* inheritedState,
+        IAttributeDictionary* node,
+        bool serialize)
+    {
+        const auto& key = EInternedAttributeKey::EffectiveInheritableAttributes.Unintern();
+
+        auto value = node->Find<IMapNodePtr>(key);
+        if (!value) {
+            return;
+        }
+
+        if (value->GetChildCount() > 0) {
+            auto inheritableAttributes = (*inheritedState)->Clone();
+            inheritableAttributes->MergeFrom(value);
+            *inheritedState = std::move(inheritableAttributes);
+        }
+
+        if (serialize) {
+            node->Set(key, *inheritedState);
+        }
     }
 };
 
@@ -565,7 +770,7 @@ public:
                 NodesToFetchFromMaster_.push_back(rootId);
             });
 
-        for (const auto& descriptor : RootAncestry_.Slice(0, std::size(RootAncestry_) - 1)) {
+        for (const auto& descriptor : RootAncestry_.Slice(0, std::ssize(RootAncestry_) - 1)) {
             NodesToFetchFromMaster_.push_back(descriptor.Id);
         }
 
@@ -582,13 +787,12 @@ public:
                     }
                 }
 
-                auto calculator = TEffectiveAttributeCalculator(AttributeKeys_, &fetchedNodes);
-                auto parentId = RootAncestry_.Front().Id;
+                auto calculator = TEffectiveAttributeCalculator(
+                    AttributeKeys_,
+                    &fetchedNodes,
+                    RootAncestry_);
 
-                for (const auto& descriptor : RootAncestry_.Slice(1, std::ssize(RootAncestry_))) {
-                    calculator.ProcessChild(parentId, descriptor.Id);
-                    parentId = descriptor.Id;
-                }
+                calculator.Initialize();
 
                 Visit(RequestedNodes_,
                     [&] (const std::vector<TCypressChildDescriptor>* children) {
@@ -601,7 +805,7 @@ public:
                         }
                     },
                     [&] (const TNodeIdToChildDescriptors* nodeIdToChildren) {
-                        TraverseSequoiaTree(parentId, *nodeIdToChildren, &calculator);
+                        TraverseSequoiaTree(GetRootNodeId(), *nodeIdToChildren, &calculator);
                     },
                     [&] (TNodeId /*rootId*/) { });
 
@@ -807,6 +1011,9 @@ private:
         static constexpr std::array SupportedEffectiveAttributeKeys = {
             EInternedAttributeKey::Annotation,
             EInternedAttributeKey::AnnotationPath,
+            EInternedAttributeKey::EffectiveAcl,
+            EInternedAttributeKey::EffectiveExpiration,
+            EInternedAttributeKey::EffectiveInheritableAttributes,
         };
 
         std::vector<TInternedAttributeKey> effectiveAttributesKeys;
@@ -831,6 +1038,20 @@ private:
                     baseAttributes.push_back(EInternedAttributeKey::AnnotationPath.Unintern());
                     break;
                 }
+                case EInternedAttributeKey::EffectiveAcl: {
+                    baseAttributes.push_back(EInternedAttributeKey::Acl.Unintern());
+                    baseAttributes.push_back(EInternedAttributeKey::InheritAcl.Unintern());
+                    break;
+                }
+                case EInternedAttributeKey::EffectiveExpiration: {
+                    baseAttributes.push_back(EInternedAttributeKey::ExpirationTime.Unintern());
+                    baseAttributes.push_back(EInternedAttributeKey::ExpirationTimeout.Unintern());
+                    break;
+                }
+                case EInternedAttributeKey::EffectiveInheritableAttributes: {
+                    baseAttributes.push_back(EInternedAttributeKey::EffectiveInheritableAttributes.Unintern());
+                    break;
+                }
                 default:
                     break;
             };
@@ -840,6 +1061,7 @@ private:
             return;
         }
 
+        SortUnique(baseAttributes);
         AttributeFilter_.Remove(effectiveAttributes);
         AttributeFilter_.Remove(baseAttributes);
 

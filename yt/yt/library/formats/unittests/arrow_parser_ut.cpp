@@ -632,7 +632,7 @@ std::string MakeDatetimeListArrow(const std::vector<std::vector<i64>>& date64Col
     return MakeOutputFromRecordBatch(recordBatch);
 }
 
-std::string MakeDecimalArrows(std::vector<TString> values, std::vector<std::tuple<int, int, int>> columnParameters)
+std::string MakeDecimalArrows(std::vector<std::string> values, std::vector<std::tuple<int, int, int>> columnParameters)
 {
     auto* pool = arrow20::default_memory_pool();
 
@@ -673,7 +673,7 @@ std::string MakeDecimalArrows(std::vector<TString> values, std::vector<std::tupl
     return MakeOutputFromRecordBatch(recordBatch);
 }
 
-std::string MakeDecimalListArrow(std::vector<TString> values)
+std::string MakeDecimalListArrow(std::vector<std::string> values)
 {
     // Create a single column with one value, which is a list containing all the #values.
     // Type of the list is Decimal128(10, 3).
@@ -939,9 +939,9 @@ TEST(TArrowParserTest, Struct)
 {
     auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("struct", StructLogicalType({
-            {"bar", SimpleLogicalType(ESimpleLogicalValueType::String)},
-            {"foo", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-        })),
+            {"bar", "bar", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"foo", "foo", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+        }, /*removedFieldStableNames*/ {})),
     });
 
     TCollectingValueConsumer collectedRows(tableSchema);
@@ -962,8 +962,8 @@ TEST(TArrowParserTest, StructError)
 {
     auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("struct", StructLogicalType({
-            {"bar", SimpleLogicalType(ESimpleLogicalValueType::String)},
-        })),
+            {"bar", "bar", SimpleLogicalType(ESimpleLogicalValueType::String)},
+        }, /*removedFieldStableNames*/ {})),
     });
 
     TCollectingValueConsumer collectedRows(tableSchema);
@@ -989,7 +989,7 @@ TEST(TArrowParserTest, DecimalVariousPrecisions)
 
     TCollectingValueConsumer collectedRows(tableSchema);
 
-    std::vector<TString> values = {"3.141", "0.000", "-2.718", "9999999.999"};
+    std::vector<std::string> values = {"3.141", "0.000", "-2.718", "9999999.999"};
 
     auto parser = CreateParserForArrow(&collectedRows);
 
@@ -997,26 +997,26 @@ TEST(TArrowParserTest, DecimalVariousPrecisions)
     parser->Finish();
 
     auto collectStrings = [&] (TStringBuf columnName) {
-        std::vector<TString> result;
+        std::vector<std::string> result;
         for (size_t index = 0; index < values.size(); ++index) {
             result.push_back(collectedRows.GetRowValue(index, columnName).AsString());
         }
         return result;
     };
 
-    std::vector<TString> expectedValues_10_3 =
+    std::vector<std::string> expectedValues_10_3 =
         {"\x80\x00\x00\x00\x00\x00\x0c\x45"s, "\x80\x00\x00\x00\x00\x00\x00\x00"s, "\x7f\xff\xff\xff\xff\xff\xf5\x62"s, "\x80\x00\x00\x02\x54\x0b\xe3\xff"s};
-    std::vector<TString> expectedValues_35_3 =
+    std::vector<std::string> expectedValues_35_3 =
         {
             "\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0c\x45"s, "\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"s,
             "\x7f\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xf5\x62"s, "\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x54\x0b\xe3\xff"s,
         };
-    std::vector<TString> expectedValues_38_3 =
+    std::vector<std::string> expectedValues_38_3 =
         {
             "\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0c\x45"s, "\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"s,
             "\x7f\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xf5\x62"s, "\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x54\x0b\xe3\xff"s
         };
-    std::vector<TString> expectedValues_76_3 =
+    std::vector<std::string> expectedValues_76_3 =
         {
             "\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0c\x45"s,
             "\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"s,
@@ -1095,7 +1095,7 @@ TEST(TArrowParserTest, TzType)
     parser->Read(MakeTzTypeArrow({row}));
     parser->Finish();
 
-    TString stringValue;
+    std::string stringValue;
 
     stringValue = GetString(collectedRows.GetRowValue(0, "tzDateColumn"));
     auto dateValue = NTzTypes::ParseTzValue<ui16>(stringValue);
@@ -1141,7 +1141,7 @@ TEST(TArrowParserTest, TzTypeName)
     parser->Read(MakeTzDateTypeArrow({42}));
     parser->Finish();
 
-    TString stringValue;
+    std::string stringValue;
 
     stringValue = GetString(collectedRows.GetRowValue(0, "tzDateColumn"));
     auto dateValue = NTzTypes::ParseTzValue<ui16>(stringValue);
@@ -1238,15 +1238,15 @@ TEST(TArrowParserTest, ListOfDecimals)
 
     TCollectingValueConsumer collectedRows(tableSchema);
 
-    std::vector<TString> values = {"3.141", "0.000", "-2.718", "9999999.999"};
+    std::vector<std::string> values = {"3.141", "0.000", "-2.718", "9999999.999"};
 
     auto parser = CreateParserForArrow(&collectedRows);
 
     parser->Read(MakeDecimalListArrow(values));
     parser->Finish();
 
-    auto firstList = ConvertTo<std::vector<TString>>(GetComposite(collectedRows.GetRowValue(0, "list")));
-    std::vector<TString> secondList = {
+    auto firstList = ConvertTo<std::vector<std::string>>(GetComposite(collectedRows.GetRowValue(0, "list")));
+    std::vector<std::string> secondList = {
         "\x80\x00\x00\x00\x00\x00\x0c\x45"s, "\x80\x00\x00\x00\x00\x00\x00\x00"s,
         "\x7f\xff\xff\xff\xff\xff\xf5\x62"s, "\x80\x00\x00\x02\x54\x0b\xe3\xff"s
     };
@@ -1326,7 +1326,7 @@ TEST(TArrowParserTest, WrongListInput)
 TEST(TArrowParserTest, EmptyStruct)
 {
     auto tableSchema = New<TTableSchema>(std::vector{
-        TColumnSchema("struct", StructLogicalType({})),
+        TColumnSchema("struct", StructLogicalType({}, /*removedFieldStableNames*/ {})),
     });
 
     TCollectingValueConsumer collectedRows(tableSchema);
@@ -1349,7 +1349,7 @@ TEST(TArrowParserTest, EmptyStruct)
 TEST(TArrowParserTest, InvalidEmptyStruct)
 {
     auto tableSchema = New<TTableSchema>(std::vector{
-        TColumnSchema("struct", StructLogicalType({})),
+        TColumnSchema("struct", StructLogicalType({}, /*removedFieldStableNames*/ {})),
     });
 
     TCollectingValueConsumer collectedRows(tableSchema);
@@ -1364,7 +1364,6 @@ TEST(TArrowParserTest, InvalidEmptyStruct)
         std::exception,
         "YT \"struct\" type has no fields, but no metadata found with the key");
 }
-
 
 TEST(TArrowParserTest, IncorrectInput)
 {

@@ -12,6 +12,7 @@
 #include <yt/yt/ytlib/scheduler/config.h>
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
+#include <yt/yt/ytlib/table_client/row_level_security.h>
 #include <yt/yt/ytlib/table_client/samples_fetcher.h>
 
 #include <yt/yt/library/query/base/public.h>
@@ -57,6 +58,8 @@ struct TUserFile
 
     // This field is used only during file size validation only for table chunks with column selectors.
     std::vector<NChunkClient::TInputChunkPtr> Chunks;
+
+    std::optional<NTableClient::TRlsReadSpec> RlsReadSpec;
 
     PHOENIX_DECLARE_TYPE(TUserFile, 0x3ba6ea91);
 };

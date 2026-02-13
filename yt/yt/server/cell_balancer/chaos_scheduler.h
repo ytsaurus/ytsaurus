@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cypress_bindings.h"
+#include "mutations.h"
 
 namespace NYT::NCellBalancer {
 

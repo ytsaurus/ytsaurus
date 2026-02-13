@@ -50,7 +50,8 @@ public:
     //! Inform slot location about tmpfses to be used.
     void TakeIntoAccountTmpfsVolumes(
         int slotIndex,
-        const std::vector<TTmpfsVolumeParams>& TmpfsVolumes);
+        const IVolumePtr& rootVolume,
+        const std::vector<TTmpfsVolumeResult>& volumeResults);
 
     TFuture<void> MakeSandboxCopy(
         TJobId jobId,
@@ -70,7 +71,10 @@ public:
         const TString& linkPath,
         bool executable);
 
-    TFuture<void> MakeSandboxBind(
+    //! Create file for container bind with proper ownership. We do it since
+    //! porto creates bind target with root ownership if bind target does not
+    //! exist. This is not what we need so we create bind target ourselves.
+    TFuture<void> MakeFileForSandboxBind(
         TJobId jobId,
         int slotIndex,
         const TString& artifactName,
@@ -115,9 +119,6 @@ public:
 
     TString GetSandboxPath(int slotIndex, ESandboxKind sandboxKind) const;
 
-    //! Returns path relative to location-path, that is, a pathname after location-path.
-    TString GetPathRelativeToLocation(const TString& path) const;
-
     //! nullopt in #destinationPath stands for streaming into the pipe.
     void OnArtifactPreparationFailed(
         TJobId jobId,
@@ -135,6 +136,12 @@ public:
     void OnDynamicConfigChanged(const TSlotManagerDynamicConfigPtr& config);
 
     TFuture<void> CreateSlotDirectories(const IVolumePtr& rootVolume, int userId) const;
+
+    TFuture<void> CreateTmpfsDirectoriesInsideSandbox(const TString& userSandboxPath, const std::vector<TTmpfsVolumeParams>& volumeParams) const;
+
+    TFuture<void> ValidateRootFS(const IVolumePtr& rootVolume) const;
+
+    void ValidateEnabled() const;
 
 private:
     const TSlotLocationConfigPtr Config_;
@@ -169,8 +176,21 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SlotsLock_);
 
-    //! Tmpfs paths relative to location-path.
-    std::set<TString> TmpfsPaths_;
+    class TSandboxTmpfsData
+    {
+    public:
+        bool IsInsideTmpfs(const TString& path, const NLogging::TLogger& Logger) const;
+        void AddSandboxPath(TString&& sandboxPath);
+        void AddTmpfsPath(TString&& tmpfsPath);
+
+    private:
+        std::optional<TString> TryGetPathRelativeToSandbox(const TString& path) const;
+
+        std::set<TString> SandboxPaths_;
+        std::set<TString> TmpfsPaths_;
+    };
+
+    THashMap<int, TSandboxTmpfsData> SandboxTmpfsData_;
     THashSet<int> SlotsWithQuota_;
     THashMap<int, TUserSandboxOptions> SandboxOptionsPerSlot_;
     THashMap<int, TDiskStatistics> DiskStatisticsPerSlot_;
@@ -189,11 +209,9 @@ private:
 
     NProfiling::TBufferedProducerPtr MakeCopyMetricBuffer_ = New<NProfiling::TBufferedProducer>();
 
-    void ValidateEnabled() const;
-
     static void ValidateNotExists(const TString& path);
 
-    bool IsInsideTmpfs(const TString& path) const;
+    bool IsInsideTmpfs(int slotIndex, const TString& path) const;
 
     void EnsureNotInUse(const TString& path) const;
 

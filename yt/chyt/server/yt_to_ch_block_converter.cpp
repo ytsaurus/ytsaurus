@@ -2,10 +2,14 @@
 
 #include "yt_to_ch_column_converter.h"
 
+#include <library/cpp/iterator/zip.h>
+
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
+
+#include <yt/yt/core/ytree/attributes.h>
 
 #include <library/cpp/iterator/enumerate.h>
 
@@ -23,6 +27,7 @@ class TYTToCHBlockConverter::TImpl
 public:
     TImpl(
         const std::vector<TColumnSchema>& readColumnSchemas,
+        const std::vector<NYTree::IAttributeDictionaryPtr>& columnAttributes,
         const TNameTablePtr& nameTable,
         const TCompositeSettingsPtr& compositeSettings,
         bool optimizeDistinctRead)
@@ -35,11 +40,13 @@ public:
         DB::ColumnsWithTypeAndName headerColumnTypeAndNames;
         headerColumnTypeAndNames.reserve(columnCount);
 
-        for (const auto& columnSchema : readColumnSchemas) {
+        YT_VERIFY(columnAttributes.empty() || readColumnSchemas.size() == columnAttributes.size());
+        for (int i = 0; i < std::ssize(readColumnSchemas); ++i) {
             const auto& converter = ColumnConverters_.emplace_back(
-                TComplexTypeFieldDescriptor(columnSchema),
-                compositeSettings);
-            headerColumnTypeAndNames.emplace_back(converter.GetDataType(), columnSchema.Name());
+                TComplexTypeFieldDescriptor(readColumnSchemas[i]),
+                compositeSettings,
+                columnAttributes.empty() ? false : columnAttributes[i]->Get<bool>(LowCardinalityAttribute, false));
+                headerColumnTypeAndNames.emplace_back(converter.GetDataType(), readColumnSchemas[i].Name());
         }
 
         HeaderBlock_ = DB::Block(std::move(headerColumnTypeAndNames));
@@ -91,8 +98,9 @@ public:
                     }
                     if (ytColumn->Dictionary) {
                         if (ytColumn->Dictionary->ZeroMeansNull) {
-                            for (const auto& index : ytColumn->GetTypedValues<ui32>()) {
-                                if (index == 0) {
+                            auto dictionaryIndexes = ytColumn->GetTypedValues<ui32>();
+                            for (i64 index = ytColumn->StartIndex; index < ytColumn->StartIndex + ytColumn->ValueCount; ++index) {
+                                if (dictionaryIndexes[index] == 0) {
                                     needConsumeNull = true;
                                     break;
                                 }
@@ -183,10 +191,11 @@ private:
 
 TYTToCHBlockConverter::TYTToCHBlockConverter(
     const std::vector<TColumnSchema>& readColumnSchemas,
+    const std::vector<NYTree::IAttributeDictionaryPtr>& columnAttributes,
     const TNameTablePtr& nameTable,
     const TCompositeSettingsPtr& compositeSettings,
     bool optimizeDistinctRead)
-    : Impl_(std::make_unique<TImpl>(readColumnSchemas, nameTable, compositeSettings, optimizeDistinctRead))
+    : Impl_(std::make_unique<TImpl>(readColumnSchemas, columnAttributes, nameTable, compositeSettings, optimizeDistinctRead))
 { }
 
 TYTToCHBlockConverter::TYTToCHBlockConverter(TYTToCHBlockConverter&& other) = default;

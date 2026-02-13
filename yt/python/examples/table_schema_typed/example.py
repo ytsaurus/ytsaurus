@@ -8,8 +8,8 @@ import yt.wrapper
 from yt.wrapper.schema import TableSchema, Uint64
 
 import yandex.type_info.typing as ti
-# для Аркадийной сборки предпочтительно использовать
-# yt.type_info.typing (см https://yt.yandex-team.ru/docs/api/python/start#faq)
+# It is recommended using `yt.type_info.typing` (see https://yt.yandex-team.ru/docs/api/python/start#faq)
+# for Arcadia build
 
 
 @yt.wrapper.yt_dataclass
@@ -40,28 +40,28 @@ def main():
         StaffEntry(id=1, name="Alexey", meetings=[Meeting(id=6)]),
     ]
 
-    # Самый правильный способ создать таблицу со схемой — просто начать
-    # писать в неё датакласс.
+    # Correct way to create a table with a schema is start
+    # writing a dataclass into it.
     client.write_table_structured(table, StaffEntry, rows)
 
-    # Напечатаем выведенную схему.
+    # Printing the outputed schema.
     schema = TableSchema.from_yson_type(client.get(yt.wrapper.ypath_join(table, "@schema")))
     print("***** Inferred schema *****")
     print(schema)
 
-    # Может потребоваться создать таблицу с сортированной схемой.
-    # В таком случае стоит использовать метод build_schema_sorted_by().
+    # You may need to create a table with a sorted schema.
+    # Than use `build_schema_sorted_by()` method.
     sorted_table = "//tmp/{}-table-schema-typed-sorted".format(getpass.getuser())
     sorted_schema = schema.build_schema_sorted_by(["name"])
     client.create("table", sorted_table, attributes={"schema": sorted_schema}, ignore_existing=True)
 
     client.write_table_structured(table, StaffEntry, sorted(rows, key=lambda r: r.name))
 
-    # Создавать схему можно и вручную с помощью builder-интерфейса.
-    # Обратите внимание, что типы задаются с помощью библиотеки type_info,
+    # You can create a schema also manually using the builder interface.
+    # Note that types are specified using the type_info library,
     # https://a.yandex-team.ru/arc_vcs/library/cpp/type_info/docs/main.md.
     #
-    # NB. Типу str из Python 3 соответствует ti.Utf8, а bytes — ti.String.
+    # NB. The str type from Python 3 corresponds to ti.Utf8, and bytes — to ti.String.
     handmade_schema = (
         TableSchema()
         .add_column("id", ti.Uint64)

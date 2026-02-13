@@ -214,7 +214,7 @@ public:
             TWatcherLockOptions{
                 .LockPath = GetPoolTreesLockPath(),
                 .CheckBackoff = Config_->PoolTreesLockCheckBackoff,
-                .WaitTimeout = Config_->PoolTreesLockTransactionTimeout
+                .WaitTimeout = Config_->PoolTreesLockTransactionTimeout,
             });
 
         MasterConnector_->SetCustomWatcher(
@@ -1695,7 +1695,7 @@ public:
         if (Config_->UpdateLastMeteringLogTime) {
             return MasterConnector_->UpdateLastMeteringLogTime(time);
         } else {
-            return VoidFuture;
+            return OKFuture;
         }
     }
 

@@ -52,7 +52,7 @@ static constexpr double ForgetReadLimitProbability = 0.5;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool operator == (const TLegacyReadLimit& lhs, const TLegacyReadLimit& rhs)
+bool operator==(const TLegacyReadLimit& lhs, const TLegacyReadLimit& rhs)
 {
     return lhs.AsProto().DebugString() == rhs.AsProto().DebugString();
 }
@@ -82,7 +82,7 @@ public:
     TLegacyReadLimit UpperLimit;
 };
 
-bool operator < (const TChunkInfo& lhs, const TChunkInfo& rhs)
+bool operator<(const TChunkInfo& lhs, const TChunkInfo& rhs)
 {
     if (lhs.Chunk->GetId() != rhs.Chunk->GetId()) {
         return lhs.Chunk->GetId() < rhs.Chunk->GetId();
@@ -104,7 +104,7 @@ bool operator < (const TChunkInfo& lhs, const TChunkInfo& rhs)
     return false;
 }
 
-bool operator == (const TChunkInfo& lhs, const TChunkInfo& rhs)
+bool operator==(const TChunkInfo& lhs, const TChunkInfo& rhs)
 {
     return lhs.Chunk->GetId() == rhs.Chunk->GetId()
         && lhs.RowIndex == rhs.RowIndex
@@ -113,7 +113,7 @@ bool operator == (const TChunkInfo& lhs, const TChunkInfo& rhs)
         && lhs.UpperLimit == rhs.UpperLimit;
 }
 
-std::ostream& operator << (std::ostream& os, const TChunkInfo& chunkInfo)
+std::ostream& operator<<(std::ostream& os, const TChunkInfo& chunkInfo)
 {
     os << "ChunkInfo(Id=" << ToString(chunkInfo.Chunk->GetId())
        << ", RowIndex=" << ToString(chunkInfo.RowIndex)
@@ -1740,8 +1740,8 @@ class TTraverseWithKeyColumnCount
     : public TChunkTreeTraversingTest
     , public ::testing::WithParamInterface<std::tuple<
         int,
-        TString,
-        TString,
+        std::string,
+        std::string,
         std::optional<TLegacyReadLimit>,
         std::optional<TLegacyReadLimit>
     >>

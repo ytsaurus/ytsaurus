@@ -1224,6 +1224,30 @@ class TestOperationOrchid(YTEnvSetup):
         wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/title", default="") == "op_title")
         wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/user", default="") == "root")
 
+    @authors("renadeen")
+    def test_pending_operation_start_time(self):
+        # Test that start_time is properly initialized for pending operations.
+        # Before the fix (YT-26651), start_time was not initialized for pending operations
+        # and was equal to epoch time (1970-01-01).
+
+        create_pool("limited_pool", attributes={"max_running_operation_count": 1})
+
+        running_op = run_sleeping_vanilla(spec={"pool": "limited_pool"})
+        wait(lambda: running_op.get_state() == "running")
+
+        pending_op = run_sleeping_vanilla(spec={"pool": "limited_pool"})
+        wait(lambda: pending_op.get_state() == "pending")
+
+        wait(lambda: exists(scheduler_orchid_operation_path(pending_op.id)))
+        start_time = get(scheduler_orchid_operation_path(pending_op.id) + "/start_time")
+
+        parsed_start_time = parse_yt_time(start_time)
+
+        # Verify operation start time is close to current time (within 1 minute).
+        current_time = get_current_time()
+        time_diff = abs((current_time - parsed_start_time).total_seconds())
+        assert time_diff < 60, \
+            f"Start time {parsed_start_time} is too far from current time {current_time} (diff: {time_diff}s)"
 
 ##################################################################
 
@@ -2073,6 +2097,31 @@ class TestControllerAgentDisconnectionDuringUnregistration(YTEnvSetup):
         time.sleep(15)
 
         assert op.get_state() == "completed"
+
+
+class TestControllerAgentScheduleOperationInEmptyTree(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 0
+    NUM_SCHEDULERS = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "safe_online_node_count": 0,
+        },
+    }
+
+    @authors("renadeen")
+    def test_schedule_operation_in_empty_tree(self):
+        op1 = run_sleeping_vanilla()
+
+        op1.wait_for_state("failed")
+
+        update_controller_agent_config("fail_operations_in_empty_trees", False)
+
+        op2 = run_sleeping_vanilla()
+        op2.wait_for_state("running")
+        time.sleep(20.0)
+        assert op2.get_state() == "running"
 
 
 ##################################################################

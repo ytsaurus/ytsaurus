@@ -117,6 +117,10 @@ class MasterSnapshotsValidator():
             "--config", cypress_helpers.basename(self._get_config_path(cell_tag)),
             "--validate-snapshot", snapshot_name,
         ]
+
+        if self._abort_on_alert:
+            command_line.append("--abort-on-alert")
+
         proc = subprocess.Popen(command_line, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         try:
             stdout, stderr = proc.communicate(timeout=self._validation_timeout)
@@ -342,6 +346,7 @@ def _parse_arguments():
     # Misc
     parser.add_argument("--number-of-snapshots-to-validate-per-cell", type=int, default=2)
     parser.add_argument("--number-of-snapshots-to-consider", type=int, default=30)
+    parser.add_argument("--abort-on-alert", action="store_true")
 
     return parser.parse_args()
 
@@ -425,6 +430,7 @@ def _prepare_snapshots_validator(yt_client, args):
         total_validation_timeout=args.total_validation_timeout,
         use_porto_memory_tracking=args.use_porto_memory_tracking,
         custom_snapshot_validation=use_custom_yt_version or args.validate_via_trunk,
+        abort_on_alert=args.abort_on_alert,
         cypress_lock_path=args.cypress_lock_path)
 
     return master_snapshots_validator

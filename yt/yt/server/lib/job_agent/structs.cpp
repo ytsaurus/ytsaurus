@@ -33,6 +33,9 @@ void TTimeStatistics::AddSamplesTo(TStatistics* statistics) const
     if (PrepareRootFSDuration) {
         statistics->AddSample("/time/prepare_root_fs"_SP, PrepareRootFSDuration->MilliSeconds());
     }
+    if (ValidateRootFSDuration) {
+        statistics->AddSample("/time/validate_root_fs"_SP, ValidateRootFSDuration->MilliSeconds());
+    }
     if (PrepareGpuCheckFSDuration) {
         statistics->AddSample("/time/prepare_gpu_check_fs"_SP, PrepareGpuCheckFSDuration->MilliSeconds());
     }
@@ -54,6 +57,7 @@ bool TTimeStatistics::IsEmpty() const
         !PrepareDuration &&
         !ArtifactsCachingDuration &&
         !PrepareRootFSDuration &&
+        !ValidateRootFSDuration &&
         !PrepareTmpfsDuration &&
         !PrepareGpuCheckFSDuration &&
         !GpuCheckDuration;
@@ -75,6 +79,9 @@ void TTimeStatistics::RegisterMetadata(auto&& registrar)
 
     PHOENIX_REGISTER_FIELD(8, PrepareTmpfsDuration,
         .SinceVersion(NControllerAgent::ESnapshotVersion::PrepareTmpfsVolumes));
+
+    PHOENIX_REGISTER_FIELD(9, ValidateRootFSDuration,
+        .SinceVersion(NControllerAgent::ESnapshotVersion::ValidateRootFS));
 }
 
 void ToProto(
@@ -92,6 +99,9 @@ void ToProto(
     }
     if (timeStatistics.PrepareRootFSDuration) {
         timeStatisticsProto->set_prepare_root_fs_duration(ToProto(*timeStatistics.PrepareRootFSDuration));
+    }
+    if (timeStatistics.ValidateRootFSDuration) {
+        timeStatisticsProto->set_validate_root_fs_duration(ToProto(*timeStatistics.ValidateRootFSDuration));
     }
     if (timeStatistics.PrepareTmpfsDuration) {
         timeStatisticsProto->set_prepare_tmpfs_duration(ToProto(*timeStatistics.PrepareTmpfsDuration));
@@ -122,6 +132,9 @@ void FromProto(
     }
     if (timeStatisticsProto.has_prepare_root_fs_duration()) {
         timeStatistics->PrepareRootFSDuration = FromProto<TDuration>(timeStatisticsProto.prepare_root_fs_duration());
+    }
+    if (timeStatisticsProto.has_validate_root_fs_duration()) {
+        timeStatistics->ValidateRootFSDuration = FromProto<TDuration>(timeStatisticsProto.validate_root_fs_duration());
     }
     if (timeStatisticsProto.has_prepare_tmpfs_duration()) {
         timeStatistics->PrepareTmpfsDuration = FromProto<TDuration>(timeStatisticsProto.prepare_tmpfs_duration());
@@ -154,6 +167,9 @@ void Serialize(const TTimeStatistics& timeStatistics, NYson::IYsonConsumer* cons
             })
             .DoIf(static_cast<bool>(timeStatistics.PrepareRootFSDuration), [&] (auto fluent) {
                 fluent.Item("prepare_root_fs").Value(*timeStatistics.PrepareRootFSDuration);
+            })
+            .DoIf(static_cast<bool>(timeStatistics.ValidateRootFSDuration), [&] (auto fluent) {
+                fluent.Item("validate_root_fs").Value(*timeStatistics.ValidateRootFSDuration);
             })
             .DoIf(static_cast<bool>(timeStatistics.PrepareTmpfsDuration), [&] (auto fluent) {
                 fluent.Item("prepare_tmpfs").Value(*timeStatistics.PrepareTmpfsDuration);

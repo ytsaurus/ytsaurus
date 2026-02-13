@@ -185,8 +185,7 @@ message TAggregateItem
 message TSelfEquation
 {
     required TExpression expression = 1;
-    // COMPAT(sabdenovch): This field is deprecated and is always false.
-    required bool evaluated = 2;
+    reserved 2; // deprecated
 }
 
 message TJoinClause

@@ -21,6 +21,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <library/cpp/iterator/enumerate.h>
+
 namespace NYT::NQueueClient {
 
 using namespace NConcurrency;
@@ -95,6 +97,7 @@ TQueueTableRow RowFromRecord(const NRecords::TQueueObject& record)
         .QueueAgentStage = record.QueueAgentStage,
         .ObjectId = record.ObjectId,
         .QueueAgentBanned = record.QueueAgentBanned,
+        .QueueProfilingTag = record.QueueProfilingTag,
         .SynchronizationError = FromOptionalYsonString<TError>(record.SynchronizationError),
     };
 }
@@ -122,6 +125,7 @@ NRecords::TQueueObject RecordFromRow(const TQueueTableRow& row)
         .ObjectId = row.ObjectId,
         .SynchronizationError = ToOptionalYsonString(row.SynchronizationError),
         .QueueAgentBanned = row.QueueAgentBanned,
+        .QueueProfilingTag = row.QueueProfilingTag,
     };
 }
 
@@ -143,6 +147,7 @@ TConsumerTableRow RowFromRecord(const NRecords::TConsumerObject& record)
         .Schema = std::move(schema),
         .QueueAgentStage = record.QueueAgentStage,
         .QueueAgentBanned = record.QueueAgentBanned,
+        .QueueConsumerProfilingTag = record.QueueConsumerProfilingTag,
         .SynchronizationError = FromOptionalYsonString<TError>(record.SynchronizationError),
     };
 }
@@ -172,6 +177,7 @@ NRecords::TConsumerObject RecordFromRow(const TConsumerTableRow& row)
         .QueueAgentStage = row.QueueAgentStage,
         .SynchronizationError = ToOptionalYsonString(row.SynchronizationError),
         .QueueAgentBanned = row.QueueAgentBanned,
+        .QueueConsumerProfilingTag = row.QueueConsumerProfilingTag,
     };
 }
 
@@ -273,6 +279,30 @@ NRecords::TReplicatedTableMapping RecordFromRow(const TReplicatedTableMappingTab
     };
 }
 
+TReplicaMappingTableRow RowFromRecord(const NRecords::TReplicaMapping& record)
+{
+    return TReplicaMappingTableRow{
+        .ReplicaRef = TCrossClusterReference::FromString(record.Key.ReplicaList),
+        .ReplicatedTableRef = TCrossClusterReference{record.Key.Cluster, record.Key.Path},
+    };
+}
+
+NRecords::TReplicaMappingKey RecordKeyFromRow(const TReplicaMappingTableRow& row)
+{
+    return NRecords::TReplicaMappingKey{
+        .ReplicaList = ToString(row.ReplicaRef),
+        .Cluster = row.ReplicatedTableRef.Cluster,
+        .Path = row.ReplicatedTableRef.Path,
+    };
+}
+
+NRecords::TReplicaMapping RecordFromRow(const TReplicaMappingTableRow& row)
+{
+    return NRecords::TReplicaMapping{
+        .Key = RecordKeyFromRow(row),
+    };
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Returns remote client from client directory for the given cluster.
@@ -298,13 +328,62 @@ IClientPtr GetRemoteClient(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TRow, typename TRecordDescriptor>
-TTableBase<TRow, TRecordDescriptor>::TTableBase(TYPath path, NApi::IClientPtr client)
+TTableBase<TRow, TRecordDescriptor>::TTableBase(TYPath path, IClientPtr client)
     : Path_(std::move(path))
     , Client_(std::move(client))
 { }
 
 template <typename TRow, typename TRecordDescriptor>
-TFuture<std::vector<TRow>> TTableBase<TRow, TRecordDescriptor>::Select(TStringBuf where) const
+TFuture<std::vector<TErrorOr<TRow>>> TTableBase<TRow, TRecordDescriptor>::Lookup(
+    TRange<TRow> keys,
+    const TLookupRowsOptions& options) const
+{
+    std::vector<TRecordKey> recordKeys;
+    recordKeys.reserve(keys.size());
+    for (const auto& key : keys) {
+        recordKeys.push_back(RecordKeyFromRow(key));
+    }
+
+    auto recordKeysRange = FromRecordKeys(TRange(recordKeys));
+    // NB(apachee): Passing local variable as options is fine, since it is captured by value in the callback.
+    TLookupRowsOptions patchedOptions = options;
+    patchedOptions.KeepMissingRows = true;
+    patchedOptions.EnablePartialResult = true;
+    return Client_->LookupRows(Path_, TRecordDescriptor::Get()->GetNameTable(), recordKeysRange, patchedOptions)
+        .AsUnique()
+        .Apply(BIND([] (TUnversionedLookupRowsResult&& rawResult) {
+            auto optionalRecords = ToOptionalRecords<TRecord>(rawResult.Rowset);
+
+            std::vector<TErrorOr<TRow>> result;
+            result.reserve(optionalRecords.size());
+
+            auto it = rawResult.UnavailableKeyIndexes.begin();
+            for (const auto& [index, recordOrNull] : Enumerate(optionalRecords)) {
+                bool isUnavailable = false;
+                if (it != rawResult.UnavailableKeyIndexes.end() && *it == static_cast<int>(index)) {
+                    isUnavailable = true;
+                    it++;
+                }
+
+                if (recordOrNull) {
+                    YT_VERIFY(!isUnavailable);
+                    result.emplace_back(RowFromRecord(*recordOrNull));
+                } else {
+                    result.emplace_back(
+                        isUnavailable
+                            ? TError("Requested key is currently unavailable")
+                            : TError(EErrorCode::DynamicStateMissingRow, "Requested key does not exist"));
+                }
+            }
+
+            return result;
+        }));
+}
+
+template <typename TRow, typename TRecordDescriptor>
+TFuture<std::vector<TRow>> TTableBase<TRow, TRecordDescriptor>::Select(
+    TStringBuf where,
+    const TSelectRowsOptions& options) const
 {
     TString query = Format("* from [%v] where %v", Path_, where);
 
@@ -312,7 +391,7 @@ TFuture<std::vector<TRow>> TTableBase<TRow, TRecordDescriptor>::Select(TStringBu
         "Invoking select query (Query: %v)",
         query);
 
-    return Client_->SelectRows(query)
+    return Client_->SelectRows(query, options)
         .Apply(BIND([&] (const TSelectRowsResult& result) {
             std::vector<TRecord> records = ToRecords<TRecord>(result.Rowset);
 
@@ -363,6 +442,11 @@ TFuture<TTransactionCommitResult> TTableBase<TRow, TRecordDescriptor>::Delete(TR
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::optional<std::string> TQueueTableRow::GetProfilingTag() const
+{
+    return QueueProfilingTag;
+}
+
 std::vector<TString> TQueueTableRow::GetCypressAttributeNames()
 {
     return {
@@ -375,11 +459,12 @@ std::vector<TString> TQueueTableRow::GetCypressAttributeNames()
         "queue_agent_stage",
         "id",
         "queue_agent_banned",
+        "queue_profiling_tag",
         // Replicated tables and chaos replicated tables.
         "replicas",
         // Chaos replicated tables.
         "replication_card_id",
-        "treat_as_queue_consumer"
+        "treat_as_queue_consumer",
     };
 }
 
@@ -400,6 +485,7 @@ TQueueTableRow TQueueTableRow::FromAttributeDictionary(
         .QueueAgentStage = cypressAttributes->Find<std::string>("queue_agent_stage"),
         .ObjectId = cypressAttributes->Find<TObjectId>("id"),
         .QueueAgentBanned = cypressAttributes->Find<bool>("queue_agent_banned"),
+        .QueueProfilingTag = cypressAttributes->Find<std::string>("queue_profiling_tag"),
         .SynchronizationError = TError(),
     };
 }
@@ -419,6 +505,7 @@ void Serialize(const TQueueTableRow& row, IYsonConsumer* consumer)
             .Item("queue_agent_stage").Value(row.QueueAgentStage)
             .Item("object_id").Value(row.ObjectId)
             .Item("queue_agent_banned").Value(row.QueueAgentBanned)
+            .Item("queue_profiling_tag").Value(row.QueueProfilingTag)
             .Item("synchronization_error").Value(row.SynchronizationError)
         .EndMap();
 }
@@ -433,6 +520,11 @@ TQueueTable::TQueueTable(TYPath root, IClientPtr client)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::optional<std::string> TConsumerTableRow::GetProfilingTag() const
+{
+    return QueueConsumerProfilingTag;
+}
+
 std::vector<TString> TConsumerTableRow::GetCypressAttributeNames()
 {
     return {
@@ -442,10 +534,11 @@ std::vector<TString> TConsumerTableRow::GetCypressAttributeNames()
         "schema",
         "queue_agent_stage",
         "queue_agent_banned",
+        "queue_consumer_profiling_tag",
         // Replicated tables and chaos replicated tables.
         "replicas",
         // Chaos replicated tables.
-        "replication_card_id"
+        "replication_card_id",
     };
 }
 
@@ -463,6 +556,7 @@ TConsumerTableRow TConsumerTableRow::FromAttributeDictionary(
         .Schema = cypressAttributes->Find<TTableSchema>("schema"),
         .QueueAgentStage = cypressAttributes->Find<std::string>("queue_agent_stage"),
         .QueueAgentBanned = cypressAttributes->Find<bool>("queue_agent_banned"),
+        .QueueConsumerProfilingTag = cypressAttributes->Find<std::string>("queue_consumer_profiling_tag"),
         .SynchronizationError = TError(),
     };
 }
@@ -479,6 +573,7 @@ void Serialize(const TConsumerTableRow& row, IYsonConsumer* consumer)
             .Item("schema").Value(row.Schema)
             .Item("queue_agent_stage").Value(row.QueueAgentStage)
             .Item("queue_agent_banned").Value(row.QueueAgentBanned)
+            .Item("queue_consumer_profiling_tag").Value(row.QueueConsumerProfilingTag)
             .Item("synchronization_error").Value(row.SynchronizationError)
         .EndMap();
 }
@@ -676,6 +771,14 @@ template class TTableBase<TReplicatedTableMappingTableRow, NRecords::TReplicated
 
 TReplicatedTableMappingTable::TReplicatedTableMappingTable(TYPath path, IClientPtr client)
     : TTableBase<TReplicatedTableMappingTableRow, NRecords::TReplicatedTableMappingDescriptor>(std::move(path), std::move(client))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+template class TTableBase<TReplicaMappingTableRow, NRecords::TReplicaMappingDescriptor>;
+
+TReplicaMappingTable::TReplicaMappingTable(TYPath path, IClientPtr client)
+    : TTableBase<TReplicaMappingTableRow, NRecords::TReplicaMappingDescriptor>(std::move(path), std::move(client))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

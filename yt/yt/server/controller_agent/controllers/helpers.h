@@ -155,6 +155,10 @@ NYson::TYsonString MakeIntermediateTableWriterConfig(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ValidateDynamicTableOutputChunkConstraints(NChunkClient::TInputChunkPtr chunk, i64 maxChunkSize, i64 maxBlockSize);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NControllerAgent::NControllers
 
 #define HELPERS_INL_H

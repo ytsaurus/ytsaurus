@@ -85,6 +85,8 @@ class PortoSubprocess(object):
         p._container.SetProperty("controllers[cpu]", "true")
         p._container.SetProperty("controllers[memory]", "true")
 
+        p._container.SetProperty("devices", "/dev/kvm rw")
+
         p._returncode = None
         p._set_env(env)
         if stdout is not None:

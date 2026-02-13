@@ -88,6 +88,8 @@ TLocationPerformanceCounters::TLocationPerformanceCounters(const NProfiling::TPr
         }
     }
 
+    ThrottledReplicationReads = profiler.Counter("/throttled_replication_reads");
+
     ThrottledProbingReads = profiler.Counter("/throttled_probing_reads");
     ThrottledProbingWrites = profiler.Counter("/throttled_probing_writes");
     ThrottledReads = profiler.Counter("/throttled_reads");
@@ -146,6 +148,11 @@ TLocationPerformanceCounters::TLocationPerformanceCounters(const NProfiling::TPr
     TrashChunkCount = profiler.Gauge("/trash_chunk_count");
     TrashSpace = profiler.Gauge("/trash_space");
     Full = profiler.Gauge("/full");
+}
+
+void TLocationPerformanceCounters::ReportThrottledReplicationRead()
+{
+    ThrottledReplicationReads.Increment();
 }
 
 void TLocationPerformanceCounters::ReportThrottledProbingRead()
@@ -330,7 +337,7 @@ TChunkLocation::TChunkLocation(
         "UnlimitedIn",
         diskThrottlerProfiler);
     UnlimitedOutThrottler_ = CreateNamedUnlimitedThroughputThrottler(
-        "UnlimitedOutThrottler",
+        "UnlimitedOut",
         diskThrottlerProfiler);
     EnableUncategorizedThrottler_ = GetStaticConfig()->EnableUncategorizedThrottler;
     UncategorizedThrottler_ = ReconfigurableUncategorizedThrottler_ = CreateNamedReconfigurableThroughputThrottler(
@@ -412,7 +419,7 @@ double TChunkLocation::GetIOWeight() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    if (auto evaluator = IOWeightEvaluator_.Acquire(); evaluator) {
+    if (auto evaluator = IOWeightEvaluator_.Acquire()) {
         auto value = EvaluateIOWeight(evaluator);
         return value.ValueOrDefault(1.);
     } else {
@@ -443,7 +450,7 @@ bool TChunkLocation::Resurrect()
         return false;
     }
 
-    YT_LOG_WARNING("Location resurrection (LocationUuid: %v)", GetUuid());
+    YT_LOG_WARNING("Location resurrection (LocationUuid: %v, LocationIndex: %v)", GetUuid(), GetIndex());
 
     YT_UNUSED_FUTURE(BIND([=, this, this_ = MakeStrong(this)] {
         try {
@@ -893,7 +900,8 @@ bool TChunkLocation::IsWriteThrottling() const
 
 TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckReadThrottling(
     const TWorkloadDescriptor& workloadDescriptor,
-    bool isProbing) const
+    bool isProbing,
+    bool isReplication) const
 {
     auto readQueueSize =
         GetUsedMemory(/*useLegacyUsedMemory*/ false, EIODirection::Read, workloadDescriptor) +
@@ -948,7 +956,9 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckReadThrottling(
     throttled = throttled || ShouldAlwaysThrottle();
 
     if (throttled) {
-        if (isProbing) {
+        if (isReplication) {
+            ReportThrottledReplicationRead();
+        } else if (isProbing) {
             ReportThrottledProbingRead();
         } else {
             ReportThrottledRead();
@@ -960,6 +970,11 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckReadThrottling(
         .QueueSize = readQueueSize,
         .Error = std::move(error),
     };
+}
+
+void TChunkLocation::ReportThrottledReplicationRead() const
+{
+    PerformanceCounters_->ReportThrottledReplicationRead();
 }
 
 void TChunkLocation::ReportThrottledProbingRead() const
@@ -1119,10 +1134,11 @@ void TChunkLocation::UpdateMediumDescriptor(const NChunkClient::TMediumDescripto
         ChunkStore_->ChangeLocationMedium(this, oldDescriptor->GetIndex());
     }
 
-    YT_LOG_INFO("Location medium descriptor %v (LocationId: %v, LocationUuid: %v, MediumName: %v, MediumIndex: %v, Priority: %v)",
+    YT_LOG_INFO("Location medium descriptor %v (LocationId: %v, LocationUuid: %v, LocationIndex: %v, MediumName: %v, MediumIndex: %v, Priority: %v)",
         onInitialize ? "set" : "changed",
         GetId(),
         GetUuid(),
+        GetIndex(),
         newDescriptor->Name(),
         newDescriptor->GetIndex(),
         newDescriptor->GetPriority());
@@ -1703,7 +1719,7 @@ bool TStoreLocation::ScheduleDisable(const TError& reason)
         return false;
     }
 
-    YT_LOG_WARNING(reason, "Disabling location (LocationUuid: %v)", GetUuid());
+    YT_LOG_WARNING(reason, "Disabling location (LocationUuid: %v, LocationIndex: %v)", GetUuid(), GetIndex());
 
     // No new actions can appear here. Please see TDiskLocation::RegisterAction.
     auto error = TError(NChunkClient::EErrorCode::LocationDisabled,
@@ -1912,18 +1928,18 @@ std::vector<TString> TStoreLocation::GetChunkPartNames(TChunkId chunkId) const
     }
 }
 
-bool TStoreLocation::ShouldSkipFileName(const TString& fileName) const
+bool TStoreLocation::ShouldSkipFileName(const std::string& fileName) const
 {
     if (TChunkLocation::ShouldSkipFileName(fileName)) {
         return true;
     }
 
     // Skip trash directory.
-    if (fileName.StartsWith(TrashDirectory + LOCSLASH_S))
+    if (fileName.starts_with(TrashDirectory + LOCSLASH_S))
         return true;
 
     // Skip multiplexed directory.
-    if (fileName.StartsWith(MultiplexedDirectory + LOCSLASH_S))
+    if (fileName.starts_with(MultiplexedDirectory + LOCSLASH_S))
         return true;
 
     return false;
@@ -1999,27 +2015,31 @@ TStoreLocation::TIOStatistics TStoreLocation::GetIOStatistics() const
     return IOStatisticsProvider_->Get();
 }
 
-bool TStoreLocation::IsWritable() const
+TError TStoreLocation::CheckWritable() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (!IsEnabled()) {
-        return false;
+        return TError("Location is disabled");
     }
 
     if (IsFull()) {
-        return false;
+        return TError("Location is full");
     }
 
     if (IsSick()) {
-        return false;
+        return TError("Location is sick");
     }
 
-    if (GetMaxUsedMemory(true, EIODirection::Write) + GetMaxUsedMemory(false, EIODirection::Write) > GetWriteThrottlingLimit()) {
-        return false;
+    auto memoryUsage = GetMaxUsedMemory(true, EIODirection::Write) + GetMaxUsedMemory(false, EIODirection::Write);
+    auto memoryLimit = GetWriteThrottlingLimit();
+    if (memoryUsage > memoryLimit) {
+        return TError("Location is throttling due to IO writer queue memory limit violation")
+            << TErrorAttribute("memory_usage", memoryUsage)
+            << TErrorAttribute("memory_limit", memoryLimit);
     }
 
-    return true;
+    return TError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2028,7 +2048,7 @@ void Serialize(const TStoreLocation& location, IYsonConsumer* consumer)
 {
     NYT::NYTree::BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("locaion_uuid").Value(location.GetUuid())
+            .Item("location_uuid").Value(location.GetUuid())
             .Item("index").Value(location.GetIndex())
             .Item("path").Value(location.GetPath())
             .Item("disk_family").Value(location.GetDiskFamily())

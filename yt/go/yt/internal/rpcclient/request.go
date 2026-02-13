@@ -1552,6 +1552,30 @@ func (r *CheckPermissionByACLRequest) Path() (string, bool) {
 
 func (r *CheckPermissionByACLRequest) ReadRetryOptions() {}
 
+type CheckOperationPermissionRequest struct {
+	*rpc_proxy.TReqCheckOperationPermission
+}
+
+func NewCheckOperationPermissionRequest(r *rpc_proxy.TReqCheckOperationPermission) *CheckOperationPermissionRequest {
+	return &CheckOperationPermissionRequest{TReqCheckOperationPermission: r}
+}
+
+func (r *CheckOperationPermissionRequest) Log() []log.Field {
+	fields := []log.Field{
+		log.String("operation_id", r.GetOperationId().String()),
+		log.String("user", r.GetUser()),
+		log.Int32("permission", r.GetPermission()),
+	}
+	fields = appendEmbeddedOptions(fields, r.TReqCheckOperationPermission)
+	return fields
+}
+
+func (r *CheckOperationPermissionRequest) Path() (string, bool) {
+	return "", false
+}
+
+func (r *CheckOperationPermissionRequest) ReadRetryOptions() {}
+
 type DisableChunkLocationsRequest struct {
 	*rpc_proxy.TReqDisableChunkLocations
 }

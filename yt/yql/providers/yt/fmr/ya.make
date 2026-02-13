@@ -1,10 +1,12 @@
 RECURSE(
     coordinator
+    file
     fmr_tool_lib
     gc_service
     job
     job_factory
     job_launcher
+    job_preparer
     process
     proto
     request_options

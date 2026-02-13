@@ -5,6 +5,8 @@
 #include <yt/yt/library/query/base/functions.h>
 #include <yt/yt/library/query/base/functions.h>
 
+#include <yt/yt/library/web_assembly/api/bytecode.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
@@ -33,14 +35,19 @@ struct TExternalFunctionSpec
 struct TExternalFunctionImpl
 {
     bool IsAggregate = false;
-    TString Name;
-    TString SymbolName;
+    std::string Name;
+    std::string SymbolName;
     ECallingConvention CallingConvention;
     std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs;
 
     TType RepeatedArgType = EValueType::Min;
     int RepeatedArgIndex = -1;
     bool UseFunctionContext = false;
+};
+
+struct TExternalSdkImpl
+{
+    std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs;
 };
 
 struct TExternalCGInfo
@@ -50,19 +57,39 @@ struct TExternalCGInfo
 
     std::vector<TExternalFunctionImpl> Functions;
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
+
+    TExternalSdkImpl Sdk;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TExternalFunction
+{
+    const NCodegen::EExecutionBackend ExecutionBackend;
+    const NYPath::TYPath Path;
+    const bool IsSdk;
+    const std::string Name;
+
+    operator size_t() const;
+    bool operator==(const TExternalFunction& other) const;
+};
+
+void FormatValue(TStringBuilderBase* builder, const TExternalFunction& /*val*/, TStringBuf /*spec*/);
+
+static_assert(CFormattable<TExternalFunction>, "TExternalFunction must be formattable for TAsyncExpiringCache");
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
-    const std::vector<std::pair<NYPath::TYPath, std::string>>& functionNames,
+    const std::vector<TExternalFunction>& functionNames,
     const NApi::NNative::IClientPtr& client);
 
 void AppendUdfDescriptors(
     const TTypeInferrerMapPtr& typeInferrers,
     const TExternalCGInfoPtr& cgInfo,
     const std::vector<std::string>& functionNames,
-    const std::vector<TExternalFunctionSpec>& externalFunctionSpecs);
+    const std::vector<TExternalFunctionSpec>& externalFunctionSpecs,
+    NCodegen::EExecutionBackend executionBackend);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,7 +98,8 @@ struct IFunctionRegistry
 {
     virtual TFuture<std::vector<TExternalFunctionSpec>> FetchFunctions(
         const NYPath::TYPath& udfRegistryPath,
-        const std::vector<std::string>& names) = 0;
+        const std::vector<std::string>& names,
+        NCodegen::EExecutionBackend executionBackend) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -92,7 +120,9 @@ void FetchFunctionImplementationsFromCypress(
     const TAggregateProfilerMapPtr& aggregateProfilers,
     const TConstExternalCGInfoPtr& externalCGInfo,
     const TFunctionImplCachePtr& cache,
-    const NChunkClient::TClientChunkReadOptions& chunkReadOptions);
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+    NWebAssembly::TModuleBytecode* sdk,
+    NCodegen::EExecutionBackend executionBackend);
 
 void FetchFunctionImplementationsFromFiles(
     const TFunctionProfilerMapPtr& functionProfilers,
@@ -115,6 +145,9 @@ void Deserialize(TDescriptorType& value, NYson::TYsonPullParserCursor* cursor);
 
 void ToProto(NProto::TExternalFunctionImpl* proto, const TExternalFunctionImpl& options);
 void FromProto(TExternalFunctionImpl* original, const NProto::TExternalFunctionImpl& serialized);
+
+void ToProto(NProto::TExternalSdkImpl* proto, const TExternalSdkImpl& sdk);
+void FromProto(TExternalSdkImpl* original, const NProto::TExternalSdkImpl& serialized);
 
 ////////////////////////////////////////////////////////////////////////////////
 

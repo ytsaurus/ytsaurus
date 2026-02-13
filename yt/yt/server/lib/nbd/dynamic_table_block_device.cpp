@@ -196,7 +196,7 @@ public:
             WriteBlocks(std::move(dirtyBlocks), true /*flush*/, {.Cookie = 0} /*options*/);
         }
 
-        return VoidFuture;
+        return OKFuture;
     }
 
 private:
@@ -416,7 +416,7 @@ public:
         YT_LOG_INFO("Finish flush (TablePath: %v)",
             DeviceConfig_->TablePath);
 
-        return VoidFuture;
+        return OKFuture;
     }
 
     TFuture<void> Initialize() override
@@ -486,7 +486,7 @@ public:
             YT_LOG_INFO("Finish initialization of dynamic table block device (TablePath: %v)",
                 DeviceConfig_->TablePath);
 
-            return VoidFuture;
+            return OKFuture;
         }
 
         // Validate device and block sizes.
@@ -507,12 +507,12 @@ public:
         YT_LOG_INFO("Finish initialization of dynamic table block device (TablePath: %v)",
             DeviceConfig_->TablePath);
 
-        return VoidFuture;
+        return OKFuture;
     }
 
     TFuture<void> Finalize() override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
 private:

@@ -147,7 +147,7 @@ private:
 
             // COMPAT(shakurov): support old masters' empty responses.
             if (rsp->has_cell_directory()) {
-                Directory_->Update(rsp->cell_directory());
+                Directory_->Update(rsp->cell_directory(), config->DuplicateDirectoryUpdate);
             } else {
                 Directory_->UpdateDefault();
             }

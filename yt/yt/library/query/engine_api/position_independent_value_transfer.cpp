@@ -10,31 +10,6 @@ using namespace NWebAssembly;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMutablePIValueRange AllocatePIValueRange(TExpressionContext* context, int valueCount, NWebAssembly::EAddressSpace where)
-{
-    auto* data = context->AllocateAligned(sizeof(TPIValue) * valueCount, where);
-    return TMutablePIValueRange(
-        reinterpret_cast<TPIValue*>(data),
-        static_cast<size_t>(valueCount));
-}
-
-void CapturePIValue(
-    IWebAssemblyCompartment* compartment,
-    TExpressionContext* context,
-    TPIValue* value)
-{
-    auto* valueAtHost = PtrFromVM(compartment, value);
-    if (IsStringLikeType(valueAtHost->Type)) {
-        auto* dataCopy = context->AllocateUnaligned(valueAtHost->Length, EAddressSpace::WebAssembly);
-        valueAtHost = PtrFromVM(compartment, value); // NB: Possible reallocation.
-        auto* dataCopyAtHost = PtrFromVM(compartment, dataCopy, valueAtHost->Length);
-        ::memcpy(dataCopyAtHost, valueAtHost->AsStringBuf().data(), valueAtHost->Length);
-        valueAtHost->SetStringPosition(dataCopyAtHost);
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 DECLARE_REFCOUNTED_STRUCT(TRowBufferHolder)
 
 struct TRowBufferHolder

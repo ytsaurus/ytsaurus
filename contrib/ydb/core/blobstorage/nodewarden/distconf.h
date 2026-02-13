@@ -204,10 +204,12 @@ namespace NKikimr::NStorage {
             TEvScatter Request;
             TEvGather Response;
             std::vector<TEvGather> CollectedResponses; // from bound nodes
+            TMonotonic StartTimestamp;
 
-            TScatterTask(TScatterTaskOrigin&& origin, TEvScatter&& request, ui64 scepterCounter)
+            TScatterTask(TScatterTaskOrigin&& origin, TEvScatter&& request, ui64 scepterCounter, TMonotonic startTimestamp)
                 : Origin(std::move(origin))
                 , ScepterCounter(scepterCounter)
+                , StartTimestamp(startTimestamp)
             {
                 Request.Swap(&request);
                 if (Request.HasCookie()) {
@@ -266,7 +268,7 @@ namespace NKikimr::NStorage {
         ui64 BindingCookie = RandomNumber<ui64>();
         TBindQueue BindQueue;
         TBindQueue RevBindQueue;
-        TBindQueue PrimaryPileBindQueue;
+        TBindQueue OtherPilesBindQueue;
         bool Scheduled = false;
 
         // incoming bindings
@@ -282,11 +284,12 @@ namespace NKikimr::NStorage {
         std::deque<TAutoPtr<IEventHandle>> PendingEvents;
         std::vector<ui32> NodeIdsForOutgoingBinding;
         std::vector<ui32> NodeIdsForIncomingBinding;
-        std::vector<ui32> NodeIdsForPrimaryPileOutgoingBinding;
+        std::vector<ui32> NodeIdsForOtherPilesOutgoingBinding;
         THashMap<ui32, TNodeIdentifier> AllNodeIds;
         THashSet<ui32> NodesFromSamePile;
         TNodeIdentifier SelfNode;
         std::optional<TString> SelfNodeBridgePileName;
+        THashSet<std::tuple<TString, ui32>> Hosts;
 
         // scatter tasks
         ui64 NextScatterCookie = RandomNumber<ui64>();
@@ -319,7 +322,6 @@ namespace NKikimr::NStorage {
         ui64 ScepterCounter = 1; // increased every time Scepter gets changed
         TString ErrorReason;
         std::optional<TString> CurrentSelfAssemblyUUID;
-        bool LocalPileQuorum = false;
         bool GlobalQuorum = false;
         bool QuorumValid = false;
 
@@ -342,7 +344,6 @@ namespace NKikimr::NStorage {
         // pipe to Console
         TActorId ConsolePipeId;
         bool ConsoleConnected = false;
-        bool ConfigCommittedToConsole = false;
         ui64 ValidateRequestCookie = 0;
         ui64 ProposeRequestCookie = 0;
         ui64 CommitRequestCookie = 0;
@@ -419,7 +420,6 @@ namespace NKikimr::NStorage {
         void HandleWakeup();
         void Handle(TEvNodeConfigReversePush::TPtr ev);
         void FanOutReversePush(const NKikimrBlobStorage::TStorageConfig *committedStorageConfig);
-        void UnbindNodesFromOtherPiles(const char *reason);
 
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         // Binding requests from peer nodes
@@ -519,6 +519,7 @@ namespace NKikimr::NStorage {
         // Scatter/gather logic
 
         void IssueScatterTask(TScatterTaskOrigin&& origin, TEvScatter&& request, std::span<TNodeIdentifier> addedNodes = {});
+        void IssueAddedNodeScatterTask(ui32 nodeId, ui64 cookie, TScatterTask& task);
         void CheckCompleteScatterTask(TScatterTasks::iterator it);
         void FinishAsyncOperation(ui64 cookie);
         void IssueScatterTaskForNode(ui32 nodeId, TBoundNode& info, ui64 cookie, TScatterTask& task);
@@ -562,6 +563,8 @@ namespace NKikimr::NStorage {
         class TInvokeRequestHandlerActor;
         struct TLifetimeToken {};
         std::shared_ptr<TLifetimeToken> LifetimeToken = std::make_shared<TLifetimeToken>();
+
+        THashSet<TActorId> DetachedQueries;
 
         ui64 InvokePipelineGeneration = 1;
 
@@ -723,6 +726,8 @@ namespace NKikimr::NStorage {
 
     std::optional<TString> DecomposeConfig(const TString& configComposite, TString *mainConfigYaml,
         ui64 *mainConfigVersion, TString *mainConfigFetchYaml);
+
+    std::optional<TString> GetStorageYaml(const NKikimrBlobStorage::TStorageConfig& config);
 
     void UpdateClusterStateGuid(NKikimrBridge::TClusterState *clusterState);
 

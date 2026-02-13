@@ -38,10 +38,22 @@ target_sources(essentials-core-sql_types PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/sql_types/simple_types.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/sql_types/yql_atom_enums.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/sql_types/yql_callable_names.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/sql_types/hopping.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/sql_types/normalize_name.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/sql_types/sort_order.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/sql_types/time_order_recover.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/sql_types/window_direction.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/sql_types/window_frame_bounds.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/sql_types/window_frames_collector_params.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/sql_types/window_number_and_direction.h
 )
 
+
+generate_enum_serilization(essentials-core-sql_types
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/sql_types/hopping.h
+  INCLUDE_HEADERS
+  yql/essentials/core/sql_types/hopping.h
+)
 
 generate_enum_serilization(essentials-core-sql_types
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/sql_types/match_recognize.h

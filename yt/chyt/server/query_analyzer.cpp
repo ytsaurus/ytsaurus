@@ -99,7 +99,7 @@ using namespace NLogging;
 
 namespace {
 
-    //! Find the longest prefix of key columns from the schema used in keyNode.
+//! Find the longest prefix of key columns from the schema used in keyNode.
 int GetUsedKeyPrefixSize(const DB::QueryTreeNodePtr& keyNode, const TTableSchemaPtr& schema)
 {
     if (!schema->IsSorted()) {
@@ -1008,7 +1008,6 @@ void TQueryAnalyzer::ParseQuery()
         QueryInfo_.query_tree->as<DB::QueryNode&>().getJoinTree());
     for (auto& tableExpression : tableExpressionNodes) {
         auto* tableExpressionData = QueryInfo_.planner_context->getTableExpressionDataOrNull(tableExpression);
-        YT_VERIFY(tableExpressionData);
         TableExpressionDataPtrs_.emplace_back(tableExpressionData);
     }
 
@@ -1383,7 +1382,7 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
         std::optional<DB::KeyCondition> keyCondition;
         if (schema->IsSorted()) {
             auto primaryKeyExpression = std::make_shared<DB::ExpressionActions>(DB::ActionsDAG(
-                ToNamesAndTypesList(*schema, settings->Composite)));
+                ToNamesAndTypesList(*schema, storage->GetColumnAttributes(), settings->Composite)));
 
             std::shared_ptr<const DB::ActionsDAG> filterActionsDAG;
 
@@ -1426,9 +1425,8 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
                 }
 
                 selectQuery->getWhere() = std::move(currentWhere);
-            } else {
+            } else if (TableExpressionDataPtrs_[index] != nullptr) {
                 auto* tableExpressionDataPtr = TableExpressionDataPtrs_[index];
-                YT_VERIFY(tableExpressionDataPtr);
                 if (const auto& filterActions = tableExpressionDataPtr->getFilterActions()) {
                     filterActionsDAG = std::make_shared<const DB::ActionsDAG>(filterActions->clone());
                 }
@@ -1495,6 +1493,7 @@ std::shared_ptr<TSecondaryQueryBuilder> TQueryAnalyzer::GetSecondaryQueryBuilder
         auto& spec = tableSpecs.emplace_back(specTemplate);
         spec.TableIndex = index;
         spec.ReadSchema = Storages_[index]->GetSchema();
+        spec.ColumnAttributes = Storages_[index]->GetColumnAttributes();
 
         std::string scalarName = Format("yt_table_%v", index);
 

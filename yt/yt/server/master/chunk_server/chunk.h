@@ -169,7 +169,7 @@ public:
     int GetParentCount() const;
     bool HasParents() const;
 
-    TRange<TAugmentedStoredChunkReplicaPtr> StoredReplicas() const;
+    TStoredChunkReplicaList GetStoredReplicaList(bool includeNonOnlineReplicas) const;
 
     //! For non-erasure chunks, contains a FIFO queue of seen replicas; its tail position is kept in #CurrentLastSeenReplicaIndex_.
     //! For erasure chunks, this array is directly addressed by replica indexes; at most one replica is kept per part.
@@ -187,9 +187,6 @@ public:
     // COMPAT(ifsmirnov)
     void SetApprovedReplicaCount(int count);
 
-    void ValidateConfirmation(
-        const NChunkClient::NProto::TChunkInfo& chunkInfo,
-        const NChunkClient::NProto::TChunkMeta& chunkMeta) const;
     void Confirm(
         const NChunkClient::NProto::TChunkInfo& chunkInfo,
         const NChunkClient::NProto::TChunkMeta& chunkMeta);
@@ -415,7 +412,7 @@ private:
 
         virtual ~TReplicasDataBase() = default;
 
-        virtual TRange<TAugmentedStoredChunkReplicaPtr> GetStoredReplicas() const = 0;
+        virtual const TStoredChunkReplicaList& StoredReplicaList() const = 0;
         virtual TMutableRange<TAugmentedStoredChunkReplicaPtr> MutableStoredReplicas() = 0;
         virtual void AddStoredReplica(TAugmentedStoredChunkReplicaPtr replica) = 0;
         virtual void RemoveStoredReplica(int replicaIndex) = 0;
@@ -447,7 +444,7 @@ private:
         TMutableRange<TNodeId> MutableLastSeenReplicas() override;
 
         //! Null entries are InvalidNodeId.
-        TRange<TAugmentedStoredChunkReplicaPtr> GetStoredReplicas() const override;
+        const TStoredChunkReplicaList& StoredReplicaList() const override;
         TMutableRange<TAugmentedStoredChunkReplicaPtr> MutableStoredReplicas() override;
         void AddStoredReplica(TAugmentedStoredChunkReplicaPtr replica) override;
         void RemoveStoredReplica(int replicaIndex) override;

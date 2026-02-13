@@ -1,5 +1,5 @@
 # engine/base.py
-# Copyright (C) 2005-2025 the SQLAlchemy authors and contributors
+# Copyright (C) 2005-2026 the SQLAlchemy authors and contributors
 # <see AUTHORS file>
 #
 # This module is part of SQLAlchemy and is released under
@@ -2022,6 +2022,13 @@ class Connection(ConnectionEventsTarget, inspection.Inspectable["Inspector"]):
         else:
             do_execute_dispatch = ()
 
+        if engine_events:
+            _WORKAROUND_ISSUE_13018 = getattr(
+                self, "_WORKAROUND_ISSUE_13018", False
+            )
+        else:
+            _WORKAROUND_ISSUE_13018 = False
+
         if self._echo:
             stats = context._get_cache_stats() + " (insertmanyvalues)"
 
@@ -2136,8 +2143,9 @@ class Connection(ConnectionEventsTarget, inspection.Inspectable["Inspector"]):
                 self.dispatch.after_cursor_execute(
                     self,
                     cursor,
-                    str_statement,
-                    effective_parameters,
+                    # TODO: this will be fixed by #13018
+                    sub_stmt if _WORKAROUND_ISSUE_13018 else str_statement,
+                    sub_params if _WORKAROUND_ISSUE_13018 else parameters,
                     context,
                     context.executemany,
                 )

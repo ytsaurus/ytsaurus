@@ -371,8 +371,6 @@ def execute_command(
     parse_yson=None,
     unwrap_v4_result=True,
 ):
-    global _zombie_responses
-
     if "verbose" in parameters:
         verbose = parameters["verbose"]
         del parameters["verbose"]
@@ -684,6 +682,12 @@ def poll_job_shell(job_id, authenticated_user=None, shell_name=None, **kwargs):
     if shell_name:
         kwargs["shell_name"] = shell_name
     return execute_command("poll_job_shell", kwargs, parse_yson=True)
+
+
+def run_job_shell_command(job_id, command, **kwargs):
+    kwargs["job_id"] = job_id
+    kwargs["command"] = command
+    return execute_command("run_job_shell_command", kwargs)
 
 
 def abort_job(job_id, **kwargs):
@@ -1294,6 +1298,13 @@ def transfer_pool_resources(source_pool, destination_pool, pool_tree, resource_d
     kwargs["pool_tree"] = pool_tree
     kwargs["resource_delta"] = resource_delta
     execute_command("transfer_pool_resources", kwargs)
+
+
+def transfer_bundle_resources(source_bundle, destination_bundle, resource_delta, **kwargs):
+    kwargs["source_bundle"] = source_bundle
+    kwargs["destination_bundle"] = destination_bundle
+    kwargs["resource_delta"] = resource_delta
+    execute_command("transfer_bundle_resources", kwargs)
 
 
 def get_file_from_cache(md5, cache_path, **kwargs):
@@ -1937,12 +1948,13 @@ def remote_copy(**kwargs):
     return start_op("remote_copy", **kwargs)
 
 
-def build_snapshot(*args, **kwargs):
-    return get_driver().build_snapshot(*args, **kwargs)
+def build_snapshot(cell_id, **kwargs):
+    kwargs["cell_id"] = cell_id
+    return execute_command("build_snapshot", kwargs, parse_yson=True)
 
 
 def build_master_snapshots(*args, **kwargs):
-    return get_driver().build_master_snapshots(*args, **kwargs)
+    return execute_command("build_master_snapshots", kwargs)
 
 
 def exit_read_only(cell_id, **kwargs):
@@ -1952,6 +1964,10 @@ def exit_read_only(cell_id, **kwargs):
 
 def master_exit_read_only(**kwargs):
     return execute_command("master_exit_read_only", kwargs)
+
+
+def reset_dynamically_propagated_master_cells(**kwargs):
+    return execute_command("reset_dynamically_propagated_master_cells", kwargs)
 
 
 def discombobulate_nonvoting_peers(cell_id, **kwargs):
@@ -2456,14 +2472,7 @@ def create_domestic_medium(name, **kwargs):
     if "attributes" not in kwargs:
         kwargs["attributes"] = dict()
     kwargs["attributes"]["name"] = name
-    # COMPAT(babenko)
-    try:
-        return execute_command("create", kwargs)
-    except YtResponseError as err:
-        if not err.contains_text("Error parsing"):
-            raise
-        kwargs["type"] = "medium"
-        return execute_command("create", kwargs)
+    return execute_command("create", kwargs)
 
 
 def create_s3_medium(name, config, **kwargs):
@@ -3005,6 +3014,14 @@ def disable_tablet_cells_on_node(address, reason="", driver=None):
 def enable_tablet_cells_on_node(address, driver=None):
     clear_node_maintenance_flag(address, "disable_tablet_cells", driver=driver)
     print_debug(f"Tablet cells are enabled on node {address}")
+
+
+def enable_local_throttling():
+    update_nodes_dynamic_config({
+        "tablet_node": {
+            "enable_collocated_dat_node_throttling": True
+        }
+    })
 
 
 def wait_for_nodes(driver=None):
@@ -3655,11 +3672,6 @@ def get_nodes_with_flavor(flavor):
     cluster_nodes = ls("//sys/cluster_nodes", attributes=["flavors"])
     nodes = []
     for node in cluster_nodes:
-        # COMPAT(gritukan)
-        if "flavors" not in node.attributes:
-            nodes.append(str(node))
-            continue
-
         if flavor in node.attributes["flavors"]:
             nodes.append(str(node))
     return nodes
@@ -3840,7 +3852,14 @@ def get_flow_view(pipeline_path, view_path=None, cache=None, **kwargs):
     return execute_command("get_flow_view", kwargs, parse_yson=True, unwrap_v4_result=False)
 
 
-def flow_execute(pipeline_path: str, flow_command: str, flow_argument=None, is_raw=False, **kwargs):
+def flow_execute(
+    pipeline_path: str,
+    flow_command: str,
+    flow_argument=None,
+    is_raw=False,
+    plaintext=False,
+    **kwargs
+):
     is_input_raw = is_raw or "input_format" in kwargs
     if not is_input_raw:
         flow_argument = yson.dumps(flow_argument)
@@ -3855,11 +3874,14 @@ def flow_execute(pipeline_path: str, flow_command: str, flow_argument=None, is_r
     kwargs["pipeline_path"] = pipeline_path
     kwargs["flow_command"] = flow_command
 
-    is_output_raw = is_raw or "output_format" in kwargs
+    if plaintext:
+        kwargs["flow_argument"] = flow_argument
+
+    is_output_raw = plaintext or is_raw or "output_format" in kwargs
     return execute_command(
-        "flow_execute",
+        "flow_execute" if not plaintext else "flow_execute_plaintext",
         kwargs,
-        input_stream=BytesIO(flow_argument),
+        input_stream=BytesIO(flow_argument) if not plaintext else None,
         parse_yson=not is_output_raw,
         unwrap_v4_result=False)
 
@@ -3908,3 +3930,8 @@ def finish_distributed_write_session(session: yson.YsonType, results: list[yson.
 def ping_chaos_lease(chaos_lease_id, **kwargs):
     kwargs["chaos_lease_id"] = chaos_lease_id
     execute_command("ping_chaos_lease", kwargs)
+
+
+def get_connection_orchid_value(path="", **kwargs):
+    kwargs["path"] = path
+    return execute_command("get_connection_orchid_value", kwargs, parse_yson=True)

@@ -410,7 +410,7 @@ TInputTableInfo CollectInputTableInfo(
         .Chunks = std::move(inputChunks),
         .Schema = std::move(schema),
         .Dynamic = dynamic,
-        .RlsReadSpec = std::move(rlsReadSpec)
+        .RlsReadSpec = std::move(rlsReadSpec),
     };
 }
 
@@ -548,7 +548,9 @@ TColumnarStatistics GetColumnarStatistics(
     }
 
     double compressedDataSizeToDataWeightRatio = static_cast<double>(chunk->GetCompressedDataSize()) / chunk->GetDataWeight();
-    columnarStatistics.ReadDataSizeEstimate = dataWeightWithColumnGroups * compressedDataSizeToDataWeightRatio;
+    columnarStatistics.ReadDataSizeEstimate = std::min(
+        SignedSaturationConversion(dataWeightWithColumnGroups * compressedDataSizeToDataWeightRatio),
+        chunk->GetCompressedDataSize());
 
     return columnarStatistics;
 }
@@ -639,7 +641,8 @@ std::optional<i64> EstimateReadDataSizeForColumns(
             }
         }
 
-        return readSize;
+        // Estimation is not exact sometimes and there are cases when readSize = compressedDataSize + 1.
+        return std::min(readSize, compressedDataSize);
     }
 
     auto blocksExt = GetProtoExtension<TBlocksExt>(meta.extensions());
@@ -650,7 +653,15 @@ std::optional<i64> EstimateReadDataSizeForColumns(
         readSize += blocksExt.blocks(blockIndex).size();
     }
 
-    return readSize;
+    YT_LOG_WARNING_IF(
+        readSize > compressedDataSize,
+        "Read estimation is greater than the chunk's compressed data size (ChunkId: %v, IsSchemaStrict: %v, ColumnCount: %v, ReadColumnCount: %v)",
+        chunkId,
+        schema->IsStrict(),
+        schema->GetColumnCount(),
+        std::ssize(columnStableNames));
+
+    return std::min(readSize, compressedDataSize);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

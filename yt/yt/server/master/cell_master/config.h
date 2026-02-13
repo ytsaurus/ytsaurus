@@ -181,7 +181,6 @@ struct TTestConfig
 {
     // NB: Temporary field to test dynamic propagation of master cells to nodes.
     TMasterCellDirectoryConfigPtr MasterCellDirectoryOverride;
-    THashSet<NObjectClient::TCellTag> DiscoveredMastersCellTags;
 
     //! This can simulate connection instability.
     /*!
@@ -343,6 +342,8 @@ struct TCellMasterProgramConfig
 
 DEFINE_REFCOUNTED_TYPE(TCellMasterProgramConfig)
 
+void TweakConfigForDryRun(TCellMasterProgramConfigPtr config, bool skipTvmServiceEnvValidation);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TDynamicCellMasterConfig
@@ -396,10 +397,21 @@ struct TDynamicClusterConfig
     bool EnableSafeMode;
     bool EnableDescendingSortOrder;
     bool EnableDescendingSortOrderDynamic;
+
+    // Column renaming and removal.
     bool EnableTableColumnRenaming;
     bool EnableDynamicTableColumnRenaming;
     bool EnableStaticTableDropColumn;
     bool EnableDynamicTableDropColumn;
+
+    // Struct field renaming and removal.
+    bool EnableStructFieldRenaming;
+    bool EnableStructFieldRemoval;
+    bool EnableStaticTableStructFieldRenaming;
+    bool EnableStaticTableStructFieldRemoval;
+    bool EnableDynamicTableStructFieldRenaming;
+    bool EnableDynamicTableStructFieldRemoval;
+
     bool EnableSecondaryIndexCopy;
     bool AllowAlterKeyColumnToAny;
 

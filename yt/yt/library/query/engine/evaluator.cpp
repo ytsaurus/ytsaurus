@@ -54,12 +54,13 @@ public:
         const std::vector<IJoinProfilerPtr>& joinProfilers,
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
+        const NWebAssembly::TModuleBytecode& sdk,
         const IMemoryChunkProviderPtr& memoryChunkProvider,
         const TQueryOptions& options,
         const TFeatureFlags& requestFeatureFlags,
         TFuture<TFeatureFlags> responseFeatureFlags) override
     {
-        CheckQueryOptions(options);
+        CheckQueryOptions(query, options);
 
         auto queryFingerprint = InferName(query, {.OmitValues = true});
 
@@ -86,6 +87,8 @@ public:
             YT_LOG_DEBUG("Finalizing evaluation");
         });
 
+        // TODO(dtorilov): Catch here WAVM::Runtime::Exception*.
+
         try {
             TCGVariables fragmentParams;
             auto queryInstance = Codegen(
@@ -94,6 +97,7 @@ public:
                 joinProfilers,
                 functionProfilers,
                 aggregateProfilers,
+                sdk,
                 statistics,
                 options.EnableCodeCache,
                 options.UseCanonicalNullRelations,
@@ -160,6 +164,7 @@ private:
         const std::vector<IJoinProfilerPtr>& joinProfilers,
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
+        const NWebAssembly::TModuleBytecode& sdk,
         TExecutionStatistics& statistics,
         bool enableCodeCache,
         bool useCanonicalNullRelations,
@@ -180,6 +185,7 @@ private:
             optimizationLevel,
             functionProfilers,
             aggregateProfilers,
+            sdk,
             allowUnorderedGroupByWithLimit,
             maxJoinBatchSize);
 
@@ -205,10 +211,25 @@ private:
         return cachedQueryImage->Image.Instantiate();
     }
 
-    static void CheckQueryOptions(const TQueryBaseOptions& options)
+    static void CheckQueryOptions(const TConstBaseQueryPtr& query, const TQueryBaseOptions& options)
     {
         THROW_ERROR_EXCEPTION_IF(options.InputRowLimit < 0, "Negative input row limit is forbidden");
         THROW_ERROR_EXCEPTION_IF(options.OutputRowLimit < 0, "Negative output row limit is forbidden");
+
+        if (query->Offset < 0) {
+            THROW_ERROR_EXCEPTION("Negative OFFSET is forbidden")
+                << TErrorAttribute("offset", query->Offset);
+        }
+
+        if (query->Limit < 0) {
+            THROW_ERROR_EXCEPTION("Negative LIMIT is forbidden")
+                << TErrorAttribute("limit", query->Limit);
+        }
+
+        if (query->Offset + query->Limit < 0) {
+            THROW_ERROR_EXCEPTION("Negative OFFSET + LIMIT is forbidden")
+                << TErrorAttribute("offset_limit_sum", query->Offset + query->Limit);
+        }
     }
 };
 

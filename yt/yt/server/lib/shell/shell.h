@@ -32,7 +32,7 @@ struct TShellOptions
     TString ContainerName;
     TGuid Id;
     int Index;
-    TString ContainerUser;
+    std::string ContainerUser;
     bool EnablePorto = false;
     bool EnableJobShellSeccopm = true;
 };

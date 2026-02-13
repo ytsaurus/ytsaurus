@@ -256,7 +256,7 @@ void TTypeBuilder::OnStructItem(TStringBuf member)
 
 void TTypeBuilder::OnEndStruct()
 {
-    Push(StructLogicalType(Pop<TMembers>()));
+    Push(StructLogicalType(Pop<TMembers>(), /*removedFieldStableNames*/ {}));
 }
 
 void TTypeBuilder::OnBeginDict()
@@ -328,6 +328,7 @@ void TTypeBuilder::Push(TLogicalTypePtr type)
         [&] (TMembers& members) {
             members.push_back({
                 .Name = MemberNames_.top(),
+                .StableName = MemberNames_.top(),
                 .Type = std::move(type),
             });
             MemberNames_.pop();

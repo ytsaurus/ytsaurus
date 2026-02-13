@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: anyio
-Version: 4.11.0
+Version: 4.12.1
 Summary: High-level concurrency and networking framework on top of asyncio or Trio
 Author-email: Alex Grönholm <alex.gronholm@nextday.fi>
 License-Expression: MIT
@@ -25,10 +25,10 @@ Description-Content-Type: text/x-rst
 License-File: LICENSE
 Requires-Dist: exceptiongroup>=1.0.2; python_version < "3.11"
 Requires-Dist: idna>=2.8
-Requires-Dist: sniffio>=1.1
 Requires-Dist: typing_extensions>=4.5; python_version < "3.13"
 Provides-Extra: trio
-Requires-Dist: trio>=0.31.0; extra == "trio"
+Requires-Dist: trio>=0.32.0; python_version >= "3.10" and extra == "trio"
+Requires-Dist: trio>=0.31.0; python_version < "3.10" and extra == "trio"
 Dynamic: license-file
 
 .. image:: https://github.com/agronholm/anyio/actions/workflows/test.yml/badge.svg
@@ -81,6 +81,7 @@ AnyIO offers the following functionality:
 * Subinterpreter support for code parallelization (on Python 3.13 and later)
 * Asynchronous file I/O (using worker threads)
 * Signal handling
+* Asynchronous version of the functools_ module
 
 AnyIO also comes with its own pytest_ plugin which also supports asynchronous fixtures.
 It even works with the popular Hypothesis_ library.
@@ -91,4 +92,5 @@ It even works with the popular Hypothesis_ library.
 .. _nurseries: https://trio.readthedocs.io/en/stable/reference-core.html#nurseries-and-spawning
 .. _Happy eyeballs: https://en.wikipedia.org/wiki/Happy_Eyeballs
 .. _pytest: https://docs.pytest.org/en/latest/
+.. _functools: https://docs.python.org/3/library/functools.html
 .. _Hypothesis: https://hypothesis.works/

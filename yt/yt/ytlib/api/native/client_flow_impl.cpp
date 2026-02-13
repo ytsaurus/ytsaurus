@@ -32,11 +32,11 @@ TFlowExecuteOptions MakeFlowExecuteOptions(const TOptions& options)
     return executeOptions;
 }
 
-}
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TClient::DiscoverPipelineControllerLeader(const TYPath& pipelinePath)
+std::string TClient::DiscoverPipelineControllerLeader(const TYPath& pipelinePath)
 {
     YT_LOG_DEBUG("Started discovering pipeline controller leader (PipelinePath: %v)",
         pipelinePath);
@@ -72,7 +72,7 @@ TString TClient::DiscoverPipelineControllerLeader(const TYPath& pipelinePath)
             "Probably pipeline controller has never been successfully started or has been unable to publish itself",
             LeaderControllerAddressAttribute);
     }
-    auto address = attributes.Get<TString>(LeaderControllerAddressAttribute);
+    auto address = attributes.Get<std::string>(LeaderControllerAddressAttribute);
 
     YT_LOG_DEBUG("Finished discovering pipeline controller leader (PipelinePath: %v, Address: %v)",
         pipelinePath,
@@ -81,7 +81,7 @@ TString TClient::DiscoverPipelineControllerLeader(const TYPath& pipelinePath)
     return address;
 }
 
-TControllerServiceProxy TClient::CreatePipelineControllerLeaderProxy(const TString& address)
+TControllerServiceProxy TClient::CreatePipelineControllerLeaderProxy(const std::string& address)
 {
     // Cannot use ChannelFactory_ here because it injects internal TVM ticket.
     auto channel = Connection_->GetChannelFactory()->CreateChannel(address);
@@ -230,7 +230,7 @@ TGetFlowViewResult TClient::DoGetFlowView(
 
 TFlowExecuteResult TClient::DoFlowExecute(
     const NYPath::TYPath& pipelinePath,
-    const TString& command,
+    const std::string& command,
     const NYson::TYsonString& argument,
     const TFlowExecuteOptions& options)
 {

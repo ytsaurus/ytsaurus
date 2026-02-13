@@ -30,14 +30,14 @@ TEST(TBacktraceIntrospectorTest, Fibers)
 {
     constexpr int HeavyQueueCount = 5;
     std::vector<TActionQueuePtr> heavyQueues;
-    const TString HeavyThreadNamePrefix("Heavy:");
+    const std::string HeavyThreadNamePrefix("Heavy:");
     for (int index = 0; index < HeavyQueueCount; ++index) {
         heavyQueues.push_back(New<TActionQueue>(HeavyThreadNamePrefix + ToString(index)));
     }
 
     constexpr int LightQueueCount = 3;
     std::vector<TActionQueuePtr> lightQueues;
-    const TString LightThreadNamePrefix("Light:");
+    const std::string LightThreadNamePrefix("Light:");
     for (int index = 0; index < LightQueueCount; ++index) {
         lightQueues.push_back(New<TActionQueue>(LightThreadNamePrefix + ToString(index)));
     }
@@ -139,7 +139,7 @@ TEST(TBacktraceIntrospectorTest, Threads)
 {
     constexpr int QueueCount = 5;
     std::vector<TActionQueuePtr> queues;
-    const TString ThreadNamePrefix("Queue:");
+    const std::string ThreadNamePrefix("Queue:");
     for (int index = 0; index < QueueCount; ++index) {
         queues.push_back(New<TActionQueue>(ThreadNamePrefix + ToString(index)));
     }

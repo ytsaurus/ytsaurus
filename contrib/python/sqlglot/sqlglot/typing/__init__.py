@@ -47,10 +47,13 @@ EXPRESSION_METADATA: ExpressionMetadataType = {
     **{
         expr_type: {"returns": exp.DataType.Type.BOOLEAN}
         for expr_type in {
+            exp.All,
+            exp.Any,
             exp.Between,
             exp.Boolean,
             exp.Contains,
             exp.EndsWith,
+            exp.Exists,
             exp.In,
             exp.LogicalAnd,
             exp.LogicalOr,
@@ -141,6 +144,7 @@ EXPRESSION_METADATA: ExpressionMetadataType = {
         expr_type: {"returns": exp.DataType.Type.TIME}
         for expr_type in {
             exp.CurrentTime,
+            exp.Localtime,
             exp.Time,
             exp.TimeAdd,
             exp.TimeSub,
@@ -200,6 +204,7 @@ EXPRESSION_METADATA: ExpressionMetadataType = {
             exp.UnixToStr,
             exp.UnixToTimeStr,
             exp.Upper,
+            exp.RawString,
         }
     },
     **{
@@ -211,7 +216,10 @@ EXPRESSION_METADATA: ExpressionMetadataType = {
             exp.ArrayReverse,
             exp.ArraySlice,
             exp.Filter,
+            exp.HavingMax,
             exp.LastValue,
+            exp.Limit,
+            exp.Order,
             exp.SortArray,
             exp.Window,
         }
@@ -250,7 +258,7 @@ EXPRESSION_METADATA: ExpressionMetadataType = {
         }
     },
     **{
-        expr_type: {"annotator": lambda self, e: self._annotate_with_type(e, e.args["to"])}
+        expr_type: {"annotator": lambda self, e: self._set_type(e, e.args["to"])}
         for expr_type in {
             exp.Cast,
             exp.TryCast,
@@ -266,33 +274,41 @@ EXPRESSION_METADATA: ExpressionMetadataType = {
     exp.Array: {"annotator": lambda self, e: self._annotate_by_args(e, "expressions", array=True)},
     exp.ArrayAgg: {"annotator": lambda self, e: self._annotate_by_args(e, "this", array=True)},
     exp.Bracket: {"annotator": lambda self, e: self._annotate_bracket(e)},
-    exp.Case: {"annotator": lambda self, e: self._annotate_by_args(e, "default", "ifs")},
+    exp.Case: {
+        "annotator": lambda self, e: self._annotate_by_args(
+            e, *[if_expr.args["true"] for if_expr in e.args["ifs"]], "default"
+        )
+    },
     exp.Count: {
-        "annotator": lambda self, e: self._annotate_with_type(
+        "annotator": lambda self, e: self._set_type(
             e, exp.DataType.Type.BIGINT if e.args.get("big_int") else exp.DataType.Type.INT
         )
     },
     exp.DateDiff: {
-        "annotator": lambda self, e: self._annotate_with_type(
+        "annotator": lambda self, e: self._set_type(
             e, exp.DataType.Type.BIGINT if e.args.get("big_int") else exp.DataType.Type.INT
         )
     },
-    exp.DataType: {"annotator": lambda self, e: self._annotate_with_type(e, e.copy())},
+    exp.DataType: {"annotator": lambda self, e: self._set_type(e, e.copy())},
     exp.Div: {"annotator": lambda self, e: self._annotate_div(e)},
     exp.Distinct: {"annotator": lambda self, e: self._annotate_by_args(e, "expressions")},
     exp.Dot: {"annotator": lambda self, e: self._annotate_dot(e)},
     exp.Explode: {"annotator": lambda self, e: self._annotate_explode(e)},
     exp.Extract: {"annotator": lambda self, e: self._annotate_extract(e)},
+    exp.HexString: {
+        "annotator": lambda self, e: self._set_type(
+            e,
+            exp.DataType.Type.BIGINT if e.args.get("is_integer") else exp.DataType.Type.BINARY,
+        )
+    },
     exp.GenerateSeries: {
         "annotator": lambda self, e: self._annotate_by_args(e, "start", "end", "step", array=True)
     },
     exp.GenerateDateArray: {
-        "annotator": lambda self, e: self._annotate_with_type(e, exp.DataType.build("ARRAY<DATE>"))
+        "annotator": lambda self, e: self._set_type(e, exp.DataType.build("ARRAY<DATE>"))
     },
     exp.GenerateTimestampArray: {
-        "annotator": lambda self, e: self._annotate_with_type(
-            e, exp.DataType.build("ARRAY<TIMESTAMP>")
-        )
+        "annotator": lambda self, e: self._set_type(e, exp.DataType.build("ARRAY<TIMESTAMP>"))
     },
     exp.If: {"annotator": lambda self, e: self._annotate_by_args(e, "true", "false")},
     exp.Literal: {"annotator": lambda self, e: self._annotate_literal(e)},
@@ -304,11 +320,12 @@ EXPRESSION_METADATA: ExpressionMetadataType = {
         "annotator": lambda self, e: self._annotate_by_args(e, "this", "expressions", promote=True)
     },
     exp.Timestamp: {
-        "annotator": lambda self, e: self._annotate_with_type(
+        "annotator": lambda self, e: self._set_type(
             e,
             exp.DataType.Type.TIMESTAMPTZ if e.args.get("with_tz") else exp.DataType.Type.TIMESTAMP,
         )
     },
     exp.ToMap: {"annotator": lambda self, e: self._annotate_to_map(e)},
     exp.Unnest: {"annotator": lambda self, e: self._annotate_unnest(e)},
+    exp.Subquery: {"annotator": lambda self, e: self._annotate_subquery(e)},
 }

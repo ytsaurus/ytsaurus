@@ -22,7 +22,7 @@ using namespace NConcurrency;
 
 struct TChunk
 {
-    using TPart = std::vector<TString>;
+    using TPart = std::vector<std::string>;
     std::vector<TPart> Parts;
 
     TRefCountedChunkMetaPtr Meta;
@@ -70,7 +70,7 @@ TChunk WriteErasureChunk(
     TChunk chunk;
     for (const auto& writer : memoryWriters) {
         auto blocks = writer->GetBlocks();
-        std::vector<TString> part;
+        std::vector<std::string> part;
         for (const auto& block : blocks) {
             part.push_back(ToString(block.Data));
         }
@@ -94,15 +94,15 @@ TEST(TStripedErasureTest, WriterSimple)
 
     auto chunk = WriteErasureChunk(NErasure::ECodec::ReedSolomon_3_3, blocks);
 
-    EXPECT_EQ(chunk.Parts[0], std::vector<TString>({"a", "", "de", "hi"}));
-    EXPECT_EQ(chunk.Parts[1], std::vector<TString>({"b", "", "fg", "jk"}));
+    EXPECT_EQ(chunk.Parts[0], std::vector<std::string>({"a", "", "de", "hi"}));
+    EXPECT_EQ(chunk.Parts[1], std::vector<std::string>({"b", "", "fg", "jk"}));
 
-    TString LNull = "l";
+    std::string LNull = "l";
     LNull.push_back('\0');
-    TString NullNull;
+    std::string NullNull;
     NullNull.push_back('\0');
     NullNull.push_back('\0');
-    EXPECT_EQ(chunk.Parts[2], std::vector<TString>({"c", "", NullNull, LNull}));
+    EXPECT_EQ(chunk.Parts[2], std::vector<std::string>({"c", "", NullNull, LNull}));
 }
 
 TEST(TStripedErasureTest, SegmentsSimple)
@@ -119,9 +119,9 @@ TEST(TStripedErasureTest, SegmentsSimple)
 
     auto chunk = WriteErasureChunk(NErasure::ECodec::ReedSolomon_3_3, blocks, config);
 
-    EXPECT_EQ(chunk.Parts[0], std::vector<TString>({"abcd"}));
-    EXPECT_EQ(chunk.Parts[1], std::vector<TString>({"efgh"}));
-    EXPECT_EQ(chunk.Parts[2], std::vector<TString>({"ijkl"}));
+    EXPECT_EQ(chunk.Parts[0], std::vector<std::string>({"abcd"}));
+    EXPECT_EQ(chunk.Parts[1], std::vector<std::string>({"efgh"}));
+    EXPECT_EQ(chunk.Parts[2], std::vector<std::string>({"ijkl"}));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

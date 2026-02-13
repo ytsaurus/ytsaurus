@@ -10,7 +10,7 @@ Most options are available starting with version 1.23.0 if otherwise is not spec
 | ------------------- | --------------- | ------------------------------------------------------------ |
 | `spark.yt.write.batchSize` | `500000` | The amount of data transferred in a single `WriteTable` transaction |
 | `spark.yt.write.miniBatchSize` | `1000` | The amount of data part transmitted to `WriteTable` |
-| `spark.yt.write.timeout` | `60 seconds` | The timeout to write a single data block |
+| `spark.yt.write.timeout` | `120 seconds` | The timeout to write a single data block |
 | `spark.yt.write.typeV3.enabled` (`spark.yt.write.writingTypeV3.enabled` before 1.75.2) | `true` | Write tables with schema in [type_v3](../../../../../user-guide/storage/data-types.md) instead of `type_v1` |
 | `spark.yt.read.vectorized.capacity` | `1000` | The maximum number of rows in a batch for reading via `wire` protocol |
 | `spark.yt.read.arrow.enabled` | `true` | Use `arrow` format for reading (if possible) |
@@ -180,7 +180,7 @@ RUN python3.12 -m pip install -r requirements.txt
 ```text
 # requirements.txt
 ytsaurus-client==0.13.29
-ytsaurus-spyt==2.8.0
+ytsaurus-spyt==2.8.2
 pyspark==3.5.7
 ```
 

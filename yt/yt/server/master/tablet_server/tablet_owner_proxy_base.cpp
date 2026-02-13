@@ -66,6 +66,8 @@ void TTabletOwnerProxyBase::DoListSystemAttributes(
         .SetWritable(true)
         .SetPresent(IsObjectAlive(trunkTable->TabletCellBundle()))
         .SetReplicated(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCellBundleId)
+        .SetPresent(IsObjectAlive(trunkTable->TabletCellBundle())));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::InMemoryMode)
         .SetReplicated(true)
         .SetWritable(true));
@@ -201,6 +203,15 @@ bool TTabletOwnerProxyBase::DoGetBuiltinAttribute(
             if (const auto& cellBundle = trunkTable->TabletCellBundle()) {
                 BuildYsonFluently(consumer)
                     .Value(trunkTable->TabletCellBundle()->GetName());
+                return true;
+            } else {
+                return false;
+            }
+
+        case EInternedAttributeKey::TabletCellBundleId:
+            if (const auto& cellBundle = trunkTable->TabletCellBundle()) {
+                BuildYsonFluently(consumer)
+                    .Value(trunkTable->TabletCellBundle()->GetId());
                 return true;
             } else {
                 return false;

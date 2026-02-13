@@ -28,19 +28,23 @@ using namespace NNodes;
 
 const TString EvaluationComponent = "Evaluation";
 
-static THashSet<TStringBuf> EvaluationFuncs = {
+namespace {
+
+THashSet<TStringBuf> EvaluationFuncs = {
     TStringBuf("EvaluateAtom"),
     TStringBuf("EvaluateExpr"),
     TStringBuf("EvaluateType"),
     TStringBuf("EvaluateCode")};
 
-static THashSet<TStringBuf> SubqueryExpandFuncs = {
+THashSet<TStringBuf> SubqueryExpandFuncs = {
     TStringBuf("SubqueryExtendFor"),
     TStringBuf("SubqueryUnionAllFor"),
     TStringBuf("SubqueryMergeFor"),
     TStringBuf("SubqueryUnionMergeFor"),
     TStringBuf("SubqueryOrderBy"),
     TStringBuf("SubqueryAssumeOrderBy")};
+
+} // namespace
 
 bool CheckPendingArgs(const TExprNode& root, TNodeSet& visited, TNodeMap<const TExprNode*>& activeArgs, const TNodeMap<ui32>& externalWorlds, TExprContext& ctx,
                       bool underTypeOf, bool& hasUnresolvedTypes) {
@@ -91,6 +95,7 @@ public:
     TNodeMap<ui32> ExternalWorlds;
     TDeque<TExprNode::TPtr> ExternalWorldsList;
     TNodeMap<bool> Visited;
+    bool ForceConfigure = false;
 
 public:
     void Scan(const TExprNode& node) {
@@ -106,10 +111,14 @@ public:
                     }
                     if (pending) {
                         const TStringBuf command = n.Child(2)->Content();
-                        if (command == "AddFileByUrl") {
-                            PendingFileAliases_.insert(n.Child(3)->Content());
-                        } else if (command == "AddFolderByUrl") {
-                            PendingFolderPrefixes_.insert(n.Child(3)->Content());
+                        if (!n.Child(3)->IsCallable("EvaluateAtom")) {
+                            if (command == "AddFileByUrl") {
+                                PendingFileAliases_.insert(n.Child(3)->Content());
+                            } else if (command == "AddFolderByUrl") {
+                                PendingFolderPrefixes_.insert(n.Child(3)->Content());
+                            }
+                        } else {
+                            ForceConfigure = true;
                         }
                     }
                 }
@@ -142,12 +151,16 @@ private:
 
         static THashSet<TStringBuf> FileCallables = {"FilePath", "FileContent", "FolderPath"};
         if (node.IsCallable(FileCallables)) {
-            const auto alias = node.Head().Content();
-            if (PendingFileAliases_.contains(alias) || AnyOf(PendingFolderPrefixes_, [alias](const TStringBuf prefix) {
-                    auto withSlash = TString(prefix) + "/";
-                    return alias.StartsWith(withSlash);
-                })) {
+            if (node.Head().IsCallable("EvaluateAtom")) {
                 localConfigPending = true;
+            } else {
+                const auto alias = node.Head().Content();
+                if (PendingFileAliases_.contains(alias) || AnyOf(PendingFolderPrefixes_, [alias](const TStringBuf prefix) {
+                        auto withSlash = TString(prefix) + "/";
+                        return alias.StartsWith(withSlash);
+                    })) {
+                    localConfigPending = true;
+                }
             }
         }
 
@@ -959,7 +972,10 @@ IGraphTransformer::TStatus EvaluateExpression(const TExprNode::TPtr& input, TExp
 
         if (marked.Reachable.find(node.Get()) == marked.Reachable.cend()) {
             bool withRestart = false;
-            if (auto it = marked.Visited.find(node.Get()); it != marked.Visited.end() && it->second) {
+            if (marked.ForceConfigure) {
+                ctx.Step.Repeat(TExprStep::Configure);
+                withRestart = true;
+            } else if (auto it = marked.Visited.find(node.Get()); it != marked.Visited.end() && it->second) {
                 ctx.Step.Repeat(TExprStep::Configure);
                 withRestart = true;
             }

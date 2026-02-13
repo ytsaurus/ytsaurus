@@ -21,7 +21,7 @@ struct ISecretVaultService
         std::string Signature;
         std::optional<TTvmId> TvmId;
 
-        auto operator <=> (const TSecretSubrequest& other) const = default;
+        auto operator<=>(const TSecretSubrequest& other) const = default;
 
         operator size_t() const
         {

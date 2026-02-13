@@ -34,6 +34,7 @@ target_compile_options(library-query-engine PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_include_directories(library-query-engine PUBLIC
@@ -97,6 +98,7 @@ target_compile_options(library-query-engine.global PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_include_directories(library-query-engine.global PUBLIC
@@ -142,6 +144,7 @@ target_sources(library-query-engine.global PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/new_range_inferrer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/query_engine_config.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/a0be0a9e87e4702ae1320a576208a851.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/331e564e8e1af5f70efc6501dc2959bd.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/fee4f55767e8a84a948e7ea583dfbe42.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/dda3c4dd6be8a78f1812ae538736ee47.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/f1f6f56affb584519806d24589f447b7.cpp
@@ -206,7 +209,33 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/hyperloglog_merged.bc
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/hyperloglog_optimized.bc
-  -internalize-public-api-list=cardinality_init#cardinality_update#cardinality_merge#cardinality_finalize#cardinality_state_init#cardinality_state_update#cardinality_state_merge#cardinality_state_finalize#cardinality_merge_init#cardinality_merge_update#cardinality_merge_merge#cardinality_merge_finalize#cardinality_merge_state_init#cardinality_merge_state_update#cardinality_merge_state_merge#cardinality_merge_state_finalize
+  -internalize-public-api-list=hll_7_init#hll_7_update#hll_7_merge#hll_7_finalize#hll_7_state_init#hll_7_state_update#hll_7_state_merge#hll_7_state_finalize#hll_7_merge_init#hll_7_merge_update#hll_7_merge_merge#hll_7_merge_finalize#hll_7_merge_state_init#hll_7_merge_state_update#hll_7_merge_state_merge#hll_7_merge_state_finalize#hll_8_init#hll_8_update#hll_8_merge#hll_8_finalize#hll_8_state_init#hll_8_state_update#hll_8_state_merge#hll_8_state_finalize#hll_8_merge_init#hll_8_merge_update#hll_8_merge_merge#hll_8_merge_finalize#hll_8_merge_state_init#hll_8_merge_state_update#hll_8_merge_state_merge#hll_8_merge_state_finalize#hll_9_init#hll_9_update#hll_9_merge#hll_9_finalize#hll_9_state_init#hll_9_state_update#hll_9_state_merge#hll_9_state_finalize#hll_9_merge_init#hll_9_merge_update#hll_9_merge_merge#hll_9_merge_finalize#hll_9_merge_state_init#hll_9_merge_state_update#hll_9_merge_state_merge#hll_9_merge_state_finalize#hll_10_init#hll_10_update#hll_10_merge#hll_10_finalize#hll_10_state_init#hll_10_state_update#hll_10_state_merge#hll_10_state_finalize#hll_10_merge_init#hll_10_merge_update#hll_10_merge_merge#hll_10_merge_finalize#hll_10_merge_state_init#hll_10_merge_state_update#hll_10_merge_state_merge#hll_10_merge_state_finalize#hll_11_init#hll_11_update#hll_11_merge#hll_11_finalize#hll_11_state_init#hll_11_state_update#hll_11_state_merge#hll_11_state_finalize#hll_11_merge_init#hll_11_merge_update#hll_11_merge_merge#hll_11_merge_finalize#hll_11_merge_state_init#hll_11_merge_state_update#hll_11_merge_state_merge#hll_11_merge_state_finalize#hll_12_init#hll_12_update#hll_12_merge#hll_12_finalize#hll_12_state_init#hll_12_state_update#hll_12_state_merge#hll_12_state_finalize#hll_12_merge_init#hll_12_merge_update#hll_12_merge_merge#hll_12_merge_finalize#hll_12_merge_state_init#hll_12_merge_state_update#hll_12_merge_state_merge#hll_12_merge_state_finalize#hll_13_init#hll_13_update#hll_13_merge#hll_13_finalize#hll_13_state_init#hll_13_state_update#hll_13_state_merge#hll_13_state_finalize#hll_13_merge_init#hll_13_merge_update#hll_13_merge_merge#hll_13_merge_finalize#hll_13_merge_state_init#hll_13_merge_state_update#hll_13_merge_state_merge#hll_13_merge_state_finalize#hll_14_init#hll_14_update#hll_14_merge#hll_14_finalize#hll_14_state_init#hll_14_state_update#hll_14_state_merge#hll_14_state_finalize#hll_14_merge_init#hll_14_merge_update#hll_14_merge_merge#hll_14_merge_finalize#hll_14_merge_state_init#hll_14_merge_state_update#hll_14_merge_state_merge#hll_14_merge_state_finalize
+  -passes="default<O2>,globalopt,globaldce,internalize"
+)
+
+add_custom_command(
+  OUTPUT
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/uniq_merged.bc
+  DEPENDS
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/uniq.cpp.bc
+  COMMAND
+  ${LLVMLINK}
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/uniq.cpp.bc
+  -o
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/uniq_merged.bc
+)
+
+add_custom_command(
+  OUTPUT
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/uniq_optimized.bc
+  DEPENDS
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/uniq_merged.bc
+  COMMAND
+  ${LLVMOPT}
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/uniq_merged.bc
+  -o
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/uniq_optimized.bc
+  -internalize-public-api-list=uniq_init#uniq_update#uniq_merge#uniq_finalize#uniq_state_init#uniq_state_update#uniq_state_merge#uniq_state_finalize#uniq_merge_init#uniq_merge_update#uniq_merge_merge#uniq_merge_finalize#uniq_merge_state_init#uniq_merge_state_update#uniq_merge_state_merge#uniq_merge_state_finalize
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
 
@@ -1233,6 +1262,14 @@ llvm_compile_cxx(library-query-engine.global
 )
 
 llvm_compile_cxx(library-query-engine.global
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/uniq.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/uniq.cpp.bc
+  ${CLANGPLUSPLUS}
+  -Wno-unknown-warning-option
+  -emit-llvm
+)
+
+llvm_compile_cxx(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/array_agg.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/array_agg.cpp.bc
   ${CLANGPLUSPLUS}
@@ -1446,6 +1483,15 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/hyperloglog_optimized.bc
   KEYS
   /llvm_bc/hyperloglog
+  OPTS
+)
+
+resources(library-query-engine.global
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/331e564e8e1af5f70efc6501dc2959bd.cpp
+  INPUTS
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/uniq_optimized.bc
+  KEYS
+  /llvm_bc/uniq
   OPTS
 )
 

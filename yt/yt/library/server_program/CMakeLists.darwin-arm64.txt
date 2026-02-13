@@ -21,6 +21,7 @@ target_compile_options(yt-library-server_program PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(yt-library-server_program PUBLIC

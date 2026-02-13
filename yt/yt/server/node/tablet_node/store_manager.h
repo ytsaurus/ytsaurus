@@ -25,13 +25,13 @@ struct TAddStoreOptions
 {
     // Indicates whether intercepted chunk data is used during the compaction process,
     // and we expect to have exclusive access to it.
-    bool UseInterceptedChunkData;
+    bool UseInterceptedChunkData = false;
 
     // Indicates whether preloaded chunks are used that were specifically retained earlier
     // during the unmount.
-    bool UseRetainedPreloadedChunks;
+    bool UseRetainedPreloadedChunks = false;
 
-    bool OnFlush;
+    bool OnFlush = false;
     TPartitionId PartitionIdHint;
 };
 
@@ -39,9 +39,9 @@ struct TAddStoreOptions
 
 struct TMountOptions
 {
-    bool CreateDynamicStore;
-    bool UseRetainedPreloadedChunks;
-    const NTabletNode::NProto::TMountHint* MountHint;
+    bool CreateDynamicStore = false;
+    bool UseRetainedPreloadedChunks = false;
+    const NTabletNode::NProto::TMountHint* MountHint = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -164,6 +164,9 @@ struct ISortedStoreManager
     virtual void UpdatePartitionSampleKeys(
         TPartition* partition,
         const TSharedRange<TLegacyKey>& keys) = 0;
+
+    virtual void AddUnleashedBackingStore(TSortedDynamicStorePtr unleashedBackingStore) = 0;
+    virtual void ReleaseUnleashedBackingStore(TDynamicStoreId backingStoreId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISortedStoreManager)

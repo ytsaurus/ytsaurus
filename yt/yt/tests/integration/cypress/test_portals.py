@@ -461,6 +461,21 @@ class TestPortals(YTEnvSetup):
         assert get("//tmp/p/t_&/@target_path") == "//tmp/p/t"
         assert get("//tmp/p/t_/@id") == get("//tmp/p/t/@id")
 
+    @authors("h0pless")
+    def test_link_path_rewrite(self):
+        create("map_node", "//tmp/portal_but_not_quite")
+        create("portal_entrance", "//tmp/portal", attributes={"exit_cell_tag": 11})
+        link("//tmp/portal_but_not_quite", "//tmp/portal/link")
+        link("//tmp&/portal_but_not_quite", "//tmp/portal/link2")
+        create("map_node", "//tmp/portal/map_node")
+        link("//tmp&/portal/map_node", "//tmp/link3")
+        link("//tmp&/portal", "//tmp/link4")
+
+        assert get("//tmp/portal/link&/@target_path") == "//tmp/portal_but_not_quite"
+        assert get("//tmp/portal/link2&/@target_path") == "//tmp&/portal_but_not_quite"
+        assert get("//tmp/link3&/@target_path") == "//tmp&/portal/map_node"
+        assert get("//tmp/link4&/@target_path") == "//tmp&/portal"
+
     @authors("babenko")
     @pytest.mark.parametrize("purge_resolve_cache", [False, True])
     def test_intra_shard_copy_move(self, purge_resolve_cache):

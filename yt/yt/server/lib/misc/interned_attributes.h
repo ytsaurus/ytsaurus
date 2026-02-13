@@ -25,6 +25,7 @@
     XX(Alerts, alerts) \
     XX(Aliases, aliases) \
     XX(AlienConfigVersions, alien_config_versions) \
+    XX(AllReplicasReachedLastGlobalEra, all_replicas_reached_last_global_era) \
     XX(AllowAggressivePreemption, allow_aggressive_preemption) \
     XX(AllowAggressiveStarvationPreemption, allow_aggressive_starvation_preemption) \
     XX(AllowChildrenGuarantees, allow_children_guarantees) \
@@ -74,6 +75,7 @@
     XX(Cellars, cellars) \
     XX(ChangelogAccountViolatedResourceLimits, changelog_account_violated_resource_limits) \
     XX(ChaosCellBundle, chaos_cell_bundle) \
+    XX(ChaosCellBundleId, chaos_cell_bundle_id) \
     XX(ChaosOptions, chaos_options) \
     XX(ChildCount, child_count) \
     XX(ChildIds, child_ids) \
@@ -121,9 +123,12 @@
     XX(ConfigPresets, config_presets) \
     XX(ConfigVersion, config_version) \
     XX(Confirmed, confirmed) \
+    XX(ConflictHorizonTimestamp, conflict_horizon_timestamp) \
     XX(ConsistentReplicaPlacement, consistent_replica_placement) \
     XX(ConsistentReplicaPlacementHash, consistent_replica_placement_hash) \
     XX(ConsistentReplicaPlacementTokenCount, consistent_replica_placement_token_count) \
+    XX(ConstrainedSchema, constrained_schema) \
+    XX(Constraints, constraints) \
     XX(ContentRevision, content_revision) \
     XX(CoordinatorCellIds, coordinator_cell_ids) \
     XX(CorrelationId, correlation_id) \
@@ -132,7 +137,7 @@
     XX(CreateEphemeralSubpools, create_ephemeral_subpools) \
     XX(CreationTime, creation_time) \
     XX(CumulativeStatistics, cumulative_statistics) \
-    XX(CurrentCommitRevision, current_commit_revision) \
+    XX(CurrentHydraVersion, current_hydra_version) \
     XX(CurrentMountTransactionId, current_mount_transaction_id) \
     XX(CustomProfilingTagFilter, custom_profiling_tag_filter) \
     XX(CustomRuntimeData, custom_runtime_data) \
@@ -257,12 +262,14 @@
     XX(HunkErasureCodec, hunk_erasure_codec) \
     XX(HunkMedia, hunk_media) \
     XX(HunkPrimaryMedium, hunk_primary_medium) \
+    XX(HunkPrimaryMediumId, hunk_primary_medium_id) \
     XX(HunkStatistics, hunk_statistics) \
     XX(HunkStorageId, hunk_storage_id) \
     XX(HunkStoreWriter, hunk_store_writer) \
     XX(HydraLogicalTime, hydra_logical_time) \
     XX(HydraReadOnly, hydra_read_only) \
     XX(Id, id) \
+    XX(ImmediateAnnotation, immediate_annotation) \
     XX(Implicit, implicit) \
     XX(ImportRefCounter, import_ref_counter) \
     XX(ImportedObjectCount, imported_object_count) \
@@ -384,6 +391,7 @@
     XX(OptimizeFor, optimize_for) \
     XX(OptimizeForStatistics, optimize_for_statistics) \
     XX(Options, options) \
+    XX(OriginatorTablets, originator_tablets) \
     XX(Overlayed, overlayed) \
     XX(Owner, owner) \
     XX(OwnerId, owner_id) \
@@ -418,6 +426,7 @@
     XX(PrimaryCellId, primary_cell_id) \
     XX(PrimaryCellTag, primary_cell_tag) \
     XX(PrimaryMedium, primary_medium) \
+    XX(PrimaryMediumId, primary_medium_id) \
     XX(PrincipalAcl, principal_acl) \
     XX(PrincipalOwner, principal_owner) \
     XX(Priority, priority) \
@@ -543,6 +552,7 @@
     XX(TabletBackupState, tablet_backup_state) \
     XX(TabletBalancerConfig, tablet_balancer_config) \
     XX(TabletCellBundle, tablet_cell_bundle) \
+    XX(TabletCellBundleId, tablet_cell_bundle_id) \
     XX(TabletCellCount, tablet_cell_count) \
     XX(TabletCellIds, tablet_cell_ids) \
     XX(TabletCellLifeStage, tablet_cell_life_stage) \
@@ -574,6 +584,9 @@
     XX(TotalStatistics, total_statistics) \
     XX(TouchTime, touch_time) \
     XX(TransactionId, transaction_id) \
+    XX(TransferableEffectiveInheritableAttributes, transferable_effective_inheritable_attributes) \
+    XX(TransferableHunkMedia, transferable_hunk_media) \
+    XX(TransferableMedia, transferable_media) \
     XX(Transient, transient) \
     XX(TransientMasterMemoryUsage, transient_master_memory_usage) \
     XX(TreatAsQueueConsumer, treat_as_queue_consumer) \
@@ -587,7 +600,7 @@
     XX(UncompressedDataSize, uncompressed_data_size) \
     XX(UnconfirmedDynamicTableLocks, unconfirmed_dynamic_table_locks) \
     XX(UnflushedTimestamp, unflushed_timestamp) \
-    XX(UnfoldedColumn, unfolded_column) \
+    XX(UnfoldedColumns, unfolded_columns) \
     XX(UnmergedRowCount, unmerged_row_count) \
     XX(Unregistered, unregistered) \
     XX(UpdateMode, update_mode) \

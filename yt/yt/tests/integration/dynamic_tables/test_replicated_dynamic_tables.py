@@ -13,7 +13,7 @@ from yt_commands import (
     sync_unfreeze_table, sync_flush_table, sync_enable_table_replica, sync_disable_table_replica,
     remove_table_replica, alter_table_replica, get_in_sync_replicas, sync_alter_table_replica_mode,
     get_driver, SyncLastCommittedTimestamp, raises_yt_error, get_singular_chunk_id,
-    set_node_banned, sorted_dicts)
+    set_node_banned, sorted_dicts, build_snapshot)
 
 from yt.test_helpers import are_items_equal, assert_items_equal
 import yt_error_codes
@@ -229,6 +229,8 @@ class TestReplicatedDynamicTablesBase(DynamicTablesBase):
             attributes.update({"store_rotation_period": 10000})
         if "store_removal_grace_period" not in attributes:
             attributes.update({"store_removal_grace_period": 10000})
+        if "scan_backoff_period" not in attributes:
+            attributes.update({"scan_backoff_period": 1000})
         return create("hunk_storage", name, attributes=attributes)
 
     def _get_hunk_table_schema(self, schema, max_inline_hunk_size):
@@ -261,7 +263,8 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
                 insert_rows(path, rows, require_sync_replica=require_sync_replica)
                 return
             except YtError as e:
-                if not e.contains_code(yt_error_codes.HunkTabletStoreToggleConflict):
+                if not e.contains_code(yt_error_codes.HunkTabletStoreToggleConflict) and \
+                   not e.contains_code(yt_error_codes.HunkStoreAllocationFailed):
                     raise e
 
     @authors("savrus")
@@ -727,6 +730,62 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         set_banned_replica_clusters_and_wait([])
         set_banned_replica_clusters_and_wait([self.REPLICA_CLUSTER_NAME])
+
+    @authors("fomasha")
+    @pytest.mark.parametrize("mode", ["async", "sync"])
+    def test_per_cluster_tablet_replication_sync_replica_count_orchid(self, mode):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", replicated_table_options={"enable_replicated_table_tracker": False})
+
+        replica_id1 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": mode})
+        replica_id2 = create_table_replica("//tmp/t", "primary", "//tmp/r2", attributes={"mode": "sync"})
+
+        self._create_replica_table("//tmp/r1", replica_id1)
+        self._create_replica_table("//tmp/r2", replica_id2, replica_driver=self.primary_driver)
+
+        cell_id = get("//tmp/t/@tablets/0/cell_id")
+        cell_node = get(f"#{cell_id}/@peers/0/address")
+
+        def has_sync_replicas(replica_cluster):
+            return get(f"//sys/cluster_nodes/{cell_node}/orchid/tablet_cells/{cell_id}/per_cluster_tablet_replication_status/{replica_cluster}/has_sync_replicas")
+
+        assert not has_sync_replicas(self.REPLICA_CLUSTER_NAME)
+
+        sync_enable_table_replica(replica_id1)
+        sync_enable_table_replica(replica_id2)
+
+        timestamp = generate_timestamp()
+        wait(lambda: are_items_equal(
+            get_in_sync_replicas("//tmp/t", [], timestamp=timestamp),
+            [replica_id1, replica_id2]))
+
+        if mode == "sync":
+            wait(lambda: has_sync_replicas(self.REPLICA_CLUSTER_NAME))
+
+        set(
+            "//tmp/t/@replicated_table_options",
+            {
+                "enable_replicated_table_tracker": True,
+                "tablet_cell_bundle_name_failure_interval": 1000,
+            },
+        )
+
+        assert get("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/enable_incoming_replication")
+        assert get("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/enable_incoming_replication", driver=self.replica_driver)
+
+        set(
+            "//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/enable_incoming_replication",
+            False,
+            driver=self.replica_driver
+        )
+
+        wait(lambda: not has_sync_replicas(self.REPLICA_CLUSTER_NAME))
+
+        set(
+            "//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/enable_incoming_replication",
+            True,
+            driver=self.replica_driver
+        )
 
     @authors("babenko")
     def test_in_sync_replicas_with_sync_last_committed_timestamp(self):
@@ -1436,7 +1495,8 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
     @authors("aozeritsky")
     def test_replication_unversioned(self):
-        self._create_cells()
+        primary_cells, _ = self._create_cells()
+        cell_id = primary_cells[0]
         self._create_replicated_table("//tmp/t")
         replica_id1 = create_table_replica(
             "//tmp/t",
@@ -1521,6 +1581,11 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         sync_alter_table_replica_mode(replica_id1, "async")
         sync_alter_table_replica_mode(replica_id1, "sync")
+
+        build_snapshot(cell_id=cell_id)
+
+        with self.CellsDisabled(clusters=["primary"], tablet_bundles=[get(f'#{cell_id}/@tablet_cell_bundle')]):
+            pass
 
         _do()
 

@@ -225,6 +225,8 @@ public:
             CachedRemoteReaderAdapters_.emplace(
                 workloadCategory,
                 std::move(backendReaders));
+
+            YT_LOG_DEBUG("Remote chunk reader adapter created and cached (WorkloadCategory: %v)", workloadCategory);
         };
 
         auto now = NProfiling::GetCpuInstant();
@@ -345,9 +347,7 @@ public:
         CachedReadersLocal_ = false;
         CachedWeakChunk_.Reset();
 
-        if (config) {
-            SetReaderConfig(config);
-        }
+        SetReaderConfig(config);
     }
 
     TTabletStoreReaderConfigPtr GetReaderConfig() override
@@ -374,9 +374,12 @@ private:
 
     void SetReaderConfig(const TTabletStoreReaderConfigPtr& readerConfig)
     {
-        ReaderConfig_ = CloneYsonStruct(readerConfig);
+        if (readerConfig) {
+            ReaderConfig_ = CloneYsonStruct(readerConfig);
+        }
         ReaderConfig_->EnableLocalThrottling = Bootstrap_->GetDynamicConfigManager()
             ->GetConfig()->TabletNode->EnableCollocatedDatNodeThrottling;
+        ReaderConfig_->Postprocess();
     }
 
     static bool IsLocalChunkValid(const IChunkPtr& chunk)
@@ -580,6 +583,11 @@ TTabletId TStoreBase::GetTabletId() const
 {
     return TabletId_;
 }
+
+void TStoreBase::OnDynamicConfigChanged(
+    const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
+    const TClusterNodeDynamicConfigPtr& /*newConfig*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1110,15 +1118,27 @@ IChunkStorePtr TChunkStoreBase::AsChunk()
 TBackendReaders TChunkStoreBase::GetBackendReaders(
     std::optional<EWorkloadCategory> workloadCategory)
 {
+    if (CachedReadersInvalidationNeeded_) {
+        if (CachedReadersInvalidationNeeded_.exchange(false)) {
+            InvalidateCachedReaders(/*config*/ nullptr);
+        }
+    }
+
     return BackendReadersHolder_->GetBackendReaders(this, workloadCategory);
 }
 
 TTabletStoreReaderConfigPtr TChunkStoreBase::GetReaderConfig()
 {
+    if (CachedReadersInvalidationNeeded_) {
+        if (CachedReadersInvalidationNeeded_.exchange(false)) {
+            InvalidateCachedReaders(/*config*/ nullptr);
+        }
+    }
+
     return BackendReadersHolder_->GetReaderConfig();
 }
 
-void TChunkStoreBase::InvalidateCachedReaders(const TTableSettings& settings)
+void TChunkStoreBase::InvalidateCachedReaders(const TTabletStoreReaderConfigPtr& storeReaderConfig)
 {
     {
         auto guard = WriterGuard(WeakCachedVersionedChunkMetaEntryLock_);
@@ -1127,7 +1147,7 @@ void TChunkStoreBase::InvalidateCachedReaders(const TTableSettings& settings)
         guard.Release();
     }
 
-    BackendReadersHolder_->InvalidateCachedReadersAndTryResetConfig(settings.StoreReaderConfig);
+    BackendReadersHolder_->InvalidateCachedReadersAndTryResetConfig(storeReaderConfig);
 }
 
 TCachedVersionedChunkMetaPtr TChunkStoreBase::FindCachedVersionedChunkMeta(
@@ -1188,6 +1208,15 @@ TFuture<TCachedVersionedChunkMetaPtr> TChunkStoreBase::GetCachedVersionedChunkMe
             return meta;
         })
         .AsyncVia(GetCurrentInvoker()));
+}
+
+void TChunkStoreBase::OnDynamicConfigChanged(
+    const TClusterNodeDynamicConfigPtr& oldConfig,
+    const TClusterNodeDynamicConfigPtr& newConfig)
+{
+    TStoreBase::OnDynamicConfigChanged(oldConfig, newConfig);
+
+    CachedReadersInvalidationNeeded_.store(true);
 }
 
 const std::vector<THunkChunkRef>& TChunkStoreBase::HunkChunkRefs() const

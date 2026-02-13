@@ -50,6 +50,8 @@ struct ITabletActionManagerHost
     virtual void DoFreezeTablet(TTabletBase* tablet) = 0;
     virtual void DoUnfreezeTablet(TTabletBase* tablet) = 0;
 
+    virtual void RequestProvisionalFlush(TTabletBase* tablet) = 0;
+
     virtual void DoMountTablets(
         TTabletOwnerBase* table,
         const TSerializedTabletOwnerSettings& serializedTableSettings,

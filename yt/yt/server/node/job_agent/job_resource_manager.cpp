@@ -515,7 +515,7 @@ public:
     {
         YT_VERIFY(Bootstrap_->IsExecNode());
 
-        NScheduler::NProto::TDiskRequest diskRequest;
+        NScheduler::NProto::TDeprecatedDiskRequest diskRequest;
         diskRequest.set_disk_space(neededResources.DiskSpaceRequest);
         diskRequest.set_inode_count(neededResources.InodeRequest);
 
@@ -1415,7 +1415,7 @@ private:
 
         YT_LOG_INFO("Check mapped memory usage");
 
-        THashMap<TString, i64> vmstat;
+        THashMap<std::string, i64> vmstat;
         try {
             vmstat = GetVmstat();
         } catch (const std::exception& ex) {

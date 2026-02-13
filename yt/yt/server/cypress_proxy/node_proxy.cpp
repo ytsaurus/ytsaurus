@@ -31,6 +31,8 @@
 
 #include <yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h>
 
+#include <yt/yt/ytlib/journal_client/proto/journal_ypath.pb.h>
+
 #include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
@@ -125,7 +127,6 @@ IMPLEMENT_SUPPORTS_METHOD(List)
 IMPLEMENT_SUPPORTS_METHOD_RESOLVE(
     Exists,
     {
-        // TODO(kvk1920): it would be great to log target object ID here.
         context->SetRequestInfo();
         Reply(context, /*exists*/ false);
     })
@@ -136,9 +137,7 @@ void TSupportsExists::ExistsAttribute(
     TRspExists* /*response*/,
     const TCtxExistsPtr& context)
 {
-    // TODO(kvk1920): it would be great to log target object ID here.
     context->SetRequestInfo();
-
     Reply(context, /*exists*/ false);
 }
 
@@ -147,9 +146,7 @@ void TSupportsExists::ExistsSelf(
     TRspExists* /*response*/,
     const TCtxExistsPtr& context)
 {
-    // TODO(kvk1920): it would be great to log target object ID here.
     context->SetRequestInfo();
-
     Reply(context, /*exists*/ true);
 }
 
@@ -159,9 +156,7 @@ void TSupportsExists::ExistsRecursive(
     TRspExists* /*response*/,
     const TCtxExistsPtr& context)
 {
-    // TODO(kvk1920): it would be great to log target object ID here.
     context->SetRequestInfo();
-
     Reply(context, /*exists*/ false);
 }
 
@@ -224,6 +219,11 @@ protected:
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, GetUploadParams);
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, EndUpload);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, GetMountInfo);
+    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, ReshardAutomatic);
+
+    DECLARE_YPATH_SERVICE_METHOD(NJournalClient::NProto, UpdateStatistics);
+    DECLARE_YPATH_SERVICE_METHOD(NJournalClient::NProto, Seal);
+    DECLARE_YPATH_SERVICE_METHOD(NJournalClient::NProto, Truncate);
 
     // Used for cross-cell copy.
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, LockCopyDestination);
@@ -248,8 +248,20 @@ protected:
         return ResolveResult_.IsSnapshot();
     }
 
+    void SetBasicRequestInfo(const ISequoiaServiceContextPtr& context)
+    {
+        context->SetIncrementalRequestInfo(
+            "TargetObjectPath: %v, TargetObjectId: %v, Path: %v%v",
+            Path_,
+            MakeVersionedNodeId(Id_),
+            Path_,
+            GetRequestTargetYPath(context->GetRequestHeader()));
+    }
+
     bool DoInvoke(const ISequoiaServiceContextPtr& context) override
     {
+        SetBasicRequestInfo(context);
+
         DISPATCH_YPATH_SERVICE_METHOD(Exists);
         DISPATCH_YPATH_SERVICE_METHOD(Get);
         DISPATCH_YPATH_SERVICE_METHOD(Set);
@@ -272,6 +284,11 @@ protected:
         DISPATCH_YPATH_SERVICE_METHOD(GetUploadParams);
         DISPATCH_YPATH_SERVICE_METHOD(EndUpload);
         DISPATCH_YPATH_SERVICE_METHOD(GetMountInfo);
+        DISPATCH_YPATH_SERVICE_METHOD(ReshardAutomatic);
+
+        DISPATCH_YPATH_SERVICE_METHOD(UpdateStatistics);
+        DISPATCH_YPATH_SERVICE_METHOD(Seal);
+        DISPATCH_YPATH_SERVICE_METHOD(Truncate);
 
         DISPATCH_YPATH_SERVICE_METHOD(BeginCopy);
 
@@ -537,14 +554,16 @@ protected:
     {
         YT_VERIFY(TypeFromId(Id_) == EObjectType::Scion);
 
-        // TODO(kvk1920): think about transactions.
+        if (SequoiaSession_->GetCurrentCypressTransactionId()) {
+            THROW_ERROR_EXCEPTION("Rootstock cannot be removed under transaction")
+                << TErrorAttribute("scion_id", Id_)
+                << TErrorAttribute("cypress_transaction_id", SequoiaSession_->GetCurrentCypressTransactionId());
+        }
 
         // Scion removal causes rootstock removal.
         // Since rootstock's parent _always_ lives at the same cell as rootstock
         // `DetachChild()` isn't needed.
 
-        // TODO(kvk1920): Think about inferring rootstock's id from scion's one.
-        // TODO(kvk1920): make it a part of |TSequoiaSession::RemoveRootstock|.
         auto reqGet = TYPathProxy::Get(FromObjectId(Id_) + "/@rootstock_id");
         SetAllowResolveFromSequoiaObject(reqGet, true);
         auto rspGet = WaitFor(CreateReadProxyForObject(Id_).Execute(reqGet))
@@ -730,7 +749,7 @@ protected:
         TRspExists* /*response*/,
         const TCtxExistsPtr& context) override
     {
-        context->SetRequestInfo("TargetObjectId: %v", Id_);
+        context->SetRequestInfo();
         // Permission validation is intentionally skipped here.
         AbortSequoiaSessionForLaterForwardingToMaster();
     }
@@ -741,7 +760,7 @@ protected:
         TRspExists* /*response*/,
         const TCtxExistsPtr& context) override
     {
-        context->SetRequestInfo("TargetObjectId: %v", Id_);
+        context->SetRequestInfo();
 
         ValidatePermissionForThis(EPermission::Read);
 
@@ -798,7 +817,7 @@ protected:
             // The key is requested by path, and we haven't forwarded request to master.
             // This means that key is special attribute which we have fetched, so we can return it.
             if (!node->Attributes().Contains(key.value())) {
-                THROW_ERROR_EXCEPTION("Attribute %Qv not found", key.value());
+                THROW_ERROR_EXCEPTION("Attribute %Qv is not found", key.value());
             }
 
             auto attributeFragmentPath = TYPath(tokenizer.GetInput());
@@ -981,8 +1000,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, GetBasicAttributes)
 {
     auto permission = YT_OPTIONAL_FROM_PROTO(*request, permission, EPermission);
 
-    context->SetRequestInfo("TargetObjectId: %v, Permission: %v",
-        Id_,
+    context->SetRequestInfo("Permission: %v",
         permission);
 
     ValidateEmptyUnresolvedSuffix(GetRequestTargetYPath(context->GetRequestHeader()));
@@ -1023,7 +1041,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, CheckPermission)
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Fetch)
 {
-    context->SetRequestInfo("TargetObjectId: %v", Id_);
+    context->SetRequestInfo();
 
     ValidateEmptyUnresolvedSuffix(GetRequestTargetYPath(context->GetRequestHeader()));
 
@@ -1032,7 +1050,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Fetch)
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, BeginUpload)
 {
-    context->SetRequestInfo("TargetObjectId: %v", Id_);
+    context->SetRequestInfo();
 
     ValidateEmptyUnresolvedSuffix(GetRequestTargetYPath(context->GetRequestHeader()));
 
@@ -1041,7 +1059,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, BeginUpload)
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, GetUploadParams)
 {
-    context->SetRequestInfo("TargetObjectId: %v", Id_);
+    context->SetRequestInfo();
 
     ValidateEmptyUnresolvedSuffix(GetRequestTargetYPath(context->GetRequestHeader()));
 
@@ -1050,7 +1068,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, GetUploadParams)
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, EndUpload)
 {
-    context->SetRequestInfo("TargetObjectId: %v", Id_);
+    context->SetRequestInfo();
 
     ValidateEmptyUnresolvedSuffix(GetRequestTargetYPath(context->GetRequestHeader()));
 
@@ -1058,6 +1076,42 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, EndUpload)
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, GetMountInfo)
+{
+    context->SetRequestInfo();
+
+    ValidateEmptyUnresolvedSuffix(GetRequestTargetYPath(context->GetRequestHeader()));
+
+    AbortSequoiaSessionForLaterForwardingToMaster();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, ReshardAutomatic)
+{
+    context->SetRequestInfo("TargetObjectId: %v", Id_);
+
+    ValidateEmptyUnresolvedSuffix(GetRequestTargetYPath(context->GetRequestHeader()));
+
+    AbortSequoiaSessionForLaterForwardingToMaster();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, UpdateStatistics)
+{
+    context->SetRequestInfo("TargetObjectId: %v", Id_);
+
+    ValidateEmptyUnresolvedSuffix(GetRequestTargetYPath(context->GetRequestHeader()));
+
+    AbortSequoiaSessionForLaterForwardingToMaster();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Seal)
+{
+    context->SetRequestInfo("TargetObjectId: %v", Id_);
+
+    ValidateEmptyUnresolvedSuffix(GetRequestTargetYPath(context->GetRequestHeader()));
+
+    AbortSequoiaSessionForLaterForwardingToMaster();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Truncate)
 {
     context->SetRequestInfo("TargetObjectId: %v", Id_);
 
@@ -1389,7 +1443,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Unlock)
 {
-    context->SetRequestInfo("TargetObjectId: %v", Id_);
+    context->SetRequestInfo();
 
     SequoiaSession_->ValidateTransactionPresence();
 
@@ -1433,8 +1487,6 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Lock)
     auto timestamp = request->timestamp();
     auto waitable = request->waitable();
 
-    // TODO(kvk1920): move TLockKey to /yt/yt/server/lib/sequoia to avoid code
-    // duplication.
     context->SetRequestInfo("Mode: %v, Key: %v, Waitable: %v",
         mode,
         MakeFormatterWrapper([&] (TStringBuilderBase* builder) {
@@ -1474,7 +1526,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Lock)
             .Apply(BIND([&] (const INodePtr& rsp) {
                 return rsp->Attributes().Get<ELockState>(stateAttribute) == ELockState::Acquired;
             }))
-        : TrueFuture;
+        : MakeFuture(true);
 
     const auto& externalCellTagAttribute = EInternedAttributeKey::ExternalCellTag.Unintern();
     const auto& revisionAttribute = EInternedAttributeKey::Revision.Unintern();
@@ -1725,9 +1777,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, CalculateInheritedAttributes)
 
     const auto& masterConnector = Bootstrap_->GetMasterConnector();
 
-    context->SetRequestInfo("Path: %v, TargetObjectId: %v, DestinationInheritedAttributes: %v, ShouldCalculateInheritedAttributes: %v",
-        Path_,
-        MakeVersionedNodeId(Id_),
+    context->SetRequestInfo("DestinationInheritedAttributes: %v, ShouldCalculateInheritedAttributes: %v",
         dstInheritedAttributes->ListPairs(),
         true);
 
@@ -1887,10 +1937,9 @@ private:
             return TNodeProxy::DoInvoke(context);
         }
 
-        context->SetRequestInfo("Path: %v%v, TargetObjectId: %v",
-            Path_,
-            GetRequestTargetYPath(context->RequestHeader()),
-            MakeVersionedNodeId(Id_));
+        SetBasicRequestInfo(context);
+
+        context->SetRequestInfo();
 
         bool isEmptyUnresolvedSuffix = NYPath::ETokenType::EndOfStream == ParseUnresolvedSuffix(
             GetRequestTargetYPath(context->GetRequestHeader()),
@@ -2245,10 +2294,12 @@ private:
         TNodeIdToChildDescriptors nodeIdToChildren;
         std::vector<TNodeId> scalarNodeIdsToFetchFromMaster;
 
-        int maxRetrievedDepth = 0;
+        int depth = 0;
         bool subtreeExceedesSizeLimit = false;
-        while (!layerToFetch.empty() && !subtreeExceedesSizeLimit) {
-            ++maxRetrievedDepth;
+        while (!layerToFetch.empty()) {
+            ++depth;
+
+            YT_LOG_TRACE("Fetching next layer (CurrentDepth: %v)", depth);
 
             std::vector<TNode> fetchedParents;
             std::vector<TFuture<std::vector<TCypressChildDescriptor>>> asyncLayerChildren;
@@ -2279,21 +2330,24 @@ private:
                     return totalCount;
                 });
 
-            // If the number of nodes in a subtree of certain depth it equal to the limit, then we
-            // should fetch the next layer, so opaques can be set correctly. Thankfully it's
-            // cheap to fetch data from a dynamic table. Additionaly root node should not be made
-            // opaque, hence maxRetrievedDepth check.
-            if (std::ssize(nodeIdToChildren) + layerChildrenCount > responseSizeLimit && maxRetrievedDepth > 1) {
+            // Root node should not be made opaque, hence depth check.
+            if (std::ssize(nodeIdToChildren) + layerChildrenCount > responseSizeLimit && depth > 1) {
+                YT_LOG_DEBUG(
+                    "Subtree exceeds size limit (ResponseSubtreeSize: %v, SubtreeDepth: %v "
+                    "NextLayerChildrenCount: %v, ResponseSizeLimit: %v)",
+                    std::ssize(nodeIdToChildren),
+                    depth,
+                    layerChildrenCount,
+                    responseSizeLimit);
+
                 subtreeExceedesSizeLimit = true;
+                break;
             }
 
             auto layerChildrenAcds = acdFetcher->Fetch(layerChildren);
             auto childAcdIt = layerChildrenAcds.begin();
 
-            // It's still useful to save extra node information even if subtree exceedes size limit.
-            // Said information can be useful during tree traversal.
             std::vector<TNode> nextLayerToFetch;
-
             YT_VERIFY(std::ssize(fetchedParents) == std::ssize(layerChildren));
             for (auto&& [parent, children] : Zip(fetchedParents, layerChildren)) {
                 for (const auto& child : children) {
@@ -2323,8 +2377,15 @@ private:
 
         if (!subtreeExceedesSizeLimit) {
             // TODO(danilalexeev): YT-26733.
-            maxRetrievedDepth = 0;
+            depth = 0;
         }
+
+        YT_LOG_DEBUG(
+            "Finished collecting nodes to fetch "
+            "(ResponseSubtreeSize: %v, ScalarNodeCount: %v, MasterAttribueFilter: %v)",
+            std::ssize(nodeIdToChildren),
+            std::ssize(scalarNodeIdsToFetchFromMaster),
+            masterAttributeFilter);
 
         auto attributeFetcher = CreateAttributeFetcherForGetRequest(
             SequoiaSession_,
@@ -2341,7 +2402,7 @@ private:
 
         VisitSequoiaTree(
             Id_,
-            maxRetrievedDepth,
+            depth,
             &writer,
             fullAttributeFilter,
             std::move(nodeIdToChildren),
@@ -2605,6 +2666,11 @@ private:
 
     bool DoInvoke(const ISequoiaServiceContextPtr& context) override
     {
+        context->SetIncrementalRequestInfo("TargetObjectId: %v, Path: %v/%v",
+            Id_,
+            Id_,
+            GetRequestTargetYPath(context->GetRequestHeader()));
+
         DISPATCH_YPATH_SERVICE_METHOD(CheckPermission);
         THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError, "No such object %v", Id_);
     }

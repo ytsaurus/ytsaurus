@@ -424,7 +424,7 @@ struct TVersionedValueExtractor
     using TBase::Type_;
 
     // Returns data weight.
-    Y_FORCE_INLINE ui64 operator() (
+    Y_FORCE_INLINE ui64 operator()(
         ui32 valueIdx,
         ui32 valueIdxEnd,
         TValueOutput* valueOutput,
@@ -506,7 +506,7 @@ struct TSkipperTo
 {
     using TBase::SkipTo;
 
-    Y_FORCE_INLINE ui32 operator() (ui32 rowIndex, ui32 position) const
+    Y_FORCE_INLINE ui32 operator()(ui32 rowIndex, ui32 position) const
     {
         return SkipTo(rowIndex, position);
     }
@@ -518,7 +518,7 @@ struct TCountsCollector
 {
     using TBase::SkipTo;
 
-    Y_FORCE_INLINE ui32 operator() (ui32* counts, TRange<ui32> readIndexes, ui32 position) const
+    Y_FORCE_INLINE ui32 operator()(ui32* counts, TRange<ui32> readIndexes, ui32 position) const
     {
         YT_ASSERT(!readIndexes.Empty());
         position = SkipTo(readIndexes.Front(), position);
@@ -1220,7 +1220,7 @@ T* ConstructObjectInplace(char** memory, TArgs&&... args)
 struct TDestructorCaller
 {
     template <class T>
-    void operator() (T* ptr)
+    void operator()(T* ptr)
     {
         ptr->~T();
     }

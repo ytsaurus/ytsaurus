@@ -480,7 +480,7 @@ private:
 
                 chunkStore->RemoveNonexistentChunk(ChunkId_, locationUuid);
             }
-            return VoidFuture;
+            return OKFuture;
         }
 
         return chunkStore->RemoveChunk(chunk, DynamicConfig_->DelayBeforeStartRemoveChunk);
@@ -603,7 +603,7 @@ private:
         while (currentBlockIndex < blockCount) {
             if (DynamicConfig_->EnableReplicationJobThrottling) {
                 auto startThorttling = TInstant::Now();
-                while (chunk->GetLocation()->CheckReadThrottling(workloadDescriptor).Enabled) {
+                while (chunk->GetLocation()->CheckReadThrottling(workloadDescriptor, /*isProbing*/ false, /*isReplication*/ true).Enabled) {
                     if (TInstant::Now() - startThorttling > DynamicConfig_->ThrottlingSleepDeadline) {
                         THROW_ERROR_EXCEPTION("Throttling timeout exceeded");
                     }
@@ -638,7 +638,7 @@ private:
                 Bootstrap_->GetIOTracker()->Enqueue(
                     TIOCounters{
                         .Bytes = totalBlockSize,
-                        .IORequests = 1
+                        .IORequests = 1,
                     },
                     /*tags*/ {
                         {FormatIOTag(ERawIOTag::LocationId), ToString(location->GetId())},
@@ -1195,7 +1195,7 @@ private:
                     Bootstrap_->GetIOTracker()->Enqueue(
                         TIOCounters{
                             .Bytes = totalRecordsSize,
-                            .IORequests = 1
+                            .IORequests = 1,
                         },
                         /*tags*/ {
                             {FormatIOTag(ERawIOTag::LocationId), ToString(location->GetId())},
@@ -2774,7 +2774,7 @@ private:
             for (int index = 0; index < std::ssize(erasurePartWriters); ++index) {
                 writers.push_back(TChunkWriterWithIndex{
                     .ChunkWriter = std::move(erasurePartWriters[index]),
-                    .Index = index
+                    .Index = index,
                 });
             }
 
@@ -2819,7 +2819,7 @@ private:
                     Bootstrap_->GetThrottler(EDataNodeThrottlerKind::AutotomyOut));
                 writers.push_back(TChunkWriterWithIndex{
                     .ChunkWriter = std::move(writer),
-                    .Index = index
+                    .Index = index,
                 });
             }
 
@@ -2933,7 +2933,8 @@ private:
                 replica.GetNodeId(),
                 replicaIndex,
                 replica.GetMediumIndex(),
-                replica.GetChunkLocationUuid());
+                replica.GetChunkLocationUuid(),
+                replica.GetChunkLocationIndex());
         }
 
         const auto& client = Bootstrap_->GetClient();
@@ -2959,13 +2960,12 @@ private:
         bool useLocationUuids = std::all_of(writtenReplicas.begin(), writtenReplicas.end(), [] (const auto& replica) {
             return replica.GetChunkLocationUuid() != InvalidChunkLocationUuid;
         });
+        bool useLocationIndicies = std::all_of(writtenReplicas.begin(), writtenReplicas.end(), [] (const auto& replica) {
+            return replica.GetChunkLocationIndex() != InvalidChunkLocationIndex;
+        });
 
-        if (useLocationUuids) {
-            for (const auto& replica : writtenReplicas) {
-                auto* replicaInfo = req->add_replicas();
-                replicaInfo->set_replica(ToProto(TChunkReplicaWithMedium(replica)));
-                ToProto(replicaInfo->mutable_location_uuid(), replica.GetChunkLocationUuid());
-            }
+        if (useLocationUuids || useLocationIndicies) {
+            ToProto(req->mutable_replicas(), writtenReplicas);
         }
 
         auto rspOrError = WaitFor(req->Invoke());

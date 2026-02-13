@@ -289,6 +289,10 @@ void TDynamicDistributedHydraManagerConfig::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("enable_snapshot_network_throttling", &TThis::EnableSnapshotNetworkThrottling)
         .Optional();
+
+    registrar.Parameter("changelog_throttling_statistics_moving_average_window", &TThis::ChangelogThrottlingStatisticsMovingAverageWindow)
+        .GreaterThan(TDuration::Zero())
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

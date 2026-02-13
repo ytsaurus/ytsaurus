@@ -7,7 +7,7 @@
 from .common.sensors import *
 
 try:
-    from .constants import (
+    from .yandex_constants import (
         ARTEMIS_DASHBOARD_DEFAULT_CLUSTER,
         ARTEMIS_DASHBOARD_DEFAULT_CONTAINER,
     )
@@ -373,7 +373,7 @@ def build_chunk_meta_caches_base():
 
 def build_link_to_cache_dashboard_local():
     try:
-        from .constants import CACHE_DASHBOARD_URL
+        from .yandex_constants import CACHE_DASHBOARD_URL
     except ImportError:
         return
 
@@ -973,7 +973,7 @@ def build_local_artemis_container():
     ]
 
     try:
-        from .constants import LEGACY_LOCAL_ARTEMIS_URL as legacy_url
+        from .yandex_constants import LEGACY_LOCAL_ARTEMIS_URL as legacy_url
         rowsets[:0] = [
             Rowset().row(height=2).cell("", Text(
                 "This dashboard works for clusters with split tablet nodes "

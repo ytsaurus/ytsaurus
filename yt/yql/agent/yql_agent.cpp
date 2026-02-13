@@ -20,7 +20,9 @@
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/core/actions/bind.h>
+#include <yt/yt/core/actions/future.h>
 #include <yt/yt/core/concurrency/coroutine.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <yt/yt/core/logging/config.h>
@@ -34,6 +36,9 @@
 #include <util/generic/hash_set.h>
 #include <util/string/builder.h>
 
+#include <string>
+#include <vector>
+
 namespace NYT::NYqlAgent {
 
 using namespace NApi::NNative;
@@ -41,6 +46,7 @@ using namespace NConcurrency;
 using namespace NHiveClient;
 using namespace NLogging;
 using namespace NSecurityClient;
+using namespace NThreading;
 using namespace NYqlClient;
 using namespace NYqlClient::NProto;
 using namespace NYqlPlugin;
@@ -112,6 +118,13 @@ public:
 private:
     int MaxSimultaneousQueries_;
     std::atomic<int> ActiveQueries_;
+};
+
+struct TDiscoveredSecret
+{
+    TYsonString Content;
+    std::optional<TYsonString> Category;
+    std::optional<TYsonString> Subcategory;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -193,6 +206,21 @@ static void RefreshToken(const TString& user, const TString& token, const THashM
         }
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+std::optional<NYql::TLangVersion> ParseYQLVersion(const std::string& version)
+{
+    NYql::TLangVersion result;
+    if (NYql::ParseLangVersion(version, result) && NYql::IsValidLangVersion(result)) {
+        return result;
+    }
+    return {};
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -282,31 +310,13 @@ public:
             }
         }
 
-        NYql::TLangVersionBuffer buffer;
-        TStringBuf maxVersionStringBuf;
-        NYql::TLangVersion maxYqlLangVersion;
-        if (!Config_->MaxSupportedYqlVersion || !NYql::ParseLangVersion(Config_->MaxSupportedYqlVersion.value(), maxYqlLangVersion) || !NYql::IsValidLangVersion(maxYqlLangVersion)) {
-            maxYqlLangVersion = NYql::GetMaxLangVersion();
-            NYql::FormatLangVersion(maxYqlLangVersion, buffer, maxVersionStringBuf);
-            if (Config_->MaxSupportedYqlVersion) {
-                YT_LOG_ERROR("Max YQL version set via config or flag is not valid. Setting default version as maximum available (VersionFromConfig: %v)", Config_->MaxSupportedYqlVersion);
-            }
-        } else {
-            NYql::FormatLangVersion(maxYqlLangVersion, buffer, maxVersionStringBuf);
-        }
+        InitYqlVersions();
 
-        MaxSupportedYqlVersion_ = maxVersionStringBuf;
-        YT_LOG_INFO("Maximum supported YQL language version is set (Version: %v)", MaxSupportedYqlVersion_);
-
-        TStringBuf defaultVersionStringBuf;
-        NYql::FormatLangVersion(std::min(NYql::GetMaxReleasedLangVersion(), maxYqlLangVersion), buffer, defaultVersionStringBuf);
-        DefaultYqlUILangVersion_ = defaultVersionStringBuf;
-        YT_LOG_INFO("Deafult YQL language version for UI is set (Version: %v)", DefaultYqlUILangVersion_);
         auto options = ConvertToOptions(
             Config_,
             singletonsConfigString,
             CreateArcadiaLogBackend(TLogger("YqlPlugin")),
-            MaxSupportedYqlVersion_,
+            MaxSupportedYqlVersionStr_,
             Config_->EnableDQ);
 
         // NB: under debug build this method does not fit in regular fiber stack
@@ -322,7 +332,7 @@ public:
                         Config_,
                         singletonsConfigDefaultLogging,
                         bootstrap->GetClusterConnectionConfig(),
-                        TString(MaxSupportedYqlVersion_),
+                        TString(MaxSupportedYqlVersionStr_),
                         YqlAgentProfiler().WithPrefix("/process_yql_plugin"))
                     : CreateBridgeYqlPlugin(std::move(options));
             }),
@@ -360,9 +370,12 @@ public:
         }
         ActiveQueriesGuardFactory_.Update(DynamicConfig_->MaxSimultaneousQueries);
 
+        InitYqlVersions();
+
         if (DynamicConfig_->GatewaysConfig) {
             TYqlPluginDynamicConfig pluginDynamicConfig{
                 .GatewaysConfig = ConvertToYsonString(DynamicConfig_->GatewaysConfig),
+                .MaxSupportedYqlVersion = TYsonString(MaxSupportedYqlVersionStr_),
             };
             YT_LOG_DEBUG("Call YqlPlugin_->OnDynamicConfigChanged with GatewaysConfig: %v", pluginDynamicConfig.GatewaysConfig.AsStringBuf());
             YqlPlugin_->OnDynamicConfigChanged(std::move(pluginDynamicConfig));
@@ -435,15 +448,22 @@ public:
             #include "yql/essentials/public/langver/yql_langver_list.inc"
         };
 
+        NYql::TLangVersion maxVersion;
+        {
+            auto guard = ReaderGuard(YqlVersionLock_);
+            response.set_default_ui_yql_version(DefaultYqlUILangVersionStr_);
+            maxVersion = MaxSupportedYqlVersion_;
+        }
+
         NYql::TLangVersionBuffer buffer;
-        TStringBuf formattedVersion;
-        for (const auto& version : versions) {
-            NYql::FormatLangVersion(NYql::MakeLangVersion(version.first, version.second), buffer, formattedVersion);
-            if (formattedVersion <= MaxSupportedYqlVersion_) {
+        for (const auto& [year, minor] : versions) {
+            const auto version = NYql::MakeLangVersion(year, minor);
+            if (version <= maxVersion) {
+                TStringBuf formattedVersion;
+                YT_VERIFY(NYql::FormatLangVersion(version, buffer, formattedVersion));
                 response.add_available_yql_versions(formattedVersion);
             }
         }
-        response.set_default_ui_yql_version(DefaultYqlUILangVersion_);
 
         auto supportedFeatures = BuildYsonStringFluently()
             .BeginMap()
@@ -464,8 +484,10 @@ private:
     const IInvokerPtr ControlInvoker_;
     const TString AgentId_;
 
-    std::string MaxSupportedYqlVersion_;
-    std::string DefaultYqlUILangVersion_;
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, YqlVersionLock_);
+    NYql::TLangVersion MaxSupportedYqlVersion_;
+    std::string MaxSupportedYqlVersionStr_;
+    std::string DefaultYqlUILangVersionStr_;
 
     TYqlAgentDynamicConfigPtr DynamicConfig_;
 
@@ -744,6 +766,8 @@ private:
         const TString& user,
         THashMap<TString, IClientPtr>& queryClients)
     {
+        std::vector<TFuture<void>> fillCredentialFutures;
+
         for (const auto& src : secrets) {
             auto& dst = credentials[src.id()];
             auto ypath = NYPath::TRichYPath(src.ypath());
@@ -781,16 +805,20 @@ private:
             }
 
             auto getNodeOptions = NApi::TGetNodeOptions();
-            getNodeOptions.Attributes = TAttributeFilter({"type"});
+            getNodeOptions.Attributes = TAttributeFilter({
+                "type",
+                "_yqla_secret_category",
+                "_yqla_secret_subcategory",
+            });
 
-            auto contentFuture = queryClient->GetNode(ypath.GetPath(), getNodeOptions)
+            auto future = queryClient->GetNode(ypath.GetPath(), getNodeOptions)
                 .Apply(BIND([
                     queryClient,
                     ypath,
-                    commonErrorAttributes = std::move(commonErrorAttributes)
-                ](const TErrorOr<TYsonString>& valueOrError) -> TFuture<TString> {
+                    commonErrorAttributes
+                ](const TErrorOr<TYsonString>& valueOrError) -> TFuture<TDiscoveredSecret> {
                     if (!valueOrError.IsOK()) {
-                        return MakeFuture<TString>(TError("Cannot get provided secret")
+                        return MakeFuture<TDiscoveredSecret>(TError("Cannot get provided secret")
                             << commonErrorAttributes
                             << std::vector<TError>{valueOrError});
                     }
@@ -798,19 +826,68 @@ private:
                     const auto& ysonString = valueOrError.Value();
                     auto node = ConvertTo<INodePtr>(ysonString);
 
+                    TDiscoveredSecret discoveredSecret;
+
+                    if (auto category = node->Attributes().FindYson("_yqla_secret_category")) {
+                        discoveredSecret.Category = std::move(category);
+                    }
+
+                    if (auto subcategory = node->Attributes().FindYson("_yqla_secret_subcategory")) {
+                        discoveredSecret.Subcategory = std::move(subcategory);
+                    }
+
+                    // document nodes don't return type attribute via GetNode call
+                    if (auto type = node->Attributes().Find<NObjectClient::EObjectType>("type")) {
+                        switch (*type) {
+                        // just safety precaution in case GetNode behavior
+                        // regarding document nodes changes in future
+                        case NObjectClient::EObjectType::Document:
+                        case NObjectClient::EObjectType::StringNode:
+                            discoveredSecret.Content = ysonString;
+                            return MakeFuture(std::move(discoveredSecret));
+
+                        case NObjectClient::EObjectType::File:
+                            break;
+
+                        default:
+                            return MakeFuture(TErrorOr<TDiscoveredSecret>(
+                                TError("Unexpected secret node type")
+                                    << commonErrorAttributes
+                                    << TErrorAttribute("node_type", *type)));
+                        }
+
+                        return queryClient->CreateFileReader(ypath.GetPath())
+                            .Apply(BIND([
+                                discoveredSecret = std::move(discoveredSecret)
+                            ](const NApi::IFileReaderPtr& fileReader) mutable {
+                                auto contentRef = fileReader->ReadAll();
+                                auto contentBuf = contentRef.ToStringBuf();
+                                contentBuf.ChopSuffix("\n");
+
+                                discoveredSecret.Content = ConvertToYsonString(contentBuf);
+
+                                return std::move(discoveredSecret);
+                            }));
+                    }
+
+                    discoveredSecret.Content = ysonString;
+                    return MakeFuture(std::move(discoveredSecret));
+                })).Apply(BIND([
+                    &src,
+                    &dst,
+                    commonErrorAttributes = std::move(commonErrorAttributes)
+                ] (const TDiscoveredSecret& discoveredSecret) -> TFuture<void> {
                     auto safeConvertToString = [](
                         const TYsonString& ysonString,
-                        const std::vector<TErrorAttribute>& errorAttributes
+                        const std::vector<TErrorAttribute>& errorAttributes,
+                        auto errorMessage
                     ) -> TErrorOr<TString> {
-                        constexpr std::string_view errorMessage(
-                            "Cannot convert secret value to string");
-
                         TErrorOr<TString> valueOrError;
 
                         try {
                             valueOrError = ConvertTo<TString>(ysonString);
                         } catch (const std::exception& exception) {
-                            valueOrError = TError(errorMessage)
+                            valueOrError = TError(errorMessage, TError::DisableFormat)
                                 << errorAttributes
                                 << std::vector{TError(exception)};
                         }
@@ -818,46 +895,151 @@ private:
                         return valueOrError;
                     };
 
-                    // document nodes don't return type attribute via GetNode call
-                    if (auto type = node->Attributes().Find<NObjectClient::EObjectType>("type")) {
-                        auto errorAttributes = commonErrorAttributes;
-                        errorAttributes.push_back(TErrorAttribute("node_type", *type));
+                    auto contentOrError = safeConvertToString(
+                        discoveredSecret.Content,
+                        commonErrorAttributes,
+                        "Cannot convert secret value to string");
 
-                        switch (*type) {
-                        // just safety precaution in case GetNode behavior
-                        // regarding document nodes changes in future
-                        case NObjectClient::EObjectType::Document:
-                        case NObjectClient::EObjectType::StringNode:
-                            return MakeFuture(
-                                safeConvertToString(ysonString, errorAttributes));
-
-                        case NObjectClient::EObjectType::File:
-                            break;
-
-                        default:
-                            return MakeFuture<TString>(TError("Unexpected secret node type")
-                                << errorAttributes);
-                        }
-
-                        return queryClient->CreateFileReader(ypath.GetPath())
-                            .Apply(BIND([](const NApi::IFileReaderPtr& fileReader) {
-                                auto contentRef = fileReader->ReadAll();
-                                return TString(contentRef.ToStringBuf());
-                            }));
+                    if (!contentOrError.IsOK()) {
+                        return MakeFuture(TError(std::move(contentOrError)));
                     }
 
-                    return MakeFuture(
-                        safeConvertToString(ysonString, commonErrorAttributes));
+                    dst["content"] = contentOrError.Value();
+
+                    std::optional<TString> discoveredCategory;
+                    if (discoveredSecret.Category) {
+                        auto categoryOrError = safeConvertToString(
+                            *discoveredSecret.Category,
+                            commonErrorAttributes,
+                            "Cannot convert secret category to string");
+
+                        if (!categoryOrError.IsOK()) {
+                            return MakeFuture(TError(std::move(categoryOrError)));
+                        }
+
+                        discoveredCategory = categoryOrError.Value();
+                    }
+
+                    std::optional<TString> discoveredSubcategory;
+                    if (discoveredSecret.Subcategory) {
+                        auto subcategoryOrError = safeConvertToString(
+                            *discoveredSecret.Subcategory,
+                            commonErrorAttributes,
+                            "Cannot convert secret subcategory to string");
+
+                        if (!subcategoryOrError.IsOK()) {
+                            return MakeFuture(TError(std::move(subcategoryOrError)));
+                        }
+
+                        discoveredSubcategory = subcategoryOrError.Value();
+                    }
+
+                    // TODO: switch back to has_category when api will provide empty category
+                    if (src.category() || discoveredCategory) {
+                        if (src.category() &&
+                            discoveredCategory &&
+                            src.category() != *discoveredCategory
+                        ) {
+                            auto error = TError("Found mismatch between provided and discovered secret categories")
+                                << commonErrorAttributes
+                                << TErrorAttribute("provided_category", src.category())
+                                << TErrorAttribute("discovered_category", *discoveredCategory);
+
+                            return MakeFuture(std::move(error));
+                        }
+
+                        dst["category"] = src.category()
+                            ? src.category()
+                            : *discoveredCategory;
+                    } else if (
+                        auto secretIdBuf = TStringBuf(src.id());
+                        secretIdBuf.SkipPrefix("default_")
+                    ) {
+                        dst["category"] = TString(secretIdBuf);
+                    }
+
+                    // TODO: switch back to has_subcategory when api will provide empty subcategory
+                    if (src.subcategory() || discoveredSubcategory) {
+                        if (src.subcategory() &&
+                            discoveredSubcategory &&
+                            src.subcategory() != *discoveredSubcategory
+                        ) {
+                            auto error = TError("Found mismatch between provided and discovered secret subcategories")
+                                << commonErrorAttributes
+                                << TErrorAttribute("provided_subcategory", src.subcategory())
+                                << TErrorAttribute("discovered_subcategory", *discoveredSubcategory);
+
+                            return MakeFuture(std::move(error));
+                        }
+
+                        dst["subcategory"] = src.subcategory()
+                            ? src.subcategory()
+                            : *discoveredSubcategory;
+                    }
+
+                    return OKFuture;
                 }));
 
-            dst["content"] = WaitFor(contentFuture).ValueOrThrow();
-            if (src.has_category()) {
-                dst["category"] = src.category();
-            }
-            if (src.has_subcategory()) {
-                dst["subcategory"] = src.subcategory();
+            fillCredentialFutures.push_back(std::move(future));
+        }
+
+        auto resultFutures = WaitFor(AllSet(std::move(fillCredentialFutures)))
+            .ValueOrThrow();
+
+        for (const auto& resultFuture : resultFutures) {
+            resultFuture.ThrowOnError();
+        }
+    }
+
+    void InitYqlVersions()
+    {
+        std::optional<NYql::TLangVersion> maxVersion;
+        if (Config_->MaxSupportedYqlVersion.has_value()) {
+            maxVersion = ParseYQLVersion(Config_->MaxSupportedYqlVersion.value());
+            if (!maxVersion.has_value()) {
+                YT_LOG_ERROR("Max YQL version set via config or flag is not valid. Setting default version as maximum available (VersionFromConfig: %v)", Config_->MaxSupportedYqlVersion.value());
             }
         }
+
+        const bool allowNotReleased = DynamicConfig_->AllowNotReleasedYqlVersions.value_or(Config_->AllowNotReleasedYqlVersions.value_or(false));
+        if (maxVersion.has_value()) {
+            maxVersion = std::min(maxVersion.value(), allowNotReleased ? NYql::GetMaxLangVersion() : NYql::GetMaxReleasedLangVersion());
+        } else {
+            maxVersion = allowNotReleased ? NYql::GetMaxLangVersion() : NYql::GetMaxReleasedLangVersion();
+        }
+
+
+        std::optional<NYql::TLangVersion> defaultVersion;
+        if (DynamicConfig_->DefaultYqlUIVersion.has_value()) {
+            defaultVersion = ParseYQLVersion(DynamicConfig_->DefaultYqlUIVersion.value());
+            if (!defaultVersion.has_value()) {
+                YT_LOG_ERROR("Default UI YQL version set via dynamic config is not valid (VersionFromConfig: %v)", DynamicConfig_->DefaultYqlUIVersion.value());
+            }
+        } else if (Config_->DefaultYqlUIVersion.has_value()) {
+            defaultVersion = ParseYQLVersion(Config_->DefaultYqlUIVersion.value());
+            if (!defaultVersion.has_value()) {
+                YT_LOG_ERROR("Default UI YQL version set via config or flag is not valid (VersionFromConfig: %v)", Config_->DefaultYqlUIVersion.value());
+            }
+        }
+        if (defaultVersion.has_value()) {
+            defaultVersion = std::min(defaultVersion.value(), maxVersion.value());
+        } else {
+            defaultVersion = NYql::MinLangVersion;
+        }
+
+        {
+            auto guard = WriterGuard(YqlVersionLock_);
+            MaxSupportedYqlVersion_ = maxVersion.value();
+            NYql::TLangVersionBuffer buffer;
+            TStringBuf maxVersionStr;
+            YT_VERIFY(NYql::FormatLangVersion(maxVersion.value(), buffer, maxVersionStr));
+            MaxSupportedYqlVersionStr_ = maxVersionStr;
+            TStringBuf defaultVersionStr;
+            YT_VERIFY(NYql::FormatLangVersion(defaultVersion.value(), buffer, defaultVersionStr));
+            DefaultYqlUILangVersionStr_ = defaultVersionStr;
+        }
+        YT_LOG_INFO("Maximum supported YQL language version is set (Version: %v)", maxVersion.value());
+        YT_LOG_INFO("Default YQL language version for UI is set (Version: %v)", defaultVersion.value());
     }
 };
 

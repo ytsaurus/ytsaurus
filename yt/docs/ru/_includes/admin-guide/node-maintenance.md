@@ -36,8 +36,6 @@ $ yt get //sys/cluster_nodes/my-node.yandex.net/@pending_restart
 
 #### Завершение работы
 
-Флаг _pending restart_ снимется при перезапуске ноды, а именно в момент её перерегистрации на мастере. Также флаг можно снять явно:
-
 ```bash
 $ yt remove-maintenance --component="cluster_node" --address="my-node.yandex.net" --id="<maintenance-id>"
 ```

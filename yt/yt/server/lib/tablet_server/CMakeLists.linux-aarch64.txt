@@ -39,6 +39,7 @@ target_compile_options(server-lib-tablet_server PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_include_directories(server-lib-tablet_server PUBLIC
@@ -61,6 +62,7 @@ target_proto_messages(server-lib-tablet_server PRIVATE
 
 target_sources(server-lib-tablet_server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_server/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_server/originator_tablet.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_server/replicated_table_tracker.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/server/lib/tablet_server/proto/backup_manager.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h

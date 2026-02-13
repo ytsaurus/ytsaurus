@@ -7,6 +7,8 @@
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/hive/cell_directory.h>
+
 #include <yt/yt/ytlib/hydra/peer_channel.h>
 
 #include <yt/yt/ytlib/node_tracker_client/node_addresses_provider.h>
@@ -59,6 +61,7 @@ public:
         TCellDirectoryConfigPtr config,
         NNative::TConnectionOptions options,
         IChannelFactoryPtr channelFactory,
+        TWeakPtr<NNative::IConnection> connection,
         NLogging::TLogger logger)
         : Config_(std::move(config))
         , PrimaryMasterCellId_(Config_->PrimaryMaster->CellId)
@@ -72,6 +75,7 @@ public:
             NProfiling::TProfiler()))
         , RpcServer_(CreateLocalServer())
         , Options_(std::move(options))
+        , Owner_(std::move(connection))
         , RandomGenerator_(TInstant::Now().GetValue())
     {
         for (const auto& masterConfig : Config_->SecondaryMasters) {
@@ -117,13 +121,18 @@ public:
         return SecondaryMasterCellIds_;
     }
 
-    TSecondaryMasterConnectionConfigs GetSecondaryMasterConnectionConfigs()
+    TSecondaryMasterConnectionConfigs GetSecondaryMasterConnectionConfigs() override
     {
         auto guard = ReaderGuard(SpinLock_);
         return SecondaryMasterConnectionConfigs_;
     }
 
-    bool IsMasterCacheConfigured() override
+    bool IsClientSideCacheEnabled() const override
+    {
+        return Options_.EnableClientSideCache;
+    }
+
+    bool IsMasterCacheEnabled() const override
     {
         const auto& config = Config_->MasterCache;
 
@@ -140,6 +149,10 @@ public:
 
     IChannelPtr FindMasterChannel(EMasterChannelKind kind, TCellTag cellTag) override
     {
+        if (kind == EMasterChannelKind::ClientSideCache && !Options_.EnableClientSideCache) {
+            THROW_ERROR_EXCEPTION("Client-side cache channel has been looked up in master cell directory but the client-side cache is disabled");
+        }
+
         cellTag = cellTag == PrimaryMasterCellTagSentinel ? GetPrimaryMasterCellTag() : cellTag;
         auto guard = ReaderGuard(SpinLock_);
         auto it = CellWrappedChannelMap_.find(cellTag);
@@ -225,7 +238,7 @@ public:
         return ReplaceCellTagInId(GetPrimaryMasterCellId(), cellTag);
     }
 
-    void Update(const NCellMasterClient::NProto::TCellDirectory& protoDirectory) override
+    void Update(const NCellMasterClient::NProto::TCellDirectory& protoDirectory, bool duplicate) override
     {
         THashMap<TCellTag, EMasterCellRoles> cellTagToRoles;
         cellTagToRoles.reserve(protoDirectory.items_size());
@@ -285,7 +298,13 @@ public:
                 "(SecondaryMasterCellTags: %v, ReceivedSecondaryMasterCellTags: %v)",
                 oldSecondaryMasterCellTags,
                 newSecondaryMasterCellTags);
-            ReconfigureMasterCellDirectory(oldSecondaryMasterConnectionConfigs, newSecondaryMasterConnectionConfigs, newSecondaryMasterCellTags);
+
+            ReconfigureMasterCellDirectory(newSecondaryMasterConnectionConfigs);
+
+            // Should be no-op.
+            if (duplicate) {
+                ReconfigureMasterCellDirectory(newSecondaryMasterConnectionConfigs);
+            }
         }
 
         if (oldSecondaryMasterCellTags.empty() &&
@@ -379,6 +398,7 @@ private:
     const TObjectServiceCachePtr Cache_;
     const IServerPtr RpcServer_;
     const NNative::TConnectionOptions Options_;
+    const TWeakPtr<NNative::IConnection> Owner_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     THashMap<TCellTag, TEnumIndexedArray<EMasterChannelKind, IChannelPtr>> CellWrappedChannelMap_;
@@ -399,7 +419,7 @@ private:
 
     bool ClusterMasterCompositionChanged(
         const TSecondaryMasterConnectionConfigs& oldSecondaryMasterConnectionConfigs,
-        const TSecondaryMasterConnectionConfigs& newSecondaryMasterConnectionConfigs)
+        const TSecondaryMasterConnectionConfigs& newSecondaryMasterConnectionConfigs) override
     {
         if (newSecondaryMasterConnectionConfigs.size() != oldSecondaryMasterConnectionConfigs.size()) {
             return true;
@@ -418,39 +438,34 @@ private:
         return false;
     }
 
-    void ReconfigureMasterCellDirectory(
-        const TSecondaryMasterConnectionConfigs& oldSecondaryMasterConnectionConfigs,
-        const TSecondaryMasterConnectionConfigs& secondaryMasterConnectionConfigs,
-        const TCellTagList& secondaryMasterCellTags)
+    struct TMasterCellDirectoryUpdate
     {
-        THashSet<TCellId> secondaryMasterCellIds;
-        secondaryMasterCellIds.reserve(secondaryMasterConnectionConfigs.size());
+        TSecondaryMasterConnectionConfigs NewSecondaryMastersConnectionConfigs;
+        TSecondaryMasterConnectionConfigs ChangedSecondaryMastersConnectionConfigs;
+        THashSet<NObjectClient::TCellTag> RemovedSecondaryMasterCellTags;
+    };
 
-        THashSet<TCellTag> newSecondaryMasterCellTags;
-        newSecondaryMasterCellTags.reserve(secondaryMasterConnectionConfigs.size());
+    TMasterCellDirectoryUpdate BuildMasterCellDirectoryUpdate(
+        const TSecondaryMasterConnectionConfigs& secondaryMasterConnectionConfigs)
+    {
+        YT_ASSERT_SPINLOCK_AFFINITY(SpinLock_);
+
         TSecondaryMasterConnectionConfigs newSecondaryMasterConfigs;
         newSecondaryMasterConfigs.reserve(secondaryMasterConnectionConfigs.size());
 
-        THashSet<TCellTag> changedSecondaryMasterCellTags;
-        changedSecondaryMasterCellTags.reserve(secondaryMasterConnectionConfigs.size());
         TSecondaryMasterConnectionConfigs changedSecondaryMasterConfigs;
         changedSecondaryMasterConfigs.reserve(secondaryMasterConnectionConfigs.size());
 
         for (const auto& [cellTag, secondaryMaster] : secondaryMasterConnectionConfigs) {
-            if (!oldSecondaryMasterConnectionConfigs.contains(cellTag)) {
+            if (!SecondaryMasterConnectionConfigs_.contains(cellTag)) {
                 EmplaceOrCrash(newSecondaryMasterConfigs, cellTag, secondaryMaster);
-                InsertOrCrash(newSecondaryMasterCellTags, cellTag);
-                YT_LOG_INFO("New master cell appeared, initializing channels (CellTag: %v)",
-                    cellTag);
-            } else if (const auto& oldAddresses = GetOrCrash(oldSecondaryMasterConnectionConfigs, cellTag)->Addresses;
+            } else if (const auto& oldAddresses = GetOrCrash(SecondaryMasterConnectionConfigs_, cellTag)->Addresses;
                 secondaryMaster->Addresses != oldAddresses)
             {
                 YT_LOG_INFO("Master cell peer addresses changed and will be merged (CellTag: %v, NewCellAddresses: %v, OldCellAddresses: %v)",
                     cellTag,
                     secondaryMaster->Addresses,
                     oldAddresses);
-
-                InsertOrCrash(changedSecondaryMasterCellTags, cellTag);
 
                 std::optional<std::vector<std::string>> mergedAddresses;
                 if (oldAddresses) {
@@ -470,46 +485,69 @@ private:
                 auto it = EmplaceOrCrash(changedSecondaryMasterConfigs, cellTag, secondaryMaster);
                 it->second->Addresses = std::move(mergedAddresses);
             }
-            InsertOrCrash(secondaryMasterCellIds, secondaryMaster->CellId);
         }
 
         THashSet<TCellTag> removedSecondaryMasterCellTags;
-        removedSecondaryMasterCellTags.reserve(oldSecondaryMasterConnectionConfigs.size());
-        for (const auto& [cellTag, _] : oldSecondaryMasterConnectionConfigs) {
+        removedSecondaryMasterCellTags.reserve(SecondaryMasterConnectionConfigs_.size());
+        for (const auto& [cellTag, _] : SecondaryMasterConnectionConfigs_) {
             if (!secondaryMasterConnectionConfigs.contains(cellTag)) {
                 InsertOrCrash(removedSecondaryMasterCellTags, cellTag);
             }
         }
-        YT_LOG_ALERT_UNLESS(
-            removedSecondaryMasterCellTags.empty(),
-            "Some master cells were removed in new configuration of secondary masters (RemovedCellTags: %v)",
-            removedSecondaryMasterCellTags);
 
+        return TMasterCellDirectoryUpdate{
+            .NewSecondaryMastersConnectionConfigs = std::move(newSecondaryMasterConfigs),
+            .ChangedSecondaryMastersConnectionConfigs = std::move(changedSecondaryMasterConfigs),
+            .RemovedSecondaryMasterCellTags = std::move(removedSecondaryMasterCellTags),
+        };
+    }
+
+    void ReconfigureMasterCellDirectory(
+        const TSecondaryMasterConnectionConfigs& secondaryMasterConnectionConfigs) override
+    {
         {
+            auto connection = Owner_.Lock();
+            // NB: To prevent racy configs changes between different updates, we hold lock for both computation of the update and application of changes.
             auto guard = WriterGuard(SpinLock_);
-            for (const auto& [_, secondaryMaster] : newSecondaryMasterConfigs) {
+
+            auto [newSecondaryMasterConfigs, changedSecondaryMasterConfigs, removedSecondaryMasterCellTags] = BuildMasterCellDirectoryUpdate(secondaryMasterConnectionConfigs);
+
+            YT_LOG_ALERT_UNLESS(
+                removedSecondaryMasterCellTags.empty(),
+                "Some master cells were removed in new configuration of secondary masters (RemovedCellTags: %v)",
+                removedSecondaryMasterCellTags);
+
+            for (const auto& [cellTag, secondaryMaster] : newSecondaryMasterConfigs) {
+                YT_LOG_INFO("New master cell appeared, initializing channels (CellTag: %v)",
+                    cellTag);
                 InitMasterChannels(secondaryMaster);
+                if (Config_->EnableHiveCellDirectoryReconfigurationOnNewMasterCells && connection) {
+                    connection->GetCellDirectory()->ReconfigureCell(secondaryMaster);
+                }
             }
             for (const auto& [cellTag, secondaryMaster] : changedSecondaryMasterConfigs) {
                 RemoveMasterChannels(cellTag);
                 InitMasterChannels(secondaryMaster);
+                if (Config_->EnableHiveCellDirectoryReconfigurationOnChangedMasterCells && connection) {
+                    connection->GetCellDirectory()->ReconfigureCell(secondaryMaster);
+                }
             }
 
             SecondaryMasterConnectionConfigs_ = secondaryMasterConnectionConfigs;
-            SecondaryMasterCellIds_ = std::move(secondaryMasterCellIds);
-            SecondaryMasterCellTags_ = secondaryMasterCellTags;
+            SecondaryMasterCellIds_ = GetMasterCellIds(secondaryMasterConnectionConfigs);
+            SecondaryMasterCellTags_ = GetMasterCellTags(secondaryMasterConnectionConfigs);
+
+            YT_LOG_DEBUG("Finished reconfiguration of cell cluster membership "
+                "(NewCellTags: %v, ChangedCellTags: %v, RemovedCellTags: %v)",
+                GetMasterCellTags(newSecondaryMasterConfigs),
+                GetMasterCellTags(changedSecondaryMasterConfigs),
+                removedSecondaryMasterCellTags);
+
+            CellDirectoryChanged_.Fire(
+                newSecondaryMasterConfigs,
+                changedSecondaryMasterConfigs,
+                removedSecondaryMasterCellTags);
         }
-
-        YT_LOG_DEBUG("Finished reconfiguration of cell cluster membership "
-            "(NewCellTags: %v, ChangedCellTags: %v, RemovedCellTags: %v)",
-            newSecondaryMasterCellTags,
-            changedSecondaryMasterCellTags,
-            removedSecondaryMasterCellTags);
-
-        CellDirectoryChanged_.Fire(
-            newSecondaryMasterConfigs,
-            changedSecondaryMasterConfigs,
-            removedSecondaryMasterCellTags);
     }
 
     [[noreturn]] void ThrowUnknownMasterCellTag(TCellTag cellTag) const
@@ -555,19 +593,21 @@ private:
             InitMasterChannel(EMasterChannelKind::Cache, masterCacheConfig, EPeerKind::Follower);
         }
 
-        auto cachingObjectService = CreateCachingObjectService(
-            Config_->CachingObjectService,
-            NRpc::TDispatcher::Get()->GetHeavyInvoker(),
-            CellWrappedChannelMap_[cellTag][EMasterChannelKind::Cache],
-            Cache_,
-            config->CellId,
-            ObjectClientLogger(),
-            /*profiler*/ {},
-            /*authenticator*/ nullptr);
-        //! NB: Don't check for duplicates on emplace to prevent "race" between planned update of master cell directory and scheduled out of band.
-        CachingObjectServices_.emplace(cellTag, cachingObjectService);
-        RpcServer_->RegisterService(cachingObjectService);
-        CellWrappedChannelMap_[cellTag][EMasterChannelKind::ClientSideCache] = CreateRealmChannel(CreateLocalChannel(RpcServer_), config->CellId);
+        if (Options_.EnableClientSideCache) {
+            auto cachingObjectService = CreateCachingObjectService(
+                Config_->CachingObjectService,
+                NRpc::TDispatcher::Get()->GetHeavyInvoker(),
+                CellWrappedChannelMap_[cellTag][EMasterChannelKind::Cache],
+                Cache_,
+                config->CellId,
+                ObjectClientLogger(),
+                /*profiler*/ {},
+                /*authenticator*/ nullptr);
+            //! NB: Don't check for duplicates on emplace to prevent "race" between planned update of master cell directory and scheduled out of band.
+            CachingObjectServices_.emplace(cellTag, cachingObjectService);
+            RpcServer_->RegisterService(cachingObjectService);
+            CellWrappedChannelMap_[cellTag][EMasterChannelKind::ClientSideCache] = CreateRealmChannel(CreateLocalChannel(RpcServer_), config->CellId);
+        }
     }
 
     void InitMasterChannel(
@@ -590,12 +630,14 @@ private:
     {
         YT_ASSERT_WRITER_SPINLOCK_AFFINITY(SpinLock_);
 
-        auto cachingObjectServiceIt = CachingObjectServices_.find(cellTag);
-        YT_VERIFY(cachingObjectServiceIt != CachingObjectServices_.end());
+        if (auto cachingObjectServiceIt = CachingObjectServices_.find(cellTag);
+            cachingObjectServiceIt != CachingObjectServices_.end())
+        {
+            const auto& cachingObjectService = cachingObjectServiceIt->second;
+            RpcServer_->UnregisterService(cachingObjectService);
+            CachingObjectServices_.erase(cachingObjectServiceIt);
+        }
 
-        const auto& cachingObjectService = cachingObjectServiceIt->second;
-        RpcServer_->UnregisterService(cachingObjectService);
-        CachingObjectServices_.erase(cachingObjectServiceIt);
         EraseOrCrash(CellWrappedChannelMap_, cellTag);
         EraseOrCrash(CellNakedChannelMap_, cellTag);
     }
@@ -666,13 +708,32 @@ ICellDirectoryPtr CreateCellDirectory(
     TCellDirectoryConfigPtr config,
     NApi::NNative::TConnectionOptions options,
     IChannelFactoryPtr channelFactory,
+    TWeakPtr<NNative::IConnection> connection,
     NLogging::TLogger logger)
 {
     return New<TCellDirectory>(
         std::move(config),
         std::move(options),
         std::move(channelFactory),
+        std::move(connection),
         std::move(logger));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCellTagList GetMasterCellTags(const TSecondaryMasterConnectionConfigs& masterConnectionConfigs)
+{
+    auto cellTags = GetKeys(masterConnectionConfigs);
+    return TCellTagList(cellTags.begin(), cellTags.end());
+}
+
+THashSet<TCellId> GetMasterCellIds(const TSecondaryMasterConnectionConfigs& masterConnectionConfigs)
+{
+    THashSet<TCellId> masterCellIds;
+    for (const auto& [_, config] : masterConnectionConfigs) {
+        InsertOrCrash(masterCellIds, config->CellId);
+    }
+    return masterCellIds;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -104,12 +104,15 @@ public:
 
             auto name = node.GetMemberName(memberIndex);
             fields.push_back(NYT::NTableClient::TStructField{
-                .Name = std::string(name.data(), name.size()),
+                .Name = std::string(name),
+                .StableName = std::string(name),
                 .Type = std::move(LogicalType)
             });
         }
 
-        LogicalType = NYT::NTableClient::StructLogicalType(std::move(fields));
+        LogicalType = NYT::NTableClient::StructLogicalType(
+            std::move(fields),
+            /*removedFieldStableNames*/ {});
     }
 
     void Visit(TListType& node) override {
@@ -204,19 +207,17 @@ NYT::NTableClient::TLogicalTypePtr FilterType(
 ) {
     const auto& structTypeRef = structType->AsStructTypeRef();
 
-    THashMap<TString, NYT::NTableClient::TLogicalTypePtr> fieldTypes;
+    THashMap<TStringBuf, const NYT::NTableClient::TStructField*> fieldNameToField;
     for (const auto& field : structTypeRef.GetFields()) {
-        fieldTypes.emplace(field.Name, field.Type);
+        NYT::EmplaceOrCrash(fieldNameToField, field.Name, &field);
     };
 
-    std::vector<NYT::NTableClient::TStructField> fields;
-    fields.reserve(filter.size());
-
-    for (const auto& name : filter) {
-        fields.emplace_back(name, fieldTypes.at(name));
-    }
-
-    return NYT::NTableClient::StructLogicalType(std::move(fields));
+    auto fields = filter | std::views::transform([&] (const auto& fieldName) {
+        return *fieldNameToField.at(fieldName);
+    });
+    return NYT::NTableClient::StructLogicalType(
+        {fields.begin(), fields.end()},
+        /*removedFieldStableNames*/ {});
 }
 
 const TType* FilterFields(
@@ -255,29 +256,29 @@ NYT::NTableClient::TLogicalTypePtr PartiallyReorderFields(
 ) {
     const auto& structTypeRef = structType->AsStructTypeRef();
 
-    THashMap<TString, NYT::NTableClient::TLogicalTypePtr> fieldTypes;
+    THashMap<TStringBuf, const  NYT::NTableClient::TStructField*> fieldNameToField;
     for (const auto& field : structTypeRef.GetFields()) {
-        fieldTypes.emplace(field.Name, field.Type);
+        fieldNameToField.emplace(field.Name, &field);
     };
 
-    THashSet<TString> visitedFieldNames;
+    THashSet<TStringBuf> visitedFieldNames;
 
     std::vector<NYT::NTableClient::TStructField> fields;
-    fields.reserve(fieldTypes.size());
+    fields.reserve(fieldNameToField.size());
 
-    for (auto& name : partialOrder) {
-        fields.emplace_back(name, fieldTypes.at(name));
+    for (const auto& name : partialOrder) {
+        fields.push_back(*fieldNameToField.at(name));
         visitedFieldNames.emplace(std::move(name));
     }
 
-    for (const auto& [name, type] : structTypeRef.GetFields()) {
-        if (!visitedFieldNames.contains(name)) {
-            fields.emplace_back(name, type);
-            visitedFieldNames.emplace(name);
+    for (const auto& field : structTypeRef.GetFields()) {
+        if (!visitedFieldNames.contains(field.Name)) {
+            fields.push_back(field);
+            visitedFieldNames.emplace(field.Name);
         }
     }
 
-    return NYT::NTableClient::StructLogicalType(std::move(fields));
+    return NYT::NTableClient::StructLogicalType(std::move(fields), /*removedFieldStableNames*/ {});
 }
 
 NYT::NTableClient::TLogicalTypePtr RenameFields(
@@ -289,11 +290,16 @@ NYT::NTableClient::TLogicalTypePtr RenameFields(
     std::vector<NYT::NTableClient::TStructField> fields;
     fields.reserve(structTypeRef.GetFields().size());
 
-    for (const auto& [name, type] : structTypeRef.GetFields()) {
-        fields.emplace_back(renames.at(name), type);
+    for (const auto& field : structTypeRef.GetFields()) {
+        const auto& newName = renames.at(field.Name);
+        fields.push_back({
+            .Name = newName,
+            .StableName = newName,
+            .Type = field.Type,
+        });
     }
 
-    return NYT::NTableClient::StructLogicalType(std::move(fields));
+    return NYT::NTableClient::StructLogicalType(std::move(fields), /*removedFieldStableNames*/ {});
 }
 
 NYT::NTableClient::TTableSchemaPtr BuildTableSchema(
@@ -304,11 +310,11 @@ NYT::NTableClient::TTableSchemaPtr BuildTableSchema(
     std::vector<NYT::NTableClient::TColumnSchema> columns;
     columns.reserve(structTypeRef.GetFields().size());
 
-    for (const auto& [fieldName, fieldType] : structTypeRef.GetFields()) {
+    for (const auto& field : structTypeRef.GetFields()) {
         columns.push_back(NYT::NTableClient::TColumnSchema()
-            .SetName(fieldName)
-            .SetStableName(NYT::NTableClient::TColumnStableName(fieldName))
-            .SetLogicalType(fieldType));
+            .SetName(field.Name)
+            .SetStableName(NYT::NTableClient::TColumnStableName(field.StableName))
+            .SetLogicalType(field.Type));
     }
 
     auto tableSchema = NYT::New<NYT::NTableClient::TTableSchema>(std::move(columns));

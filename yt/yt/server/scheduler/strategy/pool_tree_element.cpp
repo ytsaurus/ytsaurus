@@ -293,11 +293,6 @@ NVectorHdrf::TCompositeElement* TPoolTreeElement::GetParentElement() const
     return Parent_;
 }
 
-TInstant TPoolTreeElement::GetStartTime() const
-{
-    return StartTime_;
-}
-
 i64 TPoolTreeElement::GetPendingAllocationCount() const
 {
     return PendingAllocationCount_;
@@ -1066,8 +1061,8 @@ ESchedulingMode TPoolTreeCompositeElement::GetMode() const
 
 bool TPoolTreeCompositeElement::HasHigherPriorityInFifoMode(const NVectorHdrf::TElement* lhs, const NVectorHdrf::TElement* rhs) const
 {
-    const auto* lhsElement = dynamic_cast<const TPoolTreeElement*>(lhs);
-    const auto* rhsElement = dynamic_cast<const TPoolTreeElement*>(rhs);
+    const auto* lhsElement = dynamic_cast<const TPoolTreeOperationElement*>(lhs);
+    const auto* rhsElement = dynamic_cast<const TPoolTreeOperationElement*>(rhs);
 
     YT_VERIFY(lhsElement);
     YT_VERIFY(rhsElement);
@@ -1119,7 +1114,7 @@ bool TPoolTreeCompositeElement::ContainsChild(
     return map.find(child) != map.end();
 }
 
-bool TPoolTreeCompositeElement::HasHigherPriorityInFifoMode(const TPoolTreeElement* lhs, const TPoolTreeElement* rhs) const
+bool TPoolTreeCompositeElement::HasHigherPriorityInFifoMode(const TPoolTreeOperationElement* lhs, const TPoolTreeOperationElement* rhs) const
 {
     for (auto parameter : FifoSortParameters_) {
         switch (parameter) {
@@ -1790,6 +1785,7 @@ TPoolTreeOperationElementFixedState::TPoolTreeOperationElementFixedState(
     , Type_(Operation_->GetType())
     , TrimmedAnnotations_(Operation_->GetTrimmedAnnotations())
     , SchedulingTagFilter_(std::move(schedulingTagFilter))
+    , StartTime_(Operation_->GetStartTime())
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1863,7 +1859,6 @@ void TPoolTreeOperationElement::InitializeUpdate(TInstant now)
 
     UnschedulableReason_ = ComputeUnschedulableReason();
     Tentative_ = RuntimeParameters_->Tentative;
-    StartTime_ = Operation_->GetStartTime();
 
     InitializeResourceUsageAndDemand();
 
@@ -2060,6 +2055,12 @@ ESchedulableStatus TPoolTreeOperationElement::GetStatus() const
     double tolerance = EffectiveFairShareStarvationTolerance_;
     if (Dominates(Attributes_.FairShare.Total + TResourceVector::LargeEpsilon(), Attributes_.DemandShare)) {
         tolerance = 1.0;
+    } else if (TreeConfig_->EnableAbsoluteFairShareStarvationTolerance) {
+        auto aggregatedMinNeededShare = TResourceVector::FromJobResources(AggregatedMinNeededAllocationResources_, TotalResourceLimits_);
+
+        if (!IsStrictlyDominatesNonBlocked(Attributes_.FairShare.Total - Attributes_.UsageShare, aggregatedMinNeededShare)) {
+            return ESchedulableStatus::Normal;
+        }
     }
 
     return TPoolTreeElement::GetStatusImpl(tolerance);
@@ -2167,6 +2168,11 @@ TPoolTreeElementPtr TPoolTreeOperationElement::Clone(TPoolTreeCompositeElement* 
 ESchedulerElementType TPoolTreeOperationElement::GetType() const
 {
     return ESchedulerElementType::Operation;
+}
+
+TInstant TPoolTreeOperationElement::GetStartTime() const
+{
+    return StartTime_;
 }
 
 bool TPoolTreeOperationElement::IsSchedulable() const

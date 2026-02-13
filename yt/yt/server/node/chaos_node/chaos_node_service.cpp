@@ -3,6 +3,7 @@
 #include "chaos_manager.h"
 #include "chaos_slot.h"
 #include "chaos_lease.h"
+#include "chaos_lease_manager.h"
 #include "private.h"
 #include "replication_card.h"
 #include "replication_card_collocation.h"
@@ -14,7 +15,6 @@
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 #include <yt/yt/server/lib/hydra/hydra_service.h>
 
-#include <yt/yt/ytlib/chaos_client/helpers.h>
 #include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
 #include <yt/yt/ytlib/chaos_client/replication_cards_watcher.h>
 
@@ -262,7 +262,8 @@ private:
                 break;
             }
             case EObjectType::ChaosLease: {
-                auto* chaosLease = chaosManager->GetChaosLeaseOrThrow(chaosObjectId);
+                const auto& chaosLeaseManager = Slot_->GetChaosLeaseManager();
+                auto* chaosLease = chaosLeaseManager->GetChaosLeaseOrThrow(chaosObjectId);
                 Y_UNUSED(chaosLease);
                 break;
             }
@@ -516,8 +517,8 @@ private:
     {
         context->SetRequestInfo();
 
-        const auto& chaosManager = Slot_->GetChaosManager();
-        chaosManager->CreateChaosLease(std::move(context));
+        const auto& chaosLeaseManager = Slot_->GetChaosLeaseManager();
+        chaosLeaseManager->CreateChaosLease(std::move(context));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, GetChaosLease)
@@ -527,11 +528,11 @@ private:
         context->SetRequestInfo("ChaosLeaseId: %v",
             chaosLeaseId);
 
-        const auto& chaosManager = Slot_->GetChaosManager();
-        auto* chaosLease = chaosManager->GetChaosLeaseOrThrow(chaosLeaseId);
+        const auto& chaosLeaseManager = Slot_->GetChaosLeaseManager();
+        auto* chaosLease = chaosLeaseManager->GetChaosLeaseOrThrow(chaosLeaseId);
         response->set_timeout(ToProto(chaosLease->GetTimeout()));
 
-        auto futureLastPingTime = chaosManager->GetChaosLeaseTracker()->GetLastPingTime(chaosLeaseId)
+        auto futureLastPingTime = chaosLeaseManager->GetChaosLeaseTracker()->GetLastPingTime(chaosLeaseId)
             .Apply(BIND([=] (TInstant lastPingTime) {
                 response->set_last_ping_time(ToProto(lastPingTime));
             }));
@@ -546,8 +547,8 @@ private:
         context->SetRequestInfo("ChaosLeaseId: %v",
             chaosLeaseId);
 
-        const auto& chaosManager = Slot_->GetChaosManager();
-        chaosManager->RemoveChaosLease(std::move(context));
+        const auto& chaosLeaseManager = Slot_->GetChaosLeaseManager();
+        chaosLeaseManager->RemoveChaosLease(std::move(context));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, PingChaosLease)
@@ -560,8 +561,8 @@ private:
             pingAncestors);
 
 
-        const auto& chaosManager = Slot_->GetChaosManager();
-        chaosManager->PingChaosLease(std::move(context));
+        const auto& chaosLeaseManager = Slot_->GetChaosLeaseManager();
+        context->ReplyFrom(chaosLeaseManager->PingChaosLease(chaosLeaseId, pingAncestors));
     }
 };
 

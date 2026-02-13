@@ -222,10 +222,11 @@ private:
 
         SetErrorManagerContext(tabletSnapshot);
 
-        Bootstrap_
-            ->GetTabletSnapshotStore()
-            ->ValidateBundleNotBanned(tabletSnapshot, Slot_);
+        const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
+        snapshotStore->ValidateBundleNotBanned(tabletSnapshot, Slot_);
+        snapshotStore->ValidateUserNotBanned(context->GetAuthenticationIdentity().User);
 
+        i64 changelogPayloadBytes = 0;
         try {
             if (tabletSnapshot->Atomicity != atomicity) {
                 THROW_ERROR_EXCEPTION("Invalid atomicity mode: %Qlv instead of %Qlv",
@@ -330,9 +331,10 @@ private:
 
             // Throttling changelog medium write
             auto changelogWriteThrottlerType = ETabletDistributedThrottlerKind::ChangelogMediumWrite;
+            changelogPayloadBytes = params.DataWeight;
             SyncThrottleChangelogs(
                 tabletSnapshot->DistributedThrottlers[changelogWriteThrottlerType],
-                Slot_->EstimateChangelogMediumBytes(params.DataWeight),
+                Slot_->EstimateChangelogMediumBytes(changelogPayloadBytes),
                 context->GetTimeout());
         } catch (const std::exception& ex) {
             THROW_ERROR ex
@@ -365,7 +367,13 @@ private:
             throw;
         }
 
-        commitResult.Subscribe(BIND([profilerGuard = std::move(profilerGuard)] (const TError& /*error*/) {}));
+        commitResult.Subscribe(BIND([profilerGuard = std::move(profilerGuard), slot = Slot_, changelogPayloadBytes] (const TError& error) {
+            if (!error.IsOK()) {
+                return;
+            }
+
+            slot->AccountChangelogPayloadBytes(changelogPayloadBytes);
+        }));
 
         if (auto delay = tabletSnapshot->Settings.MountConfig->Testing.WriteResponseDelay) {
             YT_LOG_DEBUG("Response for TabletService.Write will be delayed for testing purposes "
@@ -475,8 +483,15 @@ private:
         auto* tablet = tabletManager->GetTabletOrThrow(tabletId);
         tablet->ValidateMounted(mountRevision);
 
+        auto* counters = tablet->Profiler()->GetTabletServiceCounters(GetCurrentProfilingUser());
+        TServiceProfilerGuard profilerGuard;
+        profilerGuard.Start(counters->WriteHunks);
+
         context->ReplyFrom(tablet->WriteHunks(std::move(payloads))
-            .Apply(BIND([=] (const std::vector<TJournalHunkDescriptor>& descriptors) {
+            .Apply(BIND([
+                =,
+                profilerGuard = std::move(profilerGuard)
+            ] (const std::vector<TJournalHunkDescriptor>& descriptors) {
                 for (const auto& descriptor : descriptors) {
                     auto* protoDescriptor = response->add_descriptors();
                     ToProto(protoDescriptor->mutable_chunk_id(), descriptor.ChunkId);

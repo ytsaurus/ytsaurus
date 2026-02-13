@@ -88,7 +88,10 @@ struct IMulticellManager
 
     virtual const std::set<NObjectClient::TCellTag>& GetSecondaryCellTags() const = 0;
     virtual const NApi::NNative::TConnectionStaticConfigPtr& GetMasterCellConnectionConfigs() const = 0;
-    virtual THashSet<NObjectClient::TCellTag> GetDynamicallyPropagatedMastersCellTags() const = 0;
+    virtual const THashSet<NObjectClient::TCellTag>& GetDynamicallyPropagatedMasterCellTags() const = 0;
+
+    virtual std::unique_ptr<NHydra::TMutation> CreateResetDynamicallyPropagatedMasterCellsMutation(
+        const NProto::TReqResetDynamicallyPropagatedMasterCells& request) = 0;
 
     virtual int GetCellCount() const = 0;
     virtual int GetSecondaryCellCount() const = 0;

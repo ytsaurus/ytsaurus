@@ -34,11 +34,11 @@ DEFINE_REFCOUNTED_TYPE(TStrictMockClient)
 using TStrictMockTransaction = StrictMock<TMockTransaction>;
 DEFINE_REFCOUNTED_TYPE(TStrictMockTransaction)
 
-const TString StateRoot = "//sys/query_tracker";
+const TYPath StateRoot = "//sys/query_tracker";
 const TQueryTrackerProxyConfigPtr Config = New<TQueryTrackerProxyConfig>();
 
-const TYsonString EmptyMap = TYsonString(TString("{}"));
-const TYsonString EmptyList = TYsonString(TString("[]"));
+const TYsonString EmptyMap = TYsonString(TStringBuf("{}"));
+const TYsonString EmptyList = TYsonString(TStringBuf("[]"));
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,7 +84,7 @@ TRecord CreateSimpleQuery(const TQueryId& queryId, ui64 startTime = 0, const std
     return {
         .Key = {.QueryId = queryId},
         .Engine = EQueryEngine::Mock,
-        .Query = TString(query),
+        .Query = query,
         .Files = EmptyList,
         .Settings = EmptyMap,
         .User = "user",
@@ -182,7 +182,7 @@ TEST_F(TQueryTrackerProxyTest, AlterAnnotationAndAcoInFinishedQuery)
     Proxy->AlterQuery(
         queryId,
         TAlterQueryOptions {
-            .Annotations = ConvertToNode(ConvertToYsonString(std::map<TString, TString>{{"qwe", "asd"}}))->AsMap(),
+            .Annotations = ConvertToNode(ConvertToYsonString(std::map<std::string, std::string>{{"qwe", "asd"}}))->AsMap(),
             .AccessControlObjects = std::vector<std::string>{"aco2", "aco3"},
         },
         "user");
@@ -211,7 +211,7 @@ TEST_F(TQueryTrackerProxyTest, AlterAnnotationInEmptyFinishedQuery)
     Proxy->AlterQuery(
         queryId,
         TAlterQueryOptions {
-            .Annotations = ConvertToNode(ConvertToYsonString(std::map<TString, TString>{{"qwe", "asd"}}))->AsMap(),
+            .Annotations = ConvertToNode(ConvertToYsonString(std::map<std::string, std::string>{{"qwe", "asd"}}))->AsMap(),
         },
         "user");
 }
@@ -240,7 +240,7 @@ TEST_F(TQueryTrackerProxyTest, AlterAnnotationInFinishedQueryWithSameText)
     Proxy->AlterQuery(
         queryId,
         TAlterQueryOptions {
-            .Annotations = ConvertToNode(ConvertToYsonString(std::map<TString, TString>{{"qwe", "asd"}}))->AsMap(),
+            .Annotations = ConvertToNode(ConvertToYsonString(std::map<std::string, std::string>{{"qwe", "asd"}}))->AsMap(),
         },
         "user");
 }
@@ -294,7 +294,7 @@ public:
     void ExpectListQueriesGetAcoCalls(bool everyoneAcoExists, bool isSuperuser = false)
     {
         if (!isSuperuser) {
-            auto existAcos = TYsonString(TString("[]"));
+            auto existAcos = TYsonString(TStringBuf("[]"));
             if (everyoneAcoExists) {
                 existAcos = BuildYsonStringFluently()
                     .BeginList()

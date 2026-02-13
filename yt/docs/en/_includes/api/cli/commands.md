@@ -1921,7 +1921,7 @@ usage: yt get-operation [-h] [--params PARAMS] [--attribute ATTRIBUTES] [--inclu
 
 > `--attribute`    desired attributes in the response Accepted multiple times.
 
-> `--include-scheduler`    request runtime operation information
+> `--include-runtime`    request runtime operation information
 
 > `--operation`    operation id
 

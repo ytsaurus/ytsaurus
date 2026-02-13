@@ -76,7 +76,7 @@ public:
 
     TUserJobSpecPtr GetUserJobSpec() const override;
 
-    TExtendedJobResources GetNeededResources(const TJobletPtr& /*joblet*/) const override;
+    TExtendedJobResources GetJobNeededResources(const TJobletPtr& /*joblet*/) const override;
 
     TExtendedJobResources GetMinNeededResourcesHeavy() const override;
 
@@ -292,7 +292,7 @@ TUserJobSpecPtr TVanillaTask::GetUserJobSpec() const
     return Spec_;
 }
 
-TExtendedJobResources TVanillaTask::GetNeededResources(const TJobletPtr& /*joblet*/) const
+TExtendedJobResources TVanillaTask::GetJobNeededResources(const TJobletPtr& /*joblet*/) const
 {
     return GetMinNeededResourcesHeavy();
 }
@@ -520,15 +520,10 @@ void TVanillaController::CustomMaterialize()
 
 TString TVanillaController::GetLoggingProgress() const
 {
-    const auto& jobCounter = GetTotalJobCounter();
     return Format(
-        "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v}, ",
-        jobCounter->GetTotal(),
-        jobCounter->GetRunning(),
-        jobCounter->GetCompletedTotal(),
-        GetPendingJobCount(),
-        jobCounter->GetFailed(),
-        jobCounter->GetAbortedTotal());
+        "{Jobs: %v, ControllerPendingJobCount: %v}",
+        GetTotalJobCounter(),
+        GetPendingJobCount());
 }
 
 std::vector<TRichYPath> TVanillaController::GetInputTablePaths() const
@@ -646,7 +641,7 @@ void TVanillaController::ValidateSnapshot() const
     const auto& jobCounter = GetTotalJobCounter();
     int startedJobCount = jobCounter->GetRunning() + jobCounter->GetCompletedTotal();
 
-    if (expectedJobCount != jobCounter->GetRunning()) {
+    if (expectedJobCount != startedJobCount) {
         THROW_ERROR_EXCEPTION(
             NScheduler::EErrorCode::OperationFailedOnJobRestart,
             "Cannot revive operation when \"fail_on_job_restart\" option is set in operation spec or user job spec "
@@ -1648,7 +1643,10 @@ void TGangOperationController::RestartAllRunningJobsPreservingAllocations(bool o
                         continue;
                     }
 
-                    YT_LOG_WARNING("Waiting for node to settle new job timed out; aborting job (JobId: %v, Timeout: %d)", jobId, Options_->GangManager->JobReincarnationTimeout);
+                    YT_LOG_WARNING(
+                        "Waiting for node to settle new job timed out; aborting job (JobId: %v, Timeout: %v)",
+                        jobId,
+                        Options_->GangManager->JobReincarnationTimeout);
 
                     allocation->NewJobsForbiddenReason = EScheduleFailReason::Timeout;
                     AbortJob(jobId, EAbortReason::WaitingTimeout);
@@ -1754,6 +1752,7 @@ void TGangOperationController::InitUserJobSpec(
         setEnvironmentVariable("YT_GANG_SIZE", ToString(TotalGangSize_));
         if (gangJoblet.Rank) {
             setEnvironmentVariable("YT_GANG_RANK", ToString(*gangJoblet.Rank));
+            setEnvironmentVariable("YT_TASK_GANG_RANK", ToString(*gangJoblet.Rank));
         }
     };
 

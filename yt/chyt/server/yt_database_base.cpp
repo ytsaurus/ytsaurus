@@ -111,20 +111,18 @@ DB::ASTPtr TYtDatabaseBase::getCreateDatabaseQuery() const
 void TYtDatabaseBase::dropTable(DB::ContextPtr context, const String& name, bool /*noDelay*/)
 {
     auto* queryContext = GetQueryContext(context);
+    auto* host = queryContext->Host;
     auto timerGuard = queryContext->CreateStatisticsTimerGuard(
         SlashedStatisticPath(
             Format("/%v_database/drop_table", to_lower(TString(getDatabaseName())))).ValueOrThrow());
 
-    TYPath path = getTableDataPath(name);
-    // Definitely not a YT table. It can be dictionary, so we try to delete it.
-    if (!name.starts_with("//")) {
-        auto* queryContext = GetQueryContext(context);
-        auto host = queryContext->Host;
-        if (host->GetCypressDictionaryConfigRepository()->DeleteDictionary(context, name, getDatabaseName())) {
-            return;
-        }
-        // Here we want to continue, because it can be the case of custom database.
+    DB::StorageID tableId(getDatabaseName(), name);
+    if (context->getExternalDictionariesLoader().has(tableId.getFullTableName())) {
+        host->GetCypressDictionaryConfigRepository()->DeleteDictionary(context, tableId);
+        return;
     }
+
+    TYPath path = getTableDataPath(name);
 
     // We can't use Client->RemoveNode() because we need to get the revision of the removed node.
     auto proxy = NObjectClient::CreateObjectServiceWriteProxy(queryContext->Client());
@@ -193,7 +191,7 @@ DB::ASTPtr TYtDatabaseBase::getCreateTableQueryImpl(const String& name, DB::Cont
     auto path = TRichYPath::Parse(getTableDataPath(name));
 
     TGetNodeOptions options;
-    static_cast<TMasterReadOptions&>(options) = *queryContext->Settings->CypressReadOptions;
+    static_cast<TMasterReadOptions&>(options) = *queryContext->SessionSettings->CypressReadOptions;
     options.Attributes = {
         "compression_codec",
         "erasure_codec",
@@ -235,10 +233,9 @@ DB::StoragePtr TYtDatabaseBase::DoGetTable(
     DB::ContextPtr context,
     const String& name) const
 {
-    TYPath path = getTableDataPath(name);
-    // Definitely not a YT table. It can be dictionary, so we try to load it.
-    if (!path.StartsWith("//") && !path.StartsWith("<")) {
-        return DoGetDictionary(context, name);
+    auto tableId = DB::StorageID(getDatabaseName(), name);
+    if (context->getExternalDictionariesLoader().has(tableId.getFullTableName())) {
+        return DoGetDictionary(context, tableId);
     }
 
     // Normally it's called with a query context.
@@ -254,12 +251,21 @@ DB::StoragePtr TYtDatabaseBase::DoGetTable(
         SlashedStatisticPath(
             Format("/%v_database/do_get_table", to_lower(TString(getDatabaseName())))).ValueOrThrow());
 
+
+    TYPath path = getTableDataPath(name);
+    TRichYPath richPath;
     try {
-        auto tables = FetchTables(
+        richPath = TRichYPath::Parse(path);
+    } catch (const std::exception& /*ex*/) {
+        return nullptr;
+    }
+
+    try {
+        auto tables = FetchTablesSoft(
             queryContext,
-            {TRichYPath::Parse(path)},
+            {std::move(richPath)},
             /*skipUnsuitableNodes*/ false,
-            queryContext->Settings->DynamicTable->EnableDynamicStoreRead,
+            queryContext->SessionSettings->DynamicTable->EnableDynamicStoreRead,
             queryContext->Logger);
 
         return CreateStorageDistributor(context, std::move(tables), DB::StorageID{getDatabaseName(), name});
@@ -271,8 +277,8 @@ DB::StoragePtr TYtDatabaseBase::DoGetTable(
     }
 }
 
-DB::StoragePtr TYtDatabaseBase::DoGetDictionary(DB::ContextPtr context, const String& name) const {
-    auto loadResult = context->getExternalDictionariesLoader().getLoadResult(DB::StorageID(getDatabaseName(), name).getFullTableName());
+DB::StoragePtr TYtDatabaseBase::DoGetDictionary(DB::ContextPtr context, const DB::StorageID& storageId) const {
+    auto loadResult = context->getExternalDictionariesLoader().getLoadResult(storageId.getFullTableName());
     if (!loadResult.config) {
         return nullptr;
     }

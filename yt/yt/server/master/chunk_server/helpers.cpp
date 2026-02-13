@@ -17,11 +17,13 @@
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
 
+#include <yt/yt/server/master/object_server/helpers.h>
+
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
-
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -36,6 +38,8 @@
 #include <yt/yt/library/numeric/algorithm_helpers.h>
 
 #include <yt/yt/core/ytree/fluent.h>
+
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 namespace NYT::NChunkServer {
 
@@ -625,31 +629,6 @@ void AppendChunkTreeChild(
 
     statistics->Accumulate(GetChunkTreeStatistics(child));
     chunkList->Children().push_back(child);
-}
-
-void AccumulateAncestorsStatistics(
-    TChunkTree* child,
-    const TChunkTreeStatistics& statisticsDelta)
-{
-    for (const auto& [parent, _] : child->AsChunk()->Parents()) {
-        auto mutableStatisticsDelta = statisticsDelta;
-
-        VisitUniqueAncestors(
-            parent->AsChunkList(),
-            [&] (TChunkList* parent, TChunkTree* child) {
-                ++mutableStatisticsDelta.Rank;
-                parent->Statistics().Accumulate(mutableStatisticsDelta);
-
-                if (parent->HasCumulativeStatistics()) {
-                    auto& cumulativeStatistics = parent->CumulativeStatistics();
-                    TCumulativeStatisticsEntry entry{mutableStatisticsDelta};
-
-                    int index = GetChildIndex(parent, child);
-                    cumulativeStatistics.Update(index, entry);
-                }
-            },
-            child);
-    }
 }
 
 void AccumulateUniqueAncestorsStatistics(
@@ -1252,7 +1231,7 @@ std::vector<TChunkReplicaDescriptor> GetChunkReplicaDescriptors(const TChunk* ch
     }
 
     std::vector<TChunkReplicaDescriptor> replicas;
-    for (auto replica : chunk->StoredReplicas()) {
+    for (auto replica : chunk->GetStoredReplicaList(/*includeOffline*/ false)) {
         auto* locationReplica = replica.As<EStoredReplicaType::ChunkLocation>();
         if (!locationReplica) {
             continue;
@@ -1271,11 +1250,12 @@ void SerializeMediumDirectory(
     const IChunkManagerPtr& chunkManager)
 {
     for (auto [mediumId, medium] : chunkManager->Media()) {
-        auto* protoItem = protoMediumDirectory->add_medium_descriptors();
+        auto* protoMediumDescriptor = protoMediumDirectory->add_medium_descriptors();
 
-        protoItem->set_index(medium->GetIndex());
-        protoItem->set_name(medium->GetName());
-        protoItem->set_priority(medium->GetPriority());
+        protoMediumDescriptor->set_index(medium->GetIndex());
+        protoMediumDescriptor->set_name(medium->GetName());
+        protoMediumDescriptor->set_priority(medium->GetPriority());
+        // TODO(cherepashka): add s3 config for offshore mediums when it will be supported on master side.
     }
 }
 
@@ -1372,6 +1352,9 @@ void ValidateMediumName(const std::string& name)
     if (name.empty()) {
         THROW_ERROR_EXCEPTION("Medium name cannot be empty");
     }
+
+    CheckObjectName(name)
+        .ThrowOnError();
 }
 
 void ValidateMediumPriority(int priority)
@@ -1393,6 +1376,16 @@ TSelectRowsQuery BuildSelectLocationSequoiaReplicasQuery(
             Format("location_index = %v", locationIndex),
         }
     };
+}
+
+void ValidateChunkMetaOnConfirmation(const NChunkClient::NProto::TChunkMeta& chunkMeta)
+{
+    // YT-3251
+    if (!HasProtoExtension<NChunkClient::NProto::TMiscExt>(chunkMeta.extensions())) {
+        THROW_ERROR_EXCEPTION("Missing TMiscExt in chunk meta");
+    }
+
+    ValidateFromProto(chunkMeta);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

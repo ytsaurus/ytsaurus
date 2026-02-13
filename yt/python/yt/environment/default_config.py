@@ -17,7 +17,6 @@ def get_master_config():
         },
 
         "changelogs": {
-            "flush_period": 10,
             "io_engine": {
                 "enable_sync": False,
             }
@@ -91,6 +90,13 @@ def get_dynamic_master_config():
             "data_node_tracker": {
                 "enable_per_location_full_heartbeats": True,
                 "enable_chunk_replicas_throttling_in_heartbeats": True,
+                "enable_location_indexes_in_data_node_heartbeats": True,
+                "use_location_indexes_in_sequoia_chunk_confirmation": True,
+                "use_location_indexes_to_search_location_on_confirmation": True,
+                "check_location_convergence_by_index_and_uuid_on_confirmation": True,
+                "enable_validation_full_heartbeats": True,
+                "validation_full_heartbeat_period": 1000,
+                "validation_full_heartbeat_splay": 200,
             },
         },
 
@@ -107,6 +113,8 @@ def get_dynamic_master_config():
             "enable_node_cpu_statistics": True,
             "forbid_maintenance_attribute_writes": False,
             "node_disposal_tick_period": 100,
+            "return_master_cells_connection_configs_on_node_registration": True,
+            "return_master_cells_connection_configs_on_node_heartbeat": True,
         },
 
         "object_manager": {
@@ -134,10 +142,14 @@ def get_dynamic_master_config():
             "scion_removal_period": 1000,
             "virtual_map_read_offload_batch_size": 2,
             "enable_preserve_acl_during_move": False,
+            "use_better_check_when_rewriting_path": True,
         },
 
         "transaction_manager": {
             "forbid_transaction_actions_for_cypress_transactions": True,
+        },
+        "table_manager": {
+            "enable_column_constraints_for_tables": True,
         },
 
         "multicell_manager": {

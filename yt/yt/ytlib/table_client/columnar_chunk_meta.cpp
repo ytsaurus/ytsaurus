@@ -134,17 +134,12 @@ i64 TColumnarChunkMeta::GetMemoryUsage() const
         BlockLastKeysSize_ +
         sizeof(TKey) * BlockLastKeys_.Size() +
         Misc_.SpaceUsedLong() +
-        DataBlockMeta_->GetSize() * metaMemoryFactor +
+        (DataBlockMeta_ ? DataBlockMeta_->GetSize() * metaMemoryFactor : 0) +
         (ColumnGroupInfos_ ? ColumnGroupInfos_->GetSize() * metaMemoryFactor : 0) +
         (ColumnMeta_ ? ColumnMeta_->GetSize() * metaMemoryFactor : 0) +
         ChunkSchema_->GetMemoryUsage() +
         (sizeof(HunkChunkRefs_[0]) * HunkChunkRefs_.size()) +
         (sizeof(HunkChunkMetas_[0]) * HunkChunkMetas_.size());
-}
-
-void TColumnarChunkMeta::ClearColumnMeta()
-{
-    ColumnMeta_.Reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

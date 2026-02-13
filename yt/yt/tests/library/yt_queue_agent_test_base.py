@@ -2,15 +2,15 @@ from operator import itemgetter
 from yt_env_setup import YTEnvSetup
 from yt_chaos_test_base import ChaosTestBase
 
-from yt_commands import (execute_batch, get, get_batch_output, make_batch_request, multiset_attributes, read_table, set, ls, wait, create, remove, sync_mount_table, sync_create_cells, exists,
-                         select_rows, sync_reshard_table, print_debug, get_driver, register_queue_consumer,
-                         sync_freeze_table, sync_unfreeze_table, create_table_replica, sync_enable_table_replica,
-                         advance_consumer, insert_rows, wait_for_tablet_state, abort_transactions)
+from yt_commands import (execute_batch, get, get_batch_output, get_connection_orchid_value, make_batch_request, multiset_attributes, read_table, set, ls, wait, create, remove, sync_mount_table,
+                         sync_create_cells, exists, select_rows, sync_reshard_table, print_debug, get_driver, register_queue_consumer, sync_freeze_table, sync_unfreeze_table,
+                         create_table_replica, sync_enable_table_replica, advance_consumer, insert_rows, wait_for_tablet_state, abort_transactions, raises_yt_error)
 
-from yt_helpers import parse_yt_time
+from yt_helpers import parse_yt_time, calculate_object_diff
 
 from yt.common import YtError, update_inplace, update
 
+import contextlib
 import copy
 import builtins
 import time
@@ -384,6 +384,15 @@ class ReplicatedObjectBase(ChaosTestBase):
         return not any("sort_order" in column for column in schema)
 
     @staticmethod
+    def _create_table_base(table_path, schema, table_attributes_patch=None, driver=None):
+        base_attributes = {
+            "dynamic": True,
+            "schema": schema,
+        }
+        create("table", table_path, attributes=update(base_attributes, table_attributes_patch or {}), driver=driver)
+        sync_mount_table(table_path)
+
+    @staticmethod
     def _create_replicated_table_base(replicated_table_path, replicas, schema, replicated_table_attributes_patch=None,
                                       create_replica_tables=True):
         base_attributes = {
@@ -543,7 +552,7 @@ class QueueStaticExportHelpers(ABC):
             return
 
         print_debug(f"Aborting transactions in subtree {path}")
-        abort_transactions(transactions, driver=driver, verbose=True)
+        abort_transactions(list(transactions), driver=driver, verbose=True)
 
     # NB(apachee): We only take queue snapshots, so we wouldn't run into any issues with locks here.
     def _remove_queue_export_by_export_destination(self, export_dir, driver=None, **kwargs):
@@ -736,64 +745,193 @@ class QueueStaticExportHelpers(ABC):
 class QueueConsumerRegistrationManagerBase(YTEnvSetup):
     DELTA_QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG = {
         "disable_list_all_registrations": True,
+        "implementation": "async_expiring_cache",
+        "bypass_caching": False,
     }
 
-    _QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG_FIELD_LIST = {
-        "disable_list_all_registrations",
-        "state_write_path",
-        "state_read_path",
-        "replicated_table_mapping_read_path",
-        "bypass_caching",
-        "cache_refresh_period",
-        "configuration_refresh_period",
-        "user",
-        "resolve_symlinks",
-        "resolve_replicas",
+    QUEUE_CONSUMER_REGISTRATION_MANAGER_LEGACY_IMPLEMENTATION_CHECK = False
+
+    _QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG_IGNORED_FIELD_LIST = {
+        "local_replica_path",
+        "replica_clusters",
+        "read_availability_clusters",
+        "write_availability_clusters",
     }
+
+    _APPLIED_QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG = {}
+
+    # TODO(apachee): Optimize setup by changing registration manager static config. May not help much though, since dynamic config needs to be changed as well anyway,
+    # and in the time it is changed config might change to the default one. At the very least configuration refresh period can be reduced.
+
+    @classmethod
+    def _check_registration_manager_implementation(cls, implementation: str):
+        def get_ctx():
+            if cls.QUEUE_CONSUMER_REGISTRATION_MANAGER_LEGACY_IMPLEMENTATION_CHECK:
+                return raises_yt_error("Attribute \"queue_consumer_registration_manager_implementation\" is not found")
+            else:
+                return contextlib.nullcontext()
+
+        for cluster in cls.get_cluster_names():
+            driver = get_driver(cluster=cluster)
+            for proxy in ls("//sys/rpc_proxies", driver=driver):
+                with get_ctx():
+                    effective_implementation = get(
+                        f"//sys/rpc_proxies/{proxy}/orchid/cluster_connection/queue_consumer_registration_manager/@queue_consumer_registration_manager_implementation",
+                        driver=driver
+                    )
+                    assert effective_implementation == implementation
+
+            if exists("//sys/kafka_proxies", driver=driver):
+                for proxy in ls("//sys/kafka_proxies/instances", driver=driver):
+                    with get_ctx():
+                        effective_implementation = get(
+                            f"//sys/kafka_proxies/instances/{proxy}/orchid/cluster_connection/queue_consumer_registration_manager/@queue_consumer_registration_manager_implementation",
+                            driver=driver
+                        )
+                        assert effective_implementation == implementation
+
+            if cls.DRIVER_BACKEND == "native":
+                effective_implementation = get_connection_orchid_value("/queue_consumer_registration_manager/@queue_consumer_registration_manager_implementation", driver=driver)
+                assert effective_implementation == implementation, \
+                    f"Native driver implementation mismatch on cluster {cluster}: expected {implementation}, got {effective_implementation}"
+
+        print_debug(f"Registration manager implementation: {implementation}")
+
+    @classmethod
+    def _get_registration_manager_config(cls):
+        registration_manager_config = {}
+        cls._apply_effective_config_patch(registration_manager_config, "DELTA_QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG")
+        return registration_manager_config
 
     @classmethod
     def setup_class(cls):
         super().setup_class()
 
-        cls._apply_registration_table_config(cls.DELTA_QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG)
+        # NB(apachee): Stores last applied queue consumer registration manager config.
+        cls._APPLIED_QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG = {}
+
+        registration_manager_config = cls._get_registration_manager_config()
+        cls._apply_registration_manager_config_patch_all(registration_manager_config)
+        cls._check_registration_manager_implementation(cls._get_registration_manager_applied_implementation())
 
     @classmethod
-    def _apply_registration_manager_dynamic_config_patch(cls, patch, cluster):
-        patch = {k: v for k, v in patch.items() if k in cls._QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG_FIELD_LIST}
+    def _get_registration_manager_applied_implementation(cls):
+        config = cls._get_registration_manager_config()
 
-        driver = get_driver(cluster=cluster)
-        config_path = f"//sys/clusters/{cluster}/queue_agent/queue_consumer_registration_manager"
-
-        config = get(config_path, driver=driver)
-        update_inplace(config, patch)
-        print_debug("Setting dynamic config", config)
-        set(config_path, config, driver=driver)
-
-        def config_updated():
-            for proxy in get("//sys/rpc_proxies", driver=driver).keys():
-                orchid_path = f"//sys/rpc_proxies/{proxy}/orchid/cluster_connection/queue_consumer_registration_manager"
-                effective_config = get(f"{orchid_path}/effective_config", driver=driver)
-                if update(effective_config, config) != effective_config:
-                    print_debug(f"Configs differ: {update(effective_config, config)} and {effective_config}")
-                    return False
-
-            return True
-
-        wait(config_updated)
+        if cls.QUEUE_CONSUMER_REGISTRATION_MANAGER_LEGACY_IMPLEMENTATION_CHECK:
+            assert "implementation" not in cls._APPLIED_QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG, \
+                f"Invalid applied config value: {cls._APPLIED_QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG}"
+            assert "implementation" not in config, \
+                f"Invalid config value: {config}"
+            return "legacy"
+        else:
+            return cls._APPLIED_QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG["implementation"]
 
     @classmethod
-    def _apply_registration_table_config(cls, patch):
-        patch.update({
+    def _process_patch(cls, patch):
+        processed_patch = {}
+
+        for k, v in patch.items():
+            if k not in cls._QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG_IGNORED_FIELD_LIST:
+                processed_patch[k] = v
+
+        # NB(apachee): Improve registration manager responsiveness by reducing refresh periods.
+
+        processed_patch.update({
             "cache_refresh_period": 250,
             "configuration_refresh_period": 500,
         })
 
-        patch = {k: v for k, v in patch.items() if k in cls._QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG_FIELD_LIST}
+        # COMPAT(apachee): After stable release supports this field, we can remove this code.
+        implementation = processed_patch.get("implementation", None) or cls._get_registration_manager_applied_implementation()
+        if implementation == "async_expiring_cache":
+            processed_patch.update({
+                "cache": {
+                    "base": {
+                        "expire_after_access_time": 1000,
+                        "expire_after_successful_update_time": 1000,
+                        "expire_after_failed_update_time": 0,  # NB(apachee): Do not cache failures.
+                        "refresh_time": 1000,
+                        "expiration_period": 1000,
+                        "batch_update": True,
+                    },
+                    # TODO(apachee): Add batch lookup config.
+                }
+            })
+
+        return processed_patch
+
+    @classmethod
+    def _apply_registration_manager_config_patch(cls, processed_patch, cluster):
+        """Apply processed registration manager config patch to the specified cluster"""
+        driver = get_driver(cluster=cluster)
+        config_path = f"//sys/clusters/{cluster}/queue_agent/queue_consumer_registration_manager"
+
+        config = get(config_path, driver=driver)
+        update_inplace(config, processed_patch)
+        print_debug("Setting dynamic config", config)
+        set(config_path, config, driver=driver)
+
+        applied_config = {}
+
+        def check_orchid_value(proxy, effective_config, unrecognized_config_options):
+            print_debug(f"Checking orchid value for proxy {proxy}")
+            if update(effective_config, config) != effective_config or unrecognized_config_options != {}:
+                print_debug(f"Diff: {calculate_object_diff(update(effective_config, config), effective_config):expected_config,actual_config}, "
+                            f"unrecognized config options: {unrecognized_config_options}")
+                return False
+            return True
+
+        def config_updated():
+            effective_config = None
+
+            assert cls.DRIVER_BACKEND in ["native", "rpc"]
+
+            for proxy in ls("//sys/rpc_proxies", driver=driver):
+                orchid_path = f"//sys/rpc_proxies/{proxy}/orchid/cluster_connection/queue_consumer_registration_manager"
+                orchid_value = get(orchid_path, driver=driver)
+                effective_config = orchid_value["effective_config"]
+                unrecognized_config_options = orchid_value.get("unrecognized_config_options", {})
+                if not check_orchid_value(proxy, effective_config, unrecognized_config_options):
+                    return False
+
+            if exists("//sys/kafka_proxies", driver=driver):
+                for proxy in ls("//sys/kafka_proxies/instances", driver=driver):
+                    orchid_path = f"//sys/kafka_proxies/instances/{proxy}/orchid/cluster_connection/queue_consumer_registration_manager"
+                    orchid_value = get(orchid_path, driver=driver)
+                    effective_config = orchid_value["effective_config"]
+                    unrecognized_config_options = orchid_value.get("unrecognized_config_options", {})
+                    if not check_orchid_value(proxy, effective_config, unrecognized_config_options):
+                        return False
+
+            if cls.DRIVER_BACKEND == "native":
+                orchid_value = get_connection_orchid_value("/queue_consumer_registration_manager", driver=driver)
+                effective_config = orchid_value["effective_config"]
+                unrecognized_config_options = orchid_value.get("unrecognized_config_options", {})
+                if not check_orchid_value("native_driver", effective_config, unrecognized_config_options):
+                    return False
+
+            assert effective_config is not None
+            applied_config.update(config)
+            return True
+
+        wait(config_updated)
+        assert applied_config
+
+        return applied_config
+
+    @classmethod
+    def _apply_registration_manager_config_patch_all(cls, patch):
+        """Apply registration manager config patch to all clusters"""
+        patch = cls._process_patch(patch)
 
         print_debug(f"Applying config patch {patch} to queue consumer registration manager dynamic config")
 
         for cluster in cls.get_cluster_names():
-            cls._apply_registration_manager_dynamic_config_patch(patch, cluster)
+            applied_config = cls._apply_registration_manager_config_patch(patch, cluster)
+            if cluster == "primary":
+                # NB(apachee): This kind of reassignment is fine.
+                cls._APPLIED_QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG = applied_config
 
     @staticmethod
     def _list_all_registrations(driver=None):
@@ -803,6 +941,9 @@ class QueueConsumerRegistrationManagerBase(YTEnvSetup):
         config = get(f"//sys/clusters/{cluster_name}/queue_agent/queue_consumer_registration_manager", driver=driver)
         registration_table_path = config["state_read_path"]
         return [QueueConsumerRegistration.from_select(r) for r in select_rows(f"* FROM [{registration_table_path}]")]
+
+
+assert QueueConsumerRegistrationManagerBase._get_registration_manager_config()["implementation"] == "async_expiring_cache"
 
 
 ##################################################################
@@ -855,20 +996,6 @@ class TestQueueAgentBase(QueueConsumerRegistrationManagerBase, YTEnvSetup):
 
     DO_PREPARE_TABLES_ON_SETUP = True
     QUEUE_AGENT_DO_WAIT_FOR_GLOBAL_SYNC_ON_SETUP = False
-
-    @classmethod
-    def _calculate_diff(cls, obj1, obj2):
-        if isinstance(obj1, dict) and isinstance(obj2, dict):
-            keys = builtins.set(obj1.keys()) | builtins.set(obj2.keys())
-            result_l = {}
-            result_r = {}
-            for key in keys:
-                diff_l, diff_r = cls._calculate_diff(obj1.get(key, None), obj2.get(key, None))
-                if diff_l != diff_r:
-                    result_l[key] = diff_l
-                    result_r[key] = diff_r
-            return result_l, result_r
-        return obj1, obj2
 
     @classmethod
     def modify_queue_agent_config(cls, config):
@@ -952,12 +1079,14 @@ class TestQueueAgentBase(QueueConsumerRegistrationManagerBase, YTEnvSetup):
                     "{}/instances/{}/orchid/dynamic_config_manager/effective_config".format(cls.root_path, instance))
                 effective_config = update(cypress_config_base, effective_config)
                 if update(effective_config, config) != effective_config:
-                    raise Exception(f"diff = {cls._calculate_diff(update(effective_config, config), effective_config)}")
+                    raise Exception(f"diff = {calculate_object_diff(update(effective_config, config), effective_config):expected_config,actual_config}")
             return True
 
         wait(config_updated_on_all_instances, ignore_exceptions=True)
 
     def _prepare_tables(self, queue_table_schema=None, consumer_table_schema=None, **kwargs):
+        print_debug(f"Preparing queue agent dynamic state tables with kwargs: {kwargs}")
+
         assert queue_table_schema is None and consumer_table_schema is None, \
             "Current implementation of init_queue_agent_state does not support custom schemas"
         sync_create_cells(1)
@@ -968,17 +1097,25 @@ class TestQueueAgentBase(QueueConsumerRegistrationManagerBase, YTEnvSetup):
             self.client,
             **kwargs)
 
+        print_debug("Prepared queue agent dynamic state tables")
+
     def _drop_tables(self):
         init_queue_agent_state.delete_all_tables(self.client)
 
-    def create_queue_path(self):
-        return f"//tmp/queue-{generate_uuid()}"
+    def create_queue_path(self, ctx=""):
+        if ctx:
+            ctx = f"-{ctx}"
+        return f"//tmp/queue{ctx}-{generate_uuid()}"
 
-    def create_producer_path(self):
-        return f"//tmp/producer-{generate_uuid()}"
+    def create_producer_path(self, ctx=""):
+        if ctx:
+            ctx = f"-{ctx}"
+        return f"//tmp/producer{ctx}-{generate_uuid()}"
 
-    def create_consumer_path(self):
-        return f"//tmp/consumer-{generate_uuid()}"
+    def create_consumer_path(self, ctx=""):
+        if ctx:
+            ctx = f"-{ctx}"
+        return f"//tmp/consumer{ctx}-{generate_uuid()}"
 
     @staticmethod
     def _create_queue(path, partition_count=1, enable_timestamp_column=True,

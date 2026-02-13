@@ -1,6 +1,7 @@
 #pragma once
 
 #include "schemeshard_impl.h"
+#include "schemeshard_index_build_info.h"
 
 #include <contrib/ydb/public/api/protos/ydb_issue_message.pb.h>
 #include <contrib/ydb/public/api/protos/ydb_status_codes.pb.h>

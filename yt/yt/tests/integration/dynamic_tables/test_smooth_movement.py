@@ -3,12 +3,14 @@ from yt_dynamic_tables_base import DynamicTablesBase, SmoothMovementHelper
 from yt.environment.helpers import assert_items_equal, are_items_equal
 
 from yt_commands import (
-    authors, create, wait, get, set,
-    sync_create_cells, sync_mount_table, raises_yt_error,
-    sync_reshard_table, insert_rows, ls, abort_transaction,
+    authors, create, wait, get, set, exists,
+    sync_create_cells, sync_mount_table, sync_unmount_table, raises_yt_error,
+    sync_reshard_table, insert_rows, ls,
     build_snapshot, select_rows, update_nodes_dynamic_config,
     create_area, start_transaction, commit_transaction, sync_flush_table, remount_table,
-    get_singular_chunk_id
+    get_singular_chunk_id, disable_tablet_cells_on_node, enable_tablet_cells_on_node,
+    create_table_replica, alter_table_replica, unmount_table,
+    set_node_banned, trim_rows, generate_timestamp
 )
 
 from yt.common import YtError
@@ -23,50 +25,35 @@ import pytest
 ##################################################################
 
 
-class TestSmoothMovement(DynamicTablesBase):
+class SmoothMovementBase(DynamicTablesBase):
+    _testing_delay = DynamicTablesBase._testing_delay
+
     DELTA_NODE_CONFIG = {
         "tablet_node": {
             "tablet_manager": {
                 "sleep_before_post_to_master": 500,
+            },
+            "resource_limits": {
+                "slots": 1,
             },
         },
         "rpc_server": {
             "services": {
                 "TabletService": {
                     "methods": {
-                        "Write": {
-                            "testing": {
-                                "random_delay": 100,
-                            },
-                        },
-                        "RegisterTransactionActions": {
-                            "testing": {
-                                "random_delay": 100,
-                            },
-                        },
+                        "Write": _testing_delay(100),
+                        "RegisterTransactionActions": _testing_delay(100),
                     },
                 },
                 "TransactionSupervisorService": {
                     "methods": {
-                        "CommitTransaction": {
-                            "testing": {
-                                "random_delay": 50,
-                            },
-                        },
+                        "CommitTransaction": _testing_delay(50),
                     },
                 },
                 "TransactionParticipantService": {
                     "methods": {
-                        "CommitTransaction": {
-                            "testing": {
-                                "random_delay": 50,
-                            },
-                        },
-                        "PrepareTransaction": {
-                            "testing": {
-                                "random_delay": 50,
-                            },
-                        },
+                        "CommitTransaction": _testing_delay(50),
+                        "PrepareTransaction": _testing_delay(50),
                     },
                 },
             },
@@ -105,17 +92,34 @@ class TestSmoothMovement(DynamicTablesBase):
         except YtError:
             return None
 
-    def _restart_cell(self, cell_id, sync=True):
-        tx_id = get(f"#{cell_id}/@prerequisite_transaction_id")
-        abort_transaction(tx_id)
+    def _restart_cell(self, cell_id, sync=True, with_snapshot=False):
+        def _get_peer_address():
+            for peer in get(f"#{cell_id}/@peers"):
+                if address := peer.get("address"):
+                    return address
+
+        node_address = _get_peer_address()
+        if with_snapshot:
+            build_snapshot(cell_id)
+        disable_tablet_cells_on_node(node_address)
+        wait(lambda: _get_peer_address() != node_address)
+        enable_tablet_cells_on_node(node_address)
         if sync:
             wait(lambda: get(f"#{cell_id}/@health") == "good")
 
+##################################################################
+
+
+class TestSmoothMovement(SmoothMovementBase):
     @authors("ifsmirnov")
-    def test_empty_store_rotation_recovery(self):
+    @pytest.mark.parametrize("sorted", [True, False])
+    def test_empty_store_rotation_recovery(self, sorted):
         sync_create_cells(2)
-        self._create_sorted_table("//tmp/t")
-        sync_reshard_table("//tmp/t", [[], [5]])
+        self._create_table("//tmp/t", sorted)
+        if sorted:
+            sync_reshard_table("//tmp/t", [[], [5]])
+        else:
+            sync_reshard_table("//tmp/t", 2)
         sync_mount_table("//tmp/t", first_tablet_index=0, last_tablet_index=0)
 
         # Forbid writes to the second tablet.
@@ -126,7 +130,15 @@ class TestSmoothMovement(DynamicTablesBase):
         sync_mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=1)
 
         with raises_yt_error("Dynamic store pool size limit reached"):
-            insert_rows("//tmp/t", [{"key": 1}, {"key": 10}])
+            if sorted:
+                insert_rows("//tmp/t", [{"key": 1}, {"key": 10}])
+            else:
+                insert_rows("//tmp/t", [{"$tablet_index": 1, "key": 10}])
+                insert_rows("//tmp/t", [
+                    {"$tablet_index": 0, "key": 1},
+                    {"$tablet_index": 1, "key": 11},
+                ])
+            select_rows("* from [//tmp/t]")
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         old_cell_id = get(f"#{tablet_id}/@cell_id")
@@ -138,9 +150,10 @@ class TestSmoothMovement(DynamicTablesBase):
         self._restart_cell(new_cell_id)
 
     @authors("ifsmirnov")
-    def test_basic_write_redirect(self):
+    @pytest.mark.parametrize("sorted", [True, False])
+    def test_basic_write_redirect(self, sorted):
         sync_create_cells(2)
-        self._create_sorted_table("//tmp/t")
+        self._create_table("//tmp/t", sorted)
         sync_mount_table("//tmp/t")
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
@@ -159,7 +172,7 @@ class TestSmoothMovement(DynamicTablesBase):
             expected_rows.append(row)
             insert_rows("//tmp/t", [row])
 
-        assert_items_equal(expected_rows, select_rows("* from [//tmp/t]"))
+        assert_items_equal(expected_rows, select_rows("key, value from [//tmp/t]"))
 
         action_id = self._move_tablet(tablet_id)
 
@@ -172,12 +185,44 @@ class TestSmoothMovement(DynamicTablesBase):
                 pass
 
             try:
-                actual = select_rows("* from [//tmp/t]")
+                actual = select_rows("key, value from [//tmp/t]")
                 assert_items_equal(expected_rows, actual)
             except YtError:
                 pass
 
+        assert_items_equal(expected_rows, select_rows("key, value from [//tmp/t]"))
+
+    @authors("ponasenko-rs")
+    def test_basic_conflict_horizon_timestamp_propagation(self):
+        sync_create_cells(2)
+        self._create_sorted_table(
+            "//tmp/t",
+            mount_config={
+                "backing_store_retention_time": 5000,
+            },
+        )
+        sync_mount_table("//tmp/t")
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        ts = generate_timestamp()
+
+        expected_rows = []
+        for i in range(10):
+            row = {"key": i, "value": str(i)}
+            expected_rows.append(row)
+            insert_rows("//tmp/t", [row])
+
         assert_items_equal(expected_rows, select_rows("* from [//tmp/t]"))
+
+        self._sync_move_tablet(tablet_id)
+
+        # Wait until backing store is released.
+        time.sleep(5)
+
+        sync_unmount_table("//tmp/t")
+
+        assert get(f"#{tablet_id}/@conflict_horizon_timestamp") > ts
 
     def _update_testing_config(self, config):
         update_nodes_dynamic_config({
@@ -548,6 +593,349 @@ class TestSmoothMovement(DynamicTablesBase):
             insert_rows("//tmp/t", [{"key": 1}], transaction_id=tx_id)
             insert_rows("//tmp/q", [{"key": 1}], transaction_id=tx_id)
             commit_transaction(tx_id)
+
+    @authors("ifsmirnov")
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    def test_replica_and_replicated_table_at_same_cell(self, mode):
+        cell_ids = sync_create_cells(2)
+        create(
+            "replicated_table",
+            "//tmp/t",
+            attributes={
+                "dynamic": True,
+                "schema": [
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"},
+                ],
+            })
+
+        r = create_table_replica("//tmp/t", "primary", "//tmp/r")
+        alter_table_replica(r, mode=mode, enabled=True)
+
+        self._create_sorted_table("//tmp/r", upstream_replica_id=r)
+
+        sync_mount_table("//tmp/t", cell_id=cell_ids[0])
+        sync_mount_table("//tmp/r", cell_id=cell_ids[0])
+
+        # Run twice: move replica tablet away from replicated table tablet
+        # and then move it back.
+        all_rows = []
+        for iter in range(2):
+            with SmoothMovementHelper("//tmp/r").forwarding_context():
+                batch_size = 15
+                rows = [{"key": i, "value": str(i)} for i in range(iter * batch_size, (iter + 1) * batch_size)]
+                all_rows += rows
+                for row in rows:
+                    while True:
+                        try:
+                            insert_rows("//tmp/t", [row], require_sync_replica=False)
+                            break
+                        except YtError:
+                            time.sleep(0.1)
+                    time.sleep(0.5)
+
+            if mode == "sync":
+                assert_items_equal(select_rows("* from [//tmp/r]"), all_rows)
+            else:
+                wait(lambda: are_items_equal(select_rows("* from [//tmp/r]"), all_rows))
+
+    @authors("ifsmirnov")
+    @pytest.mark.parametrize("sorted", [True, False])
+    def test_fake_dynamic_store_in_snapshot(self, sorted):
+        cell_ids = sync_create_cells(2)
+        self._create_table(
+            "//tmp/t",
+            sorted,
+            mount_config={"testing": {
+                "flush_failure_probability": 1,
+                "opaque_stores_in_orchid": False,
+            }})
+        sync_mount_table("//tmp/t", cell_id=cell_ids[0])
+
+        rows = [
+            {"key": 1, "value": "foo"},
+            {"key": 2, "value": "bar"},
+            {"key": 3, "value": "baz"},
+        ]
+        insert_rows("//tmp/t", rows[:1])
+
+        h = SmoothMovementHelper("//tmp/t")
+        with h.forwarding_context():
+            build_snapshot(cell_ids[1])
+            insert_rows("//tmp/t", rows[1:2])
+            self._restart_cell(cell_ids[1])
+
+            for i in range(10):
+                try:
+                    insert_rows("//tmp/t", rows[2:3])
+                    break
+                except YtError:
+                    time.sleep(0.5)
+            set("//tmp/t/@mount_config/testing/flush_failure_probability", 0)
+            remount_table("//tmp/t")
+
+        if sorted:
+            expected_rows = rows
+        else:
+            expected_rows = [
+                r | {"$tablet_index": 0, "$row_index": i}
+                for i, r in enumerate(rows)
+            ]
+
+        assert_items_equal(select_rows("* from [//tmp/t]"), expected_rows)
+
+    @authors("ifsmirnov")
+    @pytest.mark.parametrize("sorted", [True, False])
+    def test_frozen_tablet(self, sorted):
+        sync_create_cells(2)
+        self._create_table("//tmp/t", sorted=sorted)
+        sync_mount_table("//tmp/t", freeze=True)
+        with raises_yt_error("Only mounted tablet can be moved"):
+            SmoothMovementHelper("//tmp/t").start()
+
+    @authors("ifsmirnov")
+    def test_trim(self):
+        sync_create_cells(2)
+        self._create_ordered_table(
+            "//tmp/t",
+            mount_config={
+                "testing": {
+                    "opaque_stores_in_orchid": False,
+                },
+                "dynamic_store_auto_flush_period": yson.YsonEntity(),
+            })
+        sync_mount_table("//tmp/t")
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        rows = []
+        trimmed_row_count = 0
+
+        def _insert(count):
+            nonlocal rows
+            offset = len(rows) + trimmed_row_count
+            new_rows = [
+                {"key": i, "value": str(i)}
+                for i in range(offset, offset + count)
+            ]
+            insert_rows("//tmp/t", new_rows)
+            rows += new_rows
+
+        def _trim(count):
+            nonlocal trimmed_row_count
+
+            trim_rows("//tmp/t", 0, count)
+
+            if count > trimmed_row_count:
+                del rows[:count - trimmed_row_count]
+                trimmed_row_count = count
+
+        def _do_check(helper=None):
+            assert_items_equal(select_rows("key, value from [//tmp/t]"), rows)
+            total_row_count = trimmed_row_count + len(rows)
+            assert get("//tmp/t/@tablets/0/trimmed_row_count") == trimmed_row_count
+            assert get(f"#{tablet_id}/orchid/trimmed_row_count") == trimmed_row_count
+            assert get(f"#{tablet_id}/orchid/total_row_count") == total_row_count
+            if helper:
+                assert get(f"{helper.target_orchid}/trimmed_row_count") == trimmed_row_count
+                assert get(f"{helper.target_orchid}/total_row_count") == total_row_count
+
+        def _check(helper=None):
+            try:
+                _do_check(helper)
+                return True
+            except AssertionError:
+                return False
+
+        _insert(10)
+        _trim(1)
+
+        h = SmoothMovementHelper(tablet_id)
+        with h.forwarding_context():
+            _check(h)
+            _trim(5)
+            _check(h)
+            _insert(10)
+
+            self._restart_cell(h.target_cell_id, with_snapshot=True)
+
+            wait(lambda: len(get("//tmp/t/@chunk_ids")) == 1)
+            _trim(10)
+            wait(lambda: len(get("//tmp/t/@chunk_ids")) == 0)
+
+            wait(lambda: _check(h))
+
+        _check()
+
+        _trim(20)
+        sync_flush_table("//tmp/t")
+        wait(lambda: len(get(f"#{tablet_id}/orchid/stores")) == 1)
+
+        _check()
+
+        h = SmoothMovementHelper(tablet_id)
+        with h.forwarding_context():
+            _check(h)
+            _trim(15)
+            with raises_yt_error("Cannot trim tablet"):
+                _trim(1000)
+
+        _check()
+
+    @authors("ifsmirnov")
+    def test_atomicity_none(self):
+        sync_create_cells(2)
+        self._create_sorted_table("//tmp/t", atomicity="none")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 1, "value": "foo"}]
+        with SmoothMovementHelper("//tmp/t").forwarding_context():
+            insert_rows("//tmp/t", rows, atomicity="none")
+            assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
+
+##################################################################
+
+
+class TestSmoothMovementLargeCommitDelay(SmoothMovementBase):
+    DELTA_NODE_CONFIG = {
+        "tablet_node": {
+            "transaction_supervisor": {
+                "rpc_timeout": 20000,
+            },
+            "resource_limits": {
+                "slots": 1,
+            },
+        }
+    }
+
+    DELTA_MASTER_CONFIG = {
+        "transaction_supervisor": {
+            "rpc_timeout": 20000,
+        },
+    }
+
+    @classmethod
+    def modify_node_config(cls, config, cluster_index):
+        node_to_method = {
+            0: "PrepareTransaction",
+            1: "CommitTransaction",
+        }
+        method = node_to_method.get(config["cypress_annotations"]["yt_env_index"])
+        if method:
+            config["rpc_server"]["services"]["TransactionParticipantService"] \
+                ["methods"][method]["testing"]["random_delay"] = 6000  # noqa
+
+    @staticmethod
+    def _get_special_node_index(delay_stage):
+        if delay_stage == "prepare":
+            return 0
+        elif delay_stage == "commit":
+            return 1
+        assert False
+
+    def _prepare(self, delay_stage):
+        # Table has tablets on cells 0 and 1. Tablet is moved from cell 0 to 2.
+        # 2pc transaction is committed between cells 0 and 1, coordinated by 1.
+        # We wait until some transactions are stuck at node 0 in stage "active" or
+        # "persistent_commit_prepared" depending on |delay_stage|
+        # (and so forwarded to 2 and stuck there in the same state).
+
+        node_to_index = {}
+        # Leave only special node and two others, renumber them as 0, 1, 2.
+        for n in ls("//sys/tablet_nodes", attributes=["annotations"]):
+            index = n.attributes["annotations"]["yt_env_index"]
+            special_node_index = self._get_special_node_index(delay_stage)
+            if index not in (special_node_index, 2, 3):
+                disable_tablet_cells_on_node(n)
+            # 0/1 -> 0
+            # 2 -> 1
+            # 3 -> 2
+            node_to_index[str(n)] = max(0, index - 1)
+
+        cell_ids = [""] * 3
+        for cell_id in sync_create_cells(3):
+            address = get(f"#{cell_id}/@peers/0/address")
+            index = node_to_index[address]
+            assert index < 3
+            cell_ids[index] = cell_id
+
+        return cell_ids
+
+    def _has_transactions_with_state(self, cell_id, state):
+        transactions = get(f"#{cell_id}/orchid/transactions")
+        return any(tx["state"] == state for tx in transactions.values())
+
+    @authors("ifsmirnov")
+    @pytest.mark.parametrize("delay_stage", ["prepare", "commit"])
+    def test_unmount_with_stuck_transactions(self, delay_stage):
+        cell_ids = self._prepare(delay_stage)
+
+        self._create_sorted_table("//tmp/t", pivot_keys=[[], [100]])
+        sync_mount_table("//tmp/t", target_cell_ids=[cell_ids[0], cell_ids[1]])
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        h = SmoothMovementHelper(tablet_id, cell_ids[2])
+        h.start_forwarding_mutations()
+
+        # Coordinator is selected at random. Ensure that at least some transactions
+        # are coordinated by cell 1.
+        for i in range(20):
+            insert_rows("//tmp/t", [{"key": i}, {"key": i + 100}], ignore_result=True)
+
+        expected_state = "persistent_commit_prepared" if delay_stage == "commit" else "active"
+        wait(lambda: self._has_transactions_with_state(cell_ids[2], expected_state))
+
+        assert exists(f"#{cell_ids[0]}/orchid/tablets/{tablet_id}")
+        assert exists(f"#{cell_ids[2]}/orchid/tablets/{tablet_id}")
+        unmount_table("//tmp/t", force=True)
+        assert h.get_action_state() == "failed"
+        wait(lambda: not exists(f"#{cell_ids[0]}/orchid/tablets/{tablet_id}"))
+        wait(lambda: not exists(f"#{cell_ids[2]}/orchid/tablets/{tablet_id}"))
+
+    @authors("ifsmirnov")
+    @pytest.mark.parametrize("delay_stage", ["prepare", "commit"])
+    @pytest.mark.parametrize("with_snapshot", [True, False])
+    @pytest.mark.parametrize("servant_to_restart", ["source", "target"])
+    def test_recovery_with_stuck_transactions(self, delay_stage, with_snapshot, servant_to_restart):
+        cell_ids = self._prepare(delay_stage)
+
+        self._create_sorted_table("//tmp/t", pivot_keys=[[], [100]])
+        sync_mount_table("//tmp/t", target_cell_ids=[cell_ids[0], cell_ids[1]])
+        self._create_sorted_table("//tmp/correct")
+        sync_mount_table("//tmp/correct", cell_id=cell_ids[1])
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        h = SmoothMovementHelper(tablet_id, cell_ids[2])
+        h.start_forwarding_mutations()
+
+        # Coordinator is selected at random. Ensure that at least some transactions
+        # are coordinated by cell 1.
+        for i in range(20):
+            tx_id = start_transaction(type="tablet")
+            insert_rows("//tmp/t", [{"key": i}, {"key": i + 100}], tx=tx_id)
+            insert_rows("//tmp/correct", [{"key": i}, {"key": i + 100}], tx=tx_id)
+            commit_transaction(tx_id, ignore_result=True)
+
+        expected_state = "persistent_commit_prepared" if delay_stage == "commit" else "active"
+        wait(lambda: self._has_transactions_with_state(cell_ids[2], expected_state))
+
+        target_cell = cell_ids[0] if servant_to_restart == "source" else cell_ids[2]
+        if with_snapshot:
+            build_snapshot(target_cell)
+
+        node_address = get(f"#{target_cell}/@peers/0/address")
+        set_node_banned(node_address, True)
+        wait(lambda: get(f"#{target_cell}/@health") == "failed")
+        set_node_banned(node_address, False)
+        wait(lambda: get(f"#{target_cell}/@health") == "good")
+
+        h.finish()
+
+        actual = select_rows("* from [//tmp/t]")
+        expected = select_rows("* from [//tmp/correct]")
+        assert_items_equal(actual, expected)
 
 ##################################################################
 

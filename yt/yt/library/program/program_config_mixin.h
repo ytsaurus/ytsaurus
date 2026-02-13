@@ -124,6 +124,11 @@ protected:
         return ConfigNode_;
     }
 
+    const TString& GetConfigPath() const
+    {
+        return ConfigPath_;
+    }
+
 private:
     const TString ArgumentName_;
 

@@ -79,6 +79,7 @@ struct IChaosSlot
     virtual NHiveServer::TMailboxHandle GetMasterMailbox() = 0;
 
     virtual const IChaosManagerPtr& GetChaosManager() const = 0;
+    virtual const IChaosLeaseManagerPtr& GetChaosLeaseManager() const = 0;
     virtual const NChaosClient::IReplicationCardsWatcherPtr& GetReplicationCardsWatcher() const = 0;
     virtual const ICoordinatorManagerPtr& GetCoordinatorManager() const = 0;
     virtual const IShortcutSnapshotStorePtr& GetShortcutSnapshotStore() const = 0;

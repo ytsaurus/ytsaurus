@@ -243,17 +243,104 @@ class TestComplexTypes(YTEnvSetup):
         test_table.check_bad_value(["one", 2, 3])
         test_table.check_bad_value(["bar", "baz"])
 
-    @authors("ermolovd")
-    def test_malformed_struct(self, optimize_for):
-        with raises_yt_error("Name of struct field #0 is empty"):
+    @authors("s-berdnikov")
+    @pytest.mark.parametrize("type_constructor", [struct_type, variant_struct_type])
+    def test_struct_field_names(self, optimize_for, type_constructor):
+        for index in range(5):
+            for stable in (True, False):
+                def generate_fields(malformed_name):
+                    return [
+                        (
+                            malformed_name if not stable and i == index else f"dummy_{i}",
+                            malformed_name if stable and i == index else f"stable_dummy_{i}",
+                            "int64",
+                        ) for i in range(5)
+                    ]
+
+                name_name = "Stable name" if stable else "Name"
+
+                with raises_yt_error(f"{name_name} of struct field #{index} is empty"):
+                    SingleColumnTable(type_constructor(generate_fields("")), optimize_for)
+
+                with raises_yt_error(f"{name_name} of struct field #{index} exceeds limit"):
+                    SingleColumnTable(type_constructor(generate_fields("a" * 257)), optimize_for)
+
+        SingleColumnTable(
+            type_constructor([("a", "int64"), ("b", "int64")]),
+            optimize_for,
+            path="//tmp/test_1",
+        )
+        SingleColumnTable(
+            type_constructor([("a", "stable_a", "int64"), ("b", "stable_b", "int64")]),
+            optimize_for,
+            path="//tmp/test_2",
+        )
+
+        # Ridiculous, but formally valid.
+        SingleColumnTable(
+            type_constructor([("a", "b", "int64"), ("b", "a", "string")]),
+            optimize_for,
+            path="//tmp/test_3",
+        )
+
+        with raises_yt_error("Struct field name \"a\" is used twice"):
+            SingleColumnTable(
+                type_constructor([("a", "int64"), ("b", "int64"), ("a", "int64")]),
+                optimize_for,
+            )
+
+        with raises_yt_error("Struct field stable name \"stable_a\" is used twice"):
+            SingleColumnTable(
+                type_constructor([
+                    ("a", "stable_a", "int64"),
+                    ("b", "stable_b", "int64"),
+                    ("c", "stable_a", "int64"),
+                ]),
+                optimize_for,
+            )
+
+    @authors("s-berdnikov")
+    def test_struct_removed_fields(self, optimize_for):
+        SingleColumnTable(
+            struct_type([("a", "int64")], removed_field_stable_names=["b"]),
+            optimize_for,
+            path="//tmp/test_1",
+        )
+
+        # Although the practice is questionable, Removed field stable names
+        # do not interfere with regular field names, only with stable field names.
+        SingleColumnTable(
+            struct_type([("a", "stable_a", "int64")], removed_field_stable_names=["a"]),
+            optimize_for,
+            path="//tmp/test_2",
+        )
+
+        with raises_yt_error("Removed field stable name \"b\" is used twice"):
+            SingleColumnTable(
+                struct_type([("a", "int64")], removed_field_stable_names=["b", "c", "b"]),
+                optimize_for,
+            )
+
+        with raises_yt_error("Removed field stable name \"stable_a\" cannot be used as a stable name"):
+            SingleColumnTable(
+                struct_type([("a", "stable_a", "int64")], removed_field_stable_names=["stable_a"]),
+                optimize_for,
+            )
+
+        with raises_yt_error("Table schema is too complex"):
             SingleColumnTable(
                 struct_type(
-                    [
-                        ("", "int64"),
-                    ]
+                    [("a", "int64")],
+                    removed_field_stable_names=list(map(str, range(50000))),
                 ),
                 optimize_for,
             )
+
+        SingleColumnTable(
+            struct_type([("a", "int64")], removed_field_stable_names=list(map(str, range(10000)))),
+            optimize_for,
+            path="//tmp/test_3",
+        )
 
     @authors("ermolovd")
     def test_list(self, optimize_for):
@@ -1661,13 +1748,13 @@ class TestSchemaObjects(TestSchemaDeduplication):
         other_schema = make_schema([make_column("some_column", "int8")], unique_keys=False, strict=True)
 
         # Hitherto-unseen @schema and a mismatching @schema_id.
-        with raises_yt_error("Both \"schema\" and \"schema_id\" specified and the schemas do not match"):
+        with raises_yt_error("Mix of \"schema\", \"constrained_schema\" and \"schema_id\" attributes are specified and the schemas do not match"):
             create("table", "//tmp/table6", attributes={"schema_id": schema_id, "schema": other_schema})
 
         create("table", "//tmp/other_schema_holder", attributes={"schema": other_schema})
 
         # @schema and a mismatching @schema_id.
-        with raises_yt_error("Both \"schema\" and \"schema_id\" specified and they refer to different schemas"):
+        with raises_yt_error("Mix of \"schema\", \"constrained_schema\" and \"schema_id\" specified and they refer to different schemas"):
             create("table", "//tmp/table7", attributes={"schema_id": schema_id, "schema": other_schema})
 
         assert get("#" + schema_id + "/@ref_counter") == 3
@@ -1923,11 +2010,8 @@ class TestErrorCodes(YTEnvSetup):
             tx_write_table("//tmp/t", [{"foo": -1}])
 
 
-@authors("ermolovd")
-@pytest.mark.enabled_multidaemon
-class TestAlterTable(YTEnvSetup):
+class AlterTableSetup(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
-    USE_DYNAMIC_TABLES = True
 
     _TABLE_PATH = "//tmp/test-alter-table"
 
@@ -2030,7 +2114,7 @@ class TestAlterTable(YTEnvSetup):
 
     def check_bad_alter_type(self, old_type_v3, new_type_v3, dynamic=False):
         """
-        Check that we can alter column type from old_type_v3 to new_type_v3 but cannot alter it back.
+        Check that we cannot alter column type from old_type_v3 to new_type_v3
         """
         old_schema = self._create_test_schema_with_type(old_type_v3)
         new_schema = self._create_test_schema_with_type(new_type_v3)
@@ -2039,9 +2123,15 @@ class TestAlterTable(YTEnvSetup):
         with raises_yt_error(yt_error_codes.IncompatibleSchemas):
             alter_table(self._TABLE_PATH, schema=new_schema)
 
-    def check_bad_both_way_alter_type(self, lhs_type_v3, rhs_type_v3, dynamic=False):
+    def check_bad_both_ways_alter_type(self, lhs_type_v3, rhs_type_v3, dynamic=False):
         self.check_bad_alter_type(lhs_type_v3, rhs_type_v3, dynamic)
         self.check_bad_alter_type(rhs_type_v3, lhs_type_v3, dynamic)
+
+
+@authors("ermolovd")
+@pytest.mark.enabled_multidaemon
+class TestAlterTable(AlterTableSetup):
+    USE_DYNAMIC_TABLES = True
 
     @authors("orlovorlov")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
@@ -2090,9 +2180,9 @@ class TestAlterTable(YTEnvSetup):
 
         self.check_one_way_alter_type("int64", optional_type("yson"), dynamic=dynamic)
 
-        self.check_bad_both_way_alter_type("uint8", "int64", dynamic=dynamic)
+        self.check_bad_both_ways_alter_type("uint8", "int64", dynamic=dynamic)
         # TODO(dakovalkov): can be supported.
-        self.check_bad_both_way_alter_type("null", optional_type("int64"), dynamic=dynamic)
+        self.check_bad_both_ways_alter_type("null", optional_type("int64"), dynamic=dynamic)
 
     @authors("ermolovd", "dakovalkov")
     @pytest.mark.parametrize("dynamic", [False, True])
@@ -2110,15 +2200,15 @@ class TestAlterTable(YTEnvSetup):
             list_type(optional_type("int64")),
             dynamic=dynamic)
 
-        self.check_bad_both_way_alter_type(
+        self.check_bad_both_ways_alter_type(
             list_type("int64"),
             optional_type(optional_type(list_type("int64"))),
             dynamic=dynamic)
-        self.check_bad_both_way_alter_type(
+        self.check_bad_both_ways_alter_type(
             list_type("int64"),
             optional_type("yson"),
             dynamic=dynamic)
-        self.check_bad_both_way_alter_type(
+        self.check_bad_both_ways_alter_type(
             optional_type("yson"),
             list_type("int64"),
             dynamic=dynamic)
@@ -2136,16 +2226,16 @@ class TestAlterTable(YTEnvSetup):
             tuple_type(["int32"]),
             tuple_type([optional_type("int64")]),
             dynamic=dynamic)
-        self.check_bad_both_way_alter_type(
+        self.check_bad_both_ways_alter_type(
             tuple_type(["int64"]),
             tuple_type(["int64", "int64"]),
             dynamic=dynamic)
         # TODO(dakovalkov): can be supported.
-        self.check_bad_both_way_alter_type(
+        self.check_bad_both_ways_alter_type(
             tuple_type(["int64"]),
             optional_type("yson"),
             dynamic=dynamic)
-        self.check_bad_both_way_alter_type(
+        self.check_bad_both_ways_alter_type(
             optional_type("yson"),
             tuple_type(["int64"]),
             dynamic=dynamic)
@@ -2163,7 +2253,7 @@ class TestAlterTable(YTEnvSetup):
             struct_type([("a", "int32")]),
             struct_type([("a", optional_type("int64"))]),
             dynamic=dynamic)
-        self.check_bad_both_way_alter_type(
+        self.check_bad_both_ways_alter_type(
             struct_type([("a", "int64")]),
             struct_type([("a", optional_type(optional_type("int64")))]),
             dynamic=dynamic)
@@ -2176,20 +2266,20 @@ class TestAlterTable(YTEnvSetup):
             struct_type([("a", "int64")]),
             struct_type([("a", "int64"), ("b", optional_type(optional_type("int64")))]),
             dynamic=dynamic)
-        self.check_bad_both_way_alter_type(
+        self.check_bad_both_ways_alter_type(
             struct_type([("a", "int64")]),
             struct_type([("a", "int64"), ("b", "int64")]),
             dynamic=dynamic)
-        self.check_bad_both_way_alter_type(
+        self.check_bad_both_ways_alter_type(
             struct_type([("a", "int64")]),
             struct_type([("b", optional_type("int64")), ("a", "int64")]),
             dynamic=dynamic)
 
-        self.check_bad_both_way_alter_type(
+        self.check_bad_both_ways_alter_type(
             struct_type([("a", "int64")]),
             optional_type("yson"),
             dynamic=dynamic)
-        self.check_bad_both_way_alter_type(
+        self.check_bad_both_ways_alter_type(
             optional_type("yson"),
             struct_type([("a", "int64")]),
             dynamic=dynamic)
@@ -2215,7 +2305,7 @@ class TestAlterTable(YTEnvSetup):
             variant_tuple_type(["int64"]),
             variant_tuple_type(["int64", optional_type("int64")]),
             dynamic=dynamic)
-        self.check_bad_both_way_alter_type(
+        self.check_bad_both_ways_alter_type(
             variant_tuple_type(["int64"]),
             optional_type("yson"),
             dynamic=dynamic)
@@ -2233,7 +2323,7 @@ class TestAlterTable(YTEnvSetup):
             variant_struct_type([("a", "int32")]),
             variant_struct_type([("a", optional_type("int64"))]),
             dynamic=dynamic)
-        self.check_bad_both_way_alter_type(
+        self.check_bad_both_ways_alter_type(
             variant_struct_type([("a", "int64")]),
             variant_struct_type([("a", optional_type(optional_type("int64")))]),
             dynamic=dynamic)
@@ -2250,11 +2340,11 @@ class TestAlterTable(YTEnvSetup):
             variant_struct_type([("a", "int64")]),
             variant_struct_type([("a", "int64"), ("b", "int64")]),
             dynamic=dynamic)
-        self.check_bad_both_way_alter_type(
+        self.check_bad_both_ways_alter_type(
             variant_struct_type([("a", "int64")]),
             variant_struct_type([("b", optional_type("int64")), ("a", "int64")]),
             dynamic=dynamic)
-        self.check_bad_both_way_alter_type(
+        self.check_bad_both_ways_alter_type(
             variant_struct_type([("a", "int64")]),
             optional_type("yson"),
             dynamic=dynamic)
@@ -2277,15 +2367,15 @@ class TestAlterTable(YTEnvSetup):
             dict_type("string", optional_type("int64")),
             dynamic=dynamic)
 
-        self.check_bad_both_way_alter_type(
+        self.check_bad_both_ways_alter_type(
             dict_type("utf8", "int8"),
             optional_type("yson"),
             dynamic=dynamic)
-        self.check_bad_both_way_alter_type(
+        self.check_bad_both_ways_alter_type(
             dict_type("utf8", "uint8"),
             dict_type("utf8", "int64"),
             dynamic=dynamic)
-        self.check_bad_both_way_alter_type(
+        self.check_bad_both_ways_alter_type(
             dict_type("utf8", "uint8"),
             dict_type("int8", "uint8"),
             dynamic=dynamic)
@@ -2347,6 +2437,73 @@ class TestSchemaDepthLimit(YTEnvSetup):
             create("table", "//tmp/t3", force=True, attributes={
                 "schema": bad_schema,
             })
+
+
+class DisabledStructFieldManipulationSetup(AlterTableSetup):
+    ENABLE_STATIC_STRUCT_FIELD_RENAMING = True
+    ENABLE_DYNAMIC_STRUCT_FIELD_RENAMING = True
+    ENABLE_STATIC_STRUCT_FIELD_REMOVAL = True
+    ENABLE_DYNAMIC_STRUCT_FIELD_REMOVAL = True
+
+    @authors("s-berdnikov")
+    def test_field_reordering(self):
+        self.check_bad_alter_type(
+            struct_type([("a", "int64"), ("b", "bool"), ("c", "string")]),
+            struct_type([("c", "string"), ("b", "bool"), ("a", "int64")]),
+            dynamic=self.USE_DYNAMIC_TABLES,
+        )
+
+    @authors("s-berdnikov")
+    def test_field_insertion(self):
+        self.check_bad_alter_type(
+            struct_type([("a", "int64"), ("b", "string")]),
+            struct_type([("a", "int64"), ("c", optional_type("bool")), ("b", "string")]),
+            dynamic=self.USE_DYNAMIC_TABLES,
+        )
+
+
+class DisableStructFieldRenamingSetup(DisabledStructFieldManipulationSetup):
+    @authors("s-berdnikov")
+    def test_renaming(self):
+        self.check_bad_alter_type(
+            struct_type([("a", "int64"), ("b", "int64")]),
+            struct_type([("a", "int64"), ("new_b", "b", "int64")]),
+            dynamic=self.USE_DYNAMIC_TABLES,
+        )
+
+
+class DisableStructFieldRemovalSetup(DisabledStructFieldManipulationSetup):
+    @authors("s-berdnikov")
+    def test_removal(self):
+        self.check_bad_alter_type(
+            struct_type([("a", "int64"), ("b", "int64")]),
+            struct_type([("a", "int64")], removed_field_stable_names=["b"]),
+            dynamic=self.USE_DYNAMIC_TABLES,
+        )
+
+
+@pytest.mark.enabled_multidaemon
+class TestDisableStructFieldRenaminglStatic(DisableStructFieldRenamingSetup):
+    USE_DYNAMIC_TABLES = False
+    ENABLE_STATIC_STRUCT_FIELD_RENAMING = False
+
+
+@pytest.mark.enabled_multidaemon
+class TestDisableStructFieldRenamingDynamic(DisableStructFieldRenamingSetup):
+    USE_DYNAMIC_TABLES = True
+    ENABLE_DYNAMIC_STRUCT_FIELD_RENAMING = False
+
+
+@pytest.mark.enabled_multidaemon
+class TestDisableStructFieldRemovalStatic(DisableStructFieldRemovalSetup):
+    USE_DYNAMIC_TABLES = False
+    ENABLE_STATIC_STRUCT_FIELD_REMOVAL = False
+
+
+@pytest.mark.enabled_multidaemon
+class TestDisableStructFieldRemovalDynamic(DisableStructFieldRemovalSetup):
+    USE_DYNAMIC_TABLES = True
+    ENABLE_DYNAMIC_STRUCT_FIELD_REMOVAL = False
 
 
 @pytest.mark.enabled_multidaemon

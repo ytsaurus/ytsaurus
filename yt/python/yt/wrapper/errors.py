@@ -77,6 +77,8 @@ def create_response_error(underlying_error):
         error = YtTabletIsInIntermediateState(underlying_error)
     elif sample_error.is_hunk_tablet_store_toggle_conflict():
         error = YtHunkTabletStoreToggleConflict(underlying_error)
+    elif sample_error.is_hunk_store_allocation_failed():
+        error = YtHunkStoreAllocationFailed(underlying_error)
     elif sample_error.is_no_such_tablet():
         error = YtNoSuchTablet(underlying_error)
     elif sample_error.is_tablet_not_mounted():
@@ -212,6 +214,11 @@ class YtTabletIsInIntermediateState(YtResponseError):
 
 class YtHunkTabletStoreToggleConflict(YtResponseError):
     """Hunk tablet store toggle conflict"""
+    pass
+
+
+class YtHunkStoreAllocationFailed(YtResponseError):
+    """Hunk store allocation failed"""
     pass
 
 

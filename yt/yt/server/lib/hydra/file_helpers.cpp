@@ -34,12 +34,14 @@ void TLengthMeasuringOutputStream::DoFinish()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RemoveChangelogFiles(const TString& path)
+void RemoveChangelogFiles(const std::string& path)
 {
-    auto dataFileName = path;
+    // TODO(babenko): migrate to std::string
+    auto dataFileName = TString(path);
     NFS::Remove(dataFileName);
 
-    auto indexFileName = path + "." + ChangelogIndexExtension;
+    // TODO(babenko): migrate to std::string
+    auto indexFileName = TString(path + "." + ChangelogIndexExtension);
     if (NFS::Exists(indexFileName)) {
         NFS::Remove(indexFileName);
     }

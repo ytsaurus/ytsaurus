@@ -8,7 +8,6 @@ from yt_commands import (
 
 from yt_sequoia_helpers import (
     resolve_sequoia_id, resolve_sequoia_path, select_rows_from_ground, select_paths_from_ground,
-    lookup_rows_in_ground, mangle_sequoia_path,
 )
 
 from yt.sequoia_tools import DESCRIPTORS
@@ -25,6 +24,7 @@ import pytest
 class TestGrafting(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     NUM_CLOCKS = 3
 
     NUM_SECONDARY_MASTER_CELLS = 3
@@ -127,6 +127,13 @@ class TestGrafting(YTEnvSetup):
         with raises_yt_error("Scion cannot be cloned"):
             copy("//tmp/sequoia1", "//tmp/sequoia2")
 
+    @authors("kvk1920")
+    def test_rootstock_removal_under_tx(self):
+        create("rootstock", "//tmp/sequoia")
+        tx = start_transaction()
+        with raises_yt_error("Rootstock cannot be removed under transaction"):
+            remove("//tmp/sequoia", tx=tx)
+
 
 ##################################################################
 
@@ -170,40 +177,19 @@ class TestGraftingTmpCleanup(YTEnvSetup):
 ##################################################################
 
 
-def lookup_path_to_node_id(path, tx=None):
-    key = {"path": mangle_sequoia_path(path)}
-    if tx is not None:
-        key["transaction_id"] = tx
-    return lookup_rows_in_ground(DESCRIPTORS.path_to_node_id.get_default_path(), [key])
-
-
 @pytest.mark.enabled_multidaemon
-class TestSequoiaSyncMode(YTEnvSetup):
+class TestSequoiaSymlinks(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True
     VALIDATE_SEQUOIA_TREE_CONSISTENCY = True
-    USE_CYPRESS_DIR = True
 
     NUM_SECONDARY_MASTER_CELLS = 2
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host", "sequoia_node_host"]},
         "11": {"roles": ["chunk_host"]},
         "12": {"roles": ["sequoia_node_host"]},
-    }
-
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "sequoia_manager": {
-            "enable_ground_update_queues": True,
-        },
-    }
-
-    DELTA_CYPRESS_PROXY_CONFIG = {
-        "testing": {
-            "enable_ground_update_queues_sync": True,
-            "enable_user_directory_per_request_sync": True,
-        },
     }
 
     def setup_method(self, method):

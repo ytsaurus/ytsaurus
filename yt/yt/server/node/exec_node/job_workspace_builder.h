@@ -39,7 +39,7 @@ struct TJobWorkspaceBuildingContext
     TUserSandboxOptions UserSandboxOptions;
     IUserSlotPtr Slot;
     TJobPtr Job;
-    TString CommandUser;
+    std::string CommandUser;
 
     TArtifactDownloadOptions ArtifactDownloadOptions;
 
@@ -50,6 +50,8 @@ struct TJobWorkspaceBuildingContext
     std::vector<TShellCommandConfigPtr> SetupCommands;
     std::optional<TString> DockerImage;
     NContainers::NCri::TCriAuthConfigPtr DockerAuth;
+    IVolumePtr RootVolume;
+    std::vector<TTmpfsVolumeResult> PreparedTmpfsVolumes;
 
     bool NeedGpu = false;
     std::optional<TGpuCheckOptions> GpuCheckOptions;
@@ -79,6 +81,9 @@ struct TJobWorkspaceBuilderTimePoints
     std::optional<TInstant> PrepareRootVolumeStartTime;
     std::optional<TInstant> PrepareRootVolumeFinishTime;
 
+    std::optional<TInstant> ValidateRootFSStartTime;
+    std::optional<TInstant> ValidateRootFSFinishTime;
+
     std::optional<TInstant> PrepareTmpfsVolumesStartTime;
     std::optional<TInstant> PrepareTmpfsVolumesFinishTime;
 
@@ -87,6 +92,9 @@ struct TJobWorkspaceBuilderTimePoints
 
     std::optional<TInstant> GpuCheckStartTime;
     std::optional<TInstant> GpuCheckFinishTime;
+
+    std::optional<TInstant> LinkTmpfsVolumesStartTime;
+    std::optional<TInstant> LinkTmpfsVolumesFinishTime;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -105,7 +113,9 @@ public:
         TJobWorkspaceBuildingContext context,
         IJobDirectoryManagerPtr directoryManager);
 
-    TFuture<TJobWorkspaceBuildingResult> Run();
+    TFuture<void> Run();
+
+    TJobWorkspaceBuildingResult ExtractResult();
 
 protected:
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
@@ -114,6 +124,7 @@ protected:
     TJobWorkspaceBuildingContext Context_;
     const IJobDirectoryManagerPtr DirectoryManager_;
 
+    bool ResultExtracted_ = false;
     TJobWorkspaceBuildingResult ResultHolder_;
 
     TJobWorkspaceBuilderTimePoints TimePoints_;
@@ -125,6 +136,12 @@ protected:
     virtual TFuture<void> DoPrepareTmpfsVolumes() = 0;
 
     virtual TFuture<void> DoPrepareGpuCheckVolume() = 0;
+
+    virtual TFuture<void> DoBindRootVolume() = 0;
+
+    virtual TFuture<void> DoLinkTmpfsVolumes() = 0;
+
+    virtual TFuture<void> DoValidateRootFS() = 0;
 
     virtual TFuture<void> DoPrepareSandboxDirectories() = 0;
 
@@ -142,7 +159,10 @@ protected:
 
     void MakeArtifactSymlinks();
 
-    void PrepareArtifactBinds();
+    //! We first create files for artifact binds and then create actual container
+    //! binds for artifacts. If we do not create files ourselves porto will
+    //! create them with root ownership which is not what we need.
+    void MakeFilesForArtifactBinds();
 
     void SetNowTime(std::optional<TInstant>& timeField);
 

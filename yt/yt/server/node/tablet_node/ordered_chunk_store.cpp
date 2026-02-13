@@ -297,9 +297,11 @@ void TOrderedChunkStore::Load(TLoadContext& context)
     TChunkStoreBase::Load(context);
 }
 
-void TOrderedChunkStore::PopulateAddStoreDescriptor(NProto::TAddStoreDescriptor* /*descriptor*/)
+void TOrderedChunkStore::PopulateAddStoreDescriptor(NProto::TAddStoreDescriptor* descriptor)
 {
-    YT_ABORT();
+    TChunkStoreBase::PopulateAddStoreDescriptor(descriptor);
+
+    descriptor->set_starting_row_index(GetStartingRowIndex());
 }
 
 const TKeyComparer& TOrderedChunkStore::GetKeyComparer() const

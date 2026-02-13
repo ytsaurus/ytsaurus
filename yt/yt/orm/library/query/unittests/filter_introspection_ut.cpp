@@ -66,9 +66,9 @@ TEST(TFilterIntrospectionTest, DefinedAttributeValue)
 ////////////////////////////////////////////////////////////////////////////////
 
 bool RunIntrospectFilterForDefinedReference(
-    const TString& expressionString,
+    const std::string& expressionString,
     NYPath::TYPathBuf referenceName,
-    const std::optional<TString>& tableName = std::nullopt,
+    const std::optional<std::string>& tableName = std::nullopt,
     bool allowValueRange = true)
 {
     auto parsedQuery = ParseSource(expressionString, NQueryClient::EParseMode::Expression);
@@ -280,7 +280,7 @@ TEST(TFilterIntrospectionTest, FullScanIntrospection)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool RunIntrospectFilterForDefinedAlwaysFalse(const TString& expressionString)
+bool RunIntrospectFilterForDefinedAlwaysFalse(const std::string& expressionString)
 {
     auto parsedQuery = ParseSource(expressionString, NQueryClient::EParseMode::Expression);
     auto expression = std::get<NAst::TExpressionPtr>(parsedQuery->AstHead.Ast);

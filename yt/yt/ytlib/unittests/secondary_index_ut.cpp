@@ -45,6 +45,11 @@ const auto BasicIndexSchema = New<TTableSchema>(std::vector{
     TColumnSchema("$empty", EValueType::Int64),
 }, true, true);
 
+const TIndexInfo DefaultIndexInfo = {
+    .Kind = ESecondaryIndexKind::FullSync,
+    .Correspondence = ETableToIndexCorrespondence::Bijective,
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableMountInfoPtr MakeFrom(TTableSchemaPtr primarySchema)
@@ -109,8 +114,10 @@ public:
             std::move(indexSchema),
             TRange(&modification, 1),
             {},
-            kind,
-            evaluatedColumns);
+            TIndexInfo{
+                .Kind = kind,
+                .EvaluatedColumnsSchema = std::move(evaluatedColumns),
+            });
 
         THROW_ERROR_EXCEPTION_IF(modifications.Size() != 1,
             "Expected a single index modification, got %v",
@@ -134,16 +141,12 @@ public:
         TTableSchemaPtr indexSchema,
         TRange<TUnversionedSubmittedRow> tableModifications = {},
         TRange<TUnversionedRow> initRows = {},
-        ESecondaryIndexKind kind = ESecondaryIndexKind::FullSync,
-        TTableSchemaPtr evaluatedColumnsSchema = nullptr)
+        TIndexInfo indexInfo = DefaultIndexInfo)
     {
         auto keyCC = tableSchema->GetKeyColumnCount();
 
         auto tableMountInfo = MakeFrom(std::move(tableSchema));
-        tableMountInfo->Indices = {{
-            .Kind=kind,
-            .EvaluatedColumnsSchema=std::move(evaluatedColumnsSchema),
-        }};
+        tableMountInfo->Indices = {std::move(indexInfo)};
 
         auto indexMountInfo = MakeFrom(std::move(indexSchema));
 
@@ -181,10 +184,10 @@ public:
         }
 
         return [allRows = std::move(allRows)] (
-            NYPath::TYPath /* path */,
+            const NYPath::TYPath& /* path */,
             NTableClient::TNameTablePtr /* nameTable */,
             TSharedRange<TLegacyKey> keys,
-            TLookupRowsOptions options)
+            const TLookupRowsOptions& options)
         {
             std::vector<TUnversionedRow> response;
             response.reserve(keys.size());
@@ -200,7 +203,7 @@ public:
         };
     }
 
-    void ExpectError(TError error, const TString& substring)
+    void ExpectError(TError error, const std::string& substring)
     {
         THROW_ERROR_EXCEPTION_IF(error.IsOK(), "Expected error");
 
@@ -216,9 +219,9 @@ protected:
 
     void ApplyRandomModifiers(TColumnSchema& column, bool key)
     {
-        static const std::vector<TString> Locks{"L1", "L2"};
-        static const std::vector<TString> Groups{"G1", "G2"};
-        static const std::vector<TString> Aggregates{"max", "min"};
+        static const std::vector<std::string> Locks{"L1", "L2"};
+        static const std::vector<std::string> Groups{"G1", "G2"};
+        static const std::vector<std::string> Aggregates{"max", "min"};
 
         if (Rng_.Uniform(100) < TypeFlipPercentChance) {
             auto newType = TestedTypes[Rng_.Uniform(TestedTypes.size())];
@@ -501,8 +504,96 @@ TEST_F(TSecondaryIndexTest, EvaluatedColumns)
         std::move(indexSchema),
         {},
         {},
-        ESecondaryIndexKind::FullSync,
-        std::move(evaluatedColumns));
+        TIndexInfo{
+            .Kind = ESecondaryIndexKind::FullSync,
+            .EvaluatedColumnsSchema = std::move(evaluatedColumns),
+        });
+}
+
+TEST_F(TSecondaryIndexTest, UnfoldingDifferentNames)
+{
+    auto tableSchema = New<TTableSchema>(std::vector{
+        TColumnSchema("key", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("values", ListLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))),
+    }, true, true);
+
+    auto indexSchema = New<TTableSchema>(std::vector{
+        TColumnSchema("value", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("key", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("$empty", EValueType::Int64),
+    }, true, true);
+
+    auto mutableModificationRow = RowBuffer_->AllocateUnversioned(2);
+    mutableModificationRow[0] = MakeUnversionedInt64Value(0, 0);
+    mutableModificationRow[1] = MakeUnversionedCompositeValue("[1;2;3;4]", 1);
+
+    auto modification = TUnversionedSubmittedRow{
+        .Command=EWireProtocolCommand::WriteRow,
+        .Row=mutableModificationRow,
+        .Locks={},
+        .SequentialId=0,
+    };
+
+    auto indexModifications = Run(
+        std::move(tableSchema),
+        std::move(indexSchema),
+        TRange(&modification, 1),
+        {},
+        TIndexInfo{
+            .Kind = ESecondaryIndexKind::Unfolding,
+            .UnfoldedColumns = TUnfoldedColumns{
+                .TableColumn = "values",
+                .IndexColumn = "value",
+            },
+        });
+
+    EXPECT_EQ(indexModifications.size(), 4ul);
+}
+
+TEST_F(TSecondaryIndexTest, UnfoldingDifferentNamesEvaluated)
+{
+    auto tableSchema = New<TTableSchema>(std::vector{
+        TColumnSchema("key", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("values", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))),
+    }, true, true);
+
+    auto indexSchema = New<TTableSchema>(std::vector{
+        TColumnSchema("value", SimpleLogicalType(ESimpleLogicalValueType::Int64), ESortOrder::Ascending),
+        TColumnSchema("key", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("$empty", EValueType::Int64),
+    }, true, true);
+
+    auto evaluatedColumns = New<TTableSchema>(std::vector{
+        TColumnSchema("values_evaluated", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))
+            .SetExpression("values"),
+    });
+
+    auto mutableModificationRow = RowBuffer_->AllocateUnversioned(2);
+    mutableModificationRow[0] = MakeUnversionedInt64Value(0, 0);
+    mutableModificationRow[1] = MakeUnversionedCompositeValue("[1;2;3;4]", 1);
+
+    auto modification = TUnversionedSubmittedRow{
+        .Command=EWireProtocolCommand::WriteRow,
+        .Row=mutableModificationRow,
+        .Locks={},
+        .SequentialId=0,
+    };
+
+    auto indexModifications = Run(
+        std::move(tableSchema),
+        std::move(indexSchema),
+        TRange(&modification, 1),
+        {},
+        TIndexInfo{
+            .Kind = ESecondaryIndexKind::Unfolding,
+            .UnfoldedColumns = TUnfoldedColumns{
+                .TableColumn = "values_evaluated",
+                .IndexColumn = "value",
+            },
+            .EvaluatedColumnsSchema = std::move(evaluatedColumns),
+        });
+
+    EXPECT_EQ(indexModifications.size(), 4ul);
 }
 
 TEST_F(TSecondaryIndexTest, OverwriteRow)

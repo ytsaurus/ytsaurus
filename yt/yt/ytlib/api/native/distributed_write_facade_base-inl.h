@@ -145,7 +145,7 @@ NApi::ITransactionPtr TDistributedWriteStartFacadeBase<TDerived, TTraits>::Start
     const TTraits::TStartOptions& options)
 {
     TTransactionStartOptions transactionStartOptions;
-    transactionStartOptions.Timeout = options.Timeout;
+    transactionStartOptions.Timeout = options.SessionTimeout;
     if (options.TransactionId) {
         transactionStartOptions.ParentId = options.TransactionId;
         transactionStartOptions.Ping = true;

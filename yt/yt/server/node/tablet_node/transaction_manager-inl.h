@@ -12,7 +12,28 @@ template <class TProto, class TState>
 void ITransactionManager::RegisterTransactionActionHandlers(
     TTypedTransactionActionDescriptor<TProto, TState> descriptor)
 {
-    RegisterTransactionActionHandlers(TTypeErasedTransactionActionDescriptor(std::move(descriptor)));
+    auto needsExternalization = std::move(descriptor.NeedsExternalization);
+
+    TTypeErasedTransactionActionDescriptor::TBase baseTypeErasedDescriptor(
+        std::move(
+            static_cast<TTypedTransactionActionDescriptor<TProto, TState>::TBase&>(descriptor)));
+
+    TTypeErasedTransactionActionDescriptor typeErasedDescriptor(std::move(baseTypeErasedDescriptor));
+
+    if (needsExternalization) {
+        typeErasedDescriptor.NeedsExternalization = BIND(
+            [handler = std::move(needsExternalization)] (
+                TTransaction* transaction,
+                TStringBuf value,
+                TTabletId tabletId)
+            {
+                TProto typedValue;
+                DeserializeProto(&typedValue, TRef::FromStringBuf(value));
+                return handler(transaction, &typedValue, tabletId);
+            });
+    }
+
+    RegisterTransactionActionHandlers(std::move(typeErasedDescriptor));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

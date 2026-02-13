@@ -72,6 +72,7 @@ using namespace NProto;
 using namespace NSecurityServer;
 using namespace NQueryClient;
 using namespace NTableClient;
+using namespace NTabletClient;
 using namespace NTabletServer;
 using namespace NTransactionServer;
 using namespace NYson;
@@ -732,6 +733,7 @@ public:
         TVersionedNodeId nodeId,
         const TCompactTableSchemaPtr& schema,
         TMasterTableSchemaId schemaId,
+        const TCompactTableSchemaPtr& schemaFromConstrainedSchema,
         bool isChunkSchema = false) override
     {
         auto type = TypeFromId(nodeId.ObjectId);
@@ -750,7 +752,9 @@ public:
 
                 if (!schemaById) {
                     // COMPAT(h0pless): Change this to YT_VERIFY after schema migration is complete.
-                    YT_LOG_ALERT_IF(!schema, "Request to create a foreign node has %v id of an unimported schema on external cell "
+                    YT_LOG_ALERT_IF(
+                        !schema && !schemaFromConstrainedSchema,
+                        "Request to create a foreign node has %v id of an unimported schema on external cell "
                         "(NodeId: %v, NativeCellTag: %v, CellTag: %v, SchemaId: %v)",
                         MakeFormatterWrapper([&] (auto* builder) {
                             builder->AppendString(isChunkSchema ? "chunk schema" : "schema");
@@ -763,16 +767,27 @@ public:
             }
         }
 
-        if (schema && schemaById && schemaById->IsNative()) {
-            auto* schemaByYson = FindNativeMasterTableSchema(schema);
-            if (IsObjectAlive(schemaByYson)) {
-                if (schemaById != schemaByYson) {
-                    THROW_ERROR_EXCEPTION("Both \"schema\" and \"schema_id\" specified and they refer to different schemas");
+        auto validateSchemaAndSchemaId = [this] (const TCompactTableSchemaPtr& schema, const TMasterTableSchema* schemaById) {
+            if (schema && schemaById && schemaById->IsNative()) {
+                auto* schemaByYson = FindNativeMasterTableSchema(schema);
+                if (IsObjectAlive(schemaByYson)) {
+                    if (schemaById != schemaByYson) {
+                        THROW_ERROR_EXCEPTION("Mix of \"schema\", \"constrained_schema\" and \"schema_id\" specified and they refer to different schemas");
+                    }
+                } else {
+                    if (*schemaById->AsCompactTableSchema(/*crashOnZombie*/ false) != *schema) {
+                        THROW_ERROR_EXCEPTION("Mix of \"schema\", \"constrained_schema\" and \"schema_id\" attributes are specified and the schemas do not match");
+                    }
                 }
-            } else {
-                if (*schemaById->AsCompactTableSchema(/*crashOnZombie*/ false) != *schema) {
-                    THROW_ERROR_EXCEPTION("Both \"schema\" and \"schema_id\" specified and the schemas do not match");
-                }
+            }
+        };
+
+        validateSchemaAndSchemaId(schema, schemaById);
+        validateSchemaAndSchemaId(schemaFromConstrainedSchema, schemaById);
+
+        if (schema && schemaFromConstrainedSchema) {
+            if (*schema != *schemaFromConstrainedSchema) {
+                THROW_ERROR_EXCEPTION("Mix of \"schema\" and \"constrained_schema\" attributes are specified and the schemas do not match");
             }
         }
     }
@@ -780,20 +795,22 @@ public:
     TCompactTableSchemaPtr ProcessSchemaFromAttributes(
         TCompactTableSchemaPtr& tableSchema,
         TMasterTableSchemaId schemaId,
+        const TCompactTableSchemaPtr& schemaFromConstrainedSchema,
         bool dynamic,
         bool chaos,
         TVersionedNodeId nodeId) override
     {
         auto type = TypeFromId(nodeId.ObjectId);
 
-        if (dynamic && !chaos && !tableSchema && !schemaId) {
-            THROW_ERROR_EXCEPTION("Either \"schema\" or \"schema_id\" must be specified for dynamic tables");
+        if (dynamic && !chaos && !tableSchema && !schemaId && !schemaFromConstrainedSchema) {
+            THROW_ERROR_EXCEPTION("Either \"schema\", \"schema_id\" or \"constrained_schema\" must be specified for dynamic tables");
         }
 
         ValidateTableSchemaCorrespondence(
             nodeId,
             tableSchema,
-            schemaId);
+            schemaId,
+            schemaFromConstrainedSchema);
 
         TCompactTableSchemaPtr effectiveTableSchema;
         auto* schemaById = FindMasterTableSchema(schemaId);
@@ -801,6 +818,8 @@ public:
             effectiveTableSchema = schemaById->AsCompactTableSchema(/*crashOnZombie*/ false).Get();
         } else if (tableSchema) {
             effectiveTableSchema = tableSchema.Get();
+        } else if (schemaFromConstrainedSchema) {
+            effectiveTableSchema = schemaFromConstrainedSchema.Get();
         } else {
             return nullptr;
         }
@@ -845,13 +864,33 @@ public:
         return effectiveTableSchema;
     }
 
+    TColumnStableNameToConstraintMap ProcessConstraintsFromAttributes(
+        const NTableClient::TTableSchema& schema,
+        std::optional<TConstrainedTableSchema> constrainedSchema,
+        std::optional<TColumnNameToConstraintMap> constraints) override
+    {
+        auto dynamicConfig = Bootstrap_->GetConfigManager()->GetConfig()->TableManager;
+        // NB: It is allowed to specify schema without constraints and constraints as separate attributes.
+        if (constraints && constrainedSchema) {
+            ValidateConstraintsMatch(*constrainedSchema, *constraints);
+
+            return MakeColumnStableNameToConstraintMap(schema, std::move(constrainedSchema->ColumnToConstraint()), dynamicConfig->ColumnToConstraintLogLimit);
+        } else if (constraints) {
+            return MakeColumnStableNameToConstraintMap(schema, std::move(*constraints), dynamicConfig->ColumnToConstraintLogLimit);
+        } else if (constrainedSchema) {
+            return MakeColumnStableNameToConstraintMap(schema, std::move(constrainedSchema->ColumnToConstraint()), dynamicConfig->ColumnToConstraintLogLimit);
+        }
+
+        Y_UNREACHABLE();
+    }
+
     TSecondaryIndex* CreateSecondaryIndex(
         TObjectId hintId,
         ESecondaryIndexKind kind,
         TTableId tableId,
         TTableId indexTableId,
         std::optional<std::string> predicate,
-        std::optional<std::string> unfoldedColumnName,
+        std::optional<TUnfoldedColumns> unfoldedColumns,
         TTableSchemaPtr evaluatedColumnsSchema) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -942,12 +981,12 @@ public:
                 *indexTableSchema,
                 predicate,
                 evaluatedColumnsSchema,
-                unfoldedColumnName);
+                unfoldedColumns);
 
             if (evaluatedColumnsSchema) {
                 for (auto secondaryIndex : GetValuesSortedByKey(table->SecondaryIndices())) {
                     if (const auto& indexEvaluatedColumns = secondaryIndex->EvaluatedColumnsSchema()) {
-                        ValidateNoNameCollisions(*indexEvaluatedColumns, *evaluatedColumnsSchema);
+                        ValidateColumnsCollision(*indexEvaluatedColumns, *evaluatedColumnsSchema);
                     }
                 }
             }
@@ -967,7 +1006,7 @@ public:
             ? table->GetExternalCellTag()
             : NotReplicatedCellTagSentinel);
         secondaryIndex->Predicate() = std::move(predicate);
-        secondaryIndex->UnfoldedColumn() = std::move(unfoldedColumnName);
+        secondaryIndex->UnfoldedColumns() = std::move(unfoldedColumns);
         secondaryIndex->EvaluatedColumnsSchema() = std::move(evaluatedColumnsSchema);
 
         if (table->IsNative()) {

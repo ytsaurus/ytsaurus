@@ -43,7 +43,9 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         if "subprocesses_count" in config and config["subprocesses_count"] != 0:
             self.subprocesses_count = config["subprocesses_count"]
 
-        self.max_supported_yql_version = config["max_supported_yql_version"] if "max_supported_yql_version" in config else None
+        self.max_supported_yql_version = config.get("max_supported_yql_version")
+        self.default_yql_ui_version = config.get("default_yql_ui_version")
+        self.allow_not_released_yql_versions = config.get("allow_not_released_yql_versions")
 
         super(YqlAgent, self).prepare(env, config)
 
@@ -172,6 +174,12 @@ class YqlAgent(YTServerComponentBase, YTComponent):
 
         if self.max_supported_yql_version:
             config["yql_agent"]["max_supported_yql_version"] = self.max_supported_yql_version
+
+        if self.default_yql_ui_version:
+            config["yql_agent"]["default_yql_ui_version"] = self.default_yql_ui_version
+
+        if self.allow_not_released_yql_versions is not None:
+            config["yql_agent"]["allow_not_released_yql_versions"] = self.allow_not_released_yql_versions
 
         if process_plugin_config:
             config["yql_agent"]["process_plugin_config"] = process_plugin_config
