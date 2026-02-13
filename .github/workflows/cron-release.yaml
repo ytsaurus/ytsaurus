@@ -3,7 +3,7 @@ name: Release cron
 on:
   push:
     tags:
-      - 'docker/cron/0\.[0-9]+\.[0-9]+'
+      - 'docker/cron/0\.[0-9]+\.[0-9]+*'
 
 jobs:
   release:
