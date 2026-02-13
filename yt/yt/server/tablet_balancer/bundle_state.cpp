@@ -996,6 +996,7 @@ void TBundleState::Start()
         UpdateStateFuture_.Reset();
         UpdateStatisticsFuture_.Reset();
         UpdatePerformanceCountersFuture_.Reset();
+        BundleConfigFuture_.Reset();
     }
 
     PollExecutor_->Start();
