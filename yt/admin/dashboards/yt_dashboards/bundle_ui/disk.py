@@ -113,7 +113,7 @@ def build_block_cache_planning():
     def meta_miss_weight_rate():
         return MultiSensor(
             MonitoringExpr(NodeTablet("yt.tablet_node.versioned_chunk_meta_cache.missed_weight.rate")).alias("current missed weight rate"),
-            MonitoringExpr(NodeTablet("yt.tablet_node.versioned_chunk_meta_cache.small_ghost_cache.missed_weight.rate")).alias("x2 larger cache missed weight rate"),
+            MonitoringExpr(NodeTablet("yt.tablet_node.versioned_chunk_meta_cache.large_ghost_cache.missed_weight.rate")).alias("x2 larger cache missed weight rate"),
             MonitoringExpr(NodeTablet("yt.tablet_node.versioned_chunk_meta_cache.small_ghost_cache.missed_weight.rate")).alias("x/2 smaller cache missed weight rate"))
 
     return (Rowset()
