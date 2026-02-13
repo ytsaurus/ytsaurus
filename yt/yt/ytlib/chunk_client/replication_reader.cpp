@@ -481,7 +481,10 @@ private:
         for (auto replica : seedReplicas.Replicas) {
             auto nodeId = replica.GetNodeId();
             if (nodeId == OffshoreNodeId) {
-                // Skipping offshore replicas as we do not ban them forever.
+                BannedForeverPeers_.erase(TPeerId{
+                    nodeId,
+                    replica.GetMediumIndex()
+                });
                 continue;
             }
 
@@ -509,17 +512,13 @@ private:
             ++it->second;
         }
 
-        if (it->second > Config_->MaxBanCount && !peerId.IsOffshore) {
+        if (it->second > Config_->MaxBanCount) {
             BannedForeverPeers_.insert(peerId);
         }
     }
 
     void BanPeerForever(const TPeerId& peerId)
     {
-        if (peerId.IsOffshore) {
-            return;
-        }
-
         auto guard = Guard(PeersSpinLock_);
         BannedForeverPeers_.insert(peerId);
     }
@@ -999,6 +998,10 @@ protected:
     //! Picks the #count peers from the peer queue; returns a pair of the selected
     //! peers and a boolean showing if more calls to this function may happen during
     //! the current pass.
+    //!
+    //! NB: The function may return fewer than #count peers even when PeerQueue_ is not empty,
+    //! and return false to signal that it must not be called again in this round. This
+    //! prevents mixing domestic and offshore peers in the same selection.
     std::pair<TPeerList, bool> PickPeerCandidates(
         const TReplicationReaderPtr& reader,
         int count,
@@ -1845,8 +1848,9 @@ private:
         const std::vector<int>& blockIndexes)
     {
         if (peer.Id.IsOffshore) {
-            // Method for probing offshore peers is not supported (yet), so we can
-            // consider them always available.
+            // Method for probing offshore peers is not supported, so
+            // we can consider them always available.
+            // TODO(pavel-bash): consider implementing the probing of offshore peers.
             return MakeFuture(TPeerProbingResult{
                 peer,
                 TPeerProbingInfo{
@@ -2542,53 +2546,58 @@ private:
         for (const auto& peerDescriptor : peerDescriptors) {
             int blockIndex = peerDescriptor.block_index();
             for (auto protoPeerNodeId : peerDescriptor.node_ids()) {
-                const TNodeDescriptor* maybeSuggestedDescriptor;
-                std::optional<std::string> suggestedAddress;
-
                 auto peerNodeId = NNodeTrackerClient::TNodeId(protoPeerNodeId);
-                if (peerNodeId != OffshoreNodeId) {
-                    maybeSuggestedDescriptor = NodeDirectory_->FindDescriptor(peerNodeId);
-                    if (!maybeSuggestedDescriptor) {
-                        YT_LOG_DEBUG("Cannot resolve peer descriptor (SuggestedNodeId: %v, SuggestorPeerId: %v)",
-                            peerNodeId,
-                            suggestorPeer.Id);
-                        continue;
+                if (peerNodeId == OffshoreNodeId) {
+                    // TODO(pavel-bash): Support sending and receiving offshore replicas suggestions;
+                    // most probably, the protobuf NProto::TPeerDescriptor will have to be extended
+                    // with medium index of the suggestion and then filled in by the suggestor peer.
+                    YT_LOG_WARNING("Received an offshore replica suggestion, but it's not supported "
+                        "(SuggestorPeerId: %v)",
+                        suggestorPeer);
+                    continue;
+                }
+
+                auto maybeSuggestedDescriptor = NodeDirectory_->FindDescriptor(peerNodeId);
+                if (!maybeSuggestedDescriptor) {
+                    YT_LOG_DEBUG("Cannot resolve peer descriptor (SuggestedNodeId: %v, SuggestorPeerId: %v)",
+                        peerNodeId,
+                        suggestorPeer);
+                    continue;
+                }
+
+                if (auto suggestedAddress = maybeSuggestedDescriptor->FindAddress(Networks_)) {
+                    if (AddPeer(
+                        TChunkReplicaWithMedium(peerNodeId, GenericChunkReplicaIndex, GenericMediumIndex),
+                        *suggestedAddress,
+                        *maybeSuggestedDescriptor,
+                        EPeerType::Peer,
+                        /*nodeSuspicionMarkTime*/ std::nullopt))
+                    {
+                        addedNewPeers = true;
                     }
 
-                    suggestedAddress = maybeSuggestedDescriptor->FindAddress(Networks_);
-                    if (!suggestedAddress) {
-                        YT_LOG_WARNING("Peer suggestion ignored, required network is missing "
-                            "(SuggestedAddress: %v, Networks: %v, SuggestorPeerId: %v)",
-                            maybeSuggestedDescriptor->GetDefaultAddress(),
-                            Networks_,
-                            suggestorPeer.Id);
-                        continue;
+                    TPeerId suggestedPeerId{
+                        peerNodeId,
+                        GenericMediumIndex,
+                        suggestedAddress
+                    };
+                    PeerBlocksMap_[suggestedPeerId].insert(blockIndex);
+                    YT_LOG_DEBUG("Block peer descriptor received (Block: %v, SuggestedPeerId: %v, SuggestorPeerId: %v)",
+                        blockIndex,
+                        suggestedPeerId,
+                        suggestorPeer);
+
+                    if (peerDescriptor.has_delivery_barrier()) {
+                        P2PDeliveryBarrier_[peerNodeId].emplace(
+                            blockIndex,
+                            peerDescriptor.delivery_barrier());
                     }
                 } else {
-                    maybeSuggestedDescriptor = &NullNodeDescriptor();
-                }
-
-                if (AddPeer(
-                    TChunkReplicaWithMedium(peerNodeId, GenericChunkReplicaIndex, suggestorPeer.Replica.GetMediumIndex()),
-                    std::move(suggestedAddress),
-                    *maybeSuggestedDescriptor,
-                    EPeerType::Peer,
-                    /*nodeSuspicionMarkTime*/ std::nullopt))
-                {
-                    addedNewPeers = true;
-                }
-
-                TPeerId suggestedPeerId(peerNodeId, suggestorPeer.Replica.GetMediumIndex(), *suggestedAddress);
-                PeerBlocksMap_[suggestedPeerId].insert(blockIndex);
-                YT_LOG_DEBUG("Block peer descriptor received (Block: %v, SuggestedPeerId: %v, SuggestorPeerId: %v)",
-                    blockIndex,
-                    suggestedPeerId,
-                    suggestorPeer.Id);
-
-                if (peerDescriptor.has_delivery_barrier()) {
-                    P2PDeliveryBarrier_[peerNodeId].emplace(
-                        blockIndex,
-                        peerDescriptor.delivery_barrier());
+                    YT_LOG_WARNING("Peer suggestion ignored, required network is missing "
+                        "(SuggestedAddress: %v, Networks: %v, SuggestorPeerId: %v)",
+                        maybeSuggestedDescriptor->GetDefaultAddress(),
+                        Networks_,
+                        suggestorPeer);
                 }
             }
         }

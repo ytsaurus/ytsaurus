@@ -960,7 +960,7 @@ TJobResult TJobProxy::RunJob()
         NLogging::GetDynamicTableLogWriterFactory()->SetClient(Client_);
 
         if (Config_->SyncMediumDirectoryOnStart) {
-            YT_LOG_DEBUG("Scheduling forced memory directory synchronization");
+            YT_LOG_DEBUG("Scheduling forced medium directory synchronization");
             WaitFor(clusterConnection->GetMediumDirectorySynchronizer()->NextSync(/*force*/ true))
                 .ThrowOnError();
         }

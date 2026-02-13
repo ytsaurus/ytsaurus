@@ -74,7 +74,7 @@ private:
     const TMediumDirectorySynchronizerPtr MediumDirectorySynchronizer_;
 
     template <typename TRequestType>
-    IChunkReaderPtr CreateS3ReaderForRequest(
+    IChunkReaderPtr CreateS3Reader(
         const TRequestType& request,
         TS3ReaderConfigPtr s3ReaderConfig,
         TChunkId chunkId)
@@ -92,7 +92,7 @@ private:
             genericMediumDescriptor = MediumDirectory_->GetByIndexOrThrow(replicaWithMedium.GetMediumIndex());
         }
 
-        TS3MediumDescriptorPtr mediumDescriptor = genericMediumDescriptor->template As<TS3MediumDescriptor>();
+        auto mediumDescriptor = genericMediumDescriptor->template As<TS3MediumDescriptor>();
         THROW_ERROR_EXCEPTION_IF(!mediumDescriptor, "Medium %v is not an S3 medium", replicaWithMedium.GetMediumIndex());
 
         // TODO(discuss in PR): We create the S3 credential provider from the medium as we store the access key ID
@@ -119,7 +119,7 @@ private:
     }
 
     template <typename TRequestsType>
-    THashMap<TChunkId, IChunkReaderPtr> CreateS3ReadersForRequests(
+    THashMap<TChunkId, IChunkReaderPtr> CreateS3Readers(
         const TRequestsType& requests,
         TS3ReaderConfigPtr s3ReaderConfig)
     {
@@ -130,10 +130,14 @@ private:
                 continue;
             }
 
-            readers[chunkId] = CreateS3ReaderForRequest(
-                request,
-                std::move(s3ReaderConfig),
-                chunkId);
+            InsertOrCrash(readers, std::pair(
+                chunkId,
+                CreateS3Reader(
+                    request,
+                    std::move(s3ReaderConfig),
+                    chunkId
+                ))
+            );
         }
 
         return readers;
@@ -163,7 +167,7 @@ private:
             chunkId,
             blockIndexes);
 
-        auto reader = CreateS3ReaderForRequest(*request, New<TS3ReaderConfig>(), chunkId);
+        auto reader = CreateS3Reader(*request, New<TS3ReaderConfig>(), chunkId);
         reader->ReadBlocks({}, blockIndexes)
             .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TBlock>>& resultsError) {
                 if (!resultsError.IsOK()) {
@@ -199,7 +203,7 @@ private:
 
         context->SetRequestInfo("ChunkId: %v", chunkId);
 
-        auto reader = CreateS3ReaderForRequest(*request, New<TS3ReaderConfig>(), chunkId);
+        auto reader = CreateS3Reader(*request, New<TS3ReaderConfig>(), chunkId);
         reader->GetMeta({})
             .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<NChunkClient::TRefCountedChunkMetaPtr>& resultsError) {
                 if (!resultsError.IsOK()) {

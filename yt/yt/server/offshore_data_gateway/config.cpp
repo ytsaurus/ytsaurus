@@ -16,7 +16,7 @@ void TOffshoreDataGatewayBootstrapConfig::Register(TRegistrar registrar)
     registrar.Parameter("dynamic_config_manager", &TThis::DynamicConfigManager)
         .DefaultNew();
     registrar.Parameter("dynamic_config_path", &TThis::DynamicConfigPath)
-        .Default("//sys/offshore_data_gateways/config");
+        .Default("//sys/offshore_data_gateways/@config");
 }
 
 void TOffshoreDataGatewayProgramConfig::Register(TRegistrar /*registrar*/)

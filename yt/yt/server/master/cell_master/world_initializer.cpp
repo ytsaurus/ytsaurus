@@ -517,22 +517,23 @@ private:
                     .EndMap());
 
             ScheduleCreateNode(
+                "//sys/offshore_data_gateways",
+                transactionId,
+                EObjectType::MapNode,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                        .Item("config").BeginMap()
+                        .EndMap()
+                    .EndMap());
+
+            ScheduleCreateNode(
                 "//sys/offshore_data_gateways/instances",
                 transactionId,
                 EObjectType::MapNode,
                 BuildYsonStringFluently()
                     .BeginMap()
                         .Item("opaque").Value(true)
-                    .EndMap());
-
-            ScheduleCreateNode(
-                "//sys/offshore_data_gateways/config",
-                transactionId,
-                EObjectType::Document,
-                BuildYsonStringFluently()
-                    .BeginMap()
-                        .Item("value").BeginMap()
-                        .EndMap()
                     .EndMap());
 
             ScheduleCreateNode(
