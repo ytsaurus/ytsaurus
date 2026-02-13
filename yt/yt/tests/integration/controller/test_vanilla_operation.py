@@ -2392,9 +2392,7 @@ class TestGangOperations(YTEnvSetup):
             "controller_agent/gang_operations/incarnation_switch_count")
         abort_job(first_job_ids[0])
 
-        # After abort controller try to start job, but delay in cleanup greater then reincarnation timeout.
-        # ">= 2" because scheduler can schedule job before abort by reincarnation timeout and after abort_job
-        wait(lambda: incarnation_switch_counter.get() >= 2)
+        wait(lambda: incarnation_switch_counter.get() == 1)
 
         # Resolve life lock from comment above.
         update_controller_agent_config("vanilla_operation_options/gang_manager/job_reincarnation_timeout", 1000000)
@@ -3428,3 +3426,59 @@ class TestPatchVanillaSpecRestarts(TestPatchVanillaSpecBase):
         op.track()
 
         self.assert_job_states(op, "task", aborted=0, completed=3)
+
+
+##################################################################
+
+class TestDontStartNewIncarnationAfterPreemptionIfJobNotStartedYet(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False
+    NUM_MASTERS = 1
+    NUM_NODES = 2
+    NUM_SCHEDULERS = 1
+
+    DELTA_NODE_CONFIG = {
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 1,
+                "user_slots": 1,
+            },
+        },
+    }
+
+    @authors("krasovav")
+    def test_dont_start_new_incarnation_after_preemption_if_job_not_started_yet(self):
+        create_pool("without_guarantee")
+        create_pool("with_guarantee", attributes={"strong_guarantee_resources": {"cpu": 2}})
+
+        operation_incarnation_counter = _get_controller_profiler().counter("controller_agent/gang_operations/incarnation_switch_count")
+        op1 = run_test_vanilla(
+            with_breakpoint("BREAKPOINT", breakpoint_name="first"),
+            job_count=2,
+            task_patch={
+                "gang_options": {},
+            },
+            spec={
+                "pool": "without_guarantee",
+                "is_gang": True,
+                "testing": {
+                    "settle_job_delay": {
+                        "duration": 2000,
+                    },
+                },
+            },
+        )
+
+        wait_breakpoint(breakpoint_name="first")
+
+        run_test_vanilla(
+            with_breakpoint("BREAKPOINT", breakpoint_name="second"),
+            job_count=2,
+            spec={
+                "pool": "with_guarantee",
+            }
+        )
+
+        wait_breakpoint(breakpoint_name="second")
+
+        wait(lambda: operation_incarnation_counter.get_delta() == 1)
+        wait(lambda: op1.get_job_count("aborted") == 3)
