@@ -1254,8 +1254,8 @@ private:
         auto proxy = CreateObjectServiceWriteProxy(Bootstrap_->GetClient());
         auto batchReq = proxy.ExecuteBatch();
         for (auto [mediumIndex, diskSpace] : diskQuota.DiskSpacePerMedium) {
-            auto* mediumDescriptor = mediumDirectory->FindByIndex(mediumIndex);
-            auto req = TYPathProxy::Set(Format("#%v/@resource_usage/disk_space_per_medium/%v", leaseId, mediumDescriptor->Name));
+            auto mediumDescriptor = mediumDirectory->FindByIndex(mediumIndex);
+            auto req = TYPathProxy::Set(Format("#%v/@resource_usage/disk_space_per_medium/%v", leaseId, mediumDescriptor->Name()));
             req->set_value(ToProto(ConvertToYsonStringNestingLimited(diskSpace)));
             GenerateMutationId(req);
             batchReq->AddRequest(req);
