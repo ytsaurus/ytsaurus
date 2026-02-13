@@ -1039,7 +1039,7 @@ class YTInstance(object):
         self._abort_node_transactions_and_wait(addresses, wait_offline)
 
     def kill_http_proxies(self, indexes=None):
-        self.kill_service("proxy", indexes=indexes)
+        self.kill_service("http_proxy", indexes=indexes)
 
     def kill_rpc_proxies(self, indexes=None):
         self.kill_service("rpc_proxy", indexes=indexes)
