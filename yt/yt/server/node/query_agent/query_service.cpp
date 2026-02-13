@@ -58,7 +58,6 @@
 
 #include <yt/yt/ytlib/query_client/query_service_proxy.h>
 #include <yt/yt/ytlib/query_client/functions_cache.h>
-#include <yt/yt/ytlib/query_client/tracked_memory_chunk_provider.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
@@ -71,6 +70,7 @@
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/row_batch.h>
 #include <yt/yt/client/table_client/timestamped_schema_helpers.h>
+#include <yt/yt/client/table_client/tracked_memory_chunk_provider.h>
 #include <yt/yt/client/table_client/unversioned_writer.h>
 #include <yt/yt/client/table_client/versioned_reader.h>
 #include <yt/yt/client/table_client/wire_protocol.h>

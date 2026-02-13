@@ -8,7 +8,7 @@
 
 #include <library/cpp/yt/threading/spin_lock.h>
 
-namespace NYT::NQueryClient {
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,6 +21,10 @@ public:
         TMemoryProviderMapByTagPtr parent,
         size_t limit,
         IMemoryUsageTrackerPtr memoryTracker);
+
+    TTrackedMemoryChunkProvider(
+        IMemoryUsageTrackerPtr memoryTracker,
+        bool allowMemoryOvercommit);
 
     std::unique_ptr<TAllocationHolder> Allocate(size_t size, TRefCountedTypeCookie cookie) override;
 
@@ -35,12 +39,19 @@ private:
     const TMemoryProviderMapByTagPtr Parent_;
     const size_t Limit_;
     const IMemoryUsageTrackerPtr MemoryTracker_;
+    const bool AllowMemoryOvercommit_ = false;
 
     std::atomic<size_t> Allocated_ = 0;
     std::atomic<size_t> MaxAllocated_ = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTrackedMemoryChunkProvider)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IMemoryChunkProviderPtr GetTrackedMemoryChunkProvider(
+    IMemoryUsageTrackerPtr memoryUsageTracker,
+    bool allowMemoryOvercommit = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,4 +75,4 @@ DEFINE_REFCOUNTED_TYPE(TMemoryProviderMapByTag)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NQueryClient
+} // namespace NYT::NTableClient
