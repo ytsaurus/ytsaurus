@@ -124,6 +124,7 @@ void TClusterStateProvider::Start()
         BundlesFuture_.Reset();
         NodesFuture_.Reset();
         UnhealthyBundlesFuture_.Reset();
+        BannedReplicasFuture_.Reset();
     }
 
     PollExecutor_->Start();
