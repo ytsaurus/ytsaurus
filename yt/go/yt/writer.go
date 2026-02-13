@@ -5,17 +5,25 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net"
+	"time"
 
-	"github.com/cenkalti/backoff/v4"
 	"golang.org/x/xerrors"
 
+	"go.ytsaurus.tech/library/go/ptr"
 	"go.ytsaurus.tech/yt/go/skiff"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
+	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
-var (
-	defaultBatchSize = 512 * 1024 * 1024
+var errYtWriterClosed = errors.New("yt: writer is closed")
+
+const (
+	defaultRetryBackoff    = 3 * time.Second
+	chunkErrorRetryBackoff = 60 * time.Second
+	rateLimitRetryBackoff  = 60 * time.Second
+	defaultBatchSize       = 512 * 1024 * 1024
 )
 
 // WithBatchSize sets batch size (in bytes) for WriteTable.
@@ -74,6 +82,19 @@ func WithRetries(count uint64) WriteTableOption {
 	}
 }
 
+// WithCreateTransaction specifies whether to create an internal client transaction for writing table.
+//
+// This is an advanced option.
+// If create is set to false, writer doesn't create internal transaction and doesn't lock table.
+//
+// WARNING: if `WithCreateTransaction` is `false`, read/write might become non-atomic.
+// Change ONLY if you are sure what you are doing!
+func WithCreateTransaction(create bool) WriteTableOption {
+	return func(w *tableWriter) {
+		w.createTransaction = create
+	}
+}
+
 type (
 	WriteTableOption func(*tableWriter)
 
@@ -91,11 +112,16 @@ type (
 		finish() error
 	}
 
+	cypressWithBeginTx interface {
+		CypressClient
+		BeginTx(ctx context.Context, options *StartTxOptions) (Tx, error)
+	}
+
 	tableWriter struct {
-		ctx       context.Context
-		yc        CypressClient
-		rawWriter rawTableWriter
-		path      *ypath.Rich
+		ctx  context.Context
+		yc   cypressWithBeginTx // Holds either root client or active transaction.
+		tx   Tx                 // Holds the transaction if such option true.
+		path *ypath.Rich
 
 		createOptions           []CreateTableOption
 		batchSize               int
@@ -103,6 +129,7 @@ type (
 		lazyCreate, eagerCreate bool
 		format                  any
 		tableWriterConfig       map[string]any
+		createTransaction       bool
 
 		encoder encoder
 		buffer  *bytes.Buffer
@@ -116,11 +143,8 @@ func (w *tableWriter) Write(value any) error {
 	}
 
 	if w.lazyCreate {
-		_, w.err = CreateTable(
-			w.ctx,
-			w.yc,
-			w.path.Path,
-			WithInferredSchema(value))
+		w.createOptions = append(w.createOptions, WithInferredSchema(value))
+		w.err = w.createTable()
 		if w.err != nil {
 			return w.err
 		}
@@ -139,7 +163,13 @@ func (w *tableWriter) Write(value any) error {
 	return nil
 }
 
-func (w *tableWriter) Commit() error {
+func (w *tableWriter) Commit() (commitErr error) {
+	defer func() {
+		if commitErr != nil {
+			_ = w.Rollback()
+		}
+	}()
+
 	if w.err != nil {
 		return w.err
 	}
@@ -148,16 +178,29 @@ func (w *tableWriter) Commit() error {
 		return err
 	}
 
-	w.err = errors.New("yt: writer is closed")
+	if w.tx != nil {
+		if err := w.tx.Commit(); err != nil {
+			w.err = xerrors.Errorf("yt: failed to commit write transaction: %w", err)
+			return w.err
+		}
+		w.tx = nil
+	}
+
+	w.err = errYtWriterClosed
 	return nil
 }
 
 func (w *tableWriter) Rollback() error {
+	if w.tx != nil {
+		_ = w.tx.Abort()
+		w.tx = nil
+	}
+
 	if w.err != nil {
 		return w.err
 	}
 
-	w.err = errors.New("yt: writer is closed")
+	w.err = errYtWriterClosed
 	return nil
 }
 
@@ -170,20 +213,89 @@ func (w *tableWriter) Flush() error {
 		return w.err
 	}
 
-	opts := &WriteTableOptions{Format: w.format, TableWriter: w.tableWriterConfig}
-	if err := backoff.Retry(func() error {
-		if err := w.rawWriter.WriteTableRaw(w.ctx, w.path, opts, w.buffer); err != nil {
-			return err
-		}
+	if w.buffer.Len() == 0 {
 		return nil
-	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), w.retryCount)); err != nil {
-		w.err = err
+	}
+
+	w.err = w.sendBatchWithRetries()
+	if w.err != nil {
 		return w.err
 	}
 
 	w.path.SetAppend()
 	w.err = w.initBuffer(true)
 	return w.err
+}
+
+// Take lock: shared for append, exclusive for overwrite.
+func (w *tableWriter) lockTable() error {
+	lockMode := LockExclusive
+	if w.path.Append != nil && *w.path.Append {
+		lockMode = LockShared
+	}
+
+	if _, err := w.tx.LockNode(w.ctx, ypath.Path(w.path.Path), lockMode, nil); err != nil {
+		return xerrors.Errorf("yt: failed to lock table: %w", err)
+	}
+	return nil
+}
+
+func (w *tableWriter) sendBatchWithRetries() error {
+	var lastErr error
+	var retries uint64
+
+	for {
+		attemptTx, err := w.yc.BeginTx(w.ctx, nil)
+		if err != nil {
+			return xerrors.Errorf("yt: failed to start attempt transaction: %w", err)
+		}
+
+		attemptWriter := attemptTx.(rawTableWriter)
+
+		opts := &WriteTableOptions{Format: w.format, TableWriter: w.tableWriterConfig}
+		err = attemptWriter.WriteTableRaw(w.ctx, w.path, opts, w.buffer)
+		if err == nil {
+			if commitErr := attemptTx.Commit(); commitErr != nil {
+				return xerrors.Errorf("yt: failed to commit attempt transaction: %w", commitErr)
+			}
+			return nil
+		}
+
+		_ = attemptTx.Abort()
+
+		lastErr = err
+
+		backoff := tryGetBackoffDuration(err)
+		if backoff == nil {
+			return err
+		}
+
+		if retries >= w.retryCount {
+			break
+		}
+		retries++
+
+		select {
+		case <-time.After(*backoff):
+		case <-w.ctx.Done():
+			return w.ctx.Err()
+		}
+	}
+
+	return lastErr
+}
+
+func (w *tableWriter) createTable() error {
+	if _, err := CreateTable(w.ctx, w.yc, w.path.Path, w.createOptions...); err != nil {
+		return xerrors.Errorf("yt: failed to create table: %w", err)
+	}
+	if w.tx != nil {
+		if err := w.lockTable(); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (w *tableWriter) initBuffer(reuse bool) (err error) {
@@ -246,17 +358,108 @@ func (e *skiffEncoder) finish() error {
 	return e.encoder.Flush()
 }
 
+// Error is retriable chunk error only if it doesn't contains non-retriable chunk errors
+// and contains at least one chunk error in error tree.
+func isRetriableChunkError(errorCodes map[yterrors.ErrorCode]struct{}) bool {
+	for _, code := range []yterrors.ErrorCode{
+		yterrors.CodeSessionAlreadyExists,
+		yterrors.CodeChunkAlreadyExists,
+		yterrors.CodeWindowError,
+		yterrors.CodeBlockContentMismatch,
+		yterrors.CodeInvalidBlockChecksum,
+		yterrors.CodeMalformedReadRequest,
+		yterrors.CodeMissingExtension,
+		yterrors.CodeNoSuchBlock,
+		yterrors.CodeNoSuchChunk,
+		yterrors.CodeNoSuchChunkList,
+		yterrors.CodeNoSuchChunkTree,
+		yterrors.CodeNoSuchChunkView,
+		yterrors.CodeNoSuchMedium,
+	} {
+		if _, ok := errorCodes[code]; ok {
+			return false
+		}
+	}
+
+	for code := range errorCodes {
+		if code/100 == 7 {
+			return true
+		}
+	}
+
+	return false
+}
+
+func tryGetBackoffDuration(err error) *time.Duration {
+	errorCodes := yterrors.GetErrorCodes(err)
+
+	if _, ok := errorCodes[yterrors.CodeRequestQueueSizeLimitExceeded]; ok {
+		return ptr.T(rateLimitRetryBackoff)
+	}
+
+	if _, ok := errorCodes[yterrors.CodeTooManyOperations]; ok {
+		return ptr.T(rateLimitRetryBackoff)
+	}
+
+	if isRetriableChunkError(errorCodes) {
+		return ptr.T(chunkErrorRetryBackoff)
+	}
+
+	for _, code := range []yterrors.ErrorCode{
+		yterrors.CodeTransportError,
+		yterrors.CodeUnavailable,
+		yterrors.CodeRetriableArchiveError,
+		yterrors.CodeTransientFailure,
+		yterrors.CodeCanceled,
+		yterrors.CodeTimeout,
+	} {
+		if _, ok := errorCodes[code]; ok {
+			return ptr.T(defaultRetryBackoff)
+		}
+	}
+
+	var opErr *net.OpError
+	if errors.As(err, &opErr) && opErr.Op == "dial" {
+		var lookupErr *net.DNSError
+		if errors.As(err, &lookupErr) && lookupErr.IsNotFound {
+			return nil
+		}
+
+		if tcp, ok := opErr.Addr.(*net.TCPAddr); ok && tcp.IP.IsLoopback() {
+			return nil
+		}
+
+		return ptr.T(defaultRetryBackoff)
+	}
+
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return ptr.T(defaultRetryBackoff)
+	}
+
+	return nil
+}
+
 // WriteTable creates high level table writer.
 //
 // By default, WriteTable overrides existing table, automatically creating table with schema inferred
 // from the first row.
 func WriteTable(ctx context.Context, yc CypressClient, path ypath.Path, opts ...WriteTableOption) (TableWriter, error) {
 	w := &tableWriter{
-		ctx:        ctx,
-		yc:         yc,
-		batchSize:  defaultBatchSize,
-		retryCount: 0,
-		lazyCreate: true,
+		ctx:               ctx,
+		batchSize:         defaultBatchSize,
+		retryCount:        10,
+		createTransaction: true,
+		lazyCreate:        true,
+	}
+
+	var ok bool
+	// Default: yc is the client.
+	if w.yc, ok = yc.(cypressWithBeginTx); !ok {
+		return nil, xerrors.Errorf("yt: client %T does not support transactions", yc)
+	}
+	if _, ok = w.yc.(rawTableWriter); !ok {
+		return nil, xerrors.Errorf("yt: client %T is not compatible with yt.WriteTable", yc)
 	}
 
 	var err error
@@ -269,16 +472,39 @@ func WriteTable(ctx context.Context, yc CypressClient, path ypath.Path, opts ...
 		opt(w)
 	}
 
+	err = w.initBuffer(false)
+	if err != nil {
+		w.err = err
+		return nil, err
+	}
+
+	if w.createTransaction {
+		tx, err := w.yc.BeginTx(w.ctx, nil)
+		if err != nil {
+			w.err = xerrors.Errorf("yt: failed to start write transaction: %w", err)
+			return nil, w.Rollback()
+		}
+		// Switch default yc to new transaction.
+		// Also we store yc in w.tx (as the Tx interface) to facilitate explicit
+		// transaction control (Commit/Abort) without repeated type assertions.
+		w.yc = tx
+		w.tx = tx
+	}
+
 	if w.eagerCreate {
-		if _, err := CreateTable(ctx, yc, path, w.createOptions...); err != nil {
-			return nil, err
+		err = w.createTable()
+		if err != nil {
+			w.err = err
+			return nil, w.Rollback()
 		}
 	}
 
-	var ok bool
-	if w.rawWriter, ok = yc.(rawTableWriter); !ok {
-		return nil, xerrors.Errorf("yt: client %T is not compatible with yt.WriteTable", yc)
+	if !w.eagerCreate && !w.lazyCreate && w.tx != nil {
+		if err := w.lockTable(); err != nil {
+			w.err = err
+			return nil, w.Rollback()
+		}
 	}
 
-	return w, w.initBuffer(false)
+	return w, nil
 }
