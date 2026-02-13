@@ -164,8 +164,8 @@ microservices:
       startingDeadlineSeconds: 5
       config:
         accessLogExportPath: "//sys/admin/logs/export/master-access"
-        lockPath: "//sys/admin/yt-microservices/raw_log_processing/lock"
-        workPath: "//sys/admin/yt-microservices/raw_log_processing"
+        lockPath: "//sys/admin/yt-microservices/raw_master_access_log_processing/lock"
+        workPath: "//sys/admin/yt-microservices/raw_master_access_log_processing"
         maxInputTables: 16
     preprocessing:
       enabled: true
