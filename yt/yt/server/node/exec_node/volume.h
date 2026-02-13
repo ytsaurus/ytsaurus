@@ -74,4 +74,49 @@ struct TLayerMeta
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TLayer)
+
+class TOverlayData
+{
+public:
+    TOverlayData() = default;
+
+    explicit TOverlayData(TLayerPtr layer)
+        : Variant_(std::move(layer))
+    { }
+
+    explicit TOverlayData(IVolumePtr volume)
+        : Variant_(std::move(volume))
+    { }
+
+    const std::string& GetPath() const;
+
+    bool IsLayer() const
+    {
+        return std::holds_alternative<TLayerPtr>(Variant_);
+    }
+
+    const TLayerPtr& GetLayer() const
+    {
+        return std::get<TLayerPtr>(Variant_);
+    }
+
+    bool IsVolume() const
+    {
+        return !IsLayer();
+    }
+
+    const IVolumePtr& GetVolume() const
+    {
+        return std::get<IVolumePtr>(Variant_);
+    }
+
+    TFuture<void> Remove();
+
+private:
+    std::variant<TLayerPtr, IVolumePtr> Variant_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NExecNode

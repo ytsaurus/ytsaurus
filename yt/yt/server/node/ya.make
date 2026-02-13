@@ -77,6 +77,7 @@ SRCS(
     exec_node/job_prober_service.cpp
     exec_node/job_proxy_log_manager.cpp
     exec_node/job_workspace_builder.cpp
+    exec_node/layer_location.cpp
     exec_node/master_connector.cpp
     exec_node/job_input_cache.cpp
     exec_node/proxying_data_node_service.cpp
