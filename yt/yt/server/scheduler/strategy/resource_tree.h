@@ -46,6 +46,14 @@ public:
         const TJobResources& resourceUsageDelta,
         const TJobResources& precommittedResources);
 
+    EResourceTreeIncreasePreemptedResult TryIncreaseHierarchicalPreemptedResourceUsagePrecommit(
+        const TResourceTreeElementPtr& element,
+        const TJobResources& delta,
+        std::string* violatedIdOutput);
+    bool CommitHierarchicalPreemptedResourceUsage(
+        const TResourceTreeElementPtr& element,
+        const TJobResources& delta);
+
     void AttachParent(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& parent);
     void ChangeParent(
         const TResourceTreeElementPtr& element,
@@ -74,8 +82,9 @@ public:
 private:
     std::vector<IInvokerPtr> FeasibleInvokers_;
 
-    std::atomic<bool> EnableStructureLockProfiling = false;
-    std::atomic<bool> EnableUsageLockProfiling = false;
+    std::atomic<bool> EnableStructureLockProfiling_ = false;
+    std::atomic<bool> EnableUsageLockProfiling_ = false;
+    std::atomic<bool> UsePrecommitForPreemption_ = false;
 
     // For testing.
     std::optional<TDuration> ResourceTreeInitializeResourceUsageDelay_;
@@ -100,10 +109,15 @@ private:
         const TResourceTreeElementPtr& element,
         const TJobResources& delta,
         bool enableDetailedLogs = false);
+    void DoIncreaseHierarchicalPreemptedResourceUsagePrecommit(
+        const TResourceTreeElementPtr& element,
+        const TJobResources& delta);
 
     void DoInitializeResourceUsageFor(
         const TResourceTreeElementPtr& targetElement,
         const std::vector<TResourceTreeElementPtr>& operationElements);
+
+    void ResetPreemptedResourceUsagePrecommit();
 };
 
 DEFINE_REFCOUNTED_TYPE(TResourceTree)

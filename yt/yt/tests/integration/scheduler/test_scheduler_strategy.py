@@ -1,5 +1,6 @@
 from yt_env_setup import (
     YTEnvSetup,
+    is_asan_build,
     Restarter,
     SCHEDULERS_SERVICE,
     NODES_SERVICE,
@@ -83,12 +84,19 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         "job_resource_manager": {"resource_limits": {"user_slots": 2, "cpu": 2}},
     }
 
+    @pytest.fixture(scope="class", autouse=True, params=[True, False])
+    def _setup_preempted_usage_precommit(self, request):
+        request.cls.use_precommit_for_preemption = request.param
+        yield
+
     def setup_method(self, method):
         super(TestResourceUsage, self).setup_method(method)
         update_pool_tree_config("default", {
             "preemptive_scheduling_backoff": 0,
             "non_preemptible_resource_usage_threshold": {"user_slots": 0},
             "fair_share_starvation_timeout": 500,
+            "preemption_satisfaction_threshold": 0.99,
+            "use_precommit_for_preemption": self.use_precommit_for_preemption,
         })
 
     def _check_running_jobs(self, op, desired_running_jobs):
@@ -301,6 +309,161 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
 
         wait(lambda: get(scheduler_orchid_operation_path(big_op.id) + "/resource_usage/cpu") == 2.0)
         wait(lambda: get(scheduler_orchid_operation_path(small_op.id) + "/resource_usage/cpu") == 2.0)
+
+    @authors("yaishenka")
+    @pytest.mark.skipif(is_asan_build(), reason="Large operation memory usage corrupts test")
+    def test_change_precommit_for_preemption_setting(self):
+        if not self.use_precommit_for_preemption:
+            pytest.skip("Test only works with use_precommit_for_preemption enabled")
+
+        update_scheduler_config("min_spare_allocation_resources_on_node", {"cpu": 0.5, "user_slots": 1})
+
+        create_pool(
+            "root",
+            attributes={
+                "resource_limits": {"cpu": 2.0, "user_slots": 2},
+                "strong_guarantee_resources": {"cpu": 2.0, "user_slots": 2},
+            },
+        )
+
+        create_pool("poolB", parent_name="root", attributes={"strong_guarantee_resources": {"cpu": 1.0, "user_slots": 1}})
+        create_pool("poolC", parent_name="root", attributes={"strong_guarantee_resources": {"cpu": 1.0, "user_slots": 1}})
+
+        create_pool("poolD", parent_name="root", attributes={"mode": "fifo"})
+
+        nodes = ls("//sys/cluster_nodes")
+        opD1 = run_sleeping_vanilla(spec={"pool": "poolD", "scheduling_tag_filter": nodes[0]}, task_patch={"cpu_limit": 0.5})
+        opD2 = run_sleeping_vanilla(
+            spec={
+                "pool": "poolD",
+                "scheduling_tag_filter": nodes[0],
+                "testing": {"delay_before_allocation_preemption": {"duration": 2000}},
+            },
+            task_patch={"cpu_limit": 1.5},
+        )
+
+        wait(lambda: get(scheduler_orchid_operation_path(opD1.id) + "/resource_usage/cpu", default=None) == 0.5)
+        wait(lambda: get(scheduler_orchid_operation_path(opD2.id) + "/resource_usage/cpu", default=None) == 1.5)
+
+        opC = run_sleeping_vanilla(
+            job_count=1,
+            spec={
+                "pool": "poolC",
+                "scheduling_tag_filter": nodes[1],
+            },
+            task_patch={"cpu_limit": 1},
+        )
+
+        wait(lambda: get(scheduler_orchid_operation_path(opD1.id) + "/resource_usage/cpu", default=None) == 0.5)
+        wait(lambda: get(scheduler_orchid_operation_path(opD2.id) + "/resource_usage/cpu", default=None) == 1.5)
+        wait(lambda: get(scheduler_orchid_operation_path(opC.id) + "/resource_usage/cpu", default=None) == 0.0)
+
+        wait(lambda: get(scheduler_orchid_operation_path(opC.id) + "/starvation_status", default=None) == "starving")
+
+        set("//sys/pool_trees/default/root/@resource_limits_overcommit_tolerance", {"cpu": 1, "user_slots": 1})
+        time.sleep(1)
+        update_pool_tree_config_option("default", "use_precommit_for_preemption", False)
+
+        wait(lambda: get(scheduler_orchid_operation_path(opD2.id) + "/resource_usage/cpu", default=None) == 0.0)
+
+        update_pool_tree_config_option("default", "use_precommit_for_preemption", True)
+
+        run_sleeping_vanilla(
+            job_count=1,
+            spec={
+                "pool": "poolB",
+                "scheduling_tag_filter": nodes[2],
+            },
+            task_patch={"cpu_limit": 1},
+        )
+
+        wait(lambda: get(scheduler_orchid_operation_path(opD1.id) + "/resource_usage/cpu", default=None) == 0.0)
+
+    @authors("yaishenka", "eshcherbin")
+    @pytest.mark.skipif(is_asan_build(), reason="Large operation memory usage corrupts test")
+    def test_racy_resource_limits_overcommit_during_preemption(self):
+        if not self.use_precommit_for_preemption:
+            pytest.skip("Test only works with use_precommit_for_preemption enabled")
+
+        update_scheduler_config("min_spare_allocation_resources_on_node", {"cpu": 0.5, "user_slots": 1})
+
+        create_pool(
+            "root",
+            attributes={
+                "resource_limits": {"cpu": 4.0, "user_slots": 4},
+                "strong_guarantee_resources": {"cpu": 4.0, "user_slots": 4},
+            },
+        )
+        create_pool("poolA", parent_name="root", attributes={"mode": "fifo"})
+        create_pool("poolB", parent_name="root", attributes={"mode": "fifo"})
+        create_pool("poolC", parent_name="root", attributes={"strong_guarantee_resources": {"cpu": 3.0, "user_slots": 2}})
+
+        nodes = ls("//sys/cluster_nodes")
+        opA1 = run_sleeping_vanilla(spec={"pool": "poolA", "scheduling_tag_filter": nodes[0]}, task_patch={"cpu_limit": 0.5})
+        opB1 = run_sleeping_vanilla(spec={"pool": "poolB", "scheduling_tag_filter": nodes[1]}, task_patch={"cpu_limit": 0.5})
+
+        opA2 = run_sleeping_vanilla(
+            spec={
+                "pool": "poolA",
+                "scheduling_tag_filter": nodes[0],
+                "testing": {"delay_before_allocation_preemption": {"duration": 200}},
+            },
+            task_patch={"cpu_limit": 1.5},
+        )
+        opB2 = run_sleeping_vanilla(
+            spec={
+                "pool": "poolB",
+                "scheduling_tag_filter": nodes[1],
+                "testing": {"delay_before_allocation_preemption": {"duration": 200}},
+            },
+            task_patch={"cpu_limit": 1.5},
+        )
+
+        wait(lambda: get(scheduler_orchid_operation_path(opA1.id) + "/resource_usage/cpu", default=None) == 0.5)
+        wait(lambda: get(scheduler_orchid_operation_path(opA2.id) + "/resource_usage/cpu", default=None) == 1.5)
+        wait(lambda: get(scheduler_orchid_operation_path(opB1.id) + "/resource_usage/cpu", default=None) == 0.5)
+        wait(lambda: get(scheduler_orchid_operation_path(opB2.id) + "/resource_usage/cpu", default=None) == 1.5)
+
+        opC = run_sleeping_vanilla(
+            job_count=2,
+            spec={
+                "pool": "poolC",
+                "scheduling_tag_filter": nodes[2],
+                "testing": {"delay_before_preemption_for_this_operation": {"duration": 1000}},
+            },
+            task_patch={"cpu_limit": 1.5},
+        )
+
+        wait(lambda: get(scheduler_orchid_operation_path(opC.id) + "/starvation_status", default=None) == "starving")
+
+        time.sleep(1.0)
+
+        wait(lambda: get(scheduler_orchid_operation_path(opA1.id) + "/resource_usage/cpu") == 0.5)
+        wait(lambda: get(scheduler_orchid_operation_path(opA2.id) + "/resource_usage/cpu") == 1.5)
+        wait(lambda: get(scheduler_orchid_operation_path(opB1.id) + "/resource_usage/cpu") == 0.5)
+        wait(lambda: get(scheduler_orchid_operation_path(opB2.id) + "/resource_usage/cpu") == 1.5)
+        wait(lambda: get(scheduler_orchid_operation_path(opC.id) + "/resource_usage/cpu") == 0.0)
+
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(opA1.id) + "/fair_resources/cpu"), 0.5))
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(opA2.id) + "/fair_resources/cpu"), 0.0))
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(opB1.id) + "/fair_resources/cpu"), 0.5))
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(opB2.id) + "/fair_resources/cpu"), 0.0))
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(opC.id) + "/fair_resources/cpu"), 3.0))
+
+        set("//sys/pool_trees/default/root/@resource_limits_overcommit_tolerance", {"cpu": 1.5, "user_slots": 1})
+
+        wait(lambda: get(scheduler_orchid_operation_path(opC.id) + "/resource_usage/cpu") == 1.5)
+
+        wait(lambda: get(scheduler_orchid_operation_path(opA1.id) + "/resource_usage/cpu") == 0.5)
+        wait(lambda: get(scheduler_orchid_operation_path(opB1.id) + "/resource_usage/cpu") == 0.5)
+
+        wait(lambda:
+             get(scheduler_orchid_operation_path(opA2.id) + "/resource_usage/cpu") == 0.0 or
+             get(scheduler_orchid_operation_path(opB2.id) + "/resource_usage/cpu") == 0.0)
+
+        wait(lambda:
+             get(opA2.get_path() + "/controller_orchid/progress/jobs/aborted/scheduled/preemption") == 0 or
+             get(opB2.get_path() + "/controller_orchid/progress/jobs/aborted/scheduled/preemption") == 0)
 
     @authors("ignat")
     def test_max_possible_resource_usage(self):

@@ -341,7 +341,8 @@ public:
     void PreemptAllocation(
         const TAllocationPtr& allocation,
         TPoolTreeOperationElement* element,
-        EAllocationPreemptionReason preemptionReason) const;
+        EAllocationPreemptionReason preemptionReason,
+        bool commitPreemptedResourceUsage = false) const;
 
     TNonOwningOperationElementList ExtractBadPackingOperations();
 
