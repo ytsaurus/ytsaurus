@@ -238,7 +238,6 @@ private:
     void RemoveVolumes(TDuration timeout = TDuration::Minutes(30));
 };
 
-DEFINE_REFCOUNTED_TYPE(TLayerLocation)
 DECLARE_REFCOUNTED_CLASS(TLayerLocation)
 
 ////////////////////////////////////////////////////////////////////////////////

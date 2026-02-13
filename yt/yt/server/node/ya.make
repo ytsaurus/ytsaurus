@@ -90,6 +90,7 @@ SRCS(
     exec_node/supervisor_service.cpp
     exec_node/throttler_manager.cpp
     exec_node/volume.proto
+    exec_node/volume.cpp
     exec_node/volume_counters.cpp
     exec_node/volume_manager.cpp
     exec_node/porto_volume.cpp

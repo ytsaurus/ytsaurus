@@ -284,84 +284,6 @@ TLayerLocationPtr DoPickLocation(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLayer
-    : public TAsyncCacheValueBase<TArtifactKey, TLayer>
-{
-public:
-    TLayer(const TLayerMeta& layerMeta, const TArtifactKey& artifactKey, const TLayerLocationPtr& layerLocation)
-        : TAsyncCacheValueBase<TArtifactKey, TLayer>(artifactKey)
-        , LayerMeta_(layerMeta)
-        , Location_(layerLocation)
-    { }
-
-    ~TLayer()
-    {
-        auto removalNeeded = IsLayerRemovalNeeded_;
-        YT_LOG_INFO(
-            "Layer is destroyed (LayerId: %v, LayerPath: %v, RemovalNeeded: %v)",
-            LayerMeta_.Id,
-            LayerMeta_.Path,
-            removalNeeded);
-
-        if (removalNeeded) {
-            Location_->RemoveLayer(LayerMeta_.Id)
-                .Subscribe(BIND([layerId = LayerMeta_.Id] (const TError& result) {
-                    YT_LOG_ERROR_IF(!result.IsOK(), result, "Failed to remove layer (LayerId: %v)", layerId);
-                }));
-        }
-    }
-
-    const TString& GetCypressPath() const
-    {
-        return GetKey().data_source().path();
-    }
-
-    const std::string& GetPath() const
-    {
-        return LayerMeta_.Path;
-    }
-
-    i64 GetSize() const
-    {
-        return LayerMeta_.size();
-    }
-
-    const TLayerMeta& GetMeta() const
-    {
-        return LayerMeta_;
-    }
-
-    void IncreaseHitCount()
-    {
-        HitCount_.fetch_add(1);
-    }
-
-    int GetHitCount() const
-    {
-        return HitCount_.load();
-    }
-
-    void SetLayerRemovalNotNeeded()
-    {
-        IsLayerRemovalNeeded_ = false;
-    }
-
-private:
-    const TLayerMeta LayerMeta_;
-    const TLayerLocationPtr Location_;
-    std::atomic<int> HitCount_;
-
-    // If the slot manager is disabled, the layers that are currently in the layer cache
-    // do not need to be removed from the porto. If you delete them, firstly, in this
-    // case they will need to be re-imported into the porto, and secondly, then there
-    // may be a problem when inserting the same layers when starting a new volume manager.
-    // Namely, a layer object that is already in the new cache may be deleted from the old cache,
-    // in which case the layer object in the new cache will be corrupted.
-    bool IsLayerRemovalNeeded_ = true;
-};
-
-DEFINE_REFCOUNTED_TYPE(TLayer)
-
 ////////////////////////////////////////////////////////////////////////////////
 
 using TAbsorbLayerCallback = TCallback<TFuture<TLayerPtr>(
@@ -1913,31 +1835,6 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TSimpleTmpfsVolume)
-
-////////////////////////////////////////////////////////////////////////////////
-
-const std::string& TOverlayData::GetPath() const
-{
-    if (std::holds_alternative<TLayerPtr>(Variant_)) {
-        return std::get<TLayerPtr>(Variant_)->GetPath();
-    }
-
-    return std::get<IVolumePtr>(Variant_)->GetPath();
-}
-
-TFuture<void> TOverlayData::Remove()
-{
-    if (IsLayer()) {
-        return OKFuture;
-    }
-
-    const auto& self = GetVolume();
-    if (self->IsCached()) {
-        return OKFuture;
-    }
-
-    return self->Remove();
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
