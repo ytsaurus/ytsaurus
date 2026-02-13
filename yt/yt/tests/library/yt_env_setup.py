@@ -31,6 +31,7 @@ from yt.environment.helpers import (  # noqa
     RPC_PROXIES_SERVICE,
     HTTP_PROXIES_SERVICE,
     KAFKA_PROXIES_SERVICE,
+    OFFSHORE_DATA_GATEWAYS_SERVICE,
     CYPRESS_PROXIES_SERVICE,
 )
 
@@ -344,6 +345,7 @@ class YTEnvSetup(object):
     NUM_TABLET_BALANCERS = 0
     NUM_CYPRESS_PROXIES = 1
     NUM_REPLICATED_TABLE_TRACKERS = 0
+    NUM_OFFSHORE_DATA_GATEWAYS = 0
     ENABLE_RESOURCE_TRACKING = False
     ENABLE_TVM_ONLY_PROXIES = False
     ENABLE_DYNAMIC_TABLE_COLUMN_RENAMES = True
@@ -471,6 +473,7 @@ class YTEnvSetup(object):
         return cls.NUM_SECONDARY_MASTER_CELLS
 
     # To be redefined in successors
+    # TODO(pavel-bash): add modify_offshore_data_gateway_config when needed.
     @classmethod
     def modify_master_config(cls, config, multidaemon_config, cell_index, cell_tag, peer_index, cluster_index):
         pass
@@ -755,6 +758,7 @@ class YTEnvSetup(object):
                 cls.get_param("NUM_RPC_PROXIES", index) if cls.get_param("ENABLE_RPC_PROXY", index) else 0),
             cypress_proxy_count=cypress_proxy_count,
             replicated_table_tracker_count=cls.get_param("NUM_REPLICATED_TABLE_TRACKERS", index),
+            offshore_data_gateway_count=cls.get_param("NUM_OFFSHORE_DATA_GATEWAYS", index),
             enable_master_cache=cls.get_param("USE_MASTER_CACHE", index),
             enable_permission_cache=cls.get_param("USE_PERMISSION_CACHE", index),
             primary_cell_tag=primary_cell_tag,
@@ -1238,6 +1242,7 @@ class YTEnvSetup(object):
         for cell_tag in cls.get_param("MASTER_CELL_DESCRIPTORS", cluster_index):
             assert cell_tag in cell_tags
 
+    # TODO(pavel-bash): use the modify_offshore_data_gateway_config when implemented.
     @classmethod
     def apply_config_patches(cls, configs, ytserver_version, cluster_index, cluster_path):
         multidaemon_config = configs["multi"]
@@ -2695,4 +2700,5 @@ def get_service_component_name(service):
         HTTP_PROXIES_SERVICE: "http-proxy",
         KAFKA_PROXIES_SERVICE: "kafka-proxy",
         CYPRESS_PROXIES_SERVICE: "cypress-proxy",
+        OFFSHORE_DATA_GATEWAYS_SERVICE: "offshore-data-gateway",
     }[service]

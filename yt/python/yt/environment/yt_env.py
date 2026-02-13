@@ -134,7 +134,7 @@ def _get_yt_versions(custom_paths):
                 "ytserver-clock", "ytserver-discovery", "ytserver-cell-balancer",
                 "ytserver-exec", "ytserver-tools", "ytserver-timestamp-provider", "ytserver-master-cache",
                 "ytserver-tablet-balancer", "ytserver-replicated-table-tracker", "ytserver-kafka-proxy", "ytserver-queue-agent",
-                "ytserver-cypress-proxy"]
+                "ytserver-cypress-proxy", "ytserver-offshore-data-gateway"]
 
     binary_infos = [BinaryInfo(name=name, path=_get_yt_binary_path(name, custom_paths=custom_paths)) for name in binaries]
 
@@ -246,7 +246,8 @@ class YTInstance(object):
                 programs = ["master", "clock", "node", "job-proxy", "exec", "cell-balancer",
                             "proxy", "http-proxy", "tools", "scheduler", "discovery",
                             "controller-agent", "timestamp-provider", "master-cache",
-                            "tablet-balancer", "replicated-table-tracker", "queue-agent", "kafka-proxy", "multi"]
+                            "tablet-balancer", "replicated-table-tracker", "queue-agent", "kafka-proxy", "multi",
+                            "offshore-data-gateway"]
                 for program in programs:
                     os.symlink(os.path.abspath(self.ytserver_all_path), os.path.join(self.bin_path, "ytserver-" + program))
 
@@ -368,6 +369,7 @@ class YTInstance(object):
                 "cypress_proxy": self._make_service_dirs("cypress_proxy", self.yt_config.cypress_proxy_count),
                 "replicated_table_tracker": self._make_service_dirs("replicated_table_tracker",
                                                                     self.yt_config.replicated_table_tracker_count),
+                "offshore_data_gateway": self._make_service_dirs("offshore_data_gateway", self.yt_config.offshore_data_gateway_count),
                 }
 
     def _log_component_line(self, binary, name, count, is_external=False):
@@ -506,6 +508,7 @@ class YTInstance(object):
             ("ytserver-proxy", "RPC proxies", self.yt_config.rpc_proxy_count),
             ("ytserver-cypres-proxy", "cypress proxies", self.yt_config.cypress_proxy_count),
             ("ytserver-replicated-table-tracker", "replicated table trackers", self.yt_config.replicated_table_tracker_count),
+            ("ytserver-offshore-data-gateway", "offshore data gateways", self.yt_config.offshore_data_gateway_count),
         ]
 
         logger.info("Start preparing cluster instance as follows:")
@@ -572,6 +575,8 @@ class YTInstance(object):
             self._prepare_cypress_proxies(cluster_configuration["cypress_proxy"])
         if self.yt_config.replicated_table_tracker_count > 0:
             self._prepare_replicated_table_trackers(cluster_configuration["replicated_table_tracker"])
+        if self.yt_config.offshore_data_gateway_count > 0:
+            self._prepare_offshore_data_gateways(cluster_configuration["offshore_data_gateway"])
 
         self._prepare_drivers(
             cluster_configuration["driver"],
@@ -679,6 +684,9 @@ class YTInstance(object):
 
             if self.yt_config.replicated_table_tracker_count > 0:
                 self.start_replicated_table_trackers(sync=False)
+
+            if self.yt_config.offshore_data_gateway_count > 0:
+                self.start_offshore_data_gateways(sync=False)
 
             self.synchronize()
 
@@ -1071,6 +1079,9 @@ class YTInstance(object):
 
     def kill_replicated_table_trackers(self, indexes=None):
         self.kill_service("replicated_table_tracker", indexes=indexes)
+
+    def kill_offshore_data_gateways(self, indexes=None):
+        self.kill_service("offshore_data_gateway", indexes=indexes)
 
     def kill_service(self, name, indexes=None, skip_multidaemon_check=False):
         with self._lock:
@@ -2447,6 +2458,35 @@ class YTInstance(object):
         self._wait_for_component(
             "replicated_table_tracker",
             replicated_table_tracker_ready,
+            sync)
+
+    def _prepare_offshore_data_gateways(self, offshore_data_gateway_configs):
+        for offshore_data_gateway_index in xrange(self.yt_config.offshore_data_gateway_count):
+            offshore_data_gateway_config_name = "offshore_data_gateway-{0}.yson".format(offshore_data_gateway_index)
+            config_path = os.path.join(self.configs_path, offshore_data_gateway_config_name)
+            if self._load_existing_environment:
+                if not os.path.isfile(config_path):
+                    raise YtError("Offshore data gateway config {0} not found. It is possible that you requested "
+                                  "more offshore data gateways than configs exist".format(config_path))
+                config = read_config(config_path)
+            else:
+                config = offshore_data_gateway_configs[offshore_data_gateway_index]
+                write_config(config, config_path)
+
+            self.configs["offshore_data_gateway"].append(config)
+            self.config_paths["offshore_data_gateway"].append(config_path)
+            self._service_processes["offshore_data_gateway"].append(None)
+
+    def start_offshore_data_gateways(self, sync=True):
+        self._run_builtin_yt_component("offshore-data-gateway", name="offshore_data_gateway")
+
+        def offshore_data_gateway_ready():
+            self._validate_processes_are_running("offshore_data_gateway")
+            return True
+
+        self._wait_for_component(
+            "offshore_data_gateway",
+            offshore_data_gateway_ready,
             sync)
 
     def _validate_process_is_running(self, process, name, number=None):

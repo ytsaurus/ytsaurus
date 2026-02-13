@@ -3346,6 +3346,8 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
 
         proxyInternalConfig->EnableGrpcServer = proxyDynamicConfig->EnableGrpcServer;
         proxyInternalConfig->EnableHttpServer = proxyDynamicConfig->EnableHttpServer;
+
+        proxyInternalConfig->SyncMediumDirectoryOnStart = proxyDynamicConfig->SyncMediumDirectoryOnStart;
     }
 
     proxyInternalConfig->JobThrottler = CloneYsonStruct(CommonConfig_->JobThrottler);

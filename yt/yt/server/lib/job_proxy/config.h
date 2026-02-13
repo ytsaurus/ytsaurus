@@ -557,6 +557,11 @@ struct TJobProxyInternalConfig
 
     TJobApiServiceConfigPtr JobApiService;
 
+    // TODO(achulkov2): Remove this once medium directory is passed to job proxy in job spec.
+    //! If set, job proxy will trigger and wait for a medium directory sync to complete
+    //! before starting the user job. This is a temporary solution for offshore media.
+    bool SyncMediumDirectoryOnStart;
+
     REGISTER_YSON_STRUCT(TJobProxyInternalConfig);
 
     static void Register(TRegistrar registrar);
@@ -611,6 +616,8 @@ struct TJobProxyDynamicConfig
 
     bool EnableGrpcServer;
     bool EnableHttpServer;
+
+    bool SyncMediumDirectoryOnStart;
 
     REGISTER_YSON_STRUCT(TJobProxyDynamicConfig);
 

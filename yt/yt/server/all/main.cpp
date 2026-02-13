@@ -21,6 +21,7 @@
 #include <yt/yt/server/tcp_proxy/program.h>
 #include <yt/yt/server/kafka_proxy/program.h>
 #include <yt/yt/server/replicated_table_tracker/program.h>
+#include <yt/yt/server/offshore_data_gateway/program.h>
 #include <yt/yt/server/multidaemon/program.h>
 #include <yt/yt/server/sequoia_reconstructor/program.h>
 
@@ -141,6 +142,7 @@ const TProgramMap& GetProgramMap()
             .Add(NTcpProxy::RunTcpProxyProgram, "tcp-proxy")
             .Add(NKafkaProxy::RunKafkaProxyProgram, "kafka-proxy")
             .Add(NReplicatedTableTracker::RunReplicatedTableTrackerProgram, "replicated-table-tracker")
+            .Add(NOffshoreDataGateway::RunOffshoreDataGatewayProgram, "offshore-data-gateway")
             .Add(NMultidaemon::RunMultidaemonProgram, "multi")
             .Add(NSequoiaReconstructor::RunSequoiaReconstructorProgram, "sequoia-reconstructor")
             .Finish();

@@ -6,6 +6,7 @@ import "yt_proto/yt/client/misc/proto/workload.proto";
 import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
 import "yt/ytlib/chunk_client/proto/chunk_info.proto";
 import "yt_proto/yt/client/chunk_client/proto/chunk_meta.proto";
+import "yt_proto/yt/client/chunk_client/proto/chunk_spec.proto";
 import "yt_proto/yt/client/chunk_client/proto/read_limit.proto";
 import "yt/ytlib/chunk_client/proto/chunk_reader_statistics.proto";
 import "yt/ytlib/chunk_client/proto/chunk_slice.proto";
@@ -283,6 +284,8 @@ message TReqGetBlockSet
     optional bool enable_p2p = 14 [default = true];
     optional bool fetch_node_descriptors = 15 [default = false];
 
+    optional TChunkReplicaSpec replica_spec = 16;
+
     reserved 3, 4, 9;
 }
 
@@ -469,6 +472,8 @@ message TReqGetChunkMeta
     // If requested chunk uses features that are not supported by client,
     // an error is returned.
     optional uint64 supported_chunk_features = 8;
+
+    optional TChunkReplicaSpec replica_spec = 10;
 }
 
 message TRspGetChunkMeta

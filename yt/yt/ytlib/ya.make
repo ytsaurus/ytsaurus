@@ -368,6 +368,9 @@ SRCS(
     object_client/proto/object_ypath.proto
     object_client/proto/user_directory.proto
 
+    offshore_data_gateway/config.cpp
+    offshore_data_gateway/offshore_data_gateway_channel.cpp
+
     query_client/executor.cpp
     query_client/explain.cpp
     query_client/functions_cache.cpp

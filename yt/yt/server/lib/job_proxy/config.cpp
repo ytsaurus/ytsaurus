@@ -499,6 +499,9 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("job_api_service", &TThis::JobApiService)
         .DefaultNew();
 
+    registrar.Parameter("sync_medium_directory_on_start", &TThis::SyncMediumDirectoryOnStart)
+        .Default(false);
+
     registrar.Preprocessor([] (TThis* config) {
         config->SolomonExporter->EnableSelfProfiling = false;
         config->SolomonExporter->WindowSize = 1;
@@ -583,6 +586,9 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_grpc_server", &TThis::EnableGrpcServer)
         .Default(false);
     registrar.Parameter("enable_http_server", &TThis::EnableHttpServer)
+        .Default(false);
+
+    registrar.Parameter("sync_medium_directory_on_start", &TThis::SyncMediumDirectoryOnStart)
         .Default(false);
 }
 

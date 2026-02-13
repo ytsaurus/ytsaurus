@@ -23,6 +23,17 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
     TChunkId chunkId,
     TChunkReplicaList seedReplicas);
 
+// TODO(discuss in PR): we need the last argument to be of type TChunkReplicaWithMedium,
+// as we need the medium index to read offshore data. 8 months ago there was a commit which stops
+// passing the medium index into chunk readers, so we need to understand how to handle this. Maybe
+// (partially) revert the commit?
+IChunkReaderAllowingRepairPtr CreateReplicationReader(
+    TReplicationReaderConfigPtr config,
+    TRemoteReaderOptionsPtr options,
+    TChunkReaderHostPtr chunkReaderHost,
+    TChunkId chunkId,
+    TChunkReplicaWithMediumList seedReplicas);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 IChunkReaderAllowingRepairPtr CreateReplicationReaderThrottlingAdapter(
