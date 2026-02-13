@@ -1,11 +1,13 @@
 #pragma once
 
 #include "public.h"
+#include "artifact.h"
 
 #include <yt/yt/server/node/exec_node/volume.pb.h>
 
 #include <yt/yt/core/actions/future.h>
 
+#include <yt/yt/core/misc/async_slru_cache.h>
 #include <yt/yt/core/misc/guid.h>
 
 namespace NYT::NExecNode {
@@ -45,8 +47,6 @@ struct IVolume
     virtual bool IsCached() const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IVolume)
-
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Used for layer and for volume meta files.
@@ -74,7 +74,10 @@ struct TLayerMeta
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TLayerLocation)
 DECLARE_REFCOUNTED_CLASS(TLayer)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TOverlayData
 {
@@ -115,6 +118,44 @@ public:
 
 private:
     std::variant<TLayerPtr, IVolumePtr> Variant_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLayer
+    : public TAsyncCacheValueBase<TArtifactKey, TLayer>
+{
+public:
+    TLayer(const TLayerMeta& layerMeta, const TArtifactKey& artifactKey, const TLayerLocationPtr& layerLocation);
+
+    ~TLayer();
+
+    const TString& GetCypressPath() const;
+
+    const std::string& GetPath() const;
+
+    i64 GetSize() const;
+
+    const TLayerMeta& GetMeta() const;
+
+    void IncreaseHitCount();
+
+    int GetHitCount() const;
+
+    void SetLayerRemovalNotNeeded();
+
+private:
+    const TLayerMeta LayerMeta_;
+    const TLayerLocationPtr Location_;
+    std::atomic<int> HitCount_;
+
+    // If the slot manager is disabled, the layers that are currently in the layer cache
+    // do not need to be removed from the porto. If you delete them, firstly, in this
+    // case they will need to be re-imported into the porto, and secondly, then there
+    // may be a problem when inserting the same layers when starting a new volume manager.
+    // Namely, a layer object that is already in the new cache may be deleted from the old cache,
+    // in which case the layer object in the new cache will be corrupted.
+    bool IsLayerRemovalNeeded_ = true;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

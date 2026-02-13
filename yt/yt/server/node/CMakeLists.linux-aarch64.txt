@@ -180,6 +180,7 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/slot_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/supervisor_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/throttler_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/volume.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/volume_counters.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/volume_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/porto_volume.cpp
