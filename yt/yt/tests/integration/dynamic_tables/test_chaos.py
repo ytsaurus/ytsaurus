@@ -7025,6 +7025,7 @@ class TestChaosSingleClusterNativeProxyWithPortals(ChaosTestBase):
             alter_table_replica(replica_ids[replica_index], replica_path=new_path)
             replicas[replica_index]["replica_path"] = new_path
             sync_mount_table(new_path)
+        self._sync_replication_era(card_id, replicas)
 
         values2 = [{"key": 2, "value": "2"}]
         insert_rows(replicas[0]["replica_path"], values2)
