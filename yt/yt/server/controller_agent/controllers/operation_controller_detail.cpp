@@ -2381,6 +2381,11 @@ void TOperationControllerBase::ManuallyMergeBranchedCypressNode(
 
         TTransactionCommitOptions options;
         options.PrerequisiteTransactionIds = {transactionId};
+        // In case of Cypress tx mirroring this system tx have to be committed
+        // after all nested Cypress transactions are finished.
+        if (IsCypressTransactionMirroredToSequoia(transactionId)) {
+            options.StronglyOrdered = true;
+        }
         WaitFor(helperTransaction->Commit(options))
             .ThrowOnError();
     } catch (const std::exception& ex) {
