@@ -32,7 +32,9 @@ import yt_error_codes
 
 from yt_driver_bindings import Driver
 
-from yt_helpers import profiler_factory, is_uring_supported, is_uring_disabled
+from yt_helpers import (
+    profiler_factory, is_uring_supported, is_uring_disabled, validate_operation_statistics_descriptions
+)
 
 import yt.environment.init_operations_archive as init_operations_archive
 import yt.yson as yson
@@ -4220,6 +4222,8 @@ class TestGpuStatistics(YTEnvSetup):
             job_type="task",
         ))
 
+        validate_operation_statistics_descriptions(op.get_statistics())
+
 
 ##################################################################
 
@@ -4246,7 +4250,11 @@ class TestCriJobStatistics(YTEnvSetup):
             },
         )
 
-        assert op.get_statistics()["job"]["memory"]["rss"][0]["summary"]["max"] > 200 * 1000 * 1000
+        statistics = op.get_statistics()
+
+        validate_operation_statistics_descriptions(statistics)
+
+        assert extract_statistic_v2(statistics, "job.memory.rss", summary_type="max") > 200 * 1000 * 1000
 
 
 ##################################################################
@@ -4639,6 +4647,8 @@ class TestJobStatistics(YTEnvSetup):
         )
 
         statistics = op.get_statistics()
+
+        validate_operation_statistics_descriptions(statistics)
 
         def get_statistics(key, output):
             return extract_statistic_v2(statistics, f"chunk_writer_statistics.{output}.{key}")
