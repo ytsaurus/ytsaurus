@@ -2872,6 +2872,18 @@ class TestCustomSettings(ClickHouseTestBase):
             result = clique.make_query('select uniq(*) from concatYtTables("//tmp/rle_encoded", "//tmp/dict_encoded")', settings=settings)
             assert result == [{"uniq(a, b)": 2}]
 
+            arr = []
+            for _ in range(1000):
+                arr.append({"a": None, "b": None})
+
+            settings["chyt.execution.enable_distinct_read_optimization"] = 1
+            write_table("//tmp/dict_encoded", arr)
+            make_query_and_check_low_cardinality(clique, 'select * from "//tmp/dict_encoded"', settings, arr)
+
+            result = clique.make_query('select distinct a from "//tmp/dict_encoded"', settings=settings)
+            assert result == [{"a": None}]
+            settings["chyt.execution.enable_distinct_read_optimization"] = 0
+
             write_table("//tmp/t1", [{"a": "a", "b": "b"}])
             write_table("//tmp/t2", [{"a": "b", "b": "a"}])
 

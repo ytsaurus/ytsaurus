@@ -1020,8 +1020,6 @@ public:
     void InitColumn() override
     {
         Column_ = DataType_->createColumn();
-        DecimalColumn_ = dynamic_cast<TDecimalColumn*>(Column_.get());
-        YT_VERIFY(DecimalColumn_ != nullptr);
     }
 
     void ConsumeYson(TYsonPullParserCursor* cursor) override
@@ -1063,7 +1061,7 @@ public:
         auto stringColumn = ConvertStringLikeYTColumnToCHColumn(column, filterHint);
 
         int rowCount = std::ssize(*stringColumn);
-        DecimalColumn_->reserve(rowCount);
+        DecimalColumn()->reserve(rowCount);
 
         for (int index = 0; index < rowCount; ++index) {
             auto data = stringColumn->getDataAt(index);
@@ -1092,7 +1090,11 @@ private:
     int Precision_;
     DB::DataTypePtr DataType_;
     DB::MutableColumnPtr Column_;
-    TDecimalColumn* DecimalColumn_;
+
+    auto DecimalColumn()
+    {
+        return dynamic_cast<TDecimalColumn*>(Column_.get());
+    }
 
     void ParseAndPushBackDecimal(TStringBuf ytValue)
     {
@@ -1114,7 +1116,7 @@ private:
             YT_ABORT();
         }
 
-        DecimalColumn_->insertValue(chValue);
+        DecimalColumn()->insertValue(chValue);
     }
 };
 
@@ -1181,8 +1183,6 @@ public:
     void InitColumn() override
     {
         Column_ = DataType_->createColumn();
-        LowCardinalityColumn_ = dynamic_cast<DB::ColumnLowCardinality*>(Column_.get());
-        YT_VERIFY(LowCardinalityColumn_ != nullptr);
     }
 
     void ConsumeYson(TYsonPullParserCursor* cursor) override
@@ -1197,7 +1197,7 @@ public:
             LogicalType == ESimpleLogicalValueType::Interval64 ||
             LogicalType == ESimpleLogicalValueType::Date32)
         {
-            LowCardinalityColumn_->insert(ysonItem.UncheckedAsInt64());
+            LowCardinalityColumn()->insert(ysonItem.UncheckedAsInt64());
         } else if constexpr (
             LogicalType == ESimpleLogicalValueType::Uint8 ||
             LogicalType == ESimpleLogicalValueType::Uint16 ||
@@ -1206,16 +1206,16 @@ public:
             LogicalType == ESimpleLogicalValueType::Date ||
             LogicalType == ESimpleLogicalValueType::Datetime)
         {
-            LowCardinalityColumn_->insert(ysonItem.UncheckedAsUint64());
+            LowCardinalityColumn()->insert(ysonItem.UncheckedAsUint64());
         } else if constexpr (LogicalType == ESimpleLogicalValueType::Boolean) {
-            LowCardinalityColumn_->insert(ysonItem.UncheckedAsBoolean());
+            LowCardinalityColumn()->insert(ysonItem.UncheckedAsBoolean());
         } else if constexpr (
             LogicalType == ESimpleLogicalValueType::String ||
             LogicalType == ESimpleLogicalValueType::Utf8 ||
             LogicalType == ESimpleLogicalValueType::Json)
         {
             auto str = ysonItem.UncheckedAsString();
-            LowCardinalityColumn_->insertData(str.data(), str.size());
+            LowCardinalityColumn()->insertData(str.data(), str.size());
         } else {
             YT_ABORT();
         }
@@ -1238,7 +1238,7 @@ public:
                     LogicalType == ESimpleLogicalValueType::Int64 ||
                     LogicalType == ESimpleLogicalValueType::Date32)
                 {
-                    LowCardinalityColumn_->insert(value.Data.Int64);
+                    LowCardinalityColumn()->insert(value.Data.Int64);
                 } else if constexpr (
                     LogicalType == ESimpleLogicalValueType::Uint8 ||
                     LogicalType == ESimpleLogicalValueType::Uint16 ||
@@ -1250,13 +1250,13 @@ public:
                     LogicalType == ESimpleLogicalValueType::Date32 ||
                     LogicalType == ESimpleLogicalValueType::Datetime)
                 {
-                    LowCardinalityColumn_->insert(value.Data.Uint64);
+                    LowCardinalityColumn()->insert(value.Data.Uint64);
                 } else if constexpr (
                     LogicalType == ESimpleLogicalValueType::String ||
                     LogicalType == ESimpleLogicalValueType::Utf8 ||
                     LogicalType == ESimpleLogicalValueType::Json)
                 {
-                    LowCardinalityColumn_->insertData(value.Data.String, value.Length);
+                    LowCardinalityColumn()->insertData(value.Data.String, value.Length);
                 } else {
                     YT_ABORT();
                 }
@@ -1295,7 +1295,12 @@ public:
 
     void ConsumeNulls(int count) override
     {
-        LowCardinalityColumn_->insertManyDefaults(count);
+        Column_->insertManyDefaults(count);
+    }
+
+    auto LowCardinalityColumn()
+    {
+        return dynamic_cast<DB::ColumnLowCardinality*>(Column_.get());
     }
 
     DB::ColumnPtr FlushColumn() override
@@ -1312,7 +1317,6 @@ private:
     const TComplexTypeFieldDescriptor Descriptor_;
     const DB::DataTypePtr DataType_;
     DB::IColumn::MutablePtr Column_;
-    DB::ColumnLowCardinality* LowCardinalityColumn_;
     const bool InsideOptional_;
 };
 
