@@ -25,6 +25,8 @@ from yt_type_helpers import make_schema
 
 from yt_scheduler_helpers import scheduler_orchid_path
 
+from yt_helpers import validate_operation_statistics_descriptions
+
 import yt.yson as yson
 
 from yt.wrapper import JsonFormat
@@ -1502,6 +1504,8 @@ class TestSchedulerJobStatistics(YTEnvSetup):
         assert traffic_statistics["inbound"]["from_"]["sum"] > 0
         assert traffic_statistics["_to_"]["sum"] > 0
 
+        validate_operation_statistics_descriptions(statistics)
+
         release_breakpoint()
         op.track()
 
@@ -1521,6 +1525,8 @@ class TestSchedulerJobStatistics(YTEnvSetup):
         assert extract_statistic_v2(statistics, "time.exec", summary_type="count") == 10
         assert extract_statistic_v2(statistics, "time.exec") <= \
             extract_statistic_v2(statistics, "time.total")
+
+        validate_operation_statistics_descriptions(statistics)
 
     @authors("ignat")
     def test_statistics_for_aborted_operation(self):
@@ -1562,6 +1568,8 @@ class TestSchedulerJobStatistics(YTEnvSetup):
             job_state="aborted",
             job_type="map",
             summary_type="count"))
+
+        validate_operation_statistics_descriptions(statistics)
 
 
 ##################################################################
@@ -1663,6 +1671,8 @@ class TestJobStatisticsPorto(YTEnvSetup):
 
         wait_no_assert(lambda: check_statistics(get(op.get_path() + "/@progress/job_statistics_v2"), extract_statistic_v2))
         wait_no_assert(lambda: check_statistics(get(op.get_path() + "/@progress/job_statistics"), extract_deprecated_statistic))
+
+        validate_operation_statistics_descriptions(op.get_statistics())
 
     @authors("max42")
     def test_statistics_truncation(self):
