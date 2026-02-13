@@ -431,6 +431,13 @@ message TColumnsOptions
     repeated TLockGroup lock_groups = 1;
 }
 
+message TEtcOptions
+{
+    optional string lock_group = 1;
+    optional string data_group = 2;
+    optional uint64 max_inline_hunk_size = 3;
+}
+
 // Next field 30058.
 extend google.protobuf.FileOptions
 {
@@ -964,7 +971,7 @@ extend google.protobuf.FieldOptions
     optional bool ephemeral = 31060;
 }
 
-// Next field 32016.
+// Next field 32017.
 extend google.protobuf.MessageOptions
 {
     optional string message_lock_group = 32001;
@@ -1007,6 +1014,9 @@ extend google.protobuf.MessageOptions
 
     // Set alwaysScheduleLoadOnStore flag when creating corresponding etc attribute descriptor(s).
     optional bool always_schedule_load_on_etc_store = 32014;
+
+    // Set etc options. Duplicate values of pair (lock_group, data_group) is not allowed.
+    repeated TEtcOptions etc_options = 32016;
 }
 
 extend google.protobuf.EnumOptions
