@@ -151,7 +151,6 @@ DEFINE_ENUM(EConsumerPartitionDisposition,
 
 inline const std::string NoneQueueAgentStage = "none";
 inline const TString NoneObjectType = "none";
-inline const std::string NoneProfilingTag = "none";
 
 ////////////////////////////////////////////////////////////////////////////////
 

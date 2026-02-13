@@ -114,7 +114,7 @@ class TQueueProfileManager
     : public NDetail::TProfileManagerBase<TQueueSnapshotPtr>
 {
 public:
-    explicit TQueueProfileManager(
+    TQueueProfileManager(
         const TProfiler& profiler,
         const TLogger& logger,
         const TQueueTableRow& row,
@@ -215,7 +215,7 @@ public:
     }
 
 private:
-    TLogger Logger;
+    const TLogger Logger;
 
     std::unique_ptr<TQueueProfilingCounters> QueueProfilingCounters_;
     std::vector<TQueuePartitionProfilingCounters> QueuePartitionProfilingCounters_;
@@ -290,7 +290,7 @@ class TConsumerProfileManager
     : public NDetail::TProfileManagerBase<TConsumerSnapshotPtr>
 {
 public:
-    explicit TConsumerProfileManager(
+    TConsumerProfileManager(
         const TProfiler& profiler,
         const TLogger& logger,
         const TConsumerTableRow& row,
@@ -423,16 +423,17 @@ public:
     }
 
 private:
-    TLogger Logger;
+    const TLogger Logger;
 
     std::unique_ptr<TConsumerProfilingCounters> ConsumerProfilingCounters_;
 
-    struct PartitionProfiler {
-        std::string CurrentQueueTag;
+    struct TPartitionProfiler
+    {
+        std::optional<std::string> CurrentQueueTag;
         std::vector<TConsumerPartitionProfilingCounters> Counters{};
     };
 
-    THashMap<TCrossClusterReference, PartitionProfiler> ConsumerPartitionProfilingCounters_;
+    THashMap<TCrossClusterReference, TPartitionProfiler> ConsumerPartitionProfilingCounters_;
 
     void EnsureCounters(const TConsumerSnapshotPtr& currentConsumerSnapshot)
     {
@@ -452,31 +453,32 @@ private:
 
     void EnsureConsumerPartitionCounters(const TCrossClusterReference& queueRef, const TSubConsumerSnapshotPtr& subConsumerSnapshot)
     {
-        auto queueTag = subConsumerSnapshot->QueueProfilingTag.value_or(NoneProfilingTag);
         auto profiler = GetProfiler(EProfilerScope::ObjectPartition);
         TTagSet tagSet;
         tagSet.AddRequiredTag({"queue_cluster", queueRef.Cluster});
         tagSet.AddRequiredTag({"queue_path", TrimProfilingTagValue(queueRef.Path)});
-        tagSet.AddRequiredTag({"queue_tag", queueTag});
+        if (subConsumerSnapshot->QueueProfilingTag.has_value()) {
+            tagSet.AddRequiredTag({"queue_tag", subConsumerSnapshot->QueueProfilingTag.value()});
+        }
         profiler = profiler.WithTags(tagSet);
 
         if (!ConsumerPartitionProfilingCounters_.contains(queueRef)) {
-            ConsumerPartitionProfilingCounters_[queueRef] = PartitionProfiler{
-                .CurrentQueueTag = queueTag,
+            ConsumerPartitionProfilingCounters_[queueRef] = TPartitionProfiler{
+                .CurrentQueueTag = subConsumerSnapshot->QueueProfilingTag,
             };
         }
 
         auto& partitionProfiler = ConsumerPartitionProfilingCounters_[queueRef];
 
-        if (partitionProfiler.CurrentQueueTag != queueTag) {
+        if (partitionProfiler.CurrentQueueTag != subConsumerSnapshot->QueueProfilingTag) {
             YT_LOG_DEBUG(
-                "Updating consumer partition counters (Queue: %v, Partitions: %v, queueTag: %v -> %v)",
+                "Updating consumer partition counters (Queue: %v, Partitions: %v, QueueTag: %v -> %v)",
                 queueRef,
                 subConsumerSnapshot->PartitionCount,
                 partitionProfiler.CurrentQueueTag,
-                queueTag);
+                subConsumerSnapshot->QueueProfilingTag);
 
-            partitionProfiler.CurrentQueueTag = queueTag;
+            partitionProfiler.CurrentQueueTag = subConsumerSnapshot->QueueProfilingTag;
             partitionProfiler.Counters = {};
         }
 

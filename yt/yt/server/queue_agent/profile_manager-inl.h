@@ -18,7 +18,6 @@ NProfiling::TTagSet CreateObjectProfilingTags(
     bool addObjectType,
     std::optional<bool> leading)
 {
-    std::string profilingTag = row.GetProfilingTag().value_or(NoneProfilingTag);
     auto pathTag = TrimProfilingTagValue(row.Ref.Path);
 
     NProfiling::TTagSet tags;
@@ -26,13 +25,19 @@ NProfiling::TTagSet CreateObjectProfilingTags(
 
     if (enablePathAggregation) {
         tags.AddTag({Format("%lv_path", Kind), pathTag}, /*parent*/ -1); // Parent is queue_cluster.
-        tags.AddTag({Format("%lv_tag", Kind), profilingTag}, /*parent*/ -2); // Parent is queue_cluster.
+        int parent = -2;
+        if (row.GetProfilingTag().has_value()) {
+            tags.AddTag({Format("%lv_tag", Kind), row.GetProfilingTag().value()}, parent); // Parent is queue_cluster.
+            parent--;
+        }
         if (addObjectType) {
-            tags.AddTag({"object_type", ToOptionalString(row.ObjectType).value_or(NoneObjectType)}, /*parent*/ -3); // Parent is queue_cluster.
+            tags.AddTag({"object_type", ToOptionalString(row.ObjectType).value_or(NoneObjectType)}, parent); // Parent is queue_cluster.
         }
     } else {
         tags.AddRequiredTag({Format("%lv_path", Kind), pathTag});
-        tags.AddRequiredTag({Format("%lv_tag", Kind), profilingTag});
+        if (row.GetProfilingTag().has_value()) {
+            tags.AddRequiredTag({Format("%lv_tag", Kind), row.GetProfilingTag().value()});
+        }
         if (addObjectType) {
             tags.AddRequiredTag({"object_type", ToOptionalString(row.ObjectType).value_or(NoneObjectType)});
         }
@@ -67,4 +72,4 @@ const NProfiling::TProfiler& TProfileManagerBase<TSnapshotPtr>::GetProfiler(EPro
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // NYT::NQueueAgent::NDetail
+} // namespace NYT::NQueueAgent::NDetail
