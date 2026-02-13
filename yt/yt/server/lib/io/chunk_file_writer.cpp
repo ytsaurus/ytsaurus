@@ -32,6 +32,8 @@ static constexpr auto FileMode =
     AWUser |
     AWGroup;
 
+constinit const auto Logger = IOLogger;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 i64 TruncateBlocks(NChunkClient::NProto::TBlocksExt& blocksExt, int truncateBlockCount, i64 oldDataSize)
@@ -122,6 +124,7 @@ TChunkFileWriter::TChunkFileWriter(
     bool syncOnClose,
     bool useDirectIO)
     : IOEngine_(std::move(ioEngine))
+    , ChunkId_(chunkId)
     , FileName_(std::move(fileName))
     , SyncOnClose_(syncOnClose)
     , UseDirectIO_(useDirectIO)
@@ -297,13 +300,14 @@ bool TChunkFileWriter::WriteBlocks(
             }
 
             const auto& rsp = rspOrError.Value();
-            YT_VERIFY(newDataSize - oldDataSize == rsp.WrittenBytes);
+            YT_VERIFY(newDataSize - DataSize_ == rsp.WrittenBytes);
 
             chunkWriterStatistics->DataBytesWrittenToDisk.fetch_add(rsp.WrittenBytes, std::memory_order::relaxed);
             chunkWriterStatistics->DataBlocksWrittenToDisk.fetch_add(blockCount, std::memory_order::relaxed);
             chunkWriterStatistics->DataIOWriteRequests.fetch_add(rsp.IOWriteRequests, std::memory_order::relaxed);
             chunkWriterStatistics->DataIOSyncRequests.fetch_add(rsp.IOSyncRequests, std::memory_order::relaxed);
 
+            DataSize_ = newDataSize;
             State_.store(EState::Ready);
         }).AsyncVia(IOEngine_->GetAuxPoolInvoker()));
 
@@ -384,7 +388,7 @@ TFuture<void> TChunkFileWriter::Close(
                     this_ = MakeStrong(this),
                     chunkWriterStatistics
                 ] (const TWriteResponse& rsp) {
-                    YT_VERIFY(PhysicalChunkLayoutWriter_->GetMetaDataSize() == rsp.WrittenBytes);
+                    YT_VERIFY(MetaDataSize_ == rsp.WrittenBytes);
 
                     chunkWriterStatistics->MetaBytesWrittenToDisk.fetch_add(rsp.WrittenBytes, std::memory_order::relaxed);
                     chunkWriterStatistics->MetaIOWriteRequests.fetch_add(rsp.IOWriteRequests, std::memory_order::relaxed);
@@ -394,7 +398,7 @@ TFuture<void> TChunkFileWriter::Close(
                     IOEngine_,
                     TCloseRequest{
                         std::move(chunkMetaFile),
-                        PhysicalChunkLayoutWriter_->GetMetaDataSize(),
+                        MetaDataSize_,
                         SyncOnClose_
                     },
                     workloadDescriptor.Category).AsyncVia(IOEngine_->GetAuxPoolInvoker()))
@@ -443,7 +447,7 @@ TFuture<void> TChunkFileWriter::Close(
 
 i64 TChunkFileWriter::GetDataSize() const
 {
-    return PhysicalChunkLayoutWriter_->GetDataSize();
+    return DataSize_;
 }
 
 const TString& TChunkFileWriter::GetFileName() const
@@ -483,7 +487,7 @@ const TChunkInfo& TChunkFileWriter::GetChunkInfo() const
 {
     YT_VERIFY(State_.load() == EState::Closed);
 
-    return PhysicalChunkLayoutWriter_->GetChunkInfo();
+    return ChunkInfo_;
 }
 
 const TDataStatistics& TChunkFileWriter::GetDataStatistics() const
@@ -497,7 +501,7 @@ const TRefCountedChunkMetaPtr& TChunkFileWriter::GetChunkMeta() const
 {
     YT_VERIFY(State_.load() == EState::Closed);
 
-    return PhysicalChunkLayoutWriter_->GetChunkMeta();
+    return ChunkMeta_;
 }
 
 TWrittenChunkReplicasInfo TChunkFileWriter::GetWrittenChunkReplicasInfo() const
@@ -507,7 +511,7 @@ TWrittenChunkReplicasInfo TChunkFileWriter::GetWrittenChunkReplicasInfo() const
 
 TChunkId TChunkFileWriter::GetChunkId() const
 {
-    return PhysicalChunkLayoutWriter_->GetChunkId();
+    return ChunkId_;
 }
 
 NErasure::ECodec TChunkFileWriter::GetErasureCodecId() const
@@ -523,4 +527,3 @@ bool TChunkFileWriter::IsCloseDemanded() const
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NIO
-

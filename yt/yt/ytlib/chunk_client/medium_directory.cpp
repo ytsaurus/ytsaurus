@@ -36,7 +36,7 @@ TMediumDescriptorPtr TMediumDirectory::FindByName(const std::string& name) const
 {
     auto guard = ReaderGuard(SpinLock_);
     auto it = NameToDescriptor_.find(name);
-    return it == NameToDescriptor_.end() ? nullptr : it->second->second;
+    return it == NameToDescriptor_.end() ? nullptr : it->second;
 }
 
 TMediumDescriptorPtr TMediumDirectory::GetByNameOrThrow(const std::string& name) const

@@ -144,9 +144,10 @@ public:
 
 private:
     const IIOEnginePtr IOEngine_;
+    NChunkClient::TChunkId ChunkId_;
+    const TString FileName_;
+    const bool ValidateBlockChecksums_;
     IBlocksExtCache* const BlocksExtCache_;
-    const TPhysicalChunkLayoutReaderPtr PhysicalChunkLayoutReader_;
-    const NLogging::TLogger Logger;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, DataFileHandleLock_);
     TEnumIndexedArray<EDirectIOFlag, TFuture<TIOEngineHandlePtr>> DataFileHandleFuture_;

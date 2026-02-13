@@ -134,6 +134,7 @@ public:
 
 private:
     const IIOEnginePtr IOEngine_;
+    const NChunkClient::TChunkId ChunkId_;
     const TString FileName_;
     const bool SyncOnClose_;
     const bool UseDirectIO_;
@@ -144,9 +145,15 @@ private:
 
     TFuture<void> ReadyEvent_ = OKFuture;
 
+    i64 DataSize_ = 0;
+    i64 MetaDataSize_ = 0;
     i64 DiskSpace_ = 0;
 
     TIOEngineHandlePtr DataFile_;
+
+    const NChunkClient::TRefCountedChunkMetaPtr ChunkMeta_ = New<NChunkClient::TRefCountedChunkMeta>();
+    NChunkClient::NProto::TChunkInfo ChunkInfo_;
+    NChunkClient::NProto::TBlocksExt BlocksExt_;
 
     void TryLockDataFile(TPromise<void> promise);
 

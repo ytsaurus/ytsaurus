@@ -589,6 +589,7 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("sync_medium_directory_on_start", &TThis::SyncMediumDirectoryOnStart)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

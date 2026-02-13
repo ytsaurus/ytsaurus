@@ -23,6 +23,10 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constinit const auto Logger = IOLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TChunkFileReaderDataBufferTag
 { };
 
@@ -34,7 +38,7 @@ struct TChunkFileReaderMetaBufferTag
 namespace {
 
 template <class T>
-void ReadMetaHeader(
+void ReadHeader(
     const TSharedRef& metaFileBlob,
     const std::string& fileName,
     TChunkMetaHeader_2* metaHeader,
@@ -169,18 +173,10 @@ TChunkFileReader::TChunkFileReader(
     bool validateBlocksChecksums,
     IBlocksExtCache* blocksExtCache)
     : IOEngine_(std::move(ioEngine))
+    , ChunkId_(chunkId)
+    , FileName_(std::move(fileName))
+    , ValidateBlockChecksums_(validateBlocksChecksums)
     , BlocksExtCache_(std::move(blocksExtCache))
-    , PhysicalChunkLayoutReader_(New<TPhysicalChunkLayoutReader>(
-        chunkId,
-        fileName,
-        fileName + ChunkMetaSuffix,
-        TPhysicalChunkLayoutReader::TOptions{
-            .ValidateBlockChecksums=validateBlocksChecksums,
-        },
-        IOLogger(),
-        BIND(&TChunkFileReader::DumpBrokenBlock, MakeWeak(this)),
-        BIND(&TChunkFileReader::DumpBrokenMeta, MakeWeak(this))))
-    , Logger(IOLogger())
 { }
 
 TFuture<std::vector<TBlock>> TChunkFileReader::ReadBlocks(
@@ -260,7 +256,8 @@ i64 TChunkFileReader::GetBlockAlignment() const
 
 i64 TChunkFileReader::GetMetaSize() const
 {
-    return NFS::GetPathStatistics(PhysicalChunkLayoutReader_->GetChunkMetaFileName()).Size;
+    auto metaFileName = FileName_ + ChunkMetaSuffix;
+    return NFS::GetPathStatistics(metaFileName).Size;
 }
 
 TFuture<TRefCountedChunkMetaPtr> TChunkFileReader::GetMeta(
@@ -277,7 +274,7 @@ TFuture<TRefCountedChunkMetaPtr> TChunkFileReader::GetMeta(
 
 TChunkId TChunkFileReader::GetChunkId() const
 {
-    return PhysicalChunkLayoutReader_->GetChunkId();
+    return ChunkId_;
 }
 
 TFuture<void> TChunkFileReader::PrepareToReadChunkFragments(
@@ -352,7 +349,7 @@ TReadRequest TChunkFileReader::MakeChunkFragmentReadRequest(
 
     auto makeErrorAttributes = [&] {
         return std::vector{
-            TErrorAttribute("chunk_id", PhysicalChunkLayoutReader_->GetChunkId()),
+            TErrorAttribute("chunk_id", ChunkId_),
             TErrorAttribute("block_index", fragmentDescriptor.BlockIndex),
             TErrorAttribute("block_offset", fragmentDescriptor.BlockOffset),
             TErrorAttribute("length", fragmentDescriptor.Length)
@@ -408,6 +405,9 @@ std::vector<TBlock> TChunkFileReader::OnBlocksRead(
     YT_VERIFY(readResponse.OutputBuffers.size() == 1);
     const auto& buffer = readResponse.OutputBuffers[0];
 
+    options.ChunkReaderStatistics->DataBytesReadFromDisk.fetch_add(
+        buffer.Size(),
+        std::memory_order::relaxed);
     options.ChunkReaderStatistics->DataIORequests.fetch_add(
         readResponse.IORequests,
         std::memory_order::relaxed);
@@ -476,7 +476,7 @@ TFuture<std::vector<TBlock>> TChunkFileReader::DoReadBlocks(
             "Requested to read blocks [%v,%v] from chunk %v while only %v blocks exist",
             firstBlockIndex,
             firstBlockIndex + blockCount - 1,
-            PhysicalChunkLayoutReader_->GetChunkFileName(),
+            FileName_,
             chunkBlockCount);
     }
 
@@ -512,7 +512,7 @@ TFuture<TRefCountedChunkMetaPtr> TChunkFileReader::DoReadMeta(
     // Implement when necessary.
     YT_VERIFY(!partitionTags);
 
-    const auto& metaFileName = PhysicalChunkLayoutReader_->GetChunkMetaFileName();
+    auto metaFileName = FileName_ + ChunkMetaSuffix;
 
     YT_LOG_DEBUG("Started reading chunk meta file (FileName: %v)",
         metaFileName);
@@ -566,7 +566,6 @@ TFuture<TIOEngineHandlePtr> TChunkFileReader::OpenDataFile(EDirectIOFlag useDire
         fileHandleFuture.Reset();
     }
 
-    const auto& fileName = PhysicalChunkLayoutReader_->GetChunkFileName();
     if (!fileHandleFuture) {
         YT_LOG_DEBUG("Started opening chunk data file (FileName: %v, DirectIO: %v)",
             FileName_,
@@ -576,7 +575,7 @@ TFuture<TIOEngineHandlePtr> TChunkFileReader::OpenDataFile(EDirectIOFlag useDire
         if (useDirectIO == EDirectIOFlag::On) {
             TIOEngineHandle::MarkOpenForDirectIO(&mode);
         }
-        fileHandleFuture = IOEngine_->Open({fileName, mode})
+        fileHandleFuture = IOEngine_->Open({FileName_, mode})
             .Apply(BIND(&TChunkFileReader::OnDataFileOpened, MakeStrong(this), useDirectIO)
             .AsyncVia(IOEngine_->GetAuxPoolInvoker()))
             .ToUncancelable();
@@ -587,7 +586,7 @@ TFuture<TIOEngineHandlePtr> TChunkFileReader::OpenDataFile(EDirectIOFlag useDire
 TIOEngineHandlePtr TChunkFileReader::OnDataFileOpened(EDirectIOFlag useDirectIO, const TIOEngineHandlePtr& file)
 {
     YT_LOG_DEBUG("Finished opening chunk data file (FileName: %v, Handle: %v, DirectIO: %v)",
-        PhysicalChunkLayoutReader_->GetChunkFileName(),
+        FileName_,
         static_cast<FHANDLE>(*file),
         useDirectIO);
 
@@ -610,7 +609,7 @@ EDirectIOFlag TChunkFileReader::GetDirectIOFlag(bool useDirectIO) const
 
 void TChunkFileReader::DumpBrokenMeta(TRef block) const
 {
-    auto fileName = PhysicalChunkLayoutReader_->GetChunkFileName() + ".broken.meta";
+    auto fileName = FileName_ + ".broken.meta";
     TFile file(fileName, CreateAlways | WrOnly);
     file.Write(block.Begin(), block.Size());
     file.Flush();
@@ -622,7 +621,7 @@ void TChunkFileReader::DumpBrokenBlock(
     TRef block) const
 {
     auto fileName = Format("%v.broken.%v.%v.%v.%v",
-        PhysicalChunkLayoutReader_->GetChunkFileName(),
+        FileName_,
         blockIndex,
         blockInfo.Offset,
         blockInfo.Size,
