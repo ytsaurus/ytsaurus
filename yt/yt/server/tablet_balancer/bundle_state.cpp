@@ -154,7 +154,7 @@ TBundleAttributes ParseBundleAttributes(const IAttributeDictionary* attributes, 
     TBundleTabletBalancerConfigPtr config;
     try {
         config = attributes->Get<TBundleTabletBalancerConfigPtr>("tablet_balancer_config");
-    } catch (const std::exception& ex) {
+    } catch (const TErrorException& ex) {
         config.Reset();
         if (throwOnError) {
             THROW_ERROR_EXCEPTION(
@@ -567,6 +567,11 @@ TBundleProfilingCounters::TBundleProfilingCounters(const NProfiling::TProfiler& 
     , BasicTableAttributesRequestCount(profiler.WithSparse().Counter("/master_requests/basic_table_attributes_count"))
     , ActualTableSettingsRequestCount(profiler.WithSparse().Counter("/master_requests/actual_table_settings_count"))
     , TableStatisticsRequestCount(profiler.WithSparse().Counter("/master_requests/table_statistics_count"))
+    , DirectStateRequest(profiler.WithSparse().Counter("/bundle_state_provider/direct_state_request"))
+    , DirectStatisticsRequest(profiler.WithSparse().Counter("/bundle_state_provider/direct_statistics_request"))
+    , DirectPerformanceCountersRequest(profiler.WithSparse().Counter("/bundle_state_provider/direct_performance_counters_request"))
+    , StateRequestThrottled(profiler.WithSparse().Counter("/master_requests/state_request_throttled"))
+    , StatisticsRequestThrottled(profiler.WithSparse().Counter("/master_requests/statistics_request_throttled"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -814,7 +819,7 @@ void TBundleState::InitializeAttributes(
             BundleConfigFetchTime_ = now;
             BundleConfig_ = bundleSnapshot->Bundle->Config;
         }
-    } catch (const std::exception& ex) {
+    } catch (const TErrorException& ex) {
         YT_LOG_ERROR(ex, "Failed to parse bundle attributes");
         bundleSnapshot->Bundle->Config.Reset();
         if (throwOnError) {
@@ -856,6 +861,8 @@ TFuture<TBundleSnapshotPtr> TBundleState::CreateUpdateFutureIfNeeded(EFetchKind 
     switch (kind) {
         case EFetchKind::State: {
             if (!UpdateStateFuture_) {
+                Counters_->DirectStateRequest.Increment(isDirectRequest);
+
                 YT_LOG_DEBUG("Planning to fetch bundle state%v",
                     isDirectRequest ? " due to a direct request" : "");
                 UpdateStateFuture_ = BIND(&TBundleState::UpdateState, MakeStrong(this))
@@ -871,6 +878,8 @@ TFuture<TBundleSnapshotPtr> TBundleState::CreateUpdateFutureIfNeeded(EFetchKind 
             }
 
             if (!UpdateStatisticsFuture_) {
+                Counters_->DirectStatisticsRequest.Increment(isDirectRequest);
+
                 YT_LOG_DEBUG("Planning to fetch bundle statistics%v",
                     isDirectRequest ? " due to a direct request" : "");
                 UpdateStatisticsFuture_ = BIND(&TBundleState::UpdateStatistics, MakeStrong(this))
@@ -890,6 +899,8 @@ TFuture<TBundleSnapshotPtr> TBundleState::CreateUpdateFutureIfNeeded(EFetchKind 
             }
 
             if (!UpdatePerformanceCountersFuture_) {
+                Counters_->DirectPerformanceCountersRequest.Increment(isDirectRequest);
+
                 YT_LOG_DEBUG("Planning to fetch performance counters%v",
                     isDirectRequest ? " due to a direct request" : "");
                 UpdatePerformanceCountersFuture_ = BIND(&TBundleState::UpdatePerformanceCounters, MakeStrong(this))
@@ -1053,7 +1064,7 @@ TBundleSnapshotPtr TBundleState::DoGetBundleSnapshotWithReplicaBalancingStatisti
                     allowedReplicaClusters,
                     isReshardReplicaBalancingRequired,
                     isMoveReplicaBalancingRequired);
-            } catch (const std::exception& ex) {
+            } catch (const TErrorException& ex) {
                 bundleSnapshot->ReplicaBalancingFetchFailed = true;
 
                 bundleSnapshot->NonFatalError = TError(
@@ -1270,7 +1281,7 @@ TBundleTabletBalancerConfigPtr TBundleState::UpdateConfig()
         BundleConfigFuture_.Reset();
 
         return BundleConfig_;
-    } catch (const std::exception& ex) {
+    } catch (const TErrorException& ex) {
         YT_LOG_ERROR(ex, "Failed to update bundle config");
 
         auto guard = WriterGuard(Lock_);
@@ -1306,8 +1317,11 @@ TBundleSnapshotPtr TBundleState::UpdateState()
 
         YT_LOG_DEBUG("Finished updating bundle state");
         return GetLatestBundleSnapshot(EFetchKind::State);
-    } catch (const std::exception& ex) {
+    } catch (const TErrorException& ex) {
         YT_LOG_ERROR(ex, "Failed to update bundle state");
+        if (ex.Error().FindMatching(NRpc::EErrorCode::RequestQueueSizeLimitExceeded)) {
+            Counters_->StateRequestThrottled.Increment(1);
+        }
 
         auto guard = WriterGuard(Lock_);
         UpdateStateFuture_.Reset();
@@ -1422,8 +1436,11 @@ TBundleSnapshotPtr TBundleState::UpdateStatistics()
 
         YT_LOG_DEBUG("Finished updating statistics and performance counters");
         return GetLatestBundleSnapshot(EFetchKind::Statistics);
-    } catch (const std::exception& ex) {
+    } catch (const TErrorException& ex) {
         YT_LOG_ERROR(ex, "Failed to update statistics and performance counters");
+        if (ex.Error().FindMatching(NRpc::EErrorCode::RequestQueueSizeLimitExceeded)) {
+            Counters_->StatisticsRequestThrottled.Increment(1);
+        }
 
         auto guard = WriterGuard(Lock_);
         UpdateStatisticsFuture_.Reset();
@@ -1491,7 +1508,7 @@ TBundleSnapshotPtr TBundleState::UpdatePerformanceCounters()
 
         YT_LOG_DEBUG("Finished updating performance counters");
         return GetLatestBundleSnapshot(EFetchKind::PerformanceCounters);
-    } catch (const std::exception& ex) {
+    } catch (const TErrorException& ex) {
         YT_LOG_ERROR(ex, "Failed to update performance counters");
 
         auto guard = WriterGuard(Lock_);
@@ -1979,7 +1996,7 @@ THashMap<TNodeAddress, TTabletCellBundle::TNodeStatistics> TBundleState::GetNode
                 SyncYPathGet(node->Attributes().ToMap(), TabletSlotsPath))->GetChildCount();
 
             EmplaceOrCrash(nodeStatistics, address, std::move(statistics));
-        } catch (const std::exception& ex) {
+        } catch (const TErrorException& ex) {
             YT_LOG_ERROR(ex, "Failed to get \"statistics\" or \"tablet_slots\" attribute for node %Qv",
                 address);
         }
