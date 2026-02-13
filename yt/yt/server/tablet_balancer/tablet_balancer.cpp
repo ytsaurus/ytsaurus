@@ -1385,6 +1385,7 @@ void TTabletBalancer::ExecuteMoveIteration(const IMoveIterationPtr& moveIteratio
 
     int actionCount = 0;
     if (!descriptors.empty()) {
+        auto guard = moveIteration->StartApplyingActions();
         for (auto descriptor : descriptors) {
             if (!TryScheduleActionCreation(groupTag, descriptor)) {
                 SaveFatalBundleError(moveIteration->GetBundleName(), TError(
@@ -1408,7 +1409,7 @@ void TTabletBalancer::ExecuteMoveIteration(const IMoveIterationPtr& moveIteratio
                 tablet->Table->Path,
                 descriptor.CorrelationId);
 
-            ApplyMoveTabletAction(tablet, descriptor.TabletCellId);
+            moveIteration->ApplyMoveAction(tablet, descriptor.TabletCellId);
         }
     }
 
