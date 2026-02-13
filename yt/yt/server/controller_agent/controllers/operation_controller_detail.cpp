@@ -547,6 +547,12 @@ void TOperationControllerBase::InitializeClients()
     InputManager_->InitializeClients(InputClient_);
 }
 
+void TOperationControllerBase::InitializeClusterResolver()
+{
+    ClusterResolver_ = WaitFor(CreateClusterResolver(InputClient_))
+        .ValueOrThrow();
+}
+
 void TOperationControllerBase::InitializeInputTransactions()
 {
     // COMPAT(coteeq): Correct reviving from snapshot relies on order of this vector.
@@ -569,12 +575,9 @@ void TOperationControllerBase::InitializeInputTransactions()
         }
     }
 
-    auto clusterResolver = WaitFor(CreateClusterResolver(InputClient_))
-        .ValueOrThrow();
-
     InputTransactions_ = New<TInputTransactionManager>(
         InputClient_,
-        std::move(clusterResolver),
+        ClusterResolver_,
         OperationId_,
         filesAndTables,
         HasDiskRequestsWithSpecifiedAccount() || TLayerJobExperiment::IsEnabled(Spec_, GetUserJobSpecs()),
@@ -604,6 +607,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
     YT_LOG_INFO("Initializing operation for revive");
 
     InitializeClients();
+    InitializeClusterResolver();
     InitializeInputTransactions();
 
     SpecManager_->InitializeReviving(std::move(cumulativeSpecPatch));
@@ -789,6 +793,18 @@ void TOperationControllerBase::ValidateSecureVault()
     }
 }
 
+void TOperationControllerBase::ValidateOutputTablePaths() const
+{
+    for (const auto& path : GetOutputTablePaths()) {
+        if (auto clusterName = ClusterResolver_->GetClusterName(path); !IsLocal(clusterName)) {
+            auto localClusterName = ClusterResolver_->GetLocalClusterName().value_or("unknown");
+            THROW_ERROR_EXCEPTION("Output table must be on the same cluster as operation")
+                << TErrorAttribute("table_cluster_name", path.GetCluster())
+                << TErrorAttribute("operation_cluster_name", localClusterName);
+        }
+    }
+}
+
 TOperationControllerInitializeResult TOperationControllerBase::InitializeClean()
 {
     YT_LOG_INFO("Initializing operation for clean start (Title: %v)",
@@ -798,6 +814,8 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeClean()
         ValidateCollectiveOptions();
         ValidateSecureVault();
         InitializeClients();
+        InitializeClusterResolver();
+        ValidateOutputTablePaths();
         InitializeInputTransactions();
         StartTransactions();
         InitializeStructures();
@@ -865,7 +883,7 @@ void TOperationControllerBase::ValidateAccountPermission(const std::string& acco
 
 void TOperationControllerBase::InitializeStructures()
 {
-    InputManager_->InitializeStructures(InputClient_, InputTransactions_);
+    InputManager_->InitializeStructures(InputClient_, InputTransactions_, ClusterResolver_);
 
     DataFlowGraph_->SetNodeDirectory(OutputNodeDirectory_);
     DataFlowGraph_->Initialize();

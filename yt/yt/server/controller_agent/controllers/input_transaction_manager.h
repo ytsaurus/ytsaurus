@@ -51,6 +51,7 @@ public:
     TClusterResolver(NApi::NNative::IClientPtr client, std::optional<std::string> clusterName);
 
     NScheduler::TClusterName GetClusterName(const NYPath::TRichYPath& path);
+    std::optional<std::string> GetLocalClusterName() const;
 
     void Persist(const TPersistenceContext& context);
 
@@ -97,8 +98,6 @@ public:
         NScheduler::TControllerTransactionIds* transactionIds) const;
 
     NTransactionClient::TTransactionId GetLocalInputTransactionId() const;
-
-    TClusterResolverPtr GetClusterResolver() const;
 
 private:
     const NScheduler::TOperationId OperationId_;

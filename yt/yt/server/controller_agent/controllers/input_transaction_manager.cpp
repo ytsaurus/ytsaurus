@@ -41,6 +41,11 @@ TClusterName TClusterResolver::GetClusterName(const TRichYPath& path)
     return LocalClusterName;
 }
 
+std::optional<std::string> TClusterResolver::GetLocalClusterName() const
+{
+    return LocalClusterName_;
+}
+
 void TClusterResolver::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -288,11 +293,6 @@ TFuture<void> TInputTransactionManager::Abort(IClientPtr schedulerClient)
 TTransactionId TInputTransactionManager::GetLocalInputTransactionId() const
 {
     return LocalInputTransaction_ ? LocalInputTransaction_->GetId() : NullTransactionId;
-}
-
-TClusterResolverPtr TInputTransactionManager::GetClusterResolver() const
-{
-    return ClusterResolver_;
 }
 
 TRichTransactionId TInputTransactionManager::GetTransactionParentFromPath(const TRichYPath& path) const

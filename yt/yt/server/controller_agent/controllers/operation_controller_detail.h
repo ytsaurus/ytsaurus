@@ -569,6 +569,9 @@ protected:
     NApi::ITransactionPtr DebugCompletionTransaction_;
     NApi::ITransactionPtr UserTransaction_;
 
+    // Ephemeral.
+    TClusterResolverPtr ClusterResolver_;
+
     bool CommitFinished_ = false;
 
     //! If this flag is set, operation clean start is done instead of revive.
@@ -702,6 +705,7 @@ protected:
     // Initialization.
     virtual void DoInitialize();
     virtual void InitializeClients();
+    void InitializeClusterResolver();
     void InitializeInputTransactions();
     NYTree::IAttributeDictionaryPtr CreateTransactionAttributes(ETransactionType transactionType) const;
     void StartTransactions();
@@ -718,6 +722,7 @@ protected:
     void InitAccountResourceUsageLeases();
     void ValidateCollectiveOptions();
     void ValidateSecureVault();
+    void ValidateOutputTablePaths() const;
 
     // Preparation.
     void ValidateInputTablesTypes() const override;

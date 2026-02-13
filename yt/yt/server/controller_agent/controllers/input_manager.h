@@ -165,7 +165,8 @@ public:
     void InitializeClients(NApi::NNative::IClientPtr client);
     void InitializeStructures(
         NApi::NNative::IClientPtr client,
-        const TInputTransactionManagerPtr& inputTransactionManager);
+        const TInputTransactionManagerPtr& inputTransactionManager,
+        TClusterResolverPtr clusterResolver);
 
     const std::vector<TInputTablePtr>& GetInputTables() const;
 
