@@ -1067,20 +1067,23 @@ class BigQuery(Dialect):
             )
 
         def _parse_column_ops(self, this: t.Optional[exp.Expression]) -> t.Optional[exp.Expression]:
+            func_index = self._index + 1
             this = super()._parse_column_ops(this)
 
-            if isinstance(this, exp.Dot):
-                prefix_name = this.this.name.upper()
-                func_name = this.name.upper()
-                if prefix_name == "NET":
-                    if func_name == "HOST":
-                        this = self.expression(
-                            exp.NetHost, this=seq_get(this.expression.expressions, 0)
-                        )
-                elif prefix_name == "SAFE":
-                    if func_name == "TIMESTAMP":
-                        this = _build_timestamp(this.expression.expressions)
-                        this.set("safe", True)
+            if isinstance(this, exp.Dot) and isinstance(this.expression, exp.Func):
+                prefix = this.this.name.upper()
+
+                func: t.Optional[t.Type[exp.Func]] = None
+                if prefix == "NET":
+                    func = exp.NetFunc
+                elif prefix == "SAFE":
+                    func = exp.SafeFunc
+
+                if func:
+                    # Retreat to try and parse a known function instead of an anonymous one,
+                    # which is parsed by the base column ops parser due to anonymous_func=true
+                    self._retreat(func_index)
+                    this = func(this=self._parse_function(any_token=True))
 
             return this
 
@@ -1549,7 +1552,3 @@ class BigQuery(Dialect):
             kind = f" {kind}" if kind else ""
 
             return f"{variables}{kind}{default}"
-
-        def timestamp_sql(self, expression: exp.Timestamp) -> str:
-            prefix = "SAFE." if expression.args.get("safe") else ""
-            return self.func(f"{prefix}TIMESTAMP", expression.this, expression.args.get("zone"))

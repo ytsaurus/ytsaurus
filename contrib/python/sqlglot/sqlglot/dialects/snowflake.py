@@ -6,6 +6,8 @@ from sqlglot import exp, generator, jsonpath, parser, tokens, transforms
 from sqlglot.dialects.dialect import (
     Dialect,
     NormalizationStrategy,
+    array_append_sql,
+    array_concat_sql,
     build_timetostr_or_tochar,
     build_like,
     binary_from_function,
@@ -638,6 +640,25 @@ def _build_round(args: t.List) -> exp.Round:
     return expression
 
 
+def _build_generator(args: t.List) -> exp.Generator:
+    """
+    Build Generator expression, unwrapping Snowflake's named parameters.
+
+    Maps ROWCOUNT => rowcount, TIMELIMIT => time_limit.
+    """
+    kwarg_map = {"ROWCOUNT": "rowcount", "TIMELIMIT": "time_limit"}
+    gen_args = {}
+
+    for arg in args:
+        if isinstance(arg, exp.Kwarg):
+            key = arg.this.name.upper()
+            gen_key = kwarg_map.get(key)
+            if gen_key:
+                gen_args[gen_key] = arg.expression
+
+    return exp.Generator(**gen_args)
+
+
 def _build_try_to_number(args: t.List[exp.Expression]) -> exp.Expression:
     return exp.ToNumber(
         this=seq_get(args, 0),
@@ -659,6 +680,7 @@ class Snowflake(Dialect):
     TABLESAMPLE_SIZE_IS_PERCENT = True
     COPY_PARAMS_ARE_CSV = False
     ARRAY_AGG_INCLUDES_NULLS = None
+    ARRAY_FUNCS_PROPAGATES_NULLS = True
     ALTER_TABLE_ADD_REQUIRED_FOR_EACH_COLUMN = False
     TRY_CAST_REQUIRES_STRING = True
     SUPPORTS_ALIAS_REFS_IN_JOIN_CONDITIONS = True
@@ -668,6 +690,10 @@ class Snowflake(Dialect):
 
     # https://docs.snowflake.com/en/en/sql-reference/functions/initcap
     INITCAP_DEFAULT_DELIMITER_CHARS = ' \t\n\r\f\v!?@"^#$&~_,.:;+\\-*%/|\\[\\](){}<>'
+
+    INVERSE_TIME_MAPPING = {
+        "T": "T",  # in TIME_MAPPING we map '"T"' with the double quotes to 'T', and we want to prevent 'T' from being mapped back to '"T"' so that 'AUTO' doesn't become 'AU"T"O'
+    }
 
     TIME_MAPPING = {
         "YYYY": "%Y",
@@ -692,8 +718,35 @@ class Snowflake(Dialect):
         "mi": "%M",
         "SS": "%S",
         "ss": "%S",
+        "FF": "%f_nine",  # %f_ internal representation with precision specified
+        "ff": "%f_nine",
+        "FF0": "%f_zero",
+        "ff0": "%f_zero",
+        "FF1": "%f_one",
+        "ff1": "%f_one",
+        "FF2": "%f_two",
+        "ff2": "%f_two",
+        "FF3": "%f_three",
+        "ff3": "%f_three",
+        "FF4": "%f_four",
+        "ff4": "%f_four",
+        "FF5": "%f_five",
+        "ff5": "%f_five",
         "FF6": "%f",
         "ff6": "%f",
+        "FF7": "%f_seven",
+        "ff7": "%f_seven",
+        "FF8": "%f_eight",
+        "ff8": "%f_eight",
+        "FF9": "%f_nine",
+        "ff9": "%f_nine",
+        "TZHTZM": "%z",
+        "tzhtzm": "%z",
+        "TZH:TZM": "%:z",  # internal representation for ±HH:MM
+        "tzh:tzm": "%:z",
+        "TZH": "%-z",  # internal representation ±HH
+        "tzh": "%-z",
+        '"T"': "T",  # remove the optional double quotes around the separator between the date and time
         # Seems like Snowflake treats AM/PM in the format string as equivalent,
         # only the time (stamp) value's AM/PM affects the output
         "AM": "%p",
@@ -705,6 +758,15 @@ class Snowflake(Dialect):
     DATE_PART_MAPPING = {
         **Dialect.DATE_PART_MAPPING,
         "ISOWEEK": "WEEKISO",
+        # The base Dialect maps EPOCH_SECOND -> EPOCH, but we need to preserve
+        # EPOCH_SECOND as a distinct value for two reasons:
+        # 1. Type annotation: EPOCH_SECOND returns BIGINT, while EPOCH returns DOUBLE
+        # 2. Transpilation: DuckDB's EPOCH() returns float, so we cast EPOCH_SECOND
+        #    to BIGINT to match Snowflake's integer behavior
+        # Without this override, EXTRACT(EPOCH_SECOND FROM ts) would be normalized
+        # to EXTRACT(EPOCH FROM ts) and lose the integer semantics.
+        "EPOCH_SECOND": "EPOCH_SECOND",
+        "EPOCH_SECONDS": "EPOCH_SECOND",
     }
 
     PSEUDOCOLUMNS = {"LEVEL"}
@@ -759,6 +821,7 @@ class Snowflake(Dialect):
                 step=seq_get(args, 2),
             ),
             "ARRAY_SORT": exp.SortArray.from_arg_list,
+            "ARRAY_FLATTEN": exp.Flatten.from_arg_list,
             "BITAND": _build_bitwise(exp.BitwiseAnd, "BITAND"),
             "BIT_AND": _build_bitwise(exp.BitwiseAnd, "BITAND"),
             "BITNOT": lambda args: exp.BitwiseNot(this=seq_get(args, 0)),
@@ -784,7 +847,16 @@ class Snowflake(Dialect):
             "BIT_XOR_AGG": exp.BitwiseXorAgg.from_arg_list,
             "BIT_XORAGG": exp.BitwiseXorAgg.from_arg_list,
             "BITMAP_OR_AGG": exp.BitmapOrAgg.from_arg_list,
-            "BOOLXOR": _build_bitwise(exp.Xor, "BOOLXOR"),
+            "BOOLAND": lambda args: exp.Booland(
+                this=seq_get(args, 0), expression=seq_get(args, 1), round_input=True
+            ),
+            "BOOLOR": lambda args: exp.Boolor(
+                this=seq_get(args, 0), expression=seq_get(args, 1), round_input=True
+            ),
+            "BOOLNOT": lambda args: exp.Boolnot(this=seq_get(args, 0), round_input=True),
+            "BOOLXOR": lambda args: exp.Xor(
+                this=seq_get(args, 0), expression=seq_get(args, 1), round_input=True
+            ),
             "CORR": lambda args: exp.Corr(
                 this=seq_get(args, 0),
                 expression=seq_get(args, 1),
@@ -804,6 +876,7 @@ class Snowflake(Dialect):
                 this=seq_get(args, 0), expression=seq_get(args, 1), max_dist=seq_get(args, 2)
             ),
             "FLATTEN": exp.Explode.from_arg_list,
+            "GENERATOR": _build_generator,
             "GET": exp.GetExtract.from_arg_list,
             "GETDATE": exp.CurrentTimestamp.from_arg_list,
             "GET_PATH": lambda args, dialect: exp.JSONExtract(
@@ -855,6 +928,13 @@ class Snowflake(Dialect):
             "TABLE": lambda args: exp.TableFromRows(this=seq_get(args, 0)),
             "TIMEADD": _build_date_time_add(exp.TimeAdd),
             "TIMEDIFF": _build_datediff,
+            "TIME_FROM_PARTS": lambda args: exp.TimeFromParts(
+                hour=seq_get(args, 0),
+                min=seq_get(args, 1),
+                sec=seq_get(args, 2),
+                nano=seq_get(args, 3),
+                overflow=True,
+            ),
             "TIMESTAMPADD": _build_date_time_add(exp.DateAdd),
             "TIMESTAMPDIFF": _build_datediff,
             "TIMESTAMPFROMPARTS": _build_timestamp_from_parts,
@@ -1144,7 +1224,9 @@ class Snowflake(Dialect):
             expression = (
                 self._match_set((TokenType.FROM, TokenType.COMMA)) and self._parse_bitwise()
             )
-            return self.expression(exp.Extract, this=map_date_part(this), expression=expression)
+            return self.expression(
+                exp.Extract, this=map_date_part(this, self.dialect), expression=expression
+            )
 
         def _parse_bracket_key_value(self, is_map: bool = False) -> t.Optional[exp.Expression]:
             if is_map:
@@ -1486,6 +1568,7 @@ class Snowflake(Dialect):
         ARRAY_SIZE_NAME = "ARRAY_SIZE"
         SUPPORTS_DECODE_CASE = True
         IS_BOOL_ALLOWED = False
+        DIRECTED_JOINS = True
 
         TRANSFORMS = {
             **generator.Generator.TRANSFORMS,
@@ -1493,7 +1576,9 @@ class Snowflake(Dialect):
             exp.ArgMax: rename_func("MAX_BY"),
             exp.ArgMin: rename_func("MIN_BY"),
             exp.Array: transforms.preprocess([transforms.inherit_struct_field_names]),
-            exp.ArrayConcat: lambda self, e: self.arrayconcat_sql(e, name="ARRAY_CAT"),
+            exp.ArrayConcat: array_concat_sql("ARRAY_CAT"),
+            exp.ArrayAppend: array_append_sql("ARRAY_APPEND"),
+            exp.ArrayPrepend: array_append_sql("ARRAY_PREPEND"),
             exp.ArrayContains: lambda self, e: self.func(
                 "ARRAY_CONTAINS",
                 e.expression
@@ -1684,6 +1769,7 @@ class Snowflake(Dialect):
             exp.YearOfWeekIso: rename_func("YEAROFWEEKISO"),
             exp.Xor: rename_func("BOOLXOR"),
             exp.ByteLength: rename_func("OCTET_LENGTH"),
+            exp.Flatten: rename_func("ARRAY_FLATTEN"),
             exp.ArrayConcatAgg: lambda self, e: self.func(
                 "ARRAY_FLATTEN", exp.ArrayAgg(this=e.this)
             ),
@@ -1822,6 +1908,18 @@ class Snowflake(Dialect):
         def least_sql(self, expression: exp.Least) -> str:
             name = "LEAST_IGNORE_NULLS" if expression.args.get("ignore_nulls") else "LEAST"
             return self.func(name, expression.this, *expression.expressions)
+
+        def generator_sql(self, expression: exp.Generator) -> str:
+            args = []
+            rowcount = expression.args.get("rowcount")
+            time_limit = expression.args.get("time_limit")
+
+            if rowcount:
+                args.append(exp.Kwarg(this=exp.var("ROWCOUNT"), expression=rowcount))
+            if time_limit:
+                args.append(exp.Kwarg(this=exp.var("TIMELIMIT"), expression=time_limit))
+
+            return self.func("GENERATOR", *args)
 
         def unnest_sql(self, expression: exp.Unnest) -> str:
             unnest_alias = expression.args.get("alias")

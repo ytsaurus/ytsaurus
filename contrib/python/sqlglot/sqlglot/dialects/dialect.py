@@ -19,6 +19,7 @@ from sqlglot.helper import (
     seq_get,
     suggest_closest_match_and_fail,
     to_bool,
+    ensure_list,
 )
 from sqlglot.jsonpath import JSONPathTokenizer, parse as parse_json_path
 from sqlglot.parser import Parser
@@ -281,7 +282,12 @@ class _Dialect(type):
         klass.BYTE_START, klass.BYTE_END = get_start_end(TokenType.BYTE_STRING)
         klass.UNICODE_START, klass.UNICODE_END = get_start_end(TokenType.UNICODE_STRING)
 
-        if "\\" in klass.tokenizer_class.STRING_ESCAPES:
+        klass.STRINGS_SUPPORT_ESCAPED_SEQUENCES = "\\" in klass.tokenizer_class.STRING_ESCAPES
+        klass.BYTE_STRINGS_SUPPORT_ESCAPED_SEQUENCES = (
+            "\\" in klass.tokenizer_class.BYTE_STRING_ESCAPES
+        )
+
+        if klass.STRINGS_SUPPORT_ESCAPED_SEQUENCES or klass.BYTE_STRINGS_SUPPORT_ESCAPED_SEQUENCES:
             klass.UNESCAPED_SEQUENCES = {
                 **UNESCAPED_SEQUENCES,
                 **klass.UNESCAPED_SEQUENCES,
@@ -695,6 +701,9 @@ class Dialect(metaclass=_Dialect):
 
     ARRAY_AGG_INCLUDES_NULLS: t.Optional[bool] = True
     """Whether ArrayAgg needs to filter NULL values."""
+
+    ARRAY_FUNCS_PROPAGATES_NULLS = False
+    """Whether Array update functions return NULL when the input array is NULL."""
 
     PROMOTE_TO_INFERRED_DATETIME_TYPE = False
     """
@@ -1340,6 +1349,138 @@ def struct_extract_sql(self: Generator, expression: exp.StructExtract) -> str:
     return (
         f"{self.sql(expression, 'this')}.{self.sql(exp.to_identifier(expression.expression.name))}"
     )
+
+
+def array_append_sql(
+    name: str, swap_params: bool = False
+) -> t.Callable[[Generator, exp.ArrayAppend | exp.ArrayPrepend], str]:
+    """
+    Transpile ARRAY_APPEND/ARRAY_PREPEND between dialects with different NULL propagation semantics.
+
+    Some dialects (Databricks, Spark, Snowflake) return NULL when the input array is NULL.
+    Others (DuckDB, Postgres) create a new single-element array instead.
+
+    Args:
+        name: Target dialect's function name (e.g., "ARRAY_APPEND", "ARRAY_PREPEND")
+        swap_params: If True, generate (element, array) order instead of (array, element).
+                     DuckDB LIST_PREPEND and Postgres ARRAY_PREPEND use (element, array).
+
+    Returns:
+        A callable that generates SQL with appropriate NULL handling for the target dialect.
+        Dialects that propagate NULLs need to set `ARRAY_FUNCS_PROPAGATES_NULLS` to True.
+    """
+
+    def _array_append_sql(self: Generator, expression: exp.ArrayAppend | exp.ArrayPrepend) -> str:
+        this = expression.this
+        element = expression.expression
+        args = [element, this] if swap_params else [this, element]
+        func_sql = self.func(name, *args)
+
+        source_null_propagation = bool(expression.args.get("null_propagation"))
+        target_null_propagation = self.dialect.ARRAY_FUNCS_PROPAGATES_NULLS
+
+        # No transpilation needed when source and target have matching NULL semantics
+        if source_null_propagation == target_null_propagation:
+            return func_sql
+
+        # Source propagates NULLs, target doesn't: wrap in conditional to return NULL explicitly
+        if source_null_propagation:
+            return self.sql(
+                exp.If(
+                    this=exp.Is(this=this, expression=exp.Null()),
+                    true=exp.Null(),
+                    false=func_sql,
+                )
+            )
+
+        # Source doesn't propagate NULLs, target does: use COALESCE to convert NULL to empty array
+        this = exp.Coalesce(expressions=[this, exp.Array(expressions=[])])
+        args = [element, this] if swap_params else [this, element]
+        return self.func(name, *args)
+
+    return _array_append_sql
+
+
+def array_concat_sql(
+    name: str,
+) -> t.Callable[[Generator, exp.ArrayConcat], str]:
+    """
+    Transpile ARRAY_CONCAT/ARRAY_CAT between dialects with different NULL propagation semantics.
+
+    Some dialects (Redshift, Snowflake, Spark) return NULL when ANY input array is NULL.
+    Others (DuckDB, PostgreSQL) skip NULL arrays and continue concatenation.
+
+    Args:
+        name: Target dialect's function name (e.g., "ARRAY_CAT", "ARRAY_CONCAT", "LIST_CONCAT")
+
+    Returns:
+        A callable that generates SQL with appropriate NULL handling for the target dialect.
+        Dialects that propagate NULLs need to set `ARRAY_FUNCS_PROPAGATES_NULLS` to True.
+    """
+
+    def _build_func_call(self: Generator, func_name: str, args: t.Sequence[exp.Expression]) -> str:
+        """Build ARRAY_CONCAT call from a list of arguments, handling variadic vs binary nesting."""
+        if self.ARRAY_CONCAT_IS_VAR_LEN:
+            return self.func(func_name, *args)
+        elif len(args) == 1:
+            # Single arg gets empty array to preserve semantics
+            return self.func(func_name, args[0], exp.Array(expressions=[]))
+        else:
+            # Snowflake/PostgreSQL/Redshift require binary nesting: ARRAY_CAT(a, ARRAY_CAT(b, c))
+            # Build right-deep tree recursively to avoid creating new ArrayConcat expressions
+            result = self.func(func_name, args[-2], args[-1])
+            for arg in reversed(args[:-2]):
+                result = f"{func_name}({self.sql(arg)}, {result})"
+            return result
+
+    def _array_concat_sql(self: Generator, expression: exp.ArrayConcat) -> str:
+        this = expression.this
+        exprs = expression.expressions
+        all_args = [this] + exprs
+
+        source_null_propagation = bool(expression.args.get("null_propagation"))
+        target_null_propagation = self.dialect.ARRAY_FUNCS_PROPAGATES_NULLS
+
+        # Skip wrapper when source and target have matching NULL semantics,
+        # or when the first argument is an array literal (which can never be NULL),
+        # or when it's a single-argument call (empty array is added, preserving NULL semantics)
+        if (
+            source_null_propagation == target_null_propagation
+            or isinstance(this, exp.Array)
+            or len(exprs) == 0
+        ):
+            return _build_func_call(self, name, all_args)
+
+        # Case 1: Source propagates NULLs, target doesn't (Snowflake → DuckDB)
+        # Check if ANY argument is NULL and return NULL explicitly
+        if source_null_propagation:
+            # Build OR-chain: a IS NULL OR b IS NULL OR c IS NULL
+            null_checks: t.List[exp.Expression] = [
+                exp.Is(this=arg.copy(), expression=exp.Null()) for arg in all_args
+            ]
+            combined_check: exp.Expression = reduce(
+                lambda a, b: exp.Or(this=a, expression=b), null_checks
+            )
+
+            func_sql = _build_func_call(self, name, all_args)
+
+            return self.sql(
+                exp.If(
+                    this=combined_check,
+                    true=exp.Null(),
+                    false=func_sql,
+                )
+            )
+
+        # Case 2: Source doesn't propagate NULLs, target does (DuckDB → Snowflake)
+        # Wrap ALL arguments in COALESCE to convert NULL → empty array
+        wrapped_args = [
+            exp.Coalesce(expressions=[arg.copy(), exp.Array(expressions=[])]) for arg in all_args
+        ]
+
+        return _build_func_call(self, name, wrapped_args)
+
+    return _array_concat_sql
 
 
 def var_map_sql(
@@ -2012,14 +2153,53 @@ def filter_array_using_unnest(
     return self.sql(exp.Array(expressions=[filtered]))
 
 
+def array_compact_sql(self: Generator, expression: exp.ArrayCompact) -> str:
+    lambda_id = exp.to_identifier("_u")
+    cond = exp.Is(this=lambda_id, expression=exp.null()).not_()
+    return self.sql(
+        exp.ArrayFilter(
+            this=expression.this,
+            expression=exp.Lambda(this=cond, expressions=[lambda_id]),
+        )
+    )
+
+
 def remove_from_array_using_filter(self: Generator, expression: exp.ArrayRemove) -> str:
     lambda_id = exp.to_identifier("_u")
     cond = exp.NEQ(this=lambda_id, expression=expression.expression)
-    return self.sql(
+
+    filter_sql = self.sql(
         exp.ArrayFilter(
-            this=expression.this, expression=exp.Lambda(this=cond, expressions=[lambda_id])
+            this=expression.this,
+            expression=exp.Lambda(this=cond, expressions=[lambda_id]),
         )
     )
+
+    # Handle NULL propagation for ArrayRemove
+    source_null_propagation = bool(expression.args.get("null_propagation"))
+    target_null_propagation = self.dialect.ARRAY_FUNCS_PROPAGATES_NULLS
+
+    # Source propagates NULLs (Snowflake), target doesn't (DuckDB):
+    # When removal value is NULL, return NULL instead of applying filter
+    if source_null_propagation and not target_null_propagation:
+        removal_value = expression.expression
+
+        # Optimization: skip wrapper if removal value is a non-NULL literal
+        # (e.g., 5, 'a', TRUE) or an array literal (e.g., [1, 2])
+        if (
+            isinstance(removal_value, exp.Literal) and not isinstance(removal_value, exp.Null)
+        ) or isinstance(removal_value, exp.Array):
+            return filter_sql
+
+        return self.sql(
+            exp.If(
+                this=exp.Is(this=removal_value, expression=exp.Null()),
+                true=exp.Null(),
+                false=filter_sql,
+            )
+        )
+
+    return filter_sql
 
 
 def to_number_with_nls_param(self: Generator, expression: exp.ToNumber) -> str:
@@ -2149,17 +2329,40 @@ def build_regexp_extract(expr_type: t.Type[E]) -> t.Callable[[t.List, Dialect], 
 
 
 def explode_to_unnest_sql(self: Generator, expression: exp.Lateral) -> str:
-    if isinstance(expression.this, exp.Explode):
-        return self.sql(
-            exp.Join(
-                this=exp.Unnest(
-                    expressions=[expression.this.this],
-                    alias=expression.args.get("alias"),
-                    offset=isinstance(expression.this, exp.Posexplode),
-                ),
-                kind="cross",
-            )
+    this = expression.this
+    alias = expression.args.get("alias")
+
+    cross_join_expr: t.Optional[exp.Expression] = None
+    if isinstance(this, exp.Posexplode) and alias:
+        # Spark's `FROM x LATERAL VIEW POSEXPLODE(y) t AS pos, col` has the following semantics:
+        # - The first column is the position and the rest (1 for array, 2 for maps) are the exploded values
+        # - The position is 0-based whereas WITH ORDINALITY is 1-based
+        # For that matter, we must (1) subtract 1 from the ORDINALITY position and (2) rearrange the columns accordingly, returning:
+        # `FROM x CROSS JOIN LATERAL (SELECT pos - 1 AS pos, col FROM UNNEST(y) WITH ORDINALITY AS t(col, pos))
+        pos, cols = alias.columns[0], alias.columns[1:]
+
+        cols = ensure_list(cols)
+        lateral_subquery = exp.select(
+            exp.alias_(pos - 1, pos),
+            *cols,
+        ).from_(
+            exp.Unnest(
+                expressions=[this.this],
+                offset=True,
+                alias=exp.TableAlias(this=alias.this, columns=[*cols, pos]),
+            ),
         )
+
+        cross_join_expr = exp.Lateral(this=lateral_subquery.subquery())
+    elif isinstance(this, exp.Explode):
+        cross_join_expr = exp.Unnest(
+            expressions=[this.this],
+            alias=alias,
+        )
+
+    if cross_join_expr:
+        return self.sql(exp.Join(this=cross_join_expr, kind="cross"))
+
     return self.lateral_sql(expression)
 
 

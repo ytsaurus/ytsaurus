@@ -709,9 +709,11 @@ class Presto(Dialect):
             return super().bracket_sql(expression)
 
         def struct_sql(self, expression: exp.Struct) -> str:
-            from sqlglot.optimizer.annotate_types import annotate_types
+            if not expression.type:
+                from sqlglot.optimizer.annotate_types import annotate_types
 
-            expression = annotate_types(expression, dialect=self.dialect)
+                annotate_types(expression, dialect=self.dialect)
+
             values: t.List[str] = []
             schema: t.List[str] = []
             unknown_type = False

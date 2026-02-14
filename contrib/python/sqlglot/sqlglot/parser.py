@@ -178,6 +178,90 @@ def build_locate_strposition(args: t.List):
     )
 
 
+def build_array_append(args: t.List, dialect: Dialect) -> exp.ArrayAppend:
+    """
+    Builds ArrayAppend with NULL propagation semantics based on the dialect configuration.
+
+    Some dialects (Databricks, Spark, Snowflake) return NULL when the input array is NULL.
+    Others (DuckDB, PostgreSQL) create a new single-element array instead.
+
+    Args:
+        args: Function arguments [array, element]
+        dialect: The dialect to read ARRAY_FUNCS_PROPAGATES_NULLS from
+
+    Returns:
+        ArrayAppend expression with appropriate null_propagation flag
+    """
+    return exp.ArrayAppend(
+        this=seq_get(args, 0),
+        expression=seq_get(args, 1),
+        null_propagation=dialect.ARRAY_FUNCS_PROPAGATES_NULLS,
+    )
+
+
+def build_array_prepend(args: t.List, dialect: Dialect) -> exp.ArrayPrepend:
+    """
+    Builds ArrayPrepend with NULL propagation semantics based on the dialect configuration.
+
+    Some dialects (Databricks, Spark, Snowflake) return NULL when the input array is NULL.
+    Others (DuckDB, PostgreSQL) create a new single-element array instead.
+
+    Args:
+        args: Function arguments [array, element]
+        dialect: The dialect to read ARRAY_FUNCS_PROPAGATES_NULLS from
+
+    Returns:
+        ArrayPrepend expression with appropriate null_propagation flag
+    """
+    return exp.ArrayPrepend(
+        this=seq_get(args, 0),
+        expression=seq_get(args, 1),
+        null_propagation=dialect.ARRAY_FUNCS_PROPAGATES_NULLS,
+    )
+
+
+def build_array_concat(args: t.List, dialect: Dialect) -> exp.ArrayConcat:
+    """
+    Builds ArrayConcat with NULL propagation semantics based on the dialect configuration.
+
+    Some dialects (Redshift, Snowflake) return NULL when any input array is NULL.
+    Others (DuckDB, PostgreSQL) skip NULL arrays and continue concatenation.
+
+    Args:
+        args: Function arguments [array1, array2, ...] (variadic)
+        dialect: The dialect to read ARRAY_FUNCS_PROPAGATES_NULLS from
+
+    Returns:
+        ArrayConcat expression with appropriate null_propagation flag
+    """
+    return exp.ArrayConcat(
+        this=seq_get(args, 0),
+        expressions=args[1:],
+        null_propagation=dialect.ARRAY_FUNCS_PROPAGATES_NULLS,
+    )
+
+
+def build_array_remove(args: t.List, dialect: Dialect) -> exp.ArrayRemove:
+    """
+    Builds ArrayRemove with NULL propagation semantics based on the dialect configuration.
+
+    Some dialects (Snowflake) return NULL when the removal value is NULL.
+    Others (DuckDB) may return empty array due to NULL comparison semantics.
+
+    Args:
+        args: Function arguments [array, value_to_remove]
+        dialect: The dialect to read ARRAY_FUNCS_PROPAGATES_NULLS from
+
+    Returns:
+        ArrayRemove expression with appropriate null_propagation flag
+    """
+    return exp.ArrayRemove(
+        this=seq_get(args, 0),
+        expression=seq_get(args, 1),
+        null_propagation=dialect.ARRAY_FUNCS_PROPAGATES_NULLS,
+    )
+
+
 class _Parser(type):
     def __new__(cls, clsname, bases, attrs):
         klass = super().__new__(cls, clsname, bases, attrs)
@@ -213,6 +297,11 @@ class Parser(metaclass=_Parser):
         "ARRAY_AGG": lambda args, dialect: exp.ArrayAgg(
             this=seq_get(args, 0), nulls_excluded=dialect.ARRAY_AGG_INCLUDES_NULLS is None or None
         ),
+        "ARRAY_APPEND": build_array_append,
+        "ARRAY_CAT": build_array_concat,
+        "ARRAY_CONCAT": build_array_concat,
+        "ARRAY_PREPEND": build_array_prepend,
+        "ARRAY_REMOVE": build_array_remove,
         "COUNT": lambda args: exp.Count(this=seq_get(args, 0), expressions=args[1:], big_int=True),
         "CONCAT": lambda args, dialect: exp.Concat(
             expressions=args,
@@ -556,6 +645,7 @@ class Parser(metaclass=_Parser):
         TokenType.FULL,
         TokenType.GET,
         TokenType.IDENTIFIER,
+        TokenType.INOUT,
         TokenType.IS,
         TokenType.ISNULL,
         TokenType.INTERVAL,
@@ -914,7 +1004,7 @@ class Parser(metaclass=_Parser):
     UNARY_PARSERS = {
         TokenType.PLUS: lambda self: self._parse_unary(),  # Unary + is handled as a no-op
         TokenType.NOT: lambda self: self.expression(exp.Not, this=self._parse_equality()),
-        TokenType.TILDA: lambda self: self.expression(exp.BitwiseNot, this=self._parse_unary()),
+        TokenType.TILDE: lambda self: self.expression(exp.BitwiseNot, this=self._parse_unary()),
         TokenType.DASH: lambda self: self.expression(exp.Neg, this=self._parse_unary()),
         TokenType.PIPE_SLASH: lambda self: self.expression(exp.Sqrt, this=self._parse_unary()),
         TokenType.DPIPE_SLASH: lambda self: self.expression(exp.Cbrt, this=self._parse_unary()),
@@ -1132,11 +1222,7 @@ class Parser(metaclass=_Parser):
         "CHARACTER SET": lambda self: self.expression(
             exp.CharacterSetColumnConstraint, this=self._parse_var_or_string()
         ),
-        "CHECK": lambda self: self.expression(
-            exp.CheckColumnConstraint,
-            this=self._parse_wrapped(self._parse_assignment),
-            enforced=self._match_text_seq("ENFORCED"),
-        ),
+        "CHECK": lambda self: self._parse_check_constraint(),
         "COLLATE": lambda self: self.expression(
             exp.CollateColumnConstraint,
             this=self._parse_identifier() or self._parse_column(),
@@ -2924,6 +3010,7 @@ class Parser(metaclass=_Parser):
             expressions=expressions,
             partition=partition,
             format=format,
+            as_json=self._match_text_seq("AS", "JSON"),
         )
 
     def _parse_multitable_inserts(self, comments: t.Optional[t.List[str]]) -> exp.MultitableInserts:
@@ -3909,6 +3996,7 @@ class Parser(metaclass=_Parser):
 
         index = self._index
         method, side, kind = self._parse_join_parts()
+        directed = self._match_text_seq("DIRECTED")
         hint = self._prev.text if self._match_texts(self.JOIN_HINTS) else None
         join = self._match(TokenType.JOIN) or (kind and kind.token_type == TokenType.STRAIGHT_JOIN)
         join_comments = self._prev_comments
@@ -3979,6 +4067,9 @@ class Parser(metaclass=_Parser):
             and kwargs.get("kind") in (None, "INNER", "OUTER")
         ):
             kwargs["on"] = exp.true()
+
+        if directed:
+            kwargs["directed"] = directed
 
         return self.expression(exp.Join, comments=comments, **kwargs)
 
@@ -4926,6 +5017,11 @@ class Parser(metaclass=_Parser):
             or self._try_parse(self._parse_offset, retreat=True)
         )
         self._retreat(index)
+
+        # MATCH_CONDITION (...) is a special construct that should not be consumed by limit/offset
+        if self._next and self._next.token_type == TokenType.MATCH_CONDITION:
+            result = False
+
         return result
 
     def _parse_limit_by(self) -> t.Optional[t.List[exp.Expression]]:
@@ -6323,6 +6419,16 @@ class Parser(metaclass=_Parser):
 
         return exp.AutoIncrementColumnConstraint()
 
+    def _parse_check_constraint(self) -> t.Optional[exp.CheckColumnConstraint]:
+        if not self._match(TokenType.L_PAREN, advance=False):
+            return None
+
+        return self.expression(
+            exp.CheckColumnConstraint,
+            this=self._parse_wrapped(self._parse_assignment),
+            enforced=self._match_text_seq("ENFORCED"),
+        )
+
     def _parse_auto_property(self) -> t.Optional[exp.AutoRefreshProperty]:
         if not self._match_text_seq("REFRESH"):
             self._retreat(self._index - 1)
@@ -6416,11 +6522,12 @@ class Parser(metaclass=_Parser):
         )
 
         if not procedure_option_follows and self._match_texts(self.CONSTRAINT_PARSERS):
-            return self.expression(
-                exp.ColumnConstraint,
-                this=this,
-                kind=self.CONSTRAINT_PARSERS[self._prev.text.upper()](self),
-            )
+            constraint = self.CONSTRAINT_PARSERS[self._prev.text.upper()](self)
+            if not constraint:
+                self._retreat(self._index - 1)
+                return None
+
+            return self.expression(exp.ColumnConstraint, this=this, kind=constraint)
 
         return this
 
@@ -6447,6 +6554,8 @@ class Parser(metaclass=_Parser):
     def _parse_unnamed_constraint(
         self, constraints: t.Optional[t.Collection[str]] = None
     ) -> t.Optional[exp.Expression]:
+        index = self._index
+
         if self._match(TokenType.IDENTIFIER, advance=False) or not self._match_texts(
             constraints or self.CONSTRAINT_PARSERS
         ):
@@ -6456,7 +6565,11 @@ class Parser(metaclass=_Parser):
         if constraint not in self.CONSTRAINT_PARSERS:
             self.raise_error(f"No parser found for schema constraint {constraint}.")
 
-        return self.CONSTRAINT_PARSERS[constraint](self)
+        constraint = self.CONSTRAINT_PARSERS[constraint](self)
+        if not constraint:
+            self._retreat(index)
+
+        return constraint
 
     def _parse_unique_key(self) -> t.Optional[exp.Expression]:
         return self._parse_id_var(any_token=False)
@@ -6687,7 +6800,7 @@ class Parser(metaclass=_Parser):
             self._advance()
             end: t.Optional[exp.Expression] = -exp.Literal.number("1")
         else:
-            end = self._parse_unary()
+            end = self._parse_assignment()
         step = self._parse_unary() if self._match(TokenType.COLON) else None
         return self.expression(exp.Slice, this=this, expression=end, step=step)
 
