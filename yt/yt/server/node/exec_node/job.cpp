@@ -3384,8 +3384,6 @@ void TJob::BuildVirtualSandbox()
     }
 
     auto readerHost = Bootstrap_->GetFileReaderHost();
-    auto inThrottler = Bootstrap_->GetDefaultInThrottler();
-    auto outRpsThrottler = Bootstrap_->GetReadRpsOutThrottler();
     auto logger = nbdServer->GetLogger();
     auto invoker = nbdServer->GetInvoker();
 
@@ -3406,8 +3404,6 @@ void TJob::BuildVirtualSandbox()
             std::move(chunkSpecs),
             filePath,
             readerHost,
-            inThrottler,
-            outRpsThrottler,
             invoker,
             logger);
 
@@ -3418,9 +3414,9 @@ void TJob::BuildVirtualSandbox()
         });
     }
 
-    auto squashFsOptions = TSquashFSLayoutBuilderOptions({
+    auto squashFsOptions = TSquashFSLayoutBuilderOptions{
         .BlockSize = static_cast<ui32>(CommonConfig_->VirtualSandboxSquashFSBlockSize)
-    });
+    };
 
     VirtualSandboxData_->Reader = CreateVirtualSquashFSImageReader(
         std::move(options),

@@ -507,9 +507,7 @@ private:
 
     TPerCategoryThrottlerProvider CreateBandwithThrottlerProvider()
     {
-        return BIND([throttler = Bootstrap_->GetThrottler(EExecNodeThrottlerKind::ArtifactCacheIn)] (EWorkloadCategory /*category*/) {
-            return throttler;
-        });
+        return MakeUniformPerCategoryThrottlerProvider(Bootstrap_->GetThrottler(EExecNodeThrottlerKind::ArtifactCacheIn));
     }
 
     void ValidateLocations() const

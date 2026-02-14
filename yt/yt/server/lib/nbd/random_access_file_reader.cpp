@@ -39,16 +39,12 @@ class TRandomAccessFileReader
 public:
     TRandomAccessFileReader(
         std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs,
-        TYPath path,
+        std::string path,
         TChunkReaderHostPtr readerHost,
-        IThroughputThrottlerPtr inThrottler,
-        IThroughputThrottlerPtr outRpsThrottler,
         IInvokerPtr invoker,
         TLogger logger)
         : ChunkSpecs_(std::move(chunkSpecs))
         , Path_(std::move(path))
-        , InThrottler_(std::move(inThrottler))
-        , OutRpsThrottler_(std::move(outRpsThrottler))
         , ChunkReaderHost_(std::move(readerHost))
         , Invoker_(std::move(invoker))
         , Logger(std::move(logger.WithTag("Path: %v", Path_)))
@@ -56,7 +52,7 @@ public:
 
     void Initialize() override
     {
-        InitializeChunkStructs();
+        InitializeChunks();
     }
 
     TFuture<TSharedRef> Read(
@@ -130,8 +126,8 @@ private:
 
     struct TChunk
     {
-        i64 Size = 0;
         i64 Index = 0;
+        i64 Size = 0;
         i64 Offset = 0;
         IChunkReaderPtr Reader;
         IChunkReader::TReadBlocksOptions ReadBlocksOptions;
@@ -143,8 +139,6 @@ private:
 
     std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs_;
     const std::string Path_;
-    const IThroughputThrottlerPtr InThrottler_;
-    const IThroughputThrottlerPtr OutRpsThrottler_;
     const TChunkReaderHostPtr ChunkReaderHost_;
     const IInvokerPtr Invoker_;
     const TLogger Logger;
@@ -394,64 +388,59 @@ private:
         .AsyncVia(Invoker_));
     }
 
-    void InitializeChunkStructs()
+    void InitializeChunks()
     {
-        YT_LOG_INFO("Initializing chunk structs (ChunkSpecCount: %v)",
+        YT_LOG_INFO("Initializing chunks (Count: %v)",
             ChunkSpecs_.size());
+
+        auto readerConfig = New<TReplicationReaderConfig>();
+        readerConfig->UseBlockCache = true;
+        readerConfig->UseAsyncBlockCache = true;
+
+        auto readerOptions = New<TRemoteReaderOptions>();
 
         i64 offset = 0;
         for (auto& chunkSpec : ChunkSpecs_) {
-            Chunks_.push_back({});
-            auto& chunk = Chunks_.back();
-
-            chunk.Spec = chunkSpec;
-            chunk.Offset = offset;
-            chunk.Index = Chunks_.size() - 1;
+            int chunkIndex = std::ssize(Chunks_);
+            auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
 
             auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
-
-            if (FromProto<NCompression::ECodec>(miscExt.compression_codec()) != NCompression::ECodec::None) {
+            auto compressionCodec = FromProto<NCompression::ECodec>(miscExt.compression_codec());
+            if (compressionCodec != NCompression::ECodec::None) {
                 THROW_ERROR_EXCEPTION(
                     "Compression codec %Qlv for filesystem image %v is not supported",
-                    FromProto<NCompression::ECodec>(miscExt.compression_codec()),
+                    compressionCodec,
                     Path_);
             }
 
-            chunk.Size = miscExt.uncompressed_data_size();
+            YT_LOG_INFO("Creating chunk reader (ChunkId: %v)",
+                chunkId);
 
-            YT_LOG_INFO("Start creating chunk reader (Chunk: %v)",
-                chunk.Index);
-
-            auto readerConfig = New<TReplicationReaderConfig>();
-            readerConfig->UseBlockCache = true;
-            readerConfig->UseAsyncBlockCache = true;
-
-            auto reader = CreateReplicationReader(
-                std::move(readerConfig),
-                New<TRemoteReaderOptions>(),
-                ChunkReaderHost_,
-                FromProto<TChunkId>(chunkSpec.chunk_id()),
-                /*seedReplicas*/ {});
-
-            chunk.Reader = CreateReplicationReaderThrottlingAdapter(
-                std::move(reader),
-                InThrottler_,
-                OutRpsThrottler_,
-                /*mediumThrottler*/ nullptr);
-
-            chunk.ReadBlocksOptions.ClientOptions.WorkloadDescriptor.Category = NYT::EWorkloadCategory::UserInteractive;
-            chunk.ReadBlocksOptions.SessionInvoker = Invoker_;
-            chunk.GetMetaOptions.SessionInvoker = Invoker_;
-
-            YT_LOG_INFO("Finish creating chunk reader (Chunk: %v)",
-                chunk.Index);
+            Chunks_.push_back({
+                .Index = chunkIndex,
+                .Size = miscExt.uncompressed_data_size(),
+                .Offset = offset,
+                .Reader = CreateReplicationReader(
+                    std::move(readerConfig),
+                    readerOptions,
+                    ChunkReaderHost_,
+                    chunkId,
+                    /*seedReplicas*/ {}),
+                .ReadBlocksOptions = {
+                    .ClientOptions = {
+                        .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserInteractive),
+                    },
+                    .SessionInvoker = Invoker_,
+                },
+                .GetMetaOptions = {
+                    .SessionInvoker = Invoker_,
+                },
+                .Spec = std::move(chunkSpec),
+            });
 
             offset += miscExt.uncompressed_data_size();
             Size_ += miscExt.uncompressed_data_size();
         }
-
-        YT_LOG_INFO("Initialized chunk structs (ChunkSpecCount: %v)",
-            ChunkSpecs_.size());
     }
 };
 
@@ -461,8 +450,6 @@ IRandomAccessFileReaderPtr CreateRandomAccessFileReader(
     std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs,
     std::string path,
     TChunkReaderHostPtr readerHost,
-    IThroughputThrottlerPtr inThrottler,
-    IThroughputThrottlerPtr outRpsThrottler,
     IInvokerPtr invoker,
     TLogger logger)
 {
@@ -470,8 +457,6 @@ IRandomAccessFileReaderPtr CreateRandomAccessFileReader(
         std::move(chunkSpecs),
         std::move(path),
         std::move(readerHost),
-        std::move(inThrottler),
-        std::move(outRpsThrottler),
         std::move(invoker),
         std::move(logger));
 }

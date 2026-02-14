@@ -8,7 +8,6 @@
 #include "journal_chunk.h"
 #include "journal_dispatcher.h"
 #include "location.h"
-#include "master_connector.h"
 
 #include <yt/yt/server/lib/chunk_server/proto/job.pb.h>
 
@@ -369,9 +368,7 @@ IChunkPtr TMasterJobBase::GetLocalChunkOrThrow(TChunkId chunkId, TChunkLocationU
 
 TPerCategoryThrottlerProvider TMasterJobBase::CreateBandwidthThrottlerProvider(EDataNodeThrottlerKind kind)
 {
-    return BIND([throttler = Bootstrap_->GetThrottler(kind)] (EWorkloadCategory /*category*/) {
-        return throttler;
-    });
+    return MakeUniformPerCategoryThrottlerProvider(Bootstrap_->GetThrottler(kind));
 }
 
 void TMasterJobBase::DoSetFinished(

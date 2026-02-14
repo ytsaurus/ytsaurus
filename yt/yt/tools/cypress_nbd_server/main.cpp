@@ -304,8 +304,6 @@ protected:
                 std::move(chunkSpecs),
                 exportConfig->Path,
                 New<TChunkReaderHost>(client),
-                GetUnlimitedThrottler(),
-                GetUnlimitedThrottler(),
                 threadPool->GetInvoker(),
                 logger);
 
