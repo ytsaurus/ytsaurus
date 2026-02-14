@@ -6,12 +6,25 @@
 #include "porto_volume.h"
 #include "preparation_options.h"
 #include "volume_options.h"
+#include "tmpfs_layer_cache.h"
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
+#include <yt/yt/server/node/data_node/public.h>
+
 #include <yt/yt/server/lib/nbd/public.h>
 
+#include <yt/yt/library/containers/public.h>
+
+#include <yt/yt/ytlib/misc/public.h>
+
+#include <yt/yt/core/actions/public.h>
+
+#include <yt/yt/core/concurrency/public.h>
+
 #include <yt/yt/core/misc/async_slru_cache.h>
+
+#include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 
@@ -165,6 +178,93 @@ private:
 };
 
 DECLARE_REFCOUNTED_CLASS(TRONbdVolumeCache)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! This class caches layers (tar archives) extracted from cypress files.
+class TLayerCache
+    : public TAsyncSlruCacheBase<TArtifactKey, TLayer>
+{
+public:
+    TLayerCache(
+        const NDataNode::TVolumeManagerConfigPtr& config,
+        const NClusterNode::TClusterNodeDynamicConfigManagerPtr& dynamicConfigManager,
+        std::vector<TLayerLocationPtr> layerLocations,
+        NContainers::IPortoExecutorPtr tmpfsExecutor,
+        IVolumeArtifactCachePtr artifactCache,
+        IInvokerPtr controlInvoker,
+        IMemoryUsageTrackerPtr memoryUsageTracker,
+        IBootstrap* bootstrap);
+
+    TFuture<void> Initialize();
+
+    bool IsEnabled() const;
+
+    TLayerLocationPtr PickLocation();
+
+    void PopulateAlerts(std::vector<TError>* alerts);
+
+    TFuture<void> Disable(const TError& reason);
+
+    TFuture<TLayerPtr> PrepareLayer(
+        TArtifactKey artifactKey,
+        const TArtifactDownloadOptions& downloadOptions,
+        TGuid tag);
+
+    TFuture<void> GetVolumeReleaseEvent();
+
+    bool IsLayerCached(const TArtifactKey& artifactKey);
+
+    void Touch(const TLayerPtr& layer);
+
+    void BuildOrchid(NYTree::TFluentAny fluent) const;
+
+    void OnDynamicConfigChanged(
+        const TLayerCacheDynamicConfigPtr& oldConfig,
+        const TLayerCacheDynamicConfigPtr& newConfig);
+
+private:
+    const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
+    const IVolumeArtifactCachePtr ArtifactCache_;
+    const IInvokerPtr ControlInvoker_;
+    const std::vector<TLayerLocationPtr> LayerLocations_;
+    const NContainers::IPortoExecutorPtr TmpfsExecutor_;
+
+    NConcurrency::TAsyncSemaphorePtr Semaphore_;
+
+    TTmpfsLayerCachePtr RegularTmpfsLayerCache_;
+    TTmpfsLayerCachePtr NirvanaTmpfsLayerCache_;
+
+    NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
+
+    static TSlruCacheConfigPtr CreateCacheConfig(
+        const NDataNode::TVolumeManagerConfigPtr& config,
+        const std::vector<TLayerLocationPtr>& layerLocations);
+
+    i64 GetWeight(const TLayerPtr& layer) const override;
+
+    void OnAdded(const TLayerPtr& layer) override;
+
+    void OnRemoved(const TLayerPtr& layer) override;
+
+    void OnWeightUpdated(i64 weightDelta) override;
+
+    void ProfileLocation(const TLayerLocationPtr& location);
+
+    TLayerPtr FindLayerInTmpfs(const TArtifactKey& artifactKey, const TGuid& tag = TGuid());
+
+    TFuture<TLayerPtr> DownloadAndImportLayer(
+        const TArtifactKey& artifactKey,
+        const TArtifactDownloadOptions& downloadOptions,
+        TGuid tag,
+        TLayerLocationPtr location);
+
+    TLayerLocationPtr PickLocation() const;
+
+    void OnProfiling();
+};
+
+DECLARE_REFCOUNTED_CLASS(TLayerCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 

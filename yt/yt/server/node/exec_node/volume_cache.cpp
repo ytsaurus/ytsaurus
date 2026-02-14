@@ -9,14 +9,21 @@
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
+#include <yt/yt/server/node/data_node/config.h>
+
 #include <yt/yt/server/lib/exec_node/config.h>
 
 #include <yt/yt/server/lib/nbd/image_reader.h>
 #include <yt/yt/server/lib/nbd/file_system_block_device.h>
 
+#include <yt/yt/library/containers/porto_executor.h>
+
 #include <yt/yt/ytlib/chunk_client/public.h>
 
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/logging/log.h>
 
@@ -24,15 +31,31 @@
 
 namespace NYT::NExecNode {
 
-using namespace NNbd;
+using namespace NChunkClient;
 using namespace NConcurrency;
+using namespace NContainers;
 using namespace NControllerAgent;
+using namespace NDataNode;
 using namespace NLogging;
+using namespace NNbd;
 using namespace NProfiling;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 constinit const auto Logger = ExecNodeLogger;
+static const auto ProfilingPeriod = TDuration::Seconds(1);
+
+////////////////////////////////////////////////////////////////////////////////
+
+i64 GetCacheCapacity(const std::vector<TLayerLocationPtr>& layerLocations)
+{
+    i64 result = 0;
+    for (const auto& location : layerLocations) {
+        result += location->GetCapacity();
+    }
+    return result;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -588,6 +611,413 @@ TFuture<TRONbdVolumePtr> TRONbdVolumeCache::PrepareRONbdVolume(
 }
 
 DEFINE_REFCOUNTED_TYPE(TRONbdVolumeCache)
+
+////////////////////////////////////////////////////////////////////////////////
+
+TLayerCache::TLayerCache(
+    const NDataNode::TVolumeManagerConfigPtr& config,
+    const NClusterNode::TClusterNodeDynamicConfigManagerPtr& dynamicConfigManager,
+    std::vector<TLayerLocationPtr> layerLocations,
+    IPortoExecutorPtr tmpfsExecutor,
+    IVolumeArtifactCachePtr artifactCache,
+    IInvokerPtr controlInvoker,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
+    IBootstrap* bootstrap)
+    : TAsyncSlruCacheBase(
+        CreateCacheConfig(config, layerLocations),
+        ExecNodeProfiler().WithPrefix("/layer_cache"))
+    , DynamicConfigManager_(dynamicConfigManager)
+    , ArtifactCache_(std::move(artifactCache))
+    , ControlInvoker_(std::move(controlInvoker))
+    , LayerLocations_(std::move(layerLocations))
+    , TmpfsExecutor_(std::move(tmpfsExecutor))
+    , ProfilingExecutor_(New<NConcurrency::TPeriodicExecutor>(
+        ControlInvoker_,
+        BIND_NO_PROPAGATE(&TLayerCache::OnProfiling, MakeWeak(this)),
+        ProfilingPeriod))
+{
+    auto absorbLayer = BIND(
+        [=, this, this_ = MakeWeak(this)] (
+            const TArtifactKey& artifactKey,
+            const TArtifactDownloadOptions& downloadOptions,
+            TGuid tag,
+            TLayerLocationPtr location)
+        {
+            if (auto cache = this_.Lock()) {
+                return DownloadAndImportLayer(artifactKey, downloadOptions, tag, std::move(location));
+            } else {
+                THROW_ERROR_EXCEPTION("Layer cache has been destroyed");
+            }
+        });
+
+    RegularTmpfsLayerCache_ = New<TTmpfsLayerCache>(
+        bootstrap,
+        config->RegularTmpfsLayerCache,
+        DynamicConfigManager_,
+        ControlInvoker_,
+        memoryUsageTracker,
+        "regular",
+        TmpfsExecutor_,
+        absorbLayer);
+
+    NirvanaTmpfsLayerCache_ = New<TTmpfsLayerCache>(
+        bootstrap,
+        config->NirvanaTmpfsLayerCache,
+        DynamicConfigManager_,
+        ControlInvoker_,
+        memoryUsageTracker,
+        "nirvana",
+        TmpfsExecutor_,
+        absorbLayer);
+}
+
+TFuture<void> TLayerCache::Initialize()
+{
+    Semaphore_ = New<NConcurrency::TAsyncSemaphore>(
+        DynamicConfigManager_->GetConfig()->ExecNode->SlotManager->VolumeManager->LayerCache->LayerImportConcurrency);
+    for (const auto& location : LayerLocations_) {
+        for (const auto& layerMeta : location->GetAllLayers()) {
+            TArtifactKey key;
+            key.MergeFrom(layerMeta.artifact_key());
+
+            YT_LOG_DEBUG(
+                "Loading existing cached Porto layer (LayerId: %v, ArtifactPath: %v)",
+                layerMeta.Id,
+                layerMeta.artifact_key().data_source().path());
+
+            auto layer = New<TLayer>(layerMeta, key, location);
+            auto cookie = BeginInsert(layer->GetKey());
+            if (cookie.IsActive()) {
+                cookie.EndInsert(layer);
+            } else {
+                YT_LOG_DEBUG(
+                    "Failed to insert cached Porto layer (LayerId: %v, ArtifactPath: %v)",
+                    layerMeta.Id,
+                    layerMeta.artifact_key().data_source().path());
+            }
+        }
+    }
+
+    ProfilingExecutor_->Start();
+
+    return AllSucceeded(std::vector<TFuture<void>>{
+        RegularTmpfsLayerCache_->Initialize(),
+        NirvanaTmpfsLayerCache_->Initialize()
+    });
+}
+
+bool TLayerCache::IsEnabled() const
+{
+    for (const auto& location : LayerLocations_) {
+        if (location->IsEnabled()) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+TLayerLocationPtr TLayerCache::PickLocation()
+{
+    return DoPickLocation(LayerLocations_, [] (const TLayerLocationPtr& candidate, const TLayerLocationPtr& current) {
+        return candidate->GetVolumeCount() < current->GetVolumeCount();
+    });
+}
+
+void TLayerCache::PopulateAlerts(std::vector<TError>* alerts)
+{
+    for (const auto& location : LayerLocations_) {
+        auto error = location->GetAlert();
+
+        if (!error.IsOK()) {
+            alerts->push_back(std::move(error));
+        }
+    }
+
+    if (!IsEnabled()) {
+        alerts->push_back(
+            TError(
+                NExecNode::EErrorCode::NoLayerLocationAvailable,
+                "Layer cache is disabled"));
+    }
+}
+
+TFuture<void> TLayerCache::Disable(const TError& reason)
+{
+    YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
+
+    YT_LOG_WARNING(reason, "Layer cache is disabled");
+
+    for (const auto& location : LayerLocations_) {
+        location->Disable(reason, false);
+    }
+
+    return AllSucceeded(std::vector<TFuture<void>>{
+        ProfilingExecutor_->Stop(),
+        RegularTmpfsLayerCache_->Disable(reason, /*persistentDisable*/ false),
+        NirvanaTmpfsLayerCache_->Disable(reason, /*persistentDisable*/ false)
+    }).Apply(BIND([=, this, this_ = MakeStrong(this)] {
+        OnProfiling();
+    }));
+}
+
+TFuture<TLayerPtr> TLayerCache::PrepareLayer(
+    TArtifactKey artifactKey,
+    const TArtifactDownloadOptions& downloadOptions,
+    TGuid tag)
+{
+    auto layer = FindLayerInTmpfs(artifactKey, tag);
+    if (layer) {
+        return MakeFuture(layer);
+    }
+
+    auto cookie = BeginInsert(artifactKey);
+    auto value = cookie.GetValue();
+    if (cookie.IsActive()) {
+        DownloadAndImportLayer(artifactKey, downloadOptions, tag, nullptr)
+            .Subscribe(BIND([=, cookie = std::move(cookie)] (const TErrorOr<TLayerPtr>& layerOrError) mutable {
+                if (layerOrError.IsOK()) {
+                    YT_LOG_DEBUG(
+                        "Layer has been inserted into cache (Tag: %v, ArtifactPath: %v, LayerId: %v)",
+                        tag,
+                        artifactKey.data_source().path(),
+                        layerOrError.Value()->GetMeta().Id);
+                    cookie.EndInsert(layerOrError.Value());
+                } else {
+                    YT_LOG_DEBUG(
+                        layerOrError,
+                        "Insert layer into cache canceled (Tag: %v, ArtifactPath: %v)",
+                        tag,
+                        artifactKey.data_source().path());
+                    cookie.Cancel(layerOrError);
+                }
+            })
+            .Via(GetCurrentInvoker()));
+    } else {
+        YT_LOG_DEBUG(
+            "Layer is already being loaded into cache (Tag: %v, ArtifactPath: %v, LayerId: %v)",
+            tag,
+            artifactKey.data_source().path(),
+            value.IsSet() && value.Get().IsOK() ? ToString(value.Get().Value()->GetMeta().Id) : "<importing>");
+    }
+
+    return value;
+}
+
+TFuture<void> TLayerCache::GetVolumeReleaseEvent()
+{
+    std::vector<TFuture<void>> futures;
+    for (const auto& location : LayerLocations_) {
+        futures.push_back(location->GetVolumeReleaseEvent());
+    }
+
+    return AllSet(std::move(futures))
+        .AsVoid()
+        .ToUncancelable();
+}
+
+bool TLayerCache::IsLayerCached(const TArtifactKey& artifactKey)
+{
+    auto layer = FindLayerInTmpfs(artifactKey);
+    if (layer) {
+        return true;
+    }
+
+    return Find(artifactKey) != nullptr;
+}
+
+void TLayerCache::Touch(const TLayerPtr& layer)
+{
+    layer->IncreaseHitCount();
+    Find(layer->GetKey());
+}
+
+void TLayerCache::BuildOrchid(NYTree::TFluentAny fluent) const
+{
+    fluent.BeginMap()
+        .Item("cached_layer_count").Value(GetSize())
+        .Item("regular_tmpfs_cache").DoMap([&] (auto fluentMap) {
+            RegularTmpfsLayerCache_->BuildOrchid(fluentMap);
+        })
+        .Item("nirvana_tmpfs_cache").DoMap([&] (auto fluentMap) {
+            NirvanaTmpfsLayerCache_->BuildOrchid(fluentMap);
+        })
+    .EndMap();
+}
+
+void TLayerCache::OnDynamicConfigChanged(
+    const TLayerCacheDynamicConfigPtr& oldConfig,
+    const TLayerCacheDynamicConfigPtr& newConfig)
+{
+    if (*newConfig == *oldConfig) {
+        return;
+    }
+
+    Semaphore_->SetTotal(newConfig->LayerImportConcurrency);
+
+    for (const auto& location : LayerLocations_) {
+        location->OnDynamicConfigChanged(oldConfig, newConfig);
+    }
+
+    TmpfsExecutor_->OnDynamicConfigChanged(newConfig->TmpfsCache->PortoExecutor);
+}
+
+TSlruCacheConfigPtr TLayerCache::CreateCacheConfig(
+    const NDataNode::TVolumeManagerConfigPtr& config,
+    const std::vector<TLayerLocationPtr>& layerLocations)
+{
+    auto cacheConfig = TSlruCacheConfig::CreateWithCapacity(
+        config->EnableLayersCache
+        ? static_cast<i64>(GetCacheCapacity(layerLocations) * config->CacheCapacityFraction)
+        : 0,
+        /*shardCount*/ 1);
+    return cacheConfig;
+}
+
+i64 TLayerCache::GetWeight(const TLayerPtr& layer) const
+{
+    return layer->GetSize();
+}
+
+void TLayerCache::OnAdded(const TLayerPtr& layer)
+{
+    YT_LOG_DEBUG(
+        "Layer added to cache (LayerId: %v, ArtifactPath: %v, Size: %v)",
+        layer->GetMeta().Id,
+        layer->GetCypressPath(),
+        layer->GetSize());
+}
+
+void TLayerCache::OnRemoved(const TLayerPtr& layer)
+{
+    YT_LOG_DEBUG(
+        "Layer removed from cache (LayerId: %v, ArtifactPath: %v, Size: %v)",
+        layer->GetMeta().Id,
+        layer->GetCypressPath(),
+        layer->GetSize());
+}
+
+void TLayerCache::OnWeightUpdated(i64 weightDelta)
+{
+    YT_LOG_DEBUG("Layer cache weight updated (WeightDelta: %v)", weightDelta);
+}
+
+void TLayerCache::ProfileLocation(const TLayerLocationPtr& location)
+{
+    auto& performanceCounters = location->GetPerformanceCounters();
+
+    performanceCounters.AvailableSpace.Update(location->GetAvailableSpace());
+    performanceCounters.UsedSpace.Update(location->GetUsedSpace());
+    performanceCounters.TotalSpace.Update(location->GetCapacity());
+    performanceCounters.Full.Update(location->IsFull() ? 1 : 0);
+    performanceCounters.LayerCount.Update(location->GetLayerCount());
+    performanceCounters.VolumeCount.Update(location->GetVolumeCount());
+}
+
+TLayerPtr TLayerCache::FindLayerInTmpfs(const TArtifactKey& artifactKey, const TGuid& tag)
+{
+    auto findLayer = [&] (TTmpfsLayerCachePtr& tmpfsCache, const TString& cacheName) -> TLayerPtr {
+        auto tmpfsLayer = tmpfsCache->FindLayer(artifactKey);
+        if (tmpfsLayer) {
+            YT_LOG_DEBUG_IF(
+                tag,
+                "Found layer in %v tmpfs cache (LayerId: %v, ArtifactPath: %v, Tag: %v)",
+                cacheName,
+                tmpfsLayer->GetMeta().Id,
+                artifactKey.data_source().path(),
+                tag);
+            return tmpfsLayer;
+        }
+        return nullptr;
+    };
+
+    auto regularLayer = findLayer(RegularTmpfsLayerCache_, "regular");
+    return regularLayer
+        ? regularLayer
+        : findLayer(NirvanaTmpfsLayerCache_, "nirvana");
+}
+
+TFuture<TLayerPtr> TLayerCache::DownloadAndImportLayer(
+    const TArtifactKey& artifactKey,
+    const TArtifactDownloadOptions& downloadOptions,
+    TGuid tag,
+    TLayerLocationPtr location)
+{
+    auto layerId = TLayerId::Create();
+
+    auto Logger = ExecNodeLogger()
+        .WithTag("Tag: %v, LayerId: %v, ArtifactPath: %v",
+            tag,
+            layerId,
+            artifactKey.data_source().path());
+
+    YT_LOG_DEBUG(
+        "Start loading layer into cache (HasTargetLocation: %v)",
+        static_cast<bool>(location));
+
+    return ArtifactCache_->DownloadArtifact(artifactKey, downloadOptions)
+        .Apply(BIND([=, this, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& artifactChunk) mutable {
+            YT_LOG_DEBUG("Layer artifact loaded, starting import");
+
+            // NB(psushin): we limit number of concurrently imported layers, since this is heavy operation
+            // which may delay light operations performed in the same IO thread pool inside Porto daemon.
+            // PORTO-518
+            NConcurrency::TAsyncSemaphoreGuard guard;
+            while (!(guard = NConcurrency::TAsyncSemaphoreGuard::TryAcquire(Semaphore_))) {
+                WaitFor(Semaphore_->GetReadyEvent())
+                    .ThrowOnError();
+            }
+
+            if (!location) {
+                location = PickLocation();
+            }
+
+            // Import layer in context of container, i.e. account memory allocations to container, e.g.
+            // "self" container. If container is empty, memory allocations are accounted to Porto daemon.
+            TString container;
+            if (location->ResidesOnTmpfs()) {
+                container = "self";
+            }
+
+            auto layerMeta = WaitFor(location->ImportLayer(artifactKey, TString(artifactChunk->GetFileName()), container, layerId, tag))
+                .ValueOrThrow();
+            return New<TLayer>(layerMeta, artifactKey, location);
+        })
+        // We must pass this action through invoker to avoid synchronous execution.
+        // WaitFor calls inside this action can ruin context-switch-free handlers inside TJob.
+        .AsyncVia(GetCurrentInvoker()));
+}
+
+TLayerLocationPtr TLayerCache::PickLocation() const
+{
+    return DoPickLocation(LayerLocations_, [] (const TLayerLocationPtr& candidate, const TLayerLocationPtr& current) {
+        if (!candidate->IsLayerImportInProgress() && current->IsLayerImportInProgress()) {
+            // Always prefer candidate which is not doing import right now.
+            return true;
+        } else if (candidate->IsLayerImportInProgress() && !current->IsLayerImportInProgress()) {
+            return false;
+        }
+
+        return candidate->GetAvailableSpace() > current->GetAvailableSpace();
+    });
+}
+
+void TLayerCache::OnProfiling()
+{
+    if (auto location = RegularTmpfsLayerCache_->GetLocation()) {
+        ProfileLocation(location);
+    }
+
+    if (auto location = NirvanaTmpfsLayerCache_->GetLocation()) {
+        ProfileLocation(location);
+    }
+
+    for (const auto& location : LayerLocations_) {
+        ProfileLocation(location);
+    }
+}
+
+DEFINE_REFCOUNTED_TYPE(TLayerCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
