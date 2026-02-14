@@ -179,129 +179,7 @@ IVolumeArtifactCachePtr CreateVolumeArtifactCacheAdapter(TArtifactCachePtr artif
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TPortoVolumeManager)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSimpleTmpfsVolume
-    : public IVolume
-{
-public:
-    TSimpleTmpfsVolume(
-        TTagSet tagSet,
-        const std::string& path,
-        IInvokerPtr invoker,
-        bool detachUnmount)
-        : TagSet_(std::move(tagSet))
-        , Path_(path)
-        , VolumeId_(
-            [&path] {
-                auto [low, high] = CityHash128(path.c_str(), path.size());
-                return TGuid(low, high);
-            }())
-        , Invoker_(std::move(invoker))
-        , DetachUnmount_(detachUnmount)
-    { }
-
-    ~TSimpleTmpfsVolume() override
-    {
-        YT_UNUSED_FUTURE(Remove());
-    }
-
-    bool IsCached() const final
-    {
-        return false;
-    }
-
-    TFuture<void> Link(
-        TGuid,
-        const TString&) override final
-    {
-        // Simple volume is created inside sandbox, so we don't need to link it.
-        YT_UNIMPLEMENTED("Link is not implemented for SimpleTmpfsVolume");
-    }
-
-    TFuture<void> Remove() override final
-    {
-        if (RemoveFuture_) {
-            return RemoveFuture_;
-        }
-
-        TEventTimerGuard volumeRemoveTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(TagSet_, "/remove_time"));
-
-        const auto volumeType = EVolumeType::Tmpfs;
-        const auto& volumeId = VolumeId_;
-        const auto& volumePath = Path_;
-
-        auto Logger = ExecNodeLogger()
-            .WithTag("VolumeType: %v, VolumeId: %v, VolumePath: %v",
-                volumeType,
-                volumeId,
-                volumePath);
-
-        RemoveFuture_ = BIND(
-            [
-                tagSet = TagSet_,
-                Logger,
-                this,
-                this_ = MakeStrong(this)
-            ] {
-                try {
-                    RunTool<TRemoveDirContentAsRootTool>(Path_);
-
-                    auto config = New<TUmountConfig>();
-                    config->Path = Path_;
-                    config->Detach = DetachUnmount_;
-                    RunTool<TUmountAsRootTool>(config);
-
-                    TVolumeProfilerCounters::Get()->GetGauge(tagSet, "/count")
-                        .Update(VolumeCounters().Decrement(tagSet));
-                    TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/removed").Increment(1);
-                } catch (const std::exception& ex) {
-                    TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/remove_errors").Increment(1);
-
-                    YT_LOG_ERROR(
-                        ex,
-                        "Failed to remove volume");
-
-                    THROW_ERROR_EXCEPTION("Failed to remove volume")
-                        << ex;
-                }
-            })
-            .AsyncVia(Invoker_)
-            .Run()
-            .ToUncancelable();
-
-        return RemoveFuture_;
-    }
-
-    const TVolumeId& GetId() const override final
-    {
-        return VolumeId_;
-    }
-
-    const std::string& GetPath() const override final
-    {
-        return Path_;
-    }
-
-    bool IsRootVolume() const override final
-    {
-        return false;
-    }
-
-private:
-    const TTagSet TagSet_;
-    const std::string Path_;
-    const TVolumeId VolumeId_;
-    const IInvokerPtr Invoker_;
-    const bool DetachUnmount_;
-    TFuture<void> RemoveFuture_;
-};
-
-DEFINE_REFCOUNTED_TYPE(TSimpleTmpfsVolume)
-
-////////////////////////////////////////////////////////////////////////////////
+DECLARE_REFCOUNTED_CLASS(TSimpleVolumeManager)
 
 class TSimpleVolumeManager
     : public IVolumeManager
@@ -515,7 +393,27 @@ private:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TSimpleVolumeManager)
+
 ////////////////////////////////////////////////////////////////////////////////
+
+TFuture<IVolumeManagerPtr> CreateSimpleVolumeManager(
+    const std::vector<TSlotLocationConfigPtr>& locations,
+    IInvokerPtr invoker,
+    bool detachedTmpfsUmount)
+{
+    auto volumeManager = New<TSimpleVolumeManager>(
+        std::move(invoker),
+        detachedTmpfsUmount);
+
+    return volumeManager->Initialize(locations).Apply(BIND([=] {
+        return static_cast<IVolumeManagerPtr>(volumeManager);
+    }));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TPortoVolumeManager)
 
 class TPortoVolumeManager
     : public IVolumeManager
@@ -1392,22 +1290,6 @@ TFuture<IVolumeManagerPtr> CreatePortoVolumeManager(
         .Apply(BIND([volumeManager = std::move(volumeManager)] () mutable {
             return StaticPointerCast<IVolumeManager>(std::move(volumeManager));
         }));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TFuture<IVolumeManagerPtr> CreateSimpleVolumeManager(
-    const std::vector<TSlotLocationConfigPtr>& locations,
-    IInvokerPtr invoker,
-    bool detachedTmpfsUmount)
-{
-    auto volumeManager = New<TSimpleVolumeManager>(
-        std::move(invoker),
-        detachedTmpfsUmount);
-
-    return volumeManager->Initialize(locations).Apply(BIND([=] {
-        return static_cast<IVolumeManagerPtr>(volumeManager);
-    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
