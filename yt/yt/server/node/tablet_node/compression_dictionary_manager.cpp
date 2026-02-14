@@ -650,10 +650,6 @@ private:
 
     IBootstrap* const Bootstrap_;
 
-    // TODO(akozhikhov): Specific workload category?
-    const EWorkloadCategory WorkloadCategory_ = EWorkloadCategory::SystemTabletCompaction;
-
-
     i64 GetWeight(const TCompressionDictionaryCacheEntryPtr& entry) const override
     {
         return entry->GetMemoryUsage();
@@ -674,7 +670,10 @@ private:
             /*blockCache*/ nullptr,
             /*chunkMetaCache*/ nullptr,
             Bootstrap_->GetHintManager(),
-            Bootstrap_->GetInThrottler(WorkloadCategory_),
+            // TODO(akozhikhov): Specific workload category?
+            BIND([throttler = Bootstrap_->GetInThrottler(EWorkloadCategory::SystemTabletCompaction)] (EWorkloadCategory /*category*/) {
+                return throttler;
+            }),
             Bootstrap_->GetReadRpsOutThrottler(),
             NConcurrency::GetUnlimitedThrottler(),
             /*trafficMeter*/ nullptr);

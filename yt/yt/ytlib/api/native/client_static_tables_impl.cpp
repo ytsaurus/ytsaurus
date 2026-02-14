@@ -64,7 +64,7 @@ TFuture<ITableReaderPtr> TClient::CreateTableReader(
         New<TNameTable>(),
         /*columnFilter*/ {},
         /*bandwidthThrottler*/ GetUnlimitedThrottler(),
-        /*rpsThrottler*/ GetUnlimitedThrottler(),
+        /*rpsThrottler*/ nullptr,
         HeavyRequestMemoryUsageTracker_);
 }
 
@@ -229,7 +229,7 @@ TFuture<ITablePartitionReaderPtr> TClient::CreateTablePartitionReader(
 
     auto nameTable = New<TNameTable>();
 
-    auto chunkReaderHost = CreateSingleSourceMultiChunkReaderHost(TChunkReaderHost::FromClient(MakeStrong(this)));
+    auto chunkReaderHost = New<TMultiChunkReaderHost>(New<TChunkReaderHost>(MakeStrong(this)));
 
     auto columnFilter = TColumnFilter{};
     auto tableReaderOptions = ToInternalTableReaderOptions(options);

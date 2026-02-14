@@ -1141,15 +1141,19 @@ private:
             }
         }
 
+        auto bandwidthThrottlerProvider = BIND([throttler = Host_->GetInBandwidthThrottler(clusterName)] (EWorkloadCategory /*category*/) {
+            return throttler;
+        });
+
         return New<TChunkReaderHost>(
             RemoteClient_,
             Host_->LocalDescriptor(),
             Host_->GetReaderBlockCache(),
             /*chunkMetaCache*/ nullptr,
             /*nodeStatusDirectory*/ nullptr,
-            Host_->GetInBandwidthThrottler(clusterName),
+            std::move(bandwidthThrottlerProvider),
             Host_->GetOutRpsThrottler(),
-            /*mediumThrottler*/ GetUnlimitedThrottler(),
+            /*mediumThrottler*/ nullptr,
             Host_->GetTrafficMeter());
     }
 

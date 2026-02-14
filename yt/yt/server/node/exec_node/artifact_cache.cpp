@@ -2,7 +2,6 @@
 
 #include "artifact.h"
 #include "bootstrap.h"
-#include "master_connector.h"
 #include "private.h"
 
 #include <yt/yt/server/node/data_node/blob_chunk.h>
@@ -505,6 +504,13 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, RegisteredChunkMapLock_);
     THashMap<TArtifactKey, TRegisteredChunkDescriptor> RegisteredChunkMap_;
+
+    TPerCategoryThrottlerProvider CreateBandwithThrottlerProvider()
+    {
+        return BIND([throttler = Bootstrap_->GetThrottler(EExecNodeThrottlerKind::ArtifactCacheIn)] (EWorkloadCategory /*category*/) {
+            return throttler;
+        });
+    }
 
     void ValidateLocations() const
     {
@@ -1042,9 +1048,9 @@ private:
                 Bootstrap_->GetBlockCache(),
                 /*chunkMetaCache*/ nullptr,
                 /*nodeStatusDirectory*/ nullptr,
-                Bootstrap_->GetThrottler(EExecNodeThrottlerKind::ArtifactCacheIn),
+                CreateBandwithThrottlerProvider(),
                 Bootstrap_->GetReadRpsOutThrottler(),
-                /*mediumThrottler*/ GetUnlimitedThrottler(),
+                /*mediumThrottler*/ nullptr,
                 artifactDownloadOptions.TrafficMeter);
 
             auto chunkReader = CreateReplicationReader(
@@ -1232,9 +1238,9 @@ private:
             Bootstrap_->GetBlockCache(),
             /*chunkMetaCache*/ nullptr,
             /*nodeStatusDirectory*/ nullptr,
-            Bootstrap_->GetThrottler(EExecNodeThrottlerKind::ArtifactCacheIn),
+            CreateBandwithThrottlerProvider(),
             Bootstrap_->GetReadRpsOutThrottler(),
-            /*mediumThrottler*/ GetUnlimitedThrottler(),
+            /*mediumThrottler*/ nullptr,
             trafficMeter);
         auto reader = CreateFileMultiChunkReader(
             GetArtifactCacheReaderConfig(),
@@ -1376,14 +1382,14 @@ private:
             Bootstrap_->GetBlockCache(),
             /*chunkMetaCache*/ nullptr,
             /*nodeStatusDirectory*/ nullptr,
-            Bootstrap_->GetThrottler(EExecNodeThrottlerKind::ArtifactCacheIn),
+            CreateBandwithThrottlerProvider(),
             Bootstrap_->GetReadRpsOutThrottler(),
-            /*mediumThrottler*/ GetUnlimitedThrottler(),
+            /*mediumThrottler*/ nullptr,
             trafficMeter);
         auto reader = CreateSchemalessSequentialMultiReader(
             GetArtifactCacheReaderConfig(),
             std::move(readerOptions),
-            CreateSingleSourceMultiChunkReaderHost(std::move(chunkReaderHost)),
+            New<TMultiChunkReaderHost>(std::move(chunkReaderHost)),
             dataSourceDirectory,
             std::move(dataSliceDescriptors),
             /*hintKeys*/ std::nullopt,

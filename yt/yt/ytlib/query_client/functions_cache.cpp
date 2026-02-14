@@ -1225,7 +1225,7 @@ private:
         auto reader = NFileClient::CreateFileMultiChunkReader(
             New<NApi::TFileReaderConfig>(),
             New<NChunkClient::TMultiChunkReaderOptions>(),
-            TChunkReaderHost::FromClient(client),
+            New<TChunkReaderHost>(client),
             chunkReadOptions,
             std::move(chunks),
             MakeFileDataSource(std::nullopt));
