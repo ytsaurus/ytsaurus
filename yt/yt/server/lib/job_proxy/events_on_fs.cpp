@@ -36,7 +36,7 @@ TFuture<void> GetBreakpointEvent(
 {
     if (!config->Breakpoints.contains(breakpoint)) {
         // Breakpoint is not configured.
-        return VoidFuture;
+        return OKFuture;
     }
 
     YT_LOG_DEBUG("Reached breakpoint (Breakpoint: %lv)", breakpoint);
