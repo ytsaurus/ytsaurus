@@ -8,6 +8,8 @@ from sqlglot.dialects.dialect import (
     Dialect,
     JSON_EXTRACT_TYPE,
     any_value_to_max_sql,
+    array_append_sql,
+    array_concat_sql,
     binary_from_function,
     bool_xor_sql,
     datestrtodate_sql,
@@ -346,6 +348,7 @@ class Postgres(Dialect):
         BIT_STRINGS = [("b'", "'"), ("B'", "'")]
         HEX_STRINGS = [("x'", "'"), ("X'", "'")]
         BYTE_STRINGS = [("e'", "'"), ("E'", "'")]
+        BYTE_STRING_ESCAPES = ["'", "\\"]
         HEREDOC_STRINGS = ["$"]
 
         HEREDOC_TAG_IS_IDENTIFIER = True
@@ -395,6 +398,8 @@ class Postgres(Dialect):
             "REGTYPE": TokenType.OBJECT_IDENTIFIER,
             "FLOAT": TokenType.DOUBLE,
             "XML": TokenType.XML,
+            "VARIADIC": TokenType.VARIADIC,
+            "INOUT": TokenType.INOUT,
         }
         KEYWORDS.pop("/*+")
         KEYWORDS.pop("DIV")
@@ -461,6 +466,11 @@ class Postgres(Dialect):
             else exp.WidthBucket.from_arg_list(args),
         }
 
+        NO_PAREN_FUNCTION_PARSERS = {
+            **parser.Parser.NO_PAREN_FUNCTION_PARSERS,
+            "VARIADIC": lambda self: self.expression(exp.Variadic, this=self._parse_bitwise()),
+        }
+
         NO_PAREN_FUNCTIONS = {
             **parser.Parser.NO_PAREN_FUNCTIONS,
             TokenType.CURRENT_SCHEMA: exp.CurrentSchema,
@@ -499,6 +509,12 @@ class Postgres(Dialect):
             TokenType.END: lambda self: self._parse_commit_or_rollback(),
         }
 
+        UNARY_PARSERS = {
+            **parser.Parser.UNARY_PARSERS,
+            # The `~` token is remapped from TILDE to RLIKE in Postgres due to the binary REGEXP LIKE operator
+            TokenType.RLIKE: lambda self: self.expression(exp.BitwiseNot, this=self._parse_unary()),
+        }
+
         JSON_ARROWS_REQUIRE_JSON_TYPE = True
 
         COLUMN_OPERATORS = {
@@ -514,6 +530,88 @@ class Postgres(Dialect):
                 )([this, path])
             ),
         }
+
+        ARG_MODE_TOKENS = {TokenType.IN, TokenType.OUT, TokenType.INOUT, TokenType.VARIADIC}
+
+        def _parse_parameter_mode(self) -> t.Optional[TokenType]:
+            """
+            Parse PostgreSQL function parameter mode (IN, OUT, INOUT, VARIADIC).
+
+            Disambiguates between mode keywords and identifiers with the same name:
+            - MODE TYPE      → keyword is identifier (e.g., "out INT")
+            - MODE NAME TYPE → keyword is mode (e.g., "OUT x INT")
+
+            Returns:
+                Mode token type if current token is a mode keyword, None otherwise.
+            """
+            if not self._match_set(self.ARG_MODE_TOKENS, advance=False) or not self._next:
+                return None
+
+            mode_token = self._curr
+
+            # Check Pattern 1: MODE TYPE
+            # Try parsing next token as a built-in type (not UDT)
+            # If successful, the keyword is an identifier, not a mode
+            is_followed_by_builtin_type = self._try_parse(
+                lambda: self._advance()  # type: ignore
+                or self._parse_types(check_func=False, allow_identifiers=False),
+                retreat=True,
+            )
+            if is_followed_by_builtin_type:
+                return None  # Pattern: "out INT" → out is parameter name
+
+            # Check Pattern 2: MODE NAME TYPE
+            # If next token is an identifier, check if there's a type after it
+            # The type can be built-in or user-defined (allow_identifiers=True)
+            if self._next.token_type not in self.ID_VAR_TOKENS:
+                return None
+
+            is_followed_by_any_type = self._try_parse(
+                lambda: self._advance(2)  # type: ignore
+                or self._parse_types(check_func=False, allow_identifiers=True),
+                retreat=True,
+            )
+
+            if is_followed_by_any_type:
+                return mode_token.token_type  # Pattern: "OUT x INT" → OUT is mode
+
+            return None
+
+        def _create_mode_constraint(self, param_mode: TokenType) -> exp.InOutColumnConstraint:
+            """
+            Create parameter mode constraint for function parameters.
+
+            Args:
+                param_mode: The parameter mode token (IN, OUT, INOUT, or VARIADIC).
+
+            Returns:
+                InOutColumnConstraint expression representing the parameter mode.
+            """
+            return self.expression(
+                exp.InOutColumnConstraint,
+                input_=(param_mode in {TokenType.IN, TokenType.INOUT}),
+                output=(param_mode in {TokenType.OUT, TokenType.INOUT}),
+                variadic=(param_mode == TokenType.VARIADIC),
+            )
+
+        def _parse_function_parameter(self) -> t.Optional[exp.Expression]:
+            param_mode = self._parse_parameter_mode()
+
+            if param_mode:
+                self._advance()
+
+            # Parse parameter name and type
+            param_name = self._parse_id_var()
+            column_def = self._parse_column_def(this=param_name, computed_column=False)
+
+            # Attach mode as constraint
+            if param_mode and column_def:
+                constraint = self._create_mode_constraint(param_mode)
+                if not column_def.args.get("constraints"):
+                    column_def.set("constraints", [])
+                column_def.args["constraints"].insert(0, constraint)
+
+            return column_def
 
         def _parse_query_parameter(self) -> t.Optional[exp.Expression]:
             this = (
@@ -595,12 +693,21 @@ class Postgres(Dialect):
         SUPPORTS_MEDIAN = False
         ARRAY_SIZE_DIM_REQUIRED = True
         SUPPORTS_BETWEEN_FLAGS = True
+        INOUT_SEPARATOR = ""  # PostgreSQL uses "INOUT" (no space)
 
         SUPPORTED_JSON_PATH_PARTS = {
             exp.JSONPathKey,
             exp.JSONPathRoot,
             exp.JSONPathSubscript,
         }
+
+        def lateral_sql(self, expression: exp.Lateral) -> str:
+            sql = super().lateral_sql(expression)
+
+            if expression.args.get("cross_apply") is not None:
+                sql = f"{sql} ON TRUE"
+
+            return sql
 
         TYPE_MAPPING = {
             **generator.Generator.TYPE_MAPPING,
@@ -618,9 +725,10 @@ class Postgres(Dialect):
         TRANSFORMS = {
             **generator.Generator.TRANSFORMS,
             exp.AnyValue: _versioned_anyvalue_sql,
-            exp.ArrayConcat: lambda self, e: self.arrayconcat_sql(e, name="ARRAY_CAT"),
+            exp.ArrayConcat: array_concat_sql("ARRAY_CAT"),
             exp.ArrayFilter: filter_array_using_unnest,
-            exp.ArrayPrepend: lambda self, e: self.func("ARRAY_PREPEND", e.expression, e.this),
+            exp.ArrayAppend: array_append_sql("ARRAY_APPEND"),
+            exp.ArrayPrepend: array_append_sql("ARRAY_PREPEND", swap_params=True),
             exp.BitwiseAndAgg: rename_func("BIT_AND"),
             exp.BitwiseOrAgg: rename_func("BIT_OR"),
             exp.BitwiseXor: lambda self, e: self.binary(e, "#"),
@@ -740,6 +848,18 @@ class Postgres(Dialect):
             self.unsupported("Column comments are not supported in the CREATE statement")
             return ""
 
+        def columndef_sql(self, expression: exp.ColumnDef, sep: str = " ") -> str:
+            # PostgreSQL places parameter modes BEFORE parameter name
+            param_constraint = expression.find(exp.InOutColumnConstraint)
+
+            if param_constraint:
+                mode_sql = self.sql(param_constraint)
+                param_constraint.pop()  # Remove to prevent double-rendering
+                base_sql = super().columndef_sql(expression, sep)
+                return f"{mode_sql} {base_sql}"
+
+            return super().columndef_sql(expression, sep)
+
         def unnest_sql(self, expression: exp.Unnest) -> str:
             if len(expression.expressions) == 1:
                 arg = expression.expressions[0]
@@ -853,8 +973,9 @@ class Postgres(Dialect):
         def interval_sql(self, expression: exp.Interval) -> str:
             unit = expression.text("unit").lower()
 
-            if unit.startswith("quarter") and isinstance(expression.this, exp.Literal):
-                expression.this.replace(exp.Literal.number(int(expression.this.to_py()) * 3))
+            this = expression.this
+            if unit.startswith("quarter") and isinstance(this, exp.Literal):
+                this.replace(exp.Literal.string(int(this.to_py()) * 3))
                 expression.args["unit"].replace(exp.var("MONTH"))
 
             return super().interval_sql(expression)

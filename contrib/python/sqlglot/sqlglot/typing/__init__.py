@@ -30,7 +30,6 @@ EXPRESSION_METADATA: ExpressionMetadataType = {
             exp.ArraySize,
             exp.CountIf,
             exp.Int64,
-            exp.Length,
             exp.UnixDate,
             exp.UnixSeconds,
             exp.UnixMicros,
@@ -89,7 +88,9 @@ EXPRESSION_METADATA: ExpressionMetadataType = {
         for expr_type in {
             exp.ApproxQuantile,
             exp.Avg,
+            exp.Cbrt,
             exp.Exp,
+            exp.Kurtosis,
             exp.Ln,
             exp.Log,
             exp.Pi,
@@ -112,13 +113,16 @@ EXPRESSION_METADATA: ExpressionMetadataType = {
         expr_type: {"returns": exp.DataType.Type.INT}
         for expr_type in {
             exp.Ascii,
+            exp.BitLength,
             exp.Ceil,
             exp.DatetimeDiff,
+            exp.Getbit,
             exp.TimestampDiff,
             exp.TimeDiff,
             exp.Unicode,
             exp.DateToDi,
             exp.Levenshtein,
+            exp.Length,
             exp.Sign,
             exp.StrPosition,
             exp.TsOrDiToDi,
@@ -188,11 +192,14 @@ EXPRESSION_METADATA: ExpressionMetadataType = {
             exp.Concat,
             exp.ConcatWs,
             exp.Chr,
+            exp.Dayname,
             exp.DateToDateStr,
             exp.DPipe,
             exp.GroupConcat,
             exp.Initcap,
             exp.Lower,
+            exp.SHA,
+            exp.SHA2,
             exp.Substring,
             exp.String,
             exp.TimeToStr,
@@ -205,6 +212,7 @@ EXPRESSION_METADATA: ExpressionMetadataType = {
             exp.UnixToTimeStr,
             exp.Upper,
             exp.RawString,
+            exp.Space,
         }
     },
     **{
@@ -242,13 +250,7 @@ EXPRESSION_METADATA: ExpressionMetadataType = {
             exp.ArrayLast,
         }
     },
-    **{
-        expr_type: {"returns": exp.DataType.Type.UNKNOWN}
-        for expr_type in {
-            exp.Anonymous,
-            exp.Slice,
-        }
-    },
+    exp.Anonymous: {"annotator": lambda self, e: self._set_type(e, self.schema.get_udf_type(e))},
     **{
         expr_type: {"annotator": lambda self, e: self._annotate_timeunit(e)}
         for expr_type in {

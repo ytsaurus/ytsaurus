@@ -4,6 +4,7 @@ import typing as t
 
 from sqlglot import exp
 from sqlglot.dialects.dialect import (
+    array_append_sql,
     rename_func,
     build_like,
     unit_to_var,
@@ -113,6 +114,7 @@ def _groupconcat_sql(self: Spark.Generator, expression: exp.GroupConcat) -> str:
 class Spark(Spark2):
     SUPPORTS_ORDER_BY_ALL = True
     SUPPORTS_NULL_TYPE = True
+    ARRAY_FUNCS_PROPAGATES_NULLS = True
     EXPRESSION_METADATA = EXPRESSION_METADATA.copy()
 
     class Tokenizer(Spark2.Tokenizer):
@@ -128,6 +130,12 @@ class Spark(Spark2):
         FUNCTIONS = {
             **Spark2.Parser.FUNCTIONS,
             "ANY_VALUE": _build_with_ignore_nulls(exp.AnyValue),
+            "ARRAY_INSERT": lambda args: exp.ArrayInsert(
+                this=seq_get(args, 0),
+                position=seq_get(args, 1),
+                expression=seq_get(args, 2),
+                offset=1,
+            ),
             "BIT_AND": exp.BitwiseAndAgg.from_arg_list,
             "BIT_OR": exp.BitwiseOrAgg.from_arg_list,
             "BIT_XOR": exp.BitwiseXorAgg.from_arg_list,
@@ -164,6 +172,11 @@ class Spark(Spark2):
             this = self._parse_id_var()
             self._match(TokenType.R_BRACE)
             return self.expression(exp.Placeholder, this=this, widget=True)
+
+        FUNCTION_PARSERS = {
+            **Spark2.Parser.FUNCTION_PARSERS,
+            "SUBSTR": lambda self: self._parse_substring(),
+        }
 
         def _parse_generated_as_identity(
             self,
@@ -205,6 +218,8 @@ class Spark(Spark2):
             exp.ArrayConstructCompact: lambda self, e: self.func(
                 "ARRAY_COMPACT", self.func("ARRAY", *e.expressions)
             ),
+            exp.ArrayAppend: array_append_sql("ARRAY_APPEND"),
+            exp.ArrayPrepend: array_append_sql("ARRAY_PREPEND"),
             exp.BitwiseAndAgg: rename_func("BIT_AND"),
             exp.BitwiseOrAgg: rename_func("BIT_OR"),
             exp.BitwiseXorAgg: rename_func("BIT_XOR"),

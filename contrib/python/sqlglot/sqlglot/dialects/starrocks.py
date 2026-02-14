@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import typing as t
 
-from sqlglot import exp
+from sqlglot import exp, transforms
 from sqlglot.dialects.dialect import (
     approx_count_distinct_sql,
     arrow_json_extract_sql,
@@ -15,6 +15,31 @@ from sqlglot.dialects.dialect import (
 from sqlglot.dialects.mysql import MySQL
 from sqlglot.helper import seq_get
 from sqlglot.tokens import TokenType
+
+
+def _eliminate_between_in_delete(expression: exp.Expression) -> exp.Expression:
+    """
+    StarRocks doesn't support BETWEEN in DELETE statements, so we convert
+    BETWEEN expressions to explicit comparisons.
+
+    https://docs.starrocks.io/docs/sql-reference/sql-statements/table_bucket_part_index/DELETE/#parameters
+
+    Example:
+        >>> from sqlglot import parse_one
+        >>> expr = parse_one("DELETE FROM t WHERE x BETWEEN 1 AND 10")
+        >>> print(_eliminate_between_in_delete(expr).sql(dialect="starrocks"))
+        DELETE FROM t WHERE x >= 1 AND x <= 10
+    """
+    if where := expression.args.get("where"):
+        for between in where.find_all(exp.Between):
+            between.replace(
+                exp.and_(
+                    exp.GTE(this=between.this.copy(), expression=between.args["low"]),
+                    exp.LTE(this=between.this.copy(), expression=between.args["high"]),
+                    copy=False,
+                )
+            )
+    return expression
 
 
 # https://docs.starrocks.io/docs/sql-reference/sql-functions/spatial-functions/st_distance_sphere/
@@ -56,10 +81,30 @@ class StarRocks(MySQL):
 
         PROPERTY_PARSERS = {
             **MySQL.Parser.PROPERTY_PARSERS,
-            "PARTITION BY": lambda self: self._parse_partition_by_opt_range(),
             "PROPERTIES": lambda self: self._parse_wrapped_properties(),
             "UNIQUE": lambda self: self._parse_composite_key_property(exp.UniqueKeyProperty),
+            "ROLLUP": lambda self: self._parse_rollup_property(),
+            "REFRESH": lambda self: self._parse_refresh_property(),
         }
+
+        def _parse_rollup_property(self) -> exp.RollupProperty:
+            # ROLLUP (rollup_name (col1, col2) [FROM from_index] [PROPERTIES (...)], ...)
+            def parse_rollup_index() -> exp.RollupIndex:
+                return self.expression(
+                    exp.RollupIndex,
+                    this=self._parse_id_var(),
+                    expressions=self._parse_wrapped_id_vars(),
+                    from_index=self._parse_id_var() if self._match_text_seq("FROM") else None,
+                    properties=self.expression(
+                        exp.Properties, expressions=self._parse_wrapped_properties()
+                    )
+                    if self._match_text_seq("PROPERTIES")
+                    else None,
+                )
+
+            return self.expression(
+                exp.RollupProperty, expressions=self._parse_wrapped_csv(parse_rollup_index)
+            )
 
         def _parse_create(self) -> exp.Create | exp.Command:
             create = super()._parse_create()
@@ -94,6 +139,40 @@ class StarRocks(MySQL):
 
             return unnest
 
+        def _parse_partitioned_by(self) -> exp.PartitionedByProperty:
+            return self.expression(
+                exp.PartitionedByProperty,
+                this=exp.Schema(
+                    expressions=self._parse_wrapped_csv(self._parse_assignment, optional=True)
+                ),
+            )
+
+        def _parse_partition_property(
+            self,
+        ) -> t.Optional[exp.Expression] | t.List[exp.Expression]:
+            expr = super()._parse_partition_property()
+
+            if not expr:
+                return self._parse_partitioned_by()
+
+            if isinstance(expr, exp.Property):
+                return expr
+
+            self._match_l_paren()
+
+            if self._match_text_seq("START", advance=False):
+                create_expressions = self._parse_csv(self._parse_partitioning_granularity_dynamic)
+            else:
+                create_expressions = None
+
+            self._match_r_paren()
+
+            return self.expression(
+                exp.PartitionByRangeProperty,
+                partition_expressions=expr,
+                create_expressions=create_expressions,
+            )
+
         def _parse_partitioning_granularity_dynamic(self) -> exp.PartitionByRangePropertyDynamic:
             self._match_text_seq("START")
             start = self._parse_wrapped(self._parse_string)
@@ -105,20 +184,33 @@ class StarRocks(MySQL):
                 exp.PartitionByRangePropertyDynamic, start=start, end=end, every=every
             )
 
-        def _parse_partition_by_opt_range(
-            self,
-        ) -> exp.PartitionedByProperty | exp.PartitionByRangeProperty:
-            if self._match_text_seq("RANGE"):
-                partition_expressions = self._parse_wrapped_id_vars()
-                create_expressions = self._parse_wrapped_csv(
-                    self._parse_partitioning_granularity_dynamic
-                )
-                return self.expression(
-                    exp.PartitionByRangeProperty,
-                    partition_expressions=partition_expressions,
-                    create_expressions=create_expressions,
-                )
-            return super()._parse_partitioned_by()
+        def _parse_refresh_property(self) -> exp.RefreshTriggerProperty:
+            """
+            REFRESH [DEFERRED | IMMEDIATE]
+                    [ASYNC | ASYNC [START (<start_time>)] EVERY (INTERVAL <refresh_interval>) | MANUAL]
+            """
+            method = self._match_texts(("DEFERRED", "IMMEDIATE")) and self._prev.text.upper()
+            kind = self._match_texts(("ASYNC", "MANUAL")) and self._prev.text.upper()
+            start = self._match_text_seq("START") and self._parse_wrapped(self._parse_string)
+
+            if self._match_text_seq("EVERY"):
+                self._match_l_paren()
+                self._match_text_seq("INTERVAL")
+                every = self._parse_number()
+                unit = self._parse_var(any_token=True)
+                self._match_r_paren()
+            else:
+                every = None
+                unit = None
+
+            return self.expression(
+                exp.RefreshTriggerProperty,
+                method=method,
+                kind=kind,
+                starts=start,
+                every=every,
+                unit=unit,
+            )
 
     class Generator(MySQL.Generator):
         EXCEPT_INTERSECT_SUPPORT_ALL_CLAUSE = False
@@ -127,9 +219,12 @@ class StarRocks(MySQL):
         PARSE_JSON_NAME: t.Optional[str] = "PARSE_JSON"
         WITH_PROPERTIES_PREFIX = "PROPERTIES"
         UPDATE_STATEMENT_SUPPORTS_FROM = True
+        INSERT_OVERWRITE = " OVERWRITE"
 
         # StarRocks doesn't support "IS TRUE/FALSE" syntax.
         IS_BOOL_ALLOWED = False
+        # StarRocks doesn't support renaming a table with a database.
+        RENAME_TABLE_WITH_DB = False
 
         CAST_MAPPING = {}
 
@@ -145,7 +240,8 @@ class StarRocks(MySQL):
             **MySQL.Generator.PROPERTIES_LOCATION,
             exp.PrimaryKey: exp.Properties.Location.POST_SCHEMA,
             exp.UniqueKeyProperty: exp.Properties.Location.POST_SCHEMA,
-            exp.PartitionByRangeProperty: exp.Properties.Location.POST_SCHEMA,
+            exp.RollupProperty: exp.Properties.Location.POST_SCHEMA,
+            exp.PartitionedByProperty: exp.Properties.Location.POST_SCHEMA,
         }
 
         TRANSFORMS = {
@@ -158,6 +254,7 @@ class StarRocks(MySQL):
             exp.DateDiff: lambda self, e: self.func(
                 "DATE_DIFF", unit_to_str(e), e.this, e.expression
             ),
+            exp.Delete: transforms.preprocess([_eliminate_between_in_delete]),
             exp.Flatten: rename_func("ARRAY_FLATTEN"),
             exp.JSONExtractScalar: arrow_json_extract_sql,
             exp.JSONExtract: arrow_json_extract_sql,
@@ -349,3 +446,40 @@ class StarRocks(MySQL):
                     props.set("expressions", primary_key.pop(), engine_index + 1, overwrite=False)
 
             return super().create_sql(expression)
+
+        def partitionedbyproperty_sql(self, expression: exp.PartitionedByProperty) -> str:
+            this = expression.this
+            if isinstance(this, exp.Schema):
+                # For MVs, StarRocks needs outer parentheses.
+                create = expression.find_ancestor(exp.Create)
+
+                sql = self.expressions(this, flat=True)
+                if (create and create.kind == "VIEW") or all(
+                    isinstance(col, (exp.Column, exp.Identifier)) for col in this.expressions
+                ):
+                    sql = f"({sql})"
+
+                return f"PARTITION BY {sql}"
+
+            return f"PARTITION BY {self.sql(this)}"
+
+        def cluster_sql(self, expression: exp.Cluster) -> str:
+            """Generate StarRocks ORDER BY clause for clustering."""
+            expressions = self.expressions(expression, flat=True)
+            return f"ORDER BY ({expressions})" if expressions else ""
+
+        def refreshtriggerproperty_sql(self, expression: exp.RefreshTriggerProperty) -> str:
+            """Generate StarRocks REFRESH clause for materialized views.
+            There is a little difference of the syntax between StarRocks and Doris.
+            """
+            method = self.sql(expression, "method")
+            method = f" {method}" if method else ""
+            kind = self.sql(expression, "kind")
+            kind = f" {kind}" if kind else ""
+            starts = self.sql(expression, "starts")
+            starts = f" START ({starts})" if starts else ""
+            every = self.sql(expression, "every")
+            unit = self.sql(expression, "unit")
+            every = f" EVERY (INTERVAL {every} {unit})" if every and unit else ""
+
+            return f"REFRESH{method}{kind}{starts}{every}"
