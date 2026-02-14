@@ -3349,11 +3349,6 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     }
 
     proxyInternalConfig->JobThrottler = CloneYsonStruct(CommonConfig_->JobThrottler);
-    YT_LOG_DEBUG(
-        "Initialize prefetching job throttler (DynamicConfigEnable: %v, JobSpecEnable: %v, PrefetchEnable: %v)",
-        CommonConfig_->JobThrottler->BandwidthPrefetch->Enable,
-        JobSpecExt_.enable_prefetching_job_throttler(),
-        proxyInternalConfig->JobThrottler->BandwidthPrefetch->Enable);
 
     proxyInternalConfig->StatisticsOutputTableCountLimit = CommonConfig_->StatisticsOutputTableCountLimit;
 

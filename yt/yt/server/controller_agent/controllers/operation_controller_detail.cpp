@@ -4870,8 +4870,6 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
 
     jobSpecExt->set_testing_options(ToProto(ConvertToYsonString(Spec_->JobTestingOptions)));
 
-    jobSpecExt->set_enable_prefetching_job_throttler(true);
-
     jobSpecExt->set_enable_codegen_comparator(Spec_->EnableCodegenComparator);
 
     jobSpecExt->set_enable_virtual_sandbox(Spec_->EnableVirtualSandbox);
