@@ -25,16 +25,15 @@ TRetryingInvocationTimePolicy::TRetryingInvocationTimePolicy(
     , Backoff_(options)
 {
     CachedBackoffDuration_.store(options.MinBackoff, std::memory_order::relaxed);
-    CachedBackoffMultiplier_.store(options.BackoffJitter, std::memory_order::relaxed);
-    CachedBackoffJitter_.store(options.BackoffJitter,std::memory_order::relaxed);
+    CachedBackoffMultiplier_.store(options.BackoffMultiplier, std::memory_order::relaxed);
+    CachedBackoffJitter_.store(options.BackoffJitter, std::memory_order::relaxed);
 }
 
 void TRetryingInvocationTimePolicy::ProcessResult(TError result)
 {
-    if (result.IsOK()) {
+    // Exit backoff mode at success or at reaching backoff invocation count.
+    if (result.IsOK() || !Backoff_.Next()) {
         Backoff_.Restart();
-    } else {
-        Backoff_.Next();
     }
 
     CachedBackoffDuration_.store(
@@ -45,6 +44,12 @@ void TRetryingInvocationTimePolicy::ProcessResult(TError result)
 bool TRetryingInvocationTimePolicy::ShouldKickstart(const TOptions& newOptions)
 {
     return ShouldKickstart(newOptions, newOptions);
+}
+
+bool TRetryingInvocationTimePolicy::IsEnabled()
+{
+    // Post delayed callback if period is set or currently in backoff mode.
+    return TDefaultInvocationTimePolicy::IsEnabled() || IsInBackoffMode();
 }
 
 bool TRetryingInvocationTimePolicy::ShouldKickstart(
