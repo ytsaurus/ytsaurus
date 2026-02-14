@@ -7,8 +7,12 @@
 
 #include <yt/yt/core/actions/future.h>
 
+#include <yt/yt/core/concurrency/public.h>
+
 #include <yt/yt/core/misc/async_slru_cache.h>
 #include <yt/yt/core/misc/guid.h>
+
+#include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NExecNode {
 
@@ -77,6 +81,42 @@ struct TLayerMeta
 DECLARE_REFCOUNTED_CLASS(TLayerLocation)
 DECLARE_REFCOUNTED_CLASS(TLayer)
 
+class TLayer
+    : public TAsyncCacheValueBase<TArtifactKey, TLayer>
+{
+public:
+    TLayer(const TLayerMeta& layerMeta, const TArtifactKey& artifactKey, const TLayerLocationPtr& layerLocation);
+
+    ~TLayer();
+
+    const TString& GetCypressPath() const;
+
+    const std::string& GetPath() const;
+
+    i64 GetSize() const;
+
+    const TLayerMeta& GetMeta() const;
+
+    void IncreaseHitCount();
+
+    int GetHitCount() const;
+
+    void SetLayerRemovalNotNeeded();
+
+private:
+    const TLayerMeta LayerMeta_;
+    const TLayerLocationPtr Location_;
+    std::atomic<int> HitCount_;
+
+    // If the slot manager is disabled, the layers that are currently in the layer cache
+    // do not need to be removed from the porto. If you delete them, firstly, in this
+    // case they will need to be re-imported into the porto, and secondly, then there
+    // may be a problem when inserting the same layers when starting a new volume manager.
+    // Namely, a layer object that is already in the new cache may be deleted from the old cache,
+    // in which case the layer object in the new cache will be corrupted.
+    bool IsLayerRemovalNeeded_ = true;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOverlayData
@@ -122,40 +162,41 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLayer
-    : public TAsyncCacheValueBase<TArtifactKey, TLayer>
+DECLARE_REFCOUNTED_CLASS(TSimpleTmpfsVolume)
+
+class TSimpleTmpfsVolume
+    : public IVolume
 {
 public:
-    TLayer(const TLayerMeta& layerMeta, const TArtifactKey& artifactKey, const TLayerLocationPtr& layerLocation);
+    TSimpleTmpfsVolume(
+        NProfiling::TTagSet tagSet,
+        const std::string& path,
+        IInvokerPtr invoker,
+        bool detachUnmount);
 
-    ~TLayer();
+    ~TSimpleTmpfsVolume() override;
 
-    const TString& GetCypressPath() const;
+    bool IsCached() const final;
 
-    const std::string& GetPath() const;
+    TFuture<void> Link(
+        TGuid tag,
+        const TString& target) override final;
 
-    i64 GetSize() const;
+    TFuture<void> Remove() override final;
 
-    const TLayerMeta& GetMeta() const;
+    const TVolumeId& GetId() const override final;
 
-    void IncreaseHitCount();
+    const std::string& GetPath() const override final;
 
-    int GetHitCount() const;
-
-    void SetLayerRemovalNotNeeded();
+    bool IsRootVolume() const override final;
 
 private:
-    const TLayerMeta LayerMeta_;
-    const TLayerLocationPtr Location_;
-    std::atomic<int> HitCount_;
-
-    // If the slot manager is disabled, the layers that are currently in the layer cache
-    // do not need to be removed from the porto. If you delete them, firstly, in this
-    // case they will need to be re-imported into the porto, and secondly, then there
-    // may be a problem when inserting the same layers when starting a new volume manager.
-    // Namely, a layer object that is already in the new cache may be deleted from the old cache,
-    // in which case the layer object in the new cache will be corrupted.
-    bool IsLayerRemovalNeeded_ = true;
+    const NProfiling::TTagSet TagSet_;
+    const std::string Path_;
+    const TVolumeId VolumeId_;
+    const IInvokerPtr Invoker_;
+    const bool DetachUnmount_;
+    TFuture<void> RemoveFuture_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
