@@ -138,7 +138,7 @@ TFuture<void> TPortoVolumeBase::DoRemoveVolumeCommon(
                 if (cleanup) {
                     return cleanup(Logger);
                 }
-                return VoidFuture;
+                return OKFuture;
             }))
         .ToUncancelable();
 }
@@ -288,7 +288,7 @@ TFuture<void> TRWNbdVolume::DoRemove(
                 return device->Finalize();
             } else {
                 YT_LOG_WARNING("Failed to finalize device; unknown device");
-                return VoidFuture;
+                return OKFuture;
             }
         })
         .AsyncVia(nbdServer->GetInvoker());
@@ -353,7 +353,7 @@ TFuture<void> TRONbdVolume::DoRemove(
                 return device->Finalize();
             } else {
                 YT_LOG_WARNING("Failed to finalize device; unknown device");
-                return VoidFuture;
+                return OKFuture;
             }
         })
         .AsyncVia(nbdServer->GetInvoker());
