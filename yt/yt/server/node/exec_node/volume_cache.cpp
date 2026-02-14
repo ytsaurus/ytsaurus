@@ -90,40 +90,6 @@ TLayerLocationPtr DoPickLocation(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-IImageReaderPtr CreateCypressFileImageReader(
-    const TArtifactKey& artifactKey,
-    NChunkClient::TChunkReaderHostPtr readerHost,
-    IThroughputThrottlerPtr inThrottler,
-    IThroughputThrottlerPtr outRpsThrottler,
-    IInvokerPtr invoker,
-    const TLogger& logger)
-{
-    YT_VERIFY(artifactKey.has_filesystem());
-
-    std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs(
-        artifactKey.chunk_specs().begin(),
-        artifactKey.chunk_specs().end());
-
-    auto reader = CreateRandomAccessFileReader(
-        std::move(chunkSpecs),
-        artifactKey.data_source().path(),
-        std::move(readerHost),
-        std::move(inThrottler),
-        std::move(outRpsThrottler),
-        std::move(invoker),
-        logger);
-
-    return CreateCypressFileImageReader(
-        std::move(reader),
-        std::move(logger));
-}
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
 TSquashFSVolumeCache::TSquashFSVolumeCache(
     IBootstrap* const bootstrap,
     std::vector<TLayerLocationPtr> layerLocations,
@@ -419,14 +385,26 @@ IImageReaderPtr TRONbdVolumeCache::CreateArtifactReader(
     const TLogger& Logger,
     const TArtifactKey& artifactKey)
 {
-    YT_LOG_DEBUG("Creating NBD artifact reader");
+    YT_VERIFY(artifactKey.has_filesystem());
+
+    auto path = NYPath::TYPath(artifactKey.data_source().path());
+
+    YT_LOG_DEBUG("Creating NBD artifact reader (Path: %v)",
+        path);
+
+    std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs(
+        artifactKey.chunk_specs().begin(),
+        artifactKey.chunk_specs().end());
+
+    auto fileReader = CreateRandomAccessFileReader(
+        std::move(chunkSpecs),
+        std::move(path),
+        Bootstrap_->GetLayerReaderHost(),
+        Bootstrap_->GetNbdServer()->GetInvoker(),
+        Bootstrap_->GetNbdServer()->GetLogger());
 
     return CreateCypressFileImageReader(
-        artifactKey,
-        Bootstrap_->GetLayerReaderHost(),
-        Bootstrap_->GetDefaultInThrottler(),
-        Bootstrap_->GetReadRpsOutThrottler(),
-        Bootstrap_->GetNbdServer()->GetInvoker(),
+        std::move(fileReader),
         Bootstrap_->GetNbdServer()->GetLogger());
 }
 

@@ -252,9 +252,8 @@ public:
                 std::move(layerBlockCache),
                 connection->GetChunkMetaCache(),
                 /*nodeStatusDirectory*/ nullptr,
-                // TODO(babenko): maybe pass throttlers here?
-                /*bandwidthThrottlerProvider*/ TPerCategoryThrottlerProvider(),
-                /*rpsThrottler*/ nullptr,
+                MakeUniformPerCategoryThrottlerProvider(GetDefaultInThrottler()),
+                GetReadRpsOutThrottler(),
                 /*mediumThrottler*/ nullptr,
                 /*trafficMeter*/ nullptr);
 
@@ -269,9 +268,8 @@ public:
                 std::move(fileBlockCache),
                 connection->GetChunkMetaCache(),
                 /*nodeStatusDirectory*/ nullptr,
-                // TODO(babenko): maybe pass throttlers here?
-                /*bandwidthThrottlerProvider*/ TPerCategoryThrottlerProvider(),
-                /*rpsThrottler*/ nullptr,
+                MakeUniformPerCategoryThrottlerProvider(GetDefaultInThrottler()),
+                GetReadRpsOutThrottler(),
                 /*mediumThrottler*/ nullptr,
                 /*trafficMeter*/ nullptr);
         }

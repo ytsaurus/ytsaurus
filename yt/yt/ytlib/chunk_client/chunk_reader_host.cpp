@@ -72,6 +72,15 @@ const TPerCategoryThrottlerProvider& GetUnlimitedPerCategoryThrottlerProvider()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TPerCategoryThrottlerProvider MakeUniformPerCategoryThrottlerProvider(IThroughputThrottlerPtr throttler)
+{
+    return BIND([throttler = std::move(throttler)] (EWorkloadCategory /*category*/) {
+        return throttler;
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TChunkReaderHost::TChunkReaderHost(
     NNative::IClientPtr client,
     TNodeDescriptor localDescriptor,

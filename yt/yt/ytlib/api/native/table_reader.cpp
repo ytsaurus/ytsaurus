@@ -214,9 +214,7 @@ private:
             tableReaderConfig,
             New<TChunkReaderHost>(
                 Client_,
-                BIND([throttler = BandwidthThrottler_] (EWorkloadCategory /*category*/) {
-                    return throttler;
-                }),
+                MakeUniformPerCategoryThrottlerProvider(BandwidthThrottler_),
                 RpsThrottler_),
             tableReadSpec,
             chunkReadOptions,

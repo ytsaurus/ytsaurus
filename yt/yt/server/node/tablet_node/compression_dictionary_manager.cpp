@@ -671,9 +671,7 @@ private:
             /*chunkMetaCache*/ nullptr,
             Bootstrap_->GetHintManager(),
             // TODO(akozhikhov): Specific workload category?
-            BIND([throttler = Bootstrap_->GetInThrottler(EWorkloadCategory::SystemTabletCompaction)] (EWorkloadCategory /*category*/) {
-                return throttler;
-            }),
+            MakeUniformPerCategoryThrottlerProvider(Bootstrap_->GetInThrottler(EWorkloadCategory::SystemTabletCompaction)),
             Bootstrap_->GetReadRpsOutThrottler(),
             NConcurrency::GetUnlimitedThrottler(),
             /*trafficMeter*/ nullptr);

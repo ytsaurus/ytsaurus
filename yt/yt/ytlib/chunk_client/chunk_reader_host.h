@@ -18,6 +18,8 @@ using TPerCategoryThrottlerProvider = TCallback<
     NConcurrency::IThroughputThrottlerPtr(EWorkloadCategory category)
 >;
 
+TPerCategoryThrottlerProvider MakeUniformPerCategoryThrottlerProvider(NConcurrency::IThroughputThrottlerPtr throttler);
+
 using TPerClusterAndCategoryBandwidthThrottlerProvider = TCallback<
     TPerCategoryThrottlerProvider(const NScheduler::TClusterName& clusterName)
 >;

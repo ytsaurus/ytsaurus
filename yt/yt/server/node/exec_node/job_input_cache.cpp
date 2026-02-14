@@ -145,9 +145,7 @@ TJobInputCache::TJobInputCache(
         BlockCache_,
         MetaCache_,
         /*nodeStatusDirectory*/ nullptr,
-        BIND([throttler = Bootstrap_->GetExecNodeBootstrap()->GetThrottler(EExecNodeThrottlerKind::JobIn)] (EWorkloadCategory /*category*/) {
-            return throttler;
-        }),
+        MakeUniformPerCategoryThrottlerProvider(Bootstrap_->GetExecNodeBootstrap()->GetThrottler(EExecNodeThrottlerKind::JobIn)),
         Bootstrap_->GetReadRpsOutThrottler(),
         /*mediumThrottler*/ nullptr,
         /*trafficMeter*/ nullptr))
