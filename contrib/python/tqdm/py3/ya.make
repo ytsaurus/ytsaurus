@@ -2,7 +2,7 @@
 
 PY3_LIBRARY()
 
-VERSION(4.67.1)
+VERSION(4.67.2)
 
 LICENSE(MIT AND MPL-2.0)
 
@@ -27,7 +27,6 @@ PY_SRCS(
     TOP_LEVEL
     tqdm/__init__.py
     tqdm/__main__.py
-    tqdm/_dist_ver.py
     tqdm/_main.py
     tqdm/_monitor.py
     tqdm/_tqdm.py
