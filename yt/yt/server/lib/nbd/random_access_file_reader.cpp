@@ -437,7 +437,7 @@ private:
                 std::move(reader),
                 InThrottler_,
                 OutRpsThrottler_,
-                /*mediumThrottler*/ GetUnlimitedThrottler());
+                /*mediumThrottler*/ nullptr);
 
             chunk.ReadBlocksOptions.ClientOptions.WorkloadDescriptor.Category = NYT::EWorkloadCategory::UserInteractive;
             chunk.ReadBlocksOptions.SessionInvoker = Invoker_;

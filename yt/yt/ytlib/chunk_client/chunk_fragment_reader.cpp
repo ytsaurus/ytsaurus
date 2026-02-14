@@ -1,6 +1,7 @@
 #include "chunk_fragment_reader.h"
 
 #include "private.h"
+#include "chunk_reader_host.h"
 #include "chunk_reader_options.h"
 #include "config.h"
 #include "data_node_service_proxy.h"
@@ -157,30 +158,22 @@ class TChunkFragmentReader
 public:
     TChunkFragmentReader(
         TChunkFragmentReaderConfigPtr config,
-        NApi::NNative::IClientPtr client,
-        INodeStatusDirectoryPtr nodeStatusDirectory,
-        IBlockCachePtr blockCache,
-        const NProfiling::TProfiler& profiler,
-        IThroughputThrottlerPtr mediumThrottler,
-        TThrottlerProvider throttlerProvider)
+        TChunkReaderHostPtr chunkReaderHost,
+        const NProfiling::TProfiler& profiler)
         : Config_(std::move(config))
-        , Client_(std::move(client))
-        , NodeDirectory_(Client_->GetNativeConnection()->GetNodeDirectory())
-        , NodeStatusDirectory_(std::move(nodeStatusDirectory))
-        , BlockCache_(std::move(blockCache))
-        , Networks_(Client_->GetNativeConnection()->GetNetworks())
+        , Host_(std::move(chunkReaderHost))
+        , NodeDirectory_(Host_->Client->GetNativeConnection()->GetNodeDirectory())
+        , Networks_(Host_->Client->GetNativeConnection()->GetNetworks())
         , Logger(ChunkClientLogger().WithTag("ChunkFragmentReaderId: %v", TGuid::Create()))
         , ReaderInvoker_(TDispatcher::Get()->GetReaderInvoker())
         , PeerInfoCache_(New<TPeerInfoCache>(
             Config_->PeerInfoExpirationTimeout,
             ReaderInvoker_))
-        , MediumThrottler_(std::move(mediumThrottler))
-        , ThrottlerProvider_(std::move(throttlerProvider))
         , SuccessfulProbingRequestCounter_(profiler.Counter("/successful_probing_request_count"))
         , FailedProbingRequestCounter_(profiler.Counter("/failed_probing_request_count"))
     {
         // NB: Ensure that it is started so medium priorities could be accounted.
-        Client_->GetNativeConnection()->GetMediumDirectorySynchronizer()->Start();
+        Host_->Client->GetNativeConnection()->GetMediumDirectorySynchronizer()->Start();
 
         SchedulePeriodicProbing();
     }
@@ -197,17 +190,13 @@ private:
     class TRetryingReadFragmentsSession;
 
     const TChunkFragmentReaderConfigPtr Config_;
-    const NApi::NNative::IClientPtr Client_;
+    const TChunkReaderHostPtr Host_;
     const TNodeDirectoryPtr NodeDirectory_;
-    const INodeStatusDirectoryPtr NodeStatusDirectory_;
-    const IBlockCachePtr BlockCache_;
     const TNetworkPreferenceList Networks_;
 
     const NLogging::TLogger Logger;
     const IInvokerPtr ReaderInvoker_;
     const TPeerInfoCachePtr PeerInfoCache_;
-    const IThroughputThrottlerPtr MediumThrottler_;
-    const TThrottlerProvider ThrottlerProvider_;
 
     NProfiling::TCounter SuccessfulProbingRequestCounter_;
     NProfiling::TCounter FailedProbingRequestCounter_;
@@ -237,7 +226,7 @@ private:
         }
 
         auto& address = *optionalAddress;
-        const auto& channelFactory = Client_->GetChannelFactory();
+        const auto& channelFactory = Host_->Client->GetChannelFactory();
         auto channel = channelFactory->CreateChannel(address);
 
         return New<TPeerInfo>(TPeerInfo{
@@ -385,7 +374,7 @@ private:
 
     std::vector<TFuture<TAllyReplicasInfo>> GetAllyReplicas()
     {
-        const auto& chunkReplicaCache = Reader_->Client_->GetNativeConnection()->GetChunkReplicaCache();
+        const auto& chunkReplicaCache = Reader_->Host_->Client->GetNativeConnection()->GetChunkReplicaCache();
         ReplicaInfoFutures_ = chunkReplicaCache->GetReplicas(ChunkIds_);
         YT_VERIFY(ReplicaInfoFutures_.size() == ChunkIds_.size());
 
@@ -529,7 +518,7 @@ private:
                 YT_LOG_DEBUG("Node is not suspicious anymore (NodeId: %v, Address: %v)",
                     probingInfo.NodeId,
                     peerInfo->Address);
-                Reader_->NodeStatusDirectory_->UpdateSuspicionMarkTime(
+                Reader_->Host_->NodeStatusDirectory->UpdateSuspicionMarkTime(
                     probingInfo.NodeId,
                     peerInfo->Address,
                     /*suspicious*/ false,
@@ -610,7 +599,7 @@ private:
             return;
         }
 
-        const auto& chunkReplicaCache = Reader_->Client_->GetNativeConnection()->GetChunkReplicaCache();
+        const auto& chunkReplicaCache = Reader_->Host_->Client->GetNativeConnection()->GetChunkReplicaCache();
         chunkReplicaCache->UpdateReplicas(chunkId, FromProto<TAllyReplicasInfo>(protoAllyReplicas));
     }
 
@@ -621,7 +610,7 @@ private:
             return;
         }
 
-        const auto& chunkReplicaCache = Reader_->Client_->GetNativeConnection()->GetChunkReplicaCache();
+        const auto& chunkReplicaCache = Reader_->Host_->Client->GetNativeConnection()->GetChunkReplicaCache();
         chunkReplicaCache->DiscardReplicas(chunkId, it->second);
     }
 
@@ -666,7 +655,7 @@ private:
             probingInfos[nodeIndex].PeerInfoOrError = std::move(peerInfoOrErrors[nodeIndex]);
         }
 
-        auto nodeIdToSuspicionMarkTime = Reader_->NodeStatusDirectory_->RetrieveSuspiciousNodeIdsWithMarkTime(nodeIds);
+        auto nodeIdToSuspicionMarkTime = Reader_->Host_->NodeStatusDirectory->RetrieveSuspiciousNodeIdsWithMarkTime(nodeIds);
         for (int nodeIndex = 0; nodeIndex < std::ssize(probingInfos); ++nodeIndex) {
             auto& probingInfo = probingInfos[nodeIndex];
             auto it = nodeIdToSuspicionMarkTime.find(probingInfo.NodeId);
@@ -706,7 +695,7 @@ private:
         i64 diskQueueSize,
         int mediumIndex) const
     {
-        const auto& mediumDirectory = Reader_->Client_->GetNativeConnection()->GetMediumDirectory();
+        const auto& mediumDirectory = Reader_->Host_->Client->GetNativeConnection()->GetMediumDirectory();
         const auto* mediumDescriptor = mediumDirectory->FindByIndex(mediumIndex);
         return {
             mediumDescriptor ? -mediumDescriptor->Priority : 0,
@@ -719,12 +708,12 @@ private:
     {
         const auto& peerInfo = probingInfo.PeerInfoOrError.Value();
         if (!probingInfo.SuspicionMarkTime &&
-            Reader_->NodeStatusDirectory_->ShouldMarkNodeSuspicious(error))
+            Reader_->Host_->NodeStatusDirectory->ShouldMarkNodeSuspicious(error))
         {
             YT_LOG_WARNING(error, "Node is marked as suspicious (NodeId: %v, Address: %v)",
                 probingInfo.NodeId,
                 peerInfo->Address);
-            Reader_->NodeStatusDirectory_->UpdateSuspicionMarkTime(
+            Reader_->Host_->NodeStatusDirectory->UpdateSuspicionMarkTime(
                 probingInfo.NodeId,
                 peerInfo->Address,
                 /*suspicious*/ true,
@@ -1036,7 +1025,7 @@ public:
         , Logger(std::move(logger))
         , SessionInvoker_(CreateSerializedInvoker(Reader_->ReaderInvoker_))
         , NetworkThrottler_(GetNetworkThrottler())
-        , MediumThrottler_(Reader_->MediumThrottler_)
+        , MediumThrottler_(Reader_->Host_->MediumThrottler)
         , CombinedDataByteThrottler_(CreateCombinedDataByteThrottler())
     { }
 
@@ -1184,7 +1173,7 @@ private:
                     request.ChunkId,
                     request.ErasureCodec,
                     &State_->Response.Fragments,
-                    Reader_->BlockCache_,
+                    Reader_->Host_->BlockCache,
                     TChunkFragmentReadControllerOptions{
                         .PrefetchWholeBlocks = Reader_->Config_->PrefetchWholeBlocks,
                     });
@@ -1296,7 +1285,7 @@ private:
 
         SortUnique(nodeIds);
 
-        NodeIdToSuspicionMarkTime_ = Reader_->NodeStatusDirectory_->RetrieveSuspiciousNodeIdsWithMarkTime(nodeIds);
+        NodeIdToSuspicionMarkTime_ = Reader_->Host_->NodeStatusDirectory->RetrieveSuspiciousNodeIdsWithMarkTime(nodeIds);
 
         // Adjust replica penalties based on suspiciousness and bans.
         // Sort replicas and feed them to controllers.
@@ -1580,12 +1569,12 @@ private:
     void MaybeMarkNodeSuspicious(const TError& error, const TPeerInfoPtr& peerInfo)
     {
         if (!NodeIdToSuspicionMarkTime_.contains(peerInfo->NodeId) &&
-            Reader_->NodeStatusDirectory_->ShouldMarkNodeSuspicious(error))
+            Reader_->Host_->NodeStatusDirectory->ShouldMarkNodeSuspicious(error))
         {
             YT_LOG_DEBUG("Node is marked as suspicious (NodeId: %v, Address: %v)",
                 peerInfo->NodeId,
                 peerInfo->Address);
-            Reader_->NodeStatusDirectory_->UpdateSuspicionMarkTime(
+            Reader_->Host_->NodeStatusDirectory->UpdateSuspicionMarkTime(
                 peerInfo->NodeId,
                 peerInfo->Address,
                 /*suspicious*/ true,
@@ -1610,7 +1599,7 @@ private:
             return;
         }
 
-        const auto& chunkReplicaCache = Reader_->Client_->GetNativeConnection()->GetChunkReplicaCache();
+        const auto& chunkReplicaCache = Reader_->Host_->Client->GetNativeConnection()->GetChunkReplicaCache();
         chunkReplicaCache->UpdateReplicas(chunkId, FromProto<TAllyReplicasInfo>(protoAllyReplicas));
     }
 
@@ -1762,16 +1751,7 @@ private:
 
     IThroughputThrottlerPtr GetNetworkThrottler() const
     {
-        if (!Reader_->ThrottlerProvider_) {
-            return GetUnlimitedThrottler();
-        }
-
-        auto throttler = Reader_->ThrottlerProvider_(Options_.WorkloadDescriptor.Category);
-        if (!throttler) {
-            return GetUnlimitedThrottler();
-        }
-
-        return throttler;
+        return Reader_->Host_->BandwidthThrottlerProvider(Options_.WorkloadDescriptor.Category);
     }
 
     IThroughputThrottlerPtr CreateCombinedDataByteThrottler() const
@@ -2131,21 +2111,13 @@ void TChunkFragmentReader::RunPeriodicProbing()
 
 IChunkFragmentReaderPtr CreateChunkFragmentReader(
     TChunkFragmentReaderConfigPtr config,
-    NApi::NNative::IClientPtr client,
-    INodeStatusDirectoryPtr nodeStatusDirectory,
-    IBlockCachePtr blockCache,
-    const NProfiling::TProfiler& profiler,
-    IThroughputThrottlerPtr mediumThrottler,
-    TThrottlerProvider throttlerProvider)
+    TChunkReaderHostPtr chunkReaderHost,
+    const NProfiling::TProfiler& profiler)
 {
     return New<TChunkFragmentReader>(
         std::move(config),
-        std::move(client),
-        std::move(nodeStatusDirectory),
-        std::move(blockCache),
-        profiler,
-        std::move(mediumThrottler),
-        std::move(throttlerProvider));
+        std::move(chunkReaderHost),
+        profiler);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

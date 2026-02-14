@@ -212,7 +212,12 @@ private:
         Reader_ = CreateAppropriateSchemalessMultiChunkReader(
             tableReaderOptions,
             tableReaderConfig,
-            TChunkReaderHost::FromClient(Client_, BandwidthThrottler_, RpsThrottler_),
+            New<TChunkReaderHost>(
+                Client_,
+                BIND([throttler = BandwidthThrottler_] (EWorkloadCategory /*category*/) {
+                    return throttler;
+                }),
+                RpsThrottler_),
             tableReadSpec,
             chunkReadOptions,
             Options_.Unordered,

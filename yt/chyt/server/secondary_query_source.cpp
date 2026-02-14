@@ -78,8 +78,8 @@ public:
         const TClientChunkReadOptions& chunkReadOptions)
         : QueryContext_(storageContext->QueryContext)
         , DataSourceDirectory_(subquerySpec.DataSourceDirectory)
-        , ChunkReaderHost_(CreateSingleSourceMultiChunkReaderHost(
-            TChunkReaderHost::FromClient(storageContext->QueryContext->Client())))
+        , ChunkReaderHost_(New<TMultiChunkReaderHost>(
+            New<TChunkReaderHost>(storageContext->QueryContext->Client())))
         , ChunkReadOptions_(chunkReadOptions)
         , TableReaderConfig_(MergeTableReaderConfigs(
             storageContext->Settings->TableReader,

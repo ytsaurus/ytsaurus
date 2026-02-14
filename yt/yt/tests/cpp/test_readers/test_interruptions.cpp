@@ -220,8 +220,8 @@ TEST_F(TReaderInterruptions, MultipleChunksNoOverrides)
     };
 
     for (bool isParallel : {false, true}) {
-        auto chunkReaderHost = TChunkReaderHost::FromClient(NativeClient_);
-        auto multiChunkReaderHost = CreateSingleSourceMultiChunkReaderHost(chunkReaderHost);
+        auto chunkReaderHost = New<TChunkReaderHost>(NativeClient_);
+        auto multiChunkReaderHost = New<TMultiChunkReaderHost>(chunkReaderHost);
 
         ISchemalessMultiChunkReaderPtr reader = isParallel
             ? CreateSchemalessParallelMultiReader(
@@ -346,8 +346,8 @@ TEST_P(TReaderInterruptionsParametrized, MultiChunkReaderAfterEachRow)
     auto& source = sourceDirectory->DataSources().emplace_back(New<TDataSource>());
     source->Schema() = Schema_;
 
-    auto chunkReaderHost = TChunkReaderHost::FromClient(NativeClient_);
-    auto multiChunkReaderHost = CreateSingleSourceMultiChunkReaderHost(chunkReaderHost);
+    auto chunkReaderHost = New<TChunkReaderHost>(NativeClient_);
+    auto multiChunkReaderHost = New<TMultiChunkReaderHost>(chunkReaderHost);
 
     ISchemalessMultiChunkReaderPtr reader = isParallel
         ? CreateSchemalessParallelMultiReader(

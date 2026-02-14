@@ -199,12 +199,8 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
         if (!chunkFragmentReader) {
             chunkFragmentReader = CreateChunkFragmentReader(
                 config,
-                perClusterChunkReaderHost->Client,
-                CreateTrivialNodeStatusDirectory(),
-                GetNullBlockCache(),
-                /*profiler*/ {},
-                /*mediumThrottler*/ GetUnlimitedThrottler(),
-                /*throttlerProvider*/ {});
+                perClusterChunkReaderHost,
+                /*profiler*/ {});
         }
 
         auto wrapReader = [=] (ISchemalessChunkReaderPtr chunkReader) {
@@ -1538,12 +1534,8 @@ ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
 
             auto chunkFragmentReader = CreateChunkFragmentReader(
                 config,
-                chunkReaderHost->Client,
-                CreateTrivialNodeStatusDirectory(),
-                GetNullBlockCache(),
-                /*profiler*/ {},
-                /*mediumThrottler*/ GetUnlimitedThrottler(),
-                /*throttlerProvider*/ {});
+                chunkReaderHost,
+                /*profiler*/ {});
             auto dictionaryCompressionFactory = CreateSimpleDictionaryCompressionFactory(
                 chunkFragmentReader,
                 config,
@@ -1567,7 +1559,7 @@ ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
             return factory(
                 config,
                 options,
-                CreateSingleSourceMultiChunkReaderHost(std::move(chunkReaderHost)),
+                New<TMultiChunkReaderHost>(std::move(chunkReaderHost)),
                 dataSourceDirectory,
                 std::move(dataSliceDescriptors),
                 /*hintKeyPrefixes*/ std::nullopt,

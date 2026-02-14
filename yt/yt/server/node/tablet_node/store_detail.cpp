@@ -177,9 +177,9 @@ public:
                 std::move(blockCache),
                 /*chunkMetaCache*/ nullptr,
                 std::move(nodeStatusDirectory),
-                /*bandwidthThrottler*/ GetUnlimitedThrottler(),
-                /*rpsThrottler*/ GetUnlimitedThrottler(),
-                /*mediumThrottler*/ GetUnlimitedThrottler(),
+                /*bandwidthThrottlerProvider*/ TPerCategoryThrottlerProvider(),
+                /*rpsThrottler*/ nullptr,
+                /*mediumThrottler*/ nullptr,
                 /*trafficMeter*/ nullptr);
 
             // NB: Bandwidth throttler will be set in createRemoteReaderAdapter.
@@ -217,7 +217,7 @@ public:
                 owner->GetChunkId(),
                 ChunkReader_,
                 std::move(bandwidthThrottler),
-                /*rpsThrottler*/ GetUnlimitedThrottler(),
+                /*rpsThrottler*/ nullptr,
                 getBlobMediumReadThrottler());
             backendReaders.OffloadingReader = dynamic_cast<IOffloadingReader*>(backendReaders.ChunkReader.Get());
             backendReaders.ReaderConfig = ReaderConfig_;

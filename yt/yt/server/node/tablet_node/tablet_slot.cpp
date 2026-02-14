@@ -57,6 +57,7 @@
 #include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_fragment_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
@@ -643,25 +644,25 @@ public:
         auto config = dynamicConfigManager->GetConfig();
         bool chunkFragmentReaderThrottlingEnabled = config->TabletNode->EnableChunkFragmentReaderThrottling;
 
-        auto mediumThrottler = GetChunkFragmentReaderMediumThrottler(tablet);
+        auto chunkReaderHost = New<TChunkReaderHost>(
+            Bootstrap_->GetClient(),
+            Bootstrap_->GetLocalDescriptor(),
+            Bootstrap_->GetBlockCache(),
+            Bootstrap_->GetClient()->GetNativeConnection()->GetChunkMetaCache(),
+            Bootstrap_->GetHintManager(),
+            BIND([chunkFragmentReaderThrottlingEnabled, bootstrap = Bootstrap_] (EWorkloadCategory category) {
+                return chunkFragmentReaderThrottlingEnabled
+                    ?  bootstrap->GetInThrottler(category)
+                    : GetUnlimitedThrottler();
+            }),
+            /*rpsThrottler*/ nullptr,
+            GetChunkFragmentReaderMediumThrottler(tablet),
+            /*trafficMeter*/ nullptr);
 
         return NChunkClient::CreateChunkFragmentReader(
             tablet->GetSettings().HunkReaderConfig,
-            Bootstrap_->GetClient(),
-            Bootstrap_->GetHintManager(),
-            Bootstrap_->GetBlockCache(),
-            tablet->GetTableProfiler()->GetProfiler().WithPrefix("/chunk_fragment_reader"),
-            std::move(mediumThrottler),
-            [chunkFragmentReaderThrottlingEnabled, bootstrap = Bootstrap_] (EWorkloadCategory category)
-                -> const IThroughputThrottlerPtr&
-            {
-                if (!chunkFragmentReaderThrottlingEnabled) {
-                    static const IThroughputThrottlerPtr NullThrottler;
-                    return NullThrottler;
-                }
-
-                return bootstrap->GetInThrottler(category);
-            });
+            std::move(chunkReaderHost),
+            tablet->GetTableProfiler()->GetProfiler().WithPrefix("/chunk_fragment_reader"));
     }
 
     ICompressionDictionaryManagerPtr GetCompressionDictionaryManager() const override
