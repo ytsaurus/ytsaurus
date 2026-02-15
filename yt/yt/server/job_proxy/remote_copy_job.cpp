@@ -1146,7 +1146,6 @@ private:
             Host_->LocalDescriptor(),
             Host_->GetReaderBlockCache(),
             /*chunkMetaCache*/ nullptr,
-            /*nodeStatusDirectory*/ nullptr,
             MakeUniformPerCategoryThrottlerProvider(Host_->GetInBandwidthThrottler(clusterName)),
             Host_->GetOutRpsThrottler(),
             /*mediumThrottler*/ nullptr,

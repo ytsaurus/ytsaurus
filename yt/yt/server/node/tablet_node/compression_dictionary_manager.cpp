@@ -669,7 +669,6 @@ private:
             Bootstrap_->GetLocalDescriptor(),
             /*blockCache*/ nullptr,
             /*chunkMetaCache*/ nullptr,
-            Bootstrap_->GetHintManager(),
             // TODO(akozhikhov): Specific workload category?
             MakeUniformPerCategoryThrottlerProvider(Bootstrap_->GetInThrottler(EWorkloadCategory::SystemTabletCompaction)),
             Bootstrap_->GetReadRpsOutThrottler(),

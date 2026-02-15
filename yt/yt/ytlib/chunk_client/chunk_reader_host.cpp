@@ -39,7 +39,6 @@ THashMap<TClusterName, TChunkReaderHostPtr> CreateHostMap(
                 baseHost->LocalDescriptor,
                 baseHost->BlockCache,
                 baseHost->ChunkMetaCache,
-                baseHost->NodeStatusDirectory,
                 baseHost->BandwidthThrottlerProvider,
                 baseHost->RpsThrottler,
                 baseHost->MediumThrottler,
@@ -86,7 +85,6 @@ TChunkReaderHost::TChunkReaderHost(
     TNodeDescriptor localDescriptor,
     IBlockCachePtr blockCache,
     IClientChunkMetaCachePtr chunkMetaCache,
-    INodeStatusDirectoryPtr nodeStatusDirectory,
     TPerCategoryThrottlerProvider bandwidthThrottlerProvider,
     IThroughputThrottlerPtr rpsThrottler,
     IThroughputThrottlerPtr mediumThrottler,
@@ -96,7 +94,6 @@ TChunkReaderHost::TChunkReaderHost(
     , BlockCache(blockCache ? std::move(blockCache) : GetNullBlockCache())
     // Could be null.
     , ChunkMetaCache(std::move(chunkMetaCache))
-    , NodeStatusDirectory(nodeStatusDirectory ? std::move(nodeStatusDirectory) : CreateTrivialNodeStatusDirectory())
     , BandwidthThrottlerProvider(bandwidthThrottlerProvider ? std::move(bandwidthThrottlerProvider) : GetUnlimitedPerCategoryThrottlerProvider())
     , RpsThrottler(rpsThrottler ? std::move(rpsThrottler) : GetUnlimitedThrottler())
     , MediumThrottler(mediumThrottler ? std::move(mediumThrottler) : GetUnlimitedThrottler())
@@ -116,7 +113,6 @@ TChunkReaderHost::TChunkReaderHost(
         /*localDescriptor*/ TNodeDescriptor{},
         client->GetNativeConnection()->GetBlockCache(),
         client->GetNativeConnection()->GetChunkMetaCache(),
-        /*nodeStatusDirectory*/ nullptr,
         std::move(bandwidthThrottlerProvider),
         std::move(rpsThrottler),
         std::move(mediumThrottler),
@@ -160,7 +156,6 @@ TChunkReaderHostPtr TMultiChunkReaderHost::CreateHostForCluster(
         host->LocalDescriptor,
         host->BlockCache,
         host->ChunkMetaCache,
-        host->NodeStatusDirectory,
         // NB(coteeq, yuryalekseev): All this thing with factory is here because of
         // cross-cluster throttlers in exe-node. A new throttler could be configured
         // while job is already running and we would like to throttle the job

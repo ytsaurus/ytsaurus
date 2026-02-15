@@ -553,6 +553,7 @@ public:
             std::move(masterChannelFactory),
             /*networkPreferenceList*/ {"default"},
             std::move(nodeDirectory),
+            /*nodeStatusDirectory*/ nullptr,
             ActionQueue_->GetInvoker(),
             MemoryTracker_);
 

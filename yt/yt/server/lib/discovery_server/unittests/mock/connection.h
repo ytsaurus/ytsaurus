@@ -135,6 +135,11 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    const NNodeTrackerClient::INodeStatusDirectoryPtr& GetNodeStatusDirectory() override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     const NChunkClient::IChunkReplicaCachePtr& GetChunkReplicaCache() override
     {
         YT_UNIMPLEMENTED();

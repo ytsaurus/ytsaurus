@@ -20,6 +20,7 @@ TTestConnection::TTestConnection(
     NRpc::IChannelFactoryPtr channelFactory,
     NNodeTrackerClient::TNetworkPreferenceList networkPreferenceList,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    NNodeTrackerClient::INodeStatusDirectoryPtr nodeStatusDirectory,
     IInvokerPtr invoker,
     INodeMemoryTrackerPtr nodeMemoryTracker)
     : ChannelFactory_(std::move(channelFactory))
@@ -29,6 +30,7 @@ TTestConnection::TTestConnection(
     , Invoker_(std::move(invoker))
     , NodeMemoryTracker_(std::move(nodeMemoryTracker))
     , NodeDirectory_(std::move(nodeDirectory))
+    , NodeStatusDirectory_(std::move(nodeStatusDirectory))
     , SchedulerChannel_(ChannelFactory_->CreateChannel("scheduler"))
     , BundleControllerChannel_(ChannelFactory_->CreateChannel("bundle_controller_channel"))
     , MediumDirectory_(New<NChunkClient::TMediumDirectory>())
@@ -77,6 +79,11 @@ const NRpc::IChannelFactoryPtr& TTestConnection::GetChannelFactory()
 const NNodeTrackerClient::TNodeDirectoryPtr& TTestConnection::GetNodeDirectory()
 {
     return NodeDirectory_;
+}
+
+const NNodeTrackerClient::INodeStatusDirectoryPtr& TTestConnection::GetNodeStatusDirectory()
+{
+    return NodeStatusDirectory_;
 }
 
 NRpc::IChannelPtr TTestConnection::FindMasterChannel(
@@ -143,6 +150,7 @@ TTestConnectionPtr CreateConnection(
     NRpc::IChannelFactoryPtr channelFactory,
     NNodeTrackerClient::TNetworkPreferenceList networkPreferenceList,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    NNodeTrackerClient::INodeStatusDirectoryPtr nodeStatusDirectory,
     IInvokerPtr invoker,
     INodeMemoryTrackerPtr nodeMemoryTracker)
 {
@@ -150,6 +158,7 @@ TTestConnectionPtr CreateConnection(
         std::move(channelFactory),
         std::move(networkPreferenceList),
         std::move(nodeDirectory),
+        std::move(nodeStatusDirectory),
         std::move(invoker),
         std::move(nodeMemoryTracker));
 }

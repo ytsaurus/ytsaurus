@@ -167,16 +167,12 @@ public:
             chunkSpec.set_striped_erasure(owner->IsStripedErasure());
             *chunkSpec.mutable_chunk_meta() = owner->GetChunkMeta();
             CachedWeakChunk_.Reset();
-            auto nodeStatusDirectory = Bootstrap_
-                ? Bootstrap_->GetHintManager()
-                : nullptr;
 
             auto chunkReaderHost = New<TChunkReaderHost>(
                 Client_,
                 LocalNodeDescriptor_,
                 std::move(blockCache),
                 /*chunkMetaCache*/ nullptr,
-                std::move(nodeStatusDirectory),
                 /*bandwidthThrottlerProvider*/ TPerCategoryThrottlerProvider(),
                 /*rpsThrottler*/ nullptr,
                 /*mediumThrottler*/ nullptr,

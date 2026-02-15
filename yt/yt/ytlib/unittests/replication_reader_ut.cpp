@@ -407,9 +407,7 @@ std::vector<TSharedRef> CreateBlocks(int count, TRandomGenerator* generator)
     return blocks;
 }
 
-TChunkReaderHostPtr GetChunkReaderHost(
-    const NApi::NNative::IConnectionPtr connection,
-    INodeStatusDirectoryPtr nodeStatusDirectory)
+TChunkReaderHostPtr CreateChunkReaderHost(const NApi::NNative::IConnectionPtr& connection)
 {
     auto localDescriptor = NNodeTrackerClient::TNodeDescriptor(
         {std::pair("default", "localhost")},
@@ -424,7 +422,6 @@ TChunkReaderHostPtr GetChunkReaderHost(
             EBlockType::CompressedData,
             GetNullMemoryUsageTracker()),
         /*chunkMetaCache*/ nullptr,
-        std::move(nodeStatusDirectory),
         /*bandwidthThrottlerProvider*/ TPerCategoryThrottlerProvider(),
         /*rpsThrottler*/ nullptr,
         /*mediumThrottler*/ nullptr,
@@ -505,10 +502,16 @@ TEST_P(TReplicationReaderTest, ReadTest)
     options->AllowFetchingSeedsFromMaster = false;
 
     auto channelFactory = CreateTestChannelFactory(addressToService, THashMap<std::string, IServicePtr>());
+
+    auto nodeStatusDirectory = testCase.MarkSomeNodesSuspicious
+        ? New<TTestNodeStatusDirectory>()
+        : nullptr;
+
     auto connection = CreateConnection(
         std::move(channelFactory),
         {"default"},
         std::move(nodeDirectory),
+        nodeStatusDirectory,
         invoker,
         memoryTracker);
 
@@ -523,11 +526,7 @@ TEST_P(TReplicationReaderTest, ReadTest)
     EXPECT_CALL(*connection, GetPrimaryMasterCellTag).Times(testing::AtLeast(1));
     EXPECT_CALL(*connection, GetSecondaryMasterCellTags).Times(testing::AtLeast(1));
 
-    auto nodeStatusDirectory = testCase.MarkSomeNodesSuspicious
-        ? New<TTestNodeStatusDirectory>()
-        : nullptr;
-
-    auto readerHost = GetChunkReaderHost(connection, nodeStatusDirectory);
+    auto readerHost = CreateChunkReaderHost(connection);
 
     auto config = New<TReplicationReaderConfig>();
     config->UseChunkProber = testCase.EnableChunkProber;

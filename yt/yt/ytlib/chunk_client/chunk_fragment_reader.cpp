@@ -163,6 +163,7 @@ public:
         : Config_(std::move(config))
         , Host_(std::move(chunkReaderHost))
         , NodeDirectory_(Host_->Client->GetNativeConnection()->GetNodeDirectory())
+        , NodeStatusDirectory_(Host_->Client->GetNativeConnection()->GetNodeStatusDirectory())
         , Networks_(Host_->Client->GetNativeConnection()->GetNetworks())
         , Logger(ChunkClientLogger().WithTag("ChunkFragmentReaderId: %v", TGuid::Create()))
         , ReaderInvoker_(TDispatcher::Get()->GetReaderInvoker())
@@ -192,6 +193,7 @@ private:
     const TChunkFragmentReaderConfigPtr Config_;
     const TChunkReaderHostPtr Host_;
     const TNodeDirectoryPtr NodeDirectory_;
+    const INodeStatusDirectoryPtr NodeStatusDirectory_;
     const TNetworkPreferenceList Networks_;
 
     const NLogging::TLogger Logger;
@@ -518,7 +520,7 @@ private:
                 YT_LOG_DEBUG("Node is not suspicious anymore (NodeId: %v, Address: %v)",
                     probingInfo.NodeId,
                     peerInfo->Address);
-                Reader_->Host_->NodeStatusDirectory->UpdateSuspicionMarkTime(
+                Reader_->NodeStatusDirectory_->UpdateSuspicionMarkTime(
                     probingInfo.NodeId,
                     peerInfo->Address,
                     /*suspicious*/ false,
@@ -655,7 +657,7 @@ private:
             probingInfos[nodeIndex].PeerInfoOrError = std::move(peerInfoOrErrors[nodeIndex]);
         }
 
-        auto nodeIdToSuspicionMarkTime = Reader_->Host_->NodeStatusDirectory->RetrieveSuspiciousNodeIdsWithMarkTime(nodeIds);
+        auto nodeIdToSuspicionMarkTime = Reader_->NodeStatusDirectory_->RetrieveSuspiciousNodeIdsWithMarkTime(nodeIds);
         for (int nodeIndex = 0; nodeIndex < std::ssize(probingInfos); ++nodeIndex) {
             auto& probingInfo = probingInfos[nodeIndex];
             auto it = nodeIdToSuspicionMarkTime.find(probingInfo.NodeId);
@@ -708,12 +710,12 @@ private:
     {
         const auto& peerInfo = probingInfo.PeerInfoOrError.Value();
         if (!probingInfo.SuspicionMarkTime &&
-            Reader_->Host_->NodeStatusDirectory->ShouldMarkNodeSuspicious(error))
+            Reader_->NodeStatusDirectory_->ShouldMarkNodeSuspicious(error))
         {
             YT_LOG_WARNING(error, "Node is marked as suspicious (NodeId: %v, Address: %v)",
                 probingInfo.NodeId,
                 peerInfo->Address);
-            Reader_->Host_->NodeStatusDirectory->UpdateSuspicionMarkTime(
+            Reader_->NodeStatusDirectory_->UpdateSuspicionMarkTime(
                 probingInfo.NodeId,
                 peerInfo->Address,
                 /*suspicious*/ true,
@@ -1285,7 +1287,7 @@ private:
 
         SortUnique(nodeIds);
 
-        NodeIdToSuspicionMarkTime_ = Reader_->Host_->NodeStatusDirectory->RetrieveSuspiciousNodeIdsWithMarkTime(nodeIds);
+        NodeIdToSuspicionMarkTime_ = Reader_->NodeStatusDirectory_->RetrieveSuspiciousNodeIdsWithMarkTime(nodeIds);
 
         // Adjust replica penalties based on suspiciousness and bans.
         // Sort replicas and feed them to controllers.
@@ -1569,12 +1571,12 @@ private:
     void MaybeMarkNodeSuspicious(const TError& error, const TPeerInfoPtr& peerInfo)
     {
         if (!NodeIdToSuspicionMarkTime_.contains(peerInfo->NodeId) &&
-            Reader_->Host_->NodeStatusDirectory->ShouldMarkNodeSuspicious(error))
+            Reader_->NodeStatusDirectory_->ShouldMarkNodeSuspicious(error))
         {
             YT_LOG_DEBUG("Node is marked as suspicious (NodeId: %v, Address: %v)",
                 peerInfo->NodeId,
                 peerInfo->Address);
-            Reader_->Host_->NodeStatusDirectory->UpdateSuspicionMarkTime(
+            Reader_->NodeStatusDirectory_->UpdateSuspicionMarkTime(
                 peerInfo->NodeId,
                 peerInfo->Address,
                 /*suspicious*/ true,

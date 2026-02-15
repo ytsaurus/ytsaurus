@@ -41,8 +41,7 @@ DEFINE_REFCOUNTED_TYPE(INodeStatusDirectory)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Dummy implementation of the |INodeStatusDirectory| interface.
-INodeStatusDirectoryPtr CreateTrivialNodeStatusDirectory();
+INodeStatusDirectoryPtr CreateNodeStatusDirectory(NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1266,7 +1266,6 @@ void TJobProxy::InitializeChunkReaderHost()
             LocalDescriptor_,
             ReaderBlockCache_,
             /*chunkMetaCache*/ nullptr,
-            /*nodeStatusDirectory*/ nullptr,
             bandwidthThrottlerProvider(LocalClusterName),
             GetOutRpsThrottler(),
             /*mediumThrottler*/ nullptr,
