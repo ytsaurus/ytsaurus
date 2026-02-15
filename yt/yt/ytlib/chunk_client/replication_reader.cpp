@@ -1094,13 +1094,14 @@ protected:
             peerAddresses.push_back(*address);
         }
 
-        auto nodeSuspicionMarkTimes = NodeStatusDirectory_
+        auto nodeIdToSuspicionMarkTime = NodeStatusDirectory_
             ? NodeStatusDirectory_->RetrieveSuspicionMarkTimes(nodeIds)
-            : std::vector<std::optional<TInstant>>();
+            : THashMap<TNodeId, TInstant>();
         for (int i = 0; i < std::ssize(peerDescriptors); ++i) {
-            auto suspicionMarkTime = NodeStatusDirectory_
-                ? nodeSuspicionMarkTimes[i]
-                : std::nullopt;
+            auto it = nodeIdToSuspicionMarkTime.find(nodeIds[i]);
+            auto suspicionMarkTime = it == nodeIdToSuspicionMarkTime.end()
+                ? std::nullopt
+                : std::optional(it->second);
             AddPeer(
                 replicas[i],
                 std::move(peerAddresses[i]),

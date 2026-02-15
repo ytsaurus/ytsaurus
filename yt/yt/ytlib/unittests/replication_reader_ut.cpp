@@ -70,23 +70,17 @@ public:
         std::optional<TInstant> /*previousMarkTime*/) override
     { }
 
-    std::vector<std::optional<TInstant>> RetrieveSuspicionMarkTimes(
-        const std::vector<TNodeId>& nodeIds) const override
+    THashMap<TNodeId, TInstant> RetrieveSuspicionMarkTimes(
+        TRange<TNodeId> nodeIds) const override
     {
         auto suspiciousNodeCount = SuspiciousNodeCount_.exchange(0);
 
-        std::vector<std::optional<TInstant>> result(nodeIds.size());
+        THashMap<TNodeId, TInstant> result;
         for (int index = 0; index < std::min<int>(suspiciousNodeCount, std::ssize(nodeIds)); ++index) {
-            result[index] = TInstant::Now();
+            result[nodeIds[index]] = TInstant::Now();
         }
 
         return result;
-    }
-
-    THashMap<TNodeId, TInstant> RetrieveSuspiciousNodeIdsWithMarkTime(
-        const std::vector<TNodeId>& /*nodeIds*/) const override
-    {
-        YT_UNIMPLEMENTED();
     }
 
     bool ShouldMarkNodeSuspicious(const TError& /*error*/) const override

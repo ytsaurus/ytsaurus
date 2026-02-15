@@ -657,7 +657,7 @@ private:
             probingInfos[nodeIndex].PeerInfoOrError = std::move(peerInfoOrErrors[nodeIndex]);
         }
 
-        auto nodeIdToSuspicionMarkTime = Reader_->NodeStatusDirectory_->RetrieveSuspiciousNodeIdsWithMarkTime(nodeIds);
+        auto nodeIdToSuspicionMarkTime = Reader_->NodeStatusDirectory_->RetrieveSuspicionMarkTimes(nodeIds);
         for (int nodeIndex = 0; nodeIndex < std::ssize(probingInfos); ++nodeIndex) {
             auto& probingInfo = probingInfos[nodeIndex];
             auto it = nodeIdToSuspicionMarkTime.find(probingInfo.NodeId);
@@ -1287,7 +1287,7 @@ private:
 
         SortUnique(nodeIds);
 
-        NodeIdToSuspicionMarkTime_ = Reader_->NodeStatusDirectory_->RetrieveSuspiciousNodeIdsWithMarkTime(nodeIds);
+        NodeIdToSuspicionMarkTime_ = Reader_->NodeStatusDirectory_->RetrieveSuspicionMarkTimes(nodeIds);
 
         // Adjust replica penalties based on suspiciousness and bans.
         // Sort replicas and feed them to controllers.

@@ -51,31 +51,8 @@ public:
         }
     }
 
-    std::vector<std::optional<TInstant>> RetrieveSuspicionMarkTimes(
-        const std::vector<TNodeId>& nodeIds) const override
-    {
-        if (nodeIds.empty()) {
-            return {};
-        }
-
-        std::vector<std::optional<TInstant>> markTimes;
-        markTimes.reserve(nodeIds.size());
-
-        auto guard = ReaderGuard(SuspiciousNodesSpinLock_);
-
-        for (auto nodeId : nodeIds) {
-            auto it = SuspiciousNodesMarkTime_.find(nodeId);
-            auto markTime = it != SuspiciousNodesMarkTime_.end()
-                ? std::make_optional(it->second)
-                : std::nullopt;
-            markTimes.push_back(markTime);
-        }
-
-        return markTimes;
-    }
-
-    THashMap<TNodeId, TInstant> RetrieveSuspiciousNodeIdsWithMarkTime(
-        const std::vector<TNodeId>& nodeIds) const override
+    THashMap<TNodeId, TInstant> RetrieveSuspicionMarkTimes(
+        TRange<TNodeId> nodeIds) const override
     {
         if (nodeIds.empty()) {
             return {};
