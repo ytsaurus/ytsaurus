@@ -61,6 +61,7 @@
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 #include <yt/yt/ytlib/node_tracker_client/node_addresses_provider.h>
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
+#include <yt/yt/ytlib/node_tracker_client/node_status_directory.h>
 
 #include <yt/yt/ytlib/job_prober_client/job_shell_descriptor_cache.h>
 
@@ -243,6 +244,7 @@ public:
         , DownedCellTracker_(New<TDownedCellTracker>(Config_.Acquire()->DownedCellTracker))
         , MemoryTracker_(std::move(memoryTracker))
         , ClusterDirectoryOverride_(std::move(clusterDirectoryOverride))
+        , NodeStatusDirectory_(CreateNodeStatusDirectory(Logger))
         // NB(pavook): we can't hurt anybody by generating fake signatures.
         , SignatureGenerator_(Options_.SignatureGenerator
             ? Options_.SignatureGenerator
@@ -836,6 +838,11 @@ public:
         return NodeDirectorySynchronizer_;
     }
 
+    const INodeStatusDirectoryPtr& GetNodeStatusDirectory() override
+    {
+        return NodeStatusDirectory_;
+    }
+
     const NChunkClient::IChunkReplicaCachePtr& GetChunkReplicaCache() override
     {
         return ChunkReplicaCache_;
@@ -1110,6 +1117,8 @@ private:
 
     TNodeDirectoryPtr NodeDirectory_;
     INodeDirectorySynchronizerPtr NodeDirectorySynchronizer_;
+
+    const INodeStatusDirectoryPtr NodeStatusDirectory_;
 
     IChunkReplicaCachePtr ChunkReplicaCache_;
 

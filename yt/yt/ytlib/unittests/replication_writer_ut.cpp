@@ -464,14 +464,15 @@ public:
 
         auto channelFactory = CreateTestChannelFactory(addressToService, THashMap<std::string, IServicePtr>());
 
-        for (auto &service : Services) {
+        for (const auto& service : Services) {
             service->SetChannelFactory(channelFactory.Get());
         }
 
         Connection = CreateConnection(
             std::move(channelFactory),
             {"default"},
-            std::move(NodeDirectory),
+            NodeDirectory,
+            /*nodeStatusDirectory*/ nullptr,
             Invoker,
             MemoryTracker);
 

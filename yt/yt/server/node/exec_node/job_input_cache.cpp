@@ -144,7 +144,6 @@ TJobInputCache::TJobInputCache(
         Bootstrap_->GetLocalDescriptor(),
         BlockCache_,
         MetaCache_,
-        /*nodeStatusDirectory*/ nullptr,
         MakeUniformPerCategoryThrottlerProvider(Bootstrap_->GetExecNodeBootstrap()->GetThrottler(EExecNodeThrottlerKind::JobIn)),
         Bootstrap_->GetReadRpsOutThrottler(),
         /*mediumThrottler*/ nullptr,

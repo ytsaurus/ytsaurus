@@ -34,7 +34,6 @@ struct TChunkReaderHost
         NNodeTrackerClient::TNodeDescriptor localDescriptor,
         IBlockCachePtr blockCache,
         IClientChunkMetaCachePtr chunkMetaCache,
-        NNodeTrackerClient::INodeStatusDirectoryPtr nodeStatusDirectory,
         TPerCategoryThrottlerProvider bandwidthThrottlerProvider,
         NConcurrency::IThroughputThrottlerPtr rpsThrottler,
         NConcurrency::IThroughputThrottlerPtr mediumThrottler,
@@ -52,8 +51,6 @@ struct TChunkReaderHost
 
     const IBlockCachePtr BlockCache;
     const IClientChunkMetaCachePtr ChunkMetaCache;
-
-    const NNodeTrackerClient::INodeStatusDirectoryPtr NodeStatusDirectory;
 
     const TPerCategoryThrottlerProvider BandwidthThrottlerProvider;
     const NConcurrency::IThroughputThrottlerPtr RpsThrottler;

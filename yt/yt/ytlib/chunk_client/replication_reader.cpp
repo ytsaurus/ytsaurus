@@ -198,13 +198,13 @@ public:
         , Options_(std::move(options))
         , Client_(chunkReaderHost->Client)
         , NodeDirectory_(Client_->GetNativeConnection()->GetNodeDirectory())
+        , NodeStatusDirectory_(Client_->GetNativeConnection()->GetNodeStatusDirectory())
         , MediumDirectory_(Client_->GetNativeConnection()->GetMediumDirectory())
         , LocalDescriptor_(chunkReaderHost->LocalDescriptor)
         , ChunkId_(chunkId)
         , BlockCache_(chunkReaderHost->BlockCache)
         , ChunkMetaCache_(chunkReaderHost->ChunkMetaCache)
         , TrafficMeter_(chunkReaderHost->TrafficMeter)
-        , NodeStatusDirectory_(chunkReaderHost->NodeStatusDirectory)
         , BandwidthThrottlerProvider_(chunkReaderHost->BandwidthThrottlerProvider)
         , RpsThrottler_(chunkReaderHost->RpsThrottler)
         , MediumThrottler_(chunkReaderHost->MediumThrottler)
@@ -302,13 +302,13 @@ private:
     const TRemoteReaderOptionsPtr Options_;
     const NNative::IClientPtr Client_;
     const TNodeDirectoryPtr NodeDirectory_;
+    const INodeStatusDirectoryPtr NodeStatusDirectory_;
     const TMediumDirectoryPtr MediumDirectory_;
     const TNodeDescriptor LocalDescriptor_;
     const TChunkId ChunkId_;
     const IBlockCachePtr BlockCache_;
     const IClientChunkMetaCachePtr ChunkMetaCache_;
     const TTrafficMeterPtr TrafficMeter_;
-    const INodeStatusDirectoryPtr NodeStatusDirectory_;
     const TPerCategoryThrottlerProvider BandwidthThrottlerProvider_;
     const IThroughputThrottlerPtr RpsThrottler_;
     const IThroughputThrottlerPtr MediumThrottler_;

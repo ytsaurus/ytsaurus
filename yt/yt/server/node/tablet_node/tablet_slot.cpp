@@ -649,7 +649,6 @@ public:
             Bootstrap_->GetLocalDescriptor(),
             Bootstrap_->GetBlockCache(),
             Bootstrap_->GetClient()->GetNativeConnection()->GetChunkMetaCache(),
-            Bootstrap_->GetHintManager(),
             BIND([chunkFragmentReaderThrottlingEnabled, bootstrap = Bootstrap_] (EWorkloadCategory category) {
                 return chunkFragmentReaderThrottlingEnabled
                     ?  bootstrap->GetInThrottler(category)

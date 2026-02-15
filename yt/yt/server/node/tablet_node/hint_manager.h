@@ -2,14 +2,12 @@
 
 #include "public.h"
 
-#include <yt/yt/ytlib/node_tracker_client/node_status_directory.h>
-
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IHintManager
-    : public NNodeTrackerClient::INodeStatusDirectory
+    : public TRefCounted
 {
     //! \note Thread affinity: ControlThread
     virtual void Start() = 0;
