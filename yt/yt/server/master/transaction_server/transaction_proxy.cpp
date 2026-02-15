@@ -324,7 +324,7 @@ private:
                 return FetchMergeableAttribute(
                     key.Unintern(),
                     [&] {
-                        return BuildYsonStringFluently().DoListFor(transaction->Locks(), [] (TFluentList fluent, const TLock* lock) {
+                        return BuildYsonStringFluently().DoListFor(transaction->Locks(), [] (auto fluent, const auto& lock) {
                             fluent.Item().Value(lock->GetId());
                         });
                     });
@@ -340,7 +340,7 @@ private:
                 return FetchMergeableAttribute(
                     key.Unintern(),
                     [&] {
-                        return BuildYsonStringFluently().DoListFor(transaction->StagedObjects(), [] (TFluentList fluent, const TObject* object) {
+                        return BuildYsonStringFluently().DoListFor(transaction->StagedObjects(), [] (auto fluent, const auto& object) {
                             fluent.Item().Value(object->GetId());
                         });
                     });
@@ -356,7 +356,7 @@ private:
                 return FetchMergeableAttribute(
                     key.Unintern(),
                     [&] {
-                        return BuildYsonStringFluently().DoListFor(transaction->ImportedObjects(), [] (TFluentList fluent, const TObject* object) {
+                        return BuildYsonStringFluently().DoListFor(transaction->ImportedObjects(), [] (auto fluent, const auto& object) {
                             fluent.Item().Value(object->GetId());
                         });
                     });
@@ -372,7 +372,7 @@ private:
                 return FetchMergeableAttribute(
                     key.Unintern(),
                     [&] {
-                        return BuildYsonStringFluently().DoListFor(transaction->ExportedObjects(), [] (TFluentList fluent, const TTransaction::TExportEntry& entry) {
+                        return BuildYsonStringFluently().DoListFor(transaction->ExportedObjects(), [] (auto fluent, const auto& entry) {
                             fluent
                                 .Item().BeginMap()
                                     .Item("id").Value(entry.Object->GetId())
