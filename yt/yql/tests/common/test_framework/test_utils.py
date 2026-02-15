@@ -1,4 +1,7 @@
 import six
+import time
+
+from datetime import datetime, timedelta
 
 
 def row_spec_to_yt_schema(row_spec):
@@ -73,3 +76,92 @@ def infer_yt_schema(attrs):
         attrs['schema'] = row_spec_to_yt_schema(attrs['_yql_row_spec'])
 
     return yt.yson.dumps(attrs, yson_format="pretty").decode()
+
+
+def wait_pipeline_state_or_failed_jobs(
+    target_state, pipeline_path,
+    timeout=600,
+    client=None,
+):
+    import yt.logger as logger
+
+    from yt.common import YtError
+    from yt.wrapper.flow_commands import PipelineState, get_pipeline_state, flow_execute
+
+    if target_state == PipelineState.Completed:
+        target_states = {PipelineState.Completed, }
+    elif target_state == PipelineState.Working:
+        target_states = {PipelineState.Completed, PipelineState.Working}
+    elif target_state == PipelineState.Stopped:
+        target_states = {PipelineState.Completed, PipelineState.Stopped}
+    elif target_state == PipelineState.Draining:
+        target_states = {PipelineState.Completed, PipelineState.Stopped, PipelineState.Draining}
+    elif target_state == PipelineState.Paused:
+        target_states = {PipelineState.Completed, PipelineState.Stopped, PipelineState.Paused}
+    elif target_state == PipelineState.Pausing:
+        target_states = {PipelineState.Completed, PipelineState.Stopped, PipelineState.Paused, PipelineState.Pausing}
+    else:
+        logger.warning("Unknown pipeline state %s", target_state)
+        return
+
+    invalid_state_transitions = {
+        PipelineState.Stopped: {PipelineState.Paused, },
+    }
+
+    deadline = datetime.now() + timedelta(seconds=timeout)
+
+    while True:
+        if datetime.now() > deadline:
+            raise YtError("Wait timed out", attributes={"timeout": timeout})
+
+        current_state = get_pipeline_state(
+            pipeline_path=pipeline_path,
+            timeout=timeout,
+            client=client)
+
+        if current_state in target_states:
+            logger.info("Waiting finished (current state: %s, target state: %s)",
+                        current_state, target_state)
+            return
+
+        if current_state in invalid_state_transitions.get(target_state, []):
+            raise YtError("Invalid state transition", attributes={
+                "current_state": current_state,
+                "target_state": target_state})
+
+        try:
+            # TODO(ngc224): debug occasional computation-related method errors
+            pipeline_info = flow_execute(
+                pipeline_path=pipeline_path,
+                flow_command="describe-pipeline",
+                client=client)
+        except Exception:
+            pipeline_info = {
+                "computations": {},
+            }
+
+        job_failed_errors = []
+        for computation, computation_info in pipeline_info["computations"].items():
+            for message in computation_info["messages"]:
+                if not message["text"].startswith("Job failed"):
+                    continue
+
+                error = message["error"]
+                error["attributes"]["computation"] = computation
+
+                job_failed_errors.append(YtError.from_dict(error))
+
+        if job_failed_errors:
+            try:
+                raise YtError(
+                    message="Found failed jobs in some computations",
+                    inner_errors=job_failed_errors,
+                )
+            except Exception:
+                logger.exception("Found failed jobs in some computations")
+                raise
+
+        logger.info("Still waiting (current state: %s, target state: %s)",
+                    current_state, target_state)
+
+        time.sleep(1)
