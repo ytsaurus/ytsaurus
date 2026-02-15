@@ -1439,16 +1439,8 @@ class SchemafulDsvFormat(Format):
         all_attributes = Format._make_attributes(attributes, defaults, options)
         super(SchemafulDsvFormat, self).__init__("schemaful_dsv", all_attributes, raw, encoding)
 
-        if "columns" not in self.attributes:
-            raise YtError("Attribute 'columns' is required for SchemafulDsvFormat")
-
-        if self.enable_table_index:
-            self._columns = [self.attributes["table_index_column"]] + self.columns
-        else:
-            self._columns = self.columns
-
-        self._coerced_columns = list(map(self._coerce_column_key, self._columns))
-        self._coerced_table_index_column = self._coerce_column_key(self.attributes["table_index_column"])
+        if "columns" in self.attributes:
+            self.set_columns(self.columns)
 
     columns = Format._create_property("columns")
 
@@ -1458,7 +1450,18 @@ class SchemafulDsvFormat(Format):
 
     table_index_column = Format._create_property("table_index_column")
 
+    def set_columns(self, columns):
+        self.attributes["columns"] = columns
+        if self.enable_table_index:
+            self._columns = [self.attributes["table_index_column"]] + columns
+        else:
+            self._columns = columns
+        self._coerced_columns = list(map(self._coerce_column_key, self._columns))
+        self._coerced_table_index_column = self._coerce_column_key(self.attributes["table_index_column"])
+
     def load_row(self, stream, raw=None):
+        if "columns" in self.attributes:
+            raise YtError("Attribute 'columns' is required for SchemafulDsvFormat")
         line = stream.readline()
 
         if not line:
