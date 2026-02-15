@@ -1,8 +1,9 @@
 #include "job_workspace_builder.h"
-#include "allocation.h"
-#include "slot.h"
 
+#include "allocation.h"
 #include "job_gpu_checker.h"
+#include "slot.h"
+#include "volume.h"
 
 #include <yt/yt/server/lib/exec_node/helpers.h>
 

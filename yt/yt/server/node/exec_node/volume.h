@@ -124,35 +124,19 @@ class TOverlayData
 public:
     TOverlayData() = default;
 
-    explicit TOverlayData(TLayerPtr layer)
-        : Variant_(std::move(layer))
-    { }
+    explicit TOverlayData(TLayerPtr layer);
 
-    explicit TOverlayData(IVolumePtr volume)
-        : Variant_(std::move(volume))
-    { }
+    explicit TOverlayData(IVolumePtr volume);
 
     const std::string& GetPath() const;
 
-    bool IsLayer() const
-    {
-        return std::holds_alternative<TLayerPtr>(Variant_);
-    }
+    bool IsLayer() const;
 
-    const TLayerPtr& GetLayer() const
-    {
-        return std::get<TLayerPtr>(Variant_);
-    }
+    const TLayerPtr& GetLayer() const;
 
-    bool IsVolume() const
-    {
-        return !IsLayer();
-    }
+    bool IsVolume() const;
 
-    const IVolumePtr& GetVolume() const
-    {
-        return std::get<IVolumePtr>(Variant_);
-    }
+    const IVolumePtr& GetVolume() const;
 
     TFuture<void> Remove();
 

@@ -2,11 +2,11 @@
 
 #include "public.h"
 #include "artifact.h"
-#include "volume.h"
 #include "porto_volume.h"
-#include "preparation_options.h"
-#include "volume_options.h"
 #include "tmpfs_layer_cache.h"
+#include "volume.h"
+#include "volume_artifact.h"
+#include "volume_options.h"
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
@@ -85,9 +85,9 @@ protected:
     void OnWeightUpdated(i64 weightDelta) override;
 };
 
-DEFINE_REFCOUNTED_TYPE(TVolumeCacheBase<TArtifactKey>)
-
 ////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TSquashFSVolumeCache)
 
 //! This class caches volumes generated from cypress files (layers).
 class TSquashFSVolumeCache
@@ -120,9 +120,9 @@ private:
         IVolumeArtifactPtr artifact);
 };
 
-DECLARE_REFCOUNTED_CLASS(TSquashFSVolumeCache)
-
 ////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TRONbdVolumeCache)
 
 //! This class caches volumes generated from cypress files (layers).
 class TRONbdVolumeCache
@@ -177,9 +177,9 @@ private:
         TPrepareRONbdVolumeOptions options);
 };
 
-DECLARE_REFCOUNTED_CLASS(TRONbdVolumeCache)
-
 ////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TLayerCache)
 
 //! This class caches layers (tar archives) extracted from cypress files.
 class TLayerCache
@@ -263,8 +263,6 @@ private:
 
     void OnProfiling();
 };
-
-DECLARE_REFCOUNTED_CLASS(TLayerCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 

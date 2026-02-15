@@ -3,7 +3,6 @@
 #include "artifact.h"
 #include "bootstrap.h"
 #include "private.h"
-#include "volume_manager.h"
 
 #include <yt/yt/server/lib/scheduler/proto/allocation_tracker_service.pb.h>
 

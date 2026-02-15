@@ -2,6 +2,7 @@
 
 #include "artifact.h"
 #include "artifact_cache.h"
+#include "volume_artifact.h"
 #include "bootstrap.h"
 #include "helpers.h"
 #include "layer_location.h"
@@ -102,21 +103,21 @@
 namespace NYT::NExecNode {
 
 using namespace NApi;
-using namespace NNbd;
 using namespace NChunkClient;
+using namespace NClusterNode;
 using namespace NConcurrency;
 using namespace NContainers;
-using namespace NClusterNode;
-using namespace NNode;
 using namespace NLogging;
+using namespace NYT::NNbd;
+using namespace NNode;
 using namespace NObjectClient;
 using namespace NProfiling;
+using namespace NRpc;
 using namespace NScheduler;
+using namespace NServer;
 using namespace NTools;
 using namespace NYson;
 using namespace NYTree;
-using namespace NServer;
-using namespace NRpc;
 
 using NControllerAgent::ELayerAccessMethod;
 using NControllerAgent::ELayerFilesystem;
@@ -124,58 +125,6 @@ using NControllerAgent::ELayerFilesystem;
 ////////////////////////////////////////////////////////////////////////////////
 
 constinit const auto Logger = ExecNodeLogger;
-
-static const TString MountSuffix = "mount";
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TVolumeArtifactAdapter
-    : public IVolumeArtifact
-{
-public:
-    TVolumeArtifactAdapter(TArtifactPtr artifact)
-        : Artifact_(std::move(artifact))
-    { }
-
-    const std::string& GetFileName() const override
-    {
-        return Artifact_->GetFileName();
-    }
-
-private:
-    TArtifactPtr Artifact_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TVolumeArtifactCacheAdapter
-    : public IVolumeArtifactCache
-{
-public:
-    TVolumeArtifactCacheAdapter(TArtifactCachePtr artifactCache)
-        : ArtifactCache_(artifactCache)
-    { }
-
-    TFuture<IVolumeArtifactPtr> DownloadArtifact(
-        const TArtifactKey& key,
-        const TArtifactDownloadOptions& artifactDownloadOptions) override
-    {
-        auto artifact = ArtifactCache_->DownloadArtifact(key, artifactDownloadOptions);
-        return artifact.Apply(BIND([] (TArtifactPtr artifact) {
-            return IVolumeArtifactPtr(New<TVolumeArtifactAdapter>(artifact));
-        }));
-    }
-
-private:
-    TArtifactCachePtr ArtifactCache_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-IVolumeArtifactCachePtr CreateVolumeArtifactCacheAdapter(TArtifactCachePtr artifactCache)
-{
-    return New<TVolumeArtifactCacheAdapter>(std::move(artifactCache));
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
