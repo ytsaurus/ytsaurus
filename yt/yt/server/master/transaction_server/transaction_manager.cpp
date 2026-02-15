@@ -867,25 +867,20 @@ public:
         RunCommitTransactionActions(transaction, options);
 
         if (auto parent = transaction->GetParent()) {
-            parent->ExportedObjects().insert(
-                parent->ExportedObjects().end(),
-                transaction->ExportedObjects().begin(),
-                transaction->ExportedObjects().end());
-            parent->ImportedObjects().insert(
-                parent->ImportedObjects().end(),
-                transaction->ImportedObjects().begin(),
-                transaction->ImportedObjects().end());
+            std::ranges::move(
+                transaction->ExportedObjects(),
+                std::back_inserter(parent->ExportedObjects()));
+            std::ranges::move(
+                transaction->ImportedObjects(),
+                std::back_inserter(parent->ImportedObjects()));
 
             const auto& securityManager = Bootstrap_->GetSecurityManager();
             securityManager->RecomputeTransactionAccountResourceUsage(parent);
         } else {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            for (auto object : transaction->ImportedObjects()) {
-                objectManager->UnrefObject(object);
-            }
             // Remove extra reference.
+            const auto& objectManager = Bootstrap_->GetObjectManager();
             for (const auto& exportEntry : transaction->ExportedObjects()) {
-                objectManager->UnrefObject(exportEntry.Object);
+                objectManager->UnrefObject(exportEntry.Object.Get());
             }
         }
         transaction->ExportedObjects().clear();
@@ -1019,8 +1014,7 @@ public:
             const auto& handler = objectManager->GetHandler(object);
             handler->UnexportObject(object, entry.DestinationCellTag, 1);
         }
-        for (auto object : transaction->ImportedObjects()) {
-            objectManager->UnrefObject(object);
+        for (const auto& object : transaction->ImportedObjects()) {
             object->ImportUnrefObject();
         }
         transaction->ExportedObjects().clear();
@@ -1358,9 +1352,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        transaction->ImportedObjects().push_back(object);
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->RefObject(object);
+        transaction->ImportedObjects().emplace_back(object);
         object->ImportRefObject();
     }
 

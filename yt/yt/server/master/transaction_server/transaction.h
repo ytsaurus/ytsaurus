@@ -158,7 +158,7 @@ public:
     };
 
     DEFINE_BYREF_RW_PROPERTY(std::vector<TExportEntry>, ExportedObjects);
-    DEFINE_BYREF_RW_PROPERTY(std::vector<NObjectServer::TObjectRawPtr>, ImportedObjects);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<NObjectServer::TStrongObjectPtr<NObjectServer::TObject>>, ImportedObjects);
 
     // Cypress stuff.
     using TLockedNodeSet = THashSet<NCypressServer::TCypressNodeRawPtr>;
