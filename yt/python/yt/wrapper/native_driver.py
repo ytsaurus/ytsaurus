@@ -96,7 +96,7 @@ def read_config(path):
         return (
             driver_config,
             None,
-            None,
+            driver_config.get("address_resolver"),
             None
         )
 
