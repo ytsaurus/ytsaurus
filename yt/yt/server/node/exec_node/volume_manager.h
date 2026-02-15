@@ -1,9 +1,8 @@
 #pragma once
 
-#include "artifact_cache.h"
-#include "preparation_options.h"
 #include "public.h"
-#include "volume.h"
+#include "preparation_options.h"
+#include "volume_artifact.h"
 
 #include <yt/yt/core/actions/future.h>
 
@@ -13,34 +12,7 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IVolumeArtifact
-    : public TRefCounted
-{
-    virtual const std::string& GetFileName() const = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(IVolumeArtifact)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct IVolumeArtifactCache
-    : public TRefCounted
-{
-    virtual TFuture<IVolumeArtifactPtr> DownloadArtifact(
-        const TArtifactKey& key,
-        const TArtifactDownloadOptions& artifactDownloadOptions) = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(IVolumeArtifactCache)
-
-////////////////////////////////////////////////////////////////////////////////
-
-IVolumeArtifactCachePtr CreateVolumeArtifactCacheAdapter(TArtifactCachePtr artifactCache);
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Creates volumes from different layers.
-//! Useful for creation of rootfs volumes.
+//! This class can create root volume as well as tmpfs volumes.
 struct IVolumeManager
     : public virtual TRefCounted
 {
@@ -54,6 +26,7 @@ struct IVolumeManager
         const std::optional<TString>& sandboxPath,
         const std::vector<TTmpfsVolumeParams>& volumes) = 0;
 
+    //! TODO(yuryalekeev): Remove this method after we get rid of rbind volume.
     virtual TFuture<IVolumePtr> RbindRootVolume(
         const IVolumePtr& volume,
         const TString& slotPath) = 0;

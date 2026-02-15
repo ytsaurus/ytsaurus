@@ -48,7 +48,7 @@ static const auto ProfilingPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-i64 GetCacheCapacity(const std::vector<TLayerLocationPtr>& layerLocations)
+static i64 GetCapacity(const std::vector<TLayerLocationPtr>& layerLocations)
 {
     i64 result = 0;
     for (const auto& location : layerLocations) {
@@ -846,7 +846,7 @@ TSlruCacheConfigPtr TLayerCache::CreateCacheConfig(
 {
     auto cacheConfig = TSlruCacheConfig::CreateWithCapacity(
         config->EnableLayersCache
-        ? static_cast<i64>(GetCacheCapacity(layerLocations) * config->CacheCapacityFraction)
+        ? static_cast<i64>(NExecNode::GetCapacity(layerLocations) * config->CacheCapacityFraction)
         : 0,
         /*shardCount*/ 1);
     return cacheConfig;

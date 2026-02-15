@@ -1,11 +1,11 @@
 #include "slot.h"
 
-#include "artifact_cache.h"
 #include "bootstrap.h"
 #include "private.h"
 #include "job_environment.h"
 #include "slot_location.h"
 #include "slot_manager.h"
+#include "volume.h"
 #include "volume_manager.h"
 
 #include <yt/yt/ytlib/scheduler/helpers.h>

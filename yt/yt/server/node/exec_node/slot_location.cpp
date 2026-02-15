@@ -1,10 +1,10 @@
 #include "slot_location.h"
 
 #include "bootstrap.h"
-#include "helpers.h"
 #include "slot_manager.h"
 #include "private.h"
 #include "job_directory_manager.h"
+#include "volume.h"
 
 #include <yt/yt/server/lib/exec_node/config.h>
 #include <yt/yt/server/lib/exec_node/helpers.h>

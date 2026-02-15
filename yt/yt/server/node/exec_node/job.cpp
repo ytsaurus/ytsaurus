@@ -14,8 +14,7 @@
 #include "private.h"
 #include "slot.h"
 #include "slot_manager.h"
-#include "throttler_manager.h"
-#include "volume_manager.h"
+#include "volume.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>

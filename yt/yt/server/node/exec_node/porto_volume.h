@@ -1,8 +1,9 @@
 #pragma once
 
 #include "public.h"
-#include "volume.h"
 #include "artifact.h"
+#include "volume.h"
+#include "volume_artifact.h"
 
 #include <yt/yt/server/lib/nbd/public.h>
 

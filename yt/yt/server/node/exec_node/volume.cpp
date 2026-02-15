@@ -85,11 +85,17 @@ void TLayer::SetLayerRemovalNotNeeded()
     IsLayerRemovalNeeded_ = false;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 DEFINE_REFCOUNTED_TYPE(TLayer)
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TOverlayData::TOverlayData(TLayerPtr layer)
+    : Variant_(std::move(layer))
+{ }
+
+TOverlayData::TOverlayData(IVolumePtr volume)
+    : Variant_(std::move(volume))
+{ }
 
 const std::string& TOverlayData::GetPath() const
 {
@@ -98,6 +104,26 @@ const std::string& TOverlayData::GetPath() const
     }
 
     return std::get<IVolumePtr>(Variant_)->GetPath();
+}
+
+bool TOverlayData::IsLayer() const
+{
+    return std::holds_alternative<TLayerPtr>(Variant_);
+}
+
+const TLayerPtr& TOverlayData::GetLayer() const
+{
+    return std::get<TLayerPtr>(Variant_);
+}
+
+bool TOverlayData::IsVolume() const
+{
+    return !IsLayer();
+}
+
+const IVolumePtr& TOverlayData::GetVolume() const
+{
+    return std::get<IVolumePtr>(Variant_);
 }
 
 TFuture<void> TOverlayData::Remove()
@@ -218,8 +244,6 @@ bool TSimpleTmpfsVolume::IsRootVolume() const
 {
     return false;
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_REFCOUNTED_TYPE(TSimpleTmpfsVolume)
 
