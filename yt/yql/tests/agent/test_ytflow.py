@@ -41,6 +41,9 @@ class TestYtflowBase(TestQueueAgentBase):
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
     }
 
+    MAX_YQL_VERSION = '2025.04'
+    DEFAULT_YQL_UI_VERSION = '2025.01'
+
     PIPELINE_PATH = '//tmp/pipeline'
 
     YT_TABLE_PATH = '//tmp/Table'
