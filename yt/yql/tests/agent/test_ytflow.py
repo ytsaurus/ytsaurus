@@ -4,14 +4,15 @@ import itertools
 from yt_queries import start_query
 
 from yt.environment.helpers import assert_items_equal
-from yt.wrapper.flow_commands import wait_pipeline_state, PipelineState
+from yt.wrapper.flow_commands import PipelineState
 
 from yt_commands import (
     authors, create, sync_mount_table, insert_rows, select_rows,
-    list_queue_consumer_registrations,
+    list_queue_consumer_registrations, raises_yt_error,
 )
 
 from yt_queue_agent_test_base import TestQueueAgentBase
+from yt.yql.tests.common.test_framework.test_utils import wait_pipeline_state_or_failed_jobs
 
 import library.python.ydb.federated_topic_client as fedydb
 
@@ -182,9 +183,7 @@ class TestYtflowBase(TestQueueAgentBase):
         actual_data = [lb_data.message.data.decode() for lb_data in self._read_logbroker_topic(topic_path)]
         assert actual_data == expected_data
 
-    def _run_query(
-        self, query_text
-    ):
+    def _run_query(self, query_text):
         with yatest.common.network.PortManager() as port_manager:
             pipeline_path = self.PIPELINE_PATH
 
@@ -215,7 +214,7 @@ pragma Ytflow.LogbrokerWriteCompressionLevel = "{self.LOGBROKER_COMPRESSION_LEVE
             query = start_query("yql", query_text)
             query.track()
 
-            wait_pipeline_state(
+            wait_pipeline_state_or_failed_jobs(
                 PipelineState.Completed, pipeline_path,
                 client=self.Env.create_client(),
                 timeout=600)
@@ -308,6 +307,42 @@ from `{input_table_path}`
             {'parsed_value': '(yexception) yt/yql/tests/agent/throwing_udf/throwing_udf.cpp:14: expected exception'},
             {"parsed_value": "foobar"},
         ])
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    def test_udf_terminate(self, query_tracker, yql_agent):
+        input_table_path = self._create_yt_table(dict(
+            schema=self._make_queue_schema([
+                {"name": "value", "type": "string"},
+            ]),
+        ))
+
+        self._write_yt_table(input_table_path, [
+            {"value": "foo"},
+        ])
+
+        out_table_path = self._create_yt_table(dict(
+            schema=self._make_queue_schema([
+                {"name": "value", "type": "string"},
+            ]),
+        ))
+
+        query = f"""
+$lambda = ($row) -> {{
+    $value = If($row.value is not null, Nothing(String?), $row.value);
+    return AsStruct(
+        Unwrap($value) as value,
+    );
+}};
+
+$stream = process `{input_table_path}` using $lambda(TableRow());
+
+insert into `{out_table_path}`
+select * from $stream;
+"""
+
+        with raises_yt_error("Failed to unwrap empty optional"):
+            self._run_query(query)
 
     @authors("ngc224")
     @pytest.mark.timeout(180)
