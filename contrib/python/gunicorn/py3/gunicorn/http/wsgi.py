@@ -107,6 +107,57 @@ def proxy_environ(req):
     }
 
 
+def _make_early_hints_callback(req, sock, resp):
+    """Create a wsgi.early_hints callback for sending 103 Early Hints.
+
+    This allows WSGI applications to send 103 Early Hints responses
+    before the final response, enabling browsers to preload resources.
+
+    Args:
+        req: The request object
+        sock: The socket to write to
+        resp: The Response object to check if headers have been sent
+
+    Returns:
+        A callback function that accepts a list of (name, value) header tuples
+        and sends a 103 Early Hints response.
+
+    Note:
+        - Early hints are only sent for HTTP/1.1 or later clients
+        - HTTP/1.0 clients will silently ignore the callback
+        - Multiple calls are allowed (sending multiple 103 responses)
+        - Calls after response has started are silently ignored
+    """
+    def send_early_hints(headers):
+        """Send 103 Early Hints response.
+
+        Args:
+            headers: List of (name, value) header tuples, typically Link headers
+                     Example: [('Link', '</style.css>; rel=preload; as=style')]
+        """
+        # Don't send after response has started - would break framing
+        if resp.headers_sent:
+            return
+
+        # Don't send to HTTP/1.0 clients - they don't support 1xx responses
+        if req.version < (1, 1):
+            return
+
+        # Build 103 response
+        response = b"HTTP/1.1 103 Early Hints\r\n"
+        for name, value in headers:
+            if isinstance(name, bytes):
+                name = name.decode('latin-1')
+            if isinstance(value, bytes):
+                value = value.decode('latin-1')
+            response += f"{name}: {value}\r\n".encode('latin-1')
+        response += b"\r\n"
+
+        util.write(sock, response)
+
+    return send_early_hints
+
+
 def create(req, sock, client, server, cfg):
     resp = Response(req, sock, cfg)
 
@@ -117,13 +168,14 @@ def create(req, sock, client, server, cfg):
     host = None
     script_name = os.environ.get("SCRIPT_NAME", "")
 
+    if req._expected_100_continue:
+        sock.send(b"HTTP/1.1 100 Continue\r\n\r\n")
+        # rfc9112: Expect MUST be forwarded if the request is forwarded
+        # N.B. gunicorn just sends at most one - application might send another
+
     # add the headers to the environ
     for hdr_name, hdr_value in req.headers:
-        if hdr_name == "EXPECT":
-            # handle expect
-            if hdr_value.lower() == "100-continue":
-                sock.send(b"HTTP/1.1 100 Continue\r\n\r\n")
-        elif hdr_name == 'HOST':
+        if hdr_name == 'HOST':
             host = hdr_value
         elif hdr_name == "SCRIPT_NAME":
             script_name = hdr_value
@@ -194,6 +246,15 @@ def create(req, sock, client, server, cfg):
     # override the environ with the correct remote and server address if
     # we are behind a proxy using the proxy protocol.
     environ.update(proxy_environ(req))
+
+    # Add wsgi.early_hints callback for sending 103 Early Hints
+    environ['wsgi.early_hints'] = _make_early_hints_callback(req, sock, resp)
+
+    # Add HTTP/2 stream priority if available
+    if hasattr(req, 'priority_weight'):
+        environ['gunicorn.http2.priority_weight'] = req.priority_weight
+        environ['gunicorn.http2.priority_depends_on'] = req.priority_depends_on
+
     return resp, environ
 
 

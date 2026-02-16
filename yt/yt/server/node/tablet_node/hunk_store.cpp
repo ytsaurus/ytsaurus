@@ -122,6 +122,11 @@ bool THunkStore::IsLockedByTablet(TTabletId tabletId) const
     return TabletIdToLockCount_.contains(tabletId);
 }
 
+int THunkStore::GetLockingTabletCount() const
+{
+    return std::ssize(TabletIdToLockCount_);
+}
+
 bool THunkStore::CanLockExclusively(TTransactionId transactionId) const
 {
     return LockingState_.CanLockExclusively(transactionId);

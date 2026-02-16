@@ -644,6 +644,10 @@ struct TTestingOperationOptions
 
     TDelayConfigPtr DelayInsideMaterializeScheduler;
 
+    TDelayConfigPtr DelayBeforePreemptionForThisOperation;
+
+    TDelayConfigPtr DelayBeforeAllocationPreemption;
+
     std::optional<TDuration> DelayInsideAbort;
 
     std::optional<TDuration> DelayInsideRegisterAllocationsFromRevivedOperation;
@@ -1316,6 +1320,9 @@ struct TOperationSpecBase
 
     //! If |true|, exec node will reuse allocation for multiple jobs.
     std::optional<bool> EnableMultipleJobsInAllocation;
+
+    //! If |false|, bulk insert into an indexed table will not update index.
+    bool UpdateSecondaryIndex;
 
     REGISTER_YSON_STRUCT(TOperationSpecBase);
 

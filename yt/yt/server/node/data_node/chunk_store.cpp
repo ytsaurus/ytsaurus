@@ -530,17 +530,21 @@ void TChunkStore::OnChunkRegistered(const IChunkPtr& chunk)
     switch (TypeFromId(DecodeChunkId(chunk->GetId()).Id)) {
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
-            YT_LOG_DEBUG("Blob chunk registered (ChunkId: %v, LocationId: %v, DiskSpace: %v)",
+            YT_LOG_DEBUG("Blob chunk registered (ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v, DiskSpace: %v)",
                 chunk->GetId(),
                 location->GetId(),
+                location->GetUuid(),
+                location->GetIndex(),
                 diskSpace);
             break;
 
         case EObjectType::JournalChunk:
         case EObjectType::ErasureJournalChunk:
-            YT_LOG_DEBUG("Journal chunk registered (ChunkId: %v, LocationId: %v, Version: %v, Sealed: %v, Active: %v)",
+            YT_LOG_DEBUG("Journal chunk registered (ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v, Version: %v, Sealed: %v, Active: %v)",
                 chunk->GetId(),
                 location->GetId(),
+                location->GetUuid(),
+                location->GetIndex(),
                 chunk->GetVersion(),
                 chunk->GetInfo().sealed(),
                 chunk->IsActive());
@@ -619,9 +623,11 @@ void TChunkStore::UnregisterChunk(const IChunkPtr& chunk)
         ChunkRemoved_.Fire(chunk);
     }
 
-    YT_LOG_DEBUG("Chunk unregistered (ChunkId: %v, LocationId: %v)",
+    YT_LOG_DEBUG("Chunk unregistered (ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v)",
         chunk->GetId(),
-        location->GetId());
+        location->GetId(),
+        location->GetUuid(),
+        location->GetIndex());
 
     ChunkStoreHost_->RemoveChunkFromCache(chunk->GetId());
 }
@@ -647,9 +653,9 @@ void TChunkStore::SetChunkLocationIndexes(const NChunkClient::NProto::TLocationI
 
         if (location) {
             location->SetIndex(index);
-            YT_LOG_INFO("Setting index for location (LocationUuid: %v, Index: %v)", uuid, index);
+            YT_LOG_INFO("Setting index for location (LocationUuid: %v, LocationIndex: %v)", uuid, index);
         } else {
-            YT_LOG_ALERT("Trying to set index for unknown location (LocationUuid: %v, Index: %v)", uuid, index);
+            YT_LOG_ALERT("Trying to set index for unknown location (LocationUuid: %v, LocationIndex: %v)", uuid, index);
         }
     }
 
@@ -673,9 +679,11 @@ void TChunkStore::RemoveNonexistentChunk(TChunkId chunkId, TChunkLocationUuid lo
     TChunkDescriptor descriptor(chunkId);
     auto chunk = CreateFromDescriptor(location, descriptor);
 
-    YT_LOG_DEBUG("Nonexistent chunk unregistered (ChunkId: %v, LocationId: %v)",
+    YT_LOG_DEBUG("Nonexistent chunk unregistered (ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v)",
         chunkId,
-        location->GetId());
+        location->GetId(),
+        location->GetUuid(),
+        location->GetIndex());
 
     {
         auto guard = ReaderGuard(ChunkMapLock_);
@@ -795,7 +803,7 @@ TChunkStore::TPerLocationChunkMap TChunkStore::GetPerLocationChunksUnsafe(
     return result;
 }
 
-void TChunkStore::CheckAllChunksHaveValidCellTags(THashSet<NObjectClient::TCellTag> masterCellTags) const
+void TChunkStore::CheckAllChunksHaveValidCellTags(const THashSet<NObjectClient::TCellTag>& masterCellTags) const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -980,15 +988,19 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
             }
         } while (std::find(candidateIndices.begin(), candidateIndices.end(), currentIndex) == candidateIndices.end());
         location = Locations_[currentIndex];
-        YT_LOG_DEBUG("Next round-robin location is chosen for chunk (PlacementId: %v, ChunkId: %v, LocationId: %v)",
+        YT_LOG_DEBUG("Next round-robin location is chosen for chunk (PlacementId: %v, ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v)",
             options.PlacementId,
             sessionId,
-            location->GetId());
+            location->GetId(),
+            location->GetUuid(),
+            location->GetIndex());
     } else {
         location = Locations_[candidateIndices[RandomNumber(candidateIndices.size())]];
-        YT_LOG_DEBUG("Random location is chosen for chunk (ChunkId: %v, LocationId: %v)",
+        YT_LOG_DEBUG("Random location is chosen for chunk (ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v)",
             sessionId,
-            location->GetId());
+            location->GetId(),
+            location->GetUuid(),
+            location->GetIndex());
     }
 
     auto lockedChunkGuard = location->TryLockChunk(sessionId.ChunkId);

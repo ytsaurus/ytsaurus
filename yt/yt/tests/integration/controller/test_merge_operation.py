@@ -2813,6 +2813,49 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert 0 < first_read <= first_written
 
+    @authors("coteeq")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_key_widening_and_non_materialized_columns(self, optimize_for):
+        skip_if_component_old(self.Env, (26, 1), "node")
+        schema = [
+            {"name": "key1", "type": "int64", "sort_order": "ascending"},
+            {"name": "num", "type": "int64"},
+            {
+                "name": "doubled_num",
+                "type": "int64",
+                "expression": "num * 2",
+                "materialized": False,
+            },
+        ]
+        create(
+            "table",
+            "//tmp/table",
+            attributes={
+                "optimize_for": optimize_for,
+                "schema": schema,
+            },
+        )
+
+        write_table("//tmp/table", [{"key1": 10, "num": 1}, {"key1": 11, "num": 1}, {"key1": 12, "num": 2}, {"key1": 13, "num": 3}])
+
+        new_schema = schema[:1] + [{"name": "key2", "type": "int64", "sort_order": "ascending"}] + schema[1:]
+        alter_table("//tmp/table", schema=new_schema)
+
+        op = merge(
+            track=False,
+            in_="//tmp/table",
+            out="<create=%true>//tmp/t_out",
+            spec={
+                "mode": "sorted",
+                "merge_by": ["key1", "key2"],
+                "force_transform": True,
+            }
+        )
+
+        # This effectively asserts that operation will have inifinitely aborting jobs.
+        wait(lambda: op.get_job_count("aborted") > 10)
+        op.abort()
+
 
 ##################################################################
 

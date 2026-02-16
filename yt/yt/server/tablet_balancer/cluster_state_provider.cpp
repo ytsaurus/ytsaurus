@@ -129,6 +129,7 @@ void TClusterStateProvider::Start()
         BundlesFuture_.Reset();
         NodesFuture_.Reset();
         UnhealthyBundlesFuture_.Reset();
+        BannedReplicasFuture_.Reset();
     }
 
     PollExecutor_->Start();
@@ -318,8 +319,15 @@ void TClusterStateProvider::FetchState()
 
 IListNodePtr TClusterStateProvider::FetchBundles()
 {
+    auto config = Config_.Acquire();
+
+    std::vector<std::string> attributeKeys{"health", "tablet_balancer_config", "tablet_cell_ids"};
+    if (config->FetchTabletActionsBundleAttribute) {
+        attributeKeys.push_back("tablet_actions");
+    }
+
     TListNodeOptions options;
-    options.Attributes = {"health", "tablet_balancer_config", "tablet_cell_ids", "tablet_actions"};
+    options.Attributes = attributeKeys;
 
     YT_LOG_DEBUG("Started fetching bundle list");
 

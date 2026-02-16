@@ -2,6 +2,8 @@
 
 #include <yt/yt/client/chunk_client/public.h>
 
+#include <library/cpp/yt/threading/rw_spin_lock.h>
+
 namespace NYT::NNodeTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -15,40 +17,77 @@ bool IsSuspiciousNodeError(const TError& error)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTrivialNodeStatusDirectory
+class TNodeStatusDirectory
     : public INodeStatusDirectory
 {
 public:
-    void UpdateSuspicionMarkTime(
-        TNodeId /*nodeId*/,
-        TStringBuf /*address*/,
-        bool /*suspicious*/,
-        std::optional<TInstant> /*previousMarkTime*/) override
+    explicit TNodeStatusDirectory(NLogging::TLogger logger)
+        : Logger(std::move(logger))
     { }
 
-    std::vector<std::optional<TInstant>> RetrieveSuspicionMarkTimes(
-        const std::vector<TNodeId>& nodeIds) const override
+    void UpdateSuspicionMarkTime(
+        TNodeId nodeId,
+        TStringBuf address,
+        bool suspicious,
+        std::optional<TInstant> previousMarkTime) override
     {
-        return std::vector<std::optional<TInstant>>(nodeIds.size(), std::nullopt);
+        auto guard = WriterGuard(SuspiciousNodesSpinLock_);
+
+        auto it = SuspiciousNodesMarkTime_.find(nodeId);
+        if (it == SuspiciousNodesMarkTime_.end() && suspicious) {
+            YT_LOG_DEBUG("Node is marked as suspicious (NodeId: %v, Address: %v)",
+                nodeId,
+                address);
+            SuspiciousNodesMarkTime_[nodeId] = TInstant::Now();
+        }
+        if (it != SuspiciousNodesMarkTime_.end() &&
+            previousMarkTime == it->second &&
+            !suspicious)
+        {
+            YT_LOG_DEBUG("Node is not suspicious anymore (NodeId: %v, Address: %v)",
+                nodeId,
+                address);
+            SuspiciousNodesMarkTime_.erase(nodeId);
+        }
     }
 
-    THashMap<TNodeId, TInstant> RetrieveSuspiciousNodeIdsWithMarkTime(
-        const std::vector<TNodeId>& /*nodeIds*/) const override
+    THashMap<TNodeId, TInstant> RetrieveSuspicionMarkTimes(
+        TRange<TNodeId> nodeIds) const override
     {
-        return {};
+        if (nodeIds.empty()) {
+            return {};
+        }
+
+        THashMap<TNodeId, TInstant> nodeIdToSuspicionMarkTime;
+
+        auto guard = ReaderGuard(SuspiciousNodesSpinLock_);
+
+        for (auto nodeId : nodeIds) {
+            auto it = SuspiciousNodesMarkTime_.find(nodeId);
+            if (it != SuspiciousNodesMarkTime_.end()) {
+                nodeIdToSuspicionMarkTime[nodeId] = it->second;
+            }
+        }
+
+        return nodeIdToSuspicionMarkTime;
     }
 
-    bool ShouldMarkNodeSuspicious(const TError& /*error*/) const override
+    bool ShouldMarkNodeSuspicious(const TError& error) const override
     {
-        return false;
+        return IsSuspiciousNodeError(error);
     }
+
+private:
+    const NLogging::TLogger Logger;
+
+    // TODO(akozhikhov): Add periodic to clear old suspicious nodes.
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SuspiciousNodesSpinLock_);
+    THashMap<TNodeId, TInstant> SuspiciousNodesMarkTime_;
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-INodeStatusDirectoryPtr CreateTrivialNodeStatusDirectory()
+INodeStatusDirectoryPtr CreateNodeStatusDirectory(NLogging::TLogger logger)
 {
-    return New<TTrivialNodeStatusDirectory>();
+    return New<TNodeStatusDirectory>(std::move(logger));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

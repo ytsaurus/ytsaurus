@@ -49,6 +49,10 @@ from sqlglot.generator import unsupported_args
 from sqlglot.optimizer.annotate_types import TypeAnnotator
 from sqlglot.typing.hive import EXPRESSION_METADATA
 
+if t.TYPE_CHECKING:
+    from sqlglot._typing import F
+
+
 # (FuncType, Multiplier)
 DATE_DELTA_INTERVAL = {
     "YEAR": ("ADD_MONTHS", 12),
@@ -316,6 +320,12 @@ class Hive(Dialect):
         CHANGE_COLUMN_ALTER_SYNTAX = False
         # Whether the dialect supports using ALTER COLUMN syntax with CHANGE COLUMN.
 
+        FUNCTION_PARSERS = {
+            **parser.Parser.FUNCTION_PARSERS,
+            "PERCENTILE": lambda self: self._parse_quantile_function(exp.Quantile),
+            "PERCENTILE_APPROX": lambda self: self._parse_quantile_function(exp.ApproxQuantile),
+        }
+
         FUNCTIONS = {
             **parser.Parser.FUNCTIONS,
             "BASE64": exp.ToBase64.from_arg_list,
@@ -346,8 +356,6 @@ class Hive(Dialect):
             "LAST_VALUE": _build_with_ignore_nulls(exp.LastValue),
             "MAP": parser.build_var_map,
             "MONTH": lambda args: exp.Month(this=exp.TsOrDsToDate.from_arg_list(args)),
-            "PERCENTILE": exp.Quantile.from_arg_list,
-            "PERCENTILE_APPROX": exp.ApproxQuantile.from_arg_list,
             "REGEXP_EXTRACT": build_regexp_extract(exp.RegexpExtract),
             "REGEXP_EXTRACT_ALL": build_regexp_extract(exp.RegexpExtractAll),
             "SEQUENCE": exp.GenerateSeries.from_arg_list,
@@ -423,6 +431,21 @@ class Hive(Dialect):
                 row_format_after=row_format_after,
                 record_reader=record_reader,
             )
+
+        def _parse_quantile_function(self, func: t.Type[F]) -> F:
+            if self._match(TokenType.DISTINCT):
+                first_arg: t.Optional[exp.Expression] = self.expression(
+                    exp.Distinct, expressions=[self._parse_lambda()]
+                )
+            else:
+                self._match(TokenType.ALL)
+                first_arg = self._parse_lambda()
+
+            args = [first_arg]
+            if self._match(TokenType.COMMA):
+                args.extend(self._parse_function_args())
+
+            return func.from_arg_list(args)
 
         def _parse_types(
             self, check_func: bool = False, schema: bool = False, allow_identifiers: bool = True

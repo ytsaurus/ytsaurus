@@ -16,7 +16,7 @@ public:
     explicit TLockingState(TObjectId objectId);
 
     //! Attempts to lock object in given transaction with given lock mode.
-    //! Return error iff lock attempt failed.
+    //! Returns error iff lock attempt failed.
     // NB: Multiple locks of the same kind from the same transaction are counted
     // as one.
     TError TryLock(TTransactionId transactionId, EObjectLockMode lockMode);

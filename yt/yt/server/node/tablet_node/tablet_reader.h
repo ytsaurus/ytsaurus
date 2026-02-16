@@ -164,7 +164,7 @@ NTableClient::IVersionedReaderPtr CreateCompactionTabletReader(
 std::unique_ptr<NRowMerger::TSchemafulRowMerger> CreateQueryLatestTimestampRowMerger(
     NTableClient::TRowBufferPtr rowBuffer,
     const TTabletSnapshotPtr& tabletSnapshot,
-    const TColumnFilter& columnFilter,
+    const TColumnFilter& latestTimestampColumnFilter,
     TTimestamp retentionTimestamp,
     const NTableClient::TTimestampReadOptions& timestampReadOptions);
 

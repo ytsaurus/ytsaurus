@@ -966,8 +966,7 @@ private:
                             .Item().Value(TAccessControlEntry(
                                 ESecurityAction::Allow,
                                 securityManager->GetEveryoneGroup(),
-                                EPermissionSet(EPermission::Read)
-                            ))
+                                EPermissionSet(EPermission::Read)))
                         .EndList()
                     .EndMap());
 

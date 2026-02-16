@@ -356,6 +356,10 @@ void TTestingOperationOptions::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("delay_inside_materialize_scheduler", &TThis::DelayInsideMaterializeScheduler)
         .Default();
+    registrar.Parameter("delay_before_preemption_for_this_operation", &TThis::DelayBeforePreemptionForThisOperation)
+        .Default();
+    registrar.Parameter("delay_before_allocation_preemption", &TThis::DelayBeforeAllocationPreemption)
+        .Default();
     registrar.Parameter("delay_inside_abort", &TThis::DelayInsideAbort)
         .Default();
     registrar.Parameter("delay_inside_register_allocations_from_revived_operation", &TThis::DelayInsideRegisterAllocationsFromRevivedOperation)
@@ -1062,6 +1066,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_multiple_jobs_in_allocation", &TThis::EnableMultipleJobsInAllocation)
         .Default();
+
+    registrar.Parameter("update_secondary_index", &TThis::UpdateSecondaryIndex)
+        .Default(true);
 
     registrar.Postprocessor([] (TOperationSpecBase* spec) {
         if (spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&

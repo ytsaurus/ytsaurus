@@ -88,6 +88,8 @@ struct IConnection
     virtual const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() = 0;
     virtual const NNodeTrackerClient::INodeDirectorySynchronizerPtr& GetNodeDirectorySynchronizer() = 0;
 
+    virtual const NNodeTrackerClient::INodeStatusDirectoryPtr& GetNodeStatusDirectory() = 0;
+
     virtual const NChunkClient::IChunkReplicaCachePtr& GetChunkReplicaCache() = 0;
 
     virtual std::pair<IClientPtr, NYPath::TYPath> GetQueryTrackerStage(TStringBuf stage) = 0;

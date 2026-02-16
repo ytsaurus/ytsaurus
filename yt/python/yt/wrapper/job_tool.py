@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 from yt.common import makedirp, YtError, YtResponseError
 from yt.wrapper.cli_helpers import ParseStructuredArgument
 from yt.wrapper.common import DoNotReplaceAction, chunk_iter_stream, MB

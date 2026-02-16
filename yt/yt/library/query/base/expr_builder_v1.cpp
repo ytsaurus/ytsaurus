@@ -79,22 +79,15 @@ TTypeSet InferFunctionTypes(
     TStringBuf functionName,
     TStringBuf source)
 {
-    std::vector<TTypeSet> typeConstraints;
-    std::vector<int> formalArguments;
-    std::optional<std::pair<int, bool>> repeatedType;
-    int formalResultType = inferrer->GetNormalizedConstraints(
-        &typeConstraints,
-        &formalArguments,
-        &repeatedType,
-        functionName);
+    auto constraints = inferrer->GetNormalizedConstraints(functionName);
 
-    *genericAssignments = typeConstraints;
+    *genericAssignments = std::move(constraints.TypeConstraints);
 
     int argIndex = 1;
     auto arg = effectiveTypes.begin();
-    auto formalArg = formalArguments.begin();
+    auto formalArg = constraints.FormalArguments.begin();
     for (;
-        formalArg != formalArguments.end() && arg != effectiveTypes.end();
+        formalArg != constraints.FormalArguments.end() && arg != effectiveTypes.end();
         arg++, formalArg++, argIndex++)
     {
         auto& constraints = (*genericAssignments)[*formalArg];
@@ -107,22 +100,22 @@ TTypeSet InferFunctionTypes(
         }
     }
 
-    bool hasNoRepeatedArgument = !repeatedType.operator bool();
+    bool hasNoRepeatedArgument = !constraints.RepeatedType.operator bool();
 
-    if (formalArg != formalArguments.end() ||
+    if (formalArg != constraints.FormalArguments.end() ||
         (arg != effectiveTypes.end() && hasNoRepeatedArgument))
     {
         THROW_ERROR_EXCEPTION("No matching function %Qv", functionName)
-            << TErrorAttribute("expected_arguments", formalArguments.size())
+            << TErrorAttribute("expected_arguments", constraints.FormalArguments.size())
             << TErrorAttribute("actual_arguments", effectiveTypes.size())
             << TErrorAttribute("expression", source);
     }
 
     for (; arg != effectiveTypes.end(); arg++) {
-        int constraintIndex = repeatedType->first;
-        if (repeatedType->second) {
+        int constraintIndex = constraints.RepeatedType->first;
+        if (constraints.RepeatedType->second) {
             constraintIndex = genericAssignments->size();
-            genericAssignments->push_back((*genericAssignments)[repeatedType->first]);
+            genericAssignments->push_back((*genericAssignments)[constraints.RepeatedType->first]);
         }
         auto& constraints = (*genericAssignments)[constraintIndex];
         if (!Unify(&constraints, *arg)) {
@@ -135,7 +128,7 @@ TTypeSet InferFunctionTypes(
         }
     }
 
-    return (*genericAssignments)[formalResultType];
+    return (*genericAssignments)[constraints.ReturnType];
 }
 
 std::vector<EValueType> RefineFunctionTypes(
@@ -146,16 +139,9 @@ std::vector<EValueType> RefineFunctionTypes(
     TStringBuf functionName,
     TStringBuf source)
 {
-    std::vector<TTypeSet> typeConstraints;
-    std::vector<int> formalArguments;
-    std::optional<std::pair<int, bool>> repeatedType;
-    int formalResultType = inferrer->GetNormalizedConstraints(
-        &typeConstraints,
-        &formalArguments,
-        &repeatedType,
-        functionName);
+    auto constraints = inferrer->GetNormalizedConstraints(functionName);
 
-    (*genericAssignments)[formalResultType] = TTypeSet({resultType});
+    (*genericAssignments)[constraints.ReturnType] = TTypeSet({resultType});
 
     std::vector<EValueType> genericAssignmentsMin;
     for (auto& constraint : *genericAssignments) {
@@ -165,17 +151,17 @@ std::vector<EValueType> RefineFunctionTypes(
     std::vector<EValueType> effectiveTypes;
     effectiveTypes.reserve(argumentCount);
     int argIndex = 0;
-    auto formalArg = formalArguments.begin();
-    for (;
-        formalArg != formalArguments.end() && argIndex < argumentCount;
+
+    for (auto formalArg = constraints.FormalArguments.begin();
+        formalArg != constraints.FormalArguments.end() && argIndex < argumentCount;
         ++formalArg, ++argIndex)
     {
         effectiveTypes.push_back(genericAssignmentsMin[*formalArg]);
     }
 
     for (; argIndex < argumentCount; ++argIndex) {
-        int constraintIndex = repeatedType->first;
-        if (repeatedType->second) {
+        int constraintIndex = constraints.RepeatedType->first;
+        if (constraints.RepeatedType->second) {
             constraintIndex = genericAssignments->size() - (argumentCount - argIndex);
         }
 
@@ -194,10 +180,11 @@ void IntersectGenericsWithArgumentTypes(
     const std::vector<TTypeSet>& effectiveTypes,
     std::vector<TTypeSet>* genericAssignments,
     const std::vector<int>& formalArguments,
+    const std::optional<std::pair<int, bool>>& repeatedType,
     TStringBuf functionName,
     TStringBuf source)
 {
-    if (formalArguments.size() != effectiveTypes.size()) {
+    if (!repeatedType && formalArguments.size() != effectiveTypes.size() || repeatedType && effectiveTypes.size() < formalArguments.size()) {
         THROW_ERROR_EXCEPTION("No matching function %Qv", functionName)
             << TErrorAttribute("expected_arguments", formalArguments.size())
             << TErrorAttribute("actual_arguments", effectiveTypes.size())
@@ -214,30 +201,62 @@ void IntersectGenericsWithArgumentTypes(
                 << TErrorAttribute("expression", source);
         }
     }
+
+    for (int argIndex = std::ssize(formalArguments); argIndex < std::ssize(effectiveTypes); ++argIndex) {
+        int constraintIndex = repeatedType->first;
+        if (repeatedType->second) {
+            constraintIndex = genericAssignments->size();
+            genericAssignments->push_back((*genericAssignments)[repeatedType->first]);
+        }
+        auto& constraints = (*genericAssignments)[constraintIndex];
+        if (!Unify(&constraints, effectiveTypes[argIndex])) {
+            THROW_ERROR_EXCEPTION("No matching function %Qv", functionName)
+                << TErrorAttribute("argument_index", argIndex + 1)
+                << TErrorAttribute("expected_type", ToString(constraints))
+                << TErrorAttribute("actual_type", ToString(effectiveTypes[argIndex]))
+                << TErrorAttribute("expression", source);
+        }
+    }
 }
 
 std::vector<EValueType> RefineFunctionTypes(
-    int formalResultType,
-    int formalStateType,
-    const std::vector<int>& formalArguments,
     EValueType resultType,
+    int argumentCount,
+    TNormalizedContraints* constraints,
     EValueType* stateType,
-    std::vector<TTypeSet>* genericAssignments,
     TStringBuf source)
 {
-    (*genericAssignments)[formalResultType] = TTypeSet({resultType});
+    constraints->TypeConstraints[constraints->ReturnType] = TTypeSet({resultType});
 
     std::vector<EValueType> genericAssignmentsMin;
-    for (const auto& constraint : *genericAssignments) {
+    genericAssignmentsMin.reserve(constraints->TypeConstraints.size());
+    for (const auto& constraint : constraints->TypeConstraints) {
         genericAssignmentsMin.push_back(GetFrontWithCheck(constraint, source));
     }
 
-    *stateType = genericAssignmentsMin[formalStateType];
+    *stateType = genericAssignmentsMin[constraints->StateType];
 
     std::vector<EValueType> effectiveTypes;
-    for (int formalArgConstraint : formalArguments)
-    {
+    effectiveTypes.reserve(argumentCount);
+    int argIndex = 0;
+
+    for (int formalArgConstraint : constraints->FormalArguments) {
         effectiveTypes.push_back(genericAssignmentsMin[formalArgConstraint]);
+        argIndex++;
+    }
+
+    // TODO(sabdenovch): Get rid of the contract where union repeated types are dumped at the
+    // end of the TypeConstraints by changing TNormalizedConstraints::FormalArguments ->
+    // -> TNormalizedContraints::Arguments. Change GetNormalizedConstraints api, consider
+    // argument types immediately. Unify RefineFunctionTypes(...) into single function,
+    // unify IntersectGenericsWithArgumentTypes and InferFunctionTypes, move their logic
+    // into GetNormalizedConstraints.
+    for (; argIndex < argumentCount; ++argIndex) {
+        int constraintIndex = constraints->RepeatedType->first;
+        if (constraints->RepeatedType->second) {
+            constraintIndex = genericAssignmentsMin.size() - (argumentCount - argIndex);
+        }
+        effectiveTypes.push_back(genericAssignmentsMin[constraintIndex]);
     }
 
     return effectiveTypes;
@@ -497,15 +516,15 @@ struct TUntypedExpression
     bool IsConstant;
 };
 
-struct TExprBuilderV1
-    : public TExprBuilder
+struct TExpressionBuilderV1
+    : public TExpressionBuilder
 {
 public:
-    TExprBuilderV1(
+    TExpressionBuilderV1(
         TStringBuf source,
         const TConstTypeInferrerMapPtr& functions,
         const NAst::TAliasMap& aliasMap)
-        : TExprBuilder(source, functions)
+        : TExpressionBuilder(source, functions)
         , AliasMap_(aliasMap)
     { }
 
@@ -629,15 +648,15 @@ private:
         const NAst::TLikeExpression* likeExpr);
 };
 
-std::unique_ptr<TExprBuilder> CreateExpressionBuilderV1(
+std::unique_ptr<TExpressionBuilder> CreateExpressionBuilderV1(
     TStringBuf source,
     const TConstTypeInferrerMapPtr& functions,
     const NAst::TAliasMap& aliasMap)
 {
-    return std::make_unique<TExprBuilderV1>(source, functions, aliasMap);
+    return std::make_unique<TExpressionBuilderV1>(source, functions, aliasMap);
 }
 
-TUntypedExpression TExprBuilderV1::OnExpression(
+TUntypedExpression TExpressionBuilderV1::OnExpression(
     const NAst::TExpression* expr)
 {
     CheckStackDepth();
@@ -689,7 +708,7 @@ TUntypedExpression TExprBuilderV1::OnExpression(
     YT_ABORT();
 }
 
-TConstExpressionPtr TExprBuilderV1::BuildTypedExpression(
+TConstExpressionPtr TExpressionBuilderV1::BuildTypedExpression(
     const NAst::TExpression* expr,
     TRange<EValueType> resultTypes)
 {
@@ -713,7 +732,7 @@ TConstExpressionPtr TExprBuilderV1::BuildTypedExpression(
     return result;
 }
 
-TExprBuilderV1::ResolveNestedTypesResult TExprBuilderV1::ResolveNestedTypes(
+TExpressionBuilderV1::ResolveNestedTypesResult TExpressionBuilderV1::ResolveNestedTypes(
     const TLogicalTypePtr& type,
     const NAst::TReference& reference)
 {
@@ -783,7 +802,7 @@ TExprBuilderV1::ResolveNestedTypesResult TExprBuilderV1::ResolveNestedTypes(
     return {std::move(nestedStructOrTupleItemAccessor), std::move(intermediateType), std::move(resultType)};
 }
 
-TConstExpressionPtr TExprBuilderV1::UnwrapListOrDictItemAccessor(
+TConstExpressionPtr TExpressionBuilderV1::UnwrapListOrDictItemAccessor(
     const NAst::TReference& reference,
     ELogicalMetatype metaType)
 {
@@ -824,7 +843,7 @@ TConstExpressionPtr TExprBuilderV1::UnwrapListOrDictItemAccessor(
     }
 }
 
-TUntypedExpression TExprBuilderV1::UnwrapCompositeMemberAccessor(
+TUntypedExpression TExpressionBuilderV1::UnwrapCompositeMemberAccessor(
     const NAst::TReference& reference,
     const TLogicalTypePtr& type)
 {
@@ -864,10 +883,10 @@ TUntypedExpression TExprBuilderV1::UnwrapCompositeMemberAccessor(
     return {TTypeSet({wireType}), std::move(generator), /*IsConstant*/ false};
 }
 
-TUntypedExpression TExprBuilderV1::OnReference(const NAst::TReference& reference)
+TUntypedExpression TExpressionBuilderV1::OnReference(const NAst::TReference& reference)
 {
     if (AfterGroupBy_) {
-        TLogicalTypePtr type = nullptr;
+        TLogicalTypePtr type;
 
         // Search other way after group by.
         if (!reference.TableName) {
@@ -911,7 +930,7 @@ TUntypedExpression TExprBuilderV1::OnReference(const NAst::TReference& reference
         InferColumnName(reference));
 }
 
-TUntypedExpression TExprBuilderV1::OnFunction(const NAst::TFunctionExpression* functionExpr)
+TUntypedExpression TExpressionBuilderV1::OnFunction(const NAst::TFunctionExpression* functionExpr)
 {
     auto functionName = ToLower(functionExpr->FunctionName);
 
@@ -922,10 +941,8 @@ TUntypedExpression TExprBuilderV1::OnFunction(const NAst::TFunctionExpression* f
 
         std::vector<TTypeSet> argTypes;
         argTypes.reserve(functionExpr->Arguments.size());
-        std::vector<TTypeSet> genericAssignments;
         std::vector<TExpressionGenerator> operandTypers;
         operandTypers.reserve(functionExpr->Arguments.size());
-        std::vector<int> formalArguments;
 
         if (!AfterGroupBy_) {
             THROW_ERROR_EXCEPTION("Misuse of aggregate function %Qv", functionName);
@@ -941,31 +958,23 @@ TUntypedExpression TExprBuilderV1::OnFunction(const NAst::TFunctionExpression* f
 
         // TODO(lukyan): Move following code into GetAggregateColumnPtr or remove GetAggregateColumnPtr function.
 
-        int stateConstraintIndex;
-        int resultConstraintIndex;
-
-        std::tie(stateConstraintIndex, resultConstraintIndex) = descriptor->GetNormalizedConstraints(
-            &genericAssignments,
-            &formalArguments,
-            functionName);
+        auto constraints = descriptor->GetNormalizedConstraints(functionName);
         IntersectGenericsWithArgumentTypes(
             argTypes,
-            &genericAssignments,
-            formalArguments,
+            &constraints.TypeConstraints,
+            constraints.FormalArguments,
+            constraints.RepeatedType,
             functionName,
             functionExpr->GetSource(Source_));
 
-        auto resultTypes = genericAssignments[resultConstraintIndex];
+        auto resultTypes = constraints.TypeConstraints[constraints.ReturnType];
 
         TExpressionGenerator generator = [
             this,
-            stateConstraintIndex,
-            resultConstraintIndex,
+            constraints = std::move(constraints),
             functionName = std::move(functionName),
             subexpressionName = std::move(subexpressionName),
             operandTypers = std::move(operandTypers),
-            genericAssignments = std::move(genericAssignments),
-            formalArguments = std::move(formalArguments),
             source = functionExpr->GetSource(Source_)
         ] (EValueType type) mutable -> TConstExpressionPtr {
             auto key = std::pair(subexpressionName, type);
@@ -976,12 +985,10 @@ TUntypedExpression TExprBuilderV1::OnFunction(const NAst::TFunctionExpression* f
 
             EValueType stateType;
             auto effectiveTypes = RefineFunctionTypes(
-                resultConstraintIndex,
-                stateConstraintIndex,
-                formalArguments,
                 type,
+                operandTypers.size(),
+                &constraints,
                 &stateType,
-                &genericAssignments,
                 source);
 
             std::vector<TConstExpressionPtr> typedOperands;
@@ -1056,7 +1063,7 @@ TUntypedExpression TExprBuilderV1::OnFunction(const NAst::TFunctionExpression* f
     }
 }
 
-TUntypedExpression TExprBuilderV1::OnUnaryOp(const NAst::TUnaryOpExpression* unaryExpr)
+TUntypedExpression TExpressionBuilderV1::OnUnaryOp(const NAst::TUnaryOpExpression* unaryExpr)
 {
     if (unaryExpr->Operand.size() != 1) {
         THROW_ERROR_EXCEPTION(
@@ -1101,7 +1108,7 @@ TUntypedExpression TExprBuilderV1::OnUnaryOp(const NAst::TUnaryOpExpression* una
     return TUntypedExpression{.FeasibleTypes = resultTypes, .Generator = std::move(generator), .IsConstant = false};
 }
 
-TUntypedExpression TExprBuilderV1::MakeBinaryExpr(
+TUntypedExpression TExpressionBuilderV1::MakeBinaryExpr(
     const NAst::TBinaryOpExpression* binaryExpr,
     EBinaryOp op,
     TUntypedExpression lhs,
@@ -1164,7 +1171,7 @@ TUntypedExpression TExprBuilderV1::MakeBinaryExpr(
 
 struct TBinaryOpGenerator
 {
-    TExprBuilderV1& Builder;
+    TExpressionBuilderV1& Builder;
     const NAst::TBinaryOpExpression* BinaryExpr;
 
     TUntypedExpression Do(size_t keySize, EBinaryOp op)
@@ -1223,7 +1230,7 @@ struct TBinaryOpGenerator
     }
 };
 
-TUntypedExpression TExprBuilderV1::OnBinaryOp(
+TUntypedExpression TExpressionBuilderV1::OnBinaryOp(
     const NAst::TBinaryOpExpression* binaryExpr)
 {
     if (IsRelationalBinaryOp(binaryExpr->Opcode)) {
@@ -1254,7 +1261,7 @@ TUntypedExpression TExprBuilderV1::OnBinaryOp(
     }
 }
 
-void TExprBuilderV1::InferArgumentTypes(
+void TExpressionBuilderV1::InferArgumentTypes(
     std::vector<TConstExpressionPtr>* typedArguments,
     std::vector<EValueType>* argTypes,
     const NAst::TExpressionList& expressions,
@@ -1282,7 +1289,7 @@ void TExprBuilderV1::InferArgumentTypes(
     }
 }
 
-TUntypedExpression TExprBuilderV1::OnInOp(
+TUntypedExpression TExpressionBuilderV1::OnInOp(
     const NAst::TInExpression* inExpr)
 {
     std::vector<TConstExpressionPtr> typedArguments;
@@ -1314,7 +1321,7 @@ TUntypedExpression TExprBuilderV1::OnInOp(
     return TUntypedExpression{resultTypes, std::move(generator), /*IsConstant*/ false};
 }
 
-TUntypedExpression TExprBuilderV1::OnBetweenOp(
+TUntypedExpression TExpressionBuilderV1::OnBetweenOp(
     const NAst::TBetweenExpression* betweenExpr)
 {
     std::vector<TConstExpressionPtr> typedArguments;
@@ -1339,7 +1346,7 @@ TUntypedExpression TExprBuilderV1::OnBetweenOp(
     return TUntypedExpression{resultTypes, std::move(generator), /*IsConstant*/ false};
 }
 
-TUntypedExpression TExprBuilderV1::OnTransformOp(
+TUntypedExpression TExpressionBuilderV1::OnTransformOp(
     const NAst::TTransformExpression* transformExpr)
 {
     std::vector<TConstExpressionPtr> typedArguments;
@@ -1468,7 +1475,7 @@ TUntypedExpression TExprBuilderV1::OnTransformOp(
     return TUntypedExpression{TTypeSet({resultType}), std::move(generator), /*IsConstant*/ false};
 }
 
-TUntypedExpression TExprBuilderV1::OnCaseOp(const NAst::TCaseExpression* caseExpr)
+TUntypedExpression TExpressionBuilderV1::OnCaseOp(const NAst::TCaseExpression* caseExpr)
 {
     auto source = caseExpr->GetSource(Source_);
 
@@ -1606,7 +1613,7 @@ TUntypedExpression TExprBuilderV1::OnCaseOp(const NAst::TCaseExpression* caseExp
     return TUntypedExpression{TTypeSet({resultType}), std::move(generator), /*IsConstant*/ false};
 }
 
-TUntypedExpression TExprBuilderV1::OnLikeOp(const NAst::TLikeExpression* likeExpr)
+TUntypedExpression TExpressionBuilderV1::OnLikeOp(const NAst::TLikeExpression* likeExpr)
 {
     auto source = likeExpr->GetSource(Source_);
 

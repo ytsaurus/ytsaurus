@@ -384,6 +384,7 @@ private:
 
             THashMap<TString, TString> volumeProperties;
             volumeProperties["backend"] = "bind";
+            volumeProperties["read_only"] = "true";
             volumeProperties["storage"] = GetDirectoryName(toolPathOrError.Value());
 
             auto pathOrError = WaitFor(PortoExecutor_->CreateVolume(std::string(toolDirectory), volumeProperties));

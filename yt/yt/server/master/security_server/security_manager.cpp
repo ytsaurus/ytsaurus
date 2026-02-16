@@ -42,6 +42,7 @@
 #include <yt/yt/server/master/incumbent_server/incumbent_detail.h>
 #include <yt/yt/server/master/incumbent_server/incumbent_manager.h>
 
+#include <yt/yt/server/master/object_server/helpers.h>
 #include <yt/yt/server/master/object_server/map_object_type_handler.h>
 #include <yt/yt/server/master/object_server/map_object.h>
 #include <yt/yt/server/master/object_server/object_manager.h>
@@ -106,6 +107,7 @@ using namespace NProfiling;
 using namespace NSecurityClient;
 using namespace NSequoiaServer;
 using namespace NSequoiaClient;
+using namespace NServer;
 using namespace NTableServer;
 using namespace NTransactionServer;
 using namespace NYPath;
@@ -225,6 +227,14 @@ protected:
     TCellTagList DoGetReplicationCellTags(const TAccount* /*account*/) override
     {
         return TNonversionedMapObjectTypeHandlerBase<TAccount>::AllSecondaryCellTags();
+    }
+
+    void ValidateObjectName(const std::string& name) override
+    {
+        TNonversionedMapObjectTypeHandlerBase<TAccount>::ValidateObjectName(name);
+
+        CheckObjectName(name)
+            .ThrowOnError();
     }
 
 private:
@@ -746,27 +756,35 @@ public:
         return account;
     }
 
-    TAccount* DoFindAccountByName(const std::string& name)
+    TAccount* DoFindAccountByName(const std::string& name, bool throwOnInvalidId)
     {
-        // Access buggy parentless accounts by id.
-        if (name.starts_with(NObjectClient::ObjectIdPathPrefix)) {
-            TStringBuf idString(name, NObjectClient::ObjectIdPathPrefix.size());
-            auto id = TObjectId::FromString(idString);
-            auto* account = AccountMap_.Find(id);
-            if (!IsObjectAlive(account) || account->GetName() != name) {
+        auto* account = Visit(ParseObjectNameOrId(name),
+            [&] (TStringBuf accountName) {
+                return GetOrDefault(AccountNameMap_, accountName, nullptr);
+            },
+            [&] (TObjectId id) -> TAccount* {
+                if (TypeFromId(id) != EObjectType::Account) {
+                    if (throwOnInvalidId) {
+                        THROW_ERROR_EXCEPTION("Invalid account id")
+                            << TErrorAttribute("account_id", id);
+                    }
+                    return nullptr;
+                }
+                return AccountMap_.Find(id);
+            },
+            [&] (TError error) -> TAccount* {
+                if (throwOnInvalidId) {
+                    THROW_ERROR error;
+                }
                 return nullptr;
-            }
-            return account;
-        }
+            });
 
-        auto it = AccountNameMap_.find(name);
-        auto* account = it == AccountNameMap_.end() ? nullptr : it->second;
         return IsObjectAlive(account) ? account : nullptr;
     }
 
     TAccount* FindAccountByName(const std::string& name, bool activeLifeStageOnly) override
     {
-        auto* account = DoFindAccountByName(name);
+        auto* account = DoFindAccountByName(name, /*throwOnInvalidId=*/ false);
         if (!account) {
             return account;
         }
@@ -780,7 +798,7 @@ public:
 
     TAccount* GetAccountByNameOrThrow(const std::string& name, bool activeLifeStageOnly) override
     {
-        auto* account = DoFindAccountByName(name);
+        auto* account = DoFindAccountByName(name, /*throwOnInvalidId*/ true);
         if (!account) {
             THROW_ERROR_EXCEPTION(
                 NSecurityClient::EErrorCode::NoSuchAccount,
@@ -798,12 +816,12 @@ public:
     void RegisterAccountName(const std::string& name, TAccount* account) noexcept
     {
         YT_VERIFY(account);
-        YT_VERIFY(AccountNameMap_.emplace(name, account).second);
+        EmplaceOrCrash(AccountNameMap_, name, account);
     }
 
     void UnregisterAccountName(const std::string& name) noexcept
     {
-        YT_VERIFY(AccountNameMap_.erase(name) == 1);
+        EraseOrCrash(AccountNameMap_, name);
     }
 
     TAccount* GetRootAccount() override
@@ -2894,6 +2912,11 @@ public:
                 .NodeId = object->GetId(),
             });
         }
+        auto lastRecordSequenceNumber = queueManager->GetLastRecordSequenceNumber(EGroundUpdateQueue::Sequoia);
+        auto* node = object->As<TCypressNode>();
+        // No need to update parent here as ACLs don't affect parents in any way.
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        cypressManager->UpdateGroundUpdateQueueManagerSequenceNumber(node, lastRecordSequenceNumber);
 
         YT_LOG_DEBUG("Scheduled ACLs table update (ObjectId: %v)",
             object->GetId());
@@ -3333,8 +3356,14 @@ private:
                 YT_LOG_ALERT("Unattended account found in snapshot (Id: %v)",
                     account->GetId());
             } else {
+                auto name = account->GetName();
+                if (auto error = CheckObjectName(name); !error.IsOK()) {
+                    YT_LOG_ALERT(error, "Account with invalid name encountered (Id: %v, Name: %v)",
+                        account->GetId(),
+                        name);
+                }
                 // Reconstruct account name map.
-                RegisterAccountName(account->GetName(), account);
+                RegisterAccountName(name, account);
             }
         }
 
@@ -4802,7 +4831,10 @@ TObject* TAccountTypeHandler::CreateObject(
     TObjectId hintId,
     IAttributeDictionary* attributes)
 {
-    auto name = attributes->GetAndRemove<std::string>("name");
+    auto name = attributes->GetAndRemove<std::string>(EInternedAttributeKey::Name.Unintern());
+    CheckObjectName(name)
+        .ThrowOnError();
+
     auto parentName = attributes->GetAndRemove<std::string>("parent_name", NSecurityClient::RootAccountName);
     auto* parent = Owner_->GetAccountByNameOrThrow(parentName, true /*activeLifeStageOnly*/);
     attributes->Set("hint_id", hintId);
@@ -4866,6 +4898,7 @@ TObject* TAccountResourceUsageLeaseTypeHandler::CreateObject(
     IAttributeDictionary* attributes)
 {
     auto transactionId = attributes->GetAndRemove<TTransactionId>("transaction_id");
+
     auto accountName = attributes->GetAndRemove<std::string>("account");
 
     return Owner_->CreateAccountResourceUsageLease(accountName, transactionId, hintId);
@@ -4925,7 +4958,7 @@ TObject* TGroupTypeHandler::CreateObject(
     TObjectId hintId,
     IAttributeDictionary* attributes)
 {
-    auto name = attributes->GetAndRemove<std::string>("name");
+    auto name = attributes->GetAndRemove<std::string>(EInternedAttributeKey::Name.Unintern());
 
     return Owner_->CreateGroup(name, hintId);
 }
@@ -4946,7 +4979,7 @@ void TGroupTypeHandler::DoZombifyObject(TGroup* group)
 std::optional<TObject*> TGroupTypeHandler::FindObjectByAttributes(
     const NYTree::IAttributeDictionary* attributes)
 {
-    auto name = attributes->Get<std::string>("name");
+    auto name = attributes->Get<std::string>(EInternedAttributeKey::Name.Unintern());
 
     return Owner_->FindGroupByNameOrAlias(name);
 }
@@ -4962,7 +4995,7 @@ TObject* TNetworkProjectTypeHandler::CreateObject(
     TObjectId hintId,
     IAttributeDictionary* attributes)
 {
-    auto name = attributes->GetAndRemove<std::string>("name");
+    auto name = attributes->GetAndRemove<std::string>(EInternedAttributeKey::Name.Unintern());
 
     return Owner_->CreateNetworkProject(name, hintId);
 }
@@ -4991,8 +5024,8 @@ TObject* TProxyRoleTypeHandler::CreateObject(
     TObjectId hintId,
     IAttributeDictionary* attributes)
 {
-    auto name = attributes->GetAndRemove<std::string>("name");
-    auto proxyKind = attributes->GetAndRemove<NApi::EProxyKind>("proxy_kind");
+    auto name = attributes->GetAndRemove<std::string>(EInternedAttributeKey::Name.Unintern());
+    auto proxyKind = attributes->GetAndRemove<NApi::EProxyKind>(EInternedAttributeKey::ProxyKind.Unintern());
 
     return Owner_->CreateProxyRole(name, proxyKind, hintId);
 }

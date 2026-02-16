@@ -421,7 +421,7 @@ double TChunkLocation::GetIOWeight() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    if (auto evaluator = IOWeightEvaluator_.Acquire(); evaluator) {
+    if (auto evaluator = IOWeightEvaluator_.Acquire()) {
         auto value = EvaluateIOWeight(evaluator);
         return value.ValueOrDefault(1.);
     } else {
@@ -452,7 +452,7 @@ bool TChunkLocation::Resurrect()
         return false;
     }
 
-    YT_LOG_WARNING("Location resurrection (LocationUuid: %v)", GetUuid());
+    YT_LOG_WARNING("Location resurrection (LocationUuid: %v, LocationIndex: %v)", GetUuid(), GetIndex());
 
     YT_UNUSED_FUTURE(BIND([=, this, this_ = MakeStrong(this)] {
         try {
@@ -1136,10 +1136,11 @@ void TChunkLocation::UpdateMediumDescriptor(const NChunkClient::TMediumDescripto
         ChunkStore_->ChangeLocationMedium(this, oldDescriptor.Index);
     }
 
-    YT_LOG_INFO("Location medium descriptor %v (LocationId: %v, LocationUuid: %v, MediumName: %v, MediumIndex: %v, Priority: %v)",
+    YT_LOG_INFO("Location medium descriptor %v (LocationId: %v, LocationUuid: %v, LocationIndex: %v, MediumName: %v, MediumIndex: %v, Priority: %v)",
         onInitialize ? "set" : "changed",
         GetId(),
         GetUuid(),
+        GetIndex(),
         newDescriptor.Name,
         newDescriptor.Index,
         newDescriptor.Priority);
@@ -1720,7 +1721,7 @@ bool TStoreLocation::ScheduleDisable(const TError& reason)
         return false;
     }
 
-    YT_LOG_WARNING(reason, "Disabling location (LocationUuid: %v)", GetUuid());
+    YT_LOG_WARNING(reason, "Disabling location (LocationUuid: %v, LocationIndex: %v)", GetUuid(), GetIndex());
 
     // No new actions can appear here. Please see TDiskLocation::RegisterAction.
     auto error = TError(NChunkClient::EErrorCode::LocationDisabled,

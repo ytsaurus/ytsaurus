@@ -483,8 +483,15 @@ private:
         auto* tablet = tabletManager->GetTabletOrThrow(tabletId);
         tablet->ValidateMounted(mountRevision);
 
+        auto* counters = tablet->Profiler()->GetTabletServiceCounters(GetCurrentProfilingUser());
+        TServiceProfilerGuard profilerGuard;
+        profilerGuard.Start(counters->WriteHunks);
+
         context->ReplyFrom(tablet->WriteHunks(std::move(payloads))
-            .Apply(BIND([=] (const std::vector<TJournalHunkDescriptor>& descriptors) {
+            .Apply(BIND([
+                =,
+                profilerGuard = std::move(profilerGuard)
+            ] (const std::vector<TJournalHunkDescriptor>& descriptors) {
                 for (const auto& descriptor : descriptors) {
                     auto* protoDescriptor = response->add_descriptors();
                     ToProto(protoDescriptor->mutable_chunk_id(), descriptor.ChunkId);

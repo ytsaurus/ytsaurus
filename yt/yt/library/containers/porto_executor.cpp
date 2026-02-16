@@ -706,9 +706,14 @@ private:
             portoSpec.set_root_readonly(spec.RootFS->IsRootReadOnly);
             portoSpec.set_root(spec.RootFS->RootPath);
 
+            // COMPAT(krasovav)
             for (const auto& bind : spec.RootFS->Binds) {
                 addBind(bind);
             }
+        }
+
+        for (const auto& bind : spec.Binds) {
+            addBind(bind);
         }
 
         for (const auto& place : spec.Places) {

@@ -557,8 +557,6 @@ class MasterCellAdditionBase(YTEnvSetup):
 
         type(self)._enable_last_cell(downtime)
 
-        set("//sys/@config/bebebe", "bububu")
-
         with raises_yt_error("Attempted to set master cell roles"):
             set("//sys/@config/multicell_manager/cell_descriptors/13", {"roles": ["cypress_node_host", "chunk_host"]})
 
@@ -940,7 +938,7 @@ class MasterCellAdditionBaseChecks(MasterCellAdditionBase):
         yield
 
         create("table", "//tmp/t", attributes={"external_cell_tag": 13})
-        write_table("//tmp/t", [{"x": 1}])
+        wait(lambda: self.do_with_retries(lambda: write_table("//tmp/t", [{"x": 1}])))
         assert read_table("//tmp/t") == [{"x": 1}]
 
         chunk_id = get_singular_chunk_id("//tmp/t")

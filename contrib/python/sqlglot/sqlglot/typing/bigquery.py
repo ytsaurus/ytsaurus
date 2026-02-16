@@ -163,9 +163,9 @@ EXPRESSION_METADATA = {
     **{
         expr_type: {"annotator": lambda self, e: self._annotate_by_args(e, "this")}
         for expr_type in {
-            exp.Abs,
             exp.ArgMax,
             exp.ArgMin,
+            exp.DateAdd,
             exp.DateTrunc,
             exp.DatetimeTrunc,
             exp.FirstValue,
@@ -175,6 +175,7 @@ EXPRESSION_METADATA = {
             exp.Lead,
             exp.Left,
             exp.Lower,
+            exp.NetFunc,
             exp.NthValue,
             exp.Pad,
             exp.PercentileDisc,
@@ -185,6 +186,7 @@ EXPRESSION_METADATA = {
             exp.RespectNulls,
             exp.Reverse,
             exp.Right,
+            exp.SafeFunc,
             exp.SafeNegate,
             exp.Sign,
             exp.Substring,
@@ -197,7 +199,6 @@ EXPRESSION_METADATA = {
     **{
         expr_type: {"returns": exp.DataType.Type.BIGINT}
         for expr_type in {
-            exp.Ascii,
             exp.BitwiseAndAgg,
             exp.BitwiseCount,
             exp.BitwiseOrAgg,
@@ -213,7 +214,6 @@ EXPRESSION_METADATA = {
             exp.RangeBucket,
             exp.RegexpInstr,
             exp.RowNumber,
-            exp.Unicode,
         }
     },
     **{
@@ -255,7 +255,6 @@ EXPRESSION_METADATA = {
             exp.Atan,
             exp.Atan2,
             exp.Atanh,
-            exp.Cbrt,
             exp.Corr,
             exp.CosineDistance,
             exp.Cot,
@@ -302,13 +301,14 @@ EXPRESSION_METADATA = {
         for expr_type in {
             exp.CodePointsToString,
             exp.Format,
+            exp.Host,
             exp.JSONExtractScalar,
             exp.JSONType,
             exp.LaxString,
             exp.LowerHex,
             exp.MD5,
-            exp.NetHost,
             exp.Normalize,
+            exp.RegDomain,
             exp.SafeConvertBytesToString,
             exp.Soundex,
             exp.Uuid,
@@ -339,9 +339,6 @@ EXPRESSION_METADATA = {
     exp.ApproxTopK: {"annotator": lambda self, e: _annotate_by_args_approx_top(self, e)},
     exp.ApproxTopSum: {"annotator": lambda self, e: _annotate_by_args_approx_top(self, e)},
     exp.Array: {"annotator": _annotate_array},
-    exp.ArrayConcat: {
-        "annotator": lambda self, e: self._annotate_by_args(e, "this", "expressions")
-    },
     exp.Concat: {"annotator": _annotate_concat},
     exp.DateFromUnixDate: {"returns": exp.DataType.Type.DATE},
     exp.GenerateTimestampArray: {

@@ -424,7 +424,7 @@ protected:
 
     int PartitionTreeDepth_ = 0;
 
-    // Expected number of partitions before merging.
+    // Expected number of final partitions before merging.
     // Actual count (UnorderedFinalPartitions_.size()) may be lower when merging is enabled.
     int ExpectedPartitionCount_ = 0;
 
@@ -535,7 +535,7 @@ protected:
                 DataBalancer_ = New<TDataBalancer>(
                     Controller_->Options_->DataBalancer,
                     totalDataWeight,
-                    Controller_->GetOnlineExecNodeDescriptors(),
+                    Controller_->GetOnlineSuitableExecNodeDescriptors(),
                     Logger);
             }
 
@@ -593,7 +593,7 @@ protected:
         void OnExecNodesUpdated()
         {
             if (DataBalancer_) {
-                DataBalancer_->OnExecNodesUpdated(Controller_->GetOnlineExecNodeDescriptors());
+                DataBalancer_->OnExecNodesUpdated(Controller_->GetOnlineSuitableExecNodeDescriptors());
             }
         }
 
@@ -1890,9 +1890,10 @@ protected:
             return;
         }
 
-        YT_VERIFY(std::ranges::all_of(physicalPartitionIndices, [&] (int physicalPartitionIndex) {
-            return intermediatePartition->DispatchedPhysicalPartitions().insert(physicalPartitionIndex).second;
-        }));
+        for (int physicalPartitionIndex : physicalPartitionIndices) {
+            bool wasInserted = intermediatePartition->DispatchedPhysicalPartitions().insert(physicalPartitionIndex).second;
+            YT_VERIFY(wasInserted);
+        }
 
         auto finalPartition = New<TFinalPartition>(
             PartitionTreeDepth_,
@@ -2173,7 +2174,7 @@ protected:
 
         YT_LOG_DEBUG("Examining online nodes");
 
-        const auto& nodeDescriptors = GetOnlineExecNodeDescriptors();
+        const auto& nodeDescriptors = GetOnlineSuitableExecNodeDescriptors();
         TJobResources maxResourceLimits;
         double maxIOWeight = 0;
         for (const auto& [nodeId, descriptor] : nodeDescriptors) {
@@ -3082,6 +3083,9 @@ void TSortControllerBase::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(45, UnorderedFinalPartitions_);
     PHOENIX_REGISTER_FIELD(46, UnprocessedPhysicalPartitionsCount_);
 
+    PHOENIX_REGISTER_FIELD(47, PartitionsDispatchStatistics_,
+        .SinceVersion(ESnapshotVersion::FixPartitionsDispatchStatistics));
+
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         if (!this_->SimpleSortTask_) {
             this_->SetupPartitioningCompletedCallbacks();
@@ -3105,7 +3109,7 @@ void TSortControllerBase::TPartitionTask::RegisterMetadata(auto&& registrar)
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         if (this_->DataBalancer_) {
-            this_->DataBalancer_->OnExecNodesUpdated(this_->Controller_->GetOnlineExecNodeDescriptors());
+            this_->DataBalancer_->OnExecNodesUpdated(this_->Controller_->GetOnlineSuitableExecNodeDescriptors());
         }
     });
 }
@@ -4700,6 +4704,8 @@ private:
     {
         auto stat = AggregateStatistics(statistics).front();
 
+        // TODO(apollo1321): Current memory estimation is not correct for multilevel shuffle.
+        // It should account for the number of output partitions for a given job.
         i64 reserveSize = THorizontalBlockWriter::MaxReserveSize * ExpectedPartitionCount_;
         i64 bufferSize = std::min(
             reserveSize + PartitionJobIOConfig_->TableWriter->BlockSize * ExpectedPartitionCount_,

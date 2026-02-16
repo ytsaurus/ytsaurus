@@ -895,6 +895,7 @@ private:
                 AuthenticatedLocalClient_->GetOptions().GetAuthenticationIdentity());
             req->set_sequoia_reign(NYT::ToProto(GetCurrentSequoiaReign()));
             ToProto(req->mutable_prerequisite_transaction_ids(), SequoiaTransactionOptions_.CypressPrerequisiteTransactionIds);
+            req->set_suppress_strongly_ordered_transaction_barrier(SequoiaTransactionOptions_.SuppressStronglyOrderedTransactionBarrier);
 
             futures.push_back(req->Invoke().AsVoid());
         }

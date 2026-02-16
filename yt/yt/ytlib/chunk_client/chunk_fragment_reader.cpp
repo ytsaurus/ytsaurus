@@ -1,6 +1,7 @@
 #include "chunk_fragment_reader.h"
 
 #include "private.h"
+#include "chunk_reader_host.h"
 #include "chunk_reader_options.h"
 #include "config.h"
 #include "data_node_service_proxy.h"
@@ -157,30 +158,23 @@ class TChunkFragmentReader
 public:
     TChunkFragmentReader(
         TChunkFragmentReaderConfigPtr config,
-        NApi::NNative::IClientPtr client,
-        INodeStatusDirectoryPtr nodeStatusDirectory,
-        IBlockCachePtr blockCache,
-        const NProfiling::TProfiler& profiler,
-        IThroughputThrottlerPtr mediumThrottler,
-        TThrottlerProvider throttlerProvider)
+        TChunkReaderHostPtr chunkReaderHost,
+        const NProfiling::TProfiler& profiler)
         : Config_(std::move(config))
-        , Client_(std::move(client))
-        , NodeDirectory_(Client_->GetNativeConnection()->GetNodeDirectory())
-        , NodeStatusDirectory_(std::move(nodeStatusDirectory))
-        , BlockCache_(std::move(blockCache))
-        , Networks_(Client_->GetNativeConnection()->GetNetworks())
+        , Host_(std::move(chunkReaderHost))
+        , NodeDirectory_(Host_->Client->GetNativeConnection()->GetNodeDirectory())
+        , NodeStatusDirectory_(Host_->Client->GetNativeConnection()->GetNodeStatusDirectory())
+        , Networks_(Host_->Client->GetNativeConnection()->GetNetworks())
         , Logger(ChunkClientLogger().WithTag("ChunkFragmentReaderId: %v", TGuid::Create()))
         , ReaderInvoker_(TDispatcher::Get()->GetReaderInvoker())
         , PeerInfoCache_(New<TPeerInfoCache>(
             Config_->PeerInfoExpirationTimeout,
             ReaderInvoker_))
-        , MediumThrottler_(std::move(mediumThrottler))
-        , ThrottlerProvider_(std::move(throttlerProvider))
         , SuccessfulProbingRequestCounter_(profiler.Counter("/successful_probing_request_count"))
         , FailedProbingRequestCounter_(profiler.Counter("/failed_probing_request_count"))
     {
         // NB: Ensure that it is started so medium priorities could be accounted.
-        Client_->GetNativeConnection()->GetMediumDirectorySynchronizer()->Start();
+        Host_->Client->GetNativeConnection()->GetMediumDirectorySynchronizer()->Start();
 
         SchedulePeriodicProbing();
     }
@@ -197,17 +191,14 @@ private:
     class TRetryingReadFragmentsSession;
 
     const TChunkFragmentReaderConfigPtr Config_;
-    const NApi::NNative::IClientPtr Client_;
+    const TChunkReaderHostPtr Host_;
     const TNodeDirectoryPtr NodeDirectory_;
     const INodeStatusDirectoryPtr NodeStatusDirectory_;
-    const IBlockCachePtr BlockCache_;
     const TNetworkPreferenceList Networks_;
 
     const NLogging::TLogger Logger;
     const IInvokerPtr ReaderInvoker_;
     const TPeerInfoCachePtr PeerInfoCache_;
-    const IThroughputThrottlerPtr MediumThrottler_;
-    const TThrottlerProvider ThrottlerProvider_;
 
     NProfiling::TCounter SuccessfulProbingRequestCounter_;
     NProfiling::TCounter FailedProbingRequestCounter_;
@@ -237,7 +228,7 @@ private:
         }
 
         auto& address = *optionalAddress;
-        const auto& channelFactory = Client_->GetChannelFactory();
+        const auto& channelFactory = Host_->Client->GetChannelFactory();
         auto channel = channelFactory->CreateChannel(address);
 
         return New<TPeerInfo>(TPeerInfo{
@@ -385,7 +376,7 @@ private:
 
     std::vector<TFuture<TAllyReplicasInfo>> GetAllyReplicas()
     {
-        const auto& chunkReplicaCache = Reader_->Client_->GetNativeConnection()->GetChunkReplicaCache();
+        const auto& chunkReplicaCache = Reader_->Host_->Client->GetNativeConnection()->GetChunkReplicaCache();
         ReplicaInfoFutures_ = chunkReplicaCache->GetReplicas(ChunkIds_);
         YT_VERIFY(ReplicaInfoFutures_.size() == ChunkIds_.size());
 
@@ -610,7 +601,7 @@ private:
             return;
         }
 
-        const auto& chunkReplicaCache = Reader_->Client_->GetNativeConnection()->GetChunkReplicaCache();
+        const auto& chunkReplicaCache = Reader_->Host_->Client->GetNativeConnection()->GetChunkReplicaCache();
         chunkReplicaCache->UpdateReplicas(chunkId, FromProto<TAllyReplicasInfo>(protoAllyReplicas));
     }
 
@@ -621,7 +612,7 @@ private:
             return;
         }
 
-        const auto& chunkReplicaCache = Reader_->Client_->GetNativeConnection()->GetChunkReplicaCache();
+        const auto& chunkReplicaCache = Reader_->Host_->Client->GetNativeConnection()->GetChunkReplicaCache();
         chunkReplicaCache->DiscardReplicas(chunkId, it->second);
     }
 
@@ -666,7 +657,7 @@ private:
             probingInfos[nodeIndex].PeerInfoOrError = std::move(peerInfoOrErrors[nodeIndex]);
         }
 
-        auto nodeIdToSuspicionMarkTime = Reader_->NodeStatusDirectory_->RetrieveSuspiciousNodeIdsWithMarkTime(nodeIds);
+        auto nodeIdToSuspicionMarkTime = Reader_->NodeStatusDirectory_->RetrieveSuspicionMarkTimes(nodeIds);
         for (int nodeIndex = 0; nodeIndex < std::ssize(probingInfos); ++nodeIndex) {
             auto& probingInfo = probingInfos[nodeIndex];
             auto it = nodeIdToSuspicionMarkTime.find(probingInfo.NodeId);
@@ -706,7 +697,7 @@ private:
         i64 diskQueueSize,
         int mediumIndex) const
     {
-        const auto& mediumDirectory = Reader_->Client_->GetNativeConnection()->GetMediumDirectory();
+        const auto& mediumDirectory = Reader_->Host_->Client->GetNativeConnection()->GetMediumDirectory();
         const auto* mediumDescriptor = mediumDirectory->FindByIndex(mediumIndex);
         return {
             mediumDescriptor ? -mediumDescriptor->Priority : 0,
@@ -1036,7 +1027,7 @@ public:
         , Logger(std::move(logger))
         , SessionInvoker_(CreateSerializedInvoker(Reader_->ReaderInvoker_))
         , NetworkThrottler_(GetNetworkThrottler())
-        , MediumThrottler_(Reader_->MediumThrottler_)
+        , MediumThrottler_(Reader_->Host_->MediumThrottler)
         , CombinedDataByteThrottler_(CreateCombinedDataByteThrottler())
     { }
 
@@ -1184,7 +1175,7 @@ private:
                     request.ChunkId,
                     request.ErasureCodec,
                     &State_->Response.Fragments,
-                    Reader_->BlockCache_,
+                    Reader_->Host_->BlockCache,
                     TChunkFragmentReadControllerOptions{
                         .PrefetchWholeBlocks = Reader_->Config_->PrefetchWholeBlocks,
                     });
@@ -1296,7 +1287,7 @@ private:
 
         SortUnique(nodeIds);
 
-        NodeIdToSuspicionMarkTime_ = Reader_->NodeStatusDirectory_->RetrieveSuspiciousNodeIdsWithMarkTime(nodeIds);
+        NodeIdToSuspicionMarkTime_ = Reader_->NodeStatusDirectory_->RetrieveSuspicionMarkTimes(nodeIds);
 
         // Adjust replica penalties based on suspiciousness and bans.
         // Sort replicas and feed them to controllers.
@@ -1533,6 +1524,8 @@ private:
             SetRequestWorkloadDescriptor(req, Options_.WorkloadDescriptor);
             ToProto(req->mutable_read_session_id(), Options_.ReadSessionId);
             req->set_use_direct_io(Reader_->Config_->UseDirectIO);
+            req->set_read_and_cache_whole_blocks(Reader_->Config_->ReadAndCacheWholeBlocks);
+            req->set_block_count_to_precache(Reader_->Config_->BlockCountToPrecache);
 
             for (auto& item : plan->Items) {
                 auto* subrequest = req->add_subrequests();
@@ -1608,7 +1601,7 @@ private:
             return;
         }
 
-        const auto& chunkReplicaCache = Reader_->Client_->GetNativeConnection()->GetChunkReplicaCache();
+        const auto& chunkReplicaCache = Reader_->Host_->Client->GetNativeConnection()->GetChunkReplicaCache();
         chunkReplicaCache->UpdateReplicas(chunkId, FromProto<TAllyReplicasInfo>(protoAllyReplicas));
     }
 
@@ -1760,16 +1753,7 @@ private:
 
     IThroughputThrottlerPtr GetNetworkThrottler() const
     {
-        if (!Reader_->ThrottlerProvider_) {
-            return GetUnlimitedThrottler();
-        }
-
-        auto throttler = Reader_->ThrottlerProvider_(Options_.WorkloadDescriptor.Category);
-        if (!throttler) {
-            return GetUnlimitedThrottler();
-        }
-
-        return throttler;
+        return Reader_->Host_->BandwidthThrottlerProvider(Options_.WorkloadDescriptor.Category);
     }
 
     IThroughputThrottlerPtr CreateCombinedDataByteThrottler() const
@@ -1985,13 +1969,15 @@ private:
         }
 
         if (State_->RetryIndex >= Reader_->Config_->RetryCountLimit) {
-            OnFatalError(TError("Chunk fragment reader has exceeded retry count limit")
+            OnFatalError(TError(
+                NChunkClient::EErrorCode::ReaderRetryCountLimitExceeded,
+                "Chunk fragment reader has exceeded retry count limit")
                 << TErrorAttribute("retry_count_limit", Reader_->Config_->RetryCountLimit));
             return;
         }
 
         if (Timer_.GetElapsedTime() >= Reader_->Config_->ReadTimeLimit) {
-            OnFatalError(TError("Chunk fragment reader has exceeded read time limit")
+            OnFatalError(TError(NChunkClient::EErrorCode::ReaderTimeout, "Chunk fragment reader has exceeded read time limit")
                 << TErrorAttribute("read_time_limit", Reader_->Config_->ReadTimeLimit));
             return;
         }
@@ -2129,21 +2115,13 @@ void TChunkFragmentReader::RunPeriodicProbing()
 
 IChunkFragmentReaderPtr CreateChunkFragmentReader(
     TChunkFragmentReaderConfigPtr config,
-    NApi::NNative::IClientPtr client,
-    INodeStatusDirectoryPtr nodeStatusDirectory,
-    IBlockCachePtr blockCache,
-    const NProfiling::TProfiler& profiler,
-    IThroughputThrottlerPtr mediumThrottler,
-    TThrottlerProvider throttlerProvider)
+    TChunkReaderHostPtr chunkReaderHost,
+    const NProfiling::TProfiler& profiler)
 {
     return New<TChunkFragmentReader>(
         std::move(config),
-        std::move(client),
-        std::move(nodeStatusDirectory),
-        std::move(blockCache),
-        profiler,
-        std::move(mediumThrottler),
-        std::move(throttlerProvider));
+        std::move(chunkReaderHost),
+        profiler);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

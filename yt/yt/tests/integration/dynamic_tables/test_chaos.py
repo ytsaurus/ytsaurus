@@ -101,10 +101,6 @@ class TestChaos(ChaosTestBase):
     def setup_method(self, method):
         super(TestChaos, self).setup_method(method)
 
-        primary_cell_tag = get("//sys/@primary_cell_tag")
-        for driver in self._get_drivers():
-            set("//sys/tablet_cell_bundles/default/@options/clock_cluster_tag", primary_cell_tag, driver=driver)
-
         native_config = deepcopy(self.Env.configs["driver"])
         native_config["connection_type"] = "native"
         native_config["api_version"] = 3
@@ -4894,13 +4890,6 @@ class TestChaosSpecial(ChaosTestBase):
         "31": {"roles": ["chunk_host", "cypress_node_host"]},
     }
 
-    def setup_method(self, method):
-        super().setup_method(method)
-
-        primary_cell_tag = get("//sys/@primary_cell_tag")
-        for driver in self._get_drivers():
-            set("//sys/tablet_cell_bundles/default/@options/clock_cluster_tag", primary_cell_tag, driver=driver)
-
     @authors("ashishkin")
     def test_chaos_table_remove_column(self):
         cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
@@ -5548,13 +5537,6 @@ class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
         },
     }
 
-    def setup_method(self, method):
-        super().setup_method(method)
-
-        primary_cell_tag = get("//sys/@primary_cell_tag")
-        for driver in self._get_drivers():
-            set("//sys/tablet_cell_bundles/default/@options/clock_cluster_tag", primary_cell_tag, driver=driver)
-
     @authors("osidorkin")
     def test_multitable_transactions(self):
         cell_id = self._sync_create_chaos_bundle_and_cell()
@@ -5763,13 +5745,6 @@ class TestChaosMetaCluster(ChaosTestBase):
             area="beta")
 
         return [default_cell_id, beta_cell_id]
-
-    def setup_method(self, method):
-        super().setup_method(method)
-
-        primary_cell_tag = get("//sys/@primary_cell_tag")
-        for driver in self._get_drivers():
-            set("//sys/tablet_cell_bundles/default/@options/clock_cluster_tag", primary_cell_tag, driver=driver)
 
     @authors("babenko")
     def test_meta_cluster(self):
@@ -6072,6 +6047,10 @@ class TestChaosMetaCluster(ChaosTestBase):
             state_path = f"{orchids_paths[cell_id]}/chaos_lease_manager/internal/state"
             return get(state_path, driver=drivers[cell_id])
 
+        def is_chaos_manager_suspended(cell_id):
+            suspended_path = f"{orchids_paths[cell_id]}/chaos_manager/internal/suspended"
+            return get(suspended_path, driver=drivers[cell_id])
+
         def get_chaos_lease_from_orchid(cell_id, lease_id):
             lease_path = f"{orchids_paths[cell_id]}/chaos_lease_manager/chaos_leases/{lease_id}"
             return get(lease_path, driver=drivers[cell_id])
@@ -6086,6 +6065,10 @@ class TestChaosMetaCluster(ChaosTestBase):
             assert get_chaos_lease_manager_state(enabled_cell) == "enabled"
             wait(lambda: get_chaos_lease_manager_state(disabled_cell) == "disabled")
 
+            # Make sure chaos cell allows to repeatedly disable chaos lease manager, even when chaos manager is not suspended
+            suspend_chaos_cells([disabled_cell])
+            wait(lambda: is_chaos_manager_suspended(disabled_cell))
+
             lease_id = create_chaos_lease(enabled_cell)
             assert get_chaos_lease_from_orchid(enabled_cell, lease_id)["state"] == "normal"
             ping_chaos_lease(lease_id)
@@ -6093,13 +6076,13 @@ class TestChaosMetaCluster(ChaosTestBase):
             with pytest.raises(YtError):
                 assert get_chaos_lease_from_orchid(disabled_cell, lease_id)
 
-            with pytest.raises(YtError):
-                assert suspend_chaos_cells([disabled_cell])
-
+            resume_chaos_cells([disabled_cell])
             suspend_chaos_cells([enabled_cell])
 
             wait(lambda: get_chaos_lease_manager_state(enabled_cell) == "disabled")
             wait(lambda: get_chaos_lease_manager_state(disabled_cell) == "enabled")
+            wait(lambda: is_chaos_manager_suspended(enabled_cell))
+            wait(lambda: not is_chaos_manager_suspended(disabled_cell))
 
             wait(lambda: get_chaos_lease_from_orchid(disabled_cell, lease_id)["state"] == "normal", ignore_exceptions=True)
             with pytest.raises(YtError):
@@ -6627,8 +6610,9 @@ class TestChaosMetaClusterRpcProxy(TestChaosMetaCluster):
 
 ##################################################################
 
-
 class ChaosClockBase(ChaosTestBase):
+    SETUP_DEFAULT_BUNDLE_CLOCK_CLUSTER_TAG = False
+
     NUM_REMOTE_CLUSTERS = 1
     NUM_TIMESTAMP_PROVIDERS = 1
     USE_PRIMARY_CLOCKS = False
@@ -6767,8 +6751,8 @@ class TestChaosClock(ChaosClockBase):
         else:
             for replica in replicas:
                 with raises_yt_error(
-                    "Chaos replicas should be part of tablet cell bundle configured with relevant clock cell tag."
-                    " Please reconfigure bundle or move table to bundle properly configured with respect to clock source."
+                    "Chaos replicas should be part of tablet cell bundle configured with relevant clock cell tag;"
+                    " Please reconfigure bundle or move table to bundle properly configured with respect to clock source"
                 ):
                     sync_mount_table(replica["replica_path"], driver=get_driver(cluster=replica["cluster_name"]))
 
@@ -6943,6 +6927,8 @@ class TestChaosClockRpcProxy(ChaosClockBase):
 
 @pytest.mark.enabled_multidaemon
 class TestChaosSingleCluster(ChaosTestBase):
+    SETUP_DEFAULT_BUNDLE_CLOCK_CLUSTER_TAG = False
+
     ENABLE_MULTIDAEMON = True
 
     NUM_REMOTE_CLUSTERS = 0
@@ -7021,13 +7007,6 @@ class TestChaosSingleClusterNativeProxyWithPortals(ChaosTestBase):
         },
     }
 
-    def setup_method(self, method):
-        super().setup_method(method)
-
-        primary_cell_tag = get("//sys/@primary_cell_tag")
-        for driver in self._get_drivers():
-            set("//sys/tablet_cell_bundles/default/@options/clock_cluster_tag", primary_cell_tag, driver=driver)
-
     @authors("osidorkin")
     def test_move_chaos_replicas_through_portal(self):
         cell_id = self._sync_create_chaos_bundle_and_cell()
@@ -7054,6 +7033,7 @@ class TestChaosSingleClusterNativeProxyWithPortals(ChaosTestBase):
             alter_table_replica(replica_ids[replica_index], replica_path=new_path)
             replicas[replica_index]["replica_path"] = new_path
             sync_mount_table(new_path)
+        self._sync_replication_era(card_id, replicas)
 
         values2 = [{"key": 2, "value": "2"}]
         insert_rows(replicas[0]["replica_path"], values2)
@@ -7123,13 +7103,6 @@ class TestChaosSmoothMovement(ChaosTestBase):
             },
         },
     }
-
-    def setup_method(self, method):
-        super().setup_method(method)
-
-        primary_cell_tag = get("//sys/@primary_cell_tag")
-        for driver in self._get_drivers():
-            set("//sys/tablet_cell_bundles/default/@options/clock_cluster_tag", primary_cell_tag, driver=driver)
 
     @authors("ifsmirnov")
     @pytest.mark.parametrize("queue_at_the_same_cell", [True, False])

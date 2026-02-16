@@ -609,11 +609,14 @@ private:
 
                 auto [revision, kind] = *objectInfo;
 
+                // NB(apachee): Treating any revision change as an object update instead of checking for a revision increase is a deliberate choice.
+                // It is not completely foolproof (portals, sequoia, cluster rebuild), but it should make it basically impossible
+                // to miss an object update.
                 // NB(apachee): Replicated table attributes change is handled in other part below and here we only
                 // care about revision change.
                 // TODO(apachee): In future it might be beneficial to limit fetched attributes for replicated objects to only those
                 // needed for replicated table mapping, as other attributes change results in revision change.
-                if (!object.Revision || revision > *object.Revision) {
+                if (!object.Revision || revision != *object.Revision) {
                     YT_LOG_DEBUG(
                         "Object Cypress revision changed (Cluster: %v, Path: %v, Revision: %x -> %x)",
                         cluster,
@@ -993,10 +996,7 @@ public:
     {
         Active_ = true;
 
-        {
-            auto guard = Guard(AlertCollectorLock_);
-            AlertCollector_ = CreateAlertCollectorCallback_();
-        }
+        AlertCollector_.Store(CreateAlertCollectorCallback_());
         PassExecutor_->Start();
     }
 
@@ -1005,10 +1005,7 @@ public:
         // NB: We can't have context switches happen in this callback, so sync operations could potentially be performed
         // after a call to CypressSynchronizer::Stop().
         YT_UNUSED_FUTURE(PassExecutor_->Stop());
-        {
-            auto guard = Guard(AlertCollectorLock_);
-            AlertCollector_->Stop();
-        }
+        AlertCollector_.Acquire()->Stop();
 
         Active_ = false;
     }
@@ -1021,11 +1018,7 @@ public:
 
         auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("CypressSynchronizer"));
 
-        IAlertCollectorPtr alertCollector;
-        {
-            auto guard = Guard(AlertCollectorLock_);
-            alertCollector = AlertCollector_;
-        }
+        IAlertCollectorPtr alertCollector = AlertCollector_.Acquire();
 
         auto finalizePass = Finally([&] {
             alertCollector->PublishAlerts();
@@ -1094,8 +1087,7 @@ private:
     const TPassProfiler PassProfiler_;
     const IYPathServicePtr OrchidService_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, AlertCollectorLock_);
-    IAlertCollectorPtr AlertCollector_;
+    TAtomicIntrusivePtr<IAlertCollector> AlertCollector_;
 
     //! Whether this instance is actively performing passes.
     std::atomic<bool> Active_ = false;

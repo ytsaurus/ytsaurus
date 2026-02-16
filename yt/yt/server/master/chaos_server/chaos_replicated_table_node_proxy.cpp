@@ -187,6 +187,8 @@ private:
             .SetWritable(true)
             .SetReplicated(true)
             .SetPresent(IsObjectAlive(impl->ChaosCellBundle())));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChaosCellBundleId)
+            .SetPresent(IsObjectAlive(impl->ChaosCellBundle())));
         descriptors->push_back(EInternedAttributeKey::Dynamic);
         descriptors->push_back(EInternedAttributeKey::ReplicationCardId);
         descriptors->push_back(EInternedAttributeKey::OwnsReplicationCard);
@@ -250,6 +252,15 @@ private:
                 if (const auto& bundle = trunkNode->ChaosCellBundle()) {
                     BuildYsonFluently(consumer)
                         .Value(bundle->GetName());
+                    return true;
+                } else {
+                    return false;
+                }
+
+            case EInternedAttributeKey::ChaosCellBundleId:
+                if (const auto& bundle = trunkNode->ChaosCellBundle()) {
+                    BuildYsonFluently(consumer)
+                        .Value(bundle->GetId());
                     return true;
                 } else {
                     return false;
@@ -324,7 +335,7 @@ private:
                 auto name = ConvertTo<std::string>(value);
 
                 const auto& chaosManager = Bootstrap_->GetChaosManager();
-                auto* cellBundle = chaosManager->GetChaosCellBundleByNameOrThrow(name, true /*activeLifeStageOnly*/);
+                auto* cellBundle = chaosManager->GetChaosCellBundleByNameOrThrow(name, /*activeLifeStageOnly*/ true);
 
                 auto* lockedImpl = LockThisImpl();
                 chaosManager->SetChaosCellBundle(lockedImpl, cellBundle);
@@ -703,7 +714,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, Alter)
 
     if (request->has_constraints()) {
         auto constraints = FromProto<TColumnNameToConstraintMap>(request->constraints());
-        THROW_ERROR_EXCEPTION("Alteration with constraints is not supported for chaos replicated tables")
+        THROW_ERROR_EXCEPTION("Table schema alter with constraints is not supported for chaos replicated tables")
             << TErrorAttribute("constraints", constraints);
     }
 

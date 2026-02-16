@@ -875,14 +875,17 @@ std::string TInstanceManager::LocateAllocatedInstance(
     }
 
     if (!input.Config->HasInstanceAllocatorService && !requestInfo->Status->NodeId.empty()) {
-        YT_LOG_DEBUG("Found allocated instance (InstanceName: %v)", requestInfo->Status->NodeId);
+        YT_LOG_DEBUG("Found allocated instance (InstanceName: %v)",
+            requestInfo->Status->NodeId);
         return requestInfo->Status->NodeId;
     }
 
     const auto& podId = requestInfo->Status->PodId;
     auto it = input.PodIdToInstanceName.find(podId);
     if (it != input.PodIdToInstanceName.end()) {
-        YT_LOG_DEBUG("Found allocated instance (PodId: %v, InstanceName: %v)", it->first, it->second);
+        YT_LOG_DEBUG("Found allocated instance (PodId: %v, InstanceName: %v)",
+            it->first,
+            it->second);
         return it->second;
     }
 

@@ -1,7 +1,8 @@
 #pragma once
 
-#include "artifact_cache.h"
 #include "public.h"
+#include "preparation_options.h"
+#include "volume_artifact.h"
 
 #include <yt/yt/core/actions/future.h>
 
@@ -11,61 +12,7 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IVolumeArtifact
-    : public TRefCounted
-{
-    virtual const std::string& GetFileName() const = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(IVolumeArtifact)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct IVolumeArtifactCache
-    : public TRefCounted
-{
-    virtual TFuture<IVolumeArtifactPtr> DownloadArtifact(
-        const TArtifactKey& key,
-        const TArtifactDownloadOptions& artifactDownloadOptions) = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(IVolumeArtifactCache)
-
-////////////////////////////////////////////////////////////////////////////////
-
-IVolumeArtifactCachePtr CreateVolumeArtifactCacheAdapter(TArtifactCachePtr artifactCache);
-
-////////////////////////////////////////////////////////////////////////////////
-
-using TVolumeId = TGuid;
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct IVolume
-    : public virtual TRefCounted
-{
-    //! Get unique volume id.
-    virtual const TVolumeId& GetId() const = 0;
-    //! Get absolute path to volume mount point.
-    virtual const std::string& GetPath() const = 0;
-    //! Overlayfs stores its upper/work directories in root volume.
-    virtual bool IsRootVolume() const = 0;
-    //! Link volume mount point to target.
-    virtual TFuture<void> Link(
-        TGuid tag,
-        const TString& target) = 0;
-    //! Remove volume and links where it points to.
-    virtual TFuture<void> Remove() = 0;
-
-    virtual bool IsCached() const = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(IVolume)
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Creates volumes from different layers.
-//! Useful for creation of rootfs volumes.
+//! This class can create root volume as well as tmpfs volumes.
 struct IVolumeManager
     : public virtual TRefCounted
 {
@@ -79,6 +26,7 @@ struct IVolumeManager
         const std::optional<TString>& sandboxPath,
         const std::vector<TTmpfsVolumeParams>& volumes) = 0;
 
+    //! TODO(yuryalekeev): Remove this method after we get rid of rbind volume.
     virtual TFuture<IVolumePtr> RbindRootVolume(
         const IVolumePtr& volume,
         const TString& slotPath) = 0;

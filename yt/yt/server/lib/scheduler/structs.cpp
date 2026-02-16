@@ -308,7 +308,7 @@ void FormatValue(TStringBuilderBase* builder, const TAllocationGroupResources& a
 {
     builder->AppendFormat(
         "{MinNeededResources: %v, AllocationCount: %v}",
-        allocationGroupResources.MinNeededResources,
+        FormatResources(allocationGroupResources.MinNeededResources),
         allocationGroupResources.AllocationCount);
 }
 

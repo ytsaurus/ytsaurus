@@ -92,6 +92,9 @@ void ToProto(NProto::TSubquerySpec* protoSpec, const TSubquerySpec& spec)
     if (spec.TableStatistics.has_value()) {
         ToProto(protoSpec->mutable_table_stats(), *spec.TableStatistics);
     }
+    for (const auto& attributes : spec.ColumnAttributes) {
+        NYTree::ToProto(protoSpec->add_column_attributes(), *attributes);
+    }
 }
 
 void FromProto(TSubquerySpec* spec, const NProto::TSubquerySpec& protoSpec)
@@ -123,6 +126,10 @@ void FromProto(TSubquerySpec* spec, const NProto::TSubquerySpec& protoSpec)
     if (protoSpec.has_table_stats()) {
         spec->TableStatistics.emplace();
         FromProto(&spec->TableStatistics.value(), protoSpec.table_stats(), nullptr, protoSpec.table_stats().chunk_row_count());
+    }
+    spec->ColumnAttributes.reserve(protoSpec.column_attributes_size());
+    for (const auto& attributes : protoSpec.column_attributes()) {
+        spec->ColumnAttributes.emplace_back(NYTree::FromProto(attributes));
     }
 }
 

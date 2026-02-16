@@ -4,14 +4,9 @@
 
 #include <yt/yt/server/lib/job_agent/public.h>
 
-#include <yt/yt/server/lib/nbd/config.h>
-#include <yt/yt/server/lib/nbd/image_reader.h>
-
 #include <yt/yt/server/lib/scheduler/public.h>
 
 #include <yt/yt/core/actions/callback.h>
-
-#include <optional>
 
 namespace NYT::NExecNode {
 
@@ -32,89 +27,6 @@ class TJobProxyResources;
 
 DECLARE_REFCOUNTED_STRUCT(IBootstrap)
 
-struct TTmpfsVolumeParams
-{
-    //! Path relative to sandbox, e.g. my_tmpfs
-    TString Path;
-    i64 Size = 0;
-    //! Slot user id.
-    int UserId = 0;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TVirtualSandboxData
-{
-    TString NbdExportId;
-    NNbd::IImageReaderPtr Reader;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Data necessary to create NBD root volume.
-struct TSandboxNbdRootVolumeData
-{
-    //! Identifier of NBD disk within NBD server.
-    TString ExportId;
-
-    //! Volume params.
-    i64 Size = 0;
-    int MediumIndex = 0;
-    NNbd::EFilesystemType FsType = NNbd::EFilesystemType::Ext4;
-
-    //! Params to connect to chosen data nodes.
-    TDuration DataNodeRpcTimeout;
-    std::optional<std::string> DataNodeAddress;
-
-    //! Params for NBD requests to data nodes.
-    TDuration DataNodeNbdServiceRpcTimeout;
-    TDuration DataNodeNbdServiceMakeTimeout;
-
-    //! Params to get suitable data nodes from master.
-    TDuration MasterRpcTimeout;
-    int MinDataNodeCount;
-    int MaxDataNodeCount;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO(ignat): refactor this class and its usages.
-// For example: it looks weird as an agrument in PrepareVolume in TVolumeManager,
-// and some of the options is irrelevant for TVolumeManager..
-struct TUserSandboxOptions
-{
-    std::vector<TTmpfsVolumeParams> TmpfsVolumes;
-    std::optional<i64> InodeLimit;
-    std::optional<i64> DiskSpaceLimit;
-    bool EnableRootVolumeDiskQuota = false;
-    // COMPAT(yuryalekseev): This is to enable the actual root volume disk quota until YT-25942 is done.
-    bool EnableDiskQuota = true;
-    int UserId = 0;
-    std::optional<TVirtualSandboxData> VirtualSandboxData;
-    std::optional<TSandboxNbdRootVolumeData> SandboxNbdRootVolumeData;
-    std::optional<std::string> SlotPath;
-
-    TCallback<void(const TError&)> DiskOverdraftCallback;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TArtifactDownloadOptions
-{
-    NChunkClient::TTrafficMeterPtr TrafficMeter;
-
-    std::vector<TString> WorkloadDescriptorAnnotations;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TVolumePreparationOptions
-{
-    TJobId JobId;
-    TUserSandboxOptions UserSandboxOptions;
-    TArtifactDownloadOptions ArtifactDownloadOptions;
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const TString ProxyConfigFileName;
@@ -131,14 +43,11 @@ struct TJobGpuCheckerResult;
 
 DECLARE_REFCOUNTED_CLASS(TArtifactCache)
 DECLARE_REFCOUNTED_CLASS(TCacheLocation)
-DECLARE_REFCOUNTED_STRUCT(IVolumeArtifact)
-DECLARE_REFCOUNTED_STRUCT(IVolumeArtifactCache)
 
 DECLARE_REFCOUNTED_CLASS(TGpuManager)
 
 DECLARE_REFCOUNTED_STRUCT(IVolume)
 DECLARE_REFCOUNTED_STRUCT(IVolumeManager)
-DECLARE_REFCOUNTED_STRUCT(IPlainVolumeManager)
 
 DECLARE_REFCOUNTED_STRUCT(IMasterConnector)
 
@@ -181,16 +90,6 @@ DEFINE_ENUM(EVolumeType,
     // Reserved (2))
     ((Tmpfs)    (3))
 );
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TTmpfsVolumeResult
-{
-    //! Tmpfs path, i.e. path relative to sandbox, e.g. my_tmpfs
-    TString Path;
-    //! Tmpfs volume.
-    IVolumePtr Volume;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

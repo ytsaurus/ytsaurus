@@ -599,7 +599,8 @@ private:
             hunkChunksInfo = FromProto<THunkChunksInfo>(request->hunk_chunks_info());
         }
         auto prerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
-        auto transactionExternalizationToken = FromProto<TGuid>(request->transaction_externalization_token());
+        auto transactionExternalizationToken = FromProto<TTransactionExternalizationToken>(
+            request->transaction_externalization_token());
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = Host_->FindTablet(tabletId);
@@ -667,9 +668,8 @@ private:
                         false,
                         transactionExternalizationToken);
                 } catch (const std::exception& ex) {
-                    YT_LOG_DEBUG(ex, "Failed to create transaction (TransactionId: %v@%v, TabletId: %v)",
-                        transactionId,
-                        transactionExternalizationToken,
+                    YT_LOG_DEBUG(ex, "Failed to create transaction (TransactionId: %v, TabletId: %v)",
+                        FormatTransactionId(transactionId, transactionExternalizationToken),
                         tabletId);
                     return;
                 }
@@ -683,11 +683,10 @@ private:
                 }
 
                 YT_LOG_DEBUG(
-                    "Performing atomic write as follower (TabletId: %v, TransactionId: %v@%v, "
+                    "Performing atomic write as follower (TabletId: %v, TransactionId: %v, "
                     "BatchGeneration: %x, PersistentGeneration: %x, PrerequisiteTransactionIds: %v)",
                     tabletId,
-                    transactionId,
-                    transactionExternalizationToken,
+                    FormatTransactionId(transactionId, transactionExternalizationToken),
                     generation,
                     transaction->GetPersistentGeneration(),
                     prerequisiteTransactionIds);
@@ -757,7 +756,7 @@ private:
             tablet->GetLoggingTag(),
             transactionId);
 
-        auto token = tablet->SmoothMovementData().GetSiblingAvenueEndpointId();
+        TTransactionExternalizationToken token(tablet->SmoothMovementData().GetSiblingAvenueEndpointId());
         auto atomicity = AtomicityFromTransactionId(transactionId);
 
         if (atomicity == EAtomicity::Full) {

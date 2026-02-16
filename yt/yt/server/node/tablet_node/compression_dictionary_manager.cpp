@@ -360,7 +360,7 @@ struct TCompressionDictionaryCacheKey
     TChunkId ChunkId;
     // Content differs for compression and decompression modes.
     bool IsDecompression;
-    // This field is used for proper column id mapping in case of schema alteration.
+    // This field is used for proper column id mapping in case of table schema alter.
     TObjectId SchemaId;
 
     bool operator==(const TCompressionDictionaryCacheKey& other) const
@@ -650,10 +650,6 @@ private:
 
     IBootstrap* const Bootstrap_;
 
-    // TODO(akozhikhov): Specific workload category?
-    const EWorkloadCategory WorkloadCategory_ = EWorkloadCategory::SystemTabletCompaction;
-
-
     i64 GetWeight(const TCompressionDictionaryCacheEntryPtr& entry) const override
     {
         return entry->GetMemoryUsage();
@@ -673,8 +669,8 @@ private:
             Bootstrap_->GetLocalDescriptor(),
             /*blockCache*/ nullptr,
             /*chunkMetaCache*/ nullptr,
-            Bootstrap_->GetHintManager(),
-            Bootstrap_->GetInThrottler(WorkloadCategory_),
+            // TODO(akozhikhov): Specific workload category?
+            MakeUniformPerCategoryThrottlerProvider(Bootstrap_->GetInThrottler(EWorkloadCategory::SystemTabletCompaction)),
             Bootstrap_->GetReadRpsOutThrottler(),
             NConcurrency::GetUnlimitedThrottler(),
             /*trafficMeter*/ nullptr);

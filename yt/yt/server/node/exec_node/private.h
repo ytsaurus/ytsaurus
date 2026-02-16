@@ -91,4 +91,25 @@ struct TGpuCheckOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTmpfsVolumeParams
+{
+    //! Path relative to sandbox, e.g. my_tmpfs
+    TString Path;
+    i64 Size = 0;
+    //! Slot user id.
+    int UserId = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTmpfsVolumeResult
+{
+    //! Tmpfs path, i.e. path relative to sandbox, e.g. my_tmpfs
+    TString Path;
+    //! Tmpfs volume.
+    IVolumePtr Volume;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NExecNode

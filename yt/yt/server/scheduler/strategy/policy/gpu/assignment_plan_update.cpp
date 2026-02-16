@@ -597,7 +597,7 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::ProcessRegularOperations()
 {
     // 1. Initialize.
     std::vector<TOperationPtr> operationsToPlan;
-    for (const auto& [_, operation] : Operations_ ) {
+    for (const auto& [_, operation] : Operations_) {
         if (operation->IsFullHostModuleBound()) {
             continue;
         }

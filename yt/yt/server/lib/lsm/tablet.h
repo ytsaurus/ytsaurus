@@ -18,7 +18,7 @@ class TTablet
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(TTabletId, Id);
-    DEFINE_BYREF_RW_PROPERTY(TString, TablePath);
+    DEFINE_BYREF_RW_PROPERTY(NYPath::TYPath, TablePath);
     DEFINE_BYVAL_RW_PROPERTY(TTabletCellId, CellId);
     DEFINE_BYREF_RW_PROPERTY(std::string, TabletCellBundle);
     DEFINE_BYVAL_RW_PROPERTY(bool, PhysicallySorted);

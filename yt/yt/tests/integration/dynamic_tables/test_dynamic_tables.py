@@ -84,7 +84,6 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         "tablet_node": {
             "changelogs": {
                 "writer": {
-                    "enable_checksums": True,
                     "validate_erasure_coding": True
                 }
             }

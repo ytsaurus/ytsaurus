@@ -548,7 +548,7 @@ class TestStatisticsReporter(TestStatisticsReporterBase, TestSortedDynamicTables
     def _get_counter(self, statistics_path, table_id, tablet_id, name, counter):
         response = lookup_rows(statistics_path, [{"table_id": table_id, "tablet_id": tablet_id}])
         if len(response) == 0:
-            return 0
+            return None
         return response[0][name][counter]
 
     @authors("dave11ar")
@@ -579,7 +579,15 @@ class TestStatisticsReporter(TestStatisticsReporterBase, TestSortedDynamicTables
             sync_unmount_table("//tmp/t")
             sync_mount_table("//tmp/t")
 
-            if rows is not None:
+            if rows is None:
+                self._create_sorted_table("//tmp/t1")
+                sync_mount_table("//tmp/t1")
+                wait(lambda: self._get_counter(
+                    statistics_path,
+                    get("//tmp/t1/@id"),
+                    get("//tmp/t1/@tablets/0/tablet_id"),
+                    "dynamic_row_write", "count") == 0)
+            else:
                 insert_rows("//tmp/t", rows)
 
             wait(lambda: self._get_counter(
@@ -589,6 +597,11 @@ class TestStatisticsReporter(TestStatisticsReporterBase, TestSortedDynamicTables
                 "dynamic_row_write", "count") == expected_value)
 
         insert_rows("//tmp/t", [{"key": 1, "value": "F"}])
+        wait(lambda: self._get_counter(
+            statistics_path,
+            table_id,
+            tablet_id,
+            "dynamic_row_write", "count") == 1)
         _check_dynamic_row_write_counter_after_unmount(expected_value=1)
 
         _check_dynamic_row_write_counter_after_unmount(

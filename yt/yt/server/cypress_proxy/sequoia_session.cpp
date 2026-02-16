@@ -480,9 +480,12 @@ void TSequoiaSession::MaybeLockAndReplicateCypressTransaction()
     }
 
     // To prevent concurrent finishing of this Cypress tx.
+    // NB: to figure out the reason of usage shared write lock instead of shared
+    // read see comment above TSequoiaMutation in
+    // lib/sequoia/cypress_transaction.cpp.
     SequoiaTransaction_->LockRow(
         NRecords::TTransactionKey{.TransactionId = cypressTransactionId},
-        ELockType::SharedStrong);
+        ELockType::SharedWrite);
 
     auto affectedCellTags = SequoiaTransaction_->GetAffectedMasterCellTags();
     Erase(affectedCellTags, CellTagFromId(cypressTransactionId));

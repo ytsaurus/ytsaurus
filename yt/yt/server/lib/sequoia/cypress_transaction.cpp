@@ -892,6 +892,19 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Modifies both master's persistent state and Sequoia tables.
+/*!
+ *  Shared write locks for "transactions" Sequoia table.
+ *
+ * In order to prolong transaction lifetime during request execution (e.g.,
+ * Sequoia requests using transaction as a prerequisite) shared write lock in
+ * "transactions" Sequoia table must be acquired. Of course, read lock would be
+ * enough here but due to dynamic tables implementations shared read locks
+ * cannot be waited by later mutating requests which lead to unnecessary
+ * conflicts. This situation happens often when transaction is marked as doomed
+ * and going to be committed: the first Sequoia transaction acquires read lock
+ * before marking Cypress transaction as doomed and the second Sequoia
+ * transaction acquires exclusive lock to remove corresponding record.
+ */
 template <class TResult, ESequoiaTransactionType TransactionType>
 class TSequoiaMutation
     : public TRefCounted
@@ -981,6 +994,13 @@ private:
                 {
                     .SequenceTabletCommitSessions = true,
                     .EnableVerboseLogging = true,
+                    // This disables waiting for barrier on Sequoia tx start.
+                    // It's correct because all transaction-related actions are
+                    // executed either in late prepare or commit phase so
+                    // effects of previously prepared Sequoia transactions
+                    // should be already visible thanks to transaction
+                    // sequencer.
+                    .SuppressStronglyOrderedTransactionBarrier = true,
                 })
             .AsUnique().Apply(
                 BIND(&TSequoiaMutation::OnSequoiaTransactionStarted, MakeStrong(this))
@@ -1264,9 +1284,10 @@ private:
         // Shared read lock prevents concurrent parent transaction commit or
         // abort but still allows to start another nested transaction
         // concurrently.
+        // NB: it's actually a shared read lock but
         SequoiaTransaction_->LockRow(
             NRecords::TTransactionKey{.TransactionId = ParentId_},
-            ELockType::SharedStrong);
+            ELockType::SharedWrite);
 
         const auto& idMapping = NRecords::TTransactionDescriptor::Get()->GetIdMapping();
         return SequoiaTransaction_->LookupRows<NRecords::TTransactionKey>(
@@ -1308,7 +1329,7 @@ private:
         ValidateTransactionAncestors(records);
 
         for (const auto& record : records) {
-            SequoiaTransaction_->LockRow(record->Key, ELockType::SharedStrong);
+            SequoiaTransaction_->LockRow(record->Key, ELockType::SharedWrite);
         }
     }
 
@@ -1671,7 +1692,7 @@ private:
             // Lock row in the main transaction table to detect concurrent tx commits / aborts.
             SequoiaTransaction_->LockRow(
                 NRecords::TTransactionKey{.TransactionId = transactionId},
-                ELockType::SharedStrong);
+                ELockType::SharedWrite);
         }
     }
 
@@ -2248,7 +2269,7 @@ private:
 
                 for (const auto& transaction : group) {
                     // To prevent concurrent commit/abort.
-                    SequoiaTransaction_->LockRow(transaction->Key, ELockType::SharedStrong);
+                    SequoiaTransaction_->LockRow(transaction->Key, ELockType::SharedWrite);
 
                     ToProto(action.add_transaction_ids(), transaction->Key.TransactionId);
                 }

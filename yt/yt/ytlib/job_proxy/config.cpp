@@ -4,6 +4,20 @@ namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TEventsOnFsConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("path", &TThis::Path)
+        .Default();
+    registrar.Parameter("breakpoints", &TThis::Breakpoints)
+        .Default();
+    registrar.Parameter("timeout", &TThis::Timeout)
+        .Default(TDuration::Seconds(60));
+    registrar.Parameter("poll_period", &TThis::PollPeriod)
+        .Default(TDuration::MilliSeconds(50));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TJobTestingOptions::Register(TRegistrar registrar)
 {
     registrar.Parameter("delay_after_node_directory_prepared", &TThis::DelayAfterNodeDirectoryPrepared)
@@ -22,6 +36,8 @@ void TJobTestingOptions::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("throw_in_shallow_merge", &TThis::ThrowInShallowMerge)
         .Default(false);
+    registrar.Parameter("events_on_fs", &TThis::EventsOnFs)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

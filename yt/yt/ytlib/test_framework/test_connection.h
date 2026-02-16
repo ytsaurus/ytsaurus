@@ -50,6 +50,7 @@
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 #include <yt/yt/ytlib/node_tracker_client/node_addresses_provider.h>
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
+#include <yt/yt/ytlib/node_tracker_client/node_status_directory.h>
 
 #include <yt/yt/ytlib/job_prober_client/job_shell_descriptor_cache.h>
 
@@ -141,10 +142,11 @@ public:
     MOCK_METHOD(void, UnsubscribeReconfigured, (const TCallback<TReconfiguredSignature>& newConfig), (override));
 
 public:
-    explicit TTestConnection(
+    TTestConnection(
         NRpc::IChannelFactoryPtr channelFactory,
         NNodeTrackerClient::TNetworkPreferenceList networkPreferenceList,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+        NNodeTrackerClient::INodeStatusDirectoryPtr nodeStatusDirectory,
         IInvokerPtr invoker,
         INodeMemoryTrackerPtr nodeMemoryTracker);
 
@@ -224,6 +226,7 @@ public:
     const NSequoiaClient::ISequoiaConnectionPtr& GetSequoiaConnection() override;
     const NRpc::IChannelFactoryPtr& GetChannelFactory() override;
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() override;
+    const NNodeTrackerClient::INodeStatusDirectoryPtr& GetNodeStatusDirectory() override;
 
     const NRpc::IChannelPtr& GetSchedulerChannel() override;
     const NRpc::IChannelPtr& GetBundleControllerChannel() override;
@@ -257,6 +260,7 @@ private:
     const IInvokerPtr Invoker_;
     const INodeMemoryTrackerPtr NodeMemoryTracker_;
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
+    const NNodeTrackerClient::INodeStatusDirectoryPtr NodeStatusDirectory_;
     const NRpc::IChannelPtr SchedulerChannel_;
     const NRpc::IChannelPtr BundleControllerChannel_;
     const NTransactionClient::IClockManagerPtr ClockManager_;
@@ -274,6 +278,7 @@ TTestConnectionPtr CreateConnection(
     NRpc::IChannelFactoryPtr channelFactory,
     NNodeTrackerClient::TNetworkPreferenceList networkPreferenceList,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    NNodeTrackerClient::INodeStatusDirectoryPtr nodeStatusDirectory,
     IInvokerPtr invoker,
     INodeMemoryTrackerPtr nodeMemoryTracker);
 

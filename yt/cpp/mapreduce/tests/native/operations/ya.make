@@ -16,6 +16,7 @@ SRCS(
     job_binary.cpp
     jobs.cpp
     operation_commands.cpp
+    operation_link_pattern.cpp
     operation_tracker.cpp
     operation_watch.cpp
     operations.cpp

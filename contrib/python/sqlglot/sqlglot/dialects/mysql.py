@@ -449,6 +449,7 @@ class MySQL(Dialect):
         PROPERTY_PARSERS = {
             **parser.Parser.PROPERTY_PARSERS,
             "LOCK": lambda self: self._parse_property_assignment(exp.LockProperty),
+            "PARTITION BY": lambda self: self._parse_partition_property(),
         }
 
         SET_PARSERS = {
@@ -732,6 +733,63 @@ class MySQL(Dialect):
 
             return self.expression(exp.AlterIndex, this=index, visible=visible)
 
+        def _parse_partition_property(
+            self,
+        ) -> t.Optional[exp.Expression] | t.List[exp.Expression]:
+            partition_cls: t.Optional[t.Type[exp.Expression]] = None
+            value_parser = None
+
+            if self._match_text_seq("RANGE"):
+                partition_cls = exp.PartitionByRangeProperty
+                value_parser = self._parse_partition_range_value
+            elif self._match_text_seq("LIST"):
+                partition_cls = exp.PartitionByListProperty
+                value_parser = self._parse_partition_list_value
+
+            if not partition_cls or not value_parser:
+                return None
+
+            partition_expressions = self._parse_wrapped_csv(self._parse_assignment)
+
+            # For Doris and Starrocks
+            if not self._match_text_seq("(", "PARTITION", advance=False):
+                return partition_expressions
+
+            create_expressions = self._parse_wrapped_csv(value_parser)
+
+            return self.expression(
+                partition_cls,
+                partition_expressions=partition_expressions,
+                create_expressions=create_expressions,
+            )
+
+        def _parse_partition_range_value(self) -> t.Optional[exp.Expression]:
+            self._match_text_seq("PARTITION")
+            name = self._parse_id_var()
+
+            if not self._match_text_seq("VALUES", "LESS", "THAN"):
+                return name
+
+            values = self._parse_wrapped_csv(self._parse_expression)
+
+            if (
+                len(values) == 1
+                and isinstance(values[0], exp.Column)
+                and values[0].name.upper() == "MAXVALUE"
+            ):
+                values = [exp.var("MAXVALUE")]
+
+            part_range = self.expression(exp.PartitionRange, this=name, expressions=values)
+            return self.expression(exp.Partition, expressions=[part_range])
+
+        def _parse_partition_list_value(self) -> exp.Partition:
+            self._match_text_seq("PARTITION")
+            name = self._parse_id_var()
+            self._match_text_seq("VALUES", "IN")
+            values = self._parse_wrapped_csv(self._parse_expression)
+            part_list = self.expression(exp.PartitionList, this=name, expressions=values)
+            return self.expression(exp.Partition, expressions=[part_list])
+
     class Generator(generator.Generator):
         INTERVAL_ALLOWS_PLURAL_FORM = False
         LOCKING_READS_SUPPORTED = True
@@ -871,6 +929,9 @@ class MySQL(Dialect):
             **generator.Generator.PROPERTIES_LOCATION,
             exp.TransientProperty: exp.Properties.Location.UNSUPPORTED,
             exp.VolatileProperty: exp.Properties.Location.UNSUPPORTED,
+            exp.PartitionedByProperty: exp.Properties.Location.UNSUPPORTED,
+            exp.PartitionByRangeProperty: exp.Properties.Location.POST_SCHEMA,
+            exp.PartitionByListProperty: exp.Properties.Location.POST_SCHEMA,
         }
 
         LIMIT_FETCH = "LIMIT"
@@ -1283,6 +1344,12 @@ class MySQL(Dialect):
 
             return f"SHOW{full}{global_}{this}{json}{target}{for_table}{types}{db}{query}{log}{position}{channel}{mutex_or_status}{like}{where}{offset}{limit}{for_group}{for_user}{for_role}{into_outfile}"
 
+        def alterrename_sql(self, expression: exp.AlterRename, include_to: bool = True) -> str:
+            """To avoid TO keyword in ALTER ... RENAME statements.
+            It's moved from Doris, because it's the same for all MySQL, Doris, and StarRocks.
+            """
+            return super().alterrename_sql(expression, include_to=False)
+
         def altercolumn_sql(self, expression: exp.AlterColumn) -> str:
             dtype = self.sql(expression, "dtype")
             if not dtype:
@@ -1338,3 +1405,32 @@ class MySQL(Dialect):
         @unsupported_args("this")
         def currentschema_sql(self, expression: exp.CurrentSchema) -> str:
             return self.func("SCHEMA")
+
+        def partition_sql(self, expression: exp.Partition) -> str:
+            parent = expression.parent
+            if isinstance(parent, (exp.PartitionByRangeProperty, exp.PartitionByListProperty)):
+                return self.expressions(expression, flat=True)
+            return super().partition_sql(expression)
+
+        def _partition_by_sql(
+            self, expression: exp.PartitionByRangeProperty | exp.PartitionByListProperty, kind: str
+        ) -> str:
+            partitions = self.expressions(expression, key="partition_expressions", flat=True)
+            create = self.expressions(expression, key="create_expressions", flat=True)
+            return f"PARTITION BY {kind} ({partitions}) ({create})"
+
+        def partitionbyrangeproperty_sql(self, expression: exp.PartitionByRangeProperty) -> str:
+            return self._partition_by_sql(expression, "RANGE")
+
+        def partitionbylistproperty_sql(self, expression: exp.PartitionByListProperty) -> str:
+            return self._partition_by_sql(expression, "LIST")
+
+        def partitionlist_sql(self, expression: exp.PartitionList) -> str:
+            name = self.sql(expression, "this")
+            values = self.expressions(expression, flat=True)
+            return f"PARTITION {name} VALUES IN ({values})"
+
+        def partitionrange_sql(self, expression: exp.PartitionRange) -> str:
+            name = self.sql(expression, "this")
+            values = self.expressions(expression, flat=True)
+            return f"PARTITION {name} VALUES LESS THAN ({values})"

@@ -36,7 +36,7 @@ struct TNestedColumnsSchema
     std::vector<TNestedValueColumn> ValueColumns;
 };
 
-TNestedColumnsSchema GetNestedColumnsSchema(NTableClient::TTableSchemaPtr tableSchema);
+TNestedColumnsSchema GetNestedColumnsSchema(const NTableClient::TTableSchema& tableSchema);
 
 TNestedColumnsSchema FilterNestedColumnsSchema(const TNestedColumnsSchema& nestedSchema, TRange<int> columnIds);
 
@@ -92,11 +92,19 @@ private:
 class TNestedTableMerger
 {
 public:
-    explicit TNestedTableMerger(bool useFastYsonRoutines = false);
+    explicit TNestedTableMerger(bool orderNestedRows, bool useFastYsonRoutines = false);
 
-    void UnpackKeyColumns(TRange<TRange<NTableClient::TVersionedValue>> keyColumns, TRange<TNestedKeyColumn> keyColumnsSchema);
-    void UnpackKeyColumns(TRange<std::vector<NTableClient::TVersionedValue>> keyColumns, TRange<TNestedKeyColumn> keyColumnsSchema);
+    // Unpack key columns and build merge script.
+    // Method for schemaful and versioned row mergers.
+    void UnpackKeyColumns(
+        TRange<TRange<NTableClient::TVersionedValue>> keyColumns,
+        TRange<TNestedKeyColumn> keyColumnsSchema);
+    // Method for unversioned row merger.
+    void UnpackKeyColumns(
+        TRange<std::vector<NTableClient::TVersionedValue>> keyColumns,
+        TRange<TNestedKeyColumn> keyColumnsSchema);
 
+    // Unpack and merge.
     void UnpackValueColumn(
         TRange<NTableClient::TVersionedValue> values,
         NTableClient::EValueType elementType,
@@ -104,30 +112,38 @@ public:
 
     void DiscardZeroes(const TNestedRowDiscardPolicyPtr& nestedRowDiscardPolicy);
 
-    NTableClient::TVersionedValue GetPackedKeyColumn(int index, NTableClient::EValueType type, TChunkedMemoryPool* memoryPool);
-    NTableClient::TVersionedValue GetPackedValueColumn(int index, NTableClient::EValueType type, TChunkedMemoryPool* memoryPool);
+    NTableClient::TVersionedValue GetPackedKeyColumn(
+        int index,
+        NTableClient::EValueType type,
+        TChunkedMemoryPool* memoryPool);
+    NTableClient::TVersionedValue GetPackedValueColumn(
+        int index,
+        NTableClient::EValueType type,
+        TChunkedMemoryPool* memoryPool);
 
 private:
     std::vector<int> NestedRowCounts_;
     std::vector<int> RowIds_;
 
-    std::vector<int> Offsets_;
+    std::vector<int> EndOffsets_;
     std::vector<NTableClient::TTimestamp> Timestamps_;
-
     std::vector<std::vector<NTableClient::TUnversionedValue>> UnpackedKeys_;
 
     std::vector<int> RowIdHeap_;
+
+    // Used temporarily, keep here to reuse.
     std::vector<int> CurrentOffsets_;
 
+    // Temp buffer.
     std::vector<NTableClient::TUnversionedValue> ValueBuffer_;
+
     std::vector<std::vector<NTableClient::TUnversionedValue>> ResultKeys_;
     std::vector<std::vector<NTableClient::TUnversionedValue>> ResultValues_;
     std::vector<char> Discarded_;
 
-    std::vector<int> OrderingTranslationLayer_;
-
     TSimpleOutputBuffer PackBuffer_;
 
+    const bool OrderNestedRows_;
     const bool UseFastYsonRoutines_ = false;
 
     NTableClient::TUnversionedValue PackValuesFast(

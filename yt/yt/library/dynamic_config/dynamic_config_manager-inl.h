@@ -75,6 +75,15 @@ void TDynamicConfigManagerBase<TConfig>::Start()
 }
 
 template <typename TConfig>
+bool TDynamicConfigManagerBase<TConfig>::HasErrors() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    auto guard = Guard(SpinLock_);
+    return !UpdateError_.IsOK() || !UnrecognizedOptionError_.IsOK();
+}
+
+template <typename TConfig>
 std::vector<TError> TDynamicConfigManagerBase<TConfig>::GetErrors() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();

@@ -266,20 +266,27 @@ public:
             return OKFuture;
         }
 
+        auto delayed = [&] (TFuture<void> future) {
+            if (auto delay = Config_->Testing->PreparedTransactionsBarrierDelay) {
+                return AllSucceeded<void>({std::move(future), TDelayedExecutor::MakeDelayed(*delay)});
+            }
+            return future;
+        };
+
         auto guard = Guard(SequencerLock_);
 
         if (UncommittedTransactionSequenceNumbers_.empty()) {
             YT_LOG_DEBUG(
                 "No prepared transactions (NextStronglyOrderedTxSequenceNumber: %v)",
                 NextStronglyOrderedTransactionSequenceNumber_);
-            return OKFuture;
+            return delayed(OKFuture);
         }
 
         auto lastStronglyOrderedTransactionSequenceNumber = NextStronglyOrderedTransactionSequenceNumber_ - 1;
         auto it = Barriers_.find(lastStronglyOrderedTransactionSequenceNumber);
         if (it != Barriers_.end()) {
             YT_LOG_DEBUG("Barrier already exists (NextStronglyOrderedTransactionSequenceNumber: %v)", lastStronglyOrderedTransactionSequenceNumber);
-            return it->second.Promise.ToFuture().ToUncancelable();
+            return delayed(it->second.Promise.ToFuture().ToUncancelable());
         }
 
         YT_LOG_DEBUG("Creating barrier (NextStronglyOrderedTxSequenceNumber: %v)", lastStronglyOrderedTransactionSequenceNumber);
@@ -287,7 +294,7 @@ public:
             Barriers_,
             lastStronglyOrderedTransactionSequenceNumber,
             TBarrier(NewPromise<void>(), GetInstant()));
-        return it->second.Promise.ToFuture().ToUncancelable();
+        return delayed(it->second.Promise.ToFuture().ToUncancelable());
     }
 
     TTimestamp GetLastCoordinatorCommitTimestamp() override
@@ -3331,6 +3338,7 @@ private:
 
                 case ECommitState::Commit:
                 case ECommitState::Abort:
+                case ECommitState::ReadyToCommit:
                     YT_LOG_DEBUG(error, "Coordinator observes participant failure; will retry "
                         "(TransactionId: %v, ParticipantCellId: %v, State: %v)",
                         commit->GetTransactionId(),

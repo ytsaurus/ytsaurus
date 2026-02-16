@@ -272,12 +272,13 @@ void TInputManager::InitializeClients(IClientPtr client)
 
 void TInputManager::InitializeStructures(
     IClientPtr client,
-    const TInputTransactionManagerPtr& inputTransactionManager)
+    const TInputTransactionManagerPtr& inputTransactionManager,
+    TClusterResolverPtr clusterResolver)
 {
     YT_VERIFY(inputTransactionManager);
     InputTables_.clear();
     Clusters_.clear();
-    ClusterResolver_ = inputTransactionManager->GetClusterResolver();
+    ClusterResolver_ = std::move(clusterResolver);
 
     auto ensureCluster = [&](const auto& name) {
         if (!Clusters_.contains(name)) {

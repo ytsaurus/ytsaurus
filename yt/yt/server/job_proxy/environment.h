@@ -111,7 +111,7 @@ public:
         TWeakPtr<IJobProxyEnvironment> jobProxy,
         std::function<void(TError)> failedSidecarCallback);
 
-    virtual void StartSidecar() = 0;
+    virtual TFuture<void> StartSidecar() = 0;
     virtual TFuture<void> ShutdownSidecar() = 0;
     virtual void RestartSidecar() = 0;
     virtual bool IsAlive() = 0;

@@ -114,6 +114,14 @@ class SyncWorker(base.Worker):
         # use the CPU for nothing. This minimal timeout prevent it.
         timeout = self.timeout or 0.5
 
+        # Warn if HTTP/2 is requested - sync worker doesn't support it
+        if 'h2' in self.cfg.http_protocols:
+            self.log.warning(
+                "HTTP/2 is not supported by the sync worker. "
+                "Use gthread, gevent, eventlet, or asgi workers for HTTP/2 support. "
+                "Falling back to HTTP/1.1 only."
+            )
+
         # self.socket appears to lose its blocking status after
         # we fork in the arbiter. Reset it here.
         for s in self.sockets:
@@ -129,7 +137,7 @@ class SyncWorker(base.Worker):
         try:
             if self.cfg.is_ssl:
                 client = sock.ssl_wrap_socket(client, self.cfg)
-            parser = http.RequestParser(self.cfg, client, addr)
+            parser = http.get_parser(self.cfg, client, addr)
             req = next(parser)
             self.handle_request(listener, req, client, addr)
         except http.errors.NoMoreData as e:

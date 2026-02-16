@@ -698,9 +698,12 @@ class TestSmoothMovement(SmoothMovementBase):
         sync_create_cells(2)
         self._create_ordered_table(
             "//tmp/t",
-            mount_config={"testing": {
-                "opaque_stores_in_orchid": False,
-            }})
+            mount_config={
+                "testing": {
+                    "opaque_stores_in_orchid": False,
+                },
+                "dynamic_store_auto_flush_period": yson.YsonEntity(),
+            })
         sync_mount_table("//tmp/t")
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
 

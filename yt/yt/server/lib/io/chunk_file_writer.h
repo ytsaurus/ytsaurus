@@ -20,6 +20,23 @@ namespace NYT::NIO {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSerializedBlocksRequest
+{
+    i64 StartOffset = 0;
+    i64 EndOffset = 0;
+    std::vector<TSharedRef> Buffers;
+};
+
+i64 TruncateBlocks(NChunkClient::NProto::TBlocksExt& blocksExt, int truncateBlockCount, i64 oldDataSize);
+
+TSerializedBlocksRequest SerializeBlocks(i64 startOffset, const std::vector<NChunkClient::TBlock>& blocks, NChunkClient::NProto::TBlocksExt& blocksExt);
+
+NChunkClient::TRefCountedChunkMetaPtr FinalizeChunkMeta(NChunkClient::TDeferredChunkMetaPtr chunkMeta, const NChunkClient::NProto::TBlocksExt& blocksExt);
+
+TSharedMutableRef SerializeChunkMeta(NChunkClient::TChunkId chunkId, const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta);
+
+////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(EFileWriterState,
     (Created)
     (Opening)

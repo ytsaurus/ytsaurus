@@ -429,7 +429,7 @@ private:
 
     struct TPartitionProfiler
     {
-        std::string CurrentQueueTag;
+        std::optional<std::string> CurrentQueueTag;
         std::vector<TConsumerPartitionProfilingCounters> Counters{};
     };
 
@@ -453,31 +453,32 @@ private:
 
     void EnsureConsumerPartitionCounters(const TCrossClusterReference& queueRef, const TSubConsumerSnapshotPtr& subConsumerSnapshot)
     {
-        auto queueTag = subConsumerSnapshot->QueueProfilingTag.value_or(NoneProfilingTag);
         auto profiler = GetProfiler(EProfilerScope::ObjectPartition);
         TTagSet tagSet;
         tagSet.AddRequiredTag({"queue_cluster", queueRef.Cluster});
         tagSet.AddRequiredTag({"queue_path", TrimProfilingTagValue(queueRef.Path)});
-        tagSet.AddRequiredTag({"queue_tag", queueTag});
+        if (subConsumerSnapshot->QueueProfilingTag.has_value()) {
+            tagSet.AddRequiredTag({"queue_tag", subConsumerSnapshot->QueueProfilingTag.value()});
+        }
         profiler = profiler.WithTags(tagSet);
 
         if (!ConsumerPartitionProfilingCounters_.contains(queueRef)) {
             ConsumerPartitionProfilingCounters_[queueRef] = TPartitionProfiler{
-                .CurrentQueueTag = queueTag,
+                .CurrentQueueTag = subConsumerSnapshot->QueueProfilingTag,
             };
         }
 
         auto& partitionProfiler = ConsumerPartitionProfilingCounters_[queueRef];
 
-        if (partitionProfiler.CurrentQueueTag != queueTag) {
+        if (partitionProfiler.CurrentQueueTag != subConsumerSnapshot->QueueProfilingTag) {
             YT_LOG_DEBUG(
                 "Updating consumer partition counters (Queue: %v, Partitions: %v, QueueTag: %v -> %v)",
                 queueRef,
                 subConsumerSnapshot->PartitionCount,
                 partitionProfiler.CurrentQueueTag,
-                queueTag);
+                subConsumerSnapshot->QueueProfilingTag);
 
-            partitionProfiler.CurrentQueueTag = queueTag;
+            partitionProfiler.CurrentQueueTag = subConsumerSnapshot->QueueProfilingTag;
             partitionProfiler.Counters = {};
         }
 

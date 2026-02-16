@@ -69,9 +69,14 @@ DEFINE_REFCOUNTED_TYPE(IRlsCheckerFactory)
 struct IRlsChecker
     : public TRefCounted
 {
+    //! |chunkValuesPrefix| is used to cut system columns as they have
+    //! reader-name-table ids and will confuse the checker.
+    //! TODO(coteeq): Encode name-table-affinity of values in the input row itself.
+    //! FIXME(coteeq): KeyWideningOptions break RLS.
     virtual NSecurityClient::ESecurityAction Check(
         TUnversionedRow row,
-        const TRowBufferPtr& rowBuffer) const = 0;
+        const TRowBufferPtr& rowBuffer,
+        int chunkValuesPrefix) const = 0;
 
     virtual bool IsColumnNeeded(int indexInChunkNameTable) const = 0;
 };

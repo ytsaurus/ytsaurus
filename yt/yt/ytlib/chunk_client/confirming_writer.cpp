@@ -331,6 +331,8 @@ private:
         auto replicas = UnderlyingWriter_->GetWrittenChunkReplicasInfo().Replicas;
         YT_VERIFY(!replicas.empty());
 
+        YT_LOG_DEBUG("Confirming chunk (Replicas: %v)",replicas);
+
         auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CellTag_);
         TChunkServiceProxy proxy(channel);
 
@@ -348,11 +350,7 @@ private:
 
             req->set_location_uuids_supported(true);
 
-            for (const auto& replica : replicas) {
-                auto* replicaInfo = req->add_replicas();
-                replicaInfo->set_replica(ToProto(TChunkReplicaWithMedium(replica)));
-                ToProto(replicaInfo->mutable_location_uuid(), replica.GetChunkLocationUuid());
-            }
+            ToProto(req->mutable_replicas(), replicas);
 
             if (SchemaId_ != NullTableSchemaId) {
                 ToProto(req->mutable_schema_id(), SchemaId_);

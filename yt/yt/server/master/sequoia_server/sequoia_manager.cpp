@@ -68,9 +68,11 @@ public:
         // It should be moved to TransactionSupervisor::Prepare when Sequoia tx
         // sequencer will be implemented.
         // TODO(aleksandra-zh): do it.
-        const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
-        WaitFor(transactionSupervisor->WaitUntilPreparedTransactionsFinished())
-            .ThrowOnError();
+        if (!request->suppress_strongly_ordered_transaction_barrier()) {
+            const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
+            WaitForFast(transactionSupervisor->WaitUntilPreparedTransactionsFinished())
+                .ThrowOnError();
+        }
 
         auto prerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
         ValidateWritePrerequisites(

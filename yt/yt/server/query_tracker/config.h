@@ -123,6 +123,8 @@ struct TSpytConnectEngineConfig
     std::string SpytLaunchConfFile;
     int GrpcPort;
 
+    NHttp::TClientConfigPtr HttpClient;
+
     TDuration TokenExpirationTimeout;
     TDuration RefreshTokenPeriod;
     TDuration StatusPollPeriod;

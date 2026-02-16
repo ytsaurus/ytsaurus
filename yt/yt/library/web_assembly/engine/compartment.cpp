@@ -815,13 +815,13 @@ void TWebAssemblyCompartment::AddExportsToGlobalOffsetTable(const IR::Module& ir
         }
     }
 
-    int offset = 0;
+    Uptr baseOffset = Runtime::getTableNumElements(GetGlobalOffsetTable());
     for (const auto& elementSegment : irModule.elemSegments) {
         for (int index = 0; index < std::ssize(elementSegment.contents->elemIndices); index++) {
             int functionIndex = elementSegment.contents->elemIndices[index];
             auto& functionName = disassemblyNames.functions[functionIndex].name;
             if (exportedFunctions.contains(functionName)) {
-                int globalOffsetTableIndex = offset + index;
+                int globalOffsetTableIndex = baseOffset + index;
                 GlobalOffsetTableElements_.Functions[functionName] = globalOffsetTableIndex;
             }
         }
@@ -933,6 +933,10 @@ void TWebAssemblyCompartment::Clone(const TWebAssemblyCompartment& source, TWebA
     destination->MemoryLayoutData_.GlobalOffsetTable = *destination->Compartment_->tables.get(0);
     destination->GlobalOffsetTableElements_ = source.GlobalOffsetTableElements_;
 
+    destination->MemoryLayoutData_.MemoryBases = source.MemoryLayoutData_.MemoryBases;
+    destination->MemoryLayoutData_.TableBases = source.MemoryLayoutData_.TableBases;
+    destination->Modules_ = source.Modules_;
+
     if (source.ExceptionType_) {
         destination->ExceptionType_ = destination->Compartment_->exceptionTypes[source.ExceptionType_->id];
     }
@@ -997,11 +1001,26 @@ Runtime::ModuleRef LoadBuiltinUdfs()
     return LoadModuleFromBytecode(bytecode.Data);
 }
 
+namespace {
+
+void CheckStackDepth()
+{
+    static const int MinimumStackFreeSpace = 8_KB;
+
+    if (!NConcurrency::CheckFreeStackSpace(MinimumStackFreeSpace)) {
+        THROW_ERROR_EXCEPTION("Expression depth causes stack overflow");
+    }
+}
+
+} // namespace
+
 std::unique_ptr<TWebAssemblyCompartment> CreateImage(EKnownImage image)
 {
     auto compartment = std::make_unique<TWebAssemblyCompartment>();
     compartment->Compartment_ = Runtime::createCompartment();
     compartment->Context_ = Runtime::createContext(compartment->Compartment_);
+    Runtime::setCheckStackDepthCallback(compartment->Context_, CheckStackDepth);
+
     compartment->MemoryLayoutData_ = BuildMemoryLayoutData(compartment->Compartment_);
 
     if (image == EKnownImage::MinimalRuntime) {

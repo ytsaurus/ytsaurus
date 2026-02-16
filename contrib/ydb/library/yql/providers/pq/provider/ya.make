@@ -37,6 +37,7 @@ PEERDIR(
     contrib/ydb/library/yql/providers/pq/cm_client
     contrib/ydb/library/yql/providers/pq/common
     contrib/ydb/library/yql/providers/pq/expr_nodes
+    contrib/ydb/library/yql/providers/pq/gateway/abstract
     contrib/ydb/library/yql/providers/pq/proto
     contrib/ydb/public/sdk/cpp/src/client/driver
 

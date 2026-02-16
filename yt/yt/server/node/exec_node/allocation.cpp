@@ -855,7 +855,16 @@ void TAllocation::OnJobFinished(TJobPtr job)
                 }
 
                 if (auto slot = StaticPointerCast<IUserSlot>(GetResourceHolder()->GetUserSlot())) {
-                    slot->ValidateEnabled();
+                    try {
+                        slot->ValidateEnabled();
+                    } catch (const std::exception& ex) {
+                        YT_LOG_INFO(ex,
+                            "User slot is disabled, skip new job settlement (JobId: %v)",
+                            jobId);
+
+                        Complete(EAllocationFinishReason::UserSlotDisabled);
+                        return;
+                    }
                 }
 
                 YT_LOG_INFO(

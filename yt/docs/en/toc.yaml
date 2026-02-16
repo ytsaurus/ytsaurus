@@ -59,6 +59,8 @@ items:
                  href: user-guide/storage/access-control.md
                - name: Managing access to table columns
                  href: user-guide/storage/columnar-acl.md
+               - name: Managing row-level access to tables
+                 href: user-guide/storage/row-level-security.md
            - name: Resource quotas
              items:
                - name: Quotas
@@ -492,6 +494,8 @@ items:
          href: admin-guide/monitoring.md
        - name: Updating YTsaurus server components
          href: admin-guide/update-ytsaurus.md
+       - name: Updating volumes
+         href: admin-guide/update-volumes.md
        - name: Cluster operation
          href: admin-guide/cluster-operations.md
        - name: Node administration

@@ -7,7 +7,7 @@
 from .common.sensors import *
 
 try:
-    from .constants import CACHE_DASHBOARD_DEFAULT_CLUSTER
+    from .yandex_constants import CACHE_DASHBOARD_DEFAULT_CLUSTER
 except ImportError:
     CACHE_DASHBOARD_DEFAULT_CLUSTER = ""
 

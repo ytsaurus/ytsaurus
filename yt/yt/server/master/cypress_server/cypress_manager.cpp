@@ -2752,6 +2752,120 @@ public:
             });
     }
 
+    void UpdateGroundUpdateQueueManagerSequenceNumber(
+        TCypressNode* node,
+        i64 sequenceNumber) override
+    {
+        // TODO: replace all alerts with EmplaceOrCrashes, verifies, etc.
+
+        if (sequenceNumber < 0) {
+            return;
+        }
+
+        const auto& nodeId = node->GetVersionedId();
+
+        auto [nodeIt, inserted] = NodeIdToGroundUpdateQueueManagerSequenceNumbers_.emplace(nodeId, sequenceNumber);
+        if (inserted) {
+            auto [it, nodeInserted] = GroundUpdateQueueManagerSequenceNumberToNodeIds_[sequenceNumber].insert(nodeId);
+            if (!nodeInserted) {
+                YT_LOG_ALERT("Node was already present GroundUpdateQueueManagerSequenceNumberToNodeIds_, but not in NodeIdToGroundUpdateQueueManagerSequenceNumbers_ "
+                    "(NodeId: %v, SequenceNumber: %v)",
+                    nodeId,
+                    sequenceNumber);
+            }
+        } else {
+            auto oldSequenceNumber = nodeIt->second;
+            if (oldSequenceNumber < sequenceNumber) {
+                if (oldSequenceNumber < 0) {
+                    YT_LOG_ALERT("Negative sequence number was found in NodeIdToGroundUpdateQueueManagerSequenceNumbers_ (NodeId: %v, SequenceNumber: %v)",
+                        nodeId,
+                        sequenceNumber);
+                }
+                auto sequenceNumberIt = GroundUpdateQueueManagerSequenceNumberToNodeIds_.find(oldSequenceNumber);
+                if (sequenceNumberIt == GroundUpdateQueueManagerSequenceNumberToNodeIds_.end()) {
+                    YT_LOG_ALERT("Old sequence number was not present in GroundUpdateQueueManagerSequenceNumberToNodeIds_ (NodeId: %v, SequenceNumber: %v)",
+                        nodeId,
+                        oldSequenceNumber);
+                } else {
+                    auto& nodeIds = sequenceNumberIt->second;
+                    if (!nodeIds.erase(nodeId)) {
+                        YT_LOG_ALERT("Old sequence number node is was not present in GroundUpdateQueueManagerSequenceNumberToNodeIds_ (NodeId: %v, SequenceNumber: %v)",
+                            nodeId,
+                            oldSequenceNumber);
+                    }
+                    if (nodeIds.empty()) {
+                        GroundUpdateQueueManagerSequenceNumberToNodeIds_.erase(sequenceNumberIt);
+                    }
+                }
+
+                auto [it, nodeInserted] = GroundUpdateQueueManagerSequenceNumberToNodeIds_[sequenceNumber].insert(nodeId);
+                if (!nodeInserted) {
+                    YT_LOG_ALERT("Node was already present GroundUpdateQueueManagerSequenceNumberToNodeIds_, but not in NodeIdToGroundUpdateQueueManagerSequenceNumbers_ "
+                        "(NodeId: %v, SequenceNumber: %v)",
+                        nodeId,
+                        sequenceNumber);
+                }
+
+                nodeIt->second = sequenceNumber;
+            } else {
+                YT_LOG_DEBUG("Node has a greater sequence number than a new one, keeping the old one "
+                    "(NodeId: %v, OldSequenceNumber: %v, NewSequenceNumber: %v)",
+                    nodeId,
+                    oldSequenceNumber,
+                    sequenceNumber);
+            }
+        }
+    }
+
+    void SetGroundUpdateQueueManagerSequenceNumberFromNode(
+        TCypressNode* target,
+        TCypressNode* source)
+    {
+        auto sequenceNumber = GetGroundUpdateQueueManagerSequenceNumber(source);
+        UpdateGroundUpdateQueueManagerSequenceNumber(target, sequenceNumber);
+    }
+
+    void DrainGroundUpdateQueueManagerSequenceNumber(i64 sequenceNumber) override
+    {
+        while (!GroundUpdateQueueManagerSequenceNumberToNodeIds_.empty() &&
+            GroundUpdateQueueManagerSequenceNumberToNodeIds_.begin()->first <= sequenceNumber)
+        {
+            auto sequenceNumberIt = GroundUpdateQueueManagerSequenceNumberToNodeIds_.begin();
+            for (const auto& nodeId : sequenceNumberIt->second) {
+                auto nodeIt = NodeIdToGroundUpdateQueueManagerSequenceNumbers_.find(nodeId);
+                if (nodeIt == NodeIdToGroundUpdateQueueManagerSequenceNumbers_.end()) {
+                    YT_LOG_ALERT("Node was not present in GroundUpdateQueueManagerSequenceNumberToNodeIds_ on drain "
+                        "(NodeId: %v, SequenceNumber: %v)",
+                        nodeId,
+                        sequenceNumberIt->first);
+                    continue;
+                }
+                // Maybe this actually should already be a verify.
+                if (nodeIt->second != sequenceNumberIt->first) {
+                    YT_LOG_ALERT("Node has different sequence numbers in different maps "
+                        "(NodeId: %v, NodeIdSequenceNumber: %v, SequenceNumberSequenceNumber: %v)",
+                        nodeId,
+                        nodeIt->second,
+                        sequenceNumberIt->first);
+                    continue;
+                }
+                NodeIdToGroundUpdateQueueManagerSequenceNumbers_.erase(nodeIt);
+            }
+            GroundUpdateQueueManagerSequenceNumberToNodeIds_.erase(sequenceNumberIt);
+        }
+    }
+
+    i64 GetGroundUpdateQueueManagerSequenceNumber(TCypressNode* node) const override
+    {
+        auto it = NodeIdToGroundUpdateQueueManagerSequenceNumbers_.find(node->GetVersionedId());
+        if (it == NodeIdToGroundUpdateQueueManagerSequenceNumbers_.end()) {
+            // Could be optional.
+            return -1;
+        }
+
+        return it->second;
+    }
+
 private:
     friend class TNodeTypeHandler;
     friend class TLockTypeHandler;
@@ -2805,6 +2919,36 @@ private:
     // COMPAT(h0pless): FixSecurityTagsMessingWithChunkListStructure.
     bool ResetUpdateModeOnTrunkNodesAndInferSecurityTagsUpdateMode_ = false;
 
+    //                                         ⡀       ⠈
+    //                           ⢀           ⣀⣤⣤⣤⣀                     ⠰
+    //                             ⢀⡀      ⣠⡿⠋⠁⡀ ⠙⢷⣄
+    //        ⠰           ⢀        ⠂     ⢀⣴⠟   ⣧   ⠙⢷⣄⡀     ⢀
+    //                               ⣀⣠⣤⡶⠟⠁⣾⡏⢣⡀⢻⣦⣀   ⠉⠛⠶⣄   ⠃
+    //                             ⣠⡿⠋⠉⠁   ⠘⣧⡀⠙⢬⡻⣿⣷⡀⢐⣶⣦⡀⠸⣇
+    //                            ⣰⡟⠁        ⠙⠲⢦⣄⣸⡟⠉⠉⠉⠙⢻⣆⢻⣮
+    //              ⠒           ⣀⣼⠿⡄⠈         ⡀⢻⡆  ⠤   ⠙⢷⣿⣦
+    //                    ⠈   ⢀⣴⡿⠋⠁⠈  ⢀   ⢤⣤⣄ ⠹⣼⣧       ⠠⠉⠙
+    //                       ⣤⣼⣯⠉            ⠉⢷⣆⣾⣿⡄        ⠄
+    //    ⢀                 ⣾⢏⠉⠉                 ⠹⡎⢿⣧        ⠃
+    //        ⠘     ⠉  ⠠   ⣾⣷                      ⠙⠈⣿
+    // ⠆                  ⢿⣻                       ⡀ ⢸⡏
+    //                   ⢀⡼⣷                         ⠘⢷⡀
+    //                   ⣿⣴                      ⡅ ⠆ ⠈⣿⡀
+    //                   ⢸⣷⣶ ⠁          ⡀⠈⠠  ⠒⣒⠒⠦⢤⣄⣄⣻⡇      ⢀⡀     ⡀
+    //                   ⣾⢃⣴                      ⠛⠛⠷⣬⡙⢻⣿⣄     ⠈   ⠄      ⠐
+    //      ⢸⡿⣧         ⠈⣿⡎⣿             ⠛⠋⢉⣁⡀    ⠒⠛⢋⣫⠽⠟⠛⢛⣛⣛⣳⣶⢾⣤⡀
+    //      ⠈⢷⡘⣧⣀⣀⡀⣄   ⣺⡾⠋ ⠉       ⣉⠥⠂⢀⣠⡾⠿⠶    ⣀⠤⢚⣩⣤⠴⠾⠛⠛⠋⠉⠙⠛⠻⠿⣝⣷⡀
+    //       ⠈⠳⣌⠻⣯⣻⡟⢷⡶⣿⠋⢳⡤⠶        ⣤⣶⠞⠋   ⢀⣀⠴⢀⣨⡴⠞⠋⠁           ⠈⠻⢿⡄
+    //         ⣟⠳⣬⡻⣿⣆⠹⠄  ⠆    ⠉⠑ ⠔⠚⡏    ⠤⠒⣉⣤⠶⠿⠛⠚⠓⠒⠶⢤⡀         ⢀⣠⡿⠁
+    //      ⠐⠂  ⣤⡌⠻⣮⡙⠿⣦⣄⣀⡀   ⢰     ⠸  ⢀⣤⠶⠋⠁    ⢀⢀⣀⣠⣤⣤⣤⣤⣄⣀⣀⣤⣤⠶⠞⠋⠁
+    //         ⣄   ⠈⠻⢦⣀⡉⠉⠻⠙⠁⠤⠬ ⠒ ⣀⣀⣤⡤⢾⠛⠳⠖⠒⢒⠶⠒⠒⠚⠛⠋⠉⠉
+    //         ⠈  ⠈ ⠤ ⠉⠛⠛⠲⠶⠾⠶⠶⠾⠛⠛⠉⠁  ⠆
+
+    // Maybe i64 should be enumed indexed vector.⠀⠀
+    THashMap<TVersionedNodeId, i64> NodeIdToGroundUpdateQueueManagerSequenceNumbers_;
+    // For removal.
+    std::map<i64, THashSet<TVersionedNodeId>> GroundUpdateQueueManagerSequenceNumberToNodeIds_;
+
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
@@ -2826,6 +2970,10 @@ private:
         ShardMap_.SaveValues(context);
         AccessControlObjectNamespaceMap_.SaveValues(context);
         AccessControlObjectMap_.SaveValues(context);
+
+        Save(context, NodeIdToGroundUpdateQueueManagerSequenceNumbers_);
+        // Can be recomputed on after snapshot loaded.
+        Save(context, GroundUpdateQueueManagerSequenceNumberToNodeIds_);
     }
 
     void LoadKeys(NCellMaster::TLoadContext& context)
@@ -2865,6 +3013,13 @@ private:
             object->Namespace()->RegisterMember(object);
         }
 
+        if ((context.GetVersion() > EMasterReign::KulenovClock && context.GetVersion() < EMasterReign::Start_26_1) ||
+            context.GetVersion() > EMasterReign::KulenovClock_26_1)
+        {
+            Load(context, NodeIdToGroundUpdateQueueManagerSequenceNumbers_);
+            Load(context, GroundUpdateQueueManagerSequenceNumberToNodeIds_);
+        }
+
         // COMPAT(shakurov)
         YT_VERIFY(EMasterReign::ResetHunkMediaOnBranchedNodes < EMasterReign::ResetHunkMediaOnBranchedNodesOnly);
         if (context.GetVersion() < EMasterReign::ResetHunkMediaOnBranchedNodes) {
@@ -2890,6 +3045,72 @@ private:
 
         if (context.GetVersion() < EMasterReign::RerunUpdateModeMigration) {
             ResetUpdateModeOnTrunkNodesAndInferSecurityTagsUpdateMode_ = true;
+        }
+
+        // Don't call it like that as it will probably lead to snapshot divergence.
+        // I'll do something better in the next pr.
+        // ValidateGroundUpdateQueueManagerSequenceNumbersMaps();
+    }
+
+    void ValidateGroundUpdateQueueManagerSequenceNumbersMaps()
+    {
+        for (auto [nodeId, sequenceNumber] : NodeIdToGroundUpdateQueueManagerSequenceNumbers_) {
+            auto it = GroundUpdateQueueManagerSequenceNumberToNodeIds_.find(sequenceNumber);
+            if (it == GroundUpdateQueueManagerSequenceNumberToNodeIds_.end()) {
+                YT_LOG_ALERT("Sequence number is not present in sequence number to node id map (NodeId: %v, SequenceNumber: %v)",
+                    nodeId,
+                    sequenceNumber);
+                EmplaceOrCrash(GroundUpdateQueueManagerSequenceNumberToNodeIds_[sequenceNumber], nodeId);
+            } else {
+                if (it->second.insert(nodeId).second) {
+                    YT_LOG_ALERT("Node is not present in sequence number to node id map (NodeId: %v, SequenceNumber: %v)",
+                        nodeId,
+                        sequenceNumber);
+                }
+            }
+        }
+
+        std::vector<i64> sequenceNumbersToErase;
+        for (auto& [sequenceNumber, nodeIds] : GroundUpdateQueueManagerSequenceNumberToNodeIds_) {
+            std::vector<TVersionedNodeId> nodeIdsToErase;
+            for (auto nodeId : nodeIds) {
+                auto it = NodeIdToGroundUpdateQueueManagerSequenceNumbers_.find(nodeId);
+                if (it == NodeIdToGroundUpdateQueueManagerSequenceNumbers_.end()) {
+                    YT_LOG_ALERT("Node is not present in node id to sequence number map (NodeId: %v, SequenceNumber: %v)",
+                        nodeId,
+                        sequenceNumber);
+                    nodeIdsToErase.push_back(nodeId);
+                } else {
+                    auto correctSequenceNumber = it->second;
+                    if (correctSequenceNumber != sequenceNumber) {
+                        YT_LOG_ALERT("Node has different sequence numbers in different maps (NodeId: %v, NodeIdToSequenceNumberSequenceNumber: %v, SequenceNumberToNodeIdSequenceNumber: %v)",
+                            nodeId,
+                            correctSequenceNumber,
+                            sequenceNumber);
+
+                        // It was just emplaced in the code above;
+                        auto sequenceNumberIt = GroundUpdateQueueManagerSequenceNumberToNodeIds_.find(correctSequenceNumber);
+                        YT_VERIFY(sequenceNumberIt != GroundUpdateQueueManagerSequenceNumberToNodeIds_.end());
+                        YT_VERIFY(sequenceNumberIt->second.contains(nodeId));
+                        nodeIdsToErase.push_back(nodeId);
+                    }
+                }
+            }
+
+            for (auto nodeId : nodeIdsToErase) {
+                nodeIds.erase(nodeId);
+            }
+
+            if (nodeIds.empty()) {
+                sequenceNumbersToErase.push_back(sequenceNumber);
+            }
+        }
+
+        for (auto sequenceNumber : sequenceNumbersToErase) {
+            auto it = GroundUpdateQueueManagerSequenceNumberToNodeIds_.find(sequenceNumber);
+            YT_VERIFY(it != GroundUpdateQueueManagerSequenceNumberToNodeIds_.end());
+            YT_VERIFY(it->second.empty());
+            GroundUpdateQueueManagerSequenceNumberToNodeIds_.erase(it);
         }
     }
 
@@ -4330,6 +4551,8 @@ private:
 
         YT_VERIFY(branchedNode->GetLockMode() == request.Mode);
 
+        SetGroundUpdateQueueManagerSequenceNumberFromNode(branchedNode, originatingNode);
+
         // Register the branched node with the transaction.
         transaction->BranchedNodes().InsertOrCrash(branchedNode);
 
@@ -4381,6 +4604,8 @@ private:
 
             YT_LOG_DEBUG("Node snapshot destroyed (NodeId: %v)", branchedNodeId);
         }
+
+        SetGroundUpdateQueueManagerSequenceNumberFromNode(originatingNode, branchedNode);
 
         if (originatingNode &&
             originatingNode->IsSequoia() &&

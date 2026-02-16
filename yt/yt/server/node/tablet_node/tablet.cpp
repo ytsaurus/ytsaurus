@@ -374,9 +374,12 @@ void TTabletSnapshot::ValidateServantIsActive(const ICellDirectoryPtr& cellDirec
             YT_LOG_DEBUG("Finished waiting for target servant activation future (%v)",
                 LoggingTag);
 
-            // Not a YT_VERIFY since the violation of this condition is not critical
-            // and should not fail the process.
-            YT_ASSERT(smoothMovementData.IsActiveServant.load());
+            // NB: Violation of this condition is not critical and will not cause any
+            // read anomalies though should be examined.
+            YT_LOG_ALERT_UNLESS(
+                smoothMovementData.IsActiveServant.load(),
+                "Tablet servant is not active after waiting for servant activation future is completed (%v)",
+                    LoggingTag);
         }
 
         if (!smoothMovementData.IsActiveServant.load()) {
@@ -2316,7 +2319,7 @@ void TTablet::ReconfigureCompressionDictionaries()
 
 void TTablet::ReconfigureProfiling()
 {
-    TableProfiler_ = CreateTableProfiler(
+    TableProfiler_ = GetTabletProfilerManager()->CreateTableProfiler(
         Settings_.MountConfig->ProfilingMode,
         Context_->GetTabletCellBundleName(),
         TablePath_,
@@ -3251,7 +3254,7 @@ void TTablet::BuildHeavyHittersOrchidYson(TRowHeavyHittersPtr heavyHitters, NYTr
         statisticsSorted.end(),
         [] (const auto& lhs, const auto &rhs) { return lhs.second > rhs.second; });
 
-    for (auto& [key, ratio] : statisticsSorted) {
+    for (const auto& [key, ratio] : statisticsSorted) {
         fluent
             .Item()
                 .BeginMap()
@@ -3421,14 +3424,10 @@ void TTablet::BuildOrchidYson(TFluentMap fluent) const
             })
         .Item("lookup_heavy_hitters")
             .BeginMap()
-                .Item("row_count")
-                .DoList(
-                    BIND(BuildHeavyHittersOrchidYson, LookupHeavyHitters().RowCount)
-                )
-                .Item("data_weight")
-                .DoList(
-                    BIND(BuildHeavyHittersOrchidYson, LookupHeavyHitters().DataWeight)
-                )
+                .Item("row_count").DoList(
+                    BIND(BuildHeavyHittersOrchidYson, LookupHeavyHitters().RowCount))
+                .Item("data_weight").DoList(
+                    BIND(BuildHeavyHittersOrchidYson, LookupHeavyHitters().DataWeight))
             .EndMap();
 }
 

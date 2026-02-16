@@ -1058,12 +1058,15 @@ private:
         }
 
         std::vector<TFuture<void>> additionalFutures;
-        if (!SuppressStronglyOrderedTransactionBarrier_) {
+        if (syncPhase == ESyncPhase::One &&
+            !SuppressStronglyOrderedTransactionBarrier_) {
             // NB: We have to wait all current prepared transactions to
             // observe side effects of Sequoia transactions.
             const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
             additionalFutures.push_back(
-                transactionSupervisor->WaitUntilPreparedTransactionsFinished());
+                hydraManager->SyncWithLeader().Apply(BIND([=] {
+                    return transactionSupervisor->WaitUntilPreparedTransactionsFinished();
+                })));
         }
 
         if (additionalFuture) {

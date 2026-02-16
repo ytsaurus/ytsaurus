@@ -497,6 +497,8 @@ REGISTRATION_TABLE_SCHEMA = MIGRATION_SCHEMAS["consumer_registrations"]
 
 REPLICATED_TABLE_MAPPING_TABLE_SCHEMA = MIGRATION_SCHEMAS["replicated_table_mapping"]
 
+REPLICA_MAPPING_TABLE_SCHEMA = MIGRATION_SCHEMAS["replica_mapping"]
+
 CONSUMER_OBJECT_TABLE_SCHEMA_WITHOUT_META = [
     {"name": "queue_cluster", "type": "string", "sort_order": "ascending", "required": True},
     {"name": "queue_path", "type": "string", "sort_order": "ascending", "required": True},

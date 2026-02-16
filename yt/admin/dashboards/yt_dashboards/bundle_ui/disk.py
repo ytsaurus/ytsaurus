@@ -1,6 +1,6 @@
 # flake8: noqa
 from yt_dashboard_generator.dashboard import Rowset
-from yt_dashboard_generator.sensor import MultiSensor
+from yt_dashboard_generator.sensor import MultiSensor, EmptyCell
 from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
 from yt_dashboard_generator.specific_tags.tags import TemplateTag
 
@@ -110,6 +110,12 @@ def build_block_cache_planning():
             MonitoringExpr(TabNode("yt.data_node.block_cache.{}_data.large_ghost_cache.missed_weight.rate".format(name))).alias("x2 larger cache missed weight rate"),
             MonitoringExpr(TabNode("yt.data_node.block_cache.{}_data.small_ghost_cache.missed_weight.rate".format(name))).alias("x/2 smaller cache missed weight rate"))
 
+    def meta_miss_weight_rate():
+        return MultiSensor(
+            MonitoringExpr(NodeTablet("yt.tablet_node.versioned_chunk_meta_cache.missed_weight.rate")).alias("current missed weight rate"),
+            MonitoringExpr(NodeTablet("yt.tablet_node.versioned_chunk_meta_cache.large_ghost_cache.missed_weight.rate")).alias("x2 larger cache missed weight rate"),
+            MonitoringExpr(NodeTablet("yt.tablet_node.versioned_chunk_meta_cache.small_ghost_cache.missed_weight.rate")).alias("x/2 smaller cache missed weight rate"))
+
     return (Rowset()
             .value("tablet_cell_bundle", TemplateTag("tablet_cell_bundle"))
             .stack(False)
@@ -118,4 +124,7 @@ def build_block_cache_planning():
             .row()
                 .cell("Compressed block cache size planning", miss_weight_rate("compressed"))
                 .cell("Uncompressed block cache size planning", miss_weight_rate("uncompressed"))
+            .row()
+                .cell("Versioned chunk meta cache size planning", meta_miss_weight_rate())
+                .cell("", EmptyCell())
     ).owner

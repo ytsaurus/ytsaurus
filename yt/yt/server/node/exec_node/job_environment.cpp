@@ -4,6 +4,9 @@
 #include "job_directory_manager.h"
 #include "slot_manager.h"
 #include "private.h"
+#include "volume_artifact.h"
+#include "volume_manager.h"
+
 #include "yt/yt/core/concurrency/delayed_executor.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>

@@ -559,7 +559,7 @@ class UserJobSpecBuilder(object):
             if _DOCKER_PREPROCESSING_AVAILABLE:
                 spec["docker_image"] = prepare_image_on_cluster(
                     image=spec["docker_image"],
-                    yt_cluster_name=client.get("//sys/@cluster_name"),
+                    yt_cluster_name=get("//sys/@cluster_name", client=client),
                     yt_token=get_token(client=client),
                 )
 

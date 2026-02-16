@@ -229,6 +229,28 @@ TError GetMaxFailedJobCountReachedError(int maxFailedJobCount)
         << TErrorAttribute("max_failed_job_count", maxFailedJobCount);
 }
 
+TSchedulingTagFilter GetFinalSchedulingTagFilter(
+    const TBooleanFormula& operationSpecFilter,
+    const TPoolTreeControllerSettingsMap& poolTreeControllerSettingsMap)
+{
+    TSchedulingTagFilter filter;
+    for (const auto& [treeName, settings] : poolTreeControllerSettingsMap) {
+        filter = filter.IsEmpty()
+            ? settings.SchedulingTagFilter
+            : filter | settings.SchedulingTagFilter;
+    }
+
+    return filter & TSchedulingTagFilter(operationSpecFilter);
+}
+
+template <typename T>
+void DestroyViaHeavyInvoker(T value)
+{
+    NRpc::TDispatcher::Get()
+        ->GetCompressionPoolInvoker()
+        ->Invoke(BIND([dump = std::move(value)] () { Y_UNUSED(dump); }));
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -349,6 +371,7 @@ TOperationControllerBase::TOperationControllerBase(
         ControllerAgentProfiler()
             .WithTag("user_name", AuthenticatedUser_)
             .Counter("/user_job_monitoring/used_descriptors"))
+    , FinalSchedulingTagFilter_(GetFinalSchedulingTagFilter(Spec_->SchedulingTagFilter, PoolTreeControllerSettingsMap_))
 {
     // Attach user transaction if any. Don't ping it.
     TTransactionAttachOptions userAttachOptions;
@@ -362,9 +385,8 @@ TOperationControllerBase::TOperationControllerBase(
         ExternalScheduleAllocationFailureCounts_[reason] = 0;
     }
 
-    TSchedulingTagFilter filter(Spec_->SchedulingTagFilter);
-    ExecNodesDescriptors_ = Host_->GetExecNodeDescriptors(filter, /*onlineOnly*/ false);
-    OnlineExecNodesDescriptors_ = Host_->GetExecNodeDescriptors(filter, /*onlineOnly*/ true);
+    SuitableExecNodeDescriptors_ = Host_->GetExecNodeDescriptors(FinalSchedulingTagFilter_, /*onlineOnly*/ false);
+    OnlineSuitableExecNodeDescriptors_ = Host_->GetExecNodeDescriptors(FinalSchedulingTagFilter_, /*onlineOnly*/ true);
 
     YT_LOG_INFO("Operation controller instantiated (OperationType: %v, Address: %v)",
         OperationType_,
@@ -525,6 +547,12 @@ void TOperationControllerBase::InitializeClients()
     InputManager_->InitializeClients(InputClient_);
 }
 
+void TOperationControllerBase::InitializeClusterResolver()
+{
+    ClusterResolver_ = WaitFor(CreateClusterResolver(InputClient_))
+        .ValueOrThrow();
+}
+
 void TOperationControllerBase::InitializeInputTransactions()
 {
     // COMPAT(coteeq): Correct reviving from snapshot relies on order of this vector.
@@ -547,13 +575,9 @@ void TOperationControllerBase::InitializeInputTransactions()
         }
     }
 
-    auto clusterResolver = New<TClusterResolver>(InputClient_);
-    WaitFor(clusterResolver->Init())
-        .ThrowOnError();
-
     InputTransactions_ = New<TInputTransactionManager>(
         InputClient_,
-        std::move(clusterResolver),
+        ClusterResolver_,
         OperationId_,
         filesAndTables,
         HasDiskRequestsWithSpecifiedAccount() || TLayerJobExperiment::IsEnabled(Spec_, GetUserJobSpecs()),
@@ -583,6 +607,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
     YT_LOG_INFO("Initializing operation for revive");
 
     InitializeClients();
+    InitializeClusterResolver();
     InitializeInputTransactions();
 
     SpecManager_->InitializeReviving(std::move(cumulativeSpecPatch));
@@ -768,6 +793,18 @@ void TOperationControllerBase::ValidateSecureVault()
     }
 }
 
+void TOperationControllerBase::ValidateOutputTablePaths() const
+{
+    for (const auto& path : GetOutputTablePaths()) {
+        if (auto clusterName = ClusterResolver_->GetClusterName(path); !IsLocal(clusterName)) {
+            auto localClusterName = ClusterResolver_->GetLocalClusterName().value_or("unknown");
+            THROW_ERROR_EXCEPTION("Output table must be on the same cluster as operation")
+                << TErrorAttribute("table_cluster_name", path.GetCluster())
+                << TErrorAttribute("operation_cluster_name", localClusterName);
+        }
+    }
+}
+
 TOperationControllerInitializeResult TOperationControllerBase::InitializeClean()
 {
     YT_LOG_INFO("Initializing operation for clean start (Title: %v)",
@@ -777,6 +814,8 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeClean()
         ValidateCollectiveOptions();
         ValidateSecureVault();
         InitializeClients();
+        InitializeClusterResolver();
+        ValidateOutputTablePaths();
         InitializeInputTransactions();
         StartTransactions();
         InitializeStructures();
@@ -844,7 +883,7 @@ void TOperationControllerBase::ValidateAccountPermission(const std::string& acco
 
 void TOperationControllerBase::InitializeStructures()
 {
-    InputManager_->InitializeStructures(InputClient_, InputTransactions_);
+    InputManager_->InitializeStructures(InputClient_, InputTransactions_, ClusterResolver_);
 
     DataFlowGraph_->SetNodeDirectory(OutputNodeDirectory_);
     DataFlowGraph_->Initialize();
@@ -1157,6 +1196,10 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     SleepInPrepare();
+
+    if (Spec_->JobTestingOptions && Spec_->JobTestingOptions->FindChild("events_on_fs") && !Config_->TestingOptions->EnableEventsOnFs) {
+        THROW_ERROR_EXCEPTION("\"events_on_fs\" is not enabled");
+    }
 
     // Testing purpose code.
     if (Config_->EnableControllerFailureSpecOption &&
@@ -2356,6 +2399,11 @@ void TOperationControllerBase::ManuallyMergeBranchedCypressNode(
 
         TTransactionCommitOptions options;
         options.PrerequisiteTransactionIds = {transactionId};
+        // In case of Cypress tx mirroring this system tx have to be committed
+        // after all nested Cypress transactions are finished.
+        if (IsCypressTransactionMirroredToSequoia(transactionId)) {
+            options.StronglyOrdered = true;
+        }
         WaitFor(helperTransaction->Commit(options))
             .ThrowOnError();
     } catch (const std::exception& ex) {
@@ -4470,23 +4518,9 @@ void TOperationControllerBase::CheckAvailableExecNodes()
     std::string observedExecNodeAddress;
     bool foundMatching = false;
     bool foundMatchingNotBanned = false;
-    int otherTreesNodeCount = 0;
     int nonMatchingFilterNodeCount = 0;
     THashMap<TString, TEnumIndexedArray<EJobResourceWithDiskQuotaType, i64>> insufficientResourcesNodeCountPerTask;
-    for (const auto& [_, descriptor] : GetExecNodeDescriptors()) {
-        bool hasSuitableTree = false;
-        for (const auto& [treeName, settings] : PoolTreeControllerSettingsMap_) {
-            if (descriptor->CanSchedule(settings.SchedulingTagFilter)) {
-                hasSuitableTree = true;
-                break;
-            }
-        }
-
-        if (!hasSuitableTree) {
-            ++otherTreesNodeCount;
-            continue;
-        }
-
+    for (const auto& [_, descriptor] : GetSuitableExecNodeDescriptors()) {
         if (!descriptor->CanSchedule(tagFilter)) {
             ++nonMatchingFilterNodeCount;
             continue;
@@ -4567,7 +4601,6 @@ void TOperationControllerBase::CheckAvailableExecNodes()
             NControllerAgent::EErrorCode::NoOnlineNodeToScheduleAllocation,
             errorMessageBuilder.Flush(),
             TError::DisableFormat)
-            << TErrorAttribute("other_trees_node_count", otherTreesNodeCount)
             << TErrorAttribute("non_matching_filter_node_count", nonMatchingFilterNodeCount)
             << TErrorAttribute("insufficient_resources_node_count_per_task", insufficientResourcesNodeCountPerTask));
         return;
@@ -4836,8 +4869,6 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
     auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
 
     jobSpecExt->set_testing_options(ToProto(ConvertToYsonString(Spec_->JobTestingOptions)));
-
-    jobSpecExt->set_enable_prefetching_job_throttler(true);
 
     jobSpecExt->set_enable_codegen_comparator(Spec_->EnableCodegenComparator);
 
@@ -6682,7 +6713,8 @@ void TOperationControllerBase::GetOutputTablesSchema()
             ValidateOutputDynamicTablesAllowed();
 
             using TSecondaryIndicesAttribute = THashMap<TObjectId, NYTree::INodePtr>;
-            if (auto secondaryIndices = attributes->Find<TSecondaryIndicesAttribute>("secondary_indices")) {
+            auto secondaryIndices = attributes->Find<TSecondaryIndicesAttribute>("secondary_indices");
+            if (secondaryIndices && Spec_->UpdateSecondaryIndex) {
                 auto keyView = std::views::keys(*secondaryIndices);
                 THROW_ERROR_EXCEPTION("Bulk insert into an indexed table is not supported at the moment")
                     << TErrorAttribute("table_path", path)
@@ -9396,7 +9428,9 @@ std::optional<TJobMonitoringDescriptor> TOperationControllerBase::TryAcquireMoni
 {
     auto it = MonitoringDescriptorPool_.begin();
     // This is a temporary solution. Should be removed after the logic of MonitoringDescriptor and OperationController is separated
-    for (; it != MonitoringDescriptorPool_.end() && it->Guid == OperationId_.Underlying(); ++it) { }
+    while (it != MonitoringDescriptorPool_.end() && it->Guid == OperationId_.Underlying()) {
+        ++it;
+    }
     YT_VERIFY(it != MonitoringDescriptorPool_.end());
     auto foundDescriptor = *it;
     MonitoringDescriptorPool_.erase(it);
@@ -10827,26 +10861,24 @@ int TOperationControllerBase::GetAvailableExecNodeCount() const
     return AvailableExecNodeCount_;
 }
 
-const TExecNodeDescriptorMap& TOperationControllerBase::GetOnlineExecNodeDescriptors()
+const TExecNodeDescriptorMap& TOperationControllerBase::GetOnlineSuitableExecNodeDescriptors() const
 {
-    return *OnlineExecNodesDescriptors_;
+    return *OnlineSuitableExecNodeDescriptors_;
 }
 
-const TExecNodeDescriptorMap& TOperationControllerBase::GetExecNodeDescriptors()
+const TExecNodeDescriptorMap& TOperationControllerBase::GetSuitableExecNodeDescriptors() const
 {
-    return *ExecNodesDescriptors_;
+    return *SuitableExecNodeDescriptors_;
 }
 
 void TOperationControllerBase::UpdateExecNodes()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    TSchedulingTagFilter filter(Spec_->SchedulingTagFilter);
-
     int onlineExecNodeCount = Host_->GetAvailableExecNodeCount();
-    auto execNodeDescriptors = Host_->GetExecNodeDescriptors(filter, /*onlineOnly*/ false);
-    auto onlineExecNodeDescriptors = Host_->GetExecNodeDescriptors(filter, /*onlineOnly*/ true);
-    auto maxAvailableResources = Host_->GetMaxAvailableResources(filter);
+    auto suitableExecNodeDescriptors = Host_->GetExecNodeDescriptors(FinalSchedulingTagFilter_, /*onlineOnly*/ false);
+    auto onlineSuitableExecNodeDescriptors = Host_->GetExecNodeDescriptors(FinalSchedulingTagFilter_, /*onlineOnly*/ true);
+    auto maxAvailableResources = Host_->GetMaxAvailableResources(FinalSchedulingTagFilter_);
 
     const auto& controllerInvoker = GetCancelableInvoker();
     controllerInvoker->Invoke(
@@ -10854,8 +10886,8 @@ void TOperationControllerBase::UpdateExecNodes()
             =,
             this,
             weakThis = MakeWeak(this),
-            execNodeDescriptors = std::move(execNodeDescriptors),
-            onlineExecNodeDescriptors = std::move(onlineExecNodeDescriptors)
+            suitableExecNodeDescriptors = std::move(suitableExecNodeDescriptors),
+            onlineSuitableExecNodeDescriptors = std::move(onlineSuitableExecNodeDescriptors)
         ] () mutable {
             auto this_ = weakThis.Lock();
             if (!this_) {
@@ -10870,17 +10902,17 @@ void TOperationControllerBase::UpdateExecNodes()
                 *variable = std::move(value);
 
                 // Offload old value destruction to a large thread pool.
-                NRpc::TDispatcher::Get()->GetCompressionPoolInvoker()->Invoke(
-                    BIND([value = std::move(oldValue)] { Y_UNUSED(value); }));
+                DestroyViaHeavyInvoker(std::move(oldValue));
             };
 
-            assign(&ExecNodesDescriptors_, std::move(execNodeDescriptors));
-            assign(&OnlineExecNodesDescriptors_, std::move(onlineExecNodeDescriptors));
+            assign(&SuitableExecNodeDescriptors_, std::move(suitableExecNodeDescriptors));
+            assign(&OnlineSuitableExecNodeDescriptors_, std::move(onlineSuitableExecNodeDescriptors));
 
             OnExecNodesUpdated();
 
-            YT_LOG_DEBUG("Exec nodes information updated (SuitableExecNodeCount: %v, OnlineExecNodeCount: %v)",
-                ExecNodesDescriptors_->size(),
+            YT_LOG_DEBUG("Exec nodes information updated (OnlineSuitableExecNodeCount: %v, SuitableExecNodeCount: %v, OnlineExecNodeCount: %v)",
+                OnlineSuitableExecNodeDescriptors_->size(),
+                SuitableExecNodeDescriptors_->size(),
                 AvailableExecNodeCount_);
         }));
 }
@@ -10900,6 +10932,11 @@ bool TOperationControllerBase::ShouldSkipSanityCheck()
     }
 
     if (TInstant::Now() < StartTime_ + Spec_->SanityCheckDelay) {
+        return true;
+    }
+
+    if (GetSuitableExecNodeDescriptors().empty() && !Config_->FailOperationsInEmptyTrees) {
+        YT_LOG_DEBUG("Skipping sanity check because no suitable nodes are available");
         return true;
     }
 

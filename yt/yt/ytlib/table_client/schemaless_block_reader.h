@@ -48,8 +48,8 @@ public:
         const NProto::TDataBlockMeta& meta,
         const std::vector<bool>& compositeColumnFlags,
         const std::vector<bool>& hunkColumnFlags,
-        const std::vector<THunkChunkRef>& hunkChunkRefs,
-        const std::vector<THunkChunkMeta>& hunkChunkMetas,
+        const std::vector<THunkChunkRef>* hunkChunkRefs,
+        const std::vector<THunkChunkMeta>* hunkChunkMetas,
         const std::vector<int>& chunkToReaderIdMapping,
         TRange<ESortOrder> sortOrders,
         int commonKeyPrefix,
@@ -84,8 +84,8 @@ private:
     const std::vector<bool> CompositeColumnFlags_;
     const std::vector<bool> HunkColumnFlags_;
 
-    const std::vector<THunkChunkRef>& HunkChunkRefs_;
-    const std::vector<THunkChunkMeta>& HunkChunkMetas_;
+    const std::vector<THunkChunkRef>* const HunkChunkRefs_;
+    const std::vector<THunkChunkMeta>* const HunkChunkMetas_;
 
     const TKeyWideningOptions KeyWideningOptions_;
 

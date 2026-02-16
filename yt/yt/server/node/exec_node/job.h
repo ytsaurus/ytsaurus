@@ -6,6 +6,7 @@
 #include "helpers.h"
 #include "job_info.h"
 #include "public.h"
+#include "preparation_options.h"
 #include "private.h"
 
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
@@ -223,7 +224,7 @@ public:
 
     void SetHasJobTrace(bool value);
 
-    void AbortJobAfterInterruptionCallFailed(const std::exception& ex);
+    void AbortJobAfterInterruptionCallFailed(TError internalError);
 
     void DoInterrupt(
         TDuration timeout,
@@ -415,8 +416,8 @@ private:
 
     std::optional<TSandboxNbdRootVolumeData> SandboxNbdRootVolumeData_;
 
-    //! NBD export ids used by the job.
-    THashSet<TString> NbdExportIds_;
+    //! NBD device ids used by the job.
+    THashSet<TString> NbdDeviceIds_;
 
     //! Artifact name -> index of the artifact in #Artifacts_ list.
     THashMap<TString, int> UserArtifactNameToIndex_;
@@ -564,7 +565,8 @@ private:
 
     // Finalization.
     void Cleanup();
-    void TryCleanupNbdExports();
+
+    void UnsubscribeJobFromNbdDevices();
 
     // Preparation.
     std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory> PrepareNodeDirectory();
@@ -584,7 +586,7 @@ private:
 
     void InitializeSandboxNbdRootVolumeData();
 
-    THashSet<TString> InitializeNbdExportIds();
+    THashSet<TString> InitializeNbdDeviceIds();
 
     TArtifactDownloadOptions MakeArtifactDownloadOptions() const;
 

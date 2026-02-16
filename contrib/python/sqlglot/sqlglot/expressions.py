@@ -280,6 +280,8 @@ class Expression(metaclass=_Expression):
 
     @property
     def type(self) -> t.Optional[DataType]:
+        if isinstance(self, Cast):
+            return self._type or self.to
         return self._type
 
     @type.setter
@@ -1616,6 +1618,7 @@ class Describe(Expression):
         "expressions": False,
         "partition": False,
         "format": False,
+        "as_json": False,
     }
 
 
@@ -2136,7 +2139,7 @@ class ComputedColumnConstraint(ColumnConstraintKind):
 
 # https://docs.oracle.com/en/database/other-databases/timesten/22.1/plsql-developer/examples-using-input-and-output-parameters-and-bind-variables.html#GUID-4B20426E-F93F-4835-88CB-6A79829A8D7F
 class InOutColumnConstraint(ColumnConstraintKind):
-    arg_types = {"input_": False, "output": False}
+    arg_types = {"input_": False, "output": False, "variadic": False}
 
 
 class Constraint(Expression):
@@ -2606,8 +2609,16 @@ class Literal(Condition):
     arg_types = {"this": True, "is_string": True}
 
     @classmethod
-    def number(cls, number) -> Literal:
-        return cls(this=str(number), is_string=False)
+    def number(cls, number) -> Literal | Neg:
+        expr: Literal | Neg = cls(this=str(number), is_string=False)
+
+        to_py = expr.to_py()
+
+        if not isinstance(to_py, str) and to_py < 0:
+            expr.set("this", str(abs(to_py)))
+            expr = Neg(this=expr)
+
+        return expr
 
     @classmethod
     def string(cls, string) -> Literal:
@@ -2637,6 +2648,7 @@ class Join(Expression):
         "global_": False,
         "hint": False,
         "match_condition": False,  # Snowflake
+        "directed": False,  # Snowflake
         "expressions": False,
         "pivots": False,
     }
@@ -3121,6 +3133,16 @@ class PartitionByRangePropertyDynamic(Expression):
     arg_types = {"this": False, "start": True, "end": True, "every": True}
 
 
+# https://docs.starrocks.io/docs/sql-reference/sql-statements/table_bucket_part_index/CREATE_TABLE/#rollup-index
+class RollupProperty(Property):
+    arg_types = {"expressions": True}
+
+
+# https://docs.starrocks.io/docs/sql-reference/sql-statements/table_bucket_part_index/CREATE_TABLE/#rollup-index
+class RollupIndex(Expression):
+    arg_types = {"this": True, "expressions": True, "from_index": False, "properties": False}
+
+
 # https://doris.apache.org/docs/table-design/data-partitioning/manual-partitioning
 class PartitionByListProperty(Property):
     arg_types = {"partition_expressions": True, "create_expressions": True}
@@ -3134,7 +3156,7 @@ class PartitionList(Expression):
 # https://doris.apache.org/docs/sql-manual/sql-statements/table-and-view/async-materialized-view/CREATE-ASYNC-MATERIALIZED-VIEW
 class RefreshTriggerProperty(Property):
     arg_types = {
-        "method": True,
+        "method": False,
         "kind": False,
         "every": False,
         "unit": False,
@@ -5567,6 +5589,12 @@ class Func(Condition):
         return {name: cls.from_arg_list for name in cls.sql_names()}
 
 
+# Function returns NULL instead of error
+# https://docs.cloud.google.com/bigquery/docs/reference/standard-sql/functions-reference#safe_prefix
+class SafeFunc(Func):
+    pass
+
+
 class Typeof(Func):
     pass
 
@@ -5720,15 +5748,15 @@ class ByteLength(Func):
 
 
 class Boolnot(Func):
-    pass
+    arg_types = {"this": True, "round_input": False}
 
 
 class Booland(Func):
-    arg_types = {"this": True, "expression": True}
+    arg_types = {"this": True, "expression": True, "round_input": False}
 
 
 class Boolor(Func):
-    arg_types = {"this": True, "expression": True}
+    arg_types = {"this": True, "expression": True, "round_input": False}
 
 
 # https://cloud.google.com/bigquery/docs/reference/standard-sql/json_functions#bool_for_json
@@ -5737,7 +5765,7 @@ class JSONBool(Func):
 
 
 class ArrayRemove(Func):
-    arg_types = {"this": True, "expression": True}
+    arg_types = {"this": True, "expression": True, "null_propagation": False}
 
 
 class ParameterizedAgg(AggFunc):
@@ -5835,7 +5863,7 @@ class Grouping(AggFunc):
 
 
 class GroupingId(AggFunc):
-    arg_types = {"expressions": True}
+    arg_types = {"expressions": False}
     is_var_len_args = True
 
 
@@ -6022,6 +6050,11 @@ class ExplodingGenerateSeries(GenerateSeries):
     pass
 
 
+# https://docs.snowflake.com/en/sql-reference/functions/generator
+class Generator(Func, UDTF):
+    arg_types = {"rowcount": False, "timelimit": False}
+
+
 class ArrayAgg(AggFunc):
     arg_types = {"this": True, "nulls_excluded": False}
 
@@ -6054,21 +6087,29 @@ class ArrayAny(Func):
 
 
 class ArrayAppend(Func):
-    arg_types = {"this": True, "expression": True}
+    arg_types = {"this": True, "expression": True, "null_propagation": False}
 
 
 class ArrayPrepend(Func):
-    arg_types = {"this": True, "expression": True}
+    arg_types = {"this": True, "expression": True, "null_propagation": False}
 
 
 class ArrayConcat(Func):
     _sql_names = ["ARRAY_CONCAT", "ARRAY_CAT"]
-    arg_types = {"this": True, "expressions": False}
+    arg_types = {"this": True, "expressions": False, "null_propagation": False}
     is_var_len_args = True
 
 
 class ArrayConcatAgg(AggFunc):
     pass
+
+
+class ArrayCompact(Func):
+    pass
+
+
+class ArrayInsert(Func):
+    arg_types = {"this": True, "position": True, "expression": True, "offset": False}
 
 
 class ArrayConstructCompact(Func):
@@ -6155,6 +6196,11 @@ class ArraySum(Func):
 
 class ArrayUnionAgg(AggFunc):
     pass
+
+
+class ArraysZip(Func):
+    arg_types = {"expressions": False}
+    is_var_len_args = True
 
 
 class Avg(AggFunc):
@@ -6662,7 +6708,7 @@ class Elt(Func):
 
 
 class Timestamp(Func):
-    arg_types = {"this": False, "zone": False, "with_tz": False, "safe": False}
+    arg_types = {"this": False, "zone": False, "with_tz": False}
 
 
 class TimestampAdd(Func, TimeUnit):
@@ -6716,6 +6762,7 @@ class TimeFromParts(Func):
         "nano": False,
         "fractions": False,
         "precision": False,
+        "overflow": False,
     }
 
 
@@ -7020,7 +7067,7 @@ class Or(Connector, Func):
 
 
 class Xor(Connector, Func):
-    arg_types = {"this": False, "expression": False, "expressions": False}
+    arg_types = {"this": False, "expression": False, "expressions": False, "round_input": False}
     is_var_len_args = True
 
 
@@ -7055,6 +7102,10 @@ class IsInf(Func):
 
 
 class IsNullValue(Func):
+    pass
+
+
+class IsArray(Func):
     pass
 
 
@@ -7643,9 +7694,19 @@ class Normal(Func):
     arg_types = {"this": True, "stddev": True, "gen": True}
 
 
+# https://docs.cloud.google.com/bigquery/docs/reference/standard-sql/net_functions
+class NetFunc(Func):
+    pass
+
+
 # https://cloud.google.com/bigquery/docs/reference/standard-sql/net_functions#nethost
-class NetHost(Func):
-    _sql_names = ["NET.HOST"]
+class Host(Func):
+    pass
+
+
+# https://docs.cloud.google.com/bigquery/docs/reference/standard-sql/net_functions#netreg_domain
+class RegDomain(Func):
+    pass
 
 
 class Overlay(Func):
@@ -7930,6 +7991,22 @@ class Round(Func):
 
 
 class RowNumber(Func):
+    arg_types = {"this": False}
+
+
+class Seq1(Func):
+    arg_types = {"this": False}
+
+
+class Seq2(Func):
+    arg_types = {"this": False}
+
+
+class Seq4(Func):
+    arg_types = {"this": False}
+
+
+class Seq8(Func):
     arg_types = {"this": False}
 
 
@@ -8459,6 +8536,12 @@ class Semicolon(Expression):
 # BigQuery allows SELECT t FROM t and treats the projection as a struct value. This expression
 # type is intended to be constructed by qualify so that we can properly annotate its type later
 class TableColumn(Expression):
+    pass
+
+
+# https://www.postgresql.org/docs/current/typeconv-func.html
+# https://www.postgresql.org/docs/current/xfunc-sql.html
+class Variadic(Expression):
     pass
 
 

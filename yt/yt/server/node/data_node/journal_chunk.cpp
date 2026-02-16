@@ -139,11 +139,21 @@ TFuture<std::vector<TBlock>> TJournalChunk::ReadBlockSet(
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    // Extract the initial contiguous segment of blocks.
     if (blockIndexes.empty()) {
         return MakeFuture(std::vector<TBlock>());
     }
 
+    if (options.ReadCompleteBlockSetAndCache) {
+        return BIND(
+            &TJournalChunk::ReadCompleteBlockSetAndCache,
+            MakeStrong(this),
+            blockIndexes,
+            options)
+            .AsyncVia(Context_->StorageHeavyInvoker)
+            .Run();
+    }
+
+    // Extract the initial contiguous segment of blocks.
     int firstBlockIndex = blockIndexes.front();
     int blockCount = 1;
     while (blockCount < std::ssize(blockIndexes) && blockIndexes[blockCount] == blockIndexes[blockCount - 1] + 1) {
@@ -151,6 +161,267 @@ TFuture<std::vector<TBlock>> TJournalChunk::ReadBlockSet(
     }
 
     return ReadBlockRange(firstBlockIndex, blockCount, options);
+}
+
+TFuture<std::vector<TBlock>> TJournalChunk::OnBlockRangeReadFromDisk(
+    const TChunkReadOptions& options,
+    std::vector<std::unique_ptr<ICachedBlockCookie>> blockCookies,
+    int firstBlockIndex,
+    int blockCount,
+    std::vector<TBlock> alreadyReadBlocks,
+    TErrorOr<std::vector<TBlock>>&& blocksOrError)
+{
+    YT_VERIFY(
+        blockCookies.empty() ||
+        std::ssize(alreadyReadBlocks) + blockCount == std::ssize(blockCookies));
+
+    if (!blocksOrError.IsOK()) {
+        auto error = TError("Error occured while reading block range %v:%v of journal chunk %v",
+            firstBlockIndex,
+            firstBlockIndex + blockCount,
+            Id_)
+            << blocksOrError;
+        YT_LOG_DEBUG(error);
+
+        if (!blockCookies.empty()) {
+            // Just try to propagate error to each cookie, even if some had already been set.
+            for (auto& blockCookie : blockCookies) {
+                blockCookie->SetBlock(error);
+            }
+        }
+
+        THROW_ERROR(error);
+    }
+
+    auto blocks = std::move(blocksOrError.Value());
+    int blocksLeftToRead = blockCount - std::ssize(blocks);
+    YT_VERIFY(!blocks.empty());
+    YT_VERIFY(blocksLeftToRead >= 0);
+
+    YT_LOG_DEBUG("Successfully read block range of journal chunk "
+        "(ChunkId: %v, FirstBlockIndex: %v, BlockCount: %v, NewlyReadBlockCount: %v, "
+        "AlreadyReadBlockCount: %v, CookieCount: %v)",
+        Id_,
+        firstBlockIndex,
+        blockCount,
+        std::ssize(blocks),
+        std::ssize(alreadyReadBlocks),
+        std::ssize(blockCookies));
+
+    if (!blockCookies.empty()) {
+        for (int localIndex = 0; localIndex < std::ssize(blocks); ++localIndex) {
+            int index = std::ssize(alreadyReadBlocks) + localIndex;
+            blockCookies[index]->SetBlock(TCachedBlock(blocks[localIndex]));
+        }
+    }
+
+    for (auto& block : blocks) {
+        YT_VERIFY(block);
+        alreadyReadBlocks.push_back(std::move(block));
+    }
+
+    if (blocksLeftToRead == 0) {
+        return MakeFuture<std::vector<TBlock>>(std::move(alreadyReadBlocks));
+    }
+
+    firstBlockIndex += std::ssize(blocks);
+
+    return ReadBlockRange(firstBlockIndex, blocksLeftToRead, options)
+        .AsUnique()
+        .Apply(BIND(&TJournalChunk::OnBlockRangeReadFromDisk,
+            MakeStrong(this),
+            options,
+            Passed(std::move(blockCookies)),
+            firstBlockIndex,
+            blocksLeftToRead,
+            Passed(std::move(alreadyReadBlocks)))
+        .AsyncVia(GetCurrentInvoker()));
+}
+
+void TJournalChunk::OnBlockReadFromDiskForPrecache(
+    TJournalChunk::TPrecachedBlockInfo precachedBlockInfo,
+    TErrorOr<std::vector<TBlock>>&& blocksOrError)
+{
+    YT_VERIFY(precachedBlockInfo.Cookie->IsActive());
+
+    if (!blocksOrError.IsOK()) {
+        auto error = TError("Error occured while reading block %v of chunk %v for precache",
+            precachedBlockInfo.BlockIndex,
+            Id_)
+            << blocksOrError;
+        YT_LOG_DEBUG(error);
+
+        precachedBlockInfo.Cookie->SetBlock(std::move(error));
+        return;
+    }
+
+    auto blocks = std::move(blocksOrError.Value());
+    YT_VERIFY(blocks.size() <= 1);
+
+    YT_LOG_DEBUG("Successfully read block of journal chunk for precache "
+        "(ChunkId: %v, BlockIndex: %v, IsBlockPresent: %v)",
+        Id_,
+        precachedBlockInfo.BlockIndex,
+        !blocks.empty());
+
+    if (blocks.empty()) {
+        // NB: Block index is out of bounds, just cache sentinel to avoid trying to read it again.
+        precachedBlockInfo.Cookie->SetBlock({});
+    } else {
+        YT_VERIFY(blocks[0]);
+        precachedBlockInfo.Cookie->SetBlock(std::move(blocks[0]));
+    }
+}
+
+TFuture<std::vector<TBlock>> TJournalChunk::ReadCompleteBlockSetAndCache(
+    const std::vector<int>& blockIndexes,
+    const TChunkReadOptions& options)
+{
+    if (!options.FetchFromDisk) {
+        THROW_ERROR_EXCEPTION("FetchFromDisk flag must be set when reading complete block set");
+    }
+
+    std::vector<std::unique_ptr<ICachedBlockCookie>> blockCookies;
+    std::vector<TPrecachedBlockInfo> precachedBlockInfos;
+    int alreadyPrecachedBlockCount = 0;
+
+    if (options.FetchFromCache &&
+        options.BlockCache &&
+        options.BlockCache->IsBlockTypeActive(options.BlockType))
+    {
+        blockCookies.reserve(blockIndexes.size());
+
+        for (int indexInRequest = 0; indexInRequest < std::ssize(blockIndexes); ++indexInRequest) {
+            auto blockIndex = blockIndexes[indexInRequest];
+
+            TBlockId blockId(Id_, blockIndex);
+            blockCookies.push_back(options.BlockCache->GetBlockCookie(blockId, options.BlockType));
+
+            YT_VERIFY(indexInRequest == 0 || blockIndexes[indexInRequest] > blockIndexes[indexInRequest - 1]);
+
+            if (options.BlockCountToPrecache > 0) {
+                for (int offset = 1; offset <= options.BlockCountToPrecache; ++offset) {
+                    if (indexInRequest + 1 == std::ssize(blockIndexes) ||
+                        blockIndex + offset < blockIndexes[indexInRequest + 1])
+                    {
+                        // NB: We do not know total block count of the chunk here because
+                        // we need to lock chunk which is done later on. So in case chunk
+                        // does not contain block with such index a sentinel empty block will be cached.
+                        TBlockId blockId(Id_, blockIndex + offset);
+                        auto cookie = options.BlockCache->GetBlockCookie(blockId, options.BlockType);
+                        if (cookie->IsActive()) {
+                            precachedBlockInfos.emplace_back(
+                                blockIndex + offset,
+                                std::move(cookie));
+                        } else {
+                            ++alreadyPrecachedBlockCount;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    int indexInRequest = 0;
+    int cachedBlockCount = 0;
+    std::vector<TFuture<std::vector<TBlock>>> futures;
+
+    while (indexInRequest < std::ssize(blockIndexes)) {
+        if (!blockCookies.empty() && !blockCookies[indexInRequest]->IsActive()) {
+            auto cookieFuture = blockCookies[indexInRequest]->GetBlockFuture();
+            auto cachedBlockFuture = cookieFuture.Apply(BIND([
+                statistics = options.ChunkReaderStatistics,
+                cookie = std::move(blockCookies[indexInRequest])
+            ] {
+                auto block = cookie->GetBlock();
+                YT_VERIFY(block);
+                statistics->DataBytesReadFromCache.fetch_add(
+                    block.Size(),
+                    std::memory_order::relaxed);
+
+                return std::vector<TBlock>{std::move(block)};
+            }));
+
+            futures.push_back(std::move(cachedBlockFuture));
+            ++indexInRequest;
+            ++cachedBlockCount;
+
+            continue;
+        }
+
+        std::vector<std::unique_ptr<ICachedBlockCookie>> localBlockCookies;
+        if (!blockCookies.empty()) {
+            localBlockCookies.push_back(std::move(blockCookies[indexInRequest]));
+        }
+
+        int firstIndexInRequest = indexInRequest;
+        while (indexInRequest + 1 < std::ssize(blockIndexes) &&
+            blockIndexes[indexInRequest + 1] == blockIndexes[indexInRequest] + 1 &&
+            (blockCookies.empty() || blockCookies[indexInRequest + 1]->IsActive()))
+        {
+            ++indexInRequest;
+            if (!blockCookies.empty()) {
+                localBlockCookies.push_back(std::move(blockCookies[indexInRequest]));
+            }
+        }
+
+        int blockCount = indexInRequest - firstIndexInRequest + 1;
+        auto uncachedBlocksFuture = ReadBlockRange(blockIndexes[firstIndexInRequest], blockCount, options)
+            .AsUnique()
+            .Apply(BIND(&TJournalChunk::OnBlockRangeReadFromDisk,
+                MakeStrong(this),
+                options,
+                Passed(std::move(localBlockCookies)),
+                blockIndexes[firstIndexInRequest],
+                blockCount,
+                /*alreadyReadBlocks*/ std::vector<TBlock>{})
+            .AsyncVia(Context_->StorageHeavyInvoker));
+
+        if (!blockCookies.empty()) {
+            uncachedBlocksFuture = uncachedBlocksFuture
+                .ToImmediatelyCancelable(/*propagateCancelation*/ false);
+        }
+
+        futures.push_back(std::move(uncachedBlocksFuture));
+        ++indexInRequest;
+    }
+
+    YT_VERIFY(indexInRequest == std::ssize(blockIndexes));
+
+    // NB: No need to coalesce block requests here.
+    for (auto& precachedBlockInfo : precachedBlockInfos) {
+        ReadBlockRange(precachedBlockInfo.BlockIndex, 1, options).AsUnique().Subscribe(BIND(
+            &TJournalChunk::OnBlockReadFromDiskForPrecache,
+            MakeStrong(this),
+            Passed(std::move(precachedBlockInfo)))
+            .Via(Context_->StorageHeavyInvoker));
+    }
+
+    YT_LOG_DEBUG("Started reading block set of journal chunk "
+        "(ChunkId: %v, IsBlockCacheUsed: %v, CachedBlockCount: %v, RequestedBlockCount: %v, BlockRunCount: %v, "
+        "BlockCountToPrecache: %v, AlreadyPrecachedBlockCount: %v)",
+        Id_,
+        !blockCookies.empty(),
+        cachedBlockCount,
+        blockIndexes.size(),
+        futures.size(),
+        precachedBlockInfos.size(),
+        alreadyPrecachedBlockCount);
+
+    return AllSucceeded(std::move(futures))
+        .AsUnique()
+        .Apply(BIND([=] (std::vector<std::vector<TBlock>>&& blockRanges) {
+            std::vector<TBlock> result;
+            result.reserve(indexInRequest);
+
+            for (auto& blockRange : blockRanges) {
+                std::move(blockRange.begin(), blockRange.end(), std::back_inserter(result));
+            }
+
+            YT_VERIFY(std::ssize(result) == indexInRequest);
+
+            return result;
+        }));
 }
 
 TFuture<std::vector<TBlock>> TJournalChunk::ReadBlockRange(
@@ -203,10 +474,12 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
         int blockCount = session->BlockCount;
 
         YT_LOG_DEBUG("Started reading journal chunk blocks ("
-            "ChunkId: %v, Blocks: %v, LocationId: %v)",
+            "ChunkId: %v, Blocks: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v)",
             Id_,
             FormatBlocks(firstBlockIndex, lastBlockIndex),
-            Location_->GetId());
+            Location_->GetId(),
+            Location_->GetUuid(),
+            Location_->GetIndex());
 
         TWallTimer timer;
 
@@ -236,11 +509,13 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
         session->Options.ChunkReaderStatistics->DataIORequests.fetch_add(1, std::memory_order::relaxed);
 
         YT_LOG_DEBUG("Finished reading journal chunk blocks ("
-            "ChunkId: %v, Blocks: %v, LocationId: %v, BlocksReadActually: %v, "
+            "ChunkId: %v, Blocks: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v, BlocksReadActually: %v, "
             "BytesReadActually: %v, Time: %v)",
             Id_,
             FormatBlocks(firstBlockIndex, lastBlockIndex),
             Location_->GetId(),
+            Location_->GetUuid(),
+            Location_->GetIndex(),
             blocksRead,
             bytesRead,
             readTime);
@@ -299,9 +574,11 @@ TFuture<void> TJournalChunk::PrepareToReadChunkFragments(
 
                 writerGuard.Release();
 
-                YT_LOG_DEBUG("Changelog prepared to read fragments (ChunkId: %v, LocationId: %v)",
+                YT_LOG_DEBUG("Changelog prepared to read fragments (ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v)",
                     Id_,
-                    Location_->GetId());
+                    Location_->GetId(),
+                    Location_->GetUuid(),
+                    Location_->GetIndex());
             }).AsyncVia(Context_->StorageLightInvoker)));
 
     return promise.ToFuture();
@@ -419,9 +696,11 @@ void TJournalChunk::ReleaseReader(TWriterGuard<TReaderWriterSpinLock>& writerGua
 
     writerGuard.Release();
 
-    YT_LOG_DEBUG("Changelog released (ChunkId: %v, LocationId: %v)",
+    YT_LOG_DEBUG("Changelog released (ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v)",
         Id_,
-        Location_->GetId());
+        Location_->GetId(),
+        Location_->GetUuid(),
+        Location_->GetIndex());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

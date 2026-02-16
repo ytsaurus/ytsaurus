@@ -3,6 +3,7 @@
 #include <library/cpp/testing/unittest/tests_data.h>
 #include <util/stream/file.h>
 #include <util/system/tempfile.h>
+#include <yt/yql/providers/yt/fmr/request_options/yql_yt_request_options.h>
 #include <yt/yql/providers/yt/fmr/test_tools/table_data_service/yql_yt_table_data_service_helpers.h>
 
 namespace NYql::NFmr {
@@ -18,8 +19,12 @@ Y_UNIT_TEST_SUITE(TableDataServiceWorkerTests) {
         auto tableDataServiceServer = MakeTableDataServiceServer(port);
         auto tableDataServiceClient = MakeTableDataServiceClient(port);
 
-        auto gottenTableContent = tableDataServiceClient->Get(Group, ChunkId).GetValueSync();
-        UNIT_ASSERT(!gottenTableContent);
+        //auto gottenTableContent = tableDataServiceClient->Get(Group, ChunkId).GetValueSync();
+        UNIT_ASSERT_EXCEPTION_CONTAINS(
+            tableDataServiceClient->Get(Group, ChunkId).GetValueSync(),
+            TFmrNonRetryableJobException,
+            "Failed to get group table_id_part_id: and chunkId 0 from table data service"
+        );
     }
     Y_UNIT_TEST(SendGetRequestExistingKey) {
         TPortManager pm;
@@ -27,7 +32,7 @@ Y_UNIT_TEST_SUITE(TableDataServiceWorkerTests) {
         auto tableDataServiceServer = MakeTableDataServiceServer(port);
         auto tableDataServiceClient = MakeTableDataServiceClient(port);
 
-        tableDataServiceClient->Put(Group, ChunkId, Value).Wait();
+        UNIT_ASSERT(tableDataServiceClient->Put(Group, ChunkId, Value).GetValueSync());
         auto gottenTableContent = tableDataServiceClient->Get(Group, ChunkId).GetValueSync();
         UNIT_ASSERT(gottenTableContent);
         UNIT_ASSERT_NO_DIFF(*gottenTableContent, Value);
@@ -38,11 +43,14 @@ Y_UNIT_TEST_SUITE(TableDataServiceWorkerTests) {
         auto tableDataServiceServer = MakeTableDataServiceServer(port);
         auto tableDataServiceClient = MakeTableDataServiceClient(port);
 
-        tableDataServiceClient->Put(Group, ChunkId, Value).Wait();
+        UNIT_ASSERT(tableDataServiceClient->Put(Group, ChunkId, Value).GetValueSync());
         tableDataServiceClient->Delete(Group, ChunkId).Wait();
         Sleep(TDuration::Seconds(2)); // future returns only when deletion is registered, not completed, so have to sleep
-        auto gottenTableContent = tableDataServiceClient->Get(Group, ChunkId).GetValueSync();
-        UNIT_ASSERT(!gottenTableContent);
+        UNIT_ASSERT_EXCEPTION_CONTAINS(
+            tableDataServiceClient->Get(Group, ChunkId).GetValueSync(),
+            TFmrNonRetryableJobException,
+            "Failed to get group table_id_part_id: and chunkId 0 from table data service"
+        );
     }
     Y_UNIT_TEST(SeveralTableDataSerivceServerNodes) {
         ui64 workersNum = 10;
@@ -67,7 +75,7 @@ Y_UNIT_TEST_SUITE(TableDataServiceWorkerTests) {
 
         auto tableDataServiceDiscovery = MakeFileTableDataServiceDiscovery({.Path=path});
         auto tableDataServiceClient = MakeTableDataServiceClient(tableDataServiceDiscovery);
-        std::vector<NThreading::TFuture<void>> putFutures;
+        std::vector<NThreading::TFuture<bool>> putFutures;
         for (size_t i = 0; i < workersNum; ++i) {
             auto curGroup = Group + ToString(i), curChunkId = ChunkId + ToString(i);
             putFutures.emplace_back(tableDataServiceClient->Put(curGroup, curChunkId, Value + ToString(i)));
@@ -89,12 +97,17 @@ Y_UNIT_TEST_SUITE(TableDataServiceWorkerTests) {
         ui64 keysNum = 1000;
         for (ui64 i = 0; i < keysNum; ++i) {
             TString chunkId = ToString(i);
-            tableDataServiceClient->Put(Group, chunkId, Value + ToString(i)).GetValueSync();
+            UNIT_ASSERT(tableDataServiceClient->Put(Group, chunkId, Value + ToString(i)).GetValueSync());
         }
         tableDataServiceClient->RegisterDeletion({Group}).GetValueSync();
 
         for (ui64 i = 0; i < keysNum; ++i) {
-            UNIT_ASSERT(!tableDataServiceClient->Get(Group, ToString(i)).GetValueSync());
+            TString expectedErrorMessage = "Failed to get group table_id_part_id: and chunkId " + ToString(i) + " from table data service";
+            UNIT_ASSERT_EXCEPTION_CONTAINS(
+                tableDataServiceClient->Get(Group, ToString(i)).GetValueSync(),
+                TFmrNonRetryableJobException,
+                expectedErrorMessage
+            );
         }
     }
     Y_UNIT_TEST(Clear) {
@@ -106,13 +119,18 @@ Y_UNIT_TEST_SUITE(TableDataServiceWorkerTests) {
         ui64 requestNum = 10;
         for (ui64 i = 0; i < requestNum; ++i) {
             for (ui64 j = 0; j < requestNum; ++j) {
-                tableDataServiceClient->Put(Group + ToString(i), ChunkId + ToString(j), "value" + ToString(i + j)).GetValueSync();
+                UNIT_ASSERT(tableDataServiceClient->Put(Group + ToString(i), ChunkId + ToString(j), "value" + ToString(i + j)).GetValueSync());
             }
         }
         tableDataServiceClient->Clear().GetValueSync();
         for (ui64 i = 0; i < requestNum; ++i) {
             for (ui64 j = 0; j < requestNum; ++j) {
-                UNIT_ASSERT(!tableDataServiceClient->Get(Group + ToString(i), ChunkId + ToString(j)).GetValueSync());
+                TString expectedErrorMessage = "Failed to get group table_id_part_id:" + ToString(i) + " and chunkId " + ChunkId + ToString(j) + " from table data service";
+                UNIT_ASSERT_EXCEPTION_CONTAINS(
+                    tableDataServiceClient->Get(Group + ToString(i), ChunkId + ToString(j)).GetValueSync(),
+                    TFmrNonRetryableJobException,
+                    expectedErrorMessage
+                );
             }
         }
     }

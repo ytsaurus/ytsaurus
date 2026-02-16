@@ -1,6 +1,5 @@
 #include "cell_type_handler_base.h"
 #include "cell_base.h"
-#include "cell_proxy_base.h"
 #include "tamed_cell_manager.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
@@ -13,6 +12,8 @@
 
 #include <yt/yt/server/lib/cellar_agent/helpers.h>
 
+#include <yt/yt/server/lib/misc/interned_attributes.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/ytree/helpers.h>
@@ -24,6 +25,7 @@ using namespace NObjectServer;
 using namespace NTransactionServer;
 using namespace NCellMaster;
 using namespace NCellarAgent;
+using namespace NServer;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,10 +47,12 @@ TImpl* TCellTypeHandlerBase<TImpl>::DoCreateObject(
     TObjectId id,
     IAttributeDictionary* attributes)
 {
-    auto cellBundleName = attributes->FindAndRemove<std::string>("cell_bundle");
-    auto tabletCellBundleName = attributes->FindAndRemove<std::string>("tablet_cell_bundle");
+    auto cellBundleName = attributes->FindAndRemove<std::string>(EInternedAttributeKey::CellBundle.Unintern());
+    auto tabletCellBundleName = attributes->FindAndRemove<std::string>(EInternedAttributeKey::TabletCellBundle.Unintern());
     if (cellBundleName && tabletCellBundleName) {
-        THROW_ERROR_EXCEPTION("Only one of \"cell_bundle\" or \"tablet_cell_bundle\" should be specified");
+        THROW_ERROR_EXCEPTION("Only one of %Qv or %Qv should be specified",
+            EInternedAttributeKey::CellBundle.Unintern(),
+            EInternedAttributeKey::TabletCellBundle.Unintern());
     }
 
     const auto& cellManager = TBase::Bootstrap_->GetTamedCellManager();
@@ -57,7 +61,7 @@ TImpl* TCellTypeHandlerBase<TImpl>::DoCreateObject(
         GetCellarTypeFromCellId(id),
         /*activeLifeStageOnly*/ true);
 
-    auto areaName = attributes->GetAndRemove<std::string>("area", DefaultAreaName);
+    auto areaName = attributes->GetAndRemove<std::string>(EInternedAttributeKey::Area.Unintern(), DefaultAreaName);
     auto* area = cellBundle->GetAreaOrThrow(areaName);
 
     auto cellHolder = TPoolAllocator::New<TImpl>(id);

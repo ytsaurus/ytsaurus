@@ -83,9 +83,6 @@ struct TDynamicCypressManagerConfig
 
     int CrossCellCopyMaxSubtreeSize;
 
-    // COMPAT(cherepashka)
-    bool EnableInheritAttributesDuringCopy;
-
     // COMPAT(danilalexeev)
     bool DisableCypressNodeReachability;
 

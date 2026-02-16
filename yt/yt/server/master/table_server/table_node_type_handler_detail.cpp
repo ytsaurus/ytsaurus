@@ -122,7 +122,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
 
     auto combinedAttributes = OverlayAttributeDictionaries(context.ExplicitAttributes, context.InheritedAttributes);
     bool dynamic = combinedAttributes->GetAndRemove<bool>("dynamic", false);
-    auto optionalTabletCellBundleName = combinedAttributes->FindAndRemove<std::string>("tablet_cell_bundle");
+    auto optionalTabletCellBundleName = context.ExplicitAttributes->FindAndRemove<std::string>(EInternedAttributeKey::TabletCellBundle.Unintern());
     bool optimizeForIsExplicit = context.ExplicitAttributes->Contains("optimize_for");
     auto optimizeFor = combinedAttributes->GetAndRemove<EOptimizeFor>(
         "optimize_for",
@@ -207,7 +207,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     }
 
     if (effectiveConstraints && effectiveTableSchema) {
-        ValidateConstrainedSchemaCreation(
+        ValidateConstrainedTableSchemaCreation(
             *schema,
             *effectiveConstraints);
     }
@@ -255,7 +255,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
 
     const auto& tabletManager = this->GetBootstrap()->GetTabletManager();
     auto* tabletCellBundle = optionalTabletCellBundleName
-        ? tabletManager->GetTabletCellBundleByNameOrThrow(*optionalTabletCellBundleName, true /*activeLifeStageOnly*/)
+        ? tabletManager->GetTabletCellBundleByNameOrThrow(*optionalTabletCellBundleName, /*activeLifeStageOnly*/ true)
         : tabletManager->GetDefaultTabletCellBundle();
 
     InternalizeMountConfigAttributes(combinedAttributes.Get());

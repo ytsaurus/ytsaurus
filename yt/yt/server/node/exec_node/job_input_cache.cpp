@@ -144,10 +144,9 @@ TJobInputCache::TJobInputCache(
         Bootstrap_->GetLocalDescriptor(),
         BlockCache_,
         MetaCache_,
-        /*nodeStatusDirectory*/ nullptr,
-        Bootstrap_->GetExecNodeBootstrap()->GetThrottler(EExecNodeThrottlerKind::JobIn),
+        MakeUniformPerCategoryThrottlerProvider(Bootstrap_->GetExecNodeBootstrap()->GetThrottler(EExecNodeThrottlerKind::JobIn)),
         Bootstrap_->GetReadRpsOutThrottler(),
-        /*mediumThrottler*/ GetUnlimitedThrottler(),
+        /*mediumThrottler*/ nullptr,
         /*trafficMeter*/ nullptr))
     , Profiler_(std::move(profiler))
 {

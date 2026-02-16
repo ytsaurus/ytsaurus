@@ -367,7 +367,15 @@ class YTEnvSetup(object):
     DELTA_RPC_DRIVER_CONFIG = {}
     DELTA_MASTER_CONFIG = {}
     DELTA_DYNAMIC_MASTER_CONFIG = {}
-    DELTA_NODE_CONFIG = {}
+    DELTA_NODE_CONFIG = {
+        "tablet_node": {
+            "changelogs": {
+                "writer": {
+                    "enable_checksums": True,
+                }
+            }
+        }
+    }
     DELTA_DYNAMIC_NODE_CONFIG = {}
     DELTA_CHAOS_NODE_CONFIG = {}
     DELTA_SCHEDULER_CONFIG = {}
@@ -2271,6 +2279,12 @@ class YTEnvSetup(object):
             config["node_tracker"]["forbid_maintenance_attribute_writes"] = True
 
         config.setdefault("chunk_service", {})
+
+        # COMPAT(cherepashka): YT-27231, drop after enable_location_indexes_in_data_node_heartbeats will be enabled by default.
+        if cls.combined_envs[cluster_index].yt_config.enable_multidaemon:
+            config["chunk_manager"]["data_node_tracker"]["use_location_indexes_in_sequoia_chunk_confirmation"] = False
+            config["chunk_manager"]["data_node_tracker"]["use_location_indexes_to_search_location_on_confirmation"] = False
+            config["chunk_manager"]["data_node_tracker"]["check_location_convergence_by_index_and_uuid_on_confirmation"] = False
         return config
 
     def _wait_for_dynamic_config(self, root_path, config, instances, driver=None):
@@ -2385,10 +2399,10 @@ class YTEnvSetup(object):
                     "state_freshness_time": 5000,
                     "statistics_freshness_time": 2000,
                     "performance_counters_freshness_time": 0,
-                    "state_fetch_period": 4000,
                     "statistics_fetch_period": 800,
                     "performance_counters_fetch_period": 300,
                     "fetch_planner_period": 100,
+                    "config_freshness_time": 200,
                 }
             }
 

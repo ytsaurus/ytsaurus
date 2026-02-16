@@ -38,6 +38,12 @@ type Config struct {
 	// Default value is 0.
 	BytesPerRowsBatch int `yaml:"bytes_per_rows_batch"`
 
+	// RowsBatchFlushTimeout specifies the maximum time to keep a partially filled rows batch before flushing.
+	// If 0, flush only when batch reaches BytesPerRowsBatch.
+	//
+	// Default value is 0 (disabled).
+	RowsBatchFlushTimeout time.Duration `yaml:"rows_batch_flush_timeout"`
+
 	// MaxCompressedRowBytes specifies the maximum size in bytes of a compressed row.
 	// Rows exceeding this limit will be skipped with reason 'compressed_too_large'.
 	// Must be <= 16 MiB (YT hard limit).
@@ -66,6 +72,9 @@ type OutputConfig struct {
 	// BytesPerRowsBatch specifies the minimum total size in bytes of compressed rows to batch before pushing to YT queue.
 	// If 0, each row is pushed immediately.
 	BytesPerRowsBatch int
+
+	// RowsBatchFlushTimeout specifies the maximum time to keep a partially filled rows batch before flushing.
+	RowsBatchFlushTimeout time.Duration
 
 	// MaxCompressedRowBytes specifies the maximum size in bytes of a compressed row.
 	// Rows exceeding this limit will be skipped.
@@ -102,18 +111,6 @@ func NewOutput(ctx context.Context, config OutputConfig) (out pipelines.Output[p
 		return
 	}
 
-	createSessionResult, err := yc.CreateQueueProducerSession(
-		ctx,
-		ypath.Path(config.ProducerPath),
-		ypath.Path(config.QueuePath),
-		config.SessionID,
-		&yt.CreateQueueProducerSessionOptions{},
-	)
-	if err != nil {
-		err = fmt.Errorf("cannot create queue session: %w", err)
-		return
-	}
-
 	var compressor *compressor
 	if config.CompressionCodec != "" {
 		compressor, err = newCompressor(config.BytesPerRow, config.CompressionCodec)
@@ -128,12 +125,12 @@ func NewOutput(ctx context.Context, config OutputConfig) (out pipelines.Output[p
 		queuePath:    ypath.Path(config.QueuePath),
 		producerPath: ypath.Path(config.ProducerPath),
 		sessionID:    config.SessionID,
-		epoch:        createSessionResult.Epoch,
 
 		compressor: compressor,
 
 		bytesPerRowsBatch:     config.BytesPerRowsBatch,
 		maxCompressedRowBytes: maxCompressedRowBytes,
+		rowsBatchFlushTimeout: config.RowsBatchFlushTimeout,
 
 		logger:       config.Logger,
 		onSent:       config.OnSent,
@@ -157,11 +154,12 @@ type ytRowMeta struct {
 }
 
 type output struct {
-	yc           yt.Client
-	queuePath    ypath.Path
-	producerPath ypath.Path
-	sessionID    string
-	epoch        int64
+	yc             yt.Client
+	queuePath      ypath.Path
+	producerPath   ypath.Path
+	sessionID      string
+	epoch          int64
+	sessionCreated bool
 
 	compressor *compressor
 
@@ -169,10 +167,12 @@ type output struct {
 
 	bytesPerRowsBatch     int
 	maxCompressedRowBytes int
-	toCompress            chan sendItem
-	toSend                chan sendItem
-	compressorDone        chan struct{}
-	senderDone            chan struct{}
+	rowsBatchFlushTimeout time.Duration
+
+	toCompress     chan sendItem
+	toSend         chan sendItem
+	compressorDone chan struct{}
+	senderDone     chan struct{}
 
 	onSent       func(meta pipelines.RowMeta)
 	onSkippedRow func(data io.WriterTo, info pipelines.SkippedRowInfo)
@@ -224,26 +224,79 @@ func (o *output) compressorLoop() {
 }
 
 func (o *output) senderLoop() {
+	defer close(o.senderDone)
+
 	var batch []sendItem
 	var totalRowsBytes int
 
-	for item := range o.toSend {
-		batch = append(batch, item)
-		totalRowsBytes += len(item.row.Value)
-		if totalRowsBytes >= o.bytesPerRowsBatch {
-			o.flushBatch(batch)
-			batch = batch[:0]
-			totalRowsBytes = 0
+	var timer *time.Timer
+	var timerCh <-chan time.Time
+	if o.rowsBatchFlushTimeout > 0 {
+		timer = time.NewTimer(o.rowsBatchFlushTimeout)
+		timer.Stop()
+		timerCh = timer.C
+	}
+
+	flush := func() {
+		o.flushBatch(batch)
+		batch = batch[:0]
+		totalRowsBytes = 0
+		if timer != nil {
+			timer.Stop()
 		}
 	}
 
-	o.flushBatch(batch)
-	close(o.senderDone)
+	for {
+		select {
+		case item, ok := <-o.toSend:
+			if !ok {
+				flush()
+				return
+			}
+			if len(batch) == 0 && timer != nil {
+				timer.Reset(o.rowsBatchFlushTimeout)
+			}
+			batch = append(batch, item)
+			totalRowsBytes += len(item.row.Value)
+			if totalRowsBytes >= o.bytesPerRowsBatch {
+				flush()
+			}
+		case <-timerCh:
+			flush()
+		}
+	}
+}
+
+func (o *output) createSession(ctx context.Context) {
+	var result *yt.CreateQueueProducerSessionResult
+	retry(
+		func() error {
+			var err error
+			result, err = o.yc.CreateQueueProducerSession(
+				ctx,
+				o.producerPath,
+				o.queuePath,
+				o.sessionID,
+				&yt.CreateQueueProducerSessionOptions{},
+			)
+			return err
+		},
+		func(err error) {
+			o.logger.Warn("Cannot create queue producer session, will retry", "error", err)
+		},
+	)
+	o.epoch = result.Epoch
+	o.sessionCreated = true
+	o.logger.Info("Queue producer session created", "session_id", o.sessionID, "epoch", o.epoch)
 }
 
 func (o *output) flushBatch(batch []sendItem) {
 	if len(batch) == 0 {
 		return
+	}
+
+	if !o.sessionCreated {
+		o.createSession(batch[len(batch)-1].ctx)
 	}
 
 	rows := make([]any, len(batch))
@@ -308,6 +361,16 @@ func (o *output) Close(ctx context.Context) {
 	close(o.toCompress)
 	<-o.compressorDone
 	<-o.senderDone
+	if o.sessionCreated {
+		o.removeSession(ctx)
+	}
+	o.yc.Stop()
+	if o.compressor != nil {
+		o.compressor.close()
+	}
+}
+
+func (o *output) removeSession(ctx context.Context) {
 	retry(
 		func() error {
 			return o.yc.RemoveQueueProducerSession(
@@ -318,12 +381,9 @@ func (o *output) Close(ctx context.Context) {
 				&yt.RemoveQueueProducerSessionOptions{},
 			)
 		},
-		func(err error) { o.logger.Warn("cannot remove queue producer session, will retry", "error", err) },
+		func(err error) { o.logger.Warn("Cannot remove queue producer session, will retry", "error", err) },
 	)
-	o.yc.Stop()
-	if o.compressor != nil {
-		o.compressor.close()
-	}
+	o.logger.Info("Queue producer session removed", "session_id", o.sessionID)
 }
 
 func retry(action func() error, errHandler func(error)) {

@@ -198,14 +198,14 @@ public:
         , Options_(std::move(options))
         , Client_(chunkReaderHost->Client)
         , NodeDirectory_(Client_->GetNativeConnection()->GetNodeDirectory())
+        , NodeStatusDirectory_(Client_->GetNativeConnection()->GetNodeStatusDirectory())
         , MediumDirectory_(Client_->GetNativeConnection()->GetMediumDirectory())
         , LocalDescriptor_(chunkReaderHost->LocalDescriptor)
         , ChunkId_(chunkId)
         , BlockCache_(chunkReaderHost->BlockCache)
         , ChunkMetaCache_(chunkReaderHost->ChunkMetaCache)
         , TrafficMeter_(chunkReaderHost->TrafficMeter)
-        , NodeStatusDirectory_(chunkReaderHost->NodeStatusDirectory)
-        , BandwidthThrottler_(chunkReaderHost->BandwidthThrottler)
+        , BandwidthThrottlerProvider_(chunkReaderHost->BandwidthThrottlerProvider)
         , RpsThrottler_(chunkReaderHost->RpsThrottler)
         , MediumThrottler_(chunkReaderHost->MediumThrottler)
         , Networks_(Client_->GetNativeConnection()->GetNetworks())
@@ -302,14 +302,14 @@ private:
     const TRemoteReaderOptionsPtr Options_;
     const NNative::IClientPtr Client_;
     const TNodeDirectoryPtr NodeDirectory_;
+    const INodeStatusDirectoryPtr NodeStatusDirectory_;
     const TMediumDirectoryPtr MediumDirectory_;
     const TNodeDescriptor LocalDescriptor_;
     const TChunkId ChunkId_;
     const IBlockCachePtr BlockCache_;
     const IClientChunkMetaCachePtr ChunkMetaCache_;
     const TTrafficMeterPtr TrafficMeter_;
-    const INodeStatusDirectoryPtr NodeStatusDirectory_;
-    const IThroughputThrottlerPtr BandwidthThrottler_;
+    const TPerCategoryThrottlerProvider BandwidthThrottlerProvider_;
     const IThroughputThrottlerPtr RpsThrottler_;
     const IThroughputThrottlerPtr MediumThrottler_;
     const TNetworkPreferenceList Networks_;
@@ -1094,13 +1094,14 @@ protected:
             peerAddresses.push_back(*address);
         }
 
-        auto nodeSuspicionMarkTimes = NodeStatusDirectory_
+        auto nodeIdToSuspicionMarkTime = NodeStatusDirectory_
             ? NodeStatusDirectory_->RetrieveSuspicionMarkTimes(nodeIds)
-            : std::vector<std::optional<TInstant>>();
+            : THashMap<TNodeId, TInstant>();
         for (int i = 0; i < std::ssize(peerDescriptors); ++i) {
-            auto suspicionMarkTime = NodeStatusDirectory_
-                ? nodeSuspicionMarkTimes[i]
-                : std::nullopt;
+            auto it = nodeIdToSuspicionMarkTime.find(nodeIds[i]);
+            auto suspicionMarkTime = it == nodeIdToSuspicionMarkTime.end()
+                ? std::nullopt
+                : std::optional(it->second);
             AddPeer(
                 replicas[i],
                 std::move(peerAddresses[i]),
@@ -3062,11 +3063,12 @@ TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
         return MakeFuture<std::vector<TBlock>>({});
     }
 
+    auto bandwidthThrottler = BandwidthThrottlerProvider_(options.ClientOptions.WorkloadDescriptor.Category);
     auto session = New<TReadBlockSetSession>(
         this,
         options,
         blockIndexes,
-        BandwidthThrottler_,
+        std::move(bandwidthThrottler),
         RpsThrottler_,
         MediumThrottler_);
     return session->Run();
@@ -3357,12 +3359,13 @@ TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
         return MakeFuture<std::vector<TBlock>>({});
     }
 
+    auto bandwidthThrottler = BandwidthThrottlerProvider_(options.ClientOptions.WorkloadDescriptor.Category);
     auto session = New<TReadBlockRangeSession>(
         this,
         options,
         firstBlockIndex,
         blockCount,
-        BandwidthThrottler_,
+        std::move(bandwidthThrottler),
         RpsThrottler_,
         MediumThrottler_);
     return session->Run();
@@ -3629,9 +3632,11 @@ TFuture<TRefCountedChunkMetaPtr> TReplicationReader::GetMeta(
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
+    auto bandwithThottler = BandwidthThrottlerProvider_(options.ClientOptions.WorkloadDescriptor.Category);
     auto callback = BIND([
         this,
         this_ = MakeStrong(this),
+        bandwithThottler = std::move(bandwithThottler),
         options,
         partitionTags
     ] (const std::optional<std::vector<int>>& extensionTags) {
@@ -3640,7 +3645,7 @@ TFuture<TRefCountedChunkMetaPtr> TReplicationReader::GetMeta(
             options,
             partitionTags,
             extensionTags,
-            BandwidthThrottler_,
+            bandwithThottler,
             RpsThrottler_,
             MediumThrottler_)
             ->Run();
@@ -4067,13 +4072,14 @@ TFuture<TSharedRef> TReplicationReader::LookupRows(
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
+    auto bandwidthThrottler = BandwidthThrottlerProvider_(options->ChunkReadOptions.WorkloadDescriptor.Category);
     auto session = New<TLookupRowsSession>(
         this,
         std::move(options),
         std::move(lookupKeys),
         estimatedSize,
         codecId,
-        BandwidthThrottler_,
+        std::move(bandwidthThrottler),
         RpsThrottler_,
         MediumThrottler_,
         std::move(sessionInvoker));
@@ -4095,9 +4101,9 @@ public:
         IThroughputThrottlerPtr rpsThrottler,
         IThroughputThrottlerPtr mediumThrottler)
         : UnderlyingReader_(std::move(underlyingReader))
-        , BandwidthThrottler_(std::move(bandwidthThrottler))
-        , RpsThrottler_(std::move(rpsThrottler))
-        , MediumThrottler_(std::move(mediumThrottler))
+        , BandwidthThrottler_(bandwidthThrottler ? std::move(bandwidthThrottler) : GetUnlimitedThrottler())
+        , RpsThrottler_(rpsThrottler ? std::move(rpsThrottler) : GetUnlimitedThrottler())
+        , MediumThrottler_(mediumThrottler ? std::move(mediumThrottler) : GetUnlimitedThrottler())
     { }
 
     TFuture<std::vector<TBlock>> ReadBlocks(

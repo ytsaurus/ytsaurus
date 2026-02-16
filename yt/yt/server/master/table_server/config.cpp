@@ -4,12 +4,6 @@ namespace NYT::NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TYsonTableSchemaCacheConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("cache_table_schema_after_convertion_to_yson", &TThis::CacheTableSchemaAfterConvertionToYson)
-        .Default(false);
-}
-
 void TDynamicTableManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_schema_memory_usage_to_log", &TThis::MaxSchemaMemoryUsageToLog)
@@ -21,7 +15,7 @@ void TDynamicTableManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("yson_table_schema_cache", &TThis::YsonTableSchemaCache)
         .DefaultNew();
     registrar.Parameter("column_to_constraint_log_limit", &TThis::ColumnToConstraintLogLimit)
-        .Default(5000);
+        .Default(50);
     registrar.Parameter("enable_column_constraints_for_tables", &TThis::EnableColumnConstraintsForTables)
         .Default(false);
 

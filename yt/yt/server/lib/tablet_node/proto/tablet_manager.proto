@@ -511,6 +511,7 @@ message TReqMountHunkTablet
     required NYT.NProto.TGuid master_avenue_endpoint_id = 7;
     required THunkStorageSettings hunk_storage_settings = 3;
     repeated NYT.NProto.TGuid store_ids = 6;
+    optional string path = 8;
 
     reserved 4, 5;
 }

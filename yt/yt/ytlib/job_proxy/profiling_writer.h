@@ -8,12 +8,21 @@
 
 namespace NYT::NJobProxy {
 
+struct TWriterTimingStatistics
+{
+    TDuration WriteTime = TDuration::Zero();
+    TDuration WaitTime = TDuration::Zero();
+    TDuration IdleTime = TDuration::Zero();
+    TDuration CloseTime = TDuration::Zero();
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IProfilingMultiChunkWriter
     : public NTableClient::ISchemalessMultiChunkWriter
 {
     virtual std::optional<TDuration> GetTimeToFirstBatch() const = 0;
+    virtual TWriterTimingStatistics GetTimingStatistics() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IProfilingMultiChunkWriter)

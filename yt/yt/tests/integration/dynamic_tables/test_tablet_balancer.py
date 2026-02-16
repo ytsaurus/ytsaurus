@@ -6,7 +6,7 @@ from yt_commands import (
     authors, set, get, ls, update, wait, sync_mount_table, sync_reshard_table,
     insert_rows, sync_create_cells, sync_flush_table, remove, get_driver,
     sync_compact_table, wait_for_tablet_state, create_tablet_cell_bundle,
-    sync_unmount_table, print_debug, select_rows,
+    sync_unmount_table, print_debug, select_rows, WaitFailed,
     create, create_table_replica, sync_enable_table_replica)
 
 from yt.common import update_inplace
@@ -101,6 +101,9 @@ class TestStandaloneTabletBalancerBase:
             "allowed_replica_clusters": clusters,
         })
 
+    def _wait_until_config_change_applied(self):
+        sleep(self._get_state_freshness_time())
+
     @classmethod
     def modify_tablet_balancer_config(cls, config, multidaemon_config):
         update_inplace(config, {
@@ -111,6 +114,7 @@ class TestStandaloneTabletBalancerBase:
             "election_manager": {
                 "transaction_ping_period": 100,
                 "leader_cache_update_period": 100,
+                "lock_acquisition_period": 100,
             }
         })
         if "logging" in config:
@@ -133,6 +137,7 @@ class TestStandaloneTabletBalancerBase:
         config = get(cls.config_path, driver=driver)
         update_inplace(config, patch)
         set(cls.config_path, config, driver=driver)
+        effective_config = None
 
         instances = ls(cls.root_path + "/instances", driver=driver)
 
@@ -144,7 +149,12 @@ class TestStandaloneTabletBalancerBase:
                     return False
             return True
 
-        wait(config_updated_on_all_instances)
+        try:
+            wait(config_updated_on_all_instances)
+        except WaitFailed:
+            print_debug("Effective config:", effective_config)
+            print_debug("Expected config:", update(effective_config, config))
+            raise
 
     def setup_method(self, method):
         super(TestStandaloneTabletBalancerBase, self).setup_method(method)
@@ -425,6 +435,9 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         update_inplace(config, {
             "tablet_balancer": {
                 "period" : 5000,
+                # Prevent cross-test interference when waiting for perf counter recalculation
+                # on a bundle with the same (default) name.
+                "parameterized_timeout": 5000,
             },
         })
 
@@ -437,6 +450,7 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
             "enable_auto_tablet_move": False,
         }
         set("//tmp/t/@tablet_balancer_config", config)
+        self._wait_until_config_change_applied()
 
         self._set_default_metric("double([/statistics/uncompressed_data_size])")
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_parameterized_by_default", True)
@@ -466,6 +480,7 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
             "enable_auto_tablet_move": False,
         }
         set("//tmp/t/@tablet_balancer_config", config)
+        self._wait_until_config_change_applied()
 
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_parameterized_by_default", True)
 
@@ -494,6 +509,7 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
 
         self._create_sorted_table("//tmp/t")
         set("//tmp/t/@tablet_balancer_config/enable_auto_reshard", False)
+        self._wait_until_config_change_applied()
 
         parameterized_balancing_metric = "double([/statistics/uncompressed_data_size])"
         self._set_default_metric(parameterized_balancing_metric)
@@ -643,13 +659,13 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         assert get("//tmp/t/@tablet_count") == 1
 
         set("//tmp/t/@tablet_balancer_config/enable_auto_reshard", False)
-        self._wait_full_iteration()
+        self._wait_until_config_change_applied()
 
         insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(400)])
         sync_flush_table("//tmp/t")
 
         set("//tmp/t/@tablet_balancer_config/enable_auto_reshard", True)
-        self._wait_full_iteration()
+        self._wait_until_config_change_applied()
 
         wait(lambda: get("//tmp/t/@tablet_count") == 2)
         remove("//sys/tablet_balancer/config/pick_reshard_pivot_keys")
@@ -931,6 +947,7 @@ class TestReplicaBalancing(TestStandaloneTabletBalancerBase, TestStatisticsRepor
 
         create("replicated_table", "//tmp/replicated", attributes={"schema": schema, "dynamic": True}, driver=self.remote_driver)
         self._disable_table_balancing("//tmp/replicated", driver=self.remote_driver)
+        self._wait_until_config_change_applied()
 
         modes = ["async", "sync"]
         replicas = []
@@ -1147,6 +1164,7 @@ class TestMultiClusterTabletBalancer(TestStandaloneTabletBalancerBase, TestStati
 
         create("replicated_table", "//tmp/replicated", attributes={"schema": schema, "dynamic": True})
         self._disable_table_balancing("//tmp/replicated")
+        self._wait_until_config_change_applied()
 
         replica_id = create_table_replica(
             "//tmp/replicated",

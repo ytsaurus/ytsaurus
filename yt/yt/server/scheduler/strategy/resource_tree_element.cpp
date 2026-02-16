@@ -106,7 +106,7 @@ void TResourceTreeElement::SetSpecifiedResourceLimits(
     }
 }
 
-bool TResourceTreeElement::AreSpecifiedResourceLimitsViolated() const
+bool TResourceTreeElement::AreSpecifiedResourceLimitsViolated(bool considerPreemptedPrecommited) const
 {
     if (!ResourceLimitsSpecified_) {
         return false;
@@ -114,7 +114,7 @@ bool TResourceTreeElement::AreSpecifiedResourceLimitsViolated() const
 
     auto guard = ReaderGuard(ResourceUsageLock_);
 
-    return !Dominates(*SpecifiedResourceLimits_, ResourceUsage_);
+    return AreSpecifiedResourceLimitsViolatedUnsafe(considerPreemptedPrecommited);
 }
 
 bool TResourceTreeElement::AreResourceLimitsSpecified() const
@@ -178,6 +178,55 @@ bool TResourceTreeElement::IncreaseLocalResourceUsagePrecommitUnsafe(
     return true;
 }
 
+bool TResourceTreeElement::IncreaseLocalPreemptedResourceUsagePrecommit(const TJobResources& delta)
+{
+    if (Kind_ != EResourceTreeElementKind::Operation && !ResourceLimitsSpecified_) {
+        return true;
+    }
+
+    auto guard = WriterGuard(ResourceUsageLock_);
+
+    return IncreaseLocalPreemptedResourceUsagePrecommitUnsafe(delta);
+}
+
+bool TResourceTreeElement::IncreaseLocalPreemptedResourceUsagePrecommitUnsafe(const TJobResources& delta)
+{
+    if (Kind_ != EResourceTreeElementKind::Operation && !ResourceLimitsSpecified_) {
+        return true;
+    }
+
+    if (!Alive_) {
+        return false;
+    }
+
+    ResourceTree_->IncrementUsageLockWriteCount();
+
+    PreemptedResourceUsagePrecommit_ += delta;
+
+    YT_VERIFY(Dominates(ResourceUsage_, PreemptedResourceUsagePrecommit_));
+
+    return true;
+}
+
+void TResourceTreeElement::ResetLocalPreemptedResourceUsagePrecommit()
+{
+    if (Kind_ != EResourceTreeElementKind::Operation && !ResourceLimitsSpecified_) {
+        return;
+    }
+
+    auto guard = WriterGuard(ResourceUsageLock_);
+
+    if (!Alive_) {
+        return;
+    }
+
+    ResourceTree_->IncrementUsageLockWriteCount();
+
+    PreemptedResourceUsagePrecommit_ = TJobResources();
+
+    return;
+}
+
 bool TResourceTreeElement::CommitLocalResourceUsage(
     const TJobResources& resourceUsageDelta,
     const TJobResources& precommittedResources)
@@ -205,6 +254,32 @@ bool TResourceTreeElement::CommitLocalResourceUsage(
     return true;
 }
 
+bool TResourceTreeElement::CommitLocalPreemptedResourceUsage(const TJobResources& delta)
+{
+    if (!ResourceLimitsSpecified_ && Kind_ != EResourceTreeElementKind::Operation) {
+        return true;
+    }
+
+    auto guard = WriterGuard(ResourceUsageLock_);
+
+    if (!Alive_) {
+        return false;
+    }
+
+    ResourceTree_->IncrementUsageLockWriteCount();
+
+    ResourceUsage_ -= delta;
+    if (Kind_ == EResourceTreeElementKind::Operation || ResourceLimitsSpecified_) {
+        PreemptedResourceUsagePrecommit_ -= delta;
+    }
+
+    // Sanity check.
+    YT_VERIFY(Dominates(ResourceUsage_, TJobResources()));
+    YT_VERIFY(Dominates(PreemptedResourceUsagePrecommit_, TJobResources()));
+
+    return true;
+}
+
 bool TResourceTreeElement::IncreaseLocalResourceUsage(const TJobResources& delta)
 {
     if (!ResourceLimitsSpecified_ && Kind_ != EResourceTreeElementKind::Operation) {
@@ -226,7 +301,10 @@ bool TResourceTreeElement::IncreaseLocalResourceUsage(const TJobResources& delta
     return true;
 }
 
-void TResourceTreeElement::ReleaseResources(TJobResources* usagePrecommit, TJobResources* usage)
+void TResourceTreeElement::ReleaseResources(
+    TJobResources* usagePrecommit,
+    TJobResources* usage,
+    TJobResources* preemptedUsagePrecommit)
 {
     YT_VERIFY(Kind_ == EResourceTreeElementKind::Operation);
 
@@ -236,9 +314,11 @@ void TResourceTreeElement::ReleaseResources(TJobResources* usagePrecommit, TJobR
 
     *usagePrecommit = ResourceUsagePrecommit_;
     *usage = ResourceUsage_;
+    *preemptedUsagePrecommit = PreemptedResourceUsagePrecommit_;
 
     ResourceUsagePrecommit_ = TJobResources();
     ResourceUsage_ = TJobResources();
+    PreemptedResourceUsagePrecommit_ = TJobResources();
 }
 
 TJobResources TResourceTreeElement::GetResourceUsagePrecommit()
@@ -250,6 +330,30 @@ TJobResources TResourceTreeElement::GetResourceUsagePrecommit()
     ResourceTree_->IncrementUsageLockReadCount();
 
     return ResourceUsagePrecommit_;
+}
+
+TJobResources TResourceTreeElement::GetPreemptedResourceUsagePrecommit()
+{
+    YT_VERIFY(ResourceLimitsSpecified_ || Kind_ == EResourceTreeElementKind::Operation);
+
+    auto guard = ReaderGuard(ResourceUsageLock_);
+
+    ResourceTree_->IncrementUsageLockReadCount();
+
+    return PreemptedResourceUsagePrecommit_;
+}
+
+bool TResourceTreeElement::AreSpecifiedResourceLimitsViolatedUnsafe(bool considerPreemptedPrecommited) const
+{
+    if (!ResourceLimitsSpecified_) {
+        return false;
+    }
+
+    if (considerPreemptedPrecommited) {
+        return !Dominates(*SpecifiedResourceLimits_, ResourceUsage_ - PreemptedResourceUsagePrecommit_);
+    }
+
+    return !Dominates(*SpecifiedResourceLimits_, ResourceUsage_);
 }
 
 EResourceTreeIncreaseResult TResourceTreeElement::IncreaseLocalResourceUsagePrecommitWithCheck(

@@ -211,7 +211,8 @@ class ProfilerFactory(object):
     def at_tablet_node(self, table, tablet_cell_bundle="default", fixed_tags=None):
         if fixed_tags is None:
             fixed_tags = {}
-        fixed_tags["tablet_cell_bundle"] = tablet_cell_bundle
+        if "tablet_cell_bundle" not in fixed_tags:
+            fixed_tags["tablet_cell_bundle"] = tablet_cell_bundle
 
         tablets = self.yt_client.get(table + "/@tablets")
         address = self.yt_client.get("#{0}/@peers/0/address".format(tablets[0]["cell_id"]))

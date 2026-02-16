@@ -44,7 +44,8 @@ namespace {
 THashMap<TObjectId, IAttributeDictionaryPtr> FetchAttributesByCellTags(
     const NApi::NNative::IClientPtr& client,
     const std::vector<std::pair<TObjectId, TCellTag>>& objectIdsWithCellTags,
-    const std::vector<std::string>& attributeKeys)
+    const std::vector<std::string>& attributeKeys,
+    const IMulticellThrottlerPtr& throttler)
 {
     // TODO(alexelex): Receive list of error codes to skip them.
 
@@ -61,7 +62,7 @@ THashMap<TObjectId, IAttributeDictionaryPtr> FetchAttributesByCellTags(
         it->second.Request->AddRequest(req, ToString(objectId));
     }
 
-    ExecuteRequestsToCellTags(&batchRequests);
+    ExecuteRequestsToCellTags(&batchRequests, throttler);
 
     THashMap<TObjectId, IAttributeDictionaryPtr> responses;
     for (const auto& [objectId, cellTag] : objectIdsWithCellTags) {
@@ -90,6 +91,16 @@ TInstant TruncateToMinutes(TInstant t)
 
 } // namespace
 
+i64 TCellTagRequest::GetSize() const
+{
+    return Request->table_ids_size();
+}
+
+i64 TCellTagBatch::GetSize() const
+{
+    return Request->GetSize();
+}
+
 THashMap<TTableReplicaId, ETableReplicaMode> FetchChaosTableReplicaModes(
     const NNative::IClientPtr& client,
     const THashSet<TTableReplicaId>& objectIds)
@@ -117,14 +128,15 @@ THashMap<TTableReplicaId, ETableReplicaMode> FetchChaosTableReplicaModes(
 THashMap<TObjectId, IAttributeDictionaryPtr> FetchAttributes(
     const NNative::IClientPtr& client,
     const THashSet<TObjectId>& objectIds,
-    const std::vector<std::string>& attributeKeys)
+    const std::vector<std::string>& attributeKeys,
+    const IMulticellThrottlerPtr& throttler)
 {
     std::vector<std::pair<TObjectId, TCellTag>> objectIdsWithCellTags;
     objectIdsWithCellTags.reserve(std::ssize(objectIds));
     for (auto objectId : objectIds) {
         objectIdsWithCellTags.emplace_back(objectId, CellTagFromId(objectId));
     }
-    return FetchAttributesByCellTags(client, objectIdsWithCellTags, attributeKeys);
+    return FetchAttributesByCellTags(client, objectIdsWithCellTags, attributeKeys, throttler);
 }
 
 THashMap<TCellTag, TCellTagRequest> FetchTableAttributes(
@@ -132,6 +144,7 @@ THashMap<TCellTag, TCellTagRequest> FetchTableAttributes(
     const THashSet<TTableId>& tableIds,
     const THashSet<TTableId>& tableIdsToFetchPivotKeys,
     const THashMap<TTableId, TCellTag>& tableIdToCellTag,
+    const IMulticellThrottlerPtr& throttler,
     std::function<void(const TMasterTabletServiceProxy::TReqGetTableBalancingAttributesPtr&)> prepareRequestProto)
 {
     THashMap<TCellTag, TCellTagRequest> batchRequests;
@@ -150,7 +163,7 @@ THashMap<TCellTag, TCellTagRequest> FetchTableAttributes(
         }
     }
 
-    ExecuteRequestsToCellTags(&batchRequests);
+    ExecuteRequestsToCellTags(&batchRequests, throttler);
     return batchRequests;
 }
 

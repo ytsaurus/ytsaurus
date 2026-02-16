@@ -18,7 +18,7 @@
 #include <yt/yt/library/query/engine_api/position_independent_value_transfer.h>
 #include <yt/yt/library/query/engine_api/top_collector.h>
 
-#include <yt/yt/library/query/misc/alloc.h>
+#include <yt/yt/library/query/misc/allocator.h>
 
 #include <yt/yt/client/security_client/acl.h>
 #include <yt/yt/client/security_client/helpers.h>
@@ -3326,6 +3326,11 @@ ui64 HyperLogLogGetFingerprint(TValue* value)
     return NTableClient::GetFarmFingerprint(valueAtHost);
 }
 
+ui64 UniqGetFingerprint(TValue* valueBegin, int valueCount)
+{
+    return GetFarmFingerprint(valueBegin, valueBegin + valueCount);
+}
+
 DEFINE_HLL(7)
 DEFINE_HLL(8)
 DEFINE_HLL(9)
@@ -4731,6 +4736,7 @@ REGISTER_ROUTINE(StringToInt64);
 REGISTER_ROUTINE(StringToUint64);
 REGISTER_ROUTINE(StringToDouble);
 REGISTER_ROUTINE(HyperLogLogGetFingerprint);
+REGISTER_ROUTINE(UniqGetFingerprint);
 // COMPAT(dtorilov): Remove after 25.4.
 // COMPAT BEGIN {
 REGISTER_ROUTINE(HyperLogLogAllocate);

@@ -2,26 +2,25 @@
 #include "prepared_meta.h"
 #include "read_span.h"
 
-#include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
-
 #include <yt/yt/ytlib/chunk_client/block.h>
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/block_fetcher.h>
 #include <yt/yt/ytlib/chunk_client/block_id.h>
-
 #include <yt/yt/ytlib/chunk_client/data_source.h>
+
+#include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/yt/ytlib/table_client/helpers.h>
-#include <yt/yt/client/table_client/private.h>
 
 #include <yt/yt/client/table_client/config.h>
+#include <yt/yt/client/table_client/private.h>
 
 #include <yt/yt/core/concurrency/periodic_yielder.h>
 
-#include <yt/yt/core/misc/range_formatters.h>
+#include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/library/numeric/algorithm_helpers.h>
 
-#include <yt/yt/core/profiling/timing.h>
+#include <library/cpp/yt/misc/range_formatters.h>
 
 namespace NYT::NColumnarChunkFormat {
 
@@ -385,8 +384,8 @@ private:
     TFuture<void> ReadyEvent_ = OKFuture;
 
     // TODO(lukyan): Move tracing to block fetcher or underlying chunk reader.
-    TTraceContextPtr TraceContext_;
-    TTraceContextFinishGuard FinishGuard_;
+    const TTraceContextPtr TraceContext_;
+    const TTraceContextFinishGuard FinishGuard_;
 
     std::vector<ui32> BlockCountStatistics_;
     std::vector<ui64> BlockSizeStatistics_;
@@ -406,7 +405,7 @@ TBlockManagerFactory CreateAsyncBlockWindowManagerFactory(
         TRange<TSpanMatching> windowsList,
         TRange<ui32> blockUncompressedSizes
     ) -> std::unique_ptr<IBlockManager> {
-        TTraceContextPtr traceContext{};
+        TTraceContextPtr traceContext;
 
         if (dataSource) {
             traceContext = CreateTraceContextFromCurrent("ChunkReader");
@@ -683,18 +682,18 @@ private:
     // Can keep TRange<ui32> but vector is more safe.
     std::vector<ui32> BlockUncompressedSizes_;
 
-    double CompressionRatio_;
+    const double CompressionRatio_;
     const IChunkReaderPtr UnderlyingReader_;
     const IInvokerPtr SessionInvoker_;
-    IBlockCachePtr BlockCache_;
+    const IBlockCachePtr BlockCache_;
     NCompression::ICodec* const Codec_;
 
     TFuture<std::vector<NChunkClient::TBlock>> FetchedBlocks_;
     TFuture<void> ReadyEvent_ = OKFuture;
 
     // TODO(lukyan): Move tracing to block fetcher or underlying chunk reader.
-    TTraceContextPtr TraceContext_;
-    TTraceContextFinishGuard FinishGuard_;
+    const TTraceContextPtr TraceContext_;
+    const TTraceContextFinishGuard FinishGuard_;
 
     std::vector<TSharedRef> UsedBlocks_;
 
@@ -720,7 +719,7 @@ TBlockManagerFactory CreateSimpleAsyncBlockWindowManagerFactory(
         TRange<TSpanMatching> /*windowsList*/,
         TRange<ui32> blockUncompressedSizes
     ) -> std::unique_ptr<IBlockManager> {
-        TTraceContextPtr traceContext{};
+        TTraceContextPtr traceContext;
 
         if (dataSource) {
             traceContext = CreateTraceContextFromCurrent("ChunkReader");

@@ -29,6 +29,7 @@ import yt.yson as yson
 
 from copy import deepcopy
 import time
+import random
 
 import builtins
 
@@ -144,6 +145,131 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
         assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+
+    @authors("akozhikhov")
+    def test_timestamped_lookup(self):
+        sync_create_cells(1)
+        SCHEMA_WITH_VALUES = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value1", "type": "string", "max_inline_hunk_size": 5},
+            {"name": "value2", "type": "string", "max_inline_hunk_size": 10},
+        ]
+        self._create_table(schema=SCHEMA_WITH_VALUES)
+
+        sync_mount_table("//tmp/t")
+        keys = [{"key": i} for i in range(10)]
+        rows = [{"key": i, "value1": "value1" + str(i) * 10, "value2": "value2" + str(i)} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        result = lookup_rows("//tmp/t", keys, with_timestamps=True)
+        timestamp = result[0]["$timestamp:value1"]
+
+        rows1 = [{"key": i, "value1": "value1" + str(i) * 10} for i in range(10)]
+        rows2 = [{"key": i, "value2": "value2" + str(i)} for i in range(10)]
+        rows3 = [{"key": i, "value1": "value1" + str(i) * 10} for i in range(10)]
+        for index in range(10):
+            rows[index]["$timestamp:value1"] = timestamp
+            rows[index]["$timestamp:value2"] = timestamp
+            rows1[index]["$timestamp:value1"] = timestamp
+            rows2[index]["$timestamp:value2"] = timestamp
+            rows3[index]["$timestamp:value2"] = timestamp
+
+        assert_items_equal(result, rows)
+
+        def _check(column_names, expected_result):
+            result = lookup_rows("//tmp/t", keys, with_timestamps=True, column_names=column_names)
+            assert_items_equal(result, expected_result)
+
+        _check(["key", "$timestamp:value1", "value1"], rows1)
+        _check(["key", "$timestamp:value2", "value2"], rows2)
+        _check(["key", "value2", "$timestamp:value2"], rows2)
+        _check(["key", "value1", "$timestamp:value2"], rows3)
+        _check(["key", "$timestamp:value2", "value1"], rows3)
+        for index in range(10):
+            rows3[index]["value2"] = "value2" + str(index)
+        _check(["key", "value2", "$timestamp:value2", "value1"], rows3)
+
+    @authors("akozhikhov")
+    def test_timestamped_select(self):
+        sync_create_cells(1)
+        SCHEMA_WITH_VALUES = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value1", "type": "string", "max_inline_hunk_size": 5},
+            {"name": "value2", "type": "string", "max_inline_hunk_size": 10},
+        ]
+        self._create_table(schema=SCHEMA_WITH_VALUES)
+
+        sync_mount_table("//tmp/t")
+        rows = [{"key": i, "value1": "value1" + str(i) * 10, "value2": "value2" + str(i)} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        result = lookup_rows("//tmp/t", [{"key": 0}], with_timestamps=True)
+        timestamp = result[0]["$timestamp:value1"]
+
+        rows1 = [{"value1": "value1" + str(i) * 10} for i in range(10)]
+        rows2 = [{"value2": "value2" + str(i)} for i in range(10)]
+        rows3 = [{"key": i, "value1": "value1" + str(i) * 10} for i in range(10)]
+        for index in range(10):
+            rows[index]["$timestamp:value1"] = timestamp
+            rows[index]["$timestamp:value2"] = timestamp
+            rows1[index]["$timestamp:value1"] = timestamp
+            rows2[index]["$timestamp:value2"] = timestamp
+            rows3[index]["$timestamp:value2"] = timestamp
+
+        def _check(columns, expected_result):
+            result = select_rows(columns + " from [//tmp/t]", with_timestamps=True)
+            assert_items_equal(result, expected_result)
+            result = select_rows(columns + " from [//tmp/t] where key in (1, 3, 5, 7, 9)", with_timestamps=True)
+            assert_items_equal(result, expected_result[1::2])
+
+        _check("[$timestamp:value1], value1, value2, [$timestamp:value2], key", rows)
+        _check("key, [$timestamp:value1], [$timestamp:value2], value1, value2", rows)
+        _check("value1, [$timestamp:value1]", rows1)
+        _check("value2, [$timestamp:value2]", rows2)
+        _check("key, value1, [$timestamp:value2]", rows3)
+        _check("key, [$timestamp:value2], value1", rows3)
+
+    @authors("akozhikhov")
+    def test_timestamped_operation(self):
+        sync_create_cells(1)
+        SCHEMA_WITH_VALUES = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value1", "type": "string", "max_inline_hunk_size": 5},
+            {"name": "value2", "type": "string", "max_inline_hunk_size": 10},
+        ]
+        self._create_table(schema=SCHEMA_WITH_VALUES)
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value1": "value1" + str(i) * 10, "value2": "value2" + str(i)} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+
+        result = lookup_rows("//tmp/t", [{"key": 0}], with_timestamps=True)
+        timestamp = result[0]["$timestamp:value1"]
+        for index in range(10):
+            rows[index]["$timestamp:value1"] = timestamp
+            rows[index]["$timestamp:value2"] = timestamp
+
+        sync_unmount_table("//tmp/t")
+
+        create("table", "//tmp/t_out")
+        map(
+            in_="<versioned_read_options={read_mode=latest_timestamp}>//tmp/t",
+            out="//tmp/t_out",
+            command="cat",
+            spec={
+                "input_schema": [
+                    {"name": "$timestamp:value2", "type": "uint64"},
+                    {"name": "key", "type": "int64"},
+                    {"name": "value2", "type": "string"},
+                    {"name": "$timestamp:value1", "type": "uint64"},
+                    {"name": "value1", "type": "string"},
+                ],
+                "input_query": "*",
+            }
+        )
+        assert read_table("//tmp/t_out") == rows
 
     @authors("babenko")
     @pytest.mark.parametrize("chunk_format", HUNK_COMPATIBLE_CHUNK_FORMATS)
@@ -1474,8 +1600,6 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
             }
         })
 
-        set("//tmp/t/@hunk_chunk_reader/fragment_reader_cache_capacity", 1000)
-        remount_table("//tmp/t")
         assert_items_equal(lookup_rows("//tmp/t", keys), rows)
         assert_items_equal(lookup_rows("//tmp/t", keys), rows)
 
@@ -1571,6 +1695,12 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
                     "unlock_check_period": 100
                 }
             }
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "max_blocks_per_read": 2,
         }
     }
 
@@ -2306,6 +2436,64 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert get("//tmp/t2/@chunk_count") == 2
         assert get("//tmp/t2/@tablet_statistics/chunk_count") == 2
 
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("hunk_erasure_codec", ["none", "isa_reed_solomon_3_3"])
+    def test_prefetch_fragments_on_data_node(self, hunk_erasure_codec):
+        sync_create_cells(1)
+
+        self._create_table(path="//tmp/t")
+        set("//tmp/t/@hunk_erasure_codec", hunk_erasure_codec)
+        set("//tmp/t/@hunk_chunk_reader", {
+            "read_and_cache_whole_blocks": True,
+            "block_count_to_precache": 1,
+            "max_hunk_count_per_read": 10,
+            "max_total_hunk_length_per_read": 1000,
+        })
+
+        hunk_storage_attributes = {
+            "store_rotation_period": 120000,
+            "hunk_store_writer": {
+                "max_record_size": 10,
+            },
+        }
+        if hunk_erasure_codec != "none":
+            hunk_storage_attributes["read_quorum"] = 4
+            hunk_storage_attributes["write_quorum"] = 5
+            hunk_storage_attributes["erasure_codec"] = hunk_erasure_codec
+            hunk_storage_attributes["replication_factor"] = 1
+
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes=hunk_storage_attributes)
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+
+        sync_reshard_table("//tmp/t", 2)
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        assert get("//tmp/t/@tablet_count") == 2
+
+        rows = [{"$tablet_index": random.randint(0, 1), "key": i, "value": "a" * (25 + i)} for i in range(25)]
+
+        self._insert_rows_with_hunk_storage("//tmp/t", rows)
+
+        assert_items_equal(select_rows("key, value, [$tablet_index] from [//tmp/t]"), rows)
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "block_cache": {
+                    "chunk_fragments_data": {
+                        "capacity": 10000000,
+                    }
+                }
+            }
+        })
+
+        rows0 = [row for row in rows if row["$tablet_index"] == 0]
+        rows1 = [row for row in rows if row["$tablet_index"] == 1]
+        assert_items_equal(select_rows("key, value, [$tablet_index] from [//tmp/t] where [$tablet_index] = 0"), rows0)
+        assert_items_equal(select_rows("key, value, [$tablet_index] from [//tmp/t]"), rows)
+        assert_items_equal(select_rows("key, value, [$tablet_index] from [//tmp/t] where [$tablet_index] = 1"), rows1)
+        assert_items_equal(select_rows("key, value, [$tablet_index] from [//tmp/t]"), rows)
+
 
 ################################################################################
 
@@ -2510,6 +2698,85 @@ class TestDynamicTablesHunkMedia(YTEnvSetup):
         init_table("//tmp/b")
         assert get("//tmp/b/@hunk_primary_medium") == self.NON_DEFAULT_MEDIUM_1
         assert get("//tmp/b/@hunk_media") == hunk_media
+
+    @authors("kvk1920")
+    @pytest.mark.parametrize("init_table", ["_init_sorted_dynamic_table", "_init_ordered_dynamic_table"])
+    def test_transferrable_hunk_media_attributes(self, init_table):
+        init_table = getattr(self, init_table)
+
+        default_medium_id = get("//sys/media/default/@id")
+        non_default_medium_id_1 = get(f"//sys/media/{self.NON_DEFAULT_MEDIUM_1}/@id")
+        non_default_medium_id_2 = get(f"//sys/media/{self.NON_DEFAULT_MEDIUM_2}/@id")
+
+        set("//tmp/@hunk_primary_medium", self.NON_DEFAULT_MEDIUM_1)
+
+        init_table("//tmp/a")
+        assert get("//tmp/a/@hunk_primary_medium") == self.NON_DEFAULT_MEDIUM_1
+        assert get("//tmp/a/@hunk_primary_medium_id") == non_default_medium_id_1
+
+        hunk_media = {
+            self.NON_DEFAULT_MEDIUM_1: {"replication_factor": 7, "data_parts_only": False},
+            "default": {"replication_factor": 4, "data_parts_only": True}
+        }
+        transferable_hunk_media = {
+            f"#{non_default_medium_id_1}": {"replication_factor": 7, "data_parts_only": False},
+            f"#{default_medium_id}": {"replication_factor": 4, "data_parts_only": True},
+        }
+        set("//tmp/@hunk_media", transferable_hunk_media)
+
+        init_table("//tmp/b")
+        assert get("//tmp/b/@hunk_primary_medium") == self.NON_DEFAULT_MEDIUM_1
+        assert get("//tmp/b/@hunk_primary_medium_id") == non_default_medium_id_1
+        assert get("//tmp/b/@hunk_media") == hunk_media
+        assert get("//tmp/b/@transferable_hunk_media") == transferable_hunk_media
+
+        explicit_hunk_media = {"default": {"replication_factor": 5, "data_parts_only": False}}
+        explicit_transferable_hunk_media = {
+            f"#{default_medium_id}": {
+                "replication_factor": 5,
+                "data_parts_only": False,
+            },
+        }
+        with raises_yt_error(f"Cannot remove primary medium \"{self.NON_DEFAULT_MEDIUM_1}\""):
+            init_table("//tmp/c", hunk_media=explicit_hunk_media)
+        with raises_yt_error(f"Cannot remove primary medium \"{self.NON_DEFAULT_MEDIUM_1}\""):
+            init_table("//tmp/c", hunk_media=explicit_transferable_hunk_media)
+
+        # TODO(kvk1920): YT-15704. Replace with self.NON_DEFAULT_MEDIUM_1.
+        with raises_yt_error(f"Cannot remove primary medium \"{self.NON_DEFAULT_MEDIUM_2}\""):
+            init_table("//tmp/c", hunk_primary_medium=self.NON_DEFAULT_MEDIUM_2)
+        with raises_yt_error(f"Cannot remove primary medium \"{self.NON_DEFAULT_MEDIUM_2}\""):
+            init_table("//tmp/c", hunk_primary_medium=f"#{non_default_medium_id_2}")
+
+        expected_attributes = {
+            "hunk_primary_medium": "default",
+            "hunk_primary_medium_id": default_medium_id,
+            "hunk_media": explicit_hunk_media,
+            "transferable_hunk_media": explicit_transferable_hunk_media,
+        }
+
+        def check_table_attributes(table):
+            assert get(f"{table}/@", attributes=[
+                "hunk_primary_medium",
+                "hunk_primary_medium_id",
+                "hunk_media",
+                "transferable_hunk_media",
+            ]) == expected_attributes
+
+        init_table("//tmp/c", hunk_primary_medium="default", hunk_media=explicit_hunk_media)
+        check_table_attributes("//tmp/c")
+
+        init_table(
+            "//tmp/d",
+            hunk_primary_medium=f"#{default_medium_id}",
+            hunk_media=explicit_transferable_hunk_media)
+        check_table_attributes("//tmp/d")
+
+        init_table(
+            "//tmp/e",
+            hunk_primary_medium="default",
+            hunk_media=explicit_hunk_media)
+        check_table_attributes("//tmp/e")
 
     @authors("akozhikhov", "aleksandra-zh")
     @pytest.mark.parametrize("init_table", ["_init_sorted_dynamic_table", "_init_ordered_dynamic_table"])

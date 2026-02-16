@@ -59,18 +59,16 @@ public:
     }
 
 private:
-    void SyncWithSequoiaTransactions()
-    {
-        const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
-        WaitFor(transactionSupervisor->WaitUntilPreparedTransactionsFinished())
-            .ThrowOnError();
-    }
-
     DECLARE_RPC_SERVICE_METHOD(NCypressTransactionClient::NProto, StartTransaction)
     {
         ValidatePeer(EPeerKind::Leader);
 
-        // NB: No upstream sync should be necessary here.
+        // NB: no upstream sync should be necessary here.
+
+        // NB: no wait for Sequoia transaction barrier is required here since
+        // all transaction-related actions are executed in late prepare. If
+        // client got OK response for transaction-related request then Sequoia
+        // transaction is already committed on Cypress transaction coordinator.
 
         auto title = request->has_title() ? std::optional(request->title()) : std::nullopt;
         auto parentId = FromProto<TTransactionId>(request->parent_id());
@@ -87,8 +85,6 @@ private:
             timeout,
             deadline);
 
-        SyncWithSequoiaTransactions();
-
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->StartCypressTransaction(context);
     }
@@ -96,6 +92,9 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NCypressTransactionClient::NProto, CommitTransaction)
     {
         ValidatePeer(EPeerKind::Leader);
+
+        // NB: wait for Sequoia transaction barreir is not needed here. See
+        // StartTransaction().
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto prerequisiteTransactionIds = GetPrerequisiteTransactionIds(context->GetRequestHeader());
@@ -112,8 +111,6 @@ private:
             }
         }
 
-        SyncWithSequoiaTransactions();
-
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->CommitCypressTransaction(context);
     }
@@ -121,6 +118,9 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NCypressTransactionClient::NProto, AbortTransaction)
     {
         ValidatePeer(EPeerKind::Leader);
+
+        // NB: wait for Sequoia transaction barreir is not needed here. See
+        // StartTransaction().
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         bool force = request->force();
@@ -137,8 +137,6 @@ private:
             }
         }
 
-        SyncWithSequoiaTransactions();
-
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->AbortCypressTransaction(context);
     }
@@ -146,6 +144,9 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NCypressTransactionClient::NProto, PingTransaction)
     {
         ValidatePeer(EPeerKind::Leader);
+
+        // NB: wait for Sequoia transaction barreir is not needed here. See
+        // StartTransaction().
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         bool pingAncestors = request->ping_ancestors();

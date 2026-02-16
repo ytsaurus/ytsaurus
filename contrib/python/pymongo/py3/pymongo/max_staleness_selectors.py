@@ -4,7 +4,7 @@
 # may not use this file except in compliance with the License.  You
 # may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+# https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,9 +26,16 @@ When there is no known primary, a secondary S's staleness is estimated with:
 
 where "SMax" is the secondary with the greatest lastWriteDate.
 """
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from pymongo.errors import ConfigurationError
 from pymongo.server_type import SERVER_TYPE
+
+if TYPE_CHECKING:
+    from pymongo.server_selectors import Selection
+
 
 # Constant defined in Max Staleness Spec: An idle primary writes a no-op every
 # 10 seconds to refresh secondaries' lastWriteDate values.
@@ -36,7 +43,7 @@ IDLE_WRITE_PERIOD = 10
 SMALLEST_MAX_STALENESS = 90
 
 
-def _validate_max_staleness(max_staleness, heartbeat_frequency):
+def _validate_max_staleness(max_staleness: int, heartbeat_frequency: int) -> None:
     # We checked for max staleness -1 before this, it must be positive here.
     if max_staleness < heartbeat_frequency + IDLE_WRITE_PERIOD:
         raise ConfigurationError(
@@ -53,14 +60,16 @@ def _validate_max_staleness(max_staleness, heartbeat_frequency):
         )
 
 
-def _with_primary(max_staleness, selection):
+def _with_primary(max_staleness: int, selection: Selection) -> Selection:
     """Apply max_staleness, in seconds, to a Selection with a known primary."""
     primary = selection.primary
+    assert primary
     sds = []
 
     for s in selection.server_descriptions:
         if s.server_type == SERVER_TYPE.RSSecondary:
             # See max-staleness.rst for explanation of this formula.
+            assert s.last_write_date and primary.last_write_date  # noqa: PT018
             staleness = (
                 (s.last_update_time - s.last_write_date)
                 - (primary.last_update_time - primary.last_write_date)
@@ -75,7 +84,7 @@ def _with_primary(max_staleness, selection):
     return selection.with_server_descriptions(sds)
 
 
-def _no_primary(max_staleness, selection):
+def _no_primary(max_staleness: int, selection: Selection) -> Selection:
     """Apply max_staleness, in seconds, to a Selection with no known primary."""
     # Secondary that's replicated the most recent writes.
     smax = selection.secondary_with_max_last_write_date()
@@ -88,6 +97,7 @@ def _no_primary(max_staleness, selection):
     for s in selection.server_descriptions:
         if s.server_type == SERVER_TYPE.RSSecondary:
             # See max-staleness.rst for explanation of this formula.
+            assert smax.last_write_date and s.last_write_date  # noqa: PT018
             staleness = smax.last_write_date - s.last_write_date + selection.heartbeat_frequency
 
             if staleness <= max_staleness:
@@ -98,7 +108,7 @@ def _no_primary(max_staleness, selection):
     return selection.with_server_descriptions(sds)
 
 
-def select(max_staleness, selection):
+def select(max_staleness: int, selection: Selection) -> Selection:
     """Apply max_staleness, in seconds, to a Selection."""
     if max_staleness == -1:
         return selection

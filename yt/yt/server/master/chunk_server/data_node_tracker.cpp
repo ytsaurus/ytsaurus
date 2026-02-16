@@ -175,10 +175,8 @@ public:
                 auto locationUuid = FromProto<TChunkLocationUuid>(preparedRequest->NonSequoiaRequest.location_uuid());
                 auto* location = FindAndValidateLocation<true>(node, locationUuid);
 
-                if (preparedRequest->NonSequoiaRequest.is_validation()) {
-                    // TODO(danilalexeev): YT-27168. Validate Sequoia replicas.
-                    preparedRequest->SequoiaRequest.reset();
-                } else if (location->GetState() == EChunkLocationState::Restarted ||
+                if ((preparedRequest->NonSequoiaRequest.is_validation() && GetDynamicConfig()->ValidateSequoiaReplicas) ||
+                    location->GetState() == EChunkLocationState::Restarted ||
                     Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->SequoiaChunkReplicas->UseLocationReplacementForLocationFullHeartbeat)
                 {
                     auto replaceLocationRequest = std::make_unique<TReqReplaceLocationReplicas>();
@@ -186,12 +184,25 @@ public:
                     replaceLocationRequest->set_location_index(ToProto(location->GetIndex()));
                     *replaceLocationRequest->mutable_chunks() = std::move(*preparedRequest->SequoiaRequest->mutable_added_chunks());
 
+                    if (preparedRequest->NonSequoiaRequest.is_validation()) {
+                        // We will process validation request as normal location replacement.
+                        // If replicas are different for some chunks, it will be alerted.
+                        // If fix_sequoia_replicas_if_replica_validation_failed flag is enabled, replicas will be fixed according to the request.
+                        replaceLocationRequest->set_is_validation(true);
+                    }
+
                     preparedRequest->SequoiaRequest.reset();
 
                     WaitFor(chunkManager->ReplaceSequoiaLocationReplicas(
                         ESequoiaTransactionType::FullHeartbeat,
                         std::move(replaceLocationRequest)))
                         .ThrowOnError();
+                }
+
+                if (preparedRequest->NonSequoiaRequest.is_validation()) {
+                    // If Sequoia validation is enabled, we should have already validated Sequoia replicas.
+                    // If Sequoia validation is disabled, we do not need to process any Sequoia replicas.
+                    preparedRequest->SequoiaRequest.reset();
                 }
             }
 

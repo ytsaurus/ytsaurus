@@ -55,7 +55,7 @@ private:
     std::vector<int> AggregateColumnIds_;
     std::vector<std::vector<NTableClient::TVersionedValue>> AggregateValues_;
 
-    TNestedTableMerger NestedMerger_{true};
+    TNestedTableMerger NestedMerger_{/*orderNestedRows*/ false};
     std::vector<TRange<NTableClient::TVersionedValue>> NestedKeyColumns_;
     std::vector<TMutableRange<NTableClient::TVersionedValue>> NestedValueColumns_;
 
@@ -97,7 +97,7 @@ private:
     NTableClient::TMutableUnversionedRow MergedRow_;
     TCompactVector<bool, NTableClient::TypicalColumnCount> ValidValues_;
 
-    TNestedTableMerger NestedMerger_;
+    TNestedTableMerger NestedMerger_{/*orderNestedRows*/ true};
     std::vector<std::vector<NTableClient::TVersionedValue>> NestedKeyColumns_;
     std::vector<std::vector<NTableClient::TVersionedValue>> NestedValueColumns_;
     int PartialRowCount_ = 0;

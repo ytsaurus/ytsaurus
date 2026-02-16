@@ -14,11 +14,14 @@
 
 #include <yt/yt/ytlib/object_client/public.h>
 
+#include <yt/yt/client/object_client/helpers.h>
+
 #include <yt/yt/core/misc/serialize.h>
 
 namespace NYT::NChunkServer {
 
 using namespace NChunkClient;
+using namespace NObjectClient;
 using namespace NYTree;
 
 using NYT::ToProto;
@@ -61,13 +64,23 @@ void FormatValue(TStringBuilderBase* builder, TReplicationPolicy policy, TString
         policy.GetDataPartsOnly());
 }
 
+namespace {
+
+void SerializeAsMapFragment(TReplicationPolicy policy, NYson::IYsonConsumer* consumer)
+{
+    BuildYsonMapFragmentFluently(consumer)
+        .Item("replication_factor").Value(policy.GetReplicationFactor())
+        .Item("data_parts_only").Value(policy.GetDataPartsOnly());
+}
+
+} // namespace
+
 void Serialize(TReplicationPolicy policy, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("replication_factor").Value(policy.GetReplicationFactor())
-            .Item("data_parts_only").Value(policy.GetDataPartsOnly())
-        .EndMap();
+        .DoMap([&] (auto fluentMap) {
+            SerializeAsMapFragment(policy, fluentMap.GetConsumer());
+        });
 }
 
 void Deserialize(TReplicationPolicy& policy, NYTree::INodePtr node)
@@ -257,6 +270,34 @@ void Serialize(const TSerializableChunkReplication& serializer, NYson::IYsonCons
 void Deserialize(TSerializableChunkReplication& serializer, INodePtr node)
 {
     serializer.Deserialize(node);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSerializableTransferableChunkReplication::TSerializableTransferableChunkReplication(
+    const TChunkReplication& replication,
+    const IChunkManagerPtr& chunkManager)
+{
+    for (auto entry : replication) {
+        if (entry.Policy()) {
+            auto* medium = chunkManager->GetMediumByIndex(entry.GetMediumIndex());
+            YT_VERIFY(IsObjectAlive(medium));
+            EmplaceOrCrash(Entries_, medium->GetId(), entry.Policy());
+        }
+    }
+}
+
+void TSerializableTransferableChunkReplication::Serialize(NYson::IYsonConsumer* consumer) const
+{
+    BuildYsonFluently(consumer)
+        .DoMapFor(Entries_, [] (TFluentMap map, const auto& pair) {
+            map.Item(FromObjectId(pair.first)).Value(pair.second);
+        });
+}
+
+void Serialize(const TSerializableTransferableChunkReplication& serializer, NYson::IYsonConsumer* consumer)
+{
+    serializer.Serialize(consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

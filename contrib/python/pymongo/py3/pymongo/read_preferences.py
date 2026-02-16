@@ -4,7 +4,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+# https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,15 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Utilities for choosing which member of a replica set to read from."""
+"""Utilities for choosing which member of a replica set to read from.
 
-from bson.py3compat import abc, integer_types
+.. seealso:: This module is compatible with both the synchronous and asynchronous PyMongo APIs.
+"""
+
+from __future__ import annotations
+
+import warnings
+from collections import abc
+from typing import TYPE_CHECKING, Any, Mapping, Optional, Sequence
+
 from pymongo import max_staleness_selectors
 from pymongo.errors import ConfigurationError
 from pymongo.server_selectors import (
     member_with_tags_server_selector,
     secondary_with_tags_server_selector,
 )
+
+if TYPE_CHECKING:
+    from pymongo.server_selectors import Selection
+    from pymongo.topology_description import TopologyDescription
+
 
 _PRIMARY = 0
 _PRIMARY_PREFERRED = 1
@@ -37,42 +50,44 @@ _MONGOS_MODES = (
     "nearest",
 )
 
+_Hedge = Mapping[str, Any]
+_TagSets = Sequence[Mapping[str, Any]]
 
-def _validate_tag_sets(tag_sets):
-    """Validate tag sets for a MongoReplicaSetClient."""
+
+def _validate_tag_sets(tag_sets: Optional[_TagSets]) -> Optional[_TagSets]:
+    """Validate tag sets for a MongoClient."""
     if tag_sets is None:
         return tag_sets
 
-    if not isinstance(tag_sets, list):
-        raise TypeError(("Tag sets %r invalid, must be a list") % (tag_sets,))
+    if not isinstance(tag_sets, (list, tuple)):
+        raise TypeError(f"Tag sets {tag_sets!r} invalid, must be a sequence")
     if len(tag_sets) == 0:
         raise ValueError(
-            ("Tag sets %r invalid, must be None or contain at least one set of" " tags")
-            % (tag_sets,)
+            f"Tag sets {tag_sets!r} invalid, must be None or contain at least one set of tags"
         )
 
     for tags in tag_sets:
         if not isinstance(tags, abc.Mapping):
             raise TypeError(
-                "Tag set %r invalid, must be an instance of dict, "
+                f"Tag set {tags!r} invalid, must be an instance of dict, "
                 "bson.son.SON or other type that inherits from "
-                "collection.Mapping" % (tags,)
+                "collection.Mapping"
             )
 
-    return tag_sets
+    return list(tag_sets)
 
 
-def _invalid_max_staleness_msg(max_staleness):
+def _invalid_max_staleness_msg(max_staleness: Any) -> str:
     return "maxStalenessSeconds must be a positive integer, not %s" % max_staleness
 
 
 # Some duplication with common.py to avoid import cycle.
-def _validate_max_staleness(max_staleness):
+def _validate_max_staleness(max_staleness: Any) -> int:
     """Validate max_staleness."""
     if max_staleness == -1:
         return -1
 
-    if not isinstance(max_staleness, integer_types):
+    if not isinstance(max_staleness, int):
         raise TypeError(_invalid_max_staleness_msg(max_staleness))
 
     if max_staleness <= 0:
@@ -81,23 +96,34 @@ def _validate_max_staleness(max_staleness):
     return max_staleness
 
 
-def _validate_hedge(hedge):
+def _validate_hedge(hedge: Optional[_Hedge]) -> Optional[_Hedge]:
     """Validate hedge."""
     if hedge is None:
         return None
 
     if not isinstance(hedge, dict):
-        raise TypeError("hedge must be a dictionary, not %r" % (hedge,))
+        raise TypeError(f"hedge must be a dictionary, not {hedge!r}")
 
+    warnings.warn(
+        "The read preference 'hedge' option is deprecated in PyMongo 4.12+ because hedged reads are deprecated in MongoDB version 8.0+. Support for 'hedge' will be removed in PyMongo 5.0.",
+        DeprecationWarning,
+        stacklevel=4,
+    )
     return hedge
 
 
-class _ServerMode(object):
+class _ServerMode:
     """Base class for all read preferences."""
 
     __slots__ = ("__mongos_mode", "__mode", "__tag_sets", "__max_staleness", "__hedge")
 
-    def __init__(self, mode, tag_sets=None, max_staleness=-1, hedge=None):
+    def __init__(
+        self,
+        mode: int,
+        tag_sets: Optional[_TagSets] = None,
+        max_staleness: int = -1,
+        hedge: Optional[_Hedge] = None,
+    ) -> None:
         self.__mongos_mode = _MONGOS_MODES[mode]
         self.__mode = mode
         self.__tag_sets = _validate_tag_sets(tag_sets)
@@ -105,19 +131,19 @@ class _ServerMode(object):
         self.__hedge = _validate_hedge(hedge)
 
     @property
-    def name(self):
+    def name(self) -> str:
         """The name of this read preference."""
         return self.__class__.__name__
 
     @property
-    def mongos_mode(self):
+    def mongos_mode(self) -> str:
         """The mongos mode of this read preference."""
         return self.__mongos_mode
 
     @property
-    def document(self):
+    def document(self) -> dict[str, Any]:
         """Read preference as a document."""
-        doc = {"mode": self.__mongos_mode}
+        doc: dict[str, Any] = {"mode": self.__mongos_mode}
         if self.__tag_sets not in (None, [{}]):
             doc["tags"] = self.__tag_sets
         if self.__max_staleness != -1:
@@ -127,35 +153,45 @@ class _ServerMode(object):
         return doc
 
     @property
-    def mode(self):
+    def mode(self) -> int:
         """The mode of this read preference instance."""
         return self.__mode
 
     @property
-    def tag_sets(self):
+    def tag_sets(self) -> _TagSets:
         """Set ``tag_sets`` to a list of dictionaries like [{'dc': 'ny'}] to
         read only from members whose ``dc`` tag has the value ``"ny"``.
         To specify a priority-order for tag sets, provide a list of
         tag sets: ``[{'dc': 'ny'}, {'dc': 'la'}, {}]``. A final, empty tag
         set, ``{}``, means "read from any member that matches the mode,
-        ignoring tags." MongoReplicaSetClient tries each set of tags in turn
+        ignoring tags." MongoClient tries each set of tags in turn
         until it finds a set of tags with at least one matching member.
+        For example, to only send a query to an analytic node::
+
+           Nearest(tag_sets=[{"node":"analytics"}])
+
+        Or using :class:`SecondaryPreferred`::
+
+           SecondaryPreferred(tag_sets=[{"node":"analytics"}])
 
            .. seealso:: `Data-Center Awareness
-               <http://www.mongodb.org/display/DOCS/Data+Center+Awareness>`_
+               <https://www.mongodb.com/docs/manual/data-center-awareness/>`_
         """
         return list(self.__tag_sets) if self.__tag_sets else [{}]
 
     @property
-    def max_staleness(self):
+    def max_staleness(self) -> int:
         """The maximum estimated length of time (in seconds) a replica set
         secondary can fall behind the primary in replication before it will
-        no longer be selected for operations, or -1 for no maximum."""
+        no longer be selected for operations, or -1 for no maximum.
+        """
         return self.__max_staleness
 
     @property
-    def hedge(self):
-        """The read preference ``hedge`` parameter.
+    def hedge(self) -> Optional[_Hedge]:
+        """**DEPRECATED** - The read preference 'hedge' option is deprecated in PyMongo 4.12+ because hedged reads are deprecated in MongoDB version 8.0+. Support for 'hedge' will be removed in PyMongo 5.0.
+
+        The read preference ``hedge`` parameter.
 
         A dictionary that configures how the server will perform hedged reads.
         It consists of the following keys:
@@ -175,10 +211,16 @@ class _ServerMode(object):
 
         .. versionadded:: 3.11
         """
+        if self.__hedge is not None:
+            warnings.warn(
+                "The read preference 'hedge' option is deprecated in PyMongo 4.12+ because hedged reads are deprecated in MongoDB version 8.0+. Support for 'hedge' will be removed in PyMongo 5.0.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
         return self.__hedge
 
     @property
-    def min_wire_version(self):
+    def min_wire_version(self) -> int:
         """The wire protocol version the server must support.
 
         Some read preferences impose version requirements on all servers (e.g.
@@ -190,15 +232,15 @@ class _ServerMode(object):
         """
         return 0 if self.__max_staleness == -1 else 5
 
-    def __repr__(self):
-        return "%s(tag_sets=%r, max_staleness=%r, hedge=%r)" % (
+    def __repr__(self) -> str:
+        return "{}(tag_sets={!r}, max_staleness={!r}, hedge={!r})".format(
             self.name,
             self.__tag_sets,
             self.__max_staleness,
             self.__hedge,
         )
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         if isinstance(other, _ServerMode):
             return (
                 self.mode == other.mode
@@ -208,10 +250,10 @@ class _ServerMode(object):
             )
         return NotImplemented
 
-    def __ne__(self, other):
+    def __ne__(self, other: Any) -> bool:
         return not self == other
 
-    def __getstate__(self):
+    def __getstate__(self) -> dict[str, Any]:
         """Return value of object for pickling.
 
         Needed explicitly because __slots__() defined.
@@ -223,13 +265,16 @@ class _ServerMode(object):
             "hedge": self.__hedge,
         }
 
-    def __setstate__(self, value):
+    def __setstate__(self, value: Mapping[str, Any]) -> None:
         """Restore from pickling."""
         self.__mode = value["mode"]
         self.__mongos_mode = _MONGOS_MODES[self.__mode]
         self.__tag_sets = _validate_tag_sets(value["tag_sets"])
         self.__max_staleness = _validate_max_staleness(value["max_staleness"])
         self.__hedge = _validate_hedge(value["hedge"])
+
+    def __call__(self, selection: Selection) -> Selection:
+        return selection
 
 
 class Primary(_ServerMode):
@@ -244,17 +289,17 @@ class Primary(_ServerMode):
 
     __slots__ = ()
 
-    def __init__(self):
-        super(Primary, self).__init__(_PRIMARY)
+    def __init__(self) -> None:
+        super().__init__(_PRIMARY)
 
-    def __call__(self, selection):
+    def __call__(self, selection: Selection) -> Selection:
         """Apply this read preference to a Selection."""
         return selection.primary_selection
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "Primary()"
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         if isinstance(other, _ServerMode):
             return other.mode == _PRIMARY
         return NotImplemented
@@ -274,15 +319,14 @@ class PrimaryPreferred(_ServerMode):
       created reads will be routed to an available secondary until the
       primary of the replica set is discovered.
 
-    :Parameters:
-      - `tag_sets`: The :attr:`~tag_sets` to use if the primary is not
+    :param tag_sets: The :attr:`~tag_sets` to use if the primary is not
         available.
-      - `max_staleness`: (integer, in seconds) The maximum estimated
+    :param max_staleness: (integer, in seconds) The maximum estimated
         length of time a replica set secondary can fall behind the primary in
         replication before it will no longer be selected for operations.
         Default -1, meaning no maximum. If it is set, it must be at least
         90 seconds.
-      - `hedge`: The :attr:`~hedge` to use if the primary is not available.
+    :param hedge: **DEPRECATED** - The :attr:`~hedge` for this read preference.
 
     .. versionchanged:: 3.11
        Added ``hedge`` parameter.
@@ -290,10 +334,15 @@ class PrimaryPreferred(_ServerMode):
 
     __slots__ = ()
 
-    def __init__(self, tag_sets=None, max_staleness=-1, hedge=None):
-        super(PrimaryPreferred, self).__init__(_PRIMARY_PREFERRED, tag_sets, max_staleness, hedge)
+    def __init__(
+        self,
+        tag_sets: Optional[_TagSets] = None,
+        max_staleness: int = -1,
+        hedge: Optional[_Hedge] = None,
+    ) -> None:
+        super().__init__(_PRIMARY_PREFERRED, tag_sets, max_staleness, hedge)
 
-    def __call__(self, selection):
+    def __call__(self, selection: Selection) -> Selection:
         """Apply this read preference to Selection."""
         if selection.primary:
             return selection.primary_selection
@@ -313,14 +362,13 @@ class Secondary(_ServerMode):
     * When connected to a replica set queries are distributed among
       secondaries. An error is raised if no secondaries are available.
 
-    :Parameters:
-      - `tag_sets`: The :attr:`~tag_sets` for this read preference.
-      - `max_staleness`: (integer, in seconds) The maximum estimated
+    :param tag_sets: The :attr:`~tag_sets` for this read preference.
+    :param max_staleness: (integer, in seconds) The maximum estimated
         length of time a replica set secondary can fall behind the primary in
         replication before it will no longer be selected for operations.
         Default -1, meaning no maximum. If it is set, it must be at least
         90 seconds.
-      - `hedge`: The :attr:`~hedge` for this read preference.
+    :param hedge: **DEPRECATED** - The :attr:`~hedge` for this read preference.
 
     .. versionchanged:: 3.11
        Added ``hedge`` parameter.
@@ -328,10 +376,15 @@ class Secondary(_ServerMode):
 
     __slots__ = ()
 
-    def __init__(self, tag_sets=None, max_staleness=-1, hedge=None):
-        super(Secondary, self).__init__(_SECONDARY, tag_sets, max_staleness, hedge)
+    def __init__(
+        self,
+        tag_sets: Optional[_TagSets] = None,
+        max_staleness: int = -1,
+        hedge: Optional[_Hedge] = None,
+    ) -> None:
+        super().__init__(_SECONDARY, tag_sets, max_staleness, hedge)
 
-    def __call__(self, selection):
+    def __call__(self, selection: Selection) -> Selection:
         """Apply this read preference to Selection."""
         return secondary_with_tags_server_selector(
             self.tag_sets, max_staleness_selectors.select(self.max_staleness, selection)
@@ -352,14 +405,13 @@ class SecondaryPreferred(_ServerMode):
       created reads will be routed to the primary of the replica set until
       an available secondary is discovered.
 
-    :Parameters:
-      - `tag_sets`: The :attr:`~tag_sets` for this read preference.
-      - `max_staleness`: (integer, in seconds) The maximum estimated
+    :param tag_sets: The :attr:`~tag_sets` for this read preference.
+    :param max_staleness: (integer, in seconds) The maximum estimated
         length of time a replica set secondary can fall behind the primary in
         replication before it will no longer be selected for operations.
         Default -1, meaning no maximum. If it is set, it must be at least
         90 seconds.
-      - `hedge`: The :attr:`~hedge` for this read preference.
+    :param hedge: **DEPRECATED** - The :attr:`~hedge` for this read preference.
 
     .. versionchanged:: 3.11
        Added ``hedge`` parameter.
@@ -367,12 +419,15 @@ class SecondaryPreferred(_ServerMode):
 
     __slots__ = ()
 
-    def __init__(self, tag_sets=None, max_staleness=-1, hedge=None):
-        super(SecondaryPreferred, self).__init__(
-            _SECONDARY_PREFERRED, tag_sets, max_staleness, hedge
-        )
+    def __init__(
+        self,
+        tag_sets: Optional[_TagSets] = None,
+        max_staleness: int = -1,
+        hedge: Optional[_Hedge] = None,
+    ) -> None:
+        super().__init__(_SECONDARY_PREFERRED, tag_sets, max_staleness, hedge)
 
-    def __call__(self, selection):
+    def __call__(self, selection: Selection) -> Selection:
         """Apply this read preference to Selection."""
         secondaries = secondary_with_tags_server_selector(
             self.tag_sets, max_staleness_selectors.select(self.max_staleness, selection)
@@ -394,14 +449,13 @@ class Nearest(_ServerMode):
     * When connected to a replica set queries are distributed among all
       members.
 
-    :Parameters:
-      - `tag_sets`: The :attr:`~tag_sets` for this read preference.
-      - `max_staleness`: (integer, in seconds) The maximum estimated
+    :param tag_sets: The :attr:`~tag_sets` for this read preference.
+    :param max_staleness: (integer, in seconds) The maximum estimated
         length of time a replica set secondary can fall behind the primary in
         replication before it will no longer be selected for operations.
         Default -1, meaning no maximum. If it is set, it must be at least
         90 seconds.
-      - `hedge`: The :attr:`~hedge` for this read preference.
+    :param hedge: **DEPRECATED** - The :attr:`~hedge` for this read preference.
 
     .. versionchanged:: 3.11
        Added ``hedge`` parameter.
@@ -409,29 +463,76 @@ class Nearest(_ServerMode):
 
     __slots__ = ()
 
-    def __init__(self, tag_sets=None, max_staleness=-1, hedge=None):
-        super(Nearest, self).__init__(_NEAREST, tag_sets, max_staleness, hedge)
+    def __init__(
+        self,
+        tag_sets: Optional[_TagSets] = None,
+        max_staleness: int = -1,
+        hedge: Optional[_Hedge] = None,
+    ) -> None:
+        super().__init__(_NEAREST, tag_sets, max_staleness, hedge)
 
-    def __call__(self, selection):
+    def __call__(self, selection: Selection) -> Selection:
         """Apply this read preference to Selection."""
         return member_with_tags_server_selector(
             self.tag_sets, max_staleness_selectors.select(self.max_staleness, selection)
         )
 
 
+class _AggWritePref:
+    """Agg $out/$merge write preference.
+
+    * If there are readable servers and there is any pre-5.0 server, use
+      primary read preference.
+    * Otherwise use `pref` read preference.
+
+    :param pref: The read preference to use on MongoDB 5.0+.
+    """
+
+    __slots__ = ("pref", "effective_pref")
+
+    def __init__(self, pref: _ServerMode):
+        self.pref = pref
+        self.effective_pref: _ServerMode = ReadPreference.PRIMARY
+
+    def selection_hook(self, topology_description: TopologyDescription) -> None:
+        common_wv = topology_description.common_wire_version
+        if (
+            topology_description.has_readable_server(ReadPreference.PRIMARY_PREFERRED)
+            and common_wv
+            and common_wv < 13
+        ):
+            self.effective_pref = ReadPreference.PRIMARY
+        else:
+            self.effective_pref = self.pref
+
+    def __call__(self, selection: Selection) -> Selection:
+        """Apply this read preference to a Selection."""
+        return self.effective_pref(selection)
+
+    def __repr__(self) -> str:
+        return f"_AggWritePref(pref={self.pref!r})"
+
+    # Proxy other calls to the effective_pref so that _AggWritePref can be
+    # used in place of an actual read preference.
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self.effective_pref, name)
+
+
 _ALL_READ_PREFERENCES = (Primary, PrimaryPreferred, Secondary, SecondaryPreferred, Nearest)
 
 
-def make_read_preference(mode, tag_sets, max_staleness=-1):
+def make_read_preference(
+    mode: int, tag_sets: Optional[_TagSets], max_staleness: int = -1
+) -> _ServerMode:
     if mode == _PRIMARY:
         if tag_sets not in (None, [{}]):
-            raise ConfigurationError("Read preference primary " "cannot be combined with tags")
+            raise ConfigurationError("Read preference primary cannot be combined with tags")
         if max_staleness != -1:
             raise ConfigurationError(
-                "Read preference primary cannot be " "combined with maxStalenessSeconds"
+                "Read preference primary cannot be combined with maxStalenessSeconds"
             )
         return Primary()
-    return _ALL_READ_PREFERENCES[mode](tag_sets, max_staleness)
+    return _ALL_READ_PREFERENCES[mode](tag_sets, max_staleness)  # type: ignore
 
 
 _MODES = (
@@ -443,10 +544,14 @@ _MODES = (
 )
 
 
-class ReadPreference(object):
-    """An enum that defines the read preference modes supported by PyMongo.
+class ReadPreference:
+    """An enum that defines some commonly used read preference modes.
 
-    See :doc:`/examples/high_availability` for code examples.
+    Apps can also create a custom read preference, for example::
+
+       Nearest(tag_sets=[{"node":"analytics"}])
+
+    See `Read and Write Settings <https://www.mongodb.com/docs/languages/python/pymongo-driver/current/crud/configure/#read-and-write-settings>`_ for code examples.
 
     A read preference is used in three cases:
 
@@ -501,23 +606,22 @@ class ReadPreference(object):
     NEAREST = Nearest()
 
 
-def read_pref_mode_from_name(name):
+def read_pref_mode_from_name(name: str) -> int:
     """Get the read preference mode from mongos/uri name."""
     return _MONGOS_MODES.index(name)
 
 
-class MovingAverage(object):
+class MovingAverage:
     """Tracks an exponentially-weighted moving average."""
 
-    def __init__(self):
+    average: Optional[float]
+
+    def __init__(self) -> None:
         self.average = None
 
-    def add_sample(self, sample):
+    def add_sample(self, sample: float) -> None:
         if sample < 0:
-            # Likely system time change while waiting for hello response
-            # and not using time.monotonic. Ignore it, the next one will
-            # probably be valid.
-            return
+            raise ValueError(f"duration cannot be negative {sample}")
         if self.average is None:
             self.average = sample
         else:
@@ -525,9 +629,9 @@ class MovingAverage(object):
             # average with alpha = 0.2.
             self.average = 0.8 * self.average + 0.2 * sample
 
-    def get(self):
+    def get(self) -> Optional[float]:
         """Get the calculated average, or None if no samples yet."""
         return self.average
 
-    def reset(self):
+    def reset(self) -> None:
         self.average = None

@@ -17,6 +17,8 @@
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
 
+#include <yt/yt/server/master/object_server/helpers.h>
+
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
@@ -1349,6 +1351,9 @@ void ValidateMediumName(const std::string& name)
     if (name.empty()) {
         THROW_ERROR_EXCEPTION("Medium name cannot be empty");
     }
+
+    CheckObjectName(name)
+        .ThrowOnError();
 }
 
 void ValidateMediumPriority(int priority)

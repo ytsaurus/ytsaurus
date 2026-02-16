@@ -77,6 +77,7 @@ SRCS(
     exec_node/job_prober_service.cpp
     exec_node/job_proxy_log_manager.cpp
     exec_node/job_workspace_builder.cpp
+    exec_node/layer_location.cpp
     exec_node/master_connector.cpp
     exec_node/job_input_cache.cpp
     exec_node/proxying_data_node_service.cpp
@@ -89,7 +90,13 @@ SRCS(
     exec_node/supervisor_service.cpp
     exec_node/throttler_manager.cpp
     exec_node/volume.proto
+    exec_node/volume.cpp
+    exec_node/volume_artifact.cpp
+    exec_node/volume_cache.cpp
+    exec_node/volume_counters.cpp
     exec_node/volume_manager.cpp
+    exec_node/porto_volume.cpp
+    exec_node/tmpfs_layer_cache.cpp
 
     job_agent/job_resource_manager.cpp
 
@@ -131,6 +138,7 @@ SRCS(
     tablet_node/hunk_lock_manager.cpp
     tablet_node/hunk_store.cpp
     tablet_node/hunk_tablet.cpp
+    tablet_node/hunk_tablet_profiling.cpp
     tablet_node/hunk_tablet_scanner.cpp
     tablet_node/hunk_tablet_manager.cpp
     tablet_node/hunks_serialization.cpp
@@ -180,6 +188,7 @@ SRCS(
     tablet_node/table_config_manager.cpp
     tablet_node/table_replicator.cpp
     tablet_node/table_puller.cpp
+    tablet_node/table_puller_helpers.cpp
     tablet_node/tablet.cpp
     tablet_node/tablet_cell_service.cpp
     tablet_node/tablet_cell_snapshot_validator.cpp
@@ -187,6 +196,7 @@ SRCS(
     tablet_node/tablet_memory_statistics.cpp
     tablet_node/tablet_cell_write_manager.cpp
     tablet_node/tablet_profiling.cpp
+    tablet_node/tablet_profiling_base.cpp
     tablet_node/tablet_reader.cpp
     tablet_node/tablet_service.cpp
     tablet_node/tablet_slot.cpp

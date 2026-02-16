@@ -319,11 +319,21 @@ struct TDynamicDataNodeTrackerConfig
     bool EnableValidationFullHeartbeats;
     TDuration ValidationFullHeartbeatPeriod;
     TDuration ValidationFullHeartbeatSplay;
+    bool ValidateSequoiaReplicas;
 
     // COMPAT(cherepashka)
     bool EnableChunkReplicasThrottlingInHeartbeats;
 
     bool EnableLocationIndexesInDataNodeHeartbeats;
+
+    // COMPAT(cherepashka)
+    bool UseLocationIndexesInSequoiaChunkConfirmation;
+
+    // COMPAT(cherepashka)
+    bool UseLocationIndexesToSearchLocationOnConfirmation;
+
+    // COMPAT(cherepashka)
+    bool CheckLocationConvergenceByIndexAndUuidOnConfirmation;
 
     bool VerifyAllLocationsAreReportedInFullHeartbeats;
 
@@ -553,6 +563,8 @@ struct TDynamicSequoiaChunkReplicasConfig
     TDuration GlobalSequoiaChunkRefreshPeriod;
     int GlobalSequoiaChunkRefreshBatchSize;
     int MaxUnsuccessfulGlobalSequoiaChunkRefreshIterations;
+
+    bool FixSequoiaReplicasIfReplicaValidationFailed;
 
     REGISTER_YSON_STRUCT(TDynamicSequoiaChunkReplicasConfig);
 

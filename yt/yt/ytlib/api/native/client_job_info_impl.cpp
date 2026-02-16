@@ -1027,7 +1027,7 @@ IAsyncZeroCopyInputStreamPtr TClient::DoGetJobInput(
 
     auto userJobReadController = CreateUserJobReadController(
         jobSpecHelper,
-        CreateSingleSourceMultiChunkReaderHost(TChunkReaderHost::FromClient(MakeStrong(this))),
+        New<TMultiChunkReaderHost>(New<TChunkReaderHost>(MakeStrong(this))),
         GetConnection()->GetInvoker(),
         /*onNetworkRelease*/ BIND([] { }),
         /*udfDirectory*/ {},
@@ -1503,7 +1503,7 @@ void TClient::UpdateJobTracesWithJobState(
         auto jobYsonMap = ConvertToNode(jobYsonString)->AsMap();
         jobState = jobYsonMap->GetChildValueOrThrow<EJobState>("state");
     } catch (const std::exception& ex) {
-        YT_LOG_DEBUG(ex, "Failed to fetch state from job. Skipping job trace update (OperationId: %v, JobId: %v)",
+        YT_LOG_DEBUG(ex, "Failed to fetch state from job, skipping job trace update (OperationId: %v, JobId: %v)",
             operationId,
             jobId);
         return;

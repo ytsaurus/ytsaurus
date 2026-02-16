@@ -36,6 +36,7 @@ public:
     void Lock(TTabletId tabletId);
     void Unlock(TTabletId tabletId);
     bool IsLockedByTablet(TTabletId tabletId) const;
+    int GetLockingTabletCount() const;
 
     bool CanLockExclusively(TTransactionId transactionId) const;
     TTransactionId GetLockingTransactionId() const;

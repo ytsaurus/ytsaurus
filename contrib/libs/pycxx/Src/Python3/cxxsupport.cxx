@@ -39,9 +39,9 @@
 namespace Py
 {
 #if !defined(Py_LIMITED_API)
-Py_UNICODE unicode_null_string[1] = { 0 };
+PYCXX_UNICODE_TYPE unicode_null_string[1] = { 0 };
 #endif
-Py_UCS4 ucs4_null_string[1] = { 0 };
+char32_t ucs4_null_string[1] = { 0 };
 
 Type Object::type() const
 {

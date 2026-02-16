@@ -186,9 +186,9 @@ class TestColumnarStatistics(_TestColumnarStatisticsBase):
         with pytest.raises(YtError):
             get_table_columnar_statistics('["//tmp/t";]')
         self._expect_data_weight_statistics(2, 2, "a,b,c", [0, 0, 0])
-        self._expect_data_weight_statistics(0, 6, "a,b,c", [1300, 8, 17], expected_estimated_unique_counts=[3, 1, 2])
-        self._expect_data_weight_statistics(0, 6, "a,c,x", [1300, 17, 0], expected_estimated_unique_counts=[3, 2, 0])
-        self._expect_data_weight_statistics(1, 5, "a,b,c", [1300, 8, 17], expected_estimated_unique_counts=[3, 1, 2])
+        self._expect_data_weight_statistics(0, 6, "a,b,c", [1300, 8, 17], expected_estimated_unique_counts=[2, 1, 2])
+        self._expect_data_weight_statistics(0, 6, "a,c,x", [1300, 17, 0], expected_estimated_unique_counts=[2, 2, 0])
+        self._expect_data_weight_statistics(1, 5, "a,b,c", [1300, 8, 17], expected_estimated_unique_counts=[2, 1, 2])
         self._expect_data_weight_statistics(2, 5, "a", [1200], expected_estimated_unique_counts=[2])
         self._expect_data_weight_statistics(1, 4, "", [])
 
@@ -199,12 +199,12 @@ class TestColumnarStatistics(_TestColumnarStatisticsBase):
         write_table("<append=%true>//tmp/t", [{"a": "x" * 100, "b": 42}, {"c": 1.2}])
         write_table("<append=%true>//tmp/t", [{"a": "x" * 200}, {"c": True}])
         write_table("<append=%true>//tmp/t", [{"b": None, "c": 0}, {"a": "x" * 1000}])
-        self._expect_data_weight_statistics(0, 6, "a,b,c", [1300, 8, 17], table="//tmp/t", expected_estimated_unique_counts=[3, 1, 2])
+        self._expect_data_weight_statistics(0, 6, "a,b,c", [1300, 8, 17], table="//tmp/t", expected_estimated_unique_counts=[2, 1, 2])
         op = merge(in_="//tmp/t{a,b,c}", out="//tmp/d", spec={"combine_chunks": True})
 
         op.track()
         assert 1 == get('//tmp/d/@chunk_count')
-        self._expect_data_weight_statistics(0, 6, "a,b,c", [1300, 8, 17], table="//tmp/d", expected_estimated_unique_counts=[3, 1, 3])
+        self._expect_data_weight_statistics(0, 6, "a,b,c", [1300, 8, 17], table="//tmp/d", expected_estimated_unique_counts=[2, 1, 2])
 
     @authors("gritukan")
     def test_get_table_approximate_statistics(self):

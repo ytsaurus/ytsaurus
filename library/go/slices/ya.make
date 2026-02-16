@@ -4,6 +4,7 @@ SRCS(
     chunk.go
     contains.go
     dedup.go
+    doc.go
     equal.go
     filter.go
     group_by.go

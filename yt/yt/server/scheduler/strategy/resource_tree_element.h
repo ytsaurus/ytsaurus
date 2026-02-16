@@ -41,7 +41,7 @@ public:
         const std::optional<TJobResources>& specifiedResourceLimits,
         const TJobResources& overcommitTolerance,
         const std::vector<TResourceTreeElementPtr>& descendantOperations);
-    bool AreSpecifiedResourceLimitsViolated() const;
+    bool AreSpecifiedResourceLimitsViolated(bool considerPreemptedPrecommited = false) const;
 
     bool AreResourceLimitsSpecified() const;
 
@@ -64,6 +64,7 @@ private:
     TJobResources SpecifiedResourceLimitsOvercommitTolerance_;
     TJobResources ResourceUsage_;
     TJobResources ResourceUsagePrecommit_;
+    TJobResources PreemptedResourceUsagePrecommit_;
 
     std::atomic<bool> ResourceLimitsSpecified_ = false;
 
@@ -75,6 +76,8 @@ private:
 
     // NB: Any resource usage changes are forbidden after alive is set to false.
     std::atomic<bool> Alive_ = true;
+
+    bool AreSpecifiedResourceLimitsViolatedUnsafe(bool considerPreemptedPrecommited = false) const;
 
     EResourceTreeIncreaseResult IncreaseLocalResourceUsagePrecommitWithCheck(
         const TJobResources& delta,
@@ -95,15 +98,25 @@ private:
         const TJobResources& delta,
         bool enableDetailedLogs = false);
 
+    bool IncreaseLocalPreemptedResourceUsagePrecommit(const TJobResources& delta);
+    bool IncreaseLocalPreemptedResourceUsagePrecommitUnsafe(const TJobResources& delta);
+    void ResetLocalPreemptedResourceUsagePrecommit();
+
     bool CommitLocalResourceUsage(
         const TJobResources& resourceUsageDelta,
         const TJobResources& precommittedResources);
 
+    bool CommitLocalPreemptedResourceUsage(const TJobResources& resourceUsageDelta);
+
     bool IncreaseLocalResourceUsage(const TJobResources& delta);
 
-    void ReleaseResources(TJobResources* usagePrecommit, TJobResources* usage);
+    void ReleaseResources(
+        TJobResources* usagePrecommit,
+        TJobResources* usage,
+        TJobResources* preemptedUsagePrecommit);
 
     TJobResources GetResourceUsagePrecommit();
+    TJobResources GetPreemptedResourceUsagePrecommit();
 
     friend class TResourceTree;
 };

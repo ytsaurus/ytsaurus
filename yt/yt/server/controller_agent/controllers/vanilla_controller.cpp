@@ -1469,7 +1469,7 @@ bool TGangOperationController::OnJobAborted(
         return false;
     }
 
-    if (gangJoblet.Rank) {
+    if (gangJoblet.Rank && gangJoblet.IsStarted()) {
         auto& gangTask = static_cast<TGangTask&>(*joblet->Task);
 
         auto incarnationData = TIncarnationSwitchData{
@@ -1643,7 +1643,10 @@ void TGangOperationController::RestartAllRunningJobsPreservingAllocations(bool o
                         continue;
                     }
 
-                    YT_LOG_WARNING("Waiting for node to settle new job timed out; aborting job (JobId: %v, Timeout: %d)", jobId, Options_->GangManager->JobReincarnationTimeout);
+                    YT_LOG_WARNING(
+                        "Waiting for node to settle new job timed out; aborting job (JobId: %v, Timeout: %v)",
+                        jobId,
+                        Options_->GangManager->JobReincarnationTimeout);
 
                     allocation->NewJobsForbiddenReason = EScheduleFailReason::Timeout;
                     AbortJob(jobId, EAbortReason::WaitingTimeout);

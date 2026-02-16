@@ -247,7 +247,6 @@ TTabletCellBundleResources& operator-=(
     static_cast<TTabletResources&>(lhs) -= static_cast<const TTabletResources&>(rhs);
     static_cast<TTabletCellBundleQuota&>(lhs) -= static_cast<const TTabletCellBundleQuota&>(rhs);
     return lhs;
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////

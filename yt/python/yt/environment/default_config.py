@@ -17,7 +17,6 @@ def get_master_config():
         },
 
         "changelogs": {
-            "flush_period": 10,
             "io_engine": {
                 "enable_sync": False,
             }
@@ -77,7 +76,6 @@ def get_master_config():
 
 
 # COMPAT(koloshmet) cypress_manager/enable_preserve_acl_during_move
-# COMPAT(grphil) chunk_manager/always_fetch_non_online_replicas
 def get_dynamic_master_config():
     return {
         "chunk_manager": {
@@ -88,15 +86,18 @@ def get_dynamic_master_config():
             "removal_job_schedule_delay": 0,
             "replicator_enabled_check_period": 1000,
             "enable_chunk_schemas": True,
-            "always_fetch_non_online_replicas": False,
 
             "data_node_tracker": {
                 "enable_per_location_full_heartbeats": True,
                 "enable_chunk_replicas_throttling_in_heartbeats": True,
                 "enable_location_indexes_in_data_node_heartbeats": True,
+                "use_location_indexes_in_sequoia_chunk_confirmation": True,
+                "use_location_indexes_to_search_location_on_confirmation": True,
+                "check_location_convergence_by_index_and_uuid_on_confirmation": True,
                 "enable_validation_full_heartbeats": True,
                 "validation_full_heartbeat_period": 1000,
                 "validation_full_heartbeat_splay": 200,
+                "validate_sequoia_replicas": True,
             },
         },
 
@@ -119,7 +120,6 @@ def get_dynamic_master_config():
 
         "object_manager": {
             "gc_sweep_period": 10,
-            "fix_resolve_prerequisite_path_to_local_object_for_symlinks": True,
             "prohibit_prerequisite_revisions_differ_from_execution_paths": True,
         },
 

@@ -1,7 +1,7 @@
 package slices
 
 import (
-	"golang.org/x/exp/slices"
+	"slices"
 )
 
 // ContainsString checks if string slice contains given string.

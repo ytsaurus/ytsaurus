@@ -80,6 +80,7 @@ target_sources(unittester-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/uuid_text_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/time_text_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/node_directory_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/positional_yson_translation_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/query_builder_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/queue_static_export_config_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/read_limit_ut.cpp

@@ -1,9 +1,9 @@
 proxy: http://http-proxies.default.svc.cluster.local/
 token_env_variable: YT_ACCESS_LOG_VIEWER_TOKEN
-lock_path: //sys/admin/yt-microservices/access_master_log/lock
+lock_path: //sys/admin/yt-microservices/raw_master_access_log_processing/lock
 force_cluster_name: ytsaurus
 access_log_export_path: //sys/admin/logs/export/master-access
-work_path: //sys/admin/yt-microservices/raw_log_processing
+work_path: //sys/admin/yt-microservices/raw_master_access_log_processing
 max_input_tables: 2
 processings:
   30min:

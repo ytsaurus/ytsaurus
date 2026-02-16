@@ -142,6 +142,7 @@ struct TConsumerTableRow
         const NYTree::IAttributeDictionaryPtr& cypressAttributes);
 
     bool operator==(const TConsumerTableRow& rhs) const = default;
+    bool IsMultiConsumerRow() const;
 };
 
 void Serialize(const TConsumerTableRow& row, NYson::IYsonConsumer* consumer);

@@ -683,7 +683,7 @@ void TReferenceResolver::Finish()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TExprBuilder::TExprBuilder(
+TExpressionBuilder::TExpressionBuilder(
     TStringBuf source,
     const TConstTypeInferrerMapPtr& functions)
     : Source_(source)

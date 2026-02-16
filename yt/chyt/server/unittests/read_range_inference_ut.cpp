@@ -213,7 +213,7 @@ TEST_P(TQueryTreeConverterTest, Simple)
     auto context = CreateQueryContext();
 
     auto compositeSettings = TCompositeSettings::Create(true);
-    auto columns = DB::ColumnsDescription(ToNamesAndTypesList(*schema, compositeSettings));
+    auto columns = DB::ColumnsDescription(ToNamesAndTypesList(*schema, /*columnAttributes*/ {}, compositeSettings));
     auto storage = std::make_shared<DB::StorageDummy>(DB::StorageID{"YT", "test"}, columns);
 
     auto tableNode = std::make_shared<DB::TableNode>(storage, context);

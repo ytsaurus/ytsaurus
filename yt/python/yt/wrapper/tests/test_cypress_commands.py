@@ -1,7 +1,3 @@
-# -*- coding: utf-8 -*-
-
-from __future__ import print_function
-
 from .conftest import authors
 from .helpers import TEST_DIR, set_config_option, inject_http_error, get_tests_sandbox, set_cypress_attribute
 

@@ -18,8 +18,6 @@ SRCS(
 )
 
 PEERDIR(
-    contrib/ydb/library/actors/core
-    contrib/ydb/library/actors/interconnect
     library/cpp/json/yson
     library/cpp/monlib/dynamic_counters
     library/cpp/random_provider
@@ -52,21 +50,12 @@ PEERDIR(
     contrib/ydb/core/kqp/proxy_service/script_executions_utils
     contrib/ydb/core/protos
     contrib/ydb/core/util
+    contrib/ydb/library/actors/core
+    contrib/ydb/library/actors/interconnect
     contrib/ydb/library/mkql_proto
     contrib/ydb/library/security
-    yql/essentials/ast
-    yql/essentials/core/facade
-    yql/essentials/core/services/mounts
-    yql/essentials/core/dq_integration/transform
-    yql/essentials/minikql/comp_nodes
-    yql/essentials/providers/common/codec
-    yql/essentials/providers/common/comp_nodes
     contrib/ydb/library/yql/providers/common/db_id_async_resolver
-    yql/essentials/providers/common/metrics
-    yql/essentials/providers/common/provider
-    yql/essentials/providers/common/schema/mkql
     contrib/ydb/library/yql/providers/common/token_accessor/client
-    yql/essentials/providers/common/udf_resolve
     contrib/ydb/library/yql/providers/dq/actors
     contrib/ydb/library/yql/providers/dq/common
     contrib/ydb/library/yql/providers/dq/counters
@@ -76,20 +65,32 @@ PEERDIR(
     contrib/ydb/library/yql/providers/generic/connector/libcpp
     contrib/ydb/library/yql/providers/generic/provider
     contrib/ydb/library/yql/providers/pq/cm_client
+    contrib/ydb/library/yql/providers/pq/gateway/abstract
     contrib/ydb/library/yql/providers/pq/provider
     contrib/ydb/library/yql/providers/pq/task_meta
     contrib/ydb/library/yql/providers/s3/actors_factory
     contrib/ydb/library/yql/providers/s3/provider
-    yql/essentials/public/issue
-    yql/essentials/public/issue/protos
-    yql/essentials/sql/settings
-    yql/essentials/utils
     contrib/ydb/library/yql/utils/actor_log
     contrib/ydb/public/api/protos
     contrib/ydb/public/lib/fq
     contrib/ydb/public/sdk/cpp/src/client/query
     contrib/ydb/public/sdk/cpp/src/client/operation
     contrib/ydb/public/sdk/cpp/src/client/table
+    yql/essentials/ast
+    yql/essentials/core/dq_integration/transform
+    yql/essentials/core/facade
+    yql/essentials/core/services/mounts
+    yql/essentials/minikql/comp_nodes
+    yql/essentials/providers/common/codec
+    yql/essentials/providers/common/comp_nodes
+    yql/essentials/providers/common/metrics
+    yql/essentials/providers/common/provider
+    yql/essentials/providers/common/schema/mkql
+    yql/essentials/providers/common/udf_resolve
+    yql/essentials/public/issue
+    yql/essentials/public/issue/protos
+    yql/essentials/sql/settings
+    yql/essentials/utils
 )
 
 YQL_LAST_ABI_VERSION()

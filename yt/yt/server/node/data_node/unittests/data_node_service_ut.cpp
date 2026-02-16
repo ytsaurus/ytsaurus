@@ -553,6 +553,7 @@ public:
             std::move(masterChannelFactory),
             /*networkPreferenceList*/ {"default"},
             std::move(nodeDirectory),
+            /*nodeStatusDirectory*/ nullptr,
             ActionQueue_->GetInvoker(),
             MemoryTracker_);
 
@@ -768,7 +769,8 @@ public:
     {
         auto blocks = CreateBlocks(blockCount, blockSize, Generator_);
         auto cummulativeBlockSize = CalculateCummulativeBlockSize(blocks);
-        WaitFor(StartChunk(sessionId, useProbePutBlocks, preallocateDiskSpace, useDirectIo)).ThrowOnError();
+        WaitFor(StartChunk(sessionId, useProbePutBlocks, preallocateDiskSpace, useDirectIo))
+            .ThrowOnError();
         if (useProbePutBlocks) {
             int approvedCumulativeBlockSize = 0;
             do {
@@ -783,9 +785,12 @@ public:
         for (auto i : indices) {
             putBlocks[i] = PutBlocks(sessionId, {blocks[i]}, i, cummulativeBlockSize).AsVoid();
         }
-        WaitFor(AllSucceeded(putBlocks)).ThrowOnError();
-        WaitFor(FlushBlocks(sessionId, blockCount - 1)).ThrowOnError();
-        WaitFor(FinishChunk(sessionId, blockCount)).ThrowOnError();
+        WaitFor(AllSucceeded(putBlocks))
+            .ThrowOnError();
+        WaitFor(FlushBlocks(sessionId, blockCount - 1))
+            .ThrowOnError();
+        WaitFor(FinishChunk(sessionId, blockCount))
+            .ThrowOnError();
         return blocks;
     }
 
@@ -918,7 +923,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TIoWeightTestCase
+struct TIOWeightTestCase
 {
     std::vector<double> IOWeights = {1., 1.};
     std::vector<int> SessionCountLimits = {128, 128};
@@ -926,12 +931,12 @@ struct TIoWeightTestCase
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TIoWeightTest
+class TIOWeightTest
     : public TDataNodeTest
-    , public ::testing::WithParamInterface<TIoWeightTestCase>
+    , public ::testing::WithParamInterface<TIOWeightTestCase>
 {
 public:
-    TIoWeightTest()
+    TIOWeightTest()
         : TDataNodeTest(
             TDataNodeTest::TDataNodeTestParams {
                 .ReadThreadCount = 4,
@@ -1074,7 +1079,7 @@ INSTANTIATE_TEST_SUITE_P(
     )
 );
 
-TEST_P(TIoWeightTest, IoBasedOnIoWeight)
+TEST_P(TIOWeightTest, IoBasedOnIoWeight)
 {
     auto& ioWeights = GetParam().IOWeights;
     auto& locations = GetDataNodeBootstrap()->GetChunkStore()->Locations();
@@ -1111,22 +1116,22 @@ TEST_P(TIoWeightTest, IoBasedOnIoWeight)
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    TIoWeightTest,
-    TIoWeightTest,
+    TIOWeightTest,
+    TIOWeightTest,
     ::testing::Values(
-        TIoWeightTestCase{
+        TIOWeightTestCase{
             .IOWeights = {0.0001, 0.001, 0.01, 0.1, 1.},
             .SessionCountLimits = {1024, 1024, 1024, 1024, 1024},
         },
-        TIoWeightTestCase{
+        TIOWeightTestCase{
             .IOWeights = {0.2, 0.5},
             .SessionCountLimits = {256, 256},
         },
-        TIoWeightTestCase{
+        TIOWeightTestCase{
             .IOWeights = {0.2, 0.6, 1.5},
             .SessionCountLimits = {128, 128, 128},
         },
-        TIoWeightTestCase{
+        TIOWeightTestCase{
             .IOWeights = {1., 1.},
             .SessionCountLimits = {16, 256},
         }
@@ -1262,7 +1267,8 @@ TEST_F(TDataNodeTest, ProbePutBlocksCancelChunk)
     for (int i = 0; i < 100; ++i) {
         TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
         sessionIds.push_back(sessionId);
-        WaitFor(StartChunk(sessionId, true, false, false)).ThrowOnError();
+        WaitFor(StartChunk(sessionId, true, false, false))
+            .ThrowOnError();
     }
 
     for (const auto& sessionId: sessionIds) {
@@ -1272,7 +1278,8 @@ TEST_F(TDataNodeTest, ProbePutBlocksCancelChunk)
     }
 
     for (int i = 0; i < std::ssize(sessionIds) / 2; ++i) {
-        WaitFor(CancelChunk(sessionIds[i])).ThrowOnError();
+        WaitFor(CancelChunk(sessionIds[i]))
+            .ThrowOnError();
     }
 
     for (int i = std::ssize(sessionIds) / 2; i < std::ssize(sessionIds); ++i) {
@@ -1282,14 +1289,16 @@ TEST_F(TDataNodeTest, ProbePutBlocksCancelChunk)
     }
 
     for (int i = std::ssize(sessionIds) / 2; i < std::ssize(sessionIds); ++i) {
-        WaitFor(CancelChunk(sessionIds[i])).ThrowOnError();
+        WaitFor(CancelChunk(sessionIds[i]))
+            .ThrowOnError();
     }
 }
 
 TEST_F(TDataNodeTest, PutBlocksCancelChunk)
 {
     TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
-    WaitFor(StartChunk(sessionId, true, false, false)).ThrowOnError();
+    WaitFor(StartChunk(sessionId, true, false, false))
+        .ThrowOnError();
 
     TRandomGenerator generator{RandomNumber<ui64>()};
 
@@ -1299,7 +1308,8 @@ TEST_F(TDataNodeTest, PutBlocksCancelChunk)
     auto putBlocksEnd = PutBlocks(sessionId, {blocks[0]}, 10, cummulativeBlockSize);
     auto putBlocksBeging = PutBlocks(sessionId, {blocks[0]}, 0, cummulativeBlockSize);
 
-    WaitFor(CancelChunk(sessionId)).ThrowOnError();
+    WaitFor(CancelChunk(sessionId))
+        .ThrowOnError();
 
     putBlocksEnd.Cancel(TError("Timeout"));
 
@@ -1313,7 +1323,8 @@ TEST_F(TDataNodeTest, ProbePutBlocksFinishChunk)
     for (int i = 0; i < 100; ++i) {
         TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
         sessionIds.push_back(sessionId);
-        WaitFor(StartChunk(sessionId, true, false, false)).ThrowOnError();
+        WaitFor(StartChunk(sessionId, true, false, false))
+            .ThrowOnError();
     }
 
     for (const auto& sessionId: sessionIds) {
@@ -1323,7 +1334,8 @@ TEST_F(TDataNodeTest, ProbePutBlocksFinishChunk)
     }
 
     for (int i = 0; i < std::ssize(sessionIds) / 2; ++i) {
-        WaitFor(FinishChunk(sessionIds[i], 0)).ThrowOnError();
+        WaitFor(FinishChunk(sessionIds[i], 0))
+            .ThrowOnError();
     }
 
     for (int i = std::ssize(sessionIds) / 2; i < std::ssize(sessionIds); ++i) {
@@ -1333,7 +1345,8 @@ TEST_F(TDataNodeTest, ProbePutBlocksFinishChunk)
     }
 
     for (int i = std::ssize(sessionIds) / 2; i < std::ssize(sessionIds); ++i) {
-        WaitFor(FinishChunk(sessionIds[i], 0)).ThrowOnError();
+        WaitFor(FinishChunk(sessionIds[i], 0))
+            .ThrowOnError();
     }
 }
 

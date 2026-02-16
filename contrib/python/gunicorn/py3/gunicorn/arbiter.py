@@ -3,18 +3,20 @@
 # See the NOTICE for more information.
 import errno
 import os
+import queue
 import random
-import select
 import signal
 import sys
 import time
 import traceback
+import socket
 
 from gunicorn.errors import HaltServer, AppImportError
 from gunicorn.pidfile import Pidfile
 from gunicorn import sock, systemd, util
 
 from gunicorn import __version__, SERVER_SOFTWARE
+from gunicorn.dirty import DirtyArbiter, set_dirty_socket_path
 
 
 class Arbiter:
@@ -36,10 +38,10 @@ class Arbiter:
 
     LISTENERS = []
     WORKERS = {}
-    PIPE = []
 
-    # I love dynamic languages
-    SIG_QUEUE = []
+    # Sentinel value for non-signal wakeups
+    WAKEUP_REQUEST = signal.NSIG
+
     SIGNALS = [getattr(signal, "SIG%s" % x)
                for x in "HUP QUIT INT TERM TTIN TTOU USR1 USR2 WINCH".split()]
     SIG_NAMES = dict(
@@ -54,6 +56,9 @@ class Arbiter:
         self._last_logged_active_worker_count = None
         self.log = None
 
+        # Signal queue - SimpleQueue is reentrant-safe for signal handlers
+        self.SIG_QUEUE = queue.SimpleQueue()
+
         self.setup(app)
 
         self.pidfile = None
@@ -62,6 +67,11 @@ class Arbiter:
         self.reexec_pid = 0
         self.master_pid = 0
         self.master_name = "Master"
+
+        # Dirty arbiter process
+        self.dirty_arbiter_pid = 0
+        self.dirty_arbiter = None
+        self.dirty_pidfile = None  # Well-known location for orphan detection
 
         cwd = util.getcwd()
 
@@ -151,7 +161,8 @@ class Arbiter:
                 for fd in os.environ.pop('GUNICORN_FD').split(','):
                     fds.append(int(fd))
 
-            self.LISTENERS = sock.create_sockets(self.cfg, self.log, fds)
+            if not (self.cfg.reuse_port and hasattr(socket, 'SO_REUSEPORT')):
+                self.LISTENERS = sock.create_sockets(self.cfg, self.log, fds)
 
         listeners_str = ",".join([str(lnr) for lnr in self.LISTENERS])
         self.log.debug("Arbiter booted")
@@ -163,6 +174,10 @@ class Arbiter:
         if hasattr(self.worker_class, "check_config"):
             self.worker_class.check_config(self.cfg, self.log)
 
+        # Start dirty arbiter if configured
+        if self.cfg.dirty_workers > 0 and self.cfg.dirty_apps:
+            self.spawn_dirty_arbiter()
+
         self.cfg.when_ready(self)
 
     def init_signals(self):
@@ -170,27 +185,16 @@ class Arbiter:
         Initialize master signal handling. Most of the signals
         are queued. Child signals only wake up the master.
         """
-        # close old PIPE
-        for p in self.PIPE:
-            os.close(p)
-
-        # initialize the pipe
-        self.PIPE = pair = os.pipe()
-        for p in pair:
-            util.set_non_blocking(p)
-            util.close_on_exec(p)
-
         self.log.close_on_exec()
 
         # initialize all signals
         for s in self.SIGNALS:
             signal.signal(s, self.signal)
-        signal.signal(signal.SIGCHLD, self.handle_chld)
+        signal.signal(signal.SIGCHLD, self.signal_chld)
 
     def signal(self, sig, frame):
-        if len(self.SIG_QUEUE) < 5:
-            self.SIG_QUEUE.append(sig)
-            self.wakeup()
+        """Signal handler - NO LOGGING, just queue the signal."""
+        self.SIG_QUEUE.put_nowait(sig)
 
     def run(self):
         "Main master loop."
@@ -203,25 +207,25 @@ class Arbiter:
             while True:
                 self.maybe_promote_master()
 
-                sig = self.SIG_QUEUE.pop(0) if self.SIG_QUEUE else None
-                if sig is None:
-                    self.sleep()
-                    self.murder_workers()
-                    self.manage_workers()
-                    continue
+                # Wait for and process signals
+                for sig in self.wait_for_signals(timeout=1.0):
+                    if sig not in self.SIG_NAMES:
+                        self.log.info("Ignoring unknown signal: %s", sig)
+                        continue
 
-                if sig not in self.SIG_NAMES:
-                    self.log.info("Ignoring unknown signal: %s", sig)
-                    continue
+                    signame = self.SIG_NAMES.get(sig)
+                    handler = getattr(self, "handle_%s" % signame, None)
+                    if not handler:
+                        self.log.error("Unhandled signal: %s", signame)
+                        continue
+                    # Log SIGCHLD at debug level since it's frequent
+                    log_level = self.log.debug if sig == signal.SIGCHLD else self.log.info
+                    log_level("Handling signal: %s", signame)
+                    handler()
 
-                signame = self.SIG_NAMES.get(sig)
-                handler = getattr(self, "handle_%s" % signame, None)
-                if not handler:
-                    self.log.error("Unhandled signal: %s", signame)
-                    continue
-                self.log.info("Handling signal: %s", signame)
-                handler()
-                self.wakeup()
+                self.murder_workers()
+                self.manage_workers()
+                self.manage_dirty_arbiter()
         except (StopIteration, KeyboardInterrupt):
             self.halt()
         except HaltServer as inst:
@@ -236,10 +240,18 @@ class Arbiter:
                 self.pidfile.unlink()
             sys.exit(-1)
 
-    def handle_chld(self, sig, frame):
-        "SIGCHLD handling"
+    def signal_chld(self, sig, frame):
+        """SIGCHLD signal handler - NO LOGGING, just queue the signal."""
+        self.SIG_QUEUE.put_nowait(sig)
+
+    def handle_chld(self):
+        """SIGCHLD handling - called from main loop, safe to log."""
         self.reap_workers()
-        self.wakeup()
+        self.reap_dirty_arbiter()
+
+    # SIGCLD is an alias for SIGCHLD on Linux. The SIG_NAMES dict may map
+    # to either "chld" or "cld" depending on iteration order of dir(signal).
+    handle_cld = handle_chld
 
     def handle_hup(self):
         """\
@@ -250,6 +262,9 @@ class Arbiter:
         """
         self.log.info("Hang up: %s", self.master_name)
         self.reload()
+        # Forward to dirty arbiter
+        if self.dirty_arbiter_pid:
+            self.kill_dirty_arbiter(signal.SIGHUP)
 
     def handle_term(self):
         "SIGTERM handling"
@@ -290,6 +305,9 @@ class Arbiter:
         """
         self.log.reopen_files()
         self.kill_workers(signal.SIGUSR1)
+        # Forward to dirty arbiter
+        if self.dirty_arbiter_pid:
+            self.kill_dirty_arbiter(signal.SIGUSR1)
 
     def handle_usr2(self):
         """\
@@ -327,14 +345,8 @@ class Arbiter:
             util._setproctitle("master [%s]" % self.proc_name)
 
     def wakeup(self):
-        """\
-        Wake up the arbiter by writing to the PIPE
-        """
-        try:
-            os.write(self.PIPE[1], b'.')
-        except OSError as e:
-            if e.errno not in [errno.EAGAIN, errno.EINTR]:
-                raise
+        """Wake up the arbiter's main loop."""
+        self.SIG_QUEUE.put_nowait(self.WAKEUP_REQUEST)
 
     def halt(self, reason=None, exit_status=0):
         """ halt arbiter """
@@ -350,24 +362,30 @@ class Arbiter:
         self.cfg.on_exit(self)
         sys.exit(exit_status)
 
-    def sleep(self):
+    def wait_for_signals(self, timeout=1.0):
         """\
-        Sleep until PIPE is readable or we timeout.
-        A readable PIPE means a signal occurred.
+        Wait for signals with timeout.
+        Returns a list of signals that were received.
         """
+        signals = []
         try:
-            ready = select.select([self.PIPE[0]], [], [], 1.0)
-            if not ready[0]:
-                return
-            while os.read(self.PIPE[0], 1):
-                pass
-        except OSError as e:
-            # TODO: select.error is a subclass of OSError since Python 3.3.
-            error_number = getattr(e, 'errno', e.args[0])
-            if error_number not in [errno.EAGAIN, errno.EINTR]:
-                raise
+            # Block until we get a signal or timeout
+            sig = self.SIG_QUEUE.get(block=True, timeout=timeout)
+            if sig != self.WAKEUP_REQUEST:
+                signals.append(sig)
+            # Drain any additional queued signals
+            while True:
+                try:
+                    sig = self.SIG_QUEUE.get_nowait()
+                    if sig != self.WAKEUP_REQUEST:
+                        signals.append(sig)
+                except queue.Empty:
+                    break
+        except queue.Empty:
+            pass
         except KeyboardInterrupt:
             sys.exit()
+        return signals
 
     def stop(self, graceful=True):
         """\
@@ -388,13 +406,40 @@ class Arbiter:
         if not graceful:
             sig = signal.SIGQUIT
         limit = time.time() + self.cfg.graceful_timeout
+
+        # Stop dirty arbiter
+        if self.dirty_arbiter_pid:
+            self.kill_dirty_arbiter(sig)
+
         # instruct the workers to exit
         self.kill_workers(sig)
         # wait until the graceful timeout
-        while self.WORKERS and time.time() < limit:
+        quick_shutdown = not graceful
+        while (self.WORKERS or self.dirty_arbiter_pid) and time.time() < limit:
+            # Check for SIGINT/SIGQUIT to trigger quick shutdown
+            if not quick_shutdown:
+                try:
+                    pending_sig = self.SIG_QUEUE.get_nowait()
+                    if pending_sig in (signal.SIGINT, signal.SIGQUIT):
+                        self.log.info("Quick shutdown requested")
+                        quick_shutdown = True
+                        self.kill_workers(signal.SIGQUIT)
+                        if self.dirty_arbiter_pid:
+                            self.kill_dirty_arbiter(signal.SIGQUIT)
+                        # Give workers a short time to exit cleanly
+                        limit = time.time() + 2.0
+                except Exception:
+                    pass
+            self.reap_workers()
+            self.reap_dirty_arbiter()
             time.sleep(0.1)
 
         self.kill_workers(signal.SIGKILL)
+        if self.dirty_arbiter_pid:
+            self.kill_dirty_arbiter(signal.SIGKILL)
+        # Final reap to clean up any remaining zombies
+        self.reap_workers()
+        self.reap_dirty_arbiter()
 
     def reexec(self):
         """\
@@ -478,12 +523,27 @@ class Arbiter:
         # set new proc_name
         util._setproctitle("master [%s]" % self.proc_name)
 
+        # Remember current worker age before spawning new workers
+        last_worker_age = self.worker_age
+
         # spawn new workers
         for _ in range(self.cfg.workers):
             self.spawn_worker()
 
-        # manage workers
+        # manage workers - this will kill old workers beyond num_workers
         self.manage_workers()
+
+        # wait for old workers to terminate to prevent double SIGTERM
+        deadline = time.monotonic() + self.cfg.graceful_timeout
+        while time.monotonic() < deadline:
+            if not self.WORKERS:
+                break
+            # Check if all remaining workers are newer than last_worker_age
+            oldest = min(w.age for w in self.WORKERS.values())
+            if oldest > last_worker_age:
+                break
+            self.reap_workers()
+            time.sleep(0.1)
 
     def murder_workers(self):
         """\
@@ -521,36 +581,39 @@ class Arbiter:
                     # A worker was terminated. If the termination reason was
                     # that it could not boot, we'll shut it down to avoid
                     # infinite start/stop cycles.
-                    exitcode = status >> 8
-                    if exitcode != 0:
-                        self.log.error('Worker (pid:%s) exited with code %s', wpid, exitcode)
+                    exitcode = None
+                    if os.WIFEXITED(status):
+                        exitcode = os.WEXITSTATUS(status)
+                    elif os.WIFSIGNALED(status):
+                        sig = os.WTERMSIG(status)
+                        try:
+                            sig_name = signal.Signals(sig).name
+                        except ValueError:
+                            sig_name = "signal {}".format(sig)
+                        msg = "Worker (pid:{}) was sent {}!".format(
+                            wpid, sig_name)
+
+                        # SIGKILL suggests OOM, log as error
+                        if sig == signal.SIGKILL:
+                            msg += " Perhaps out of memory?"
+                            self.log.error(msg)
+                        elif sig == signal.SIGTERM:
+                            # SIGTERM is expected during graceful shutdown
+                            self.log.info(msg)
+                        else:
+                            # Other signals are unexpected
+                            self.log.warning(msg)
+
+                    if exitcode is not None and exitcode != 0:
+                        self.log.error("Worker (pid:%s) exited with code %s.",
+                                       wpid, exitcode)
+
                     if exitcode == self.WORKER_BOOT_ERROR:
                         reason = "Worker failed to boot."
                         raise HaltServer(reason, self.WORKER_BOOT_ERROR)
                     if exitcode == self.APP_LOAD_ERROR:
                         reason = "App failed to load."
                         raise HaltServer(reason, self.APP_LOAD_ERROR)
-
-                    if exitcode > 0:
-                        # If the exit code of the worker is greater than 0,
-                        # let the user know.
-                        self.log.error("Worker (pid:%s) exited with code %s.",
-                                       wpid, exitcode)
-                    elif status > 0:
-                        # If the exit code of the worker is 0 and the status
-                        # is greater than 0, then it was most likely killed
-                        # via a signal.
-                        try:
-                            sig_name = signal.Signals(status).name
-                        except ValueError:
-                            sig_name = "code {}".format(status)
-                        msg = "Worker (pid:{}) was sent {}!".format(
-                            wpid, sig_name)
-
-                        # Additional hint for SIGKILL
-                        if status == signal.SIGKILL:
-                            msg += " Perhaps out of memory?"
-                        self.log.error(msg)
 
                     worker = self.WORKERS.pop(wpid, None)
                     if not worker:
@@ -583,6 +646,16 @@ class Arbiter:
                                   "value": active_worker_count,
                                   "mtype": "gauge"})
 
+        if self.cfg.enable_backlog_metric:
+            backlog = sum(sock.get_backlog() or 0
+                          for sock in self.LISTENERS)
+
+            if backlog >= 0:
+                self.log.debug("socket backlog: {0}".format(backlog),
+                               extra={"metric": "gunicorn.backlog",
+                                      "value": backlog,
+                                      "mtype": "histogram"})
+
     def spawn_worker(self):
         self.worker_age += 1
         worker = self.worker_class(self.worker_age, self.pid, self.LISTENERS,
@@ -604,6 +677,8 @@ class Arbiter:
         try:
             util._setproctitle("worker [%s]" % self.proc_name)
             self.log.info("Booting worker with pid: %s", worker.pid)
+            if self.cfg.reuse_port:
+                worker.sockets = sock.create_sockets(self.cfg, self.log)
             self.cfg.post_fork(self, worker)
             worker.init_process()
             sys.exit(0)
@@ -615,8 +690,10 @@ class Arbiter:
             print("%s" % e, file=sys.stderr)
             sys.stderr.flush()
             sys.exit(self.APP_LOAD_ERROR)
-        except Exception:
+        except Exception as e:
             self.log.exception("Exception in worker process")
+            print("%s" % e, file=sys.stderr)
+            sys.stderr.flush()
             if not worker.booted:
                 sys.exit(self.WORKER_BOOT_ERROR)
             sys.exit(-1)
@@ -669,3 +746,159 @@ class Arbiter:
                 except (KeyError, OSError):
                     return
             raise
+
+    # =========================================================================
+    # Dirty Arbiter Management
+    # =========================================================================
+
+    def _get_dirty_pidfile_path(self):
+        """Get the well-known PID file path for orphan detection.
+
+        Uses self.proc_name (not self.cfg.proc_name) so that during USR2
+        the new master gets a different PID file path ("myapp.2" vs "myapp").
+        This prevents the old dirty arbiter from removing the new one's PID file.
+        """
+        import tempfile
+        safe_name = self.proc_name.replace('/', '_').replace(' ', '_')
+        return os.path.join(tempfile.gettempdir(), f"gunicorn-dirty-{safe_name}.pid")
+
+    def _cleanup_orphaned_dirty_arbiter(self):
+        """Kill any orphaned dirty arbiter from a previous crash.
+
+        Only runs on fresh start (master_pid == 0), not during USR2.
+        """
+        # During USR2, master_pid is set - don't cleanup old dirty arbiter
+        if self.master_pid != 0:
+            return
+
+        pidfile = self._get_dirty_pidfile_path()
+        if not os.path.exists(pidfile):
+            return
+
+        try:
+            with open(pidfile) as f:
+                old_pid = int(f.read().strip())
+
+            # Check if process exists
+            os.kill(old_pid, 0)
+            # Process exists - kill orphan
+            self.log.warning("Killing orphaned dirty arbiter (pid: %s)", old_pid)
+            os.kill(old_pid, signal.SIGTERM)
+            # Wait briefly for graceful exit
+            for _ in range(10):
+                time.sleep(0.1)
+                try:
+                    os.kill(old_pid, 0)
+                except OSError:
+                    break
+            else:
+                os.kill(old_pid, signal.SIGKILL)
+        except (ValueError, IOError, OSError):
+            pass
+
+        # Remove stale PID file
+        try:
+            os.unlink(pidfile)
+        except OSError:
+            pass
+
+    def spawn_dirty_arbiter(self):
+        """\
+        Spawn the dirty arbiter process.
+
+        The dirty arbiter manages a separate pool of workers for
+        long-running, blocking operations.
+        """
+        if self.dirty_arbiter_pid:
+            return  # Already running
+
+        # Cleanup any orphaned dirty arbiter from previous crash
+        self._cleanup_orphaned_dirty_arbiter()
+
+        # Get well-known PID file path
+        self.dirty_pidfile = self._get_dirty_pidfile_path()
+
+        self.dirty_arbiter = DirtyArbiter(
+            self.cfg, self.log,
+            pidfile=self.dirty_pidfile
+        )
+        socket_path = self.dirty_arbiter.socket_path
+
+        pid = os.fork()
+        if pid != 0:
+            # Parent process
+            self.dirty_arbiter_pid = pid
+            # Set socket path for HTTP workers to use
+            set_dirty_socket_path(socket_path)
+            os.environ['GUNICORN_DIRTY_SOCKET'] = socket_path
+            self.log.info("Spawned dirty arbiter (pid: %s) at %s",
+                          pid, socket_path)
+            return pid
+
+        # Child process - run the dirty arbiter
+        try:
+            self.dirty_arbiter.run()
+            sys.exit(0)
+        except SystemExit:
+            raise
+        except Exception:
+            self.log.exception("Exception in dirty arbiter process")
+            sys.exit(-1)
+
+    def kill_dirty_arbiter(self, sig):
+        """\
+        Send a signal to the dirty arbiter.
+
+        :attr sig: `signal.SIG*` value
+        """
+        if not self.dirty_arbiter_pid:
+            return
+
+        try:
+            os.kill(self.dirty_arbiter_pid, sig)
+        except OSError as e:
+            if e.errno == errno.ESRCH:
+                self.dirty_arbiter_pid = 0
+                self.dirty_arbiter = None
+
+    def reap_dirty_arbiter(self):
+        """\
+        Reap the dirty arbiter process if it has exited.
+        """
+        if not self.dirty_arbiter_pid:
+            return
+
+        try:
+            wpid, status = os.waitpid(self.dirty_arbiter_pid, os.WNOHANG)
+            if not wpid:
+                return
+
+            if os.WIFEXITED(status):
+                exitcode = os.WEXITSTATUS(status)
+                if exitcode != 0:
+                    self.log.error("Dirty arbiter (pid:%s) exited with code %s",
+                                   wpid, exitcode)
+                else:
+                    self.log.info("Dirty arbiter (pid:%s) exited", wpid)
+            elif os.WIFSIGNALED(status):
+                sig = os.WTERMSIG(status)
+                self.log.warning("Dirty arbiter (pid:%s) killed by signal %s",
+                                 wpid, sig)
+
+            self.dirty_arbiter_pid = 0
+            self.dirty_arbiter = None
+        except OSError as e:
+            if e.errno == errno.ECHILD:
+                self.dirty_arbiter_pid = 0
+                self.dirty_arbiter = None
+
+    def manage_dirty_arbiter(self):
+        """\
+        Maintain the dirty arbiter process by respawning if needed.
+        """
+        if self.dirty_arbiter_pid:
+            return  # Already running
+
+        if self.cfg.dirty_workers > 0 and self.cfg.dirty_apps:
+            self.log.info("Spawning dirty arbiter...")
+            self.spawn_dirty_arbiter()

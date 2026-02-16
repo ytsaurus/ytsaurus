@@ -23,7 +23,7 @@ TAG(
 )
 
 REQUIREMENTS(
-    sb_vault:YT_TOKEN=value:ignat:robot-yt-test-token
+    yav:YT_TOKEN=value:sec-01gg4hcd881t1nncr04nmbeg04:yt_token
     cpu:10
     ram:32
     ram_disk:4

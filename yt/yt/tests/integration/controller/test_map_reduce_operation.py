@@ -435,9 +435,9 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
             spec={"reducer": {"format": "dsv"}, "ordered": ordered},
         )
 
-    @authors("faucct")
+    @authors("faucct", "pogorelov")
     @pytest.mark.parametrize("ordered", [False, True])
-    def test_map_reduce_distributed(self, ordered):
+    def test_map_reduce_job_collective(self, ordered):
         skip_if_component_old(self.Env, (25, 3), "controller-agent")
         skip_if_component_old(self.Env, (25, 3), "node")
 
@@ -1413,8 +1413,8 @@ print("x={0}\ty={1}".format(x, y))
 
         assert_items_equal(read_table("//tmp/t_in"), read_table("//tmp/t_out"))
 
-    @authors("faucct")
-    def test_user_job_spec_distributed(self):
+    @authors("faucct", "pogorelov")
+    def test_user_job_spec_job_collective(self):
         skip_if_component_old(self.Env, (25, 3), "controller-agent")
         skip_if_component_old(self.Env, (25, 3), "node")
 

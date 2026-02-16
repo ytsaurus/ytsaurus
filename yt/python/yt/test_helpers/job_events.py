@@ -166,6 +166,12 @@ class JobEvents(object):
             raise ValueError("Command has multiple BREAKPOINT: {0}".format(cmd))
         return result
 
+    def external_breakpoint(self, breakpoint_name):
+        self._create_breakpoint(breakpoint_name)
+
+    def get_path(self):
+        return self._tmpdir
+
     def _create_breakpoint(self, breakpoint_name):
         self._breakpoints.add(breakpoint_name)
 

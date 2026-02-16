@@ -59,6 +59,9 @@ void TTestingOptions::Register(TRegistrar registrar)
         "abort_output_transaction_after_completion_transaction_commit",
         &TThis::AbortOutputTransactionAfterCompletionTransactionCommit)
         .Default(false);
+
+    registrar.Parameter("enable_events_on_fs", &TThis::EnableEventsOnFs)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1419,6 +1422,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("operation_events_reporter", &TThis::OperationEventsReporter)
         .DefaultNew();
+
+    registrar.Parameter("fail_operations_in_empty_trees", &TThis::FailOperationsInEmptyTrees)
+        .Default(true);
 
     registrar.Preprocessor([&] (TControllerAgentConfig* config) {
         config->ChunkLocationThrottler->Limit = 10'000;

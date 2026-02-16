@@ -1,5 +1,7 @@
 #pragma once
 
+#include "private.h"
+
 #include <yt/yt/core/ytree/convert.h>
 
 #include <Interpreters/Context.h>
@@ -52,8 +54,8 @@ public:
 protected:
     DB::StoragePtr DoGetTable(DB::ContextPtr context, const String& name) const;
 
-private:
-    DB::StoragePtr DoGetDictionary(DB::ContextPtr context, const DB::StorageID& storageId) const;
+    DB::StoragePtr DoGetYtTable(DB::ContextPtr context, TQueryContext* queryContext, const DB::StorageID& storageId) const;
+    DB::StoragePtr DoGetDictionary(DB::ContextPtr context, TQueryContext* queryContext, const DB::StorageID& storageId) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

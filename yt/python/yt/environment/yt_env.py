@@ -1039,7 +1039,7 @@ class YTInstance(object):
         self._abort_node_transactions_and_wait(addresses, wait_offline)
 
     def kill_http_proxies(self, indexes=None):
-        self.kill_service("proxy", indexes=indexes)
+        self.kill_service("http_proxy", indexes=indexes)
 
     def kill_rpc_proxies(self, indexes=None):
         self.kill_service("rpc_proxy", indexes=indexes)
@@ -1494,7 +1494,13 @@ class YTInstance(object):
                 # `suppress_transaction_coordinator_sync` and `suppress_upstream_sync`
                 # are set True due to possibly enabled read-only mode.
                 if set_config:
-                    patched_dynamic_master_config = get_patched_dynamic_master_config(get_dynamic_master_config())
+                    # COMPAT(cherepashka): YT-27231, drop after enable_location_indexes_in_data_node_heartbeats will be enabled by default.
+                    dynamic_config = get_dynamic_master_config()
+                    if self.yt_config.enable_multidaemon:
+                        dynamic_config["chunk_manager"]["data_node_tracker"]["use_location_indexes_in_sequoia_chunk_confirmation"] = False
+                        dynamic_config["chunk_manager"]["data_node_tracker"]["use_location_indexes_to_search_location_on_confirmation"] = False
+                        dynamic_config["chunk_manager"]["data_node_tracker"]["check_location_convergence_by_index_and_uuid_on_confirmation"] = False
+                    patched_dynamic_master_config = get_patched_dynamic_master_config(dynamic_config)
                     # TODO(kvk1920): there are many optional callbacks which
                     # leads to "if some_func is not None: some_func()". It's
                     # better use no-op callbacks instead of None.

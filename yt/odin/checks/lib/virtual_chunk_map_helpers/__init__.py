@@ -35,7 +35,7 @@ def check_virtual_map_size(yt_client, logger, options, states, check_name, count
         return states.UNKNOWN_STATE
 
     logger.info(f"{check_name} chunk number is %s", chunk_count)
-    if len(chunk_ids) > count_threshold:
+    if chunk_count > count_threshold:
         logger.info(f"Sample of {check_name} chunks: %s", " ".join(chunk_ids))
 
         batch_client = yt_client.create_batch_client()
@@ -44,16 +44,14 @@ def check_virtual_map_size(yt_client, logger, options, states, check_name, count
             batch_responses[chunk_id] = batch_client.get(f"#{chunk_id}/@last_seen_replicas")
         batch_client.commit_batch()
 
-        for chunk_id, response in batch_responses:
+        for chunk_id, response in batch_responses.items():
             if response.is_ok():
                 logger.info("Last seen replicas for chunk {}: {}".format(chunk_id, response.get_result()))
             else:
                 logger.exception("Failed to get last seen replicas for chunk {}: '{}'".format(chunk_id, response.get_error()))
-
-    if chunk_count == 0:
-        return states.FULLY_AVAILABLE_STATE
+        return states.UNAVAILABLE_STATE
     else:
-        return states.UNAVAILABLE_STATE, chunk_count
+        return states.FULLY_AVAILABLE_STATE
 
 
 def check_virtual_map_age(yt_client, logger, options, check_name):
@@ -73,7 +71,7 @@ def check_virtual_map_age(yt_client, logger, options, check_name):
     if chunk_count >= count_threshold:
         if not yt_client.exists(flag_path):
             yt_client.create("map_node", flag_path)
-            timestamp = yt.common.datetime_to_string(flag_path.utcnow())
+            timestamp = yt.common.datetime_to_string(datetime.utcnow())
         else:
             timestamp = yt_client.get(f"{flag_path}/@creation_time")
     else:

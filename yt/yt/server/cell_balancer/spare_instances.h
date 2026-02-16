@@ -71,8 +71,10 @@ template <class TSpareInstance>
 struct TSpareInstanceAllocator
     : public ISpareInstanceAllocator
 {
+private:
     using TZoneToDataCenterToInfo = THashMap<std::string, THashMap<std::string, TSpareInstance>>;
 
+public:
     explicit TSpareInstanceAllocator(TZoneToDataCenterToInfo& spareInstances);
 
     TZoneToDataCenterToInfo& SpareInstances;

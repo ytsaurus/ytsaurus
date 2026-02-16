@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 from yt.testlib import authors, ASAN_USER_JOB_MEMORY_LIMIT
 from yt.wrapper.testlib.helpers import (TEST_DIR, get_test_file_path, check_rows_equality,
                                         set_config_option, get_tests_sandbox, dumps_yt_config, get_python,
@@ -393,8 +391,6 @@ class TestOperations(object):
             pytest.skip()
 
         script = """
-from __future__ import print_function
-
 import yt.wrapper as yt
 import sys
 
@@ -2394,8 +2390,6 @@ class TestOperationsSkiffFormat(object):
             pytest.skip()
 
         script = """
-from __future__ import print_function
-
 import yt.wrapper as yt
 import sys
 

@@ -248,6 +248,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/partition_tables.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/pick_replica_session.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/pipeline_type_handler.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/pool_weight_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/queue_producer_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/register_transaction_actions_request_factory.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/replicated_table_replica_type_handler.cpp
@@ -450,7 +451,6 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/explain.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/functions_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/session_coordinator.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/tracked_memory_chunk_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/queue_consumer_init.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/dynamic_state.cpp

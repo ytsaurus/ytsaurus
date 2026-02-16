@@ -74,6 +74,7 @@ struct TTabletBalancerDynamicConfig
     bool PickReshardPivotKeys;
     bool CancelActionIfPickPivotKeysFails;
     bool EnableReshardVerboseLogging;
+    bool IgnoreTabletToCellRatio;
     std::optional<double> ReshardSlicingAccuracy;
     std::optional<bool> EnableSmoothMovement;
 
@@ -90,6 +91,8 @@ struct TTabletBalancerDynamicConfig
 
     std::vector<std::string> ClustersForBundleHealthCheck;
     int MaxUnhealthyBundlesOnReplicaCluster;
+
+    NConcurrency::TThroughputThrottlerConfigPtr MasterRequestThrottler;
 
     REGISTER_YSON_STRUCT(TTabletBalancerDynamicConfig);
 
@@ -127,6 +130,8 @@ struct TClusterStateProviderConfig
     TDuration FetchPlannerPeriod;
     int WorkerThreadPoolSize;
 
+    bool FetchTabletActionsBundleAttribute;
+
     TDuration BundlesFreshnessTime;
     TDuration NodesFreshnessTime;
     TDuration UnhealthyBundlesFreshnessTime;
@@ -158,10 +163,11 @@ struct TBundleStateProviderConfig
     TDuration StateFreshnessTime;
     TDuration StatisticsFreshnessTime;
     TDuration PerformanceCountersFreshnessTime;
+    TDuration ConfigFreshnessTime;
 
-    TDuration StateFetchPeriod;
-    TDuration StatisticsFetchPeriod;
-    TDuration PerformanceCountersFetchPeriod;
+    std::optional<TDuration> StateFetchPeriod;
+    std::optional<TDuration> StatisticsFetchPeriod;
+    std::optional<TDuration> PerformanceCountersFetchPeriod;
 
     bool CheckInvariants;
 

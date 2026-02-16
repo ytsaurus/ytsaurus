@@ -13,9 +13,11 @@ from sqlglot.dialects.dialect import (
     JSON_EXTRACT_TYPE,
     NormalizationStrategy,
     approx_count_distinct_sql,
+    array_append_sql,
+    array_compact_sql,
+    array_concat_sql,
     arrow_json_extract_sql,
     binary_from_function,
-    bool_xor_sql,
     build_default_decimal_type,
     build_formatted_time,
     build_regexp_extract,
@@ -49,6 +51,7 @@ from sqlglot.generator import unsupported_args
 from sqlglot.helper import is_date_unit, seq_get
 from sqlglot.tokens import TokenType
 from sqlglot.parser import binary_range_parser
+from sqlglot.typing.duckdb import EXPRESSION_METADATA
 
 # Regex to detect time zones in timestamps of the form [+|-]TT[:tt]
 # The pattern matches timezone offsets that appear after the time portion
@@ -89,6 +92,61 @@ WEEK_START_DAY_TO_DOW = {
 }
 
 MAX_BIT_POSITION = exp.Literal.number(32768)
+
+# SEQ function constants
+_SEQ_BASE = "(ROW_NUMBER() OVER (ORDER BY 1) - 1)"
+_SEQ_RESTRICTED = (exp.Where, exp.Having, exp.AggFunc, exp.Order, exp.Select)
+
+
+def _apply_base64_alphabet_replacements(
+    result: exp.Expression,
+    alphabet: t.Optional[exp.Expression],
+    reverse: bool = False,
+) -> exp.Expression:
+    """
+    Apply base64 alphabet character replacements.
+
+    Base64 alphabet can be 1-3 chars: 1st = index 62 ('+'), 2nd = index 63 ('/'), 3rd = padding ('=').
+    zip truncates to the shorter string, so 1-char alphabet only replaces '+', 2-char replaces '+/', etc.
+
+    Args:
+        result: The expression to apply replacements to
+        alphabet: Custom alphabet literal (expected chars for +/=)
+        reverse: If False, replace default with custom (encode)
+                 If True, replace custom with default (decode)
+    """
+    if isinstance(alphabet, exp.Literal) and alphabet.is_string:
+        for default_char, new_char in zip("+/=", alphabet.this):
+            if new_char != default_char:
+                find, replace = (new_char, default_char) if reverse else (default_char, new_char)
+                result = exp.Replace(
+                    this=result,
+                    expression=exp.Literal.string(find),
+                    replacement=exp.Literal.string(replace),
+                )
+    return result
+
+
+def _base64_decode_sql(self: DuckDB.Generator, expression: exp.Expression, to_string: bool) -> str:
+    """
+    Transpile Snowflake BASE64_DECODE_STRING/BINARY to DuckDB.
+
+    DuckDB uses FROM_BASE64() which returns BLOB. For string output, wrap with DECODE().
+    Custom alphabets require REPLACE() calls to convert to standard base64.
+    """
+    input_expr = expression.this
+    alphabet = expression.args.get("alphabet")
+
+    # Handle custom alphabet by replacing non-standard chars with standard ones
+    input_expr = _apply_base64_alphabet_replacements(input_expr, alphabet, reverse=True)
+
+    # FROM_BASE64 returns BLOB
+    input_expr = exp.FromBase64(this=input_expr)
+
+    if to_string:
+        input_expr = exp.Decode(this=input_expr)
+
+    return self.sql(input_expr)
 
 
 def _last_day_sql(self: DuckDB.Generator, expression: exp.LastDay) -> str:
@@ -289,6 +347,100 @@ def _date_delta_to_binary_interval_op(
     return _duckdb_date_delta_sql
 
 
+def _array_insert_sql(self: DuckDB.Generator, expression: exp.ArrayInsert) -> str:
+    """
+    Transpile ARRAY_INSERT to DuckDB using LIST_CONCAT and slicing.
+
+    Handles:
+    - 0-based and 1-based indexing (normalizes to 0-based for calculations)
+    - Negative position conversion (requires array length)
+    - NULL propagation (source dialects return NULL, DuckDB creates single-element array)
+    - Assumes position is within bounds per user constraint
+
+    Note: All dialects that support ARRAY_INSERT (Snowflake, Spark, Databricks) have
+    ARRAY_FUNCS_PROPAGATES_NULLS=True, so we always assume source propagates NULLs.
+
+    Args:
+        expression: The ArrayInsert expression to transpile.
+
+    Returns:
+        SQL string implementing ARRAY_INSERT behavior.
+    """
+    this = expression.this
+    position = expression.args.get("position")
+    element = expression.expression
+    element_array = exp.Array(expressions=[element])
+    index_offset = expression.args.get("offset", 0)
+
+    if not position or not position.is_int:
+        self.unsupported("ARRAY_INSERT can only be transpiled with a literal position")
+        return self.func("ARRAY_INSERT", this, position, element)
+
+    pos_value = position.to_py()
+
+    # Normalize one-based indexing to zero-based for slice calculations
+    # Spark (1-based) → Snowflake (0-based):
+    #   Positive: pos=1 → pos=0 (subtract 1)
+    #   Negative: pos=-2 → pos=-1 (add 1)
+    # Example: Spark array_insert([a,b,c], -2, d) → [a,b,d,c] is same as Snowflake pos=-1
+    if pos_value > 0:
+        pos_value = pos_value - index_offset
+    elif pos_value < 0:
+        pos_value = pos_value + index_offset
+
+    # Build the appropriate list_concat expression based on position
+    if pos_value == 0:
+        # insert at beginning
+        concat_exprs = [element_array, this]
+    elif pos_value > 0:
+        # Positive position: LIST_CONCAT(arr[1:pos], [elem], arr[pos+1:])
+        # 0-based -> DuckDB 1-based slicing
+
+        # left slice: arr[1:pos]
+        slice_start = exp.Bracket(
+            this=this,
+            expressions=[
+                exp.Slice(this=exp.Literal.number(1), expression=exp.Literal.number(pos_value))
+            ],
+        )
+
+        # right slice: arr[pos+1:]
+        slice_end = exp.Bracket(
+            this=this, expressions=[exp.Slice(this=exp.Literal.number(pos_value + 1))]
+        )
+
+        concat_exprs = [slice_start, element_array, slice_end]
+    else:
+        # Negative position: arr[1:LEN(arr)+pos], [elem], arr[LEN(arr)+pos+1:]
+        # pos=-1 means insert before last element
+        arr_len = exp.Length(this=this)
+
+        # Calculate slice position: LEN(arr) + pos (e.g., LEN(arr) + (-1) = LEN(arr) - 1)
+        slice_end_pos = arr_len + exp.Literal.number(pos_value)
+        slice_start_pos = slice_end_pos + exp.Literal.number(1)
+
+        # left slice: arr[1:LEN(arr)+pos]
+        slice_start = exp.Bracket(
+            this=this,
+            expressions=[exp.Slice(this=exp.Literal.number(1), expression=slice_end_pos)],
+        )
+
+        # right slice: arr[LEN(arr)+pos+1:]
+        slice_end = exp.Bracket(this=this, expressions=[exp.Slice(this=slice_start_pos)])
+
+        concat_exprs = [slice_start, element_array, slice_end]
+
+    # All dialects that support ARRAY_INSERT propagate NULLs (Snowflake/Spark/Databricks)
+    # Wrap in CASE WHEN array IS NULL THEN NULL ELSE func_expr END
+    return self.sql(
+        exp.If(
+            this=exp.Is(this=this, expression=exp.Null()),
+            true=exp.Null(),
+            false=self.func("LIST_CONCAT", *concat_exprs),
+        )
+    )
+
+
 @unsupported_args(("expression", "DuckDB's ARRAY_SORT does not support a comparator."))
 def _array_sort_sql(self: DuckDB.Generator, expression: exp.ArraySort) -> str:
     return self.func("ARRAY_SORT", expression.this)
@@ -348,6 +500,14 @@ def _show_parser(*args: t.Any, **kwargs: t.Any) -> t.Callable[[DuckDB.Parser], e
 
 
 def _struct_sql(self: DuckDB.Generator, expression: exp.Struct) -> str:
+    ancestor_cast = expression.find_ancestor(exp.Cast, exp.Select)
+    ancestor_cast = None if isinstance(ancestor_cast, exp.Select) else ancestor_cast
+
+    # Empty struct cast works with MAP() since DuckDB can't parse {}
+    if not expression.expressions:
+        if isinstance(ancestor_cast, exp.Cast) and ancestor_cast.to.is_type(exp.DataType.Type.MAP):
+            return "MAP()"
+
     args: t.List[str] = []
 
     # BigQuery allows inline construction such as "STRUCT<a STRING, b INTEGER>('str', 1)" which is
@@ -355,7 +515,6 @@ def _struct_sql(self: DuckDB.Generator, expression: exp.Struct) -> str:
     # The transformation to ROW will take place if:
     #  1. The STRUCT itself does not have proper fields (key := value) as a "proper" STRUCT would
     #  2. A cast to STRUCT / ARRAY of STRUCTs is found
-    ancestor_cast = expression.find_ancestor(exp.Cast)
     is_bq_inline_struct = (
         (expression.find(exp.PropertyEQ) is None)
         and ancestor_cast
@@ -367,16 +526,16 @@ def _struct_sql(self: DuckDB.Generator, expression: exp.Struct) -> str:
 
     for i, expr in enumerate(expression.expressions):
         is_property_eq = isinstance(expr, exp.PropertyEQ)
+        this = expr.this
         value = expr.expression if is_property_eq else expr
 
         if is_bq_inline_struct:
             args.append(self.sql(value))
         else:
-            if is_property_eq:
-                if isinstance(expr.this, exp.Identifier):
-                    key = self.sql(exp.Literal.string(expr.name))
-                else:
-                    key = self.sql(expr.this)
+            if isinstance(this, exp.Identifier):
+                key = self.sql(exp.Literal.string(expr.name))
+            elif is_property_eq:
+                key = self.sql(this)
             else:
                 key = self.sql(exp.Literal.string(f"_{i}"))
 
@@ -403,6 +562,46 @@ def _datatype_sql(self: DuckDB.Generator, expression: exp.DataType) -> str:
 def _json_format_sql(self: DuckDB.Generator, expression: exp.JSONFormat) -> str:
     sql = self.func("TO_JSON", expression.this, expression.args.get("options"))
     return f"CAST({sql} AS TEXT)"
+
+
+def _seq_sql(self: DuckDB.Generator, expression: exp.Func, byte_width: int) -> str:
+    """
+    Transpile Snowflake SEQ1/SEQ2/SEQ4/SEQ8 to DuckDB.
+
+    Generates monotonically increasing integers starting from 0.
+    The signed parameter (0 or 1) affects wrap-around behavior:
+    - Unsigned (0): wraps at 2^(bits) - 1
+    - Signed (1): wraps at 2^(bits-1) - 1, then goes negative
+
+    Note: SEQ in WHERE, HAVING, aggregates, or window ORDER BY is not supported
+    because these contexts don't allow window functions. Users should rewrite
+    using CTEs or subqueries.
+
+    Args:
+        expression: The SEQ function expression (may have 'this' arg for signed param)
+        byte_width: 1, 2, 4, or 8 bytes
+
+    Returns:
+        SQL string using ROW_NUMBER() with modulo for wrap-around
+    """
+    # Warn if SEQ is in a restricted context (Select stops search at current scope)
+    ancestor = expression.find_ancestor(*_SEQ_RESTRICTED)
+    if ancestor and (
+        (not isinstance(ancestor, (exp.Order, exp.Select)))
+        or (isinstance(ancestor, exp.Order) and isinstance(ancestor.parent, exp.Window))
+    ):
+        self.unsupported("SEQ in restricted context is not supported - use CTE or subquery")
+
+    bits = byte_width * 8
+    max_val = exp.Literal.number(2**bits)
+
+    if expression.name == "1":
+        half = exp.Literal.number(2 ** (bits - 1))
+        result = exp.replace_placeholders(self.SEQ_SIGNED.copy(), max_val=max_val, half=half)
+    else:
+        result = exp.replace_placeholders(self.SEQ_UNSIGNED.copy(), max_val=max_val)
+
+    return self.sql(result)
 
 
 def _unix_to_time_sql(self: DuckDB.Generator, expression: exp.UnixToTime) -> str:
@@ -583,7 +782,7 @@ def _json_extract_value_array_sql(
 
 
 def _cast_to_varchar(arg: t.Optional[exp.Expression]) -> t.Optional[exp.Expression]:
-    if arg and arg.type and not arg.is_type(exp.DataType.Type.VARCHAR, exp.DataType.Type.UNKNOWN):
+    if arg and arg.type and not arg.is_type(*exp.DataType.TEXT_TYPES, exp.DataType.Type.UNKNOWN):
         return exp.cast(arg, exp.DataType.Type.VARCHAR)
     return arg
 
@@ -626,6 +825,76 @@ def _prepare_binary_bitwise_args(expression: exp.Binary) -> None:
         expression.set("this", _cast_to_bit(expression.this))
     if _is_binary(expression.expression):
         expression.set("expression", _cast_to_bit(expression.expression))
+
+
+def _day_navigation_sql(
+    self: DuckDB.Generator, expression: t.Union[exp.NextDay, exp.PreviousDay]
+) -> str:
+    """
+    Transpile Snowflake's NEXT_DAY / PREVIOUS_DAY to DuckDB using date arithmetic.
+
+    Returns the DATE of the next/previous occurrence of the specified weekday.
+
+    Formulas:
+    - NEXT_DAY: (target_dow - current_dow + 6) % 7 + 1
+    - PREVIOUS_DAY: (current_dow - target_dow + 6) % 7 + 1
+
+    Supports both literal and non-literal day names:
+    - Literal: Direct lookup (e.g., 'Monday' → 1)
+    - Non-literal: CASE statement for runtime evaluation
+
+    Examples:
+        NEXT_DAY('2024-01-01' (Monday), 'Monday')
+          → (1 - 1 + 6) % 7 + 1 = 6 % 7 + 1 = 7 days → 2024-01-08
+
+        PREVIOUS_DAY('2024-01-15' (Monday), 'Friday')
+          → (1 - 5 + 6) % 7 + 1 = 2 % 7 + 1 = 3 days → 2024-01-12
+    """
+    date_expr = expression.this
+    day_name_expr = expression.expression
+
+    # Build ISODOW call for current day of week
+    isodow_call = exp.func("ISODOW", date_expr)
+
+    # Determine target day of week
+    if isinstance(day_name_expr, exp.Literal):
+        # Literal day name: lookup target_dow directly
+        day_name_str = day_name_expr.name.upper()
+        matching_day = next(
+            (day for day in WEEK_START_DAY_TO_DOW if day.startswith(day_name_str)), None
+        )
+        if matching_day:
+            target_dow: exp.Expression = exp.Literal.number(WEEK_START_DAY_TO_DOW[matching_day])
+        else:
+            # Unrecognized day name, use fallback
+            return self.function_fallback_sql(expression)
+    else:
+        # Non-literal day name: build CASE statement for runtime mapping
+        upper_day_name = exp.Upper(this=day_name_expr)
+        target_dow = exp.Case(
+            ifs=[
+                exp.If(
+                    this=exp.func(
+                        "STARTS_WITH", upper_day_name.copy(), exp.Literal.string(day[:2])
+                    ),
+                    true=exp.Literal.number(dow_num),
+                )
+                for day, dow_num in WEEK_START_DAY_TO_DOW.items()
+            ]
+        )
+
+    # Calculate days offset and apply interval based on direction
+    if isinstance(expression, exp.NextDay):
+        # NEXT_DAY: (target_dow - current_dow + 6) % 7 + 1
+        days_offset = exp.paren(target_dow - isodow_call + 6, copy=False) % 7 + 1
+        date_with_offset = date_expr + exp.Interval(this=days_offset, unit=exp.var("DAY"))
+    else:  # exp.PreviousDay
+        # PREVIOUS_DAY: (current_dow - target_dow + 6) % 7 + 1
+        days_offset = exp.paren(isodow_call - target_dow + 6, copy=False) % 7 + 1
+        date_with_offset = date_expr - exp.Interval(this=days_offset, unit=exp.var("DAY"))
+
+    # Build final: CAST(date_with_offset AS DATE)
+    return self.sql(exp.cast(date_with_offset, exp.DataType.Type.DATE))
 
 
 def _anyvalue_sql(self: DuckDB.Generator, expression: exp.AnyValue) -> str:
@@ -964,6 +1233,44 @@ def _date_from_parts_sql(self, expression: exp.DateFromParts) -> str:
     return self.func("MAKE_DATE", year_expr, month_expr, day_expr)
 
 
+def _round_arg(arg: exp.Expression, round_input: t.Optional[bool] = None) -> exp.Expression:
+    if round_input:
+        return exp.func("ROUND", arg, exp.Literal.number(0))
+    return arg
+
+
+def _boolnot_sql(self: DuckDB.Generator, expression: exp.Boolnot) -> str:
+    arg = _round_arg(expression.this, expression.args.get("round_input"))
+    return self.sql(exp.not_(exp.paren(arg)))
+
+
+def _booland_sql(self: DuckDB.Generator, expression: exp.Booland) -> str:
+    round_input = expression.args.get("round_input")
+    left = _round_arg(expression.this, round_input)
+    right = _round_arg(expression.expression, round_input)
+    return self.sql(exp.paren(exp.and_(exp.paren(left), exp.paren(right), wrap=False)))
+
+
+def _boolor_sql(self: DuckDB.Generator, expression: exp.Boolor) -> str:
+    round_input = expression.args.get("round_input")
+    left = _round_arg(expression.this, round_input)
+    right = _round_arg(expression.expression, round_input)
+    return self.sql(exp.paren(exp.or_(exp.paren(left), exp.paren(right), wrap=False)))
+
+
+def _xor_sql(self: DuckDB.Generator, expression: exp.Xor) -> str:
+    round_input = expression.args.get("round_input")
+    left = _round_arg(expression.this, round_input)
+    right = _round_arg(expression.expression, round_input)
+    return self.sql(
+        exp.or_(
+            exp.paren(exp.and_(left.copy(), exp.paren(right.not_()), wrap=False)),
+            exp.paren(exp.and_(exp.paren(left.not_()), right.copy(), wrap=False)),
+            wrap=False,
+        )
+    )
+
+
 class DuckDB(Dialect):
     NULL_ORDERING = "nulls_are_last"
     SUPPORTS_USER_DEFINED_TYPES = True
@@ -983,10 +1290,23 @@ class DuckDB(Dialect):
         "DAYOFWEEKISO": "ISODOW",
     }
 
+    EXPRESSION_METADATA = EXPRESSION_METADATA.copy()
+
     DATE_PART_MAPPING.pop("WEEKDAY")
 
     INVERSE_TIME_MAPPING = {
         "%e": "%-d",  # BigQuery's space-padded day (%e) -> DuckDB's no-padding day (%-d)
+        "%:z": "%z",  # In DuckDB %z	can represent ±HH:MM, ±HHMM, or ±HH.
+        "%-z": "%z",
+        "%f_zero": "%n",
+        "%f_one": "%n",
+        "%f_two": "%n",
+        "%f_three": "%g",
+        "%f_four": "%n",
+        "%f_five": "%n",
+        "%f_seven": "%n",
+        "%f_eight": "%n",
+        "%f_nine": "%n",
     }
 
     def to_json_path(self, path: t.Optional[exp.Expression]) -> t.Optional[exp.Expression]:
@@ -1003,6 +1323,7 @@ class DuckDB(Dialect):
 
     class Tokenizer(tokens.Tokenizer):
         BYTE_STRINGS = [("e'", "'"), ("E'", "'")]
+        BYTE_STRING_ESCAPES = ["'", "\\"]
         HEREDOC_STRINGS = ["$"]
 
         HEREDOC_TAG_IS_IDENTIFIER = True
@@ -1065,7 +1386,7 @@ class DuckDB(Dialect):
             **parser.Parser.RANGE_PARSERS,
             TokenType.DAMP: binary_range_parser(exp.ArrayOverlaps),
             TokenType.CARET_AT: binary_range_parser(exp.StartsWith),
-            TokenType.TILDA: binary_range_parser(exp.RegexpFullMatch),
+            TokenType.TILDE: binary_range_parser(exp.RegexpFullMatch),
         }
 
         EXPONENT = {
@@ -1113,6 +1434,7 @@ class DuckDB(Dialect):
             "JSON_EXTRACT_PATH": parser.build_extract_json_with_path(exp.JSONExtract),
             "JSON_EXTRACT_STRING": parser.build_extract_json_with_path(exp.JSONExtractScalar),
             "LIST_APPEND": exp.ArrayAppend.from_arg_list,
+            "LIST_CONCAT": parser.build_array_concat,
             "LIST_CONTAINS": exp.ArrayContains.from_arg_list,
             "LIST_COSINE_DISTANCE": exp.CosineDistance.from_arg_list,
             "LIST_DISTANCE": exp.EuclideanDistance.from_arg_list,
@@ -1383,7 +1705,6 @@ class DuckDB(Dialect):
         COPY_HAS_INTO_KEYWORD = False
         STAR_EXCEPT = "EXCLUDE"
         PAD_FILL_PATTERN_IS_REQUIRED = True
-        ARRAY_CONCAT_IS_VAR_LEN = False
         ARRAY_SIZE_DIM_REQUIRED = False
         NORMALIZE_EXTRACT_DATE_PARTS = True
         SUPPORTS_LIKE_QUANTIFIERS = False
@@ -1393,20 +1714,30 @@ class DuckDB(Dialect):
             **generator.Generator.TRANSFORMS,
             exp.AnyValue: _anyvalue_sql,
             exp.ApproxDistinct: approx_count_distinct_sql,
-            exp.Boolnot: lambda self, e: f"NOT ({self.sql(e, 'this')})",
+            exp.Boolnot: _boolnot_sql,
+            exp.Booland: _booland_sql,
+            exp.Boolor: _boolor_sql,
             exp.Array: transforms.preprocess(
                 [transforms.inherit_struct_field_names],
                 generator=inline_array_unless_query,
             ),
-            exp.ArrayAppend: rename_func("LIST_APPEND"),
+            exp.ArrayAppend: array_append_sql("LIST_APPEND"),
+            exp.ArrayCompact: array_compact_sql,
+            exp.ArrayConstructCompact: lambda self, e: self.sql(
+                exp.ArrayCompact(this=exp.Array(expressions=e.expressions))
+            ),
+            exp.ArrayConcat: array_concat_sql("LIST_CONCAT"),
             exp.ArrayFilter: rename_func("LIST_FILTER"),
+            exp.ArrayInsert: _array_insert_sql,
             exp.ArrayRemove: remove_from_array_using_filter,
             exp.ArraySort: _array_sort_sql,
-            exp.ArrayPrepend: lambda self, e: self.func("LIST_PREPEND", e.expression, e.this),
+            exp.ArrayPrepend: array_append_sql("LIST_PREPEND", swap_params=True),
             exp.ArraySum: rename_func("LIST_SUM"),
             exp.ArrayUniqueAgg: lambda self, e: self.func(
                 "LIST", exp.Distinct(expressions=[e.this])
             ),
+            exp.Base64DecodeBinary: lambda self, e: _base64_decode_sql(self, e, to_string=False),
+            exp.Base64DecodeString: lambda self, e: _base64_decode_sql(self, e, to_string=True),
             exp.BitwiseAnd: lambda self, e: self._bitwise_op(e, "&"),
             exp.BitwiseAndAgg: _bitwise_agg_sql,
             exp.BitwiseLeftShift: _bitshift_sql,
@@ -1454,6 +1785,9 @@ class DuckDB(Dialect):
             exp.DiToDate: lambda self,
             e: f"CAST(STRPTIME(CAST({self.sql(e, 'this')} AS TEXT), {DuckDB.DATEINT_FORMAT}) AS DATE)",
             exp.Encode: lambda self, e: encode_decode_sql(self, e, "ENCODE", replace=False),
+            exp.EqualNull: lambda self, e: self.sql(
+                exp.NullSafeEQ(this=e.this, expression=e.expression)
+            ),
             exp.EuclideanDistance: rename_func("LIST_DISTANCE"),
             exp.GenerateDateArray: _generate_datetime_array_sql,
             exp.GenerateTimestampArray: _generate_datetime_array_sql,
@@ -1463,6 +1797,12 @@ class DuckDB(Dialect):
             exp.IntDiv: lambda self, e: self.binary(e, "//"),
             exp.IsInf: rename_func("ISINF"),
             exp.IsNan: rename_func("ISNAN"),
+            exp.IsNullValue: lambda self, e: self.sql(
+                exp.func("JSON_TYPE", e.this).eq(exp.Literal.string("NULL"))
+            ),
+            exp.IsArray: lambda self, e: self.sql(
+                exp.func("JSON_TYPE", e.this).eq(exp.Literal.string("ARRAY"))
+            ),
             exp.Ceil: _ceil_floor,
             exp.Floor: _ceil_floor,
             exp.JSONBExists: rename_func("JSON_EXISTS"),
@@ -1473,6 +1813,10 @@ class DuckDB(Dialect):
             exp.Lateral: explode_to_unnest_sql,
             exp.LogicalOr: lambda self, e: self.func("BOOL_OR", _cast_to_boolean(e.this)),
             exp.LogicalAnd: lambda self, e: self.func("BOOL_AND", _cast_to_boolean(e.this)),
+            exp.Seq1: lambda self, e: _seq_sql(self, e, 1),
+            exp.Seq2: lambda self, e: _seq_sql(self, e, 2),
+            exp.Seq4: lambda self, e: _seq_sql(self, e, 4),
+            exp.Seq8: lambda self, e: _seq_sql(self, e, 8),
             exp.BoolxorAgg: _boolxor_agg_sql,
             exp.MakeInterval: lambda self, e: no_make_interval_sql(self, e, sep=" "),
             exp.Initcap: _initcap_sql,
@@ -1480,11 +1824,13 @@ class DuckDB(Dialect):
             exp.SHA1Digest: lambda self, e: self.func("UNHEX", self.func("SHA1", e.this)),
             exp.SHA2Digest: lambda self, e: self.func("UNHEX", sha2_digest_sql(self, e)),
             exp.MonthsBetween: months_between_sql,
+            exp.NextDay: _day_navigation_sql,
             exp.PercentileCont: rename_func("QUANTILE_CONT"),
             exp.PercentileDisc: rename_func("QUANTILE_DISC"),
             # DuckDB doesn't allow qualified columns inside of PIVOT expressions.
             # See: https://github.com/duckdb/duckdb/blob/671faf92411182f81dce42ac43de8bfb05d9909e/src/planner/binder/tableref/bind_pivot.cpp#L61-L62
             exp.Pivot: transforms.preprocess([transforms.unqualify_columns]),
+            exp.PreviousDay: _day_navigation_sql,
             exp.RegexpReplace: lambda self, e: self.func(
                 "REGEXP_REPLACE",
                 e.this,
@@ -1568,10 +1914,7 @@ class DuckDB(Dialect):
                     expression=e.this,
                 )
             ),
-            exp.Xor: bool_xor_sql,
-            exp.Levenshtein: unsupported_args("ins_cost", "del_cost", "sub_cost", "max_dist")(
-                rename_func("LEVENSHTEIN")
-            ),
+            exp.Xor: _xor_sql,
             exp.JSONObjectAgg: rename_func("JSON_GROUP_OBJECT"),
             exp.JSONBObjectAgg: rename_func("JSON_GROUP_OBJECT"),
             exp.DateBin: rename_func("TIME_BUCKET"),
@@ -1742,6 +2085,108 @@ class DuckDB(Dialect):
             "(ABS(HASH(:seed)) % 1000000) / 1000000.0"
         )
 
+        # Template for generating signed and unsigned SEQ values within a specified range
+        SEQ_UNSIGNED: exp.Expression = exp.maybe_parse(f"{_SEQ_BASE} % :max_val")
+        SEQ_SIGNED: exp.Expression = exp.maybe_parse(
+            f"(CASE WHEN {_SEQ_BASE} % :max_val >= :half "
+            f"THEN {_SEQ_BASE} % :max_val - :max_val "
+            f"ELSE {_SEQ_BASE} % :max_val END)"
+        )
+
+        # Template for MAP_CAT transpilation - Snowflake semantics:
+        # 1. Returns NULL if either input is NULL
+        # 2. For duplicate keys, prefers non-NULL value (COALESCE(m2[k], m1[k]))
+        # 3. Filters out entries with NULL values from the result
+        MAPCAT_TEMPLATE: exp.Expression = exp.maybe_parse(
+            """
+            CASE
+                WHEN :map1 IS NULL OR :map2 IS NULL THEN NULL
+                ELSE MAP_FROM_ENTRIES(LIST_FILTER(LIST_TRANSFORM(
+                    LIST_DISTINCT(LIST_CONCAT(MAP_KEYS(:map1), MAP_KEYS(:map2))),
+                    __k -> STRUCT_PACK(key := __k, value := COALESCE(:map2[__k], :map1[__k]))
+                ), __x -> __x.value IS NOT NULL))
+            END
+            """
+        )
+
+        # Mappings for EXTRACT/DATE_PART transpilation
+        # Maps Snowflake specifiers unsupported in DuckDB to strftime format codes
+        EXTRACT_STRFTIME_MAPPINGS: t.Dict[str, t.Tuple[str, str]] = {
+            "WEEKISO": ("%V", "INTEGER"),
+            "YEAROFWEEK": ("%G", "INTEGER"),
+            "YEAROFWEEKISO": ("%G", "INTEGER"),
+            "NANOSECOND": ("%n", "BIGINT"),
+        }
+
+        # Maps epoch-based specifiers to DuckDB epoch functions
+        EXTRACT_EPOCH_MAPPINGS: t.Dict[str, str] = {
+            "EPOCH_SECOND": "EPOCH",
+            "EPOCH_MILLISECOND": "EPOCH_MS",
+            "EPOCH_MICROSECOND": "EPOCH_US",
+            "EPOCH_NANOSECOND": "EPOCH_NS",
+        }
+
+        # Template for BITMAP_CONSTRUCT_AGG transpilation
+        #
+        # BACKGROUND:
+        # Snowflake's BITMAP_CONSTRUCT_AGG aggregates integers into a compact binary bitmap.
+        # Supports values in range 0-32767, this version returns NULL if any value is out of range
+        # See: https://docs.snowflake.com/en/sql-reference/functions/bitmap_construct_agg
+        # See: https://docs.snowflake.com/en/user-guide/querying-bitmaps-for-distinct-counts
+        #
+        # Snowflake uses two different formats based on the number of unique values:
+        #
+        # Format 1 - Small bitmap (< 5 unique values): Length of 10 bytes
+        #   Bytes 0-1: Count of values as 2-byte big-endian integer (e.g., 3 values = 0x0003)
+        #   Bytes 2-9: Up to 4 values, each as 2-byte little-endian integers, zero-padded to 8 bytes
+        #   Example: Values [1, 2, 3] -> 0x0003 0100 0200 0300 0000 (hex)
+        #                                count  v1   v2   v3   pad
+        #
+        # Format 2 - Large bitmap (>= 5 unique values): Length of 10 + (2 * count) bytes
+        #   Bytes 0-9: Fixed header 0x08 followed by 9 zero bytes
+        #   Bytes 10+: Each value as 2-byte little-endian integer (no padding)
+        #   Example: Values [1,2,3,4,5] -> 0x08 00000000 00000000 00 0100 0200 0300 0400 0500
+        #                                  hdr  ----9 zero bytes----  v1   v2   v3   v4   v5
+        #
+        # TEMPLATE STRUCTURE
+        #
+        # Phase 1 - Innermost subquery: Data preparation
+        #   SELECT LIST_SORT(...) AS l
+        #   - Aggregates all input values into a list, remove NULLs, duplicates and sorts
+        #   Result: Clean, sorted list of unique non-null integers stored as 'l'
+        #
+        # Phase 2 - Middle subquery: Hex string construction
+        #   LIST_TRANSFORM(...)
+        #   - Converts each integer to 2-byte little-endian hex representation
+        #   - & 255 extracts low byte, >> 8 extracts high byte
+        #   - LIST_REDUCE: Concatenates all hex pairs into single string 'h'
+        #   Result: Hex string of all values
+        #
+        # Phase 3 - Outer SELECT: Final bitmap assembly
+        #   LENGTH(l) < 5:
+        #   - Small format: 2-byte count (big-endian via %04X) + values + zero padding
+        #   LENGTH(l) >= 5:
+        #   - Large format: Fixed 10-byte header + values (no padding needed)
+        #   Result: Complete binary bitmap as BLOB
+        #
+        BITMAP_CONSTRUCT_AGG_TEMPLATE: exp.Expression = exp.maybe_parse(
+            """
+            SELECT CASE
+                WHEN l IS NULL OR LENGTH(l) = 0 THEN NULL
+                WHEN LENGTH(l) != LENGTH(LIST_FILTER(l, __v -> __v BETWEEN 0 AND 32767)) THEN NULL
+                WHEN LENGTH(l) < 5 THEN UNHEX(PRINTF('%04X', LENGTH(l)) || h || REPEAT('00', GREATEST(0, 4 - LENGTH(l)) * 2))
+                ELSE UNHEX('08000000000000000000' || h)
+            END
+            FROM (
+                SELECT l, COALESCE(LIST_REDUCE(
+                    LIST_TRANSFORM(l, __x -> PRINTF('%02X%02X', CAST(__x AS INT) & 255, (CAST(__x AS INT) >> 8) & 255)),
+                    (__a, __b) -> __a || __b, ''
+                ), '') AS h
+                FROM (SELECT LIST_SORT(LIST_DISTINCT(LIST(:arg) FILTER(NOT :arg IS NULL))) AS l)
+            )
+            """
+        )
+
         # Template for RANDSTR transpilation - placeholders get replaced with actual parameters
         RANDSTR_TEMPLATE: exp.Expression = exp.maybe_parse(
             f"""
@@ -1759,6 +2204,101 @@ class DuckDB(Dialect):
             )
             """,
         )
+
+        # Template for MINHASH transpilation
+        # Computes k minimum hash values across aggregated data using DuckDB list functions
+        # Returns JSON matching Snowflake format: {"state": [...], "type": "minhash", "version": 1}
+        MINHASH_TEMPLATE: exp.Expression = exp.maybe_parse(
+            """
+            SELECT JSON_OBJECT('state', LIST(min_h ORDER BY seed), 'type', 'minhash', 'version', 1)
+            FROM (
+                SELECT seed, LIST_MIN(LIST_TRANSFORM(vals, __v -> HASH(CAST(__v AS VARCHAR) || CAST(seed AS VARCHAR)))) AS min_h
+                FROM (SELECT LIST(:expr) AS vals), RANGE(0, :k) AS t(seed)
+            )
+            """,
+        )
+
+        # Template for MINHASH_COMBINE transpilation
+        # Combines multiple minhash signatures by taking element-wise minimum
+        MINHASH_COMBINE_TEMPLATE: exp.Expression = exp.maybe_parse(
+            """
+            SELECT JSON_OBJECT('state', LIST(min_h ORDER BY idx), 'type', 'minhash', 'version', 1)
+            FROM (
+                SELECT
+                    pos AS idx,
+                    MIN(val) AS min_h
+                FROM
+                    UNNEST(LIST(:expr)) AS _(sig),
+                    UNNEST(CAST(sig -> 'state' AS UBIGINT[])) WITH ORDINALITY AS t(val, pos)
+                GROUP BY pos
+            )
+            """,
+        )
+
+        # Template for APPROXIMATE_SIMILARITY transpilation
+        # Computes multi-way Jaccard similarity: fraction of positions where ALL signatures agree
+        APPROXIMATE_SIMILARITY_TEMPLATE: exp.Expression = exp.maybe_parse(
+            """
+            SELECT CAST(SUM(CASE WHEN num_distinct = 1 THEN 1 ELSE 0 END) AS DOUBLE) / COUNT(*)
+            FROM (
+                SELECT pos, COUNT(DISTINCT h) AS num_distinct
+                FROM (
+                    SELECT h, pos
+                    FROM UNNEST(LIST(:expr)) AS _(sig),
+                         UNNEST(CAST(sig -> 'state' AS UBIGINT[])) WITH ORDINALITY AS s(h, pos)
+                )
+                GROUP BY pos
+            )
+            """,
+        )
+
+        # Template for ARRAYS_ZIP transpilation
+        # Snowflake pads to longest array; DuckDB LIST_ZIP truncates to shortest
+        # Uses RANGE + indexing to match Snowflake behavior
+        ARRAYS_ZIP_TEMPLATE: exp.Expression = exp.maybe_parse(
+            """
+            CASE WHEN :null_check THEN NULL
+            WHEN :all_empty_check THEN [:empty_struct]
+            ELSE LIST_TRANSFORM(RANGE(0, :max_len), __i -> :transform_struct)
+            END
+            """,
+        )
+
+        def timeslice_sql(self: DuckDB.Generator, expression: exp.TimeSlice) -> str:
+            """
+            Transform Snowflake's TIME_SLICE to DuckDB's time_bucket.
+
+            Snowflake: TIME_SLICE(date_expr, slice_length, 'UNIT' [, 'START'|'END'])
+            DuckDB:    time_bucket(INTERVAL 'slice_length' UNIT, date_expr)
+
+            For 'END' kind, add the interval to get the end of the slice.
+            For DATE type with 'END', cast result back to DATE to preserve type.
+            """
+            date_expr = expression.this
+            slice_length = expression.expression
+            unit = expression.unit
+            kind = expression.text("kind").upper()
+
+            # Create INTERVAL expression: INTERVAL 'N' UNIT
+            interval_expr = exp.Interval(this=slice_length, unit=unit)
+
+            # Create base time_bucket expression
+            time_bucket_expr = exp.func("time_bucket", interval_expr, date_expr)
+
+            # Check if we need the end of the slice (default is start)
+            if not kind == "END":
+                # For 'START', return time_bucket directly
+                return self.sql(time_bucket_expr)
+
+            # For 'END', add the interval to get end of slice
+            add_expr = exp.Add(this=time_bucket_expr, expression=interval_expr.copy())
+
+            # If input is DATE type, cast result back to DATE to preserve type
+            # DuckDB converts DATE to TIMESTAMP when adding intervals
+            if date_expr.is_type(exp.DataType.Type.DATE):
+                return self.sql(exp.cast(add_expr, exp.DataType.Type.DATE))
+
+            return self.sql(add_expr)
 
         def bitmapbucketnumber_sql(
             self: DuckDB.Generator, expression: exp.BitmapBucketNumber
@@ -1809,6 +2349,20 @@ class DuckDB(Dialect):
                     expression=MAX_BIT_POSITION,
                 )
             )
+
+        def bitmapconstructagg_sql(
+            self: DuckDB.Generator, expression: exp.BitmapConstructAgg
+        ) -> str:
+            """
+            Transpile Snowflake's BITMAP_CONSTRUCT_AGG to DuckDB equivalent.
+            Uses a pre-parsed template with placeholders replaced by expression nodes.
+
+            Snowflake bitmap format:
+            - Small (< 5 unique values): 2-byte count (big-endian) + values (little-endian) + padding to 10 bytes
+            - Large (>= 5 unique values): 10-byte header (0x08 + 9 zeros) + values (little-endian)
+            """
+            arg = expression.this
+            return f"({self.sql(exp.replace_placeholders(self.BITMAP_CONSTRUCT_AGG_TEMPLATE, arg=arg))})"
 
         def randstr_sql(self: DuckDB.Generator, expression: exp.Randstr) -> str:
             """
@@ -1930,6 +2484,20 @@ class DuckDB(Dialect):
             )
             case_expr.set("default", fallback_sql)
             return self.sql(case_expr)
+
+        def generator_sql(self, expression: exp.Generator) -> str:
+            # Transpile Snowflake GENERATOR to DuckDB range()
+            rowcount = expression.args.get("rowcount")
+            time_limit = expression.args.get("time_limit")
+
+            if time_limit:
+                self.unsupported("GENERATOR TIMELIMIT parameter is not supported in DuckDB")
+
+            if not rowcount:
+                self.unsupported("GENERATOR without ROWCOUNT is not supported in DuckDB")
+                return self.func("range", exp.Literal.number(0))
+
+            return self.func("range", rowcount)
 
         def greatest_sql(self: DuckDB.Generator, expression: exp.Greatest) -> str:
             return self._greatest_least_sql(expression)
@@ -2116,15 +2684,133 @@ class DuckDB(Dialect):
 
         def timefromparts_sql(self, expression: exp.TimeFromParts) -> str:
             nano = expression.args.get("nano")
-            if nano is not None:
+            overflow = expression.args.get("overflow")
+
+            # Snowflake's TIME_FROM_PARTS supports overflow
+            if overflow:
+                hour = expression.args["hour"]
+                minute = expression.args["min"]
+                sec = expression.args["sec"]
+
+                # Check if values are within normal ranges - use MAKE_TIME for efficiency
+                if not nano and all(arg.is_int for arg in [hour, minute, sec]):
+                    try:
+                        h_val = hour.to_py()
+                        m_val = minute.to_py()
+                        s_val = sec.to_py()
+                        if 0 <= h_val <= 23 and 0 <= m_val <= 59 and 0 <= s_val <= 59:
+                            return rename_func("MAKE_TIME")(self, expression)
+                    except ValueError:
+                        pass
+
+                # Overflow or nanoseconds detected - use INTERVAL arithmetic
+                if nano:
+                    sec = sec + nano.pop() / exp.Literal.number(1000000000.0)
+
+                total_seconds = (
+                    hour * exp.Literal.number(3600) + minute * exp.Literal.number(60) + sec
+                )
+
+                return self.sql(
+                    exp.Add(
+                        this=exp.Cast(
+                            this=exp.Literal.string("00:00:00"), to=exp.DataType.build("TIME")
+                        ),
+                        expression=exp.Interval(this=total_seconds, unit=exp.var("SECOND")),
+                    )
+                )
+
+            # Default: MAKE_TIME
+            if nano:
                 expression.set(
                     "sec", expression.args["sec"] + nano.pop() / exp.Literal.number(1000000000.0)
                 )
 
             return rename_func("MAKE_TIME")(self, expression)
 
+        def extract_sql(self, expression: exp.Extract) -> str:
+            """
+            Transpile EXTRACT/DATE_PART for DuckDB, handling specifiers not natively supported.
+
+            DuckDB doesn't support: WEEKISO, YEAROFWEEK, YEAROFWEEKISO, NANOSECOND,
+            EPOCH_SECOND (as integer), EPOCH_MILLISECOND, EPOCH_MICROSECOND, EPOCH_NANOSECOND
+            """
+            this = expression.this
+            datetime_expr = expression.expression
+
+            # TIMESTAMPTZ extractions may produce different results between Snowflake and DuckDB
+            # because Snowflake applies server timezone while DuckDB uses local timezone
+            if datetime_expr.is_type(exp.DataType.Type.TIMESTAMPTZ, exp.DataType.Type.TIMESTAMPLTZ):
+                self.unsupported(
+                    "EXTRACT from TIMESTAMPTZ / TIMESTAMPLTZ may produce different results due to timezone handling differences"
+                )
+
+            part_name = this.name.upper()
+
+            if part_name in self.EXTRACT_STRFTIME_MAPPINGS:
+                fmt, cast_type = self.EXTRACT_STRFTIME_MAPPINGS[part_name]
+
+                # Problem: strftime doesn't accept TIME and there's no NANOSECOND function
+                # So, for NANOSECOND with TIME, fallback to MICROSECOND * 1000
+                is_nano_time = part_name == "NANOSECOND" and datetime_expr.is_type(
+                    exp.DataType.Type.TIME, exp.DataType.Type.TIMETZ
+                )
+
+                if is_nano_time:
+                    self.unsupported(
+                        "Parameter NANOSECOND is not supported with TIME type in DuckDB"
+                    )
+                    return self.sql(
+                        exp.cast(
+                            exp.Mul(
+                                this=exp.Extract(
+                                    this=exp.var("MICROSECOND"), expression=datetime_expr
+                                ),
+                                expression=exp.Literal.number(1000),
+                            ),
+                            exp.DataType.build(cast_type, dialect="duckdb"),
+                        )
+                    )
+
+                # For NANOSECOND, cast to TIMESTAMP_NS to preserve nanosecond precision
+                strftime_input = datetime_expr
+                if part_name == "NANOSECOND":
+                    strftime_input = exp.cast(datetime_expr, exp.DataType.Type.TIMESTAMP_NS)
+
+                return self.sql(
+                    exp.cast(
+                        exp.Anonymous(
+                            this="STRFTIME",
+                            expressions=[strftime_input, exp.Literal.string(fmt)],
+                        ),
+                        exp.DataType.build(cast_type, dialect="duckdb"),
+                    )
+                )
+
+            if part_name in self.EXTRACT_EPOCH_MAPPINGS:
+                func_name = self.EXTRACT_EPOCH_MAPPINGS[part_name]
+                result: exp.Expression = exp.Anonymous(this=func_name, expressions=[datetime_expr])
+                # EPOCH returns float, cast to BIGINT for integer result
+                if part_name == "EPOCH_SECOND":
+                    result = exp.cast(result, exp.DataType.build("BIGINT", dialect="duckdb"))
+                return self.sql(result)
+
+            return super().extract_sql(expression)
+
         def timestampfromparts_sql(self, expression: exp.TimestampFromParts) -> str:
-            sec = expression.args["sec"]
+            # Check if this is the date/time expression form: TIMESTAMP_FROM_PARTS(date_expr, time_expr)
+            date_expr = expression.this
+            time_expr = expression.expression
+
+            if date_expr is not None and time_expr is not None:
+                # In DuckDB, DATE + TIME produces TIMESTAMP
+                return self.sql(exp.Add(this=date_expr, expression=time_expr))
+
+            # Component-based form: TIMESTAMP_FROM_PARTS(year, month, day, hour, minute, second, ...)
+            sec = expression.args.get("sec")
+            if sec is None:
+                # This shouldn't happen with valid input, but handle gracefully
+                return rename_func("MAKE_TIMESTAMP")(self, expression)
 
             milli = expression.args.get("milli")
             if milli is not None:
@@ -2138,6 +2824,34 @@ class DuckDB(Dialect):
                 expression.set("sec", sec)
 
             return rename_func("MAKE_TIMESTAMP")(self, expression)
+
+        @unsupported_args("nano")
+        def timestampltzfromparts_sql(self, expression: exp.TimestampLtzFromParts) -> str:
+            # Pop nano so rename_func only passes args that MAKE_TIMESTAMP accepts
+            if nano := expression.args.get("nano"):
+                nano.pop()
+
+            timestamp = rename_func("MAKE_TIMESTAMP")(self, expression)
+            return f"CAST({timestamp} AS TIMESTAMPTZ)"
+
+        @unsupported_args("nano")
+        def timestamptzfromparts_sql(self, expression: exp.TimestampTzFromParts) -> str:
+            # Extract zone before popping
+            zone = expression.args.get("zone")
+            # Pop zone and nano so rename_func only passes args that MAKE_TIMESTAMP accepts
+            if zone:
+                zone = zone.pop()
+
+            if nano := expression.args.get("nano"):
+                nano.pop()
+
+            timestamp = rename_func("MAKE_TIMESTAMP")(self, expression)
+
+            if zone:
+                # Use AT TIME ZONE to apply the explicit timezone
+                return f"{timestamp} AT TIME ZONE {self.sql(zone)}"
+
+            return timestamp
 
         def tablesample_sql(
             self,
@@ -2289,6 +3003,98 @@ class DuckDB(Dialect):
 
             return self.sql(case)
 
+        @unsupported_args("ins_cost", "del_cost", "sub_cost")
+        def levenshtein_sql(self, expression: exp.Levenshtein) -> str:
+            this = expression.this
+            expr = expression.expression
+            max_dist = expression.args.get("max_dist")
+
+            if max_dist is None:
+                return self.func("LEVENSHTEIN", this, expr)
+
+            # Emulate Snowflake semantics: if distance > max_dist, return max_dist
+            levenshtein = exp.Levenshtein(this=this, expression=expr)
+            return self.sql(exp.Least(this=levenshtein, expressions=[max_dist]))
+
+        def minhash_sql(self, expression: exp.Minhash) -> str:
+            k = expression.this
+            exprs = expression.expressions
+
+            if len(exprs) != 1 or isinstance(exprs[0], exp.Star):
+                self.unsupported(
+                    "MINHASH with multiple expressions or * requires manual query restructuring"
+                )
+                return self.func("MINHASH", k, *exprs)
+
+            expr = exprs[0]
+            result = exp.replace_placeholders(self.MINHASH_TEMPLATE.copy(), expr=expr, k=k)
+            return f"({self.sql(result)})"
+
+        def minhashcombine_sql(self, expression: exp.MinhashCombine) -> str:
+            expr = expression.this
+            result = exp.replace_placeholders(self.MINHASH_COMBINE_TEMPLATE.copy(), expr=expr)
+            return f"({self.sql(result)})"
+
+        def approximatesimilarity_sql(self, expression: exp.ApproximateSimilarity) -> str:
+            expr = expression.this
+            result = exp.replace_placeholders(
+                self.APPROXIMATE_SIMILARITY_TEMPLATE.copy(), expr=expr
+            )
+            return f"({self.sql(result)})"
+
+        def arrayszip_sql(self, expression: exp.ArraysZip) -> str:
+            args = expression.expressions
+
+            if not args:
+                # Return [{}] - using MAP([], []) since DuckDB can't represent empty structs
+                return self.sql(exp.array(exp.Map(keys=exp.array(), values=exp.array())))
+
+            # Build placeholder values for template
+            lengths = [exp.Length(this=arg) for arg in args]
+            max_len = (
+                lengths[0]
+                if len(lengths) == 1
+                else exp.Greatest(this=lengths[0], expressions=lengths[1:])
+            )
+
+            # Empty struct with same schema: {'$1': NULL, '$2': NULL, ...}
+            empty_struct = exp.func(
+                "STRUCT",
+                *[
+                    exp.PropertyEQ(this=exp.Literal.string(f"${i + 1}"), expression=exp.Null())
+                    for i in range(len(args))
+                ],
+            )
+
+            # Struct for transform: {'$1': COALESCE(arr1, [])[__i + 1], ...}
+            # COALESCE wrapping handles NULL arrays - prevents invalid NULL[i] syntax
+            index = exp.column("__i") + 1
+            transform_struct = exp.func(
+                "STRUCT",
+                *[
+                    exp.PropertyEQ(
+                        this=exp.Literal.string(f"${i + 1}"),
+                        expression=exp.func("COALESCE", arg, exp.array())[index],
+                    )
+                    for i, arg in enumerate(args)
+                ],
+            )
+
+            result = exp.replace_placeholders(
+                self.ARRAYS_ZIP_TEMPLATE.copy(),
+                null_check=exp.or_(*[arg.is_(exp.Null()) for arg in args]),
+                all_empty_check=exp.and_(
+                    *[
+                        exp.EQ(this=exp.Length(this=arg), expression=exp.Literal.number(0))
+                        for arg in args
+                    ]
+                ),
+                empty_struct=empty_struct,
+                max_len=max_len,
+                transform_struct=transform_struct,
+            )
+            return self.sql(result)
+
         def lower_sql(self, expression: exp.Lower) -> str:
             result_sql = self.func("LOWER", _cast_to_varchar(expression.this))
             return _gen_with_cast_to_blob(self, expression, result_sql)
@@ -2296,6 +3102,50 @@ class DuckDB(Dialect):
         def upper_sql(self, expression: exp.Upper) -> str:
             result_sql = self.func("UPPER", _cast_to_varchar(expression.this))
             return _gen_with_cast_to_blob(self, expression, result_sql)
+
+        def reverse_sql(self, expression: exp.Reverse) -> str:
+            result_sql = self.func("REVERSE", _cast_to_varchar(expression.this))
+            return _gen_with_cast_to_blob(self, expression, result_sql)
+
+        def base64encode_sql(self, expression: exp.Base64Encode) -> str:
+            # DuckDB TO_BASE64 requires BLOB input
+            # Snowflake BASE64_ENCODE accepts both VARCHAR and BINARY - for VARCHAR it implicitly
+            # encodes UTF-8 bytes. We add ENCODE unless the input is a binary type.
+            result = expression.this
+
+            # Check if input is a string type - ENCODE only accepts VARCHAR
+            if result.is_type(*exp.DataType.TEXT_TYPES):
+                result = exp.Encode(this=result)
+
+            result = exp.ToBase64(this=result)
+
+            max_line_length = expression.args.get("max_line_length")
+            alphabet = expression.args.get("alphabet")
+
+            # Handle custom alphabet by replacing standard chars with custom ones
+            result = _apply_base64_alphabet_replacements(result, alphabet)
+
+            # Handle max_line_length by inserting newlines every N characters
+            line_length = (
+                t.cast(int, max_line_length.to_py())
+                if isinstance(max_line_length, exp.Literal) and max_line_length.is_number
+                else 0
+            )
+            if line_length > 0:
+                newline = exp.Chr(expressions=[exp.Literal.number(10)])
+                result = exp.Trim(
+                    this=exp.RegexpReplace(
+                        this=result,
+                        expression=exp.Literal.string(f"(.{{{line_length}}})"),
+                        replacement=exp.Concat(
+                            expressions=[exp.Literal.string("\\1"), newline.copy()]
+                        ),
+                    ),
+                    expression=newline,
+                    position="TRAILING",
+                )
+
+            return self.sql(result)
 
         def replace_sql(self, expression: exp.Replace) -> str:
             result_sql = self.func(
@@ -2331,12 +3181,42 @@ class DuckDB(Dialect):
 
             return self.func("STRUCT_INSERT", this, kv_sql)
 
+        def mapcat_sql(self, expression: exp.MapCat) -> str:
+            result = exp.replace_placeholders(
+                self.MAPCAT_TEMPLATE.copy(),
+                map1=expression.this,
+                map2=expression.expression,
+            )
+            return self.sql(result)
+
         def startswith_sql(self, expression: exp.StartsWith) -> str:
             return self.func(
                 "STARTS_WITH",
                 _cast_to_varchar(expression.this),
                 _cast_to_varchar(expression.expression),
             )
+
+        def space_sql(self, expression: exp.Space) -> str:
+            # DuckDB's REPEAT requires BIGINT for the count parameter
+            return self.sql(
+                exp.Repeat(
+                    this=exp.Literal.string(" "),
+                    times=exp.cast(expression.this, exp.DataType.Type.BIGINT),
+                )
+            )
+
+        def tablefromrows_sql(self, expression: exp.TableFromRows) -> str:
+            # For GENERATOR, unwrap TABLE() - just emit the Generator (becomes RANGE)
+            if isinstance(expression.this, exp.Generator):
+                # Preserve alias, joins, and other table-level args
+                table = exp.Table(
+                    this=expression.this,
+                    alias=expression.args.get("alias"),
+                    joins=expression.args.get("joins"),
+                )
+                return self.sql(table)
+
+            return super().tablefromrows_sql(expression)
 
         def unnest_sql(self, expression: exp.Unnest) -> str:
             explode_array = expression.args.get("explode_array")
@@ -2560,22 +3440,22 @@ class DuckDB(Dialect):
             date = expression.this
             result = self.func("DATE_TRUNC", unit, date)
 
-            if expression.args.get("input_type_preserved"):
-                if not date.type:
-                    from sqlglot.optimizer.annotate_types import annotate_types
+            if (
+                expression.args.get("input_type_preserved")
+                and date.is_type(*exp.DataType.TEMPORAL_TYPES)
+                and not (is_date_unit(unit) and date.is_type(exp.DataType.Type.DATE))
+            ):
+                return self.sql(exp.Cast(this=result, to=date.type))
 
-                    date = annotate_types(date, dialect=self.dialect)
-
-                if date.type and date.is_type(*exp.DataType.TEMPORAL_TYPES):
-                    return self.sql(exp.Cast(this=result, to=date.type))
             return result
 
         def timestamptrunc_sql(self, expression: exp.TimestampTrunc) -> str:
             unit = unit_to_str(expression)
             zone = expression.args.get("zone")
             timestamp = expression.this
+            date_unit = is_date_unit(unit)
 
-            if is_date_unit(unit) and zone:
+            if date_unit and zone:
                 # BigQuery's TIMESTAMP_TRUNC with timezone truncates in the target timezone and returns as UTC.
                 # Double AT TIME ZONE needed for BigQuery compatibility:
                 # 1. First AT TIME ZONE: ensures truncation happens in the target timezone
@@ -2586,11 +3466,6 @@ class DuckDB(Dialect):
 
             result = self.func("DATE_TRUNC", unit, timestamp)
             if expression.args.get("input_type_preserved"):
-                if not timestamp.type:
-                    from sqlglot.optimizer.annotate_types import annotate_types
-
-                    timestamp = annotate_types(timestamp, dialect=self.dialect)
-
                 if timestamp.type and timestamp.is_type(
                     exp.DataType.Type.TIME, exp.DataType.Type.TIMETZ
                 ):
@@ -2602,8 +3477,11 @@ class DuckDB(Dialect):
                     result = self.func("DATE_TRUNC", unit, date_time)
                     return self.sql(exp.Cast(this=result, to=timestamp.type))
 
-                if timestamp.type and timestamp.is_type(*exp.DataType.TEMPORAL_TYPES):
+                if timestamp.is_type(*exp.DataType.TEMPORAL_TYPES) and not (
+                    date_unit and timestamp.is_type(exp.DataType.Type.DATE)
+                ):
                     return self.sql(exp.Cast(this=result, to=timestamp.type))
+
             return result
 
         def trim_sql(self, expression: exp.Trim) -> str:
@@ -2636,6 +3514,15 @@ class DuckDB(Dialect):
                     truncate = None
 
             return self.func(func, this, decimals, truncate)
+
+        def approxquantile_sql(self, expression: exp.ApproxQuantile) -> str:
+            result = self.func("APPROX_QUANTILE", expression.this, expression.args.get("quantile"))
+
+            # DuckDB returns integers for APPROX_QUANTILE, cast to DOUBLE if the expected type is a real type
+            if expression.is_type(*exp.DataType.REAL_TYPES):
+                result = f"CAST({result} AS DOUBLE)"
+
+            return result
 
         def approxquantiles_sql(self, expression: exp.ApproxQuantiles) -> str:
             """

@@ -161,7 +161,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         if self.ENABLE_UNIQUE_COUNT_CHECK:
             all_statistics = get_table_columnar_statistics("[\"//tmp/t2{index}\"]")
-            assert all_statistics[0]['column_estimated_unique_counts'] == {'index': 790262}
+            assert all_statistics[0]['column_estimated_unique_counts'] == {'index': 1135017}
 
     @authors("ignat")
     def test_two_outputs_at_the_same_time(self):
@@ -191,7 +191,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         if self.ENABLE_UNIQUE_COUNT_CHECK:
             all_statistics = get_table_columnar_statistics("[\"//tmp/t_output1{index}\";\"//tmp/t_output2{value}\"]")
-            assert all_statistics[0]['column_estimated_unique_counts'] == {'index': 683}
+            assert all_statistics[0]['column_estimated_unique_counts'] == {'index': 1121}
             assert all_statistics[1]['column_estimated_unique_counts'] == {'value': 1}
 
     @authors("ignat")
@@ -1890,8 +1890,8 @@ print(json.dumps(input))
 
         assert len(op.list_jobs()) == 10
 
-    @authors("faucct")
-    def test_distributed(self):
+    @authors("faucct", "pogorelov")
+    def test_job_collective(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
@@ -1920,8 +1920,33 @@ print(json.dumps(input))
         res = read_table("//tmp/t2")
         assert res == [{"a": "b"}]
 
-    @authors("faucct")
-    def test_distributed_aborting(self):
+    @authors("pogorelov")
+    def test_master_job_completed_before_secondary_scheduled(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": "b"}])
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="""if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; fi""",
+            spec={
+                "mapper": {
+                    "collective_options": {
+                        "size": 2,
+                    },
+                    "close_stdout_if_unused": True,
+                },
+                "data_weight_per_job": 1,
+                "resource_limits": {"user_slots": 1},
+            },
+        )
+
+        op.track()
+        assert op.get_job_count("aborted") == 0
+
+    @authors("faucct", "pogorelov")
+    def test_job_collective_aborting(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
@@ -1929,19 +1954,20 @@ print(json.dumps(input))
             track=False,
             in_="//tmp/t1",
             out="//tmp/t2",
-            command=with_breakpoint("""if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then read row; echo $row; fi; BREAKPOINT; if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; fi"""),
+            command=with_breakpoint("""if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; fi; BREAKPOINT;"""),
             spec={"mapper": {"collective_options": {"size": 2}}},
         )
+        wait_breakpoint(job_count=2)
+
         abort_job(get_job(op.id, wait_breakpoint(job_count=2)[0], attributes=["collective_id"])["collective_id"])
-        wait_breakpoint(job_count=2)[0]
-        assert op.get_job_count("aborted") == 2
-        assert read_table("//tmp/t2") == []
+
+        wait(lambda: op.get_job_count("aborted") == 2)
         release_breakpoint()
         op.track()
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
-    @authors("faucct")
-    def test_distributed_interrupting(self):
+    @authors("faucct", "pogorelov")
+    def test_job_collective_interrupting(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
@@ -1963,31 +1989,8 @@ print(json.dumps(input))
         op.track()
         assert op.get_job_count("aborted") == 0
 
-    @authors("faucct")
-    def test_distributed_with_secondary_job_hang(self):
-        create("table", "//tmp/t1")
-        create("table", "//tmp/t2")
-        write_table("//tmp/t1", {"a": "b"})
-        op = map(
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            command=with_breakpoint(
-                """
-                BREAKPOINT
-                if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; fi
-                """
-            ),
-            spec={"mapper": {"collective_options": {"size": 2}}},
-            track=False,
-        )
-        job_ids = wait_breakpoint(job_count=2)
-        collective_id = get_job(op.id, job_ids[0], attributes=["collective_id"])["collective_id"]
-        release_breakpoint(job_id=collective_id)
-        op.track()
-        assert read_table("//tmp/t2") == [{"a": "b"}]
-
-    @authors("faucct")
-    def test_distributed_with_secondary_job_fail_and_operation_completion(self):
+    @authors("faucct", "pogorelov")
+    def test_job_collective_with_slave_job_fail_and_operation_completion(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
@@ -2008,6 +2011,175 @@ print(json.dumps(input))
         wait_breakpoint(job_count=2)
         release_breakpoint()
         op.track()
+        assert read_table("//tmp/t2") == [{"a": "b"}]
+
+    @authors("pogorelov")
+    def test_master_job_completed_operation_waits_for_slave(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": "b"}])
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint(
+                """BREAKPOINT; if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; fi"""
+            ),
+            spec={
+                "mapper": {
+                    "collective_options": {"size": 2},
+                    "close_stdout_if_unused": True,
+                },
+            },
+        )
+        job_ids = wait_breakpoint(job_count=2)
+        collective_id = get_job(op.id, job_ids[0], attributes=["collective_id"])["collective_id"]
+        secondary_job_id, = {*job_ids} - {collective_id}
+
+        release_breakpoint(job_id=collective_id)
+        wait(lambda: op.get_job_count("completed") >= 1)
+        time.sleep(2)
+        assert op.get_state() == "running"
+
+        release_breakpoint(job_id=secondary_job_id)
+        op.track()
+
+        assert read_table("//tmp/t2") == [{"a": "b"}]
+        assert op.get_job_count("aborted") == 0
+
+    @authors("pogorelov")
+    def test_master_job_completed_slave_aborted(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": "b"}])
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint(
+                """BREAKPOINT; if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; fi"""
+            ),
+            spec={
+                "mapper": {
+                    "collective_options": {"size": 2},
+                    "close_stdout_if_unused": True,
+                },
+            },
+        )
+        job_ids = wait_breakpoint(job_count=2)
+        collective_id = get_job(op.id, job_ids[0], attributes=["collective_id"])["collective_id"]
+        secondary_job_id, = {*job_ids} - {collective_id}
+
+        release_breakpoint(job_id=collective_id)
+        wait(lambda: op.get_job_count("completed") >= 1)
+
+        abort_job(secondary_job_id)
+        op.track()
+
+        assert read_table("//tmp/t2") == [{"a": "b"}]
+        assert op.get_job_count("aborted") == 1
+
+    @authors("pogorelov")
+    def test_master_job_completed_slave_failed(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": "b"}])
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint(
+                """BREAKPOINT; if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; else exit 1; fi"""
+            ),
+            spec={
+                "mapper": {
+                    "collective_options": {"size": 2},
+                    "close_stdout_if_unused": True,
+                },
+                "max_failed_job_count": 2,
+            },
+        )
+        job_ids = wait_breakpoint(job_count=2)
+        collective_id = get_job(op.id, job_ids[0], attributes=["collective_id"])["collective_id"]
+        secondary_job_id, = {*job_ids} - {collective_id}
+
+        release_breakpoint(job_id=collective_id)
+        wait(lambda: op.get_job_count("completed") >= 1)
+
+        release_breakpoint(job_id=secondary_job_id)
+        op.track()
+
+        assert read_table("//tmp/t2") == [{"a": "b"}]
+        assert op.get_job_count("failed") == 1
+
+    @authors("pogorelov")
+    def test_slave_aborted_before_master_completed_collective_restarts(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": "b"}])
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint(
+                """BREAKPOINT; if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; fi"""
+            ),
+            spec={
+                "mapper": {
+                    "collective_options": {"size": 2},
+                    "close_stdout_if_unused": True,
+                },
+            },
+        )
+        first_incarnation = wait_breakpoint(job_count=2)
+        collective_id = get_job(op.id, first_incarnation[0], attributes=["collective_id"])["collective_id"]
+        secondary_job_id, = {*first_incarnation} - {collective_id}
+
+        abort_job(secondary_job_id)
+        wait(lambda: get_job(op.id, secondary_job_id)["state"] == "aborted", ignore_exceptions=True)
+
+        release_breakpoint(job_id=collective_id)
+        release_breakpoint(job_id=secondary_job_id)
+
+        wait_breakpoint(job_count=2)
+        release_breakpoint()
+        op.track()
+
+        assert read_table("//tmp/t2") == [{"a": "b"}]
+
+    @authors("pogorelov")
+    def test_slave_failed_before_master_completed_collective_restarts(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": "b"}])
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint(
+                """BREAKPOINT; if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; elif (( "$YT_JOB_INDEX" < 2 )); then exit 1; fi"""
+            ),
+            spec={
+                "mapper": {
+                    "collective_options": {"size": 2},
+                    "close_stdout_if_unused": True,
+                },
+                "max_failed_job_count": 2,
+            },
+        )
+        first_incarnation = wait_breakpoint(job_count=2)
+        collective_id = get_job(op.id, first_incarnation[0], attributes=["collective_id"])["collective_id"]
+        secondary_job_id, = {*first_incarnation} - {collective_id}
+
+        release_breakpoint(job_id=secondary_job_id)
+        wait(lambda: get_job(op.id, secondary_job_id)["state"] == "failed", ignore_exceptions=True)
+
+        release_breakpoint(job_id=collective_id)
+
+        wait_breakpoint(job_count=2)
+        release_breakpoint()
+        op.track()
+
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
     @authors("ifsmirnov")
@@ -2514,6 +2686,63 @@ print(json.dumps(input))
         ])
 
         assert first_read <= first_written <= chunk_reader_spent_time
+
+    @authors("coteeq")
+    def test_writer_timing_statistics(self):
+        skip_if_component_old(self.Env, (26, 1), "node")
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t_out0", attributes={"chunk_writer": {"tesing_delay_before_chunk_close": 100}})
+        create("table", "//tmp/t_out1", attributes={"chunk_writer": {"tesing_delay_before_chunk_close": 100}})
+        create("table", "//tmp/t_out2", attributes={"chunk_writer": {"tesing_delay_before_chunk_close": 100}})
+
+        write_table("//tmp/t1", [{"key": i, "value": "val_{i}"} for i in range(10000)])
+        op = map(
+            in_=["//tmp/t1"],
+            out=["//tmp/t_out0", "//tmp/t_out1", "//tmp/t_out2"],
+            command="sleep 1 && tee /proc/self/fd/4 | (sleep 1 && cat)",
+            spec={
+                "job_io": {
+                    # Try really hard to write as slow as possible
+                    "table_writer": {
+                        "block_size": 1,
+                        "desired_chunk_size": 1,
+                    }
+                }
+            }
+        )
+
+        statistics = get(op.get_path() + "/@progress/job_statistics_v2")
+        chunk_count = len(get("//tmp/t_out0/@chunk_ids"))
+
+        assert op.get_job_count("completed") == 1
+        job_time_ms = extract_statistic_v2(statistics, "time.exec")
+
+        eps_ms = 20
+
+        def assert_total_time(total_time):
+            assert abs(job_time_ms - total_time) < 100
+
+        for table_index in [0, 1]:
+            wait_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.wait_time")
+            write_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.write_time")
+            idle_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.idle_time")
+            close_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.close_time")
+
+            assert wait_time > eps_ms
+            assert write_time > eps_ms
+            assert close_time >= 100 * chunk_count
+            assert_total_time(idle_time + wait_time + write_time + close_time)
+
+        for table_index in [2]:
+            wait_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.wait_time")
+            write_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.write_time")
+            idle_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.idle_time")
+            close_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.close_time")
+
+            assert wait_time == 0
+            assert write_time == 0
+            assert 100 <= close_time < 100 + eps_ms  # tesing_delay_before_chunk_close + eps.
+            assert_total_time(idle_time + wait_time + write_time + close_time)
 
     @authors("apollo1321")
     def test_job_count_with_skewed_row_sizes(self):

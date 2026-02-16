@@ -169,7 +169,7 @@ private:
             queryContext,
             std::move(tablePaths),
             /*skipUnsuitableNodes*/ false,
-            queryContext->Settings->DynamicTable->EnableDynamicStoreRead,
+            queryContext->SessionSettings->DynamicTable->EnableDynamicStoreRead,
             queryContext->Logger);
 
         DB::StorageID storageId{"YT", BuildStorageName(tables)};
@@ -248,14 +248,14 @@ private:
 
         YT_LOG_INFO("Listing directory (Path: %v)", Directory_);
 
-        bool sync = (queryContext->Settings->Execution->TableReadLockMode == ETableReadLockMode::Sync);
+        bool sync = (queryContext->SessionSettings->Execution->TableReadLockMode == ETableReadLockMode::Sync);
 
         if (sync && queryContext->QueryKind == EQueryKind::InitialQuery) {
             queryContext->AcquireSnapshotLocks({Directory_.GetPath()});
         }
 
         TListNodeOptions options;
-        static_cast<TMasterReadOptions&>(options) = *queryContext->Settings->CypressReadOptions;
+        static_cast<TMasterReadOptions&>(options) = *queryContext->SessionSettings->CypressReadOptions;
         options.Attributes = {
             "path",
         };
@@ -287,7 +287,7 @@ private:
             items = std::move(lockedItems);
         }
 
-        if (auto breakpointFilename = queryContext->Settings->Testing->ConcatTableRangeBreakpoint) {
+        if (auto breakpointFilename = queryContext->SessionSettings->Testing->ConcatTableRangeBreakpoint) {
             HandleBreakpoint(*breakpointFilename, queryContext->Client());
             YT_LOG_DEBUG("Concat tables range function handled breakpoint (Breakpoint: %v)", breakpointFilename);
         }
@@ -306,8 +306,8 @@ private:
             queryContext,
             std::move(itemPaths),
             /*skipUnsuitableItems*/ true,
-            queryContext->Settings->ConcatTables->IgnoreFetchErrors,
-            queryContext->Settings->DynamicTable->EnableDynamicStoreRead,
+            queryContext->SessionSettings->ConcatTables->IgnoreFetchErrors,
+            queryContext->SessionSettings->DynamicTable->EnableDynamicStoreRead,
             Logger);
 
         std::sort(tables.begin(), tables.end(), [] (const TTablePtr& lhs, const TTablePtr& rhs) {

@@ -928,6 +928,9 @@ public:
     void CommitHierarchicalResourceUsage(const TJobResources& resourceUsage, const TJobResources& precommittedResources);
     void ReleaseResources(bool markAsNonAlive);
 
+    EResourceTreeIncreasePreemptedResult TryIncreaseHierarchicalPreemptedResourceUsagePrecommit(const TJobResources& delta, std::string* violatedIdOutput);
+    bool CommitHierarchicalPreemptedResourceUsage(const TJobResources& delta);
+
     //! Other methods.
     std::optional<TString> GetCustomProfilingTag() const;
 

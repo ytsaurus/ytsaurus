@@ -32,7 +32,7 @@
         };
         use_porto_memory_tracking=%true;
         layer_paths=[
-            "//porto_layers/delta/fuse/porto_delta_layer_ubuntu_jammy_libfuse2_2024-11-22.tar.gz"; 
+            "//porto_layers/delta/fuse/porto_delta_layer_ubuntu_jammy_libfuse2_2024-11-22.tar.gz";
             "//porto_layers/base/jammy/porto_layer_search_ubuntu_jammy_app_lastest.tar.gz";
         ];
     };
@@ -40,4 +40,5 @@
     enable_network=%false;
     blob_ttl=302400000000000;
     output_ttl=604800000000000;
+    timeout=10800000000000;
 }

@@ -129,8 +129,8 @@ TEST_F(TSignatureGeneratorTest, UninitializedSign)
 
     try {
         Y_UNUSED(Gen->Sign(data));
-    } catch(const std::exception& exception) {
-        EXPECT_TRUE(IsRetriableError(exception));
+    } catch(const std::exception& ex) {
+        EXPECT_TRUE(IsRetriableError(ex));
     }
 }
 
@@ -144,7 +144,7 @@ TEST_F(TSignatureGeneratorTest, RotationUnderLoad)
 
     std::string data("MyImportantData");
     std::atomic<bool> allStarted = false;
-    std::atomic<size_t> finishedCount = 0;
+    std::atomic<int> finishedCount = 0;
 
     auto signerTask = BIND([this, &data, &allStarted, &finishedCount] () {
         while (!allStarted.load()) { }
@@ -165,7 +165,7 @@ TEST_F(TSignatureGeneratorTest, RotationUnderLoad)
     allStarted.store(true);
     while (finishedCount.load() == 0) { }
     Gen->SetKeyPair(std::move(newKeyPair));
-    EXPECT_LE(finishedCount.load(), 5000u);
+    EXPECT_LE(finishedCount.load(), 5000);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -204,7 +204,7 @@ TEST_F(TSignatureGeneratorTest, ReconfigureMultipleTimes)
 
     std::atomic<bool> allStarted = false;
     std::atomic<bool> shouldStop = false;
-    std::atomic<size_t> signCount = 0;
+    std::atomic<int> signCount = 0;
 
     auto signerTask = BIND([this, &allStarted, &shouldStop, &signCount] () {
         while (!allStarted.load()) { }
@@ -234,7 +234,7 @@ TEST_F(TSignatureGeneratorTest, ReconfigureMultipleTimes)
     Sleep(TDuration::Seconds(3));
     shouldStop.store(true);
 
-    EXPECT_GE(signCount.load(), 1000u);
+    EXPECT_GE(signCount.load(), 1000);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

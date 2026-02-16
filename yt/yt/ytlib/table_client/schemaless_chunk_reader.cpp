@@ -640,6 +640,15 @@ public:
     {
         YT_VERIFY(CommonKeyPrefix_ <= std::ssize(SortOrders_));
 
+        // FIXME(coteeq)
+        bool keyIsWidened = !KeyWideningOptions_.InsertedColumnIds.empty();
+        THROW_ERROR_EXCEPTION_IF(
+            RlsChecker_ && keyIsWidened,
+            "Cannot read a chunk with widened key and active RLS");
+        THROW_ERROR_EXCEPTION_IF(
+            ChunkMeta_->ChunkSchema()->HasNonMaterializedComputedColumns() && keyIsWidened,
+            "Cannot read a chunk with widened key and non-materialized computed columns");
+
         if (chunkState->DataSource) {
             PackBaggageForChunkReader(TraceContext_, *chunkState->DataSource, MakeExtraChunkTags(ChunkMeta_->Misc()));
         }
@@ -696,7 +705,7 @@ protected:
 
         auto action = ESecurityAction::Allow;
         if (RlsChecker_) {
-            action = RlsChecker_->Check(row, EphemeralRowBuffer_);
+            action = RlsChecker_->Check(row, EphemeralRowBuffer_, prefixToRemapSize);
         }
 
         auto firstIndexToSkip = GetFirstIndexToSkipRemappingInRow(row.GetCount());
@@ -887,8 +896,8 @@ void THorizontalSchemalessRangeChunkReader::InitFirstBlock()
         blockMeta,
         GetCompositeColumnFlags(ChunkMeta_->ChunkSchema()),
         GetHunkColumnFlags(ChunkMeta_->GetChunkFormat(), ChunkMeta_->GetChunkFeatures(), ChunkMeta_->ChunkSchema()),
-        ChunkMeta_->HunkChunkRefs(),
-        ChunkMeta_->HunkChunkMetas(),
+        &ChunkMeta_->HunkChunkRefs(),
+        &ChunkMeta_->HunkChunkMetas(),
         ChunkToReaderIdMapping_,
         SortOrders_,
         CommonKeyPrefix_,
@@ -1317,8 +1326,8 @@ void THorizontalSchemalessLookupChunkReaderBase::InitFirstBlock()
         blockMeta,
         GetCompositeColumnFlags(ChunkMeta_->ChunkSchema()),
         GetHunkColumnFlags(ChunkMeta_->GetChunkFormat(), ChunkMeta_->GetChunkFeatures(), ChunkMeta_->ChunkSchema()),
-        ChunkMeta_->HunkChunkRefs(),
-        ChunkMeta_->HunkChunkMetas(),
+        &ChunkMeta_->HunkChunkRefs(),
+        &ChunkMeta_->HunkChunkMetas(),
         ChunkToReaderIdMapping_,
         SortOrders_,
         CommonKeyPrefix_,
@@ -1777,7 +1786,7 @@ public:
 
         auto action = ESecurityAction::Allow;
         if (RlsChecker_) {
-            action = RlsChecker_->Check(row, EphemeralRowBuffer_);
+            action = RlsChecker_->Check(row, EphemeralRowBuffer_, prefixToRemapSize);
         }
 
         ApplyColumnIdMapping(row, chunkToReaderIdMapping, prefixToRemapSize, firstIndexToSkip, lastIndexToSkip);
@@ -1876,6 +1885,15 @@ public:
             KeyWideningOptions_,
             SortOrders_,
             chunkState->RlsChecker);
+
+        // FIXME(coteeq)
+        bool keyIsWidened = !KeyWideningOptions_.InsertedColumnIds.empty();
+        THROW_ERROR_EXCEPTION_IF(
+            RlsChecker_ && keyIsWidened,
+            "Cannot read a chunk with widened key and active RLS");
+        THROW_ERROR_EXCEPTION_IF(
+            ChunkMeta_->ChunkSchema()->HasNonMaterializedComputedColumns() && keyIsWidened,
+            "Cannot read a chunk with widened key and non-materialized computed columns");
 
         YT_VERIFY(std::ssize(KeyColumnReaders_) == std::ssize(SortOrders_));
 
@@ -2501,6 +2519,15 @@ public:
             KeyWideningOptions_,
             SortOrders_,
             chunkState->RlsChecker);
+
+        // FIXME(coteeq)
+        bool keyIsWidened = !KeyWideningOptions_.InsertedColumnIds.empty();
+        THROW_ERROR_EXCEPTION_IF(
+            RlsChecker_ && keyIsWidened,
+            "Cannot read a chunk with widened key and active RLS");
+        THROW_ERROR_EXCEPTION_IF(
+            ChunkMeta_->ChunkSchema()->HasNonMaterializedComputedColumns() && keyIsWidened,
+            "Cannot read a chunk with widened key and non-materialized computed columns");
 
         Initialize();
 

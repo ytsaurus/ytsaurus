@@ -37,6 +37,7 @@ PEERDIR(
     contrib/ydb/core/kqp/opt
     contrib/ydb/core/kqp/proxy_service/script_executions_utils
     contrib/ydb/core/mon
+    contrib/ydb/core/util
     contrib/ydb/library/db_pool
     contrib/ydb/library/security
     contrib/ydb/library/yql/providers/s3/path_generator

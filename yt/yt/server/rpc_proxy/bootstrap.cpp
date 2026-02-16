@@ -9,6 +9,7 @@
 
 #include <yt/yt/server/lib/rpc_proxy/api_service.h>
 #include <yt/yt/server/lib/rpc_proxy/profilers.h>
+#include <yt/yt/server/lib/rpc_proxy/private.h>
 #include <yt/yt/server/lib/rpc_proxy/proxy_coordinator.h>
 
 #include <yt/yt/server/lib/signature/components.h>
@@ -24,6 +25,7 @@
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/helpers.h>
+#include <yt/yt/ytlib/api/native/pool_weight_provider.h>
 
 #include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
 
@@ -74,6 +76,7 @@
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
+#include <yt/yt/core/concurrency/two_level_fair_share_thread_pool.h>
 
 #include <yt/yt/core/net/address.h>
 #include <yt/yt/core/net/local_address.h>
@@ -119,9 +122,12 @@ TBootstrap::TBootstrap(
     : Config_(std::move(config))
     , ConfigNode_(std::move(configNode))
     , ServiceLocator_(std::move(serviceLocator))
-    , ControlQueue_(New<TActionQueue>("Control"))
-    , WorkerPool_(CreateThreadPool(Config_->WorkerThreadPoolSize, "Worker"))
-    , LowLatencyActionQueue_(New<TActionQueue>("LowLatencyPool"))
+    , WorkerPool_(CreateTwoLevelFairShareThreadPool(Config_->WorkerThreadPoolSize, "Worker"))
+    , WorkerWeightProvider_(NNative::CreateCachingCypressPoolWeightProvider(
+        Config_->PoolWeightCache,
+        /*client*/ nullptr,
+        GetControlInvoker(),
+        RpcProxyLogger()))
     , HttpPoller_(CreateThreadPoolPoller(1, "HttpPoller"))
 {
     if (Config_->AbortOnUnrecognizedOptions) {
@@ -133,6 +139,8 @@ TBootstrap::TBootstrap(
     if (!Config_->ClusterConnection) {
         THROW_ERROR_EXCEPTION("Cluster connection is missing");
     }
+
+    WorkerPool_->SetWeightProvider(WorkerWeightProvider_);
 }
 
 TBootstrap::~TBootstrap() = default;
@@ -140,7 +148,7 @@ TBootstrap::~TBootstrap() = default;
 TFuture<void> TBootstrap::Run()
 {
     return BIND(&TBootstrap::DoRun, MakeStrong(this))
-        .AsyncVia(ControlQueue_->GetInvoker())
+        .AsyncVia(GetControlInvoker())
         .Run();
 }
 
@@ -167,7 +175,7 @@ void TBootstrap::DoInitialize()
     ReconfigureMemoryLimits(Config_->MemoryLimits);
 
     NApi::NNative::TConnectionOptions connectionOptions;
-    connectionOptions.ConnectionInvoker = GetWorkerInvoker();
+    connectionOptions.ConnectionInvoker = GetWorkerInvoker(ConnectionExecutionPoolName, DefaultExecutionTag);
     connectionOptions.RetryRequestQueueSizeLimitExceeded = Config_->RetryRequestQueueSizeLimitExceeded;
     connectionOptions.CreateQueueConsumerRegistrationManager = true;
     Connection_ = NApi::NNative::CreateConnection(
@@ -184,6 +192,8 @@ void TBootstrap::DoInitialize()
     NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(Connection_);
 
     RootClient_ = Connection_->CreateNativeClient(NNative::TClientOptions::FromUser(NSecurityClient::RootUserName));
+
+    WorkerWeightProvider_->SetClient(RootClient_);
 
     NLogging::GetDynamicTableLogWriterFactory()->SetClient(RootClient_);
 
@@ -233,7 +243,8 @@ void TBootstrap::DoInitialize()
         MemoryUsageTracker_->WithCategory(EMemoryCategory::Rpc),
         TCertProfiler{
             RpcProxyProfiler().WithPrefix("/bus_server"),
-            GetWorkerInvoker()});
+            GetWorkerInvoker(DefaultApiExecutionPoolName, DefaultExecutionTag),
+        });
 
     if (Config_->PublicRpcPort) {
         PublicBusServer_ = CreateBusServer(
@@ -242,7 +253,8 @@ void TBootstrap::DoInitialize()
             MemoryUsageTracker_->WithCategory(EMemoryCategory::Rpc),
             TCertProfiler{
                 RpcProxyProfiler().WithPrefix("/public_bus_server"),
-                GetWorkerInvoker()});
+                GetWorkerInvoker(DefaultApiExecutionPoolName, DefaultExecutionTag),
+            });
     }
 
     if (Config_->TvmOnlyRpcPort) {
@@ -254,7 +266,8 @@ void TBootstrap::DoInitialize()
             GetNullMemoryUsageTracker(),
             TCertProfiler{
                 RpcProxyProfiler().WithPrefix("/tvm_only_bus_server"),
-                GetWorkerInvoker()});
+                GetWorkerInvoker(DefaultApiExecutionPoolName, DefaultExecutionTag),
+            });
     }
 
     RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
@@ -315,7 +328,7 @@ void TBootstrap::DoStart()
 
     auto orchidService = CreateOrchidService(
         orchidRoot,
-        GetControlInvoker(),
+        GetWorkerInvoker(OrchidExecutionPoolName, DefaultExecutionTag),
         NativeAuthenticator_);
     RpcServer_->RegisterService(orchidService);
     if (TvmOnlyRpcServer_) {
@@ -333,9 +346,8 @@ void TBootstrap::DoStart()
     auto createApiService = [&] (const NAuth::IAuthenticationManagerPtr& authenticationManager) {
         return CreateApiService(
             Config_->ApiService,
-            GetControlInvoker(),
-            GetWorkerInvoker(),
-            LowLatencyActionQueue_->GetInvoker(),
+            GetWorkerInvoker(DefaultApiExecutionPoolName, DefaultExecutionTag),
+            [&] (const std::string& pool, const TFairShareThreadPoolTag& tag) { return this->GetWorkerInvoker(pool, tag); },
             Connection_,
             authenticationManager->GetRpcAuthenticator(),
             ProxyCoordinator_,
@@ -365,7 +377,7 @@ void TBootstrap::DoStart()
     if (Config_->EnableShuffleService) {
         auto localServerAddress = BuildServiceAddress(GetLocalHostName(), Config_->RpcPort);
         ShuffleService_ = CreateShuffleService(
-            GetWorkerInvoker(),
+            GetWorkerInvoker(ShuffleExecutionPoolName, DefaultExecutionTag),
             RootClient_,
             localServerAddress);
         RpcServer_->RegisterService(ShuffleService_);
@@ -399,7 +411,7 @@ void TBootstrap::DoStart()
             ProxyCoordinator_,
             Connection_,
             GetControlInvoker(),
-            GetWorkerInvoker(),
+            GetWorkerInvoker(DiscoveryExecutionPoolName, DefaultExecutionTag),
             LocalAddresses_);
         RpcServer_->RegisterService(DiscoveryService_);
         if (PublicRpcServer_) {
@@ -558,6 +570,8 @@ void TBootstrap::OnDynamicConfigChanged(
 
     Connection_->GetMasterCellDirectorySynchronizer()->Reconfigure(
         newConfig->MasterCellDirectorySynchronizer.value_or(Config_->ClusterConnection->Static->MasterCellDirectorySynchronizer));
+
+    WorkerWeightProvider_->SetOverrides(newConfig->WorkerPoolWeightOverrides);
 }
 
 void TBootstrap::OnBundleDynamicConfigChanged(
@@ -567,14 +581,16 @@ void TBootstrap::OnBundleDynamicConfigChanged(
     ReconfigureConnection(DynamicConfigManager_->GetConfig(), newConfig);
 }
 
-const IInvokerPtr& TBootstrap::GetWorkerInvoker() const
+IInvokerPtr TBootstrap::GetWorkerInvoker(
+    const std::string& poolName,
+    const TFairShareThreadPoolTag& tag) const
 {
-    return WorkerPool_->GetInvoker();
+    return WorkerPool_->GetInvoker(poolName, tag);
 }
 
-const IInvokerPtr& TBootstrap::GetControlInvoker() const
+IInvokerPtr TBootstrap::GetControlInvoker() const
 {
-    return ControlQueue_->GetInvoker();
+    return WorkerPool_->GetInvoker(ControlExecutionPoolName, DefaultExecutionTag);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

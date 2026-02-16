@@ -154,7 +154,8 @@ public:
                 replica.GetNodeId(),
                 /*replicaIndex*/ index,
                 replica.GetMediumIndex(),
-                replica.GetChunkLocationUuid());
+                replica.GetChunkLocationUuid(),
+                replica.GetChunkLocationIndex());
             result.Replicas.push_back(replica);
         }
 

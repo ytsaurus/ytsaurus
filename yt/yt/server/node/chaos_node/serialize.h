@@ -35,6 +35,8 @@ DEFINE_ENUM(EChaosReign,
     ((HydraLogicalRecordId)                     (300301)) // h0pless
     ((IntroduceChaosLeaseManager)               (300302)) // gryzlov-ad
     ((CoordinatorSuspendEnforcment)             (300303)) // gryzlov-ad
+    ((ReignInHiveMessages)                      (300304)) // ifsmirnov
+    ((AllowChaosLeaseManagerRepeatingDisabling) (300305)) // gryzlov-ad
 );
 
 static_assert(TEnumTraits<EChaosReign>::IsMonotonic, "Chaos reign enum is not monotonic");

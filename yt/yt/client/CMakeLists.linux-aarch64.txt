@@ -23,6 +23,7 @@ add_subdirectory(arrow)
 add_subdirectory(hedging)
 add_subdirectory(api)
 add_subdirectory(query_client)
+add_subdirectory(queue_client)
 add_subdirectory(signature)
 add_subdirectory(table_client)
 add_subdirectory(unittests)
@@ -136,6 +137,7 @@ target_sources(yt-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/bundle_controller_client/bundle_controller_client.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/bundle_controller_client/bundle_controller_settings.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/election/public.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/hive/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/hive/timestamp_map.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/hydra/version.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/chaos_client/config.cpp
@@ -199,6 +201,7 @@ target_sources(yt-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/schemaless_dynamic_table_writer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/serialize.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/table_upload_options.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/tracked_memory_chunk_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/logical_type.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/merge_table_schemas.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/name_table.cpp
@@ -246,8 +249,10 @@ target_sources(yt-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/query_client/query_statistics.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/complex_types/check_yson_token.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/complex_types/check_type_compatibility.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/complex_types/common_yson_converters.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/complex_types/infinite_entity.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/complex_types/merge_complex_types.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/complex_types/positional_yson_translation.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/complex_types/time_text.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/complex_types/uuid_text.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/complex_types/yson_format_conversion.cpp

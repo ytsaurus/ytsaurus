@@ -4,6 +4,12 @@
 
 ##  Конференции, публикации
 
+### 2025: Обучаем ML-модели и запускаем batch-инференс на {{product-name}}
+- **Мероприятие:** Yandex Scale 2025
+- **Материалы:** [YouTube](https://youtu.be/d1l8rH36gHM) [Habr](https://habr.com/ru/companies/yandex/articles/979336/)
+- **Докладчик:** Алексей Архипенко
+- **Язык:** русский
+
 ### 2025: Перебалансировка без даунтайма в динтаблицах YTsaurus
 - **Мероприятие:** HighLoad++ 2025
 - **Материалы:** [YouTube](https://youtu.be/eHzD4TJy6XM)

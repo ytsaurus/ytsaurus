@@ -1872,9 +1872,17 @@ private:
             YT_LOG_DEBUG("Suspending chaos cell");
 
             // COMPAT(gryzlov-ad)
-            if (static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign) >= EChaosReign::IntroduceChaosLeaseManager) {
+            auto reign = static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign);
+            if (reign >= EChaosReign::IntroduceChaosLeaseManager) {
                 const auto& chaosLeaseManager = Slot_->GetChaosLeaseManager();
-                chaosLeaseManager->MakeStateTransition(EChaosLeaseManagerState::Enabled, EChaosLeaseManagerState::Disabling);
+                if (reign >= EChaosReign::AllowChaosLeaseManagerRepeatingDisabling) {
+                    auto state = chaosLeaseManager->GetState();
+                    if (state != EChaosLeaseManagerState::Disabled) {
+                        chaosLeaseManager->MakeStateTransition(EChaosLeaseManagerState::Enabled, EChaosLeaseManagerState::Disabling);
+                    }
+                } else {
+                    chaosLeaseManager->MakeStateTransition(EChaosLeaseManagerState::Enabled, EChaosLeaseManagerState::Disabling);
+                }
             }
 
             Suspended_ = true;

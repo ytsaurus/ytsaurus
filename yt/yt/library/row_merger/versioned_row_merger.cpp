@@ -564,14 +564,14 @@ std::unique_ptr<IVersionedRowMerger> CreateLegacyVersionedRowMerger(
     IMemoryUsageTrackerPtr memoryTracker)
 {
     return std::make_unique<TLegacyVersionedRowMerger>(
-        rowBuffer,
+        std::move(rowBuffer),
         columnCount,
         keyColumnCount,
         columnFilter,
-        config,
+        std::move(config),
         currentTimestamp,
         majorTimestamp,
-        columnEvaluator,
+        std::move(columnEvaluator),
         mergeRowsOnFlush,
         ttlColumnIndex,
         mergeDeletionsOnFlush,
@@ -1017,7 +1017,7 @@ private:
     std::vector<TTimestamp> WriteTimestamps_;
     std::vector<TTimestamp> DeleteTimestamps_;
 
-    TNestedTableMerger NestedMerger_;
+    TNestedTableMerger NestedMerger_{/*orderNestedRows*/ false};
     std::vector<TRange<TVersionedValue>> NestedKeyColumns_;
     std::vector<TRange<TVersionedValue>> NestedValueColumns_;
 
@@ -1247,7 +1247,7 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
         rowMergerType = ERowMergerType::Legacy;
     }
 
-    auto nestedColumnsSchema = GetNestedColumnsSchema(tableSchema);
+    auto nestedColumnsSchema = GetNestedColumnsSchema(*tableSchema);
 
     if (!nestedColumnsSchema.KeyColumns.empty() && rowMergerType != ERowMergerType::New) {
         THROW_ERROR_EXCEPTION("Nested columns are supported only in new versioned row merger");

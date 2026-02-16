@@ -48,6 +48,7 @@ struct TReadStepWithFilter
 {
     //! Additional columns to read and convert on the current step.
     std::vector<NTableClient::TColumnSchema> Columns;
+    std::vector<NYTree::IAttributeDictionaryPtr> ColumnAttributes;
     //! Filter to execute on current step.
     //! The filter actions may use columns from this and all previous steps.
     std::optional<TFilterInfo> FilterInfo;
@@ -73,10 +74,11 @@ DEFINE_REFCOUNTED_TYPE(TReadPlanWithFilter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReadPlanWithFilterPtr BuildSimpleReadPlan(const std::vector<NTableClient::TColumnSchema>& columns);
+TReadPlanWithFilterPtr BuildSimpleReadPlan(std::vector<NTableClient::TColumnSchema> columns, std::vector<NYTree::IAttributeDictionaryPtr> columnAttributes);
 
 TReadPlanWithFilterPtr BuildReadPlanWithPrewhere(
-    const std::vector<NTableClient::TColumnSchema>& columns,
+    std::vector<NTableClient::TColumnSchema> columns,
+    std::vector<NYTree::IAttributeDictionaryPtr> columnAttributes,
     const DB::PrewhereInfoPtr& prewhereInfo,
     const DB::Settings& settings);
 

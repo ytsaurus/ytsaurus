@@ -8,7 +8,6 @@
 #include "journal_chunk.h"
 #include "journal_dispatcher.h"
 #include "location.h"
-#include "master_connector.h"
 
 #include <yt/yt/server/lib/chunk_server/proto/job.pb.h>
 
@@ -365,6 +364,11 @@ IChunkPtr TMasterJobBase::GetLocalChunkOrThrow(TChunkId chunkId, TChunkLocationU
 
     const auto& chunkStore = Bootstrap_->GetChunkStore();
     return chunkStore->GetChunkOrThrow(chunkId, locationUuid);
+}
+
+TPerCategoryThrottlerProvider TMasterJobBase::CreateBandwidthThrottlerProvider(EDataNodeThrottlerKind kind)
+{
+    return MakeUniformPerCategoryThrottlerProvider(Bootstrap_->GetThrottler(kind));
 }
 
 void TMasterJobBase::DoSetFinished(
@@ -802,10 +806,9 @@ private:
             Bootstrap_->GetLocalDescriptor(),
             Bootstrap_->GetBlockCache(),
             /*chunkMetaCache*/ nullptr,
-            /*nodeStatusDirectory*/ nullptr,
-            /*bandwidthThrottler*/ Bootstrap_->GetThrottler(EDataNodeThrottlerKind::RepairIn),
-            /*rpsThrottler*/ GetUnlimitedThrottler(),
-            /*mediumThrottler*/ GetUnlimitedThrottler(),
+            CreateBandwidthThrottlerProvider(EDataNodeThrottlerKind::RepairIn),
+            /*rpsThrottler*/ nullptr,
+            /*mediumThrottler*/ nullptr,
             /*trafficMeter*/ nullptr);
 
         return CreateReplicationReader(
@@ -1134,10 +1137,9 @@ private:
                 Bootstrap_->GetLocalDescriptor(),
                 Bootstrap_->GetBlockCache(),
                 /*chunkMetaCache*/ nullptr,
-                /*nodeStatusDirectory*/ nullptr,
-                Bootstrap_->GetThrottler(EDataNodeThrottlerKind::ReplicationIn),
-                /*rpsThrottler*/ GetUnlimitedThrottler(),
-                /*mediumThrottler*/ GetUnlimitedThrottler(),
+                CreateBandwidthThrottlerProvider(EDataNodeThrottlerKind::ReplicationIn),
+                /*rpsThrottler*/ nullptr,
+                /*mediumThrottler*/ nullptr,
                 /*trafficMeter*/ nullptr);
 
             auto reader = NJournalClient::CreateChunkReader(
@@ -1800,10 +1802,9 @@ private:
             Bootstrap_->GetLocalDescriptor(),
             Bootstrap_->GetBlockCache(),
             /*chunkMetaCache*/ nullptr,
-            /*nodeStatusDirectory*/ nullptr,
-            Bootstrap_->GetThrottler(EDataNodeThrottlerKind::MergeIn),
-            /*rpsThrottler*/ GetUnlimitedThrottler(),
-            /*mediumThrottler*/ GetUnlimitedThrottler(),
+            CreateBandwidthThrottlerProvider(EDataNodeThrottlerKind::MergeIn),
+            /*rpsThrottler*/ nullptr,
+            /*mediumThrottler*/ nullptr,
             /*trafficMeter*/ nullptr);
         return CreateRemoteReader(
             GetChunkSpec(chunk),
@@ -2114,10 +2115,9 @@ private:
             Bootstrap_->GetLocalDescriptor(),
             Bootstrap_->GetBlockCache(),
             /*chunkMetaCache*/ nullptr,
-            /*nodeStatusDirectory*/ nullptr,
-            Bootstrap_->GetThrottler(EDataNodeThrottlerKind::ReincarnationIn),
-            /*rpsThrottler*/ GetUnlimitedThrottler(),
-            /*mediumThrottler*/ GetUnlimitedThrottler(),
+            CreateBandwidthThrottlerProvider(EDataNodeThrottlerKind::ReincarnationIn),
+            /*rpsThrottler*/ nullptr,
+            /*mediumThrottler*/ nullptr,
             /*trafficMeter*/ nullptr);
         auto remoteReader = CreateRemoteReader(
             oldChunkSpec,
@@ -2663,10 +2663,9 @@ private:
             Bootstrap_->GetLocalDescriptor(),
             Bootstrap_->GetBlockCache(),
             /*chunkMetaCache*/ nullptr,
-            /*nodeStatusDirectory*/ nullptr,
-            Bootstrap_->GetThrottler(EDataNodeThrottlerKind::AutotomyIn),
-            /*rpsThrottler*/ GetUnlimitedThrottler(),
-            /*mediumThrottler*/ GetUnlimitedThrottler(),
+            CreateBandwidthThrottlerProvider(EDataNodeThrottlerKind::AutotomyIn),
+            /*rpsThrottler*/ nullptr,
+            /*mediumThrottler*/ nullptr,
             /*trafficMeter*/ nullptr);
 
         auto reader = NJournalClient::CreateChunkReader(
@@ -2933,7 +2932,8 @@ private:
                 replica.GetNodeId(),
                 replicaIndex,
                 replica.GetMediumIndex(),
-                replica.GetChunkLocationUuid());
+                replica.GetChunkLocationUuid(),
+                replica.GetChunkLocationIndex());
         }
 
         const auto& client = Bootstrap_->GetClient();
@@ -2959,13 +2959,12 @@ private:
         bool useLocationUuids = std::all_of(writtenReplicas.begin(), writtenReplicas.end(), [] (const auto& replica) {
             return replica.GetChunkLocationUuid() != InvalidChunkLocationUuid;
         });
+        bool useLocationIndicies = std::all_of(writtenReplicas.begin(), writtenReplicas.end(), [] (const auto& replica) {
+            return replica.GetChunkLocationIndex() != InvalidChunkLocationIndex;
+        });
 
-        if (useLocationUuids) {
-            for (const auto& replica : writtenReplicas) {
-                auto* replicaInfo = req->add_replicas();
-                replicaInfo->set_replica(ToProto(TChunkReplicaWithMedium(replica)));
-                ToProto(replicaInfo->mutable_location_uuid(), replica.GetChunkLocationUuid());
-            }
+        if (useLocationUuids || useLocationIndicies) {
+            ToProto(req->mutable_replicas(), writtenReplicas);
         }
 
         auto rspOrError = WaitFor(req->Invoke());

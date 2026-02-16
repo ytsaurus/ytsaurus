@@ -297,6 +297,7 @@ private:
 
             bool Started = false;
             TChunkLocationUuid TargetLocationUuid = InvalidChunkLocationUuid;
+            TChunkLocationIndex TargetLocationIndex = InvalidChunkLocationIndex;
 
             i64 FirstPendingBlockIndex = 0;
             i64 FirstPendingRowIndex = -1;
@@ -842,11 +843,16 @@ private:
                     return node->TargetLocationUuid != InvalidChunkLocationUuid;
                 });
 
-                if (useLocationUuids) {
+                bool useLocationIndicies = std::all_of(session->Nodes.begin(), session->Nodes.end(), [] (const auto& node) {
+                    return node->TargetLocationIndex != InvalidChunkLocationIndex;
+                });
+
+                if (useLocationUuids || useLocationIndicies) {
                     for (int i = 0; i < std::ssize(replicas); ++i) {
                         auto* replicaInfo = req->add_replicas();
                         replicaInfo->set_replica(ToProto(replicas[i]));
                         ToProto(replicaInfo->mutable_location_uuid(), session->Nodes[i]->TargetLocationUuid);
+                        replicaInfo->set_location_index(ToProto<ui32>(session->Nodes[i]->TargetLocationIndex));
                     }
                 }
 
@@ -1453,6 +1459,9 @@ private:
                     node->Descriptor.GetDefaultAddress());
                 if (rspOrError.Value()->has_location_uuid()) {
                     node->TargetLocationUuid = FromProto<TChunkLocationUuid>(rspOrError.Value()->location_uuid());
+                }
+                if (rspOrError.Value()->has_location_index()) {
+                    node->TargetLocationIndex = FromProto<TChunkLocationIndex>(rspOrError.Value()->location_index());
                 }
                 node->Started = true;
                 if (CurrentChunkSession_ == session) {

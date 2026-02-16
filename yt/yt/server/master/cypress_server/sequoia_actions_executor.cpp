@@ -33,6 +33,7 @@ using namespace NObjectServer;
 using namespace NSecurityClient;
 using namespace NSecurityServer;
 using namespace NSequoiaServer;
+using namespace NServer;
 using namespace NTableClient;
 using namespace NTransactionServer;
 using namespace NTransactionSupervisor;
@@ -284,7 +285,7 @@ private:
 
         auto explicitAttributes = request->has_node_attributes()
             ? FromProto(request->node_attributes())
-            : IAttributeDictionaryPtr();
+            : EmptyAttributes().Clone();
 
         auto inheritedAttributes = FromProto(request->inherited_attributes());
 

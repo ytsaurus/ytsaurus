@@ -299,7 +299,7 @@ def run_options(func):
     )
     @click.option(
         "--poller-interval",
-        default="500ms",
+        default="200ms",
         show_default=True,
     )
     @click.option(

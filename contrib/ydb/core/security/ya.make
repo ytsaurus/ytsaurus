@@ -22,6 +22,7 @@ PEERDIR(
     contrib/ydb/library/aclib
     contrib/ydb/library/aclib/protos
     contrib/ydb/library/login
+    contrib/ydb/library/login/protos
     contrib/ydb/library/ncloud/impl
     contrib/ydb/library/security
     contrib/ydb/library/ycloud/api

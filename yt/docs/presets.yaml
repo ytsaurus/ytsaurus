@@ -3,7 +3,7 @@ default:
     yt-server-version: 25.2.1
     k8s-operator-version: 0.28.0
     chyt-version: 2.17.4
-    spyt-version: 2.8.2
+    spyt-version: 2.8.3
     strawberry-version: 0.0.15
     qt-version: 0.0.11
     yt-stable-branch: 25.2
@@ -16,6 +16,7 @@ default:
     tutorial-version: 0.0.2
     sidecars-version: 0.0.1
     ytmsvc-version: 0.0.1
+    excel-version: 0.0.1
 
 public:
   example_cluster: 'cluster_name'

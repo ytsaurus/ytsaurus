@@ -3,12 +3,13 @@ from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 from yt_helpers import profiler_factory
 
 from yt_commands import (
-    authors, wait, ls, set, get, map, update_nodes_dynamic_config, create,
+    authors, read_table, wait, ls, set, get, map, update_nodes_dynamic_config, create,
     write_file, write_table, merge, create_domestic_medium, exists,
     set_account_disk_space_limit, get_account_disk_space_limit, remove)
 
 import yt_error_codes
 
+import pytest
 import builtins
 import os
 import time
@@ -288,6 +289,9 @@ class TestPerLocationFullHeartbeats(YTEnvSetup):
         self.remove_chunks_on_every_medium()
         self.create_chunk_on_every_medium()
 
+        set("//sys/@config/chunk_manager/data_node_tracker/check_location_convergence_by_index_and_uuid_on_confirmation", False)
+        set("//sys/@config/chunk_manager/data_node_tracker/use_location_indexes_to_search_location_on_confirmation", False)
+        set("//sys/@config/chunk_manager/data_node_tracker/use_location_indexes_in_sequoia_chunk_confirmation", False)
         set("//sys/@config/chunk_manager/data_node_tracker/enable_location_indexes_in_data_node_heartbeats", False)
 
         with Restarter(self.Env, NODES_SERVICE, sync=False):
@@ -300,6 +304,58 @@ class TestPerLocationFullHeartbeats(YTEnvSetup):
             assert location["index"] == 0
 
         self.check_chunk_on_every_medium()
+
+
+class TestLocationChunkConfirmation(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts and alerts.
+    NUM_MASTERS = 3
+    NUM_SECONDARY_MASTER_CELLS = 1
+    NUM_NODES = 4
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+    }
+
+    def write_and_check(self):
+        rows = [{"a": "b"}]
+        write_table("//tmp/t", rows)
+        assert read_table("//tmp/t") == rows
+
+    @authors("cherepashka")
+    @pytest.mark.parametrize("enabling_flag_name", ["use_location_indexes_in_sequoia_chunk_confirmation", "use_location_indexes_to_search_location_on_confirmation"])
+    def test_enable_location_indices_in_chunk_confirmation(self, enabling_flag_name):
+        create("table", "//tmp/t")
+
+        assert get("//sys/@config/chunk_manager/data_node_tracker/enable_location_indexes_in_data_node_heartbeats")
+        set(f"//sys/@config/chunk_manager/data_node_tracker/{enabling_flag_name}", False)
+        self.write_and_check()
+        set(f"//sys/@config/chunk_manager/data_node_tracker/{enabling_flag_name}", True)
+        # Nodes already send indices to master, here we check that master-servers start to handle indices correctly.
+        self.write_and_check()
+
+    @authors("cherepashka")
+    def test_enable_location_indices_in_chunk_confirmation_on_node_without_location_indices(self):
+        create("table", "//tmp/t")
+
+        self.write_and_check()
+
+        set("//sys/@config/chunk_manager/data_node_tracker/check_location_convergence_by_index_and_uuid_on_confirmation", False)
+        set("//sys/@config/chunk_manager/data_node_tracker/use_location_indexes_to_search_location_on_confirmation", False)
+        set("//sys/@config/chunk_manager/data_node_tracker/use_location_indexes_in_sequoia_chunk_confirmation", False)
+        set("//sys/@config/chunk_manager/data_node_tracker/enable_location_indexes_in_data_node_heartbeats", False)
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+        set("//sys/@config/chunk_manager/data_node_tracker/enable_location_indexes_in_data_node_heartbeats", True)
+
+        supressed_messages = [
+            "Chunk confirmation request does not have location index",
+            "Failed to find location via index, but succeeded to find via uuid",
+            "UUID and index for the same location points to different locations",
+        ]
+        set("//sys/@config/cell_master/logging/suppressed_messages", supressed_messages)
+        # Masters alert, but handle confirmation requests.
+        self.write_and_check()
+        set("//sys/@config/cell_master/logging/suppressed_messages", [])
 
 
 class TestAsyncTrashLoad(YTEnvSetup):

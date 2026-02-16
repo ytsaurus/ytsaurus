@@ -40,7 +40,8 @@ public:
     TActionManager(
         TActionManagerConfigPtr config,
         NApi::NNative::IClientPtr client,
-        IBootstrap* bootstrap);
+        IBootstrap* bootstrap,
+        IMulticellThrottlerPtr throttler);
 
     void ScheduleActionCreation(const std::string& bundleName, const TActionDescriptor& descriptor) override;
     void CreateActions(const std::string& bundleName) override;
@@ -69,6 +70,7 @@ private:
 
     const NApi::NNative::IClientPtr Client_;
     const IInvokerPtr Invoker_;
+    const IMulticellThrottlerPtr MasterRequestThrottler_;
 
     TActionManagerConfigPtr Config_;
     NConcurrency::TPeriodicExecutorPtr PollExecutor_;
@@ -117,9 +119,11 @@ private:
 TActionManager::TActionManager(
     TActionManagerConfigPtr config,
     NApi::NNative::IClientPtr client,
-    IBootstrap* bootstrap)
+    IBootstrap* bootstrap,
+    IMulticellThrottlerPtr throttler)
     : Client_(std::move(client))
     , Invoker_(bootstrap->GetControlInvoker())
+    , MasterRequestThrottler_(throttler)
     , Config_(std::move(config))
     , PollExecutor_(New<TPeriodicExecutor>(
         Invoker_,
@@ -473,7 +477,7 @@ void TActionManager::Poll()
     YT_LOG_DEBUG("Started fetching tablet action states (ActionCount: %v)", actionIds.size());
 
     static const std::vector<std::string> attributeKeys{"state", "error"};
-    auto actionToAttributes = FetchAttributes(Client_, actionIds, attributeKeys);
+    auto actionToAttributes = FetchAttributes(Client_, actionIds, attributeKeys, MasterRequestThrottler_);
 
     YT_LOG_DEBUG("Finished fetching tablet action states (ActionCount: %v)", actionToAttributes.size());
 
@@ -633,12 +637,14 @@ void TActionManager::DropFrontBundleWithPendingActions(const std::string& bundle
 IActionManagerPtr CreateActionManager(
     TActionManagerConfigPtr config,
     NApi::NNative::IClientPtr client,
-    IBootstrap* bootstrap)
+    IBootstrap* bootstrap,
+    IMulticellThrottlerPtr throttler)
 {
     return New<TActionManager>(
         std::move(config),
         std::move(client),
-        bootstrap);
+        bootstrap,
+        throttler);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

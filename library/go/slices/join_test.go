@@ -10,7 +10,7 @@ import (
 
 func TestJoin(t *testing.T) {
 	testCases := []struct {
-		input    interface{}
+		input    any
 		glue     string
 		expected string
 	}{

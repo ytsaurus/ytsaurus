@@ -43,7 +43,7 @@ void TAssignmentPlanContextBase::AddPlannedAssignment(
     YT_LOG_DEBUG("Added assignment (AllocationGroupName: %v, ResourceUsage: %v, NodeAddress: %v,  Preemptible: %v, OperationId: %v)",
         assignment->AllocationGroupName,
         assignment->ResourceUsage,
-        assignment->Node->Descriptor()->GetDefaultAddress(),
+        assignment->Node->Address(),
         assignment->Preemptible,
         assignment->Operation->GetId());
 }
@@ -72,7 +72,7 @@ void TAssignmentPlanContextBase::PreemptAssignment(
         preemptionDescription,
         assignment->AllocationGroupName,
         assignment->ResourceUsage,
-        assignment->Node->Descriptor()->GetDefaultAddress(),
+        assignment->Node->Address(),
         assignment->Operation->GetId());
 }
 

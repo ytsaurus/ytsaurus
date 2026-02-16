@@ -2,7 +2,7 @@
 
 PY3_LIBRARY()
 
-VERSION(23.0.0)
+VERSION(25.0.0)
 
 LICENSE(MIT)
 
@@ -28,8 +28,22 @@ PY_SRCS(
     gunicorn/app/pasterapp.py
     gunicorn/app/wsgiapp.py
     gunicorn/arbiter.py
+    gunicorn/asgi/__init__.py
+    gunicorn/asgi/lifespan.py
+    gunicorn/asgi/message.py
+    gunicorn/asgi/protocol.py
+    gunicorn/asgi/unreader.py
+    gunicorn/asgi/uwsgi.py
+    gunicorn/asgi/websocket.py
     gunicorn/config.py
     gunicorn/debug.py
+    gunicorn/dirty/__init__.py
+    gunicorn/dirty/app.py
+    gunicorn/dirty/arbiter.py
+    gunicorn/dirty/client.py
+    gunicorn/dirty/errors.py
+    gunicorn/dirty/protocol.py
+    gunicorn/dirty/worker.py
     gunicorn/errors.py
     gunicorn/glogging.py
     gunicorn/http/__init__.py
@@ -39,6 +53,12 @@ PY_SRCS(
     gunicorn/http/parser.py
     gunicorn/http/unreader.py
     gunicorn/http/wsgi.py
+    gunicorn/http2/__init__.py
+    gunicorn/http2/async_connection.py
+    gunicorn/http2/connection.py
+    gunicorn/http2/errors.py
+    gunicorn/http2/request.py
+    gunicorn/http2/stream.py
     gunicorn/instrument/__init__.py
     gunicorn/instrument/statsd.py
     gunicorn/pidfile.py
@@ -46,9 +66,14 @@ PY_SRCS(
     gunicorn/sock.py
     gunicorn/systemd.py
     gunicorn/util.py
+    gunicorn/uwsgi/__init__.py
+    gunicorn/uwsgi/errors.py
+    gunicorn/uwsgi/message.py
+    gunicorn/uwsgi/parser.py
     gunicorn/workers/__init__.py
     gunicorn/workers/base.py
     gunicorn/workers/base_async.py
+    gunicorn/workers/gasgi.py
     gunicorn/workers/geventlet.py
     gunicorn/workers/ggevent.py
     gunicorn/workers/gthread.py

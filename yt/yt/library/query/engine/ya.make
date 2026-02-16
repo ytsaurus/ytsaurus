@@ -212,6 +212,29 @@ LLVM_BC(
 )
 
 LLVM_BC(
+    udf/uniq.cpp
+    NAME uniq
+    SYMBOLS
+        uniq_init
+        uniq_update
+        uniq_merge
+        uniq_finalize
+        uniq_state_init
+        uniq_state_update
+        uniq_state_merge
+        uniq_state_finalize
+        uniq_merge_init
+        uniq_merge_update
+        uniq_merge_merge
+        uniq_merge_finalize
+        uniq_merge_state_init
+        uniq_merge_state_update
+        uniq_merge_state_merge
+        uniq_merge_state_finalize
+)
+
+
+LLVM_BC(
     udf/array_agg.cpp
     NAME array_agg
     SYMBOLS

@@ -47,6 +47,8 @@ class Config:
 
     def __init__(self, usage=None, prog=None):
         self.settings = make_settings()
+        self._forwarded_allow_networks = None
+        self._proxy_allow_networks = None
         self.usage = usage
         self.prog = prog or os.path.basename(sys.argv[0])
         self.env_orig = os.environ.copy()
@@ -62,6 +64,8 @@ class Config:
         return "\n".join(lines)
 
     def __getattr__(self, name):
+        if name == "settings":
+            raise AttributeError()
         if name not in self.settings:
             raise AttributeError("No configuration setting for: %s" % name)
         return self.settings[name].get()
@@ -171,6 +175,26 @@ class Config:
     @property
     def is_ssl(self):
         return self.certfile or self.keyfile
+
+    def forwarded_allow_networks(self):
+        """Return cached network objects for forwarded_allow_ips (internal use)."""
+        if self._forwarded_allow_networks is None:
+            self._forwarded_allow_networks = [
+                ipaddress.ip_network(addr)
+                for addr in self.forwarded_allow_ips
+                if addr != "*"
+            ]
+        return self._forwarded_allow_networks
+
+    def proxy_allow_networks(self):
+        """Return cached network objects for proxy_allow_ips (internal use)."""
+        if self._proxy_allow_networks is None:
+            self._proxy_allow_networks = [
+                ipaddress.ip_network(addr)
+                for addr in self.proxy_allow_ips
+                if addr != "*"
+            ]
+        return self._proxy_allow_networks
 
     @property
     def ssl_options(self):
@@ -365,6 +389,19 @@ def validate_pos_int(val):
     return val
 
 
+def validate_http2_frame_size(val):
+    """Validate HTTP/2 max frame size per RFC 7540."""
+    if not isinstance(val, int):
+        val = int(val, 0)
+    else:
+        val = int(val)
+    if val < 16384 or val > 16777215:
+        raise ValueError(
+            f"http2_max_frame_size must be between 16384 and 16777215, got {val}"
+        )
+    return val
+
+
 def validate_ssl_version(val):
     if val != SSLVersion.default:
         sys.stderr.write("Warning: option `ssl_version` is deprecated and it is ignored. Use ssl_context instead.\n")
@@ -408,7 +445,11 @@ def validate_string_to_addr_list(val):
     for addr in val:
         if addr == "*":
             continue
-        _vaid_ip = ipaddress.ip_address(addr)
+        # Validate that it's a valid IP address or CIDR network
+        # but keep the string representation for backward compatibility.
+        # Use strict mode to detect mistakes like 192.168.1.1/24 where
+        # host bits are set (should be 192.168.1.0/24).
+        ipaddress.ip_network(addr)
 
     return val
 
@@ -678,11 +719,10 @@ class WorkerClass(Setting):
         A string referring to one of the following bundled classes:
 
         * ``sync``
-        * ``eventlet`` - Requires eventlet >= 0.24.1 (or install it via
-          ``pip install gunicorn[eventlet]``)
-        * ``gevent``   - Requires gevent >= 1.4 (or install it via
+        * ``eventlet`` - **DEPRECATED: will be removed in 26.0**. Requires eventlet >= 0.40.3
+        * ``gevent``   - Requires gevent >= 24.10.1 (or install it via
           ``pip install gunicorn[gevent]``)
-        * ``tornado``  - Requires tornado >= 0.2 (or install it via
+        * ``tornado``  - Requires tornado >= 6.5.0 (or install it via
           ``pip install gunicorn[tornado]``)
         * ``gthread``  - Python 2 requires the futures package to be installed
           (or install it via ``pip install gunicorn[gthread]``)
@@ -807,7 +847,7 @@ class GracefulTimeout(Setting):
     type = int
     default = 30
     desc = """\
-        Timeout for graceful workers restart.
+        Timeout for graceful workers restart in seconds.
 
         After receiving a restart signal, workers have this much time to finish
         serving requests. Workers still alive after the timeout (starting from
@@ -924,6 +964,10 @@ class Reload(Setting):
         .. note::
            In order to use the inotify reloader, you must have the ``inotify``
            package installed.
+        .. warning::
+           Enabling this will change what happens on failure to load the
+           the application: While the reloader is active, any and all clients
+           that can make requests can see the full exception and traceback!
         '''
 
 
@@ -1177,7 +1221,7 @@ class Group(Setting):
         Switch worker process to run as this group.
 
         A valid group id (as an integer) or the name of a user that can be
-        retrieved with a call to ``pwd.getgrnam(value)`` or ``None`` to not
+        retrieved with a call to ``grp.getgrnam(value)`` or ``None`` to not
         change the worker processes group.
         """
 
@@ -1276,8 +1320,11 @@ class ForwardedAllowIPS(Setting):
     validator = validate_string_to_addr_list
     default = os.environ.get("FORWARDED_ALLOW_IPS", "127.0.0.1,::1")
     desc = """\
-        Front-end's IPs from which allowed to handle set secure headers.
-        (comma separated).
+        Front-end's IP addresses or networks from which allowed to handle
+        set secure headers. (comma separated).
+
+        Supports both individual IP addresses (e.g., ``192.168.1.1``) and
+        CIDR networks (e.g., ``192.168.0.0/16``).
 
         Set to ``*`` to disable checking of front-end IPs. This is useful for setups
         where you don't know in advance the IP address of front-end, but
@@ -1568,6 +1615,15 @@ class SyslogTo(Setting):
     else:
         default = "udp://localhost:514"
 
+    default_doc = """\
+    Platform-specific:
+
+    * macOS: ``'unix:///var/run/syslog'``
+    * FreeBSD/DragonFly: ``'unix:///var/run/log'``
+    * OpenBSD: ``'unix:///dev/log'``
+    * Linux/other: ``'udp://localhost:514'``
+    """
+
     desc = """\
     Address to send syslog messages.
 
@@ -1672,7 +1728,7 @@ class DogstatsdTags(Setting):
     validator = validate_string
     desc = """\
     A comma-delimited list of datadog statsd (dogstatsd) tags to append to
-    statsd metrics.
+    statsd metrics. e.g. ``'tag1:value1,tag2:value2'``
 
     .. versionadded:: 20
     """
@@ -1690,6 +1746,21 @@ class StatsdPrefix(Setting):
     if not provided).
 
     .. versionadded:: 19.2
+    """
+
+
+class BacklogMetric(Setting):
+    name = "enable_backlog_metric"
+    section = "Logging"
+    cli = ["--enable-backlog-metric"]
+    validator = validate_bool
+    default = False
+    action = "store_true"
+    desc = """\
+    Enable socket backlog metric (only supported on Linux).
+
+    When enabled, gunicorn will emit a ``gunicorn.backlog`` histogram metric
+    showing the number of connections waiting in the socket backlog.
     """
 
 
@@ -1938,7 +2009,8 @@ class PostRequest(Setting):
         Called after a worker processes the request.
 
         The callable needs to accept two instance variables for the Worker and
-        the Request.
+        the Request. If a third parameter is defined it will be passed the
+        environment. If a fourth parameter is defined it will be passed the Response.
         """
 
 
@@ -2049,20 +2121,57 @@ class NewSSLContext(Setting):
         """
 
 
+def validate_proxy_protocol(val):
+    """Validate proxy_protocol setting.
+
+    Accepts: off, false, v1, v2, auto, true
+    Returns normalized value: off, v1, v2, or auto
+    """
+    if val is None:
+        return "off"
+    if isinstance(val, bool):
+        return "auto" if val else "off"
+    if not isinstance(val, str):
+        raise TypeError("proxy_protocol must be string or bool")
+
+    val = val.lower().strip()
+    mapping = {
+        "false": "off", "off": "off", "0": "off", "none": "off",
+        "true": "auto", "auto": "auto", "1": "auto",
+        "v1": "v1", "v2": "v2",
+    }
+    if val not in mapping:
+        raise ValueError("proxy_protocol must be: off, v1, v2, or auto")
+    return mapping[val]
+
+
 class ProxyProtocol(Setting):
     name = "proxy_protocol"
     section = "Server Mechanics"
     cli = ["--proxy-protocol"]
-    validator = validate_bool
-    default = False
-    action = "store_true"
+    meta = "MODE"
+    validator = validate_proxy_protocol
+    default = "off"
+    nargs = "?"
+    const = "auto"
     desc = """\
-        Enable detect PROXY protocol (PROXY mode).
+        Enable PROXY protocol support.
 
-        Allow using HTTP and Proxy together. It may be useful for work with
-        stunnel as HTTPS frontend and Gunicorn as HTTP server.
+        Allow using HTTP and PROXY protocol together. It may be useful for work
+        with stunnel as HTTPS frontend and Gunicorn as HTTP server, or with
+        HAProxy.
 
-        PROXY protocol: http://haproxy.1wt.eu/download/1.5/doc/proxy-protocol.txt
+        Accepted values:
+
+        * ``off`` - Disabled (default)
+        * ``v1`` - PROXY protocol v1 only (text format)
+        * ``v2`` - PROXY protocol v2 only (binary format)
+        * ``auto`` - Auto-detect v1 or v2
+
+        Using ``--proxy-protocol`` without a value is equivalent to ``auto``.
+
+        PROXY protocol v1: http://haproxy.1wt.eu/download/1.5/doc/proxy-protocol.txt
+        PROXY protocol v2: https://www.haproxy.org/download/1.8/doc/proxy-protocol.txt
 
         Example for stunnel config::
 
@@ -2072,6 +2181,9 @@ class ProxyProtocol(Setting):
             connect = 80
             cert = /etc/ssl/certs/stunnel.pem
             key = /etc/ssl/certs/stunnel.key
+
+        .. versionchanged:: 24.1.0
+           Extended to support version selection (v1, v2, auto).
         """
 
 
@@ -2082,12 +2194,63 @@ class ProxyAllowFrom(Setting):
     validator = validate_string_to_addr_list
     default = "127.0.0.1,::1"
     desc = """\
-        Front-end's IPs from which allowed accept proxy requests (comma separated).
+        Front-end's IP addresses or networks from which allowed accept
+        proxy requests (comma separated).
+
+        Supports both individual IP addresses (e.g., ``192.168.1.1``) and
+        CIDR networks (e.g., ``192.168.0.0/16``).
 
         Set to ``*`` to disable checking of front-end IPs. This is useful for setups
         where you don't know in advance the IP address of front-end, but
         instead have ensured via other means that only your
         authorized front-ends can access Gunicorn.
+
+        .. note::
+
+            This option does not affect UNIX socket connections. Connections not associated with
+            an IP address are treated as allowed, unconditionally.
+        """
+
+
+class Protocol(Setting):
+    name = "protocol"
+    section = "Server Mechanics"
+    cli = ["--protocol"]
+    meta = "STRING"
+    validator = validate_string
+    default = "http"
+    desc = """\
+        The protocol for incoming connections.
+
+        * ``http`` - Standard HTTP/1.x (default)
+        * ``uwsgi`` - uWSGI binary protocol (for nginx uwsgi_pass)
+
+        When using the uWSGI protocol, Gunicorn can receive requests from
+        nginx using the uwsgi_pass directive::
+
+            upstream gunicorn {
+                server 127.0.0.1:8000;
+            }
+            location / {
+                uwsgi_pass gunicorn;
+                include uwsgi_params;
+            }
+        """
+
+
+class UWSGIAllowFrom(Setting):
+    name = "uwsgi_allow_ips"
+    section = "Server Mechanics"
+    cli = ["--uwsgi-allow-from"]
+    validator = validate_string_to_addr_list
+    default = "127.0.0.1,::1"
+    desc = """\
+        IPs allowed to send uWSGI protocol requests (comma separated).
+
+        Set to ``*`` to allow all IPs. This is useful for setups where you
+        don't know in advance the IP address of front-end, but instead have
+        ensured via other means that only your authorized front-ends can
+        access Gunicorn.
 
         .. note::
 
@@ -2242,6 +2405,180 @@ class Ciphers(Setting):
     <https://www.openssl.org/docs/manmaster/man1/ciphers.html#CIPHER-LIST-FORMAT>`_
     for details on the format of an OpenSSL cipher list.
     """
+
+
+# HTTP/2 Protocol Settings
+
+# Valid protocol identifiers
+VALID_HTTP_PROTOCOLS = frozenset(["h1", "h2", "h3"])
+# Map protocol identifiers to ALPN protocol names
+ALPN_PROTOCOL_MAP = {
+    "h1": "http/1.1",
+    "h2": "h2",
+    "h3": "h3",  # Future: HTTP/3 over QUIC
+}
+
+
+def validate_http_protocols(val):
+    """Validate http_protocols setting.
+
+    Accepts comma-separated list of protocol identifiers.
+    Valid values: h1 (HTTP/1.1), h2 (HTTP/2), h3 (HTTP/3 - future)
+    Order indicates preference (first = most preferred).
+    """
+    if val is None:
+        return ["h1"]
+    if not isinstance(val, str):
+        raise TypeError("http_protocols must be a string")
+
+    val = val.strip()
+    if not val:
+        return ["h1"]
+
+    protocols = [p.strip().lower() for p in val.split(",") if p.strip()]
+    if not protocols:
+        return ["h1"]
+
+    # Validate each protocol
+    for proto in protocols:
+        if proto not in VALID_HTTP_PROTOCOLS:
+            raise ValueError(
+                f"Invalid protocol '{proto}'. "
+                f"Valid protocols: {', '.join(sorted(VALID_HTTP_PROTOCOLS))}"
+            )
+
+    # Check for duplicates
+    if len(protocols) != len(set(protocols)):
+        raise ValueError("Duplicate protocols specified")
+
+    return protocols
+
+
+class HTTPProtocols(Setting):
+    name = "http_protocols"
+    section = "HTTP/2"
+    cli = ["--http-protocols"]
+    meta = "STRING"
+    validator = validate_http_protocols
+    default = "h1"
+    desc = """\
+        HTTP protocol versions to support (comma-separated, order = preference).
+
+        Valid protocols:
+
+        * ``h1`` - HTTP/1.1 (default)
+        * ``h2`` - HTTP/2 (requires TLS with ALPN)
+        * ``h3`` - HTTP/3 (future, not yet implemented)
+
+        Examples::
+
+            # HTTP/1.1 only (default, backward compatible)
+            --http-protocols=h1
+
+            # Prefer HTTP/2, fallback to HTTP/1.1
+            --http-protocols=h2,h1
+
+            # HTTP/2 only (reject HTTP/1.1 clients)
+            --http-protocols=h2
+
+        HTTP/2 requires:
+
+        * TLS (--certfile and --keyfile)
+        * The h2 library: ``pip install gunicorn[http2]``
+        * ALPN-capable TLS client
+
+        .. note::
+           HTTP/2 cleartext (h2c) is not supported due to security concerns
+           and lack of browser support.
+
+        .. versionadded:: 25.0.0
+        """
+
+
+class HTTP2MaxConcurrentStreams(Setting):
+    name = "http2_max_concurrent_streams"
+    section = "HTTP/2"
+    cli = ["--http2-max-concurrent-streams"]
+    meta = "INT"
+    validator = validate_pos_int
+    type = int
+    default = 100
+    desc = """\
+        Maximum number of concurrent HTTP/2 streams per connection.
+
+        This limits how many requests can be processed simultaneously on a
+        single HTTP/2 connection. Higher values allow more parallelism but
+        use more memory.
+
+        Default is 100, which matches common server configurations.
+        The HTTP/2 specification allows up to 2^31-1.
+
+        .. versionadded:: 25.0.0
+        """
+
+
+class HTTP2InitialWindowSize(Setting):
+    name = "http2_initial_window_size"
+    section = "HTTP/2"
+    cli = ["--http2-initial-window-size"]
+    meta = "INT"
+    validator = validate_pos_int
+    type = int
+    default = 65535
+    desc = """\
+        Initial HTTP/2 flow control window size in bytes.
+
+        This controls how much data can be in-flight before the receiver
+        sends WINDOW_UPDATE frames. Larger values can improve throughput
+        for large transfers but use more memory.
+
+        Default is 65535 (64KB - 1), the HTTP/2 specification default.
+        Maximum is 2^31-1 (2147483647).
+
+        .. versionadded:: 25.0.0
+        """
+
+
+class HTTP2MaxFrameSize(Setting):
+    name = "http2_max_frame_size"
+    section = "HTTP/2"
+    cli = ["--http2-max-frame-size"]
+    meta = "INT"
+    validator = validate_http2_frame_size
+    type = int
+    default = 16384
+    desc = """\
+        Maximum HTTP/2 frame payload size in bytes.
+
+        This is the largest frame payload the server will accept.
+        Larger frames reduce framing overhead but may increase latency
+        for small messages.
+
+        Default is 16384 (16KB), the HTTP/2 specification minimum.
+        Range is 16384 to 16777215 (16MB - 1).
+
+        .. versionadded:: 25.0.0
+        """
+
+
+class HTTP2MaxHeaderListSize(Setting):
+    name = "http2_max_header_list_size"
+    section = "HTTP/2"
+    cli = ["--http2-max-header-list-size"]
+    meta = "INT"
+    validator = validate_pos_int
+    type = int
+    default = 65536
+    desc = """\
+        Maximum size of HTTP/2 header list in bytes (HPACK protection).
+
+        This limits the total size of headers after HPACK decompression.
+        Protects against compression bombs and excessive memory use.
+
+        Default is 65536 (64KB). Set to 0 for unlimited (not recommended).
+
+        .. versionadded:: 25.0.0
+        """
 
 
 class PasteGlobalConf(Setting):
@@ -2439,4 +2776,315 @@ class HeaderMap(Setting):
         on a proxy in front of Gunicorn.
 
         .. versionadded:: 22.0.0
+        """
+
+
+def validate_asgi_loop(val):
+    if val is None:
+        return "auto"
+    if not isinstance(val, str):
+        raise TypeError("Invalid type for casting: %s" % val)
+    val = val.lower().strip()
+    if val not in ("auto", "asyncio", "uvloop"):
+        raise ValueError("Invalid ASGI loop: %s" % val)
+    return val
+
+
+def validate_asgi_lifespan(val):
+    if val is None:
+        return "auto"
+    if not isinstance(val, str):
+        raise TypeError("Invalid type for casting: %s" % val)
+    val = val.lower().strip()
+    if val not in ("auto", "on", "off"):
+        raise ValueError("Invalid ASGI lifespan: %s" % val)
+    return val
+
+
+class ASGILoop(Setting):
+    name = "asgi_loop"
+    section = "Worker Processes"
+    cli = ["--asgi-loop"]
+    meta = "STRING"
+    validator = validate_asgi_loop
+    default = "auto"
+    desc = """\
+        Event loop implementation for ASGI workers.
+
+        - auto: Use uvloop if available, otherwise asyncio
+        - asyncio: Use Python's built-in asyncio event loop
+        - uvloop: Use uvloop (must be installed separately)
+
+        This setting only affects the ``asgi`` worker type.
+
+        uvloop typically provides better performance but requires
+        installing the uvloop package.
+
+        .. versionadded:: 24.0.0
+        """
+
+
+class ASGILifespan(Setting):
+    name = "asgi_lifespan"
+    section = "Worker Processes"
+    cli = ["--asgi-lifespan"]
+    meta = "STRING"
+    validator = validate_asgi_lifespan
+    default = "auto"
+    desc = """\
+        Control ASGI lifespan protocol handling.
+
+        - auto: Detect if app supports lifespan, enable if so
+        - on: Always run lifespan protocol (fail if unsupported)
+        - off: Never run lifespan protocol
+
+        The lifespan protocol allows ASGI applications to run code at
+        startup and shutdown. This is essential for frameworks like
+        FastAPI that need to initialize database connections, caches,
+        or other resources.
+
+        This setting only affects the ``asgi`` worker type.
+
+        .. versionadded:: 24.0.0
+        """
+
+
+class RootPath(Setting):
+    name = "root_path"
+    section = "Server Mechanics"
+    cli = ["--root-path"]
+    meta = "STRING"
+    validator = validate_string
+    default = ""
+    desc = """\
+        The root path for ASGI applications.
+
+        This is used to set the ``root_path`` in the ASGI scope, which
+        allows applications to know their mount point when behind a
+        reverse proxy.
+
+        For example, if your application is mounted at ``/api``, set
+        this to ``/api``.
+
+        .. versionadded:: 24.0.0
+        """
+
+
+# =============================================================================
+# Dirty Arbiters - Separate process pool for long-running operations
+# =============================================================================
+
+class DirtyApps(Setting):
+    name = "dirty_apps"
+    section = "Dirty Arbiters"
+    cli = ["--dirty-app"]
+    action = "append"
+    meta = "STRING"
+    validator = validate_list_string
+    default = []
+    desc = """\
+        Dirty applications to load in the dirty worker pool.
+
+        A list of application paths in one of these formats:
+
+        - ``$(MODULE_NAME):$(CLASS_NAME)`` - all workers load this app
+        - ``$(MODULE_NAME):$(CLASS_NAME):$(N)`` - only N workers load this app
+
+        Each dirty app must be a class that inherits from ``DirtyApp`` base class
+        and implements the ``init()``, ``__call__()``, and ``close()`` methods.
+
+        Example::
+
+            dirty_apps = [
+                "myapp.ml:MLApp",           # All workers load this
+                "myapp.images:ImageApp",    # All workers load this
+                "myapp.heavy:HugeModel:2",  # Only 2 workers load this
+            ]
+
+        The per-app worker limit is useful for memory-intensive applications
+        like large ML models. Instead of all 8 workers loading a 10GB model
+        (80GB total), you can limit it to 2 workers (20GB total).
+
+        Alternatively, you can set the ``workers`` class attribute on your
+        DirtyApp subclass::
+
+            class HugeModelApp(DirtyApp):
+                workers = 2  # Only 2 workers load this app
+
+                def init(self):
+                    self.model = load_10gb_model()
+
+        Note: The config format (``module:Class:N``) takes precedence over
+        the class attribute if both are specified.
+
+        Dirty apps are loaded once when the dirty worker starts and persist
+        in memory for the lifetime of the worker. This is ideal for loading
+        ML models, database connection pools, or other stateful resources
+        that are expensive to initialize.
+
+        .. versionadded:: 25.0.0
+
+        .. versionchanged:: 25.1.0
+           Added per-app worker allocation via ``:N`` format suffix.
+        """
+
+
+class DirtyWorkers(Setting):
+    name = "dirty_workers"
+    section = "Dirty Arbiters"
+    cli = ["--dirty-workers"]
+    meta = "INT"
+    validator = validate_pos_int
+    type = int
+    default = 0
+    desc = """\
+        The number of dirty worker processes.
+
+        A positive integer. Set to 0 (default) to disable the dirty arbiter.
+        When set to a positive value, a dirty arbiter process will be spawned
+        to manage the dirty worker pool.
+
+        Dirty workers are separate from HTTP workers and are designed for
+        long-running, blocking operations like ML model inference or heavy
+        computation.
+
+        .. versionadded:: 25.0.0
+        """
+
+
+class DirtyTimeout(Setting):
+    name = "dirty_timeout"
+    section = "Dirty Arbiters"
+    cli = ["--dirty-timeout"]
+    meta = "INT"
+    validator = validate_pos_int
+    type = int
+    default = 300
+    desc = """\
+        Timeout for dirty task execution in seconds.
+
+        Workers silent for more than this many seconds are considered stuck
+        and will be killed. Set to a high value for operations like model
+        loading that may take a long time.
+
+        Value is a positive number. Setting it to 0 disables timeout checking.
+
+        .. versionadded:: 25.0.0
+        """
+
+
+class DirtyThreads(Setting):
+    name = "dirty_threads"
+    section = "Dirty Arbiters"
+    cli = ["--dirty-threads"]
+    meta = "INT"
+    validator = validate_pos_int
+    type = int
+    default = 1
+    desc = """\
+        The number of threads per dirty worker.
+
+        Each dirty worker can use threads to handle concurrent operations
+        within the same process, useful for async-safe applications.
+
+        .. versionadded:: 25.0.0
+        """
+
+
+class DirtyGracefulTimeout(Setting):
+    name = "dirty_graceful_timeout"
+    section = "Dirty Arbiters"
+    cli = ["--dirty-graceful-timeout"]
+    meta = "INT"
+    validator = validate_pos_int
+    type = int
+    default = 30
+    desc = """\
+        Timeout for graceful dirty worker shutdown in seconds.
+
+        After receiving a shutdown signal, dirty workers have this much time
+        to finish their current tasks. Workers still alive after the timeout
+        are force killed.
+
+        .. versionadded:: 25.0.0
+        """
+
+
+# =============================================================================
+# Dirty Arbiter Hooks
+# =============================================================================
+
+class OnDirtyStarting(Setting):
+    name = "on_dirty_starting"
+    section = "Dirty Arbiter Hooks"
+    validator = validate_callable(1)
+    type = callable
+
+    def on_dirty_starting(arbiter):
+        pass
+    default = staticmethod(on_dirty_starting)
+    desc = """\
+        Called just before the dirty arbiter process is initialized.
+
+        The callable needs to accept a single instance variable for the
+        DirtyArbiter.
+
+        .. versionadded:: 25.0.0
+        """
+
+
+class DirtyPostFork(Setting):
+    name = "dirty_post_fork"
+    section = "Dirty Arbiter Hooks"
+    validator = validate_callable(2)
+    type = callable
+
+    def dirty_post_fork(arbiter, worker):
+        pass
+    default = staticmethod(dirty_post_fork)
+    desc = """\
+        Called just after a dirty worker has been forked.
+
+        The callable needs to accept two instance variables for the
+        DirtyArbiter and new DirtyWorker.
+
+        .. versionadded:: 25.0.0
+        """
+
+
+class DirtyWorkerInit(Setting):
+    name = "dirty_worker_init"
+    section = "Dirty Arbiter Hooks"
+    validator = validate_callable(1)
+    type = callable
+
+    def dirty_worker_init(worker):
+        pass
+    default = staticmethod(dirty_worker_init)
+    desc = """\
+        Called just after a dirty worker has initialized all applications.
+
+        The callable needs to accept one instance variable for the
+        DirtyWorker.
+
+        .. versionadded:: 25.0.0
+        """
+
+
+class DirtyWorkerExit(Setting):
+    name = "dirty_worker_exit"
+    section = "Dirty Arbiter Hooks"
+    validator = validate_callable(2)
+    type = callable
+
+    def dirty_worker_exit(arbiter, worker):
+        pass
+    default = staticmethod(dirty_worker_exit)
+    desc = """\
+        Called when a dirty worker has exited.
+
+        The callable needs to accept two instance variables for the
+        DirtyArbiter and the exiting DirtyWorker.
+
+        .. versionadded:: 25.0.0
         """

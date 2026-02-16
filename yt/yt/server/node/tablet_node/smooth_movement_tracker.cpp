@@ -685,7 +685,8 @@ private:
                 YT_VERIFY(!tabletWriteManager->HasUnfinishedPersistentTransactions());
                 YT_VERIFY(!tabletWriteManager->HasUnfinishedTransientTransactions());
 
-                ReleaseReservedDynamicStore(tablet);
+                int availableDynamicStoreCount = tablet->GetUnreservedDynamicStoreIdCount();
+                availableDynamicStoreCount += ReleaseReservedDynamicStore(tablet);
 
                 if (ShouldRotateStoreOnTargetActivation(tablet)) {
                     if (const auto& store = tablet->GetActiveStore();
@@ -709,6 +710,18 @@ private:
                                     << TErrorAttribute("store_id", store->GetId()));
                             break;
                         }
+                    }
+
+                    if (tablet->GetSettings().MountConfig->EnableDynamicStoreRead &&
+                        availableDynamicStoreCount == 0)
+                    {
+                        YT_LOG_DEBUG("Cannot rotate store on smooth movement request, "
+                            "no dynamic store was provided and pool is empty (%v)",
+                            tablet->GetLoggingTag());
+                        RejectMovement(
+                            tablet,
+                            TError("Cannot rotate store, dynamic store id pool is empty"));
+                        break;
                     }
 
                     tablet->GetStoreManager()->Rotate(
@@ -886,7 +899,7 @@ private:
         Host_->PostMasterMessage(tablet, rsp);
     }
 
-    void ReleaseReservedDynamicStore(TTablet* tablet)
+    int ReleaseReservedDynamicStore(TTablet* tablet)
     {
         auto reason = EDynamicStoreIdReservationReason::SmoothMovement;
 
@@ -896,6 +909,8 @@ private:
         if (reservedCount == 1) {
             tablet->ReleaseReservedDynamicStoreId(reason);
         }
+
+        return reservedCount;
     }
 
     bool ApplyTestingDelayBeforeStageChange(TTablet* tablet)

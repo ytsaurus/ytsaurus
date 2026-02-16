@@ -1,11 +1,15 @@
 #include "hunk_tablet.h"
 
 #include "private.h"
+#include "helpers.h"
 #include "hunk_store.h"
 #include "hunk_tablet_manager.h"
+#include "hunk_tablet_profiling.h"
 #include "serialize.h"
 
 #include <yt/yt/server/lib/hydra/hydra_context.h>
+
+#include <yt/yt/server/lib/misc/profiling_helpers.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -15,15 +19,18 @@ using namespace NHydra;
 using namespace NJournalClient;
 using namespace NYson;
 using namespace NYTree;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 THunkTablet::THunkTablet(
     IHunkTabletHostPtr host,
-    TTabletId tabletId)
+    TTabletId tabletId,
+    TYPath hunkStoragePath)
     : TObjectBase(tabletId)
+    , HunkStoragePath_(std::move(hunkStoragePath))
     , Host_(std::move(host))
-    , Logger(TabletNodeLogger().WithTag("TabletId: %v", tabletId))
+    , Logger(TabletNodeLogger().WithTag("TabletId: %v, Path: %v", tabletId, HunkStoragePath_))
 {
     RenewPromise();
 }
@@ -34,6 +41,7 @@ void THunkTablet::Save(TSaveContext& context) const
 
     Save(context, State_);
     Save(context, MountRevision_);
+    Save(context, HunkStoragePath_);
     Save(context, MasterAvenueEndpointId_);
     Save(context, *MountConfig_);
     Save(context, *StoreWriterConfig_);
@@ -56,6 +64,9 @@ void THunkTablet::Load(TLoadContext& context)
 
     Load(context, State_);
     Load(context, MountRevision_);
+    if (context.GetVersion() >= ETabletReign::HunkTabletSensors) {
+        Load(context, HunkStoragePath_);
+    }
     Load(context, MasterAvenueEndpointId_);
     Load(context, *MountConfig_);
     Load(context, *StoreWriterConfig_);
@@ -71,10 +82,18 @@ void THunkTablet::Load(TLoadContext& context)
             auto store = New<THunkStore>(storeId, this);
             store->Load(context);
             store->SetState(EHunkStoreState::Passive);
+
             InsertOrCrash(PassiveStores_, store);
             EmplaceOrCrash(IdToStore_, storeId, std::move(store));
         }
     }
+}
+
+void THunkTablet::OnAfterSnapshotLoaded()
+{
+    ConfigureProfiler();
+
+    RecomputeLockingTabletCount();
 }
 
 TFuture<std::vector<TJournalHunkDescriptor>> THunkTablet::WriteHunks(std::vector<TSharedRef> payloads)
@@ -85,6 +104,13 @@ TFuture<std::vector<TJournalHunkDescriptor>> THunkTablet::WriteHunks(std::vector
     auto writeLockGuard = Finally([=, this] {
         YT_VERIFY(--WriteLockCount_ >= 0);
     });
+
+    auto rowCount = payloads.size();
+    auto dataWeight = GetByteSize(payloads);
+
+    auto* counters = Profiler_->GetWriteCounters(GetCurrentProfilingUser());
+    counters->RowCount.Increment(rowCount);
+    counters->DataWeight.Increment(dataWeight);
 
     auto doWriteHunks = [
         =, this, writeLockGuard = std::move(writeLockGuard)
@@ -107,12 +133,17 @@ TFuture<std::vector<TJournalHunkDescriptor>> THunkTablet::WriteHunks(std::vector
                             store->GetId());
 
                         RotateActiveStore();
+                        Profiler_->GetHunkTabletScannerCounters()->StoreRotationCount.Increment(1);
 
                         Host_->ScheduleScanTablet(GetId());
                     }
                 } else {
                     YT_LOG_DEBUG("Hunks are written to hunk store (DescriptorCount: %v)",
                         descriptorsOrError.Value().size());
+
+                    auto* counters = Profiler_->GetWriteCounters(GetCurrentProfilingUser());
+                    counters->SuccessfulRowCount.Increment(rowCount);
+                    counters->SuccessfulDataWeight.Increment(dataWeight);
                 }
             })
             .Via(automatonInvoker));
@@ -139,6 +170,14 @@ void THunkTablet::Reconfigure(const THunkStorageSettings& settings)
     MountConfig_ = settings.MountConfig;
     StoreWriterConfig_ = settings.StoreWriterConfig;
     StoreWriterOptions_ = settings.StoreWriterOptions;
+}
+
+void THunkTablet::ConfigureProfiler()
+{
+    Profiler_ = GetTabletProfilerManager()->CreateHunkTabletProfiler(
+        Host_->GetTabletCellBundleName(),
+        HunkStoragePath_,
+        Id_);
 }
 
 THunkStorePtr THunkTablet::FindStore(TStoreId storeId)
@@ -178,6 +217,10 @@ void THunkTablet::AddStore(THunkStorePtr store)
         InsertOrCrash(PassiveStores_, store);
     }
 
+    auto* counters = Profiler_->GetHunkTabletCounters();
+    counters->StoreCount.Update(IdToStore_.size());
+    counters->PassiveStoreCount.Update(PassiveStores_.size());
+
     YT_LOG_DEBUG(
         "Store added (StoreId: %v, StoreState: %v)",
         store->GetId(),
@@ -196,6 +239,10 @@ void THunkTablet::RemoveStore(const THunkStorePtr& store)
     auto storeId = store->GetId();
     auto storeState = store->GetState();
     EraseOrCrash(IdToStore_, storeId);
+
+    auto* counters = Profiler_->GetHunkTabletCounters();
+    counters->StoreCount.Update(IdToStore_.size());
+    counters->PassiveStoreCount.Update(PassiveStores_.size());
 
     YT_LOG_DEBUG(
         "Store removed (StoreId: %v, StoreState: %v)",
@@ -273,6 +320,8 @@ void THunkTablet::RotateActiveStore()
         PassiveStores_.insert(ActiveStore_);
         ActiveStore_.Reset();
         RenewPromise();
+
+        Profiler_->GetHunkTabletCounters()->PassiveStoreCount.Update(PassiveStores_.size());
     }
 
     auto newActiveStoreId = NullStoreId;
@@ -371,6 +420,16 @@ int THunkTablet::GetWriteLockCount() const
     return WriteLockCount_.load();
 }
 
+void THunkTablet::RecomputeLockingTabletCount() const
+{
+    int lockingTabletCount = 0;
+    for (const auto& [storeId, store] : IdToStore_) {
+        lockingTabletCount += store->GetLockingTabletCount();
+    }
+
+    Profiler_->GetHunkTabletCounters()->LockingTabletCount.Update(lockingTabletCount);
+}
+
 void THunkTablet::ValidateMountRevision(TRevision mountRevision) const
 {
     if (mountRevision != MountRevision_) {
@@ -435,6 +494,8 @@ void THunkTablet::MakeAllStoresPassive()
         InsertOrCrash(PassiveStores_, store);
     }
     AllocatedStores_.clear();
+
+    Profiler_->GetHunkTabletCounters()->PassiveStoreCount.Update(PassiveStores_.size());
 }
 
 void THunkTablet::RenewPromise()

@@ -75,6 +75,7 @@
     XX(Cellars, cellars) \
     XX(ChangelogAccountViolatedResourceLimits, changelog_account_violated_resource_limits) \
     XX(ChaosCellBundle, chaos_cell_bundle) \
+    XX(ChaosCellBundleId, chaos_cell_bundle_id) \
     XX(ChaosOptions, chaos_options) \
     XX(ChildCount, child_count) \
     XX(ChildIds, child_ids) \
@@ -261,6 +262,7 @@
     XX(HunkErasureCodec, hunk_erasure_codec) \
     XX(HunkMedia, hunk_media) \
     XX(HunkPrimaryMedium, hunk_primary_medium) \
+    XX(HunkPrimaryMediumId, hunk_primary_medium_id) \
     XX(HunkStatistics, hunk_statistics) \
     XX(HunkStorageId, hunk_storage_id) \
     XX(HunkStoreWriter, hunk_store_writer) \
@@ -424,6 +426,7 @@
     XX(PrimaryCellId, primary_cell_id) \
     XX(PrimaryCellTag, primary_cell_tag) \
     XX(PrimaryMedium, primary_medium) \
+    XX(PrimaryMediumId, primary_medium_id) \
     XX(PrincipalAcl, principal_acl) \
     XX(PrincipalOwner, principal_owner) \
     XX(Priority, priority) \
@@ -549,6 +552,7 @@
     XX(TabletBackupState, tablet_backup_state) \
     XX(TabletBalancerConfig, tablet_balancer_config) \
     XX(TabletCellBundle, tablet_cell_bundle) \
+    XX(TabletCellBundleId, tablet_cell_bundle_id) \
     XX(TabletCellCount, tablet_cell_count) \
     XX(TabletCellIds, tablet_cell_ids) \
     XX(TabletCellLifeStage, tablet_cell_life_stage) \
@@ -580,6 +584,9 @@
     XX(TotalStatistics, total_statistics) \
     XX(TouchTime, touch_time) \
     XX(TransactionId, transaction_id) \
+    XX(TransferableEffectiveInheritableAttributes, transferable_effective_inheritable_attributes) \
+    XX(TransferableHunkMedia, transferable_hunk_media) \
+    XX(TransferableMedia, transferable_media) \
     XX(Transient, transient) \
     XX(TransientMasterMemoryUsage, transient_master_memory_usage) \
     XX(TreatAsQueueConsumer, treat_as_queue_consumer) \

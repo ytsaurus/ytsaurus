@@ -23,11 +23,15 @@ DEFINE_ENUM(ETabletIOCategory,
     ((FetchTableRows)    (11))
 );
 
-void PackBaggageFromTabletSnapshot(const NTracing::TTraceContextPtr& context, ETabletIOCategory category, const TTabletSnapshotPtr& tabletSnapshot);
+void PackBaggageFromTabletSnapshot(
+    const NTracing::TTraceContextPtr& context,
+    ETabletIOCategory category,
+    const TTabletSnapshotPtr& tabletSnapshot);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYT::NDistributedThrottler::EDistributedThrottlerMode GetDistributedThrottledMode(ETabletDistributedThrottlerKind kind);
+NYT::NDistributedThrottler::EDistributedThrottlerMode GetDistributedThrottledMode(
+    ETabletDistributedThrottlerKind kind);
 
 ////////////////////////////////////////////////////////////////////////////////
 

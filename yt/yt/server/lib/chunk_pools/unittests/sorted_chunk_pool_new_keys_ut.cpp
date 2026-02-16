@@ -2747,6 +2747,65 @@ TEST_F(TSortedChunkPoolNewKeysTest, SuchForeignMuchData)
     CheckEverything(stripeLists);
 }
 
+TEST_F(TSortedChunkPoolNewKeysTest, SuchForeignWithPivotKeys)
+{
+    InitTables(
+        /*isForeign*/ {false, true},
+        /*isTeleportable*/ {false, false},
+        /*isVersioned*/ {false, false});
+    InitPrimaryComparator(1);
+    InitForeignComparator(1);
+    DataWeightPerJob_ = 10_KB;
+    InitJobConstraints();
+
+    std::vector<TLegacyDataSlicePtr> dataSlices;
+
+    auto pushSlice = [&] (int firstKey, int lastKey, int tableIndex = 0) {
+        auto chunk = CreateChunk(BuildRow({firstKey}), BuildRow({lastKey}), tableIndex);
+        dataSlices.emplace_back(CreateDataSlice(chunk));
+    };
+
+    auto pushPivot = [&] (int key) {
+        Options_.SortedJobOptions.PivotKeys.emplace_back(BuildRow({key}));
+    };
+
+    // The setup looks like this:
+    // primary    [    ][                  ][    ]
+    // foreign    <         >         <         >
+    // pivots           |  |     |    |     |
+    // key axis   ^    ^    ^    ^    ^    ^    ^
+    //            0    5    10   15   20   25   30
+
+    // Foreign.
+    pushSlice(0, 10, 1);
+    pushSlice(20, 30, 1);
+
+    // Primary & pivots.
+    pushPivot(0);
+    pushSlice(0, 5);
+    pushPivot(6);
+    pushSlice(6, 25, 0);
+    pushPivot(9);
+    pushPivot(15);
+    pushPivot(20);
+    pushPivot(26);
+    pushSlice(26, 31, 0);
+
+    CreateChunkPool();
+
+    for (const auto& dataSlice : dataSlices) {
+        AddDataSlice(dataSlice);
+    }
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+
+    auto stripeLists = GetAllStripeLists();
+
+    CheckEverything(stripeLists);
+}
+
 TEST_F(TSortedChunkPoolNewKeysTest, TestJobSplitStripeSuspension)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;

@@ -6,6 +6,8 @@
 
 #include <yt/yt/library/web_assembly/engine/wavm_private_imports.h>
 
+#include <yt/yt/core/concurrency/action_queue.h>
+
 #include <yt/yt/core/misc/finally.h>
 
 #include <yt/yt/core/test_framework/framework.h>
@@ -1573,6 +1575,52 @@ TEST_F(TWebAssemblyTest, DLMalloc)
         auto* offset = std::bit_cast<char*>(compartment->AllocateBytes(40));
         ::memset(PtrFromVM(compartment.get(), offset), 'a', 40);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const TStringBuf InfiniteRecursion = R"(
+    (module
+        (type $t0 (func (param i64) (result i64)))
+        (func $recurse (type $t0) (param $n i64) (result i64)
+            local.get $n
+            i64.const 1
+            i64.sub
+            call $recurse)
+        (export "recurse" (func $recurse))
+    ))";
+
+TEST_F(TWebAssemblyTest, InfiniteRecursion)
+{
+    auto compartment = CreateMinimalRuntimeImage();
+    compartment->AddModule(InfiniteRecursion);
+    auto recurse = TCompartmentFunction<i64(i64)>(compartment.get(), "recurse");
+
+    auto actionQueue = New<NConcurrency::TActionQueue>("WebAssemblyTest");
+    auto finally = Finally([&] {
+        actionQueue->Shutdown();
+    });
+
+    auto runInFiberContext = [&] {
+        BIND([&] {
+            SetCurrentCompartment(compartment.get());
+            auto unsetCompartment = Finally([] {
+                SetCurrentCompartment(nullptr);
+            });
+
+            recurse(1000000);
+        })
+            .AsyncVia(actionQueue->GetInvoker())
+            .Run()
+            .Get()
+            .ThrowOnError();
+    };
+
+    EXPECT_THROW_THAT(
+        runInFiberContext(),
+        testing::HasSubstr("Expression depth causes stack overflow"));
+
+    actionQueue->Shutdown();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

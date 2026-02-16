@@ -64,7 +64,7 @@ Below is a list of packages that need to be installed before building YTsaurus. 
  1. Install protoc.
 
     ```
-    curl -sL -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v3.20.1/protoc-3.20.1-linux-x86_64.zip
+    curl -sL -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v3.20.3/protoc-3.20.3-linux-x86_64.zip
     sudo unzip protoc.zip -d /usr/local
     rm protoc.zip
     ```

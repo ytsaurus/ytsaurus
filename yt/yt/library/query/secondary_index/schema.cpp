@@ -319,7 +319,7 @@ private:
             return;
         }
 
-        ValidateColumnsCollisions(TableSchema_, *EvaluatedColumnsSchema_);
+        ValidateColumnsCollision(TableSchema_, *EvaluatedColumnsSchema_);
 
         for (const auto& column : EvaluatedColumnsSchema_->Columns()) {
             THROW_ERROR_EXCEPTION_IF(!column.Expression(), "Expected an expression for the evaluated column %Qv",
@@ -369,7 +369,7 @@ void ValidateIndexSchema(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateColumnsCollisions(const TTableSchema& lhs, const TTableSchema& rhs)
+void ValidateColumnsCollision(const TTableSchema& lhs, const TTableSchema& rhs)
 {
     for (const auto& lhsColumn : rhs.Columns()) {
         if (const auto* rhsColumn = lhs.FindColumn(lhsColumn.Name())) {

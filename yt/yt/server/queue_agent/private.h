@@ -100,8 +100,6 @@ DEFINE_ENUM(EObjectKind,
 );
 
 DEFINE_ENUM(EQueueFamily,
-    //! Sentinel value that does not correspond to any valid queue type.
-    ((Null)                       (0))
     //! Regular ordered dynamic table.
     ((OrderedDynamicTable)        (1))
 );
@@ -152,7 +150,6 @@ DEFINE_ENUM(EConsumerPartitionDisposition,
 
 inline const std::string NoneQueueAgentStage = "none";
 inline const std::string NoneObjectType = "none";
-inline const std::string NoneProfilingTag = "none";
 
 ////////////////////////////////////////////////////////////////////////////////
 

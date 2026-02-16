@@ -59,6 +59,7 @@ target_sources(yt-cpp-mapreduce-tests-native-operations PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/operations/job_binary.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/operations/jobs.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/operations/operation_commands.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/operations/operation_link_pattern.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/operations/operation_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/operations/operation_watch.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/operations/operations.cpp

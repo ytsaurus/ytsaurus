@@ -174,7 +174,7 @@ public:
         auto tableSchemaCacheConfig = New<TAsyncExpiringCacheConfig>();
         tableSchemaCacheConfig->ShardCount = 256;
         TableSchemaCache_ = New<TTableSchemaCache>(std::move(tableSchemaCacheConfig));
-        auto ysonTableSchemaCacheConfig = New<TYsonTableSchemaCacheConfig>();
+        auto ysonTableSchemaCacheConfig = New<TAsyncExpiringCacheConfig>();
         ysonTableSchemaCacheConfig->ShardCount = 256;
         YsonTableSchemaCache_ = New<TYsonTableSchemaCache>(MakeWeak(this), std::move(ysonTableSchemaCacheConfig));
 
@@ -986,7 +986,7 @@ public:
             if (evaluatedColumnsSchema) {
                 for (auto secondaryIndex : GetValuesSortedByKey(table->SecondaryIndices())) {
                     if (const auto& indexEvaluatedColumns = secondaryIndex->EvaluatedColumnsSchema()) {
-                        ValidateColumnsCollisions(*indexEvaluatedColumns, *evaluatedColumnsSchema);
+                        ValidateColumnsCollision(*indexEvaluatedColumns, *evaluatedColumnsSchema);
                     }
                 }
             }

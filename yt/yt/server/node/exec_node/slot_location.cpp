@@ -1,10 +1,10 @@
 #include "slot_location.h"
 
 #include "bootstrap.h"
-#include "helpers.h"
 #include "slot_manager.h"
 #include "private.h"
 #include "job_directory_manager.h"
+#include "volume.h"
 
 #include <yt/yt/server/lib/exec_node/config.h>
 #include <yt/yt/server/lib/exec_node/helpers.h>
@@ -180,8 +180,9 @@ void TSlotLocation::OnDynamicConfigChanged(const TSlotManagerDynamicConfigPtr& c
 
 TFuture<void> TSlotLocation::CreateSlotDirectories(const IVolumePtr& rootVolume, int userId) const
 {
+    YT_VERIFY(rootVolume);
+
     return BIND([rootVolume, userId] {
-        YT_VERIFY(rootVolume);
         const auto& rootVolumeMountPath = rootVolume->GetPath();
         YT_VERIFY(NFS::Exists(rootVolumeMountPath));
 
@@ -1483,14 +1484,14 @@ TRootDirectoryConfigPtr TSlotLocation::CreateDefaultRootDirectoryConfig(
 
     // Create directory for root volume overlay.
     config->Directories.push_back(getDirectory(
-        NFS::CombinePaths(GetSlotPath(slotIndex), "overlay"),
+        GetSandboxPath(slotIndex, ESandboxKind::RootVolumeOverlay),
         uid,
         /*permissions*/ 0777,
         /*removeIfExists*/ true));
 
     // Create directory that porto uses to create volumes and import layers inside container.
     config->Directories.push_back(getDirectory(
-        NFS::CombinePaths(GetSlotPath(slotIndex), "place"),
+        GetSandboxPath(slotIndex, ESandboxKind::PortoPlace),
         uid,
         /*permissions*/ 0777,
         /*removeIfExists*/ true));

@@ -1309,12 +1309,16 @@ extern "C" void buffer_release_handler( PyObject *self, Py_buffer *buf )
 
 PythonExtensionBase::PythonExtensionBase()
 {
+#ifndef Py_GIL_DISABLED
     ob_refcnt = 0;
+#endif
 }
 
 PythonExtensionBase::~PythonExtensionBase()
 {
+#ifndef Py_GIL_DISABLED
     assert( ob_refcnt == 0 );
+#endif
 }
 
 Object PythonExtensionBase::callOnSelf( const std::string &fn_name )

@@ -132,7 +132,7 @@ TAggregateFunction* GetSimpleAggregateFunction(TStringBuf name, EValueType type)
     }
 }
 
-TNestedColumnsSchema GetNestedColumnsSchema(TTableSchemaPtr tableSchema)
+TNestedColumnsSchema GetNestedColumnsSchema(const TTableSchema& tableSchema)
 {
     std::vector<TNestedKeyColumn> keyColumns;
     std::vector<TNestedValueColumn> valueColumns;
@@ -140,7 +140,7 @@ TNestedColumnsSchema GetNestedColumnsSchema(TTableSchemaPtr tableSchema)
     // TODO(lukyan): Support multiple nested tables.
     TStringBuf nestedTableName;
 
-    for (const auto& column : tableSchema->Columns()) {
+    for (const auto& column : tableSchema.Columns()) {
         const auto& aggregate = column.Aggregate();
 
         if (!aggregate) {
@@ -169,7 +169,7 @@ TNestedColumnsSchema GetNestedColumnsSchema(TTableSchemaPtr tableSchema)
         auto elementType = GetNestedColumnElementType(column.LogicalType().Get());
 
         if (nestedColumn->IsKey) {
-            keyColumns.push_back({static_cast<ui16>(tableSchema->GetColumnIndex(column)), elementType});
+            keyColumns.push_back({static_cast<ui16>(tableSchema.GetColumnIndex(column)), elementType});
         } else {
             TAggregateFunction* aggregateFunction = AggregateReplace;
 
@@ -203,7 +203,7 @@ TNestedColumnsSchema GetNestedColumnsSchema(TTableSchemaPtr tableSchema)
             }
 
             valueColumns.push_back({
-                static_cast<ui16>(tableSchema->GetColumnIndex(column)),
+                static_cast<ui16>(tableSchema.GetColumnIndex(column)),
                 elementType,
                 aggregateFunction});
         }
@@ -496,7 +496,7 @@ void DoPackValuesTyped(TRange<TUnversionedValue> values, TRange<char> discard, E
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Build yson list from values.
+// Build YSON list from values.
 TUnversionedValue TNestedTableMerger::PackValuesFast(
     TRange<TUnversionedValue> values,
     TRange<char> discard,
@@ -586,8 +586,9 @@ void TNestedRowDiscardPolicy::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNestedTableMerger::TNestedTableMerger(bool useFastYsonRoutines)
-    : UseFastYsonRoutines_(useFastYsonRoutines)
+TNestedTableMerger::TNestedTableMerger(bool orderNestedRows, bool useFastYsonRoutines)
+    : OrderNestedRows_(orderNestedRows)
+    , UseFastYsonRoutines_(useFastYsonRoutines)
 { }
 
 void TNestedTableMerger::UnpackKeyColumn(
@@ -624,7 +625,7 @@ void TNestedTableMerger::UnpackKeyColumn(
         if (keyColumnId == 0) {
             YT_ASSERT(Timestamps_.empty() || timestamp >= Timestamps_.back());
             Timestamps_.push_back(timestamp);
-            Offsets_.push_back(unpackedColumn.size());
+            EndOffsets_.push_back(unpackedColumn.size());
         } else {
             if (Timestamps_[index] != timestamp) {
                 THROW_ERROR_EXCEPTION("Timestamp mismatch in nested key columns")
@@ -633,10 +634,10 @@ void TNestedTableMerger::UnpackKeyColumn(
                     << TErrorAttribute("actual", timestamp);
             }
 
-            if (Offsets_[index + 1] != std::ssize(unpackedColumn)) {
+            if (EndOffsets_[index] != std::ssize(unpackedColumn)) {
                 THROW_ERROR_EXCEPTION("Mismatch item count in nested key columns")
                     << TErrorAttribute("column_id", keyColumnId)
-                    << TErrorAttribute("expected", Offsets_[index + 1])
+                    << TErrorAttribute("expected", EndOffsets_[index])
                     << TErrorAttribute("actual", std::ssize(unpackedColumn));
             }
         }
@@ -646,7 +647,7 @@ void TNestedTableMerger::UnpackKeyColumn(
 void TNestedTableMerger::Reset(int keyWidth, int mergeStreamCount)
 {
     Timestamps_.clear();
-    Offsets_ = {0};
+    EndOffsets_.clear();
     ResultKeys_.clear();
     ResultValues_.clear();
     Discarded_.clear();
@@ -675,9 +676,6 @@ void TNestedTableMerger::UnpackKeyColumns(
         UnpackKeyColumn(keyColumnId, mergeStreamCount, keyColumns[keyColumnId], keyColumnsSchema[keyColumnId]);
     }
 
-    OrderingTranslationLayer_.resize(Offsets_.back());
-    std::iota(OrderingTranslationLayer_.begin(), OrderingTranslationLayer_.end(), 0);
-
     BuildMergeScript();
 
     ApplyMergeScriptToKeys(keyWidth);
@@ -687,6 +685,8 @@ void TNestedTableMerger::UnpackKeyColumns(
     TRange<std::vector<TVersionedValue>> keyColumns,
     TRange<TNestedKeyColumn> keyColumnsSchema)
 {
+    YT_VERIFY(OrderNestedRows_);
+
     if (keyColumns.Empty()) {
         return;
     }
@@ -700,23 +700,69 @@ void TNestedTableMerger::UnpackKeyColumns(
         UnpackKeyColumn(keyColumnId, mergeStreamCount, keyColumns[keyColumnId], keyColumnsSchema[keyColumnId]);
     }
 
-    OrderingTranslationLayer_.resize(Offsets_.back());
-    std::iota(OrderingTranslationLayer_.begin(), OrderingTranslationLayer_.end(), 0);
-
-    for (int rowIndex = 0; rowIndex < mergeStreamCount; ++rowIndex) {
-        int from = Offsets_[rowIndex];
-        int to = Offsets_[rowIndex + 1];
-
-        for (int keyColumnId = keyWidth - 1; keyColumnId >= 0; --keyColumnId) {
-            auto& unpackedColumn = UnpackedKeys_[keyColumnId];
-            YT_ASSERT(OrderingTranslationLayer_.size() == unpackedColumn.size());
-
-            std::stable_sort(
-                OrderingTranslationLayer_.begin() + from,
-                OrderingTranslationLayer_.begin() + to,
-                [&] (int lhs, int rhs) { return unpackedColumn[lhs] < unpackedColumn[rhs]; });
+    // Split each group of values into groups with one value.
+    {
+        Timestamps_.clear();
+        int startOffset = 0;
+        for (int i = 0; i < std::ssize(EndOffsets_); ++i) {
+            if (startOffset == EndOffsets_[i]) {
+                Timestamps_.push_back(i);
+            } else {
+                while (startOffset < EndOffsets_[i]) {
+                    Timestamps_.push_back(i);
+                    ++startOffset;
+                }
+            }
         }
     }
+
+#ifndef NDEBUG
+    std::vector<int> newOffsets;
+    {
+        int startOffset = 0;
+        for (int i = 0; i < std::ssize(EndOffsets_); ++i) {
+            if (startOffset == EndOffsets_[i]) {
+                newOffsets.push_back(startOffset);
+            } else {
+                while (startOffset < EndOffsets_[i]) {
+                    newOffsets.push_back(++startOffset);
+                }
+            }
+        }
+    }
+#endif
+
+    // Split each group of values into groups with one value. Inplace for EndOffsets_.
+    {
+        auto originalOffsetCount = std::ssize(EndOffsets_);
+        YT_VERIFY(originalOffsetCount <= std::ssize(Timestamps_));
+        EndOffsets_.resize(Timestamps_.size());
+        std::rotate(EndOffsets_.begin(), EndOffsets_.begin() + originalOffsetCount, EndOffsets_.end());
+
+        auto originalOffsets = TRange(EndOffsets_.data() + EndOffsets_.size() - originalOffsetCount, originalOffsetCount);
+
+        auto resultOffsets = EndOffsets_.begin();
+
+        int startOffset = 0;
+        for (int i = 0; i < std::ssize(originalOffsets); ++i) {
+            if (startOffset == originalOffsets[i]) {
+                *resultOffsets++ = startOffset;
+            } else {
+                // Last originalOffsets[i] can be modified but to the same value.
+                int endOffset = originalOffsets[i];
+                while (startOffset < endOffset) {
+                    *resultOffsets++ = ++startOffset;
+                }
+            }
+        }
+
+// Extra ifdef for ASAN build.
+#ifndef NDEBUG
+        YT_ASSERT(EndOffsets_ == newOffsets);
+#endif
+    }
+
+    YT_VERIFY(EndOffsets_.size() == Timestamps_.size());
 
     BuildMergeScript();
 
@@ -749,10 +795,17 @@ void TNestedTableMerger::UnpackValueColumn(
 
         int id = timestampIt - Timestamps_.begin();
 
-        CurrentOffsets_[id] = unpackedValues.size();
-
+        auto savedSize = unpackedValues.size();
         // TODO(lukyan): Set aggregate flag from initial versioned value.
         (UseFastYsonRoutines_ ? UnpackNestedValuesListFast : UnpackNestedValuesList)(&unpackedValues, value.AsStringBuf(), elementType);
+
+        CurrentOffsets_[id++] = savedSize++;
+
+        if (OrderNestedRows_) {
+            while (savedSize < unpackedValues.size()) {
+                CurrentOffsets_[id++] = savedSize++;
+            }
+        }
     }
 
     const auto* rowIdPtr = RowIds_.cbegin();
@@ -769,7 +822,7 @@ void TNestedTableMerger::UnpackValueColumn(
 
         // Do not merge if CurrentOffsets_[id] is -1 (npos).
         if (CurrentOffsets_[rowId] != -1) {
-            mergeState = unpackedValues[OrderingTranslationLayer_[CurrentOffsets_[rowId]++]];
+            mergeState = unpackedValues[CurrentOffsets_[rowId]++];
         }
 
         for (int index = 1; index < count; ++index) {
@@ -777,7 +830,7 @@ void TNestedTableMerger::UnpackValueColumn(
             auto value = MakeUnversionedNullValue();
             // Do not merge if CurrentOffsets_[id] is -1 (npos).
             if (CurrentOffsets_[rowId] != -1) {
-                value = unpackedValues[OrderingTranslationLayer_[CurrentOffsets_[rowId]++]];
+                value = unpackedValues[CurrentOffsets_[rowId]++];
             }
             (*aggregateFunction)(&mergeState, value);
         }
@@ -823,7 +876,10 @@ void TNestedTableMerger::DiscardZeroes(const TNestedRowDiscardPolicyPtr& nestedR
     }
 }
 
-TVersionedValue TNestedTableMerger::GetPackedKeyColumn(int index, NTableClient::EValueType type, TChunkedMemoryPool* memoryPool)
+TVersionedValue TNestedTableMerger::GetPackedKeyColumn(
+    int index,
+    NTableClient::EValueType type,
+    TChunkedMemoryPool* memoryPool)
 {
     TVersionedValue value;
     static_cast<TUnversionedValue&>(value) = UseFastYsonRoutines_
@@ -835,7 +891,10 @@ TVersionedValue TNestedTableMerger::GetPackedKeyColumn(int index, NTableClient::
     return value;
 }
 
-TVersionedValue TNestedTableMerger::GetPackedValueColumn(int index, NTableClient::EValueType type, TChunkedMemoryPool* memoryPool)
+TVersionedValue TNestedTableMerger::GetPackedValueColumn(
+    int index,
+    NTableClient::EValueType type,
+    TChunkedMemoryPool* memoryPool)
 {
     TVersionedValue value;
     static_cast<TUnversionedValue&>(value) = UseFastYsonRoutines_
@@ -852,19 +911,23 @@ void TNestedTableMerger::BuildMergeScript()
     RowIds_.clear();
     NestedRowCounts_.clear();
 
-    if (Offsets_.size() == 1) {
+    if (EndOffsets_.empty()) {
         return;
     }
 
     int keyWidth = std::ssize(UnpackedKeys_);
 
     // Make heap to merge values.
-
-    CurrentOffsets_ = Offsets_;
+    {
+        CurrentOffsets_.resize(std::ssize(EndOffsets_));
+        int startOffset = 0;
+        for (int index = 0; index < std::ssize(CurrentOffsets_); ++index) {
+            CurrentOffsets_[index] = startOffset;
+            startOffset = EndOffsets_[index];
+        }
+    }
 
     auto compareKey = [&] (int lhsIndex, int rhsIndex) {
-        lhsIndex = OrderingTranslationLayer_[lhsIndex];
-        rhsIndex = OrderingTranslationLayer_[rhsIndex];
         for (ui16 keyColumnId = 0; keyColumnId < keyWidth; ++keyColumnId) {
             if (UnpackedKeys_[keyColumnId][lhsIndex] != UnpackedKeys_[keyColumnId][rhsIndex]) {
                 return UnpackedKeys_[keyColumnId][lhsIndex] < UnpackedKeys_[keyColumnId][rhsIndex] ? -1 : 1;
@@ -876,7 +939,7 @@ void TNestedTableMerger::BuildMergeScript()
 
     // Returns true once stream is depleted.
     auto advanceStream = [&] (int id) {
-        auto endOffset = Offsets_[id + 1];
+        auto endOffset = EndOffsets_[id];
         YT_VERIFY(CurrentOffsets_[id] != endOffset);
 
         return ++CurrentOffsets_[id] == endOffset;
@@ -884,8 +947,8 @@ void TNestedTableMerger::BuildMergeScript()
 
     RowIdHeap_.clear();
 
-    for (int id = 0; id < std::ssize(CurrentOffsets_) - 1; ++id) {
-        if (CurrentOffsets_[id] != Offsets_[id + 1]) {
+    for (int id = 0; id < std::ssize(CurrentOffsets_); ++id) {
+        if (CurrentOffsets_[id] != EndOffsets_[id]) {
             RowIdHeap_.push_back(id);
         }
     }
@@ -935,14 +998,21 @@ void TNestedTableMerger::ApplyMergeScriptToKeys(int keyWidth)
 {
     ResultKeys_.resize(keyWidth);
     for (int index = 0; index < keyWidth; ++index) {
-        CurrentOffsets_ = Offsets_;
+        {
+            CurrentOffsets_.resize(std::ssize(EndOffsets_));
+            int startOffset = 0;
+            for (int index = 0; index < std::ssize(CurrentOffsets_); ++index) {
+                CurrentOffsets_[index] = startOffset;
+                startOffset = EndOffsets_[index];
+            }
+        }
 
         const auto* idPtr = RowIds_.begin();
         for (auto count : NestedRowCounts_) {
             // Ids and timestamps are in increasing order.
 
             auto id = *idPtr++;
-            ResultKeys_[index].push_back(UnpackedKeys_[index][OrderingTranslationLayer_[CurrentOffsets_[id]++]]);
+            ResultKeys_[index].push_back(UnpackedKeys_[index][CurrentOffsets_[id]++]);
 
             for (int i = 1; i < count; ++i) {
                 ++CurrentOffsets_[*idPtr++];

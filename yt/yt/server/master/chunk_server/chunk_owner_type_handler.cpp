@@ -1,12 +1,11 @@
 #include "chunk_owner_type_handler.h"
 
+#include "chunk_list.h"
 #include "chunk_manager.h"
 #include "medium_base.h"
-#include "helpers.h"
-// COMPAT(kvk1920)
-#include "config.h"
 
 #include <yt/yt/server/master/cypress_server/node_detail.h>
+
 
 #include <yt/yt/server/master/cypress_server/node.h>
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
@@ -145,11 +144,11 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
 
     auto combinedAttributes = OverlayAttributeDictionaries(context.ExplicitAttributes, context.InheritedAttributes);
 
-    auto primaryMediumName = combinedAttributes->GetAndRemove<std::string>("primary_medium", NChunkClient::DefaultStoreMediumName);
+    auto primaryMediumName = combinedAttributes->GetAndRemove<std::string>(EInternedAttributeKey::PrimaryMedium.Unintern(), DefaultStoreMediumName);
     auto* primaryMedium = chunkManager->GetMediumByNameOrThrow(primaryMediumName);
     auto primaryMediumIndex = primaryMedium->GetIndex();
 
-    auto hunkPrimaryMediumName = combinedAttributes->FindAndRemove<std::string>("hunk_primary_medium");
+    auto hunkPrimaryMediumName = combinedAttributes->FindAndRemove<std::string>(EInternedAttributeKey::HunkPrimaryMedium.Unintern());
     auto* hunkPrimaryMedium = hunkPrimaryMediumName
         ? chunkManager->GetMediumByNameOrThrow(*hunkPrimaryMediumName)
         : nullptr;
@@ -158,7 +157,7 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
     securityManager->ValidatePermission(primaryMedium, EPermission::Use);
 
     std::optional<TSecurityTags> securityTags;
-    if (auto securityTagItems = combinedAttributes->FindAndRemove<TSecurityTagsItems>("security_tags")) {
+    if (auto securityTagItems = combinedAttributes->FindAndRemove<TSecurityTagsItems>(EInternedAttributeKey::SecurityTags.Unintern())) {
         securityTags = TSecurityTags{std::move(*securityTagItems)};
         securityTags->Validate();
     }
@@ -171,8 +170,8 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
         node->Replication().Set(primaryMediumIndex, TReplicationPolicy(replicationFactor, false));
         if (hunkPrimaryMedium) {
             auto hunkPrimaryMediumIndex = hunkPrimaryMedium->GetIndex();
-            node->SetHunkPrimaryMediumIndex(hunkPrimaryMediumIndex);
             node->HunkReplication().Set(hunkPrimaryMediumIndex, TReplicationPolicy(DefaultReplicationFactor, false));
+            node->SetHunkPrimaryMediumIndex(hunkPrimaryMediumIndex);
         }
 
         node->SetCompressionCodec(compressionCodec);

@@ -33,6 +33,8 @@ private:
 
 struct IWireWriteCommandsReader
 {
+    virtual ~IWireWriteCommandsReader() = default;
+
     virtual const TWireWriteCommand& NextCommand(bool isVersionedWriteUnversioned = false) = 0;
     virtual bool IsFinished() const = 0;
     virtual void RollbackLastCommand() = 0;
@@ -77,7 +79,9 @@ public:
 private:
     const TWireWriteCommands& Commands_;
 
-    size_t CurrentIndex_ = 0;
+    i64 CurrentIndex_ = 0;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode

@@ -18,7 +18,6 @@
 #include <yt/yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
 #include <yt/yt/ytlib/query_client/executor.h>
-#include <yt/yt/ytlib/query_client/tracked_memory_chunk_provider.h>
 #include <yt/yt/ytlib/query_client/query_service_proxy.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
@@ -54,6 +53,8 @@
 #include <yt/yt/client/bundle_controller_client/bundle_controller_settings.h>
 
 #include <yt/yt/client/query_client/query_builder.h>
+
+#include <yt/yt/client/table_client/tracked_memory_chunk_provider.h>
 
 #include <yt/yt/flow/lib/client/controller/controller_service_proxy.h>
 
@@ -1093,7 +1094,7 @@ private:
     const std::vector<ITypeHandlerPtr> TypeHandlers_;
 
     const IMemoryUsageTrackerPtr HeavyRequestMemoryUsageTracker_;
-    const NQueryClient::TMemoryProviderMapByTagPtr MemoryProvider_ = New<NQueryClient::TMemoryProviderMapByTag>();
+    const NTableClient::TMemoryProviderMapByTagPtr MemoryProvider_ = New<NTableClient::TMemoryProviderMapByTag>();
 
     using TChannels = THashMap<NObjectClient::TCellTag, NRpc::IChannelPtr>;
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MasterChannelsLock_);

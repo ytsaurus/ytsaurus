@@ -664,6 +664,7 @@ func (e *Encoder) WriteTableRaw(
 ) (err error) {
 	call := e.newCall(NewWriteTableParams(path, options))
 	call.YSONValue = body.Bytes()
+	call.DisableRetries = true
 	err = e.do(ctx, call, noopResultDecoder)
 	return
 }

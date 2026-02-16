@@ -2,7 +2,7 @@
 
 PY3_LIBRARY()
 
-VERSION(28.6.0)
+VERSION(28.7.0)
 
 LICENSE(MIT)
 
@@ -91,6 +91,7 @@ PY_SRCS(
     sqlglot/trie.py
     sqlglot/typing/__init__.py
     sqlglot/typing/bigquery.py
+    sqlglot/typing/duckdb.py
     sqlglot/typing/hive.py
     sqlglot/typing/mysql.py
     sqlglot/typing/presto.py

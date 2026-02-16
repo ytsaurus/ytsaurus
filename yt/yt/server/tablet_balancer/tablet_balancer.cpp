@@ -6,10 +6,10 @@
 #include "dynamic_config_manager.h"
 #include "helpers.h"
 #include "move_iteration.h"
+#include "multicell_throttler.h"
 #include "private.h"
 #include "public.h"
 #include "reshard_iteration.h"
-#include "tablet_action.h"
 #include "tablet_balancer.h"
 
 #include <yt/yt/server/lib/cypress_election/election_manager.h>
@@ -31,6 +31,7 @@
 #include <yt/yt/core/misc/random.h>
 
 #include <yt/yt/core/concurrency/thread_pool.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
 
 #include <util/random/shuffle.h>
 
@@ -112,6 +113,55 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMulticellThrottler
+    : public IMulticellThrottler
+{
+public:
+    TMulticellThrottler(TThroughputThrottlerConfigPtr config)
+        : Config_(std::move(config))
+    { }
+
+    IReconfigurableThroughputThrottlerPtr GetThrottler(TCellTag cellTag) override
+    {
+        auto guard = Guard(Lock_);
+        if (auto it = Throttlers_.find(cellTag); it != Throttlers_.end()) {
+            return it->second;
+        }
+
+        return Throttlers_.emplace(cellTag, CreateReconfigurableThroughputThrottler(
+            Config_,
+            Logger().WithTag("CellTag: %v", cellTag),
+            TabletBalancerProfiler()
+                .WithPrefix("/master_request_throttler")
+                .WithTag("cellTag", ToString(cellTag)))).first->second;
+    }
+
+    void Reconfigure(TThroughputThrottlerConfigPtr config) override
+    {
+        YT_LOG_DEBUG_IF(!Throttlers_.empty() && config->Limit != Throttlers_.begin()->second->GetLimit(),
+            "Reconfiguring multicell throttler (OldLimit: %v, NewLimit: %v)",
+            Throttlers_.begin()->second->GetLimit(),
+            config->Limit);
+
+        auto throttlers = [&] {
+            auto guard = Guard(Lock_);
+            Config_ = config;
+            return GetValues(Throttlers_);
+        }();
+
+        for (const auto& throttler : throttlers) {
+            throttler->Reconfigure(config);
+        }
+    }
+
+private:
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    THashMap<TCellTag, IReconfigurableThroughputThrottlerPtr> Throttlers_;
+    TThroughputThrottlerConfigPtr Config_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTabletBalancer
     :  public ITabletBalancer
 {
@@ -174,6 +224,7 @@ private:
 
     TScheduledActionCountLimiter ActionCountLimiter_;
     TParameterizedBalancingTimeoutScheduler ParameterizedBalancingScheduler_;
+    IMulticellThrottlerPtr MasterRequestThrottler_;
 
     // Precise iteration start time used for liveness reporting.
     TInstant PreciseCurrentIterationStartTime_;
@@ -346,13 +397,16 @@ TTabletBalancer::TTabletBalancer(
     , CancelledIterationDueToUnhealthyState_(TabletBalancerProfiler().WithSparse().Counter("/iteration_cancellations"))
     , PickPivotFailures_(TabletBalancerProfiler().WithSparse().Counter("/pick_pivot_failures"))
 {
+    auto dynamicConfig = DynamicConfig_.Acquire();
+    MasterRequestThrottler_ = New<TMulticellThrottler>(dynamicConfig->MasterRequestThrottler);
     ActionManager_ = CreateActionManager(
-        DynamicConfig_.Acquire()->ActionManager,
+        dynamicConfig->ActionManager,
         Bootstrap_->GetClient(),
-        Bootstrap_);
+        Bootstrap_,
+        MasterRequestThrottler_);
     ClusterStateProvider_ = CreateClusterStateProvider(
         bootstrap,
-        DynamicConfig_.Acquire()->ClusterStateProvider,
+        dynamicConfig->ClusterStateProvider,
         ControlInvoker_);
 
     bootstrap->GetDynamicConfigManager()->SubscribeConfigChanged(
@@ -366,7 +420,7 @@ void TTabletBalancer::Start()
     YT_LOG_INFO("Starting tablet balancer instance (Period: %v)",
         DynamicConfig_.Acquire()->Period.value_or(Config_->Period));
 
-    if (auto oldValue = false; IsActive_.compare_exchange_strong(oldValue, true)) {
+    if (auto oldValue = false; !IsActive_.compare_exchange_strong(oldValue, true)) {
         YT_LOG_WARNING("Trying to start tablet balancer instance which is already active");
     }
 
@@ -469,7 +523,7 @@ TBundleSnapshotPtr TTabletBalancer::GetBundleSnapshot(
     auto bundleSnapshot = WaitFor(bundleState->GetBundleSnapshotWithReplicaBalancingStatistics(
         minFreshnessRequirement,
         GetGroupsForMoveBalancing(bundleName),
-        GetGroupsForReshardBalancing(bundleName, bundleState->GetConfig()),
+        GetGroupsForReshardBalancing(bundleName, bundleState->GetConfig(/*allowStale*/ true).Get().Value()),
         allowedReplicaClusters,
         bannedClusters))
         .ValueOrThrow();
@@ -563,14 +617,17 @@ void TTabletBalancer::BalancerIteration()
     allowedReplicaClusters.insert(Bootstrap_->GetClusterName());
 
     for (auto& [bundleName, bundle] : Bundles_) {
-        if (!bundle->GetConfig()) {
+        auto configOrError = WaitFor(bundle->GetConfig(/*allowStale*/ false));
+        if (!configOrError.IsOK() || !configOrError.Value()) {
             YT_LOG_ERROR(
+                configOrError,
                 "Skip balancing iteration since bundle has unparsable tablet balancer config (BundleName: %v)",
                 bundleName);
 
             SaveRetryableBundleError(bundleName, TError(
                 NTabletBalancer::EErrorCode::IncorrectConfig,
-                "Bundle has unparsable tablet balancer config"));
+                "Bundle has unparsable tablet balancer config")
+                << configOrError);
             continue;
         }
 
@@ -586,7 +643,7 @@ void TTabletBalancer::BalancerIteration()
             continue;
         }
 
-        if (!IsBundleEligibleForBalancing(bundle->GetConfig(), bundleName)) {
+        if (!IsBundleEligibleForBalancing(bundle->GetConfig(/*allowStale*/ true).Get().Value(), bundleName)) {
             YT_LOG_INFO("Skip fetching for bundle since balancing is not planned "
                 "at this iteration according to the schedule (BundleName: %v)",
                 bundleName);
@@ -635,6 +692,14 @@ void TTabletBalancer::BalanceBundle(const TBundleSnapshotPtr& bundleSnapshot)
 {
     const auto& bundleName = bundleSnapshot->Bundle->Name;
     auto groups = bundleSnapshot->Bundle->GetBalancingGroups();
+
+    if (DynamicConfig_.Acquire()->IgnoreTabletToCellRatio) {
+        YT_LOG_DEBUG("Patch bundle config to ignore tablet to cell ratio "
+            "(BundleName: %v, OldTabletToCellRatio: %v)",
+            bundleName,
+            bundleSnapshot->Bundle->Config->TabletToCellRatio);
+        bundleSnapshot->Bundle->Config->TabletToCellRatio = 10'000;
+    }
 
     for (const auto& groupName : groups) {
         const auto& groupConfig = GetOrCrash(bundleSnapshot->Bundle->Config->Groups, groupName);
@@ -688,7 +753,7 @@ bool TTabletBalancer::IsBalancingAllowed(const IBundleStatePtr& bundleState) con
     return dynamicConfig->Enable &&
         bundleState->GetHealth() == ETabletCellHealth::Good &&
         (dynamicConfig->EnableEverywhere ||
-         bundleState->GetConfig()->EnableStandaloneTabletBalancer);
+         bundleState->GetConfig(/*allowStale*/ true).Get().Value()->EnableStandaloneTabletBalancer);
 }
 
 bool TTabletBalancer::TScheduledActionCountLimiter::TryIncrease(const TGlobalGroupTag& groupTag)
@@ -785,6 +850,7 @@ void TTabletBalancer::OnDynamicConfigChanged(
     ParameterizedBalancingScheduler_.Reconfigure(
         newConfig->ParameterizedTimeoutOnStart.value_or(Config_->ParameterizedTimeoutOnStart),
         newConfig->ParameterizedTimeout.value_or(Config_->ParameterizedTimeout));
+    MasterRequestThrottler_->Reconfigure(newConfig->MasterRequestThrottler);
 
     for (const auto& [name, bundle] : Bundles_) {
         bundle->Reconfigure(newConfig->BundleStateProvider);
@@ -865,6 +931,7 @@ std::vector<std::string> TTabletBalancer::UpdateBundleList()
                 ControlInvoker_,
                 dynamicConfig->BundleStateProvider,
                 ClusterStateProvider_,
+                MasterRequestThrottler_,
                 &bundle->Attributes()));
 
         if (isNew) {
@@ -1318,6 +1385,7 @@ void TTabletBalancer::ExecuteMoveIteration(const IMoveIterationPtr& moveIteratio
 
     int actionCount = 0;
     if (!descriptors.empty()) {
+        auto guard = moveIteration->StartApplyingActions();
         for (auto descriptor : descriptors) {
             if (!TryScheduleActionCreation(groupTag, descriptor)) {
                 SaveFatalBundleError(moveIteration->GetBundleName(), TError(
@@ -1341,7 +1409,7 @@ void TTabletBalancer::ExecuteMoveIteration(const IMoveIterationPtr& moveIteratio
                 tablet->Table->Path,
                 descriptor.CorrelationId);
 
-            ApplyMoveTabletAction(tablet, descriptor.TabletCellId);
+            moveIteration->ApplyMoveAction(tablet, descriptor.TabletCellId);
         }
     }
 

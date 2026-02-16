@@ -25,6 +25,9 @@ public:
         TAllocationId allocationId,
         const TJobResources& resources,
         bool resetAllocationPreemptibleProgress);
+    bool ProcessAllocationPreemption(
+        TPoolTreeOperationElement* operationElement,
+        TAllocationId allocationId);
 
     TDiskQuota GetTotalDiskQuota() const;
 

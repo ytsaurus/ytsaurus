@@ -14,7 +14,7 @@ from yt_commands import (
     gc_collect, execute_command, get_batch_output, switch_leader, is_active_primary_master_leader,
     is_active_primary_master_follower, get_active_primary_master_leader_address,
     get_active_primary_master_follower_address, sync_mount_table, sync_create_cells, check_permission,
-    get_driver, create_access_control_object_namespace)
+    get_driver, create_access_control_object_namespace, create_chaos_cell_bundle)
 
 from yt_helpers import get_current_time, profiler_factory
 
@@ -66,6 +66,12 @@ class TestCypress(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 0
     NUM_CYPRESS_PROXIES = 2
+
+    @classmethod
+    def setup_class(cls):
+        super(TestCypress, cls).setup_class()
+        create_domestic_medium("ssd")
+        create_domestic_medium("hdd")
 
     @authors("babenko")
     def test_root(self):
@@ -3329,7 +3335,8 @@ class TestCypress(YTEnvSetup):
 
     @authors("kvk1920", "shakurov")
     def test_inheritable_attributes2(self):
-        create_domestic_medium("hdd")
+        assert exists("//sys/media/hdd")
+
         create_tablet_cell_bundle("b")
 
         create("map_node", "//tmp/dir1")
@@ -3423,8 +3430,6 @@ class TestCypress(YTEnvSetup):
     @authors("kvk1920")
     @pytest.mark.parametrize("inherit_from", ["source", "destination"])
     def test_inheritable_attributes_during_copy(self, inherit_from):
-        set("//sys/@config/cypress_manager/enable_inherit_attributes_during_copy", True)
-
         create("table", "//tmp/source/dir/table", recursive=True, attributes={
             "chunk_merger_mode": "shallow",
             "compression_codec": "zlib_9",
@@ -3457,8 +3462,6 @@ class TestCypress(YTEnvSetup):
 
     @authors("kvk1920")
     def test_inheritable_attributes_during_copy_from_dst(self):
-        set("//sys/@config/cypress_manager/enable_inherit_attributes_during_copy", True)
-
         create("table", "//tmp/source/dir/table", recursive=True, attributes={
             "chunk_merger_mode": "shallow",
             "compression_codec": "zlib_9",
@@ -3530,51 +3533,91 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/dir4/@erasure_codec", tx=tx3)
 
     @authors("kvk1920", "shakurov")
-    def test_inheritable_attributes_media_validation(self):
-        create_domestic_medium("ssd")
+    @pytest.mark.parametrize("use_transferable_attributes", [False, True])
+    def test_inheritable_attributes_media_validation(self, use_transferable_attributes):
+        medium_ids = {
+            m: get(f"//sys/media/{m}/@id")
+            for m in ("default", "ssd")
+        }
+
+        def medium(unstable_medium):
+            return ("#" + medium_ids[unstable_medium]) if use_transferable_attributes else unstable_medium
+
+        def to_transferable(unstable_media):
+            return {
+                "#" + medium_ids[medium_name]: policy
+                for medium_name, policy in unstable_media.items()
+            }
+
+        def media(unstable_media):
+            return to_transferable(unstable_media) if use_transferable_attributes else unstable_media
 
         create("map_node", "//tmp/dir1")
         assert not exists("//tmp/dir1/@media")
+        assert not exists("//tmp/dir1/@transferable_media")
 
         # media - primary_medium - replication_factor
         with raises_yt_error("At least one medium should store replicas (including parity parts); configuring otherwise would result in a data loss"):
             set(
                 "//tmp/dir1/@media",
-                {"default": {"replication_factor": 0, "data_parts_only": False}},
+                media({"default": {"replication_factor": 0, "data_parts_only": False}}),
             )
         with raises_yt_error("At least one medium should store replicas (including parity parts); configuring otherwise would result in a data loss"):
             set(
                 "//tmp/dir1/@media",
-                {"default": {"replication_factor": 5, "data_parts_only": True}},
+                media({"default": {"replication_factor": 5, "data_parts_only": True}}),
+            )
+        with raises_yt_error("Builtin attribute \"transferable_media\" cannot be set"):
+            set(
+                "//tmp/dir1/@transferable_media",
+                media({"default": {"replication_factor": 5, "data_parts_only": False}}),
             )
         set(
             "//tmp/dir1/@media",
-            {"default": {"replication_factor": 5, "data_parts_only": False}},
+            media({"default": {"replication_factor": 5, "data_parts_only": False}}),
         )
         assert get("//tmp/dir1/@media") == {"default": {"replication_factor": 5, "data_parts_only": False}}
-        set("//tmp/dir1/@primary_medium", "default")
+        assert get("//tmp/dir1/@transferable_media") == to_transferable({"default": {"replication_factor": 5, "data_parts_only": False}})
+
+        with raises_yt_error("Builtin attribute \"primary_medium_id\" cannot be set"):
+            set("//tmp/dir1/@primary_medium_id", medium("default"))
+
+        set("//tmp/dir1/@primary_medium", medium("default"))
         assert get("//tmp/dir1/@primary_medium") == "default"
+        assert get("//tmp/dir1/@primary_medium_id") == medium_ids["default"]
 
         remove("//tmp/dir1/@primary_medium")
         # Setting previously not set primary_medium assigns defaults.
-        set("//tmp/dir1/@primary_medium", "ssd")
+        set("//tmp/dir1/@primary_medium", medium("ssd"))
         assert get("//tmp/dir1/@primary_medium") == "ssd"
+        assert get("//tmp/dir1/@primary_medium_id") == medium_ids["ssd"]
         assert get("//tmp/dir1/@media") == {
             "default": {"replication_factor": 5, "data_parts_only": False},
             "ssd": {"replication_factor": 3, "data_parts_only": False},
         }
+        assert get("//tmp/dir1/@transferable_media") == to_transferable({
+            "default": {"replication_factor": 5, "data_parts_only": False},
+            "ssd": {"replication_factor": 3, "data_parts_only": False},
+        })
 
         # Setting previously set primary_medium either simply sets it...
-        set("//tmp/dir1/@primary_medium", "default")
+        set("//tmp/dir1/@primary_medium", medium("default"))
         assert get("//tmp/dir1/@primary_medium") == "default"
+        assert get("//tmp/dir1/@primary_medium_id") == medium_ids["default"]
         assert get("//tmp/dir1/@media") == {
             "default": {"replication_factor": 5, "data_parts_only": False},
             "ssd": {"replication_factor": 3, "data_parts_only": False},
         }
+        assert get("//tmp/dir1/@transferable_media") == to_transferable({
+            "default": {"replication_factor": 5, "data_parts_only": False},
+            "ssd": {"replication_factor": 3, "data_parts_only": False},
+        })
         # ...or is regarded as a move if the new primary_medium is not configured.
         remove("//tmp/dir1/@media/ssd")
-        set("//tmp/dir1/@primary_medium", "ssd")
+        set("//tmp/dir1/@primary_medium", medium("ssd"))
         assert get("//tmp/dir1/@media") == {"ssd": {"replication_factor": 5, "data_parts_only": False}}
+        assert get("//tmp/dir1/@transferable_media") == to_transferable(
+            {"ssd": {"replication_factor": 5, "data_parts_only": False}})
 
         with raises_yt_error("Attributes \"media\" and \"replication_factor\" have contradicting values for medium \"ssd\""):
             set("//tmp/dir1/@replication_factor", 3)
@@ -3586,10 +3629,10 @@ class TestCypress(YTEnvSetup):
         create("map_node", "//tmp/dir2")
         set(
             "//tmp/dir2/@media",
-            {
+            media({
                 "default": {"replication_factor": 3, "data_parts_only": False},
                 "ssd": {"replication_factor": 5, "data_parts_only": False},
-            },
+            }),
         )
         assert get("//tmp/dir2/@media") == {
             "default": {"replication_factor": 3, "data_parts_only": False},
@@ -3611,22 +3654,26 @@ class TestCypress(YTEnvSetup):
         with raises_yt_error("At least one medium should store replicas (including parity parts); configuring otherwise would result in a data loss"):
             set(
                 "//tmp/dir3/@media",
-                {
+                media({
                     "default": {"replication_factor": 3, "data_parts_only": True},
                     "ssd": {"replication_factor": 3, "data_parts_only": True},
-                },
+                }),
             )
         set(
             "//tmp/dir3/@media",
-            {
+            media({
                 "default": {"replication_factor": 5, "data_parts_only": True},
                 "ssd": {"replication_factor": 3, "data_parts_only": False},
-            },
+            }),
         )
         assert get("//tmp/dir3/@media") == {
             "default": {"replication_factor": 5, "data_parts_only": True},
             "ssd": {"replication_factor": 3, "data_parts_only": False},
         }
+        assert get("//tmp/dir3/@transferable_media") == to_transferable({
+            "default": {"replication_factor": 5, "data_parts_only": True},
+            "ssd": {"replication_factor": 3, "data_parts_only": False},
+        })
         with raises_yt_error("Attributes \"media\" and \"replication_factor\" have contradicting values for medium \"ssd\""):
             set("//tmp/dir3/@replication_factor", 5)
         set("//tmp/dir3/@replication_factor", 3)
@@ -3644,22 +3691,22 @@ class TestCypress(YTEnvSetup):
         with raises_yt_error("Attributes \"media\" and \"replication_factor\" have contradicting values for medium \"ssd\""):
             set(
                 "//tmp/dir4/@media",
-                {"default": {"replication_factor": 3, "data_parts_only": False}},
+                media({"default": {"replication_factor": 3, "data_parts_only": False}}),
             )
         with raises_yt_error("Attributes \"media\" and \"replication_factor\" have contradicting values for medium \"ssd\""):
             set(
                 "//tmp/dir4/@media",
-                {
+                media({
                     "default": {"replication_factor": 3, "data_parts_only": False},
                     "ssd": {"replication_factor": 2, "data_parts_only": False},
-                },
+                }),
             )
         set(
             "//tmp/dir4/@media",
-            {
+            media({
                 "default": {"replication_factor": 3, "data_parts_only": False},
                 "ssd": {"replication_factor": 3, "data_parts_only": False},
-            },
+            }),
         )
 
         # replication_factor - media - primary_medium
@@ -3667,57 +3714,124 @@ class TestCypress(YTEnvSetup):
         set("//tmp/dir5/@replication_factor", 3)
         set(
             "//tmp/dir5/@media",
-            {
+            media({
                 "default": {"replication_factor": 2, "data_parts_only": False},
                 "ssd": {"replication_factor": 4, "data_parts_only": False},
-            },
+            }),
         )
         with raises_yt_error("Attributes \"media\" and \"replication_factor\" have contradicting values for medium \"default\""):
-            set("//tmp/dir5/@primary_medium", "default")
+            set("//tmp/dir5/@primary_medium", medium("default"))
         with raises_yt_error("Attributes \"media\" and \"replication_factor\" have contradicting values for medium \"ssd\""):
-            set("//tmp/dir5/@primary_medium", "ssd")
+            set("//tmp/dir5/@primary_medium", medium("ssd"))
         set(
             "//tmp/dir5/@media",
-            {
+            media({
                 "default": {"replication_factor": 2, "data_parts_only": False},
                 "ssd": {"replication_factor": 3, "data_parts_only": False},
-            },
+            }),
         )
-        set("//tmp/dir5/@primary_medium", "ssd")
+        set("//tmp/dir5/@primary_medium", medium("ssd"))
+
+    @authors("kvk1920")
+    @pytest.mark.parametrize("cell_kind", ("tablet", "chaos"))
+    def test_inheritable_attributes_cell_bundle_id(self, cell_kind):
+        with raises_yt_error("Invalid object name: starts with #"):
+            if cell_kind == "tablet":
+                create_tablet_cell_bundle("#someInvalidName")
+            else:
+                create_chaos_cell_bundle("#someInvalidName", self.get_cluster_names())
+
+        ids = {}
+        for b in ("b1", "b2"):
+            if cell_kind == "tablet":
+                create_tablet_cell_bundle(b)
+            else:
+                create_chaos_cell_bundle(b, self.get_cluster_names())
+            ids[b] = get(f"//sys/{cell_kind}_cell_bundles/{b}/@id")
+
+        b1_id = ids["b1"]
+        b2_id = ids["b2"]
+
+        set(
+            "//tmp/dir1",
+            f"<{cell_kind}_cell_bundle=\"b1\"; {cell_kind}_cell_bundle=\"#{b1_id}\">{{"
+            f"dir2=<{cell_kind}_cell_bundle=\"#{b2_id}\">{{"
+            f"dir3=<{cell_kind}_cell_bundle=\"b1\">{{}}"
+            "}}".encode(),
+            is_raw=True)
+
+        for b in ("b1", "b2"):
+            if cell_kind == "tablet":
+                remove_tablet_cell_bundle(b)
+            else:
+                for area in get(f"//sys/chaos_cell_bundles/{b}/@areas").values():
+                    remove("#" + area["id"])
+                remove(f"//sys/{cell_kind}_cell_bundles/{b}")
+
+        assert get("//tmp/dir1/@", attributes=[f"{cell_kind}_cell_bundle", f"{cell_kind}_cell_bundle_id"]) == {
+            f"{cell_kind}_cell_bundle": "b1",
+            f"{cell_kind}_cell_bundle_id": b1_id,
+        }
+        assert get("//tmp/dir1/dir2/@", attributes=[f"{cell_kind}_cell_bundle", f"{cell_kind}_cell_bundle_id"]) == {
+            f"{cell_kind}_cell_bundle": "b2",
+            f"{cell_kind}_cell_bundle_id": b2_id,
+        }
+        assert get("//tmp/dir1/dir2/dir3/@", attributes=[f"{cell_kind}_cell_bundle", f"{cell_kind}_cell_bundle_id"]) == {
+            f"{cell_kind}_cell_bundle": "b1",
+            f"{cell_kind}_cell_bundle_id": b1_id,
+        }
+
+        remove("//tmp/dir1", recursive=True)
+        wait(lambda: not exists(f"//sys/{cell_kind}_cell_bundles/b1"))
+        wait(lambda: not exists(f"//sys/{cell_kind}_cell_bundles/b2"))
 
     @authors("kvk1920", "shakurov")
-    def test_inheritable_attributes_tablet_cell_bundle(self):
+    @pytest.mark.parametrize("use_transferable_attributes", (False, True))
+    def test_inheritable_attributes_tablet_cell_bundle(self, use_transferable_attributes):
+        bundle_ids = {
+            "non_existent": "19702-cb903-3ff02c2-8499651f",  # Some bundle from one of our clusters.
+        }
+
+        def bundle(name):
+            return f"#{bundle_ids[name]}" if use_transferable_attributes else name
+
         create("map_node", "//tmp/dir1")
         create("map_node", "//tmp/dir2")
         create("map_node", "//tmp/dir3")
 
         with raises_yt_error("No such tablet cell bundle"):
-            set("//tmp/dir1/@tablet_cell_bundle", "non_existent")
+            set("//tmp/dir1/@tablet_cell_bundle", bundle("non_existent"))
 
         create_tablet_cell_bundle("b1")
+        bundle_ids["b1"] = get("//sys/tablet_cell_bundles/b1/@id")
 
-        set("//tmp/dir1/@tablet_cell_bundle", "b1")
+        set("//tmp/dir1/@tablet_cell_bundle", bundle("b1"))
         assert get("//tmp/dir1/@tablet_cell_bundle") == "b1"
+        assert get("//tmp/dir1/@tablet_cell_bundle_id") == bundle_ids["b1"]
 
-        set("//tmp/dir2/@tablet_cell_bundle", "b1")
+        set("//tmp/dir2/@tablet_cell_bundle", bundle("b1"))
         assert get("//tmp/dir2/@tablet_cell_bundle") == "b1"
+        assert get("//tmp/dir2/@tablet_cell_bundle_id") == bundle_ids["b1"]
 
-        set("//tmp/dir3/@tablet_cell_bundle", "b1")
+        set("//tmp/dir3/@tablet_cell_bundle", bundle("b1"))
         assert get("//tmp/dir3/@tablet_cell_bundle") == "b1"
+        assert get("//tmp/dir3/@tablet_cell_bundle_id") == bundle_ids["b1"]
 
         create_tablet_cell_bundle("b2")
+        bundle_ids["b2"] = get("//sys/tablet_cell_bundles/b2/@id")
 
         tx = start_transaction()
         copy("//tmp/dir3", "//tmp/dir3_copy", tx=tx)
 
         assert get("//tmp/dir3_copy/@tablet_cell_bundle", tx=tx) == "b1"
+        assert get("//tmp/dir3_copy/@tablet_cell_bundle_id", tx=tx) == bundle_ids["b1"]
 
         with raises_yt_error("Operation cannot be performed in transaction"):
-            set("//tmp/dir3_copy/@tablet_cell_bundle", "b2", tx=tx)
+            set("//tmp/dir3_copy/@tablet_cell_bundle", bundle("b2"), tx=tx)
         with raises_yt_error("Operation cannot be performed in transaction"):
             remove("//tmp/dir3_copy/@tablet_cell_bundle", tx=tx)
 
-        set("//tmp/dir1/@tablet_cell_bundle", "b2")
+        set("//tmp/dir1/@tablet_cell_bundle", bundle("b2"))
 
         remove("//tmp/dir2/@tablet_cell_bundle")
 

@@ -14,8 +14,7 @@
 #include "private.h"
 #include "slot.h"
 #include "slot_manager.h"
-#include "throttler_manager.h"
-#include "volume_manager.h"
+#include "volume.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
@@ -44,6 +43,8 @@
 
 #include <yt/yt/server/lib/signature/config.h>
 
+#include <yt/yt/server/lib/squash_fs/squash_fs_layout_builder.h>
+
 #include <yt/yt/server/lib/job_agent/structs.h>
 
 #include <yt/yt/server/lib/job_proxy/job_probe.h>
@@ -51,7 +52,9 @@
 #include <yt/yt/server/lib/misc/job_reporter.h>
 
 #include <yt/yt/server/lib/nbd/block_device.h>
+#include <yt/yt/server/lib/nbd/image_reader.h>
 #include <yt/yt/server/lib/nbd/profiler.h>
+#include <yt/yt/server/lib/nbd/random_access_file_reader.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
 
@@ -511,7 +514,16 @@ void TJob::Start() noexcept
     }
 
     if (auto slot = GetUserSlot()) {
-        slot->ValidateEnabled();
+        try {
+            slot->ValidateEnabled();
+        } catch (const std::exception& ex) {
+            auto error = TError("Can not start job")
+                << TErrorAttribute("abort_reason", EAbortReason::UserSlotDisabled)
+                << ex;
+            YT_LOG_WARNING(error);
+            Abort(std::move(error));
+            return;
+        }
     }
 
     YT_VERIFY(!std::exchange(Started_, true));
@@ -994,10 +1006,11 @@ void TJob::OnResultReceived(TJobResult jobResult)
             // Check if we had any NBD errors.
             TError nbdError;
             if (auto nbdServer = Bootstrap_->GetNbdServer()) {
-                for (const auto& exportId : NbdExportIds_) {
-                    if (auto device = nbdServer->FindDevice(exportId)) {
+                for (const auto& deviceId : NbdDeviceIds_) {
+                    if (auto device = nbdServer->FindDevice(deviceId)) {
                         if (auto error = device->GetError(); !error.IsOK()) {
-                            YT_LOG_ERROR(error, "NBD error occured during job execution (ExportId: %v)", exportId);
+                            YT_LOG_ERROR(error, "NBD error occurred during job execution (DeviceId: %v)",
+                                deviceId);
 
                             // Save the first found NBD error.
                             if (nbdError.IsOK()) {
@@ -1010,6 +1023,9 @@ void TJob::OnResultReceived(TJobResult jobResult)
                                 }
                             }
                         }
+                    } else {
+                        YT_LOG_WARNING("NBD device not found (DeviceId: %v)",
+                            deviceId);
                     }
                 }
             }
@@ -1740,12 +1756,12 @@ void TJob::TryReportStatistics()
     }
 }
 
-void TJob::AbortJobAfterInterruptionCallFailed(const std::exception& ex)
+void TJob::AbortJobAfterInterruptionCallFailed(TError internalError)
 {
     if (JobPhase_ == NControllerAgent::EJobPhase::Running) {
         auto error = TError(NExecNode::EErrorCode::InterruptionFailed, "Error interrupting job on job proxy")
             << TErrorAttribute("interruption_reason", InterruptionReason_)
-            << ex;
+            << internalError;
         Abort(std::move(error));
     }
 }
@@ -1856,8 +1872,9 @@ void TJob::DoInterrupt(
     } catch (const std::exception& ex) {
         YT_LOG_INFO(ex, "Failed to interrupt job via job prober service; graceful job phase check scheduled (Tmeout: %v)", timeout);
 
+        TError error(ex);
         TDelayedExecutor::Submit(
-            BIND(&TJob::AbortJobAfterInterruptionCallFailed, MakeWeak(this), ex)
+            BIND(&TJob::AbortJobAfterInterruptionCallFailed, MakeWeak(this), error)
                 .Via(Invoker_),
             CommonConfig_->JobFinishTimeoutAfterInterruptionCallFailed);
     }
@@ -2877,8 +2894,7 @@ void TJob::Cleanup()
     removeVolume(RootVolume_);
     removeVolume(GpuCheckVolume_);
 
-    // Make sure job's NBD exports are unregistered.
-    TryCleanupNbdExports();
+    UnsubscribeJobFromNbdDevices();
 
     if (const auto& slot = GetUserSlot()) {
         if (ShouldCleanSandboxes()) {
@@ -2916,20 +2932,26 @@ void TJob::Cleanup()
     YT_LOG_INFO("Job finished (JobState: %v)", GetState());
 }
 
-//! Make sure NBD exports are unregistered.
-void TJob::TryCleanupNbdExports()
+void TJob::UnsubscribeJobFromNbdDevices()
 {
-    if (auto nbdServer = Bootstrap_->GetNbdServer()) {
-        for (const auto& exportId : NbdExportIds_) {
-            if (nbdServer->IsDeviceRegistered(exportId) && nbdServer->TryUnregisterDevice(exportId)) {
-                TNbdProfilerCounters::Get()->GetCounter(
-                    {},
-                    "/device/unregistered_unexpected").Increment(1);
+    auto nbdServer = Bootstrap_->GetNbdServer();
+    if (!nbdServer) {
+        return;
+    }
 
-                YT_LOG_ERROR(
-                    "Unregistered unexpected NBD export (ExportId: %v)",
-                    exportId);
+    for (const auto& deviceId : NbdDeviceIds_) {
+        YT_LOG_DEBUG("Unsubscribing job from NBD device errors (DeviceId: %v)",
+            deviceId);
+
+        if (auto device = nbdServer->FindDevice(deviceId)) {
+            auto res = device->UnsubscribeFromErrors(Id_.Underlying());
+            if (!res) {
+                YT_LOG_WARNING("Failed to unsubscribe job from NBD device errors (DeviceId: %v)",
+                    deviceId);
             }
+        } else {
+            YT_LOG_DEBUG("Failed to unsubscribe from NBD device error; device not found (DeviceId: %v)",
+                deviceId);
         }
     }
 }
@@ -3326,11 +3348,6 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     }
 
     proxyInternalConfig->JobThrottler = CloneYsonStruct(CommonConfig_->JobThrottler);
-    YT_LOG_DEBUG(
-        "Initialize prefetching job throttler (DynamicConfigEnable: %v, JobSpecEnable: %v, PrefetchEnable: %v)",
-        CommonConfig_->JobThrottler->BandwidthPrefetch->Enable,
-        JobSpecExt_.enable_prefetching_job_throttler(),
-        proxyInternalConfig->JobThrottler->BandwidthPrefetch->Enable);
 
     proxyInternalConfig->StatisticsOutputTableCountLimit = CommonConfig_->StatisticsOutputTableCountLimit;
 
@@ -3362,12 +3379,10 @@ void TJob::BuildVirtualSandbox()
     auto nbdServer = Bootstrap_->GetNbdServer();
     if (!nbdServer) {
         THROW_ERROR_EXCEPTION("NBD server is not present")
-            << TErrorAttribute("export_id", VirtualSandboxData_->NbdExportId);
+            << TErrorAttribute("device_id", VirtualSandboxData_->NbdDeviceId);
     }
 
     auto readerHost = Bootstrap_->GetFileReaderHost();
-    auto inThrottler = Bootstrap_->GetDefaultInThrottler();
-    auto outRpsThrottler = Bootstrap_->GetReadRpsOutThrottler();
     auto logger = nbdServer->GetLogger();
     auto invoker = nbdServer->GetInvoker();
 
@@ -3388,8 +3403,6 @@ void TJob::BuildVirtualSandbox()
             std::move(chunkSpecs),
             filePath,
             readerHost,
-            inThrottler,
-            outRpsThrottler,
             invoker,
             logger);
 
@@ -3400,9 +3413,9 @@ void TJob::BuildVirtualSandbox()
         });
     }
 
-    auto squashFsOptions = TSquashFSLayoutBuilderOptions({
+    auto squashFsOptions = TSquashFSLayoutBuilderOptions{
         .BlockSize = static_cast<ui32>(CommonConfig_->VirtualSandboxSquashFSBlockSize)
-    });
+    };
 
     VirtualSandboxData_->Reader = CreateVirtualSquashFSImageReader(
         std::move(options),
@@ -3526,21 +3539,20 @@ void TJob::InitializeSandboxNbdRootVolumeData()
     SandboxNbdRootVolumeData_->MaxDataNodeCount = nbdDisk.max_data_node_count();
 }
 
-THashSet<TString> TJob::InitializeNbdExportIds()
+THashSet<TString> TJob::InitializeNbdDeviceIds()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    THashSet<TString> nbdExportIds;
+    THashSet<TString> nbdDeviceIds;
 
-    // Mark NBD layers with NBD export ids.
-    auto nbdExportCount = 0;
+    // Mark NBD layers with NBD device ids.
+    auto nbdDeviceCount = 0;
     for (auto& layer : RootVolumeLayerArtifactKeys_) {
         if (FromProto<ELayerAccessMethod>(layer.access_method()) == ELayerAccessMethod::Nbd) {
-            auto nbdExportId = MakeNbdExportId(Id_, nbdExportCount);
-            EmplaceOrCrash(nbdExportIds, nbdExportId);
-            ++nbdExportCount;
-
-            ToProto(layer.mutable_nbd_export_id(), nbdExportId);
+            auto deviceId = layer.GetRuntimeGuid();
+            EmplaceOrCrash(nbdDeviceIds, deviceId);
+            ToProto(layer.mutable_nbd_device_id(), deviceId);
+            ++nbdDeviceCount;
         }
     }
 
@@ -3549,37 +3561,60 @@ THashSet<TString> TJob::InitializeNbdExportIds()
         RootVolumeDiskQuotaEnabled_ &&
         JobSpecExt_.enable_virtual_sandbox())
     {
-        // Mark artifacts that will be accessed via virtual layer.
-        int virtualSandboxArtifactCount = 0;
+        // Mark artifacts that will be accessed via virtual layer and create virtual artifact key.
+        std::optional<TArtifactKey> virtualArtifactKey;
         for (auto& artifact : Artifacts_) {
+            // NB. The order of virtual artifacts and chunk specs within each artifact does matter.
+            // Differences in order will result in different artifact keys.
             if (CanBeAccessedViaVirtualSandbox(artifact)) {
                 artifact.AccessedViaVirtualSandbox = true;
-                ++virtualSandboxArtifactCount;
+
+                if (!virtualArtifactKey) {
+                    virtualArtifactKey.emplace();
+                    virtualArtifactKey->set_access_method(ToProto(NControllerAgent::ELayerAccessMethod::Nbd));
+                    virtualArtifactKey->set_filesystem(ToProto(NControllerAgent::ELayerFilesystem::SquashFS));
+
+                    auto* dataSource = virtualArtifactKey->mutable_data_source();
+                    dataSource->set_type(ToProto(NChunkClient::EDataSourceType::File));
+                }
+
+                // Construct concatenated data source path of the form "path1;path2;path3".
+                auto* dataSource = virtualArtifactKey->mutable_data_source();
+                if (dataSource->path().empty()) {
+                    dataSource->set_path(artifact.Key.data_source().path());
+                } else {
+                    dataSource->set_path(Format("%v;%v", dataSource->path(), artifact.Key.data_source().path()));
+                }
+
+                for (const auto& chunkSpec : artifact.Key.chunk_specs()) {
+                    virtualArtifactKey->add_chunk_specs()->CopyFrom(chunkSpec);
+                }
             }
         }
 
-        if (virtualSandboxArtifactCount != 0) {
-            // The virtual layer can be used. Make nbd export id.
-            auto nbdExportId = MakeNbdExportId(Id_, nbdExportCount);
-            EmplaceOrCrash(nbdExportIds, nbdExportId);
-            ++nbdExportCount;
+        if (virtualArtifactKey) {
+            auto deviceId = virtualArtifactKey->GetRuntimeGuid();
+            EmplaceOrCrash(nbdDeviceIds, deviceId);
+            ToProto(virtualArtifactKey->mutable_nbd_device_id(), deviceId);
+            ++nbdDeviceCount;
 
             VirtualSandboxData_ = TVirtualSandboxData({
-                .NbdExportId = nbdExportId,
+                .NbdDeviceId = deviceId,
+                .ArtifactKey = *virtualArtifactKey,
             });
-        }
+         }
     }
 
-    // Create NBD export id for NBD root volume.
+    // Create NBD device id for NBD root volume.
     if (SandboxNbdRootVolumeData_) {
-        auto nbdExportId = MakeNbdExportId(Id_, nbdExportCount);
-        EmplaceOrCrash(nbdExportIds, nbdExportId);
-        ++nbdExportCount;
+        auto deviceId = MakeNbdExportId(Id_, nbdDeviceCount);
+        EmplaceOrCrash(nbdDeviceIds, deviceId);
+        ++nbdDeviceCount;
 
-        SandboxNbdRootVolumeData_->ExportId = nbdExportId;
+        SandboxNbdRootVolumeData_->DeviceId = deviceId;
     }
 
-    return nbdExportIds;
+    return nbdDeviceIds;
 }
 
 // Build artifacts.
@@ -3657,7 +3692,7 @@ void TJob::InitializeArtifacts()
 
     InitializeSandboxNbdRootVolumeData();
 
-    NbdExportIds_ = InitializeNbdExportIds();
+    NbdDeviceIds_ = InitializeNbdDeviceIds();
 
     // Mark artifacts that will be accessed via bind.
     for (auto& artifact : Artifacts_) {

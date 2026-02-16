@@ -359,12 +359,12 @@ func TestExtractCellTag(t *testing.T) {
 }
 
 func TestNewMaintenanceRequest(t *testing.T) {
-	req := NewMaintenanceRequest("gocms", "robot-yt-cms", "kernel reboot", map[string]interface{}{
+	req := NewMaintenanceRequest("gocms", "robot-yt-cms", "kernel reboot", map[string]any{
 		"walle_task_id": "production-6934348",
 	})
 	require.Equal(t, "gocms", req.ID)
 	require.False(t, time.Time(req.CreationTime).IsZero())
 	require.Equal(t, "robot-yt-cms", req.Issuer)
 	require.Equal(t, "kernel reboot", req.Comment)
-	require.Equal(t, "production-6934348", req.Extra.(map[string]interface{})["walle_task_id"])
+	require.Equal(t, "production-6934348", req.Extra.(map[string]any)["walle_task_id"])
 }

@@ -10,7 +10,7 @@ LICENSE(
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
 
-VERSION(25.3.13.19)
+VERSION(25.3.14.14)
 
 PEERDIR(
     contrib/clickhouse/base/poco/Foundation

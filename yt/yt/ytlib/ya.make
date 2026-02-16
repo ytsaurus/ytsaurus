@@ -59,6 +59,7 @@ SRCS(
     api/native/partition_tables.cpp
     api/native/pick_replica_session.cpp
     api/native/pipeline_type_handler.cpp
+    api/native/pool_weight_provider.cpp
     api/native/queue_producer_type_handler.cpp
     api/native/register_transaction_actions_request_factory.cpp
     api/native/replicated_table_replica_type_handler.cpp
@@ -370,7 +371,6 @@ SRCS(
     query_client/explain.cpp
     query_client/functions_cache.cpp
     query_client/session_coordinator.cpp
-    query_client/tracked_memory_chunk_provider.cpp
 
     queue_client/config.cpp
     queue_client/queue_consumer_init.cpp

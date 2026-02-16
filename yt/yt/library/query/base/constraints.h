@@ -4,7 +4,7 @@
 
 #include <yt/yt/library/query/engine_api/public.h>
 
-#include <yt/yt/library/query/misc/alloc.h>
+#include <yt/yt/library/query/misc/allocator.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/unversioned_row.h>

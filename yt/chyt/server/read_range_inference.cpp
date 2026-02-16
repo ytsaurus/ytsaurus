@@ -174,7 +174,7 @@ std::optional<ExpressionConvertionResult> ConnverterImpl(
                 // For example, both YT Timestamp (unsigned int) and Timestamp64 (signed int) types correspond to DateTime64(6),
                 // but at this step of the reverse conversion, DateTime64(6) must be dispatched to different ValueType
                 // in order for the constant node to be processed correctly.
-                result->DataType = ToDataType(*columnSchema, settings, /*isReadConversion*/ false);
+                result->DataType = ToDataType(*columnSchema, settings, /*isLowCardinality*/ false, /*isReadConversion*/ false);
                 result->ValueType = columnSchema->GetWireType();
             }
             break;

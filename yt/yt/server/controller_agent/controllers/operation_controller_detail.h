@@ -569,6 +569,9 @@ protected:
     NApi::ITransactionPtr DebugCompletionTransaction_;
     NApi::ITransactionPtr UserTransaction_;
 
+    // Ephemeral.
+    TClusterResolverPtr ClusterResolver_;
+
     bool CommitFinished_ = false;
 
     //! If this flag is set, operation clean start is done instead of revive.
@@ -702,6 +705,7 @@ protected:
     // Initialization.
     virtual void DoInitialize();
     virtual void InitializeClients();
+    void InitializeClusterResolver();
     void InitializeInputTransactions();
     NYTree::IAttributeDictionaryPtr CreateTransactionAttributes(ETransactionType transactionType) const;
     void StartTransactions();
@@ -718,6 +722,7 @@ protected:
     void InitAccountResourceUsageLeases();
     void ValidateCollectiveOptions();
     void ValidateSecureVault();
+    void ValidateOutputTablePaths() const;
 
     // Preparation.
     void ValidateInputTablesTypes() const override;
@@ -1014,8 +1019,8 @@ protected:
 
     void ValidateUserFileCount(const NScheduler::TUserJobSpecPtr& spec, const TString& operation);
 
-    const TExecNodeDescriptorMap& GetExecNodeDescriptors();
-    const TExecNodeDescriptorMap& GetOnlineExecNodeDescriptors();
+    const TExecNodeDescriptorMap& GetOnlineSuitableExecNodeDescriptors() const;
+    const TExecNodeDescriptorMap& GetSuitableExecNodeDescriptors() const;
 
     void UpdateExecNodes();
 
@@ -1212,8 +1217,8 @@ private:
     //! Exec node count do not consider schedufling tag.
     //! But descriptors do.
     int AvailableExecNodeCount_ = 0;
-    TRefCountedExecNodeDescriptorMapPtr ExecNodesDescriptors_ = New<NScheduler::TRefCountedExecNodeDescriptorMap>();
-    TRefCountedExecNodeDescriptorMapPtr OnlineExecNodesDescriptors_ = New<NScheduler::TRefCountedExecNodeDescriptorMap>();
+    TRefCountedExecNodeDescriptorMapPtr SuitableExecNodeDescriptors_ = New<NScheduler::TRefCountedExecNodeDescriptorMap>();
+    TRefCountedExecNodeDescriptorMapPtr OnlineSuitableExecNodeDescriptors_ = New<NScheduler::TRefCountedExecNodeDescriptorMap>();
 
     std::optional<TJobResources> CachedMaxAvailableExecNodeResources_;
 
@@ -1373,6 +1378,11 @@ private:
     //! the operation.
     TError OperationFailError_;
     NConcurrency::TDelayedExecutorCookie GracefulAbortTimeoutFailureCookie_;
+
+    // Monitoring doesn't work well with objects that suddenly run out of life time.
+    NProfiling::TCounter UsedMonitoringDescriptorCount_;
+
+    NScheduler::TSchedulingTagFilter FinalSchedulingTagFilter_;
 
     void AccountExternalScheduleAllocationFailures() const;
 
@@ -1541,9 +1551,6 @@ private:
     void BuildBriefProgress(NYTree::TFluentMap fluent) const;
     void BuildJobsYson(NYTree::TFluentMap fluent) const;
     void BuildRetainedFinishedJobsYson(NYTree::TFluentMap fluent) const;
-
-    // Monitoring doesn't work well with objects that suddenly run out of life time.
-    NProfiling::TCounter UsedMonitoringDescriptorCount_;
 
     PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TOperationControllerBase, 0x6715254c);

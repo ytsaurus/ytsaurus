@@ -65,6 +65,7 @@ message TRspStartChunk
     // COMPAT(kvk1920): Make this field required.
     optional NYT.NProto.TGuid location_uuid = 1;
     optional bool use_probe_put_blocks = 2 [default = false];
+    optional uint32 location_index = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -335,6 +336,9 @@ message TReqGetChunkFragmentSet
     required NYT.NProto.TGuid read_session_id = 1;
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 2;
     optional bool use_direct_io = 4;
+
+    optional bool read_and_cache_whole_blocks = 5;
+    optional int32 block_count_to_precache = 6;
 
     message TSubrequest
     {

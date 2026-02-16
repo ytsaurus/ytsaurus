@@ -858,8 +858,8 @@ public:
             const auto& bundle = table->TabletCellBundle();
 
             if (dynamicConfig->EnableClockCellTagValidationOnChaosReplicaMount && bundle->GetOptions()->ClockClusterTag == InvalidCellTag) {
-                THROW_ERROR_EXCEPTION("Chaos replicas should be part of tablet cell bundle configured with relevant clock cell tag."
-                    " Please reconfigure bundle or move table to bundle properly configured with respect to clock source.");
+                THROW_ERROR_EXCEPTION("Chaos replicas should be part of tablet cell bundle configured with relevant clock cell tag;"
+                    " Please reconfigure bundle or move table to bundle properly configured with respect to clock source");
             }
         }
 
@@ -3505,6 +3505,7 @@ private:
         TReqMountHunkTablet request;
         ToProto(request.mutable_tablet_id(), tablet->GetId());
         request.set_mount_revision(ToProto(tablet->Servant().GetMountRevision()));
+        request.set_path(tablet->GetOwner()->GetMountPath());
 
         MaybeSetTabletAvenueEndpointId(tablet, cell->GetId(), &request);
 
@@ -3590,6 +3591,34 @@ private:
         hiveManager->PostMessage(mailbox, req);
     }
 
+    bool ShouldAllocateDynamicStoreForSmoothMovement(TTablet* tablet) const
+    {
+        // Smooth movement initiates store rotation. If DSR is enabled, we should
+        // send dynamic store id so that rotation succeeds. However, ordered
+        // tablet will not perform rotation if active store is empty. If there
+        // are too many dynamic stores in the chunk list then likely they correspond
+        // to the id pool and not to real dynamic stores, so we do not send extra
+        // dynamic stores in this case. If the pool happens to be empty,
+        // movement will fail on the node side.
+        const auto* table = tablet->GetTable();
+
+        if (!IsDynamicStoreReadEnabled(table, GetDynamicConfig())) {
+            return false;
+        }
+
+        if (!table->IsPhysicallySorted() &&
+            ssize(tablet->DynamicStores()) >= DynamicStoreIdPoolSize + 1)
+        {
+            YT_LOG_DEBUG("Ordered tablet has enough dynamic stores, will not send "
+                "dynamic store id for smooth movement (TabletId: %v, DynamicStoreCount: %v)",
+                tablet->GetId(),
+                ssize(tablet->DynamicStores()));
+            return false;
+        }
+
+        return true;
+    }
+
     void StartSmoothMovement(TTabletBase* tablet, TTabletCell* cell) override
     {
         YT_VERIFY(tablet->AuxiliaryServant().GetCell() == cell);
@@ -3603,10 +3632,7 @@ private:
             req.mutable_source_avenue_endpoint_id(),
             tablet->GetTabletwiseAvenueEndpointId());
 
-        if (IsDynamicStoreReadEnabled(
-            tablet->GetOwner()->As<TTableNode>(),
-            GetDynamicConfig()))
-        {
+        if (ShouldAllocateDynamicStoreForSmoothMovement(tablet->As<TTablet>())) {
             auto* dynamicStore = TabletChunkManager_->CreateDynamicStore(
                 tablet->As<TTablet>());
             AttachDynamicStoreToTablet(tablet->As<TTablet>(), dynamicStore);

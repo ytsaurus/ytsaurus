@@ -2313,6 +2313,19 @@ void TPoolTreeOperationElement::ReleaseResources(bool markAsNonAlive)
     TreeElementHost_->GetResourceTree()->ReleaseResources(ResourceTreeElement_, markAsNonAlive);
 }
 
+EResourceTreeIncreasePreemptedResult TPoolTreeOperationElement::TryIncreaseHierarchicalPreemptedResourceUsagePrecommit(const TJobResources& delta, std::string* violatedIdOutput)
+{
+    return TreeElementHost_->GetResourceTree()->TryIncreaseHierarchicalPreemptedResourceUsagePrecommit(
+        ResourceTreeElement_,
+        delta,
+        violatedIdOutput);
+}
+
+bool TPoolTreeOperationElement::CommitHierarchicalPreemptedResourceUsage(const TJobResources& delta)
+{
+    return TreeElementHost_->GetResourceTree()->CommitHierarchicalPreemptedResourceUsage(ResourceTreeElement_, delta);
+}
+
 void TPoolTreeOperationElement::InitializeResourceUsageAndDemand()
 {
     auto detailedResourceUsage = GetInstantDetailedResourceUsage();

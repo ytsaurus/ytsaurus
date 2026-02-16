@@ -1022,16 +1022,18 @@ private:
             delta->State = EMasterConnectorState::Registered;
         }
 
-        // TODO(grphil): YT-26685 load master cell tags after initial registration request from node. This check should be executed there as well
         if (GetDynamicConfig()->CheckChunksCellTagsBeforeHeartbeats) {
            YT_UNUSED_FUTURE(
-                BIND([this, this_ = MakeStrong(this), masterCellTags] {
-                    auto syncResultOrError = WaitFor(Bootstrap_->GetConnection()->GetMasterCellDirectorySynchronizer()->RecentSync());
-                    if (!syncResultOrError.IsOK()) {
-                        YT_LOG_ALERT(syncResultOrError, "Failed to synchronize master cell directory when data node heartbeats have started");
+                BIND([this, weakThis = MakeWeak(this), masterCellTags] {
+                    if (auto this_ = weakThis.Lock()) {
+                        if (GetDynamicConfig()->ForceSyncMasterCellDirectoryBeforeCheckChunks) {
+                            auto syncResultOrError = WaitFor(Bootstrap_->GetConnection()->GetMasterCellDirectorySynchronizer()->RecentSync());
+                            if (!syncResultOrError.IsOK()) {
+                                YT_LOG_ALERT(syncResultOrError, "Failed to synchronize master cell directory when data node heartbeats have started");
+                            }
+                        }
+                        Bootstrap_->GetChunkStore()->CheckAllChunksHaveValidCellTags(masterCellTags);
                     }
-
-                    Bootstrap_->GetChunkStore()->CheckAllChunksHaveValidCellTags(masterCellTags);
                 }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
                 .Run());
         }
@@ -1621,7 +1623,7 @@ private:
                 chunkInfo.set_location_index(ToProto(chunk->GetLocation()->GetIndex()));
             } else {
                 YT_LOG_ALERT(
-                    "Location index is not set, using location directory for data node heartbeat (LocationUuid: %v, chunkId: %v)",
+                    "Location index is not set, using location directory for data node heartbeat (LocationUuid: %v, ChunkId: %v)",
                     locationUuid,
                     chunk->GetId());
                 chunkInfo.set_location_directory_index(locationDirectory->GetOrCreateIndex(locationUuid));
@@ -1747,18 +1749,22 @@ private:
 
         auto* delta = FindChunksDelta(chunk->GetId());
         if (!delta) {
-            YT_LOG_ALERT("Chunk from unknown cell was added (ChunkId: %v, LocationId: %v, CellTag: %v)",
+            YT_LOG_ALERT("Chunk from unknown cell was added (ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v, CellTag: %v)",
                 chunk->GetId(),
                 chunk->GetLocation()->GetId(),
+                chunk->GetLocation()->GetUuid(),
+                chunk->GetLocation()->GetIndex(),
                 CellTagFromId(chunk->GetId()));
             return;
         }
         delta->RemovedSinceLastSuccess.erase(chunk);
         delta->AddedSinceLastSuccess.insert(chunk);
 
-        YT_LOG_DEBUG("Chunk addition registered (ChunkId: %v, LocationId: %v)",
+        YT_LOG_DEBUG("Chunk addition registered (ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v)",
             chunk->GetId(),
-            chunk->GetLocation()->GetId());
+            chunk->GetLocation()->GetId(),
+            chunk->GetLocation()->GetUuid(),
+            chunk->GetLocation()->GetIndex());
     }
 
     void OnChunkRemoved(const IChunkPtr& chunk)
@@ -1787,9 +1793,11 @@ private:
 
         Bootstrap_->GetDataNodeBootstrap()->GetChunkMetaManager()->GetBlockMetaCache()->TryRemove(chunk->GetId());
 
-        YT_LOG_DEBUG("Chunk removal registered (ChunkId: %v, LocationId: %v)",
+        YT_LOG_DEBUG("Chunk removal registered (ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v)",
             chunk->GetId(),
-            chunk->GetLocation()->GetId());
+            chunk->GetLocation()->GetId(),
+            chunk->GetLocation()->GetUuid(),
+            chunk->GetLocation()->GetIndex());
     }
 
     void OnChunkMediumChanged(const IChunkPtr& chunk, int mediumIndex)

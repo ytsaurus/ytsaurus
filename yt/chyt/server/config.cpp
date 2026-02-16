@@ -12,11 +12,12 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCompositeSettingsPtr TCompositeSettings::Create(bool convertUnsupportedTypesToString, bool enableComplexNullConverison)
+TCompositeSettingsPtr TCompositeSettings::Create(bool convertUnsupportedTypesToString, bool enableComplexNullConverison, ELowCardinalityMode lowCardinalityMode)
 {
     auto settings = New<TCompositeSettings>();
     settings->ConvertUnsupportedTypesToString = convertUnsupportedTypesToString;
     settings->EnableComplexNullConverison = enableComplexNullConverison;
+    settings->LowCardinalityMode = lowCardinalityMode;
     return settings;
 }
 
@@ -30,6 +31,15 @@ void TCompositeSettings::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_complex_null_conversion", &TThis::EnableComplexNullConverison)
         .Default(true);
+
+    registrar.Parameter("low_cardinality_mode", &TThis::LowCardinalityMode)
+        .Default(ELowCardinalityMode::None);
+
+    registrar.Parameter("low_cardinality_threshold", &TThis::LowCardinalityThreshold)
+        .Default(100);
+
+    registrar.Parameter("low_cardinality_regexp", &TThis::LowCardinalityRegExp)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -59,11 +69,6 @@ void TDynamicTableSettings::Register(TRegistrar registrar)
 
 void TTestingSettings::Register(TRegistrar registrar)
 {
-    registrar.Parameter("enable_key_condition_filtering", &TThis::EnableKeyConditionFiltering)
-        .Default(true);
-    registrar.Parameter("make_upper_bound_inclusive", &TThis::MakeUpperBoundInclusive)
-        .Default(true);
-
     registrar.Parameter("throw_exception_in_distributor", &TThis::ThrowExceptionInDistributor)
         .Default(false);
     registrar.Parameter("throw_exception_in_subquery", &TThis::ThrowExceptionInSubquery)
@@ -77,9 +82,6 @@ void TTestingSettings::Register(TRegistrar registrar)
     registrar.Parameter("local_clique_size", &TThis::LocalCliqueSize)
         .Default(0);
 
-    registrar.Parameter("check_chyt_banned", &TThis::CheckChytBanned)
-        .Default(true);
-
     registrar.Parameter("chunk_spec_fetcher_breakpoint", &TThis::ChunkSpecFetcherBreakpoint)
         .Default();
     registrar.Parameter("input_stream_factory_breakpoint", &TThis::InputStreamFactoryBreakpoint)
@@ -89,6 +91,8 @@ void TTestingSettings::Register(TRegistrar registrar)
     registrar.Parameter("list_dirs_breakpoint", &TThis::ListDirsBreakpoint)
         .Default();
     registrar.Parameter("source_generate_call_breakpoint", &TThis::SourceGenerateCallBreakpoint)
+        .Default();
+    registrar.Parameter("drop_table_breakpoint", &TThis::DropTableBreakpoint)
         .Default();
 }
 
@@ -226,6 +230,11 @@ void TPrewhereSettings::Register(TRegistrar registrar)
 
 void TQuerySettings::Register(TRegistrar registrar)
 {
+    registrar.Parameter("enable_key_condition_filtering", &TThis::EnableKeyConditionFiltering)
+        .Default(true);
+    registrar.Parameter("make_upper_bound_inclusive", &TThis::MakeUpperBoundInclusive)
+        .Default(true);
+
     registrar.Parameter("enable_columnar_read", &TThis::EnableColumnarRead)
         .Default(true);
 
@@ -283,6 +292,9 @@ void TQuerySettings::Register(TRegistrar registrar)
 
     registrar.Parameter("prewhere", &TThis::Prewhere)
         .DefaultNew();
+
+    registrar.Parameter("storage_conflict_resolve_mode", &TThis::StorageConflictResolveMode)
+        .Default(EStorageConflictResolveMode::Throw);
 
     registrar.Preprocessor([] (TThis* config) {
         config->TableReader->GroupSize = 20_MB;
@@ -543,6 +555,9 @@ void TYtConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("client_cache", &TThis::ClientCache)
         .DefaultNew();
+
+    registrar.Parameter("check_chyt_banned", &TThis::CheckChytBanned)
+        .Default(true);
 
     registrar.Parameter("user_agent_blacklist", &TThis::UserAgentBlacklist)
         .Default();

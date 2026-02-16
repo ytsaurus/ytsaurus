@@ -20,6 +20,8 @@
 #include <yt/yt/server/lib/controller_agent/helpers.h>
 #include <yt/yt/server/lib/controller_agent/statistics.h>
 
+#include <yt/yt/server/lib/job_proxy/events_on_fs.h>
+
 #include <yt/yt/server/lib/exec_node/proto/supervisor_service.pb.h>
 
 #include <yt/yt/server/lib/rpc_proxy/access_checker.h>
@@ -765,6 +767,7 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
     }
 
     ApiServiceThreadPool_ = CreateThreadPool(rpcProxyWorkerThreadPoolSize, "RpcProxy");
+    auto apiInvoker = ApiServiceThreadPool_->GetInvoker();
 
     auto signatureGenerator = New<TProxySignatureGenerator>(*SupervisorProxy_, JobId_);
     connection->SetSignatureGenerator(std::move(signatureGenerator));
@@ -783,7 +786,7 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
 
         auto localServerAddress = BuildServiceAddress(NNet::GetLocalHostName(), *Config_->BusServer->Port);
         auto shuffleService = CreateShuffleService(
-            ApiServiceThreadPool_->GetInvoker(),
+            apiInvoker,
             rootClient,
             localServerAddress);
         PublicRpcServer_->RegisterService(std::move(shuffleService));
@@ -803,9 +806,8 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
 
     auto apiService = CreateApiService(
         Config_->JobProxyApiServiceStatic,
-        GetControlInvoker(),
-        ApiServiceThreadPool_->GetInvoker(),
-        ApiServiceThreadPool_->GetInvoker(),
+        apiInvoker,
+        [=] (const std::string&, const TFairShareThreadPoolTag&) { return apiInvoker; },
         connection,
         authenticationManager->GetRpcAuthenticator(),
         proxyCoordinator,
@@ -1098,6 +1100,15 @@ TJobResult TJobProxy::RunJob()
         environment->StartSidecars(GetJobSpecHelper()->GetJobSpecExt());
     }
 
+    if (auto eventsOnFsConfig = Config_->JobTestingOptions->EventsOnFs) {
+        WaitFor(
+            GetBreakpointEvent(
+                eventsOnFsConfig,
+                JobId_,
+                EBreakpointType::BeforeRun))
+            .ThrowOnError();
+    }
+
     return job->Run();
 }
 
@@ -1204,17 +1215,17 @@ void TJobProxy::ReportResult(
 
 void TJobProxy::InitializeChunkReaderHost()
 {
-    auto bandwidthThrottlerFactory = BIND([this, weakThis = MakeWeak(this)] (const TClusterName& clusterName) {
-        auto thisLocked = weakThis.Lock();
-        if (!thisLocked) {
-            return IThroughputThrottlerPtr();
-        }
+    auto bandwidthThrottlerProvider = BIND([this, weakThis = MakeWeak(this)] (const TClusterName& clusterName) -> TPerCategoryThrottlerProvider {
+        return BIND([=, this] (EWorkloadCategory /*category*/) -> IThroughputThrottlerPtr {
+            auto this_ = weakThis.Lock();
+            if (!this_) {
+                return GetUnlimitedThrottler();
+            }
 
-        if (JobSpecHelper_->GetJobSpecExt().use_cluster_throttlers()) {
-            return GetInBandwidthThrottler(clusterName);
-        }
-
-        return GetInBandwidthThrottler(LocalClusterName);
+            return JobSpecHelper_->GetJobSpecExt().use_cluster_throttlers()
+                ? GetInBandwidthThrottler(clusterName)
+                : GetInBandwidthThrottler(LocalClusterName);
+        });
     });
 
     std::vector<TMultiChunkReaderHost::TClusterContext> clusterContextList{
@@ -1249,18 +1260,17 @@ void TJobProxy::InitializeChunkReaderHost()
             });
     }
 
-    MultiChunkReaderHost_ = CreateMultiChunkReaderHost(
+    MultiChunkReaderHost_ = New<TMultiChunkReaderHost>(
         New<TChunkReaderHost>(
             Client_,
             LocalDescriptor_,
             ReaderBlockCache_,
             /*chunkMetaCache*/ nullptr,
-            /*nodeStatusDirectory*/ nullptr,
-            bandwidthThrottlerFactory(LocalClusterName),
+            bandwidthThrottlerProvider(LocalClusterName),
             GetOutRpsThrottler(),
-            /*mediumThrottler*/ GetUnlimitedThrottler(),
+            /*mediumThrottler*/ nullptr,
             GetTrafficMeter()),
-        std::move(bandwidthThrottlerFactory),
+        bandwidthThrottlerProvider,
         clusterContextList);
 }
 
@@ -1367,6 +1377,21 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
             statistics.AddSample(
                 "/latency/output/total/min_time_to_first_read_batch"_SP,
                 minOutputTimeToFirstBatch);
+        }
+
+        for (const auto& [index, timingStatistics] : SEnumerate(extendedStatistics.WriterTimingStatistics)) {
+            statistics.AddSample(
+                "/chunk_writer_statistics"_SP / TStatisticPathLiteral(ToString(index)) / "write_time"_L,
+                timingStatistics.WriteTime);
+            statistics.AddSample(
+                "/chunk_writer_statistics"_SP / TStatisticPathLiteral(ToString(index)) / "wait_time"_L,
+                timingStatistics.WaitTime);
+            statistics.AddSample(
+                "/chunk_writer_statistics"_SP / TStatisticPathLiteral(ToString(index)) / "idle_time"_L,
+                timingStatistics.IdleTime);
+            statistics.AddSample(
+                "/chunk_writer_statistics"_SP / TStatisticPathLiteral(ToString(index)) / "close_time"_L,
+                timingStatistics.CloseTime);
         }
     }
 

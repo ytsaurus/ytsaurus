@@ -26,6 +26,11 @@ struct TBundleProfilingCounters
     NProfiling::TCounter BasicTableAttributesRequestCount;
     NProfiling::TCounter ActualTableSettingsRequestCount;
     NProfiling::TCounter TableStatisticsRequestCount;
+    NProfiling::TCounter DirectStateRequest;
+    NProfiling::TCounter DirectStatisticsRequest;
+    NProfiling::TCounter DirectPerformanceCountersRequest;
+    NProfiling::TCounter StateRequestThrottled;
+    NProfiling::TCounter StatisticsRequestThrottled;
 
     explicit TBundleProfilingCounters(const NProfiling::TProfiler& profiler);
 };
@@ -34,6 +39,8 @@ DEFINE_REFCOUNTED_TYPE(TBundleProfilingCounters)
 
 struct TBundleSnapshot final
 {
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, PublishedObjectLock);
+
     TTabletCellBundlePtr Bundle;
     bool ReplicaBalancingFetchFailed = false;
     std::vector<std::string> PerformanceCountersKeys;
@@ -70,7 +77,7 @@ struct IBundleState
 
     virtual void Reconfigure(TBundleStateProviderConfigPtr config) = 0;
 
-    virtual TBundleTabletBalancerConfigPtr GetConfig() const = 0;
+    virtual TFuture<TBundleTabletBalancerConfigPtr> GetConfig(bool allowStale) = 0;
     virtual NTabletClient::ETabletCellHealth GetHealth() const = 0;
     virtual std::vector<TTabletActionId> GetUnfinishedActions() const = 0;
 };
@@ -86,6 +93,7 @@ IBundleStatePtr CreateBundleState(
     IInvokerPtr controlInvoker,
     TBundleStateProviderConfigPtr config,
     IClusterStateProviderPtr clusterStateProvider,
+    IMulticellThrottlerPtr throttler,
     const NYTree::IAttributeDictionary* initialAttributes);
 
 ////////////////////////////////////////////////////////////////////////////////

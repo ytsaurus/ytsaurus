@@ -58,8 +58,8 @@ THorizontalBlockReader::THorizontalBlockReader(
     const NProto::TDataBlockMeta& meta,
     const std::vector<bool>& compositeColumnFlags,
     const std::vector<bool>& hunkColumnFlags,
-    const std::vector<THunkChunkRef>& hunkChunkRefs,
-    const std::vector<THunkChunkMeta>& hunkChunkMetas,
+    const std::vector<THunkChunkRef>* hunkChunkRefs,
+    const std::vector<THunkChunkMeta>* hunkChunkMetas,
     const std::vector<int>& chunkToReaderIdMapping,
     TRange<ESortOrder> sortOrders,
     int commonKeyPrefix,
@@ -203,8 +203,8 @@ TMutableUnversionedRow THorizontalBlockReader::GetRow(TChunkedMemoryPool* memory
             YT_VERIFY(GetChunkKeyColumnCount() <= value.Id);
             GlobalizeHunkValueAndSetHunkFlag(
                 memoryPool,
-                HunkChunkRefs_,
-                HunkChunkMetas_,
+                *HunkChunkRefs_,
+                *HunkChunkMetas_,
                 &value);
             if (DecodeInlineHunkValues_) {
                 if (!TryDecodeInlineHunkValue(&value)) {
@@ -287,8 +287,8 @@ TMutableVersionedRow THorizontalBlockReader::GetVersionedRow(
             YT_VERIFY(GetChunkKeyColumnCount() <= value.Id);
             GlobalizeHunkValueAndSetHunkFlag(
                 memoryPool,
-                HunkChunkRefs_,
-                HunkChunkMetas_,
+                *HunkChunkRefs_,
+                *HunkChunkMetas_,
                 &value);
             if (DecodeInlineHunkValues_) {
                 if (!TryDecodeInlineHunkValue(&value)) {

@@ -1,8 +1,9 @@
 #include "job_workspace_builder.h"
-#include "allocation.h"
-#include "slot.h"
 
+#include "allocation.h"
 #include "job_gpu_checker.h"
+#include "slot.h"
+#include "volume.h"
 
 #include <yt/yt/server/lib/exec_node/helpers.h>
 
@@ -590,7 +591,8 @@ private:
                                             YT_LOG_DEBUG("Root volume prepared");
                                             SetNowTime(TimePoints_.PrepareRootVolumeFinishTime);
                                         })
-                                        .AsyncVia(Invoker_));
+                                        .AsyncVia(Invoker_))
+                                    .ToUncancelable();
 
                         })
                         .AsyncVia(Invoker_));
@@ -701,19 +703,25 @@ private:
         auto slotPath = slot->GetSlotPath();
         if (Context_.RootVolume && !Context_.UserSandboxOptions.EnableRootVolumeDiskQuota) {
             return slot->RbindRootVolume(Context_.RootVolume, slotPath)
-                .Apply(BIND([slot, this, this_ = MakeStrong(this)] (const TErrorOr<IVolumePtr>& volumeOrError) {
-                    Context_.RootVolume.Reset();
+                .Apply(BIND(
+                    [
+                        slot,
+                        this,
+                        this_ = MakeStrong(this)
+                    ] (const TErrorOr<IVolumePtr>& volumeOrError) {
+                        Context_.RootVolume.Reset();
 
-                    if (!volumeOrError.IsOK()) {
-                        YT_LOG_WARNING(volumeOrError, "Failed to prepare root volume");
+                        if (!volumeOrError.IsOK()) {
+                            YT_LOG_WARNING(volumeOrError, "Failed to prepare root volume");
 
-                        THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::RootVolumePreparationFailed, "Failed to prepare root volume")
-                            << volumeOrError;
-                    }
+                            THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::RootVolumePreparationFailed, "Failed to prepare root volume")
+                                << volumeOrError;
+                        }
 
-                    ResultHolder_.RootVolume = std::move(volumeOrError.Value());
-            }).AsyncVia(Invoker_))
-            .ToImmediatelyCancelable();
+                        ResultHolder_.RootVolume = std::move(volumeOrError.Value());
+                    })
+                    .AsyncVia(Invoker_))
+                .ToImmediatelyCancelable();
         } else {
             ResultHolder_.RootVolume = std::move(Context_.RootVolume);
             YT_LOG_DEBUG("Root volume binding is not needed");

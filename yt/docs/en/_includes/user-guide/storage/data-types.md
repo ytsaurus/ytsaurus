@@ -71,12 +71,12 @@ The table lists the supported types and their representation in the `type`/`type
 | an integer in the range `[0, 49673 * 86400 - 1]`, <br> represents the number of seconds from the Unix epoch; <br> representable time range: `[1970-01-01T00:00:00Z, 2105-12-31T23:59:59Z]`  <br> see the section about [temporal types](#temporal_types) | `datetime` | `datetime` |
 | an integer in the range `[0, 49673 * 86400 * 10^6 - 1]`, <br> represents the number of microseconds from the Unix epoch; <br> representable time range: `[1970-01-01T00:00:00Z, 2105-12-31T23:59:59.999999Z]`  <br> see the section about [temporal types](#temporal_types) | `timestamp` | `timestamp` |
 | an integer in the range `[- 49673 * 86400 * 10^6 + 1, 49673 * 86400 * 10^6 - 1]`, <br> represents the number of microseconds between two `timestamp` timestamps <br> see the section about [temporal types](#temporal_types) | `interval` | `interval` |
-| *(added in version 25.3)* type `date` with time zone information <br> see the section about [time zones](#time_zones) | tz_date | tz_date |
-| *(added in version 25.3)* type `datetime` with time zone information <br> see the section about [time zones](#time_zones) | tz_datetime | tz_datetime |
-| *(added in version 25.3)* type `timestamp` with time zone information <br> see the section about [time zones](#time_zones) | tz_timestamp | tz_timestamp |
-| *(added in version 25.3)* type `date32` with time zone information <br> see the section about [time zones](#time_zones) | tz_date32 | tz_date32 |
-| *(added in version 25.3)* type `datetime64` with time zone information <br> see the section about [time zones](#time_zones) | tz_datetime64 | tz_datetime |
-| *(added in version 25.3)* type `timestamp64` with time zone information <br> see the section about [time zones](#time_zones) | tz_timestamp64 | tz_timestamp64 |
+| *(experimental, do not use in production)* type `date` with time zone information <br> see the section about [time zones](#time_zones) | tz_date | tz_date |
+| *(experimental, do not use in production)* type `datetime` with time zone information <br> see the section about [time zones](#time_zones) | tz_datetime | tz_datetime |
+| *(experimental, do not use in production)* type `timestamp` with time zone information <br> see the section about [time zones](#time_zones) | tz_timestamp | tz_timestamp |
+| *(experimental, do not use in production)* type `date32` with time zone information <br> see the section about [time zones](#time_zones) | tz_date32 | tz_date32 |
+| *(experimental, do not use in production)* type `datetime64` with time zone information <br> see the section about [time zones](#time_zones) | tz_datetime64 | tz_datetime |
+| *(experimental, do not use in production)* type `timestamp64` with time zone information <br> see the section about [time zones](#time_zones) | tz_timestamp64 | tz_timestamp64 |
 | An arbitrary YSON structure<br> that is physically represented as a byte sequence, <br> cannot have a `required=%true` attribute | `any` | `yson` (different from `type`) |
 | a system singular type that can only contain `null` <br> (creating a separate column with this type makes no sense; <br> we don't expect to see this type in user tables, <br> but it's useful for YQL integration) | `null` | `null` |
 | a singular type that can only contain `null`; this type is different from `null` <br> (creating a separate column with this type makes no sense; <br> we don't expect to see this type in user tables, <br> but it's useful for YQL integration) | `void` | `void` |
@@ -100,6 +100,8 @@ Temporal types in {{product-name}} are categorized into two groups. Historicall
 The Gregorian calendar should be used for all of the temporal types. When dealing with values in the distant past, note that {{product-name}} in no way accounts for the [transition to the Gregorian calendar](https://en.wikipedia.org/wiki/Adoption_of_the_Gregorian_calendar), which occurred in different countries at different times: YT assumes that the Gregorian calendar has always been in use.
 
 ### Time zones { #time_zones }
+
+**Important:** types described in this section are experimental and their storage format is the subject to change. **Do not use them for production**.
 
 Types `tz_timestamp64`, `tz_datetime64`, `tz_date32`, `tz_timestamp`, `tz_datetime`, and `tz_date` store time information incorporating time zone details. Logically, these types store the pair:
   - A timestamp, an integer from the corresponding "no time zone" type, representing a point in time in [UTC](https://en.wikipedia.org/wiki/Coordinated_Universal_Time).

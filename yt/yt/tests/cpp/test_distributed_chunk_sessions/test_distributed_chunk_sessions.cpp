@@ -108,8 +108,8 @@ protected:
         auto reader = CreateSchemalessSequentialMultiReader(
             New<TTableReaderConfig>(),
             New<NTableClient::TTableReaderOptions>(),
-            NChunkClient::CreateSingleSourceMultiChunkReaderHost(
-                NChunkClient::TChunkReaderHost::FromClient(DynamicPointerCast<NNative::IClient>(Client_))),
+            New<TMultiChunkReaderHost>(
+                New<NChunkClient::TChunkReaderHost>(DynamicPointerCast<NNative::IClient>(Client_))),
             dataSourceDirectory,
             dataSlices,
             /*hintKeyPrefixes*/ std::nullopt,

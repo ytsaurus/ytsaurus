@@ -1365,7 +1365,6 @@ TEST(TArrowParserTest, InvalidEmptyStruct)
         "YT \"struct\" type has no fields, but no metadata found with the key");
 }
 
-
 TEST(TArrowParserTest, IncorrectInput)
 {
     auto tableSchema = New<TTableSchema>(std::vector{

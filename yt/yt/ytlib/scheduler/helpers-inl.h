@@ -6,6 +6,8 @@
 
 namespace NYT::NScheduler {
 
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TProtoDiskRequest>
 void FromProto(TNbdDiskRequest* diskRequestConfig, const TProtoDiskRequest& protoDiskRequestConfig)
 {
@@ -19,7 +21,6 @@ void FromProto(TNbdDiskRequest* diskRequestConfig, const TProtoDiskRequest& prot
         FromProto(static_cast<TDiskRequestConfig*>(diskRequestConfig), protoDiskRequestConfig);
         FromProto(&(*diskRequestConfig->NbdDisk), protoDiskRequestConfig.nbd_disk());
     }
-
 }
 
 template <class TProtoDiskRequest>
@@ -33,7 +34,6 @@ void ToProto(TProtoDiskRequest* protoDiskRequestConfig, const TNbdDiskRequest& d
         ToProto(protoDiskRequestConfig, static_cast<const TDiskRequestConfig&>(diskRequestConfig));
         ToProto(protoDiskRequestConfig->mutable_nbd_disk(), *diskRequestConfig.NbdDisk);
     }
-
 }
 
 template <class TProtoDiskRequest>
@@ -107,5 +107,7 @@ void ToProto(TProtoDiskRequest* protoDiskRequestConfig, const TStorageRequestBas
 {
     protoDiskRequestConfig->set_disk_space(diskRequestConfig.DiskSpace);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler

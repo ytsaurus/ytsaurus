@@ -2185,14 +2185,12 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSchedulingTagFilters)
             module,
             TestNodeResources,
             TestSingleMediumDiskResources,
-            TBooleanFormulaTags(THashSet<std::string>({"a"}))
-        ),
+            TBooleanFormulaTags(THashSet<std::string>({"a"}))),
         CreateTestNode(
             module,
             TestNodeResources,
             TestSingleMediumDiskResources,
-            TBooleanFormulaTags(THashSet<std::string>({"b"}))
-        ),
+            TBooleanFormulaTags(THashSet<std::string>({"b"}))),
     };
     std::vector<TOperationPtr> operations = {
         CreateFullHostTestOperation(

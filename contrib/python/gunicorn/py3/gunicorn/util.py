@@ -46,14 +46,25 @@ hop_headers = set("""
     server date
     """.split())
 
-try:
-    from setproctitle import setproctitle
-
-    def _setproctitle(title):
-        setproctitle("gunicorn: %s" % title)
-except ImportError:
+# setproctitle causes segfaults on macOS due to fork() safety issues
+# https://github.com/benoitc/gunicorn/issues/3021
+if sys.platform == "darwin":
     def _setproctitle(title):
         pass
+else:
+    try:
+        from setproctitle import setproctitle, getproctitle
+
+        # Force early initialization before any os.environ modifications
+        # (e.g. removing LISTEN_FDS in systemd socket activation)
+        # https://github.com/benoitc/gunicorn/issues/3430
+        getproctitle()
+
+        def _setproctitle(title):
+            setproctitle("gunicorn: %s" % title)
+    except ImportError:
+        def _setproctitle(title):
+            pass
 
 
 def load_entry_point(distribution, group, name):
@@ -146,10 +157,6 @@ def set_owner_process(uid, gid, initgroups=False):
                 username = get_username(uid)
             except KeyError:
                 initgroups = False
-
-        # versions of python < 2.6.2 don't manage unsigned int for
-        # groups like on osx or fedora
-        gid = abs(gid) & 0x7FFFFFFF
 
         if initgroups:
             os.initgroups(username, gid)

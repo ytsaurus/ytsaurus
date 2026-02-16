@@ -251,10 +251,9 @@ public:
                 /*localDescriptor*/ NNodeTrackerClient::TNodeDescriptor{},
                 std::move(layerBlockCache),
                 connection->GetChunkMetaCache(),
-                /*nodeStatusDirectory*/ nullptr,
-                /*bandwidthThrottler*/ GetUnlimitedThrottler(),
-                /*rpsThrottler*/ GetUnlimitedThrottler(),
-                /*mediumThrottler*/ GetUnlimitedThrottler(),
+                MakeUniformPerCategoryThrottlerProvider(GetDefaultInThrottler()),
+                GetReadRpsOutThrottler(),
+                /*mediumThrottler*/ nullptr,
                 /*trafficMeter*/ nullptr);
 
             auto fileBlockCache = CreateClientBlockCache(
@@ -267,10 +266,9 @@ public:
                 /*localDescriptor*/ NNodeTrackerClient::TNodeDescriptor{},
                 std::move(fileBlockCache),
                 connection->GetChunkMetaCache(),
-                /*nodeStatusDirectory*/ nullptr,
-                /*bandwidthThrottler*/ GetUnlimitedThrottler(),
-                /*rpsThrottler*/ GetUnlimitedThrottler(),
-                /*mediumThrottler*/ GetUnlimitedThrottler(),
+                MakeUniformPerCategoryThrottlerProvider(GetDefaultInThrottler()),
+                GetReadRpsOutThrottler(),
+                /*mediumThrottler*/ nullptr,
                 /*trafficMeter*/ nullptr);
         }
 

@@ -135,7 +135,7 @@ PEERDIR(
     contrib/ydb/core/io_formats/ydb_dump
     contrib/ydb/core/kesus/tablet
     contrib/ydb/core/kqp/common
-    contrib/ydb/core/kqp/session_actor
+    contrib/ydb/core/kqp/opt
     contrib/ydb/core/protos
     contrib/ydb/core/scheme
     contrib/ydb/core/sys_view
@@ -148,6 +148,7 @@ PEERDIR(
     contrib/ydb/core/ydb_convert
     contrib/ydb/core/security
     contrib/ydb/core/security/ldap_auth_provider
+    contrib/ydb/core/security/sasl
     contrib/ydb/library/aclib
     yql/essentials/types/binary_json
     yql/essentials/types/dynumber
@@ -167,6 +168,19 @@ PEERDIR(
     contrib/ydb/public/sdk/cpp/src/client/resources
     contrib/ydb/services/ext_index/common
 )
+
+IF (OS_LINUX)
+    SRCS(
+        rpc_nbs.cpp
+        rpc_nbs_io.cpp
+    )
+    PEERDIR(
+        contrib/ydb/core/nbs/cloud/blockstore/libs/service
+        contrib/ydb/core/nbs/cloud/blockstore/libs/storage/partition_direct
+        contrib/ydb/core/nbs/cloud/blockstore/public/api/protos
+        contrib/ydb/core/nbs/cloud/storage/core/libs/common
+    )
+ENDIF()
 
 YQL_LAST_ABI_VERSION()
 

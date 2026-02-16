@@ -77,7 +77,7 @@ private:
 
 struct TStartedCompactionTask
 {
-    TString TablePath;
+    NYPath::TYPath TablePath;
     EStoreCompactionReason Reason;
 };
 

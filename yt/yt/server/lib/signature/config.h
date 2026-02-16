@@ -106,7 +106,6 @@ DEFINE_REFCOUNTED_TYPE(TSignatureValidationConfig)
 struct TSignatureGenerationConfig
     : public NYTree::TYsonStruct
 {
-public:
     TCypressKeyWriterConfigPtr CypressKeyWriter;
     TSignatureGeneratorConfigPtr Generator;
     TKeyRotatorConfigPtr KeyRotator;
@@ -125,6 +124,10 @@ struct TSignatureComponentsConfig
 {
     TSignatureValidationConfigPtr Validation;
     TSignatureGenerationConfigPtr Generation;
+
+    // COMPAT(pavook): Default to false in 26.1, remove in 26.2.
+    //! Whether we should use root user or a separate keysmith user (which got added in 25.4).
+    bool UseRootUser;
 
     REGISTER_YSON_STRUCT(TSignatureComponentsConfig);
 

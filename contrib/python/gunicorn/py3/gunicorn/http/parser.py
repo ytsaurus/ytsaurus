@@ -2,6 +2,8 @@
 # This file is part of gunicorn released under the MIT license.
 # See the NOTICE for more information.
 
+import ssl
+
 from gunicorn.http.message import Request
 from gunicorn.http.unreader import SocketUnreader, IterUnreader
 
@@ -25,16 +27,29 @@ class Parser:
     def __iter__(self):
         return self
 
+    def finish_body(self):
+        """Discard any unread body of the current message.
+
+        This should be called before returning a keepalive connection to
+        the poller to ensure the socket doesn't appear readable due to
+        leftover body bytes.
+        """
+        if self.mesg:
+            try:
+                data = self.mesg.body.read(1024)
+                while data:
+                    data = self.mesg.body.read(1024)
+            except ssl.SSLWantReadError:
+                # SSL socket has no more application data available
+                pass
+
     def __next__(self):
         # Stop if HTTP dictates a stop.
         if self.mesg and self.mesg.should_close():
             raise StopIteration()
 
         # Discard any unread body of the previous message
-        if self.mesg:
-            data = self.mesg.body.read(8192)
-            while data:
-                data = self.mesg.body.read(8192)
+        self.finish_body()
 
         # Parse the next request
         self.req_count += 1

@@ -4,7 +4,7 @@
 # may not use this file except in compliance with the License.  You
 # may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+# https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,11 +12,11 @@
 # implied.  See the License for the specific language governing
 # permissions and limitations under the License.
 
-"""Support for MongoDB Versioned API.
+"""Support for MongoDB Stable API.
 
 .. _versioned-api-ref:
 
-MongoDB Versioned API
+MongoDB Stable API
 =====================
 
 Starting in MongoDB 5.0, applications can specify the server API version
@@ -27,9 +27,9 @@ version, regardless of the server's actual release version.
 Declaring an API Version
 ````````````````````````
 
-.. attention:: Versioned API requires MongoDB >=5.0.
+.. attention:: Stable API requires MongoDB >=5.0.
 
-To configure MongoDB Versioned API, pass the ``server_api`` keyword option to
+To configure MongoDB Stable API, pass the ``server_api`` keyword option to
 :class:`~pymongo.mongo_client.MongoClient`::
 
     >>> from pymongo.mongo_client import MongoClient
@@ -44,7 +44,7 @@ including those sent through the generic
 :meth:`~pymongo.database.Database.command` helper.
 
 .. note:: Declaring an API version on the
-   :class:`~pymongo.mongo_client.MongoClient` **and** specifying versioned
+   :class:`~pymongo.mongo_client.MongoClient` **and** specifying stable
    API options in :meth:`~pymongo.database.Database.command` command document
    is not supported and will lead to undefined behaviour.
 
@@ -83,6 +83,9 @@ Note that at the time of this writing, no deprecated APIs exist.
 Classes
 =======
 """
+from __future__ import annotations
+
+from typing import Any, MutableMapping, Optional
 
 
 class ServerApiVersion:
@@ -95,41 +98,42 @@ class ServerApiVersion:
     """Server API version "1"."""
 
 
-class ServerApi(object):
-    """MongoDB Versioned API."""
+class ServerApi:
+    """MongoDB Stable API."""
 
-    def __init__(self, version, strict=None, deprecation_errors=None):
-        """Options to configure MongoDB Versioned API.
+    def __init__(
+        self, version: str, strict: Optional[bool] = None, deprecation_errors: Optional[bool] = None
+    ):
+        """Options to configure MongoDB Stable API.
 
-        :Parameters:
-          - `version`: The API version string. Must be one of the values in
+        :param version: The API version string. Must be one of the values in
             :class:`ServerApiVersion`.
-          - `strict` (optional): Set to ``True`` to enable API strict mode.
+        :param strict: Set to ``True`` to enable API strict mode.
             Defaults to ``None`` which means "use the server's default".
-          - `deprecation_errors` (optional): Set to ``True`` to enable
+        :param deprecation_errors: Set to ``True`` to enable
             deprecation errors. Defaults to ``None`` which means "use the
             server's default".
 
         .. versionadded:: 3.12
         """
         if version != ServerApiVersion.V1:
-            raise ValueError("Unknown ServerApi version: %s" % (version,))
+            raise ValueError(f"Unknown ServerApi version: {version}")
         if strict is not None and not isinstance(strict, bool):
             raise TypeError(
                 "Wrong type for ServerApi strict, value must be an instance "
-                "of bool, not %s" % (type(strict),)
+                f"of bool, not {type(strict)}"
             )
         if deprecation_errors is not None and not isinstance(deprecation_errors, bool):
             raise TypeError(
                 "Wrong type for ServerApi deprecation_errors, value must be "
-                "an instance of bool, not %s" % (type(deprecation_errors),)
+                f"an instance of bool, not {type(deprecation_errors)}"
             )
         self._version = version
         self._strict = strict
         self._deprecation_errors = deprecation_errors
 
     @property
-    def version(self):
+    def version(self) -> str:
         """The API version setting.
 
         This value is sent to the server in the "apiVersion" field.
@@ -137,7 +141,7 @@ class ServerApi(object):
         return self._version
 
     @property
-    def strict(self):
+    def strict(self) -> Optional[bool]:
         """The API strict mode setting.
 
         When set, this value is sent to the server in the "apiStrict" field.
@@ -145,7 +149,7 @@ class ServerApi(object):
         return self._strict
 
     @property
-    def deprecation_errors(self):
+    def deprecation_errors(self) -> Optional[bool]:
         """The API deprecation errors setting.
 
         When set, this value is sent to the server in the
@@ -154,12 +158,11 @@ class ServerApi(object):
         return self._deprecation_errors
 
 
-def _add_to_command(cmd, server_api):
+def _add_to_command(cmd: MutableMapping[str, Any], server_api: Optional[ServerApi]) -> None:
     """Internal helper which adds API versioning options to a command.
 
-    :Parameters:
-      - `cmd`: The command.
-      - `server_api` (optional): A :class:`ServerApi` or ``None``.
+    :param cmd: The command.
+    :param server_api: A :class:`ServerApi` or ``None``.
     """
     if not server_api:
         return
