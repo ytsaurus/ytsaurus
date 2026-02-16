@@ -19,8 +19,6 @@
 #include <yt/yt/server/lib/misc/disk_health_checker.h>
 #include <yt/yt/server/lib/misc/private.h>
 
-#include <yt/yt/server/tools/tools.h>
-
 #include <yt/yt/library/containers/porto_executor.h>
 
 #include <yt/yt/core/concurrency/delayed_executor.h>
@@ -29,8 +27,6 @@
 #include <yt/yt/core/misc/fs.h>
 
 #include <yt/yt/core/net/local_address.h>
-
-#include <yt/yt/core/ytree/fluent.h>
 
 #include <library/cpp/yt/string/string.h>
 
