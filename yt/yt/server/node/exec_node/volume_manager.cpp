@@ -496,14 +496,18 @@ public:
             .Apply(BIND(
                 [
                     tag,
+                    jobId = options.JobId,
                     userSandboxOptions,
                     this,
                     this_ = MakeStrong(this)
                 ] (std::vector<TOverlayData>&& overlayDataArray) {
                     return CreateOverlayVolume(
                         tag,
-                        userSandboxOptions,
-                        std::move(overlayDataArray));
+                        TPrepareOverlayVolumeOptions{
+                            .JobId = jobId,
+                            .UserSandboxOptions = std::move(userSandboxOptions),
+                            .OverlayDataArray = std::move(overlayDataArray)
+                        });
                 })
                 .AsyncVia(GetCurrentInvoker()))
             .ToImmediatelyCancelable()
@@ -530,7 +534,7 @@ public:
         const TString& destinationDirectory,
         const std::vector<TTmpfsVolumeResult>& volumes) override
     {
-         // Create debug tag.
+        // Create debug tag.
         auto tag = TGuid::Create();
 
         std::vector<TFuture<void>> futures;
@@ -576,7 +580,7 @@ public:
         LayerCache_->OnDynamicConfigChanged(oldConfig->LayerCache, newConfig->LayerCache);
     }
 
-    //! TODO(yuryalekseev): Remove me when slot rbind is removed.
+    // TODO(yuryalekseev): Remove me when slot rbind is removed.
     TFuture<IVolumePtr> RbindRootVolume(
         const IVolumePtr& volume,
         const TString& slotPath) override
@@ -677,38 +681,33 @@ private:
     }
 
     //! Create rootfs overlay volume.
-    TOverlayVolumePtr CreateOverlayVolume(
+    TFuture<TOverlayVolumePtr> CreateOverlayVolume(
         TGuid tag,
-        const TUserSandboxOptions& options,
-        std::vector<TOverlayData> overlayDataArray)
+        TPrepareOverlayVolumeOptions options)
     {
         auto tagSet = TVolumeProfilerCounters::MakeTagSet(
             /*volume type*/ "overlay",
             /*Cypress path*/ "n/a");
         TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
 
-        YT_LOG_INFO(
-            "All layers and volumes have been prepared (Tag: %v, OverlayDataArraySize: %v)",
-            tag,
-            overlayDataArray.size());
+        auto Logger = ExecNodeLogger()
+            .WithTag("Tag: %v, JobId: %v, OverlayDataArraySize: %v",
+                tag,
+                options.JobId,
+                options.OverlayDataArray.size());
 
-        YT_LOG_DEBUG(
-            "Creating overlay volume (Tag: %v, OverlayDataArraySize: %v)",
-            tag,
-            overlayDataArray.size());
+        YT_LOG_DEBUG("Creating overlay volume");
 
-        for (const auto& volumeOrLayer : overlayDataArray) {
+        for (const auto& volumeOrLayer : options.OverlayDataArray) {
             if (volumeOrLayer.IsLayer()) {
                 LayerCache_->Touch(volumeOrLayer.GetLayer());
 
                 YT_LOG_DEBUG(
-                    "Using layer to create new overlay volume (Tag: %v, LayerId: %v)",
-                    tag,
+                    "Using layer to create overlay volume (LayerId: %v)",
                     volumeOrLayer.GetLayer()->GetMeta().Id);
             } else {
                 YT_LOG_DEBUG(
-                    "Using volume to create new overlay volume (Tag: %v, VolumeId: %v)",
-                    tag,
+                    "Using volume to create overlay volume (VolumeId: %v)",
                     volumeOrLayer.GetVolume()->GetId());
             }
         }
@@ -718,33 +717,27 @@ private:
             tag,
             tagSet,
             std::move(volumeCreateTimeGuard),
-            options,
-            overlayDataArray);
+            options.UserSandboxOptions,
+            options.OverlayDataArray);
 
-        // This future is intentionally uncancellable: we don't want to interrupt invoked volume creation,
-        // until it is completed and the OverlayVolume object is fully created.
-        auto volumeFuture = volumeMetaFuture.AsUnique().Apply(BIND(
-            [
-                location = std::move(location),
-                tagSet = std::move(tagSet),
-                overlayDataArray = std::move(overlayDataArray)
-            ] (TVolumeMeta&& volumeMeta) {
-                return New<TOverlayVolume>(
-                    std::move(tagSet),
-                    std::move(volumeMeta),
-                    std::move(location),
-                    std::move(overlayDataArray));
-            })).ToUncancelable();
-
-        auto volume = WaitFor(volumeFuture)
-            .ValueOrThrow();
-
-        YT_LOG_DEBUG(
-            "Created overlay volume (Tag: %v, VolumeId: %v)",
-            tag,
-            volume->GetId());
-
-        return volume;
+        // This future is intentionally uncancellable: we don't want to interrupt volume creation.
+        return volumeMetaFuture
+            .AsUnique()
+            .Apply(BIND(
+                [
+                    Logger,
+                    tagSet = std::move(tagSet),
+                    location = std::move(location),
+                    overlayDataArray = std::move(options.OverlayDataArray)
+                ] (TVolumeMeta&& volumeMeta) {
+                    YT_LOG_DEBUG("Created overlay volume");
+                    return New<TOverlayVolume>(
+                        std::move(tagSet),
+                        std::move(volumeMeta),
+                        std::move(location),
+                        std::move(overlayDataArray));
+                }))
+            .ToUncancelable();
     }
 
     void PopulateAlerts(std::vector<TError>* alerts)

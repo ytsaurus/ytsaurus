@@ -1,6 +1,7 @@
 #pragma once
 
-#include "public.h"
+#include "preparation_options.h"
+#include "volume.h"
 
 #include <yt/yt/server/node/exec_node/artifact.h>
 
@@ -76,6 +77,15 @@ struct TPrepareSquashFSVolumeOptions
     TJobId JobId;
     TArtifactKey ArtifactKey;
     TArtifactDownloadOptions ArtifactDownloadOptions;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TPrepareOverlayVolumeOptions
+{
+    TJobId JobId;
+    TUserSandboxOptions UserSandboxOptions;
+    std::vector<TOverlayData> OverlayDataArray;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -38,7 +38,7 @@ namespace NYT::NExecNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 TLayerLocationPtr DoPickLocation(
-    const std::vector<TLayerLocationPtr> locations,
+    const std::vector<TLayerLocationPtr>& locations,
     std::function<bool(const TLayerLocationPtr&, const TLayerLocationPtr&)> isBetter);
 
 ////////////////////////////////////////////////////////////////////////////////

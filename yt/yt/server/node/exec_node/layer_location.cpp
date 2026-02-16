@@ -1,4 +1,3 @@
-
 #include "layer_location.h"
 
 #include "private.h"
