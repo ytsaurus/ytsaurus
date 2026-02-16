@@ -16,6 +16,9 @@
 
 #include <yt/yt/library/containers/public.h>
 
+#include <yt/yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/session_id.h>
+
 #include <yt/yt/ytlib/misc/public.h>
 
 #include <yt/yt/core/actions/public.h>
@@ -27,6 +30,8 @@
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/library/profiling/sensor.h>
+
+#include <yt/yt/core/rpc/public.h>
 
 namespace NYT::NExecNode {
 
@@ -59,7 +64,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! This class caches volumes generated from cypress files (layers).
+//! This class caches volumes.
 template <typename TKey>
 class TVolumeCacheBase
     : public TAsyncMapBase<TKey, TCachedVolume<TKey>>
@@ -73,7 +78,7 @@ public:
     bool IsEnabled() const;
 
 protected:
-    const IBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
     const std::vector<TLayerLocationPtr> LayerLocations_;
 
     TLayerLocationPtr PickLocation();
@@ -89,7 +94,7 @@ protected:
 
 DECLARE_REFCOUNTED_CLASS(TSquashFSVolumeCache)
 
-//! This class caches volumes generated from cypress files (layers).
+//! This class creates squashfs volumes generated from cypress files (layers).
 class TSquashFSVolumeCache
     : public TVolumeCacheBase<TArtifactKey>
 {
@@ -99,10 +104,10 @@ public:
         std::vector<TLayerLocationPtr> layerLocations,
         IVolumeArtifactCachePtr artifactCache);
 
+    //! Get squashfs volume from cache or download and mount it.
     TFuture<IVolumePtr> GetOrCreateVolume(
         TGuid tag,
-        const TArtifactKey& artifactKey,
-        const TArtifactDownloadOptions& downloadOptions);
+        TPrepareSquashFSVolumeOptions options);
 
 private:
     const IVolumeArtifactCachePtr ArtifactCache_;
@@ -122,16 +127,16 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TRONbdVolumeCache)
+DECLARE_REFCOUNTED_CLASS(TNbdVolumeFactory)
 
-//! This class caches volumes generated from cypress files (layers).
-class TRONbdVolumeCache
+//! This class creates NBD volumes.
+class TNbdVolumeFactory
     : public TVolumeCacheBase<TString>
 {
 public:
     using TVolumePtr = TIntrusivePtr<TCachedVolume<TString>>;
 
-    TRONbdVolumeCache(
+    TNbdVolumeFactory(
         IBootstrap* const bootstrap,
         NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
         std::vector<TLayerLocationPtr> layerLocations);
@@ -140,11 +145,16 @@ public:
         TGuid tag,
         TPrepareRONbdVolumeOptions options);
 
+    TFuture<IVolumePtr> GetOrCreateVolume(
+        TGuid tag,
+        TPrepareRWNbdVolumeOptions options);
+
 private:
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, InsertLock_);
 
-    static void ValidatePrepareNbdVolumeOptions(const TPrepareRONbdVolumeOptions& options);
+    static void ValidatePrepareRONbdVolumeOptions(const TPrepareRONbdVolumeOptions& options);
+    static void ValidatePrepareRWNbdVolumeOptions(const TPrepareRWNbdVolumeOptions& options);
 
     TInsertCookie GetInsertCookie(const TString& deviceId, const NNbd::INbdServerPtr& nbdServer);
 
@@ -154,6 +164,8 @@ private:
         const TString& deviceId,
         const NNbd::INbdServerPtr& nbdServer,
         const NLogging::TLogger& Logger);
+
+    // RO volumes start here.
 
     NNbd::IImageReaderPtr CreateArtifactReader(
         const NLogging::TLogger& Logger,
@@ -175,6 +187,39 @@ private:
     TFuture<TRONbdVolumePtr> PrepareRONbdVolume(
         TGuid tag,
         TPrepareRONbdVolumeOptions options);
+
+    // RW volumes start here.
+
+    TFuture<NNbd::IBlockDevicePtr> CreateRWNbdDevice(
+        TGuid tag,
+        TPrepareRWNbdVolumeOptions options);
+
+    TFuture<TRWNbdVolumePtr> CreateRWNbdVolume(
+        TGuid tag,
+        NProfiling::TTagSet tagSet,
+        TCreateNbdVolumeOptions options);
+
+    //! Create RW NBD volume. The order of creation is as follows:
+    //! 1. Create RW NBD device.
+    //! 2. Register RW NBD device with NBD server.
+    //! 3. Create RW NBD porto volume connected to RW NBD device.
+    TFuture<TRWNbdVolumePtr> PrepareRWNbdVolume(
+        TGuid tag,
+        TPrepareRWNbdVolumeOptions options);
+
+    TFuture<std::vector<std::string>> FindDataNodesWithMedium(
+        const NYT::NChunkClient::TSessionId& sessionId,
+        const TPrepareRWNbdVolumeOptions& options);
+
+    //! Open NBD session on data node that can host NBD disk.
+    std::optional<std::tuple<NRpc::IChannelPtr, NYT::NChunkClient::TSessionId>> TryOpenNbdSession(
+        NYT::NChunkClient::TSessionId sessionId,
+        std::vector<std::string> addresses,
+        TPrepareRWNbdVolumeOptions options);
+
+    //! Find data node suitable to host NBD disk and open NBD session.
+    TFuture<std::optional<std::tuple<NRpc::IChannelPtr, NYT::NChunkClient::TSessionId>>> PrepareNbdSession(
+        const TPrepareRWNbdVolumeOptions& options);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -196,6 +241,11 @@ public:
         IMemoryUsageTrackerPtr memoryUsageTracker,
         IBootstrap* bootstrap);
 
+    //! Get tar archive (tar layer) from cache or download and extract it.
+    TFuture<TLayerPtr> GetOrCreateLayer(
+        TGuid tag,
+        TPrepareLayerOptions options);
+
     TFuture<void> Initialize();
 
     bool IsEnabled() const;
@@ -205,11 +255,6 @@ public:
     void PopulateAlerts(std::vector<TError>* alerts);
 
     TFuture<void> Disable(const TError& reason);
-
-    TFuture<TLayerPtr> PrepareLayer(
-        TArtifactKey artifactKey,
-        const TArtifactDownloadOptions& downloadOptions,
-        TGuid tag);
 
     TFuture<void> GetVolumeReleaseEvent();
 
