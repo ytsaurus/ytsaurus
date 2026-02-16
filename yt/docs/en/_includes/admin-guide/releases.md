@@ -313,9 +313,19 @@ Publishes as docker images.
 
 Publishes as docker images.
 
-**Current release:** 2.8.2 (`ghcr.io/ytsaurus/spyt:2.8.2`)
+**Current release:** 2.8.3 (`ghcr.io/ytsaurus/spyt:2.8.3`)
 
 **All releases:**
+
+{% cut "**2.8.3**" %}
+
+Maintenance release with minor enhancements
+
+- Ability to specify any available version of spark in cluster mode of direct submit
+- YTsaurus client version up to 1.2.13
+- Other bug and stability fixes
+
+{% endcut %}
 
 {% cut "**2.8.2**" %}
 
