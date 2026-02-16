@@ -1969,13 +1969,15 @@ private:
         }
 
         if (State_->RetryIndex >= Reader_->Config_->RetryCountLimit) {
-            OnFatalError(TError("Chunk fragment reader has exceeded retry count limit")
+            OnFatalError(TError(
+                NChunkClient::EErrorCode::ReaderRetryCountLimitExceeded,
+                "Chunk fragment reader has exceeded retry count limit")
                 << TErrorAttribute("retry_count_limit", Reader_->Config_->RetryCountLimit));
             return;
         }
 
         if (Timer_.GetElapsedTime() >= Reader_->Config_->ReadTimeLimit) {
-            OnFatalError(TError("Chunk fragment reader has exceeded read time limit")
+            OnFatalError(TError(NChunkClient::EErrorCode::ReaderTimeout, "Chunk fragment reader has exceeded read time limit")
                 << TErrorAttribute("read_time_limit", Reader_->Config_->ReadTimeLimit));
             return;
         }
