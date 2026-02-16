@@ -10,6 +10,7 @@ SRCS(
     chunk_file_writer_ut.cpp
     io_engine_ut.cpp
     io_tracker_ut.cpp
+    physical_chunk_layout_ut.cpp
     read_request_combiner_ut.cpp
     io_request_slicer_ut.cpp
     io_workload_model_ut.cpp
