@@ -652,7 +652,7 @@ void TResourceTree::InitializeResourceUsageFor(
 void TResourceTree::ResetPreemptedResourceUsagePrecommit()
 {
     for (auto element : AliveElements_) {
-        YT_VERIFY(element->ResetLocalPreemptedResourceUsagePrecommit());
+        element->ResetLocalPreemptedResourceUsagePrecommit();
     }
 }
 
