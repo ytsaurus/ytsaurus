@@ -20,7 +20,7 @@ yt create table //path/to/table --attributes \
 '{dynamic=%true;schema=[{name=key;type=string;sort_order=ascending}; {name=value;type=string}]}'
 ```
 
-{% note warning "Attention!" %}
+{% note warning "Attention" %}
 
 You must specify at least one key column in the table schema. If this is not done, the table will be successfully created, but it will [ordered](../../../user-guide/dynamic-tables/ordered-dynamic-tables.md) rather than sorted. Most types of select queries will work for the table. But all such queries will come down to a full scan of the data.
 
@@ -117,13 +117,13 @@ With default settings, at least one value (the last one) is always stored, along
 
 By using the listed parameters, flexible storage policies can be built. For example, `min_data_versions = 0`, `max_data_versions = 1`, `min_data_ttl = 0`, and `max_data_ttl = 86400000 (1 day)` allow any data older than one day to be deleted, saving only one version from the last day.
 
-{% note warning %}
+{% note info "Attention" %}
 
-The `min_data_ttl` parameter defines an interval when the data existence is guaranteed. 
+The `min_data_ttl` parameter defines an interval when the data existence is guaranteed.
 
-It is important that all timestamp-based readings fall within the interval when all data is available: `[now() - min_data_ttl, now()]`. This applies to both: readings with an explicitly specified `timestamp` and readings within a transaction where the transaction start time is used as the timestamp.
+Make sure that all reads by timestamp fall within the interval when all data is available: `[now() - min_data_ttl, now()]`. This applies both to reads with an explicitly specified `timestamp` and reads within a transaction where the transaction start time is used as the timestamp.
 
-If the timestamp is **older** than `now() - min_data_ttl`, the success of the reading is **not guaranteed**. In particular, if a table has `min_data_ttl = 0`, it is recommended to read from it only with `sync_last_committed` or `async_last_committed`.
+If the timestamp is **older** than `now() - min_data_ttl`, read success **is not guaranteed**. In particular, if a table has `min_data_ttl = 0`, you should read from it only with `sync_last_committed` or `async_last_committed`.
 
 {% endnote %}
 
@@ -141,7 +141,7 @@ yt set //table/@forced_compaction_revision 1; yt remount-table //table
 
 The given set of commands starts the compaction of all data written up to this moment. In this way, both redundant duplicate versions and logically deleted data will be deleted. This operation creates an immediate load on the cluster, which depends on the volume of multi-version data, so this operation is considered an administrative intervention.
 
-{% note warning "Attention!" %}
+{% note warning "Attention" %}
 
 The `forced_compaction_revision` setting causes a heavy load on the cluster. We do not recommend using this attribute without a specific need and understanding of the consequences.
 
@@ -212,7 +212,7 @@ If the data scenario involves the constant addition of deltas to values already 
 
 No old value is read, only the delta is written to the table. The actual summing up occurs when reading. The values in the tables are stored together with a timestamp. When reading from an aggregation column, values corresponding to the same key and the same column, but with different timestamps, are summed up. To perform optimization, the old data in the aggregation column is summed up at the compaction stage, and only one value corresponding to their sum remains in the table.
 
-Supported aggregate functions are: `sum`, `min`, `max`, `first` and `xdelta`.
+The following aggregate functions are supported: `sum`, `min`, `max`, `first` and `xdelta`.
 
 The default setting is to overwrite what is in the table. To write a delta, specify the `aggregate=true` option in the write command.
 
@@ -253,13 +253,17 @@ If you are using hunks, it may be beneficial to enable the lookup cache and set 
 ### Diagnostic metrics for lookup cache performance
 
 When the cache operates efficiently, the frequency of block reads from disk or from the block cache should gradually decrease.
+When cache is enabled, `unmerged_row_count` is expected to decrease; however, `unmerged_data_weight / unmerged_row_count` (data amount per row) might increase, because all versions and all columns are read to fill the cache.
+Reading all versions has practically no impact on performance (because the system reads the same number of data blocks and processes the same volume of data).
+Reading all columns increases the number of blocks being read.
+So when queries read only a small portion of the table's columns (either by number of columns or volume of data), the volume of blocks read or `unmerged_data_weight` may either decrease much less than `unmerged_row_count` or even increase, despite cache hits.
 
 Common lookup metrics include:
 
 Metrics for disk reads and network transfers:
 - `yt.tablet_node.lookup.chunk_reader_statistics.data_bytes_read_from_disk.rate`
--`yt.tablet_node.lookup.chunk_reader_statistics.data_bytes_read_from_cache.rate`
--`yt.tablet_node.lookup.chunk_reader_statistics.data_bytes_transmitted.rate`
+- `yt.tablet_node.lookup.chunk_reader_statistics.data_bytes_read_from_cache.rate`
+- `yt.tablet_node.lookup.chunk_reader_statistics.data_bytes_transmitted.rate`
 
 If hunks are used:
 - `yt.tablet_node.lookup.hunks.chunk_reader_statistics.data_bytes_read_from_disk.rate`
@@ -348,4 +352,3 @@ Filter-specific metrics:
 - yt.tablet_node.select.range_filter.input_range_count.rate: Number of ranges that the filter received as input.
 - yt.tablet_node.select.range_filter.filtered_out_range_count.rate: Number of ranges filtered out by the filter.
 - yt.tablet_node.select.range_filter.false_positive_range_count.rate: Number of ranges that were not filtered out by the filter, even though they did not actually exist.
-
