@@ -4,23 +4,23 @@ This guide describes how to update volume settings for {{product-name}} services
 
 ## Important considerations {#note}
 
-When working with volume updates in {{product-name}} services, keep in mind the following:
+When updating volumes, keep in mind the following:
 
-1. **Updating volume settings does not trigger any updates by the operator**. The operator does not automatically detect or apply changes to volume configurations.
+1. **The operator does not automatically apply updates.** It does not monitor changes in the configuration of volumes, so modifying the resource specification will not automatically initiate an update.
 
-2. **Persistent Volume Claims (PVCs) remain attached to pods**. Even if you delete the pods or the StatefulSet, the PVCs will remain attached and prevent the new volume settings from being applied.
+2. **Persistent Volume Claims (PVCs) are attached to pods.** Even if you delete the pods or the StatefulSet, the PVCs will remain attached and prevent the new volume settings from being applied.
 
 {% note warning %}
 
-This procedure will result in data loss for recreted volumes, use it with caution.
+The procedure described below will result in data loss for updated volumes, because they will be recreated. Proceed with caution.
 
 {% endnote %}
 
 ## Update procedure {#steps}
 
-To successfully update volume settings, follow these steps:
+To update volume settings, follow the steps:
 
-### Step 1: Disable the operator {#disable-operator}
+### Step 1. Disable the operator {#disable-operator}
 
 Set the `isManaged` field to `false` in your {{product-name}} resource specification. This disables the operator and prevents it from interfering with manual changes.
 
@@ -29,9 +29,9 @@ spec:
   isManaged: false
 ```
 
-Apply this change to your cluster.
+Apply this change in your cluster.
 
-### Step 2: Delete the StatefulSet {#delete-statefulset}
+### Step 2. Delete the StatefulSet {#delete-statefulset}
 
 Delete the StatefulSet for the service whose volumes you want to update:
 
@@ -39,7 +39,7 @@ Delete the StatefulSet for the service whose volumes you want to update:
 kubectl delete statefulset <statefulset-name> -n <namespace>
 ```
 
-### Step 3: Delete the Persistent Volume Claims {#delete-pvc}
+### Step 3. Delete the Persistent Volume Claims {#delete-pvc}
 
 Delete the PVCs associated with the pods:
 
@@ -47,13 +47,13 @@ Delete the PVCs associated with the pods:
 kubectl delete pvc <pvc-name> -n <namespace>
 ```
 
-You may need to delete multiple PVCs if your StatefulSet has multiple replicas. List all PVCs to identify which ones need to be deleted:
+If your StatefulSet has multiple replicas, delete PVCs for each of them. To find the PVCs, run the following command:
 
 ```bash
 kubectl get pvc -n <namespace>
 ```
 
-### Step 4: Re-enable the operator {#enable-operator}
+### Step 4. Re-enable the operator {#enable-operator}
 
 Set the `isManaged` field back to `true` in your {{product-name}} resource specification:
 
@@ -64,11 +64,11 @@ spec:
 
 Apply this change. The operator will now recreate the StatefulSet and PVCs with the new volume settings.
 
-## Example: Increasing disk space for scheduler logs {#example}
+## Example: increasing disk space for scheduler logs {#example}
 
-A common use case for updating volumes is to increase disk space for logs. For example, if you want to increase the log volume size from 10Gi to 50Gi for schedulers.
+A common use case for updating volumes is to increase disk space for logs. For example, you need to increase disk space for scheduler logs from 10 GiB to 50 GiB.
 
-1. Update your {{product-name}} resource specification to increase the log volume size:
+1. Specify the new volume size in your {{product-name}} resource specification:
 
 ```yaml
 spec:
@@ -80,10 +80,10 @@ spec:
               storage: 50Gi  # increased from 10Gi
 ```
 
-2. Follow the update procedure described above (set `isManaged: false`, delete StatefulSet, delete PVCs, set `isManaged: true`).
+2. Follow the update procedure described above: set `isManaged: false`, delete the StatefulSet and PVCs, and then set `isManaged: true`.
 
 {% note warning %}
 
-After this procedure, **current logs will be lost** because the old PVCs are deleted and new ones are created. If you need to preserve logs, make sure to back them up before proceeding with the update.
+As a result, **current logs are lost**, because the old PVCs are deleted and new ones are created. If you need to preserve logs, make sure to back them up before initiating an update.
 
 {% endnote %}
