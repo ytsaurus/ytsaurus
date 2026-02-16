@@ -9,6 +9,10 @@
 
 #include <yt/yt/ytlib/scheduler/cluster_name.h>
 
+#include <yt/yt/ytlib/node_tracker_client/node_status_directory.h>
+
+#include <yt/yt/ytlib/chunk_client/block_cache.h>
+
 #include <library/cpp/iterator/zip.h>
 
 namespace NYT::NChunkClient {
@@ -16,48 +20,7 @@ namespace NYT::NChunkClient {
 using namespace NConcurrency;
 using namespace NApi;
 using namespace NScheduler;
-
-////////////////////////////////////////////////////////////////////////////////
-
-TChunkReaderHost::TChunkReaderHost(
-    NNative::IClientPtr client,
-    NNodeTrackerClient::TNodeDescriptor localDescriptor,
-    IBlockCachePtr blockCache,
-    IClientChunkMetaCachePtr chunkMetaCache,
-    NNodeTrackerClient::INodeStatusDirectoryPtr nodeStatusDirectory,
-    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
-    NConcurrency::IThroughputThrottlerPtr rpsThrottler,
-    NConcurrency::IThroughputThrottlerPtr mediumThrottler,
-    TTrafficMeterPtr trafficMeter)
-    : Client(std::move(client))
-    , LocalDescriptor(std::move(localDescriptor))
-    , BlockCache(std::move(blockCache))
-    , ChunkMetaCache(std::move(chunkMetaCache))
-    , NodeStatusDirectory(std::move(nodeStatusDirectory))
-    , BandwidthThrottler(std::move(bandwidthThrottler))
-    , RpsThrottler(std::move(rpsThrottler))
-    , MediumThrottler(std::move(mediumThrottler))
-    , TrafficMeter(std::move(trafficMeter))
-{ }
-
-TChunkReaderHostPtr TChunkReaderHost::FromClient(
-    NNative::IClientPtr client,
-    IThroughputThrottlerPtr bandwidthThrottler,
-    IThroughputThrottlerPtr rpsThrottler,
-    NConcurrency::IThroughputThrottlerPtr mediumThrottler)
-{
-    const auto& connection = client->GetNativeConnection();
-    return New<TChunkReaderHost>(
-        client,
-        /*localDescriptor*/ NNodeTrackerClient::TNodeDescriptor{},
-        connection->GetBlockCache(),
-        connection->GetChunkMetaCache(),
-        /*nodeStatusDirectory*/ nullptr,
-        bandwidthThrottler,
-        rpsThrottler,
-        mediumThrottler,
-        /*trafficMeter*/ nullptr);
-}
+using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,7 +31,7 @@ THashMap<TClusterName, TChunkReaderHostPtr> CreateHostMap(
     const std::vector<TMultiChunkReaderHost::TClusterContext>& clusterContextList)
 {
     THashMap<TClusterName, TChunkReaderHostPtr> hosts;
-    for (auto& clusterOptions : clusterContextList) {
+    for (const auto& clusterOptions : clusterContextList) {
         hosts.emplace(
             clusterOptions.Name,
             New<TChunkReaderHost>(
@@ -77,7 +40,7 @@ THashMap<TClusterName, TChunkReaderHostPtr> CreateHostMap(
                 baseHost->BlockCache,
                 baseHost->ChunkMetaCache,
                 baseHost->NodeStatusDirectory,
-                baseHost->BandwidthThrottler,
+                baseHost->BandwidthThrottlerProvider,
                 baseHost->RpsThrottler,
                 baseHost->MediumThrottler,
                 baseHost->TrafficMeter));
@@ -97,18 +60,85 @@ THashMap<TClusterName, TChunkReaderStatisticsPtr> CreateChunkReaderStatistics(
     return chunkReaderStatistics;
 }
 
+const TPerCategoryThrottlerProvider& GetUnlimitedPerCategoryThrottlerProvider()
+{
+    static const auto UnlimitedThrottlerProvider = BIND([] (EWorkloadCategory /*category*/) -> IThroughputThrottlerPtr {
+        return GetUnlimitedThrottler();
+    });
+    return UnlimitedThrottlerProvider;
+}
+
 } // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+TChunkReaderHost::TChunkReaderHost(
+    NNative::IClientPtr client,
+    TNodeDescriptor localDescriptor,
+    IBlockCachePtr blockCache,
+    IClientChunkMetaCachePtr chunkMetaCache,
+    INodeStatusDirectoryPtr nodeStatusDirectory,
+    TPerCategoryThrottlerProvider bandwidthThrottlerProvider,
+    IThroughputThrottlerPtr rpsThrottler,
+    IThroughputThrottlerPtr mediumThrottler,
+    TTrafficMeterPtr trafficMeter)
+    : Client(std::move(client))
+    , LocalDescriptor(std::move(localDescriptor))
+    , BlockCache(blockCache ? std::move(blockCache) : GetNullBlockCache())
+    // Could be null.
+    , ChunkMetaCache(std::move(chunkMetaCache))
+    , NodeStatusDirectory(nodeStatusDirectory ? std::move(nodeStatusDirectory) : CreateTrivialNodeStatusDirectory())
+    , BandwidthThrottlerProvider(bandwidthThrottlerProvider ? std::move(bandwidthThrottlerProvider) : GetUnlimitedPerCategoryThrottlerProvider())
+    , RpsThrottler(rpsThrottler ? std::move(rpsThrottler) : GetUnlimitedThrottler())
+    , MediumThrottler(mediumThrottler ? std::move(mediumThrottler) : GetUnlimitedThrottler())
+    // Could be null.
+    , TrafficMeter(std::move(trafficMeter))
+{
+    YT_VERIFY(Client);
+}
+
+TChunkReaderHost::TChunkReaderHost(
+    NNative::IClientPtr client,
+    TPerCategoryThrottlerProvider bandwidthThrottlerProvider,
+    IThroughputThrottlerPtr rpsThrottler,
+    IThroughputThrottlerPtr mediumThrottler)
+    : TChunkReaderHost(
+        client,
+        /*localDescriptor*/ TNodeDescriptor{},
+        client->GetNativeConnection()->GetBlockCache(),
+        client->GetNativeConnection()->GetChunkMetaCache(),
+        /*nodeStatusDirectory*/ nullptr,
+        std::move(bandwidthThrottlerProvider),
+        std::move(rpsThrottler),
+        std::move(mediumThrottler),
+        /*trafficMeter*/ nullptr)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TMultiChunkReaderHost::TMultiChunkReaderHost(
     TChunkReaderHostPtr baseHost,
-    TBandwidthThrottlerFactory bandwidthThrottlerFactory,
+    TPerClusterAndCategoryBandwidthThrottlerProvider bandwidthThrottlerFactory,
     std::vector<TClusterContext> clusterContextList)
     : BaseHost_(std::move(baseHost))
-    , BandwidthThrottlerFactory_(std::move(bandwidthThrottlerFactory))
+    , BandwidthThrottlerProvider_(std::move(bandwidthThrottlerFactory))
     , Hosts_(CreateHostMap(BaseHost_, clusterContextList))
     , ChunkReaderStatisticsMap_(CreateChunkReaderStatistics(clusterContextList))
+{
+    YT_VERIFY(AnyOf(clusterContextList, [] (const auto& clusterOptions) { return IsLocal(clusterOptions.Name); }));
+}
+
+TMultiChunkReaderHost::TMultiChunkReaderHost(
+    TChunkReaderHostPtr baseHost)
+    : TMultiChunkReaderHost(
+        baseHost,
+        /*bandwidthThrottlerProvider*/ {},
+        std::vector{
+            TMultiChunkReaderHost::TClusterContext{
+                .Name = LocalClusterName,
+                .Client = baseHost->Client,
+            },
+        })
 { }
 
 TChunkReaderHostPtr TMultiChunkReaderHost::CreateHostForCluster(
@@ -127,9 +157,9 @@ TChunkReaderHostPtr TMultiChunkReaderHost::CreateHostForCluster(
         // while job is already running and we would like to throttle the job
         // in this case. Obviously, this scheme will not throttle already-running
         // readers, but it's a good enough approximation.
-        BandwidthThrottlerFactory_
-            ? BandwidthThrottlerFactory_(clusterName)
-            : host->BandwidthThrottler,
+        BandwidthThrottlerProvider_
+            ? BandwidthThrottlerProvider_(clusterName)
+            : host->BandwidthThrottlerProvider,
         host->RpsThrottler,
         host->MediumThrottler,
         host->TrafficMeter);
@@ -149,7 +179,7 @@ TClientChunkReadOptions TMultiChunkReaderHost::AdjustClientChunkReadOptions(
     return options;
 }
 
-TTrafficMeterPtr TMultiChunkReaderHost::GetTrafficMeter() const
+const TTrafficMeterPtr& TMultiChunkReaderHost::GetTrafficMeter() const
 {
     return BaseHost_->TrafficMeter;
 }
@@ -157,34 +187,6 @@ TTrafficMeterPtr TMultiChunkReaderHost::GetTrafficMeter() const
 const THashMap<NScheduler::TClusterName, TChunkReaderStatisticsPtr>& TMultiChunkReaderHost::GetChunkReaderStatistics() const
 {
     return ChunkReaderStatisticsMap_;
-}
-
-TMultiChunkReaderHostPtr CreateMultiChunkReaderHost(
-    TChunkReaderHostPtr baseHost,
-    TMultiChunkReaderHost::TBandwidthThrottlerFactory bandwidthThrottlerFactory,
-    std::vector<TMultiChunkReaderHost::TClusterContext> clusterContextList)
-{
-    YT_VERIFY(AnyOf(clusterContextList, [] (const auto& clusterOptions) { return IsLocal(clusterOptions.Name); }));
-    return New<TMultiChunkReaderHost>(
-        std::move(baseHost),
-        std::move(bandwidthThrottlerFactory),
-        std::move(clusterContextList));
-}
-
-TMultiChunkReaderHostPtr CreateSingleSourceMultiChunkReaderHost(
-    TChunkReaderHostPtr baseHost)
-{
-    std::vector<TMultiChunkReaderHost::TClusterContext> clusterContextList = {
-        TMultiChunkReaderHost::TClusterContext{
-            .Name = LocalClusterName,
-            .Client = baseHost->Client,
-        },
-    };
-
-    return CreateMultiChunkReaderHost(
-        std::move(baseHost),
-        /*bandwidthThrottlerFactory*/ {},
-        std::move(clusterContextList));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

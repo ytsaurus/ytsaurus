@@ -303,7 +303,7 @@ protected:
             auto fileReader = CreateRandomAccessFileReader(
                 std::move(chunkSpecs),
                 exportConfig->Path,
-                TChunkReaderHost::FromClient(client),
+                New<TChunkReaderHost>(client),
                 GetUnlimitedThrottler(),
                 GetUnlimitedThrottler(),
                 threadPool->GetInvoker(),

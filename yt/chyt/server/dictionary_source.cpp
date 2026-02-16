@@ -98,7 +98,7 @@ public:
             },
         });
 
-        auto chunkReaderHost = TChunkReaderHost::FromClient(Host_->GetRootClient());
+        auto chunkReaderHost = New<TChunkReaderHost>(Host_->GetRootClient());
         auto reader = CreateAppropriateSchemalessMultiChunkReader(
             New<TTableReaderOptions>(),
             New<TTableReaderConfig>(),

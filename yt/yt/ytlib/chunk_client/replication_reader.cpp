@@ -205,7 +205,7 @@ public:
         , ChunkMetaCache_(chunkReaderHost->ChunkMetaCache)
         , TrafficMeter_(chunkReaderHost->TrafficMeter)
         , NodeStatusDirectory_(chunkReaderHost->NodeStatusDirectory)
-        , BandwidthThrottler_(chunkReaderHost->BandwidthThrottler)
+        , BandwidthThrottlerProvider_(chunkReaderHost->BandwidthThrottlerProvider)
         , RpsThrottler_(chunkReaderHost->RpsThrottler)
         , MediumThrottler_(chunkReaderHost->MediumThrottler)
         , Networks_(Client_->GetNativeConnection()->GetNetworks())
@@ -309,7 +309,7 @@ private:
     const IClientChunkMetaCachePtr ChunkMetaCache_;
     const TTrafficMeterPtr TrafficMeter_;
     const INodeStatusDirectoryPtr NodeStatusDirectory_;
-    const IThroughputThrottlerPtr BandwidthThrottler_;
+    const TPerCategoryThrottlerProvider BandwidthThrottlerProvider_;
     const IThroughputThrottlerPtr RpsThrottler_;
     const IThroughputThrottlerPtr MediumThrottler_;
     const TNetworkPreferenceList Networks_;
@@ -3062,11 +3062,12 @@ TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
         return MakeFuture<std::vector<TBlock>>({});
     }
 
+    auto bandwidthThrottler = BandwidthThrottlerProvider_(options.ClientOptions.WorkloadDescriptor.Category);
     auto session = New<TReadBlockSetSession>(
         this,
         options,
         blockIndexes,
-        BandwidthThrottler_,
+        std::move(bandwidthThrottler),
         RpsThrottler_,
         MediumThrottler_);
     return session->Run();
@@ -3357,12 +3358,13 @@ TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
         return MakeFuture<std::vector<TBlock>>({});
     }
 
+    auto bandwidthThrottler = BandwidthThrottlerProvider_(options.ClientOptions.WorkloadDescriptor.Category);
     auto session = New<TReadBlockRangeSession>(
         this,
         options,
         firstBlockIndex,
         blockCount,
-        BandwidthThrottler_,
+        std::move(bandwidthThrottler),
         RpsThrottler_,
         MediumThrottler_);
     return session->Run();
@@ -3629,9 +3631,11 @@ TFuture<TRefCountedChunkMetaPtr> TReplicationReader::GetMeta(
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
+    auto bandwithThottler = BandwidthThrottlerProvider_(options.ClientOptions.WorkloadDescriptor.Category);
     auto callback = BIND([
         this,
         this_ = MakeStrong(this),
+        bandwithThottler = std::move(bandwithThottler),
         options,
         partitionTags
     ] (const std::optional<std::vector<int>>& extensionTags) {
@@ -3640,7 +3644,7 @@ TFuture<TRefCountedChunkMetaPtr> TReplicationReader::GetMeta(
             options,
             partitionTags,
             extensionTags,
-            BandwidthThrottler_,
+            bandwithThottler,
             RpsThrottler_,
             MediumThrottler_)
             ->Run();
@@ -4067,13 +4071,14 @@ TFuture<TSharedRef> TReplicationReader::LookupRows(
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
+    auto bandwidthThrottler = BandwidthThrottlerProvider_(options->ChunkReadOptions.WorkloadDescriptor.Category);
     auto session = New<TLookupRowsSession>(
         this,
         std::move(options),
         std::move(lookupKeys),
         estimatedSize,
         codecId,
-        BandwidthThrottler_,
+        std::move(bandwidthThrottler),
         RpsThrottler_,
         MediumThrottler_,
         std::move(sessionInvoker));
@@ -4095,9 +4100,9 @@ public:
         IThroughputThrottlerPtr rpsThrottler,
         IThroughputThrottlerPtr mediumThrottler)
         : UnderlyingReader_(std::move(underlyingReader))
-        , BandwidthThrottler_(std::move(bandwidthThrottler))
-        , RpsThrottler_(std::move(rpsThrottler))
-        , MediumThrottler_(std::move(mediumThrottler))
+        , BandwidthThrottler_(bandwidthThrottler ? std::move(bandwidthThrottler) : GetUnlimitedThrottler())
+        , RpsThrottler_(rpsThrottler ? std::move(rpsThrottler) : GetUnlimitedThrottler())
+        , MediumThrottler_(mediumThrottler ? std::move(mediumThrottler) : GetUnlimitedThrottler())
     { }
 
     TFuture<std::vector<TBlock>> ReadBlocks(

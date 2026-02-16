@@ -111,7 +111,7 @@ TEST_P(TPartitionMultiChunkReaderTest, WithManyPartitionTags)
     TPartitionMultiChunkReaderPtr reader = CreatePartitionMultiChunkReader(
         New<TMultiChunkReaderConfig>(),
         New<TMultiChunkReaderOptions>(),
-        TChunkReaderHost::FromClient(NativeClient_),
+        New<TChunkReaderHost>(NativeClient_),
         sourceDirectory,
         TransformRangeTo<std::vector<TDataSliceDescriptor>>(
             chunkSpecs,

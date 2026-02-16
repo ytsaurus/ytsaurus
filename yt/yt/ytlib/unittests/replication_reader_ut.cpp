@@ -425,9 +425,9 @@ TChunkReaderHostPtr GetChunkReaderHost(
             GetNullMemoryUsageTracker()),
         /*chunkMetaCache*/ nullptr,
         std::move(nodeStatusDirectory),
-        NConcurrency::GetUnlimitedThrottler(),
-        NConcurrency::GetUnlimitedThrottler(),
-        NConcurrency::GetUnlimitedThrottler(),
+        /*bandwidthThrottlerProvider*/ TPerCategoryThrottlerProvider(),
+        /*rpsThrottler*/ nullptr,
+        /*mediumThrottler*/ nullptr,
         /*trafficMeter*/ nullptr);
 }
 

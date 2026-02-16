@@ -1212,17 +1212,17 @@ void TJobProxy::ReportResult(
 
 void TJobProxy::InitializeChunkReaderHost()
 {
-    auto bandwidthThrottlerFactory = BIND([this, weakThis = MakeWeak(this)] (const TClusterName& clusterName) {
-        auto thisLocked = weakThis.Lock();
-        if (!thisLocked) {
-            return IThroughputThrottlerPtr();
-        }
+    auto bandwidthThrottlerProvider = BIND([this, weakThis = MakeWeak(this)] (const TClusterName& clusterName) -> TPerCategoryThrottlerProvider {
+        return BIND([=, this] (EWorkloadCategory /*category*/) -> IThroughputThrottlerPtr {
+            auto this_ = weakThis.Lock();
+            if (!this_) {
+                return GetUnlimitedThrottler();
+            }
 
-        if (JobSpecHelper_->GetJobSpecExt().use_cluster_throttlers()) {
-            return GetInBandwidthThrottler(clusterName);
-        }
-
-        return GetInBandwidthThrottler(LocalClusterName);
+            return JobSpecHelper_->GetJobSpecExt().use_cluster_throttlers()
+                ? GetInBandwidthThrottler(clusterName)
+                : GetInBandwidthThrottler(LocalClusterName);
+        });
     });
 
     std::vector<TMultiChunkReaderHost::TClusterContext> clusterContextList{
@@ -1257,18 +1257,18 @@ void TJobProxy::InitializeChunkReaderHost()
             });
     }
 
-    MultiChunkReaderHost_ = CreateMultiChunkReaderHost(
+    MultiChunkReaderHost_ = New<TMultiChunkReaderHost>(
         New<TChunkReaderHost>(
             Client_,
             LocalDescriptor_,
             ReaderBlockCache_,
             /*chunkMetaCache*/ nullptr,
             /*nodeStatusDirectory*/ nullptr,
-            bandwidthThrottlerFactory(LocalClusterName),
+            bandwidthThrottlerProvider(LocalClusterName),
             GetOutRpsThrottler(),
-            /*mediumThrottler*/ GetUnlimitedThrottler(),
+            /*mediumThrottler*/ nullptr,
             GetTrafficMeter()),
-        std::move(bandwidthThrottlerFactory),
+        bandwidthThrottlerProvider,
         clusterContextList);
 }
 

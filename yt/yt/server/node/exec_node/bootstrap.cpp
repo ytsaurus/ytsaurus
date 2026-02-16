@@ -252,9 +252,10 @@ public:
                 std::move(layerBlockCache),
                 connection->GetChunkMetaCache(),
                 /*nodeStatusDirectory*/ nullptr,
-                /*bandwidthThrottler*/ GetUnlimitedThrottler(),
-                /*rpsThrottler*/ GetUnlimitedThrottler(),
-                /*mediumThrottler*/ GetUnlimitedThrottler(),
+                // TODO(babenko): maybe pass throttlers here?
+                /*bandwidthThrottlerProvider*/ TPerCategoryThrottlerProvider(),
+                /*rpsThrottler*/ nullptr,
+                /*mediumThrottler*/ nullptr,
                 /*trafficMeter*/ nullptr);
 
             auto fileBlockCache = CreateClientBlockCache(
@@ -268,9 +269,10 @@ public:
                 std::move(fileBlockCache),
                 connection->GetChunkMetaCache(),
                 /*nodeStatusDirectory*/ nullptr,
-                /*bandwidthThrottler*/ GetUnlimitedThrottler(),
-                /*rpsThrottler*/ GetUnlimitedThrottler(),
-                /*mediumThrottler*/ GetUnlimitedThrottler(),
+                // TODO(babenko): maybe pass throttlers here?
+                /*bandwidthThrottlerProvider*/ TPerCategoryThrottlerProvider(),
+                /*rpsThrottler*/ nullptr,
+                /*mediumThrottler*/ nullptr,
                 /*trafficMeter*/ nullptr);
         }
 

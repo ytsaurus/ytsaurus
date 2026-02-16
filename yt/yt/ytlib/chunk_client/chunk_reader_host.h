@@ -14,6 +14,16 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TPerCategoryThrottlerProvider = TCallback<
+    NConcurrency::IThroughputThrottlerPtr(EWorkloadCategory category)
+>;
+
+using TPerClusterAndCategoryBandwidthThrottlerProvider = TCallback<
+    TPerCategoryThrottlerProvider(const NScheduler::TClusterName& clusterName)
+>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TChunkReaderHost
     : public TRefCounted
 {
@@ -23,10 +33,16 @@ struct TChunkReaderHost
         IBlockCachePtr blockCache,
         IClientChunkMetaCachePtr chunkMetaCache,
         NNodeTrackerClient::INodeStatusDirectoryPtr nodeStatusDirectory,
-        NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
+        TPerCategoryThrottlerProvider bandwidthThrottlerProvider,
         NConcurrency::IThroughputThrottlerPtr rpsThrottler,
         NConcurrency::IThroughputThrottlerPtr mediumThrottler,
         TTrafficMeterPtr trafficMeter);
+
+    TChunkReaderHost(
+        NApi::NNative::IClientPtr client,
+        TPerCategoryThrottlerProvider bandwidthThrottlerProvider = {},
+        NConcurrency::IThroughputThrottlerPtr rpsThrottler = nullptr,
+        NConcurrency::IThroughputThrottlerPtr mediumThrottler = nullptr);
 
     const NApi::NNative::IClientPtr Client;
 
@@ -37,17 +53,11 @@ struct TChunkReaderHost
 
     const NNodeTrackerClient::INodeStatusDirectoryPtr NodeStatusDirectory;
 
-    const NConcurrency::IThroughputThrottlerPtr BandwidthThrottler;
+    const TPerCategoryThrottlerProvider BandwidthThrottlerProvider;
     const NConcurrency::IThroughputThrottlerPtr RpsThrottler;
     const NConcurrency::IThroughputThrottlerPtr MediumThrottler;
 
     const TTrafficMeterPtr TrafficMeter;
-
-    static TChunkReaderHostPtr FromClient(
-        NApi::NNative::IClientPtr client,
-        NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
-        NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler(),
-        NConcurrency::IThroughputThrottlerPtr mediumThrottler = NConcurrency::GetUnlimitedThrottler());
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReaderHost)
@@ -58,8 +68,6 @@ class TMultiChunkReaderHost
     : public TRefCounted
 {
 public:
-    using TBandwidthThrottlerFactory = TCallback<NConcurrency::IThroughputThrottlerPtr(const NScheduler::TClusterName& clusterName)>;
-
     struct TClusterContext
     {
         NScheduler::TClusterName Name;
@@ -69,34 +77,31 @@ public:
 
     TMultiChunkReaderHost(
         TChunkReaderHostPtr baseHost,
-        TBandwidthThrottlerFactory bandwidthThrottlerFactory,
+        TPerClusterAndCategoryBandwidthThrottlerProvider bandwidthThrottlerProvider,
         std::vector<TClusterContext> clusterContextList);
 
+    explicit TMultiChunkReaderHost(
+        TChunkReaderHostPtr baseHost);
+
     TChunkReaderHostPtr CreateHostForCluster(const NScheduler::TClusterName& clusterName);
+
     TClientChunkReadOptions AdjustClientChunkReadOptions(
         const NScheduler::TClusterName& clusterName,
         const TClientChunkReadOptions& options) const;
-    TTrafficMeterPtr GetTrafficMeter() const;
+
+    const TTrafficMeterPtr& GetTrafficMeter() const;
 
     const THashMap<NScheduler::TClusterName, TChunkReaderStatisticsPtr>& GetChunkReaderStatistics() const;
 
 private:
     const TChunkReaderHostPtr BaseHost_;
-    const TBandwidthThrottlerFactory BandwidthThrottlerFactory_;
+    const TPerClusterAndCategoryBandwidthThrottlerProvider BandwidthThrottlerProvider_;
 
     const THashMap<NScheduler::TClusterName, TChunkReaderHostPtr> Hosts_;
     const THashMap<NScheduler::TClusterName, TChunkReaderStatisticsPtr> ChunkReaderStatisticsMap_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TMultiChunkReaderHost)
-
-TMultiChunkReaderHostPtr CreateMultiChunkReaderHost(
-    TChunkReaderHostPtr baseHost,
-    TMultiChunkReaderHost::TBandwidthThrottlerFactory bandwidthThrottlerFactory,
-    std::vector<TMultiChunkReaderHost::TClusterContext> clusterContextList);
-
-TMultiChunkReaderHostPtr CreateSingleSourceMultiChunkReaderHost(
-    TChunkReaderHostPtr baseHost);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -9,6 +9,7 @@
 
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_fragment_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
@@ -52,12 +53,8 @@ std::vector<TSharedRef> TClient::DoReadHunks(
 {
     auto reader = CreateChunkFragmentReader(
         options.Config,
-        this,
-        CreateTrivialNodeStatusDirectory(),
-        GetNullBlockCache(),
-        /*profiler*/ {},
-        /*mediumThrottler*/ GetUnlimitedThrottler(),
-        /*throttlerProvider*/ {});
+        New<TChunkReaderHost>(this),
+        /*profiler*/ {});
 
     std::vector<IChunkFragmentReader::TChunkFragmentRequest> readerRequests;
     readerRequests.reserve(requests.size());
