@@ -65,7 +65,7 @@ static i64 GetCapacity(const std::vector<TLayerLocationPtr>& layerLocations)
 ////////////////////////////////////////////////////////////////////////////////
 
 TLayerLocationPtr DoPickLocation(
-    const std::vector<TLayerLocationPtr> locations,
+    const std::vector<TLayerLocationPtr>& locations,
     std::function<bool(const TLayerLocationPtr&, const TLayerLocationPtr&)> isBetter)
 {
     TLayerLocationPtr location;
@@ -684,6 +684,7 @@ TFuture<TRONbdVolumePtr> TNbdVolumeFactory::PrepareRONbdVolume(
             .AsyncVia(nbdServer->GetInvoker()))
         .ToUncancelable();
 }
+
 TFuture<IBlockDevicePtr> TNbdVolumeFactory::CreateRWNbdDevice(
     TGuid tag,
     TPrepareRWNbdVolumeOptions options)
