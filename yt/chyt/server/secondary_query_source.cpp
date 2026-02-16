@@ -315,7 +315,7 @@ public:
                 continue;
             }
             if (batch->IsEmpty()) {
-                NProfiling::TWallTimer wallTimer;
+                TWallTimer wallTimer;
                 WaitFor(GetReadyEvent())
                     .ThrowOnError();
 
@@ -652,7 +652,11 @@ private:
             return;
         }
 
+        TWallTimer timer;
         CurrentReader_ = ReaderFactory_->CreateReader();
+        timer.Stop();
+        Statistics_.AddSample("/secondary_query_source/reader_factory/create_reader_sync_wait_time_us"_SP, timer.GetElapsedTime().MicroSeconds());
+
         auto stats = ReaderFactory_->GetAndResetStatistics();
         addTotalRowsApprox(stats.TotalRowCount);
         addTotalBytes(stats.TotalDataWeight);
