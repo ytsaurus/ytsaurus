@@ -208,23 +208,23 @@ bool TResourceTreeElement::IncreaseLocalPreemptedResourceUsagePrecommitUnsafe(co
     return true;
 }
 
-bool TResourceTreeElement::ResetLocalPreemptedResourceUsagePrecommit()
+void TResourceTreeElement::ResetLocalPreemptedResourceUsagePrecommit()
 {
     if (Kind_ != EResourceTreeElementKind::Operation && !ResourceLimitsSpecified_) {
-        return true;
+        return;
     }
 
     auto guard = WriterGuard(ResourceUsageLock_);
 
     if (!Alive_) {
-        return false;
+        return;
     }
 
     ResourceTree_->IncrementUsageLockWriteCount();
 
     PreemptedResourceUsagePrecommit_ = TJobResources();
 
-    return true;
+    return;
 }
 
 bool TResourceTreeElement::CommitLocalResourceUsage(
