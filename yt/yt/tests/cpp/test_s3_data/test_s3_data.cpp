@@ -274,8 +274,9 @@ TEST_F(TS3DataTest, TestReplicationReader)
         })))
         .ThrowOnError();
 
-    // TODO: when it's decided how to proceed with offshore mediums and the credentials stored
-    // in them, continue with this test. Now it arrives to a stage: "Medium 15 is not an S3 medium".
+    // TODO(pavel-bash): when the master supports offshore media, it'll be possible to continue this test; now
+    // it's stopped at "Mediu 15 is not an S3 medium" because master does not serialize an offshore medium as
+    // an offshore one; see a TODO in SerializeMediumDirectory.
     IChunkReader::TReadBlocksOptions readOptions;
     auto readBlocks = WaitFor(ReplicationReader_->ReadBlocks(readOptions, {1}))
         .ValueOrThrow();

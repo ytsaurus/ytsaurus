@@ -95,14 +95,14 @@ private:
         auto mediumDescriptor = genericMediumDescriptor->template As<TS3MediumDescriptor>();
         THROW_ERROR_EXCEPTION_IF(!mediumDescriptor, "Medium %v is not an S3 medium", replicaWithMedium.GetMediumIndex());
 
-        // TODO(discuss in PR): We create the S3 credential provider from the medium as we store the access key ID
-        // and the secret access key in its configuration. Here only placement and proxy are stored. How can we get
-        // the credentials to access S3 then?
-        auto s3CredentialProvider = NS3::CreateAnonymousCredentialProvider();
+        const auto& mediumConfig = mediumDescriptor->GetConfig();
+        auto s3CredentialProvider = NS3::CreateStaticCredentialProvider(
+            TString(mediumConfig->AccessKeyId),
+            TString(mediumConfig->SecretAccessKey));
 
         auto clientConfig = New<NS3::TS3ClientConfig>();
-        clientConfig->Url = mediumDescriptor->GetConfig()->Url;
-        clientConfig->Region = mediumDescriptor->GetConfig()->Region;
+        clientConfig->Url = mediumConfig->Url;
+        clientConfig->Region = mediumConfig->Region;
 
         auto s3Client = CreateClient(
             std::move(clientConfig),
