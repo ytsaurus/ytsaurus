@@ -1335,7 +1335,7 @@ TBundleSnapshotPtr TBundleState::UpdateState()
         return GetLatestBundleSnapshot(EFetchKind::State);
     } catch (const TErrorException& ex) {
         YT_LOG_ERROR(ex, "Failed to update bundle state");
-        if (ex.Error().FindMatching(NRpc::EErrorCode::RequestQueueSizeLimitExceeded)) {
+        if (ex.Error().FindMatching(NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded)) {
             Counters_->StateRequestThrottled.Increment(1);
         }
 
@@ -1455,7 +1455,7 @@ TBundleSnapshotPtr TBundleState::UpdateStatistics()
         return GetLatestBundleSnapshot(EFetchKind::Statistics);
     } catch (const TErrorException& ex) {
         YT_LOG_ERROR(ex, "Failed to update statistics and performance counters");
-        if (ex.Error().FindMatching(NRpc::EErrorCode::RequestQueueSizeLimitExceeded)) {
+        if (ex.Error().FindMatching(NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded)) {
             Counters_->StatisticsRequestThrottled.Increment(1);
         }
 
