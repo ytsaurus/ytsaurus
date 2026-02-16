@@ -1,5 +1,6 @@
 {
   ".":"yt/opensource/repos/ytsaurus/github_toplevel",
+  ".github/copilot-instructions.md":"yt/opensource/repos/ytsaurus/github_toplevel/.github/copilot-instructions.md",
   ".github/pull_request_template.md":"yt/opensource/repos/ytsaurus/github_toplevel/.github/pull_request_template.md",
   ".github/scripts/delete_search_index.sh":"yt/opensource/repos/ytsaurus/github_toplevel/.github/scripts/delete_search_index.sh",
   ".github/scripts/dump_tests.py":"yt/opensource/repos/ytsaurus/github_toplevel/.github/scripts/dump_tests.py",
