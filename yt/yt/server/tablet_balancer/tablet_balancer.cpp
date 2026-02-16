@@ -306,7 +306,7 @@ void TTabletBalancer::Start()
     YT_LOG_INFO("Starting tablet balancer instance (Period: %v)",
         DynamicConfig_.Acquire()->Period.value_or(Config_->Period));
 
-    if (auto oldValue = false; IsActive_.compare_exchange_strong(oldValue, true)) {
+    if (auto oldValue = false; !IsActive_.compare_exchange_strong(oldValue, true)) {
         YT_LOG_WARNING("Trying to start tablet balancer instance which is already active");
     }
 
