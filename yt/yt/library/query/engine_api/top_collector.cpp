@@ -27,14 +27,14 @@ TTopCollector::TTopCollector(
     , MemoryChunkProvider_(std::move(memoryChunkProvider))
     , Limit_(limit)
     , RowsContext_(MakeExpressionContext(TTopCollectorBufferTag(), MemoryChunkProvider_))
-    , Heap_(THeap::allocator_type(MemoryChunkProvider_, GetRefCountedTypeCookie<TTopCollectorBufferTag>()))
+    , Heap_(GetRefCountedTypeCookie<TTopCollectorBufferTag>(), MemoryChunkProvider_)
 { }
 
 std::vector<const TPIValue*> TTopCollector::GetRows() const
 {
-    auto result = std::vector<const TPIValue*>(Heap_.size());
+    auto result = std::vector<const TPIValue*>(Heap_.Size());
 
-    for (i64 index = 0; index < std::ssize(Heap_); ++index) {
+    for (i64 index = 0; index < Heap_.Size(); ++index) {
         result[index] = Heap_[index].Row;
     }
 
@@ -69,7 +69,7 @@ void TTopCollector::CollectGarbageAndAllocateNewContextIfNeeded()
 
     // Collect garbage.
     auto contextsToRows = std::vector<std::vector<size_t>>(StringLikeValueContexts_.size());
-    for (i64 rowId = 0; rowId < std::ssize(Heap_); ++rowId) {
+    for (i64 rowId = 0; rowId < Heap_.Size(); ++rowId) {
         contextsToRows[Heap_[rowId].ContextIndex].push_back(rowId);
     }
 

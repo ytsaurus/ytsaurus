@@ -9,7 +9,6 @@
 
 #include <yt/yt/library/query/base/callbacks.h>
 
-#include <yt/yt/library/query/misc/alloc.h>
 #include <yt/yt/library/query/misc/objects_holder.h>
 #include <yt/yt/library/query/misc/function_context.h>
 
@@ -88,16 +87,14 @@ private:
 
 } // namespace NDetail
 
-using TGroupRows = google::dense_hash_set<
-    const TPIValue*,
-    NDetail::TGroupHasher,
-    NDetail::TRowComparer,
-    TAllocatorOverChunkProvider<const TPIValue*>>;
-
-using TGroupVector = std::vector<const TPIValue*, TAllocatorOverChunkProvider<const TPIValue*>>;
-
 using TLookupRows = google::dense_hash_set<
     const TPIValue*,
+    NDetail::TGroupHasher,
+    NDetail::TRowComparer>;
+
+using TJoinLookup = google::dense_hash_map<
+    const TPIValue*,
+    std::pair<int, bool>,
     NDetail::TGroupHasher,
     NDetail::TRowComparer>;
 
