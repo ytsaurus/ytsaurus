@@ -1,3 +1,15 @@
+GO_LIBRARY()
+
+LICENSE(Apache-2.0)
+
+VERSION(v1.74.2)
+
+SRCS(
+    internal.go
+)
+
+END()
+
 RECURSE(
     xdsresource
 )
