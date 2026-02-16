@@ -244,6 +244,41 @@ TEST(TQueueReplicaSelectorTest, TestBanReplicas)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TBannedReplicaTrackerTest, TestSyncReplicas)
+{
+    TLogger logger;
+    TBannedReplicaTracker bannedReplicaTracker(logger, 1);
+
+    auto replicationCardId = GenerateReplicationCardId();
+    auto replicas = GenerateDefaultReplicas();
+    auto replicationCard = CreateReplicationCard(replicas, replicationCardId);
+
+    bannedReplicaTracker.SyncReplicas(replicationCard);
+    EXPECT_EQ(3, std::ssize(bannedReplicaTracker.GetBannedReplicas()));
+
+    TReplicaId asyncQueueReplicaId;
+    for (auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
+        if (replicaInfo.Mode == ETableReplicaMode::Async &&
+            replicaInfo.ContentType == ETableReplicaContentType::Queue)
+        {
+            asyncQueueReplicaId = replicaId;
+            break;
+        }
+    }
+
+    auto asyncQueueReplicaInfo = replicationCard->Replicas[asyncQueueReplicaId];
+
+    EraseOrCrash(replicationCard->Replicas, asyncQueueReplicaId);
+    bannedReplicaTracker.SyncReplicas(replicationCard);
+    EXPECT_EQ(2, std::ssize(bannedReplicaTracker.GetBannedReplicas()));
+
+    EmplaceOrCrash(replicationCard->Replicas, asyncQueueReplicaId, asyncQueueReplicaInfo);
+    bannedReplicaTracker.SyncReplicas(replicationCard);
+    EXPECT_EQ(3, std::ssize(bannedReplicaTracker.GetBannedReplicas()));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT::NTabletNode
 
