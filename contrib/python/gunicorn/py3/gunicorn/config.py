@@ -389,6 +389,19 @@ def validate_pos_int(val):
     return val
 
 
+def validate_http2_frame_size(val):
+    """Validate HTTP/2 max frame size per RFC 7540."""
+    if not isinstance(val, int):
+        val = int(val, 0)
+    else:
+        val = int(val)
+    if val < 16384 or val > 16777215:
+        raise ValueError(
+            f"http2_max_frame_size must be between 16384 and 16777215, got {val}"
+        )
+    return val
+
+
 def validate_ssl_version(val):
     if val != SSLVersion.default:
         sys.stderr.write("Warning: option `ssl_version` is deprecated and it is ignored. Use ssl_context instead.\n")
@@ -706,8 +719,7 @@ class WorkerClass(Setting):
         A string referring to one of the following bundled classes:
 
         * ``sync``
-        * ``eventlet`` - Requires eventlet >= 0.40.3 (or install it via
-          ``pip install gunicorn[eventlet]``)
+        * ``eventlet`` - **DEPRECATED: will be removed in 26.0**. Requires eventlet >= 0.40.3
         * ``gevent``   - Requires gevent >= 24.10.1 (or install it via
           ``pip install gunicorn[gevent]``)
         * ``tornado``  - Requires tornado >= 6.5.0 (or install it via
@@ -952,6 +964,10 @@ class Reload(Setting):
         .. note::
            In order to use the inotify reloader, you must have the ``inotify``
            package installed.
+        .. warning::
+           Enabling this will change what happens on failure to load the
+           the application: While the reloader is active, any and all clients
+           that can make requests can see the full exception and traceback!
         '''
 
 
@@ -2391,6 +2407,180 @@ class Ciphers(Setting):
     """
 
 
+# HTTP/2 Protocol Settings
+
+# Valid protocol identifiers
+VALID_HTTP_PROTOCOLS = frozenset(["h1", "h2", "h3"])
+# Map protocol identifiers to ALPN protocol names
+ALPN_PROTOCOL_MAP = {
+    "h1": "http/1.1",
+    "h2": "h2",
+    "h3": "h3",  # Future: HTTP/3 over QUIC
+}
+
+
+def validate_http_protocols(val):
+    """Validate http_protocols setting.
+
+    Accepts comma-separated list of protocol identifiers.
+    Valid values: h1 (HTTP/1.1), h2 (HTTP/2), h3 (HTTP/3 - future)
+    Order indicates preference (first = most preferred).
+    """
+    if val is None:
+        return ["h1"]
+    if not isinstance(val, str):
+        raise TypeError("http_protocols must be a string")
+
+    val = val.strip()
+    if not val:
+        return ["h1"]
+
+    protocols = [p.strip().lower() for p in val.split(",") if p.strip()]
+    if not protocols:
+        return ["h1"]
+
+    # Validate each protocol
+    for proto in protocols:
+        if proto not in VALID_HTTP_PROTOCOLS:
+            raise ValueError(
+                f"Invalid protocol '{proto}'. "
+                f"Valid protocols: {', '.join(sorted(VALID_HTTP_PROTOCOLS))}"
+            )
+
+    # Check for duplicates
+    if len(protocols) != len(set(protocols)):
+        raise ValueError("Duplicate protocols specified")
+
+    return protocols
+
+
+class HTTPProtocols(Setting):
+    name = "http_protocols"
+    section = "HTTP/2"
+    cli = ["--http-protocols"]
+    meta = "STRING"
+    validator = validate_http_protocols
+    default = "h1"
+    desc = """\
+        HTTP protocol versions to support (comma-separated, order = preference).
+
+        Valid protocols:
+
+        * ``h1`` - HTTP/1.1 (default)
+        * ``h2`` - HTTP/2 (requires TLS with ALPN)
+        * ``h3`` - HTTP/3 (future, not yet implemented)
+
+        Examples::
+
+            # HTTP/1.1 only (default, backward compatible)
+            --http-protocols=h1
+
+            # Prefer HTTP/2, fallback to HTTP/1.1
+            --http-protocols=h2,h1
+
+            # HTTP/2 only (reject HTTP/1.1 clients)
+            --http-protocols=h2
+
+        HTTP/2 requires:
+
+        * TLS (--certfile and --keyfile)
+        * The h2 library: ``pip install gunicorn[http2]``
+        * ALPN-capable TLS client
+
+        .. note::
+           HTTP/2 cleartext (h2c) is not supported due to security concerns
+           and lack of browser support.
+
+        .. versionadded:: 25.0.0
+        """
+
+
+class HTTP2MaxConcurrentStreams(Setting):
+    name = "http2_max_concurrent_streams"
+    section = "HTTP/2"
+    cli = ["--http2-max-concurrent-streams"]
+    meta = "INT"
+    validator = validate_pos_int
+    type = int
+    default = 100
+    desc = """\
+        Maximum number of concurrent HTTP/2 streams per connection.
+
+        This limits how many requests can be processed simultaneously on a
+        single HTTP/2 connection. Higher values allow more parallelism but
+        use more memory.
+
+        Default is 100, which matches common server configurations.
+        The HTTP/2 specification allows up to 2^31-1.
+
+        .. versionadded:: 25.0.0
+        """
+
+
+class HTTP2InitialWindowSize(Setting):
+    name = "http2_initial_window_size"
+    section = "HTTP/2"
+    cli = ["--http2-initial-window-size"]
+    meta = "INT"
+    validator = validate_pos_int
+    type = int
+    default = 65535
+    desc = """\
+        Initial HTTP/2 flow control window size in bytes.
+
+        This controls how much data can be in-flight before the receiver
+        sends WINDOW_UPDATE frames. Larger values can improve throughput
+        for large transfers but use more memory.
+
+        Default is 65535 (64KB - 1), the HTTP/2 specification default.
+        Maximum is 2^31-1 (2147483647).
+
+        .. versionadded:: 25.0.0
+        """
+
+
+class HTTP2MaxFrameSize(Setting):
+    name = "http2_max_frame_size"
+    section = "HTTP/2"
+    cli = ["--http2-max-frame-size"]
+    meta = "INT"
+    validator = validate_http2_frame_size
+    type = int
+    default = 16384
+    desc = """\
+        Maximum HTTP/2 frame payload size in bytes.
+
+        This is the largest frame payload the server will accept.
+        Larger frames reduce framing overhead but may increase latency
+        for small messages.
+
+        Default is 16384 (16KB), the HTTP/2 specification minimum.
+        Range is 16384 to 16777215 (16MB - 1).
+
+        .. versionadded:: 25.0.0
+        """
+
+
+class HTTP2MaxHeaderListSize(Setting):
+    name = "http2_max_header_list_size"
+    section = "HTTP/2"
+    cli = ["--http2-max-header-list-size"]
+    meta = "INT"
+    validator = validate_pos_int
+    type = int
+    default = 65536
+    desc = """\
+        Maximum size of HTTP/2 header list in bytes (HPACK protection).
+
+        This limits the total size of headers after HPACK decompression.
+        Protects against compression bombs and excessive memory use.
+
+        Default is 65536 (64KB). Set to 0 for unlimited (not recommended).
+
+        .. versionadded:: 25.0.0
+        """
+
+
 class PasteGlobalConf(Setting):
     name = "raw_paste_global_conf"
     action = "append"
@@ -2677,4 +2867,224 @@ class RootPath(Setting):
         this to ``/api``.
 
         .. versionadded:: 24.0.0
+        """
+
+
+# =============================================================================
+# Dirty Arbiters - Separate process pool for long-running operations
+# =============================================================================
+
+class DirtyApps(Setting):
+    name = "dirty_apps"
+    section = "Dirty Arbiters"
+    cli = ["--dirty-app"]
+    action = "append"
+    meta = "STRING"
+    validator = validate_list_string
+    default = []
+    desc = """\
+        Dirty applications to load in the dirty worker pool.
+
+        A list of application paths in one of these formats:
+
+        - ``$(MODULE_NAME):$(CLASS_NAME)`` - all workers load this app
+        - ``$(MODULE_NAME):$(CLASS_NAME):$(N)`` - only N workers load this app
+
+        Each dirty app must be a class that inherits from ``DirtyApp`` base class
+        and implements the ``init()``, ``__call__()``, and ``close()`` methods.
+
+        Example::
+
+            dirty_apps = [
+                "myapp.ml:MLApp",           # All workers load this
+                "myapp.images:ImageApp",    # All workers load this
+                "myapp.heavy:HugeModel:2",  # Only 2 workers load this
+            ]
+
+        The per-app worker limit is useful for memory-intensive applications
+        like large ML models. Instead of all 8 workers loading a 10GB model
+        (80GB total), you can limit it to 2 workers (20GB total).
+
+        Alternatively, you can set the ``workers`` class attribute on your
+        DirtyApp subclass::
+
+            class HugeModelApp(DirtyApp):
+                workers = 2  # Only 2 workers load this app
+
+                def init(self):
+                    self.model = load_10gb_model()
+
+        Note: The config format (``module:Class:N``) takes precedence over
+        the class attribute if both are specified.
+
+        Dirty apps are loaded once when the dirty worker starts and persist
+        in memory for the lifetime of the worker. This is ideal for loading
+        ML models, database connection pools, or other stateful resources
+        that are expensive to initialize.
+
+        .. versionadded:: 25.0.0
+
+        .. versionchanged:: 25.1.0
+           Added per-app worker allocation via ``:N`` format suffix.
+        """
+
+
+class DirtyWorkers(Setting):
+    name = "dirty_workers"
+    section = "Dirty Arbiters"
+    cli = ["--dirty-workers"]
+    meta = "INT"
+    validator = validate_pos_int
+    type = int
+    default = 0
+    desc = """\
+        The number of dirty worker processes.
+
+        A positive integer. Set to 0 (default) to disable the dirty arbiter.
+        When set to a positive value, a dirty arbiter process will be spawned
+        to manage the dirty worker pool.
+
+        Dirty workers are separate from HTTP workers and are designed for
+        long-running, blocking operations like ML model inference or heavy
+        computation.
+
+        .. versionadded:: 25.0.0
+        """
+
+
+class DirtyTimeout(Setting):
+    name = "dirty_timeout"
+    section = "Dirty Arbiters"
+    cli = ["--dirty-timeout"]
+    meta = "INT"
+    validator = validate_pos_int
+    type = int
+    default = 300
+    desc = """\
+        Timeout for dirty task execution in seconds.
+
+        Workers silent for more than this many seconds are considered stuck
+        and will be killed. Set to a high value for operations like model
+        loading that may take a long time.
+
+        Value is a positive number. Setting it to 0 disables timeout checking.
+
+        .. versionadded:: 25.0.0
+        """
+
+
+class DirtyThreads(Setting):
+    name = "dirty_threads"
+    section = "Dirty Arbiters"
+    cli = ["--dirty-threads"]
+    meta = "INT"
+    validator = validate_pos_int
+    type = int
+    default = 1
+    desc = """\
+        The number of threads per dirty worker.
+
+        Each dirty worker can use threads to handle concurrent operations
+        within the same process, useful for async-safe applications.
+
+        .. versionadded:: 25.0.0
+        """
+
+
+class DirtyGracefulTimeout(Setting):
+    name = "dirty_graceful_timeout"
+    section = "Dirty Arbiters"
+    cli = ["--dirty-graceful-timeout"]
+    meta = "INT"
+    validator = validate_pos_int
+    type = int
+    default = 30
+    desc = """\
+        Timeout for graceful dirty worker shutdown in seconds.
+
+        After receiving a shutdown signal, dirty workers have this much time
+        to finish their current tasks. Workers still alive after the timeout
+        are force killed.
+
+        .. versionadded:: 25.0.0
+        """
+
+
+# =============================================================================
+# Dirty Arbiter Hooks
+# =============================================================================
+
+class OnDirtyStarting(Setting):
+    name = "on_dirty_starting"
+    section = "Dirty Arbiter Hooks"
+    validator = validate_callable(1)
+    type = callable
+
+    def on_dirty_starting(arbiter):
+        pass
+    default = staticmethod(on_dirty_starting)
+    desc = """\
+        Called just before the dirty arbiter process is initialized.
+
+        The callable needs to accept a single instance variable for the
+        DirtyArbiter.
+
+        .. versionadded:: 25.0.0
+        """
+
+
+class DirtyPostFork(Setting):
+    name = "dirty_post_fork"
+    section = "Dirty Arbiter Hooks"
+    validator = validate_callable(2)
+    type = callable
+
+    def dirty_post_fork(arbiter, worker):
+        pass
+    default = staticmethod(dirty_post_fork)
+    desc = """\
+        Called just after a dirty worker has been forked.
+
+        The callable needs to accept two instance variables for the
+        DirtyArbiter and new DirtyWorker.
+
+        .. versionadded:: 25.0.0
+        """
+
+
+class DirtyWorkerInit(Setting):
+    name = "dirty_worker_init"
+    section = "Dirty Arbiter Hooks"
+    validator = validate_callable(1)
+    type = callable
+
+    def dirty_worker_init(worker):
+        pass
+    default = staticmethod(dirty_worker_init)
+    desc = """\
+        Called just after a dirty worker has initialized all applications.
+
+        The callable needs to accept one instance variable for the
+        DirtyWorker.
+
+        .. versionadded:: 25.0.0
+        """
+
+
+class DirtyWorkerExit(Setting):
+    name = "dirty_worker_exit"
+    section = "Dirty Arbiter Hooks"
+    validator = validate_callable(2)
+    type = callable
+
+    def dirty_worker_exit(arbiter, worker):
+        pass
+    default = staticmethod(dirty_worker_exit)
+    desc = """\
+        Called when a dirty worker has exited.
+
+        The callable needs to accept two instance variables for the
+        DirtyArbiter and the exiting DirtyWorker.
+
+        .. versionadded:: 25.0.0
         """

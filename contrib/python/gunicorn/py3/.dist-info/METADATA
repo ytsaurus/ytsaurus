@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: gunicorn
-Version: 24.1.1
+Version: 25.0.0
 Summary: WSGI HTTP Server for UNIX
 Author-email: Benoit Chesneau <benoitc@gunicorn.org>
 License-Expression: MIT
@@ -31,7 +31,7 @@ Classifier: Topic :: Internet :: WWW/HTTP :: WSGI
 Classifier: Topic :: Internet :: WWW/HTTP :: WSGI :: Server
 Classifier: Topic :: Internet :: WWW/HTTP :: Dynamic Content
 Requires-Python: >=3.10
-Description-Content-Type: text/x-rst
+Description-Content-Type: text/markdown
 License-File: LICENSE
 Requires-Dist: packaging
 Provides-Extra: gevent
@@ -43,91 +43,76 @@ Requires-Dist: tornado>=6.5.0; extra == "tornado"
 Provides-Extra: gthread
 Provides-Extra: setproctitle
 Requires-Dist: setproctitle; extra == "setproctitle"
+Provides-Extra: http2
+Requires-Dist: h2>=4.1.0; extra == "http2"
 Provides-Extra: testing
 Requires-Dist: gevent>=24.10.1; extra == "testing"
 Requires-Dist: eventlet>=0.40.3; extra == "testing"
+Requires-Dist: h2>=4.1.0; extra == "testing"
 Requires-Dist: coverage; extra == "testing"
 Requires-Dist: pytest; extra == "testing"
 Requires-Dist: pytest-cov; extra == "testing"
 Requires-Dist: pytest-asyncio; extra == "testing"
+Requires-Dist: uvloop>=0.19.0; extra == "testing"
+Requires-Dist: httpx[http2]; extra == "testing"
 Dynamic: license-file
 
-Gunicorn
-========
+# Gunicorn
 
-.. image:: https://img.shields.io/pypi/v/gunicorn.svg?style=flat
-    :alt: PyPI version
-    :target: https://pypi.python.org/pypi/gunicorn
-
-.. image:: https://img.shields.io/pypi/pyversions/gunicorn.svg
-    :alt: Supported Python versions
-    :target: https://pypi.python.org/pypi/gunicorn
-
-.. image:: https://github.com/benoitc/gunicorn/actions/workflows/tox.yml/badge.svg
-    :alt: Build Status
-    :target: https://github.com/benoitc/gunicorn/actions/workflows/tox.yml
+[![PyPI version](https://img.shields.io/pypi/v/gunicorn.svg?style=flat)](https://pypi.python.org/pypi/gunicorn)
+[![Supported Python versions](https://img.shields.io/pypi/pyversions/gunicorn.svg)](https://pypi.python.org/pypi/gunicorn)
+[![Build Status](https://github.com/benoitc/gunicorn/actions/workflows/tox.yml/badge.svg)](https://github.com/benoitc/gunicorn/actions/workflows/tox.yml)
 
 Gunicorn 'Green Unicorn' is a Python WSGI HTTP Server for UNIX. It's a pre-fork
-worker model ported from Ruby's Unicorn_ project. The Gunicorn server is broadly
+worker model ported from Ruby's [Unicorn](https://bogomips.org/unicorn/) project. The Gunicorn server is broadly
 compatible with various web frameworks, simply implemented, light on server
 resource usage, and fairly speedy.
 
-**New in v24**: Native ASGI support (beta) for async frameworks like FastAPI!
+**New in v25**: Per-app worker allocation for dirty arbiters, HTTP/2 support (beta)!
 
-Quick Start
------------
+## Quick Start
 
-.. code-block:: bash
-
-    pip install gunicorn
-    gunicorn myapp:app --workers 4
+```bash
+pip install gunicorn
+gunicorn myapp:app --workers 4
+```
 
 For ASGI applications (FastAPI, Starlette):
 
-.. code-block:: bash
+```bash
+gunicorn myapp:app --worker-class asgi
+```
 
-    gunicorn myapp:app --worker-class asgi
-
-Features
---------
+## Features
 
 - WSGI support for Django, Flask, Pyramid, and any WSGI framework
 - **ASGI support** (beta) for FastAPI, Starlette, Quart
+- **HTTP/2 support** (beta) with multiplexed streams
+- **Dirty Arbiters** for heavy workloads (ML models, long-running tasks)
 - uWSGI binary protocol for nginx integration
 - Multiple worker types: sync, gthread, gevent, eventlet, asgi
 - Graceful worker process management
-- Compatible with Python 3.12+
+- Compatible with Python 3.9+
 
-Documentation
--------------
+## Documentation
 
 Full documentation at https://gunicorn.org
 
-- `Quickstart <https://gunicorn.org/quickstart/>`_
-- `Configuration <https://gunicorn.org/configure/>`_
-- `Deployment <https://gunicorn.org/deploy/>`_
-- `Settings Reference <https://gunicorn.org/reference/settings/>`_
+- [Quickstart](https://gunicorn.org/quickstart/)
+- [Configuration](https://gunicorn.org/configure/)
+- [Deployment](https://gunicorn.org/deploy/)
+- [Settings Reference](https://gunicorn.org/reference/settings/)
 
-Community
----------
+## Community
 
-- Report bugs on `GitHub Issues <https://github.com/benoitc/gunicorn/issues>`_
-- Chat in `#gunicorn`_ on `Libera.chat`_
-- See `CONTRIBUTING.md <CONTRIBUTING.md>`_ for contribution guidelines
+- Report bugs on [GitHub Issues](https://github.com/benoitc/gunicorn/issues)
+- Chat in [#gunicorn](https://web.libera.chat/?channels=#gunicorn) on [Libera.chat](https://libera.chat/)
+- See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines
 
-Sponsors
---------
+## Sponsors
 
-Gunicorn is maintained thanks to our sponsors. `Become a sponsor <https://github.com/sponsors/benoitc>`_.
+Gunicorn is maintained thanks to our sponsors. [Become a sponsor](https://github.com/sponsors/benoitc).
 
-.. Sponsor logos will appear here
+## License
 
-License
--------
-
-Gunicorn is released under the MIT License. See the LICENSE_ file for details.
-
-.. _Unicorn: https://bogomips.org/unicorn/
-.. _`#gunicorn`: https://web.libera.chat/?channels=#gunicorn
-.. _`Libera.chat`: https://libera.chat/
-.. _LICENSE: https://github.com/benoitc/gunicorn/blob/master/LICENSE
+Gunicorn is released under the MIT License. See the [LICENSE](https://github.com/benoitc/gunicorn/blob/master/LICENSE) file for details.
