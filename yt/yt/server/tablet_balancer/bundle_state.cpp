@@ -629,7 +629,6 @@ private:
     const IClusterStateProviderPtr ClusterStateProvider_;
     const TPeriodicExecutorPtr PollExecutor_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, TableRegistryLock_);
     const TTableRegistryPtr TableRegistry_;
 
     TAtomicIntrusivePtr<TBundleStateProviderConfig> Config_;
@@ -1382,6 +1381,7 @@ TBundleSnapshotPtr TBundleState::DeepCopyLatestBundleSnapshot(EFetchKind kind) c
     auto bundleSnapshot = New<TBundleSnapshot>();
     auto oldBundleSnapshot = GetLatestBundleSnapshot(kind);
 
+    auto oldBundleGuard = Guard(oldBundleSnapshot->PublishedObjectLock);
     switch (kind) {
         case EFetchKind::State:
             bundleSnapshot->Bundle = oldBundleSnapshot->Bundle->DeepCopy(

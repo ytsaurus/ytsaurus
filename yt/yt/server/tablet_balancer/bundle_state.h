@@ -39,6 +39,8 @@ DEFINE_REFCOUNTED_TYPE(TBundleProfilingCounters)
 
 struct TBundleSnapshot final
 {
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, PublishedObjectLock);
+
     TTabletCellBundlePtr Bundle;
     bool ReplicaBalancingFetchFailed = false;
     std::vector<std::string> PerformanceCountersKeys;

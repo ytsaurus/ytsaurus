@@ -91,6 +91,17 @@ public:
         return GroupConfig_;
     }
 
+    TGuard<NYT::NThreading::TSpinLock> StartApplyingActions() const override
+    {
+        return Guard(BundleSnapshot_->PublishedObjectLock);
+    }
+
+    void ApplyMoveAction(const TTabletPtr& tablet, TTabletCellId cellId) const override
+    {
+        YT_ASSERT_SPINLOCK_AFFINITY(BundleSnapshot_->PublishedObjectLock);
+        ApplyMoveTabletAction(tablet, cellId);
+    }
+
     void Prepare() override
     { }
 
