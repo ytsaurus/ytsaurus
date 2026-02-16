@@ -99,6 +99,7 @@ def get_dynamic_master_config():
                 "enable_validation_full_heartbeats": True,
                 "validation_full_heartbeat_period": 1000,
                 "validation_full_heartbeat_splay": 200,
+                "validate_sequoia_replicas": True,
             },
         },
 

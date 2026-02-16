@@ -3926,7 +3926,7 @@ private:
             auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
             if (chunkInfo.caused_by_medium_change()) {
                 YT_LOG_ALERT(
-                    "Chunk is added after node restart caused by medium change "
+                    "Chunk caused by medium change is present in full heartbeat "
                     "(NodeId: %v, NodeAddress: %v, ChunkId: %v, ReplicaIndex: %v, Validation: %v)",
                     node->GetId(),
                     node->GetDefaultAddress(),

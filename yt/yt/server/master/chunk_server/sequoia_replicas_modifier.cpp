@@ -61,6 +61,7 @@ public:
         , ProcessRemovedSequoiaReplicasOnMaster_(config->SequoiaChunkReplicas->ProcessRemovedSequoiaReplicasOnMaster)
         , StoreSequoiaReplicasOnMaster_(config->SequoiaChunkReplicas->StoreSequoiaReplicasOnMaster)
         , ClearMasterRequest_(config->SequoiaChunkReplicas->ClearMasterRequest)
+        , FixSequoiaReplicasIfReplicaValidationFailed_(config->SequoiaChunkReplicas->FixSequoiaReplicasIfReplicaValidationFailed)
         , RetriableErrorCodes_(config->SequoiaChunkReplicas->RetriableErrorCodes)
         , Bootstrap_(bootstrap)
         , Profile_(profile)
@@ -99,6 +100,7 @@ private:
     const bool ProcessRemovedSequoiaReplicasOnMaster_;
     const bool StoreSequoiaReplicasOnMaster_;
     const bool ClearMasterRequest_;
+    const bool FixSequoiaReplicasIfReplicaValidationFailed_;
     const std::vector<TErrorCode> RetriableErrorCodes_;
 
     TBootstrap* const Bootstrap_;
@@ -121,6 +123,8 @@ private:
     THashSet<TChunkId> ChunksWithMediumChange_;
     THashMap<TChunkId, TReplicaList> ModifiedReplicas_;
 
+    static constexpr size_t ChunkSampleSizeOnValidationFail = 10;
+
     TRspModifyReplicas DoModifyReplicas(const ISequoiaTransactionPtr& transaction)
     {
         YT_VERIFY(Request_ && !ReplaceLocationRequest_);
@@ -141,6 +145,9 @@ private:
 
         Start(transaction);
         GatherReplacedLocationReplicasDifference();
+        if (CheckIfRequestShouldBeAborted()) {
+            return TRspModifyReplicas();
+        }
         WriteRowsAndAddTransactionActions();
         return Finish();
     }
@@ -339,6 +346,43 @@ private:
 
         Profile_.CumulativeTime[ESequoiaReplicaModificationPhase::GatherReplacedLocationReplicasDifference].Add(Timer_.GetElapsedTime());
         Timer_.Restart();
+    }
+
+    bool CheckIfRequestShouldBeAborted()
+    {
+        if (!ReplaceLocationRequest_->is_validation()) {
+            return false;
+        }
+
+        if (!ModifiedReplicas_.empty()) {
+            YT_LOG_ALERT(
+                "Sequoia replicas validation failed (NodeId: %v, LocationIndex: %v, ChunkDifferenceSize: %v)",
+                NodeId_,
+                ReplaceLocationRequest_->location_index(),
+                ModifiedReplicas_.size());
+            auto modifiedReplicasSample = ModifiedReplicas_ | std::views::take(ChunkSampleSizeOnValidationFail);
+            for (const auto& [chunkId, chunkModifiedReplicas] : modifiedReplicasSample) {
+                YT_LOG_DEBUG(
+                    "Found chunk replicas mismatch during Sequoia replicas validation "
+                    "(NodeId: %v, LocationIndex: %v, ChunkId: %v, ReplicasToAddCount: %v, ReplicasToRemoveCount: %v)",
+                    NodeId_,
+                    ReplaceLocationRequest_->location_index(),
+                    chunkId,
+                    chunkModifiedReplicas.AddedReplicas.size(),
+                    chunkModifiedReplicas.RemovedReplicas.size());
+            }
+            if (FixSequoiaReplicasIfReplicaValidationFailed_) {
+                YT_LOG_DEBUG("Will fix Sequoia replicas on validation failure");
+                return false;
+            }
+        } else {
+            YT_LOG_DEBUG(
+                "Validated Sequoia replicas for location (NodeId: %v, LocationIndex: %v)",
+                NodeId_,
+                ReplaceLocationRequest_->location_index());
+        }
+
+        return true;
     }
 
     void WriteRowsAndAddTransactionActions()
