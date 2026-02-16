@@ -57,7 +57,7 @@ TS3MediumDescriptor::TS3MediumDescriptor(std::string name, int index, int priori
     , Config_(std::move(config))
 { }
 
-TS3MediumDescriptor::TS3ObjectPlacement TS3MediumDescriptor::GetChunkPlacement(TChunkId chunkId) const
+TS3MediumDescriptor::TS3ObjectPlacement TS3MediumDescriptor::GetS3ObjectPlacementForChunk(TChunkId chunkId) const
 {
     return {
         .Bucket = Config_->Bucket,
@@ -65,9 +65,9 @@ TS3MediumDescriptor::TS3ObjectPlacement TS3MediumDescriptor::GetChunkPlacement(T
     };
 };
 
-TS3MediumDescriptor::TS3ObjectPlacement TS3MediumDescriptor::GetChunkMetaPlacement(TChunkId chunkId) const
+TS3MediumDescriptor::TS3ObjectPlacement TS3MediumDescriptor::GetS3ObjectPlacementForChunkMeta(TChunkId chunkId) const
 {
-    auto metaPlacement = GetChunkPlacement(chunkId);
+    auto metaPlacement = GetS3ObjectPlacementForChunk(chunkId);
     metaPlacement.Key += ChunkMetaSuffix;
     return metaPlacement;
 };

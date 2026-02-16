@@ -72,8 +72,8 @@ public:
         std::string Key;
     };
 
-    TS3ObjectPlacement GetChunkPlacement(TChunkId chunkId) const;
-    TS3ObjectPlacement GetChunkMetaPlacement(TChunkId chunkId) const;
+    TS3ObjectPlacement GetS3ObjectPlacementForChunk(TChunkId chunkId) const;
+    TS3ObjectPlacement GetS3ObjectPlacementForChunkMeta(TChunkId chunkId) const;
 
 private:
     bool IsDomestic() const override;
