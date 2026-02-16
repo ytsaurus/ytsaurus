@@ -57,11 +57,11 @@ void ReadHeader(
 
 ////////////////////////////////////////////////////////////////////////////
 
-TRefCountedChunkMetaPtr DeserializeMeta(
+TRefCountedChunkMetaPtr DeserializeChunkMeta(
     TSharedRef metaFileBlob,
     const std::string& chunkMetaFilename,
     TChunkId chunkId,
-    TDumpBrokenMetaCallback dumpBrokenMetaCallback)
+    TOnBrokenMetaCallback onBrokenMeta)
 {
     if (metaFileBlob.Size() < sizeof(TChunkMetaHeaderBase)) {
         THROW_ERROR_EXCEPTION(
@@ -95,8 +95,12 @@ TRefCountedChunkMetaPtr DeserializeMeta(
 
     auto checksum = GetChecksum(metaBlob);
     if (checksum != metaHeader.Checksum) {
-        if (dumpBrokenMetaCallback) {
-            dumpBrokenMetaCallback(metaBlob);
+        if (onBrokenMeta) {
+            try {
+                onBrokenMeta(metaBlob);
+            } catch (const std::exception& ex) {
+                YT_LOG_WARNING(ex, "Caught unexpected exception during execution of OnBrokenMeta callback");
+            }
         }
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::BrokenChunkFileMeta,
@@ -129,7 +133,7 @@ std::vector<TBlock> DeserializeBlocks(
     bool validateBlockChecksums,
     const std::string& chunkFileName,
     const TBlocksExtPtr& blocksExt,
-    TDumpBrokenBlockCallback dumpBrokenBlockCallback)
+    TOnBrokenBlockCallback onBrokenBlock)
 {
     const auto& firstBlockInfo = blocksExt->Blocks[blockRange.StartBlockIndex];
 
@@ -144,8 +148,12 @@ std::vector<TBlock> DeserializeBlocks(
         if (validateBlockChecksums) {
             auto checksum = GetChecksum(block);
             if (checksum != blockInfo.Checksum) {
-                if (dumpBrokenBlockCallback) {
-                    dumpBrokenBlockCallback(blockIndex, blockInfo, block);
+                if (onBrokenBlock) {
+                    try {
+                        onBrokenBlock(blockIndex, blockInfo, block);
+                    } catch (const std::exception& ex) {
+                        YT_LOG_WARNING(ex, "Caught unexpected exception during execution of OnBrokenBlock callback");
+                    }
                 }
                 THROW_ERROR_EXCEPTION(
                     NChunkClient::EErrorCode::IncorrectChunkFileChecksum,
@@ -537,12 +545,6 @@ TRefCountedChunkMetaPtr TChunkFileReader::OnMetaRead(
     YT_LOG_DEBUG("Finished reading chunk meta file (FileName: %v)",
         metaFileName);
 
-    auto meta = DeserializeMeta(
-        metaFileBlob,
-        metaFileName,
-        ChunkId_,
-        BIND(&TChunkFileReader::DumpBrokenMeta, MakeWeak(this)));
-    
     chunkReaderStatistics->MetaBytesReadFromDisk.fetch_add(
         metaFileBlob.Size(),
         std::memory_order::relaxed);
@@ -550,7 +552,11 @@ TRefCountedChunkMetaPtr TChunkFileReader::OnMetaRead(
         readResponse.IORequests,
         std::memory_order::relaxed);
 
-    return meta;
+    return DeserializeChunkMeta(
+        metaFileBlob,
+        metaFileName,
+        ChunkId_,
+        BIND(&TChunkFileReader::DumpBrokenMeta, MakeWeak(this)));
 }
 
 TFuture<TIOEngineHandlePtr> TChunkFileReader::OpenDataFile(EDirectIOFlag useDirectIO)
