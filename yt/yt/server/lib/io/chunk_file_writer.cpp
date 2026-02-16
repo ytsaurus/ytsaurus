@@ -36,6 +36,87 @@ constinit const auto Logger = IOLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+i64 TruncateBlocks(NChunkClient::NProto::TBlocksExt& blocksExt, int truncateBlockCount, i64 oldDataSize)
+{
+    YT_LOG_FATAL_IF(
+        truncateBlockCount > blocksExt.blocks_size() || truncateBlockCount < 0,
+        "Invalid truncate block count (TruncateBlockCount: %v, BlockCount: %v)",
+        truncateBlockCount,
+        blocksExt.blocks_size());
+
+    i64 truncateDataSize = 0;
+    for (int index = truncateBlockCount; index < blocksExt.blocks_size(); ++index) {
+        truncateDataSize += blocksExt.blocks(index).size();
+    }
+    blocksExt.mutable_blocks()->Truncate(truncateBlockCount);
+    YT_VERIFY(truncateDataSize <= oldDataSize);
+    return oldDataSize - truncateDataSize;
+}
+
+TSerializedBlocksRequest SerializeBlocks(i64 startOffset, const std::vector<TBlock>& blocks, NChunkClient::NProto::TBlocksExt& blocksExt)
+{
+    TSerializedBlocksRequest request;
+
+    request.StartOffset = startOffset;
+    request.EndOffset = request.StartOffset;
+
+    request.Buffers.reserve(blocks.size());
+
+    for (const auto& block : blocks) {
+        auto error = block.CheckChecksum();
+        YT_LOG_FATAL_UNLESS(
+            error.IsOK(),
+            error,
+            "Block checksum mismatch during file writing");
+
+        auto* blockInfo = blocksExt.add_blocks();
+        blockInfo->set_offset(request.EndOffset);
+        blockInfo->set_size(ToProto<i64>(block.Size()));
+        blockInfo->set_checksum(block.GetOrComputeChecksum());
+
+        request.EndOffset += block.Size();
+        request.Buffers.push_back(block.Data);
+    }
+
+    return request;
+}
+
+TRefCountedChunkMetaPtr FinalizeChunkMeta(TDeferredChunkMetaPtr chunkMeta, const NChunkClient::NProto::TBlocksExt& blocksExt)
+{
+    if (!chunkMeta->IsFinalized()) {
+        auto& mapping = chunkMeta->BlockIndexMapping();
+        mapping = std::vector<int>(blocksExt.blocks().size());
+        std::iota(mapping->begin(), mapping->end(), 0);
+        chunkMeta->Finalize();
+    }
+
+    SetProtoExtension(chunkMeta->mutable_extensions(), blocksExt);
+    return chunkMeta;
+}
+
+TSharedMutableRef SerializeChunkMeta(TChunkId chunkId, const TRefCountedChunkMetaPtr& chunkMeta)
+{
+    auto metaData = SerializeProtoToRefWithEnvelope(*chunkMeta);
+
+    TChunkMetaHeader_2 header;
+    header.Signature = header.ExpectedSignature;
+    header.Checksum = GetChecksum(metaData);
+    header.ChunkId = chunkId;
+
+    auto metaDataSize = metaData.Size() + sizeof(header);
+
+    struct TMetaBufferTag
+    { };
+
+    auto buffer = TSharedMutableRef::Allocate<TMetaBufferTag>(metaDataSize, {.InitializeStorage = false});
+    ::memcpy(buffer.Begin(), &header, sizeof(header));
+    ::memcpy(buffer.Begin() + sizeof(header), metaData.Begin(), metaData.Size());
+
+    return buffer;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+
 TChunkFileWriter::TChunkFileWriter(
     IIOEnginePtr ioEngine,
     TChunkId chunkId,
@@ -193,30 +274,13 @@ bool TChunkFileWriter::WriteBlocks(
         return false;
     }
 
-    i64 startOffset = DataSize_;
-    i64 currentOffset = startOffset;
-
-    std::vector<TSharedRef> buffers;
-    buffers.reserve(blocks.size());
-
-    for (const auto& block : blocks) {
-        auto error = block.CheckChecksum();
-        YT_LOG_FATAL_UNLESS(error.IsOK(), error, "Block checksum mismatch during file writing");
-
-        auto* blockInfo = BlocksExt_.add_blocks();
-        blockInfo->set_offset(currentOffset);
-        blockInfo->set_size(ToProto(block.Size()));
-        blockInfo->set_checksum(block.GetOrComputeChecksum());
-
-        currentOffset += block.Size();
-        buffers.push_back(block.Data);
-    }
+    auto writeRequest = SerializeBlocks(DataSize_, blocks, BlocksExt_);
 
     ReadyEvent_ =
         IOEngine_->Write({
             DataFile_,
-            startOffset,
-            std::move(buffers),
+            writeRequest.StartOffset,
+            std::move(writeRequest.Buffers),
             SyncOnClose_,
             fairShareSlotId,
         },
@@ -224,7 +288,7 @@ bool TChunkFileWriter::WriteBlocks(
         .Apply(BIND([
             this,
             this_ = MakeStrong(this),
-            newDataSize = currentOffset,
+            newDataSize = writeRequest.EndOffset,
             blockCount = blocks.size(),
             chunkWriterStatistics = options.ClientOptions.ChunkWriterStatistics
         ] (const TErrorOr<TWriteResponse>& rspOrError) {
@@ -280,19 +344,7 @@ TFuture<void> TChunkFileWriter::Close(
     }
 
     if (truncateBlockCount.has_value()) {
-        YT_LOG_FATAL_IF(
-            *truncateBlockCount > BlocksExt_.blocks_size() || *truncateBlockCount < 0,
-            "Invalid truncate block count (TruncateBlockCount: %v, BlockCount: %v)",
-            *truncateBlockCount,
-            BlocksExt_.blocks_size());
-
-        i64 truncateDataSize = 0;
-        for (int index = *truncateBlockCount; index < BlocksExt_.blocks_size(); ++index) {
-            truncateDataSize += BlocksExt_.blocks(index).size();
-        }
-        BlocksExt_.mutable_blocks()->Truncate(*truncateBlockCount);
-        YT_VERIFY(truncateDataSize <= DataSize_);
-        DataSize_ -= truncateDataSize;
+        DataSize_ = TruncateBlocks(BlocksExt_, *truncateBlockCount, DataSize_);
     }
 
     auto metaFileName = FileName_ + ChunkMetaSuffix;
@@ -306,15 +358,7 @@ TFuture<void> TChunkFileWriter::Close(
         ] (const TCloseResponse& rsp) {
             YT_VERIFY(State_.load() == EState::Closing);
 
-            if (!chunkMeta->IsFinalized()) {
-                auto& mapping = chunkMeta->BlockIndexMapping();
-                mapping = std::vector<int>(BlocksExt_.blocks().size());
-                std::iota(mapping->begin(), mapping->end(), 0);
-                chunkMeta->Finalize();
-            }
-
-            ChunkMeta_->CopyFrom(*chunkMeta);
-            SetProtoExtension(ChunkMeta_->mutable_extensions(), BlocksExt_);
+            ChunkMeta_->CopyFrom(*FinalizeChunkMeta(std::move(chunkMeta), BlocksExt_));
 
             chunkWriterStatistics->DataIOSyncRequests.fetch_add(rsp.IOSyncRequests, std::memory_order::relaxed);
 
@@ -329,21 +373,8 @@ TFuture<void> TChunkFileWriter::Close(
         ] (const TIOEngineHandlePtr& chunkMetaFile) {
             YT_VERIFY(State_.load() == EState::Closing);
 
-            auto metaData = SerializeProtoToRefWithEnvelope(*ChunkMeta_);
-
-            TChunkMetaHeader_2 header;
-            header.Signature = header.ExpectedSignature;
-            header.Checksum = GetChecksum(metaData);
-            header.ChunkId = ChunkId_;
-
-            MetaDataSize_ = metaData.Size() + sizeof(header);
-
-            struct TMetaBufferTag
-            { };
-
-            auto buffer = TSharedMutableRef::Allocate<TMetaBufferTag>(MetaDataSize_, {.InitializeStorage = false});
-            ::memcpy(buffer.Begin(), &header, sizeof(header));
-            ::memcpy(buffer.Begin() + sizeof(header), metaData.Begin(), metaData.Size());
+            auto buffer = SerializeChunkMeta(ChunkId_, ChunkMeta_);
+            MetaDataSize_ = buffer.size();
 
             return
                 IOEngine_->Write({
