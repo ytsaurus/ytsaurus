@@ -2,7 +2,7 @@
 
 PY3_LIBRARY()
 
-VERSION(24.1.1)
+VERSION(25.0.0)
 
 LICENSE(MIT)
 
@@ -33,9 +33,17 @@ PY_SRCS(
     gunicorn/asgi/message.py
     gunicorn/asgi/protocol.py
     gunicorn/asgi/unreader.py
+    gunicorn/asgi/uwsgi.py
     gunicorn/asgi/websocket.py
     gunicorn/config.py
     gunicorn/debug.py
+    gunicorn/dirty/__init__.py
+    gunicorn/dirty/app.py
+    gunicorn/dirty/arbiter.py
+    gunicorn/dirty/client.py
+    gunicorn/dirty/errors.py
+    gunicorn/dirty/protocol.py
+    gunicorn/dirty/worker.py
     gunicorn/errors.py
     gunicorn/glogging.py
     gunicorn/http/__init__.py
@@ -45,6 +53,12 @@ PY_SRCS(
     gunicorn/http/parser.py
     gunicorn/http/unreader.py
     gunicorn/http/wsgi.py
+    gunicorn/http2/__init__.py
+    gunicorn/http2/async_connection.py
+    gunicorn/http2/connection.py
+    gunicorn/http2/errors.py
+    gunicorn/http2/request.py
+    gunicorn/http2/stream.py
     gunicorn/instrument/__init__.py
     gunicorn/instrument/statsd.py
     gunicorn/pidfile.py
