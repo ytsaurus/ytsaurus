@@ -111,18 +111,6 @@ func NewOutput(ctx context.Context, config OutputConfig) (out pipelines.Output[p
 		return
 	}
 
-	createSessionResult, err := yc.CreateQueueProducerSession(
-		ctx,
-		ypath.Path(config.ProducerPath),
-		ypath.Path(config.QueuePath),
-		config.SessionID,
-		&yt.CreateQueueProducerSessionOptions{},
-	)
-	if err != nil {
-		err = fmt.Errorf("cannot create queue session: %w", err)
-		return
-	}
-
 	var compressor *compressor
 	if config.CompressionCodec != "" {
 		compressor, err = newCompressor(config.BytesPerRow, config.CompressionCodec)
@@ -137,7 +125,6 @@ func NewOutput(ctx context.Context, config OutputConfig) (out pipelines.Output[p
 		queuePath:    ypath.Path(config.QueuePath),
 		producerPath: ypath.Path(config.ProducerPath),
 		sessionID:    config.SessionID,
-		epoch:        createSessionResult.Epoch,
 
 		compressor: compressor,
 
@@ -167,11 +154,12 @@ type ytRowMeta struct {
 }
 
 type output struct {
-	yc           yt.Client
-	queuePath    ypath.Path
-	producerPath ypath.Path
-	sessionID    string
-	epoch        int64
+	yc             yt.Client
+	queuePath      ypath.Path
+	producerPath   ypath.Path
+	sessionID      string
+	epoch          int64
+	sessionCreated bool
 
 	compressor *compressor
 
@@ -279,9 +267,36 @@ func (o *output) senderLoop() {
 	}
 }
 
+func (o *output) createSession(ctx context.Context) {
+	var result *yt.CreateQueueProducerSessionResult
+	retry(
+		func() error {
+			var err error
+			result, err = o.yc.CreateQueueProducerSession(
+				ctx,
+				o.producerPath,
+				o.queuePath,
+				o.sessionID,
+				&yt.CreateQueueProducerSessionOptions{},
+			)
+			return err
+		},
+		func(err error) {
+			o.logger.Warn("Cannot create queue producer session, will retry", "error", err)
+		},
+	)
+	o.epoch = result.Epoch
+	o.sessionCreated = true
+	o.logger.Info("Queue producer session created", "session_id", o.sessionID, "epoch", o.epoch)
+}
+
 func (o *output) flushBatch(batch []sendItem) {
 	if len(batch) == 0 {
 		return
+	}
+
+	if !o.sessionCreated {
+		o.createSession(batch[len(batch)-1].ctx)
 	}
 
 	rows := make([]any, len(batch))
@@ -346,6 +361,16 @@ func (o *output) Close(ctx context.Context) {
 	close(o.toCompress)
 	<-o.compressorDone
 	<-o.senderDone
+	if o.sessionCreated {
+		o.removeSession(ctx)
+	}
+	o.yc.Stop()
+	if o.compressor != nil {
+		o.compressor.close()
+	}
+}
+
+func (o *output) removeSession(ctx context.Context) {
 	retry(
 		func() error {
 			return o.yc.RemoveQueueProducerSession(
@@ -356,12 +381,9 @@ func (o *output) Close(ctx context.Context) {
 				&yt.RemoveQueueProducerSessionOptions{},
 			)
 		},
-		func(err error) { o.logger.Warn("cannot remove queue producer session, will retry", "error", err) },
+		func(err error) { o.logger.Warn("Cannot remove queue producer session, will retry", "error", err) },
 	)
-	o.yc.Stop()
-	if o.compressor != nil {
-		o.compressor.close()
-	}
+	o.logger.Info("Queue producer session removed", "session_id", o.sessionID)
 }
 
 func retry(action func() error, errHandler func(error)) {
