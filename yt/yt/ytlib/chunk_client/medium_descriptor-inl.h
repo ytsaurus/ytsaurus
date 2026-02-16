@@ -9,15 +9,17 @@ namespace NYT::NChunkClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TDerived>
+requires std::derived_from<std::remove_cvref_t<TDerived>, TMediumDescriptor>
 TIntrusivePtr<TDerived> TMediumDescriptor::As()
 {
-    return dynamic_cast<TDerived*>(this);
+    return static_cast<TDerived*>(this);
 }
 
 template <class TDerived>
+requires std::derived_from<std::remove_cvref_t<TDerived>, TMediumDescriptor>
 TIntrusivePtr<const TDerived> TMediumDescriptor::As() const
 {
-    return dynamic_cast<const TDerived*>(this);
+    return static_cast<const TDerived*>(this);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

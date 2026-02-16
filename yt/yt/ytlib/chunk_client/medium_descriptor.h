@@ -25,9 +25,11 @@ public:
     bool IsOffshore() const;
 
     template <class TDerived>
+    requires std::derived_from<std::remove_cvref_t<TDerived>, TMediumDescriptor>
     TIntrusivePtr<TDerived> As();
 
     template <class TDerived>
+    requires std::derived_from<std::remove_cvref_t<TDerived>, TMediumDescriptor>
     TIntrusivePtr<const TDerived> As() const;
 
     bool operator==(const TMediumDescriptor& other) const;
