@@ -7,10 +7,15 @@
 
 #include <yt/yt/core/misc/error.h>
 
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/node.h>
+
 namespace NYT::NHttpProxy {
 namespace {
 
 using namespace NAuth;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,6 +59,47 @@ TEST(TTestCsrfTokenTest, Sample)
     auto token = SignCsrfToken("prime", "abcd", now);
     CheckCsrfToken(token, "prime", "abcd", now - TDuration::Minutes(1))
         .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(THideSecretParametersTest, CreateCommandMasksValueAndDoesNotMutateOriginal)
+{
+    // Test that /attributes/value is masked when commandName == "create"
+    // and that the original parameters node is not mutated
+    auto original = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("type").Value("document")
+            .Item("attributes").BeginMap()
+                .Item("value").Value("secret_content_here")
+                .Item("public_field").Value("public_data")
+            .EndMap()
+        .EndMap();
+
+    auto originalPtr = original->AsMap().Get();
+    auto result = HideSecretParameters("create", original->AsMap());
+
+    // Verify original still has the secret value (not mutated)
+    auto originalValue = FindNodeByYPath(original->AsMap(), "/attributes/value");
+    ASSERT_TRUE(originalValue);
+    EXPECT_EQ(ConvertTo<TString>(originalValue), "secret_content_here");
+
+    // Verify the result has the value masked
+    auto maskedValue = FindNodeByYPath(result, "/attributes/value");
+    ASSERT_TRUE(maskedValue);
+    EXPECT_EQ(ConvertTo<TString>(maskedValue), "***");
+
+    // Verify other fields remain unchanged in result
+    auto publicField = FindNodeByYPath(result, "/attributes/public_field");
+    ASSERT_TRUE(publicField);
+    EXPECT_EQ(ConvertTo<TString>(publicField), "public_data");
+
+    auto typeField = FindNodeByYPath(result, "/type");
+    ASSERT_TRUE(typeField);
+    EXPECT_EQ(ConvertTo<TString>(typeField), "document");
+
+    // Verify result is a different object
+    EXPECT_NE(result.Get(), originalPtr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
