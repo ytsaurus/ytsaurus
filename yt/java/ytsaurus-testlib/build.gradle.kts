@@ -17,7 +17,7 @@ dependencies {
     api("com.google.protobuf:protobuf-java:4.33.0")
     api("com.google.code.findbugs:jsr305:3.0.2")
     api("org.hamcrest:hamcrest-core:2.2")
-    api("org.testcontainers:testcontainers:1.17.0")
+    api("org.testcontainers:testcontainers:1.21.4")
 }
 
 tasks.test {
