@@ -128,7 +128,9 @@ TChunkFileWriter::TChunkFileWriter(
     , FileName_(std::move(fileName))
     , SyncOnClose_(syncOnClose)
     , UseDirectIO_(useDirectIO)
-{ }
+{
+    BlocksExt_.set_sync_on_close(SyncOnClose_);
+}
 
 TFlags<EOpenModeFlag> TChunkFileWriter::GetFileMode() const
 {
@@ -346,7 +348,7 @@ TFuture<void> TChunkFileWriter::Close(
     }
 
     auto metaFileName = FileName_ + ChunkMetaSuffix;
-    return IOEngine_->Close({std::move(DataFile_), GetDataSize(), SyncOnClose_})
+    return IOEngine_->Close({std::move(DataFile_), DataSize_, SyncOnClose_})
         .Apply(BIND([
             this,
             this_ = MakeStrong(this),
@@ -441,6 +443,7 @@ TFuture<void> TChunkFileWriter::Close(
                     << error;
             }
 
+            ChunkInfo_.set_disk_space(DataSize_ + MetaDataSize_);
             State_.store(EState::Closed);
         }).AsyncVia(IOEngine_->GetAuxPoolInvoker()));
 }
