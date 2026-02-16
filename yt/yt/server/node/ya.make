@@ -188,6 +188,7 @@ SRCS(
     tablet_node/table_config_manager.cpp
     tablet_node/table_replicator.cpp
     tablet_node/table_puller.cpp
+    tablet_node/table_puller_helpers.cpp
     tablet_node/tablet.cpp
     tablet_node/tablet_cell_service.cpp
     tablet_node/tablet_cell_snapshot_validator.cpp

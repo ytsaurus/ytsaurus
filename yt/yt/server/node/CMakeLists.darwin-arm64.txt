@@ -267,6 +267,7 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/table_config_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/table_replicator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/table_puller.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/table_puller_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/tablet.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/tablet_cell_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/tablet_cell_snapshot_validator.cpp
