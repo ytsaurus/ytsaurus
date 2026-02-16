@@ -630,6 +630,13 @@ bool TSqlQuery::Statement(TVector<TNodePtr>& blocks, const TRule_sql_stmt_core& 
                 return false;
             }
 
+            if (tr.Service == YtProviderName) {
+                if (const auto requiredLangVer = MakeLangVersion(2025, 5); !IsBackwardCompatibleFeatureAvailable(requiredLangVer)) {
+                    Error() << "ALTER TABLE is not available before language version " << FormatLangVersion(requiredLangVer);
+                    return false;
+                }
+            }
+
             TAlterTableParameters params;
             if (isTablestore) {
                 params.TableType = ETableType::TableStore;
