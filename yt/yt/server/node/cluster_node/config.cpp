@@ -556,7 +556,7 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Postprocessor([] (TThis* config) {
-        if (!config->JobResourceManager->CheckUserJobsCtegoryLimitOnResourcesUpdating) {
+        if (!config->JobResourceManager->CheckUserJobsCategoryLimitOnResourcesUpdating) {
             config->NodeMemoryTracker->CheckPerCategoryLimitOvercommit = false;
         }
     });
