@@ -54,6 +54,8 @@ EXPRESSION_METADATA: ExpressionMetadataType = {
             exp.EndsWith,
             exp.Exists,
             exp.In,
+            exp.IsInf,
+            exp.IsNan,
             exp.LogicalAnd,
             exp.LogicalOr,
             exp.RegexpLike,
@@ -126,6 +128,7 @@ EXPRESSION_METADATA: ExpressionMetadataType = {
             exp.Sign,
             exp.StrPosition,
             exp.TsOrDiToDi,
+            exp.Quarter,
         }
     },
     **{
@@ -177,7 +180,6 @@ EXPRESSION_METADATA: ExpressionMetadataType = {
             exp.DayOfWeekIso,
             exp.DayOfYear,
             exp.Month,
-            exp.Quarter,
             exp.Week,
             exp.WeekOfYear,
             exp.Year,
