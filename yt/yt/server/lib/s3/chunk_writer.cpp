@@ -71,7 +71,7 @@ public:
     //! have completed since checked before invocation.
     virtual TFuture<void> AbortIncompleteUpload()
     {
-        return VoidFuture;
+        return TFuture<void>();
     }
 
     //! Abort upload that has successfully uploaded the object.
@@ -96,7 +96,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (IsAborted()) {
-            return VoidFuture;
+            return TFuture<void>();
         }
 
         YT_LOG_DEBUG("Cancelling S3 upload session");

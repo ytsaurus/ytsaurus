@@ -219,7 +219,7 @@ private:
         request.Key = ChunkMetaPlacement_.Key;
         return Client_->GetObject(request)
             .Apply(BIND([this, this_ = MakeStrong(this)] (const TGetObjectResponse& response) {
-                auto meta = DeserializeMeta(
+                auto meta = DeserializeChunkMeta(
                     std::move(response.Data),
                     ChunkMetaPlacement_.Key,
                     ChunkId_,
