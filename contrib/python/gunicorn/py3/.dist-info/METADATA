@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: gunicorn
-Version: 25.0.0
+Version: 25.0.1
 Summary: WSGI HTTP Server for UNIX
 Author-email: Benoit Chesneau <benoitc@gunicorn.org>
 License-Expression: MIT
