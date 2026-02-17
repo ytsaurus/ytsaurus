@@ -2,12 +2,10 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v1.73.0)
+VERSION(v1.74.2)
 
 SRCS(
     attributes.go
-    authority.go
-    channel.go
     client.go
     clientimpl.go
     clientimpl_loadreport.go
@@ -15,12 +13,13 @@ SRCS(
     logging.go
     pool.go
     requests_counter.go
+    resource_types.go
 )
 
 GO_TEST_SRCS(
-    channel_test.go
     client_refcounted_test.go
     # client_test.go
+    clientimpl_test.go
     metrics_test.go
     # requests_counter_test.go
 )
@@ -35,10 +34,8 @@ RECURSE(
     # e2e_test
     # gotest
     internal
-    load
     pool
     tests
-    transport
     xdslbregistry
     xdsresource
 )

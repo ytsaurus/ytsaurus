@@ -141,13 +141,13 @@ func TestHandlerBasics(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, rm.ScopeMetrics, 1)
 	attrs := attribute.NewSet(
-		semconv.NetHostName(r.Host),
-		semconv.HTTPSchemeHTTP,
-		semconv.NetProtocolName("http"),
-		semconv.NetProtocolVersion(fmt.Sprintf("1.%d", r.ProtoMinor)),
-		semconv.HTTPMethod("GET"),
+		attribute.String("http.request.method", "GET"),
+		attribute.Int64("http.response.status_code", 200),
+		attribute.String("network.protocol.name", "http"),
+		attribute.String("network.protocol.version", fmt.Sprintf("1.%d", r.ProtoMinor)),
+		attribute.String("server.address", r.Host),
+		attribute.String("url.scheme", "http"),
 		attribute.String("test", "attribute"),
-		semconv.HTTPStatusCode(200),
 	)
 	assertScopeMetrics(t, rm.ScopeMetrics[0], attrs)
 
@@ -181,43 +181,57 @@ func assertScopeMetrics(t *testing.T, sm metricdata.ScopeMetrics, attrs attribut
 
 	require.Len(t, sm.Metrics, 3)
 
-	want := metricdata.Metrics{
-		Name:        "http.server.request.size",
-		Description: "Measures the size of HTTP request messages.",
-		Unit:        "By",
-		Data: metricdata.Sum[int64]{
-			DataPoints:  []metricdata.DataPoint[int64]{{Attributes: attrs, Value: 0}},
-			Temporality: metricdata.CumulativeTemporality,
-			IsMonotonic: true,
+	want := metricdata.ScopeMetrics{
+		Scope: instrumentation.Scope{
+			Name:    ScopeName,
+			Version: Version(),
+		},
+		Metrics: []metricdata.Metrics{
+			{
+				Name:        "http.server.request.body.size",
+				Description: "Size of HTTP server request bodies.",
+				Unit:        "By",
+				Data: metricdata.Histogram[int64]{
+					Temporality: metricdata.CumulativeTemporality,
+					DataPoints: []metricdata.HistogramDataPoint[int64]{
+						{
+							Attributes: attrs,
+						},
+					},
+				},
+			},
+			{
+				Name:        "http.server.response.body.size",
+				Description: "Size of HTTP server response bodies.",
+				Unit:        "By",
+				Data: metricdata.Histogram[int64]{
+					Temporality: metricdata.CumulativeTemporality,
+					DataPoints: []metricdata.HistogramDataPoint[int64]{
+						{
+							Attributes: attrs,
+						},
+					},
+				},
+			},
+			{
+				Name:        "http.server.request.duration",
+				Description: "Duration of HTTP server requests.",
+				Unit:        "s",
+				Data: metricdata.Histogram[float64]{
+					Temporality: metricdata.CumulativeTemporality,
+					DataPoints: []metricdata.HistogramDataPoint[float64]{
+						{
+							Attributes: attrs,
+						},
+					},
+				},
+			},
 		},
 	}
-	metricdatatest.AssertEqual(t, want, sm.Metrics[0], metricdatatest.IgnoreTimestamp())
-
-	want = metricdata.Metrics{
-		Name:        "http.server.response.size",
-		Description: "Measures the size of HTTP response messages.",
-		Unit:        "By",
-		Data: metricdata.Sum[int64]{
-			DataPoints:  []metricdata.DataPoint[int64]{{Attributes: attrs, Value: 11}},
-			Temporality: metricdata.CumulativeTemporality,
-			IsMonotonic: true,
-		},
-	}
-	metricdatatest.AssertEqual(t, want, sm.Metrics[1], metricdatatest.IgnoreTimestamp())
-
-	want = metricdata.Metrics{
-		Name:        "http.server.duration",
-		Description: "Measures the duration of inbound HTTP requests.",
-		Unit:        "ms",
-		Data: metricdata.Histogram[float64]{
-			DataPoints:  []metricdata.HistogramDataPoint[float64]{{Attributes: attrs}},
-			Temporality: metricdata.CumulativeTemporality,
-		},
-	}
-	metricdatatest.AssertEqual(t, want, sm.Metrics[2], metricdatatest.IgnoreTimestamp(), metricdatatest.IgnoreValue())
+	metricdatatest.AssertEqual(t, want, sm, metricdatatest.IgnoreTimestamp(), metricdatatest.IgnoreValue(), metricdatatest.IgnoreExemplars())
 
 	// verify that the custom start time, which is 10 minutes in the past, is respected.
-	assert.GreaterOrEqual(t, sm.Metrics[2].Data.(metricdata.Histogram[float64]).DataPoints[0].Sum, float64(10*time.Minute/time.Millisecond))
+	assert.GreaterOrEqual(t, sm.Metrics[2].Data.(metricdata.Histogram[float64]).DataPoints[0].Sum, float64(10*time.Minute/time.Second))
 }
 
 func TestHandlerEmittedAttributes(t *testing.T) {
@@ -232,7 +246,7 @@ func TestHandlerEmittedAttributes(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 			},
 			attributes: []attribute.KeyValue{
-				attribute.Int("http.status_code", http.StatusOK),
+				attribute.Int("http.response.status_code", http.StatusOK),
 			},
 		},
 		{
@@ -241,7 +255,7 @@ func TestHandlerEmittedAttributes(t *testing.T) {
 				w.WriteHeader(http.StatusBadRequest)
 			},
 			attributes: []attribute.KeyValue{
-				attribute.Int("http.status_code", http.StatusBadRequest),
+				attribute.Int("http.response.status_code", http.StatusBadRequest),
 			},
 		},
 		{
@@ -249,7 +263,7 @@ func TestHandlerEmittedAttributes(t *testing.T) {
 			handler: func(w http.ResponseWriter, r *http.Request) {
 			},
 			attributes: []attribute.KeyValue{
-				attribute.Int("http.status_code", http.StatusOK),
+				attribute.Int("http.response.status_code", http.StatusOK),
 			},
 		},
 		{
@@ -259,7 +273,7 @@ func TestHandlerEmittedAttributes(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 			},
 			attributes: []attribute.KeyValue{
-				attribute.Int("http.status_code", http.StatusInternalServerError),
+				attribute.Int("http.response.status_code", http.StatusInternalServerError),
 			},
 		},
 	}
@@ -384,7 +398,7 @@ func TestHandlerPropagateWriteHeaderCalls(t *testing.T) {
 			recorder := httptest.NewRecorder()
 			rw := &respWriteHeaderCounter{ResponseWriter: recorder}
 			h.ServeHTTP(rw, httptest.NewRequest("GET", "/", nil))
-			require.EqualValues(t, tc.expectHeadersWritten, rw.headersWritten, "should propagate all WriteHeader calls to underlying ResponseWriter")
+			require.Equal(t, tc.expectHeadersWritten, rw.headersWritten, "should propagate all WriteHeader calls to underlying ResponseWriter")
 		})
 	}
 }
@@ -421,6 +435,66 @@ func TestHandlerRequestWithTraceContext(t *testing.T) {
 	assert.Equal(t, "test_request", spans[1].Name())
 	assert.NotEmpty(t, spans[0].Parent().SpanID())
 	assert.Equal(t, spans[1].SpanContext().SpanID(), spans[0].Parent().SpanID())
+}
+
+func TestWithSpanNameFormatter(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+
+		formatter    func(operation string, r *http.Request) string
+		wantSpanName string
+	}{
+		{
+			name:         "with the default span name formatter",
+			wantSpanName: "test_handler",
+		},
+		{
+			name: "with a custom span name formatter",
+			formatter: func(op string, r *http.Request) string {
+				return fmt.Sprintf("%s %s", r.Method, r.URL.Path)
+			},
+			wantSpanName: "GET /foo/123",
+		},
+		{
+			name: "with a custom span name formatter using the pattern",
+			formatter: func(op string, r *http.Request) string {
+				return fmt.Sprintf("%s %s", r.Method, r.Pattern)
+			},
+			wantSpanName: "GET /foo/{id}",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			spanRecorder := tracetest.NewSpanRecorder()
+			provider := sdktrace.NewTracerProvider(
+				sdktrace.WithSpanProcessor(spanRecorder),
+			)
+
+			opts := []Option{
+				WithTracerProvider(provider),
+			}
+			if tt.formatter != nil {
+				opts = append(opts, WithSpanNameFormatter(tt.formatter))
+			}
+
+			mux := http.NewServeMux()
+			mux.Handle("/foo/{id}", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Nothing to do here
+			}))
+			h := NewHandler(mux, "test_handler", opts...)
+
+			r, err := http.NewRequest(http.MethodGet, "http://localhost/foo/123", nil)
+			require.NoError(t, err)
+
+			rr := httptest.NewRecorder()
+			h.ServeHTTP(rr, r)
+			assert.Equal(t, http.StatusOK, rr.Result().StatusCode)
+
+			assert.NoError(t, spanRecorder.ForceFlush(context.Background()))
+			spans := spanRecorder.Ended()
+			assert.Len(t, spans, 1)
+			assert.Equal(t, tt.wantSpanName, spans[0].Name())
+		})
+	}
 }
 
 func TestWithPublicEndpoint(t *testing.T) {
@@ -718,6 +792,68 @@ func TestHandlerWithMetricAttributesFn(t *testing.T) {
 				containsAttributes(t, d.DataPoints[0].Attributes, testCases[0].expectedAdditionalAttribute)
 			}
 		}
+	}
+}
+
+func TestHandlerWithSemConvStabilityOptIn(t *testing.T) {
+	tests := []struct {
+		name                       string
+		semConvStabilityOptInValue string
+		expected                   []attribute.KeyValue
+	}{
+		{
+			name:                       "without opt-in",
+			semConvStabilityOptInValue: "",
+			expected: []attribute.KeyValue{
+				attribute.String("http.request.method", "GET"),
+				attribute.String("url.scheme", "http"),
+				attribute.String("server.address", "localhost"),
+				attribute.String("network.protocol.version", "1.1"),
+				attribute.String("url.path", "/"),
+				attribute.Int("http.response.status_code", 200),
+			},
+		},
+		{
+			name:                       "with http/dup opt-in",
+			semConvStabilityOptInValue: "http/dup",
+			expected: []attribute.KeyValue{
+				// New semantic conventions
+				attribute.String("http.request.method", "GET"),
+				attribute.String("url.scheme", "http"),
+				attribute.String("server.address", "localhost"),
+				attribute.String("network.protocol.version", "1.1"),
+				attribute.String("url.path", "/"),
+				attribute.Int("http.response.status_code", 200),
+				// Old semantic conventions
+				attribute.String("http.method", "GET"),
+				attribute.String("http.scheme", "http"),
+				attribute.String("net.host.name", "localhost"),
+				attribute.String("net.protocol.version", "1.1"),
+				attribute.String("http.target", "/"),
+				attribute.Int("http.status_code", 200),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("OTEL_SEMCONV_STABILITY_OPT_IN", tt.semConvStabilityOptInValue)
+			spanRecorder := tracetest.NewSpanRecorder()
+			provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spanRecorder))
+			h := NewHandler(
+				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusOK)
+				}),
+				"test_handler",
+				WithTracerProvider(provider),
+			)
+			r, err := http.NewRequest(http.MethodGet, "http://localhost/", nil)
+			require.NoError(t, err)
+			h.ServeHTTP(httptest.NewRecorder(), r)
+			spans := spanRecorder.Ended()
+			require.Len(t, spans, 1)
+			assert.ElementsMatch(t, spans[0].Attributes(), tt.expected)
+		})
 	}
 }
 

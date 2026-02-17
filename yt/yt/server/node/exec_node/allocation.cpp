@@ -786,14 +786,14 @@ void TAllocation::OnJobFinished(TJobPtr job)
 
         if (enableMultipleJobs && job->GetState() == EJobState::Completed) {
             YT_LOG_INFO(
-                "Job completed and multiple jobs in allocation enabled, waiting for storing and clenup job to settle new one (JobId: %v)",
+                "Job completed and multiple jobs in allocation enabled, waiting for storing and cleanup job to settle new one (JobId: %v)",
                 job->GetId());
             return true;
         }
 
         if (settlementNewJobOnJobAbortRequested && job->GetState() == EJobState::Aborted) {
             YT_LOG_INFO(
-                "Job aborted and new job settlement requested, waiting for storing and clenup job to settle new one (JobId: %v)",
+                "Job aborted and new job settlement requested, waiting for storing and cleanup job to settle new one (JobId: %v)",
                 job->GetId());
             return true;
         }
