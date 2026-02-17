@@ -71,7 +71,7 @@ class GrafanaFacade(cli.FacadeBase):
         print(tabulate.tabulate(parsed, tablefmt="grid"))
 
     def preview(self):
-        dashboard = self.func()
+        dashboard = self._call_func(self.func)
         serializer = grafana.GrafanaDebugSerializer(self.tag_postprocessor)
         result = dashboard.serialize(serializer)
         print(tabulate.tabulate(result, tablefmt="grid"))
@@ -111,7 +111,7 @@ class GrafanaFacade(cli.FacadeBase):
         return serialized_dashboard
 
     def _generate_dashboard(self):
-        dashboard = self.func()
+        dashboard = self._call_func(self.func)
         if self.additional_dashboard_tags is not None:
             dashboard.add_dashboard_tags(*self.additional_dashboard_tags)
         return dashboard

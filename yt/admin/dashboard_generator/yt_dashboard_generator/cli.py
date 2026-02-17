@@ -3,7 +3,9 @@ import yt.wrapper as yt
 import tabulate
 
 import json
+import inspect
 import logging
+import pathlib
 import sys
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser
@@ -18,6 +20,7 @@ class FacadeBase(ABC):
     def __init__(self, dashboard_name):
         super().__init__()
         self.dashboard_name = dashboard_name
+        self.dashboard_config = None
         self.slug = None
 
     @staticmethod
@@ -84,6 +87,27 @@ class FacadeBase(ABC):
             return
         raise RuntimeError("Aborting")
 
+    def _call_func(self, func):
+        signature = inspect.signature(func)
+        has_config_parameter = False
+        config_required = False
+        for name, param in signature.parameters.items():
+            if name == "config":
+                has_config_parameter = True
+                config_required = param.default == inspect.Parameter.empty
+                break
+
+        if config_required and self.dashboard_config is None:
+            raise ValueError(f"This dashboard requires dashboard config (title: {self.title})")
+
+        if self.dashboard_config is not None and not has_config_parameter:
+            raise ValueError(f"This dashboard is not configurable, but config is set (title: {self.title})")
+
+        if not has_config_parameter or self.dashboard_config is None:
+            return func()
+
+        return func(config=self.dashboard_config)
+
 
 class Cli():
     def __init__(self, parser: ArgumentParser):
@@ -101,6 +125,18 @@ class Cli():
         group.add_argument("--use-test-dashboard-id", default=False, action="store_true",
                            help="use test dashboard id specified in config; "
                                 "this option is applicable only if one dashboard is selected")
+
+        dashboard_config_group = parser.add_mutually_exclusive_group(required=False)
+        dashboard_config_group.add_argument("--dashboard-config",
+                                            default=None,
+                                            type=json.loads,
+                                            help="json to be used as the dashboard config; "
+                                            "this option is only applicable if exactly one dashboard is selected")
+        dashboard_config_group.add_argument("--dashboard-config-path",
+                                            default=None,
+                                            type=pathlib.Path,
+                                            help="path to json file to be used as the dashboard config; "
+                                                 "this option is only applicable if exactly one dashboard is selected")
 
         sp = parser.add_subparsers(dest="command", required=True)
         sp.add_parser("list")
@@ -150,7 +186,19 @@ class Cli():
             if backend.get_backend_name() not in config[slug]:
                 continue
 
-            backend.set_dashboard_id(config[slug][backend.get_backend_name()])
+            full_dashboard_config = config[slug][backend.get_backend_name()]
+            if isinstance(full_dashboard_config, str):
+                dashboard_id = full_dashboard_config
+                dashboard_config = None
+            elif isinstance(full_dashboard_config, dict):
+                dashboard_id = full_dashboard_config["id"]
+                dashboard_config = full_dashboard_config.get("config", None)
+            else:
+                raise ValueError(f"Unsupported config type {type(full_dashboard_config)}, it should either be str (only id) or dict")
+
+            if dashboard_config:
+                backend.dashboard_config = dashboard_config
+            backend.set_dashboard_id(dashboard_id)
 
         if args.command == "list":
             print(tabulate.tabulate(
@@ -190,11 +238,21 @@ class Cli():
                 if TEST_DASHBOARD_KEY not in config or backend.get_backend_name() not in config[TEST_DASHBOARD_KEY]:
                     raise Exception("Test dashboard id is not specified for {} backend".format(dashboard.get_backend_name()))
                 dashboard.set_dashboard_id(config[TEST_DASHBOARD_KEY][dashboard.get_backend_name()])
+
+            if args.dashboard_config is not None or args.dashboard_config_path is not None:
+                config = args.dashboard_config
+                if args.dashboard_config_path is not None:
+                    with open(args.dashboard_config_path) as f:
+                        config = json.load(f)
+
+                dashboard.dashboard_config = config
         else:
             if args.dashboard_id is not None:
                 raise Exception("Option --dashboard-id is applicable iff exactly one dashboard is selected")
             if args.use_test_dashboard_id:
                 raise Exception("Option --use-test-dashboard-id is applicable iff exactly one dashboard is selected")
+            if args.dashboard_config is not None or args.dashboard_config_path is not None:
+                raise Exception("Options --dashboard-config and --dashboard-config-path are applicable iff exactly one dashboard is selected")
 
         if args.command == "diff":
             for d in selected_dashboards:
