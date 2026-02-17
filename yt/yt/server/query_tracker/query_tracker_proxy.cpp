@@ -931,6 +931,7 @@ void TQueryTrackerProxy::AlterQuery(
         {
             TActiveQueryPartial record{
                 .Key = {.QueryId = queryId},
+                .Query = query.Query,
                 .AccessControlObjects = query.AccessControlObjects ? query.AccessControlObjects : TYsonString(TString("[]")),
                 .Annotations = query.Annotations ? query.Annotations : EmptyMap,
             };
