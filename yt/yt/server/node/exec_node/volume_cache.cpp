@@ -478,6 +478,33 @@ TExtendedCallback<TNbdVolumeFactory::TVolumePtr(const TErrorOr<TNbdVolumeFactory
     });
 }
 
+TFuture<IBlockDevicePtr> TNbdVolumeFactory::InitializeNbdDevice(
+    const IBlockDevicePtr& device,
+    const NLogging::TLogger& Logger) const
+{
+    YT_LOG_DEBUG("Initializing NBD device");
+
+    return device->Initialize()
+        .Apply(BIND(
+            [
+                Logger,
+                device
+            ] (const TError& error) {
+                if (!error.IsOK()) {
+                    YT_UNUSED_FUTURE(device->Finalize());
+                    THROW_ERROR_EXCEPTION("Failed to initialize NBD device")
+                        << error;
+                } else {
+                    YT_LOG_DEBUG("Initialized NBD device");
+                    return device;
+                }
+            })
+            .AsyncVia(Bootstrap_->GetNbdServer()->GetInvoker()))
+        .ToUncancelable();
+}
+
+// RO NBD volumes.
+
 IImageReaderPtr TNbdVolumeFactory::CreateArtifactReader(
     const TLogger& Logger,
     const TArtifactKey& artifactKey)
@@ -513,14 +540,15 @@ TFuture<IBlockDevicePtr> TNbdVolumeFactory::CreateRONbdDevice(
     const auto& deviceId = artifactKey.nbd_device_id();
 
     auto Logger = ExecNodeLogger()
-        .WithTag("Tag: %v, JobId: %v, DeviceId: %v, CypressPath: %v, Filesystem: %v",
+        .WithTag("Tag: %v, JobId: %v, DeviceId: %v, Type: %v, CypressPath: %v, Filesystem: %v",
             tag,
             options.JobId,
             deviceId,
+            "RO",
             artifactKey.data_source().path(),
             FromProto<ELayerFilesystem>(artifactKey.filesystem()));
 
-    YT_LOG_DEBUG("Creating RO NBD device");
+    YT_LOG_DEBUG("Creating NBD device");
 
     auto device = CreateFileSystemBlockDevice(
         deviceId,
@@ -529,23 +557,9 @@ TFuture<IBlockDevicePtr> TNbdVolumeFactory::CreateRONbdDevice(
         Bootstrap_->GetNbdServer()->GetInvoker(),
         Bootstrap_->GetNbdServer()->GetLogger());
 
-    return device->Initialize()
-        .Apply(BIND(
-            [
-                Logger,
-                device
-            ] (const TError& error) {
-                if (!error.IsOK()) {
-                    YT_UNUSED_FUTURE(device->Finalize());
-                    THROW_ERROR_EXCEPTION("Failed to create RO NBD device")
-                        << error;
-                } else {
-                    YT_LOG_DEBUG("Created RO NBD device");
-                    return device;
-                }
-            })
-            .AsyncVia(Bootstrap_->GetNbdServer()->GetInvoker()))
-        .ToUncancelable();
+    YT_LOG_DEBUG("Created NBD device");
+
+    return InitializeNbdDevice(device, Logger);
 }
 
 TFuture<TRONbdVolumePtr> TNbdVolumeFactory::CreateRONbdVolume(
@@ -685,15 +699,18 @@ TFuture<TRONbdVolumePtr> TNbdVolumeFactory::PrepareRONbdVolume(
         .ToUncancelable();
 }
 
+// RW NBD volumes.
+
 TFuture<IBlockDevicePtr> TNbdVolumeFactory::CreateRWNbdDevice(
     TGuid tag,
     TPrepareRWNbdVolumeOptions options)
 {
     auto Logger = ExecNodeLogger()
-        .WithTag("Tag: %v, JobId: %v, DeviceId: %v, DiskSize: %v, DiskMediumIndex: %v, DiskFilesystem: %v",
+        .WithTag("Tag: %v, JobId: %v, DeviceId: %v, Type: %v, DiskSize: %v, DiskMediumIndex: %v, DiskFilesystem: %v",
             tag,
             options.JobId,
             options.DeviceId,
+            "RW",
             options.Size,
             options.MediumIndex,
             options.Filesystem);
@@ -705,7 +722,7 @@ TFuture<IBlockDevicePtr> TNbdVolumeFactory::CreateRWNbdDevice(
     config->DataNodeNbdServiceRpcTimeout = options.DataNodeNbdServiceRpcTimeout;
     config->DataNodeNbdServiceMakeTimeout = options.DataNodeNbdServiceMakeTimeout;
 
-    YT_LOG_DEBUG("Creating RW NBD device");
+    YT_LOG_DEBUG("Creating NBD device");
 
     auto device = CreateChunkBlockDevice(
         std::move(options.DeviceId),
@@ -717,23 +734,9 @@ TFuture<IBlockDevicePtr> TNbdVolumeFactory::CreateRWNbdDevice(
         std::move(options.SessionId),
         Bootstrap_->GetNbdServer()->GetLogger());
 
-    return device->Initialize()
-        .Apply(BIND(
-            [
-                Logger,
-                device
-            ] (const TError& error) {
-                if (!error.IsOK()) {
-                    YT_UNUSED_FUTURE(device->Finalize());
-                    THROW_ERROR_EXCEPTION("Failed to create RW NBD device")
-                        << error;
-                } else {
-                    YT_LOG_DEBUG("Created RW NBD device");
-                    return device;
-                }
-            })
-            .AsyncVia(Bootstrap_->GetNbdServer()->GetInvoker()))
-        .ToUncancelable();
+    YT_LOG_DEBUG("Created NBD device");
+
+    return InitializeNbdDevice(device, Logger);
 }
 
 TFuture<TRWNbdVolumePtr> TNbdVolumeFactory::CreateRWNbdVolume(

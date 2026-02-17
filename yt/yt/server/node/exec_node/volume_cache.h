@@ -165,6 +165,10 @@ private:
         const NNbd::INbdServerPtr& nbdServer,
         const NLogging::TLogger& Logger);
 
+    TFuture<NNbd::IBlockDevicePtr> InitializeNbdDevice(
+        const NNbd::IBlockDevicePtr& device,
+        const NLogging::TLogger& Logger) const;
+
     // RO volumes start here.
 
     NNbd::IImageReaderPtr CreateArtifactReader(
