@@ -118,6 +118,8 @@ public:
         const TTabletSnapshotPtr& tabletSnapshot,
         TTimestamp timestamp) override
     {
+        tabletSnapshot->MaybeReplyWithReshardRedirectionHint();
+
         tabletSnapshot->ValidateServantIsActive(
             Bootstrap_
                 ->GetClient()

@@ -728,10 +728,17 @@ private:
         auto* action = TabletActionMap_.Insert(id, std::move(actionHolder));
         objectManager->RefObject(action);
 
+        if (kind == ETabletActionKind::Reshard && options.InplaceReshard) {
+            action->TabletMountRevisions().reserve(tablets.size());
+        }
+
         for (auto tablet : tablets) {
             YT_VERIFY(tablet->GetType() == EObjectType::Tablet);
 
             tablet->SetAction(action);
+            if (kind == ETabletActionKind::Reshard && options.InplaceReshard) {
+                action->TabletMountRevisions().push_back(tablet->Servant().GetMountRevision());
+            }
 
             if (state == ETabletActionState::Orphaned) {
                 // Orphaned action can be created during mount if tablet cells are not available.
@@ -900,16 +907,21 @@ private:
 
             case ETabletActionState::Frozen: {
                 auto* table = action->Tablets().front()->GetOwner();
-                bool retainPreloadedChunks = table->GetInMemoryMode() != NTabletClient::EInMemoryMode::None &&
-                    action->GetKind() == ETabletActionKind::Reshard &&
-                    action->IsInplaceReshard();
+                bool inplaceReshard = action->IsInplaceReshard() &&
+                    action->GetKind() == ETabletActionKind::Reshard;
+                bool retainPreloadedChunks =
+                    inplaceReshard &&
+                    table->GetInMemoryMode() != NTabletClient::EInMemoryMode::None;
                 for (auto tablet : action->Tablets()) {
                     YT_VERIFY(IsObjectAlive(tablet));
                     Host_->UnmountTablet(
                         tablet,
                         /*force*/ false,
                         /*onDestroy*/ false,
-                        retainPreloadedChunks);
+                        TUnmountTabletOptions{
+                            .RetainPreloadedChunks = retainPreloadedChunks,
+                            .UseExtendedSnapshotEvictionTimeout = inplaceReshard,
+                        });
                 }
 
                 ChangeTabletActionState(action, ETabletActionState::Unmounting);
@@ -995,6 +1007,14 @@ private:
                         for (auto tablet : action->Tablets()) {
                             tablet->SetAction(action);
                             tablet->SetExpectedState(expectedState);
+                        }
+
+                        if (action->IsInplaceReshard()) {
+                            Host_->SendReshardRedirectionHint(
+                                action->TabletCells()[0]->GetId(),
+                                action->Tablets(),
+                                oldTablets,
+                                action->TabletMountRevisions());
                         }
 
                         break;

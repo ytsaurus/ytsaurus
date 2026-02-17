@@ -351,14 +351,13 @@ void TTabletSnapshot::ValidateServantIsActive(const ICellDirectoryPtr& cellDirec
 
         if (smoothMovementData.Role.load() == ESmoothMovementRole::Source) {
             TTabletRedirectionHint hint;
-
-            hint.PreviousMountRevision = MountRevision;
-            hint.MountRevision = siblingMountRevision;
-            hint.CellId = siblingCellId;
+            hint.SmoothMovementRedirectionHint.OldMountRevision = MountRevision;
+            hint.SmoothMovementRedirectionHint.NewMountRevision = siblingMountRevision;
+            hint.SmoothMovementRedirectionHint.CellId = siblingCellId;
 
             auto cellDescriptor = cellDirectory->FindDescriptorByCellId(siblingCellId);
             if (cellDescriptor) {
-                hint.CellDescriptor = ConvertToNode(cellDescriptor);
+                hint.SmoothMovementRedirectionHint.CellDescriptor = ConvertToNode(cellDescriptor);
             } else {
                 YT_LOG_DEBUG("Sibling servant cell descriptor is missing in cell directory (%v)",
                     LoggingTag);
@@ -386,6 +385,22 @@ void TTabletSnapshot::ValidateServantIsActive(const ICellDirectoryPtr& cellDirec
             THROW_ERROR error;
         }
     }
+}
+
+void TTabletSnapshot::MaybeReplyWithReshardRedirectionHint()
+{
+    if (!ReshardRedirectionHint) {
+        return;
+    }
+
+    TTabletRedirectionHint hint;
+    hint.ReshardRedirectionHint = ReshardRedirectionHint;
+
+    THROW_ERROR_EXCEPTION(
+        NTabletClient::EErrorCode::TabletResharded,
+        "Tablet was resharded")
+        << TErrorAttribute("tablet_id", TabletId)
+        << TErrorAttribute("redirection_hint", hint);
 }
 
 void TTabletSnapshot::WaitOnLocks(TTimestamp timestamp) const

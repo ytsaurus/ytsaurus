@@ -94,7 +94,7 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/table_client/helpers.h>
-
+#include <yt/yt/client/tablet_client/table_mount_cache.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
 
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.pb.h>
@@ -123,6 +123,8 @@
 #include <yt/yt/core/ytree/virtual.h>
 
 #include <library/cpp/yt/string/string.h>
+
+#include <library/cpp/iterator/zip.h>
 
 #include <util/generic/cast.h>
 #include <util/generic/algorithm.h>
@@ -253,6 +255,7 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraUnmountTablet, Unretained(this)));
         RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraRemountTablet, Unretained(this)));
         RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraUpdateTabletSettings, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraSetReshardRedirectionHint, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraFreezeTablet, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraUnfreezeTablet, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraProvisionalFlush, Unretained(this)));
@@ -1589,6 +1592,9 @@ private:
         }
 
         tablet->SetPreloadedChunkRetentionRequired(request->retain_preloaded_chunks());
+        if (request->use_extended_snapshot_eviction_timeout()) {
+            tablet->SetSnapshotEvictionTimeout(GetDynamicConfig()->TabletManager->ExtendedSnapshotEvictionTimeout);
+        }
 
         if (request->force()) {
             YT_LOG_INFO("Tablet is forcefully unmounted (%v)",
@@ -1758,6 +1764,47 @@ private:
                 [] (auto* builder, const auto& experiment) {
                     FormatValue(builder, experiment.first, /*format*/ TStringBuf{});
                 }));
+    }
+
+    void HydraSetReshardRedirectionHint(TReqSetReshardRedirectionHint* request)
+    {
+        auto oldTabletIds = FromProto<std::vector<TTabletId>>(request->old_tablet_ids());
+        auto oldTabletMountRevisions = FromProto<std::vector<NHydra::TRevision>>(request->old_tablet_mount_revisions());
+
+        std::vector<TTabletSnapshotPtr> oldTabletSnapshots;
+        const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
+
+        for (const auto& [tabletId, mountRevision] : Zip(oldTabletIds, oldTabletMountRevisions)) {
+            if (auto tabletSnapshot = snapshotStore->FindTabletSnapshot(tabletId, mountRevision)) {
+                oldTabletSnapshots.push_back(tabletSnapshot);
+            }
+        }
+
+        if (oldTabletSnapshots.empty()) {
+            return;
+        }
+
+        auto reshardRedirectionHint = New<TReshardRedirectionHint>();
+        reshardRedirectionHint->OldTabletIds = std::move(oldTabletIds);
+        reshardRedirectionHint->OldTabletMountRevisions = std::move(oldTabletMountRevisions);
+        reshardRedirectionHint->NewTabletIds = FromProto<std::vector<TTabletId>>(request->new_tablet_ids());
+        reshardRedirectionHint->NewTabletPivotKeys = FromProto<std::vector<TLegacyOwningKey>>(request->new_tablet_pivot_keys());
+        reshardRedirectionHint->NewTabletsMountRevision = FromProto<NHydra::TRevision>(request->new_tablets_mount_revision());
+
+        YT_LOG_DEBUG("Set reshard redirection hint for tablets (TabletId: %v, "
+            "ReshardRedirectionHint: [OldTabletIds: %v, OldTabletMountRevisions: %llx, "
+            "NewTabletIds: %v, NewTabletsMountRevision: %llx])",
+            MakeFormattableView(oldTabletSnapshots, [] (auto* builder, const auto& tabletSnapshot) {
+                builder->AppendFormat("%v", tabletSnapshot->TabletId);
+            }),
+            reshardRedirectionHint->OldTabletIds,
+            reshardRedirectionHint->OldTabletMountRevisions,
+            reshardRedirectionHint->NewTabletIds,
+            reshardRedirectionHint->NewTabletsMountRevision);
+
+        for (auto& oldTabletSnapshot : oldTabletSnapshots) {
+            oldTabletSnapshot->ReshardRedirectionHint = reshardRedirectionHint;
+        }
     }
 
     void HydraFreezeTablet(TReqFreezeTablet* request)

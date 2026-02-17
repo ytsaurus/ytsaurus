@@ -45,12 +45,18 @@ struct ITabletActionManagerHost
         TTabletBase* tablet,
         bool force,
         bool onDestroy,
-        bool retainPreloadedChunks = false) = 0;
+        TUnmountTabletOptions options) = 0;
 
     virtual void DoFreezeTablet(TTabletBase* tablet) = 0;
     virtual void DoUnfreezeTablet(TTabletBase* tablet) = 0;
 
     virtual void RequestProvisionalFlush(TTabletBase* tablet) = 0;
+
+    virtual void SendReshardRedirectionHint(
+        TTabletCellId cellId,
+        const std::vector<TTabletBaseRawPtr>& newTablets,
+        const std::vector<TTabletBaseRawPtr>& oldTablets,
+        const std::vector<NHydra::TRevision>& oldTabletMountRevisions) = 0;
 
     virtual void DoMountTablets(
         TTabletOwnerBase* table,
