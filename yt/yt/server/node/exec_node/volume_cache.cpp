@@ -1171,15 +1171,21 @@ TFuture<void> TLayerCache::Disable(const TError& reason)
     }));
 }
 
+void TLayerCache::ValidateTPrepareLayerOptions(const TPrepareLayerOptions& options)
+{
+    const auto& artifactKey = options.ArtifactKey;
+    YT_VERIFY(!artifactKey.has_access_method() || FromProto<ELayerAccessMethod>(artifactKey.access_method()) == ELayerAccessMethod::Local);
+    YT_VERIFY(!artifactKey.has_filesystem() || FromProto<ELayerFilesystem>(artifactKey.filesystem()) == ELayerFilesystem::Archive);
+}
+
 TFuture<TLayerPtr> TLayerCache::GetOrCreateLayer(
     TGuid tag,
     TPrepareLayerOptions options)
 {
+    ValidateTPrepareLayerOptions(options);
+
     const auto& artifactKey = options.ArtifactKey;
     const auto& downloadOptions = options.ArtifactDownloadOptions;
-
-    YT_VERIFY(!artifactKey.has_access_method() || FromProto<ELayerAccessMethod>(artifactKey.access_method()) == ELayerAccessMethod::Local);
-    YT_VERIFY(!artifactKey.has_filesystem() || FromProto<ELayerFilesystem>(artifactKey.filesystem()) == ELayerFilesystem::Archive);
 
     auto Logger = ExecNodeLogger()
         .WithTag("Tag: %v, JobId: %v, CypressPath: %v",
