@@ -23,7 +23,7 @@ import tech.ytsaurus.rpc.TStreamingFeedbackHeader;
 import tech.ytsaurus.rpc.TStreamingPayloadHeader;
 
 /**
- * RpcClient wrapper that notifies {@link RpcClientListener} about bytes sent.
+ * RpcClient wrapper that notifies {@link RpcClientListener} about bytes sent and received.
  */
 class RpcClientListenerWrapper extends RpcClientWrapper {
     private final RpcClientListener listener;
@@ -37,7 +37,12 @@ class RpcClientListenerWrapper extends RpcClientWrapper {
     public RpcClientRequestControl send(RpcClient sender, RpcRequest<?> request, RpcClientResponseHandler handler,
                                         RpcOptions options) {
         RpcRequestDescriptor context = createContext(request, false);
-        return super.send(sender, ListeningRpcRequest.wrap(request, listener, context), handler, options);
+        return super.send(
+                sender,
+                ListeningRpcRequest.wrap(request, listener, context),
+                ListeningResponseHandler.wrap(handler, listener, context),
+                options
+        );
     }
 
     @Override
@@ -63,11 +68,19 @@ class RpcClientListenerWrapper extends RpcClientWrapper {
 
             @Override
             public void onPayload(RpcClient sender, TStreamingPayloadHeader header, List<byte[]> attachments) {
+                long size = attachments.stream().mapToInt(RpcUtil::attachmentSize).sum();
+                if (size > 0) {
+                    listener.onBytesReceived(streamContext, size);
+                }
                 consumer.onPayload(sender, header, attachments);
             }
 
             @Override
             public void onResponse(RpcClient sender, TResponseHeader header, List<byte[]> attachments) {
+                long size = attachments.stream().mapToInt(RpcUtil::attachmentSize).sum();
+                if (size > 0) {
+                    listener.onBytesReceived(requestContext, size);
+                }
                 consumer.onResponse(sender, header, attachments);
             }
 
@@ -104,6 +117,49 @@ class RpcClientListenerWrapper extends RpcClientWrapper {
             builder.setIsStream(true);
         }
         return builder.build();
+    }
+}
+
+class ListeningResponseHandler implements RpcClientResponseHandler {
+    private final RpcClientResponseHandler inner;
+    private final RpcClientListener listener;
+    private final RpcRequestDescriptor context;
+
+    private ListeningResponseHandler(
+            RpcClientResponseHandler inner,
+            RpcClientListener listener,
+            RpcRequestDescriptor context
+    ) {
+        this.inner = inner;
+        this.listener = listener;
+        this.context = context;
+    }
+
+    static RpcClientResponseHandler wrap(
+            RpcClientResponseHandler handler,
+            RpcClientListener listener,
+            RpcRequestDescriptor context
+    ) {
+        return new ListeningResponseHandler(handler, listener, context);
+    }
+
+    @Override
+    public void onResponse(RpcClient sender, TResponseHeader header, List<byte[]> attachments) {
+        long size = attachments.stream().mapToInt(RpcUtil::attachmentSize).sum();
+        if (size > 0) {
+            listener.onBytesReceived(context, size);
+        }
+        inner.onResponse(sender, header, attachments);
+    }
+
+    @Override
+    public void onError(Throwable error) {
+        inner.onError(error);
+    }
+
+    @Override
+    public void onCancel(CancellationException cancel) {
+        inner.onCancel(cancel);
     }
 }
 

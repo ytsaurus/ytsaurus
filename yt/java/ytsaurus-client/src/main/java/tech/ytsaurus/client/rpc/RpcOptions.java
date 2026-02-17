@@ -202,9 +202,9 @@ public class RpcOptions {
     }
 
     /**
-     * Set listener to account bytes sent by the client.
+     * Set listener to account bytes sent and received by the client.
      * <p>
-     * Listener is invoked for regular requests and streaming payloads.
+     * Listener is invoked for regular requests, streaming payloads, and incoming responses.
      */
     public RpcOptions setRpcClientListener(RpcClientListener rpcClientListener) {
         this.rpcClientListener = rpcClientListener;
