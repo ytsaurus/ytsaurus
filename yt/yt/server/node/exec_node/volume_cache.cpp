@@ -280,12 +280,13 @@ TFuture<IVolumePtr> TNbdVolumeFactory::GetOrCreateVolume(
                 [
                     Logger = Logger,
                     cookie = std::move(cookie)
-                ] (const TErrorOr<TVolumePtr>& volumeOrError) mutable {
+                ] (const TErrorOr<IVolumePtr>& volumeOrError) mutable {
                     if (volumeOrError.IsOK()) {
                         YT_LOG_DEBUG(
                             "RO NBD volume has been inserted into cache (VolumeId: %v)",
                             volumeOrError.Value()->GetId());
-                        cookie.EndInsert(volumeOrError.Value());
+                        auto volume = DynamicPointerCast<TVolume>(volumeOrError.Value());
+                        cookie.EndInsert(volume);
                     } else {
                         YT_LOG_WARNING(
                             volumeOrError,
@@ -366,7 +367,7 @@ TFuture<IVolumePtr> TNbdVolumeFactory::GetOrCreateVolume(
                 options,
                 this,
                 this_ = MakeStrong(this)
-            ] (const TErrorOr<TRWNbdVolumePtr>& errorOrVolume) {
+            ] (const TErrorOr<IVolumePtr>& errorOrVolume) {
                 if (!errorOrVolume.IsOK()) {
                     THROW_ERROR_EXCEPTION("Failed to find RW NBD volume")
                         << TErrorAttribute("job_id", options.JobId)
@@ -503,6 +504,62 @@ TFuture<IBlockDevicePtr> TNbdVolumeFactory::InitializeNbdDevice(
         .ToUncancelable();
 }
 
+TFuture<IVolumePtr> TNbdVolumeFactory::CreateNbdVolume(
+    TGuid tag,
+    TTagSet tagSet,
+    TCreateNbdVolumeOptions options,
+    TVolumeFactory volumeFactory)
+{
+    auto Logger = ExecNodeLogger()
+        .WithTag("Tag: %v, JobId: %v, DeviceId: %v, IsReadOnly: %v, Filesystem: %v",
+            tag,
+            options.JobId,
+            options.DeviceId,
+            options.IsReadOnly,
+            options.Filesystem);
+
+    YT_LOG_DEBUG("Creating NBD volume");
+
+    auto nbdServer = Bootstrap_->GetNbdServer();
+
+    auto location = PickLocation();
+    auto volumeMetaFuture = location->CreateNbdVolume(
+        tag,
+        tagSet,
+        DynamicConfigManager_->GetConfig()->ExecNode->Nbd,
+        options);
+
+    return volumeMetaFuture
+        .Apply(BIND(
+            [
+                Logger,
+                volumeFactory = std::move(volumeFactory),
+                tagSet = std::move(tagSet),
+                location = std::move(location),
+                deviceId = options.DeviceId,
+                nbdServer = nbdServer
+            ] (const TErrorOr<TVolumeMeta>& errorOrVolumeMeta) mutable {
+                if (!errorOrVolumeMeta.IsOK()) {
+                    THROW_ERROR_EXCEPTION("Failed to create NBD volume")
+                        << errorOrVolumeMeta;
+                }
+
+                YT_LOG_DEBUG("Created NBD volume");
+
+                return volumeFactory(
+                    std::move(tagSet),
+                    errorOrVolumeMeta.Value(),
+                    std::move(location),
+                    std::move(deviceId),
+                    std::move(nbdServer));
+            })
+            .AsyncVia(nbdServer->GetInvoker()))
+        .ToUncancelable()
+        .As<IVolumePtr>();
+    // NB. ToUncancelable is needed to make sure that object owning
+    // the volume will be created so there is no porto volume leak.
+}
+
 // RO NBD volumes.
 
 IImageReaderPtr TNbdVolumeFactory::CreateArtifactReader(
@@ -562,59 +619,35 @@ TFuture<IBlockDevicePtr> TNbdVolumeFactory::CreateRONbdDevice(
     return InitializeNbdDevice(device, Logger);
 }
 
-TFuture<TRONbdVolumePtr> TNbdVolumeFactory::CreateRONbdVolume(
+TFuture<IVolumePtr> TNbdVolumeFactory::CreateRONbdVolume(
     TGuid tag,
     TTagSet tagSet,
     TCreateNbdVolumeOptions options)
 {
-    auto Logger = ExecNodeLogger()
-        .WithTag("Tag: %v, JobId: %v, DeviceId: %v, Filesystem: %v",
-            tag,
-            options.JobId,
-            options.DeviceId,
-            options.Filesystem);
+    TVolumeFactory volumeFactory = BIND(
+        [] (
+            NProfiling::TTagSet tagSet,
+            TVolumeMeta volumeMeta,
+            TLayerLocationPtr layerLocation,
+            TString nbdDeviceId,
+            INbdServerPtr nbdServer) -> IVolumePtr {
 
-    YT_LOG_DEBUG("Creating RO NBD volume");
+        return New<TRONbdVolume>(
+            std::move(tagSet),
+            std::move(volumeMeta),
+            std::move(layerLocation),
+            std::move(nbdDeviceId),
+            std::move(nbdServer));
+    });
 
-    auto nbdServer = Bootstrap_->GetNbdServer();
-
-    auto location = PickLocation();
-    auto volumeMetaFuture = location->CreateNbdVolume(
+    return CreateNbdVolume(
         tag,
         tagSet,
-        DynamicConfigManager_->GetConfig()->ExecNode->Nbd,
-        options);
-
-    return volumeMetaFuture
-        .Apply(BIND(
-            [
-                Logger,
-                tagSet = std::move(tagSet),
-                location = std::move(location),
-                deviceId = options.DeviceId,
-                nbdServer = nbdServer
-            ] (const TErrorOr<TVolumeMeta>& errorOrVolumeMeta) mutable {
-                if (!errorOrVolumeMeta.IsOK()) {
-                    THROW_ERROR_EXCEPTION("Failed to create RO NBD volume")
-                        << errorOrVolumeMeta;
-                }
-
-                YT_LOG_DEBUG("Created RO NBD volume");
-
-                return New<TRONbdVolume>(
-                    std::move(tagSet),
-                    errorOrVolumeMeta.Value(),
-                    std::move(location),
-                    std::move(deviceId),
-                    std::move(nbdServer));
-            })
-            .AsyncVia(nbdServer->GetInvoker()))
-        .ToUncancelable();
-    // NB. ToUncancelable is needed to make sure that object owning
-    // the volume will be created so there is no porto volume leak.
+        std::move(options),
+        std::move(volumeFactory));
 }
 
-TFuture<TRONbdVolumePtr> TNbdVolumeFactory::PrepareRONbdVolume(
+TFuture<IVolumePtr> TNbdVolumeFactory::PrepareRONbdVolume(
     TGuid tag,
     TPrepareRONbdVolumeOptions options)
 {
@@ -678,7 +711,7 @@ TFuture<TRONbdVolumePtr> TNbdVolumeFactory::PrepareRONbdVolume(
                 nbdServer,
                 deviceId = artifactKey.nbd_device_id(),
                 volumeCreateTimeGuard = std::move(volumeCreateTimeGuard)
-            ] (const TErrorOr<TRONbdVolumePtr>& errorOrVolume) {
+            ] (const TErrorOr<IVolumePtr>& errorOrVolume) {
                 if (!errorOrVolume.IsOK()) {
                     if (auto device = nbdServer->TryUnregisterDevice(deviceId)) {
                         YT_LOG_DEBUG("Finalizing RO NBD device");
@@ -739,59 +772,35 @@ TFuture<IBlockDevicePtr> TNbdVolumeFactory::CreateRWNbdDevice(
     return InitializeNbdDevice(device, Logger);
 }
 
-TFuture<TRWNbdVolumePtr> TNbdVolumeFactory::CreateRWNbdVolume(
+TFuture<IVolumePtr> TNbdVolumeFactory::CreateRWNbdVolume(
     TGuid tag,
     TTagSet tagSet,
     TCreateNbdVolumeOptions options)
 {
-    auto Logger = ExecNodeLogger()
-        .WithTag("Tag: %v, JobId: %v, DeviceId: %v, Filesystem: %v",
-            tag,
-            options.JobId,
-            options.DeviceId,
-            options.Filesystem);
+    TVolumeFactory volumeFactory = BIND(
+        [] (
+            NProfiling::TTagSet tagSet,
+            TVolumeMeta volumeMeta,
+            TLayerLocationPtr layerLocation,
+            TString nbdDeviceId,
+            INbdServerPtr nbdServer) -> IVolumePtr {
 
-    YT_LOG_DEBUG("Creating RW NBD volume");
+        return New<TRWNbdVolume>(
+            std::move(tagSet),
+            std::move(volumeMeta),
+            std::move(layerLocation),
+            std::move(nbdDeviceId),
+            std::move(nbdServer));
+    });
 
-    auto nbdServer = Bootstrap_->GetNbdServer();
-
-    auto location = PickLocation();
-    auto volumeMetaFuture = location->CreateNbdVolume(
+    return CreateNbdVolume(
         tag,
         tagSet,
-        DynamicConfigManager_->GetConfig()->ExecNode->Nbd,
-        options);
-
-    return volumeMetaFuture
-        .Apply(BIND(
-            [
-                Logger,
-                tagSet = std::move(tagSet),
-                location = std::move(location),
-                deviceId = options.DeviceId,
-                nbdServer = nbdServer
-            ] (const TErrorOr<TVolumeMeta>& errorOrVolumeMeta) mutable {
-                if (!errorOrVolumeMeta.IsOK()) {
-                    THROW_ERROR_EXCEPTION("Failed to create RW NBD volume")
-                        << errorOrVolumeMeta;
-                }
-
-                YT_LOG_DEBUG("Created RW NBD volume");
-
-                return New<TRWNbdVolume>(
-                    std::move(tagSet),
-                    errorOrVolumeMeta.Value(),
-                    std::move(location),
-                    std::move(deviceId),
-                    std::move(nbdServer));
-            })
-            .AsyncVia(nbdServer->GetInvoker()))
-        .ToUncancelable();
-    // NB. ToUncancelable is needed to make sure that object owning
-    // the volume will be created so there is no porto volume leak.
+        std::move(options),
+        std::move(volumeFactory));
 }
 
-TFuture<TRWNbdVolumePtr> TNbdVolumeFactory::PrepareRWNbdVolume(
+TFuture<IVolumePtr> TNbdVolumeFactory::PrepareRWNbdVolume(
     TGuid tag,
     TPrepareRWNbdVolumeOptions options)
 {
@@ -850,7 +859,7 @@ TFuture<TRWNbdVolumePtr> TNbdVolumeFactory::PrepareRWNbdVolume(
                 nbdServer,
                 deviceId,
                 volumeCreateTimeGuard = std::move(volumeCreateTimeGuard)
-            ] (const TErrorOr<TRWNbdVolumePtr>& errorOrVolume) {
+            ] (const TErrorOr<IVolumePtr>& errorOrVolume) {
                 if (!errorOrVolume.IsOK()) {
                     if (auto device = nbdServer->TryUnregisterDevice(deviceId)) {
                         YT_LOG_DEBUG("Finalizing RW NBD device");
