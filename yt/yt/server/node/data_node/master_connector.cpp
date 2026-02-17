@@ -657,6 +657,17 @@ protected:
             return MakeFuture(TError("Node disconnected"));
         }
 
+        auto masterEpoch = Bootstrap_->GetMasterEpoch();
+        auto minEpochToStartHeartbeats = GetNodeDynamicConfig()->TestingOptions->MinEpochToStartHeartbeats;
+        if (minEpochToStartHeartbeats.has_value() && masterEpoch < *minEpochToStartHeartbeats) {
+            YT_LOG_WARNING(
+                "Will not report heartbeats to master, master epoch is less than MinEpochToStartHeartbeats testing option "
+                "(MasterEpoch: %v, MinEpochToStartHeartbeats: %v)",
+                masterEpoch,
+                *minEpochToStartHeartbeats);
+            return MakeFuture(TError("Master epoch is less than MinEpochToStartHeartbeats testing option"));
+        }
+
         FlushDeltaChanges();
 
         THeartbeatRspFuture variantResult;
@@ -755,6 +766,14 @@ protected:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         FlushDeltaChanges();
+
+        if (!HasMasterConnectorState(cellTag)) {
+            // Heartbeats may fail before initialization of master connector state.
+            YT_LOG_WARNING(
+                "Data node failed to initialize master connector state during heartbeat report (CellTag: %v)",
+                cellTag);
+            return;
+        }
 
         auto state = GetMemorizedMasterConnectorState(cellTag);
         switch (state) {
@@ -1898,6 +1917,13 @@ private:
         auto state = std::move(stateIt->second);
         CellTagToMasterConnectorState_.erase(stateIt);
         return state;
+    }
+
+    bool HasMasterConnectorState(TCellTag cellTag)
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        return CellTagToMasterConnectorState_.contains(cellTag);
     }
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);

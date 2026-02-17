@@ -246,17 +246,28 @@ public:
         auto now = Now();
 
         auto groups = GetGroupsForNode(address);
-        for (auto* group : groups) {
-            if (group->PendingRegisterNodeMutationCount + group->RegisteredNodeCount >= group->Config->MaxConcurrentNodeRegistrations) {
-                for (auto flavor : flavors) {
-                    FlavorToThrottledRegisterNodeAddresses_[flavor].Insert(now, address);
-                }
 
-                context->Reply(TError(
-                    NRpc::EErrorCode::Unavailable,
-                    "Node registration throttling is active in group %Qv",
-                    group->Id));
-                return;
+        auto* node = FindNodeByAddress(address);
+        if (IsObjectAlive(node) && node->IsRegisteredOrRestartedAtAnyCell()) {
+            // Sometimes nodes can restart registration while they are already being registered.
+            // This is usually caused by bugs or some other processes.
+            // We should not throttle such requests as these nodes are already counted in RegisteredNodeCount.
+
+            YT_LOG_DEBUG("Received registration request from already registered node (Address: %v)",
+                address);
+        } else {
+            for (auto* group : groups) {
+                if (group->PendingRegisterNodeMutationCount + group->RegisteredNodeCount >= group->Config->MaxConcurrentNodeRegistrations) {
+                    for (auto flavor : flavors) {
+                        FlavorToThrottledRegisterNodeAddresses_[flavor].Insert(now, address);
+                    }
+
+                    context->Reply(TError(
+                        NRpc::EErrorCode::Unavailable,
+                        "Node registration throttling is active in group %Qv",
+                        group->Id));
+                    return;
+                }
             }
         }
 
@@ -2341,16 +2352,7 @@ private:
 
     void UpdateNodeCounters(TNode* node, int delta)
     {
-        auto isRegistered = false;
-        const auto& descriptors = node->MulticellDescriptors();
-        for (const auto& [cellag, descriptor] : descriptors) {
-            if (descriptor.State == ENodeState::Registered || descriptor.State == ENodeState::Restarted) {
-                isRegistered = true;
-                break;
-            }
-        }
-
-        if (isRegistered) {
+        if (node->IsRegisteredOrRestartedAtAnyCell()) {
             auto groups = GetGroupsForNode(node);
             for (auto* group : groups) {
                 group->RegisteredNodeCount += delta;
