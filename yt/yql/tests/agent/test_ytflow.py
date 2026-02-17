@@ -1,26 +1,62 @@
-import os
 import itertools
+import json
+import os
 
-from yt_queries import start_query
+import pytest
+
+import yatest.common
+
+import library.python.ydb.federated_topic_client as fedydb
+
+import logbroker.tools.lib.recipe_helpers.cm_requests as cm_requests
 
 from yt.environment.helpers import assert_items_equal
 from yt.wrapper.flow_commands import PipelineState
+from yt.yql.tests.common.test_framework.test_utils import wait_pipeline_state_or_failed_jobs
 
 from yt_commands import (
     authors, create, sync_mount_table, insert_rows, select_rows,
     list_queue_consumer_registrations, raises_yt_error,
 )
 
+from yt_queries import start_query
 from yt_queue_agent_test_base import TestQueueAgentBase
-from yt.yql.tests.common.test_framework.test_utils import wait_pipeline_state_or_failed_jobs
 
-import library.python.ydb.federated_topic_client as fedydb
 
-import logbroker.tools.lib.recipe_helpers.cm_requests as cm_requests
+LOGBROKER_FEDERATION_RECIPE_BINARY = yatest.common.binary_path(
+    "kikimr/public/tools/federation_recipe/federation_recipe"
+)
 
-import pytest
+ENV_FILE = yatest.common.work_path("env.json.txt")
 
-import yatest.common
+
+def load_env():
+    with open(ENV_FILE, "r") as env_file:
+        for line in env_file:
+            for key, value in json.loads(line.strip()).items():
+                os.environ[key] = value
+
+
+@pytest.fixture(scope="session")
+def logbroker_federation():
+    common_args = [
+        "--build-root", yatest.common.build_path(),
+        "--source-root", yatest.common.source_path(),
+        "--output-dir", yatest.common.output_path(),
+        "--env-file", ENV_FILE,
+    ]
+
+    yatest.common.process.execute(
+        command=[LOGBROKER_FEDERATION_RECIPE_BINARY, "start"] + common_args,
+    )
+
+    load_env()
+
+    yield
+
+    yatest.common.process.execute(
+        command=[LOGBROKER_FEDERATION_RECIPE_BINARY, "stop"] + common_args,
+    )
 
 
 class TestYtflowBase(TestQueueAgentBase):
@@ -61,20 +97,31 @@ class TestYtflowBase(TestQueueAgentBase):
     LOGBROKER_COMPRESSION_CODEC = "raw"
     LOGBROKER_COMPRESSION_LEVEL = "0"
 
-    @classmethod
-    def setup_class(cls):
-        super(TestYtflowBase, cls).setup_class()
-        cls.logbroker_endpoint = f"localhost:{os.getenv(f"{cls.LOGBROKER_CLUSTER}_port")}"
-        cls.fed_driver = fedydb.FederationDriver(
-            cls.logbroker_endpoint,
-            cls.LOGBROKER_DATABASE
-        )
-        cls.fed_driver.wait_init()
-        cls.cm = cm_requests.CMApiHelper(f'localhost:{os.getenv("CM_PORT")}')
+    has_logbroker_federation = False
+
+    def setup_method(self, method):
+        super(TestYtflowBase, self).setup_method(method)
+
+        # NOTE: initialization is in setup_method as session scoped fixture
+        # may be used in not first test
+        cls = type(self)
+        if not cls.has_logbroker_federation:
+            cls.has_logbroker_federation = os.getenv("CM_PORT") is not None
+
+            if cls.has_logbroker_federation:
+                cls.logbroker_endpoint = f"localhost:{os.getenv(f"{cls.LOGBROKER_CLUSTER}_port")}"
+                cls.fed_driver = fedydb.FederationDriver(
+                    cls.logbroker_endpoint,
+                    cls.LOGBROKER_DATABASE
+                )
+                cls.fed_driver.wait_init()
+                cls.cm = cm_requests.CMApiHelper(f'localhost:{os.getenv("CM_PORT")}')
 
     @classmethod
     def teardown_class(cls):
-        cls.fed_driver.close()
+        if cls.has_logbroker_federation:
+            cls.fed_driver.close()
+
         super(TestYtflowBase, cls).teardown_class()
 
     @classmethod
@@ -92,13 +139,15 @@ class TestYtflowBase(TestQueueAgentBase):
                 proxy_url=cls.Env.get_http_proxy_address(),
             )],
         )
-        config['yql_agent']['pq_gateway_config'] = dict(
-            cluster_mapping=[dict(
-                name='logbroker',
-                endpoint=cls.logbroker_endpoint,
-                database=cls.LOGBROKER_DATABASE
-            )]
-        )
+
+        if cls.has_logbroker_federation:
+            config['yql_agent']['pq_gateway_config'] = dict(
+                cluster_mapping=[dict(
+                    name='logbroker',
+                    endpoint=cls.logbroker_endpoint,
+                    database=cls.LOGBROKER_DATABASE
+                )]
+            )
 
         yt_gateway_config = config['yql_agent']['gateway_config']
         yt_gateway_config['mr_job_udfs_dir'] = ";".join([
@@ -110,8 +159,10 @@ class TestYtflowBase(TestQueueAgentBase):
     def setup_yt_utils(self):
         self.yt_table_index_generator = itertools.count()
 
-    @pytest.fixture()
-    def create_logbroker_topic(self, request):
+    @pytest.fixture
+    def create_logbroker_topic(self, request, logbroker_federation):
+        assert self.has_logbroker_federation
+
         logbroker_topic_index_generator = itertools.count()
 
         topic_prefix = [
@@ -173,6 +224,8 @@ class TestYtflowBase(TestQueueAgentBase):
         fed_writer.close()
 
     def _read_logbroker_topic(self, topic_path):
+        assert self.has_logbroker_federation
+
         fed_reader = self.fed_driver.topic_reader(
             topic=topic_path,
             consumer=self.LOGBROKER_CONSUMER,
