@@ -106,7 +106,7 @@ public:
 
     void StartIteration() const override
     {
-        YT_LOG_DEBUG("Balancing tablets via reshard started (BundleName: %v, Group: %v)",
+        YT_LOG_INFO("Balancing tablets via reshard started (BundleName: %v, Group: %v)",
             BundleName_,
             GroupName_);
     }
@@ -139,7 +139,7 @@ public:
     {
         auto enableReplicaBalancing = !groupConfig->Parameterized->ReplicaClusters.empty();
         if (enableReplicaBalancing) {
-            YT_LOG_DEBUG("Balancing tablets via reshard by size is disabled, "
+            YT_LOG_INFO("Balancing tablets via reshard by size is disabled, "
                 "the group will be replica balanced (BundleName: %v, Group: %v)",
                 BundleName_,
                 GroupName_);
@@ -201,7 +201,7 @@ public:
 
     void FinishIteration(int actionCount) const override
     {
-        YT_LOG_DEBUG("Balancing tablets via reshard finished (BundleName: %v, Group: %v, ActionCount: %v)",
+        YT_LOG_INFO("Balancing tablets via reshard finished (BundleName: %v, Group: %v, ActionCount: %v)",
             BundleName_,
             GroupName_,
             actionCount);
@@ -226,7 +226,7 @@ public:
 
     void StartIteration() const override
     {
-        YT_LOG_DEBUG("Balancing tablets via parameterized reshard started (BundleName: %v, Group: %v)",
+        YT_LOG_INFO("Balancing tablets via parameterized reshard started (BundleName: %v, Group: %v)",
             BundleName_,
             GroupName_);
     }
@@ -256,7 +256,7 @@ public:
     bool IsGroupBalancingEnabled(const TTabletBalancingGroupConfigPtr& groupConfig) const override
     {
         if (!groupConfig->Parameterized->ReplicaClusters.empty()) {
-            YT_LOG_DEBUG("Balancing tablets via parameterized reshard is disabled, "
+            YT_LOG_INFO("Balancing tablets via parameterized reshard is disabled, "
                 "the group will be replica balanced (BundleName: %v, Group: %v)",
                 BundleName_,
                 GroupName_);
@@ -265,7 +265,7 @@ public:
         auto enable = groupConfig->Parameterized->EnableReshard.value_or(
             DynamicConfig_->EnableParameterizedReshardByDefault);
         if (!enable) {
-            YT_LOG_DEBUG("Balancing tablets via parameterized reshard is disabled (BundleName: %v, Group: %v)",
+            YT_LOG_INFO("Balancing tablets via parameterized reshard is disabled (BundleName: %v, Group: %v)",
                 BundleName_,
                 GroupName_);
         }
@@ -306,7 +306,7 @@ public:
 
     void FinishIteration(int actionCount) const override
     {
-        YT_LOG_DEBUG("Balancing tablets via parameterized reshard finished (BundleName: %v, Group: %v, ActionCount: %v)",
+        YT_LOG_INFO("Balancing tablets via parameterized reshard finished (BundleName: %v, Group: %v, ActionCount: %v)",
             BundleName_,
             GroupName_,
             actionCount);
@@ -336,7 +336,7 @@ public:
 
     void StartIteration() const override
     {
-        YT_LOG_DEBUG("Balancing tablets via replica reshard started (BundleName: %v, Group: %v)",
+        YT_LOG_INFO("Balancing tablets via replica reshard started (BundleName: %v, Group: %v)",
             BundleName_,
             GroupName_);
     }
@@ -348,7 +348,7 @@ public:
         YT_VERIFY(!groupConfig->Parameterized->ReplicaClusters.empty());
 
         if (BundleSnapshot_->ReplicaBalancingFetchFailed) {
-            YT_LOG_DEBUG("Balancing tablets via replica reshard is not possible because "
+            YT_LOG_INFO("Balancing tablets via replica reshard is not possible because "
                 "last statistics fetch failed (BundleName: %v, Group: %v)",
                 BundleName_,
                 GroupName_);
@@ -449,7 +449,7 @@ public:
 
     void FinishIteration(int actionCount) const override
     {
-        YT_LOG_DEBUG("Balancing tablets via replica reshard finished (BundleName: %v, Group: %v, ActionCount: %v)",
+        YT_LOG_INFO("Balancing tablets via replica reshard finished (BundleName: %v, Group: %v, ActionCount: %v)",
             BundleName_,
             GroupName_,
             actionCount);

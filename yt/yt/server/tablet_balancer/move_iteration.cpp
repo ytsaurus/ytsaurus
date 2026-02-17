@@ -43,7 +43,7 @@ public:
 
     void StartIteration() const override
     {
-        YT_LOG_DEBUG("Balancing tablets via move started (BundleName: %v, Group: %v, MoveBalancingType: %v)",
+        YT_LOG_INFO("Balancing tablets via move started (BundleName: %v, Group: %v, MoveBalancingType: %v)",
             BundleName_,
             GroupName_,
             GetActionSubtypeName());
@@ -51,7 +51,7 @@ public:
 
     void LogDisabledBalancing() const override
     {
-        YT_LOG_DEBUG("Balancing tablets via move is disabled (BundleName: %v, Group: %v, MoveBalancingType: %v)",
+        YT_LOG_INFO("Balancing tablets via move is disabled (BundleName: %v, Group: %v, MoveBalancingType: %v)",
             BundleName_,
             GroupName_,
             GetActionSubtypeName());
@@ -59,7 +59,7 @@ public:
 
     void FinishIteration(int actionCount) const override
     {
-        YT_LOG_DEBUG("Balancing tablets via move finished (BundleName: %v, Group: %v, MoveBalancingType: %v, ActionCount: %v)",
+        YT_LOG_INFO("Balancing tablets via move finished (BundleName: %v, Group: %v, MoveBalancingType: %v, ActionCount: %v)",
             BundleName_,
             GroupName_,
             GetActionSubtypeName(),
@@ -400,7 +400,7 @@ public:
     void Prepare() override
     {
         if (BundleSnapshot_->ReplicaBalancingFetchFailed) {
-            YT_LOG_DEBUG("Balancing tablets via replica move is not possible because "
+            YT_LOG_INFO("Balancing tablets via replica move is not possible because "
                 "last statistics fetch failed (BundleName: %v, Group: %v)",
                 BundleName_,
                 GroupName_);
@@ -457,7 +457,7 @@ public:
             }
         }
 
-        YT_LOG_DEBUG("Preparations for balancing tablets via move finished (BundleName: %v, Group: %v, MoveBalancingType: %v)",
+        YT_LOG_INFO("Preparations for balancing tablets via move finished (BundleName: %v, Group: %v, MoveBalancingType: %v)",
             BundleName_,
             GroupName_,
             GetActionSubtypeName());
