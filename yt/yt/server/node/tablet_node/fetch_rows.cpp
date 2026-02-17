@@ -1,5 +1,6 @@
 #include "fetch_rows.h"
 
+#include "failing_on_rotation_reader.h"
 #include "tablet.h"
 #include "private.h"
 
@@ -179,6 +180,12 @@ public:
             TColumnFilter::MakeUniversal(),
             ChunkReadOptions_,
             ChunkReadOptions_.WorkloadDescriptor.Category);
+
+        if (TabletSnapshot_->CommitOrdering == NTransactionClient::ECommitOrdering::Strong &&
+            TabletSnapshot_->Settings.MountConfig->RetryReadOnOrderedStoreRotation)
+        {
+            Reader_ = CreateFailingOnRotationReader(std::move(Reader_), TabletSnapshot_);
+        }
 
         UpdateReadOptions();
 
