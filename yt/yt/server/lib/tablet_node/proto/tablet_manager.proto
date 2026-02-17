@@ -220,6 +220,7 @@ message TReqUnmountTablet
     required NYT.NProto.TGuid tablet_id = 1;
     required bool force = 2;
     optional bool retain_preloaded_chunks = 3;
+    optional bool use_extended_snapshot_eviction_timeout = 4;
 }
 
 message TReqRemountTablet
@@ -236,6 +237,15 @@ message TReqUpdateTabletSettings
     required uint64 mount_revision = 2;
     required bytes global_patch = 3; // YSON-serialized
     required bytes experiments = 4; // YSON-serialized
+}
+
+message TReqSetReshardRedirectionHint
+{
+    repeated NYT.NProto.TGuid old_tablet_ids = 1;
+    repeated uint64 old_tablet_mount_revisions = 2;
+    repeated NYT.NProto.TGuid new_tablet_ids = 3;
+    repeated bytes new_tablet_pivot_keys = 4;
+    required uint64 new_tablets_mount_revision = 5;
 }
 
 message TReqFreezeTablet

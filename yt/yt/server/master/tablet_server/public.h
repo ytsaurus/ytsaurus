@@ -127,6 +127,7 @@ struct TTabletStatistics;
 
 class TTabletResources;
 
+struct TUnmountTabletOptions;
 struct TTableSettings;
 struct THunkStorageSettings;
 struct TSerializedTableSettings;

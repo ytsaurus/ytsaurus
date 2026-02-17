@@ -27,6 +27,14 @@ namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TUnmountTabletOptions
+{
+    bool RetainPreloadedChunks = false;
+    bool UseExtendedSnapshotEvictionTimeout = false;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct ITabletManager
     : public virtual TRefCounted
 {

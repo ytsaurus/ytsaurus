@@ -126,6 +126,10 @@ struct TTabletManagerDynamicConfig
 {
     std::optional<int> ReplicatorThreadPoolSize;
 
+    //! If set, specifies the timeout after which
+    //! snapshots with redirection hint may be evicted.
+    std::optional<TDuration> ExtendedSnapshotEvictionTimeout;
+
     REGISTER_YSON_STRUCT(TTabletManagerDynamicConfig);
 
     static void Register(TRegistrar registrar);

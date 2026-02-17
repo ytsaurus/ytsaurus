@@ -293,6 +293,8 @@ struct TTabletSnapshot
     NTableClient::TTabletPerformanceCountersPtr PerformanceCounters;
     TTableProfilerPtr TableProfiler;
 
+    NTabletClient::TReshardRedirectionHintPtr ReshardRedirectionHint;
+
     //! Local throttlers.
     NConcurrency::IReconfigurableThroughputThrottlerPtr FlushThrottler;
     NConcurrency::IReconfigurableThroughputThrottlerPtr CompactionThrottler;
@@ -351,6 +353,7 @@ struct TTabletSnapshot
     void ValidateCellId(NElection::TCellId cellId);
     void ValidateMountRevision(NHydra::TRevision mountRevision);
     void ValidateServantIsActive(const NHiveClient::ICellDirectoryPtr& cellDirectory);
+    void MaybeReplyWithReshardRedirectionHint();
     void WaitOnLocks(TTimestamp timestamp) const;
 };
 

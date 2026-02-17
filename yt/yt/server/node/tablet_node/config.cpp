@@ -108,6 +108,9 @@ void TTabletManagerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("replicator_thread_pool_size", &TThis::ReplicatorThreadPoolSize)
         .GreaterThan(0)
         .Optional();
+
+    registrar.Parameter("extended_snapshot_eviction_timeout", &TThis::ExtendedSnapshotEvictionTimeout)
+        .Default(TDuration::Minutes(3));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

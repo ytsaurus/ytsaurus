@@ -122,6 +122,8 @@
 
 #include <library/cpp/yt/misc/numeric_helpers.h>
 
+#include <library/cpp/iterator/zip.h>
+
 #include <algorithm>
 
 namespace NYT::NTabletServer {
@@ -4878,6 +4880,30 @@ private:
         UpdateTabletState(tabletOwner);
     }
 
+    void SendReshardRedirectionHint(
+        TTabletCellId cellId,
+        const std::vector<TTabletBaseRawPtr>& newTablets,
+        const std::vector<TTabletBaseRawPtr>& oldTablets,
+        const std::vector<NHydra::TRevision>& oldTabletMountRevisions) override
+    {
+        NTabletNode::NProto::TReqSetReshardRedirectionHint request;
+
+        for (const auto& [tablet, mountRevision] : Zip(oldTablets, oldTabletMountRevisions)) {
+            ToProto(request.add_old_tablet_ids(), tablet->GetId());
+            request.add_old_tablet_mount_revisions(ToProto(mountRevision));
+        }
+
+        for (const auto& tablet : newTablets) {
+            ToProto(request.add_new_tablet_ids(), tablet->GetId());
+            ToProto(request.add_new_tablet_pivot_keys(), tablet->As<TTablet>()->GetPivotKey());
+        }
+        request.set_new_tablets_mount_revision(ToProto(GetCurrentMutationContext()->GetVersion().ToRevision()));
+
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+        auto mailbox = hiveManager->GetMailbox(cellId);
+        hiveManager->PostMessage(mailbox, request);
+    }
+
     void UpdateTabletState(TTabletOwnerBase* table)
     {
         if (!IsObjectAlive(table)) {
@@ -6659,7 +6685,7 @@ private:
         TTablet* tablet,
         bool force,
         bool onDestroy,
-        bool retainPreloadedChunks)
+        TUnmountTabletOptions options)
     {
         if (tablet->GetState() == ETabletState::Unmounted) {
             return;
@@ -6690,7 +6716,8 @@ private:
         TReqUnmountTablet request;
         ToProto(request.mutable_tablet_id(), tablet->GetId());
         request.set_force(force);
-        request.set_retain_preloaded_chunks(retainPreloadedChunks);
+        request.set_retain_preloaded_chunks(options.RetainPreloadedChunks);
+        request.set_use_extended_snapshot_eviction_timeout(options.UseExtendedSnapshotEvictionTimeout);
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
         auto mailbox = hiveManager->GetMailbox(force
@@ -6763,7 +6790,7 @@ private:
         TTabletBase* tablet,
         bool force,
         bool onDestroy,
-        bool retainPreloadedChunks = false) override
+        TUnmountTabletOptions options = {}) override
     {
         switch (tablet->GetType()) {
             case EObjectType::Tablet:
@@ -6771,7 +6798,7 @@ private:
                     tablet->As<TTablet>(),
                     force,
                     onDestroy,
-                    retainPreloadedChunks);
+                    options);
                 break;
             case EObjectType::HunkTablet:
                 DoUnmountHunkTablet(tablet->As<THunkTablet>(), force);

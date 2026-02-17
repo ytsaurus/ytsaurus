@@ -215,6 +215,7 @@ DEFINE_ENUM(EMasterReign,
     ((KulenovClock_26_1)                                            (3203))  // aleksandra-zh
     ((ReignInHiveMessages)                                          (3204))  // ifsmirnov
     ((TransferableInheritedAttributes)                              (3205))  // kvk1920
+    ((ReshardRedirectionHint)                                       (3206))  // atalmenev
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

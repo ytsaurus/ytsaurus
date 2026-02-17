@@ -71,6 +71,9 @@ public:
 
     DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(ProvisionalFlushRequired);
 
+    //! Mount revisions of participating tablets (for inplace reshard).
+    DEFINE_BYREF_RW_PROPERTY(std::vector<NHydra::TRevision>, TabletMountRevisions);
+
 public:
     using TObject::TObject;
 
