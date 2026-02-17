@@ -14,7 +14,7 @@ from .default_config import DEFAULT_WRITE_CHUNK_SIZE
 from .driver import make_request, make_formatted_request
 from .retries import default_chaos_monkey, run_chaos_monkey
 from .errors import YtIncorrectResponse, YtError, YtResponseError, YtResolveError
-from .format import create_format, YsonFormat, StructuredSkiffFormat, Format  # noqa
+from .format import create_format, YsonFormat, StructuredSkiffFormat, Format, SchemafulDsvFormat  # noqa
 from .batch_response import apply_function_to_result
 from .heavy_commands import make_write_request, make_read_request
 from .parallel_writer import make_parallel_write_request
@@ -796,6 +796,21 @@ def _get_table_attributes(table, client):
         client=client)
     return attributes
 
+def _fill_columns_if_schemaful_dsv_format(format, table, client):
+    if isinstance(format, str):
+        if str(format_yson := yson._loads_from_native_str(format)) == "schemaful_dsv" and "columns" not in format_yson.attributes:
+            if (schema := _try_get_schema(table, client)) is not None:
+                col_names = [col.name for col in schema.columns]
+                format_yson.attributes.update({"columns" : col_names})
+                format = yson._dumps_to_native_str(format_yson)
+
+    if isinstance(format, SchemafulDsvFormat):
+        if "columns" not in format.attributes:
+            if (schema := _try_get_schema(table, client)) is not None:
+                col_names = [col.name for col in schema.columns]
+                format.set_columns(col_names)
+
+    return format
 
 def read_table(
     table: Union[str, "TablePath"],
@@ -829,6 +844,7 @@ def read_table(
     if raw is None:
         raw = client_config["default_value_of_raw_option"]
 
+    format = _fill_columns_if_schemaful_dsv_format(format, table, client)
     table = TablePath(table, client=client)
     format = _prepare_command_format(format, raw, client)
     if client_config["yamr_mode"]["treat_unexisting_as_empty"] and not exists(table, client=client):

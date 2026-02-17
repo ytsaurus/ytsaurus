@@ -785,3 +785,32 @@ class TestYtBinary(object):
         assert push_result["last_sequence_number"] == 3
 
         yt_cli.check_output(["yt", "remove-queue-producer-session", "--producer-path", producer_path, "--queue-path", queue_path, "--session-id", session_id])
+
+    @authors("besteady")
+    def test_read_table_schemaful_dsv_without_columns(self, yt_cli: YtCli):
+        def decode_stdout(stdout: bytes):
+            return list(map(lambda x: list(x.split()), stdout.decode("utf-8").strip().split("\n")))
+        def decode(out):
+            return list(list(x.values()) for x in out)
+
+        table = "//home/wrapper_test/in_table_to_read_table_format"
+        yt_cli.check_output(["yt", "create", "table", table, "--attributes", "{schema=[{name=a;type=int64;};{name=b;type=int64;};{name=c;type=int64;}];}"])
+        values = "a=2\tb=1\tc=3\n" \
+                 "a=1\tb=2\tc=2\n" \
+                 "a=2\tb=2\tc=4\n" \
+                 "a=1\tb=1\tc=1\n"
+        yt_cli.check_output(["yt", "write-table", table, "--format", "<enable_string_to_all_conversion=%true>dsv"], stdin=values)
+        expected = [
+            ["a", "b", "c"],
+            ["2", "1", "3"],
+            ["1", "2", "2"],
+            ["2", "2", "4"],
+            ["1", "1", "1"],
+        ]
+        out_with_columns = yt.read_table(table, "<enable_column_names_header=%true;columns=[a;b;c]>schemaful_dsv")
+        out_without_columns = yt.read_table(table, "<enable_column_names_header=%true>schemaful_dsv")
+        stdout_with_columns = yt_cli.check_output(["yt", "read-table", table, "--format", "<enable_column_names_header=%true;columns=[a;b;c]>schemaful_dsv"])
+        stdout_without_columns = yt_cli.check_output(["yt", "read-table", table, "--format", "<enable_column_names_header=%true>schemaful_dsv"])
+        assert decode(out_with_columns) == decode(out_without_columns) == expected
+        assert decode_stdout(stdout_with_columns) == decode_stdout(stdout_without_columns) == expected
+        assert decode(yt.read_table(table, "schemaful_dsv")) == expected[1:]
