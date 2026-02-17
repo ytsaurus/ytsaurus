@@ -11,9 +11,9 @@ default:
     java-sdk-version: 1.2.11
     python-yson-version: 0.4.9
     cert-manager-version: v1.17.1
-    cron-version: 0.0.3
-    odin-version: 0.0.5
-    tutorial-version: 0.0.2
+    cron-version: 0.0.4
+    odin-version: 0.0.7
+    tutorial-version: 0.0.3
     sidecars-version: 0.0.1
     ytmsvc-version: 0.0.1
     excel-version: 0.0.1
