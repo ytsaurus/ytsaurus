@@ -6101,14 +6101,13 @@ IGraphTransformer::TStatus PgBetweenWrapper(const TExprNode::TPtr& input, TExprN
         return IGraphTransformer::TStatus::Error;
     }
 
-    TVector<ui32> argTypes;
+    TVector<ui32> argTypes(input->ChildrenSize());
+    auto children = input->ChildrenList();
     bool needRetype = false;
-    for (ui32 i = 0; i < input->ChildrenSize(); ++i) {
-        auto type = input->Child(i)->GetTypeAnn();
-        ui32 argType;
-        bool convertToPg;
-        bool isUniversal;
-        if (!ExtractPgType(type, argType, convertToPg, input->Child(i)->Pos(), ctx.Expr, isUniversal)) {
+    for (ui32 i = 0; i < children.size(); ++i) {
+        bool convertToPg = false;
+        bool isUniversal = false;
+        if (!ExtractPgType(children[i]->GetTypeAnn(), argTypes[i], convertToPg, input->Child(i)->Pos(), ctx.Expr, isUniversal)) {
             return IGraphTransformer::TStatus::Error;
         }
 
@@ -6117,29 +6116,45 @@ IGraphTransformer::TStatus PgBetweenWrapper(const TExprNode::TPtr& input, TExprN
             return IGraphTransformer::TStatus::Ok;
         }
 
-        if (convertToPg) {
-            input->ChildRef(i) = ctx.Expr.NewCallable(input->Child(i)->Pos(), "ToPg", { input->ChildPtr(i) });
-            needRetype = true;
-        }
-
-        argTypes.push_back(argType);
+        children[i] = ctx.Expr.WrapByCallableIf(convertToPg, "ToPg", std::move(children[i]));
+        needRetype |= convertToPg;
     }
 
     if (needRetype) {
+        output = ctx.Expr.ChangeChildren(*input, std::move(children));
         return IGraphTransformer::TStatus::Repeat;
     }
 
-    auto elemType = argTypes.front();
-    auto elemTypeAnn = input->Child(0)->GetTypeAnn();
-    for (ui32 i = 1; i < argTypes.size(); ++i) {
-        if (elemType == 0) {
-            elemType = argTypes[i];
-            elemTypeAnn = input->Child(i)->GetTypeAnn();
-        } else if (argTypes[i] != 0 && argTypes[i] != NPg::UnknownOid && argTypes[i] != elemType) {
-            ctx.Expr.AddError(TIssue(ctx.Expr.GetPosition(input->Pos()),
-                TStringBuilder() << "Mismatch of type of between elements: " <<
-                NPg::LookupType(elemType).Name << " and " << NPg::LookupType(argTypes[i]).Name));
-            return IGraphTransformer::TStatus::Error;
+    const auto elemType = argTypes.front();
+    if (elemType != 0) {
+        const auto posGetter = [&input, &ctx](size_t i) {
+            return ctx.Expr.GetPosition(input->Child(i)->Pos());
+        };
+
+        const NPg::TTypeDesc* elemCommonType = nullptr;
+        if (argTypes[1] != 0 && argTypes[1] != NPg::UnknownOid && argTypes[1] != elemType) {
+            if (NPg::LookupCommonType({elemType, argTypes[1]}, posGetter, elemCommonType)) {
+                ctx.Expr.AddError(TIssue(ctx.Expr.GetPosition(children[1]->Pos()),
+                    TStringBuilder() << "Mismatch of type of between elements: " <<
+                    NPg::LookupType(elemType).Name << " and " << NPg::LookupType(argTypes[1]).Name));
+                return IGraphTransformer::TStatus::Error;
+            } else if (!children[1]->GetTypeAnn()->IsComparable()) {
+                ctx.Expr.AddError(TIssue(ctx.Expr.GetPosition(children[1]->Pos()),
+                    TStringBuilder() << "Cannot compare items of type: " << NPg::LookupType(argTypes[1]).Name));
+                return IGraphTransformer::TStatus::Error;
+            }
+        }
+        if (argTypes[2] != 0 && argTypes[2] != NPg::UnknownOid && argTypes[2] != elemType) {
+            if (NPg::LookupCommonType({elemType, argTypes[2]}, posGetter, elemCommonType)) {
+                ctx.Expr.AddError(TIssue(ctx.Expr.GetPosition(children[2]->Pos()),
+                    TStringBuilder() << "Mismatch of type of between elements: " <<
+                    NPg::LookupType(elemType).Name << " and " << NPg::LookupType(argTypes[2]).Name));
+                return IGraphTransformer::TStatus::Error;
+            } else if (!children[2]->GetTypeAnn()->IsComparable()) {
+                ctx.Expr.AddError(TIssue(ctx.Expr.GetPosition(children[2]->Pos()),
+                    TStringBuilder() << "Cannot compare items of type: " << NPg::LookupType(argTypes[2]).Name));
+                return IGraphTransformer::TStatus::Error;
+            }
         }
     }
 
@@ -6155,8 +6170,8 @@ IGraphTransformer::TStatus PgBetweenWrapper(const TExprNode::TPtr& input, TExprN
                 .Build();
             break;
         default:
-            if (!elemTypeAnn->IsComparable()) {
-                ctx.Expr.AddError(TIssue(ctx.Expr.GetPosition(input->Pos()),
+            if (!children.front()->GetTypeAnn()->IsComparable()) {
+                ctx.Expr.AddError(TIssue(ctx.Expr.GetPosition(children.front()->Pos()),
                       TStringBuilder() << "Cannot compare items of type: " << NPg::LookupType(elemType).Name));
                 return IGraphTransformer::TStatus::Error;
             }
