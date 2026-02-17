@@ -282,6 +282,8 @@ private:
 
     NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
 
+    static void ValidateTPrepareLayerOptions(const TPrepareLayerOptions& options);
+
     static TSlruCacheConfigPtr CreateCacheConfig(
         const NDataNode::TVolumeManagerConfigPtr& config,
         const std::vector<TLayerLocationPtr>& layerLocations);
