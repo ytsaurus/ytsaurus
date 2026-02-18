@@ -2629,7 +2629,7 @@ public:
             const auto& committedUsage = account->ClusterStatistics().CommittedResourceUsage;
             const auto& limits = account->ClusterResourceLimits();
 
-            for (auto [index, deltaSpace] : delta.DiskSpace()) {
+            for (auto [index, deltaSpace] : SortHashMapByKeys(delta.DiskSpace())) {
                 auto usageSpace = GetOrDefault(usage.DiskSpace(), index);
                 auto limitsSpace = limits.DiskSpace().GetOrDefault(index);
 
