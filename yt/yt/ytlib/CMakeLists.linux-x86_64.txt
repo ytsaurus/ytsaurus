@@ -109,7 +109,6 @@ target_link_libraries(yt-yt-ytlib PUBLIC
   yt_proto-yt-client
   flow-lib-client
   flow-lib-native_client
-  yt-library-s3
 )
 
 target_proto_messages(yt-yt-ytlib PRIVATE
