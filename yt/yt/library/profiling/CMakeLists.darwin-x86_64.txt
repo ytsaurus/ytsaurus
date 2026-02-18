@@ -39,6 +39,7 @@ target_link_libraries(yt-library-profiling PUBLIC
   cpp-yt-compact_containers
   cpp-yt-string
   cpp-yt-memory
+  cpp-yt-threading
 )
 
 target_sources(yt-library-profiling PRIVATE
