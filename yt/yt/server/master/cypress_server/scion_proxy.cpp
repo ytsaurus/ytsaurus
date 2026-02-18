@@ -46,9 +46,20 @@ private:
                 BuildYsonFluently(consumer)
                     .Value(EObjectType::Scion);
                 return true;
+
             case EInternedAttributeKey::RootstockId:
                 BuildYsonFluently(consumer)
                     .Value(node->GetRootstockId());
+                return true;
+
+            case EInternedAttributeKey::Acl:
+                BuildYsonFluently(consumer)
+                    .Value(node->DirectAcd().Acl());
+                return true;
+
+            case EInternedAttributeKey::AnnotationPath:
+                BuildYsonFluently(consumer)
+                    .Value(node->EffectiveAnnotationPath());
                 return true;
 
             default:
@@ -56,6 +67,22 @@ private:
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);
+    }
+
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value, bool force) override
+    {
+        switch (key) {
+            case EInternedAttributeKey::Acl:
+            case EInternedAttributeKey::Annotation:
+            case EInternedAttributeKey::InheritAcl:
+            case EInternedAttributeKey::Owner:
+                THROW_ERROR_EXCEPTION("Setting %Qv to scion is not allowed", key.Unintern());
+
+            default:
+                break;
+        }
+
+        return TBase::SetBuiltinAttribute(key, value, force);
     }
 };
 
