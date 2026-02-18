@@ -36,10 +36,9 @@ This is an alpha release, please update to [0.1.2](https://github.com/ytsaurus/y
 **Features**
 - Support YQL language versioning
 - Support Spark Connect (SPYT Connect)
-- New possibilities for processing partitioned tables in YQL
+- New possibilities for processing partitioned tables in YQL 
 
 **Fixes**
-- Fixed running big queries by compressing 'progress' column
 - Fix running big queries by compressing 'progress' column
 - Fix possible network socket stall (between QT and YQL agent) on YQL query abortion.
 
@@ -62,7 +61,7 @@ This is an alpha release, please update to [0.1.2](https://github.com/ytsaurus/y
 - Made YQL queries timeout configurable
 - Supported YQL language versions in QT cli\sdk.
 https://ytsaurus.tech/docs/en/yql/changelog/#general-description-of-yql-versions
-- Supported returning AST of YQL queries in get_query cli\sdk
+- Supported returning AST of YQL queries in get_query cli\sdk 
 
 **Improvements**
 - Improved mechanics of additional secrets in YQL queries
@@ -146,7 +145,7 @@ https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release%2F0.23.1
 
 - **Important fix.** Fixed YQL queries results corruption. Issue: https://github.com/ytsaurus/ytsaurus/issues/707
 - Fixed YQL DQ launching
-- Fixed bug caused UTF-8 errors in yql-agent logs
+- Fixed bug caused UTF-8 errors in yql-agent logs 
 - Fixed multiple deadlocks in yql-agent
 - Added support for SPYT discovery groups
 - Added support for SPYT queries parameters
@@ -252,7 +251,7 @@ https://github.com/ytsaurus/yt-k8s-operator/releases/tag/release%2F0.5.0
 **Release date:** 2023-11-14
 
 
-- Fixed a bug that caused the user transaction to expire before the completion of the yql query on IPv4 only networks.
+- Fixed a bug that caused the user transaction to expire before the completion of the yql query on IPv4 only networks. 
 - System query_tracker tables have been moved to sys bundle
 
 
