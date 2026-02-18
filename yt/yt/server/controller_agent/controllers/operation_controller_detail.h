@@ -439,7 +439,7 @@ public:
 
     void LoadSnapshot(const TOperationSnapshot& snapshot) override;
 
-    void RegisterOutputTables(const std::vector<NYPath::TRichYPath>& outputTablePaths) override;
+    void RegisterOutputTables(const std::vector<NYPath::TRichYPath>& outputTablePaths);
 
     void AsyncAbortJob(TJobId jobId, EAbortReason abortReason) override;
     void AbortJob(TJobId jobId, EAbortReason abortReason) override;
@@ -720,8 +720,8 @@ protected:
     void PrepareInputTables();
     bool HasDiskRequestsWithSpecifiedAccount() const;
     void InitAccountResourceUsageLeases();
-    void ValidateCollectiveOptions();
-    void ValidateSecureVault();
+    void ValidateCollectiveOptions() const;
+    void ValidateSecureVault() const;
     void ValidateOutputTablePaths() const;
 
     // Preparation.
