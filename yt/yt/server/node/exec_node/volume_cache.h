@@ -164,6 +164,26 @@ private:
     static void ValidatePrepareRONbdVolumeOptions(const TPrepareRONbdVolumeOptions& options);
     static void ValidatePrepareRWNbdVolumeOptions(const TPrepareRWNbdVolumeOptions& options);
 
+    template <typename TNbdVolume>
+    static TVolumeFactory MakeVolumeFactory()
+    {
+        return BIND(
+            [] (
+                NProfiling::TTagSet tagSet,
+                TVolumeMeta volumeMeta,
+                TLayerLocationPtr layerLocation,
+                TString nbdDeviceId,
+                NNbd::INbdServerPtr nbdServer) -> IVolumePtr {
+
+            return New<TNbdVolume>(
+                std::move(tagSet),
+                std::move(volumeMeta),
+                std::move(layerLocation),
+                std::move(nbdDeviceId),
+                std::move(nbdServer));
+        });
+    }
+
     TInsertCookie GetInsertCookie(const TString& deviceId, const NNbd::INbdServerPtr& nbdServer);
 
     //! Make callback that subscribes job for NBD device errors.

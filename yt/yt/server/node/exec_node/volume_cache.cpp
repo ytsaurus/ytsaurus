@@ -713,22 +713,6 @@ TFuture<IVolumePtr> TNbdVolumeFactory::PrepareRONbdVolume(
 
     auto deviceFuture = CreateRONbdDevice(tag, std::move(options));
 
-    TVolumeFactory volumeFactory = BIND(
-        [] (
-            NProfiling::TTagSet tagSet,
-            TVolumeMeta volumeMeta,
-            TLayerLocationPtr layerLocation,
-            TString nbdDeviceId,
-            INbdServerPtr nbdServer) -> IVolumePtr {
-
-        return New<TRONbdVolume>(
-            std::move(tagSet),
-            std::move(volumeMeta),
-            std::move(layerLocation),
-            std::move(nbdDeviceId),
-            std::move(nbdServer));
-    });
-
     return PrepareNbdVolume(
         Logger,
         tag,
@@ -740,7 +724,7 @@ TFuture<IVolumePtr> TNbdVolumeFactory::PrepareRONbdVolume(
             .Filesystem = ToString(FromProto<ELayerFilesystem>(artifactKey.filesystem())),
             .IsReadOnly = true,
         },
-        std::move(volumeFactory));
+        MakeVolumeFactory<TRONbdVolume>());
 }
 
 // RW NBD volumes.
@@ -805,22 +789,6 @@ TFuture<IVolumePtr> TNbdVolumeFactory::PrepareRWNbdVolume(
 
     auto deviceFuture = CreateRWNbdDevice(tag, std::move(options));
 
-    TVolumeFactory volumeFactory = BIND(
-        [] (
-            NProfiling::TTagSet tagSet,
-            TVolumeMeta volumeMeta,
-            TLayerLocationPtr layerLocation,
-            TString nbdDeviceId,
-            INbdServerPtr nbdServer) -> IVolumePtr {
-
-        return New<TRWNbdVolume>(
-            std::move(tagSet),
-            std::move(volumeMeta),
-            std::move(layerLocation),
-            std::move(nbdDeviceId),
-            std::move(nbdServer));
-    });
-
     return PrepareNbdVolume(
         Logger,
         tag,
@@ -832,7 +800,7 @@ TFuture<IVolumePtr> TNbdVolumeFactory::PrepareRWNbdVolume(
             .Filesystem = ToString(filesystem),
             .IsReadOnly = false,
         },
-        std::move(volumeFactory));
+        MakeVolumeFactory<TRWNbdVolume>());
 }
 
 
