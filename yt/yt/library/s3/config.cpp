@@ -10,8 +10,6 @@ void TS3ConnectionConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("region", &TThis::Region)
         .Default();
-    registrar.Parameter("bucket", &TThis::Bucket)
-        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
