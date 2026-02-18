@@ -340,7 +340,7 @@ void ToProto(NProto::TClusterResources* protoResources, const TClusterResources&
     protoResources->set_chunk_host_cell_master_memory(resources.GetChunkHostCellMasterMemory());
     ToProto(protoResources->mutable_detailed_master_memory(), resources.DetailedMasterMemory());
 
-    for (const auto& [index, diskSpace] : resources.DiskSpace()) {
+    for (const auto& [index, diskSpace] : SortHashMapByKeys(resources.DiskSpace())) {
         if (diskSpace != 0) {
             auto* protoDiskSpace = protoResources->add_disk_space_per_medium();
             protoDiskSpace->set_medium_index(index);
