@@ -345,7 +345,6 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/input_chunk.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/legacy_data_slice.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/medium_directory_synchronizer.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/medium_descriptor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/medium_directory.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/medium_descriptor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/memory_reader.cpp
