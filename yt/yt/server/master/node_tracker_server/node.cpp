@@ -508,6 +508,15 @@ bool TNode::HasAliveLocalState() const
     return state == ENodeState::Online || state == ENodeState::Registered || state == ENodeState::Restarted;
 }
 
+bool TNode::IsRegisteredOrRestartedAtAnyCell() const
+{
+    return std::ranges::any_of(
+        MulticellDescriptors_,
+        [] (const auto& descriptor) {
+            return descriptor.second.State == ENodeState::Registered || descriptor.second.State == ENodeState::Restarted;
+        });
+}
+
 void TNode::SetLocalState(ENodeState state)
 {
     if (LocalDescriptorPtr_->State != state) {

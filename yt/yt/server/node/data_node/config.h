@@ -557,6 +557,10 @@ struct TDataNodeTestingOptions
 
     bool IgnoreEmptyLocationsInFullHeartbeats;
 
+    // Only for testing purposes.
+    // To simulate node registration retries.
+    std::optional<int> MinEpochToStartHeartbeats;
+
     REGISTER_YSON_STRUCT(TDataNodeTestingOptions);
 
     static void Register(TRegistrar registrar);
