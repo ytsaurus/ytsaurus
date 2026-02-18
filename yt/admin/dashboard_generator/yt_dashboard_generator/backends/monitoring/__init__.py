@@ -49,6 +49,19 @@ class MonitoringLabelDashboardParameter:
 ##################################################################
 
 
+class MonitoringCustomDashboardParameter:
+    def __init__(self, values, default_value):
+        self.dict = {
+            "custom": {
+                "values": values,
+                "defaultValues": [default_value],
+            }
+        }
+
+
+##################################################################
+
+
 class MonitoringTextDashboardParameter:
     def __init__(self, default_value=None):
         self.dict = {
@@ -448,6 +461,7 @@ class MonitoringDictSerializer(MonitoringSerializerBase):
                     MonitoringProjectDashboardParameter,
                     MonitoringLabelDashboardParameter,
                     MonitoringTextDashboardParameter,
+                    MonitoringCustomDashboardParameter,
                 ]:
                     dct.update(arg.dict)
             result.append(dct)
