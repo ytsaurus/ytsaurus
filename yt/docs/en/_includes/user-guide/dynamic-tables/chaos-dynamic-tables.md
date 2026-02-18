@@ -8,6 +8,7 @@ Compared to regular replicated tables, chaos dynamic tables are always available
 - Replica status data is stored in the form of a *replication card* on separate *chaos metadata* clusters.
 - To ensure compatibility with regular replicated tables, chaos replication relies on the special `chaos_replicated_table` object. Unlike a `replicated_table`, it doesn't contain any data: it's simply a proxy node for chaos metadata and replicas.
 - Chaos metadata is stored in a dedicated chaos cell bundle, and the `chaos_replicated_table` is linked to this bundle.
+- Differences in the replication topology requires a different approach to [capacity planning](#capacity-planning).
 
 Chaos replicated dynamic tables can be both [sorted](../../../user-guide/dynamic-tables/overview.md) and [ordered](../../../user-guide/dynamic-tables/ordered-dynamic-tables.md). For ordered dynamic tables, each replica is used both to hold data and as a replication queue for other replicas. For sorted dynamic tables, replicas containing data and replicas serving as replication queues are fundamentally different and have distinct types.
 
@@ -215,6 +216,16 @@ To control automatic switching for individual replicas, each replica has the `en
 ```bash
 $ yt alter-table-replica [--enable-replicated-table-tracker | --disable-replicated-table-tracker] replica_id
 ```
+
+## Capacity Planning
+
+When using chaos replication, the approach to capacity planning differs from the one you would take when working with regular replicated tables:
+- Instead of a single replicated dynamic table, there are now several replication queues, each requiring its own reserve for lag accumulation when other replicas are unavailable.
+- Replication queues result in more replicas, increasing the overall data stream.
+- Replication can potentially occur between any replication queue and replica, which requires reserving appropriate resources, particularly outgoing network bandwidth.
+- Unlike `replicated_table`, `chaos_replicated_table` objects don't store data themselves and don't require dedicated resources.
+
+In general, chaos replication is expected to consume resources more steadily than regular replication, which requires a dedicated cluster solely for handling replication, along with separate clusters for the replicas.
 
 ## Attributes
 
