@@ -858,12 +858,14 @@ TVolumeMeta TLayerLocation::DoCreateVolume(
     // TODO(dgolear): Switch to std::string.
     TString mountPath = NFS::CombinePaths(volumePath, MountSuffix);
 
-    try {
-        YT_LOG_DEBUG(
-            "Creating volume (Tag: %v, Type: %v, VolumeId: %v)",
+    auto Logger = ExecNodeLogger()
+        .WithTag("Tag: %v, VolumeType: %v, VolumeId: %v",
             tag,
             volumeType,
             volumeId);
+
+    try {
+        YT_LOG_DEBUG("Creating volume");
 
         NFS::MakeDirRecursive(mountPath, 0755);
 
@@ -872,7 +874,7 @@ TVolumeMeta TLayerLocation::DoCreateVolume(
 
         YT_VERIFY(path == mountPath);
 
-        auto volumeGuard = Finally([&volumePath, &mountPath, this] {
+        auto volumeGuard = Finally([&Logger, &volumePath, &mountPath, this] {
             try {
                 WaitFor(VolumeExecutor_->UnlinkVolume(mountPath, "self")).ThrowOnError();
             } catch (const std::exception& ex) {
@@ -892,11 +894,8 @@ TVolumeMeta TLayerLocation::DoCreateVolume(
             }
         });
 
-        YT_LOG_INFO(
-            "Created volume (Tag: %v, Type: %v, VolumeId: %v, VolumeMountPath: %v)",
-            tag,
-            volumeType,
-            volumeId,
+        YT_LOG_DEBUG(
+            "Created volume (MountPath: %v)",
             mountPath);
 
         ToProto(volumeMeta.mutable_id(), volumeId);
@@ -911,18 +910,23 @@ TVolumeMeta TLayerLocation::DoCreateVolume(
         auto volumeMetaFileName = GetVolumeMetaPath(volumeId);
         auto tempVolumeMetaFileName = volumeMetaFileName + std::string(NFS::TempFileSuffix);
 
+        YT_LOG_DEBUG(
+            "Creating volume meta (MetaFileName: %v)",
+            volumeMetaFileName);
+
         {
             auto metaFile = std::make_unique<TFile>(
                 tempVolumeMetaFileName,
                 CreateAlways | WrOnly | Seq | CloseOnExec);
             metaFile->Write(&header, sizeof(header));
             metaFile->Write(metaBlob.Begin(), metaBlob.Size());
+            metaFile->FlushData();
             metaFile->Close();
         }
 
         NFS::Rename(tempVolumeMetaFileName, volumeMetaFileName);
 
-        auto volumeMetaGuard = Finally([&volumeMetaFileName, this] {
+        auto volumeMetaGuard = Finally([&Logger, &volumeMetaFileName] {
             try {
                 NFS::Remove(volumeMetaFileName);
             } catch (const std::exception& ex) {
@@ -933,11 +937,8 @@ TVolumeMeta TLayerLocation::DoCreateVolume(
             }
         });
 
-        YT_LOG_INFO(
-            "Created volume meta (Tag: %v, Type: %v, VolumeId: %v, MetaFileName: %v)",
-            tag,
-            volumeType,
-            volumeId,
+        YT_LOG_DEBUG(
+            "Created volume meta (MetaFileName: %v)",
             volumeMetaFileName);
 
         {
@@ -950,12 +951,12 @@ TVolumeMeta TLayerLocation::DoCreateVolume(
             }
         }
 
+        volumeGuard.Release();
+        volumeMetaGuard.Release();
+
         TVolumeProfilerCounters::Get()->GetGauge(tagSet, "/count")
             .Update(VolumeCounters().Increment(tagSet));
         TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
-
-        volumeGuard.Release();
-        volumeMetaGuard.Release();
 
         return volumeMeta;
     } catch (const std::exception& ex) {
@@ -963,10 +964,7 @@ TVolumeMeta TLayerLocation::DoCreateVolume(
 
         YT_LOG_ERROR(
             ex,
-            "Failed to create volume (Tag: %v, Type: %v, VolumeId: %v)",
-            tag,
-            volumeType,
-            volumeId);
+            "Failed to create volume");
 
         auto error = TError(
             "Failed to create %Qlv volume %v",
@@ -1196,63 +1194,65 @@ void TLayerLocation::DoRemoveVolume(TTagSet tagSet, TVolumeId volumeId)
     TString mountPath = NFS::CombinePaths(volumePath, MountSuffix);
     auto volumeMetaPath = GetVolumeMetaPath(volumeId);
 
-    {
-        auto guard = Guard(SpinLock_);
+    auto Logger = ExecNodeLogger()
+        .WithTag("VolumeId: %v", volumeId);
 
-        // When location is disabled, volumes is empty.
-        if (IsEnabled() && !Volumes_.contains(volumeId)) {
-            YT_LOG_FATAL(
-                "Volume already removed (VolumeId: %v, VolumePath: %v, VolumeMetaPath: %v)",
-                volumeId,
-                volumePath,
-                volumeMetaPath);
-        }
-    }
+    YT_LOG_DEBUG("Removing volume");
 
     try {
-        // The location could be disabled while we were getting here.
-        // Any how try to unlink volume and remove associated data.
+        auto removeGuard = Finally([&Logger, &volumePath, &volumeMetaPath, &volumeId, this] {
+            try {
+                NFS::RemoveRecursive(volumePath);
+            } catch (const std::exception& ex) {
+                YT_LOG_ERROR(
+                    ex,
+                    "Failed to remove volume directory (VolumePath: %v)",
+                    volumePath);
+            }
 
-        YT_LOG_DEBUG(
-            "Removing volume (VolumeId: %v)",
-            volumeId);
+            try {
+                NFS::Remove(volumeMetaPath);
+            } catch (const std::exception& ex) {
+                YT_LOG_ERROR(
+                    ex,
+                    "Failed to remove volume meta (VolumeMetaPath: %v)",
+                    volumeMetaPath);
+            }
+
+            YT_LOG_DEBUG(
+                "Volume directory and meta removed (VolumePath: %v, VolumeMetaPath: %v)",
+                volumePath,
+                volumeMetaPath);
+
+            {
+                auto guard = Guard(SpinLock_);
+
+                // NB. The location could be disabled while we were getting here.
+                if (Volumes_.erase(volumeId) == 0 && IsEnabled()) {
+                    YT_LOG_FATAL(
+                        "Volume already removed (VolumePath: %v, VolumeMetaPath: %v)",
+                        volumePath,
+                        volumeMetaPath);
+                }
+
+                // It is all right to set promise even if location is disabled.
+                if (Volumes_.empty()) {
+                    VolumesReleaseEvent_.TrySet();
+                }
+            }
+
+            YT_LOG_DEBUG("Volume removed");
+        });
 
         WaitFor(VolumeExecutor_->UnlinkVolume(mountPath, "self"))
             .ThrowOnError();
 
-        YT_LOG_DEBUG(
-            "Volume unlinked (VolumeId: %v)",
-            volumeId);
-
-        NFS::RemoveRecursive(volumePath);
-        NFS::Remove(volumeMetaPath);
+        YT_LOG_DEBUG("Volume unlinked");
 
         TVolumeProfilerCounters::Get()->GetGauge(tagSet, "/count")
             .Update(VolumeCounters().Decrement(tagSet));
         TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/removed").Increment(1);
 
-        YT_LOG_INFO(
-            "Volume directory and meta removed (VolumeId: %v, VolumePath: %v, VolumeMetaPath: %v)",
-            volumeId,
-            volumePath,
-            volumeMetaPath);
-
-        {
-            auto guard = Guard(SpinLock_);
-
-            // The location could be disabled while we were getting here.
-            // So check that location is enabled prior to erasing volume.
-
-            if (!IsEnabled()) {
-                return;
-            }
-
-            YT_VERIFY(Volumes_.erase(volumeId));
-
-            if (Volumes_.empty()) {
-                VolumesReleaseEvent_.TrySet();
-            }
-        }
     } catch (const std::exception& ex) {
         TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/remove_errors").Increment(1);
 
