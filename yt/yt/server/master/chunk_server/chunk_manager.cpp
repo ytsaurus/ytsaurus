@@ -5971,6 +5971,7 @@ private:
     void OnSequoiaReplicaRemoval()
     {
         YT_VERIFY(IsLeader());
+        VerifyPersistentStateRead();
 
         if (SequoiaChunkPurgatory_.empty()) {
             return;
@@ -6138,6 +6139,10 @@ private:
 
     TFuture<void> RemoveDeadSequoiaChunkReplicas(std::unique_ptr<NProto::TReqRemoveDeadSequoiaChunkReplicas> request)
     {
+        VerifyPersistentStateRead();
+
+        auto validateReplicasDuringDeadChunkRemoval = GetDynamicConfig()->SequoiaChunkReplicas->ValidateReplicasDuringDeadChunkRemoval;
+
         return Bootstrap_
             ->GetSequoiaClient()
             ->StartTransaction(
@@ -6146,24 +6151,50 @@ private:
                 {.AuthenticationIdentity = GetRootAuthenticationIdentity()})
             .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
                 YT_LOG_DEBUG("Removing dead Sequoia chunk replicas (ChunkCount: %v)", request->chunk_ids_size());
+
+                std::vector<TChunkId> chunkIds;
                 for (const auto& protoChunkId : request->chunk_ids()) {
                     auto chunkId = FromProto<TChunkId>(protoChunkId);
                     NRecords::TChunkReplicasKey chunkReplicaKey{
                         .ChunkId = chunkId,
                     };
                     transaction->DeleteRow(chunkReplicaKey);
+                    chunkIds.push_back(chunkId);
                 }
 
-                for (const auto& protoReplica : request->replicas()) {
-                    auto locationIndex = FromProto<TChunkLocationIndex>(protoReplica.location_index());
-                    auto chunkId = FromProto<TChunkId>(protoReplica.chunk_id());
-                    auto nodeId = FromProto<TNodeId>(protoReplica.node_id());
+                auto requestRepicas = FromProto<std::vector<TSequoiaChunkReplica>>(request->replicas());
+
+                std::vector<TSequoiaChunkReplica> chunkReplicas;
+                if (validateReplicasDuringDeadChunkRemoval) {
+                    chunkReplicas = WaitFor(ChunkReplicaFetcher_->GetApprovedSequoiaChunkReplicas(chunkIds, transaction))
+                        .ValueOrThrow();
+
+                    if (chunkReplicas.size() != requestRepicas.size()) {
+                        THROW_ERROR_EXCEPTION(
+                            "Replicas have changed for chunks pending removal, "
+                            "trying to remove %v replicas for chunks, but chunks have %v replicas",
+                            requestRepicas.size(),
+                            chunkReplicas.size());
+                    }
+
+                    std::ranges::sort(requestRepicas);
+                    std::ranges::sort(chunkReplicas);
+                }
+
+                for (int replicaIndex = 0; replicaIndex < ssize(requestRepicas); ++replicaIndex) {
+                    if (validateReplicasDuringDeadChunkRemoval && requestRepicas[replicaIndex] != chunkReplicas[replicaIndex]) {
+                        THROW_ERROR_EXCEPTION("Replicas have changed for chunk %v that is pending removal",
+                            requestRepicas[replicaIndex].ChunkId);
+                    }
+
+                    const auto& chunkReplica = requestRepicas[replicaIndex];
+
                     NRecords::TLocationReplicasKey locationReplicaKey{
                         .CellTag = Bootstrap_->GetCellTag(),
-                        .NodeId = nodeId,
-                        .LocationIndex = locationIndex,
-                        .ChunkId = chunkId,
-                        .ReplicaIndex = protoReplica.replica_index()
+                        .NodeId = chunkReplica.NodeId,
+                        .LocationIndex = chunkReplica.LocationIndex,
+                        .ChunkId = chunkReplica.ChunkId,
+                        .ReplicaIndex = chunkReplica.ReplicaIndex,
                     };
                     transaction->DeleteRow(locationReplicaKey);
                 }

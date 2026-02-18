@@ -77,7 +77,8 @@ class TestSequoiaReplicas(YTEnvSetup):
                 "replicas_percentage": 100,
                 "fetch_replicas_from_sequoia": True,
                 "validate_sequoia_replicas_fetch": True,
-                "batch_chunk_confirmation": True
+                "batch_chunk_confirmation": True,
+                "validate_replicas_during_dead_chunk_removal": True,
             },
             "data_node_tracker": {
                 "enable_location_indexes_in_data_node_heartbeats": True
@@ -429,6 +430,7 @@ class TestOnlySequoiaReplicas(TestSequoiaReplicas):
                 "store_sequoia_replicas_on_master": False,
                 "processed_removed_sequoia_replicas_on_master": False,
                 "validate_sequoia_replicas_fetch": False,
+                "validate_replicas_during_dead_chunk_removal": True,
             }
         }
     }

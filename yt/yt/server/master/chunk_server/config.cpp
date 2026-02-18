@@ -456,6 +456,10 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
         .Default(false)
         .DontSerializeDefault();
 
+    registrar.Parameter("validate_replicas_during_dead_chunk_removal", &TThis::ValidateReplicasDuringDeadChunkRemoval)
+        .Default(false)
+        .DontSerializeDefault();
+
     registrar.Postprocessor([] (TThis* config) {
         if (config->StoreSequoiaReplicasOnMaster && !config->ProcessRemovedSequoiaReplicasOnMaster) {
             THROW_ERROR_EXCEPTION("Cannot disable removed Sequoia replicas processing on master while master still stores "

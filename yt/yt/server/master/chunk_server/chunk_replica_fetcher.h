@@ -53,6 +53,10 @@ struct IChunkReplicaFetcher
     virtual TFuture<std::vector<TSequoiaChunkReplica>> GetApprovedSequoiaChunkReplicas(
         const std::vector<TChunkId>& chunkIds,
         NTransactionClient::TTimestamp timestamp = NTransactionClient::SyncLastCommittedTimestamp) const = 0;
+    virtual TFuture<std::vector<TSequoiaChunkReplica>> GetApprovedSequoiaChunkReplicas(
+        const std::vector<TChunkId>& chunkIds,
+        NSequoiaClient::ISequoiaTransactionPtr transaction) const = 0;
+
     virtual TFuture<std::vector<TSequoiaChunkReplica>> GetUnapprovedSequoiaChunkReplicas(
         const std::vector<TChunkId>& chunkIds,
         NTransactionClient::TTimestamp timestamp = NTransactionClient::SyncLastCommittedTimestamp) const = 0;

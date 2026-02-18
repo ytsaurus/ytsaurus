@@ -544,6 +544,9 @@ struct TDynamicSequoiaChunkReplicasConfig
     // COMPAT(aleksandra-zh).
     bool BatchChunkConfirmation;
 
+    // COMPAT(grphil)
+    bool ValidateReplicasDuringDeadChunkRemoval;
+
     REGISTER_YSON_STRUCT(TDynamicSequoiaChunkReplicasConfig);
 
     static void Register(TRegistrar registrar);
