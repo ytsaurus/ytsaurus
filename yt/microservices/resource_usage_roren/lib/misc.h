@@ -1,5 +1,7 @@
 #pragma once
 
+#include <library/cpp/yson/node/node.h>
+
 #include <util/generic/fwd.h>
 #include <util/system/yassert.h>
 
@@ -69,8 +71,7 @@ public:
     TSetUniqueValue(TSetter setter, TField field)
         : Setter_(std::move(setter))
         , Field_(std::move(field))
-    {
-    }
+    { }
 
     void Update(const TFieldClass& v) override
     {
@@ -119,8 +120,7 @@ public:
     TSetNonTxOrAnyValue(TSetter setter, TField field)
         : Setter_(std::move(setter))
         , Field_(std::move(field))
-    {
-    }
+    { }
 
     void Update(const TFieldClass& v) override
     {
@@ -154,8 +154,7 @@ class TMutiAggregator
 public:
     TMutiAggregator(TOutput& out)
         : Output_(out)
-    {
-    }
+    { }
 
     ~TMutiAggregator()
     {
@@ -207,8 +206,7 @@ public:
     TMergeAggregator(TField field, TMerger merger)
         : Field_(std::move(field))
         , Merger_(std::move(merger))
-    {
-    }
+    { }
 
     void Update(const TFieldClass& row)
     {
@@ -250,3 +248,28 @@ private:
     TMerger Merger_;
 };
 
+void MergeIntNodeWith(NYT::TNode& to, const NYT::TNode& from);
+i64 GetInt64FromTNode(const NYT::TNode& node, const TStringBuf key);
+
+struct TVersionedResourceUsage
+{
+    TString TransactionTitle;
+    NYT::TNode VersionedResourceUsageNode;
+    NYT::TNode DiskSpacePerMedium;
+    bool IsOriginal;
+
+    Y_SAVELOAD_DEFINE(
+        TransactionTitle,
+        VersionedResourceUsageNode,
+        DiskSpacePerMedium,
+        IsOriginal);
+
+    TVersionedResourceUsage();
+    TVersionedResourceUsage(TString title, NYT::TNode vrun, NYT::TNode dspm, bool IsOriginal);
+    void MergeWith(const TVersionedResourceUsage& from);
+    NYT::TNode ToNode() const;
+};
+
+using TVersionedResourceUsageMap = THashMap<TString, TVersionedResourceUsage>;
+
+NYT::TNode VersionedResourceUsageTop(const TVersionedResourceUsageMap& vrum, ui64 topN);
