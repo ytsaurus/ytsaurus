@@ -27,9 +27,8 @@ using NApi::NNative::IClientPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClusterResolver::TClusterResolver(IClientPtr client, std::optional<std::string> clusterName)
-    : LocalClient_(std::move(client))
-    , LocalClusterName_(std::move(clusterName))
+TClusterResolver::TClusterResolver(std::optional<std::string> clusterName)
+    : LocalClusterName_(std::move(clusterName))
 { }
 
 TClusterName TClusterResolver::GetClusterName(const TRichYPath& path)
@@ -55,9 +54,9 @@ void TClusterResolver::Persist(const TPersistenceContext& context)
 TFuture<TClusterResolverPtr> CreateClusterResolver(IClientPtr client)
 {
     return client->GetClusterName()
-        .Apply(BIND([client = std::move(client)] (const TErrorOr<std::optional<std::string>>& clusterNameOrError) mutable {
+        .Apply(BIND([] (const TErrorOr<std::optional<std::string>>& clusterNameOrError) mutable {
             auto clusterName = clusterNameOrError.ValueOrDefault(std::nullopt);
-            return New<TClusterResolver>(std::move(client), std::move(clusterName));
+            return New<TClusterResolver>(std::move(clusterName));
         }));
 }
 

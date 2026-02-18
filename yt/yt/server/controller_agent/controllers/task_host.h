@@ -155,8 +155,6 @@ struct ITaskHost
         const TJobletPtr& joblet,
         const std::optional<NScheduler::NProto::TScheduleAllocationSpec>& scheduleAllocationSpec) = 0;
 
-    virtual void RegisterOutputTables(const std::vector<NYPath::TRichYPath>& outputTablePaths) = 0;
-
     virtual void AsyncAbortJob(TJobId jobId, EAbortReason abortReason) = 0;
     virtual void AbortJob(TJobId jobId, EAbortReason abortReason) = 0;
 

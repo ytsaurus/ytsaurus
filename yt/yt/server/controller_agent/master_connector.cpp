@@ -1359,6 +1359,7 @@ private:
         // First reset the alerts.
         SetControllerAgentAlert(EControllerAgentAlertType::UnrecognizedConfigOptions, TError());
         SetControllerAgentAlert(EControllerAgentAlertType::SnapshotLoadingDisabled, TError());
+        SetControllerAgentAlert(EControllerAgentAlertType::SnapshotBuildingDisabled, TError());
 
         if (Config_->EnableUnrecognizedAlert) {
             auto unrecognized = Config_->GetRecursiveUnrecognized();

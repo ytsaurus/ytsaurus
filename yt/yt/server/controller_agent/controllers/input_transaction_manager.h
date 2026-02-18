@@ -48,7 +48,7 @@ class TClusterResolver
 public:
     TClusterResolver() = default;
 
-    TClusterResolver(NApi::NNative::IClientPtr client, std::optional<std::string> clusterName);
+    TClusterResolver(std::optional<std::string> clusterName);
 
     NScheduler::TClusterName GetClusterName(const NYPath::TRichYPath& path);
     std::optional<std::string> GetLocalClusterName() const;
@@ -56,8 +56,6 @@ public:
     void Persist(const TPersistenceContext& context);
 
 private:
-    const NApi::NNative::IClientPtr LocalClient_;
-
     std::optional<std::string> LocalClusterName_;
 };
 

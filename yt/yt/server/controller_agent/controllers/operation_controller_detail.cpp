@@ -768,7 +768,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
     return result;
 }
 
-void TOperationControllerBase::ValidateCollectiveOptions()
+void TOperationControllerBase::ValidateCollectiveOptions() const
 {
     if (PoolTreeControllerSettingsMap_.size() > 1) {
         for (const auto& userJobSpec : GetUserJobSpecs()) {
@@ -780,7 +780,7 @@ void TOperationControllerBase::ValidateCollectiveOptions()
     }
 }
 
-void TOperationControllerBase::ValidateSecureVault()
+void TOperationControllerBase::ValidateSecureVault() const
 {
     if (!SecureVault_) {
         return;
@@ -789,7 +789,8 @@ void TOperationControllerBase::ValidateSecureVault()
     YT_LOG_DEBUG("Operation secure vault size detected (Size: %v)", length);
     if (length > Config_->SecureVaultLengthLimit) {
         THROW_ERROR_EXCEPTION("Secure vault YSON text representation is too long")
-            << TErrorAttribute("size_limit", Config_->SecureVaultLengthLimit);
+            << TErrorAttribute("length", length)
+            << TErrorAttribute("length_limit", Config_->SecureVaultLengthLimit);
     }
 }
 
