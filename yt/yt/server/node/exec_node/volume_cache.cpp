@@ -560,6 +560,73 @@ TFuture<IVolumePtr> TNbdVolumeFactory::CreateNbdVolume(
     // the volume will be created so there is no porto volume leak.
 }
 
+TFuture<IVolumePtr> TNbdVolumeFactory::PrepareNbdVolume(
+    const TLogger& Logger,
+    TGuid tag,
+    TTagSet tagSet,
+    TFuture<IBlockDevicePtr> deviceFuture,
+    TCreateNbdVolumeOptions options,
+    TVolumeFactory volumeFactory)
+{
+    auto nbdServer = Bootstrap_->GetNbdServer();
+
+    YT_LOG_DEBUG("Preparing NBD volume");
+
+    TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
+
+    return deviceFuture
+        .Apply(BIND(
+            [
+                Logger,
+                tag,
+                tagSet,
+                options,
+                volumeFactory = std::move(volumeFactory),
+                this,
+                this_ = MakeStrong(this)
+            ] (const TErrorOr<IBlockDevicePtr>& errorOrDevice) {
+                if (!errorOrDevice.IsOK()) {
+                    THROW_ERROR_EXCEPTION("Failed to prepare NBD volume")
+                        << errorOrDevice;
+                }
+
+                Bootstrap_->GetNbdServer()->RegisterDevice(options.DeviceId, errorOrDevice.Value());
+
+                return CreateNbdVolume(
+                    tag,
+                    std::move(tagSet),
+                    std::move(options),
+                    std::move(volumeFactory));
+            })
+            .AsyncVia(nbdServer->GetInvoker()))
+        .Apply(BIND(
+            [
+                Logger,
+                tagSet,
+                nbdServer,
+                options,
+                volumeCreateTimeGuard = std::move(volumeCreateTimeGuard)
+            ] (const TErrorOr<IVolumePtr>& errorOrVolume) {
+                if (!errorOrVolume.IsOK()) {
+                    if (auto device = nbdServer->TryUnregisterDevice(options.DeviceId)) {
+                        YT_LOG_DEBUG("Finalizing NBD device");
+                        YT_UNUSED_FUTURE(device->Finalize());
+                    } else {
+                        YT_LOG_WARNING("Failed to unregister NBD device");
+                    }
+
+                    THROW_ERROR_EXCEPTION("Failed to prepare NBD volume")
+                        << errorOrVolume;
+                }
+
+                YT_LOG_DEBUG("Prepared NBD volume");
+
+                return errorOrVolume.Value();
+            })
+            .AsyncVia(nbdServer->GetInvoker()))
+        .ToUncancelable();
+}
+
 // RO NBD volumes.
 
 IImageReaderPtr TNbdVolumeFactory::CreateArtifactReader(
@@ -619,11 +686,33 @@ TFuture<IBlockDevicePtr> TNbdVolumeFactory::CreateRONbdDevice(
     return InitializeNbdDevice(device, Logger);
 }
 
-TFuture<IVolumePtr> TNbdVolumeFactory::CreateRONbdVolume(
+TFuture<IVolumePtr> TNbdVolumeFactory::PrepareRONbdVolume(
     TGuid tag,
-    TTagSet tagSet,
-    TCreateNbdVolumeOptions options)
+    TPrepareRONbdVolumeOptions options)
 {
+    const auto artifactKey = options.ArtifactKey;
+    const auto jobId = options.JobId;
+
+    auto Logger = ExecNodeLogger()
+        .WithTag("Tag: %v, JobId: %v, DeviceId: %v, Type: %v, CypressPath: %v",
+            tag,
+            jobId,
+            artifactKey.nbd_device_id(),
+            "RO",
+            artifactKey.data_source().path());
+
+    if (!options.ImageReader) {
+        options.ImageReader = CreateArtifactReader(
+            Logger,
+            artifactKey);
+    }
+
+    auto tagSet = TVolumeProfilerCounters::MakeTagSet(
+        /*volume type*/ "nbd",
+        /*Cypress path*/ artifactKey.data_source().path());
+
+    auto deviceFuture = CreateRONbdDevice(tag, std::move(options));
+
     TVolumeFactory volumeFactory = BIND(
         [] (
             NProfiling::TTagSet tagSet,
@@ -640,96 +729,18 @@ TFuture<IVolumePtr> TNbdVolumeFactory::CreateRONbdVolume(
             std::move(nbdServer));
     });
 
-    return CreateNbdVolume(
+    return PrepareNbdVolume(
+        Logger,
         tag,
         tagSet,
-        std::move(options),
+        std::move(deviceFuture),
+        TCreateNbdVolumeOptions{
+            .JobId = jobId,
+            .DeviceId = artifactKey.nbd_device_id(),
+            .Filesystem = ToString(FromProto<ELayerFilesystem>(artifactKey.filesystem())),
+            .IsReadOnly = true,
+        },
         std::move(volumeFactory));
-}
-
-TFuture<IVolumePtr> TNbdVolumeFactory::PrepareRONbdVolume(
-    TGuid tag,
-    TPrepareRONbdVolumeOptions options)
-{
-    auto nbdServer = Bootstrap_->GetNbdServer();
-    const auto artifactKey = options.ArtifactKey;
-    const auto jobId = options.JobId;
-
-    auto Logger = ExecNodeLogger()
-        .WithTag("Tag: %v, JobId: %v, DeviceId: %v, CypressPath: %v",
-            tag,
-            jobId,
-            artifactKey.nbd_device_id(),
-            artifactKey.data_source().path());
-
-    YT_LOG_DEBUG("Preparing RO NBD volume");
-
-    if (!options.ImageReader) {
-        options.ImageReader = CreateArtifactReader(
-            Logger,
-            artifactKey);
-    }
-
-    auto tagSet = TVolumeProfilerCounters::MakeTagSet(
-        /*volume type*/ "nbd",
-        /*Cypress path*/ artifactKey.data_source().path());
-    TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
-
-    return CreateRONbdDevice(tag, std::move(options))
-        .Apply(BIND(
-            [
-                tag,
-                tagSet,
-                jobId,
-                deviceId = artifactKey.nbd_device_id(),
-                filesystem = FromProto<ELayerFilesystem>(artifactKey.filesystem()),
-                this,
-                this_ = MakeStrong(this)
-            ] (const TErrorOr<IBlockDevicePtr>& errorOrDevice) {
-                if (!errorOrDevice.IsOK()) {
-                    THROW_ERROR_EXCEPTION("Failed to prepare RO NBD volume")
-                        << errorOrDevice;
-                }
-
-                Bootstrap_->GetNbdServer()->RegisterDevice(deviceId, errorOrDevice.Value());
-
-                return CreateRONbdVolume(
-                    tag,
-                    std::move(tagSet),
-                    TCreateNbdVolumeOptions{
-                        .JobId = jobId,
-                        .DeviceId = deviceId,
-                        .Filesystem = ToString(filesystem),
-                        .IsReadOnly = true
-                    });
-            })
-            .AsyncVia(nbdServer->GetInvoker()))
-        .Apply(BIND(
-            [
-                Logger,
-                tagSet,
-                nbdServer,
-                deviceId = artifactKey.nbd_device_id(),
-                volumeCreateTimeGuard = std::move(volumeCreateTimeGuard)
-            ] (const TErrorOr<IVolumePtr>& errorOrVolume) {
-                if (!errorOrVolume.IsOK()) {
-                    if (auto device = nbdServer->TryUnregisterDevice(deviceId)) {
-                        YT_LOG_DEBUG("Finalizing RO NBD device");
-                        YT_UNUSED_FUTURE(device->Finalize());
-                    } else {
-                        YT_LOG_WARNING("Failed to unregister RO NBD device");
-                    }
-
-                    THROW_ERROR_EXCEPTION("Failed to prepare RO NBD volume")
-                        << errorOrVolume;
-                }
-
-                YT_LOG_DEBUG("Prepared RO NBD volume");
-
-                return errorOrVolume.Value();
-            })
-            .AsyncVia(nbdServer->GetInvoker()))
-        .ToUncancelable();
 }
 
 // RW NBD volumes.
@@ -772,11 +783,28 @@ TFuture<IBlockDevicePtr> TNbdVolumeFactory::CreateRWNbdDevice(
     return InitializeNbdDevice(device, Logger);
 }
 
-TFuture<IVolumePtr> TNbdVolumeFactory::CreateRWNbdVolume(
+TFuture<IVolumePtr> TNbdVolumeFactory::PrepareRWNbdVolume(
     TGuid tag,
-    TTagSet tagSet,
-    TCreateNbdVolumeOptions options)
+    TPrepareRWNbdVolumeOptions options)
 {
+    const auto jobId = options.JobId;
+    const auto deviceId = options.DeviceId;
+    const auto filesystem = options.Filesystem;
+
+    auto Logger = ExecNodeLogger()
+        .WithTag("Tag: %v, JobId: %v, DeviceId: %v, Type: %v, VolumeSize: %v, VolumeMediumIndex: %v, VolumeFilesystem: %v",
+            tag,
+            options.JobId,
+            options.DeviceId,
+            "RW",
+            options.Size,
+            options.MediumIndex,
+            options.Filesystem);
+
+    auto tagSet = TTagSet({{"type", "nbd"}});
+
+    auto deviceFuture = CreateRWNbdDevice(tag, std::move(options));
+
     TVolumeFactory volumeFactory = BIND(
         [] (
             NProfiling::TTagSet tagSet,
@@ -793,91 +821,18 @@ TFuture<IVolumePtr> TNbdVolumeFactory::CreateRWNbdVolume(
             std::move(nbdServer));
     });
 
-    return CreateNbdVolume(
+    return PrepareNbdVolume(
+        Logger,
         tag,
         tagSet,
-        std::move(options),
+        std::move(deviceFuture),
+        TCreateNbdVolumeOptions{
+            .JobId = jobId,
+            .DeviceId = deviceId,
+            .Filesystem = ToString(filesystem),
+            .IsReadOnly = false,
+        },
         std::move(volumeFactory));
-}
-
-TFuture<IVolumePtr> TNbdVolumeFactory::PrepareRWNbdVolume(
-    TGuid tag,
-    TPrepareRWNbdVolumeOptions options)
-{
-    const auto jobId = options.JobId;
-    const auto deviceId = options.DeviceId;
-    const auto filesystem = options.Filesystem;
-    auto nbdServer = Bootstrap_->GetNbdServer();
-
-    auto Logger = ExecNodeLogger()
-        .WithTag("Tag: %v, JobId: %v, DeviceId: %v, VolumeSize: %v, VolumeMediumIndex: %v, VolumeFilesystem: %v",
-            tag,
-            options.JobId,
-            options.DeviceId,
-            options.Size,
-            options.MediumIndex,
-            options.Filesystem);
-
-    YT_LOG_DEBUG("Preparing RW NBD volume");
-
-    auto tagSet = TTagSet({{"type", "nbd"}});
-    TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
-
-    return CreateRWNbdDevice(tag, std::move(options))
-        .Apply(BIND(
-            [
-                tag,
-                tagSet,
-                jobId,
-                deviceId,
-                filesystem = filesystem,
-                this,
-                this_ = MakeStrong(this)
-            ] (const TErrorOr<IBlockDevicePtr>& errorOrDevice) {
-                if (!errorOrDevice.IsOK()) {
-                    THROW_ERROR_EXCEPTION("Failed to prepare RW NBD volume")
-                        << errorOrDevice;
-                }
-
-                Bootstrap_->GetNbdServer()->RegisterDevice(deviceId, errorOrDevice.Value());
-
-                return CreateRWNbdVolume(
-                    tag,
-                    std::move(tagSet),
-                    TCreateNbdVolumeOptions{
-                        .JobId = jobId,
-                        .DeviceId = deviceId,
-                        .Filesystem = ToString(filesystem),
-                        .IsReadOnly = false
-                    });
-            })
-            .AsyncVia(nbdServer->GetInvoker()))
-        .Apply(BIND(
-            [
-                Logger,
-                tagSet,
-                nbdServer,
-                deviceId,
-                volumeCreateTimeGuard = std::move(volumeCreateTimeGuard)
-            ] (const TErrorOr<IVolumePtr>& errorOrVolume) {
-                if (!errorOrVolume.IsOK()) {
-                    if (auto device = nbdServer->TryUnregisterDevice(deviceId)) {
-                        YT_LOG_DEBUG("Finalizing RW NBD device");
-                        YT_UNUSED_FUTURE(device->Finalize());
-                    } else {
-                        YT_LOG_WARNING("Failed to unregister RW NBD device");
-                    }
-
-                    THROW_ERROR_EXCEPTION("Failed to prepare RW NBD volume")
-                        << errorOrVolume;
-                }
-
-                YT_LOG_DEBUG("Prepared RW NBD volume");
-
-                return errorOrVolume.Value();
-            })
-            .AsyncVia(Bootstrap_->GetNbdServer()->GetInvoker()))
-        .ToUncancelable();
 }
 
 

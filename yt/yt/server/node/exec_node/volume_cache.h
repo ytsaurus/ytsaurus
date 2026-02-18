@@ -183,6 +183,14 @@ private:
         TCreateNbdVolumeOptions options,
         TVolumeFactory volumeFactory);
 
+    TFuture<IVolumePtr> PrepareNbdVolume(
+        const NLogging::TLogger& Logger,
+        TGuid tag,
+        NProfiling::TTagSet tagSet,
+        TFuture<NNbd::IBlockDevicePtr> deviceFuture,
+        TCreateNbdVolumeOptions options,
+        TVolumeFactory volumeFactory);
+
     // RO volumes start here.
 
     NNbd::IImageReaderPtr CreateArtifactReader(
@@ -192,11 +200,6 @@ private:
     TFuture<NNbd::IBlockDevicePtr> CreateRONbdDevice(
         TGuid tag,
         TPrepareRONbdVolumeOptions options);
-
-    TFuture<IVolumePtr> CreateRONbdVolume(
-        TGuid tag,
-        NProfiling::TTagSet tagSet,
-        TCreateNbdVolumeOptions options);
 
     //! Create RO NBD volume. The order of creation is as follows:
     //! 1. Create RO NBD device.
@@ -211,11 +214,6 @@ private:
     TFuture<NNbd::IBlockDevicePtr> CreateRWNbdDevice(
         TGuid tag,
         TPrepareRWNbdVolumeOptions options);
-
-    TFuture<IVolumePtr> CreateRWNbdVolume(
-        TGuid tag,
-        NProfiling::TTagSet tagSet,
-        TCreateNbdVolumeOptions options);
 
     //! Create RW NBD volume. The order of creation is as follows:
     //! 1. Create RW NBD device.
