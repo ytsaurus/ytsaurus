@@ -35,7 +35,7 @@ struct TSequoiaReconstructorConfig
     std::optional<TTableOutputConfigPtr> NodeForksOutput;
     std::optional<TTableOutputConfigPtr> NodeSnapshotsOutput;
 
-    std::optional<TTableOutputConfigPtr> ChildNodeOutput;
+    std::optional<TTableOutputConfigPtr> ChildNodesOutput;
     std::optional<TTableOutputConfigPtr> ChildForksOutput;
 
     std::optional<TTableOutputConfigPtr> PathToNodeIdOutput;

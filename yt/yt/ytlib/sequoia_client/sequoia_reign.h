@@ -24,6 +24,7 @@ DEFINE_ENUM(ESequoiaReign,
     ((FromObjectIdResolveLinkTarget)       (13))
     ((AnnotationAttribute)                 (14))
     ((CompositeNodeReadAccessControl)      (15))
+    ((ChildNodesTable)                     (16))
 );
 
 static_assert(TEnumTraits<ESequoiaReign>::IsMonotonic, "Sequoia reign enum is not monotonic");
@@ -35,6 +36,7 @@ ESequoiaReign GetCurrentSequoiaReign() noexcept;
 DEFINE_ENUM(EGroundReign,
     ((Unknown)          (0))
     ((InitialVersion)   (1))
+    ((ChildNodesTable)  (2))
 );
 
 static_assert(TEnumTraits<EGroundReign>::IsMonotonic, "Ground reign enum is not monotonic");

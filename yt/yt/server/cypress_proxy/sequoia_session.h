@@ -206,7 +206,7 @@ public:
         const NApi::TSuppressableAccessTrackingOptions& options);
 
     //! Generates ID, registers tx action and modifies "path_to_node_id",
-    //! "node_id_to_path" and "child_node" Sequoia tables. Attaches created node
+    //! "node_id_to_path" and "child_nodes" Sequoia tables. Attaches created node
     //! to its parent. Does _not_ S-lock parent.
     /*!
      *  NB: parent is usually locked by CreateMapNodeChain().
@@ -236,7 +236,7 @@ public:
 
     // Map-node's children accessors.
 
-    //! Selects children from "child_node" Sequoia table.
+    //! Selects children from "child_nodes" Sequoia table.
     TFuture<std::vector<TCypressChildDescriptor>> FetchChildren(NCypressClient::TNodeId nodeId);
 
     //! Used to check map-node's emptiness during non-recursive removal.
@@ -345,7 +345,7 @@ private:
     // This cache is filled on every read of Sequoia resolve tables.
     TProgenitorTransactionCache ProgenitorTransactionCache_;
 
-    // Locking of rows in "node_id_to_path" and "child_node" table heavily
+    // Locking of rows in "node_id_to_path" and "child_nodes" table heavily
     // depends on Sequoia transaction commit mode on node's native cell. Since
     // we already have |RequiredCoordinatorCellTag_| we can just check it before
     // transaction commit and acquire corresponding dynamic table locks.

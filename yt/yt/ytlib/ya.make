@@ -597,7 +597,7 @@ GENERATE_YT_RECORD(
 )
 
 GENERATE_YT_RECORD(
-    sequoia_client/records/child_node.yaml
+    sequoia_client/records/child_nodes.yaml
     OUTPUT_INCLUDES
         yt/yt/ytlib/sequoia_client/public.h
 )
