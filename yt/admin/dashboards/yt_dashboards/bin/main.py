@@ -32,6 +32,7 @@ from yt_dashboards import lsm
 
 from yt_dashboards import flow
 
+from yt_dashboards import queue_agent
 from yt_dashboards import queue_and_consumer_metrics
 
 
@@ -323,6 +324,14 @@ dashboards = {
     "user-load": {
         "func": build_user_load,
         "monitoring": {},
+    },
+    "queue-agent": {
+        "func": queue_agent.build_dashboard,
+        "monitoring": {
+            "args": [
+                True,  # has_porto
+            ],
+        },
     },
 }
 
