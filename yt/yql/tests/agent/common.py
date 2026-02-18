@@ -35,6 +35,8 @@ class TestQueriesYqlBase(YTEnvSetup):
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
     }
 
+    COPY_YTSERVER = False
+
     if get_sanitizer_type():
         # llvm-symbolizer is required in *san builds to symbolize stack,
         # so we bring it into user jobs via porto layers

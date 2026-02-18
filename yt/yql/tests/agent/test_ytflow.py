@@ -77,6 +77,8 @@ class TestYtflowBase(TestQueueAgentBase):
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
     }
 
+    COPY_YTSERVER = False
+
     MAX_YQL_VERSION = '2025.04'
     DEFAULT_YQL_UI_VERSION = '2025.01'
 
