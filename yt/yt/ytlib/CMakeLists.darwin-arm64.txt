@@ -589,7 +589,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/location_replicas.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/unapproved_chunk_replicas.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_refresh_queue.record.cpp
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_nodes.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/transactions.record.cpp
@@ -626,7 +626,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/location_replicas.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/unapproved_chunk_replicas.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_refresh_queue.record.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_nodes.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/transactions.record.h
@@ -904,10 +904,10 @@ add_custom_command(
 
 add_custom_command(
   OUTPUT
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.record.cpp
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_nodes.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_nodes.record.h
   DEPENDS
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/child_nodes.yaml
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
@@ -921,11 +921,11 @@ add_custom_command(
   -m
   yt_record_codegen.bin
   --input
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/child_nodes.yaml
   --output-root
   ${PROJECT_BINARY_DIR}
   --output-cpp
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_nodes.record.cpp
   --output-include
   yt/yt/ytlib/sequoia_client/public.h
 )

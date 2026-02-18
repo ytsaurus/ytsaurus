@@ -80,7 +80,7 @@ def clear_table_in_ground(descriptor: TableDescriptor, **kwargs):
 
 
 def _build_children_map_from_tables(id):
-    rows = select_rows_from_ground(f"child_key, child_id from [{DESCRIPTORS.child_node.get_default_path()}] where parent_id = \"{id}\"")
+    rows = select_rows_from_ground(f"child_key, child_id from [{DESCRIPTORS.child_nodes.get_default_path()}] where parent_id = \"{id}\"")
     result = YsonMap()
 
     for row in rows:
@@ -176,7 +176,7 @@ def resolve_sequoia_id(node_id):
 
 def resolve_sequoia_children(node_id):
     return select_rows_from_ground(
-        f"child_key, child_id from [{DESCRIPTORS.child_node.get_default_path()}] where node_id == \"{node_id}\"")
+        f"child_key, child_id from [{DESCRIPTORS.child_nodes.get_default_path()}] where node_id == \"{node_id}\"")
 
 
 def lookup_cypress_transaction(transaction_id):

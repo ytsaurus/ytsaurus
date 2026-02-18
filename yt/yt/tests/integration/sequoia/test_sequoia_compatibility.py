@@ -60,8 +60,8 @@ class TestSequoiaCompatibility(YTEnvSetup):
 
         wait(check_config)
 
-        TABLE_PATH = "//sys/sequoia/child_node"
-        TABLE_NAME = "child_node"
+        TABLE_PATH = "//sys/sequoia/child_nodes"
+        TABLE_NAME = "child_nodes"
 
         ground_driver = get_ground_driver()
         schema = get(TABLE_PATH + "/@schema", driver=ground_driver)

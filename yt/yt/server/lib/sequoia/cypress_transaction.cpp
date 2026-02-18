@@ -19,7 +19,7 @@
 #include <yt/yt/ytlib/sequoia_client/ypath_detail.h>
 
 #include <yt/yt/ytlib/sequoia_client/records/child_forks.record.h>
-#include <yt/yt/ytlib/sequoia_client/records/child_node.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/child_nodes.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/dependent_transactions.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/doomed_transactions.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/node_forks.record.h>
@@ -372,7 +372,7 @@ private:
  *  On transaction finish the following tables are modified:
  *    - node_forks
  *    - node_snapshots
- *    - child_node
+ *    - child_nodes
  *    - path_to_node_id
  *    - node_id_to_path
  *
@@ -1738,7 +1738,7 @@ private:
  *     5.7. Merge/remove branches in resolve tables:
  *           - node_id_to_path
  *           - path_to_node_id
- *           - child_node
+ *           - child_nodes
  *   6. Keep response in "response_keeper" Sequoia table if needed.
  */
 class TFinishCypressTransaction

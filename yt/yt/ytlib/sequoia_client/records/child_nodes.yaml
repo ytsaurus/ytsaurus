@@ -1,10 +1,23 @@
 namespace: NYT::NSequoiaClient::NRecords
 
 types:
-  - table_name: child_node
-    table_group: resolve_tables
+  - {% if version >= 2 -%}
+    table_name: child_nodes
+    {% else -%}
+    table_name: child_node
+    {% endif %}
     type_name: TChildNode
+    table_group: resolve_tables
     fields:
+      {% if version >= 2 %}
+      - cpp_name: ParentIdHash
+        cpp_type: ui64
+        column_name: parent_id_hash
+        column_type: Uint64
+        sort_order: Ascending
+        expression: farm_hash(parent_id)
+
+      {% endif %}
       - cpp_name: ParentId
         cpp_type: NCypressClient::TNodeId
         column_name: parent_id
@@ -29,4 +42,8 @@ types:
         column_type: String
 
     verbatim: |
+        {% if version >= 2 %}
+        static constexpr auto Table = ESequoiaTable::ChildNodes;
+        {% else %}
         static constexpr auto Table = ESequoiaTable::ChildNode;
+        {% endif %}

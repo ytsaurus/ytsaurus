@@ -13,7 +13,7 @@
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 #include <yt/yt/ytlib/sequoia_client/ypath_detail.h>
 
-#include <yt/yt/ytlib/sequoia_client/records/child_node.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/child_nodes.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/child_forks.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/node_forks.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h>

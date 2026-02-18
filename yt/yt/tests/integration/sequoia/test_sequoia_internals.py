@@ -1380,7 +1380,7 @@ class SequoiaNodeVersioningBase(YTEnvSetup):
         if table_descriptor is DESCRIPTORS.node_id_to_path:
             # NB: We have to filter out symlinks which are mirrored to Sequoia.
             query += " where not is_prefix('//sys', path)"
-        elif table_descriptor is DESCRIPTORS.child_node:
+        elif table_descriptor is DESCRIPTORS.child_nodes:
             # TODO(kvk1920): drop when YT-23209 will be done.
             query += " where (not is_null(transaction_id) and transaction_id != \"0-0-0-0\")" \
                      " or (not is_null(child_id) and child_id != \"0-0-0-0\")"
@@ -1490,7 +1490,7 @@ class SequoiaNodeVersioningBase(YTEnvSetup):
             self.node_snapshot(tx, table_id)
             for tx in [tx0, tx1, tx2, tx3, tx4, tx5]
         ])
-        self.fill_or_check_resolve_table(DESCRIPTORS.child_node, rows=[
+        self.fill_or_check_resolve_table(DESCRIPTORS.child_nodes, rows=[
             self.child_node(scion_id, "t", table_id),
         ])
 
@@ -1671,7 +1671,7 @@ class SequoiaNodeVersioningBase(YTEnvSetup):
 
         self.fill_or_check_resolve_table(DESCRIPTORS.node_id_to_path, old_node_id_to_path, tx_mapping)
         self.fill_or_check_resolve_table(DESCRIPTORS.path_to_node_id, old_path_to_node_id, tx_mapping)
-        self.fill_or_check_resolve_table(DESCRIPTORS.child_node, old_child_node, tx_mapping)
+        self.fill_or_check_resolve_table(DESCRIPTORS.child_nodes, old_child_node, tx_mapping)
         self.fill_or_check_resolve_table(DESCRIPTORS.node_forks, old_node_forks, tx_mapping)
         self.fill_or_check_resolve_table(DESCRIPTORS.path_forks, old_path_forks, tx_mapping)
         self.fill_or_check_resolve_table(DESCRIPTORS.child_forks, old_child_forks, tx_mapping)
@@ -1685,7 +1685,7 @@ class SequoiaNodeVersioningBase(YTEnvSetup):
 
             expected_node_id_to_path = build_expected(old_node_id_to_path)
             expected_path_to_node_id = build_expected(old_path_to_node_id)
-            expected_child_node = build_expected(old_child_node)
+            expected_child_nodes = build_expected(old_child_node)
             expected_path_forks = build_expected(old_path_forks)
             expected_node_forks = build_expected(old_node_forks)
             expected_child_forks = build_expected(old_child_forks)
@@ -1703,7 +1703,7 @@ class SequoiaNodeVersioningBase(YTEnvSetup):
 
             expected_node_id_to_path = build_expected(old_node_id_to_path)
             expected_path_to_node_id = build_expected(old_path_to_node_id)
-            expected_child_node = build_expected(old_child_node)
+            expected_child_nodes = build_expected(old_child_node)
             expected_node_forks = build_expected(old_node_forks)
             expected_path_forks = build_expected(old_path_forks)
             expected_child_forks = build_expected(old_child_forks)
@@ -1723,7 +1723,7 @@ class SequoiaNodeVersioningBase(YTEnvSetup):
                 self.path_to_node_id("//tmp/s/a/b/c", c_new_id, tx=tx0),
                 self.path_to_node_id("//tmp/s/a/b/g", g_id, tx=tx0),
             ]
-            expected_child_node = [
+            expected_child_nodes = [
                 self.child_node(scion_id, "a", a_id, tx=tx0),
                 self.child_node(a_id, "b", b_new_id, tx=tx0),
                 self.child_node(b_new_id, "c", c_new_id, tx=tx0),
@@ -1750,7 +1750,7 @@ class SequoiaNodeVersioningBase(YTEnvSetup):
 
         self.check_resolve_table(DESCRIPTORS.node_id_to_path, expected_node_id_to_path, tx_mapping)
         self.check_resolve_table(DESCRIPTORS.path_to_node_id, expected_path_to_node_id, tx_mapping)
-        self.check_resolve_table(DESCRIPTORS.child_node, expected_child_node, tx_mapping)
+        self.check_resolve_table(DESCRIPTORS.child_nodes, expected_child_nodes, tx_mapping)
         self.check_resolve_table(DESCRIPTORS.node_forks, expected_node_forks, tx_mapping)
         self.check_resolve_table(DESCRIPTORS.path_forks, expected_path_forks, tx_mapping)
         self.check_resolve_table(DESCRIPTORS.child_forks, expected_child_forks, tx_mapping)
@@ -1869,7 +1869,7 @@ class SequoiaNodeVersioningBase(YTEnvSetup):
         ], tx_mapping)
 
         # parent_id, path, node_id, tx_id=None
-        self.fill_or_check_resolve_table(DESCRIPTORS.child_node, [
+        self.fill_or_check_resolve_table(DESCRIPTORS.child_nodes, [
             self.child_node(scion_id, "replace", to_replace_id),
             self.child_node(scion_id, "replace", None, tx1),
             self.child_node(scion_id, "replace", replaced_id, tx2),
@@ -2032,7 +2032,7 @@ class SequoiaNodeVersioningBase(YTEnvSetup):
             self.path_to_node_id("//tmp/s/remove_recreate", None, tx1),
         ], tx_mapping)
 
-        self.check_resolve_table(DESCRIPTORS.child_node, [
+        self.check_resolve_table(DESCRIPTORS.child_nodes, [
             self.child_node(scion_id, "replace", to_replace_id),
             self.child_node(scion_id, "replace", replaced_id, tx1),
 
@@ -2158,7 +2158,7 @@ class SequoiaNodeVersioningBase(YTEnvSetup):
             self.path_to_node_id("//tmp/s/remove_recreate", None, tx0),
         ], tx_mapping)
 
-        self.check_resolve_table(DESCRIPTORS.child_node, [
+        self.check_resolve_table(DESCRIPTORS.child_nodes, [
             self.child_node(scion_id, "replace", to_replace_id),
             self.child_node(scion_id, "replace", replaced_id, tx0),
 
@@ -2225,7 +2225,7 @@ class SequoiaNodeVersioningBase(YTEnvSetup):
             self.path_to_node_id("//tmp/s/create", created_2_id),
         ], tx_mapping)
 
-        self.check_resolve_table(DESCRIPTORS.child_node, [
+        self.check_resolve_table(DESCRIPTORS.child_nodes, [
             self.child_node(scion_id, "replace", replaced_id),
             self.child_node(replaced_id, "nested", replaced_nested_id),
             self.child_node(scion_id, "create", created_2_id),
@@ -2249,7 +2249,7 @@ class TestSequoiaNodeVersioningSimulation(SequoiaNodeVersioningBase):
     def teardown_method(self, method):
         clear_table_in_ground(DESCRIPTORS.node_id_to_path)
         clear_table_in_ground(DESCRIPTORS.path_to_node_id)
-        clear_table_in_ground(DESCRIPTORS.child_node)
+        clear_table_in_ground(DESCRIPTORS.child_nodes)
         clear_table_in_ground(DESCRIPTORS.node_forks)
         clear_table_in_ground(DESCRIPTORS.node_snapshots)
         clear_table_in_ground(DESCRIPTORS.path_forks)
@@ -2349,7 +2349,7 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
             self.child_node(d1_id, "d2", d2_id),
         ]
 
-        self.check_resolve_table(DESCRIPTORS.child_node, rows=initial_rows)
+        self.check_resolve_table(DESCRIPTORS.child_nodes, rows=initial_rows)
 
         tx = start_transaction()
         remove("//tmp/s/a/c1", tx=tx)
@@ -2362,7 +2362,7 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
             self.child_node(c1_id, "c2", None, tx),
         ]
 
-        self.check_resolve_table(DESCRIPTORS.child_node, rows=rows_after_remove)
+        self.check_resolve_table(DESCRIPTORS.child_nodes, rows=rows_after_remove)
 
         assert get("//tmp/s") == initial_tree
         assert get("//tmp/s", tx=tx) == tree_after_remove
@@ -2383,7 +2383,7 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
             final_tree = initial_tree
 
         assert get("//tmp/s") == final_tree
-        self.check_resolve_table(DESCRIPTORS.child_node, rows=final_rows)
+        self.check_resolve_table(DESCRIPTORS.child_nodes, rows=final_rows)
 
     def test_remove_lock_conflict(self):
         create("rootstock", "//tmp/s")
@@ -2454,7 +2454,7 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
             self.node_id_to_path(table_id, "//tmp/scion/t"),
             self.node_id_to_path(table_id, "//tmp/scion/t", tx, "snapshot"),
         ])
-        self.check_resolve_table(DESCRIPTORS.child_node, rows=[
+        self.check_resolve_table(DESCRIPTORS.child_nodes, rows=[
             self.child_node(scion_id, "t", table_id),
         ])
         self.check_resolve_table(DESCRIPTORS.node_snapshots, rows=[
@@ -2573,7 +2573,7 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
 
         self.check_resolve_table(DESCRIPTORS.path_to_node_id, rows=origin_path_to_node_id)
         self.check_resolve_table(DESCRIPTORS.node_id_to_path, rows=origin_node_id_to_path)
-        self.check_resolve_table(DESCRIPTORS.child_node, rows=origin_child_node)
+        self.check_resolve_table(DESCRIPTORS.child_nodes, rows=origin_child_node)
         self.check_resolve_table(DESCRIPTORS.path_forks, rows=[])
         self.check_resolve_table(DESCRIPTORS.node_forks, rows=[])
         self.check_resolve_table(DESCRIPTORS.child_forks, rows=[])
@@ -2606,7 +2606,7 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
             self.node_id_to_path(new_m1, "//tmp/scion/m1", tx),
             self.node_id_to_path(new_t, "//tmp/scion/m1/t", tx),
         ])
-        self.check_resolve_table(DESCRIPTORS.child_node, rows=origin_child_node + [
+        self.check_resolve_table(DESCRIPTORS.child_nodes, rows=origin_child_node + [
             self.child_node(scion, "m1", new_m1, tx),
             self.child_node(m1, "i", None, tx),
             self.child_node(m1, "m2", None, tx),
@@ -2644,7 +2644,7 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
         if finish_tx is abort_transaction:
             self.check_resolve_table(DESCRIPTORS.path_to_node_id, rows=origin_path_to_node_id)
             self.check_resolve_table(DESCRIPTORS.node_id_to_path, rows=origin_node_id_to_path)
-            self.check_resolve_table(DESCRIPTORS.child_node, rows=origin_child_node)
+            self.check_resolve_table(DESCRIPTORS.child_nodes, rows=origin_child_node)
 
             check_table("//tmp/scion/m1/m2/t")
         else:
@@ -2658,7 +2658,7 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
                 self.node_id_to_path(new_m1, "//tmp/scion/m1"),
                 self.node_id_to_path(new_t, "//tmp/scion/m1/t"),
             ])
-            self.check_resolve_table(DESCRIPTORS.child_node, rows=[
+            self.check_resolve_table(DESCRIPTORS.child_nodes, rows=[
                 self.child_node(scion, "m1", new_m1),
                 self.child_node(new_m1, "t", new_t),
             ])
@@ -2762,7 +2762,7 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
             tx_mapping)
 
         self.check_resolve_table(
-            DESCRIPTORS.child_node,
+            DESCRIPTORS.child_nodes,
             child_node_source + child_node_destination,
             tx_mapping)
 
@@ -2843,7 +2843,7 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
             tx_mapping)
 
         self.check_resolve_table(
-            DESCRIPTORS.child_node,
+            DESCRIPTORS.child_nodes,
             child_node_source + child_node_destination + child_node_delta,
             tx_mapping)
 
@@ -2858,7 +2858,7 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
             expected_node_id_to_path = \
                 [self.node_id_to_path(scion, "//tmp/scion")] \
                 + node_id_to_path_destination
-            expected_child_node = child_node_destination
+            expected_child_nodes = child_node_destination
         else:
             expected_path_to_node_id = [
                 self.path_to_node_id("//tmp/scion", scion),
@@ -2874,7 +2874,7 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
                 self.node_id_to_path(new_ids["b/c"], "//tmp/scion/e/b/c"),
                 self.node_id_to_path(new_ids["d"], "//tmp/scion/e/d"),
             ]
-            expected_child_node = [
+            expected_child_nodes = [
                 self.child_node(scion, "e", e2),
                 self.child_node(e2, "b", new_ids["b"]),
                 self.child_node(new_ids["b"], "c", new_ids["b/c"]),
@@ -2890,7 +2890,7 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
                     r | {"transaction_id": None}
                     for r in node_id_to_path_source
                 ]
-                expected_child_node += [
+                expected_child_nodes += [
                     r | {"transaction_id": None}
                     for r in child_node_source
                 ]
@@ -2904,8 +2904,8 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
             expected_node_id_to_path,
             tx_mapping)
         self.check_resolve_table(
-            DESCRIPTORS.child_node,
-            expected_child_node,
+            DESCRIPTORS.child_nodes,
+            expected_child_nodes,
             tx_mapping)
 
 
