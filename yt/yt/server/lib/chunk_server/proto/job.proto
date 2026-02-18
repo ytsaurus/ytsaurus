@@ -179,7 +179,7 @@ message TOffshoreRemoveChunkJobSpecExt
     required NYT.NProto.TGuid chunk_id = 1;
 
     // Replica to be removed.
-    required fixed64 replica = 2;
+    required TChunkReplicaSpec replica_spec = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

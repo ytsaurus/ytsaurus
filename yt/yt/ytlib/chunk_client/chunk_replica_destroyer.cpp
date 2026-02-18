@@ -20,8 +20,12 @@ public:
         , MediumDescriptor_(mediumDescriptor)
         , Client_(MediumDescriptor_->GetClient())
         // TODO(achulkov2): This will change after we start uploading meta to S3/passing source URI here.
-        , ChunkPlacement_(MediumDescriptor_->GetChunkPlacement(ChunkId_, /*sourceUri*/ ""))
-        , ChunkMetaPlacement_(MediumDescriptor_->GetChunkMetaPlacement(ChunkId_, /*sourceUri*/ ""))
+        , ChunkPlacement_(MediumDescriptor_->GetChunkPlacement(
+            ChunkId_,
+            std::string{chunkReplica.GetSourceUri()}))
+        , ChunkMetaPlacement_(MediumDescriptor_->GetChunkMetaPlacement(
+            ChunkId_,
+            /*externallyAttached*/ !chunkReplica.GetSourceUri().empty()))
         , Logger(ChunkClientLogger().WithTag(
             "ChunkId: %v, ChunkReplica: %v, MediumIndex: %v, MediumName: %v, MediumId: %v",
             chunkId,

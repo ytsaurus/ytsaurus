@@ -300,7 +300,7 @@ private:
         TChunkPtrWithReplicaIndex chunkWithIndex,
         TMedium* targetMedium,
         const TChunkLocationPtrWithReplicaInfoList& replicas,
-        const TMediumPtrWithReplicaInfoList& offshoreReplicas);
+        const TOffshoreReplicaList& offshoreReplicas);
     bool TryScheduleOffshoreRemovalJob(
         IJobSchedulingContext* context,
         const NChunkClient::TChunkIdWithIndex& chunkIdWithIndex,

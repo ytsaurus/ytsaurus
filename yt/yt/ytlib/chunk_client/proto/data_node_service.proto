@@ -266,6 +266,10 @@ message TReqGetBlockRange
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 4;
     optional bool populate_cache = 5 [default = true];
     optional NYT.NProto.TGuid read_session_id = 6;
+
+    optional TChunkReplicaSpec replica_spec = 7;
+
+    optional int32 chunk_format = 8; // EChunkFormat
 }
 
 message TRspGetBlockRange

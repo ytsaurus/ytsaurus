@@ -57,6 +57,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetColumnarStatistics));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkSlices));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockSet));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockRange));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkMeta));
     }
 
@@ -288,6 +289,48 @@ private:
 
                 const auto& blocks = resultsError.Value();
                 YT_VERIFY(blocks.size() == blockIndexes.size());
+
+                response->set_has_complete_chunk(true);
+                response->set_net_throttling(false);
+                response->set_net_queue_size(0);
+                response->set_disk_throttling(false);
+                response->set_disk_queue_size(0);
+
+                SetRpcAttachedBlocks(response, blocks);
+
+                context->SetResponseInfo("BlockCount: %v", blocks.size());
+
+                context->Reply();
+            })
+                .Via(StorageInvoker_));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockRange)
+    {
+        auto chunkId = FromProto<TChunkId>(request->chunk_id());
+        auto firstBlockIndex = request->first_block_index();
+        auto blockCount = request->block_count();
+
+        context->SetRequestInfo("ChunkId: %v, FirstBlockIndex: %v, BlockCount: %v",
+            chunkId,
+            firstBlockIndex,
+            blockCount);
+
+        auto reader = CreateS3ReaderForRequest(*request, New<TS3ReaderConfig>(), chunkId);
+        reader->ReadBlocks({}, firstBlockIndex, blockCount)
+            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TBlock>>& resultsError) {
+                if (!resultsError.IsOK()) {
+                    context->Reply(resultsError);
+                    return;
+                }
+
+                if (context->IsCanceled()) {
+                    return;
+                }
+
+                const auto& blocks = resultsError.Value();
+                // We are allowed to return less blocks than requested by the GetBlockRange specification.
+                YT_VERIFY(std::ssize(blocks) <= blockCount);
 
                 response->set_has_complete_chunk(true);
                 response->set_net_throttling(false);

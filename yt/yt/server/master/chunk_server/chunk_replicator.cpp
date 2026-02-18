@@ -414,31 +414,35 @@ class TOffshoreRemovalJob
     : public TJob
 {
 public:
+    DEFINE_BYREF_RO_PROPERTY(TChunkReplicaWithMedium, ChunkReplica);
+
+public:
     // TODO(achulkov2): Figure out the proper type to pass to provide offshore
     // replica information, once we have proper extra metadata representation.
     TOffshoreRemovalJob(
         TJobId jobId,
         TJobEpoch jobEpoch,
         TNode* node,
-        TChunkIdWithIndexes chunkIdWithIndexes)
+        TChunkId chunkId,
+        TChunkReplicaWithMedium chunkReplica)
         : TJob(
             jobId,
             EJobType::OffshoreRemoveChunk,
             jobEpoch,
             node,
             TOffshoreRemovalJob::GetResourceUsage(),
-            chunkIdWithIndexes)
+            TChunkIdWithIndexes(
+                chunkId,
+                chunkReplica.GetReplicaIndex(),
+                chunkReplica.GetMediumIndex()))
+        , ChunkReplica_(chunkReplica)
     { }
 
     bool FillJobSpec(TBootstrap* /*bootstrap*/, TJobSpec* jobSpec) const override
     {
         auto* jobSpecExt = jobSpec->MutableExtension(TOffshoreRemoveChunkJobSpecExt::offshore_remove_chunk_job_spec_ext);
         ToProto(jobSpecExt->mutable_chunk_id(), EncodeChunkId(ChunkIdWithIndexes_));
-        TChunkReplicaWithMedium replica(
-            NNodeTrackerClient::OffshoreNodeId,
-            ChunkIdWithIndexes_.ReplicaIndex,
-            ChunkIdWithIndexes_.MediumIndex);
-        jobSpecExt->set_replica(ToProto<ui64>(replica));
+        jobSpecExt->set_replica_spec(ToProto(ChunkReplica_));
         
         return true;
     }
@@ -1928,7 +1932,7 @@ bool TChunkReplicator::TryScheduleOffshoreReplicationJob(
         TChunkPtrWithReplicaIndex chunkWithIndex,
         TMedium* targetMedium,
         const TChunkLocationPtrWithReplicaInfoList& replicas,
-        const TMediumPtrWithReplicaInfoList& offshoreReplicas)
+        const TOffshoreReplicaList& offshoreReplicas)
 {
     auto* chunk = chunkWithIndex.GetPtr();
     auto replicaIndex = chunkWithIndex.GetReplicaIndex();

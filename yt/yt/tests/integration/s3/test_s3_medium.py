@@ -146,6 +146,9 @@ class TestS3MediumBase(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
+        "data_node": {
+            "incremental_heartbeat_period": 100,
+        },
         "cluster_connection": {
             "enable_replication_reader_for_offshore_data": True,
         },
@@ -717,7 +720,7 @@ class TestS3Medium(TestS3MediumBase):
         wait(lambda: not exists(f"#{object_id}"))
         wait(lambda: not exists(f"#{chunk_id}"))
 
-        # TODO(achulkov2): When it is implemented, check that the data is actually removed from the S3 bucket.
+        wait_no_assert(lambda: self.assert_chunk_exists_in_s3(chunk_id, negate=True))
 
     @authors("achulkov2")
     @pytest.mark.run_with_no_offshore_data_gateways
@@ -910,6 +913,11 @@ class TestS3Medium(TestS3MediumBase):
 
         time.sleep(30)
 
+        for chunk in chunk_ids:
+            print_debug(f"Checking replicas for chunk {chunk}")
+            get(f"#{chunk}/@stored_replicas")
+            get(f"#{chunk}/@stored_offshore_replicas")
+
         for chunk_id in chunk_ids:
             wait(lambda: self._check_requisition(chunk_id, {
                 self.get_s3_medium_name(): {
@@ -951,11 +959,11 @@ class TestS3Medium(TestS3MediumBase):
     def test_medium_switch(self):
         create("table", "//tmp/t", attributes={"primary_medium": self.get_s3_medium_name()})
 
-        write_table("//tmp/t", {"a": "b"})
+        write_table("//tmp/t", {"a": "b"}, table_writer={"upload_replication_factor": 3})
 
         set("//tmp/t/@primary_medium", "default")
 
-        write_table("<append=%true>//tmp/t", {"c": "d"})
+        write_table("<append=%true>//tmp/t", {"c": "d"}, table_writer={"upload_replication_factor": 3})
 
         chunk_ids = get("//tmp/t/@chunk_ids")
         assert len(chunk_ids) == 2
@@ -1405,6 +1413,30 @@ class TestAttachTable(TestAttachTableBase):
         self.S3_CLIENT.delete_object(Bucket=bucket, Key=self.get_chunk_generated_meta_path(get("//tmp/imported/@chunk_ids")[0]))
         with pytest.raises(YtError):
             read_table("//tmp/imported", table_reader={"session_timeout": "5s"})
+
+    @authors("achulkov2")
+    @pytest.mark.run_with_no_offshore_data_gateways
+    def test_removal(self):
+        bucket = self.get_s3_medium_bucket()
+
+        data_file_path = "foo.csv"
+        self.S3_CLIENT.put_object(Bucket=bucket, Key=data_file_path, Body="a,b\n1,2\n3,4\n")
+
+        attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/{data_file_path}"]), medium=self.get_s3_medium_name())
+
+        assert_items_equal(read_table("//tmp/imported"), [{"a": 1, "b": 2}, {"a": 3, "b": 4}])
+
+        chunk_id = get_singular_chunk_id("//tmp/imported")
+
+        assert self.object_exists_in_s3(bucket, data_file_path)
+        # TODO(achulkov2): Write helper for this.
+        assert self.object_exists_in_s3(bucket, self.get_chunk_generated_meta_path(chunk_id))
+
+        remove("//tmp/imported")
+
+        wait(lambda: not self.object_exists_in_s3(bucket, self.get_chunk_generated_meta_path(chunk_id)))
+        # Data file should NOT be removed, as it is externally provided by the user.
+        assert self.object_exists_in_s3(bucket, data_file_path)
 
     @authors("faucct")
     def test_concatenate_different_mediums(self):
