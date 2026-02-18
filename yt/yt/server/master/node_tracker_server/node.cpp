@@ -491,6 +491,15 @@ ENodeState TNode::GetLocalState() const
     return LocalDescriptorPtr_ ? LocalDescriptorPtr_->State : ENodeState::Unknown;
 }
 
+bool TNode::IsRegisteredAtAnyCell() const
+{
+    return std::ranges::any_of(
+        MulticellDescriptors_,
+        [] (const auto& descriptor) {
+            return descriptor.second.State == ENodeState::Registered;
+        });
+}
+
 void TNode::SetLocalState(ENodeState state)
 {
     if (LocalDescriptorPtr_->State != state) {

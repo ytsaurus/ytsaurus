@@ -320,6 +320,9 @@ public:
     //! Sets the local state by dereferencing local descriptor pointer.
     void SetLocalState(ENodeState state);
 
+    //! Checks that node is in Registered state at any cell.
+    bool IsRegisteredAtAnyCell() const;
+
     //! Gets the cell reliability for node descriptor.
     ECellAggregatedStateReliability GetCellAggregatedStateReliability(NObjectClient::TCellTag cellTag) const;
     //! Gets the local cell reliability by dereferencing local descriptor pointer.
