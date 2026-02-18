@@ -896,7 +896,7 @@ private:
             subresponse->set_disk_queue_size(diskThrottling.QueueSize);
 
             if (chunk) {
-                subresponse->set_medium_index(chunk->GetLocation()->GetMediumDescriptor().Index);
+                subresponse->set_medium_index(chunk->GetLocation()->GetMediumDescriptor()->GetIndex());
             }
 
             YT_LOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), diskThrottling.Error);
@@ -972,7 +972,7 @@ private:
         response->set_disk_queue_size(diskThrottling.QueueSize);
 
         if (chunk) {
-            response->set_medium_index(chunk->GetLocation()->GetMediumDescriptor().Index);
+            response->set_medium_index(chunk->GetLocation()->GetMediumDescriptor()->GetIndex());
         }
 
         YT_LOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), diskThrottling.Error);
