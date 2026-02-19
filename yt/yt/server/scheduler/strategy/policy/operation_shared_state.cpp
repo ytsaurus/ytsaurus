@@ -661,7 +661,7 @@ void TOperationSharedState::ProcessUpdatedStarvationStatus(EStarvationStatus sta
 void TOperationSharedState::UpdateDiagnosticCounters()
 {
     auto now = TInstant::Now();
-    if (now < LastDiagnosticCountersUpdateTime_ + UpdateStateShardsBackoff_) {
+    if (now < LastDiagnosticCountersUpdateTime_.load(std::memory_order_relaxed) + UpdateStateShardsBackoff_) {
         return;
     }
 
@@ -685,7 +685,7 @@ void TOperationSharedState::UpdateDiagnosticCounters()
     }
 
     ScheduleAllocationAttemptCount_ = scheduleAllocationAttemptCount;
-    LastDiagnosticCountersUpdateTime_ = now;
+    LastDiagnosticCountersUpdateTime_.store(now, std::memory_order_relaxed);
 }
 
 TInstant TOperationSharedState::GetLastScheduleAllocationSuccessTime() const
