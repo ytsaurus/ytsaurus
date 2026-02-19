@@ -8,11 +8,13 @@ EXPRESSION_METADATA = {
     **{
         expr_type: {"returns": exp.DataType.Type.BIGINT}
         for expr_type in {
+            exp.BitLength,
             exp.Day,
             exp.DayOfMonth,
             exp.DayOfWeek,
             exp.DayOfYear,
             exp.Hour,
+            exp.Length,
             exp.Minute,
             exp.Month,
             exp.Quarter,
@@ -30,20 +32,11 @@ EXPRESSION_METADATA = {
     **{
         expr_type: {"returns": exp.DataType.Type.DOUBLE}
         for expr_type in {
-            exp.Acosh,
-            exp.Asinh,
-            exp.Atanh,
             exp.Atan2,
-            exp.Acos,
-            exp.Asin,
-            exp.Atan,
-            exp.Cos,
-            exp.Cot,
             exp.Rand,
-            exp.Sin,
-            exp.Tan,
             exp.TimeToUnix,
         }
     },
     exp.ToDays: {"returns": exp.DataType.Type.INTERVAL},
+    exp.TimeFromParts: {"returns": exp.DataType.Type.TIME},
 }
