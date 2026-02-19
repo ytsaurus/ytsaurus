@@ -235,6 +235,10 @@ private:
             return batch;
         }
 
+        if (auto tabletRequest = RecalculateCompactionHints(tablet); !tabletRequest.PartitionRequests.empty()) {
+            batch.CompactionHintUpdates.push_back(std::move(tabletRequest));
+        }
+
         const auto& config = tablet->GetMountConfig();
         if (!config->EnableCompactionAndPartitioning) {
             return batch;
@@ -246,7 +250,12 @@ private:
             }
         }
 
-        if (auto request = ScanPartitionForCompaction(tablet->Eden().get(), /*allowForcedCompaction*/ true)) {
+        auto edenMajorTimestamp = MaxTimestamp;
+        for (const auto& store : tablet->Eden()->Stores()) {
+            edenMajorTimestamp = std::min(edenMajorTimestamp, store->GetMinTimestamp());
+        }
+
+        if (auto request = ScanPartitionForCompaction(tablet->Eden().get(), /*allowForcedCompaction*/ true, edenMajorTimestamp)) {
             batch.Compactions.push_back(std::move(*request));
         }
 
@@ -261,7 +270,7 @@ private:
         }
 
         for (const auto& partition : tablet->Partitions()) {
-            if (auto request = ScanPartitionForCompaction(partition.get(), allowForcedCompaction)) {
+            if (auto request = ScanPartitionForCompaction(partition.get(), allowForcedCompaction, edenMajorTimestamp)) {
                 batch.Compactions.push_back(std::move(*request));
             }
         }
@@ -372,7 +381,10 @@ private:
         };
     }
 
-    std::optional<TCompactionRequest> ScanPartitionForCompaction(TPartition* partition, bool allowForcedCompaction)
+    std::optional<TCompactionRequest> ScanPartitionForCompaction(
+        TPartition* partition,
+        bool allowForcedCompaction,
+        TTimestamp edenMajorTimestamp)
     {
         bool enableConcurrentPartitioningAndCompaction = partition->GetTablet()->GetMountConfig()->EnableConcurrentEdenPartitioningAndCompaction && partition->IsEden();
         bool isStateValid = partition->GetState() == EPartitionState::Normal ||
@@ -390,7 +402,7 @@ private:
             return request;
         }
 
-        auto [reason, stores] = PickStoresForCompaction(partition, allowForcedCompaction);
+        auto [reason, stores] = PickStoresForCompaction(partition, allowForcedCompaction, edenMajorTimestamp);
         if (stores.empty()) {
             return {};
         }
@@ -512,7 +524,7 @@ private:
     }
 
     std::pair<EStoreCompactionReason, std::vector<TStore*>>
-        PickStoresForCompaction(TPartition* partition, bool allowForcedCompaction)
+        PickStoresForCompaction(TPartition* partition, bool allowForcedCompaction, TTimestamp edenMajorTimestamp)
     {
         std::vector<TStore*> finalists;
 
@@ -544,10 +556,6 @@ private:
             auto& candidate = candidates.emplace_back(TStoreWithReason{.Store = store.get()});
 
             auto compactionReason = GetStoreCompactionReason(candidate.Store);
-            if (compactionReason == EStoreCompactionReason::None) {
-                compactionReason = GetStoreCompactionReasonFromDigest(candidate.Store);
-            }
-
             if (compactionReason != EStoreCompactionReason::None) {
                 ++storeCountByReason[compactionReason];
                 candidate.Reason = compactionReason;
@@ -713,9 +721,29 @@ private:
         if (!finalists.empty()) {
             partition->GetTablet()->LsmStatistics().PendingCompactionStoreCount[EStoreCompactionReason::Regular] +=
                 ssize(partition->Stores());
+            return {EStoreCompactionReason::Regular, std::move(finalists)};
         }
 
-        return {EStoreCompactionReason::Regular, finalists};
+        auto [hintReason, hintStoreIds] = partition->CompactionHints().GetStoresForCompaction(CurrentTime_, edenMajorTimestamp);
+        if (hintReason != EStoreCompactionReason::None) {
+            YT_VERIFY(!partition->IsEden());
+
+            std::vector<TStore*> resultStores;
+            resultStores.reserve(hintStoreIds.size());
+
+            for (const auto& store : partition->Stores()) {
+                if (std::find(hintStoreIds.begin(), hintStoreIds.end(), store->GetId()) != hintStoreIds.end()) {
+                    resultStores.push_back(store.get());
+                }
+            }
+
+            YT_VERIFY(resultStores.size() == hintStoreIds.size());
+
+            partition->GetTablet()->LsmStatistics().PendingCompactionStoreCount[hintReason] += ssize(resultStores);
+            return {hintReason, std::move(resultStores)};
+        }
+
+        return {EStoreCompactionReason::None, {}};
     }
 
     std::pair<THashSet<TChunkId>, TEnumIndexedArray<EHunkCompactionReason, i64>>
@@ -898,14 +926,6 @@ private:
         return false;
     }
 
-    EStoreCompactionReason GetStoreCompactionReasonFromDigest(const TStore* store) const
-    {
-        const auto& rowDigest = store->CompactionHints().RowDigest;
-        return rowDigest.Reason != EStoreCompactionReason::None && CurrentTime_ >= rowDigest.Timestamp
-            ? rowDigest.Reason
-            : EStoreCompactionReason::None;
-    }
-
     EStoreCompactionReason GetStoreCompactionReason(const TStore* store) const
     {
         if (IsStoreCompactionForced(store)) {
@@ -924,8 +944,8 @@ private:
             return EStoreCompactionReason::StoreOutOfTabletRange;
         }
 
-        if (store->CompactionHints().IsChunkViewTooNarrow) {
-            return EStoreCompactionReason::NarrowChunkView;
+        if (auto reason = store->CompactionHints().GetStoreCompactionReason(CurrentTime_); reason != EStoreCompactionReason::None) {
+            return reason;
         }
 
         return EStoreCompactionReason::None;

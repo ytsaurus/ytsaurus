@@ -347,10 +347,10 @@ void PrintMeta(const IIOEnginePtr& ioEngine, const TString& chunkFileName)
     }
 
     if (maybeVersionedRowDigestExt) {
-        TVersionedRowDigest digest;
-        FromProto(&digest, *maybeVersionedRowDigestExt);
+        auto digest = New<TVersionedRowDigest>();
+        FromProto(digest.Get(), *maybeVersionedRowDigestExt);
         Cout << "  Earliest nth timestamps:";
-        for (auto x : digest.EarliestNthTimestamp) {
+        for (auto x : digest->EarliestNthTimestamp) {
             Cout << " " << x;
         }
         Cout << Endl;
@@ -358,7 +358,7 @@ void PrintMeta(const IIOEnginePtr& ioEngine, const TString& chunkFileName)
         Cout << "  Last timestamp percentiles (in seconds from now):" << Endl;
         auto now = TInstant::Now();
         for (int p : {1, 10, 20, 50, 80, 90, 99}) {
-            auto ts = TInstant::Seconds(digest.LastTimestampDigest->GetQuantile(p * 0.01));
+            auto ts = TInstant::Seconds(digest->LastTimestampDigest->GetQuantile(p * 0.01));
             auto diff = now - ts;
             Cout << Format("  %2d%%: %v", p, diff) << Endl;
         }

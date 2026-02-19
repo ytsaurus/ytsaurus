@@ -1,7 +1,7 @@
 #pragma once
 
+#include "compaction_hints.h"
 #include "hunk_chunk.h"
-#include "public.h"
 
 #include <yt/yt/core/misc/public.h>
 
@@ -10,24 +10,6 @@
 #include <yt/yt/client/table_client/key.h>
 
 namespace NYT::NLsm {
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TRowDigestUpcomingCompactionInfo
-{
-    EStoreCompactionReason Reason = EStoreCompactionReason::None;
-    TInstant Timestamp;
-};
-
-void Serialize(
-    const TRowDigestUpcomingCompactionInfo& info,
-    NYson::IYsonConsumer* consumer);
-
-struct TCompactionHints
-{
-    TRowDigestUpcomingCompactionInfo RowDigest;
-    bool IsChunkViewTooNarrow = false;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,7 +47,9 @@ public:
     // Sorted stores.
     DEFINE_BYREF_RW_PROPERTY(NTableClient::TLegacyOwningKey, MinKey);
     DEFINE_BYREF_RW_PROPERTY(NTableClient::TLegacyOwningKey, UpperBoundKey);
-    DEFINE_BYREF_RW_PROPERTY(TCompactionHints, CompactionHints);
+
+    // NB(dave11ar): Can be modified in store compactor to give feedback to tablet node.
+    DEFINE_BYREF_RW_PROPERTY(TStoreCompactionHints, CompactionHints);
 
     // Ordered stores.
     // Nothing here yet.

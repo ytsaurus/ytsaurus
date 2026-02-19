@@ -39,7 +39,8 @@ DECLARE_REFCOUNTED_CLASS(TTablet)
 
 class TPartition;
 class TStore;
-struct TRowDigestUpcomingCompactionInfo;
+
+struct TCompactionHintUpdateRequest;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,6 +60,8 @@ DEFINE_ENUM(EStoreCompactionReason,
     (DiscardByTtl)
     (TooManyTimestamps)
     (TtlCleanupExpected)
+    (RemoveDuplicates)
+    (ApplyDeletions)
     (NarrowChunkView)
     (Global)
 );

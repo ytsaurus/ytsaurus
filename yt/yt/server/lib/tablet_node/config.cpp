@@ -36,7 +36,11 @@ void TRelativeReplicationThrottlerConfig::Register(TRegistrar registrar)
 
 void TRowDigestCompactionConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+
     registrar.Parameter("max_obsolete_timestamp_ratio", &TThis::MaxObsoleteTimestampRatio)
+        .InRange(0, 1)
         .Default(0.5);
     registrar.Parameter("max_timestamps_per_value", &TThis::MaxTimestampsPerValue)
         .GreaterThanOrEqual(1)

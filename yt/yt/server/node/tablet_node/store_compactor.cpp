@@ -999,6 +999,8 @@ public:
 
         YT_LOG_DEBUG("Store compactor started processing action batch");
 
+        ApplyCompactionHintUpdates(batch.CompactionHintUpdates);
+
         auto scheduleTasks = [this, this_ = MakeStrong(this)] (
             const ITabletSlotPtr& slot,
             const std::vector<TCompactionRequest>& requests,
@@ -2338,6 +2340,73 @@ private:
         }
 
         return ThreadPool_->GetInvoker();
+    }
+
+    void ApplyCompactionHintUpdates(const std::vector<TCompactionHintUpdateRequest>& updates)
+    {
+        if (updates.empty()) {
+            return;
+        }
+
+        auto processTabletUpdate = [] (
+            const ITabletSlotPtr& slot,
+            std::vector<TCompactionHintUpdateRequest>&& tabletRequests)
+        {
+            const auto& Logger = TabletNodeLogger;
+
+            for (auto&& tabletRequest : tabletRequests) {
+                const auto* tablet = slot->GetTabletManager()->FindTablet(tabletRequest.TabletId);
+                if (!tablet) {
+                    YT_LOG_DEBUG("Tablet is missing, will not update compaction hints (TabletId: %v, CellId: %v)",
+                        tabletRequest.TabletId,
+                        tabletRequest.CellId);
+                    return;
+                }
+
+                // NB(dave11ar): Maybe rewrite.
+                for (const auto& partition : tablet->PartitionList()) {
+                    auto partitionRequestIt = std::find_if(
+                        tabletRequest.PartitionRequests.begin(),
+                        tabletRequest.PartitionRequests.end(),
+                        [&] (const auto& partitionRequest) {
+                            return partition->GetId() == partitionRequest.PartitionId;
+                        });
+
+                    if (partitionRequestIt == tabletRequest.PartitionRequests.end()) {
+                        return;
+                    }
+
+                    partition->CompactionHints().OnLsmFeedbackReceived(partition.get(), std::move(*partitionRequestIt));
+                }
+            }
+        };
+
+        const auto& Logger = TabletNodeLogger;
+
+        THashMap<TCellId, std::vector<TCompactionHintUpdateRequest>> cellIdToTabletUpdates;
+        for (auto&& tabletUpdate : updates) {
+            cellIdToTabletUpdates[tabletUpdate.CellId].push_back(std::move(tabletUpdate));
+        }
+
+        std::vector<TFuture<void>> updateFutures;
+        updateFutures.reserve(cellIdToTabletUpdates.size());
+        for (auto&& [cellId, tabletUpdates] : cellIdToTabletUpdates) {
+            auto slot = Bootstrap_->GetSlotManager()->FindSlot(cellId);
+            if (!slot) {
+                YT_LOG_DEBUG("Tablet cell is missing, will not apply compaction hint updates (CellId: %v)",
+                    cellId);
+                continue;
+            }
+
+            updateFutures.push_back(BIND(
+                processTabletUpdate,
+                slot,
+                Passed(std::move(tabletUpdates)))
+                .AsyncVia(slot->GetGuardedAutomatonInvoker())
+                .Run());
+        }
+
+        YT_VERIFY(WaitFor(AllSet(updateFutures)).IsOK());
     }
 
     static int GetOverlappingStoreLimit(const TTableMountConfigPtr& config)

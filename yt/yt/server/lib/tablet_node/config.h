@@ -59,6 +59,8 @@ DEFINE_REFCOUNTED_TYPE(TRelativeReplicationThrottlerConfig)
 struct TRowDigestCompactionConfig
     : public NYTree::TYsonStruct
 {
+    bool Enable;
+
     double MaxObsoleteTimestampRatio;
     int MaxTimestampsPerValue;
 

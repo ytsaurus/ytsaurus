@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/lib/hive/public.h>
 
+#include <yt/yt/server/lib/lsm/compaction_hints.h>
+
 #include <yt/yt/server/lib/tablet_node/public.h>
 
 #include <yt/yt/server/lib/transaction_supervisor/public.h>
@@ -192,7 +194,7 @@ DEFINE_REFCOUNTED_TYPE(TStoreBackgroundActivityOrchidConfig)
 struct TCompactionHintFetcherConfig
     : public NYTree::TYsonStruct
 {
-    TDuration FetchPeriod;
+    NConcurrency::TPeriodicExecutorOptions PeriodicExecutor;
     NConcurrency::TThroughputThrottlerConfigPtr RequestThrottler;
 
     REGISTER_YSON_STRUCT(TCompactionHintFetcherConfig);
@@ -267,16 +269,9 @@ struct TStoreCompactorDynamicConfig
     std::optional<int> MaxConcurrentCompactions;
     std::optional<int> MaxConcurrentPartitionings;
 
-    // TODO(dave11ar): Migrate to TCompactionHintFetcherConfig
-    TDuration ChunkViewSizeFetchPeriod;
-    NConcurrency::TThroughputThrottlerConfigPtr ChunkViewSizeRequestThrottler;
+    NLsm::TStoreCompactionHintArray<TCompactionHintFetcherConfigPtr> CompactionHintFetchers;
 
-    // TODO(dave11ar): Migrate to TCompactionHintFetcherConfig
-    TDuration RowDigestFetchPeriod;
-    NConcurrency::TThroughputThrottlerConfigPtr RowDigestRequestThrottler;
-    bool UseRowDigests;
-
-    TCompactionHintFetcherConfigPtr MinHashDigestFetcher;
+    i64 MinHashDigestCacheCapacity;
 
     int MaxCompactionStructuredLogEvents;
     int MaxPartitioningStructuredLogEvents;

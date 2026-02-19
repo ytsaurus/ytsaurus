@@ -1,21 +1,15 @@
-#include "helpers.h"
-#include "store.h"
+#include "tablet.h"
 
-#include <yt/yt/server/lib/tablet_node/private.h>
 #include <yt/yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/tablet_node/private.h>
 
 #include <yt/yt/ytlib/table_client/versioned_row_digest.h>
 
-#include <yt/yt/client/transaction_client/helpers.h>
-
 #include <yt/yt/library/quantile_digest/quantile_digest.h>
-
-#include <yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
 
 namespace NYT::NLsm {
 
 using namespace NTableClient;
-using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,16 +17,33 @@ constinit const auto Logger = NTabletNode::TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRowDigestUpcomingCompactionInfo GetUpcomingCompactionInfo(
-    TStoreId storeId,
-    const TTableMountConfigPtr& mountConfig,
-    const TVersionedRowDigest& digest)
+template <>
+void DoRecalculateStoreCompactionHint<EStoreCompactionHintKind::VersionedRowDigest>(TStore* store)
 {
-    const auto& allButLastDigest = digest.AllButLastTimestampDigest;
-    const auto& lastDigest = digest.LastTimestampDigest;
-    const auto& firstDigest = digest.FirstTimestampDigest;
-    const auto& earliestNthTimestamp = digest.EarliestNthTimestamp;
+    static constexpr auto compactionTimestampAccuracy = TDuration::Seconds(1);
 
+    auto& hint = store->CompactionHints().Hints()[EStoreCompactionHintKind::VersionedRowDigest];
+    const auto& digest = std::get<TStoreCompactionHint::TVersionedRowDigestPayload>(
+        store->CompactionHints().Payloads()[EStoreCompactionHintKind::VersionedRowDigest]);
+
+    TInstant resultTimestamp;
+    auto resultReason = EStoreCompactionReason::None;
+
+    auto trySetResult = [&] (TInstant candidateTimestamp, EStoreCompactionReason candidateReason) {
+        YT_VERIFY(candidateReason != EStoreCompactionReason::None);
+
+        if (resultReason == EStoreCompactionReason::None || candidateTimestamp < resultTimestamp) {
+            resultTimestamp = candidateTimestamp;
+            resultReason = candidateReason;
+        }
+    };
+
+    const auto& allButLastDigest = digest->AllButLastTimestampDigest;
+    const auto& lastDigest = digest->LastTimestampDigest;
+    const auto& firstDigest = digest->FirstTimestampDigest;
+    const auto& earliestNthTimestamp = digest->EarliestNthTimestamp;
+
+    auto mountConfig = store->GetTablet()->GetMountConfig();
     auto minDataTtl = mountConfig->MinDataTtl;
     auto maxDataTtl = mountConfig->MaxDataTtl;
     int minDataVersions = mountConfig->MinDataVersions;
@@ -41,8 +52,6 @@ TRowDigestUpcomingCompactionInfo GetUpcomingCompactionInfo(
     double maxObsoleteTimestampRatio = mountConfig->RowDigestCompaction->MaxObsoleteTimestampRatio;
 
     i64 totalCount = allButLastDigest->GetCount() + lastDigest->GetCount();
-
-    TRowDigestUpcomingCompactionInfo result;
 
     auto getAbsoluteRank = [] (const IQuantileDigestPtr& digest, TInstant time) {
         return digest->GetRank(time.Seconds()) * digest->GetCount();
@@ -55,7 +64,7 @@ TRowDigestUpcomingCompactionInfo GetUpcomingCompactionInfo(
                 allButLastDigest->GetQuantile(0),
                 lastDigest->GetQuantile(0)));
 
-            while (right - left > CompactionTimestampAccuracy) {
+            while (right - left > compactionTimestampAccuracy) {
                 auto mid = left + (right - left) / 2;
 
                 if (getCurrentRatio(mid) >= maxObsoleteTimestampRatio) {
@@ -66,14 +75,11 @@ TRowDigestUpcomingCompactionInfo GetUpcomingCompactionInfo(
             }
 
             YT_LOG_DEBUG("Found upcoming compaction timestamp (StoreId: %v, Timestamp: %v, Reason: %v)",
-                storeId,
+                store->GetId(),
                 right,
                 EStoreCompactionReason::TtlCleanupExpected);
 
-            result = {
-                .Reason = EStoreCompactionReason::TtlCleanupExpected,
-                .Timestamp = right,
-            };
+            trySetResult(right, EStoreCompactionReason::TtlCleanupExpected);
         };
 
         if (minDataVersions == 1) {
@@ -119,14 +125,12 @@ TRowDigestUpcomingCompactionInfo GetUpcomingCompactionInfo(
                     sufficientQuantile)) + minDataTtl;
                 YT_LOG_DEBUG("Found upcoming compaction timestamp only using AllButLastTimestampDigest "
                     "(StoreId: %v, Timestamp: %v, Reason: %v)",
-                    storeId,
+                    store->GetId(),
                     compactionTimestamp,
                     EStoreCompactionReason::TtlCleanupExpected);
 
-                result = {
-                    .Reason = EStoreCompactionReason::TtlCleanupExpected,
-                    .Timestamp = compactionTimestamp,
-                };
+
+                trySetResult(compactionTimestamp, EStoreCompactionReason::TtlCleanupExpected);
             }
         }
     }
@@ -138,26 +142,20 @@ TRowDigestUpcomingCompactionInfo GetUpcomingCompactionInfo(
         auto compactionTimestamp = TInstant::Seconds(earliestNthTimestamp[index]) + minDataTtl;
         YT_LOG_DEBUG("Found upcoming compaction timestamp "
             "(StoreId: %v, TimestampIndex: %v, EarliestNthTimestamp: %v, Timestamp: %v, Reason: %v)",
-            storeId,
+            store->GetId(),
             index,
             earliestNthTimestamp[index],
             compactionTimestamp,
             EStoreCompactionReason::TooManyTimestamps);
 
-        if (result.Reason == EStoreCompactionReason::None || result.Timestamp > compactionTimestamp) {
-            result = {
-                .Reason = EStoreCompactionReason::TooManyTimestamps,
-                .Timestamp = compactionTimestamp,
-            };
-        }
+        trySetResult(compactionTimestamp, EStoreCompactionReason::TooManyTimestamps);
     }
 
-    if (result.Reason == EStoreCompactionReason::None) {
-        YT_LOG_DEBUG("No timestamp for upcoming compaction (StoreId: %v)",
-            storeId);
-    }
+    YT_LOG_DEBUG_IF(resultReason == EStoreCompactionReason::None,
+        "No timestamp for upcoming compaction (StoreId: %v)",
+        store->GetId());
 
-    return result;
+    hint.MakeDecision(resultTimestamp, resultReason);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

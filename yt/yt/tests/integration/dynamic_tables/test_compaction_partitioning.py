@@ -528,7 +528,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
                 "dynamic_store_auto_flush_period": 1000,
                 "dynamic_store_flush_period_splay": 0,
                 "row_digest_compaction": {
-                    "period": yson.YsonEntity(),
+                    "enable": True,
                 },
                 "min_data_ttl": 0,
                 "compaction_data_size_base": 16 * 2**20,
@@ -554,9 +554,15 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         update_nodes_dynamic_config({
             "tablet_node": {
                 "store_compactor": {
-                    "use_row_digests": True,
-                }
-            }
+                    "compaction_hint_fetchers": {
+                        "versioned_row_digest": {
+                            "periodic_executor": {
+                                "period": 1.
+                            }
+                        },
+                    },
+                },
+            },
         })
 
         # Create a large chunk that will not be compacted will smaller ones and thus will prevent
@@ -581,6 +587,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         assert len(get_chunk_ids()) > 1
 
         set("//tmp/t/@mount_config/row_digest_compaction", {
+            "enable": True,
             "max_obsolete_timestamp_ratio": 1,
             "max_timestamps_per_value": delete_ts_count // 4,
         })
@@ -660,8 +667,9 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
             return type == "7b"
 
         def check():
-            def has_compaction_hint(store_orchid):
-                return "compaction_hint" in store_orchid.get("compaction_hints")["chunk_view_size"]
+            def has_no_compaction_hint(store_orchid):
+                chunk_view_too_narrow = store_orchid.get("compaction_hints")["chunk_view_too_narrow"]
+                return chunk_view_too_narrow["lsm_compaction_hint"]["reason"] == "none"
 
             try:
                 for tablet_id in tablet_ids:
@@ -670,13 +678,13 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
                         for store_id, store_orchid in partition["stores"].items():
                             if not is_chunk_view(store_id):
                                 continue
-                            if not has_compaction_hint(store_orchid):
+                            if has_no_compaction_hint(store_orchid):
                                 return False
 
                     for store_id, store_orchid in tablet_orchid["eden"]["stores"].items():
                         if not is_chunk_view(store_id):
                             continue
-                        if not has_compaction_hint(store_orchid):
+                        if has_no_compaction_hint(store_orchid):
                             return False
                 return True
             except YtError:
@@ -695,8 +703,13 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         update_nodes_dynamic_config({
             "tablet_node": {
                 "store_compactor": {
-                    "row_digest_fetch_period": 1,
-                    "use_row_digests": True,
+                    "compaction_hint_fetchers": {
+                        "versioned_row_digest": {
+                            "periodic_executor": {
+                                "period": 1.
+                            }
+                        },
+                    },
                 },
             },
         })
@@ -734,6 +747,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
             set(f"{table_path}/@min_data_versions", min_data_versions)
             set(f"{table_path}/@max_data_versions", max_data_versions)
             set(f"{table_path}/@mount_config/row_digest_compaction", {
+                "enable": True,
                 "max_obsolete_timestamp_ratio": max_obsolete_timestamp_ratio,
             })
             remount_table(table_path)
@@ -750,8 +764,13 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         update_nodes_dynamic_config({
             "tablet_node": {
                 "store_compactor": {
-                    "row_digest_fetch_period": 1,
-                    "use_row_digests": True,
+                    "compaction_hint_fetchers": {
+                        "versioned_row_digest": {
+                            "periodic_executor": {
+                                "period": 1.
+                            }
+                        },
+                    },
                 },
             },
         })
@@ -762,6 +781,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
                 "min_data_ttl": 10000,
                 "max_data_ttl": 1e9,
                 "row_digest_compaction": {
+                    "enable": True,
                     "max_obsolete_timestamp_ratio": 0.3
                 }
             },
@@ -791,11 +811,16 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
             update_nodes_dynamic_config({
                 "tablet_node": {
                     "store_compactor": {
-                        "row_digest_fetch_period": 1,
-                        "row_digest_request_throttler": {
-                            "limit": limit,
+                        "compaction_hint_fetchers": {
+                            "versioned_row_digest": {
+                                "periodic_executor": {
+                                    "period": 1.
+                                },
+                                "request_throttler": {
+                                    "limit": limit,
+                                },
+                            },
                         },
-                        "use_row_digests": True,
                     },
                 }
             })
@@ -808,6 +833,9 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
             mount_config={
                 "min_data_ttl": 5000,
                 "max_data_ttl": 5000,
+                "row_digest_compaction": {
+                    "enable": True,
+                },
             },
             chunk_writer={
                 "versioned_row_digest": {
@@ -834,8 +862,8 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
                 get_tablet_leader_address(tablet_id),
                 tablet_id)["partitions"][0]["stores"][chunk_id]
 
-            row_digest = store_orchid.get("compaction_hints")["row_digest"]
-            return "compaction_hint" not in row_digest
+            row_digest = store_orchid.get("compaction_hints")["versioned_row_digest"]
+            return row_digest["lsm_compaction_hint"]["reason"] == "none"
 
         peer = get(f"{cell_address}/@peers/0/address")
         set_node_banned(peer, True)
@@ -855,8 +883,13 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         update_nodes_dynamic_config({
             "tablet_node": {
                 "store_compactor": {
-                    "row_digest_fetch_period": 1,
-                    "use_row_digests": True,
+                    "compaction_hint_fetchers": {
+                        "versioned_row_digest": {
+                            "periodic_executor": {
+                                "period": 1.
+                            },
+                        },
+                    },
                 },
             },
         })
@@ -873,6 +906,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
                     "max_data_versions": 0,
                     "row_merger_type": row_merger_type,
                     "row_digest_compaction": {
+                        "enable": True,
                         "max_obsolete_timestamp_ratio": 1,
                     },
                 },
@@ -938,8 +972,13 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         update_nodes_dynamic_config({
             "tablet_node": {
                 "store_compactor": {
-                    "row_digest_fetch_period": 1,
-                    "use_row_digests": True,
+                    "compaction_hint_fetchers": {
+                        "versioned_row_digest": {
+                            "periodic_executor": {
+                                "period": 1.
+                            },
+                        },
+                    },
                 },
             },
         })
@@ -959,8 +998,13 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
                     "enable": True,
                 },
             },
-            min_data_ttl=1e9,
-            max_data_ttl=1e9,
+            mount_config={
+                "min_data_ttl": 1e9,
+                "max_data_ttl": 1e9,
+                "row_digest_compaction": {
+                    "enable": True
+                },
+            },
             dynamic_store_auto_flush_period=yson.YsonEntity())
 
         sync_mount_table(table_path)
@@ -1165,18 +1209,22 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
 
     @authors("dave11ar")
     def test_timestamp_digest_disabling(self):
-        cell_id = sync_create_cells(1)[0]
-        cell_node = get(f"#{cell_id}/@peers/0/address")
-        profiler = profiler_factory().at_node(cell_node)
+        sync_create_cells(1)
 
         chunk_count = 2
 
         update_nodes_dynamic_config({
             "tablet_node": {
                 "store_compactor": {
-                    "use_row_digests": True,
-                    "row_digest_request_throttler": {
-                        "limit": 0,
+                    "compaction_hint_fetchers": {
+                        "versioned_row_digest": {
+                            "periodic_executor": {
+                                "period": 1.
+                            },
+                            "request_throttler": {
+                                "limit": 0,
+                            },
+                        },
                     },
                 },
             },
@@ -1190,6 +1238,11 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
                     "enable": True,
                 },
             },
+            mount_config={
+                "row_digest_compaction": {
+                    "enable" : True,
+                },
+            },
         )
 
         sync_mount_table(table)
@@ -1201,23 +1254,32 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         for i in range(chunk_count):
             _insert_flush(i)
 
-        def _check_stores_queue_size(size):
-            def _check():
-                return abs(profiler.get("tablet_node/chunk_row_digest_fetcher/queue_size") - size) < 1e-6
+        tablet_ids = [tablet["tablet_id"] for tablet in get(f"{table}/@tablets")]
 
-            return _check
+        def _has_any_hint():
+            def is_fetching(store_orchid):
+                versioned_row_digest = store_orchid["compaction_hint_fetch_pipelines"]["versioned_row_digest"]
+                return "is_fetching" in versioned_row_digest and versioned_row_digest["is_fetching"]
 
-        wait(_check_stores_queue_size(chunk_count))
+            for tablet_id in tablet_ids:
+                tablet_orchid = self._find_tablet_orchid(get_tablet_leader_address(tablet_id), tablet_id)
+                for partition in tablet_orchid["partitions"]:
+                    for _, store_orchid in partition["stores"].items():
+                        if is_fetching(store_orchid):
+                            return True
 
-        update_nodes_dynamic_config({
-            "tablet_node": {
-                "store_compactor": {
-                    "use_row_digests": False,
-                },
-            },
-        })
+                for _, store_orchid in tablet_orchid["eden"]["stores"].items():
+                    if store_orchid.get("compaction_hint_fetch_pipelines") is not None and is_fetching(store_orchid):
+                        return True
 
-        wait(_check_stores_queue_size(0))
+            return False
+
+        wait(_has_any_hint)
+
+        set(f"{table}/@mount_config/row_digest_compaction/enable", False)
+        remount_table(table)
+
+        wait(lambda: not _has_any_hint())
 
     @authors("alexelexa")
     def test_performance_counters(self):

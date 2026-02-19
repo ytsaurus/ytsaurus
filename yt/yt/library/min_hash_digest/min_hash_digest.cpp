@@ -1,10 +1,27 @@
 #include "min_hash_digest.h"
 
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 #include <yt/yt/core/misc/serialize.h>
+
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT {
 
+using namespace NYTree;
+using namespace NYson;
+
 ////////////////////////////////////////////////////////////////////////////////
+
+TMinHashDigest::TMinHashDigest(IMemoryUsageTrackerPtr memoryTracker)
+    : MemoryTracker_(std::move(memoryTracker))
+{ }
+
+TMinHashDigest::~TMinHashDigest()
+{
+    if (MemoryTracker_) {
+        MemoryTracker_->Release(GetWeight());
+    }
+}
 
 bool TMinHashDigest::IsInitialized() const
 {
@@ -17,7 +34,7 @@ void TMinHashDigest::Initialize(TSharedRef data)
 
     Initialized_ = true;
 
-    auto ptr = data.begin();
+    const char* ptr = data.begin();
 
     i32 formatVersion;
     ReadPod(ptr, formatVersion);
@@ -43,6 +60,17 @@ void TMinHashDigest::Initialize(TSharedRef data)
         ReadPod(ptr, element);
         DeleteTombstoneMinHashes_.insert(element);
     }
+
+    if (MemoryTracker_) {
+        // NB(dave11ar): We can acquire after initialization because tablet_background is limitless.
+        MemoryTracker_->Acquire(GetWeight());
+    }
+}
+
+i64 TMinHashDigest::GetWeight() const
+{
+    return sizeof(i32) * 3 +
+        (WriteMinHashes_.size() + DeleteTombstoneMinHashes_.size()) * (sizeof(TFingerprint) + sizeof(ui64));
 }
 
 TSharedRef TMinHashDigest::Build(
@@ -53,7 +81,7 @@ TSharedRef TMinHashDigest::Build(
         (writeMinHashes.size() + deleteTombstoneMinHashes.size()) * (sizeof(TFingerprint) + sizeof(ui64));
 
     auto data = TSharedMutableRef::Allocate(allocationSize);
-    auto ptr = data.begin();
+    char* ptr = data.begin();
 
     WritePod(ptr, FormatVersion);
 
@@ -69,6 +97,14 @@ TSharedRef TMinHashDigest::Build(
     }
 
     return data;
+}
+
+void Serialize(const TMinHashDigest& minHashDigest, NYson::IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("initialized").Value(minHashDigest.IsInitialized())
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
