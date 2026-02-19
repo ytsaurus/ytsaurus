@@ -33,6 +33,10 @@ func TestParse(t *testing.T) {
 			expected: NewRich("#bc67d12a-e1971bb1-3066dfe2-a94c59a8/foo").SetAppend(),
 		},
 		{
+			input:    `<cluster="some_cluster";>//tmp/path/with/cluster`,
+			expected: NewRich("//tmp/path/with/cluster").SetCluster("some_cluster"),
+		},
+		{
 			input:    "//foo{bar,zog}",
 			expected: NewRich("//foo").SetColumns([]string{"bar", "zog"}),
 		},
