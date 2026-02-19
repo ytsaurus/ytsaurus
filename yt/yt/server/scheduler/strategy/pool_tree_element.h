@@ -58,6 +58,13 @@ DEFINE_ENUM(EStarvationStatus,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EStarvationChangeReason,
+    (FairShareDecreased)
+    (UsageIncreased)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IPoolTreeElementHost
     : public virtual TRefCounted
 {
@@ -73,12 +80,23 @@ DEFINE_REFCOUNTED_TYPE(IPoolTreeElementHost)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TStarvationInterval
+{
+    const TDuration Duration;
+    const EStarvationChangeReason Reason;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Attributes that are kept between fair share updates.
 struct TPersistentAttributes
 {
     EStarvationStatus StarvationStatus;
     TInstant LastNonStarvingTime = TInstant::Now();
     std::optional<TInstant> BelowFairShareSince;
+    std::optional<TInstant> StarvingSince;
+    std::optional<TResourceVector> FairShareOnStarvationStart;
+    std::optional<TResourceVector> UsageOnStarvationStart;
     TAdjustedExponentialMovingAverage HistoricUsageAggregator = TAdjustedExponentialMovingAverage();
 
     TResourceVector BestAllocationShare = TResourceVector::Ones();
@@ -139,6 +157,8 @@ struct TPoolTreeElementPostUpdateAttributes
 
     // Only for pools.
     IDigestPtr SatisfactionDigest;
+
+    std::optional<TStarvationInterval> StarvationInterval;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -365,7 +385,7 @@ protected:
     //! Post update methods.
     virtual void UpdateRecursiveAttributes();
 
-    virtual void SetStarvationStatus(EStarvationStatus starvationStatus);
+    virtual void SetStarvationStatus(EStarvationStatus starvationStatus, TInstant now);
     virtual void CheckForStarvation(TInstant now) = 0;
 
     ESchedulableStatus GetStatusImpl(double defaultTolerance) const;
@@ -715,7 +735,7 @@ protected:
     TJobResourcesConfigPtr GetSpecifiedResourceLimitsOvercommitToleranceConfig() const override;
 
     //! Post fair share update methods.
-    void SetStarvationStatus(EStarvationStatus starvationStatus) override;
+    void SetStarvationStatus(EStarvationStatus starvationStatus, TInstant now) override;
     void CheckForStarvation(TInstant now) override;
 
     void BuildElementMapping(TFairSharePostUpdateContext* context) override;
@@ -873,7 +893,7 @@ public:
     bool IsGangLike() const override;
 
     //! Post fair share update methods.
-    TInstant GetLastNonStarvingTime() const;
+    std::optional<TInstant> GetStarvingSince() const;
 
     std::optional<double> GetSpecifiedFairShareStarvationTolerance() const override;
     std::optional<TDuration> GetSpecifiedFairShareStarvationTimeout() const override;
@@ -950,7 +970,7 @@ protected:
     void CollectResourceTreeOperationElements(std::vector<TResourceTreeElementPtr>* elements) const override;
 
     //! Post update methods.
-    void SetStarvationStatus(EStarvationStatus starvationStatus) override;
+    void SetStarvationStatus(EStarvationStatus starvationStatus, TInstant now) override;
     void CheckForStarvation(TInstant now) override;
 
     void UpdateRecursiveAttributes() override;

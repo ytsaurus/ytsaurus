@@ -432,6 +432,9 @@ struct TStrategyTreeConfig
     bool EnableOperationsVectorProfiling;
     bool SparsifyFairShareProfiling;
 
+    std::vector<TDuration> PerPoolStarvationIntervalBounds;
+    bool EnableDetailedStarvationLogs;
+
     bool EnableLimitingAncestorCheck;
 
     THashSet<EJobResourceType> ProfiledPoolResources;
