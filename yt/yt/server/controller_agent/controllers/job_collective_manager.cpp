@@ -141,6 +141,8 @@ bool TJobCollectiveManager::OnJobCompleted(const TJobletPtr& joblet)
                 CookieToCollective_.erase(collectiveIt);
             }
         } else {
+            YT_VERIFY(joblet->JobId == collective.MasterJobId);
+
             YT_LOG_DEBUG(
                 "Job collective completed since master job completed (MasterJobId: %v, OutputCookie: %v, CollectiveWillBeRemovedImmediately: %v)",
                 collective.MasterJobId,
@@ -168,7 +170,6 @@ bool TJobCollectiveManager::OnJobCompleted(const TJobletPtr& joblet)
                 CookieToCollective_.erase(collectiveIt);
             }
 
-            YT_VERIFY(joblet->JobId == collective.MasterJobId);
             return true;
         }
     } else {
