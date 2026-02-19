@@ -6975,6 +6975,8 @@ private:
 
     TFuture<NCellMaster::NProto::TCellStatistics> GetCellStatistics() override
     {
+        VerifyPersistentStateRead();
+
         auto channels = GetChunkReplicatorChannels();
         std::vector<TFuture<TIntrusivePtr<TObjectServiceProxy::TRspExecuteBatch>>> responsesFutures;
 
@@ -6993,22 +6995,30 @@ private:
             responsesFutures.push_back(batchReq->Invoke());
         }
 
+        std::optional<int> onlineNodeCount;
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster()) {
+            const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+            onlineNodeCount = nodeTracker->GetOnlineNodeCount();
+        }
+
         return AllSet(std::move(responsesFutures))
-            .Apply(BIND([this, this_ = MakeStrong(this)] (const std::vector<TErrorOr<TIntrusivePtr<TObjectServiceProxy::TRspExecuteBatch>>>& rspOrErrors) {
+            .Apply(BIND(
+            [
+                onlineNodeCount,
+                chunkCount = Chunks().GetSize()
+            ] (const std::vector<TErrorOr<TIntrusivePtr<TObjectServiceProxy::TRspExecuteBatch>>>& rspOrErrors) {
                 NCellMaster::NProto::TCellStatistics cellStatistics;
 
-                cellStatistics.set_chunk_count(Chunks().GetSize());
+                cellStatistics.set_chunk_count(chunkCount);
                 cellStatistics.set_lost_vital_chunk_count(0);
                 cellStatistics.set_data_missing_chunk_count(0);
                 cellStatistics.set_parity_missing_chunk_count(0);
                 cellStatistics.set_oldest_part_missing_chunk_count(0);
                 cellStatistics.set_quorum_missing_chunk_count(0);
                 cellStatistics.set_inconsistently_placed_chunk_count(0);
-
-                const auto& multicellManager = Bootstrap_->GetMulticellManager();
-                if (multicellManager->IsPrimaryMaster()) {
-                    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-                    cellStatistics.set_online_node_count(nodeTracker->GetOnlineNodeCount());
+                if (onlineNodeCount.has_value()) {
+                    cellStatistics.set_online_node_count(*onlineNodeCount);
                 }
 
                 std::array<i64, 6> responsesSum{};
@@ -7048,7 +7058,8 @@ private:
                 cellStatistics.set_quorum_missing_chunk_count(responsesSum[4]);
                 cellStatistics.set_inconsistently_placed_chunk_count(responsesSum[5]);
                 return cellStatistics;
-            }));
+            })
+            .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
     }
 
     std::vector<TError> GetAlerts() const
