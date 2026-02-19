@@ -909,7 +909,7 @@ func sockaddrIUCVToAny(in RawSockaddrIUCV) *RawSockaddrAny {
 	var out RawSockaddrAny
 	copy(
 		(*(*[SizeofSockaddrAny]byte)(unsafe.Pointer(&out)))[:],
-		(*(*[SizeofSockaddrUnix]byte)(unsafe.Pointer(&in)))[:],
+		(*(*[SizeofSockaddrIUCV]byte)(unsafe.Pointer(&in)))[:],
 	)
 	return &out
 }
