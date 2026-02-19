@@ -537,6 +537,8 @@ items:
       - name: Интеграция CHYT с внешними системами
         href: admin-guide/integration-chyt.md
         when: audience == "public"
+      - name: Шифрование в нативном протоколе
+        href: admin-guide/handshake.md  
       - name: Прочее
         items:
           - name: Чтение с удаленных кластеров через RPC Proxy
