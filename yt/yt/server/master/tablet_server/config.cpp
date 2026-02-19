@@ -185,7 +185,7 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("replicated_table_tracker", &TThis::ReplicatedTableTracker)
         .DefaultNew();
     registrar.Parameter("enable_bulk_insert", &TThis::EnableBulkInsert)
-        .Default(false);
+        .Default(true);
     registrar.Parameter("decommission_through_extra_peers", &TThis::DecommissionThroughExtraPeers)
         .Default(true);
     registrar.Parameter("synchronize_tablet_cell_leader_switches", &TThis::SynchronizeTabletCellLeaderSwitches)
@@ -217,7 +217,7 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("enable_backups", &TThis::EnableBackups)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("send_dynamic_store_id_in_backup", &TThis::SendDynamicStoreIdInBackup)
         .Default(false);
