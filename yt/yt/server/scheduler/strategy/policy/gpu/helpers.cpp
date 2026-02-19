@@ -19,6 +19,11 @@ NLogging::TOneShotFluentLogEvent LogStructuredGpuEventFluently(EGpuSchedulingLog
         .Item("event_type").Value(eventType);
 }
 
+NLogging::TLogger GetLogger(const std::string& treeId)
+{
+    return GpuSchedulingPolicyLogger().WithTag("TreeId: %v", treeId);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler::NStrategy::NPolicy::NGpu

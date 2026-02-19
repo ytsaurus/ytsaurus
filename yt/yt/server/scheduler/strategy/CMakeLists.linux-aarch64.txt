@@ -62,6 +62,7 @@ target_sources(server-scheduler-strategy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/policy/gpu/assignment_plan_context_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/policy/gpu/assignment_plan_update.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/policy/gpu/scheduling_policy.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/policy/gpu/scheduling_policy_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/policy/gpu/structs.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/policy/gpu/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/policy/gpu/persistent_state.cpp
