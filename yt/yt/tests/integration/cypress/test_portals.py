@@ -51,7 +51,6 @@ class TestPortals(YTEnvSetup):
     NUM_NODES = 3
     NUM_SECONDARY_MASTER_CELLS = 3
     USE_DYNAMIC_TABLES = True
-    ENABLE_BULK_INSERT = True
     NUM_SCHEDULERS = 1
 
     MASTER_CELL_DESCRIPTORS = {
@@ -1514,7 +1513,6 @@ class TestCrossCellCopy(YTEnvSetup):
     NUM_NODES = 3
     NUM_SECONDARY_MASTER_CELLS = 3
     USE_DYNAMIC_TABLES = True
-    ENABLE_BULK_INSERT = True
 
     MASTER_CELL_DESCRIPTORS = {
         "11": {"roles": ["cypress_node_host", "chunk_host"]},

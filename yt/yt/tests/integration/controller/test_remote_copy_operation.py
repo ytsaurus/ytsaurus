@@ -1617,7 +1617,6 @@ class TestSchedulerRemoteCopyCommandsMulticell(TestSchedulerRemoteCopyCommands):
 class TestSchedulerRemoteCopyDynamicTablesBase(TestSchedulerRemoteCopyCommandsBase):
     ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
-    ENABLE_BULK_INSERT = True
 
     def _create_sorted_table(self, path, max_inline_hunk_size=None, driver=None, **attributes):
         if "schema" not in attributes:

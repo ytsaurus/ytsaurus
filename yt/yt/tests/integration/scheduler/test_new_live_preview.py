@@ -23,7 +23,6 @@ class TestNewLivePreview(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 3
     USE_DYNAMIC_TABLES = True
-    ENABLE_BULK_INSERT = True
 
     def setup_method(self, method):
         super(TestNewLivePreview, self).setup_method(method)
