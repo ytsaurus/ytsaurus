@@ -55,7 +55,7 @@ target_link_options(unittester-library-lsm PRIVATE
 )
 
 target_sources(unittester-library-lsm PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/lsm/unittests/upcoming_compaction_info_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/lsm/unittests/row_digest_ut.cpp
 )
 
 

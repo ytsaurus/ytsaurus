@@ -864,7 +864,7 @@ bool TMinHashDigestBlockIndex::IsFound()
 
 int TMinHashDigestBlockIndex::GetBlockIndex()
 {
-    YT_VERIFY(BlockIndex_ >= 0);
+    YT_VERIFY(IsFound());
     return BlockIndex_;
 }
 

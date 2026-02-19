@@ -313,7 +313,7 @@ protected:
         SetProtoExtension(meta->mutable_extensions(), SystemBlockMetaExt_);
         if (RowDigestBuilder_) {
             TVersionedRowDigestExt rowDigestExt;
-            ToProto(&rowDigestExt, RowDigestBuilder_->FlushDigest());
+            ToProto(&rowDigestExt, *RowDigestBuilder_->FlushDigest());
             SetProtoExtension(meta->mutable_extensions(), rowDigestExt);
         }
 

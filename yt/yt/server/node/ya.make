@@ -120,8 +120,9 @@ SRCS(
     tablet_node/cached_row.cpp
     tablet_node/chaos_agent.cpp
     tablet_node/chunk_replica_cache_pinger.cpp
-    tablet_node/chunk_view_size_fetcher.cpp
-    tablet_node/compaction_hint_fetcher.cpp
+    tablet_node/chunk_view_size_compaction_hint.cpp
+    tablet_node/compaction_hint_controllers.cpp
+    tablet_node/compaction_hint_fetching.cpp
     tablet_node/compression_dictionary_builder.cpp
     tablet_node/compression_dictionary_manager.cpp
     tablet_node/config.cpp
@@ -151,7 +152,7 @@ SRCS(
     tablet_node/lsm_interop.cpp
     tablet_node/master_connector.cpp
     tablet_node/medium_throttler_manager.cpp
-    tablet_node/min_hash_digest_fetcher.cpp
+    tablet_node/min_hash_digest_compaction_hint.cpp
     tablet_node/mutation_forwarder.cpp
     tablet_node/mutation_forwarder_thunk.cpp
     tablet_node/object_detail.cpp
@@ -166,7 +167,7 @@ SRCS(
     tablet_node/replication_log.cpp
     tablet_node/revision_provider.cpp
     tablet_node/row_cache.cpp
-    tablet_node/row_digest_fetcher.cpp
+    tablet_node/row_digest_compaction_hint.cpp
     tablet_node/security_manager.cpp
     tablet_node/serialize.cpp
     tablet_node/slot_provider.cpp

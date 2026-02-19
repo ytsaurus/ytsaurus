@@ -1,5 +1,5 @@
-#include <yt/yt/server/lib/lsm/store.h>
-#include <yt/yt/server/lib/lsm/helpers.h>
+#include <yt/yt/server/lib/lsm/compaction_hints.h>
+#include <yt/yt/server/lib/lsm/tablet.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
@@ -20,6 +20,7 @@
 namespace NYT::NLsm {
 namespace {
 
+using namespace NHydra;
 using namespace NTabletNode;
 using namespace NTableClient;
 using namespace NTransactionClient;
@@ -28,13 +29,14 @@ using namespace NTransactionClient;
 
 using TDigestFiller = std::function<void(const IVersionedRowDigestBuilderPtr&)>;
 
+constexpr auto Kind = EStoreCompactionHintKind::VersionedRowDigest;
 constexpr auto StartDate = TInstant::Days(7);
 // CompactionTimestampAccuracy + Instant Timestamp conversions max error.
-constexpr auto Accuracy = CompactionTimestampAccuracy + TDuration::Seconds(3);
+constexpr auto Accuracy = TDuration::Seconds(4);
 
 std::mt19937 RandomGenerator(42);
 
-struct TUpcomingCompactionInfoParams
+struct TRowDigestTestParams
 {
     TDuration MinDataTtl = TDuration::Days(1);
     TDuration MaxDataTtl = TDuration::Days(2);
@@ -44,7 +46,7 @@ struct TUpcomingCompactionInfoParams
     int MaxTimestampsPerValue = 8192;
     TDigestFiller DigestFiller;
 
-    TRowDigestUpcomingCompactionInfo Result;
+    TStoreCompactionHint Hint{Kind};
 };
 
 TDigestFiller CreateDigestFillter(
@@ -78,80 +80,82 @@ double FloorWithPrecision(double value, i64 precision)
     return std::floor(value * x) / x;
 }
 
-struct TUpcomingCompactionInfoTest
-    : ::testing::TestWithParam<TUpcomingCompactionInfoParams>
+TStoreCompactionHint CreateHint(EStoreCompactionReason reason, TInstant timestamp = TInstant::Zero())
+{
+    TStoreCompactionHint hint(Kind);
+    hint.SetNodeObjectRevision(TRevision(1));
+    hint.MakeDecision(timestamp, reason);
+
+    return hint;
+}
+
+struct TRowDigestTest
+    : ::testing::TestWithParam<TRowDigestTestParams>
 { };
 
 INSTANTIATE_TEST_SUITE_P(
     Lsm,
-    TUpcomingCompactionInfoTest,
+    TRowDigestTest,
     testing::Values(
         // TtlCleanupExpected with MinDataVersions = 1
-        TUpcomingCompactionInfoParams{
+        TRowDigestTestParams{
             .MinDataVersions = 1,
             .MaxObsoleteTimestampRatio = FloorWithPrecision(2. / 3, 6),
             .DigestFiller = CreateDigestFillter(100, 3, 0),
-            .Result = {
-                .Reason = EStoreCompactionReason::TtlCleanupExpected,
-                .Timestamp = StartDate + TDuration::Days(1) + TDuration::Hours(3),
-            }
+            .Hint = CreateHint(
+                EStoreCompactionReason::TtlCleanupExpected,
+                StartDate + TDuration::Days(1) + TDuration::Hours(3)),
         },
-        TUpcomingCompactionInfoParams{
+        TRowDigestTestParams{
             .MinDataVersions = 1,
             .MaxObsoleteTimestampRatio = FloorWithPrecision((3725. - 1) / 5050, 6),
             .DigestFiller = CreateDigestFillter(100, 100, 1),
-            .Result = {
-                .Reason = EStoreCompactionReason::TtlCleanupExpected,
-                .Timestamp = StartDate + TDuration::Days(1) + TDuration::Hours(51),
-            }
+            .Hint = CreateHint(
+                EStoreCompactionReason::TtlCleanupExpected,
+                StartDate + TDuration::Days(1) + TDuration::Hours(51)),
         },
         // TtlCleanupExpected with MinDataVersions = 0
-        TUpcomingCompactionInfoParams{
+        TRowDigestTestParams{
             .MinDataVersions = 0,
             .MaxDataVersions = 0,
             .MaxObsoleteTimestampRatio = FloorWithPrecision((3775. - 1) / 5050, 6),
             .DigestFiller = CreateDigestFillter(100, 100, 1),
-            .Result = {
-                .Reason = EStoreCompactionReason::TtlCleanupExpected,
-                .Timestamp = StartDate + TDuration::Days(1) + TDuration::Hours(50),
-            }
+            .Hint = CreateHint(
+                EStoreCompactionReason::TtlCleanupExpected,
+                StartDate + TDuration::Days(1) + TDuration::Hours(50)),
         },
-        TUpcomingCompactionInfoParams{
+        TRowDigestTestParams{
             .MaxDataTtl = TDuration::Hours(25),
             .MinDataVersions = 0,
             .MaxDataVersions = 1,
             .MaxObsoleteTimestampRatio = FloorWithPrecision(28. / 30, 6),
             .DigestFiller = CreateDigestFillter(5, 10, 2),
-            .Result = {
-                .Reason = EStoreCompactionReason::TtlCleanupExpected,
-                .Timestamp = StartDate + TDuration::Hours(25) + TDuration::Hours(8),
-            }
+            .Hint = CreateHint(
+                EStoreCompactionReason::TtlCleanupExpected,
+                StartDate + TDuration::Hours(25) + TDuration::Hours(8)),
         },
         // TooManyTimestamps
-        TUpcomingCompactionInfoParams{
+        TRowDigestTestParams{
             .MinDataVersions = 1,
             .MaxObsoleteTimestampRatio = 0.6,
             .MaxTimestampsPerValue = 8192,
             .DigestFiller = CreateDigestFillter(2, 16384, 16383),
-            .Result = {
-                .Reason = EStoreCompactionReason::TooManyTimestamps,
-                .Timestamp = StartDate + TDuration::Days(1) + TDuration::Hours(8193),
-            }
+            .Hint = CreateHint(
+                EStoreCompactionReason::TooManyTimestamps,
+                StartDate + TDuration::Days(1) + TDuration::Hours(8193)),
         },
         // No compaction reason
-        TUpcomingCompactionInfoParams{
+        TRowDigestTestParams{
             .MinDataVersions = 1,
             .MaxObsoleteTimestampRatio = 1,
             .MaxTimestampsPerValue = 256,
             .DigestFiller = CreateDigestFillter(100, 255, 1),
-            .Result = {
-                .Reason = EStoreCompactionReason::None,
-            }
+            .Hint = CreateHint(EStoreCompactionReason::None),
         }));
 
-TEST_P(TUpcomingCompactionInfoTest, GetUpcomingCompactionInfo)
+TEST_P(TRowDigestTest, RowDigestTest)
 {
-    auto params = TUpcomingCompactionInfoTest::GetParam();
+    auto params = TRowDigestTest::GetParam();
 
     auto mountConfig = New<TTableMountConfig>();
     mountConfig->MinDataTtl = params.MinDataTtl;
@@ -168,16 +172,24 @@ TEST_P(TUpcomingCompactionInfoTest, GetUpcomingCompactionInfo)
     auto digestBuilder = CreateVersionedRowDigestBuilder(digestConfig);
     params.DigestFiller(digestBuilder);
 
-    auto result = GetUpcomingCompactionInfo(
-        NullStoreId,
-        mountConfig,
-        digestBuilder->FlushDigest());
+    auto tablet = New<TTablet>();
+    tablet->SetMountConfig(std::move(mountConfig));
 
-    ASSERT_EQ(result.Reason, params.Result.Reason);
-    if (result.Reason != EStoreCompactionReason::None) {
+    auto store = std::make_unique<TStore>();
+    store->SetTablet(tablet.Get());
+
+    auto& hint = store->CompactionHints().Hints()[Kind];
+    hint = TStoreCompactionHint(Kind);
+    hint.SetNodeObjectRevision(TRevision(1));
+    store->CompactionHints().Payloads()[Kind] = digestBuilder->FlushDigest();
+
+    ASSERT_TRUE(hint.RecalculateHint(store));
+    ASSERT_EQ(hint.GetReason(), params.Hint.GetReason());
+
+    if (hint.GetReason() != EStoreCompactionReason::None) {
         ASSERT_NEAR(
-            result.Timestamp.GetValue(),
-            params.Result.Timestamp.GetValue(),
+            hint.GetTimestamp().GetValue(),
+            params.Hint.GetTimestamp().GetValue(),
             Accuracy.GetValue());
     }
 }

@@ -36,6 +36,9 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(i64, CompressedDataSize);
     DEFINE_BYVAL_RW_PROPERTY(i64, UncompressedDataSize);
 
+    // NB(dave11ar): Can be modified in store compactor to give feedback to tablet node.
+    DEFINE_BYREF_RW_PROPERTY(TPartitionCompactionHints, CompactionHints);
+
 public:
     bool IsEden() const;
 

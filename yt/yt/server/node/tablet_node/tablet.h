@@ -50,6 +50,8 @@
 
 #include <yt/yt/library/heavy_hitters/misra_gries.h>
 
+#include <yt/yt/library/min_hash_digest/public.h>
+
 #include <library/cpp/yt/compact_containers/compact_set.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
@@ -376,6 +378,7 @@ struct ITabletContext
     virtual int GetAutomatonTerm() const = 0;
     virtual IInvokerPtr GetControlInvoker() const = 0;
     virtual IInvokerPtr GetAutomatonInvoker() const = 0;
+    virtual IInvokerPtr GetStorageHeavyInvoker() const = 0;
     virtual NQueryClient::IColumnEvaluatorCachePtr GetColumnEvaluatorCache() const = 0;
     virtual NQueryClient::IRowComparerProviderPtr GetRowComparerProvider() const = 0;
     virtual NApi::NNative::IClientPtr GetClient() const = 0;
@@ -398,6 +401,8 @@ struct ITabletContext
     virtual IHedgingManagerRegistryPtr GetHedgingManagerRegistry() const = 0;
     virtual ITabletWriteManagerHostPtr GetTabletWriteManagerHost() const = 0;
     virtual IVersionedChunkMetaManagerPtr GetVersionedChunkMetaManager() const = 0;
+    virtual const TCompactionHintFetcherPtr& GetCompactionHintFetcher(NLsm::EStoreCompactionHintKind kind) const = 0;
+    virtual TSimpleLruCache<NChunkClient::TChunkId, TMinHashDigestPtr>* GetMinHashDigestCache() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -963,6 +968,18 @@ public:
         const ITabletSlotPtr& slot,
         const NClusterNode::TClusterNodeDynamicConfigPtr& oldConfig,
         const NClusterNode::TClusterNodeDynamicConfigPtr& newConfig);
+
+    NHydra::EPeerState GetAutomatonState() const;
+
+    IInvokerPtr GetStorageHeavyInvoker() const;
+
+    NApi::NNative::IClientPtr GetClient() const;
+
+    NChunkClient::IChunkReplicaCachePtr GetChunkReplicaCache() const;
+
+    const TCompactionHintFetcherPtr& GetCompactionHintFetcher(NLsm::EStoreCompactionHintKind kind) const;
+
+    TSimpleLruCache<NChunkClient::TChunkId, TMinHashDigestPtr>* GetMinHashDigestCache() const;
 
 private:
     struct TTabletSizeMetrics
