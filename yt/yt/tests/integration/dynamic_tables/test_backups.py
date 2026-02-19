@@ -42,8 +42,6 @@ class TestBackups(DynamicTablesBase):
 
     NUM_SCHEDULERS = 1
 
-    ENABLE_BULK_INSERT = True
-
     def test_basic_backup(self):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t", dynamic_store_auto_flush_period=yson.YsonEntity())
@@ -964,7 +962,6 @@ class TestBackups(DynamicTablesBase):
 class TestReplicatedTableBackups(TestReplicatedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_SCHEDULERS = 1
-    ENABLE_BULK_INSERT = True
 
     def _create_tables(self, replica_modes, mount=True, **attributes):
         self._create_replicated_table("//tmp/t", mount=mount, **attributes)

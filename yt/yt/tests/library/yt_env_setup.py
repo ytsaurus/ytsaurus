@@ -434,7 +434,6 @@ class YTEnvSetup(object):
     NUM_CYPRESS_PROXIES_GROUND = 0
 
     ENABLE_TMP_ROOTSTOCK = False
-    ENABLE_BULK_INSERT = False
     ENABLE_TMP_PORTAL = False
     ENABLE_TABLET_BALANCER = False
     ENABLE_STANDALONE_TABLET_BALANCER = False
@@ -1604,7 +1603,6 @@ class YTEnvSetup(object):
                         type="document",
                         attributes={
                             "value": {
-                                "enable_bulk_insert_for_everyone": self.ENABLE_BULK_INSERT,
                                 "testing_options": {
                                     "rootfs_test_layers": [
                                         "//layers/exec.tar.gz",
@@ -2313,19 +2311,6 @@ class YTEnvSetup(object):
         wait(check)
 
     def _setup_tablet_manager(self, driver=None):
-        # COMPAT(ifsmirnov): Avenue protocol has incompatible changes from 24.1 to 24.2.
-        use_avenues = True
-        if hasattr(self, "ARTIFACT_COMPONENTS"):
-            node_version = None
-            master_version = None
-            for version, components in self.ARTIFACT_COMPONENTS.items():
-                if "node" in components:
-                    node_version = version
-                if "master" in components:
-                    master_version = version
-            if (master_version == "24_1" or master_version == "24_2") and node_version != master_version:
-                use_avenues = False
-
         for response in yt_commands.execute_batch(
             [
                 yt_commands.make_batch_request(
@@ -2345,23 +2330,13 @@ class YTEnvSetup(object):
                 ),
                 yt_commands.make_batch_request(
                     "set",
-                    path="//sys/@config/tablet_manager/enable_bulk_insert",
-                    input=self.ENABLE_BULK_INSERT,
-                ),
-                yt_commands.make_batch_request(
-                    "set",
-                    path="//sys/@config/tablet_manager/enable_backups",
+                    path="//sys/@config/tablet_manager/use_avenues",
                     input=True,
                 ),
                 yt_commands.make_batch_request(
                     "set",
-                    path="//sys/@config/tablet_manager/use_avenues",
-                    input=use_avenues,
-                ),
-                yt_commands.make_batch_request(
-                    "set",
                     path="//sys/@config/tablet_manager/enable_smooth_tablet_movement",
-                    input=use_avenues,
+                    input=True,
                 ),
                 yt_commands.make_batch_request(
                     "set",
