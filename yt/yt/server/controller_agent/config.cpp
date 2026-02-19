@@ -1285,7 +1285,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .DefaultNew("robot-.*");
 
     registrar.Parameter("enable_bulk_insert_for_everyone", &TThis::EnableBulkInsertForEveryone)
-        .Default(false);
+        .Default(true);
     registrar.Parameter("enable_versioned_remote_copy", &TThis::EnableVersionedRemoteCopy)
         .Default(true);
     registrar.Parameter("enable_hunks_remote_copy", &TThis::EnableHunksRemoteCopy)
