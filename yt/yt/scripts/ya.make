@@ -34,6 +34,7 @@ IF (NOT OPENSOURCE)
         cmake
         cache_heater
         collect_recent_dyntables_tickets
+        backup
     )
 
     RECURSE_FOR_TESTS(
