@@ -1377,6 +1377,114 @@ class TestRacyPreemption(YTEnvSetup):
 
 ##################################################################
 
+class TestSchedulerStarvationIntervals(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+    NUM_MASTERS = 1
+    NUM_NODES = 2
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {"scheduler": {"fair_share_update_period": 100}}
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {"controller_agent": {"safe_scheduler_online_time": 1000000000}}
+
+    DELTA_NODE_CONFIG = {"job_resource_manager": {"resource_limits": {"cpu": 2, "user_slots": 2}}}
+
+    def setup_method(self, method):
+        super(TestSchedulerStarvationIntervals, self).setup_method(method)
+        update_pool_tree_config("default", {
+            "aggressive_preemption_satisfaction_threshold": 0.2,
+            "preemption_satisfaction_threshold": 1.0,
+            "fair_share_starvation_tolerance": 0.8,
+            "non_preemptible_resource_usage_threshold": {"user_slots": 0},
+            "fair_share_starvation_timeout": 100,
+            "fair_share_aggressive_starvation_timeout": 200,
+            "preemptive_scheduling_backoff": 0,
+            "max_ephemeral_pools_per_user": 5,
+        })
+
+    def _get_op_starvation_status(self, op):
+        return get(scheduler_orchid_operation_path(op.id) + "/starvation_status", default=None)
+
+    def _get_op_fair_share(self, op):
+        return get(scheduler_orchid_operation_path(op.id) + "/detailed_dominant_fair_share/total", default=None)
+
+    @authors("yaishenka")
+    def test_starvation_intervals_usage_increased(self):
+        nodes = list(ls("//sys/cluster_nodes"))
+
+        op = run_sleeping_vanilla(
+            job_count=1,
+            spec={"scheduling_tag_filter": "haha_tag"},
+        )
+
+        wait(lambda: self._get_op_starvation_status(op) == "starving")
+
+        time.sleep(2)
+
+        set("//sys/cluster_nodes/{}/@user_tags".format(nodes[0]), ["haha_tag"])
+        wait(lambda: self._get_op_starvation_status(op) != "starving")
+
+        profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "default"})
+
+        def check_for_starving_interval():
+            histogram = profiler.histogram("scheduler/pools/starvation_intervals", {"pool": "<Root>"})
+            counters = histogram.get_all(tags={"reason": "usage_increased"})
+            assert len(counters) == 1
+            counter = counters[0]
+            for value in counter["value"]:
+                if value["bound"] != 60.0:
+                    continue
+                if value["count"] != 0:
+                    assert value["count"] == 1
+                    return True
+            return False
+
+        wait(lambda: check_for_starving_interval())
+
+    @authors("yaishenka")
+    def test_starvation_intervals_fair_share_decreased(self):
+        nodes = list(ls("//sys/cluster_nodes"))
+        create_pool("regular_pool", attributes={"strong_guarantee_resources": {"cpu": 2.0}})
+        create_pool("starving_pool", attributes={"strong_guarantee_resources": {"cpu": 2.0}})
+
+        starving_op = run_sleeping_vanilla(
+            job_count=2,
+            spec={
+                "pool": "starving_pool",
+                "scheduling_tag_filter": nodes[0]
+            },
+            task_patch={"cpu_limit": 2},
+        )
+
+        wait(lambda: get(scheduler_orchid_operation_path(starving_op.id) + "/resource_usage/cpu", default=None) == 2.0)
+        wait(lambda: self._get_op_starvation_status(starving_op) == "starving")
+        time.sleep(2)
+
+        regular_op = run_sleeping_vanilla(task_patch={"cpu_limit": 2.0}, spec={"pool": "regular_pool"})
+        wait(lambda: get(scheduler_orchid_operation_path(regular_op.id) + "/resource_usage/cpu", default=None) == 2.0)
+
+        wait(lambda: self._get_op_starvation_status(starving_op) != "starving")
+
+        profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "default"})
+
+        def check_for_starving_interval():
+            histogram = profiler.histogram("scheduler/pools/starvation_intervals", {"pool": "starving_pool"})
+            counters = histogram.get_all(tags={"reason": "fair_share_decreased"})
+            assert len(counters) == 1
+            counter = counters[0]
+            for value in counter["value"]:
+                if value["bound"] != 60.0:
+                    continue
+                if value["count"] != 0:
+                    assert value["count"] == 1
+                    return True
+            return False
+
+        wait(lambda: check_for_starving_interval())
+
+
+##################################################################
+
 
 @pytest.mark.enabled_multidaemon
 class TestSchedulingBugOfOperationWithGracefulPreemption(YTEnvSetup):

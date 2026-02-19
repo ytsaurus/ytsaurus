@@ -24,11 +24,13 @@ TPoolTreeProfileManager::TPoolTreeProfileManager(
     TProfiler profiler,
     bool sparsifyMetrics,
     const IInvokerPtr& profilingInvoker,
-    NPolicy::ISchedulingPolicyPtr schedulingPolicy)
+    NPolicy::ISchedulingPolicyPtr schedulingPolicy,
+    std::vector<TDuration> perPoolStarvationIntervalBounds)
     : Profiler_(std::move(profiler))
     , SparsifyMetrics_(sparsifyMetrics)
     , ProfilingInvoker_(profilingInvoker)
     , SchedulingPolicy_(std::move(schedulingPolicy))
+    , PerPoolStarvationIntervalBounds_(std::move(perPoolStarvationIntervalBounds))
     , NodeCountGauge_(Profiler_.Gauge("/node_count_per_tree"))
     , PoolCountGauge_(Profiler_.Gauge("/pools/pool_count"))
     , TotalElementCountGauge_(Profiler_.Gauge("/pools/total_element_count"))
@@ -224,11 +226,19 @@ void TPoolTreeProfileManager::RegisterPoolProfiler(const TString& poolName)
         }
     }
 
+    TEnumIndexedArray<EStarvationChangeReason, NProfiling::TEventTimer> starvationIntervalHistograms;
+    for (auto reason : TEnumTraits<EStarvationChangeReason>::GetDomainValues()) {
+        starvationIntervalHistograms[reason] = poolProfiler
+            .WithTag("reason", FormatEnum(reason))
+            .TimeHistogram("/pools/starvation_intervals", PerPoolStarvationIntervalBounds_);
+    }
+
     auto it = EmplaceOrCrash(
         PoolNameToState_,
         poolName,
         TPoolState{
             .UnregisterOperationCounters = std::move(counters),
+            .StarvationIntervalHistograms = std::move(starvationIntervalHistograms),
             .BufferedProducer = New<NProfiling::TBufferedProducer>(),
         });
     const auto& poolState = it->second;
@@ -616,6 +626,33 @@ void TPoolTreeProfileManager::ApplyScheduledAndPreemptedResourcesDelta(
         applyDeltas(preemptedAllocationResources[preemptionReason], PreemptedResourcesByReasonMap_[preemptionReason]);
         applyDeltas(preemptedAllocationResourceTimes[preemptionReason], PreemptedResourceTimesByReasonMap_[preemptionReason]);
         applyDeltas(improperlyPreemptedAllocationResources[preemptionReason], ImproperlyPreemptedResourcesByReasonMap_[preemptionReason]);
+    }
+}
+
+void TPoolTreeProfileManager::ProfileStarvationIntervals(const TPoolTreeSnapshotPtr& treeSnapshot)
+{
+    YT_ASSERT_INVOKER_AFFINITY(ProfilingInvoker_);
+
+    THashMap<TString, TPoolState> poolNameToState;
+    {
+        auto readerGuard = ReaderGuard(PoolNameToStateLock_);
+        poolNameToState = PoolNameToState_;
+    }
+
+    for (auto [_, operation] : treeSnapshot->EnabledOperationMap()) {
+        const auto& operationInterval = operation->PostUpdateAttributes().StarvationInterval;
+        if (!operationInterval) {
+            continue;
+        }
+
+        auto* ancestor = operation->GetMutableParent();
+        while (ancestor) {
+            auto it = poolNameToState.find(ancestor->GetId());
+            if (it != poolNameToState.end()) {
+                it->second.StarvationIntervalHistograms[operationInterval->Reason].Record(operationInterval->Duration);
+            }
+            ancestor = ancestor->GetMutableParent();
+        }
     }
 }
 
