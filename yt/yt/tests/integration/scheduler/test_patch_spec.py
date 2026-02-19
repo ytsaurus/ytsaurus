@@ -20,7 +20,10 @@ from yt_commands import (
     write_table,
 )
 
+from yt_driver_bindings import Driver
+
 import pytest
+from copy import deepcopy
 
 ##################################################################
 
@@ -34,6 +37,13 @@ def delay(duration, type="async"):
 
 def make_patch(path: str, value):
     return {"path": path, "value": value}
+
+
+def get_noretry_driver(env):
+    config = deepcopy(env.configs["driver"])
+    config["api_version"] = 4
+    config["scheduler"]["retry_backoff"]["invocation_count"] = 1
+    return Driver(config=config)
 
 
 class TestPatchSpec(YTEnvSetup):
@@ -179,7 +189,7 @@ class TestUpdateProtocol(TestUpdateProtocolBase):
     @pytest.mark.parametrize(
         "fail_point",
         [
-            "",
+            None,
             "before_cypress_flush",
             "before_apply",
         ],
@@ -192,7 +202,7 @@ class TestUpdateProtocol(TestUpdateProtocolBase):
         write_table("//tmp/t1", {"foo": "bar"})
 
         testing_spec = {}
-        if fail_point:
+        if fail_point is not None:
             testing_spec["patch_spec_protocol"] = {"delay_" + fail_point: delay("5s")}
 
         op = map(
@@ -217,12 +227,15 @@ class TestUpdateProtocol(TestUpdateProtocolBase):
             {
                 "operation_id": op.id,
                 "patches": [make_patch("/max_failed_job_count", 3)],
+                # Sometimes retry is lucky and arrives after scheduler's restart
+                # which causes the test to flap.
+                "driver": get_noretry_driver(self.Env),
             },
             return_response=True,
         )
         sleep(1)
 
-        if fail_point:
+        if fail_point is not None:
             with Restarter(self.Env, SCHEDULERS_SERVICE):
                 pass
 
@@ -234,7 +247,7 @@ class TestUpdateProtocol(TestUpdateProtocolBase):
         assert get(orchid_path + "/testing/dynamic_spec/max_failed_job_count") == expected
 
         response.wait()
-        if not fail_point:
+        if fail_point is None:
             assert response.is_ok()
         else:
             assert not response.is_ok()
