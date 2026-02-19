@@ -358,9 +358,6 @@ EXPRESSION_METADATA = {
         for expr_type in {
             exp.ApproxPercentileEstimate,
             exp.ApproximateSimilarity,
-            exp.Asinh,
-            exp.Atanh,
-            exp.Cosh,
             exp.CosineDistance,
             exp.CovarPop,
             exp.CovarSamp,
@@ -369,7 +366,6 @@ EXPRESSION_METADATA = {
             exp.ManhattanDistance,
             exp.MonthsBetween,
             exp.Normal,
-            exp.Sinh,
         }
     },
     exp.Kurtosis: {"annotator": _annotate_kurtosis},
@@ -418,7 +414,6 @@ EXPRESSION_METADATA = {
         for expr_type in {
             exp.ByteLength,
             exp.Grouping,
-            exp.Hour,
             exp.JarowinklerSimilarity,
             exp.MapSize,
             exp.Minute,
@@ -511,7 +506,6 @@ EXPRESSION_METADATA = {
             exp.DecompressString,
             exp.HexDecodeString,
             exp.HexEncode,
-            exp.MD5,
             exp.Monthname,
             exp.Randstr,
             exp.RegexpExtract,
