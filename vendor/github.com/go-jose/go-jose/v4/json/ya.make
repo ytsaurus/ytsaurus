@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v4.0.5)
+VERSION(v4.1.1)
 
 SRCS(
     decode.go

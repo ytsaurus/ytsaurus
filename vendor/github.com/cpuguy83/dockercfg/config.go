@@ -13,7 +13,7 @@ type Config struct {
 	DetachKeys           string                 `json:"detachKeys,omitempty"`
 	CredentialsStore     string                 `json:"credsStore,omitempty"`
 	CredentialHelpers    map[string]string      `json:"credHelpers,omitempty"`
-	Filename             string                 `json:"-"` // Note: for internal use only
+	Filename             string                 `json:"-"` // Note: for internal use only.
 	ServiceInspectFormat string                 `json:"serviceInspectFormat,omitempty"`
 	ServicesFormat       string                 `json:"servicesFormat,omitempty"`
 	TasksFormat          string                 `json:"tasksFormat,omitempty"`
@@ -30,7 +30,7 @@ type Config struct {
 	Aliases              map[string]string      `json:"aliases,omitempty"`
 }
 
-// ProxyConfig contains proxy configuration settings
+// ProxyConfig contains proxy configuration settings.
 type ProxyConfig struct {
 	HTTPProxy  string `json:"httpProxy,omitempty"`
 	HTTPSProxy string `json:"httpsProxy,omitempty"`
@@ -38,7 +38,7 @@ type ProxyConfig struct {
 	FTPProxy   string `json:"ftpProxy,omitempty"`
 }
 
-// AuthConfig contains authorization information for connecting to a Registry
+// AuthConfig contains authorization information for connecting to a Registry.
 type AuthConfig struct {
 	Username string `json:"username,omitempty"`
 	Password string `json:"password,omitempty"`
@@ -55,11 +55,11 @@ type AuthConfig struct {
 	// an access token for the registry.
 	IdentityToken string `json:"identitytoken,omitempty"`
 
-	// RegistryToken is a bearer token to be sent to a registry
+	// RegistryToken is a bearer token to be sent to a registry.
 	RegistryToken string `json:"registrytoken,omitempty"`
 }
 
-// KubernetesConfig contains Kubernetes orchestrator settings
+// KubernetesConfig contains Kubernetes orchestrator settings.
 type KubernetesConfig struct {
 	AllNamespaces string `json:"allNamespaces,omitempty"`
 }

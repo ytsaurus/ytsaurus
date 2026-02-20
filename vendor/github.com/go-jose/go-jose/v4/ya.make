@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v4.0.5)
+VERSION(v4.1.1)
 
 SRCS(
     asymmetric.go
@@ -16,6 +16,7 @@ SRCS(
     shared.go
     signing.go
     symmetric.go
+    symmetric_go124.go
 )
 
 GO_TEST_SRCS(
