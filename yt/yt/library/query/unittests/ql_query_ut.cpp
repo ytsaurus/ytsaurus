@@ -1085,8 +1085,7 @@ TEST_F(TQueryPrepareTest, SubqueryAliases)
         &PrepareMock_,
         source,
         topQuery,
-        parsedSource->AstHead,
-        EExecutionBackend::Native);
+        parsedSource->AstHead);
 
     EXPECT_TRUE(topAliasMap.contains("c"));
     EXPECT_EQ(topAliasMap.size(), 1ul);
@@ -1212,12 +1211,13 @@ TEST_F(TQueryPrepareTest, RewriteCardinalityIntoHyperLogLogWithPrecision)
             parsedSource->Source,
             std::get<NAst::TQuery>(parsedSource->AstHead.Ast),
             parsedSource->AstHead,
-            NCodegen::EExecutionBackend::Native,
-            DefaultExpressionBuilderVersion,
-            /*memoryTracker*/ nullptr,
-            /*syntaxVersion*/ 2,
-            /*shouldRewriteCardinalityIntoHyperLogLog*/ true,
-            /*hyperLogLogPrecision*/ 7);
+            TPreparePlanFragmentOptions{
+                .SyntaxVersion = 2,
+                .BuilderVersion = DefaultExpressionBuilderVersion,
+                .ExecutionBackend = EExecutionBackend::Native,
+                .ShouldRewriteCardinalityIntoHyperLogLog = true,
+                .HyperLogLogPrecision = 7,
+            });
         return InferName(plan->Query, {.OmitValues = true});
     };
 
@@ -1254,12 +1254,13 @@ TEST_F(TQueryPrepareTest, RewriteCardinalityIntoHyperLogLogWithPrecision)
             parsedSource->Source,
             std::get<NAst::TQuery>(parsedSource->AstHead.Ast),
             parsedSource->AstHead,
-            NCodegen::EExecutionBackend::Native,
-            DefaultExpressionBuilderVersion,
-            /*memoryTracker*/ nullptr,
-            /*syntaxVersion*/ 2,
-            /*shouldRewriteCardinalityIntoHyperLogLog*/ true,
-            /*hyperLogLogPrecision*/ 7);
+            TPreparePlanFragmentOptions{
+                .SyntaxVersion = 2,
+                .BuilderVersion = DefaultExpressionBuilderVersion,
+                .ExecutionBackend = EExecutionBackend::Native,
+                .ShouldRewriteCardinalityIntoHyperLogLog = true,
+                .HyperLogLogPrecision = 7,
+            });
 
         auto fingerprint0 = InferName(plan->Query, {.OmitValues = true});
         EXPECT_TRUE(fingerprint0.contains("hll_7_merge(`Subquery_2.x`) AS c"));
