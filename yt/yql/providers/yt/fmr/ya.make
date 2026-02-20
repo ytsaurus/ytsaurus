@@ -13,6 +13,7 @@ RECURSE(
     table_data_service
     tests
     test_tools
+    tvm
     utils
     worker
     yt_job_service

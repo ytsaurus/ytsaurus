@@ -10,9 +10,11 @@
 #include <yt/yql/providers/yt/fmr/table_data_service/client/impl/yql_yt_table_data_service_client_impl.h>
 #include <yt/yql/providers/yt/fmr/table_data_service/discovery/file/yql_yt_file_service_discovery.h>
 #include <yt/yql/providers/yt/fmr/table_data_service/interface/yql_yt_table_data_service.h>
+#include <yt/yql/providers/yt/fmr/tvm/impl/yql_yt_fmr_tvm_impl.h>
 #include <yql/essentials/utils/log/log.h>
 #include <yql/essentials/utils/log/log_component.h>
 #include <yql/essentials/utils/mem_limit.h>
+#include <yt/yql/providers/yt/fmr/utils/yql_yt_tvm_helpers.h>
 
 using namespace NYql::NFmr;
 using namespace NYql;
@@ -28,6 +30,10 @@ public:
     TString FmrOperationSpecFilePath;
     TString TableDataServiceDiscoveryFilePath;
     TString UnderlyingGatewayType;
+    TString LoggerFormat;
+    TString FmrTvmConfig;
+    TMaybe<ui32> FmrTvmPort;
+    TMaybe<TString> FmrTvmSecretPath;
 
     void InitLogger() {
         NLog::ELevel level = NLog::TLevelHelpers::FromInt(Verbosity);
@@ -44,7 +50,6 @@ void SignalHandler(int) {
 int main(int argc, const char *argv[]) {
     try {
         SetInterruptSignalsHandler(SignalHandler);
-        NYql::NLog::YqlLoggerScope logger(&Cerr);
         TCoordinatorServerRunOptions options;
         NLastGetopt::TOpts opts = NLastGetopt::TOpts::Default();
         opts.AddHelpOption();
@@ -56,9 +61,18 @@ int main(int argc, const char *argv[]) {
         opts.AddLongOption('s', "fmr-operation-spec-path", "Path to file with fmr operation spec settings").Optional().StoreResult(&options.FmrOperationSpecFilePath);
         opts.AddLongOption('d', "table-data-service-discovery-file-path", "Table data service discovery file path").StoreResult(&options.TableDataServiceDiscoveryFilePath);
         opts.AddLongOption('g', "gateway-type", "Type of underlying gateway (native, file)").StoreResult(&options.UnderlyingGatewayType).DefaultValue("native");
+        opts.AddLongOption('f', "logger-format", "Logs formatting type").StoreResult(&options.LoggerFormat).DefaultValue("legacy");
+        opts.AddLongOption('t', "tvm-cfg", "fmr tvm config").Optional().StoreResult(&options.FmrTvmConfig);
+        opts.AddLongOption("tvm-port", "fmr tvm port").Optional().StoreResult(&options.FmrTvmPort);
+        opts.AddLongOption("tvm-secret-path", "fmr tvm secret path").Optional().StoreResult(&options.FmrTvmSecretPath);
         opts.SetFreeArgsMax(0);
 
         auto res = NLastGetopt::TOptsParseResult(&opts, argc, argv);
+
+        TString loggerFormat = options.LoggerFormat;
+        YQL_ENSURE(loggerFormat == "json" || loggerFormat == "legacy");
+        auto formatter = loggerFormat == "json" ? NYql::NLog::JsonFormat : NYql::NLog::LegacyFormat;
+        NYql::NLog::YqlLoggerScope logger(&Cerr, formatter);
 
         options.InitLogger();
 
@@ -76,17 +90,35 @@ int main(int argc, const char *argv[]) {
             auto fmrOperationSpec = NYT::NodeFromYsonStream(&input);
             coordinatorSettings.DefaultFmrOperationSpec = fmrOperationSpec;
         }
+
         TFmrCoordinatorServerSettings coordinatorServerSettings{.Port = options.Port, .Host = options.Host};
+
+        IFmrTvmClient::TPtr coordinatorTvmClient = nullptr;
+        ui64 tableDataServiceTvmId = 0;
+
+        auto tvmSpec = ParseFmrTvmSpec(options.FmrTvmConfig);
+        if (tvmSpec.Defined()) {
+            auto tvmSecret = ParseFmrTvmSecretFile(options.FmrTvmSecretPath);
+            coordinatorTvmClient = MakeFmrTvmClient(TFmrTvmToolSettings{
+                .SourceTvmAlias = tvmSpec->CoordinatorTvmAlias,
+                .TvmPort = options.FmrTvmPort,
+                .TvmSecret = tvmSecret
+            });
+            tableDataServiceTvmId = tvmSpec->TableDataServiceTvmId;
+            coordinatorServerSettings.AllowedSourceTvmIds = {tvmSpec->WorkerTvmId};
+            // TODO - add gateway tvm id to allowed source ids when it is supported in yql.
+        }
+
         ITableDataService::TPtr tableDataService = nullptr;
         if (options.TableDataServiceDiscoveryFilePath) {
             auto tableDataServiceDiscovery = MakeFileTableDataServiceDiscovery({.Path = options.TableDataServiceDiscoveryFilePath});
-            tableDataService = MakeTableDataServiceClient(tableDataServiceDiscovery);
+            tableDataService = MakeTableDataServiceClient(tableDataServiceDiscovery, coordinatorTvmClient, tableDataServiceTvmId);
         }
 
         auto gcService = MakeGcService(tableDataService);
         IYtCoordinatorService::TPtr ytCoordinatorService = isNative ? MakeYtCoordinatorService() : MakeFileYtCoordinatorService();
         auto coordinator = MakeFmrCoordinator(coordinatorSettings, ytCoordinatorService, gcService);
-        auto coordinatorServer = MakeFmrCoordinatorServer(coordinator, coordinatorServerSettings);
+        auto coordinatorServer = MakeFmrCoordinatorServer(coordinator, coordinatorServerSettings, coordinatorTvmClient);
         coordinatorServer->Start();
 
         while (!isInterrupted) {
