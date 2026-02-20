@@ -50,7 +50,7 @@ public class EmbeddedEntityTest {
     @Test
     public void testEmbeddedWithInnerEmbeddedSchema() {
         final var partialSchema = TableSchema.builder()
-                .add(ColumnSchema.builder("rating", TiType.decimal(10, 2)).build())
+                .add(ColumnSchema.builder("rating", TiType.optional(TiType.decimal(10, 2))).build())
                 .build();
         var entitySchema = SchemaConverter.toSkiffSchema(
                 EntityTableSchemaCreator.create(Student.class, partialSchema)
