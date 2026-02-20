@@ -46,6 +46,8 @@ using namespace NYT::NNbd;
 using namespace NProfiling;
 using namespace NYTree;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 constinit const auto Logger = ExecNodeLogger;

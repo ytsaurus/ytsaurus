@@ -24,7 +24,8 @@ struct IVolumeManager
     //! Prepare tmpfs volumes.
     virtual TFuture<std::vector<TTmpfsVolumeResult>> PrepareTmpfsVolumes(
         const std::optional<TString>& sandboxPath,
-        const std::vector<TTmpfsVolumeParams>& volumes) = 0;
+        const std::vector<TTmpfsVolumeParams>& volumes,
+        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts) = 0;
 
     //! TODO(yuryalekeev): Remove this method after we get rid of rbind volume.
     virtual TFuture<IVolumePtr> RbindRootVolume(
@@ -34,7 +35,8 @@ struct IVolumeManager
     //! Link tmpfs volumes into destination directory.
     virtual TFuture<void> LinkTmpfsVolumes(
         const TString& destinationDirectory,
-        const std::vector<TTmpfsVolumeResult>& volumes) = 0;
+        const std::vector<TTmpfsVolumeResult>& volumes,
+        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts) = 0;
 
     virtual bool IsLayerCached(const TArtifactKey& artifactKey) const = 0;
 

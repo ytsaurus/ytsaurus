@@ -35,6 +35,7 @@
 #include <yt/yt/client/signature/validator.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/rpc/service_detail.h>
 
@@ -51,6 +52,7 @@ using namespace NObjectClient;
 using NChunkClient::NProto::TDataStatistics;
 using namespace NScheduler;
 using namespace NSignature;
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -402,6 +402,8 @@ private:
     std::optional<NControllerAgent::TNetworkProject> NetworkProject_;
     std::vector<TTmpfsVolumeResult> TmpfsVolumes_;
 
+    std::vector<NScheduler::TVolumeMountPtr> JobVolumeMounts_;
+
     std::atomic<bool> UseJobInputCache_ = false;
 
     NThreading::TAtomicObject<THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr>> ProxiableChunks_;
@@ -414,7 +416,13 @@ private:
 
     std::optional<TVirtualSandboxData> VirtualSandboxData_;
 
+    // COMPAT(krasovav)
+    std::optional<int> RootVolumeDiskSpace_;
+    // COMPAT(krasovav)
+    std::optional<int64_t> RootVolumeInodeLimit_;
+
     std::optional<TSandboxNbdRootVolumeData> SandboxNbdRootVolumeData_;
+    std::vector<TTmpfsVolumeParams> TmpfsVolumeParams_;
 
     //! NBD device ids used by the job.
     THashSet<TString> NbdDeviceIds_;
@@ -584,7 +592,7 @@ private:
     // Build artifacts.
     void InitializeArtifacts();
 
-    void InitializeSandboxNbdRootVolumeData();
+    void InitializeVolumes();
 
     THashSet<TString> InitializeNbdDeviceIds();
 

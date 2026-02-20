@@ -57,6 +57,7 @@ YT_DEFINE_ERROR_ENUM(
     ((SimpleVolumeManagerFailure)            (1146))
     ((TmpfsVolumePreparationFailed)          (1147))
     ((TmpfsVolumeLinkingFailed)              (1148))
+    ((NbdServerDisabledOnNode)               (1149))
 );
 
 DEFINE_ENUM(EJobPhase,

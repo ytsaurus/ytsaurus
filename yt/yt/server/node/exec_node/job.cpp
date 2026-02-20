@@ -164,6 +164,8 @@ using namespace NNbd;
 using namespace NSquashFS;
 using namespace NServer;
 
+using NYT::FromProto;
+
 using NNodeTrackerClient::TNodeDirectory;
 using NChunkClient::TDataSliceDescriptor;
 
@@ -2425,11 +2427,9 @@ void TJob::RunWithWorkspaceBuilder()
         BuildVirtualSandbox();
     }
 
-    TUserSandboxOptions options = BuildUserSandboxOptions();
-
     TJobWorkspaceBuildingContext context{
         .Logger = Logger,
-        .UserSandboxOptions = options,
+        .UserSandboxOptions = BuildUserSandboxOptions(),
         .Slot = GetUserSlot(),
         .Job = MakeStrong(this),
         .CommandUser = CommonConfig_->SetupCommandUser,
@@ -3137,9 +3137,10 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     proxyInternalConfig->HttpServerUdsPath = GetUserSlot()->GetJobProxyHttpUnixDomainSocketPath();
 
     proxyInternalConfig->TmpfsManager = New<TTmpfsManagerConfig>();
+    proxyInternalConfig->TmpfsManager->TmpfsPaths.resize(TmpfsVolumes_.size());
     for (const auto& tmpfsVolume : TmpfsVolumes_) {
         // Pass tmpfs volume mount paths.
-        proxyInternalConfig->TmpfsManager->TmpfsPaths.push_back(tmpfsVolume.Volume->GetPath());
+        proxyInternalConfig->TmpfsManager->TmpfsPaths[tmpfsVolume.Index] = tmpfsVolume.Volume->GetPath();
     }
 
     proxyInternalConfig->MemoryTracker = New<TMemoryTrackerConfig>();
@@ -3434,40 +3435,17 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
     options.EnableRootVolumeDiskQuota = RootVolumeDiskQuotaEnabled_;
     options.EnableDiskQuota = Bootstrap_->GetConfig()->DataNode->VolumeManager->EnableDiskQuota;
     options.UserId = GetUserSlot()->GetUserId();
+    options.JobVolumeMounts = JobVolumeMounts_;
+    options.TmpfsVolumes = TmpfsVolumeParams_;
+    options.DiskSpaceLimit = RootVolumeDiskSpace_;
+    options.InodeLimit = RootVolumeInodeLimit_;
 
     if (UserJobSpec_) {
-        for (const auto& tmpfsVolumeProto : UserJobSpec_->tmpfs_volumes()) {
-            TTmpfsVolumeParams volumeParams;
-            volumeParams.Size = tmpfsVolumeProto.size();
-            volumeParams.Path = tmpfsVolumeProto.path();
-            volumeParams.UserId = GetUserSlot()->GetUserId();
-            options.TmpfsVolumes.push_back(volumeParams);
-        }
-
         // Place upper directory of overlayfs on requested disk.
-        if (UserJobSpec_->has_disk_request()) {
+        if (!options.JobVolumeMounts.empty()) {
             options.SlotPath = GetUserSlot()->GetSlotPath();
         }
 
-        // Do not set space and inode limits if root volume is used.
-        if (UserJobSpec_->has_disk_request() && !SandboxNbdRootVolumeData_) {
-            if (UserJobSpec_->disk_request().has_disk_space()) {
-                options.DiskSpaceLimit = UserJobSpec_->disk_request().disk_space();
-            }
-            if (UserJobSpec_->disk_request().has_inode_count()) {
-                options.InodeLimit = UserJobSpec_->disk_request().inode_count();
-            }
-        }
-
-        if (options.DiskSpaceLimit.has_value() && options.DiskSpaceLimit.value() <= 0) {
-            THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::QuotaSettingFailed, "Set disk space limit must be greater than 0")
-                << TErrorAttribute("disk_space_limit", options.DiskSpaceLimit.value());
-        }
-
-        if (options.InodeLimit.has_value() && options.InodeLimit.value() <= 0) {
-            THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::QuotaSettingFailed, "Set inode limit must be greater than 0")
-                << TErrorAttribute("inode_limit", options.InodeLimit.value());
-        }
     }
 
     options.VirtualSandboxData = VirtualSandboxData_;
@@ -3507,36 +3485,68 @@ bool TJob::CanBeAccessedViaVirtualSandbox(const TArtifactDescription& artifact) 
     return true;
 }
 
-void TJob::InitializeSandboxNbdRootVolumeData()
+void TJob::InitializeVolumes()
 {
-    if (!UserJobSpec_ ||
-        !UserJobSpec_->has_disk_request() ||
-        !UserJobSpec_->disk_request().has_nbd_disk() ||
-        !Bootstrap_->GetNbdServer())
-    {
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    if (!UserJobSpec_ || UserJobSpec_->volumes().empty()) {
         return;
     }
 
-    YT_VERIFY(UserJobSpec_->disk_request().has_disk_space());
-    YT_VERIFY(UserJobSpec_->disk_request().has_medium_index());
-
-    SandboxNbdRootVolumeData_ = TSandboxNbdRootVolumeData{
-        .Size = UserJobSpec_->disk_request().disk_space(),
-        .MediumIndex = UserJobSpec_->disk_request().medium_index(),
-    };
-
-    const auto& nbdDisk = UserJobSpec_->disk_request().nbd_disk();
-
-    if (nbdDisk.has_data_node_address()) {
-        SandboxNbdRootVolumeData_->DataNodeAddress = nbdDisk.data_node_address();
+    JobVolumeMounts_.reserve(UserJobSpec_->job_volume_mounts().size());
+    for (const auto& protoVolumeMount : UserJobSpec_->job_volume_mounts()) {
+        TVolumeMountPtr volumeMount = New<NScheduler::TVolumeMount>();
+        FromProto(volumeMount.Get(), protoVolumeMount);
+        JobVolumeMounts_.push_back(std::move(volumeMount));
     }
 
-    SandboxNbdRootVolumeData_->DataNodeRpcTimeout = FromProto<TDuration>(nbdDisk.data_node_rpc_timeout());
-    SandboxNbdRootVolumeData_->MasterRpcTimeout = FromProto<TDuration>(nbdDisk.master_rpc_timeout());
-    SandboxNbdRootVolumeData_->DataNodeNbdServiceRpcTimeout = FromProto<TDuration>(nbdDisk.data_node_nbd_service_rpc_timeout());
-    SandboxNbdRootVolumeData_->DataNodeNbdServiceMakeTimeout = FromProto<TDuration>(nbdDisk.data_node_nbd_service_make_timeout());
-    SandboxNbdRootVolumeData_->MinDataNodeCount = nbdDisk.min_data_node_count();
-    SandboxNbdRootVolumeData_->MaxDataNodeCount = nbdDisk.max_data_node_count();
+    auto createNdbDiskRequest = [&] (const NScheduler::NProto::TNbdDiskRequest& nbdDiskRequest) {
+        // COMPAT(krasovav)
+        YT_VERIFY(!SandboxNbdRootVolumeData_);
+
+        if (!Bootstrap_->GetNbdServer()) {
+            THROW_ERROR_EXCEPTION(
+                NExecNode::EErrorCode::NbdServerDisabledOnNode,
+               "Nbd server disabled on this node but job requested nbd volume");
+        }
+
+        SandboxNbdRootVolumeData_ = TSandboxNbdRootVolumeData{};
+        NExecNode::FromProto(&(*SandboxNbdRootVolumeData_), nbdDiskRequest);
+    };
+
+    auto createLocalDiskRequest = [&] (const NScheduler::NProto::TLocalDiskRequest& localDiskRequest) {
+        RootVolumeDiskSpace_ = localDiskRequest.disk_request().storage_request_common_parameters().disk_space();
+
+        if (localDiskRequest.disk_request().has_inode_count()) {
+            RootVolumeInodeLimit_ = localDiskRequest.disk_request().inode_count();
+        }
+    };
+
+    auto createTmpfsStorageRequest = [&] (const std::string& volumeId, const NScheduler::NProto::TTmpfsStorageRequest& tmpfsDiskRequest) {
+        TTmpfsVolumeParams tmpfsVolume;
+        NExecNode::FromProto(&tmpfsVolume, tmpfsDiskRequest);
+        tmpfsVolume.UserId = GetUserSlot()->GetUserId();
+        tmpfsVolume.VolumeId = volumeId;
+        TmpfsVolumeParams_.push_back(std::move(tmpfsVolume));
+    };
+
+    for (const auto& [volumeId, protoVolume] : UserJobSpec_->volumes()) {
+        using TProtoMessage = NControllerAgent::NProto::TVolume::DiskRequestCase;
+        switch (protoVolume.disk_request_case()) {
+            case TProtoMessage::DISK_REQUEST_NOT_SET:
+                break;
+            case TProtoMessage::kLocalDiskRequest:
+                createLocalDiskRequest(protoVolume.local_disk_request());
+                break;
+            case TProtoMessage::kNbdDiskRequest:
+                createNdbDiskRequest(protoVolume.nbd_disk_request());
+                break;
+            case TProtoMessage::kTmpfsStorageRequest:
+                createTmpfsStorageRequest(volumeId, protoVolume.tmpfs_storage_request());
+                break;
+        }
+    }
+
 }
 
 THashSet<TString> TJob::InitializeNbdDeviceIds()
@@ -3690,7 +3700,7 @@ void TJob::InitializeArtifacts()
         }
     }
 
-    InitializeSandboxNbdRootVolumeData();
+    InitializeVolumes();
 
     NbdDeviceIds_ = InitializeNbdDeviceIds();
 

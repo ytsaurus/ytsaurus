@@ -93,21 +93,26 @@ struct TGpuCheckOptions
 
 struct TTmpfsVolumeParams
 {
-    //! Path relative to sandbox, e.g. my_tmpfs
-    TString Path;
     i64 Size = 0;
     //! Slot user id.
     int UserId = 0;
+    std::string VolumeId;
+
+    // COMPAT(krasovav)
+    int Index = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTmpfsVolumeResult
 {
-    //! Tmpfs path, i.e. path relative to sandbox, e.g. my_tmpfs
-    TString Path;
     //! Tmpfs volume.
     IVolumePtr Volume;
+
+    std::string VolumeId;
+
+    // COMPAT(krasovav)
+    int Index = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
