@@ -36,39 +36,39 @@ jobs:
         run: |
           set -euo pipefail
 
-          ref='$${{ inputs.ref_name }}'
-          tag='$${{ inputs.image_tag }}'
+          ref='${{ inputs.ref_name }}'
+          tag='${{ inputs.image_tag }}'
 
-          if [[ -n "$$tag" ]]; then
-            tmp="$${tag#*-}"
-            ver="$${tmp%%-*}"
+          if [[ -n "$tag" ]]; then
+            tmp="${tag#*-}"
+            ver="${tmp%%-*}"
           else
-            ver="$${ref#*/}"
+            ver="${ref#*/}"
           fi
 
           component=""
-          case "$$ref" in
+          case "$ref" in
             query-tracker/*) component="query_tracker" ;;
             stable/*)        component="ytsaurus" ;;
             chyt/*)          component="chyt" ;;
           esac
 
           version_filter_json="{}"
-          if [[ -n "$$component" && -n "$$ver" ]]; then
-            version_filter_json="$$(jq -cn --arg k "$$component" --arg v "$$ver" '{($$k): $$v}')"
+          if [[ -n "$component" && -n "$ver" ]]; then
+            version_filter_json="$(jq -cn --arg k "$component" --arg v "$ver" '{($k): $v}')"
           fi
 
-          echo "Ver: $$ver"
-          echo "Component: $$component"
-          echo "JSON: $$version_filter_json"
+          echo "Ver: $ver"
+          echo "Component: $component"
+          echo "JSON: $version_filter_json"
 
           args=(
             run-scenario
-            --scenario "$${{ inputs.scenario }}"
-            --git-token "$${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}"
-            --cloud-function-token "$${{ secrets.YTSAURUS_CI_K8S_EDITOR_TOKEN }}"
-            --version-filter "$$version_filter_json"
+            --scenario "${{ inputs.scenario }}"
+            --git-token "${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}"
+            --cloud-function-token "${{ secrets.YTSAURUS_CI_K8S_EDITOR_TOKEN }}"
+            --version-filter "$version_filter_json"
             --apply
           )
 
-          ./yt/admin/ytsaurus_ci/ytsaurus_ci "$${args[@]}"
+          ./yt/admin/ytsaurus_ci/ytsaurus_ci "${args[@]}"
