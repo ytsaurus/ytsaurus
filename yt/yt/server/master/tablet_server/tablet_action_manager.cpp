@@ -327,6 +327,10 @@ public:
             if (table->IsReplicated()) {
                 THROW_ERROR_EXCEPTION("Replicated table tablet cannot be moved");
             }
+
+            if (table->GetHunkStorage()) {
+                THROW_ERROR_EXCEPTION("Table linked to hunk storage cannot be moved");
+            }
         }
 
         auto* action = DoCreateTabletAction(
