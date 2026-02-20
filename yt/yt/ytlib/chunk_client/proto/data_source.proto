@@ -4,7 +4,7 @@ import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 import "yt_proto/yt/client/table_client/proto/versioned_io_options.proto";
 import "yt/ytlib/scheduler/proto/input_query.proto";
 import "yt/ytlib/table_client/proto/virtual_value_directory.proto";
-import "yt/ytlib/table_client/proto/row_level_security.proto";
+import "yt/yt/library/query/row_level_security_api/proto/row_level_security.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
