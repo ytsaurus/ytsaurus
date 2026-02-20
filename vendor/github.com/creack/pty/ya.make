@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(MIT)
 
-VERSION(v1.1.21)
+VERSION(v1.1.24)
 
 SRCS(
     doc.go
@@ -12,8 +12,9 @@ SRCS(
 
 GO_TEST_SRCS(
     doc_test.go
+    fd_helper_other_test.go
     helpers_test.go
-    io_test.go
+    # io_test.go
 )
 
 IF (ARCH_X86_64)

@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(MIT)
 
-VERSION(v1.1.1)
+VERSION(v1.2.0)
 
 SRCS(
     backward_references.go

@@ -6,7 +6,7 @@ LICENSE(
     MIT
 )
 
-VERSION(v1.18.0)
+VERSION(v1.18.2)
 
 SRCS(
     bitreader.go
@@ -35,7 +35,7 @@ IF (ARCH_ARM64)
     )
 ENDIF()
 
-IF (OS_LINUX AND ARCH_ARM7)
+IF (OS_LINUX AND ARCH_ARM6 OR OS_LINUX AND ARCH_ARM7)
     SRCS(
         decompress_generic.go
     )
