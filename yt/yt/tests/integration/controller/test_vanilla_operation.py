@@ -3468,7 +3468,7 @@ class TestDontStartNewIncarnationAfterPreemptionIfJobNotStartedYet(YTEnvSetup):
             },
         )
 
-        wait_breakpoint(breakpoint_name="first")
+        wait_breakpoint(breakpoint_name="first", job_count=2)
 
         run_test_vanilla(
             with_breakpoint("BREAKPOINT", breakpoint_name="second"),
@@ -3478,7 +3478,7 @@ class TestDontStartNewIncarnationAfterPreemptionIfJobNotStartedYet(YTEnvSetup):
             }
         )
 
-        wait_breakpoint(breakpoint_name="second")
+        wait_breakpoint(breakpoint_name="second", job_count=2)
 
         wait(lambda: operation_incarnation_counter.get_delta() == 1)
         wait(lambda: op1.get_job_count("aborted") == 3)
