@@ -332,6 +332,8 @@ items:
               href: user-guide/data-processing/spyt/structured-streaming.md
             - name: Spark SQL
               href: user-guide/data-processing/spyt/spark-sql.md
+            - name: Spark UI
+              href: user-guide/data-processing/spyt/spark-ui.md
             - name: Использование {{product-name}} Shuffle сервиса
               href: user-guide/data-processing/spyt/shuffle.md
             - name: API
@@ -395,6 +397,8 @@ items:
             href: user-guide/proxy/http-reference.md
           - name: gRPC-прокси
             href: user-guide/proxy/grpc.md
+          - name: Task-прокси
+            href: user-guide/proxy/task.md
       - name: Импорт и экспорт данных
         when: audience == "public"
         items:
@@ -489,6 +493,8 @@ items:
             href: admin-guide/install-ytmsvc.md
           - name: Мониторинг
             href: admin-guide/install-monitoring.md
+          - name: Task-прокси
+            href: admin-guide/install-task-proxy.md
       - name: Подготовка спецификации {{product-name}}
         items:
           - name: Описание
