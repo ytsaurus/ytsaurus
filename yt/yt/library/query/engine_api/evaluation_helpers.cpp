@@ -178,6 +178,13 @@ void TCGQueryInstance::Run(
     Callback_(literalValues, opaqueData, opaqueDataSizes, context, Compartment_.get());
 }
 
+void TCGQueryInstance::SetDeadline(TInstant deadline)
+{
+    if (Compartment_) {
+        Compartment_->SetDeadline(deadline);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TCGQueryImage::TCGQueryImage(

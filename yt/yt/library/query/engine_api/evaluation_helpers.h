@@ -329,6 +329,8 @@ public:
         TRange<size_t> opaqueDataSizes,
         TExecutionContext* context) const;
 
+    void SetDeadline(TInstant deadline);
+
 private:
     const TCGQueryCallback Callback_;
     std::unique_ptr<NWebAssembly::IWebAssemblyCompartment> Compartment_;

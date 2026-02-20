@@ -417,3 +417,9 @@ namespace WAVM { namespace Intrinsics {
 	HashMap<std::string, Function*> getUninstantiatedFunctions(
 		const std::initializer_list<const Intrinsics::Module*>& moduleRefs);
 }}
+
+namespace WAVM { namespace Runtime {
+	void setCurrentDeadline(std::optional<struct timespec> deadline);
+	bool isCurrentDeadlineReached();
+	struct timespec getInstant();
+}}

@@ -45,6 +45,11 @@ struct IWebAssemblyCompartment
     virtual uintptr_t AllocateBytes(size_t length) = 0;
     //! Deallocates data.
     virtual void FreeBytes(uintptr_t offset) = 0;
+
+    //! Sets execution timeout for sandboxed code.
+    virtual void SetTimeout(std::optional<TDuration> timeout) = 0;
+    virtual void SetDeadline(std::optional<TInstant> deadline) = 0;
+    virtual void StartDeadlineTimer() = 0;
 };
 
 std::unique_ptr<IWebAssemblyCompartment> CreateImageFromSdk(const TModuleBytecode& bytecode);
