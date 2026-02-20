@@ -59,7 +59,6 @@ namespace NYql {
             TVector<TDataProviderInitializer> dataProvidersInit;
             dataProvidersInit.push_back(GetYtNativeDataProviderInitializer(ytGateway, MakeSimpleCBOOptimizerFactory(), {}));
             TProgramFactory factory(true, funcReg, 0ULL, dataProvidersInit, "ut");
-
             TProgramPtr program = factory.Create("-stdin-", Src);
             program->ConfigureYsonResultFormat(NYson::EYsonFormat::Text);
             if (!Parameters.empty()) {
