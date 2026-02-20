@@ -62,7 +62,9 @@ def run_operations(
     current_schema = [
         {"name": col["name"], "type_v3": col["type_v3"]}
         for col in table_schema if col["name"] in necessary_columns]
-    spec = {"pool": pool} if pool else None
+    spec = {"allow_output_dynamic_tables": True}
+    if pool:
+        spec["pool"] = pool
 
     if unfolded_column is not None:
         logging.info("\n\t\tRunning unfolding mapper")
