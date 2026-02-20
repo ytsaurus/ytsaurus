@@ -220,11 +220,7 @@ namespace {
 NYT::NCrypto::TSslContextPtr CreateSslContext(const NYT::NCrypto::TSslContextConfigPtr& config, NYT::NCrypto::TCertificatePathResolver pathResolver = nullptr)
 {
     auto sslContext = New<NYT::NCrypto::TSslContext>();
-    if (config) {
-        sslContext->ApplyConfig(config, std::move(pathResolver));
-    } else {
-        sslContext->UseBuiltinOpenSslX509Store();
-    }
+    sslContext->ApplyConfig(config, std::move(pathResolver));
     sslContext->Commit();
     return sslContext;
 }
