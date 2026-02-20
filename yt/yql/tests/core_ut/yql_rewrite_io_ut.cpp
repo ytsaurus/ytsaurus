@@ -44,6 +44,7 @@ Y_UNIT_TEST_SUITE(TYtOptimizeYqlExpr) {
         auto yqlNativeServices = NFile::TYtFileServices::Make(functionRegistry.Get(), testTables);
         auto ytGateway = CreateYtFileGateway(yqlNativeServices);
         auto typeAnnotationContext = MakeIntrusive<TTypeAnnotationContext>();
+        typeAnnotationContext->SqlFlags = NSQLTranslation::TSqlFlags();
         auto ytState = std::make_shared<TYtState>(typeAnnotationContext.Get());
         ytState->Gateway = ytGateway;
 
