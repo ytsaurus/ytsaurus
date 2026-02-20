@@ -102,16 +102,17 @@ class ComputationCellGenerator:
             .aggr("host")
             .row()
                 .cell(
-                    "Computation cpu time",
+                    "Computation cpu time (approximate)",
                     MonitoringExpr(FlowWorker("yt.flow.worker.computation.cpu_time.rate"))
                         .alias("{{computation_id}}")
-                        .unit("UNIT_NONE"))
+                        .unit("UNIT_NONE"),
+                    description="May be overestimated under high CPU load.\nUses RDTSC deltas, which can increase due to context switches")
                 .cell(
-                    "Computation memory usage",
+                    "Computation memory usage (approximate)",
                     MonitoringExpr(FlowWorker("yt.flow.worker.computation.memory_usage"))
                         .alias("{{computation_id}}")
                         .unit("UNIT_BYTES_SI"),
-                    description="Metric is not very accurate due to sampling nature of measuring")
+                    description="May be imprecise due to sampling nature of measuring")
                 .cell(
                     "Input buffers size",
                     MonitoringExpr(FlowWorker("yt.flow.worker.buffer_state.computations.input.size"))
