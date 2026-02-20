@@ -314,6 +314,8 @@ public:
 
     void OnProfiling(TSensorBuffer* buffer) override
     {
+        auto guard = Guard(SequencerLock_);
+
         buffer->AddGauge("/transaction_supervisor/prepared_strongly_ordered_transaction_count", PreparedTransactionsTimestamps_.size());
 
         buffer->AddGauge("/transaction_supervisor/ready_to_commit_strongly_ordered_transaction_count", ReadyToCommitTransactions_.size());
