@@ -1203,6 +1203,11 @@ void TSlotLocation::UpdateDiskResources()
             config->DeduplicateByINodes = true;
             config->CheckDeviceId = true;
             for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
+                if (sandboxKind == ESandboxKind::PortoPlace) {
+                    // Skip porto place since it is complicated to properly account its used space.
+                    continue;
+                }
+
                 auto path = GetSandboxPath(slotIndex, sandboxKind);
                 if (Exists(path)) {
                     if (IsInsideTmpfs(slotIndex, path)) {
