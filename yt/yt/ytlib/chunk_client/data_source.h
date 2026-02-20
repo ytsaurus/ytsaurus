@@ -7,7 +7,7 @@
 #include <yt/yt/ytlib/scheduler/cluster_name.h>
 #include <yt/yt/ytlib/scheduler/input_query.h>
 
-#include <yt/yt/ytlib/table_client/row_level_security.h>
+#include <yt/yt/library/query/row_level_security_api/row_level_security.h>
 
 #include <yt/yt/client/table_client/column_rename_descriptor.h>
 #include <yt/yt/client/table_client/schema.h>

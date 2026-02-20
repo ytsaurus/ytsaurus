@@ -1,4 +1,4 @@
-#include "row_level_security.h"
+#include <yt/yt/library/query/row_level_security_api/row_level_security.h>
 
 #include <yt/yt/core/phoenix/type_def.h>
 

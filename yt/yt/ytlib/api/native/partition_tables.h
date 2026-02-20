@@ -12,7 +12,7 @@
 #include <yt/yt/ytlib/chunk_pools/public.h>
 
 #include <yt/yt/ytlib/table_client/public.h>
-#include <yt/yt/ytlib/table_client/row_level_security.h>
+#include <yt/yt/library/query/row_level_security_api/row_level_security.h>
 
 namespace NYT::NApi::NNative {
 

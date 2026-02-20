@@ -48,6 +48,8 @@ PEERDIR(
     yt/yt/server/lib/scheduler
     yt/yt/server/lib/controller_agent
 
+    yt/yt/library/query/row_level_security
+
     yt/yt/server/controller_agent/controllers
 
     yt/yt/ytlib
