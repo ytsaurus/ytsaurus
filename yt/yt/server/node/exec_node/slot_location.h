@@ -51,7 +51,8 @@ public:
     void TakeIntoAccountTmpfsVolumes(
         int slotIndex,
         const IVolumePtr& rootVolume,
-        const std::vector<TTmpfsVolumeResult>& volumeResults);
+        const std::vector<TTmpfsVolumeResult>& volumeResults,
+        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts);
 
     TFuture<void> MakeSandboxCopy(
         TJobId jobId,
@@ -137,7 +138,10 @@ public:
 
     TFuture<void> CreateSlotDirectories(const IVolumePtr& rootVolume, int userId) const;
 
-    TFuture<void> CreateTmpfsDirectoriesInsideSandbox(const TString& userSandboxPath, const std::vector<TTmpfsVolumeParams>& volumeParams) const;
+    TFuture<void> CreateTmpfsDirectoriesInsideSandbox(
+        const TString& userSandboxPath,
+        const std::vector<TTmpfsVolumeParams>& volumeParams,
+        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts) const;
 
     TFuture<void> ValidateRootFS(const IVolumePtr& rootVolume) const;
 

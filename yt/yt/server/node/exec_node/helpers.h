@@ -6,7 +6,11 @@
 
 #include <yt/yt/server/lib/scheduler/proto/allocation_tracker_service.pb.h>
 
+#include <yt/yt/server/node/exec_node/preparation_options.h>
+
 #include <yt/yt/ytlib/controller_agent/proto/controller_agent_descriptor.pb.h>
+
+#include <yt/yt/ytlib/scheduler/proto/resources.pb.h>
 
 #include <yt/yt/client/api/public.h>
 
@@ -88,6 +92,15 @@ void SetNodeInfoToRequest(
 ////////////////////////////////////////////////////////////////////////////////
 
 TClosure MakeJobInterrupter(TJobId jobId, const IBootstrap* bootstrap);
+
+////////////////////////////////////////////////////////////////////////////////
+
+const std::string& GetVolumeMountPathByVolumeId(const std::string& volumeId, const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FromProto(TSandboxNbdRootVolumeData* nbd, const NScheduler::NProto::TNbdDiskRequest& protoNbd);
+void FromProto(TTmpfsVolumeParams* tmpfs, const NScheduler::NProto::TTmpfsStorageRequest& protoTmpfs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

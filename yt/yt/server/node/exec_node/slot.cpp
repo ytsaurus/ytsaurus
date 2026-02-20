@@ -374,6 +374,7 @@ public:
     TFuture<std::vector<TTmpfsVolumeResult>> PrepareTmpfsVolumes(
         const IVolumePtr& rootVolume,
         const std::vector<TTmpfsVolumeParams>& volumeParams,
+        const std::vector<TVolumeMountPtr>& volumeMounts,
         bool testRootFs) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -382,8 +383,8 @@ public:
 
         YT_LOG_DEBUG("Preparing tmpfs volumes (Volumes: %v)",
             MakeFormattableView(volumeParams,
-                [] (auto* builder, const TTmpfsVolumeParams& params) {
-                    builder->AppendFormat("{TmpfsPath: %v}", params.Path);
+                [] (auto* builder, const TTmpfsVolumeParams& volume) {
+                    builder->AppendFormat("{VolumeId: %v}", volume.VolumeId);
                 }));
 
         if (!VolumeManager_) {
@@ -392,18 +393,9 @@ public:
             return MakeFuture<std::vector<TTmpfsVolumeResult>>(std::move(error));
         }
 
-        std::vector<std::string_view> tmpfsPaths;
-        tmpfsPaths.reserve(volumeParams.size());
-        for (const auto& volume : volumeParams) {
-            tmpfsPaths.push_back(volume.Path);
-        }
-
-        // Check that no volume path is a prefix of another volume path.
-        ValidateTmpfsPaths(tmpfsPaths);
-
         auto userSandboxPath = GetSandboxPath(ESandboxKind::User, rootVolume, testRootFs);
-        return Location_->CreateTmpfsDirectoriesInsideSandbox(userSandboxPath, volumeParams)
-            .Apply(BIND([userSandboxPath = std::move(userSandboxPath), rootVolume, volumeParams, this, this_ = MakeStrong(this)]() mutable {
+        return Location_->CreateTmpfsDirectoriesInsideSandbox(userSandboxPath, volumeParams, volumeMounts)
+            .Apply(BIND([userSandboxPath = std::move(userSandboxPath), rootVolume, volumeParams, volumeMounts, this, this_ = MakeStrong(this)] () mutable {
                 // Check if tmpfs volumes are enabled only after tmpfs directories are created.
                 if (!Bootstrap_->GetConfig()->ExecNode->SlotManager->EnableTmpfs) {
                     YT_LOG_INFO("Do not prepare tmpfs volumes since tmpfs is disabled in slot manager");
@@ -413,9 +405,9 @@ public:
                 return RunPreparationAction(
                     /*actionName*/ "PrepareTmpfsVolumes",
                     /*uncancelable*/ false,
-                    [userSandboxPath = std::move(userSandboxPath), rootVolume = std::move(rootVolume), volumeParams = std::move(volumeParams), this, this_ = MakeStrong(this)] {
-                        return VolumeManager_->PrepareTmpfsVolumes(userSandboxPath, volumeParams)
-                            .AsUnique().Apply(BIND([rootVolume, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
+                    [userSandboxPath = std::move(userSandboxPath), rootVolume = std::move(rootVolume), volumeParams = std::move(volumeParams), volumeMounts, this, this_ = MakeStrong(this)] {
+                        return VolumeManager_->PrepareTmpfsVolumes(userSandboxPath, volumeParams, volumeMounts)
+                            .AsUnique().Apply(BIND([rootVolume, volumeMounts, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
                                 if (!volumeResultsOrError.IsOK()) {
                                     THROW_ERROR_EXCEPTION("Failed to prepare tmpfs volumes: %v",
                                         volumeResultsOrError);
@@ -424,7 +416,7 @@ public:
                                 auto& volumeResults = volumeResultsOrError.Value();
 
                                 // Inform slot location about tmpfses to be used.
-                                Location_->TakeIntoAccountTmpfsVolumes(SlotIndex_, rootVolume, volumeResults);
+                                Location_->TakeIntoAccountTmpfsVolumes(SlotIndex_, rootVolume, volumeResults, volumeMounts);
                                 return std::move(volumeResults);
                             })
                             .AsyncVia(Bootstrap_->GetJobInvoker()));
@@ -436,6 +428,7 @@ public:
     TFuture<void> LinkTmpfsVolumes(
         const IVolumePtr& rootVolume,
         const std::vector<TTmpfsVolumeResult>& volumeResults,
+        const std::vector<TVolumeMountPtr>& volumeMounts,
         bool testRootFs) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -459,16 +452,16 @@ public:
             userSandboxPath,
             MakeFormattableView(volumeResults,
                 [] (auto* builder, const TTmpfsVolumeResult& result) {
-                    builder->AppendFormat("{TmpfsPath: %v}",
-                        result.Path);
+                    builder->AppendFormat("{VolumeId: %v}",
+                        result.VolumeId);
                 }));
 
         return RunPreparationAction(
             /*actionName*/ "LinkTmpfsVolumes",
             /*uncancelable*/ true,
-            [userSandboxPath = std::move(userSandboxPath), volumeResults, this, this_ = MakeStrong(this)] {
-                return VolumeManager_->LinkTmpfsVolumes(userSandboxPath, volumeResults);
-            });
+            [userSandboxPath = std::move(userSandboxPath), volumeResults, volumeMounts, this, this_ = MakeStrong(this)] {
+                return VolumeManager_->LinkTmpfsVolumes(userSandboxPath, volumeResults, volumeMounts);
+        });
     }
 
     int GetSlotIndex() const override

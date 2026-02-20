@@ -57,6 +57,7 @@ struct TSandboxNbdRootVolumeData
 struct TUserSandboxOptions
 {
     std::vector<TTmpfsVolumeParams> TmpfsVolumes;
+    std::vector<NScheduler::TVolumeMountPtr> JobVolumeMounts;
     std::optional<i64> InodeLimit;
     std::optional<i64> DiskSpaceLimit;
     bool EnableRootVolumeDiskQuota = false;

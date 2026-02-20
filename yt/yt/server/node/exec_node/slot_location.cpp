@@ -282,17 +282,22 @@ TFuture<void> TSlotLocation::ValidateRootFS(const IVolumePtr& rootVolume) const
         .Run();
 }
 
-TFuture<void> TSlotLocation::CreateTmpfsDirectoriesInsideSandbox(const TString& userSandboxPath, const std::vector<TTmpfsVolumeParams>& volumeParams) const
+TFuture<void> TSlotLocation::CreateTmpfsDirectoriesInsideSandbox(
+    const TString& userSandboxPath,
+    const std::vector<TTmpfsVolumeParams>& volumeParams,
+    const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts) const
 {
-    return BIND([userSandboxPath, volumeParams] () {
+    return BIND([userSandboxPath, volumeParams, volumeMounts] () {
         // It is assumed that userSandboxPath already exists.
         for (const auto& volume : volumeParams) {
             // TODO(gritukan): GetRealPath here can be replaced with some light analogue that does not access filesystem.
-            auto tmpfsUserSandboxPath = NFS::GetRealPath(NFS::CombinePaths(userSandboxPath, volume.Path));
+            auto mountPath = GetVolumeMountPathByVolumeId(volume.VolumeId, volumeMounts);
+
+            auto tmpfsUserSandboxPath = NFS::GetRealPath(NFS::CombinePaths(userSandboxPath, mountPath));
 
             const auto& Logger = ExecNodeLogger();
             YT_LOG_DEBUG("Creating tmpfs directory (TmpfsPath: %v, UserSandboxPath: %v, TmpfsUserSandboxPath: %v)",
-                volume.Path,
+                volume.VolumeId,
                 userSandboxPath,
                 tmpfsUserSandboxPath);
 
@@ -489,7 +494,8 @@ TFuture<void> TSlotLocation::PrepareSandboxDirectories(
             for (const auto& volumeParams : options.TmpfsVolumes) {
                 // TODO(gritukan): Implement a function that joins absolute path with a relative path and returns
                 // real path without filesystem access.
-                auto tmpfsPath = GetRealPath(CombinePaths(sandboxPath, volumeParams.Path));
+                auto mountPath = GetVolumeMountPathByVolumeId(volumeParams.VolumeId, options.JobVolumeMounts);
+                auto tmpfsPath = GetRealPath(CombinePaths(sandboxPath, mountPath));
                 if (tmpfsPath == sandboxPath) {
                     return true;
                 }
@@ -517,7 +523,8 @@ TFuture<void> TSlotLocation::PrepareSandboxDirectories(
 void TSlotLocation::TakeIntoAccountTmpfsVolumes(
     int slotIndex,
     const IVolumePtr& rootVolume,
-    const std::vector<TTmpfsVolumeResult>& volumeResults)
+    const std::vector<TTmpfsVolumeResult>& volumeResults,
+    const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts)
 {
     YT_LOG_DEBUG("Taking into account tmpfs volumes (SlotIndex: %v, VolumeCount: %v)",
         slotIndex,
@@ -536,8 +543,9 @@ void TSlotLocation::TakeIntoAccountTmpfsVolumes(
     // TODO(yuryalekseev): it should be in the else clause of the above if.
     tmpfsData.AddSandboxPath(GetSandboxPath(slotIndex, ESandboxKind::User));
 
-    for (const auto& volume : volumeResults) {
-        tmpfsData.AddTmpfsPath(NFS::GetRealPath(NFS::CombinePaths("/", volume.Path)));
+    for (const auto& volume: volumeResults) {
+        auto mountPath = GetVolumeMountPathByVolumeId(volume.VolumeId, volumeMounts);
+        tmpfsData.AddTmpfsPath(NFS::GetRealPath(NFS::CombinePaths("/", mountPath)));
     }
 }
 

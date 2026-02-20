@@ -72,6 +72,8 @@ using namespace NControllerAgent;
 using namespace NServer;
 using namespace NGpu;
 
+using NYT::FromProto;
+
 using NNodeTrackerClient::NProto::TNodeResources;
 
 using TControllerAgentConnectorPtr = TControllerAgentConnectorPool::TControllerAgentConnectorPtr;
@@ -90,7 +92,7 @@ NScheduler::TAllocationToAbort ParseAllocationToAbort(const NScheduler::NProto::
 {
     NScheduler::TAllocationToAbort result;
 
-    FromProto(&result, allocationToAbortProto);
+    NScheduler::NProto::FromProto(&result, allocationToAbortProto);
 
     return result;
 }

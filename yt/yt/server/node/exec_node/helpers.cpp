@@ -47,6 +47,8 @@ using namespace NObjectClient;
 using namespace NTransactionClient;
 using namespace NYTree;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr int MaxChunksPerLocateRequest = 10000;
@@ -344,6 +346,46 @@ TClosure MakeJobInterrupter(TJobId jobId, const IBootstrap* bootstrap)
                 TDuration::Zero());
             }
     });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const std::string& GetVolumeMountPathByVolumeId(const std::string& volumeId, const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts)
+{
+    auto volumeMountIt = std::find_if(volumeMounts.begin(), volumeMounts.end(), [&] (const auto& volumeMount) {
+        return volumeMount->VolumeId == volumeId;
+    });
+
+    // COMPAT(krasovav): Now all tmpfs volumes must be in user job rootfs.
+    // Therefore, there must not be a single tmpfs that is not listed in volumeMounts.
+    YT_VERIFY(volumeMountIt != volumeMounts.end());
+    return volumeMountIt->Get()->MountPath;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FromProto(TSandboxNbdRootVolumeData* nbd, const NScheduler::NProto::TNbdDiskRequest& protoNbd)
+{
+    nbd->Size = protoNbd.disk_request().storage_request_common_parameters().disk_space();
+    nbd->MediumIndex = static_cast<int>(protoNbd.disk_request().medium_index());
+
+    const auto& nbdDisk = protoNbd.nbd();
+    if (nbdDisk.has_data_node_address()) {
+        nbd->DataNodeAddress = nbdDisk.data_node_address();
+    }
+
+    nbd->DataNodeRpcTimeout = FromProto<TDuration>(nbdDisk.data_node_rpc_timeout());
+    nbd->MasterRpcTimeout = FromProto<TDuration>(nbdDisk.master_rpc_timeout());
+    nbd->DataNodeNbdServiceRpcTimeout = FromProto<TDuration>(nbdDisk.data_node_nbd_service_rpc_timeout());
+    nbd->DataNodeNbdServiceMakeTimeout = FromProto<TDuration>(nbdDisk.data_node_nbd_service_make_timeout());
+    nbd->MinDataNodeCount = nbdDisk.min_data_node_count();
+    nbd->MaxDataNodeCount = nbdDisk.max_data_node_count();
+}
+
+void FromProto(TTmpfsVolumeParams* tmpfs, const NScheduler::NProto::TTmpfsStorageRequest& protoTmpfs)
+{
+    tmpfs->Size = protoTmpfs.storage_request_common_parameters().disk_space();
+    tmpfs->Index = protoTmpfs.tmpfs_index();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
