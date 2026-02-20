@@ -251,9 +251,6 @@ private:
     void EnrichFromException(const std::exception& exception);
 
     friend class TErrorAttributes;
-
-    static TEnricher Enricher_;
-    static TFromExceptionEnricher FromExceptionEnricher_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
