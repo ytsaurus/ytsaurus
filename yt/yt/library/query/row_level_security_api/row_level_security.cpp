@@ -18,4 +18,4 @@ Y_WEAK IRlsCheckerFactoryPtr CreateRlsCheckerFactory(const TRlsReadSpec& /*rlsRe
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NQueryClient
+} // namespace NYT::NTableClient
