@@ -45,12 +45,20 @@ std::unique_ptr<TParsedSource> ParseSource(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPreparePlanFragmentOptions
+{
+    int SyntaxVersion = 1;
+    int BuilderVersion = 1;
+    NCodegen::EExecutionBackend ExecutionBackend = NCodegen::EExecutionBackend::Native;
+    bool ShouldRewriteCardinalityIntoHyperLogLog = false; // COMPAT(dtorilov): Remove after 25.4.
+    int HyperLogLogPrecision = 14;
+};
+
 TPlanFragmentPtr PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     TStringBuf source,
-    NCodegen::EExecutionBackend executionBackend,
+    const TPreparePlanFragmentOptions& options = {},
     NYson::TYsonStringBuf placeholderValues = {},
-    int syntaxVersion = 1,
     IMemoryUsageTrackerPtr memoryTracker = nullptr);
 
 TPlanFragmentPtr PreparePlanFragment(
@@ -58,13 +66,8 @@ TPlanFragmentPtr PreparePlanFragment(
     TStringBuf source,
     NAst::TQuery& query,
     NAst::TAstHead& astHead,
-    NCodegen::EExecutionBackend executionBackend,
-    int builderVersion = 1,
-    IMemoryUsageTrackerPtr memoryTracker = nullptr,
-    int syntaxVersion = 1,
-    bool shouldRewriteCardinalityIntoHyperLogLog = false, // COMPAT(dtorilov): Remove after 25.4.
-    int hyperLogLogPrecision = 14,
-    int depth = 0);
+    const TPreparePlanFragmentOptions& options = {},
+    IMemoryUsageTrackerPtr memoryTracker = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

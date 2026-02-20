@@ -1233,8 +1233,7 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
     TStringBuf source,
     const NAst::TQuery& queryAst,
     const NAst::TAliasMap& aliasMap,
-    EExecutionBackend executionBackend,
-    int builderVersion,
+    const TPreparePlanFragmentOptions& options,
     IMemoryUsageTrackerPtr memoryTracker,
     int depth)
 {
@@ -1251,8 +1250,7 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
                 source,
                 subquery->Ast,
                 subquery->AliasMap,
-                executionBackend,
-                builderVersion,
+                options,
                 memoryTracker,
                 depth + 1);
         },
@@ -1262,7 +1260,7 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
         });
 
     auto functions = New<TTypeInferrerMap>();
-    callbacks->FetchFunctions(ExtractFunctionNames(queryAst, aliasMap), functions, executionBackend);
+    callbacks->FetchFunctions(ExtractFunctionNames(queryAst, aliasMap), functions, options.ExecutionBackend);
 
     const auto* table = std::get_if<NAst::TTableDescriptor>(&queryAst.FromClause);
 
@@ -1317,7 +1315,7 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
         source,
         functions,
         aliasMap,
-        builderVersion);
+        options.BuilderVersion);
 
     builder->AddTable({
         .Schema = *query->Schema.Original,
@@ -1341,7 +1339,7 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
                     query->Schema.Original,
                     table->Alias,
                     builder.get(),
-                    builderVersion,
+                    options.BuilderVersion,
                     Logger));
             },
             [&] (const NAst::TArrayJoin& arrayJoin) {
@@ -1351,7 +1349,7 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
                     aliasMap,
                     functions,
                     builder.get(),
-                    builderVersion));
+                    options.BuilderVersion));
             });
     }
 
@@ -1428,22 +1426,34 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
 TPlanFragmentPtr PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     TStringBuf source,
-    EExecutionBackend executionBackend,
+    const TPreparePlanFragmentOptions& options,
     NYson::TYsonStringBuf placeholderValues,
-    int syntaxVersion,
     IMemoryUsageTrackerPtr memoryTracker)
 {
-    auto parsedSource = ParseSource(source, EParseMode::Query, placeholderValues, syntaxVersion);
+    auto parsedSource = ParseSource(source, EParseMode::Query, placeholderValues, options.SyntaxVersion);
 
     return PreparePlanFragment(
         callbacks,
         source,
         std::get<NAst::TQuery>(parsedSource->AstHead.Ast),
         parsedSource->AstHead,
-        executionBackend,
-        /*builderVersion*/ 1,
-        std::move(memoryTracker),
-        syntaxVersion);
+        options,
+        std::move(memoryTracker));
+}
+
+void ApplyAstRewriters(
+    NAst::TQuery& queryAst,
+    NAst::TAliasMap& aliasMap,
+    NAst::TAstHead& astHead,
+    const TPreparePlanFragmentOptions& options)
+{
+    if (options.SyntaxVersion >= 3) {
+        RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(queryAst, aliasMap, astHead);
+    }
+
+    if (options.ShouldRewriteCardinalityIntoHyperLogLog) {
+        RewriteCardinalityIntoHyperLogLogWithPrecision(&queryAst, &aliasMap, &astHead, options.HyperLogLogPrecision);
+    }
 }
 
 TPlanFragmentPtr PreparePlanFragment(
@@ -1451,33 +1461,21 @@ TPlanFragmentPtr PreparePlanFragment(
     TStringBuf source,
     NAst::TQuery& queryAst,
     NAst::TAstHead& astHead,
-    EExecutionBackend executionBackend,
-    int builderVersion,
-    IMemoryUsageTrackerPtr memoryTracker,
-    int syntaxVersion,
-    bool shouldRewriteCardinalityIntoHyperLogLog,
-    int hyperLogLogPrecision,
-    int depth)
+    const TPreparePlanFragmentOptions& options,
+    IMemoryUsageTrackerPtr memoryTracker)
 {
     auto aliasMap = astHead.AliasMap;
 
-    if (syntaxVersion >= 3) {
-        RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(queryAst, aliasMap, astHead);
-    }
-
-    if (shouldRewriteCardinalityIntoHyperLogLog) {
-        RewriteCardinalityIntoHyperLogLogWithPrecision(&queryAst, &aliasMap, &astHead, hyperLogLogPrecision);
-    }
+    ApplyAstRewriters(queryAst, aliasMap, astHead, options);
 
     return PreparePlanFragmentImpl(
         callbacks,
         source,
         queryAst,
         aliasMap,
-        executionBackend,
-        builderVersion,
+        options,
         std::move(memoryTracker),
-        depth);
+        /*depth*/ 0);
 }
 
 TQueryPtr PrepareJobQuery(
