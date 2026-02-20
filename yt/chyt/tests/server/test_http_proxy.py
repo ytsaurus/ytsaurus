@@ -407,12 +407,6 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         }
         create_user("u1")
 
-        # NB(buyval01): After adding wrappers for tests with Sequoia using an explicit alias leads to duplication in the wrapper.
-        # Therefore, use the alias generated randomly by default, but leave a comment below as additional information for future flaps investigation.
-        #
-        # NB: unique clique alias is used here because scheduler's restart
-        # somehow break the clique instance so reusing of this clique alias in
-        # other tests is impossible. DO NOT REUSE THIS ALIAS.
         with Clique(1, config_patch=patch) as clique:
             acl = [make_ace("allow", "u1", "use")]
             yt_set(f"//sys/access_control_object_namespaces/chyt/{clique.alias}/principal/@acl", acl)
@@ -430,6 +424,15 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
             with raises_yt_error(QueryFailedError):
                 clique.make_query_via_proxy("select 1", user="u2")
+
+            # Before exiting clique, wait for the operation to complete revive and materializing processes
+            # caused by restarting the scheduler to tear down the test properly.
+            wait(lambda: clique.op.get_state() not in [
+                "revive_initializing",
+                "reviving",
+                "reviving_jobs",
+                "materializing",
+            ])
 
     @authors("barykinni")
     def test_legacy_endpoint(self):
