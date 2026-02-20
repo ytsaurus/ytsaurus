@@ -469,6 +469,8 @@ items:
              href: admin-guide/install-cron.md
            - name: Odin
              href: admin-guide/install-odin.md
+           - name: Excel-integration
+             href: admin-guide/install-excel.md  
            - name: Tutorial
              href: admin-guide/install-tutorial.md
            - name: Microservices
