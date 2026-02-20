@@ -80,6 +80,7 @@ target_sources(yql-essentials-utils PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/tty.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/yql_panic.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/yql_paths.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/arity.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/checkpoint_map.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/fp_bits.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/is_pod.h
