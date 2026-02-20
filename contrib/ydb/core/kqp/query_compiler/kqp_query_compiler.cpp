@@ -281,7 +281,7 @@ void FillTable(const TKikimrTableMetadata& tableMeta, THashSet<TStringBuf>&& col
     for (const auto& columnName : columns) {
         auto column = tableMeta.Columns.FindPtr(columnName);
         if (!column) {
-            if (columnName == "_yql_full_text_relevance") {
+            if (columnName == NTableIndex::NFulltext::FullTextRelevanceColumn) {
                 continue;
             }
 
@@ -344,7 +344,7 @@ void FillColumns(const TContainer& columns, const TKikimrTableMetadata& tableMet
         }
 
 
-        if (columnName == "_yql_full_text_relevance") {
+        if (columnName == NTableIndex::NFulltext::FullTextRelevanceColumn) {
             auto& columnProto = *opProto.AddColumns();
             // columnProto.SetId(columnId);
             columnProto.SetName(columnName);
@@ -391,7 +391,7 @@ void FillNothingPg(const TPgExprType& pgType, Ydb::TypedValue& value) {
 }
 
 void FillNothing(TCoNothing expr, Ydb::TypedValue& value) {
-    auto* typeann = expr.Raw()->GetTypeAnn();
+    auto typeann = expr.Raw()->GetTypeAnn();
     switch (typeann->GetKind()) {
         case ETypeAnnotationKind::Optional: {
             typeann = typeann->Cast<TOptionalExprType>()->GetItemType();
@@ -1387,7 +1387,7 @@ private:
             for (auto item : type->GetItems()) {
                 auto* columnProto = fullTextProto.AddColumns();
                 columnProto->SetName(TString(item->GetName()));
-                if (item->GetName() == "_yql_full_text_relevance") {
+                if (item->GetName() == NTableIndex::NFulltext::FullTextRelevanceColumn) {
                     continue;
                 }
 
@@ -1425,13 +1425,13 @@ private:
                 }
             }
 
-            if (settingsObj.QueryMode) {
-                auto queryMode = TExprBase(settingsObj.QueryMode);
-                auto just = queryMode.Maybe<TCoJust>() ? queryMode.Maybe<TCoJust>().Cast().Input() : queryMode;
+            if (settingsObj.DefaultOperator) {
+                auto defaultOperator = TExprBase(settingsObj.DefaultOperator);
+                auto just = defaultOperator.Maybe<TCoJust>() ? defaultOperator.Maybe<TCoJust>().Cast().Input() : defaultOperator;
                 if (just.Maybe<TCoParameter>()) {
-                    fullTextProto.MutableQueryMode()->MutableParamValue()->SetParamName(just.Cast<TCoParameter>().Name().StringValue());
+                    fullTextProto.MutableDefaultOperator()->MutableParamValue()->SetParamName(just.Cast<TCoParameter>().Name().StringValue());
                 } else {
-                    FillLiteralProto(just.Cast<TCoDataCtor>(), *fullTextProto.MutableQueryMode()->MutableLiteralValue());
+                    FillLiteralProto(just.Cast<TCoDataCtor>(), *fullTextProto.MutableDefaultOperator()->MutableLiteralValue());
                 }
             }
 
@@ -1509,6 +1509,13 @@ private:
             google::protobuf::Any& settings = *externalSource.MutableSettings();
             TString& sourceType = *externalSource.MutableType();
             dqIntegration->FillSourceSettings(*source, settings, sourceType, maxTasksPerStage, ctx);
+            TMaybe<IDqIntegration::TSourceWatermarksSettings> watermarksSettings = dqIntegration->ExtractSourceWatermarksSettings(*source, settings, sourceType);
+            if (watermarksSettings) {
+                auto& protoWatermarksSettings = *externalSource.MutableWatermarksSettings();
+                if (watermarksSettings->IdleTimeoutUs) {
+                    protoWatermarksSettings.SetIdleTimeoutUs(*watermarksSettings->IdleTimeoutUs);
+                }
+            }
             YQL_ENSURE(!settings.type_url().empty(), "Data source provider \"" << dataSourceCategory << "\" didn't fill dq source settings for its dq source node");
             YQL_ENSURE(sourceType, "Data source provider \"" << dataSourceCategory << "\" didn't fill dq source settings type for its dq source node");
         } else {
@@ -1667,7 +1674,7 @@ private:
                             localDefaultColumns.insert(columnName);
                         }
                     }
-                
+
                     AFL_ENSURE(tableMeta->Indexes.size() == tableMeta->ImplTables.size());
 
                     std::vector<size_t> affectedIndexes;

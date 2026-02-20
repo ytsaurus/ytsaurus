@@ -1744,6 +1744,7 @@ void TPartition::Handle(TEvPQ::TEvGetMaxSeqNoRequest::TPtr& ev, const TActorCont
     resp.SetErrorCode(NPersQueue::NErrorCode::OK);
 
     auto& result = *resp.MutablePartitionResponse()->MutableCmdGetMaxSeqNoResult();
+    result.SetIsPartitionActive(IsActive());
     for (const auto& sourceId : ev->Get()->SourceIds) {
         auto& protoInfo = *result.AddSourceIdInfo();
         protoInfo.SetSourceId(sourceId);
@@ -1862,7 +1863,7 @@ void TPartition::CheckHeadConsistency() const
 }
 
 ui64 TPartition::GetSizeLag(i64 offset) {
-    return BlobEncoder.GetSizeLag(offset);
+    return BlobEncoder.GetSizeLag(offset) + CompactionBlobEncoder.GetSizeLag(offset);
 }
 
 
@@ -2801,7 +2802,7 @@ TPartition::EProcessResult TPartition::PreProcessUserActionOrTransaction(TSimple
         PQ_LOG_TX_D("The TxId " << t->GetTxId() << " is waiting for TEvGetWriteInfoResponse");
         return EProcessResult::NotReady;
     }
-    if (t->WriteInfo && !t->WriteInfoApplied) { //Recieved write info but not applied
+    if (t->WriteInfo && !t->WriteInfoApplied) { //Received write info but not applied
         result = ApplyWriteInfoResponse(*t, affectedSourceIdsAndConsumers);
         if (!t->WriteInfoApplied) { // Tried to apply write info but couldn't - TX must be blocked.
             PQ_LOG_TX_D("The TxId " << t->GetTxId() << " must be blocked");
@@ -3440,11 +3441,12 @@ void TPartition::EndChangePartitionConfig(NKikimrPQ::TPQTabletConfig&& config,
         OffloadActor = {};
     }
 
+    if (MonitoringProjectId != Config.GetMonitoringProjectId() || !DetailedMetricsAreEnabled(Config)) {
+        ResetDetailedMetrics();
+    }
     MonitoringProjectId = Config.GetMonitoringProjectId();
     if (DetailedMetricsAreEnabled(Config)) {
         SetupDetailedMetrics();
-    } else {
-        ResetDetailedMetrics();
     }
 }
 
@@ -4574,7 +4576,7 @@ IActor* CreatePartitionActor(ui64 tabletId, const TPartitionId& partition, const
 }
 
 void TPartition::SetupDetailedMetrics() {
-    if (!DetailedMetricsAreEnabled(Config)) {
+    if (!DetailedMetricsAreEnabled(Config) || IsSupportive()) {
         return;
     }
     if (WriteTimeLagMsByLastWritePerPartition) {

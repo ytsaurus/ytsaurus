@@ -104,7 +104,11 @@ public:
         , FuncRegistry(funcRegistry) {
     }
 
-    TExprNode::TPtr Optimize(TOpRoot& root, TExprContext& ctx);
+    // This function applies RBO optimizations, translates given `root` to physical yql `callables`, applies lightweight (stage based) physical optimizations
+    // and returns a root of the physical program.
+    TExprNode::TPtr Optimize(std::shared_ptr<TOpRoot> root, TExprContext& ctx);
+
+    // Adds a RBO stage to the RBO pipeline.
     void AddStage(std::shared_ptr<IRBOStage>&& stage) {
         Stages.push_back(std::move(stage));
     }
@@ -121,7 +125,7 @@ public:
  * After the rule-based optimizer generates a final plan (logical plan with detailed physical properties)
  * we convert it into a final physical representation that directly correpsonds to the exection plan
  */
-TExprNode::TPtr ConvertToPhysical(TOpRoot &root, TRBOContext& ctx);
+TExprNode::TPtr ConvertToPhysical(TOpRoot& root, TRBOContext& ctx);
 
 } // namespace NKqp
 } // namespace NKikimr

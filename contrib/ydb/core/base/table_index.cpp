@@ -1,7 +1,9 @@
 #include "table_index.h"
 
+#include <util/string/cast.h>
 #include <contrib/ydb/library/yverify_stream/yverify_stream.h>
 #include <contrib/ydb/core/protos/tx_datashard.pb.h>
+#include <util/string/escape.h>
 
 namespace NKikimr::NTableIndex {
 namespace {
@@ -304,6 +306,95 @@ bool IsBuildImplTable(std::string_view tableName) {
     // all impl tables that ends with "build" should be used only for index creation and dropped when index build is finished
     return tableName.ends_with(NKMeans::BuildSuffix0)
         || tableName.ends_with(NKMeans::BuildSuffix1);
+}
+
+namespace NFulltext {
+
+namespace {
+
+constexpr double EPSILON = 1e-6;
+
+ui32 NormalizeMinimumShouldMatch(i32 wordsCount, i32 minimumShouldMatch) {
+    // NOTE
+    // as per lucene documentation, minimum should match should be at least 1
+    // and at most the number of words in the query
+    if (minimumShouldMatch <= 0) {
+        return 1;
+    }
+    if (minimumShouldMatch > wordsCount) {
+        return wordsCount;
+    }
+
+    return minimumShouldMatch;
+}
+
+}
+
+EDefaultOperator DefaultOperatorFromString(const TString& mode, TString& explain) {
+    if (mode.empty()) {
+        return EDefaultOperator::And;
+    } else if (to_lower(mode) == "and") {
+        return EDefaultOperator::And;
+    } else if (to_lower(mode) == "or") {
+        return EDefaultOperator::Or;
+    } else {
+        explain = TStringBuilder() << "Unsupported default operator: `" << EscapeC(mode) << "`. Should be `and` or `or`";
+        return EDefaultOperator::Invalid;
+    }
+}
+
+ui32 MinimumShouldMatchFromString(i32 wordsCount, EDefaultOperator defaultOperator, const TString& minimumShouldMatch, TString& explain) {
+    if (minimumShouldMatch.empty()) {
+        if (defaultOperator == EDefaultOperator::And) {
+            return wordsCount;
+        } else {
+            // at least one word should be matched
+            return 1;
+        }
+    } else {
+        if (defaultOperator != EDefaultOperator::Or) {
+            explain = TStringBuilder() << "MinimumShouldMatch is not supported for AND default operator";
+            return 0;
+        }
+
+        if (minimumShouldMatch.EndsWith("%")) {
+            i32 intValue;
+            if (!TryFromString<i32>(minimumShouldMatch.substr(0, minimumShouldMatch.size() - 1), intValue)) {
+                explain = TStringBuilder() << "MinimumShouldMatch is incorrect. Invalid percentage: `" << EscapeC(minimumShouldMatch) << "`. Should be a number";
+                return 0;
+            }
+            if (intValue <= 0) {
+                explain = TStringBuilder() << "MinimumShouldMatch is incorrect. Invalid percentage: `" << EscapeC(minimumShouldMatch) << "`. Should be positive";
+                return 0;
+            }
+            if (intValue > 100) {
+                explain = TStringBuilder() << "MinimumShouldMatch is incorrect. Invalid percentage: `" << EscapeC(minimumShouldMatch) << "`. Should be less than or equal to 100";
+                return 0;
+            }
+
+            return NormalizeMinimumShouldMatch(wordsCount, (i32)(std::floor(static_cast<double>(wordsCount) * intValue / 100.0 + EPSILON) + EPSILON));
+        }
+
+        i32 intValue;
+        if (!TryFromString<i32>(minimumShouldMatch, intValue)) {
+            explain = TStringBuilder() << "MinimumShouldMatch is incorrect. Invalid value: `" << EscapeC(minimumShouldMatch) << "`. Should be a number";
+            return 0;
+        }
+
+        if (intValue <= -wordsCount) {
+            return 1;
+        } if (intValue > wordsCount) {
+            return wordsCount;
+        }
+
+        if (intValue < 0) {
+            return NormalizeMinimumShouldMatch(wordsCount, wordsCount + intValue);
+        }
+
+        return NormalizeMinimumShouldMatch(wordsCount, intValue);
+    }
+}
+
 }
 
 namespace NKMeans {

@@ -250,7 +250,8 @@ namespace NKikimr::NGRpcProxy::V1 {
             switch (ev->GetTypeRewrite()) {
                 hFunc(TEvTxProxySchemeCache::TEvNavigateKeySetResult, Handle);
             default:
-                Y_ABORT();
+                ALOG_WARN(NKikimrServices::PERSQUEUE, "unhandled eventType=" << ev->GetTypeRewrite() << " event=" << ev->GetTypeName());
+                AFL_VERIFY_DEBUG(false)("eventType", ev->GetTypeRewrite())("event", ev->GetTypeName());
             }
         }
 
@@ -416,7 +417,8 @@ namespace NKikimr::NGRpcProxy::V1 {
         void StateWork(TAutoPtr<IEventHandle>& ev) {
             switch (ev->GetTypeRewrite()) {
                 hFunc(TEvTxProxySchemeCache::TEvNavigateKeySetResult, TActorBase::Handle);
-            default: TBase::StateWork(ev);
+            default:
+                TBase::StateWork(ev);
             }
         }
 
@@ -583,6 +585,9 @@ namespace NKikimr::NGRpcProxy::V1 {
 
             auto& item = ev->Get()->Request->ResultSet[0];
             PQGroupInfo = item.PQGroupInfo;
+            for (const auto& partition : PQGroupInfo->Description.GetPartitions()) {
+                TopicPartitionsIds.insert(partition.GetPartitionId());
+            }
             Self = item.Self;
 
             return true;
@@ -645,10 +650,10 @@ namespace NKikimr::NGRpcProxy::V1 {
     protected:
         THolder<TEvResponse> Response;
         TIntrusiveConstPtr<NSchemeCache::TSchemeCacheNavigate::TPQGroupInfo> PQGroupInfo;
+        TSet<i64> TopicPartitionsIds;
         TIntrusiveConstPtr<NSchemeCache::TSchemeCacheNavigate::TDirEntryInfo> Self;
         TMaybe<TString> PrivateTopicName;
         TMaybe<TString> CdcStreamName;
-
     };
 
 }
