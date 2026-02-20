@@ -74,6 +74,10 @@ void EmitFunctionContext::loop(ControlStructureImm imm)
 	irBuilder.CreateBr(loopBodyBlock);
 	irBuilder.SetInsertPoint(loopBodyBlock);
 
+	emitRuntimeIntrinsic("throwIfCurrentTimeoutExpired",
+						 FunctionType({}, {}, IR::CallingConvention::intrinsic),
+						 {});
+
 	// Push a control context that ends at the end block/phi.
 	pushControlStack(ControlContext::Type::loop, blockType.results(), endBlock, endPHIs);
 

@@ -80,3 +80,19 @@ WAVM_DEFINE_INTRINSIC_FUNCTION(wavmIntrinsics, "debugBreak", void, debugBreak)
 {
 	Log::printf(Log::debug, "================== wavmIntrinsics.debugBreak\n");
 }
+
+WAVM_DEFINE_INTRINSIC_FUNCTION(wavmIntrinsics,
+							   "throwIfCurrentTimeoutExpired",
+							   void,
+							   throwIfCurrentTimeoutExpired)
+{
+	static thread_local int counter = 0;
+	static constexpr int COUNTER_CHECK_PERIOD = 8192;
+
+	if (counter == COUNTER_CHECK_PERIOD) {
+		if(isCurrentDeadlineReached()) { throwException(ExceptionTypes::timeoutExpired); }
+		counter = 0;
+	} else {
+		++counter;
+	}
+}
