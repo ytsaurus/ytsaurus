@@ -213,11 +213,12 @@ func TestDecodeArrayDefaults(t *testing.T) {
 
 func TestDecodeSkipUndef(t *testing.T) {
 	type S struct {
+		p     string `properties:"-"`
 		X     string `properties:"-"`
 		Undef string `properties:",default=some value"`
 	}
 	in := `X=ignore`
-	out := &S{"", "some value"}
+	out := &S{"", "", "some value"}
 	testDecode(t, in, &S{}, out)
 }
 
