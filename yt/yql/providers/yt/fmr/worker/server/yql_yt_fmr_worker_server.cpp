@@ -32,7 +32,7 @@ public:
         if (queryPath == "ping") {
             YQL_ENSURE(httpRequest.Method == "GET");
             auto response = PingHandler_(params.Input);
-            YQL_CLOG(INFO, FastMapReduce) << "Sending ping response with status: " << response.HttpCode();
+            YQL_CLOG(TRACE, FastMapReduce) << "Sending ping response with status: " << response.HttpCode();
             params.Output << response;
         } else {
             YQL_CLOG(WARN, FastMapReduce) << "Unknown endpoint requested: " << httpRequest.Path;

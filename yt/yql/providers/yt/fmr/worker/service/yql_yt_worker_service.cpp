@@ -4,6 +4,7 @@
 #include <util/string/strip.h>
 #include <util/system/env.h>
 #include <util/system/interrupt_signals.h>
+#include <yt/yql/providers/yt/fmr/utils/yql_yt_tvm_helpers.h>
 #include <yt/yql/providers/yt/lib/yt_download/yt_download.h>
 #include <yt/yql/providers/yt/fmr/coordinator/client/yql_yt_coordinator_client.h>
 #include <yt/yql/providers/yt/fmr/coordinator/impl/yql_yt_coordinator_impl.h>
@@ -14,6 +15,7 @@
 #include <yt/yql/providers/yt/fmr/table_data_service/client/impl/yql_yt_table_data_service_client_impl.h>
 #include <yt/yql/providers/yt/fmr/table_data_service/local/impl/yql_yt_table_data_service_local.h>
 #include <yt/yql/providers/yt/fmr/table_data_service/discovery/file/yql_yt_file_service_discovery.h>
+#include <yt/yql/providers/yt/fmr/tvm/impl/yql_yt_fmr_tvm_impl.h>
 #include <yt/yql/providers/yt/fmr/worker/impl/yql_yt_worker_impl.h>
 #include <yt/yql/providers/yt/fmr/yt_job_service/file/yql_yt_file_yt_job_service.h>
 #include <yt/yql/providers/yt/fmr/worker/server/yql_yt_fmr_worker_server.h>
@@ -41,6 +43,9 @@ struct TWorkerRunOptions {
     TString LoggerFormat;
     THolder<TFileStorageConfig> FsConfig;
     THolder<TFmrFileRemoteCache> FmrRemoteCacheConfig;
+    TString FmrTvmConfig;
+    TMaybe<ui32> FmrTvmPort;
+    TMaybe<TString> FmrTvmSecretPath;
 
     void InitLogger() {
         NLog::ELevel level = NLog::TLevelHelpers::FromInt(Verbosity);
@@ -88,7 +93,9 @@ int main(int argc, const char *argv[]) {
             options.FmrRemoteCacheConfig = MakeHolder<TFmrFileRemoteCache>();
             LoadFmrRemoteCacheConfigFromFile(file, *options.FmrRemoteCacheConfig);
         });
-        opts.SetFreeArgsMax(0);
+        opts.AddLongOption('t', "tvm-cfg", "fmr tvm config").Optional().StoreResult(&options.FmrTvmConfig);
+        opts.AddLongOption("tvm-port", "fmr tvm port").Optional().StoreResult(&options.FmrTvmPort);
+        opts.AddLongOption("tvm-secret-path", "fmr tvm secret path").Optional().StoreResult(&options.FmrTvmSecretPath);
 
         auto res = NLastGetopt::TOptsParseResult(&opts, argc, argv);
 
@@ -121,7 +128,30 @@ int main(int argc, const char *argv[]) {
         }
         coordinatorClientSettings.Port = parsedUrl.GetPort();
         coordinatorClientSettings.Host = parsedUrl.GetHost();
-        auto coordinator = MakeFmrCoordinatorClient(coordinatorClientSettings);
+
+        IFmrTvmClient::TPtr tvmClient = nullptr;
+
+        TMaybe<TFmrTvmJobSettings> tvmSettings = Nothing();
+        TTvmId tableDataServiceTvmId = 0;
+        auto tvmSpec = ParseFmrTvmSpec(options.FmrTvmConfig);
+
+        if (tvmSpec.Defined()) {
+            auto tvmSecret = ParseFmrTvmSecretFile(options.FmrTvmSecretPath);
+            coordinatorClientSettings.DestinationTvmId = tvmSpec->CoordinatorTvmId;
+            tvmClient = MakeFmrTvmClient(TFmrTvmToolSettings{
+                .SourceTvmAlias = tvmSpec->WorkerTvmAlias,
+                .TvmPort = options.FmrTvmPort,
+                .TvmSecret = tvmSecret
+            });
+            tvmSettings = TFmrTvmJobSettings{
+                .WorkerTvmAlias = tvmSpec->WorkerTvmAlias,
+                .TableDataServiceTvmId = tvmSpec->TableDataServiceTvmId,
+                .TvmPort = options.FmrTvmPort,
+                .TvmSecret = tvmSecret
+            };
+            tableDataServiceTvmId = tvmSpec->TableDataServiceTvmId;
+        }
+        auto coordinator = MakeFmrCoordinatorClient(coordinatorClientSettings, tvmClient);
 
         auto fmrYtJobSerivce =  isNative ? MakeYtJobSerivce() : MakeFileYtJobService();
         auto jobLauncher = MakeIntrusive<TFmrUserJobLauncher>(TFmrUserJobLauncherOptions{
@@ -132,8 +162,8 @@ int main(int argc, const char *argv[]) {
         });
         // TODO - add different job Settings here
         TString tableDataServiceDiscoveryFilePath = options.TableDataServiceDiscoveryFilePath;
-        auto func = [tableDataServiceDiscoveryFilePath, fmrYtJobSerivce, jobLauncher] (NFmr::TTask::TPtr task, std::shared_ptr<std::atomic<bool>> cancelFlag) mutable {
-            return RunJob(task, tableDataServiceDiscoveryFilePath, fmrYtJobSerivce, jobLauncher , cancelFlag);
+        auto func = [tableDataServiceDiscoveryFilePath, fmrYtJobSerivce, jobLauncher, tvmSettings] (NFmr::TTask::TPtr task, std::shared_ptr<std::atomic<bool>> cancelFlag) mutable {
+            return RunJob(task, tableDataServiceDiscoveryFilePath, fmrYtJobSerivce, jobLauncher, cancelFlag, tvmSettings);
         };
 
         TFmrJobFactorySettings settings{.Function=func};
@@ -147,7 +177,7 @@ int main(int argc, const char *argv[]) {
         NYql::NFS::IDownloaderPtr ytDownloader =  MakeYtDownloader(*options.FsConfig, ytDownloaderServer);
         TFileStoragePtr fileStorage = WithAsync(CreateFileStorage(*options.FsConfig, {ytDownloader}));
 
-        auto jobPreparer = MakeFmrJobPreparer(fileStorage, tableDataServiceDiscoveryFilePath);
+        auto jobPreparer = MakeFmrJobPreparer(fileStorage, tableDataServiceDiscoveryFilePath, TFmrJobPreparerSettings(), tvmClient, tableDataServiceTvmId);
         if (isNative && fmrCacheConfig && !fmrCacheConfig->GetPath().empty()) {
             TString distFileCacheBaseUrl = "yt://" + fmrCacheConfig->GetCluster() + "/" + fmrCacheConfig->GetPath();
             TString distCacheYtToken;

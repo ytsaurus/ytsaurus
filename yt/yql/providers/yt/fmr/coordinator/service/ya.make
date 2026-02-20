@@ -22,6 +22,7 @@ PEERDIR(
     yt/yql/providers/yt/fmr/table_data_service/interface
     yt/yql/providers/yt/fmr/table_data_service/client/impl
     yt/yql/providers/yt/fmr/table_data_service/discovery/file
+    yt/yql/providers/yt/fmr/tvm/impl
     yt/yql/providers/yt/fmr/gc_service/impl
     yql/essentials/utils/log
 )

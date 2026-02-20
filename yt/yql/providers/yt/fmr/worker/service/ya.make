@@ -26,6 +26,7 @@ PEERDIR(
     yt/yql/providers/yt/fmr/table_data_service/client/impl
     yt/yql/providers/yt/fmr/table_data_service/local/impl
     yt/yql/providers/yt/fmr/table_data_service/discovery/file
+    yt/yql/providers/yt/fmr/tvm/impl
     yt/yql/providers/yt/fmr/yt_job_service/file
     yt/yql/providers/yt/fmr/yt_job_service/impl
     yt/yql/providers/yt/codec/codegen
@@ -39,7 +40,7 @@ PEERDIR(
 )
 
 RESOURCE(
-    yt/yql/providers/yt/fmr/cfg/fs.conf fs.conf
+    yt/yql/providers/yt/fmr/cfg/local/fs.conf fs.conf
 )
 
 YQL_LAST_ABI_VERSION()
