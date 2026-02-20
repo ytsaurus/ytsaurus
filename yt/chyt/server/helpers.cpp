@@ -227,7 +227,7 @@ std::optional<DB::Field> TryDecrementFieldValue(const DB::Field& field, const DB
             // When the decremented value is unrepresented in removeNullable(dataType),
             // we theoretically can represent it as Null, because Null is smaller than any value.
             // But we do not care since this function declared to help only in 'simple cases'.
-            return TryDecrementFieldValue(field, DB::removeNullable(dataType));
+            return (field.isNull() ? std::nullopt : TryDecrementFieldValue(field, DB::removeNullable(dataType)));
 
         case DB::TypeIndex::Int8:
         case DB::TypeIndex::Int16:
@@ -283,8 +283,9 @@ std::optional<DB::Field> TryIncrementFieldValue(const DB::Field& field, const DB
         return std::nullopt;
     }
     switch (dataType->getTypeId()) {
-        case DB::TypeIndex::Nullable:
-            return TryIncrementFieldValue(field, DB::removeNullable(dataType));
+        case DB::TypeIndex::Nullable: {
+            return (field.isNull() ? std::nullopt : TryIncrementFieldValue(field, DB::removeNullable(dataType)));
+        }
 
         case DB::TypeIndex::Int8:
         case DB::TypeIndex::Int16:
