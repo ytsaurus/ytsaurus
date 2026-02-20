@@ -35,6 +35,7 @@ target_sources(yql-essentials-utils PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/checkpoint_map.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/chunked_buffer.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/debug_info.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/exception_utils.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/future_action.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/hash.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/limiting_allocator.cpp
@@ -57,6 +58,7 @@ target_sources(yql-essentials-utils PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/cast.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/chunked_buffer.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/debug_info.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/exception_utils.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/future_action.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/hash.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/md5_stream.h
