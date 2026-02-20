@@ -21,6 +21,7 @@ PEERDIR(
     contrib/python/pytest
     contrib/python/PyYAML
     contrib/python/requests
+    contrib/python/frozendict
     library/python/resource
 )
 

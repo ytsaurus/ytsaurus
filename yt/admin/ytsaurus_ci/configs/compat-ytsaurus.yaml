@@ -8,36 +8,29 @@ main:
 24.2: &ytsaurus_24_2_0
   source: release
   constraints:
-    chyt: 2.16.0
-    operator: " >= 0.23.1 && <= 0.26.0"
-    query_tracker: 0.0.8
-    spyt: 2.6.5
-    strawberry: 0.0.12
+    chyt: "2.16.0"
+    operator: ">=0.23.1 && <= 0.26.0"
+    query_tracker: "0.0.8"
+    strawberry: "0.0.12"
 25.1:
   <<: *ytsaurus_24_2_0
   constraints:
-    query_tracker: ">=0.0.10"
-    operator: ">=0.26.0 && <=0.27.0"
-    chyt: ">=2.17.3 && <= 2.17.4"
+    query_tracker: ">=0.0.8"
+    operator: ">=0.25.0 && <=0.27.0"
+    chyt: ">=2.16.0"
     strawberry: "0.0.13"
 25.2:
   <<: *ytsaurus_24_2_0
   constraints:
-    operator: ">=0.27.0"
-    query_tracker: ">=0.0.11"
-    strawberry: 0.0.15
-    chyt: ">=2.17.4"
+    operator: ">=0.25.0"
+    strawberry: "0.0.15"
 25.3:
   <<: *ytsaurus_24_2_0
   constraints:
-    operator: ">=0.27.0 && main"
-    query_tracker: ">=0.0.11"
-    strawberry: 0.0.15
-    chyt: ">=2.17.4"
+    operator: ">=0.25.0"
+    strawberry: "0.0.15"
 25.4:
   <<: *ytsaurus_24_2_0
   constraints:
-    operator: ">=0.27.0 && main"
-    query_tracker: ">=0.0.11"
+    operator: ">=0.25.0 && main"
     strawberry: "0.0.15"
-    chyt: ">=2.17.4"
