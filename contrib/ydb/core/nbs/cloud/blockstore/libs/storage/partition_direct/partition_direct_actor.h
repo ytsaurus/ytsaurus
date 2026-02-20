@@ -1,33 +1,44 @@
 #pragma once
 
 #include <contrib/ydb/library/actors/core/actor_bootstrapped.h>
-#include <contrib/ydb/library/actors/core/log.h>
+#include <contrib/ydb/core/protos/blockstore_config.pb.h>
+#include <contrib/ydb/core/blobstorage/base/blobstorage_events.h>
 
-#include <contrib/ydb/core/nbs/cloud/blockstore/libs/storage/api/service.h>
-#include <contrib/ydb/core/nbs/cloud/storage/core/libs/common/error.h>
+#include <contrib/ydb/core/nbs/cloud/blockstore/config/storage.pb.h>
 
+namespace NYdb::NBS::NBlockStore::NStorage::NPartitionDirect {
 
-namespace NYdb::NBS::NStorage::NPartitionDirect {
-
-using namespace NActors;
+////////////////////////////////////////////////////////////////////////////////
 
 class TPartitionActor
-    : public TActorBootstrapped<TPartitionActor>
+    : public NActors::TActorBootstrapped<TPartitionActor>
 {
+private:
+    NYdb::NBS::NProto::TStorageConfig StorageConfig;
+    NKikimrBlockStore::TVolumeConfig VolumeConfig;
+
+    NActors::TActorId BSControllerPipeClient;
+
+    NActors::TActorId LoadActorAdapter;
+
+
 public:
-    TPartitionActor() = default;
-    void Bootstrap(const TActorContext& ctx);
+    TPartitionActor(
+        NYdb::NBS::NProto::TStorageConfig storageConfig,
+        NKikimrBlockStore::TVolumeConfig volumeConfig);
+
+    void Bootstrap(const NActors::TActorContext& ctx);
 
 private:
     STFUNC(StateWork);
 
-    void HandleWriteBlocksRequest(
-        const TEvService::TEvWriteBlocksRequest::TPtr& ev,
-        const NActors::TActorContext& ctx);
+    void CreateBSControllerPipeClient(const NActors::TActorContext& ctx);
 
-    void HandleReadBlocksRequest(
-        const TEvService::TEvReadBlocksRequest::TPtr& ev,
+    void AllocateDDiskBlockGroup(const NActors::TActorContext& ctx);
+
+    void HandleControllerAllocateDDiskBlockGroupResult(
+        const NKikimr::TEvBlobStorage::TEvControllerAllocateDDiskBlockGroupResult::TPtr& ev,
         const NActors::TActorContext& ctx);
 };
 
-} // namespace NYdb::NBS::NStorage::NPartitionDirect
+}  // namespace NYdb::NBS::NBlockStore::NStorage::NPartitionDirect

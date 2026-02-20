@@ -22,6 +22,7 @@ SRCS(
     blobstorage_base3.proto
     blobstorage_config.proto
     blobstorage_ddisk.proto
+    blobstorage_ddisk_internal.proto
     blobstorage_disk.proto
     blobstorage_disk_color.proto
     blobstorage_distributed_config.proto
@@ -174,6 +175,7 @@ GENERATE_ENUM_SERIALIZATION(shared_cache.pb.h)
 
 PEERDIR(
     contrib/ydb/core/config/protos
+    contrib/ydb/core/nbs/cloud/blockstore/tools/testing/loadtest/lib/protos
     contrib/ydb/core/fq/libs/config/protos
     contrib/ydb/core/protos/nbs
     contrib/ydb/core/protos/schemeshard

@@ -6,10 +6,15 @@ SRCS(
 )
 
 PEERDIR(
-    library/cpp/containers/absl_flat_hash
-    contrib/ydb/library/actors/core
-    contrib/ydb/core/nbs/cloud/blockstore/libs/storage/api
-    contrib/ydb/core/nbs/cloud/storage/core/libs/common
+    contrib/ydb/core/protos
+    contrib/ydb/library/services
+
+    contrib/ydb/core/nbs/cloud/blockstore/config
+    contrib/ydb/core/nbs/cloud/blockstore/libs/storage/partition_direct/load_actor_adapter
 )
 
 END()
+
+RECURSE_FOR_TESTS(
+    ut
+)

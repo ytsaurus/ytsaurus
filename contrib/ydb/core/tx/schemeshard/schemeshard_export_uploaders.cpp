@@ -9,6 +9,7 @@
 #include <contrib/ydb/core/backup/common/checksum.h>
 #include <contrib/ydb/core/backup/common/encryption.h>
 #include <contrib/ydb/core/backup/common/metadata.h>
+#include <contrib/ydb/core/base/appdata_fwd.h>
 #include <contrib/ydb/core/protos/flat_scheme_op.pb.h>
 #include <contrib/ydb/core/tx/datashard/export_common.h>
 #include <contrib/ydb/core/tx/schemeshard/schemeshard_export_helpers.h>
@@ -43,7 +44,9 @@ protected:
     TExportFilesUploader(const Ydb::Export::ExportToS3Settings& settings, const TString& destinationPrefix)
         : Settings(settings)
         , DestinationPrefix(destinationPrefix)
-        , ExternalStorageConfig(new TS3ExternalStorageConfig(Settings))
+        , ExternalStorageConfig(new TS3ExternalStorageConfig(
+            AppData()->AwsClientConfig,
+            Settings))
     {
         if (Settings.has_encryption_settings()) {
             Key = NBackup::TEncryptionKey(Settings.encryption_settings().symmetric_key().key());

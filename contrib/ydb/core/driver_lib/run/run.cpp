@@ -70,6 +70,10 @@
 #include <contrib/ydb/core/protos/workload_manager_config.pb.h>
 #include <contrib/ydb/core/protos/data_integrity_trails.pb.h>
 
+#if defined(OS_LINUX)
+#include <contrib/ydb/core/nbs/cloud/blockstore/bootstrap/bootstrap.h>
+#endif
+
 #include <contrib/ydb/core/mind/local.h>
 #include <contrib/ydb/core/mind/tenant_pool.h>
 #include <contrib/ydb/core/mind/node_broker.h>
@@ -102,7 +106,6 @@
 #include <contrib/ydb/public/lib/deprecated/client/msgbus_client.h>
 #include <contrib/ydb/core/client/minikql_compile/mkql_compile_service.h>
 #include <contrib/ydb/core/client/server/msgbus_server_pq_metacache.h>
-#include <contrib/ydb/core/client/server/http_ping.h>
 
 #include <contrib/ydb/library/grpc/server/actors/logger.h>
 
@@ -148,6 +151,7 @@
 #if defined(OS_LINUX)
 #include <contrib/ydb/services/nbs/grpc_service.h>
 #endif
+
 
 #include <contrib/ydb/core/fq/libs/init/init.h>
 
@@ -653,7 +657,6 @@ void TKikimrRunner::InitializeMonitoring(const TKikimrRunConfig& runConfig, bool
         }
         if (Monitoring) {
             Monitoring->RegisterCountersPage("counters", "Counters", Counters);
-            Monitoring->Register(NHttp::CreatePing());
             ActorsMonPage = Monitoring->RegisterIndexPage("actors", "Actors");
         }
     }
@@ -665,7 +668,7 @@ void TKikimrRunner::InitializeMonitoringLogin(const TKikimrRunConfig&)
         Monitoring->RegisterActorHandler({
             .Path = "/login",
             .Handler = MakeWebLoginServiceId(),
-            .UseAuth = false, // we don't require token for the login page - it's the page to get the token
+            .AuthMode = TMon::EAuthMode::Disabled, // we don't require token for the login page - it's the page to get the token
         });
         Monitoring->RegisterActorHandler({
             .Path = "/logout",
@@ -2143,6 +2146,12 @@ TIntrusivePtr<TServiceInitializersList> TKikimrRunner::CreateServiceInitializers
         sil->AddServiceInitializer(new TOverloadManagerInitializer(runConfig));
     }
 
+#if defined(OS_LINUX)
+    if (serviceMask.EnableNBSService) {
+        sil->AddServiceInitializer(new TNbsServiceInitializer(runConfig));
+    }
+#endif
+
     return sil;
 }
 
@@ -2158,6 +2167,7 @@ void TKikimrRunner::KikimrStart() {
     ThreadSigmask(SIG_BLOCK);
     if (ActorSystem) {
         ActorSystem->Start();
+        LOG_NOTICE_S(*ActorSystem, NActorsServices::GLOBAL, GetProgramSvnVersion());
     }
 
     if (!!Monitoring) {
@@ -2173,6 +2183,10 @@ void TKikimrRunner::KikimrStart() {
     if (SqsHttp) {
         SqsHttp->Start();
     }
+
+#if defined(OS_LINUX)
+    NYdb::NBS::NBlockStore::StartNbsService();
+#endif
 
     EnableActorCallstack();
     ThreadSigmask(SIG_UNBLOCK);
@@ -2219,6 +2233,10 @@ void TKikimrRunner::KikimrStop(bool graceful) {
     }
 
     DisableActorCallstack();
+
+#if defined(OS_LINUX)
+    NYdb::NBS::NBlockStore::StopNbsService();
+#endif
 
     if (drainProgress) {
         ui32 maxTicks = DrainTimeout.MilliSeconds() / 100;
