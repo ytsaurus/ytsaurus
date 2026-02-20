@@ -49,7 +49,7 @@ def check_virtual_map_size(yt_client, logger, options, states, check_name, count
                 logger.info("Last seen replicas for chunk {}: {}".format(chunk_id, response.get_result()))
             else:
                 logger.exception("Failed to get last seen replicas for chunk {}: '{}'".format(chunk_id, response.get_error()))
-        return states.UNAVAILABLE_STATE
+        return states.UNAVAILABLE_STATE, chunk_count
     else:
         return states.FULLY_AVAILABLE_STATE
 
@@ -83,4 +83,7 @@ def check_virtual_map_age(yt_client, logger, options, check_name):
 
     age = datetime.utcnow() - datetime.utcfromtimestamp(yt.common.date_string_to_timestamp(timestamp))
 
-    return {"count": chunk_count, "age": age}
+    return {
+        "count": chunk_count,
+        "age": age,
+        "since": str(datetime.fromtimestamp(yt.common.date_string_to_timestamp(timestamp)))}
