@@ -2183,6 +2183,31 @@ class TestsDDL(TestQueriesYqlSimpleBase):
         self._test_simple_query("drop table if exists `//tmp/tt00`;", None)
         self._test_simple_query_error("select * from `//tmp/tt00`;", "does not exist")
 
+    def test_alter_add_columns(self, query_tracker, yql_agent):
+        settings = {"yql_version": "2025.05"}
+        self._test_simple_query_error("alter table `//tmp/t7` add column one Datetime, add column two Json null;", "does not exists.", settings=settings)
+        self._test_simple_query("insert into `//tmp/t7` select 'text'u as xyz;", None)
+        self._test_simple_query("alter table `//tmp/t7` add column one Datetime, add column two Json null;", None, settings=settings)
+        self._test_simple_query("$p = process `//tmp/t7`; select FormatType(ListItemType(TypeOf($p))) as type;", [{'type': "Struct<'one':Datetime?,'two':Json?,'xyz':Utf8>"}])
+        self._test_simple_query_error("alter table `//tmp/t7` add column bad Float not null;", "Additional contrains for columns isn't supported.", settings=settings)
+
+    def test_alter_add_column_and_insert(self, query_tracker, yql_agent):
+        settings = {"yql_version": "2025.05"}
+        self._test_simple_query("insert into `//tmp/t8` select 'text'u as xyz;", None)
+        self._test_simple_query("""
+            alter table `//tmp/t8` add column extra Float;
+            insert into `//tmp/t8` select 'plus'u as xyz, 3.f as extra;
+        """, None, settings=settings)
+        self._test_simple_query("select * from `//tmp/t8`", [{'extra': None, 'xyz': 'text'}, {'extra': 3.0, 'xyz': 'plus'}])
+
+    def test_insert_and_alter_wrong_sequence(self, query_tracker, yql_agent):
+        settings = {"yql_version": "2025.05"}
+        self._test_simple_query("insert into `//tmp/t9` select 'jump'u as xyz;", None)
+        self._test_simple_query_error("""
+            insert into `//tmp/t9` select 'plus'u as xyz;
+            alter table `//tmp/t9` add column extra Float;
+        """, "table content after another table modifications in the same transaction", settings=settings)
+
 
 @authors("mpereskokova")
 class TestStackOverflowWithProcesses(TestStackOverflow):

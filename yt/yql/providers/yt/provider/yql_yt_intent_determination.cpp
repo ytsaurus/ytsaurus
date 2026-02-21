@@ -42,6 +42,7 @@ public:
         AddHandler({TYtMapReduce::CallableName()}, Hndl(&TYtIntentDeterminationTransformer::HandleOperation));
         AddHandler({TYtCopy::CallableName()}, Hndl(&TYtIntentDeterminationTransformer::HandleOperation));
         AddHandler({TYtMerge::CallableName()}, Hndl(&TYtIntentDeterminationTransformer::HandleOperation));
+        AddHandler({TYtAlter::CallableName()}, Hndl(&TYtIntentDeterminationTransformer::HandleOperation));
         AddHandler({TYtEquiJoin::CallableName()}, Hndl(&TYtIntentDeterminationTransformer::HandleOperation));
         AddHandler({TYtFill::CallableName()}, Hndl(&TYtIntentDeterminationTransformer::HandleOutOperation));
         AddHandler({TYtTouch::CallableName()}, Hndl(&TYtIntentDeterminationTransformer::HandleOutOperation));
@@ -129,6 +130,9 @@ public:
                 case EYtWriteMode::CreateObject:
                 case EYtWriteMode::CreateObjectIfNotExists:
                     tableDesc.Intents |= TYtTableIntent::Create | TYtTableIntent::View;
+                    break;
+                case EYtWriteMode::Alter:
+                    tableDesc.Intents |= TYtTableIntent::Alter;
                     break;
                 default:
                     ctx.AddError(TIssue(ctx.GetPosition(mode->Child(1)->Pos()), TStringBuilder() << "Unsupported "

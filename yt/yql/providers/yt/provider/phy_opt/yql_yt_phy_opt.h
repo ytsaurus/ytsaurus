@@ -56,6 +56,8 @@ private:
 
     NNodes::TMaybeNode<NNodes::TExprBase> ResPull(NNodes::TExprBase node, TExprContext& ctx) const;
 
+    NNodes::TMaybeNode<NNodes::TExprBase> Alter(NNodes::TExprBase node, TExprContext& ctx) const;
+
     struct TRangeBuildResult {
         TVector<TString> Keys;
         TSet<size_t> TableIndexes;

@@ -98,6 +98,7 @@ public:
         AddHandler({TYtSort::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleSort));
         AddHandler({TYtCopy::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleCopy));
         AddHandler({TYtMerge::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleMerge));
+        AddHandler({TYtAlter::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleAlter));
         AddHandler({TYtMap::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleMap));
         AddHandler({TYtReduce::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleReduce));
         AddHandler({TYtMapReduce::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleMapReduce));
@@ -106,6 +107,7 @@ public:
         AddHandler({TYtTouch::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleTouch));
         AddHandler({TYtCreateTable::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleCreateTable));
         AddHandler({TYtDropTable::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleDrop));
+        AddHandler({TYtAlterTable::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleAlterTable));
         AddHandler({TYtCreateView::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleCreateView));
         AddHandler({TYtDropView::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleDrop));
         AddHandler({TCoCommit::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleCommit));
@@ -1004,6 +1006,46 @@ private:
         return TStatus::Ok;
     }
 
+    bool ValidateGroup(const TYtTransientOpBase& op, TExprContext& ctx) {
+        TStringBuf outGroup;
+        if (auto setting = NYql::GetSetting(op.Output().Item(0).Settings().Ref(), EYtSettingType::ColumnGroups)) {
+            outGroup = setting->Tail().Content();
+        }
+
+        bool diffGroups = false;
+        const auto& path = op.Input().Item(0).Paths().Item(0);
+        if (const auto table = path.Table().Maybe<TYtTable>()) {
+            if (const auto tableDesc = State_->TablesData->FindTable(op.DataSink().Cluster().StringValue(), TString{TYtTableInfo::GetTableLabel(table.Cast())}, TEpochInfo::Parse(table.Cast().Epoch().Ref()))) {
+                diffGroups = tableDesc->ColumnGroupSpecAlts.empty() != outGroup.empty() || (!outGroup.empty() && !tableDesc->ColumnGroupSpecAlts.contains(outGroup));
+                if (diffGroups && !outGroup.empty() && !tableDesc->ColumnGroupSpecAlts.empty()) {
+                    TString expanded;
+                    if (ExpandDefaultColumnGroup(outGroup, *GetSeqItemType(*op.Output().Item(0).Ref().GetTypeAnn()).Cast<TStructExprType>(), expanded)) {
+                        diffGroups = !tableDesc->ColumnGroupSpecAlts.contains(expanded);
+                    }
+                }
+            }
+        } else if (const auto out = path.Table().Maybe<TYtOutput>()) {
+            TStringBuf inGroup;
+            if (const auto setting = NYql::GetSetting(GetOutputOp(out.Cast()).Output().Item(FromString<ui32>(out.Cast().OutIndex().Value())).Settings().Ref(), EYtSettingType::ColumnGroups)) {
+                inGroup = setting->Tail().Content();
+            }
+            diffGroups = inGroup != outGroup;
+        } else if (const auto outTable = path.Table().Maybe<TYtOutTable>()) {
+            TStringBuf inGroup;
+            if (const auto setting = NYql::GetSetting(outTable.Cast().Settings().Ref(), EYtSettingType::ColumnGroups)) {
+                inGroup = setting->Tail().Content();
+            }
+            diffGroups = inGroup != outGroup;
+        }
+
+        if (diffGroups) {
+            ctx.AddError(TIssue(ctx.GetPosition(op.Output().Item(0).Settings().Pos()), TStringBuilder() << op.Ref().Content()
+            << " has input/output tables with different " << EYtSettingType::ColumnGroups << " values"));
+            return false;
+        }
+        return true;
+    }
+
     TStatus HandleCopy(const TExprNode::TPtr& input, TExprNode::TPtr& output, TExprContext& ctx) {
         if (!EnsureArgsCount(*input, 5, ctx)) {
             return TStatus::Error;
@@ -1075,40 +1117,7 @@ private:
             return TStatus::Error;
         }
 
-        TStringBuf outGroup;
-        if (auto setting = NYql::GetSetting(copy.Output().Item(0).Settings().Ref(), EYtSettingType::ColumnGroups)) {
-            outGroup = setting->Tail().Content();
-        }
-
-        bool diffGroups = false;
-        const auto& path = copy.Input().Item(0).Paths().Item(0);
-        if (auto table = path.Table().Maybe<TYtTable>()) {
-            if (auto tableDesc = State_->TablesData->FindTable(copy.DataSink().Cluster().StringValue(), TString{TYtTableInfo::GetTableLabel(table.Cast())}, TEpochInfo::Parse(table.Cast().Epoch().Ref()))) {
-                diffGroups = tableDesc->ColumnGroupSpecAlts.empty() != outGroup.empty() || (!outGroup.empty() && !tableDesc->ColumnGroupSpecAlts.contains(outGroup));
-                if (diffGroups && !outGroup.empty() && !tableDesc->ColumnGroupSpecAlts.empty()) {
-                    TString expanded;
-                    if (ExpandDefaultColumnGroup(outGroup, *GetSeqItemType(*copy.Output().Item(0).Ref().GetTypeAnn()).Cast<TStructExprType>(), expanded)) {
-                        diffGroups = !tableDesc->ColumnGroupSpecAlts.contains(expanded);
-                    }
-                }
-            }
-        } else if (auto out = path.Table().Maybe<TYtOutput>()) {
-            TStringBuf inGroup;
-            if (auto setting = NYql::GetSetting(GetOutputOp(out.Cast()).Output().Item(FromString<ui32>(out.Cast().OutIndex().Value())).Settings().Ref(), EYtSettingType::ColumnGroups)) {
-                inGroup = setting->Tail().Content();
-            }
-            diffGroups = inGroup != outGroup;
-        } else if (auto outTable = path.Table().Maybe<TYtOutTable>()) {
-            TStringBuf inGroup;
-            if (auto setting = NYql::GetSetting(outTable.Cast().Settings().Ref(), EYtSettingType::ColumnGroups)) {
-                inGroup = setting->Tail().Content();
-            }
-            diffGroups = inGroup != outGroup;
-        }
-
-        if (diffGroups) {
-            ctx.AddError(TIssue(ctx.GetPosition(copy.Output().Item(0).Settings().Pos()), TStringBuilder() << TYtCopy::CallableName()
-                << " has input/output tables with different " << EYtSettingType::ColumnGroups << " values"));
+        if (!ValidateGroup(copy, ctx)) {
             return TStatus::Error;
         }
 
@@ -1185,6 +1194,66 @@ private:
         }
 
         input->SetTypeAnn(MakeOutputOperationType(merge, ctx));
+        return TStatus::Ok;
+    }
+
+    TStatus HandleAlter(const TExprNode::TPtr& input, TExprNode::TPtr& output, TExprContext& ctx) {
+        if (!EnsureArgsCount(*input, 5U, ctx)) {
+            return TStatus::Error;
+        }
+
+        if (const auto status = ValidateAndUpdateTransientOpBase(input, output, ctx, false, {}); status.Level != TStatus::Ok) {
+            return status;
+        }
+
+        const TYtAlter alter(input);
+        const TYqlRowSpecInfo outRowSpec(alter.Output().Item(0).RowSpec());
+
+        for (const auto section: alter.Input()) {
+            for (const auto path: section.Paths()) {
+                if (!path.Ranges().Maybe<TCoVoid>()) {
+                    ctx.AddError(TIssue(ctx.GetPosition(path.Pos()), TStringBuilder() << TYtAlter::CallableName() << " cannot be used with range selection"));
+                    return TStatus::Error;
+                }
+                if (!path.QLFilter().Maybe<TCoVoid>()) {
+                    ctx.AddError(TIssue(ctx.GetPosition(path.Pos()), TStringBuilder() << TYtAlter::CallableName() << " cannot be used with QLFilter"));
+                    return TStatus::Error;
+                }
+                const auto tableInfo = TYtTableBaseInfo::Parse(path.Table());
+                if (tableInfo->Meta->IsDynamic) {
+                    ctx.AddError(TIssue(ctx.GetPosition(path.Pos()), TStringBuilder() << TYtAlter::CallableName() << " cannot be used with dynamic tables"));
+                    return TStatus::Error;
+                }
+                const auto tableColumnsSize = tableInfo->RowSpec ? tableInfo->RowSpec->GetType()->GetSize() : YAMR_FIELDS.size();
+                if (!path.Columns().Maybe<TCoVoid>() && path.Columns().Cast<TExprList>().Size() != tableColumnsSize) {
+                    ctx.AddError(TIssue(ctx.GetPosition(path.Pos()), TStringBuilder() << TYtAlter::CallableName() << " cannot be used with column selection"));
+                    return TStatus::Error;
+                }
+                if (tableInfo->RequiresRemap()) {
+                    ctx.AddError(TIssue(ctx.GetPosition(path.Pos()), TStringBuilder() << TYtAlter::CallableName()
+                    << " cannot be applied to tables with QB2 premapper, inferred, yamred_dsv, or non-strict schemas"));
+                    return TStatus::Error;
+                }
+            }
+        }
+
+        if (const auto inputRowSpec = TYtTableBaseInfo::GetRowSpec(alter.Input().Item(0).Paths().Item(0).Table());
+            (inputRowSpec && !inputRowSpec->CompareSortness(outRowSpec)) || (!inputRowSpec && outRowSpec.IsSorted())) {
+            ctx.AddError(TIssue(ctx.GetPosition(alter.Output().Item(0).Pos()), TStringBuilder()
+            << "Input/output tables have different sort order"));
+            return TStatus::Error;
+        }
+
+        // YtAlter! has no settings
+        if (!EnsureTupleSize(alter.Settings().MutableRef(), 0, ctx)) {
+            return TStatus::Error;
+        }
+
+        if (!ValidateGroup(alter, ctx)) {
+            return TStatus::Error;
+        }
+
+        input->SetTypeAnn(MakeOutputOperationType(alter, ctx));
         return TStatus::Ok;
     }
 
@@ -1941,6 +2010,157 @@ private:
         }
 
         input->SetTypeAnn(create.World().Ref().GetTypeAnn());
+        return TStatus::Ok;
+    }
+
+    TStatus HandleAlterTable(const TExprNode::TPtr& input, TExprNode::TPtr& output, TExprContext& ctx) {
+        if (!EnsureArgsCount(*input, 5U, ctx)) {
+            return TStatus::Error;
+        }
+
+        if (!ValidateOpBase(input, ctx)) {
+            return TStatus::Error;
+        }
+
+        const auto table = input->ChildPtr(TYtAlterTable::idx_Table);
+        if (!EnsureCallable(*table, ctx)) {
+            return TStatus::Error;
+        }
+        if (!table->IsCallable(TYtTable::CallableName())) {
+            ctx.AddError(TIssue(ctx.GetPosition(table->Pos()), TStringBuilder() << "Expected " << TYtTable::CallableName()
+            << " callable, but got " << table->Content()));
+            return TStatus::Error;
+        }
+
+        if (!EnsureDataSinkClusterMatchesTable(TYtDSink(input->ChildPtr(TYtAlterTable::idx_DataSink)), TYtTable(table), ctx)) {
+            return TStatus::Error;
+        }
+
+        const auto actions = input->ChildPtr(TYtAlterTable::idx_Actions);
+        if (!EnsureTuple(*actions, ctx)) {
+            return TStatus::Error;
+        }
+
+        const auto settings = input->Child(TYtAlterTable::idx_Settings);
+        if (!EnsureTuple(*settings, ctx)) {
+            return TStatus::Error;
+        }
+
+        if (!ValidateSettings(*settings, EYtSettingType::Initial, ctx))
+        {
+            return TStatus::Error;
+        }
+
+        const TYtAlterTable alter(input);
+        if (!TYtTableInfo::HasSubstAnonymousLabel(alter.Table())) {
+            const bool useNativeYtDefaultColumnOrder = State_->Configuration->UseNativeYtDefaultColumnOrder.Get().GetOrElse(DEFAULT_USE_NATIVE_YT_DEFAULT_COLUMN_ORDER);
+
+            TExprNode::TPtr newTable;
+            if (const auto status = UpdateTableMeta(table, newTable, State_->TablesData, false, State_->Types->UseTableMetaFromGraph, useNativeYtDefaultColumnOrder, ctx); TStatus::Ok != status.Level) {
+                if (TStatus::Error != status.Level && newTable != table) {
+                    output = ctx.ChangeChild(*input, TYtCreateTable::idx_Table, std::move(newTable));
+                }
+                return status.Combine(TStatus::Repeat);
+            }
+
+            const TYtTableInfo tableInfo(alter.Table());
+            YQL_ENSURE(tableInfo.Meta);
+            if (!tableInfo.Meta->DoesExist) {
+                ctx.AddError(TIssue(ctx.GetPosition(alter.Table().Pos()), TStringBuilder() <<
+                "Table " << tableInfo.Name.Quote() << " does not exists."));
+                return TStatus::Error;
+            }
+
+            if (tableInfo.Meta->IsDynamic) {
+                ctx.AddError(TIssue(ctx.GetPosition(alter.Table().Pos()), TStringBuilder() <<
+                "Table " << tableInfo.Name.Quote() << " table is dynamic and this case is not supported yet."));
+                return TStatus::Error;
+            }
+
+            if (!tableInfo.Meta->SqlView.empty()) {
+                ctx.AddError(TIssue(ctx.GetPosition(alter.Table().Pos()), TStringBuilder() <<
+                "View "  << tableInfo.Name.Quote() << " is not suitable for altering."));
+                return TStatus::Error;
+            }
+
+            if (const auto commitEpoch = tableInfo.CommitEpoch) {
+                auto& next = State_->TablesData->GetOrAddTable(alter.DataSink().Cluster().StringValue(), tableInfo.Name, commitEpoch);
+                if (!next.Meta) {
+                    next.Meta = MakeIntrusive<TYtTableMetaInfo>();
+                    next.Meta->DoesExist = true;
+                }
+
+                auto items = tableInfo.RowSpec->GetType()->GetItems();
+                std::unordered_set<std::string_view> old(items.size()), changes;
+                std::for_each(items.cbegin(), items.cend(), [&old](const TItemExprType* item) { old.emplace(item->GetName()); });
+
+                for (auto i = 0U; i < alter.Actions().Size(); ++i) {
+                    if (const auto& name = alter.Actions().Item(i).Name().Value(); name == "addColumns") {
+                        const auto& list = alter.Actions().Item(i).Value().Cast<TExprList>();
+                        for (auto j = 0U; j < list.Size(); ++j) {
+                            const auto& item = list.Item(j).Cast<TExprList>();
+                            if (item.Size() != 4U) {
+                                ctx.AddError(TIssue(ctx.GetPosition(item.Pos()), "Invalid column description."));
+                                return TStatus::Error;
+                            }
+                            const auto& column = item.Item(0U).Cast<TCoAtom>().Value();
+                            if (old.contains(column)) {
+                                ctx.AddError(TIssue(ctx.GetPosition(item.Item(0U).Pos()),
+                                    TStringBuilder() << "Column '" << column << "' already exists."));
+                                return TStatus::Error;
+                            }
+                            if (const auto& constraints = item.Item(2U).Maybe<TCoNameValueTuple>();
+                                !constraints || constraints.Cast().Name().Value() != "columnConstrains" || !constraints.Cast().Value().Maybe<TCoNameValueTupleList>()) {
+                                ctx.AddError(TIssue(ctx.GetPosition(item.Item(2U).Pos()), "Invalid column constraints description."));
+                                return TStatus::Error;
+                            } else if (!constraints.Cast().Value().Cast<TCoNameValueTupleList>().Empty()) {
+                                ctx.AddError(TIssue(ctx.GetPosition(constraints.Cast().Value().Cast().Pos()), "Additional contrains for columns isn't supported."));
+                                return TStatus::Error;
+                            }
+                            const auto type = item.Item(1U).Ref().GetTypeAnn()->Cast<TTypeExprType>()->GetType();
+                            if (!(EnsurePersistableType(item.Item(1U).Pos(), *type, ctx) && EnsureOptionalType(item.Item(1U).Pos(), *type, ctx))) {
+                                return TStatus::Error;
+                            }
+                            if (!changes.emplace(column).second) {
+                                ctx.AddError(TIssue(ctx.GetPosition(item.Item(0U).Pos()),
+                                    TStringBuilder() << "Duplicate action for column: " << column));
+                                return TStatus::Error;
+                            }
+                            items.emplace_back(ctx.MakeType<TItemExprType>(column, type));
+                        }
+/*TODO:support drop } else if (name == "dropColumns") {
+                        const auto& list = alter.Actions().Item(i).Value().Cast<TCoAtomList>();
+                        for (auto j = 0U; j < list.Size(); ++j) {
+                            const auto& column = list.Item(j).Value();
+                            if (!old.contains(column)) {
+                                ctx.AddError(TIssue(ctx.GetPosition(list.Item(j).Pos()),
+                                    TStringBuilder() << "Column '" << column << "' does not exists."));
+                                return TStatus::Error;
+                            }
+                            if (!changes.emplace(column).second) {
+                                ctx.AddError(TIssue(ctx.GetPosition(list.Item(j).Pos()),
+                                    TStringBuilder() << "Duplicate action for column: " << column));
+                                return TStatus::Error;
+                            }
+                            items.erase(std::remove_if(items.begin(), items.end(), [&column](const TItemExprType* item) { return item->GetName() == column; }), items.end());
+                        }*/
+                    } else {
+                        ctx.AddError(TIssue(ctx.GetPosition(alter.Actions().Item(i).Name().Pos()),
+                            TStringBuilder() << "Unsupported ALTER TABLE action: " << name));
+                        return TStatus::Error;
+                    }
+                }
+
+                const auto rowType = ctx.MakeType<TStructExprType>(std::move(items));
+                next.RowType = rowType;
+                next.IsReplaced = true;
+
+                const TYtOutTableInfo outTable(rowType, State_->Configuration->UseNativeYtTypes.Get().GetOrElse(DEFAULT_USE_NATIVE_YT_TYPES) ? NTCF_ALL : NTCF_NONE);
+                next.RowSpec = outTable.RowSpec;
+            }
+        }
+
+        input->SetTypeAnn(alter.World().Ref().GetTypeAnn());
         return TStatus::Ok;
     }
 
