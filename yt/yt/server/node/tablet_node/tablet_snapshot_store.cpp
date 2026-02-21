@@ -655,21 +655,15 @@ public:
     void ValidateTabletAccess(
         const TTabletSnapshotPtr& /*tabletSnapshot*/,
         NTransactionClient::TTimestamp /*timestamp*/) override
-    {
-        return;
-    }
+    { }
 
     void ValidateBundleNotBanned(
         const TTabletSnapshotPtr& /*tabletSnapshot*/,
         const ITabletSlotPtr& /*slot*/) override
-    {
-        return;
-    }
+    { }
 
     void ValidateUserNotBanned(const std::string& /*userName*/) override
-    {
-        return;
-    }
+    { }
 
     void RegisterTabletSnapshot(
         const ITabletSlotPtr& /*slot*/,
