@@ -331,13 +331,13 @@ func convertValue(id uint16, value reflect.Value) (Value, error) {
 			return NewNull(id), nil
 		}
 
-		blob, err := yson.Marshal(value.Interface())
+		blob, err := yson.MarshalFormat(value.Interface(), yson.FormatBinary)
 		if err != nil {
 			return Value{}, err
 		}
 		v = NewAny(id, blob)
 	case reflect.Struct, reflect.Array:
-		blob, err := yson.Marshal(value.Interface())
+		blob, err := yson.MarshalFormat(value.Interface(), yson.FormatBinary)
 		if err != nil {
 			return Value{}, err
 		}
