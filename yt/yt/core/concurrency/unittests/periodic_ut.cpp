@@ -6,12 +6,15 @@
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/retrying_periodic_executor.h>
 #include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <yt/yt/core/misc/lazy_ptr.h>
 
 #include <yt/yt/core/logging/log.h>
+
+#include <util/generic/xrange.h>
 
 #include <exception>
 #include <atomic>
@@ -368,6 +371,52 @@ TEST_W(TPeriodicTest, Stop)
     // startFuture should be set after the first execution.
     EXPECT_TRUE(startFuture.IsSet());
     EXPECT_TRUE(startFuture.Get().IsOK());
+}
+
+TEST_W(TPeriodicTest, RetryingScheduleOutOfBand)
+{
+    std::atomic<int> count = 0;
+    std::array<TPromise<TInstant>, 4> times;
+    std::generate(times.begin(), times.end(), NewPromise<TInstant>);
+
+    auto callback = BIND([&] {
+        EXPECT_LE(count, 3);
+        times[count++].Set(TInstant::Now());
+        return TError("again");
+    });
+
+    auto actionQueue = New<TActionQueue>();
+    auto executor = New<TRetryingPeriodicExecutor>(
+        actionQueue->GetInvoker(),
+        callback,
+        TExponentialBackoffOptions{
+            .InvocationCount = 3,
+            .MinBackoff = TDuration::MilliSeconds(10),
+            .MaxBackoff = TDuration::MilliSeconds(1000),
+            .BackoffMultiplier = 2,
+            .BackoffJitter = 0,
+        });
+
+    executor->Start();
+    auto prev = TInstant::Now();
+    executor->ScheduleOutOfBand();
+    for (auto i : xrange(4)) {
+        auto time = WaitFor(times[i].ToFuture()).ValueOrThrow();
+        auto [minBackoff, maxBackoff] = executor->GetBackoffInterval();
+        // Cerr << i << " time " << time - prev << " min " << minBackoff << " max " << maxBackoff << Endl;
+        if (i) {
+            EXPECT_GT(time - prev, TDuration::MilliSeconds(10<<(i-1)));
+        } else {
+            EXPECT_LT(time - prev, TDuration::MilliSeconds(10));
+        }
+        if (i == 3) {
+            // Reset after leaving backoff mode.
+            EXPECT_EQ(minBackoff, TDuration::MilliSeconds(20));
+        } else {
+            EXPECT_EQ(minBackoff, TDuration::MilliSeconds(20 << i));
+        }
+        prev = time;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
