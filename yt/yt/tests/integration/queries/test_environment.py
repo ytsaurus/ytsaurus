@@ -9,7 +9,7 @@ from yt.common import YtError
 from yt_commands import (wait, authors, ls, get, set, assert_yt_error, remove, select_rows, insert_rows, exists,
                          create_tablet_cell_bundle, sync_create_cells)
 
-from yt_queries import get_query, get_query_tracker_info
+from yt_queries import get_query, get_query_tracker_info, start_query
 
 from yt.yson import YsonEntity, YsonMap
 
@@ -657,3 +657,103 @@ class TestMigration(YTEnvSetup):
             assert exists(f"//sys/query_tracker/{table}")
             rows_after_migration = list(select_rows(f"* from [//sys/query_tracker/{table}]"))
             assert len(rows_after_migration) == 1
+
+    @authors("mpereskokova")
+    def test_consistency_fix(self, query_tracker):
+        create_tablet_cell_bundle("sys")
+        sync_create_cells(1, tablet_cell_bundle="sys")
+
+        remove("//sys/query_tracker", recursive=True, force=True)
+        client = query_tracker.query_tracker.env.create_native_client()
+
+        create_tables_required_version(client, 21)
+
+        insert_rows("//sys/query_tracker/finished_queries", [{"query_id": "id1", "is_tutorial": True, "access_control_objects": ["good_aco1", "good_aco2"]}])
+        insert_rows("//sys/query_tracker/finished_queries_by_aco_and_start_time", [{"is_tutorial": True, "access_control_object": "good_aco1", "minus_start_time": 0, "query_id": "id1"}])
+        insert_rows("//sys/query_tracker/finished_queries_by_aco_and_start_time", [{"is_tutorial": True, "access_control_object": "good_aco2", "minus_start_time": 0, "query_id": "id1"}])
+        insert_rows("//sys/query_tracker/finished_queries_by_aco_and_start_time", [{"is_tutorial": True, "access_control_object": "bad_aco", "minus_start_time": 0, "query_id": "id1"}])
+
+        insert_rows("//sys/query_tracker/finished_queries", [{"query_id": "id2", "is_tutorial": True, "access_control_objects": []}])
+        insert_rows("//sys/query_tracker/finished_queries_by_aco_and_start_time", [{"is_tutorial": True, "access_control_object": "aco1", "minus_start_time": 0, "query_id": "id2"}])
+        insert_rows("//sys/query_tracker/finished_queries_by_aco_and_start_time", [{"is_tutorial": True, "access_control_object": "aco2", "minus_start_time": 0, "query_id": "id2"}])
+        insert_rows("//sys/query_tracker/finished_queries_by_aco_and_start_time", [{"is_tutorial": True, "access_control_object": "aco3", "minus_start_time": 0, "query_id": "id2"}])
+
+        # changed tutorial
+        insert_rows("//sys/query_tracker/finished_queries", [{"query_id": "id3", "is_tutorial": True, "access_control_objects": ["aco"]}])
+        insert_rows("//sys/query_tracker/finished_queries_by_aco_and_start_time", [{"is_tutorial": False, "access_control_object": "aco", "minus_start_time": 0, "query_id": "id3"}])
+        insert_rows("//sys/query_tracker/finished_queries_by_aco_and_start_time", [{"is_tutorial": True, "access_control_object": "aco", "minus_start_time": 0, "query_id": "id3"}])
+
+        run_migration(client, 22)
+        for table in ["finished_queries_by_aco_and_start_time_sorted", "acos_to_remove", "finished_queries.copy", "finished_queries_by_aco_and_start_time.copy"]:
+            assert not exists(f"//sys/query_tracker/{table}")
+        for table in ["finished_queries", "finished_queries_by_aco_and_start_time"]:
+            assert exists(f"//sys/query_tracker/{table}")
+
+        finished_queries = list(select_rows("* from [//sys/query_tracker/finished_queries]"))
+        assert len(finished_queries) == 3
+
+        finished_queries_by_aco_and_start_time = list(select_rows("* from [//sys/query_tracker/finished_queries_by_aco_and_start_time]"))
+        assert len(finished_queries_by_aco_and_start_time) == 3
+
+        assert finished_queries_by_aco_and_start_time == [
+            {"is_tutorial": True, "access_control_object": "aco", "minus_start_time": 0, "query_id": "id3",
+                'engine': YsonEntity(), 'user': YsonEntity(), 'state': YsonEntity(), 'filter_factors': YsonEntity()},
+            {"is_tutorial": True, "access_control_object": "good_aco1", "minus_start_time": 0, "query_id": "id1",
+                'engine': YsonEntity(), 'user': YsonEntity(), 'state': YsonEntity(), 'filter_factors': YsonEntity()},
+            {"is_tutorial": True, "access_control_object": "good_aco2", "minus_start_time": 0, "query_id": "id1",
+                'engine': YsonEntity(), 'user': YsonEntity(), 'state': YsonEntity(), 'filter_factors': YsonEntity()},
+        ]
+
+    @authors("mpereskokova")
+    @pytest.mark.timeout(180)
+    def test_filter_factors_fix_no_changes_in_correct_query(self, query_tracker):
+        create_tablet_cell_bundle("sys")
+        sync_create_cells(1, tablet_cell_bundle="sys")
+        remove("//sys/query_tracker", recursive=True, force=True)
+
+        client = query_tracker.query_tracker.env.create_native_client()
+        create_tables_required_version(client, 22)
+        q = start_query("mock", "complete_after", settings={"duration": 0}, access_control_objects=["everyone", "everyone-share"], annotations={"a": "b"})
+        q.track()
+
+        def check_filter_factors():
+            finished_queries_by_start_time = list(select_rows("* from [//sys/query_tracker/finished_queries_by_start_time]"))
+            assert finished_queries_by_start_time[0]["filter_factors"] == 'complete_after {"a"="b";} acos:["aco:everyone";"aco:everyone-share";]'
+
+            finished_queries_by_aco_and_start_time = list(select_rows("* from [//sys/query_tracker/finished_queries_by_aco_and_start_time]"))
+            assert finished_queries_by_aco_and_start_time[0]["filter_factors"] == 'complete_after {"a"="b";} acos:["aco:everyone";"aco:everyone-share";]'
+
+            finished_queries_by_user_and_start_time = list(select_rows("* from [//sys/query_tracker/finished_queries_by_user_and_start_time]"))
+            assert finished_queries_by_user_and_start_time[0]["filter_factors"] == 'complete_after {"a"="b";} acos:["aco:everyone";"aco:everyone-share";]'
+
+        check_filter_factors()
+        run_migration(client, 23)
+        check_filter_factors()
+
+    @authors("mpereskokova")
+    @pytest.mark.timeout(180)
+    def test_filter_factors_fix_changes_in_bad_query(self, query_tracker):
+        create_tablet_cell_bundle("sys")
+        sync_create_cells(1, tablet_cell_bundle="sys")
+        remove("//sys/query_tracker", recursive=True, force=True)
+
+        client = query_tracker.query_tracker.env.create_native_client()
+        create_tables_required_version(client, 22)
+
+        insert_rows("//sys/query_tracker/finished_queries", [{"query_id": "id", "query": "some_query", "annotations": {"a": "b"}, "user": "user", "access_control_objects": ["aco1", "aco2"]}])
+        insert_rows("//sys/query_tracker/finished_queries_by_start_time", [{"is_tutorial": True, "minus_start_time": 0, "query_id": "id"}])
+        insert_rows("//sys/query_tracker/finished_queries_by_aco_and_start_time", [{"is_tutorial": True, "access_control_object": "aco1", "minus_start_time": 0, "query_id": "id"}])
+        insert_rows("//sys/query_tracker/finished_queries_by_aco_and_start_time", [{"is_tutorial": True, "access_control_object": "aco2", "minus_start_time": 0, "query_id": "id"}])
+        insert_rows("//sys/query_tracker/finished_queries_by_user_and_start_time", [{"is_tutorial": True, "user": "user", "minus_start_time": 0, "query_id": "id"}])
+
+        run_migration(client, 23)
+
+        finished_queries_by_start_time = list(select_rows("* from [//sys/query_tracker/finished_queries_by_start_time]"))
+        assert finished_queries_by_start_time[0]["filter_factors"] == 'some_query {"a"="b";} acos:["aco:aco1";"aco:aco2";]'
+
+        finished_queries_by_aco_and_start_time = list(select_rows("* from [//sys/query_tracker/finished_queries_by_aco_and_start_time]"))
+        assert finished_queries_by_aco_and_start_time[0]["filter_factors"] == 'some_query {"a"="b";} acos:["aco:aco1";"aco:aco2";]'
+        assert finished_queries_by_aco_and_start_time[1]["filter_factors"] == 'some_query {"a"="b";} acos:["aco:aco1";"aco:aco2";]'
+
+        finished_queries_by_user_and_start_time = list(select_rows("* from [//sys/query_tracker/finished_queries_by_user_and_start_time]"))
+        assert finished_queries_by_user_and_start_time[0]["filter_factors"] == 'some_query {"a"="b";} acos:["aco:aco1";"aco:aco2";]'
