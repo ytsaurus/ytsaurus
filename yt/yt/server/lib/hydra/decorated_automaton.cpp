@@ -292,7 +292,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY(Owner_->AutomatonThread);
 
         try {
-            TryAcquireLock();
+            AcquireLock();
 
             NHydra::NProto::TSnapshotMeta meta;
             meta.set_sequence_number(SequenceNumber_);
@@ -342,36 +342,43 @@ protected:
 
     virtual TFuture<void> DoRun() = 0;
 
-    void TryAcquireLock()
+    void AcquireLock()
     {
-        bool expected = false;
-        if (!Owner_->BuildingSnapshot_.compare_exchange_strong(expected, true)) {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        if (Owner_->BuildingSnapshot_.exchange(true)) {
             THROW_ERROR_EXCEPTION("Cannot start building snapshot %v since another snapshot is still being constructed",
                 SnapshotId_);
         }
-        LockAcquired_ = true;
+
+        YT_VERIFY(!LockAcquired_.exchange(true));
 
         YT_LOG_INFO("Snapshot builder lock acquired");
     }
 
     void ReleaseLock()
     {
-        if (LockAcquired_) {
-            auto delay = Owner_->Config_->Get()->BuildSnapshotDelay;
-            if (delay != TDuration::Zero()) {
-                YT_LOG_DEBUG("Working in testing mode, sleeping (BuildSnapshotDelay: %v)", delay);
-                TDelayedExecutor::WaitForDuration(delay);
-            }
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
-            Owner_->BuildingSnapshot_.store(false);
-            LockAcquired_ = false;
+        if (!LockAcquired_.load()) {
+            return;
+        }
 
+        auto delay = Owner_->Config_->Get()->BuildSnapshotDelay;
+        if (delay != TDuration::Zero()) {
+            YT_LOG_DEBUG("Working in testing mode, sleeping (BuildSnapshotDelay: %v)", delay);
+            TDelayedExecutor::WaitForDuration(delay);
+        }
+
+        if (!LockReleased_.exchange(true)) {
+            YT_VERIFY(Owner_->BuildingSnapshot_.exchange(false));
             YT_LOG_INFO("Snapshot builder lock released");
         }
     }
 
 private:
-    bool LockAcquired_ = false;
+    std::atomic<bool> LockAcquired_ = false;
+    std::atomic<bool> LockReleased_ = false;
 
 
     TRemoteSnapshotParams OnFinished(const TError& error)
