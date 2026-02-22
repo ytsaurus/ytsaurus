@@ -1487,7 +1487,7 @@ public:
             writeBlocksOptions = std::move(writeBlocksOptions),
             partitionCount,
             dataSink
-        ] (IChunkWriterPtr underlyingWriter){
+        ] (IChunkWriterPtr underlyingWriter) {
             return New<TPartitionChunkWriter>(
                 config,
                 options,
@@ -1503,7 +1503,7 @@ public:
 
     bool Write(TRange<TUnversionedRow> rows) override
     {
-        YT_VERIFY(!SwitchingSession_);
+        YT_VERIFY(!SwitchingSession_.load());
 
         if (!Error_.IsOK()) {
             return false;
@@ -1748,7 +1748,7 @@ public:
 
     bool Write(TRange<TUnversionedRow> rows) override
     {
-        YT_VERIFY(!SwitchingSession_);
+        YT_VERIFY(!SwitchingSession_.load());
 
         try {
             auto reorderedRows = ReorderAndValidateRows(rows);
@@ -1835,7 +1835,7 @@ public:
 
     bool Write(TRange<TUnversionedRow> rows) override
     {
-        YT_VERIFY(!SwitchingSession_);
+        YT_VERIFY(!SwitchingSession_.load());
 
         try {
             auto reorderedRows = ReorderAndValidateRows(rows);
