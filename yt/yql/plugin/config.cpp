@@ -5,7 +5,13 @@
 #include <yt/yt/core/logging/config.h>
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <yt/yt/core/misc/backtrace.h>
+
 #include <util/string/vector.h>
+
+#ifdef _unix_
+    #include <sys/resource.h>
+#endif
 
 namespace NYT::NYqlPlugin {
 
@@ -268,6 +274,17 @@ void TAdditionalSystemLib::Register(TRegistrar registrar)
         .Default();
 }
 
+void TRuntimeConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("disable_backtrace_symbolizing", &TThis::DisableBacktraceSymbolizing)
+        .Default(false);
+
+    registrar.Parameter("memory_limit", &TThis::MemoryLimit)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TProcessYqlPluginConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enabled", &TThis::Enabled)
@@ -290,6 +307,27 @@ void TProcessYqlPluginConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("log_manager_template", &TThis::LogManagerTemplate)
         .DefaultNew();
+
+    registrar.Parameter("runtime_config", &TThis::RuntimeConfig)
+        .DefaultNew();
+}
+
+void TRuntimeConfig::ApplyLimitations() const {
+#ifdef _unix_
+    if (MemoryLimit) {
+        struct rlimit lim_addr_space;
+        lim_addr_space.rlim_cur = *MemoryLimit;
+        lim_addr_space.rlim_max = *MemoryLimit;
+
+        int err = setrlimit(RLIMIT_AS, &lim_addr_space);
+        if (err) {
+            throw yexception() << "Can't set address space limit: " << err;
+        }
+    }
+#endif
+    if (DisableBacktraceSymbolizing) {
+        NYT::DisableBacktraceSymbolizing();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
