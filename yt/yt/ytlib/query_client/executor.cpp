@@ -444,7 +444,7 @@ public:
         }
 
         if (planFragment.SubqueryFragment) {
-            auto pipe = New<TSchemafulPipe>(MemoryChunkProvider_);
+            auto pipe = CreateSchemafulPipe(MemoryChunkProvider_);
 
             auto subqueryStatistics = Execute(
                 *planFragment.SubqueryFragment,

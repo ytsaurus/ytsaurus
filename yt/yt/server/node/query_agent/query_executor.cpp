@@ -677,7 +677,7 @@ private:
 
                 YT_LOG_DEBUG("Evaluating bottom query (BottomQueryId: %v)", bottomQuery->Id);
 
-                auto pipe = New<TSchemafulPipe>(MemoryChunkProvider_);
+                auto pipe = CreateSchemafulPipe(MemoryChunkProvider_);
 
                 // MPSC stack is an overkill in the current implementation but sequential execution of join
                 // subqueries is not specified anywhere and they might get parallelized later in the future.
