@@ -5,9 +5,9 @@
 #include <yt/yt/core/logging/config.h>
 #include <yt/yt/core/ytree/fluent.h>
 
-#include <util/string/vector.h>
-
 #include <yt/yt/core/misc/backtrace.h>
+
+#include <util/string/vector.h>
 
 #ifdef _unix_
     #include <sys/resource.h>
