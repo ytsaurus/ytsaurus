@@ -10,13 +10,14 @@
 #include "helpers.h"
 #include "hunks.h"
 #include "remote_dynamic_store_reader.h"
-#include "row_level_security.h"
 #include "schemaless_block_reader.h"
 #include "schemaless_multi_chunk_reader.h"
 #include "table_read_spec.h"
 #include "versioned_chunk_reader.h"
 #include "versioned_reader_adapter.h"
 #include "performance_counters.h"
+
+#include <yt/yt/library/query/row_level_security_api/row_level_security.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/client.h>

@@ -12,7 +12,7 @@
 #include <yt/yt/ytlib/scheduler/config.h>
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
-#include <yt/yt/ytlib/table_client/row_level_security.h>
+#include <yt/yt/library/query/row_level_security_api/row_level_security.h>
 #include <yt/yt/ytlib/table_client/samples_fetcher.h>
 
 #include <yt/yt/library/query/base/public.h>

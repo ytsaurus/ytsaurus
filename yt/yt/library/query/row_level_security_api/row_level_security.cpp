@@ -1,0 +1,21 @@
+#include "row_level_security.h"
+
+namespace NYT::NTableClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+Y_WEAK void FormatValue(TStringBuilderBase* /*builder*/, const TRlsReadSpec& /*rlsReadSpec*/, TStringBuf /*spec*/)
+{
+    YT_ABORT();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+Y_WEAK IRlsCheckerFactoryPtr CreateRlsCheckerFactory(const TRlsReadSpec& /*rlsReadSpec*/)
+{
+    YT_ABORT();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NTableClient
