@@ -93,10 +93,10 @@ public:
 
     TFuture<void> Open() override
     {
-        YT_VERIFY(!Initialized_);
+        YT_VERIFY(!Initialized_.load());
         YT_VERIFY(!OpenFuture_);
 
-        OpenFuture_ = BIND(&TConfirmingWriter::OpenSession, MakeWeak(this))
+        OpenFuture_ = BIND(&TConfirmingWriter::Initialize, MakeWeak(this))
             .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
             .Run();
         return OpenFuture_;
@@ -115,7 +115,7 @@ public:
         const TWorkloadDescriptor& workloadDescriptor,
         const std::vector<TBlock>& blocks) override
     {
-        YT_VERIFY(Initialized_);
+        YT_VERIFY(Initialized_.load());
         YT_VERIFY(OpenFuture_.IsSet());
 
         if (!OpenFuture_.Get().IsOK()) {
@@ -127,7 +127,7 @@ public:
 
     TFuture<void> GetReadyEvent() override
     {
-        YT_VERIFY(Initialized_);
+        YT_VERIFY(Initialized_.load());
         YT_VERIFY(OpenFuture_.IsSet());
         if (!OpenFuture_.Get().IsOK()) {
             return OpenFuture_;
@@ -142,7 +142,7 @@ public:
         const TDeferredChunkMetaPtr& chunkMeta,
         std::optional<int> truncateBlockCount) override
     {
-        YT_VERIFY(Initialized_);
+        YT_VERIFY(Initialized_.load());
         YT_VERIFY(OpenFuture_.IsSet());
         YT_VERIFY(!truncateBlockCount.has_value());
 
@@ -193,11 +193,15 @@ public:
 
     bool IsCloseDemanded() const override
     {
-        if (UnderlyingWriter_) {
-            return UnderlyingWriter_->IsCloseDemanded();
-        } else {
+        // Protects from race with concurrent Initialize().
+        if (!Initialized_.load()) {
             return false;
         }
+        // Initialize() could have been unsuccessful.
+        if (!UnderlyingWriter_) {
+            return false;
+        }
+        return UnderlyingWriter_->IsCloseDemanded();
     }
 
     TFuture<void> Cancel() override
@@ -233,10 +237,10 @@ private:
 
     NLogging::TLogger Logger;
 
-    void OpenSession()
+    void Initialize()
     {
         auto finally = Finally([&] {
-            Initialized_ = true;
+            Initialized_.store(true);
         });
 
         if (SessionId_.ChunkId) {
