@@ -66,6 +66,8 @@ protected:
 
         YT_VERIFY(config->BusServer->UnixDomainSocketPath);
 
+        config->PluginConfig->ProcessPluginConfig->RuntimeConfig->ApplyLimitations();
+
         auto options = ConvertToOptions(
             config->PluginConfig,
             NYson::ConvertToYsonString(config->SingletonsConfig),

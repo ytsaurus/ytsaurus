@@ -16,6 +16,8 @@ namespace NDetail {
 
 using TBacktraceBuffer = std::array<const void*, 99>; // 99 is to keep formatting :)
 
+bool BacktraceSymbolizing = true;
+
 Y_NO_INLINE NBacktrace::TBacktrace GetBacktrace(TBacktraceBuffer* buffer)
 {
 #ifdef _unix_
@@ -42,7 +44,15 @@ Y_NO_INLINE void DumpBacktrace(const std::function<void(TStringBuf)>& writeCallb
 {
     NDetail::TBacktraceBuffer buffer;
     auto backtrace = NDetail::GetBacktrace(&buffer);
-    NBacktrace::SymbolizeBacktrace(backtrace, writeCallback, startPC);
+    if (!NDetail::BacktraceSymbolizing) {
+        writeCallback(TStringBuf("<backtrace symbolization is disabled>"));
+    } else {
+        NBacktrace::SymbolizeBacktrace(backtrace, writeCallback, startPC);
+    }
+}
+
+void DisableBacktraceSymbolizing() {
+    NDetail::BacktraceSymbolizing = false;
 }
 
 std::string DumpBacktrace()

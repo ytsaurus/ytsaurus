@@ -124,6 +124,23 @@ DEFINE_REFCOUNTED_TYPE(TAdditionalSystemLib)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TRuntimeConfig
+    : public NYTree::TYsonStruct
+{
+    bool DisableBacktraceSymbolizing;
+    std::optional<size_t> MemoryLimit;
+
+    void ApplyLimitations() const;
+
+    REGISTER_YSON_STRUCT(TRuntimeConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TRuntimeConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TProcessYqlPluginConfig
     : public NYTree::TYsonStruct
 {
@@ -137,6 +154,8 @@ struct TProcessYqlPluginConfig
     TDuration RunRequestTimeout;
 
     NLogging::TLogManagerConfigPtr LogManagerTemplate;
+
+    TRuntimeConfigPtr RuntimeConfig;
 
     REGISTER_YSON_STRUCT(TProcessYqlPluginConfig);
 

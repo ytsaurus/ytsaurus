@@ -39,6 +39,9 @@ struct TYqlAgentConfig
 
     std::vector<std::string> InsecureSecretPathSubjects;
 
+    std::optional<size_t> MemoryLimit;
+    std::optional<bool> DisableBacktraceSymbolizing;
+
     REGISTER_YSON_STRUCT(TYqlAgentConfig);
 
     static void Register(TRegistrar registrar);
