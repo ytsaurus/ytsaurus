@@ -18,10 +18,9 @@ void DoRecalculatePartitionCompactionHint<EPartitionCompactionHintKind::MinHashD
             store->CompactionHints().Payloads()[EStoreCompactionHintKind::MinHashDigest]));
     }
 
-    auto& hint = partition->CompactionHints().Hints()[EPartitionCompactionHintKind::MinHashDigest];
-
+    auto recalculationFinalizer = partition->CompactionHints().Hints()[EPartitionCompactionHintKind::MinHashDigest]
+        .BuildRecalculationFinalizer(partition);
     // TODO(dave11ar): Add logic.
-    hint.MakeDecision(TInstant::Zero(), EStoreCompactionReason::None);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

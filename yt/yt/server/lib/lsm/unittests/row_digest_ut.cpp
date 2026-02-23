@@ -83,8 +83,12 @@ double FloorWithPrecision(double value, i64 precision)
 TStoreCompactionHint CreateHint(EStoreCompactionReason reason, TInstant timestamp = TInstant::Zero())
 {
     TStoreCompactionHint hint(Kind);
+
     hint.SetNodeObjectRevision(TRevision(1));
-    hint.MakeDecision(timestamp, reason);
+    if (reason != EStoreCompactionReason::None) {
+        auto recalculationFinalizer = hint.BuildRecalculationFinalizer();
+        recalculationFinalizer.TryApplyRecalculation(timestamp, reason);
+    }
 
     return hint;
 }

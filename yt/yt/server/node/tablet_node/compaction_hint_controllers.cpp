@@ -225,13 +225,13 @@ void TCompactionHintControllerBase<TDerived, TLsmCompactionHint, TOwner>::OnLsmF
     YT_VERIFY(LsmCompactionHint_.GetPartitionCompactionHintKind() == lsmCompactionHint.GetPartitionCompactionHintKind());
 
     // Outdated feedback, skip.
-    if (LsmCompactionHint_.GetNodeObjectRevision() != lsmCompactionHint.GetLsmDecisionRevision()) {
+    if (LsmCompactionHint_.GetNodeObjectRevision() != lsmCompactionHint.GetLsmResponseRevision()) {
         return;
     }
 
     static_cast<TDerived*>(this)->ResetPipelines(owner);
 
-    YT_VERIFY(lsmCompactionHint.IsRelevantDecisionMade());
+    YT_VERIFY(lsmCompactionHint.IsRelevantLsmResponse());
     LsmCompactionHint_ = std::move(lsmCompactionHint);
 
     YT_LOG_DEBUG("Got relevant compaction hint feedback from lsm "
@@ -245,7 +245,7 @@ void TCompactionHintControllerBase<TDerived, TLsmCompactionHint, TOwner>::OnLsmF
 template <class TDerived, class TLsmCompactionHint, class TOwner>
 bool TCompactionHintControllerBase<TDerived, TLsmCompactionHint, TOwner>::FetchInProgress() const
 {
-    return State_ == ECompactionHintState::Active && !LsmCompactionHint_.IsRelevantDecisionMade();
+    return State_ == ECompactionHintState::Active && !LsmCompactionHint_.IsRelevantLsmResponse();
 }
 
 template <class TDerived, class TLsmCompactionHint, class TOwner>
