@@ -682,8 +682,6 @@ private:
             "query_processing_stage", DB::QueryProcessingStage::toString(ProcessingStage_));
 
         QueryContext_->SetRuntimeVariable(
-            "use_input_specs_pulling", SpecTemplate_.QuerySettings->Execution->EnableInputSpecsPulling);
-        QueryContext_->SetRuntimeVariable(
             "use_min_max_optimization", SpecTemplate_.QuerySettings->Execution->EnableMinMaxOptimization);
         QueryContext_->SetRuntimeVariable(
             "try_optimize_distinct_read", SpecTemplate_.QuerySettings->Execution->EnableOptimizeDistinctRead);

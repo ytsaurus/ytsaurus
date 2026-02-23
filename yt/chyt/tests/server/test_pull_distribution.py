@@ -217,6 +217,22 @@ class TestPullDistributionMode(ClickHouseTestBase):
             assert pulling_stats["secondary_queries_count"] == 2 * instance_count
             assert pulling_stats["pull_mode_queries_count"] == 2 * instance_count
 
+    @authors("buyval01")
+    def test_subquery_with_url(self):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "id", "type": "int64"}]})
+        write_table("//tmp/t", [{"id": 1}])
+
+        with Clique(1, export_query_log=True, config_patch=self._get_config_patch()) as clique:
+            table_url = self._get_proxy_address() + "/api/v3/read_table?path=//tmp/t&output_format=json"
+
+            # The clique speclet orders 4 tasks per secondary query.
+            # The table is too small and has only one block with one row, which gives only one task.
+            # So regardless of specs pulling being enabled, the query will be executed in push mode.
+            query = f'''
+                select * from "//tmp/t" where id in (select id from url('{table_url}', 'JSONEachRow', 'id Int64'))
+            '''
+            assert clique.make_query(query) == [{"id": 1}]
+
 
 @enable_sequoia
 class TestPullDistributionModeSequoia(TestPullDistributionMode):
