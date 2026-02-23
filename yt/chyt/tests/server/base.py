@@ -445,9 +445,11 @@ class Clique(object):
         # Make some improvements to query: strip trailing semicolon, add format if needed.
 
         def prepare_query(query):
+            import re
             query = query.strip()
 
-            assert "format" not in query.lower()
+            assert not re.search(r'\bformat\s+\w+', query, re.IGNORECASE), \
+                "Query should not contain FORMAT clause"
             query_type = query.strip().split(" ", 1)[0]
             if query.endswith(";"):
                 query = query[:-1]
