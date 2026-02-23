@@ -8,6 +8,10 @@ namespace NYT::NLsm {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool SubsetContains(ui32 subset, int index);
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM_WITH_UNDERLYING_TYPE(EStoreCompactionHintKind, ui8,
     ((None)               (0))
     ((ChunkViewTooNarrow) (1))
@@ -73,8 +77,8 @@ public:
 
     // LSM stuff.
 
-    // Revision of object(store/partition), when decision for upcoming compaction was made.
-    DEFINE_BYVAL_RO_PROPERTY(NHydra::TRevision, LsmDecisionRevision);
+    // Revision of object(store/partition), when LSM response for upcoming compaction was made.
+    DEFINE_BYVAL_RO_PROPERTY(NHydra::TRevision, LsmResponseRevision);
 
     DEFINE_BYVAL_RO_PROPERTY(TInstant, Timestamp);
     DEFINE_BYVAL_RW_PROPERTY(EStoreCompactionReason, Reason, EStoreCompactionReason::None);
@@ -98,13 +102,29 @@ public:
 
     // Lsm methods.
 
-    bool IsRelevantDecisionMade() const;
+    bool IsRelevantLsmResponse() const;
 
     bool IsSuitableTimeForCompaction(TInstant currentTime) const;
 
-    void MakeDecision(TInstant timestamp, EStoreCompactionReason reason);
-
 protected:
+    class TCompactionHintRecalculationFinalizerBase
+    {
+    public:
+        DEFINE_BYVAL_RO_PROPERTY(EStoreCompactionReason, Reason, EStoreCompactionReason::None);
+
+    protected:
+        TInstant Timestamp_;
+
+        bool TryApplyRecalculation(TInstant timestamp, EStoreCompactionReason reason);
+    };
+
+    //! Take upcoming compaction information from |DoRecalculate...| and apply it to compaction hint state.
+    //! Information to apply
+    //!     * |timestamp| - upcoming compaction timestamp.
+    //!     * |reason| - reason for upcoming compaction.
+    //!     * |storeIds| (partition compaction hints only) - stores, which should be compacted.
+    void ApplyRecalculation(TInstant timestamp, EStoreCompactionReason reason);
+
     template <class TRecalculator>
     bool DoRecalculateHint(TRecalculator&& recalculator, TRange<std::unique_ptr<TStore>> stores);
 };
@@ -116,6 +136,22 @@ protected:
 class TStoreCompactionHint
     : public TCompactionHintBase
 {
+    class TStoreCompactionHintRecalculationFinalizer
+        : public TCompactionHintRecalculationFinalizerBase
+    {
+    public:
+        explicit TStoreCompactionHintRecalculationFinalizer(TStoreCompactionHint* hint);
+
+        ~TStoreCompactionHintRecalculationFinalizer();
+
+        using TCompactionHintRecalculationFinalizerBase::TryApplyRecalculation;
+
+    private:
+        TStoreCompactionHint* Hint_;
+    };
+
+    friend TStoreCompactionHintRecalculationFinalizer;
+
 public:
     using TChunkViewTooNarrowPayload = double;
     using TVersionedRowDigestPayload = NTableClient::TVersionedRowDigestPtr;
@@ -128,6 +164,8 @@ public:
 
     // Should be called in LSM to isolate logic from tablet node.
     bool RecalculateHint(const std::unique_ptr<TStore>& store);
+
+    TStoreCompactionHintRecalculationFinalizer BuildRecalculationFinalizer();
 };
 
 // NB(dave11ar): Not virtual function of TStoreCompactionHint to avoid allocations and save memory.
@@ -161,6 +199,26 @@ public:
 class TPartitionCompactionHint
     : public TCompactionHintBase
 {
+    class TPartitionCompactionHintRecalculationFinalizer
+        : public TCompactionHintRecalculationFinalizerBase
+    {
+    public:
+        explicit TPartitionCompactionHintRecalculationFinalizer(TPartition* partition, TPartitionCompactionHint* hint);
+
+        ~TPartitionCompactionHintRecalculationFinalizer();
+
+        void TryApplyRecalculation(TInstant timestamp, EStoreCompactionReason reason, ui32 storeSubset);
+
+    private:
+        TPartition* Partition_;
+        TPartitionCompactionHint* Hint_;
+        ui32 StoreSubset_ = 0;
+
+        std::vector<TStoreId> GetStoreIds() const;
+    };
+
+    friend TPartitionCompactionHintRecalculationFinalizer;
+
 public:
     DEFINE_BYREF_RO_PROPERTY(std::vector<TStoreId>, StoreIds);
 
@@ -168,6 +226,11 @@ public:
 
     // Should be called in LSM to isolate logic from tablet node.
     bool RecalculateHint(TPartition* partition);
+
+    TPartitionCompactionHintRecalculationFinalizer BuildRecalculationFinalizer(TPartition* partition);
+
+private:
+    void ApplyRecalculation(TInstant timestamp, EStoreCompactionReason reason, std::vector<TStoreId>&& storeIds);
 };
 
 // NB(dave11ar): Not virtual function of TPartitionCompactionHint for avoiding allocations.

@@ -20,24 +20,13 @@ constinit const auto Logger = NTabletNode::TabletNodeLogger;
 template <>
 void DoRecalculateStoreCompactionHint<EStoreCompactionHintKind::VersionedRowDigest>(TStore* store)
 {
-    static constexpr auto compactionTimestampAccuracy = TDuration::Seconds(1);
+    static constexpr auto CompactionTimestampAccuracy = TDuration::Seconds(1);
 
-    auto& hint = store->CompactionHints().Hints()[EStoreCompactionHintKind::VersionedRowDigest];
+    auto recalculationFinalizer = store->CompactionHints().Hints()[EStoreCompactionHintKind::VersionedRowDigest]
+        .BuildRecalculationFinalizer();
+
     const auto& digest = std::get<TStoreCompactionHint::TVersionedRowDigestPayload>(
         store->CompactionHints().Payloads()[EStoreCompactionHintKind::VersionedRowDigest]);
-
-    TInstant resultTimestamp;
-    auto resultReason = EStoreCompactionReason::None;
-
-    auto trySetResult = [&] (TInstant candidateTimestamp, EStoreCompactionReason candidateReason) {
-        YT_VERIFY(candidateReason != EStoreCompactionReason::None);
-
-        if (resultReason == EStoreCompactionReason::None || candidateTimestamp < resultTimestamp) {
-            resultTimestamp = candidateTimestamp;
-            resultReason = candidateReason;
-        }
-    };
-
     const auto& allButLastDigest = digest->AllButLastTimestampDigest;
     const auto& lastDigest = digest->LastTimestampDigest;
     const auto& firstDigest = digest->FirstTimestampDigest;
@@ -64,7 +53,7 @@ void DoRecalculateStoreCompactionHint<EStoreCompactionHintKind::VersionedRowDige
                 allButLastDigest->GetQuantile(0),
                 lastDigest->GetQuantile(0)));
 
-            while (right - left > compactionTimestampAccuracy) {
+            while (right - left > CompactionTimestampAccuracy) {
                 auto mid = left + (right - left) / 2;
 
                 if (getCurrentRatio(mid) >= maxObsoleteTimestampRatio) {
@@ -79,7 +68,7 @@ void DoRecalculateStoreCompactionHint<EStoreCompactionHintKind::VersionedRowDige
                 right,
                 EStoreCompactionReason::TtlCleanupExpected);
 
-            trySetResult(right, EStoreCompactionReason::TtlCleanupExpected);
+            recalculationFinalizer.TryApplyRecalculation(right, EStoreCompactionReason::TtlCleanupExpected);
         };
 
         if (minDataVersions == 1) {
@@ -129,8 +118,7 @@ void DoRecalculateStoreCompactionHint<EStoreCompactionHintKind::VersionedRowDige
                     compactionTimestamp,
                     EStoreCompactionReason::TtlCleanupExpected);
 
-
-                trySetResult(compactionTimestamp, EStoreCompactionReason::TtlCleanupExpected);
+                recalculationFinalizer.TryApplyRecalculation(compactionTimestamp, EStoreCompactionReason::TtlCleanupExpected);
             }
         }
     }
@@ -148,14 +136,12 @@ void DoRecalculateStoreCompactionHint<EStoreCompactionHintKind::VersionedRowDige
             compactionTimestamp,
             EStoreCompactionReason::TooManyTimestamps);
 
-        trySetResult(compactionTimestamp, EStoreCompactionReason::TooManyTimestamps);
+        recalculationFinalizer.TryApplyRecalculation(compactionTimestamp, EStoreCompactionReason::TooManyTimestamps);
     }
 
-    YT_LOG_DEBUG_IF(resultReason == EStoreCompactionReason::None,
+    YT_LOG_DEBUG_IF(recalculationFinalizer.GetReason() == EStoreCompactionReason::None,
         "No timestamp for upcoming compaction (StoreId: %v)",
         store->GetId());
-
-    hint.MakeDecision(resultTimestamp, resultReason);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

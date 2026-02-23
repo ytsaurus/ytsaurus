@@ -13,6 +13,8 @@
 
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
 
+#include <library/cpp/iterator/enumerate.h>
+
 namespace NYT::NLsm {
 
 using namespace NYson;
@@ -27,6 +29,29 @@ constinit const auto Logger = NTabletNode::TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool SubsetContains(ui32 subset, int index)
+{
+    return (subset & (1u << index)) != 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool TCompactionHintBase::TCompactionHintRecalculationFinalizerBase::TryApplyRecalculation(
+    TInstant timestamp,
+    EStoreCompactionReason reason)
+{
+    YT_VERIFY(reason != EStoreCompactionReason::None);
+
+    if (Reason_ == EStoreCompactionReason::None || timestamp < Timestamp_) {
+        Reason_ = reason;
+        Timestamp_ = timestamp;
+
+        return true;
+    }
+
+    return false;
+}
+
 TCompactionHintBase::TCompactionHintBase(
     EStoreCompactionHintKind storeCompactionHintKind,
     EPartitionCompactionHintKind partitionCompactionHintKind)
@@ -39,24 +64,24 @@ TCompactionHintBase::operator bool() const
     return StoreCompactionHintKind_ != EStoreCompactionHintKind::None;
 }
 
-bool TCompactionHintBase::IsRelevantDecisionMade() const
+bool TCompactionHintBase::IsRelevantLsmResponse() const
 {
-    return NodeObjectRevision_ == LsmDecisionRevision_;
+    return NodeObjectRevision_ == LsmResponseRevision_;
 }
 
 bool TCompactionHintBase::IsSuitableTimeForCompaction(TInstant currentTime) const
 {
-    return IsRelevantDecisionMade() &&
+    return IsRelevantLsmResponse() &&
         Reason_ != EStoreCompactionReason::None &&
         currentTime >= Timestamp_;
 }
 
-void TCompactionHintBase::MakeDecision(TInstant timestamp, EStoreCompactionReason reason)
+void TCompactionHintBase::ApplyRecalculation(TInstant timestamp, EStoreCompactionReason reason)
 {
-    // Revisions are not null and currect decision is outdated.
-    YT_VERIFY(LsmDecisionRevision_ < NodeObjectRevision_);
+    // Revisions are not null and currect response is outdated.
+    YT_VERIFY(LsmResponseRevision_ < NodeObjectRevision_);
 
-    LsmDecisionRevision_ = NodeObjectRevision_;
+    LsmResponseRevision_ = NodeObjectRevision_;
     Timestamp_ = timestamp;
     Reason_ = reason;
 }
@@ -64,7 +89,7 @@ void TCompactionHintBase::MakeDecision(TInstant timestamp, EStoreCompactionReaso
 template <class TRecalculator>
 bool TCompactionHintBase::DoRecalculateHint(TRecalculator&& recalculator, TRange<std::unique_ptr<TStore>> stores)
 {
-    if (IsRelevantDecisionMade()) {
+    if (IsRelevantLsmResponse()) {
         return false;
     }
 
@@ -76,13 +101,23 @@ bool TCompactionHintBase::DoRecalculateHint(TRecalculator&& recalculator, TRange
 
     std::forward<TRecalculator>(recalculator)();
 
-    // Recalculator should make decision.
-    YT_VERIFY(IsRelevantDecisionMade());
+    // Recalculator should make relevant response.
+    YT_VERIFY(IsRelevantLsmResponse());
 
     return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TStoreCompactionHint::TStoreCompactionHintRecalculationFinalizer::TStoreCompactionHintRecalculationFinalizer(
+    TStoreCompactionHint* hint)
+    : Hint_(hint)
+{ }
+
+TStoreCompactionHint::TStoreCompactionHintRecalculationFinalizer::~TStoreCompactionHintRecalculationFinalizer()
+{
+    Hint_->ApplyRecalculation(Timestamp_, Reason_);
+}
 
 bool TStoreCompactionHint::RecalculateHint(const std::unique_ptr<TStore>& store)
 {
@@ -92,14 +127,14 @@ bool TStoreCompactionHint::RecalculateHint(const std::unique_ptr<TStore>& store)
             {&store, 1});
 
         YT_LOG_DEBUG_IF(recalculated,
-            "Store compaction hint decision was made "
+            "Store compaction hint lsm response was made "
             "(%v, StoreId: %v, StoreCompactionHintKind: %v, Timestamp: %v, Reason: %v, Revision: %v)",
             store->GetTablet()->GetLoggingTag(),
             store->GetId(),
             StoreCompactionHintKind_,
             Timestamp_,
             Reason_,
-            LsmDecisionRevision_);
+            LsmResponseRevision_);
 
         return recalculated;
     };
@@ -116,6 +151,12 @@ bool TStoreCompactionHint::RecalculateHint(const std::unique_ptr<TStore>& store)
                 StoreCompactionHintKind_);
     }
 }
+
+TStoreCompactionHint::TStoreCompactionHintRecalculationFinalizer TStoreCompactionHint::BuildRecalculationFinalizer()
+{
+    return TStoreCompactionHintRecalculationFinalizer(this);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 EStoreCompactionReason TStoreCompactionHints::GetStoreCompactionReason(TInstant currentTime) const
@@ -143,6 +184,56 @@ bool TStoreCompactionHints::RecalculateHints(const std::unique_ptr<TStore>& stor
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TPartitionCompactionHint::TPartitionCompactionHintRecalculationFinalizer::TPartitionCompactionHintRecalculationFinalizer(
+    TPartition* partition,
+    TPartitionCompactionHint* hint)
+    : Partition_(partition)
+    , Hint_(hint)
+{ }
+
+TPartitionCompactionHint::TPartitionCompactionHintRecalculationFinalizer::~TPartitionCompactionHintRecalculationFinalizer()
+{
+    Hint_->ApplyRecalculation(Timestamp_, Reason_, GetStoreIds());
+}
+
+void TPartitionCompactionHint::TPartitionCompactionHintRecalculationFinalizer::TryApplyRecalculation(
+    TInstant timestamp,
+    EStoreCompactionReason reason,
+    ui32 storeSubset)
+{
+    auto partitionMajorTimestamp = MaxTimestamp;
+    for (const auto& [index, store] : Enumerate(Partition_->Stores())) {
+        if (!SubsetContains(storeSubset, index)) {
+            partitionMajorTimestamp = std::min(partitionMajorTimestamp, store->GetMinTimestamp());
+        }
+    }
+
+    if (timestamp >= TimestampToInstant(partitionMajorTimestamp).first) {
+        return;
+    }
+
+    if (TCompactionHintRecalculationFinalizerBase::TryApplyRecalculation(timestamp, reason)) {
+        StoreSubset_ = storeSubset;
+    }
+}
+
+std::vector<TStoreId> TPartitionCompactionHint::TPartitionCompactionHintRecalculationFinalizer::GetStoreIds() const
+{
+    if (StoreSubset_ == 0) {
+        return {};
+    }
+
+    std::vector<TStoreId> storeIds;
+    storeIds.reserve(std::popcount(StoreSubset_));
+    for (ui32 index = 0; index < ssize(Partition_->Stores()); ++index) {
+        if (SubsetContains(StoreSubset_, index)) {
+            storeIds.push_back(Partition_->Stores()[index]->GetId());
+        }
+    }
+
+    return storeIds;
+}
+
 bool TPartitionCompactionHint::RecalculateHint(TPartition* partition)
 {
     auto doRecalculate = [&] <EPartitionCompactionHintKind Kind> {
@@ -151,14 +242,14 @@ bool TPartitionCompactionHint::RecalculateHint(TPartition* partition)
             partition->Stores());
 
         YT_LOG_DEBUG_IF(recalculated,
-            "Partition compaction hint decision was made "
+            "Partition compaction hint LSM hint was recalculated "
             "(%v, PartitionId: %v, PartitionCompactionHintKind: %v, Timestamp: %v, Reason: %v, Revision: %v, StoreIds: %v)",
             partition->GetTablet()->GetLoggingTag(),
             partition->GetId(),
             PartitionCompactionHintKind_,
             Timestamp_,
             Reason_,
-            LsmDecisionRevision_,
+            LsmResponseRevision_,
             StoreIds_);
 
         return recalculated;
@@ -172,6 +263,18 @@ bool TPartitionCompactionHint::RecalculateHint(TPartition* partition)
             YT_LOG_FATAL("Recalculation of partition compaction hint is not supported (PartitionCompactionHintKind: %v)",
                 PartitionCompactionHintKind_);
     }
+}
+
+TPartitionCompactionHint::TPartitionCompactionHintRecalculationFinalizer TPartitionCompactionHint::BuildRecalculationFinalizer(
+    TPartition* partition)
+{
+    return TPartitionCompactionHintRecalculationFinalizer(partition, this);
+}
+
+void TPartitionCompactionHint::ApplyRecalculation(TInstant timestamp, EStoreCompactionReason reason, std::vector<TStoreId>&& storeIds)
+{
+    StoreIds_ = std::move(storeIds);
+    TCompactionHintBase::ApplyRecalculation(timestamp, reason);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -262,7 +365,7 @@ void SerializeFragment(
 {
     BuildYsonMapFragmentFluently(consumer)
         .Item("node_object_revision").Value(compactionHintBase.GetNodeObjectRevision())
-        .Item("lsm_decision_revision").Value(compactionHintBase.GetLsmDecisionRevision())
+        .Item("lsm_response_revision").Value(compactionHintBase.GetLsmResponseRevision())
         .Item("timestamp").Value(compactionHintBase.GetTimestamp())
         .Item("reason").Value(compactionHintBase.GetReason())
         .Item("store_compaction_hint_kind").Value(compactionHintBase.GetStoreCompactionHintKind())

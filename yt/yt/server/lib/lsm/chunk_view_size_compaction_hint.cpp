@@ -9,15 +9,15 @@ namespace NYT::NLsm {
 template <>
 void DoRecalculateStoreCompactionHint<EStoreCompactionHintKind::ChunkViewTooNarrow>(TStore* store)
 {
-    auto& hint = store->CompactionHints().Hints()[EStoreCompactionHintKind::ChunkViewTooNarrow];
+    auto recalculationFinalizer = store->CompactionHints().Hints()[EStoreCompactionHintKind::ChunkViewTooNarrow]
+        .BuildRecalculationFinalizer();
+
     auto chunkViewShare = std::get<TStoreCompactionHint::TChunkViewTooNarrowPayload>(
         store->CompactionHints().Payloads()[EStoreCompactionHintKind::ChunkViewTooNarrow]);
 
-    hint.MakeDecision(
-        TInstant::Zero(),
-        chunkViewShare <= store->GetTablet()->GetMountConfig()->MaxChunkViewSizeRatio
-            ? EStoreCompactionReason::NarrowChunkView
-            : EStoreCompactionReason::None);
+    if (chunkViewShare <= store->GetTablet()->GetMountConfig()->MaxChunkViewSizeRatio) {
+        recalculationFinalizer.TryApplyRecalculation(TInstant::Zero(), EStoreCompactionReason::NarrowChunkView);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
