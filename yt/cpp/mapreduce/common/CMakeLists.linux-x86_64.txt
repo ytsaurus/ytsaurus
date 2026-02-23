@@ -41,6 +41,7 @@ target_link_libraries(cpp-mapreduce-common PUBLIC
 )
 
 target_sources(cpp-mapreduce-common PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/common/expected_error_guard.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/common/debug_metrics.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/common/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/common/retry_lib.cpp
