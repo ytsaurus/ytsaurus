@@ -427,12 +427,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
             # Before exiting clique, wait for the operation to complete revive and materializing processes
             # caused by restarting the scheduler to tear down the test properly.
-            wait(lambda: clique.op.get_state() not in [
-                "revive_initializing",
-                "reviving",
-                "reviving_jobs",
-                "materializing",
-            ])
+            wait(lambda: clique.op.get_state() == "running")
 
     @authors("barykinni")
     def test_legacy_endpoint(self):
