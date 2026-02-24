@@ -243,6 +243,7 @@ def build_queue_consumer_metric_rowsets(backend: str):
         .all("partition_index")
         .top_last(50)
         .alias("Partition time lag [{{partition_index}}]")
+        .unit("UNIT_SECONDS")
         .stack(False))
 
     offset = (MonitoringExpr(QueueAgent("yt.queue_agent.consumer_partition.offset.max"))
