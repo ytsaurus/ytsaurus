@@ -17,7 +17,7 @@
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 
-#include <library/cpp/yt/misc/range_helpers.h>
+#include <yt/yt/core/misc/range_helpers.h>
 
 namespace NYT::NTableServer {
 
