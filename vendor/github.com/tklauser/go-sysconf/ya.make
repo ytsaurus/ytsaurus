@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(BSD-3-Clause)
 
-VERSION(v0.3.12)
+VERSION(v0.3.16)
 
 SRCS(
     sysconf.go

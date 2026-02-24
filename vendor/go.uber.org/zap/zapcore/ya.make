@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(MIT)
 
-VERSION(v1.27.0)
+VERSION(v1.27.1)
 
 GO_SKIP_TESTS(
     entry_ext_test.go

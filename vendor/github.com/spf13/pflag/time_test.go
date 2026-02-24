@@ -2,13 +2,14 @@ package pflag
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 )
 
 func setUpTimeVar(t *time.Time, formats []string) *FlagSet {
 	f := NewFlagSet("test", ContinueOnError)
-	f.TimeVar(t, "time", time.Time{}, formats, "Time")
+	f.TimeVar(t, "time", *t, formats, "Time")
 	return f
 }
 
@@ -58,5 +59,30 @@ func TestTime(t *testing.T) {
 				t.Errorf("expected %q, got %q", tc.expected.Format(time.RFC3339Nano), timeVar.Format(time.RFC3339Nano))
 			}
 		}
+	}
+}
+
+func usageForTimeFlagSet(t *testing.T, timeVar time.Time) string {
+	t.Helper()
+	formats := []string{time.RFC3339Nano, time.RFC1123Z}
+	f := setUpTimeVar(&timeVar, formats)
+	if err := f.Parse([]string{}); err != nil {
+		t.Fatalf("expected success, got %q", err)
+	}
+	return f.FlagUsages()
+}
+
+func TestTimeDefaultZero(t *testing.T) {
+	usage := usageForTimeFlagSet(t, time.Time{})
+	if strings.Contains(usage, "default") {
+		t.Errorf("expected no default value in usage, got %q", usage)
+	}
+}
+
+func TestTimeDefaultNonZero(t *testing.T) {
+	timeVar := time.Date(2025, 1, 1, 1, 1, 1, 0, time.UTC)
+	usage := usageForTimeFlagSet(t, timeVar)
+	if !strings.Contains(usage, "default") || !strings.Contains(usage, "2025") {
+		t.Errorf("expected default value in usage, got %q", usage)
 	}
 }

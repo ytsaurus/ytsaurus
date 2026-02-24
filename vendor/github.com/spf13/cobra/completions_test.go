@@ -1297,7 +1297,7 @@ func TestValidArgsFuncCmdContext(t *testing.T) {
 	}
 	rootCmd.AddCommand(childCmd)
 
-	//nolint:golint,staticcheck // We can safely use a basic type as key in tests.
+	//nolint:staticcheck // We can safely use a basic type as key in tests.
 	ctx := context.WithValue(context.Background(), "testKey", "123")
 
 	// Test completing an empty string on the childCmd
@@ -2899,7 +2899,7 @@ func TestCompletionFuncCompatibility(t *testing.T) {
 			var userComp func(cmd *Command, args []string, toComplete string) ([]string, ShellCompDirective)
 
 			// check against new signature
-			var _ CompletionFunc = userComp
+			var _ CompletionFunc = userComp //nolint:staticcheck // LHS type is needed for this use case
 
 			// check Command accepts
 			cmd := Command{
@@ -2913,8 +2913,7 @@ func TestCompletionFuncCompatibility(t *testing.T) {
 			var userComp func(cmd *Command, args []string, toComplete string) ([]Completion, ShellCompDirective)
 
 			// check against new signature
-			var _ CompletionFunc = userComp
-
+			var _ CompletionFunc = userComp //nolint:staticcheck // LHS type is needed for this use case
 			// check Command accepts
 			cmd := Command{
 				ValidArgsFunction: userComp,
@@ -2927,8 +2926,8 @@ func TestCompletionFuncCompatibility(t *testing.T) {
 			var userComp CompletionFunc
 
 			// check helper against old signature
-			var _ func(cmd *Command, args []string, toComplete string) ([]string, ShellCompDirective) = userComp
-			var _ func(cmd *Command, args []string, toComplete string) ([]Completion, ShellCompDirective) = userComp
+			var _ func(cmd *Command, args []string, toComplete string) ([]string, ShellCompDirective) = userComp     //nolint:staticcheck // LHS type is needed for this use case
+			var _ func(cmd *Command, args []string, toComplete string) ([]Completion, ShellCompDirective) = userComp //nolint:staticcheck // LHS type is needed for this use case
 
 			// check Command accepts
 			cmd := Command{
@@ -2967,7 +2966,7 @@ func TestCompletionFuncCompatibility(t *testing.T) {
 			var userComp UserCompletionTypeAliasHelper
 
 			// Here we are validating the existing type validates the CompletionFunc type
-			var _ CompletionFunc = userComp
+			var _ CompletionFunc = userComp //nolint:staticcheck // LHS type is needed for this use case
 
 			cmd := Command{
 				ValidArgsFunction: userComp,
@@ -4012,6 +4011,63 @@ func TestInitDefaultCompletionCmd(t *testing.T) {
 			// Check if the completion command was added
 			if len(rootCmd.Commands()) != expectedNumSubCommands {
 				t.Errorf("Expected %d subcommands, got %d", expectedNumSubCommands, len(rootCmd.Commands()))
+			}
+		})
+	}
+}
+
+func TestCustomDefaultShellCompDirective(t *testing.T) {
+	rootCmd := &Command{Use: "root", Run: emptyRun}
+	rootCmd.PersistentFlags().String("string", "", "test string flag")
+	// use ShellCompDirectiveNoFileComp instead of the default, which is ShellCompDirectiveDefault.
+	rootCmd.CompletionOptions.SetDefaultShellCompDirective(ShellCompDirectiveNoFileComp)
+
+	// child1 inherits the custom DefaultShellCompDirective.
+	childCmd1 := &Command{Use: "child1", Run: emptyRun}
+	// child2 resets the custom DefaultShellCompDirective to the default value.
+	childCmd2 := &Command{Use: "child2", Run: emptyRun}
+	childCmd2.CompletionOptions.SetDefaultShellCompDirective(ShellCompDirectiveDefault)
+
+	rootCmd.AddCommand(childCmd1, childCmd2)
+
+	testCases := []struct {
+		desc              string
+		args              []string
+		expectedDirective string
+	}{
+		{
+			"flag completion on root command with custom DefaultShellCompDirective",
+			[]string{"--string", ""},
+			"ShellCompDirectiveNoFileComp",
+		},
+		{
+			"flag completion on subcommand with inherited custom DefaultShellCompDirective",
+			[]string{"child1", "--string", ""},
+			"ShellCompDirectiveNoFileComp",
+		},
+		{
+			"flag completion on subcommand with reset DefaultShellCompDirective",
+			[]string{"child2", "--string", ""},
+			"ShellCompDirectiveDefault",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			args := []string{ShellCompNoDescRequestCmd}
+			args = append(args, tc.args...)
+
+			output, err := executeCommand(rootCmd, args...)
+
+			if err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+
+			outputWords := strings.Split(strings.TrimSpace(output), " ")
+			directive := outputWords[len(outputWords)-1]
+
+			if directive != tc.expectedDirective {
+				t.Errorf("expected: %q, got: %q", tc.expectedDirective, directive)
 			}
 		})
 	}
