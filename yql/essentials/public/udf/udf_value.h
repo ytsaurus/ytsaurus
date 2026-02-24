@@ -8,10 +8,11 @@
 
 #include <yql/essentials/public/decimal/yql_decimal.h>
 
-#include <util/system/yassert.h>     // FAIL, VERIFY_DEBUG
-#include <util/generic/utility.h>    // Min, Max
-#include <util/generic/yexception.h> // Y_ENSURE
-#include <util/system/compiler.h>    // Y_FORCE_INLINE
+#include <util/system/yassert.h>       // FAIL, VERIFY_DEBUG
+#include <util/generic/utility.h>      // Min, Max
+#include <util/generic/yexception.h>   // Y_ENSURE
+#include <util/system/compiler.h>      // Y_FORCE_INLINE
+#include <util/system/unaligned_mem.h> // ReadUnaligned
 
 #include <algorithm>
 #include <type_traits>
