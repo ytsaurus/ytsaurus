@@ -59,6 +59,12 @@ TCompactionHintConfigChange::TCompactionHintConfigChange(
     NLsm::EPartitionCompactionHintKind kind)
 {
     switch (kind) {
+        case NLsm::EPartitionCompactionHintKind::AggregateVersionedRowDigest:
+            OldEnable_ = oldConfig->AggregateVersionedRowDigestCompaction->Enable;
+            NewEnable_ = newConfig->AggregateVersionedRowDigestCompaction->Enable;
+            ConfigChanged_ = false;
+            break;
+
         case NLsm::EPartitionCompactionHintKind::MinHashDigest:
             OldEnable_ = oldConfig->MinHashDigestCompaction->Enable;
             NewEnable_ = newConfig->MinHashDigestCompaction->Enable;
@@ -125,6 +131,11 @@ bool DefinitelyHasNoHint(
     NLsm::EPartitionCompactionHintKind kind)
 {
     switch (kind) {
+        case NLsm::EPartitionCompactionHintKind::AggregateVersionedRowDigest: {
+            const auto& tableSchema = partition->GetTablet()->GetTableSchema();
+            return !tableSchema->HasAggregateColumns() || tableSchema->HasTtlColumn();
+        }
+
         case NLsm::EPartitionCompactionHintKind::MinHashDigest: {
             const auto& tableSchema = partition->GetTablet()->GetTableSchema();
             return tableSchema->HasAggregateColumns() || tableSchema->HasTtlColumn();

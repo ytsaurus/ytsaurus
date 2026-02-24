@@ -1437,6 +1437,39 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
 
         assert len(compacted_tables) == (1 if starving_tables_tasks_ratio == 0.0 else 2)
 
+    @authors("dave11ar")
+    def test_aggregate_digest_simple(self):
+        sync_create_cells(1)
+        table = "//tmp/t"
+        self._create_simple_table(
+            table,
+            schema=[
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "int64", "aggregate": "sum"},
+            ],
+            chunk_writer={
+                "versioned_row_digest": {
+                    "enable": True,
+                },
+            },
+            mount_config={
+                "aggregate_versioned_row_digest_compaction": {
+                    "enable" : True,
+                },
+            },
+        )
+
+        sync_mount_table(table)
+
+        def _insert_flush(i):
+            insert_rows(table, [{"key": i, "value": i}])
+            sync_flush_table(table)
+
+        for i in range(3):
+            _insert_flush(i)
+
+        sleep(10)
+
 
 ################################################################################
 

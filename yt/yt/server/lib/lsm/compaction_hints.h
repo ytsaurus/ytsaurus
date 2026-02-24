@@ -20,24 +20,24 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(EStoreCompactionHintKind, ui8,
 );
 
 DEFINE_ENUM_WITH_UNDERLYING_TYPE(EPartitionCompactionHintKind, ui8,
-    ((None)               (0))
-    ((MinHashDigest)      (3))
+    ((None)                        (0))
+    ((AggregateVersionedRowDigest) (2))
+    ((MinHashDigest)               (3))
 );
-
-EStoreCompactionHintKind CheckedToStoreCompactionHintKind(EPartitionCompactionHintKind kind);
 
 static constexpr std::array StoreCompactionHintKinds = {
     std::pair(EStoreCompactionHintKind::ChunkViewTooNarrow, EPartitionCompactionHintKind::None),
-    std::pair(EStoreCompactionHintKind::VersionedRowDigest, EPartitionCompactionHintKind::None),
+    std::pair(EStoreCompactionHintKind::VersionedRowDigest, EPartitionCompactionHintKind::AggregateVersionedRowDigest),
     std::pair(EStoreCompactionHintKind::MinHashDigest, EPartitionCompactionHintKind::MinHashDigest),
 };
 
 static constexpr std::array CalculatableStoreCompactionHintKinds = {
     std::pair(EStoreCompactionHintKind::ChunkViewTooNarrow, EPartitionCompactionHintKind::None),
-    std::pair(EStoreCompactionHintKind::VersionedRowDigest, EPartitionCompactionHintKind::None),
+    std::pair(EStoreCompactionHintKind::VersionedRowDigest, EPartitionCompactionHintKind::AggregateVersionedRowDigest),
 };
 
 static constexpr std::array PartitionCompactionHintKinds = {
+    std::pair(EStoreCompactionHintKind::VersionedRowDigest, EPartitionCompactionHintKind::AggregateVersionedRowDigest),
     std::pair(EStoreCompactionHintKind::MinHashDigest, EPartitionCompactionHintKind::MinHashDigest),
 };
 
@@ -60,7 +60,7 @@ template <class T>
 using TPartitionCompactionHintArray = TEnumIndexedArray<
     EPartitionCompactionHintKind,
     T,
-    EPartitionCompactionHintKind::MinHashDigest,
+    EPartitionCompactionHintKind::AggregateVersionedRowDigest,
     EPartitionCompactionHintKind::MinHashDigest
 >;
 
