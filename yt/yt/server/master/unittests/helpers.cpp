@@ -73,6 +73,7 @@ XX(ChunkList)
 XX(TabletCell)
 XX(TabletCellBundle)
 XX(ClusterNode)
+XX(Tablet)
 
 #undef XX
 

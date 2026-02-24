@@ -64,8 +64,9 @@
 
 #include <yt/yt/library/query/secondary_index/schema.h>
 
-#include <yt/yt/client/chaos_client/replication_card_serialization.h>
 #include <yt/yt/client/chaos_client/helpers.h>
+#include <yt/yt/client/chaos_client/replication_card.h>
+#include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
 #include <yt/yt/client/chunk_client/read_limit.h>
 
@@ -90,6 +91,7 @@ namespace NYT::NTableServer {
 
 using namespace NApi;
 using namespace NChaosClient;
+using namespace NChaosServer;
 using namespace NChunkClient;
 using namespace NChunkServer;
 using namespace NConcurrency;
@@ -295,6 +297,10 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationProgress)
         .SetExternal(isExternal)
         .SetPresent(isDynamic)
+        .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationLagTimes)
+        .SetExternal(isExternal)
+        .SetPresent(isDynamic && trunkTable->GetReplicationCardId())
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TableChunkFormatStatistics)
         .SetExternal(isExternal)
@@ -1304,6 +1310,14 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
                 break;
             }
             return GetQueueAgentAttributeAsync(Bootstrap_, table->GetQueueAgentStage(), GetPath(), key);
+        }
+
+        case EInternedAttributeKey::ReplicationLagTimes: {
+            if (isExternal) {
+                break;
+            }
+
+            return GetReplicationLagTimesAsync(*table, Bootstrap_->GetClusterConnection());
         }
 
         default:

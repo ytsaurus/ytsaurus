@@ -35,6 +35,7 @@ private:
 
 TGuid GenerateChunkId();
 TGuid GenerateChunkListId();
+TGuid GenerateTabletId();
 TGuid GenerateTabletCellId();
 TGuid GenerateTabletCellBundleId();
 TGuid GenerateClusterNodeId();

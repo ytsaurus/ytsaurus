@@ -15,7 +15,7 @@ NChaosClient::TReplicationProgress GatherReplicationProgress(const NTableServer:
 void ScatterReplicationProgress(NTableServer::TTableNode* table, NChaosClient::TReplicationProgress progress);
 
 NTableClient::TLegacyKey GetTabletReplicationProgressPivotKey(
-    TTablet* tablet,
+    const TTablet* tablet,
     int tabletIndex,
     std::vector<NTableClient::TLegacyOwningKey>* buffer);
 
