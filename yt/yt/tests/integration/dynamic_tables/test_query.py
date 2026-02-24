@@ -9,7 +9,7 @@ from yt_helpers import profiler_factory
 
 from yt_commands import (
     alter_table, authors, create_dynamic_table, wait, create, ls, get, set, move, create_user, make_ace,
-    insert_rows, raises_yt_error, remount_table, select_rows, delete_rows, sorted_dicts, generate_uuid,
+    insert_rows, raises_yt_error, remount_table, select_rows, delete_rows, sorted_dicts, generate_timestamp, generate_uuid,
     write_local_file, reshard_table, sync_create_cells, sync_mount_table, sync_unmount_table, sync_flush_table,
     WaitFailed, create_table_replica, sync_enable_table_replica)
 
@@ -3054,6 +3054,32 @@ class TestQueryRpcProxy(TestQuery):
         sync_enable_table_replica(replica_id)  # enable cain.
 
         assert select_rows("* from [//tmp/t] with hint \"{require_sync_replica=%false}\"") == data
+
+    @authors("dtorilov")
+    def test_yt_27169(self):
+        sync_create_cells(1)
+        set("//sys/rpc_proxies/@config", {})
+        set("//sys/rpc_proxies/@config/query_engine_config", {})
+        set("//sys/rpc_proxies/@config/query_engine_config/allow_join_with_async_last_committed_timestamp_if_require_sync_replica_is_false", True)
+        self._create_table("//tmp/l", [{"name": "k", "type": "int64", "sort_order": "ascending"}, {"name": "v", "type": "string"}], [], "scan")
+        self._create_table("//tmp/r", [{"name": "k", "type": "int64", "sort_order": "ascending"}, {"name": "v", "type": "string"}], [], "scan")
+        insert_rows("//tmp/l", [{"k": 1, "v": "old"}])
+        insert_rows("//tmp/r", [{"k": 1, "v": "old"}])
+        old_timestamp = generate_timestamp()
+        insert_rows("//tmp/l", [{"k": 1, "v": "new"}], update=True)
+        insert_rows("//tmp/r", [{"k": 1, "v": "new"}], update=True)
+        result = select_rows("""l.v, r.v from [//tmp/l] l join [//tmp/r] r with hint "{require_sync_replica=%false}" on l.k = r.k""", timestamp=old_timestamp)
+        expected = [{"l.v": "old", "r.v": "new"}]
+        assert result == expected
+        new_timestamp = generate_timestamp()
+        result = select_rows("""l.v, r.v from [//tmp/l] l join [//tmp/r] r with hint "{require_sync_replica=%false}" on l.k = r.k """, timestamp=new_timestamp)
+        expected = [{"l.v": "new", "r.v": "new"}]
+        assert result == expected
+        set("//sys/rpc_proxies/@config/query_engine_config/allow_join_with_async_last_committed_timestamp_if_require_sync_replica_is_false", False)
+        time.sleep(1)
+        result = select_rows("""l.v, r.v from [//tmp/l] l join [//tmp/r] r with hint "{require_sync_replica=%false}" on l.k = r.k """, timestamp=old_timestamp)
+        expected = [{"l.v": "old", "r.v": "old"}]
+        assert result == expected
 
     @authors("dtorilov")
     def test_select_with_limit_read_data_weight(self):

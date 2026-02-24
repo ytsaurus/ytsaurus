@@ -697,7 +697,7 @@ TJoinClausePtr BuildJoinClause(
     const TTableSchemaPtr& tableSchema,
     const std::optional<std::string>& tableAlias,
     TExpressionBuilder* builder,
-    int builderVersion,
+    const TPreparePlanFragmentOptions& options,
     const NLogging::TLogger& Logger)
 {
     auto foreignTableSchema = foreignDataSplit.TableSchema;
@@ -707,8 +707,12 @@ TJoinClausePtr BuildJoinClause(
     joinClause->ForeignObjectId = foreignDataSplit.ObjectId;
     joinClause->IsLeft = tableJoin.IsLeft;
 
+    if (!tableJoin.Table.Hint->RequireSyncReplica && options.AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse) {
+        joinClause->RequireSyncReplica = false;
+    }
+
     // BuildPredicate and BuildTypedExpression are used with foreignBuilder.
-    auto foreignBuilder = CreateExpressionBuilder(source, functions, aliasMap, builderVersion);
+    auto foreignBuilder = CreateExpressionBuilder(source, functions, aliasMap, options.BuilderVersion);
 
     foreignBuilder->AddTable({
         .Schema = *foreignTableSchema,
@@ -1339,7 +1343,7 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
                     query->Schema.Original,
                     table->Alias,
                     builder.get(),
-                    options.BuilderVersion,
+                    options,
                     Logger));
             },
             [&] (const NAst::TArrayJoin& arrayJoin) {

@@ -44,6 +44,9 @@ void TQueryEngineDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("rewrite_cardinality_into_hyper_log_log_with_precision", &TThis::RewriteCardinalityIntoHyperLogLogWithPrecision)
         .Optional();
+
+    registrar.Parameter("allow_join_with_async_last_committed_timestamp_if_require_sync_replica_is_false", &TThis::AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
