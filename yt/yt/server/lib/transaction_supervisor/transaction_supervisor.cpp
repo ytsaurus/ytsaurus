@@ -1461,12 +1461,11 @@ private:
             auto prepareTimestamp = TimestampProvider_->GetLatestTimestamp();
 
             TTransactionPrepareOptions options{
-                // Technically true.
                 .Persistent = false,
-                .LatePrepare = true,
+                .LatePrepare = true, // Technically true.
                 .PrepareTimestamp = prepareTimestamp,
                 .PrepareTimestampClusterTag = SelfClockClusterTag_,
-                .PrerequisiteTransactionIds = commit->PrerequisiteTransactionIds()
+                .PrerequisiteTransactionIds = commit->PrerequisiteTransactionIds(),
             };
             TransactionManager_->PrepareTransactionCommit(
                 transactionId,
