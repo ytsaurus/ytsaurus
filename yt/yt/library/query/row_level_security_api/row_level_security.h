@@ -73,7 +73,8 @@ struct IRlsChecker
     virtual bool IsColumnNeeded(int indexInChunkNameTable) const = 0;
 };
 
-DECLARE_REFCOUNTED_STRUCT(IRlsChecker)
+DECLARE_REFCOUNTED_TYPE(IRlsChecker)
+DEFINE_REFCOUNTED_TYPE(IRlsChecker)
 
 struct IRlsCheckerFactory
     : public TRefCounted
@@ -81,7 +82,8 @@ struct IRlsCheckerFactory
     virtual IRlsCheckerPtr CreateCheckerForChunk(const TNameTablePtr& chunkNameTable) const = 0;
 };
 
-DECLARE_REFCOUNTED_STRUCT(IRlsCheckerFactory)
+DECLARE_REFCOUNTED_TYPE(IRlsCheckerFactory)
+DEFINE_REFCOUNTED_TYPE(IRlsCheckerFactory)
 
 IRlsCheckerFactoryPtr CreateRlsCheckerFactory(
     const TRlsReadSpec& readSpec);
