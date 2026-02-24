@@ -65,7 +65,7 @@ void Deserialize(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NProto::TError* protoError, const TError& error);
+void ToProto(NProto::TError* protoError, const TError& error, int depth = 0);
 void FromProto(TError* error, const NProto::TError& protoError);
 
 ////////////////////////////////////////////////////////////////////////////////
