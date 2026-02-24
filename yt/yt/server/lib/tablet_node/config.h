@@ -89,6 +89,20 @@ DEFINE_REFCOUNTED_TYPE(TMinHashDigestCompactionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TAggregateVersionedRowDigestCompactionConfig
+    : public NYTree::TYsonStruct
+{
+    bool Enable;
+
+    REGISTER_YSON_STRUCT(TAggregateVersionedRowDigestCompactionConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TAggregateVersionedRowDigestCompactionConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TGradualCompactionConfig
     : public NYTree::TYsonStructLite
 {
@@ -237,6 +251,7 @@ struct TCustomTableMountConfig
     EPeriodicCompactionMode PeriodicCompactionMode;
     TRowDigestCompactionConfigPtr RowDigestCompaction;
     TMinHashDigestCompactionConfigPtr MinHashDigestCompaction;
+    TAggregateVersionedRowDigestCompactionConfigPtr AggregateVersionedRowDigestCompaction;
 
     bool EnableLookupHashTable;
 

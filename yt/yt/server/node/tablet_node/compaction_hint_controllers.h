@@ -177,7 +177,7 @@ class TStoreCompactionHints
 public:
     DEFINE_BYREF_RW_PROPERTY(TControllers, Controllers, {
         {NLsm::EStoreCompactionHintKind::ChunkViewTooNarrow, {NLsm::EStoreCompactionHintKind::ChunkViewTooNarrow}},
-        {NLsm::EStoreCompactionHintKind::VersionedRowDigest, {NLsm::EStoreCompactionHintKind::VersionedRowDigest}},
+        {NLsm::EStoreCompactionHintKind::VersionedRowDigest, {NLsm::EStoreCompactionHintKind::VersionedRowDigest, NLsm::EPartitionCompactionHintKind::AggregateVersionedRowDigest}},
     });
 
 public:
@@ -249,11 +249,9 @@ class TPartitionCompactionHints
 {
     using TControllers = NLsm::TPartitionCompactionHintArray<TPartitionCompactionHintController>;
 public:
-    DEFINE_BYREF_RW_PROPERTY(TControllers, Controllers, {{
-        NLsm::EPartitionCompactionHintKind::MinHashDigest, {
-            NLsm::EStoreCompactionHintKind::MinHashDigest,
-            NLsm::EPartitionCompactionHintKind::MinHashDigest,
-        }}
+    DEFINE_BYREF_RW_PROPERTY(TControllers, Controllers, {
+        {NLsm::EPartitionCompactionHintKind::MinHashDigest, {NLsm::EStoreCompactionHintKind::MinHashDigest, NLsm::EPartitionCompactionHintKind::MinHashDigest}},
+        {NLsm::EPartitionCompactionHintKind::AggregateVersionedRowDigest, {NLsm::EStoreCompactionHintKind::VersionedRowDigest, NLsm::EPartitionCompactionHintKind::AggregateVersionedRowDigest}},
     });
 
 public:

@@ -256,6 +256,9 @@ bool TPartitionCompactionHint::RecalculateHint(TPartition* partition)
     };
 
     switch (PartitionCompactionHintKind_) {
+        case NLsm::EPartitionCompactionHintKind::AggregateVersionedRowDigest:
+            return doRecalculate.operator()<EPartitionCompactionHintKind::AggregateVersionedRowDigest>();
+
         case EPartitionCompactionHintKind::MinHashDigest:
             return doRecalculate.operator()<EPartitionCompactionHintKind::MinHashDigest>();
 

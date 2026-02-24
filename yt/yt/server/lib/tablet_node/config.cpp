@@ -59,6 +59,14 @@ void TMinHashDigestCompactionConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TAggregateVersionedRowDigestCompactionConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TGradualCompactionConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("start_time", &TThis::StartTime)
@@ -274,6 +282,8 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("row_digest_compaction", &TThis::RowDigestCompaction)
         .DefaultNew();
     registrar.Parameter("min_hash_digest_compaction", &TThis::MinHashDigestCompaction)
+        .DefaultNew();
+    registrar.Parameter("aggregate_versioned_row_digest_compaction", &TThis::AggregateVersionedRowDigestCompaction)
         .DefaultNew();
 
     registrar.Parameter("enable_lookup_hash_table", &TThis::EnableLookupHashTable)
