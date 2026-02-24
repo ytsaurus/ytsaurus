@@ -3,21 +3,33 @@
 #include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/config.h>
 
+#include <yt/yt/server/master/tablet_server/chaos_helpers.h>
+
+#include <yt/yt/server/master/chaos_server/helpers.h>
+
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
+
+#include <yt/yt/client/table_client/helpers.h>
 
 #include <yt/yt/ytlib/queue_client/helpers.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 
+#include <library/cpp/yt/misc/range_helpers.h>
+
 namespace NYT::NTableServer {
 
+using namespace NApi;
 using namespace NCellMaster;
+using namespace NChaosClient;
+using namespace NChaosServer;
 using namespace NQueueClient;
 using namespace NRpc;
 using namespace NTableClient;
 using namespace NTableServer;
+using namespace NTabletServer;
 using namespace NYPath;
 using namespace NYson;
 using namespace NYTree;
@@ -118,6 +130,103 @@ TFuture<TYsonString> GetQueueAgentAttributeAsync(
             YT_ABORT();
     }
     return AsyncYPathGet(queueAgentObjectService, remoteKey);
+}
+
+TYsonString GetReplicationLagAttribute(
+    TReplicaId upstreamReplicaId,
+    const TReplicationCardPtr& replicationCard,
+    const std::vector<TLegacyKey>& pivotKeys,
+    const std::vector<TTabletId>& tabletIds)
+{
+    const auto* selfReplica = replicationCard->FindReplica(upstreamReplicaId);
+    if (!selfReplica) {
+        return BuildYsonStringFluently().Entity();
+    }
+
+    auto scatteredSyncProgress = ScatterReplicationProgress(
+        BuildMaxSyncProgress(replicationCard->Replicas),
+        pivotKeys,
+        MaxKey().Get());
+    auto scatteredReplicaProgress = ScatterReplicationProgress(
+        selfReplica->ReplicationProgress,
+        pivotKeys,
+        MaxKey().Get());
+
+    return BuildYsonStringFluently()
+        .DoListFor(
+            Zip(scatteredSyncProgress, scatteredReplicaProgress, tabletIds),
+            [selfReplica] (TFluentList fluent, const auto& args) {
+                const auto& [tabletSyncProgress, tabletProgress, tabletId] = args;
+                auto minTabletProgressTimestamp = GetReplicationProgressMinTimestamp(tabletProgress);
+
+                const auto& lastHistoryItem = selfReplica->History.back();
+                auto replicaMode = minTabletProgressTimestamp >= lastHistoryItem.Timestamp
+                    ? lastHistoryItem.Mode
+                    : ETableReplicaMode::Async;
+
+                auto lagTime = (replicaMode == ETableReplicaMode::Async)
+                    ? ComputeReplicationProgressLag(tabletSyncProgress, tabletProgress)
+                    : TDuration::Zero();
+
+                fluent
+                    .Item()
+                        .BeginMap()
+                            .Item("tablet_id").Value(ToString(tabletId))
+                            .Item("replication_lag_time").Value(lagTime)
+                            .Item("replication_mode").Value(replicaMode)
+                        .EndMap();
+            });
+}
+
+TFuture<NYson::TYsonString> GetReplicationLagTimesAsync(
+    const TTableNode& table,
+    const NNative::IConnectionPtr& connection)
+{
+    const auto& replicationCardId = table.GetTrunkNode()->GetReplicationCardId();
+    if (!replicationCardId) {
+        return MakeFuture(BuildYsonStringFluently().Entity());
+    }
+
+    const auto& tablets = table.Tablets();
+    int tabletsCount = std::ssize(tablets);
+    if (tabletsCount == 0) {
+        return MakeFuture(BuildYsonStringFluently()
+            .BeginList()
+            .EndList());
+    }
+
+    std::vector<TLegacyKey> pivotKeys;
+    std::vector<TTabletId> tabletIds;
+    std::vector<TLegacyOwningKey> buffer;
+    pivotKeys.reserve(tabletsCount);
+    tabletIds.reserve(tabletsCount);
+    if (!table.IsSorted()) {
+        // Will contain all pivots except the first one.
+        buffer.reserve(tabletsCount - 1);
+    }
+
+    for (int index = 0; index < tabletsCount; ++index) {
+        const auto* tablet = tablets[index]->As<TTablet>();
+        pivotKeys.push_back(GetTabletReplicationProgressPivotKey(tablet, index, &buffer));
+        tabletIds.push_back(tablet->GetId());
+    }
+
+    TReplicationCardFetchOptions replicationCardFetchOptions;
+    replicationCardFetchOptions.IncludeProgress = true;
+    replicationCardFetchOptions.IncludeHistory = true;
+
+    return GetReplicationCard(
+        connection,
+        replicationCardId,
+        replicationCardFetchOptions)
+        .Apply(BIND([
+                upstreamReplicaId = table.GetUpstreamReplicaId(),
+                pivotKeys = std::move(pivotKeys),
+                tabletIds = std::move(tabletIds),
+                buffer = std::move(buffer)
+            ] (const TReplicationCardPtr& replicationCard) {
+                return GetReplicationLagAttribute(upstreamReplicaId, replicationCard, pivotKeys, tabletIds);
+            }));
 }
 
 TSchemaUpdateEnabledFeatures GetSchemaUpdateEnabledFeatures(TDynamicClusterConfigPtr config)

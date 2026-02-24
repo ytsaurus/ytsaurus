@@ -479,6 +479,7 @@
     XX(ReplicationErrors, replication_errors) \
     XX(ReplicationFactor, replication_factor) \
     XX(ReplicationLagTime, replication_lag_time) \
+    XX(ReplicationLagTimes, replication_lag_times) \
     XX(ReplicationProgress, replication_progress) \
     XX(ReplicationStatus, replication_status) \
     XX(RequestLimits, request_limits) \

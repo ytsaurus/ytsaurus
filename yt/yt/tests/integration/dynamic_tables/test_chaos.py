@@ -299,8 +299,33 @@ class TestChaos(ChaosTestBase):
             {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
             {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/r1"}
         ]
-        self._create_chaos_tables(cell_id, replicas)
+        card_id, _ = self._create_chaos_tables(cell_id, replicas, sync_replication_era=False, mount_tables=False)
         _, _, remote_driver1 = self._get_drivers()
+
+        reshard_table("//tmp/t", [[], [1]])
+        reshard_table("//tmp/r1", [[], [1]], driver=remote_driver1)
+        self._mount_replicas(replicas)
+        self._sync_replication_era(card_id, replicas)
+
+        def _check_lag_properties(path: str, mode: str, cluster_name: str):
+            driver = get_driver(cluster=cluster_name)
+            get_result = get(f"{path}/@", attributes=["tablets", "replication_lag_times"], driver=driver)
+
+            tablets = get_result["tablets"]
+            lag_times = get_result["replication_lag_times"]
+            assert len(tablets) == len(lag_times)
+
+            for lag_time, tablet in zip(lag_times, tablets):
+                assert lag_time["tablet_id"] == tablet["tablet_id"]
+                assert lag_time["replication_mode"] == mode
+
+                if mode == "sync":
+                    assert lag_time["replication_lag_time"] == 0
+                else:
+                    assert lag_time["replication_lag_time"] >= 0
+
+        for replica in replicas:
+            _check_lag_properties(replica["replica_path"], replica["mode"], replica["cluster_name"])
 
         values = [{"key": 0, "value": "0"}]
         insert_rows("//tmp/t", values)

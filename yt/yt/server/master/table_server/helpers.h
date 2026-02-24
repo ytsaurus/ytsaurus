@@ -22,6 +22,16 @@ TFuture<NYson::TYsonString> GetQueueAgentAttributeAsync(
     const NYPath::TYPath& path,
     NYTree::TInternedAttributeKey key);
 
+NYson::TYsonString GetReplicationLagAttribute(
+    NChaosClient::TReplicaId upstreamReplicaId,
+    const NChaosClient::TReplicationCardPtr& replicationCard,
+    const std::vector<NTableClient::TLegacyKey>& pivotKeys,
+    const std::vector<NTabletClient::TTabletId>& tabletIds);
+
+TFuture<NYson::TYsonString> GetReplicationLagTimesAsync(
+    const TTableNode& table,
+    const NApi::NNative::IConnectionPtr& connection);
+
 NTableClient::TSchemaUpdateEnabledFeatures GetSchemaUpdateEnabledFeatures(
     NCellMaster::TDynamicClusterConfigPtr config);
 

@@ -61,7 +61,7 @@ void ScatterReplicationProgress(NTableServer::TTableNode* table, TReplicationPro
 }
 
 TLegacyKey GetTabletReplicationProgressPivotKey(
-    TTablet* tablet,
+    const TTablet* tablet,
     int tabletIndex,
     std::vector<TLegacyOwningKey>* buffer)
 {
