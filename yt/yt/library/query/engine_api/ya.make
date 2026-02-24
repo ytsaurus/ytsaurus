@@ -7,6 +7,7 @@ PROTO_NAMESPACE(yt)
 SRCS(
     append_function_implementation.cpp
     builtin_function_profiler.cpp
+    cg_cache_config.cpp
     column_evaluator.cpp
     config.cpp
     coordinator.cpp
@@ -18,7 +19,9 @@ SRCS(
     new_range_inferrer.cpp
     position_independent_value.cpp
     position_independent_value_transfer.cpp
+    query_engine_config.cpp
     range_inferrer.cpp
+    row_level_security.cpp
     top_collector.cpp
 )
 

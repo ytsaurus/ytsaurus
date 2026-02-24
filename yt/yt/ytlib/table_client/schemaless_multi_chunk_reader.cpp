@@ -10,6 +10,7 @@
 #include "helpers.h"
 #include "hunks.h"
 #include "remote_dynamic_store_reader.h"
+#include "row_level_security.h"
 #include "schemaless_block_reader.h"
 #include "schemaless_multi_chunk_reader.h"
 #include "table_read_spec.h"
@@ -46,6 +47,8 @@
 #include <yt/yt/library/row_merger/overlapping_reader.h>
 #include <yt/yt/library/row_merger/row_merger.h>
 
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
+
 #include <yt/yt/client/chunk_client/helpers.h>
 
 #include <yt/yt/client/table_client/schema.h>
@@ -61,9 +64,6 @@
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/client/object_client/helpers.h>
-
-#include <yt/yt/library/query/engine_api/column_evaluator.h>
-#include <yt/yt/library/query/row_level_security_api/row_level_security.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/concurrency/action_queue.h>

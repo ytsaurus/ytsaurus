@@ -15,6 +15,7 @@ SRCS(
     GLOBAL expression_evaluator.cpp
     GLOBAL coordinator.cpp
     GLOBAL evaluator.cpp
+    GLOBAL row_level_security.cpp
     folding_profiler.cpp
     functions_cg.cpp
     functions_builder.cpp

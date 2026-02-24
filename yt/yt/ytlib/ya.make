@@ -481,6 +481,7 @@ SRCS(
     table_client/partitioner.cpp
     table_client/performance_counters.cpp
     table_client/remote_dynamic_store_reader.cpp
+    table_client/row_level_security.cpp
     table_client/rows_digest.cpp
     table_client/samples_fetcher.cpp
     table_client/schema_dictionary.cpp
@@ -512,6 +513,7 @@ SRCS(
     table_client/versioned_row_digest.cpp
     table_client/virtual_value_directory.cpp
 
+    table_client/proto/row_level_security.proto
     table_client/proto/table_partition_cookie.proto
     table_client/proto/table_ypath.proto
     table_client/proto/virtual_value_directory.proto
@@ -815,10 +817,8 @@ PEERDIR(
     yt/yt/library/s3
     yt/yt/library/row_merger
     yt/yt/library/query/base
-    yt/yt/library/query/engine
     yt/yt/library/query/engine_api
     yt/yt/library/query/row_comparer_api
-    yt/yt/library/query/row_level_security_api
     yt/yt/library/query/secondary_index
     yt/yt/library/vector_hdrf
     yt/yt/library/web_assembly/api

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "cg_cache.h"
+#include "cg_cache_config.h"
 
 #include <yt/yt/core/misc/configurable_singleton_decl.h>
 

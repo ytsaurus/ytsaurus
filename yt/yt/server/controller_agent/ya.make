@@ -36,6 +36,7 @@ SRCS(
 PEERDIR(
     library/cpp/yt/phdr_cache
 
+    yt/yt/library/query/engine
     yt/yt/library/monitoring
     yt/yt/library/orchid
     yt/yt/library/pipe_io
@@ -47,8 +48,6 @@ PEERDIR(
     yt/yt/server/lib/chunk_pools
     yt/yt/server/lib/scheduler
     yt/yt/server/lib/controller_agent
-
-    yt/yt/library/query/row_level_security
 
     yt/yt/server/controller_agent/controllers
 

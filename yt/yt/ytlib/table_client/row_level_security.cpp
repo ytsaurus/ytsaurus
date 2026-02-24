@@ -1,11 +1,11 @@
-#include <yt/yt/library/query/row_level_security_api/row_level_security.h>
+#include "row_level_security.h"
 
 #include <yt/yt/core/phoenix/type_def.h>
 
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_preparer.h>
 
-#include <yt/yt/library/query/engine/folding_profiler.h>
+#include <yt/yt/library/query/engine_api/row_level_security.h>
 
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/row_buffer.h>
@@ -121,31 +121,6 @@ std::optional<std::string> ValidateAndBuildPredicate(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCGInstanceHolder final
-{
-    TCGExpressionInstance Instance;
-    TCGVariables Variables;
-    TCGExpressionImage Image;
-
-    void Run(
-        TUnversionedValue* value,
-        TUnversionedRow schemafulRow,
-        const TRowBufferPtr& rowBuffer)
-    {
-        Instance.Run(
-            Variables.GetLiteralValues(),
-            Variables.GetOpaqueData(),
-            Variables.GetOpaqueDataSizes(),
-            value,
-            schemafulRow.Elements(),
-            rowBuffer);
-    }
-};
-
-using TCGInstanceHolderPtr = TIntrusivePtr<TCGInstanceHolder>;
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! A thing that knows chunk schema and is able to remap incoming unversioned
 //! rows to the order expected by the codegened instance.
 class TRlsChecker
@@ -153,7 +128,7 @@ class TRlsChecker
 {
 public:
     TRlsChecker(
-        TCGInstanceHolderPtr instance,
+        ICGInstanceHolderPtr instance,
         TNameTableToSchemaIdMapping chunkToExpressionIdMapping,
         int valueCount)
         : Instance_(std::move(instance))
@@ -211,7 +186,7 @@ public:
     }
 
 private:
-    const TCGInstanceHolderPtr Instance_;
+    const ICGInstanceHolderPtr Instance_;
     //! Width of the row expected by the |Instance_|.
     //! Note that this number may be greater than |RemappedValueCount_| when
     //! a chunk physically does not have enough columns (we must assume
@@ -259,7 +234,7 @@ class TRlsCheckerFactory
 public:
     TRlsCheckerFactory(
         TTableSchemaPtr adjustedSchema,
-        TCGInstanceHolderPtr instanceHolder)
+        ICGInstanceHolderPtr instanceHolder)
         : AdjustedSchema_(std::move(adjustedSchema))
         , CGInstance_(std::move(instanceHolder))
     { }
@@ -286,7 +261,7 @@ public:
 
 private:
     const TTableSchemaPtr AdjustedSchema_;
-    const TCGInstanceHolderPtr CGInstance_;
+    const ICGInstanceHolderPtr CGInstance_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -398,44 +373,7 @@ IRlsCheckerFactoryPtr CreateRlsCheckerFactory(
     const TRlsReadSpec& rlsReadSpec)
 {
     YT_VERIFY(!rlsReadSpec.IsTrivialDeny());
-    const auto& schema = rlsReadSpec.GetTableSchema();
-    YT_VERIFY(schema);
-
-    THashSet<std::string> references;
-    auto preparedExpression = PrepareExpression(
-        rlsReadSpec.GetPredicate(),
-        *schema,
-        GetBuiltinTypeInferrers(),
-        &references);
-
-    // Drop unused columns from the schema.
-    std::vector<TColumnSchema> columns;
-    columns.reserve(references.size());
-    for (const auto& column : schema->Columns()) {
-        if (references.contains(column.Name())) {
-            columns.push_back(column);
-        }
-    }
-    auto adjustedSchema = New<TTableSchema>(std::move(columns));
-
-    TCGVariables variables;
-
-    auto profiler = Profile(
-        preparedExpression,
-        adjustedSchema,
-        /*id*/ nullptr,
-        &variables,
-        /*useCanonicalNullRelations*/ false,
-        NYT::NCodegen::EExecutionBackend::Native,
-        GetBuiltinFunctionProfilers());
-
-    auto image = profiler();
-    auto instance = image.Instantiate();
-    auto instanceHolder = New<TCGInstanceHolder>(
-        std::move(instance),
-        std::move(variables),
-        std::move(image));
-
+    auto [instanceHolder, adjustedSchema] = MakeRlsCGInstance(rlsReadSpec.GetTableSchema(), rlsReadSpec.GetPredicate());
     return New<TRlsCheckerFactory>(
         adjustedSchema,
         std::move(instanceHolder));

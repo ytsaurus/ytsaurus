@@ -3,6 +3,7 @@
 #include "folding_profiler.h"
 #include "public.h"
 
+#include <yt/yt/library/query/engine_api/cg_cache_config.h>
 #include <yt/yt/library/query/engine_api/evaluation_helpers.h>
 
 #include <yt/yt/core/misc/async_slru_cache.h>
@@ -15,30 +16,6 @@
 #include <llvm/ADT/FoldingSet.h>
 
 namespace NYT::NQueryClient {
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TCodegenCacheConfig
-    : public TSlruCacheConfig
-{
-    REGISTER_YSON_STRUCT(TCodegenCacheConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TCodegenCacheConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TCodegenCacheDynamicConfig
-    : public TSlruCacheDynamicConfig
-{
-    REGISTER_YSON_STRUCT(TCodegenCacheDynamicConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TCodegenCacheDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

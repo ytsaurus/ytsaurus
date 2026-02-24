@@ -1,13 +1,13 @@
 #pragma once
 
-#include <yt/yt/client/table_client/public.h>
-
-#include <yt/yt/library/query/row_level_security_api/proto/row_level_security.pb.h>
+#include "public.h"
 
 #include <yt/yt/core/phoenix/context.h>
 #include <yt/yt/core/phoenix/type_decl.h>
 
 #include <yt/yt/client/security_client/acl.h>
+
+#include <yt/yt/ytlib/table_client/proto/row_level_security.pb.h>
 
 #include <library/cpp/yt/logging/logger.h>
 
@@ -58,6 +58,14 @@ void FormatValue(TStringBuilderBase* builder, const TRlsReadSpec& rlsReadSpec, T
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IRlsCheckerFactory
+    : public TRefCounted
+{
+    virtual IRlsCheckerPtr CreateCheckerForChunk(const TNameTablePtr& chunkNameTable) const = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IRlsCheckerFactory)
+
 struct IRlsChecker
     : public TRefCounted
 {
@@ -73,17 +81,7 @@ struct IRlsChecker
     virtual bool IsColumnNeeded(int indexInChunkNameTable) const = 0;
 };
 
-DECLARE_REFCOUNTED_TYPE(IRlsChecker)
 DEFINE_REFCOUNTED_TYPE(IRlsChecker)
-
-struct IRlsCheckerFactory
-    : public TRefCounted
-{
-    virtual IRlsCheckerPtr CreateCheckerForChunk(const TNameTablePtr& chunkNameTable) const = 0;
-};
-
-DECLARE_REFCOUNTED_TYPE(IRlsCheckerFactory)
-DEFINE_REFCOUNTED_TYPE(IRlsCheckerFactory)
 
 IRlsCheckerFactoryPtr CreateRlsCheckerFactory(
     const TRlsReadSpec& readSpec);
