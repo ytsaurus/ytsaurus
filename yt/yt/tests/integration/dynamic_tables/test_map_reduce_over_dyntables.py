@@ -15,6 +15,8 @@ from yt_type_helpers import (
     list_type,
 )
 
+from yt_dynamic_tables_base import map_in_parallel
+
 from yt.test_helpers import assert_items_equal
 from yt.common import YtError
 import yt.yson as yson
@@ -407,28 +409,32 @@ class TestMapOnDynamicTables(YTEnvSetup):
         insert_rows("//tmp/t", dynstore_rows, aggregate=True)
         rows = select_rows("* from [//tmp/t] limit 1000000")
 
-        def _check(*columns):
+        def _check(arguments):
+            out_table = f"//tmp/o_{arguments[0]}"
+            columns = arguments[1:]
             expected = [{column: row[column] for column in columns if column in row} for row in rows]
             ypath = "//tmp/t{" + ",".join(columns) + "}"
             actual = read_table(ypath)
             assert expected == actual
 
-            create("table", "//tmp/o")
-            merge(in_=ypath, out="//tmp/o", mode="ordered")
-            assert expected == read_table("//tmp/o")
-            remove("//tmp/o")
+            create("table", out_table)
+            merge(in_=ypath, out=out_table, mode="ordered")
+            assert expected == read_table(out_table)
+            remove(out_table)
 
-        _check("k_1")
-        _check("v_3")
-        _check("k_1", "k_1")
-        _check("v_3", "k_1")
-        _check("v_4", "v_4", "k_1")
-        _check("v_5", "k_1", "v_5", "k_1")
-        _check("oops")
-        _check("oops", "yup")
-        _check("oops", "v_6", "yup")
-        _check("oops", "v_7", "k_1")
-        _check("k_1", "k_2", "v_8", "v_4", "v_9", "v_7", "v_5")
+        map_in_parallel(_check, (
+            (1, "k_1",),
+            (2, "v_3",),
+            (3, "k_1", "k_1"),
+            (4, "v_3", "k_1"),
+            (5, "v_4", "v_4", "k_1"),
+            (6, "v_5", "k_1", "v_5", "k_1"),
+            (7, "oops",),
+            (8, "oops", "yup"),
+            (9, "oops", "v_6", "yup"),
+            (10, "oops", "v_7", "k_1"),
+            (11, "k_1", "k_2", "v_8", "v_4", "v_9", "v_7", "v_5"),
+        ))
 
     @authors("savrus")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])

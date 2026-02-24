@@ -1,4 +1,4 @@
-from yt_dynamic_tables_base import DynamicTablesBase
+from yt_dynamic_tables_base import DynamicTablesBase, map_in_parallel
 
 from yt_commands import (
     print_debug, wait, get_driver, get, set, ls, exists, create, alter_table, insert_rows, pull_rows,
@@ -13,19 +13,9 @@ import yt.yson as yson
 
 import builtins
 
-from concurrent.futures import ThreadPoolExecutor
-
 ##################################################################
 
 MAX_KEY = [yson.to_yson_type(None, attributes={"type": "max"})]
-
-
-def map_in_parallel(mapper, args):
-    mapped = []
-    with ThreadPoolExecutor() as executor:
-        for r in executor.map(mapper, args):
-            mapped.append(r)
-    return mapped
 
 
 class ChaosTestBase(DynamicTablesBase):

@@ -1,6 +1,6 @@
-from yt_chaos_test_base import ChaosTestBase, MAX_KEY, map_in_parallel
+from yt_chaos_test_base import ChaosTestBase, MAX_KEY
 
-from yt_dynamic_tables_base import SmoothMovementHelper
+from yt_dynamic_tables_base import SmoothMovementHelper, map_in_parallel
 
 from yt_env_setup import (
     Restarter,
