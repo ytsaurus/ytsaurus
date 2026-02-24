@@ -2,12 +2,12 @@
 
 #include <yt/yt/client/table_client/public.h>
 
+#include <yt/yt/library/query/row_level_security_api/proto/row_level_security.pb.h>
+
 #include <yt/yt/core/phoenix/context.h>
 #include <yt/yt/core/phoenix/type_decl.h>
 
 #include <yt/yt/client/security_client/acl.h>
-
-#include <yt/yt/library/query/row_level_security_api/proto/row_level_security.pb.h>
 
 #include <library/cpp/yt/logging/logger.h>
 
