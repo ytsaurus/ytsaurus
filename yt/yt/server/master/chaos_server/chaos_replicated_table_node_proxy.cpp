@@ -605,17 +605,10 @@ private:
 
     TFuture<TReplicationCardPtr> GetReplicationCard(const TReplicationCardFetchOptions& options = {})
     {
-        const auto& connection = Bootstrap_->GetClusterConnection();
-        auto clientOptions = TClientOptions::FromAuthenticationIdentity(NRpc::GetCurrentAuthenticationIdentity());
-        auto client = connection->CreateClient(clientOptions);
-        const auto* impl = GetThisImpl();
-        TGetReplicationCardOptions getCardOptions;
-        static_cast<TReplicationCardFetchOptions&>(getCardOptions) = options;
-        getCardOptions.BypassCache = true;
-        return client->GetReplicationCard(impl->GetReplicationCardId(), getCardOptions)
-            .Apply(BIND([client] (const TReplicationCardPtr& card) {
-                return card;
-            }));
+        return ::NYT::NChaosServer::GetReplicationCard(
+            Bootstrap_->GetClusterConnection(),
+            GetThisImpl()->GetReplicationCardId(),
+            options);
     }
 
     static TFuture<std::vector<TReplicationCardId>> GetCollocatedReplicationCards(
