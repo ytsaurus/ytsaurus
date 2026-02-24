@@ -1823,6 +1823,9 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
                 ? queryEngineConfig->RewriteCardinalityIntoHyperLogLogWithPrecision.value_or(false)
                 : false,
             .HyperLogLogPrecision = GetHyperLogLogPrecision(options.HyperLogLogPrecision),
+            .AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse = queryEngineConfig
+                ? queryEngineConfig->AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse.value_or(false)
+                : false,
         },
         HeavyRequestMemoryUsageTracker_);
 
@@ -1989,6 +1992,9 @@ NYson::TYsonString TClient::DoExplainQuery(
                 ? queryEngineConfig->RewriteCardinalityIntoHyperLogLogWithPrecision.value_or(false)
                 : false,
             .HyperLogLogPrecision = GetHyperLogLogPrecision(options.HyperLogLogPrecision),
+            .AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse = queryEngineConfig
+                ? queryEngineConfig->AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse.value_or(false)
+                : false,
         },
         HeavyRequestMemoryUsageTracker_);
 
