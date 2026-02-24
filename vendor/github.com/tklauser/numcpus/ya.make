@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v0.6.1)
+VERSION(v0.11.0)
 
 SRCS(
     numcpus.go
@@ -24,11 +24,13 @@ ENDIF()
 IF (OS_DARWIN)
     SRCS(
         numcpus_bsd.go
+        numcpus_list_unsupported.go
     )
 ENDIF()
 
 IF (OS_WINDOWS)
     SRCS(
+        numcpus_list_unsupported.go
         numcpus_windows.go
     )
 ENDIF()

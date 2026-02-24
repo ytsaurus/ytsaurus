@@ -2,11 +2,12 @@ GO_LIBRARY()
 
 LICENSE(BSD-3-Clause)
 
-VERSION(v0.46.0)
+VERSION(v0.47.0)
 
 SRCS(
     chacha20poly1305.go
     chacha20poly1305_generic.go
+    fips140only_compat.go
     xchacha20poly1305.go
 )
 
