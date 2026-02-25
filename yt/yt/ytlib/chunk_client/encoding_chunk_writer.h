@@ -62,10 +62,13 @@ private:
     const IChunkWriter::TWriteBlocksOptions WriteBlocksOptions_;
     const TEncodingWriterPtr EncodingWriter_;
 
-    int CurrentBlockIndex_ = 0;
+    // NB(apollo1321): Atomics should be replaced with regular variables.
+    // Implementation should receive some shared struct to set statistics.
+    // See YT-23184 for details.
+    std::atomic<int> BlockCount_ = 0;
     i64 LargestBlockSize_ = 0;
 
-    bool Closed_ = false;
+    std::atomic<bool> Closed_ = false;
 
     void VerifyBlockType(EBlockType blockType) const;
 };
