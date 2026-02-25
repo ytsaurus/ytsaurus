@@ -1475,6 +1475,13 @@ public:
 
         auto unexportChunk = [&] {
             chunk->Unexport(destinationCellTag, importRefCounter, requisitionRegistry, objectManager);
+            // COMPAT(koloshmet)
+            if (!GetDynamicConfig()->UpdateHistoricallyNonVitalInUnexport) {
+                return;
+            }
+            if (!IsDurabilityRequiredForChunk(chunk, chunk->GetAggregatedRequisitionIndex())) {
+                chunk->SetHistoricallyNonVital(true);
+            }
         };
 
         if (chunk->GetExternalRequisitionIndex(destinationCellTag) == EmptyChunkRequisitionIndex) {
@@ -1510,6 +1517,11 @@ public:
         }
     }
 
+    bool IsDurabilityRequiredForChunk(TChunk* chunk, TChunkRequisitionIndex requisitionIndex) override
+    {
+        auto replication = GetChunkRequisitionRegistry()->GetReplication(requisitionIndex);
+        return replication.IsDurable(this, chunk->IsErasure());
+    }
 
     TChunkView* CreateChunkView(TChunkTree* underlyingTree, TChunkViewModifier modifier) override
     {
@@ -4507,7 +4519,6 @@ private:
         auto local = requestCellTag == multicellManager->GetCellTag();
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto* requisitionRegistry = GetChunkRequisitionRegistry();
 
         THashMap<TChunkRequisitionIndex, bool> durabilityRequiredCache;
         std::pair<TChunkRequisitionIndex, bool> lastDurabilityRequiredCacheEntry{EmptyChunkRequisitionIndex, false};
@@ -4523,14 +4534,15 @@ private:
             if (it != durabilityRequiredCache.end()) {
                 durabilityRequired = it->second;
             } else {
-                auto replication = requisitionRegistry->GetReplication(requisitionIndex);
-                durabilityRequired = replication.IsDurable(this, chunk->IsErasure());
+                durabilityRequired = IsDurabilityRequiredForChunk(chunk, requisitionIndex);
                 EmplaceOrCrash(durabilityRequiredCache, requisitionIndex, durabilityRequired);
             }
 
             lastDurabilityRequiredCacheEntry = {requisitionIndex, durabilityRequired};
             return durabilityRequired;
         };
+
+        auto* requisitionRegistry = GetChunkRequisitionRegistry();
 
         auto setChunkRequisitionIndex = [&] (TChunk* chunk, TChunkRequisitionIndex requisitionIndex) {
             if (local) {

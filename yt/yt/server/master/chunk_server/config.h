@@ -818,6 +818,9 @@ struct TDynamicChunkManagerConfig
     // COMPAT(grphil)
     bool AlwaysFetchNonOnlineReplicas;
 
+    // COMPAT(koloshmet)
+    bool UpdateHistoricallyNonVitalInUnexport;
+
     REGISTER_YSON_STRUCT(TDynamicChunkManagerConfig);
 
     static void Register(TRegistrar registrar);
