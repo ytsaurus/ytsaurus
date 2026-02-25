@@ -116,6 +116,9 @@ void TTabletCellWriteManagerDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("write_failure_probability", &TThis::WriteFailureProbability)
         .Default();
+
+    registrar.Parameter("detect_transient_transactions_per_tablet", &TThis::DetectTransientTransactionsPerTablet)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

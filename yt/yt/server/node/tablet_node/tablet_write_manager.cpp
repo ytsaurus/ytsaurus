@@ -511,9 +511,18 @@ public:
             AbortPrelockedRows(transaction);
         }
 
-        // If transaction is transient, it is going to be removed, so we drop its write states.
-        if (transaction->GetTransient()) {
-            EraseOrCrash(TransactionIdToTransientWriteState_, transaction->GetId());
+        // COMPAT(ifsmirnov)
+        // If transaction is transient, it is going to be removed, so we drop its write state.
+        // However, transaction may be persistent itself but have not yet had affected the tablet.
+        // In this case we still treat it as transient and drop its write state.
+        if (Host_->GetDynamicConfig()->TabletCellWriteManager->DetectTransientTransactionsPerTablet) {
+            if (!TransactionIdToPersistentWriteState_.contains(transaction->GetId())) {
+                EraseOrCrash(TransactionIdToTransientWriteState_, transaction->GetId());
+            }
+        } else {
+            if (transaction->GetTransient()) {
+                EraseOrCrash(TransactionIdToTransientWriteState_, transaction->GetId());
+            }
         }
     }
 
