@@ -201,6 +201,9 @@ struct TDynamicChunkMergerConfig
 
     int MaxChunkMetaSize;
 
+    // COMPAT(aleksandra-zh) COMPAT(shakurov).
+    bool TweakTraversalInfoAfterRebalance;
+
     REGISTER_YSON_STRUCT(TDynamicChunkMergerConfig);
 
     static void Register(TRegistrar registrar);

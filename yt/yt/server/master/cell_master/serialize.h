@@ -208,6 +208,8 @@ DEFINE_ENUM(EMasterReign,
     ((KulenovClock)                                                 (3157))  // aleksandra-zh
     ((ReignInHiveMessages_25_4)                                     (3158))  // ifsmirnov
     ((TransferableInheritedAttributes_25_4)                         (3159))  // kvk1920
+    ((TweakChunkMergerTraversalInfoAfterRebalance_25_4)             (3160))  // aleksandra-zh, shakurov
+
     // 26.1 starts here.
     ((Start_26_1)                                                   (3200))  // community bot
     ((SecondaryIndexUnfoldedNames)                                  (3201))  // sabdenovch
@@ -216,6 +218,7 @@ DEFINE_ENUM(EMasterReign,
     ((ReignInHiveMessages)                                          (3204))  // ifsmirnov
     ((TransferableInheritedAttributes)                              (3205))  // kvk1920
     ((ReshardRedirectionHint)                                       (3206))  // atalmenev
+    ((TweakChunkMergerTraversalInfoAfterRebalance)                  (3207))  // aleksandra-zh, shakurov
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
