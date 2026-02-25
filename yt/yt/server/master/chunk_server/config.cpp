@@ -180,6 +180,9 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
         .Default(TDuration::MilliSeconds(100));
     registrar.Parameter("max_backoff_period", &TThis::MaxBackoffPeriod)
         .Default(TDuration::Hours(2));
+
+    registrar.Parameter("tweak_traversal_info_after_rebalance", &TThis::TweakTraversalInfoAfterRebalance)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

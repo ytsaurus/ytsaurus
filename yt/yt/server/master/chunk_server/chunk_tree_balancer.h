@@ -38,7 +38,14 @@ public:
     explicit TChunkTreeBalancer(IChunkTreeBalancerCallbacksPtr callbacks);
 
     bool IsRebalanceNeeded(TChunkList* root, EChunkTreeBalancerMode settingsMode);
-    void Rebalance(TChunkList* root);
+
+    struct TRebalanceStatistics
+    {
+        int UntouchedPrefixChunkCount = 0;
+    };
+
+    [[nodiscard]]
+    TRebalanceStatistics Rebalance(TChunkList* root);
 
 private:
     const IChunkTreeBalancerCallbacksPtr Callbacks_;
@@ -47,11 +54,11 @@ private:
         std::vector<TChunkTreeRawPtr>* children,
         TChunkTree* child);
 
-    void AppendChunkTree(
+    TRebalanceStatistics AppendChunkTree(
         std::vector<TChunkTreeRawPtr>* children,
         TChunkTree* root);
 
-    void AppendChild(
+    bool AppendChild(
         std::vector<TChunkTreeRawPtr>* children,
         TChunkTree* child);
 

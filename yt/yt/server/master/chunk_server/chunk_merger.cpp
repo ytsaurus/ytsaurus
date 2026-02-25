@@ -948,6 +948,22 @@ void TChunkMerger::OnJobFailed(const TMergeJobPtr& job)
     OnJobFinished(job);
 }
 
+void TChunkMerger::TweakTraversalInfoAfterRebalance(
+    TChunkList* rootChunkList,
+    TChunkTreeBalancer::TRebalanceStatistics rebalanceStatistics)
+{
+    if (!GetDynamicConfig()->TweakTraversalInfoAfterRebalance) {
+        return;
+    }
+
+    for (auto owningNodes : {rootChunkList->TrunkOwningNodes(), rootChunkList->BranchedOwningNodes()}) {
+        for (auto owningNode : owningNodes) {
+            auto& chunkCount = owningNode->ChunkMergerTraversalInfo().ChunkCount;
+            chunkCount = std::min(chunkCount, rebalanceStatistics.UntouchedPrefixChunkCount);
+        }
+    }
+}
+
 void TChunkMerger::OnLeaderActive()
 {
     YT_ASSERT_THREAD_AFFINITY(AutomatonThread);

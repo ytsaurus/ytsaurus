@@ -1714,13 +1714,15 @@ public:
             YT_LOG_DEBUG("Chunk tree rebalancing started (RootId: %v, Mode: %v)",
                 chunklistId,
                 settingsMode);
-            ChunkTreeBalancer_.Rebalance(chunkList);
+
+            auto rebalanceStatistics = ChunkTreeBalancer_.Rebalance(chunkList);
+            ChunkMerger_->TweakTraversalInfoAfterRebalance(chunkList, rebalanceStatistics);
+
             YT_LOG_DEBUG("Chunk tree rebalancing completed (RootId: %v, Mode: %v)",
                 chunklistId,
                 settingsMode);
         }
     }
-
 
     void StageChunkList(TChunkList* chunkList, TTransaction* transaction, TAccount* account)
     {
