@@ -49,7 +49,7 @@ void TEncodingChunkWriter::WriteBlock(
 {
     VerifyBlockType(blockType);
 
-    ++CurrentBlockIndex_;
+    BlockCount_.fetch_add(1, std::memory_order_relaxed);
 
     i64 blockSize = GetByteSize(vectorizedBlock);
     LargestBlockSize_ = std::max(LargestBlockSize_, blockSize);
@@ -64,7 +64,7 @@ void TEncodingChunkWriter::WriteBlock(
 {
     VerifyBlockType(blockType);
 
-    ++CurrentBlockIndex_;
+    BlockCount_.fetch_add(1, std::memory_order_relaxed);
 
     LargestBlockSize_ = std::max(LargestBlockSize_, std::ssize(block));
     EncodingWriter_->WriteBlock(std::move(block), blockType, groupIndex);
@@ -87,7 +87,7 @@ void TEncodingChunkWriter::Close()
     WaitFor(ChunkWriter_->Close(WriteBlocksOptions_, Config_->WorkloadDescriptor, Meta_))
         .ThrowOnError();
 
-    Closed_ = true;
+    Closed_.store(true, std::memory_order_relaxed);
 }
 
 TFuture<void> TEncodingChunkWriter::GetReadyEvent() const
@@ -112,11 +112,11 @@ TChunkId TEncodingChunkWriter::GetChunkId() const
 
 NProto::TDataStatistics TEncodingChunkWriter::GetDataStatistics() const
 {
-    if (Closed_) {
+    if (Closed_.load(std::memory_order_relaxed)) {
         return ChunkWriter_->GetDataStatistics();
     } else {
         NProto::TDataStatistics result;
-        if (CurrentBlockIndex_ > 0) {
+        if (BlockCount_.load(std::memory_order_relaxed) > 0) {
             result.set_uncompressed_data_size(EncodingWriter_->GetUncompressedSize());
             result.set_compressed_data_size(EncodingWriter_->GetCompressedSize());
             result.set_chunk_count(1);
