@@ -591,6 +591,8 @@ message TReqSwitchServant
 message TReqAbortSmoothMovement
 {
     required NYT.NProto.TGuid tablet_id = 1;
+    required uint64 mount_revision = 2;
+    optional NYT.NProto.TError error = 3;
 }
 
 message TReqSetCustomRuntimeData
