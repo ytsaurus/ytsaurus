@@ -83,13 +83,14 @@ public:
             MountConfig_->ReplicationTickPeriod,
             MountConfig_->ReplicationProgressUpdateTickPeriod);
 
-        SelfInvoker_ = Tablet_->GetEpochAutomatonInvoker();
+        const auto& epochAutomatonInvoker = Tablet_->GetEpochAutomatonInvoker();
+        SelfInvoker_.Store(epochAutomatonInvoker);
         FiberFuture_ = BIND(
             &TChaosAgent::FiberMain,
             MakeWeak(this),
             BIND_NO_PROPAGATE(&TChaosAgent::FiberIteration, MakeWeak(this)),
             MountConfig_->ReplicationTickPeriod)
-            .AsyncVia(Tablet_->GetEpochAutomatonInvoker())
+            .AsyncVia(epochAutomatonInvoker)
             .Run();
 
         ProgressReporterFiberFuture_ = BIND(
@@ -98,7 +99,7 @@ public:
             BIND_NO_PROPAGATE(&TChaosAgent::ReportUpdatedReplicationProgress,
             MakeWeak(this)),
             MountConfig_->ReplicationProgressUpdateTickPeriod)
-            .AsyncVia(Tablet_->GetEpochAutomatonInvoker())
+            .AsyncVia(epochAutomatonInvoker)
             .Run();
 
         YT_LOG_INFO("Chaos agent fiber started");
@@ -116,7 +117,7 @@ public:
         }
         FiberFuture_.Reset();
         ProgressReporterFiberFuture_.Reset();
-        SelfInvoker_.Reset();
+        SelfInvoker_.Store(nullptr);
     }
 
     TAsyncSemaphoreGuard TryGetConfigLockGuard() override
@@ -126,7 +127,7 @@ public:
 
     void ReconfigureTablet() override
     {
-        if (auto invoker = SelfInvoker_.Lock()) {
+        if (auto invoker = SelfInvoker_.Read(&TWeakPtr<IInvoker>::Lock)) {
             WaitFor(BIND(&TChaosAgent::ReconfigureTabletWriteMode, MakeWeak(this))
                 .AsyncVia(invoker)
                 .Run())
@@ -151,7 +152,7 @@ private:
     TFuture<void> FiberFuture_;
     TFuture<void> ProgressReporterFiberFuture_;
     TAsyncSemaphorePtr ConfigurationLock_;
-    TWeakPtr<IInvoker> SelfInvoker_;
+    NThreading::TAtomicObject<TWeakPtr<IInvoker>> SelfInvoker_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, RefreshEraFutureLock_);
     TFuture<void> RefreshEraFuture_;
