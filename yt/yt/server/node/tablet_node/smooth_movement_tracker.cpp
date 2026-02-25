@@ -167,6 +167,25 @@ public:
         }
 
         std::optional<ESmoothMovementStage> newStage;
+        TError fatalError;
+
+        auto checkNoUnfinishedTransactions = [&] {
+            const auto& tabletWriteManager = tablet->GetTabletWriteManager();
+            if (!tabletWriteManager->HasUnfinishedPersistentTransactions() &&
+                !tabletWriteManager->HasUnfinishedTransientTransactions())
+            {
+                return TError();
+            }
+
+            auto transactionIds = tabletWriteManager->GetAffectingTransactionIds();
+            YT_LOG_ALERT("Tablet has unfinished transactions on smooth movement stage change request "
+                "(%v, Stage: %v, TransactionIds: %v)",
+                tablet->GetLoggingTag(),
+                movementData.GetStage(),
+                transactionIds);
+
+            return TError("Invariant check failed: tablet has unfinished transactions on stage change");
+        };
 
         if (movementData.GetRole() == ESmoothMovementRole::Source) {
             switch (movementData.GetStage()) {
@@ -182,6 +201,11 @@ public:
                 case ESmoothMovementStage::WaitingForLocksBeforeActivation: {
                     if (tablet->GetTotalTabletLockCount() > 0) {
                         return;
+                    }
+
+                    if (auto error = checkNoUnfinishedTransactions(); !error.IsOK()) {
+                        fatalError = std::move(error);
+                        break;
                     }
 
                     newStage = ESmoothMovementStage::TargetActivated;
@@ -200,6 +224,11 @@ public:
                 case ESmoothMovementStage::WaitingForLocksBeforeSwitch: {
                     if (tablet->GetTotalTabletLockCount() > 0) {
                         return;
+                    }
+
+                    if (auto error = checkNoUnfinishedTransactions(); !error.IsOK()) {
+                        fatalError = std::move(error);
+                        break;
                     }
 
                     newStage = ESmoothMovementStage::ServantSwitched;
@@ -270,6 +299,27 @@ public:
                 .Apply(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
                     if (!error.IsOK()) {
                         YT_LOG_WARNING(error, "Failed to commit smooth movement stage change mutation");
+                    }
+                })));
+        } else if (!fatalError.IsOK()) {
+            YT_LOG_DEBUG("Invariant check failed on stage change, aborting smooth movement "
+                "(%v, Role: %v, Stage: %v)",
+                tablet->GetLoggingTag(),
+                movementData.GetRole(),
+                movementData.GetStage());
+
+            movementData.SetStageChangeScheduled(true);
+
+            TReqAbortSmoothMovement req;
+            ToProto(req.mutable_tablet_id(), tablet->GetId());
+            req.set_mount_revision(ToProto(tablet->GetMountRevision()));
+            ToProto(req.mutable_error(), fatalError);
+
+            auto mutation = CreateMutation(HydraManager_, req);
+            YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger)
+                .Apply(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
+                    if (!error.IsOK()) {
+                        YT_LOG_WARNING(error, "Failed to commit smooth movement abort mutation");
                     }
                 })));
         }
@@ -449,6 +499,17 @@ private:
             return;
         }
 
+        auto mountRevision = FromProto<TRevision>(request->mount_revision());
+        // COMPAT(ifsmirnov): remove check against null revision.
+        if (mountRevision && mountRevision != tablet->GetMountRevision()) {
+            YT_LOG_DEBUG("Mount revision mismatch on smooth movement abort request, ignored "
+                "(%v, ExpectedMountRevision: %v, ActualMountRevision: %v)",
+                tablet->GetLoggingTag(),
+                mountRevision,
+                tablet->GetMountRevision());
+            return;
+        }
+
         YT_VERIFY(tablet->IsActiveServant());
 
         const auto& movementData = tablet->SmoothMovementData();
@@ -460,9 +521,17 @@ private:
             return;
         }
 
-        DoAbortSmoothMovement(tablet, {});
+        auto error = FromProto<TError>(request->error());
 
-        YT_LOG_DEBUG("Smooth tablet movement aborted by master request (%v)", tablet->GetLoggingTag());
+        DoAbortSmoothMovement(tablet, error);
+
+        if (IsHiveMutation()) {
+            YT_LOG_DEBUG("Smooth tablet movement aborted by master request (%v)",
+                tablet->GetLoggingTag());
+        } else {
+            YT_LOG_DEBUG(error, "Smooth tablet movement aborted (%v)",
+                tablet->GetLoggingTag());
+        }
     }
 
     void HydraChangeSmoothMovementStage(NProto::TReqChangeSmoothMovementStage* request)
@@ -673,6 +742,21 @@ private:
             Host_->AbortAllTransactions(tablet);
         }
 
+        auto validateNoUnfinishedTransactions = [&] {
+            const auto& tabletWriteManager = tablet->GetTabletWriteManager();
+            if (tabletWriteManager->HasUnfinishedPersistentTransactions() ||
+                tabletWriteManager->HasUnfinishedTransientTransactions())
+            {
+                YT_LOG_FATAL("Tablet has unfinished transactions on smooth movement stage change "
+                    "(%v, HasTransientTransactions: %v, HasPersistentTransactions: %v, "
+                    "TransactionIds: %v)",
+                    tablet->GetLoggingTag(),
+                    tabletWriteManager->HasUnfinishedTransientTransactions(),
+                    tabletWriteManager->HasUnfinishedPersistentTransactions(),
+                    tabletWriteManager->GetAffectingTransactionIds());
+            }
+        };
+
         switch (newStage) {
             case ESmoothMovementStage::WaitingForLocksBeforeActivation:
                 YT_VERIFY(expectedStage == ESmoothMovementStage::TargetAllocated);
@@ -681,9 +765,8 @@ private:
             case ESmoothMovementStage::TargetActivated: {
                 YT_VERIFY(expectedStage == ESmoothMovementStage::WaitingForLocksBeforeActivation);
                 YT_VERIFY(tablet->GetTotalTabletLockCount() == 0);
-                const auto& tabletWriteManager = tablet->GetTabletWriteManager();
-                YT_VERIFY(!tabletWriteManager->HasUnfinishedPersistentTransactions());
-                YT_VERIFY(!tabletWriteManager->HasUnfinishedTransientTransactions());
+
+                validateNoUnfinishedTransactions();
 
                 int availableDynamicStoreCount = tablet->GetUnreservedDynamicStoreIdCount();
                 availableDynamicStoreCount += ReleaseReservedDynamicStore(tablet);
@@ -697,6 +780,9 @@ private:
                             tablet->GetLoggingTag(),
                             store->GetId(),
                             store->GetLockCount());
+
+                        // TODO(ifsmirnov): replace with YT_LOG_FATAL since logs may be transient and we cannot safely
+                        // reject movement.
 
                         // COMPAT(ifsmirnov)
                         if (static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) >=
@@ -745,6 +831,8 @@ private:
 
             case ESmoothMovementStage::ServantSwitched: {
                 YT_VERIFY(expectedStage == ESmoothMovementStage::WaitingForLocksBeforeSwitch);
+
+                validateNoUnfinishedTransactions();
 
                 YT_LOG_DEBUG("Posting servant switch message (%v, CellId: %v)",
                     tablet->GetLoggingTag(),

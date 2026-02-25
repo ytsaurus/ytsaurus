@@ -3647,6 +3647,9 @@ private:
     {
         TReqAbortSmoothMovement req;
         ToProto(req.mutable_tablet_id(), tablet->GetId());
+        // NB: Not necessary here but added for consistency with the case when
+        // the same mutation is scheduled by the node itself.
+        req.set_mount_revision(ToProto(tablet->Servant().GetMountRevision()));
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
         auto mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
