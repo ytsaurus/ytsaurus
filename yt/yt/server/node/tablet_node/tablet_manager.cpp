@@ -5650,7 +5650,7 @@ private:
         return lockCount;
     }
 
-    TTabletNodeDynamicConfigPtr GetDynamicConfig() const final
+    TTabletNodeDynamicConfigPtr GetDynamicConfig() const override final
     {
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         return dynamicConfigManager->GetConfig()->TabletNode;
