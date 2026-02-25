@@ -4977,12 +4977,12 @@ private:
             return;
         }
 
-        if (tablet->GetChaosAgent()) {
-            tablet->GetChaosAgent()->Disable();
-        }
-
         if (tablet->GetTablePuller()) {
             tablet->GetTablePuller()->Disable();
+        }
+
+        if (tablet->GetChaosAgent()) {
+            tablet->GetChaosAgent()->Disable();
         }
 
         tablet->ChaosData()->PullerReplicaCache.Store(GetDisabledPullerReplicaCache());
