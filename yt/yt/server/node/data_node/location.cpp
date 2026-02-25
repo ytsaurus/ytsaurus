@@ -1129,6 +1129,10 @@ void TChunkLocation::UpdateMediumDescriptor(const NChunkClient::TMediumDescripto
         return;
     }
 
+    if (*newDescriptor == *oldDescriptor) {
+        return;
+    }
+
     UpdateMediumTag();
     if (ChunkStore_ && newDescriptor->GetIndex() != oldDescriptor->GetIndex()) {
         ChunkStore_->ChangeLocationMedium(this, oldDescriptor->GetIndex());
