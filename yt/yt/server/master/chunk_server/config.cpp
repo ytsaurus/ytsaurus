@@ -875,6 +875,10 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .Default(true)
         .DontSerializeDefault();
 
+    registrar.Parameter("update_historically_non_vital_in_unexport", &TThis::UpdateHistoricallyNonVitalInUnexport)
+        .Default(false)
+        .DontSerializeDefault();
+
     registrar.Postprocessor([] (TThis* config) {
         auto& jobTypeToThrottler = config->JobTypeToThrottler;
         for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
