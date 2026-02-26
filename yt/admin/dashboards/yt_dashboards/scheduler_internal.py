@@ -62,6 +62,7 @@ def _build_process_resources(d):
             .cell("Control Thread Buckets", SchedulerCpu("yt.action_queue.time.cumulative.rate")
                 .value("thread", "Control")
                 .all("bucket")
+                .aggr("queue")
                 .aggr(yt_host)
                 .legend_format("{{bucket}}"))
     )
