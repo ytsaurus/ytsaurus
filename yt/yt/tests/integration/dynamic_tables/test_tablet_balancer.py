@@ -72,6 +72,14 @@ class TestStandaloneTabletBalancerBase:
         for instance in instances:
             yield get(f"{self.root_path}/instances/{instance}/orchid/tablet_balancer")
 
+    def _get_last_iteration_instance(self, instances):
+        start_times = list()
+        for (instance, orchid) in zip(instances, self._get_instances_orchid(instances)):
+            start_time = orchid.get("last_iteration_start_time")
+            if start_time:
+                start_times.append((start_time, instance))
+        return max(start_times, key=lambda pair: pair[0])[1]
+
     def _get_last_iteration_instance_orchid(self, instances=None):
         if instances is None:
             instances = ls(self.root_path + "/instances")
@@ -213,6 +221,34 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
             in_memory_mode=in_memory_mode,
             with_hunks=with_hunks,
             with_slicing=True)
+
+    @authors("navasardianna")
+    def test_errors_in_bundle_orchid(self):
+        self._configure_bundle("default")
+
+        set(
+            "//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups",
+            "string instead of map. Bazinga!"
+        )
+
+        instance = self._get_last_iteration_instance(get("//sys/tablet_balancer/instances"))
+
+        def _get_orchid(suffix):
+            return get(f"{self.root_path}/instances/{instance}/orchid/tablet_balancer{suffix}")
+
+        def _has_expected_error():
+            errors = _get_orchid("/bundles/default/retryable_errors")
+            return len(errors) > 0 and str(errors).find("Bundle has unparsable tablet balancer config") > 0
+
+        wait(lambda: _has_expected_error())
+
+        self._apply_dynamic_config_patch({
+            "bundle_errors_ttl": 100,
+        })
+
+        remove("//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups")
+
+        wait(lambda: len(_get_orchid("/bundles/default/retryable_errors")) == 0)
 
     def test_by_bundle_errors(self):
         instances = get("//sys/tablet_balancer/instances")
