@@ -366,7 +366,7 @@ protected:
         std::vector<i64> result;
 
         for (int index = 0; index < roundsCount; ++index) {
-            auto roundResult = queue->Dequeue().Get()
+            auto roundResult = queue->Dequeue().BlockingGet()
                 .ValueOrThrow();
             result.push_back(roundResult);
             YT_LOG_INFO("Next congested step (Index: %v, IOPS: %v)",

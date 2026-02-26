@@ -521,14 +521,14 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetObjectAttribute
             .ThrowOnError();
 
         auto attributesUnderTx = attributesUnderTxFuture
-            .AsUnique().Get()
+            .AsUnique().BlockingGet()
             .ValueOrThrow();
 
         auto preliminaryCheckPermissionResultsFromCache = preliminaryCheckPermissionResultsFromCacheFuture
-            .AsUnique().Get()
+            .AsUnique().BlockingGet()
             .ValueOrThrow();
         auto preliminaryCheckPermissionResultsUnderTx = preliminaryCheckPermissionResultsUnderTxFuture
-            .AsUnique().Get()
+            .AsUnique().BlockingGet()
             .ValueOrThrow();
 
         AddAttributesToSnapshot(

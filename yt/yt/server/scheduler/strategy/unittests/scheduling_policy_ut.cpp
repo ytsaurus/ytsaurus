@@ -1140,7 +1140,7 @@ TEST_F(TSchedulingPolicyTest, DontSuggestMoreResourcesThanOperationNeeds)
     DoTestSchedule(strategyHost.Get(), treeSnapshot, execNodes[2], operationElement);
     readyToGo.Set();
 
-    EXPECT_TRUE(AllSucceeded(futures).WithTimeout(TDuration::Seconds(2)).Get().IsOK());
+    EXPECT_TRUE(AllSucceeded(futures).WithTimeout(TDuration::Seconds(2)).BlockingGet().IsOK());
 }
 
 TEST_F(TSchedulingPolicyTest, DoNotPreemptAllocationsIfFairShareEqualsDemandShare)

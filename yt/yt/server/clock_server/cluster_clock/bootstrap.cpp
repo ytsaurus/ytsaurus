@@ -166,7 +166,7 @@ void TBootstrap::Initialize()
     BIND(&TBootstrap::DoInitialize, MakeStrong(this))
         .AsyncVia(GetControlInvoker())
         .Run()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 }
 
@@ -184,7 +184,7 @@ void TBootstrap::LoadSnapshot(
     BIND(&TBootstrap::DoLoadSnapshot, MakeStrong(this), fileName, dumpMode)
         .AsyncVia(HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::Default))
         .Run()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 }
 

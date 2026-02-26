@@ -214,7 +214,7 @@ private:
         YT_LOG_INFO("Waiting for daemon to start");
 
         AllSucceeded(std::move(startFutures))
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
 
         YT_LOG_INFO("Multidaemon is running");

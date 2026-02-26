@@ -391,7 +391,7 @@ std::pair<TQueryPtr, TQueryStatistics> TQueryEvaluateTest::EvaluateWithQueryStat
             resultMatcher,
             options,
             std::nullopt)
-        .Get()
+        .BlockingGet()
         .ValueOrThrow();
 }
 
@@ -545,7 +545,7 @@ TQueryPtr TQueryEvaluateTest::EvaluateExpectingError(
             AnyMatcher,
             evaluateOptions,
             expectedError)
-        .Get()
+        .BlockingGet()
         .ValueOrThrow();
 
     evaluateOptions.ExecutionBackend = EExecutionBackend::Native;
@@ -558,7 +558,7 @@ TQueryPtr TQueryEvaluateTest::EvaluateExpectingError(
             AnyMatcher,
             std::move(evaluateOptions),
             expectedError)
-        .Get()
+        .BlockingGet()
         .ValueOrThrow().first;
 }
 

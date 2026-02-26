@@ -889,7 +889,7 @@ public:
                 return CurrentBundleName_;
             }
 
-            auto interval = BundleNameFuture_.Get().IsOK()
+            auto interval = BundleNameFuture_.BlockingGet().IsOK()
                 ? ReplicatedTable_->GetOptions()->TabletCellBundleNameTtl
                 : ReplicatedTable_->GetOptions()->RetryOnFailureInterval;
 
@@ -1346,7 +1346,7 @@ private:
 
                 // NB: RTT thread is blocked intentionally here.
                 auto snapshot = Host_->GetSnapshot()
-                    .Get()
+                    .BlockingGet()
                     .ValueOrThrow();
                 DoLoadFromSnapshot(std::move(snapshot));
 

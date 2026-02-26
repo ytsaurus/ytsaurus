@@ -211,7 +211,7 @@ Py::Object TDriverResponse::IsOk(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/)
     if (!ResponseFuture_.IsSet()) {
         throw CreateYtError("Response is not set");
     }
-    return Py::Boolean(ResponseFuture_.Get().IsOK());
+    return Py::Boolean(ResponseFuture_.BlockingGet().IsOK());
 }
 
 Py::Object TDriverResponse::Error(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/)

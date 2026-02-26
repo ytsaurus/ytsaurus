@@ -28,7 +28,7 @@ public:
 
     NTableClient::IUnversionedRowBatchPtr Read(const NTableClient::TRowBatchReadOptions& options) override
     {
-        if (!MultiReaderManager_->GetReadyEvent().IsSet() || !MultiReaderManager_->GetReadyEvent().Get().IsOK()) {
+        if (!MultiReaderManager_->GetReadyEvent().IsSet() || !MultiReaderManager_->GetReadyEvent().BlockingGet().IsOK()) {
             return NTableClient::CreateEmptyUnversionedRowBatch();
         }
 

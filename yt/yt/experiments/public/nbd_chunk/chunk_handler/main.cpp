@@ -99,7 +99,7 @@ protected:
             /*sessionId*/ NChunkClient::TSessionId(),
             Logger());
 
-        handler->Initialize().Get().ThrowOnError();
+        handler->Initialize().BlockingGet().ThrowOnError();
 
         NHPTimer::STime t;
         NHPTimer::GetTime(&t);
@@ -107,15 +107,15 @@ protected:
         for (int i = 0; i < config->NumIters; ++i) {
             auto data = Format("data_%v", i);
             auto offset = RandomNumber<ui64>(config->Size - data.size());
-            handler->Write(offset, TSharedRef::FromString(data), {.Cookie = RandomNumber<ui64>()}).Get().ThrowOnError();
-            auto response = handler->Read(offset, data.length(), {.Cookie = RandomNumber<ui64>()}).Get().ValueOrThrow();
+            handler->Write(offset, TSharedRef::FromString(data), {.Cookie = RandomNumber<ui64>()}).BlockingGet().ThrowOnError();
+            auto response = handler->Read(offset, data.length(), {.Cookie = RandomNumber<ui64>()}).BlockingGet().ValueOrThrow();
             assert(ToString(response.Data.ToStringBuf()) == data);
         }
 
         NHPTimer::STime tcur = t;
         double seconds = NHPTimer::GetTimePassed(&tcur);
 
-        handler->Finalize().Get().ThrowOnError();
+        handler->Finalize().BlockingGet().ThrowOnError();
 
         Cout << "Rps test complete in " << seconds << " seconds. RPS = " << (double) config->NumIters / seconds << Endl;
     }

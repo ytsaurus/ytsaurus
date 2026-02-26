@@ -49,7 +49,7 @@ size_t TBufferedStream::WaitDataToRead(size_t size)
         if (!result) { // Some error occurred.
             return 0;
         }
-        if (!future.Get().IsOK()) { // Finalization is in progress.
+        if (!future.BlockingGet().IsOK()) { // Finalization is in progress.
             return 0;
         }
         UnregisterFuture(AllowReadCookie_);

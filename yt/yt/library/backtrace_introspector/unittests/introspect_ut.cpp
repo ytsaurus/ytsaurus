@@ -120,11 +120,11 @@ TEST(TBacktraceIntrospectorTest, Fibers)
     EXPECT_EQ(expectedHeavyTraceIds, actualHeavyTraceIds);
 
     for (const auto& future : heavyFutures) {
-        future.Get().ThrowOnError();
+        future.BlockingGet().ThrowOnError();
     }
 
     for (const auto& future : lightFutures) {
-        future.Get().ThrowOnError();
+        future.BlockingGet().ThrowOnError();
     }
 
     for (const auto& queue : heavyQueues) {
@@ -185,7 +185,7 @@ TEST(TBacktraceIntrospectorTest, Threads)
     EXPECT_EQ(expectedTraceIds, actualTraceIds);
 
     for (const auto& future : futures) {
-        future.Get().ThrowOnError();
+        future.BlockingGet().ThrowOnError();
     }
     for (const auto& queue : queues) {
         queue->Shutdown(/*graceful*/ true);

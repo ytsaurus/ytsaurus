@@ -115,7 +115,7 @@ std::vector<TUnversionedRow> FetchReaderKeyPrefixes(
 
         if (rows.empty()) {
             // Reader is not ready, wait.
-            reader->GetReadyEvent().Get().ThrowOnError();
+            reader->GetReadyEvent().BlockingGet().ThrowOnError();
         }
 
         for (auto row : rows) {

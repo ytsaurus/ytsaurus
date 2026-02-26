@@ -513,7 +513,7 @@ private:
         YT_LOG_INFO("Child process forked");
 
         Owner_->SaveSnapshot(context)
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
 
         YT_LOG_INFO("Child process is exiting");

@@ -83,7 +83,7 @@ TEST_F(TSchemalessWriterForYamrTest, Simple)
 
     EXPECT_EQ(true, Writer_->Write(rows));
     Writer_->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     std::string output =
@@ -112,7 +112,7 @@ TEST_F(TSchemalessWriterForYamrTest, SimpleWithSubkey)
 
     EXPECT_EQ(true, Writer_->Write(rows));
     Writer_->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     std::string output =
@@ -135,7 +135,7 @@ TEST_F(TSchemalessWriterForYamrTest, SubkeyCouldBeSkipped)
 
     EXPECT_EQ(true, Writer_->Write(rows));
     Writer_->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     std::string output = "key\t\tvalue\n";
@@ -156,7 +156,7 @@ TEST_F(TSchemalessWriterForYamrTest, SubkeyCouldBeNull)
 
     EXPECT_EQ(true, Writer_->Write(rows));
     Writer_->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     std::string output = "key\t\tvalue\n";
@@ -178,7 +178,7 @@ TEST_F(TSchemalessWriterForYamrTest, NonNullTerminatedStrings)
 
     EXPECT_EQ(true, Writer_->Write(rows));
     Writer_->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     std::string output = "key\tsubkey\tvalue\n";
@@ -197,7 +197,7 @@ TEST_F(TSchemalessWriterForYamrTest, SkippedKey)
     EXPECT_FALSE(Writer_->Write(rows));
 
     EXPECT_THROW(Writer_->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError(), std::exception);
 }
 
@@ -213,7 +213,7 @@ TEST_F(TSchemalessWriterForYamrTest, SkippedValue)
     EXPECT_FALSE(Writer_->Write(rows));
 
     EXPECT_THROW(Writer_->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError(), std::exception);
 }
 
@@ -229,7 +229,7 @@ TEST_F(TSchemalessWriterForYamrTest, NotStringType) {
     EXPECT_FALSE(Writer_->Write(rows));
 
     EXPECT_THROW(Writer_->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError(), std::exception);
 }
 
@@ -251,7 +251,7 @@ TEST_F(TSchemalessWriterForYamrTest, ExtraItem)
 
     EXPECT_EQ(true, Writer_->Write(rows));
     Writer_->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     std::string output = "key\tvalue\n";
@@ -273,7 +273,7 @@ TEST_F(TSchemalessWriterForYamrTest, Escaping)
 
     EXPECT_EQ(true, Writer_->Write(rows));
     Writer_->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     std::string output = "\\n\t\\t\t\\n\n";
@@ -310,7 +310,7 @@ TEST_F(TSchemalessWriterForYamrTest, SimpleWithTableIndex)
     EXPECT_EQ(true, Writer_->Write(rows));
 
     Writer_->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     std::string output =
@@ -362,7 +362,7 @@ TEST_F(TSchemalessWriterForYamrTest, SimpleWithRowIndexAndTableIndex)
     EXPECT_EQ(true, Writer_->Write(rows));
 
     Writer_->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     std::string output =
@@ -398,7 +398,7 @@ TEST_F(TSchemalessWriterForYamrTest, Lenval)
 
     EXPECT_EQ(true, Writer_->Write(rows));
     Writer_->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     std::string output = std::string(
@@ -439,7 +439,7 @@ TEST_F(TSchemalessWriterForYamrTest, LenvalWithEmptyFields)
 
     EXPECT_EQ(true, Writer_->Write(rows));
     Writer_->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     std::string output = std::string(
@@ -503,7 +503,7 @@ TEST_F(TSchemalessWriterForYamrTest, LenvalWithKeySwitch)
     EXPECT_EQ(true, Writer_->Write(rows));
 
     Writer_->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     std::string output = std::string(
@@ -563,7 +563,7 @@ TEST_F(TSchemalessWriterForYamrTest, LenvalWithTableIndex)
     EXPECT_EQ(true, Writer_->Write(rows));
 
     Writer_->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     std::string output(
@@ -619,7 +619,7 @@ TEST_F(TSchemalessWriterForYamrTest, LenvalWithRangeAndRowIndex)
     EXPECT_EQ(true, Writer_->Write(rows));
 
     Writer_->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     std::string output(

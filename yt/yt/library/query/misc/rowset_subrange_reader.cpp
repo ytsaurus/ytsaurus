@@ -27,7 +27,7 @@ public:
 
     IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        if (!AsyncRows_.IsSet() || !AsyncRows_.Get().IsOK()) {
+        if (!AsyncRows_.IsSet() || !AsyncRows_.BlockingGet().IsOK()) {
             // XXX: shouldn't we throw here?
             return CreateEmptyUnversionedRowBatch();
         }

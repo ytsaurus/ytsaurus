@@ -39,7 +39,7 @@ TFuture<void> TMultiPhaseCellSyncSession::Sync(const TCellTagList& cellTags, std
     syncFutures.reserve(syncFutures.size() + cellTags.size() + (syncWithUpstream ? 1 : 0));
 
     auto addAsyncResult = [&] (TFuture<void> future) {
-        if (!future.IsSet() || !future.Get().IsOK()) {
+        if (!future.IsSet() || !future.BlockingGet().IsOK()) {
             syncFutures.push_back(std::move(future));
         }
     };

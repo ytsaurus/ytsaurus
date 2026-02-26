@@ -94,7 +94,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, Simple)
 
     EXPECT_EQ(true, Writer_->Write(rows));
     Writer_->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     std::string expectedOutput =
@@ -118,7 +118,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, TrickyDoubleRepresentations)
 
     EXPECT_EQ(true, Writer_->Write(rows));
     Writer_->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
     std::string expectedOutput = "1.234567890123456\t42.\t1e+300\t-1e-300\n";
     EXPECT_EQ(expectedOutput, OutputStream_.Str());
@@ -158,7 +158,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, IntegralTypeRepresentations)
 
     EXPECT_EQ(true, Writer_->Write(rows));
     Writer_->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
     std::string expectedOutput =
         "0\t-1\t1\t99\n"
@@ -180,7 +180,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, EmptyColumnList)
 
     EXPECT_EQ(true, Writer_->Write(rows));
     Writer_->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
     std::string expectedOutput = "\n";
     EXPECT_EQ(expectedOutput, OutputStream_.Str());
@@ -212,7 +212,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, MissingValueMode)
         CreateStandardWriter();
         EXPECT_EQ(true, Writer_->Write(rows));
         Writer_->Close()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
         std::string expectedOutput =
             "Value1A\tValue1B\tValue1C\n"
@@ -226,7 +226,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, MissingValueMode)
         CreateStandardWriter();
         EXPECT_EQ(false, Writer_->Write(rows));
         EXPECT_THROW(Writer_->Close()
-            .Get()
+            .BlockingGet()
             .ThrowOnError(), std::exception);
         OutputStream_.Clear();
     }
@@ -237,7 +237,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, MissingValueMode)
         CreateStandardWriter();
         EXPECT_EQ(true, Writer_->Write(rows));
         Writer_->Close()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
         std::string expectedOutput =
             "Value1A\tValue1B\tValue1C\n"
@@ -301,7 +301,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, TableIndex)
     EXPECT_EQ(true, Writer_->Write(std::vector<TUnversionedRow>{row3.GetRow()}));
 
     Writer_->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
     std::string expectedOutput =
         "42\t0\t1\t2\t3\n"
@@ -332,7 +332,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, ColumnsHeader)
 
     EXPECT_EQ(true, Writer_->Write(rows));
     Writer_->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     std::string expectedOutput =

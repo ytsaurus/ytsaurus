@@ -198,7 +198,7 @@ bool TPeer::IsRecovery() const
     return BIND(&IHydraManager::IsRecovery, HydraManager_)
         .AsyncVia(AutomatonQueue_->GetInvoker())
         .Run()
-        .Get()
+        .BlockingGet()
         .ValueOrThrow();
 }
 
@@ -212,7 +212,7 @@ NHydra::EPeerState TPeer::GetAutomatonState() const
     return BIND(&IHydraManager::GetAutomatonState, HydraManager_)
         .AsyncVia(AutomatonQueue_->GetInvoker())
         .Run()
-        .Get()
+        .BlockingGet()
         .ValueOrThrow();
 }
 

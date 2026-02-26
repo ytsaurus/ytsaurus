@@ -129,7 +129,7 @@ public:
         BIND(&TBootstrap::DoInitialize, MakeStrong(this))
             .AsyncVia(ControlInvoker_)
             .Run()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
     }
 
