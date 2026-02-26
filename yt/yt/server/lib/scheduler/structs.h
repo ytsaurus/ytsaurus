@@ -163,6 +163,8 @@ struct TAllocationGroupResources
     int AllocationCount = 0;
 
     void Persist(const TStreamPersistenceContext& context);
+
+    bool operator==(const TAllocationGroupResources& other) const = default;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TAllocationGroupResources& allocationGroupResources, TStringBuf /*format*/);

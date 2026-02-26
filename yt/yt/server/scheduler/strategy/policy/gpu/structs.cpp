@@ -53,7 +53,9 @@ TOperation::TOperation(
 
 void TOperation::Initialize(const TAllocationGroupResourcesMap& initialGroupedNeededResources)
 {
-    YT_VERIFY(!IsInitialized());
+    if (InitialGroupedNeededResources_.has_value()) {
+        YT_VERIFY(InitialGroupedNeededResources_ == initialGroupedNeededResources);
+    }
 
     InitialGroupedNeededResources_ = initialGroupedNeededResources;
 }
