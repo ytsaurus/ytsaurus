@@ -68,8 +68,8 @@ void TAssignmentPlanContextBase::PreemptAssignment(
         "Preempted assignment "
         "(Reason: %v, Description: %v, AllocationGroupName: %v, "
         "ResourceUsage: %v, NodeAddress: %v, OperationId: %v)",
-        preemptionReason,
-        preemptionDescription,
+        assignment->PreemptionReason,
+        assignment->PreemptionDescription,
         assignment->AllocationGroupName,
         assignment->ResourceUsage,
         assignment->Node->Address(),

@@ -283,6 +283,10 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::PlanFullHostModuleBoundOperatio
         // Sanity check.
         YT_VERIFY(!operation->IsPreemptible());
 
+        if (ShouldResetModule(operation)) {
+            EvictOperationFromSchedulingModule(operation, "Preempted after module reset");
+        }
+
         if (!operation->SchedulingModule() && !BindFullHostOperationToModule(operation, priorityModuleBinding)) {
             continue;
         }
@@ -303,7 +307,6 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::PlanFullHostModuleBoundOperatio
         YT_VERIFY(operation->SchedulingModule());
 
         // TODO(eshcherbin): (!) Deal with modules that can change between updates.
-        // TODO(eshcherbin): (!) Reconsider module if operation cannot be scheduled for too long.
         auto& moduleState = GetOrCrash(ModuleStates_, *operation->SchedulingModule());
         for (const auto& [allocationGroupName, allocationGroupResources] : operation->ReadyToAssignGroupedNeededResources()) {
             // First we try to schedule allocations without preemption.
@@ -378,6 +381,24 @@ bool TGpuAllocationAssignmentPlanUpdateExecutor::ShouldUsePriorityModuleBinding(
     return operation->IsPriorityModuleBindingEnabled() &&
         operation->WaitingForModuleBindingSince() &&
         *operation->WaitingForModuleBindingSince() + Config_->PriorityModuleBindingTimeout < Now_;
+}
+
+bool TGpuAllocationAssignmentPlanUpdateExecutor::ShouldResetModule(const TOperationPtr& operation) const {
+    return operation->SchedulingModule() &&
+        operation->WaitingForAssignmentsSince() &&
+        operation->WaitingForAssignmentsSince().value() + Config_->ModuleReconsiderationTimeout < Now_;
+}
+
+void TGpuAllocationAssignmentPlanUpdateExecutor::EvictOperationFromSchedulingModule(const TOperationPtr& operation, const std::string& preemptionDescription) {
+    auto& moduleState = GetOrCrash(ModuleStates_, operation->SchedulingModule().value());
+    moduleState.RemoveFullHostBoundOperation(operation);
+
+    operation->SchedulingModule().reset();
+
+    PreemptAllOperationAssignments(
+        operation,
+        EAllocationPreemptionReason::EvictionFromSchedulingModule,
+        preemptionDescription);
 }
 
 bool TGpuAllocationAssignmentPlanUpdateExecutor::BindFullHostOperationToModule(
@@ -460,7 +481,6 @@ bool TGpuAllocationAssignmentPlanUpdateExecutor::BindFullHostOperationToModule(
             Format("Preempted because operation was bound to other scheduling module %v", bestModule));
     }
 
-    auto& moduleState = GetOrCrash(ModuleStates_, bestModule);
     for (const auto& evictedOperation : bestModuleBindingOutcome.OperationsToEvict) {
         YT_LOG_DEBUG("Evicting operation from module in favour of a priority operation (Module: %v, OperationId: %v, PriorityOperationId: %v)",
             bestModule,
@@ -468,20 +488,14 @@ bool TGpuAllocationAssignmentPlanUpdateExecutor::BindFullHostOperationToModule(
             operation->GetId());
 
         YT_VERIFY(bestModule == evictedOperation->SchedulingModule());
-
-        moduleState.RemoveFullHostBoundOperation(evictedOperation);
-
-        evictedOperation->SchedulingModule().reset();
-
-        PreemptAllOperationAssignments(
-            evictedOperation,
-            EAllocationPreemptionReason::EvictionFromSchedulingModule,
-            Format("Preempted due to operation's eviction from scheduling module in favour of priority operation %v", operation->GetId()));
+        EvictOperationFromSchedulingModule(evictedOperation, Format(
+            "Preempted due to operation's eviction from scheduling module in favour of priority operation %v", operation->GetId()));
     }
 
     operation->WaitingForModuleBindingSince().reset();
     operation->SchedulingModule() = bestModule;
 
+    auto& moduleState = GetOrCrash(ModuleStates_, bestModule);
     moduleState.AddFullHostBoundOperation(operation.Get());
 
     return true;
