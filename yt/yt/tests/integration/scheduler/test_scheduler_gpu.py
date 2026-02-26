@@ -1539,3 +1539,25 @@ class TestDryRunGpuSchedulingPolicyMultiModule(YTEnvSetup):
         wait(lambda: check_for_new_assignment(op, assignment_node_address))
         operation = get_operation_from_orchid(op)
         assert operation["scheduling_module"] == module
+
+    @authors("severovv")
+    def test_modules_reset(self):
+        update_scheduler_config("node_registration_timeout", 1000)
+        update_scheduler_config("node_heartbeat_timeout", 1000)
+        update_scheduler_config("node_reconnection_timeout", 1000)
+        update_pool_tree_config_option("gpu", "enable_step_function_for_gang_operations", False)
+
+        op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            job_count=2,
+            spec={"is_gang": True},
+        )
+        wait(lambda: len(op.get_running_jobs()) == 2)
+        wait_for_assignments_in_orchid(op, 2)
+
+        occupied_node = get_operation_assignments_from_orchid(op)[0]["node_address"]
+        set_node_banned(occupied_node, True)
+        wait_for_assignments_in_orchid(op, 1, exactly=True)
+
+        update_pool_tree_config_option("gpu", "gpu_scheduling_policy/module_reconsideration_timeout", 5000)
+        wait_for_assignments_in_orchid(op, 2)
