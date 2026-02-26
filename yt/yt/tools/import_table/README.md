@@ -11,9 +11,11 @@ Supported external storages:
 - [huggingface](https://huggingface.co/)
 
 {% note info "Note" %}
+
 The tool runs map-reduce operations to download data from external storage.
 Therefore, the jobs must have network access to the external storage endpoint.
 A network project can be specified to provide the required connectivity.
+
 {% endnote %}
 
 {% note info "Note" %}
