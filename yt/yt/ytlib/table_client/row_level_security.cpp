@@ -175,7 +175,10 @@ public:
                 }));
     }
 
-    ESecurityAction Check(TUnversionedRow row, const TRowBufferPtr& rowBuffer, int chunkValuesPrefix) const override
+    ESecurityAction Check(
+        TUnversionedRow row,
+        const TUnversionedRowLayout& layout,
+        const TRowBufferPtr& rowBuffer) const override
     {
         // NB(coteeq): Although RLS only acts on schemaful rows,
         // this checker is created per-datasource, not per-chunk (so there is
@@ -184,7 +187,7 @@ public:
         // per-chunk expression compilation, but YMMV. Maybe, I should add
         // an option to compile per-chunk and some heuristic to choose between
         // per-chunk and per-datasource compilation.
-        auto reorderedRow = ReorderRow(row, rowBuffer, chunkValuesPrefix);
+        auto reorderedRow = ReorderRow(row, layout, rowBuffer);
 
         auto value = MakeUnversionedSentinelValue(EValueType::Null);
 
@@ -221,7 +224,10 @@ private:
     const int RemappedValueCount_;
     const TNameTableToSchemaIdMapping ChunkToExpressionIdMapping_;
 
-    TUnversionedRow ReorderRow(TUnversionedRow row, const TRowBufferPtr& rowBuffer, int chunkValuesPrefix) const
+    TUnversionedRow ReorderRow(
+        TUnversionedRow row,
+        const TUnversionedRowLayout& layout,
+        const TRowBufferPtr& rowBuffer) const
     {
         auto reorderedRow = rowBuffer->AllocateUnversioned(ValueCount_);
         for (int index = 0; index < ValueCount_; ++index) {
@@ -230,12 +236,10 @@ private:
 
         int remappedValueCount = 0;
         for (const auto& [index, value] : SEnumerate(row)) {
-            if (index >= chunkValuesPrefix) {
-                break;
-            }
-            if (value.Id >= std::ssize(ChunkToExpressionIdMapping_)) {
+            if (layout.GetNameTableAffinity(index) != ENameTableAffinity::Chunk) {
                 continue;
             }
+            YT_VERIFY(value.Id < std::ssize(ChunkToExpressionIdMapping_));
             auto newId = ChunkToExpressionIdMapping_[value.Id];
             if (newId != -1) {
                 reorderedRow[newId] = value;
@@ -244,6 +248,7 @@ private:
                 ++remappedValueCount;
             }
         }
+
         YT_VERIFY(
             remappedValueCount == RemappedValueCount_,
             Format("%v != %v", remappedValueCount, RemappedValueCount_));

@@ -481,6 +481,7 @@ SRCS(
     table_client/partitioner.cpp
     table_client/performance_counters.cpp
     table_client/remote_dynamic_store_reader.cpp
+    table_client/row_layout.cpp
     table_client/row_level_security.cpp
     table_client/rows_digest.cpp
     table_client/samples_fetcher.cpp
