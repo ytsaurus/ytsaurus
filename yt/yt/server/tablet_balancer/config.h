@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <yt/yt/server/lib/tablet_balancer/config.h>
 #include <yt/yt/server/lib/tablet_balancer/public.h>
 
 #include <yt/yt/server/lib/cypress_election/config.h>
@@ -44,6 +45,7 @@ DEFINE_REFCOUNTED_TYPE(TStandaloneTabletBalancerConfig)
 
 struct TTabletBalancerDynamicConfig
     : public TSingletonsDynamicConfig
+    , public TFeatureFlagConfig
 {
     // Enable standalone tablet balancer. The balancer will not work at all if set to false.
     bool Enable;
@@ -76,7 +78,6 @@ struct TTabletBalancerDynamicConfig
     bool EnableReshardVerboseLogging;
     bool IgnoreTabletToCellRatio;
     std::optional<double> ReshardSlicingAccuracy;
-    std::optional<bool> EnableSmoothMovement;
 
     THashSet<std::string> AllowedReplicaClusters;
 

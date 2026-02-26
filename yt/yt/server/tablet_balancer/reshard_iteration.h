@@ -43,18 +43,21 @@ DEFINE_REFCOUNTED_TYPE(IReshardIteration)
 IReshardIterationPtr CreateSizeReshardIteration(
     TBundleSnapshotPtr bundleSnapshot,
     TGroupName groupName,
+    TTabletBalancingGroupConfigPtr groupConfig,
     TTabletBalancerDynamicConfigPtr dynamicConfig);
 
 IReshardIterationPtr CreateParameterizedReshardIteration(
     TBundleSnapshotPtr bundleSnapshot,
     TGroupName groupName,
+    TTabletBalancingGroupConfigPtr groupConfig,
     TTabletBalancerDynamicConfigPtr dynamicConfig);
 
 IReshardIterationPtr CreateReplicaReshardIteration(
     TBundleSnapshotPtr bundleSnapshot,
     TGroupName groupName,
+    TTabletBalancingGroupConfigPtr groupConfig,
     TTabletBalancerDynamicConfigPtr dynamicConfig,
-    TClusterName clusterName);
+    TClusterName selfClusterName);
 
 ////////////////////////////////////////////////////////////////////////////////
 

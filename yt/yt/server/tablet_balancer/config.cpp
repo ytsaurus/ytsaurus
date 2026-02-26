@@ -95,8 +95,6 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("reshard_slicing_accuracy", &TThis::ReshardSlicingAccuracy)
         .Default();
-    registrar.Parameter("enable_smooth_movement", &TThis::EnableSmoothMovement)
-        .Default();
 
     registrar.Parameter("allowed_replica_clusters", &TThis::AllowedReplicaClusters)
         .Default();

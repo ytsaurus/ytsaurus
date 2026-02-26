@@ -14,6 +14,21 @@ const TString LegacyInMemoryGroupName = "legacy_in_memory";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TFeatureFlagConfig
+    : public virtual NYTree::TYsonStruct
+{
+    std::optional<bool> EnableSmoothMovement;
+    std::optional<bool> EnableInplaceReshard;
+
+    REGISTER_YSON_STRUCT(TFeatureFlagConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TFeatureFlagConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TComponentFactorConfig
     : public NYTree::TYsonStruct
 {
@@ -61,11 +76,10 @@ DEFINE_REFCOUNTED_TYPE(TParameterizedBalancingConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTabletBalancingGroupConfig
-    : public NYTree::TYsonStruct
+    : public TFeatureFlagConfig
 {
     bool EnableMove;
     bool EnableReshard;
-    std::optional<bool> EnableSmoothMovement;
 
     EBalancingType Type;
     TParameterizedBalancingConfigPtr Parameterized;
@@ -82,7 +96,7 @@ DEFINE_REFCOUNTED_TYPE(TTabletBalancingGroupConfig)
 
 //! Frozen.
 struct TMasterBundleTabletBalancerConfig
-    : public NYTree::TYsonStruct
+    : public virtual NYTree::TYsonStruct
 {
     bool EnableInMemoryCellBalancer;
     bool EnableCellBalancer;
@@ -119,12 +133,12 @@ DEFINE_REFCOUNTED_TYPE(TMasterBundleTabletBalancerConfig)
 
 struct TBundleTabletBalancerConfig
     : public TMasterBundleTabletBalancerConfig
+    , public TFeatureFlagConfig
 {
     bool EnableParameterizedByDefault;
     std::optional<TString> DefaultInMemoryGroup;
     bool EnablePickPivotKeys;
     double SafeUsedTabletStaticRatio;
-    std::optional<bool> EnableSmoothMovement;
 
     THashMap<TString, TTabletBalancingGroupConfigPtr> Groups;
 
@@ -139,7 +153,7 @@ DEFINE_REFCOUNTED_TYPE(TBundleTabletBalancerConfig)
 
 //! Frozen.
 struct TMasterTableTabletBalancerConfig
-    : public NYTree::TYsonStruct
+    : public virtual NYTree::TYsonStruct
 {
     bool EnableAutoReshard;
     bool EnableAutoTabletMove;
@@ -175,11 +189,11 @@ DEFINE_REFCOUNTED_TYPE(TMasterTableTabletBalancerConfig)
 
 struct TTableTabletBalancerConfig
     : public TMasterTableTabletBalancerConfig
+    , public TFeatureFlagConfig
 {
     std::optional<bool> EnableParameterized;
     std::optional<TString> Group;
     THashMap<TClusterName, std::vector<NYPath::TYPath>> ReplicaPathOverrides;
-    std::optional<bool> EnableSmoothMovement;
 
     REGISTER_YSON_STRUCT(TTableTabletBalancerConfig);
 

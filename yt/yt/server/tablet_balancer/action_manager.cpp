@@ -606,6 +606,7 @@ IAttributeDictionaryPtr TActionManager::MakeActionAttributes(const TActionDescri
             attributes->Set("kind", "reshard");
             attributes->Set("tablet_ids", descriptor.Tablets);
             attributes->Set("correlation_id", descriptor.CorrelationId);
+            attributes->Set("inplace_reshard", descriptor.Inplace);
 
             if (!descriptor.PivotKeys.empty()) {
                 attributes->Set("pivot_keys", descriptor.PivotKeys);

@@ -308,8 +308,14 @@ private:
         const TGroupName& groupName,
         const TTabletBalancingGroupConfigPtr& groupConfig);
     bool TryBalanceViaReshardParameterized(const TBundleSnapshotPtr& bundleSnapshot, const TGroupName& groupName);
-    void BalanceViaReshardParameterized(const TBundleSnapshotPtr& bundleSnapshot, const TGroupName& groupName);
-    void BalanceReplicasViaReshard(const TBundleSnapshotPtr& bundleSnapshot, const TGroupName& groupName);
+    void BalanceViaReshardParameterized(
+        const TBundleSnapshotPtr& bundleSnapshot,
+        const TGroupName& groupName,
+        const TTabletBalancingGroupConfigPtr& groupConfig);
+    void BalanceReplicasViaReshard(
+        const TBundleSnapshotPtr& bundleSnapshot,
+        const TGroupName& groupName,
+        const TTabletBalancingGroupConfigPtr& groupConfig);
 
     void ExecuteReshardIteration(const IReshardIterationPtr& reshardIteration);
     void ExecuteMoveIteration(const IMoveIterationPtr& moveIteration);
@@ -1196,11 +1202,15 @@ void TTabletBalancer::BalanceViaMoveParameterized(
         DynamicConfig_.Acquire()));
 }
 
-void TTabletBalancer::BalanceReplicasViaReshard(const TBundleSnapshotPtr& bundleSnapshot, const TGroupName& groupName)
+void TTabletBalancer::BalanceReplicasViaReshard(
+    const TBundleSnapshotPtr& bundleSnapshot,
+    const TGroupName& groupName,
+    const TTabletBalancingGroupConfigPtr& groupConfig)
 {
     ExecuteReshardIteration(CreateReplicaReshardIteration(
         bundleSnapshot,
         groupName,
+        groupConfig,
         DynamicConfig_.Acquire(),
         Bootstrap_->GetClusterName()));
 }
@@ -1219,11 +1229,15 @@ void TTabletBalancer::BalanceReplicasViaMoveParameterized(
         Bootstrap_->GetClusterName()));
 }
 
-void TTabletBalancer::BalanceViaReshardParameterized(const TBundleSnapshotPtr& bundleSnapshot, const TGroupName& groupName)
+void TTabletBalancer::BalanceViaReshardParameterized(
+    const TBundleSnapshotPtr& bundleSnapshot,
+    const TGroupName& groupName,
+    const TTabletBalancingGroupConfigPtr& groupConfig)
 {
     ExecuteReshardIteration(CreateParameterizedReshardIteration(
         bundleSnapshot,
         groupName,
+        groupConfig,
         DynamicConfig_.Acquire()));
 }
 
@@ -1278,9 +1292,9 @@ bool TTabletBalancer::TryBalanceViaReshardParameterized(
     const auto& groupConfig = GetOrCrash(bundle->Config->Groups, groupName);
     try {
         if (!groupConfig->Parameterized->ReplicaClusters.empty()) {
-            BalanceReplicasViaReshard(bundleSnapshot, groupName);
+            BalanceReplicasViaReshard(bundleSnapshot, groupName, groupConfig);
         } else {
-            BalanceViaReshardParameterized(bundleSnapshot, groupName);
+            BalanceViaReshardParameterized(bundleSnapshot, groupName, groupConfig);
         }
     } catch (const TErrorException& ex) {
         YT_LOG_ERROR(ex,
@@ -1616,6 +1630,7 @@ void TTabletBalancer::BalanceViaReshard(const TBundleSnapshotPtr& bundleSnapshot
     ExecuteReshardIteration(CreateSizeReshardIteration(
         bundleSnapshot,
         groupName,
+        GetOrCrash(bundleSnapshot->Bundle->Config->Groups, groupName),
         DynamicConfig_.Acquire()));
 }
 

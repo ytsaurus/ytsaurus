@@ -1,5 +1,6 @@
 #include "bundle_state.h"
 #include "config.h"
+#include "helpers.h"
 #include "move_iteration.h"
 #include "private.h"
 #include "table_registry.h"
@@ -120,23 +121,11 @@ protected:
     std::vector<TMoveDescriptor> AnnotateSmoothMovementDescriptors(
         std::vector<TMoveDescriptor> descriptors)
     {
-        // EnableSmoothMovement flag occurs at global, bundle, group, and table levels.
-        // It may be true, false or unset at each of those levels. Smooth movement
-        // is enabled if at least one of the flags is true and none are false.
-        // NB: This behaviour is subject to change when smooth movement becomes stable enough.
-        bool hasTrue = false;
-        bool hasFalse = false;
-
-        auto onFlag = [&] (auto flag) {
-            if (flag) {
-                hasTrue |= *flag;
-                hasFalse |= !*flag;
-            }
-        };
-
-        onFlag(DynamicConfig_->EnableSmoothMovement);
-        onFlag(BundleSnapshot_->Bundle->Config->EnableSmoothMovement);
-        onFlag(GroupConfig_->EnableSmoothMovement);
+        auto [hasTrue, hasFalse] = EvaluateFeatureFlag(
+            &TFeatureFlagConfig::EnableSmoothMovement,
+            DynamicConfig_,
+            GroupConfig_,
+            BundleSnapshot_->Bundle->Config);
 
         if (hasFalse) {
             return descriptors;
