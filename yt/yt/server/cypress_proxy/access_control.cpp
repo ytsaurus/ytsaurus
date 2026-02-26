@@ -2,6 +2,7 @@
 
 #include "acd_fetcher.h"
 #include "private.h"
+#include "helpers.h"
 #include "sequoia_session.h"
 #include "sequoia_tree_visitor.h"
 #include "user_directory.h"
@@ -363,7 +364,7 @@ TPermissionCheckResult CheckPermissionForSubtree(
         // TODO(danilalexeev): YT-24575. Use parent IDs.
         const auto& parentPath = maybeParent.Descriptor->Path;
         const auto& childPath = child.Descriptor->Path;
-        return childPath.Underlying().StartsWith(parentPath.Underlying());
+        return IsAncestorPath(parentPath, childPath);
     };
 
     TraverseSequoiaTree(
