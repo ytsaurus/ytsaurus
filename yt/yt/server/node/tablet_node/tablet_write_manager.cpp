@@ -2,6 +2,7 @@
 
 #include "backup_manager.h"
 #include "config.h"
+#include "hunk_lock_manager.h"
 #include "hunks_serialization.h"
 #include "private.h"
 #include "serialize.h"
@@ -1200,6 +1201,15 @@ private:
         auto writeState = FindTransactionPersistentWriteState(transaction->GetId());
         if (!writeState) {
             return;
+        }
+
+        for (const auto& writeRecord : writeState->LocklessWriteLog) {
+            if (writeRecord.HunkChunksInfo) {
+                const auto& hunkLockManager = Tablet_->GetHunkLockManager();
+                for (auto [hunkStoreId, _] : writeRecord.HunkChunksInfo->HunkChunkRefs) {
+                    hunkLockManager->IncrementPersistentLockCount(hunkStoreId, -1);
+                }
+            }
         }
 
         // Rows are not prepared - nothing to abort.

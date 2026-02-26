@@ -2494,6 +2494,37 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert_items_equal(select_rows("key, value, [$tablet_index] from [//tmp/t] where [$tablet_index] = 1"), rows1)
         assert_items_equal(select_rows("key, value, [$tablet_index] from [//tmp/t]"), rows)
 
+    @authors("akozhikhov")
+    def test_unmount_after_aborted_write_tx(self):
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "tablet_cell_write_manager": {
+                    "write_failure_probability": 0.2,
+                },
+            },
+        })
+
+        sync_create_cells(1)
+
+        self._create_table(path="//tmp/t")
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "scan_backoff_period": 1000,
+        })
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        # NB: Some row count larger than max_rows_per_write_request.
+        rows = [{"key": 0, "value": "a" * 100} for i in range(3000)]
+        for _ in range(3):
+            try:
+                self._insert_rows_with_hunk_storage("//tmp/t", rows)
+            except Exception:
+                pass
+
+        sync_unmount_table("//tmp/t")
+
 
 ################################################################################
 
