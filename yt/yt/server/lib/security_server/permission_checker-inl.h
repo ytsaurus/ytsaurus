@@ -6,6 +6,8 @@
 
 #include "helpers.h"
 
+#include <library/cpp/iterator/zip.h>
+
 namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -147,9 +149,7 @@ TPermissionCheckResponse TPermissionChecker<TAccessControlEntry, TCallback>::Get
     if (Response_.Action == NSecurityClient::ESecurityAction::Allow && Options_->Columns) {
         Response_.Columns = std::vector<TPermissionCheckResult>(Options_->Columns->size());
         std::optional<TPermissionCheckResult> deniedColumnResult;
-        for (size_t index = 0; index < Options_->Columns->size(); ++index) {
-            const auto& column = (*Options_->Columns)[index];
-            auto& result = (*Response_.Columns)[index];
+        for (auto&& [column, result] : Zip(*Options_->Columns, *Response_.Columns)) {
             auto it = ColumnToResult_.find(column);
             if (it == ColumnToResult_.end()) {
                 result = static_cast<const TPermissionCheckResult>(Response_);

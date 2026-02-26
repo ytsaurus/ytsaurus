@@ -177,6 +177,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// COMPAT(danilalexeev): YT-27444.
 //! Same as TAceIterator but supports attribute-based access control (ABAC).
 /*!
  *  Essentially, this iterator is parameterized by an optional set of user tags.
