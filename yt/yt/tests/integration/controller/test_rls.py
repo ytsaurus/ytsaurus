@@ -18,13 +18,13 @@ from yt_commands import (
     set as yt_set,
     sort,
     sorted_dicts,
-    wait,
     write_file,
     write_table,
 )
 import pytest
 from random import Random
 from yt_type_helpers import make_column, make_sorted_column, optional_type
+import yt.yson as yson
 
 from textwrap import dedent
 
@@ -386,8 +386,12 @@ class TestSchedulerRowLevelSecurityCommands(YTEnvSetup):
         assert read_table("//tmp/t_out_file") == []
 
     @authors("coteeq")
-    @pytest.mark.parametrize("use_columns", [False, True], ids=["use_columns", "no_use_columns"])
-    def test_key_widening(self, optimize_for, use_columns):
+    @pytest.mark.parametrize("column_selector", ["off", "all", "without_int2"])
+    @pytest.mark.parametrize("reduce_by", ["int", "int;int2"])
+    def test_key_widening(self, optimize_for, column_selector, reduce_by):
+        if column_selector == "without_int2" and reduce_by == "int;int2":
+            pytest.skip("inapplicable")
+
         self._prepare_simple_test(optimize_for, sorted=True)
 
         new_schema = [
@@ -404,10 +408,7 @@ class TestSchedulerRowLevelSecurityCommands(YTEnvSetup):
 
             control_attributes = {}
             for line in stdin:
-                try:
-                    row = json.loads(line)
-                except Exception as ex:
-                    raise RuntimeError(f"line was {line}") from ex
+                row = json.loads(line)
                 if "$value" in row:
                     assert row["$value"] is None
                     control_attributes.update(row["$attributes"])
@@ -431,9 +432,17 @@ class TestSchedulerRowLevelSecurityCommands(YTEnvSetup):
             make_ace("allow", "prime_user", "read"),
         ])
 
-        path = "//tmp/t{str,int,int2}" if use_columns else "//tmp/t"
-        op = reduce(
-            track=False,
+        match column_selector:
+            case "off":
+                path = "//tmp/t"
+            case "all":
+                path = "//tmp/t{str,int,int2}"
+            case "without_int2":
+                path = "//tmp/t{str,int}"
+            case _:
+                assert False
+
+        reduce(
             in_=path,
             out="<create=%true>//tmp/t_out",
             spec={
@@ -443,9 +452,10 @@ class TestSchedulerRowLevelSecurityCommands(YTEnvSetup):
             authenticated_user="prime_user",
             command="python3 reducer.py",
             file="//tmp/reducer.py",
-            reduce_by=["int", "int2"],
+            reduce_by=reduce_by.split(";"),
         )
 
-        # This effectively asserts that operation will have inifinitely aborting jobs.
-        wait(lambda: op.get_job_count("aborted") > 10)
-        op.abort()
+        expected = self._rows(2, 3, 5, 7)
+        for row in expected:
+            row["int2"] = yson.YsonEntity()
+        assert sorted_dicts(read_table("//tmp/t_out")) == sorted_dicts(expected)

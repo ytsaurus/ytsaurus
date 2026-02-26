@@ -156,7 +156,7 @@ TKey THorizontalBlockReader::GetKey() const
 bool THorizontalBlockReader::IsHunkValue(TUnversionedValue value)
 {
     return IsStringLikeType(value.Type) &&
-        !HunkColumnFlags_.empty() &&
+        value.Id < HunkColumnFlags_.size() &&
         HunkColumnFlags_[value.Id];
 }
 
