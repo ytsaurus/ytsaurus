@@ -254,13 +254,11 @@ bool TResourceTreeElement::CommitLocalResourceUsage(
     return true;
 }
 
-bool TResourceTreeElement::CommitLocalPreemptedResourceUsage(const TJobResources& delta)
+bool TResourceTreeElement::CommitLocalPreemptedResourceUsageUnsafe(const TJobResources& delta)
 {
     if (!ResourceLimitsSpecified_ && Kind_ != EResourceTreeElementKind::Operation) {
         return true;
     }
-
-    auto guard = WriterGuard(ResourceUsageLock_);
 
     if (!Alive_) {
         return false;
@@ -276,6 +274,8 @@ bool TResourceTreeElement::CommitLocalPreemptedResourceUsage(const TJobResources
     // Sanity check.
     YT_VERIFY(Dominates(ResourceUsage_, TJobResources()));
     YT_VERIFY(Dominates(PreemptedResourceUsagePrecommit_, TJobResources()));
+
+    YT_VERIFY(Dominates(ResourceUsage_, PreemptedResourceUsagePrecommit_));
 
     return true;
 }
