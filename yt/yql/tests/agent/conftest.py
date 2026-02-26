@@ -14,7 +14,7 @@ import yatest.common
 
 
 class YqlAgent():
-    def __init__(self, env, count, libraries, config):
+    def __init__(self, env, remote_envs, count, libraries, config):
         self.yql_agent = YqlAgentComponent()
 
         config = {
@@ -27,7 +27,7 @@ class YqlAgent():
             "libraries": libraries,
         } | config
 
-        self.yql_agent.prepare(env, config=config)
+        self.yql_agent.prepare(env, remote_envs, config=config)
 
     def __enter__(self):
         self.yql_agent.run()
@@ -69,6 +69,6 @@ def yql_agent(request):
     config["allow_not_released_yql_versions"] = getattr(cls, "ALLOW_NOT_RELEASED_YQL_VERSIONS", True)
     config["subprocesses_count"] = getattr(cls, "YQL_SUBPROCESSES_COUNT", None)
 
-    with YqlAgent(cls.Env, count, libraries, config) as yql_agent:
+    with YqlAgent(cls.Env, cls.remote_envs, count, libraries, config) as yql_agent:
         update_yql_agent_environment(cls, yql_agent)
         yield yql_agent
