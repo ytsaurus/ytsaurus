@@ -3028,6 +3028,7 @@ private:
         {0xffffffffffffffe5, ReplicatedTableTrackerUserName, false, &SuperusersGroup_                  },
         {0xffffffffffffffe4, ChunkReplicaCacheUserName,      false, &SuperusersGroup_                  },
         {0xffffffffffffffe3, SignatureKeysmithUserName,      false, &SuperusersGroup_                  },
+        {0xffffffffffffffe2, BundleControllerUserName,       false, &SuperusersGroup_                  },
     };
 
     NHydra::TEntityMap<TGroup> GroupMap_;
