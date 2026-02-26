@@ -1333,6 +1333,10 @@ Semantics:
 - Retrieve records within a table range.
 - The range must be obtained in advance using the `[partition_tables](#partition_tables)` command with the `enable_cookies=%true` option.
 
+This is a low-level command for efficient distributed and/or parallel reading. Unlike `read_table`, this command typically does not make additional requests to the master.
+
+For the read operation to work correctly, a `snapshot` lock must be acquired on the table *before* calling `partition_tables`, and the lock must remain active at the time of the `read_table_partition` requests. Otherwise, if the table is modified, you may get a data availability error.
+
 Parameters:
 
 | **Parameter** | **Required** | **Default value** | **Description** |
