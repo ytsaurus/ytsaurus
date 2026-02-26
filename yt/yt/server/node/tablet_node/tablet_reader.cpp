@@ -1166,7 +1166,7 @@ IVersionedReaderPtr CreateCompactionTabletReader(
 
     auto asyncResult = throttler->Throttle(1);
     if (asyncResult.IsSet()) {
-        asyncResult.Get().ThrowOnError();
+        asyncResult.BlockingGet().ThrowOnError();
     } else {
         YT_LOG_DEBUG("Started waiting for compaction inbound throughput throttler");
         WaitFor(asyncResult)

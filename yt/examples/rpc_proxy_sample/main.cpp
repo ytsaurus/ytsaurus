@@ -242,7 +242,7 @@ protected:
             options.Timestamp = Client_
                 ->GetTimestampProvider()
                 ->GenerateTimestamps(1)
-                .Get()
+                .BlockingGet()
                 .ValueOrThrow();
             Cout << "T=" << options.Timestamp << Endl;
             auto result = Client_->GetInSyncReplicas(path, prepareRows.NameTable, prepareRows.Rows, options).Get();

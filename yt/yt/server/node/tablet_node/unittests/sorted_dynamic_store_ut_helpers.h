@@ -45,7 +45,7 @@ public:
             /*workloadCategory*/ std::nullopt);
 
         lookupReader->Open()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
 
         std::vector<TVersionedRow> rows;

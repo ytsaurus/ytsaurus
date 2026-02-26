@@ -202,8 +202,8 @@ TQuery LookupQuery(
             queryId)
             << error;
     }
-    bool isActive = asyncActiveRecord.IsSet() && asyncActiveRecord.Get().IsOK();
-    bool isFinished = asyncFinishedRecord.IsSet() && asyncFinishedRecord.Get().IsOK();
+    bool isActive = asyncActiveRecord.IsSet() && asyncActiveRecord.BlockingGet().IsOK();
+    bool isFinished = asyncFinishedRecord.IsSet() && asyncFinishedRecord.BlockingGet().IsOK();
     YT_VERIFY(isActive || isFinished);
     if (isActive && isFinished) {
         const auto& Logger = logger;

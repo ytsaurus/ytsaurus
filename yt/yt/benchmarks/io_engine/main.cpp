@@ -369,7 +369,7 @@ public:
         PrepareFile();
 
         File_ = IOEngine_->Open({FileName_, EOpenModeFlag::RdWr})
-            .Get()
+            .BlockingGet()
             .ValueOrThrow();
         Position_ = 0;
         MaxPosition_ = File_->GetLength();

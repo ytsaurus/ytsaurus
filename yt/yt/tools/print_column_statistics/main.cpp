@@ -49,7 +49,7 @@ int main(int argc, char** argv)
             fileName);
 
         auto chunkMeta = reader->GetMeta(/*options*/ {})
-            .Get()
+            .BlockingGet()
             .ValueOrThrow();
 
         std::cout << "Type: " << ToString(FromProto<EChunkType>(chunkMeta->type())) << std::endl;

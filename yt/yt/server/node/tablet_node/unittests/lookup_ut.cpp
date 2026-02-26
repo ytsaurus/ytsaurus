@@ -124,7 +124,7 @@ public:
             chunkReadOptions)
             .AsyncVia(LookupQueue_->GetInvoker())
             .Run()
-            .Get()
+            .BlockingGet()
             .ValueOrThrow();
     }
 
@@ -138,7 +138,7 @@ public:
             ChunkReadOptions_)
             .AsyncVia(LookupQueue_->GetInvoker())
             .Run()
-            .Get()
+            .BlockingGet()
             .ValueOrThrow();
     }
 

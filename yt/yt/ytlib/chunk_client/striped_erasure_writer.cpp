@@ -272,7 +272,7 @@ private:
             // set it here to avoid writer freeze in case of some bugs.
             ReadyEvent_.TrySet();
 
-            if (ReadyEvent_.Get().IsOK()) {
+            if (ReadyEvent_.BlockingGet().IsOK()) {
                 ReadyEvent_ = NewPromise<void>();
             }
         }
@@ -385,7 +385,7 @@ private:
 
         for (int index = 0; index < std::ssize(Writers_); ++index) {
             auto readyEvent = WriterReadyEvents_[index];
-            if (!readyEvent.IsSet() || !readyEvent.Get().IsOK()) {
+            if (!readyEvent.IsSet() || !readyEvent.BlockingGet().IsOK()) {
                 WaitFor(readyEvent)
                     .ThrowOnError();
             }
@@ -469,7 +469,7 @@ private:
         FillChunkMeta(chunkMeta);
 
         YT_VERIFY(ReadyEvent_.IsSet());
-        ReadyEvent_.Get().ThrowOnError();
+        ReadyEvent_.BlockingGet().ThrowOnError();
 
         std::vector<TFuture<void>> futures;
         futures.reserve(Writers_.size());

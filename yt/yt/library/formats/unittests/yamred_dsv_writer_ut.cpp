@@ -180,7 +180,7 @@ TEST_F(TSchemalessWriterForYamredDsvTest, Simple)
 
     EXPECT_EQ(true, Writer_->Write(rows));
     Writer_->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     TString expectedOutput =
@@ -216,7 +216,7 @@ TEST_F(TSchemalessWriterForYamredDsvTest, SimpleWithSubkey)
 
     EXPECT_EQ(true, Writer_->Write(rows));
     Writer_->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     TString expectedOutput =
@@ -268,7 +268,7 @@ TEST_F(TSchemalessWriterForYamredDsvTest, Lenval)
 
     EXPECT_EQ(true, Writer_->Write(rows));
     Writer_->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     TString expectedOutput = TString(
@@ -311,7 +311,7 @@ TEST_F(TSchemalessWriterForYamredDsvTest, Escaping)
 
     EXPECT_EQ(true, Writer_->Write(rows));
     Writer_->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     TString expectedOutput = "a\\n \\nb\\t\tvalue\\t_t=\\nva\\\\lue\\t\n";
@@ -336,7 +336,7 @@ TEST_F(TSchemalessWriterForYamredDsvTest, SkippedKey)
     EXPECT_FALSE(Writer_->Write(rows));
 
     EXPECT_THROW(Writer_->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError(), std::exception);
 }
 
@@ -357,7 +357,7 @@ TEST_F(TSchemalessWriterForYamredDsvTest, SkippedSubkey)
     EXPECT_FALSE(Writer_->Write(rows));
 
     EXPECT_THROW(Writer_->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError(), std::exception);
 }
 
@@ -381,7 +381,7 @@ TEST_F(TSchemalessWriterForYamredDsvTest, NonStringValues)
 
     EXPECT_EQ(true, Writer_->Write(rows));
     Writer_->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     TString expectedOutput = "-42\t18\tkey_b=true\tvalue_x=3.14\tvalue_y=yt\n";
@@ -409,7 +409,7 @@ TEST_F(TSchemalessWriterForYamredDsvTest, ErasingSubkeyColumnsWhenHasSubkeyIsFal
 
     EXPECT_EQ(true, Writer_->Write(rows));
     Writer_->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     TString expectedOutput = "a\tkey_c=c\tvalue_x=x\n";

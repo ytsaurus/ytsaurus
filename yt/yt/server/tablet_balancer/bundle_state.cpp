@@ -2148,7 +2148,7 @@ THashMap<TTableId, TTableStatisticsResponse> TBundleState::FetchTableStatistics(
             "Failed to fetch tablets from cell %v",
             cellTag);
 
-        auto responseBatch = batch.Response.Get().ValueOrThrow();
+        auto responseBatch = batch.Response.BlockingGet().ValueOrThrow();
         auto statisticsFieldNames = FromProto<std::vector<std::string>>(responseBatch->statistics_field_names());
 
         for (int index = 0; index < batch.Request->table_ids_size(); ++index) {

@@ -52,7 +52,7 @@ private:
         }
 
         auto chunkMeta = reader->GetMeta(/*options*/ {})
-            .Get()
+            .BlockingGet()
             .ValueOrThrow();
 
         Cout << "Type: " << ToString(FromProto<EChunkType>(chunkMeta->type())) << Endl;

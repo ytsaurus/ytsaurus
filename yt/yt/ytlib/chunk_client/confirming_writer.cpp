@@ -118,7 +118,7 @@ public:
         YT_VERIFY(Initialized_.load());
         YT_VERIFY(OpenFuture_.IsSet());
 
-        if (!OpenFuture_.Get().IsOK()) {
+        if (!OpenFuture_.BlockingGet().IsOK()) {
             return false;
         } else {
             return UnderlyingWriter_->WriteBlocks(options, workloadDescriptor, blocks);
@@ -129,7 +129,7 @@ public:
     {
         YT_VERIFY(Initialized_.load());
         YT_VERIFY(OpenFuture_.IsSet());
-        if (!OpenFuture_.Get().IsOK()) {
+        if (!OpenFuture_.BlockingGet().IsOK()) {
             return OpenFuture_;
         } else {
             return UnderlyingWriter_->GetReadyEvent();

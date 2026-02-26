@@ -343,7 +343,7 @@ bool TSchemafulOverlappingRangeReaderBase<TRowMerger>::RefillSession(
 {
     YT_VERIFY(session->ReadyEvent);
 
-    if (!session->ReadyEvent.IsSet() || !session->ReadyEvent.Get().IsOK()) {
+    if (!session->ReadyEvent.IsSet() || !session->ReadyEvent.BlockingGet().IsOK()) {
         return false;
     }
 

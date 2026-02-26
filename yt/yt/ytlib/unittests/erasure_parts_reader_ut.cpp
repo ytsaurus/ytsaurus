@@ -242,7 +242,7 @@ void ExecTest(TTestCase testCase)
         /*options*/ {},
         testCase.FirstRowIndex,
         testCase.RowCount)
-        .Get()
+        .BlockingGet()
         .ValueOrThrow();
 
     if (testCase.ReadShouldBeFast) {

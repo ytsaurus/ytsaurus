@@ -5576,7 +5576,7 @@ private:
                         replica.GetReplicaState());
                 }
             })
-                .Get()
+                .BlockingGet()
                 .ThrowOnError();
 
             YT_LOG_INFO("Finished initializing chunks");
@@ -5606,7 +5606,7 @@ private:
 
                 location->ResetLoadScratchData();
             })
-                .Get()
+                .BlockingGet()
                 .ThrowOnError();
 
             YT_LOG_INFO("Finished initializing chunk locations");

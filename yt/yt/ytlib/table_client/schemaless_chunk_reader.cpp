@@ -892,7 +892,7 @@ void THorizontalSchemalessRangeChunkReader::InitFirstBlock()
 
     YT_VERIFY(CurrentBlock_ && CurrentBlock_.IsSet());
     BlockReader_.reset(new THorizontalBlockReader(
-        CurrentBlock_.Get().ValueOrThrow().Data,
+        CurrentBlock_.BlockingGet().ValueOrThrow().Data,
         blockMeta,
         GetCompositeColumnFlags(ChunkMeta_->ChunkSchema()),
         GetHunkColumnFlags(ChunkMeta_->GetChunkFormat(), ChunkMeta_->GetChunkFeatures(), ChunkMeta_->ChunkSchema()),
@@ -1322,7 +1322,7 @@ void THorizontalSchemalessLookupChunkReaderBase::InitFirstBlock()
     const auto& blockMeta = BlockMetaExt_->data_blocks(blockIndex);
 
     BlockReader_.reset(new THorizontalBlockReader(
-        CurrentBlock_.Get().ValueOrThrow().Data,
+        CurrentBlock_.BlockingGet().ValueOrThrow().Data,
         blockMeta,
         GetCompositeColumnFlags(ChunkMeta_->ChunkSchema()),
         GetHunkColumnFlags(ChunkMeta_->GetChunkFormat(), ChunkMeta_->GetChunkFeatures(), ChunkMeta_->ChunkSchema()),

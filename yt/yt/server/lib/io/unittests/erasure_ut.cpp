@@ -267,13 +267,13 @@ public:
             codecId,
             writers,
             TWorkloadDescriptor(EWorkloadCategory::UserBatch));
-        EXPECT_TRUE(erasureWriter->Open().Get().IsOK());
+        EXPECT_TRUE(erasureWriter->Open().BlockingGet().IsOK());
 
         for (const auto& ref : data) {
             erasureWriter->WriteBlock(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), TBlock(ref, GetChecksum(ref)));
             dataSize += ref.Size();
         }
-        EXPECT_TRUE(erasureWriter->Close(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), meta).Get().IsOK());
+        EXPECT_TRUE(erasureWriter->Close(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), meta).BlockingGet().IsOK());
         EXPECT_TRUE(erasureWriter->GetChunkInfo().disk_space() >= dataSize);
     }
 
@@ -1305,7 +1305,7 @@ void TErasureMixtureTest::ExecAdaptiveRepairTest(
         writerFactory,
         /*chunkReadOptions*/ {},
         /*writeBlocksOptions*/ {});
-    EXPECT_TRUE(repairFuture.Get().IsOK());
+    EXPECT_TRUE(repairFuture.BlockingGet().IsOK());
 
     auto erasureReader = CreateErasureReader(codec);
     CheckRepairResult(erasureReader, dataRefs);

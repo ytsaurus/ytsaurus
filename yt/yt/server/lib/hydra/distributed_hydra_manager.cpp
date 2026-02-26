@@ -3098,7 +3098,7 @@ private:
         }
 
         AllSucceeded(std::move(futures))
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
     }
 

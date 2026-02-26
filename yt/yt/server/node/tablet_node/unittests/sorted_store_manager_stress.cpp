@@ -954,7 +954,7 @@ TEST_P(TSortedStoreManagerStressTest, Test)
     BIND(&TSortedStoreManagerStressTest::RunTest, Unretained(this))
         .AsyncVia(TestQueue_->GetInvoker())
         .Run()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 }
 

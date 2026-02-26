@@ -545,7 +545,7 @@ IUnversionedRowBatchPtr TSchemalessMultiChunkReader::Read(const TRowBatchReadOpt
 {
     auto readGuard = TTimerGuard<TWallTimer>(&ReadTimer_, &ReadTimerLock_);
 
-    if (!MultiReaderManager_->GetReadyEvent().IsSet() || !MultiReaderManager_->GetReadyEvent().Get().IsOK()) {
+    if (!MultiReaderManager_->GetReadyEvent().IsSet() || !MultiReaderManager_->GetReadyEvent().BlockingGet().IsOK()) {
         return CreateEmptyUnversionedRowBatch();
     }
 
@@ -611,7 +611,7 @@ void TSchemalessMultiChunkReader::Interrupt()
 
 void TSchemalessMultiChunkReader::SkipCurrentReader()
 {
-    if (!MultiReaderManager_->GetReadyEvent().IsSet() || !MultiReaderManager_->GetReadyEvent().Get().IsOK()) {
+    if (!MultiReaderManager_->GetReadyEvent().IsSet() || !MultiReaderManager_->GetReadyEvent().BlockingGet().IsOK()) {
         return;
     }
 

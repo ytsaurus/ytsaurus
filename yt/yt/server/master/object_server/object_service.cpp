@@ -2654,7 +2654,7 @@ void TObjectService::ProcessSessions()
     }
 
     readFuture
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 }
 

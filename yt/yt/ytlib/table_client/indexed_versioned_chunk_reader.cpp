@@ -49,7 +49,7 @@ public:
 
         YT_VERIFY(options.MaxRowsPerRead > 0);
 
-        if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
+        if (!ReadyEvent_.IsSet() || !ReadyEvent_.BlockingGet().IsOK()) {
             return CreateEmptyVersionedRowBatch();
         }
 

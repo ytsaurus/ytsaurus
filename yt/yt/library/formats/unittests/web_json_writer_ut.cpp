@@ -678,7 +678,7 @@ TEST_F(TWriterForWebJson, YqlValueFormat_SimpleTypes)
             }).Get(),
         });
         EXPECT_TRUE(written);
-        Writer_->Close().Get().ThrowOnError();
+        Writer_->Close().BlockingGet().ThrowOnError();
     }
 
     auto result = ParseJsonToNode(OutputStream_.Str());
@@ -761,7 +761,7 @@ TEST_F(TWriterForWebJson, ColumnNameEncoding)
             }).Get()
         });
         EXPECT_TRUE(written);
-        Writer_->Close().Get().ThrowOnError();
+        Writer_->Close().BlockingGet().ThrowOnError();
     }
 
     auto result = ParseJsonToNode(OutputStream_.Str());
@@ -1151,7 +1151,7 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
             }).Get(),
         });
         EXPECT_TRUE(written);
-        Writer_->Close().Get().ThrowOnError();
+        Writer_->Close().BlockingGet().ThrowOnError();
     }
 
     auto result = ParseJsonToNode(OutputStream_.Str());
@@ -1485,7 +1485,7 @@ TEST_F(TWriterForWebJson, YqlValueFormat_Incomplete)
             }).Get(),
         });
         EXPECT_TRUE(written);
-        Writer_->Close().Get().ThrowOnError();
+        Writer_->Close().BlockingGet().ThrowOnError();
     }
 
     auto result = ParseJsonToNode(OutputStream_.Str());
@@ -1582,7 +1582,7 @@ TEST_F(TWriterForWebJson, YqlValueFormat_Any)
             MakeRow(NameTable_, {{"column_a", 42u}}).Get(),
         });
         EXPECT_TRUE(written);
-        Writer_->Close().Get().ThrowOnError();
+        Writer_->Close().BlockingGet().ThrowOnError();
     }
 
     auto result = ParseJsonToNode(OutputStream_.Str());
@@ -1673,7 +1673,7 @@ TEST_F(TWriterForWebJson, YqlValueFormat_CompositeNoSchema)
             MakeRow(NameTable_, {{"column_a", EValueType::Composite, "[1;2]"}}).Get(),
         });
         EXPECT_TRUE(written);
-        Writer_->Close().Get().ThrowOnError();
+        Writer_->Close().BlockingGet().ThrowOnError();
     }
 
     auto result = ParseJsonToNode(OutputStream_.Str());

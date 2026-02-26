@@ -1310,7 +1310,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, ArbitraryKeyLength)
         ChunkReadOptions_,
         /*workloadCategory*/ std::nullopt);
 
-    EXPECT_TRUE(reader->Open().Get().IsOK());
+    EXPECT_TRUE(reader->Open().BlockingGet().IsOK());
 
     std::vector<TVersionedRow> rows;
     rows.reserve(10);
@@ -1931,7 +1931,7 @@ TEST_F(TMultiLockSortedDynamicStoreTest, OutOfOrderWrites)
     {
         auto reader = Store_->CreateSnapshotReader();
         reader->Open()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
 
         TRowBatchReadOptions options{
@@ -2104,7 +2104,7 @@ protected:
             /*workloadCategory*/ std::nullopt);
 
         lookupReader->Open()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
 
         std::vector<TVersionedRow> rows;

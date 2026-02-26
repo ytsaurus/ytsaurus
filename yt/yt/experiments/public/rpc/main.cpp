@@ -130,7 +130,7 @@ void RunRpcClient(const TString& address, i32 numIter)
         result = request->Invoke();
         if (i % 10000 == 0) {
             Cout << "iteration " << i << Endl;
-            auto response = result.Get().ValueOrThrow();
+            auto response = result.BlockingGet().ValueOrThrow();
             YT_ASSERT(response->b() == i + 42);
         }
     }

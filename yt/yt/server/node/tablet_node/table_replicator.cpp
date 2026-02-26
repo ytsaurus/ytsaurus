@@ -263,7 +263,7 @@ private:
             {
                 auto throttleFuture = Throttler_->Throttle(1);
                 if (throttleFuture.IsSet()) {
-                    throttleFuture.Get().ThrowOnError();
+                    throttleFuture.BlockingGet().ThrowOnError();
                 } else {
                     TEventTimerGuard timerGuard(counters.ReplicationThrottleTime);
                     YT_LOG_DEBUG("Started waiting for replication throttling");
@@ -277,7 +277,7 @@ private:
             {
                 auto throttleFuture = RelativeThrottler_->Throttle();
                 if (throttleFuture.IsSet()) {
-                    throttleFuture.Get().ThrowOnError();
+                    throttleFuture.BlockingGet().ThrowOnError();
                 } else {
                     TEventTimerGuard timerGuard(counters.ReplicationThrottleTime);
                     YT_LOG_DEBUG("Started waiting for relative replication throttling");

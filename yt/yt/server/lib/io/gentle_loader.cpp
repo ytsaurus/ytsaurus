@@ -1072,7 +1072,7 @@ private:
                 Results_.begin(),
                 Results_.end(),
                 [&] (const TFuture<TDuration>& future) {
-                    if (future.IsSet() && !future.Get().IsOK()) {
+                    if (future.IsSet() && !future.BlockingGet().IsOK()) {
                         YT_LOG_DEBUG(future.Get(), "Request is failed");
                     }
                     return future.IsSet();

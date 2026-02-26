@@ -390,7 +390,7 @@ TEST_F(TOperationControllerTest, TestConcurrentScheduleAllocationCallsThrottling
     }
 
     readyToGo.Set();
-    EXPECT_TRUE(AllSucceeded(futures).WithTimeout(TDuration::Seconds(2)).Get().IsOK());
+    EXPECT_TRUE(AllSucceeded(futures).WithTimeout(TDuration::Seconds(2)).BlockingGet().IsOK());
 
     for (const auto& context : contexts) {
         controller->OnScheduleAllocationFinished(context);
@@ -501,7 +501,7 @@ TEST_F(TOperationControllerTest, TestConcurrentScheduleAllocationExecDurationThr
     }
 
     readyToGo.Set();
-    EXPECT_TRUE(AllSucceeded(futures).WithTimeout(TDuration::Seconds(2)).Get().IsOK());
+    EXPECT_TRUE(AllSucceeded(futures).WithTimeout(TDuration::Seconds(2)).BlockingGet().IsOK());
 
     for (const auto& context : contexts) {
         controller->OnScheduleAllocationFinished(context);
@@ -584,7 +584,7 @@ TEST_F(TOperationControllerTest, TestConcurrentControllerScheduleAllocationCalls
     }
 
     readyToGo.Set();
-    EXPECT_TRUE(AllSucceeded(futures).WithTimeout(TDuration::Seconds(2)).Get().IsOK());
+    EXPECT_TRUE(AllSucceeded(futures).WithTimeout(TDuration::Seconds(2)).BlockingGet().IsOK());
 
     for (const auto& context : contexts) {
         controller->OnScheduleAllocationFinished(context);
@@ -679,7 +679,7 @@ TEST_F(TOperationControllerTest, TestScheduleAllocationTimeout)
     actionQueue->GetInvoker()->Invoke(BIND([finished] {
         finished.Set();
     }));
-    EXPECT_TRUE(finished.ToFuture().Get().IsOK());
+    EXPECT_TRUE(finished.ToFuture().BlockingGet().IsOK());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

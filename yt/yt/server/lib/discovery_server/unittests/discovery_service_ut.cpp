@@ -188,7 +188,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestSimple)
 
     {
         auto membersFuture = discoveryClient->ListMembers(groupId, {});
-        const auto& members = membersFuture.Get().ValueOrThrow();
+        const auto& members = membersFuture.BlockingGet().ValueOrThrow();
         ASSERT_EQ(2u, members.size());
         ASSERT_EQ(memberId1, members[0].Id);
         ASSERT_EQ(memberId2, members[1].Id);
@@ -198,7 +198,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestSimple)
 
     auto checkMember = [&] {
         auto membersFuture = discoveryClient->ListMembers(groupId, {});
-        const auto& members = membersFuture.Get().ValueOrThrow();
+        const auto& members = membersFuture.BlockingGet().ValueOrThrow();
         return members.size() == 1 && members[0].Id == memberId2;
     };
     WaitForPredicate(checkMember);
@@ -231,7 +231,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestListGroups)
             return false;
         }
 
-        auto [groups, incomplete] = groupsFuture.Get().ValueOrThrow();
+        auto [groups, incomplete] = groupsFuture.BlockingGet().ValueOrThrow();
 
         std::sort(groups.begin(), groups.end());
         std::sort(expectedGroups.begin(), expectedGroups.end());
@@ -252,7 +252,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestListGroups)
             return false;
         }
 
-        auto [groups, incomplete] = groupsFuture.Get().ValueOrThrow();
+        auto [groups, incomplete] = groupsFuture.BlockingGet().ValueOrThrow();
         return ssize(groups) == expectedSize && (incomplete == expectIncomplete);
     };
 
@@ -265,7 +265,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestListGroups)
             return false;
         }
 
-        return !groupsFuture.Get().IsOK();
+        return !groupsFuture.BlockingGet().IsOK();
     };
 
     WaitForPredicate(BIND(checkNonExistent));
@@ -342,7 +342,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestAttributes)
 
     auto checkAttributes2 = [&] {
         auto membersFuture = discoveryClient->ListMembers(groupId, options);
-        const auto& members = membersFuture.Get().ValueOrThrow();
+        const auto& members = membersFuture.BlockingGet().ValueOrThrow();
         if (members.size() != 1 || members[0].Id != memberId) {
             return false;
         }
@@ -386,7 +386,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestPriority)
 
     {
         auto membersFuture = discoveryClient->ListMembers(groupId, {});
-        const auto& members = membersFuture.Get().ValueOrThrow();
+        const auto& members = membersFuture.BlockingGet().ValueOrThrow();
         ASSERT_EQ(membersNum, std::ssize(members));
         for (int i = 0; i < membersNum; ++i) {
             ASSERT_EQ(i, members[i].Priority);
@@ -409,7 +409,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestPriority)
 
     {
         auto membersFuture = discoveryClient->ListMembers(groupId, options);
-        const auto& members = membersFuture.Get().ValueOrThrow();
+        const auto& members = membersFuture.BlockingGet().ValueOrThrow();
         ASSERT_EQ(options.Limit, std::ssize(members));
         for (int i = 0; i < options.Limit; ++i) {
             ASSERT_EQ(i, members[i].Priority);
@@ -519,7 +519,7 @@ TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestNestedGroups)
     auto checkGroupDeleted = [&] {
         const auto& [groupId, memberId] = testMembers[1];
         auto groupMetaFuture = discoveryClient->GetGroupMeta(groupId);
-        return !groupMetaFuture.Get().IsOK();
+        return !groupMetaFuture.BlockingGet().IsOK();
     };
     WaitForPredicate(checkGroupDeleted);
 
@@ -528,13 +528,13 @@ TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestNestedGroups)
         auto groupMetaFuture = discoveryClient->GetGroupMeta(groupId);
         auto membersFuture = discoveryClient->ListMembers(groupId, {});
         if (index == 1) {
-            EXPECT_THROW_WITH_SUBSTRING(groupMetaFuture.Get().ThrowOnError(), "does not exist");
-            EXPECT_THROW_WITH_SUBSTRING(membersFuture.Get().ThrowOnError(), "does not exist");
+            EXPECT_THROW_WITH_SUBSTRING(groupMetaFuture.BlockingGet().ThrowOnError(), "does not exist");
+            EXPECT_THROW_WITH_SUBSTRING(membersFuture.BlockingGet().ThrowOnError(), "does not exist");
         } else {
-            auto groupMeta = groupMetaFuture.Get().ValueOrThrow();
+            auto groupMeta = groupMetaFuture.BlockingGet().ValueOrThrow();
             ASSERT_EQ(1, groupMeta.MemberCount);
 
-            auto members = membersFuture.Get().ValueOrThrow();
+            auto members = membersFuture.BlockingGet().ValueOrThrow();
             ASSERT_EQ(1u, members.size());
             ASSERT_EQ(memberId, members[0].Id);
         }
