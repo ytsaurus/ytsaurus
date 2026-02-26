@@ -2944,12 +2944,14 @@ class TestQueryRpcProxy(TestQuery):
             name="rpc_proxy/detailed_table_statistics/select_duration",
             fixed_tags={"table_path": "//tmp/t"})
 
-        def check():
-            def _check(select_duration_histogram):
+        def check(select_duration_histogram):
+            prev_bin_counters_sum = sum(bin["count"] for bin in select_duration_histogram.get_bins(verbose=True))
+
+            def _check():
                 try:
                     bins = select_duration_histogram.get_bins(verbose=True)
                     bin_counters = [bin["count"] for bin in bins]
-                    if sum(bin_counters) != 1:
+                    if sum(bin_counters) == prev_bin_counters_sum:
                         return False
                     if len(bin_counters) < 20:
                         return False
@@ -2962,13 +2964,14 @@ class TestQueryRpcProxy(TestQuery):
             assert select_rows("""* from [//tmp/t]""", driver=rpc_driver) == rows
 
             try:
-                wait(lambda: _check(node_select_duration_histogram), iter=5, sleep_backoff=0.5)
-                wait(lambda: _check(proxy_select_duration_histogram), iter=5, sleep_backoff=0.5)
+                wait(lambda: _check(), iter=5, sleep_backoff=0.5)
                 return True
             except WaitFailed:
                 return False
 
-        wait(lambda: check())
+        wait(lambda: check(node_select_duration_histogram))
+        wait(lambda: check(proxy_select_duration_histogram))
+
         assert profiler_factory().at_rpc_proxy(rpc_proxy).get(
             name="rpc_proxy/detailed_table_statistics/select_mount_cache_wait_time",
             tags={"table_path": "//tmp/t"},
