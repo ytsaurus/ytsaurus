@@ -69,6 +69,10 @@ void TDynamicSecurityManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("allow_alter_without_full_read", &TThis::AllowAlterWithoutFullRead)
         .Default(EAllowAlterWithoutFullRead::Allow);
+
+    registrar.Parameter("enable_proper_columar_ace_handling", &TThis::EnableProperColumnarAceHandling)
+        .Default(false)
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

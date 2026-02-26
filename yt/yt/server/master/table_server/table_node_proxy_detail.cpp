@@ -158,25 +158,24 @@ void TTableNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* context)
         }
 
         if (checkOptions.Columns) {
-            for (size_t index = 0; index < checkOptions.Columns->size(); ++index) {
-                const auto& column = (*checkOptions.Columns)[index];
-                const auto& result = (*checkResponse.Columns)[index];
-                if (result.Action == ESecurityAction::Deny) {
-                    if (context->OmitInaccessibleColumns) {
-                        if (!context->OmittedInaccessibleColumns) {
-                            context->OmittedInaccessibleColumns.emplace();
-                        }
-                        context->OmittedInaccessibleColumns->push_back(column);
-                    } else {
-                        TPermissionCheckTarget target;
-                        target.ObjectId = Object_->GetId();
-                        target.Column = column;
-                        securityManager->LogAndThrowAuthorizationError(
-                            target,
-                            user,
-                            EPermission::Read,
-                            result);
+            for (const auto& [column, result] : Zip(*checkOptions.Columns, *checkResponse.Columns)) {
+                if (result.Action != ESecurityAction::Deny) {
+                    continue;
+                }
+                if (context->OmitInaccessibleColumns) {
+                    if (!context->OmittedInaccessibleColumns) {
+                        context->OmittedInaccessibleColumns.emplace();
                     }
+                    context->OmittedInaccessibleColumns->push_back(column);
+                } else {
+                    TPermissionCheckTarget target;
+                    target.ObjectId = Object_->GetId();
+                    target.Column = column;
+                    securityManager->LogAndThrowAuthorizationError(
+                        target,
+                        user,
+                        EPermission::Read,
+                        result);
                 }
             }
         }
