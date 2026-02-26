@@ -281,6 +281,7 @@
     XX(IndexTablePath, index_table_path) \
     XX(IndexTo, index_to) \
     XX(InheritAcl, inherit_acl) \
+    XX(InplaceReshard, inplace_reshard) \
     XX(IntegralGuarantees, integral_guarantees) \
     XX(IOStatistics, io_statistics) \
     XX(IOStatisticsPerMedium, io_statistics_per_medium) \

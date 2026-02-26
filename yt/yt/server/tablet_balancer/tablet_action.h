@@ -21,6 +21,7 @@ public:
 
     DEFINE_BYREF_RO_PROPERTY(std::vector<TTabletCellId>, CellIds);
     DEFINE_BYREF_RO_PROPERTY(int, TabletCount);
+    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(InplaceReshard);
 
     DEFINE_BYREF_RW_PROPERTY(TError, Error);
     DEFINE_BYVAL_RW_PROPERTY(ETabletActionState, State, ETabletActionState::Preparing);

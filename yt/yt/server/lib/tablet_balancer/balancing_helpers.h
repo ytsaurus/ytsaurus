@@ -20,6 +20,7 @@ struct TReshardDescriptor
     i64 DataSize;
     TGuid CorrelationId;
     std::vector<NTableClient::TLegacyOwningKey> PivotKeys;
+    bool Inplace = false;
 
     // IsSplit, TabletCountDiff, Deviation.
     std::tuple<bool, int, double> Priority;

@@ -26,6 +26,7 @@ TTabletAction::TTabletAction(
             Kind_ = ETabletActionKind::Reshard;
             TabletIds_ = std::move(descriptor.Tablets);
             TabletCount_ = descriptor.TabletCount;
+            InplaceReshard_ = descriptor.Inplace;
             CorrelationId_ = descriptor.CorrelationId;
         });
 }
