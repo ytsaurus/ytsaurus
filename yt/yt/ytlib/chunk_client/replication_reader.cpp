@@ -2977,7 +2977,7 @@ private:
 
         std::vector<int> fetchedBlockIndexes;
         for (int index = 0; index < std::ssize(blocks); ++index) {
-            if (!cachedBlockFutures[index].Get().IsOK()) {
+            if (!cachedBlockFutures[index].BlockingGet().IsOK()) {
                 continue;
             }
 

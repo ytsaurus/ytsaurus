@@ -1907,6 +1907,38 @@ class TestCypressAcls(CheckPermissionBase):
         with raises_yt_error("tag filter size limit exceeded"):
             set("//tmp/dir/@acl/0/subject_tag_filter", "&".join([f"tag_{i}" for i in range(10)]))
 
+    @authors("danilalexeev")
+    @not_implemented_in_sequoia
+    def test_tag_filter_with_columnar_ace(self):
+        create_user("u")
+        set("//sys/users/u/@tags", ["u"])
+
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "schema": [
+                    {"name": "public", "type": "string"},
+                    {"name": "secret", "type": "string"},
+                ],
+                "acl": [
+                    make_ace("allow", "everyone", "read", columns="secret", subject_tag_filter="!u"),
+                ],
+            },
+        )
+
+        read_table("//tmp/t{public}", authenticated_user="u")
+        with pytest.raises(YtError):
+            read_table("//tmp/t", authenticated_user="u")
+        with pytest.raises(YtError):
+            read_table("//tmp/t{secret}", authenticated_user="u")
+
+        # COMPAT(danilalexeev): YT-27444.
+        set("//sys/@config/security_manager/enable_proper_columar_ace_handling", False)
+        read_table("//tmp/t", authenticated_user="u")
+        read_table("//tmp/t{public}", authenticated_user="u")
+        read_table("//tmp/t{secret}", authenticated_user="u")
+
     @authors("h0pless")
     @not_implemented_in_sequoia
     def test_disable_subject_tag_filters(self):
@@ -1947,18 +1979,6 @@ class TestCypressAcls(CheckPermissionBase):
                 "//tmp/uncool_dir/cool_table",
                 authenticated_user="George50",
             )
-
-        set("//sys/@config/security_manager/enable_subject_tag_filters", False)
-        create(
-            "table",
-            "//tmp/cool_dir/anohter_cool_table",
-            authenticated_user="George50",
-        )
-        create(
-            "table",
-            "//tmp/uncool_dir/another_cool_table",
-            authenticated_user="George50",
-        )
 
     @authors("kivedernikov")
     @not_implemented_in_sequoia

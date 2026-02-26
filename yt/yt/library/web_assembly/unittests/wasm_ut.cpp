@@ -1612,7 +1612,7 @@ TEST_F(TWebAssemblyTest, InfiniteRecursion)
         })
             .AsyncVia(actionQueue->GetInvoker())
             .Run()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
     };
 

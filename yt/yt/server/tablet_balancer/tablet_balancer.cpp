@@ -26,12 +26,14 @@
 
 #include <yt/yt/ytlib/tablet_client/pivot_keys_picker.h>
 
-#include <yt/yt/core/tracing/trace_context.h>
+#include <yt/yt/core/concurrency/thread_pool.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/yt/core/misc/random.h>
 
-#include <yt/yt/core/concurrency/thread_pool.h>
-#include <yt/yt/core/concurrency/throughput_throttler.h>
+#include <yt/yt/core/tracing/trace_context.h>
+
+#include <yt/yt/core/ytree/virtual.h>
 
 #include <util/random/shuffle.h>
 
@@ -181,6 +183,26 @@ public:
         const TTabletBalancerDynamicConfigPtr& newConfig) override;
 
 private:
+    using TTabletBalancerPtr = TIntrusivePtr<TTabletBalancer>;
+
+    class TBundleOrchidService
+        : public TVirtualMapBase
+    {
+    public:
+        explicit TBundleOrchidService(TTabletBalancerPtr owner)
+            : Owner_(std::move(owner))
+        { }
+
+        std::vector<std::string> GetKeys(i64 limit) const final;
+        i64 GetSize() const final;
+        IYPathServicePtr FindItemService(const std::string& key) const final;
+
+    private:
+        const TTabletBalancerPtr Owner_;
+
+        DECLARE_NEW_FRIEND()
+    };
+
     using TReshardDescriptorIt = std::vector<TReshardDescriptor>::iterator;
 
     struct TScheduledActionCountLimiter
@@ -321,9 +343,6 @@ private:
         const TBundleTabletBalancerConfigPtr& config,
         const std::string& bundleName,
         const TTimeFormula& groupSchedule) const;
-
-    //! Taking reader guard on BundleErrorsLock.
-    void BuildOrchid(IYsonConsumer* consumer) const;
 
     //! Thread affinity: any.
     void SaveBundleError(std::deque<TError>* errors, TError error) const;
@@ -790,6 +809,56 @@ bool TTabletBalancer::TryScheduleActionCreation(
     return increased;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+i64 TTabletBalancer::TBundleOrchidService::GetSize() const
+{
+    return Owner_->Bundles_.size();
+}
+
+IYPathServicePtr TTabletBalancer::TBundleOrchidService::FindItemService(const std::string& key) const
+{
+    auto bundlesIt = Owner_->Bundles_.find(key);
+    if (bundlesIt == Owner_->Bundles_.end()) {
+        return nullptr;
+    }
+
+    auto guard = Guard(Owner_->BundleErrorsLock_);
+
+    auto bundleErrorsIt = Owner_->BundleErrors_.find(key);
+
+    const auto& bundleErrors = bundleErrorsIt != Owner_->BundleErrors_.end()
+        ? bundleErrorsIt->second
+        : TBundleErrors{};
+
+    return BuildYsonNodeFluently()
+        .BeginMap()
+            .Do([&] (TFluentMap fluent) {
+                fluent
+                    .Item("errors")
+                        .List(bundleErrors.FatalErrors)
+                    .Item("retryable_errors")
+                        .List(bundleErrors.RetryableErrors);
+            })
+        .EndMap();
+}
+
+std::vector<std::string> TTabletBalancer::TBundleOrchidService::GetKeys(i64 limit) const
+{
+    std::vector<std::string> keys;
+
+    for (const auto& [bundleName, _] : Owner_->Bundles_) {
+        if (std::ssize(keys) >= limit) {
+            break;
+        }
+        keys.push_back(bundleName);
+    }
+
+    return keys;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 IYPathServicePtr TTabletBalancer::GetOrchidService()
 {
     YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
@@ -800,37 +869,59 @@ IYPathServicePtr TTabletBalancer::GetOrchidService()
         RemoveBundleErrorsByTtl(DynamicConfig_.Acquire()->BundleErrorsTtl);
     }
 
-    return IYPathService::FromProducer(BIND(&TTabletBalancer::BuildOrchid, MakeWeak(this)))
-        ->Via(ControlInvoker_);
-}
+    auto dynamicOrchidService = New<TCompositeMapService>();
 
-void TTabletBalancer::BuildOrchid(IYsonConsumer* consumer) const
-{
-    auto guard = Guard(BundleErrorsLock_);
+    dynamicOrchidService->AddChild(
+        "bundles",
+        New<TBundleOrchidService>(MakeStrong(this)));
 
-    BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("config").Value(Config_)
-            .Item("bundle_errors")
-                .DoMapFor(BundleErrors_, [] (auto fluent, const auto& pair) {
-                    fluent.DoIf(!pair.second.FatalErrors.empty(), [&] (TFluentMap fluent) {
-                        fluent.Item(pair.first).DoListFor(pair.second.FatalErrors, [] (auto fluent, const auto& error) {
-                            fluent.Item().Value(error);
-                        });
+    dynamicOrchidService->AddChild(
+        "config",
+        IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
+            BuildYsonFluently(consumer).Value(Config_);
+        })));
+
+    dynamicOrchidService->AddChild(
+        "bundle_errors",
+        IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
+            auto guard = Guard(BundleErrorsLock_);
+
+            BuildYsonFluently(consumer).DoMapFor(BundleErrors_, [] (auto fluent, const auto& pair) {
+                fluent.DoIf(!pair.second.FatalErrors.empty(), [&] (TFluentMap fluent) {
+                    fluent.Item(pair.first).DoListFor(pair.second.FatalErrors, [] (auto fluent, const auto& error) {
+                        fluent.Item().Value(error);
                     });
-                })
-            .Item("retryable_bundle_errors")
-                .DoMapFor(BundleErrors_, [] (auto fluent, const auto& pair) {
-                    fluent.DoIf(!pair.second.RetryableErrors.empty(), [&] (TFluentMap fluent) {
-                        fluent.Item(pair.first).DoListFor(pair.second.RetryableErrors, [] (auto fluent, const auto& error) {
-                            fluent.Item().Value(error);
-                        });
+                });
+            });
+        })));
+
+    dynamicOrchidService->AddChild(
+        "retryable_bundle_errors",
+        IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
+            auto guard = Guard(BundleErrorsLock_);
+
+            BuildYsonFluently(consumer).DoMapFor(BundleErrors_, [] (auto fluent, const auto& pair) {
+                fluent.DoIf(!pair.second.RetryableErrors.empty(), [&] (TFluentMap fluent) {
+                    fluent.Item(pair.first).DoListFor(pair.second.RetryableErrors, [] (auto fluent, const auto& error) {
+                        fluent.Item().Value(error);
                     });
-                })
-            .DoIf(PreciseCurrentIterationStartTime_ != TInstant::Zero(), [&] (TFluentMap fluent) {
-                fluent.Item("last_iteration_start_time").Value(PreciseCurrentIterationStartTime_);
-            })
-        .EndMap();
+                });
+            });
+        })));
+
+    dynamicOrchidService->AddChild(
+        "last_iteration_start_time",
+        IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
+            if (PreciseCurrentIterationStartTime_) {
+                BuildYsonFluently(consumer).Value(PreciseCurrentIterationStartTime_);
+            } else {
+                BuildYsonFluently(consumer).Entity();
+            }
+        })));
+
+    dynamicOrchidService->SetOpaque(false);
+
+    return dynamicOrchidService;
 }
 
 void TTabletBalancer::OnDynamicConfigChanged(

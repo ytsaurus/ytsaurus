@@ -616,6 +616,8 @@ public:
                         columnTo->insertDefault();
                     }
                 }
+            } else {
+                columnTo->insertDefault();
             }
         }
 

@@ -53,7 +53,7 @@ TEST(TSubprocessTest, PipeStdin)
 
         TStringBuf output(result.Output.Begin(), result.Output.End());
         EXPECT_EQ(input, output);
-    }).AsyncVia(queue->GetInvoker()).Run().Get().ThrowOnError();
+    }).AsyncVia(queue->GetInvoker()).Run().BlockingGet().ThrowOnError();
 }
 
 TEST(TSubprocessTest, PipeBigOutput)

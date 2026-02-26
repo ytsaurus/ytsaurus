@@ -646,7 +646,7 @@ void TestVersionedLookupRead(TString chunkName, TOptions options, int nth)
 
         // auto openFuture = versionedReader->Open();
         // if (openFuture.IsSet()) {
-        //     openFuture.Get().ThrowOnError();
+        //     openFuture.BlockingGet().ThrowOnError();
         // } else {
         //     WaitFor(openFuture)
         //     .ThrowOnError();

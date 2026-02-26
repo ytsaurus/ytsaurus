@@ -111,7 +111,7 @@ public:
 
     void TearDown() final
     {
-        Server_->Stop().Get().ThrowOnError();
+        Server_->Stop().BlockingGet().ThrowOnError();
         Server_.Reset();
     }
 

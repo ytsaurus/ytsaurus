@@ -296,7 +296,7 @@ struct ISecurityManager
     //! Returns |true| if object has columnar ace for this user.
     virtual bool HasColumnarAce(NObjectServer::TObject* object, TUser* user, TAcdOverride firstObjectAcdOverride = {}) const = 0;
 
-    //! Returns |true| if object has columnar ace for any user.
+    //! Returns |true| if object has row-level ace.
     virtual bool HasRowLevelAce(NObjectServer::TObject* object) const = 0;
 
     //! Checks if #object ACL allows access with #permission. May throw on invalid request.

@@ -105,7 +105,7 @@ bool TColumnarChunkReaderBase::IsFetchingCompleted() const
 
 std::vector<TChunkId> TColumnarChunkReaderBase::GetFailedChunkIds() const
 {
-    if (auto readyEvent = ReadyEvent(); readyEvent.IsSet() && !readyEvent.Get().IsOK()) {
+    if (auto readyEvent = ReadyEvent(); readyEvent.IsSet() && !readyEvent.BlockingGet().IsOK()) {
         return { UnderlyingReader_->GetChunkId() };
     } else {
         return std::vector<TChunkId>();
@@ -119,7 +119,7 @@ void TColumnarChunkReaderBase::FeedBlocksToReaders()
         const auto& column = Columns_[i];
         const auto& columnReader = column.ColumnReader;
         if (blockFuture) {
-            YT_VERIFY(blockFuture.IsSet() && blockFuture.Get().IsOK());
+            YT_VERIFY(blockFuture.IsSet() && blockFuture.BlockingGet().IsOK());
 
             if (columnReader->GetCurrentBlockIndex() != -1) {
                 RequiredMemorySize_ -= BlockFetcher_->GetBlockSize(columnReader->GetCurrentBlockIndex());

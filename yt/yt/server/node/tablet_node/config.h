@@ -150,6 +150,9 @@ struct TTabletCellWriteManagerDynamicConfig
     //! applied or not applied.
     std::optional<double> WriteFailureProbability;
 
+    //! Compat. See comment in TTabletWriteManager::OnTransactionTransientReset.
+    bool DetectTransientTransactionsPerTablet;
+
     REGISTER_YSON_STRUCT(TTabletCellWriteManagerDynamicConfig);
 
     static void Register(TRegistrar registrar);

@@ -2238,24 +2238,17 @@ public:
 
     bool HasColumnarAce(TObject* object, TUser* user, TAcdOverride firstObjectAcdOverride) const override
     {
-        const auto& dynamicConfig = GetDynamicConfig();
-        auto* userTags = dynamicConfig->EnableSubjectTagFilters ? &user->Tags() : nullptr;
-
-        TTagFilteringAceIterator aceIter(
-            Bootstrap_->GetObjectManager().Get(),
+        auto result = false;
+        TraverseEffectiveAcl(
             object,
-            userTags,
-            std::move(firstObjectAcdOverride));
-        auto aceEndIter = TTagFilteringAceIterator();
-
-        for (; aceIter != aceEndIter; ++aceIter) {
-            auto value = *aceIter;
-            auto* currentAce = value.Ace;
-            if (currentAce->Columns) {
-                return true;
-            }
-        }
-        return false;
+            user,
+            std::move(firstObjectAcdOverride),
+            [&] (const TAceIterator::TValue& value) -> bool {
+                auto* currentAce = value.Ace;
+                result = currentAce->Columns.has_value();
+                return !result;
+            });
+        return result;
     }
 
     bool HasRowLevelAce(TObject* object) const override
@@ -2275,6 +2268,42 @@ public:
             }
         }
         return false;
+    }
+
+    // COMPAT(danilalexeev): YT-27444.
+    EAceIteratorStopCause TraverseEffectiveAcl(
+        NObjectServer::TObject* object,
+        TUser* user,
+        TAcdOverride firstObjectAcdOverride,
+        CInvocable<bool(const TAceIterator::TValue&)> auto visitor) const
+    {
+        if (GetDynamicConfig()->EnableProperColumnarAceHandling) {
+            TAceIterator aceIter(
+                Bootstrap_->GetObjectManager().Get(),
+                object,
+                std::move(firstObjectAcdOverride));
+            auto aceEndIter = TAceIterator();
+            for (; aceIter != aceEndIter; ++aceIter) {
+                if (!visitor(*aceIter)) {
+                    break;
+                }
+            }
+            return aceIter.GetStopCause();
+        } else {
+            auto* userTags = GetDynamicConfig()->EnableSubjectTagFilters ? &user->Tags() : nullptr;
+            TTagFilteringAceIterator aceIter(
+                Bootstrap_->GetObjectManager().Get(),
+                object,
+                userTags,
+                std::move(firstObjectAcdOverride));
+            auto aceEndIter = TTagFilteringAceIterator();
+            for (; aceIter != aceEndIter; ++aceIter) {
+                if (!visitor(*aceIter)) {
+                    break;
+                }
+            }
+            return aceIter.GetStopCause();
+        }
     }
 
     TPermissionCheckResponse CheckPermission(
@@ -2320,38 +2349,30 @@ public:
 
         auto* owner = GetObjectOwner(object, options.FirstObjectAcdOverride.Owner());
 
-        const auto& dynamicConfig = GetDynamicConfig();
-        auto* userTags = dynamicConfig->EnableSubjectTagFilters ? &user->Tags() : nullptr;
-
         TWallTimer aclIterationTimer;
-        TTagFilteringAceIterator aceIter(
-            Bootstrap_->GetObjectManager().Get(),
-            object,
-            userTags,
-            std::move(options.FirstObjectAcdOverride));
-        auto aceEndIter = TTagFilteringAceIterator();
 
         auto* currentObject = object;
         int currentDepth = 0;
 
         // Slow lane: check ACLs through the object hierarchy.
-        for (; aceIter != aceEndIter; ++aceIter) {
-            auto value = *aceIter;
-            currentObject = value.Object;
-            currentDepth = value.ObjectsTraversed;
-            auto* currentAce = value.Ace;
+        auto stopCause = TraverseEffectiveAcl(
+            object,
+            user,
+            std::move(options.FirstObjectAcdOverride),
+            [&] (const TAceIterator::TValue& value) -> bool {
+                currentObject = value.Object;
+                currentDepth = value.ObjectsTraversed;
+                auto* currentAce = value.Ace;
 
-            checker.ProcessAce(*currentAce, owner, currentObject, currentDepth);
-            if (!checker.ShouldProceed()) {
-                break;
-            }
-        }
+                checker.ProcessAce(*currentAce, owner, currentObject, currentDepth);
+                return checker.ShouldProceed();
+            });
         AclIterationTimeCounter_.Add(aclIterationTimer.GetElapsedTime());
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
 
         // XXX(shakurov): YT-3005, YT-10896: remove this workaround.
-        if (aceIter.GetStopCause() == EAceIteratorStopCause::NoParent &&
+        if (stopCause == EAceIteratorStopCause::NoParent &&
             IsVersionedType(currentObject->GetType()) &&
             !cypressManager->IsShardRoot(currentObject))
         {
@@ -4599,7 +4620,10 @@ private:
             TUser* user,
             EPermission permission,
             const TPermissionCheckOptions* options)
-            : MatchAceSubjectCallback_(user, impl->GetOwnerUser())
+            : MatchAceSubjectCallback_(
+                user,
+                impl->GetOwnerUser(),
+                impl->GetDynamicConfig()->EnableSubjectTagFilters)
             , Underlying_(permission, MatchAceSubjectCallback_, options)
         {
             YT_LOG_ALERT_IF(
@@ -4652,13 +4676,24 @@ private:
             DEFINE_BYVAL_RW_PROPERTY(TSubject*, OwnerSubjectOverride);
 
         public:
-            TAdjustAndMatchAceSubjectCallback(TUser* user, TSubject* builtinOwnerSubject)
+            TAdjustAndMatchAceSubjectCallback(
+                TUser* user,
+                TSubject* builtinOwnerSubject,
+                bool enableSubjectTagFilters)
                 : User_(user)
                 , BuiltinOwnerSubject_(builtinOwnerSubject)
+                , EnableSubjectTagFilters_(enableSubjectTagFilters)
             { }
 
             TSubjectId operator()(const TAccessControlEntry& ace) const
             {
+                if (EnableSubjectTagFilters_ &&
+                    ace.SubjectTagFilter &&
+                    !ace.SubjectTagFilter->IsSatisfiedBy(User_->Tags()))
+                {
+                    return NullObjectId;
+                }
+
                 for (auto subject : ace.Subjects) {
                     auto* adjustedSubject = subject == BuiltinOwnerSubject_ && OwnerSubjectOverride_
                         ? OwnerSubjectOverride_
@@ -4677,6 +4712,7 @@ private:
         private:
             TUser* const User_;
             TSubject* const BuiltinOwnerSubject_;
+            const bool EnableSubjectTagFilters_;
 
             static bool CheckSubjectMatch(TSubject* subject, TUser* user)
             {

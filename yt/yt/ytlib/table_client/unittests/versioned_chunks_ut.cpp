@@ -348,7 +348,7 @@ protected:
             memoryPool.Clear();
         }
 
-        EXPECT_TRUE(chunkWriter->Close().Get().IsOK());
+        EXPECT_TRUE(chunkWriter->Close().BlockingGet().IsOK());
 
         // Initialize reader.
         MemoryReader = CreateMemoryReader(
@@ -373,7 +373,7 @@ protected:
                 &TCachedVersionedChunkMeta::Create,
                 /*prepareColumnarMeta*/ false,
                 /*memoryTracker*/ nullptr))
-            .Get()
+            .BlockingGet()
             .ValueOrThrow();
 
         {
@@ -514,8 +514,8 @@ protected:
                     /*produceAllVersions*/ false);
             }
 
-            EXPECT_TRUE(versionedReader->Open().Get().IsOK());
-            EXPECT_TRUE(versionedReader->GetReadyEvent().Get().IsOK());
+            EXPECT_TRUE(versionedReader->Open().BlockingGet().IsOK());
+            EXPECT_TRUE(versionedReader->GetReadyEvent().BlockingGet().IsOK());
 
             CheckResult(std::move(expectedRows), versionedReader);
         }
@@ -557,7 +557,7 @@ TEST_F(TVersionedChunkLookupTest, TestIndexedMetadata)
     });
 
     auto chunkMeta = MemoryReader->GetMeta(/*options*/ {})
-        .Get()
+        .BlockingGet()
         .ValueOrThrow();
 
     auto versionedChunkMeta = TCachedVersionedChunkMeta::Create(
@@ -816,7 +816,7 @@ protected:
             /*writeBlocksOptions*/ {});
 
         Y_UNUSED(chunkWriter->Write(initialRows));
-        EXPECT_TRUE(chunkWriter->Close().Get().IsOK());
+        EXPECT_TRUE(chunkWriter->Close().BlockingGet().IsOK());
 
         return CreateMemoryReader(
             memoryWriter->GetChunkMeta(),
@@ -850,7 +850,7 @@ protected:
                 &TCachedVersionedChunkMeta::Create,
                 /*prepareColumnarMeta*/ false,
                 /*memoryTracker*/ nullptr))
-            .Get()
+            .BlockingGet()
             .ValueOrThrow();
 
         auto chunkState = New<TChunkState>(TChunkState{
@@ -978,7 +978,7 @@ protected:
                 &TCachedVersionedChunkMeta::Create,
                 /*prepareColumnarMeta*/ false,
                 /*memoryTracker*/ nullptr))
-            .Get()
+            .BlockingGet()
             .ValueOrThrow();
 
         auto chunkState = New<TChunkState>(TChunkState{
@@ -1095,8 +1095,8 @@ protected:
             }
         }
 
-        EXPECT_TRUE(versionedReader->Open().Get().IsOK());
-        EXPECT_TRUE(versionedReader->GetReadyEvent().Get().IsOK());
+        EXPECT_TRUE(versionedReader->Open().BlockingGet().IsOK());
+        EXPECT_TRUE(versionedReader->GetReadyEvent().BlockingGet().IsOK());
 
         CheckResult(std::move(expectedRows), versionedReader);
     }
@@ -1110,7 +1110,7 @@ protected:
                 &TCachedVersionedChunkMeta::Create,
                 /*prepareColumnarMeta*/ false,
                 /*memoryTracker*/ nullptr))
-            .Get()
+            .BlockingGet()
             .ValueOrThrow();
 
         return CreateChunkLookupHashTable(
@@ -1754,7 +1754,7 @@ protected:
             /*writeBlocksOptions*/ {});
 
         Y_UNUSED(chunkWriter->Write(InitialRows_));
-        EXPECT_TRUE(chunkWriter->Close().Get().IsOK());
+        EXPECT_TRUE(chunkWriter->Close().BlockingGet().IsOK());
 
         for (const auto& block : memoryWriter->GetBlocks()) {
             EXPECT_LE(block.Size(), config->BlockSize + overhead);

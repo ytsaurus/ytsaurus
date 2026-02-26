@@ -8,6 +8,32 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**2.18.0**" %}
+
+**Release date:** 2026-01-20
+
+
+#### Features:
+- Support RLS in CHYT, [3fe297c](https://github.com/ytsaurus/ytsaurus/commit/3fe297cd8ffc38e019c0121126ceaf5f636166ef).
+- Add read range inference from perdicate, [3a9eb82](https://github.com/ytsaurus/ytsaurus/commit/3a9eb82c7ec5495632f13dc3e8884a158312de4d).
+- Add chyt\_query\_statistics for insert queries and failed queries, [974b2c2](https://github.com/ytsaurus/ytsaurus/commit/974b2c28d5dcf44316516e285596b9c13090ee71), [99a08a3](https://github.com/ytsaurus/ytsaurus/commit/99a08a3449806035c48dd74ee587486569b7a6e1).
+- Add output table to runtime variables, [05cd02a](https://github.com/ytsaurus/ytsaurus/commit/05cd02ade583eaacd9ecf13cd8e27689e4bceefb).
+- Add feature to distribute input specs for secondary queries in pull mode, [c4ba9c4](https://github.com/ytsaurus/ytsaurus/commit/c4ba9c46ffd8522946ef34fe505b61805a21f504).
+- Add optimization for better performance with min/max queries using columnar statistics from nodes, [d83cd46](https://github.com/ytsaurus/ytsaurus/commit/d83cd46c0b5830fbbcdd23c00106b387b439542b).
+- Add optimization for better performance with rle and dictionary encoding (using only distinct values without materialization), [c777591](https://github.com/ytsaurus/ytsaurus/commit/c77759151d82bbfc8720cc269a3c295555974bdf).
+- Add revision check to AttributeCache for more stable performance, [3f3be85](https://github.com/ytsaurus/ytsaurus/commit/3f3be8596e05dd30054e7ddc7bfb15421ffd9afc).
+- Add EnableComlexOptionalConversion to prevent conversion of arrays (can't be nullable in Clickhouse, will change default to false in future), [57a298a](https://github.com/ytsaurus/ytsaurus/commit/57a298ac4c98659fe014d43cea872925d9750424).
+- Add parallel insert-select support in storage\_distributor, [4632de8](https://github.com/ytsaurus/ytsaurus/commit/4632de8546d04ef8f3dedb9b9a26007a5384288b).
+
+#### Fixes:
+- Fix usage of master chunk spec fetcher for ordered dynamic tables. Applicable for CHYT over YT server versions up to 24.2, inclusive, [d3df92f](https://github.com/ytsaurus/ytsaurus/commit/d3df92fd4fa2756f397d329e79243be008512311).
+- Fix CTE errors in LEFT JOIN with IN condition, [b51e5db](https://github.com/ytsaurus/ytsaurus/commit/b51e5db56c9867a4b6615e24d791b59cef7becab).
+- Track total progress on coordinator, [0d5fc5c](https://github.com/ytsaurus/ytsaurus/commit/0d5fc5ce2b0f1c65922627f6d7dfb8bc7d215dd5).
+- Fix multithreaded write to secondaryProgress from different pipes, [8db79f4](https://github.com/ytsaurus/ytsaurus/commit/8db79f457cf71f0e00b8f65bd079aa03aaa9ad52).
+
+{% endcut %}
+
+
 {% cut "**2.17.4**" %}
 
 **Release date:** 2025-09-23

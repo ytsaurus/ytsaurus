@@ -2877,6 +2877,14 @@ class TestCypress(YTEnvSetup):
             "timeout": {"value": 10**6, "path": "//tmp/dir/foo/bar"}}
         assert tt["foo"]["bar"].attributes["effective_acl"] == expected_acl
 
+        assert_items_equal(
+            get("//tmp/dir", attributes={"paths": ["/effective_expiration/time"]}).attributes,
+            yson.to_yson_type({"effective_expiration": {"time": yson.YsonEntity()}}))
+
+        assert_items_equal(
+            get("//tmp/dir", attributes={"keys": ["effective_expiration"], "paths": ["/effective_expiration/time"]}).attributes,
+            yson.to_yson_type({"effective_expiration": {"time": yson.YsonEntity(), "timeout": yson.YsonEntity()}}))
+
     @authors("babenko")
     @pytest.mark.parametrize("preserve", [False, True])
     def test_preserve_creation_time(self, preserve):

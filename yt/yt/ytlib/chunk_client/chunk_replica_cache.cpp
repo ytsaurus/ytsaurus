@@ -405,7 +405,7 @@ public:
             // Try to preserve it as long as the replica set remains same.
             if (entry->Future &&
                 entry->Future.IsSet() &&
-                entry->Future.Get().IsOK() &&
+                entry->Future.BlockingGet().IsOK() &&
                 entry->Future.Get().Value() == canonicalReplicas)
             {
                 return;

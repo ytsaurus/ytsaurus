@@ -399,6 +399,8 @@ private:
     virtual void ExportChunk(TChunk* chunk, NObjectClient::TCellTag destinationCellTag) = 0;
     virtual void UnexportChunk(TChunk* chunk, NObjectClient::TCellTag destinationCellTag, int importRefCounter) = 0;
 
+    virtual bool IsDurabilityRequiredForChunk(TChunk* chunk, TChunkRequisitionIndex requisitionIndex) = 0;
+
     virtual NHydra::TEntityMap<TChunkList>& MutableChunkLists() = 0;
     virtual void DestroyChunkList(TChunkList* chunkList) = 0;
 

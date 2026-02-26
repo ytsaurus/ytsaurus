@@ -25,7 +25,7 @@ private:
         auto bootstrap = CreateSchedulerBootstrap(GetConfig(), GetConfigNode(), GetServiceLocator());
         DoNotOptimizeAway(bootstrap);
         bootstrap->Run()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
         SleepForever();
     }

@@ -122,7 +122,7 @@ protected:
             .Run());
         }
 
-        auto results = AllSet(futures).Get().ValueOrThrow();
+        auto results = AllSet(futures).BlockingGet().ValueOrThrow();
 
         auto t1 = TInstant::Now();
 

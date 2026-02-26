@@ -82,7 +82,7 @@ void TBootstrap::Run()
         BIND(&TBootstrap::DoRun, this)
             .AsyncVia(GetControlInvoker())
             .Run()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
     } catch (const std::exception& ex) {
         // Make best-effort check that error is an "Address already in use" error.

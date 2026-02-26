@@ -26,7 +26,7 @@ void TestNameTableExpansion(ISchemalessFormatWriterPtr writer, NTableClient::TNa
         EXPECT_EQ(true, writer->Write({completeRow.Get()}));
     }
     writer->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 }
 

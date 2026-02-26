@@ -75,7 +75,7 @@ protected:
             })
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run()
-            .Get()
+            .BlockingGet()
             .ThrowOnError(),
             matcher);
     }

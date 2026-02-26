@@ -102,7 +102,7 @@ void ReconstructSequoia(
     BIND(&DoReconstructSequoia, Unretained(bootstrap.get()), reconstructorConfig)
         .AsyncVia(bootstrap->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default))
         .Run()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     FinishRun(bootstrap);

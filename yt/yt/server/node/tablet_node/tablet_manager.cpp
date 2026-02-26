@@ -4977,12 +4977,12 @@ private:
             return;
         }
 
-        if (tablet->GetChaosAgent()) {
-            tablet->GetChaosAgent()->Disable();
-        }
-
         if (tablet->GetTablePuller()) {
             tablet->GetTablePuller()->Disable();
+        }
+
+        if (tablet->GetChaosAgent()) {
+            tablet->GetChaosAgent()->Disable();
         }
 
         tablet->ChaosData()->PullerReplicaCache.Store(GetDisabledPullerReplicaCache());
@@ -5650,7 +5650,7 @@ private:
         return lockCount;
     }
 
-    TTabletNodeDynamicConfigPtr GetDynamicConfig() const final
+    TTabletNodeDynamicConfigPtr GetDynamicConfig() const override final
     {
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         return dynamicConfigManager->GetConfig()->TabletNode;

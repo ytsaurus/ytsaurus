@@ -180,6 +180,9 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
         .Default(TDuration::MilliSeconds(100));
     registrar.Parameter("max_backoff_period", &TThis::MaxBackoffPeriod)
         .Default(TDuration::Hours(2));
+
+    registrar.Parameter("tweak_traversal_info_after_rebalance", &TThis::TweakTraversalInfoAfterRebalance)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -870,6 +873,10 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     // COMPAT(grphil)
     registrar.Parameter("always_fetch_non_online_replicas", &TThis::AlwaysFetchNonOnlineReplicas)
         .Default(true)
+        .DontSerializeDefault();
+
+    registrar.Parameter("update_historically_non_vital_in_unexport", &TThis::UpdateHistoricallyNonVitalInUnexport)
+        .Default(false)
         .DontSerializeDefault();
 
     registrar.Postprocessor([] (TThis* config) {

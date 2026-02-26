@@ -379,7 +379,7 @@ std::string TableToSkiff(
         }).Get(),
     }));
     writer->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     auto result = resultStream.Str();
@@ -517,7 +517,7 @@ void TestAllWireTypes(bool useSchema)
             }).Get(),
         });
         if (!isWriterReady) {
-            writer->GetReadyEvent().Get().ThrowOnError();
+            writer->GetReadyEvent().BlockingGet().ThrowOnError();
         }
 
         Y_UNUSED(writer->Write({
@@ -541,7 +541,7 @@ void TestAllWireTypes(bool useSchema)
         }));
 
         writer->Close()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
     }
 
@@ -674,7 +674,7 @@ TEST_P(TSkiffYsonWireTypeP, Test)
         MakeRow(nameTable, {{"column", value}})
     }));
     writer->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     auto actualSkiffData = actualSkiffDataStream.Str();
@@ -714,7 +714,7 @@ TEST(TSkiffWriterTest, TestYsonWireType)
 
         auto write = [&] (TUnversionedRow row) {
             if (!writer->Write({row})) {
-                writer->GetReadyEvent().Get().ThrowOnError();
+                writer->GetReadyEvent().BlockingGet().ThrowOnError();
             }
         };
 
@@ -796,7 +796,7 @@ TEST(TSkiffWriterTest, TestYsonWireType)
         });
 
         writer->Close()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
     }
 
@@ -1043,7 +1043,7 @@ TEST_P(TSkiffFormatSmallIntP, Test)
         MakeRow(nameTable, {{"column", value}})
     }));
     writer->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
     EXPECT_EQ(actualSkiffData.Str(), expectedSkiffData);
 
@@ -1077,7 +1077,7 @@ TEST(TSkiffWriterTest, TestBadSmallIntegers)
             MakeRow(nameTable, {{"column", std::move(value)}})
         }));
         writer->Close()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
         return result.Str();
     };
@@ -1260,7 +1260,7 @@ TEST_P(TSkiffFormatUuidTestP, Test)
     }
     auto skiffWriter = CreateSkiffWriter(skiffSchema, nameTable, &result, {tableSchema});
     Y_UNUSED(skiffWriter->Write(TRange(nonOwningRows)));
-    skiffWriter->Close().Get().ThrowOnError();
+    skiffWriter->Close().BlockingGet().ThrowOnError();
     ASSERT_EQ(result.Str(), skiffString);
 
     TCollectingValueConsumer rowCollector(nameTable);
@@ -1287,7 +1287,7 @@ TEST(TSkiffFormatUuidTest, TestError)
     Y_UNUSED(skiffWriter->Write({
         MakeRow(nameTable, {{"uuid", nullptr}}),
     }));
-    EXPECT_THROW_WITH_SUBSTRING(skiffWriter->Close().Get().ThrowOnError(),
+    EXPECT_THROW_WITH_SUBSTRING(skiffWriter->Close().BlockingGet().ThrowOnError(),
         "Unexpected type");
 }
 
@@ -1331,7 +1331,7 @@ TEST_P(TSkiffWriterSingular, TestOptionalSingular)
             }).Get(),
         });
         if (!isReady) {
-            writer->GetReadyEvent().Get().ThrowOnError();
+            writer->GetReadyEvent().BlockingGet().ThrowOnError();
         }
         // Row 1
         Y_UNUSED(writer->Write({
@@ -1341,7 +1341,7 @@ TEST_P(TSkiffWriterSingular, TestOptionalSingular)
             }).Get(),
         }));
         writer->Close()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
     }
 
@@ -1379,7 +1379,7 @@ TEST(TSkiffWriterTest, TestRearrange)
 
         auto write = [&] (TUnversionedRow row) {
             if (!writer->Write({row})) {
-                writer->GetReadyEvent().Get().ThrowOnError();
+                writer->GetReadyEvent().BlockingGet().ThrowOnError();
             }
         };
 
@@ -1405,7 +1405,7 @@ TEST(TSkiffWriterTest, TestRearrange)
         }).Get());
 
         writer->Close()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
     }
 
@@ -1458,7 +1458,7 @@ TEST(TSkiffWriterTest, TestMissingRequiredField)
             }).Get()
         }));
         writer->Close()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
         ADD_FAILURE();
     } catch (const std::exception& e) {
@@ -1483,7 +1483,7 @@ TEST(TSkiffWriterTest, TestSparse)
 
     auto write = [&] (TUnversionedRow row) {
         if (!writer->Write({row})) {
-            writer->GetReadyEvent().Get().ThrowOnError();
+            writer->GetReadyEvent().BlockingGet().ThrowOnError();
         }
     };
 
@@ -1516,7 +1516,7 @@ TEST(TSkiffWriterTest, TestSparse)
     }).Get());
 
     writer->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     TStringInput resultInput(result);
@@ -1577,7 +1577,7 @@ TEST(TSkiffWriterTest, TestMissingFields)
             }).Get(),
         }));
         writer->Close()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
         ADD_FAILURE();
     } catch (const std::exception& e) {
@@ -1599,7 +1599,7 @@ TEST(TSkiffWriterTest, TestMissingFields)
             }).Get(),
         }));
         writer->Close()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
         ADD_FAILURE();
     } catch (const std::exception& e) {
@@ -1624,7 +1624,7 @@ TEST(TSkiffWriterTest, TestOtherColumns)
 
     auto write = [&] (TUnversionedRow row) {
         if (!writer->Write({row})) {
-            writer->GetReadyEvent().Get().ThrowOnError();
+            writer->GetReadyEvent().BlockingGet().ThrowOnError();
         }
     };
 
@@ -1646,7 +1646,7 @@ TEST(TSkiffWriterTest, TestOtherColumns)
         {"other_string_column", "bar"},
     }).Get());
     writer->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     TStringInput resultInput(resultStream.Str());
@@ -1691,7 +1691,7 @@ TEST(TSkiffWriterTest, TestKeySwitch)
 
     auto write = [&] (TUnversionedRow row) {
         if (!writer->Write({row})) {
-            writer->GetReadyEvent().Get().ThrowOnError();
+            writer->GetReadyEvent().BlockingGet().ThrowOnError();
         }
     };
 
@@ -1711,7 +1711,7 @@ TEST(TSkiffWriterTest, TestKeySwitch)
         {TableIndexColumnName, 0},
     }).Get());
     writer->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     TStringInput resultInput(resultStream.Str());
@@ -1751,7 +1751,7 @@ TEST(TSkiffWriterTest, TestEndOfStream)
 
     auto write = [&] (TUnversionedRow row) {
         if (!writer->Write({row})) {
-            writer->GetReadyEvent().Get().ThrowOnError();
+            writer->GetReadyEvent().BlockingGet().ThrowOnError();
         }
     };
 
@@ -1766,7 +1766,7 @@ TEST(TSkiffWriterTest, TestEndOfStream)
         {TableIndexColumnName, 0},
     }).Get());
     writer->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     TStringInput resultInput(resultStream.Str());
@@ -1842,11 +1842,11 @@ TEST(TSkiffWriterTest, TestRowRangeIndex)
 
         for (const auto& row : rows) {
             if (!writer->Write({generateUnversionedRow(row, nameTable)})) {
-                writer->GetReadyEvent().Get().ThrowOnError();
+                writer->GetReadyEvent().BlockingGet().ThrowOnError();
             }
         }
         writer->Close()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
 
         return HexEncode(resultStream.Str());
@@ -2004,7 +2004,7 @@ TEST(TSkiffWriterTest, TestRowIndexOnlyOrRangeIndexOnly)
             }).Get(),
         }));
         writer->Close()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
 
         TStringInput resultInput(resultStream.Str());
@@ -2061,7 +2061,7 @@ TEST(TSkiffWriterTest, TestComplexType)
             }).Get(),
         }));
         writer->Close()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
 
         TStringInput resultInput(resultStream.Str());
@@ -2144,7 +2144,7 @@ TEST(TSkiffWriterTest, TestTzTime)
         }).Get(),
     }));
     writer->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     TStringInput resultInput(resultStream.Str());
@@ -2202,7 +2202,7 @@ TEST(TSkiffWriterTest, TestTimezoneString)
         }).Get(),
     }));
     writer->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     TStringInput resultInput(resultStream.Str());
@@ -2249,7 +2249,7 @@ TEST(TSkiffWriterTest, TestRemainingRowBytes)
         }).Get(),
     }));
     writer->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     TStringInput resultInput(resultStream.Str());
@@ -2328,7 +2328,7 @@ TEST(TSkiffWriterTest, TestEmptyComplexType)
             }).Get(),
         }));
         writer->Close()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
 
         TStringInput resultInput(resultStream.Str());
@@ -2374,7 +2374,7 @@ TEST(TSkiffWriterTest, TestSparseComplexType)
             }).Get(),
         }));
         writer->Close()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
 
         TStringInput resultInput(resultStream.Str());
@@ -2426,7 +2426,7 @@ TEST(TSkiffWriterTest, TestSparseComplexTypeWithExtraOptional)
         }).Get(),
     }));
     writer->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     TStringInput resultInput(resultStream.Str());
@@ -2492,7 +2492,7 @@ TEST(TSkiffWriterTest, TestMissingComplexColumn)
             MakeRow(nameTable, { }).Get(),
         }));
         writer->Close()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
 
         EXPECT_EQ(HexEncode(resultStream.Str()), "0000" "00" "0000" "00" "0000" "00");
@@ -2536,7 +2536,7 @@ TEST(TSkiffWriterTest, TestSkippedFields)
                 }).Get()
             }))
         {
-            writer->GetReadyEvent().Get().ThrowOnError();
+            writer->GetReadyEvent().BlockingGet().ThrowOnError();
         }
         Y_UNUSED(writer->Write({
             MakeRow(nameTable, {
@@ -2547,7 +2547,7 @@ TEST(TSkiffWriterTest, TestSkippedFields)
             }).Get()
         }));
         writer->Close()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
 
         TStringInput resultInput(result);
@@ -2600,7 +2600,7 @@ TEST(TSkiffWriterTest, TestSkippedFieldsOutOfRange)
                 }).Get()
             }))
         {
-            writer->GetReadyEvent().Get().ThrowOnError();
+            writer->GetReadyEvent().BlockingGet().ThrowOnError();
         }
         Y_UNUSED(writer->Write({
             MakeRow(nameTable, {
@@ -2608,7 +2608,7 @@ TEST(TSkiffWriterTest, TestSkippedFieldsOutOfRange)
             }).Get()
         }));
         writer->Close()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
 
         TStringInput resultInput(result);
@@ -2642,7 +2642,7 @@ TEST(TSkiffWriterTest, TestSkippedFieldsAndKeySwitch)
 
     auto write = [&] (TUnversionedRow row) {
         if (!writer->Write({row})) {
-            writer->GetReadyEvent().Get().ThrowOnError();
+            writer->GetReadyEvent().BlockingGet().ThrowOnError();
         }
     };
 
@@ -2665,7 +2665,7 @@ TEST(TSkiffWriterTest, TestSkippedFieldsAndKeySwitch)
         {TableIndexColumnName, 0},
     }).Get());
     writer->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     TStringInput resultInput(resultStream.Str());
@@ -3449,7 +3449,7 @@ TEST(TSkiffFormatTest, ComplexTzType)
     }));
 
     writer->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     TStringInput resultInput(resultStream.Str());

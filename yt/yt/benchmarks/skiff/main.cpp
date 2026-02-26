@@ -513,7 +513,7 @@ public:
         auto owningRow = Builder_.FinishRow();
         TUnversionedRow row[] = {owningRow};
         if (!Writer_->Write(row)) {
-            Writer_->GetReadyEvent().Get().ThrowOnError();
+            Writer_->GetReadyEvent().BlockingGet().ThrowOnError();
         }
     }
 
@@ -589,20 +589,20 @@ void GenerateCodeDecode(EBenchmarkedFormat format, const IDataset& dataset)
         for (const auto& value : data) {
             TUnversionedRow row = value;
             if (!writer->Write({row})) {
-                writer->GetReadyEvent().Get().ThrowOnError();
+                writer->GetReadyEvent().BlockingGet().ThrowOnError();
             }
         }
         writer->Close()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
-        writerStream->Close().Get().ThrowOnError();
+        writerStream->Close().BlockingGet().ThrowOnError();
         pipe.CloseWriteFD();
     };
 
     auto readerProc = [&] {
         auto buf = TSharedMutableRef::Allocate(1024 * 1024, {.InitializeStorage = false});
 
-        while (size_t read = readerStream->Read(buf).Get().ValueOrThrow()) {
+        while (size_t read = readerStream->Read(buf).BlockingGet().ValueOrThrow()) {
             parser->Read(TStringBuf(&buf.Front(), read));
         }
         parser->Finish();
@@ -641,15 +641,15 @@ void GenerateCode(EBenchmarkedFormat format, const IDataset& dataset, int writer
             auto next = std::min(it + rangeSize, data.data() + data.size());
             TRange<TUnversionedRow> range(it, next);
             if (!writer->Write(range)) {
-                writer->GetReadyEvent().Get().ThrowOnError();
+                writer->GetReadyEvent().BlockingGet().ThrowOnError();
             }
             it = next;
         }
     }
     writer->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
-    writerStream->Close().Get().ThrowOnError();
+    writerStream->Close().BlockingGet().ThrowOnError();
 
     Cerr << ToString(format) << " took: " << timer.GetElapsedTime() << Endl;
 }
@@ -664,7 +664,7 @@ void Parse(EBenchmarkedFormat format, const IDataset& dataset)
     auto parser = dataset.CreateParser(format, &consumer);
 
     auto buf = TSharedMutableRef::Allocate(1024 * 1024, {.InitializeStorage = false});
-    while (size_t read = readerStream->Read(buf).Get().ValueOrThrow()) {
+    while (size_t read = readerStream->Read(buf).BlockingGet().ValueOrThrow()) {
         parser->Read(TStringBuf(&buf.Front(), read));
     }
     parser->Finish();
@@ -685,12 +685,12 @@ void ParseWrite(EBenchmarkedFormat format, const IDataset& dataset)
     auto parser = dataset.CreateParser(format, &consumer);
 
     auto buf = TSharedMutableRef::Allocate(1024 * 1024, {.InitializeStorage = false});
-    while (size_t read = readerStream->Read(buf).Get().ValueOrThrow()) {
+    while (size_t read = readerStream->Read(buf).BlockingGet().ValueOrThrow()) {
         parser->Read(TStringBuf(&buf.Front(), read));
     }
     parser->Finish();
-    writer->Close().Get().ThrowOnError();
-    writerStream->Close().Get().ThrowOnError();
+    writer->Close().BlockingGet().ThrowOnError();
+    writerStream->Close().BlockingGet().ThrowOnError();
 
     Cerr << ToString(format) << " took: " << timer.GetElapsedTime() << Endl;
 }

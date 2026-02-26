@@ -1181,7 +1181,7 @@ TEST(TProtobufFormatTest, TestWriteEnumerationString)
     }));
 
     writer->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     TStringInput si(result);
@@ -1243,7 +1243,7 @@ TEST(TProtobufFormatTest, TestWriteEnumerationInt)
             0);
         Y_UNUSED(writer->Write({row}));
         writer->Close()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
 
         TStringInput si(result);
@@ -1359,7 +1359,7 @@ TEST(TProtobufFormatTest, TestWriteZeroColumns)
     EXPECT_EQ(true, writer->Write({MakeRow(nameTable, { }).Get()}));
 
     writer->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     ASSERT_EQ(result, "\0\0\0\0\0\0\0\0"sv);
@@ -1414,7 +1414,7 @@ TEST(TProtobufFormatTest, TestTabletIndex)
     }));
 
     writer->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     TStringInput si(result);
@@ -2058,7 +2058,7 @@ TEST_P(TProtobufFormatStructuredMessage, EmbeddedWrite)
     EXPECT_EQ(true, writer->Write(rows));
 
     writer->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     TStringInput input(result);
@@ -2348,7 +2348,7 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
     EXPECT_EQ(true, writer->Write(rows));
 
     writer->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     TStringInput input(result);
@@ -3102,7 +3102,7 @@ TEST_P(TProtobufFormatSeveralTables, Write)
     }
 
     writer->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     TStringInput input(result);
@@ -3831,7 +3831,7 @@ TEST_P(TProtobufFormatAllFields, Writer)
     EXPECT_EQ(true, writer->Write(rows));
 
     writer->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     TStringInput input(result);
@@ -4189,7 +4189,7 @@ TMessage WriteRow(
         New<TControlAttributesConfig>(),
         0);
     Y_UNUSED(writer->Write(std::vector<TUnversionedRow>{row}));
-    writer->Close().Get().ThrowOnError();
+    writer->Close().BlockingGet().ThrowOnError();
 
     TStringInput input(result);
     TLenvalParser lenvalParser(&input);

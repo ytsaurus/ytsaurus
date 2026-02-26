@@ -1600,6 +1600,37 @@ class TestChunkServerMulticell(TestChunkServer):
         with raises_yt_error("it still hosts chunks"):
             set("//sys/@config/multicell_manager/cell_descriptors/11", {"roles": ["cypress_node_host"]})
 
+    @authors("koloshmet")
+    def test_historically_non_vital_multicell(self):
+        set("//sys/@config/chunk_manager/update_historically_non_vital_in_unexport", True)
+
+        create("table", "//tmp/t1", attributes={"external_cell_tag": 11})
+        write_table("//tmp/t1", {"a": "b"})
+        chunk_id = get_singular_chunk_id("//tmp/t1")
+
+        create("table", "//tmp/t2", attributes={"external_cell_tag": 12})
+        write_table("//tmp/t2", {"a": "c"})
+
+        create("table", "//tmp/concat", attributes={"external_cell_tag": 12})
+        concatenate(["//tmp/t1", "//tmp/t2"], "//tmp/concat")
+
+        assert not get(f"#{chunk_id}/@historically_non_vital")
+        assert len(get(f"#{chunk_id}/@exports")) == 1
+
+        set("//tmp/t1/@replication_factor", 1)
+        sleep(1)
+        assert not get(f"#{chunk_id}/@historically_non_vital")
+        remove("//tmp/concat")
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 1)
+        assert get(f"#{chunk_id}/@historically_non_vital")
+
+        node = get(f"#{chunk_id}/@stored_replicas")[0]
+        set_node_banned(node, True)
+
+        wait(lambda: chunk_id in get("//sys/lost_chunks"))
+        assert get("//sys/@lost_vital_chunk_count") == 0
+        assert chunk_id not in get("//sys/lost_vital_chunks")
+
 
 class TestChunkServerPortal(TestChunkServerMulticell):
     ENABLE_TMP_PORTAL = True

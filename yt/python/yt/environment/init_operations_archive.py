@@ -72,7 +72,7 @@ def table_init_callback(client, table_path):
     if not client.exists(table_path):
         return
 
-    if table_name in ["jobs", "stderrs", "job_specs", "fail_contexts", "operation_ids", "job_traces"]:
+    if table_name in ["jobs", "stderrs", "job_specs", "fail_contexts", "operation_ids", "job_traces", "job_profiles"]:
         set_table_ttl(client, table_path, ttl=one_week, auto_compaction_period=one_day, forbid_obsolete_rows=True)
     if table_name in ["ordered_by_id", "ordered_by_start_time", "operation_events"]:
         set_table_ttl(client, table_path, ttl=two_years, auto_compaction_period=one_month, forbid_obsolete_rows=True)
