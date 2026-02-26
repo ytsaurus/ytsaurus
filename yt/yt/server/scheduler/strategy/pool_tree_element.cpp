@@ -12,6 +12,8 @@
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
+#include <yt/yt/core/logging/fluent_log.h>
+
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/digest.h>
 #include <yt/yt/core/misc/string_builder.h>
@@ -308,7 +310,7 @@ EStarvationStatus TPoolTreeElement::GetStarvationStatus() const
     return PersistentAttributes_.StarvationStatus;
 }
 
-void TPoolTreeElement::SetStarvationStatus(EStarvationStatus starvationStatus)
+void TPoolTreeElement::SetStarvationStatus(EStarvationStatus starvationStatus, TInstant /*now*/)
 {
     YT_VERIFY(Mutable_);
 
@@ -509,15 +511,15 @@ void TPoolTreeElement::CheckForStarvationImpl(
             if (!PersistentAttributes_.BelowFairShareSince) {
                 PersistentAttributes_.BelowFairShareSince = now;
             } else if (EffectiveAggressiveStarvationEnabled_ && now > *PersistentAttributes_.BelowFairShareSince + fairShareAggressiveStarvationTimeout) {
-                SetStarvationStatus(EStarvationStatus::AggressivelyStarving);
+                SetStarvationStatus(EStarvationStatus::AggressivelyStarving, now);
             } else if (now > *PersistentAttributes_.BelowFairShareSince + fairShareStarvationTimeout) {
-                SetStarvationStatus(EStarvationStatus::Starving);
+                SetStarvationStatus(EStarvationStatus::Starving, now);
             }
             break;
 
         case ESchedulableStatus::Normal:
             PersistentAttributes_.BelowFairShareSince = std::nullopt;
-            SetStarvationStatus(EStarvationStatus::NonStarving);
+            SetStarvationStatus(EStarvationStatus::NonStarving, now);
             break;
 
         default:
@@ -1405,7 +1407,7 @@ std::optional<TDuration> TPoolTreePoolElement::GetSpecifiedFairShareStarvationTi
     return Config_->FairShareStarvationTimeout;
 }
 
-void TPoolTreePoolElement::SetStarvationStatus(EStarvationStatus starvationStatus)
+void TPoolTreePoolElement::SetStarvationStatus(EStarvationStatus starvationStatus, TInstant now)
 {
     YT_VERIFY(Mutable_);
 
@@ -1414,7 +1416,7 @@ void TPoolTreePoolElement::SetStarvationStatus(EStarvationStatus starvationStatu
             GetStarvationStatus(),
             starvationStatus);
     }
-    TPoolTreeElement::SetStarvationStatus(starvationStatus);
+    TPoolTreeElement::SetStarvationStatus(starvationStatus, now);
 }
 
 void TPoolTreePoolElement::CheckForStarvation(TInstant now)
@@ -2066,21 +2068,91 @@ ESchedulableStatus TPoolTreeOperationElement::GetStatus() const
     return TPoolTreeElement::GetStatusImpl(tolerance);
 }
 
-void TPoolTreeOperationElement::SetStarvationStatus(EStarvationStatus starvationStatus)
+void TPoolTreeOperationElement::SetStarvationStatus(EStarvationStatus starvationStatus, TInstant now)
 {
     YT_VERIFY(Mutable_);
 
-    if (starvationStatus == EStarvationStatus::NonStarving) {
-        PersistentAttributes_.LastNonStarvingTime = TInstant::Now();
+    auto currentStarvationStatus = GetStarvationStatus();
+
+    if (starvationStatus == currentStarvationStatus) {
+        return;
     }
 
-    auto currentStarvationStatus = GetStarvationStatus();
-    if (starvationStatus != currentStarvationStatus) {
-        YT_LOG_INFO("Operation starvation status changed (Current: %v, New: %v)",
-            currentStarvationStatus,
-            starvationStatus);
+    YT_LOG_INFO("Operation starvation status changed (Current: %v, New: %v)",
+        currentStarvationStatus,
+        starvationStatus);
 
-        TPoolTreeElement::SetStarvationStatus(starvationStatus);
+    TPoolTreeElement::SetStarvationStatus(starvationStatus, now);
+
+    if (starvationStatus != EStarvationStatus::NonStarving) {
+        PersistentAttributes_.StarvingSince = now;
+        PersistentAttributes_.FairShareOnStarvationStart = Attributes_.FairShare.Total;
+        PersistentAttributes_.UsageOnStarvationStart = Attributes_.UsageShare;
+        if (TreeConfig_->EnableDetailedStarvationLogs) {
+            YT_LOG_DEBUG(
+                "Operation started starving "
+                "(StarvationStatus: %v, StarvingSince: %v, CurrentFairShare: %v, CurrentUsage: %v)",
+                starvationStatus,
+                PersistentAttributes_.StarvingSince,
+                Attributes_.FairShare.Total,
+                Attributes_.UsageShare);
+
+            NLogging::LogStructuredEventFluently(SchedulerStructuredLogger(), NLogging::ELogLevel::Info)
+                .Item("timestamp").Value(TInstant::Now())
+                .Item("event_type").Value(ELogEventType::OperationStarvationStarted)
+                .Item(EventLogPoolTreeKey).Value(TreeId_)
+                .Item("operation_id").Value(GetId())
+                .Item("starvation_status").Value(starvationStatus)
+                .Item("starving_since").Value(PersistentAttributes_.StarvingSince)
+                .Item("current_fair_share").Value(Attributes_.FairShare.Total)
+                .Item("current_usage").Value(Attributes_.UsageShare);
+        }
+        return;
+    }
+
+    if (PersistentAttributes_.StarvingSince) {
+        auto reason = [&] {
+            if (TResourceVector::Near(*PersistentAttributes_.FairShareOnStarvationStart, Attributes_.FairShare.Total, NVectorHdrf::Epsilon)) {
+                return EStarvationChangeReason::UsageIncreased;
+            }
+            if (Dominates(*PersistentAttributes_.FairShareOnStarvationStart, Attributes_.FairShare.Total)) {
+                return EStarvationChangeReason::FairShareDecreased;
+            }
+
+            return EStarvationChangeReason::UsageIncreased;
+        }();
+
+        PostUpdateAttributes_.StarvationInterval.emplace(TStarvationInterval{
+            .Duration = now - *PersistentAttributes_.StarvingSince,
+            .Reason = reason});
+
+        if (TreeConfig_->EnableDetailedStarvationLogs) {
+            YT_LOG_DEBUG(
+                "Operation stopped starving "
+                "(StarvationStatus: %v, StarvingSince: %v, CurrentFairShare: %v, CurrentUsage: %v, FairShareOnStarvationStart: %v, UsageOnStarvationStart: %v)",
+                starvationStatus,
+                PersistentAttributes_.StarvingSince,
+                Attributes_.FairShare.Total,
+                Attributes_.UsageShare,
+                PersistentAttributes_.FairShareOnStarvationStart,
+                PersistentAttributes_.UsageOnStarvationStart);
+
+            NLogging::LogStructuredEventFluently(SchedulerStructuredLogger(), NLogging::ELogLevel::Info)
+                .Item("timestamp").Value(TInstant::Now())
+                .Item("event_type").Value(ELogEventType::OperationStarvationFinished)
+                .Item(EventLogPoolTreeKey).Value(TreeId_)
+                .Item("operation_id").Value(GetId())
+                .Item("starvation_status").Value(starvationStatus)
+                .Item("starving_since").Value(PersistentAttributes_.StarvingSince)
+                .Item("current_fair_share").Value(Attributes_.FairShare.Total)
+                .Item("current_usage").Value(Attributes_.UsageShare)
+                .Item("fair_share_on_starvation_start").Value(PersistentAttributes_.FairShareOnStarvationStart)
+                .Item("usage_on_starvation_start").Value(PersistentAttributes_.UsageOnStarvationStart);
+        }
+
+
+
+        PersistentAttributes_.StarvingSince.reset();
     }
 }
 
@@ -2103,9 +2175,8 @@ void TPoolTreeOperationElement::CheckForStarvation(TInstant now)
         now);
 }
 
-TInstant TPoolTreeOperationElement::GetLastNonStarvingTime() const
-{
-    return PersistentAttributes_.LastNonStarvingTime;
+std::optional<TInstant> TPoolTreeOperationElement::GetStarvingSince() const {
+    return PersistentAttributes_.StarvingSince;
 }
 
 int TPoolTreeOperationElement::GetSlotIndex() const

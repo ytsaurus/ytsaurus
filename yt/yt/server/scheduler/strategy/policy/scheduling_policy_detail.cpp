@@ -2911,7 +2911,7 @@ TError TSchedulingPolicy::CheckOperationIsStuck(
         auto lastScheduleAllocationSuccessTime = operationSharedState->GetLastScheduleAllocationSuccessTime();
         if (activationTime + options->SafeTimeout < now &&
             lastScheduleAllocationSuccessTime + options->SafeTimeout < now &&
-            element->GetLastNonStarvingTime() + options->SafeTimeout < now &&
+            element->GetStarvingSince().value_or(now) + options->SafeTimeout < now &&
             operationSharedState->GetRunningAllocationCount() == 0 &&
             deactivationCount > options->MinScheduleAllocationAttempts)
         {
@@ -2919,7 +2919,7 @@ TError TSchedulingPolicy::CheckOperationIsStuck(
                 << TErrorAttribute("period", options->SafeTimeout)
                 << TErrorAttribute("deactivation_count", deactivationCount)
                 << TErrorAttribute("last_schedule_allocation_success_time", lastScheduleAllocationSuccessTime)
-                << TErrorAttribute("last_non_starving_time", element->GetLastNonStarvingTime());
+                << TErrorAttribute("starving_since", element->GetStarvingSince());
         }
     }
 

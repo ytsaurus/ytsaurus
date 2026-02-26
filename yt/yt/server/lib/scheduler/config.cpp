@@ -520,6 +520,20 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("sparsify_fair_share_profiling", &TThis::SparsifyFairShareProfiling)
         .Default(false);
 
+    registrar.Parameter("per_pool_starvation_interval_bounds", &TThis::PerPoolStarvationIntervalBounds)
+        .Default({
+            TDuration::Seconds(1),
+            TDuration::Minutes(1),
+            TDuration::Minutes(5),
+            TDuration::Minutes(10),
+            TDuration::Minutes(15),
+            TDuration::Minutes(30),
+            TDuration::Minutes(60),
+        });
+
+    registrar.Parameter("enable_detailed_starvation_logs", &TThis::EnableDetailedStarvationLogs)
+        .Default(false);
+
     registrar.Parameter("enable_limiting_ancestor_check", &TThis::EnableLimitingAncestorCheck)
         .Default(true);
 

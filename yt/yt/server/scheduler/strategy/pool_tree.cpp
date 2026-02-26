@@ -308,7 +308,8 @@ public:
             Profiler_,
             Config_->SparsifyFairShareProfiling,
             strategyHost->GetFairShareProfilingInvoker(),
-            SchedulingPolicy_))
+            SchedulingPolicy_,
+            Config_->PerPoolStarvationIntervalBounds))
         , FeasibleInvokers_(feasibleInvokers)
         , FairSharePreUpdateTimer_(ProfileManager_->GetProfiler().Timer("/fair_share_preupdate_time"))
         , FairShareUpdateTimer_(ProfileManager_->GetProfiler().Timer("/fair_share_update_time"))
@@ -1933,6 +1934,11 @@ private:
         TreeSnapshotPrecommit_ = std::move(treeSnapshot);
         LastFairShareUpdateTime_ = now;
 
+        StrategyHost_->GetFairShareProfilingInvoker()->Invoke(BIND(
+            &TPoolTreeProfileManager::ProfileStarvationIntervals,
+            ProfileManager_,
+            TreeSnapshotPrecommit_));
+
         return std::pair(MakeStrong(this), error);
     }
 
@@ -3437,9 +3443,7 @@ private:
             .Item("tentative").Value(element->GetRuntimeParameters()->Tentative)
             .Item("probing").Value(element->GetRuntimeParameters()->Probing)
             .Item("offloading").Value(element->GetRuntimeParameters()->Offloading)
-            .Item("starving_since").Value(element->GetStarvationStatus() != EStarvationStatus::NonStarving
-                ? std::optional(element->GetLastNonStarvingTime())
-                : std::nullopt)
+            .Item("starving_since").Value(element->GetStarvingSince())
             .Item("lightweight").Value(element->IsLightweight())
             .Item("is_gang").Value(element->IsGang())
             .Item("disk_request_media").DoListFor(element->DiskRequestMedia(), [&] (TFluentList fluent, int mediumIndex) {

@@ -29,6 +29,8 @@ DEFINE_ENUM(ELogEventType,
     (PoolsInfo)
     (RuntimeParametersInfo)
     (AccumulatedUsageInfo)
+    (OperationStarvationStarted)
+    (OperationStarvationFinished)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
