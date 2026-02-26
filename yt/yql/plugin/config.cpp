@@ -23,7 +23,6 @@ constexpr auto DefaultGatewaySettings = std::to_array<std::pair<TStringBuf, TStr
     {"DefaultMaxJobFails", "5"},
     {"DefaultMemoryLimit", "512m"},
     {"MapJoinLimit", "2048m"},
-    {"ClientMapTimeout", "10s"},
     {"MapJoinShardCount", "4"},
     {"CommonJoinCoreLimit", "128m"},
     {"CombineCoreLimit", "128m"},
