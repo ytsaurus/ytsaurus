@@ -2187,3 +2187,25 @@ class TestsDDL(TestQueriesYqlSimpleBase):
 @authors("mpereskokova")
 class TestStackOverflowWithProcesses(TestStackOverflow):
     YQL_SUBPROCESSES_COUNT = 8
+
+
+@authors("a-romanov")
+class TestCrossClusterQueriesYql(TestQueriesYqlSimpleBase):
+    NUM_REMOTE_CLUSTERS = 1
+    NUM_TEST_PARTITIONS = 3
+
+    def test_two_clusters_without_intersections(self, query_tracker, yql_agent):
+        self._test_simple_query("""
+            insert into primary.`//tmp/t_0` select 123 as xyz;
+            insert into remote_0.`//tmp/t_0` select "BlaBla"u as abc;
+        """, None)
+
+        self._test_simple_query("""
+            insert into primary.`//tmp/t_1` select * from primary.`//tmp/t_0`;
+            insert into remote_0.`//tmp/t_1` select * from remote_0.`//tmp/t_0`;
+        """, None)
+
+        self._test_simple_query("""
+            select * from primary.`//tmp/t_1`;
+            select * from remote_0.`//tmp/t_1`;
+        """, [[{'xyz': 123}], [{'abc': 'BlaBla'}]])
