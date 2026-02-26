@@ -1500,7 +1500,8 @@ TBundleSnapshotPtr TBundleState::UpdatePerformanceCounters()
 {
     auto config = Config_.Acquire();
     if (!config->UseStatisticsReporter) {
-        auto guard = ReaderGuard(Lock_);
+        auto guard = WriterGuard(Lock_);
+        UpdatePerformanceCountersFuture_.Reset();
         return GetLatestBundleSnapshot(EFetchKind::Statistics);
     }
 
