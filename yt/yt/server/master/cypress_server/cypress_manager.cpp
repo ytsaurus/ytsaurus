@@ -5188,7 +5188,7 @@ private:
 
         auto* transaction = currentNode->GetTransaction();
         if (!transaction) {
-            YT_LOG_ALERT("Skipping manual node unbranching: node is already trunk (NodeId: %v)", versionedId);
+            YT_LOG_DEBUG("Manual node unbranching failed: no such transaction (NodeId: %v)", versionedId);
             return;
         }
 
