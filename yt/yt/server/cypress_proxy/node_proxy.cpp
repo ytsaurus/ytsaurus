@@ -664,6 +664,7 @@ protected:
 
     void GetSelf(TReqGet* request, TRspGet* /*response*/, const TCtxGetPtr& context) override
     {
+        // TODO(danilalexeev): YT-26172. Support requests with special attributes.
         auto attributeFilter = request->has_attributes()
             ? FromProto<TAttributeFilter>(request->attributes())
             : TAttributeFilter();
@@ -780,87 +781,60 @@ protected:
         ValidatePermissionForThis(EPermission::Read);
 
         NYPath::TTokenizer tokenizer(path);
-        std::optional<std::string> key;
         if (tokenizer.Advance() != NYPath::ETokenType::EndOfStream) {
             tokenizer.Expect(NYPath::ETokenType::Literal);
-            key = tokenizer.GetLiteralValue();
-            tokenizer.Advance();
-
-            // We ignore attribute filter if the attribute is defined in path.
-            attributeFilter = TAttributeFilter({key.value()});
+            attributeFilter = TAttributeFilter({tokenizer.GetLiteralValue()});
         }
 
-        auto [attributeFetcher, leftAttributes] = CreateSpecialAttributeFetcherAndLeftAttributesForNode(
+        if (!HasSpecialAttributes(attributeFilter)) {
+            AbortSequoiaSessionForLaterForwardingToMaster();
+            return;
+        }
+
+        auto attributesFuture = FetchAttributesForNode(
             SequoiaSession_,
             attributeFilter,
             Id_,
-            ResolveResult_.NodeAncestry);
+            ResolveResult_.NodeAncestry)
+            .AsUnique();
 
-        if (key && !leftAttributes.Keys().empty()) {
-            // Key is not a special attribute, so it can be requested by master.
-            AbortSequoiaSessionForLaterForwardingToMaster();
-            return;
-        }
-
-        auto nodesWithAttributes = WaitFor(attributeFetcher->FetchNodesWithAttributes()).ValueOrThrow();
-        if (!nodesWithAttributes.contains(Id_)) {
-            // No special attributes are fetched, so we can forward request to master.
-            AbortSequoiaSessionForLaterForwardingToMaster();
-            return;
-        }
-        auto node = GetOrCrash(nodesWithAttributes, Id_);
+        auto attributes = WaitFor(attributesFuture)
+            .ValueOrThrow();
 
         TYsonString result;
-        if (key) {
-            // The key is requested by path, and we haven't forwarded request to master.
-            // This means that key is special attribute which we have fetched, so we can return it.
-            if (!node->Attributes().Contains(key.value())) {
-                THROW_ERROR_EXCEPTION("Attribute %Qv is not found", key.value());
+        if (tokenizer.GetType() == NYPath::ETokenType::Literal) {
+            // Attribute is requested by path, and request was not forwarded to master.
+            // This means the key is a special attribute.
+            auto key = tokenizer.GetLiteralValue();
+
+            if (!attributes->Contains(key)) {
+                ThrowNoSuchAttribute(key);
             }
 
-            auto attributeFragmentPath = TYPath(tokenizer.GetInput());
-            auto attributeYson = node->Attributes().GetYson(key.value());
-            if (attributeFragmentPath.empty()) {
-                result = attributeYson;
+            if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
+                result = attributes->GetYson(key);
             } else {
-                auto attributeNode = ConvertToNode(attributeYson);
-                result = SyncYPathGet(attributeNode, attributeFragmentPath, TAttributeFilter());
+                result = SyncYPathGet(
+                    attributes->Get<INodePtr>(key),
+                    TYPath(tokenizer.GetInput()),
+                    TAttributeFilter());
             }
         } else {
-            if (!leftAttributes.IsEmpty()) {
-                // We will fetch all basic attributes from master to preserve logic implemented in cypress server.
-                // After that, basic attributes will be combined with special attributes.
-                auto reqGet = TYPathProxy::Get(FromObjectId(Id_) + "/@");
-                ToProto(reqGet->mutable_attributes(), leftAttributes);
-                SetAllowResolveFromSequoiaObject(reqGet, true);
-
-                auto rspGet = WaitFor(CreateReadProxyForObject(Id_).Execute(reqGet))
-                    .ValueOrThrow();
-
-                auto masterResponseNode = ConvertToNode(TYsonString(rspGet->value()));
-                if (masterResponseNode->GetType() != ENodeType::Map) {
-                    THROW_ERROR_EXCEPTION("Error while getting attributes");
-                }
-
-                auto masterResponseAttributes = masterResponseNode->AsMap();
-                for (const auto& [key, value] : masterResponseAttributes->GetChildren()) {
-                    if (!node->Attributes().Contains(key)) {
-                        node->MutableAttributes()->Set(key, value);
-                    }
-                }
-            }
-
             TAsyncYsonWriter writer;
             writer.OnBeginMap();
-            node->WriteAttributesFragment(&writer, attributeFilter, /*stable*/ true);;
+            // TODO(danilalexeev): YT-26172. Do not copy attributes.
+            auto node = CreateEphemeralNodeFactory()->CreateEntity();
+            node->MutableAttributes()->MergeFrom(*attributes);
+            node->WriteAttributesFragment(&writer, attributeFilter, /*stable*/ true);
             writer.OnEndMap();
-            result = WaitForFast(writer.Finish()).ValueOrThrow();
+            result = WaitForFast(writer.Finish())
+                .ValueOrThrow();
         }
+
+        response->set_value(ToProto(result));
 
         MaybeTouchCurrentNode(TYPathProxy::Get, context);
         // Should not throw after this point.
-
-        response->set_value(ToProto(result));
 
         context->Reply();
     }
@@ -2271,7 +2245,7 @@ private:
             fullAttributeFilter);
 
         auto masterAttributeFilter = fullAttributeFilter;
-        masterAttributeFilter.Remove({"opaque"});
+        masterAttributeFilter.Remove({EInternedAttributeKey::Opaque.Unintern()});
 
         ValidatePermissionForThis(EPermission::Read);
 
@@ -2385,26 +2359,28 @@ private:
             std::ssize(scalarNodeIdsToFetchFromMaster),
             masterAttributeFilter);
 
-        auto attributeFetcher = CreateAttributeFetcherForGetRequest(
+        auto attributesFuture = FetchAttributesForGetRequest(
             SequoiaSession_,
             masterAttributeFilter,
             Id_,
             &nodeIdToChildren,
             ResolveResult_.NodeAncestry,
-            scalarNodeIdsToFetchFromMaster);
+            &scalarNodeIdsToFetchFromMaster);
 
-        auto nodesWithAttributes = WaitFor(attributeFetcher->FetchNodesWithAttributes()).ValueOrThrow();
-        // Build a DFS over this mess.
+        auto nodesWithAttributes = WaitFor(attributesFuture)
+            .ValueOrThrow();
+
         TStringStream stream;
-        TYsonWriter writer(&stream);
+        auto writer = TYsonWriter(&stream);
+        auto adapter = NYson::TAsyncYsonConsumerAdapter(&writer);
 
         VisitSequoiaTree(
             Id_,
             depth,
-            &writer,
+            &adapter,
             fullAttributeFilter,
-            std::move(nodeIdToChildren),
-            std::move(nodesWithAttributes));
+            nodeIdToChildren,
+            nodesWithAttributes);
 
         writer.Flush();
 
@@ -2582,23 +2558,24 @@ private:
             writer.OnEndAttributes();
         }
 
-        auto attributeFetcher = CreateAttributeFetcherForListRequest(
+        auto attributesFuture = FetchAttributesForListRequest(
             SequoiaSession_,
             attributeFilter,
             Id_,
             &children,
             ResolveResult_.NodeAncestry);
 
-        auto nodesWithAttributes = WaitFor(attributeFetcher->FetchNodesWithAttributes()).ValueOrThrow();
+        auto nodesWithAttributes = WaitFor(attributesFuture)
+            .ValueOrThrow();
 
         writer.OnBeginList();
         for (const auto& [child, acd] : Zip(children, childrenAcds)) {
             if (attributeFilter && !attributeFilter.IsEmpty()) {
-                auto nodeIter = nodesWithAttributes.find(child.ChildId);
-                if (nodeIter == nodesWithAttributes.end()) {
-                    // Silently omit the node.
-                    continue;
+                const auto& attributes = GetOrCrash(nodesWithAttributes, child.ChildId);
+                if (std::holds_alternative<TMissingNodeTag>(attributes)) {
+                    continue; // Omit the node;
                 }
+
                 writer.OnListItem();
 
                 auto action = intermediateResult.Put(*acd, matchAceSubjectCallback).GetAction();
@@ -2606,7 +2583,10 @@ private:
                 if (fastAction == ESecurityAction::Allow ||
                     action == ESecurityAction::Allow)
                 {
-                    nodeIter->second->WriteAttributes(&writer, attributeFilter, /*stable*/ true);
+                    // TODO(danilalexeev): YT-26172. Do not copy attributes.
+                    auto node = CreateEphemeralNodeFactory()->CreateEntity();
+                    node->MutableAttributes()->MergeFrom(*std::get<IAttributeDictionaryPtr>(attributes));
+                    node->WriteAttributes(&writer, attributeFilter, /*stable*/ true);
                 }
             } else {
                 writer.OnListItem();

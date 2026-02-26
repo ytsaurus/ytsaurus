@@ -173,6 +173,12 @@ class TestSequoiaInternals(YTEnvSetup):
         sleep(0.5)
         assert get(root, attributes=["id", "magic_word"]) == yson.loads(expected_string.encode())
 
+    @authors("danilalexeev")
+    def test_get_recursive_attributes2(self):
+        id = create("document", "//tmp/d")
+        tt = get("//tmp", attributes=["id"])
+        assert tt["d"].attributes["id"] == id
+
     @authors("h0pless")
     def test_get_recursive_limits(self):
         # Test directory structure:
