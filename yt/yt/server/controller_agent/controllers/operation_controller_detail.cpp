@@ -2399,7 +2399,6 @@ void TOperationControllerBase::ManuallyMergeBranchedCypressNode(
             MakeTransactionActionData(reqCommitBranchNode));
 
         TTransactionCommitOptions options;
-        options.PrerequisiteTransactionIds = {transactionId};
         // In case of Cypress tx mirroring this system tx have to be committed
         // after all nested Cypress transactions are finished.
         if (IsCypressTransactionMirroredToSequoia(transactionId)) {
