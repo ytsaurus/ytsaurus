@@ -701,6 +701,39 @@ class TestHunkStorage(DynamicTablesBase):
         wait(lambda: journal_written_bytes.get_delta() > 0)
         wait(lambda: io_request_count.get_delta() > 0)
 
+    @authors("akozhikhov")
+    def test_remove_cell_with_mounted_hunk_storage(self):
+        cell_id = sync_create_cells(1)[0]
+        self._create_hunk_storage("//tmp/h")
+        sync_mount_table("//tmp/h")
+
+        hunk = self._write_hunks_with_retries("//tmp/h", ["aaa"])[0]
+
+        remove("#{}".format(cell_id))
+        wait(lambda: not exists("#{}".format(cell_id)))
+        # No one holds a reference to the chunk now.
+        wait(lambda: not exists("#{}".format(hunk["chunk_id"])))
+
+    @authors("akozhikhov")
+    def test_hunk_storage_tablet_action(self):
+        cell_ids = sync_create_cells(2)
+
+        self._create_hunk_storage("//tmp/h", tablet_count=2)
+        sync_mount_table("//tmp/h", target_cell_ids=[cell_ids[0], cell_ids[1]])
+
+        tablet_id = get("//tmp/h/@tablets/0/tablet_id")
+        assert get("#{}/@cell_id".format(tablet_id)) == cell_ids[0]
+
+        action_id = create("tablet_action", "", attributes={
+            "kind": "move",
+            "tablet_ids": [tablet_id],
+            "cell_ids": [cell_ids[1]],
+            "expiration_timeout": 60000,
+        })
+        wait(lambda: get("#{}/@state".format(action_id)) == "completed")
+
+        assert get("#{}/@cell_id".format(tablet_id)) == cell_ids[1]
+
 
 @pytest.mark.enabled_multidaemon
 class TestHunkStorageMulticell(TestHunkStorage):

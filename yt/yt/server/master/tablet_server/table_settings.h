@@ -73,7 +73,7 @@ void FillTableSettings(
     TRequest* request,
     const TSerializedTableSettings& serializedTableSettings);
 
-THunkStorageSettings GetHunkStorageSettings(
+THunkStorageSettings ValidateAndGetHunkStorageSettings(
     THunkStorageNode* hunkStorage,
     const NObjectServer::IObjectManagerPtr& objectManager,
     const NChunkServer::IChunkManagerPtr& chunkManager,

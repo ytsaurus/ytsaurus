@@ -961,11 +961,7 @@ public:
 
     void PrepareMountHunkStorage(THunkStorageNode* hunkStorage)
     {
-        GetHunkStorageSettings(
-            hunkStorage,
-            Bootstrap_->GetObjectManager(),
-            Bootstrap_->GetChunkManager(),
-            GetDynamicConfig());
+        Y_UNUSED(ValidateAndGetHunkStorageSettings(hunkStorage));
     }
 
     void Mount(
@@ -3143,7 +3139,7 @@ private:
 
     void DoMountTablets(
         TTabletOwnerBase* table,
-        const TSerializedTabletOwnerSettings& serializedTableSettings,
+        const TSerializedTabletOwnerSettings& serializedSettings,
         const std::vector<std::pair<TTabletBase*, TTabletCell*>>& assignment,
         bool freeze,
         bool useRetainedPreloadedChunks = false,
@@ -3163,10 +3159,11 @@ private:
         for (auto [tablet, cell] : assignment) {
             YT_VERIFY(tablet->GetState() == ETabletState::Unmounted);
 
-            if (!IsCellActive(cell) && tablet->GetType() == EObjectType::Tablet) {
-                TabletActionManager_->CreateOrphanedTabletAction(
-                    tablet->As<TTablet>(),
-                    freeze);
+            if (!IsCellActive(cell) ||
+                (GetDynamicConfig()->Testing->MountViaOrphanedTabletActions &&
+                !tablet->GetAction()))
+            {
+                TabletActionManager_->CreateOrphanedTabletAction(tablet, freeze);
                 continue;
             }
 
@@ -3207,7 +3204,7 @@ private:
                     DoMountTableTablet(
                         tablet->As<TTablet>(),
                         table->As<TTableNode>(),
-                        std::get<TSerializedTableSettings>(serializedTableSettings),
+                        std::get<TSerializedTableSettings>(serializedSettings),
                         cell,
                         freeze,
                         useRetainedPreloadedChunks,
@@ -3217,7 +3214,7 @@ private:
                 case EObjectType::HunkTablet:
                     DoMountHunkTablet(
                         tablet->As<THunkTablet>(),
-                        std::get<TSerializedHunkStorageSettings>(serializedTableSettings),
+                        std::get<TSerializedHunkStorageSettings>(serializedSettings),
                         cell);
                     break;
 
@@ -3623,6 +3620,7 @@ private:
 
     void StartSmoothMovement(TTabletBase* tablet, TTabletCell* cell) override
     {
+        YT_VERIFY(tablet->GetType() == EObjectType::Tablet);
         YT_VERIFY(tablet->AuxiliaryServant().GetCell() == cell);
 
         TReqStartSmoothMovement req;
@@ -3648,6 +3646,8 @@ private:
 
     void AbortSmoothMovement(TTabletBase* tablet) override
     {
+        YT_VERIFY(tablet->GetType() == EObjectType::Tablet);
+
         TReqAbortSmoothMovement req;
         ToProto(req.mutable_tablet_id(), tablet->GetId());
         // NB: Not necessary here but added for consistency with the case when
@@ -5232,6 +5232,8 @@ private:
 
         auto* hunkTablet = tablet->As<THunkTablet>();
         DoTabletServantUnmounted(hunkTablet, &hunkTablet->Servant(), /*force*/ false);
+
+        TabletActionManager_->OnTabletActionStateChanged(hunkTablet->GetAction());
     }
 
     void HydraOnTabletFrozen(NProto::TRspFreezeTablet* response)
@@ -7002,6 +7004,15 @@ private:
     {
         return NTabletServer::GetTableSettings(
             table,
+            Bootstrap_->GetObjectManager(),
+            Bootstrap_->GetChunkManager(),
+            GetDynamicConfig());
+    }
+
+    THunkStorageSettings ValidateAndGetHunkStorageSettings(THunkStorageNode* hunkStorage) const override
+    {
+        return NTabletServer::ValidateAndGetHunkStorageSettings(
+            hunkStorage,
             Bootstrap_->GetObjectManager(),
             Bootstrap_->GetChunkManager(),
             GetDynamicConfig());
