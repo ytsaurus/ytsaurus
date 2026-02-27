@@ -1882,7 +1882,7 @@ class TestLookupWithRelativeNetworkThrottler(TestSortedDynamicTablesBase):
             "use_block_cache": False,
             "use_uncompressed_block_cache": False,
             "prefer_local_replicas": False
-        })
+        }, optimize_for="lookup")
 
         sync_mount_table("//tmp/t")
 

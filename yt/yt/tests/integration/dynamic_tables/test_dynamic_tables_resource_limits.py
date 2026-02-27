@@ -845,7 +845,7 @@ class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
         #  with pytest.raises(YtError):
         #      insert_rows("//tmp/t", [{"key": 1, "value": "1"}])
 
-        self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_static_memory", 1000)
+        self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_static_memory", 1400)
         insert_rows("//tmp/t", [{"key": 1, "value": "1"}])
 
         sync_compact_table("//tmp/t")

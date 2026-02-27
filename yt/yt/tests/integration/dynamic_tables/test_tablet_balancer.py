@@ -506,7 +506,7 @@ class TestStandaloneTabletBalancerSlow(TestStandaloneTabletBalancerBase, TabletA
         self._configure_bundle("default")
         sync_create_cells(2)
 
-        self._create_sorted_table("//tmp/t")
+        self._create_sorted_table("//tmp/t", optimize_for="lookup")
 
         set("//tmp/t/@max_partition_data_size", 320)
         set("//tmp/t/@desired_partition_data_size", 256)
@@ -799,7 +799,7 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
     def test_merge(self, parameterized_balancing_metric):
         sync_create_cells(2)
 
-        self._create_sorted_table("//tmp/t")
+        self._create_sorted_table("//tmp/t", optimize_for="lookup")
         self._set_default_metric(parameterized_balancing_metric)
         self._enable_parameterized_reshard("default")
 

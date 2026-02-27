@@ -971,12 +971,12 @@ private:
 
     bool IsSegmentMetaInBlocksEnabled() const
     {
-        return Config_->EnableSegmentMetaInBlocks.value_or(false);
+        return Config_->EnableSegmentMetaInBlocks.value_or(true);
     }
 
     bool IsColumnMetaInChunkMetaEnabled() const
     {
-        return Config_->EnableColumnMetaInChunkMeta.value_or(true);
+        return Config_->EnableColumnMetaInChunkMeta.value_or(false);
     }
 };
 
