@@ -49,6 +49,9 @@ constinit const auto Logger = AuthLogger;
 
 namespace {
 
+inline const std::string AuthenticateLoginField = "subject";
+inline const std::string AuthenticateGroupsField = "groups";
+
 bool IsClientHttpError(const NHttp::EStatusCode& code)
 {
     return static_cast<int>(code) >= 400 && static_cast<int>(code) < 500;
@@ -162,11 +165,15 @@ protected:
         }
 
         const auto& formattedResponse = jsonResponseChecker->GetFormattedResponse()->AsMap();
-        auto login = formattedResponse->GetChildValueOrThrow<TString>(Config_->AuthenticateLoginField);
+        auto login = formattedResponse->GetChildValueOrThrow<TString>(AuthenticateLoginField);
+        auto groups = formattedResponse->GetChildValueOrDefault<std::vector<std::string>>(
+            AuthenticateGroupsField,
+            std::vector<std::string>());
 
         YT_LOG_DEBUG(
-            "YC authenticated (Login: %v, CallId: %v)",
+            "YC authenticated (Login: %v, Groups: %v, CallId: %v)",
             login,
+            groups,
             callId);
 
         if (Config_->CheckUserExists) {
@@ -180,6 +187,17 @@ protected:
                 YT_LOG_WARNING(error, "Failed to ensure YC user existence (Name: %v, CallId: %v)", login, callId);
                 error <<= TErrorAttribute("call_id", callId);
                 THROW_ERROR error;
+            }
+        }
+
+        if (Config_->AddUserToGroups) {
+            bool added = TryAddUserInGroups(UserManager_, login, groups);
+            if (!added) {
+                YT_LOG_WARNING(
+                    "Failed to add user in groups (Name: %v, Groups: %v, CallId: %v)",
+                    login,
+                    groups,
+                    callId);
             }
         }
 
@@ -256,10 +274,10 @@ private:
                 << TErrorAttribute("actual_result_type", rspNode->GetType());
         }
 
-        auto loginNode = rspNode->AsMap()->FindChild(Config_->AuthenticateLoginField);
+        auto loginNode = rspNode->AsMap()->FindChild(AuthenticateLoginField);
         if (!loginNode || loginNode->GetType() != ENodeType::String) {
             return TError("YC authentication service response content has no login field or login node type is unexpected")
-                << TErrorAttribute("login_field", Config_->AuthenticateLoginField);
+                << TErrorAttribute("login_field", AuthenticateLoginField);
         }
 
         return {};
