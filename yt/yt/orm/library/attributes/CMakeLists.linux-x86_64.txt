@@ -35,6 +35,7 @@ target_link_libraries(orm-library-attributes PUBLIC
   orm-library-mpl
   yt-yt-core
   cpp-containers-bitset
+  cpp-yt-compact_containers
 )
 
 target_sources(orm-library-attributes PRIVATE
