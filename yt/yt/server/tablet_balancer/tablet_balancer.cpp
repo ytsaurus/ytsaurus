@@ -130,8 +130,10 @@ public:
 
         return Throttlers_.emplace(cellTag, CreateReconfigurableThroughputThrottler(
             Config_,
-            Logger(),
-            TabletBalancerProfiler())).first->second;
+            Logger().WithTag("CellTag: %v", cellTag),
+            TabletBalancerProfiler()
+                .WithPrefix("/master_request_throttler")
+                .WithTag("/cellTag", ToString(cellTag)))).first->second;
     }
 
     void Reconfigure(TThroughputThrottlerConfigPtr config) override
