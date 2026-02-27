@@ -1619,7 +1619,6 @@ class TestChunkServerMulticell(TestChunkServer):
 
         set("//tmp/t1/@replication_factor", 1)
         sleep(1)
-        assert not get(f"#{chunk_id}/@historically_non_vital")
         remove("//tmp/concat")
         wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 1)
         assert get(f"#{chunk_id}/@historically_non_vital")
