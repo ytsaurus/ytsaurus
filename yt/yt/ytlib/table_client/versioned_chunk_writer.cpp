@@ -238,7 +238,7 @@ protected:
 
     TMemoryUsageTrackerGuard SamplesMemoryUsageGuard_;
 
-    TEncodingChunkWriterPtr EncodingChunkWriter_;
+    const TEncodingChunkWriterPtr EncodingChunkWriter_;
 
     TLegacyOwningKey LastKey_;
 
