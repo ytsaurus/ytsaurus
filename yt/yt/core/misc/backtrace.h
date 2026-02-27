@@ -21,8 +21,8 @@ void DumpBacktrace(
 //! Captures the current backtrace and symbolizes it into a string.
 std::string DumpBacktrace();
 
-//! Disables backtrace symbolization. On each DumpBacktrace call,
-//! user will receive a message that symbolization is disabled.
+//! Disables backtrace symbolization. When symbolization is disabled,
+//! DumpBacktrace may report that symbolization is disabled instead of symbolizing.
 void DisableBacktraceSymbolizing();
 
 ////////////////////////////////////////////////////////////////////////////////

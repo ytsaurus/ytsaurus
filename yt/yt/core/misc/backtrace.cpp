@@ -51,7 +51,8 @@ Y_NO_INLINE void DumpBacktrace(const std::function<void(TStringBuf)>& writeCallb
     }
 }
 
-void DisableBacktraceSymbolizing() {
+void DisableBacktraceSymbolizing()
+{
     NDetail::BacktraceSymbolizing = false;
 }
 

@@ -312,12 +312,17 @@ void TProcessYqlPluginConfig::Register(TRegistrar registrar)
         .DefaultNew();
 }
 
-void TRuntimeConfig::ApplyLimitations() const {
+void TRuntimeConfig::ApplyLimitations() const
+{
 #ifdef _unix_
     if (MemoryLimit) {
+        if (*MemoryLimit < 0) {
+            throw yexception() << "Negative memory limit is not allowed: " << *MemoryLimit;
+        }
         struct rlimit lim_addr_space;
-        lim_addr_space.rlim_cur = *MemoryLimit;
-        lim_addr_space.rlim_max = *MemoryLimit;
+        rlim_t limit = static_cast<rlim_t>(*MemoryLimit);
+        lim_addr_space.rlim_cur = limit;
+        lim_addr_space.rlim_max = limit;
 
         int err = setrlimit(RLIMIT_AS, &lim_addr_space);
         if (err) {
