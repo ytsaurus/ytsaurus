@@ -39,7 +39,7 @@ DEFINE_ENUM(EGroundReign,
 
 static_assert(TEnumTraits<EGroundReign>::IsMonotonic, "Ground reign enum is not monotonic");
 
-EGroundReign GetCurrentGroundReign();
+int GetCurrentGroundReign();
 
 ////////////////////////////////////////////////////////////////////////////////
 

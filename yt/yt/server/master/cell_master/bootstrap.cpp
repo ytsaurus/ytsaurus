@@ -1231,6 +1231,10 @@ void TBootstrap::DoStart()
         orchidRoot,
         "/sequoia_reign",
         ConvertToNode(GetCurrentSequoiaReign()));
+    SetNodeByYPath(
+        orchidRoot,
+        "/ground_reign",
+        ConvertToNode(GetCurrentGroundReign()));
     SetBuildAttributes(
         orchidRoot,
         "master");
