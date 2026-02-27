@@ -31,6 +31,7 @@ target_link_libraries(library-query-heavy PUBLIC
   yutil
   orm-library-query
   library-query-engine
+  library-query-engine_api
   yt-yt-core
   yt-yt-client
 )
@@ -38,6 +39,5 @@ target_link_libraries(library-query-heavy PUBLIC
 target_sources(library-query-heavy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/heavy/expression_evaluator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/heavy/filter_matcher.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/heavy/query_evaluator.cpp
 )
 

@@ -1,13 +1,8 @@
 #include "query_evaluator.h"
 
-#include <yt/yt/client/table_client/unversioned_value.h>
+#include <library/cpp/yt/assert/assert.h>
 
-#include <yt/yt/library/query/engine/folding_profiler.h>
-#include <yt/yt/library/query/base/query_preparer.h>
-
-namespace NYT::NOrm::NQuery {
-
-using namespace NQueryClient;
+namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,31 +14,22 @@ TQueryEvaluationContext::~TQueryEvaluationContext()
 
 // TODO(dtorilov): Consider enabling WebAssembly for ORM.
 
-std::unique_ptr<TQueryEvaluationContext> CreateQueryEvaluationContext(
+TQueryEvaluationContextPtr CreateQueryEvaluationContext(
     const TParsedSource& parsedSource,
     const TTableSchemaPtr& schema)
 {
-    auto context = std::make_unique<TQueryEvaluationContext>();
+    return CreateQueryEvaluationContext(
+        PrepareExpression(
+            parsedSource,
+            *schema),
+        schema);
+}
 
-    context->Expression = PrepareExpression(
-        parsedSource,
-        *schema);
-
-    context->Image = Profile(
-        context->Expression,
-        schema,
-        /*id*/ nullptr,
-        &context->Variables,
-        /*useCanonicalNullRelations*/ false,
-        /*executionBackend*/ NCodegen::EExecutionBackend::Native,
-        GetBuiltinFunctionProfilers())();
-
-    context->Instance = context->Image.Instantiate();
-
-    // YTORM-553 Initialize variables.
-    context->Variables.GetLiteralValues();
-
-    return context;
+Y_WEAK TQueryEvaluationContextPtr CreateQueryEvaluationContext(
+    TConstExpressionPtr /*expression*/,
+    const TTableSchemaPtr& /*schema*/)
+{
+    YT_UNIMPLEMENTED();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
