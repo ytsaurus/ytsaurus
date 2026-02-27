@@ -286,7 +286,7 @@ TEST_F(TCpuProfilerTest, TraceContext)
         })
             .AsyncVia(actionQueue->GetInvoker())
             .Run()
-            .Get();
+            .BlockingGet();
 
         actionQueue->Shutdown();
     });

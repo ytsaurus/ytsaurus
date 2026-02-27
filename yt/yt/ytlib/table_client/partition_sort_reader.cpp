@@ -517,7 +517,7 @@ private:
 
     void SortQueueBarrier()
     {
-        BIND([] { }).AsyncVia(SortQueue_->GetInvoker()).Run().Get();
+        BIND([] { }).AsyncVia(SortQueue_->GetInvoker()).Run().BlockingGet();
     }
 
     TFuture<void> InvokeSortBucket(int bucketId)

@@ -1982,7 +1982,7 @@ THashMap<TTabletCellId, TBundleState::TTabletCellInfo> TBundleState::FetchTablet
     THashMap<TTabletCellId, TTabletCellInfo> tabletCells;
     for (auto cellTag : cellTags) {
         for (auto cellId : cellIds) {
-            const auto& batchReq = batchRequests[cellTag].Response.Get().Value();
+            const auto& batchReq = batchRequests[cellTag].Response.BlockingGet().Value();
             auto rspOrError = batchReq->GetResponse<TYPathProxy::TRspGet>(ToString(cellId));
             THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
 
@@ -2091,7 +2091,7 @@ THashMap<TTableId, TTableSettings> TBundleState::FetchActualTableSettings(
             batch.Response.Get(),
             "Failed to fetch actual table settings from cell %v",
             cellTag);
-        auto responseBatch = batch.Response.Get().Value();
+        auto responseBatch = batch.Response.BlockingGet().Value();
 
         for (int index = 0; index < batch.Request->table_ids_size(); ++index) {
             auto tableId = FromProto<TTableId>(batch.Request->table_ids()[index]);

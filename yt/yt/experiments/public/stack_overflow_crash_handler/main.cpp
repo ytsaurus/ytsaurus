@@ -28,5 +28,5 @@ int main()
     })
         .AsyncVia(queue->GetInvoker())
         .Run()
-        .Get();
+        .BlockingGet();
 }

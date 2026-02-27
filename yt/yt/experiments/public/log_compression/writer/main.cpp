@@ -45,7 +45,7 @@ int main(int argc, const char *argv[])
             .Run();
         futures.emplace_back(asyncResult);
     }
-    AllSucceeded(futures).Get();
+    AllSucceeded(futures).BlockingGet();
 
     Cout << "Enqueue time: " << (TInstant::Now() - startTime).MilliSeconds() << " ms" << Endl;
 

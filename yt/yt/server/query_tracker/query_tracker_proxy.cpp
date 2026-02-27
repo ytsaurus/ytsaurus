@@ -214,9 +214,9 @@ TQuery LookupQuery(
             timestamp);
     }
     if (isActive) {
-        return PartialRecordToQuery(asyncActiveRecord.Get().Value());
+        return PartialRecordToQuery(asyncActiveRecord.BlockingGet().Value());
     } else {
-        return PartialRecordToQuery(asyncFinishedRecord.Get().Value());
+        return PartialRecordToQuery(asyncFinishedRecord.BlockingGet().Value());
     }
 }
 

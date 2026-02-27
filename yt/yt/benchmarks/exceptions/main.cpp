@@ -43,7 +43,7 @@ int main(int argc, char** argv)
             .AsyncVia(threadPool->GetInvoker())
             .Run());
     }
-    AllSucceeded(asyncResults).Get();
+    AllSucceeded(asyncResults).BlockingGet();
     threadPool->Shutdown();
 
     return 0;

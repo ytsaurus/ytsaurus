@@ -3037,7 +3037,7 @@ void TTablet::ThrottleTabletStoresUpdate(
 
     auto asyncResult = throttler->Throttle(1);
     auto result = asyncResult.IsSet()
-        ? asyncResult.Get()
+        ? asyncResult.BlockingGet()
         : WaitFor(asyncResult);
     result.ThrowOnError();
 

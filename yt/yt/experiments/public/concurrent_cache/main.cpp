@@ -140,7 +140,7 @@ int main(int argc, char** argv)
             .Run());
         }
 
-        AllSucceeded(asyncResults).Get();
+        AllSucceeded(asyncResults).BlockingGet();
         threadPool->Shutdown();
 
     } catch (const std::exception& ex) {

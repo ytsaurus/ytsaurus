@@ -337,10 +337,10 @@ private:
             .ThrowOnError();
 
         auto registrationsByQueue = asyncRegistrationsByQueue
-            .Get()
+            .BlockingGet()
             .Value();
         auto registrationsByConsumer = asyncRegistrationsByConsumer
-            .Get()
+            .BlockingGet()
             .Value();
 
         std::vector<std::vector<TConsumerRegistrationTableRow>> result;

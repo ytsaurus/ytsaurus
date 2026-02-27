@@ -60,7 +60,7 @@ void Main()
         }));
     }
 
-    AllSucceeded(readyFutures).Get();
+    AllSucceeded(readyFutures).BlockingGet();
 
     Cerr << Format("Crashing!") << Endl;
 

@@ -1487,7 +1487,7 @@ TFuture<std::vector<TSharedRef>> TLookupSession::Run()
         for (int requestIndex = 0; requestIndex < std::ssize(TabletRequests_); ++requestIndex) {
             futures.push_back(RunTabletRequest(requestIndex));
             if (futures.back().IsSet()) {
-                results.push_back(futures.back().Get());
+                results.push_back(futures.back().BlockingGet());
             }
         }
 

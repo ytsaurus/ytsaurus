@@ -135,7 +135,7 @@ void TNodeManager::OnMasterDisconnected()
 
     // XXX(babenko): fiber switch is forbidden here; do we actually need to wait for these results?
     AllSucceeded(asyncResults)
-        .Get();
+        .BlockingGet();
 }
 
 void TNodeManager::RegisterOperation(
