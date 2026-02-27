@@ -55,11 +55,14 @@ class TestCypressProxyTracker(YTEnvSetup):
         cypress_proxy = ls("//sys/cypress_proxies")[0]
         cypress_proxy_object_id = get(f"//sys/cypress_proxies/{cypress_proxy}/@id")
         cypress_proxy_reign = get(f"//sys/cypress_proxies/{cypress_proxy}/orchid/sequoia_reign")
+        cypress_proxy_ground_reign = get(f"//sys/cypress_proxies/{cypress_proxy}/orchid/ground_reign")
 
         master = ls("//sys/primary_masters")[0]
         master_reign = get(f"//sys/primary_masters/{master}/orchid/sequoia_reign")
+        master_ground_reign = get(f"//sys/cypress_proxies/{cypress_proxy}/orchid/ground_reign")
 
         assert cypress_proxy_reign == master_reign
+        assert cypress_proxy_ground_reign == master_ground_reign
 
         remove(f"//sys/cypress_proxies/{cypress_proxy}")
         wait(lambda: exists(f"//sys/cypress_proxies/{cypress_proxy}"))

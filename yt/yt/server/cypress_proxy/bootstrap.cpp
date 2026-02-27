@@ -302,6 +302,10 @@ private:
             OrchidRoot_,
             "/sequoia_reign",
             ConvertToNode(GetCurrentSequoiaReign()));
+        SetNodeByYPath(
+            OrchidRoot_,
+            "/ground_reign",
+            ConvertToNode(GetCurrentGroundReign()));
 
         RpcServer_->RegisterService(CreateOrchidService(
             OrchidRoot_,
