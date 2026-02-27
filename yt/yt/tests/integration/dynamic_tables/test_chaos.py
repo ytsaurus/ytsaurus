@@ -6076,6 +6076,10 @@ class TestChaosMetaCluster(ChaosTestBase):
             suspended_path = f"{orchids_paths[cell_id]}/chaos_manager/internal/suspended"
             return get(suspended_path, driver=drivers[cell_id])
 
+        def is_chaos_coordinator_suspended(cell_id):
+            suspended_path = f"{orchids_paths[cell_id]}/coordinator_manager/internal/suspended"
+            return get(suspended_path, driver=drivers[cell_id])
+
         def get_chaos_lease_from_orchid(cell_id, lease_id):
             lease_path = f"{orchids_paths[cell_id]}/chaos_lease_manager/chaos_leases/{lease_id}"
             return get(lease_path, driver=drivers[cell_id])
@@ -6093,6 +6097,7 @@ class TestChaosMetaCluster(ChaosTestBase):
             # Make sure chaos cell allows to repeatedly disable chaos lease manager, even when chaos manager is not suspended
             suspend_chaos_cells([disabled_cell])
             wait(lambda: is_chaos_manager_suspended(disabled_cell))
+            wait(lambda: is_chaos_coordinator_suspended(disabled_cell))
 
             lease_id = create_chaos_lease(enabled_cell)
             assert get_chaos_lease_from_orchid(enabled_cell, lease_id)["state"] == "normal"
@@ -6107,6 +6112,7 @@ class TestChaosMetaCluster(ChaosTestBase):
             wait(lambda: get_chaos_lease_manager_state(enabled_cell) == "disabled")
             wait(lambda: get_chaos_lease_manager_state(disabled_cell) == "enabled")
             wait(lambda: is_chaos_manager_suspended(enabled_cell))
+            wait(lambda: is_chaos_coordinator_suspended(enabled_cell))
             wait(lambda: not is_chaos_manager_suspended(disabled_cell))
 
             wait(lambda: get_chaos_lease_from_orchid(disabled_cell, lease_id)["state"] == "normal", ignore_exceptions=True)

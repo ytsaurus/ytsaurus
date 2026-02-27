@@ -571,14 +571,17 @@ private:
                 &TCoordinatorManager::BuildInternalOrchid,
                 MakeWeak(this))
                 ->Via(Slot_->GetAutomatonInvoker()))
-            ->AddChild("shortcuts", TShortcutOrchidService::Create(MakeWeak(this), Slot_->GetGuardedAutomatonInvoker()));
+            ->AddChild("shortcuts", TShortcutOrchidService::Create(
+                MakeWeak(this),
+                Slot_->GetGuardedAutomatonInvoker()));
     }
 
     void BuildInternalOrchid(IYsonConsumer* consumer) const
     {
         BuildYsonFluently(consumer)
             .BeginMap()
-                .Item("suspended").Value(Suspended_)
+                .Item("suspended").Value(
+                    Suspended_ && Shortcuts_.empty())
             .EndMap();
     }
 

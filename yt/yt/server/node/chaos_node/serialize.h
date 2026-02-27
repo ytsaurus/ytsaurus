@@ -37,6 +37,7 @@ DEFINE_ENUM(EChaosReign,
     ((CoordinatorSuspendEnforcment)             (300303)) // gryzlov-ad
     ((ReignInHiveMessages)                      (300304)) // ifsmirnov
     ((AllowChaosLeaseManagerRepeatingDisabling) (300305)) // gryzlov-ad
+    ((RevokeChaosLeaseShortcutsOnMigration)     (300306)) // osidorkin
 );
 
 static_assert(TEnumTraits<EChaosReign>::IsMonotonic, "Chaos reign enum is not monotonic");
