@@ -221,9 +221,9 @@ Py::Object TDriverResponse::Error(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/)
     }
     Py::Object object;
 #if PY_MAJOR_VERSION < 3
-    Deserialize(object, NYTree::ConvertToNode(ResponseFuture_.Get()), std::nullopt);
+    Deserialize(object, NYTree::ConvertToNode(ResponseFuture_.BlockingGet()), std::nullopt);
 #else
-    Deserialize(object, NYTree::ConvertToNode(ResponseFuture_.Get()), std::make_optional<TString>("utf-8"));
+    Deserialize(object, NYTree::ConvertToNode(ResponseFuture_.BlockingGet()), std::make_optional<TString>("utf-8"));
 #endif
     return object;
 }

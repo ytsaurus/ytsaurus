@@ -164,7 +164,7 @@ public:
         BIND(&TDynamicStoreTestBase::DoSetUp, Unretained(this))
             .AsyncVia(TestQueue_->GetInvoker())
             .Run()
-            .Get();
+            .BlockingGet();
     }
 
     void DoSetUp()

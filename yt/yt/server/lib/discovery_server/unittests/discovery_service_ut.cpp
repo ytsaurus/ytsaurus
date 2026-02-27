@@ -324,7 +324,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestAttributes)
     options.AttributeKeys.push_back(key);
 
     auto checkAttributes1 = [&] {
-        auto membersOrError = discoveryClient->ListMembers(groupId, options).Get();
+        auto membersOrError = discoveryClient->ListMembers(groupId, options).BlockingGet();
         if (!membersOrError.IsOK()) {
             return false;
         }

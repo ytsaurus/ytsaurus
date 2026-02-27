@@ -167,7 +167,7 @@ protected:
         })
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run()
-            .Get();
+            .BlockingGet();
     }
 
     void Stop()
@@ -177,7 +177,7 @@ protected:
         })
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run()
-            .Get();
+            .BlockingGet();
     }
 
     void SetUp() override

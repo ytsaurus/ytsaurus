@@ -123,7 +123,7 @@ public:
         })
             .AsyncVia(ActionQueue->GetInvoker())
             .Run()
-            .Get();
+            .BlockingGet();
     }
 
 protected:

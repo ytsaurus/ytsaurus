@@ -68,7 +68,7 @@ THashMap<TObjectId, IAttributeDictionaryPtr> FetchAttributesByCellTags(
 
     THashMap<TObjectId, IAttributeDictionaryPtr> responses;
     for (const auto& [objectId, cellTag] : objectIdsWithCellTags) {
-        const auto& batchReq = batchRequests[cellTag].Response.Get().Value();
+        const auto& batchReq = batchRequests[cellTag].Response.BlockingGet().Value();
         auto rspOrError = batchReq->GetResponse<TTableYPathProxy::TRspGet>(ToString(objectId));
         if (!rspOrError.IsOK() && rspOrError.GetCode() == NYTree::EErrorCode::ResolveError) {
             continue;

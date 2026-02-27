@@ -844,7 +844,7 @@ public:
 
         TFuture<std::string> BundleNameFuture_ = MakeFuture<std::string>(
             TError("Bundle name has not been fetched yet"));
-        TErrorOr<std::string> CurrentBundleName_ = BundleNameFuture_.Get();
+        TErrorOr<std::string> CurrentBundleName_ = BundleNameFuture_.BlockingGet();
         TInstant LastBundleNameUpdateTime_ = TInstant::Zero();
         i64 IterationsWithoutAcceptableBundleHealth_ = 0;
 
@@ -895,7 +895,7 @@ public:
 
             if (LastBundleNameUpdateTime_ + interval < now) {
                 LastBundleNameUpdateTime_ = now;
-                CurrentBundleName_ = BundleNameFuture_.Get();
+                CurrentBundleName_ = BundleNameFuture_.BlockingGet();
                 BundleNameFuture_ = client->GetNode(TablePath_ + "/@tablet_cell_bundle")
                     .Apply(BIND([] (const TErrorOr<TYsonString>& bundleNameOrError) {
                         THROW_ERROR_EXCEPTION_IF_FAILED(bundleNameOrError,
@@ -915,7 +915,7 @@ public:
                 return CurrentBundleName_;
             }
 
-            return BundleNameFuture_.Get();
+            return BundleNameFuture_.BlockingGet();
         }
 
         TError CheckTableAttributes(const NApi::IClientPtr& client)
@@ -923,7 +923,7 @@ public:
             auto checkPreloadState = ReplicatedTable_->GetOptions()->EnablePreloadStateCheck;
 
             if (TableAttributesFuture_.IsSet()) {
-                CurrentTableAttributes_ = TableAttributesFuture_.Get();
+                CurrentTableAttributes_ = TableAttributesFuture_.BlockingGet();
 
                 std::vector<IAttributeDictionary::TKey> keys;
                 if (checkPreloadState) {
@@ -1636,7 +1636,7 @@ private:
     void UpdateReplicaLagTimes()
     {
         if (ReplicaLagTimesFuture_.IsSet()) {
-            ReplicaLagTimesOrError_ = ReplicaLagTimesFuture_.Get();
+            ReplicaLagTimesOrError_ = ReplicaLagTimesFuture_.BlockingGet();
             ReplicaLagTimesFuture_ = Host_->ComputeReplicaLagTimes(GetKeys(IdToReplica_));
         }
 

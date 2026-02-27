@@ -32,7 +32,7 @@ public:
             return CreateEmptyUnversionedRowBatch();
         }
 
-        const auto& rows = AsyncRows_.Get().Value();
+        const auto& rows = AsyncRows_.BlockingGet().Value();
 
         CurrentRowIndex_ = BinarySearch(CurrentRowIndex_, std::ssize(rows), [&] (i64 index) {
             return !TestKeyWithWidening(

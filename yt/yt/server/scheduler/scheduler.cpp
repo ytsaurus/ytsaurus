@@ -1342,7 +1342,7 @@ public:
                     YT_VERIFY(asyncMaterializeResult.IsSet());
 
                     // asyncMaterializeResult contains no error, otherwise the |!error.IsOk()| check would trigger.
-                    return asyncMaterializeResult.Get().Value().Suspend;
+                    return asyncMaterializeResult.BlockingGet().Value().Suspend;
                 }();
 
                 FinishOperationMaterialization(operation, shouldSuspend, scheduleOperationInSingleTree);

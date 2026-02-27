@@ -160,7 +160,7 @@ protected:
             }
         }));
 
-        handler->GetFuture().Get();
+        handler->GetFuture().BlockingGet();
     }
 
 private:

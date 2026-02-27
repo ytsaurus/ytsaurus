@@ -80,7 +80,7 @@ TEST(TObjectServiceCacheTest, TestStaleResponse)
         EXPECT_FALSE(cookie2.IsActive());
         EXPECT_EQ(nullptr, cookie2.ExpiredEntry());
         EXPECT_TRUE(cookie2.GetValue().IsSet());
-        EXPECT_TRUE(TSharedRefArray::AreBitwiseEqual(data, cookie2.GetValue().Get().Value()->GetResponseMessage()));
+        EXPECT_TRUE(TSharedRefArray::AreBitwiseEqual(data, cookie2.GetValue().BlockingGet().Value()->GetResponseMessage()));
     }
 
     NConcurrency::TDelayedExecutor::WaitForDuration(5 * expirationTime);
@@ -174,7 +174,7 @@ TEST(TObjectServiceCacheTest, TestStaleError)
         EXPECT_FALSE(cookie2.IsActive());
         EXPECT_EQ(nullptr, cookie2.ExpiredEntry());
         EXPECT_TRUE(cookie2.GetValue().IsSet());
-        EXPECT_TRUE(TSharedRefArray::AreBitwiseEqual(data, cookie2.GetValue().Get().Value()->GetResponseMessage()));
+        EXPECT_TRUE(TSharedRefArray::AreBitwiseEqual(data, cookie2.GetValue().BlockingGet().Value()->GetResponseMessage()));
     }
 
     NConcurrency::TDelayedExecutor::WaitForDuration(5 * expirationTime);
