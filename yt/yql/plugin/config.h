@@ -128,7 +128,7 @@ struct TRuntimeConfig
     : public NYTree::TYsonStruct
 {
     bool DisableBacktraceSymbolizing;
-    std::optional<size_t> MemoryLimit;
+    std::optional<i64> MemoryLimit;
 
     void ApplyLimitations() const;
 

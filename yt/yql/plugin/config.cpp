@@ -321,7 +321,7 @@ void TRuntimeConfig::ApplyLimitations() const {
 
         int err = setrlimit(RLIMIT_AS, &lim_addr_space);
         if (err) {
-            throw yexception() << "Can't set address space limit: " << err;
+            throw yexception() << "Can't set address space limit: " << errno;
         }
     }
 #endif

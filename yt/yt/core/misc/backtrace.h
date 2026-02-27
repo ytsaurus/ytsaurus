@@ -22,7 +22,7 @@ void DumpBacktrace(
 std::string DumpBacktrace();
 
 //! Disables backtrace symbolization. On each DumpBacktrace call,
-//! user will receive a message that symbolizing is disabled.
+//! user will receive a message that symbolization is disabled.
 void DisableBacktraceSymbolizing();
 
 ////////////////////////////////////////////////////////////////////////////////
