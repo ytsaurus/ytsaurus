@@ -1,0 +1,644 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "contact": {}
+    },
+    "paths": {
+        "/get-resource-usage": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/app.GetResourceUsageRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/app.GetResourceUsageResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/app.GetResourceUsageResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/app.GetResourceUsageResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/app.GetResourceUsageResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/get-resource-usage-diff": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/app.GetResourceUsageDiffRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/app.GetResourceUsageDiffResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/app.GetResourceUsageDiffResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/app.GetResourceUsageDiffResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/app.GetResourceUsageDiffResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/get-versioned-resource-usage": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/app.GetVersionedResourceUsageRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/app.GetVersionedResourceUsageResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/app.GetVersionedResourceUsageResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/list-timestamps": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/app.ListTimestampsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/app.ListTimestampsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/app.ListTimestampsResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/served-clusters": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/app.ServedClustersResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/app.ServedClustersResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/status": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/app.StatusResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/app.StatusResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/whoami": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/app.WhoamiResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/app.WhoamiResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "access.ACLCacheMemoryStatus": {
+            "type": "object",
+            "properties": {
+                "acl_check_cache": {
+                    "$ref": "#/definitions/resourceusage.CacheMemoryStatus"
+                },
+                "snapshot_cache": {
+                    "$ref": "#/definitions/resourceusage.CacheMemoryStatus"
+                }
+            }
+        },
+        "access.ACLCacheStatus": {
+            "type": "object",
+            "properties": {
+                "memory_usage": {
+                    "$ref": "#/definitions/access.ACLCacheMemoryStatus"
+                },
+                "ready": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "app.AtomsStatus": {
+            "type": "object",
+            "properties": {
+                "acl_cache": {
+                    "$ref": "#/definitions/access.ACLCacheStatus"
+                },
+                "table_reader": {
+                    "$ref": "#/definitions/resourceusage.TableReaderStatus"
+                }
+            }
+        },
+        "app.DiffSnapshotSelector": {
+            "type": "object",
+            "properties": {
+                "newer": {
+                    "$ref": "#/definitions/resourceusage.TimestampSelector"
+                },
+                "older": {
+                    "$ref": "#/definitions/resourceusage.TimestampSelector"
+                }
+            }
+        },
+        "app.DiffSnapshotSelectorResponse": {
+            "type": "object",
+            "properties": {
+                "newer": {
+                    "type": "integer"
+                },
+                "older": {
+                    "type": "integer"
+                }
+            }
+        },
+        "app.GetResourceUsageDiffRequest": {
+            "type": "object",
+            "properties": {
+                "account": {
+                    "type": "string"
+                },
+                "cluster": {
+                    "type": "string"
+                },
+                "page": {
+                    "$ref": "#/definitions/resourceusage.PageSelector"
+                },
+                "row_filter": {
+                    "$ref": "#/definitions/resourceusage.Filter"
+                },
+                "sort_order": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/resourceusage.SortOrder"
+                    }
+                },
+                "timestamps": {
+                    "$ref": "#/definitions/app.DiffSnapshotSelector"
+                },
+                "view_as_login": {
+                    "type": "string"
+                }
+            }
+        },
+        "app.GetResourceUsageDiffResponse": {
+            "type": "object",
+            "properties": {
+                "continuation_token": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "fields": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/resourceusage.Item"
+                    }
+                },
+                "mediums": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "row_count": {
+                    "type": "integer"
+                },
+                "snapshot_timestamps": {
+                    "$ref": "#/definitions/app.DiffSnapshotSelectorResponse"
+                }
+            }
+        },
+        "app.GetResourceUsageRequest": {
+            "type": "object",
+            "properties": {
+                "account": {
+                    "type": "string"
+                },
+                "cluster": {
+                    "type": "string"
+                },
+                "page": {
+                    "$ref": "#/definitions/resourceusage.PageSelector"
+                },
+                "row_filter": {
+                    "$ref": "#/definitions/resourceusage.Filter"
+                },
+                "sort_order": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/resourceusage.SortOrder"
+                    }
+                },
+                "timestamp": {
+                    "type": "integer"
+                },
+                "timestamp_rounding_policy": {
+                    "type": "string"
+                },
+                "view_as_login": {
+                    "type": "string"
+                }
+            }
+        },
+        "app.GetResourceUsageResponse": {
+            "type": "object",
+            "properties": {
+                "continuation_token": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "fields": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/resourceusage.Item"
+                    }
+                },
+                "mediums": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "row_count": {
+                    "type": "integer"
+                },
+                "snapshot_timestamp": {
+                    "type": "integer"
+                }
+            }
+        },
+        "app.GetVersionedResourceUsageRequest": {
+            "type": "object",
+            "properties": {
+                "account": {
+                    "type": "string"
+                },
+                "cluster": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "integer"
+                },
+                "timestamp_rounding_policy": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "app.GetVersionedResourceUsageResponse": {
+            "type": "object",
+            "properties": {
+                "available": {
+                    "type": "boolean"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "transactions": {
+                    "type": "object",
+                    "additionalProperties": {}
+                }
+            }
+        },
+        "app.ListTimestampsRequest": {
+            "type": "object",
+            "properties": {
+                "cluster": {
+                    "type": "string"
+                },
+                "from": {
+                    "type": "integer"
+                },
+                "to": {
+                    "type": "integer"
+                }
+            }
+        },
+        "app.ListTimestampsResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "snapshot_timestamps": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "app.ServedClustersResponse": {
+            "type": "object",
+            "properties": {
+                "clusters": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "error": {
+                    "type": "string"
+                }
+            }
+        },
+        "app.StatusResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "stats": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/app.AtomsStatus"
+                    }
+                }
+            }
+        },
+        "app.WhoamiResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "is_service": {
+                    "type": "boolean"
+                },
+                "user": {
+                    "type": "string"
+                }
+            }
+        },
+        "resourceusage.CacheMemoryStatus": {
+            "type": "object",
+            "properties": {
+                "current_item_count": {
+                    "type": "integer"
+                },
+                "max_item_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "resourceusage.Filter": {
+            "type": "object",
+            "properties": {
+                "base_path": {
+                    "type": "string"
+                },
+                "exclude_map_nodes": {
+                    "type": "boolean"
+                },
+                "field_filters": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/resourceusage.IntFilterParam"
+                    }
+                },
+                "owner": {
+                    "type": "string"
+                },
+                "path_regexp": {
+                    "type": "string"
+                },
+                "table_type": {
+                    "type": "string"
+                }
+            }
+        },
+        "resourceusage.IntFilterParam": {
+            "type": "object",
+            "properties": {
+                "comparison": {
+                    "type": "string"
+                },
+                "field": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "integer"
+                }
+            }
+        },
+        "resourceusage.Item": {
+            "type": "object",
+            "additionalProperties": {}
+        },
+        "resourceusage.PageSelector": {
+            "type": "object",
+            "properties": {
+                "continuation_token": {
+                    "type": "string"
+                },
+                "enable_continuation_token": {
+                    "type": "boolean"
+                },
+                "index": {
+                    "type": "integer"
+                },
+                "size": {
+                    "type": "integer"
+                }
+            }
+        },
+        "resourceusage.SortOrder": {
+            "type": "object",
+            "properties": {
+                "desc": {
+                    "type": "boolean"
+                },
+                "field": {
+                    "type": "string"
+                }
+            }
+        },
+        "resourceusage.TableReaderMemoryStatus": {
+            "type": "object",
+            "properties": {
+                "features_cache": {
+                    "$ref": "#/definitions/resourceusage.CacheMemoryStatus"
+                },
+                "schema_cache": {
+                    "$ref": "#/definitions/resourceusage.CacheMemoryStatus"
+                }
+            }
+        },
+        "resourceusage.TableReaderStatus": {
+            "type": "object",
+            "properties": {
+                "memory_usage": {
+                    "$ref": "#/definitions/resourceusage.TableReaderMemoryStatus"
+                }
+            }
+        },
+        "resourceusage.TimestampSelector": {
+            "type": "object",
+            "properties": {
+                "timestamp": {
+                    "type": "integer"
+                },
+                "timestamp_rounding_policy": {
+                    "type": "string"
+                }
+            }
+        }
+    }
+}
