@@ -1088,11 +1088,6 @@ void TParameterizedReassignSolver::ApplyBestAction(int* availableActionCount)
             BestActionInfo_.Tablet->Metric * TableNodeFactors_[BestActionInfo_.Tablet->TableIndex];
         TableByNodeMetric_[BestActionInfo_.Tablet->TableIndex][BestActionInfo_.DestinationCell->Node->Index] +=
             BestActionInfo_.Tablet->Metric * TableNodeFactors_[BestActionInfo_.Tablet->TableIndex];
-    } else {
-        YT_LOG_WARNING("The best action is between cells on the same node "
-            "(Node: %v, TabletId: %v)",
-            BestActionInfo_.SourceCell->Node->Address,
-            BestActionInfo_.Tablet->Id);
     }
 
     YT_LOG_DEBUG("Applying best action: moving tablet to another cell "
