@@ -253,7 +253,7 @@ private:
                 TransactionId_,
                 ParentChunkListId_,
                 Logger);
-            YT_LOG_DEBUG("Chunk created");
+            YT_LOG_DEBUG("Chunk created (ChunkId: %v)", SessionId_.ChunkId);
         }
 
         Logger.AddTag("ChunkId: %v", SessionId_);
