@@ -1190,7 +1190,6 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraCloneForeignNode, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraLockForeignNode, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraUnlockForeignNode, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraSetAttributeOnTransactionCommit, Unretained(this)));
 
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraSetTableSchemas, Unretained(this)));
     }
@@ -1204,11 +1203,6 @@ public:
         transactionManager->SubscribeTransactionAborted(BIND_NO_PROPAGATE(
             &TCypressManager::OnTransactionAborted,
             MakeStrong(this)));
-
-        transactionManager->RegisterTransactionActionHandlers<NApi::NNative::NProto::TReqSetAttributeOnTransactionCommit>({
-            .Prepare = BIND_NO_PROPAGATE(&TCypressManager::HydraPrepareSetAttributeOnTransactionCommit, Unretained(this)),
-            .Commit = BIND_NO_PROPAGATE(&TCypressManager::HydraCommitSetAttributeOnTransactionCommit, Unretained(this)),
-        });
 
         transactionManager->RegisterTransactionActionHandlers<NApi::NNative::NProto::TReqMergeToTrunkAndUnlockNode>({
             .Commit = BIND_NO_PROPAGATE(&TCypressManager::HydraCommitMergeToTrunkAndUnlockNode, Unretained(this)),
@@ -5070,105 +5064,6 @@ private:
         }
 
         DoUnlockNode(trunkNode, transaction, explicitOnly);
-    }
-
-    void HydraPrepareSetAttributeOnTransactionCommit(
-        TTransaction* /*transaction*/,
-        NApi::NNative::NProto::TReqSetAttributeOnTransactionCommit* request,
-        const TTransactionPrepareOptions& /*prepareOptions*/)
-    {
-        auto nodeId = FromProto<TObjectId>(request->node_id());
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        if (CellTagFromId(nodeId) == multicellManager->GetCellTag()) {
-            GetNodeOrThrow(TVersionedNodeId(nodeId));
-        }
-
-        // NB: We cannot run this transaction action on native cell because this
-        // leads to distributed transaction commit which can not be done with
-        // preprequisite transactions. So just check in those rare cases where
-        // transaction coordinator is also a native cell for this map node.
-    }
-
-    void SetAttributeOnTransactionCommit(
-        TTransactionId transactionId,
-        TNodeId nodeId,
-        const std::string& attribute,
-        const TYsonString& value)
-    {
-        YT_VERIFY(HasMutationContext());
-
-        auto* node = FindNode(TVersionedNodeId(nodeId));
-        if (!IsObjectAlive(node)) {
-            YT_LOG_ALERT(
-                "Failed to set attribute on transaction commit: no such node "
-                "(TransactionId: %v, NodeId: %v, Attribute: %v)",
-                transactionId,
-                nodeId,
-                attribute);
-            return;
-        }
-
-        try {
-            node->GetMutableAttributes()->Set(attribute, value);
-        } catch (const std::exception& ex) {
-            YT_LOG_ALERT(ex, "Failed to set attribute on transaction commit "
-                "(TransactionId: %v, NodeId: %v, Attribute: %v)",
-                transactionId,
-                nodeId,
-                attribute);
-        }
-    }
-
-    void HydraCommitSetAttributeOnTransactionCommit(
-        TTransaction* transaction,
-        NApi::NNative::NProto::TReqSetAttributeOnTransactionCommit* request,
-        const TTransactionCommitOptions& /*commitOptions*/)
-    {
-        auto nodeId = FromProto<TNodeId>(request->node_id());
-        auto cellTag = CellTagFromId(nodeId);
-
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-
-        if (cellTag == multicellManager->GetCellTag()) {
-            SetAttributeOnTransactionCommit(
-                transaction->GetId(),
-                nodeId,
-                request->attribute(),
-                TYsonString(request->value()));
-            return;
-        }
-
-        NProto::TReqSetAttributeOnTransactionCommit message;
-        ToProto(message.mutable_transaction_id(),  transaction->GetId());
-        ToProto(message.mutable_node_id(), nodeId);
-        message.set_attribute(request->attribute());
-        message.set_value(request->value());
-
-        multicellManager->PostToMaster(message, cellTag);
-    }
-
-    void HydraSetAttributeOnTransactionCommit(
-        NProto::TReqSetAttributeOnTransactionCommit* request)
-    {
-        auto nodeId = FromProto<TNodeId>(request->node_id());
-        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        if (CellTagFromId(nodeId) != multicellManager->GetCellTag()) {
-            YT_LOG_ALERT(
-                "Failed to set attribute on transaction commit: not a native cell "
-                "(TransactionId: %v, NodeId: %v, Attribute: %v)",
-                transactionId,
-                nodeId,
-                request->attribute());
-            return;
-        }
-
-        SetAttributeOnTransactionCommit(
-            transactionId,
-            nodeId,
-            request->attribute(),
-            TYsonString(request->value()));
     }
 
     void HydraCommitMergeToTrunkAndUnlockNode(
