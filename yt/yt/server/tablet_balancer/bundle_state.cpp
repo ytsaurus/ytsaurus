@@ -325,7 +325,7 @@ std::vector<TTableResolveResponse> ResolveTablePaths(
         tableResolveResponses.push_back(TTableResolveResponse{
             .Id = tableId,
             .CellTag = cellTag,
-            .UpstreamReplicaId = *upstreamReplicaId
+            .UpstreamReplicaId = *upstreamReplicaId,
         });
     }
     return tableResolveResponses;

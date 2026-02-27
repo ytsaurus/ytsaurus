@@ -481,7 +481,7 @@ private:
         replicas.emplace_back(TTableKey{
             .Mode = *table->ReplicaMode,
             .Cluster = SelfClusterName_,
-            .Id = table->Id
+            .Id = table->Id,
         });
 
         THashMap<TTableId, TAlienTablePtr> alienTables;
@@ -506,7 +506,8 @@ private:
                 if (minorTableIt == BundleSnapshot_->AlienTables.end()) {
                     YT_LOG_DEBUG("Alien table attributes or statistics was not fetched successfully "
                         "(MajorTableId: %v, MinorTableId: %v)",
-                        table->Id, it->second);
+                        table->Id,
+                        it->second);
                     return TReferenceTableSearchResponse{.AreAllReplicasValid = false};
                 }
 
@@ -523,7 +524,7 @@ private:
                 replicas.push_back(TTableKey{
                     .Mode = *minorTable->ReplicaMode,
                     .Cluster = cluster,
-                    .Id = minorTable->Id
+                    .Id = minorTable->Id,
                 });
             }
         }
