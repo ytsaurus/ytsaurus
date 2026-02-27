@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/ytree/public.h>
 
+#include <library/cpp/yt/compact_containers/compact_vector.h>
+
 namespace NYT::NOrm::NAttributes {
 
 ////////////////////////////////////////////////////////////////////////////////
