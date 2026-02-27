@@ -377,6 +377,7 @@ SRCS(
     queue_client/queue_consumer_init.cpp
     queue_client/dynamic_state.cpp
     queue_client/helpers.cpp
+    queue_client/path.cpp
     queue_client/queue_producer_init.cpp
     queue_client/registration_manager.cpp
     queue_client/registration_manager_base.cpp
