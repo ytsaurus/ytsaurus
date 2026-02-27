@@ -123,7 +123,7 @@ struct TClusterStateProviderConfig
     : public NYTree::TYsonStruct
 {
     std::vector<std::string> ClustersForBundleHealthCheck;
-    int MaxUnhealthyBundlesOnReplicaCluster;
+    std::string MetaClusterForBannedReplicas;
 
     TDuration FetchPlannerPeriod;
     int WorkerThreadPoolSize;
@@ -133,10 +133,12 @@ struct TClusterStateProviderConfig
     TDuration BundlesFreshnessTime;
     TDuration NodesFreshnessTime;
     TDuration UnhealthyBundlesFreshnessTime;
+    TDuration BannedReplicasFreshnessTime;
 
     TDuration BundlesFetchPeriod;
     TDuration NodesFetchPeriod;
     TDuration UnhealthyBundlesFetchPeriod;
+    TDuration BannedReplicasFetchPeriod;
 
     REGISTER_YSON_STRUCT(TClusterStateProviderConfig);
 

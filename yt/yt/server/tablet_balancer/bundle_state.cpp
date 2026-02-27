@@ -544,6 +544,7 @@ void DropAlienTables(const TBundleSnapshotPtr& bundleSnapshot)
 {
     bundleSnapshot->AlienTablePaths.clear();
     bundleSnapshot->AlienTables.clear();
+    bundleSnapshot->BannedReplicaClusters.clear();
 
     for (auto& [id, table] : bundleSnapshot->Bundle->Tables) {
         table->ReplicaMode.reset();
@@ -597,7 +598,8 @@ public:
         std::tuple<TInstant, TInstant, TInstant> minFreshnessRequirement,
         const THashSet<TGroupName>& groupsForMoveBalancing,
         const THashSet<TGroupName>& groupsForReshardBalancing,
-        const THashSet<std::string>& allowedReplicaClusters) override;
+        const THashSet<std::string>& allowedReplicaClusters,
+        const THashSet<std::string>& replicaClustersToIgnore) override;
 
     void Start() override;
     void Stop() override;
@@ -699,7 +701,8 @@ private:
         std::tuple<TInstant, TInstant, TInstant> minFreshnessRequirement,
         const THashSet<TGroupName>& groupsForMoveBalancing,
         const THashSet<TGroupName>& groupsForReshardBalancing,
-        const THashSet<std::string>& allowedReplicaClusters);
+        const THashSet<std::string>& allowedReplicaClusters,
+        const THashSet<std::string>& replicaClustersToIgnore);
 
     void FetchStatistics(
         TBundleSnapshotPtr bundleSnapshot,
@@ -709,6 +712,7 @@ private:
     void FetchReplicaStatistics(
         const TBundleSnapshotPtr& bundleSnapshot,
         const THashSet<std::string>& allowedReplicaClusters,
+        const THashSet<std::string>& replicaClustersToIgnore,
         bool fetchReshard,
         bool fetchMove);
 
@@ -729,7 +733,8 @@ private:
     void FetchReplicaModes(
         const TBundleSnapshotPtr& bundleSnapshot,
         const THashSet<TTableId>& majorTableIds,
-        const THashSet<std::string>& allowedReplicaClusters);
+        const THashSet<std::string>& allowedReplicaClusters,
+        const THashSet<std::string>& replicaClustersToIgnore);
 
     void FetchPerformanceCountersFromAlienTable(
         const TBundleSnapshotPtr& bundleSnapshot,
@@ -957,7 +962,8 @@ TFuture<TBundleSnapshotPtr> TBundleState::GetBundleSnapshotWithReplicaBalancingS
     std::tuple<TInstant, TInstant, TInstant> minFreshnessRequirement,
     const THashSet<TGroupName>& groupsForMoveBalancing,
     const THashSet<TGroupName>& groupsForReshardBalancing,
-    const THashSet<std::string>& allowedReplicaClusters)
+    const THashSet<std::string>& allowedReplicaClusters,
+    const THashSet<std::string>& replicaClustersToIgnore)
 {
     return BIND(
         &TBundleState::DoGetBundleSnapshotWithReplicaBalancingStatistics,
@@ -965,7 +971,8 @@ TFuture<TBundleSnapshotPtr> TBundleState::GetBundleSnapshotWithReplicaBalancingS
         minFreshnessRequirement,
         groupsForMoveBalancing,
         groupsForReshardBalancing,
-        allowedReplicaClusters)
+        allowedReplicaClusters,
+        replicaClustersToIgnore)
         .AsyncVia(FetcherInvoker_)
         .Run();
 }
@@ -1014,7 +1021,8 @@ TBundleSnapshotPtr TBundleState::DoGetBundleSnapshotWithReplicaBalancingStatisti
     std::tuple<TInstant, TInstant, TInstant> minFreshnessRequirement,
     const THashSet<TGroupName>& groupsForMoveBalancing,
     const THashSet<TGroupName>& groupsForReshardBalancing,
-    const THashSet<std::string>& allowedReplicaClusters)
+    const THashSet<std::string>& allowedReplicaClusters,
+    const THashSet<std::string>& replicaClustersToIgnore)
 {
     // Logically all replica balancing fields cannot be modified from two threads at the same time
     // because replica balancing attributes can only be fetched in sync mode and will be used right after that.
@@ -1047,6 +1055,7 @@ TBundleSnapshotPtr TBundleState::DoGetBundleSnapshotWithReplicaBalancingStatisti
         isMoveReplicaBalancingRequired);
 
     DropAlienTables(bundleSnapshot);
+    bundleSnapshot->BannedReplicaClusters = replicaClustersToIgnore;
 
     auto config = Config_.Acquire();
     if (isReshardReplicaBalancingRequired || isMoveReplicaBalancingRequired) {
@@ -1062,6 +1071,7 @@ TBundleSnapshotPtr TBundleState::DoGetBundleSnapshotWithReplicaBalancingStatisti
                 FetchReplicaStatistics(
                     bundleSnapshot,
                     allowedReplicaClusters,
+                    replicaClustersToIgnore,
                     isReshardReplicaBalancingRequired,
                     isMoveReplicaBalancingRequired);
             } catch (const TErrorException& ex) {
@@ -1776,6 +1786,7 @@ void TBundleState::FillTabletWithStatistics(
 void TBundleState::FetchReplicaStatistics(
     const TBundleSnapshotPtr& bundleSnapshot,
     const THashSet<std::string>& allowedReplicaClusters,
+    const THashSet<std::string>& replicaClustersToIgnore,
     bool fetchReshard,
     bool fetchMove)
 {
@@ -1805,6 +1816,11 @@ void TBundleState::FetchReplicaStatistics(
             THROW_ERROR_EXCEPTION("Table replicas from cluster %Qv are not allowed",
                 cluster)
                 << TErrorAttribute("allowed_replica_clusters", allowedReplicaClusters);
+        }
+
+        if (replicaClustersToIgnore.contains(cluster)) {
+            YT_LOG_DEBUG("Skipping replica cluster that is banned on metacluster (Cluster: %v)", cluster);
+            continue;
         }
 
         auto client = ClientDirectory_->GetClientOrThrow(cluster);
@@ -1891,7 +1907,7 @@ void TBundleState::FetchReplicaStatistics(
 
     if (fetchReshard) {
         YT_LOG_DEBUG("Started fetching replica table modes (MajorTableCount: %v)", std::ssize(majorTableIds));
-        FetchReplicaModes(bundleSnapshot, majorTableIds, allowedReplicaClusters);
+        FetchReplicaModes(bundleSnapshot, majorTableIds, allowedReplicaClusters, replicaClustersToIgnore);
         YT_LOG_DEBUG("Finished fetching replica table modes");
     }
 }
@@ -2173,7 +2189,8 @@ THashMap<TTableId, TTableStatisticsResponse> TBundleState::FetchTableStatistics(
 void TBundleState::FetchReplicaModes(
     const TBundleSnapshotPtr& bundleSnapshot,
     const THashSet<TTableId>& majorTableIds,
-    const THashSet<std::string>& allowedReplicaClusters)
+    const THashSet<std::string>& allowedReplicaClusters,
+    const THashSet<std::string>& replicaClustersToIgnore)
 {
     using TCellTagWithReplicaType = std::pair<TCellTag, EObjectType>;
     THashMap<TCellTagWithReplicaType, THashSet<TTableReplicaId>> cellTagToReplicaIds;
@@ -2272,6 +2289,11 @@ void TBundleState::FetchReplicaModes(
             THROW_ERROR_EXCEPTION("Table replicas from cluster %Qv are not allowed",
                 clusterName)
                 << TErrorAttribute("allowed_replica_clusters", allowedReplicaClusters);
+        }
+
+        if (replicaClustersToIgnore.contains(*clusterName)) {
+            YT_LOG_DEBUG("Skipping replica cluster that is banned on metacluster (Cluster: %v)", *clusterName);
+            continue;
         }
 
         auto client = ClientDirectory_->GetClientOrThrow(*clusterName);
