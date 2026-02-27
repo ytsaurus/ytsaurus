@@ -814,6 +814,9 @@ public:
             virtualRowIndex)
         , ReadRange_(readRange)
         , InterruptDescriptorKeyLength_(interruptDescriptorKeyLength)
+    { }
+
+    void InitializeRefCounted()
     {
         TCurrentTraceContextGuard traceGuard(TraceContext_);
 
