@@ -167,7 +167,7 @@ public:
     {
         std::vector<TTabletPtr> tablets;
         for (const auto& tablet : table->Tablets) {
-            if (IsTabletReshardable(tablet, /*ignoreConfig*/ false)) {
+            if (IsTabletReshardable(tablet)) {
                 tablets.push_back(tablet);
             }
         }

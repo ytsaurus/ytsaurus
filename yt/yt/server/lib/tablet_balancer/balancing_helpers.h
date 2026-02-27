@@ -37,7 +37,7 @@ struct TMoveDescriptor
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsTabletReshardable(const TTabletPtr& tablet, bool ignoreConfig);
+bool IsTabletReshardable(const TTabletPtr& tablet);
 
 i64 GetTabletBalancingSize(const TTabletPtr& tablet);
 
