@@ -11322,6 +11322,8 @@ TTableWriterOptionsPtr TOperationControllerBase::GetIntermediateTableWriterOptio
     options->CompressionCodec = Spec_->IntermediateCompressionCodec;
     // Distribute intermediate chunks uniformly across storage locations.
     options->PlacementId = GetOperationId().Underlying();
+    // We don't use the extended value statistics for intermediate data, calculating those is wasteful.
+    options->EnableColumnarValueStatistics = false;
     // NB(levysotsky): Don't set table_index for intermediate streams
     // as we store table indices directly in rows of intermediate chunk.
     return options;

@@ -610,6 +610,7 @@ TYsonString MakeIntermediateTableWriterConfig(
                 fluent.Item("node_rpc_timeout").Value(TDuration::Seconds(120));
             })
             .OptionalItem("direct_upload_node_count", directUploadNodeCount)
+            .Item("enable_large_columnar_statistics").Value(false)
         .EndMap();
 }
 
