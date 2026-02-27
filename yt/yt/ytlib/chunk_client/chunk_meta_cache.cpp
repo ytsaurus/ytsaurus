@@ -181,8 +181,8 @@ public:
             // Errors can weight a lot, but they can appear in Extensions_ only in a short interval
             // between setting the future and calling OnExtensionsReceived.
             // To avoid items expiration because of heavy errors, we do not count their weight into the total.
-            if (extensionFuture.IsSet() && extensionFuture.BlockingGet().IsOK() && extensionFuture.Get().Value()) {
-                weight += extensionFuture.Get().Value()->size();
+            if (extensionFuture.IsSet() && extensionFuture.BlockingGet().IsOK() && extensionFuture.BlockingGet().Value()) {
+                weight += extensionFuture.BlockingGet().Value()->size();
             }
         }
 
@@ -210,10 +210,10 @@ private:
             auto extensionFuture = GetOrCrash(Extensions_, tag);
             YT_VERIFY(extensionFuture.IsSet());
             YT_VERIFY(extensionFuture.BlockingGet().IsOK());
-            if (extensionFuture.Get().Value()) {
+            if (extensionFuture.BlockingGet().Value()) {
                 auto* ext = meta->mutable_extensions()->add_extensions();
                 ext->set_tag(tag);
-                ext->set_data(*extensionFuture.Get().Value());
+                ext->set_data(*extensionFuture.BlockingGet().Value());
             }
         }
 

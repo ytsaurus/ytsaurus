@@ -1253,7 +1253,7 @@ private:
             auto& state = States_[key];
 
             if (state.Future.IsSet()) {
-                state.CurrentError = state.Future.Get();
+                state.CurrentError = state.Future.BlockingGet();
                 state.Future = Cache_->Get(key);
             }
 

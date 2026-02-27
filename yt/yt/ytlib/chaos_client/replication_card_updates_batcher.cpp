@@ -655,7 +655,7 @@ private:
 
         TRepicationCardUpdatesByChaosCells result;
         for (const auto& [replicationCardId, future] : futureTagById) {
-            if (auto cellTagOrError = future.Get(); !cellTagOrError.IsOK()) {
+            if (auto cellTagOrError = future.BlockingGet(); !cellTagOrError.IsOK()) {
                 YT_LOG_DEBUG(cellTagOrError,
                     "Failed to get cell tag for replication card, update skipped (ReplicationCardId: %v)",
                     replicationCardId);

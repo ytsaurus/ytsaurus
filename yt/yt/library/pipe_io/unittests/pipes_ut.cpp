@@ -65,7 +65,7 @@ TBlob ReadAll(IConnectionReaderPtr reader, bool useWaitFor)
         if (useWaitFor) {
             result = WaitFor(future);
         } else {
-            result = future.Get();
+            result = future.BlockingGet();
         }
 
         if (result.ValueOrThrow() == 0) {
@@ -520,7 +520,7 @@ TEST_P(TNewDeliveryFencedWriteTestFixture, ReadBeforeWrite)
     auto writeResult = Writer->Write(writeBuffer).WithTimeout(TDuration::Seconds(5)).Get();
     EXPECT_ERROR_IS_OK(writeResult);
 
-    auto readResult = readFuture.Get();
+    auto readResult = readFuture.BlockingGet();
     EXPECT_ERROR_IS_OK(readResult);
     EXPECT_EQ("aabbb", TStringBuf(readBuffer.Begin(), readResult.Value()));
 }

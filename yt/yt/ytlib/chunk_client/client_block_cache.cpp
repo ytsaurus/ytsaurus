@@ -93,7 +93,7 @@ public:
     {
         const auto& future = Cookie_.GetValue();
         YT_VERIFY(future.IsSet() && future.BlockingGet().IsOK());
-        return future.Get().Value()->CachedBlock();
+        return future.BlockingGet().Value()->CachedBlock();
     }
 
     void SetBlock(TErrorOr<TCachedBlock> blockOrError) override
