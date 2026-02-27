@@ -87,16 +87,6 @@ message TReqUnlockForeignNode
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqSetAttributeOnTransactionCommit
-{
-    required NYT.NProto.TGuid transaction_id = 1;
-    required NYT.NProto.TGuid node_id = 2;
-    required string attribute = 3;
-    required bytes value = 4; // YSON
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 // COMPAT(h0pless): FixSchemaDivergence.
 message TReqSetTableSchemas
 {
