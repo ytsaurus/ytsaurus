@@ -24,7 +24,7 @@ struct TTableDataServiceWorkerRunOptions {
     bool PrintStats = false;
     ui64 MaxDataWeight;
     TString LoggerFormat;
-    TString FmrTvmConfig;
+    TMaybe<TString> FmrTvmConfig;
     TMaybe<ui32> FmrTvmPort;
     TMaybe<TString> FmrTvmSecretPath;
 

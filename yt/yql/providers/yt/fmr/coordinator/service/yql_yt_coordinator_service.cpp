@@ -31,7 +31,7 @@ public:
     TString TableDataServiceDiscoveryFilePath;
     TString UnderlyingGatewayType;
     TString LoggerFormat;
-    TString FmrTvmConfig;
+    TMaybe<TString> FmrTvmConfig;
     TMaybe<ui32> FmrTvmPort;
     TMaybe<TString> FmrTvmSecretPath;
 

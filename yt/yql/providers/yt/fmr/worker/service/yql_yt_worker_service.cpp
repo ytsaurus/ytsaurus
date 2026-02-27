@@ -43,7 +43,7 @@ struct TWorkerRunOptions {
     TString LoggerFormat;
     THolder<TFileStorageConfig> FsConfig;
     THolder<TFmrFileRemoteCache> FmrRemoteCacheConfig;
-    TString FmrTvmConfig;
+    TMaybe<TString> FmrTvmConfig;
     TMaybe<ui32> FmrTvmPort;
     TMaybe<TString> FmrTvmSecretPath;
 
