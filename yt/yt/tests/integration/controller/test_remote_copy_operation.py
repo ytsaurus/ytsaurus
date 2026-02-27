@@ -2023,8 +2023,8 @@ class TestSchedulerRemoteCopyDynamicTablesWithHunks(TestSchedulerRemoteCopyDynam
             {"name": "key", "type": "string", "sort_order": "ascending"},
             {"name": "value", "type": "string", "max_inline_hunk_size": 10},
         ]
-        self._create_sorted_table("//tmp/t1", schema=schema, driver=self.remote_driver)
-        self._create_sorted_table("//tmp/t2", schema=schema)
+        self._create_sorted_table("//tmp/t1", schema=schema, driver=self.remote_driver, optimize_for="lookup")
+        self._create_sorted_table("//tmp/t2", schema=schema, optimize_for="lookup")
 
         row_count = 5
         rows = [{"key": "a" * 19 + str(i), "value": "a" * 20} for i in range(row_count)]
