@@ -22,6 +22,7 @@ struct ITabletActionManagerHost
     virtual const TDynamicTabletManagerConfigPtr& GetDynamicConfig() const = 0;
 
     virtual TTableSettings GetTableSettings(NTableServer::TTableNode* table) const = 0;
+    virtual THunkStorageSettings ValidateAndGetHunkStorageSettings(THunkStorageNode* hunkStorage) const = 0;
 
     virtual void ValidateBundleUsePermission(TTabletCellBundle* bundle) const = 0;
 
@@ -60,7 +61,7 @@ struct ITabletActionManagerHost
 
     virtual void DoMountTablets(
         TTabletOwnerBase* table,
-        const TSerializedTabletOwnerSettings& serializedTableSettings,
+        const TSerializedTabletOwnerSettings& serializedSettings,
         const std::vector<std::pair<TTabletBase*, TTabletCell*>>& assignment,
         bool freeze,
         bool useRetainedPreloadedChunks = false,

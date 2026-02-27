@@ -134,6 +134,14 @@ void TDynamicCellHydraPersistenceSynchronizerConfig::Register(TRegistrar registr
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TDynamicTabletManagerTestingConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("mount_via_orphaned_tablet_actions", &TThis::MountViaOrphanedTabletActions)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("peer_revocation_timeout", &TThis::PeerRevocationTimeout)
@@ -274,6 +282,9 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_alter_to_static_with_hunks", &TThis::EnableAlterToStaticWithHunks)
         .Default(false);
+
+    registrar.Parameter("testing", &TThis::Testing)
+        .DefaultNew();
 
     registrar.Preprocessor([] (TThis* config) {
         config->StoreChunkReader->SuspiciousNodeGracePeriod = TDuration::Minutes(5);

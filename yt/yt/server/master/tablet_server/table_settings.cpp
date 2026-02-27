@@ -225,7 +225,7 @@ TSerializedTableSettings SerializeTableSettings(const TTableSettings& tableSetti
     };
 }
 
-THunkStorageSettings GetHunkStorageSettings(
+THunkStorageSettings ValidateAndGetHunkStorageSettings(
     THunkStorageNode* hunkStorage,
     const IObjectManagerPtr& objectManager,
     const IChunkManagerPtr& chunkManager,
@@ -296,9 +296,17 @@ TTabletOwnerSettings GetTabletOwnerSettings(
     const TDynamicTabletManagerConfigPtr& dynamicConfig)
 {
     if (IsTableType(table->GetType())) {
-        return GetTableSettings(table->As<TTableNode>(), objectManager, chunkManager, dynamicConfig);
+        return GetTableSettings(
+            table->As<TTableNode>(),
+            objectManager,
+            chunkManager,
+            dynamicConfig);
     } else if (table->GetType() == EObjectType::HunkStorage) {
-        return GetHunkStorageSettings(table->As<THunkStorageNode>(), objectManager, chunkManager, dynamicConfig);
+        return ValidateAndGetHunkStorageSettings(
+            table->As<THunkStorageNode>(),
+            objectManager,
+            chunkManager,
+            dynamicConfig);
     } else {
         YT_ABORT();
     }

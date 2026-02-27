@@ -220,6 +220,7 @@ DEFINE_ENUM(EMasterReign,
     ((ReshardRedirectionHint)                                       (3206))  // atalmenev
     ((TweakChunkMergerTraversalInfoAfterRebalance)                  (3207))  // aleksandra-zh, shakurov
     ((AddBundleControllerUser)                                      (3208))  // atalmenev
+    ((HunkTabletActions)                                            (3209))  // akozhikhov
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
