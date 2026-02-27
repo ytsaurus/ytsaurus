@@ -350,7 +350,7 @@ public:
                 ObjectId_,
                 CellTag_,
                 defaultTimeout,
-                std::move(channelFuture.AsUnique().Get()
+                std::move(channelFuture.AsUnique().BlockingGet()
                     .ValueOrDefault(nullptr)))
             : channelFuture.AsUnique().Apply(BIND(
                 TGetSession::CheckLastSeenResidency,
@@ -460,7 +460,7 @@ private:
                         continue;
                     }
 
-                    if (const auto& result = future.Get(); result.IsOK()) {
+                    if (const auto& result = future.BlockingGet(); result.IsOK()) {
                         return futureCellTags[index];
                     }
                 }
@@ -480,7 +480,7 @@ private:
                 ObjectId_,
                 CellTag_,
                 defaultTimeout,
-                std::move(channelFuture.AsUnique().Get()
+                std::move(channelFuture.AsUnique().BlockingGet()
                     .ValueOrDefault(nullptr)))
             : channelFuture.AsUnique().Apply(BIND(
                 TGetSession::CheckLastSeenResidencyViaIsChaosObjectExistent,

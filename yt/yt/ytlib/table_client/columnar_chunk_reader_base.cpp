@@ -126,7 +126,7 @@ void TColumnarChunkReaderBase::FeedBlocksToReaders()
             }
             MemoryManagerHolder_->Get()->SetRequiredMemorySize(RequiredMemorySize_);
 
-            const auto& block = blockFuture.Get().Value();
+            const auto& block = blockFuture.BlockingGet().Value();
             columnReader->SetCurrentBlock(block.Data, column.PendingBlockIndex);
         }
     }

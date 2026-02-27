@@ -610,7 +610,7 @@ void TQueryContext::InitializeQueryReadTransactionFuture()
 
     ReadTransactionFuture_ = AllSucceeded(std::vector{transactionFuture.AsVoid(), timestampFuture.AsVoid()})
         .Apply(BIND([transactionFuture, timestampFuture] {
-            return TTransactionWithTimestamp{transactionFuture.Get().Value(), timestampFuture.Get().Value()};
+            return TTransactionWithTimestamp{transactionFuture.BlockingGet().Value(), timestampFuture.BlockingGet().Value()};
         }));
 
     YT_LOG_INFO("Query read transaction future initialized");
@@ -704,9 +704,9 @@ void TQueryContext::LockAndFetchAttributesSync(std::vector<TYPath> pathsToFetch)
 
     SaveQueryReadTransaction();
 
-    auto locks = locksFuture.Get().Value();
-    auto attributes = attributesFuture.Get().Value();
-    auto preliminaryCheckPermissionResults = preliminaryCheckPermissionResultsFuture.Get().Value();
+    auto locks = locksFuture.BlockingGet().Value();
+    auto attributes = attributesFuture.BlockingGet().Value();
+    auto preliminaryCheckPermissionResults = preliminaryCheckPermissionResultsFuture.BlockingGet().Value();
 
     std::vector<TYPath> pathsToRefetch;
     std::vector<TErrorOr<EPreliminaryCheckPermissionResult>> preliminaryResultsForRefetchedPaths;

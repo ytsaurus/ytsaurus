@@ -47,7 +47,7 @@ int main(int argc, char** argv)
 
         Cout << "Enqueued" << Endl;
 
-        promise.Get();
+        promise.BlockingGet();
 
         auto ms = timer.GetElapsedTime().MilliSeconds();
 

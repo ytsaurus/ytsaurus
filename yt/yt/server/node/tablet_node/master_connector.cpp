@@ -298,7 +298,7 @@ private:
         CellTagToHeartbeatRspFuture_.erase(futureIt);
         YT_VERIFY(future.IsSet());
 
-        return future.Get();
+        return future.BlockingGet();
     }
 };
 

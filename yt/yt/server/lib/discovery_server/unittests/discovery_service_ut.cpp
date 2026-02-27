@@ -177,7 +177,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestSimple)
     auto discoveryClient = CreateDiscoveryClient();
     auto checkGroupSize = [&] {
         auto metaFuture = discoveryClient->GetGroupMeta(groupId);
-        const auto& metaOrError = metaFuture.Get();
+        const auto& metaOrError = metaFuture.BlockingGet();
         if (!metaOrError.IsOK()) {
             return false;
         }
@@ -289,7 +289,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestGossip)
 
     auto checkMember = [&] {
         auto membersFuture = discoveryClient->ListMembers(groupId, {});
-        const auto& membersOrError = membersFuture.Get();
+        const auto& membersOrError = membersFuture.BlockingGet();
         if (!membersOrError.IsOK()) {
             return false;
         }
@@ -374,7 +374,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestPriority)
 
     auto checkListMembers = [&] {
         auto membersFuture = discoveryClient->ListMembers(groupId, {});
-        const auto& membersOrError = membersFuture.Get();
+        const auto& membersOrError = membersFuture.BlockingGet();
         if (!membersOrError.IsOK()) {
             return false;
         }
@@ -398,7 +398,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestPriority)
 
     auto checkListMembersSize = [&] {
         auto membersFuture = discoveryClient->ListMembers(groupId, options);
-        const auto& membersOrError = membersFuture.Get();
+        const auto& membersOrError = membersFuture.BlockingGet();
         if (!membersOrError.IsOK()) {
             return false;
         }
@@ -446,7 +446,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestServerBan)
 
     auto checkListMembers = [&] {
         auto membersFuture = discoveryClient->ListMembers(groupId, {});
-        const auto& membersOrError = membersFuture.Get();
+        const auto& membersOrError = membersFuture.BlockingGet();
         if (!membersOrError.IsOK()) {
             return false;
         }
@@ -499,7 +499,7 @@ TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestNestedGroups)
     auto checkGroups = [&] {
         for (const auto& [groupId, memberId] : testMembers) {
             auto membersFuture = discoveryClient->ListMembers(groupId, {});
-            auto membersOrError = membersFuture.Get();
+            auto membersOrError = membersFuture.BlockingGet();
             if (!membersOrError.IsOK()) {
                 return false;
             }

@@ -319,7 +319,7 @@ TEST_F(TCpuProfilerTest, SlowActions)
         auto future = BIND(busyWait, TraceThreshold / 2)
             .AsyncVia(threadPool->GetInvoker())
             .Run();
-        future.Get();
+        future.BlockingGet();
     },
     true,
     filters,
@@ -331,7 +331,7 @@ TEST_F(TCpuProfilerTest, SlowActions)
         auto future = BIND(busyWait, TraceThreshold * 3)
             .AsyncVia(threadPool->GetInvoker())
             .Run();
-        future.Get();
+        future.BlockingGet();
     },
     true,
     filters);

@@ -787,7 +787,7 @@ public:
                 baseAttributesFuture = std::move(baseAttributesFuture)
             ] {
                 // NB: AllSucceeded() guarantees that all futures contain values.
-                auto fetchedBaseAttributes = baseAttributesFuture.Get().Value();
+                auto fetchedBaseAttributes = baseAttributesFuture.BlockingGet().Value();
 
                 auto traverseRequestedTree = [&] (INodeVisitor<TCypressChildDescriptor>* visitor) {
                     if constexpr (std::is_same_v<T, const std::vector<TCypressChildDescriptor>*>) {
@@ -802,7 +802,7 @@ public:
                     }
                 };
 
-                if (auto inheritedState = ancestryFuture.Get().Value()) {
+                if (auto inheritedState = ancestryFuture.BlockingGet().Value()) {
                     auto calculator = TEffectiveAttributeCalculator::InheritFrom(
                         std::move(*inheritedState),
                         &fetchedBaseAttributes,
@@ -810,7 +810,7 @@ public:
                     traverseRequestedTree(&calculator);
                 }
 
-                if (auto frontierNodesResourceUsage = descendantsFuture.Get().Value()) {
+                if (auto frontierNodesResourceUsage = descendantsFuture.BlockingGet().Value()) {
                     auto calculator = TRecursiveAttributeCalculator(
                         &fetchedBaseAttributes,
                         &(*frontierNodesResourceUsage),
@@ -1063,8 +1063,8 @@ private:
                 attributesFuture = std::move(attributesFuture)
             ] {
                 // NB: AllSucceeded() guarantees that all futures contain values.
-                auto values = valuesFuture.Get().Value();
-                auto attributes = attributesFuture.Get().Value();
+                auto values = valuesFuture.BlockingGet().Value();
+                auto attributes = attributesFuture.BlockingGet().Value();
                 YT_VERIFY(values || attributes);
 
                 if (attributes) {

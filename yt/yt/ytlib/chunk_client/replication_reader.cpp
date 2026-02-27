@@ -2186,7 +2186,7 @@ private:
 
             auto future = ThrottleRequest(isPrimaryRequest);
             if (future.IsSet()) {
-                OnRequestThrottled(isPrimaryRequest, future.Get());
+                OnRequestThrottled(isPrimaryRequest, future.BlockingGet());
             } else {
                 future.Subscribe(BIND(&THedgedRequest::OnRequestThrottled,
                     MakeStrong(this),

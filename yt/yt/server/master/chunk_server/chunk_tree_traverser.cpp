@@ -431,7 +431,7 @@ protected:
                 if (!future.IsSet()) {
                     return future;
                 } else if (!future.BlockingGet().IsOK()) {
-                    OnFinish(future.Get());
+                    OnFinish(future.BlockingGet());
                 }
             }
 

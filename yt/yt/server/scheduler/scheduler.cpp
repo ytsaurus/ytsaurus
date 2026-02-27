@@ -3216,7 +3216,7 @@ private:
         Y_UNUSED(WaitFor(AllSet(futures)));
 
         YT_VERIFY(unregisterFuture.IsSet());
-        auto resultOrError = unregisterFuture.Get();
+        auto resultOrError = unregisterFuture.BlockingGet();
         if (!resultOrError.IsOK()) {
             return;
         }
@@ -4122,7 +4122,7 @@ private:
             errors.reserve(futures.size());
             for (const auto& future : futures) {
                 YT_VERIFY(future.IsSet());
-                errors.push_back(future.Get());
+                errors.push_back(future.BlockingGet());
             }
             THROW_ERROR_EXCEPTION("Access to perform %Qlv of operation %v denied",
                 action,

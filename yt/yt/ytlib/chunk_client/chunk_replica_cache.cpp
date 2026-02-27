@@ -406,7 +406,7 @@ public:
             if (entry->Future &&
                 entry->Future.IsSet() &&
                 entry->Future.BlockingGet().IsOK() &&
-                entry->Future.Get().Value() == canonicalReplicas)
+                entry->Future.BlockingGet().Value() == canonicalReplicas)
             {
                 return;
             }
@@ -623,8 +623,8 @@ private:
 
         return AllSucceeded(std::vector{approvedReplicasFuture.AsVoid(), unapprovedReplicasFuture.AsVoid()})
             .Apply(BIND([=] {
-                const auto& approvedReplicas = approvedReplicasFuture.Get().Value();
-                const auto& unapprovedReplicas = unapprovedReplicasFuture.Get().Value();
+                const auto& approvedReplicas = approvedReplicasFuture.BlockingGet().Value();
+                const auto& unapprovedReplicas = unapprovedReplicasFuture.BlockingGet().Value();
                 YT_VERIFY(approvedReplicas.size() == unapprovedReplicas.size());
 
                 std::vector<std::optional<TAllyReplicasInfo>> results;

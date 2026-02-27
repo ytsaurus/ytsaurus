@@ -1531,8 +1531,8 @@ private:
                     YT_VERIFY(dependentTransactionFuture.IsSet());
 
                     // NB: AllSucceeded() guarantees that all futures contain values.
-                    const auto& descendentTransaction = descendentTransactionFuture.Get().Value();
-                    const auto& dependentTransaction = dependentTransactionFuture.Get().Value();
+                    const auto& descendentTransaction = descendentTransactionFuture.BlockingGet().Value();
+                    const auto& dependentTransaction = dependentTransactionFuture.BlockingGet().Value();
 
                     if (descendentTransaction.empty() && dependentTransaction.empty()) {
                         return MakeFuture(std::vector<std::optional<NRecords::TTransaction>>{});

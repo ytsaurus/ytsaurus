@@ -91,7 +91,7 @@ void Main(ERunMode mode, double limit, i64 iterCount, i64 iterSize)
             YT_ABORT();
     }
 
-    DonePromise.ToFuture().Get();
+    DonePromise.ToFuture().BlockingGet();
 
     Cout << "The run took " << timer.GetElapsedTime().SecondsFloat() << " s." << Endl;
 }

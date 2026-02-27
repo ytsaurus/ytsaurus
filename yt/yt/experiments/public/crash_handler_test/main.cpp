@@ -55,7 +55,7 @@ void Main()
             ThreadIndex() = index;
             Cerr << Format("Thread %v is ready\n", index);
             readyPromises[index].Set();
-            crashFuture.Get();
+            crashFuture.BlockingGet();
             YT_ABORT();
         }));
     }

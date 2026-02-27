@@ -551,7 +551,7 @@ TOperation TClient::DoGetOperationImpl(
     auto [cypressResult, operationNodeModificationTime] = cypressFuture.BlockingGet()
         .ValueOrThrow();
 
-    auto archiveResultOrError = archiveFuture.Get();
+    auto archiveResultOrError = archiveFuture.BlockingGet();
 
     if (archiveResultOrError.FindMatching(NYT::EErrorCode::Timeout)) {
         GetCounters().OperationApiCounters.GetOperationFromArchiveTimeoutCounter.Increment();
