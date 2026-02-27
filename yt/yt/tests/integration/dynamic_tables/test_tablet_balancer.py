@@ -6,7 +6,7 @@ from yt_commands import (
     authors, set, get, ls, update, wait, sync_mount_table, sync_reshard_table,
     insert_rows, sync_create_cells, sync_flush_table, remove, get_driver,
     sync_compact_table, wait_for_tablet_state, create_tablet_cell_bundle,
-    sync_unmount_table, print_debug, select_rows,
+    sync_unmount_table, print_debug, select_rows, WaitFailed,
     create, create_table_replica, sync_enable_table_replica)
 
 from yt.common import update_inplace
@@ -134,6 +134,7 @@ class TestStandaloneTabletBalancerBase:
         config = get(cls.config_path, driver=driver)
         update_inplace(config, patch)
         set(cls.config_path, config, driver=driver)
+        effective_config = None
 
         instances = ls(cls.root_path + "/instances", driver=driver)
 
@@ -145,7 +146,12 @@ class TestStandaloneTabletBalancerBase:
                     return False
             return True
 
-        wait(config_updated_on_all_instances)
+        try:
+            wait(config_updated_on_all_instances)
+        except WaitFailed:
+            print_debug("Effective config:", effective_config)
+            print_debug("Expected config:", update(effective_config, config))
+            raise
 
     def setup_method(self, method):
         super(TestStandaloneTabletBalancerBase, self).setup_method(method)

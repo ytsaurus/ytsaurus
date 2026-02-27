@@ -6,10 +6,10 @@
 #include "dynamic_config_manager.h"
 #include "helpers.h"
 #include "move_iteration.h"
+#include "multicell_throttler.h"
 #include "private.h"
 #include "public.h"
 #include "reshard_iteration.h"
-#include "tablet_action.h"
 #include "tablet_balancer.h"
 
 #include <yt/yt/server/lib/cypress_election/election_manager.h>
@@ -31,6 +31,7 @@
 #include <yt/yt/core/misc/random.h>
 
 #include <yt/yt/core/concurrency/thread_pool.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
 
 #include <util/random/shuffle.h>
 
@@ -112,6 +113,53 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMulticellThrottler
+    : public IMulticellThrottler
+{
+public:
+    TMulticellThrottler(TThroughputThrottlerConfigPtr config)
+        : Config_(std::move(config))
+    { }
+
+    IReconfigurableThroughputThrottlerPtr GetThrottler(TCellTag cellTag) override
+    {
+        auto guard = Guard(Lock_);
+        if (auto it = Throttlers_.find(cellTag); it != Throttlers_.end()) {
+            return it->second;
+        }
+
+        return Throttlers_.emplace(cellTag, CreateReconfigurableThroughputThrottler(
+            Config_,
+            Logger(),
+            TabletBalancerProfiler())).first->second;
+    }
+
+    void Reconfigure(TThroughputThrottlerConfigPtr config) override
+    {
+        YT_LOG_DEBUG_IF(!Throttlers_.empty() && config->Limit != Throttlers_.begin()->second->GetLimit(),
+            "Reconfiguring multicell throttler (OldLimit: %v, NewLimit: %v)",
+            Throttlers_.begin()->second->GetLimit(),
+            config->Limit);
+
+        auto throttlers = [&] {
+            auto guard = Guard(Lock_);
+            Config_ = config;
+            return GetValues(Throttlers_);
+        }();
+
+        for (const auto& throttler : throttlers) {
+            throttler->Reconfigure(config);
+        }
+    }
+
+private:
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    THashMap<TCellTag, IReconfigurableThroughputThrottlerPtr> Throttlers_;
+    TThroughputThrottlerConfigPtr Config_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTabletBalancer
     :  public ITabletBalancer
 {
@@ -174,6 +222,7 @@ private:
 
     TScheduledActionCountLimiter ActionCountLimiter_;
     TParameterizedBalancingTimeoutScheduler ParameterizedBalancingScheduler_;
+    IMulticellThrottlerPtr MasterRequestThrottler_;
 
     // Precise iteration start time used for liveness reporting.
     TInstant PreciseCurrentIterationStartTime_;
@@ -346,13 +395,16 @@ TTabletBalancer::TTabletBalancer(
     , CancelledIterationDueToUnhealthyState_(TabletBalancerProfiler().WithSparse().Counter("/iteration_cancellations"))
     , PickPivotFailures_(TabletBalancerProfiler().WithSparse().Counter("/pick_pivot_failures"))
 {
+    auto dynamicConfig = DynamicConfig_.Acquire();
+    MasterRequestThrottler_ = New<TMulticellThrottler>(dynamicConfig->MasterRequestThrottler);
     ActionManager_ = CreateActionManager(
-        DynamicConfig_.Acquire()->ActionManager,
+        dynamicConfig->ActionManager,
         Bootstrap_->GetClient(),
-        Bootstrap_);
+        Bootstrap_,
+        MasterRequestThrottler_);
     ClusterStateProvider_ = CreateClusterStateProvider(
         bootstrap,
-        DynamicConfig_.Acquire()->ClusterStateProvider,
+        dynamicConfig->ClusterStateProvider,
         ControlInvoker_);
 
     bootstrap->GetDynamicConfigManager()->SubscribeConfigChanged(
@@ -796,6 +848,7 @@ void TTabletBalancer::OnDynamicConfigChanged(
     ParameterizedBalancingScheduler_.Reconfigure(
         newConfig->ParameterizedTimeoutOnStart.value_or(Config_->ParameterizedTimeoutOnStart),
         newConfig->ParameterizedTimeout.value_or(Config_->ParameterizedTimeout));
+    MasterRequestThrottler_->Reconfigure(newConfig->MasterRequestThrottler);
 
     for (const auto& [name, bundle] : Bundles_) {
         bundle->Reconfigure(newConfig->BundleStateProvider);
@@ -876,6 +929,7 @@ std::vector<std::string> TTabletBalancer::UpdateBundleList()
                 ControlInvoker_,
                 dynamicConfig->BundleStateProvider,
                 ClusterStateProvider_,
+                MasterRequestThrottler_,
                 &bundle->Attributes()));
 
         if (isNew) {

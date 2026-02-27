@@ -50,7 +50,8 @@ DEFINE_REFCOUNTED_TYPE(IActionManager)
 IActionManagerPtr CreateActionManager(
     TActionManagerConfigPtr config,
     NApi::NNative::IClientPtr client,
-    IBootstrap* bootstrap);
+    IBootstrap* bootstrap,
+    IMulticellThrottlerPtr throttler);
 
 ////////////////////////////////////////////////////////////////////////////////
 

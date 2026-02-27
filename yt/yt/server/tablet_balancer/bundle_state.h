@@ -93,6 +93,7 @@ IBundleStatePtr CreateBundleState(
     IInvokerPtr controlInvoker,
     TBundleStateProviderConfigPtr config,
     IClusterStateProviderPtr clusterStateProvider,
+    IMulticellThrottlerPtr throttler,
     const NYTree::IAttributeDictionary* initialAttributes);
 
 ////////////////////////////////////////////////////////////////////////////////
