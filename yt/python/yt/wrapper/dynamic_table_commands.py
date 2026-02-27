@@ -202,7 +202,7 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
                 execution_pool=None, response_parameters=None, retention_timestamp=None, placeholder_values=None,
                 use_canonical_null_relations=None, merge_versioned_rows=None, syntax_version=None, versioned_read_options=None,
                 with_timestamps=None, udf_registry_path=None, use_lookup_cache=None, execution_backend=None,
-                expression_builder_version=None, client=None):
+                expression_builder_version=None, read_from=None, client=None):
     """Executes a SQL-like query on dynamic table.
 
     .. seealso:: `supported features <https://ytsaurus.tech/docs/en/user-guide/dynamic-tables/dyn-query-language>`_
@@ -244,6 +244,7 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
     set_param(params, "versioned_read_options", _get_versioned_read_options(versioned_read_options, with_timestamps))
     set_param(params, "udf_registry_path", udf_registry_path)
     set_param(params, "execution_backend", execution_backend)
+    set_param(params, "read_from", read_from)
 
     _check_transaction_type(client)
 
@@ -474,7 +475,7 @@ def lock_rows(table, input_stream, locks=[], lock_type=None, durability=None, fo
 def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_missing_rows=None,
                 enable_partial_result=None, use_lookup_cache=None,
                 format=None, raw=None, versioned=None, retention_timestamp=None, versioned_read_options=None,
-                with_timestamps=None, client=None):
+                with_timestamps=None, read_from=None, client=None):
     """Lookups rows in dynamic table.
 
     .. seealso:: `supported features <https://ytsaurus.tech/docs/en/user-guide/dynamic-tables/dyn-query-language>`_
@@ -503,6 +504,7 @@ def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_mis
     set_param(params, "versioned", versioned)
     set_param(params, "timeout", get_config(client)["proxy"]["heavy_request_timeout"])
     set_param(params, "versioned_read_options", _get_versioned_read_options(versioned_read_options, with_timestamps))
+    set_param(params, "read_from", read_from)
 
     chunk_size = get_config(client)["write_retries"]["chunk_size"]
     if chunk_size is None:
