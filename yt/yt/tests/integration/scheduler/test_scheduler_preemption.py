@@ -54,6 +54,7 @@ def get_scheduling_options(user_slots):
 
 class TestSchedulerPreemption(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
+    NUM_TEST_PARTITIONS = 2
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1400,6 +1401,7 @@ class TestSchedulerStarvationIntervals(YTEnvSetup):
             "fair_share_aggressive_starvation_timeout": 200,
             "preemptive_scheduling_backoff": 0,
             "max_ephemeral_pools_per_user": 5,
+            "enable_detailed_starvation_logs": True,
         })
 
     def _get_op_starvation_status(self, op):
