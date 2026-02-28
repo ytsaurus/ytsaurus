@@ -214,7 +214,7 @@ DEFINE_REFCOUNTED_TYPE(TAvenueMailboxRuntimeData)
 class TAvenueMailbox
     : public TMailbox
     , public NHydra::TEntityBase
-    , public TRefTracked<TCellMailbox>
+    , public TRefTracked<TAvenueMailbox>
 {
 public:
     using TMailbox::TMailbox;
