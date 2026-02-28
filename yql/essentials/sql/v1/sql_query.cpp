@@ -647,7 +647,10 @@ bool TSqlQuery::Statement(TVector<TNodePtr>& blocks, const TRule_sql_stmt_core& 
 
             if (tr.Service == YtProviderName) {
                 if (!Ctx_.EnsureBackwardCompatibleFeatureAvailable(
-                    Ctx_.Pos(), "ALTER TABLE", GetMaxLangVersion())) {
+                    Ctx_.Pos(), 
+                    TString("ALTER TABLE for ") + tr.Service, 
+                    GetMaxLangVersion())) 
+                {
                     return false;
                 }
             }
