@@ -1408,27 +1408,31 @@ private:
         std::optional<i64> netTxLimit,
         std::optional<i64> netRxLimit)
     {
-        auto throttlerConfig = New<TFairThrottlerConfig>();
-        throttlerConfig->TotalLimit = GetNetworkThrottlerLimit(newConfig, netRxLimit);
+        {
+            auto throttlerConfig = New<TFairThrottlerConfig>();
+            throttlerConfig->TotalLimit = GetNetworkThrottlerLimit(newConfig, netRxLimit);
 
-        THashMap<std::string, TFairThrottlerBucketConfigPtr> inBucketsConfig;
-        for (const auto& bucket : EnabledInThrottlers_) {
-            inBucketsConfig[bucket] = Config_->InThrottlers[bucket];
-            if (newConfig->InThrottlers[bucket]) {
-                inBucketsConfig[bucket] = newConfig->InThrottlers[bucket];
+            THashMap<std::string, TFairThrottlerBucketConfigPtr> inBucketsConfig;
+            for (const auto& bucket : EnabledInThrottlers_) {
+                inBucketsConfig[bucket] = Config_->InThrottlers[bucket];
+                if (newConfig->InThrottlers[bucket]) {
+                    inBucketsConfig[bucket] = newConfig->InThrottlers[bucket];
+                }
             }
+            InThrottler_->Reconfigure(throttlerConfig, inBucketsConfig);
         }
-        InThrottler_->Reconfigure(throttlerConfig, inBucketsConfig);
-
-        throttlerConfig->TotalLimit = GetNetworkThrottlerLimit(newConfig, netTxLimit);
-        THashMap<std::string, TFairThrottlerBucketConfigPtr> outBucketsConfig;
-        for (const auto& bucket : EnabledOutThrottlers_) {
-            outBucketsConfig[bucket] = Config_->OutThrottlers[bucket];
-            if (newConfig->OutThrottlers[bucket]) {
-                outBucketsConfig[bucket] = newConfig->OutThrottlers[bucket];
+        {
+            auto throttlerConfig = New<TFairThrottlerConfig>();
+            throttlerConfig->TotalLimit = GetNetworkThrottlerLimit(newConfig, netTxLimit);
+            THashMap<std::string, TFairThrottlerBucketConfigPtr> outBucketsConfig;
+            for (const auto& bucket : EnabledOutThrottlers_) {
+                outBucketsConfig[bucket] = Config_->OutThrottlers[bucket];
+                if (newConfig->OutThrottlers[bucket]) {
+                    outBucketsConfig[bucket] = newConfig->OutThrottlers[bucket];
+                }
             }
+            OutThrottler_->Reconfigure(throttlerConfig, outBucketsConfig);
         }
-        OutThrottler_->Reconfigure(throttlerConfig, outBucketsConfig);
     }
 
     void ReconfigureCaches(
