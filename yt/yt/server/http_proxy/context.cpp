@@ -556,7 +556,7 @@ void TContext::SetContentDispositionAndMimeType()
         if (auto passedDispositionNode = DriverRequest_.Parameters->FindChild("disposition")) {
             auto sanitizedDisposition = passedDispositionNode->GetValue<TString>();
             sanitizedDisposition.to_lower();
-            if (sanitizedDisposition == "inline" && sanitizedDisposition == "attachment") {
+            if (sanitizedDisposition == "inline" || sanitizedDisposition == "attachment") {
                 disposition = sanitizedDisposition;
             }
         }
