@@ -1375,7 +1375,7 @@ TSortedDynamicRow TSortedDynamicStore::MigrateRow(
                     if (lockType != ELockType::SharedWrite) {
                         // There could be non-conflicting shared write transactions in active store.
                         YT_ASSERT(!migratedLock->PreparedTransaction);
-                        YT_ASSERT(migratedLock->PrepareTimestamp == NotPreparedTimestamp);
+                        YT_ASSERT(migratedLock->PrepareTimestamp.load() == NotPreparedTimestamp);
                     }
                 }
 
@@ -1397,7 +1397,7 @@ TSortedDynamicRow TSortedDynamicStore::MigrateRow(
                     migratedLock->WriteTransaction = lock->WriteTransaction;
                     migratedLock->WriteTransactionPrepareTimestamp = lock->WriteTransactionPrepareTimestamp;
                     migratedLock->PreparedTransaction = lock->PreparedTransaction;
-                    migratedLock->PrepareTimestamp = lock->PrepareTimestamp.load();
+                    migratedLock->PrepareTimestamp.store(lock->PrepareTimestamp.load());
 
                     if (index == PrimaryLockIndex) {
                         YT_ASSERT(!migratedRow.GetDeleteLockFlag());
