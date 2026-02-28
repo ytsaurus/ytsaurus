@@ -290,6 +290,10 @@ TJobWorkspaceBuildingResult TJobWorkspaceBuilder::ExtractResult()
         YT_LOG_FATAL("Result has already been extracted");
     }
 
+    if (!ResultHolder_.RootVolume) {
+        ResultHolder_.RootVolume = std::move(Context_.RootVolume);
+    }
+
     // It is expected that a situation where volumes are not linked will be triggered only when canceling job_workspace_builder.
     // The return of non-linked volumes is necessary in order to delete them correctly and set "disable" if an error occurs.
     if (ResultHolder_.TmpfsVolumes.empty()) {
@@ -581,13 +585,13 @@ private:
                                     << volumeOrError;
                             }
 
-                            auto rootVolume = std::move(volumeOrError.Value());
+                            Context_.RootVolume = volumeOrError.Value();
+
                             return slot->CreateSlotDirectories(
-                                rootVolume,
+                                std::move(volumeOrError.Value()),
                                 Context_.UserSandboxOptions.UserId)
                                     .Apply(
-                                        BIND([rootVolume, this, this_ = MakeStrong(this)] {
-                                            Context_.RootVolume = rootVolume;
+                                        BIND([this, this_ = MakeStrong(this)] {
                                             YT_LOG_DEBUG("Root volume prepared");
                                             SetNowTime(TimePoints_.PrepareRootVolumeFinishTime);
                                         })
@@ -700,9 +704,8 @@ private:
         SetJobPhase(EJobPhase::LinkingVolumes);
 
         auto slot = Context_.Slot;
-        auto slotPath = slot->GetSlotPath();
         if (Context_.RootVolume && !Context_.UserSandboxOptions.EnableRootVolumeDiskQuota) {
-            return slot->RbindRootVolume(Context_.RootVolume, slotPath)
+            return slot->RbindRootVolume(Context_.RootVolume)
                 .Apply(BIND(
                     [
                         slot,

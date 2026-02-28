@@ -340,16 +340,21 @@ public:
 
     // COMPAT(krasovav): Remove when LinkRootFS is ready
     TFuture<IVolumePtr> RbindRootVolume(
-        const IVolumePtr& volume,
-        const TString& slotPath) override
+        const IVolumePtr& volume) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        VerifyEnabled();
+
+        if (!VolumeManager_) {
+            return MakeFuture<IVolumePtr>(TError("Can not bind root volume without volume manager."));
+        }
 
         return RunPreparationAction(
             /*actionName*/ "RbindRootVolume",
             /*uncancelable*/ false,
             [&] {
-                return VolumeManager_->RbindRootVolume(volume, slotPath);
+                return VolumeManager_->RbindRootVolume(volume, GetSlotPath());
             });
     }
 
