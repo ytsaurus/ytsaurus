@@ -693,6 +693,21 @@ class TestSmoothMovement(SmoothMovementBase):
         with raises_yt_error("Only mounted tablet can be moved"):
             SmoothMovementHelper("//tmp/t").start()
 
+    @authors("akozhikhov")
+    def test_queue_with_hunk_storage(self):
+        sync_create_cells(2)
+        self._create_ordered_table("//tmp/t")
+        hunk_storage_attrs = {}
+        if self.is_multicell():
+            hunk_storage_attrs["external_cell_tag"] = get("//tmp/t/@external_cell_tag")
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes=hunk_storage_attrs)
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        with raises_yt_error("Table linked to hunk storage cannot be moved"):
+            SmoothMovementHelper("//tmp/t").start()
+
     @authors("ifsmirnov")
     def test_trim(self):
         sync_create_cells(2)

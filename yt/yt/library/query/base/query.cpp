@@ -306,6 +306,7 @@ TJoinClause::TJoinClause(const TJoinClause& other)
     , ForeignObjectId(other.ForeignObjectId)
     , ForeignCellId(other.ForeignCellId)
     , GroupClause(other.GroupClause)
+    , RequireSyncReplica(other.RequireSyncReplica)
 { }
 
 TTableSchemaPtr TJoinClause::GetRenamedSchema() const
@@ -1543,6 +1544,8 @@ void ToProto(NProto::TJoinClause* proto, const TConstJoinClausePtr& original)
     if (original->GroupClause) {
         ToProto(proto->mutable_group_clause(), original->GroupClause);
     }
+
+    proto->set_require_sync_replica(original->RequireSyncReplica);
 }
 
 void FromProto(TConstJoinClausePtr* original, const NProto::TJoinClause& serialized)
@@ -1579,6 +1582,8 @@ void FromProto(TConstJoinClausePtr* original, const NProto::TJoinClause& seriali
     if (serialized.has_group_clause()) {
         FromProto(&result->GroupClause, serialized.group_clause());
     }
+
+    FromProto(&result->RequireSyncReplica, serialized.require_sync_replica());
 
     *original = result;
 }

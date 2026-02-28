@@ -91,11 +91,11 @@ TEST_F(TUnorderedReaderTest, Simple)
     reader2->SetReadyEvent(TError("Error"));
 
     EXPECT_TRUE(mergingReader->GetReadyEvent().IsSet());
-    EXPECT_TRUE(mergingReader->GetReadyEvent().Get().IsOK());
+    EXPECT_TRUE(mergingReader->GetReadyEvent().BlockingGet().IsOK());
 
     EXPECT_TRUE(mergingReader->Read().operator bool());
     EXPECT_TRUE(mergingReader->GetReadyEvent().IsSet());
-    EXPECT_EQ("Error", mergingReader->GetReadyEvent().Get().GetMessage());
+    EXPECT_EQ("Error", mergingReader->GetReadyEvent().BlockingGet().GetMessage());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

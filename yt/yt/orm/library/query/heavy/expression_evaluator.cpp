@@ -1,7 +1,5 @@
 #include "expression_evaluator.h"
 
-#include "query_evaluator.h"
-
 #include <yt/yt/orm/library/query/helpers.h>
 #include <yt/yt/orm/library/query/query_rewriter.h>
 
@@ -16,6 +14,8 @@
 #include <yt/yt/core/ytree/convert.h>
 
 #include <yt/yt/library/query/base/query_preparer.h>
+
+#include <yt/yt/library/query/engine_api/query_evaluator.h>
 
 #include <library/cpp/yt/misc/variant.h>
 
@@ -147,7 +147,7 @@ public:
         std::vector<TColumnSchema> columns)
         : ParsedQuery_(std::move(parsedQuery))
         , Columns_(std::move(columns))
-        , EvaluationContext_(CreateQueryEvaluationContext(
+        , EvaluationContext_(NQueryClient::CreateQueryEvaluationContext(
             *ParsedQuery_,
             CreateTableSchema()))
     { }
@@ -194,7 +194,7 @@ public:
 private:
     const std::unique_ptr<NQueryClient::TParsedSource> ParsedQuery_;
     const std::vector<TColumnSchema> Columns_;
-    const std::unique_ptr<TQueryEvaluationContext> EvaluationContext_;
+    const NQueryClient::TQueryEvaluationContextPtr EvaluationContext_;
 
     TTableSchemaPtr CreateTableSchema()
     {

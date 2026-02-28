@@ -327,7 +327,7 @@ protected:
 
     TTimestamp OverrideTimestamp_;
 
-    std::atomic<int> MinHashDigestBlockIndex_;
+    std::atomic<int> MinHashDigestBlockIndex_ = TMinHashDigestBlockIndex::NotFetched;
 
     void OnLocalReaderFailed();
 

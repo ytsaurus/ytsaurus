@@ -163,6 +163,7 @@ TSlotLocation::TSlotLocation(
         BIND(&TSlotLocation::UpdateSlotLocationStatistics, MakeWeak(this)),
         SlotManagerStaticConfig_->SlotLocationStatisticsUpdatePeriod))
     , LocationPath_(GetRealPath(Config_->Path))
+    , MediumDescriptor_(New<NChunkClient::TDomesticMediumDescriptor>())
 {
     ExecNodeProfiler().WithPrefix("/job_directory/artifacts")
         .WithTag("device_name", Config_->DeviceName)
@@ -281,17 +282,22 @@ TFuture<void> TSlotLocation::ValidateRootFS(const IVolumePtr& rootVolume) const
         .Run();
 }
 
-TFuture<void> TSlotLocation::CreateTmpfsDirectoriesInsideSandbox(const TString& userSandboxPath, const std::vector<TTmpfsVolumeParams>& volumeParams) const
+TFuture<void> TSlotLocation::CreateTmpfsDirectoriesInsideSandbox(
+    const TString& userSandboxPath,
+    const std::vector<TTmpfsVolumeParams>& volumeParams,
+    const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts) const
 {
-    return BIND([userSandboxPath, volumeParams] () {
+    return BIND([userSandboxPath, volumeParams, volumeMounts] () {
         // It is assumed that userSandboxPath already exists.
         for (const auto& volume : volumeParams) {
             // TODO(gritukan): GetRealPath here can be replaced with some light analogue that does not access filesystem.
-            auto tmpfsUserSandboxPath = NFS::GetRealPath(NFS::CombinePaths(userSandboxPath, volume.Path));
+            auto mountPath = GetVolumeMountPathByVolumeId(volume.VolumeId, volumeMounts);
+
+            auto tmpfsUserSandboxPath = NFS::GetRealPath(NFS::CombinePaths(userSandboxPath, mountPath));
 
             const auto& Logger = ExecNodeLogger();
             YT_LOG_DEBUG("Creating tmpfs directory (TmpfsPath: %v, UserSandboxPath: %v, TmpfsUserSandboxPath: %v)",
-                volume.Path,
+                volume.VolumeId,
                 userSandboxPath,
                 tmpfsUserSandboxPath);
 
@@ -488,7 +494,8 @@ TFuture<void> TSlotLocation::PrepareSandboxDirectories(
             for (const auto& volumeParams : options.TmpfsVolumes) {
                 // TODO(gritukan): Implement a function that joins absolute path with a relative path and returns
                 // real path without filesystem access.
-                auto tmpfsPath = GetRealPath(CombinePaths(sandboxPath, volumeParams.Path));
+                auto mountPath = GetVolumeMountPathByVolumeId(volumeParams.VolumeId, options.JobVolumeMounts);
+                auto tmpfsPath = GetRealPath(CombinePaths(sandboxPath, mountPath));
                 if (tmpfsPath == sandboxPath) {
                     return true;
                 }
@@ -516,7 +523,8 @@ TFuture<void> TSlotLocation::PrepareSandboxDirectories(
 void TSlotLocation::TakeIntoAccountTmpfsVolumes(
     int slotIndex,
     const IVolumePtr& rootVolume,
-    const std::vector<TTmpfsVolumeResult>& volumeResults)
+    const std::vector<TTmpfsVolumeResult>& volumeResults,
+    const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts)
 {
     YT_LOG_DEBUG("Taking into account tmpfs volumes (SlotIndex: %v, VolumeCount: %v)",
         slotIndex,
@@ -535,8 +543,9 @@ void TSlotLocation::TakeIntoAccountTmpfsVolumes(
     // TODO(yuryalekseev): it should be in the else clause of the above if.
     tmpfsData.AddSandboxPath(GetSandboxPath(slotIndex, ESandboxKind::User));
 
-    for (const auto& volume : volumeResults) {
-        tmpfsData.AddTmpfsPath(NFS::GetRealPath(NFS::CombinePaths("/", volume.Path)));
+    for (const auto& volume: volumeResults) {
+        auto mountPath = GetVolumeMountPathByVolumeId(volume.VolumeId, volumeMounts);
+        tmpfsData.AddTmpfsPath(NFS::GetRealPath(NFS::CombinePaths("/", mountPath)));
     }
 }
 
@@ -990,12 +999,12 @@ std::string TSlotLocation::GetMediumName() const
     return Config_->MediumName;
 }
 
-NChunkClient::TMediumDescriptor TSlotLocation::GetMediumDescriptor() const
+NChunkClient::TMediumDescriptorPtr TSlotLocation::GetMediumDescriptor() const
 {
-    return MediumDescriptor_.Load();
+    return MediumDescriptor_.Acquire();
 }
 
-void TSlotLocation::SetMediumDescriptor(const NChunkClient::TMediumDescriptor& descriptor)
+void TSlotLocation::SetMediumDescriptor(const NChunkClient::TMediumDescriptorPtr& descriptor)
 {
     MediumDescriptor_.Store(descriptor);
 }
@@ -1204,6 +1213,11 @@ void TSlotLocation::UpdateDiskResources()
             config->DeduplicateByINodes = true;
             config->CheckDeviceId = true;
             for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
+                if (sandboxKind == ESandboxKind::PortoPlace) {
+                    // Skip porto place since it is complicated to properly account its used space.
+                    continue;
+                }
+
                 auto path = GetSandboxPath(slotIndex, sandboxKind);
                 if (Exists(path)) {
                     if (IsInsideTmpfs(slotIndex, path)) {
@@ -1304,10 +1318,10 @@ void TSlotLocation::UpdateDiskResources()
                 Config_->MediumName);
 
             auto mediumDescriptor = GetMediumDescriptor();
-            if (mediumDescriptor.Index != NChunkClient::GenericMediumIndex) {
+            if (mediumDescriptor->GetIndex() != NChunkClient::GenericMediumIndex) {
                 DiskResources_.set_usage(diskUsage);
                 DiskResources_.set_limit(diskLimit);
-                DiskResources_.set_medium_index(mediumDescriptor.Index);
+                DiskResources_.set_medium_index(mediumDescriptor->GetIndex());
             }
         }
     } catch (const std::exception& ex) {

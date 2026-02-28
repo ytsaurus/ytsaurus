@@ -35,7 +35,7 @@ DEFINE_ENUM(ESequoiaTable,
     (ChunkReplicas)
     (LocationReplicas)
     (UnapprovedChunkReplicas)
-    (ChildNode)
+    (ChildNodes)
     (Transactions)
     (TransactionDescendants)
     (TransactionReplicas)

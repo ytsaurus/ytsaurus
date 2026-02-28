@@ -57,6 +57,8 @@ func (a *App) Run(ctx context.Context) error {
 		a.l,
 		a.getResourceUsageConfig(),
 		a.getAccessConfig(),
+		a.conf.ApiPrefix,
+		a.conf.EnableSwagger,
 	)
 
 	g.Go(func() error {

@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/lib/hive/public.h>
 
+#include <yt/yt/server/lib/lsm/compaction_hints.h>
+
 #include <yt/yt/server/lib/tablet_node/public.h>
 
 #include <yt/yt/server/lib/transaction_supervisor/public.h>
@@ -126,6 +128,10 @@ struct TTabletManagerDynamicConfig
 {
     std::optional<int> ReplicatorThreadPoolSize;
 
+    //! If set, specifies the timeout after which
+    //! snapshots with redirection hint may be evicted.
+    std::optional<TDuration> ExtendedSnapshotEvictionTimeout;
+
     REGISTER_YSON_STRUCT(TTabletManagerDynamicConfig);
 
     static void Register(TRegistrar registrar);
@@ -143,6 +149,9 @@ struct TTabletCellWriteManagerDynamicConfig
     //! In case of failure write request will be equiprobably
     //! applied or not applied.
     std::optional<double> WriteFailureProbability;
+
+    //! Compat. See comment in TTabletWriteManager::OnTransactionTransientReset.
+    bool DetectTransientTransactionsPerTablet;
 
     REGISTER_YSON_STRUCT(TTabletCellWriteManagerDynamicConfig);
 
@@ -188,7 +197,7 @@ DEFINE_REFCOUNTED_TYPE(TStoreBackgroundActivityOrchidConfig)
 struct TCompactionHintFetcherConfig
     : public NYTree::TYsonStruct
 {
-    TDuration FetchPeriod;
+    NConcurrency::TPeriodicExecutorOptions PeriodicExecutor;
     NConcurrency::TThroughputThrottlerConfigPtr RequestThrottler;
 
     REGISTER_YSON_STRUCT(TCompactionHintFetcherConfig);
@@ -263,16 +272,9 @@ struct TStoreCompactorDynamicConfig
     std::optional<int> MaxConcurrentCompactions;
     std::optional<int> MaxConcurrentPartitionings;
 
-    // TODO(dave11ar): Migrate to TCompactionHintFetcherConfig
-    TDuration ChunkViewSizeFetchPeriod;
-    NConcurrency::TThroughputThrottlerConfigPtr ChunkViewSizeRequestThrottler;
+    NLsm::TStoreCompactionHintArray<TCompactionHintFetcherConfigPtr> CompactionHintFetchers;
 
-    // TODO(dave11ar): Migrate to TCompactionHintFetcherConfig
-    TDuration RowDigestFetchPeriod;
-    NConcurrency::TThroughputThrottlerConfigPtr RowDigestRequestThrottler;
-    bool UseRowDigests;
-
-    TCompactionHintFetcherConfigPtr MinHashDigestFetcher;
+    i64 MinHashDigestCacheCapacity;
 
     int MaxCompactionStructuredLogEvents;
     int MaxPartitioningStructuredLogEvents;

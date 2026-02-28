@@ -1959,7 +1959,7 @@ class YtClient(ClientState):
         table, input_stream,
         timestamp=None, column_names=None, keep_missing_rows=None, enable_partial_result=None, use_lookup_cache=None,
         format=None, raw=None, versioned=None, retention_timestamp=None, versioned_read_options=None,
-        with_timestamps=None
+        with_timestamps=None, read_from=None
     ):
         """
         Lookups rows in dynamic table.
@@ -1977,7 +1977,7 @@ class YtClient(ClientState):
             timestamp=timestamp, column_names=column_names, keep_missing_rows=keep_missing_rows,
             enable_partial_result=enable_partial_result, use_lookup_cache=use_lookup_cache, format=format,
             raw=raw, versioned=versioned, retention_timestamp=retention_timestamp, versioned_read_options=versioned_read_options,
-            with_timestamps=with_timestamps
+            with_timestamps=with_timestamps, read_from=read_from
         )
 
     def mkdir(
@@ -3284,7 +3284,7 @@ class YtClient(ClientState):
         raw=None, execution_pool=None, response_parameters=None, retention_timestamp=None, placeholder_values=None,
         use_canonical_null_relations=None, merge_versioned_rows=None, syntax_version=None, versioned_read_options=None,
         with_timestamps=None, udf_registry_path=None, use_lookup_cache=None, execution_backend=None,
-        expression_builder_version=None
+        expression_builder_version=None, read_from=None
     ):
         """
         Executes a SQL-like query on dynamic table.
@@ -3308,7 +3308,8 @@ class YtClient(ClientState):
             retention_timestamp=retention_timestamp, placeholder_values=placeholder_values, use_canonical_null_relations=use_canonical_null_relations,  # noqa
             merge_versioned_rows=merge_versioned_rows, syntax_version=syntax_version, versioned_read_options=versioned_read_options,
             with_timestamps=with_timestamps, udf_registry_path=udf_registry_path, use_lookup_cache=use_lookup_cache,
-            execution_backend=execution_backend, expression_builder_version=expression_builder_version
+            execution_backend=execution_backend, expression_builder_version=expression_builder_version,
+            read_from=read_from
         )
 
     def set(

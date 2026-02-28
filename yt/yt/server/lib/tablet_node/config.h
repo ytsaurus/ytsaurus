@@ -59,6 +59,8 @@ DEFINE_REFCOUNTED_TYPE(TRelativeReplicationThrottlerConfig)
 struct TRowDigestCompactionConfig
     : public NYTree::TYsonStruct
 {
+    bool Enable;
+
     double MaxObsoleteTimestampRatio;
     int MaxTimestampsPerValue;
 
@@ -84,6 +86,20 @@ struct TMinHashDigestCompactionConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TMinHashDigestCompactionConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TAggregateVersionedRowDigestCompactionConfig
+    : public NYTree::TYsonStruct
+{
+    bool Enable;
+
+    REGISTER_YSON_STRUCT(TAggregateVersionedRowDigestCompactionConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TAggregateVersionedRowDigestCompactionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -235,6 +251,7 @@ struct TCustomTableMountConfig
     EPeriodicCompactionMode PeriodicCompactionMode;
     TRowDigestCompactionConfigPtr RowDigestCompaction;
     TMinHashDigestCompactionConfigPtr MinHashDigestCompaction;
+    TAggregateVersionedRowDigestCompactionConfigPtr AggregateVersionedRowDigestCompaction;
 
     bool EnableLookupHashTable;
 

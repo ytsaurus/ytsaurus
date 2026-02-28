@@ -281,7 +281,7 @@ private:
         }
 
         bootstrap->Run()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
         SleepForever();
     }

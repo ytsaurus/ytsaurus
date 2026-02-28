@@ -1366,9 +1366,9 @@ class TabletBalancerBase(TabletActionsBase):
             schema = [
                 {"name": "key", "type": "int64", "sort_order": "ascending"},
                 {"name": "value", "type": "string", "max_inline_hunk_size": 12}]
-            create_dynamic_table("//tmp/t", schema=schema)
+            create_dynamic_table("//tmp/t", schema=schema, optimize_for="lookup")
         else:
-            self._create_sorted_table("//tmp/t")
+            self._create_sorted_table("//tmp/t", optimize_for="lookup")
 
         set("//tmp/t/@in_memory_mode", in_memory_mode)
         set("//tmp/t/@max_partition_data_size", max_partition_data_size)

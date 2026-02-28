@@ -6,6 +6,7 @@
 #include "chunk_state.h"
 #include "columnar_chunk_meta.h"
 #include "columnar_chunk_reader_base.h"
+#include "row_layout.h"
 #include "schemaless_block_reader.h"
 #include "virtual_value_directory.h"
 
@@ -92,6 +93,47 @@ int GetRowIndexId(const TNameTablePtr& readerNameTable, const TChunkReaderOption
 bool IsInsideRange(TRange<TLegacyKey> range, const TLegacyKey* item)
 {
     return item >= range.begin() && item < range.end();
+}
+
+//! Evaluate columns, possibly by running columnEvaluator on a copy of the row
+//! if the row has key widened.
+//!
+//! Why this is needed? Because the generated evaluator expects that schemaful
+//! values (e.g. those that present in schema) are placed exactly at indices
+//! equal to indices in schema. Key widening breaks this assumption.
+//! XXX(coteeq): We could generate evaluator for every unique
+//! (schema, widening width) pair, but it does not work that way for now.
+void EvaluateColumns(
+    TMutableUnversionedRow row,
+    const TUnversionedRowLayout& layout,
+    const TColumnEvaluatorPtr& columnEvaluator,
+    const TRowBufferPtr& rowBuffer)
+{
+    YT_VERIFY(columnEvaluator);
+    if (layout.IsPrefixSchemaful()) {
+        columnEvaluator->EvaluateKeys(row, rowBuffer, /*preserveColumnsIds*/ true);
+    } else {
+        // TODO(coteeq): Stop widening key in block reader and stop converting row back and forth.
+        auto schemafulRow = rowBuffer->AllocateUnversioned(row.GetCount());
+        int copyIndex = 0;
+        const auto [wideningRangeBegin, wideningRangeEnd] = layout.GetKeyWideningRange();
+        for (int originalIndex = 0; originalIndex < wideningRangeBegin; ++originalIndex, ++copyIndex) {
+            schemafulRow[copyIndex] = row[originalIndex];
+        }
+        for (int originalIndex = wideningRangeEnd; originalIndex < static_cast<int>(row.GetCount()); ++originalIndex, ++copyIndex) {
+            schemafulRow[copyIndex] = row[originalIndex];
+        }
+
+        columnEvaluator->EvaluateKeys(schemafulRow, rowBuffer, /*preserveColumnsIds*/ true);
+
+        copyIndex = 0;
+        for (int originalIndex = 0; originalIndex < wideningRangeBegin; ++originalIndex, ++copyIndex) {
+            row[originalIndex] = schemafulRow[copyIndex];
+        }
+        for (int originalIndex = wideningRangeEnd; originalIndex < static_cast<int>(row.GetCount()); ++originalIndex, ++copyIndex) {
+            row[originalIndex] = schemafulRow[copyIndex];
+        }
+    }
 }
 
 } // namespace
@@ -234,22 +276,18 @@ static bool HasColumnsInMapping(TRange<int> schemalessIdMapping)
     return false;
 }
 
-//! Remap value ids and "squeeze" values to the left.
-//! {first,last}IndexToSkip is needed not to remap widened key (see TKeyWideningOptions).
-//! prefixToRemapSize is needed not to remap system columns (see AddExtraValues).
+//! Remap value ids and drop not needed ones.
 //! If chunkToReaderIdMapping remaps value to -1, value is simply dropped.
 static void ApplyColumnIdMapping(
     TMutableUnversionedRow& row,
     const std::vector<int>& chunkToReaderIdMapping,
-    ui32 prefixToRemapSize,
-    ui32 firstIndexToSkip,
-    ui32 lastIndexToSkip)
+    const TUnversionedRowLayout& layout)
 {
     int valueCount = 0;
     for (ui32 columnIndex = 0; columnIndex < row.GetCount(); ++columnIndex) {
         auto value = std::move(row[columnIndex]);
-        auto skipRemapping = ((firstIndexToSkip <= columnIndex && columnIndex <= lastIndexToSkip) || columnIndex >= prefixToRemapSize);
-        auto remappedId = skipRemapping ? value.Id : chunkToReaderIdMapping[value.Id];
+        auto shouldRemap = layout.GetNameTableAffinity(columnIndex) == ENameTableAffinity::Chunk;
+        auto remappedId = shouldRemap ? chunkToReaderIdMapping[value.Id] : value.Id;
         if (remappedId >= 0) {
             row[valueCount] = std::move(value);
             row[valueCount].Id = remappedId;
@@ -359,16 +397,6 @@ protected:
     bool HasRowIndexSystemColumn() const
     {
         return RowIndexId_ != -1;
-    }
-
-    ui32 GetFirstIndexToSkipRemappingInRow(ui32 rowSize) const
-    {
-        return KeyWideningOptions_.InsertPosition >= 0 ? KeyWideningOptions_.InsertPosition : rowSize + 1;
-    }
-
-    ui32 GetLastIndexToSkipRemappingInRow(ui32 rowSize) const
-    {
-        return GetFirstIndexToSkipRemappingInRow(rowSize) + std::size(KeyWideningOptions_.InsertedColumnIds) - 1;
     }
 
     int GetRootSystemColumnCount() const
@@ -640,15 +668,6 @@ public:
     {
         YT_VERIFY(CommonKeyPrefix_ <= std::ssize(SortOrders_));
 
-        // FIXME(coteeq)
-        bool keyIsWidened = !KeyWideningOptions_.InsertedColumnIds.empty();
-        THROW_ERROR_EXCEPTION_IF(
-            RlsChecker_ && keyIsWidened,
-            "Cannot read a chunk with widened key and active RLS");
-        THROW_ERROR_EXCEPTION_IF(
-            ChunkMeta_->ChunkSchema()->HasNonMaterializedComputedColumns() && keyIsWidened,
-            "Cannot read a chunk with widened key and non-materialized computed columns");
-
         if (chunkState->DataSource) {
             PackBaggageForChunkReader(TraceContext_, *chunkState->DataSource, MakeExtraChunkTags(ChunkMeta_->Misc()));
         }
@@ -696,21 +715,18 @@ protected:
         return ChunkMeta_->ChunkSchema()->GetKeyColumnCount();
     }
 
-    [[nodiscard]] ESecurityAction FinalizeRow(TMutableUnversionedRow& row, ui32 prefixToRemapSize) const
+    [[nodiscard]] ESecurityAction FinalizeRow(TMutableUnversionedRow& row, const TUnversionedRowLayout& layout) const
     {
         if (ChunkMeta_->ChunkSchema()->HasNonMaterializedComputedColumns()) {
-            YT_VERIFY(ColumnEvaluator_);
-            ColumnEvaluator_->EvaluateKeys(row, EphemeralRowBuffer_, /*preserveColumnsIds*/ true);
+            EvaluateColumns(row, layout, ColumnEvaluator_, EphemeralRowBuffer_);
         }
 
         auto action = ESecurityAction::Allow;
         if (RlsChecker_) {
-            action = RlsChecker_->Check(row, EphemeralRowBuffer_, prefixToRemapSize);
+            action = RlsChecker_->Check(row, layout, EphemeralRowBuffer_);
         }
 
-        auto firstIndexToSkip = GetFirstIndexToSkipRemappingInRow(row.GetCount());
-        auto lastIndexToSkip = GetLastIndexToSkipRemappingInRow(row.GetCount());
-        ApplyColumnIdMapping(row, ChunkToReaderIdMapping_, prefixToRemapSize, firstIndexToSkip, lastIndexToSkip);
+        ApplyColumnIdMapping(row, ChunkToReaderIdMapping_, layout);
 
         return action;
     }
@@ -798,6 +814,9 @@ public:
             virtualRowIndex)
         , ReadRange_(readRange)
         , InterruptDescriptorKeyLength_(interruptDescriptorKeyLength)
+    { }
+
+    void InitializeRefCounted()
     {
         TCurrentTraceContextGuard traceGuard(TraceContext_);
 
@@ -892,7 +911,7 @@ void THorizontalSchemalessRangeChunkReader::InitFirstBlock()
 
     YT_VERIFY(CurrentBlock_ && CurrentBlock_.IsSet());
     BlockReader_.reset(new THorizontalBlockReader(
-        CurrentBlock_.Get().ValueOrThrow().Data,
+        CurrentBlock_.BlockingGet().ValueOrThrow().Data,
         blockMeta,
         GetCompositeColumnFlags(ChunkMeta_->ChunkSchema()),
         GetHunkColumnFlags(ChunkMeta_->GetChunkFormat(), ChunkMeta_->GetChunkFeatures(), ChunkMeta_->ChunkSchema()),
@@ -986,9 +1005,9 @@ IUnversionedRowBatchPtr THorizontalSchemalessRangeChunkReader::Read(const TRowBa
 
         if (SampleRow(GetTableRowIndex())) {
             auto row = BlockReader_->GetRow(&MemoryPool_, /*remapIds*/ false);
-            auto prefixToRemapSize = row.GetCount();
+            const auto layout = TUnversionedRowLayout(KeyWideningOptions_, row.GetCount());
             AddExtraValues(row, GetTableRowIndex());
-            if (FinalizeRow(row, prefixToRemapSize) == ESecurityAction::Allow) {
+            if (FinalizeRow(row, layout) == ESecurityAction::Allow) {
                 rows.push_back(row);
                 dataWeight += GetDataWeight(row);
             }
@@ -1322,7 +1341,7 @@ void THorizontalSchemalessLookupChunkReaderBase::InitFirstBlock()
     const auto& blockMeta = BlockMetaExt_->data_blocks(blockIndex);
 
     BlockReader_.reset(new THorizontalBlockReader(
-        CurrentBlock_.Get().ValueOrThrow().Data,
+        CurrentBlock_.BlockingGet().ValueOrThrow().Data,
         blockMeta,
         GetCompositeColumnFlags(ChunkMeta_->ChunkSchema()),
         GetHunkColumnFlags(ChunkMeta_->GetChunkFormat(), ChunkMeta_->GetChunkFeatures(), ChunkMeta_->ChunkSchema()),
@@ -1506,7 +1525,7 @@ IUnversionedRowBatchPtr THorizontalSchemalessLookupChunkReader::Read(const TRowB
                 auto row = BlockReader_->GetRow(&MemoryPool_, /*remapIds*/ false);
                 // RLS is not supported for dynamic tables yet.
                 YT_VERIFY(!RlsChecker_);
-                auto action = FinalizeRow(row, row.GetCount());
+                auto action = FinalizeRow(row, TUnversionedRowLayout(KeyWideningOptions_, row.GetCount()));
                 YT_VERIFY(action == ESecurityAction::Allow);
                 rows.push_back(row);
                 dataWeight += GetDataWeight(row);
@@ -1611,9 +1630,9 @@ IUnversionedRowBatchPtr THorizontalSchemalessKeyRangesChunkReader::Read(const TR
 
             if (!skipRow) {
                 auto row = BlockReader_->GetRow(&MemoryPool_, /*remapIds*/ false);
-                auto prefixToRemapSize = row.GetCount();
+                const auto layout = TUnversionedRowLayout(KeyWideningOptions_, row.GetCount());
                 AddExtraValues(row, GetTableRowIndex());
-                if (FinalizeRow(row, prefixToRemapSize) == ESecurityAction::Allow) {
+                if (FinalizeRow(row, layout) == ESecurityAction::Allow) {
                     rows.push_back(row);
                     dataWeight += GetDataWeight(row);
                 }
@@ -1775,21 +1794,18 @@ public:
     [[nodiscard]] ESecurityAction FinalizeRow(
         TMutableUnversionedRow& row,
         const std::vector<int>& chunkToReaderIdMapping,
-        ui32 prefixToRemapSize,
-        ui32 firstIndexToSkip,
-        ui32 lastIndexToSkip) const
+        const TUnversionedRowLayout& layout) const
     {
         if (ChunkMeta_->ChunkSchema()->HasNonMaterializedComputedColumns()) {
-            YT_VERIFY(ColumnEvaluator_);
-            ColumnEvaluator_->EvaluateKeys(row, EphemeralRowBuffer_, /*preserveColumnsIds*/ true);
+            EvaluateColumns(row, layout, ColumnEvaluator_, EphemeralRowBuffer_);
         }
 
         auto action = ESecurityAction::Allow;
         if (RlsChecker_) {
-            action = RlsChecker_->Check(row, EphemeralRowBuffer_, prefixToRemapSize);
+            action = RlsChecker_->Check(row, layout, EphemeralRowBuffer_);
         }
 
-        ApplyColumnIdMapping(row, chunkToReaderIdMapping, prefixToRemapSize, firstIndexToSkip, lastIndexToSkip);
+        ApplyColumnIdMapping(row, chunkToReaderIdMapping, layout);
 
         return action;
     }
@@ -1885,15 +1901,6 @@ public:
             KeyWideningOptions_,
             SortOrders_,
             chunkState->RlsChecker);
-
-        // FIXME(coteeq)
-        bool keyIsWidened = !KeyWideningOptions_.InsertedColumnIds.empty();
-        THROW_ERROR_EXCEPTION_IF(
-            RlsChecker_ && keyIsWidened,
-            "Cannot read a chunk with widened key and active RLS");
-        THROW_ERROR_EXCEPTION_IF(
-            ChunkMeta_->ChunkSchema()->HasNonMaterializedComputedColumns() && keyIsWidened,
-            "Cannot read a chunk with widened key and non-materialized computed columns");
 
         YT_VERIFY(std::ssize(KeyColumnReaders_) == std::ssize(SortOrders_));
 
@@ -2281,12 +2288,14 @@ private:
 
         // Filter out columns and apply column id mapping.
         rootBatchColumns->reserve(std::ssize(intermediateRootBatchColumns));
-        auto firstIndexToSkip = GetFirstIndexToSkipRemappingInRow(std::size(RowColumnReaders_));
-        auto lastIndexToSkip = GetLastIndexToSkipRemappingInRow(std::size(RowColumnReaders_));
         for (ui32 columnIndex = 0; columnIndex < std::ssize(intermediateRootBatchColumns); ++columnIndex) {
             auto rootColumn = intermediateRootBatchColumns[columnIndex];
-            auto skipRemapping = ((firstIndexToSkip <= columnIndex && columnIndex <= lastIndexToSkip) || columnIndex >= std::size(RowColumnReaders_));
-            auto remappedId = skipRemapping ? rootColumn->Id : ChunkToReaderIdMapping_[rootColumn->Id];
+
+            // NB(coteeq): We do not read schemaless data, so RowColumnReaders_ holds all columns.
+            const auto layout = TUnversionedRowLayout(KeyWideningOptions_, std::ssize(RowColumnReaders_));
+
+            auto shouldRemap = layout.GetNameTableAffinity(columnIndex) == ENameTableAffinity::Chunk;
+            auto remappedId = shouldRemap ? ChunkToReaderIdMapping_[rootColumn->Id] : rootColumn->Id;
             if (remappedId < 0) {
                 const auto& reader = RowColumnReaders_[columnIndex];
                 dataWeight -= reader->EstimateDataWeight(RowIndex_, RowIndex_ + rowCount);
@@ -2415,12 +2424,16 @@ private:
         i64 index = 0;
         i64 allowedRowCount = 0;
         for (auto& row : rowRange) {
+            const auto layout = TUnversionedRowLayout(
+                KeyWideningOptions_,
+                // XXX(coteeq): `schemalessColumnCounts[index]` should've been added, but
+                // SchemalessReader_ already has reader's name table affinity, so we treat
+                // schemaless values as extra. See also the doc for TUnversionedRowLayout.
+                std::ssize(RowColumnReaders_));
             rlsDecisions[index] = FinalizeRow(
                 row,
                 ChunkToReaderIdMapping_,
-                RowColumnReaders_.size(),
-                GetFirstIndexToSkipRemappingInRow(row.GetCount()),
-                GetLastIndexToSkipRemappingInRow(row.GetCount()));
+                layout);
 
             allowedRowCount += rlsDecisions[index] == ESecurityAction::Allow;
             ++index;
@@ -2519,15 +2532,6 @@ public:
             KeyWideningOptions_,
             SortOrders_,
             chunkState->RlsChecker);
-
-        // FIXME(coteeq)
-        bool keyIsWidened = !KeyWideningOptions_.InsertedColumnIds.empty();
-        THROW_ERROR_EXCEPTION_IF(
-            RlsChecker_ && keyIsWidened,
-            "Cannot read a chunk with widened key and active RLS");
-        THROW_ERROR_EXCEPTION_IF(
-            ChunkMeta_->ChunkSchema()->HasNonMaterializedComputedColumns() && keyIsWidened,
-            "Cannot read a chunk with widened key and non-materialized computed columns");
 
         Initialize();
 
@@ -2643,13 +2647,13 @@ private:
 
         // RLS is not supported for dynamic tables yet.
         YT_VERIFY(!RlsChecker_);
+
+        const auto layout = TUnversionedRowLayout(KeyWideningOptions_, row.GetCount());
         // Evaluate non-materialized columns, apply column id mapping and filter some columns out.
         auto action = FinalizeRow(
             row,
             ChunkToReaderIdMapping_,
-            RowColumnReaders_.size(),
-            GetFirstIndexToSkipRemappingInRow(row.GetCount()),
-            GetLastIndexToSkipRemappingInRow(row.GetCount()));
+            layout);
 
         YT_VERIFY(action == ESecurityAction::Allow);
 

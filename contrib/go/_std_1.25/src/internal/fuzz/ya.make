@@ -52,5 +52,21 @@ ELSEIF (OS_WINDOWS AND ARCH_X86_64 AND RACE AND CGO_ENABLED OR OS_WINDOWS AND AR
         trace.go
         worker.go
     )
+ELSEIF (OS_EMSCRIPTEN AND ARCH_WASM32 AND RACE AND CGO_ENABLED OR OS_EMSCRIPTEN AND ARCH_WASM32 AND RACE AND NOT CGO_ENABLED OR OS_EMSCRIPTEN AND ARCH_WASM32 AND NOT RACE AND CGO_ENABLED OR OS_EMSCRIPTEN AND ARCH_WASM32 AND NOT RACE AND NOT CGO_ENABLED)
+    SRCS(
+        counters_unsupported.go
+        coverage.go
+        encoding.go
+        fuzz.go
+        mem.go
+        minimize.go
+        mutator.go
+        mutators_byteslice.go
+        pcg.go
+        queue.go
+        sys_unimplemented.go
+        trace.go
+        worker.go
+    )
 ENDIF()
 END()

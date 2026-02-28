@@ -24,6 +24,7 @@ struct ITabletWriteManagerHost
 
     virtual ITransactionManagerPtr GetTransactionManager() const = 0;
     virtual TTabletManagerConfigPtr GetConfig() const = 0;
+    virtual TTabletNodeDynamicConfigPtr GetDynamicConfig() const = 0;
 
     virtual NHydra::ISimpleHydraManagerPtr GetHydraManager() const = 0;
 

@@ -146,6 +146,7 @@ class TestUsers(YTEnvSetup):
                 'yt-chunk-replica-cache',
                 'yt-permission-cache',
                 'yt-signature-keysmith',
+                'yt-bundle-controller',
             ],
         )
         assert_items_equal(get("//sys/groups/admins/@members"), [])

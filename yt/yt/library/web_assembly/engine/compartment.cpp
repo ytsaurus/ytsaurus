@@ -394,6 +394,36 @@ public:
         });
     }
 
+    void SetTimeout(std::optional<TDuration> timeout) override
+    {
+        Timeout_ = timeout;
+    }
+
+    virtual void SetDeadline(std::optional<TInstant> deadline) override
+    {
+        if (!deadline || *deadline == TInstant::Max()) {
+            Timeout_ = std::nullopt;
+        } else {
+            Timeout_ = *deadline - TInstant::Now();
+        }
+    }
+
+    void StartDeadlineTimer() override
+    {
+        if (!Timeout_) {
+            Deadline_ = std::nullopt;
+        } else {
+            Deadline_ = Runtime::getInstant();
+            Deadline_->tv_sec += static_cast<time_t>(Timeout_->Seconds());
+            Deadline_->tv_nsec += static_cast<long>(Timeout_->NanoSecondsOfSecond());
+        }
+    }
+
+    std::optional<struct timespec> GetDeadline() const
+    {
+        return Deadline_;
+    }
+
     void* GetHostPointer(uintptr_t offset, size_t length) override
     {
         char* bytes = Runtime::memoryArrayPtr<char>(MemoryLayoutData_.LinearMemory, std::bit_cast<ui64>(offset), length);
@@ -457,6 +487,9 @@ private:
     Runtime::GCPointer<Runtime::ExceptionType> ExceptionType_;
 
     bool Stripped_ = false;
+
+    std::optional<TDuration> Timeout_;
+    std::optional<struct timespec> Deadline_;
 
     void AddExportsToGlobalOffsetTable(const IR::Module& irModule);
     void InstantiateModule(const Runtime::ModuleRef& wavmModule, const Runtime::LinkResult& linkResult, TStringBuf debugName);
@@ -1185,9 +1218,12 @@ void SetCurrentCompartment(IWebAssemblyCompartment* compartment)
             static_cast<TWebAssemblyCompartment*>(compartment)->GetGlobalOffsetTable());
         Runtime::Memory::setCurrentMemory(
             static_cast<TWebAssemblyCompartment*>(compartment)->GetLinearMemory());
+        Runtime::setCurrentDeadline(
+            static_cast<TWebAssemblyCompartment*>(compartment)->GetDeadline());
     } else {
         Runtime::Table::setCurrentTable(nullptr);
         Runtime::Memory::setCurrentMemory(nullptr);
+        Runtime::setCurrentDeadline(std::nullopt);
     }
 }
 

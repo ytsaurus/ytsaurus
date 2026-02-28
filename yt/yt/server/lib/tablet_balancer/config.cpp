@@ -6,6 +6,16 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TFeatureFlagConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable_smooth_movement", &TThis::EnableSmoothMovement)
+        .Default();
+    registrar.Parameter("enable_inplace_reshard", &TThis::EnableInplaceReshard)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TComponentFactorConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("cell_factor", &TThis::Cell)
@@ -121,8 +131,6 @@ void TTabletBalancingGroupConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("schedule", &TThis::Schedule)
         .Default();
-    registrar.Parameter("enable_smooth_movement", &TThis::EnableSmoothMovement)
-        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -220,8 +228,6 @@ void TBundleTabletBalancerConfig::Register(TRegistrar registrar)
     registrar.Parameter("safe_used_tablet_static_ratio", &TThis::SafeUsedTabletStaticRatio)
         .Default(1.)
         .InRange(0., 1.);
-    registrar.Parameter("enable_smooth_movement", &TThis::EnableSmoothMovement)
-        .Default();
 
     registrar.Postprocessor([] (TThis* config) {
         auto [it, inserted] = config->Groups.emplace(DefaultGroupName, New<TTabletBalancingGroupConfig>());
@@ -333,8 +339,6 @@ void TTableTabletBalancerConfig::Register(TRegistrar registrar)
     registrar.Parameter("group", &TThis::Group)
         .Default();
     registrar.Parameter("replica_path_overrides", &TThis::ReplicaPathOverrides)
-        .Default();
-    registrar.Parameter("enable_smooth_movement", &TThis::EnableSmoothMovement)
         .Default();
 
     registrar.Postprocessor([] (TThis* config) {

@@ -1,10 +1,12 @@
 main:
   source: dev
-2.16.0: &chyt_2_16_0
+  constraints:
+    ytsaurus: main
+2.16.0:
   source: stable
 2.17.3:
-  <<: *chyt_2_16_0
+  source: stable
 2.17.4:
-  <<: *chyt_2_16_0
+  source: stable
 2.18:
   source: release

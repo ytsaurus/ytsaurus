@@ -548,10 +548,10 @@ TOperation TClient::DoGetOperationImpl(
     WaitFor(AllSet<void>(getOperationFutures, TFutureCombinerOptions{.PropagateCancelationToInput = false}))
         .ValueOrThrow();
 
-    auto [cypressResult, operationNodeModificationTime] = cypressFuture.Get()
+    auto [cypressResult, operationNodeModificationTime] = cypressFuture.BlockingGet()
         .ValueOrThrow();
 
-    auto archiveResultOrError = archiveFuture.Get();
+    auto archiveResultOrError = archiveFuture.BlockingGet();
 
     if (archiveResultOrError.FindMatching(NYT::EErrorCode::Timeout)) {
         GetCounters().OperationApiCounters.GetOperationFromArchiveTimeoutCounter.Increment();

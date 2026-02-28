@@ -290,6 +290,10 @@ TJobWorkspaceBuildingResult TJobWorkspaceBuilder::ExtractResult()
         YT_LOG_FATAL("Result has already been extracted");
     }
 
+    if (!ResultHolder_.RootVolume) {
+        ResultHolder_.RootVolume = std::move(Context_.RootVolume);
+    }
+
     // It is expected that a situation where volumes are not linked will be triggered only when canceling job_workspace_builder.
     // The return of non-linked volumes is necessary in order to delete them correctly and set "disable" if an error occurs.
     if (ResultHolder_.TmpfsVolumes.empty()) {
@@ -376,7 +380,7 @@ private:
         }
 
         const auto& slot = Context_.Slot;
-        return slot->PrepareTmpfsVolumes(ResultHolder_.RootVolume, volumes, Context_.TestRootFS)
+        return slot->PrepareTmpfsVolumes(ResultHolder_.RootVolume, volumes, Context_.UserSandboxOptions.JobVolumeMounts, Context_.TestRootFS)
             .AsUnique().Apply(BIND([slot, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
                 if (!volumeResultsOrError.IsOK()) {
                     THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::TmpfsVolumePreparationFailed, "Failed to prepare tmpfs volumes")
@@ -388,8 +392,8 @@ private:
                 YT_LOG_DEBUG("Prepared tmpfs volumes (Volumes: %v)",
                     MakeFormattableView(volumeResults,
                         [] (auto* builder, const TTmpfsVolumeResult& result) {
-                            builder->AppendFormat("{TmpfsPath: %v, VolumePath: %v}",
-                                result.Path,
+                            builder->AppendFormat("{VolumeId: %v, VolumePath: %v}",
+                                result.VolumeId,
                                 result.Volume->GetPath());
                         }));
 
@@ -581,13 +585,13 @@ private:
                                     << volumeOrError;
                             }
 
-                            auto rootVolume = std::move(volumeOrError.Value());
+                            Context_.RootVolume = volumeOrError.Value();
+
                             return slot->CreateSlotDirectories(
-                                rootVolume,
+                                std::move(volumeOrError.Value()),
                                 Context_.UserSandboxOptions.UserId)
                                     .Apply(
-                                        BIND([rootVolume, this, this_ = MakeStrong(this)] {
-                                            Context_.RootVolume = rootVolume;
+                                        BIND([this, this_ = MakeStrong(this)] {
                                             YT_LOG_DEBUG("Root volume prepared");
                                             SetNowTime(TimePoints_.PrepareRootVolumeFinishTime);
                                         })
@@ -618,7 +622,7 @@ private:
         }
 
         const auto& slot = Context_.Slot;
-        return slot->PrepareTmpfsVolumes(ResultHolder_.RootVolume, volumes, Context_.TestRootFS)
+        return slot->PrepareTmpfsVolumes(ResultHolder_.RootVolume, volumes, Context_.UserSandboxOptions.JobVolumeMounts, Context_.TestRootFS)
             .AsUnique()
             .Apply(
                 BIND([slot, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
@@ -632,8 +636,8 @@ private:
                     YT_LOG_DEBUG("Prepared tmpfs volumes (Volumes: %v)",
                     MakeFormattableView(Context_.PreparedTmpfsVolumes,
                         [] (auto* builder, const TTmpfsVolumeResult& result) {
-                            builder->AppendFormat("{TmpfsPath: %v, VolumePath: %v}",
-                                result.Path,
+                            builder->AppendFormat("{VolumeId: %v, VolumePath: %v}",
+                                result.VolumeId,
                                 result.Volume->GetPath());
                         }));
                     SetNowTime(TimePoints_.PrepareTmpfsVolumesFinishTime);
@@ -700,9 +704,8 @@ private:
         SetJobPhase(EJobPhase::LinkingVolumes);
 
         auto slot = Context_.Slot;
-        auto slotPath = slot->GetSlotPath();
         if (Context_.RootVolume && !Context_.UserSandboxOptions.EnableRootVolumeDiskQuota) {
-            return slot->RbindRootVolume(Context_.RootVolume, slotPath)
+            return slot->RbindRootVolume(Context_.RootVolume)
                 .Apply(BIND(
                     [
                         slot,
@@ -740,7 +743,7 @@ private:
 
         const auto& volumes = Context_.PreparedTmpfsVolumes;
         const auto& slot = Context_.Slot;
-        return slot->LinkTmpfsVolumes(ResultHolder_.RootVolume, volumes, Context_.TestRootFS)
+        return slot->LinkTmpfsVolumes(ResultHolder_.RootVolume, volumes, Context_.UserSandboxOptions.JobVolumeMounts, Context_.TestRootFS)
             .Apply(BIND([volumeResults = volumes, this, this_ = MakeStrong(this)](const TErrorOr<void>& error) {
                 if (!error.IsOK()) {
                     THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::TmpfsVolumeLinkingFailed, "Failed to link tmpfs volumes")
@@ -750,8 +753,8 @@ private:
                 YT_LOG_DEBUG("Linked tmpfs volumes (Volumes: %v)",
                     MakeFormattableView(volumeResults,
                         [] (auto* builder, const TTmpfsVolumeResult& result) {
-                            builder->AppendFormat("{TmpfsPath: %v, VolumePath: %v}",
-                                result.Path,
+                            builder->AppendFormat("{VolumeId: %v, VolumePath: %v}",
+                                result.VolumeId,
                                 result.Volume->GetPath());
                     }));
 
@@ -1064,7 +1067,7 @@ private:
         }
 
         const auto& slot = Context_.Slot;
-        return slot->PrepareTmpfsVolumes(ResultHolder_.RootVolume, volumes, Context_.TestRootFS)
+        return slot->PrepareTmpfsVolumes(ResultHolder_.RootVolume, volumes, Context_.UserSandboxOptions.JobVolumeMounts, Context_.TestRootFS)
             .AsUnique().Apply(BIND([slot, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
                 if (!volumeResultsOrError.IsOK()) {
                     THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::TmpfsVolumePreparationFailed, "Failed to prepare tmpfs volumes")
@@ -1076,8 +1079,8 @@ private:
                 YT_LOG_DEBUG("Prepared tmpfs volumes (Volumes: %v)",
                     MakeFormattableView(volumeResults,
                         [] (auto* builder, const TTmpfsVolumeResult& result) {
-                            builder->AppendFormat("{TmpfsPath: %v, VolumePath: %v}",
-                                result.Path,
+                            builder->AppendFormat("{VolumeId: %v, VolumePath: %v}",
+                                result.VolumeId,
                                 result.Volume->GetPath());
                         }));
 

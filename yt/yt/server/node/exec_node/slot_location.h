@@ -51,7 +51,8 @@ public:
     void TakeIntoAccountTmpfsVolumes(
         int slotIndex,
         const IVolumePtr& rootVolume,
-        const std::vector<TTmpfsVolumeResult>& volumeResults);
+        const std::vector<TTmpfsVolumeResult>& volumeResults,
+        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts);
 
     TFuture<void> MakeSandboxCopy(
         TJobId jobId,
@@ -101,8 +102,8 @@ public:
 
     std::string GetMediumName() const;
 
-    NChunkClient::TMediumDescriptor GetMediumDescriptor() const;
-    void SetMediumDescriptor(const NChunkClient::TMediumDescriptor& descriptor);
+    NChunkClient::TMediumDescriptorPtr GetMediumDescriptor() const;
+    void SetMediumDescriptor(const NChunkClient::TMediumDescriptorPtr& descriptor);
 
     void IncreaseSessionCount();
     void DecreaseSessionCount();
@@ -137,7 +138,10 @@ public:
 
     TFuture<void> CreateSlotDirectories(const IVolumePtr& rootVolume, int userId) const;
 
-    TFuture<void> CreateTmpfsDirectoriesInsideSandbox(const TString& userSandboxPath, const std::vector<TTmpfsVolumeParams>& volumeParams) const;
+    TFuture<void> CreateTmpfsDirectoriesInsideSandbox(
+        const TString& userSandboxPath,
+        const std::vector<TTmpfsVolumeParams>& volumeParams,
+        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts) const;
 
     TFuture<void> ValidateRootFS(const IVolumePtr& rootVolume) const;
 
@@ -172,7 +176,7 @@ private:
     //! Absolute path to location.
     const TString LocationPath_;
 
-    NThreading::TAtomicObject<NChunkClient::TMediumDescriptor> MediumDescriptor_;
+    TAtomicIntrusivePtr<NChunkClient::TMediumDescriptor> MediumDescriptor_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SlotsLock_);
 

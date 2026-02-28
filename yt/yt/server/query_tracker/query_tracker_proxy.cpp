@@ -202,8 +202,8 @@ TQuery LookupQuery(
             queryId)
             << error;
     }
-    bool isActive = asyncActiveRecord.IsSet() && asyncActiveRecord.Get().IsOK();
-    bool isFinished = asyncFinishedRecord.IsSet() && asyncFinishedRecord.Get().IsOK();
+    bool isActive = asyncActiveRecord.IsSet() && asyncActiveRecord.BlockingGet().IsOK();
+    bool isFinished = asyncFinishedRecord.IsSet() && asyncFinishedRecord.BlockingGet().IsOK();
     YT_VERIFY(isActive || isFinished);
     if (isActive && isFinished) {
         const auto& Logger = logger;
@@ -214,9 +214,9 @@ TQuery LookupQuery(
             timestamp);
     }
     if (isActive) {
-        return PartialRecordToQuery(asyncActiveRecord.Get().Value());
+        return PartialRecordToQuery(asyncActiveRecord.BlockingGet().Value());
     } else {
-        return PartialRecordToQuery(asyncFinishedRecord.Get().Value());
+        return PartialRecordToQuery(asyncFinishedRecord.BlockingGet().Value());
     }
 }
 
@@ -931,6 +931,7 @@ void TQueryTrackerProxy::AlterQuery(
         {
             TActiveQueryPartial record{
                 .Key = {.QueryId = queryId},
+                .Query = query.Query,
                 .AccessControlObjects = query.AccessControlObjects ? query.AccessControlObjects : TYsonString(TString("[]")),
                 .Annotations = query.Annotations ? query.Annotations : EmptyMap,
             };

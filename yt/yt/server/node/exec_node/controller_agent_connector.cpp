@@ -40,6 +40,8 @@ using namespace NScheduler::NProto::NNode;
 
 using NScheduler::TIncarnationId;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 constinit const auto Logger = ExecNodeLogger;

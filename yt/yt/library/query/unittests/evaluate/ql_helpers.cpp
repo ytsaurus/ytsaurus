@@ -164,10 +164,12 @@ TPlanFragmentPtr ParseAndPreparePlanFragment(
         parsedSource->Source,
         std::get<NAst::TQuery>(parsedSource->AstHead.Ast),
         parsedSource->AstHead,
-        EExecutionBackend::Native,
-        DefaultExpressionBuilderVersion,
-        std::move(memoryTracker),
-        syntaxVersion);
+        TPreparePlanFragmentOptions{
+            .SyntaxVersion = syntaxVersion,
+            .BuilderVersion = DefaultExpressionBuilderVersion,
+            .ExecutionBackend = EExecutionBackend::Native,
+        },
+        std::move(memoryTracker));
 }
 
 TConstExpressionPtr ParseAndPrepareExpression(

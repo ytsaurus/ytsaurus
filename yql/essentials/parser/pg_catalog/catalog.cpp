@@ -1615,14 +1615,17 @@ struct TColumnInfoRaw {
     const char* UdtType;
 };
 
+// NOLINTNEXTLINE(modernize-avoid-c-arrays)
 const TTableInfoRaw AllStaticTablesRaw[] = {
 #include "pg_class.generated.h"
 };
 
+// NOLINTNEXTLINE(modernize-avoid-c-arrays)
 const TColumnInfoRaw AllStaticColumnsRaw[] = {
 #include "columns.generated.h"
 };
 
+// NOLINTNEXTLINE(modernize-avoid-c-arrays)
 const char* AllowedProcsRaw[] = {
 #include "safe_procs.h"
 #include "used_procs.h"
@@ -1641,14 +1644,12 @@ struct TCatalog: public IExtensionSqlBuilder {
     void Init() {
         Clear();
         State.ConstructInPlace();
-        for (size_t i = 0; i < Y_ARRAY_SIZE(AllStaticTablesRaw); ++i) {
-            const auto& raw = AllStaticTablesRaw[i];
+        for (const auto& raw : AllStaticTablesRaw) {
             State->AllStaticTables.push_back(
                 {{TString(raw.Schema), TString(raw.Name)}, raw.Kind, raw.Oid});
         }
 
-        for (size_t i = 0; i < Y_ARRAY_SIZE(AllStaticColumnsRaw); ++i) {
-            const auto& raw = AllStaticColumnsRaw[i];
+        for (const auto& raw : AllStaticColumnsRaw) {
             State->AllStaticColumns.push_back(
                 {TString(raw.Schema), TString(raw.TableName), TString(raw.Name), TString(raw.UdtType)});
         }
@@ -1911,8 +1912,7 @@ struct TCatalog: public IExtensionSqlBuilder {
                 ExportFunction(desc.FunctionId);
             }
         } else {
-            for (size_t i = 0; i < Y_ARRAY_SIZE(AllowedProcsRaw); ++i) {
-                const auto& raw = AllowedProcsRaw[i];
+            for (const auto& raw : AllowedProcsRaw) {
                 State->AllowedProcs.insert(raw);
             }
 

@@ -3,6 +3,7 @@
 #include "automaton.h"
 #include "bootstrap.h"
 #include "config.h"
+#include "compaction_hint_controllers.h"
 #include "compression_dictionary_manager.h"
 #include "distributed_throttler_manager.h"
 #include "hedging_manager_registry.h"
@@ -351,14 +352,13 @@ void TTabletSnapshot::ValidateServantIsActive(const ICellDirectoryPtr& cellDirec
 
         if (smoothMovementData.Role.load() == ESmoothMovementRole::Source) {
             TTabletRedirectionHint hint;
-
-            hint.PreviousMountRevision = MountRevision;
-            hint.MountRevision = siblingMountRevision;
-            hint.CellId = siblingCellId;
+            hint.SmoothMovementRedirectionHint.OldMountRevision = MountRevision;
+            hint.SmoothMovementRedirectionHint.NewMountRevision = siblingMountRevision;
+            hint.SmoothMovementRedirectionHint.CellId = siblingCellId;
 
             auto cellDescriptor = cellDirectory->FindDescriptorByCellId(siblingCellId);
             if (cellDescriptor) {
-                hint.CellDescriptor = ConvertToNode(cellDescriptor);
+                hint.SmoothMovementRedirectionHint.CellDescriptor = ConvertToNode(cellDescriptor);
             } else {
                 YT_LOG_DEBUG("Sibling servant cell descriptor is missing in cell directory (%v)",
                     LoggingTag);
@@ -386,6 +386,22 @@ void TTabletSnapshot::ValidateServantIsActive(const ICellDirectoryPtr& cellDirec
             THROW_ERROR error;
         }
     }
+}
+
+void TTabletSnapshot::MaybeReplyWithReshardRedirectionHint()
+{
+    if (!ReshardRedirectionHint) {
+        return;
+    }
+
+    TTabletRedirectionHint hint;
+    hint.ReshardRedirectionHint = ReshardRedirectionHint;
+
+    THROW_ERROR_EXCEPTION(
+        NTabletClient::EErrorCode::TabletResharded,
+        "Tablet was resharded")
+        << TErrorAttribute("tablet_id", TabletId)
+        << TErrorAttribute("redirection_hint", hint);
 }
 
 void TTabletSnapshot::WaitOnLocks(TTimestamp timestamp) const
@@ -877,7 +893,14 @@ const TTableSettings& TTablet::GetSettings() const
 
 void TTablet::SetSettings(TTableSettings settings)
 {
+    auto oldMountConfig = Settings_.MountConfig;
     Settings_ = std::move(settings);
+
+    if (IsPhysicallySorted()) {
+        for (const auto& partition : PartitionList_) {
+            partition->CompactionHints().OnMountConfigUpdated(partition.get(), oldMountConfig);
+        }
+    }
 }
 
 const IStoreManagerPtr& TTablet::GetStoreManager() const
@@ -1131,9 +1154,6 @@ void TTablet::Load(TLoadContext& context)
                 partitionId,
                 index);
             Load(context, *partition);
-            for (const auto& store : partition->Stores()) {
-                store->SetPartition(partition.get());
-            }
             return partition;
         }
     };
@@ -1498,8 +1518,7 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex, TDuration splitDela
 
         for (const auto& store : existingPartition->Stores()) {
             YT_VERIFY(store->GetPartition() == existingPartition.get());
-            store->SetPartition(mergedPartition.get());
-            InsertOrCrash(mergedPartition->Stores(), store);
+            mergedPartition->AddStore(store);
         }
     }
 
@@ -1627,8 +1646,7 @@ void TTablet::SplitPartition(int index, const std::vector<TLegacyOwningKey>& piv
     for (const auto& store : existingPartition->Stores()) {
         YT_VERIFY(store->GetPartition() == existingPartition.get());
         auto* newPartition = GetContainingPartition(store);
-        store->SetPartition(newPartition);
-        InsertOrCrash(newPartition->Stores(), store);
+        newPartition->AddStore(store);
     }
 
     StructuredLogger_->OnPartitionSplit(
@@ -1693,8 +1711,7 @@ void TTablet::AddStore(IStorePtr store, bool onFlush, TPartitionId partitionIdHi
                 ? GetEden()
                 : GetContainingPartition(sortedStore);
         YT_VERIFY(partition);
-        InsertOrCrash(partition->Stores(), sortedStore);
-        sortedStore->SetPartition(partition);
+        partition->AddStore(sortedStore);
         UpdateOverlappingStoreCount();
 
         if (store->GetStoreState() != EStoreState::ActiveDynamic) {
@@ -1722,8 +1739,7 @@ void TTablet::RemoveStore(IStorePtr store)
     if (IsPhysicallySorted()) {
         auto sortedStore = store->AsSorted();
         auto* partition = sortedStore->GetPartition();
-        EraseOrCrash(partition->Stores(), sortedStore);
-        sortedStore->SetPartition(nullptr);
+        partition->RemoveStore(sortedStore);
         UpdateOverlappingStoreCount();
 
         if (store->GetStoreState() != EStoreState::ActiveDynamic) {
@@ -3021,7 +3037,7 @@ void TTablet::ThrottleTabletStoresUpdate(
 
     auto asyncResult = throttler->Throttle(1);
     auto result = asyncResult.IsSet()
-        ? asyncResult.Get()
+        ? asyncResult.BlockingGet()
         : WaitFor(asyncResult);
     result.ThrowOnError();
 
@@ -3453,6 +3469,36 @@ void TTablet::OnDynamicConfigChanged(
     }
 
     ReconfigureChunkFragmentReader(slot);
+}
+
+NHydra::EPeerState TTablet::GetAutomatonState() const
+{
+    return Context_->GetAutomatonState();
+}
+
+IInvokerPtr TTablet::GetStorageHeavyInvoker() const
+{
+    return Context_->GetStorageHeavyInvoker();
+}
+
+NApi::NNative::IClientPtr TTablet::GetClient() const
+{
+    return Context_->GetClient();
+}
+
+IChunkReplicaCachePtr TTablet::GetChunkReplicaCache() const
+{
+    return Context_->GetChunkReplicaCache();
+}
+
+const TCompactionHintFetcherPtr& TTablet::GetCompactionHintFetcher(NLsm::EStoreCompactionHintKind kind) const
+{
+    return Context_->GetCompactionHintFetcher(kind);
+}
+
+TSimpleLruCache<NChunkClient::TChunkId, TMinHashDigestPtr>* TTablet::GetMinHashDigestCache() const
+{
+    return Context_->GetMinHashDigestCache();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -87,7 +87,7 @@ void RunServer(const TString& address)
     Cin.ReadLine();
 
     rpcServer->Stop()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 }
 
@@ -111,11 +111,11 @@ void RunClient(const TString& address, int numIter)
         result = request->Invoke();
         if (i % 10000 == 0 || i == numIter - 1) {
             Cout << "iteration " << i << Endl;
-            auto response = result.Get().ValueOrThrow();
+            auto response = result.BlockingGet().ValueOrThrow();
             YT_ASSERT(response->b() == i + 42);
         }
     }
-    result.Get();
+    result.BlockingGet();
 
     auto elapsed = timer.GetElapsedTime();
     Cout << "Elapsed = " << ToString(elapsed) << Endl;

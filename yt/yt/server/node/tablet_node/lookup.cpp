@@ -1487,7 +1487,7 @@ TFuture<std::vector<TSharedRef>> TLookupSession::Run()
         for (int requestIndex = 0; requestIndex < std::ssize(TabletRequests_); ++requestIndex) {
             futures.push_back(RunTabletRequest(requestIndex));
             if (futures.back().IsSet()) {
-                results.push_back(futures.back().Get());
+                results.push_back(futures.back().BlockingGet());
             }
         }
 
@@ -2357,7 +2357,7 @@ bool TTabletLookupSession<TPipeline>::DoLookupInCurrentPartition()
                         auto future = session.GetReadyEvent();
                         // TODO(akozhikhov): Proper block fetcher:
                         // make scenario of empty batch and set future here impossible.
-                        if (!future.IsSet() || !future.Get().IsOK()) {
+                        if (!future.IsSet() || !future.BlockingGet().IsOK()) {
                             // NB: In case of error AllSucceeded below will terminate this session
                             // and cancel its other block fetchers.
                             futures.push_back(std::move(future));
@@ -2424,7 +2424,7 @@ void TTabletLookupSession<TPipeline>::LookupFromStoreSessions(
         if (!session.PrepareBatch()) {
             auto readyEvent = session.GetReadyEvent();
             YT_VERIFY(readyEvent.IsSet());
-            readyEvent.Get().ThrowOnError();
+            readyEvent.BlockingGet().ThrowOnError();
             YT_VERIFY(session.PrepareBatch());
         }
         auto row = session.FetchRow();
@@ -2561,7 +2561,7 @@ class TSchemafulPipeAdapter
 {
 public:
     TSchemafulPipeAdapter(
-        TSchemafulPipePtr pipe,
+        ISchemafulPipePtr pipe,
         const TTabletSnapshotPtr& tabletSnapshot,
         std::unique_ptr<NRowMerger::TSchemafulRowMerger> merger,
         TSharedRange<TUnversionedRow> lookupKeys)
@@ -2582,7 +2582,7 @@ protected:
     static constexpr auto QueryKind = EInitialQueryKind::SelectRows;
 
     const IUnversionedRowsetWriterPtr Writer_;
-    const TSchemafulPipePtr Pipe_;
+    const ISchemafulPipePtr Pipe_;
     std::unique_ptr<NRowMerger::TSchemafulRowMerger> Merger_;
 
     const TPromise<void> ResultPromise_ = NewPromise<void>();
@@ -2608,7 +2608,7 @@ protected:
                 dataStatistics = std::move(DataStatistics_)
             ] (const TError& error) mutable {
                 if (error.IsOK()) {
-                    pipe->SetDataStatistics(std::move(dataStatistics));
+                    pipe->SetReaderDataStatistics(std::move(dataStatistics));
                 }
                 resultPromise.TrySet(error);
             }));
@@ -2651,7 +2651,7 @@ ISchemafulUnversionedReaderPtr CreateLookupSessionReader(
 
     auto rowBuffer = New<TRowBuffer>(TLookupRowsBufferTag(), memoryChunkProvider);
 
-    auto pipe = New<TSchemafulPipe>(memoryChunkProvider);
+    auto pipe = CreateSchemafulPipe(memoryChunkProvider);
     auto reader = pipe->GetReader();
 
     auto latestTimestampColumnFilter = ToLatestTimestampColumnFilter(

@@ -54,7 +54,6 @@ class TestBulkInsert(DynamicTablesBase):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
-    ENABLE_BULK_INSERT = True
 
     def _create_simple_dynamic_table(self, path, sort_order="ascending", **attributes):
         if "schema" not in attributes:
@@ -1526,7 +1525,6 @@ class TestBulkInsertLockConfirmation(DynamicTablesBase):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
-    ENABLE_BULK_INSERT = True
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "dynamic_table_lock_checking_attempt_count_limit": 3,
@@ -1576,7 +1574,6 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
-    ENABLE_BULK_INSERT = True
 
     MISSING_FLAG = 0x1
     AGGREGATE_FLAG = 0x2

@@ -77,7 +77,6 @@ class TestChunkMerger(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
-    ENABLE_BULK_INSERT = True
     ENABLE_RPC_PROXY = True
     DRIVER_BACKEND = "rpc"
 

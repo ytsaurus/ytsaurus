@@ -262,13 +262,44 @@ void TEncodingWriter::VerifyVector(
 
         YT_LOG_FATAL_IF(
             decompressedBlock.Size() != GetByteSize(uncompressedVectorizedBlock),
-            "Compression verification failed: decompressed size mismatch");
+            "Compression verification failed: decompressed size mismatch "
+            "(Expected: %v, Actual: %v)",
+            GetByteSize(uncompressedVectorizedBlock),
+            decompressedBlock.Size());
 
         const char* current = decompressedBlock.Begin();
-        for (const auto& block : uncompressedVectorizedBlock) {
+        for (size_t blockIndex = 0; blockIndex < uncompressedVectorizedBlock.size(); ++blockIndex) {
+            const auto& block = uncompressedVectorizedBlock[blockIndex];
+
+            i64 differBitsCount = 0;
+            i64 firstMismatchedBitPosition = -1;
+
+            const unsigned char* expected = reinterpret_cast<const unsigned char*>(block.Begin());
+            const unsigned char* actual = reinterpret_cast<const unsigned char*>(current);
+
+            for (size_t i = 0; i < block.Size(); ++i) {
+                unsigned char diff = expected[i] ^ actual[i];
+                if (diff != 0) {
+                    differBitsCount += std::popcount(diff);
+
+                    if (firstMismatchedBitPosition == -1) {
+                        firstMismatchedBitPosition = i * CHAR_BIT + std::countr_zero(diff);
+                    }
+                }
+            }
+
             YT_LOG_FATAL_IF(
-                !TRef::AreBitwiseEqual(TRef(current, block.Size()), block),
-                "Compression verification failed: content differs");
+                differBitsCount > 0,
+                "Compression verification failed: content differs "
+                "(BlockIndex: %v, BlockSize: %v, DifferBitsCount: %v, FirstMismatchedBitPosition: %v, "
+                "FirstMismatchedByteExpected: %v, FirstMismatchedByteActual: %v)",
+                blockIndex,
+                block.Size(),
+                differBitsCount,
+                firstMismatchedBitPosition,
+                expected[firstMismatchedBitPosition / CHAR_BIT],
+                actual[firstMismatchedBitPosition / CHAR_BIT]);
+
             current += block.Size();
         }
     } catch (const std::exception& ex) {

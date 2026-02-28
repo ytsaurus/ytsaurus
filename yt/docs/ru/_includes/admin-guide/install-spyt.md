@@ -42,3 +42,5 @@ myspyt   Finished
 ```
 
 После успешного выполнения всех джобов (когда `RELEASESTATUS` перешел в `Finished`), можно запускать `SPYT`. Подробнее можно почитать [в отдельном разделе](../../user-guide/data-processing/spyt/launch).
+
+Для открытия Spark UI в браузере можно установить [Task proxy](../../admin-guide/install-task-proxy.md).

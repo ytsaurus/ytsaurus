@@ -122,6 +122,8 @@
 
 #include <library/cpp/yt/misc/numeric_helpers.h>
 
+#include <library/cpp/iterator/zip.h>
+
 #include <algorithm>
 
 namespace NYT::NTabletServer {
@@ -959,11 +961,7 @@ public:
 
     void PrepareMountHunkStorage(THunkStorageNode* hunkStorage)
     {
-        GetHunkStorageSettings(
-            hunkStorage,
-            Bootstrap_->GetObjectManager(),
-            Bootstrap_->GetChunkManager(),
-            GetDynamicConfig());
+        Y_UNUSED(ValidateAndGetHunkStorageSettings(hunkStorage));
     }
 
     void Mount(
@@ -3141,7 +3139,7 @@ private:
 
     void DoMountTablets(
         TTabletOwnerBase* table,
-        const TSerializedTabletOwnerSettings& serializedTableSettings,
+        const TSerializedTabletOwnerSettings& serializedSettings,
         const std::vector<std::pair<TTabletBase*, TTabletCell*>>& assignment,
         bool freeze,
         bool useRetainedPreloadedChunks = false,
@@ -3161,10 +3159,11 @@ private:
         for (auto [tablet, cell] : assignment) {
             YT_VERIFY(tablet->GetState() == ETabletState::Unmounted);
 
-            if (!IsCellActive(cell) && tablet->GetType() == EObjectType::Tablet) {
-                TabletActionManager_->CreateOrphanedTabletAction(
-                    tablet->As<TTablet>(),
-                    freeze);
+            if (!IsCellActive(cell) ||
+                (GetDynamicConfig()->Testing->MountViaOrphanedTabletActions &&
+                !tablet->GetAction()))
+            {
+                TabletActionManager_->CreateOrphanedTabletAction(tablet, freeze);
                 continue;
             }
 
@@ -3205,7 +3204,7 @@ private:
                     DoMountTableTablet(
                         tablet->As<TTablet>(),
                         table->As<TTableNode>(),
-                        std::get<TSerializedTableSettings>(serializedTableSettings),
+                        std::get<TSerializedTableSettings>(serializedSettings),
                         cell,
                         freeze,
                         useRetainedPreloadedChunks,
@@ -3215,7 +3214,7 @@ private:
                 case EObjectType::HunkTablet:
                     DoMountHunkTablet(
                         tablet->As<THunkTablet>(),
-                        std::get<TSerializedHunkStorageSettings>(serializedTableSettings),
+                        std::get<TSerializedHunkStorageSettings>(serializedSettings),
                         cell);
                     break;
 
@@ -3621,6 +3620,7 @@ private:
 
     void StartSmoothMovement(TTabletBase* tablet, TTabletCell* cell) override
     {
+        YT_VERIFY(tablet->GetType() == EObjectType::Tablet);
         YT_VERIFY(tablet->AuxiliaryServant().GetCell() == cell);
 
         TReqStartSmoothMovement req;
@@ -3646,8 +3646,13 @@ private:
 
     void AbortSmoothMovement(TTabletBase* tablet) override
     {
+        YT_VERIFY(tablet->GetType() == EObjectType::Tablet);
+
         TReqAbortSmoothMovement req;
         ToProto(req.mutable_tablet_id(), tablet->GetId());
+        // NB: Not necessary here but added for consistency with the case when
+        // the same mutation is scheduled by the node itself.
+        req.set_mount_revision(ToProto(tablet->Servant().GetMountRevision()));
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
         auto mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
@@ -4878,6 +4883,30 @@ private:
         UpdateTabletState(tabletOwner);
     }
 
+    void SendReshardRedirectionHint(
+        TTabletCellId cellId,
+        const std::vector<TTabletBaseRawPtr>& newTablets,
+        const std::vector<TTabletBaseRawPtr>& oldTablets,
+        const std::vector<NHydra::TRevision>& oldTabletMountRevisions) override
+    {
+        NTabletNode::NProto::TReqSetReshardRedirectionHint request;
+
+        for (const auto& [tablet, mountRevision] : Zip(oldTablets, oldTabletMountRevisions)) {
+            ToProto(request.add_old_tablet_ids(), tablet->GetId());
+            request.add_old_tablet_mount_revisions(ToProto(mountRevision));
+        }
+
+        for (const auto& tablet : newTablets) {
+            ToProto(request.add_new_tablet_ids(), tablet->GetId());
+            ToProto(request.add_new_tablet_pivot_keys(), tablet->As<TTablet>()->GetPivotKey());
+        }
+        request.set_new_tablets_mount_revision(ToProto(GetCurrentMutationContext()->GetVersion().ToRevision()));
+
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+        auto mailbox = hiveManager->GetMailbox(cellId);
+        hiveManager->PostMessage(mailbox, request);
+    }
+
     void UpdateTabletState(TTabletOwnerBase* table)
     {
         if (!IsObjectAlive(table)) {
@@ -5203,6 +5232,8 @@ private:
 
         auto* hunkTablet = tablet->As<THunkTablet>();
         DoTabletServantUnmounted(hunkTablet, &hunkTablet->Servant(), /*force*/ false);
+
+        TabletActionManager_->OnTabletActionStateChanged(hunkTablet->GetAction());
     }
 
     void HydraOnTabletFrozen(NProto::TRspFreezeTablet* response)
@@ -6659,7 +6690,7 @@ private:
         TTablet* tablet,
         bool force,
         bool onDestroy,
-        bool retainPreloadedChunks)
+        TUnmountTabletOptions options)
     {
         if (tablet->GetState() == ETabletState::Unmounted) {
             return;
@@ -6690,7 +6721,8 @@ private:
         TReqUnmountTablet request;
         ToProto(request.mutable_tablet_id(), tablet->GetId());
         request.set_force(force);
-        request.set_retain_preloaded_chunks(retainPreloadedChunks);
+        request.set_retain_preloaded_chunks(options.RetainPreloadedChunks);
+        request.set_use_extended_snapshot_eviction_timeout(options.UseExtendedSnapshotEvictionTimeout);
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
         auto mailbox = hiveManager->GetMailbox(force
@@ -6763,7 +6795,7 @@ private:
         TTabletBase* tablet,
         bool force,
         bool onDestroy,
-        bool retainPreloadedChunks = false) override
+        TUnmountTabletOptions options = {}) override
     {
         switch (tablet->GetType()) {
             case EObjectType::Tablet:
@@ -6771,7 +6803,7 @@ private:
                     tablet->As<TTablet>(),
                     force,
                     onDestroy,
-                    retainPreloadedChunks);
+                    options);
                 break;
             case EObjectType::HunkTablet:
                 DoUnmountHunkTablet(tablet->As<THunkTablet>(), force);
@@ -6972,6 +7004,15 @@ private:
     {
         return NTabletServer::GetTableSettings(
             table,
+            Bootstrap_->GetObjectManager(),
+            Bootstrap_->GetChunkManager(),
+            GetDynamicConfig());
+    }
+
+    THunkStorageSettings ValidateAndGetHunkStorageSettings(THunkStorageNode* hunkStorage) const override
+    {
+        return NTabletServer::ValidateAndGetHunkStorageSettings(
+            hunkStorage,
             Bootstrap_->GetObjectManager(),
             Bootstrap_->GetChunkManager(),
             GetDynamicConfig());

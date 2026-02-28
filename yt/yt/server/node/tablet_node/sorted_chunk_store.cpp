@@ -89,19 +89,6 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Serialize(
-    const TCompactionHints& compactionHints,
-    NYson::IYsonConsumer* consumer)
-{
-    BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("chunk_view_size").Value(compactionHints.ChunkViewSize)
-            .Item("row_digest").Value(compactionHints.RowDigest)
-        .EndMap();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TFilteringReader
     : public IVersionedReader
 {
@@ -374,6 +361,8 @@ void TSortedChunkStore::Initialize()
 
     ClippingRange_ = MakeSingletonRowRange(MinKey_, UpperBoundKey_);
 
+    CompactionHints_.Initialize(this);
+
     if (UpperBoundKey_ < MinKey_) {
         // This may happen in a rare case when actual bounds look like
         // [ [x], [x, #] ) and table schema is wider than the upper key.
@@ -436,6 +425,13 @@ EStoreType TSortedChunkStore::GetType() const
     return EStoreType::SortedChunk;
 }
 
+void TSortedChunkStore::SetStoreState(EStoreState state)
+{
+    TChunkStoreBase::SetStoreState(state);
+
+    Partition_->CompactionHints().OnStoreStateChanged(Partition_, this);
+}
+
 TSortedChunkStorePtr TSortedChunkStore::AsSortedChunk()
 {
     return this;
@@ -449,6 +445,7 @@ void TSortedChunkStore::DoBuildOrchidYson(TFluentMap fluent)
         .Item("min_key").Value(GetMinKey())
         .Item("upper_bound_key").Value(GetUpperBoundKey())
         .Item("max_clip_timestamp").Value(MaxClipTimestamp_)
+        .Item("compaction_hint_fetch_pipelines").Value(CompactionHintFetchPipelines_)
         .Item("compaction_hints").Value(CompactionHints_);
 }
 

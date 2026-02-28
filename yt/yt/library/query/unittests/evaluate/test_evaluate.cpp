@@ -391,7 +391,7 @@ std::pair<TQueryPtr, TQueryStatistics> TQueryEvaluateTest::EvaluateWithQueryStat
             resultMatcher,
             options,
             std::nullopt)
-        .Get()
+        .BlockingGet()
         .ValueOrThrow();
 }
 
@@ -545,7 +545,7 @@ TQueryPtr TQueryEvaluateTest::EvaluateExpectingError(
             AnyMatcher,
             evaluateOptions,
             expectedError)
-        .Get()
+        .BlockingGet()
         .ValueOrThrow();
 
     evaluateOptions.ExecutionBackend = EExecutionBackend::Native;
@@ -558,7 +558,7 @@ TQueryPtr TQueryEvaluateTest::EvaluateExpectingError(
             AnyMatcher,
             std::move(evaluateOptions),
             expectedError)
-        .Get()
+        .BlockingGet()
         .ValueOrThrow().first;
 }
 
@@ -775,7 +775,7 @@ TQueryStatistics TQueryEvaluateTest::EvaluateCoordinatedGroupByImpl(
         ON_CALL(*readerMock, GetReadyEvent())
             .WillByDefault(Return(OKFuture));
 
-        auto pipe = New<NTableClient::TSchemafulPipe>(GetDefaultMemoryChunkProvider());
+        auto pipe = NTableClient::CreateSchemafulPipe(GetDefaultMemoryChunkProvider());
         resultStatistics[index] = Evaluator_->Run(
             bottomQuery,
             readerMock,
@@ -836,7 +836,7 @@ TQueryStatistics TQueryEvaluateTest::EvaluateCoordinatedGroupBy(
     return EvaluateCoordinatedGroupByImpl(query, dataSplit, owningSources, resultMatcher, EExecutionBackend::Native);
 }
 
-TSchemafulPipePtr TQueryEvaluateTest::RunOnNodeThread(
+ISchemafulPipePtr TQueryEvaluateTest::RunOnNodeThread(
     TConstQueryPtr query,
     const TSource& rows,
     EExecutionBackend executionBackend)
@@ -869,7 +869,7 @@ TSchemafulPipePtr TQueryEvaluateTest::RunOnNodeThread(
     ON_CALL(*readerMock, GetReadyEvent())
         .WillByDefault(Return(OKFuture));
 
-    auto pipe = New<TSchemafulPipe>(GetDefaultMemoryChunkProvider());
+    auto pipe = CreateSchemafulPipe(GetDefaultMemoryChunkProvider());
 
     Evaluator_->Run(
         query,
@@ -887,7 +887,7 @@ TSchemafulPipePtr TQueryEvaluateTest::RunOnNodeThread(
     return pipe;
 }
 
-TSchemafulPipePtr TQueryEvaluateTest::RunOnNode(
+ISchemafulPipePtr TQueryEvaluateTest::RunOnNode(
     TConstQueryPtr nodeQuery,
     const std::vector<TSource>& tabletData,
     EExecutionBackend executionBackend)
@@ -917,7 +917,7 @@ TSchemafulPipePtr TQueryEvaluateTest::RunOnNode(
         ? CreateFullPrefetchingOrderedSchemafulReader(nextReader)
         : CreateFullPrefetchingShufflingSchemafulReader(nextReader);
 
-    auto pipe = New<TSchemafulPipe>(GetDefaultMemoryChunkProvider());
+    auto pipe = CreateSchemafulPipe(GetDefaultMemoryChunkProvider());
 
     Evaluator_->Run(
         query,

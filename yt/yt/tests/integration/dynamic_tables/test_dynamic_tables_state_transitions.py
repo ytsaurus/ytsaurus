@@ -28,7 +28,6 @@ class TestDynamicTableStateTransitions(DynamicTablesBase):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_TEST_PARTITIONS = 5
     NUM_SCHEDULERS = 1
-    ENABLE_BULK_INSERT = True
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "tablet_manager": {

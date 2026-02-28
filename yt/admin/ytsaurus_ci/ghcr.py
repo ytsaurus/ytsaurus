@@ -1,6 +1,8 @@
 from dataclasses import dataclass
+from functools import lru_cache
 
 import requests
+import frozendict
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
@@ -29,6 +31,7 @@ class GitHubPackagesClient:
         adapter = HTTPAdapter(max_retries=retry_strategy)
         self.session.mount("https://", adapter)
 
+    @lru_cache(maxsize=2048)
     def _make_request(self, method, endpoint, params=None) -> requests.Response:
         url = f"{self.config.base_url}{endpoint}"
         response = self.session.request(method=method, url=url, params=params)
@@ -48,7 +51,7 @@ class GitHubPackagesClient:
         params.setdefault("page", 1)
 
         while True:
-            response = self._make_request("GET", endpoint, params=params)
+            response = self._make_request("GET", endpoint, params=frozendict.frozendict(params))
             data = response.json()
 
             if not data:

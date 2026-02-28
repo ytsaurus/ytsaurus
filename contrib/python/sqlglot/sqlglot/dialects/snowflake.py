@@ -801,6 +801,11 @@ class Snowflake(Dialect):
 
         COLON_PLACEHOLDER_TOKENS = ID_VAR_TOKENS | {TokenType.NUMBER}
 
+        NO_PAREN_FUNCTIONS = {
+            **parser.Parser.NO_PAREN_FUNCTIONS,
+            TokenType.CURRENT_TIME: exp.Localtime,
+        }
+
         FUNCTIONS = {
             **parser.Parser.FUNCTIONS,
             "ADD_MONTHS": lambda args: exp.AddMonths(
@@ -809,6 +814,7 @@ class Snowflake(Dialect):
                 preserve_end_of_month=True,
             ),
             "APPROX_PERCENTILE": exp.ApproxQuantile.from_arg_list,
+            "CURRENT_TIME": lambda args: exp.Localtime(this=seq_get(args, 0)),
             "APPROX_TOP_K": _build_approx_top_k,
             "ARRAY_CONSTRUCT": lambda args: exp.Array(expressions=args),
             "ARRAY_CONTAINS": lambda args: exp.ArrayContains(
@@ -1496,6 +1502,19 @@ class Snowflake(Dialect):
                         expr.set("kind", "VARIABLE")
             return set
 
+        def _parse_window(
+            self, this: t.Optional[exp.Expression], alias: bool = False
+        ) -> t.Optional[exp.Expression]:
+            if isinstance(this, exp.NthValue):
+                if self._match_text_seq("FROM"):
+                    if self._match_texts(("FIRST", "LAST")):
+                        from_first = self._prev.text.upper() == "FIRST"
+                        this.set("from_first", from_first)
+
+            result = super()._parse_window(this, alias)
+
+            return result
+
     class Tokenizer(tokens.Tokenizer):
         STRING_ESCAPES = ["\\", "'"]
         HEX_STRINGS = [("x'", "'"), ("X'", "'")]
@@ -1603,6 +1622,9 @@ class Snowflake(Dialect):
             exp.CurrentTimestamp: lambda self, e: self.func("SYSDATE")
             if e.args.get("sysdate")
             else self.function_fallback_sql(e),
+            exp.Localtime: lambda self, e: self.func("CURRENT_TIME", e.this)
+            if e.this
+            else "CURRENT_TIME",
             exp.Localtimestamp: lambda self, e: self.func("CURRENT_TIMESTAMP", e.this)
             if e.this
             else "CURRENT_TIMESTAMP",
@@ -1777,6 +1799,19 @@ class Snowflake(Dialect):
                 "SHA2_BINARY", e.this, e.args.get("length") or exp.Literal.number(256)
             ),
         }
+
+        def nthvalue_sql(self, expression: exp.NthValue) -> str:
+            result = self.func("NTH_VALUE", expression.this, expression.args.get("offset"))
+
+            from_first = expression.args.get("from_first")
+
+            if from_first is not None:
+                if from_first:
+                    result = result + " FROM FIRST"
+                else:
+                    result = result + " FROM LAST"
+
+            return result
 
         SUPPORTED_JSON_PATH_PARTS = {
             exp.JSONPathKey,

@@ -86,6 +86,7 @@
 #include <util/string/builder.h>
 
 #include <util/generic/ptr.h>
+#include <util/system/env.h>
 #include <util/system/fs.h>
 #include <util/thread/pool.h>
 
@@ -106,6 +107,15 @@ std::optional<TString> MaybeToOptional(const TMaybe<TString>& maybeStr)
     }
     return *maybeStr;
 };
+
+TString CalculateMD5Checksum(const TString& filename)
+{
+    if (GetEnv("YT_LOCAL") == "1") {
+        return MD5::Calc(filename);
+    }
+
+    return MD5::File(filename);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -408,7 +418,7 @@ public:
                 }
                 FuncRegistry_->LoadUdfs(path, emptyRemappings, flags);
                 if (DqManagerConfig_) {
-                    DqManagerConfig_->UdfsWithMd5.emplace(path, MD5::File(path));
+                    DqManagerConfig_->UdfsWithMd5.emplace(path, CalculateMD5Checksum(path));
                 }
             }
             gatewayYtConfig->ClearMrJobUdfsDir();
@@ -969,7 +979,7 @@ private:
         gatewayYtConfig->ClearMrJobUdfsDir();
         YQL_LOG(DEBUG) << __FUNCTION__ << ": TDynamicConfig ready";
 
-        gatewayYtConfig->SetMrJobBinMd5(MD5::File(gatewayYtConfig->GetMrJobBin()));
+        gatewayYtConfig->SetMrJobBinMd5(CalculateMD5Checksum(gatewayYtConfig->GetMrJobBin()));
         YQL_LOG(DEBUG) << __FUNCTION__ << ": SetMrJobBinMd5 ready";
 
         for (const auto& mapping : gatewayYtConfig->GetClusterMapping()) {

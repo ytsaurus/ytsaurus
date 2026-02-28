@@ -49,7 +49,7 @@ public:
 
         YT_VERIFY(options.MaxRowsPerRead > 0);
 
-        if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
+        if (!ReadyEvent_.IsSet() || !ReadyEvent_.BlockingGet().IsOK()) {
             return CreateEmptyVersionedRowBatch();
         }
 
@@ -179,14 +179,14 @@ private:
 
         if (fragmentsFuture) {
             YT_VERIFY(fragmentsFuture.IsSet());
-            auto result = fragmentsFuture.AsUnique().Get();
+            auto result = fragmentsFuture.AsUnique().BlockingGet();
             YT_VERIFY(result.IsOK());
             response.Fragments = std::move(result.Value().Fragments);
         }
 
         if (blocksFuture) {
             YT_VERIFY(blocksFuture.IsSet());
-            auto result = blocksFuture.AsUnique().Get();
+            auto result = blocksFuture.AsUnique().BlockingGet();
             YT_VERIFY(result.IsOK());
             response.SystemBlocks = std::move(result.Value());
         }

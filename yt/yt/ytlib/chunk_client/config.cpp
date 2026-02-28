@@ -162,6 +162,18 @@ void TChunkTeleporterConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TS3MediumConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("bucket", &TThis::Bucket)
+        .Default();
+    registrar.Parameter("access_key_id", &TThis::AccessKeyId)
+        .Default();
+    registrar.Parameter("secret_access_key", &TThis::SecretAccessKey)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TMediumDirectorySynchronizerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("sync_period", &TThis::SyncPeriod)

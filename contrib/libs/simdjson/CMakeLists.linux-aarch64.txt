@@ -19,6 +19,7 @@ add_library(contrib-libs-simdjson)
 
 target_compile_options(contrib-libs-simdjson PRIVATE
   -DSIMDJSON_AVX512_ALLOWED=1
+  -DSIMDJSON_DEVELOPMENT_CHECKS
   -DSIMDJSON_UTF8VALIDATION=1
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )

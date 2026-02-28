@@ -182,6 +182,7 @@ SRCS(
     chunk_client/legacy_data_slice.cpp
     chunk_client/medium_directory_synchronizer.cpp
     chunk_client/medium_directory.cpp
+    chunk_client/medium_descriptor.cpp
     chunk_client/memory_reader.cpp
     chunk_client/memory_tracked_deferred_chunk_meta.cpp
     chunk_client/memory_writer.cpp
@@ -376,6 +377,7 @@ SRCS(
     queue_client/queue_consumer_init.cpp
     queue_client/dynamic_state.cpp
     queue_client/helpers.cpp
+    queue_client/path.cpp
     queue_client/queue_producer_init.cpp
     queue_client/registration_manager.cpp
     queue_client/registration_manager_base.cpp
@@ -480,6 +482,7 @@ SRCS(
     table_client/partitioner.cpp
     table_client/performance_counters.cpp
     table_client/remote_dynamic_store_reader.cpp
+    table_client/row_layout.cpp
     table_client/row_level_security.cpp
     table_client/rows_digest.cpp
     table_client/samples_fetcher.cpp
@@ -597,7 +600,7 @@ GENERATE_YT_RECORD(
 )
 
 GENERATE_YT_RECORD(
-    sequoia_client/records/child_node.yaml
+    sequoia_client/records/child_nodes.yaml
     OUTPUT_INCLUDES
         yt/yt/ytlib/sequoia_client/public.h
 )
@@ -813,6 +816,7 @@ PEERDIR(
     yt/yt/library/orchid
     yt/yt/library/profiling/solomon
     yt/yt/library/program
+    yt/yt/library/s3
     yt/yt/library/row_merger
     yt/yt/library/query/base
     yt/yt/library/query/engine

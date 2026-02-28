@@ -1,5 +1,6 @@
 #include "config.h"
 #include "helpers.h"
+#include "private.h"
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
@@ -108,6 +109,9 @@ void TTabletManagerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("replicator_thread_pool_size", &TThis::ReplicatorThreadPoolSize)
         .GreaterThan(0)
         .Optional();
+
+    registrar.Parameter("extended_snapshot_eviction_timeout", &TThis::ExtendedSnapshotEvictionTimeout)
+        .Default(TDuration::Minutes(3));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -116,6 +120,9 @@ void TTabletCellWriteManagerDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("write_failure_probability", &TThis::WriteFailureProbability)
         .Default();
+
+    registrar.Parameter("detect_transient_transactions_per_tablet", &TThis::DetectTransientTransactionsPerTablet)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -145,8 +152,8 @@ void TStoreBackgroundActivityOrchidConfig::Register(TRegistrar registrar)
 
 void TCompactionHintFetcherConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("fetch_period", &TThis::FetchPeriod)
-        .Default(TDuration::MilliSeconds(10));
+    registrar.Parameter("periodic_executor", &TThis::PeriodicExecutor)
+        .Default({.Period = TDuration::Seconds(5)});
     registrar.Parameter("request_throttler", &TThis::RequestThrottler)
         .DefaultCtor([] { return TThroughputThrottlerConfig::Create(/*limit*/ 300); });
 }
@@ -219,20 +226,11 @@ void TStoreCompactorDynamicConfig::Register(TRegistrar registrar)
         .GreaterThan(0)
         .Optional();
 
-    registrar.Parameter("chunk_view_size_fetch_period", &TThis::ChunkViewSizeFetchPeriod)
-        .Default(TDuration::Seconds(5));
-    registrar.Parameter("chunk_view_size_request_throttler", &TThis::ChunkViewSizeRequestThrottler)
-        .DefaultNew();
+    registrar.Parameter("compaction_hint_fetchers", &TThis::CompactionHintFetchers)
+        .Default();
 
-    registrar.Parameter("row_digest_fetch_period", &TThis::RowDigestFetchPeriod)
-        .Default(TDuration::Seconds(5));
-    registrar.Parameter("row_digest_request_throttler", &TThis::RowDigestRequestThrottler)
-        .DefaultNew();
-    registrar.Parameter("use_row_digests", &TThis::UseRowDigests)
-        .Default(false);
-
-    registrar.Parameter("min_hash_digest_fetcher", &TThis::MinHashDigestFetcher)
-        .DefaultNew();
+    registrar.Parameter("min_hash_digest_cache_capacity", &TThis::MinHashDigestCacheCapacity)
+        .Default(100_MB);
 
     registrar.Parameter("max_compaction_structured_log_events", &TThis::MaxCompactionStructuredLogEvents)
         .GreaterThanOrEqual(0)
@@ -258,6 +256,14 @@ void TStoreCompactorDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("background_task_history_window", &TThis::BackgroundTaskHistoryWindow)
         .GreaterThan(TDuration::Zero())
         .Default(TDuration::Minutes(10));
+
+    registrar.Postprocessor([] (TThis* config) {
+        for (auto& fetcher : config->CompactionHintFetchers) {
+            if (!fetcher) {
+                fetcher = New<TCompactionHintFetcherConfig>();
+            }
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

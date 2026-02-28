@@ -27,6 +27,8 @@ using namespace NYson;
 using namespace NScheduler;
 using namespace NTransactionClient;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobProberService

@@ -2,6 +2,8 @@
 
 #include "build_attributes.h"
 
+#include "coverage.h"
+
 #include <yt/yt/build/build.h>
 
 #include <yt/yt/core/misc/crash_handler.h>

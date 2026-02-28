@@ -4,8 +4,7 @@
 #include <yql/essentials/minikql/computation/mkql_computation_node_holders.h>
 #include <yql/essentials/minikql/computation/mkql_computation_node_impl.h>
 
-namespace NKikimr {
-namespace NMiniKQL {
+namespace NKikimr::NMiniKQL {
 
 template <NYql::TExprNode::EType Type>
 struct TMakeCodeArgs;
@@ -65,8 +64,8 @@ public:
 
             case NYql::TExprNode::List: {
                 NYql::TExprNode::TListType items;
-                for (ui32 i = 0; i < Args_.size(); ++i) {
-                    auto argValue = Args_[i]->GetValue(ctx);
+                for (const auto& arg : Args_) {
+                    auto argValue = arg->GetValue(ctx);
                     auto iter = argValue.GetListIterator();
                     NUdf::TUnboxedValue codeValue;
                     while (iter.Next(codeValue)) {
@@ -188,5 +187,4 @@ template IComputationNode* WrapMakeCode<NYql::TExprNode::Callable>(TCallable& ca
 
 template IComputationNode* WrapMakeCode<NYql::TExprNode::Lambda>(TCallable& callable, const TComputationNodeFactoryContext& ctx, ui32 exprCtxMutableIndex);
 
-} // namespace NMiniKQL
-} // namespace NKikimr
+} // namespace NKikimr::NMiniKQL

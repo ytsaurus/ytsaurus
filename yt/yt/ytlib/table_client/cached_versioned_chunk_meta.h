@@ -70,7 +70,7 @@ class TCachedVersionedChunkMeta
 {
 public:
     DEFINE_BYREF_RO_PROPERTY(std::optional<THashTableChunkIndexMeta>, HashTableChunkIndexMeta);
-    DEFINE_BYVAL_RW_PROPERTY(std::optional<int>, MinHashDigestBlockIndex);
+    DEFINE_BYVAL_RO_PROPERTY(std::optional<int>, MinHashDigestBlockIndex);
 
     static TCachedVersionedChunkMetaPtr Create(
         bool preparedColumnarMeta,
@@ -104,10 +104,7 @@ private:
 
     DECLARE_NEW_FRIEND()
 
-
-    void ParseHashTableChunkIndexMeta(const NProto::TSystemBlockMetaExt& systemBlockMetaExt);
-    void ParseXorFilterMeta(const NProto::TSystemBlockMetaExt& systemBlockMetaExt);
-    void ParseMinHashDigestMeta(const NProto::TSystemBlockMetaExt& systemBlockMetaExt);
+    void ParseSystemBlocksMeta(const NProto::TSystemBlockMetaExt& systemBlockMetaExt);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachedVersionedChunkMeta)

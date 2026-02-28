@@ -5750,6 +5750,8 @@ private:
         auto queryDumpAccount = config->_QueryDumpAccount.Get(execCtx->Cluster_);
         YQL_ENSURE(queryDumpAccount.Defined());
 
+        // Create inner dump tx to avoid commiting dump leftovers in tmpPath in case of failure
+        auto dumpTx = entry->DumpTx->StartTransaction(TStartTransactionOptions().Attributes(entry->TransactionSpec));
         for (auto& [srcPath, dstPath] : execCtx->Options_) {
             auto dstPathHash = HexEncode((THashBuilder() << dstPath).Finish());
             auto tmpPath = NYql::TransformPath(tmpFolder, "tmp/" + dstPathHash, true, execCtx->Session_->UserName_);
@@ -5782,16 +5784,18 @@ private:
 
             auto userAttrs = GetUserAttributes(srcTx, srcRichYPath.Path_, true);
             NYT::MergeNodes(attrs, userAttrs);
-
             attrs["account"] = *queryDumpAccount;
-            entry->DumpTx->Create(tmpPath, srcType, TCreateOptions().Recursive(true).Attributes(attrs));
-            entry->DumpTx->Concatenate(
+
+            dumpTx->Create(tmpPath, srcType, TCreateOptions().Recursive(true).Attributes(attrs));
+            dumpTx->Concatenate(
                 { srcRichYPath },
                 NYT::TRichYPath(tmpPath),
                 TConcatenateOptions()
             );
-            entry->DumpTx->Move(tmpPath, dstPath, TMoveOptions().Recursive(true));
+            dumpTx->Move(tmpPath, dstPath, TMoveOptions().Recursive(true));
         }
+
+        dumpTx->Commit();
     }
 
     template <class TExecParamsPtr>
@@ -6051,7 +6055,7 @@ private:
                 auto tx = entry->Tx;
                 auto tables = options.Tables();
 
-                auto deliveryMode = forceLocalTableContent ? ETableContentDeliveryMode::File : settings->TableContentDeliveryMode.Get(cluster).GetOrElse(ETableContentDeliveryMode::Native);
+                auto deliveryMode = options.DeliveryMode();
                 TString contentTmpFolder = forceLocalTableContent ? TString() : settings->TableContentTmpFolder.Get(cluster).GetOrElse(TString());
                 if (contentTmpFolder.StartsWith("//")) {
                     contentTmpFolder = contentTmpFolder.substr(2);

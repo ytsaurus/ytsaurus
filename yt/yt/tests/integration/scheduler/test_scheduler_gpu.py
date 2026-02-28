@@ -1022,15 +1022,22 @@ class TestGpuSchedulerPersistentState(DryRunGpuSchedulingPolicyTestBaseConfig):
         operation_from_orchid = get_operation_from_orchid(op)
         assignment_from_orchid = operation_from_orchid["assignments"][0]
 
-        node_address_to_node_state_map = self._get_node_address_to_node_state_map()
+        def check_node_states():
+            node_address_to_node_state_map = self._get_node_address_to_node_state_map()
 
-        for _, node in node_address_to_node_state_map.items():
-            assert node["scheduling_module"] == "SAS"
+            for _, node in node_address_to_node_state_map.items():
+                assert node["scheduling_module"] == "SAS"
 
-        node = node_address_to_node_state_map[assignment_from_orchid["node_address"]]
-        assert len(node["assignment_states"]) == 1
-        assignment_from_node = node["assignment_states"][0]
-        self._compare_assignment_with_orchid(assignment_from_node, assignment_from_orchid)
+            node = node_address_to_node_state_map[assignment_from_orchid["node_address"]]
+            if len(node["assignment_states"]) != 1:
+                return False
+
+            assignment_from_node = node["assignment_states"][0]
+            self._compare_assignment_with_orchid(assignment_from_node, assignment_from_orchid)
+
+            return True
+
+        wait(lambda: check_node_states())
 
         operation_states_path = self._get_persistent_state_path(entity="operation")
         operation_ids = {op.id, }
@@ -1069,22 +1076,29 @@ class TestGpuSchedulerPersistentState(DryRunGpuSchedulingPolicyTestBaseConfig):
         operation_from_orchid = get_operation_from_orchid(op)
         assignments_from_orchid = operation_from_orchid["assignments"]
 
-        node_address_to_node_state_map = self._get_node_address_to_node_state_map()
+        def check_node_states():
+            node_address_to_node_state_map = self._get_node_address_to_node_state_map()
+
+            for _, node in node_address_to_node_state_map.items():
+                assert node["scheduling_module"] == "SAS"
+
+            for assignment in assignments_from_orchid:
+                node = node_address_to_node_state_map[assignment["node_address"]]
+                if len(node["assignment_states"]) != 1:
+                    return False
+
+                assignment_from_node = node["assignment_states"][0]
+                self._compare_assignment_with_orchid(assignment_from_node, assignment)
+
+            return True
+
+        wait(lambda: check_node_states())
+
         operation_states_map = {}
         operation_states_path = self._get_persistent_state_path(entity="operation")
         for operation_id in get(operation_states_path):
             operation_states_map[operation_id] = get(self._get_persistent_state_path(entity="operation") + f"/{operation_id}")
 
-        for _, node in node_address_to_node_state_map.items():
-            assert node["scheduling_module"] == "SAS"
-
-        for assignment in assignments_from_orchid:
-            node = node_address_to_node_state_map[assignment["node_address"]]
-            assert len(node["assignment_states"]) == 1
-            assignment_from_node = node["assignment_states"][0]
-            self._compare_assignment_with_orchid(assignment_from_node, assignment)
-
-        operation_states_path = self._get_persistent_state_path(entity="operation")
         operation_ids = {op.id, }
         for operation_id, operation in operation_states_map.items():
             assert operation["scheduling_module"] == "SAS"
@@ -1138,18 +1152,21 @@ class TestGpuSchedulerPersistentState(DryRunGpuSchedulingPolicyTestBaseConfig):
         vanilla_operation_from_orchid = get_operation_from_orchid(op_vanilla)
         map_operation_from_orchid = get_operation_from_orchid(op_map)
 
-        node_address_to_node_state_map = self._get_node_address_to_node_state_map()
-        operation_states_map = {}
-        operation_states_path = self._get_persistent_state_path(entity="operation")
-        for operation_id in get(operation_states_path):
-            operation_states_map[operation_id] = get(self._get_persistent_state_path(entity="operation") + f"/{operation_id}")
+        def check_node_states():
+            node_address_to_node_state_map = self._get_node_address_to_node_state_map()
 
-        assignments_in_orchid = vanilla_operation_from_orchid["assignments"] + map_operation_from_orchid["assignments"]
-        for assignment in assignments_in_orchid:
-            node = node_address_to_node_state_map[assignment["node_address"]]
-            assert len(node["assignment_states"]) == 1
-            assignment_from_node = node["assignment_states"][0]
-            self._compare_assignment_with_orchid(assignment_from_node, assignment)
+            assignments_in_orchid = vanilla_operation_from_orchid["assignments"] + map_operation_from_orchid["assignments"]
+            for assignment in assignments_in_orchid:
+                node = node_address_to_node_state_map[assignment["node_address"]]
+                if len(node["assignment_states"]) != 1:
+                    return False
+
+                assignment_from_node = node["assignment_states"][0]
+                self._compare_assignment_with_orchid(assignment_from_node, assignment)
+
+            return True
+
+        wait(lambda: check_node_states())
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
@@ -1539,3 +1556,25 @@ class TestDryRunGpuSchedulingPolicyMultiModule(YTEnvSetup):
         wait(lambda: check_for_new_assignment(op, assignment_node_address))
         operation = get_operation_from_orchid(op)
         assert operation["scheduling_module"] == module
+
+    @authors("severovv")
+    def test_modules_reset(self):
+        update_scheduler_config("node_registration_timeout", 1000)
+        update_scheduler_config("node_heartbeat_timeout", 1000)
+        update_scheduler_config("node_reconnection_timeout", 1000)
+        update_pool_tree_config_option("gpu", "enable_step_function_for_gang_operations", False)
+
+        op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            job_count=2,
+            spec={"is_gang": True},
+        )
+        wait(lambda: len(op.get_running_jobs()) == 2)
+        wait_for_assignments_in_orchid(op, 2)
+
+        occupied_node = get_operation_assignments_from_orchid(op)[0]["node_address"]
+        set_node_banned(occupied_node, True)
+        wait_for_assignments_in_orchid(op, 1, exactly=True)
+
+        update_pool_tree_config_option("gpu", "gpu_scheduling_policy/module_reconsideration_timeout", 5000)
+        wait_for_assignments_in_orchid(op, 2)

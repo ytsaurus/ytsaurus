@@ -53,7 +53,7 @@ TEST(TSubprocessTest, PipeStdin)
 
         TStringBuf output(result.Output.Begin(), result.Output.End());
         EXPECT_EQ(input, output);
-    }).AsyncVia(queue->GetInvoker()).Run().Get().ThrowOnError();
+    }).AsyncVia(queue->GetInvoker()).Run().BlockingGet().ThrowOnError();
 }
 
 TEST(TSubprocessTest, PipeBigOutput)
@@ -68,7 +68,7 @@ TEST(TSubprocessTest, PipeBigOutput)
 
         auto result = subprocess.Execute();
         return result.Status.IsOK();
-    }).AsyncVia(queue->GetInvoker()).Run().Get().Value();
+    }).AsyncVia(queue->GetInvoker()).Run().BlockingGet().Value();
 
     EXPECT_TRUE(result);
 }
@@ -85,7 +85,7 @@ TEST(TSubprocessTest, PipeBigError)
 
         auto result = subprocess.Execute();
         return result;
-    }).AsyncVia(queue->GetInvoker()).Run().Get().Value();
+    }).AsyncVia(queue->GetInvoker()).Run().BlockingGet().Value();
 
     EXPECT_TRUE(result.Status.IsOK());
     EXPECT_EQ(6*100000, std::ssize(result.Error));
@@ -98,7 +98,7 @@ TEST(TSubprocessTest, BinaryNotFound)
     auto result = BIND([] {
         TSubprocess subprocess("does-not-exist");
         return subprocess.Execute();
-    }).AsyncVia(queue->GetInvoker()).Run().Get().Value();
+    }).AsyncVia(queue->GetInvoker()).Run().BlockingGet().Value();
 
     EXPECT_FALSE(result.Status.IsOK());
 }

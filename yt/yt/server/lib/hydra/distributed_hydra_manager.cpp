@@ -1390,7 +1390,7 @@ private:
 
             if (SnapshotFuture_ && SnapshotFuture_.IsSet()) {
                 auto* snapshotResponse = response->mutable_snapshot_response();
-                const auto& snapshotParamsOrError = SnapshotFuture_.Get();
+                const auto& snapshotParamsOrError = SnapshotFuture_.BlockingGet();
                 snapshotResponse->set_snapshot_id(SnapshotId_);
                 if (snapshotParamsOrError.IsOK()) {
                     const auto& snapshotParams = snapshotParamsOrError.Value();
@@ -3098,7 +3098,7 @@ private:
         }
 
         AllSucceeded(std::move(futures))
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
     }
 

@@ -491,7 +491,7 @@ protected:
                 rsp->cached_blocks()[index].block_size());
         }
 
-        const auto* mediumDescriptor = MediumDirectory_->FindByIndex(rsp->medium_index());
+        auto mediumDescriptor = MediumDirectory_->FindByIndex(rsp->medium_index());
         if (rsp->has_node_directory()) {
             NodeDirectory_->MergeFrom(rsp->node_directory());
         }
@@ -501,7 +501,7 @@ protected:
             .DiskThrottling = rsp->disk_throttling(),
             .NetQueueSize = rsp->net_queue_size(),
             .DiskQueueSize = rsp->disk_queue_size(),
-            .MediumPriority = mediumDescriptor ? mediumDescriptor->Priority : 0,
+            .MediumPriority = mediumDescriptor ? mediumDescriptor->GetPriority() : 0,
             .PeerDescriptors = rsp->peer_descriptors(),
             .AllyReplicas = FromProto<TAllyReplicasInfo>(rsp->ally_replicas()),
             .HasCompleteChunk = rsp->has_complete_chunk(),
@@ -2186,7 +2186,7 @@ private:
 
             auto future = ThrottleRequest(isPrimaryRequest);
             if (future.IsSet()) {
-                OnRequestThrottled(isPrimaryRequest, future.Get());
+                OnRequestThrottled(isPrimaryRequest, future.BlockingGet());
             } else {
                 future.Subscribe(BIND(&THedgedRequest::OnRequestThrottled,
                     MakeStrong(this),
@@ -2977,7 +2977,7 @@ private:
 
         std::vector<int> fetchedBlockIndexes;
         for (int index = 0; index < std::ssize(blocks); ++index) {
-            if (!cachedBlockFutures[index].Get().IsOK()) {
+            if (!cachedBlockFutures[index].BlockingGet().IsOK()) {
                 continue;
             }
 

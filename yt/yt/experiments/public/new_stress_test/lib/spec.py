@@ -234,6 +234,8 @@ spec_template = {
         "unmount_probability": 0.2,
         "change_hunk_storage_probability": 0.8,
         "create_probability": 0.2,
+        "copy_probability": 0.3,
+        "move_probability": 0.3,
         "remove_probability": 0.2,
         "flush_probability": 0.5,
     },

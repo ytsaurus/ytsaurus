@@ -73,7 +73,6 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_TEST_PARTITIONS = 2
     NUM_SCHEDULERS = 1
-    ENABLE_BULK_INSERT = True
 
     simple_rows = [{"key": i, "value": str(i)} for i in range(10)]
 
@@ -902,7 +901,6 @@ class TestReadOrderedDynamicTables(TestOrderedDynamicTablesBase):
 class TestReadGenericDynamicTables(DynamicTablesBase):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_SCHEDULERS = 1
-    ENABLE_BULK_INSERT = True
 
     @pytest.mark.parametrize("sorted", [True, False])
     def test_dynamic_store_id_pool(self, sorted):

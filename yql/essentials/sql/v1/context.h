@@ -93,6 +93,12 @@ enum class EYqlSelectMode {
     Force,
 };
 
+enum class EFlattenAndAggrExprsPersistence {
+    Disable,
+    Auto,
+    Force,
+};
+
 class TContext {
 public:
     TContext(const TLexers& lexers,
@@ -252,6 +258,16 @@ public:
     }
 
     TVector<NSQLTranslation::TSQLHint> PullHintForToken(NYql::TPosition tokenPos);
+
+    // `if ( ret.error()    ) an error issued`
+    // `if (!ret.error()    ) hint not found`
+    // `if ( ret.has_value()) hint is returned`
+    std::expected<NSQLTranslation::TSQLHint, bool> PullHintForToken(NYql::TPosition tokenPos, TStringBuf name);
+
+    TVector<NSQLTranslation::TSQLHint> PullHintForToken(
+        NYql::TPosition tokenPos,
+        std::function<bool(NSQLTranslation::TSQLHint)> pred);
+
     bool WarnUnusedHints();
 
     TScopedStatePtr CreateScopedState() const;
@@ -267,14 +283,14 @@ public:
         }
     }
 
+    bool IsBackwardCompatibleFeatureAvailable(NYql::TLangVersion featureVer) const;
+
     bool EnsureBackwardCompatibleFeatureAvailable(
         TPosition position,
         TStringBuf feature,
         NYql::TLangVersion version);
 
 private:
-    bool IsBackwardCompatibleFeatureAvailable(NYql::TLangVersion featureVer) const;
-
     IOutputStream& MakeIssue(
         NYql::ESeverity severity,
         NYql::TIssueCode code,
@@ -414,7 +430,8 @@ public:
     bool FailOnGroupByExprOverride = false;
     bool EmitUnionMerge = false;
     bool OptimizeSimpleIlike = false;
-    bool PersistableFlattenAndAggrExprs = false;
+    EFlattenAndAggrExprsPersistence FlattenAndAggrExprsPersistence =
+        EFlattenAndAggrExprsPersistence::Disable;
     bool DisableLegacyNotNull = false;
     bool DebugPositions = false;
     bool StrictWarningAsError = false;

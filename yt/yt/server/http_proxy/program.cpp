@@ -45,7 +45,7 @@ private:
         auto bootstrap = CreateHttpProxyBootstrap(GetConfig(), GetConfigNode(), GetServiceLocator());
         DoNotOptimizeAway(bootstrap);
         bootstrap->Run()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
         SleepForever();
     }

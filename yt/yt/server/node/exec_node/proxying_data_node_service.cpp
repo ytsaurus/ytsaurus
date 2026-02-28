@@ -27,6 +27,8 @@ using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NClusterNode;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TProxyingDataNodeService

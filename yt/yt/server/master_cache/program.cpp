@@ -24,7 +24,7 @@ protected:
         auto bootstrap = CreateMasterCacheBootstrap(GetConfig(), GetConfigNode(), GetServiceLocator());
         DoNotOptimizeAway(bootstrap);
         bootstrap->Run()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
         SleepForever();
     }

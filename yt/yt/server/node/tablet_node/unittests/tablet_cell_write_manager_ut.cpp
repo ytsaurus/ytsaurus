@@ -63,7 +63,7 @@ protected:
             TClientChunkReadOptions())
             .AsyncVia(AutomatonInvoker())
             .Run()
-            .Get()
+            .BlockingGet()
             .ValueOrThrow();
     }
 
@@ -297,7 +297,7 @@ TEST_F(TTestSortedTabletWriteSignature, TestSignaturesSuccess)
     HydraManager()->ApplyAll();
 
     asyncCommit
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     EXPECT_EQ(
@@ -332,7 +332,7 @@ TEST_F(TTestSortedTabletWriteSignature, TestSignaturesFailure)
     EXPECT_THAT(
         [&] {
             asyncCommit
-                .Get()
+                .BlockingGet()
                 .ThrowOnError();
         },
         ThrowsMessage<std::exception>(HasSubstr("expected prepare signature")));
@@ -421,7 +421,7 @@ TEST_P(TTestSortedTabletWriteGenerationOneBatch, OneBatchRetry)
     HydraManager()->ApplyAll();
 
     asyncCommit
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     EXPECT_EQ(
@@ -521,7 +521,7 @@ TEST_P(TTestSortedTabletWriteGenerationTwoBatch, TwoBatchRetry)
     HydraManager()->ApplyAll();
 
     asyncCommit
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     EXPECT_EQ(

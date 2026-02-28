@@ -281,6 +281,7 @@
     XX(IndexTablePath, index_table_path) \
     XX(IndexTo, index_to) \
     XX(InheritAcl, inherit_acl) \
+    XX(InplaceReshard, inplace_reshard) \
     XX(IntegralGuarantees, integral_guarantees) \
     XX(IOStatistics, io_statistics) \
     XX(IOStatisticsPerMedium, io_statistics_per_medium) \
@@ -479,6 +480,7 @@
     XX(ReplicationErrors, replication_errors) \
     XX(ReplicationFactor, replication_factor) \
     XX(ReplicationLagTime, replication_lag_time) \
+    XX(ReplicationLagTimes, replication_lag_times) \
     XX(ReplicationProgress, replication_progress) \
     XX(ReplicationStatus, replication_status) \
     XX(RequestLimits, request_limits) \

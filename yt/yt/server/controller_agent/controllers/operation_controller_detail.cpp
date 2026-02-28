@@ -768,7 +768,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
     return result;
 }
 
-void TOperationControllerBase::ValidateCollectiveOptions()
+void TOperationControllerBase::ValidateCollectiveOptions() const
 {
     if (PoolTreeControllerSettingsMap_.size() > 1) {
         for (const auto& userJobSpec : GetUserJobSpecs()) {
@@ -780,7 +780,7 @@ void TOperationControllerBase::ValidateCollectiveOptions()
     }
 }
 
-void TOperationControllerBase::ValidateSecureVault()
+void TOperationControllerBase::ValidateSecureVault() const
 {
     if (!SecureVault_) {
         return;
@@ -789,7 +789,8 @@ void TOperationControllerBase::ValidateSecureVault()
     YT_LOG_DEBUG("Operation secure vault size detected (Size: %v)", length);
     if (length > Config_->SecureVaultLengthLimit) {
         THROW_ERROR_EXCEPTION("Secure vault YSON text representation is too long")
-            << TErrorAttribute("size_limit", Config_->SecureVaultLengthLimit);
+            << TErrorAttribute("length", length)
+            << TErrorAttribute("length_limit", Config_->SecureVaultLengthLimit);
     }
 }
 
@@ -2398,11 +2399,12 @@ void TOperationControllerBase::ManuallyMergeBranchedCypressNode(
             MakeTransactionActionData(reqCommitBranchNode));
 
         TTransactionCommitOptions options;
-        options.PrerequisiteTransactionIds = {transactionId};
         // In case of Cypress tx mirroring this system tx have to be committed
         // after all nested Cypress transactions are finished.
         if (IsCypressTransactionMirroredToSequoia(transactionId)) {
             options.StronglyOrdered = true;
+            // NB: |StronglyOrdered| is ignored for 1PC transactions.
+            options.Force2PC = true;
         }
         WaitFor(helperTransaction->Commit(options))
             .ThrowOnError();
@@ -8109,11 +8111,11 @@ void TOperationControllerBase::InitAccountResourceUsageLeases()
                     continue;
                 }
                 auto mediumName = *diskRequest->MediumName;
-                const auto* mediumDescriptor = mediumDirectory->FindByName(mediumName);
+                auto mediumDescriptor = mediumDirectory->FindByName(mediumName);
                 if (!mediumDescriptor) {
                     THROW_ERROR_EXCEPTION("Unknown medium %Qv", mediumName);
                 }
-                diskRequest->MediumIndex = mediumDescriptor->Index;
+                diskRequest->MediumIndex = mediumDescriptor->GetIndex();
 
                 if (Config_->ObligatoryAccountMedia.contains(mediumName)) {
                     if (!diskRequest->Account) {
@@ -11320,6 +11322,8 @@ TTableWriterOptionsPtr TOperationControllerBase::GetIntermediateTableWriterOptio
     options->CompressionCodec = Spec_->IntermediateCompressionCodec;
     // Distribute intermediate chunks uniformly across storage locations.
     options->PlacementId = GetOperationId().Underlying();
+    // We don't use the extended value statistics for intermediate data, calculating those is wasteful.
+    options->EnableColumnarValueStatistics = false;
     // NB(levysotsky): Don't set table_index for intermediate streams
     // as we store table indices directly in rows of intermediate chunk.
     return options;

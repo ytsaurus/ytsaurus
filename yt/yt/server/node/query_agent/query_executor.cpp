@@ -80,6 +80,8 @@
 
 #include <yt/yt/library/query/misc/rowset_subrange_reader.h>
 
+#include <yt/yt/client/transaction_client/public.h>
+
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
 
 #include <library/cpp/yt/memory/chunked_memory_pool.h>
@@ -650,6 +652,9 @@ private:
             return GetPrefixReadItems(groupedDataSplits[subqueryIndex], joinClause.CommonKeyPrefix);
         };
 
+        auto executePlanWithUserProvidedTimestamp = GetExecutePlanCallback(QueryOptions_);
+        auto executePlanWithAsyncLastCommittedTimestamp = GetExecutePlanCallbackWithAsyncLastCommittedTimestamp();
+
         return CoordinateAndExecute(
             Query_->IsOrdered(QueryOptions_.AllowUnorderedGroupByWithLimit),
             Query_->IsPrefetching(),
@@ -664,7 +669,8 @@ private:
                 aggregateGenerators,
                 getPrefetchJoinDataSource = std::move(getPrefetchJoinDataSource),
                 bottomQueryPattern = std::move(bottomQueryPattern),
-                executePlanCallback = GetExecutePlanCallback(),
+                executePlanWithUserProvidedTimestamp,
+                executePlanWithAsyncLastCommittedTimestamp,
                 splitCount,
                 subqueryIndex = 0
             ] () mutable -> TEvaluateResult {
@@ -677,7 +683,7 @@ private:
 
                 YT_LOG_DEBUG("Evaluating bottom query (BottomQueryId: %v)", bottomQuery->Id);
 
-                auto pipe = New<TSchemafulPipe>(MemoryChunkProvider_);
+                auto pipe = CreateSchemafulPipe(MemoryChunkProvider_);
 
                 // MPSC stack is an overkill in the current implementation but sequential execution of join
                 // subqueries is not specified anywhere and they might get parallelized later in the future.
@@ -692,6 +698,11 @@ private:
                 joinProfilers.reserve(Query_->JoinClauses.size());
 
                 for (int joinIndex = 0; joinIndex < std::ssize(Query_->JoinClauses); ++joinIndex) {
+                    auto executePlanCallback = executePlanWithUserProvidedTimestamp;
+                    if (Query_->JoinClauses[joinIndex]->RequireSyncReplica == false) {
+                        executePlanCallback = executePlanWithAsyncLastCommittedTimestamp;
+                    }
+
                     joinProfilers.push_back(CreateJoinSubqueryProfiler(
                         Query_->JoinClauses[joinIndex],
                         executePlanCallback,
@@ -894,7 +905,7 @@ private:
         return dataSource;
     }
 
-    TExecutePlan GetExecutePlanCallback()
+    TExecutePlan GetExecutePlanCallback(const TQueryOptions& queryOptions)
     {
         auto clientOptions = NApi::NNative::TClientOptions::FromAuthenticationIdentity(Identity_);
         auto client = Bootstrap_
@@ -912,7 +923,7 @@ private:
             FunctionImplCache_);
 
         return [
-            options = GetJoinSubqueryOptions(QueryOptions_),
+            options = GetJoinSubqueryOptions(queryOptions),
             this,
             this_ = MakeStrong(this),
             remoteExecutor
@@ -928,6 +939,13 @@ private:
                 .AsyncVia(Invoker_)
                 .Run();
         };
+    }
+
+    TExecutePlan GetExecutePlanCallbackWithAsyncLastCommittedTimestamp()
+    {
+        auto patchedOptions = QueryOptions_;
+        patchedOptions.TimestampRange.Timestamp = NTransactionClient::AsyncLastCommittedTimestamp;
+        return GetExecutePlanCallback(patchedOptions);
     }
 
     TSharedRange<std::vector<TTabletReadItems>> CoordinateDataSourcesOld(

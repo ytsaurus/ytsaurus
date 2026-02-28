@@ -19,7 +19,6 @@ Y_UNIT_TEST_SUITE(TableDataServiceWorkerTests) {
         auto tableDataServiceServer = MakeTableDataServiceServer(port);
         auto tableDataServiceClient = MakeTableDataServiceClient(port);
 
-        //auto gottenTableContent = tableDataServiceClient->Get(Group, ChunkId).GetValueSync();
         UNIT_ASSERT_EXCEPTION_CONTAINS(
             tableDataServiceClient->Get(Group, ChunkId).GetValueSync(),
             TFmrNonRetryableJobException,

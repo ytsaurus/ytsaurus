@@ -11,6 +11,7 @@ import (
 	"os"
 	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -146,6 +147,7 @@ var writeTests = []struct {
 }{
 	// ISO-8859-1 tests
 	{"key = value", "key = value\n", "ISO-8859-1"},
+	{"key = \\ value", "key = \\ value\n", "ISO-8859-1"},
 	{"key = value \\\n   continued", "key = value continued\n", "ISO-8859-1"},
 	{"key⌘ = value", "key\\u2318 = value\n", "ISO-8859-1"},
 	{"ke\\ \\:y = value", "ke\\ \\:y = value\n", "ISO-8859-1"},
@@ -153,6 +155,7 @@ var writeTests = []struct {
 
 	// UTF-8 tests
 	{"key = value", "key = value\n", "UTF-8"},
+	{"key = \\ value", "key = \\ value\n", "UTF-8"},
 	{"key = value \\\n   continued", "key = value continued\n", "UTF-8"},
 	{"key⌘ = value⌘", "key⌘ = value⌘\n", "UTF-8"},
 	{"ke\\ \\:y = value", "ke\\ \\:y = value\n", "UTF-8"},
@@ -262,7 +265,7 @@ var parsedDurationTests = []struct {
 
 // ----------------------------------------------------------------------------
 
-var floatTests = []struct {
+var float64Tests = []struct {
 	input, key string
 	def, value float64
 }{
@@ -274,10 +277,38 @@ var floatTests = []struct {
 	{"key = 0", "key", 999, 0},
 	{"key = -1", "key", 999, -1},
 	{"key = 0123", "key", 999, 123},
+	{"key = " + strconv.FormatFloat(math.SmallestNonzeroFloat64, 'f', -1, 64), "key", 999, math.SmallestNonzeroFloat64},
+	{"key = " + strconv.FormatFloat(math.MaxFloat64, 'f', -1, 64), "key", 999, math.MaxFloat64},
 
 	// invalid values
 	{"key = 0xff", "key", 999, 999},
 	{"key = a", "key", 999, 999},
+
+	// non existent key
+	{"key = 1", "key2", 999, 999},
+}
+
+// ----------------------------------------------------------------------------
+
+var float32Tests = []struct {
+	input, key string
+	def, value float32
+}{
+	// valid values
+	{"key = 1.0", "key", 999, 1.0},
+	{"key = 0.0", "key", 999, 0.0},
+	{"key = -1.0", "key", 999, -1.0},
+	{"key = 1", "key", 999, 1},
+	{"key = 0", "key", 999, 0},
+	{"key = -1", "key", 999, -1},
+	{"key = 0123", "key", 999, 123},
+	{"key = " + strconv.FormatFloat(math.SmallestNonzeroFloat32, 'f', -1, 32), "key", 999, math.SmallestNonzeroFloat32},
+	{"key = " + strconv.FormatFloat(math.MaxFloat32, 'f', -1, 32), "key", 999, math.MaxFloat32},
+
+	// invalid values
+	{"key = 0xff", "key", 999, 999},
+	{"key = a", "key", 999, 999},
+	{"key = " + strconv.FormatFloat(math.MaxFloat32*10, 'f', -1, 64), "key", 999, 999},
 
 	// non existent key
 	{"key = 1", "key2", 999, 999},
@@ -294,11 +325,38 @@ var int64Tests = []struct {
 	{"key = 0", "key", 999, 0},
 	{"key = -1", "key", 999, -1},
 	{"key = 0123", "key", 999, 123},
+	{"key = " + strconv.FormatInt(math.MinInt64, 10), "key", 999, math.MinInt64},
+	{"key = " + strconv.FormatInt(math.MaxInt64, 10), "key", 999, math.MaxInt64},
 
 	// invalid values
 	{"key = 0xff", "key", 999, 999},
 	{"key = 1.0", "key", 999, 999},
 	{"key = a", "key", 999, 999},
+
+	// non existent key
+	{"key = 1", "key2", 999, 999},
+}
+
+// ----------------------------------------------------------------------------
+
+var int32Tests = []struct {
+	input, key string
+	def, value int32
+}{
+	// valid values
+	{"key = 1", "key", 999, 1},
+	{"key = 0", "key", 999, 0},
+	{"key = -1", "key", 999, -1},
+	{"key = 0123", "key", 999, 123},
+	{"key = " + strconv.FormatInt(math.MinInt32, 10), "key", 999, math.MinInt32},
+	{"key = " + strconv.FormatInt(math.MaxInt32, 10), "key", 999, math.MaxInt32},
+
+	// invalid values
+	{"key = 0xff", "key", 999, 999},
+	{"key = 1.0", "key", 999, 999},
+	{"key = a", "key", 999, 999},
+	{"key = " + strconv.FormatInt(math.MinInt32-1, 10), "key", 999, 999},
+	{"key = " + strconv.FormatInt(math.MaxInt32+1, 10), "key", 999, 999},
 
 	// non existent key
 	{"key = 1", "key2", 999, 999},
@@ -314,12 +372,36 @@ var uint64Tests = []struct {
 	{"key = 1", "key", 999, 1},
 	{"key = 0", "key", 999, 0},
 	{"key = 0123", "key", 999, 123},
+	{"key = " + strconv.FormatUint(math.MaxUint64, 10), "key", 999, math.MaxUint64},
 
 	// invalid values
 	{"key = -1", "key", 999, 999},
 	{"key = 0xff", "key", 999, 999},
 	{"key = 1.0", "key", 999, 999},
 	{"key = a", "key", 999, 999},
+
+	// non existent key
+	{"key = 1", "key2", 999, 999},
+}
+
+// ----------------------------------------------------------------------------
+
+var uint32Tests = []struct {
+	input, key string
+	def, value uint32
+}{
+	// valid values
+	{"key = 1", "key", 999, 1},
+	{"key = 0", "key", 999, 0},
+	{"key = 0123", "key", 999, 123},
+	{"key = " + strconv.FormatUint(math.MaxUint32, 10), "key", 999, math.MaxUint32},
+
+	// invalid values
+	{"key = -1", "key", 999, 999},
+	{"key = 0xff", "key", 999, 999},
+	{"key = 1.0", "key", 999, 999},
+	{"key = a", "key", 999, 999},
+	{"key = " + strconv.FormatUint(math.MaxUint32+1, 10), "key", 999, 999},
 
 	// non existent key
 	{"key = 1", "key2", 999, 999},
@@ -555,7 +637,7 @@ func TestGetParsedDuration(t *testing.T) {
 }
 
 func TestGetFloat64(t *testing.T) {
-	for _, test := range floatTests {
+	for _, test := range float64Tests {
 		p := mustParse(t, test.input)
 		assert.Equal(t, p.Len(), 1)
 		assert.Equal(t, p.GetFloat64(test.key, test.def), test.value)
@@ -568,6 +650,22 @@ func TestMustGetFloat64(t *testing.T) {
 	assert.Equal(t, p.MustGetFloat64("key"), float64(123))
 	assert.Panic(t, func() { p.MustGetFloat64("key2") }, "strconv.ParseFloat: parsing.*")
 	assert.Panic(t, func() { p.MustGetFloat64("invalid") }, "unknown property: invalid")
+}
+
+func TestGetFloat32(t *testing.T) {
+	for _, test := range float32Tests {
+		p := mustParse(t, test.input)
+		assert.Equal(t, p.Len(), 1)
+		assert.Equal(t, p.GetFloat32(test.key, test.def), test.value)
+	}
+}
+
+func TestMustGetFloat32(t *testing.T) {
+	input := "key = 123\nkey2 = ghi"
+	p := mustParse(t, input)
+	assert.Equal(t, p.MustGetFloat32("key"), float32(123))
+	assert.Panic(t, func() { p.MustGetFloat32("key2") }, "strconv.ParseFloat: parsing.*")
+	assert.Panic(t, func() { p.MustGetFloat32("invalid") }, "unknown property: invalid")
 }
 
 func TestGetInt(t *testing.T) {
@@ -602,6 +700,22 @@ func TestMustGetInt64(t *testing.T) {
 	assert.Panic(t, func() { p.MustGetInt64("invalid") }, "unknown property: invalid")
 }
 
+func TestGetInt32(t *testing.T) {
+	for _, test := range int32Tests {
+		p := mustParse(t, test.input)
+		assert.Equal(t, p.Len(), 1)
+		assert.Equal(t, p.GetInt32(test.key, test.def), test.value)
+	}
+}
+
+func TestMustGetInt32(t *testing.T) {
+	input := "key = 123\nkey2 = ghi"
+	p := mustParse(t, input)
+	assert.Equal(t, p.MustGetInt32("key"), int32(123))
+	assert.Panic(t, func() { p.MustGetInt32("key2") }, "strconv.ParseInt: parsing.*")
+	assert.Panic(t, func() { p.MustGetInt32("invalid") }, "unknown property: invalid")
+}
+
 func TestGetUint(t *testing.T) {
 	for _, test := range uint64Tests {
 		p := mustParse(t, test.input)
@@ -632,6 +746,22 @@ func TestMustGetUint64(t *testing.T) {
 	assert.Equal(t, p.MustGetUint64("key"), uint64(123))
 	assert.Panic(t, func() { p.MustGetUint64("key2") }, "strconv.ParseUint: parsing.*")
 	assert.Panic(t, func() { p.MustGetUint64("invalid") }, "unknown property: invalid")
+}
+
+func TestGetUint32(t *testing.T) {
+	for _, test := range uint32Tests {
+		p := mustParse(t, test.input)
+		assert.Equal(t, p.Len(), 1)
+		assert.Equal(t, p.GetUint32(test.key, test.def), test.value)
+	}
+}
+
+func TestMustGetUint32(t *testing.T) {
+	input := "key = 123\nkey2 = ghi"
+	p := mustParse(t, input)
+	assert.Equal(t, p.MustGetUint32("key"), uint32(123))
+	assert.Panic(t, func() { p.MustGetUint32("key2") }, "strconv.ParseUint: parsing.*")
+	assert.Panic(t, func() { p.MustGetUint32("invalid") }, "unknown property: invalid")
 }
 
 func TestGetString(t *testing.T) {

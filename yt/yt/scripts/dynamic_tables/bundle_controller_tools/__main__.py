@@ -145,7 +145,7 @@ class Main:
             else:
                 print(
                     "The script did not perform any actions, did you forget "
-                    "to set necessary flags (perhaps --init-all)?")
+                    "to set necessary flags (perhaps \"init --init-all\")?")
         except Exception as e:
             if bc_disabled:
                 raise Exception(

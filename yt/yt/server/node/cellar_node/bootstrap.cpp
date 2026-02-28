@@ -243,7 +243,7 @@ public:
         BIND(&TBootstrap::DoLoadSnapshot, MakeStrong(this), fileName, meta, dumpMode, checkInvariants)
             .AsyncVia(GetControlInvoker())
             .Run()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
     }
 
@@ -252,7 +252,7 @@ public:
         BIND(&TBootstrap::DoReplayChangelogs, MakeStrong(this), Passed(std::move(changelogFileNames)))
             .AsyncVia(GetControlInvoker())
             .Run()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
     }
 
@@ -261,7 +261,7 @@ public:
         BIND(&TBootstrap::DoBuildSnapshot, MakeStrong(this))
             .AsyncVia(GetControlInvoker())
             .Run()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
     }
 
@@ -270,7 +270,7 @@ public:
         BIND(&TBootstrap::DoFinishDryRun, MakeStrong(this))
             .AsyncVia(GetControlInvoker())
             .Run()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
     }
 

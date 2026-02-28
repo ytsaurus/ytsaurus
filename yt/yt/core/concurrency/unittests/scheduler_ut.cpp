@@ -381,7 +381,7 @@ TEST_F(TSchedulerTest, CurrentInvokerInActionQueue)
         EXPECT_EQ(invoker, GetCurrentInvoker());
     })
     .AsyncVia(invoker).Run()
-    .Get();
+    .BlockingGet();
 }
 
 TEST_F(TSchedulerTest, Intercept)
@@ -404,7 +404,7 @@ TEST_F(TSchedulerTest, Intercept)
         TDelayedExecutor::WaitForDuration(SleepQuantum);
     })
     .AsyncVia(invoker).Run()
-    .Get();
+    .BlockingGet();
     EXPECT_EQ(counter1, 1);
     EXPECT_EQ(counter2, 1);
 }
@@ -433,7 +433,7 @@ TEST_F(TSchedulerTest, InterceptEnclosed)
         TDelayedExecutor::WaitForDuration(SleepQuantum);
     })
     .AsyncVia(invoker).Run()
-    .Get();
+    .BlockingGet();
     EXPECT_EQ(counter1, 3);
     EXPECT_EQ(counter2, 3);
     EXPECT_EQ(counter3, 1);
@@ -453,8 +453,8 @@ TEST_F(TSchedulerTest, CurrentInvokerConcurrent)
         EXPECT_EQ(invoker2, GetCurrentInvoker());
     }).AsyncVia(invoker2).Run();
 
-    result1.Get();
-    result2.Get();
+    result1.BlockingGet();
+    result2.BlockingGet();
 }
 
 TEST_W(TSchedulerTest, WaitForAsyncVia)
@@ -476,7 +476,7 @@ TEST_F(TSchedulerTest, WaitForInSerializedInvoker1)
         for (int i = 0; i < 10; ++i) {
             TDelayedExecutor::WaitForDuration(SleepQuantum);
         }
-    }).AsyncVia(invoker).Run().Get().ThrowOnError();
+    }).AsyncVia(invoker).Run().BlockingGet().ThrowOnError();
 }
 
 TEST_F(TSchedulerTest, WaitForInSerializedInvoker2)
@@ -499,7 +499,7 @@ TEST_F(TSchedulerTest, WaitForInSerializedInvoker2)
         }
     }).AsyncVia(invoker).Run());
 
-    AllSucceeded(futures).Get().ThrowOnError();
+    AllSucceeded(futures).BlockingGet().ThrowOnError();
 }
 
 TEST_F(TSchedulerTest, PropagateFiberCancelationToFuture)
@@ -545,7 +545,7 @@ TEST_F(TSchedulerTest, FiberUnwindOrder)
     p1.Set();
     Sleep(SleepQuantum);
     EXPECT_TRUE(f2.IsSet());
-    EXPECT_FALSE(f2.Get().IsOK());
+    EXPECT_FALSE(f2.BlockingGet().IsOK());
 }
 
 TEST_F(TSchedulerTest, TestWaitUntilSet)
@@ -560,7 +560,7 @@ TEST_F(TSchedulerTest, TestWaitUntilSet)
 
     WaitUntilSet(f1);
     EXPECT_TRUE(f1.IsSet());
-    EXPECT_TRUE(f1.Get().IsOK());
+    EXPECT_TRUE(f1.BlockingGet().IsOK());
 }
 
 TEST_F(TSchedulerTest, AsyncViaCanceledBeforeStart)
@@ -575,10 +575,10 @@ TEST_F(TSchedulerTest, AsyncViaCanceledBeforeStart)
     EXPECT_FALSE(asyncResult1.IsSet());
     EXPECT_FALSE(asyncResult2.IsSet());
     asyncResult2.Cancel(TError("Error"));
-    EXPECT_TRUE(asyncResult1.Get().IsOK());
+    EXPECT_TRUE(asyncResult1.BlockingGet().IsOK());
     Sleep(SleepQuantum);
     EXPECT_TRUE(asyncResult2.IsSet());
-    EXPECT_EQ(NYT::EErrorCode::Canceled, asyncResult2.Get().GetCode());
+    EXPECT_EQ(NYT::EErrorCode::Canceled, asyncResult2.BlockingGet().GetCode());
 }
 
 TEST_F(TSchedulerTest, CancelCurrentFiber)
@@ -588,9 +588,9 @@ TEST_F(TSchedulerTest, CancelCurrentFiber)
         NYT::NConcurrency::GetCurrentFiberCanceler().Run(TError("Error"));
         SwitchTo(invoker);
     }).AsyncVia(invoker).Run();
-    asyncResult.Get();
+    asyncResult.BlockingGet();
     EXPECT_TRUE(asyncResult.IsSet());
-    EXPECT_EQ(NYT::EErrorCode::Canceled, asyncResult.Get().GetCode());
+    EXPECT_EQ(NYT::EErrorCode::Canceled, asyncResult.BlockingGet().GetCode());
 }
 
 TEST_F(TSchedulerTest, YieldToFromCanceledFiber)
@@ -602,16 +602,16 @@ TEST_F(TSchedulerTest, YieldToFromCanceledFiber)
     auto asyncResult = BIND([=] () mutable {
         BIND([=] {
             NYT::NConcurrency::GetCurrentFiberCanceler().Run(TError("Error"));
-        }).AsyncVia(invoker2).Run().Get();
+        }).AsyncVia(invoker2).Run().BlockingGet();
         WaitFor(promise.ToFuture(), invoker2)
             .ThrowOnError();
     }).AsyncVia(invoker1).Run();
 
     promise.Set();
-    asyncResult.Get();
+    asyncResult.BlockingGet();
 
     EXPECT_TRUE(asyncResult.IsSet());
-    EXPECT_TRUE(asyncResult.Get().IsOK());
+    EXPECT_TRUE(asyncResult.BlockingGet().IsOK());
 }
 
 TEST_F(TSchedulerTest, JustYield1)
@@ -621,7 +621,7 @@ TEST_F(TSchedulerTest, JustYield1)
         for (int i = 0; i < 10; ++i) {
             Yield();
         }
-    }).AsyncVia(invoker).Run().Get();
+    }).AsyncVia(invoker).Run().BlockingGet();
     EXPECT_TRUE(asyncResult.IsOK());
 }
 
@@ -642,11 +642,11 @@ TEST_F(TSchedulerTest, JustYield2)
     // This callback must complete before the first.
     auto errorOrValue = BIND([&] {
         return flag;
-    }).AsyncVia(invoker).Run().Get();
+    }).AsyncVia(invoker).Run().BlockingGet();
 
     EXPECT_TRUE(errorOrValue.IsOK());
     EXPECT_FALSE(errorOrValue.Value());
-    EXPECT_TRUE(asyncResult.Get().IsOK());
+    EXPECT_TRUE(asyncResult.BlockingGet().IsOK());
 }
 
 TEST_F(TSchedulerTest, CancelInAdjacentCallback)
@@ -654,10 +654,10 @@ TEST_F(TSchedulerTest, CancelInAdjacentCallback)
     auto invoker = Queue1->GetInvoker();
     auto asyncResult1 = BIND([=] {
         NYT::NConcurrency::GetCurrentFiberCanceler().Run(TError("Error"));
-    }).AsyncVia(invoker).Run().Get();
+    }).AsyncVia(invoker).Run().BlockingGet();
     auto asyncResult2 = BIND([=] {
         Yield();
-    }).AsyncVia(invoker).Run().Get();
+    }).AsyncVia(invoker).Run().BlockingGet();
     EXPECT_TRUE(asyncResult1.IsOK());
     EXPECT_TRUE(asyncResult2.IsOK());
 }
@@ -668,11 +668,11 @@ TEST_F(TSchedulerTest, CancelInAdjacentThread)
     auto invoker = Queue1->GetInvoker();
     auto asyncResult1 = BIND([=, &closure] {
         closure = NYT::NConcurrency::GetCurrentFiberCanceler();
-    }).AsyncVia(invoker).Run().Get();
+    }).AsyncVia(invoker).Run().BlockingGet();
     closure.Run(TError("Error")); // *evil laugh*
     auto asyncResult2 = BIND([=] {
         Yield();
-    }).AsyncVia(invoker).Run().Get();
+    }).AsyncVia(invoker).Run().BlockingGet();
     closure.Reset(); // *evil smile*
     EXPECT_TRUE(asyncResult1.IsOK());
     EXPECT_TRUE(asyncResult2.IsOK());
@@ -700,14 +700,14 @@ TEST_F(TSchedulerTest, SerializedDoubleWaitFor)
     .Via(serializedInvoker)
     .Run();
 
-    promise.ToFuture().Get();
+    promise.ToFuture().BlockingGet();
 
     auto result = BIND([&] () -> bool {
         return flag;
     })
     .AsyncVia(serializedInvoker)
     .Run()
-    .Get()
+    .BlockingGet()
     .ValueOrThrow();
 
     EXPECT_TRUE(result);
@@ -735,7 +735,7 @@ TEST_W(TSchedulerTest, CancelDelayedFuture)
     auto future = TDelayedExecutor::MakeDelayed(TDuration::Seconds(10));
     future.Cancel(TError("Error"));
     EXPECT_TRUE(future.IsSet());
-    auto error = future.Get();
+    auto error = future.BlockingGet();
     EXPECT_EQ(NYT::EErrorCode::Canceled, error.GetCode());
     EXPECT_EQ(1, std::ssize(error.InnerErrors()));
     EXPECT_EQ(NYT::EErrorCode::Generic, error.InnerErrors()[0].GetCode());
@@ -942,7 +942,7 @@ TEST_W(TSchedulerTest, FutureUpdatedRaceInWaitFor_YT_18899)
             .Run());
 
         ASSERT_NO_THROW(testResultFuture
-            .Get()
+            .BlockingGet()
             .ThrowOnError());
     }
 }

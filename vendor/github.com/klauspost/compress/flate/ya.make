@@ -6,7 +6,7 @@ LICENSE(
     MIT
 )
 
-VERSION(v1.18.0)
+VERSION(v1.18.2)
 
 SRCS(
     deflate.go
@@ -41,6 +41,8 @@ GO_TEST_SRCS(
     writer_test.go
 )
 
+GO_XTEST_SRCS(example_test.go)
+
 IF (ARCH_X86_64)
     SRCS(
         regmask_amd64.go
@@ -53,7 +55,7 @@ IF (ARCH_ARM64)
     )
 ENDIF()
 
-IF (OS_LINUX AND ARCH_ARM7)
+IF (OS_LINUX AND ARCH_ARM6 OR OS_LINUX AND ARCH_ARM7)
     SRCS(
         regmask_other.go
     )

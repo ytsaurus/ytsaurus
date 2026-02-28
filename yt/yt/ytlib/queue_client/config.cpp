@@ -4,6 +4,7 @@
 
 namespace NYT::NQueueClient {
 
+using namespace NConcurrency;
 using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -21,8 +22,8 @@ bool TLookupSessionConfig::operator==(const TLookupSessionConfig& other) const
 
 TStateLookupCacheConfig& TStateLookupCacheConfig::operator=(const TStateLookupCacheConfigPtr& other)
 {
-    // TODO(apachee): Add batch lookup config.
     Cache = other->Cache;
+    BatchLookup = other->BatchLookup;
     return *this;
 }
 
@@ -30,8 +31,7 @@ TStateLookupCacheConfig& TStateLookupCacheConfig::operator=(const TStateLookupCa
 
 bool TStateLookupCacheConfig::operator==(const TStateLookupCacheConfig& other) const
 {
-    // TODO(apachee): Add batch lookup config.
-    return *Cache == *other.Cache;
+    return std::tie(*Cache, BatchLookup) == std::tie(*other.Cache, other.BatchLookup);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -43,7 +43,7 @@ TStateLookupCacheConfigPtr TStateLookupCacheConfig::FromQueueConsumerRegistratio
     auto result = New<NDetail::TStateLookupCacheConfig>();
     // NB(apachee): #TAsyncExpiringCacheConfig::ApplyDynamic copies #Base internally.
     result->Cache = config->Base->ApplyDynamic(config->Delta[cacheKind]);
-    // TODO(apachee): Add batch lookup config.
+    result->BatchLookup = config->BatchLookup;
     return result;
 }
 
@@ -114,6 +114,25 @@ void TQueueAgentDynamicStateConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TQueueConsumerRegistrationManagerBatchLookupConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(true);
+    registrar.Parameter("startup_batch_delay", &TThis::StartupBatchDelay)
+        .Default(TDuration::Seconds(1));
+    registrar.Parameter("throttler", &TThis::Throttler)
+        .DefaultNew();
+
+    registrar.Preprocessor([] (TThis* config) {
+        // NB(apachee): 1 RPS as initial placeholder to be safe during new cache roll out.
+        config->Throttler->Limit = 1.0;
+        // NB(apachee): Up to 4 * BatchRequestRateLimit burst requests.
+        config->Throttler->Period = TDuration::Seconds(4);
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TQueueConsumerRegistrationManagerCacheConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("base", &TThis::Base)
@@ -128,6 +147,8 @@ void TQueueConsumerRegistrationManagerCacheConfig::Register(TRegistrar registrar
 
             return delta;
         });
+    registrar.Parameter("batch_lookup", &TThis::BatchLookup)
+        .DefaultNew();
 
     registrar.Preprocessor([] (TThis* config) {
         // NB(apachee): Batching lookups and selects to dynamic state is a must.

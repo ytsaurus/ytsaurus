@@ -130,11 +130,11 @@ void RunRpcClient(const TString& address, i32 numIter)
         result = request->Invoke();
         if (i % 10000 == 0) {
             Cout << "iteration " << i << Endl;
-            auto response = result.Get().ValueOrThrow();
+            auto response = result.BlockingGet().ValueOrThrow();
             YT_ASSERT(response->b() == i + 42);
         }
     }
-    result.Get();
+    result.BlockingGet();
 
     NHPTimer::STime tcur = t;
     double seconds = NHPTimer::GetTimePassed(&tcur);
@@ -264,10 +264,10 @@ public:
             result = Bus->Send(message, {.TrackingLevel = EDeliveryTrackingLevel::Full});
             if (i % 1000 == 0) {
                 Cout << "iteration " << i << Endl;
-                result.Get();
+                result.BlockingGet();
             }
         }
-        result.Get();
+        result.BlockingGet();
         AtomicDecrement(NumWorking);
         if (NumWorking == 0) {
             StopEvent.Signal();

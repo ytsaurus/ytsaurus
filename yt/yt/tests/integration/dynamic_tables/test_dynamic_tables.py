@@ -781,6 +781,11 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t", lookup_cache_rows_per_tablet=50, optimize_for="scan")
 
+        set("//tmp/t/@chunk_writer", {
+            "enable_column_meta_in_chunk_meta": True,
+            "enable_segment_meta_in_blocks": False,
+        })
+
         sync_mount_table("//tmp/t")
 
         rows = [{"key": i, "value": f"payload_{i}"} for i in range(10)]

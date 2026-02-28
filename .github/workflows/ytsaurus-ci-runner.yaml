@@ -39,8 +39,12 @@ jobs:
           ref='${{ inputs.ref_name }}'
           tag='${{ inputs.image_tag }}'
 
-          tmp="${tag#*-}"
-          ver="${tmp%%-*}"
+          if [[ -n "$tag" ]]; then
+            tmp="${tag#*-}"
+            ver="${tmp%%-*}"
+          else
+            ver="${ref#*/}"
+          fi
 
           component=""
           case "$ref" in
@@ -53,6 +57,10 @@ jobs:
           if [[ -n "$component" && -n "$ver" ]]; then
             version_filter_json="$(jq -cn --arg k "$component" --arg v "$ver" '{($k): $v}')"
           fi
+
+          echo "Ver: $ver"
+          echo "Component: $component"
+          echo "JSON: $version_filter_json"
 
           args=(
             run-scenario

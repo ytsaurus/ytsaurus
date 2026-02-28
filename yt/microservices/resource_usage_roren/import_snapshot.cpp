@@ -1,6 +1,7 @@
-#include <yt/microservices/resource_usage_roren/misc.h>
 #include <yt/microservices/resource_usage_roren/data.pb.h>
 #include <yt/microservices/resource_usage_roren/import_snapshot.h>
+
+#include <yt/microservices/resource_usage_roren/lib/misc.h>
 
 #include <yt/cpp/mapreduce/interface/client.h>
 #include <yt/cpp/roren/interface/roren.h>
@@ -32,6 +33,9 @@ using namespace NYT;
 using namespace NRoren;
 
 static NLogging::TLogger Logger("resource_usage");
+static const auto TX_TOP_N = 100;
+static const auto TX_LIMIT = 1000;
+static_assert(TX_TOP_N < TX_LIMIT);
 
 struct TDetailedMasterMemory
 {
@@ -124,107 +128,56 @@ void GetResourceUsageFromNode(TResourceUsage& resourceUsage, const TNode& node)
 
 using TMedium = THashMap<TString, i64>;
 
-void MergeIntNodeWith(TNode& to, const TNode& from)
+bool IsNonZero(const TVersionedResourceUsage& vru)
 {
-    if (!to.IsMap()) {
-        Y_ABORT_IF(from.IsMap());
-        to.As<i64>() += from.As<i64>();
-        return;
-    }
-
-    Y_ABORT_IF(!from.IsMap());
-
-    auto& to_map = to.AsMap();
-    auto& from_map = from.AsMap();
-
-    for (const auto& [from_key, from_node] : from_map) {
-        auto to_it = to_map.find(from_key);
-        if (to_it == to_map.end()) {
-            to_map[from_key] = from_node;
-        } else {
-            MergeIntNodeWith(to_it->second, from_node);
+    for (const auto& [key, node] : vru.VersionedResourceUsageNode.AsMap()) {
+        if (node.IsInt64() && node.AsInt64() > 0) {
+            return true;
         }
     }
+    for (const auto& [key, node] : vru.DiskSpacePerMedium.AsMap()) {
+        if (node.IsInt64() && node.AsInt64() > 0) {
+            return true;
+        }
+    }
+    return false;
 }
 
-struct TVersionedResourceUsage
-{
-    TString TransactionTitle;
-    TNode VersionedResourceUsageNode;
-    TNode DiskSpacePerMedium;
-    bool IsOriginal;
-
-    Y_SAVELOAD_DEFINE(
-        TransactionTitle,
-        VersionedResourceUsageNode,
-        DiskSpacePerMedium,
-        IsOriginal
-    );
-
-    TVersionedResourceUsage()
-        : TransactionTitle("")
-        , VersionedResourceUsageNode(TNode::CreateMap())
-        , DiskSpacePerMedium(TNode::CreateMap())
-        , IsOriginal(false)
-    {
-    }
-
-    TVersionedResourceUsage(TString title, TNode vrun, TNode dspm, bool IsOriginal)
-        : TransactionTitle(title)
-        , VersionedResourceUsageNode(vrun)
-        , DiskSpacePerMedium(dspm)
-        , IsOriginal(IsOriginal)
-    {
-    }
-
-    void MergeWith(const TVersionedResourceUsage& from)
-    {
-        // Y_ABORT_IF(this->TransactionTitle != from.TransactionTitle);
-        if (this->TransactionTitle == "") {
-            this->TransactionTitle = from.TransactionTitle;
-        }
-        MergeIntNodeWith(this->VersionedResourceUsageNode, from.VersionedResourceUsageNode);
-        MergeIntNodeWith(this->DiskSpacePerMedium, from.DiskSpacePerMedium);
-        IsOriginal |= IsOriginal;
-    }
-
-    TNode ToNode() const
-    {
-        TNode result = TNode::CreateMap();
-        result["transaction_title"] = TransactionTitle;
-        result["versioned_resource_usage"] = VersionedResourceUsageNode;
-        result["per_medium"] = DiskSpacePerMedium;
-        //result["is_original"] = TNode(IsOriginal);
-        return result;
-    }
-};
-
-using TVersionedResourceUsageMap = THashMap<TString, TVersionedResourceUsage>;
-
-TNode VersionedResourceUsageMapGetTotal(const TVersionedResourceUsageMap& vrum)
+TNode VersionedResourceUsageMapGetSummary(const TVersionedResourceUsageMap& vrum)
 {
     if (vrum.empty()) {
         return TNode::CreateMap();
     }
 
     TNode node = TNode::CreateMap();
-    node["total"] = TNode::CreateMap();
-    node["total"]["per_medium"] = TNode::CreateMap();
-    node["current"] = TNode::CreateMap();
-    node["current"]["per_medium"] = TNode::CreateMap();
-    node["child"] = TNode::CreateMap();
-    node["child"]["per_medium"] = TNode::CreateMap();
+    TNode total = TNode::CreateMap();
+    total["per_medium"] = TNode::CreateMap();
+    TNode current = TNode::CreateMap();
+    current["per_medium"] = TNode::CreateMap();
+    TNode child = TNode::CreateMap();
+    child["per_medium"] = TNode::CreateMap();
     for (const auto& [tx_id, vru] : vrum) {
-        MergeIntNodeWith(node["total"], vru.VersionedResourceUsageNode);
-        MergeIntNodeWith(node["total"]["per_medium"], vru.DiskSpacePerMedium);
+        MergeIntNodeWith(total, vru.VersionedResourceUsageNode);
+        MergeIntNodeWith(total["per_medium"], vru.DiskSpacePerMedium);
         if (vru.IsOriginal) {
-            node[tx_id] = vru.ToNode();
-            MergeIntNodeWith(node["current"], vru.VersionedResourceUsageNode);
-            MergeIntNodeWith(node["current"]["per_medium"], vru.DiskSpacePerMedium);
+            MergeIntNodeWith(current, vru.VersionedResourceUsageNode);
+            MergeIntNodeWith(current["per_medium"], vru.DiskSpacePerMedium);
         } else {
-            MergeIntNodeWith(node["child"], vru.VersionedResourceUsageNode);
-            MergeIntNodeWith(node["child"]["per_medium"], vru.DiskSpacePerMedium);
+            MergeIntNodeWith(child, vru.VersionedResourceUsageNode);
+            MergeIntNodeWith(child["per_medium"], vru.DiskSpacePerMedium);
         }
+    }
+    node["total"] = total;
+    node["current"] = current;
+    node["child"] = child;
+    return node;
+}
+
+TNode VersionedResourceUsageToNode(const TVersionedResourceUsageMap& vrum)
+{
+    TNode node = TNode::CreateMap();
+    for (const auto& [tx_id, vru] : vrum) {
+        node[tx_id] = vru.ToNode();
     }
     return node;
 }
@@ -326,9 +279,12 @@ TVersionedResourceUsage VersionedResourceUsageFromRow(const TInputMessage& row)
     const auto& map = versionedResourceUsageNode.AsMap();
 
     TNode diskSpacePerMedium = TNode::CreateMap();
-    i64 erasure = map.contains("erasure_disk_space") ? map.at("erasure_disk_space").As<i64>() : 0;
-    i64 regular = map.contains("regular_disk_space") ? map.at("regular_disk_space").As<i64>() : 0;
-    diskSpacePerMedium[medium] = erasure ? erasure : regular;
+    const i64 erasure = map.contains("erasure_disk_space") ? map.at("erasure_disk_space").As<i64>() : 0;
+    const i64 regular = map.contains("regular_disk_space") ? map.at("regular_disk_space").As<i64>() : 0;
+    const i64 value = erasure ? erasure : regular;
+    if (value > 0) {
+        diskSpacePerMedium[medium] = value;
+    }
 
     return TVersionedResourceUsage(title, versionedResourceUsageNode, diskSpacePerMedium, true);
 }
@@ -419,16 +375,6 @@ double GetFromMap(const TStringBuf key)
     auto it = ERASURE_CODEC_AMP.find(key);
     if (it != ERASURE_CODEC_AMP.end()) {
         return it->second;
-    }
-    return 0;
-}
-
-i64 GetInt64FromTNode(const TNode& node, const TStringBuf key)
-{
-    const auto& nodeMap = node.AsMap();
-    auto it = nodeMap.find(key);
-    if (it != nodeMap.end()) {
-        return it->second.AsInt64();
     }
     return 0;
 }
@@ -635,6 +581,13 @@ void PlusIfDefined(std::optional<i64>& to, const std::optional<i64>& from)
     }
 }
 
+template <class K, class V>
+void MergeHashMap(THashMap<K, V>& dest, const THashMap<K, V>& src) {
+    for (const auto& [key, value] : src) {
+        dest[key] = value;
+    }
+}
+
 class TPathPatching
     : public IDoFn<TRowAfterMap, TRowAfterMap>
 {
@@ -803,7 +756,7 @@ public:
                 const TString& id = row.CypressTransactionId.value();
                 if (versionedResourceUsageMap.contains(id)) {
                     versionedResourceUsageMap[id].MergeWith(row.VersionedResourceUsage);
-                } else {
+                } else if (IsNonZero(row.VersionedResourceUsage)) { // Zeros transactions are not wtitten to disk
                     versionedResourceUsageMap[id] = row.VersionedResourceUsage;
                 }
             } else {
@@ -817,15 +770,17 @@ public:
         resourceAggregator.Finish(newRow, SetResourceUsageInRow);
         aggregator.Finish();
 
-        auto totalVersioned = VersionedResourceUsageMapGetTotal(versionedResourceUsageMap);
-        SetVersionedResourceUsageMapInRow(newRow, totalVersioned);
+        TNode versionedResourceUsageNode = versionedResourceUsageMap.size() > TX_LIMIT ? VersionedResourceUsageTop(versionedResourceUsageMap, TX_TOP_N) : VersionedResourceUsageToNode(versionedResourceUsageMap);
+        auto vruSummary = VersionedResourceUsageMapGetSummary(versionedResourceUsageMap);
+        MergeHashMap(versionedResourceUsageNode.AsMap(), vruSummary.AsMap());
+        SetVersionedResourceUsageMapInRow(newRow, versionedResourceUsageNode);
 
         TNode mediumColumns = TNode::CreateMap();
         if (resourceAggregator.HasValue()) {
             SetMap(mediumColumns, resourceAggregator.GetResult().DiskSpacePerMedium.AsMap(), Media_, "medium:");
         }
-        if (!totalVersioned.AsMap().empty()) {
-            SetMap(mediumColumns, totalVersioned["total"]["per_medium"].AsMap(), Media_, "versioned:medium:");
+        if (!vruSummary.AsMap().empty()) {
+            SetMap(mediumColumns, vruSummary["total"]["per_medium"].AsMap(), Media_, "versioned:medium:");
         }
         newRow.SetOtherColumns(NodeToYsonString(mediumColumns));
 
@@ -981,7 +936,7 @@ void AddImportSnapshotToPipeline(
     | "ResourceUsageParDo" >> ParDo(MapDo)
     | "PathPatching" >> MakeParDo<TPathPatching>(nodeIdDict, nodeIdDictCluster, clusterToLookup)
     | "ExpandForEachPathLevel" >> ParDo(ExpandForEachPathLevel)
-    | "MadeKV" >> ParDo([](const TRowAfterMap& row) -> TKV<std::tuple<TString, TString, TString>, TRowAfterMap> {
+    | "MadeKV" >> ParDo([] (const TRowAfterMap& row) -> TKV<std::tuple<TString, TString, TString>, TRowAfterMap> {
         TKV<std::tuple<TString, TString, TString>, TRowAfterMap> kv;
         kv.Key() = std::make_tuple(row.Account, row.Path, row.Type);
         kv.Value() = row;

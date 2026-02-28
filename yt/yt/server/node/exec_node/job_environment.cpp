@@ -1094,18 +1094,11 @@ public:
         PodSpecs_.clear();
         SlotCpusetCpus_.clear();
         CpuLimit_ = cpuLimit;
+        FirstSlotInitialized_.Reset();
 
         PodDescriptors_.resize(slotCount);
         PodSpecs_.resize(slotCount);
         SlotCpusetCpus_.resize(slotCount);
-
-        // Init fake slot to download resource once before running init slots concurrently
-        // we need to wait for it before initializing slots.
-        auto tmpPodSpec = New<NCri::TCriPodSpec>();
-        tmpPodSpec->Name = Format("%v%v", SlotPodPrefix, 0);
-        auto tmpPodDescriptor = WaitFor(Executor_->RunPodSandbox(tmpPodSpec)).ValueOrThrow();
-        WaitFor(Executor_->StopPodSandbox(tmpPodDescriptor)).ThrowOnError();
-        WaitFor(Executor_->RemovePodSandbox(tmpPodDescriptor)).ThrowOnError();
 
         WaitFor(ImageCache_->Initialize())
             .ThrowOnError();
@@ -1119,6 +1112,14 @@ public:
     TFuture<void> InitSlot(int slotIndex) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        // Wait for first slot initialization to avoid downloading shared resources concurrently.
+        if (FirstSlotInitialized_) {
+            auto error = WaitForFast(FirstSlotInitialized_);
+            if (!error.IsOK()) {
+                return MakeFuture(error);
+            }
+        }
 
         auto podSpec = New<NCri::TCriPodSpec>();
         podSpec->Name = Format("%v%v", SlotPodPrefix, slotIndex);
@@ -1139,6 +1140,10 @@ public:
                 }
             })
             .Via(Bootstrap_->GetJobInvoker()));
+
+        if (!FirstSlotInitialized_) {
+            FirstSlotInitialized_ = slotInitFuture.AsVoid();
+        }
 
         return slotInitFuture.AsVoid();
     }
@@ -1297,6 +1302,7 @@ private:
     std::vector<TCriPodSpecPtr> PodSpecs_;
     std::vector<TString> SlotCpusetCpus_;
     double CpuLimit_ = 0;
+    TFuture<void> FirstSlotInitialized_;
 
     const TActionQueuePtr MounterThread_ = New<TActionQueue>("CriMounter");
 

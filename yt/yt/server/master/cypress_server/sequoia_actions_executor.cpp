@@ -560,7 +560,7 @@ private:
 
         // NB: Nobody can acquire the shared child lock for this node between
         // prepare and commit due to Sequoia table lock. DetachChild acquires
-        // exclusive lock on (nodeId, topmostTx, key) in "child_node" Sequoia
+        // exclusive lock on (nodeId, topmostTx, key) in "child_nodes" Sequoia
         // table.
 
         DoLog(*request, ELogStage::Prepared, sequoiaTransaction->GetId());

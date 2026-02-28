@@ -2,6 +2,8 @@ from .logger import logger
 
 import yt.wrapper as yt
 
+from yt.wrapper.retries import run_with_retries
+
 from yt.common import YtError, wait
 from lib.schema import RandomStringGenerator
 
@@ -14,8 +16,9 @@ RSG = RandomStringGenerator()
 class Queue:
     def __init__(self, base_path, name, tablet_count):
         self.name = name
-        self.path = f"{base_path}/{name}"
-        self.data_path = f"{base_path}/{name}.data"
+        self.base_path = base_path
+        self.path = f"{self.base_path}/{name}"
+        self.data_path = f"{self.base_path}/{name}.data"
         self.hunk_storage_name = None
         self.mounted = False
         self.hunk_storage_mounted = False
@@ -40,30 +43,74 @@ class Queue:
         logger.info(f"Creating queue {self.path}")
         yt.create("table", self.path, attributes=attributes)
 
-
-        attributes["schema"] = [
-            {"name": "tablet_index", "type": "int64", "sort_order": "ascending"},
-            {"name": "row_index", "type": "int64", "sort_order": "ascending"},
-            {"name": "value", "type": "string"},
-        ]
-        yt.create("table", self.data_path, attributes=attributes)
-        yt.mount_table(self.data_path, sync=True)
-
         if yt.exists(f"{self.path}/@external_cell_tag"):
             self.cell_tag = yt.get(f"{self.path}/@external_cell_tag")
+
+        self.create_data_table()
+
+    def create_data_table(self):
+        attributes = {
+            "dynamic": True,
+            "enable_dynamic_store_read": True,
+            "schema": [
+                {"name": "tablet_index", "type": "int64", "sort_order": "ascending"},
+                {"name": "row_index", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ]
+        }
+        yt.create("table", self.data_path, attributes=attributes)
+        yt.mount_table(self.data_path, sync=True)
 
     def remove(self):
         logger.info(f"Removing queue {self.path}")
         self.unmount()
         yt.remove(self.path)
 
+    def copy(self, name):
+        copy_path = f"{self.base_path}/{name}"
+        logger.info(f"Copying queue {self.path} to {copy_path}")
+
+        mounted = self.mounted
+        if mounted:
+            self.unmount()
+        yt.copy(self.path, copy_path)
+        if mounted:
+            self.mount()
+
+        copy_queue = Queue(self.base_path, name, self.tablet_count)
+        copy_queue.hunk_storage_mounted = self.hunk_storage_mounted
+        copy_queue.hunk_storage_name = self.hunk_storage_name
+        copy_queue.data_path = f"{self.base_path}/{name}.data"
+        copy_queue.create_data_table()
+        return copy_queue
+
+    def move(self, name):
+        new_path = f"{self.base_path}/{name}"
+        logger.info(f"Moving queue {self.path} to {new_path}")
+
+        mounted = self.mounted
+        if mounted:
+            self.unmount()
+        yt.move(self.path, new_path)
+        if mounted:
+            self.mount()
+
+        moved_queue = Queue(self.base_path, name, self.tablet_count)
+        moved_queue.hunk_storage_mounted = self.hunk_storage_mounted
+        moved_queue.hunk_storage_name = self.hunk_storage_name
+        moved_queue.data_path = f"{self.base_path}/{name}.data"
+        moved_queue.create_data_table()
+        return moved_queue
+
     def mount(self):
         logger.info(f"Mounting queue {self.path}")
         yt.mount_table(self.path, sync=True)
+        self.mounted = True
 
     def unmount(self):
         logger.info(f"Unmounting queue {self.path}")
         yt.unmount_table(self.path, sync=True)
+        self.mounted = False
 
     def write(self):
         logger.info(f"Writing to the queue {self.path}")
@@ -77,9 +124,12 @@ class Queue:
             data_rows += [{"value": row["value"], "tablet_index": tablet_index, "row_index": row_index}]
             new_written_row_count[row["$tablet_index"]] += 1
 
-        with yt.Transaction(type="tablet"):
-            yt.insert_rows(self.path, rows)
-            yt.insert_rows(self.data_path, data_rows)
+        def _insert_rows():
+            with yt.Transaction(type="tablet"):
+                yt.insert_rows(self.path, rows)
+                yt.insert_rows(self.data_path, data_rows)
+
+        run_with_retries(lambda: _insert_rows(), retry_count=5, backoff=5, except_action=lambda ex: logger.error(f"Exception during insert, try to retry: {ex}"))
 
         for tablet_index, row_count in enumerate(new_written_row_count):
             self.written_row_count[tablet_index] += row_count
@@ -160,10 +210,12 @@ class HunkStorage:
     def mount(self):
         logger.info(f"Mounting hunk storage {self.path}")
         yt.mount_table(self.path, sync=True)
+        self.mounted = True
 
     def unmount(self):
         logger.info(f"Unmounting hunk storage {self.path}")
         yt.unmount_table(self.path, sync=True)
+        self.mounted = False
 
     def remove(self):
         logger.info(f"Removing hunk_storage {self.path}")
@@ -201,6 +253,7 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
     logging.getLogger('Yt').setLevel(logging.DEBUG)
 
     yt.config["backend"] = "rpc"
+    yt.config["driver_config"] = {"enable_retries": True}
 
     queues = {}
     hunk_storages = {}
@@ -316,8 +369,6 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
         for queue_name in removed_queue_names:
             del queues[queue_name]
 
-        # TODO(nadya73): Uncomment after YT-26227.
-        """
         removed_hunk_storage_names = []
         for hunk_storage in hunk_storages.values():
             if random.random() < spec.queue_and_hunk_storage.remove_probability:
@@ -332,14 +383,47 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
                         raise err
         for hunk_storage_name in removed_hunk_storage_names:
             del hunk_storages[hunk_storage_name]
-        """
 
+    def _copy():
+        queues_to_copy = []
+        new_queues = []
+        for queue in queues.values():
+            if random.random() < spec.queue_and_hunk_storage.copy_probability:
+                queues_to_copy += [queue]
+        for queue in queues_to_copy:
+            copy_name = _generate_queue_name()
+            copy_queue = queue.copy(copy_name)
+            queues[copy_name] = copy_queue
+
+            if copy_queue.hunk_storage_name:
+                hunk_storages[copy_queue.hunk_storage_name].linked_queue_names.add(copy_queue.name)
+
+    def _move():
+        nonlocal removed_queue_count
+
+        queues_to_move = []
+        for queue in queues.values():
+            if random.random() < spec.queue_and_hunk_storage.move_probability:
+                queues_to_move += [queue]
+        for queue in queues_to_move:
+            new_name = _generate_queue_name()
+            moved_queue = queue.move(new_name)
+            queues[new_name] = moved_queue
+
+            if moved_queue.hunk_storage_name:
+                hunk_storages[moved_queue.hunk_storage_name].linked_queue_names.add(moved_queue.name)
+                hunk_storages[queue.hunk_storage_name].linked_queue_names.remove(queue.name)
+
+            del queues[queue.name]
+            removed_queue_count += 1
 
     for iteration in range(spec.size.iterations):
         logger.iteration = iteration
 
         _create_and_remove()
         _relink()
+        _copy()
+        _move()
         _remount()
 
         for i in range(10):
@@ -347,5 +431,4 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
             _flush()
             _read()
 
-        # TODO(nadya73): add copy/move when it will be fixed.
         # TODO(nadya73): add alter queue the the static tables and running maps in 25.4.

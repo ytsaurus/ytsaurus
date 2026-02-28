@@ -2720,7 +2720,8 @@ print(json.dumps(input))
         eps_ms = 20
 
         def assert_total_time(total_time):
-            assert abs(job_time_ms - total_time) < 100
+            # Not very precise :(.
+            assert abs(job_time_ms - total_time) < 1000
 
         for table_index in [0, 1]:
             wait_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.wait_time")

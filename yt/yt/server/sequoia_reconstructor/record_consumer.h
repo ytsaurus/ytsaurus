@@ -28,7 +28,7 @@ struct TRecordsConsumer
     std::unique_ptr<IRecordConsumer<NSequoiaClient::NRecords::TNodeFork>> NodeForks;
     std::unique_ptr<IRecordConsumer<NSequoiaClient::NRecords::TNodeSnapshot>> NodeSnapshots;
 
-    std::unique_ptr<IRecordConsumer<NSequoiaClient::NRecords::TChildNode>> ChildNode;
+    std::unique_ptr<IRecordConsumer<NSequoiaClient::NRecords::TChildNode>> ChildNodes;
     std::unique_ptr<IRecordConsumer<NSequoiaClient::NRecords::TChildFork>> ChildForks;
 
     std::unique_ptr<IRecordConsumer<NSequoiaClient::NRecords::TAcls>> Acls;

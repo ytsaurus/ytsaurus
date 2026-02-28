@@ -1,13 +1,13 @@
 from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
 from yt_commands import (
-    authors, wait, create, exists, get, set, ls, insert_rows, remove, select_rows, trim_rows,
+    authors, wait, create, exists, get, set, ls, insert_rows, remove, select_rows, trim_rows, mount_table,
     lookup_rows, delete_rows, remount_table, build_master_snapshots, get_tablet_leader_address, concatenate,
     write_table, alter_table, read_table, map, merge, sync_reshard_table, sync_create_cells, get_operation,
     sync_mount_table, sync_unmount_table, sync_flush_table, sync_compact_table, gc_collect, pull_queue,
     start_transaction, commit_transaction, get_singular_chunk_id, write_file, read_hunks, remote_copy,
     write_journal, create_domestic_medium, update_nodes_dynamic_config, raises_yt_error, copy, move,
-    get_account_disk_space_limit, set_account_disk_space_limit, create_dynamic_table, create_user)
+    get_account_disk_space_limit, set_account_disk_space_limit, create_dynamic_table, create_user, wait_for_tablet_state)
 
 from yt_type_helpers import make_schema
 
@@ -2087,30 +2087,6 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
                 assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
     @authors("akozhikhov")
-    def test_remove_cell_with_attached_hunk_storage(self):
-        cell_id = sync_create_cells(1)[0]
-
-        create("hunk_storage", "//tmp/h", attributes={
-            "scan_backoff_period": 1000,
-        })
-
-        sync_mount_table("//tmp/h")
-
-        assert get("//tmp/h/@tablet_state") == "mounted"
-        assert get("#{}/@tablet_count".format(cell_id)) == 1
-        assert len(get("#{}/@tablet_ids".format(cell_id))) == 1
-
-        assert get("#{}/@total_statistics/tablet_count".format(cell_id)) == 1
-
-        remove("#{}".format(cell_id))
-        time.sleep(5)
-
-        assert exists("#{}".format(cell_id))
-
-        sync_unmount_table("//tmp/h")
-        wait(lambda: not exists("#{}".format(cell_id)))
-
-    @authors("akozhikhov")
     def test_altering_queue_to_static_is_forbidden(self):
         sync_create_cells(1)
         self._create_table()
@@ -2493,6 +2469,154 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert_items_equal(select_rows("key, value, [$tablet_index] from [//tmp/t]"), rows)
         assert_items_equal(select_rows("key, value, [$tablet_index] from [//tmp/t] where [$tablet_index] = 1"), rows1)
         assert_items_equal(select_rows("key, value, [$tablet_index] from [//tmp/t]"), rows)
+
+    @authors("akozhikhov")
+    def test_unmount_after_aborted_write_tx(self):
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "tablet_cell_write_manager": {
+                    "write_failure_probability": 0.2,
+                },
+            },
+        })
+        sync_create_cells(1)
+        self._create_table(path="//tmp/t")
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "scan_backoff_period": 1000,
+        })
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+        # NB: Some row count larger than max_rows_per_write_request.
+        rows = [{"key": 0, "value": "a" * 100} for i in range(3000)]
+        for _ in range(3):
+            try:
+                self._insert_rows_with_hunk_storage("//tmp/t", rows)
+            except Exception:
+                pass
+        sync_unmount_table("//tmp/t")
+
+    @authors("akozhikhov")
+    def test_remove_cell_with_mounted_hunk_storage_1(self):
+        cell_id = sync_create_cells(1)[0]
+
+        self._create_table(path="//tmp/t")
+
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "scan_backoff_period": 1000,
+            "tablet_count": 2,
+        })
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        rows1 = [{"key": 0, "value": "a" * 100} for i in range(10)]
+        rows2 = [{"key": 1, "value": "b" * 100} for i in range(10)]
+
+        self._insert_rows_with_hunk_storage("//tmp/t", rows1)
+
+        remove("#{}".format(cell_id))
+        wait(lambda: not exists("#{}".format(cell_id)))
+
+        assert read_table("//tmp/t") == rows1
+
+        sync_create_cells(1)
+        wait(lambda: get("//tmp/h/@tablets/0/state") == "mounted")
+        wait(lambda: get("//tmp/t/@tablets/0/state") == "mounted")
+
+        self._insert_rows_with_hunk_storage("//tmp/t", rows2)
+        sync_flush_table("//tmp/t")
+        assert_items_equal(select_rows("key, value from [//tmp/t]"), rows1 + rows2)
+
+    @authors("akozhikhov")
+    def test_remove_cell_with_mounted_hunk_storage_2(self):
+        cell_ids = sync_create_cells(2)
+
+        self._create_table(path="//tmp/t")
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "scan_backoff_period": 1000,
+        })
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+
+        sync_mount_table("//tmp/h", cell_id=cell_ids[0])
+        sync_mount_table("//tmp/t", cell_id=cell_ids[1])
+
+        rows1 = [{"key": 0, "value": "a" * 100} for i in range(10)]
+        rows2 = [{"key": 1, "value": "b" * 100} for i in range(10)]
+
+        self._insert_rows_with_hunk_storage("//tmp/t", rows1)
+
+        remove("#{}".format(cell_ids[0]))
+        wait(lambda: get("//tmp/h/@tablets/0/state") == "unmounting")
+        with raises_yt_error("has no mounted tablets"):
+            self._insert_rows_with_hunk_storage("//tmp/t", rows2)
+        # NB: We speed up unmounting here by forcing queue tablets to unlock hunk stores.
+        sync_flush_table("//tmp/t")
+        wait(lambda: not exists("#{}".format(cell_ids[0])))
+
+        assert_items_equal(select_rows("key, value from [//tmp/t]"), rows1)
+
+        wait(lambda: get("//tmp/h/@tablets/0/state") == "mounted")
+        self._insert_rows_with_hunk_storage("//tmp/t", rows2)
+
+        sync_flush_table("//tmp/t")
+        assert_items_equal(select_rows("key, value from [//tmp/t]"), rows1 + rows2)
+
+    @authors("akozhikhov")
+    def test_remove_cell_with_mounted_hunk_storage_3(self):
+        cell_ids = sync_create_cells(15)
+
+        # This way some cells will be good, but the bundle overall will not.
+        # Decommissioner checks bundle health before kicking orphaned actions,
+        # and we want to arbitrarily delay it.
+        update_nodes_dynamic_config({
+            "cellar_node": {
+                "cellar_manager": {
+                    "cellars": {
+                        "tablet": {
+                            "size": 1,
+                        },
+                    },
+                }
+            }
+        })
+
+        assert get("//sys/tablet_cell_bundles/default/@health") != "good"
+
+        self._create_table(path="//tmp/t")
+
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "scan_backoff_period": 1000,
+            "tablet_count": 2,
+        })
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+
+        # Reliable way to create orphaned actions.
+        set("//sys/@config/tablet_manager/testing/mount_via_orphaned_tablet_actions", True)
+        mount_table("//tmp/h")
+        mount_table("//tmp/t")
+
+        wait(lambda: len(get("//sys/tablet_cell_bundles/default/@tablet_actions")) == 3)
+        actions = get("//sys/tablet_cell_bundles/default/@tablet_actions")
+        for action in actions:
+            assert action["state"] == "orphaned"
+        assert get("//tmp/h/@tablet_state") != "mounted"
+        assert get("//tmp/t/@tablet_state") != "mounted"
+
+        for cell_id in cell_ids:
+            remove("#{}".format(cell_id))
+
+        cell_id = sync_create_cells(1)[0]
+        wait(lambda: get("//sys/tablet_cell_bundles/default/@health") == "good")
+
+        wait_for_tablet_state("//tmp/h", "mounted")
+        wait_for_tablet_state("//tmp/t", "mounted")
+
+        rows = [{"key": 0, "value": "a" * 100} for i in range(10)]
+        self._insert_rows_with_hunk_storage("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+        assert_items_equal(select_rows("key, value from [//tmp/t]"), rows)
 
 
 ################################################################################
@@ -4169,9 +4293,6 @@ class TestOrderedMulticellHunks(TestSortedDynamicTablesBase):
         assert get("#{}/@total_statistics/tablet_count".format(cell_id)) == 1
 
         remove("#{}".format(cell_id))
-        time.sleep(5)
-
-        sync_unmount_table("//tmp/h")
         wait(lambda: not exists("#{}".format(cell_id)))
 
 

@@ -23,6 +23,7 @@
 #include <openssl/sha.h>
 
 #include <map>
+#include <ranges>
 #include <unordered_set>
 
 namespace NYql {
@@ -172,9 +173,9 @@ struct TContext {
     }
 
     TExprNode::TListType FindBinding(const TStringBuf& name) const {
-        for (auto it = Frames.crbegin(); it != Frames.crend(); ++it) {
-            const auto r = it->Bindings.find(name);
-            if (it->Bindings.cend() != r) {
+        for (const auto& frame : std::ranges::reverse_view(Frames)) {
+            const auto r = frame.Bindings.find(name);
+            if (frame.Bindings.cend() != r) {
                 return r->second;
             }
         }
@@ -183,9 +184,9 @@ struct TContext {
     }
 
     TString FindImport(const TStringBuf& name) const {
-        for (auto it = Frames.crbegin(); it != Frames.crend(); ++it) {
-            const auto r = it->Imports.find(name);
-            if (it->Imports.cend() != r) {
+        for (const auto& frame : std::ranges::reverse_view(Frames)) {
+            const auto r = frame.Imports.find(name);
+            if (frame.Imports.cend() != r) {
                 return r->second;
             }
         }
@@ -2767,9 +2768,9 @@ TAstParseResult ConvertToAst(const TExprNode& root, TExprContext& exprContext, c
                                                        << node.second->UniqueId() << "}";
                         YQL_ENSURE(frame.Bindings.emplace(node.second, buffer).second);
                     } else {
-                        char buffer[1 + 10 + 1];
-                        snprintf(buffer, sizeof(buffer), "$%" PRIu32, ++uniqueNum);
-                        YQL_ENSURE(frame.Bindings.emplace(node.second, buffer).second);
+                        std::array<char, 1 + 10 + 1> buffer;
+                        snprintf(buffer.data(), sizeof(buffer), "$%" PRIu32, ++uniqueNum);
+                        YQL_ENSURE(frame.Bindings.emplace(node.second, buffer.data()).second);
                     }
                     frame.TopoSortedNodes.emplace_back(node.second);
                 }
@@ -3864,10 +3865,10 @@ class TCacheKeyBuilder {
 public:
     TString Process(const TExprNode& root) {
         SHA256_Init(&Sha_);
-        unsigned char hash[SHA256_DIGEST_LENGTH];
+        std::array<unsigned char, SHA256_DIGEST_LENGTH> hash;
         Visit(root);
-        SHA256_Final(hash, &Sha_);
-        return TString((const char*)hash, sizeof(hash));
+        SHA256_Final(hash.data(), &Sha_);
+        return TString((const char*)hash.data(), sizeof(hash));
     }
 
 private:

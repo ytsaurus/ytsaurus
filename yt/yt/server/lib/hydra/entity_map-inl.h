@@ -374,7 +374,7 @@ void TEntityMap<TValue, TTraits>::SaveKeys(TContext& context) const
         }
 
         AllSucceeded(std::move(futures))
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
     } else {
         SaveIterators_.reserve(this->Map_.size());
@@ -473,7 +473,7 @@ void TEntityMap<TValue, TTraits>::SaveValuesParallel(TContext& context) const
             return false;
         }
         batchFutures[batchIndexToWaitFor]
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
         --batchesRunning;
 
@@ -664,7 +664,7 @@ void TEntityMap<TValue, TTraits>::LoadValuesParallel(TContext& context)
             return false;
         }
         batchFutures[batchIndexToWaitFor]
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
         --batchesRunning;
         ++batchIndexToWaitFor;

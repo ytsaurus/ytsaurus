@@ -86,6 +86,10 @@ enum class ETableType {
     ExternalTable
 };
 
+using TSourceNameResult = std::expected<
+    TString,
+    std::variant<std::nullptr_t, TString>>;
+
 class TContext;
 class ITableKeys;
 class ISource;
@@ -185,7 +189,7 @@ public:
     virtual bool IsPlainColumn() const;
     virtual bool IsTableRow() const;
     virtual void AssumeColumn();
-    virtual const TString* GetSourceName() const;
+    virtual TSourceNameResult GetSourceName() const;
     virtual const TString* GetAtomContent() const;
     virtual bool IsOptionalArg() const;
     virtual size_t GetTupleSize() const;
@@ -332,7 +336,7 @@ protected:
     bool IsPlainColumn() const override;
     bool IsTableRow() const override;
     void AssumeColumn() override;
-    const TString* GetSourceName() const override;
+    TSourceNameResult GetSourceName() const override;
     const TString* GetAtomContent() const override;
     bool IsOptionalArg() const override;
     size_t GetTupleSize() const override;
@@ -484,7 +488,7 @@ public:
     explicit TAstListNodeImpl(TPosition pos);
     TAstListNodeImpl(TPosition pos, TVector<TNodePtr> nodes);
     void CollectPreaggregateExprs(TContext& ctx, ISource& src, TVector<INode::TPtr>& exprs) override;
-    const TString* GetSourceName() const override;
+    TSourceNameResult GetSourceName() const override;
 
 protected:
     TNodePtr DoClone() const final;
@@ -499,7 +503,7 @@ public:
     }
 
     TString GetOpName() const override;
-    const TString* GetSourceName() const override;
+    TSourceNameResult GetSourceName() const override;
 
     const TVector<TNodePtr>& GetArgs() const;
     TCallNode* GetCallNode() override;
@@ -756,6 +760,8 @@ struct TColumnSchema {
         SetNotNullConstraint,
         SetFamily,
         SetCompression,
+        SetDefault,
+        DropDefault,
     };
 
     TPosition Pos;
@@ -892,7 +898,7 @@ public:
     bool IsAsterisk() const override;
     bool IsArtificial() const;
     const TString* GetColumnName() const override;
-    const TString* GetSourceName() const override;
+    TSourceNameResult GetSourceName() const override;
     TColumnNode* GetColumnNode() override;
     const TColumnNode* GetColumnNode() const override;
     TAstNode* Translate(TContext& ctx) const override;
@@ -961,7 +967,7 @@ public:
 
 private:
     void CollectPreaggregateExprs(TContext& ctx, ISource& src, TVector<INode::TPtr>& exprs) override;
-    const TString* GetSourceName() const override;
+    TSourceNameResult GetSourceName() const override;
 
     const TVector<TNodePtr> Exprs_;
 };
@@ -980,7 +986,7 @@ public:
 
 private:
     void CollectPreaggregateExprs(TContext& ctx, ISource& src, TVector<INode::TPtr>& exprs) override;
-    const TString* GetSourceName() const override;
+    TSourceNameResult GetSourceName() const override;
 
     const TVector<TNodePtr> Exprs_;
     const TVector<TNodePtr> Labels_;
@@ -1253,7 +1259,10 @@ struct TIndexDescription {
         GlobalSyncUnique,
         GlobalVectorKmeansTree,
         GlobalFulltextPlain,
-        GlobalFulltextRelevance
+        GlobalFulltextRelevance,
+        LocalBloomFilter,
+        LocalBloomNgramFilter,
+        GlobalJson
     };
 
     struct TIndexSetting {
@@ -1288,6 +1297,7 @@ struct TChangefeedSettings {
     TNodePtr Format;
     TNodePtr InitialScan;
     TNodePtr UserSIDs;
+    TNodePtr TraceIds;
     TNodePtr VirtualTimestamps;
     TNodePtr BarriersInterval;
     TNodePtr SchemaChanges;
@@ -1764,5 +1774,5 @@ TMaybe<TString> FindMistypeIn(const TContainer& container, const TString& name) 
 void EnumerateBuiltins(const std::function<void(std::string_view name, std::string_view kind)>& callback);
 bool Parseui32(TNodePtr from, ui32& to);
 TNodePtr GroundWithExpr(const TNodePtr& ground, const TNodePtr& expr);
-const TString* DeriveCommonSourceName(const TVector<TNodePtr>& nodes);
+TSourceNameResult DeriveCommonSourceName(const TVector<TNodePtr>& nodes);
 } // namespace NSQLTranslationV1

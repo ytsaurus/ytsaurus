@@ -138,7 +138,7 @@ protected:
         YT_LOG_INFO("Getting ready future");
 
         auto readyFuture = bus->GetReadyFuture();
-        auto res = readyFuture.Get();
+        auto res = readyFuture.BlockingGet();
         if (!res.IsOK()) {
             YT_LOG_INFO("bus is NOT ready for use %v", res.GetMessage());
             return;
@@ -160,7 +160,7 @@ protected:
             }
         }));
 
-        handler->GetFuture().Get();
+        handler->GetFuture().BlockingGet();
     }
 
 private:

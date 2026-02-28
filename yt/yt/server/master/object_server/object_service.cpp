@@ -1082,7 +1082,7 @@ private:
 
         auto future = StartSync(ESyncPhase::One);
         if (future.IsSet()) {
-            OnSyncPhaseOneCompleted(future.Get());
+            OnSyncPhaseOneCompleted(future.BlockingGet());
         } else {
             future.Subscribe(
                 BIND(&TExecuteSession::OnSyncPhaseOneCompleted, MakeStrong(this))
@@ -1481,7 +1481,7 @@ private:
 
         auto future = StartSync(ESyncPhase::Two, std::move(replicationFuture));
         if (future.IsSet()) {
-            OnSyncPhaseTwoCompleted(future.Get());
+            OnSyncPhaseTwoCompleted(future.BlockingGet());
         } else {
             future.Subscribe(
                 BIND(&TExecuteSession::OnSyncPhaseTwoCompleted, MakeStrong(this))
@@ -1512,7 +1512,7 @@ private:
         auto future = StartSync(ESyncPhase::Three);
         if (future.IsSet()) {
             // NB: Sync-phase-three is usually no-op, so this is the common case.
-            OnSyncPhaseThreeCompleted(future.Get());
+            OnSyncPhaseThreeCompleted(future.BlockingGet());
         } else {
             future.Subscribe(
                 BIND(&TExecuteSession::OnSyncPhaseThreeCompleted, MakeStrong(this))
@@ -2136,7 +2136,7 @@ private:
             };
 
             if (subrequest->RemoteTransactionReplicationFuture.IsSet()) {
-                const auto& error = subrequest->RemoteTransactionReplicationFuture.Get();
+                const auto& error = subrequest->RemoteTransactionReplicationFuture.BlockingGet();
                 onRemoteTransactionReplicated(error);
             } else {
                 subrequest->RemoteTransactionReplicationFuture
@@ -2148,7 +2148,7 @@ private:
         } else {
             YT_VERIFY(subrequest->MutationResponseFuture);
             if (subrequest->MutationResponseFuture.IsSet()) {
-                OnMutationCommitted(subrequest, subrequest->MutationResponseFuture.Get());
+                OnMutationCommitted(subrequest, subrequest->MutationResponseFuture.BlockingGet());
             } else {
                 subrequest->MutationResponseFuture
                     .Subscribe(BIND(&TExecuteSession::OnMutationCommitted, MakeStrong(this), subrequest));
@@ -2654,7 +2654,7 @@ void TObjectService::ProcessSessions()
     }
 
     readFuture
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 }
 

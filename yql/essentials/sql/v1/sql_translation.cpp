@@ -657,6 +657,7 @@ bool TSqlTranslation::CreateTableIndex(const TRule_table_index& node, TVector<TI
     indexes.emplace_back(IdEx(node.GetRule_an_id2(), *this));
 
     const auto& indexType = node.GetRule_table_index_type3().GetBlock1();
+    bool isLocalIndex = false;
     switch (indexType.Alt_case()) {
         // "GLOBAL"
         case TRule_table_index_type_TBlock1::kAlt1: {
@@ -692,16 +693,17 @@ bool TSqlTranslation::CreateTableIndex(const TRule_table_index& node, TVector<TI
         } break;
         // "LOCAL"
         case TRule_table_index_type_TBlock1::kAlt2:
-            AltNotImplemented("local", indexType);
-            return false;
+            isLocalIndex = true;
+            break;
         case TRule_table_index_type_TBlock1::ALT_NOT_SET:
             Y_UNREACHABLE();
     }
 
     if (node.GetRule_table_index_type3().HasBlock2()) {
         const TString subType = to_upper(IdEx(node.GetRule_table_index_type3().GetBlock2().GetRule_index_subtype2().GetRule_an_id1(), *this).Name);
-        if (subType == "VECTOR_KMEANS_TREE" || subType == "FULLTEXT_PLAIN" || subType == "FULLTEXT_RELEVANCE") {
-            if (indexes.back().Type != TIndexDescription::EType::GlobalSync) {
+        if (subType == "VECTOR_KMEANS_TREE" || subType == "FULLTEXT_PLAIN" ||
+            subType == "FULLTEXT_RELEVANCE" || subType == "JSON") {
+            if (isLocalIndex || indexes.back().Type != TIndexDescription::EType::GlobalSync) {
                 Ctx_.Error() << subType << " index can only be GLOBAL [SYNC]";
                 return false;
             }
@@ -712,13 +714,31 @@ bool TSqlTranslation::CreateTableIndex(const TRule_table_index& node, TVector<TI
                 indexes.back().Type = TIndexDescription::EType::GlobalFulltextPlain;
             } else if (subType == "FULLTEXT_RELEVANCE") {
                 indexes.back().Type = TIndexDescription::EType::GlobalFulltextRelevance;
+            } else if (subType == "JSON") {
+                indexes.back().Type = TIndexDescription::EType::GlobalJson;
             } else {
                 Y_ABORT("Unreachable");
+            }
+        } else if (subType == "BLOOM_FILTER" || subType == "BLOOM_NGRAM_FILTER") {
+            if (!isLocalIndex) {
+                Ctx_.Error() << subType << " index can only be LOCAL";
+                return false;
+            }
+
+            if (subType == "BLOOM_FILTER") {
+                indexes.back().Type = TIndexDescription::EType::LocalBloomFilter;
+            } else if (subType == "BLOOM_NGRAM_FILTER") {
+                indexes.back().Type = TIndexDescription::EType::LocalBloomNgramFilter;
+            } else {
+                Y_UNREACHABLE();
             }
         } else {
             Ctx_.Error() << subType << " index subtype is not supported";
             return false;
         }
+    } else if (isLocalIndex) {
+        AltNotImplemented("local", indexType);
+        return false;
     }
 
     // WITH
@@ -727,7 +747,9 @@ bool TSqlTranslation::CreateTableIndex(const TRule_table_index& node, TVector<TI
         auto& index = indexes.back();
         if (index.Type == TIndexDescription::EType::GlobalVectorKmeansTree ||
             index.Type == TIndexDescription::EType::GlobalFulltextPlain ||
-            index.Type == TIndexDescription::EType::GlobalFulltextRelevance) {
+            index.Type == TIndexDescription::EType::GlobalFulltextRelevance ||
+            index.Type == TIndexDescription::EType::LocalBloomFilter ||
+            index.Type == TIndexDescription::EType::LocalBloomNgramFilter) {
             if (!FillIndexSettings(node.GetBlock10().GetRule_with_index_settings1(), index.IndexSettings)) {
                 return false;
             }
@@ -743,6 +765,12 @@ bool TSqlTranslation::CreateTableIndex(const TRule_table_index& node, TVector<TI
     }
 
     if (node.HasBlock9()) {
+        if (indexes.back().Type == TIndexDescription::EType::LocalBloomFilter ||
+            indexes.back().Type == TIndexDescription::EType::LocalBloomNgramFilter) {
+            Ctx_.Error() << "COVER is not supported for local bloom indexes";
+            return false;
+        }
+
         const auto& block = node.GetBlock9();
         indexes.back().DataColumns.emplace_back(IdEx(block.GetRule_an_id_schema3(), *this));
         for (const auto& inner : block.GetBlock4()) {
@@ -872,6 +900,8 @@ TString TSqlTranslation::GetIndexSettingStringValue(const TRule_index_setting_va
             return Token(node.GetAlt_index_setting_value3().GetRule_integer1().GetToken1());
         case NSQLv1Generated::TRule_index_setting_value::kAltIndexSettingValue4: // bool_value
             return Token(node.GetAlt_index_setting_value4().GetRule_bool_value1().GetToken1());
+        case NSQLv1Generated::TRule_index_setting_value::kAltIndexSettingValue5: // real
+            return Token(node.GetAlt_index_setting_value5().GetRule_real1().GetToken1());
         case NSQLv1Generated::TRule_index_setting_value::ALT_NOT_SET:
             Y_UNREACHABLE();
     }
@@ -4084,6 +4114,7 @@ TNodePtr TSqlTranslation::NamedNode(const TRule_named_nodes_stmt& rule, TVector<
             return YqlSelectOrLegacy(
                 [&]() -> TNodeResult {
                     TSqlExpression expr(Ctx_, Mode_);
+                    expr.SetPure(IsPure_);
                     expr.SetYqlSelectProduced(true);
 
                     TNodeResult node = expr.Build(alt);
@@ -4099,6 +4130,7 @@ TNodePtr TSqlTranslation::NamedNode(const TRule_named_nodes_stmt& rule, TVector<
                 },
                 [&]() -> TNodePtr {
                     TSqlExpression expr(Ctx_, Mode_);
+                    expr.SetPure(IsPure_);
                     expr.SetYqlSelectProduced(false);
 
                     TNodePtr result = Unwrap(expr.BuildSourceOrNode(alt));
@@ -4123,6 +4155,7 @@ TNodePtr TSqlTranslation::NamedNode(const TRule_named_nodes_stmt& rule, TVector<
                 },
                 [&]() -> TNodePtr {
                     TSqlSelect select(Ctx_, Mode_);
+                    select.SetPure(IsPure_);
 
                     TPosition pos;
                     TSourcePtr source = select.Build(alt, pos);
@@ -6262,11 +6295,54 @@ bool TSqlTranslation::ParseAlterStreamingQueryAction(const TRule_alter_streaming
     return true;
 }
 
+std::expected<EYqlSelectMode, TString>
+ParseYqlSelectHint(const NSQLTranslation::TSQLHint& hint) {
+    if (auto size = hint.Values.size(); size != 1) {
+        return std::unexpected(TStringBuilder() << "expected 1 value, got " << size);
+    }
+
+    const TString value = to_lower(hint.Values.front());
+    if (value == "disable") {
+        return EYqlSelectMode::Disable;
+    }
+    if (value == "auto") {
+        return EYqlSelectMode::Auto;
+    }
+    if (value == "force") {
+        return EYqlSelectMode::Force;
+    }
+
+    return std::unexpected(
+        TStringBuilder()
+        << "expected value 'disable', 'auto' or 'force', "
+        << "but got '" << value << "'");
+}
+
 TNodePtr TSqlTranslation::YqlSelectOrLegacy(
     std::function<TNodeResult()> yqlSelect,
-    std::function<TNodePtr()> legacy)
+    std::function<TNodePtr()> legacy,
+    TMaybe<TPosition> position)
 {
-    const EYqlSelectMode mode = Ctx_.GetYqlSelectMode();
+    const EYqlSelectMode prevMode = Ctx_.GetYqlSelectMode();
+
+    EYqlSelectMode mode = prevMode;
+
+    if (position && Ctx_.IsBackwardCompatibleFeatureAvailable(YqlSelectLangVersion())) {
+        if (const auto hint = Ctx_.PullHintForToken(*position, "yqlselect")) {
+            if (auto result = ParseYqlSelectHint(*hint)) {
+                mode = *result;
+            } else if (
+                !Ctx_.Warning(hint->Pos, NYql::TIssuesIds::YQL_HINT_INVALID_PARAMETERS, [&](auto& out) {
+                    out << "Invalid '" << hint->Name << "' "
+                        << "parameters: " << result.error();
+                })) {
+                return nullptr;
+            }
+        } else if (hint.error()) {
+            return nullptr;
+        }
+    }
+
     if (mode == EYqlSelectMode::Disable) {
         return legacy();
     }
@@ -6277,7 +6353,16 @@ TNodePtr TSqlTranslation::YqlSelectOrLegacy(
         return nullptr;
     }
 
-    TNodeResult result = yqlSelect();
+    TNodeResult result = std::unexpected(ESQLError::Basic);
+    {
+        Ctx_.SetYqlSelectMode(mode);
+        Y_DEFER {
+            Ctx_.SetYqlSelectMode(prevMode);
+        };
+
+        result = yqlSelect();
+    }
+
     if (result) {
         return std::move(*result);
     }
@@ -6288,8 +6373,16 @@ TNodePtr TSqlTranslation::YqlSelectOrLegacy(
         }
         case ESQLError::UnsupportedYqlSelect: {
             if (mode == EYqlSelectMode::Force) {
-                Error() << "Translation of the statement "
-                        << "to YqlSelect was forced, but unsupported";
+                TStringBuf message =
+                    "Translation of the statement "
+                    "to YqlSelect was forced, but unsupported";
+
+                if (position) {
+                    Ctx_.Error(*position) << message;
+                } else {
+                    Ctx_.Error() << message;
+                }
+
                 return nullptr;
             }
 

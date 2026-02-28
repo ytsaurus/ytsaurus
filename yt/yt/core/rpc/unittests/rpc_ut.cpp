@@ -72,7 +72,7 @@ TYPED_TEST(TRpcTest, Send)
     TTestProxy proxy(this->CreateChannel());
     auto req = proxy.SomeCall();
     req->set_a(42);
-    auto rspOrError = req->Invoke().Get();
+    auto rspOrError = req->Invoke().BlockingGet();
     EXPECT_TRUE(rspOrError.IsOK()) << ToString(rspOrError);
     const auto& rsp = rspOrError.Value();
     EXPECT_EQ(142, rsp->b());
@@ -91,7 +91,7 @@ TYPED_TEST(TRpcTest, RetryingSend)
     {
         TTestProxy proxy(channel);
         auto req = proxy.FlakyCall();
-        auto rspOrError = req->Invoke().Get();
+        auto rspOrError = req->Invoke().BlockingGet();
         EXPECT_TRUE(rspOrError.IsOK()) << ToString(rspOrError);
     }
 
@@ -109,7 +109,7 @@ TYPED_TEST(TRpcTest, TestingDelayLite)
     for (int i = 0; i < 5; ++i) {
         TTestProxy proxy(this->CreateChannel());
         auto req = proxy.DelayedCall();
-        auto rspOrError = req->Invoke().Get();
+        auto rspOrError = req->Invoke().BlockingGet();
         EXPECT_TRUE(rspOrError.IsOK()) << ToString(rspOrError);
 
         // Do not run the test for a long time if sufficient delay has already been observed.
@@ -130,7 +130,7 @@ TYPED_TEST(TRpcTest, TestingDelayHeavy)
         TTestProxy proxy(this->CreateChannel());
         auto req = proxy.DelayedCall();
         req->SetRequestHeavy(true);
-        auto rspOrError = req->Invoke().Get();
+        auto rspOrError = req->Invoke().BlockingGet();
         EXPECT_TRUE(rspOrError.IsOK()) << ToString(rspOrError);
 
         // Do not run the test for a long time if sufficient delay has already been observed.
@@ -149,7 +149,7 @@ TYPED_TEST(TRpcTest, UserTag)
     auto req = proxy.PassCall();
     req->SetUser("test-user");
     req->SetUserTag("test-user-tag");
-    auto rspOrError = req->Invoke().Get();
+    auto rspOrError = req->Invoke().BlockingGet();
     EXPECT_TRUE(rspOrError.IsOK()) << ToString(rspOrError);
     const auto& rsp = rspOrError.Value();
     EXPECT_EQ(req->GetUser(), rsp->user());
@@ -164,7 +164,7 @@ TYPED_TEST(TNotUdsTest, Address)
         TTestProxy proxy(std::move(channel));
         auto req = proxy.SomeCall();
         req->set_a(42);
-        auto rspOrError = req->Invoke().Get();
+        auto rspOrError = req->Invoke().BlockingGet();
         EXPECT_TRUE(rspOrError.IsOK()) << ToString(rspOrError);
         const auto& rsp = rspOrError.Value();
         EXPECT_FALSE(rsp->GetAddress().empty());
@@ -191,7 +191,7 @@ TYPED_TEST(TNotGrpcTest, SendSimple)
     req->SetUser("test-user");
     req->SetMutationId(TGuid::Create());
     req->SetRetry(true);
-    auto rspOrError = req->Invoke().Get();
+    auto rspOrError = req->Invoke().BlockingGet();
     EXPECT_TRUE(rspOrError.IsOK()) << ToString(rspOrError);
     const auto& rsp = rspOrError.Value();
     EXPECT_EQ(req->GetUser(), rsp->user());
@@ -492,7 +492,7 @@ TYPED_TEST(TNotGrpcTest, TraceBaggagePropagation)
 
     TTestProxy proxy(this->CreateChannel());
     auto req = proxy.GetTraceBaggage();
-    auto rspOrError = req->Invoke().Get();
+    auto rspOrError = req->Invoke().BlockingGet();
     EXPECT_TRUE(rspOrError.IsOK());
     auto rsp = rspOrError.Value();
 
@@ -515,7 +515,7 @@ TYPED_TEST(TNotGrpcTest, DisableAcceptsBaggage)
     TNoBaggageProxy proxy(this->CreateChannel());
     auto req = proxy.ExpectNoBaggage();
 
-    auto rspOrError = req->Invoke().Get();
+    auto rspOrError = req->Invoke().BlockingGet();
     EXPECT_TRUE(rspOrError.IsOK());
 }
 
@@ -536,7 +536,7 @@ TYPED_TEST(TRpcTest, ManyAsyncRequests)
         asyncResults.push_back(asyncResult);
     }
 
-    EXPECT_TRUE(AllSucceeded(asyncResults).Get().IsOK());
+    EXPECT_TRUE(AllSucceeded(asyncResults).BlockingGet().IsOK());
 }
 
 TYPED_TEST(TAttachmentsTest, RegularAttachments)
@@ -548,7 +548,7 @@ TYPED_TEST(TAttachmentsTest, RegularAttachments)
     req->Attachments().push_back(TSharedRef::FromString("from"));
     req->Attachments().push_back(TSharedRef::FromString("TTestProxy"));
 
-    auto rspOrError = req->Invoke().Get();
+    auto rspOrError = req->Invoke().BlockingGet();
     EXPECT_TRUE(rspOrError.IsOK());
     const auto& rsp = rspOrError.Value();
 
@@ -571,7 +571,7 @@ TYPED_TEST(TNotGrpcTest, TrackedRegularAttachments)
     req->Attachments().push_back(TSharedRef::FromString("from"));
     req->Attachments().push_back(TSharedRef::FromString("TTestProxy"));
 
-    auto rspOrError = req->Invoke().Get();
+    auto rspOrError = req->Invoke().BlockingGet();
     EXPECT_TRUE(rspOrError.IsOK());
     const auto& rsp = rspOrError.Value();
 
@@ -599,7 +599,7 @@ TYPED_TEST(TAttachmentsTest, NullAndEmptyAttachments)
     req->Attachments().push_back(TSharedRef());
     req->Attachments().push_back(TSharedRef::MakeEmpty());
 
-    auto rspOrError = req->Invoke().Get();
+    auto rspOrError = req->Invoke().BlockingGet();
     EXPECT_TRUE(rspOrError.IsOK());
     auto rsp = rspOrError.Value();
 
@@ -637,7 +637,7 @@ TYPED_TEST(TNotGrpcTest, Compression)
         req->Attachments().push_back(TSharedRef::FromString(attachmentString));
     }
 
-    auto rspOrError = req->Invoke().Get();
+    auto rspOrError = req->Invoke().BlockingGet();
     rspOrError.ThrowOnError();
     EXPECT_TRUE(rspOrError.IsOK());
     auto rsp = rspOrError.Value();
@@ -703,7 +703,7 @@ TYPED_TEST(TNotGrpcTest, RequestBytesThrottling)
         futures.push_back(makeCall());
     }
 
-    EXPECT_TRUE(AllSucceeded(std::move(futures)).Get().IsOK());
+    EXPECT_TRUE(AllSucceeded(std::move(futures)).BlockingGet().IsOK());
 }
 
 // Now test different types of errors.
@@ -711,7 +711,7 @@ TYPED_TEST(TRpcTest, OK)
 {
     TTestProxy proxy(this->CreateChannel());
     auto req = proxy.DoNothing();
-    auto rspOrError = req->Invoke().Get();
+    auto rspOrError = req->Invoke().BlockingGet();
     EXPECT_TRUE(rspOrError.IsOK());
 }
 
@@ -720,7 +720,7 @@ TYPED_TEST(TRpcTest, NoAck)
     TTestProxy proxy(this->CreateChannel());
     auto req = proxy.DoNothing();
     req->SetAcknowledgementTimeout(std::nullopt);
-    auto rspOrError = req->Invoke().Get();
+    auto rspOrError = req->Invoke().BlockingGet();
     EXPECT_TRUE(rspOrError.IsOK());
 }
 
@@ -728,7 +728,7 @@ TYPED_TEST(TRpcTest, TransportError)
 {
     TTestProxy proxy(this->CreateChannel("localhost:9999"));
     auto req = proxy.DoNothing();
-    auto rspOrError = req->Invoke().Get();
+    auto rspOrError = req->Invoke().BlockingGet();
     EXPECT_EQ(NRpc::EErrorCode::TransportError, rspOrError.GetCode());
 }
 
@@ -736,7 +736,7 @@ TYPED_TEST(TRpcTest, NoService)
 {
     TNonExistingServiceProxy proxy(this->CreateChannel());
     auto req = proxy.DoNothing();
-    auto rspOrError = req->Invoke().Get();
+    auto rspOrError = req->Invoke().BlockingGet();
     EXPECT_EQ(NRpc::EErrorCode::NoSuchService, rspOrError.GetCode());
 }
 
@@ -744,7 +744,7 @@ TYPED_TEST(TRpcTest, NoMethod)
 {
     TTestProxy proxy(this->CreateChannel());
     auto req = proxy.NotRegistered();
-    auto rspOrError = req->Invoke().Get();
+    auto rspOrError = req->Invoke().BlockingGet();
     EXPECT_EQ(NRpc::EErrorCode::NoSuchMethod, rspOrError.GetCode());
 }
 
@@ -752,7 +752,7 @@ TYPED_TEST(TRpcAuthenticatedTest, NoMethod)
 {
     TTestProxy proxy(this->CreateChannel());
     auto req = proxy.NotRegistered();
-    auto rspOrError = req->Invoke().Get();
+    auto rspOrError = req->Invoke().BlockingGet();
     EXPECT_EQ(NRpc::EErrorCode::NoSuchMethod, rspOrError.GetCode());
 }
 
@@ -762,7 +762,7 @@ TYPED_TEST(TNotGrpcTest, NoSuchRealm)
     TTestProxy proxy(this->CreateChannel());
     auto req = proxy.DoNothing();
     ToProto(req->Header().mutable_realm_id(), TGuid::FromString("1-2-3-4"));
-    auto rspOrError = req->Invoke().Get();
+    auto rspOrError = req->Invoke().BlockingGet();
     EXPECT_EQ(NRpc::EErrorCode::NoSuchService, rspOrError.GetCode());
     EXPECT_TRUE(rspOrError.FindMatching(NRpc::EErrorCode::NoSuchRealm));
 }
@@ -772,7 +772,7 @@ TYPED_TEST(TRpcTest, ClientTimeout)
     TTestProxy proxy(this->CreateChannel());
     proxy.SetDefaultTimeout(TDuration::Seconds(0.5));
     auto req = proxy.SlowCall();
-    auto rspOrError = req->Invoke().Get();
+    auto rspOrError = req->Invoke().BlockingGet();
     EXPECT_TRUE(this->CheckTimeoutCode(rspOrError.GetCode()));
 }
 
@@ -781,7 +781,7 @@ TYPED_TEST(TRpcTest, ServerTimeout)
     TTestProxy proxy(this->CreateChannel());
     proxy.SetDefaultTimeout(TDuration::Seconds(0.5));
     auto req = proxy.SlowCanceledCall();
-    auto rspOrError = req->Invoke().Get();
+    auto rspOrError = req->Invoke().BlockingGet();
     EXPECT_TRUE(this->CheckTimeoutCode(rspOrError.GetCode()));
     WaitFor(this->GetTestService()->GetSlowCallCanceled())
         .ThrowOnError();
@@ -797,7 +797,7 @@ TYPED_TEST(TRpcTest, ClientCancel)
     asyncRspOrError.Cancel(TError("Error"));
     Sleep(TDuration::Seconds(0.1));
     EXPECT_TRUE(asyncRspOrError.IsSet());
-    auto rspOrError = asyncRspOrError.Get();
+    auto rspOrError = asyncRspOrError.BlockingGet();
     EXPECT_TRUE(this->CheckCancelCode(rspOrError.GetCode()));
     WaitFor(this->GetTestService()->GetSlowCallCanceled())
         .ThrowOnError();
@@ -808,7 +808,7 @@ TYPED_TEST(TRpcTest, SlowCall)
     TTestProxy proxy(this->CreateChannel());
     proxy.SetDefaultTimeout(TDuration::Seconds(2.0));
     auto req = proxy.SlowCall();
-    auto rspOrError = req->Invoke().Get();
+    auto rspOrError = req->Invoke().BlockingGet();
     EXPECT_TRUE(rspOrError.IsOK());
 }
 
@@ -842,11 +842,11 @@ TYPED_TEST(TNotGrpcTest, RequestQueueSizeLimit)
         TTestProxy proxy(this->CreateChannel());
         proxy.SetDefaultTimeout(TDuration::Seconds(60.0));
         auto req = proxy.LatchedCall();
-        EXPECT_EQ(NRpc::EErrorCode::RequestQueueSizeLimitExceeded, req->Invoke().Get().GetCode());
+        EXPECT_EQ(NRpc::EErrorCode::RequestQueueSizeLimitExceeded, req->Invoke().BlockingGet().GetCode());
     }
     ReleaseLatchedCalls();
 
-    for(auto results = AllSet(std::move(futures)).Get().Value(); const auto& res : results) {
+    for(auto results = AllSet(std::move(futures)).BlockingGet().Value(); const auto& res : results) {
         EXPECT_TRUE(res.IsOK());
     }
 
@@ -870,7 +870,7 @@ TYPED_TEST(TNotGrpcTest, RequestMemoryPressureException)
     auto result = WaitFor(req->Invoke().AsVoid());
 
     // Limit of memory is 32 MB.
-    EXPECT_EQ(NRpc::EErrorCode::RequestMemoryPressure, req->Invoke().Get().GetCode());
+    EXPECT_EQ(NRpc::EErrorCode::RequestMemoryPressure, req->Invoke().BlockingGet().GetCode());
 }
 
 TYPED_TEST(TNotGrpcTest, MemoryTracking)
@@ -945,7 +945,7 @@ TYPED_TEST(TNotGrpcTest, MemoryTrackingMultipleConcurrent)
         EXPECT_TRUE(rpcUsage > (static_cast<i64>(32_KB) * 40));
     }
 
-    EXPECT_TRUE(AllSet(std::move(futures)).Get().IsOK());
+    EXPECT_TRUE(AllSet(std::move(futures)).BlockingGet().IsOK());
 }
 
 TYPED_TEST(TNotGrpcTest, MemoryOvercommit)
@@ -1003,10 +1003,10 @@ TYPED_TEST(TNotGrpcTest, RequestQueueByteSizeLimit)
         auto req = proxy.SlowCall();
         req->set_request_codec(ToProto(requestCodecId));
         req->set_message(std::string(1_MB, 'x'));
-        EXPECT_EQ(NRpc::EErrorCode::RequestQueueSizeLimitExceeded, req->Invoke().Get().GetCode());
+        EXPECT_EQ(NRpc::EErrorCode::RequestQueueSizeLimitExceeded, req->Invoke().BlockingGet().GetCode());
     }
 
-    EXPECT_TRUE(AllSucceeded(std::move(futures)).Get().IsOK());
+    EXPECT_TRUE(AllSucceeded(std::move(futures)).BlockingGet().IsOK());
 }
 
 TYPED_TEST(TRpcTest, ConcurrencyLimit)
@@ -1037,9 +1037,9 @@ TYPED_TEST(TRpcTest, ConcurrencyLimit)
     EXPECT_FALSE(backlogFuture.IsSet());
     ReleaseLatchedCalls();
 
-    EXPECT_TRUE(AllSucceeded(std::move(futures)).Get().IsOK());
+    EXPECT_TRUE(AllSucceeded(std::move(futures)).BlockingGet().IsOK());
 
-    EXPECT_TRUE(backlogFuture.Get().IsOK());
+    EXPECT_TRUE(backlogFuture.BlockingGet().IsOK());
 
     ResetLatch();
 }
@@ -1048,7 +1048,7 @@ TYPED_TEST(TRpcTest, NoReply)
 {
     TTestProxy proxy(this->CreateChannel());
     auto req = proxy.NoReply();
-    auto rspOrError = req->Invoke().Get();
+    auto rspOrError = req->Invoke().BlockingGet();
     EXPECT_EQ(NRpc::EErrorCode::Unavailable, rspOrError.GetCode());
 }
 
@@ -1056,18 +1056,18 @@ TYPED_TEST(TRpcTest, CustomErrorMessage)
 {
     TTestProxy proxy(this->CreateChannel());
     auto req = proxy.CustomMessageError();
-    auto rspOrError = req->Invoke().Get();
+    auto rspOrError = req->Invoke().BlockingGet();
     EXPECT_EQ(NYT::EErrorCode(42), rspOrError.GetCode());
     EXPECT_EQ("Some Error", rspOrError.GetMessage());
 }
 
 TYPED_TEST(TRpcTest, ServerStopped)
 {
-    this->GetServer()->Stop().Get().ThrowOnError();
+    this->GetServer()->Stop().BlockingGet().ThrowOnError();
     TTestProxy proxy(this->CreateChannel());
     auto req = proxy.SomeCall();
     req->set_a(42);
-    auto rspOrError = req->Invoke().Get();
+    auto rspOrError = req->Invoke().BlockingGet();
     EXPECT_EQ(NRpc::EErrorCode::TransportError, rspOrError.GetCode());
 }
 
@@ -1086,7 +1086,7 @@ TYPED_TEST(TRpcTest, ConnectionLost)
     Sleep(TDuration::Seconds(2));
 
     EXPECT_TRUE(asyncRspOrError.IsSet());
-    auto rspOrError = asyncRspOrError.Get();
+    auto rspOrError = asyncRspOrError.BlockingGet();
     EXPECT_EQ(NRpc::EErrorCode::TransportError, rspOrError.GetCode());
     WaitFor(this->GetTestService()->GetSlowCallCanceled())
         .ThrowOnError();
@@ -1096,7 +1096,7 @@ TYPED_TEST(TRpcTest, ManuallyCanceledByServer)
 {
     TTestProxy proxy(this->CreateChannel());
     auto req = proxy.ManuallyCanceledByServer();
-    auto rspOrError = req->Invoke().Get();
+    auto rspOrError = req->Invoke().BlockingGet();
     EXPECT_EQ(NYT::EErrorCode::Canceled, rspOrError.GetCode());
 }
 
@@ -1105,7 +1105,7 @@ TYPED_TEST(TNotGrpcTest, ProtocolVersionMismatch)
     TTestIncorrectProtocolVersionProxy proxy(this->CreateChannel());
     auto req = proxy.SomeCall();
     req->set_a(42);
-    auto rspOrError = req->Invoke().Get();
+    auto rspOrError = req->Invoke().BlockingGet();
     EXPECT_EQ(NRpc::EErrorCode::ProtocolError, rspOrError.GetCode());
 }
 
@@ -1114,7 +1114,7 @@ TYPED_TEST(TNotGrpcTest, RequiredServerFeatureSupported)
     TTestProxy proxy(this->CreateChannel());
     auto req = proxy.PassCall();
     req->RequireServerFeature(ETestFeature::Great);
-    auto rspOrError = req->Invoke().Get();
+    auto rspOrError = req->Invoke().BlockingGet();
     EXPECT_TRUE(rspOrError.IsOK()) << ToString(rspOrError);
 }
 
@@ -1123,7 +1123,7 @@ TYPED_TEST(TNotGrpcTest, RequiredServerFeatureNotSupported)
     TTestProxy proxy(this->CreateChannel());
     auto req = proxy.PassCall();
     req->RequireServerFeature(ETestFeature::Cool);
-    auto rspOrError = req->Invoke().Get();
+    auto rspOrError = req->Invoke().BlockingGet();
     EXPECT_EQ(NRpc::EErrorCode::UnsupportedServerFeature, rspOrError.GetCode());
     EXPECT_EQ(static_cast<int>(ETestFeature::Cool), rspOrError.Attributes().Get<int>(FeatureIdAttributeKey));
     EXPECT_EQ(ToString(ETestFeature::Cool), rspOrError.Attributes().Get<std::string>(FeatureNameAttributeKey));
@@ -1134,7 +1134,7 @@ TYPED_TEST(TNotGrpcTest, RequiredClientFeatureSupported)
     TTestProxy proxy(this->CreateChannel());
     auto req = proxy.RequireCoolFeature();
     req->DeclareClientFeature(ETestFeature::Cool);
-    auto rspOrError = req->Invoke().Get();
+    auto rspOrError = req->Invoke().BlockingGet();
     EXPECT_TRUE(rspOrError.IsOK()) << ToString(rspOrError);
 }
 
@@ -1143,7 +1143,7 @@ TYPED_TEST(TNotGrpcTest, RequiredClientFeatureNotSupported)
     TTestProxy proxy(this->CreateChannel());
     auto req = proxy.RequireCoolFeature();
     req->DeclareClientFeature(ETestFeature::Great);
-    auto rspOrError = req->Invoke().Get();
+    auto rspOrError = req->Invoke().BlockingGet();
     EXPECT_EQ(NRpc::EErrorCode::UnsupportedClientFeature, rspOrError.GetCode());
     EXPECT_EQ(static_cast<int>(ETestFeature::Cool), rspOrError.Attributes().Get<int>(FeatureIdAttributeKey));
     EXPECT_EQ(ToString(ETestFeature::Cool), rspOrError.Attributes().Get<std::string>(FeatureNameAttributeKey));
@@ -1166,7 +1166,7 @@ TYPED_TEST(TRpcTest, StopWithActiveRequests)
     auto stopResult = this->GetTestService()->Stop();
 
     EXPECT_FALSE(stopResult.IsSet());
-    EXPECT_TRUE(reqResult.Get().IsOK());
+    EXPECT_TRUE(reqResult.BlockingGet().IsOK());
     Sleep(TDuration::Seconds(0.5));
     EXPECT_TRUE(stopResult.IsSet());
 }
@@ -1180,7 +1180,7 @@ TYPED_TEST(TRpcTest, NoMoreRequestsAfterStop)
     auto req = proxy.SlowCall();
     auto reqResult = req->Invoke();
 
-    EXPECT_FALSE(reqResult.Get().IsOK());
+    EXPECT_FALSE(reqResult.BlockingGet().IsOK());
 }
 
 TYPED_TEST(TRpcTest, CustomMetadata)
@@ -1205,7 +1205,7 @@ TYPED_TEST(TGrpcTest, SendMessageLimit)
     TTestProxy proxy(this->CreateChannel(std::nullopt, std::move(arguments)));
     auto req = proxy.SomeCall();
     req->set_a(42);
-    auto error = req->Invoke().Get();
+    auto error = req->Invoke().BlockingGet();
     EXPECT_EQ(NRpc::EErrorCode::ProtocolError, error.GetCode());
     EXPECT_THAT(error.GetMessage(), testing::HasSubstr("Sent message larger than max"));
 }
@@ -1243,7 +1243,7 @@ TEST_F(TAttachmentsInputStreamTest, AbortPropagatesToRead)
     EXPECT_FALSE(future.IsSet());
     stream->Abort(TError("oops"));
     EXPECT_TRUE(future.IsSet());
-    EXPECT_FALSE(future.Get().IsOK());
+    EXPECT_FALSE(future.BlockingGet().IsOK());
 }
 
 TEST_F(TAttachmentsInputStreamTest, EnqueueBeforeRead)
@@ -1255,7 +1255,7 @@ TEST_F(TAttachmentsInputStreamTest, EnqueueBeforeRead)
 
     auto future = stream->Read();
     EXPECT_TRUE(future.IsSet());
-    EXPECT_TRUE(TRef::AreBitwiseEqual(payload, future.Get().ValueOrThrow()));
+    EXPECT_TRUE(TRef::AreBitwiseEqual(payload, future.BlockingGet().ValueOrThrow()));
     EXPECT_EQ(7, stream->GetFeedback().ReadPosition);
 }
 
@@ -1270,7 +1270,7 @@ TEST_F(TAttachmentsInputStreamTest, ReadBeforeEnqueue)
     stream->EnqueuePayload(MakePayload(0, std::vector<TSharedRef>{payload}));
 
     EXPECT_TRUE(future.IsSet());
-    EXPECT_TRUE(TRef::AreBitwiseEqual(payload, future.Get().ValueOrThrow()));
+    EXPECT_TRUE(TRef::AreBitwiseEqual(payload, future.BlockingGet().ValueOrThrow()));
     EXPECT_EQ(7, stream->GetFeedback().ReadPosition);
 }
 
@@ -1284,12 +1284,12 @@ TEST_F(TAttachmentsInputStreamTest, CloseBeforeRead)
 
     auto future1 = stream->Read();
     EXPECT_TRUE(future1.IsSet());
-    EXPECT_TRUE(TRef::AreBitwiseEqual(payload, future1.Get().ValueOrThrow()));
+    EXPECT_TRUE(TRef::AreBitwiseEqual(payload, future1.BlockingGet().ValueOrThrow()));
     EXPECT_EQ(7, stream->GetFeedback().ReadPosition);
 
     auto future2 = stream->Read();
     EXPECT_TRUE(future2.IsSet());
-    EXPECT_TRUE(!future2.Get().ValueOrThrow());
+    EXPECT_TRUE(!future2.BlockingGet().ValueOrThrow());
     EXPECT_EQ(8, stream->GetFeedback().ReadPosition);
 }
 
@@ -1305,12 +1305,12 @@ TEST_F(TAttachmentsInputStreamTest, Reordering)
 
     auto future1 = stream->Read();
     EXPECT_TRUE(future1.IsSet());
-    EXPECT_TRUE(TRef::AreBitwiseEqual(payload1, future1.Get().ValueOrThrow()));
+    EXPECT_TRUE(TRef::AreBitwiseEqual(payload1, future1.BlockingGet().ValueOrThrow()));
     EXPECT_EQ(8, stream->GetFeedback().ReadPosition);
 
     auto future2 = stream->Read();
     EXPECT_TRUE(future2.IsSet());
-    EXPECT_TRUE(TRef::AreBitwiseEqual(payload2, future2.Get().ValueOrThrow()));
+    EXPECT_TRUE(TRef::AreBitwiseEqual(payload2, future2.BlockingGet().ValueOrThrow()));
     EXPECT_EQ(16, stream->GetFeedback().ReadPosition);
 }
 
@@ -1321,7 +1321,7 @@ TEST_F(TAttachmentsInputStreamTest, EmptyAttachmentReadPosition)
     EXPECT_EQ(0, stream->GetFeedback().ReadPosition);
     auto future = stream->Read();
     EXPECT_TRUE(future.IsSet());
-    EXPECT_EQ(0u, future.Get().ValueOrThrow().size());
+    EXPECT_EQ(0u, future.BlockingGet().ValueOrThrow().size());
     EXPECT_EQ(1, stream->GetFeedback().ReadPosition);
 }
 
@@ -1331,14 +1331,14 @@ TEST_F(TAttachmentsInputStreamTest, Close)
     stream->EnqueuePayload(MakePayload(0, {TSharedRef()}));
     auto future = stream->Read();
     EXPECT_TRUE(future.IsSet());
-    EXPECT_FALSE(future.Get().ValueOrThrow());
+    EXPECT_FALSE(future.BlockingGet().ValueOrThrow());
 }
 
 TEST_F(TAttachmentsInputStreamTest, Timeout)
 {
     auto stream = CreateStream(TDuration::MilliSeconds(100));
     auto future = stream->Read();
-    auto error = future.Get();
+    auto error = future.BlockingGet();
     EXPECT_FALSE(error.IsOK());
     EXPECT_EQ(NYT::EErrorCode::Timeout, error.GetCode());
 }
@@ -1382,7 +1382,7 @@ TEST_F(TAttachmentsOutputStreamTest, SinglePull)
     auto future = stream->Write(payload);
     EXPECT_EQ(1, PullCallbackCounter_);
     EXPECT_TRUE(future.IsSet());
-    EXPECT_TRUE(future.Get().IsOK());
+    EXPECT_TRUE(future.BlockingGet().IsOK());
 
     auto result = stream->TryPull();
     EXPECT_TRUE(result);
@@ -1402,7 +1402,7 @@ TEST_F(TAttachmentsOutputStreamTest, MultiplePull)
         auto future = stream->Write(payload);
         EXPECT_EQ(i + 1, PullCallbackCounter_);
         EXPECT_TRUE(future.IsSet());
-        EXPECT_TRUE(future.Get().IsOK());
+        EXPECT_TRUE(future.BlockingGet().IsOK());
     }
 
     auto result = stream->TryPull();
@@ -1421,7 +1421,7 @@ TEST_F(TAttachmentsOutputStreamTest, Backpressure)
     auto payload1 = TSharedRef::FromString("abc");
     auto future1 = stream->Write(payload1);
     EXPECT_TRUE(future1.IsSet());
-    EXPECT_TRUE(future1.Get().IsOK());
+    EXPECT_TRUE(future1.BlockingGet().IsOK());
     EXPECT_EQ(1, PullCallbackCounter_);
 
     auto payload2 = TSharedRef::FromString("def");
@@ -1442,15 +1442,15 @@ TEST_F(TAttachmentsOutputStreamTest, Backpressure)
     EXPECT_EQ(3, PullCallbackCounter_);
 
     EXPECT_TRUE(future1.IsSet());
-    EXPECT_TRUE(future1.Get().IsOK());
+    EXPECT_TRUE(future1.BlockingGet().IsOK());
 
     EXPECT_TRUE(future2.IsSet());
-    EXPECT_TRUE(future2.Get().IsOK());
+    EXPECT_TRUE(future2.BlockingGet().IsOK());
 
     auto payload3 = TSharedRef::FromString("x");
     auto future3 = stream->Write(payload3);
     EXPECT_TRUE(future3.IsSet());
-    EXPECT_TRUE(future3.Get().IsOK());
+    EXPECT_TRUE(future3.BlockingGet().IsOK());
     EXPECT_EQ(4, PullCallbackCounter_);
 
     auto result2 = stream->TryPull();
@@ -1474,10 +1474,10 @@ TEST_F(TAttachmentsOutputStreamTest, Abort1)
     stream->Abort(TError("oops"));
 
     EXPECT_TRUE(future1.IsSet());
-    EXPECT_FALSE(future1.Get().IsOK());
+    EXPECT_FALSE(future1.BlockingGet().IsOK());
 
     EXPECT_TRUE(future2.IsSet());
-    EXPECT_FALSE(future2.Get().IsOK());
+    EXPECT_FALSE(future2.BlockingGet().IsOK());
 }
 
 TEST_F(TAttachmentsOutputStreamTest, Abort2)
@@ -1491,11 +1491,11 @@ TEST_F(TAttachmentsOutputStreamTest, Abort2)
     stream->Abort(TError("oops"));
 
     EXPECT_TRUE(future1.IsSet());
-    EXPECT_FALSE(future1.Get().IsOK());
+    EXPECT_FALSE(future1.BlockingGet().IsOK());
 
     auto future2 = stream->Close();
     EXPECT_TRUE(future2.IsSet());
-    EXPECT_FALSE(future2.Get().IsOK());
+    EXPECT_FALSE(future2.BlockingGet().IsOK());
 }
 
 TEST_F(TAttachmentsOutputStreamTest, Close1)
@@ -1515,7 +1515,7 @@ TEST_F(TAttachmentsOutputStreamTest, Close1)
     stream->HandleFeedback({1});
 
     EXPECT_TRUE(future.IsSet());
-    EXPECT_TRUE(future.Get().IsOK());
+    EXPECT_TRUE(future.BlockingGet().IsOK());
 }
 
 TEST_F(TAttachmentsOutputStreamTest, Close2)
@@ -1525,7 +1525,7 @@ TEST_F(TAttachmentsOutputStreamTest, Close2)
     auto payload = TSharedRef::FromString("abc");
     auto future1 = stream->Write(payload);
     EXPECT_TRUE(future1.IsSet());
-    EXPECT_TRUE(future1.Get().IsOK());
+    EXPECT_TRUE(future1.BlockingGet().IsOK());
     EXPECT_EQ(1, PullCallbackCounter_);
 
     auto future2 = stream->Close();
@@ -1546,7 +1546,7 @@ TEST_F(TAttachmentsOutputStreamTest, Close2)
     stream->HandleFeedback({4});
 
     EXPECT_TRUE(future2.IsSet());
-    EXPECT_TRUE(future2.Get().IsOK());
+    EXPECT_TRUE(future2.BlockingGet().IsOK());
 }
 
 TEST_F(TAttachmentsOutputStreamTest, WriteTimeout)
@@ -1557,11 +1557,11 @@ TEST_F(TAttachmentsOutputStreamTest, WriteTimeout)
 
     auto future1 = stream->Write(payload);
     EXPECT_TRUE(future1.IsSet());
-    EXPECT_TRUE(future1.Get().IsOK());
+    EXPECT_TRUE(future1.BlockingGet().IsOK());
 
     auto future2 = stream->Write(payload);
     EXPECT_FALSE(future2.IsSet());
-    auto error = future2.Get();
+    auto error = future2.BlockingGet();
     EXPECT_FALSE(error.IsOK());
     EXPECT_EQ(NYT::EErrorCode::Timeout, error.GetCode());
 }
@@ -1572,7 +1572,7 @@ TEST_F(TAttachmentsOutputStreamTest, CloseTimeout)
 
     auto future = stream->Close();
     EXPECT_FALSE(future.IsSet());
-    auto error = future.Get();
+    auto error = future.BlockingGet();
     EXPECT_FALSE(error.IsOK());
     EXPECT_EQ(NYT::EErrorCode::Timeout, error.GetCode());
 }
@@ -1585,11 +1585,11 @@ TEST_F(TAttachmentsOutputStreamTest, CloseTimeout2)
 
     auto future1 = stream->Write(payload);
     EXPECT_TRUE(future1.IsSet());
-    EXPECT_TRUE(future1.Get().IsOK());
+    EXPECT_TRUE(future1.BlockingGet().IsOK());
 
     auto future2 = stream->Write(payload);
     EXPECT_TRUE(future2.IsSet());
-    EXPECT_TRUE(future2.Get().IsOK());
+    EXPECT_TRUE(future2.BlockingGet().IsOK());
 
     auto future3 = stream->Close();
     EXPECT_FALSE(future3.IsSet());
@@ -1601,7 +1601,7 @@ TEST_F(TAttachmentsOutputStreamTest, CloseTimeout2)
     Sleep(TDuration::MilliSeconds(500));
 
     ASSERT_TRUE(future3.IsSet());
-    auto error = future3.Get();
+    auto error = future3.BlockingGet();
     EXPECT_FALSE(error.IsOK());
     EXPECT_EQ(NYT::EErrorCode::Timeout, error.GetCode());
 }

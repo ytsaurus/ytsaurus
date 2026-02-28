@@ -140,7 +140,7 @@ public:
     {
         TCurrentTraceContextGuard guard(TraceContext_);
 
-        if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
+        if (!ReadyEvent_.IsSet() || !ReadyEvent_.BlockingGet().IsOK()) {
             return true;
         }
 
@@ -160,7 +160,7 @@ public:
         }
 
         YT_VERIFY(ReadyEvent_.IsSet());
-        if (ReadyEvent_.Get().IsOK()) {
+        if (ReadyEvent_.BlockingGet().IsOK()) {
             *block = GetBlock();
             YT_VERIFY(!block->Data.Empty());
             BlockFetched_ = true;
@@ -192,7 +192,7 @@ public:
 
     std::vector<TChunkId> GetFailedChunkIds() const override
     {
-        if (ReadyEvent_.IsSet() && !ReadyEvent_.Get().IsOK()) {
+        if (ReadyEvent_.IsSet() && !ReadyEvent_.BlockingGet().IsOK()) {
             return std::vector<TChunkId>(1, ChunkReader_->GetChunkId());
         } else {
             return std::vector<TChunkId>();
@@ -326,7 +326,7 @@ private:
 
     TBlock GetBlock()
     {
-        const auto& block = CurrentBlock_.Get().ValueOrThrow();
+        const auto& block = CurrentBlock_.BlockingGet().ValueOrThrow();
 
         const auto* begin = block.Data.Begin();
         const auto* end = block.Data.End();
@@ -387,7 +387,7 @@ public:
 
     bool ReadBlock(TBlock* block) override
     {
-        if (!MultiReaderManager_->GetReadyEvent().IsSet() || !MultiReaderManager_->GetReadyEvent().Get().IsOK()) {
+        if (!MultiReaderManager_->GetReadyEvent().IsSet() || !MultiReaderManager_->GetReadyEvent().BlockingGet().IsOK()) {
             return true;
         }
 

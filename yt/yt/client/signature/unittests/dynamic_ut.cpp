@@ -26,12 +26,12 @@ TEST(TDynamicSignatureValidatorTest, SetUnderlying)
     auto dynamicValidator = New<TDynamicSignatureValidator>(CreateDummySignatureValidator());
     auto signature = New<TSignature>();
 
-    EXPECT_TRUE(dynamicValidator->Validate(signature).Get().Value());
+    EXPECT_TRUE(dynamicValidator->Validate(signature).BlockingGet().Value());
 
     dynamicValidator->SetUnderlying(CreateAlwaysThrowingSignatureValidator());
 
     EXPECT_THROW_WITH_SUBSTRING(
-        dynamicValidator->Validate(signature).Get(),
+        dynamicValidator->Validate(signature).BlockingGet(),
         "unsupported");
 }
 

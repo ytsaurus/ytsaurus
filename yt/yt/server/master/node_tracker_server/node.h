@@ -325,6 +325,9 @@ public:
     //! Checks that node state is either Online, Registered or Restarted.
     bool HasAliveLocalState() const;
 
+    //! Checks that node is in Registered or Restarted state at any cell.
+    bool IsRegisteredOrRestartedAtAnyCell() const;
+
     //! Gets the cell reliability for node descriptor.
     ECellAggregatedStateReliability GetCellAggregatedStateReliability(NObjectClient::TCellTag cellTag) const;
     //! Gets the local cell reliability by dereferencing local descriptor pointer.

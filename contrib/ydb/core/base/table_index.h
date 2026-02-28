@@ -123,6 +123,17 @@ namespace NFulltext {
     inline constexpr const char* StatsTable = "indexImplStatsTable";
     inline constexpr const char* DocCountColumn = "__ydb_doc_count";
     inline constexpr const char* SumDocLengthColumn = "__ydb_sum_doc_length";
+
+    inline constexpr const char* FullTextRelevanceColumn = "__ydb_full_text_relevance";
+
+    enum class EDefaultOperator {
+        Invalid,
+        And,
+        Or
+    };
+
+    EDefaultOperator DefaultOperatorFromString(const TString& mode, TString& explain);
+    ui32 MinimumShouldMatchFromString(i32 wordsCount, EDefaultOperator defaultOperator, const TString& minimumShouldMatch, TString& explain);
 }
 
 TString ToShortDebugString(const NKikimrTxDataShard::TEvReshuffleKMeansRequest& record);

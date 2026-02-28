@@ -45,6 +45,9 @@ public:
     IHedgingManagerRegistryPtr GetHedgingManagerRegistry() const override;
     ITabletWriteManagerHostPtr GetTabletWriteManagerHost() const override;
     IVersionedChunkMetaManagerPtr GetVersionedChunkMetaManager() const override;
+    const TCompactionHintFetcherPtr& GetCompactionHintFetcher(NLsm::EStoreCompactionHintKind /*kind*/) const override;
+    IInvokerPtr GetStorageHeavyInvoker() const override;
+    TSimpleLruCache<NChunkClient::TChunkId, TMinHashDigestPtr>* GetMinHashDigestCache() const override;
     TMockBackendChunkReadersHolderPtr GetBackendChunkReadersHolder() const;
 
 private:

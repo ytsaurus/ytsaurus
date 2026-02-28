@@ -156,6 +156,12 @@ INode::TPtr CreateIndexType(TIndexDescription::EType type, const INode& node) {
             return node.Q("globalFulltextPlain");
         case TIndexDescription::EType::GlobalFulltextRelevance:
             return node.Q("globalFulltextRelevance");
+        case TIndexDescription::EType::GlobalJson:
+            return node.Q("globalJson");
+        case TIndexDescription::EType::LocalBloomFilter:
+            return node.Q("localBloomFilter");
+        case TIndexDescription::EType::LocalBloomNgramFilter:
+            return node.Q("localBloomNgramFilter");
     }
 }
 
@@ -368,6 +374,9 @@ INode::TPtr CreateChangefeedDesc(const TChangefeedDescription& desc, const INode
     }
     if (desc.Settings.UserSIDs) {
         settings = node.L(settings, node.Q(node.Y(node.Q("user_sids"), desc.Settings.UserSIDs)));
+    }
+    if (desc.Settings.TraceIds) {
+        settings = node.L(settings, node.Q(node.Y(node.Q("trace_ids"), desc.Settings.TraceIds)));
     }
     if (desc.Settings.VirtualTimestamps) {
         settings = node.L(settings, node.Q(node.Y(node.Q("virtual_timestamps"), desc.Settings.VirtualTimestamps)));
@@ -665,8 +674,7 @@ public:
                 return nullptr;
             }
 
-            for (ui32 index = 0; index < Args_.size(); ++index) {
-                auto& arg = Args_[index];
+            for (auto& arg : Args_) {
                 if (arg.HasAt) {
                     ctx.Error(Pos_) << "Temporary tables are not supported here";
                     return nullptr;
@@ -804,8 +812,7 @@ public:
             auto settings = Y();
             // TVector<TNodePtr> settings;
             size_t argc = 0;
-            for (ui32 index = 0; index < Args_.size(); ++index) {
-                auto& arg = Args_[index];
+            for (auto& arg : Args_) {
                 if (arg.HasAt) {
                     ctx.Error(arg.Expr->GetPos()) << "Temporary tables are not supported here";
                     return nullptr;
@@ -1689,6 +1696,29 @@ public:
                         }
 
                         columnDesc = L(columnDesc, Q(Y(Q("changeCompression"), Q(columnCompression))));
+                        columns = L(columns, Q(columnDesc));
+
+                        break;
+                    }
+                    case TColumnSchema::ETypeOfChange::SetDefault: {
+                        auto columnDesc = Y();
+                        columnDesc = L(columnDesc, BuildQuotedAtom(Pos_, col.Name));
+
+                        YQL_ENSURE(col.DefaultExpr);
+                        if (!col.DefaultExpr->Init(ctx, src)) {
+                            return false;
+                        }
+
+                        columnDesc = L(columnDesc, Q(Y(Q("setDefaultValue"), col.DefaultExpr)));
+                        columns = L(columns, Q(columnDesc));
+
+                        break;
+                    }
+                    case TColumnSchema::ETypeOfChange::DropDefault: {
+                        auto columnDesc = Y();
+                        columnDesc = L(columnDesc, BuildQuotedAtom(Pos_, col.Name));
+
+                        columnDesc = L(columnDesc, Q(Y(Q("dropDefault"))));
                         columns = L(columns, Q(columnDesc));
 
                         break;
@@ -3703,13 +3733,13 @@ public:
         Node_ = L(Node_, datasource);
 
         if (Name_ == TStringBuf("flags")) {
-            for (ui32 i = 0; i < Values_.size(); ++i) {
-                Node_ = L(Node_, Values_[i].Build());
+            for (const auto& value : Values_) {
+                Node_ = L(Node_, value.Build());
             }
         } else if (Name_ == TStringBuf("AddFileByUrl") || Name_ == TStringBuf("SetFileOption") || Name_ == TStringBuf("AddFolderByUrl") || Name_ == TStringBuf("ImportUdfs") || Name_ == TStringBuf("SetPackageVersion") || Name_ == TStringBuf("Layer")) {
             Node_ = L(Node_, BuildQuotedAtom(Pos_, Name_));
-            for (ui32 i = 0; i < Values_.size(); ++i) {
-                Node_ = L(Node_, Values_[i].Build());
+            for (const auto& value : Values_) {
+                Node_ = L(Node_, value.Build());
             }
         } else if (Name_ == TStringBuf("auth")) {
             Node_ = L(Node_, BuildQuotedAtom(Pos_, "Auth"));

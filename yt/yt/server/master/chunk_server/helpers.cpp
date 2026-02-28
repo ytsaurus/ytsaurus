@@ -8,6 +8,7 @@
 #include "domestic_medium.h"
 #include "dynamic_store.h"
 #include "job.h"
+#include "s3_medium.h"
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
@@ -1250,11 +1251,19 @@ void SerializeMediumDirectory(
     const IChunkManagerPtr& chunkManager)
 {
     for (auto [mediumId, medium] : chunkManager->Media()) {
-        auto* protoItem = protoMediumDirectory->add_items();
+        auto* protoMediumDescriptor = protoMediumDirectory->add_medium_descriptors();
 
-        protoItem->set_index(medium->GetIndex());
-        protoItem->set_name(medium->GetName());
-        protoItem->set_priority(medium->GetPriority());
+        protoMediumDescriptor->set_index(medium->GetIndex());
+        protoMediumDescriptor->set_name(medium->GetName());
+        protoMediumDescriptor->set_priority(medium->GetPriority());
+
+        if (medium->IsDomestic()) {
+            protoMediumDescriptor->mutable_domestic_medium_descriptor();
+        } else {
+            auto* s3Medium = medium->As<TS3Medium>();
+            auto* s3MediumDescriptor = protoMediumDescriptor->mutable_s3_medium_descriptor();
+            s3MediumDescriptor->set_config(ConvertToYsonString(s3Medium->Config()).AsStringBuf());
+        }
     }
 }
 

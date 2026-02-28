@@ -36,7 +36,11 @@ void TRelativeReplicationThrottlerConfig::Register(TRegistrar registrar)
 
 void TRowDigestCompactionConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+
     registrar.Parameter("max_obsolete_timestamp_ratio", &TThis::MaxObsoleteTimestampRatio)
+        .InRange(0, 1)
         .Default(0.5);
     registrar.Parameter("max_timestamps_per_value", &TThis::MaxTimestampsPerValue)
         .GreaterThanOrEqual(1)
@@ -51,6 +55,14 @@ void TMinHashDigestCompactionConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("chunk_writer", &TThis::ChunkWriter)
         .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TAggregateVersionedRowDigestCompactionConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -270,6 +282,8 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("row_digest_compaction", &TThis::RowDigestCompaction)
         .DefaultNew();
     registrar.Parameter("min_hash_digest_compaction", &TThis::MinHashDigestCompaction)
+        .DefaultNew();
+    registrar.Parameter("aggregate_versioned_row_digest_compaction", &TThis::AggregateVersionedRowDigestCompaction)
         .DefaultNew();
 
     registrar.Parameter("enable_lookup_hash_table", &TThis::EnableLookupHashTable)

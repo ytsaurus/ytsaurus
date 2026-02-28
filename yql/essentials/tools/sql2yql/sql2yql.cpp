@@ -90,19 +90,38 @@ void ExtractQuery(TPosOutput& out, const google::protobuf::Message& node) {
     const Reflection* ref = node.GetReflection();
     ref->ListFields(node, &fields);
 
-    for (auto it = fields.begin(); it != fields.end(); ++it) {
-        if ((*it)->is_repeated()) {
-            const ui32 fieldSize = ref->FieldSize(node, *it);
+    for (auto& field : fields) {
+        if (field->is_repeated()) {
+            const ui32 fieldSize = ref->FieldSize(node, field);
             for (ui32 i = 0; i < fieldSize; ++i) {
-                VisitField(out, **it, ref->GetRepeatedMessage(node, *it, i));
+                VisitField(out, *field, ref->GetRepeatedMessage(node, field, i));
             }
         } else {
-            VisitField(out, **it, ref->GetMessage(node, *it));
+            VisitField(out, *field, ref->GetMessage(node, field));
         }
     }
 }
 
 } // namespace
+
+bool TestIssues(const NYql::TAstParseResult& parseRes, bool isStrictWarningAsError) {
+    bool isOk = parseRes.IsOk();
+
+    const bool hasError = AnyOf(parseRes.Issues, [](const NYql::TIssue& issue) {
+        return issue.GetSeverity() <= NYql::TSeverityIds::S_ERROR;
+    });
+
+    if (parseRes.IsOk() && hasError && isStrictWarningAsError) {
+        Cerr << "Errors reported, but yql compiled result!" << Endl << Endl;
+        isOk = false;
+    }
+
+    if (!parseRes.IsOk() && !hasError) {
+        Cerr << "No error reported, but no yql compiled result!" << Endl << Endl;
+    }
+
+    return isOk;
+}
 
 bool TestFormat(
     const TString& query,
@@ -187,7 +206,7 @@ THolder<TMessage> ParseProtoConfig(const TString& cfgFile) {
 
 } // namespace
 
-int BuildAST(int argc, char* argv[]) {
+int BuildAST(int argc, char** argv) {
     NLastGetopt::TOpts opts = NLastGetopt::TOpts::Default();
 
     TString outFileName;
@@ -405,50 +424,40 @@ int BuildAST(int argc, char* argv[]) {
                     parseRes = NSQLTranslation::SqlToYql(translators, query, settings);
                 }
             }
-            if (noDebug && parseRes.IsOk()) {
-                continue;
-            }
-            if (parseRes.Root) {
-                TStringStream yqlProgram;
-                parseRes.Root->PrettyPrintTo(yqlProgram, NYql::TAstPrintFlags::PerLine | NYql::TAstPrintFlags::ShortQuote);
+
+            if (!noDebug && parseRes.IsOk()) {
                 if (res.Has("yql")) {
+                    TStringStream yqlProgram;
+                    parseRes.Root->PrettyPrintTo(yqlProgram, NYql::TAstPrintFlags::PerLine | NYql::TAstPrintFlags::ShortQuote);
                     out << yqlProgram.Str();
                 }
+
                 if (res.Has("ann")) {
                     TMemoryPool pool(1024);
                     NYql::AnnotatePositions(*parseRes.Root, pool)->PrettyPrintTo(out, NYql::TAstPrintFlags::PerLine);
                 }
             }
 
-            bool hasError = false;
-            if (!parseRes.Issues.Empty()) {
-                hasError = AnyOf(parseRes.Issues, [](const auto& issue) { return issue.GetSeverity() <= NYql::TSeverityIds::S_ERROR; });
+            const bool isSQLv1 =
+                (parseRes.ActualSyntaxType == NYql::ESyntaxType::YQLv1 &&
+                 !res.Has("pg"));
 
-                if (hasError || !noDebug) {
-                    parseRes.Issues.PrintWithProgramTo(Cerr, queryFile, query);
-                }
+            bool hasError = !TestIssues(parseRes, flags.contains("StrictWarningAsError"));
+
+            if (hasError || !noDebug) {
+                parseRes.Issues.PrintWithProgramTo(Cerr, queryFile, query);
             }
 
-            if (!parseRes.IsOk() && !hasError) {
-                hasError = true;
-                Cerr << "No error reported, but no yql compiled result!" << Endl << Endl;
+            if (res.Has("test-format") && isSQLv1 && parseRes.IsOk()) {
+                hasError |= !TestFormat(query, settings, outFileNameFormat, res.Has("test-double-format"));
             }
 
-            if (parseRes.IsOk() && hasError && flags.contains("StrictWarningAsError")) {
-                hasError = true;
-                Cerr << "Errors reported, but yql compiled result!" << Endl << Endl;
+            if (res.Has("test-lexers") && isSQLv1 && parseRes.IsOk()) {
+                hasError |= !TestLexers(query);
             }
 
-            if (res.Has("test-format") && syntaxVersion == 1 && !hasError && parseRes.Root) {
-                hasError = !TestFormat(query, settings, outFileNameFormat, res.Has("test-double-format"));
-            }
-
-            if (res.Has("test-lexers") && syntaxVersion == 1 && !res.Has("pg") && !hasError && parseRes.Root) {
-                hasError = !TestLexers(query);
-            }
-
-            if (res.Has("test-complete") && syntaxVersion == 1 && !hasError && parseRes.Root) {
-                hasError = !TestComplete(query, *parseRes.Root);
+            if (res.Has("test-complete") && isSQLv1 && parseRes.IsOk()) {
+                hasError |= !TestComplete(query, *parseRes.Root);
             }
 
             if (hasError) {
@@ -460,7 +469,7 @@ int BuildAST(int argc, char* argv[]) {
     return errors;
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char** argv) {
     try {
         return BuildAST(argc, argv);
     } catch (...) {

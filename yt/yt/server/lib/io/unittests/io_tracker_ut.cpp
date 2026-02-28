@@ -175,7 +175,7 @@ TEST(TIOTrackerTest, Concurrent)
         asyncResults.push_back(std::move(asyncResult));
     }
     AllSucceeded(asyncResults)
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
     threadPool->Shutdown();
 

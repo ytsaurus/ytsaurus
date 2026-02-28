@@ -2,8 +2,9 @@
 
 #include "private.h"
 #include "chunk_merger_traversal_info.h"
-#include "chunk_replacer.h"
 #include "chunk_owner_data_statistics.h"
+#include "chunk_replacer.h"
+#include "chunk_tree_balancer.h"
 #include "job.h"
 #include "job_controller.h"
 
@@ -159,6 +160,10 @@ public:
     void OnJobCompleted(const TMergeJobPtr& job) override;
     void OnJobAborted(const TMergeJobPtr& job) override;
     void OnJobFailed(const TMergeJobPtr& job) override;
+
+    void TweakTraversalInfoAfterRebalance(
+        TChunkList* rootChunkList,
+        TChunkTreeBalancer::TRebalanceStatistics rebalanceStatistics);
 
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);

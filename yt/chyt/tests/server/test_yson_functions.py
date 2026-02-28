@@ -245,6 +245,8 @@ class TestYsonFunctions(ClickHouseTestBase):
             assert result == [{"i": object["a"][2]}]
             result = clique.make_query("select YPathExtract(a, '/a', 'Array(Array(UInt64))') as i from \"//tmp/s1\"")
             assert result == [{"i": object["a"]}]
+            result = clique.make_query("select YPathExtract(a, '/b', 'String') as i from \"//tmp/s1\"")
+            assert result == [{"i": ""}]
 
     # CHYT-370.
     @authors("max42")

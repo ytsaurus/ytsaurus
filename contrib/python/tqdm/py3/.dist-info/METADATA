@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: tqdm
-Version: 4.67.2
+Version: 4.67.3
 Summary: Fast, Extensible Progress Meter
 Maintainer-email: tqdm developers <devs@tqdm.ml>
 License: MPL-2.0 AND MIT
@@ -67,6 +67,7 @@ Requires-Python: >=3.7
 Description-Content-Type: text/x-rst
 License-File: LICENCE
 Requires-Dist: colorama; platform_system == "Windows"
+Requires-Dist: importlib_metadata; python_version < "3.8"
 Provides-Extra: dev
 Requires-Dist: pytest>=6; extra == "dev"
 Requires-Dist: pytest-cov; extra == "dev"

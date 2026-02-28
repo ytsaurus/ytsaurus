@@ -918,7 +918,8 @@ class Expression(metaclass=_Expression):
             self.meta["end"] = end
         elif hasattr(other, "meta"):
             for k in POSITION_META_KEYS:
-                self.meta[k] = other.meta[k]
+                if k in other.meta:
+                    self.meta[k] = other.meta[k]
         else:
             self.meta["line"] = other.line
             self.meta["col"] = other.col
@@ -2612,11 +2613,14 @@ class Literal(Condition):
     def number(cls, number) -> Literal | Neg:
         expr: Literal | Neg = cls(this=str(number), is_string=False)
 
-        to_py = expr.to_py()
+        try:
+            to_py = expr.to_py()
 
-        if not isinstance(to_py, str) and to_py < 0:
-            expr.set("this", str(abs(to_py)))
-            expr = Neg(this=expr)
+            if not isinstance(to_py, str) and to_py < 0:
+                expr.set("this", str(abs(to_py)))
+                expr = Neg(this=expr)
+        except Exception:
+            pass
 
         return expr
 
@@ -6112,6 +6116,10 @@ class ArrayInsert(Func):
     arg_types = {"this": True, "position": True, "expression": True, "offset": False}
 
 
+class ArrayRemoveAt(Func):
+    arg_types = {"this": True, "position": True}
+
+
 class ArrayConstructCompact(Func):
     arg_types = {"expressions": False}
     is_var_len_args = True
@@ -6238,7 +6246,7 @@ class LastValue(AggFunc):
 
 
 class NthValue(AggFunc):
-    arg_types = {"this": True, "offset": True}
+    arg_types = {"this": True, "offset": True, "from_first": False}
 
 
 class ObjectAgg(AggFunc):

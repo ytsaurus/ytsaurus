@@ -1475,6 +1475,13 @@ public:
 
         auto unexportChunk = [&] {
             chunk->Unexport(destinationCellTag, importRefCounter, requisitionRegistry, objectManager);
+            // COMPAT(koloshmet)
+            if (!GetDynamicConfig()->UpdateHistoricallyNonVitalInUnexport) {
+                return;
+            }
+            if (!IsDurabilityRequiredForChunk(chunk, chunk->GetAggregatedRequisitionIndex())) {
+                chunk->SetHistoricallyNonVital(true);
+            }
         };
 
         if (chunk->GetExternalRequisitionIndex(destinationCellTag) == EmptyChunkRequisitionIndex) {
@@ -1510,6 +1517,11 @@ public:
         }
     }
 
+    bool IsDurabilityRequiredForChunk(TChunk* chunk, TChunkRequisitionIndex requisitionIndex) override
+    {
+        auto replication = GetChunkRequisitionRegistry()->GetReplication(requisitionIndex);
+        return replication.IsDurable(this, chunk->IsErasure());
+    }
 
     TChunkView* CreateChunkView(TChunkTree* underlyingTree, TChunkViewModifier modifier) override
     {
@@ -1714,13 +1726,15 @@ public:
             YT_LOG_DEBUG("Chunk tree rebalancing started (RootId: %v, Mode: %v)",
                 chunklistId,
                 settingsMode);
-            ChunkTreeBalancer_.Rebalance(chunkList);
+
+            auto rebalanceStatistics = ChunkTreeBalancer_.Rebalance(chunkList);
+            ChunkMerger_->TweakTraversalInfoAfterRebalance(chunkList, rebalanceStatistics);
+
             YT_LOG_DEBUG("Chunk tree rebalancing completed (RootId: %v, Mode: %v)",
                 chunklistId,
                 settingsMode);
         }
     }
-
 
     void StageChunkList(TChunkList* chunkList, TTransaction* transaction, TAccount* account)
     {
@@ -4505,7 +4519,6 @@ private:
         auto local = requestCellTag == multicellManager->GetCellTag();
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto* requisitionRegistry = GetChunkRequisitionRegistry();
 
         THashMap<TChunkRequisitionIndex, bool> durabilityRequiredCache;
         std::pair<TChunkRequisitionIndex, bool> lastDurabilityRequiredCacheEntry{EmptyChunkRequisitionIndex, false};
@@ -4521,14 +4534,15 @@ private:
             if (it != durabilityRequiredCache.end()) {
                 durabilityRequired = it->second;
             } else {
-                auto replication = requisitionRegistry->GetReplication(requisitionIndex);
-                durabilityRequired = replication.IsDurable(this, chunk->IsErasure());
+                durabilityRequired = IsDurabilityRequiredForChunk(chunk, requisitionIndex);
                 EmplaceOrCrash(durabilityRequiredCache, requisitionIndex, durabilityRequired);
             }
 
             lastDurabilityRequiredCacheEntry = {requisitionIndex, durabilityRequired};
             return durabilityRequired;
         };
+
+        auto* requisitionRegistry = GetChunkRequisitionRegistry();
 
         auto setChunkRequisitionIndex = [&] (TChunk* chunk, TChunkRequisitionIndex requisitionIndex) {
             if (local) {
@@ -5562,7 +5576,7 @@ private:
                         replica.GetReplicaState());
                 }
             })
-                .Get()
+                .BlockingGet()
                 .ThrowOnError();
 
             YT_LOG_INFO("Finished initializing chunks");
@@ -5592,7 +5606,7 @@ private:
 
                 location->ResetLoadScratchData();
             })
-                .Get()
+                .BlockingGet()
                 .ThrowOnError();
 
             YT_LOG_INFO("Finished initializing chunk locations");
@@ -7141,6 +7155,8 @@ private:
 
     TFuture<NCellMaster::NProto::TCellStatistics> GetCellStatistics() override
     {
+        VerifyPersistentStateRead();
+
         auto channels = GetChunkReplicatorChannels();
         std::vector<TFuture<TIntrusivePtr<TObjectServiceProxy::TRspExecuteBatch>>> responsesFutures;
 
@@ -7159,22 +7175,30 @@ private:
             responsesFutures.push_back(batchReq->Invoke());
         }
 
+        std::optional<int> onlineNodeCount;
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster()) {
+            const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+            onlineNodeCount = nodeTracker->GetOnlineNodeCount();
+        }
+
         return AllSet(std::move(responsesFutures))
-            .Apply(BIND([this, this_ = MakeStrong(this)] (const std::vector<TErrorOr<TIntrusivePtr<TObjectServiceProxy::TRspExecuteBatch>>>& rspOrErrors) {
+            .Apply(BIND(
+            [
+                onlineNodeCount,
+                chunkCount = Chunks().GetSize()
+            ] (const std::vector<TErrorOr<TIntrusivePtr<TObjectServiceProxy::TRspExecuteBatch>>>& rspOrErrors) {
                 NCellMaster::NProto::TCellStatistics cellStatistics;
 
-                cellStatistics.set_chunk_count(Chunks().GetSize());
+                cellStatistics.set_chunk_count(chunkCount);
                 cellStatistics.set_lost_vital_chunk_count(0);
                 cellStatistics.set_data_missing_chunk_count(0);
                 cellStatistics.set_parity_missing_chunk_count(0);
                 cellStatistics.set_oldest_part_missing_chunk_count(0);
                 cellStatistics.set_quorum_missing_chunk_count(0);
                 cellStatistics.set_inconsistently_placed_chunk_count(0);
-
-                const auto& multicellManager = Bootstrap_->GetMulticellManager();
-                if (multicellManager->IsPrimaryMaster()) {
-                    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-                    cellStatistics.set_online_node_count(nodeTracker->GetOnlineNodeCount());
+                if (onlineNodeCount.has_value()) {
+                    cellStatistics.set_online_node_count(*onlineNodeCount);
                 }
 
                 std::array<i64, 6> responsesSum{};
@@ -7214,7 +7238,8 @@ private:
                 cellStatistics.set_quorum_missing_chunk_count(responsesSum[4]);
                 cellStatistics.set_inconsistently_placed_chunk_count(responsesSum[5]);
                 return cellStatistics;
-            }));
+            })
+            .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
     }
 
     std::vector<TError> GetAlerts() const

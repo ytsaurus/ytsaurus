@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v0.0.0-20250804133106-a7a43d27e69b)
+VERSION(v0.0.0-20251222181119-0a764e51fe1b)
 
 SRCS(
     error_details.pb.go

@@ -22,7 +22,7 @@
 #include <yt/yt/ytlib/sequoia_client/record_helpers.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 
-#include <yt/yt/ytlib/sequoia_client/records/child_node.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/child_nodes.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/doomed_transactions.record.h>

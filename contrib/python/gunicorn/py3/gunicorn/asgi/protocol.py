@@ -10,6 +10,7 @@ and dispatch to ASGI applications.
 """
 
 import asyncio
+import errno
 from datetime import datetime
 
 from gunicorn.asgi.unreader import AsyncUnreader
@@ -17,6 +18,16 @@ from gunicorn.asgi.message import AsyncRequest
 from gunicorn.asgi.uwsgi import AsyncUWSGIRequest
 from gunicorn.http.errors import NoMoreData
 from gunicorn.uwsgi.errors import UWSGIParseException
+
+
+def _normalize_sockaddr(sockaddr):
+    """Normalize socket address to ASGI-compatible (host, port) tuple.
+
+    ASGI spec requires server/client to be (host, port) tuples.
+    IPv6 sockets return 4-tuples (host, port, flowinfo, scope_id),
+    so we extract just the first two elements.
+    """
+    return tuple(sockaddr[:2]) if sockaddr else None
 
 
 class ASGIResponseInfo:
@@ -55,6 +66,7 @@ class ASGIProtocol(asyncio.Protocol):
 
         # Connection state
         self._closed = False
+        self._receive_queue = None  # Set per-request for disconnect signaling
 
     def connection_made(self, transport):
         """Called when a connection is established."""
@@ -88,13 +100,63 @@ class ASGIProtocol(asyncio.Protocol):
             self.reader.feed_data(data)
 
     def connection_lost(self, exc):
-        """Called when the connection is lost or closed."""
+        """Called when the connection is lost or closed.
+
+        Instead of immediately cancelling the task, we signal a disconnect
+        event and send an http.disconnect message to the receive queue.
+        This allows the ASGI app to clean up resources (like database
+        connections) gracefully before the task is cancelled.
+
+        See: https://github.com/benoitc/gunicorn/issues/3484
+        """
+        # Guard against multiple calls (idempotent)
+        if self._closed:
+            return
+
         self._closed = True
         self.worker.nr_conns -= 1
         if self.reader:
             self.reader.feed_eof()
+
+        # Signal disconnect to the app via the receive queue
+        if self._receive_queue is not None:
+            self._receive_queue.put_nowait({"type": "http.disconnect"})
+
+        # Schedule task cancellation after grace period if task doesn't complete
+        if self._task and not self._task.done():
+            grace_period = getattr(self.cfg, 'asgi_disconnect_grace_period', 3)
+            if grace_period > 0:
+                self.worker.loop.call_later(
+                    grace_period,
+                    self._cancel_task_if_pending
+                )
+            else:
+                # Grace period of 0 means cancel immediately
+                self._task.cancel()
+
+    def _cancel_task_if_pending(self):
+        """Cancel the task if it's still pending after grace period."""
         if self._task and not self._task.done():
             self._task.cancel()
+
+    def _safe_write(self, data):
+        """Write data to transport, handling connection errors gracefully.
+
+        Catches exceptions that occur when the client has disconnected:
+        - OSError with errno EPIPE, ECONNRESET, ENOTCONN
+        - RuntimeError when transport is closing/closed
+        - AttributeError when transport is None
+
+        These are silently ignored since the client is already gone.
+        """
+        try:
+            self.transport.write(data)
+        except OSError as e:
+            if e.errno not in (errno.EPIPE, errno.ECONNRESET, errno.ENOTCONN):
+                self.log.exception("Socket error writing response.")
+        except (RuntimeError, AttributeError):
+            # Transport is closing/closed or None
+            pass
 
     async def _handle_connection(self):
         """Main request handling loop for this connection."""
@@ -124,9 +186,6 @@ class ASGIProtocol(asyncio.Protocol):
                             peername,
                             self.req_count
                         )
-                except StopIteration:
-                    # No more data, close connection
-                    break
                 except NoMoreData:
                     # Client disconnected
                     break
@@ -207,14 +266,17 @@ class ASGIProtocol(asyncio.Protocol):
         response_started = False
         response_complete = False
         exc_to_raise = None
+        use_chunked = False
 
         # Response tracking for access logging
         response_status = 500
         response_headers = []
         response_sent = 0
 
-        # Receive queue for body
+        # Receive queue for body - stored on self for disconnect signaling
         receive_queue = asyncio.Queue()
+        self._receive_queue = receive_queue
+        body_complete = False
 
         # Pre-populate with initial body state
         if request.content_length == 0 and not request.chunked:
@@ -223,16 +285,33 @@ class ASGIProtocol(asyncio.Protocol):
                 "body": b"",
                 "more_body": False,
             })
+            body_complete = True
         else:
             # Start body reading task
             asyncio.create_task(self._read_body_to_queue(request, receive_queue))
 
         async def receive():
-            return await receive_queue.get()
+            nonlocal body_complete
+            # Check if already disconnected before waiting
+            if self._closed and body_complete:
+                return {"type": "http.disconnect"}
+
+            msg = await receive_queue.get()
+
+            # Track when body is complete
+            if msg.get("type") == "http.request" and not msg.get("more_body", True):
+                body_complete = True
+
+            return msg
 
         async def send(message):
             nonlocal response_started, response_complete, exc_to_raise
-            nonlocal response_status, response_headers, response_sent
+            nonlocal response_status, response_headers, response_sent, use_chunked
+
+            # If client disconnected, silently ignore send attempts
+            # This allows apps to finish cleanup without errors
+            if self._closed:
+                return
 
             msg_type = message["type"]
 
@@ -250,6 +329,19 @@ class ASGIProtocol(asyncio.Protocol):
                 response_started = True
                 response_status = message["status"]
                 response_headers = message.get("headers", [])
+
+                # Check if Content-Length is present
+                has_content_length = any(
+                    (name.lower() if isinstance(name, str) else name.lower()) == b"content-length"
+                    or (name.lower() if isinstance(name, str) else name.lower()) == "content-length"
+                    for name, _ in response_headers
+                )
+
+                # Use chunked encoding for HTTP/1.1 streaming responses without Content-Length
+                if not has_content_length and request.version >= (1, 1):
+                    use_chunked = True
+                    response_headers = list(response_headers) + [(b"transfer-encoding", b"chunked")]
+
                 await self._send_response_start(response_status, response_headers, request)
 
             elif msg_type == "http.response.body":
@@ -264,10 +356,13 @@ class ASGIProtocol(asyncio.Protocol):
                 more_body = message.get("more_body", False)
 
                 if body:
-                    await self._send_body(body)
+                    await self._send_body(body, chunked=use_chunked)
                     response_sent += len(body)
 
                 if not more_body:
+                    if use_chunked:
+                        # Send terminal chunk
+                        self._safe_write(b"0\r\n\r\n")
                     response_complete = True
 
         # Build environ for logging
@@ -288,6 +383,10 @@ class ASGIProtocol(asyncio.Protocol):
                 await self._send_error_response(500, "Internal Server Error")
                 response_status = 500
 
+        except asyncio.CancelledError:
+            # Client disconnected - don't log as error, this is normal
+            self.log.debug("Request cancelled (client disconnected)")
+            return False
         except Exception:
             self.log.exception("Error in ASGI application")
             if not response_started:
@@ -295,6 +394,9 @@ class ASGIProtocol(asyncio.Protocol):
                 response_status = 500
             return False
         finally:
+            # Clear the receive queue reference
+            self._receive_queue = None
+
             try:
                 request_time = datetime.now() - request_start
                 # Create response info for logging
@@ -343,6 +445,9 @@ class ASGIProtocol(asyncio.Protocol):
         for name, value in request.headers:
             headers.append((name.lower().encode("latin-1"), value.encode("latin-1")))
 
+        server = _normalize_sockaddr(sockname)
+        client = _normalize_sockaddr(peername)
+
         scope = {
             "type": "http",
             "asgi": {"version": "3.0", "spec_version": "2.4"},
@@ -354,8 +459,8 @@ class ASGIProtocol(asyncio.Protocol):
             "query_string": request.query.encode("latin-1") if request.query else b"",
             "root_path": self.cfg.root_path or "",
             "headers": headers,
-            "server": sockname if sockname else None,
-            "client": peername if peername else None,
+            "server": server,
+            "client": client,
         }
 
         # Add state dict for lifespan sharing
@@ -405,6 +510,9 @@ class ASGIProtocol(asyncio.Protocol):
                 subprotocols = [s.strip() for s in value.split(",")]
                 break
 
+        server = _normalize_sockaddr(sockname)
+        client = _normalize_sockaddr(peername)
+
         scope = {
             "type": "websocket",
             "asgi": {"version": "3.0", "spec_version": "2.4"},
@@ -415,8 +523,8 @@ class ASGIProtocol(asyncio.Protocol):
             "query_string": request.query.encode("latin-1") if request.query else b"",
             "root_path": self.cfg.root_path or "",
             "headers": headers,
-            "server": sockname if sockname else None,
-            "client": peername if peername else None,
+            "server": server,
+            "client": client,
             "subprotocols": subprotocols,
         }
 
@@ -452,7 +560,7 @@ class ASGIProtocol(asyncio.Protocol):
             response += f"{name}: {value}\r\n"
 
         response += "\r\n"
-        self.transport.write(response.encode("latin-1"))
+        self._safe_write(response.encode("latin-1"))
 
     async def _send_response_start(self, status, headers, request):
         """Send HTTP response status and headers."""
@@ -474,12 +582,17 @@ class ASGIProtocol(asyncio.Protocol):
         header_lines.append("Server: gunicorn/asgi\r\n")
 
         response = status_line + "".join(header_lines) + "\r\n"
-        self.transport.write(response.encode("latin-1"))
+        self._safe_write(response.encode("latin-1"))
 
-    async def _send_body(self, body):
+    async def _send_body(self, body, chunked=False):
         """Send response body chunk."""
         if body:
-            self.transport.write(body)
+            if chunked:
+                # Chunked encoding: size in hex + CRLF + data + CRLF
+                chunk = f"{len(body):x}\r\n".encode("latin-1") + body + b"\r\n"
+                self._safe_write(chunk)
+            else:
+                self._safe_write(body)
 
     async def _send_error_response(self, status, message):
         """Send an error response."""
@@ -491,8 +604,8 @@ class ASGIProtocol(asyncio.Protocol):
             f"Connection: close\r\n"
             f"\r\n"
         )
-        self.transport.write(response.encode("latin-1"))
-        self.transport.write(body)
+        self._safe_write(response.encode("latin-1"))
+        self._safe_write(body)
 
     def _get_reason_phrase(self, status):
         """Get HTTP reason phrase for status code."""
@@ -534,9 +647,16 @@ class ASGIProtocol(asyncio.Protocol):
         return reasons.get(status, "Unknown")
 
     def _close_transport(self):
-        """Close the transport safely."""
+        """Close the transport safely.
+
+        Calls write_eof() first if supported to signal end of writing,
+        which helps ensure buffered data is flushed before closing.
+        """
         if self.transport and not self._closed:
             try:
+                # Signal end of writing to help flush buffers
+                if self.transport.can_write_eof():
+                    self.transport.write_eof()
                 self.transport.close()
             except Exception:
                 pass
@@ -772,6 +892,9 @@ class ASGIProtocol(asyncio.Protocol):
                 value.encode("latin-1")
             ))
 
+        server = _normalize_sockaddr(sockname)
+        client = _normalize_sockaddr(peername)
+
         scope = {
             "type": "http",
             "asgi": {"version": "3.0", "spec_version": "2.4"},
@@ -783,8 +906,8 @@ class ASGIProtocol(asyncio.Protocol):
             "query_string": request.query.encode("latin-1") if request.query else b"",
             "root_path": self.cfg.root_path or "",
             "headers": headers,
-            "server": sockname if sockname else None,
-            "client": peername if peername else None,
+            "server": server,
+            "client": client,
         }
 
         if hasattr(self.worker, 'state'):

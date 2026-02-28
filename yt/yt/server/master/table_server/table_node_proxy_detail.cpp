@@ -64,8 +64,9 @@
 
 #include <yt/yt/library/query/secondary_index/schema.h>
 
-#include <yt/yt/client/chaos_client/replication_card_serialization.h>
 #include <yt/yt/client/chaos_client/helpers.h>
+#include <yt/yt/client/chaos_client/replication_card.h>
+#include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
 #include <yt/yt/client/chunk_client/read_limit.h>
 
@@ -90,6 +91,7 @@ namespace NYT::NTableServer {
 
 using namespace NApi;
 using namespace NChaosClient;
+using namespace NChaosServer;
 using namespace NChunkClient;
 using namespace NChunkServer;
 using namespace NConcurrency;
@@ -160,25 +162,24 @@ void TTableNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* context)
         }
 
         if (checkOptions.Columns) {
-            for (size_t index = 0; index < checkOptions.Columns->size(); ++index) {
-                const auto& column = (*checkOptions.Columns)[index];
-                const auto& result = (*checkResponse.Columns)[index];
-                if (result.Action == ESecurityAction::Deny) {
-                    if (context->OmitInaccessibleColumns) {
-                        if (!context->OmittedInaccessibleColumns) {
-                            context->OmittedInaccessibleColumns.emplace();
-                        }
-                        context->OmittedInaccessibleColumns->push_back(column);
-                    } else {
-                        TPermissionCheckTarget target;
-                        target.ObjectId = Object_->GetId();
-                        target.Column = column;
-                        securityManager->LogAndThrowAuthorizationError(
-                            target,
-                            user,
-                            EPermission::Read,
-                            result);
+            for (const auto& [column, result] : Zip(*checkOptions.Columns, *checkResponse.Columns)) {
+                if (result.Action != ESecurityAction::Deny) {
+                    continue;
+                }
+                if (context->OmitInaccessibleColumns) {
+                    if (!context->OmittedInaccessibleColumns) {
+                        context->OmittedInaccessibleColumns.emplace();
                     }
+                    context->OmittedInaccessibleColumns->push_back(column);
+                } else {
+                    TPermissionCheckTarget target;
+                    target.ObjectId = Object_->GetId();
+                    target.Column = column;
+                    securityManager->LogAndThrowAuthorizationError(
+                        target,
+                        user,
+                        EPermission::Read,
+                        result);
                 }
             }
         }
@@ -295,6 +296,10 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationProgress)
         .SetExternal(isExternal)
         .SetPresent(isDynamic)
+        .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationLagTimes)
+        .SetExternal(isExternal)
+        .SetPresent(isDynamic && trunkTable->GetReplicationCardId())
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TableChunkFormatStatistics)
         .SetExternal(isExternal)
@@ -1304,6 +1309,14 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
                 break;
             }
             return GetQueueAgentAttributeAsync(Bootstrap_, table->GetQueueAgentStage(), GetPath(), key);
+        }
+
+        case EInternedAttributeKey::ReplicationLagTimes: {
+            if (isExternal) {
+                break;
+            }
+
+            return GetReplicationLagTimesAsync(*table, Bootstrap_->GetClusterConnection());
         }
 
         default:

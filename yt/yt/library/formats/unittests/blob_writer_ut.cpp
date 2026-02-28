@@ -60,7 +60,7 @@ TEST_F(TSchemalesssBlobWriterTest, Simple)
 
     EXPECT_TRUE(Writer_->Write(rows));
     Writer_->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     std::string expectedOutput = "helloworld";
@@ -83,7 +83,7 @@ TEST_F(TSchemalesssBlobWriterTest, ConfiguredColumnNames)
 
     EXPECT_TRUE(Writer_->Write({row1.Get()}));
     Writer_->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     std::string expectedOutput = "hello";
@@ -108,7 +108,7 @@ TEST_F(TSchemalesssBlobWriterTest, PartIndexStartNonZero)
 
     EXPECT_TRUE(Writer_->Write(rows));
     Writer_->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     std::string expectedOutput = "helloworld";
@@ -132,7 +132,7 @@ TEST_F(TSchemalesssBlobWriterTest, PartIndexWrongOrder)
     std::vector<TUnversionedRow> rows = {row1.Get(), row2.Get()};
 
     EXPECT_FALSE(Writer_->Write(rows));
-    EXPECT_THROW(Writer_->Close().Get().ThrowOnError(), TErrorException);
+    EXPECT_THROW(Writer_->Close().BlockingGet().ThrowOnError(), TErrorException);
 }
 
 TEST_F(TSchemalesssBlobWriterTest, MissingValue)
@@ -151,7 +151,7 @@ TEST_F(TSchemalesssBlobWriterTest, MissingValue)
     std::vector<TUnversionedRow> rows = {row1.Get(), row2.Get()};
 
     EXPECT_FALSE(Writer_->Write(rows));
-    EXPECT_THROW(Writer_->Close().Get().ThrowOnError(), TErrorException);
+    EXPECT_THROW(Writer_->Close().BlockingGet().ThrowOnError(), TErrorException);
 }
 
 TEST_F(TSchemalesssBlobWriterTest, InvalidColumnType)
@@ -164,7 +164,7 @@ TEST_F(TSchemalesssBlobWriterTest, InvalidColumnType)
     });
 
     EXPECT_FALSE(Writer_->Write({row1.Get()}));
-    EXPECT_THROW(Writer_->Close().Get().ThrowOnError(), TErrorException);
+    EXPECT_THROW(Writer_->Close().BlockingGet().ThrowOnError(), TErrorException);
 }
 
 TEST_F(TSchemalesssBlobWriterTest, UnsupportedControlAttribute)

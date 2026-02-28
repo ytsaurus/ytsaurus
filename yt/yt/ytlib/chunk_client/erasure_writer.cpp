@@ -277,7 +277,7 @@ public:
         for (const auto& block : blocks) {
             WriteBlock(options, workloadDescriptor, block);
         }
-        return ReadyEvent_.IsSet() && ReadyEvent_.Get().IsOK();
+        return ReadyEvent_.IsSet() && ReadyEvent_.BlockingGet().IsOK();
     }
 
     TFuture<void> GetReadyEvent() override
@@ -433,7 +433,7 @@ bool TErasureWriter::WriteBlock(
         Blocks_.clear();
     }
 
-    return ReadyEvent_.IsSet() && ReadyEvent_.Get().IsOK();
+    return ReadyEvent_.IsSet() && ReadyEvent_.BlockingGet().IsOK();
 }
 
 TFuture<void> TErasureWriter::WriteDataBlocks(

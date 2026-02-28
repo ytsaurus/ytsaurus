@@ -177,16 +177,27 @@ void BuildFileSpecs(
         if (file.GpuCheck) {
             descriptor = jobSpec->add_gpu_check_volume_layers();
         } else if (file.Layer) {
+            auto createVolumeDescriptor = [&] (const std::string& volumeId) {
+                auto* volumeDescriptor = (*jobSpec->mutable_volumes())[volumeId].add_layers();
+                BuildFileSpec(volumeDescriptor, file, config->CopyFiles, enableBypassArtifactCache);
+            };
+
             // COMPAT (krasovav)
             descriptor = jobSpec->add_root_volume_layers();
-            for (const auto& [name, volume] : config->Volumes) {
+            bool layerInserted = false;
+            for (const auto& [volumeId, volume] : config->Volumes) {
                 for (const auto& layer : volume->Layers) {
                     if (layer->Path == file.Path) {
-                        auto* volumeDescriptor = (*jobSpec->mutable_volumes())[name].add_layers();
-                        BuildFileSpec(volumeDescriptor, file, config->CopyFiles, enableBypassArtifactCache);
+                        createVolumeDescriptor(volumeId);
+                        layerInserted = true;
                         break;
                     }
                 }
+            }
+
+            if (!layerInserted) {
+                YT_VERIFY(!config->JobVolumeMounts.empty() && config->JobVolumeMounts[0]->MountPath == "/");
+                createVolumeDescriptor(config->JobVolumeMounts[0]->VolumeId);
             }
         } else {
             descriptor = jobSpec->add_files();
@@ -486,11 +497,11 @@ TDiskQuota CreateDiskQuota(
     }
     // Enrich diskRequestConfig with MediumIndex.
     if (!diskRequestConfig->MediumIndex) {
-        auto* mediumDescriptor = mediumDirectory->FindByName(*diskRequestConfig->MediumName);
+        auto mediumDescriptor = mediumDirectory->FindByName(*diskRequestConfig->MediumName);
         if (!mediumDescriptor) {
             THROW_ERROR_EXCEPTION("Unknown medium %Qv", *diskRequestConfig->MediumName);
         }
-        diskRequestConfig->MediumIndex = mediumDescriptor->Index;
+        diskRequestConfig->MediumIndex = mediumDescriptor->GetIndex();
     }
     return NScheduler::CreateDiskQuota(*diskRequestConfig->MediumIndex, diskRequestConfig->DiskSpace);
 }

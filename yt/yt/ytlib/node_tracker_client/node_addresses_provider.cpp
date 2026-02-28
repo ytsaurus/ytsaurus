@@ -125,7 +125,7 @@ public:
             if (TerminationError_.IsOK()) {
                 TerminationError_ = error;
                 if (ChannelPromise_.IsSet()) {
-                    const auto& channelOrError = ChannelPromise_.Get();
+                    const auto& channelOrError = ChannelPromise_.BlockingGet();
                     if (channelOrError.IsOK()) {
                         const auto& channel = channelOrError.Value();
                         channel->Terminate(error);
@@ -177,7 +177,7 @@ private:
         if (!ChannelPromise_.IsSet()) {
             return NullChannel_;
         }
-        const auto& channelOrError = ChannelPromise_.Get();
+        const auto& channelOrError = ChannelPromise_.BlockingGet();
         if (!channelOrError.IsOK()) {
             return NullChannel_;
         }

@@ -72,6 +72,14 @@ class TestStandaloneTabletBalancerBase:
         for instance in instances:
             yield get(f"{self.root_path}/instances/{instance}/orchid/tablet_balancer")
 
+    def _get_last_iteration_instance(self, instances):
+        start_times = list()
+        for (instance, orchid) in zip(instances, self._get_instances_orchid(instances)):
+            start_time = orchid.get("last_iteration_start_time")
+            if start_time:
+                start_times.append((start_time, instance))
+        return max(start_times, key=lambda pair: pair[0])[1]
+
     def _get_last_iteration_instance_orchid(self, instances=None):
         if instances is None:
             instances = ls(self.root_path + "/instances")
@@ -214,6 +222,34 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
             with_hunks=with_hunks,
             with_slicing=True)
 
+    @authors("navasardianna")
+    def test_errors_in_bundle_orchid(self):
+        self._configure_bundle("default")
+
+        set(
+            "//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups",
+            "string instead of map. Bazinga!"
+        )
+
+        instance = self._get_last_iteration_instance(get("//sys/tablet_balancer/instances"))
+
+        def _get_orchid(suffix):
+            return get(f"{self.root_path}/instances/{instance}/orchid/tablet_balancer{suffix}")
+
+        def _has_expected_error():
+            errors = _get_orchid("/bundles/default/retryable_errors")
+            return len(errors) > 0 and str(errors).find("Bundle has unparsable tablet balancer config") > 0
+
+        wait(lambda: _has_expected_error())
+
+        self._apply_dynamic_config_patch({
+            "bundle_errors_ttl": 100,
+        })
+
+        remove("//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups")
+
+        wait(lambda: len(_get_orchid("/bundles/default/retryable_errors")) == 0)
+
     def test_by_bundle_errors(self):
         instances = get("//sys/tablet_balancer/instances")
 
@@ -344,6 +380,89 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
         set("//sys/tablet_balancer/config/enable_smooth_movement", False)
         assert _run_and_get_action()["kind"] == "move"
 
+    @authors("atalmenev")
+    def test_inplace_reshard(self):
+        sync_create_cells(1)
+
+        existing_action_ids = builtins.set(ls("//sys/tablet_actions"))
+
+        self._apply_dynamic_config_patch({
+            "pick_reshard_pivot_keys": True,
+        })
+
+        def _get_singular_new_action_id():
+            nonlocal existing_action_ids
+
+            def _has_new_action():
+                self._wait_full_iteration()
+                new_action_ids = builtins.set(ls("//sys/tablet_actions"))
+                diff = new_action_ids - existing_action_ids
+                return len(diff) == 1
+
+            wait(_has_new_action)
+
+            new_action_ids = builtins.set(ls("//sys/tablet_actions"))
+            diff = new_action_ids - existing_action_ids
+            existing_action_ids = new_action_ids
+
+            return diff.pop()
+
+        self._create_sorted_table(
+            "//tmp/t",
+            tablet_balancer_config={
+                "enable_auto_reshard": False,
+                "enable_auto_tablet_move": False,
+            },
+            compression_codec="none")
+
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": key, "value": "A"} for key in range(100)])
+        sync_flush_table("//tmp/t")
+
+        def _run_and_get_action(desired_tablet_count):
+            config = get("//tmp/t/@tablet_balancer_config")
+            config.update({
+                "enable_auto_reshard": True,
+                "desired_tablet_count": desired_tablet_count,
+            })
+            set("//tmp/t/@tablet_balancer_config", config)
+
+            action_id = _get_singular_new_action_id()
+            set("//tmp/t/@tablet_balancer_config/enable_auto_reshard", False)
+
+            action = None
+
+            def _check():
+                nonlocal action
+                action = get(f"#{action_id}/@", attributes=["kind", "state", "error", "inplace_reshard"])
+                return action["state"] == "completed"
+
+            wait(_check)
+
+            return action
+
+        # Split
+        assert not _run_and_get_action(desired_tablet_count=2)["inplace_reshard"]
+        assert get("//tmp/t/@tablet_count") == 2
+
+        set("//sys/tablet_balancer/config/enable_inplace_reshard", True)
+        # Merge
+        assert not _run_and_get_action(desired_tablet_count=1)["inplace_reshard"]
+        assert get("//tmp/t/@tablet_count") == 1
+
+        # Split
+        assert _run_and_get_action(desired_tablet_count=2)["inplace_reshard"]
+        assert get("//tmp/t/@tablet_count") == 2
+
+        set("//tmp/t/@tablet_balancer_config/enable_inplace_reshard", False)
+        # Merge
+        assert not _run_and_get_action(desired_tablet_count=1)["inplace_reshard"]
+        assert get("//tmp/t/@tablet_count") == 1
+
+        # Split
+        assert not _run_and_get_action(desired_tablet_count=2)["inplace_reshard"]
+        assert get("//tmp/t/@tablet_count") == 2
+
     def test_many_bundles(self):
         bundles = ["default", "another", "third", "fourth"]
 
@@ -387,7 +506,7 @@ class TestStandaloneTabletBalancerSlow(TestStandaloneTabletBalancerBase, TabletA
         self._configure_bundle("default")
         sync_create_cells(2)
 
-        self._create_sorted_table("//tmp/t")
+        self._create_sorted_table("//tmp/t", optimize_for="lookup")
 
         set("//tmp/t/@max_partition_data_size", 320)
         set("//tmp/t/@desired_partition_data_size", 256)
@@ -680,7 +799,7 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
     def test_merge(self, parameterized_balancing_metric):
         sync_create_cells(2)
 
-        self._create_sorted_table("//tmp/t")
+        self._create_sorted_table("//tmp/t", optimize_for="lookup")
         self._set_default_metric(parameterized_balancing_metric)
         self._enable_parameterized_reshard("default")
 

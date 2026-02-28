@@ -42,3 +42,5 @@ myspyt   Finished
 ```
 
 Once all jobs are successfully completed (when `RELEASESTATUS` changes to `Finished`), you can run `SPYT`. For more information, see [this section](../../user-guide/data-processing/spyt/launch).
+
+Consider installing [Task proxy](../../admin-guide/install-task-proxy.md) if you want to open Spark UI from browser.

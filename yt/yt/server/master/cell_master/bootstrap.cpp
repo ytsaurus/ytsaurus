@@ -653,7 +653,7 @@ void TBootstrap::Initialize()
     BIND(&TBootstrap::DoInitialize, MakeStrong(this))
         .AsyncVia(GetControlInvoker())
         .Run()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 }
 
@@ -673,7 +673,7 @@ void TBootstrap::LoadSnapshot(
     BIND(&TBootstrap::DoLoadSnapshot, MakeStrong(this), fileName, dumpMode, std::move(dumpScopeFilter), checkInvariants)
         .AsyncVia(GetControlInvoker())
         .Run()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 }
 
@@ -682,7 +682,7 @@ void TBootstrap::ReplayChangelogs(std::vector<TString> changelogFileNames)
     BIND(&TBootstrap::DoReplayChangelogs, MakeStrong(this), Passed(std::move(changelogFileNames)))
         .AsyncVia(GetControlInvoker())
         .Run()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 }
 
@@ -691,7 +691,7 @@ void TBootstrap::FinishRecoveryDryRun()
     BIND(&TBootstrap::DoFinishRecoveryDryRun, MakeStrong(this))
         .AsyncVia(GetControlInvoker())
         .Run()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 }
 
@@ -700,7 +700,7 @@ void TBootstrap::BuildSnapshot()
     BIND(&TBootstrap::DoBuildSnapshot, MakeStrong(this))
         .AsyncVia(GetControlInvoker())
         .Run()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 }
 
@@ -709,7 +709,7 @@ void TBootstrap::FinishDryRun()
     BIND(&TBootstrap::DoFinishDryRun, MakeStrong(this))
         .AsyncVia(GetControlInvoker())
         .Run()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 }
 
@@ -1231,6 +1231,10 @@ void TBootstrap::DoStart()
         orchidRoot,
         "/sequoia_reign",
         ConvertToNode(GetCurrentSequoiaReign()));
+    SetNodeByYPath(
+        orchidRoot,
+        "/ground_reign",
+        ConvertToNode(GetCurrentGroundReign()));
     SetBuildAttributes(
         orchidRoot,
         "master");

@@ -871,7 +871,12 @@ type SetUserPasswordOptions struct{}
 
 type IssueTokenOptions struct{}
 
-type RevokeTokenOptions struct{}
+type RevokeTokenOptions struct {
+	// TokenIsHash indicates that the token parameter is already a SHA256 hash.
+	TokenIsHash bool
+	// PasswordIsHash indicates that the password parameter is already a SHA256 hash.
+	PasswordIsHash bool
+}
 
 type ListUserTokensOptions struct{}
 

@@ -975,8 +975,6 @@ def reshard_table(**kwargs):
         del kwargs["pivot_keys"]
     if kwargs.get("uniform") is False:
         del kwargs["uniform"]
-    if kwargs.get("enable_slicing") is False:
-        del kwargs["enable_slicing"]
     yt.reshard_table(**kwargs)
 
 
@@ -987,9 +985,13 @@ def add_reshard_table_parser(add_parser):
     parser.add_argument("--tablet-count", type=int)
     parser.add_argument("--sync", action="store_true")
     parser.add_argument("--uniform", action="store_true")
-    parser.add_argument("--enable-slicing", action="store_true")
     parser.add_argument("--slicing-accuracy", type=float)
     parser.add_argument("--trimmed-row-counts", type=int, nargs="+")
+    enable_slicing_parser = parser.add_mutually_exclusive_group(required=False)
+    enable_slicing_parser.add_argument(
+        "--enable-slicing", dest="enable_slicing", default=None, action="store_true")
+    enable_slicing_parser.add_argument(
+        "--no-enable-slicing", dest="enable_slicing", default=None, action="store_false")
 
 
 def add_reshard_table_automatic_parser(add_parser):

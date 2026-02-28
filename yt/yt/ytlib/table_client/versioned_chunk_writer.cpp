@@ -238,7 +238,7 @@ protected:
 
     TMemoryUsageTrackerGuard SamplesMemoryUsageGuard_;
 
-    TEncodingChunkWriterPtr EncodingChunkWriter_;
+    const TEncodingChunkWriterPtr EncodingChunkWriter_;
 
     TLegacyOwningKey LastKey_;
 
@@ -313,7 +313,7 @@ protected:
         SetProtoExtension(meta->mutable_extensions(), SystemBlockMetaExt_);
         if (RowDigestBuilder_) {
             TVersionedRowDigestExt rowDigestExt;
-            ToProto(&rowDigestExt, RowDigestBuilder_->FlushDigest());
+            ToProto(&rowDigestExt, *RowDigestBuilder_->FlushDigest());
             SetProtoExtension(meta->mutable_extensions(), rowDigestExt);
         }
 
@@ -971,12 +971,12 @@ private:
 
     bool IsSegmentMetaInBlocksEnabled() const
     {
-        return Config_->EnableSegmentMetaInBlocks.value_or(false);
+        return Config_->EnableSegmentMetaInBlocks.value_or(true);
     }
 
     bool IsColumnMetaInChunkMetaEnabled() const
     {
-        return Config_->EnableColumnMetaInChunkMeta.value_or(true);
+        return Config_->EnableColumnMetaInChunkMeta.value_or(false);
     }
 };
 

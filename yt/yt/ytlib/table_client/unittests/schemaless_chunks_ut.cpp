@@ -243,7 +243,7 @@ protected:
         InitNameTable(WriteNameTable_);
 
         Y_UNUSED(chunkWriter->Write(Rows_));
-        EXPECT_TRUE(chunkWriter->Close().Get().IsOK());
+        EXPECT_TRUE(chunkWriter->Close().BlockingGet().IsOK());
 
         MemoryReader_ = CreateMemoryReader(
             memoryWriter->GetChunkMeta(),
@@ -425,7 +425,7 @@ protected:
             /*dataSink*/ std::nullopt);
 
         Y_UNUSED(chunkWriter->Write(Rows_));
-        EXPECT_TRUE(chunkWriter->Close().Get().IsOK());
+        EXPECT_TRUE(chunkWriter->Close().BlockingGet().IsOK());
 
         ChunkMeta_ = memoryWriter->GetChunkMeta();
 
@@ -551,7 +551,7 @@ protected:
         Rows_ = builder.Build();
 
         Y_UNUSED(chunkWriter->Write(Rows_));
-        EXPECT_TRUE(chunkWriter->Close().Get().IsOK());
+        EXPECT_TRUE(chunkWriter->Close().BlockingGet().IsOK());
 
         MemoryReader_ = CreateMemoryReader(
             memoryWriter->GetChunkMeta(),
@@ -865,7 +865,7 @@ protected:
     void InitChunk()
     {
         Y_UNUSED(ChunkWriter_->Write(Rows_));
-        EXPECT_TRUE(ChunkWriter_->Close().Get().IsOK());
+        EXPECT_TRUE(ChunkWriter_->Close().BlockingGet().IsOK());
 
         MemoryReader_ = CreateMemoryReader(
             MemoryWriter_->GetChunkMeta(),

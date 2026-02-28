@@ -15,28 +15,17 @@ EXPRESSION_METADATA = {
     **{
         expr_type: {"returns": exp.DataType.Type.DOUBLE}
         for expr_type in {
-            exp.Asin,
-            exp.Acos,
-            exp.Atan,
             exp.Corr,
-            exp.Cos,
-            exp.Cosh,
             exp.MonthsBetween,
-            exp.Sin,
-            exp.Sinh,
-            exp.Tan,
-            exp.Tanh,
         }
     },
     **{
         expr_type: {"returns": exp.DataType.Type.VARCHAR}
         for expr_type in {
-            exp.CurrentCatalog,
             exp.CurrentDatabase,
             exp.CurrentSchema,
             exp.CurrentUser,
             exp.Hex,
-            exp.MD5,
             exp.Soundex,
         }
     },
@@ -51,7 +40,6 @@ EXPRESSION_METADATA = {
         expr_type: {"returns": exp.DataType.Type.INT}
         for expr_type in {
             exp.Month,
-            exp.Quarter,
             exp.Second,
         }
     },

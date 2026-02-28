@@ -92,12 +92,6 @@ public:
 
     void Initialize() override
     {
-        const auto& transactionManager = Bootstrap_->GetTransactionManager();
-
-        transactionManager->RegisterTransactionActionHandlers<TReqCopySynchronizablePortalAttributes>({
-            .Prepare = BIND_NO_PROPAGATE(&TPortalManager::HydraCopySynchronizablePortalAttributes, Unretained(this)),
-        });
-
         SynchronizePortalExitsExecutor_ = New<NConcurrency::TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::PortalManager),
             BIND(&TPortalManager::OnSynchronizePortalExits, MakeWeak(this)));
@@ -360,45 +354,6 @@ private:
         }
 
         return owner;
-    }
-
-    void HydraCopySynchronizablePortalAttributes(
-        TTransaction* transaction,
-        TReqCopySynchronizablePortalAttributes* request,
-        const TTransactionPrepareOptions& prepareOptions)
-    {
-        YT_VERIFY(prepareOptions.Persistent);
-
-        auto sourceNodeId = FromProto<TNodeId>(request->source_node_id());
-        auto destinationNodeId = FromProto<TNodeId>(request->destination_node_id());
-
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* sourceNode = cypressManager->FindNode(TVersionedNodeId(sourceNodeId));
-        auto* destinationNode = cypressManager->FindNode(TVersionedNodeId(destinationNodeId));
-        if (!sourceNode || !destinationNode) {
-            YT_LOG_INFO("Failed to copy synchronizable portal attributes; %v node does not exist "
-                "(TransactionId: %v, SourceNodeId: %v, DestinationNodeId: %v)",
-                sourceNode ? "destination" : "source",
-                transaction->GetId(),
-                sourceNodeId,
-                destinationNodeId);
-            return;
-        }
-
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto sourceAcd = securityManager->GetAcd(sourceNode);
-        {
-            auto destinationAcd = securityManager->GetAcd(destinationNode).AsMutable();
-            destinationAcd->SetEntries(sourceAcd->Acl());
-            destinationAcd->SetOwner(sourceAcd->GetOwner());
-            destinationAcd->SetInherit(sourceAcd->Inherit());
-        }
-
-        if (auto annotation = sourceNode->TryGetAnnotation()) {
-            destinationNode->SetAnnotation(std::move(*annotation));
-        } else {
-            destinationNode->RemoveAnnotation();
-        }
     }
 
     void HydraSynchronizePortalExit(NProto::TReqSynchronizePortalExits* request)

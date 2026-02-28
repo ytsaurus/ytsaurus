@@ -288,7 +288,7 @@ public:
         BIND(&TBootstrap::DoInitialize, MakeStrong(this))
             .AsyncVia(GetControlInvoker())
             .Run()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
     }
 

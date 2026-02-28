@@ -702,6 +702,41 @@ class TestNodesThrottling(YTEnvSetup):
         # Wait for nodes to become online, nothing should crash.
         wait(lambda: self.get_node_count() == self.NUM_NODES)
 
+    @authors("grphil")
+    def test_no_throttling_on_registered_nodes(self):
+        data_node_group = "data-node"
+        # Set registration throttling to force nodes fail simultaneous reregistration requests.
+        set("//sys/@config/node_tracker/node_groups", {
+            data_node_group: {
+                "node_tag_filter": data_node_group,
+                "max_concurrent_node_registrations": 1,
+            }
+        })
+
+        for node in ls("//sys/cluster_nodes"):
+            set(f"//sys/cluster_nodes/{node}/@user_tags", [data_node_group])
+            assert sorted(get(f"//sys/cluster_nodes/{node}/@node_groups")) == sorted([data_node_group, "default"])
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "testing_options": {
+                    "min_epoch_to_start_heartbeats": 3,
+                },
+            },
+        })
+
+        # Restart nodes to trigger reregistration.
+        with Restarter(self.Env, NODES_SERVICE, sync=False):
+            wait(lambda: self.get_node_count("offline") == self.NUM_NODES)
+            set("//sys/@config/node_tracker/max_locations_being_disposed", 0)
+            pass
+
+        # If some nodes are being disposed, than we have retried registration and it was not throttled.
+        wait(lambda: self.get_node_count("being_disposed") > 0)
+        set("//sys/@config/node_tracker/max_locations_being_disposed", 20)
+
+        wait(lambda: self.get_node_count() == self.NUM_NODES)
+
 ##################################################################
 
 

@@ -388,7 +388,7 @@ protected:
         auto unsealedChunkStatisticsFuture = GetOrCrash(UnsealedChunkIdToStatisticsFuture_, chunk->GetId());
         YT_VERIFY(unsealedChunkStatisticsFuture.IsSet());
         return unsealedChunkStatisticsFuture
-            .Get()
+            .BlockingGet()
             .ValueOrThrow();
     }
 
@@ -430,8 +430,8 @@ protected:
             if (auto future = RequestUnsealedChunksStatistics(*entry)) {
                 if (!future.IsSet()) {
                     return future;
-                } else if (!future.Get().IsOK()) {
-                    OnFinish(future.Get());
+                } else if (!future.BlockingGet().IsOK()) {
+                    OnFinish(future.BlockingGet());
                 }
             }
 

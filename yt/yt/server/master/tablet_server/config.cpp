@@ -134,6 +134,14 @@ void TDynamicCellHydraPersistenceSynchronizerConfig::Register(TRegistrar registr
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TDynamicTabletManagerTestingConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("mount_via_orphaned_tablet_actions", &TThis::MountViaOrphanedTabletActions)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("peer_revocation_timeout", &TThis::PeerRevocationTimeout)
@@ -185,7 +193,7 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("replicated_table_tracker", &TThis::ReplicatedTableTracker)
         .DefaultNew();
     registrar.Parameter("enable_bulk_insert", &TThis::EnableBulkInsert)
-        .Default(false);
+        .Default(true);
     registrar.Parameter("decommission_through_extra_peers", &TThis::DecommissionThroughExtraPeers)
         .Default(true);
     registrar.Parameter("synchronize_tablet_cell_leader_switches", &TThis::SynchronizeTabletCellLeaderSwitches)
@@ -217,7 +225,7 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("enable_backups", &TThis::EnableBackups)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("send_dynamic_store_id_in_backup", &TThis::SendDynamicStoreIdInBackup)
         .Default(false);
@@ -274,6 +282,9 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_alter_to_static_with_hunks", &TThis::EnableAlterToStaticWithHunks)
         .Default(false);
+
+    registrar.Parameter("testing", &TThis::Testing)
+        .DefaultNew();
 
     registrar.Preprocessor([] (TThis* config) {
         config->StoreChunkReader->SuspiciousNodeGracePeriod = TDuration::Minutes(5);

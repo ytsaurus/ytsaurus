@@ -299,8 +299,33 @@ class TestChaos(ChaosTestBase):
             {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
             {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/r1"}
         ]
-        self._create_chaos_tables(cell_id, replicas)
+        card_id, _ = self._create_chaos_tables(cell_id, replicas, sync_replication_era=False, mount_tables=False)
         _, _, remote_driver1 = self._get_drivers()
+
+        reshard_table("//tmp/t", [[], [1]])
+        reshard_table("//tmp/r1", [[], [1]], driver=remote_driver1)
+        self._mount_replicas(replicas)
+        self._sync_replication_era(card_id, replicas)
+
+        def _check_lag_properties(path: str, mode: str, cluster_name: str):
+            driver = get_driver(cluster=cluster_name)
+            get_result = get(f"{path}/@", attributes=["tablets", "replication_lag_times"], driver=driver)
+
+            tablets = get_result["tablets"]
+            lag_times = get_result["replication_lag_times"]
+            assert len(tablets) == len(lag_times)
+
+            for lag_time, tablet in zip(lag_times, tablets):
+                assert lag_time["tablet_id"] == tablet["tablet_id"]
+                assert lag_time["replication_mode"] == mode
+
+                if mode == "sync":
+                    assert lag_time["replication_lag_time"] == 0
+                else:
+                    assert lag_time["replication_lag_time"] >= 0
+
+        for replica in replicas:
+            _check_lag_properties(replica["replica_path"], replica["mode"], replica["cluster_name"])
 
         values = [{"key": 0, "value": "0"}]
         insert_rows("//tmp/t", values)
@@ -6051,6 +6076,10 @@ class TestChaosMetaCluster(ChaosTestBase):
             suspended_path = f"{orchids_paths[cell_id]}/chaos_manager/internal/suspended"
             return get(suspended_path, driver=drivers[cell_id])
 
+        def is_chaos_coordinator_suspended(cell_id):
+            suspended_path = f"{orchids_paths[cell_id]}/coordinator_manager/internal/suspended"
+            return get(suspended_path, driver=drivers[cell_id])
+
         def get_chaos_lease_from_orchid(cell_id, lease_id):
             lease_path = f"{orchids_paths[cell_id]}/chaos_lease_manager/chaos_leases/{lease_id}"
             return get(lease_path, driver=drivers[cell_id])
@@ -6068,6 +6097,7 @@ class TestChaosMetaCluster(ChaosTestBase):
             # Make sure chaos cell allows to repeatedly disable chaos lease manager, even when chaos manager is not suspended
             suspend_chaos_cells([disabled_cell])
             wait(lambda: is_chaos_manager_suspended(disabled_cell))
+            wait(lambda: is_chaos_coordinator_suspended(disabled_cell))
 
             lease_id = create_chaos_lease(enabled_cell)
             assert get_chaos_lease_from_orchid(enabled_cell, lease_id)["state"] == "normal"
@@ -6082,6 +6112,7 @@ class TestChaosMetaCluster(ChaosTestBase):
             wait(lambda: get_chaos_lease_manager_state(enabled_cell) == "disabled")
             wait(lambda: get_chaos_lease_manager_state(disabled_cell) == "enabled")
             wait(lambda: is_chaos_manager_suspended(enabled_cell))
+            wait(lambda: is_chaos_coordinator_suspended(enabled_cell))
             wait(lambda: not is_chaos_manager_suspended(disabled_cell))
 
             wait(lambda: get_chaos_lease_from_orchid(disabled_cell, lease_id)["state"] == "normal", ignore_exceptions=True)

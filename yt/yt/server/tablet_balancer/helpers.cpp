@@ -3,6 +3,8 @@
 
 #include <yt/yt/server/lib/tablet_balancer/table.h>
 
+#include <yt/yt/server/tablet_balancer/config.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
@@ -66,7 +68,7 @@ THashMap<TObjectId, IAttributeDictionaryPtr> FetchAttributesByCellTags(
 
     THashMap<TObjectId, IAttributeDictionaryPtr> responses;
     for (const auto& [objectId, cellTag] : objectIdsWithCellTags) {
-        const auto& batchReq = batchRequests[cellTag].Response.Get().Value();
+        const auto& batchReq = batchRequests[cellTag].Response.BlockingGet().Value();
         auto rspOrError = batchReq->GetResponse<TTableYPathProxy::TRspGet>(ToString(objectId));
         if (!rspOrError.IsOK() && rspOrError.GetCode() == NYTree::EErrorCode::ResolveError) {
             continue;
@@ -204,6 +206,31 @@ std::tuple<TTablePerformanceCountersMap, TTableSchemaPtr> FetchPerformanceCounte
         tableToPerformanceCounters[tableId][tabletId] = TUnversionedOwningRow(row);
     }
     return {tableToPerformanceCounters, tableSchema};
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::pair<bool, bool> EvaluateFeatureFlag(
+    std::optional<bool> TFeatureFlagConfig::* field,
+    const TTabletBalancerDynamicConfigPtr& dynamicConfig,
+    const TTabletBalancingGroupConfigPtr& groupConfig,
+    const TBundleTabletBalancerConfigPtr& bundleConfig)
+{
+    bool hasTrue = false;
+    bool hasFalse = false;
+
+    auto onFlag = [&] (auto flag) {
+        if (flag) {
+            hasTrue |= *flag;
+            hasFalse |= !*flag;
+        }
+    };
+
+    onFlag(*dynamicConfig.*field);
+    onFlag(*bundleConfig.*field);
+    onFlag(*groupConfig.*field);
+
+    return {hasTrue, hasFalse};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

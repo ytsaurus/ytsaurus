@@ -182,7 +182,8 @@ namespace WAVM { namespace Runtime {
 	visit(outOfMemory);                                                                            \
 	visit(misalignedAtomicMemoryAccess, WAVM::IR::ValueType::i64);                                 \
 	visit(waitOnUnsharedMemory, WAVM::IR::ValueType::externref);                                   \
-	visit(invalidArgument);
+	visit(invalidArgument);																		   \
+	visit(timeoutExpired);
 
 	// Information about a runtime exception.
 	namespace ExceptionTypes {

@@ -31,7 +31,6 @@ class TestSchedulerAutoMergeBase(YTEnvSetup):
     NUM_NODES = 4
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
-    ENABLE_BULK_INSERT = True
 
     ENABLE_SHALLOW_MERGE = False
 
@@ -1125,7 +1124,6 @@ class TestSchedulerAutoMergeCARestarts(TestSchedulerAutoMergeBase):
     ENABLE_SHALLOW_MERGE = False
     NUM_TEST_PARTITIONS = 1
     USE_DYNAMIC_TABLES = False
-    ENABLE_BULK_INSERT = False
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {

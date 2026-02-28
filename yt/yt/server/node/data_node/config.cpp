@@ -564,6 +564,9 @@ void TDataNodeTestingOptions::Register(TRegistrar registrar)
 
     registrar.Parameter("ignore_empty_locations_in_full_heartbeats", &TThis::IgnoreEmptyLocationsInFullHeartbeats)
         .Default(false);
+
+    registrar.Parameter("min_epoch_to_start_heartbeats", &TThis::MinEpochToStartHeartbeats)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

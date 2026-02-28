@@ -85,6 +85,7 @@ type Rich struct {
 
 	TransactionID any               `yson:"transaction_id,attr,omitempty"`
 	RenameColumns map[string]string `yson:"rename_columns,attr,omitempty"`
+	Cluster       string            `yson:"cluster,attr,omitempty"`
 }
 
 // NewRich creates new Rich.
@@ -168,5 +169,11 @@ func (r *Rich) SetCompression(compression CompressionCodec) *Rich {
 // Child append name to Path.
 func (r *Rich) Child(name string) *Rich {
 	r.Path = r.Path.Child(name)
+	return r
+}
+
+// SetCluster updates cluster attribute of p.
+func (r *Rich) SetCluster(cluster string) *Rich {
+	r.Cluster = cluster
 	return r
 }

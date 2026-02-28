@@ -784,7 +784,7 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromLocal(const TFetchItemsSes
 {
     return GetKeys(session->Limit)
         .Apply(BIND([=, this, this_ = MakeStrong(this)] (const std::vector<TObjectId>& keys) {
-            session->Incomplete |= (std::ssize(keys) == session->Limit);
+            bool incomplete = (std::ssize(keys) == session->Limit);
 
             const auto& objectManager = Bootstrap_->GetObjectManager();
 
@@ -814,6 +814,7 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromLocal(const TFetchItemsSes
             return AllSucceeded(asyncAttributes)
                 .Apply(BIND([=, aliveKeys = std::move(aliveKeys), this_ = MakeStrong(this)] (const std::vector<TYsonString>& attributes) {
                     YT_VERIFY(aliveKeys.size() == attributes.size());
+                    session->Incomplete |= incomplete;
                     for (int index = 0; index < std::ssize(aliveKeys); ++index) {
                         if (std::ssize(session->Items) >= session->Limit) {
                             break;

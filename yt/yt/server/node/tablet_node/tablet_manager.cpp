@@ -4,19 +4,16 @@
 #include "automaton.h"
 #include "backup_manager.h"
 #include "bootstrap.h"
-#include "chunk_view_size_fetcher.h"
 #include "config.h"
 #include "hunk_chunk.h"
 #include "hunk_lock_manager.h"
 #include "in_memory_manager.h"
-#include "min_hash_digest_fetcher.h"
 #include "ordered_chunk_store.h"
 #include "ordered_dynamic_store.h"
 #include "ordered_store_manager.h"
 #include "partition.h"
 #include "private.h"
 #include "replicated_store_manager.h"
-#include "row_digest_fetcher.h"
 #include "serialize.h"
 #include "slot_manager.h"
 #include "smooth_movement_tracker.h"
@@ -34,6 +31,7 @@
 #include "tablet_snapshot_store.h"
 #include "transaction.h"
 #include "transaction_manager.h"
+#include "compaction_hint_fetching.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -94,7 +92,7 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/table_client/helpers.h>
-
+#include <yt/yt/client/tablet_client/table_mount_cache.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
 
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.pb.h>
@@ -123,6 +121,8 @@
 #include <yt/yt/core/ytree/virtual.h>
 
 #include <library/cpp/yt/string/string.h>
+
+#include <library/cpp/iterator/zip.h>
 
 #include <util/generic/cast.h>
 #include <util/generic/algorithm.h>
@@ -205,24 +205,36 @@ public:
         , BackupManager_(CreateBackupManager(
             Slot_,
             Bootstrap_))
-        , ChunkViewSizeFetcher_(CreateChunkViewSizeFetcher(
-            slot->GetCellId(),
-            Bootstrap_->GetNodeDirectory(),
-            Slot_->GetAutomatonInvoker(),
-            Bootstrap_->GetStorageHeavyInvoker(),
-            Bootstrap_->GetClient(),
-            Bootstrap_->GetConnection()->GetChunkReplicaCache(),
-            Bootstrap_->GetDynamicConfigManager()->GetConfig()))
-        , RowDigestFetcher_(CreateRowDigestFetcher(
-            slot->GetCellId(),
-            Slot_->GetAutomatonInvoker(),
-            Bootstrap_->GetDynamicConfigManager()->GetConfig()))
-        , MinHashDigestFetcher_(CreateMinHashDigestFetcher(
-            slot->GetCellId(),
-            Slot_->GetAutomatonInvoker(),
-            Bootstrap_->GetNodeMemoryUsageTracker(),
-            Bootstrap_->GetDynamicConfigManager()->GetConfig()))
-        , CompactionHintFetchers_{ChunkViewSizeFetcher_, RowDigestFetcher_, MinHashDigestFetcher_}
+        , MinHashDigestCache_(Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreCompactor->MinHashDigestCacheCapacity)
+        , CompactionHintFetchers_{
+            {
+                NLsm::EStoreCompactionHintKind::ChunkViewTooNarrow,
+                New<TCompactionHintFetcher>(
+                    Slot_->GetCellId(),
+                    TabletNodeLogger().WithTag("ChunkViewSizeFetcher"),
+                    TabletNodeProfiler().WithPrefix("/compaction_hints/chunk_view_size"),
+                    Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->
+                        StoreCompactor->CompactionHintFetchers[NLsm::EStoreCompactionHintKind::ChunkViewTooNarrow]),
+            },
+            {
+                NLsm::EStoreCompactionHintKind::VersionedRowDigest,
+                New<TCompactionHintFetcher>(
+                    Slot_->GetCellId(),
+                    TabletNodeLogger().WithTag("RowDigestFetcher"),
+                    TabletNodeProfiler().WithPrefix("/compaction_hints/row_digest"),
+                    Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->
+                        StoreCompactor->CompactionHintFetchers[NLsm::EStoreCompactionHintKind::VersionedRowDigest]),
+            },
+            {
+                NLsm::EStoreCompactionHintKind::MinHashDigest,
+                New<TCompactionHintFetcher>(
+                    Slot_->GetCellId(),
+                    TabletNodeLogger().WithTag("MinHashDigestFetcher"),
+                    TabletNodeProfiler().WithPrefix("/compaction_hints/min_hash_digest"),
+                    Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->
+                        StoreCompactor->CompactionHintFetchers[NLsm::EStoreCompactionHintKind::MinHashDigest]),
+            },
+        }
     {
         YT_ASSERT_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
@@ -253,6 +265,7 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraUnmountTablet, Unretained(this)));
         RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraRemountTablet, Unretained(this)));
         RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraUpdateTabletSettings, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraSetReshardRedirectionHint, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraFreezeTablet, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraUnfreezeTablet, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraProvisionalFlush, Unretained(this)));
@@ -340,9 +353,18 @@ public:
 
     void OnStartLeading() override
     {
+        TTabletAutomatonPart::OnStartLeading();
+
         const auto& tableConfigManager = Bootstrap_->GetTableDynamicConfigManager();
         if (tableConfigManager->IsConfigLoaded()) {
             OnTableDynamicConfigChanged(nullptr, tableConfigManager->GetConfig());
+        }
+
+        const auto& storeCompactorConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreCompactor;
+        for (auto [storeKind, partitionKind] : NLsm::StoreCompactionHintKinds) {
+            CompactionHintFetchers_[storeKind]->Start(
+                Slot_->GetEpochAutomatonInvoker(),
+                storeCompactorConfig->CompactionHintFetchers[storeKind]);
         }
     }
 
@@ -882,6 +904,11 @@ private:
             return Owner_->Slot_->GetAutomatonInvoker(EAutomatonThreadQueue::Default);
         }
 
+        IInvokerPtr GetStorageHeavyInvoker() const override
+        {
+            return Owner_->Bootstrap_->GetStorageHeavyInvoker();
+        }
+
         IColumnEvaluatorCachePtr GetColumnEvaluatorCache() const final
         {
             return Owner_->Bootstrap_->GetColumnEvaluatorCache();
@@ -954,6 +981,16 @@ private:
             return Owner_->Bootstrap_->GetVersionedChunkMetaManager();
         }
 
+        const TCompactionHintFetcherPtr& GetCompactionHintFetcher(NLsm::EStoreCompactionHintKind kind) const override
+        {
+            return Owner_->CompactionHintFetchers_[kind];
+        }
+
+        TSimpleLruCache<NChunkClient::TChunkId, TMinHashDigestPtr>* GetMinHashDigestCache() const override
+        {
+            return &Owner_->MinHashDigestCache_;
+        }
+
     private:
         TTabletManager* const Owner_;
     };
@@ -1000,10 +1037,9 @@ private:
 
     IBackupManagerPtr BackupManager_;
 
-    const TCompactionHintFetcherPtr ChunkViewSizeFetcher_;
-    const TCompactionHintFetcherPtr RowDigestFetcher_;
-    const TCompactionHintFetcherPtr MinHashDigestFetcher_;
-    const std::vector<TCompactionHintFetcherPtr> CompactionHintFetchers_;
+    mutable TSimpleLruCache<TChunkId, TMinHashDigestPtr> MinHashDigestCache_;
+
+    const NLsm::TStoreCompactionHintArray<TCompactionHintFetcherPtr> CompactionHintFetchers_;
 
     const TCallback<void(TClusterTableConfigPatchSetPtr, TClusterTableConfigPatchSetPtr)> TableDynamicConfigChangedCallback_ =
         BIND(&TTabletManager::OnTableDynamicConfigChanged, MakeWeak(this));
@@ -1165,6 +1201,10 @@ private:
 
         YT_UNUSED_FUTURE(DecommissionCheckExecutor_->Stop());
         YT_UNUSED_FUTURE(SuspensionCheckExecutor_->Stop());
+
+        for (auto& compactionHintFetchers : CompactionHintFetchers_) {
+            compactionHintFetchers->Stop();
+        }
     }
 
     void OnFollowerRecoveryComplete() override
@@ -1467,10 +1507,8 @@ private:
         tablet->GetStructuredLogger()->OnTabletMounted();
         tablet->GetStructuredLogger()->OnFullHeartbeat();
 
-        if (!IsRecovery()) {
-            if (!isSmoothMovementTarget) {
-                StartTabletEpoch(tablet);
-            }
+        if (!IsRecovery() && !isSmoothMovementTarget) {
+            StartTabletEpoch(tablet);
         }
 
         #undef GET_FROM_ESSENTIAL
@@ -1589,6 +1627,9 @@ private:
         }
 
         tablet->SetPreloadedChunkRetentionRequired(request->retain_preloaded_chunks());
+        if (request->use_extended_snapshot_eviction_timeout()) {
+            tablet->SetSnapshotEvictionTimeout(GetDynamicConfig()->TabletManager->ExtendedSnapshotEvictionTimeout);
+        }
 
         if (request->force()) {
             YT_LOG_INFO("Tablet is forcefully unmounted (%v)",
@@ -1666,10 +1707,6 @@ private:
 
         tablet->Reconfigure(Slot_);
         UpdateTabletSnapshot(tablet);
-
-        for (const auto& compactionHintFetcher : CompactionHintFetchers_) {
-            compactionHintFetcher->ReconfigureTablet(tablet, oldSettings);
-        }
 
         if (!IsRecovery()) {
             for (auto& [replicaId, replicaInfo] : tablet->Replicas()) {
@@ -1758,6 +1795,47 @@ private:
                 [] (auto* builder, const auto& experiment) {
                     FormatValue(builder, experiment.first, /*format*/ TStringBuf{});
                 }));
+    }
+
+    void HydraSetReshardRedirectionHint(TReqSetReshardRedirectionHint* request)
+    {
+        auto oldTabletIds = FromProto<std::vector<TTabletId>>(request->old_tablet_ids());
+        auto oldTabletMountRevisions = FromProto<std::vector<NHydra::TRevision>>(request->old_tablet_mount_revisions());
+
+        std::vector<TTabletSnapshotPtr> oldTabletSnapshots;
+        const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
+
+        for (const auto& [tabletId, mountRevision] : Zip(oldTabletIds, oldTabletMountRevisions)) {
+            if (auto tabletSnapshot = snapshotStore->FindTabletSnapshot(tabletId, mountRevision)) {
+                oldTabletSnapshots.push_back(tabletSnapshot);
+            }
+        }
+
+        if (oldTabletSnapshots.empty()) {
+            return;
+        }
+
+        auto reshardRedirectionHint = New<TReshardRedirectionHint>();
+        reshardRedirectionHint->OldTabletIds = std::move(oldTabletIds);
+        reshardRedirectionHint->OldTabletMountRevisions = std::move(oldTabletMountRevisions);
+        reshardRedirectionHint->NewTabletIds = FromProto<std::vector<TTabletId>>(request->new_tablet_ids());
+        reshardRedirectionHint->NewTabletPivotKeys = FromProto<std::vector<TLegacyOwningKey>>(request->new_tablet_pivot_keys());
+        reshardRedirectionHint->NewTabletsMountRevision = FromProto<NHydra::TRevision>(request->new_tablets_mount_revision());
+
+        YT_LOG_DEBUG("Set reshard redirection hint for tablets (TabletId: %v, "
+            "ReshardRedirectionHint: [OldTabletIds: %v, OldTabletMountRevisions: %llx, "
+            "NewTabletIds: %v, NewTabletsMountRevision: %llx])",
+            MakeFormattableView(oldTabletSnapshots, [] (auto* builder, const auto& tabletSnapshot) {
+                builder->AppendFormat("%v", tabletSnapshot->TabletId);
+            }),
+            reshardRedirectionHint->OldTabletIds,
+            reshardRedirectionHint->OldTabletMountRevisions,
+            reshardRedirectionHint->NewTabletIds,
+            reshardRedirectionHint->NewTabletsMountRevision);
+
+        for (auto& oldTabletSnapshot : oldTabletSnapshots) {
+            oldTabletSnapshot->ReshardRedirectionHint = reshardRedirectionHint;
+        }
     }
 
     void HydraFreezeTablet(TReqFreezeTablet* request)
@@ -2053,8 +2131,6 @@ private:
         } else {
             UpdateTabletSnapshot(tablet);
         }
-
-        FetchCompactionHints(tablet, storesToAdd);
 
         YT_LOG_INFO(
             "Tablet unlocked by bulk insert (%v, TransactionId: %v, AddedStoreIds: %v, LockManagerEpoch: %v)",
@@ -3026,6 +3102,7 @@ private:
         bool needResetRowCache = false;
 
         std::vector<TStoreId> removedStoreIds;
+        removedStoreIds.reserve(request->stores_to_remove_size());
         for (const auto& descriptor : request->stores_to_remove()) {
             auto storeId = FromProto<TStoreId>(descriptor.store_id());
             removedStoreIds.push_back(storeId);
@@ -3266,8 +3343,6 @@ private:
 
         CheckIfTabletFullyFlushed(tablet);
         Slot_->GetSmoothMovementTracker()->CheckTablet(tablet);
-
-        FetchCompactionHints(tablet, {{addedStores.begin(), addedStores.end()}});
     }
 
     void HydraSplitPartition(TReqSplitPartition* request)
@@ -4756,8 +4831,6 @@ private:
 
         tablet->SmoothMovementData().SetStageChangeScheduled(false);
 
-        FetchCompactionHints(tablet);
-
         YT_VERIFY(tablet->GetTransientTabletLockCount() == 0);
     }
 
@@ -4795,8 +4868,6 @@ private:
 
     void StopTabletEpoch(TTablet* tablet)
     {
-        ResetCompactionHints(tablet);
-
         if (const auto& storeManager = tablet->GetStoreManager()) {
             // Store Manager could be null if snapshot loading is aborted.
             storeManager->StopEpoch();
@@ -4906,12 +4977,12 @@ private:
             return;
         }
 
-        if (tablet->GetChaosAgent()) {
-            tablet->GetChaosAgent()->Disable();
-        }
-
         if (tablet->GetTablePuller()) {
             tablet->GetTablePuller()->Disable();
+        }
+
+        if (tablet->GetChaosAgent()) {
+            tablet->GetChaosAgent()->Disable();
         }
 
         tablet->ChaosData()->PullerReplicaCache.Store(GetDisabledPullerReplicaCache());
@@ -5579,7 +5650,7 @@ private:
         return lockCount;
     }
 
-    TTabletNodeDynamicConfigPtr GetDynamicConfig() const final
+    TTabletNodeDynamicConfigPtr GetDynamicConfig() const override final
     {
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         return dynamicConfigManager->GetConfig()->TabletNode;
@@ -5646,29 +5717,14 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        for (const auto& compactionHintFetcher : CompactionHintFetchers_) {
-            compactionHintFetcher->Reconfigure(newConfig);
-        }
-
-        if (!IsRecovery() &&
-            IsLeader() &&
-            newConfig->TabletNode->StoreCompactor->UseRowDigests &&
-            !oldConfig->TabletNode->StoreCompactor->UseRowDigests)
-        {
-            for (auto& [tabletId, tablet] : Tablets()) {
-                RowDigestFetcher_->FetchStoreInfos(tablet);
-            }
-        }
-        if (!newConfig->TabletNode->StoreCompactor->UseRowDigests &&
-            oldConfig->TabletNode->StoreCompactor->UseRowDigests)
-        {
-            for (auto& [tabletId, tablet] : Tablets()) {
-                RowDigestFetcher_->ResetCompactionHints(tablet);
-            }
-        }
-
         for (auto& [_, tablet] : Tablets()) {
             tablet->OnDynamicConfigChanged(Slot_, oldConfig, newConfig);
+        }
+
+        const auto& storeCompactorConfig = newConfig->TabletNode->StoreCompactor;
+        for (auto [storeKind, partitionKind] : NLsm::StoreCompactionHintKinds) {
+            CompactionHintFetchers_[storeKind]->Reconfigure(
+                storeCompactorConfig->CompactionHintFetchers[storeKind]);
         }
     }
 
@@ -5892,23 +5948,6 @@ private:
                 << TErrorAttribute("trimmed_row_count", trimmedRowCount)
                 << TErrorAttribute("replication_timestamp", replicationTimestamp)
                 << TErrorAttribute("max_timestamp", it->second->GetMaxTimestamp());
-        }
-    }
-
-    void FetchCompactionHints(TTablet* tablet, const std::optional<TRange<IStorePtr>>& stores = {})
-    {
-        if (IsLeader()) {
-            ChunkViewSizeFetcher_->FetchStoreInfos(tablet, stores);
-            RowDigestFetcher_->FetchStoreInfos(tablet, stores);
-            // TODO(dave11ar): Just for proof of work.
-            MinHashDigestFetcher_->FetchStoreInfos(tablet, stores);
-        }
-    }
-
-    void ResetCompactionHints(TTablet* tablet)
-    {
-        for (const auto& compactionHintFetcher : CompactionHintFetchers_) {
-            compactionHintFetcher->ResetCompactionHints(tablet);
         }
     }
 

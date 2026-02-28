@@ -133,6 +133,8 @@ public:
 
             YT_LOG_DEBUG("Evaluating query");
 
+            queryInstance.SetDeadline(options.Deadline);
+
             queryInstance.Run(
                 fragmentParams.GetLiteralValues(),
                 fragmentParams.GetOpaqueData(),

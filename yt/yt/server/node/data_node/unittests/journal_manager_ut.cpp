@@ -167,7 +167,7 @@ protected:
         })
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run()
-            .Get();
+            .BlockingGet();
     }
 
     void Stop()
@@ -177,7 +177,7 @@ protected:
         })
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run()
-            .Get();
+            .BlockingGet();
     }
 
     void SetUp() override
@@ -199,18 +199,18 @@ TEST_F(TJournalTest, Write)
         auto journalId = MakeRandomId(NObjectClient::EObjectType::JournalChunk, NObjectClient::TCellTag(1));
 
         auto changelog = journalManager->CreateChangelog(journalId, multiplexed, TWorkloadDescriptor{})
-            .Get()
+            .BlockingGet()
             .ValueOrThrow();
 
         auto r0 = TSharedRef::FromString("r0");
         auto r1 = TSharedRef::FromString("r1");
 
         changelog->Append({r0, r1})
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
 
         changelog->Close()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
     }
 }

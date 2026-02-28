@@ -93,10 +93,10 @@ public:
 
     TFuture<void> Open() override
     {
-        YT_VERIFY(!Initialized_);
+        YT_VERIFY(!Initialized_.load());
         YT_VERIFY(!OpenFuture_);
 
-        OpenFuture_ = BIND(&TConfirmingWriter::OpenSession, MakeWeak(this))
+        OpenFuture_ = BIND(&TConfirmingWriter::Initialize, MakeWeak(this))
             .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
             .Run();
         return OpenFuture_;
@@ -115,10 +115,10 @@ public:
         const TWorkloadDescriptor& workloadDescriptor,
         const std::vector<TBlock>& blocks) override
     {
-        YT_VERIFY(Initialized_);
+        YT_VERIFY(Initialized_.load());
         YT_VERIFY(OpenFuture_.IsSet());
 
-        if (!OpenFuture_.Get().IsOK()) {
+        if (!OpenFuture_.BlockingGet().IsOK()) {
             return false;
         } else {
             return UnderlyingWriter_->WriteBlocks(options, workloadDescriptor, blocks);
@@ -127,9 +127,9 @@ public:
 
     TFuture<void> GetReadyEvent() override
     {
-        YT_VERIFY(Initialized_);
+        YT_VERIFY(Initialized_.load());
         YT_VERIFY(OpenFuture_.IsSet());
-        if (!OpenFuture_.Get().IsOK()) {
+        if (!OpenFuture_.BlockingGet().IsOK()) {
             return OpenFuture_;
         } else {
             return UnderlyingWriter_->GetReadyEvent();
@@ -142,7 +142,7 @@ public:
         const TDeferredChunkMetaPtr& chunkMeta,
         std::optional<int> truncateBlockCount) override
     {
-        YT_VERIFY(Initialized_);
+        YT_VERIFY(Initialized_.load());
         YT_VERIFY(OpenFuture_.IsSet());
         YT_VERIFY(!truncateBlockCount.has_value());
 
@@ -193,11 +193,15 @@ public:
 
     bool IsCloseDemanded() const override
     {
-        if (UnderlyingWriter_) {
-            return UnderlyingWriter_->IsCloseDemanded();
-        } else {
+        // Protects from race with concurrent Initialize().
+        if (!Initialized_.load()) {
             return false;
         }
+        // Initialize() could have been unsuccessful.
+        if (!UnderlyingWriter_) {
+            return false;
+        }
+        return UnderlyingWriter_->IsCloseDemanded();
     }
 
     TFuture<void> Cancel() override
@@ -233,18 +237,15 @@ private:
 
     NLogging::TLogger Logger;
 
-    void OpenSession()
+    void Initialize()
     {
         auto finally = Finally([&] {
-            Initialized_ = true;
+            Initialized_.store(true);
         });
 
         if (SessionId_.ChunkId) {
             YT_LOG_DEBUG("Writing existing chunk (ChunkId: %v)", SessionId_.ChunkId);
         } else {
-            if (Options_->Account.empty()) {
-                THROW_ERROR_EXCEPTION("Error creating chunk: account should not be empty");
-            }
             SessionId_ = NChunkClient::CreateChunk(
                 Client_,
                 CellTag_,
@@ -252,7 +253,7 @@ private:
                 TransactionId_,
                 ParentChunkListId_,
                 Logger);
-            YT_LOG_DEBUG("Chunk created");
+            YT_LOG_DEBUG("Chunk created (ChunkId: %v)", SessionId_.ChunkId);
         }
 
         Logger.AddTag("ChunkId: %v", SessionId_);

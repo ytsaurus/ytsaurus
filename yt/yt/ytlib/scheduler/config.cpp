@@ -1562,7 +1562,14 @@ void TUserJobSpec::Register(TRegistrar registrar)
         TVolumePtr newVolume;
         TVolumeMountPtr newVolumeMount;
         std::optional<std::string> newNameForNewVolume = makeNewNameForVolume();
-        if (spec->DeprecatedDiskRequest || spec->DiskSpaceLimit || !spec->DeprecatedLayerPaths.empty()) {
+
+        bool hasRootFSInJobVolumeMounts = [&] () {
+            auto it = std::find_if(spec->JobVolumeMounts.begin(), spec->JobVolumeMounts.end(), [] (const auto& volumeMount) {
+                return volumeMount->MountPath == "/";
+            });
+            return it != spec->JobVolumeMounts.end();
+        }();
+        if (!hasRootFSInJobVolumeMounts) {
             newVolume = New<TVolume>();
 
             newVolumeMount = New<TVolumeMount>();
@@ -1706,6 +1713,10 @@ void TUserJobSpec::Register(TRegistrar registrar)
             spec->Volumes[*newNameForNewVolume] = std::move(newVolume);
             spec->JobVolumeMounts.push_back(std::move(newVolumeMount));
         }
+
+        std::sort(spec->JobVolumeMounts.begin(), spec->JobVolumeMounts.end(), [] (const auto& lhs, const auto& rhs) {
+            return lhs->MountPath < rhs->MountPath;
+        });
 
         if (!spec->IsFirstIterationPostprocessorComplete) {
             spec->DeprecatedTmpfsVolumes = std::move(tmpDeprecatedTmpfsVolumes);

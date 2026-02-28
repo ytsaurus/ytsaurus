@@ -57,13 +57,13 @@ using namespace NProfiling;
 TEST_F(TApiTestBase, TestClusterConnection)
 {
     auto resOrError = Client_->GetNode(TYPath("/"));
-    EXPECT_TRUE(resOrError.Get().IsOK());
+    EXPECT_TRUE(resOrError.BlockingGet().IsOK());
 }
 
 TEST_F(TApiTestBase, TestCreateInvalidNode)
 {
     auto resOrError = Client_->CreateNode(TYPath("//tmp/a"), EObjectType::SortedDynamicTabletStore);
-    EXPECT_FALSE(resOrError.Get().IsOK());
+    EXPECT_FALSE(resOrError.BlockingGet().IsOK());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

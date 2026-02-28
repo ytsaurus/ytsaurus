@@ -766,6 +766,24 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
         with raises_yt_error("Listing all registrations is disabled by current cluster configuration"):
             list_queue_consumer_registrations()
 
+    @authors("apachee")
+    def test_lookup_batcher_enabled(self):
+        impl = self._get_registration_manager_applied_implementation()
+        if impl == "legacy":
+            pytest.skip()
+
+        for cluster in self.get_cluster_names():
+            driver = get_driver(cluster=cluster)
+            proxies = ls("//sys/rpc_proxies", driver=driver)
+            assert len(proxies) > 0
+            for proxy in proxies:
+                for cache_kind in ["registration_lookup", "list_registrations", "replica_mapping_lookup"]:
+                    lookup_request_batcher_enabled = get(
+                        f"//sys/rpc_proxies/{proxy}/orchid/cluster_connection/queue_consumer_registration_manager/cache/{cache_kind}/lookup_request_batcher/enabled",
+                        driver=driver
+                    )
+                    assert lookup_request_batcher_enabled
+
 
 class TestDataApiBase(TestQueueConsumerApiBase, TestQueueAgentBase):
     DO_PREPARE_TABLES_ON_SETUP = False

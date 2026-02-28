@@ -8,6 +8,8 @@ namespace NSQLTranslationV1 {
 using namespace NYql;
 using namespace NSQLv1Generated;
 
+// Do not use it to get a positon for a SQL hint.
+// Use TContext::TokenPosition instead.
 inline TPosition GetPos(const TToken& token) {
     return TPosition(token.GetColumn(), token.GetLine());
 }
@@ -134,6 +136,10 @@ protected:
 public:
     void SetYqlSelectProduced(bool value) noexcept {
         IsYqlSelectProduced_ = value;
+    }
+
+    void SetPure(bool isPure) noexcept {
+        IsPure_ = isPure;
     }
 
 protected:
@@ -307,7 +313,8 @@ protected:
 
     TNodePtr YqlSelectOrLegacy(
         std::function<TNodeResult()> yqlSelect,
-        std::function<TNodePtr()> legacy);
+        std::function<TNodePtr()> legacy,
+        TMaybe<TPosition> position = Nothing());
 
 private:
     bool SimpleTableRefCoreImpl(const TRule_simple_table_ref_core& node, TTableRef& result);
@@ -325,6 +332,7 @@ private:
 protected:
     NSQLTranslation::ESqlMode Mode_;
     bool IsYqlSelectProduced_ = false;
+    bool IsPure_ = false;
 };
 
 TNodePtr LiteralNumber(TContext& ctx, const TRule_integer& node);

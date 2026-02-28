@@ -383,14 +383,6 @@ public:
             container);
     }
 
-    TFuture<int> WaitContainer(const TString& container) override
-    {
-        return ExecutePortoApiAction(
-            &TPortoExecutor::DoWaitContainer,
-            "WaitContainer",
-            container);
-    }
-
     // This method allocates Porto "resources", so it should be uncancellable.
     TFuture<TString> CreateVolume(
         const TString& path,
@@ -830,62 +822,6 @@ private:
             }
         }
         return containerNames;
-    }
-
-    TFuture<int> DoWaitContainer(const TString& container)
-    {
-        auto result = NewPromise<int>();
-        auto waitCallback = [=, this, this_ = MakeStrong(this)] (const Porto::TWaitResponse& rsp) {
-            return OnContainerTerminated(rsp, result);
-        };
-
-        ExecuteApiCall(
-            [&] { return Api_->AsyncWait({container}, {}, waitCallback); },
-            "AsyncWait",
-            /*idempotent*/ false);
-
-        return result.ToFuture().ToImmediatelyCancelable();
-    }
-
-    void OnContainerTerminated(const Porto::TWaitResponse& portoWaitResponse, TPromise<int> result)
-    {
-        const auto& container = portoWaitResponse.name();
-        const auto& state = portoWaitResponse.state();
-        if (state != "dead" && state != "stopped") {
-            result.TrySet(TError("Container finished with unexpected state")
-                << TErrorAttribute("container_name", container)
-                << TErrorAttribute("container_state", state));
-            return;
-        }
-
-        // TODO(max42): switch to Subscribe.
-        YT_UNUSED_FUTURE(GetContainerProperty(container, "exit_status").Apply(BIND(
-            [=] (const TErrorOr<std::optional<TString>>& errorOrExitCode) {
-                if (!errorOrExitCode.IsOK()) {
-                    result.TrySet(TError("Container finished, but exit status is unknown")
-                        << errorOrExitCode);
-                    return;
-                }
-
-                const auto& optionalExitCode = errorOrExitCode.Value();
-                if (!optionalExitCode) {
-                    result.TrySet(TError("Container finished, but exit status is unknown")
-                        << TErrorAttribute("container_name", container)
-                        << TErrorAttribute("container_state", state));
-                    return;
-                }
-
-                try {
-                    int exitStatus = FromString<int>(*optionalExitCode);
-                    result.TrySet(exitStatus);
-                } catch (const std::exception& ex) {
-                    auto error = TError("Failed to parse Porto exit status")
-                        << TErrorAttribute("container_name", container)
-                        << TErrorAttribute("exit_status", optionalExitCode.value());
-                    error.MutableInnerErrors()->push_back(TError(ex));
-                    result.TrySet(error);
-                }
-            })));
     }
 
     TFuture<int> DoPollContainer(const TString& container)

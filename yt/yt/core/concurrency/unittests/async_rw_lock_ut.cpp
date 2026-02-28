@@ -105,7 +105,7 @@ TEST_F(TAsyncReaderWriterLockTest, CreateWriterGuard)
     auto guardFuture = TAsyncLockWriterGuard::Acquire(&lock);
     EXPECT_TRUE(guardFuture.IsSet());
 
-    auto guard = guardFuture.Get().Value();
+    auto guard = guardFuture.BlockingGet().Value();
 
     auto future = lock.AcquireWriter();
     EXPECT_FALSE(future.IsSet());
@@ -120,7 +120,7 @@ TEST_F(TAsyncReaderWriterLockTest, ReleaseInDestructor)
 {
     TFuture<void> future;
     {
-        auto writeGuard = TAsyncLockWriterGuard::Acquire(&lock).Get().Value();
+        auto writeGuard = TAsyncLockWriterGuard::Acquire(&lock).BlockingGet().Value();
         future = lock.AcquireReader();
         EXPECT_FALSE(future.IsSet());
     }
@@ -132,9 +132,9 @@ void DoTestCancelWriter(TAsyncReaderWriterLock& lock)
 {
     auto guard = std::invoke([&] {
         if constexpr (DuringWrite) {
-            return TAsyncLockWriterGuard::Acquire(&lock).Get().Value();
+            return TAsyncLockWriterGuard::Acquire(&lock).BlockingGet().Value();
         } else {
-            return TAsyncLockReaderGuard::Acquire(&lock).Get().Value();
+            return TAsyncLockReaderGuard::Acquire(&lock).BlockingGet().Value();
         }
     });
 
@@ -147,7 +147,7 @@ void DoTestCancelWriter(TAsyncReaderWriterLock& lock)
 
     secondGuardFuture
         .WithTimeout(TDuration::Seconds(1))
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 }
 
@@ -250,7 +250,7 @@ TEST_F(TAsyncReaderWriterLockTest, CancelStressTest)
         invoker->Invoke(BIND(task, seed + i, barrier.Insert()));
     }
 
-    barrier.GetBarrierFuture().Get().ThrowOnError();
+    barrier.GetBarrierFuture().BlockingGet().ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

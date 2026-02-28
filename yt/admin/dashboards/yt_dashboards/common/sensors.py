@@ -158,6 +158,8 @@ FlowWorker =     ProjectSensor("worker")  # noqa: E222
 
 # Queue Agent.
 QueueAgent = ProjectSensor("queue_agent_default", "yt-queue-agent")
+QueueAgentPorto = ProjectSensor("queue_agent_porto", "yt-queue-agent")
+QueueAgentCpu = ProjectSensor("queue_agent_cpu", "yt-queue-agent")
 
 
 class SplitNodeSensorsGuard:

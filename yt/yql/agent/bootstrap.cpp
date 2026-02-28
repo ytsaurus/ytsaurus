@@ -106,7 +106,7 @@ void TBootstrap::Run()
     BIND(&TBootstrap::DoRun, this)
         .AsyncVia(ControlInvoker_)
         .Run()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     Sleep(TDuration::Max());

@@ -46,7 +46,7 @@ public:
                 ChunkReadOptions_,
                 /*workloadCategory*/ std::nullopt);
 
-            reader->Open().Get();
+            reader->Open().BlockingGet();
             reader->Read(options);
         };
 

@@ -146,10 +146,11 @@ void TResourceTree::ReleaseResources(const TResourceTreeElementPtr& element, boo
         TJobResources preemptedUsagePrecommit;
         element->ReleaseResources(&usagePrecommit, &usage, &preemptedUsagePrecommit);
 
-        YT_LOG_DEBUG("Strong release of element resources (Id: %v, Usage: %v, UsagePrecommit: %v)",
+        YT_LOG_DEBUG("Strong release of element resources (Id: %v, Usage: %v, UsagePrecommit: %v, PreemptedUsagePrecommit: %v)",
             element->GetId(),
             FormatResources(usage),
-            FormatResources(usagePrecommit));
+            FormatResources(usagePrecommit),
+            FormatResources(preemptedUsagePrecommit));
 
         MaybeDelay(ResourceTreeReleaseResourcesRandomDelay_, EDelayType::Sync);
 
@@ -164,10 +165,11 @@ void TResourceTree::ReleaseResources(const TResourceTreeElementPtr& element, boo
         auto usagePrecommit = element->GetResourceUsagePrecommit();
         auto usage = element->GetResourceUsage();
         auto preemptedUsagePrecommit = element->GetPreemptedResourceUsagePrecommit();
-        YT_LOG_DEBUG("Relaxed release of element resources (Id: %v, Usage: %v, UsagePrecommit: %v)",
+        YT_LOG_DEBUG("Relaxed release of element resources (Id: %v, Usage: %v, UsagePrecommit: %v, PreemptedUsagePrecommit: %v)",
             element->GetId(),
             FormatResources(usage),
-            FormatResources(usagePrecommit));
+            FormatResources(usagePrecommit),
+            FormatResources(preemptedUsagePrecommit));
         DoIncreaseHierarchicalResourceUsagePrecommit(element, -usagePrecommit);
         DoIncreaseHierarchicalResourceUsage(element, -usage);
 
@@ -470,6 +472,7 @@ EResourceTreeIncreasePreemptedResult TResourceTree::TryIncreaseHierarchicalPreem
         current = element->Parent_.Get();
 
         while (current && current != failedParent) {
+            auto currentGuard = current->AcquireWriteLock();
             YT_VERIFY(increaseLocalPreemptedResourceUsagePrecommitUnsafe(current, -delta));
 
             current = current->Parent_.Get();
@@ -498,11 +501,13 @@ bool TResourceTree::CommitHierarchicalPreemptedResourceUsage(
         return false;
     }
 
+    auto elementGuard = element->AcquireWriteLock();
+
     YT_VERIFY(element->Kind_ == EResourceTreeElementKind::Operation);
     YT_VERIFY(element->Initialized_);
 
-    auto commitLocalPreemptedResourceUsage = [&] (auto* current) -> bool {
-        bool success = current->CommitLocalPreemptedResourceUsage(resourceUsageDelta);
+    auto commitLocalPreemptedResourceUsageUnsafe = [&] (auto* current) -> bool {
+        bool success = current->CommitLocalPreemptedResourceUsageUnsafe(resourceUsageDelta);
         YT_LOG_DEBUG_UNLESS(
             success,
             "Local commit of preempted usage failed (ResourceUsageDelta: %v, CurrentElement: %v, SourceElement: %v)",
@@ -512,13 +517,14 @@ bool TResourceTree::CommitHierarchicalPreemptedResourceUsage(
         return success;
     };
 
-    if (!commitLocalPreemptedResourceUsage(element.Get())) {
+    if (!commitLocalPreemptedResourceUsageUnsafe(element.Get())) {
         return false;
     }
 
     auto* current = element->Parent_.Get();
     while (current) {
-        YT_VERIFY(commitLocalPreemptedResourceUsage(current));
+        auto currentGuard = current->AcquireWriteLock();
+        YT_VERIFY(commitLocalPreemptedResourceUsageUnsafe(current));
         current = current->Parent_.Get();
     }
 
@@ -533,7 +539,9 @@ void TResourceTree::DoIncreaseHierarchicalPreemptedResourceUsagePrecommit(
 
     YT_VERIFY(element->Initialized_);
 
-    if (!element->IncreaseLocalPreemptedResourceUsagePrecommit(delta)) {
+    auto elementGuard = element->AcquireWriteLock();
+
+    if (!element->IncreaseLocalPreemptedResourceUsagePrecommitUnsafe(delta)) {
         return;
     }
 

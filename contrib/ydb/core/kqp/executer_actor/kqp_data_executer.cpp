@@ -2013,8 +2013,6 @@ private:
             sourceScanPartitionsCount = TasksGraph.BuildAllTasks({}, ResourcesSnapshot, Stats.get(), &ShardsWithEffects);
         }
 
-        OnEmptyResult();
-
         TIssue validateIssue;
         if (!ValidateTasks(TasksGraph, EExecType::Data, TasksGraph.GetMeta().AllowWithSpilling, validateIssue)) {
             ReplyErrorAndDie(Ydb::StatusIds::INTERNAL_ERROR, validateIssue);
@@ -2330,6 +2328,8 @@ private:
     using TTopicTabletTxs = NTopic::TTopicOperationTransactions;
 
     void ContinueExecute() {
+        OnEmptyResult();
+
         StartCheckpointCoordinator();
         ExecuteTasks();
 
@@ -2881,6 +2881,7 @@ private:
         YQL_ENSURE(Planner);
 
         for (const auto& task : TasksGraph.GetTasks()) {
+            // TODO: is Meta.NodeId assigned real NodeId where task is executed?
             if (task.Meta.NodeId == nodeId && !task.Meta.Completed) {
                 if (task.ComputeActorId) {
                     Planner->CompletedCA(task.Id, task.ComputeActorId);

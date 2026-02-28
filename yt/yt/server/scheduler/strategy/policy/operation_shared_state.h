@@ -111,7 +111,7 @@ private:
     const int UpdatePreemptibleAllocationsListLoggingPeriod_;
 
     // TODO(ignat): make it configurable.
-    TDuration UpdateStateShardsBackoff_ = TDuration::Seconds(5);
+    const TDuration UpdateStateShardsBackoff_ = TDuration::Seconds(5);
 
     struct TAllocationProperties
     {
@@ -140,7 +140,7 @@ private:
     TEnumIndexedArray<EDeactivationReason, int> DeactivationReasons_;
     TEnumIndexedArray<EDeactivationReason, int> DeactivationReasonsFromLastNonStarvingTime_;
     TEnumIndexedArray<EJobResourceWithDiskQuotaType, int> MinNeededResourcesWithDiskQuotaUnsatisfiedCount_;
-    TInstant LastDiagnosticCountersUpdateTime_;
+    std::atomic<TInstant> LastDiagnosticCountersUpdateTime_;
 
     //! Thread affinity: control, profiling.
     std::atomic<i64> ScheduleAllocationAttemptCount_;

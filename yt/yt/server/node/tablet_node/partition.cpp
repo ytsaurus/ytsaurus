@@ -6,6 +6,8 @@
 #include "structured_logger.h"
 #include "store_detail.h"
 #include "tablet.h"
+#include "sorted_chunk_store.h"
+#include "compaction_hint_controllers.h"
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
@@ -63,7 +65,14 @@ TPartition::TPartition(
     , PivotKey_(std::move(pivotKey))
     , NextPivotKey_(std::move(nextPivotKey))
     , SampleKeys_(New<TSampleKeyList>())
-{ }
+{
+    CompactionHints_.Initialize(this);
+}
+
+TPartition::~TPartition()
+{
+    CompactionHints_.StopEpoch(this);
+}
 
 void TPartition::SetState(EPartitionState state)
 {
@@ -127,7 +136,7 @@ void TPartition::Load(TLoadContext& context)
             SERIALIZATION_DUMP_INDENT(context) {
                 auto storeId = Load<TStoreId>(context);
                 auto store = Tablet_->GetStore(storeId)->AsSorted();
-                InsertOrCrash(Stores_, store);
+                AddStore(store);
             }
         }
     }
@@ -217,11 +226,15 @@ void TPartition::StartEpoch()
     }
 
     AllowedSplitTime_ = TInstant::Zero();
+
+    CompactionHints_.StartEpoch(this);
 }
 
 void TPartition::StopEpoch()
 {
     State_ = EPartitionState::Normal;
+
+    CompactionHints_.StopEpoch(this);
 }
 
 void TPartition::RequestImmediateSplit(std::vector<TLegacyOwningKey> pivotKeys)
@@ -266,7 +279,28 @@ void TPartition::BuildOrchidYson(TFluentMap fluent) const
                     fluent
                         .Item().Value(key);
                 });
-        });
+        })
+        .Item("compaction_hints").Value(CompactionHints_);
+}
+
+void TPartition::AddStore(const ISortedStorePtr& store)
+{
+    store->SetPartition(this);
+    InsertOrCrash(Stores_, store);
+
+    if (store->GetType() == EStoreType::SortedChunk) {
+        CompactionHints_.OnStoreAdded(this, store->AsSortedChunk().Get());
+    }
+}
+
+void TPartition::RemoveStore(const ISortedStorePtr& store)
+{
+    store->SetPartition(nullptr);
+    EraseOrCrash(Stores_, store);
+
+    if (store->GetType() == EStoreType::SortedChunk) {
+        CompactionHints_.OnStoreRemoved(this, store->AsSortedChunk().Get());
+    }
 }
 
 ui32 TPartition::StateToMask(EPartitionState state)

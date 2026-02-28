@@ -139,7 +139,7 @@ void BenchmarkSchemalessWrite(ISchemalessFormatWriterPtr writer)
         YT_VERIFY(writer->Write(rows));
     }
     writer->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
     Cerr << timer.GetElapsedTime().MicroSeconds() / 1e6 << Endl;
 }
@@ -164,7 +164,7 @@ void BenchmarkWrite(IUnversionedRowsetWriterPtr writer)
     NProfiling::TWallTimer timer;
     {
         YT_VERIFY(writer->Write(rows));
-        YT_VERIFY(writer->Close().Get().IsOK());
+        YT_VERIFY(writer->Close().BlockingGet().IsOK());
     }
     Cerr << timer.GetElapsedTime().MicroSeconds() / 1e6 << Endl;
 }

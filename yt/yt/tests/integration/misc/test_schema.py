@@ -16,7 +16,7 @@ from yt_commands import (
 from decimal_helpers import decode_decimal, encode_decimal, YtNaN, MAX_DECIMAL_PRECISION
 
 from yt_type_helpers import (
-    make_schema, normalize_schema, make_sorted_column, make_column, make_deleted_column,
+    make_schema, normalize_schema, make_sorted_column, make_column, make_deleted_columns,
     optional_type, list_type, dict_type, struct_type, tuple_type, variant_tuple_type, variant_struct_type,
     decimal_type, tagged_type)
 
@@ -3006,8 +3006,7 @@ class TestDeleteColumnsDisabledStatic(YTEnvSetup):
         schema2 = make_schema([
             make_column("a", "int64", sort_order="ascending"),
             make_column("b", "string"),
-            make_deleted_column("c"),
-        ], unique_keys=True, strict=True)
+        ], unique_keys=True, strict=True, deleted_columns=make_deleted_columns("c"))
         with raises_yt_error('Cannot remove column "c" from a strict schema'):
             alter_table(self._TABLE_PATH, schema=schema2, verbose=True)
 
@@ -3042,8 +3041,7 @@ class TestDeleteColumnsDisabledDynamic(YTEnvSetup):
         schema2 = make_schema([
             make_column("a", "int64", sort_order="ascending"),
             make_column("b", "string"),
-            make_deleted_column("c"),
-        ], unique_keys=True, strict=True)
+        ], unique_keys=True, strict=True, deleted_columns=make_deleted_columns("c"))
         alter_table(self._TABLE_PATH, schema=schema2, verbose=True)
 
         sync_create_cells(1)
@@ -3072,8 +3070,7 @@ class TestDeleteColumnsDisabledDynamic(YTEnvSetup):
         schema2 = make_schema([
             make_column("a", "int64", sort_order="ascending"),
             make_column("b", "string"),
-            make_deleted_column("c"),
-        ], unique_keys=True, strict=True)
+        ], unique_keys=True, strict=True, deleted_columns=make_deleted_columns("c"))
         with raises_yt_error('Cannot remove column "c" from a strict schema'):
             alter_table(self._TABLE_PATH, schema=schema2, verbose=True)
 
@@ -3114,13 +3111,11 @@ class TestDeleteColumns(YTEnvSetup):
         schema2 = make_schema([
             make_column("a", "int64", sort_order="ascending"),
             make_column("b", "string"),
-            make_deleted_column("c"),
-        ], unique_keys=True, strict=True)
+        ], unique_keys=True, strict=True, deleted_columns=make_deleted_columns("c"))
         alter_table(self._TABLE_PATH, schema=schema2, verbose=True)
 
         schema3 = get(self._TABLE_PATH + "/@schema")
-        assert schema3[2]['stable_name'] == 'c'
-        assert schema3[2]['deleted']
+        assert schema3.attributes["deleted_columns"] == [{"stable_name": "c"}]
 
         sync_mount_table(self._TABLE_PATH)
         rows = lookup_rows(self._TABLE_PATH, [{"a": 0}])
@@ -3146,8 +3141,7 @@ class TestDeleteColumns(YTEnvSetup):
             make_column("a", "int64", sort_order="ascending"),
             make_column("b", "string"),
             make_column("cc", "bool", stable_name="c"),
-            make_deleted_column("c"),
-        ], unique_keys=True, strict=True)
+        ], unique_keys=True, strict=True, deleted_columns=make_deleted_columns("c"))
         with raises_yt_error("Duplicate column stable name \"c\""):
             alter_table(self._TABLE_PATH, schema=schema6, verbose=True)
 
@@ -3180,16 +3174,14 @@ class TestDeleteColumns(YTEnvSetup):
         schema3 = make_schema([
             make_column("a", "int64", sort_order="ascending"),
             make_column("c", "bool"),
-            make_deleted_column("bb"),
-        ], unique_keys=True, strict=True)
+        ], unique_keys=True, strict=True, deleted_columns=make_deleted_columns("bb"))
         with raises_yt_error("Column \"bb\" (stable name \"b\") is missing in strict schema"):
             alter_table(self._TABLE_PATH, schema=schema3, verbose=True)
 
         schema4 = make_schema([
             make_column("a", "int64", sort_order="ascending"),
             make_column("c", "bool"),
-            make_deleted_column("b"),
-        ], unique_keys=True, strict=True)
+        ], unique_keys=True, strict=True, deleted_columns=make_deleted_columns("b"))
         alter_table(self._TABLE_PATH, schema=schema4, verbose=True)
 
     @authors("orlovorlov")
@@ -3214,16 +3206,14 @@ class TestDeleteColumns(YTEnvSetup):
         schema2 = make_schema([
             make_column("a", "int64", sort_order="ascending"),
             make_column("c", "bool"),
-            make_deleted_column("b"),
-        ], unique_keys=True, strict=True)
+        ], unique_keys=True, strict=True, deleted_columns=make_deleted_columns("b"))
         alter_table(self._TABLE_PATH, schema=schema2, verbose=True)
 
         schema3 = make_schema([
             make_column("a", "int64", sort_order="ascending"),
             make_column("c", "bool"),
             make_column("b", "string"),
-            make_deleted_column("b"),
-        ], unique_keys=True, strict=True)
+        ], unique_keys=True, strict=True, deleted_columns=make_deleted_columns("b"))
         with raises_yt_error("Duplicate column stable name \"b\""):
             alter_table(self._TABLE_PATH, schema=schema3, verbose=True)
 
@@ -3231,8 +3221,7 @@ class TestDeleteColumns(YTEnvSetup):
             make_column("a", "int64", sort_order="ascending"),
             make_column("c", "bool"),
             make_column("b", optional_type("string"), stable_name="bb"),
-            make_deleted_column("b"),
-        ], unique_keys=True, strict=True)
+        ], unique_keys=True, strict=True, deleted_columns=make_deleted_columns("b"))
         alter_table(self._TABLE_PATH, schema=schema4, verbose=True)
 
     @authors("orlovorlov")
@@ -3259,8 +3248,7 @@ class TestDeleteColumns(YTEnvSetup):
             make_column("a", "string", sort_order="ascending"),
             make_column("c", "int64"),
             make_column("d", "int64"),
-            make_deleted_column("b"),
-        ], unique_keys=True, strict=True)
+        ], unique_keys=True, strict=True, deleted_columns=make_deleted_columns("b"))
 
         with raises_yt_error("Key column \"b\" may not be deleted"):
             alter_table(self._TABLE_PATH, schema=schema2, verbose=True)
@@ -3320,8 +3308,7 @@ class TestDeleteColumns(YTEnvSetup):
             make_column("b", "string"),
             make_column("c", "int64"),
             make_column("e", optional_type("int64")),
-            make_deleted_column("d"),
-        ], unique_keys=True, strict=True)
+        ], unique_keys=True, strict=True, deleted_columns=make_deleted_columns("d"))
         alter_table(self._TABLE_PATH, schema=schema2)
 
         sync_mount_table(self._TABLE_PATH)
@@ -3339,9 +3326,7 @@ class TestDeleteColumns(YTEnvSetup):
             make_column("a", "string", sort_order="ascending"),
             make_column("c", "int64"),
             make_column("e", optional_type("int64")),
-            make_deleted_column("d"),
-            make_deleted_column("b"),
-        ], unique_keys=True, strict=True)
+        ], unique_keys=True, strict=True, deleted_columns=make_deleted_columns("d", "b"))
         alter_table(self._TABLE_PATH, schema=schema3)
 
         sync_mount_table(self._TABLE_PATH)
@@ -3359,9 +3344,7 @@ class TestDeleteColumns(YTEnvSetup):
             make_column("b", optional_type("string"), stable_name="bb"),
             make_column("d", optional_type("string"), stable_name="dd"),
             make_column("e", optional_type("int64")),
-            make_deleted_column("d"),
-            make_deleted_column("b"),
-        ], unique_keys=True, strict=True)
+        ], unique_keys=True, strict=True, deleted_columns=make_deleted_columns("d", "b"))
         alter_table(self._TABLE_PATH, schema=schema4)
 
         updatedb = rows.copy()
@@ -3436,8 +3419,7 @@ class TestDeleteColumns(YTEnvSetup):
         schema2 = make_schema([
             make_column("a", "string", sort_order="ascending"),
             make_column("b", "int64"),
-            make_deleted_column("c"),
-        ], unique_keys=True, strict=True)
+        ], unique_keys=True, strict=True, deleted_columns=make_deleted_columns("c"))
         alter_table(self._TABLE_PATH, schema=schema2)
 
         sync_mount_table(self._TABLE_PATH)
@@ -3476,8 +3458,7 @@ class TestDeleteColumns(YTEnvSetup):
         schema = make_schema([
             make_column("a", "string", sort_order="ascending"),
             make_column("b", "int64"),
-            make_deleted_column("c"),
-        ], unique_keys=True, strict=True)
+        ], unique_keys=True, strict=True, deleted_columns=make_deleted_columns("c"))
         alter_table(table_name, schema=schema)
 
     def alter_drop_column_dynamic(self, table_name):
@@ -3597,8 +3578,7 @@ class TestDeleteColumns(YTEnvSetup):
         schema1 = make_schema([
             {"name": "a", "type": "string"},
             {"name": "b", "type": "int64"},
-            {"stable_name": "c", "deleted": True},
-        ])
+        ], deleted_columns=make_deleted_columns("c"))
 
         alter_table(self._TABLE_PATH, schema=schema1)
         sync_mount_table(self._TABLE_PATH)
@@ -3636,8 +3616,7 @@ class TestDeleteColumns(YTEnvSetup):
         schema2 = make_schema([
             make_column("a", "string", sort_order="ascending"),
             make_column("b", "int64"),
-            make_deleted_column("c"),
-        ], unique_keys=True, strict=True)
+        ], unique_keys=True, strict=True, deleted_columns=make_deleted_columns("c"))
         alter_table(self._TABLE_PATH, schema=schema2)
 
         rows1 = [{
@@ -3678,14 +3657,12 @@ class TestDeleteColumns(YTEnvSetup):
         schema1 = make_schema([
             {"name": "a", "type": "string"},
             {"name": "b", "type": "int64"},
-            make_deleted_column("c"),
-        ])
+        ], deleted_columns=make_deleted_columns("c"))
         alter_table(self._TABLE_PATH, schema=schema1)
         alter_table(self._TABLE_PATH, dynamic=False)
 
         updated_schema = get(self._TABLE_PATH + "/@schema")
-        assert updated_schema[2]['deleted']
-        assert updated_schema[2]['stable_name'] == 'c'
+        assert updated_schema.attributes["deleted_columns"] == [{"stable_name": "c"}]
 
         rows = [{"a": "bar", "b": 456}]
         write_table('<append=%true>' + self._TABLE_PATH, rows)

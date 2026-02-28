@@ -2,7 +2,7 @@ GO_TEST_FOR(vendor/dario.cat/mergo)
 
 LICENSE(BSD-3-Clause)
 
-VERSION(v1.0.1)
+VERSION(v1.0.2)
 
 DATA(
     arcadia/vendor/dario.cat/mergo/testdata

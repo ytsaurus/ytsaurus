@@ -6,7 +6,7 @@ LICENSE(
     MIT
 )
 
-VERSION(v1.18.0)
+VERSION(v1.18.2)
 
 SRCS(
     bitreader.go
@@ -36,6 +36,7 @@ SRCS(
     history.go
     seqdec.go
     seqenc.go
+    simple_go124.go
     snappy.go
     zip.go
     zstd.go
@@ -49,6 +50,7 @@ GO_TEST_SRCS(
     encoder_test.go
     fuzz_test.go
     seqdec_test.go
+    simple_go124_test.go
     snappy_test.go
     zstd_test.go
 )
@@ -79,7 +81,7 @@ IF (ARCH_ARM64)
     )
 ENDIF()
 
-IF (OS_LINUX AND ARCH_ARM7)
+IF (OS_LINUX AND ARCH_ARM6 OR OS_LINUX AND ARCH_ARM7)
     SRCS(
         fse_decoder_generic.go
         matchlen_generic.go

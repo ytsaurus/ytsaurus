@@ -14,6 +14,8 @@
 #include "tablet.h"
 #include "tablet_manager.h"
 #include "tablet_slot.h"
+#include "compaction_hint_controllers.h"
+#include "compaction_hint_fetching.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -21,6 +23,7 @@
 #include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
 #include <yt/yt/server/lib/cellar_agent/cellar.h>
 
+#include <yt/yt/server/lib/lsm/compaction_hints.h>
 #include <yt/yt/server/lib/lsm/config.h>
 #include <yt/yt/server/lib/lsm/hunk_chunk.h>
 #include <yt/yt/server/lib/lsm/lsm_backend.h>
@@ -273,6 +276,9 @@ private:
         lsmPartition->SetIsImmediateSplitRequested(partition->IsImmediateSplitRequested());
         lsmPartition->SetCompressedDataSize(partition->GetCompressedDataSize());
         lsmPartition->SetUncompressedDataSize(partition->GetUncompressedDataSize());
+        for (const auto& controller : partition->CompactionHints().Controllers()) {
+            lsmPartition->CompactionHints().Hints()[controller.GetPartitionCompactionHintKind()] = controller.LsmCompactionHint();
+        }
 
         for (const auto& store : partition->Stores()) {
             lsmPartition->Stores().push_back(ScanStore(
@@ -323,14 +329,22 @@ private:
             }
 
             if (store->IsSorted()) {
-                const auto& compactionHints = store->AsSortedChunk()->CompactionHints();
+                auto sortedChunkStore = store->AsSortedChunk();
 
-                if (auto hint = compactionHints.ChunkViewSize.CompactionHint) {
-                    lsmStore->CompactionHints().IsChunkViewTooNarrow = *hint == EChunkViewSizeStatus::CompactionRequired;
-                }
+                auto& FetchPipelines = sortedChunkStore->CompactionHintFetchPipelines();
+                for (auto [storeKind, partitionKind] : NLsm::StoreCompactionHintKinds) {
+                    if (FetchPipelines.DefinitelyHasNoHint(storeKind)) {
+                        continue;
+                    }
 
-                if (auto hint = compactionHints.RowDigest.CompactionHint) {
-                    lsmStore->CompactionHints().RowDigest = *hint;
+                    if (auto pipeline = FetchPipelines.FetchPipelines()[storeKind]->Lock()) {
+                        lsmStore->CompactionHints().Payloads()[storeKind] = pipeline->Payload();
+                    }
+
+                    if (sortedChunkStore->CompactionHints().Controllers().IsValidIndex(storeKind)) {
+                        lsmStore->CompactionHints().Hints()[storeKind] =
+                            sortedChunkStore->CompactionHints().Controllers()[storeKind].LsmCompactionHint();
+                    }
                 }
             }
         }

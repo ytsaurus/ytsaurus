@@ -52,6 +52,8 @@ extern "C" {
 #include <util/generic/stack.h>
 #include <util/generic/hash_set.h>
 
+#include <ranges>
+
 constexpr auto PREPARED_PARAM_PREFIX = "$p";
 constexpr auto AUTO_PARAM_PREFIX = "a";
 constexpr auto DEFAULT_PARAM_TYPE = "unknown";
@@ -539,6 +541,7 @@ public:
             case T_VariableSetStmt: {
                 // YQL-16284
                 const char* node_name = CAST_NODE(VariableSetStmt, node)->name;
+                // NOLINTNEXTLINE(modernize-avoid-c-arrays)
                 const char* skip_statements[] = {
                     "extra_float_digits",                  // jdbc
                     "application_name",                    // jdbc
@@ -3198,9 +3201,9 @@ public:
 
         const TView* view = nullptr;
         if (StrLength(value->schemaname) == 0) {
-            for (auto rit = State_.CTE.rbegin(); rit != State_.CTE.rend(); ++rit) {
-                auto cteIt = rit->find(value->relname);
-                if (cteIt != rit->end()) {
+            for (auto& rit : std::ranges::reverse_view(State_.CTE)) {
+                auto cteIt = rit.find(value->relname);
+                if (cteIt != rit.end()) {
                     view = &cteIt->second;
                     break;
                 }

@@ -64,30 +64,6 @@ TEST_F(TContainersTest, ListSubcontainers)
         .ThrowOnError();
 }
 
-// See https://st.yandex-team.ru/PORTO-846.
-TEST_F(TContainersTest, DISABLED_WaitContainer)
-{
-    auto executor = CreatePortoExecutor();
-    auto name = GetUniqueName();
-
-    WaitFor(executor->CreateContainer(name))
-        .ThrowOnError();
-
-    WaitFor(executor->SetContainerProperty(name, "command", "sleep 10"))
-        .ThrowOnError();
-
-    WaitFor(executor->StartContainer(name))
-        .ThrowOnError();
-
-    auto exitCode = WaitFor(executor->WaitContainer(name))
-        .ValueOrThrow();
-
-    EXPECT_EQ(0, exitCode);
-
-    WaitFor(executor->DestroyContainer(name))
-        .ThrowOnError();
-}
-
 TEST_F(TContainersTest, CreateFromSpec)
 {
     auto executor = CreatePortoExecutor();

@@ -10,6 +10,7 @@
 #include "volume_cache.h"
 #include "volume_counters.h"
 #include "volume_options.h"
+#include "helpers.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -51,6 +52,8 @@ using namespace NTools;
 using namespace NYson;
 using namespace NYTree;
 
+using NYT::FromProto;
+
 using NControllerAgent::ELayerAccessMethod;
 using NControllerAgent::ELayerFilesystem;
 
@@ -84,7 +87,8 @@ public:
     //! Prepare tmpfs volumes.
     TFuture<std::vector<TTmpfsVolumeResult>> PrepareTmpfsVolumes(
         const std::optional<TString>& sandboxPath,
-        const std::vector<TTmpfsVolumeParams>& volumes) override
+        const std::vector<TTmpfsVolumeParams>& volumes,
+        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts) override
     {
         YT_VERIFY(sandboxPath);
         // Create debug tag.
@@ -93,7 +97,8 @@ public:
         std::vector<TFuture<TTmpfsVolumeResult>> futures;
         futures.reserve(volumes.size());
         for (const auto& volume : volumes) {
-            futures.push_back(CreateTmpfsVolume(tag, *sandboxPath, volume));
+            auto mountPath = GetVolumeMountPathByVolumeId(volume.VolumeId, volumeMounts);
+            futures.push_back(CreateTmpfsVolume(tag, *sandboxPath, volume, mountPath));
         }
         return AllSucceeded(std::move(futures));
     }
@@ -107,9 +112,16 @@ public:
 
     TFuture<void> LinkTmpfsVolumes(
         const TString&,
-        const std::vector<TTmpfsVolumeResult>&) override
+        const std::vector<TTmpfsVolumeResult>&,
+        const std::vector<NScheduler::TVolumeMountPtr>&) override
     {
         YT_UNIMPLEMENTED("LinkTmpfsVolumes is not implemented for SimpleVolumeManager");
+    }
+
+    TFuture<void> RemoveVolumes(const TString& /*volumePath*/) override
+    {
+        YT_LOG_DEBUG("RemoveVolumes is empty in SimpleVolumeManager");
+        return OKFuture;
     }
 
     TFuture<void> Initialize(const std::vector<TSlotLocationConfigPtr>& locations)
@@ -184,7 +196,8 @@ private:
     TFuture<TTmpfsVolumeResult> CreateTmpfsVolume(
         TGuid tag,
         const TString& sandboxPath,
-        const TTmpfsVolumeParams& volume)
+        const TTmpfsVolumeParams& volume,
+        const std::string& mountPath)
     {
         YT_VERIFY(sandboxPath);
 
@@ -194,7 +207,7 @@ private:
         TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
 
         // TODO(dgolear): Switch to std::string.
-        TString path = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, volume.Path));
+        TString path = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, mountPath));
 
         auto config = New<TMountTmpfsConfig>();
         config->Path = path;
@@ -208,8 +221,10 @@ private:
         return BIND(
             [
                 tagSet,
+                volumeId = volume.VolumeId,
                 volumeCreateTimeGuard = std::move(volumeCreateTimeGuard),
                 config = std::move(config),
+                tmpfsIndex = volume.Index,
                 this,
                 this_ = MakeStrong(this)
             ] {
@@ -221,12 +236,13 @@ private:
                     TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
 
                     return TTmpfsVolumeResult{
-                        .Path = config->Path,
                         .Volume = New<TSimpleTmpfsVolume>(
                             tagSet,
                             config->Path,
                             Invoker_,
-                            DetachUnmount_)
+                            DetachUnmount_),
+                        .VolumeId = volumeId,
+                        .Index = tmpfsIndex
                     };
                 } catch (const std::exception& ex) {
                     TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/create_errors").Increment(1);
@@ -409,22 +425,19 @@ public:
 
         const auto& userSandboxOptions = options.UserSandboxOptions;
 
-        YT_LOG_DEBUG(
-            "Prepare volume (Tag: %v, ArtifactCount: %v, HasVirtualSandbox: %v, HasSandboxRootVolumeData: %v)",
-            tag,
-            artifactKeys.size(),
-            userSandboxOptions.VirtualSandboxData.has_value(),
-            userSandboxOptions.SandboxNbdRootVolumeData.has_value());
+        auto Logger = ExecNodeLogger()
+            .WithTag("Tag: %v, JobId: %v, ArtifactCount: %v",
+                tag,
+                options.JobId,
+                artifactKeys.size());
+
+        YT_LOG_DEBUG("Preparing root volume");
 
         if (DynamicConfig_.Acquire()->ThrowOnPrepareVolume) {
             auto error = TError(NExecNode::EErrorCode::RootVolumePreparationFailed, "Throw on prepare volume");
-            YT_LOG_DEBUG(
+            YT_LOG_INFO(
                 error,
-                "Prepare volume (Tag: %v, ArtifactCount: %v, HasVirtualSandbox: %v, HasSandboxRootVolumeData: %v)",
-                tag,
-                artifactKeys.size(),
-                userSandboxOptions.VirtualSandboxData.has_value(),
-                userSandboxOptions.SandboxNbdRootVolumeData.has_value());
+                "Failed to prepare root volume");
             THROW_ERROR(error);
         }
 
@@ -469,7 +482,7 @@ public:
         }
 
         if (auto data = userSandboxOptions.SandboxNbdRootVolumeData) {
-            overlayDataFutures.push_back(GetOrCreateRWNbdVolume(
+            overlayDataFutures.push_back(CreateRWNbdVolume(
                 tag,
                 TPrepareRWNbdVolumeOptions{
                     .JobId = options.JobId,
@@ -477,8 +490,8 @@ public:
                     .MediumIndex = data->MediumIndex,
                     .Filesystem = data->FsType,
                     .DeviceId = data->DeviceId,
-                    .DataNodeChannel = {/*Fill in channel later on.*/},
-                    .SessionId = {/*Fill in session id later on.*/},
+                    .DataNodeChannel = {/*Channel will be filled later on.*/},
+                    .SessionId = {/*SessionId will be filled later on.*/},
                     .DataNodeRpcTimeout = data->DataNodeRpcTimeout,
                     .DataNodeAddress = data->DataNodeAddress,
                     .DataNodeNbdServiceRpcTimeout = data->DataNodeNbdServiceRpcTimeout,
@@ -517,7 +530,8 @@ public:
     //! Prepare tmpfs volumes.
     TFuture<std::vector<TTmpfsVolumeResult>> PrepareTmpfsVolumes(
         const std::optional<TString>&,
-        const std::vector<TTmpfsVolumeParams>& volumes) override
+        const std::vector<TTmpfsVolumeParams>& volumes,
+        const std::vector<NScheduler::TVolumeMountPtr>&) override
     {
         // Create debug tag.
         auto tag = TGuid::Create();
@@ -532,7 +546,8 @@ public:
 
     TFuture<void> LinkTmpfsVolumes(
         const TString& destinationDirectory,
-        const std::vector<TTmpfsVolumeResult>& volumes) override
+        const std::vector<TTmpfsVolumeResult>& volumes,
+        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts) override
     {
         // Create debug tag.
         auto tag = TGuid::Create();
@@ -540,7 +555,8 @@ public:
         std::vector<TFuture<void>> futures;
         futures.reserve(volumes.size());
         for (const auto& volume : volumes) {
-            TString target = NFS::GetRealPath(NFS::CombinePaths(destinationDirectory, volume.Path));
+            auto mountPath = GetVolumeMountPathByVolumeId(volume.VolumeId, volumeMounts);
+            TString target = NFS::GetRealPath(NFS::CombinePaths(destinationDirectory, mountPath));
             futures.push_back(volume.Volume->Link(tag, target));
         }
 
@@ -589,6 +605,23 @@ public:
         return location->RbindRootVolume(volume, slotPath);
     }
 
+    //! Remove volumes planted at a given path.
+    TFuture<void> RemoveVolumes(const TString& volumePath) override
+    {
+        auto location = LayerCache_->PickLocation();
+        return BIND(
+            [
+                location,
+                volumePath
+            ] {
+                return location->RemoveVolumes(
+                    volumePath,
+                    TDuration::Minutes(30));
+            })
+            .AsyncVia(GetCurrentInvoker())
+            .Run();
+    }
+
 private:
     IBootstrap* const Bootstrap_;
     const NDataNode::TDataNodeConfigPtr Config_;
@@ -623,11 +656,11 @@ private:
             .As<TOverlayData>();
     }
 
-    TFuture<TOverlayData> GetOrCreateRWNbdVolume(
+    TFuture<TOverlayData> CreateRWNbdVolume(
         TGuid tag,
         TPrepareRWNbdVolumeOptions options)
     {
-        return NbdVolumeFactory_->GetOrCreateVolume(tag, std::move(options))
+        return NbdVolumeFactory_->CreateVolume(tag, std::move(options))
             .As<TOverlayData>();
     }
 
@@ -644,9 +677,9 @@ private:
         const TTmpfsVolumeParams& volumeParams)
     {
         YT_LOG_INFO(
-            "Creating tmpfs volume (Tag: %v, Path: %v, Size: %v, UserId: %v)",
+            "Creating tmpfs volume (Tag: %v, VolumeId: %v, Size: %v, UserId: %v)",
             tag,
-            volumeParams.Path,
+            volumeParams.VolumeId,
             volumeParams.Size,
             volumeParams.UserId);
 
@@ -665,16 +698,18 @@ private:
         return future.AsUnique()
             .Apply(BIND(
                 [
-                    tmpfsPath = volumeParams.Path,
+                    volumeId = volumeParams.VolumeId,
+                    index = volumeParams.Index,
                     tagSet = std::move(tagSet),
                     location = std::move(location)
                 ] (TVolumeMeta&& volumeMeta) mutable {
                     TTmpfsVolumeResult result;
-                    result.Path = std::move(tmpfsPath);
+                    result.VolumeId = std::move(volumeId);
                     result.Volume = New<TTmpfsVolume>(
                         std::move(tagSet),
                         std::move(volumeMeta),
                         std::move(location));
+                    result.Index = index;
                     return result;
                 }))
             .ToUncancelable();

@@ -134,7 +134,8 @@ class TNbdVolumeFactory
     : public TVolumeCacheBase<TString>
 {
 public:
-    using TVolumePtr = TIntrusivePtr<TCachedVolume<TString>>;
+    using TVolume = TCachedVolume<TString>;
+    using TVolumePtr = TIntrusivePtr<TVolume>;
 
     TNbdVolumeFactory(
         IBootstrap* const bootstrap,
@@ -145,16 +146,43 @@ public:
         TGuid tag,
         TPrepareRONbdVolumeOptions options);
 
-    TFuture<IVolumePtr> GetOrCreateVolume(
+    TFuture<IVolumePtr> CreateVolume(
         TGuid tag,
         TPrepareRWNbdVolumeOptions options);
 
 private:
+    using TVolumeFactory = TExtendedCallback<IVolumePtr(
+        NProfiling::TTagSet tagSet,
+        TVolumeMeta volumeMeta,
+        TLayerLocationPtr layerLocation,
+        TString nbdDeviceId,
+        NNbd::INbdServerPtr nbdServer)>;
+
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, InsertLock_);
 
     static void ValidatePrepareRONbdVolumeOptions(const TPrepareRONbdVolumeOptions& options);
     static void ValidatePrepareRWNbdVolumeOptions(const TPrepareRWNbdVolumeOptions& options);
+
+    template <typename TNbdVolume>
+    static TVolumeFactory MakeVolumeFactory()
+    {
+        return BIND(
+            [] (
+                NProfiling::TTagSet tagSet,
+                TVolumeMeta volumeMeta,
+                TLayerLocationPtr layerLocation,
+                TString nbdDeviceId,
+                NNbd::INbdServerPtr nbdServer) -> IVolumePtr {
+
+            return New<TNbdVolume>(
+                std::move(tagSet),
+                std::move(volumeMeta),
+                std::move(layerLocation),
+                std::move(nbdDeviceId),
+                std::move(nbdServer));
+        });
+    }
 
     TInsertCookie GetInsertCookie(const TString& deviceId, const NNbd::INbdServerPtr& nbdServer);
 
@@ -164,6 +192,24 @@ private:
         const TString& deviceId,
         const NNbd::INbdServerPtr& nbdServer,
         const NLogging::TLogger& Logger);
+
+    TFuture<NNbd::IBlockDevicePtr> InitializeNbdDevice(
+        const NNbd::IBlockDevicePtr& device,
+        const NLogging::TLogger& Logger) const;
+
+    TFuture<IVolumePtr> CreateNbdVolume(
+        TGuid tag,
+        NProfiling::TTagSet tagSet,
+        TCreateNbdVolumeOptions options,
+        TVolumeFactory volumeFactory);
+
+    TFuture<IVolumePtr> PrepareNbdVolume(
+        const NLogging::TLogger& Logger,
+        TGuid tag,
+        NProfiling::TTagSet tagSet,
+        TFuture<NNbd::IBlockDevicePtr> deviceFuture,
+        TCreateNbdVolumeOptions options,
+        TVolumeFactory volumeFactory);
 
     // RO volumes start here.
 
@@ -175,16 +221,11 @@ private:
         TGuid tag,
         TPrepareRONbdVolumeOptions options);
 
-    TFuture<TRONbdVolumePtr> CreateRONbdVolume(
-        TGuid tag,
-        NProfiling::TTagSet tagSet,
-        TCreateNbdVolumeOptions options);
-
     //! Create RO NBD volume. The order of creation is as follows:
     //! 1. Create RO NBD device.
     //! 2. Register RO NBD device with NBD server.
     //! 3. Create RO NBD porto volume connected to RO NBD device.
-    TFuture<TRONbdVolumePtr> PrepareRONbdVolume(
+    TFuture<IVolumePtr> PrepareRONbdVolume(
         TGuid tag,
         TPrepareRONbdVolumeOptions options);
 
@@ -194,16 +235,11 @@ private:
         TGuid tag,
         TPrepareRWNbdVolumeOptions options);
 
-    TFuture<TRWNbdVolumePtr> CreateRWNbdVolume(
-        TGuid tag,
-        NProfiling::TTagSet tagSet,
-        TCreateNbdVolumeOptions options);
-
     //! Create RW NBD volume. The order of creation is as follows:
     //! 1. Create RW NBD device.
     //! 2. Register RW NBD device with NBD server.
     //! 3. Create RW NBD porto volume connected to RW NBD device.
-    TFuture<TRWNbdVolumePtr> PrepareRWNbdVolume(
+    TFuture<IVolumePtr> PrepareRWNbdVolume(
         TGuid tag,
         TPrepareRWNbdVolumeOptions options);
 

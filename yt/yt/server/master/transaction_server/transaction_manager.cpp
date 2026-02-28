@@ -1870,7 +1870,7 @@ public:
 
         TFuture<TSharedRefArray> responseFuture;
         // Fast path.
-        if (readyEvent.IsSet() && readyEvent.Get().IsOK()) {
+        if (readyEvent.IsSet() && readyEvent.BlockingGet().IsOK()) {
             responseFuture = DoCommitTransaction(
                 transactionId,
                 prerequisiteTransactionIds,
@@ -1942,7 +1942,7 @@ public:
 
         TFuture<TSharedRefArray> responseFuture;
         // Fast path.
-        if (readyEvent.IsSet() && readyEvent.Get().IsOK()) {
+        if (readyEvent.IsSet() && readyEvent.BlockingGet().IsOK()) {
             responseFuture = DoCommitTransaction(
                 transactionId,
                 prerequisiteTransactionIds,

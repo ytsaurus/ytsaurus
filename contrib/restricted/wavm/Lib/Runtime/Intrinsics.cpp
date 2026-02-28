@@ -255,3 +255,57 @@ HashMap<std::string, Intrinsics::Function*> Intrinsics::getUninstantiatedFunctio
 
 	return result;
 }
+
+namespace WAVM { namespace Runtime {
+
+#ifdef __APPLE__
+static constexpr auto WAVM_CLOCK_TYPE = _CLOCK_MONOTONIC_RAW;
+#else
+static constexpr auto WAVM_CLOCK_TYPE = CLOCK_MONOTONIC_COARSE;
+#endif
+
+class Deadline {
+public:
+	bool isDeadlineReached() const {
+		if (!deadline.has_value()) {
+			return false;
+		}
+	
+		struct timespec current = {};
+		if (clock_gettime(WAVM_CLOCK_TYPE, &current) != 0) {
+			// The simplest thing to do here is to assume that the deadline just hasn't arrived.
+			return false;
+		}
+	
+		return current.tv_sec > deadline->tv_sec ||
+			(current.tv_sec == deadline->tv_sec && current.tv_nsec >= deadline->tv_nsec);
+	}
+	
+	void setDeadline(std::optional<struct timespec> newDeadline) {
+		deadline = newDeadline;
+	}
+	
+private:
+	std::optional<struct timespec> deadline;
+};
+
+static thread_local Deadline currentDeadline;
+	
+void setCurrentDeadline(std::optional<struct timespec> deadline)
+{
+	currentDeadline.setDeadline(deadline);
+}
+	
+bool isCurrentDeadlineReached()
+{
+	return currentDeadline.isDeadlineReached();
+}
+
+struct timespec getInstant()
+{
+	struct timespec current = {};
+	WAVM_ASSERT(clock_gettime(WAVM_CLOCK_TYPE, &current) == 0);
+	return current;
+}
+	
+}}

@@ -298,7 +298,8 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
                 total_hunk_length,
                 hunk_chunk_count):
             wait(
-                lambda: profiling.get_counter("tablet/overlapping_store_count") == overlapping_store_count
+                lambda: print(profiling.get_counter("tablet/uncompressed_data_size")) is None
+                and profiling.get_counter("tablet/overlapping_store_count") == overlapping_store_count
                 and profiling.get_counter("tablet/eden_store_count") == eden_store_count
                 and profiling.get_counter("tablet/data_weight") == data_weight
                 and profiling.get_counter("tablet/uncompressed_data_size") == uncompressed_data_size
@@ -329,7 +330,7 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
         insert_rows(table_sorted, [{"key": 0, "value": "a" * 100}])
         sync_flush_table(table_sorted)
         wait_sorted(data_weight=29,
-                    uncompressed_data_size=101,
+                    uncompressed_data_size=277,
                     row_count=1,
                     chunk_count=1,
                     hunk_count=1,
@@ -339,7 +340,7 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
         insert_rows(table_sorted, [{"key": 2, "value": "c" * 100}, {"key": 3, "value": "b" * 100}])
         sync_flush_table(table_sorted)
         wait_sorted(data_weight=87,
-                    uncompressed_data_size=215,
+                    uncompressed_data_size=567,
                     row_count=3,
                     chunk_count=2,
                     hunk_count=3,
@@ -403,13 +404,13 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
         sync_flush_table("//tmp/t")
 
         lookup_rows("//tmp/t", [{"key": i} for i in range(1, 4)], raw=False)
-        wait(lambda: max_block_size_summary.get_max() == 126.0)
+        wait(lambda: max_block_size_summary.get_max() == 302.0)
 
         insert_rows("//tmp/t", [{"key": 4, "value": "F" * 40}])
         sync_flush_table("//tmp/t")
 
         lookup_rows("//tmp/t", [{"key": i} for i in range(1, 4)], raw=False)
-        wait(lambda: max_block_size_summary.get_max() == 136.0)
+        wait(lambda: max_block_size_summary.get_max() == 312.0)
 
 
 @pytest.mark.enabled_multidaemon

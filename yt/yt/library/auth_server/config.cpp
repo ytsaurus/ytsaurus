@@ -395,6 +395,8 @@ void TYCAuthenticatorConfig::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("create_user_if_not_exists", &TThis::CreateUserIfNotExists)
         .Default(true);
+    registrar.Parameter("add_user_to_groups", &TThis::AddUserToGroups)
+        .Default(true);
 
     registrar.Parameter("default_user_tags", &TThis::DefaultUserTags)
         .Default({"iam_user"});
@@ -403,9 +405,6 @@ void TYCAuthenticatorConfig::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("retry_status_codes", &TThis::RetryStatusCodes)
         .Default();
-
-    registrar.Parameter("authenticate_login_field", &TThis::AuthenticateLoginField)
-        .Default("subject");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

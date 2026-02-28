@@ -174,7 +174,7 @@ TEST(TDsvWriterTest, SimpleTabular)
 
     EXPECT_EQ(true, writer->Write(rows));
     writer->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     std::string output =
@@ -204,7 +204,7 @@ TEST(TDsvWriterTest, AnyTabular)
         0);
 
     EXPECT_FALSE(writer->Write(rows));
-    EXPECT_ANY_THROW(writer->GetReadyEvent().Get().ThrowOnError());
+    EXPECT_ANY_THROW(writer->GetReadyEvent().BlockingGet().ThrowOnError());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -249,7 +249,7 @@ TEST(TTskvWriterTest, SimpleTabular)
 
     EXPECT_EQ(true, writer->Write(rows));
     writer->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     std::string output =
@@ -289,7 +289,7 @@ TEST(TTskvWriterTest, Escaping)
 
     EXPECT_EQ(true, writer->Write(rows));
     writer->Close()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     std::string output =

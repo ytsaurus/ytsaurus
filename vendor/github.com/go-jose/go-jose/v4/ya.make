@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v4.0.5)
+VERSION(v4.1.3)
 
 SRCS(
     asymmetric.go
@@ -27,6 +27,7 @@ GO_TEST_SRCS(
     jwk_test.go
     jws_test.go
     opaque_test.go
+    shared_test.go
     signing_test.go
     symmetric_test.go
     utils_test.go
@@ -40,4 +41,5 @@ RECURSE(
     gotest
     json
     jwt
+    testutils
 )

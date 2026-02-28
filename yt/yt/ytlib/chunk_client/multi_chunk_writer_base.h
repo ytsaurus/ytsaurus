@@ -64,23 +64,6 @@ protected:
     virtual IChunkWriterBasePtr CreateTemplateWriter(IChunkWriterPtr underlyingWriter) = 0;
 
 private:
-    struct TSession
-    {
-        IChunkWriterBasePtr TemplateWriter;
-        IChunkWriterPtr UnderlyingWriter;
-
-        bool IsActive() const
-        {
-            return bool(TemplateWriter);
-        }
-
-        void Reset()
-        {
-            TemplateWriter.Reset();
-            UnderlyingWriter.Reset();
-        }
-    };
-
     const TMultiChunkWriterConfigPtr Config_;
     const TMultiChunkWriterOptionsPtr Options_;
     const NObjectClient::TCellTag CellTag_;
@@ -91,19 +74,18 @@ private:
     const IBlockCachePtr BlockCache_;
     const TTrafficMeterPtr TrafficMeter_;
 
-    TSession CurrentSession_;
-
     bool Closing_ = false;
 
     TFuture<void> ReadyEvent_ = OKFuture;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     NProto::TDataStatistics DataStatistics_;
-    TCodecStatistics CodecStatistics;
+    TCodecStatistics CodecStatistics_;
+    IChunkWriterBasePtr CurrentTemplateWriter_;
+    IChunkWriterPtr CurrentUnderlyingWriter_;
 
     std::vector<NChunkClient::NProto::TChunkSpec> WrittenChunkSpecs_;
     TWrittenChunkReplicasInfoList WrittenChunkReplicasInfos_;
-
 
     void InitSession();
     void FinishSession();
@@ -152,7 +134,7 @@ public:
 
     bool Write(TWriteArgs... args) override
     {
-        YT_VERIFY(!SwitchingSession_);
+        YT_VERIFY(!SwitchingSession_.load());
 
         // Return true if current writer is ready for more data and
         // we didn't switch to the next chunk.

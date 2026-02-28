@@ -1814,8 +1814,8 @@ TEST_F(TSignatureComponentsTest, EmptyInit)
     Components = New<TSignatureComponents>(Config, OwnerId, NativeConnection, RotateInvoker);
     auto startRotationFuture = Components->StartRotation();
     auto stopRotationFuture = Components->StopRotation();
-    EXPECT_TRUE(startRotationFuture.IsSet() && startRotationFuture.Get().IsOK());
-    EXPECT_TRUE(stopRotationFuture.IsSet() && stopRotationFuture.Get().IsOK());
+    EXPECT_TRUE(startRotationFuture.IsSet() && startRotationFuture.BlockingGet().IsOK());
+    EXPECT_TRUE(stopRotationFuture.IsSet() && stopRotationFuture.BlockingGet().IsOK());
 
     auto generator = Components->GetSignatureGenerator();
     auto validator = Components->GetSignatureValidator();
@@ -1925,7 +1925,7 @@ TEST_F(TSignatureComponentsTest, ReconfigureDisableGeneration)
 
     // Should be a no-op.
     auto startFuture = Components->StartRotation();
-    EXPECT_TRUE(startFuture.IsSet() && startFuture.Get().IsOK());
+    EXPECT_TRUE(startFuture.IsSet() && startFuture.BlockingGet().IsOK());
 }
 
 TEST_F(TSignatureComponentsTest, ReconfigureEnableValidation)
@@ -2054,7 +2054,7 @@ TEST_F(TSignatureComponentsTest, ReconfigureWhileRotating)
 
     // Start rotation should be a no-op now.
     auto startFuture = Components->StartRotation();
-    EXPECT_TRUE(startFuture.IsSet() && startFuture.Get().IsOK());
+    EXPECT_TRUE(startFuture.IsSet() && startFuture.BlockingGet().IsOK());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

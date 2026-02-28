@@ -160,12 +160,19 @@ TNodePtr BuildYqlSubquery(TNodePtr source, TString alias) {
 
 class TSourceNode: public INode {
 public:
-    TSourceNode(TPosition pos, TSourcePtr&& source, bool checkExist, bool withTables, bool isInlineScalar)
+    TSourceNode(
+        TPosition pos,
+        TSourcePtr&& source,
+        bool checkExist,
+        bool withTables,
+        bool isInlineScalar,
+        bool isPure)
         : INode(pos)
         , Source_(std::move(source))
         , CheckExist_(checkExist)
         , WithTables_(withTables)
         , IsInlineScalar_(isInlineScalar)
+        , IsPure_(isPure)
     {
     }
 
@@ -210,10 +217,24 @@ public:
             }
             src->AddDependentSource(Source_);
         }
-        if (Node_ && WithTables_) {
-            TTableList tableList;
-            Source_->GetInputTables(tableList);
 
+        TTableList tableList;
+        Source_->GetInputTables(tableList);
+
+        if (IsPure_ && !tableList.empty()) {
+            TSet<TPosition> positions = {Pos_};
+            for (const auto& table : tableList) {
+                if (table.Keys) {
+                    positions.emplace(table.Keys->GetPos());
+                }
+            }
+            for (const auto& pos : positions) {
+                ctx.Error(pos) << "Reading a table in a pure context";
+            }
+            return false;
+        }
+
+        if (Node_ && WithTables_) {
             TNodePtr inputTables(BuildInputTables(ctx.Pos(), tableList, IsSubquery(), ctx.Scoped));
             if (!inputTables->Init(ctx, Source_.Get())) {
                 return false;
@@ -241,7 +262,13 @@ public:
     }
 
     TPtr DoClone() const final {
-        return new TSourceNode(Pos_, Source_->CloneSource(), CheckExist_, WithTables_, IsInlineScalar_);
+        return new TSourceNode(
+            Pos_,
+            Source_->CloneSource(),
+            CheckExist_,
+            WithTables_,
+            IsInlineScalar_,
+            IsPure_);
     }
 
 protected:
@@ -250,10 +277,23 @@ protected:
     bool CheckExist_;
     bool WithTables_;
     bool IsInlineScalar_;
+    bool IsPure_;
 };
 
-TNodePtr BuildSourceNode(TPosition pos, TSourcePtr source, bool checkExist, bool withTables, bool isInlineScalar) {
-    return new TSourceNode(pos, std::move(source), checkExist, withTables, isInlineScalar);
+TNodePtr BuildSourceNode(
+    TPosition pos,
+    TSourcePtr source,
+    bool checkExist,
+    bool withTables,
+    bool isInlineScalar,
+    bool isPure) {
+    return new TSourceNode(
+        pos,
+        std::move(source),
+        /*checkExist=*/checkExist,
+        /*withTables=*/withTables,
+        /*isInlineScalar=*/isInlineScalar,
+        /*isPure=*/isPure);
 }
 
 class TFakeSource: public ISource {
@@ -494,7 +534,7 @@ protected:
     }
 
     TMaybe<bool> AddColumn(TContext& ctx, TColumnNode& column) override {
-        const auto& label = *column.GetSourceName();
+        const auto label = *column.GetSourceName();
         const auto& source = GetLabel();
         if (!label.empty() && label != source && !(source.StartsWith(label) && source[label.size()] == ':')) {
             if (column.IsReliable()) {
@@ -602,8 +642,7 @@ public:
     TNodePtr Build(TContext& ctx) final {
         TNodePtr block;
         auto muxArgs = Y();
-        for (size_t i = 0; i < Sources_.size(); ++i) {
-            auto& source = Sources_[i];
+        for (auto& source : Sources_) {
             auto input = source->Build(ctx);
             auto ref = ctx.MakeName("src");
             muxArgs->Add(ref);
@@ -747,10 +786,10 @@ bool IsSubqueryRef(const TSourcePtr& source) {
     return dynamic_cast<const TSubqueryRefNode*>(source.Get()) != nullptr;
 }
 
-class TYqlSubqueryRefNode final: public INode {
+class TYqlSubqueryRefNode final: public IRealSource {
 public:
     TYqlSubqueryRefNode(TNodePtr subquery, TString ref)
-        : INode(subquery->GetPos())
+        : IRealSource(subquery->GetPos())
         , Subquery_(std::move(subquery))
         , Ref_(std::move(ref))
     {
@@ -773,8 +812,22 @@ public:
         return Node_->Translate(ctx);
     }
 
+    TNodePtr Build(TContext& ctx) final {
+        Y_UNUSED(ctx);
+        return Node_;
+    }
+
+    TMaybe<bool> AddColumn(TContext& ctx, TColumnNode& column) final {
+        Y_UNUSED(ctx, column);
+        return true;
+    }
+
     TPtr DoClone() const final {
         return new TYqlSubqueryRefNode(Subquery_, Ref_);
+    }
+
+    ISource* GetSource() final {
+        return this;
     }
 
 private:
@@ -2387,7 +2440,9 @@ private:
 
                         terms = L(terms, Y("let", "res", members));
                     }
-                    sqlProjectArgs = L(sqlProjectArgs, Y("SqlProjectStarItem", "projectCoreType", BuildQuotedAtom(Pos_, *sourceName), BuildLambda(Pos_, Y("row"), terms, "res"), Q(options)));
+                    sqlProjectArgs = L(sqlProjectArgs, Y("SqlProjectStarItem", "projectCoreType",
+                                                         BuildQuotedAtom(Pos_, *sourceName),
+                                                         BuildLambda(Pos_, Y("row"), terms, "res"), Q(options)));
                 }
                 ++column;
                 ++isNamedColumn;

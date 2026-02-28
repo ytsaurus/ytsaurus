@@ -156,7 +156,7 @@ DECLARE_REFCOUNTED_STRUCT(TTabletPerformanceCounters)
 
 DECLARE_REFCOUNTED_STRUCT(IGranuleFilter)
 
-struct TVersionedRowDigest;
+DECLARE_REFCOUNTED_STRUCT(TVersionedRowDigest)
 
 DECLARE_REFCOUNTED_STRUCT(IDictionaryCompressionSession)
 DECLARE_REFCOUNTED_STRUCT(IDictionaryDecompressionSession)

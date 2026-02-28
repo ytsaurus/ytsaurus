@@ -369,7 +369,7 @@ public:
         PrepareFile();
 
         File_ = IOEngine_->Open({FileName_, EOpenModeFlag::RdWr})
-            .Get()
+            .BlockingGet()
             .ValueOrThrow();
         Position_ = 0;
         MaxPosition_ = File_->GetLength();
@@ -467,7 +467,7 @@ private:
             shots.push_back(SingleShoot(ammo));
         }
 
-        AllSet(std::move(shots)).Get();
+        AllSet(std::move(shots)).BlockingGet();
 
         -- Inflight_;
     }

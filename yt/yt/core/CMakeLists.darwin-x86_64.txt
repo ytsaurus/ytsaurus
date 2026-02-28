@@ -348,6 +348,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/node.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/node_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/permission.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/precise_time.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/request_complexity_limiter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/request_complexity_limits.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/serialize.cpp

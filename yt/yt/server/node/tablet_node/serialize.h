@@ -72,6 +72,7 @@ DEFINE_ENUM(ETabletReign,
     // 26.1 starts here.
     ((Start_26_1)                                  (101500)) // akozhikhov
     ((HunkTabletSensors)                           (101501)) // akozhikhov
+    ((ReshardRedirectionHint)                      (101502)) // atalmenev
 );
 
 static_assert(TEnumTraits<ETabletReign>::IsMonotonic, "Tablet reign enum is not monotonic");

@@ -179,7 +179,7 @@ void TSolomonExporter::TransferSensors()
     std::vector<TIntrusivePtr<TRemoteProcess>> deadProcesses;
     for (const auto& [dumpFuture, process] : remoteFutures) {
         // Use blocking Get(), because we want to lock current thread while data structure is updating.
-        auto result = dumpFuture.Get();
+        auto result = dumpFuture.BlockingGet();
 
         if (result.IsOK()) {
             try {
@@ -561,7 +561,7 @@ void TSolomonExporter::DoHandleShard(
             auto cacheGuard = Guard(CacheLock_);
 
             auto cacheHitIt = ResponseCache_.find(*cacheKey);
-            if (cacheHitIt != ResponseCache_.end() && !(cacheHitIt->second.IsSet() && !cacheHitIt->second.Get().IsOK())) {
+            if (cacheHitIt != ResponseCache_.end() && !(cacheHitIt->second.IsSet() && !cacheHitIt->second.BlockingGet().IsOK())) {
                 YT_LOG_DEBUG("Replying from cache");
 
                 ResponseCacheHit_.Increment();

@@ -3597,7 +3597,6 @@ class TestDynamicNestedColumns(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
 
     NUM_SCHEDULERS = 1
-    ENABLE_BULK_INSERT = True
 
     def _create_table(self, path, schema):
         create(
