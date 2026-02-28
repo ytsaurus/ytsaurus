@@ -287,6 +287,8 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Preprocessor([] (TThis* config) {
+        config->MaxSnapshotCountToKeep = 2;
+
         config->StoreChunkReader->SuspiciousNodeGracePeriod = TDuration::Minutes(5);
         config->StoreChunkReader->BanPeersPermanently = false;
 

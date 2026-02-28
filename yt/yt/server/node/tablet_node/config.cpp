@@ -23,6 +23,7 @@ namespace NYT::NTabletNode {
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NDistributedThrottler;
+using namespace NTransactionSupervisor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,6 +31,17 @@ void TTabletHydraManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("response_keeper", &TThis::ResponseKeeper)
         .DefaultNew();
+
+    registrar.Preprocessor([] (auto* config) {
+        config->EnableStateHashChecker = false;
+        config->LeaderLeaseCheckPeriod = TDuration::Seconds(5);
+        config->LeaderLeaseGraceDelay = TDuration::Seconds(31);
+        config->LeaderLeaseTimeout = TDuration::Seconds(30);
+        config->MaxChangelogRecordCount = 10'000'000;
+        config->SnapshotBuildPeriod = TDuration::Minutes(20);
+        config->AlertOnSnapshotFailure = false;
+        config->MaxChangelogsForRecovery = 5;
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -164,10 +176,10 @@ void TStoreFlusherConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("thread_pool_size", &TThis::ThreadPoolSize)
         .GreaterThan(0)
-        .Default(1);
+        .Default(2);
     registrar.Parameter("max_concurrent_flushes", &TThis::MaxConcurrentFlushes)
         .GreaterThan(0)
-        .Default(16);
+        .Default(128);
     registrar.Parameter("min_forced_flush_data_size", &TThis::MinForcedFlushDataSize)
         .GreaterThan(0)
         .Default(1_MB);
@@ -201,13 +213,13 @@ void TStoreCompactorConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("thread_pool_size", &TThis::ThreadPoolSize)
         .GreaterThan(0)
-        .Default(1);
+        .Default(4);
     registrar.Parameter("max_concurrent_compactions", &TThis::MaxConcurrentCompactions)
         .GreaterThan(0)
-        .Default(1);
+        .Default(64);
     registrar.Parameter("max_concurrent_partitionings", &TThis::MaxConcurrentPartitionings)
         .GreaterThan(0)
-        .Default(1);
+        .Default(16);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -305,7 +317,7 @@ void TInMemoryManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_concurrent_preloads", &TThis::MaxConcurrentPreloads)
         .GreaterThan(0)
-        .Default(1);
+        .Default(8);
     registrar.Parameter("intercepted_data_retention_time", &TThis::InterceptedDataRetentionTime)
         .Default(TDuration::Seconds(30));
     registrar.Parameter("ping_period", &TThis::PingPeriod)
@@ -723,7 +735,11 @@ void TTabletNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("transaction_manager", &TThis::TransactionManager)
         .DefaultNew();
     registrar.Parameter("transaction_supervisor", &TThis::TransactionSupervisor)
-        .DefaultNew();
+        .DefaultCtor([] {
+            auto transactionSupervisor = New<TTransactionSupervisorConfig>();
+            transactionSupervisor->RpcTimeout = TDuration::Seconds(10);
+            return transactionSupervisor;
+        });
     registrar.Parameter("tablet_manager", &TThis::TabletManager)
         .DefaultNew();
     registrar.Parameter("store_flusher", &TThis::StoreFlusher)
