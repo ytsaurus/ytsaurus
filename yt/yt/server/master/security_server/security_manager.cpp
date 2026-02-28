@@ -684,7 +684,7 @@ public:
                 for (const auto& [cellTag, cellStatistics] : multicellStatistics) {
                     TWithTagGuard guard(&buffer, "cell_tag", ToString(cellTag));
                     auto usage = cellStatistics.ResourceUsage;
-                    auto committedUsage = cellStatistics.ResourceUsage;
+                    auto committedUsage = cellStatistics.CommittedResourceUsage;
 
                     buffer.AddGauge("/master_memory", usage.GetTotalMasterMemory());
 
