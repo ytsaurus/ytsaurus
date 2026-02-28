@@ -425,22 +425,19 @@ public:
 
         const auto& userSandboxOptions = options.UserSandboxOptions;
 
-        YT_LOG_DEBUG(
-            "Prepare volume (Tag: %v, ArtifactCount: %v, HasVirtualSandbox: %v, HasSandboxRootVolumeData: %v)",
-            tag,
-            artifactKeys.size(),
-            userSandboxOptions.VirtualSandboxData.has_value(),
-            userSandboxOptions.SandboxNbdRootVolumeData.has_value());
+        auto Logger = ExecNodeLogger()
+            .WithTag("Tag: %v, JobId: %v, ArtifactCount: %v",
+                tag,
+                options.JobId,
+                artifactKeys.size());
+
+        YT_LOG_DEBUG("Preparing root volume");
 
         if (DynamicConfig_.Acquire()->ThrowOnPrepareVolume) {
             auto error = TError(NExecNode::EErrorCode::RootVolumePreparationFailed, "Throw on prepare volume");
-            YT_LOG_DEBUG(
+            YT_LOG_INFO(
                 error,
-                "Prepare volume (Tag: %v, ArtifactCount: %v, HasVirtualSandbox: %v, HasSandboxRootVolumeData: %v)",
-                tag,
-                artifactKeys.size(),
-                userSandboxOptions.VirtualSandboxData.has_value(),
-                userSandboxOptions.SandboxNbdRootVolumeData.has_value());
+                "Failed to prepare root volume");
             THROW_ERROR(error);
         }
 
@@ -485,7 +482,7 @@ public:
         }
 
         if (auto data = userSandboxOptions.SandboxNbdRootVolumeData) {
-            overlayDataFutures.push_back(GetOrCreateRWNbdVolume(
+            overlayDataFutures.push_back(CreateRWNbdVolume(
                 tag,
                 TPrepareRWNbdVolumeOptions{
                     .JobId = options.JobId,
@@ -493,8 +490,8 @@ public:
                     .MediumIndex = data->MediumIndex,
                     .Filesystem = data->FsType,
                     .DeviceId = data->DeviceId,
-                    .DataNodeChannel = {/*Fill in channel later on.*/},
-                    .SessionId = {/*Fill in session id later on.*/},
+                    .DataNodeChannel = {/*Channel will be filled later on.*/},
+                    .SessionId = {/*SessionId will be filled later on.*/},
                     .DataNodeRpcTimeout = data->DataNodeRpcTimeout,
                     .DataNodeAddress = data->DataNodeAddress,
                     .DataNodeNbdServiceRpcTimeout = data->DataNodeNbdServiceRpcTimeout,
@@ -659,11 +656,11 @@ private:
             .As<TOverlayData>();
     }
 
-    TFuture<TOverlayData> GetOrCreateRWNbdVolume(
+    TFuture<TOverlayData> CreateRWNbdVolume(
         TGuid tag,
         TPrepareRWNbdVolumeOptions options)
     {
-        return NbdVolumeFactory_->GetOrCreateVolume(tag, std::move(options))
+        return NbdVolumeFactory_->CreateVolume(tag, std::move(options))
             .As<TOverlayData>();
     }
 

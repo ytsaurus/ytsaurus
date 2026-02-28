@@ -316,7 +316,7 @@ TFuture<IVolumePtr> TNbdVolumeFactory::GetOrCreateVolume(
 }
 
 //! This method creates RW NBD volumes.
-TFuture<IVolumePtr> TNbdVolumeFactory::GetOrCreateVolume(
+TFuture<IVolumePtr> TNbdVolumeFactory::CreateVolume(
     TGuid tag,
     TPrepareRWNbdVolumeOptions options)
 {

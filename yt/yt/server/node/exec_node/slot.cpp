@@ -327,7 +327,7 @@ public:
         VerifyEnabled();
 
         if (!VolumeManager_) {
-            return MakeFuture<IVolumePtr>(TError("Porto layers and custom root FS are not supported"));
+            return MakeFuture<IVolumePtr>(TError("Can not prepare root volume without volume manager."));
         }
 
         return RunPreparationAction(
