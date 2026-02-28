@@ -97,7 +97,7 @@ TEST_P(TIOEngineTest, WriteError)
             .Buffers = {data.Slice(0, 10), data.Slice(20, 30), data, data.Slice(40, 50)},
             .Flush = true,
         })
-            .Get();
+            .BlockingGet();
     };
 
     for (int i = 0; i < 1000; ++i) {

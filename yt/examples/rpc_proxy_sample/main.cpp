@@ -111,7 +111,7 @@ protected:
     {
         if (ValidateSignature("get", {"path"}, tokens)) {
             auto path = tokens[1];
-            auto result = Client_->GetNode(path).Get();
+            auto result = Client_->GetNode(path).BlockingGet();
             if (!ValidateResult(result)) return;
 
             NYson::TYsonWriter writer(&Cout, NYson::EYsonFormat::Pretty);
@@ -120,7 +120,7 @@ protected:
 
         if (ValidateSignature("list", {"path"}, tokens)) {
             auto path = tokens[1];
-            auto result = Client_->ListNode(path).Get();
+            auto result = Client_->ListNode(path).BlockingGet();
             if (!ValidateResult(result)) return;
 
             NYson::TYsonWriter writer(&Cout, NYson::EYsonFormat::Pretty);
@@ -162,7 +162,7 @@ protected:
             TPrepareRows prepareRows(tokens);
 
             if (tokens[0] == "ulookup") {
-                auto result = Client_->LookupRows(path, prepareRows.NameTable, prepareRows.Rows).Get();
+                auto result = Client_->LookupRows(path, prepareRows.NameTable, prepareRows.Rows).BlockingGet();
                 if (!ValidateResult(result)) return;
 
                 const auto& rowset = result.Value().Rowset;
@@ -175,7 +175,7 @@ protected:
             }
 
             if (tokens[0] == "vlookup") {
-                auto result = Client_->VersionedLookupRows(path, prepareRows.NameTable, prepareRows.Rows).Get();
+                auto result = Client_->VersionedLookupRows(path, prepareRows.NameTable, prepareRows.Rows).BlockingGet();
                 if (!ValidateResult(result)) return;
 
                 const auto& rowset = result.Value().Rowset;
@@ -194,7 +194,7 @@ protected:
 
                 Cout << query << Endl;
 
-                auto result = Client_->SelectRows(query).Get();
+                auto result = Client_->SelectRows(query).BlockingGet();
                 if (!ValidateResult(result)) return;
 
                 const auto& rowset = result.Value().Rowset;
@@ -210,11 +210,11 @@ protected:
             auto path = tokens[1];
             TPrepareRows prepareRows(tokens);
 
-            auto tx = Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet).Get();
+            auto tx = Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet).BlockingGet();
             if (!ValidateResult(tx)) return;
 
             tx.Value()->WriteRows(path, prepareRows.NameTable, prepareRows.Rows);
-            auto result = tx.Value()->Commit().Get();
+            auto result = tx.Value()->Commit().BlockingGet();
             if (!ValidateResult(result)) return;
 
             Cout << "Committed" << Endl;
@@ -224,11 +224,11 @@ protected:
             auto path = tokens[1];
             TPrepareRows prepareRows(tokens);
 
-            auto tx = Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet).Get();
+            auto tx = Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet).BlockingGet();
             if (!ValidateResult(tx)) return;
 
             tx.Value()->DeleteRows(path, prepareRows.NameTable, prepareRows.Rows);
-            auto result = tx.Value()->Commit().Get();
+            auto result = tx.Value()->Commit().BlockingGet();
             if (!ValidateResult(result)) return;
 
             Cout << "Committed" << Endl;
@@ -245,7 +245,7 @@ protected:
                 .BlockingGet()
                 .ValueOrThrow();
             Cout << "T=" << options.Timestamp << Endl;
-            auto result = Client_->GetInSyncReplicas(path, prepareRows.NameTable, prepareRows.Rows, options).Get();
+            auto result = Client_->GetInSyncReplicas(path, prepareRows.NameTable, prepareRows.Rows, options).BlockingGet();
             if (!ValidateResult(result)) return;
 
             Cout << result.Value().size() << Endl;

@@ -115,7 +115,7 @@ void RunClient(const TString& address, int numIter)
             YT_ASSERT(response->b() == i + 42);
         }
     }
-    result.Get();
+    result.BlockingGet();
 
     auto elapsed = timer.GetElapsedTime();
     Cout << "Elapsed = " << ToString(elapsed) << Endl;

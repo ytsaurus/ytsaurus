@@ -486,7 +486,7 @@ public:
             auto result = erasureReader->ReadBlocks(
                 /*options*/ {},
                 std::vector<int>(1, index++))
-                .Get();
+                .BlockingGet();
             auto resultRef = result.ValueOrThrow().front();
             ASSERT_TRUE(TRef::AreBitwiseEqual(ref, resultRef.Data));
         }
@@ -655,7 +655,7 @@ TEST_P(TErasureMixtureTest, Reader)
             auto result = erasureReader->ReadBlocks(
                 /*options*/ {},
                 std::vector<int>(1, index++))
-                .Get();
+                .BlockingGet();
             EXPECT_TRUE(result.IsOK());
             auto resultRef = TBlock::Unwrap(result.ValueOrThrow()).front();
 
@@ -671,7 +671,7 @@ TEST_P(TErasureMixtureTest, Reader)
         auto result = erasureReader->ReadBlocks(
             /*options*/ {},
             indices)
-            .Get();
+            .BlockingGet();
         EXPECT_TRUE(result.IsOK());
         auto resultRef = TBlock::Unwrap(result.ValueOrThrow());
         EXPECT_EQ(ToString(dataRefs[1]), ToString(resultRef[0]));
@@ -714,7 +714,7 @@ TEST_P(TErasureMixtureTest, ReaderStriped)
             auto result = erasureReader->ReadBlocks(
                 /*options*/ {},
                 std::vector<int>(1, index++))
-                .Get();
+                .BlockingGet();
             EXPECT_TRUE(result.IsOK());
             auto resultRef = TBlock::Unwrap(result.ValueOrThrow()).front();
 
@@ -731,7 +731,7 @@ TEST_P(TErasureMixtureTest, ReaderStriped)
         auto result = erasureReader->ReadBlocks(
             /*options*/ {},
             indices)
-            .Get();
+            .BlockingGet();
         EXPECT_TRUE(result.IsOK());
         auto resultRef = TBlock::Unwrap(result.ValueOrThrow());
         EXPECT_EQ(ToString(dataRefs[1]), ToString(resultRef[0]));
@@ -772,7 +772,7 @@ TEST_F(TErasureMixtureTest, Repair1)
         readers,
         writers,
         /*chunkReadOptions*/ {},
-        /*writeBlocksOptions*/ {}).Get();
+        /*writeBlocksOptions*/ {}).BlockingGet();
     EXPECT_TRUE(repairResult.IsOK());
 
     auto erasureReader = CreateErasureReader(codec);
@@ -820,7 +820,7 @@ TEST_P(TErasureMixtureTest, Repair2)
         readers,
         writers,
         /*chunkReadOptions*/ {},
-        /*writeBlocksOptions*/ {}).Get();
+        /*writeBlocksOptions*/ {}).BlockingGet();
     ASSERT_TRUE(repairResult.IsOK());
 
     auto erasureReader = CreateErasureReader(codec);
@@ -869,7 +869,7 @@ TEST_P(TErasureMixtureTest, Repair3)
         readers,
         writers,
         /*chunkReadOptions*/ {},
-        /*writeBlocksOptions*/ {}).Get();
+        /*writeBlocksOptions*/ {}).BlockingGet();
 
     {
         auto erasureReader = CreateErasureReader(codec);
@@ -915,7 +915,7 @@ TEST_P(TErasureMixtureTest, Repair4)
         readers,
         writers,
         /*chunkReadOptions*/ {},
-        /*writeBlocksOptions*/ {}).Get();
+        /*writeBlocksOptions*/ {}).BlockingGet();
 
     {
         auto erasureReader = CreateErasureReader(codec);
@@ -964,7 +964,7 @@ TEST_P(TErasureMixtureTest, Repair5)
         readers,
         writers,
         /*chunkReadOptions*/ {},
-        /*writeBlocksOptions*/ {}).Get();
+        /*writeBlocksOptions*/ {}).BlockingGet();
 
     {
         auto erasureReader = CreateErasureReader(codec);
@@ -1013,7 +1013,7 @@ TEST_P(TErasureMixtureTest, Repair6)
         readers,
         writers,
         /*chunkReadOptions*/ {},
-        /*writeBlocksOptions*/ {}).Get();
+        /*writeBlocksOptions*/ {}).BlockingGet();
 
     {
         auto erasureReader = CreateErasureReader(codec);
@@ -1103,7 +1103,7 @@ TEST_P(TErasureMixtureTest, RepairStriped1)
         readers,
         writers,
         /*chunkReadOptions*/ {},
-        /*writeBlocksOptions*/ {}).Get();
+        /*writeBlocksOptions*/ {}).BlockingGet();
     ASSERT_TRUE(repairResult.IsOK());
 
     auto erasureReader = CreateErasureReader(codec);
@@ -1151,7 +1151,7 @@ TEST_P(TErasureMixtureTest, RepairStriped2)
         readers,
         writers,
         /*chunkReadOptions*/ {},
-        /*writeBlocksOptions*/ {}).Get();
+        /*writeBlocksOptions*/ {}).BlockingGet();
 
     {
         auto erasureReader = CreateErasureReader(codec);
@@ -1263,7 +1263,7 @@ TEST_P(TErasureMixtureTest, RepairingReaderUnrecoverable)
     std::vector<int> indexes(dataRefs.size());
     std::iota(indexes.begin(), indexes.end(), 0);
 
-    auto result = reader->ReadBlocks(/*options*/ {}, indexes).Get();
+    auto result = reader->ReadBlocks(/*options*/ {}, indexes).BlockingGet();
     ASSERT_FALSE(result.IsOK());
 
     Cleanup(codec);

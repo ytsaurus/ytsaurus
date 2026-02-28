@@ -252,7 +252,7 @@ private:
                     runningCheck->second.Cancel(TError("Exceeded lock check time"));
                     YT_LOG_DEBUG("Exceeded lock check time (LockId: %v)", lockId);
                 } else {
-                    const auto& checkResult = runningCheck->second.Get();
+                    const auto& checkResult = runningCheck->second.BlockingGet();
                     if (!checkResult.IsOK()) {
                         YT_LOG_DEBUG(checkResult, "Lock check failed (LockId: %v)", lockId);
                     }
