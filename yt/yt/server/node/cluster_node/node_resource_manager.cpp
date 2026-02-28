@@ -118,7 +118,7 @@ void FormatResources(
         limits.RepairSlots,
         // Repair data size
         usage.RepairDataSize,
-        limits.RepairSlots,
+        limits.RepairDataSize,
         // Seal slots
         usage.SealSlots,
         limits.SealSlots,
