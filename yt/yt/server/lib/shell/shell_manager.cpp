@@ -437,6 +437,7 @@ public:
             shell->Terminate(error);
         }
         IdToShell_.clear();
+        IndexToShell_.clear();
     }
 };
 
