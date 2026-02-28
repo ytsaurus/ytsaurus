@@ -118,6 +118,12 @@ public:
         YT_UNIMPLEMENTED("LinkTmpfsVolumes is not implemented for SimpleVolumeManager");
     }
 
+    TFuture<void> RemoveVolumes(const TString& /*volumePath*/) override
+    {
+        YT_LOG_DEBUG("RemoveVolumes is empty in SimpleVolumeManager");
+        return OKFuture;
+    }
+
     TFuture<void> Initialize(const std::vector<TSlotLocationConfigPtr>& locations)
     {
         // NB: Iterating over /proc/mounts is not reliable,
@@ -600,6 +606,23 @@ public:
     {
         auto location = LayerCache_->PickLocation();
         return location->RbindRootVolume(volume, slotPath);
+    }
+
+    //! Remove volumes planted at a given path.
+    TFuture<void> RemoveVolumes(const TString& volumePath) override
+    {
+        auto location = LayerCache_->PickLocation();
+        return BIND(
+            [
+                location,
+                volumePath
+            ] {
+                return location->RemoveVolumes(
+                    volumePath,
+                    TDuration::Minutes(30));
+            })
+            .AsyncVia(GetCurrentInvoker())
+            .Run();
     }
 
 private:
