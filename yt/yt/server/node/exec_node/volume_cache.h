@@ -146,7 +146,7 @@ public:
         TGuid tag,
         TPrepareRONbdVolumeOptions options);
 
-    TFuture<IVolumePtr> GetOrCreateVolume(
+    TFuture<IVolumePtr> CreateVolume(
         TGuid tag,
         TPrepareRWNbdVolumeOptions options);
 
