@@ -131,6 +131,11 @@ public:
 
     i64 GetUsedSpace() const;
 
+    //! Remove volumes planted at a given directory.
+    void RemoveVolumes(
+        const TString& volumeDirectory,
+        TDuration timeout = TDuration::Minutes(30));
+
 private:
     const NDataNode::TLayerLocationConfigPtr Config_;
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
@@ -235,6 +240,7 @@ private:
         const TString& source,
         const TString& target);
 
+    //! Remove volumes planted in VolumesPath_;
     void RemoveVolumes(TDuration timeout = TDuration::Minutes(30));
 };
 

@@ -1319,25 +1319,36 @@ void TLayerLocation::DoUnlinkVolume(
         .ThrowOnError();
 }
 
-//! Remove porto volumes that belong to this location.
+//! Remove porto volumes planted in VolumesPath_.
 //! Volumes are not expected to be used since all jobs must be dead by now.
 void TLayerLocation::RemoveVolumes(TDuration timeout)
+{
+    RemoveVolumes(VolumesPath_, timeout);
+}
+
+//! Remove volumes planted at a given directory.
+void TLayerLocation::RemoveVolumes(
+    const TString& volumeDirectory,
+    TDuration timeout)
 {
     auto startTime = TInstant::Now();
     auto deadLine = startTime + timeout;
 
-    YT_LOG_DEBUG("Removing volumes (DeadLine: %v)",
+    YT_LOG_DEBUG(
+        "Waiting for volumes to be removed (VolumeDirectory: %v, DeadLine: %v)",
+        volumeDirectory,
         deadLine);
 
     auto checkDeadLine = [&] {
         auto now = TInstant::Now();
         if (now > deadLine) {
-            THROW_ERROR_EXCEPTION("Failed to wait for volumes already being unlinked")
-                << TErrorAttribute("timeout", timeout);
+            THROW_ERROR_EXCEPTION("Failed to wait for volumes to be removed")
+                << TErrorAttribute("timeout", timeout)
+                << TErrorAttribute("volume_directory", volumeDirectory);
         }
     };
 
-    int volumesRemoved = 0;
+    std::vector<TString> removedVolumes;
 
     while (true) {
         checkDeadLine();
@@ -1347,26 +1358,32 @@ void TLayerLocation::RemoveVolumes(TDuration timeout)
 
         auto waitForVolumesToBecomeReady = false;
         std::vector<TFuture<void>> unlinkFutures;
+
         for (const auto& volume : volumes) {
-            if (!volume.Path.StartsWith(VolumesPath_)) {
-                // This volume is not from my location.
+            if (!volume.Path.StartsWith(volumeDirectory)) {
+                // This volume is not from the given directory.
                 continue;
             }
 
             static const TString ReadyState = "ready";
             if (volume.State != ReadyState) {
                 waitForVolumesToBecomeReady = true;
-                YT_LOG_DEBUG("Volume is not ready (Path: %v, State: %v)",
+                YT_LOG_DEBUG(
+                    "Volume is not ready (VolumeDirectory: %v, VolumePath: %v, State: %v)",
+                    volumeDirectory,
                     volume.Path,
                     volume.State);
                 continue;
             }
 
-            YT_LOG_DEBUG("Trying to unlink volume (Path: %v, State: %v)",
+            YT_LOG_DEBUG(
+                "Trying to unlink volume (VolumeDirectory: %v, VolumePath: %v, State: %v)",
+                volumeDirectory,
                 volume.Path,
                 volume.State);
 
             // Unlink volume even if it was linked to a different container.
+            removedVolumes.push_back(volume.Path);
             unlinkFutures.push_back(VolumeExecutor_->UnlinkVolume(volume.Path, AnyContainer));
         }
 
@@ -1379,9 +1396,8 @@ void TLayerLocation::RemoveVolumes(TDuration timeout)
             .ValueOrThrow();
 
         for (const auto& unlinkError : unlinkResults) {
-            if (unlinkError.IsOK()) {
-                ++volumesRemoved;
-            } else if (unlinkError.GetCode() != EPortoErrorCode::VolumeNotLinked && unlinkError.GetCode() != EPortoErrorCode::VolumeNotFound) {
+            if (!unlinkError.IsOK() && unlinkError.GetCode() != EPortoErrorCode::VolumeNotLinked &&
+                    unlinkError.GetCode() != EPortoErrorCode::VolumeNotFound) {
                 THROW_ERROR(unlinkError);
             }
         }
@@ -1391,15 +1407,19 @@ void TLayerLocation::RemoveVolumes(TDuration timeout)
 
             static const TDuration Duration = TDuration::Seconds(30);
 
-            YT_LOG_DEBUG("Waiting for volumes to become ready (Duration: %v)",
+            YT_LOG_DEBUG(
+                "Waiting for volumes to become ready (VolumeDirectory: %v, Duration: %v)",
+                volumeDirectory,
                 Duration);
 
             TDelayedExecutor::WaitForDuration(Duration);
         }
     }
 
-    YT_LOG_DEBUG("Removed volumes (Count: %v, Duration: %v)",
-        volumesRemoved,
+    YT_LOG_DEBUG(
+        "Removed volumes (VolumeDirectory: %v, VolumePaths: %v, Duration: %v)",
+        volumeDirectory,
+        MakeShrunkFormattableView(removedVolumes, TDefaultFormatter(), 10),
         (TInstant::Now() - startTime));
 }
 

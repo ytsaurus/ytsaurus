@@ -12,7 +12,7 @@ const TEnumIndexedArray<ESandboxKind, TString> SandboxDirectoryNames{
     {ESandboxKind::Tmp, "tmp"},
     {ESandboxKind::Cores, "cores"},
     {ESandboxKind::Logs, "logs"},
-    {ESandboxKind::PortoPlace, "place"},
+    {ESandboxKind::PortoPlace, "porto_place"},
     {ESandboxKind::RootVolumeOverlay, "overlay"},
 };
 

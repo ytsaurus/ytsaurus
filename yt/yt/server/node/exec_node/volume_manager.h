@@ -38,6 +38,9 @@ struct IVolumeManager
         const std::vector<TTmpfsVolumeResult>& volumes,
         const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts) = 0;
 
+    //! Remove volumes planted at a given path
+    virtual TFuture<void> RemoveVolumes(const TString& volumePath) = 0;
+
     virtual bool IsLayerCached(const TArtifactKey& artifactKey) const = 0;
 
     virtual void BuildOrchid(NYTree::TFluentAny fluent) const = 0;
