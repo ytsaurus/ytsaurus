@@ -210,6 +210,14 @@ class TestTabletNodeIOTracking(TestDynamicTableIOTrackingBase, DynamicTablesBase
         sync_create_cells(1)
         self._create_sorted_table("//tmp/table")
         self._prefer_remote_replicas("//tmp/table")
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "store_compactor": {
+                    "max_concurrent_compactions": 1,
+                    "max_concurrent_partitionings": 1,
+                }
+            }
+        })
         set("//tmp/table/@enable_compaction_and_partitioning", False)
         set("//tmp/table/@max_partition_data_size", 640)
         set("//tmp/table/@desired_partition_data_size", 512)
