@@ -2088,7 +2088,7 @@ THashMap<TTableId, TTableSettings> TBundleState::FetchActualTableSettings(
     THashMap<TTableId, TTableSettings> tableConfigs;
     for (const auto& [cellTag, batch] : cellTagToBatch) {
         THROW_ERROR_EXCEPTION_IF_FAILED(
-            batch.Response.Get(),
+            batch.Response.BlockingGet(),
             "Failed to fetch actual table settings from cell %v",
             cellTag);
         auto responseBatch = batch.Response.BlockingGet().Value();
@@ -2145,7 +2145,7 @@ THashMap<TTableId, TTableStatisticsResponse> TBundleState::FetchTableStatistics(
     THashMap<TTableId, TTableStatisticsResponse> tableToStatistics;
     for (const auto& [cellTag, batch] : cellTagToBatch) {
         THROW_ERROR_EXCEPTION_IF_FAILED(
-            batch.Response.Get(),
+            batch.Response.BlockingGet(),
             "Failed to fetch tablets from cell %v",
             cellTag);
 

@@ -467,7 +467,7 @@ private:
             shots.push_back(SingleShoot(ammo));
         }
 
-        AllSet(std::move(shots)).Get();
+        AllSet(std::move(shots)).BlockingGet();
 
         -- Inflight_;
     }
