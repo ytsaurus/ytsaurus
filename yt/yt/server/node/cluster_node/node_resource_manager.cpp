@@ -99,11 +99,13 @@ void FormatResources(
         FormatMemoryUsage(limits.SystemMemory),
         // Network
         usage.Network,
+        limits.Network,
+        // DiskSpace
         FormatMemoryUsage(usage.DiskSpaceRequest),
         FormatMemoryUsage(limits.DiskSpaceRequest),
+        // Inodes
         usage.InodeRequest,
         limits.InodeRequest,
-        limits.Network,
         // Replication slots
         usage.ReplicationSlots,
         limits.ReplicationSlots,
