@@ -1,8 +1,9 @@
 #include <yt/yt/server/cell_balancer/bundle_scheduler.h>
 #include <yt/yt/server/cell_balancer/config.h>
+#include <yt/yt/server/cell_balancer/input_state.h>
 #include <yt/yt/server/cell_balancer/mutations.h>
 #include <yt/yt/server/cell_balancer/orchid_bindings.h>
-#include <yt/yt/server/cell_balancer/input_state.h>
+#include <yt/yt/server/cell_balancer/pod_id_helpers.h>
 
 #include <yt/yt/core/logging/log_manager.h>
 
@@ -325,7 +326,7 @@ THashSet<std::string> GenerateNodesForBundle(
 
     for (int index = 0; index < nodeCount; ++index) {
         int nodeIndex = std::ssize(inputState.TabletNodes);
-        auto nodeId = Format("seneca-ayt-%v-%v-%v-tab-%v.%v.yandex.net",
+        auto nodeId = Format("seneca-ayt-%v-%v-%03x-tab-%v.%v.yandex.net",
             nodeIndex,
             bundleName,
             options.InstanceIndex + index,
@@ -3855,50 +3856,6 @@ TEST_P(TProxyRoleManagement, TestFreeSpareProxiesExhausted)
     for (const auto& alert : mutations.AlertsToFire) {
         EXPECT_EQ(alert.Id, "no_free_spare_proxies");
     }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TEST(TSchedulerUtilsTest, CheckGetIndexFromPodId)
-{
-    static const std::string Cluster = "hume";
-    static const std::string InstanceType = "tab";
-    static const std::string Bundle = "venus212";
-
-    EXPECT_EQ(1, FindNextInstanceId({}, Cluster, InstanceType));
-    EXPECT_EQ(1, FindNextInstanceId({"sas4-5335-venus212-0aa-tab-hume"}, Cluster, InstanceType));
-    EXPECT_EQ(1, FindNextInstanceId({"sas4-5335-venus212-000-tab-hume"}, Cluster, InstanceType));
-    EXPECT_EQ(2, FindNextInstanceId({"sas4-5335-venus212-001-tab-hume", "trash"}, Cluster, InstanceType));
-
-    EXPECT_EQ(4, FindNextInstanceId(
-        {
-            "sas4-5335-venus212-001-tab-hume",
-            "sas4-5335-venus212-002-tab-hume",
-            "sas4-5335-venus212-002-tab-hume",
-            "sas4-5335-venus212-002-tab-hume",
-            "sas4-5335-venus212-003-tab-hume",
-            "sas4-5335-venus212-005-tab-hume",
-        },
-        Cluster,
-        InstanceType));
-
-    EXPECT_EQ(6, FindNextInstanceId(
-        {
-            "sas4-5335-venus212-001-tab-hume",
-            GetInstancePodIdTemplate(Cluster, Bundle, InstanceType, 2),
-            GetInstancePodIdTemplate(Cluster, Bundle, InstanceType, 3),
-            GetInstancePodIdTemplate(Cluster, Bundle, InstanceType, 4),
-            "sas4-5335-venus212-005-tab-hume",
-            GetInstancePodIdTemplate(Cluster, Bundle, InstanceType, 7),
-        },
-        Cluster,
-        InstanceType));
-}
-
-TEST(TSchedulerUtilsTest, CheckGeneratePodTemplate)
-{
-    EXPECT_EQ("<short-hostname>-venus212-0ab-exe-shtern", GetInstancePodIdTemplate("shtern", "venus212", "exe", 171));
-    EXPECT_EQ("<short-hostname>-venus212-2710-exe-shtern", GetInstancePodIdTemplate("shtern", "venus212", "exe", 10000));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
