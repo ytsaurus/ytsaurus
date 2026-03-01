@@ -1642,7 +1642,7 @@ TEST_P(TBundleSchedulerTest, CheckSingleDCDisruptedState)
     EXPECT_TRUE(std::ssize(mutations.AlertsToFire) > 0);
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
 
-    // Unaffected data centers are allocating new instancies.
+    // Unaffected data centers are allocating new instances.
     EXPECT_EQ(GetDataCenterCount() - 1, std::ssize(mutations.NewAllocations));
 }
 

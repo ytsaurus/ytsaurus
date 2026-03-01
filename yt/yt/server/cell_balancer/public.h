@@ -10,8 +10,10 @@ namespace NYT::NCellBalancer{
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// NB: Log-time lookup is not critical in terms of performance and it is nice
+// to see entries in the sorted order, so we use std::map instead of THashMap.
 template <class TEntryInfo>
-using TIndexedEntries = THashMap<std::string, TIntrusivePtr<TEntryInfo>>;
+using TIndexedEntries = std::map<std::string, TIntrusivePtr<TEntryInfo>>;
 
 using TDataCenterToInstanceMap = THashMap<std::string, std::vector<std::string>>;
 

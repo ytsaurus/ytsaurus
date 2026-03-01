@@ -22,7 +22,7 @@ struct TInstanceRackInfo
     THashMap<std::string, int> RackToBundleInstances;
     THashMap<std::string, int> RackToSpareInstances;
 
-    // Spare instances needed-for-minus one rack guarantee.
+    // Spare instances needed for minus one rack guarantee.
     int RequiredSpareNodeCount = 0;
 };
 
