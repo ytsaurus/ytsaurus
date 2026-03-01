@@ -628,8 +628,10 @@ public:
             YT_LOG_DEBUG("Backing store released (StoreId: %v, BackingStoreId: %v)",
                 store->GetId(),
                 backingStore->GetId());
-            // XXX(ifsmirnov): uncomment when tablet id is stored in TStoreBase.
-            // store->GetTablet()->GetStructuredLogger()->OnBackingStoreReleased(store);
+
+            if (auto* tablet = FindTablet(store->GetTabletId())) {
+                tablet->GetStructuredLogger()->OnBackingStoreReleased(store, backingStore);
+            }
         }
     }
 
