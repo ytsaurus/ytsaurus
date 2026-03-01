@@ -598,14 +598,19 @@ public:
                                 pair.second.ExternalizationToken);
                         }),
                     options.PrepareTimestamp);
-            }
 
-            // NB: Forwarding must happen after transaction actions are run because
-            // prepare may fail locally.
-            ForwardTransactionIfExternalized(
-                transaction,
-                NProto::TReqPrepareExternalizedTransaction{},
-                options);
+                // COMPAT(tea-mur): Delete after the prerequisite transactions are removed
+                // from transaction_supervisor (YT-27441)
+                auto externalizedOptions = options;
+                externalizedOptions.PrerequisiteTransactionIds.clear();
+
+                // NB: Forwarding must happen after transaction actions are run because
+                // prepare may fail locally.
+                ForwardTransactionIfExternalized(
+                    transaction,
+                    NProto::TReqPrepareExternalizedTransaction{},
+                    externalizedOptions);
+            }
         }
     }
 
