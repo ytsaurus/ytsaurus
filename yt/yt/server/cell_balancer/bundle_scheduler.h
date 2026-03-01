@@ -42,22 +42,9 @@ THashMap<std::string, THashSet<std::string>> GetAliveProxies(
     const TSchedulerInputState& input,
     EGracePeriodBehaviour gracePeriodBehaviour);
 
-std::string GetInstancePodIdTemplate(
-    const std::string& cluster,
-    const std::string& bundleName,
-    const std::string& instanceType,
-    int index);
-
-int FindNextInstanceId(
-    const std::vector<std::string>& instanceNames,
-    const std::string& cluster,
-    const std::string& instanceType);
-
 TIndexedEntries<TBundleControllerState> MergeBundleStates(
     const TSchedulerInputState& schedulerState,
     const TSchedulerMutations& mutations);
-
-std::string GetPodIdForInstance(const TCypressAnnotationsPtr& cypressAnnotations, const std::string& name);
 
 std::string GetInstanceSize(const NBundleControllerClient::TInstanceResourcesPtr& resource);
 

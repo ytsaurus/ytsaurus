@@ -5,6 +5,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 SRCS(
     bundle_scheduler_ut.cpp
     chaos_scheduler_ut.cpp
+    pod_id_ut.cpp
 )
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
