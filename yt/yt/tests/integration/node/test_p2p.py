@@ -29,6 +29,8 @@ class TestP2P(YTEnvSetup):
                 "hot_block_threshold": 3,
                 "second_hot_block_threshold": 3,
                 "node_tag_filter": "!tag42",
+                "snooper_cache_override": {},
+                "max_block_size": 128 * 1024 * 1024,
             }
         }
     }
@@ -86,6 +88,7 @@ class TestP2P(YTEnvSetup):
 
     @authors("prime")
     def test_simple_distribution(self):
+
         throttled = self.seed_counter("data_node/p2p/throttled_bytes")
         distributed = self.seed_counter("data_node/p2p/distributed_bytes")
         peer_hit = [self.peer_counter(peer, "data_node/p2p/hit_bytes") for peer in self.non_seeds]

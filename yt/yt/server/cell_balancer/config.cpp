@@ -34,7 +34,7 @@ void TBundleControllerConfig::Register(TRegistrar registrar)
         .NonEmpty();
 
     registrar.Parameter("bundle_scan_period", &TThis::BundleScanPeriod)
-        .Default(TDuration::Minutes(1));
+        .Default(TDuration::Seconds(10));
 
     registrar.Parameter("bundle_scan_transaction_timeout", &TThis::BundleScanTransactionTimeout)
         .Default(TDuration::Minutes(5));
@@ -51,6 +51,7 @@ void TBundleControllerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(10));
 
     registrar.Parameter("root_path", &TThis::RootPath)
+        .Default("//sys/bundle_controller/controller")
         .NonEmpty();
 
     registrar.Parameter("has_instance_allocator_service", &TThis::HasInstanceAllocatorService)
@@ -118,7 +119,11 @@ void TCellBalancerBootstrapConfig::Register(TRegistrar registrar)
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
     registrar.Parameter("election_manager", &TThis::ElectionManager)
-        .DefaultNew();
+        .DefaultCtor([] {
+            auto electionManager = New<NCypressElection::TCypressElectionManagerConfig>();
+            electionManager->LockPath = "//sys/bundle_controller/coordinator/lock";
+            return electionManager;
+        });
     registrar.Parameter("addresses", &TThis::Addresses)
         .Default();
 
