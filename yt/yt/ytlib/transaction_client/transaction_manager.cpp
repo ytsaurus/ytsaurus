@@ -258,7 +258,7 @@ private:
     TAtomicIntrusivePtr<TTransactionManagerConfig> Config_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
-    THashSet<TTransaction::TImpl*> AliveTransactions_;
+    THashSet<TWeakPtr<TTransaction::TImpl>, TTransparentWeakPtrHasher, TEqualTo<>> AliveTransactions_;
 
     NThreading::TAtomicObject<THashMap<TCellId, TPingBatcherWithChannel>> PingBatchers_;
 
@@ -841,7 +841,7 @@ private:
     {
         if (AutoAbort_) {
             auto guard = Guard(Owner_->SpinLock_);
-            YT_VERIFY(Owner_->AliveTransactions_.insert(this).second);
+            InsertOrCrash(Owner_->AliveTransactions_, MakeWeak(this));
         }
     }
 
@@ -851,7 +851,10 @@ private:
             {
                 auto guard = Guard(Owner_->SpinLock_);
                 // NB: Instance is not necessarily registered.
-                Owner_->AliveTransactions_.erase(this);
+                auto it = Owner_->AliveTransactions_.find(this);
+                if (it != Owner_->AliveTransactions_.end()) {
+                    Owner_->AliveTransactions_.erase(it);
+                }
             }
 
             if (State_ == ETransactionState::Active) {
@@ -1907,10 +1910,9 @@ void TTransactionManager::TImpl::AbortAll()
     std::vector<TIntrusivePtr<TTransaction::TImpl>> transactions;
     {
         auto guard = Guard(SpinLock_);
-        for (auto* rawTransaction : AliveTransactions_) {
-            auto transaction = DangerousGetPtr(rawTransaction);
-            if (transaction) {
-                transactions.push_back(transaction);
+        for (const auto& weakTransaction : AliveTransactions_) {
+            if (auto transaction = weakTransaction.Lock()) {
+                transactions.push_back(std::move(transaction));
             }
         }
     }
