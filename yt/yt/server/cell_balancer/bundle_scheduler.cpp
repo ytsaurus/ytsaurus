@@ -35,7 +35,7 @@ std::string GenerateShortNameForBundle(
 
     // pod id can not contain '_'
     SubstGlobal(shortName, '_', '-');
-    if (std::ssize(shortName) <= maxLength && shortNameToBundle.count(shortName) == 0) {
+    if (std::ssize(shortName) <= maxLength && !shortNameToBundle.contains(shortName)) {
         return shortName;
     }
 
@@ -48,7 +48,7 @@ std::string GenerateShortNameForBundle(
 
         auto proposed = Format("%v%v", shortName, index);
 
-        if (shortNameToBundle.count(proposed) == 0) {
+        if (!shortNameToBundle.contains(proposed)) {
             return proposed;
         }
     }

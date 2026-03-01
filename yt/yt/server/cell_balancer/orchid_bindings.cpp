@@ -113,7 +113,7 @@ template <class TBundleInstances, class TCollection>
 void PopulateInstances(
     const TBundleInstances& bundleInstances,
     const TCollection& instancesInfo,
-    THashMap<std::string, TInstanceInfoPtr>& instances)
+    TIndexedEntries<TInstanceInfo>& instances)
 {
     for (const auto& name : bundleInstances) {
         auto instance = New<TInstanceInfo>();
@@ -136,7 +136,7 @@ void PopulateInstancesPerDC(
     const std::string& bundleName,
     const TBundleToInstances& bundleToInstances,
     const TCollection& instancesInfo,
-    THashMap<std::string, TInstanceInfoPtr>& instances)
+    TIndexedEntries<TInstanceInfo>& instances)
 {
     auto it = bundleToInstances.find(bundleName);
     if (it == bundleToInstances.end()) {
@@ -153,7 +153,7 @@ void PopulateInstancesPerBundle(
     const std::string& bundleName,
     const TBundleToInstances& bundleToInstances,
     const TCollection& instancesInfo,
-    THashMap<std::string, TInstanceInfoPtr>& instances)
+    TIndexedEntries<TInstanceInfo>& instances)
 {
     auto it = bundleToInstances.find(bundleName);
     if (it == bundleToInstances.end()) {
@@ -191,7 +191,7 @@ void PopulateAllocatingInstances(
 
 void MarkDeallocatingInstances(
     const TIndexedEntries<TDeallocationRequestState>& deallocations,
-    THashMap<std::string, TInstanceInfoPtr>& allocatedInstances)
+    TIndexedEntries<TInstanceInfo>& allocatedInstances)
 {
     for (const auto& [_, deallocationState] : deallocations) {
         auto it = allocatedInstances.find(deallocationState->InstanceName);

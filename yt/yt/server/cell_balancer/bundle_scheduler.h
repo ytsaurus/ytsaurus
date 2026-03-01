@@ -49,8 +49,8 @@ TIndexedEntries<TBundleControllerState> MergeBundleStates(
 std::string GetInstanceSize(const NBundleControllerClient::TInstanceResourcesPtr& resource);
 
 // TODO(capone212): remove after
-THashSet<std::string> FlattenAliveInstances(const THashMap<std::string, THashSet<std::string>>& instancies);
-std::vector<std::string> FlattenBundleInstances(const THashMap<std::string, std::vector<std::string>>& instancies);
+THashSet<std::string> FlattenAliveInstances(const THashMap<std::string, THashSet<std::string>>& instances);
+std::vector<std::string> FlattenBundleInstances(const THashMap<std::string, std::vector<std::string>>& instances);
 
 std::string GetDrillsNodeTagFilter(const TBundleInfoPtr& bundleInfo, const std::string& bundleName);
 std::string GetReleasedProxyRole(const std::string& rpcProxyRole);

@@ -74,14 +74,14 @@ struct TBundleInfo
     NBundleControllerClient::TInstanceResourcesPtr ResourceAlive;
     NBundleControllerClient::TInstanceResourcesPtr ResourceTarget;
 
-    THashMap<std::string, TInstanceInfoPtr> AllocatedTabletNodes;
-    THashMap<std::string, TInstanceInfoPtr> AllocatedRpcProxies;
+    TIndexedEntries<TInstanceInfo> AllocatedTabletNodes;
+    TIndexedEntries<TInstanceInfo> AllocatedRpcProxies;
 
-    THashMap<std::string, TAllocatingInstanceInfoPtr> AllocatingTabletNodes;
-    THashMap<std::string, TAllocatingInstanceInfoPtr> AllocatingRpcProxies;
+    TIndexedEntries<TAllocatingInstanceInfo> AllocatingTabletNodes;
+    TIndexedEntries<TAllocatingInstanceInfo> AllocatingRpcProxies;
 
-    THashMap<std::string, TInstanceInfoPtr> AssignedSpareTabletNodes;
-    THashMap<std::string, TInstanceInfoPtr> AssignedSpareRpcProxies;
+    TIndexedEntries<TInstanceInfo> AssignedSpareTabletNodes;
+    TIndexedEntries<TInstanceInfo> AssignedSpareRpcProxies;
 
     int RemovingCellCount;
     int AllocatingTabletNodeCount;
