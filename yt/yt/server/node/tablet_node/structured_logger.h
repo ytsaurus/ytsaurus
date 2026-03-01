@@ -99,7 +99,9 @@ struct IPerTabletStructuredLogger
     virtual void OnBackingStoreSet(
         const IChunkStorePtr& store,
         const IDynamicStorePtr& backingStore) = 0;
-    virtual void OnBackingStoreReleased(const IChunkStorePtr& store) = 0;
+    virtual void OnBackingStoreReleased(
+        const IChunkStorePtr& store,
+        const IDynamicStorePtr& backingStore) = 0;
 
     virtual void OnTabletStoresUpdatePrepared(
         const std::vector<TStoreId>& addedStoreIds,

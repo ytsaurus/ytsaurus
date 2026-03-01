@@ -335,10 +335,13 @@ public:
                 backingStore));
     }
 
-    void OnBackingStoreReleased(const IChunkStorePtr& store) override
+    void OnBackingStoreReleased(
+        const IChunkStorePtr& store,
+        const IDynamicStorePtr& backingStore) override
     {
         LogEvent("release_backing_store")
-            .Item("store_id").Value(store->GetId());
+            .Item("store_id").Value(store->GetId())
+            .Item("backing_store_id").Value(backingStore->GetId());
     }
 
     void OnTabletStoresUpdatePrepared(
