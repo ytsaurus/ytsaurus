@@ -283,7 +283,7 @@ protected:
     ICrossClusterReplicatedStatePtr CreateXState(TCrossClusterReplicatedStateConfigPtr config, TCrossClusterManualCallbackExecutor& callbackExecutor)
     {
         auto nativeConnection = DynamicPointerCast<NNative::IConnection>(Connection_);
-        nativeConnection->GetClusterDirectorySynchronizer()->Sync(true).Get();
+        nativeConnection->GetClusterDirectorySynchronizer()->Sync(true).BlockingGet();
         auto client = callbackExecutor.CreateClient(
             nativeConnection, config, NNative::TClientOptions::FromUser(config->User));
         auto lockWaiter = CreateCrossClusterReplicaLockWaiter(Connection_->GetInvoker(), config, Logger());
@@ -324,7 +324,7 @@ void ExecuteN(
         for (auto j = 0; j < 3; ++j) {
             auto opt = callbackExecutor.ExecuteNext(j, timeout);
             YT_VERIFY(opt);
-            opt->Get().ThrowOnError();
+            opt->BlockingGet().ThrowOnError();
         }
     }
 }
@@ -339,7 +339,7 @@ void ExecuteN(
         for (auto j = 0; j < 3; ++j) {
             auto opt = callbackExecutor.ExecuteNextWithTag(tag, j, timeout);
             YT_VERIFY(opt);
-            opt->Get().ThrowOnError();
+            opt->BlockingGet().ThrowOnError();
         }
     }
 }
@@ -623,7 +623,7 @@ TEST_F(TCrossClusterReplicatedStateTest, TestLoadWrites)
         for (auto i = 0; i < 3; ++i) {
             auto opt = callbackExecutor->ExecuteNext(i);
             EXPECT_TRUE(opt);
-            EXPECT_NO_THROW(opt->Get().ThrowOnError());
+            EXPECT_NO_THROW(opt->BlockingGet().ThrowOnError());
         }
     }
 
@@ -633,7 +633,7 @@ TEST_F(TCrossClusterReplicatedStateTest, TestLoadWrites)
         for (auto i = 1; i < 3; ++i) {
             auto opt = callbackExecutor->ExecuteNext(i);
             EXPECT_TRUE(opt);
-            EXPECT_NO_THROW(opt->Get().ThrowOnError());
+            EXPECT_NO_THROW(opt->BlockingGet().ThrowOnError());
         }
     }
 
@@ -647,14 +647,14 @@ TEST_F(TCrossClusterReplicatedStateTest, TestLoadWrites)
         for (auto i = 0; i < 3; ++i) {
             auto opt = callbackExecutor->ExecuteNext(i);
             EXPECT_TRUE(opt);
-            EXPECT_NO_THROW(opt->Get().ThrowOnError());
+            EXPECT_NO_THROW(opt->BlockingGet().ThrowOnError());
         }
     }
 
     for (auto j = 0; j < 2; ++j) {
         auto opt = callbackExecutor->ExecuteNext(0);
         EXPECT_TRUE(opt);
-        EXPECT_NO_THROW(opt->Get().ThrowOnError());
+        EXPECT_NO_THROW(opt->BlockingGet().ThrowOnError());
     }
 
     EXPECT_FALSE(callbackExecutor->ExecuteNext(0));
@@ -683,7 +683,7 @@ TEST_F(TCrossClusterReplicatedStateTest, TestQuorumIntersection)
         for (auto i = 0; i < 3; ++i) {
             auto opt = callbackExecutor->ExecuteNext(i);
             EXPECT_TRUE(opt);
-            EXPECT_NO_THROW(opt->Get().ThrowOnError());
+            EXPECT_NO_THROW(opt->BlockingGet().ThrowOnError());
         }
     }
 
@@ -691,7 +691,7 @@ TEST_F(TCrossClusterReplicatedStateTest, TestQuorumIntersection)
         for (auto i = 1; i < 3; ++i) {
             auto opt = callbackExecutor->ExecuteNext(i);
             EXPECT_TRUE(opt);
-            EXPECT_NO_THROW(opt->Get().ThrowOnError());
+            EXPECT_NO_THROW(opt->BlockingGet().ThrowOnError());
         }
     }
 
@@ -717,14 +717,14 @@ TEST_F(TCrossClusterReplicatedStateTest, TestQuorumIntersection)
         for (auto i = 0; i < 3; ++i) {
             auto opt = callbackExecutor->ExecuteNext(i);
             EXPECT_TRUE(opt);
-            EXPECT_NO_THROW(opt->Get().ThrowOnError());
+            EXPECT_NO_THROW(opt->BlockingGet().ThrowOnError());
         }
     }
 
     for (auto j = 0; j < 2; ++j) {
         auto opt = callbackExecutor->ExecuteNext(0);
         EXPECT_TRUE(opt);
-        EXPECT_NO_THROW(opt->Get().ThrowOnError());
+        EXPECT_NO_THROW(opt->BlockingGet().ThrowOnError());
     }
 
     EXPECT_FALSE(callbackExecutor->ExecuteNext(1));
@@ -754,7 +754,7 @@ TEST_F(TCrossClusterReplicatedStateTest, TestSingleClusterAvailableOnWrite)
     for (auto i = 0; i < 2; ++i) {
         auto opt = callbackExecutor->ExecuteNext(2);
         EXPECT_TRUE(opt);
-        EXPECT_NO_THROW(opt->Get().ThrowOnError());
+        EXPECT_NO_THROW(opt->BlockingGet().ThrowOnError());
     }
     EXPECT_THROW_WITH_SUBSTRING(storeResult.BlockingGet().ThrowOnError();, "Can't update values on cluster quorum");
 
@@ -777,7 +777,7 @@ TEST_F(TCrossClusterReplicatedStateTest, TestSingleClusterAvailableOnWrite)
         for (auto j = 0; j < 2; ++j) {
             auto opt = callbackExecutor->ExecuteNext(j);
             EXPECT_TRUE(opt);
-            EXPECT_NO_THROW(opt->Get().ThrowOnError());
+            EXPECT_NO_THROW(opt->BlockingGet().ThrowOnError());
         }
     }
     auto value = loadResult.BlockingGet()
