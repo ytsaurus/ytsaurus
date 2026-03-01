@@ -1349,6 +1349,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         update_nodes_dynamic_config({
             "tablet_node": {
                 "store_compactor": {
+                    "max_concurrent_compactions": 1,
                     "starving_tables_tasks_ratio": starving_tables_tasks_ratio,
                 }
             }
