@@ -680,7 +680,7 @@ private:
             User_,
             Settings_->DiscoveryPath,
             driverId);
-        auto response = WaitFor(HttpClient_->Post(SparkMasterKillDriverEndpoint_ + *DriverId_, TSharedRef::MakeEmpty()))
+        auto response = WaitFor(HttpClient_->Post(SparkMasterKillDriverEndpoint_ + driverId, TSharedRef::MakeEmpty()))
             .ValueOrThrow();
         ValidateStatusCode(response, NHttp::EStatusCode::OK);
     }
