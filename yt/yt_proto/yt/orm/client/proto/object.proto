@@ -191,7 +191,7 @@ message TLocalAttributeMigration
     optional string old_lock_group = 4;
 }
 
-// Next field number 59.
+// Next field number 60.
 message TObjectTypeOption
 {
     reserved 6, 7, 15, 17, 20, 21, 28, 29, 34, 35, 37, 38, 46;
@@ -314,6 +314,11 @@ message TObjectTypeOption
     // "removed_objects_grace_timeout" object manager config option.
     // If true, mode can be overridden with "remove_mode" object manager config option.
     optional bool enable_asynchronous_removals = 58;
+    // Add additional computed column "hash" to *_pending_removals table with expression
+    // "removal_time % mod", where "mod" is the value of this option.
+    // This is done to balance the load when too many objects are removed at once, because
+    // removal_time will be consecutive and point to the same tablet unless sharded this way.
+    optional int32 pending_removals_shards = 59;
 }
 
 message TIndexKeyPart
