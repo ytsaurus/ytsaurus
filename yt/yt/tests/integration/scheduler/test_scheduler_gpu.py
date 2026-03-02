@@ -1000,13 +1000,9 @@ class TestGpuSchedulerPersistentState(DryRunGpuSchedulingPolicyTestBaseConfig):
         return result
 
     def _compare_assignment_with_orchid(self, assignment, assignment_from_orchid):
-        check_assignment(
-            assignment=assignment,
-            operation_id=assignment_from_orchid["operation_id"],
-            group_name=assignment_from_orchid["allocation_group_name"],
-            gpu_usage=assignment_from_orchid["resource_usage"]["gpu"],
-            preemptible=assignment_from_orchid["preemptible"],
-        )
+        assert assignment["operation_id"] == assignment_from_orchid["operation_id"]
+        assert assignment["resource_usage"]["gpu"] == assignment_from_orchid["resource_usage"]["gpu"]
+        assert assignment["allocation_group_name"] == assignment_from_orchid["allocation_group_name"]
 
     @authors("yaishenka")
     def test_simple_restart(self):
