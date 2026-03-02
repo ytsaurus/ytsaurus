@@ -201,6 +201,23 @@ IF (OS_ANDROID)
     )
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        fs_statfs_notype.go
+        kernel_random.go
+        proc_smaps.go
+        vm.go
+        zoneinfo.go
+    )
+
+    GO_TEST_SRCS(
+        kernel_random_test.go
+        proc_smaps_test.go
+        vm_test.go
+        zoneinfo_test.go
+    )
+ENDIF()
+
 END()
 
 RECURSE(

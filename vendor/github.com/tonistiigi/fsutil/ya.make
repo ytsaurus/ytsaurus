@@ -68,6 +68,16 @@ IF (OS_ANDROID)
     )
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        chtimes_nolinux.go
+        diskwriter_unix.go
+        diskwriter_unixnobsd.go
+        followlinks_unix.go
+        stat_unix.go
+    )
+ENDIF()
+
 END()
 
 RECURSE(

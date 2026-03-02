@@ -43,6 +43,12 @@ IF (OS_ANDROID)
     GO_XTEST_SRCS(syscall_test.go)
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        syscall_nonlinux.go
+    )
+ENDIF()
+
 END()
 
 RECURSE(

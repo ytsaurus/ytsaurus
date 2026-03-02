@@ -67,4 +67,17 @@ IF (OS_ANDROID)
     )
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        chtimes_nowindows.go
+        filesys_unix.go
+        lstat_unix.go
+        mknod.go
+        mknod_unix.go
+        stat_unix.go
+        utimes_unsupported.go
+        xattrs_unsupported.go
+    )
+ENDIF()
+
 END()

@@ -33,4 +33,10 @@ IF (OS_ANDROID)
     )
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        defaults_unix.go
+    )
+ENDIF()
+
 END()

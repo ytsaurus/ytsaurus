@@ -36,6 +36,12 @@ IF (OS_ANDROID)
     )
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        sysreadfile_compat.go
+    )
+ENDIF()
+
 END()
 
 RECURSE(

@@ -36,4 +36,10 @@ IF (OS_ANDROID)
     )
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        sockopt_nonlinux.go
+    )
+ENDIF()
+
 END()

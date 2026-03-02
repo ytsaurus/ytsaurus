@@ -32,4 +32,10 @@ IF (OS_ANDROID)
     )
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        platforms_deprecated_other.go
+    )
+ENDIF()
+
 END()

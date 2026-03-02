@@ -39,4 +39,12 @@ IF (OS_ANDROID)
     )
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        idtools_unix.go
+        usergroupadd_unsupported.go
+        utils_unix.go
+    )
+ENDIF()
+
 END()

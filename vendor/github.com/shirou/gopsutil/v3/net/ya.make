@@ -48,6 +48,12 @@ IF (OS_ANDROID)
     )
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        net_fallback.go
+    )
+ENDIF()
+
 END()
 
 RECURSE(

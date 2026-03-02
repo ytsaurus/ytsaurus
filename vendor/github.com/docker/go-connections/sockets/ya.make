@@ -53,6 +53,15 @@ IF (OS_ANDROID)
     GO_TEST_SRCS(unix_socket_unix_test.go)
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        sockets_unix.go
+        unix_socket_unix.go
+    )
+
+    GO_TEST_SRCS(unix_socket_unix_test.go)
+ENDIF()
+
 END()
 
 RECURSE(

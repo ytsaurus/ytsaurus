@@ -44,6 +44,14 @@ IF (OS_ANDROID)
     GO_TEST_SRCS(idtools_unix_test.go)
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        idtools_unix.go
+    )
+
+    GO_TEST_SRCS(idtools_unix_test.go)
+ENDIF()
+
 END()
 
 RECURSE(

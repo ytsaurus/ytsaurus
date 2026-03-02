@@ -101,6 +101,12 @@ IF (OS_ANDROID)
     )
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        cpu_wasm.go
+    )
+ENDIF()
+
 END()
 
 RECURSE(

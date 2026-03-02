@@ -69,6 +69,16 @@ IF (OS_ANDROID)
     )
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        cpuinfo_other.go
+        defaults_unix.go
+        platforms_other.go
+    )
+
+    GO_TEST_SRCS(defaults_unix_test.go)
+ENDIF()
+
 END()
 
 RECURSE(
