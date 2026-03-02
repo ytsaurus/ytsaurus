@@ -29,6 +29,7 @@ public:
     {
         Config = New<TP2PConfig>();
         Config->Enabled = true;
+        Config->MaxBlockSize = 128_MB;
 
         Cache = New<TP2PBlockCache>(
             Config,
