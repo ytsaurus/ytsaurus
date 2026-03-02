@@ -40,6 +40,12 @@ IF (OS_ANDROID)
     )
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        term_unsupported.go
+    )
+ENDIF()
+
 END()
 
 RECURSE(

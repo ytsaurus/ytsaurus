@@ -46,6 +46,12 @@ IF (OS_ANDROID)
     GO_TEST_SRCS(mem_linux_test.go)
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        mem_fallback.go
+    )
+ENDIF()
+
 END()
 
 RECURSE(

@@ -71,6 +71,12 @@ IF (OS_ANDROID)
     )
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        process_fallback.go
+    )
+ENDIF()
+
 END()
 
 RECURSE(

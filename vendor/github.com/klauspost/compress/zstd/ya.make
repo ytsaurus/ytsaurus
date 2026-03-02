@@ -89,6 +89,14 @@ IF (OS_LINUX AND ARCH_ARM6 OR OS_LINUX AND ARCH_ARM7)
     )
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        fse_decoder_generic.go
+        matchlen_generic.go
+        seqdec_generic.go
+    )
+ENDIF()
+
 END()
 
 RECURSE(

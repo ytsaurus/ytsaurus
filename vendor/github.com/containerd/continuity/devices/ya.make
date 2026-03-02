@@ -35,4 +35,11 @@ IF (OS_ANDROID)
     )
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        devices_unix.go
+        mknod_unix.go
+    )
+ENDIF()
+
 END()

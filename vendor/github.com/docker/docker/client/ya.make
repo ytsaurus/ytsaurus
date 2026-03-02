@@ -145,6 +145,12 @@ IF (OS_ANDROID)
     )
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        client_unix.go
+    )
+ENDIF()
+
 END()
 
 RECURSE(

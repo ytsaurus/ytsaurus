@@ -44,6 +44,12 @@ IF (OS_ANDROID)
     GO_TEST_SRCS(cpu_linux_test.go)
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        cpu_fallback.go
+    )
+ENDIF()
+
 END()
 
 RECURSE(

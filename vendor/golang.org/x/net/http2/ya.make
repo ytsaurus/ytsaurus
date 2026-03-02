@@ -32,6 +32,23 @@ END()
 
 RECURSE(
     h2c
-    h2i
     hpack
 )
+
+IF (ARCH_X86_64)
+    RECURSE(
+        h2i
+    )
+ENDIF()
+
+IF (ARCH_ARM64)
+    RECURSE(
+        h2i
+    )
+ENDIF()
+
+IF (OS_LINUX AND ARCH_ARM6 OR OS_LINUX AND ARCH_ARM7)
+    RECURSE(
+        h2i
+    )
+ENDIF()

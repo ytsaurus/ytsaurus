@@ -27,4 +27,10 @@ IF (OS_LINUX AND ARCH_ARM6 OR OS_LINUX AND ARCH_ARM7)
     )
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        xxh32zero_other.go
+    )
+ENDIF()
+
 END()

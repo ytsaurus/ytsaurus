@@ -28,4 +28,10 @@ IF (OS_ANDROID)
     )
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        syscall_nonlinux.go
+    )
+ENDIF()
+
 END()

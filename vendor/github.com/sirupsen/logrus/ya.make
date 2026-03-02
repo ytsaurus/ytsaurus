@@ -74,6 +74,14 @@ IF (OS_ANDROID)
     GO_XTEST_SRCS(example_hook_test.go)
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        terminal_check_notappengine.go
+    )
+
+    GO_XTEST_SRCS(example_hook_test.go)
+ENDIF()
+
 END()
 
 RECURSE(

@@ -109,6 +109,13 @@ IF (OS_ANDROID)
     )
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        host_id_unsupported.go
+        os_unsupported.go
+    )
+ENDIF()
+
 END()
 
 RECURSE(

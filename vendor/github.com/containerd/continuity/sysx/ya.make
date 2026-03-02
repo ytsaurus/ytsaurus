@@ -31,4 +31,11 @@ IF (OS_ANDROID)
     )
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        nodata_unix.go
+        xattr_unsupported.go
+    )
+ENDIF()
+
 END()

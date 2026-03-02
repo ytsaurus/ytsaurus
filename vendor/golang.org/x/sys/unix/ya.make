@@ -11,9 +11,17 @@ BUILD_ONLY_IF(
     OS_ANDROID
 )
 
-SRCS(
-    endian_little.go
-)
+IF (ARCH_X86_64)
+    SRCS(
+        endian_little.go
+    )
+ENDIF()
+
+IF (ARCH_ARM64)
+    SRCS(
+        endian_little.go
+    )
+ENDIF()
 
 IF (OS_LINUX)
     SRCS(
@@ -110,6 +118,7 @@ ENDIF()
 IF (OS_LINUX AND ARCH_ARM6 OR OS_LINUX AND ARCH_ARM7)
     SRCS(
         asm_linux_arm.s
+        endian_little.go
         fcntl_linux_32bit.go
         syscall_linux_arm.go
         syscall_linux_gc_arm.go
@@ -283,6 +292,12 @@ IF (OS_ANDROID)
         sysvshm_unix_test.go
         timestruct_test.go
         xattr_test.go
+    )
+ENDIF()
+
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        vgetrandom_unsupported.go
     )
 ENDIF()
 

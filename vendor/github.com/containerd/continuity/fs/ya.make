@@ -107,6 +107,24 @@ IF (OS_ANDROID)
     )
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        copy_irregular_unix.go
+        copy_nondarwin.go
+        diff_nonlinux.go
+        diff_unix.go
+        du_unix.go
+        hardlink_unix.go
+        utimesnanoat.go
+    )
+
+    GO_TEST_SRCS(
+        du_cmd_unix_test.go
+        du_unix_test.go
+        path_test.go
+    )
+ENDIF()
+
 END()
 
 RECURSE(

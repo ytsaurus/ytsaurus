@@ -33,6 +33,12 @@ IF (OS_LINUX AND ARCH_ARM6 OR OS_LINUX AND ARCH_ARM7)
     )
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        chacha_noasm.go
+    )
+ENDIF()
+
 END()
 
 RECURSE(

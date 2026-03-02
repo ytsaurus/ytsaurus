@@ -56,6 +56,12 @@ IF (OS_ANDROID)
     )
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        errors.go
+    )
+ENDIF()
+
 END()
 
 RECURSE(
