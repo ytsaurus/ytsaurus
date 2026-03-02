@@ -962,7 +962,7 @@ public:
 
     void ResetRowCache(const ITabletSlotPtr& slot);
 
-    INodeMemoryTrackerPtr MaybeGetNodeMemoryUsageTracker() const;
+    INodeMemoryTrackerPtr TryGetNodeMemoryUsageTracker() const;
 
     void OnDynamicConfigChanged(
         const ITabletSlotPtr& slot,

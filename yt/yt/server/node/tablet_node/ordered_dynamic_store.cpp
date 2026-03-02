@@ -499,7 +499,7 @@ TCallback<void(TSaveContext&)> TOrderedDynamicStore::AsyncSave()
 
     auto tableReader = CreateSnapshotReader();
 
-    auto nodeMemoryUsageTracker = Tablet_->MaybeGetNodeMemoryUsageTracker();
+    auto nodeMemoryUsageTracker = Tablet_->TryGetNodeMemoryUsageTracker();
 
     return BIND([=, this, this_ = MakeStrong(this)] (TSaveContext& context) {
         YT_LOG_DEBUG("Store snapshot serialization started");
