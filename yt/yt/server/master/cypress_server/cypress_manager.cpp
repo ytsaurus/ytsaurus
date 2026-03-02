@@ -4591,6 +4591,8 @@ private:
             if (trunkNode == RootNode_ && !transaction->GetParent() && trunkNode->GetCreationTime() == TInstant::Zero()) {
                 originatingNode->SetCreationTime(originatingNode->GetModificationTime());
             }
+
+            SetGroundUpdateQueueManagerSequenceNumberFromNode(originatingNode, branchedNode);
         } else {
             // Destroy the branched copy.
             handler->Zombify(branchedNode);
@@ -4598,8 +4600,6 @@ private:
 
             YT_LOG_DEBUG("Node snapshot destroyed (NodeId: %v)", branchedNodeId);
         }
-
-        SetGroundUpdateQueueManagerSequenceNumberFromNode(originatingNode, branchedNode);
 
         if (originatingNode &&
             originatingNode->IsSequoia() &&

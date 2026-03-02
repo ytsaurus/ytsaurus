@@ -8,7 +8,7 @@ from yt_commands import (
     create_group, add_member, remove_member, start_transaction, abort_transaction,
     commit_transaction, ping_transaction, lock, write_file, write_table,
     get_transactions, get_topmost_transactions, gc_collect, get_driver,
-    raises_yt_error, read_table, generate_uuid)
+    raises_yt_error, read_table, generate_uuid, link)
 
 from yt_sequoia_helpers import select_cypress_transaction_replicas
 
@@ -437,7 +437,7 @@ class TestMasterTransactions(YTEnvSetup):
         remove("//tmp/file")
         abort_transaction(tx)
 
-    @authors("babenko", "ignat")
+    @authors("kvk1920")
     def test_commit_snapshot_lock(self):
         create("file", "//tmp/file")
         write_file("//tmp/file", b"some_data")
@@ -445,6 +445,7 @@ class TestMasterTransactions(YTEnvSetup):
         tx = start_transaction()
 
         lock("//tmp/file", mode="snapshot", tx=tx)
+
         remove("//tmp/file")
         commit_transaction(tx)
 
@@ -996,6 +997,12 @@ class TestMasterTransactionsMirroredTx(TestMasterTransactionsShardedTx):
         "15": {"roles": ["transaction_coordinator"]},
     }
 
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "sequoia_manager": {
+            "enable_ground_update_queues": True,
+        },
+    }
+
     @authors("kvk1920")
     def test_expiration_during_ground_unavailability(self):
         tx = start_transaction(timeout=10000)
@@ -1041,6 +1048,30 @@ class TestMasterTransactionsMirroredTx(TestMasterTransactionsShardedTx):
 
         wait(lambda: not exists(f"#{tx}"))
         assert get("//tmp/i") == 321
+
+        @authors("kvk1920")
+        def test_commit_snapshot_lock_with_guqm_pause(self):
+            create("file", "//tmp/file")
+            write_file("//tmp/file", b"some_data")
+
+            set("//sys/@config/ground_update_queue_manager/queues/sequoia", {"pause_flush": True})
+
+            try:
+                link("//tmp/file", "//tmp/link")
+
+                tx = start_transaction()
+
+                lock("//tmp/file", mode="snapshot", tx=tx)
+                lock("//tmp/link&", mode="snapshot", tx=tx)
+                lock("//tmp", mode="snapshot", tx=tx)
+
+                remove("//tmp/file")
+                commit_transaction(tx)
+            finally:
+                set("//sys/@config/ground_update_queue_manager/queues/sequoia", {"pause_flush": False})
+
+
+##################################################################
 
 
 @pytest.mark.enabled_multidaemon
