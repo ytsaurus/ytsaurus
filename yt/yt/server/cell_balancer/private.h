@@ -14,7 +14,6 @@ DECLARE_REFCOUNTED_STRUCT(TCellBalancerConfig)
 DECLARE_REFCOUNTED_STRUCT(TBundleControllerConfig)
 DECLARE_REFCOUNTED_STRUCT(TChaosConfig)
 
-DECLARE_REFCOUNTED_STRUCT(IBootstrap)
 DECLARE_REFCOUNTED_STRUCT(ICellTracker)
 DECLARE_REFCOUNTED_CLASS(TCellTrackerImpl)
 DECLARE_REFCOUNTED_STRUCT(IBundleController)
@@ -22,6 +21,8 @@ DECLARE_REFCOUNTED_CLASS(TClusterStateProvider)
 DECLARE_REFCOUNTED_STRUCT(ICellDowntimeTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
+
+static const NYPath::TYPath DefaultBundleControllerConfigPath = "//sys/bundle_controller/config";
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, CellBalancerLogger, "CellBalancer");
 YT_DEFINE_GLOBAL(const NLogging::TLogger, BundleControllerLogger, "BundleController");

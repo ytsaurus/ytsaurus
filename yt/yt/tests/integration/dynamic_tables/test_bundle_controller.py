@@ -1,7 +1,10 @@
 from yt_env_setup import YTEnvSetup
 import yt.yson as yson
 import yt.packages.requests as requests
-from yt_commands import authors, ls, exists, set, get, create, create_tablet_cell_bundle, create_area, execute_command, remove
+from yt_commands import (
+    authors, ls, update, wait, exists, set, get, create, create_tablet_cell_bundle, create_area, execute_command, remove)
+
+from yt.common import update_inplace
 
 import time
 from typing import Tuple, override
@@ -74,6 +77,31 @@ class TestBundleController(YTEnvSetup):
 
         rsp = requests.post(self._set_bundle_config_url(), headers=headers)
         rsp.raise_for_status()
+
+    @classmethod
+    def setup_class(cls):
+        super(TestBundleController, cls).setup_class()
+
+        bundle_controller_config = cls.Env._cluster_configuration["cell_balancer"][0]
+        cls.config_path = bundle_controller_config.get("dynamic_config_path", "//sys/bundle_controller/config")
+
+    @classmethod
+    def _apply_dynamic_config_patch(cls, patch, driver=None):
+        config = get(cls.config_path, driver=driver)
+        update_inplace(config, patch)
+        set(cls.config_path, config, driver=driver)
+
+        instances = ls("//sys/cell_balancers/instances", driver=driver)
+
+        def config_updated_on_all_instances():
+            for instance in instances:
+                effective_config = get(
+                    f"//sys/cell_balancers/instances/{instance}/orchid/dynamic_config_manager/effective_config", driver=driver)
+                if update(effective_config, config) != effective_config:
+                    return False
+            return True
+
+        wait(config_updated_on_all_instances)
 
     def _initialize_zone_default(self):
         create("map_node", "//sys/bundle_controller/controller/zones/zone_default", recursive=True, force=True)
@@ -444,6 +472,30 @@ class TestBundleController(YTEnvSetup):
         self._set_bundle_config(expected_config)
         config = self._get_cypress_config("default")
         self._check_configs(expected_config, config)
+
+    @authors("atalmenev")
+    def test_dynamic_config(self):
+        self._fill_default_bundle()
+
+        def _get_iteration_duration():
+            self._wait_for_bundle_controller_iterations()
+            start_time = time.time()
+            self._wait_for_bundle_controller_iterations()
+            return time.time() - start_time
+
+        self._apply_dynamic_config_patch({
+            "bundle_scan_period": 10,
+        })
+
+        first_delta = _get_iteration_duration()
+
+        self._apply_dynamic_config_patch({
+            "bundle_scan_period": 3000,
+        })
+
+        second_delta = _get_iteration_duration()
+
+        assert second_delta > first_delta + 1
 
     @authors("alexmipt")
     def test_bundle_controller_api_set_half_structured_check(self):

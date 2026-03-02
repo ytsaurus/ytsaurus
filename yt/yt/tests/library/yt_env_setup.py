@@ -1111,6 +1111,15 @@ class YTEnvSetup(object):
                     driver=driver,
                 )
 
+                if cls.ENABLE_BUNDLE_CONTROLLER:
+                    if not yt_commands.exists("//sys/bundle_controller/config", driver=driver):
+                        yt_commands.create(
+                            "document",
+                            "//sys/bundle_controller/config",
+                            attributes={"value": {}},
+                            force=True,
+                            driver=driver)
+
                 if cls.ENABLE_STANDALONE_TABLET_BALANCER:
                     if not yt_commands.exists("//sys/tablet_balancer/config", driver=driver):
                         yt_commands.create(
@@ -1570,6 +1579,7 @@ class YTEnvSetup(object):
             self._setup_tablet_manager(driver=driver)
             self._clear_ql_pools(driver=driver)
             self._restore_default_bundle_options(cluster_index)
+            self._setup_bundle_controller_dynamic_config(driver=driver)
             self._setup_tablet_balancer_dynamic_config(driver=driver)
             self._setup_standalone_replicated_table_tracker_dynamic_config(driver=driver)
 
@@ -1891,7 +1901,7 @@ class YTEnvSetup(object):
         )
 
         if self.ENABLE_BUNDLE_CONTROLLER:
-            wait(self._has_bundle_controller_transaction)
+            wait(lambda: not self._has_bundle_controller_transaction())
 
         yt_commands.gc_collect(driver=driver)
         yt_commands.clear_metadata_caches(driver=driver)
@@ -2347,6 +2357,19 @@ class YTEnvSetup(object):
             driver=driver,
         ):
             assert not yt_commands.get_batch_error(response)
+
+    def _setup_bundle_controller_dynamic_config(self, driver=None):
+        if self.ENABLE_BUNDLE_CONTROLLER:
+            config = {}
+
+            yt_commands.set(
+                "//sys/bundle_controller/config",
+                config,
+                driver=driver)
+
+            instances = yt_commands.ls("//sys/cell_balancers/instances", driver=driver)
+
+            self._wait_for_dynamic_config("//sys/cell_balancers/instances", config, instances, driver=driver)
 
     def _setup_tablet_balancer_dynamic_config(self, driver=None):
         if self.ENABLE_STANDALONE_TABLET_BALANCER:
