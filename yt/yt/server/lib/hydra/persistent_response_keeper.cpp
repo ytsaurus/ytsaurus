@@ -135,8 +135,12 @@ public:
 
                 ResponseEvictionQueue_.emplace_back(id, mutationContext->GetTimestamp());
 
-                FinishedResponseCount_.fetch_add(1, std::memory_order::relaxed);
-                FinishedResponseSpace_.fetch_add(space, std::memory_order::relaxed);
+                // Technically, memory_order::relaxed would've sufficed here because
+                // every access to these atomics is done from Automaton - except for
+                // profiling, which is fine with relaxed memory order, obviously.
+                // But let's stick with acquire-release for future-proofing.
+                FinishedResponseCount_.fetch_add(1, std::memory_order::acq_rel);
+                FinishedResponseSpace_.fetch_add(space, std::memory_order::acq_rel);
 
                 YT_LOG_DEBUG("Response added to persistent response keeper "
                     "(MutationId: %v, ResponseHash: %v)",
@@ -191,7 +195,7 @@ public:
         auto guard = WriterGuard(Lock_);
 
         auto pendingResponses = std::move(PendingResponses_);
-        PendingResponseCount_.store(0, std::memory_order::relaxed);
+        PendingResponseCount_.store(0, std::memory_order::release);
 
         guard.Release();
 
@@ -205,8 +209,8 @@ public:
     void Clear() override
     {
         FinishedResponses_.clear();
-        FinishedResponseCount_.store(0, std::memory_order::relaxed);
-        FinishedResponseSpace_.store(0, std::memory_order::relaxed);
+        FinishedResponseCount_.store(0, std::memory_order::release);
+        FinishedResponseSpace_.store(0, std::memory_order::release);
         ResponseEvictionQueue_.clear();
     }
 
@@ -227,10 +231,10 @@ public:
         Load(context, FinishedResponses_);
         FinishedResponseCount_.store(
             Load<decltype(FinishedResponseCount_)::value_type>(context),
-            std::memory_order::relaxed);
+            std::memory_order::release);
         FinishedResponseSpace_.store(
             Load<decltype(FinishedResponseSpace_)::value_type>(context),
-            std::memory_order::relaxed);
+            std::memory_order::release);
         Load(context, ResponseEvictionQueue_);
     }
 
@@ -257,8 +261,8 @@ public:
             if (counter > maxResponseCountPerEvictionPass) {
                 YT_LOG_WARNING("Response keeper eviction pass interrupted (ResponseCount: %v, ResponsesLeft: %v, OccupiedSpace: %v)",
                     counter,
-                    FinishedResponseCount_.load(std::memory_order::relaxed),
-                    FinishedResponseSpace_.load(std::memory_order::relaxed));
+                    FinishedResponseCount_.load(std::memory_order::acquire),
+                    FinishedResponseSpace_.load(std::memory_order::acquire));
                 break;
             }
 
@@ -266,9 +270,9 @@ public:
             YT_VERIFY(it != FinishedResponses_.end());
 
             ++counter;
-            FinishedResponseCount_.fetch_sub(1, std::memory_order::relaxed);
+            FinishedResponseCount_.fetch_sub(1, std::memory_order::acq_rel);
             FinishedResponseSpace_.fetch_sub(
-                static_cast<i64>(GetByteSize(it->second)), std::memory_order::relaxed);
+                static_cast<i64>(GetByteSize(it->second)), std::memory_order::acq_rel);
 
             FinishedResponses_.erase(it);
             ResponseEvictionQueue_.pop_front();
@@ -308,7 +312,7 @@ private:
 
         auto promise = std::move(pendingIt->second);
         PendingResponses_.erase(pendingIt);
-        PendingResponseCount_.fetch_sub(1, std::memory_order::relaxed);
+        PendingResponseCount_.fetch_sub(1, std::memory_order::acq_rel);
 
         return promise;
     }
@@ -322,7 +326,7 @@ private:
         auto result = DoFindRequest(id, isRetry);
         if (!result) {
             EmplaceOrCrash(PendingResponses_, std::pair(id, NewPromise<TSharedRefArray>()));
-            PendingResponseCount_.fetch_add(1, std::memory_order::relaxed);
+            PendingResponseCount_.fetch_add(1, std::memory_order::acq_rel);
         }
         return result;
     }
