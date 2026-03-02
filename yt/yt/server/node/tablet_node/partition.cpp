@@ -163,7 +163,7 @@ void TPartition::AsyncLoad(TLoadContext& context)
     YT_ASSERT(Tablet_);
 
     auto nodeMemoryTracker = Tablet_
-        ? Tablet_->MaybeGetNodeMemoryUsageTracker()
+        ? Tablet_->TryGetNodeMemoryUsageTracker()
         : nullptr;
 
     SampleKeys_->Load(

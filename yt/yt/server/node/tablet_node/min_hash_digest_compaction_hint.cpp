@@ -34,7 +34,7 @@ protected:
 private:
     IMemoryUsageTrackerPtr MaybeGetMemoryUsageTracker() const
     {
-        auto nodeMemoryTracker = Store_->GetTablet()->MaybeGetNodeMemoryUsageTracker();
+        auto nodeMemoryTracker = Store_->GetTablet()->TryGetNodeMemoryUsageTracker();
         return nodeMemoryTracker
             ? nodeMemoryTracker->WithCategory(EMemoryCategory::TabletBackground)
             : nullptr;

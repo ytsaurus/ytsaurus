@@ -1484,7 +1484,7 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex, TDuration splitDela
     mergedPartition->SetAllowedSplitTime(TInstant::Now() + splitDelay);
 
     std::vector<TLegacyKey> mergedSampleKeys;
-    auto nodeMemoryTracker = MaybeGetNodeMemoryUsageTracker();
+    auto nodeMemoryTracker = TryGetNodeMemoryUsageTracker();
     auto rowBuffer = New<TRowBuffer>(
         TSampleKeyListTag(),
         TChunkedMemoryPool::DefaultStartChunkSize,
@@ -1587,7 +1587,7 @@ void TTablet::SplitPartition(int index, const std::vector<TLegacyOwningKey>& piv
         YT_VERIFY(sampleKeyIndex >= std::ssize(existingSampleKeys) || existingSampleKeys[sampleKeyIndex] > thisPivotKey);
 
         std::vector<TLegacyKey> sampleKeys;
-        auto nodeMemoryTracker = MaybeGetNodeMemoryUsageTracker();
+        auto nodeMemoryTracker = TryGetNodeMemoryUsageTracker();
         auto rowBuffer = New<TRowBuffer>(
             TSampleKeyListTag(),
             TChunkedMemoryPool::DefaultStartChunkSize,
@@ -3454,7 +3454,7 @@ void TTablet::ResetRowCache(const ITabletSlotPtr& slot)
     ReconfigureRowCache(slot);
 }
 
-INodeMemoryTrackerPtr TTablet::MaybeGetNodeMemoryUsageTracker() const
+INodeMemoryTrackerPtr TTablet::TryGetNodeMemoryUsageTracker() const
 {
     return Context_ ? Context_->GetNodeMemoryUsageTracker() : nullptr;
 }
