@@ -8,7 +8,7 @@ import requests
 import yatest.common
 import pytest
 
-from yatest.common import network
+from library.python.port_manager import PortManager
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import (
@@ -170,7 +170,7 @@ class TestResourceUsage(YTEnvSetup):
         self.preprocessing_previously_runned = True
 
     def _define_ports(self) -> None:
-        with network.PortManager() as pm:
+        with PortManager() as pm:
             self.resource_usage_port = pm.get_port()
             self.resource_usage_debug_port = pm.get_port()
 

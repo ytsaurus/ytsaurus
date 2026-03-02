@@ -594,7 +594,7 @@ class TestLocalMode(object):
 
     @pytest.mark.skipif("yatest_common is None")
     def test_ports(self, enable_multidaemon):
-        from yatest.common.network import PortManager
+        from library.python.port_manager import PortManager
         with PortManager() as port_manager:
             http_proxy_port = port_manager.get_port()
             rpc_proxy_port = port_manager.get_port()

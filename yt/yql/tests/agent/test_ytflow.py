@@ -5,7 +5,7 @@ import os
 import pytest
 
 import yatest.common
-
+from library.python.port_manager import PortManager
 import library.python.ydb.federated_topic_client as fedydb
 
 import logbroker.tools.lib.recipe_helpers.cm_requests as cm_requests
@@ -242,7 +242,7 @@ class TestYtflowBase(TestQueueAgentBase):
         assert actual_data == expected_data
 
     def _run_query(self, query_text):
-        with yatest.common.network.PortManager() as port_manager:
+        with PortManager() as port_manager:
             pipeline_path = self.PIPELINE_PATH
 
             query_text_header = f"""

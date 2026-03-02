@@ -5,6 +5,7 @@ TEST_SRCS(
 )
 
 PEERDIR(
+    library/python/port_manager
     yt/python/yt/yson
     yt/python/yt/local
     yt/python/yt/environment

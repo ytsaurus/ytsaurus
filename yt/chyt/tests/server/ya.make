@@ -5,6 +5,7 @@ SET(YT_SPLIT_FACTOR 30)
 INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/integration/YaMakeBoilerplateForTests.txt)
 
 PEERDIR(
+    library/python/port_manager
     yt/yt/tests/conftest_lib
     yt/yt/tests/library
     yt/python/yt/clickhouse
