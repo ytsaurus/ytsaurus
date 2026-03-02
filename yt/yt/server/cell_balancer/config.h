@@ -12,6 +12,8 @@
 
 #include <yt/yt/client/node_tracker_client/public.h>
 
+#include <yt/yt/library/dynamic_config/public.h>
+
 #include <yt/yt/library/server_program/config.h>
 
 namespace NYT::NCellBalancer {
@@ -103,6 +105,20 @@ DEFINE_REFCOUNTED_TYPE(TBundleControllerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TBundleControllerDynamicConfig
+    : public TSingletonsDynamicConfig
+{
+    std::optional<TDuration> BundleScanPeriod;
+
+    REGISTER_YSON_STRUCT(TBundleControllerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TBundleControllerDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TCellBalancerBootstrapConfig
     : public NServer::TNativeServerBootstrapConfig
 {
@@ -115,6 +131,9 @@ struct TCellBalancerBootstrapConfig
 
     bool EnableBundleController;
     TBundleControllerConfigPtr BundleController;
+
+    NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
+    TString DynamicConfigPath;
 
     REGISTER_YSON_STRUCT(TCellBalancerBootstrapConfig);
 

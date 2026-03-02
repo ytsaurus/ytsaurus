@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include <yt/yt/library/dynamic_config/config.h>
+
 namespace NYT::NCellBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -114,6 +116,14 @@ void TBundleControllerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TBundleControllerDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("bundle_scan_period", &TThis::BundleScanPeriod)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TCellBalancerBootstrapConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
@@ -136,6 +146,11 @@ void TCellBalancerBootstrapConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("bundle_controller", &TThis::BundleController)
         .Optional();
+
+    registrar.Parameter("dynamic_config_manager", &TThis::DynamicConfigManager)
+        .DefaultNew();
+    registrar.Parameter("dynamic_config_path", &TThis::DynamicConfigPath)
+        .Default(DefaultBundleControllerConfigPath);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
