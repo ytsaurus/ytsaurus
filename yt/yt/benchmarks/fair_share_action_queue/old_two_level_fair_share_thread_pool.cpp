@@ -167,14 +167,14 @@ public:
         , PoolWeightProvider_(std::move(poolWeightProvider))
     { }
 
-    void SetWeightProvider(IPoolWeightProviderPtr weightProvider)
-    {
-        PoolWeightProvider_ = std::move(weightProvider);
-    }
-
     ~TTwoLevelFairShareQueue()
     {
         Shutdown();
+    }
+
+    void SetWeightProvider(IPoolWeightProviderPtr weightProvider)
+    {
+        PoolWeightProvider_ = std::move(weightProvider);
     }
 
     void Configure(int threadCount)

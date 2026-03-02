@@ -807,7 +807,7 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
     auto apiService = CreateApiService(
         Config_->JobProxyApiServiceStatic,
         apiInvoker,
-        [=] (const std::string&, const TFairShareThreadPoolTag&) { return apiInvoker; },
+        [=] (const std::string& /*pool*/, const TFairShareThreadPoolTag& /*executionTag*/) { return apiInvoker; },
         connection,
         authenticationManager->GetRpcAuthenticator(),
         proxyCoordinator,
