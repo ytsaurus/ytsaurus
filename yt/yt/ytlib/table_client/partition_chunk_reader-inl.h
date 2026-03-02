@@ -57,7 +57,7 @@ bool TPartitionMultiChunkReader::Read(
     TRowDescriptorInsertIterator& rowDescriptorInserter,
     i64* rowCount)
 {
-    if (!MultiReaderManager_->GetReadyEvent().IsSet() || !MultiReaderManager_->GetReadyEvent().BlockingGet().IsOK()) {
+    if (!MultiReaderManager_->GetReadyEvent().IsSet() || !MultiReaderManager_->GetReadyEvent().GetOrCrash().IsOK()) {
         return true;
     }
 

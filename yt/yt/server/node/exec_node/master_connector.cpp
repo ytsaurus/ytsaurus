@@ -177,7 +177,7 @@ private:
         CellTagToHeartbeatRspFuture_.erase(futureIt);
         YT_VERIFY(future.IsSet());
 
-        return future.BlockingGet();
+        return future.GetOrCrash();
     }
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);

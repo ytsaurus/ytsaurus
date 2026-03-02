@@ -341,7 +341,7 @@ NApi::IClientPtr TClient::GetOrCreateReplicaClient(const std::string& clusterNam
     }
 
     if (auto asyncClient = replicaClient->AsyncClient) {
-        if (asyncClient.IsSet() && !asyncClient.BlockingGet().IsOK()) {
+        if (asyncClient.IsSet() && !asyncClient.GetOrCrash().IsOK()) {
             replicaClient->AsyncClient = {};
         }
 

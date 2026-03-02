@@ -473,7 +473,7 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, UpdateMultipleTableProgresses)
                 auto* protoUpdateResult = response->add_replication_card_progress_update_results();
                 ToProto(protoUpdateResult->mutable_replication_card_id(), replicatrionCardId);
 
-                if (const auto& replicationCardOrError = replicationCardFuture.BlockingGet(); replicationCardOrError.IsOK()) {
+                if (const auto& replicationCardOrError = replicationCardFuture.GetOrCrash(); replicationCardOrError.IsOK()) {
                     auto* protoProgressUpdateResult = protoUpdateResult->mutable_result();
                     if (const auto& replicationCardPtr = replicationCardOrError.Value()) {
                         ToProto(protoProgressUpdateResult->mutable_replication_card(), *replicationCardPtr);

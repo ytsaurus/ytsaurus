@@ -1807,7 +1807,7 @@ private:
                 return false;
             }
 
-            const auto& preallocatedSessionOrError = AllocatedChunkSessionPromise_.BlockingGet();
+            const auto& preallocatedSessionOrError = AllocatedChunkSessionPromise_.GetOrCrash();
             if (!preallocatedSessionOrError.IsOK()) {
                 return false;
             }

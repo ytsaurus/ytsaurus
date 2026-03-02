@@ -212,7 +212,7 @@ private:
                 return;
             }
 
-            EventLogWriterReadyEvent_.BlockingGet().ThrowOnError();
+            EventLogWriterReadyEvent_.GetOrCrash().ThrowOnError();
             EventLogWriterReadyEvent_ = {};
         }
 

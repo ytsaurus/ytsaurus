@@ -1342,7 +1342,7 @@ public:
                     YT_VERIFY(asyncMaterializeResult.IsSet());
 
                     // asyncMaterializeResult contains no error, otherwise the |!error.IsOk()| check would trigger.
-                    return asyncMaterializeResult.BlockingGet().Value().Suspend;
+                    return asyncMaterializeResult.GetOrCrash().Value().Suspend;
                 }();
 
                 FinishOperationMaterialization(operation, shouldSuspend, scheduleOperationInSingleTree);
@@ -3216,7 +3216,7 @@ private:
         Y_UNUSED(WaitFor(AllSet(futures)));
 
         YT_VERIFY(unregisterFuture.IsSet());
-        auto resultOrError = unregisterFuture.BlockingGet();
+        auto resultOrError = unregisterFuture.GetOrCrash();
         if (!resultOrError.IsOK()) {
             return;
         }
@@ -4122,7 +4122,7 @@ private:
             errors.reserve(futures.size());
             for (const auto& future : futures) {
                 YT_VERIFY(future.IsSet());
-                errors.push_back(future.BlockingGet());
+                errors.push_back(future.GetOrCrash());
             }
             THROW_ERROR_EXCEPTION("Access to perform %Qlv of operation %v denied",
                 action,

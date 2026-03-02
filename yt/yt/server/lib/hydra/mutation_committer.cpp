@@ -1340,7 +1340,7 @@ void TFollowerCommitter::CatchUp()
 
     // Promise must be set by now.
     CaughtUpPromise_
-        .BlockingGet()
+        .GetOrCrash()
         .ThrowOnError();
 }
 

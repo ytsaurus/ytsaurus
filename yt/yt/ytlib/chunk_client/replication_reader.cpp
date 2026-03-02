@@ -2186,7 +2186,7 @@ private:
 
             auto future = ThrottleRequest(isPrimaryRequest);
             if (future.IsSet()) {
-                OnRequestThrottled(isPrimaryRequest, future.BlockingGet());
+                OnRequestThrottled(isPrimaryRequest, future.GetOrCrash());
             } else {
                 future.Subscribe(BIND(&THedgedRequest::OnRequestThrottled,
                     MakeStrong(this),
@@ -2977,7 +2977,7 @@ private:
 
         std::vector<int> fetchedBlockIndexes;
         for (int index = 0; index < std::ssize(blocks); ++index) {
-            if (!cachedBlockFutures[index].BlockingGet().IsOK()) {
+            if (!cachedBlockFutures[index].GetOrCrash().IsOK()) {
                 continue;
             }
 

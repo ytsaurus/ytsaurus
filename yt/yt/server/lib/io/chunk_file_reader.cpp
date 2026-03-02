@@ -565,7 +565,7 @@ TFuture<TIOEngineHandlePtr> TChunkFileReader::OpenDataFile(EDirectIOFlag useDire
     auto& fileHandleFuture = DataFileHandleFuture_[useDirectIO];
 
     if (fileHandleFuture && fileHandleFuture.IsSet() &&
-        !fileHandleFuture.BlockingGet().IsOK())
+        !fileHandleFuture.GetOrCrash().IsOK())
     {
         // Seems like on the previous attempt we failed to open the file for some reason.
         // Let us try again.

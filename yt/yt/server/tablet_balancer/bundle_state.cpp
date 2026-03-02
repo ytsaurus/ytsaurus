@@ -1982,7 +1982,7 @@ THashMap<TTabletCellId, TBundleState::TTabletCellInfo> TBundleState::FetchTablet
     THashMap<TTabletCellId, TTabletCellInfo> tabletCells;
     for (auto cellTag : cellTags) {
         for (auto cellId : cellIds) {
-            const auto& batchReq = batchRequests[cellTag].Response.BlockingGet().Value();
+            const auto& batchReq = batchRequests[cellTag].Response.GetOrCrash().Value();
             auto rspOrError = batchReq->GetResponse<TYPathProxy::TRspGet>(ToString(cellId));
             THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
 
@@ -2088,10 +2088,10 @@ THashMap<TTableId, TTableSettings> TBundleState::FetchActualTableSettings(
     THashMap<TTableId, TTableSettings> tableConfigs;
     for (const auto& [cellTag, batch] : cellTagToBatch) {
         THROW_ERROR_EXCEPTION_IF_FAILED(
-            batch.Response.BlockingGet(),
+            batch.Response.GetOrCrash(),
             "Failed to fetch actual table settings from cell %v",
             cellTag);
-        auto responseBatch = batch.Response.BlockingGet().Value();
+        auto responseBatch = batch.Response.GetOrCrash().Value();
 
         for (int index = 0; index < batch.Request->table_ids_size(); ++index) {
             auto tableId = FromProto<TTableId>(batch.Request->table_ids()[index]);
@@ -2145,11 +2145,11 @@ THashMap<TTableId, TTableStatisticsResponse> TBundleState::FetchTableStatistics(
     THashMap<TTableId, TTableStatisticsResponse> tableToStatistics;
     for (const auto& [cellTag, batch] : cellTagToBatch) {
         THROW_ERROR_EXCEPTION_IF_FAILED(
-            batch.Response.BlockingGet(),
+            batch.Response.GetOrCrash(),
             "Failed to fetch tablets from cell %v",
             cellTag);
 
-        auto responseBatch = batch.Response.BlockingGet().ValueOrThrow();
+        auto responseBatch = batch.Response.GetOrCrash().ValueOrThrow();
         auto statisticsFieldNames = FromProto<std::vector<std::string>>(responseBatch->statistics_field_names());
 
         for (int index = 0; index < batch.Request->table_ids_size(); ++index) {

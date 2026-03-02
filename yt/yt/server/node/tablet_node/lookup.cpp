@@ -1487,7 +1487,7 @@ TFuture<std::vector<TSharedRef>> TLookupSession::Run()
         for (int requestIndex = 0; requestIndex < std::ssize(TabletRequests_); ++requestIndex) {
             futures.push_back(RunTabletRequest(requestIndex));
             if (futures.back().IsSet()) {
-                results.push_back(futures.back().BlockingGet());
+                results.push_back(futures.back().GetOrCrash());
             }
         }
 
@@ -2357,7 +2357,7 @@ bool TTabletLookupSession<TPipeline>::DoLookupInCurrentPartition()
                         auto future = session.GetReadyEvent();
                         // TODO(akozhikhov): Proper block fetcher:
                         // make scenario of empty batch and set future here impossible.
-                        if (!future.IsSet() || !future.BlockingGet().IsOK()) {
+                        if (!future.IsSet() || !future.GetOrCrash().IsOK()) {
                             // NB: In case of error AllSucceeded below will terminate this session
                             // and cancel its other block fetchers.
                             futures.push_back(std::move(future));
@@ -2424,7 +2424,7 @@ void TTabletLookupSession<TPipeline>::LookupFromStoreSessions(
         if (!session.PrepareBatch()) {
             auto readyEvent = session.GetReadyEvent();
             YT_VERIFY(readyEvent.IsSet());
-            readyEvent.BlockingGet().ThrowOnError();
+            readyEvent.GetOrCrash().ThrowOnError();
             YT_VERIFY(session.PrepareBatch());
         }
         auto row = session.FetchRow();

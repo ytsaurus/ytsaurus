@@ -787,7 +787,7 @@ public:
                 baseAttributesFuture = std::move(baseAttributesFuture)
             ] {
                 // NB: AllSucceeded() guarantees that all futures contain values.
-                auto fetchedBaseAttributes = baseAttributesFuture.BlockingGet().Value();
+                auto fetchedBaseAttributes = baseAttributesFuture.GetOrCrash().Value();
 
                 auto traverseRequestedTree = [&] (INodeVisitor<TCypressChildDescriptor>* visitor) {
                     if constexpr (std::is_same_v<T, const std::vector<TCypressChildDescriptor>*>) {
@@ -802,7 +802,7 @@ public:
                     }
                 };
 
-                if (auto inheritedState = ancestryFuture.BlockingGet().Value()) {
+                if (auto inheritedState = ancestryFuture.GetOrCrash().Value()) {
                     auto calculator = TEffectiveAttributeCalculator::InheritFrom(
                         std::move(*inheritedState),
                         &fetchedBaseAttributes,
@@ -810,7 +810,7 @@ public:
                     traverseRequestedTree(&calculator);
                 }
 
-                if (auto frontierNodesResourceUsage = descendantsFuture.BlockingGet().Value()) {
+                if (auto frontierNodesResourceUsage = descendantsFuture.GetOrCrash().Value()) {
                     auto calculator = TRecursiveAttributeCalculator(
                         &fetchedBaseAttributes,
                         &(*frontierNodesResourceUsage),
@@ -1062,9 +1062,9 @@ private:
                 valuesFuture = std::move(valuesFuture),
                 attributesFuture = std::move(attributesFuture)
             ] {
-                // NB: AllSucceeded() guarantees that all futures contain values.
-                auto values = valuesFuture.BlockingGet().Value();
-                auto attributes = attributesFuture.BlockingGet().Value();
+                // NB: AllSucceeded() guarantees that all futures are set.
+                auto values = valuesFuture.GetOrCrash().Value();
+                auto attributes = attributesFuture.GetOrCrash().Value();
                 YT_VERIFY(values || attributes);
 
                 if (attributes) {

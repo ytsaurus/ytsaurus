@@ -75,7 +75,7 @@ public:
 
             for (int tag : *extensionTags) {
                 auto it = Extensions_.find(tag);
-                if (it != Extensions_.end() && (!it->second.IsSet() || it->second.BlockingGet().IsOK())) {
+                if (it != Extensions_.end() && (!it->second.IsSet() || it->second.GetOrCrash().IsOK())) {
                     tagFutures.emplace_back(it->second.AsVoid());
                 } else {
                     containsMissingExtensions = true;
@@ -110,7 +110,7 @@ public:
                 }
 
                 // Ignore errors since we do not cache them.
-                if (it->second.IsSet() && !it->second.BlockingGet().IsOK()) {
+                if (it->second.IsSet() && !it->second.GetOrCrash().IsOK()) {
                     Extensions_.erase(it);
                     missingExtensionTags.push_back(tag);
                     continue;
@@ -181,8 +181,8 @@ public:
             // Errors can weight a lot, but they can appear in Extensions_ only in a short interval
             // between setting the future and calling OnExtensionsReceived.
             // To avoid items expiration because of heavy errors, we do not count their weight into the total.
-            if (extensionFuture.IsSet() && extensionFuture.BlockingGet().IsOK() && extensionFuture.BlockingGet().Value()) {
-                weight += extensionFuture.BlockingGet().Value()->size();
+            if (extensionFuture.IsSet() && extensionFuture.GetOrCrash().IsOK() && extensionFuture.GetOrCrash().Value()) {
+                weight += extensionFuture.GetOrCrash().Value()->size();
             }
         }
 
@@ -209,11 +209,11 @@ private:
         for (int tag : *extensionTags) {
             auto extensionFuture = GetOrCrash(Extensions_, tag);
             YT_VERIFY(extensionFuture.IsSet());
-            YT_VERIFY(extensionFuture.BlockingGet().IsOK());
-            if (extensionFuture.BlockingGet().Value()) {
+            YT_VERIFY(extensionFuture.GetOrCrash().IsOK());
+            if (extensionFuture.GetOrCrash().Value()) {
                 auto* ext = meta->mutable_extensions()->add_extensions();
                 ext->set_tag(tag);
-                ext->set_data(*extensionFuture.BlockingGet().Value());
+                ext->set_data(*extensionFuture.GetOrCrash().Value());
             }
         }
 
@@ -233,7 +233,7 @@ private:
             for (int tag : *extensionTags) {
                 auto it = Extensions_.find(tag);
                 // The error could be already deleted by a concurrent fetch of the same tag.
-                if (it != Extensions_.end() && it->second.IsSet() && !it->second.BlockingGet().IsOK()) {
+                if (it != Extensions_.end() && it->second.IsSet() && !it->second.GetOrCrash().IsOK()) {
                     Extensions_.erase(it);
                 }
             }

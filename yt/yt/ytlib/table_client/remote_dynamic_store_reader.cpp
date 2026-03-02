@@ -269,8 +269,8 @@ protected:
 
         YT_VERIFY(RowsFuture_);
 
-        if (RowsFuture_.IsSet() && RowsFuture_.BlockingGet().IsOK()) {
-            const auto& loadedRows = RowsFuture_.BlockingGet().Value();
+        if (RowsFuture_.IsSet() && RowsFuture_.GetOrCrash().IsOK()) {
+            const auto& loadedRows = RowsFuture_.GetOrCrash().Value();
             if (loadedRows.Empty()) {
                 YT_LOG_DEBUG("Got empty streaming response, closing reader");
                 return nullptr;

@@ -95,7 +95,7 @@ public:
             THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::ReaderDeadlineExpired, "Reader deadline expired");
         }
 
-        if (IsAborted() || !ReadyEvent_.IsSet() || !ReadyEvent_.BlockingGet().IsOK()) {
+        if (IsAborted() || !ReadyEvent_.IsSet() || !ReadyEvent_.GetOrCrash().IsOK()) {
             return CreateEmptyUnversionedRowBatch();
         }
 
@@ -105,7 +105,7 @@ public:
 
     TFuture<void> GetReadyEvent() const override
     {
-        if (!ReadyEvent_.IsSet() || !ReadyEvent_.BlockingGet().IsOK()) {
+        if (!ReadyEvent_.IsSet() || !ReadyEvent_.GetOrCrash().IsOK()) {
             return ReadyEvent_;
         }
 

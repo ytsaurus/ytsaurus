@@ -1554,7 +1554,7 @@ private:
                     req,
                     plan,
                     dataByteSize,
-                    throttleFuture.BlockingGet());
+                    throttleFuture.GetOrCrash());
             } else {
                 throttleFuture.Subscribe(BIND(
                     &TSimpleReadFragmentsSession::OnRequestThrottled,
