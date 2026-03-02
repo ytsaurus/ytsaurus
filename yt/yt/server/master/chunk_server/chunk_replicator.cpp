@@ -2946,7 +2946,7 @@ void TChunkReplicator::ScheduleNodeRefreshSequoia(TNodeId nodeId)
 
 void TChunkReplicator::ScheduleGlobalChunkRefresh()
 {
-    YT_LOG_DEBUG("Scheduling global chunk refresh");
+    YT_LOG_INFO("Scheduling global chunk refresh");
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
         if (IsShardActive(shardIndex)) {
