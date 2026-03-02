@@ -876,12 +876,6 @@ public:
 
             const auto& securityManager = Bootstrap_->GetSecurityManager();
             securityManager->RecomputeTransactionAccountResourceUsage(parent);
-        } else {
-            // Remove extra reference.
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            for (const auto& exportEntry : transaction->ExportedObjects()) {
-                objectManager->UnrefObject(exportEntry.Object.Get());
-            }
         }
         transaction->ExportedObjects().clear();
         transaction->ImportedObjects().clear();
@@ -1007,9 +1001,8 @@ public:
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         for (const auto& entry : transaction->ExportedObjects()) {
-            auto object = entry.Object;
-            objectManager->UnrefObject(object);
-            // Remove extra reference.
+            auto* object = entry.Object.Get();
+            // See ExportObject.
             objectManager->UnrefObject(object);
             const auto& handler = objectManager->GetHandler(object);
             handler->UnexportObject(object, entry.DestinationCellTag, 1);
@@ -1376,15 +1369,19 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        transaction->ExportedObjects().push_back({object, destinationCellTag});
-
+        // The remote master cell holds one ref and after object is removed on a remote,
+        // it sends TReqUnrefExportedObjects to remove object here.
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        // The remote master cell holds one ref and after object is removed on a remote, it sends TReqUnrefExportedObjects to remove object here.
         objectManager->RefObject(object);
+
         // The transaction holds the second ref and removes it after completion.
-        // This ref is needed to avoid a race between the destruction of an object on a remote cell and the ending of a transaction,
+        // This ref is needed to avoid a race between the destruction
+        // of an object on a remote cell and the ending of a transaction,
         // since these events come via Hive from different cells.
-        objectManager->RefObject(object);
+        transaction->ExportedObjects().push_back({
+            .Object = TStrongObjectPtr(object),
+            .DestinationCellTag = destinationCellTag,
+        });
 
         const auto& handler = objectManager->GetHandler(object);
         handler->ExportObject(object, destinationCellTag);

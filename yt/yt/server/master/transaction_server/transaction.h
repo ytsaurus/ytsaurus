@@ -151,7 +151,7 @@ public:
 
     struct TExportEntry
     {
-        NObjectServer::TObjectRawPtr Object;
+        NObjectServer::TStrongObjectPtr<NObjectServer::TObject> Object;
         NObjectClient::TCellTag DestinationCellTag;
 
         void Persist(const NCellMaster::TPersistenceContext& context);
