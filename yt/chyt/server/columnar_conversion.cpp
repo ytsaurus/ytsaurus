@@ -649,101 +649,38 @@ DB::MutableColumnPtr ConvertTzYTColumnToCHColumnImpl(
 
     auto* currentOutput = chColumn->getData().data();
 
-    using dateInt = TTzIntegerType<LogicalType>;
+    using TDateInt = TTzIntegerType<LogicalType>;
 
-    auto consumer = [&] (dateInt timestamp) {
+    i64 rowIndex = 0;
+
+    std::function<TDateInt(i64)> fetcher;
+    if (filterHint) {
+        fetcher = [&] (i64 index) {
+            if (!filterHint[rowIndex]) {
+                return static_cast<TDateInt>(0);
+            }
+            auto [startOffset, endOffset] = DecodeStringRange(ytOffsets, avgLength, index);
+            return GetTimestampFromTzString<LogicalType>(std::string_view(ytChars + startOffset, endOffset - startOffset));
+        };
+    } else {
+        fetcher = [&] (i64 index) {
+            auto [startOffset, endOffset] = DecodeStringRange(ytOffsets, avgLength, index);
+            return GetTimestampFromTzString<LogicalType>(std::string_view(ytChars + startOffset, endOffset - startOffset));
+        };
+    }
+
+    auto consumer = [&] (TDateInt timestamp) {
         *currentOutput++ = timestamp;
+        ++rowIndex;
     };
 
-    if (filterHint) {
-        int rowIndex = 0;
-        DecodeRawVector<dateInt>(
-            ytColumn.StartIndex,
-            ytColumn.StartIndex + ytColumn.ValueCount,
-            dictionaryIndexes,
-            rleIndexes,
-            [&] (i64 index) {
-                    if (filterHint[rowIndex]) {
-                        auto [startOffset, endOffset] = DecodeStringRange(ytOffsets, avgLength, index);
-                        return GetTimestampFromTzString<LogicalType>(std::string_view(ytChars + startOffset, endOffset - startOffset));
-                    } else {
-                        return static_cast<TTzIntegerType<LogicalType>>(0);
-                    }
-                },
-            [&] (auto timestamp) {
-                if (filterHint[rowIndex++]) {
-                    consumer(timestamp);
-                } else {
-                    consumer(0);
-                }
-            });
-    } else if (dictionaryIndexes) {
-        constexpr int SmallDictionaryFactor = 3;
-        if (static_cast<i64>(ytOffsets.Size()) * SmallDictionaryFactor < ytColumn.ValueCount) {
-            YT_LOG_TRACE("Converting tz date column with small dictionary (Count: %v, DictionarySize: %v, Rle: %v)",
-                ytColumn.ValueCount,
-                ytOffsets.size(),
-                static_cast<bool>(rleIndexes));
-
-            std::vector<const char*> ytStrings(ytOffsets.size());
-            std::vector<i32> ytStringLengths(ytOffsets.size());
-            DecodeStringPointersAndLengths(
-                ytOffsets,
-                avgLength,
-                ytValueColumn->Strings->Data,
-                TMutableRange(ytStrings),
-                TMutableRange(ytStringLengths));
-
-            auto stringsFetcher = [&] (i64 index) {
-                return GetTimestampFromTzString<LogicalType>(std::string_view(ytStrings[index], ytStringLengths[index]));
-            };
-
-            DecodeRawVector<dateInt>(
-                ytColumn.StartIndex,
-                ytColumn.StartIndex + ytColumn.ValueCount,
-                dictionaryIndexes,
-                rleIndexes,
-                stringsFetcher,
-                consumer);
-        } else {
-            YT_LOG_TRACE("Converting tz column with large dictionary (Count: %v, DictionarySize: %v, Rle: %v)",
-                ytColumn.ValueCount,
-                ytOffsets.size(),
-                static_cast<bool>(rleIndexes));
-
-            DecodeRawVector<dateInt>(
-                ytColumn.StartIndex,
-                ytColumn.StartIndex + ytColumn.ValueCount,
-                dictionaryIndexes,
-                rleIndexes,
-                [&] (i64 index) {
-                    auto [startOffset, endOffset] = DecodeStringRange(ytOffsets, avgLength, index);
-                    return GetTimestampFromTzString<LogicalType>(std::string_view(ytChars + startOffset, endOffset - startOffset));
-                },
-                consumer);
-        }
-    } else {
-        YT_LOG_TRACE("Converting tz column without dictionary (Count: %v, Rle: %v)",
-            ytColumn.ValueCount,
-            static_cast<bool>(rleIndexes));
-
-        i64 avgLengthTimesIndex = ytValueColumn->StartIndex * avgLength;
-        i64 currentOffset = DecodeStringOffset(ytOffsets, avgLength, ytValueColumn->StartIndex);
-        DecodeRawVector<dateInt>(
-            ytColumn.StartIndex,
-            ytColumn.StartIndex + ytColumn.ValueCount,
-            {},
-            rleIndexes,
-            [&] (i64 index) {
-                auto startOffset = currentOffset;
-                avgLengthTimesIndex += avgLength;
-                auto endOffset = avgLengthTimesIndex + ZigZagDecode64(ytOffsets[index]);
-                i32 length = endOffset - startOffset;
-                currentOffset = endOffset;
-                return GetTimestampFromTzString<LogicalType>(std::string_view(ytChars + startOffset, length));
-            },
-            consumer);
-    }
+    DecodeRawVector<TDateInt>(
+        ytColumn.StartIndex,
+        ytColumn.StartIndex + ytColumn.ValueCount,
+        dictionaryIndexes,
+        rleIndexes,
+        fetcher,
+        consumer);
 
     return chColumn;
 }
