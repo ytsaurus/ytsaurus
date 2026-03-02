@@ -1739,8 +1739,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        auto* cellTagData = FindCellTagData(CellTagFromId(id));
-        if (cellTagData) {
+        if (auto* cellTagData = FindCellTagData(CellTagFromId(id)); cellTagData) {
             return cellTagData->ChunksDelta.get();
         }
 
