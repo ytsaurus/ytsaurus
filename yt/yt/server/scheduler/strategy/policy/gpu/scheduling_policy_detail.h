@@ -26,6 +26,14 @@ using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TInitialOperationAssignment
+{
+    const TPersistentAssignmentStatePtr AssignmentState;
+    const TNodeId NodeId;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TModuleProfilingCounters
 {
     explicit TModuleProfilingCounters(const NProfiling::TProfiler& profiler);
@@ -172,7 +180,7 @@ private:
     TPersistentStatePtr InitialPersistentState_ = New<TPersistentState>();
     TPersistentStatePtr PersistentState_;
 
-    THashMap<TOperationId, THashSet<TPersistentAssignmentStatePtr>> InitialOperationAssignments_;
+    THashMap<TOperationId, std::vector<TInitialOperationAssignment>> InitialOperationAssignments_;
 
     NProfiling::TProfiler Profiler_;
     TGpuSchedulingProfilingCounters ProfilingCounters_;

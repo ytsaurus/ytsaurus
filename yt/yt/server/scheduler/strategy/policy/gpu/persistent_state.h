@@ -29,12 +29,9 @@ using TPersistentOperationStateMap = THashMap<TOperationId, TPersistentOperation
 struct TPersistentAssignmentState
     : public NYTree::TYsonStruct
 {
-    NNodeTrackerClient::TNodeId NodeId;
     TOperationId OperationId;
     std::string AllocationGroupName;
     TJobResourcesWithQuota ResourceUsage;
-    TInstant CreationTime;
-    bool Preemptible{false};
 
     REGISTER_YSON_STRUCT(TPersistentAssignmentState);
 

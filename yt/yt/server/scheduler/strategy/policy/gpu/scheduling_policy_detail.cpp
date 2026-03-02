@@ -744,14 +744,16 @@ void TSchedulingPolicy::ReviveNodeState(TNodeId nodeId, const TNodePtr& node)
                 std::move(assignmentState->ResourceUsage),
                 operation.Get(),
                 node.Get());
-            assignment->Preemptible = assignmentState->Preemptible;
 
             node->AddAssignment(assignment);
             operation->AddAssignment(assignment);
             continue;
         }
 
-        EmplaceOrCrash(InitialOperationAssignments_[assignmentState->OperationId], assignmentState);
+        InitialOperationAssignments_[assignmentState->OperationId].emplace_back(TInitialOperationAssignment{
+            .AssignmentState = assignmentState,
+            .NodeId = nodeId,
+        });
     }
 
     YT_LOG_DEBUG(
@@ -773,14 +775,14 @@ void TSchedulingPolicy::ReviveOperationState(TOperationPtr operation)
         operation->SchedulingModule() = std::move(maybeState->SchedulingModule);
     }
 
-    for (auto assignmentState : InitialOperationAssignments_[operation->GetId()]) {
-        TNodePtr node = GetOrDefault(Nodes_, assignmentState->NodeId);
+    for (auto&& [assignmentState, nodeId] : InitialOperationAssignments_[operation->GetId()]) {
+        auto node = GetOrDefault(Nodes_, nodeId);
         if (!node) {
             YT_LOG_DEBUG(
                 "Dropped assignment because node is missing "
                 "(OperationId: %v, NodeId: %v, AllocationGroupName: %v)",
                 operation->GetId(),
-                assignmentState->NodeId,
+                nodeId,
                 assignmentState->AllocationGroupName);
 
             continue;
@@ -791,7 +793,7 @@ void TSchedulingPolicy::ReviveOperationState(TOperationPtr operation)
                 "Dropped assignment because node's scheduling module has changed "
                 "(OperationId: %v, NodeId: %v, OldModule: %v, NewModule: %v)",
                 operation->GetId(),
-                assignmentState->NodeId,
+                nodeId,
                 operation->SchedulingModule(),
                 node->SchedulingModule());
             operation->SchedulingModule().reset();
@@ -803,7 +805,6 @@ void TSchedulingPolicy::ReviveOperationState(TOperationPtr operation)
             std::move(assignmentState->ResourceUsage),
             operation.Get(),
             node.Get());
-        assignment->Preemptible = assignmentState->Preemptible;
 
         node->AddAssignment(assignment);
         operation->AddAssignment(assignment);
@@ -886,12 +887,9 @@ void TSchedulingPolicy::UpdatePersistentState()
 
         for (const auto& assignment : node->Assignments()) {
             auto assignmentPersistentState = New<TPersistentAssignmentState>();
-            assignmentPersistentState->NodeId = nodeId;
             assignmentPersistentState->OperationId = assignment->Operation->GetId();
             assignmentPersistentState->AllocationGroupName = assignment->AllocationGroupName;
             assignmentPersistentState->ResourceUsage = assignment->ResourceUsage;
-            assignmentPersistentState->CreationTime = assignment->CreationTime;
-            assignmentPersistentState->Preemptible = assignment->Preemptible;
 
             nodePersistentState.AssignmentStates.push_back(std::move(assignmentPersistentState));
         }
