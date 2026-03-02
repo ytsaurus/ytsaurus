@@ -654,6 +654,8 @@ type JobStatus struct {
 	Progress        float64            `yson:"progress,omitempty"`
 	ExecAttributes  *JobExecAttributes `yson:"exec_attributes,omitempty"`
 	IsStale         bool               `yson:"is_stale,omitempty"`
+	JobCookie       *uint64            `yson:"job_cookie,omitempty"`
+	Statistics      yson.RawValue      `yson:"statistics,omitempty"`
 }
 
 type JobExecAttributes struct {
