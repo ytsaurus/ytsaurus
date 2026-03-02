@@ -1850,29 +1850,9 @@ void TJobProxy::CheckMemoryUsage()
         JobProxyMemoryReserve_,
         UserJobCurrentMemoryUsage_.load());
 
-    constexpr double JobProxyMaxMemoryUsageLoggingExponentialFactor = 1.2;
-
     auto usage = JobProxyMaxMemoryUsage_.load();
-    if (usage > JobProxyMemoryReserve_ &&
-        usage > LastLoggedJobProxyMaxMemoryUsage_ * JobProxyMaxMemoryUsageLoggingExponentialFactor)
-    {
-        if (TInstant::Now() - LastRefCountedTrackerLogTime_ > RefCountedTrackerLogPeriod_) {
-            YT_LOG_WARNING("Job proxy used more memory than estimated "
-                "(JobProxyMaxMemoryUsage: %v, JobProxyMemoryReserve: %v, RefCountedTracker: %v)",
-                usage,
-                JobProxyMemoryReserve_,
-                TRefCountedTracker::Get()->GetDebugInfo(2 /*sortByColumn*/));
-            // NB(coteeq): Refcount dump and TCMalloc stats are quite huge, so we will exceed
-            // logging's message length limit. So let's duplicate the warning to reliably see at least
-            // a prefix of both blobs.
-            YT_LOG_WARNING("Job proxy used more memory than estimated "
-                "(JobProxyMaxMemoryUsage: %v, JobProxyMemoryReserve: %v, TCMallocStats: %v)",
-                usage,
-                JobProxyMemoryReserve_,
-                tcmalloc::MallocExtension::GetStats());
-            LastRefCountedTrackerLogTime_ = TInstant::Now();
-            LastLoggedJobProxyMaxMemoryUsage_ = usage;
-        }
+    if (usage > JobProxyMemoryReserve_) {
+        OnMemoryReserveExceeded(usage);
     }
 
     if (JobProxyMemoryOvercommitLimit_ && jobProxyMemoryUsage > JobProxyMemoryReserve_ + *JobProxyMemoryOvercommitLimit_) {
@@ -2163,6 +2143,32 @@ void TJobProxy::SetOomScoreAdj(int score)
             ex,
             "Failed to set oom_score_adj of a job proxy process (Pid: %v)",
             pid);
+    }
+}
+
+void TJobProxy::OnMemoryReserveExceeded(i64 usage)
+{
+    constexpr double LoggingExponentialFactor = 1.2;
+
+    bool shouldLog = usage > LastLoggedJobProxyMaxMemoryUsage_ * LoggingExponentialFactor &&
+        TInstant::Now() - LastRefCountedTrackerLogTime_ > RefCountedTrackerLogPeriod_;
+
+    if (shouldLog) {
+        YT_LOG_WARNING("Job proxy used more memory than estimated "
+            "(JobProxyMaxMemoryUsage: %v, JobProxyMemoryReserve: %v, RefCountedTracker: %v)",
+            usage,
+            JobProxyMemoryReserve_,
+            TRefCountedTracker::Get()->GetDebugInfo(2 /*sortByColumn*/));
+        // NB(coteeq): Refcount dump and TCMalloc stats are quite huge, so we will exceed
+        // logging's message length limit. So let's duplicate the warning to reliably see at least
+        // a prefix of both blobs.
+        YT_LOG_WARNING("Job proxy used more memory than estimated "
+            "(JobProxyMaxMemoryUsage: %v, JobProxyMemoryReserve: %v, TCMallocStats: %v)",
+            usage,
+            JobProxyMemoryReserve_,
+            tcmalloc::MallocExtension::GetStats());
+        LastRefCountedTrackerLogTime_ = TInstant::Now();
+        LastLoggedJobProxyMaxMemoryUsage_ = usage;
     }
 }
 
