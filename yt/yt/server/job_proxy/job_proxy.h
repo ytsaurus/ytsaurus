@@ -281,6 +281,8 @@ private:
     void LogSystemStats() const;
 
     void SetOomScoreAdj(int score);
+
+    void OnMemoryReserveExceeded(i64 usage);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobProxy)
