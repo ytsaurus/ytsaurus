@@ -1379,7 +1379,7 @@ public:
         // of an object on a remote cell and the ending of a transaction,
         // since these events come via Hive from different cells.
         transaction->ExportedObjects().push_back({
-            .Object = TStrongObjectPtr(object),
+            .Object = TStrongObjectPtr<TObject>(object),
             .DestinationCellTag = destinationCellTag,
         });
 
