@@ -397,7 +397,7 @@ public:
                     auto syncFuture = connection->GetMasterCellDirectorySynchronizer()->RecentSync();
 
                     if (syncFuture.IsSet()) {
-                        if (!syncFuture.BlockingGet().IsOK()) {
+                        if (!syncFuture.GetOrCrash().IsOK()) {
                             return syncFuture;
                         }
                     } else {

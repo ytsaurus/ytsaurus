@@ -1530,9 +1530,9 @@ private:
                     YT_VERIFY(descendentTransactionFuture.IsSet());
                     YT_VERIFY(dependentTransactionFuture.IsSet());
 
-                    // NB: AllSucceeded() guarantees that all futures contain values.
-                    const auto& descendentTransaction = descendentTransactionFuture.BlockingGet().Value();
-                    const auto& dependentTransaction = dependentTransactionFuture.BlockingGet().Value();
+                    // NB: AllSucceeded() guarantees that all futures are set.
+                    const auto& descendentTransaction = descendentTransactionFuture.GetOrCrash().Value();
+                    const auto& dependentTransaction = dependentTransactionFuture.GetOrCrash().Value();
 
                     if (descendentTransaction.empty() && dependentTransaction.empty()) {
                         return MakeFuture(std::vector<std::optional<NRecords::TTransaction>>{});

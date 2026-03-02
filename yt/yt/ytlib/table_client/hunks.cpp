@@ -1290,7 +1290,7 @@ private:
         void OnSessionFutureSet()
         {
             YT_VERIFY(SessionFuture.IsSet());
-            auto sessionOrError = SessionFuture.BlockingGet();
+            auto sessionOrError = SessionFuture.GetOrCrash();
             if (sessionOrError.IsOK()) {
                 Session = std::move(sessionOrError.Value());
 

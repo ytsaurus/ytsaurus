@@ -179,7 +179,7 @@ private:
 
         // Successes are stored forever and errors are cached for a configured time.
         return
-            entry->CookieFuture.BlockingGet().IsOK() ||
+            entry->CookieFuture.GetOrCrash().IsOK() ||
             entry->FetchTime + Config_->ErrorEvictionTime > TInstant::Now();
     }
 

@@ -202,8 +202,8 @@ TQuery LookupQuery(
             queryId)
             << error;
     }
-    bool isActive = asyncActiveRecord.IsSet() && asyncActiveRecord.BlockingGet().IsOK();
-    bool isFinished = asyncFinishedRecord.IsSet() && asyncFinishedRecord.BlockingGet().IsOK();
+    bool isActive = asyncActiveRecord.IsSet() && asyncActiveRecord.GetOrCrash().IsOK();
+    bool isFinished = asyncFinishedRecord.IsSet() && asyncFinishedRecord.GetOrCrash().IsOK();
     YT_VERIFY(isActive || isFinished);
     if (isActive && isFinished) {
         const auto& Logger = logger;
@@ -214,9 +214,9 @@ TQuery LookupQuery(
             timestamp);
     }
     if (isActive) {
-        return PartialRecordToQuery(asyncActiveRecord.BlockingGet().Value());
+        return PartialRecordToQuery(asyncActiveRecord.GetOrCrash().Value());
     } else {
-        return PartialRecordToQuery(asyncFinishedRecord.BlockingGet().Value());
+        return PartialRecordToQuery(asyncFinishedRecord.GetOrCrash().Value());
     }
 }
 

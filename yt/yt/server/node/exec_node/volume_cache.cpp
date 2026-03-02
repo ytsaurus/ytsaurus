@@ -145,7 +145,7 @@ TFuture<IVolumePtr> TSquashFSVolumeCache::GetOrCreateVolume(
     } else {
         YT_LOG_DEBUG(
             "Squashfs volume is either already in the cache or is being inserted (VolumeId: %v)",
-            value.IsSet() && value.BlockingGet().IsOK() ? ToString(value.BlockingGet().Value()->GetId()) : "<importing>");
+            value.IsSet() && value.GetOrCrash().IsOK() ? ToString(value.GetOrCrash().Value()->GetId()) : "<importing>");
     }
 
     return value.As<IVolumePtr>();
@@ -300,7 +300,7 @@ TFuture<IVolumePtr> TNbdVolumeFactory::GetOrCreateVolume(
     } else {
         YT_LOG_DEBUG(
             "RO NBD volume is either already in the cache or is being inserted (VolumeId: %v)",
-            value.IsSet() && value.BlockingGet().IsOK() ? ToString(value.BlockingGet().Value()->GetId()) : "<importing>");
+            value.IsSet() && value.GetOrCrash().IsOK() ? ToString(value.GetOrCrash().Value()->GetId()) : "<importing>");
     }
 
     // Subscribe job for NBD device errors.
@@ -1159,7 +1159,7 @@ TFuture<TLayerPtr> TLayerCache::GetOrCreateLayer(
     } else {
         YT_LOG_DEBUG(
             "Layer is either already in the cache or is being inserted (LayerId: %v)",
-            value.IsSet() && value.BlockingGet().IsOK() ? ToString(value.BlockingGet().Value()->GetMeta().Id) : "<importing>");
+            value.IsSet() && value.GetOrCrash().IsOK() ? ToString(value.GetOrCrash().Value()->GetMeta().Id) : "<importing>");
     }
 
     return value;

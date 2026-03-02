@@ -79,7 +79,7 @@ public:
 
     TFuture<IChannelPtr> GetChannel() override
     {
-        if (auto future = ChannelFuture_.Load(); future && (!future.IsSet() || future.BlockingGet().IsOK())) {
+        if (auto future = ChannelFuture_.Load(); future && (!future.IsSet() || future.GetOrCrash().IsOK())) {
             return future;
         }
 

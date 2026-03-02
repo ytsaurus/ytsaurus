@@ -576,10 +576,10 @@ void TQueueAgent::Pass()
         PassProfiler_.OnError();
         return;
     }
-    auto queueRows = asyncQueueRows.AsUnique().BlockingGet().Value();
-    auto consumerRows = asyncConsumerRows.AsUnique().BlockingGet().Value();
-    const auto& registrationRows = asyncRegistrationRows.BlockingGet().Value();
-    const auto& objectMappingRows = asyncObjectMappingRows.BlockingGet().Value();
+    auto queueRows = asyncQueueRows.AsUnique().GetOrCrash().Value();
+    auto consumerRows = asyncConsumerRows.AsUnique().GetOrCrash().Value();
+    const auto& registrationRows = asyncRegistrationRows.GetOrCrash().Value();
+    const auto& objectMappingRows = asyncObjectMappingRows.GetOrCrash().Value();
 
     std::vector<TReplicatedTableMappingTableRow> replicatedTableMappingRows;
     // NB: This table might not exist and we should still perform passes.

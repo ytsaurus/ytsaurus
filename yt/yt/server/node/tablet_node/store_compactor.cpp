@@ -1092,7 +1092,7 @@ public:
                     continue;
                 }
 
-                auto futureResult = cellInfo.AsyncTasks.AsUnique().BlockingGet();
+                auto futureResult = cellInfo.AsyncTasks.AsUnique().GetOrCrash();
                 if (!futureResult.IsOK()) {
                     continue;
                 }

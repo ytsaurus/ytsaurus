@@ -421,7 +421,7 @@ private:
 
         YT_VERIFY(CurrentBlock_ && CurrentBlock_.IsSet());
         ResetBlockReader(
-            CurrentBlock_.BlockingGet().ValueOrThrow().Data,
+            CurrentBlock_.GetOrCrash().ValueOrThrow().Data,
             ChunkMeta_,
             KeyColumnCount_,
             KeyComparer_,
@@ -642,7 +642,7 @@ private:
     void InitNextBlock() override
     {
         ResetBlockReader(
-            CurrentBlock_.BlockingGet().ValueOrThrow().Data,
+            CurrentBlock_.GetOrCrash().ValueOrThrow().Data,
             ChunkMeta_,
             KeyColumnCount_,
             KeyComparer_,

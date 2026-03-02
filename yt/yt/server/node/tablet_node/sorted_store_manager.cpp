@@ -958,7 +958,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
     auto sortedDynamicStore = store->AsSortedDynamic();
     auto reader = sortedDynamicStore->CreateFlushReader();
     // NB: Memory store reader is always synchronous.
-    YT_VERIFY(reader->Open().BlockingGet().IsOK());
+    YT_VERIFY(reader->Open().GetOrCrash().IsOK());
 
     auto inMemoryMode = isUnmountWorkflow ? EInMemoryMode::None : GetInMemoryMode();
 

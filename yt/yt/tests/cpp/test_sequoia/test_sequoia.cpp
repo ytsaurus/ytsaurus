@@ -934,7 +934,7 @@ TEST_F(TSequoiaTest, TestResponseKeeper)
     int okWithoutRetries = 0;
     int sequoiaRetriableErrors = 0;
     for (int i : std::views::iota(0, RequestCount)) {
-        const auto& error = responses[i].BlockingGet();
+        const auto& error = responses[i].GetOrCrash();
         if (error.IsOK()) {
             ++(i < RequestCount / 2 ? okWithoutRetries : okWithRetries);
         } else if (error.GetNonTrivialCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError && i < RequestCount / 2) {

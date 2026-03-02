@@ -405,8 +405,8 @@ public:
             // Try to preserve it as long as the replica set remains same.
             if (entry->Future &&
                 entry->Future.IsSet() &&
-                entry->Future.BlockingGet().IsOK() &&
-                entry->Future.BlockingGet().Value() == canonicalReplicas)
+                entry->Future.GetOrCrash().IsOK() &&
+                entry->Future.GetOrCrash().Value() == canonicalReplicas)
             {
                 return;
             }
@@ -623,8 +623,8 @@ private:
 
         return AllSucceeded(std::vector{approvedReplicasFuture.AsVoid(), unapprovedReplicasFuture.AsVoid()})
             .Apply(BIND([=] {
-                const auto& approvedReplicas = approvedReplicasFuture.BlockingGet().Value();
-                const auto& unapprovedReplicas = unapprovedReplicasFuture.BlockingGet().Value();
+                const auto& approvedReplicas = approvedReplicasFuture.GetOrCrash().Value();
+                const auto& unapprovedReplicas = unapprovedReplicasFuture.GetOrCrash().Value();
                 YT_VERIFY(approvedReplicas.size() == unapprovedReplicas.size());
 
                 std::vector<std::optional<TAllyReplicasInfo>> results;

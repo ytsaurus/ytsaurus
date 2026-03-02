@@ -112,7 +112,7 @@ private:
             result = GroundClientFuture_;
         }
 
-        if (result && (!result.IsSet() || result.BlockingGet().IsOK())) {
+        if (result && (!result.IsSet() || result.GetOrCrash().IsOK())) {
             return result;
         }
 

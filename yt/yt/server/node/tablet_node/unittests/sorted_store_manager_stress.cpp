@@ -1190,7 +1190,7 @@ void TSortedStoreManagerStressTest::RunTest()
                 InsertOrCrash(lookupers, lookuper);
             } else {
                 EXPECT_TRUE(lookuper->IsCompleted());
-                EXPECT_EQ(lookuper->GetResult().BlockingGet().Value().Row, expected.Row);
+                EXPECT_EQ(lookuper->GetResult().GetOrCrash().Value().Row, expected.Row);
                 ++immediateLookups;
             }
         }

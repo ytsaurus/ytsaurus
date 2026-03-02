@@ -282,7 +282,7 @@ public:
                 return false;
             }
 
-            auto loadedBlocksOrError = FetchedBlocks_.AsUnique().BlockingGet();
+            auto loadedBlocksOrError = FetchedBlocks_.AsUnique().GetOrCrash();
             if (!loadedBlocksOrError.IsOK()) {
                 return false;
             }
@@ -558,7 +558,7 @@ public:
                 return false;
             }
 
-            auto loadedBlocksOrError = FetchedBlocks_.AsUnique().BlockingGet();
+            auto loadedBlocksOrError = FetchedBlocks_.AsUnique().GetOrCrash();
             if (!loadedBlocksOrError.IsOK()) {
                 return false;
             }

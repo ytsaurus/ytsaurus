@@ -317,7 +317,7 @@ bool TChunkReaderBase::IsFetchingCompleted() const
 
 std::vector<TChunkId> TChunkReaderBase::GetFailedChunkIds() const
 {
-    if (auto readyEvent = ReadyEvent(); readyEvent.IsSet() && !readyEvent.BlockingGet().IsOK()) {
+    if (auto readyEvent = ReadyEvent(); readyEvent.IsSet() && !readyEvent.GetOrCrash().IsOK()) {
         return std::vector<TChunkId>(1, UnderlyingReader_->GetChunkId());
     } else {
         return std::vector<TChunkId>();

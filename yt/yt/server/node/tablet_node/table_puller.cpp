@@ -484,7 +484,7 @@ private:
         {
             auto throttleFuture = Throttler_->Throttle(1);
             if (throttleFuture.IsSet()) {
-                throttleFuture.BlockingGet().ThrowOnError();
+                throttleFuture.GetOrCrash().ThrowOnError();
             } else {
                 auto timerGuard = TEventTimerGuard(counters->ThrottleTime);
                 YT_LOG_DEBUG("Started waiting for replication throttling");

@@ -140,7 +140,7 @@ private:
     NNative::IClientPtr GetGroundClientOrThrow()
     {
         YT_VERIFY(GroundClientFuture_.IsSet());
-        return GroundClientFuture_.BlockingGet().ValueOrThrow();
+        return GroundClientFuture_.GetOrCrash().ValueOrThrow();
     }
 
     NYPath::TYPath GetSequoiaTablePath(const TSequoiaTablePathDescriptor& tablePathDescriptor)

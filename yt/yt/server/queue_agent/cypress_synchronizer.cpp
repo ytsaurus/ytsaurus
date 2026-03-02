@@ -736,7 +736,7 @@ private:
         WaitFor(AllSucceeded(std::vector{asyncQueues.AsVoid(), asyncConsumers.AsVoid(), asyncReplicatedTableMapping.AsVoid()}))
             .ThrowOnError();
 
-        for (const auto& queue : asyncQueues.BlockingGet().Value()) {
+        for (const auto& queue : asyncQueues.GetOrCrash().Value()) {
             ClusterToDynamicStateObjects_[queue.Ref.Cluster].push_back({
                 queue.Ref.Path,
                 /*kind*/ ECypressSyncObjectKind::Queue,
@@ -745,7 +745,7 @@ private:
                 queue.RowRevision});
         }
 
-        for (const auto& consumer : asyncConsumers.BlockingGet().Value()) {
+        for (const auto& consumer : asyncConsumers.GetOrCrash().Value()) {
             ClusterToDynamicStateObjects_[consumer.Ref.Cluster].push_back({
                 consumer.Ref.Path,
                 /*kind*/ ECypressSyncObjectKind::Consumer,
@@ -758,7 +758,7 @@ private:
             return;
         }
 
-        for (const auto& replicatedObject : asyncReplicatedTableMapping.BlockingGet().Value()) {
+        for (const auto& replicatedObject : asyncReplicatedTableMapping.GetOrCrash().Value()) {
             ClusterToReplicatedTableMappingObjects_[replicatedObject.Ref.Cluster].push_back({
                 replicatedObject.Ref.Path,
                 /*kind*/ ECypressSyncObjectKind::Unknown,

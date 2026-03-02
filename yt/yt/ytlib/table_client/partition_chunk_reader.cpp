@@ -130,7 +130,7 @@ void TPartitionChunkReader::InitFirstBlock()
     auto schema = GetTableSchema(*ChunkMeta_);
 
     BlockReader_ = new THorizontalBlockReader(
-        CurrentBlock_.BlockingGet().ValueOrThrow().Data,
+        CurrentBlock_.GetOrCrash().ValueOrThrow().Data,
         BlockMetaExt_.data_blocks(CurrentBlockIndex_),
         GetCompositeColumnFlags(schema),
         GetHunkColumnFlags(

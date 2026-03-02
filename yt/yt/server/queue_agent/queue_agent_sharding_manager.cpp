@@ -312,9 +312,9 @@ private:
         WaitFor(AllSucceeded(futures))
             .ThrowOnError();
 
-        const auto& queueRows = asyncQueueRows.BlockingGet().Value();
-        const auto& consumerRows = asyncConsumerRows.BlockingGet().Value();
-        const auto& objectMappingRows = asyncObjectMappingRows.BlockingGet().Value();
+        const auto& queueRows = asyncQueueRows.GetOrCrash().Value();
+        const auto& consumerRows = asyncConsumerRows.GetOrCrash().Value();
+        const auto& objectMappingRows = asyncObjectMappingRows.GetOrCrash().Value();
 
         YT_LOG_DEBUG(
             "State table rows collected (QueueRowCount: %v, ConsumerRowCount: %v, ObjectMappingRowCount: %v)",

@@ -273,7 +273,7 @@ bool TMultiReaderManagerBase::OnEmptyRead(bool readerFinished)
 {
     if (readerFinished) {
         OnReaderFinished();
-        return !CompletionError_.IsSet() || !CompletionError_.BlockingGet().IsOK();
+        return !CompletionError_.IsSet() || !CompletionError_.GetOrCrash().IsOK();
     } else {
         OnReaderBlocked();
         return true;

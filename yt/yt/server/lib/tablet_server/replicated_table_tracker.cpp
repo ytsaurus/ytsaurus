@@ -844,7 +844,7 @@ public:
 
         TFuture<std::string> BundleNameFuture_ = MakeFuture<std::string>(
             TError("Bundle name has not been fetched yet"));
-        TErrorOr<std::string> CurrentBundleName_ = BundleNameFuture_.BlockingGet();
+        TErrorOr<std::string> CurrentBundleName_ = BundleNameFuture_.GetOrCrash();
         TInstant LastBundleNameUpdateTime_ = TInstant::Zero();
         i64 IterationsWithoutAcceptableBundleHealth_ = 0;
 
@@ -889,13 +889,13 @@ public:
                 return CurrentBundleName_;
             }
 
-            auto interval = BundleNameFuture_.BlockingGet().IsOK()
+            auto interval = BundleNameFuture_.GetOrCrash().IsOK()
                 ? ReplicatedTable_->GetOptions()->TabletCellBundleNameTtl
                 : ReplicatedTable_->GetOptions()->RetryOnFailureInterval;
 
             if (LastBundleNameUpdateTime_ + interval < now) {
                 LastBundleNameUpdateTime_ = now;
-                CurrentBundleName_ = BundleNameFuture_.BlockingGet();
+                CurrentBundleName_ = BundleNameFuture_.GetOrCrash();
                 BundleNameFuture_ = client->GetNode(TablePath_ + "/@tablet_cell_bundle")
                     .Apply(BIND([] (const TErrorOr<TYsonString>& bundleNameOrError) {
                         THROW_ERROR_EXCEPTION_IF_FAILED(bundleNameOrError,
@@ -915,7 +915,7 @@ public:
                 return CurrentBundleName_;
             }
 
-            return BundleNameFuture_.BlockingGet();
+            return BundleNameFuture_.GetOrCrash();
         }
 
         TError CheckTableAttributes(const NApi::IClientPtr& client)
@@ -923,7 +923,7 @@ public:
             auto checkPreloadState = ReplicatedTable_->GetOptions()->EnablePreloadStateCheck;
 
             if (TableAttributesFuture_.IsSet()) {
-                CurrentTableAttributes_ = TableAttributesFuture_.BlockingGet();
+                CurrentTableAttributes_ = TableAttributesFuture_.GetOrCrash();
 
                 std::vector<IAttributeDictionary::TKey> keys;
                 if (checkPreloadState) {
@@ -1253,7 +1253,7 @@ private:
             auto& state = States_[key];
 
             if (state.Future.IsSet()) {
-                state.CurrentError = state.Future.BlockingGet();
+                state.CurrentError = state.Future.GetOrCrash();
                 state.Future = Cache_->Get(key);
             }
 
@@ -1636,7 +1636,7 @@ private:
     void UpdateReplicaLagTimes()
     {
         if (ReplicaLagTimesFuture_.IsSet()) {
-            ReplicaLagTimesOrError_ = ReplicaLagTimesFuture_.BlockingGet();
+            ReplicaLagTimesOrError_ = ReplicaLagTimesFuture_.GetOrCrash();
             ReplicaLagTimesFuture_ = Host_->ComputeReplicaLagTimes(GetKeys(IdToReplica_));
         }
 

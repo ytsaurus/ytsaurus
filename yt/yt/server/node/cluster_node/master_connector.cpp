@@ -367,7 +367,7 @@ protected:
         CellTagToHeartbeatRspFuture_.erase(futureIt);
         YT_VERIFY(future.IsSet());
 
-        return future.BlockingGet();
+        return future.GetOrCrash();
     }
 private:
     IBootstrap* const Bootstrap_;

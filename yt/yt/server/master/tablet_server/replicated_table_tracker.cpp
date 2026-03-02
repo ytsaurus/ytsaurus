@@ -570,7 +570,7 @@ private:
             auto now = NProfiling::GetInstant();
             auto asyncTabletCellBundleName = AsyncTabletCellBundleName_.Load();
 
-            auto interval = (asyncTabletCellBundleName.IsSet() && !asyncTabletCellBundleName.BlockingGet().IsOK())
+            auto interval = (asyncTabletCellBundleName.IsSet() && !asyncTabletCellBundleName.GetOrCrash().IsOK())
                 ? RetryOnFailureInterval_
                 : TabletCellBundleNameTtl_;
 

@@ -548,7 +548,7 @@ TBundleSnapshotPtr TTabletBalancer::GetBundleSnapshot(
     auto bundleSnapshot = WaitFor(bundleState->GetBundleSnapshotWithReplicaBalancingStatistics(
         minFreshnessRequirement,
         GetGroupsForMoveBalancing(bundleName),
-        GetGroupsForReshardBalancing(bundleName, bundleState->GetConfig(/*allowStale*/ true).BlockingGet().Value()),
+        GetGroupsForReshardBalancing(bundleName, bundleState->GetConfig(/*allowStale*/ true).GetOrCrash().Value()),
         allowedReplicaClusters,
         bannedClusters))
         .ValueOrThrow();
@@ -668,7 +668,7 @@ void TTabletBalancer::BalancerIteration()
             continue;
         }
 
-        if (!IsBundleEligibleForBalancing(bundle->GetConfig(/*allowStale*/ true).BlockingGet().Value(), bundleName)) {
+        if (!IsBundleEligibleForBalancing(bundle->GetConfig(/*allowStale*/ true).GetOrCrash().Value(), bundleName)) {
             YT_LOG_INFO("Skip fetching for bundle since balancing is not planned "
                 "at this iteration according to the schedule (BundleName: %v)",
                 bundleName);
@@ -778,7 +778,7 @@ bool TTabletBalancer::IsBalancingAllowed(const IBundleStatePtr& bundleState) con
     return dynamicConfig->Enable &&
         bundleState->GetHealth() == ETabletCellHealth::Good &&
         (dynamicConfig->EnableEverywhere ||
-         bundleState->GetConfig(/*allowStale*/ true).BlockingGet().Value()->EnableStandaloneTabletBalancer);
+         bundleState->GetConfig(/*allowStale*/ true).GetOrCrash().Value()->EnableStandaloneTabletBalancer);
 }
 
 bool TTabletBalancer::TScheduledActionCountLimiter::TryIncrease(const TGlobalGroupTag& groupTag)
