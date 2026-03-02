@@ -132,7 +132,7 @@ There are a few conversion peculiarities that are worth paying attention to.
    "job_io": {"table_writer": {"block_size": 256 * 2**10, "desired_chunk_size": 100 * 2**20}}
    ```
 
-   If an operation has more than one job type, the config only needs to be specified for `job_io` of the last job type in the operation (`merge_job_io` for the Sort operation, `reduce_job_io` for the MapReduce operation). If the operation uses [automatic merging of chunks](../../../user-guide/data-processing/operations/automerge.md), a similar config must be specified in the `"automerge": {"job_io": {...}}` section.
+   If an operation has more than one job type, the config only needs to be specified for `job_io` of the last job type in the operation (`merge_job_io` for the Sort operation, `reduce_job_io` for the MapReduce operation). If the operation uses [automatic merging of chunks](../../../user-guide/data-processing/operations/automerge.md), a similar config must be specified in the `"auto_merge": {"job_io": {...}}` section.
 
    For more information about `job_io` for different types of operations, see [Operation options](../../../user-guide/data-processing/operations/operations-options.md).
 
