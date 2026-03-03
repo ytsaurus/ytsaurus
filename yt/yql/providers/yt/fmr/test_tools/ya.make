@@ -1,4 +1,5 @@
 RECURSE(
+    fmr_block_iterator
     fmr_coordinator_service_helper
     fmr_gateway_helpers
     mock_time_provider
