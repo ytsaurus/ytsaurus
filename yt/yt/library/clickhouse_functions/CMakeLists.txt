@@ -24,6 +24,7 @@ target_compile_options(yt-library-clickhouse_functions PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_include_directories(yt-library-clickhouse_functions PRIVATE
@@ -64,6 +65,7 @@ target_compile_options(yt-library-clickhouse_functions.global PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_include_directories(yt-library-clickhouse_functions.global PRIVATE

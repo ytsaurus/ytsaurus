@@ -26,6 +26,7 @@ target_compile_options(tools-trigrep-lib PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(tools-trigrep-lib PUBLIC

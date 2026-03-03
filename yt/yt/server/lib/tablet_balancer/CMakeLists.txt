@@ -27,6 +27,7 @@ target_compile_options(server-lib-tablet_balancer PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(server-lib-tablet_balancer PUBLIC

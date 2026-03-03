@@ -26,6 +26,7 @@ target_compile_options(yt-server-queue_agent PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(yt-server-queue_agent PUBLIC

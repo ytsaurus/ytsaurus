@@ -22,6 +22,7 @@ target_compile_options(server-node-cellar_node PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(server-node-cellar_node PUBLIC

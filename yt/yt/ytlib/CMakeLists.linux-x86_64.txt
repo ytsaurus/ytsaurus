@@ -51,6 +51,7 @@ target_compile_options(yt-yt-ytlib PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_include_directories(yt-yt-ytlib PUBLIC
@@ -1832,6 +1833,7 @@ target_compile_options(yt-yt-ytlib.global PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_include_directories(yt-yt-ytlib.global PUBLIC

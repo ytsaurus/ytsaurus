@@ -24,6 +24,7 @@ target_compile_options(cpp-yt-libcpp_assertion_handlers INTERFACE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(cpp-yt-libcpp_assertion_handlers INTERFACE
@@ -46,6 +47,7 @@ target_compile_options(cpp-yt-libcpp_assertion_handlers.global PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(cpp-yt-libcpp_assertion_handlers.global PUBLIC

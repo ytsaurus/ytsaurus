@@ -24,6 +24,7 @@ target_compile_options(yt-server-cypress_proxy PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(yt-server-cypress_proxy PUBLIC

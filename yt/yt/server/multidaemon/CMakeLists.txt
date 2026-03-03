@@ -24,6 +24,7 @@ target_compile_options(yt-server-multidaemon PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(yt-server-multidaemon PUBLIC

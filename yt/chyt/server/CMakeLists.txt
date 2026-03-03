@@ -28,6 +28,7 @@ target_compile_options(yt-chyt-server PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_include_directories(yt-chyt-server PRIVATE
@@ -159,6 +160,7 @@ target_compile_options(yt-chyt-server.global PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_include_directories(yt-chyt-server.global PRIVATE
