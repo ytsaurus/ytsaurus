@@ -103,8 +103,8 @@ inline TNode FormIORequestParameters(
         AddWriterOptionsToNode(
             TWriterOptions()
                 .EnableEarlyFinish(true)
-                .UploadReplicationFactor(1)
-                .MinUploadReplicationFactor(1),
+                .UploadReplicationFactor(3)
+                .MinUploadReplicationFactor(2),
             &fileWriter);
     }
     params[TIOOptionsTraits<TFileWriterOptions>::ConfigName] = fileWriter;
