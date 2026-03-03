@@ -53,7 +53,7 @@ public:
 
     void ApplyConfig(const TSslContextConfigPtr& config, TCertificatePathResolver pathResolver = nullptr);
 
-    void UseBuiltinOpenSslX509Store();
+    void UseDefaultOpenSslX509Store();
 
     void SetCipherList(const TString& list);
 
