@@ -205,6 +205,8 @@ struct TProxyDynamicConfig
 
     THashMap<std::string, double> WorkerPoolWeightOverrides;
 
+    std::optional<int> WorkerThreadPoolSize;
+
     REGISTER_YSON_STRUCT(TProxyDynamicConfig);
 
     static void Register(TRegistrar registrar);
