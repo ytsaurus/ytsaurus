@@ -47,7 +47,8 @@ void TSampleKeyList::Load(TLoadContext& context, const IMemoryUsageTrackerPtr& t
         New<TRowBuffer>(
             TSampleKeyListTag(),
             TChunkedMemoryPool::DefaultStartChunkSize,
-            tracker));
+            tracker,
+            /*allowMemoryOvercommit*/ true));
     Keys = reader->ReadUnversionedRowset(true);
 }
 
