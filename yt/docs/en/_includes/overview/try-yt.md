@@ -469,6 +469,18 @@ Regardless of the installation method, the required system components will be de
 
   Now the web interface will be available at `localhost:8080`, and the cluster proxy at `localhost:8081`. You can use the proxy address to work with the cluster from the command line — this will be described below, in the [examples](#launch-example) section.
 
+  To access the [RPC proxy](../../user-guide/proxy/rpc.md) at `localhost:8082`, run this command in a separate terminal:
+
+  ```bash
+  kubectl port-forward service/rpc-proxies-lb 8082:9013
+  ```
+
+  For the RPC proxy to be accessible through discovery, you need to register it as a balancer in `//sys/rpc_proxies/@balancers`:
+
+  ```bash
+  yt --proxy localhost:8081 set --format json //sys/rpc_proxies/@balancers '{ "default": { "internal_rpc": { "default": ["localhost:8082"]} } }'
+  ```
+
   {% cut "How to configure native port forwarding with Kind" %}
 
   There is an alternative solution for configuring the {{product-name}} cluster and the Kind cluster that avoids explicit `kubectl port-forward` commands. To do this:
@@ -488,6 +500,10 @@ Regardless of the installation method, the required system components will be de
          hostPort: 30081
        - containerPort: 30082
          hostPort: 30082
+       - containerPort: 30083
+         hostPort: 30083
+       - containerPort: 30084
+         hostPort: 30084
      ```
 
      Start the Kind cluster with the config:
@@ -497,30 +513,42 @@ Regardless of the installation method, the required system components will be de
 
   2. Configure port forwarding for the web interface and proxies in the {{product-name}} cluster.
 
-     In the {{product-name}} cluster config, specify the `httpNodePort` option in the proxies and web interface:
+     In the {{product-name}} cluster config, specify the `httpNodePort` option in the proxies and web interface. For RPC proxy specify the `nodePort` option:
      ```bash
-     $ grep httpNodePort -B 5 cluster_v1_local_with_ports.yaml
-     httpProxies:
-       - serviceType: NodePort
-         loggers: *loggers
-         instanceCount: 1
-         role: default
-         httpNodePort: 30080
-       - serviceType: NodePort
-         loggers: *loggers
-         instanceCount: 1
-         role: control
-         httpNodePort: 30081
+     $ grep nodePort: -iB 5 cluster_v1_local_with_ports.yaml
+       httpProxies:
+         - serviceType: NodePort
+           loggers: *loggers
+           instanceCount: 1
+           role: default
+           httpNodePort: 30080
+         - serviceType: NodePort
+           loggers: *loggers
+           instanceCount: 1
+           role: control
+           httpNodePort: 30081
+
+       rpcProxies:
+         - serviceType: NodePort
+           instanceCount: 1
+           loggers: *loggers
+           role: default
+           nodePort: 30083
+         - serviceType: NodePort
+           instanceCount: 1
+           loggers: *loggers
+           role: heavy
+           nodePort: 30084
      --
 
-     ui:
-       image: ghcr.io/ytsaurus/ui:stable
-       serviceType: NodePort
-       instanceCount: 1
-       httpNodePort: 30082
-     ```
+       ui:
+         image: ghcr.io/ytsaurus/ui:stable
+         serviceType: NodePort
+         instanceCount: 1
+         httpNodePort: 30082
+  ```
 
-  Now the web interface will be available at `localhost:30082`, and the cluster proxy at `localhost:30080`.
+  Now the web interface will be available at `localhost:30082`, the cluster proxy at `localhost:30080` and the RPC proxy at `localhost:30083`.
 
   {% endcut %}
 

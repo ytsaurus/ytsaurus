@@ -469,6 +469,18 @@
 
   Теперь веб-интерфейс будет доступен по адресу `localhost:8080`, а прокси кластера по адресу `localhost:8081`. С помощью адреса прокси можно работать с кластером из командной строки &mdash; про это будет рассказано ниже, в разделе с [примерами](#launch-example).
 
+  Для работы через [RPC proxy](../../user-guide/proxy/rpc.md) по адресу `localhost:8082` в отдельном терминале выполните команду:
+
+  ```bash
+  kubectl port-forward service/rpc-proxies-lb 8082:9013
+  ```
+
+  Чтобы RPC proxy был доступен через дискавери, необходимо прописать его как балансер в `//sys/rpc_proxies/@balancers`:
+
+  ```bash
+  yt --proxy localhost:8081 set --format json //sys/rpc_proxies/@balancers '{ "default": { "internal_rpc": { "default": ["localhost:8082"]} } }'
+  ```
+
   {% cut "Как настроить нативный проброс портов с помощью Kind" %}
 
   Есть альтернативное решение с настройкой {{product-name}} кластера и Kind кластера, когда можно обойтись без явного форвардинга портов командой `kubectl port-forward`. Для этого необходимо сделать следующее:
@@ -488,6 +500,10 @@
          hostPort: 30081
        - containerPort: 30082
          hostPort: 30082
+       - containerPort: 30083
+         hostPort: 30083
+       - containerPort: 30084
+         hostPort: 30084
      ```
 
      Запуск Kind кластера с указанием конфига:
@@ -497,9 +513,9 @@
 
   2. Настроить проброс портов из веб-интерфейса и проксей в {{product-name}} кластере.
 
-     Для этого в конфиге {{product-name}} кластера необходимо указать опцию `httpNodePort` в проксях и веб-интерфейсе:
+     Для этого в конфиге {{product-name}} кластера необходимо указать опцию `httpNodePort` в проксях и веб-интерфейсе. Для RPC-прокси используется опция `nodePort`:
      ```bash
-     $ grep httpNodePort -B 5 cluster_v1_local_with_ports.yaml
+     $ grep nodePort: -iB 5 cluster_v1_local_with_ports.yaml
        httpProxies:
          - serviceType: NodePort
            loggers: *loggers
@@ -511,6 +527,18 @@
            instanceCount: 1
            role: control
            httpNodePort: 30081
+
+       rpcProxies:
+         - serviceType: NodePort
+           instanceCount: 1
+           loggers: *loggers
+           role: default
+           nodePort: 30083
+         - serviceType: NodePort
+           instanceCount: 1
+           loggers: *loggers
+           role: heavy
+           nodePort: 30084
      --
 
        ui:
@@ -518,9 +546,9 @@
          serviceType: NodePort
          instanceCount: 1
          httpNodePort: 30082
-     ```
+  ```
 
-  Теперь веб-интерфейс будет доступен по адресу `localhost:30082`, а прокси кластера по адресу `localhost:30080`.
+  Теперь веб-интерфейс будет доступен по адресу `localhost:30082`, прокси кластера по адресу `localhost:30080`, а RPC-прокси по адресу `locahost:30083`.
 
   {% endcut %}
 
