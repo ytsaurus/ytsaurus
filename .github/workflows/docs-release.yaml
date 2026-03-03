@@ -10,6 +10,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    if: github.repository == 'ytsaurus/ytsaurus'
     permissions: write-all
     env:
       src-root: "./yt/docs"

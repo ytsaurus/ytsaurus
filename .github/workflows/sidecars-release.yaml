@@ -8,6 +8,7 @@ on:
 jobs:
   start-vm:
     name: Start VM
+    if: github.repository == 'ytsaurus/ytsaurus'
     runs-on: ubuntu-latest
     outputs:
       label: ${{ steps.start-yc-runner.outputs.label }}
@@ -67,7 +68,7 @@ jobs:
       - start-vm
       - release
     runs-on: ubuntu-latest
-    if: ${{ always() }}
+    if: always() && github.repository == 'ytsaurus/ytsaurus'
     steps:
       - name: Stop YC runner
         uses: yc-actions/yc-github-runner@v1
