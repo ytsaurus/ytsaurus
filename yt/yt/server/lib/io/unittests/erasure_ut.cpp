@@ -14,6 +14,8 @@
 
 #include <yt/yt/library/erasure/impl/codec.h>
 
+#include <yt/yt/core/concurrency/scheduler_api.h>
+
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/core/misc/checksum.h>
@@ -267,13 +269,13 @@ public:
             codecId,
             writers,
             TWorkloadDescriptor(EWorkloadCategory::UserBatch));
-        EXPECT_TRUE(erasureWriter->Open().BlockingGet().IsOK());
+        EXPECT_TRUE(WaitForFast(erasureWriter->Open()).IsOK());
 
         for (const auto& ref : data) {
             erasureWriter->WriteBlock(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), TBlock(ref, GetChecksum(ref)));
             dataSize += ref.Size();
         }
-        EXPECT_TRUE(erasureWriter->Close(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), meta).BlockingGet().IsOK());
+        EXPECT_TRUE(WaitForFast(erasureWriter->Close(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), meta)).IsOK());
         EXPECT_TRUE(erasureWriter->GetChunkInfo().disk_space() >= dataSize);
     }
 
@@ -766,13 +768,13 @@ TEST_F(TErasureMixtureTest, Repair1)
     auto reparingReader = CreateRepairingErasureReader(codec, erasedIndices, allReaders);
     CheckRepairReader(reparingReader, dataRefs, std::nullopt);
 
-    auto repairResult = RepairErasedParts(
+    auto repairResult = WaitForFast(RepairErasedParts(
         codec,
         erasedIndices,
         readers,
         writers,
         /*chunkReadOptions*/ {},
-        /*writeBlocksOptions*/ {}).BlockingGet();
+        /*writeBlocksOptions*/ {}));
     EXPECT_TRUE(repairResult.IsOK());
 
     auto erasureReader = CreateErasureReader(codec);
@@ -814,13 +816,13 @@ TEST_P(TErasureMixtureTest, Repair2)
     auto reparingReader = CreateRepairingErasureReader(codec, erasedIndices, allReaders);
     CheckRepairReader(reparingReader, dataRefs, std::nullopt);
 
-    auto repairResult = RepairErasedParts(
+    auto repairResult = WaitForFast(RepairErasedParts(
         codec,
         erasedIndices,
         readers,
         writers,
         /*chunkReadOptions*/ {},
-        /*writeBlocksOptions*/ {}).BlockingGet();
+        /*writeBlocksOptions*/ {}));
     ASSERT_TRUE(repairResult.IsOK());
 
     auto erasureReader = CreateErasureReader(codec);
@@ -863,13 +865,13 @@ TEST_P(TErasureMixtureTest, Repair3)
     auto reparingReader = CreateRepairingErasureReader(codec, erasedIndices, allReaders);
     CheckRepairReader(reparingReader, dataRefs, 100);
 
-    RepairErasedParts(
+    WaitUntilSet(RepairErasedParts(
         codec,
         erasedIndices,
         readers,
         writers,
         /*chunkReadOptions*/ {},
-        /*writeBlocksOptions*/ {}).BlockingGet();
+        /*writeBlocksOptions*/ {}));
 
     {
         auto erasureReader = CreateErasureReader(codec);
@@ -909,13 +911,13 @@ TEST_P(TErasureMixtureTest, Repair4)
     auto reparingReader = CreateRepairingErasureReader(codec, erasedIndices, allReaders);
     CheckRepairReader(reparingReader, dataRefs, 100);
 
-    RepairErasedParts(
+    WaitUntilSet(RepairErasedParts(
         codec,
         erasedIndices,
         readers,
         writers,
         /*chunkReadOptions*/ {},
-        /*writeBlocksOptions*/ {}).BlockingGet();
+        /*writeBlocksOptions*/ {}));
 
     {
         auto erasureReader = CreateErasureReader(codec);
@@ -958,13 +960,13 @@ TEST_P(TErasureMixtureTest, Repair5)
     auto reparingReader = CreateRepairingErasureReader(codec, erasedIndices, allReaders);
     CheckRepairReader(reparingReader, dataRefs, 40);
 
-    RepairErasedParts(
+    WaitUntilSet(RepairErasedParts(
         codec,
         erasedIndices,
         readers,
         writers,
         /*chunkReadOptions*/ {},
-        /*writeBlocksOptions*/ {}).BlockingGet();
+        /*writeBlocksOptions*/ {}));
 
     {
         auto erasureReader = CreateErasureReader(codec);
@@ -1007,13 +1009,13 @@ TEST_P(TErasureMixtureTest, Repair6)
     auto reparingReader = CreateRepairingErasureReader(codec, erasedIndices, allReaders);
     CheckRepairReader(reparingReader, dataRefs, 40);
 
-    RepairErasedParts(
+    WaitUntilSet(RepairErasedParts(
         codec,
         erasedIndices,
         readers,
         writers,
         /*chunkReadOptions*/ {},
-        /*writeBlocksOptions*/ {}).BlockingGet();
+        /*writeBlocksOptions*/ {}));
 
     {
         auto erasureReader = CreateErasureReader(codec);
@@ -1097,13 +1099,13 @@ TEST_P(TErasureMixtureTest, RepairStriped1)
     auto reparingReader = CreateRepairingErasureReader(codec, erasedIndices, allReaders);
     CheckRepairReader(reparingReader, dataRefs, std::nullopt);
 
-    auto repairResult = RepairErasedParts(
+    auto repairResult = WaitForFast(RepairErasedParts(
         codec,
         erasedIndices,
         readers,
         writers,
         /*chunkReadOptions*/ {},
-        /*writeBlocksOptions*/ {}).BlockingGet();
+        /*writeBlocksOptions*/ {}));
     ASSERT_TRUE(repairResult.IsOK());
 
     auto erasureReader = CreateErasureReader(codec);
@@ -1145,13 +1147,13 @@ TEST_P(TErasureMixtureTest, RepairStriped2)
     auto reparingReader = CreateRepairingErasureReader(codec, erasedIndices, allReaders);
     CheckRepairReader(reparingReader, dataRefs, 40);
 
-    RepairErasedParts(
+    WaitUntilSet(RepairErasedParts(
         codec,
         erasedIndices,
         readers,
         writers,
         /*chunkReadOptions*/ {},
-        /*writeBlocksOptions*/ {}).BlockingGet();
+        /*writeBlocksOptions*/ {}));
 
     {
         auto erasureReader = CreateErasureReader(codec);
@@ -1263,7 +1265,7 @@ TEST_P(TErasureMixtureTest, RepairingReaderUnrecoverable)
     std::vector<int> indexes(dataRefs.size());
     std::iota(indexes.begin(), indexes.end(), 0);
 
-    auto result = reader->ReadBlocks(/*options*/ {}, indexes).BlockingGet();
+    auto result = WaitForFast(reader->ReadBlocks(/*options*/ {}, indexes));
     ASSERT_FALSE(result.IsOK());
 
     Cleanup(codec);
@@ -1305,7 +1307,7 @@ void TErasureMixtureTest::ExecAdaptiveRepairTest(
         writerFactory,
         /*chunkReadOptions*/ {},
         /*writeBlocksOptions*/ {});
-    EXPECT_TRUE(repairFuture.BlockingGet().IsOK());
+    EXPECT_TRUE(WaitForFast(repairFuture).IsOK());
 
     auto erasureReader = CreateErasureReader(codec);
     CheckRepairResult(erasureReader, dataRefs);

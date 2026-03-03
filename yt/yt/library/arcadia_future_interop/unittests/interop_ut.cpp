@@ -1,9 +1,13 @@
 #include <yt/yt/core/test_framework/framework.h>
 
+#include <yt/yt/core/concurrency/scheduler_api.h>
+
 #include <yt/yt/library/arcadia_future_interop/interop.h>
 
 namespace NYT {
 namespace {
+
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -11,7 +15,7 @@ TEST(TFutureInteropTest, FromArcadiaFutureWithValue1)
 {
     auto future = FromArcadiaFuture(::NThreading::MakeFuture<int>(1));
     ASSERT_TRUE(future.IsSet());
-    EXPECT_EQ(1, future.BlockingGet().ValueOrThrow());
+    EXPECT_EQ(1, WaitForFast(future).ValueOrThrow());
 }
 
 TEST(TFutureInteropTest, FromArcadiaFutureWithValue2)
@@ -22,7 +26,7 @@ TEST(TFutureInteropTest, FromArcadiaFutureWithValue2)
     EXPECT_TRUE(!future.IsSet());
     promise.SetValue(::testing::TProbe(&state));
     ASSERT_TRUE(future.IsSet());
-    EXPECT_TRUE(future.BlockingGet().ValueOrThrow().IsValid());
+    EXPECT_TRUE(future.GetOrCrash().ValueOrThrow().IsValid());
     EXPECT_THAT(state, ::testing::HasCopyMoveCounts(0, 3));
 }
 
@@ -32,7 +36,7 @@ TEST(TFutureInteropTest, FromArcadiaFutureWithError1)
     promise.SetException("error");
     auto future = FromArcadiaFuture(promise.GetFuture());
     ASSERT_TRUE(future.IsSet());
-    EXPECT_THROW_MESSAGE_HAS_SUBSTR(future.BlockingGet().ThrowOnError(), std::exception, "error");
+    EXPECT_THROW_MESSAGE_HAS_SUBSTR(WaitForFast(future).ThrowOnError(), std::exception, "error");
 }
 
 TEST(TFutureInteropTest, FromArcadiaFutureWithError2)
@@ -42,7 +46,7 @@ TEST(TFutureInteropTest, FromArcadiaFutureWithError2)
     EXPECT_TRUE(!future.IsSet());
     promise.SetException("error");
     ASSERT_TRUE(future.IsSet());
-    EXPECT_THROW_MESSAGE_HAS_SUBSTR(future.BlockingGet().ThrowOnError(), std::exception, "error");
+    EXPECT_THROW_MESSAGE_HAS_SUBSTR(WaitForFast(future).ThrowOnError(), std::exception, "error");
 }
 
 TEST(TFutureInteropTest, FromArcadiaFutureVoid1)
@@ -52,7 +56,7 @@ TEST(TFutureInteropTest, FromArcadiaFutureVoid1)
     EXPECT_TRUE(!future.IsSet());
     promise.SetValue();
     ASSERT_TRUE(future.IsSet());
-    EXPECT_NO_THROW(future.BlockingGet().ThrowOnError());
+    EXPECT_NO_THROW(WaitForFast(future).ThrowOnError());
 }
 
 TEST(TFutureInteropTest, FromArcadiaFutureVoid2)
@@ -62,7 +66,7 @@ TEST(TFutureInteropTest, FromArcadiaFutureVoid2)
     EXPECT_TRUE(!future.IsSet());
     promise.SetException("error");
     ASSERT_TRUE(future.IsSet());
-    ASSERT_THROW_MESSAGE_HAS_SUBSTR(future.BlockingGet().ThrowOnError(), std::exception, "error");
+    ASSERT_THROW_MESSAGE_HAS_SUBSTR(WaitForFast(future).ThrowOnError(), std::exception, "error");
 }
 
 TEST(TFutureInteropTest, FromArcadiaFutureCancel)
@@ -72,7 +76,7 @@ TEST(TFutureInteropTest, FromArcadiaFutureCancel)
     EXPECT_TRUE(!future.IsSet());
     future.Cancel(TError("canceled"));
     promise.SetValue();
-    ASSERT_THROW_MESSAGE_HAS_SUBSTR(future.BlockingGet().ThrowOnError(), std::exception, "canceled");
+    ASSERT_THROW_MESSAGE_HAS_SUBSTR(WaitForFast(future).ThrowOnError(), std::exception, "canceled");
 }
 
 TEST(TFutureInteropTest, ToArcadiaFutureWithValue)

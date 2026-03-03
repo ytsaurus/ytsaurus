@@ -1,5 +1,7 @@
 #include "sorted_dynamic_store_ut_helpers.h"
 
+#include <yt/yt/core/concurrency/scheduler_api.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 
 #include <util/system/thread.h>
@@ -9,6 +11,7 @@ namespace {
 
 using namespace NApi;
 using namespace NChunkClient;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1310,7 +1313,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, ArbitraryKeyLength)
         ChunkReadOptions_,
         /*workloadCategory*/ std::nullopt);
 
-    EXPECT_TRUE(reader->Open().BlockingGet().IsOK());
+    EXPECT_TRUE(WaitForFast(reader->Open()).IsOK());
 
     std::vector<TVersionedRow> rows;
     rows.reserve(10);
@@ -1930,8 +1933,7 @@ TEST_F(TMultiLockSortedDynamicStoreTest, OutOfOrderWrites)
 
     {
         auto reader = Store_->CreateSnapshotReader();
-        reader->Open()
-            .BlockingGet()
+        WaitForFast(reader->Open())
             .ThrowOnError();
 
         TRowBatchReadOptions options{
@@ -2103,8 +2105,7 @@ protected:
             ChunkReadOptions_,
             /*workloadCategory*/ std::nullopt);
 
-        lookupReader->Open()
-            .BlockingGet()
+        WaitForFast(lookupReader->Open())
             .ThrowOnError();
 
         std::vector<TVersionedRow> rows;
@@ -2146,14 +2147,14 @@ TEST_F(TAtomicSortedDynamicStoreTest, ReadAtomicity)
     WriteRows();
 
     using TThis = typename std::remove_reference<decltype(*this)>::type;
-    TThread thread1([] (void* opaque) -> void* {
+    ::TThread thread1([] (void* opaque) -> void* {
         auto this_ = static_cast<TThis*>(opaque);
         while (!this_->Stopped.load()) {
             this_->WriteRows();
         }
         return nullptr;
     }, this);
-    TThread thread2([] (void* opaque) -> void* {
+    ::TThread thread2([] (void* opaque) -> void* {
         auto this_ = static_cast<TThis*>(opaque);
         while (!this_->Stopped.load()) {
             this_->ReadRowAndCheck();

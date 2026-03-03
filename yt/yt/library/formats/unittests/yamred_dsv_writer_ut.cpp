@@ -7,6 +7,7 @@
 
 #include <yt/yt/core/concurrency/async_stream.h>
 #include <yt/yt/core/concurrency/async_stream_helpers.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <util/string/vector.h>
 
@@ -179,8 +180,7 @@ TEST_F(TSchemalessWriterForYamredDsvTest, Simple)
     std::vector<TUnversionedRow> rows = {row1.GetRow(), row2.GetRow()};
 
     EXPECT_EQ(true, Writer_->Write(rows));
-    Writer_->Close()
-        .BlockingGet()
+    WaitForFast(Writer_->Close())
         .ThrowOnError();
 
     TString expectedOutput =
@@ -215,8 +215,7 @@ TEST_F(TSchemalessWriterForYamredDsvTest, SimpleWithSubkey)
     std::vector<TUnversionedRow> rows = {row1.GetRow(), row2.GetRow()};
 
     EXPECT_EQ(true, Writer_->Write(rows));
-    Writer_->Close()
-        .BlockingGet()
+    WaitForFast(Writer_->Close())
         .ThrowOnError();
 
     TString expectedOutput =
@@ -267,8 +266,7 @@ TEST_F(TSchemalessWriterForYamredDsvTest, Lenval)
     std::vector<TUnversionedRow> rows = {row1.GetRow(), row2.GetRow()};
 
     EXPECT_EQ(true, Writer_->Write(rows));
-    Writer_->Close()
-        .BlockingGet()
+    WaitForFast(Writer_->Close())
         .ThrowOnError();
 
     TString expectedOutput = TString(
@@ -310,8 +308,7 @@ TEST_F(TSchemalessWriterForYamredDsvTest, Escaping)
     std::vector<TUnversionedRow> rows = {row1.GetRow()};
 
     EXPECT_EQ(true, Writer_->Write(rows));
-    Writer_->Close()
-        .BlockingGet()
+    WaitForFast(Writer_->Close())
         .ThrowOnError();
 
     TString expectedOutput = "a\\n \\nb\\t\tvalue\\t_t=\\nva\\\\lue\\t\n";
@@ -380,8 +377,7 @@ TEST_F(TSchemalessWriterForYamredDsvTest, NonStringValues)
     std::vector<TUnversionedRow> rows = { row.GetRow() };
 
     EXPECT_EQ(true, Writer_->Write(rows));
-    Writer_->Close()
-        .BlockingGet()
+    WaitForFast(Writer_->Close())
         .ThrowOnError();
 
     TString expectedOutput = "-42\t18\tkey_b=true\tvalue_x=3.14\tvalue_y=yt\n";
@@ -408,8 +404,7 @@ TEST_F(TSchemalessWriterForYamredDsvTest, ErasingSubkeyColumnsWhenHasSubkeyIsFal
     std::vector<TUnversionedRow> rows = {row1.GetRow()};
 
     EXPECT_EQ(true, Writer_->Write(rows));
-    Writer_->Close()
-        .BlockingGet()
+    WaitForFast(Writer_->Close())
         .ThrowOnError();
 
     TString expectedOutput = "a\tkey_c=c\tvalue_x=x\n";

@@ -9,6 +9,7 @@
 
 #include <yt/yt/core/concurrency/async_stream.h>
 #include <yt/yt/core/concurrency/async_stream_helpers.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <limits>
 
@@ -93,8 +94,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, Simple)
     std::vector<TUnversionedRow> rows = {row1.GetRow(), row2.GetRow()};
 
     EXPECT_EQ(true, Writer_->Write(rows));
-    Writer_->Close()
-        .BlockingGet()
+    WaitForFast(Writer_->Close())
         .ThrowOnError();
 
     std::string expectedOutput =
@@ -117,8 +117,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, TrickyDoubleRepresentations)
     std::vector<TUnversionedRow> rows = {row1.GetRow()};
 
     EXPECT_EQ(true, Writer_->Write(rows));
-    Writer_->Close()
-        .BlockingGet()
+    WaitForFast(Writer_->Close())
         .ThrowOnError();
     std::string expectedOutput = "1.234567890123456\t42.\t1e+300\t-1e-300\n";
     EXPECT_EQ(expectedOutput, OutputStream_.Str());
@@ -157,8 +156,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, IntegralTypeRepresentations)
         {row1.GetRow(), row2.GetRow(), row3.GetRow(), row4.GetRow()};
 
     EXPECT_EQ(true, Writer_->Write(rows));
-    Writer_->Close()
-        .BlockingGet()
+    WaitForFast(Writer_->Close())
         .ThrowOnError();
     std::string expectedOutput =
         "0\t-1\t1\t99\n"
@@ -179,8 +177,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, EmptyColumnList)
     std::vector<TUnversionedRow> rows = { row1.GetRow() };
 
     EXPECT_EQ(true, Writer_->Write(rows));
-    Writer_->Close()
-        .BlockingGet()
+    WaitForFast(Writer_->Close())
         .ThrowOnError();
     std::string expectedOutput = "\n";
     EXPECT_EQ(expectedOutput, OutputStream_.Str());
@@ -211,8 +208,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, MissingValueMode)
         Config_->MissingValueMode = EMissingSchemafulDsvValueMode::SkipRow;
         CreateStandardWriter();
         EXPECT_EQ(true, Writer_->Write(rows));
-        Writer_->Close()
-            .BlockingGet()
+        WaitForFast(Writer_->Close())
             .ThrowOnError();
         std::string expectedOutput =
             "Value1A\tValue1B\tValue1C\n"
@@ -236,8 +232,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, MissingValueMode)
         Config_->MissingValueSentinel = "~";
         CreateStandardWriter();
         EXPECT_EQ(true, Writer_->Write(rows));
-        Writer_->Close()
-            .BlockingGet()
+        WaitForFast(Writer_->Close())
             .ThrowOnError();
         std::string expectedOutput =
             "Value1A\tValue1B\tValue1C\n"
@@ -300,8 +295,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, TableIndex)
 
     EXPECT_EQ(true, Writer_->Write(std::vector<TUnversionedRow>{row3.GetRow()}));
 
-    Writer_->Close()
-        .BlockingGet()
+    WaitForFast(Writer_->Close())
         .ThrowOnError();
     std::string expectedOutput =
         "42\t0\t1\t2\t3\n"
@@ -331,8 +325,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, ColumnsHeader)
     std::vector<TUnversionedRow> rows = {row1.GetRow()};
 
     EXPECT_EQ(true, Writer_->Write(rows));
-    Writer_->Close()
-        .BlockingGet()
+    WaitForFast(Writer_->Close())
         .ThrowOnError();
 
     std::string expectedOutput =

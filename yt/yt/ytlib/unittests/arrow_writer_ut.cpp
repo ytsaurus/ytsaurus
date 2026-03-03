@@ -30,6 +30,7 @@
 #include <yt/yt/library/named_value/named_value.h>
 
 #include <yt/yt/core/concurrency/async_stream_helpers.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <util/stream/null.h>
 #include <util/string/hex.h>
@@ -56,6 +57,7 @@ using namespace NNamedValue;
 using namespace NTableClient;
 using namespace NTzTypes;
 using namespace NYson;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,7 +88,7 @@ IUnversionedRowBatchPtr MakeColumnarRowBatch(
     TUnversionedRowsBuilder builder;
 
     Y_UNUSED(chunkWriter->Write(rows));
-    chunkWriter->Close().BlockingGet().IsOK();
+    WaitForFast(chunkWriter->Close()).IsOK();
 
     auto MemoryReader_ = CreateMemoryReader(
         memoryWriter->GetChunkMeta(),
@@ -601,8 +603,7 @@ TEST(TArrowWriterTest, SimpleInteger)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -628,8 +629,7 @@ TEST(TArrowWriterTest, Json)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -659,8 +659,7 @@ TEST(TArrowWriterTest, YT_20699_WrongAlign)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     std::string data(outputStream.Data(), outputStream.Size());
@@ -699,8 +698,7 @@ TEST(TArrowWriterTest, SimpleDate)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -728,8 +726,7 @@ TEST(TArrowWriterTest, OptionalDate)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -765,8 +762,7 @@ TEST(TArrowWriterTest, OptionalRleDate)
     auto columnarBatch = MakeColumnarRowBatch(rows.Rows, tableSchemas[0]);
     EXPECT_TRUE(writer->WriteBatch(columnarBatch));
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -794,8 +790,7 @@ TEST(TArrowWriterTest, SimpleDatatime)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -823,8 +818,7 @@ TEST(TArrowWriterTest, SimpleTimestamp)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -852,8 +846,7 @@ TEST(TArrowWriterTest, SimpleInterval)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -882,8 +875,7 @@ TEST(TArrowWriterTest, SimpleFloat)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -911,8 +903,7 @@ TEST(TArrowWriterTest, ColumnarBatch)
     auto columnarBatch = MakeColumnarRowBatch(rows.Rows, tableSchemas[0]);
     EXPECT_TRUE(writer->WriteBatch(columnarBatch));
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -941,8 +932,7 @@ TEST(TArrowWriterTest, RowBatch)
 
     EXPECT_TRUE(writer->WriteBatch(rowBatch));
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -976,8 +966,7 @@ TEST(TArrowWriterTest, Null)
 
     EXPECT_TRUE(writer->Write(rows));
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -1089,8 +1078,7 @@ TEST(TArrowWriterTest, SimpleMultiTypes)
     EXPECT_TRUE(writer->Write(rangeRows.Slice(0, firstBatchSize)));
     EXPECT_TRUE(writer->Write(rangeRows.Slice(firstBatchSize, rangeRows.Size())));
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batches = MakeAllBatch(outputStream, 5);
@@ -1135,8 +1123,7 @@ TEST(TArrowWriterTest, SimpleString)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -1182,8 +1169,7 @@ TEST(TArrowWriterTest, TzTypeIndex)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -1275,8 +1261,7 @@ TEST(TArrowWriterTest, TzTypeName)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -1355,8 +1340,7 @@ TEST(TArrowWriterTest, TzRle)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -1398,8 +1382,7 @@ TEST(TArrowWriterTest, NullTz)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -1429,8 +1412,7 @@ TEST(TArrowWriterTest, DictionaryString)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -1493,8 +1475,7 @@ TEST(TArrowWriterTest, EnumString)
         optColumns.push_back(optColumn);
     }
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batches = MakeAllBatch(outputStream, batchCount);
@@ -1551,8 +1532,7 @@ TEST(TArrowWriterTest, DictionaryAndDirectStrings)
     // Write second batch, that will be decode as direct.
     EXPECT_TRUE(writer->Write(directRows.Rows));
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
 
@@ -1599,8 +1579,7 @@ TEST(TArrowWriterTest, SeveralIntegerColumnsOneBatch)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -1646,8 +1625,7 @@ TEST(TArrowWriterTest, SeveralStringColumnsOneBatch)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -1725,8 +1703,7 @@ TEST(TArrowWriterTest, SeveralMultiTypesColumnsOneBatch)
 
     EXPECT_TRUE(writer->Write(rows));
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
 
@@ -1780,8 +1757,7 @@ TEST(TArrowWriterTest, SeveralIntegerSeveralBatches)
         EXPECT_TRUE(writer->Write(rows.Rows));
     }
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
 
@@ -1858,8 +1834,7 @@ TEST(TArrowWriterTest, SeveralMultiTypesSeveralBatches)
         EXPECT_TRUE(writer->Write(rows));
     }
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batches = MakeAllBatch(outputStream, batchCount);
@@ -1925,8 +1900,7 @@ TEST(TArrowWriterTest, AnyMetadata)
 
     EXPECT_TRUE(writer->Write(rows));
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -1974,8 +1948,7 @@ TEST(TArrowWriterComplexTest, BasicStruct)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -2023,8 +1996,7 @@ TEST(TArrowWriterComplexTest, BasicList)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -2074,8 +2046,7 @@ TEST(TArrowWriterComplexTest, BasicDict)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -2129,8 +2100,7 @@ TEST(TArrowWriterComplexTest, OptionalStruct)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -2183,8 +2153,7 @@ TEST(TArrowWriterComplexTest, StructOptional)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -2254,8 +2223,7 @@ TEST(TArrowWriterComplexTest, DictionaryStruct)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -2312,8 +2280,7 @@ TEST(TArrowWriterComplexTest, OptionalOptional)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -2365,8 +2332,7 @@ TEST(TArrowWriterTest, EmptyStruct)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -2413,8 +2379,7 @@ TEST(TArrowWriterComplexTest, OptionalEmptyStruct)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -2473,8 +2438,7 @@ TEST(TArrowWriterComplexTest, NullTypes)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -2529,8 +2493,7 @@ TEST(TArrowWriterComplexTest, NestedTzType)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);
@@ -2584,8 +2547,7 @@ TEST(TArrowWriterComplexTest, NestedTzTypeWithIndices)
 
     EXPECT_TRUE(writer->Write(rows.Rows));
 
-    writer->Close()
-        .BlockingGet()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto batch = MakeBatch(outputStream);

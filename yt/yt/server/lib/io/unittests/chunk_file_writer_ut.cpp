@@ -7,6 +7,8 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
 
+#include <yt/yt/core/concurrency/scheduler_api.h>
+
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/core/ytree/convert.h>
@@ -21,6 +23,7 @@ namespace NYT::NIO {
 namespace {
 
 using namespace NChunkClient;
+using namespace NConcurrency;
 
 using NChunkClient::EErrorCode;
 
@@ -97,13 +100,13 @@ protected:
     void WriteBlock(const TChunkFileWriterPtr& writer, const TBlock& block)
     {
         EXPECT_FALSE(writer->WriteBlock(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), block, {}));
-        EXPECT_TRUE(writer->GetReadyEvent().BlockingGet().IsOK());
+        EXPECT_TRUE(WaitForFast(writer->GetReadyEvent()).IsOK());
     }
 
     void WriteBlocks(const TChunkFileWriterPtr& writer, const std::vector<TBlock>& blocks)
     {
         EXPECT_FALSE(writer->WriteBlocks(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), blocks, {}));
-        EXPECT_TRUE(writer->GetReadyEvent().BlockingGet().IsOK());
+        EXPECT_TRUE(WaitForFast(writer->GetReadyEvent()).IsOK());
     }
 
     static i64 GetTotalSize(const std::vector<TBlock>& blocks)
@@ -120,8 +123,7 @@ TEST_P(TChunkFileWriterTest, SingleWrite)
 {
     auto writer = CreateWriter(GetParam());
 
-    writer->Open()
-        .BlockingGet()
+    WaitForFast(writer->Open())
         .ThrowOnError();
 
     auto tmpFile = OpenTempDataFile(writer);
@@ -144,8 +146,7 @@ TEST_P(TChunkFileWriterTest, SingleWrite)
         CheckBlock(*tmpFile, block);
     }
 
-    writer->Close(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), New<NChunkClient::TDeferredChunkMeta>(), {}, std::nullopt)
-        .BlockingGet()
+    WaitForFast(writer->Close(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), New<NChunkClient::TDeferredChunkMeta>(), {}, std::nullopt))
         .ThrowOnError();
 
     auto file = OpenDataFile(writer);
@@ -156,8 +157,7 @@ TEST_P(TChunkFileWriterTest, CancelBeforeWritingBlocks)
 {
     auto writer = CreateWriter(GetParam());
 
-    writer->Open()
-        .BlockingGet()
+    WaitForFast(writer->Open())
         .ThrowOnError();
 
     auto tmpFile = OpenTempDataFile(writer);
@@ -170,17 +170,16 @@ TEST_P(TChunkFileWriterTest, CancelBeforeWritingBlocks)
         MakeRandomBlock(5_MB + 1),
     };
 
-    writer->Cancel().BlockingGet().ThrowOnError();
+    WaitForFast(writer->Cancel()).ThrowOnError();
     EXPECT_FALSE(writer->WriteBlocks(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), blocks, {}));
-    EXPECT_FALSE(writer->GetReadyEvent().BlockingGet().IsOK());
+    EXPECT_FALSE(WaitForFast(writer->GetReadyEvent()).IsOK());
 }
 
 TEST_P(TChunkFileWriterTest, MultiWrite)
 {
     auto writer = CreateWriter(GetParam());
 
-    writer->Open()
-        .BlockingGet()
+    WaitForFast(writer->Open())
         .ThrowOnError();
 
     auto tmpFile = OpenTempDataFile(writer);
@@ -201,8 +200,7 @@ TEST_P(TChunkFileWriterTest, MultiWrite)
         CheckBlock(*tmpFile, block);
     }
 
-    writer->Close(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), New<NChunkClient::TDeferredChunkMeta>(), {}, std::nullopt)
-        .BlockingGet()
+    WaitForFast(writer->Close(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), New<NChunkClient::TDeferredChunkMeta>(), {}, std::nullopt))
         .ThrowOnError();
 
     auto file = OpenDataFile(writer);
@@ -213,8 +211,7 @@ TEST_P(TChunkFileWriterTest, Specific)
 {
     auto writer = CreateWriter(GetParam());
 
-    writer->Open()
-        .BlockingGet()
+    WaitForFast(writer->Open())
         .ThrowOnError();
 
     auto tmpFile = OpenTempDataFile(writer);
@@ -242,8 +239,7 @@ TEST_P(TChunkFileWriterTest, Random)
 {
     auto writer = CreateWriter(GetParam());
 
-    writer->Open()
-        .BlockingGet()
+    WaitForFast(writer->Open())
         .ThrowOnError();
 
     auto tmpFile = OpenTempDataFile(writer);
@@ -272,8 +268,7 @@ TEST_P(TChunkFileWriterTest, BlocksTruncation)
     for (int blockCountAfterTruncation : {0, 1, 5, 9, 10}) {
         auto writer = CreateWriter(GetParam());
 
-        writer->Open()
-            .BlockingGet()
+        WaitForFast(writer->Open())
             .ThrowOnError();
 
         std::vector<TBlock> blocks;
@@ -308,8 +303,7 @@ TEST_P(TChunkFileWriterTest, BlocksTruncation)
             writer->GetFileName(),
             true);
 
-        auto meta = chunkFileReader->GetMeta(TClientChunkReadOptions{})
-            .BlockingGet()
+        auto meta = WaitForFast(chunkFileReader->GetMeta(TClientChunkReadOptions{}))
             .ValueOrThrow();
 
         ASSERT_EQ(meta->extensions().extensions_size(), 1);
@@ -318,8 +312,7 @@ TEST_P(TChunkFileWriterTest, BlocksTruncation)
 
         EXPECT_EQ(blocksExtension.blocks_size(), blockCountAfterTruncation);
 
-        auto receivedBlocks = chunkFileReader->ReadBlocks(TClientChunkReadOptions{}, 0, blockCountAfterTruncation, {})
-            .BlockingGet()
+        auto receivedBlocks = WaitForFast(chunkFileReader->ReadBlocks(TClientChunkReadOptions{}, 0, blockCountAfterTruncation, {}))
             .ValueOrThrow();
 
         ASSERT_EQ(receivedBlocks.size(), blocks.size());
@@ -328,8 +321,7 @@ TEST_P(TChunkFileWriterTest, BlocksTruncation)
         }
 
         EXPECT_THROW_WITH_ERROR_CODE(
-            chunkFileReader->ReadBlocks(TClientChunkReadOptions{}, 0, blockCountAfterTruncation + 1, {})
-                .BlockingGet()
+            WaitForFast(chunkFileReader->ReadBlocks(TClientChunkReadOptions{}, 0, blockCountAfterTruncation + 1, {}))
                 .ValueOrThrow(),
             EErrorCode::MalformedReadRequest);
     }

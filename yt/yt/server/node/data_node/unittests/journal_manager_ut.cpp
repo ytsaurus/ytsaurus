@@ -21,6 +21,7 @@
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <library/cpp/testing/common/env.h>
 
@@ -198,19 +199,16 @@ TEST_F(TJournalTest, Write)
     for (bool multiplexed : {true, false}) {
         auto journalId = MakeRandomId(NObjectClient::EObjectType::JournalChunk, NObjectClient::TCellTag(1));
 
-        auto changelog = journalManager->CreateChangelog(journalId, multiplexed, TWorkloadDescriptor{})
-            .BlockingGet()
+        auto changelog = WaitForFast(journalManager->CreateChangelog(journalId, multiplexed, TWorkloadDescriptor{}))
             .ValueOrThrow();
 
         auto r0 = TSharedRef::FromString("r0");
         auto r1 = TSharedRef::FromString("r1");
 
-        changelog->Append({r0, r1})
-            .BlockingGet()
+        WaitForFast(changelog->Append({r0, r1}))
             .ThrowOnError();
 
-        changelog->Close()
-            .BlockingGet()
+        WaitForFast(changelog->Close())
             .ThrowOnError();
     }
 }

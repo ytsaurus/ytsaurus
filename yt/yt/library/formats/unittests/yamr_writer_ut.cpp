@@ -7,6 +7,7 @@
 
 #include <yt/yt/core/concurrency/async_stream.h>
 #include <yt/yt/core/concurrency/async_stream_helpers.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 namespace NYT::NFormats {
 namespace {
@@ -82,8 +83,7 @@ TEST_F(TSchemalessWriterForYamrTest, Simple)
     std::vector<TUnversionedRow> rows = { row1.GetRow(), row2.GetRow() };
 
     EXPECT_EQ(true, Writer_->Write(rows));
-    Writer_->Close()
-        .BlockingGet()
+    WaitForFast(Writer_->Close())
         .ThrowOnError();
 
     std::string output =
@@ -111,8 +111,7 @@ TEST_F(TSchemalessWriterForYamrTest, SimpleWithSubkey)
     std::vector<TUnversionedRow> rows = { row1.GetRow(), row2.GetRow() };
 
     EXPECT_EQ(true, Writer_->Write(rows));
-    Writer_->Close()
-        .BlockingGet()
+    WaitForFast(Writer_->Close())
         .ThrowOnError();
 
     std::string output =
@@ -134,8 +133,7 @@ TEST_F(TSchemalessWriterForYamrTest, SubkeyCouldBeSkipped)
     std::vector<TUnversionedRow> rows = { row.GetRow() };
 
     EXPECT_EQ(true, Writer_->Write(rows));
-    Writer_->Close()
-        .BlockingGet()
+    WaitForFast(Writer_->Close())
         .ThrowOnError();
 
     std::string output = "key\t\tvalue\n";
@@ -155,8 +153,7 @@ TEST_F(TSchemalessWriterForYamrTest, SubkeyCouldBeNull)
     std::vector<TUnversionedRow> rows = { row.GetRow() };
 
     EXPECT_EQ(true, Writer_->Write(rows));
-    Writer_->Close()
-        .BlockingGet()
+    WaitForFast(Writer_->Close())
         .ThrowOnError();
 
     std::string output = "key\t\tvalue\n";
@@ -177,8 +174,7 @@ TEST_F(TSchemalessWriterForYamrTest, NonNullTerminatedStrings)
     std::vector<TUnversionedRow> rows = { row.GetRow() };
 
     EXPECT_EQ(true, Writer_->Write(rows));
-    Writer_->Close()
-        .BlockingGet()
+    WaitForFast(Writer_->Close())
         .ThrowOnError();
 
     std::string output = "key\tsubkey\tvalue\n";
@@ -250,8 +246,7 @@ TEST_F(TSchemalessWriterForYamrTest, ExtraItem)
     std::vector<TUnversionedRow> rows = { row.GetRow() };
 
     EXPECT_EQ(true, Writer_->Write(rows));
-    Writer_->Close()
-        .BlockingGet()
+    WaitForFast(Writer_->Close())
         .ThrowOnError();
 
     std::string output = "key\tvalue\n";
@@ -272,8 +267,7 @@ TEST_F(TSchemalessWriterForYamrTest, Escaping)
     std::vector<TUnversionedRow> rows = { row.GetRow() };
 
     EXPECT_EQ(true, Writer_->Write(rows));
-    Writer_->Close()
-        .BlockingGet()
+    WaitForFast(Writer_->Close())
         .ThrowOnError();
 
     std::string output = "\\n\t\\t\t\\n\n";
@@ -309,8 +303,7 @@ TEST_F(TSchemalessWriterForYamrTest, SimpleWithTableIndex)
     rows = { row3.GetRow() };
     EXPECT_EQ(true, Writer_->Write(rows));
 
-    Writer_->Close()
-        .BlockingGet()
+    WaitForFast(Writer_->Close())
         .ThrowOnError();
 
     std::string output =
@@ -361,8 +354,7 @@ TEST_F(TSchemalessWriterForYamrTest, SimpleWithRowIndexAndTableIndex)
     rows = { row4.GetRow() };
     EXPECT_EQ(true, Writer_->Write(rows));
 
-    Writer_->Close()
-        .BlockingGet()
+    WaitForFast(Writer_->Close())
         .ThrowOnError();
 
     std::string output =
@@ -397,8 +389,7 @@ TEST_F(TSchemalessWriterForYamrTest, Lenval)
     std::vector<TUnversionedRow> rows = { row1.GetRow(), row2.GetRow() };
 
     EXPECT_EQ(true, Writer_->Write(rows));
-    Writer_->Close()
-        .BlockingGet()
+    WaitForFast(Writer_->Close())
         .ThrowOnError();
 
     std::string output = std::string(
@@ -438,8 +429,7 @@ TEST_F(TSchemalessWriterForYamrTest, LenvalWithEmptyFields)
     std::vector<TUnversionedRow> rows = { row1.GetRow(), row2.GetRow(), row3.GetRow() };
 
     EXPECT_EQ(true, Writer_->Write(rows));
-    Writer_->Close()
-        .BlockingGet()
+    WaitForFast(Writer_->Close())
         .ThrowOnError();
 
     std::string output = std::string(
@@ -502,8 +492,7 @@ TEST_F(TSchemalessWriterForYamrTest, LenvalWithKeySwitch)
     rows = { row4.GetRow() };
     EXPECT_EQ(true, Writer_->Write(rows));
 
-    Writer_->Close()
-        .BlockingGet()
+    WaitForFast(Writer_->Close())
         .ThrowOnError();
 
     std::string output = std::string(
@@ -562,8 +551,7 @@ TEST_F(TSchemalessWriterForYamrTest, LenvalWithTableIndex)
     rows = { row3.GetRow() };
     EXPECT_EQ(true, Writer_->Write(rows));
 
-    Writer_->Close()
-        .BlockingGet()
+    WaitForFast(Writer_->Close())
         .ThrowOnError();
 
     std::string output(
@@ -618,8 +606,7 @@ TEST_F(TSchemalessWriterForYamrTest, LenvalWithRangeAndRowIndex)
     rows = { row3.GetRow() };
     EXPECT_EQ(true, Writer_->Write(rows));
 
-    Writer_->Close()
-        .BlockingGet()
+    WaitForFast(Writer_->Close())
         .ThrowOnError();
 
     std::string output(

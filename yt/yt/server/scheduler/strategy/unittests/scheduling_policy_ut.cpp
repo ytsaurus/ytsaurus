@@ -21,6 +21,7 @@
 #include <yt/yt/client/scheduler/private.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/yson/null_consumer.h>
 
@@ -32,6 +33,7 @@ namespace NYT::NScheduler::NStrategy::NPolicy {
 namespace {
 
 using namespace NControllerAgent;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1140,7 +1142,7 @@ TEST_F(TSchedulingPolicyTest, DontSuggestMoreResourcesThanOperationNeeds)
     DoTestSchedule(strategyHost.Get(), treeSnapshot, execNodes[2], operationElement);
     readyToGo.Set();
 
-    EXPECT_TRUE(AllSucceeded(futures).WithTimeout(TDuration::Seconds(2)).BlockingGet().IsOK());
+    EXPECT_TRUE(WaitForFast(AllSucceeded(futures).WithTimeout(TDuration::Seconds(2))).IsOK());
 }
 
 TEST_F(TSchedulingPolicyTest, DoNotPreemptAllocationsIfFairShareEqualsDemandShare)

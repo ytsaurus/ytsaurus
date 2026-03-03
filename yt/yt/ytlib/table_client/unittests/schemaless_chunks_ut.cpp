@@ -27,6 +27,8 @@
 
 #include <yt/yt/core/compression/public.h>
 
+#include <yt/yt/core/concurrency/scheduler_api.h>
+
 #include <yt/yt/core/ytree/convert.h>
 
 #include <yt/yt/core/yson/string.h>
@@ -243,7 +245,7 @@ protected:
         InitNameTable(WriteNameTable_);
 
         Y_UNUSED(chunkWriter->Write(Rows_));
-        EXPECT_TRUE(chunkWriter->Close().BlockingGet().IsOK());
+        EXPECT_TRUE(WaitForFast(chunkWriter->Close()).IsOK());
 
         MemoryReader_ = CreateMemoryReader(
             memoryWriter->GetChunkMeta(),
@@ -425,7 +427,7 @@ protected:
             /*dataSink*/ std::nullopt);
 
         Y_UNUSED(chunkWriter->Write(Rows_));
-        EXPECT_TRUE(chunkWriter->Close().BlockingGet().IsOK());
+        EXPECT_TRUE(WaitForFast(chunkWriter->Close()).IsOK());
 
         ChunkMeta_ = memoryWriter->GetChunkMeta();
 
@@ -551,7 +553,7 @@ protected:
         Rows_ = builder.Build();
 
         Y_UNUSED(chunkWriter->Write(Rows_));
-        EXPECT_TRUE(chunkWriter->Close().BlockingGet().IsOK());
+        EXPECT_TRUE(WaitForFast(chunkWriter->Close()).IsOK());
 
         MemoryReader_ = CreateMemoryReader(
             memoryWriter->GetChunkMeta(),
@@ -865,7 +867,7 @@ protected:
     void InitChunk()
     {
         Y_UNUSED(ChunkWriter_->Write(Rows_));
-        EXPECT_TRUE(ChunkWriter_->Close().BlockingGet().IsOK());
+        EXPECT_TRUE(WaitForFast(ChunkWriter_->Close()).IsOK());
 
         MemoryReader_ = CreateMemoryReader(
             MemoryWriter_->GetChunkMeta(),
