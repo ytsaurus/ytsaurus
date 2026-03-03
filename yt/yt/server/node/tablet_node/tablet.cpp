@@ -1490,7 +1490,8 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex, TDuration splitDela
         TChunkedMemoryPool::DefaultStartChunkSize,
         nodeMemoryTracker
             ? nodeMemoryTracker->WithCategory(EMemoryCategory::TabletFootprint)
-            : nullptr);
+            : nullptr,
+        /*allowMemoryOvercommit*/ true);
 
     std::vector<TLegacyOwningKey> immediateSplitKeys;
     int immediateSplitKeyCount = 0;
@@ -1593,7 +1594,8 @@ void TTablet::SplitPartition(int index, const std::vector<TLegacyOwningKey>& piv
             TChunkedMemoryPool::DefaultStartChunkSize,
             nodeMemoryTracker
                 ? nodeMemoryTracker->WithCategory(EMemoryCategory::TabletFootprint)
-                : nullptr);
+                : nullptr,
+            /*allowMemoryOvercommit*/ true);
 
         while (sampleKeyIndex < std::ssize(existingSampleKeys) && existingSampleKeys[sampleKeyIndex] < nextPivotKey) {
             sampleKeys.push_back(rowBuffer->CaptureRow(existingSampleKeys[sampleKeyIndex]));
