@@ -64,6 +64,7 @@ struct TDynamicTransactionManagerTestingConfig
 {
     bool ThrowOnLeaseRevocation;
     THashSet<TTransactionId> PrerequisiteCheckFailureDuringCommitOfTransactions;
+    std::optional<TDuration> SequoiaTransactionBarrierDelay;
 
     REGISTER_YSON_STRUCT(TDynamicTransactionManagerTestingConfig);
 

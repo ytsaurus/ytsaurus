@@ -62,6 +62,7 @@ using namespace NObjectClient;
 using namespace NRpc::NProto;
 using namespace NRpc;
 using namespace NSecurityServer;
+using namespace NThreading;
 using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NYson;
@@ -267,10 +268,14 @@ public:
         }
 
         auto delayed = [&] (TFuture<void> future) {
-            if (auto delay = Config_->Testing->PreparedTransactionsBarrierDelay) {
-                return AllSucceeded<void>({std::move(future), TDelayedExecutor::MakeDelayed(*delay)});
+            std::optional<TDuration> delay = DynamicStronglyOrderedTransactionBarrierDelay_.Load();
+            if (!delay) {
+                delay = Config_->Testing->PreparedTransactionsBarrierDelay;
             }
-            return future;
+
+            return delay
+                ? AllSucceeded<void>({std::move(future), TDelayedExecutor::MakeDelayed(*delay)})
+                : future;
         };
 
         auto guard = Guard(SequencerLock_);
@@ -328,6 +333,14 @@ public:
         buffer->AddGauge("/transaction_supervisor/barrier_wait_time", barrierWaitTime.SecondsFloat());
     }
 
+    void SetDynamicStronglyOrderedPreparedTransactionsBarrierDelay(
+        std::optional<TDuration> delay) override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        DynamicStronglyOrderedTransactionBarrierDelay_.Store(delay);
+    }
+
 private:
     const TTransactionSupervisorConfigPtr Config_;
     const IHydraManagerPtr HydraManager_;
@@ -340,6 +353,8 @@ private:
     const IAuthenticatorPtr Authenticator_;
 
     const NLogging::TLogger Logger;
+
+    TAtomicObject<std::optional<TDuration>> DynamicStronglyOrderedTransactionBarrierDelay_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SequencerLock_);
 
