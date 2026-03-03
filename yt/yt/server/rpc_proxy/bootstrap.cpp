@@ -572,6 +572,8 @@ void TBootstrap::OnDynamicConfigChanged(
         newConfig->MasterCellDirectorySynchronizer.value_or(Config_->ClusterConnection->Static->MasterCellDirectorySynchronizer));
 
     WorkerWeightProvider_->SetOverrides(newConfig->WorkerPoolWeightOverrides);
+
+    WorkerPool_->SetThreadCount(newConfig->WorkerThreadPoolSize.value_or(Config_->WorkerThreadPoolSize));
 }
 
 void TBootstrap::OnBundleDynamicConfigChanged(

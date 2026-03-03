@@ -212,6 +212,10 @@ void TProxyDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("worker_pool_weight_overrides", &TThis::WorkerPoolWeightOverrides)
         .Optional();
+
+    registrar.Parameter("worker_thread_pool_size", &TThis::WorkerThreadPoolSize)
+        .GreaterThan(0)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
