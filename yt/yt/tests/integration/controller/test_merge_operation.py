@@ -2842,8 +2842,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         new_schema = schema[:1] + [{"name": "key2", "type": "int64", "sort_order": "ascending"}] + schema[1:]
         alter_table("//tmp/table", schema=new_schema)
 
-        op = merge(
-            track=False,
+        merge(
             in_="//tmp/table",
             out="<create=%true>//tmp/t_out",
             spec={
@@ -2853,9 +2852,14 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             }
         )
 
-        # This effectively asserts that operation will have inifinitely aborting jobs.
-        wait(lambda: op.get_job_count("aborted") > 10)
-        op.abort()
+        expected = [
+            {"key1": 10, "key2": yson.YsonEntity(), "num": 1, "doubled_num": 2},
+            {"key1": 11, "key2": yson.YsonEntity(), "num": 1, "doubled_num": 2},
+            {"key1": 12, "key2": yson.YsonEntity(), "num": 2, "doubled_num": 4},
+            {"key1": 13, "key2": yson.YsonEntity(), "num": 3, "doubled_num": 6},
+        ]
+
+        assert read_table("//tmp/t_out") == expected
 
 
 ##################################################################

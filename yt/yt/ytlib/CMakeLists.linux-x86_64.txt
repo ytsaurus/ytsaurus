@@ -530,6 +530,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/partitioner.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/performance_counters.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/remote_dynamic_store_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/row_layout.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/row_level_security.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/row_merger.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/samples_fetcher.cpp
