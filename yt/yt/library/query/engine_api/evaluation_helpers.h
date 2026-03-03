@@ -91,8 +91,7 @@ private:
 using TGroupRows = google::dense_hash_set<
     const TPIValue*,
     NDetail::TGroupHasher,
-    NDetail::TRowComparer,
-    TAllocatorOverChunkProvider<const TPIValue*>>;
+    NDetail::TRowComparer>;
 
 using TGroupVector = std::vector<const TPIValue*, TAllocatorOverChunkProvider<const TPIValue*>>;
 

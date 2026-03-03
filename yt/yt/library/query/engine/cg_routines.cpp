@@ -1394,8 +1394,7 @@ TGroupByClosure::TGroupByClosure(
     , GroupedIntermediateRows_(
         InitialGroupOpHashtableCapacity,
         groupHasher,
-        groupComparer,
-        TGroupRows::allocator_type(chunkProvider, GetRefCountedTypeCookie<TLookupRows>()))
+        groupComparer)
     , GroupKeySize_(groupKeySize)
     , GroupStateSize_(groupStateSize)
     , OrderKeySize_(orderKeySize)
