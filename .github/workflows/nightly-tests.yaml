@@ -7,6 +7,7 @@ on:
 
 jobs:
   create-task-for-ytsaurus-ci:
+    if: github.repository == 'ytsaurus/ytsaurus'
     uses: ./.github/workflows/ytsaurus-ci-runner.yaml
     with:
       scenario: nightly-dev
