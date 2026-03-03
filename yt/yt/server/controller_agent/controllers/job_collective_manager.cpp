@@ -267,11 +267,13 @@ bool TJobCollectiveManager::OnUnsuccessfulJobFinish(const TJobletPtr& joblet, EA
             EraseOrCrash(PendingCookies_, joblet->OutputCookie);
         }
 
+        bool collectiveFinished = collective.Finished;
+
         if (!collective.Finished || !collective.HasRunningSlaves()) {
             CookieToCollective_.erase(collectiveIt);
         }
 
-        return !collective.Finished;
+        return !collectiveFinished;
     }
     return false;
 }
