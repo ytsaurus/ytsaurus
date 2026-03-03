@@ -54,6 +54,8 @@ private:
     PHOENIX_DECLARE_TYPE(TRlsReadSpec, 0x01215125);
 };
 
+void FormatValue(TStringBuilderBase* builder, const TRlsReadSpec& rlsReadSpec, TStringBuf spec);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IRlsCheckerFactory

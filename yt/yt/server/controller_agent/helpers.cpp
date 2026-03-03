@@ -86,7 +86,9 @@ void TUserFile::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(10, Filesystem);
     PHOENIX_REGISTER_FIELD(11, AccessMethod);
     PHOENIX_REGISTER_FIELD(12, GpuCheck,
-        .SinceVersion(NControllerAgent::ESnapshotVersion::PrepareGpuCheckFSDuration));
+        .SinceVersion(ESnapshotVersion::PrepareGpuCheckFSDuration));
+    PHOENIX_REGISTER_FIELD(13, RlsReadSpec,
+        .SinceVersion(ESnapshotVersion::FileRlsReadSpec));
 }
 
 PHOENIX_DEFINE_TYPE(TUserFile);
@@ -112,6 +114,7 @@ void BuildFileSpec(
             file.Path.GetColumnRenameDescriptors().value_or(TColumnRenameDescriptors()));
         dataSource->SetObjectId(file.ObjectId);
         dataSource->SetAccount(file.Account);
+        dataSource->SetRlsReadSpec(file.RlsReadSpec);
 
         ToProto(descriptor->mutable_data_source(), dataSource);
     } else {
@@ -125,6 +128,7 @@ void BuildFileSpec(
                 file.Path.GetColumnRenameDescriptors().value_or(TColumnRenameDescriptors()));
         dataSource->SetObjectId(file.ObjectId);
         dataSource->SetAccount(file.Account);
+        dataSource->SetRlsReadSpec(file.RlsReadSpec);
 
         ToProto(descriptor->mutable_data_source(), dataSource);
     }

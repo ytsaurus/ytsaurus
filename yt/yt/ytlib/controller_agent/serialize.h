@@ -82,6 +82,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((WronglyCherryPickedSnapshotVersion)    (302000))
     ((DistributedJobManagers)                (302001))
     ((ChunkPoolStatistics)                   (302002))
+    ((FileRlsReadSpec)                       (302003))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
