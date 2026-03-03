@@ -59,6 +59,9 @@ struct ITransactionSupervisor
     virtual void RecomputeStronglyOrderedTransactionRefsOnCoordinator() = 0;
 
     virtual void OnProfiling(NProfiling::TSensorBuffer* buffer) = 0;
+
+    virtual void SetDynamicStronglyOrderedPreparedTransactionsBarrierDelay(
+        std::optional<TDuration> delay) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITransactionSupervisor)

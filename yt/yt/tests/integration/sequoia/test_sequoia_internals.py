@@ -776,6 +776,15 @@ class TestSequoiaInternals(YTEnvSetup):
         # Should not throw.
         get(f"#{node_id}/tmp")
 
+    @authors("kvk1920")
+    def test_sequoia_barrier_delay(self):
+        set("//sys/@config/transaction_manager/testing/sequoia_transaction_barrier_delay", 2000)
+
+        start = datetime.now()
+        get("//@owner")
+        finish = datetime.now()
+        assert finish - start >= timedelta(seconds=2)
+
 
 @pytest.mark.enabled_multidaemon
 class TestSequoiaResolve(TestSequoiaInternals):

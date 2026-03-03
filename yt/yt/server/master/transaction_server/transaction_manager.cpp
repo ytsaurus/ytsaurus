@@ -3902,11 +3902,14 @@ private:
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig)
     {
         const auto& newConfig = GetDynamicConfig();
+
+        const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
+        transactionSupervisor->SetDynamicStronglyOrderedPreparedTransactionsBarrierDelay(newConfig->Testing->SequoiaTransactionBarrierDelay);
+
         ProfilingExecutor_->SetPeriod(newConfig->ProfilingPeriod);
 
         if (HasMutationContext()) {
             if (oldConfig->TransactionManager->RecomputeStronglyOrderedTransactionRefs != newConfig->RecomputeStronglyOrderedTransactionRefs) {
-                const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
                 transactionSupervisor->RecomputeStronglyOrderedTransactionRefsOnCoordinator();
             }
         }

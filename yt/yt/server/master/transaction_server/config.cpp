@@ -56,6 +56,9 @@ void TDynamicTransactionManagerTestingConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("prerequisite_check_failure_during_commit_of_transactions", &TThis::PrerequisiteCheckFailureDuringCommitOfTransactions)
         .Default();
+    registrar.Parameter("sequoia_transaction_barrier_delay", &TThis::SequoiaTransactionBarrierDelay)
+        .Optional()
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
