@@ -1,4 +1,5 @@
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/http/config.h>
 #include <yt/yt/core/http/connection_pool.h>
@@ -267,7 +268,7 @@ TEST_F(TYCServerTest, SuccessCreateUserToken)
     })).ValueOrThrow();
     EXPECT_EQ(result.Login, "user");
     EXPECT_TRUE(userManager->CheckUserExists("user"));
-    EXPECT_EQ(userManager->GetUserGroups("user").BlockingGet().Value(), std::vector<std::string>());
+    EXPECT_EQ(WaitForFast(userManager->GetUserGroups("user")).Value(), std::vector<std::string>());
 }
 
 TEST_F(TYCServerTest, SuccessCreateUserCookie)
@@ -279,7 +280,7 @@ TEST_F(TYCServerTest, SuccessCreateUserCookie)
     auto result = WaitFor(authenticator->Authenticate(NewCookieCredentials("create_user_cookie"))).ValueOrThrow();
     EXPECT_EQ(result.Login, "user");
     EXPECT_TRUE(userManager->CheckUserExists("user"));
-    EXPECT_EQ(userManager->GetUserGroups("user").BlockingGet().Value(), std::vector<std::string>());
+    EXPECT_EQ(WaitForFast(userManager->GetUserGroups("user")).Value(), std::vector<std::string>());
 }
 
 TEST_F(TYCServerTest, SuccessAddUserInGroupsToken)
@@ -294,7 +295,7 @@ TEST_F(TYCServerTest, SuccessAddUserInGroupsToken)
     })).ValueOrThrow();
     EXPECT_EQ(result.Login, "user");
     EXPECT_TRUE(userManager->CheckUserExists("user"));
-    EXPECT_EQ(userManager->GetUserGroups("user").BlockingGet().Value(), std::vector<std::string>({"managers", "random-group"}));
+    EXPECT_EQ(WaitForFast(userManager->GetUserGroups("user")).Value(), std::vector<std::string>({"managers", "random-group"}));
 }
 
 TEST_F(TYCServerTest, SuccessAddUserInGroupsCookie)
@@ -306,7 +307,7 @@ TEST_F(TYCServerTest, SuccessAddUserInGroupsCookie)
     auto result = WaitFor(authenticator->Authenticate(NewCookieCredentials("add_user_cookie"))).ValueOrThrow();
     EXPECT_EQ(result.Login, "user");
     EXPECT_TRUE(userManager->CheckUserExists("user"));
-    EXPECT_EQ(userManager->GetUserGroups("user").BlockingGet().Value(), std::vector<std::string>({"managers", "random-group"}));
+    EXPECT_EQ(WaitForFast(userManager->GetUserGroups("user")).Value(), std::vector<std::string>({"managers", "random-group"}));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

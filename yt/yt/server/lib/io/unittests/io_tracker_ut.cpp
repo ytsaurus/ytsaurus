@@ -4,6 +4,7 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <library/cpp/yt/threading/atomic_object.h>
@@ -174,8 +175,7 @@ TEST(TIOTrackerTest, Concurrent)
             .Run();
         asyncResults.push_back(std::move(asyncResult));
     }
-    AllSucceeded(asyncResults)
-        .BlockingGet()
+    WaitForFast(AllSucceeded(asyncResults))
         .ThrowOnError();
     threadPool->Shutdown();
 

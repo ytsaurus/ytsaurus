@@ -37,6 +37,8 @@
 
 #include <yt/yt/core/compression/public.h>
 
+#include <yt/yt/core/concurrency/scheduler_api.h>
+
 #include <yt/yt/core/misc/random.h>
 
 #include <yt/yt/library/numeric/algorithm_helpers.h>
@@ -348,7 +350,7 @@ protected:
             memoryPool.Clear();
         }
 
-        EXPECT_TRUE(chunkWriter->Close().BlockingGet().IsOK());
+        EXPECT_TRUE(WaitForFast(chunkWriter->Close()).IsOK());
 
         // Initialize reader.
         MemoryReader = CreateMemoryReader(
@@ -514,8 +516,8 @@ protected:
                     /*produceAllVersions*/ false);
             }
 
-            EXPECT_TRUE(versionedReader->Open().BlockingGet().IsOK());
-            EXPECT_TRUE(versionedReader->GetReadyEvent().BlockingGet().IsOK());
+            EXPECT_TRUE(WaitForFast(versionedReader->Open()).IsOK());
+            EXPECT_TRUE(WaitForFast(versionedReader->GetReadyEvent()).IsOK());
 
             CheckResult(std::move(expectedRows), versionedReader);
         }
@@ -556,8 +558,7 @@ TEST_F(TVersionedChunkLookupTest, TestIndexedMetadata)
         .ChunkFormat = EChunkFormat::TableVersionedIndexed,
     });
 
-    auto chunkMeta = MemoryReader->GetMeta(/*options*/ {})
-        .BlockingGet()
+    auto chunkMeta = WaitForFast(MemoryReader->GetMeta(/*options*/ {}))
         .ValueOrThrow();
 
     auto versionedChunkMeta = TCachedVersionedChunkMeta::Create(
@@ -816,7 +817,7 @@ protected:
             /*writeBlocksOptions*/ {});
 
         Y_UNUSED(chunkWriter->Write(initialRows));
-        EXPECT_TRUE(chunkWriter->Close().BlockingGet().IsOK());
+        EXPECT_TRUE(WaitForFast(chunkWriter->Close()).IsOK());
 
         return CreateMemoryReader(
             memoryWriter->GetChunkMeta(),
@@ -1095,8 +1096,8 @@ protected:
             }
         }
 
-        EXPECT_TRUE(versionedReader->Open().BlockingGet().IsOK());
-        EXPECT_TRUE(versionedReader->GetReadyEvent().BlockingGet().IsOK());
+        EXPECT_TRUE(WaitForFast(versionedReader->Open()).IsOK());
+        EXPECT_TRUE(WaitForFast(versionedReader->GetReadyEvent()).IsOK());
 
         CheckResult(std::move(expectedRows), versionedReader);
     }
@@ -1754,7 +1755,7 @@ protected:
             /*writeBlocksOptions*/ {});
 
         Y_UNUSED(chunkWriter->Write(InitialRows_));
-        EXPECT_TRUE(chunkWriter->Close().BlockingGet().IsOK());
+        EXPECT_TRUE(WaitForFast(chunkWriter->Close()).IsOK());
 
         for (const auto& block : memoryWriter->GetBlocks()) {
             EXPECT_LE(block.Size(), config->BlockSize + overhead);

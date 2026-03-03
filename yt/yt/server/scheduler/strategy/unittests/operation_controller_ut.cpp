@@ -16,6 +16,7 @@
 #include <yt/yt/ytlib/chunk_client/proto/medium_directory.pb.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <library/cpp/iterator/enumerate.h>
 
@@ -30,6 +31,7 @@ namespace {
 using namespace NPolicy;
 using namespace NControllerAgent;
 using namespace NYPath;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -390,7 +392,7 @@ TEST_F(TOperationControllerTest, TestConcurrentScheduleAllocationCallsThrottling
     }
 
     readyToGo.Set();
-    EXPECT_TRUE(AllSucceeded(futures).WithTimeout(TDuration::Seconds(2)).BlockingGet().IsOK());
+    EXPECT_TRUE(WaitForFast(AllSucceeded(futures).WithTimeout(TDuration::Seconds(2))).IsOK());
 
     for (const auto& context : contexts) {
         controller->OnScheduleAllocationFinished(context);
@@ -501,7 +503,7 @@ TEST_F(TOperationControllerTest, TestConcurrentScheduleAllocationExecDurationThr
     }
 
     readyToGo.Set();
-    EXPECT_TRUE(AllSucceeded(futures).WithTimeout(TDuration::Seconds(2)).BlockingGet().IsOK());
+    EXPECT_TRUE(WaitForFast(AllSucceeded(futures).WithTimeout(TDuration::Seconds(2))).IsOK());
 
     for (const auto& context : contexts) {
         controller->OnScheduleAllocationFinished(context);
@@ -584,7 +586,7 @@ TEST_F(TOperationControllerTest, TestConcurrentControllerScheduleAllocationCalls
     }
 
     readyToGo.Set();
-    EXPECT_TRUE(AllSucceeded(futures).WithTimeout(TDuration::Seconds(2)).BlockingGet().IsOK());
+    EXPECT_TRUE(WaitForFast(AllSucceeded(futures).WithTimeout(TDuration::Seconds(2))).IsOK());
 
     for (const auto& context : contexts) {
         controller->OnScheduleAllocationFinished(context);
@@ -679,7 +681,7 @@ TEST_F(TOperationControllerTest, TestScheduleAllocationTimeout)
     actionQueue->GetInvoker()->Invoke(BIND([finished] {
         finished.Set();
     }));
-    EXPECT_TRUE(finished.ToFuture().BlockingGet().IsOK());
+    EXPECT_TRUE(WaitForFast(finished.ToFuture()).IsOK());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

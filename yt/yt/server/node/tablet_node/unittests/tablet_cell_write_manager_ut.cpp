@@ -2,6 +2,8 @@
 
 #include <yt/yt/client/table_client/row_buffer.h>
 
+#include <yt/yt/core/concurrency/scheduler_api.h>
+
 #include <util/string/split.h>
 
 namespace NYT::NTabletNode {
@@ -9,6 +11,7 @@ namespace {
 
 using namespace testing;
 
+using namespace NConcurrency;
 using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -296,8 +299,7 @@ TEST_F(TTestSortedTabletWriteSignature, TestSignaturesSuccess)
     EXPECT_EQ(2, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
 
-    asyncCommit
-        .BlockingGet()
+    WaitForFast(asyncCommit)
         .ThrowOnError();
 
     EXPECT_EQ(
@@ -331,8 +333,7 @@ TEST_F(TTestSortedTabletWriteSignature, TestSignaturesFailure)
 
     EXPECT_THAT(
         [&] {
-            asyncCommit
-                .BlockingGet()
+            WaitForFast(asyncCommit)
                 .ThrowOnError();
         },
         ThrowsMessage<std::exception>(HasSubstr("expected prepare signature")));
@@ -420,8 +421,7 @@ TEST_P(TTestSortedTabletWriteGenerationOneBatch, OneBatchRetry)
     EXPECT_EQ(2, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
 
-    asyncCommit
-        .BlockingGet()
+    WaitForFast(asyncCommit)
         .ThrowOnError();
 
     EXPECT_EQ(
@@ -520,8 +520,7 @@ TEST_P(TTestSortedTabletWriteGenerationTwoBatch, TwoBatchRetry)
     EXPECT_EQ(2, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
 
-    asyncCommit
-        .BlockingGet()
+    WaitForFast(asyncCommit)
         .ThrowOnError();
 
     EXPECT_EQ(
