@@ -612,7 +612,7 @@ TString TJobPreparer::UploadToRandomPath(const IItemToUpload& itemToUpload) cons
             OperationPreparer_.GetClient()->GetTransactionPinger(),
             OperationPreparer_.GetContext(),
             Options_.FileStorageTransactionId_,
-            TFileWriterOptions().ComputeMD5(true));
+            TFileWriterOptions().ComputeMD5(true).WriterOptions(TWriterOptions().UploadReplicationFactor(1).MinUploadReplicationFactor(1)));
         itemToUpload.CreateInputStream()->ReadAll(writer);
         writer.Finish();
     }
