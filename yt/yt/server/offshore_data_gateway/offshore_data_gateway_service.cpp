@@ -110,6 +110,8 @@ private:
             /*sslContextConfig*/ nullptr,
             S3Poller_,
             S3Poller_->GetInvoker());
+        WaitFor(s3Client->Start())
+            .ThrowOnError();
 
         return CreateS3RegularChunkReader(
             std::move(s3Client),

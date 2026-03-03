@@ -137,6 +137,8 @@ protected:
         mediumConfig->Bucket = RootBucket_;
         mediumConfig->Region = region;
         mediumConfig->Url = endpointUrl;
+        mediumConfig->AccessKeyId = accessKeyId;
+        mediumConfig->SecretAccessKey = secretAccessKey;
         MediumDescriptor_ = New<TS3MediumDescriptor>(
             /*name*/ "test_s3_medium",
             /*index*/ 15,
@@ -274,9 +276,6 @@ TEST_F(TS3DataTest, TestReplicationReader)
         })))
         .ThrowOnError();
 
-    // TODO(pavel-bash): when the master supports offshore media, it'll be possible to continue this test; now
-    // it's stopped at "Mediu 15 is not an S3 medium" because master does not serialize an offshore medium as
-    // an offshore one; see a TODO in SerializeMediumDirectory.
     IChunkReader::TReadBlocksOptions readOptions;
     auto readBlocks = WaitFor(ReplicationReader_->ReadBlocks(readOptions, {1}))
         .ValueOrThrow();
