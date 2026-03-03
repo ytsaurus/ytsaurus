@@ -595,6 +595,14 @@ void TIOEngineBase::InitProfilerSensors()
         return SicknessCounter_.load();
     });
 
+    Profiler.AddFuncCounter("/inflight_write_request_count", MakeStrong(this), [this] {
+        return GetInFlightWriteRequestCount();
+    });
+
+    Profiler.AddFuncCounter("/inflight_read_request_count", MakeStrong(this), [this] {
+        return GetInFlightReadRequestCount();
+    });
+
     Sensors_->WrittenBytesCounter = Profiler.Counter("/written_bytes");
     Sensors_->ReadBytesCounter = Profiler.Counter("/read_bytes");
 
