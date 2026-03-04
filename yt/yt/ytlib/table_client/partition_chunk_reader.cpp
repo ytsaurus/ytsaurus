@@ -125,7 +125,7 @@ void TPartitionChunkReader::InitFirstBlock()
 {
     TCurrentTraceContextGuard traceGuard(TraceContext_);
 
-    YT_VERIFY(CurrentBlock_ && CurrentBlock_.IsSet());
+    YT_VERIFY(CurrentBlock_);
 
     auto schema = GetTableSchema(*ChunkMeta_);
 

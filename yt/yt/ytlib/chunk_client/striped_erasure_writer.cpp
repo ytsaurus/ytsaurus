@@ -468,7 +468,6 @@ private:
 
         FillChunkMeta(chunkMeta);
 
-        YT_VERIFY(ReadyEvent_.IsSet());
         ReadyEvent_.GetOrCrash().ThrowOnError();
 
         std::vector<TFuture<void>> futures;

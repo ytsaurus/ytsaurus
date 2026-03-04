@@ -116,7 +116,6 @@ public:
                 break;
 
             case EState::WaitingForBarrier:
-                YT_VERIFY(BarrierFuture_.IsSet());
                 YT_VERIFY(BarrierFuture_.GetOrCrash().IsOK());
                 AdjustUpperRowIndex();
                 YT_LOG_DEBUG("Finished waiting for prepared transactions to commit (UpperRowIndex: %v)",

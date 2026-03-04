@@ -240,8 +240,6 @@ private:
         auto futureIt = GetIteratorOrCrash(CellTagToHeartbeatRspFuture_, cellTag);
         auto future = std::move(futureIt->second);
         CellTagToHeartbeatRspFuture_.erase(futureIt);
-        YT_VERIFY(future.IsSet());
-
         return future.GetOrCrash();
     }
 };

@@ -159,7 +159,6 @@ public:
             }
         }
 
-        YT_VERIFY(ReadyEvent_.IsSet());
         if (ReadyEvent_.GetOrCrash().IsOK()) {
             *block = GetBlock();
             YT_VERIFY(!block->Data.Empty());

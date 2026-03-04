@@ -208,7 +208,6 @@ private:
 
         for (int tag : *extensionTags) {
             auto extensionFuture = GetOrCrash(Extensions_, tag);
-            YT_VERIFY(extensionFuture.IsSet());
             YT_VERIFY(extensionFuture.GetOrCrash().IsOK());
             if (extensionFuture.GetOrCrash().Value()) {
                 auto* ext = meta->mutable_extensions()->add_extensions();
