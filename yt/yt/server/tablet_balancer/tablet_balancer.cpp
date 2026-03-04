@@ -826,10 +826,14 @@ i64 TTabletBalancer::TBundleOrchidService::GetSize() const
 
 IYPathServicePtr TTabletBalancer::TBundleOrchidService::FindItemService(const std::string& key) const
 {
+    YT_ASSERT_INVOKER_AFFINITY(Owner_->ControlInvoker_);
+
     auto bundlesIt = Owner_->Bundles_.find(key);
     if (bundlesIt == Owner_->Bundles_.end()) {
         return nullptr;
     }
+
+    auto configOrError = WaitFor(bundlesIt->second->GetConfig(/*allowStale*/ false));
 
     auto guard = Guard(Owner_->BundleErrorsLock_);
 
@@ -841,13 +845,26 @@ IYPathServicePtr TTabletBalancer::TBundleOrchidService::FindItemService(const st
 
     return BuildYsonNodeFluently()
         .BeginMap()
-            .Do([&] (TFluentMap fluent) {
-                fluent
-                    .Item("errors")
-                        .List(bundleErrors.FatalErrors)
-                    .Item("retryable_errors")
-                        .List(bundleErrors.RetryableErrors);
-            })
+            .Item("errors")
+                .List(bundleErrors.FatalErrors)
+            .Item("retryable_errors")
+                .List(bundleErrors.RetryableErrors)
+            .Item("config").Do(
+                [&] (TFluentAny fluent) {
+                    if (configOrError.IsOK()) {
+                        fluent.Value(configOrError.Value());
+                    } else {
+                        fluent.Entity();
+                    }
+                })
+            .Item("config_error").Do(
+                [&] (TFluentAny fluent) {
+                    if (configOrError.IsOK()) {
+                        fluent.Entity();
+                    } else {
+                        fluent.Value(configOrError);
+                    }
+                })
         .EndMap();
 }
 
@@ -929,7 +946,7 @@ IYPathServicePtr TTabletBalancer::GetOrchidService()
 
     dynamicOrchidService->SetOpaque(false);
 
-    return dynamicOrchidService;
+    return dynamicOrchidService->Via(ControlInvoker_);
 }
 
 void TTabletBalancer::OnDynamicConfigChanged(
