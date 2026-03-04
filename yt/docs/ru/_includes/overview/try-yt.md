@@ -546,7 +546,7 @@
          serviceType: NodePort
          instanceCount: 1
          httpNodePort: 30082
-  ```
+     ```
 
   Теперь веб-интерфейс будет доступен по адресу `localhost:30082`, прокси кластера по адресу `localhost:30080`, а RPC-прокси по адресу `locahost:30083`.
 

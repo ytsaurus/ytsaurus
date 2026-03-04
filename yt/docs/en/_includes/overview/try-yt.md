@@ -546,7 +546,7 @@ Regardless of the installation method, the required system components will be de
          serviceType: NodePort
          instanceCount: 1
          httpNodePort: 30082
-  ```
+     ```
 
   Now the web interface will be available at `localhost:30082`, the cluster proxy at `localhost:30080` and the RPC proxy at `localhost:30083`.
 
