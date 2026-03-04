@@ -119,7 +119,7 @@ void TColumnarChunkReaderBase::FeedBlocksToReaders()
         const auto& column = Columns_[i];
         const auto& columnReader = column.ColumnReader;
         if (blockFuture) {
-            YT_VERIFY(blockFuture.IsSet() && blockFuture.GetOrCrash().IsOK());
+            YT_VERIFY(blockFuture.GetOrCrash().IsOK());
 
             if (columnReader->GetCurrentBlockIndex() != -1) {
                 RequiredMemorySize_ -= BlockFetcher_->GetBlockSize(columnReader->GetCurrentBlockIndex());

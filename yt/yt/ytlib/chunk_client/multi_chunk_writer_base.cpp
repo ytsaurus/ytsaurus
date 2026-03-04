@@ -82,7 +82,7 @@ void TNontemplateMultiChunkWriterBase::Init()
 TFuture<void> TNontemplateMultiChunkWriterBase::Close()
 {
     YT_VERIFY(!Closing_);
-    YT_VERIFY(ReadyEvent_.IsSet() && ReadyEvent_.GetOrCrash().IsOK());
+    YT_VERIFY(ReadyEvent_.GetOrCrash().IsOK());
 
     Closing_ = true;
     ReadyEvent_ = BIND(&TNontemplateMultiChunkWriterBase::FinishSession, MakeWeak(this))

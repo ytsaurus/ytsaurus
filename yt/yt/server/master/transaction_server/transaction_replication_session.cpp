@@ -417,7 +417,6 @@ TFuture<void> TTransactionReplicationSessionWithoutBoomerangs::Run(bool syncWith
                 return OKFuture;
             }
 
-            YT_VERIFY(asyncResult.IsSet());
             const auto& rspOrError = asyncResult.GetOrCrash();
             if (!rspOrError.IsOK()) {
                 return MakeFuture(TError(rspOrError));

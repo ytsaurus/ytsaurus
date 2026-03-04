@@ -86,6 +86,7 @@ ELSE()
         dummy_secret_masker.cpp
         no_ytflow_load.cpp
         no_pq_load.cpp
+        no_solomon_load.cpp
     )
 
     PEERDIR(

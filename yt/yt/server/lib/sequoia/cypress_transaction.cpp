@@ -1527,8 +1527,6 @@ private:
                     dependentTransactionFuture = dependentTransaction
                 ] {
                     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
-                    YT_VERIFY(descendentTransactionFuture.IsSet());
-                    YT_VERIFY(dependentTransactionFuture.IsSet());
 
                     // NB: AllSucceeded() guarantees that all futures are set.
                     const auto& descendentTransaction = descendentTransactionFuture.GetOrCrash().Value();

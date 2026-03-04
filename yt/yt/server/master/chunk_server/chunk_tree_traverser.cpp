@@ -386,7 +386,6 @@ protected:
         YT_VERIFY(EnforceBounds_);
 
         auto unsealedChunkStatisticsFuture = GetOrCrash(UnsealedChunkIdToStatisticsFuture_, chunk->GetId());
-        YT_VERIFY(unsealedChunkStatisticsFuture.IsSet());
         return unsealedChunkStatisticsFuture
             .GetOrCrash()
             .ValueOrThrow();

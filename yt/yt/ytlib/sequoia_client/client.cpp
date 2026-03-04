@@ -139,7 +139,6 @@ private:
 
     NNative::IClientPtr GetGroundClientOrThrow()
     {
-        YT_VERIFY(GroundClientFuture_.IsSet());
         return GroundClientFuture_.GetOrCrash().ValueOrThrow();
     }
 

@@ -17,6 +17,7 @@ default:
     sidecars-version: 0.0.1
     ytmsvc-version: 0.0.1
     excel-version: 0.0.1
+    clickhouse: ClickHouse
 
 public:
   example_cluster: 'cluster_name'
