@@ -2423,7 +2423,6 @@ void TTabletLookupSession<TPipeline>::LookupFromStoreSessions(
         // TODO(akozhikhov): Proper block fetcher: make scenario of empty batch here impossible.
         if (!session.PrepareBatch()) {
             auto readyEvent = session.GetReadyEvent();
-            YT_VERIFY(readyEvent.IsSet());
             readyEvent.GetOrCrash().ThrowOnError();
             YT_VERIFY(session.PrepareBatch());
         }

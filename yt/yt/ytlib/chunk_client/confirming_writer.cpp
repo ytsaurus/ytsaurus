@@ -116,7 +116,6 @@ public:
         const std::vector<TBlock>& blocks) override
     {
         YT_VERIFY(Initialized_.load());
-        YT_VERIFY(OpenFuture_.IsSet());
 
         if (!OpenFuture_.GetOrCrash().IsOK()) {
             return false;
@@ -128,7 +127,6 @@ public:
     TFuture<void> GetReadyEvent() override
     {
         YT_VERIFY(Initialized_.load());
-        YT_VERIFY(OpenFuture_.IsSet());
         if (!OpenFuture_.GetOrCrash().IsOK()) {
             return OpenFuture_;
         } else {
@@ -143,7 +141,6 @@ public:
         std::optional<int> truncateBlockCount) override
     {
         YT_VERIFY(Initialized_.load());
-        YT_VERIFY(OpenFuture_.IsSet());
         YT_VERIFY(!truncateBlockCount.has_value());
 
         ChunkMeta_ = chunkMeta;

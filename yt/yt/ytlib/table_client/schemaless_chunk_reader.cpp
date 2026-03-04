@@ -909,7 +909,7 @@ void THorizontalSchemalessRangeChunkReader::InitFirstBlock()
     int blockIndex = BlockIndexes_[CurrentBlockIndex_];
     const auto& blockMeta = BlockMetaExt_->data_blocks(blockIndex);
 
-    YT_VERIFY(CurrentBlock_ && CurrentBlock_.IsSet());
+    YT_VERIFY(CurrentBlock_);
     BlockReader_.reset(new THorizontalBlockReader(
         CurrentBlock_.GetOrCrash().ValueOrThrow().Data,
         blockMeta,

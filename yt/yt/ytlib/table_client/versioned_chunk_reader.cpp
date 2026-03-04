@@ -419,7 +419,7 @@ private:
             KeyColumnCount_,
             CommonKeyPrefix_);
 
-        YT_VERIFY(CurrentBlock_ && CurrentBlock_.IsSet());
+        YT_VERIFY(CurrentBlock_);
         ResetBlockReader(
             CurrentBlock_.GetOrCrash().ValueOrThrow().Data,
             ChunkMeta_,

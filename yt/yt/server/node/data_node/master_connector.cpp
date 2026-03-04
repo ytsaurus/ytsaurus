@@ -1904,7 +1904,6 @@ private:
 
         auto future = std::get_if<TFuture<TRspHeartbeatType>>(&variantFuture);
         YT_VERIFY(future);
-        YT_VERIFY(future->IsSet());
         return future->GetOrCrash();
     }
 

@@ -92,7 +92,7 @@ public:
     TCachedBlock GetBlock() const override
     {
         const auto& future = Cookie_.GetValue();
-        YT_VERIFY(future.IsSet() && future.GetOrCrash().IsOK());
+        YT_VERIFY(future.GetOrCrash().IsOK());
         return future.GetOrCrash().Value()->CachedBlock();
     }
 

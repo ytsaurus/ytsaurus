@@ -1339,9 +1339,7 @@ public:
                     }
 
                     // Async materialize result is ready here as the combined future already has finished.
-                    YT_VERIFY(asyncMaterializeResult.IsSet());
-
-                    // asyncMaterializeResult contains no error, otherwise the |!error.IsOk()| check would trigger.
+                    // It contains no error, otherwise the |!error.IsOK()| check would trigger.
                     return asyncMaterializeResult.GetOrCrash().Value().Suspend;
                 }();
 
@@ -3215,7 +3213,6 @@ private:
         // Failure is intentionally ignored.
         Y_UNUSED(WaitFor(AllSet(futures)));
 
-        YT_VERIFY(unregisterFuture.IsSet());
         auto resultOrError = unregisterFuture.GetOrCrash();
         if (!resultOrError.IsOK()) {
             return;
@@ -4121,7 +4118,6 @@ private:
             std::vector<TError> errors;
             errors.reserve(futures.size());
             for (const auto& future : futures) {
-                YT_VERIFY(future.IsSet());
                 errors.push_back(future.GetOrCrash());
             }
             THROW_ERROR_EXCEPTION("Access to perform %Qlv of operation %v denied",
