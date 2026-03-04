@@ -390,6 +390,8 @@ private:
 
     //! Takes reader guard on Lock_.
     TInstant GetPreviousIterationStartTime(const TGlobalGroupTag& groupTag) const;
+    //! Takes writer guard on Lock_.
+    void UpdatePreviousIterationStartTime(const TGlobalGroupTag& groupTag);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -768,7 +770,7 @@ void TTabletBalancer::BalanceBundle(const TBundleSnapshotPtr& bundleSnapshot)
                 groupName);
         }
 
-        GroupPreviousIterationStartTime_[groupTag] = CurrentIterationStartTime_;
+        UpdatePreviousIterationStartTime(groupTag);
     }
 }
 
@@ -1850,6 +1852,12 @@ TInstant TTabletBalancer::GetPreviousIterationStartTime(const TGlobalGroupTag& g
 {
     auto guard = ReaderGuard(Lock_);
     return GetOrDefault(GroupPreviousIterationStartTime_, groupTag);
+}
+
+void TTabletBalancer::UpdatePreviousIterationStartTime(const TGlobalGroupTag& groupTag)
+{
+    auto guard = WriterGuard(Lock_);
+    GroupPreviousIterationStartTime_[groupTag] = CurrentIterationStartTime_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
