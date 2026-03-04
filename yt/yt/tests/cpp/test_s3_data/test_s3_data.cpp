@@ -276,9 +276,16 @@ TEST_F(TS3DataTest, TestReplicationReader)
         })))
         .ThrowOnError();
 
+    std::vector<int> blockIndexes(GeneratedBlocks_.size());
+    std::iota(blockIndexes.begin(), blockIndexes.end(), 0);
+
     IChunkReader::TReadBlocksOptions readOptions;
-    auto readBlocks = WaitFor(ReplicationReader_->ReadBlocks(readOptions, {1}))
+    auto readBlocks = WaitFor(ReplicationReader_->ReadBlocks(readOptions, blockIndexes))
         .ValueOrThrow();
+
+    for (ssize_t blockIndex = 0; blockIndex < std::ssize(GeneratedBlocks_); ++blockIndex) {
+        ASSERT_EQ(readBlocks[blockIndex].GetOrComputeChecksum(),GeneratedBlocks_[blockIndex].GetOrComputeChecksum());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
