@@ -543,6 +543,9 @@ items:
       - name: Интеграция CHYT с внешними системами
         href: admin-guide/integration-chyt.md
         when: audience == "public"
+      - name: Изоляция запросов в YQL‑агенте
+        when: audience == "public"
+        href: admin-guide/yql-query-isolation.md
       - name: Прочее
         items:
           - name: Чтение с удаленных кластеров через RPC Proxy
