@@ -1234,6 +1234,9 @@ func (r ListJobsRequest) Log() []log.Field {
 	if r.Attributes != nil {
 		fields = append(fields, log.Any("attributes", makeAttributeFilter(r.GetAttributes())))
 	}
+	if r.GetWithSpec() {
+		fields = append(fields, log.Bool("with_spec", true))
+	}
 	if r.SortField != nil {
 		fields = append(fields, log.Any("sort_field", r.GetSortField()))
 	}

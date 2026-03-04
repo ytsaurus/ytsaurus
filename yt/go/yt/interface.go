@@ -630,6 +630,7 @@ type ListJobsOptions struct {
 	WithInterruptionInfo     *bool          `http:"with_interruption_info,omitnil"`
 	TaskName                 *string        `http:"task_name,omitnil"`
 	Attributes               []string       `http:"attributes,omitnil"`
+	WithSpec                 *bool          `http:"with_spec,omitnil"`
 	SortField                *JobSortField  `http:"sort_field,omitnil"`
 	SortOrder                *JobSortOrder  `http:"sort_order,omitnil"`
 	Limit                    *int           `http:"limit,omitnil"`
