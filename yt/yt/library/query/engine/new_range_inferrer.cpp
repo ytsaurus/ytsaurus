@@ -961,7 +961,9 @@ TSharedRange<TRowRange> CreateNewHeavyRangeInferrer(
     const TQueryOptions& options,
     const IMemoryChunkProviderPtr& memoryChunkProvider)
 {
-    auto buffer = New<TRowBuffer>(TRangeInferrerBufferTag());
+    auto buffer = New<TRowBuffer>(
+        TRangeInferrerBufferTag(),
+        memoryChunkProvider);
     auto keySize = schema->GetKeyColumnCount();
     auto evaluator = evaluatorCache->Find(schema);
 
@@ -1050,7 +1052,9 @@ TSharedRange<TRowRange> CreateNewLightRangeInferrer(
     const TQueryOptions& options,
     const IMemoryChunkProviderPtr& memoryChunkProvider)
 {
-    auto buffer = New<TRowBuffer>(TRangeInferrerBufferTag());
+    auto buffer = New<TRowBuffer>(
+        TRangeInferrerBufferTag(),
+        memoryChunkProvider);
     auto constraints = TConstraintsHolder(keyColumns.size(), GetRefCountedTypeCookie<TRangeInferrerBufferTag>(), memoryChunkProvider);
     auto constraintRef = constraints.ExtractFromExpression(predicate, keyColumns, buffer, constraintExtractors);
 
