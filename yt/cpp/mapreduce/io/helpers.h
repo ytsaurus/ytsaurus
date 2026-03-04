@@ -3,6 +3,7 @@
 #include <yt/cpp/mapreduce/interface/io.h>
 #include <yt/cpp/mapreduce/interface/config.h>
 #include <yt/cpp/mapreduce/common/helpers.h>
+#include <yt/cpp/mapreduce/interface/logging/yt_log.h>
 
 namespace NYT {
 
@@ -92,19 +93,20 @@ inline TNode FormIORequestParameters(
     const TFileWriterOptions& options)
 {
     auto params = PathToParamNode(path);
-    TNode fileWriter = TNode::CreateMap();
+    TNode fileWriter = TConfig::Get()->FileWriter;
     if (options.Config_) {
-        fileWriter = *options.Config_;
+        MergeNodes(fileWriter, *options.Config_);
     }
     if (options.WriterOptions_) {
         AddWriterOptionsToNode(*options.WriterOptions_, &fileWriter);
     }
     if (fileWriter.Empty()) {
+        YT_LOG_INFO("fileWriter is empty, add default params");
         AddWriterOptionsToNode(
             TWriterOptions()
                 .EnableEarlyFinish(true)
-                .UploadReplicationFactor(3)
-                .MinUploadReplicationFactor(2),
+                .UploadReplicationFactor(1)
+                .MinUploadReplicationFactor(1),
             &fileWriter);
     }
     params[TIOOptionsTraits<TFileWriterOptions>::ConfigName] = fileWriter;

@@ -153,6 +153,9 @@ void TConfig::LoadSpec()
 
     strSpec = GetEnv("YT_TABLE_WRITER", "{}");
     TableWriter = LoadJsonSpec(strSpec);
+
+    // strSpec = GetEnv("YT_File_WRITER", "{}");
+    // TableWriter = LoadJsonSpec(strSpec);
 }
 
 void TConfig::LoadTimings()
@@ -424,6 +427,7 @@ void Serialize(const TConfig& config, NYson::IYsonConsumer* consumer)
         .Item("host_list_update_interval").Value(config.HostListUpdateInterval.ToString())
         .Item("spec").Value(config.Spec)
         .Item("table_writer").Value(config.TableWriter)
+        .Item("file_writer").Value(config.FileWriter)
         .Item("connect_timeout").Value(config.ConnectTimeout.ToString())
         .Item("socket_timeout").Value(config.SocketTimeout.ToString())
         .Item("address_cache_expiration_timeout").Value(config.AddressCacheExpirationTimeout.ToString())
@@ -502,6 +506,7 @@ void Deserialize(TConfig& config, const TNode& node)
     DESERIALIZE_ITEM("host_list_update_interval", config.HostListUpdateInterval);
     DESERIALIZE_ITEM("spec", config.Spec);
     DESERIALIZE_ITEM("table_writer", config.TableWriter);
+    DESERIALIZE_ITEM("file_writer", config.FileWriter);
     DESERIALIZE_ITEM("connection_timeout", config.ConnectTimeout);
     DESERIALIZE_ITEM("socket_timeout", config.SocketTimeout);
     DESERIALIZE_ITEM("address_cache_expiration_timeout", config.AddressCacheExpirationTimeout);

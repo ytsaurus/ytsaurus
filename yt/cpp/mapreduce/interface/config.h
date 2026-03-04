@@ -162,6 +162,7 @@ struct TConfig
 
     TNode Spec;
     TNode TableWriter;
+    TNode FileWriter;
 
     TDuration ConnectTimeout;
     TDuration SocketTimeout;

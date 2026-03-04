@@ -1180,6 +1180,9 @@ void DoExecuteMap(
     if (!preparer->GetContext().Config->TableWriter.Empty()) {
         specNode["job_io"]["table_writer"] = preparer->GetContext().Config->TableWriter;
     }
+    if (!preparer->GetContext().Config->FileWriter.Empty()) {
+        specNode["job_io"]["file_writer"] = preparer->GetContext().Config->FileWriter;
+    }
 
     BuildCommonUserOperationPart(spec, &specNode);
     BuildJobCountOperationPart(spec, &specNode);
@@ -1299,6 +1302,9 @@ void DoExecuteReduce(
             .DoIf(!preparer->GetContext().Config->TableWriter.Empty(), [&] (TFluentMap fluent) {
                 fluent.Item("table_writer").Value(preparer->GetContext().Config->TableWriter);
             })
+            .DoIf(!preparer->GetContext().Config->FileWriter.Empty(), [&] (TFluentMap fluent) {
+                fluent.Item("file_writer").Value(preparer->GetContext().Config->FileWriter);
+            })
         .EndMap()
         .DoIf(spec.AutoMerge_.Defined(), [&] (TFluentMap fluent) {
             fluent.Item("auto_merge").Value(BuildAutoMergeSpec(*spec.AutoMerge_));
@@ -1415,6 +1421,9 @@ void DoExecuteJoinReduce(
             .EndMap()
             .DoIf(!preparer->GetContext().Config->TableWriter.Empty(), [&] (TFluentMap fluent) {
                 fluent.Item("table_writer").Value(preparer->GetContext().Config->TableWriter);
+            })
+            .DoIf(!preparer->GetContext().Config->FileWriter.Empty(), [&] (TFluentMap fluent) {
+                fluent.Item("file_writer").Value(preparer->GetContext().Config->FileWriter);
             })
         .EndMap()
     .EndMap();
@@ -1587,6 +1596,9 @@ void DoExecuteMapReduce(
             .DoIf(!preparer->GetContext().Config->TableWriter.Empty(), [&] (TFluentMap fluent) {
                 fluent.Item("table_writer").Value(preparer->GetContext().Config->TableWriter);
             })
+            .DoIf(!preparer->GetContext().Config->FileWriter.Empty(), [&] (TFluentMap fluent) {
+                fluent.Item("file_writer").Value(preparer->GetContext().Config->FileWriter);
+            })
         .EndMap()
         .Item("sort_job_io").BeginMap()
             .Item("control_attributes").BeginMap()
@@ -1595,6 +1607,9 @@ void DoExecuteMapReduce(
             .DoIf(!preparer->GetContext().Config->TableWriter.Empty(), [&] (TFluentMap fluent) {
                 fluent.Item("table_writer").Value(preparer->GetContext().Config->TableWriter);
             })
+            .DoIf(!preparer->GetContext().Config->FileWriter.Empty(), [&] (TFluentMap fluent) {
+                fluent.Item("file_writer").Value(preparer->GetContext().Config->FileWriter);
+            })
         .EndMap()
         .Item("reduce_job_io").BeginMap()
             .Item("control_attributes").BeginMap()
@@ -1602,6 +1617,9 @@ void DoExecuteMapReduce(
             .EndMap()
             .DoIf(!preparer->GetContext().Config->TableWriter.Empty(), [&] (TFluentMap fluent) {
                 fluent.Item("table_writer").Value(preparer->GetContext().Config->TableWriter);
+            })
+            .DoIf(!preparer->GetContext().Config->FileWriter.Empty(), [&] (TFluentMap fluent) {
+                fluent.Item("file_writer").Value(preparer->GetContext().Config->FileWriter);
             })
         .EndMap()
         .Do([&] (TFluentMap) {
@@ -2227,6 +2245,9 @@ void ExecuteVanilla(
                     .Item("job_io").BeginMap()
                         .DoIf(!preparer->GetContext().Config->TableWriter.Empty(), [&](TFluentMap fluent) {
                             fluent.Item("table_writer").Value(preparer->GetContext().Config->TableWriter);
+                        })
+                        .DoIf(!preparer->GetContext().Config->FileWriter.Empty(), [&] (TFluentMap fluent) {
+                            fluent.Item("file_writer").Value(preparer->GetContext().Config->FileWriter);
                         })
                         .Item("control_attributes").BeginMap()
                             .Item("enable_row_index").Value(TNode(true))
