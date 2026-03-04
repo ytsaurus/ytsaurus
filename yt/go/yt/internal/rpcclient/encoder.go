@@ -2170,7 +2170,7 @@ func (e *Encoder) ListJobs(
 		WithMonitoringDescriptor:    opts.WithMonitoringDescriptor,
 		WithInterruptionInfo:        opts.WithInterruptionInfo,
 		Attributes:                  convertAttributeFilter(opts.Attributes),
-		WithSpec:                    nil, // todo
+		WithSpec:                    opts.WithSpec,
 		SortField:                   nil, // todo
 		SortOrder:                   sortOrder,
 		Limit:                       limit,

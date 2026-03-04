@@ -1272,6 +1272,10 @@ func writeListJobsOptions(w *yson.Writer, o *yt.ListJobsOptions) {
 		w.MapKeyString("attributes")
 		w.Any(o.Attributes)
 	}
+	if o.WithSpec != nil {
+		w.MapKeyString("with_spec")
+		w.Any(o.WithSpec)
+	}
 	if o.SortField != nil {
 		w.MapKeyString("sort_field")
 		w.Any(o.SortField)
@@ -1325,6 +1329,9 @@ func logListJobsOptions(o *yt.ListJobsOptions) []log.Field {
 	}
 	if o.Attributes != nil {
 		fields = append(fields, log.Any("attributes", o.Attributes))
+	}
+	if o.WithSpec != nil {
+		fields = append(fields, log.Any("with_spec", o.WithSpec))
 	}
 	if o.SortField != nil {
 		fields = append(fields, log.Any("sort_field", o.SortField))
