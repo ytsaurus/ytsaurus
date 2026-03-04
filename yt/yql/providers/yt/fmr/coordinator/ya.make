@@ -2,6 +2,8 @@ RECURSE(
     client
     impl
     interface
+    operation_manager
+    partitioner
     server
     service
     yt_coordinator_service
