@@ -623,6 +623,11 @@ void TNode::SetCellAggregatedStateReliability(
     YT_VERIFY(HasMutationContext());
 
     auto& descriptor = GetOrCrash(MulticellDescriptors_, cellTag);
+    YT_LOG_DEBUG("Setting node cell aggregated state reliability (NodeId: %v, OldReliability: %v, NewReliability: %v, CellTag: %v)",
+        GetId(),
+        descriptor.CellReliability,
+        reliability,
+        cellTag);
 
     if (descriptor.CellReliability != reliability) {
         ValidateReliabilityTransition(descriptor.CellReliability, reliability);
@@ -693,6 +698,7 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, NextDisposedLocationIndex_);
     Save(context, LastGossipState_);
     Save(context, NextValidationFullHeartbeatTime_);
+    Save(context, LastCellAggregatedStateReliability_);
 }
 
 namespace {
@@ -752,6 +758,12 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     // COMPAT(danilalexeev)
     if (context.GetVersion() >= EMasterReign::DataNodeValidationFullHeartbeats) {
         Load(context, NextValidationFullHeartbeatTime_);
+    }
+    if (context.GetVersion() >= EMasterReign::PersistLastCellAggregatedStateReliability ||
+        (context.GetVersion() < EMasterReign::Start_26_1 &&
+        context.GetVersion() >= EMasterReign::PersistLastCellAggregatedStateReliability_25_4))
+    {
+        Load(context, LastCellAggregatedStateReliability_);
     }
 
     ComputeDefaultAddress();

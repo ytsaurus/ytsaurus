@@ -209,6 +209,7 @@ DEFINE_ENUM(EMasterReign,
     ((ReignInHiveMessages_25_4)                                     (3158))  // ifsmirnov
     ((TransferableInheritedAttributes_25_4)                         (3159))  // kvk1920
     ((TweakChunkMergerTraversalInfoAfterRebalance_25_4)             (3160))  // aleksandra-zh, shakurov
+    ((PersistLastCellAggregatedStateReliability_25_4)               (3161))  // aleksandra-zh
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
