@@ -631,9 +631,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
         useCumulativeBlockSize,
         enableCaching)
         .Apply(BIND([this, this_ = MakeStrong(this),
-            fairShareQueueSlot = std::move(fairShareQueueSlot), precedingBlockReceivedFutures = std::move(precedingBlockReceivedFutures)] () mutable {
-
-            auto allPrecedingBlocksReceivedFuture = AllSucceeded(precedingBlockReceivedFutures);
+            fairShareQueueSlot = std::move(fairShareQueueSlot), allPrecedingBlocksReceivedFuture = AllSucceeded(std::move(precedingBlockReceivedFutures))] () {
 
             if (Bootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->WaitPrecedingBlocksReceived) {
                 auto allPrecedingBlocksReceivedFutureWithTimeout = allPrecedingBlocksReceivedFuture
@@ -653,13 +651,17 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
                     .AsyncVia(SessionInvoker_));
 
                 return allPrecedingBlocksReceivedFutureWithTimeout.Apply(BIND([this, this_ = MakeStrong(this),
-                    fairShareQueueSlot = std::move(fairShareQueueSlot), precedingBlockReceivedFutures = std::move(precedingBlockReceivedFutures)] () mutable {
+                    fairShareQueueSlot = std::move(fairShareQueueSlot)] () mutable {
                         DoPerformPutBlocks(std::move(fairShareQueueSlot));
                         return NIO::TIOCounters{};
                     }).AsyncVia(SessionInvoker_));
             } else {
                 allPrecedingBlocksReceivedFuture.Subscribe(BIND([this, this_ = MakeStrong(this),
-                    fairShareQueueSlot = std::move(fairShareQueueSlot), precedingBlockReceivedFutures = std::move(precedingBlockReceivedFutures)] (const TError& error) mutable {
+                    fairShareQueueSlot = std::move(fairShareQueueSlot)] (const TError& error) mutable {
+                        if (Canceled_.load()) {
+                            return;
+                        }
+
                         if (error.IsOK()) {
                             DoPerformPutBlocks(std::move(fairShareQueueSlot));
                         } else {

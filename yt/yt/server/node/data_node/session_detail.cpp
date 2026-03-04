@@ -262,12 +262,12 @@ void TSessionBase::Cancel(const TError& error)
             }
 
             if (!Active_) {
-                YT_LOG_DEBUG(error, "Session will be canceled after becoming active");
+                YT_LOG_DEBUG(error, "Session will be canceled after becoming active (SessionId: %v)", SessionId_);
                 PendingCancelationError_ = error;
                 return;
             }
 
-            YT_LOG_DEBUG(error, "Canceling session");
+            YT_LOG_DEBUG(error, "Canceling session (SessionId: %v)", SessionId_);
 
             TLeaseManager::CloseLease(Lease_);
             Active_ = false;
