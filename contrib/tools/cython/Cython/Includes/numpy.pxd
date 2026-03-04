@@ -26,6 +26,15 @@ cimport libc.stdio as stdio
 cdef extern from "Python.h":
     ctypedef int Py_intptr_t
 
+cdef extern from "numpy/ndarrayobject.h":
+    pass
+
+cdef extern from "numpy/ndarraytypes.h":
+    pass
+
+cdef extern from "numpy/arrayscalars.h":
+    pass
+
 cdef extern from "numpy/arrayobject.h":
     ctypedef Py_intptr_t npy_intp
     ctypedef size_t npy_uintp
