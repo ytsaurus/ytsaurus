@@ -10,7 +10,7 @@
 
 ## Перед началом работы {#prerequisites}
 
-- Рекомендуемая среда для работы {{product-name}} — это x86_64 Linux. Если у вас MacOS с процессором Apple Silicon, для локальной установки {{product-name}} вам потребуется использовать режим эмуляции под архитектуру x86. Для этого подойдёт платформа виртуализации [Docker Desktop](https://docs.docker.com/desktop/setup/install/mac-install/) с включённой [Rosetta 2](https://support.apple.com/ru-ru/102527). Однако следует учитывать, что работа {{product-name}} в режиме эмуляции **не гарантируется**. <!--По возможности используйте Linux с процессором архитектуры x86_64.-->
+- Рекомендуемая среда для работы {{product-name}} — это x86_64 Linux. Если у вас MacOS с процессором Apple Silicon, для локальной установки {{product-name}} вам потребуется использовать режим эмуляции под архитектуру x86. Для этого подойдёт платформа виртуализации [Docker Desktop](https://docs.docker.com/desktop/setup/install/mac-install/) с включённой [Rosetta 2](https://support.apple.com/ru-ru/102527). Однако, следует учитывать, что работа {{product-name}} в режиме эмуляции **не гарантируется**. <!--По возможности используйте Linux с процессором архитектуры x86_64.-->
 
 - В данном руководстве вы будете запускать {{product-name}} кластер в минимальной конфигурации — без гарантий отказоустойчивости. Не используйте предлагаемую конфигурацию в промышленном окружении и для проведения тестов производительности. Примеры того, как настраивать конфигурацию кластера, приведены в [Руководстве администратора](../../admin-guide/prepare-spec.md).
 
@@ -22,7 +22,7 @@
 
 Независимо от способа установки, в результате будут подняты необходимые компоненты системы: [мастер-сервер](*about-master), [планировщик](*about-scheduler), [YQL](*about-yql), [Query Tracker](*about-qt) и другие. Все последующие примеры из этого руководства — создание таблиц, загрузка данных и запуск MapReduce — не зависят от способа установки кластера и будут одинаковыми как для Docker, так и в случае Minikube.
 
-{% list tabs dropdown %}
+{% list tabs dropdown group=deploy %}
 
 - Docker {selected}
 
@@ -450,24 +450,40 @@
 
   По умолчанию Kind создаёт внутреннюю сеть для k8s кластера и подов в нём. Чтобы получить доступ до этой сети, можно воспользоваться [port-forwarding](https://kubernetes.io/docs/tasks/access-application-cluster/port-forward-access-application-cluster/). Ниже показано, как с помощью этого механизма получить доступ к веб-интерфейсу и API {{product-name}} кластера.
 
-  Для получения доступа к веб-интерфейсу кластера по адресу `localhost:8080` в отдельном терминале выполните команду:
+  - Чтобы получить доступ к веб-интерфейсу кластера по адресу `localhost:8080`, в отдельном терминале выполните команду:
 
-  ```bash
-  kubectl port-forward service/ytsaurus-ui 8080:80
-  ```
+     ```bash
+     kubectl port-forward service/ytsaurus-ui 8080:80
+     ```
 
-  Для входа используйте:
-  ```
-  Login: admin
-  Password: password
-  ```
+     Для входа используйте:
+     ```
+     Login: admin
+     Password: password
+     ```
 
-  Для получения доступа к API кластера по адресу `localhost:8081` в отдельном терминале выполните команду:
-  ```bash
-  kubectl port-forward service/http-proxies-lb 8081:80
-  ```
+  - Чтобы получить доступ к API кластера по адресу `localhost:8081`, в отдельном терминале выполните команду:
 
-  Теперь веб-интерфейс будет доступен по адресу `localhost:8080`, а прокси кластера по адресу `localhost:8081`. С помощью адреса прокси можно работать с кластером из командной строки &mdash; про это будет рассказано ниже, в разделе с [примерами](#launch-example).
+     ```bash
+     kubectl port-forward service/http-proxies-lb 8081:80
+     ```
+
+  - Для работы через [RPC proxy](../../user-guide/proxy/rpc.md) по адресу `localhost:8082` в отдельном терминале выполните команду:
+
+    ```bash
+    kubectl port-forward service/rpc-proxies-lb 8082:9013
+    ```
+
+    {% note info %}
+
+    Чтобы RPC proxy был доступен через Discovery, необходимо прописать его как балансер в `//sys/rpc_proxies/@balancers`:
+
+    ```bash
+    yt --proxy localhost:8081 set --format json //sys/rpc_proxies/@balancers '{ "default": { "internal_rpc": { "default": ["localhost:8082"]} } }'
+    ```
+    {% endnote %}
+
+  Теперь веб-интерфейс доступен по адресу `localhost:8080`, HTTP-прокси кластера &mdash; по адресу `localhost:8081`, а RPC-прокси &mdash; по адресу `localhost:8082`. Как работать с кластером из командной строки, написано в разделе с [примерами](#launch-example).
 
   {% cut "Как настроить нативный проброс портов с помощью Kind" %}
 
@@ -488,6 +504,10 @@
          hostPort: 30081
        - containerPort: 30082
          hostPort: 30082
+       - containerPort: 30083
+         hostPort: 30083
+       - containerPort: 30084
+         hostPort: 30084
      ```
 
      Запуск Kind кластера с указанием конфига:
@@ -497,9 +517,9 @@
 
   2. Настроить проброс портов из веб-интерфейса и проксей в {{product-name}} кластере.
 
-     Для этого в конфиге {{product-name}} кластера необходимо указать опцию `httpNodePort` в проксях и веб-интерфейсе:
+     Для этого в конфиге {{product-name}} кластера необходимо указать опцию `httpNodePort` в проксях и веб-интерфейсе. Для RPC-прокси используется опция `nodePort`:
      ```bash
-     $ grep httpNodePort -B 5 cluster_v1_local_with_ports.yaml
+     $ grep nodePort: -iB 5 cluster_v1_local_with_ports.yaml
        httpProxies:
          - serviceType: NodePort
            loggers: *loggers
@@ -511,6 +531,18 @@
            instanceCount: 1
            role: control
            httpNodePort: 30081
+
+       rpcProxies:
+         - serviceType: NodePort
+           instanceCount: 1
+           loggers: *loggers
+           role: default
+           nodePort: 30083
+         - serviceType: NodePort
+           instanceCount: 1
+           loggers: *loggers
+           role: heavy
+           nodePort: 30084
      --
 
        ui:
@@ -520,7 +552,7 @@
          httpNodePort: 30082
      ```
 
-  Теперь веб-интерфейс будет доступен по адресу `localhost:30082`, а прокси кластера по адресу `localhost:30080`.
+  Теперь веб-интерфейс будет доступен по адресу `localhost:30082`, прокси кластера по адресу `localhost:30080`, а RPC-прокси по адресу `locahost:30083`.
 
   {% endcut %}
 
@@ -586,7 +618,7 @@ Version: YT wrapper 0.13.20
 
 Это понадобится в следующих примерах, для доступа к кластеру через CLI.
 
-{% list tabs dropdown %}
+{% list tabs dropdown group=deploy %}
 
 - Docker {selected}
 
@@ -777,7 +809,7 @@ LIMIT 30;
 
 ## Удаление кластера { #stop-cluster }
 
-{% list tabs dropdown %}
+{% list tabs dropdown group=deploy %}
 
 - Docker {selected}
 
