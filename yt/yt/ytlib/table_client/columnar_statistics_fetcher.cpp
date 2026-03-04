@@ -25,6 +25,8 @@ using namespace NApi;
 using namespace NNodeTrackerClient;
 using namespace NLogging;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TColumnarStatisticsFetcher::TColumnarStatisticsFetcher(
@@ -125,7 +127,7 @@ void TColumnarStatisticsFetcher::OnResponse(
     for (int index = 0; index < std::ssize(chunkIndexes); ++index) {
         int chunkIndex = chunkIndexes[index];
         const auto& subresponse = rsp->subresponses(index);
-        TColumnarStatistics statistics;
+        std::optional<TColumnarStatistics> statistics;
         if (subresponse.has_error()) {
             auto error = NYT::FromProto<TError>(subresponse.error());
             if (error.FindMatching(NChunkClient::EErrorCode::MissingExtension)) {
@@ -140,25 +142,28 @@ void TColumnarStatisticsFetcher::OnResponse(
         } else {
             // Ensure that either `error` or 'columnar_statistics' is present in the subresponse.
             YT_VERIFY(subresponse.has_columnar_statistics());
-            FromProto(
-                &statistics,
+            statistics = FromProto<TColumnarStatistics>(
                 subresponse.columnar_statistics(),
                 &subresponse.large_columnar_statistics(),
                 Chunks_[chunkIndex]->GetTotalRowCount());
 
             if (subresponse.has_read_data_size_estimate()) {
-                statistics.ReadDataSizeEstimate = subresponse.read_data_size_estimate();
+                statistics->ReadDataSizeEstimate = subresponse.read_data_size_estimate();
             }
         }
+
+        if (!statistics.has_value()) {
+            continue;
+        }
         if (Options_.StoreChunkStatistics) {
-            ChunkStatistics_[chunkIndex] = statistics;
+            ChunkStatistics_[chunkIndex] = *statistics;
         } else {
-            LightweightChunkStatistics_[chunkIndex] = statistics.MakeLightweightStatistics();
+            LightweightChunkStatistics_[chunkIndex] = statistics->MakeLightweightStatistics();
         }
         if (Options_.AggregatePerTableStatistics) {
             auto tableIndex = Chunks_[chunkIndex]->GetTableIndex();
             YT_VERIFY(tableIndex < std::ssize(TableStatistics_));
-            TableStatistics_[tableIndex] += statistics;
+            TableStatistics_[tableIndex] += *statistics;
         }
     }
 }
