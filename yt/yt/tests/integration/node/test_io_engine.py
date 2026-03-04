@@ -70,7 +70,6 @@ class TestIoEngine(YTEnvSetup):
     def get_write_sensors(self, node):
         node_profiler = profiler_factory().at_node(node)
         return [
-            node_profiler.counter(name="location/inflight_write_request_count", tags={"location_type": "store"}),
             node_profiler.counter(name="location/written_bytes", tags={"location_type": "store"}),
             node_profiler.counter(name="location/write/request_count", tags={"location_type": "store"}),
             node_profiler.counter(name="location/write/total_time", tags={"location_type": "store"}),
@@ -79,7 +78,6 @@ class TestIoEngine(YTEnvSetup):
     def get_read_sensors(self, node):
         node_profiler = profiler_factory().at_node(node)
         return [
-            node_profiler.counter(name="location/inflight_read_request_count", tags={"location_type": "store"}),
             node_profiler.counter(name="location/read_bytes", tags={"location_type": "store"}),
             node_profiler.counter(name="location/read/request_count", tags={"location_type": "store"}),
             node_profiler.counter(name="location/read/total_time", tags={"location_type": "store"}),
