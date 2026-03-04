@@ -2523,7 +2523,18 @@ print(json.dumps(input))
             in_="//tmp/t1",
             out="//tmp/t2",
             command=with_breakpoint("cat && echo stderr > /proc/self/fd/2 && BREAKPOINT"),
+            spec={
+                # Chunk lists creation may be slow.
+                # We allocate them in materialization,
+                # so we should have them ready for the first job.
+                "suspend_operation_after_materialization": True,
+            }
         )
+
+        # Wait for the CreateChunkLists to complete.
+        wait(lambda: get(op.get_path() + "/@suspended"))
+        time.sleep(1)
+        op.resume()
 
         # orchid does not outlive operation, so we need to inspect it in the middle of the operation
         wait_breakpoint()
