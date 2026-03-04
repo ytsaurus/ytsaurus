@@ -1474,7 +1474,7 @@ bool TGangOperationController::OnJobAborted(
         return false;
     }
 
-    if (gangJoblet.Rank) {
+    if (gangJoblet.Rank && gangJoblet.IsStarted()) {
         auto& gangTask = static_cast<TGangTask&>(*joblet->Task);
 
         auto incarnationData = TIncarnationSwitchData{
