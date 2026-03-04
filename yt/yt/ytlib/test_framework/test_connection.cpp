@@ -29,6 +29,7 @@ TTestConnection::TTestConnection(
     , Invoker_(std::move(invoker))
     , NodeMemoryTracker_(std::move(nodeMemoryTracker))
     , NodeDirectory_(std::move(nodeDirectory))
+    , NodeDirectorySynchronizer_(CreateNodeDirectorySynchronizer(MakeStrong(this), NodeDirectory_))
     , SchedulerChannel_(ChannelFactory_->CreateChannel("scheduler"))
     , BundleControllerChannel_(ChannelFactory_->CreateChannel("bundle_controller_channel"))
     , MediumDirectory_(New<NChunkClient::TMediumDirectory>())
@@ -77,6 +78,11 @@ const NRpc::IChannelFactoryPtr& TTestConnection::GetChannelFactory()
 const NNodeTrackerClient::TNodeDirectoryPtr& TTestConnection::GetNodeDirectory()
 {
     return NodeDirectory_;
+}
+
+const NNodeTrackerClient::INodeDirectorySynchronizerPtr& TTestConnection::GetNodeDirectorySynchronizer()
+{
+    return NodeDirectorySynchronizer_;
 }
 
 NRpc::IChannelPtr TTestConnection::FindMasterChannel(
