@@ -217,6 +217,18 @@ std::vector<i64> TGetDirectorySizesAsRootTool::operator()(const TGetDirectorySiz
 
 ////////////////////////////////////////////////////////////////////////////////
 
+i64 TGetTotalDirectoriesSizeAsRootTool::operator()(const TGetDirectorySizesAsRootConfigPtr& config) const
+{
+    TrySetUid(0);
+    return NFS::GetDirectoriesSize(
+        config->Paths,
+        config->IgnoreUnavailableFiles,
+        config->DeduplicateByINodes,
+        config->CheckDeviceId);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TCopyDirectoryContentTool::operator()(TCopyDirectoryContentConfigPtr config) const
 {
     SafeSetUid(0);
@@ -312,6 +324,11 @@ void TGetDirectorySizesAsRootConfig::Register(TRegistrar registrar)
     registrar.Parameter("check_device_id", &TThis::CheckDeviceId)
         .Default(false);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TGetTotalDirectoriesSizeAsRootConfig::Register(TRegistrar)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
