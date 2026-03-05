@@ -404,7 +404,7 @@ public class ModifyRowsExample {
 
 ## Python { #python }
 
-To work via Python, you need to install a bindings package, the pypi-package is called ytsaurus-rpc-driver. After that, you need to specify rpc as the backend.
+To work via Python, you need to install a bindings package, the pypi-package is called ytsaurus-rpc-driver. After that you should configure the client by specifying the backend type as `rpc` and, if necessary, specifying the connection via IPv4.
 
 {{% if audience == internal %}}
 In Arcadia, you need to add PEERDIR on yt/python/client_with_rpc (instead of yt/python/client).
@@ -415,28 +415,33 @@ Working with dynamic tables:
 ```python
 import yt.wrapper as yt
 
+def get_rpc_client(cluster_name, use_ipv4=False):
+    # We will get the configuration for the client, considering the environment variables.
+    config = yt.default_config.get_config_from_env()
+    # Let's configure the RPC connection.
+    config["backend"] = "rpc"
+    if use_ipv4:
+        config["driver_address_resolver_config"] = {"enable_ipv4": True, "enable_ipv6": False}
+    return yt.YtClient(cluster_name, config=config)
+
 def main():
-    client = yt.YtClient("cluster-name", config={"backend": "rpc"})
+    client = get_rpc_client("some_cluster", use_ipv4=True)
     schema = [
         {"name": "x", "type": "int64", "sort_order": "ascending"},
         {"name": "y", "type": "int64"},
         {"name": "z", "type": "int64"}
     ]
-
     table = "//home/ignat/dynamic_table"
     client.create("table", table, attributes={"schema": schema, "dynamic": True})
     client.mount_table(table, sync=True)
     client.insert_rows(table, [{"x": 0, "y": 99}])
-
     for iter in xrange(5):
         with client.Transaction(type="tablet"):
             rows = list(client.lookup_rows(table, [{"x": 0}]))
             if len(rows) == 1 and rows[0]["y"] <= 100:
                 rows[0]["y"] += 1
                 client.insert_rows(table, rows)
-
     print list(client.select_rows("* from [{}]".format(table)))
-
 if __name__ == "__main__":
     main()
 ```
