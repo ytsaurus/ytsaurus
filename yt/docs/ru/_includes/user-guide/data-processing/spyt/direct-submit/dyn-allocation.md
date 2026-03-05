@@ -10,7 +10,15 @@
 --conf spark.ytsaurus.shuffle.enabled=true
 ```
 
-Помимо этого необходимо указать начальное, минимальное и максимальное число экзекьюторов и дополнительные параметры при необходимости, используя стандартную [конфигурацию Spark](https://spark.apache.org/docs/latest/configuration.html#dynamic-allocation).
+Помимо этого необходимо указать минимальное и максимальное число экзекьюторов и дополнительные параметры при необходимости, используя стандартную [конфигурацию Spark](https://spark.apache.org/docs/latest/configuration.html#dynamic-allocation):
+
+```
+--conf spark.dynamicAllocation.minExecutors=1            # минимум при простое
+--conf spark.dynamicAllocation.maxExecutors=10           # максимум при нагрузке
+--conf spark.dynamicAllocation.executorIdleTimeout=120s  # таймаут остановки при неактивности
+--conf spark.dynamicAllocation.initialExecutors=5        # стартовое количество экзекьюторов
+```
+Из-за особенностей операций в {{product-name}} параметр minExecutors не должен быть равен нулю.
 
 {% note info "Примечание" %}
 

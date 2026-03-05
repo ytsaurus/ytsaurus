@@ -15,10 +15,10 @@
 from pyspark.sql import SparkSession
 
 spark = SparkSession.builder.appName('My Application').getOrCreate()
-
-... # Application code
-
-spark.stop()
+try:
+    ... # Application code
+finally:
+    spark.stop()
 ```
 
 Это связано с тем, что функции `with spark_session()` и `spyt.connect()` обращаются к discovery-path, который создаётся в Кипарисе при запуске standalone кластера. В данном способе discovery-path не используется, так как внутренний кластер не создаётся.
