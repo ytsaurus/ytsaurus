@@ -759,10 +759,7 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     if (context.GetVersion() >= EMasterReign::DataNodeValidationFullHeartbeats) {
         Load(context, NextValidationFullHeartbeatTime_);
     }
-    if (context.GetVersion() >= EMasterReign::PersistLastCellAggregatedStateReliability ||
-        (context.GetVersion() < EMasterReign::Start_26_1 &&
-        context.GetVersion() >= EMasterReign::PersistLastCellAggregatedStateReliability_25_4))
-    {
+    if (context.GetVersion() >= EMasterReign::PersistLastCellAggregatedStateReliability_25_4) {
         Load(context, LastCellAggregatedStateReliability_);
     }
 
