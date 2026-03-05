@@ -200,8 +200,9 @@ public:
     void SetBackupCheckpointTimestamp(TTimestamp timestamp) override;
 
     // Passive dynamic stores loaded from snapshot can be flushed in arbitrary order.
-    // Their flush index is null.
-    DEFINE_BYVAL_RW_PROPERTY(ui32, FlushIndex, 0);
+    // Their flush index is zero.
+    ui32 GetFlushIndex() const;
+    void SetFlushIndex(ui32 value);
 
     bool IsMergeRowsOnFlushAllowed() const;
 
@@ -269,6 +270,8 @@ private:
 
     i64 MaxDataWeight_ = 0;
     TSortedDynamicRow MaxDataWeightWitness_;
+
+    std::atomic<ui32> FlushIndex_ = 0;
 
     bool MergeRowsOnFlushAllowed_ = true;
 
