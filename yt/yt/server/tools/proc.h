@@ -189,6 +189,28 @@ struct TGetDirectorySizesAsRootTool
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TGetTotalDirectoriesSizeAsRootConfig
+    : public TGetDirectorySizesAsRootConfig
+{
+    REGISTER_YSON_STRUCT(TGetTotalDirectoriesSizeAsRootConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TGetTotalDirectoriesSizeAsRootConfig)
+
+//! Get total size of directories.
+//! If #DeduplicateByINodes is set multiple directories are processed with shared
+//! inode deduplication.
+//! If #CheckDeviceId is set all seed directories must come from the same device.
+//! Only files that reside on the seed device are considered during traversal.
+struct TGetTotalDirectoriesSizeAsRootTool
+{
+    i64 operator()(const TGetDirectorySizesAsRootConfigPtr& config) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TCopyDirectoryContentConfig
     : public NYTree::TYsonStruct
 {

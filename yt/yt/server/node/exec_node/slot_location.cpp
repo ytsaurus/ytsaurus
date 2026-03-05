@@ -1203,11 +1203,6 @@ void TSlotLocation::UpdateDiskResources()
             config->DeduplicateByINodes = true;
             config->CheckDeviceId = true;
             for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
-                if (sandboxKind == ESandboxKind::PortoPlace) {
-                    // Skip porto place since it is complicated to properly account its used space.
-                    continue;
-                }
-
                 auto path = GetSandboxPath(slotIndex, sandboxKind);
                 if (Exists(path)) {
                     if (IsInsideTmpfs(slotIndex, path)) {
@@ -1220,22 +1215,19 @@ void TSlotLocation::UpdateDiskResources()
 
             i64 slotDiskUsage = 0;
             if (Bootstrap_->IsSimpleEnvironment()) {
-                for (const auto& path : config->Paths) {
-                    slotDiskUsage += GetDirectorySize(path, /*ignoreUnavailableFiles*/ true, /*deduplicateByINodes*/ true);
-                }
+                slotDiskUsage = GetDirectoriesSize(config->Paths, /*ignoreUnavailableFiles*/ true, /*deduplicateByINodes*/ true);
             } else {
                 // We have to calculate user directory sizes as root,
                 // because user job could have set restricted permissions for files and
                 // directories inside sandbox.
 
                 auto future = BIND([=, this_ = MakeStrong(this)] {
-                        return RunTool<TGetDirectorySizesAsRootTool>(std::move(config));
+                        return RunTool<TGetTotalDirectoriesSizeAsRootTool>(std::move(config));
                     })
                     .AsyncVia(ToolInvoker_)
                     .Run();
-                auto sizes = WaitFor(future)
+                slotDiskUsage = WaitFor(future)
                     .ValueOrThrow();
-                slotDiskUsage = std::accumulate(sizes.begin(), sizes.end(), 0ll);
             }
 
             diskStatisticsPerSlot.insert(std::pair(
