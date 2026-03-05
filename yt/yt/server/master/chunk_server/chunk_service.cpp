@@ -986,7 +986,7 @@ private:
             auto requestStatistics = context->Request().request_statistics();
             if (chunkManagerConfig->SequoiaChunkReplicas->BatchChunkConfirmation) {
                 // Be carefull with raw request.
-                WaitFor(chunkManager->ConfirmSequoiaChunkBatched(&context->Request()))
+                WaitFor(chunkManager->ConfirmSequoiaChunkBatched(std::move(context->Request())))
                     .ThrowOnError();
             } else {
                 WaitFor(chunkManager->ConfirmSequoiaChunk(&context->Request()))
