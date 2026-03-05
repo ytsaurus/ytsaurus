@@ -1,4 +1,4 @@
-package types
+package types //nolint:revive // var-naming: avoid meaningless package names
 
 import (
 	"time"

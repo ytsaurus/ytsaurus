@@ -1,0 +1,20 @@
+GO_LIBRARY()
+
+LICENSE(
+    Apache-2.0 AND
+    BSD-3-Clause
+)
+
+VERSION(v1.39.0)
+
+SRCS(
+    env.go
+)
+
+GO_TEST_SRCS(env_test.go)
+
+END()
+
+RECURSE(
+    gotest
+)

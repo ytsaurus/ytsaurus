@@ -2,10 +2,11 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v0.13.4)
+VERSION(v0.13.5-0.20251024222203-75eaa193e329)
 
 SRCS(
     cache.go
+    cached_resource.go
     delta.go
     linear.go
     mux.go
@@ -18,13 +19,13 @@ SRCS(
 )
 
 GO_TEST_SRCS(
+    cache_test.go
     linear_test.go
     order_test.go
     status_test.go
 )
 
 GO_XTEST_SRCS(
-    cache_test.go
     delta_test.go
     fixtures_test.go
     resource_test.go

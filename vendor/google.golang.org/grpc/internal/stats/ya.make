@@ -2,11 +2,12 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v1.74.3)
+VERSION(v1.78.0)
 
 SRCS(
     labels.go
     metrics_recorder_list.go
+    stats.go
 )
 
 GO_XTEST_SRCS(metrics_recorder_list_test.go)
