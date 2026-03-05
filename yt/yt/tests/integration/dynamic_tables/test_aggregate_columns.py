@@ -2,7 +2,7 @@ from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
 from yt_commands import (
     authors,
-    create, create_dynamic_table, alter_table, read_table,
+    create, create_dynamic_table, alter_table, read_table, write_table,
     start_transaction, commit_transaction,
     lookup_rows, select_rows, insert_rows, delete_rows,
     sync_create_cells, sync_mount_table, sync_flush_table, sync_compact_table, sync_unmount_table)
@@ -365,6 +365,295 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
         sync_create_cells(1)
         with pytest.raises(YtError):
             self._create_table_with_aggregate_column("//tmp/t", aggregate=aggregate)
+
+    @authors("abatovkin")
+    @pytest.mark.parametrize("precision", [7, 10, 14])
+    def test_aggregate_hll(self, precision):
+        sync_create_cells(1)
+
+        register_count = 1 << precision
+
+        def make_empty_hll():
+            return b"\x00" * register_count
+
+        def hll_add(state, fingerprint):
+            registers = bytearray(state)
+            fingerprint |= (1 << 63)
+            index = fingerprint & (register_count - 1)
+            shifted = fingerprint >> precision
+            zeroes_plus_one = 0
+            while zeroes_plus_one < 64 and (shifted & 1) == 0:
+                shifted >>= 1
+                zeroes_plus_one += 1
+            zeroes_plus_one += 1
+            if registers[index] < zeroes_plus_one:
+                registers[index] = zeroes_plus_one
+            return bytes(registers)
+
+        def hll_merge(state1, state2):
+            r1 = bytearray(state1)
+            r2 = bytearray(state2)
+            return bytes(max(a, b) for a, b in zip(r1, r2))
+
+        def farm_hash_int64(value):
+            # Use a simple hash for test purposes; the exact hash function
+            # does not matter as long as we are consistent within the test
+            import hashlib
+            h = hashlib.md5(str(value).encode()).digest()
+            return int.from_bytes(h[:8], "little")
+
+        aggregate_name = "hll_{}_merge_state".format(precision)
+
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "hll_state", "type": "string", "aggregate": aggregate_name},
+        ]
+        create_dynamic_table("//tmp/t_hll", schema=schema)
+        sync_mount_table("//tmp/t_hll")
+
+        hll1 = make_empty_hll()
+        for i in range(100):
+            hll1 = hll_add(hll1, farm_hash_int64(i))
+
+        hll2 = make_empty_hll()
+        for i in range(50, 150):
+            hll2 = hll_add(hll2, farm_hash_int64(i))
+
+        insert_rows("//tmp/t_hll", [{"key": 1, "hll_state": hll1}], aggregate=True)
+        insert_rows("//tmp/t_hll", [{"key": 1, "hll_state": hll2}], aggregate=True)
+
+        expected_merged = hll_merge(hll1, hll2)
+
+        rows = lookup_rows("//tmp/t_hll", [{"key": 1}])
+        assert len(rows) == 1
+        actual_state = get_bytes(rows[0]["hll_state"])
+        assert actual_state == expected_merged
+
+        sync_flush_table("//tmp/t_hll")
+
+        rows = lookup_rows("//tmp/t_hll", [{"key": 1}])
+        assert len(rows) == 1
+        actual_state = get_bytes(rows[0]["hll_state"])
+        assert actual_state == expected_merged
+
+        hll3 = make_empty_hll()
+        for i in range(200, 300):
+            hll3 = hll_add(hll3, farm_hash_int64(i))
+
+        insert_rows("//tmp/t_hll", [{"key": 1, "hll_state": hll3}], aggregate=True)
+        expected_merged = hll_merge(expected_merged, hll3)
+
+        sync_flush_table("//tmp/t_hll")
+        sync_compact_table("//tmp/t_hll")
+
+        rows = lookup_rows("//tmp/t_hll", [{"key": 1}])
+        assert len(rows) == 1
+        actual_state = get_bytes(rows[0]["hll_state"])
+        assert actual_state == expected_merged
+
+    @authors("abatovkin")
+    def test_aggregate_hll_overwrite(self):
+        """Test that writing without aggregate flag overwrites the HLL state."""
+        sync_create_cells(1)
+
+        precision = 14
+        register_count = 1 << precision
+
+        def make_empty_hll():
+            return b"\x00" * register_count
+
+        def hll_add(state, fingerprint):
+            registers = bytearray(state)
+            fingerprint |= (1 << 63)
+            index = fingerprint & (register_count - 1)
+            shifted = fingerprint >> precision
+            zeroes_plus_one = 0
+            while zeroes_plus_one < 64 and (shifted & 1) == 0:
+                shifted >>= 1
+                zeroes_plus_one += 1
+            zeroes_plus_one += 1
+            if registers[index] < zeroes_plus_one:
+                registers[index] = zeroes_plus_one
+            return bytes(registers)
+
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "hll_state", "type": "string", "aggregate": "hll_14_merge_state"},
+        ]
+        create_dynamic_table("//tmp/t_hll_overwrite", schema=schema)
+        sync_mount_table("//tmp/t_hll_overwrite")
+
+        hll1 = make_empty_hll()
+        for i in range(100):
+            hll1 = hll_add(hll1, i * 997)
+
+        insert_rows("//tmp/t_hll_overwrite", [{"key": 1, "hll_state": hll1}], aggregate=True)
+
+        hll2 = make_empty_hll()
+        for i in range(5):
+            hll2 = hll_add(hll2, i * 31)
+
+        insert_rows("//tmp/t_hll_overwrite", [{"key": 1, "hll_state": hll2}])
+
+        rows = lookup_rows("//tmp/t_hll_overwrite", [{"key": 1}])
+        assert len(rows) == 1
+        actual_state = get_bytes(rows[0]["hll_state"])
+        assert actual_state == hll2
+
+    @authors("abatovkin")
+    def test_aggregate_hll_multiple_keys(self):
+        """Test HLL aggregate columns with multiple keys."""
+        sync_create_cells(1)
+
+        precision = 7
+        register_count = 1 << precision
+
+        def make_empty_hll():
+            return b"\x00" * register_count
+
+        def hll_add(state, fingerprint):
+            registers = bytearray(state)
+            fingerprint |= (1 << 63)
+            index = fingerprint & (register_count - 1)
+            shifted = fingerprint >> precision
+            zeroes_plus_one = 0
+            while zeroes_plus_one < 64 and (shifted & 1) == 0:
+                shifted >>= 1
+                zeroes_plus_one += 1
+            zeroes_plus_one += 1
+            if registers[index] < zeroes_plus_one:
+                registers[index] = zeroes_plus_one
+            return bytes(registers)
+
+        def hll_merge(state1, state2):
+            return bytes(max(a, b) for a, b in zip(bytearray(state1), bytearray(state2)))
+
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "hll_state", "type": "string", "aggregate": "hll_7_merge_state"},
+        ]
+        create_dynamic_table("//tmp/t_hll_multi", schema=schema)
+        sync_mount_table("//tmp/t_hll_multi")
+
+        states = {}
+        for key in range(3):
+            hll = make_empty_hll()
+            for i in range(50):
+                hll = hll_add(hll, (key + 1) * 1000 + i)
+            states[key] = hll
+            insert_rows("//tmp/t_hll_multi", [{"key": key, "hll_state": hll}], aggregate=True)
+
+        hll_extra_0 = make_empty_hll()
+        for i in range(50, 100):
+            hll_extra_0 = hll_add(hll_extra_0, 1000 + i)
+        insert_rows("//tmp/t_hll_multi", [{"key": 0, "hll_state": hll_extra_0}], aggregate=True)
+        states[0] = hll_merge(states[0], hll_extra_0)
+
+        hll_extra_2 = make_empty_hll()
+        for i in range(50, 100):
+            hll_extra_2 = hll_add(hll_extra_2, 3000 + i)
+        insert_rows("//tmp/t_hll_multi", [{"key": 2, "hll_state": hll_extra_2}], aggregate=True)
+        states[2] = hll_merge(states[2], hll_extra_2)
+
+        for key in range(3):
+            rows = lookup_rows("//tmp/t_hll_multi", [{"key": key}])
+            assert len(rows) == 1
+            actual_state = get_bytes(rows[0]["hll_state"])
+            assert actual_state == states[key]
+
+        sync_flush_table("//tmp/t_hll_multi")
+        sync_compact_table("//tmp/t_hll_multi")
+
+        for key in range(3):
+            rows = lookup_rows("//tmp/t_hll_multi", [{"key": key}])
+            assert len(rows) == 1
+            actual_state = get_bytes(rows[0]["hll_state"])
+            assert actual_state == states[key]
+
+    @authors("abatovkin")
+    @pytest.mark.parametrize("precision", [7, 14])
+    def test_aggregate_hll_cardinality_estimation(self, precision):
+        """End-to-end test: build HLL from raw values, insert as aggregate column,
+        merge across multiple writes/flush/compaction, and verify cardinality estimate."""
+        import hashlib
+        import math
+
+        sync_create_cells(1)
+
+        register_count = 1 << precision
+
+        def farm_hash(value):
+            h = hashlib.md5(str(value).encode()).digest()
+            return int.from_bytes(h[:8], "little")
+
+        def make_empty_hll():
+            return bytearray(register_count)
+
+        def hll_add(state, raw_value):
+            fingerprint = farm_hash(raw_value)
+            fingerprint |= (1 << 63)
+            index = fingerprint & (register_count - 1)
+            shifted = fingerprint >> precision
+            zeroes_plus_one = 0
+            while zeroes_plus_one < 64 and (shifted & 1) == 0:
+                shifted >>= 1
+                zeroes_plus_one += 1
+            zeroes_plus_one += 1
+            if state[index] < zeroes_plus_one:
+                state[index] = zeroes_plus_one
+
+        def hll_estimate(state):
+            m = register_count
+            alpha = 0.7213 / (1.0 + 1.079 / m)
+            raw = alpha * m * m / sum(2.0 ** (-r) for r in state)
+            # small range correction
+            zeros = sum(1 for r in state if r == 0)
+            if raw <= 2.5 * m and zeros > 0:
+                return m * math.log(m / zeros)
+            return raw
+
+        aggregate_name = "hll_{}_merge_state".format(precision)
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "hll_state", "type": "string", "aggregate": aggregate_name},
+        ]
+        create_dynamic_table("//tmp/t_hll_card", schema=schema)
+        sync_mount_table("//tmp/t_hll_card")
+
+        # Simulate 3 batches of user visits:
+        # batch 1: users 0..999 (1000 unique)
+        # batch 2: users 500..1499 (500 new, 500 overlap)
+        # batch 3: users 1000..1999 (500 new, 500 overlap)
+        # Total unique: 2000
+        batches = [
+            range(0, 1000),
+            range(500, 1500),
+            range(1000, 2000),
+        ]
+
+        for batch in batches:
+            hll = make_empty_hll()
+            for user_id in batch:
+                hll_add(hll, user_id)
+            insert_rows("//tmp/t_hll_card", [{"key": 1, "hll_state": bytes(hll)}], aggregate=True)
+
+        rows = lookup_rows("//tmp/t_hll_card", [{"key": 1}])
+        estimate = hll_estimate(get_bytes(rows[0]["hll_state"]))
+        # HLL with precision 7 (128 registers) has ~9% standard error,
+        # but our simplified estimator (no bias correction) can deviate more.
+        # HLL with precision 14 (16384 registers) has ~0.8% standard error.
+        max_error = 0.20 if precision == 7 else 0.05
+        assert abs(estimate - 2000) / 2000 < max_error, \
+            "Cardinality estimate {} is too far from expected 2000 (error: {:.1%})".format(
+                estimate, abs(estimate - 2000) / 2000)
+
+        sync_flush_table("//tmp/t_hll_card")
+        sync_compact_table("//tmp/t_hll_card")
+
+        rows = lookup_rows("//tmp/t_hll_card", [{"key": 1}])
+        estimate_after_compact = hll_estimate(get_bytes(rows[0]["hll_state"]))
+        assert estimate_after_compact == estimate, \
+            "Cardinality changed after compaction: {} -> {}".format(estimate, estimate_after_compact)
 
     @authors("leasid")
     def test_aggregate_xdelta(self):
