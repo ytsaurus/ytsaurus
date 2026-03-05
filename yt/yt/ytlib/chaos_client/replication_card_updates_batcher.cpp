@@ -407,7 +407,7 @@ public:
         auto barrierGuard = New<TBarrierLockGuard>(this, WorkerBarrier_);
         ValidateRunning(barrierGuard);
 
-        return Accumulator_->AddBulkReplicationCardProgressesUpdate(
+        return Accumulator_.Acquire()->AddBulkReplicationCardProgressesUpdate(
             std::move(replicationCardProgressUpdateBatch),
             std::move(barrierGuard),
             Logger);
@@ -419,7 +419,7 @@ public:
         auto barrierGuard = New<TBarrierLockGuard>(this, WorkerBarrier_);
         ValidateRunning(barrierGuard);
 
-        return Accumulator_->AddReplicationCardProgressesUpdate(
+        return Accumulator_.Acquire()->AddReplicationCardProgressesUpdate(
             std::move(replicationCardProgressUpdate),
             std::move(barrierGuard),
             Logger);
@@ -433,7 +433,7 @@ public:
         auto barrierGuard = New<TBarrierLockGuard>(this, WorkerBarrier_);
         ValidateRunning(barrierGuard);
 
-        return Accumulator_->AddReplicaProgressesUpdate(
+        return Accumulator_.Acquire()->AddReplicaProgressesUpdate(
             replicationCardId,
             replicaId,
             std::move(tabletReplicationProgress),
@@ -487,7 +487,7 @@ private:
     const TPeriodicExecutorPtr SubmittingExecutor_;
 
     std::atomic<bool> Stopped_ = true;
-    TReplicationCardsUpdatesAccumulatorPtr Accumulator_;
+    TAtomicIntrusivePtr<TReplicationCardsUpdatesAccumulator> Accumulator_;
     TAsyncBarrier WorkerBarrier_;
 
     void SubmitBatch()
@@ -500,8 +500,8 @@ private:
             return;
         }
 
-        auto previousAccumulator = Accumulator_;
-        Accumulator_ = previousAccumulator->CreateNext();
+        auto previousAccumulator = Accumulator_.Acquire();
+        Accumulator_.Store(previousAccumulator->CreateNext());
         WaitFor(WorkerBarrier_.GetBarrierFuture())
             .ThrowOnError();
 
