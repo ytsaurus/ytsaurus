@@ -15,10 +15,10 @@ All of the examples below are written for using with inner Spark standalone clus
 from pyspark.sql import SparkSession
 
 spark = SparkSession.builder.appName('My Application').getOrCreate()
-
-... # Application code
-
-spark.stop()
+try:
+    ... # Application code
+finally:
+    spark.stop()
 ```
 
 This is because the `with spark_session()` and `spyt.connect()` functions access discovery-path created in Cypress when running a standalone cluster. This method does not involve discovery-path, because the internal cluster is not created.
