@@ -116,8 +116,6 @@ void TChunkLocationConfig::ApplyDynamicInplace(const TChunkLocationDynamicConfig
     }
 
     UpdateYsonStructField(MemoryLimitFractionForStartingNewSessions, dynamicConfig.MemoryLimitFractionForStartingNewSessions);
-
-    UpdateYsonStructField(IOWeightFormula, dynamicConfig.IOWeightFormula);
 }
 
 void TChunkLocationConfig::Register(TRegistrar registrar)
@@ -138,9 +136,6 @@ void TChunkLocationConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(0.0)
         .LessThanOrEqual(1.0)
         .Default(0.9);
-
-    registrar.Parameter("io_weight_formula", &TThis::IOWeightFormula)
-        .Optional();
 
     registrar.Parameter("throttle_duration", &TThis::ThrottleDuration)
         .Default(TDuration::Seconds(30));
@@ -190,9 +185,6 @@ void TChunkLocationDynamicConfig::Register(TRegistrar registrar)
         .LessThanOrEqual(1.0)
         .Optional();
 
-    registrar.Parameter("io_weight_formula", &TThis::IOWeightFormula)
-        .Optional();
-
     registrar.Postprocessor([] (TThis* config) {
         config->LegacyWriteMemoryLimit = config->WriteMemoryLimit;
     });
@@ -221,6 +213,8 @@ void TStoreLocationConfig::ApplyDynamicInplace(
     UpdateYsonStructField(MaxTrashTtl, dynamicConfig.MaxTrashTtl);
     UpdateYsonStructField(TrashCleanupWatermark, dynamicConfig.TrashCleanupWatermark);
     UpdateYsonStructField(TrashCheckPeriod, dynamicConfig.TrashCheckPeriod);
+
+    UpdateYsonStructField(IOWeightFormula, dynamicConfig.IOWeightFormula);
 }
 
 void TStoreLocationConfig::Register(TRegistrar registrar)
@@ -249,6 +243,9 @@ void TStoreLocationConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("low_latency_split_changelog", &TThis::LowLatencySplitChangelog)
         .Default();
+
+    registrar.Parameter("io_weight_formula", &TThis::IOWeightFormula)
+        .Optional();
 
     registrar.BaseClassParameter("medium_name", &TThis::MediumName)
         .Default(NChunkClient::DefaultStoreMediumName);
@@ -286,6 +283,9 @@ void TStoreLocationDynamicConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(0)
         .Optional();
     registrar.Parameter("trash_check_period", &TThis::TrashCheckPeriod)
+        .Optional();
+
+    registrar.Parameter("io_weight_formula", &TThis::IOWeightFormula)
         .Optional();
 }
 

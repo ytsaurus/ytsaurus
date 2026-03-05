@@ -383,8 +383,6 @@ void TChunkLocation::Reconfigure(TChunkLocationConfigPtr config)
 
     TChunkLocationBase::Reconfigure(config);
 
-    UpdateIOWeightEvaluator(config->IOWeightFormula);
-
     for (auto kind : TEnumTraits<EChunkLocationThrottlerKind>::GetDomainValues()) {
         ReconfigurableThrottlers_[kind]->Reconfigure(config->Throttlers[kind]);
     }
@@ -415,18 +413,6 @@ TLocationPerformanceCounters& TChunkLocation::GetPerformanceCounters()
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return *PerformanceCounters_;
-}
-
-double TChunkLocation::GetIOWeight() const
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    if (auto evaluator = IOWeightEvaluator_.Acquire(); evaluator) {
-        auto value = EvaluateIOWeight(evaluator);
-        return value.ValueOrDefault(1.);
-    } else {
-        return GetStaticConfig()->IOWeight;
-    }
 }
 
 i64 TChunkLocation::GetCoalescedReadMaxGapSize() const
@@ -770,39 +756,6 @@ void TChunkLocation::UpdateUsedMemory(
         category,
         result,
         delta);
-}
-
-TErrorOr<double> TChunkLocation::EvaluateIOWeight(const NOrm::NQuery::IExpressionEvaluatorPtr& evaluator) const
-{
-    auto rowBuffer = New<NTableClient::TRowBuffer>();
-    auto value = evaluator->Evaluate(
-        BuildYsonStringFluently().BeginMap()
-            .Item("available_space").Value(GetAvailableSpace())
-            .Item("used_space").Value(GetUsedSpace())
-        .EndMap(),
-        rowBuffer);
-
-    if (value.IsOK() && value.Value().Type == NTableClient::EValueType::Double) {
-        return value.Value().Data.Double;
-    } else {
-        return TError("Failure in evaluation of IO weight formula") << value;
-    }
-}
-
-void TChunkLocation::UpdateIOWeightEvaluator(const std::optional<std::string>& formula)
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    if (formula) {
-        auto evaluator = NOrm::NQuery::CreateOrmExpressionEvaluator(
-            NQueryClient::ParseSource(*formula, NQueryClient::EParseMode::Expression),
-            {"/stat"});
-        EvaluateIOWeight(evaluator).ThrowOnError();
-
-        IOWeightEvaluator_ = std::move(evaluator);
-    } else {
-        IOWeightEvaluator_.Reset();
-    }
 }
 
 void TChunkLocation::IncreaseCompletedIOSize(
@@ -1392,6 +1345,55 @@ const TStoreLocationConfigPtr& TStoreLocation::GetStaticConfig() const
     return StaticConfig_;
 }
 
+double TStoreLocation::GetIOWeight() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    if (!CheckWritable().IsOK()) {
+        return 0;
+    }
+
+    if (auto evaluator = IOWeightEvaluator_.Acquire()) {
+        auto value = EvaluateIOWeight(evaluator);
+        return value.ValueOrDefault(1.);
+    } else {
+        return GetStaticConfig()->IOWeight;
+    }
+}
+
+TErrorOr<double> TStoreLocation::EvaluateIOWeight(const NOrm::NQuery::IExpressionEvaluatorPtr& evaluator) const
+{
+    auto rowBuffer = New<NTableClient::TRowBuffer>();
+    auto value = evaluator->Evaluate(
+        BuildYsonStringFluently().BeginMap()
+            .Item("available_space").Value(GetAvailableSpace())
+            .Item("used_space").Value(GetUsedSpace())
+        .EndMap(),
+        rowBuffer);
+
+    if (value.IsOK() && value.Value().Type == NTableClient::EValueType::Double) {
+        return value.Value().Data.Double;
+    } else {
+        return TError("Failure in evaluation of IO weight formula") << value;
+    }
+}
+
+void TStoreLocation::UpdateIOWeightEvaluator(const std::optional<std::string>& formula)
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    if (formula) {
+        auto evaluator = NOrm::NQuery::CreateOrmExpressionEvaluator(
+            NQueryClient::ParseSource(*formula, NQueryClient::EParseMode::Expression),
+            {"/stat"});
+        EvaluateIOWeight(evaluator).ThrowOnError();
+
+        IOWeightEvaluator_ = std::move(evaluator);
+    } else {
+        IOWeightEvaluator_.Reset();
+    }
+}
+
 TStoreLocationConfigPtr TStoreLocation::GetRuntimeConfig() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -1404,6 +1406,8 @@ void TStoreLocation::Reconfigure(TStoreLocationConfigPtr config)
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     TChunkLocation::Reconfigure(config);
+
+    UpdateIOWeightEvaluator(config->IOWeightFormula);
 
     JournalManager_->Reconfigure(BuildJournalManagerConfig(ChunkContext_->DataNodeConfig, config));
 

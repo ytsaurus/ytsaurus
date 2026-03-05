@@ -199,9 +199,6 @@ public:
     //! Returns various performance counters.
     TLocationPerformanceCounters& GetPerformanceCounters();
 
-    //! Returns the IO weight of the location.
-    double GetIOWeight() const;
-
     //! Does the node need to tell the master about this location.
     bool CanPublish() const;
 
@@ -342,8 +339,6 @@ private:
 
     TAtomicPtr<TChunkLocationConfig, /*EnableAcquireHazard*/ true> RuntimeConfig_;
 
-    TAtomicIntrusivePtr<NOrm::NQuery::IExpressionEvaluator> IOWeightEvaluator_;
-
     TLocationPerformanceCountersPtr PerformanceCounters_;
 
     // TODO(vvshlyaga): Change to fair share queue.
@@ -388,9 +383,6 @@ private:
     // TODO(vvshlyaga): Remove flag useLegacyUsedMemory after rolling writer with probing on all nodes.
     void UpdateUsedMemory(bool useLegacyUsedMemory, EIODirection direction, EIOCategory category, i64 delta);
 
-    void UpdateIOWeightEvaluator(const std::optional<std::string>& formula);
-    TErrorOr<double> EvaluateIOWeight(const NOrm::NQuery::IExpressionEvaluatorPtr& evaluator) const;
-
     void UpdateMediumTag();
 
     NNode::TBriefChunkLocationConfig GetBriefConfig() const;
@@ -427,6 +419,9 @@ public:
 
     //! Returns the static config.
     const TStoreLocationConfigPtr& GetStaticConfig() const;
+
+    //! Returns the IO weight of the location.
+    double GetIOWeight() const;
 
     //! Returns the runtime config.
     TStoreLocationConfigPtr GetRuntimeConfig() const;
@@ -472,6 +467,8 @@ public:
 
 private:
     const TStoreLocationConfigPtr StaticConfig_;
+
+    TAtomicIntrusivePtr<NOrm::NQuery::IExpressionEvaluator> IOWeightEvaluator_;
 
     const IJournalManagerPtr JournalManager_;
     const NConcurrency::TActionQueuePtr TrashCheckQueue_;
@@ -531,6 +528,9 @@ private:
     std::vector<NNode::TChunkDescriptor> DoScan() override;
     void DoScanTrash();
     void DoAsyncScanTrash();
+
+    void UpdateIOWeightEvaluator(const std::optional<std::string>& formula);
+    TErrorOr<double> EvaluateIOWeight(const NOrm::NQuery::IExpressionEvaluatorPtr& evaluator) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TStoreLocation)

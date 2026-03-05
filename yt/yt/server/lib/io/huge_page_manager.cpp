@@ -275,7 +275,7 @@ private:
         auto usedHugePageCount = hugePageManager.GetUsedHugePageCount();
         auto hugePageSize = hugePageManager.GetHugePageSize();
         if (usedHugePageCount + pageCount > HugePageCount_) {
-            return TError("Not enough huge page_count")
+            return TError("Not enough huge pages")
                 << TErrorAttribute("requested_huge_page_count", pageCount)
                 << TErrorAttribute("available_huge_page_count", HugePageCount_)
                 << TErrorAttribute("used_huge_page_count", usedHugePageCount);
@@ -336,7 +336,7 @@ private:
         auto hugePageSize = hugePageManager.GetHugePageSize();
         auto freeHugePageMemory = GetFreeHugePageMemory(hugePageManager);
         if (freeHugePageMemory < pageCount * hugePageSize) {
-            return TError("Not enough huge page_count")
+            return TError("Not enough huge pages")
                 << TErrorAttribute("requested_huge_page_count", pageCount)
                 << TErrorAttribute("available_huge_page_memory", freeHugePageMemory)
                 << TErrorAttribute("used_huge_page_memory", GetHugePageMemory(hugePageManager));

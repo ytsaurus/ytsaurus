@@ -115,12 +115,6 @@ struct TChunkLocationConfig
     //! If the tracked memory is close to the limit, new sessions will not be started.
     double MemoryLimitFractionForStartingNewSessions;
 
-    //! Enables defining a dynamic location IO weight given by a formula, which
-    //! is re-evaluated periodically to determine the current value.
-    //! Example: double([/stat/available_space]) / (double([/stat/used_space]) + double([/stat/available_space]))
-    //! Supported variables: available_space, used_space
-    std::optional<std::string> IOWeightFormula;
-
     void ApplyDynamicInplace(const TChunkLocationDynamicConfig& dynamicConfig);
 
     REGISTER_YSON_STRUCT(TChunkLocationConfig);
@@ -145,12 +139,6 @@ struct TChunkLocationDynamicConfig
 
     //! If the tracked memory is close to the limit, new sessions will not be started.
     std::optional<double> MemoryLimitFractionForStartingNewSessions;
-
-    //! Enables defining a dynamic location IO weight given by a formula, which
-    //! is re-evaluated periodically to determine the current value.
-    //! Example: double([/stat/available_space]) / (double([/stat/used_space]) + double([/stat/available_space]))
-    //! Supported variables: available_space, used_space
-    std::optional<std::string> IOWeightFormula;
 
     REGISTER_YSON_STRUCT(TChunkLocationDynamicConfig);
 
@@ -194,6 +182,12 @@ struct TStoreLocationConfig
     //! Per-location configuration of per-chunk changelog that is being written directly (w/o multiplexing).
     NYTree::INodePtr LowLatencySplitChangelog;
 
+    //! Enables defining a dynamic location IO weight given by a formula, which
+    //! is re-evaluated periodically to determine the current value.
+    //! Example: double([/stat/available_space]) / (double([/stat/used_space]) + double([/stat/available_space]))
+    //! Supported variables: available_space, used_space
+    std::optional<std::string> IOWeightFormula;
+
     TStoreLocationConfigPtr ApplyDynamic(const TStoreLocationDynamicConfigPtr& dynamicConfig) const;
     void ApplyDynamicInplace(const TStoreLocationDynamicConfig& dynamicConfig);
 
@@ -216,6 +210,8 @@ struct TStoreLocationDynamicConfig
     std::optional<TDuration> MaxTrashTtl;
     std::optional<i64> TrashCleanupWatermark;
     std::optional<TDuration> TrashCheckPeriod;
+
+    std::optional<std::string> IOWeightFormula;
 
     REGISTER_YSON_STRUCT(TStoreLocationDynamicConfig);
 
