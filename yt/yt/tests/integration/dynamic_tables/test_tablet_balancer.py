@@ -302,7 +302,7 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
                 return False
 
             config = get(effective_config_path)
-            return len(config) > 0 and config["enable_auto_reshard"]
+            return len(config) > 0 and config["group_name"] == "legacy"
 
         wait(lambda: _has_expected_table())
 

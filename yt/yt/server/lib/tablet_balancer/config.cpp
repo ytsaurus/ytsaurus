@@ -355,4 +355,19 @@ void TTableTabletBalancerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void Serialize(const TEffectiveTableConfig& config, NYson::IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("min_tablet_size").Value(config.MinTabletSize)
+            .Item("max_tablet_size").Value(config.MaxTabletSize)
+            .Item("desired_tablet_size").Value(config.DesiredTabletSize)
+            .Item("schedule").Value(config.Schedule)
+            .Item("group_name").Value(config.GroupName)
+            .Item("group_config").Value(config.GroupConfig)
+        .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTabletBalancer

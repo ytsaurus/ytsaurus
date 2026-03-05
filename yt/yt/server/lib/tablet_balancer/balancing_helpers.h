@@ -38,7 +38,22 @@ struct TMoveDescriptor
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTabletSizeConfig
+{
+    i64 MinTabletSize = 0;
+    i64 MaxTabletSize = 0;
+    i64 DesiredTabletSize = 0;
+    std::optional<int> MinTabletCount;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 bool IsTabletReshardable(const TTabletPtr& tablet);
+
+TTabletSizeConfig GetTabletSizeConfig(
+    const TTable* table,
+    i64 minDesiredTabletSize,
+    const NLogging::TLogger& logger = {});
 
 i64 GetTabletBalancingSize(const TTabletPtr& tablet);
 
