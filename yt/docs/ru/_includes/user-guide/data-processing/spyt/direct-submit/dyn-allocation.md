@@ -18,7 +18,7 @@
 --conf spark.dynamicAllocation.executorIdleTimeout=120s  # таймаут остановки при неактивности
 --conf spark.dynamicAllocation.initialExecutors=5        # стартовое количество экзекьюторов
 ```
-Из-за особенностей операций в {{product-name}} параметр minExecutors не должен быть равен нулю.
+Из-за особенностей операций в {{product-name}} параметр `minExecutors` не должен быть равен нулю.
 
 {% note info "Примечание" %}
 
