@@ -1,0 +1,12 @@
+main:
+  source: dev
+  constraints:
+    ytsaurus: main
+2.16.0:
+  source: stable
+2.17.3:
+  source: stable
+2.17.4:
+  source: stable
+2.18:
+  source: release

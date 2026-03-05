@@ -3,6 +3,7 @@ RECURSE(
     dashboards
     snapshot_processing
     timbertruck
+    ytsaurus_ci
 )
 
 IF (NOT OPENSOURCE)
