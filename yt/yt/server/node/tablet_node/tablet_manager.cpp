@@ -4976,10 +4976,6 @@ private:
 
     void StopChaosReplicaEpoch(TTablet* tablet)
     {
-        if (!IsLeader()) {
-            return;
-        }
-
         if (tablet->GetTablePuller()) {
             tablet->GetTablePuller()->Disable();
         }
