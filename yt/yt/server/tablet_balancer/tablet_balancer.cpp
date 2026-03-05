@@ -205,14 +205,15 @@ private:
         : public TVirtualMapBase
     {
     public:
-        explicit TTableOrchidService(TTabletCellBundlePtr owner);
+        explicit TTableOrchidService(TTabletCellBundlePtr bundle, TTabletBalancerPtr balancer);
 
         std::vector<std::string> GetKeys(i64 limit) const final;
         i64 GetSize() const final;
         IYPathServicePtr FindItemService(const std::string& key) const final;
 
     private:
-        const TTabletCellBundlePtr Owner_;
+        const TTabletCellBundlePtr Bundle_;
+        const TTabletBalancerPtr Balancer_;
 
         DECLARE_NEW_FRIEND()
     };
@@ -383,6 +384,10 @@ private:
         int lastTabletIndex,
         std::optional<double> slicingAccuracy,
         bool enableVerboseLogging) const;
+
+    TEffectiveTableConfig GetEffectiveTableConfig(
+        const TTablePtr& table,
+        const TTabletCellBundlePtr& bundle) const;
 
     //! Thread affinity: any.
     std::vector<TReshardDescriptor> PickPivotsForDescriptors(
@@ -893,7 +898,9 @@ IYPathServicePtr TTabletBalancer::TBundleOrchidService::FindItemService(const st
     if (snapshotOrError.IsOK() && snapshotOrError.Value()) {
         orchidNode->AsMap()->AddChild(
             "tables",
-            CreateVirtualNode(New<TTableOrchidService>(snapshotOrError.Value()->Bundle)));
+            CreateVirtualNode(New<TTableOrchidService>(
+                snapshotOrError.Value()->Bundle,
+                Owner_)));
     }
 
     return orchidNode;
@@ -915,16 +922,17 @@ std::vector<std::string> TTabletBalancer::TBundleOrchidService::GetKeys(i64 limi
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletBalancer::TTableOrchidService::TTableOrchidService(TTabletCellBundlePtr owner)
-    : Owner_(std::move(owner))
+TTabletBalancer::TTableOrchidService::TTableOrchidService(TTabletCellBundlePtr bundle, TTabletBalancerPtr balancer)
+    : Bundle_(std::move(bundle))
+    , Balancer_(std::move(balancer))
 { }
 
 std::vector<std::string> TTabletBalancer::TTableOrchidService::GetKeys(i64 limit) const
 {
     std::vector<std::string> keys;
-    keys.reserve(std::min(limit, ssize(Owner_->Tables)));
+    keys.reserve(std::min(limit, ssize(Bundle_->Tables)));
 
-    for (const auto& [tableId, table] : Owner_->Tables) {
+    for (const auto& [tableId, table] : Bundle_->Tables) {
         if (std::ssize(keys) >= limit) {
             break;
         }
@@ -937,22 +945,61 @@ std::vector<std::string> TTabletBalancer::TTableOrchidService::GetKeys(i64 limit
 
 i64 TTabletBalancer::TTableOrchidService::GetSize() const
 {
-    return  Owner_->Tables.size();
+    return Bundle_->Tables.size();
 }
 
 IYPathServicePtr TTabletBalancer::TTableOrchidService::FindItemService(const std::string& key) const
 {
-    auto tablesIt = Owner_->Tables.find(TTableId::FromString(key));
-    if (tablesIt == Owner_->Tables.end()) {
+    auto tablesIt = Bundle_->Tables.find(TTableId::FromString(key));
+    if (tablesIt == Bundle_->Tables.end()) {
         return nullptr;
     }
 
-    auto tablePtr = tablesIt->second;
+    const auto& table = tablesIt->second;
+    auto effectiveConfig = Balancer_->GetEffectiveTableConfig(table, Bundle_);
 
     return BuildYsonNodeFluently()
         .BeginMap()
-            .Item("effective_config").Value(tablePtr->TableConfig)
+            .Item("effective_config").Value(effectiveConfig)
         .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEffectiveTableConfig TTabletBalancer::GetEffectiveTableConfig(
+    const TTablePtr& table,
+    const TTabletCellBundlePtr& bundle) const
+{
+    auto tabletSizeConfig = GetTabletSizeConfig(
+        table.Get(),
+        DynamicConfig_.Acquire()->MinDesiredTabletSize);
+
+    auto groupName = GetBalancingGroup(
+        table->InMemoryMode,
+        table->TableConfig,
+        bundle->Config);
+
+    auto groupConfig = groupName
+        ? GetOrDefault(bundle->Config->Groups, *groupName)
+        : nullptr;
+
+    auto schedule = GetBundleSchedule(
+            bundle->Config,
+            bundle->Name,
+            groupConfig ? groupConfig->Schedule : TTimeFormula{});
+
+    TEffectiveTableConfig effectiveConfig;
+
+    effectiveConfig.MinTabletSize = tabletSizeConfig.MinTabletSize;
+    effectiveConfig.MaxTabletSize = tabletSizeConfig.MaxTabletSize;
+    effectiveConfig.DesiredTabletSize = tabletSizeConfig.DesiredTabletSize;
+
+    effectiveConfig.Schedule = std::move(schedule);
+
+    effectiveConfig.GroupName = std::move(groupName);
+    effectiveConfig.GroupConfig = std::move(groupConfig);
+
+    return effectiveConfig;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

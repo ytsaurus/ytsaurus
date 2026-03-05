@@ -37,14 +37,6 @@ bool TReshardDescriptor::operator<(const TReshardDescriptor& descriptor) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTabletSizeConfig
-{
-    i64 MinTabletSize = 0;
-    i64 MaxTabletSize = 0;
-    i64 DesiredTabletSize = 0;
-    std::optional<int> MinTabletCount;
-};
-
 struct TTabletBalancerContext
 {
     THashSet<TTabletId> TouchedTablets;

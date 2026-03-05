@@ -204,4 +204,20 @@ DEFINE_REFCOUNTED_TYPE(TTableTabletBalancerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TEffectiveTableConfig
+{
+    i64 MinTabletSize;
+    i64 MaxTabletSize;
+    i64 DesiredTabletSize;
+
+    TTimeFormula Schedule;
+
+    std::optional<TGroupName> GroupName;
+    TTabletBalancingGroupConfigPtr GroupConfig;
+};
+
+void Serialize(const TEffectiveTableConfig& config, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTabletBalancer
