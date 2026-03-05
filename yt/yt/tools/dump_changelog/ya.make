@@ -6,6 +6,7 @@ ALLOCATOR(TCMALLOC)
 
 SRCS(
     main.cpp
+    printers.cpp
 )
 
 PEERDIR(
@@ -15,6 +16,9 @@ PEERDIR(
     yt/yt/server/lib/hydra
     yt/yt/ytlib
     library/cpp/getopt/small
+
+    # Include specific messages here if you want them to be parsed.
+    yt/yt/tools/dump_changelog/proto_deps
 )
 
 END()

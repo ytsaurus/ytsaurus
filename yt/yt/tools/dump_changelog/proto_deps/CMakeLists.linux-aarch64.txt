@@ -12,12 +12,12 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(proto_deps)
+find_package(linux-headers-generic REQUIRED)
 
-add_executable(dump-changelog)
+add_library(tools-dump_changelog-proto_deps INTERFACE)
 
 
-target_compile_options(dump-changelog PRIVATE
+target_compile_options(tools-dump_changelog-proto_deps INTERFACE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
   -Wparentheses
@@ -27,37 +27,36 @@ target_compile_options(dump-changelog PRIVATE
   -Wreturn-type
 )
 
-target_link_libraries(dump-changelog PUBLIC
+target_link_libraries(tools-dump_changelog-proto_deps INTERFACE
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  build-cow-on
-  library-cpp-cpuid_check
-  yt-yt-core
-  yt-library-program
-  ytserver
-  server-lib-hydra
-  yt-yt-ytlib
-  cpp-getopt-small
-  tools-dump_changelog-proto_deps
-)
-
-target_allocator(dump-changelog
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
-)
-
-target_link_options(dump-changelog PRIVATE
-  -Wl,-platform_version,macos,11.0,11.0
-  -fPIC
-  -fPIC
-  -framework
-  CoreFoundation
-)
-
-target_sources(dump-changelog PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/dump_changelog/main.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/dump_changelog/printers.cpp
+  server-lib-tablet_node
 )
 
 
-vcs_info(dump-changelog)
+add_global_library_for(tools-dump_changelog-proto_deps.global
+  tools-dump_changelog-proto_deps)
+
+
+target_compile_options(tools-dump_changelog-proto_deps.global PRIVATE
+  -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
+  -Wswitch
+  -Wreturn-type
+)
+
+target_link_libraries(tools-dump_changelog-proto_deps.global PUBLIC
+  linux-headers-generic::linux-headers-generic
+  contrib-libs-cxxsupp
+  yutil
+  server-lib-tablet_node
+)
+
+target_sources(tools-dump_changelog-proto_deps.global PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/dump_changelog/proto_deps/main.cpp
+)
+
