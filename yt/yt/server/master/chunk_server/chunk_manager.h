@@ -384,7 +384,7 @@ struct IChunkManager
     virtual TFuture<void> ConfirmSequoiaChunk(
         NChunkClient::NProto::TReqConfirmChunk* request) = 0;
     virtual TFuture<void> ConfirmSequoiaChunkBatched(
-        NChunkClient::NProto::TReqConfirmChunk* request) = 0;
+        NChunkClient::NProto::TReqConfirmChunk request) = 0;
 
 private:
     friend class TChunkTypeHandler;
