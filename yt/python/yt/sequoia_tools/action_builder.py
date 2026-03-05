@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import copy
-from typing import Any, Callable, Sequence, override
+from typing import Any, Callable, Sequence
+from typing_extensions import override
 import uuid
 
 from yt.environment import migrationlib
