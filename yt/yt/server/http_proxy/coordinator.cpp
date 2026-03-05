@@ -276,7 +276,7 @@ std::vector<TCoordinatorProxyPtr> TCoordinator::ListProxies(std::optional<std::s
     return filtered;
 }
 
-std::vector<TProxyEntryPtr> TCoordinator::LisTProxyEntries(std::optional<std::string> roleFilter, bool includeDeadAndBanned)
+std::vector<TProxyEntryPtr> TCoordinator::ListProxyEntries(std::optional<std::string> roleFilter, bool includeDeadAndBanned)
 {
     std::vector<TProxyEntryPtr> result;
     auto proxies = ListProxies(roleFilter, includeDeadAndBanned);
@@ -573,7 +573,7 @@ void THostsHandler::HandleRequest(
 
     rsp->SetStatus(EStatusCode::OK);
     if (suffix && *suffix == "all") {
-        auto proxies = Coordinator_->LisTProxyEntries({}, true);
+        auto proxies = Coordinator_->ListProxyEntries({}, true);
         ReplyJson(rsp, [&] (NYson::IYsonConsumer* json) {
             BuildYsonFluently(json)
                 .DoListFor(proxies, [&] (auto item, const TProxyEntryPtr& proxy) {
@@ -600,7 +600,7 @@ void THostsHandler::HandleRequest(
             }
         };
 
-        auto proxies = Coordinator_->LisTProxyEntries(role);
+        auto proxies = Coordinator_->ListProxyEntries(role);
         if (returnJson) {
             ReplyJson(rsp, [&] (NYson::IYsonConsumer* json) {
                 BuildYsonFluently(json)
