@@ -165,8 +165,8 @@ void TArchiveWriter::TImpl::MakeArchiveFromDirectory(
         } else if (childPath.IsFile()) {
             TFileStat stat(childPath);
             if (stat.NLinks > 1) {
-                if (const auto it = inodeToFirstPath.find(stat.INode); it != inodeToFirstPath.end()) {
-                    WriteHardlink(childInArchivePath.GetPath(), it->second.GetPath());
+                if (const auto* path = inodeToFirstPath.FindPtr(stat.INode)) {
+                    WriteHardlink(childInArchivePath.GetPath(), path->GetPath());
                 } else {
                     inodeToFirstPath[stat.INode] = childInArchivePath;
                     TBlob blob = TBlob::FromFile(childPath.GetPath());
@@ -207,7 +207,6 @@ void TArchiveWriter::TImpl::CheckErrno() {
             error += ". Probably no space left on device";
         }
         ythrow yexception() << error;
-
     }
 }
 
