@@ -1,8 +1,11 @@
 GO_LIBRARY()
 
-LICENSE(Apache-2.0)
+LICENSE(
+    Apache-2.0 AND
+    BSD-3-Clause
+)
 
-VERSION(v1.36.0)
+VERSION(v1.39.0)
 
 SRCS(
     assertion.go
@@ -10,6 +13,8 @@ SRCS(
 )
 
 GO_TEST_SRCS(assertion_test.go)
+
+GO_XTEST_SRCS(example_test.go)
 
 END()
 

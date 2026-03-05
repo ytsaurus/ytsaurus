@@ -57,16 +57,16 @@ func (h *HTTPGateway) ServeHTTP(req *http.Request) ([]byte, int, error) {
 	case resource.FetchExtensionConfigs:
 		typeURL = resource.ExtensionConfigType
 	default:
-		return nil, http.StatusNotFound, fmt.Errorf("no endpoint")
+		return nil, http.StatusNotFound, errors.New("no endpoint")
 	}
 
 	if req.Body == nil {
-		return nil, http.StatusBadRequest, fmt.Errorf("empty body")
+		return nil, http.StatusBadRequest, errors.New("empty body")
 	}
 
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
-		return nil, http.StatusBadRequest, fmt.Errorf("cannot read body")
+		return nil, http.StatusBadRequest, errors.New("cannot read body")
 	}
 
 	// parse as JSON

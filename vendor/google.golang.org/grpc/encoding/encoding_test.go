@@ -77,7 +77,7 @@ func (s) TestDuplicateCompressorRegister(t *testing.T) {
 		t.Fatalf("Unexpected compressor, got: %+v, want:%+v", got, mc)
 	}
 
-	wantNames := []string{"mock-compressor"}
+	wantNames := []string{"gzip", "mock-compressor"}
 	if !cmp.Equal(wantNames, grpcutil.RegisteredCompressorNames) {
 		t.Fatalf("Unexpected compressor names, got: %+v, want:%+v", grpcutil.RegisteredCompressorNames, wantNames)
 	}
@@ -112,7 +112,7 @@ func (c *errProtoCodec) Name() string {
 // Tests the case where encoding fails on the server. Verifies that there is
 // no panic and that the encoding error is propagated to the client.
 func (s) TestEncodeDoesntPanicOnServer(t *testing.T) {
-	grpctest.TLogger.ExpectError("grpc: server failed to encode response")
+	grpctest.ExpectError("grpc: server failed to encode response")
 
 	// Create a codec that errors when encoding messages.
 	encodingErr := errors.New("encoding failed")

@@ -214,21 +214,21 @@ func TestFiltering(t *testing.T) {
 		{
 			name:   "None",
 			in:     []attribute.KeyValue{a, b, c},
-			filter: func(kv attribute.KeyValue) bool { return false },
+			filter: func(attribute.KeyValue) bool { return false },
 			kept:   nil,
 			drop:   []attribute.KeyValue{a, b, c},
 		},
 		{
 			name:   "All",
 			in:     []attribute.KeyValue{a, b, c},
-			filter: func(kv attribute.KeyValue) bool { return true },
+			filter: func(attribute.KeyValue) bool { return true },
 			kept:   []attribute.KeyValue{a, b, c},
 			drop:   nil,
 		},
 		{
 			name:   "Empty",
 			in:     []attribute.KeyValue{},
-			filter: func(kv attribute.KeyValue) bool { return true },
+			filter: func(attribute.KeyValue) bool { return true },
 			kept:   nil,
 			drop:   nil,
 		},
@@ -348,6 +348,144 @@ func args(m reflect.Method) []reflect.Value {
 	return out
 }
 
+func TestMarshalJSON(t *testing.T) {
+	for _, tc := range []struct {
+		desc     string
+		kvs      []attribute.KeyValue
+		wantJSON string
+	}{
+		{
+			desc:     "empty",
+			kvs:      []attribute.KeyValue{},
+			wantJSON: `[]`,
+		},
+		{
+			desc:     "single string attribute",
+			kvs:      []attribute.KeyValue{attribute.String("A", "a")},
+			wantJSON: `[{"Key":"A","Value":{"Type":"STRING","Value":"a"}}]`,
+		},
+		{
+			desc: "many mixed attributes",
+			kvs: []attribute.KeyValue{
+				attribute.Bool("A", true),
+				attribute.BoolSlice("B", []bool{true, false}),
+				attribute.Int("C", 1),
+				attribute.IntSlice("D", []int{2, 3}),
+				attribute.Int64("E", 22),
+				attribute.Int64Slice("F", []int64{33, 44}),
+				attribute.Float64("G", 1.1),
+				attribute.Float64Slice("H", []float64{2.2, 3.3}),
+				attribute.String("I", "Z"),
+				attribute.StringSlice("J", []string{"X", "Y"}),
+				attribute.Stringer("K", &simpleStringer{val: "foo"}),
+			},
+			wantJSON: `[
+                         {
+                           "Key": "A",
+                           "Value": {
+                             "Type": "BOOL",
+                             "Value": true
+                           }
+                         },
+                         {
+                           "Key": "B",
+                           "Value": {
+                             "Type": "BOOLSLICE",
+                             "Value": [true, false]
+                           }
+                         },
+                         {
+                           "Key": "C",
+                           "Value": {
+                             "Type": "INT64",
+                             "Value": 1
+                           }
+                         },
+                         {
+                           "Key": "D",
+                           "Value": {
+                             "Type": "INT64SLICE",
+                             "Value": [2, 3]
+                           }
+                         },
+                         {
+                           "Key": "E",
+                           "Value": {
+                             "Type": "INT64",
+                             "Value": 22
+                           }
+                         },
+                         {
+                           "Key": "F",
+                           "Value": {
+                             "Type": "INT64SLICE",
+                             "Value": [33, 44]
+                           }
+                         },
+                         {
+                           "Key": "G",
+                           "Value": {
+                             "Type": "FLOAT64",
+                             "Value": 1.1
+                           }
+                         },
+                         {
+                           "Key": "H",
+                           "Value": {
+                             "Type": "FLOAT64SLICE",
+                             "Value": [2.2, 3.3]
+                           }
+                         },
+                         {
+                           "Key": "I",
+                           "Value": {
+                             "Type": "STRING",
+                             "Value": "Z"
+                           }
+                         },
+                         {
+                           "Key": "J",
+                           "Value": {
+                             "Type": "STRINGSLICE",
+                             "Value": ["X", "Y"]
+                           }
+                         },
+                         {
+                           "Key": "K",
+                           "Value": {
+                             "Type": "STRING",
+                             "Value": "foo"
+                           }
+                         }
+                       ]`,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			set := attribute.NewSet(tc.kvs...)
+			by, err := set.MarshalJSON()
+			require.NoError(t, err)
+			assert.JSONEq(t, tc.wantJSON, string(by))
+		})
+	}
+}
+
+func TestSetEqualsEmpty(t *testing.T) {
+	e := attribute.EmptySet()
+	empty := *e
+
+	alt := attribute.NewSet(attribute.String("A", "B"))
+	*e = alt
+
+	var s attribute.Set
+	assert.Truef(t, s.Equals(&empty), "expected %v to equal empty set %v", s, attribute.EmptySet())
+}
+
+type simpleStringer struct {
+	val string
+}
+
+func (s *simpleStringer) String() string { return s.val }
+
 func BenchmarkFiltering(b *testing.B) {
 	var kvs [26]attribute.KeyValue
 	buf := [1]byte{'A' - 1}
@@ -390,8 +528,6 @@ func BenchmarkFiltering(b *testing.B) {
 	b.Run("AllDropped", benchFn(func(attribute.KeyValue) bool { return false }))
 }
 
-var sinkSet attribute.Set
-
 func BenchmarkNewSet(b *testing.B) {
 	attrs := []attribute.KeyValue{
 		attribute.String("B1", "2"),
@@ -404,7 +540,59 @@ func BenchmarkNewSet(b *testing.B) {
 	}
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		sinkSet = attribute.NewSet(attrs...)
+	for b.Loop() {
+		attribute.NewSet(attrs...)
+	}
+}
+
+// generateStringAttrsWithSize creates 5 string attributes with specified key and value lengths.
+func generateStringAttrsWithSize(keyLen, valueLen int) []attribute.KeyValue {
+	// Generate base strings of specified lengths
+	keyBase := ""
+	valueBase := ""
+
+	// Build key base string
+	for i := 0; i < keyLen; i++ {
+		keyBase += string(rune('a' + i%26))
+	}
+
+	// Build value base string
+	for i := 0; i < valueLen; i++ {
+		valueBase += string(rune('0' + i%10))
+	}
+
+	// Create 5 attributes with different suffixes to ensure uniqueness
+	attrs := []attribute.KeyValue{
+		attribute.String(keyBase+"1", valueBase+"x"),
+		attribute.String(keyBase+"2", valueBase+"y"),
+		attribute.String(keyBase+"3", valueBase+"z"),
+		attribute.String(keyBase+"4", valueBase+"w"),
+		attribute.String(keyBase+"5", valueBase+"v"),
+	}
+	return attrs
+}
+
+func BenchmarkNewSetStringAttrs(b *testing.B) {
+	testCases := []struct {
+		name     string
+		keyLen   int
+		valueLen int
+	}{
+		{"SmallStrings", 2, 1},        // B1="2"
+		{"MediumStrings", 10, 10},     // realistic service names, etc.
+		{"LargeStrings", 25, 25},      // longer service names, URLs, etc.
+		{"VeryLargeStrings", 50, 100}, // very long values like URLs, descriptions
+		{"HugeStrings", 100, 500},     // extremely large like full URLs, JSON, etc.
+	}
+
+	for _, tc := range testCases {
+		b.Run(tc.name, func(b *testing.B) {
+			attrs := generateStringAttrsWithSize(tc.keyLen, tc.valueLen)
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				attribute.NewSet(attrs...)
+			}
+		})
 	}
 }

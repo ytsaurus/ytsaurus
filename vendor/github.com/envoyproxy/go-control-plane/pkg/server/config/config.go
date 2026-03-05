@@ -1,15 +1,20 @@
 package config
 
+import "github.com/envoyproxy/go-control-plane/pkg/log"
+
 // Opts for individual xDS implementations that can be
 // utilized through the functional opts pattern.
 type Opts struct {
 	// If true respond to ADS requests with a guaranteed resource ordering
 	Ordered bool
+
+	Logger log.Logger
 }
 
 func NewOpts() Opts {
 	return Opts{
 		Ordered: false,
+		Logger:  log.NewDefaultLogger(),
 	}
 }
 

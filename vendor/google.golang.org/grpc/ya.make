@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v1.74.3)
+VERSION(v1.78.0)
 
 SRCS(
     backoff.go
@@ -33,6 +33,7 @@ GO_TEST_SRCS(
     clientconn_test.go
     codec_test.go
     default_dial_option_server_option_test.go
+    dial_test.go
     grpc_test.go
     picker_wrapper_test.go
     resolver_test.go

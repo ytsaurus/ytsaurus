@@ -1,8 +1,11 @@
 GO_LIBRARY()
 
-LICENSE(Apache-2.0)
+LICENSE(
+    Apache-2.0 AND
+    BSD-3-Clause
+)
 
-VERSION(v1.36.0)
+VERSION(v1.39.0)
 
 SRCS(
     batch_span_processor.go
@@ -21,7 +24,6 @@ SRCS(
     span_limits.go
     span_processor.go
     tracer.go
-    version.go
 )
 
 GO_TEST_SRCS(
@@ -39,7 +41,6 @@ GO_TEST_SRCS(
     span_test.go
     trace_test.go
     util_test.go
-    version_test.go
 )
 
 GO_XTEST_SRCS(
@@ -50,5 +51,6 @@ END()
 
 RECURSE(
     gotest
+    internal
     tracetest
 )
