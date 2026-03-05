@@ -2803,6 +2803,19 @@ void TSortedDynamicStore::SetBackupCheckpointTimestamp(TTimestamp /*timestamp*/)
     MergeRowsOnFlushAllowed_ = false;
 }
 
+ui32 TSortedDynamicStore::GetFlushIndex() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+    return FlushIndex_.load();
+}
+
+void TSortedDynamicStore::SetFlushIndex(ui32 value)
+{
+    // An assertion of affinity to AutomatonThread would be here
+    // if this function was not called in unit tests.
+    FlushIndex_.store(value);
+}
+
 bool TSortedDynamicStore::IsMergeRowsOnFlushAllowed() const
 {
     return MergeRowsOnFlushAllowed_;
