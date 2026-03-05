@@ -994,7 +994,10 @@ TSharedRange<TRowRange> CreateNewHeavyRangeInferrer(
         InferName(predicate),
         ToString(constraints, constraintRef));
 
-    std::vector<TRowRange> enrichedRanges;
+    using TAlloc = TAllocatorOverChunkProvider<TRowRange>;
+    auto enrichedRanges = std::vector<TRowRange, TAlloc>(TAlloc(
+        memoryChunkProvider,
+        GetRefCountedTypeCookie<TRangeInferrerBufferTag>()));
 
     TReadRangesGenerator rangesGenerator(constraints);
 
@@ -1042,7 +1045,9 @@ TSharedRange<TRowRange> CreateNewHeavyRangeInferrer(
         YT_VERIFY(enrichedRanges[index].second <= enrichedRanges[index + 1].first);
     }
 
-    return MakeSharedRange(enrichedRanges, buffer);
+    enrichedRanges.shrink_to_fit();
+
+    return MakeSharedRange(std::move(enrichedRanges), buffer);
 }
 
 TSharedRange<TRowRange> CreateNewLightRangeInferrer(
