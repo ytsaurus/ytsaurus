@@ -154,8 +154,8 @@ void TConfig::LoadSpec()
     strSpec = GetEnv("YT_TABLE_WRITER", "{}");
     TableWriter = LoadJsonSpec(strSpec);
 
-    // strSpec = GetEnv("YT_File_WRITER", "{}");
-    // TableWriter = LoadJsonSpec(strSpec);
+    strSpec = GetEnv("YT_FILE_WRITER", "{}");
+    FileWriter = LoadJsonSpec(strSpec);
 }
 
 void TConfig::LoadTimings()
