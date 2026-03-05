@@ -131,7 +131,7 @@ protected:
         TTableSchema schema({
             TColumnSchema("watermark", EValueType::Uint64, ESortOrder::Ascending),
             TColumnSchema("m", EValueType::Int64),
-            TColumnSchema("n", EValueType::Int64)
+            TColumnSchema("n", EValueType::Int64),
         });
         return schema;
     }

@@ -699,7 +699,7 @@ private:
                 newChaosLease->SetRootId(getRootId(chaosLease));
                 newChaosLease->SetTimeout(chaosLease->GetTimeout());
                 newChaosLease->SetState(chaosLease->GetState());
-                for (const auto& nestedLeaseId : chaosLease->NestedLeaseIds()) {
+                for (auto nestedLeaseId : chaosLease->NestedLeaseIds()) {
                     newChaosLease->NestedLeaseIds().push_back(nestedLeaseId);
                 }
 

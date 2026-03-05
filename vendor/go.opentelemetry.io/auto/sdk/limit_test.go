@@ -95,7 +95,12 @@ func TestSpanLimit(t *testing.T) {
 
 						var data map[string]any
 						require.NoError(t, json.NewDecoder(&buf).Decode(&data))
-						assert.Equal(t, "invalid limit environment variable", data["msg"], "log message")
+						assert.Equal(
+							t,
+							"invalid limit environment variable",
+							data["msg"],
+							"log message",
+						)
 						assert.Equal(t, "WARN", data["level"], "logged level")
 						assert.Equal(t, key, data["key"], "logged key")
 						assert.Equal(t, value, data["value"], "logged value")

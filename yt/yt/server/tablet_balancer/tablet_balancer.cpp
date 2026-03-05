@@ -189,9 +189,7 @@ private:
         : public TVirtualMapBase
     {
     public:
-        explicit TBundleOrchidService(TTabletBalancerPtr owner)
-            : Owner_(std::move(owner))
-        { }
+        explicit TBundleOrchidService(TTabletBalancerPtr owner);
 
         std::vector<std::string> GetKeys(i64 limit) const final;
         i64 GetSize() const final;
@@ -199,6 +197,22 @@ private:
 
     private:
         const TTabletBalancerPtr Owner_;
+
+        DECLARE_NEW_FRIEND()
+    };
+
+    class TTableOrchidService
+        : public TVirtualMapBase
+    {
+    public:
+        explicit TTableOrchidService(TTabletCellBundlePtr owner);
+
+        std::vector<std::string> GetKeys(i64 limit) const final;
+        i64 GetSize() const final;
+        IYPathServicePtr FindItemService(const std::string& key) const final;
+
+    private:
+        const TTabletCellBundlePtr Owner_;
 
         DECLARE_NEW_FRIEND()
     };
@@ -819,6 +833,10 @@ bool TTabletBalancer::TryScheduleActionCreation(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTabletBalancer::TBundleOrchidService::TBundleOrchidService(TTabletBalancerPtr owner)
+    : Owner_(std::move(owner))
+{ }
+
 i64 TTabletBalancer::TBundleOrchidService::GetSize() const
 {
     return Owner_->Bundles_.size();
@@ -826,29 +844,59 @@ i64 TTabletBalancer::TBundleOrchidService::GetSize() const
 
 IYPathServicePtr TTabletBalancer::TBundleOrchidService::FindItemService(const std::string& key) const
 {
+    YT_ASSERT_INVOKER_AFFINITY(Owner_->ControlInvoker_);
+
     auto bundlesIt = Owner_->Bundles_.find(key);
     if (bundlesIt == Owner_->Bundles_.end()) {
         return nullptr;
     }
 
-    auto guard = Guard(Owner_->BundleErrorsLock_);
+    auto configFuture = bundlesIt->second->GetConfig(/*allowStale*/ false);
+    auto snapshotFuture = bundlesIt->second->GetBundleSnapshot();
 
+    YT_VERIFY(WaitFor(AllSet(std::vector{configFuture.AsVoid(), snapshotFuture.AsVoid()})).IsOK());
+
+    auto configOrError = configFuture.GetOrCrash();
+    auto snapshotOrError = snapshotFuture.GetOrCrash();
+
+    auto guard = Guard(Owner_->BundleErrorsLock_);
     auto bundleErrorsIt = Owner_->BundleErrors_.find(key);
 
     const auto& bundleErrors = bundleErrorsIt != Owner_->BundleErrors_.end()
         ? bundleErrorsIt->second
         : TBundleErrors{};
 
-    return BuildYsonNodeFluently()
+    auto orchidNode = BuildYsonNodeFluently()
         .BeginMap()
-            .Do([&] (TFluentMap fluent) {
-                fluent
-                    .Item("errors")
-                        .List(bundleErrors.FatalErrors)
-                    .Item("retryable_errors")
-                        .List(bundleErrors.RetryableErrors);
-            })
+            .Item("errors")
+                .List(bundleErrors.FatalErrors)
+            .Item("retryable_errors")
+                .List(bundleErrors.RetryableErrors)
+            .Item("config").Do(
+                [&] (TFluentAny fluent) {
+                    if (configOrError.IsOK()) {
+                        fluent.Value(configOrError.Value());
+                    } else {
+                        fluent.Entity();
+                    }
+                })
+            .Item("config_error").Do(
+                [&] (TFluentAny fluent) {
+                    if (configOrError.IsOK()) {
+                        fluent.Entity();
+                    } else {
+                        fluent.Value(configOrError);
+                    }
+                })
         .EndMap();
+
+    if (snapshotOrError.IsOK() && snapshotOrError.Value()) {
+        orchidNode->AsMap()->AddChild(
+            "tables",
+            CreateVirtualNode(New<TTableOrchidService>(snapshotOrError.Value()->Bundle)));
+    }
+
+    return orchidNode;
 }
 
 std::vector<std::string> TTabletBalancer::TBundleOrchidService::GetKeys(i64 limit) const
@@ -863,6 +911,48 @@ std::vector<std::string> TTabletBalancer::TBundleOrchidService::GetKeys(i64 limi
     }
 
     return keys;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTabletBalancer::TTableOrchidService::TTableOrchidService(TTabletCellBundlePtr owner)
+    : Owner_(std::move(owner))
+{ }
+
+std::vector<std::string> TTabletBalancer::TTableOrchidService::GetKeys(i64 limit) const
+{
+    std::vector<std::string> keys;
+    keys.reserve(std::min(limit, ssize(Owner_->Tables)));
+
+    for (const auto& [tableId, table] : Owner_->Tables) {
+        if (std::ssize(keys) >= limit) {
+            break;
+        }
+
+        keys.push_back(ToString(table->Path));
+    }
+
+    return keys;
+}
+
+i64 TTabletBalancer::TTableOrchidService::GetSize() const
+{
+    return  Owner_->Tables.size();
+}
+
+IYPathServicePtr TTabletBalancer::TTableOrchidService::FindItemService(const std::string& key) const
+{
+    auto tablesIt = Owner_->Tables.find(TTableId::FromString(key));
+    if (tablesIt == Owner_->Tables.end()) {
+        return nullptr;
+    }
+
+    auto tablePtr = tablesIt->second;
+
+    return BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("effective_config").Value(tablePtr->TableConfig)
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -929,7 +1019,7 @@ IYPathServicePtr TTabletBalancer::GetOrchidService()
 
     dynamicOrchidService->SetOpaque(false);
 
-    return dynamicOrchidService;
+    return dynamicOrchidService->Via(ControlInvoker_);
 }
 
 void TTabletBalancer::OnDynamicConfigChanged(

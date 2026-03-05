@@ -1,0 +1,17 @@
+GO_LIBRARY()
+
+LICENSE(Apache-2.0)
+
+VERSION(v1.78.0)
+
+SRCS(
+    call_creds.go
+)
+
+GO_TEST_SRCS(call_creds_test.go)
+
+END()
+
+RECURSE(
+    gotest
+)

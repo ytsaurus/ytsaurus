@@ -485,13 +485,13 @@ private:
         return Config_->MaxDataTtl;
     }
 
-    static bool CompareValueWithRuntimeWatermark(TUnversionedValue value, const TWatermarkRuntimeData& watermarkRuntimeData)
+    static bool CompareValueWithRuntimeWatermark(const TUnversionedValue& value, const TWatermarkRuntimeData& watermarkRuntimeData)
     {
         if (value.Id != watermarkRuntimeData.ColumnIndex || value.Type == EValueType::Null) {
             return false;
         }
 
-        switch (watermarkRuntimeData.ComparisonOpeator) {
+        switch (watermarkRuntimeData.ComparisonOperator) {
             case EWatermarkComparisonOperator::Less:
                 return FromUnversionedValue<ui64>(value) < watermarkRuntimeData.Watermark;
 
@@ -1289,7 +1289,7 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
                     watermarkRuntimeData = TWatermarkRuntimeData{
                         .Watermark = watermarkRuntimeDataConfig.Watermark,
                         .ColumnIndex = tableSchema->GetColumnIndex(watermarkRuntimeDataConfig.ColumnName),
-                        .ComparisonOpeator = watermarkRuntimeDataConfig.ComparisonOperator
+                        .ComparisonOperator = watermarkRuntimeDataConfig.ComparisonOperator,
                     };
                 } catch (const std::exception& ex) {
                     YT_LOG_ERROR(ex, "Failed to prepare watermark runtime data");

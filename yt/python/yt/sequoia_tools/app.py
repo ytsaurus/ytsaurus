@@ -52,7 +52,7 @@ class SequoiaTool():
         address = self.remote_client.list("//sys/primary_masters")[0]
         path = f"//sys/primary_masters/{address}/orchid/ground_reign"
         try:
-            value = self.ground_client.get(path)
+            value = self.remote_client.get(path)
             return cast(int, value)
         except yt.errors.YtResolveError:
             # COMPAT(danilalexeev)
