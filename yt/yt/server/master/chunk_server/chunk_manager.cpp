@@ -2696,7 +2696,7 @@ private:
 
     TPeriodicExecutorPtr SequoiaChunkBatchConfirmExecutor_;
 
-    std::vector<TReqConfirmChunk*> WaitingConfirmRequests_;
+    std::vector<TReqConfirmChunk> WaitingConfirmRequests_;
     TPromise<void> BatchConfirmTransactionCommitPromise_;
 
     // Unlike chunk replicator and sealer, this is maintained on all
@@ -3636,15 +3636,15 @@ private:
             promise.IsSet(),
             "Chunk confirmation promise is already set (Result: %v)",
             promise.TryGet());
-        auto requests = std::exchange(WaitingConfirmRequests_, std::vector<TReqConfirmChunk*>());
+        auto requests = std::exchange(WaitingConfirmRequests_, std::vector<TReqConfirmChunk>());
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         // COMPAT(cherepashka): remove this after 25.4.
         THashMap<TChunkId, std::vector<TChunkReplicaWithLocationIndex>> sequoiaChunkReplicas;
         for (const auto& request : requests) {
-            auto chunkId = FromProto<TChunkId>(request->chunk_id());
+            auto chunkId = FromProto<TChunkId>(request.chunk_id());
 
-            for (const auto& protoReplica : request->replicas()) {
+            for (const auto& protoReplica : request.replicas()) {
                 auto replica = FromProto<TChunkReplicaWithLocation>(protoReplica);
                 auto nodeId = replica.GetNodeId();
                 auto locationIndex = replica.GetChunkLocationIndex();
@@ -3693,22 +3693,22 @@ private:
                     // TODO: validate requests are the same for the same chunks.
                     // sequoiaChunkReplicas might actually contain replicas from separate confirm requests,
                     // I hope they are the same and I am okay with this for now.
-                    SortUniqueBy(requests, [] (const auto* request) {
-                        return FromProto<TChunkId>(request->chunk_id());
+                    SortUniqueBy(requests, [] (const auto& request) {
+                        return FromProto<TChunkId>(request.chunk_id());
                     });
 
                     NProto::TReqConfirmMultipleChunks confirmChunksRequest;
                     for (const auto& request : requests) {
                         auto* chunkConfirmation = confirmChunksRequest.add_chunk_confirmations();
-                        *chunkConfirmation->mutable_chunk_id() = request->chunk_id();
+                        *chunkConfirmation->mutable_chunk_id() = request.chunk_id();
                         if (storeSequoiaReplicasOnMaster) {
-                            *chunkConfirmation->mutable_replicas() = std::move(request->replicas());
+                            *chunkConfirmation->mutable_replicas() = std::move(request.replicas());
                         }
-                        *chunkConfirmation->mutable_chunk_meta() = std::move(request->chunk_meta());
-                        *chunkConfirmation->mutable_chunk_info() = std::move(request->chunk_info());
-                        *chunkConfirmation->mutable_schema_id() = request->schema_id();
+                        *chunkConfirmation->mutable_chunk_meta() = std::move(request.chunk_meta());
+                        *chunkConfirmation->mutable_chunk_info() = std::move(request.chunk_info());
+                        *chunkConfirmation->mutable_schema_id() = request.schema_id();
 
-                        auto chunkId = FromProto<TChunkId>(request->chunk_id());
+                        auto chunkId = FromProto<TChunkId>(request.chunk_id());
 
                         auto it = sequoiaChunkReplicas.find(chunkId);
                         const auto& replicas = it == sequoiaChunkReplicas.end() ? std::vector<TChunkReplicaWithLocationIndex>() : it->second;
@@ -3747,7 +3747,7 @@ private:
         YT_UNUSED_FUTURE(future);
     }
 
-    TFuture<void> ConfirmSequoiaChunkBatched(TReqConfirmChunk* request) override
+    TFuture<void> ConfirmSequoiaChunkBatched(TReqConfirmChunk request) override
     {
         const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
         if (std::ssize(WaitingConfirmRequests_) > config->ConfirmBatchSize) {
@@ -3756,7 +3756,7 @@ private:
             OnSequoiaReplicaConfirm();
         }
 
-        WaitingConfirmRequests_.push_back(request);
+        WaitingConfirmRequests_.push_back(std::move(request));
         if (!BatchConfirmTransactionCommitPromise_) {
             YT_LOG_ALERT("Confirm transaction promise was not created");
             BatchConfirmTransactionCommitPromise_ = NewPromise<void>();
