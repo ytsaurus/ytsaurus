@@ -104,7 +104,6 @@ public:
     NObjectClient::TCellTag GetPrimaryCellTag() const;
 
     const std::set<NObjectClient::TCellTag>& GetSecondaryCellTags() const;
-    const THashSet<NObjectClient::TCellTag>& GetDynamicallyPropagatedMastersCellTags() const;
 
     const IAlertManagerPtr& GetAlertManager() const;
     const IConfigManagerPtr& GetConfigManager() const;
