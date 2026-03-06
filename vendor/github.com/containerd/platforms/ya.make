@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v0.2.1)
+VERSION(v1.0.0-rc.1)
 
 SRCS(
     compare.go
@@ -10,11 +10,14 @@ SRCS(
     database.go
     defaults.go
     errors.go
+    platform_windows_compat.go
     platforms.go
 )
 
 GO_TEST_SRCS(
     compare_test.go
+    defaults_test.go
+    platform_windows_compat_test.go
     platforms_test.go
 )
 
@@ -22,7 +25,6 @@ IF (OS_LINUX)
     SRCS(
         cpuinfo_linux.go
         defaults_unix.go
-        platforms_other.go
     )
 
     GO_TEST_SRCS(
@@ -35,7 +37,6 @@ IF (OS_DARWIN)
     SRCS(
         cpuinfo_other.go
         defaults_darwin.go
-        platforms_other.go
     )
 
     GO_TEST_SRCS(defaults_unix_test.go)
@@ -45,13 +46,10 @@ IF (OS_WINDOWS)
     SRCS(
         cpuinfo_other.go
         defaults_windows.go
-        platform_compat_windows.go
-        platforms_windows.go
     )
 
     GO_TEST_SRCS(
         defaults_windows_test.go
-        platform_compat_windows_test.go
         platforms_windows_test.go
     )
 ENDIF()
@@ -60,7 +58,6 @@ IF (OS_ANDROID)
     SRCS(
         cpuinfo_linux.go
         defaults_unix.go
-        platforms_other.go
     )
 
     GO_TEST_SRCS(
@@ -73,7 +70,6 @@ IF (OS_EMSCRIPTEN)
     SRCS(
         cpuinfo_other.go
         defaults_unix.go
-        platforms_other.go
     )
 
     GO_TEST_SRCS(defaults_unix_test.go)
