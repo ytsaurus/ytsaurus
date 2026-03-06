@@ -41,6 +41,8 @@
 
 #include <yt/yt/core/compression/codec.h>
 
+#include <library/cpp/yt/memory/atomic.h>
+
 namespace NYT::NTableClient {
 
 using namespace NConcurrency;
@@ -144,8 +146,8 @@ protected:
 
     TChunkedMemoryPool MemoryPool_;
 
-    i64 RowCount_ = 0;
-    i64 DataWeight_ = 0;
+    std::atomic<i64> RowCount_ = 0;
+    std::atomic<i64> DataWeight_ = 0;
 };
 
 TSimpleVersionedChunkReaderBase::TSimpleVersionedChunkReaderBase(
@@ -305,8 +307,9 @@ public:
             }
         }
 
-        RowCount_ += rowCount;
-        DataWeight_ += dataWeight;
+        SingleWriterFetchAdd(RowCount_, rowCount);
+        SingleWriterFetchAdd(DataWeight_, dataWeight);
+
         if (KeyFilterStatistics_ && falsePositiveRangeCount > 0) {
             KeyFilterStatistics_->FalsePositiveEntryCount.fetch_add(falsePositiveRangeCount, std::memory_order::relaxed);
         }
@@ -559,8 +562,8 @@ public:
             }
         }
 
-        RowCount_ += rowCount;
-        DataWeight_ += dataWeight;
+        SingleWriterFetchAdd(RowCount_, rowCount);
+        SingleWriterFetchAdd(DataWeight_, dataWeight);
 
         return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
@@ -756,8 +759,8 @@ protected:
     const TTimestamp Timestamp_;
     const std::vector<TColumnIdMapping> SchemaIdMapping_;
 
-    i64 RowCount_ = 0;
-    i64 DataWeight_ = 0;
+    std::atomic<i64> RowCount_ = 0;
+    std::atomic<i64> DataWeight_ = 0;
 
     std::vector<IUnversionedColumnReader*> KeyColumnReaders_;
     std::vector<IVersionedColumnReader*> ValueColumnReaders_;
@@ -1221,8 +1224,8 @@ public:
         }
 
         for (auto row : rows) {
-            RowCount_ += static_cast<bool>(row);
-            DataWeight_ += GetDataWeight(row);
+            SingleWriterFetchAdd(RowCount_, row ? 1L : 0L);
+            SingleWriterFetchAdd(DataWeight_, GetDataWeight(row));
         }
 
         return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
@@ -1530,8 +1533,8 @@ public:
         }
 
         for (auto row : rows) {
-            RowCount_ += static_cast<bool>(row);
-            DataWeight_ += GetDataWeight(row);
+            SingleWriterFetchAdd(RowCount_, row ? 1L : 0L);
+            SingleWriterFetchAdd(DataWeight_, GetDataWeight(row));
         }
 
         return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
