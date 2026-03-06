@@ -175,6 +175,10 @@ public:
     {
         YT_UNIMPLEMENTED();
     }
+    const NRpc::IChannelPtr& GetCypressProxyChannel() override
+    {
+        YT_UNIMPLEMENTED();
+    }
     const NRpc::IChannelPtr& GetSchedulerChannel() override
     {
         YT_UNIMPLEMENTED();

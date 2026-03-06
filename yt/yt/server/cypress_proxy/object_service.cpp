@@ -4,6 +4,7 @@
 
 #include "actions.h"
 #include "bootstrap.h"
+#include "ban_service.h"
 #include "config.h"
 #include "cypress_proxy_service_base.h"
 #include "dynamic_config_manager.h"
@@ -366,6 +367,7 @@ private:
 
     void GuardedRun()
     {
+        ValidateUserNotBanned();
         ParseSubrequests();
 
         if (!Owner_->GetDynamicConfig()->AllowBypassMasterResolve) {
@@ -379,6 +381,14 @@ private:
         InvokeMasterRequests(/*beforeSequoiaResolve*/ false);
 
         Reply();
+    }
+
+    void ValidateUserNotBanned()
+    {
+        const auto& user = AuthenticationIdentity_.User;
+        if (Owner_->Bootstrap_->GetBanService()->IsBanned(user)) {
+            THROW_ERROR_EXCEPTION("User %Qv is banned via ban service", user);
+        }
     }
 
     void ParseSubrequests()

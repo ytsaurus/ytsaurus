@@ -229,6 +229,11 @@ public:
             .Apply(BIND(std::move(enqueueIfNotAcquired)).AsyncVia(LockWaiterInvoker_));
     }
 
+    void SetLockCheckPeriod(TDuration duration) override
+    {
+        CheckLocksExecutor_->SetPeriod(duration);
+    }
+
 private:
     THashMap<TLockId, TIntrusivePtr<TWaitingLockEntry>> LockEntries_;
     THashMap<TLockId, TFuture<void>> RunningChecks_;

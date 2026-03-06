@@ -335,6 +335,7 @@ struct TConnectionDynamicConfig
     TDuration DefaultWriteOperationControllerCoreDumpTimeout;
     TDuration DefaultAbandonJobTimeout;
     TDuration DefaultAbortJobTimeout;
+    TDuration DefaultBanRequestTimeout;
 
     int CypressWriteYsonNestingLevelLimit;
 

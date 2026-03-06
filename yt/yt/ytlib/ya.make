@@ -22,6 +22,7 @@ SRCS(
     api/native/chaos_table_replica_type_handler.cpp
     api/native/client_admin_impl.cpp
     api/native/client_authentication_impl.cpp
+    api/native/client_ban_impl.cpp
     api/native/client_cache.cpp
     api/native/client_cypress_impl.cpp
     api/native/client_distributed_table_impl.cpp
@@ -96,6 +97,8 @@ SRCS(
     auth/tvm_bridge.cpp
 
     auth/proto/tvm_bridge_service.proto
+
+    ban_client/proto/ban_service.proto
 
     bundle_controller/config.cpp
     bundle_controller/bundle_controller_channel.cpp

@@ -12,4 +12,6 @@ RECURSE(
     test_readers
     test_rpc_api
     test_sequoia
+    test_cross_cluster_replicated_state
+    test_ban_service
 )

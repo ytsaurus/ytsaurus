@@ -704,6 +704,11 @@ public:
         return kind;
     }
 
+    const IChannelPtr& GetCypressProxyChannel() override
+    {
+        return CypressProxyChannel_;
+    }
+
     const IChannelPtr& GetSchedulerChannel() override
     {
         return SchedulerChannel_;

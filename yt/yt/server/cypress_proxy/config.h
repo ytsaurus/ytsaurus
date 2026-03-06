@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/cypress_registrar/config.h>
 
+#include <yt/yt/server/lib/cross_cluster_replicated_state/config.h>
+
 #include <yt/yt/server/lib/misc/config.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
@@ -140,12 +142,31 @@ DEFINE_REFCOUNTED_TYPE(TSequoiaResponseKeeperDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TBanServiceDynamicConfig
+    : public NYTree::TYsonStruct
+{
+    bool Enable;
+    bool UseInObjectService;
+    TDuration CacheRefreshPeriod;
+    NCrossClusterReplicatedState::TCrossClusterReplicatedStateConfigPtr CrossClusterReplicatedState;
+
+    REGISTER_YSON_STRUCT(TBanServiceDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TBanServiceDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TCypressProxyDynamicConfig
     : public TSingletonsDynamicConfig
 {
     TObjectServiceDynamicConfigPtr ObjectService;
 
     TSequoiaResponseKeeperDynamicConfigPtr ResponseKeeper;
+
+    TBanServiceDynamicConfigPtr BanService;
 
     int ThreadPoolSize;
 

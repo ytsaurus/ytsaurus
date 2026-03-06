@@ -395,6 +395,9 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("default_abort_job_timeout",
         &TThis::DefaultAbortJobTimeout)
         .Default(TDuration::Seconds(30));
+    registrar.Parameter("default_ban_request_timeout",
+        &TThis::DefaultBanRequestTimeout)
+        .Default(TDuration::Seconds(60));
 
     registrar.Parameter("default_fetch_table_rows_timeout", &TThis::DefaultFetchTableRowsTimeout)
         .Default(TDuration::Seconds(15));
