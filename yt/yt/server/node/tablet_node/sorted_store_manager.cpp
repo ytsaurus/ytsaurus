@@ -985,9 +985,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         storeWriterConfig->MinUploadReplicationFactor = storeWriterConfig->UploadReplicationFactor;
         storeWriterConfig->EnableLocalThrottling = enableCollocatedDatNodeThrottling;
 
-        if (mountConfig->MinHashDigestCompaction->Enable) {
-            storeWriterConfig->MinHashDigest = mountConfig->MinHashDigestCompaction->ChunkWriter;
-        }
+        PatchChunkWriterConfigByMountConfig(storeWriterConfig, mountConfig);
 
         storeWriterConfig->Postprocess();
 

@@ -15,6 +15,7 @@ namespace NYT::NTabletNode {
 using namespace NYson;
 using namespace NYTree;
 using namespace NHydra;
+using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NObjectClient;
 
@@ -37,14 +38,10 @@ TCompactionHintConfigChange::TCompactionHintConfigChange(
             break;
 
         case NLsm::EStoreCompactionHintKind::VersionedRowDigest:
-            OldEnable_ = oldConfig->RowDigestCompaction->Enable && oldConfig->RowMergerType != ERowMergerType::Watermark;
-            NewEnable_ = newConfig->RowDigestCompaction->Enable && newConfig->RowMergerType != ERowMergerType::Watermark;;
-            ConfigChanged_ = oldConfig->MinDataTtl != newConfig->MinDataTtl ||
-                oldConfig->MaxDataTtl != newConfig->MaxDataTtl ||
-                oldConfig->MinDataVersions != newConfig->MaxDataVersions ||
-                oldConfig->MaxDataVersions != newConfig->MaxDataVersions ||
-                oldConfig->RowDigestCompaction->MaxObsoleteTimestampRatio != newConfig->RowDigestCompaction->MaxObsoleteTimestampRatio ||
-                oldConfig->RowDigestCompaction->MaxTimestampsPerValue != newConfig->RowDigestCompaction->MaxTimestampsPerValue;
+            OldEnable_ = oldConfig->CompactionHints->RowDigest->EnableNonAggregates && oldConfig->RowMergerType != ERowMergerType::Watermark;
+            NewEnable_ = newConfig->CompactionHints->RowDigest->EnableNonAggregates && newConfig->RowMergerType != ERowMergerType::Watermark;;
+            ConfigChanged_ = !static_cast<TRetentionConfig*>(oldConfig.Get())->IsEqual(*static_cast<TRetentionConfig*>(newConfig.Get())) ||
+                !oldConfig->CompactionHints->RowDigest->AreCompactionSettingsEqual(newConfig->CompactionHints->RowDigest);
             break;
 
         default:
@@ -60,15 +57,17 @@ TCompactionHintConfigChange::TCompactionHintConfigChange(
 {
     switch (kind) {
         case NLsm::EPartitionCompactionHintKind::AggregateVersionedRowDigest:
-            OldEnable_ = oldConfig->AggregateVersionedRowDigestCompaction->Enable;
-            NewEnable_ = newConfig->AggregateVersionedRowDigestCompaction->Enable;
-            ConfigChanged_ = false;
+            OldEnable_ = oldConfig->CompactionHints->RowDigest->EnableAggregates;
+            NewEnable_ = newConfig->CompactionHints->RowDigest->EnableAggregates;
+            ConfigChanged_ = !static_cast<TRetentionConfig*>(oldConfig.Get())->IsEqual(*static_cast<TRetentionConfig*>(newConfig.Get())) ||
+                !oldConfig->CompactionHints->RowDigest->AreCompactionSettingsEqual(newConfig->CompactionHints->RowDigest);
             break;
 
         case NLsm::EPartitionCompactionHintKind::MinHashDigest:
-            OldEnable_ = oldConfig->MinHashDigestCompaction->Enable;
-            NewEnable_ = newConfig->MinHashDigestCompaction->Enable;
-            ConfigChanged_ = false;
+            OldEnable_ = oldConfig->CompactionHints->MinHashDigest->Enable;
+            NewEnable_ = newConfig->CompactionHints->MinHashDigest->Enable;
+            ConfigChanged_ = !static_cast<TRetentionConfig*>(oldConfig.Get())->IsEqual(*static_cast<TRetentionConfig*>(newConfig.Get())) ||
+                !oldConfig->CompactionHints->MinHashDigest->AreCompactionSettingsEqual(newConfig->CompactionHints->MinHashDigest);
             break;
 
         default:
@@ -117,7 +116,7 @@ bool DefinitelyHasNoHint(
 
         case NLsm::EStoreCompactionHintKind::VersionedRowDigest: {
             const auto& tableSchema = store->GetTablet()->GetTableSchema();
-            return tableSchema->HasTtlColumn();
+            return tableSchema->HasAggregateColumns() || tableSchema->HasTtlColumn();
         }
 
         default:
@@ -138,7 +137,7 @@ bool DefinitelyHasNoHint(
 
         case NLsm::EPartitionCompactionHintKind::MinHashDigest: {
             const auto& tableSchema = partition->GetTablet()->GetTableSchema();
-            return tableSchema->HasAggregateColumns() || tableSchema->HasTtlColumn();
+            return tableSchema->HasTtlColumn();
         }
 
         default:

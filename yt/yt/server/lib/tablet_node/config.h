@@ -24,6 +24,8 @@
 
 #include <yt/yt/library/heavy_hitters/public.h>
 
+#include <yt/yt/library/min_hash_digest/public.h>
+
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,50 +58,61 @@ DEFINE_REFCOUNTED_TYPE(TRelativeReplicationThrottlerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRowDigestCompactionConfig
+struct TRowDigestConfig
     : public NYTree::TYsonStruct
 {
-    bool Enable;
+    bool EnableNonAggregates;
+    bool EnableAggregates;
 
     double MaxObsoleteTimestampRatio;
     int MaxTimestampsPerValue;
 
-    REGISTER_YSON_STRUCT(TRowDigestCompactionConfig);
+    TTDigestConfigPtr ChunkWriter;
+
+    bool AreCompactionSettingsEqual(const TRowDigestConfigPtr& other) const;
+
+    REGISTER_YSON_STRUCT(TRowDigestConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TRowDigestCompactionConfig)
+DEFINE_REFCOUNTED_TYPE(TRowDigestConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TMinHashDigestCompactionConfig
+struct TMinHashDigestConfig
     : public NYTree::TYsonStruct
 {
     bool Enable;
+
+    TMinHashSimilarityConfigPtr WriteDeleteSimilarity;
+    TMinHashSimilarityConfigPtr WritesSimilarity;
 
     NTableClient::TMinHashDigestConfigPtr ChunkWriter;
 
-    REGISTER_YSON_STRUCT(TMinHashDigestCompactionConfig);
+    bool AreCompactionSettingsEqual(const TMinHashDigestConfigPtr& other) const;
+
+    REGISTER_YSON_STRUCT(TMinHashDigestConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TMinHashDigestCompactionConfig)
+DEFINE_REFCOUNTED_TYPE(TMinHashDigestConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TAggregateVersionedRowDigestCompactionConfig
+struct TCompactionHintsConfig
     : public NYTree::TYsonStruct
 {
-    bool Enable;
+    TRowDigestConfigPtr RowDigest;
+    TMinHashDigestConfigPtr MinHashDigest;
 
-    REGISTER_YSON_STRUCT(TAggregateVersionedRowDigestCompactionConfig);
+    REGISTER_YSON_STRUCT(TCompactionHintsConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TAggregateVersionedRowDigestCompactionConfig)
+DEFINE_REFCOUNTED_TYPE(TCompactionHintsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -249,9 +262,7 @@ struct TCustomTableMountConfig
     std::optional<TDuration> AutoCompactionPeriod;
     double AutoCompactionPeriodSplayRatio;
     EPeriodicCompactionMode PeriodicCompactionMode;
-    TRowDigestCompactionConfigPtr RowDigestCompaction;
-    TMinHashDigestCompactionConfigPtr MinHashDigestCompaction;
-    TAggregateVersionedRowDigestCompactionConfigPtr AggregateVersionedRowDigestCompaction;
+    TCompactionHintsConfigPtr CompactionHints;
 
     bool EnableLookupHashTable;
 
@@ -520,6 +531,12 @@ struct THunkStoreWriterOptions
 };
 
 DEFINE_REFCOUNTED_TYPE(THunkStoreWriterOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
+void PatchChunkWriterConfigByMountConfig(
+    const NTableClient::TChunkWriterConfigPtr& chunkWriterConfig,
+    const TTableMountConfigPtr& mountConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 

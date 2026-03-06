@@ -527,17 +527,14 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
                 "backing_store_retention_time": 0,
                 "dynamic_store_auto_flush_period": 1000,
                 "dynamic_store_flush_period_splay": 0,
-                "row_digest_compaction": {
-                    "enable": True,
+                "compaction_hints": {
+                    "row_digest": {
+                        "enable_non_aggregates": True,
+                    },
                 },
                 "min_data_ttl": 0,
                 "compaction_data_size_base": 16 * 2**20,
                 "enable_lsm_verbose_logging": True,
-            },
-            chunk_writer={
-                "versioned_row_digest": {
-                    "enable": True,
-                }
             },
             enable_dynamic_store_read=False,
             compression_codec="none"
@@ -586,10 +583,10 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         assert large_chunk_id in get_chunk_ids()
         assert len(get_chunk_ids()) > 1
 
-        set("//tmp/t/@mount_config/row_digest_compaction", {
-            "enable": True,
+        set("//tmp/t/@mount_config/compaction_hints/row_digest", {
+            "enable_non_aggregates": True,
             "max_obsolete_timestamp_ratio": 1,
-            "max_timestamps_per_value": delete_ts_count // 4,
+            "max_timestamps_per_value": 1 << (delete_ts_count // 4).bit_length(),
         })
         remount_table("//tmp/t")
 
@@ -724,11 +721,12 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
                 mount_config={
                     "min_data_ttl": 1e9,
                     "max_data_ttl": 1e9,
-                },
-                chunk_writer={
-                    "versioned_row_digest": {
-                        "enable": True,
-                    },
+                    "compaction_hints": {
+                        "row_digest": {
+                            "enable_non_aggregates": True,
+                            "max_obsolete_timestamp_ratio": max_obsolete_timestamp_ratio,
+                        }
+                    }
                 },
                 compression_codec="none",
                 dynamic_store_auto_flush_period=yson.YsonEntity(),
@@ -746,10 +744,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
             set(f"{table_path}/@max_data_ttl", 1)
             set(f"{table_path}/@min_data_versions", min_data_versions)
             set(f"{table_path}/@max_data_versions", max_data_versions)
-            set(f"{table_path}/@mount_config/row_digest_compaction", {
-                "enable": True,
-                "max_obsolete_timestamp_ratio": max_obsolete_timestamp_ratio,
-            })
+
             remount_table(table_path)
 
             wait(lambda: chunk_id not in get(chunk_ids_path))
@@ -780,15 +775,12 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
             mount_config={
                 "min_data_ttl": 10000,
                 "max_data_ttl": 1e9,
-                "row_digest_compaction": {
-                    "enable": True,
-                    "max_obsolete_timestamp_ratio": 0.3
+                "compaction_hints": {
+                    "row_digest": {
+                        "enable_non_aggregates": True,
+                        "max_obsolete_timestamp_ratio": 0.3
+                    }
                 }
-            },
-            chunk_writer={
-                "versioned_row_digest": {
-                    "enable": True,
-                },
             },
             compression_codec="none",
             dynamic_store_auto_flush_period=yson.YsonEntity(),
@@ -833,13 +825,10 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
             mount_config={
                 "min_data_ttl": 5000,
                 "max_data_ttl": 5000,
-                "row_digest_compaction": {
-                    "enable": True,
-                },
-            },
-            chunk_writer={
-                "versioned_row_digest": {
-                    "enable": True,
+                "compaction_hints": {
+                    "row_digest": {
+                        "enable_non_aggregates": True,
+                    }
                 }
             },
             compression_codec="none"
@@ -905,15 +894,12 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
                     "min_data_versions": 0,
                     "max_data_versions": 0,
                     "row_merger_type": row_merger_type,
-                    "row_digest_compaction": {
-                        "enable": True,
-                        "max_obsolete_timestamp_ratio": 1,
-                    },
-                },
-                chunk_writer={
-                    "versioned_row_digest": {
-                        "enable": True,
-                    },
+                    "compaction_hints": {
+                        "row_digest": {
+                            "enable_non_aggregates": True,
+                            "max_obsolete_timestamp_ratio": 1,
+                        }
+                    }
                 },
                 compression_codec="none",
                 dynamic_store_auto_flush_period=yson.YsonEntity(),
@@ -993,17 +979,14 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
                 {"name": "value", "type": "int64"},
                 {"name": "$ttl", "type": "uint64"},
             ],
-            chunk_writer={
-                "versioned_row_digest": {
-                    "enable": True,
-                },
-            },
             mount_config={
                 "min_data_ttl": 1e9,
                 "max_data_ttl": 1e9,
-                "row_digest_compaction": {
-                    "enable": True
-                },
+                "compaction_hints": {
+                    "row_digest": {
+                        "enable_non_aggregates": True,
+                    }
+                }
             },
             dynamic_store_auto_flush_period=yson.YsonEntity())
 
@@ -1233,15 +1216,12 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
 
         self._create_simple_table(
             table,
-            chunk_writer={
-                "versioned_row_digest": {
-                    "enable": True,
-                },
-            },
             mount_config={
-                "row_digest_compaction": {
-                    "enable" : True,
-                },
+                "compaction_hints": {
+                    "row_digest": {
+                        "enable_non_aggregates": True,
+                    }
+                }
             },
         )
 
@@ -1276,7 +1256,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
 
         wait(_has_any_hint)
 
-        set(f"{table}/@mount_config/row_digest_compaction/enable", False)
+        set(f"{table}/@mount_config/compaction_hints/row_digest/enable_non_aggregates", False)
         remount_table(table)
 
         wait(lambda: not _has_any_hint())
@@ -1448,15 +1428,12 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
                 {"name": "key", "type": "int64", "sort_order": "ascending"},
                 {"name": "value", "type": "int64", "aggregate": "sum"},
             ],
-            chunk_writer={
-                "versioned_row_digest": {
-                    "enable": True,
-                },
-            },
             mount_config={
-                "aggregate_versioned_row_digest_compaction": {
-                    "enable" : True,
-                },
+                "compaction_hints": {
+                    "row_digest": {
+                        "enable_aggregates": True,
+                    }
+                }
             },
         )
 
