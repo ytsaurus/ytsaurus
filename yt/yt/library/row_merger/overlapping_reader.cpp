@@ -15,6 +15,8 @@
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 
+#include <library/cpp/yt/memory/atomic.h>
+
 #include <tuple>
 
 namespace NYT::NRowMerger {
@@ -69,12 +71,13 @@ private:
     int MinConcurrency_;
     int NextSession_ = 0;
 
-    TDataStatistics DataStatistics_;
-    TCodecStatistics DecompressionStatistics_;
-    i64 RowCount_ = 0;
-    i64 DataWeight_ = 0;
+    std::atomic<i64> RowCount_ = 0;
+    std::atomic<i64> DataWeight_ = 0;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+
+    TDataStatistics DataStatistics_;
+    TCodecStatistics DecompressionStatistics_;
 
     struct TSession
     {
@@ -143,16 +146,13 @@ TSchemafulOverlappingRangeReaderBase<TRowMerger>::TSchemafulOverlappingRangeRead
 template <class TRowMerger>
 TDataStatistics TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoGetDataStatistics() const
 {
+    auto guard = ReaderGuard(SpinLock_);
+
     auto dataStatistics = DataStatistics_;
 
     for (const auto& session : Sessions_) {
-        IVersionedReaderPtr reader;
-        {
-            auto guard = ReaderGuard(SpinLock_);
-            reader = session.Reader;
-        }
-        if (reader) {
-            dataStatistics += reader->GetDataStatistics();
+        if (session.Reader) {
+            dataStatistics += session.Reader->GetDataStatistics();
         }
     }
 
@@ -161,6 +161,7 @@ TDataStatistics TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoGetDataStati
 
     dataStatistics.set_row_count(RowCount_);
     dataStatistics.set_data_weight(DataWeight_);
+
     return dataStatistics;
 }
 
@@ -304,8 +305,8 @@ bool TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoRead(
         readRow();
     }
 
-    RowCount_ += rows->size();
-    DataWeight_ += dataWeight;
+    SingleWriterFetchAdd(RowCount_, std::ssize(*rows));
+    SingleWriterFetchAdd(DataWeight_, dataWeight);
 
     bool finished = ActiveSessions_.empty() && AwaitingSessions_.empty() && rows->empty();
 

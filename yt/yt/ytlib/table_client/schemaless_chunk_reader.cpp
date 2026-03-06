@@ -42,6 +42,8 @@
 
 #include <library/cpp/yt/misc/numeric_helpers.h>
 
+#include <library/cpp/yt/memory/atomic.h>
+
 namespace NYT::NTableClient {
 
 using namespace NApi;
@@ -384,8 +386,8 @@ protected:
     TMemoryUsageTrackerGuard MemoryGuard_;
 
     i64 RowIndex_ = 0;
-    i64 RowCount_ = 0;
-    i64 DataWeight_ = 0;
+    std::atomic<i64> RowCount_ = 0;
+    std::atomic<i64> DataWeight_ = 0;
 
     TBernoulliSampler Sampler_;
 
@@ -1019,8 +1021,8 @@ IUnversionedRowBatchPtr THorizontalSchemalessRangeChunkReader::Read(const TRowBa
         }
     }
 
-    RowCount_ += rows.size();
-    DataWeight_ += dataWeight;
+    SingleWriterFetchAdd(RowCount_, std::ssize(rows));
+    SingleWriterFetchAdd(DataWeight_, dataWeight);
 
     return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
 }
@@ -1509,7 +1511,7 @@ IUnversionedRowBatchPtr THorizontalSchemalessLookupChunkReader::Read(const TRowB
             while (rows.size() < rows.capacity()) {
                 YT_VERIFY(RowCount_ < std::ssize(Keys_));
                 rows.push_back(TUnversionedRow());
-                ++RowCount_;
+                SingleWriterFetchAdd(RowCount_, 1L);
             }
             return true;
         }
@@ -1542,13 +1544,13 @@ IUnversionedRowBatchPtr THorizontalSchemalessLookupChunkReader::Read(const TRowB
                 rows.push_back(TUnversionedRow());
             }
 
-            ++RowCount_;
+            SingleWriterFetchAdd(RowCount_, 1L);
         }
 
         return true;
     }();
 
-    DataWeight_ += dataWeight;
+    SingleWriterFetchAdd(DataWeight_, dataWeight);
 
     return success
         ? CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)))
@@ -1641,7 +1643,7 @@ IUnversionedRowBatchPtr THorizontalSchemalessKeyRangesChunkReader::Read(const TR
                     rows.push_back(row);
                     dataWeight += GetDataWeight(row);
                 }
-                ++RowCount_;
+                SingleWriterFetchAdd(RowCount_, 1L);
             }
 
             if (!BlockReader_->NextRow()) {
@@ -1658,7 +1660,7 @@ IUnversionedRowBatchPtr THorizontalSchemalessKeyRangesChunkReader::Read(const TR
         BlockEnded_ = true;
     }
 
-    DataWeight_ += dataWeight;
+    SingleWriterFetchAdd(DataWeight_, dataWeight);
 
     return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
 }
@@ -2168,8 +2170,8 @@ private:
             dataWeight += GetDataWeight(row);
         }
 
-        RowCount_ += rows->size();
-        DataWeight_ += dataWeight;
+        SingleWriterFetchAdd(RowCount_, std::ssize(*rows));
+        SingleWriterFetchAdd(DataWeight_, dataWeight);
     }
 
     void AdvanceRowIndex(i64 rowCount)
@@ -2312,8 +2314,8 @@ private:
 
         AdvanceRowIndex(rowCount);
 
-        RowCount_ += rowCount;
-        DataWeight_ += dataWeight;
+        SingleWriterFetchAdd(RowCount_, rowCount);
+        SingleWriterFetchAdd(DataWeight_, dataWeight);
 
         if (!Completed_) {
             TryFetchNextRow();
@@ -2607,8 +2609,8 @@ public:
 
         i64 rowCount = rows.size();
 
-        RowCount_ += rowCount;
-        DataWeight_ += dataWeight;
+        SingleWriterFetchAdd(RowCount_, rowCount);
+        SingleWriterFetchAdd(DataWeight_, dataWeight);
 
         return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
