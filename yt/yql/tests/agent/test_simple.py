@@ -1,5 +1,7 @@
 from common import TestQueriesYqlBase
 
+import yql.library.langver.python as langver
+
 from yt.environment.helpers import assert_items_equal, wait_for_dynamic_config_update
 
 from yt_commands import (authors, create, create_user, sync_mount_table,
@@ -1864,14 +1866,21 @@ class TestGetQueryTrackerInfoWithInvalidMaxYqlVersion(TestGetQueryTrackerInfoBas
 
 
 class TestGetQueryTrackerInfoWithVisibleYqlVersionBase(TestGetQueryTrackerInfoBase):
-    _ALL_YQL_VERSIONS = ["2025.01", "2025.02", "2025.03", "2025.04", "2025.05"]
-    _RELEASED_YQL_VERSIONS = ["2025.01", "2025.02", "2025.03", "2025.04"]
+    _RELEASED_YQL_VERSIONS = None
+
+    @classmethod
+    def _get_released_yql_versions(cls):
+        if cls._RELEASED_YQL_VERSIONS is None:
+            max_released = langver.get_max_released()
+            cls._RELEASED_YQL_VERSIONS = [v for v in langver.get_valid() if v <= max_released]
+        return cls._RELEASED_YQL_VERSIONS
 
     def _check_specific_qt_info(self, qt_info, all_versions):
         self._check_qt_info(qt_info)
+        expected_yql_versions = langver.get_valid() if all_versions else self._get_released_yql_versions()
         assert qt_info["engines_info"]["yql"] == \
             {
-                "available_yql_versions": self._ALL_YQL_VERSIONS if all_versions else self._RELEASED_YQL_VERSIONS,
+                "available_yql_versions": expected_yql_versions,
                 "default_yql_ui_version": "2025.03",
                 "supported_features": {"declare_params": True, "yql_runner": True},
             }

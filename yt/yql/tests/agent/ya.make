@@ -27,6 +27,7 @@ DEPENDS(
 
 PEERDIR(
     library/python/port_manager
+    yql/library/langver/python
     yt/yt/tests/conftest_lib
     yt/python/yt/environment/components/yql_agent
 )
