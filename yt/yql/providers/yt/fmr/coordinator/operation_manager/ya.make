@@ -8,4 +8,5 @@ RECURSE(
     impl/sorted_merge
     impl/map
     impl/sorted_upload
+    impl/sort
 )
