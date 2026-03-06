@@ -2,6 +2,7 @@
 #include <yt/yt/core/misc/concurrent_cache.h>
 
 #include <yt/yt/core/concurrency/thread_pool.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/actions/future.h>
 
@@ -140,7 +141,7 @@ int main(int argc, char** argv)
             .Run());
         }
 
-        AllSucceeded(asyncResults).BlockingGet();
+        WaitFor(AllSucceeded(asyncResults)).ThrowOnError();
         threadPool->Shutdown();
 
     } catch (const std::exception& ex) {

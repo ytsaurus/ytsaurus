@@ -14,6 +14,7 @@
 #include <yt/yt/core/utilex/random.h>
 
 #include <yt/yt/core/logging/config.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 
@@ -195,11 +196,10 @@ bool TPeer::IsActive() const
 
 bool TPeer::IsRecovery() const
 {
-    return BIND(&IHydraManager::IsRecovery, HydraManager_)
+    auto future = BIND(&IHydraManager::IsRecovery, HydraManager_)
         .AsyncVia(AutomatonQueue_->GetInvoker())
-        .Run()
-        .BlockingGet()
-        .ValueOrThrow();
+        .Run();
+    return WaitFor(future).ValueOrThrow();
 }
 
 bool TPeer::IsVoting() const
@@ -209,11 +209,10 @@ bool TPeer::IsVoting() const
 
 NHydra::EPeerState TPeer::GetAutomatonState() const
 {
-    return BIND(&IHydraManager::GetAutomatonState, HydraManager_)
+    auto future = BIND(&IHydraManager::GetAutomatonState, HydraManager_)
         .AsyncVia(AutomatonQueue_->GetInvoker())
-        .Run()
-        .BlockingGet()
-        .ValueOrThrow();
+        .Run();
+    return WaitFor(future).ValueOrThrow();
 }
 
 IChannelPtr TPeer::GetChannel() const
