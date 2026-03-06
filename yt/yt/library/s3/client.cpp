@@ -494,32 +494,25 @@ private:
                 &req,
                 CredentialProvider_);
 
-            // TODO(PR): this should probably be a separate/another PR fix and look much cleaner. But it works now.
             return Client_->MakeRequest(std::move(req))
-                .AsUnique()
-                .Apply(BIND([this, this_ = MakeStrong(this), method = req.Method] (TErrorOr<NHttp::IResponsePtr>&& responseOrError) -> TFuture<TCommandResponse> {
-                    auto promise = NewPromise<TCommandResponse>();
+                .AsUnique().Apply(BIND([method = req.Method] (TErrorOr<NHttp::IResponsePtr>&& responseOrError) -> TFuture<TCommandResponse> {
+                    if (!responseOrError.IsOK()) {
+                        return MakeFuture<TCommandResponse>(
+                            TError("HTTP request failed") << std::move(responseOrError));
+                    }
+                    auto& response = responseOrError.Value();
 
-                    ExecutionInvoker_->Invoke(BIND([promise, method, responseOrError = std::move(responseOrError)] () {
-                        if (!responseOrError.IsOK()) {
-                            promise.Set(TError("HTTP request failed") << std::move(responseOrError));
-                            return;
-                        }
+                    // 3xx are not really errors but we don't handle redirects anyways
+                    if (ToUnderlying(response->GetStatusCode()) >= 300) {
+                        return MakeFuture<TCommandResponse>(
+                            ErrorFromResponse(method, response));
+                    }
 
-                        auto& response = responseOrError.Value();
-                        // 3xx are not really errors but we don't handle redirects anyways
-                        if (ToUnderlying(response->GetStatusCode()) >= 300) {
-                            promise.Set(ErrorFromResponse(method, response));
-                            return;
-                        }
-
-                        TCommandResponse rsp;
-                        rsp.Deserialize(response);
-                        promise.Set(std::move(rsp));
-                    }));
-
-                    return promise.ToFuture();
-                }));
+                    TCommandResponse rsp;
+                    rsp.Deserialize(response);
+                    return MakeFuture<TCommandResponse>(std::move(rsp));
+                })
+                    .AsyncVia(ExecutionInvoker_));
         })
             .AsyncVia(ExecutionInvoker_)
             .Run(std::move(req));
