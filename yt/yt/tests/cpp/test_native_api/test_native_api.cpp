@@ -867,7 +867,7 @@ TEST_F(TAlterTableTest, TestUnknownType)
 
         EXPECT_THROW_WITH_SUBSTRING(
             AlterTable("//tmp/t1", schema),
-            "required fileds are not set");
+            "required fields are not set");
     }
 
     {
