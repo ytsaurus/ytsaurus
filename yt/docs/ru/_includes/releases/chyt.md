@@ -8,6 +8,19 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**2.18.1**" %}
+
+**Release date:** 2026-03-04
+
+
+**Fixes:**
+
+* Fix accounting of empty statistics in TColumnarStatisticsFetcher after failed fetch (75c3baf)
+
+
+{% endcut %}
+
+
 {% cut "**2.18.0**" %}
 
 **Release date:** 2026-01-20
