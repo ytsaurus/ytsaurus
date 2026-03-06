@@ -1625,9 +1625,9 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
     };
 
     if (Config_->RestrictPortoPlace) {
-        environmentOptions.Places.push_back(NFS::CombinePaths(Config_->SlotPath, "place"));
+        environmentOptions.Places.push_back(NFS::CombinePaths(Config_->SlotPath, GetSandboxRelPath(ESandboxKind::PortoPlace)));
     } else {
-        environmentOptions.Places.push_back(NFS::CombinePaths(Config_->SlotPath, "place"));
+        environmentOptions.Places.push_back(NFS::CombinePaths(Config_->SlotPath, GetSandboxRelPath(ESandboxKind::PortoPlace)));
         // COMPAT(yuryalekseev): Remove this after tasklets move to using default place.
         environmentOptions.Places.push_back(AnyTarget);
     }
