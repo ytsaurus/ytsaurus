@@ -230,12 +230,14 @@ public:
 
     const NRpc::IChannelPtr& GetSchedulerChannel() override;
     const NRpc::IChannelPtr& GetBundleControllerChannel() override;
+    const NRpc::IChannelPtr& GetCypressProxyChannel() override;
 
     const NTransactionClient::IClockManagerPtr& GetClockManager() override;
     const NHiveClient::ICellDirectoryPtr& GetCellDirectory() override;
 
     const NHiveClient::TDownedCellTrackerPtr& GetDownedCellTracker() override;
     const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() override;
+
 
     NRpc::IChannelPtr FindMasterChannel(
         NApi::EMasterChannelKind kind,
@@ -264,6 +266,7 @@ private:
     const NNodeTrackerClient::INodeDirectorySynchronizerPtr NodeDirectorySynchronizer_;
     const NRpc::IChannelPtr SchedulerChannel_;
     const NRpc::IChannelPtr BundleControllerChannel_;
+    const NRpc::IChannelPtr CypressProxyChannel_;
     const NTransactionClient::IClockManagerPtr ClockManager_;
     const NHiveClient::ICellDirectoryPtr CellDirectory_;
     const NHiveClient::TDownedCellTrackerPtr DownedCellTracker_;

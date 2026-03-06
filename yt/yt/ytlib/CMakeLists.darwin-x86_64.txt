@@ -114,6 +114,7 @@ target_proto_messages(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/admin/proto/restart_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/proto/transaction_actions.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/auth/proto/tvm_bridge_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/ban_client/proto/ban_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cell_balancer/proto/cell_tracker_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cell_master_client/proto/cell_master_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cellar_client/proto/tablet_cell_service.proto
@@ -213,6 +214,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/chaos_table_replica_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_admin_impl.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_authentication_impl.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_ban_impl.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_cypress_impl.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_distributed_table_impl.cpp
@@ -667,6 +669,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/admin/proto/restart_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/api/native/proto/transaction_actions.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/auth/proto/tvm_bridge_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/ban_client/proto/ban_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cell_balancer/proto/cell_tracker_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cell_master_client/proto/cell_master_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cellar_client/proto/tablet_cell_service.pb.h

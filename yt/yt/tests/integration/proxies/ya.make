@@ -14,6 +14,7 @@ TEST_SRCS(
     test_proxy_roles.py
     test_rpc_proxy.py
     test_oauth.py
+    test_ban_service.py
 )
 
 PEERDIR(

@@ -3935,3 +3935,18 @@ def ping_chaos_lease(chaos_lease_id, **kwargs):
 def get_connection_orchid_value(path="", **kwargs):
     kwargs["path"] = path
     return execute_command("get_connection_orchid_value", kwargs, parse_yson=True)
+
+
+def get_user_banned(user_name, **kwargs):
+    kwargs["user_name"] = user_name
+    return execute_command("get_user_banned", kwargs, parse_yson=True)
+
+
+def set_user_banned(user_name, is_banned, **kwargs):
+    kwargs["user_name"] = user_name
+    kwargs["is_banned"] = is_banned
+    execute_command("set_user_banned", kwargs)
+
+
+def list_banned_users(**kwargs):
+    return execute_command("list_banned_users", kwargs, parse_yson=True)

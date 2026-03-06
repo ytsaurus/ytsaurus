@@ -805,6 +805,19 @@ public: \
         const TChaosLeaseAttachOptions& options = {}),
         (chaosLeaseId, options))
 
+    IMPLEMENT_METHOD(void, SetUserBanned, (
+        const std::string& user,
+        bool isBanned,
+        const TSetUserBannedOptions& options = {}),
+        (user, isBanned, options))
+    IMPLEMENT_METHOD(bool, GetUserBanned, (
+        const std::string& user,
+        const TGetUserBannedOptions& options = {}),
+        (user, options))
+    IMPLEMENT_METHOD(std::vector<std::string>, ListBannedUsers, (
+        const TListBannedUsersOptions& options = {}),
+        (options))
+
     IMPLEMENT_METHOD(void, MigrateReplicationCards, (
         NObjectClient::TCellId chaosCellId,
         const TMigrateReplicationCardsOptions& options),

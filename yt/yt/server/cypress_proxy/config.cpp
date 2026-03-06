@@ -93,6 +93,28 @@ void TSequoiaResponseKeeperDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TBanServiceDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+    registrar.Parameter("use_in_object_service", &TThis::UseInObjectService)
+        .Default(false);
+    registrar.Parameter("cache_refresh_period", &TThis::CacheRefreshPeriod)
+        .Default(TDuration::Seconds(30));
+    registrar.Parameter("cross_cluster_replicated_state", &TThis::CrossClusterReplicatedState)
+        .Default();
+    registrar.Postprocessor([] (TThis* config) {
+        THROW_ERROR_EXCEPTION_IF(
+            config->UseInObjectService && !config->Enable,
+            "Ban service must be enabled for usage");
+        THROW_ERROR_EXCEPTION_IF(
+            config->Enable && !config->CrossClusterReplicatedState,
+            "\"cross_cluster_replicated_state\" must be configured for enabled ban service");
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TUserDirectorySynchronizerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("sync_period", &TThis::SyncPeriod)
@@ -108,6 +130,8 @@ void TCypressProxyDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("object_service", &TThis::ObjectService)
         .DefaultNew();
     registrar.Parameter("response_keeper", &TThis::ResponseKeeper)
+        .DefaultNew();
+    registrar.Parameter("ban_service", &TThis::BanService)
         .DefaultNew();
     registrar.Parameter("thread_pool_size", &TThis::ThreadPoolSize)
         .Default(DefaultThreadPoolSize);

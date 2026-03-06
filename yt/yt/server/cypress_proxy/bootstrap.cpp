@@ -7,6 +7,7 @@
 #include "dynamic_config_manager.h"
 #include "master_connector.h"
 #include "object_service.h"
+#include "ban_service.h"
 #include "response_keeper.h"
 #include "sequoia_service.h"
 #include "user_directory.h"
@@ -181,6 +182,11 @@ public:
         return MasterConnector_;
     }
 
+    const IBanServicePtr& GetBanService() const override
+    {
+        return BanService_;
+    }
+
     IInvokerPtr GetInvoker(const NConcurrency::TFairShareThreadPoolTag& tag) const override
     {
         return ThreadPool_->GetInvoker(tag);
@@ -228,6 +234,7 @@ private:
     NHttp::IServerPtr HttpServer_;
 
     IObjectServicePtr ObjectService_;
+    IBanServicePtr BanService_;
 
     IMapNodePtr OrchidRoot_;
     IMonitoringManagerPtr MonitoringManager_;
@@ -318,8 +325,10 @@ private:
 
         ResponseKeeper_ = CreateSequoiaResponseKeeper(GetDynamicConfigManager()->GetConfig()->ResponseKeeper, Logger());
         ObjectService_ = CreateObjectService(this);
+        BanService_ = CreateBanService(this);
         RpcServer_->RegisterService(ObjectService_->GetService());
         RpcServer_->RegisterService(CreateCypressTransactionService(this));
+        RpcServer_->RegisterService(BanService_->GetService());
     }
 
     void DoStart()
@@ -347,6 +356,7 @@ private:
 
         ThreadPool_->SetThreadCount(newConfig->ThreadPoolSize);
         ResponseKeeper_->Reconfigure(newConfig->ResponseKeeper);
+        BanService_->Reconfigure(newConfig->BanService);
     }
 };
 
