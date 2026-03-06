@@ -28,7 +28,7 @@ public:
     explicit TAccessChecker(TBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
         , Config_(Bootstrap_->GetConfig()->AccessChecker)
-        , ProxyRole_(Bootstrap_->GetCoordinator()->GetSelf()->Role)
+        , ProxyRole_(Bootstrap_->GetCoordinator()->GetSelfEntry()->Role)
         , Enabled_(Config_->Enabled)
     {
         const auto& coordinator = Bootstrap_->GetCoordinator();
@@ -46,7 +46,7 @@ public:
             return TError();
         }
 
-        auto proxyRole = Bootstrap_->GetCoordinator()->GetSelf()->Role;
+        auto proxyRole = Bootstrap_->GetCoordinator()->GetSelfEntry()->Role;
         auto path = Config_->UseAccessControlObjects
             ? Format("%v/%v/principal", Config_->PathPrefix, proxyRole)
             : Format("%v/%v", Config_->PathPrefix, proxyRole);
