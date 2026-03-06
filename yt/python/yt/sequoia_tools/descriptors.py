@@ -23,7 +23,7 @@ class TableDescriptors:
     def as_dict(self) -> dict[str, TableDescriptor]:
         result = dict()
         for attr in dir(self):
-            if not attr.startswith('__') and not callable(getattr(self, attr)):
+            if not attr.startswith("__") and not callable(getattr(self, attr)):
                 result[attr] = getattr(self, attr)
         return result
 
@@ -44,7 +44,7 @@ try:
         records_text.append(resource.resfs_read(src))
 except ImportError:
     # Package resource is missing in open-source build, so I am forced to use env vars here.
-    source_root = os.environ['SOURCE_ROOT']
+    source_root = os.environ["SOURCE_ROOT"]
     records_dir_path = os.path.join(source_root, resource_file_prefix)
     for record_name in os.listdir(records_dir_path):
         record_path = os.path.join(records_dir_path, record_name)
@@ -78,7 +78,7 @@ def _build_schema_from_fields(fields: list[Field]) -> list[dict[str, Any]]:
 def _build_descriptor_from_record(record: RecordType) -> TableDescriptor:
     name = record.table_name
     if name is None:
-        raise RuntimeError("'table_name' field is required for Sequoia tables")
+        raise RuntimeError('"table_name" field is required for Sequoia tables')
     group = record.table_group
     schema = _build_schema_from_fields(record.fields)
     return TableDescriptor(name, group, schema)
@@ -94,7 +94,7 @@ def get_table_descriptors(version: int | None) -> TableDescriptors:
             descriptor = _build_descriptor_from_record(record)
             name = descriptor.name
             if name in dataclasses.fields(result):
-                raise ValueError(f"Multiple records with name '{name}' exist")
+                raise ValueError(f'Multiple records with name "{name}" exist')
             setattr(result, name, descriptor)
     return result
 

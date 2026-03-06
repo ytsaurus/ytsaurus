@@ -194,7 +194,8 @@ class SetAttributeAction(Action):
     def _validate_current_value(self, app: SequoiaTool, expected: Any) -> None:
         current = self._try_get_current_value(app)
         if mismatches := compare_values(current, expected):
-            raise ValidationFailed(f"Mismatches: [{"; ".join(mismatches)}]")
+            raise ValidationFailed(
+                "Mismatches: [{}]".format("; ".join(mismatches)))
 
     @override
     def execute(self, app: SequoiaTool) -> None:
@@ -307,7 +308,8 @@ class CreateObjectActionBase(Action):
         if mismatches := compare_values(attributes, self._attributes,
                                         patch_mode=True):
             # TODO(danilalexeev): Raise on incompatable schema.
-            logging.warning(f"Attribute mismatches: [{"; ".join(mismatches)}]")
+            logging.warning("Attribute mismatches: [%s]",
+                            "; ".join(mismatches))
 
     @override
     def dry_run(self, app: SequoiaTool) -> None:
@@ -480,7 +482,8 @@ class MountTabletAction(Action):
 
     @override
     def describe(self) -> str:
-        return f"{"Unmount" if self._unmount else "Mount"} table {self._path}"
+        verb = "Unmount" if self._unmount else "Mount"
+        return f"{verb} table {self._path}"
 
     @override
     def validate_prerequisites(self, app: SequoiaTool) -> None:
@@ -497,10 +500,9 @@ class MountTabletAction(Action):
 
     @override
     def dry_run(self, app: SequoiaTool) -> None:
+        verb = "unmount" if self._unmount else "mount"
         log_dry_run(
-            MessageBuilder(
-                f"Would {"unmount" if self._unmount else "mount"} "
-                f"table {self._path}")
+            MessageBuilder(f"Would {verb} table {self._path}")
             .with_fields(self._kwargs)
             .build(),
             logger)
