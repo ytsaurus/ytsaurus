@@ -192,7 +192,6 @@ SRCS(
     tablet_node/table_puller_helpers.cpp
     tablet_node/tablet.cpp
     tablet_node/tablet_cell_service.cpp
-    tablet_node/tablet_cell_snapshot_validator.cpp
     tablet_node/tablet_manager.cpp
     tablet_node/tablet_memory_statistics.cpp
     tablet_node/tablet_cell_write_manager.cpp
