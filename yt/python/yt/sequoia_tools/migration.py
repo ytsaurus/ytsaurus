@@ -23,8 +23,8 @@ def migrate_ground(
         for r in reign_range
     ]
 
-    logger.info("Will execute actions plans: "
-                f"{', '.join(p.name for p in plans)}")
+    logger.info("Will execute actions plans: %s",
+                ", ".join(p.name for p in plans))
 
     for plan in plans:
         actions.run_action_plan(plan, app)
