@@ -1709,7 +1709,8 @@ void TDecoratedAutomaton::MaybeStartSnapshotBuilder()
 
     auto builder =
         // XXX(babenko): ASAN + fork = possible deadlock; cf. https://st.yandex-team.ru/DEVTOOLS-5425
-#ifdef _asan_enabled_
+        // XXX(babenko): TSAN is not compatible with forks; cf. YT-27589
+#if defined(_asan_enabled_) || defined(_tsan_enabled_)
         false
 #else
         Options_.UseFork
