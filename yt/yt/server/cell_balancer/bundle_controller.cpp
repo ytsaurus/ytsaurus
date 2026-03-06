@@ -7,6 +7,8 @@
 #include "chaos_scheduler.h"
 #include "config.h"
 #include "cypress_bindings.h"
+#include "input_state.h"
+#include "mutations.h"
 #include "orchid_bindings.h"
 
 #include <yt/yt/server/lib/cypress_election/election_manager.h>
@@ -1255,7 +1257,9 @@ private:
     {
         TListNodeOptions options;
         options.MaxSize = DefaultMaxSize;
-        options.Attributes = TEntryInfo::GetAttributes();
+
+        auto attributeSet = New<TEntryInfo>()->GetRegisteredKeys();
+        options.Attributes = std::vector(attributeSet.begin(), attributeSet.end());
 
         auto yson = WaitFor(transaction->ListNode(path, options))
             .ValueOrThrow();
@@ -1286,7 +1290,9 @@ private:
     {
         TGetNodeOptions options;
         options.MaxSize = DefaultMaxSize;
-        options.Attributes = TEntryInfo::GetAttributes();
+
+        auto attributeSet = New<TEntryInfo>()->GetRegisteredKeys();
+        options.Attributes = std::vector(attributeSet.begin(), attributeSet.end());
 
         auto yson = WaitFor(transaction->GetNode(path, options))
             .ValueOrThrow();

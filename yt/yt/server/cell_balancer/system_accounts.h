@@ -1,0 +1,15 @@
+#pragma once
+
+#include "public.h"
+
+namespace NYT::NCellBalancer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ManageSystemAccountLimit(
+    const TSchedulerInputState& input,
+    TSchedulerMutations* mutations);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NCellBalancer
