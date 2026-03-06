@@ -8,6 +8,22 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 
 **Releases:**
 
+{% cut "**0.13.47**" %}
+
+**Release date:** 2026-02-16
+
+
+#### Features
+- Add `run-job-shell-command` to CLI [394c049deb1460f767be591036f5d55b7d5d58db]
+- Add `lock` attribute support for `ColumnSchema` [87a9d8809a144c64d72fc767999c8c9d25616911]
+- Add support for distributed reads in `read_parallel` mode [01912a6703b7fea296efc3eb5fbaebd69ea2d046]
+
+#### Fixes
+- Fix Docker image preparation using CLI [2788466412f56e941044e833dbfc201d1937807f]
+
+{% endcut %}
+
+
 {% cut "**0.13.46**" %}
 
 **Release date:** 2026-01-18
@@ -315,7 +331,7 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 * Drop python2 related code in `_py_runner.py`
 * Add `python_requires=">=3.8"` to package setup
 * Do not request all attributes in operation exists check
-* Fix handling request timeout of `start_operation` command
+* Fix handling request timeout of `start_operation` command 
 
 {% endcut %}
 
@@ -435,7 +451,7 @@ Thanks to multiple outside contributors for the active participation in Python S
 **Release date:** 2024-06-26
 
 
-Features:
+Features: 
   - Support profiles in configuration file
   - Add versioned select
   - Add enum.StrEnum and enum.IntEnum support for yt_dataclasses
