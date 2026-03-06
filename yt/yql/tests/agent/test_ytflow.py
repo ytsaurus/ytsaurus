@@ -12,7 +12,10 @@ import logbroker.tools.lib.recipe_helpers.cm_requests as cm_requests
 
 from yt.environment.helpers import assert_items_equal
 from yt.wrapper.flow_commands import PipelineState
-from yt.yql.tests.common.test_framework.test_utils import wait_pipeline_state_or_failed_jobs
+from yt.yql.tests.common.test_framework.test_utils import (
+    wait_pipeline_state_or_failed_jobs,
+    create_flow_logs_replicators
+)
 
 from yt_commands import (
     authors, create, sync_mount_table, insert_rows, select_rows,
@@ -157,6 +160,17 @@ class TestYtflowBase(TestQueueAgentBase):
             yatest.common.binary_path("yt/yql/tests/agent/throwing_udf"),
         ])
 
+    def _get_test_id(self, request):
+        test_id_prefix = [
+            request.cls.__name__.lower(),
+            request.function.__name__.lower()
+        ]
+        if hasattr(request.node, "callspec"):
+            indices = request.node.callspec.indices
+            for param in request.node.callspec.params.keys():
+                test_id_prefix.append(str(indices[param]))
+        return ".".join(test_id_prefix)
+
     @pytest.fixture(autouse=True)
     def setup_yt_utils(self):
         self.yt_table_index_generator = itertools.count()
@@ -167,17 +181,7 @@ class TestYtflowBase(TestQueueAgentBase):
 
         logbroker_topic_index_generator = itertools.count()
 
-        topic_prefix = [
-            request.cls.__name__.lower(),
-            request.function.__name__.lower()
-        ]
-
-        if hasattr(request.node, "callspec"):
-            indices = request.node.callspec.indices
-            for param in request.node.callspec.params.keys():
-                topic_prefix.append(str(indices[param]))
-
-        logbroker_topic_prefix = ".".join(topic_prefix)
+        logbroker_topic_prefix = self._get_test_id(request)
         logbroker_created_topics = []
 
         def create_topic():
@@ -241,11 +245,13 @@ class TestYtflowBase(TestQueueAgentBase):
         actual_data = [lb_data.message.data.decode() for lb_data in self._read_logbroker_topic(topic_path)]
         assert actual_data == expected_data
 
-    def _run_query(self, query_text):
-        with PortManager() as port_manager:
-            pipeline_path = self.PIPELINE_PATH
+    @pytest.fixture
+    def run_query(self, request):
+        def impl(query_text):
+            with PortManager() as port_manager:
+                pipeline_path = self.PIPELINE_PATH
 
-            query_text_header = f"""
+                query_text_header = f"""
 use primary;
 
 pragma Engine = "ytflow";
@@ -261,22 +267,35 @@ pragma Ytflow.WorkerRpcPort = "{port_manager.get_port()}";
 pragma Ytflow.WorkerMonitoringPort = "{port_manager.get_port()}";
 pragma Ytflow.ControllerCount = "1";
 pragma Ytflow.UseCpuAwareBalancer = "false";
+pragma Ytflow.ControllerWriteFullLogsToYT = "true";
+pragma Ytflow.ControllerLogLevel = "debug";
 pragma Ytflow.WorkerCount = "1";
+pragma Ytflow.WriteWorkerLogsToYT = "true";
+pragma Ytflow.WorkerLogLevel = "debug";
 
 pragma Ytflow.LogbrokerConsumerPath = "{self.LOGBROKER_CONSUMER}";
 pragma Ytflow.LogbrokerWriteCompressionCodec = "{self.LOGBROKER_COMPRESSION_CODEC}";
 pragma Ytflow.LogbrokerWriteCompressionLevel = "{self.LOGBROKER_COMPRESSION_LEVEL}";
 """
 
-            query_text = '\n'.join([query_text_header, query_text])
+                query_text = '\n'.join([query_text_header, query_text])
 
-            query = start_query("yql", query_text)
-            query.track()
+                controller_logs_replicator, worker_logs_replicator = create_flow_logs_replicators(
+                    self.PIPELINE_PATH,
+                    yatest.common.output_path(),
+                    logs_batch_size=1000,
+                    output_file_prefix=self._get_test_id(request),
+                    yt_client=self.Env.create_client())
 
-            wait_pipeline_state_or_failed_jobs(
-                PipelineState.Completed, pipeline_path,
-                client=self.Env.create_client(),
-                timeout=600)
+                with controller_logs_replicator, worker_logs_replicator:
+                    query = start_query("yql", query_text)
+                    query.track()
+
+                    wait_pipeline_state_or_failed_jobs(
+                        PipelineState.Completed, pipeline_path,
+                        client=self.Env.create_client(),
+                        timeout=600)
+        return impl
 
     def _remove_system_columns(self, rows):
         system_columns = ["$tablet_index", "$row_index", "$timestamp", "$cumulative_data_weight"]
@@ -297,7 +316,7 @@ class TestYtflow(TestYtflowBase):
 
     @authors("ngc224")
     @pytest.mark.timeout(180)
-    def test_select(self, query_tracker, yql_agent):
+    def test_select(self, query_tracker, yql_agent, run_query):
         input_table_path = self._create_yt_table(dict(
             schema=self._make_queue_schema([
                 {"name": "string_field", "type": "string"},
@@ -318,7 +337,7 @@ class TestYtflow(TestYtflowBase):
             ]),
         ))
 
-        self._run_query(f"""
+        run_query(f"""
 insert into `{out_table_path}`
 select
     string_field || "_ytflow" as string_field,
@@ -335,7 +354,7 @@ where string_field = "foo" or int64_field >= 100;
 
     @authors("ngc224")
     @pytest.mark.timeout(180)
-    def test_throwing_udf(self, query_tracker, yql_agent):
+    def test_throwing_udf(self, query_tracker, yql_agent, run_query):
         input_table_path = self._create_yt_table(dict(
             schema=self._make_queue_schema([
                 {"name": "value", "type": "string"},
@@ -354,7 +373,7 @@ where string_field = "foo" or int64_field >= 100;
             ]),
         ))
 
-        self._run_query(f"""
+        run_query(f"""
 insert into `{out_table_path}`
 select
     ThrowingUdf::ParseWithThrow(value, need_throw) as parsed_value
@@ -369,7 +388,7 @@ from `{input_table_path}`
 
     @authors("ngc224")
     @pytest.mark.timeout(180)
-    def test_udf_terminate(self, query_tracker, yql_agent):
+    def test_udf_terminate(self, query_tracker, yql_agent, run_query):
         input_table_path = self._create_yt_table(dict(
             schema=self._make_queue_schema([
                 {"name": "value", "type": "string"},
@@ -401,12 +420,12 @@ select * from $stream;
 """
 
         with raises_yt_error("Failed to unwrap empty optional"):
-            self._run_query(query)
+            run_query(query)
 
     @authors("ngc224")
     @pytest.mark.timeout(180)
     @pytest.mark.parametrize("vital", [False, True])
-    def test_consumer_vitality(self, query_tracker, yql_agent, vital):
+    def test_consumer_vitality(self, query_tracker, yql_agent, run_query, vital):
         input_table_path = self._create_yt_table(dict(
             schema=self._make_queue_schema([
                 {"name": "value", "type": "string"},
@@ -423,7 +442,7 @@ select * from $stream;
             ]),
         ))
 
-        self._run_query(f"""
+        run_query(f"""
 pragma Ytflow.YtConsumerVital = "{vital}";
 
 insert into `{out_table_path}`
@@ -446,7 +465,7 @@ from `{input_table_path}`
 
     @authors("artemmashin")
     @pytest.mark.timeout(180)
-    def test_multiple_outputs_in_lambda(self, query_tracker, yql_agent):
+    def test_multiple_outputs_in_lambda(self, query_tracker, yql_agent, run_query):
         FIELD_GOOD = "int64_field"
         FIELD_BAD = "string_field"
 
@@ -472,7 +491,7 @@ from `{input_table_path}`
             ]),
         ))
 
-        self._run_query(f"""
+        run_query(f"""
 $lambda = ($row) -> {{
     $good_row_type = TypeOf($row);
     $bad_row_type = Struct<'{FIELD_BAD}':optional<string>>;
@@ -505,7 +524,7 @@ select * from $bad_stream;
 
     @authors("artemmashin")
     @pytest.mark.timeout(180)
-    def test_logbroker_read(self, query_tracker, yql_agent, create_logbroker_topic):
+    def test_logbroker_read(self, query_tracker, yql_agent, run_query, create_logbroker_topic):
         input_topic_path = create_logbroker_topic()
         self._write_logbroker_topic(input_topic_path, ["a", "b", "c"])
 
@@ -515,7 +534,7 @@ select * from $bad_stream;
             ]),
         ))
 
-        self._run_query(f"""
+        run_query(f"""
 $stream = select Data || "_ytflow" as Data from logbroker.`{input_topic_path}`;
 
 insert into `{out_table_path}`
@@ -530,7 +549,7 @@ select * from $stream;
 
     @authors("artemmashin")
     @pytest.mark.timeout(180)
-    def test_logbroker_write(self, query_tracker, yql_agent, create_logbroker_topic):
+    def test_logbroker_write(self, query_tracker, yql_agent, run_query, create_logbroker_topic):
         input_table_path = self._create_yt_table(dict(
             schema=self._make_queue_schema([
                 {"name": "Data", "type": "string"},
@@ -544,7 +563,7 @@ select * from $stream;
 
         out_topic_path = create_logbroker_topic()
 
-        self._run_query(f"""
+        run_query(f"""
 $stream = select coalesce(Data, "Empty!") as Data from `{input_table_path}`;
 
 insert into logbroker.`{out_topic_path}`
@@ -555,7 +574,7 @@ select * from $stream;
 
     @authors("artemmashin")
     @pytest.mark.timeout(180)
-    def test_read_yt_write_yt_logbroker(self, query_tracker, yql_agent, create_logbroker_topic):
+    def test_read_yt_write_yt_logbroker(self, query_tracker, yql_agent, run_query, create_logbroker_topic):
         input_table_path = self._create_yt_table(dict(
             schema=self._make_queue_schema([
                 {"name": "Data", "type": "string"},
@@ -574,7 +593,7 @@ select * from $stream;
         ))
         out_topic_path = create_logbroker_topic()
 
-        self._run_query(f"""
+        run_query(f"""
 $stream = select * from `{input_table_path}`;
 
 $lambda = ($row) -> {{
@@ -605,7 +624,7 @@ select * from $bad_stream;
 
     @authors("artemmashin")
     @pytest.mark.timeout(180)
-    def test_read_logbroker_write_yt_logbroker(self, query_tracker, yql_agent, create_logbroker_topic):
+    def test_read_logbroker_write_yt_logbroker(self, query_tracker, yql_agent, run_query, create_logbroker_topic):
         input_topic_path = create_logbroker_topic()
         self._write_logbroker_topic(input_topic_path, ["yt", "logbroker", "logbroker"])
 
@@ -616,7 +635,7 @@ select * from $bad_stream;
         ))
         out_topic_path = create_logbroker_topic()
 
-        self._run_query(f"""
+        run_query(f"""
 $stream = select * from logbroker.`{input_topic_path}`;
 
 $lambda = ($row) -> {{
@@ -646,13 +665,13 @@ select * from $bad_stream;
 
     @authors("artemmashin")
     @pytest.mark.timeout(180)
-    def test_many_logbroker_outputs(self, query_tracker, yql_agent, create_logbroker_topic):
+    def test_many_logbroker_outputs(self, query_tracker, yql_agent, run_query, create_logbroker_topic):
         input_topic_path = create_logbroker_topic()
         self._write_logbroker_topic(input_topic_path, [str(i) for i in range(5)])
 
         out_topics = [create_logbroker_topic() for _ in range(5)]
 
-        self._run_query(f"""
+        run_query(f"""
 $stream = select * from logbroker.`{input_topic_path}`;
 
 $lambda = ($row) -> {{
@@ -675,7 +694,7 @@ $stream0, $stream1, $stream2, $stream3, $stream4 = process $stream using $lambda
 
     @authors("artemmashin")
     @pytest.mark.timeout(180)
-    def test_yt_yt_logbroker_output(self, query_tracker, yql_agent, create_logbroker_topic):
+    def test_yt_yt_logbroker_output(self, query_tracker, yql_agent, run_query, create_logbroker_topic):
         input_topic_path = create_logbroker_topic()
         self._write_logbroker_topic(input_topic_path, [str(i) for i in range(3)])
 
@@ -687,7 +706,7 @@ $stream0, $stream1, $stream2, $stream3, $stream4 = process $stream using $lambda
 
         out_topic_path = create_logbroker_topic()
 
-        self._run_query(f"""
+        run_query(f"""
 $stream = select * from logbroker.`{input_topic_path}`;
 
 $lambda = ($row) -> {{
