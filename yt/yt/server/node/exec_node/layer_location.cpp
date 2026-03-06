@@ -276,8 +276,8 @@ std::vector<TLayerMeta> TLayerLocation::GetAllLayers() const
     std::vector<TLayerMeta> layers;
     {
         auto guard = Guard(SpinLock_);
-        layers.reserve(Layers_.size());
-        for (const auto& [id, meta] : Layers_) {
+        layers.reserve(LayerIdToMeta_.size());
+        for (const auto& [id, meta] : LayerIdToMeta_) {
             layers.push_back(meta);
         }
     }
@@ -286,7 +286,7 @@ std::vector<TLayerMeta> TLayerLocation::GetAllLayers() const
 
 TFuture<void> TLayerLocation::GetVolumeReleaseEvent()
 {
-    return VolumesReleaseEvent_.ToFuture();
+    return VolumesReleasePromise_.ToFuture();
 }
 
 void TLayerLocation::Disable(const TError& error, bool persistentDisable)
@@ -303,40 +303,41 @@ void TLayerLocation::Disable(const TError& error, bool persistentDisable)
         YT_LOG_WARNING_IF(!result.IsOK(), result, "Layer location health checker stopping failed");
     }
 
-    auto guard = Guard(SpinLock_);
+    {
+        auto guard = Guard(SpinLock_);
 
-    Alert_ = TError(NExecNode::EErrorCode::LayerLocationDisabled, "Layer location disabled")
-        << TErrorAttribute("path", Config_->Path)
-        << error;
+        Alert_ = TError(NExecNode::EErrorCode::LayerLocationDisabled, "Layer location disabled")
+            << TErrorAttribute("path", Config_->Path)
+            << error;
 
-    if (persistentDisable) {
-        // Save the reason in a file and exit.
-        // Location will be disabled during the scan in the restarted process.
-        auto lockFilePath = NFS::CombinePaths(Config_->Path, NServer::DisabledLockFileName);
-        try {
-            TFile file(lockFilePath, CreateAlways | WrOnly | Seq | CloseOnExec);
-            TFileOutput fileOutput(file);
-            fileOutput << ConvertToYsonString(error, NYson::EYsonFormat::Pretty).AsStringBuf();
-        } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Error creating location lock file");
-            // Exit anyway.
+        if (persistentDisable) {
+            // Save the reason in a file and exit.
+            // Location will be disabled during the scan in the restarted process.
+            auto lockFilePath = NFS::CombinePaths(Config_->Path, NServer::DisabledLockFileName);
+            try {
+                TFile file(lockFilePath, CreateAlways | WrOnly | Seq | CloseOnExec);
+                TFileOutput fileOutput(file);
+                fileOutput << ConvertToYsonString(error, NYson::EYsonFormat::Pretty).AsStringBuf();
+            } catch (const std::exception& ex) {
+                YT_LOG_ERROR(ex, "Error creating location lock file");
+                // Exit anyway.
+            }
+
+            YT_LOG_ERROR(error, "Volume manager disabled; terminating");
+
+            if (DynamicConfigManager_->GetConfig()->DataNode->AbortOnLocationDisabled) {
+                YT_LOG_FATAL(error, "Volume manager disabled; terminating");
+            }
         }
 
-        YT_LOG_ERROR(error, "Volume manager disabled; terminating");
-
-        if (DynamicConfigManager_->GetConfig()->DataNode->AbortOnLocationDisabled) {
-            YT_LOG_FATAL(error, "Volume manager disabled; terminating");
-        }
+        AvailableSpace_ = 0;
+        UsedSpace_ = 0;
+        VolumeIdToMeta_.clear();
+        LayerIdToMeta_.clear();
+        PerformanceCounters_ = {};
     }
 
-    AvailableSpace_ = 0;
-    UsedSpace_ = 0;
-    Volumes_.clear();
-    Layers_.clear();
-
-    VolumesReleaseEvent_.TrySet();
-
-    PerformanceCounters_ = {};
+    VolumesReleasePromise_.TrySet();
 }
 
 TLayerLocationPerformanceCounters& TLayerLocation::GetPerformanceCounters()
@@ -347,13 +348,13 @@ TLayerLocationPerformanceCounters& TLayerLocation::GetPerformanceCounters()
 int TLayerLocation::GetLayerCount() const
 {
     auto guard = Guard(SpinLock_);
-    return Layers_.size();
+    return LayerIdToMeta_.size();
 }
 
 int TLayerLocation::GetVolumeCount() const
 {
     auto guard = Guard(SpinLock_);
-    return Volumes_.size();
+    return VolumeIdToMeta_.size();
 }
 
 bool TLayerLocation::IsFull()
@@ -368,11 +369,12 @@ bool TLayerLocation::IsLayerImportInProgress() const
 
 i64 TLayerLocation::GetCapacity()
 {
-    return std::max<i64>(0, UsedSpace_ + GetAvailableSpace() - Config_->LowWatermark);
+    return std::max<i64>(0, GetUsedSpace() + GetAvailableSpace() - Config_->LowWatermark);
 }
 
 i64 TLayerLocation::GetUsedSpace() const
 {
+    auto guard = Guard(SpinLock_);
     return UsedSpace_;
 }
 
@@ -386,17 +388,25 @@ i64 TLayerLocation::GetAvailableSpace()
 
     try {
         auto statistics = NFS::GetDiskSpaceStatistics(path);
-        AvailableSpace_ = statistics.AvailableSpace;
+        {
+            auto guard = Guard(SpinLock_);
+            AvailableSpace_ = statistics.AvailableSpace;
+        }
     } catch (const std::exception& ex) {
         auto error = TError("Failed to compute available space")
             << ex;
         Disable(error);
     }
 
-    i64 remainingQuota = std::max(static_cast<i64>(0), GetQuota() - UsedSpace_);
-    AvailableSpace_ = std::min(AvailableSpace_, remainingQuota);
+    i64 availableSpace;
+    {
+        auto guard = Guard(SpinLock_);
+        i64 remainingQuota = std::max(static_cast<i64>(0), GetQuota() - UsedSpace_);
+        availableSpace = std::min(AvailableSpace_, remainingQuota);
+        AvailableSpace_ = availableSpace;
+    }
 
-    return AvailableSpace_;
+    return availableSpace;
 }
 
 bool TLayerLocation::ResidesOnTmpfs() const
@@ -572,7 +582,7 @@ void TLayerLocation::LoadLayers()
 
         {
             auto guard = Guard(SpinLock_);
-            YT_VERIFY(Layers_.emplace(id, meta).second);
+            YT_VERIFY(LayerIdToMeta_.emplace(id, meta).second);
 
             UsedSpace_ += meta.size();
         }
@@ -668,14 +678,14 @@ void TLayerLocation::DoFinalizeLayerImport(const TLayerMeta& layerMeta, TGuid ta
 
     i64 usedSpace;
     i64 availableSpace;
-
     {
         auto guard = Guard(SpinLock_);
         ValidateEnabled();
-        Layers_[layerMeta.Id] = layerMeta;
+        LayerIdToMeta_[layerMeta.Id] = layerMeta;
 
-        AvailableSpace_ -= layerMeta.size();
-        UsedSpace_ += layerMeta.size();
+        i64 layerMetaSize = layerMeta.size();
+        AvailableSpace_ -= layerMetaSize;
+        UsedSpace_ += layerMetaSize;
 
         usedSpace = UsedSpace_;
         availableSpace = AvailableSpace_;
@@ -800,7 +810,7 @@ void TLayerLocation::DoRemoveLayer(const TLayerId& layerId)
         auto guard = Guard(SpinLock_);
         ValidateEnabled();
 
-        if (!Layers_.contains(layerId)) {
+        if (!LayerIdToMeta_.contains(layerId)) {
             YT_LOG_FATAL("Layer already removed");
         }
     }
@@ -819,12 +829,12 @@ void TLayerLocation::DoRemoveLayer(const TLayerId& layerId)
                 return;
             }
 
-            i64 layerSize = Layers_[layerId].size();
+            i64 layerMetaSize = LayerIdToMeta_[layerId].size();
 
-            YT_VERIFY(Layers_.erase(layerId));
+            YT_VERIFY(LayerIdToMeta_.erase(layerId));
 
-            UsedSpace_ -= layerSize;
-            AvailableSpace_ += layerSize;
+            UsedSpace_ -= layerMetaSize;
+            AvailableSpace_ += layerMetaSize;
         }
     } catch (const std::exception& ex) {
         auto error = TError(
@@ -944,10 +954,10 @@ TVolumeMeta TLayerLocation::DoCreateVolume(
         {
             auto guard = Guard(SpinLock_);
             ValidateEnabled();
-            YT_VERIFY(Volumes_.emplace(volumeId, volumeMeta).second);
+            YT_VERIFY(VolumeIdToMeta_.emplace(volumeId, volumeMeta).second);
 
-            if (VolumesReleaseEvent_.IsSet()) {
-                VolumesReleaseEvent_ = NewPromise<void>();
+            if (VolumesReleasePromise_.IsSet()) {
+                VolumesReleasePromise_ = NewPromise<void>();
             }
         }
 
@@ -1224,11 +1234,13 @@ void TLayerLocation::DoRemoveVolume(TTagSet tagSet, TVolumeId volumeId)
                 volumePath,
                 volumeMetaPath);
 
+
+            bool setVolumesReleasePromise = false;
             {
                 auto guard = Guard(SpinLock_);
 
                 // NB. The location could be disabled while we were getting here.
-                if (Volumes_.erase(volumeId) == 0 && IsEnabled()) {
+                if (VolumeIdToMeta_.erase(volumeId) == 0 && IsEnabled()) {
                     YT_LOG_FATAL(
                         "Volume already removed (VolumePath: %v, VolumeMetaPath: %v)",
                         volumePath,
@@ -1236,9 +1248,13 @@ void TLayerLocation::DoRemoveVolume(TTagSet tagSet, TVolumeId volumeId)
                 }
 
                 // It is all right to set promise even if location is disabled.
-                if (Volumes_.empty()) {
-                    VolumesReleaseEvent_.TrySet();
+                if (VolumeIdToMeta_.empty()) {
+                    setVolumesReleasePromise = true;
                 }
+            }
+
+            if (setVolumesReleasePromise) {
+                VolumesReleasePromise_.TrySet();
             }
 
             YT_LOG_DEBUG("Volume removed");

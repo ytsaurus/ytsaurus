@@ -158,13 +158,14 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
 
-    THashMap<TLayerId, TLayerMeta> Layers_;
-    THashMap<TVolumeId, TVolumeMeta> Volumes_;
+    THashMap<TLayerId, TLayerMeta> LayerIdToMeta_;
+    THashMap<TVolumeId, TVolumeMeta> VolumeIdToMeta_;
 
-    TPromise<void> VolumesReleaseEvent_ = MakePromise<void>(TError());
+    TPromise<void> VolumesReleasePromise_ = MakePromise<void>(TError());
 
     mutable i64 AvailableSpace_ = 0;
     i64 UsedSpace_ = 0;
+
     TError Alert_;
 
     std::string GetLayerPath(const TLayerId& id) const;
