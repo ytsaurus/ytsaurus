@@ -305,7 +305,7 @@ PyObject* GetYsonTypeClass(const std::string& name)
 bool WaitForSettingFuture(TFuture<void> future)
 {
     while (true) {
-        if (future.Wait(TDuration::MilliSeconds(100))) {
+        if (future.BlockingWait(TDuration::MilliSeconds(100))) {
             return true;
         }
 

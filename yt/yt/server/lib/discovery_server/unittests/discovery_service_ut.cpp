@@ -228,7 +228,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestListGroups)
     auto discoveryClient = CreateDiscoveryClient();
     auto checkGroups = [&] (TGroupId groupId, std::vector<TGroupId> expectedGroups) {
         auto groupsFuture = discoveryClient->ListGroups(groupId, {1000});
-        if (!groupsFuture.Wait()) {
+        if (!groupsFuture.BlockingWait()) {
             return false;
         }
 
@@ -249,7 +249,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestListGroups)
 
     auto checkResponseSize = [&] (int expectedSize, bool expectIncomplete) {
         auto groupsFuture = discoveryClient->ListGroups(groupId, {.Limit = expectedSize});
-        if (!groupsFuture.Wait()) {
+        if (!groupsFuture.BlockingWait()) {
             return false;
         }
 
@@ -262,7 +262,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestListGroups)
 
     auto checkNonExistent = [&] {
         auto groupsFuture = discoveryClient->ListGroups(subgroupId4, {});
-        if (!groupsFuture.Wait()) {
+        if (!groupsFuture.BlockingWait()) {
             return false;
         }
 

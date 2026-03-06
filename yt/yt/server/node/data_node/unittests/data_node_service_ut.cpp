@@ -624,7 +624,7 @@ public:
         MemoryTracker_.Reset();
         WorkloadDescriptor_ = {};
         ChannelFactory_.Reset();
-        DataNodeService_->Stop().Wait();
+        DataNodeService_->Stop().BlockingWait();
         DataNodeService_.Reset();
         DataNodeBootstrap_.Reset();
         ClusterNodeBootstrap_.Reset();
@@ -1098,7 +1098,7 @@ TEST_P(TIOWeightTest, IoBasedOnIoWeight)
     }
 
     for (const auto& future : futures) {
-        future.Wait();
+        future.BlockingWait();
     }
 
     std::vector<double> usedSpaces;
@@ -1239,7 +1239,7 @@ TEST_P(TGetBlockSetTest, GetBlockSetTest)
     }
 
     auto allsucceededGetBlockSetFutures = AllSucceeded(getBlockSetFutures);
-    EXPECT_TRUE(allsucceededGetBlockSetFutures.Wait(TDuration::Seconds(60)));
+    EXPECT_TRUE(allsucceededGetBlockSetFutures.BlockingWait(TDuration::Seconds(60)));
     auto getBlockSetFuturesResult = allsucceededGetBlockSetFutures.TryGet();
     EXPECT_TRUE(getBlockSetFuturesResult.has_value());
     EXPECT_TRUE(getBlockSetFuturesResult.has_value() && getBlockSetFuturesResult->IsOK());
