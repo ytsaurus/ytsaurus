@@ -1,13 +1,9 @@
 #include "bootstrap.h"
 
-#include <yt/yt/server/node/cellar_node/bootstrap.h>
-
 #include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
 #include <yt/yt/server/lib/cellar_agent/cellar.h>
 #include <yt/yt/server/lib/cellar_agent/helpers.h>
 #include <yt/yt/server/lib/cellar_agent/occupant.h>
-
-#include <yt/yt/server/lib/hydra/snapshot.h>
 
 #include <yt/yt/server/lib/hydra/snapshot.h>
 
@@ -19,12 +15,11 @@
 
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
-namespace NYT::NTabletNode {
+namespace NYT::NCellarNode {
 
 using namespace NApi;
 using namespace NCellarClient;
 using namespace NCellarAgent;
-using namespace NClusterNode;
 using namespace NConcurrency;
 using namespace NHiveClient;
 using namespace NHydra;
@@ -41,14 +36,12 @@ static const std::string FakeAccount = "fake-account";
 ////////////////////////////////////////////////////////////////////////////////
 
 ICellarOccupantPtr CreateFakeOccupant(
-    IBootstrapBase* bootstrap,
+    IBootstrap* bootstrap,
     TCellId cellId,
     std::string tabletCellBundle,
     NApi::TClusterTag clockClusterTag)
 {
-    const auto& cellarManager = bootstrap
-        ->GetCellarNodeBootstrap()
-        ->GetCellarManager();
+    const auto& cellarManager = bootstrap->GetCellarManager();
     const auto& cellar = cellarManager->GetCellar(GetCellarTypeFromCellId(cellId));
 
     // We create fake tablet slot here populating descriptors with the least amount
@@ -90,4 +83,4 @@ ICellarOccupantPtr CreateFakeOccupant(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTabletNode
+} // namespace NYT::NCellarNode

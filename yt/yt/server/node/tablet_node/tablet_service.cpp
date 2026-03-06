@@ -5,9 +5,6 @@
 #include "error_reporting_service_base.h"
 #include "hunk_tablet_manager.h"
 #include "private.h"
-#include "security_manager.h"
-#include "slot_manager.h"
-#include "store_manager.h"
 #include "tablet.h"
 #include "tablet_cell_write_manager.h"
 #include "tablet_manager.h"
@@ -22,6 +19,8 @@
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
 
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
+
+#include <yt/yt/server/lib/security_server/resource_limits_manager.h>
 
 #include <yt/yt/ytlib/tablet_client/config.h>
 #include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>

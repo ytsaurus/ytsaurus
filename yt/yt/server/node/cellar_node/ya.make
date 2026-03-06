@@ -4,9 +4,10 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
     bootstrap.cpp
-    config.cpp
     bundle_dynamic_config_manager.cpp
+    config.cpp
     master_connector.cpp
+    tablet_cell_snapshot_validator.cpp
 )
 
 PEERDIR(

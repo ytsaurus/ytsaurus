@@ -3,7 +3,6 @@
 #include "bootstrap.h"
 #include "config.h"
 #include "private.h"
-#include "security_manager.h"
 #include "slot_manager.h"
 #include "tablet.h"
 #include "tablet_slot.h"
@@ -152,7 +151,6 @@ public:
             bundleName = slot->GetTabletCellBundleName();
         } else {
             const auto& occupant = Bootstrap_
-                ->GetCellarNodeBootstrap()
                 ->GetCellarManager()
                 ->GetCellar(NCellarClient::ECellarType::Tablet)
                 ->FindOccupant(tabletSnapshot->CellId);

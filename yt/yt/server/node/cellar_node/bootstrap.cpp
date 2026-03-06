@@ -1,9 +1,10 @@
 #include "bootstrap.h"
 
 #include "bundle_dynamic_config_manager.h"
+#include "config.h"
 #include "master_connector.h"
 #include "private.h"
-#include "config.h"
+#include "tablet_cell_snapshot_validator.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -12,7 +13,6 @@
 
 #include <yt/yt/server/node/tablet_node/config.h>
 #include <yt/yt/server/node/tablet_node/security_manager.h>
-#include <yt/yt/server/node/tablet_node/tablet_cell_snapshot_validator.h>
 
 #include <yt/yt/server/lib/cellar_agent/bootstrap_proxy.h>
 #include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
@@ -318,7 +318,7 @@ private:
             tabletCellBundle,
             clockClusterTag);
 
-        DryRunOccupant_ = NTabletNode::CreateFakeOccupant(ClusterNodeBootstrap_, cellId, tabletCellBundle, clockClusterTag);
+        DryRunOccupant_ = CreateFakeOccupant(this, cellId, tabletCellBundle, clockClusterTag);
     }
 
     void DoLoadSnapshot(
