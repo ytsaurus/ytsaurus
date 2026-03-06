@@ -1,5 +1,7 @@
 import six
 import time
+import threading
+import os
 
 from datetime import datetime, timedelta
 
@@ -165,3 +167,75 @@ def wait_pipeline_state_or_failed_jobs(
                     current_state, target_state)
 
         time.sleep(1)
+
+
+def create_flow_logs_replicators(pipeline_path, output_dir, logs_batch_size, output_file_prefix, yt_client):
+    if output_file_prefix:
+        output_file_prefix += "_"
+
+    return (FlowLogsReplicator(
+        pipeline_path + "/" + file,
+        os.path.join(output_dir, output_file_prefix + file + ".log"),
+        logs_batch_size,
+        yt_client
+    ) for file in ("controller_logs", "worker_logs"))
+
+
+class FlowLogsReplicator(threading.Thread):
+    def __init__(self, logs_table_path, target_file_path, logs_batch_size, yt_client):
+        super(FlowLogsReplicator, self).__init__()
+        self.logs_table_path = logs_table_path
+        self.target_file_path = target_file_path
+        self.yt_client = yt_client
+        self.offset = 0
+        self.logs_batch_size = logs_batch_size
+        self.stop_event = threading.Event()
+
+    def __enter__(self):
+        self.start()
+
+    def __exit__(self, exc_type, exc_value, tb):
+        self.stop()
+
+    def stop(self):
+        self.stop_event.set()
+        self.join()
+
+    def run(self):
+        table_exists = self._ensure_table_exists()
+        if not table_exists:
+            return
+
+        with open(self.target_file_path, "w") as target_file:
+            while not self.stop_event.is_set():
+                self._do_iteration(target_file)
+                self.stop_event.wait(1)
+
+            self._do_iteration(target_file, final=True)
+
+    def _do_iteration(self, target_file, final=False):
+        end = self.offset + self.logs_batch_size - 1
+        if final:
+            tablet_infos = self.yt_client.get_tablet_infos(
+                self.logs_table_path,
+                tablet_indexes=[0])
+            total_row_count = tablet_infos["tablets"][0]["total_row_count"]
+            end = total_row_count - 1
+
+        result = list(self.yt_client.select_rows(
+            "data FROM [{}] WHERE [$tablet_index] = 0 AND [$row_index] BETWEEN {} AND {}"
+            .format(self.logs_table_path, self.offset, end),
+            raw=False))
+
+        self.offset += len(result)
+
+        for value in result:
+            target_file.write(value["data"] + "\n")
+
+    def _ensure_table_exists(self):
+        while not self.yt_client.exists(self.logs_table_path):
+            if self.stop_event.is_set():
+                return False
+            self.stop_event.wait(1)
+
+        return True
