@@ -21,12 +21,12 @@ class TVersionedRowDigestBuilder
     : public IVersionedRowDigestBuilder
 {
 public:
-    explicit TVersionedRowDigestBuilder(const TVersionedRowDigestConfigPtr& config)
+    explicit TVersionedRowDigestBuilder(const TTDigestConfigPtr& config)
         : Digest_(New<TVersionedRowDigest>())
     {
-        Digest_->LastTimestampDigest = CreateTDigest(config->TDigest);
-        Digest_->AllButLastTimestampDigest = CreateTDigest(config->TDigest);
-        Digest_->FirstTimestampDigest = CreateTDigest(config->TDigest);
+        Digest_->LastTimestampDigest = CreateTDigest(config);
+        Digest_->AllButLastTimestampDigest = CreateTDigest(config);
+        Digest_->FirstTimestampDigest = CreateTDigest(config);
     }
 
     void OnRow(TVersionedRow row) override
@@ -86,11 +86,12 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IVersionedRowDigestBuilderPtr CreateVersionedRowDigestBuilder(
-    const TVersionedRowDigestConfigPtr& config)
+    const TTDigestConfigPtr& config)
 {
-    if (!config->Enable) {
+    if (!config) {
         return nullptr;
     }
+
     return New<TVersionedRowDigestBuilder>(config);
 }
 

@@ -8,6 +8,10 @@
 
 #include <yt/yt/library/heavy_hitters/config.h>
 
+#include <yt/yt/library/min_hash_digest/config.h>
+
+#include <yt/yt/library/quantile_digest/config.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NConcurrency;
@@ -34,9 +38,17 @@ void TRelativeReplicationThrottlerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TRowDigestCompactionConfig::Register(TRegistrar registrar)
+bool TRowDigestConfig::AreCompactionSettingsEqual(const TRowDigestConfigPtr& other) const
 {
-    registrar.Parameter("enable", &TThis::Enable)
+    return MaxObsoleteTimestampRatio == other->MaxObsoleteTimestampRatio &&
+        MaxTimestampsPerValue == other->MaxTimestampsPerValue;
+}
+
+void TRowDigestConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable_non_aggregates", &TThis::EnableNonAggregates)
+        .Default(false);
+    registrar.Parameter("enable_aggregates", &TThis::EnableAggregates)
         .Default(false);
 
     registrar.Parameter("max_obsolete_timestamp_ratio", &TThis::MaxObsoleteTimestampRatio)
@@ -44,25 +56,59 @@ void TRowDigestCompactionConfig::Register(TRegistrar registrar)
         .Default(0.5);
     registrar.Parameter("max_timestamps_per_value", &TThis::MaxTimestampsPerValue)
         .GreaterThanOrEqual(1)
+        .CheckThat([] (int maxTimestampsPerValue) {
+            THROW_ERROR_EXCEPTION_UNLESS(std::has_single_bit<ui32>(maxTimestampsPerValue),
+                "\"max_timestamps_per_value\" must be a power of two, got %v",
+                maxTimestampsPerValue);
+        })
         .Default(8'192);
-}
 
-////////////////////////////////////////////////////////////////////////////////
-
-void TMinHashDigestCompactionConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("enable", &TThis::Enable)
-        .Default(false);
     registrar.Parameter("chunk_writer", &TThis::ChunkWriter)
-        .DefaultNew();
+        .Optional();
+
+    registrar.Postprocessor([] (TRowDigestConfig* config) {
+        if (!config->ChunkWriter && (config->EnableNonAggregates || config->EnableAggregates)) {
+            config->ChunkWriter = New<TTDigestConfig>();
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TAggregateVersionedRowDigestCompactionConfig::Register(TRegistrar registrar)
+bool TMinHashDigestConfig::AreCompactionSettingsEqual(const TMinHashDigestConfigPtr& other) const
+{
+    return WriteDeleteSimilarity->IsEqual(*other->WriteDeleteSimilarity) &&
+        WritesSimilarity->IsEqual(*other->WritesSimilarity);
+}
+
+void TMinHashDigestConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable", &TThis::Enable)
         .Default(false);
+
+    registrar.Parameter("write_delete_similarity", &TThis::WriteDeleteSimilarity)
+        .DefaultNew();
+    registrar.Parameter("writes_similarity", &TThis::WritesSimilarity)
+        .DefaultNew();
+
+    registrar.Parameter("chunk_writer", &TThis::ChunkWriter)
+        .Optional();
+
+    registrar.Postprocessor([] (TMinHashDigestConfig* config) {
+        if (!config->ChunkWriter && config->Enable) {
+            config->ChunkWriter = New<NTableClient::TMinHashDigestConfig>();
+        }
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TCompactionHintsConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("row_digest", &TThis::RowDigest)
+        .DefaultNew();
+    registrar.Parameter("min_hash_digest", &TThis::MinHashDigest)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -279,11 +325,8 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
         .Default(0.3);
     registrar.Parameter("periodic_compaction_mode", &TThis::PeriodicCompactionMode)
         .Default(EPeriodicCompactionMode::Store);
-    registrar.Parameter("row_digest_compaction", &TThis::RowDigestCompaction)
-        .DefaultNew();
-    registrar.Parameter("min_hash_digest_compaction", &TThis::MinHashDigestCompaction)
-        .DefaultNew();
-    registrar.Parameter("aggregate_versioned_row_digest_compaction", &TThis::AggregateVersionedRowDigestCompaction)
+
+    registrar.Parameter("compaction_hints", &TThis::CompactionHints)
         .DefaultNew();
 
     registrar.Parameter("enable_lookup_hash_table", &TThis::EnableLookupHashTable)
@@ -608,6 +651,16 @@ void THunkStoreWriterOptions::Register(TRegistrar registrar)
 {
     registrar.Parameter("medium_name", &TThis::MediumName);
     registrar.Parameter("account", &TThis::Account);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void PatchChunkWriterConfigByMountConfig(
+    const NTableClient::TChunkWriterConfigPtr& chunkWriterConfig,
+    const TTableMountConfigPtr& mountConfig)
+{
+    chunkWriterConfig->CompactionHintWriter.RowDigest = mountConfig->CompactionHints->RowDigest->ChunkWriter;
+    chunkWriterConfig->CompactionHintWriter.MinHashDigest = mountConfig->CompactionHints->MinHashDigest->ChunkWriter;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

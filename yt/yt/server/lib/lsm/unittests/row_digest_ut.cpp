@@ -166,12 +166,12 @@ TEST_P(TRowDigestTest, RowDigestTest)
     mountConfig->MaxDataTtl = params.MaxDataTtl;
     mountConfig->MinDataVersions = params.MinDataVersions;
     mountConfig->MaxDataVersions = params.MaxDataVersions;
-    mountConfig->RowDigestCompaction->MaxObsoleteTimestampRatio = params.MaxObsoleteTimestampRatio;
-    mountConfig->RowDigestCompaction->MaxTimestampsPerValue = params.MaxTimestampsPerValue;
+    mountConfig->CompactionHints->RowDigest->EnableNonAggregates = true;
+    mountConfig->CompactionHints->RowDigest->MaxObsoleteTimestampRatio = params.MaxObsoleteTimestampRatio;
+    mountConfig->CompactionHints->RowDigest->MaxTimestampsPerValue = params.MaxTimestampsPerValue;
 
-    auto digestConfig = New<TVersionedRowDigestConfig>();
-    digestConfig->Enable = true;
-    digestConfig->TDigest->Delta = 0;
+    auto digestConfig = New<TTDigestConfig>();
+    digestConfig->Delta = 0;
 
     auto digestBuilder = CreateVersionedRowDigestBuilder(digestConfig);
     params.DigestFiller(digestBuilder);

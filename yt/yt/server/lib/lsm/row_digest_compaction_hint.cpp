@@ -37,8 +37,8 @@ void DoRecalculateStoreCompactionHint<EStoreCompactionHintKind::VersionedRowDige
     auto maxDataTtl = mountConfig->MaxDataTtl;
     int minDataVersions = mountConfig->MinDataVersions;
     int maxDataVersions = mountConfig->MaxDataVersions;
-    int maxTimestampsPerValue = mountConfig->RowDigestCompaction->MaxTimestampsPerValue;
-    double maxObsoleteTimestampRatio = mountConfig->RowDigestCompaction->MaxObsoleteTimestampRatio;
+    int maxTimestampsPerValue = mountConfig->CompactionHints->RowDigest->MaxTimestampsPerValue;
+    double maxObsoleteTimestampRatio = mountConfig->CompactionHints->RowDigest->MaxObsoleteTimestampRatio;
 
     i64 totalCount = allButLastDigest->GetCount() + lastDigest->GetCount();
 
