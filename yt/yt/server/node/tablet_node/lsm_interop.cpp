@@ -17,9 +17,6 @@
 #include "compaction_hint_controllers.h"
 #include "compaction_hint_fetching.h"
 
-#include <yt/yt/server/node/cluster_node/config.h>
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
-
 #include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
 #include <yt/yt/server/lib/cellar_agent/cellar.h>
 
@@ -43,7 +40,6 @@
 namespace NYT::NTabletNode {
 
 using namespace NChunkClient;
-using namespace NClusterNode;
 using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NTableClient;
@@ -170,8 +166,8 @@ private:
         backendState.CurrentTimestamp = timestampProvider->GetLatestTimestamp();
 
         backendState.TabletNodeConfig = GenerateLsmConfig(
-            Bootstrap_->GetConfig()->TabletNode,
-            Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode);
+            Bootstrap_->GetTabletNodeConfig(),
+            Bootstrap_->GetTabletNodeDynamicConfig());
 
         const auto& memoryTracker = Bootstrap_->GetNodeMemoryUsageTracker();
         const auto& cellar = Bootstrap_->GetCellarManager()->GetCellar(NCellarClient::ECellarType::Tablet);

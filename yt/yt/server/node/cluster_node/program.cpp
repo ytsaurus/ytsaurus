@@ -2,7 +2,6 @@
 
 #include "bootstrap.h"
 #include "config.h"
-#include "private.h"
 
 #include <yt/yt/server/node/cellar_node/config.h>
 #include <yt/yt/server/node/cellar_node/bootstrap.h>
@@ -204,7 +203,7 @@ private:
             localSnapshotStoreConfig->UseHeaderlessWriter = true;
 
             YT_VERIFY(localSnapshotStoreConfig->StoreType == NHydra::ESnapshotStoreType::Local);
-            config->TabletNode->Snapshots  = localSnapshotStoreConfig;
+            config->TabletNode->Snapshots = localSnapshotStoreConfig;
 
             if (SkipTvmServiceEnvValidationFlag_) {
                 auto authManagerConfig = config->GetSingletonConfig<NAuth::TNativeAuthenticationManagerConfig>();

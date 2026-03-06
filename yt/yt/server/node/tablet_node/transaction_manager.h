@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 #include <yt/yt/server/lib/transaction_supervisor/transaction_action.h>
 #include <yt/yt/server/lib/transaction_supervisor/transaction_manager.h>
 

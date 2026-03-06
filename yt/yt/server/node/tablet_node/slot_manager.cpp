@@ -7,8 +7,6 @@
 #include "structured_logger.h"
 #include "tablet_slot.h"
 
-#include <yt/yt/server/node/cluster_node/config.h>
-
 #include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
 #include <yt/yt/server/lib/cellar_agent/cellar.h>
 #include <yt/yt/server/lib/cellar_agent/occupant.h>
@@ -33,7 +31,6 @@ namespace NYT::NTabletNode {
 using namespace NConcurrency;
 using namespace NCellarAgent;
 using namespace NCellarClient;
-using namespace NClusterNode;
 using namespace NYTree;
 using namespace NYson;
 
@@ -49,7 +46,7 @@ class TSlotManager
 public:
     explicit TSlotManager(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
-        , Config_(Bootstrap_->GetConfig()->TabletNode)
+        , Config_(Bootstrap_->GetTabletNodeConfig())
         , SlotScanExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(),
             BIND(&TSlotManager::OnScanSlots, Unretained(this)),

@@ -6,14 +6,10 @@
 #include "serialize.h"
 #include "store_manager.h"
 #include "tablet.h"
-#include "tablet_cell_write_manager.h"
 #include "tablet_manager.h"
 #include "tablet_slot.h"
 #include "transaction.h"
 #include "transaction_manager.h"
-
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
-#include <yt/yt/server/node/cluster_node/config.h>
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
@@ -33,7 +29,6 @@ namespace NYT::NTabletNode {
 
 using namespace NConcurrency;
 using namespace NHydra;
-using namespace NClusterNode;
 using namespace NYTree;
 using namespace NTransactionClient;
 using namespace NApi;
@@ -192,9 +187,8 @@ public:
             "BackupManager",
             BIND_NO_PROPAGATE(&TBackupManager::Load, Unretained(this)));
 
-        const auto& configManager = Bootstrap_->GetDynamicConfigManager();
-        Config_ = configManager->GetConfig()->TabletNode->BackupManager;
-        configManager->SubscribeConfigChanged(
+        Config_ = Bootstrap_->GetTabletNodeDynamicConfig()->BackupManager;
+        Bootstrap_->SubscribeTabletNodeConfigChanged(
             BIND_NO_PROPAGATE(&TBackupManager::OnDynamicConfigChanged, MakeWeak(this))
                 .Via(Slot_->GetAutomatonInvoker()));
     }
@@ -318,10 +312,10 @@ private:
     TBackupManagerDynamicConfigPtr Config_;
 
     void OnDynamicConfigChanged(
-        TClusterNodeDynamicConfigPtr /*oldConfig*/,
-        TClusterNodeDynamicConfigPtr newConfig)
+        TTabletNodeDynamicConfigPtr /*oldConfig*/,
+        TTabletNodeDynamicConfigPtr newConfig)
     {
-        Config_ = newConfig->TabletNode->BackupManager;
+        Config_ = newConfig->BackupManager;
     }
 
     void OnLeaderActive() override

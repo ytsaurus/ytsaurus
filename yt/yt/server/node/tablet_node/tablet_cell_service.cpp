@@ -1,23 +1,19 @@
 #include "tablet_cell_service.h"
 
 #include "bootstrap.h"
-#include "private.h"
-
-#include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/server/node/cellar_node/master_connector.h>
 
-#include <yt/yt/server/node/cluster_node/master_connector.h>
-
-#include <yt/yt/server/node/tablet_node/master_connector.h>
-
-#include <yt/yt/server/lib/hydra/hydra_service.h>
+#include <yt/yt/server/lib/tablet_node/private.h>
 
 #include <yt/yt/ytlib/cellar_client/tablet_cell_service_proxy.h>
 
+#include <yt/yt/client/object_client/helpers.h>
+
+#include <yt/yt/core/rpc/service_detail.h>
+
 namespace NYT::NTabletNode {
 
-using namespace NClusterNode;
 using namespace NObjectClient;
 using namespace NRpc;
 

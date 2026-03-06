@@ -5,9 +5,6 @@
 #include "tablet.h"
 #include "tablet_snapshot_store.h"
 
-#include <yt/yt/server/node/cluster_node/config.h>
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
-
 #include <yt/yt/server/lib/tablet_node/performance_counters.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -21,6 +18,7 @@
 
 #include <yt/yt/client/transaction_client/helpers.h>
 
+#include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <library/cpp/iterator/enumerate.h>
@@ -31,11 +29,10 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using namespace NClusterNode;
 using namespace NConcurrency;
-using namespace NTransactionClient;
 using namespace NTableClient;
 using namespace NTracing;
+using namespace NTransactionClient;
 using namespace NYPath;
 using namespace NYTree;
 
@@ -82,7 +79,7 @@ TStatisticsReporter::TStatisticsReporter(IBootstrap* const bootstrap)
     , ReportedTabletCount_(Profiler_.Counter("/reported_tablet_count"))
     , ReportTime_(Profiler_.Timer("/report_time"))
 {
-    Reconfigure(Bootstrap_->GetDynamicConfigManager()->GetConfig());
+    Reconfigure(Bootstrap_->GetTabletNodeDynamicConfig());
 }
 
 void TStatisticsReporter::Start()
@@ -91,9 +88,9 @@ void TStatisticsReporter::Start()
     Started_ = true;
 }
 
-void TStatisticsReporter::Reconfigure(const NClusterNode::TClusterNodeDynamicConfigPtr& config)
+void TStatisticsReporter::Reconfigure(const TTabletNodeDynamicConfigPtr& config)
 {
-    const auto& statisticsReporterConfig = config->TabletNode->StatisticsReporter;
+    const auto& statisticsReporterConfig = config->StatisticsReporter;
 
     bool enableChanged = Enable_ != statisticsReporterConfig->Enable;
 

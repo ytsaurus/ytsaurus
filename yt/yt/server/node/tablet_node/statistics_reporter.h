@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 #include <yt/yt/client/api/public.h>
 
 namespace NYT::NTabletNode {
@@ -18,7 +16,7 @@ public:
 
     void Start();
 
-    void Reconfigure(const NClusterNode::TClusterNodeDynamicConfigPtr& config);
+    void Reconfigure(const TTabletNodeDynamicConfigPtr& config);
 
 private:
     using TOnRowCallback = TCallback<void(

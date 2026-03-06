@@ -4,9 +4,6 @@
 #include "config.h"
 #include "private.h"
 
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
-#include <yt/yt/server/node/cluster_node/config.h>
-
 #include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/library/dynamic_config/dynamic_config_manager.h>
@@ -55,7 +52,7 @@ class THintManager
 public:
     explicit THintManager(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
-        , Config_(Bootstrap_->GetConfig()->TabletNode->HintManager)
+        , Config_(Bootstrap_->GetTabletNodeConfig()->HintManager)
         , ReplicatorHintConfigFetcher_(New<TReplicatorHintConfigFetcher>(
             Config_->ReplicatorHintConfigFetcher,
             Bootstrap_))

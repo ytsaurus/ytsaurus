@@ -3,7 +3,6 @@
 #include "bootstrap.h"
 #include "config.h"
 #include "private.h"
-#include "slot_manager.h"
 #include "tablet.h"
 #include "tablet_slot.h"
 #include "tablet_snapshot_store.h"
@@ -12,8 +11,6 @@
 
 #include <yt/yt/server/master/node_tracker_server/public.h>
 
-#include <yt/yt/server/node/cluster_node/config.h>
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_heartbeat_reporter_base.h>
 
 #include <yt/yt/server/node/cellar_node/master_connector.h>
@@ -73,7 +70,7 @@ public:
             /*reportHeartbeatsToAllSecondaryMasters*/ true,
             TabletNodeLogger().WithTag("HeartbeatType: %v", ENodeHeartbeatType::Tablet))
         , Bootstrap_(bootstrap)
-        , Config_(bootstrap->GetConfig()->TabletNode->MasterConnector)
+        , Config_(bootstrap->GetTabletNodeConfig()->MasterConnector)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
     }
@@ -87,8 +84,7 @@ public:
         const auto& cellarNodeMasterConnector = Bootstrap_->GetCellarNodeMasterConnector();
         cellarNodeMasterConnector->SubscribeHeartbeatRequested(BIND_NO_PROPAGATE(&TMasterConnector::OnCellarNodeHeartbeatRequested, MakeWeak(this)));
 
-        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
+        Bootstrap_->SubscribeTabletNodeConfigChanged(BIND_NO_PROPAGATE(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
 
         Reconfigure(GetDynamicConfig()->HeartbeatExecutor.value_or(Config_->HeartbeatExecutor));
     }
@@ -159,12 +155,12 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
     void OnDynamicConfigChanged(
-        const TClusterNodeDynamicConfigPtr& /*oldNodeConfig*/,
-        const TClusterNodeDynamicConfigPtr& newNodeConfig)
+        const TTabletNodeDynamicConfigPtr& /*oldNodeConfig*/,
+        const TTabletNodeDynamicConfigPtr& newNodeConfig)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        Reconfigure(newNodeConfig->TabletNode->MasterConnector->HeartbeatExecutor.value_or(Config_->HeartbeatExecutor));
+        Reconfigure(newNodeConfig->MasterConnector->HeartbeatExecutor.value_or(Config_->HeartbeatExecutor));
 
         YT_LOG_INFO("Dynamic config changed");
     }
@@ -286,7 +282,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->MasterConnector;
+        return Bootstrap_->GetTabletNodeDynamicConfig()->MasterConnector;
     }
 
     TErrorOr<TTabletNodeTrackerServiceProxy::TRspHeartbeatPtr> GetHeartbeatResponseOrError(TCellTag cellTag)

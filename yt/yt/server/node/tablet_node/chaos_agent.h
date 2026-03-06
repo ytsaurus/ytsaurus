@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 #include <yt/yt/client/chaos_client/public.h>
 
 #include <yt/yt/ytlib/chaos_client/public.h>

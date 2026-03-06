@@ -18,9 +18,6 @@
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
-#include <yt/yt/server/node/cluster_node/config.h>
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
-
 #include <yt/yt/server/node/data_node/chunk_registry.h>
 #include <yt/yt/server/node/data_node/chunk.h>
 #include <yt/yt/server/node/data_node/chunk_registry.h>
@@ -60,7 +57,6 @@ namespace NYT::NTabletNode {
 using namespace NApi;
 using namespace NChunkClient;
 using namespace NConcurrency;
-using namespace NClusterNode;
 using namespace NDataNode;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
@@ -199,8 +195,7 @@ public:
                 return GetUnlimitedThrottler();
             }
 
-            const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-            return GetBlobMediumReadThrottler(dynamicConfigManager, tabletSnapshot);
+            return GetBlobMediumReadThrottler(Bootstrap_->GetTabletNodeDynamicConfig(), tabletSnapshot);
         };
 
         auto createRemoteReaderAdapter = [&] {
@@ -373,8 +368,8 @@ private:
         if (readerConfig) {
             ReaderConfig_ = CloneYsonStruct(readerConfig);
         }
-        ReaderConfig_->EnableLocalThrottling = Bootstrap_->GetDynamicConfigManager()
-            ->GetConfig()->TabletNode->EnableCollocatedDatNodeThrottling;
+        ReaderConfig_->EnableLocalThrottling = Bootstrap_->GetTabletNodeDynamicConfig()
+            ->EnableCollocatedDatNodeThrottling;
         ReaderConfig_->Postprocess();
     }
 
@@ -581,8 +576,8 @@ TTabletId TStoreBase::GetTabletId() const
 }
 
 void TStoreBase::OnDynamicConfigChanged(
-    const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
-    const TClusterNodeDynamicConfigPtr& /*newConfig*/)
+    const TTabletNodeDynamicConfigPtr& /*oldConfig*/,
+    const TTabletNodeDynamicConfigPtr& /*newConfig*/)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1207,8 +1202,8 @@ TFuture<TCachedVersionedChunkMetaPtr> TChunkStoreBase::GetCachedVersionedChunkMe
 }
 
 void TChunkStoreBase::OnDynamicConfigChanged(
-    const TClusterNodeDynamicConfigPtr& oldConfig,
-    const TClusterNodeDynamicConfigPtr& newConfig)
+    const TTabletNodeDynamicConfigPtr& oldConfig,
+    const TTabletNodeDynamicConfigPtr& newConfig)
 {
     TStoreBase::OnDynamicConfigChanged(oldConfig, newConfig);
 

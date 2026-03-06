@@ -3,8 +3,6 @@
 #include "config.h"
 #include "private.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
-
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
@@ -17,7 +15,6 @@ namespace NYT::NTabletNode {
 
 using namespace NChunkClient;
 using namespace NTableClient;
-using namespace NClusterNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 

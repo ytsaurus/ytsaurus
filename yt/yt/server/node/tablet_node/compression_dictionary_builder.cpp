@@ -12,9 +12,6 @@
 #include "tablet_slot.h"
 #include "tablet_snapshot_store.h"
 
-#include <yt/yt/server/node/cluster_node/config.h>
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
-
 #include <yt/yt/server/node/tablet_node/helpers.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
@@ -40,6 +37,8 @@
 #include <yt/yt/client/table_client/helpers.h>
 
 #include <yt/yt/core/compression/dictionary_codec.h>
+
+#include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <util/random/shuffle.h>
 
@@ -865,7 +864,7 @@ class TCompressionDictionaryBuilder
 public:
     TCompressionDictionaryBuilder(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
-        , Config_(Bootstrap_->GetConfig()->TabletNode->CompressionDictionaryBuilder)
+        , Config_(Bootstrap_->GetTabletNodeConfig()->CompressionDictionaryBuilder)
         , ThreadPool_(CreateThreadPool(Config_->ThreadPoolSize, "ComprDctBldr"))
         , BuildTaskSemaphore_(New<TProfiledAsyncSemaphore>(
             Config_->MaxConcurrentBuildTasks,
@@ -879,8 +878,7 @@ public:
             &TCompressionDictionaryBuilder::OnScanSlot,
             MakeWeak(this)));
 
-        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        dynamicConfigManager->SubscribeConfigChanged(BIND(
+        Bootstrap_->SubscribeTabletNodeConfigChanged(BIND(
             &TCompressionDictionaryBuilder::OnDynamicConfigChanged,
             MakeWeak(this)));
     }
@@ -908,10 +906,10 @@ private:
 
 
     void OnDynamicConfigChanged(
-        const NClusterNode::TClusterNodeDynamicConfigPtr& /*oldConfig*/,
-        const NClusterNode::TClusterNodeDynamicConfigPtr& newConfig)
+        const TTabletNodeDynamicConfigPtr& /*oldConfig*/,
+        const TTabletNodeDynamicConfigPtr& newConfig)
     {
-        const auto& dynamicConfig = newConfig->TabletNode->CompressionDictionaryBuilder;
+        const auto& dynamicConfig = newConfig->CompressionDictionaryBuilder;
         ThreadPool_->SetThreadCount(dynamicConfig->ThreadPoolSize.value_or(Config_->ThreadPoolSize));
         BuildTaskSemaphore_->SetTotal(dynamicConfig->MaxConcurrentBuildTasks.value_or(Config_->MaxConcurrentBuildTasks));
     }

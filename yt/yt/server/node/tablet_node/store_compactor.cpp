@@ -4,7 +4,6 @@
 #include "bootstrap.h"
 #include "config.h"
 #include "error_manager.h"
-#include "hunk_chunk.h"
 #include "in_memory_manager.h"
 #include "partition.h"
 #include "public.h"
@@ -19,10 +18,6 @@
 #include "tablet_slot.h"
 #include "tablet_snapshot_store.h"
 #include "versioned_chunk_meta_manager.h"
-
-#include <yt/yt/server/node/cluster_node/config.h>
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
-#include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/server/node/tablet_node/helpers.h>
 
@@ -133,7 +128,7 @@ void SyncThrottleMediumWrite(
     const NLogging::TLogger& Logger)
 {
     auto mediumThrottler = GetBlobMediumWriteThrottler(
-        bootstrap->GetDynamicConfigManager(),
+        bootstrap->GetTabletNodeDynamicConfig(),
         tabletSnapshot);
 
     auto totalDiskSpace = CalculateDiskSpaceUsage(
@@ -449,8 +444,8 @@ private:
 
     void Initialize()
     {
-        auto enableCollocatedDatNodeThrottling = Bootstrap_->GetDynamicConfigManager()
-            ->GetConfig()->TabletNode->EnableCollocatedDatNodeThrottling;
+        auto enableCollocatedDatNodeThrottling = Bootstrap_->GetTabletNodeDynamicConfig()
+            ->EnableCollocatedDatNodeThrottling;
 
         StoreWriterConfig_ = CloneYsonStruct(TabletSnapshot_->Settings.StoreWriterConfig);
         StoreWriterConfig_->MinUploadReplicationFactor = StoreWriterConfig_->UploadReplicationFactor;
@@ -947,7 +942,7 @@ class TStoreCompactor
 public:
     explicit TStoreCompactor(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
-        , Config_(bootstrap->GetConfig()->TabletNode->StoreCompactor)
+        , Config_(bootstrap->GetTabletNodeConfig()->StoreCompactor)
         , ThreadPool_(CreateThreadPool(Config_->ThreadPoolSize, "StoreCompact"))
         , PartitioningSemaphore_(New<TProfiledAsyncSemaphore>(
             Config_->MaxConcurrentPartitionings,
@@ -956,15 +951,14 @@ public:
             Config_->MaxConcurrentCompactions,
             Profiler_.Gauge("/running_compactions")))
         , CompactionOrchid_(New<TCompactionOrchid>(
-            Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreCompactor->Orchid,
+            Bootstrap_->GetTabletNodeDynamicConfig()->StoreCompactor->Orchid,
             Profiler_.WithTag("activity", "compaction")))
         , PartitioningOrchid_(New<TCompactionOrchid>(
-            Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreCompactor->Orchid,
+            Bootstrap_->GetTabletNodeDynamicConfig()->StoreCompactor->Orchid,
             Profiler_.WithTag("activity", "partitioning")))
         , OrchidService_(CreateOrchidService())
     {
-        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TStoreCompactor::OnDynamicConfigChanged, MakeWeak(this)));
+        Bootstrap_->SubscribeTabletNodeConfigChanged(BIND_NO_PROPAGATE(&TStoreCompactor::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     void OnBeginSlotScan() override
@@ -986,8 +980,7 @@ public:
     {
         TEventTimerGuard timerGuard(ScanTimer_);
 
-        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        auto dynamicConfig = dynamicConfigManager->GetConfig()->TabletNode->StoreCompactor;
+        auto dynamicConfig = Bootstrap_->GetTabletNodeDynamicConfig()->StoreCompactor;
         if (!dynamicConfig->Enable) {
             return;
         }
@@ -1232,10 +1225,10 @@ private:
     }
 
     void OnDynamicConfigChanged(
-        const NClusterNode::TClusterNodeDynamicConfigPtr& /*oldNodeConfig*/,
-        const NClusterNode::TClusterNodeDynamicConfigPtr& newNodeConfig)
+        const TTabletNodeDynamicConfigPtr& /*oldNodeConfig*/,
+        const TTabletNodeDynamicConfigPtr& newNodeConfig)
     {
-        const auto& config = newNodeConfig->TabletNode->StoreCompactor;
+        const auto& config = newNodeConfig->StoreCompactor;
         ThreadPool_->SetThreadCount(config->ThreadPoolSize.value_or(Config_->ThreadPoolSize));
         PartitioningSemaphore_->SetTotal(config->MaxConcurrentPartitionings.value_or(Config_->MaxConcurrentPartitionings));
         CompactionSemaphore_->SetTotal(config->MaxConcurrentCompactions.value_or(Config_->MaxConcurrentCompactions));
@@ -1539,7 +1532,7 @@ private:
                 chunkReadOptions.ReadSessionId);
 
         auto doneGuard = Finally([&] {
-            if (Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreCompactor->ScheduleNewTasksAfterTaskCompletion) {
+            if (Bootstrap_->GetTabletNodeDynamicConfig()->StoreCompactor->ScheduleNewTasksAfterTaskCompletion) {
                 ScheduleMorePartitionings();
             }
         });
@@ -1955,7 +1948,7 @@ private:
                 chunkReadOptions.ReadSessionId);
 
         auto doneGuard = Finally([&] {
-            if (Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreCompactor->ScheduleNewTasksAfterTaskCompletion) {
+            if (Bootstrap_->GetTabletNodeDynamicConfig()->StoreCompactor->ScheduleNewTasksAfterTaskCompletion) {
                 ScheduleMoreCompactions();
             }
         });

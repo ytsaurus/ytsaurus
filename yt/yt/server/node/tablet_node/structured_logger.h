@@ -3,8 +3,6 @@
 #include "public.h"
 #include "private.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 #include <yt/yt/core/logging/log.h>
 #include <yt/yt/core/logging/fluent_log.h>
 

@@ -21,9 +21,6 @@
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
-#include <yt/yt/server/node/tablet_node/sorted_dynamic_comparer.h>
-#include <yt/yt/server/node/tablet_node/versioned_chunk_meta_manager.h>
-
 #include <yt/yt/server/lib/io/chunk_file_reader.h>
 #include <yt/yt/server/lib/io/chunk_fragment.h>
 #include <yt/yt/server/lib/io/io_engine.h>

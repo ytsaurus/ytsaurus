@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 #include <yt/yt/server/lib/hydra/entity_map.h>
 
 namespace NYT::NTabletNode {
@@ -14,8 +12,6 @@ struct ISmoothMovementTrackerHost
     : public virtual TRefCounted
 {
     virtual TTabletNodeDynamicConfigPtr GetDynamicConfig() const = 0;
-
-    virtual const NClusterNode::TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const = 0;
 
     virtual TCellId GetCellId() const = 0;
 

@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -32,7 +30,7 @@ struct IErrorManager
     : public virtual TRefCounted
 {
     virtual void Start() = 0;
-    virtual void Reconfigure(const NClusterNode::TClusterNodeDynamicConfigPtr& newConfig) = 0;
+    virtual void Reconfigure(const TTabletNodeDynamicConfigPtr& newConfig) = 0;
     virtual void HandleError(const TError& error, const std::string& method, TErrorManagerContext context = {}) = 0;
 };
 

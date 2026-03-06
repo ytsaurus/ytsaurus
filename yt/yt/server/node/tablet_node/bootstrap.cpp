@@ -14,10 +14,8 @@
 #include "lsm_interop.h"
 #include "master_connector.h"
 #include "partition_balancer.h"
-#include "security_manager.h"
 #include "serialize.h"
 #include "slot_manager.h"
-#include "sorted_dynamic_comparer.h"
 #include "statistics_reporter.h"
 #include "store_compactor.h"
 #include "store_flusher.h"
@@ -106,6 +104,13 @@ class TBootstrap
     : public IBootstrap
     , public TBootstrapBase
 {
+public:
+    DEFINE_SIGNAL_OVERRIDE(
+        void(
+            const TTabletNodeDynamicConfigPtr& oldConfig,
+            const TTabletNodeDynamicConfigPtr& newConfig),
+        TabletNodeConfigChanged);
+
 public:
     explicit TBootstrap(NClusterNode::IBootstrap* bootstrap)
         : TBootstrapBase(bootstrap)
@@ -529,6 +534,16 @@ public:
         return GetCellarNodeBootstrap()->GetMasterConnector();
     }
 
+    const TTabletNodeConfigPtr& GetTabletNodeConfig() const override
+    {
+        return GetConfig()->TabletNode;
+    }
+
+    TTabletNodeDynamicConfigPtr GetTabletNodeDynamicConfig() const override
+    {
+        return GetDynamicConfigManager()->GetConfig()->TabletNode;
+    }
+
     const IChunkRegistryPtr& GetChunkRegistry() const override
     {
         if (ClusterNodeBootstrap_->IsDataNode()) {
@@ -605,7 +620,7 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
     void OnDynamicConfigChanged(
-        const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
+        const TClusterNodeDynamicConfigPtr& oldConfig,
         const TClusterNodeDynamicConfigPtr& newConfig)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
@@ -632,17 +647,21 @@ private:
 
         OverloadController_->Reconfigure(tabletNodeConfig->OverloadController);
 
-        StatisticsReporter_->Reconfigure(newConfig);
+        StatisticsReporter_->Reconfigure(tabletNodeConfig);
 
         CompressionDictionaryManager_->OnDynamicConfigChanged(tabletNodeConfig->CompressionDictionaryCache);
 
-        ErrorManager_->Reconfigure(newConfig);
+        ErrorManager_->Reconfigure(tabletNodeConfig);
 
         if (ReplicationCardUpdatesBatcher_) {
             ReplicationCardUpdatesBatcher_->Reconfigure(
                 GetConfig()->TabletNode->ChaosReplicationCardUpdatesBatcher->ApplyDynamic(
                     tabletNodeConfig->ChaosReplicationCardUpdatesBatcher));
         }
+
+        TabletNodeConfigChanged_.Fire(
+            oldConfig->TabletNode,
+            newConfig->TabletNode);
     }
 
     void OnBundleDynamicConfigChanged(

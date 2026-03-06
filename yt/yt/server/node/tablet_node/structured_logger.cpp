@@ -8,14 +8,9 @@
 #include "slot_manager.h"
 #include "sorted_chunk_store.h"
 #include "store.h"
-#include "store_detail.h"
 #include "tablet.h"
 #include "tablet_manager.h"
 #include "tablet_slot.h"
-
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
-#include <yt/yt/server/node/cluster_node/config.h>
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
@@ -29,7 +24,6 @@ using namespace NLogging;
 using namespace NYTree;
 using namespace NTableClient;
 using namespace NTabletClient;
-using namespace NClusterNode;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -47,9 +41,8 @@ public:
         : Bootstrap_(bootstrap)
         , Logger_(LsmLogger())
     {
-        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        Config_ = dynamicConfigManager->GetConfig()->TabletNode;
-        dynamicConfigManager->SubscribeConfigChanged(BIND(
+        Config_ = Bootstrap_->GetTabletNodeDynamicConfig();
+        Bootstrap_->SubscribeTabletNodeConfigChanged(BIND_NO_PROPAGATE(
             &TStructuredLogger::OnDynamicConfigChanged,
             MakeWeak(this)));
 
@@ -115,13 +108,13 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
 
     void OnDynamicConfigChanged(
-        const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
-        const TClusterNodeDynamicConfigPtr& newConfig)
+        const TTabletNodeDynamicConfigPtr& /*oldConfig*/,
+        const TTabletNodeDynamicConfigPtr& newConfig)
     {
-        Enabled_.store(newConfig->TabletNode->EnableStructuredLogger);
+        Enabled_.store(newConfig->EnableStructuredLogger);
 
         auto guard = WriterGuard(SpinLock_);
-        Config_ = newConfig->TabletNode;
+        Config_ = newConfig;
     }
 
     void OnScanSlot(const ITabletSlotPtr& slot)

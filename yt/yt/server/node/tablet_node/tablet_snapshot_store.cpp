@@ -8,9 +8,6 @@
 #include "tablet.h"
 #include "tablet_slot.h"
 
-#include <yt/yt/server/node/cluster_node/config.h>
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
-
 #include <yt/yt/server/lib/cellar_agent/cellar.h>
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
@@ -178,7 +175,7 @@ public:
 
     void ValidateUserNotBanned(const std::string& userName) override
     {
-        auto dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->UserBan;
+        auto dynamicConfig = Bootstrap_->GetTabletNodeDynamicConfig()->UserBan;
         auto failureProbability = dynamicConfig->FailureProbability;
         if (!failureProbability) {
             return;

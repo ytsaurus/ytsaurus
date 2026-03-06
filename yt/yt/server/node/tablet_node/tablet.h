@@ -11,8 +11,6 @@
 #include "tablet_write_manager.h"
 #include "row_cache.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 #include <yt/yt/server/master/table_server/public.h>
 
 #include <yt/yt/server/lib/lsm/statistics.h>
@@ -382,7 +380,7 @@ struct ITabletContext
     virtual NQueryClient::IColumnEvaluatorCachePtr GetColumnEvaluatorCache() const = 0;
     virtual NQueryClient::IRowComparerProviderPtr GetRowComparerProvider() const = 0;
     virtual NApi::NNative::IClientPtr GetClient() const = 0;
-    virtual NClusterNode::TClusterNodeDynamicConfigManagerPtr GetDynamicConfigManager() const = 0;
+    virtual TTabletNodeDynamicConfigPtr GetDynamicConfig() const = 0;
     virtual IStorePtr CreateStore(
         TTablet* tablet,
         EStoreType type,
@@ -966,8 +964,8 @@ public:
 
     void OnDynamicConfigChanged(
         const ITabletSlotPtr& slot,
-        const NClusterNode::TClusterNodeDynamicConfigPtr& oldConfig,
-        const NClusterNode::TClusterNodeDynamicConfigPtr& newConfig);
+        const TTabletNodeDynamicConfigPtr& oldConfig,
+        const TTabletNodeDynamicConfigPtr& newConfig);
 
     NHydra::EPeerState GetAutomatonState() const;
 
@@ -1093,10 +1091,10 @@ void BuildTableSettingsOrchidYson(
     NYTree::TFluentMap fluent);
 
 NConcurrency::IThroughputThrottlerPtr GetBlobMediumWriteThrottler(
-    const NClusterNode::TClusterNodeDynamicConfigManagerPtr& dynamicConfigManager,
+    const TTabletNodeDynamicConfigPtr& nodeDynamicConfig,
     const TTabletSnapshotPtr& tabletSnapshot);
 NConcurrency::IThroughputThrottlerPtr GetBlobMediumReadThrottler(
-    const NClusterNode::TClusterNodeDynamicConfigManagerPtr& dynamicConfigManager,
+    const TTabletNodeDynamicConfigPtr& nodeDynamicConfig,
     const TTabletSnapshotPtr& tabletSnapshot);
 
 bool IsInUnmountWorkflow(ETabletState state);

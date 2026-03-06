@@ -33,10 +33,6 @@
 #include "transaction_manager.h"
 #include "compaction_hint_fetching.h"
 
-#include <yt/yt/server/node/cluster_node/config.h>
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
-#include <yt/yt/server/node/cluster_node/master_connector.h>
-
 #include <yt/yt/server/node/cellar_node/bundle_dynamic_config_manager.h>
 
 #include <yt/yt/server/node/tablet_node/transaction_manager.pb.h>
@@ -138,7 +134,6 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NHydra;
 using namespace NLeaseServer;
-using namespace NClusterNode;
 using namespace NTabletClient;
 using namespace NTabletClient::NProto;
 using namespace NTabletNode::NProto;
@@ -205,7 +200,7 @@ public:
         , BackupManager_(CreateBackupManager(
             Slot_,
             Bootstrap_))
-        , MinHashDigestCache_(Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreCompactor->MinHashDigestCacheCapacity)
+        , MinHashDigestCache_(Bootstrap_->GetTabletNodeDynamicConfig()->StoreCompactor->MinHashDigestCacheCapacity)
         , CompactionHintFetchers_{
             {
                 NLsm::EStoreCompactionHintKind::ChunkViewTooNarrow,
@@ -213,8 +208,8 @@ public:
                     Slot_->GetCellId(),
                     TabletNodeLogger().WithTag("ChunkViewSizeFetcher"),
                     TabletNodeProfiler().WithPrefix("/compaction_hints/chunk_view_size"),
-                    Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->
-                        StoreCompactor->CompactionHintFetchers[NLsm::EStoreCompactionHintKind::ChunkViewTooNarrow]),
+                    Bootstrap_->GetTabletNodeDynamicConfig()
+                        ->StoreCompactor->CompactionHintFetchers[NLsm::EStoreCompactionHintKind::ChunkViewTooNarrow]),
             },
             {
                 NLsm::EStoreCompactionHintKind::VersionedRowDigest,
@@ -222,8 +217,8 @@ public:
                     Slot_->GetCellId(),
                     TabletNodeLogger().WithTag("RowDigestFetcher"),
                     TabletNodeProfiler().WithPrefix("/compaction_hints/row_digest"),
-                    Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->
-                        StoreCompactor->CompactionHintFetchers[NLsm::EStoreCompactionHintKind::VersionedRowDigest]),
+                    Bootstrap_->GetTabletNodeDynamicConfig()
+                        ->StoreCompactor->CompactionHintFetchers[NLsm::EStoreCompactionHintKind::VersionedRowDigest]),
             },
             {
                 NLsm::EStoreCompactionHintKind::MinHashDigest,
@@ -231,8 +226,8 @@ public:
                     Slot_->GetCellId(),
                     TabletNodeLogger().WithTag("MinHashDigestFetcher"),
                     TabletNodeProfiler().WithPrefix("/compaction_hints/min_hash_digest"),
-                    Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->
-                        StoreCompactor->CompactionHintFetchers[NLsm::EStoreCompactionHintKind::MinHashDigest]),
+                    Bootstrap_->GetTabletNodeDynamicConfig()
+                        ->StoreCompactor->CompactionHintFetchers[NLsm::EStoreCompactionHintKind::MinHashDigest]),
             },
         }
     {
@@ -339,10 +334,10 @@ public:
         const auto& tableConfigManager = Bootstrap_->GetTableDynamicConfigManager();
         tableConfigManager->SubscribeConfigChanged(TableDynamicConfigChangedCallback_);
 
-        const auto& configManager = Bootstrap_->GetDynamicConfigManager();
-        configManager->SubscribeConfigChanged(DynamicConfigChangedCallback_);
-
-        OnDynamicConfigChanged(configManager->GetConfig(), configManager->GetConfig());
+        Bootstrap_->SubscribeTabletNodeConfigChanged(DynamicConfigChangedCallback_);
+        OnDynamicConfigChanged(
+            Bootstrap_->GetTabletNodeDynamicConfig(),
+            Bootstrap_->GetTabletNodeDynamicConfig());
     }
 
     void Finalize() override
@@ -360,7 +355,7 @@ public:
             OnTableDynamicConfigChanged(nullptr, tableConfigManager->GetConfig());
         }
 
-        const auto& storeCompactorConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreCompactor;
+        const auto& storeCompactorConfig = Bootstrap_->GetTabletNodeDynamicConfig()->StoreCompactor;
         for (auto [storeKind, partitionKind] : NLsm::StoreCompactionHintKinds) {
             CompactionHintFetchers_[storeKind]->Start(
                 Slot_->GetEpochAutomatonInvoker(),
@@ -876,9 +871,9 @@ private:
             return Owner_->Bootstrap_->GetClient();
         }
 
-        NClusterNode::TClusterNodeDynamicConfigManagerPtr GetDynamicConfigManager() const final
+        TTabletNodeDynamicConfigPtr GetDynamicConfig() const final
         {
-            return Owner_->Bootstrap_->GetDynamicConfigManager();
+            return Owner_->Bootstrap_->GetTabletNodeDynamicConfig();
         }
 
         const std::string& GetTabletCellBundleName() const final
@@ -1046,7 +1041,7 @@ private:
     const TCallback<void(TClusterTableConfigPatchSetPtr, TClusterTableConfigPatchSetPtr)> TableDynamicConfigChangedCallback_ =
         BIND(&TTabletManager::OnTableDynamicConfigChanged, MakeWeak(this));
 
-    const TCallback<void(TClusterNodeDynamicConfigPtr, TClusterNodeDynamicConfigPtr)> DynamicConfigChangedCallback_ =
+    const TCallback<void(TTabletNodeDynamicConfigPtr, TTabletNodeDynamicConfigPtr)> DynamicConfigChangedCallback_ =
         BIND(&TTabletManager::OnDynamicConfigChanged, MakeWeak(this));
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
@@ -5651,13 +5646,7 @@ private:
 
     TTabletNodeDynamicConfigPtr GetDynamicConfig() const override final
     {
-        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        return dynamicConfigManager->GetConfig()->TabletNode;
-    }
-
-    const TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const final
-    {
-        return Bootstrap_->GetDynamicConfigManager();
+        return Bootstrap_->GetTabletNodeDynamicConfig();
     }
 
     void OnTableDynamicConfigChanged(
@@ -5673,8 +5662,8 @@ private:
     }
 
     void OnDynamicConfigChanged(
-        const TClusterNodeDynamicConfigPtr& oldConfig,
-        const TClusterNodeDynamicConfigPtr& newConfig)
+        const TTabletNodeDynamicConfigPtr& oldConfig,
+        const TTabletNodeDynamicConfigPtr& newConfig)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -5711,8 +5700,8 @@ private:
     }
 
     void DoDynamicConfigChanged(
-        const TClusterNodeDynamicConfigPtr& oldConfig,
-        const TClusterNodeDynamicConfigPtr& newConfig)
+        const TTabletNodeDynamicConfigPtr& oldConfig,
+        const TTabletNodeDynamicConfigPtr& newConfig)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -5720,7 +5709,7 @@ private:
             tablet->OnDynamicConfigChanged(Slot_, oldConfig, newConfig);
         }
 
-        const auto& storeCompactorConfig = newConfig->TabletNode->StoreCompactor;
+        const auto& storeCompactorConfig = newConfig->StoreCompactor;
         for (auto [storeKind, partitionKind] : NLsm::StoreCompactionHintKinds) {
             CompactionHintFetchers_[storeKind]->Reconfigure(
                 storeCompactorConfig->CompactionHintFetchers[storeKind]);
