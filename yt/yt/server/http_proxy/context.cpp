@@ -241,7 +241,7 @@ bool TContext::TryParseUser()
     if (auto error = Api_->CheckAccess(authenticatedUser); !error.IsOK()) {
         YT_LOG_DEBUG(error);
         Response_->SetStatus(EStatusCode::Forbidden);
-        auto proxyRole = Api_->GetCoordinator()->GetSelf()->Role;
+        auto proxyRole = Api_->GetCoordinator()->GetSelfEntry()->Role;
         ReplyError(TError("User %Qv is not allowed to access proxy with role %Qv", authenticatedUser, proxyRole));
         return false;
     }
@@ -799,7 +799,7 @@ void TContext::SetupUserMemoryLimits()
 
     updateUserMemoryRatio(config->DefaultMemoryLimitRatios);
 
-    const auto& role = Api_->GetCoordinator()->GetSelf()->Role;
+    const auto& role = Api_->GetCoordinator()->GetSelfEntry()->Role;
     const auto& roleMemoryLimitRatiosIt = config->RoleToMemoryLimitRatios.find(role);
     if (roleMemoryLimitRatiosIt != config->RoleToMemoryLimitRatios.end()) {
         updateUserMemoryRatio(roleMemoryLimitRatiosIt->second);

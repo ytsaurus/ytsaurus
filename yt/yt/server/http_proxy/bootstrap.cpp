@@ -185,7 +185,7 @@ void TBootstrap::DoInitialize()
     auto setGlobalRoleTag = [] (const std::string& role) {
         TSolomonRegistry::Get()->SetDynamicTags({TTag{"proxy_role", role}});
     };
-    setGlobalRoleTag(Coordinator_->GetSelf()->Role);
+    setGlobalRoleTag(Coordinator_->GetSelfEntry()->Role);
     Coordinator_->SubscribeOnSelfRoleChanged(BIND_NO_PROPAGATE(setGlobalRoleTag));
 
     DynamicConfigManager_ = CreateDynamicConfigManager(this);
@@ -243,7 +243,7 @@ void TBootstrap::DoInitialize()
     ClickHouseHandler_->Start();
 
     AccessChecker_ = CreateAccessChecker(this);
-    auto ownerId = TOwnerId(Coordinator_->GetSelf()->Endpoint);
+    auto ownerId = TOwnerId(Coordinator_->GetSelfEntry()->Endpoint);
     SignatureComponents_ = New<TSignatureComponents>(
         Config_->SignatureComponents,
         std::move(ownerId),
@@ -413,7 +413,7 @@ void TBootstrap::OnDynamicConfigChanged(
         memoryLimit = *newConfig->MemoryLimits->Total;
     }
 
-    auto role = Coordinator_->GetSelf()->Role;
+    auto role = Coordinator_->GetSelfEntry()->Role;
 
     ReconfigureMemoryUsageTracker(
         memoryLimit,

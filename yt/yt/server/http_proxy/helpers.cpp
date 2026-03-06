@@ -353,12 +353,12 @@ std::optional<TNetworkStatistics> GetNetworkStatistics()
 
 void ProcessDebugHeaders(const IRequestPtr& /*request*/, const IResponseWriterPtr& response, const TCoordinatorPtr& coordinator)
 {
-    response->GetHeaders()->Add("X-YT-Proxy", coordinator->GetSelf()->GetHost());
+    response->GetHeaders()->Add("X-YT-Proxy", coordinator->GetSelfEntry()->GetHost());
 }
 
 void RedirectToDataProxy(const IRequestPtr& request, const IResponseWriterPtr& response, const TCoordinatorPtr& coordinator)
 {
-    auto target = coordinator->AllocateProxy(coordinator->GetConfig()->DefaultRoleFilter.value_or("data"));
+    auto target = coordinator->AllocateProxyEntry(coordinator->GetConfig()->DefaultRoleFilter.value_or("data"));
     if (target) {
         auto url = request->GetUrl();
         TString protocol;

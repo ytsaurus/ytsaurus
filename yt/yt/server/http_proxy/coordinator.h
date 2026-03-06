@@ -18,7 +18,7 @@
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 namespace NYT::NHttpProxy {
 
@@ -90,9 +90,11 @@ public:
     bool IsBanned() const;
     bool CanHandleHeavyRequests() const;
 
-    std::vector<TProxyEntryPtr> ListProxyEntries(std::optional<std::string> roleFilter, bool includeDeadAndBanned = false);
-    TProxyEntryPtr AllocateProxy(const std::string& role);
-    TProxyEntryPtr GetSelf();
+    std::vector<TProxyEntryPtr> ListProxyEntries(
+        const std::optional<std::string>& role,
+        bool includeDeadAndBanned = false);
+    TProxyEntryPtr AllocateProxyEntry(const std::string& role);
+    TProxyEntryPtr GetSelfEntry() const;
 
     const TCoordinatorConfigPtr& GetConfig() const;
     NTracing::TSamplerPtr GetTraceSampler();
@@ -100,10 +102,10 @@ public:
     bool IsDead(const TProxyEntryPtr& proxy, TInstant at) const;
     bool IsUnavailable(TInstant at) const;
 
+    TDuration GetDeathAge() const;
+
     //! Raised when proxy role changes.
     DEFINE_SIGNAL(void(const std::string&), OnSelfRoleChanged);
-
-    TDuration GetDeathAge() const;
 
 private:
     const TCoordinatorConfigPtr Config_;
@@ -113,29 +115,35 @@ private:
     const NConcurrency::TPeriodicExecutorPtr UpdateStateExecutor_;
 
     ICypressRegistrarPtr CypressRegistrar_;
-    NProfiling::TGauge BannedGauge_ = HttpProxyProfiler().Gauge("/banned");
 
-    TPromise<void> FirstUpdateIterationFinished_ = NewPromise<void>();
+    const NProfiling::TGauge BannedGauge_ = HttpProxyProfiler().Gauge("/banned");
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SelfLock_);
-    TCoordinatorProxyPtr Self_;
+    const TPromise<void> FirstUpdateIterationFinished_ = NewPromise<void>();
+
+    TAtomicIntrusivePtr<TCoordinatorProxy> Self_;
+
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ProxiesLock_);
     std::vector<TCoordinatorProxyPtr> Proxies_;
 
     TInstant StatisticsUpdatedAt_;
     std::optional<TNetworkStatistics> LastStatistics_;
-    NThreading::TAtomicObject<TInstant> AvailableAt_;
+    std::atomic<TInstant> AvailableAt_;
 
     // TODO(aleksandra-zh): replace with the time read-only mode was entered.
-    bool MastersInReadOnly_ = false;
+    std::atomic<bool> MastersInReadOnly_ = false;
 
     void UpdateReadOnly();
 
     void UpdateState();
     std::vector<TCoordinatorProxyPtr> ListCypressProxies();
-    std::vector<TCoordinatorProxyPtr> ListProxies(std::optional<std::string> roleFilter, bool includeDeadAndBanned = false);
+    std::vector<TCoordinatorProxyPtr> ListProxies(
+        const std::optional<std::string>& role,
+        bool includeDeadAndBanned = false);
 
     TLivenessPtr GetSelfLiveness();
+
+    TCoordinatorProxyPtr GetSelf() const;
+    void SetSelf(TCoordinatorProxyPtr self);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCoordinator)
