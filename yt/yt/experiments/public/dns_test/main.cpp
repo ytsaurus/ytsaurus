@@ -7,6 +7,7 @@
 #include <yt/yt/core/dns/config.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <library/cpp/yt/misc/optional.h>
 
@@ -122,7 +123,7 @@ protected:
             .Run());
         }
 
-        auto results = AllSet(futures).BlockingGet().ValueOrThrow();
+        auto results = WaitFor(AllSet(futures)).ValueOrThrow();
 
         auto t1 = TInstant::Now();
 

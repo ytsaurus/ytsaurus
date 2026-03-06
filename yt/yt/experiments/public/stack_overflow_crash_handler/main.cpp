@@ -2,6 +2,7 @@
 #include <yt/yt/core/actions/future.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/library/program/program.h>
 
@@ -23,10 +24,10 @@ int main()
 {
     ConfigureCrashHandler();
     auto queue = New<TActionQueue>();
-    BIND([] {
+    auto future = BIND([] {
         Recurse(0);
     })
         .AsyncVia(queue->GetInvoker())
-        .Run()
-        .BlockingGet();
+        .Run();
+    WaitFor(future).ThrowOnError();
 }

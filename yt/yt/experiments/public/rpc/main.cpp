@@ -8,6 +8,7 @@
 #include <yt/yt/core/bus/tcp/server.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/logging/log_manager.h>
 #include <yt/yt/core/logging/config.h>
@@ -130,11 +131,11 @@ void RunRpcClient(const TString& address, i32 numIter)
         result = request->Invoke();
         if (i % 10000 == 0) {
             Cout << "iteration " << i << Endl;
-            auto response = result.BlockingGet().ValueOrThrow();
+            auto response = WaitFor(result).ValueOrThrow();
             YT_ASSERT(response->b() == i + 42);
         }
     }
-    result.BlockingGet();
+    WaitFor(result).ThrowOnError();
 
     NHPTimer::STime tcur = t;
     double seconds = NHPTimer::GetTimePassed(&tcur);
@@ -264,10 +265,10 @@ public:
             result = Bus->Send(message, {.TrackingLevel = EDeliveryTrackingLevel::Full});
             if (i % 1000 == 0) {
                 Cout << "iteration " << i << Endl;
-                result.BlockingGet();
+                WaitFor(result).ThrowOnError();
             }
         }
-        result.BlockingGet();
+        WaitFor(result).ThrowOnError();
         AtomicDecrement(NumWorking);
         if (NumWorking == 0) {
             StopEvent.Signal();
@@ -521,4 +522,3 @@ int main(int argc, const char *argv[])
     // (debugging purposes only!)
     Sleep(TDuration::MilliSeconds(1000));
 }
-

@@ -1,6 +1,7 @@
 #include <yt/yt/core/misc/crash_handler.h>
 
 #include <yt/yt/core/concurrency/thread_pool.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/actions/future.h>
 
@@ -55,12 +56,12 @@ void Main()
             ThreadIndex() = index;
             Cerr << Format("Thread %v is ready\n", index);
             readyPromises[index].Set();
-            crashFuture.BlockingGet();
+            WaitFor(crashFuture).ThrowOnError();
             YT_ABORT();
         }));
     }
 
-    AllSucceeded(readyFutures).BlockingGet();
+    WaitFor(AllSucceeded(readyFutures)).ThrowOnError();
 
     Cerr << Format("Crashing!") << Endl;
 
@@ -77,4 +78,3 @@ int main()
 {
     NYT::Main();
 }
-
