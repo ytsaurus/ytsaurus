@@ -1117,6 +1117,8 @@ public:
         std::optional<TPartitionTags> partitionTags = {},
         const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder = nullptr);
 
+    void InitializeRefCounted();
+
     IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override;
 };
 
@@ -1418,7 +1420,10 @@ THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
             BlockIndexes_.push_back(index);
         }
     }
+}
 
+void THorizontalSchemalessLookupChunkReader::InitializeRefCounted()
+{
     InitBlocks();
 }
 
