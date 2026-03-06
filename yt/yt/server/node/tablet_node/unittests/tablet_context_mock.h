@@ -26,7 +26,7 @@ public:
     NQueryClient::IColumnEvaluatorCachePtr GetColumnEvaluatorCache() const override;
     NQueryClient::IRowComparerProviderPtr GetRowComparerProvider() const override;
     NApi::NNative::IClientPtr GetClient() const override;
-    NClusterNode::TClusterNodeDynamicConfigManagerPtr GetDynamicConfigManager() const override;
+    TTabletNodeDynamicConfigPtr GetDynamicConfig() const override;
     IStorePtr CreateStore(
         TTablet* tablet,
         EStoreType type,

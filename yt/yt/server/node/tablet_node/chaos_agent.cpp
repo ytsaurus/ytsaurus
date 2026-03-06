@@ -1,6 +1,5 @@
 #include "chaos_agent.h"
 
-#include "config.h"
 #include "private.h"
 #include "tablet.h"
 #include "tablet_manager.h"
@@ -12,8 +11,6 @@
 #include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
-
-#include <yt/yt/server/node/cluster_node/config.h>
 
 #include <yt/yt/ytlib/chaos_client/replication_card_updates_batcher.h>
 
@@ -44,7 +41,6 @@ namespace NYT::NTabletNode {
 
 using namespace NApi;
 using namespace NChaosClient;
-using namespace NClusterNode;
 using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NObjectClient;

@@ -12,7 +12,6 @@ namespace NYT::NTabletNode {
 
 using namespace NHydra;
 using namespace NTableClient;
-using namespace NClusterNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 

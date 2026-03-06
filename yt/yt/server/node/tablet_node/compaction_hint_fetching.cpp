@@ -13,7 +13,6 @@ using namespace NYTree;
 using namespace NLogging;
 using namespace NProfiling;
 using namespace NConcurrency;
-using namespace NClusterNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 

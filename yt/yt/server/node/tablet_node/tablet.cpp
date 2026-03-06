@@ -16,14 +16,9 @@
 #include "store_manager.h"
 #include "structured_logger.h"
 #include "table_puller.h"
-#include "tablet_manager.h"
 #include "tablet_profiling.h"
 #include "tablet_slot.h"
-#include "tablet_snapshot_store.h"
 #include "transaction_manager.h"
-
-#include <yt/yt/server/node/cluster_node/config.h>
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
 
@@ -76,7 +71,6 @@
 
 namespace NYT::NTabletNode {
 
-using namespace NClusterNode;
 using namespace NChaosClient;
 using namespace NChunkClient;
 using namespace NConcurrency;
@@ -2259,8 +2253,6 @@ void TTablet::Initialize()
         Id_,
         TableId_,
         TablePath_);
-
-    HunkLockManager_->Initialize();
 }
 
 void TTablet::ReconfigureRowCache(const ITabletSlotPtr& slot)
@@ -3463,8 +3455,8 @@ INodeMemoryTrackerPtr TTablet::TryGetNodeMemoryUsageTracker() const
 
 void TTablet::OnDynamicConfigChanged(
     const ITabletSlotPtr& slot,
-    const TClusterNodeDynamicConfigPtr& oldConfig,
-    const TClusterNodeDynamicConfigPtr& newConfig)
+    const TTabletNodeDynamicConfigPtr& oldConfig,
+    const TTabletNodeDynamicConfigPtr& newConfig)
 {
     for (const auto& [_, store] : StoreIdMap_) {
         store->OnDynamicConfigChanged(oldConfig, newConfig);
@@ -3538,10 +3530,10 @@ void BuildTableSettingsOrchidYson(const TTableSettings& options, NYTree::TFluent
 ////////////////////////////////////////////////////////////////////////////////
 
 IThroughputThrottlerPtr GetBlobMediumWriteThrottler(
-    const TClusterNodeDynamicConfigManagerPtr& dynamicConfigManager,
+    const TTabletNodeDynamicConfigPtr& nodeDynamicConfig,
     const TTabletSnapshotPtr& tabletSnapshot)
 {
-    auto mediumThrottlersConfig = dynamicConfigManager->GetConfig()->TabletNode->MediumThrottlers;
+    auto mediumThrottlersConfig = nodeDynamicConfig->MediumThrottlers;
     if (!mediumThrottlersConfig->EnableBlobThrottling) {
         return GetUnlimitedThrottler();
     }
@@ -3550,10 +3542,10 @@ IThroughputThrottlerPtr GetBlobMediumWriteThrottler(
 }
 
 IThroughputThrottlerPtr GetBlobMediumReadThrottler(
-    const TClusterNodeDynamicConfigManagerPtr& dynamicConfigManager,
+    const TTabletNodeDynamicConfigPtr& nodeDynamicConfig,
     const TTabletSnapshotPtr& tabletSnapshot)
 {
-    auto mediumThrottlersConfig = dynamicConfigManager->GetConfig()->TabletNode->MediumThrottlers;
+    auto mediumThrottlersConfig = nodeDynamicConfig->MediumThrottlers;
     if (!mediumThrottlersConfig->EnableBlobThrottling) {
         return GetUnlimitedThrottler();
     }

@@ -36,7 +36,6 @@
 namespace NYT::NTabletNode {
 
 using namespace NChaosClient;
-using namespace NClusterNode;
 using namespace NCompression;
 using namespace NHydra;
 using namespace NLeaseServer;

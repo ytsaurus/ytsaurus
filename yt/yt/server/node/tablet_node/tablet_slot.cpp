@@ -4,16 +4,11 @@
 #include "bootstrap.h"
 #include "config.h"
 #include "distributed_throttler_manager.h"
-#include "hint_manager.h"
 #include "hunk_tablet_manager.h"
-#include "master_connector.h"
 #include "medium_throttler_manager.h"
 #include "mutation_forwarder.h"
 #include "mutation_forwarder_thunk.h"
 #include "private.h"
-#include "security_manager.h"
-#include "serialize.h"
-#include "slot_manager.h"
 #include "smooth_movement_tracker.h"
 #include "tablet.h"
 #include "tablet_cell_write_manager.h"
@@ -21,8 +16,6 @@
 #include "tablet_service.h"
 #include "tablet_snapshot_store.h"
 #include "transaction_manager.h"
-
-#include <yt/yt/server/node/data_node/config.h>
 
 #include <yt/yt/server/lib/cellar_agent/automaton_invoker_hood.h>
 #include <yt/yt/server/lib/cellar_agent/occupant.h>
@@ -45,11 +38,6 @@
 #include <yt/yt/server/node/cellar_node/bundle_dynamic_config_manager.h>
 #include <yt/yt/server/node/cellar_node/config.h>
 #include <yt/yt/server/node/cellar_node/master_connector.h>
-
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
-#include <yt/yt/server/node/cluster_node/config.h>
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
-#include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
@@ -628,8 +616,8 @@ public:
 
     IReconfigurableThroughputThrottlerPtr GetChunkFragmentReaderMediumThrottler(TTablet* tablet) const
     {
-        auto config = Bootstrap_->GetDynamicConfigManager()->GetConfig();
-        const auto& throttlersConfig = config->TabletNode->MediumThrottlers;
+        auto config = Bootstrap_->GetTabletNodeDynamicConfig();
+        const auto& throttlersConfig = config->MediumThrottlers;
 
         if (!throttlersConfig->EnableBlobThrottling) {
             return GetUnlimitedThrottler();
@@ -640,9 +628,8 @@ public:
 
     IChunkFragmentReaderPtr CreateChunkFragmentReader(TTablet* tablet) override
     {
-        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        auto config = dynamicConfigManager->GetConfig();
-        bool chunkFragmentReaderThrottlingEnabled = config->TabletNode->EnableChunkFragmentReaderThrottling;
+        auto config = Bootstrap_->GetTabletNodeDynamicConfig();
+        bool chunkFragmentReaderThrottlingEnabled = config->EnableChunkFragmentReaderThrottling;
 
         auto chunkReaderHost = New<TChunkReaderHost>(
             Bootstrap_->GetClient(),
@@ -687,7 +674,7 @@ public:
 
     TTransactionManagerDynamicConfigPtr GetTransactionManagerDynamicConfig() override
     {
-        return Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->TransactionManager;
+        return Bootstrap_->GetTabletNodeDynamicConfig()->TransactionManager;
     }
 
 private:

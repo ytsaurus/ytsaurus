@@ -43,20 +43,8 @@
 #include <yt/yt/server/node/exec_node/slot_manager.h>
 #include <yt/yt/server/node/exec_node/supervisor_service.h>
 
-#include <yt/yt/server/node/tablet_node/backing_store_cleaner.h>
 #include <yt/yt/server/node/tablet_node/bootstrap.h>
-#include <yt/yt/server/node/tablet_node/hint_manager.h>
-#include <yt/yt/server/node/tablet_node/master_connector.h>
-#include <yt/yt/server/node/tablet_node/partition_balancer.h>
-#include <yt/yt/server/node/tablet_node/slot_manager.h>
-#include <yt/yt/server/node/tablet_node/store_compactor.h>
-#include <yt/yt/server/node/tablet_node/store_flusher.h>
-#include <yt/yt/server/node/tablet_node/store_trimmer.h>
-#include <yt/yt/server/node/tablet_node/hunk_chunk_sweeper.h>
-#include <yt/yt/server/node/tablet_node/lsm_interop.h>
-#include <yt/yt/server/node/tablet_node/structured_logger.h>
-#include <yt/yt/server/node/tablet_node/tablet_cell_service.h>
-#include <yt/yt/server/node/tablet_node/tablet_cell_snapshot_validator.h>
+#include <yt/yt/server/node/tablet_node/config.h>
 #include <yt/yt/server/node/tablet_node/versioned_chunk_meta_manager.h>
 
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>

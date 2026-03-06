@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 #include <yt/yt/server/node/tablet_node/tablet_memory_statistics.h>
 
 #include <yt/yt/server/lib/cellar_agent/occupier.h>

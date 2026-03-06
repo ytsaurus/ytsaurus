@@ -2,10 +2,8 @@
 
 #include "dynamic_store_bits.h"
 #include "private.h"
-#include "tablet_profiling.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-#include <yt/yt/server/node/tablet_node/transaction.h>
+#include <yt/yt/server/lib/lsm/public.h>
 
 #include <yt/yt/ytlib/table_client/public.h>
 

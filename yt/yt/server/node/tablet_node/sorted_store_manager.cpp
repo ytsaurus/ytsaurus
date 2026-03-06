@@ -1,6 +1,5 @@
 #include "sorted_store_manager.h"
 
-#include "automaton.h"
 #include "config.h"
 #include "in_memory_manager.h"
 #include "private.h"
@@ -10,13 +9,10 @@
 #include "structured_logger.h"
 #include "tablet.h"
 #include "tablet_profiling.h"
-#include "tablet_slot.h"
-#include "transaction_manager.h"
 #include "versioned_chunk_meta_manager.h"
 #include "write_commands.h"
 
-#include <yt/yt/server/node/cluster_node/config.h>
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
+#include <yt/yt/server/lib/hydra/mutation_context.h>
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 #include <yt/yt/server/lib/tablet_node/config.h>
@@ -974,8 +970,8 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
 
         auto workloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletStoreFlush);
-        auto enableCollocatedDatNodeThrottling = TabletContext_->GetDynamicConfigManager()
-            ->GetConfig()->TabletNode->EnableCollocatedDatNodeThrottling;
+        auto enableCollocatedDatNodeThrottling = TabletContext_->GetDynamicConfig()
+            ->EnableCollocatedDatNodeThrottling;
 
         auto memoryUsageTracker = TabletContext_->GetNodeMemoryUsageTracker()->WithCategory(
             EMemoryCategory::TabletBackground);
@@ -1303,7 +1299,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         auto totalDiskSpace = getDiskSpace(storeWriter, tabletSnapshot->Settings.StoreWriterOptions) +
             getDiskSpace(hunkChunkWriter, tabletSnapshot->Settings.HunkWriterOptions);
         auto mediumThrottler = GetBlobMediumWriteThrottler(
-            TabletContext_->GetDynamicConfigManager(),
+            TabletContext_->GetDynamicConfig(),
             tabletSnapshot);
 
         YT_LOG_DEBUG("Throttling blobs media write in sorted store flush (DiskSpace: %v)",

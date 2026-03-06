@@ -4,8 +4,6 @@
 #include "dynamic_store_bits.h"
 #include "store.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 #include <yt/yt/server/node/data_node/public.h>
 
 #include <yt/yt/client/table_client/schema.h>
@@ -95,8 +93,8 @@ protected:
     virtual void DoBuildOrchidYson(NYTree::TFluentMap fluent);
 
     void OnDynamicConfigChanged(
-        const NClusterNode::TClusterNodeDynamicConfigPtr& oldConfig,
-        const NClusterNode::TClusterNodeDynamicConfigPtr& newConfig) override;
+        const TTabletNodeDynamicConfigPtr& oldConfig,
+        const TTabletNodeDynamicConfigPtr& newConfig) override;
 
 private:
     i64 DynamicMemoryUsage_ = 0;
@@ -299,8 +297,8 @@ public:
         bool prepareColumnarMeta);
 
     void OnDynamicConfigChanged(
-        const NClusterNode::TClusterNodeDynamicConfigPtr& oldConfig,
-        const NClusterNode::TClusterNodeDynamicConfigPtr& newConfig) override;
+        const TTabletNodeDynamicConfigPtr& oldConfig,
+        const TTabletNodeDynamicConfigPtr& newConfig) override;
 
 protected:
     std::vector<THunkChunkRef> HunkChunkRefs_;

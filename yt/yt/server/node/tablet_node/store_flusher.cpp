@@ -14,9 +14,6 @@
 #include "tablet_slot.h"
 #include "tablet_snapshot_store.h"
 
-#include <yt/yt/server/node/cluster_node/config.h>
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
-
 #include <yt/yt/server/node/tablet_node/helpers.h>
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
@@ -163,18 +160,17 @@ class TStoreFlusher
 public:
     explicit TStoreFlusher(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
-        , Config_(Bootstrap_->GetConfig()->TabletNode)
+        , Config_(Bootstrap_->GetTabletNodeConfig())
         , ThreadPool_(CreateThreadPool(Config_->StoreFlusher->ThreadPoolSize, "StoreFlush"))
         , Semaphore_(New<TProfiledAsyncSemaphore>(
             Config_->StoreFlusher->MaxConcurrentFlushes,
             Profiler_.Gauge("/running_store_flushes")))
         , Orchid_(New<TFlushOrchid>(
-            Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreFlusher->Orchid,
+            Bootstrap_->GetTabletNodeDynamicConfig()->StoreFlusher->Orchid,
             Profiler_))
         , OrchidService_(CreateOrchidService())
     {
-        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TStoreFlusher::OnDynamicConfigChanged, MakeWeak(this)));
+        Bootstrap_->SubscribeTabletNodeConfigChanged(BIND_NO_PROPAGATE(&TStoreFlusher::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     void Start() override
@@ -225,10 +221,10 @@ private:
     }
 
     void OnDynamicConfigChanged(
-        const NClusterNode::TClusterNodeDynamicConfigPtr& /*oldNodeConfig*/,
-        const NClusterNode::TClusterNodeDynamicConfigPtr& newNodeConfig)
+        const TTabletNodeDynamicConfigPtr& /*oldNodeConfig*/,
+        const TTabletNodeDynamicConfigPtr& newNodeConfig)
     {
-        const auto& config = newNodeConfig->TabletNode->StoreFlusher;
+        const auto& config = newNodeConfig->StoreFlusher;
         ThreadPool_->SetThreadCount(config->ThreadPoolSize.value_or(Config_->StoreFlusher->ThreadPoolSize));
         Semaphore_->SetTotal(config->MaxConcurrentFlushes.value_or(Config_->StoreFlusher->MaxConcurrentFlushes));
         Orchid_->Reconfigure(config->Orchid);
@@ -247,8 +243,7 @@ private:
 
     void OnScanSlot(const ITabletSlotPtr& slot)
     {
-        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        auto dynamicConfig = dynamicConfigManager->GetConfig()->TabletNode->StoreFlusher;
+        auto dynamicConfig = Bootstrap_->GetTabletNodeDynamicConfig()->StoreFlusher;
         if (!dynamicConfig->Enable) {
             return;
         }

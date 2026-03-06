@@ -12,9 +12,6 @@
 #include "tablet_slot.h"
 #include "tablet_snapshot_store.h"
 
-#include <yt/yt/server/node/cluster_node/config.h>
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
-
 #include <yt/yt/server/node/tablet_node/helpers.h>
 
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
@@ -134,8 +131,7 @@ private:
 
     void OnScanSlot(const ITabletSlotPtr& slot)
     {
-        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        auto dynamicConfig = dynamicConfigManager->GetConfig()->TabletNode->StoreTrimmer;
+        auto dynamicConfig = Bootstrap_->GetTabletNodeDynamicConfig()->StoreTrimmer;
         if (!dynamicConfig->Enable) {
             return;
         }

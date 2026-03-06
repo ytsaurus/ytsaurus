@@ -7,9 +7,6 @@
 #include "tablet.h"
 #include "transaction.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
-#include <yt/yt/server/node/cluster_node/config.h>
-
 #include <yt/yt/server/node/query_agent/config.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
@@ -80,7 +77,6 @@ using namespace NNodeTrackerClient;
 using namespace NTransactionClient;
 using namespace NApi;
 using namespace NDataNode;
-using namespace NClusterNode;
 using namespace NQueryAgent;
 using namespace NQueryClient;
 

@@ -4,7 +4,6 @@
 #include "config.h"
 #include "store_manager.h"
 #include "tablet.h"
-#include "transaction_manager.h"
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
@@ -18,7 +17,6 @@
 
 namespace NYT::NTabletNode {
 
-using namespace NClusterNode;
 using namespace NConcurrency;
 using namespace NHiveServer;
 using namespace NHydra;

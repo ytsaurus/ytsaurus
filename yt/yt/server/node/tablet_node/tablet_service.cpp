@@ -3,7 +3,6 @@
 #include "bootstrap.h"
 #include "config.h"
 #include "error_reporting_service_base.h"
-#include "hunk_store.h"
 #include "hunk_tablet_manager.h"
 #include "private.h"
 #include "security_manager.h"
@@ -14,12 +13,7 @@
 #include "tablet_manager.h"
 #include "tablet_slot.h"
 #include "tablet_snapshot_store.h"
-#include "transaction.h"
 #include "transaction_manager.h"
-
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
-#include <yt/yt/server/node/cluster_node/config.h>
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 #include <yt/yt/server/lib/hydra/hydra_service.h>
@@ -53,17 +47,16 @@ namespace NYT::NTabletNode {
 
 using namespace NChaosClient;
 using namespace NChunkClient;
-using namespace NClusterNode;
 using namespace NCompression;
 using namespace NConcurrency;
-using namespace NJournalClient;
 using namespace NHydra;
+using namespace NJournalClient;
 using namespace NRpc;
+using namespace NServer;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYTree;
-using namespace NServer;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -131,8 +124,7 @@ private:
             return;
         }
 
-        auto throttlersConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()
-            ->TabletNode->MediumThrottlers;
+        auto throttlersConfig = Bootstrap_->GetTabletNodeDynamicConfig()->MediumThrottlers;
 
         if (!throttlersConfig->EnableChangelogThrottling) {
             return;

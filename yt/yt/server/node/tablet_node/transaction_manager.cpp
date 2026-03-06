@@ -1,15 +1,12 @@
 #include "transaction_manager.h"
 
 #include "automaton.h"
-#include "bootstrap.h"
 #include "config.h"
-#include "private.h"
 #include "serialize.h"
 #include "tablet_slot.h"
 #include "transaction.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
-#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/tablet_node/transaction_manager.pb.h>
 
 #include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
 #include <yt/yt/server/lib/transaction_supervisor/transaction_lease_tracker.h>
@@ -19,7 +16,7 @@
 
 #include <yt/yt/server/lib/transaction_server/helpers.h>
 
-#include <yt/yt/server/node/tablet_node/transaction_manager.pb.h>
+#include <yt/yt/server/lib/tablet_node/private.h>
 
 #include <yt/yt/ytlib/transaction_client/action.h>
 
@@ -61,7 +58,6 @@ using namespace NObjectClient;
 using namespace NHydra;
 using namespace NHiveClient;
 using namespace NHiveServer;
-using namespace NClusterNode;
 using namespace NTabletClient;
 using namespace NTabletClient::NProto;
 using namespace NTransactionSupervisor;

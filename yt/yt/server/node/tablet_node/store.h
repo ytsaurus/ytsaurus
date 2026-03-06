@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 #include <yt/yt/library/query/base/public.h>
 
 #include <yt/yt/client/api/public.h>
@@ -141,8 +139,8 @@ struct IStore
     virtual void PopulateAddStoreDescriptor(NProto::TAddStoreDescriptor* descriptor) = 0;
 
     virtual void OnDynamicConfigChanged(
-        const NClusterNode::TClusterNodeDynamicConfigPtr& oldConfig,
-        const NClusterNode::TClusterNodeDynamicConfigPtr& newConfig) = 0;
+        const TTabletNodeDynamicConfigPtr& oldConfig,
+        const TTabletNodeDynamicConfigPtr& newConfig) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IStore)

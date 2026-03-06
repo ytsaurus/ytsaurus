@@ -7,11 +7,7 @@
 #include "store_flusher.h"
 #include "tablet.h"
 #include "tablet_profiling.h"
-#include "transaction.h"
 #include "versioned_chunk_meta_manager.h"
-
-#include <yt/yt/server/node/cluster_node/config.h>
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 #include <yt/yt/server/lib/tablet_node/config.h>
@@ -62,9 +58,6 @@ using namespace NTabletClient;
 using namespace NTabletClient::NProto;
 using namespace NObjectClient;
 using namespace NTransactionClient;
-
-using NTabletNode::NProto::TAddStoreDescriptor;
-using NTabletNode::NProto::TMountHint;
 
 using NYT::ToProto;
 
@@ -312,8 +305,8 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
         auto writerConfig = CloneYsonStruct(tabletSnapshot->Settings.StoreWriterConfig);
         writerConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletStoreFlush);
         writerConfig->MinUploadReplicationFactor = writerConfig->UploadReplicationFactor;
-        writerConfig->EnableLocalThrottling = TabletContext_->GetDynamicConfigManager()
-            ->GetConfig()->TabletNode->EnableCollocatedDatNodeThrottling;
+        writerConfig->EnableLocalThrottling = TabletContext_->GetDynamicConfig()
+            ->EnableCollocatedDatNodeThrottling;
         writerConfig->Postprocess();
 
         auto asyncBlockCache = CreateRemoteInMemoryBlockCache(
@@ -476,7 +469,7 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
             dataStatistics.regular_disk_space(),
             dataStatistics.erasure_disk_space());
         auto mediumThrottler = GetBlobMediumWriteThrottler(
-            TabletContext_->GetDynamicConfigManager(),
+            TabletContext_->GetDynamicConfig(),
             tabletSnapshot);
 
         YT_LOG_DEBUG("Throttling blobs media write in ordered store flush (DiskSpace: %v)",
