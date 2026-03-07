@@ -1205,7 +1205,10 @@ void TLayerLocation::DoRemoveVolume(TTagSet tagSet, TVolumeId volumeId)
     auto volumeMetaPath = GetVolumeMetaPath(volumeId);
 
     auto Logger = ExecNodeLogger()
-        .WithTag("VolumeId: %v", volumeId);
+        .WithTag("VolumeId: %v, VolumePath: %v, VolumeMetaPath: %v",
+            volumeId,
+            volumePath,
+            volumeMetaPath);
 
     YT_LOG_DEBUG("Removing volume");
 
@@ -1216,8 +1219,7 @@ void TLayerLocation::DoRemoveVolume(TTagSet tagSet, TVolumeId volumeId)
             } catch (const std::exception& ex) {
                 YT_LOG_ERROR(
                     ex,
-                    "Failed to remove volume directory (VolumePath: %v)",
-                    volumePath);
+                    "Failed to remove volume directory");
             }
 
             try {
@@ -1225,15 +1227,10 @@ void TLayerLocation::DoRemoveVolume(TTagSet tagSet, TVolumeId volumeId)
             } catch (const std::exception& ex) {
                 YT_LOG_ERROR(
                     ex,
-                    "Failed to remove volume meta (VolumeMetaPath: %v)",
-                    volumeMetaPath);
+                    "Failed to remove volume meta");
             }
 
-            YT_LOG_DEBUG(
-                "Volume directory and meta removed (VolumePath: %v, VolumeMetaPath: %v)",
-                volumePath,
-                volumeMetaPath);
-
+            YT_LOG_DEBUG("Volume directory and meta removed");
 
             bool setVolumesReleasePromise = false;
             {
@@ -1241,10 +1238,7 @@ void TLayerLocation::DoRemoveVolume(TTagSet tagSet, TVolumeId volumeId)
 
                 // NB. The location could be disabled while we were getting here.
                 if (VolumeIdToMeta_.erase(volumeId) == 0 && IsEnabled()) {
-                    YT_LOG_FATAL(
-                        "Volume already removed (VolumePath: %v, VolumeMetaPath: %v)",
-                        volumePath,
-                        volumeMetaPath);
+                    YT_LOG_FATAL("Volume already removed");
                 }
 
                 // It is all right to set promise even if location is disabled.
@@ -1274,8 +1268,7 @@ void TLayerLocation::DoRemoveVolume(TTagSet tagSet, TVolumeId volumeId)
 
         YT_LOG_ERROR(
             ex,
-            "Failed to remove volume (VolumeId: %v)",
-            volumeId);
+            "Failed to remove volume");
 
         auto error = TError("Failed to remove volume")
             << ex

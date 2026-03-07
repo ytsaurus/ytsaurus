@@ -254,7 +254,7 @@ private:
             .ToUncancelable();
     }
 
-    void FindTmpfsMountPathsInLocation(const std::string& locationPath, std::vector<std::string>& mountPaths)
+    void FindTmpfsMountPathsInLocation(const std::string& locationPath, std::vector<std::string>& mountPaths) const
     {
         auto mountPoints = NFS::GetMountPoints("/proc/mounts");
         for (const auto& mountPoint : mountPoints) {

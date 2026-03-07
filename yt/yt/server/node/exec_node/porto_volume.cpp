@@ -72,19 +72,15 @@ TFuture<void> TPortoVolumeBase::Remove()
                 auto Logger = ExecNodeLogger()
                     .WithTag("VolumePath: %v", volumePath);
 
-                YT_LOG_FATAL_UNLESS(guardOrError.IsOK(), guardOrError, "Failed to acquire lock (VolumePath: %v)", volumePath);
+                YT_LOG_FATAL_UNLESS(guardOrError.IsOK(), guardOrError, "Failed to acquire lock");
 
                 auto guard = std::move(guardOrError.Value());
                 auto removeFuture = removalCallback(targets).Apply(BIND(
-                    [guard = std::move(guard), volumePath = std::move(volumePath)] (const TError& error) {
-                        auto Logger = ExecNodeLogger()
-                            .WithTag("VolumePath: %v", volumePath);
-
+                    [guard = std::move(guard), Logger] (const TError& error) {
                         if (!error.IsOK()) {
                             YT_LOG_ERROR(
                                 error,
-                                "Failed to remove volume (VolumePath: %v)",
-                                volumePath);
+                                "Failed to remove volume");
                         }
                         return error;
                     }));
@@ -158,11 +154,9 @@ void TPortoVolumeBase::SetRemoveCallback(TCallback<TFuture<void>()> callback)
                         .WithTag("VolumePath: %v", volumePath);
 
                     if (!error.IsOK()) {
-                        YT_LOG_WARNING(error, "Failed to unlink targets (VolumePath: %v)",
-                            volumePath);
+                        YT_LOG_WARNING(error, "Failed to unlink targets");
                     } else {
-                        YT_LOG_DEBUG("Unlinked targets (VolumePath: %v)",
-                            volumePath);
+                        YT_LOG_DEBUG("Unlinked targets");
                     }
                     // Now remove the actual volume.
                     return callback();
@@ -175,8 +169,7 @@ TFuture<void> TPortoVolumeBase::UnlinkTargets(TLayerLocationPtr location, TStrin
     auto Logger = ExecNodeLogger()
         .WithTag("VolumePath: %v", source);
 
-    YT_LOG_DEBUG("Unlinking targets (VolumePath: %v, Targets: %v)",
-        source,
+    YT_LOG_DEBUG("Unlinking targets (Targets: %v)",
         targets);
 
     if (targets.empty()) {
