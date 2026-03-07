@@ -63,7 +63,7 @@ TEST_F(TTableSchemaCacheTest, DontCacheCorruptedSchema)
 
     auto schemaOrError = NConcurrency::WaitFor(tableSchemaCache->Get(corruptedSchema));
     Cerr << Format(
-        "Put compact table schema into cache (CompactTableSchema: %v, ParsedResult: %v)",
+        "Put compact table schema into cache (CompactTableSchema: %hv, ParsedResult: %v)",
         corruptedSchema,
         schemaOrError)
         << Endl;
