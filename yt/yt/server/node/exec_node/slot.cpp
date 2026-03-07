@@ -783,7 +783,9 @@ private:
             "Cleaning up porto place (PortoPlace: %v)",
             portoPlacePath);
 
-        auto removeVolumesResult = WaitFor(VolumeManager_->RemoveVolumes(portoPlacePath));
+        static constexpr TDuration Timeout = TDuration::Minutes(10);
+
+        auto removeVolumesResult = WaitFor(VolumeManager_->RemoveVolumes(portoPlacePath, Timeout));
         if (!removeVolumesResult.IsOK()) {
             auto error = TError("Failed to remove volumes from porto place")
                 << TErrorAttribute("porto_place", portoPlacePath)
