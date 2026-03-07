@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: redis
-Version: 7.1.0
+Version: 7.1.1
 Summary: Python client for Redis database and key-value store
 Project-URL: Changes, https://github.com/redis/redis-py/releases
 Project-URL: Code, https://github.com/redis/redis-py
