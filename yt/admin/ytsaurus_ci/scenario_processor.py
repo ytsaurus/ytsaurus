@@ -17,7 +17,6 @@ from yt.admin.ytsaurus_ci import consts
 from yt.admin.ytsaurus_ci import ghcr
 from yt.admin.ytsaurus_ci import models
 
-
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATES_PATH = os.path.join(BASE_DIR, "templates")
 
