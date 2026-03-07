@@ -118,9 +118,11 @@ public:
         YT_UNIMPLEMENTED("LinkTmpfsVolumes is not implemented for SimpleVolumeManager");
     }
 
-    TFuture<void> RemoveVolumes(const TString& /*volumePath*/) override
+    TFuture<void> RemoveVolumes(const TString& path, TDuration timeout) override
     {
-        YT_LOG_DEBUG("RemoveVolumes is empty in SimpleVolumeManager");
+        YT_LOG_DEBUG("RemoveVolumes is empty in SimpleVolumeManager (Path: %v, Timeout: %v)",
+            path,
+            timeout);
         return OKFuture;
     }
 
@@ -606,17 +608,18 @@ public:
     }
 
     //! Remove volumes planted at a given path.
-    TFuture<void> RemoveVolumes(const TString& volumePath) override
+    TFuture<void> RemoveVolumes(const TString& path, TDuration timeout) override
     {
         auto location = LayerCache_->PickLocation();
         return BIND(
             [
                 location,
-                volumePath
+                path,
+                timeout
             ] {
                 return location->RemoveVolumes(
-                    volumePath,
-                    TDuration::Minutes(30));
+                    path,
+                    timeout);
             })
             .AsyncVia(GetCurrentInvoker())
             .Run();

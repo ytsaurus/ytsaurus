@@ -620,7 +620,7 @@ void TLayerLocation::DoInitialize()
     }
 
     try {
-        RemoveVolumes();
+        RemoveVolumes(TDuration::Minutes(20));
 
         RunTool<TRemoveDirAsRootTool>(VolumesPath_);
         RunTool<TRemoveDirAsRootTool>(VolumesMetaPath_);
@@ -1335,17 +1335,19 @@ void TLayerLocation::RemoveVolumes(TDuration timeout)
     RemoveVolumes(VolumesPath_, timeout);
 }
 
-//! Remove volumes planted at a given directory.
+//! Remove volumes planted at a given path.
 void TLayerLocation::RemoveVolumes(
-    const TString& volumeDirectory,
+    const TString& path,
     TDuration timeout)
 {
     auto startTime = TInstant::Now();
     auto deadLine = startTime + timeout;
 
+    auto Logger = ExecNodeLogger()
+        .WithTag("Path: %v", path);
+
     YT_LOG_DEBUG(
-        "Waiting for volumes to be removed (VolumeDirectory: %v, DeadLine: %v)",
-        volumeDirectory,
+        "Waiting for volumes to be removed (DeadLine: %v)",
         deadLine);
 
     auto checkDeadLine = [&] {
@@ -1353,7 +1355,7 @@ void TLayerLocation::RemoveVolumes(
         if (now > deadLine) {
             THROW_ERROR_EXCEPTION("Failed to wait for volumes to be removed")
                 << TErrorAttribute("timeout", timeout)
-                << TErrorAttribute("volume_directory", volumeDirectory);
+                << TErrorAttribute("path", path);
         }
     };
 
@@ -1369,7 +1371,7 @@ void TLayerLocation::RemoveVolumes(
         std::vector<TFuture<void>> unlinkFutures;
 
         for (const auto& volume : volumes) {
-            if (!volume.Path.StartsWith(volumeDirectory)) {
+            if (!volume.Path.StartsWith(path)) {
                 // This volume is not from the given directory.
                 continue;
             }
@@ -1378,16 +1380,14 @@ void TLayerLocation::RemoveVolumes(
             if (volume.State != ReadyState) {
                 waitForVolumesToBecomeReady = true;
                 YT_LOG_DEBUG(
-                    "Volume is not ready (VolumeDirectory: %v, VolumePath: %v, State: %v)",
-                    volumeDirectory,
+                    "Volume is not ready (VolumePath: %v, State: %v)",
                     volume.Path,
                     volume.State);
                 continue;
             }
 
             YT_LOG_DEBUG(
-                "Trying to unlink volume (VolumeDirectory: %v, VolumePath: %v, State: %v)",
-                volumeDirectory,
+                "Trying to unlink volume (VolumePath: %v, State: %v)",
                 volume.Path,
                 volume.State);
 
@@ -1417,8 +1417,7 @@ void TLayerLocation::RemoveVolumes(
             static const TDuration Duration = TDuration::Seconds(30);
 
             YT_LOG_DEBUG(
-                "Waiting for volumes to become ready (VolumeDirectory: %v, Duration: %v)",
-                volumeDirectory,
+                "Waiting for volumes to become ready (Duration: %v)",
                 Duration);
 
             TDelayedExecutor::WaitForDuration(Duration);
@@ -1426,8 +1425,7 @@ void TLayerLocation::RemoveVolumes(
     }
 
     YT_LOG_DEBUG(
-        "Removed volumes (VolumeDirectory: %v, VolumePaths: %v, Duration: %v)",
-        volumeDirectory,
+        "Removed volumes (VolumePaths: %v, Duration: %v)",
         MakeShrunkFormattableView(removedVolumes, TDefaultFormatter(), 10),
         (TInstant::Now() - startTime));
 }

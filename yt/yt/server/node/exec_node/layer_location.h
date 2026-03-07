@@ -131,10 +131,10 @@ public:
 
     i64 GetUsedSpace() const;
 
-    //! Remove volumes planted at a given directory.
+    //! Remove volumes planted at a given path.
     void RemoveVolumes(
-        const TString& volumeDirectory,
-        TDuration timeout = TDuration::Minutes(30));
+        const TString& path,
+        TDuration timeout);
 
 private:
     const NDataNode::TLayerLocationConfigPtr Config_;
@@ -242,7 +242,7 @@ private:
         const TString& target);
 
     //! Remove volumes planted in VolumesPath_;
-    void RemoveVolumes(TDuration timeout = TDuration::Minutes(30));
+    void RemoveVolumes(TDuration timeout);
 };
 
 DECLARE_REFCOUNTED_CLASS(TLayerLocation)
