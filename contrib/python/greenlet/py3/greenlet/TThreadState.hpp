@@ -384,6 +384,26 @@ public:
             return;
         }
 
+        // During interpreter finalization, Python APIs like
+        // PyImport_ImportModule are unsafe (the import machinery may
+        // be partially torn down). On Python < 3.11, perform only the
+        // minimal cleanup that is safe: clear our strong references so
+        // we don't leak, but skip the GC-based leak detection.
+        //
+        // Python 3.11+ restructured interpreter finalization so that
+        // these APIs remain safe during shutdown.
+#if !GREENLET_PY311
+        if (_Py_IsFinalizing()) {
+            this->tracefunc.CLEAR();
+            if (this->current_greenlet) {
+                this->current_greenlet->murder_in_place();
+                this->current_greenlet.CLEAR();
+            }
+            this->main_greenlet.CLEAR();
+            return;
+        }
+#endif
+
         // We should not have an "origin" greenlet; that only exists
         // for the temporary time during a switch, which should not
         // be in progress as the thread dies.

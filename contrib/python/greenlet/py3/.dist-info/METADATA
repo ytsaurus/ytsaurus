@@ -1,10 +1,10 @@
 Metadata-Version: 2.4
 Name: greenlet
-Version: 3.3.1
+Version: 3.3.2
 Summary: Lightweight in-process concurrent programming
 Author-email: Alexey Borzenkov <snaury@gmail.com>
 Maintainer-email: Jason Madden <jason@seecoresoftware.com>
-License-Expression: MIT AND Python-2.0
+License-Expression: MIT AND PSF-2.0
 Project-URL: Homepage, https://greenlet.readthedocs.io
 Project-URL: Documentation, https://greenlet.readthedocs.io
 Project-URL: Repository, https://github.com/python-greenlet/greenlet
