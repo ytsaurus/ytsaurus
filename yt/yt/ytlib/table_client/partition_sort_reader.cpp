@@ -1,4 +1,5 @@
 #include "partition_sort_reader.h"
+
 #include "config.h"
 #include "partition_chunk_reader.h"
 #include "schemaless_block_reader.h"
@@ -13,12 +14,11 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/nonblocking_queue.h>
 
 #include <yt/yt/core/misc/heap.h>
 
-#include <library/cpp/yt/threading/spin_wait.h>
-
-#include <util/system/yield.h>
+#include <library/cpp/yt/memory/atomic.h>
 
 #include <util/random/shuffle.h>
 
@@ -30,16 +30,10 @@ using namespace NConcurrency;
 
 using NRpc::IChannelPtr;
 using NChunkClient::TDataSliceDescriptor;
-using NYT::TRange;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 constinit const auto Logger = TableClientLogger;
-
-static const int SortBucketSize = 10000;
-static const int RowsBetweenAtomicUpdate = 10000;
-static const i32 BucketEndSentinel = -1;
-static const double ReallocationFactor = 1.1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -72,10 +66,9 @@ public:
         , KeyBuffer_(this)
         , RowDescriptorBuffer_(this)
         , Buckets_(this)
-        , BucketStart_(this)
-        , SortComparer_(this)
-        , MergeComparer_(this)
-        , MemoryPool_(TPartitionSortReaderTag())
+        , BucketStartIndexes_(this)
+        , SortComparator_(this)
+        , MergeComparator_(this)
     {
         Shuffle(dataSliceDescriptors.begin(), dataSliceDescriptors.end());
 
@@ -100,52 +93,63 @@ public:
 
     IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        MemoryPool_.Clear();
-
         if (!IsReadyEventSetAndOK()) {
             return CreateEmptyUnversionedRowBatch();
         }
 
-        if (ReadRowCount_ == TotalRowCount_) {
-            SortQueue_->Shutdown();
-            return nullptr;
-        }
-
-        bool mergeFinished = MergeFinished_.load();
-        i64 sortedRowCount = SortedRowCount_.load();
-
-        NThreading::TSpinWait spinWait(__LOCATION__, NThreading::ESpinLockActivityKind::ReadWrite);
-        while (sortedRowCount <= ReadRowCount_ && !mergeFinished) {
-            spinWait.Wait();
-            mergeFinished = MergeFinished_.load();
-            sortedRowCount = SortedRowCount_.load();
-        }
-
-        if (mergeFinished && !MergeError_.IsOK()) {
+        if (!MergeError_.IsOK()) {
             SetReadyEvent(MakeFuture(MergeError_));
             return CreateEmptyUnversionedRowBatch();
         }
+
+        if (ReadRowCount_ == TotalRowCount_) {
+            WorkerQueue_->Shutdown();
+            return nullptr;
+        }
+
+        while (CurrentSortedIndexesBatchPosition_ >= std::ssize(CurrentSortedIndexesBatch_)) {
+            if (!NextSortedIndexesBatchFuture_) {
+                NextSortedIndexesBatchFuture_ = SortedIndexesBatchQueue_.Dequeue();
+            }
+            if (!NextSortedIndexesBatchFuture_.IsSet()) {
+                SetReadyEvent(NextSortedIndexesBatchFuture_.As<void>());
+                return CreateEmptyUnversionedRowBatch();
+            }
+            auto batchOrError = std::exchange(NextSortedIndexesBatchFuture_, {})
+                .AsUnique()
+                .GetOrCrash();
+            if (!batchOrError.IsOK()) {
+                MergeError_ = TError(batchOrError);
+                SetReadyEvent(MakeFuture(MergeError_));
+                return CreateEmptyUnversionedRowBatch();
+            }
+            CurrentSortedIndexesBatch_ = std::move(batchOrError.Value());
+            CurrentSortedIndexesBatchPosition_ = 0;
+        }
+
+        MemoryPool_.Clear();
 
         std::vector<TUnversionedRow> rows;
         rows.reserve(options.MaxRowsPerRead);
         i64 dataWeight = 0;
 
-        while (ReadRowCount_ < sortedRowCount &&
+        while (CurrentSortedIndexesBatchPosition_ < std::ssize(CurrentSortedIndexesBatch_) &&
             std::ssize(rows) < options.MaxRowsPerRead &&
             dataWeight < options.MaxDataWeightPerRead)
         {
-            auto sortedIndex = SortedIndexes_[ReadRowCount_];
-            auto& rowDescriptor = RowDescriptorBuffer_[sortedIndex];
+            auto sortedIndex = CurrentSortedIndexesBatch_[CurrentSortedIndexesBatchPosition_++];
+            const auto& rowDescriptor = RowDescriptorBuffer_[sortedIndex];
             YT_VERIFY(rowDescriptor.BlockReader->JumpToRowIndex(rowDescriptor.RowIndex));
             auto row = rowDescriptor.BlockReader->GetRow(&MemoryPool_, /*remapIds*/ true);
             rows.push_back(row);
             dataWeight += GetDataWeight(row);
-            ++ReadRowCount_;
         }
 
-        ReadDataWeight_ += dataWeight;
-
         YT_VERIFY(!rows.empty());
+
+        SingleWriterFetchAdd(ReadRowCount_, std::ssize(rows));
+        SingleWriterFetchAdd(ReadDataWeight_, dataWeight);
+
         return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
 
@@ -171,13 +175,11 @@ public:
 
     bool IsFetchingCompleted() const override
     {
-        YT_VERIFY(UnderlyingReader_);
         return UnderlyingReader_->IsFetchingCompleted();
     }
 
     TDataStatistics GetDataStatistics() const override
     {
-        YT_VERIFY(UnderlyingReader_);
         auto dataStatistics = UnderlyingReader_->GetDataStatistics();
         dataStatistics.set_row_count(ReadRowCount_);
         dataStatistics.set_data_weight(ReadDataWeight_);
@@ -186,13 +188,11 @@ public:
 
     NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
     {
-        YT_VERIFY(UnderlyingReader_);
         return UnderlyingReader_->GetDecompressionStatistics();
     }
 
     std::vector<TChunkId> GetFailedChunkIds() const override
     {
-        YT_VERIFY(UnderlyingReader_);
         return UnderlyingReader_->GetFailedChunkIds();
     }
 
@@ -219,10 +219,10 @@ public:
     }
 
 private:
-    class TComparerBase
+    class TComparatorBase
     {
     public:
-        explicit TComparerBase(TPartitionSortReader* reader)
+        explicit TComparatorBase(TPartitionSortReader* reader)
             : Comparator_(reader->Comparator_)
             , KeyBuffer_(reader->KeyBuffer_)
         { }
@@ -243,31 +243,31 @@ private:
         }
     };
 
-    class TSortComparer
-        : public TComparerBase
+    class TSortComparator
+        : public TComparatorBase
     {
     public:
-        explicit TSortComparer(TPartitionSortReader* reader)
-            : TComparerBase(reader)
+        explicit TSortComparator(TPartitionSortReader* reader)
+            : TComparatorBase(reader)
         { }
 
-        //! Returns |True| iff row[lhs] < row[rhs].
+        //! Returns |true| iff |row[lhs] < row[rhs]|.
         bool operator()(i64 lhs, i64 rhs) const
         {
             return CompareRows(lhs, rhs);
         }
     };
 
-    class TMergeComparer
-        : public TComparerBase
+    class TMergeComparator
+        : public TComparatorBase
     {
     public:
-        explicit TMergeComparer(TPartitionSortReader* reader)
-            : TComparerBase(reader)
+        explicit TMergeComparator(TPartitionSortReader* reader)
+            : TComparatorBase(reader)
             , Buckets_(reader->Buckets_)
         { }
 
-        //! Returns |True| iff row[Buckets[lhs]] < row[Buckets[rhs]].
+        //! Returns |true| iff |row[Buckets_[lhs]] < row[Buckets_[rhs]]|.
         bool operator()(int lhs, int rhs) const
         {
             return CompareRows(Buckets_[lhs], Buckets_[rhs]);
@@ -278,11 +278,11 @@ private:
     };
 
     template <class T>
-    class TSafeVector
+    class TConcurrentVector
         : public std::vector<T>
     {
     public:
-        explicit TSafeVector(TPartitionSortReader* reader)
+        explicit TConcurrentVector(TPartitionSortReader* reader)
             : UnderlyingReader_(reader)
         { }
 
@@ -303,12 +303,14 @@ private:
         using std::vector<T>::size;
 
     private:
-        TPartitionSortReader* UnderlyingReader_;
+        TPartitionSortReader* const UnderlyingReader_;
+
+        static constexpr double ReallocationFactor = 1.1;
 
         void EnsureCapacity()
         {
             if (capacity() == size()) {
-                UnderlyingReader_->SortQueueBarrier();
+                UnderlyingReader_->SortBarrier();
                 reserve(static_cast<size_t>(size() * ReallocationFactor));
             }
         }
@@ -321,35 +323,44 @@ private:
     const bool Approximate_;
 
     const i64 EstimatedRowCount_;
-    int EstimatedBucketCount_;
+    int EstimatedBucketCount_ = -1;
 
     i64 TotalRowCount_ = 0;
-    std::atomic<i64> SortedRowCount_ = 0;
-    i64 ReadRowCount_ = 0;
-    i64 ReadDataWeight_ = 0;
 
-    TSafeVector<TUnversionedValue> KeyBuffer_;
-    TSafeVector<TRowDescriptor> RowDescriptorBuffer_;
-    TSafeVector<i32> Buckets_;
-    TSafeVector<int> BucketStart_;
+    std::atomic<i64> ReadRowCount_ = 0;
+    std::atomic<i64> ReadDataWeight_ = 0;
 
+    // Sort
+    TConcurrentVector<TUnversionedValue> KeyBuffer_;
+    TConcurrentVector<TRowDescriptor> RowDescriptorBuffer_;
+    TConcurrentVector<i32> Buckets_;
+    TConcurrentVector<int> BucketStartIndexes_;
+
+    // Merge
     std::vector<int> BucketHeap_;
-    std::vector<i32> SortedIndexes_;
+    TNonblockingQueue<std::vector<i32>> SortedIndexesBatchQueue_;
+    std::vector<i32> CurrentSortedIndexesBatch_;
+    TFuture<std::vector<i32>> NextSortedIndexesBatchFuture_;
+    int CurrentSortedIndexesBatchPosition_ = 0;
+    TError MergeError_;
 
-    TSortComparer SortComparer_;
-    TMergeComparer MergeComparer_;
+    TSortComparator SortComparator_;
+    TMergeComparator MergeComparator_;
 
-    TChunkedMemoryPool MemoryPool_;
+    TChunkedMemoryPool MemoryPool_{TPartitionSortReaderTag()};
 
-    const TActionQueuePtr SortQueue_ = New<TActionQueue>("Sort");
+    // TODO(babenko): consider using an externally-provided invoker.
+    const TActionQueuePtr WorkerQueue_ = New<TActionQueue>("Worker");
 
     TPartitionMultiChunkReaderPtr UnderlyingReader_;
 
     // Sort error may occur due to CompositeValues in keys.
-    std::vector<TFuture<void>> SortErrors_;
+    std::vector<TFuture<void>> SortFutures_;
 
-    TError MergeError_;
-    std::atomic<bool> MergeFinished_ = false;
+    static constexpr i32 BucketEndSentinel = -1;
+
+    static constexpr int SortBucketSize = 10'000;
+    static constexpr int MergeBatchSize = 10'000;
 
     void DoOpen()
     {
@@ -360,36 +371,37 @@ private:
 
     void InitInput()
     {
-        YT_LOG_INFO("Initializing input");
         EstimatedBucketCount_ = (EstimatedRowCount_ + SortBucketSize - 1) / SortBucketSize;
-        YT_LOG_INFO("Input size estimated (RowCount: %v, BucketCount: %v)",
-            EstimatedRowCount_,
-            EstimatedBucketCount_);
-
         KeyBuffer_.reserve(EstimatedRowCount_ * Comparator_.GetLength());
         RowDescriptorBuffer_.reserve(EstimatedRowCount_);
         Buckets_.reserve(EstimatedRowCount_ + EstimatedBucketCount_);
+
+        YT_LOG_INFO("Input size estimated (RowCount: %v, BucketCount: %v)",
+            EstimatedRowCount_,
+            EstimatedBucketCount_);
     }
 
     void ReadInput()
     {
         YT_LOG_INFO("Started reading input");
+
         bool isNetworkReleased = false;
 
-        int bucketId = 0;
+        int bucketIndex = 0;
         int bucketSize = 0;
         int rowIndex = 0;
 
         auto flushBucket = [&] {
             Buckets_.push_back(BucketEndSentinel);
-            BucketStart_.push_back(Buckets_.size());
+            BucketStartIndexes_.push_back(std::ssize(Buckets_));
 
-            SortErrors_.push_back(InvokeSortBucket(bucketId));
-            ++bucketId;
+            SortFutures_.push_back(InvokeSortBucket(bucketIndex));
+
+            ++bucketIndex;
             bucketSize = 0;
         };
 
-        BucketStart_.push_back(0);
+        BucketStartIndexes_.push_back(0);
 
         while (true) {
             i64 rowCount = 0;
@@ -410,8 +422,7 @@ private:
 
             // Push the row to the current bucket and flush the bucket if full.
             for (i64 i = 0; i < rowCount; ++i) {
-                Buckets_.push_back(rowIndex);
-                ++rowIndex;
+                Buckets_.push_back(rowIndex++);
                 ++bucketSize;
             }
 
@@ -435,7 +446,7 @@ private:
         }
 
         TotalRowCount_ = rowIndex;
-        int bucketCount = std::ssize(BucketStart_) - 1;
+        int bucketCount = std::ssize(BucketStartIndexes_) - 1;
 
         if (!Approximate_) {
             YT_VERIFY(TotalRowCount_ <= EstimatedRowCount_);
@@ -447,34 +458,23 @@ private:
             bucketCount);
     }
 
-    void DoSortBucket(int bucketId)
+    void DoSortBucket(int bucketIndex)
     {
-        YT_LOG_DEBUG("Started sorting bucket %v", bucketId);
+        YT_LOG_DEBUG("Started sorting bucket (Index: %v)", bucketIndex);
 
-        int startIndex = BucketStart_[bucketId];
-        int endIndex = BucketStart_[bucketId + 1] - 1;
-        std::sort(Buckets_.begin() + startIndex, Buckets_.begin() + endIndex, SortComparer_);
+        int startIndex = BucketStartIndexes_[bucketIndex];
+        int endIndex = BucketStartIndexes_[bucketIndex + 1] - 1;
+        std::sort(Buckets_.begin() + startIndex, Buckets_.begin() + endIndex, SortComparator_);
 
-        YT_LOG_DEBUG("Finished sorting bucket %v", bucketId);
+        YT_LOG_DEBUG("Finished sorting bucket (Index: %v)", bucketIndex);
     }
 
     void StartMerge()
     {
-        YT_LOG_INFO("Waiting for sort thread");
-        WaitFor(AllSucceeded(SortErrors_))
+        YT_LOG_INFO("Started waiting for sort");
+        WaitFor(AllSucceeded(SortFutures_))
             .ThrowOnError();
-        YT_LOG_INFO("Sort thread is idle");
-
-        SortedIndexes_.reserve(TotalRowCount_);
-
-        for (int index = 0; index < std::ssize(BucketStart_) - 1; ++index) {
-            BucketHeap_.push_back(BucketStart_[index]);
-        }
-
-        MakeHeap(BucketHeap_.begin(), BucketHeap_.end(), MergeComparer_);
-
-        SortedRowCount_ = 0;
-        ReadRowCount_ = 0;
+        YT_LOG_INFO("Finished waiting for sort");
 
         InvokeMerge();
     }
@@ -483,57 +483,70 @@ private:
     {
         try {
             YT_LOG_INFO("Started merge");
-            int sortedRowCount = 0;
+
+            for (int index = 0; index < std::ssize(BucketStartIndexes_) - 1; ++index) {
+                BucketHeap_.push_back(BucketStartIndexes_[index]);
+            }
+            MakeHeap(BucketHeap_.begin(), BucketHeap_.end(), MergeComparator_);
+
+            std::vector<i32> sortedIndexesBatch;
+            auto flushBatch = [&] {
+                SortedIndexesBatchQueue_.Enqueue(std::exchange(sortedIndexesBatch, {}));
+            };
+
+            std::optional<i32> lastSortedIndex;
+
             while (!BucketHeap_.empty()) {
                 int bucketIndex = BucketHeap_.front();
-                if (SortedIndexes_.size() > 0) {
-                    YT_ASSERT(!SortComparer_(Buckets_[bucketIndex], SortedIndexes_.back()));
-                }
-                SortedIndexes_.push_back(Buckets_[bucketIndex]);
-                ++bucketIndex;
+                auto sortedIndex = Buckets_[bucketIndex++];
+                YT_ASSERT(!lastSortedIndex || !SortComparator_(sortedIndex, *lastSortedIndex));
+                sortedIndexesBatch.push_back(sortedIndex);
+                lastSortedIndex = sortedIndex;
+
                 if (Buckets_[bucketIndex] == BucketEndSentinel) {
-                    ExtractHeap(BucketHeap_.begin(), BucketHeap_.end(), MergeComparer_);
+                    ExtractHeap(BucketHeap_.begin(), BucketHeap_.end(), MergeComparator_);
                     BucketHeap_.pop_back();
                 } else {
                     BucketHeap_.front() = bucketIndex;
-                    AdjustHeapFront(BucketHeap_.begin(), BucketHeap_.end(), MergeComparer_);
+                    AdjustHeapFront(BucketHeap_.begin(), BucketHeap_.end(), MergeComparator_);
                 }
 
-                ++sortedRowCount;
-                if (sortedRowCount % RowsBetweenAtomicUpdate == 0) {
-                    SortedRowCount_ = sortedRowCount;
+                if (std::ssize(sortedIndexesBatch) >= MergeBatchSize) {
+                    flushBatch();
                 }
             }
 
-            YT_VERIFY(sortedRowCount == TotalRowCount_);
-            SortedRowCount_ = sortedRowCount;
+            if (!sortedIndexesBatch.empty()) {
+                flushBatch();
+            }
+
             YT_LOG_INFO("Finished merge");
         } catch (const std::exception& ex) {
-            MergeError_ = TError(ex);
+            SortedIndexesBatchQueue_.Enqueue(MakeFuture<std::vector<i32>>(ex));
         }
-
-        MergeFinished_ = true;
     }
 
-    void SortQueueBarrier()
+    void SortBarrier()
     {
-        BIND([] { }).AsyncVia(SortQueue_->GetInvoker()).Run().BlockingGet();
+        BIND([] { }).AsyncVia(WorkerQueue_->GetInvoker())
+            .Run()
+            .BlockingGet();
     }
 
-    TFuture<void> InvokeSortBucket(int bucketId)
+    TFuture<void> InvokeSortBucket(int bucketIndex)
     {
         return
             BIND(
                 &TPartitionSortReader::DoSortBucket,
                 MakeWeak(this),
-                bucketId)
-            .AsyncVia(SortQueue_->GetInvoker())
+                bucketIndex)
+            .AsyncVia(WorkerQueue_->GetInvoker())
             .Run();
     }
 
     void InvokeMerge()
     {
-        SortQueue_->GetInvoker()->Invoke(BIND(
+        WorkerQueue_->GetInvoker()->Invoke(BIND(
             &TPartitionSortReader::DoMerge,
             MakeWeak(this)));
     }
