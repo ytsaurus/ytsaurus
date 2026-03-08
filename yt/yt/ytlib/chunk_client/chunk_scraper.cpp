@@ -571,8 +571,9 @@ void TChunkScraper::Add(TChunkId chunkId)
 void TChunkScraper::AddUnavailable(TChunkId chunkId)
 {
     auto& task = GetTaskForChunk(chunkId);
+    bool wasEmpty = task.GetChunkCount() == 0;
     task.AddUnavailable(chunkId);
-    if (IsStarted_) {
+    if (wasEmpty && IsStarted_) {
         task.Start();
     }
 }
