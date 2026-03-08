@@ -865,6 +865,102 @@ public:
         }
     }
 
+    void RemoveVolumes(
+        const TString& volumeDirectory,
+        TDuration timeout = TDuration::Minutes(30))
+    {
+        auto startTime = TInstant::Now();
+        auto deadLine = startTime + timeout;
+
+        YT_LOG_DEBUG(
+            "Waiting for volumes to be removed (VolumeDirectory: %v, DeadLine: %v)",
+            volumeDirectory,
+            deadLine);
+
+        auto checkDeadLine = [&] {
+            auto now = TInstant::Now();
+            if (now > deadLine) {
+                THROW_ERROR_EXCEPTION("Failed to wait for volumes to be removed")
+                    << TErrorAttribute("timeout", timeout)
+                    << TErrorAttribute("volume_directory", volumeDirectory);
+            }
+        };
+
+        std::vector<TString> removedVolumes;
+
+        while (true) {
+            checkDeadLine();
+
+            auto volumes = WaitFor(VolumeExecutor_->GetVolumes())
+                .ValueOrThrow();
+
+            auto waitForVolumesToBecomeReady = false;
+            std::vector<TFuture<void>> unlinkFutures;
+
+            for (const auto& volume : volumes) {
+                if (!volume.Path.StartsWith(volumeDirectory)) {
+                    // This volume is not from the given directory.
+                    continue;
+                }
+
+                static const TString ReadyState = "ready";
+                if (volume.State != ReadyState) {
+                    waitForVolumesToBecomeReady = true;
+                    YT_LOG_DEBUG(
+                        "Volume is not ready (VolumeDirectory: %v, VolumePath: %v, State: %v)",
+                        volumeDirectory,
+                        volume.Path,
+                        volume.State);
+                    continue;
+                }
+
+                YT_LOG_DEBUG(
+                    "Trying to unlink volume (VolumeDirectory: %v, VolumePath: %v, State: %v)",
+                    volumeDirectory,
+                    volume.Path,
+                    volume.State);
+
+                // Unlink volume even if it was linked to a different container.
+                removedVolumes.push_back(volume.Path);
+                unlinkFutures.push_back(VolumeExecutor_->UnlinkVolume(volume.Path, AnyContainer));
+            }
+
+            if (!waitForVolumesToBecomeReady && unlinkFutures.empty()) {
+                // All volumes have been unlinked.
+                break;
+            }
+
+            auto unlinkResults = WaitFor(AllSet(unlinkFutures))
+                .ValueOrThrow();
+
+            for (const auto& unlinkError : unlinkResults) {
+                if (!unlinkError.IsOK() && unlinkError.GetCode() != EPortoErrorCode::VolumeNotLinked &&
+                        unlinkError.GetCode() != EPortoErrorCode::VolumeNotFound) {
+                    THROW_ERROR(unlinkError);
+                }
+            }
+
+            if (waitForVolumesToBecomeReady) {
+                checkDeadLine();
+
+                static const TDuration Duration = TDuration::Seconds(30);
+
+                YT_LOG_DEBUG(
+                    "Waiting for volumes to become ready (VolumeDirectory: %v, Duration: %v)",
+                    volumeDirectory,
+                    Duration);
+
+                TDelayedExecutor::WaitForDuration(Duration);
+            }
+        }
+
+        YT_LOG_DEBUG(
+            "Removed volumes (VolumeDirectory: %v, VolumePaths: %v, Duration: %v)",
+            volumeDirectory,
+            MakeShrunkFormattableView(removedVolumes, TDefaultFormatter(), 10),
+            (TInstant::Now() - startTime));
+    }
+
 private:
     const NDataNode::TLayerLocationConfigPtr Config_;
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
@@ -1788,84 +1884,7 @@ private:
     //! Volumes are not expected to be used since all jobs must be dead by now.
     void RemoveVolumes(TDuration timeout = TDuration::Minutes(30))
     {
-        auto startTime = TInstant::Now();
-        auto deadLine = startTime + timeout;
-
-        YT_LOG_DEBUG("Removing volumes (DeadLine: %v)",
-            deadLine);
-
-        auto checkDeadLine = [&] {
-            auto now = TInstant::Now();
-            if (now > deadLine) {
-                THROW_ERROR_EXCEPTION("Failed to wait for volumes already being unlinked")
-                    << TErrorAttribute("timeout", timeout);
-            }
-        };
-
-        int volumesRemoved = 0;
-
-        while (true) {
-            checkDeadLine();
-
-            auto volumes = WaitFor(VolumeExecutor_->GetVolumes())
-                .ValueOrThrow();
-
-            auto waitForVolumesToBecomeReady = false;
-            std::vector<TFuture<void>> unlinkFutures;
-            for (const auto& volume : volumes) {
-                if (!volume.Path.StartsWith(VolumesPath_)) {
-                    // This volume is not from my location.
-                    continue;
-                }
-
-                static const TString ReadyState = "ready";
-                if (volume.State != ReadyState) {
-                    waitForVolumesToBecomeReady = true;
-                    YT_LOG_DEBUG("Volume is not ready (Path: %v, State: %v)",
-                        volume.Path,
-                        volume.State);
-                    continue;
-                }
-
-                YT_LOG_DEBUG("Trying to unlink volume (Path: %v, State: %v)",
-                    volume.Path,
-                    volume.State);
-
-                // Unlink volume even if it was linked to a different container.
-                unlinkFutures.push_back(VolumeExecutor_->UnlinkVolume(volume.Path, AnyContainer));
-            }
-
-            if (!waitForVolumesToBecomeReady && unlinkFutures.empty()) {
-                // All volumes have been unlinked.
-                break;
-            }
-
-            auto unlinkResults = WaitFor(AllSet(unlinkFutures))
-                .ValueOrThrow();
-
-            for (const auto& unlinkError : unlinkResults) {
-                if (unlinkError.IsOK()) {
-                    ++volumesRemoved;
-                } else if (unlinkError.GetCode() != EPortoErrorCode::VolumeNotLinked && unlinkError.GetCode() != EPortoErrorCode::VolumeNotFound) {
-                    THROW_ERROR(unlinkError);
-                }
-            }
-
-            if (waitForVolumesToBecomeReady) {
-                checkDeadLine();
-
-                static const TDuration Duration = TDuration::Seconds(30);
-
-                YT_LOG_DEBUG("Waiting for volumes to become ready (Duration: %v)",
-                    Duration);
-
-                TDelayedExecutor::WaitForDuration(Duration);
-            }
-        }
-
-        YT_LOG_DEBUG("Removed volumes (Count: %v, Duration: %v)",
-            volumesRemoved,
-            (TInstant::Now() - startTime));
+        RemoveVolumes(VolumesPath_, timeout);
     }
 };
 
@@ -4231,6 +4250,12 @@ public:
         YT_UNIMPLEMENTED("LinkTmpfsVolumes is not implemented for SimpleVolumeManager");
     }
 
+    TFuture<void> RemoveVolumes(const TString& /*volumePath*/) override
+    {
+        YT_LOG_DEBUG("RemoveVolumes is empty in SimpleVolumeManager");
+        return OKFuture;
+    }
+
     TFuture<void> Initialize(const std::vector<TSlotLocationConfigPtr>& locations)
     {
         // NB: Iterating over /proc/mounts is not reliable,
@@ -4679,6 +4704,23 @@ public:
     {
         auto location = LayerCache_->PickLocation();
         return location->RbindRootVolume(volume, slotPath);
+    }
+
+    //! Remove volumes planted at a given path.
+    TFuture<void> RemoveVolumes(const TString& volumePath) override
+    {
+        auto location = LayerCache_->PickLocation();
+        return BIND(
+            [
+                location,
+                volumePath
+            ] {
+                return location->RemoveVolumes(
+                    volumePath,
+                    TDuration::Minutes(30));
+            })
+            .AsyncVia(GetCurrentInvoker())
+            .Run();
     }
 
 private:

@@ -129,6 +129,8 @@ public:
 
         VerifyEnabled();
 
+        RemoveVolumesFromPortoPlace();
+
         WaitFor(Location_->CleanSandboxes(
             SlotIndex_))
             .ThrowOnError();
@@ -765,6 +767,37 @@ private:
             Location_->GetSlotPath(SlotIndex_),
             "pipes",
             Format("%v-job-proxy-grpc-%v", NodeTag_, SlotIndex_)});
+    }
+
+    //! Remove volumes planted in porto place.
+    void RemoveVolumesFromPortoPlace()
+    {
+        auto portoPlacePath = Location_->GetSandboxPath(SlotIndex_, ESandboxKind::PortoPlace);
+
+        if (!VolumeManager_) {
+            YT_LOG_DEBUG(
+                "Volume manager is not available, skipping porto place cleanup (PortoPlace: %v)",
+                portoPlacePath);
+            return;
+        }
+
+        YT_LOG_DEBUG(
+            "Cleaning up porto place (PortoPlace: %v)",
+            portoPlacePath);
+
+        auto removeVolumesResult = WaitFor(VolumeManager_->RemoveVolumes(portoPlacePath));
+        if (!removeVolumesResult.IsOK()) {
+            auto error = TError("Failed to remove volumes from porto place")
+                << TErrorAttribute("porto_place", portoPlacePath)
+                << removeVolumesResult;
+            YT_LOG_ERROR(error);
+            Location_->Disable(error);
+            THROW_ERROR error;
+        }
+
+        YT_LOG_DEBUG(
+            "Cleaned up porto place (PortoPlace: %v)",
+            portoPlacePath);
     }
 };
 
