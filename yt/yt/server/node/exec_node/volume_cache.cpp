@@ -156,9 +156,6 @@ TFuture<TSquashFSVolumePtr> TSquashFSVolumeCache::DownloadAndPrepareVolume(
     const TArtifactDownloadOptions& downloadOptions,
     TGuid tag)
 {
-    YT_VERIFY(!artifactKey.has_access_method() || FromProto<ELayerAccessMethod>(artifactKey.access_method()) == ELayerAccessMethod::Local);
-    YT_VERIFY(FromProto<ELayerFilesystem>(artifactKey.filesystem()) == ELayerFilesystem::SquashFS);
-
     YT_LOG_DEBUG(
         "Downloading and preparing squashfs volume (Tag: %v, CypressPath: %v)",
         tag,
@@ -269,7 +266,7 @@ TFuture<IVolumePtr> TNbdVolumeFactory::GetOrCreateVolume(
             << TErrorAttribute("path", artifactKey.data_source().path())
             << TErrorAttribute("filesystem", FromProto<ELayerFilesystem>(artifactKey.filesystem()));
 
-        YT_LOG_ERROR(error, "Failed to get RO NBD volume");
+        YT_LOG_ERROR(error, "Failed to get or create RO NBD volume");
         return MakeFuture<IVolumePtr>(std::move(error));
     }
 
@@ -805,7 +802,6 @@ TFuture<IVolumePtr> TNbdVolumeFactory::PrepareRWNbdVolume(
         MakeVolumeFactory<TRWNbdVolume>());
 }
 
-
 TFuture<std::vector<std::string>> TNbdVolumeFactory::FindDataNodesWithMedium(
     const TSessionId& sessionId,
     const TPrepareRWNbdVolumeOptions& options)
@@ -1108,7 +1104,7 @@ TFuture<void> TLayerCache::Disable(const TError& reason)
     }));
 }
 
-void TLayerCache::ValidateTPrepareLayerOptions(const TPrepareLayerOptions& options)
+void TLayerCache::ValidatePrepareLayerOptions(const TPrepareLayerOptions& options)
 {
     const auto& artifactKey = options.ArtifactKey;
     YT_VERIFY(!artifactKey.has_access_method() || FromProto<ELayerAccessMethod>(artifactKey.access_method()) == ELayerAccessMethod::Local);
@@ -1119,7 +1115,7 @@ TFuture<TLayerPtr> TLayerCache::GetOrCreateLayer(
     TGuid tag,
     TPrepareLayerOptions options)
 {
-    ValidateTPrepareLayerOptions(options);
+    ValidatePrepareLayerOptions(options);
 
     const auto& artifactKey = options.ArtifactKey;
     const auto& downloadOptions = options.ArtifactDownloadOptions;
