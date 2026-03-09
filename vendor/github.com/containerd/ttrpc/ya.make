@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v1.2.6-0.20240827082320-b5cd6e4b3287)
+VERSION(v1.2.7)
 
 SRCS(
     channel.go

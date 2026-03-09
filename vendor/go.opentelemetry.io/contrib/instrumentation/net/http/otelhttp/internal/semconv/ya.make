@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v0.61.0)
+VERSION(v0.62.0)
 
 SRCS(
     env.go
@@ -17,6 +17,11 @@ GO_TEST_SRCS(
     env_test.go
     httpconv_test.go
     util_test.go
+)
+
+GO_XTEST_SRCS(
+    common_test.go
+    httpconvtest_test.go
 )
 
 END()

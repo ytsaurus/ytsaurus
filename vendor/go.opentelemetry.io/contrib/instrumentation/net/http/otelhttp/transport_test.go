@@ -1171,6 +1171,43 @@ func TestCustomAttributesHandling(t *testing.T) {
 	}
 }
 
+func TestMetricsExistenceOnRequestError(t *testing.T) {
+	var rm metricdata.ResourceMetrics
+
+	ctx := context.Background()
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	defer func() {
+		err := provider.Shutdown(ctx)
+		assert.NoError(t, err)
+	}()
+
+	transport := NewTransport(http.DefaultTransport, WithMeterProvider(provider))
+	client := http.Client{Transport: transport}
+
+	// simulate an error by closing the server
+	// before the request is made
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	ts.Close()
+
+	r, err := http.NewRequest(http.MethodGet, ts.URL, nil)
+	require.NoError(t, err)
+
+	resp, err := client.Do(r)
+	if err == nil {
+		e := resp.Body.Close()
+		assert.NoError(t, e)
+	}
+
+	require.Error(t, err)
+
+	err = reader.Collect(ctx, &rm)
+	require.NoError(t, err)
+
+	// make sure client request size and duration metrics is recorded
+	assert.Len(t, rm.ScopeMetrics[0].Metrics, 2, "should record client request size and duration metrics")
+}
+
 func TestDefaultAttributesHandling(t *testing.T) {
 	var rm metricdata.ResourceMetrics
 	const (
