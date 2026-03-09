@@ -1,9 +1,11 @@
 #include "security_manager.h"
 
 #include "bootstrap.h"
-#include "config.h"
-#include "private.h"
-#include "tablet.h"
+
+#include <yt/yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/tablet_node/private.h>
+
+#include <yt/yt/server/lib/security_server/resource_limits_manager.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -13,12 +15,14 @@
 
 #include <yt/yt/core/rpc/dispatcher.h>
 
-namespace NYT::NTabletNode {
+namespace NYT::NCellarNode {
 
 using namespace NApi;
 using namespace NConcurrency;
 using namespace NSecurityClient;
+using namespace NSecurityServer;
 using namespace NTabletClient;
+using namespace NTabletNode;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
@@ -79,7 +83,7 @@ class TResourceLimitsCache
 public:
     TResourceLimitsCache(
         TAsyncExpiringCacheConfigPtr config,
-        NCellarNode::IBootstrap* bootstrap)
+        IBootstrap* bootstrap)
         : TAsyncExpiringCache(
             std::move(config),
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
@@ -88,7 +92,7 @@ public:
     { }
 
 private:
-    NCellarNode::IBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
 
     TFuture<void> DoGet(const TResourceLimitsKey& key, bool /*isPeriodicUpdate*/) noexcept override
     {
@@ -223,16 +227,15 @@ DEFINE_REFCOUNTED_TYPE(TResourceLimitsCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSecurityManager::TImpl
-    : public TRefCounted
+class TSecurityManager
+    : public IResourceLimitsManager
 {
 public:
-    TImpl(
+    TSecurityManager(
         TSecurityManagerConfigPtr config,
-        NCellarNode::IBootstrap* bootstrap)
+        IBootstrap* bootstrap)
         : Config_(std::move(config))
-        , Bootstrap_(bootstrap)
-        , ResourceLimitsCache_(New<TResourceLimitsCache>(Config_->ResourceLimitsCache, Bootstrap_))
+        , ResourceLimitsCache_(New<TResourceLimitsCache>(Config_->ResourceLimitsCache, bootstrap))
     { }
 
     TFuture<void> CheckResourceLimits(
@@ -263,51 +266,27 @@ public:
 
     void Reconfigure(const TSecurityManagerDynamicConfigPtr& config)
     {
-        ResourceLimitsCache_->Reconfigure(config->ResourceLimitsCache ? config->ResourceLimitsCache : Config_->ResourceLimitsCache);
+        ResourceLimitsCache_->Reconfigure(
+            config->ResourceLimitsCache
+                ? config->ResourceLimitsCache
+                : Config_->ResourceLimitsCache);
     }
 
 private:
     const TSecurityManagerConfigPtr Config_;
-    NCellarNode::IBootstrap* const Bootstrap_;
 
     const TResourceLimitsCachePtr ResourceLimitsCache_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSecurityManager::TSecurityManager(
+NSecurityServer::IResourceLimitsManagerPtr CreateResourceLimitsManager(
     TSecurityManagerConfigPtr config,
-    NCellarNode::IBootstrap* bootstrap)
-    : Impl_(New<TImpl>(
-        std::move(config),
-        bootstrap))
-{ }
-
-TSecurityManager::~TSecurityManager() = default;
-
-TFuture<void> TSecurityManager::CheckResourceLimits(
-    const std::string& account,
-    const std::string& mediumName,
-    const std::optional<std::string>& tabletCellBundle,
-    EInMemoryMode inMemoryMode)
+    IBootstrap* bootstrap)
 {
-    return Impl_->CheckResourceLimits(account, mediumName, tabletCellBundle, inMemoryMode);
-}
-
-void TSecurityManager::ValidateResourceLimits(
-    const std::string& account,
-    const std::string& mediumName,
-    const std::optional<std::string>& tabletCellBundle,
-    EInMemoryMode inMemoryMode)
-{
-    Impl_->ValidateResourceLimits(account, mediumName, tabletCellBundle, inMemoryMode);
-}
-
-void TSecurityManager::Reconfigure(const TSecurityManagerDynamicConfigPtr& config)
-{
-    Impl_->Reconfigure(config);
+    return New<TSecurityManager>(std::move(config), bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTabletNode
+} // namespace NYT::NCellarNode

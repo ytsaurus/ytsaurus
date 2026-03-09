@@ -4,6 +4,7 @@
 #include "config.h"
 #include "master_connector.h"
 #include "private.h"
+#include "security_manager.h"
 #include "tablet_cell_snapshot_validator.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
@@ -12,7 +13,6 @@
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/yt/server/node/tablet_node/config.h>
-#include <yt/yt/server/node/tablet_node/security_manager.h>
 
 #include <yt/yt/server/lib/cellar_agent/bootstrap_proxy.h>
 #include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
@@ -23,6 +23,8 @@
 #include <yt/yt/server/lib/hydra/dry_run/journal_as_local_file_read_only_changelog.h>
 #include <yt/yt/server/lib/hydra/dry_run/public.h>
 #include <yt/yt/server/lib/hydra/local_snapshot_store.h>
+
+#include <yt/yt/server/lib/security_server/resource_limits_manager.h>
 
 #include <yt/yt/server/lib/transaction_supervisor/transaction_lease_tracker.h>
 
@@ -148,8 +150,7 @@ public:
             "TxTracker",
             GetConfig()->CellarNode->TransactionLeaseTracker);
 
-        // TODO(gritukan): Move TSecurityManager from Tablet Node.
-        ResourceLimitsManager_ = New<NTabletNode::TSecurityManager>(GetConfig()->TabletNode->SecurityManager, this);
+        ResourceLimitsManager_ = CreateResourceLimitsManager(GetConfig()->TabletNode->SecurityManager, this);
 
         // COMPAT(savrus)
         auto getCellarManagerConfig = [&] {
