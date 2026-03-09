@@ -192,7 +192,7 @@ TSquashFSVolumePtr TSquashFSVolumeCache::CreateSquashFSVolume(
         tag,
         squashFSFilePath);
 
-    auto location = PickLocation();
+    auto location = PickVolumeLocation();
     auto volumeMetaFuture = location->CreateSquashFSVolume(tag, tagSet, std::move(volumeCreateTimeGuard), artifactKey, squashFSFilePath);
     auto volumeFuture = volumeMetaFuture.AsUnique().Apply(BIND(
         [
@@ -521,7 +521,7 @@ TFuture<IVolumePtr> TNbdVolumeFactory::CreateNbdVolume(
 
     auto nbdServer = Bootstrap_->GetNbdServer();
 
-    auto location = PickLocation();
+    auto location = PickVolumeLocation();
     auto volumeMetaFuture = location->CreateNbdVolume(
         tag,
         tagSet,
@@ -1060,7 +1060,7 @@ bool TLayerCache::IsEnabled() const
     return false;
 }
 
-TLayerLocationPtr TLayerCache::PickLocation()
+TLayerLocationPtr TLayerCache::PickVolumeLocation() const
 {
     return DoPickLocation(LayerLocations_, [] (const TLayerLocationPtr& candidate, const TLayerLocationPtr& current) {
         return candidate->GetVolumeCount() < current->GetVolumeCount();
@@ -1326,7 +1326,7 @@ TFuture<TLayerPtr> TLayerCache::DownloadAndImportLayer(
             }
 
             if (!location) {
-                location = PickLocation();
+                location = PickLayerLocation();
             }
 
             // Import layer in context of container, i.e. account memory allocations to container, e.g.
@@ -1345,7 +1345,7 @@ TFuture<TLayerPtr> TLayerCache::DownloadAndImportLayer(
         .AsyncVia(GetCurrentInvoker()));
 }
 
-TLayerLocationPtr TLayerCache::PickLocation() const
+TLayerLocationPtr TLayerCache::PickLayerLocation() const
 {
     return DoPickLocation(LayerLocations_, [] (const TLayerLocationPtr& candidate, const TLayerLocationPtr& current) {
         if (!candidate->IsLayerImportInProgress() && current->IsLayerImportInProgress()) {
