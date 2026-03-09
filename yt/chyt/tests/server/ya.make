@@ -6,6 +6,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/integration/YaMakeBoilerplateForTests.txt)
 
 PEERDIR(
     library/python/port_manager
+    contrib/python/clickhouse-cityhash
     yt/yt/tests/conftest_lib
     yt/yt/tests/library
     yt/python/yt/clickhouse
