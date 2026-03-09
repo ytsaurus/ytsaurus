@@ -81,7 +81,8 @@ protected:
     IBootstrap* const Bootstrap_;
     const std::vector<TLayerLocationPtr> LayerLocations_;
 
-    TLayerLocationPtr PickLocation();
+    //! Pick best location for new volume operations.
+    TLayerLocationPtr PickVolumeLocation();
 
     void OnAdded(const TIntrusivePtr<TCachedVolume<TKey>>& volume) override;
 
@@ -286,7 +287,8 @@ public:
 
     bool IsEnabled() const;
 
-    TLayerLocationPtr PickLocation();
+    //! Pick best location for new volume operations.
+    TLayerLocationPtr PickVolumeLocation() const;
 
     void PopulateAlerts(std::vector<TError>* alerts);
 
@@ -342,7 +344,8 @@ private:
         TGuid tag,
         TLayerLocationPtr location);
 
-    TLayerLocationPtr PickLocation() const;
+    //! Pick best location for new layer operations.
+    TLayerLocationPtr PickLayerLocation() const;
 
     void OnProfiling();
 };

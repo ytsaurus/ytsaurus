@@ -603,14 +603,14 @@ public:
         const IVolumePtr& volume,
         const TString& slotPath) override
     {
-        auto location = LayerCache_->PickLocation();
+        auto location = LayerCache_->PickVolumeLocation();
         return location->RbindRootVolume(volume, slotPath);
     }
 
     //! Remove volumes planted at a given path.
     TFuture<void> RemoveVolumes(const TString& path, TDuration timeout) override
     {
-        auto location = LayerCache_->PickLocation();
+        auto location = LayerCache_->PickVolumeLocation();
         return BIND(
             [
                 location,
@@ -691,7 +691,7 @@ private:
             /*Cypress path*/ "n/a");
         TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
 
-        auto location = LayerCache_->PickLocation();
+        auto location = LayerCache_->PickVolumeLocation();
         auto future = location->CreateTmpfsVolume(
             tag,
             tagSet,
@@ -750,7 +750,7 @@ private:
             }
         }
 
-        auto location = LayerCache_->PickLocation();
+        auto location = LayerCache_->PickVolumeLocation();
         auto volumeMetaFuture = location->CreateOverlayVolume(
             tag,
             tagSet,
