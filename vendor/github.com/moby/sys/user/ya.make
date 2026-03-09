@@ -32,6 +32,7 @@ ENDIF()
 IF (OS_WINDOWS)
     SRCS(
         idtools_windows.go
+        lookup_windows.go
     )
 ENDIF()
 

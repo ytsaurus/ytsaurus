@@ -796,63 +796,155 @@ func TestHandlerWithMetricAttributesFn(t *testing.T) {
 }
 
 func TestHandlerWithSemConvStabilityOptIn(t *testing.T) {
+	newSpanAttrs := []attribute.KeyValue{
+		attribute.String("http.request.method", "GET"),
+		attribute.String("url.scheme", "http"),
+		attribute.String("server.address", "localhost"),
+		attribute.String("network.protocol.version", "1.1"),
+		attribute.String("url.path", "/"),
+		attribute.Int("http.response.status_code", 200),
+	}
+	newMetricAttrs := attribute.NewSet(
+		attribute.String("http.request.method", "GET"),
+		attribute.Int("http.response.status_code", 200),
+		attribute.String("network.protocol.name", "http"),
+		attribute.String("network.protocol.version", "1.1"),
+		attribute.String("server.address", "localhost"),
+		attribute.String("url.scheme", "http"),
+	)
+	newMetrics := []metricdata.Metrics{
+		{
+			Name:        "http.server.request.body.size",
+			Description: "Size of HTTP server request bodies.",
+			Unit:        "By",
+			Data: metricdata.Histogram[int64]{
+				Temporality: metricdata.CumulativeTemporality,
+				DataPoints:  []metricdata.HistogramDataPoint[int64]{{Attributes: newMetricAttrs}},
+			},
+		},
+		{
+			Name:        "http.server.response.body.size",
+			Description: "Size of HTTP server response bodies.",
+			Unit:        "By",
+			Data: metricdata.Histogram[int64]{
+				Temporality: metricdata.CumulativeTemporality,
+				DataPoints:  []metricdata.HistogramDataPoint[int64]{{Attributes: newMetricAttrs}},
+			},
+		},
+		{
+			Name:        "http.server.request.duration",
+			Description: "Duration of HTTP server requests.",
+			Unit:        "s",
+			Data: metricdata.Histogram[float64]{
+				Temporality: metricdata.CumulativeTemporality,
+				DataPoints:  []metricdata.HistogramDataPoint[float64]{{Attributes: newMetricAttrs}},
+			},
+		},
+	}
+	oldSpanAttrs := []attribute.KeyValue{
+		attribute.String("http.method", "GET"),
+		attribute.String("http.scheme", "http"),
+		attribute.String("net.host.name", "localhost"),
+		attribute.String("net.protocol.version", "1.1"),
+		attribute.String("http.target", "/"),
+		attribute.Int("http.status_code", 200),
+	}
+	oldMetricAttrs := attribute.NewSet(
+		attribute.String("http.method", "GET"),
+		attribute.String("http.scheme", "http"),
+		attribute.Int("http.status_code", 200),
+		attribute.String("net.host.name", "localhost"),
+		attribute.String("net.protocol.name", "http"),
+		attribute.String("net.protocol.version", "1.1"),
+	)
+	oldMetrics := []metricdata.Metrics{
+		{
+			Name:        "http.server.request.size",
+			Description: "Measures the size of HTTP request messages.",
+			Unit:        "By",
+			Data: metricdata.Sum[int64]{
+				Temporality: metricdata.CumulativeTemporality,
+				IsMonotonic: true,
+				DataPoints:  []metricdata.DataPoint[int64]{{Attributes: oldMetricAttrs}},
+			},
+		},
+		{
+			Name:        "http.server.response.size",
+			Description: "Measures the size of HTTP response messages.",
+			Unit:        "By",
+			Data: metricdata.Sum[int64]{
+				Temporality: metricdata.CumulativeTemporality,
+				IsMonotonic: true,
+				DataPoints:  []metricdata.DataPoint[int64]{{Attributes: oldMetricAttrs}},
+			},
+		},
+		{
+			Name:        "http.server.duration",
+			Description: "Measures the duration of inbound HTTP requests.",
+			Unit:        "ms",
+			Data: metricdata.Histogram[float64]{
+				Temporality: metricdata.CumulativeTemporality,
+				DataPoints:  []metricdata.HistogramDataPoint[float64]{{Attributes: oldMetricAttrs}},
+			},
+		},
+	}
 	tests := []struct {
 		name                       string
 		semConvStabilityOptInValue string
-		expected                   []attribute.KeyValue
+		wantSpanAttributes         []attribute.KeyValue
+		wantMetrics                metricdata.ScopeMetrics
 	}{
 		{
 			name:                       "without opt-in",
 			semConvStabilityOptInValue: "",
-			expected: []attribute.KeyValue{
-				attribute.String("http.request.method", "GET"),
-				attribute.String("url.scheme", "http"),
-				attribute.String("server.address", "localhost"),
-				attribute.String("network.protocol.version", "1.1"),
-				attribute.String("url.path", "/"),
-				attribute.Int("http.response.status_code", 200),
+			wantSpanAttributes:         newSpanAttrs,
+			wantMetrics: metricdata.ScopeMetrics{
+				Scope: instrumentation.Scope{
+					Name:    ScopeName,
+					Version: Version(),
+				},
+				Metrics: newMetrics,
 			},
 		},
 		{
 			name:                       "with http/dup opt-in",
 			semConvStabilityOptInValue: "http/dup",
-			expected: []attribute.KeyValue{
-				// New semantic conventions
-				attribute.String("http.request.method", "GET"),
-				attribute.String("url.scheme", "http"),
-				attribute.String("server.address", "localhost"),
-				attribute.String("network.protocol.version", "1.1"),
-				attribute.String("url.path", "/"),
-				attribute.Int("http.response.status_code", 200),
-				// Old semantic conventions
-				attribute.String("http.method", "GET"),
-				attribute.String("http.scheme", "http"),
-				attribute.String("net.host.name", "localhost"),
-				attribute.String("net.protocol.version", "1.1"),
-				attribute.String("http.target", "/"),
-				attribute.Int("http.status_code", 200),
+			wantSpanAttributes:         append(newSpanAttrs, oldSpanAttrs...),
+			wantMetrics: metricdata.ScopeMetrics{
+				Scope: instrumentation.Scope{
+					Name:    ScopeName,
+					Version: Version(),
+				},
+				Metrics: append(newMetrics, oldMetrics...),
 			},
 		},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("OTEL_SEMCONV_STABILITY_OPT_IN", tt.semConvStabilityOptInValue)
+			metricRecorder := sdkmetric.NewManualReader()
 			spanRecorder := tracetest.NewSpanRecorder()
-			provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spanRecorder))
+			meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(metricRecorder))
+			traceProvider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spanRecorder))
 			h := NewHandler(
 				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusOK)
 				}),
 				"test_handler",
-				WithTracerProvider(provider),
+				WithTracerProvider(traceProvider),
+				WithMeterProvider(meterProvider),
 			)
 			r, err := http.NewRequest(http.MethodGet, "http://localhost/", nil)
 			require.NoError(t, err)
 			h.ServeHTTP(httptest.NewRecorder(), r)
 			spans := spanRecorder.Ended()
 			require.Len(t, spans, 1)
-			assert.ElementsMatch(t, spans[0].Attributes(), tt.expected)
+			assert.ElementsMatch(t, spans[0].Attributes(), tt.wantSpanAttributes)
+			rm := metricdata.ResourceMetrics{}
+			err = metricRecorder.Collect(context.Background(), &rm)
+			require.NoError(t, err)
+			require.Len(t, rm.ScopeMetrics, 1)
+			metricdatatest.AssertEqual(t, tt.wantMetrics, rm.ScopeMetrics[0], metricdatatest.IgnoreTimestamp(), metricdatatest.IgnoreValue(), metricdatatest.IgnoreExemplars())
 		})
 	}
 }
