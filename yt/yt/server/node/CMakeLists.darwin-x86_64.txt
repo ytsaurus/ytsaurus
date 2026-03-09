@@ -248,7 +248,6 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/revision_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/row_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/row_digest_compaction_hint.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/security_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/serialize.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/slot_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/slot_manager.cpp

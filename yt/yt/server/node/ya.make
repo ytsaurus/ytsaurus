@@ -168,7 +168,6 @@ SRCS(
     tablet_node/revision_provider.cpp
     tablet_node/row_cache.cpp
     tablet_node/row_digest_compaction_hint.cpp
-    tablet_node/security_manager.cpp
     tablet_node/serialize.cpp
     tablet_node/slot_provider.cpp
     tablet_node/slot_manager.cpp

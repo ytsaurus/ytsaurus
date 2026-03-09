@@ -7,6 +7,7 @@ SRCS(
     bundle_dynamic_config_manager.cpp
     config.cpp
     master_connector.cpp
+    security_manager.cpp
     tablet_cell_snapshot_validator.cpp
 )
 

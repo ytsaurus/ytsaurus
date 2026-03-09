@@ -1,6 +1,5 @@
 #include "query_executor.h"
 #include "config.h"
-#include "helpers.h"
 #include "session.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -9,8 +8,6 @@
 #include <yt/yt/server/node/tablet_node/error_manager.h>
 #include <yt/yt/server/node/tablet_node/helpers.h>
 #include <yt/yt/server/node/tablet_node/lookup.h>
-#include <yt/yt/server/node/tablet_node/security_manager.h>
-#include <yt/yt/server/node/tablet_node/slot_manager.h>
 #include <yt/yt/server/node/tablet_node/store.h>
 #include <yt/yt/server/node/tablet_node/tablet.h>
 #include <yt/yt/server/node/tablet_node/tablet_manager.h>
@@ -38,8 +35,6 @@
 
 #include <yt/yt/ytlib/query_client/executor.h>
 #include <yt/yt/ytlib/query_client/functions_cache.h>
-
-#include <yt/yt/ytlib/security_client/permission_cache.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/config.h>
@@ -87,8 +82,6 @@
 #include <library/cpp/yt/memory/chunked_memory_pool.h>
 
 #include <library/cpp/yt/misc/range_formatters.h>
-
-#include <algorithm>
 
 namespace NYT::NQueryClient {
 
