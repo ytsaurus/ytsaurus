@@ -623,7 +623,7 @@ class TestUsers(YTEnvSetup):
         with raises_yt_error("Token issuance can be performed"):
             issue_token("u", "v", authenticated_user="v")
 
-        with raises_yt_error("Failed to get token"):
+        with raises_yt_error("Failed to get user_id and user"):
             revoke_token("u", "xxx", "u", authenticated_user="u")
         with raises_yt_error("User provided invalid password"):
             revoke_token("u", t1_hash, "a", authenticated_user="u")

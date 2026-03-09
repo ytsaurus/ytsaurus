@@ -144,7 +144,7 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
             .UserIP = userIP
         };
 
-        if (!credentials.Token.empty()) {
+        if (credentials.Token && !credentials.Token->empty()) {
             if (!TokenAuthenticator_) {
                 return TError(
                     NRpc::EErrorCode::InvalidCredentials,
@@ -191,7 +191,7 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
                 }
             }
 
-            auto tokenHash = GetCryptoHash(credentials.Token);
+            auto tokenHash = GetCryptoHash(*credentials.Token);
             return TAuthenticationResultAndToken{authenticationResult, tokenHash};
         }
     }

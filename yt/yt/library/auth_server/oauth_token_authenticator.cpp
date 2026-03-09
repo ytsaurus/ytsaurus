@@ -43,7 +43,11 @@ public:
     TFuture<TAuthenticationResult> Authenticate(
         const TTokenCredentials& credentials) override
     {
-        const auto& token = credentials.Token;
+        if (!credentials.Token) {
+            return MakeFuture<TAuthenticationResult>(TError("Token should be provided to authenticate"));
+        }
+
+        const auto& token = *credentials.Token;
         auto tokenHash = GetCryptoHash(token);
         auto userIP = FormatUserIP(credentials.UserIP);
 

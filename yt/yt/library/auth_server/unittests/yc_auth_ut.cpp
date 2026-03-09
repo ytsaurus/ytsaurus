@@ -176,8 +176,8 @@ TEST_F(TYCServerTest, SuccessToken)
     auto poller = CreateThreadPoolPoller(1, "HttpPoller");
     auto authenticator = CreateYCIamTokenAuthenticator(config, poller, CreateNullCypressUserManager());
     auto result = WaitFor(authenticator->Authenticate(TTokenCredentials{
-        "good_token",
-        TNetworkAddress::Parse("127.0.0.1")
+        .Token = "good_token",
+        .UserIP = TNetworkAddress::Parse("127.0.0.1"),
     })).ValueOrThrow();
     EXPECT_EQ(result.Login, "user");
 }
@@ -191,18 +191,39 @@ TEST_F(TYCServerTest, SuccessCookie)
     EXPECT_EQ(result.Login, "user");
 }
 
-TEST_F(TYCServerTest, FirbiddenToken)
+TEST_F(TYCServerTest, ForbiddenToken)
 {
     auto config = CreateYCAuthenticatorConfig(TestPort);
     auto poller = CreateThreadPoolPoller(1, "HttpPoller");
     auto authenticator = CreateYCIamTokenAuthenticator(config, poller, CreateNullCypressUserManager());
     EXPECT_THROW_MESSAGE_HAS_SUBSTR(
         WaitFor(authenticator->Authenticate(TTokenCredentials{
-            "bad_token",
-            TNetworkAddress::Parse("127.0.0.1")
+            .Token = "bad_token",
+            .UserIP = TNetworkAddress::Parse("127.0.0.1"),
         })).ValueOrThrow(),
         std::exception,
         "Access is prohibited for this user");
+}
+
+TEST_F(TYCServerTest, NoToken)
+{
+    auto config = CreateYCAuthenticatorConfig(TestPort);
+    auto poller = CreateThreadPoolPoller(1, "HttpPoller");
+    auto authenticator = CreateYCIamTokenAuthenticator(config, poller, CreateNullCypressUserManager());
+    EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+        WaitFor(authenticator->Authenticate(TTokenCredentials{
+            .UserIP = TNetworkAddress::Parse("127.0.0.1"),
+        })).ValueOrThrow(),
+        std::exception,
+        "Token should be provided");
+
+    EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+        WaitFor(authenticator->Authenticate(TTokenCredentials{
+            .TokenSha256 = "some_sha256",
+            .UserIP = TNetworkAddress::Parse("127.0.0.1"),
+        })).ValueOrThrow(),
+        std::exception,
+        "Token should be provided");
 }
 
 TEST_F(TYCServerTest, ForbiddenCookie)
@@ -224,8 +245,8 @@ TEST_F(TYCServerTest, InternalErrorToken)
     auto authenticator = CreateYCIamTokenAuthenticator(config, poller, CreateNullCypressUserManager());
     EXPECT_THROW_MESSAGE_HAS_SUBSTR(
         WaitFor(authenticator->Authenticate(TTokenCredentials{
-            "issue_token",
-            TNetworkAddress::Parse("127.0.0.1")
+            .Token = "issue_token",
+            .UserIP = TNetworkAddress::Parse("127.0.0.1"),
         })).ValueOrThrow(),
         std::exception,
         "YC authentication service response has non-ok status code");
