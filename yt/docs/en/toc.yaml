@@ -525,6 +525,9 @@ items:
        - name: Integrating CHYT with external systems
          href: admin-guide/integration-chyt.md
          when: audience == "public"
+       - name: Isolating queries within a YQL-agent
+         when: audience == "public"
+         href: admin-guide/yql-query-isolation.md
        - name: Misc
          items:
            - name: Reading from remote clusters via RPC proxy
