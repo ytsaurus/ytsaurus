@@ -192,8 +192,7 @@ TEST_F(TSchemalessWriterForYamrTest, SkippedKey)
 
     EXPECT_FALSE(Writer_->Write(rows));
 
-    EXPECT_THROW(Writer_->Close()
-        .BlockingGet()
+    EXPECT_THROW(WaitFor(Writer_->Close())
         .ThrowOnError(), std::exception);
 }
 
@@ -208,8 +207,7 @@ TEST_F(TSchemalessWriterForYamrTest, SkippedValue)
 
     EXPECT_FALSE(Writer_->Write(rows));
 
-    EXPECT_THROW(Writer_->Close()
-        .BlockingGet()
+    EXPECT_THROW(WaitFor(Writer_->Close())
         .ThrowOnError(), std::exception);
 }
 
@@ -224,8 +222,7 @@ TEST_F(TSchemalessWriterForYamrTest, NotStringType) {
 
     EXPECT_FALSE(Writer_->Write(rows));
 
-    EXPECT_THROW(Writer_->Close()
-        .BlockingGet()
+    EXPECT_THROW(WaitFor(Writer_->Close())
         .ThrowOnError(), std::exception);
 }
 

@@ -332,8 +332,7 @@ TEST_F(TSchemalessWriterForYamredDsvTest, SkippedKey)
 
     EXPECT_FALSE(Writer_->Write(rows));
 
-    EXPECT_THROW(Writer_->Close()
-        .BlockingGet()
+    EXPECT_THROW(WaitFor(Writer_->Close())
         .ThrowOnError(), std::exception);
 }
 
@@ -353,8 +352,7 @@ TEST_F(TSchemalessWriterForYamredDsvTest, SkippedSubkey)
 
     EXPECT_FALSE(Writer_->Write(rows));
 
-    EXPECT_THROW(Writer_->Close()
-        .BlockingGet()
+    EXPECT_THROW(WaitFor(Writer_->Close())
         .ThrowOnError(), std::exception);
 }
 
