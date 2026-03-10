@@ -1580,6 +1580,7 @@ void TBundleState::BuildNewState(
             tableId,
             tableInfo->Path);
 
+        EmplaceOrCrash(bundle->TablesByPath, tableInfo->Path, tableInfo);
         EmplaceOrCrash(bundle->Tables, tableId, std::move(tableInfo));
     }
 

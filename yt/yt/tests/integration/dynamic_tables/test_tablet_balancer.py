@@ -292,10 +292,9 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
         sync_mount_table("//tmp/t")
 
         instance = self._get_last_iteration_instance(get("//sys/tablet_balancer/instances"))
-        table_id = get("//tmp/t/@id")
 
         effective_config_path = \
-            f"{self.root_path}/instances/{instance}/orchid/tablet_balancer/bundles/default/tables/{table_id}/effective_config"
+            f"{self.root_path}/instances/{instance}/orchid/tablet_balancer/bundles/default/tables/\/\/tmp\/t/effective_config"  # noqa
 
         def _has_expected_table():
             if not exists(effective_config_path):
