@@ -88,7 +88,7 @@ public:
             return TInstant::Max();
         }
 
-        const auto& entry = Queue_.front();
+        const auto& entry = Queue_.back();
         if (now <= entry.ReplicationTime) {
             return TInstant::Max();
         }
