@@ -938,22 +938,7 @@ void TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::
 
     Load(context, StoredReplicas);
     Load(context, LastSeenReplicas);
-    // COMPAT(kvk1920)
-    if (context.GetVersion() < EMasterReign::FixLastSeenReplicas) {
-        auto index = Load<int>(context);
-        if constexpr (MaxLastSeenReplicaCount > 0) {
-            auto legacyLastSeenReplicas = LastSeenReplicas;
-            // Position of queue's tail.
-            LastSeenReplicaCount = 0;
-            for (int offset : std::views::iota(0u, MaxLastSeenReplicaCount)) {
-                AddLastSeenReplica(legacyLastSeenReplicas[(index + offset) % MaxLastSeenReplicaCount]);
-            }
-        } else {
-            LastSeenReplicaCount = 0;
-        }
-    } else {
-        Load(context, LastSeenReplicaCount);
-    }
+    Load(context, LastSeenReplicaCount);
     Load(context, ApprovedReplicaCount);
 }
 

@@ -183,13 +183,7 @@ void TTablet::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, PivotKey_);
     Load(context, NodeStatistics_);
-
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::PersistAuxiliaryNodeStatistics ||
-        context.GetVersion() < EMasterReign::Start_25_2)
-    {
-        Load(context, AuxiliaryNodeStatistics_);
-    }
+    Load(context, AuxiliaryNodeStatistics_);
 
     // COMPAT(atalmenev)
     if (context.GetVersion() >= EMasterReign::SaveOriginatorTabletsAfterReshard) {

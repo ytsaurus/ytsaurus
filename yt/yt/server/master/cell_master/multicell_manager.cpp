@@ -792,11 +792,7 @@ private:
         if (context.GetVersion() < EMasterReign::FixDynamicallyPropagatedMastersCellTags) {
             Load<bool>(context);
         }
-
-        // COMPAT(cherepashka)
-        if (context.GetVersion() >= EMasterReign::PrerequisiteTransactionsInSequoia) {
-            Load(context, LocalMasterIssuedLeaseIds_);
-        }
+        Load(context, LocalMasterIssuedLeaseIds_);
         if (context.GetVersion() >= EMasterReign::FixDynamicallyPropagatedMastersCellTags) {
             Load(context, DynamicallyPropagatedMasterCellTags_);
         }

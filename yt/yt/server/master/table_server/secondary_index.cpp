@@ -62,11 +62,7 @@ void TSecondaryIndex::Load(TLoadContext& context)
     }
 
     Load(context, TableToIndexCorrespondence_);
-
-    // COMPAT(sabdenovch)
-    if (context.GetVersion() >= EMasterReign::SecondaryIndexEvaluated) {
-        TNullableIntrusivePtrSerializer<>::Load(context, EvaluatedColumnsSchema_);
-    }
+    TNullableIntrusivePtrSerializer<>::Load(context, EvaluatedColumnsSchema_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

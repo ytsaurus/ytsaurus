@@ -2866,15 +2866,7 @@ private:
     THashSet<ui32> GeneratedAvenueIdEntropies_;
 
     // COMPAT(ifsmirnov)
-    bool RecomputeAggregateTabletStatistics_ = false;
-    // COMPAT(ifsmirnov)
-    bool RecomputeHunkResourceUsage_ = false;
-
-    // COMPAT(ifsmirnov)
     int NonAvenueTabletCount_ = 0;
-
-    // COMPAT(ifsmirnov)
-    bool InternalizeBundleResourceQuotaAttribute_ = false;
 
     // COMPAT(babenko)
     bool WeakRefTableReplicas_ = false;
@@ -4343,85 +4335,20 @@ private:
             Load<THashSet<std::string>>(context);
         }
 
-        // COMPAT(ifsmirnov)
-        InternalizeBundleResourceQuotaAttribute_ = context.GetVersion() < EMasterReign::ResourceQuotaAttributeForBundles;
-
         // COMPAT(babenko)
         WeakRefTableReplicas_ = context.GetVersion() < EMasterReign::WeakPtrInTableReplicas;
-    }
-
-    void RecomputeHunkResourceUsage()
-    {
-        for (const auto& [id, tabletBase] : Tablets()) {
-            if (tabletBase->GetType() != EObjectType::Tablet) {
-                continue;
-            }
-            auto* tablet = tabletBase->As<TTablet>();
-
-            auto* table = tablet->GetTable();
-            if (!table) {
-                continue;
-            }
-
-            YT_LOG_DEBUG("Recomputing hunk resource usage (TabletId: %v, TableId: %v, "
-                "HunkUncompressedDataSize: %v, HunkCompressedDataSize: %v)",
-                tablet->GetId(),
-                table->GetId(),
-                tablet->GetHunkUncompressedDataSize(),
-                tablet->GetHunkCompressedDataSize());
-
-            i64 memoryDelta = 0;
-            switch (tablet->GetInMemoryMode()) {
-                case EInMemoryMode::Uncompressed:
-                    memoryDelta = -tablet->GetHunkUncompressedDataSize();
-                    break;
-                case EInMemoryMode::Compressed:
-                    memoryDelta = -tablet->GetHunkCompressedDataSize();
-                    break;
-                case EInMemoryMode::None:
-                    memoryDelta = 0;
-                    break;
-                default:
-                    YT_ABORT();
-            }
-
-            TTabletStatistics statisticsDelta;
-            statisticsDelta.HunkUncompressedDataSize = tablet->GetHunkUncompressedDataSize();
-            statisticsDelta.HunkCompressedDataSize = tablet->GetHunkCompressedDataSize();
-            statisticsDelta.MemorySize = memoryDelta;
-            table->AccountTabletStatisticsDelta(statisticsDelta);
-
-            auto resourcesDelta = TTabletResources{}
-                .SetTabletStaticMemory(memoryDelta);
-            UpdateResourceUsage(table, resourcesDelta);
-        }
     }
 
     void OnBeforeSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnBeforeSnapshotLoaded();
 
-        RecomputeAggregateTabletStatistics_ = false;
-        RecomputeHunkResourceUsage_ = false;
-        InternalizeBundleResourceQuotaAttribute_ = false;
         WeakRefTableReplicas_ = false;
     }
 
     void OnAfterSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
-
-        if (RecomputeAggregateTabletStatistics_) {
-            THashSet<TTabletOwnerBase*> resetTables;
-            for (auto [id, tablet] : Tablets()) {
-                if (auto* table = tablet->GetOwner()) {
-                    if (resetTables.insert(table).second) {
-                        table->ResetTabletStatistics();
-                    }
-                    table->AccountTabletStatistics(tablet->GetTabletStatistics());
-                }
-            }
-        }
 
         InitBuiltins();
 
@@ -4458,52 +4385,6 @@ private:
                 ++NonAvenueTabletCount_;
             }
         }
-
-        if (InternalizeBundleResourceQuotaAttribute_) {
-            const auto& cellManager = Bootstrap_->GetTamedCellManager();
-            for (auto* bundleBase : cellManager->CellBundles(ECellarType::Tablet)) {
-                YT_VERIFY(bundleBase->GetType() == EObjectType::TabletCellBundle);
-                auto* bundle = bundleBase->As<TTabletCellBundle>();
-
-                TYsonString resourceQuotaAttribute;
-
-                if (auto* attribute = bundle->FindAttribute("resource_quota")) {
-                    resourceQuotaAttribute = *attribute;
-                    YT_VERIFY(bundle->GetMutableAttributes()->TryRemove("resource_quota"));
-                } else {
-                    continue;
-                }
-
-                auto resourceQuotaNode = ConvertToNode(resourceQuotaAttribute);
-
-                try {
-                    auto resourceQuota = ConvertTo<TTabletCellBundleQuota>(
-                        *resourceQuotaNode);
-                    static_cast<TTabletCellBundleQuota&>(bundle->ResourceLimits())
-                        = resourceQuota;
-
-                    auto schemafulNode = ConvertToNode(resourceQuota);
-                    if (!AreNodesEqual(resourceQuotaNode, schemafulNode)) {
-                        THROW_ERROR_EXCEPTION("Unrecognized fields found")
-                            << TErrorAttribute(
-                                "original_resource_quota",
-                                ConvertToYsonString(resourceQuotaNode, EYsonFormat::Text))
-                            << TErrorAttribute(
-                                "converted_resource_quota",
-                                ConvertToYsonString(schemafulNode, EYsonFormat::Text));
-                    }
-                } catch (const std::exception& ex) {
-                    // QWFP alert
-                    YT_LOG_INFO(ex, "Failed to internalize \"resource_quota\" attribute "
-                        "(BundleName: %v, ResourceQuota: %v)",
-                        bundle->GetName(),
-                        ConvertToYsonString(*resourceQuotaNode, EYsonFormat::Text));
-                    bundle->GetMutableAttributes()->Set(
-                        "resource_quota_backup_after_failed_migration",
-                        resourceQuotaAttribute);
-                }
-            }
-        }
     }
 
     void OnAfterCellManagerSnapshotLoaded()
@@ -4522,11 +4403,6 @@ private:
             YT_VERIFY(bundleBase->GetType() == EObjectType::TabletCellBundle);
             auto* bundle = bundleBase->As<TTabletCellBundle>();
             bundle->ResourceUsage().Initialize(Bootstrap_);
-        }
-
-        // COMPAT(ifsmirnov)
-        if (RecomputeHunkResourceUsage_) {
-            RecomputeHunkResourceUsage();
         }
 
         TabletActionManager_->OnAfterCellManagerSnapshotLoaded();
