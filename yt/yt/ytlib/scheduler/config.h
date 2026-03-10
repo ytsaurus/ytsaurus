@@ -644,6 +644,10 @@ struct TTestingOperationOptions
 
     TDelayConfigPtr DelayInsideMaterializeScheduler;
 
+    TDelayConfigPtr DelayBeforePreemptionForThisOperation;
+
+    TDelayConfigPtr DelayBeforeAllocationPreemption;
+
     std::optional<TDuration> DelayInsideAbort;
 
     std::optional<TDuration> DelayInsideRegisterAllocationsFromRevivedOperation;

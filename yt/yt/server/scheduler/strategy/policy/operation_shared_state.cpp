@@ -130,6 +130,34 @@ bool TOperationSharedState::ProcessAllocationUpdate(
     return true;
 }
 
+bool TOperationSharedState::ProcessAllocationPreemption(
+    TPoolTreeOperationElement* operationElement,
+    TAllocationId allocationId)
+{
+    if (!IsEnabled()) {
+        return false;
+    }
+
+    auto delta = [&] {
+        auto guard = WriterGuard(AllocationPropertiesMapLock_);
+
+        return SetAllocationResourceUsage(
+            GetAllocationProperties(allocationId),
+            TJobResources());
+    }();
+
+    if (delta != TJobResources()) {
+        if (!operationElement->CommitHierarchicalPreemptedResourceUsage(-delta)) {
+            YT_LOG_DEBUG("Failed to commit preempted resource usage, decreasing resource usage instead, "
+                        "(OperationId: %v, Delta: %v)", operationElement->GetId(), delta);
+            operationElement->IncreaseHierarchicalResourceUsage(delta);
+        }
+        UpdatePreemptibleAllocationsList(operationElement);
+    }
+
+    return true;
+}
+
 TDiskQuota TOperationSharedState::GetTotalDiskQuota() const
 {
     auto guard = ReaderGuard(AllocationPropertiesMapLock_);

@@ -522,6 +522,8 @@ struct TStrategyTreeConfig
 
     bool ConsiderSingleAllocationVanillaOperationsAsGang;
 
+    bool UsePrecommitForPreemption;
+
     TGpuSchedulingPolicyConfigPtr GpuSchedulingPolicy;
 
     bool EnableAbsoluteFairShareStarvationTolerance;
