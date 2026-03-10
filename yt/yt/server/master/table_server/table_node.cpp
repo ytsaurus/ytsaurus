@@ -123,13 +123,8 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     Load(context, CommitOrdering);
     Load(context, UpstreamReplicaId);
     Load(context, LastCommitTimestamp);
-
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::MoveRetainedTimestampAndOthersToExtraAttributes) {
-        Load(context, RetainedTimestamp);
-        Load(context, UnflushedTimestamp);
-    }
-
+    Load(context, RetainedTimestamp);
+    Load(context, UnflushedTimestamp);
     Load(context, ForcedCompactionRevision);
     Load(context, ForcedStoreCompactionRevision);
     Load(context, ForcedHunkCompactionRevision);
@@ -159,17 +154,9 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     Load(context, SecondaryIndices);
     Load(context, IndexTo);
     Load(context, TreatAsQueueProducer);
-
-    // COMPAT(ponasenko-rs)
-    if (context.GetVersion() >= EMasterReign::TabletTransactionSerializationType) {
-        Load(context, SerializationType);
-    }
-
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::MoveRetainedTimestampAndOthersToExtraAttributes) {
-        Load(context, ReplicationCollocation);
-        Load(context, CustomRuntimeData);
-    }
+    Load(context, SerializationType);
+    Load(context, ReplicationCollocation);
+    Load(context, CustomRuntimeData);
 }
 
 #define FOR_EACH_COPYABLE_ATTRIBUTE(XX) \
@@ -356,34 +343,12 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
     Load(context, ChunkFormat_);
     Load(context, HunkErasureCodec_);
 
-    // COMPAT(ifsmirnov)
-    TTimestamp retainedTimestamp;
-    TTimestamp unflushedTimestamp;
-    TTableCollocationRawPtr replicationCollocation;
-    TYsonString customRuntimeData;
-    if (context.GetVersion() < EMasterReign::MoveRetainedTimestampAndOthersToExtraAttributes) {
-        Load(context, retainedTimestamp);
-        Load(context, unflushedTimestamp);
-        Load(context, replicationCollocation);
-        Load(context, customRuntimeData);
-    }
-
     // COMPAT(gritukan): Use TUniquePtrSerializer.
     if (Load<bool>(context)) {
         DynamicTableAttributes_ = std::make_unique<TDynamicTableAttributes>();
         DynamicTableAttributes_->Load(context);
     } else {
         DynamicTableAttributes_.reset();
-    }
-
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() < EMasterReign::MoveRetainedTimestampAndOthersToExtraAttributes) {
-        SetRetainedTimestamp(retainedTimestamp);
-        SetUnflushedTimestamp(unflushedTimestamp);
-        SetReplicationCollocation(replicationCollocation);
-        if (customRuntimeData) {
-            MutableCustomRuntimeData() = std::move(customRuntimeData);
-        }
     }
 }
 

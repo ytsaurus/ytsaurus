@@ -107,11 +107,7 @@ void Deserialize(TTabletCellBundleQuota& resources, const NYTree::INodePtr& node
 void TTabletCellBundleResources::Persist(const NCellMaster::TPersistenceContext& context)
 {
     TTabletResources::Persist(context);
-
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::ResourceQuotaAttributeForBundles) {
-        TTabletCellBundleQuota::Persist(context);
-    }
+    TTabletCellBundleQuota::Persist(context);
 }
 
 void Serialize(const TTabletCellBundleResources& resources, NYTree::TFluentMap& fluent)

@@ -40,12 +40,7 @@ void TCypressProxyObject::Load(TLoadContext& context)
     Load(context, Address_);
     Load(context, LastPersistentHeartbeatTime_);
     Load(context, SequoiaReign_);
-
-    if (context.GetVersion() >= EMasterReign::CypressProxyVersion) {
-        Load(context, Version_);
-    } else {
-        Version_ = "unknown";
-    }
+    Load(context, Version_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

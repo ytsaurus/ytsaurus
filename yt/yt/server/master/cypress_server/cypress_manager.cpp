@@ -2899,11 +2899,6 @@ private:
     using TRecursiveResourceUsageCache = TSyncExpiringCache<TVersionedNodeId, TFuture<TYsonString>>;
     const TIntrusivePtr<TRecursiveResourceUsageCache> RecursiveResourceUsageCache_;
 
-    // COMPAT(shakurov)
-    bool NeedResetHunkSpecificMediaOnTrunkNodes_ = false;
-    // COMPAT(shakurov)
-    bool NeedResetHunkSpecificMediaOnBranchedNodes_ = false;
-
     // COMPAT(danilalexeev): YT-21862.
     bool DropLegacyCellMapsOnSnapshotLoaded_ = false;
 
@@ -3014,16 +3009,6 @@ private:
             Load(context, GroundUpdateQueueManagerSequenceNumberToNodeIds_);
         }
 
-        // COMPAT(shakurov)
-        YT_VERIFY(EMasterReign::ResetHunkMediaOnBranchedNodes < EMasterReign::ResetHunkMediaOnBranchedNodesOnly);
-        if (context.GetVersion() < EMasterReign::ResetHunkMediaOnBranchedNodes) {
-            NeedResetHunkSpecificMediaOnTrunkNodes_ = true;
-            NeedResetHunkSpecificMediaOnBranchedNodes_ = true;
-        } else if (context.GetVersion() < EMasterReign::ResetHunkMediaOnBranchedNodesOnly) {
-            YT_VERIFY(!NeedResetHunkSpecificMediaOnTrunkNodes_); // Check and leave it false.
-            NeedResetHunkSpecificMediaOnBranchedNodes_ = true;
-        } // Else leave both of them false.
-
         // COMPAT(danilalexeev): YT-21862.
         if (context.GetVersion() < EMasterReign::DropLegacyCellMap) {
             DropLegacyCellMapsOnSnapshotLoaded_ = true;
@@ -3128,11 +3113,7 @@ private:
 
         RecursiveResourceUsageCache_->Clear();
 
-        NeedResetHunkSpecificMediaOnTrunkNodes_ = false;
-        NeedResetHunkSpecificMediaOnBranchedNodes_ = false;
-        DropLegacyCellMapsOnSnapshotLoaded_ = false;
         RecalculateSchemas_ = false;
-        ResetUpdateModeOnTrunkNodesAndInferSecurityTagsUpdateMode_ = false;
     }
 
     void SetZeroState() override
@@ -3224,76 +3205,6 @@ private:
 
         InitBuiltins();
 
-        // COMPAT(shakurov)
-        YT_VERIFY(!NeedResetHunkSpecificMediaOnTrunkNodes_ || NeedResetHunkSpecificMediaOnBranchedNodes_);
-        if (NeedResetHunkSpecificMediaOnTrunkNodes_ ||
-            NeedResetHunkSpecificMediaOnBranchedNodes_)
-        {
-            const auto& tabletManager = Bootstrap_->GetTabletManager();
-            for (auto [nodeId, node] : NodeMap_) {
-                if (!IsObjectAlive(node) && node->IsTrunk()) {
-                    continue;
-                }
-
-                if (!IsChunkOwnerType(node->GetType())) {
-                    continue;
-                }
-
-                if (node->IsTrunk() && !NeedResetHunkSpecificMediaOnTrunkNodes_) {
-                    continue;
-                }
-
-                // Just a reminder - already checked above.
-                YT_VERIFY(NeedResetHunkSpecificMediaOnBranchedNodes_);
-
-                auto* chunkOwnerNode = node->As<TChunkOwnerBase>();
-                chunkOwnerNode->ResetHunkPrimaryMediumIndex();
-                chunkOwnerNode->HunkReplication().ClearEntries();
-                tabletManager->OnNodeStorageParametersUpdated(chunkOwnerNode);
-
-                // NB: resetting hunk media-related settings on branches won't
-                // reproduce invariants maintained by a running system. But since
-                // those settings cannot be modified under transaction, aren't
-                // merged back in and simply dropped at tx commit, the only
-                // thing affected by this is the decision, at commit time,
-                // to schedule (or not) a requisition update. This is hardly
-                // significant, seeing as the feature is still very fresh.
-            }
-        }
-
-        // COMPAT(danilalexeev): YT-21862.
-        if (DropLegacyCellMapsOnSnapshotLoaded_) {
-            for (auto cellarType : TEnumTraits<ECellarType>::GetDomainValues()) {
-                auto cellMapNodeProxy = ResolvePathToNodeProxy(
-                    NCellarAgent::GetCellarTypeCypressPathPrefix(cellarType),
-                    /*service*/ "",
-                    /*method*/ "",
-                    /*transaction*/ nullptr);
-                if (cellMapNodeProxy->GetType() != ENodeType::Map) {
-                    continue;
-                }
-
-                auto descendants = ListSubtreeNodes(
-                    cellMapNodeProxy->GetTrunkNode(),
-                    /*transaction*/ nullptr,
-                    /*includeRoot*/ false);
-
-                for (auto* node : descendants) {
-                    THROW_ERROR_EXCEPTION_IF(
-                        node->GetType() == EObjectType::Journal ||
-                        node->GetType() == EObjectType::File,
-                        "Failed to migrate to new cell map nodes: found legacy"
-                        " object %v at %v. Before updating, ensure all data is"
-                        " migrated and legacy storage is empty.",
-                        node->GetId(),
-                        GetNodePath(node, /*transaction*/ nullptr));
-                }
-
-                cellMapNodeProxy->GetParent()->RemoveChild(cellMapNodeProxy);
-                // Virtual Cell Map creation is delegated to World Initializer.
-            }
-        }
-
         // COMPAT(h0pless): FixSchemaDivergence.
         if (RecalculateSchemas_) {
             THashMap<TVersionedNodeId, TMasterTableSchemaId> nodeIdToSchemaId;
@@ -3360,35 +3271,6 @@ private:
             }
         }
 
-        // COMPAT(h0pless): FixSecurityTagsMessingWithChunkListStructure.
-        if (ResetUpdateModeOnTrunkNodesAndInferSecurityTagsUpdateMode_) {
-            for (auto [nodeId, node] : NodeMap_) {
-                if (!IsChunkOwnerType(node->GetType())) {
-                    continue;
-                }
-
-                auto* chunkOwnerNode = node->As<TChunkOwnerBase>();
-
-                auto chunkOwnerUpdateMode = chunkOwnerNode->GetUpdateMode();
-                if (node->IsTrunk() && chunkOwnerNode->GetUpdateMode() != NChunkClient::EUpdateMode::None) {
-                    YT_LOG_ALERT("Resetting update mode on a trunk node (NodeId: %v, OldUpdateMode: %v, NewUpdateMode: %v)",
-                        nodeId,
-                        chunkOwnerNode->GetUpdateMode(),
-                        NChunkClient::EUpdateMode::None);
-                    chunkOwnerNode->SetUpdateMode(NChunkClient::EUpdateMode::None);
-
-                    // No need to set non-trivial security tags update mode on trunk nodes.
-                    continue;
-                }
-
-                // Migrate to security tags update mode.
-                if (chunkOwnerUpdateMode == NChunkClient::EUpdateMode::Append) {
-                    chunkOwnerNode->SetSecurityTagsUpdateMode(ESecurityTagsUpdateMode::Append);
-                } else if (chunkOwnerUpdateMode == NChunkClient::EUpdateMode::Overwrite) {
-                    chunkOwnerNode->SetSecurityTagsUpdateMode(ESecurityTagsUpdateMode::Overwrite);
-                }
-            }
-        }
     }
 
     void CheckInvariants() override

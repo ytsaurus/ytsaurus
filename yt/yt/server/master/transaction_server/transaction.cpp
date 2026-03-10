@@ -177,15 +177,10 @@ void TBulkInsertState::Persist(const NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
 
-    // COMPAT(dave11ar)
-    if (context.GetVersion() < EMasterReign::AddLockableDynamicTables) {
-        Persist(context, LockedDynamicTables_);
-    } else {
-        Persist(context, LockableDynamicTables_);
-        Persist(context, LockedDynamicTables_);
-        Persist(context, AllTablesLockedByDescendantTransactions_);
-        Persist(context, DescendantTransactionsPresentedInTimestampHolder_);
-    }
+    Persist(context, LockableDynamicTables_);
+    Persist(context, LockedDynamicTables_);
+    Persist(context, AllTablesLockedByDescendantTransactions_);
+    Persist(context, DescendantTransactionsPresentedInTimestampHolder_);
 }
 
 void TBulkInsertState::FindTopmostTransaction()

@@ -810,7 +810,6 @@ private:
     const TAsyncSemaphorePtr IncrementalHeartbeatSemaphore_ = New<TAsyncSemaphore>(/*totalSlots*/ 0);
 
     TIdGenerator ChunkLocationIdGenerator_;
-    bool PatchChunkLocationIds_ = false;
 
     NHydra::TEntityMap<TChunkLocation> ChunkLocationMap_;
     TChunkLocationUuidMap ChunkLocationUuidToLocation_;
@@ -1676,7 +1675,6 @@ private:
             shard.clear();
         }
         ChunkLocationIdGenerator_.Reset();
-        PatchChunkLocationIds_ = false;
     }
 
     void SaveKeys(NCellMaster::TSaveContext& context) const
@@ -1705,11 +1703,7 @@ private:
 
         ChunkLocationMap_.LoadValues(context);
         Load(context, DanglingLocationsDefaultLastSeenTime_);
-
-        if (context.GetVersion() >= EMasterReign::ChunkLocationCounterId) {
-            Load(context, ChunkLocationIdGenerator_);
-        }
-        PatchChunkLocationIds_ = context.GetVersion() < EMasterReign::ChunkLocationCounterId;
+        Load(context, ChunkLocationIdGenerator_);
     }
 
     void OnLeaderActive() override
@@ -1773,30 +1767,6 @@ private:
             RegisterChunkLocationUuid(location);
         }
 
-        // COMPAT(aleksandra-zh)
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        if (PatchChunkLocationIds_ && multicellManager->IsPrimaryMaster()) {
-            std::vector<TObjectId> locationIds;
-            for (auto locationId : GetKeys(ChunkLocationMap_)) {
-                locationIds.push_back(locationId);
-            }
-
-            std::sort(locationIds.begin(), locationIds.end());
-
-            // This is fat.
-            NProto::TReqRemapChunkLocationIds request;
-            for (auto oldLocationId : locationIds) {
-                auto locationIndex = GenerateChunkLocationIndex();
-                auto newLocationId = ObjectIdFromChunkLocationIndex(locationIndex);
-
-                RemapLocation(oldLocationId, newLocationId);
-
-                auto* remap = request.add_location_id_remap();
-                ToProto(remap->mutable_old_location_id(), oldLocationId);
-                ToProto(remap->mutable_new_location_id(), newLocationId);
-            }
-            multicellManager->PostToSecondaryMasters(request);
-        }
     }
 
     void HydraRemapChunkLocationIds(NProto::TReqRemapChunkLocationIds* request)
