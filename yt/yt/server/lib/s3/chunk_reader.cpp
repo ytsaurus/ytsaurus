@@ -23,6 +23,11 @@ namespace {
 
 std::vector<TBlockRange> GetBlockRanges(const std::vector<int>& blockIndexes)
 {
+    // Fast-path.
+    if (blockIndexes.empty()) {
+        return {};
+    }
+
     std::vector<TBlockRange> blockRanges;
 
     int localIndex = 0;
@@ -113,7 +118,7 @@ public:
     {
         if (extensionTags) {
             YT_LOG_ALERT("Get meta request for S3 media was formed with extension tags (ExtensionTags: %v)", extensionTags);
-            THROW_ERROR_EXCEPTION("Extension tags are not supported in get meta request")
+            THROW_ERROR_EXCEPTION("Extension tags are not supported in get meta request from S3")
                 << TErrorAttribute("extension_tags", extensionTags);
         }
 
@@ -155,7 +160,8 @@ private:
     {
         if (!blocksExt) {
             return GetBlocksExt(GetSessionInvoker(options))
-                .Apply(BIND(&TS3Reader::ReadBlockRanges, MakeStrong(this), options, blockRanges).AsyncVia(GetSessionInvoker(options)));
+                .Apply(BIND(&TS3Reader::ReadBlockRanges, MakeStrong(this), options, blockRanges)
+                .AsyncVia(GetSessionInvoker(options)));
         }
 
         std::vector<TFuture<std::vector<TBlock>>> futures;
@@ -165,12 +171,11 @@ private:
             futures.emplace_back(ReadBlockRange(options, blockRange, blocksExt));
         }
 
-        return AllSet(std::move(futures))
-            .Apply(BIND([] (const std::vector<TErrorOr<std::vector<TBlock>>>& results) {
+        return AllSucceeded(std::move(futures))
+            .Apply(BIND([] (const std::vector<std::vector<TBlock>>& blocksRanges) {
                 std::vector<TBlock> blocks;
-                for (const auto& result : results) {
-                    const auto& rangeBlocks = result.ValueOrThrow();
-                    blocks.insert(blocks.end(), rangeBlocks.begin(), rangeBlocks.end());
+                for (const auto& blocksRange : blocksRanges) {
+                    blocks.insert(blocks.end(), blocksRange.begin(), blocksRange.end());
                 }
                 return blocks;
             }));
@@ -199,8 +204,7 @@ private:
                     ChunkPlacement_.Key,
                     blocksExt,
                     /*dumpBrokenBlocks*/ {});
-            })
-            .AsyncVia(GetSessionInvoker(options)));
+            }).AsyncVia(GetSessionInvoker(options)));
     }
 
     TFuture<TRefCountedChunkMetaPtr> DoGetMeta(
