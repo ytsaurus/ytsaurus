@@ -19,7 +19,7 @@ using namespace NSequoiaClient;
 void TChunkManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_replication_factor", &TThis::MaxReplicationFactor)
-        .GreaterThanOrEqual(NChunkClient::DefaultReplicationFactor)
+        .GreaterThanOrEqual(NChunkClient::MinReplicationFactor)
         .Default(NChunkClient::MaxReplicationFactor);
     registrar.Parameter("max_replicas_per_rack", &TThis::MaxReplicasPerRack)
         .GreaterThan(0)
@@ -51,7 +51,7 @@ void TChunkManagerConfig::Register(TRegistrar registrar)
 void TDomesticMediumConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_replication_factor", &TThis::MaxReplicationFactor)
-        .GreaterThanOrEqual(NChunkClient::DefaultReplicationFactor)
+        .GreaterThanOrEqual(NChunkClient::MinReplicationFactor)
         .Default(NChunkClient::MaxReplicationFactor);
     registrar.Parameter("max_replicas_per_rack", &TThis::MaxReplicasPerRack)
         .GreaterThanOrEqual(0)
