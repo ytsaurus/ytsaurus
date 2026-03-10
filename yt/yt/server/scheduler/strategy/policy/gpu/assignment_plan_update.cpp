@@ -461,8 +461,8 @@ bool TGpuAllocationAssignmentPlanUpdateExecutor::BindFullHostOperationToModule(
     const auto& [bestModuleBindingOutcome, bestModule] = *std::ranges::min_element(possibleModuleBindings);
 
     LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::OperationBoundToModule)
-            .Item("operation_id").Value(operation->GetId())
-            .Item("module").Value(bestModule);
+        .Item("operation_id").Value(operation->GetId())
+        .Item("module").Value(bestModule);
 
     YT_LOG_DEBUG("Binding full-host operation to module (Module: %v, OperationId: %v)",
         bestModule,
