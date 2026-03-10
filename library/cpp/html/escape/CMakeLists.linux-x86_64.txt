@@ -12,5 +12,18 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(escape)
-add_subdirectory(pcdata)
+find_package(linux-headers-generic REQUIRED)
+
+add_library(cpp-html-escape)
+
+
+target_link_libraries(cpp-html-escape PUBLIC
+  linux-headers-generic::linux-headers-generic
+  contrib-libs-cxxsupp
+  yutil
+)
+
+target_sources(cpp-html-escape PRIVATE
+  ${PROJECT_SOURCE_DIR}/library/cpp/html/escape/escape.cpp
+)
+
