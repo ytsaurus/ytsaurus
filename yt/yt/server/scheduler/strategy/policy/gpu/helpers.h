@@ -13,6 +13,8 @@ bool IsAssignmentPreliminary(const TAssignmentPtr& assignment);
 
 NLogging::TOneShotFluentLogEvent LogStructuredGpuEventFluently(EGpuSchedulingLogEventType eventType);
 
+NLogging::TLogger GetLogger(const std::string& treeId);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler::NStrategy::NPolicy::NGpu

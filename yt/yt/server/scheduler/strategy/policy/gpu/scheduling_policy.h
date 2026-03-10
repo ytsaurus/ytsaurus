@@ -1,15 +1,10 @@
 #pragma once
 
 #include "public.h"
-#include "structs.h"
-#include "assignment_plan_update.h"
-#include "assignment_plan_context_detail.h"
 
 #include <yt/yt/server/scheduler/strategy/policy/scheduling_policy.h>
 
 #include <yt/yt/server/scheduler/strategy/public.h>
-
-#include <yt/yt/server/scheduler/common/public.h>
 
 #include <yt/yt/server/lib/scheduler/public.h>
 
