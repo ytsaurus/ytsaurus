@@ -950,12 +950,11 @@ i64 TTabletBalancer::TTableOrchidService::GetSize() const
 
 IYPathServicePtr TTabletBalancer::TTableOrchidService::FindItemService(const std::string& key) const
 {
-    auto tablesIt = Bundle_->Tables.find(TTableId::FromString(key));
-    if (tablesIt == Bundle_->Tables.end()) {
+    auto table = GetOrDefault(Bundle_->TablesByPath, key);
+    if (!table) {
         return nullptr;
     }
 
-    const auto& table = tablesIt->second;
     auto effectiveConfig = Balancer_->GetEffectiveTableConfig(table, Bundle_);
 
     return BuildYsonNodeFluently()
@@ -984,9 +983,9 @@ TEffectiveTableConfig TTabletBalancer::GetEffectiveTableConfig(
         : nullptr;
 
     auto schedule = GetBundleSchedule(
-            bundle->Config,
-            bundle->Name,
-            groupConfig ? groupConfig->Schedule : TTimeFormula{});
+        bundle->Config,
+        bundle->Name,
+        groupConfig ? groupConfig->Schedule : TTimeFormula{});
 
     TEffectiveTableConfig effectiveConfig;
 

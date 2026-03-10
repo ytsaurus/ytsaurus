@@ -23,6 +23,7 @@ struct TTabletCellBundle final
     TBundleTabletBalancerConfigPtr Config;
     THashMap<TTabletCellId, TTabletCellPtr> TabletCells;
     THashMap<TTableId, TTablePtr> Tables;
+    THashMap<NYPath::TYPath, TTablePtr> TablesByPath;
     THashMap<TNodeAddress, TNodeStatistics> NodeStatistics;
     THashMap<TTabletId, TTabletPtr> Tablets;
 
