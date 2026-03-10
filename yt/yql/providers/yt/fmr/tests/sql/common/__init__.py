@@ -48,8 +48,9 @@ def expand_generated_inputs(config, suite: str, tmpdir, data_path: str):
             for i, f in enumerate(generated_files, start=1):
                 if not isinstance(f, str):
                     raise RuntimeError(f"Generator {generator_py} must return list of strings, got element {type(f)}")
+                file_name = f.split("/")[-1].split(".")[0]
                 path = f if os.path.isabs(f) else os.path.join(out_dir, f)
-                expanded.append(["in", f"{prefix}{i}", path])
+                expanded.append(["in", file_name, path])
             continue
 
         expanded.append(item)
