@@ -1086,12 +1086,7 @@ TVolumeMeta TLayerLocation::DoCreateOverlayVolume(
     }
 
     if (!placePath) {
-        if (options.SlotPath && options.EnableRootVolumeDiskQuota) {
-            // Place overlayfs (upper and work directories) in user slot.
-            placePath = "//" + NFS::CombinePaths(ToString(options.SlotPath.value()), "overlay");
-        } else {
-            placePath = PlacePath_;
-        }
+        placePath = PlacePath_;
     }
 
     THashMap<TString, TString> volumeProperties = {

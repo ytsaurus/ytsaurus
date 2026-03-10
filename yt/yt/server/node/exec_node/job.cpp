@@ -3440,14 +3440,6 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
     options.DiskSpaceLimit = RootVolumeDiskSpace_;
     options.InodeLimit = RootVolumeInodeLimit_;
 
-    if (UserJobSpec_) {
-        // Place upper directory of overlayfs on requested disk.
-        if (!options.JobVolumeMounts.empty()) {
-            options.SlotPath = GetUserSlot()->GetSlotPath();
-        }
-
-    }
-
     options.VirtualSandboxData = VirtualSandboxData_;
     options.SandboxNbdRootVolumeData = SandboxNbdRootVolumeData_;
 
