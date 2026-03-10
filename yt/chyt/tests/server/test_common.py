@@ -2874,11 +2874,15 @@ class TestDataTypeConversion(ClickHouseTestBase):
 
     @authors("buyval01")
     def test_low_cardinality_over_encodings(self):
-        create("table", "//tmp/t", attributes={"schema": [
-            {"name": "ui64", "type": "uint64", "required": True},
-            {"name": "i64", "type": "int64"},
-            {"name": "str", "type": "string"},
-            {"name": "str_req", "type": "string", "required": True},]})
+        create("table", "//tmp/t", attributes={
+            "schema": [
+                {"name": "ui64", "type": "uint64", "required": True},
+                {"name": "i64", "type": "int64"},
+                {"name": "str", "type": "string"},
+                {"name": "str_req", "type": "string", "required": True},
+            ],
+            "optimize_for": "scan",
+        })
 
         # Using patterns from integer_column_ut.cpp that are proven to trigger specific encodings.
 
@@ -2951,7 +2955,7 @@ class TestDataTypeConversion(ClickHouseTestBase):
                         "ui64": base_ui64 + i,
                         "i64": base_i64 + i,
                         "str": f"dr_{i}",
-                        "str_req": f"dr_req_{i}",
+                        "str_req": f"dr_req_{i}_{"a" * 100}",
                     })
                 null_row = copy.deepcopy(result[-1])
                 null_row["i64"] = None
@@ -2961,10 +2965,6 @@ class TestDataTypeConversion(ClickHouseTestBase):
 
         # We need to generate disjoint ranges.
 
-        # [base .. base + 10000)
-        direct_dense_data = direct_dense_generator(1000, -10001)
-        write_table("<append=%true>//tmp/t", direct_dense_data)
-
         # [base .. base + 102400)
         dict_dense_data = dict_dense_generator(22222, 12345)
         write_table("<append=%true>//tmp/t", dict_dense_data)
@@ -2972,6 +2972,10 @@ class TestDataTypeConversion(ClickHouseTestBase):
         # [base .. base + 4096)
         dict_rle_data = dict_rle_generator(333333, 333333)
         write_table("<append=%true>//tmp/t", dict_rle_data)
+
+        # [base .. base + 10000)
+        direct_dense_data = direct_dense_generator(1000, -10001)
+        write_table("<append=%true>//tmp/t", direct_dense_data)
 
         direct_rle_data = direct_rle_generator(444444, 444444)
         write_table("<append=%true>//tmp/t", direct_rle_data)

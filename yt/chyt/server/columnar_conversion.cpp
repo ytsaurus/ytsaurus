@@ -713,18 +713,77 @@ DB::MutableColumnPtr ConvertTzYTColumnToCHColumnImpl(
     return chColumn;
 }
 
-DB::MutableColumnPtr ConvertStringLikeYTColumnToLowCardinalityCHColumnImpl(
+DB::MutableColumnUniquePtr ConvertStringLikeYtColumnDictionaryToChColumnUniqueImpl(
+    const std::vector<const char*>& ytStrings,
+    const std::vector<i32>& ytStringLengths,
+    const std::vector<ui32> dictionaryIndexes,
+    DB::DataTypePtr dictionaryType)
+{
+    // Additional byte for zero in the end of every string.
+    // Default and null elements are accounted in dictionaryIndexes as zero values.
+    auto dictionaryByteSize = std::accumulate(
+        dictionaryIndexes.begin(),
+        dictionaryIndexes.end(),
+        0,
+        [&] (auto sum, auto index) {
+            return sum + (index > 0 ? ytStringLengths[index - 1] : 0) + 1;
+        });
+
+    auto chColumn = DB::ColumnString::create();
+    auto& chOffsets = chColumn->getOffsets();
+    chOffsets.resize(dictionaryIndexes.size());
+    auto* currentCHOffset = chOffsets.data() - 1;
+
+    auto& chChars = chColumn->getChars();
+    chChars.resize(dictionaryByteSize);
+    ui64 currentCHCharsPosition = 0;
+    auto* currentCHChar = chChars.data();
+
+    auto uncheckedConsumer = [&] (const char* str, i32 length) {
+        *currentCHOffset++ = currentCHCharsPosition;
+        memcpy(currentCHChar, str, length);
+        currentCHChar += length;
+        *currentCHChar++ = '\x0';
+        currentCHCharsPosition += length + 1;
+    };
+
+    for (auto dictionaryIndex : dictionaryIndexes) {
+        if (dictionaryIndex == 0) {
+            uncheckedConsumer(nullptr, 0);
+        } else {
+            uncheckedConsumer(ytStrings[dictionaryIndex - 1], ytStringLengths[dictionaryIndex - 1]);
+        }
+    }
+
+    // Put the final offset.
+    *currentCHOffset++ = currentCHCharsPosition;
+    YT_VERIFY(currentCHOffset == chOffsets.end());
+
+    // Trim chars.
+    chChars.resize(currentCHCharsPosition);
+
+    return DB::DataTypeLowCardinality::createColumnUnique(*dictionaryType, std::move(chColumn));
+}
+
+DB::MutableColumnPtr ConvertStringLikeYtColumnToLowCardinalityChColumnImpl(
     const IUnversionedColumnarRowBatch::TColumn& ytColumn,
     TRange<DB::UInt8> filterHint,
-    bool insideOptional)
+    bool isNullable)
 {
+    size_t specialValueCount = isNullable ? 2 : 1;
+
+    DB::DataTypePtr dictionaryType = std::make_shared<DB::DataTypeString>();
+    if (isNullable) {
+        dictionaryType = std::make_shared<DB::DataTypeNullable>(dictionaryType);
+    }
+
     auto [ytValueColumn, rleIndexes, dictionaryIndexes] = AnalyzeColumnEncoding(ytColumn);
 
-    YT_LOG_TRACE("Converting string-like column to LowCardinality (Count: %v, Dictionary: %v, Rle: %v, InsideOptional: %v)",
+    YT_LOG_TRACE("Converting string-like column to LowCardinality (Count: %v, Dictionary: %v, Rle: %v, IsNullable: %v)",
         ytColumn.ValueCount,
         static_cast<bool>(dictionaryIndexes),
         static_cast<bool>(rleIndexes),
-        insideOptional);
+        isNullable);
 
     YT_VERIFY(ytValueColumn->Values);
     YT_VERIFY(ytValueColumn->Values->BitWidth == 32);
@@ -733,61 +792,20 @@ DB::MutableColumnPtr ConvertStringLikeYTColumnToLowCardinalityCHColumnImpl(
     YT_VERIFY(ytValueColumn->Strings);
     YT_VERIFY(ytValueColumn->Strings->AvgLength);
 
+    auto avgLength = *ytValueColumn->Strings->AvgLength;
     auto ytOffsets = ytValueColumn->GetTypedValues<ui32>();
     const auto* ytChars = ytValueColumn->Strings->Data.Begin();
 
-    auto avgLength = *ytValueColumn->Strings->AvgLength;
-    DB::DataTypePtr dictionaryType = std::make_shared<DB::DataTypeString>();
-    if (insideOptional) {
-        dictionaryType = std::make_shared<DB::DataTypeNullable>(dictionaryType);
-    }
-    auto dictionaryColumn = DB::DataTypeLowCardinality::createColumnUnique(*dictionaryType);
+    DB::MutableColumnUniquePtr dictionaryColumn;
 
-    auto indexesColumn = DB::DataTypeUInt64().createColumn();
+    auto indexColumn = DB::ColumnVector<ui32>::create(ytColumn.ValueCount);
+    auto* currentIndexOutput = indexColumn->getData().data();
 
-    auto nullBytemap = insideOptional ? BuildNullBytemapForCHColumn(ytColumn) : nullptr;
-    auto currentNullByte = nullBytemap ? nullBytemap->getData().data() : nullptr;
+    auto* currentHintByte = filterHint ? filterHint.begin() : nullptr;
 
-    DB::MutableColumnPtr lowCardinalityColumn;
-
-    if (filterHint) {
-        YT_LOG_TRACE("Converting string column to LowCardinality with filter hint (Count: %v, DictionarySize: %v)",
-            ytColumn.ValueCount,
-            ytOffsets.size());
-        YT_VERIFY(std::ssize(filterHint) == ytColumn.ValueCount);
-        lowCardinalityColumn = DB::ColumnLowCardinality::create(
-            std::move(dictionaryColumn),
-            std::move(indexesColumn),
-            /*is_shared*/ false);
-
-        int rowIndex = 0;
-        DecodeRawVector<std::pair<const char*, i32>>(
-            ytColumn.StartIndex,
-            ytColumn.StartIndex + ytColumn.ValueCount,
-            dictionaryIndexes,
-            rleIndexes,
-            [&] (i64 index) {
-                auto [startOffset, endOffset] = DecodeStringRange(ytOffsets, avgLength, index);
-                return std::pair(ytChars + startOffset, endOffset - startOffset);
-            },
-            [&] (auto pair) {
-                if (filterHint[rowIndex] || !(currentNullByte && *currentNullByte++)) {
-                    lowCardinalityColumn->insertData(pair.first, pair.second);
-                } else {
-                    lowCardinalityColumn->insertDefault();
-                }
-                rowIndex++;
-            });
-    } else if (dictionaryIndexes || rleIndexes) {
-        YT_LOG_TRACE("Converting string column to LowCardinality (Count: %v, DictionarySize: %v)",
-            ytColumn.ValueCount,
-            ytOffsets.size());
-
+    if (dictionaryIndexes) {
         std::vector<const char*> ytStrings(ytOffsets.size());
         std::vector<i32> ytStringLengths(ytOffsets.size());
-        std::vector<size_t> positions;
-        positions.reserve(ytOffsets.size());
-        positions.push_back(dictionaryColumn->getDefaultValueIndex());
         DecodeStringPointersAndLengths(
             ytOffsets,
             avgLength,
@@ -795,63 +813,77 @@ DB::MutableColumnPtr ConvertStringLikeYTColumnToLowCardinalityCHColumnImpl(
             TMutableRange(ytStrings),
             TMutableRange(ytStringLengths));
 
-        for (auto index = ytValueColumn->StartIndex; index < ytValueColumn->StartIndex + ytValueColumn->ValueCount; ++index) {
-            positions.push_back(dictionaryColumn->uniqueInsertData(ytStrings[index], ytStringLengths[index]));
+        std::unordered_set<ui32> requiredIdSet;
+
+        std::vector<ui32> requiredIds;
+        requiredIds.reserve(requiredIds.size() + specialValueCount);
+        requiredIds.resize(specialValueCount, 0);
+
+        THashMap<ui32, ui32> idMapping;
+        // Map indexes of special values in Yt dictionary to corresponding indexes in Ch dictionary.
+        idMapping[0] = 0;
+        if (auto it = std::find(ytStringLengths.begin(), ytStringLengths.end(), 0); it != ytStringLengths.end()) {
+            auto zeroDictIndex = std::distance(ytStringLengths.begin(), it) + 1;
+            idMapping[zeroDictIndex] = specialValueCount - 1;
         }
 
-        DecodeRawVector<ui64>(
+        // Decode full indexes column and collect all required dictionary indexes.
+        DecodeRawVector<ui32>(
             ytColumn.StartIndex,
             ytColumn.StartIndex + ytColumn.ValueCount,
             dictionaryIndexes,
             rleIndexes,
-            [&] (ui64 index) {
-                return index + 1;
+            [&] (auto dictionaryIndex) {
+                return dictionaryIndex + 1;
             },
-            [&] (ui64 index) {
-                if (currentNullByte && *currentNullByte++) {
-                    index = 0;
+            [&] (auto dictionaryIndex) {
+                if (currentHintByte && !*currentHintByte++) {
+                    *currentIndexOutput++ = 0;
+                    return;
                 }
-                indexesColumn->insert(positions[index]);
-            }
-        );
 
-        lowCardinalityColumn = DB::ColumnLowCardinality::create(
-            std::move(dictionaryColumn),
-            std::move(indexesColumn),
-            /*is_shared*/ false);
+                auto [it, inserted] = idMapping.emplace(dictionaryIndex, requiredIds.size());
+                if (inserted) {
+                    requiredIds.push_back(dictionaryIndex);
+                }
+                *currentIndexOutput++ = it->second;
+            });
+
+        dictionaryColumn = ConvertStringLikeYtColumnDictionaryToChColumnUniqueImpl(
+            ytStrings,
+            ytStringLengths,
+            requiredIds,
+            dictionaryType);
     } else {
-        YT_LOG_TRACE("Converting string column without dictionary to LowCardinality (Count: %v, Rle: %v)",
-            ytColumn.ValueCount,
-            static_cast<bool>(rleIndexes));
-        lowCardinalityColumn = DB::ColumnLowCardinality::create(
-            std::move(dictionaryColumn),
-            std::move(indexesColumn),
-            /*is_shared*/ false);
+        dictionaryColumn = DB::DataTypeLowCardinality::createColumnUnique(*dictionaryType);
 
-        i64 avgLengthTimesIndex = ytValueColumn->StartIndex * avgLength;
-        i64 currentOffset = DecodeStringOffset(ytOffsets, avgLength, ytValueColumn->StartIndex);
+        auto nullBitmap = GetNullBitmap(*ytValueColumn);
         DecodeRawVector<std::pair<const char*, i32>>(
             ytColumn.StartIndex,
             ytColumn.StartIndex + ytColumn.ValueCount,
             dictionaryIndexes,
             rleIndexes,
             [&] (i64 index) {
-                auto startOffset = currentOffset;
-                avgLengthTimesIndex += avgLength;
-                auto endOffset = avgLengthTimesIndex + ZigZagDecode64(ytOffsets[index]);
-                i32 length = endOffset - startOffset;
-                currentOffset = endOffset;
-                return std::make_pair(ytChars + startOffset, length);
+                if (nullBitmap && GetBit(nullBitmap, index)) {
+                    return std::make_pair((const char*)nullptr, 0l);
+                }
+
+                auto [startOffset, endOffset] = DecodeStringRange(ytOffsets, avgLength, index);
+                return std::make_pair(ytChars + startOffset, endOffset - startOffset);
             },
             [&] (auto pair) {
-                if (currentNullByte && *currentNullByte++) {
-                    lowCardinalityColumn->insertDefault();
+                if (pair.first == nullptr || (currentHintByte && !*currentHintByte++)) {
+                    *currentIndexOutput++ = 0;
                 } else {
-                    lowCardinalityColumn->insertData(pair.first, pair.second);
+                    *currentIndexOutput++ = dictionaryColumn->uniqueInsertData(pair.first, pair.second);
                 }
             });
     }
-    return lowCardinalityColumn;
+
+    return DB::ColumnLowCardinality::create(
+        std::move(dictionaryColumn),
+        DB::MutableColumnPtr(std::move(indexColumn)),
+        /*is_shared*/ false);
 }
 
 } // namespace
@@ -884,9 +916,9 @@ DB::ColumnString::MutablePtr ConvertStringLikeYTColumnToCHColumn(
 DB::MutableColumnPtr ConvertStringLikeYTColumnToLowCardinalityCHColumn(
     const IUnversionedColumnarRowBatch::TColumn& ytColumn,
     TRange<DB::UInt8> filterHint,
-    bool insideOptional)
+    bool isNullable)
 {
-    return ConvertStringLikeYTColumnToLowCardinalityCHColumnImpl(ytColumn, filterHint, insideOptional);
+    return ConvertStringLikeYtColumnToLowCardinalityChColumnImpl(ytColumn, filterHint, isNullable);
 }
 
 DB::MutableColumnPtr ConvertBooleanYTColumnToCHColumn(const IUnversionedColumnarRowBatch::TColumn& ytColumn)
