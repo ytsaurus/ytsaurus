@@ -151,10 +151,12 @@ std::tuple<std::function<IVersionedReaderPtr(int)>, std::vector<TLegacyOwningKey
         });
 
         if (chunkState->ChunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
-            auto blockManagerFactory = NColumnarChunkFormat::CreateSyncBlockWindowManagerFactory(
+            auto blockManagerFactory = NColumnarChunkFormat::CreateAsyncBlockWindowManagerFactory(
+                TChunkReaderConfig::GetDefault(),
+                chunkReader,
                 chunkState->BlockCache,
-                chunkState->ChunkMeta,
-                chunkReader->GetChunkId());
+                /*chunkReadOptions*/ {},
+                cachedVersionedChunkMeta);
 
             return NColumnarChunkFormat::CreateVersionedChunkReader(
                 MakeSingletonRowRange(lowerKey, upperKey),
@@ -682,10 +684,12 @@ std::unique_ptr<IUniversalReader> CreateVersionedUniversalReader(
     IVersionedReaderPtr versionedReader;
 
     if (chunkState->ChunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
-        auto blockManagerFactory = NColumnarChunkFormat::CreateSyncBlockWindowManagerFactory(
+        auto blockManagerFactory = NColumnarChunkFormat::CreateAsyncBlockWindowManagerFactory(
+            TChunkReaderConfig::GetDefault(),
+            chunkReader,
             chunkState->BlockCache,
-            chunkState->ChunkMeta,
-            chunkReader->GetChunkId());
+            /*chunkReadOptions*/ {},
+            cachedVersionedChunkMeta);
         versionedReader = NColumnarChunkFormat::CreateVersionedChunkReader(
             MakeSingletonRowRange(lowerKey, upperKey),
             AllCommittedTimestamp,
