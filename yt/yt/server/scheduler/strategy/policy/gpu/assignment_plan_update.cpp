@@ -119,17 +119,17 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::Run()
     {
         NProfiling::TWallTimer fullHostTimer;
         ProcessFullHostModuleBoundOperations();
-        Context_->Statistics()->FullHostPlanningDuration = fullHostTimer.GetElapsedTime();
+        Context_->GetStatistics()->FullHostPlanningDuration = fullHostTimer.GetElapsedTime();
     }
     {
         NProfiling::TWallTimer regularTimer;
         ProcessRegularOperations();
-        Context_->Statistics()->ReguralPlanningDuration = regularTimer.GetElapsedTime();
+        Context_->GetStatistics()->ReguralPlanningDuration = regularTimer.GetElapsedTime();
     }
     {
         NProfiling::TWallTimer extraTimer;
         ProcessRegularOperationsWithExtraResources();
-        Context_->Statistics()->ExtraPlanningDuration = extraTimer.GetElapsedTime();
+        Context_->GetStatistics()->ExtraPlanningDuration = extraTimer.GetElapsedTime();
     }
 
     DumpModuleStatistics();
@@ -768,7 +768,7 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::PlanAllocationGroup(
         this);
     planner.Run();
 
-    Context_->Statistics()->PlannedAssignments += planner.GetPlannedAssignmentCount();
+    Context_->GetStatistics()->PlannedAssignments += planner.GetPlannedAssignmentCount();
 
     YT_LOG_DEBUG("Finished planning allocation group for operation (PlannedAssignmentCount: %v, AllocationGroup: {Name: %v, Resources: %v}, OperationId: %v)",
         planner.GetPlannedAssignmentCount(),
@@ -805,8 +805,8 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::PlanAllocationGroupWithPreempti
         this);
     planner.Run();
 
-    Context_->Statistics()->PlannedAssignments += planner.GetPlannedAssignmentCount();
-    Context_->Statistics()->PreemptedAssignments += planner.GetPreemptedAssignmentCount();
+    Context_->GetStatistics()->PlannedAssignments += planner.GetPlannedAssignmentCount();
+    Context_->GetStatistics()->PreemptedAssignments += planner.GetPreemptedAssignmentCount();
 
     YT_LOG_DEBUG(
         "Finished planning allocation group for operation with preemption "
@@ -843,7 +843,7 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::PlanPreemptibleAllocationGroup(
         /*preemptible*/ true);
     planner.Run();
 
-    Context_->Statistics()->PlannedAssignments += planner.GetPlannedAssignmentCount();
+    Context_->GetStatistics()->PlannedAssignments += planner.GetPlannedAssignmentCount();
 
     YT_LOG_DEBUG("Finished planning preemptible allocation group for operation (PlannedAssignmentCount: %v, AllocationGroup: {Name: %v, Resources: %v}, OperationId: %v)",
         planner.GetPlannedAssignmentCount(),
@@ -855,7 +855,7 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::PlanPreemptibleAllocationGroup(
 void TGpuAllocationAssignmentPlanUpdateExecutor::DumpModuleStatistics() const
 {
     for (const auto& [module, moduleState] : ModuleStates_) {
-        auto& moduleCounters = Context_->Statistics()->ModuleStatistics[module];
+        auto& moduleCounters = Context_->GetStatistics()->ModuleStatistics[module];
         moduleCounters.TotalNodes = moduleState.GetNodeCount();
         moduleCounters.UnreservedNodes = moduleState.GetUnreservedNodeCount();
         moduleCounters.FullHostModuleBoundOperations = std::ssize(moduleState.FullHostBoundOperations());
