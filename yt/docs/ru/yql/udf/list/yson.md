@@ -300,10 +300,536 @@ SELECT Yson::ConvertToBoolDict($yson, Yson::Options(false as Strict)); --- { "y"
 SELECT Yson::ConvertToDoubleDict($yson, Yson::Options(false as Strict)); --- { "x": 5.5 }
 ```
 
-Если во всём запросе требуется применять одинаковые значения настроек библиотеки Yson, то удобнее воспользоваться [PRAGMA yson.AutoConvert;](../../syntax/pragma/yson.md#ysonautoconvert) и/или [PRAGMA yson.Strict;](../../syntax/pragma/yson.md#ysonstrict). Также эти `PRAGMA` являются единственным способом повлиять на неявные вызовы библиотеки Yson, которые возникают при работе с типами данных Yson/Json.
-<!--
+Если во всём запросе требуется применять одинаковые значения настроек библиотеки Yson, то удобнее воспользоваться [PRAGMA yson.AutoConvert;](../../syntax/pragma/yson.md#autoconvert) и/или [PRAGMA yson.Strict;](../../syntax/pragma/yson.md#strict). Также эти `PRAGMA` являются единственным способом повлиять на неявные вызовы библиотеки Yson, которые возникают при работе с типами данных Yson/Json.
+
+## Yson::Iterate {#ysoniterate}
+
+```yql
+Yson::Iterate(Resource<'Yson2.Node'>{Flags:AutoMap}) -> List<Variant<
+    'BeginAttributes':Void,
+    'BeginList':Void,
+    'BeginMap':Void,
+    'EndAttributes':Void,
+    'EndList':Void,
+    'EndMap':Void,
+    'Item':Void,
+    'Key':String,
+    'PostValue':Resource<'Yson2.Node'>,
+    'PreValue':Resource<'Yson2.Node'>,
+    'Value':Resource<'Yson2.Node'>>>
+```
+
+Доступна начиная с версии [2025.05](../../changelog/2025.05.md#yson-module).
+Получение списка всех событий при обходе Yson-дерева.
+Листовые узлы (`Entity`, `Bool`, `Int64`, `Uint64`, `Double`, `String`) передаются в виде события `Value`.
+
+Для узла с типом `List` выдается такая последовательность:
+* `PreValue` с самим узлом
+* `BeginList`
+* `Item` - перед каждым элементом `List`
+* события для элемента `List`
+* `EndList`
+* `PostValue` с самим узлом
+
+Для узла с типом `Map` выдается такая последовательность:
+* `PreValue` с самим узлом
+* `BeginMap`
+* `Key` - перед каждым элементом `Map`
+* события для элемента `Map`
+* `EndMap`
+* `PostValue` с самим узлом
+Порядок выдачи ключей может быть произвольным.
+
+Для узла с непустыми атрибутами выдается такая последовательность:
+* `PreValue` с самим узлом
+* `BeginAttributes`
+* `Key` - перед каждым именем атрибута
+* события для атрибута
+* `EndAttributes`
+* события для узла без атрибутов
+* `PostValue` с самим узлом
+Порядок выдачи атрибутов может быть произвольным.
+
+#### Примеры
+
+```yql
+-- Просмотр всей выдачи функции Yson::Iterate
+$dump = ($x) -> (
+    (
+        Way($x),
+        $x.Key,
+        Yson::Serialize($x.PreValue),
+        Yson::Serialize($x.Value),
+        Yson::Serialize($x.PostValue)
+    )
+);
+
+SELECT ListMap(Yson::Iterate('{a=1;b=<c="foo">[2u;%true;#;-3.2]}'y), $dump);
+
+/*
+События:
+    PreValue [1]
+    BeginMap
+    Key a
+    Value 1
+    Key b
+    PreValue [2]
+    BeginAttributes
+    Key c
+    Value foo
+    EndAttributes
+    PreValue [3]
+    BeginList
+    Item
+    Value 2
+    Item
+    Value %true
+    Item
+    Value #
+    Item
+    Value -3.2
+    EndList
+    PostValue [3]
+    PostValue [2]
+    EndMap
+    PostValue [1]
+*/
+```
+
+```yql
+-- Получение всех листовых значений - раскрытие всех списков
+$yson = '[[1;2];[3;4]]'y;
+SELECT ListFlatMap(Yson::Iterate($yson), ($x)->(IF($x.Value IS NOT NULL, $x.Value))); -- [1;2;3;4]
+```
+
+```yql
+-- Поиск ключа с заданным именем на любом уровне
+$yson = '{a={b={c=1}};e={f=2}}'y;
+SELECT ListHasItems(ListFilter(Yson::Iterate($yson), ($x)->($x.Key == 'b'))); -- true
+```
+
+```yql
+-- Поиск строки в значениях любом уровне
+$yson = '{a={b={c="x"}};e={f="y"}}'y;
+SELECT ListHasItems(ListFilter(Yson::Iterate($yson), ($x)->(Yson::ConvertToString($x.Value) == 'y'))); -- true
+```
+
+```yql
+-- Получение атрибутов name для всех Map узлов без атрибута children
+$yson = @@{
+    name=foo;
+    children=[
+        {
+            name=bar
+        }
+    ]
+}@@y;
+
+SELECT ListFlatMap(Yson::Iterate($yson), ($x)->(
+    IF(Yson::IsDict($x.PreValue) and not Yson::Contains($x.PreValue,'children'), Yson::LookupString($x.PreValue, 'name')))); -- [bar]
+```
+
+## Yson::As... и Yson::TryAs... {#ysonas}
+
+```yql
+Yson::AsString(Resource<'Yson2.Node'>{Flags:AutoMap}) -> String
+Yson::AsDouble(Resource<'Yson2.Node'>{Flags:AutoMap}) -> Double
+Yson::AsUint64(Resource<'Yson2.Node'>{Flags:AutoMap}) -> Uint64
+Yson::AsInt64(Resource<'Yson2.Node'>{Flags:AutoMap}) -> Int64
+Yson::AsBool(Resource<'Yson2.Node'>{Flags:AutoMap}) -> Bool
+Yson::AsList(Resource<'Yson2.Node'>{Flags:AutoMap}) -> List<Resource<'Yson2.Node'>>
+Yson::AsDict(Resource<'Yson2.Node'>{Flags:AutoMap}) -> Dict<String, Resource<'Yson2.Node'>>
+
+Yson::TryAsString(Resource<'Yson2.Node'>{Flags:AutoMap}) -> String?
+Yson::TryAsDouble(Resource<'Yson2.Node'>{Flags:AutoMap}) -> Double?
+Yson::TryAsUint64(Resource<'Yson2.Node'>{Flags:AutoMap}) -> Uint64?
+Yson::TryAsInt64(Resource<'Yson2.Node'>{Flags:AutoMap}) -> Int64?
+Yson::TryAsBool(Resource<'Yson2.Node'>{Flags:AutoMap}) -> Bool?
+Yson::TryAsList(Resource<'Yson2.Node'>{Flags:AutoMap}) -> List<Resource<'Yson2.Node'>>?
+Yson::TryAsDict(Resource<'Yson2.Node'>{Flags:AutoMap}) -> Dict<String, Resource<'Yson2.Node'>>?
+```
+
+Доступны начиная с версии [2025.05](../../changelog/2025.05.md#yson-module).
+Приводят Yson узел к заданному типу.
+`TryAs*` функции при неверном типе Yson узла возвращают `NULL`, а `As*` функции в этом случае приведут к ошибке запроса.
+Для обработки узла с типом `Entity` ('#') следует использовать функцию [`IsEntity`](#ysonis).
+
+## In-place изменения Yson узлов {#yson-modify}
+
+Начиная с версии [2025.05](../../changelog/2025.05.md#yson-module) появилась возможность работать с изменяемым Yson деревом на базе [linear](../../types/linear.md) типов. Для создания нового дерева используется функция [`MutCreate`](#mutcreate), а для импорта существующего неизменяемого дерева в изменяемую форму - [`Mutate`](#mutate).
+Само построение или трансформацию дерева следует выполнять внутри функции [`Block`](../../builtins/basic.md#block), при этом изменяемое Yson дерево в конечном счете должно быть преобразовано в неизменяемое с помощью функции [`MutFreeze`](#mutfreeze).
+В каждом экземпляре изменяемого Yson дерева есть единственный текущий узел, который можно перемещать, попутно создавая новые узлы при необходимости.
+
+## Yson::MutCreate {#mutcreate}
+
+```yql
+Yson::MutCreate() -> Linear<Resource<Yson2.MutNode>>
+```
+
+Доступна начиная с версии [2025.05](../../changelog/2025.05.md#yson-module).
+Создает новое пустое дерево с единственным узлом в `Invalid` состоянии - с неопределенным типом (значение этого узла можно поменять, например, через функцию [`MutUpsert`](#mutupsert)). При этом текущий узел выставляется на корень дерева.
+
+Т.к. эта функция создает экземпляр linear типа, то она должна использоваться с указанием зависимых узлов через функцию [`Udf`](../../builtins/basic.md#udf).
+
+#### Примеры
+
+```yql
+SELECT Block(($arg)->{
+    $m = Udf(Yson::MutCreate, $arg as Depends)();
+    return Yson::MutFreeze($m); -- Ошибка: Invalid or deleted node is not allowed
+})
+```
+
+```yql
+SELECT Block(($arg)->{
+    $m = Udf(Yson::MutCreate, $arg as Depends)();
+    $m = Yson::MutUpsert($m, '1'y);
+    return Yson::MutFreeze($m); -- 1
+});
+```
+
+## Yson::Mutate {#mutate}
+
+```yql
+Yson::Mutate(Resource<Yson2.Node>) -> Linear<Resource<Yson2.MutNode>>
+```
+
+Доступна начиная с версии [2025.05](../../changelog/2025.05.md#yson-module).
+Создает изменяемое Yson дерево из неизменяемого. При этом текущий узел выставляется на корень дерева.
+
+Т.к. эта функция создает экземпляр linear типа, то она должна использоваться с указанием зависимых узлов через функцию [`Udf`](../../builtins/basic.md#udf).
+
+#### Примеры
+
+```yql
+SELECT Block(($arg)->{
+    $m = Udf(Yson::Mutate, $arg as Depends)('1'y);
+    return Yson::MutFreeze($m); -- 1
+});
+```
+
+## Yson::MutFreeze {#mutfreeze}
+
+```yql
+Yson::MutFreeze(Linear<Resource<Yson2.MutNode>>) -> Resource<Yson2.Node>
+```
+
+Доступна начиная с версии [2025.05](../../changelog/2025.05.md#yson-module).
+Преобразует изменяемое Yson дерево в неизменяемое, при этом удаляются все узлы из словарей и списков в состоянии `Deleted`.
+Корневой узел в изменяемом дереве не должен быть в состоянии `Invalid` или `Deleted`, а дочерние узлы не должны быть в состоянии `Invalid`, иначе преобразование завершится ошибкой.
+
+#### Примеры
+
+```yql
+SELECT Block(($arg)->{
+    $m = Udf(Yson::Mutate, $arg as Depends)('1'y);
+    return Yson::MutFreeze($m); -- 1
+});
+```
+
+```yql
+SELECT Block(($arg)->{
+    $m = Udf(Yson::MutCreate, $arg as Depends)(); -- Корневой узел в состоянии Invalid
+    return Yson::MutFreeze($m); -- Ошибка: Invalid or deleted node is not allowed
+})
+```
+
+```yql
+SELECT Block(($arg)->{
+    $m = Udf(Yson::Mutate, $arg as Depends)('1'y);
+    $m = Yson::MutRemove($m); -- Переводим узел в состояние Deleted
+    return Yson::MutFreeze($m); -- Ошибка: Invalid or deleted node is not allowed
+})
+```
+
+## Yson::MutUpsert {#mutupsert}
+
+```yql
+Yson::MutUpsert(Linear<Resource<Yson2.MutNode>>, Resource<Yson2.MutNode>) -> Linear<Resource<Yson2.MutNode>>
+```
+
+Доступна начиная с версии [2025.05](../../changelog/2025.05.md#yson-module).
+Заменяет текущий узел в изменяемом Yson дереве на заданное Yson поддерево.
+
+#### Примеры
+
+```yql
+SELECT Block(($arg)->{
+    $m = Udf(Yson::Mutate, $arg as Depends)('1'y);
+    $m = Yson::MutUpsert($m, '2'y);
+    return Yson::MutFreeze($m); -- 2
+});
+```
+
+## Yson::MutInsert {#mutinsert}
+
+```yql
+Yson::MutInsert(Linear<Resource<Yson2.MutNode>>, Resource<Yson2.MutNode>) -> Linear<Resource<Yson2.MutNode>>
+```
+
+Доступна начиная с версии [2025.05](../../changelog/2025.05.md#yson-module).
+Заменяет текущий узел в изменяемом Yson дереве на заданное Yson поддерево если текущий узел находится в `Invalid` или `Deleted` состоянии.
+
+#### Примеры
+
+```yql
+SELECT Block(($arg)->{
+    $m = Udf(Yson::MutCreate, $arg as Depends)();
+    $m = Yson::MutInsert($m, '1'y);
+    $m = Yson::MutInsert($m, '2'y); -- не имеет эффекта
+    return Yson::MutFreeze($m); -- 1
+});
+```
+
+## Yson::MutUpdate {#mutupdate}
+
+```yql
+Yson::MutUpdate(Linear<Resource<Yson2.MutNode>>, Resource<Yson2.MutNode>) -> Linear<Resource<Yson2.MutNode>>
+```
+
+Доступна начиная с версии [2025.05](../../changelog/2025.05.md#yson-module).
+Заменяет текущий узел в изменяемом Yson дереве на заданное Yson поддерево если текущий узел не находится в `Invalid` или `Deleted` состоянии.
+
+#### Примеры
+
+```yql
+SELECT Block(($arg)->{
+    $m = Udf(Yson::MutCreate, $arg as Depends)();
+    $m = Yson::MutUpdate($m, '1'y); -- не имеет эффекта
+    $m = Yson::MutInsert($m, '2'y);
+    $m = Yson::MutUpdate($m, '3'y);
+    return Yson::MutFreeze($m); -- 3
+});
+```
+
+## Yson::MutRemove {#mutremove}
+
+```yql
+Yson::MutRemove(Linear<Resource<Yson2.MutNode>>) -> Linear<Resource<Yson2.MutNode>>
+```
+
+Доступна начиная с версии [2025.05](../../changelog/2025.05.md#yson-module).
+Переводит текущий узел в `Deleted` состояние.
+
+#### Примеры
+
+```yql
+SELECT Block(($arg)->{
+    $m = Udf(Yson::Mutate, $arg as Depends)('1'y);
+    $m = Yson::MutRemove($m);
+    $m = Yson::MutInsert($m, '2'y);
+    return Yson::MutFreeze($m); -- 2
+});
+```
+
+## Yson::MutRewind {#mutrewind}
+
+```yql
+Yson::MutRewind(Linear<Resource<Yson2.MutNode>>) -> Linear<Resource<Yson2.MutNode>>
+```
+
+Доступна начиная с версии [2025.05](../../changelog/2025.05.md#yson-module).
+Передвигает текущий узел в корень дерева.
+
+#### Примеры
+
+```yql
+SELECT Block(($arg)->{
+    $m = Udf(Yson::Mutate, $arg as Depends)('{a=1;b=2}'y);
+    $m = Yson::MutDown($m, 'a'); -- переместились к ключу 'a' в словаре
+    $m = Yson::MutRewind($m); -- переместились в корень
+    $m = Yson::MutUpsert($m, '1'y); -- заменили дерево в корне
+    return Yson::MutFreeze($m); -- 1
+});
+```
+
+## Yson::MutUp {#mutup}
+
+```yql
+Yson::MutUp(Linear<Resource<Yson2.MutNode>>) -> Linear<Resource<Yson2.MutNode>>
+```
+
+Доступна начиная с версии [2025.05](../../changelog/2025.05.md#yson-module).
+Передвигает текущий узел на уровень ближе к корню дерева. Если текущий узел уже находится в корне дерева, то генерируется ошибка.
+
+#### Примеры
+
+```yql
+SELECT Block(($arg)->{
+    $m = Udf(Yson::Mutate, $arg as Depends)('{a=1;b=2}'y);
+    $m = Yson::MutDown($m, 'a'); -- переместились к ключу 'a' в словаре
+    $m = Yson::MutUp($m); -- переместились в корень
+    $m = Yson::MutUpsert($m, '1'y); -- заменили дерево в корне
+    return Yson::MutFreeze($m); -- 1
+});
+```
+
+## Yson::MutDown, Yson::MutDownOrCreate, Yson::MutTryDown {#mutdown}
+
+```yql
+Yson::MutDown(Linear<Resource<Yson2.MutNode>>,location:String) -> Linear<Resource<Yson2.MutNode>>
+Yson::MutDownOrCreate(Linear<Resource<Yson2.MutNode>>,location:String) -> Linear<Resource<Yson2.MutNode>>
+Yson::MutTryDown(Linear<Resource<Yson2.MutNode>>,location:String) -> Tuple<Linear<Resource<Yson2.MutNode>>, Bool>
+```
+
+Доступна начиная с версии [2025.05](../../changelog/2025.05.md#yson-module).
+Передвигает текущий узел к элементу словаря или списка, при этом может быть создан новый узел в состоянии `Invalid`.
+
+В строке location используется экранирование символов через обратный слеш `\`.
+Если строка location начинается с символов `<`, `=` или `>`, то за ним должен быть указан индекс списка в формате десятичного числа (начиная с 0), `first` (0-й элемент списка) или `last` (последний элемент списка). Иначе location интерпретируется как ключ в словаре.
+Для пустого списка `first` и `last` описывают положение за концом списка.
+
+Для функции `MutDown` запрещается создавать новые ключи в словарях, в ней можно использовать только модификатор `=` для списков и она генерирует ошибку если перемещение текущего узла невозможно.
+Функция `MutTryDown` в отличии от `MutDown` возвращает `false` во втором элементе кортежа в случае невозможности перемещения.
+Если текущий узел имеет состояние `Invalid` или `Deleted`, то функция `MutDownOrCreate` сначала создает его в виде пустого списка или словаря, в зависимости от вида location.
+Если тип текущего узла (список или словарь) не совпадает с видом location, то `MutDown` и `MutDownOrCreate` выдадут ошибку.
+
+#### Примеры
+
+```yql
+SELECT Block(($arg)->{
+    $m = Udf(Yson::Mutate, $arg as Depends)('{a=1;b=2}'y);
+    $m = Yson::MutDown($m, 'a'); -- переместились к ключу 'a' в словаре
+    $m = Yson::MutUpsert($m, '3'y); -- заменили текущий узел
+    return Yson::MutFreeze($m); -- {a=3;b=2}
+});
+```
+
+```yql
+SELECT Block(($arg)->{
+    $m = Udf(Yson::Mutate, $arg as Depends)('{a=1;b=2}'y);
+    $m = Yson::MutDownOrCreate($m, 'c'); -- переместились к ключу 'c' в словаре - он создан в состоянии Invalid
+    $m = Yson::MutUpsert($m, '3'y); -- заменили текущий узел
+    return Yson::MutFreeze($m); -- {a=1;b=2;c=3}
+});
+```
+
+```yql
+SELECT Block(($arg)->{
+    $m = Udf(Yson::Mutate, $arg as Depends)('{a=1;b=2}'y);
+    $m = Yson::MutDown($m, 'c'); -- переместились к ключу 'c' в словаре, ошибка, т.к. он не существует
+    return Yson::MutFreeze($m);
+});
+```
+
+```yql
+SELECT Block(($arg)->{
+    $m = Udf(Yson::Mutate, $arg as Depends)('{a=1;b=2}'y);
+    $m, $ok = Yson::MutTryDown($m, 'c'); -- пытались переместились к ключу 'c' в словаре, вернули false
+    return (Yson::MutFreeze($m), $ok); -- ({a=1;b=2}, false)
+});
+```
+
+```yql
+SELECT Block(($arg)->{
+    $m = Udf(Yson::Mutate, $arg as Depends)('[1;2]'y);
+    $m = Yson::MutDownOrCreate($m, '>last'); -- добавили узел в конец списка в состоянии Invalid
+    $m = Yson::MutUpsert($m, '3'y); -- заменили текущий узел
+    return Yson::MutFreeze($m); -- [1;2;3]
+});
+```
+
+```yql
+SELECT Block(($arg)->{
+    $m = Udf(Yson::Mutate, $arg as Depends)('[1;2]'y);
+    $m = Yson::MutDownOrCreate($m, '<1'); -- добавили узел перед узлом с индексом 1 (значение '2')
+    $m = Yson::MutUpsert($m, '3'y); -- заменили текущий узел
+    return Yson::MutFreeze($m); -- [1;3;2]
+});
+```
+
+```yql
+SELECT Block(($arg)->{
+    $m = Udf(Yson::Mutate, $arg as Depends)('[1;2]'y);
+    $m = Yson::MutDownOrCreate($m, '<first'); -- добавили узел в начало списка
+    $m = Yson::MutUpsert($m, '3'y); -- заменили текущий узел
+    return Yson::MutFreeze($m); -- [3;1;2]
+});
+```
+
+```yql
+SELECT Block(($arg)->{
+    $m = Udf(Yson::Mutate, $arg as Depends)('[1;2]'y);
+    $m = Yson::MutDown($m, '=last'); -- переместились на последний узел списка
+    $m = Yson::MutUpsert($m, '3'y); -- заменили текущий узел
+    return Yson::MutFreeze($m); -- [1;3]
+});
+```
+
+```yql
+SELECT Block(($arg)->{
+    $m = Udf(Yson::Mutate, $arg as Depends)('[1;2]'y);
+    $m = Yson::MutDownOrCreate($m, 'a'); -- ошибка, текущий узел не словарь
+    return Yson::MutFreeze($m);
+});
+```
+
+```yql
+SELECT Block(($arg)->{
+    $m = Udf(Yson::Mutate, $arg as Depends)('[a=1;b=2]'y);
+    $m = Yson::MutDownOrCreate($m, '=0'); -- ошибка, текущий узел не список
+    return Yson::MutFreeze($m);
+});
+```
+
+## Yson::MutExists {#mutexists}
+
+```yql
+Yson::MutExists(Linear<Resource<Yson2.MutNode>>) -> Tuple<Linear<Resource<Yson2.MutNode>>,Bool>
+```
+
+Доступна начиная с версии [2025.05](../../changelog/2025.05.md#yson-module).
+Проверяет, что текущий узел не находится в состоянии `Invalid` или `Deleted`.
+Само изменяемое дерево при этом не меняется, как и положение текущего узла в нем.
+
+#### Примеры
+
+```yql
+SELECT Block(($arg)->{
+    $m = Udf(Yson::MutCreate, $arg as Depends)();
+    $m, $exists = Yson::MutExists($m); -- текущий узел в состоянии Invalid
+    return LinearDestroy($exists, $m); -- возвращаем значение $exists=false, поглощая linear тип $m
+});
+```
+
+```yql
+SELECT Block(($arg)->{
+    $m = Udf(Yson::Mutate, $arg as Depends)('1'y);
+    $m, $exists = Yson::MutExists($m); -- текущий узел не является Invalid
+    return LinearDestroy($exists, $m); -- возвращаем значение $exists=true, поглощая linear тип $m
+});
+```
+
+## Yson::MutView {#mutview}
+
+```yql
+Yson::MutView(Linear<Resource<Yson2.MutNode>>) -> Tuple<Linear<Resource<Yson2.MutNode>>, Optional<Resource<Yson2.Node>>>
+```
+
+Доступна начиная с версии [2025.05](../../changelog/2025.05.md#yson-module).
+Возвращает неизменяемое Yson дерево начиная с текущего узла, если он не находится в состоянии `Invalid` или `Deleted`, в противном случае возвращает `NULL`.
+Как и в функции `MutFreeze` среди дочерних узлов по отношению к текущему не должно быть узлов в состоянии `Invalid`, а `Deleted` узлы будут пропущены при построении результирующего Yson дерева.
+Само изменяемое дерево при этом не меняется, как и положение текущего узла в нем.
+
+#### Примеры
+
+```yql
+SELECT Block(($arg)->{
+    $m = Udf(Yson::MutCreate, $arg as Depends)();
+    $m, $view = Yson::MutView($m); -- текущий узел в состоянии Invalid
+    return LinearDestroy($view, $m); -- возвращаем значение $view=NULL, поглощая linear тип $m
+});
+```
+
+```yql
+SELECT Block(($arg)->{
+    $m = Udf(Yson::Mutate, $arg as Depends)('1'y);
+    $m, $view = Yson::MutView($m); -- текущий узел не является Invalid
+    return LinearDestroy($view, $m); -- возвращаем значение $view='1'y, поглощая linear тип $m
+});
+```
+
 ## Смотрите также
 
 * [{#T}](../../recipes/accessing-json.md)
 * [{#T}](../../recipes/modifying-json.md)
--->
