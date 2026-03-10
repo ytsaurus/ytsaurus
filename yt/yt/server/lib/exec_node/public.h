@@ -32,7 +32,6 @@ DEFINE_ENUM(ESandboxKind,
     (Cores)
     (Logs)
     (PortoPlace)
-    (RootVolumeOverlay)
 );
 
 DEFINE_ENUM(EJobProxyLoggingMode,
