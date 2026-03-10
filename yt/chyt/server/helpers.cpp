@@ -344,13 +344,7 @@ TQuerySettingsPtr ParseCustomSettings(
                 change.name);
         }
         auto changeName = change.name.substr(/*strlen("chyt.")*/ 5);
-        #ifdef NDEBUG
-        if (changeName.starts_with("testing")) {
-            continue;
-        }
-        #endif
         TYPath ypath = Format("/%v", std::move(changeName));
-
 
         for (auto& character : ypath) {
             if (character == '.') {
