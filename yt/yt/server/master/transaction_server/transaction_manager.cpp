@@ -89,6 +89,8 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
+#include <yt/yt/core/logging/log_manager.h>
+
 #include <yt/yt/core/misc/backoff_strategy.h>
 #include <yt/yt/core/misc/id_generator.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
@@ -150,6 +152,19 @@ public:
         if (transaction->IsSequoiaTransaction()) {
             TraceGuard_.emplace(transaction->GetTraceContext());
             SequoiaGuard_.emplace(bootstrap, transaction->GetId(), transaction->SequoiaWriteSet());
+            MessageTagGuard_.emplace(
+                Format("SequoiaTransactionId: %v, Phase: %v",
+                    transaction->GetId(),
+                    [&] {
+                        auto state = transaction->GetPersistentState();
+                        if (state == ETransactionState::Aborted) {
+                            return "Abort";
+                        } else if (state == ETransactionState::Committed) {
+                            return "Commit";
+                        } else {
+                            return "Prepare";
+                        }
+                    } ()));
         }
     }
 
@@ -157,6 +172,7 @@ private:
     TAuthenticatedUserGuard UserGuard_;
     std::optional<NTracing::TTraceContextGuard> TraceGuard_;
     std::optional<TSequoiaContextGuard> SequoiaGuard_;
+    std::optional<NLogging::TFiberMessageTagGuard> MessageTagGuard_;
 };
 
 } // namespace
