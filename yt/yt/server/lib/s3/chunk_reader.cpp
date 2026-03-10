@@ -85,9 +85,9 @@ public:
         TChunkId chunkId)
         : Client_(std::move(client))
         , Config_(std::move(config))
-        , ChunkId_(std::move(chunkId))
-        , ChunkPlacement_(mediumDescriptor->GetChunkPlacement(ChunkId_))
-        , ChunkMetaPlacement_(mediumDescriptor->GetChunkMetaPlacement(ChunkId_))
+        , ChunkId_(chunkId)
+        , ChunkPlacement_(mediumDescriptor->GetS3ObjectPlacementForChunk(ChunkId_))
+        , ChunkMetaPlacement_(mediumDescriptor->GetS3ObjectPlacementForChunkMeta(ChunkId_))
         , Logger(ChunkClientLogger())
     { }
 
