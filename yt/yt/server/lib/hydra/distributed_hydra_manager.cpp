@@ -3097,6 +3097,7 @@ private:
             futures.push_back(req->Invoke());
         }
 
+        // TODO(babenko): consider replacing with WaitFor
         AllSucceeded(std::move(futures))
             .BlockingGet()
             .ThrowOnError();
