@@ -478,6 +478,31 @@ class TestChunkMerger(YTEnvSetup):
 
         self._abort_chunk_merger_txs()
 
+    @authors("cherepashka")
+    def test_chunk_accounting_on_merge(self):
+        create_account("a")
+        wait(lambda: get("//sys/accounts/a/@resource_usage/chunk_count") == 0)
+        create("table", "//tmp/t1", attributes={"account": "a"})
+        self._remove_merge_quotas("//tmp/t1")
+
+        write_table("<append=true>//tmp/t1", {"a": "b"})
+        write_table("<append=true>//tmp/t1", {"b": "c"})
+        write_table("<append=true>//tmp/t1", {"c": "d"})
+
+        wait(lambda: get("//sys/accounts/a/@resource_usage/chunk_count") == get("//tmp/t1/@chunk_count"))
+
+        copy("//tmp/t1", "//tmp/t2", preserve_account=True)
+        assert get("//tmp/t1/@chunk_ids") == get("//tmp/t2/@chunk_ids")
+        assert get("//tmp/t1/@chunk_count") > 1
+        assert get("//tmp/t2/@chunk_count") > 1
+        assert get("//sys/accounts/a/@resource_usage/chunk_count") == get("//tmp/t1/@chunk_count")
+
+        _wait_for_merge("//tmp/t1", "auto")
+        _wait_for_merge("//tmp/t2", "auto")
+
+        wait(lambda: get("//sys/accounts/a/@resource_usage/chunk_count") == 2)
+        self._abort_chunk_merger_txs()
+
     @authors("aleksandra-zh")
     @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
     def test_copy_merge1(self, merge_mode):
