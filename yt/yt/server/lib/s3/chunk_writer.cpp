@@ -164,7 +164,8 @@ public:
         // NB: It is important to specify an invoker here, so that the callback is not
         // executed synchronously in a thread holding our lock.
         GetStateFuture()
-            .Subscribe(BIND(&TS3MultiPartUploadSession::CancelPendingUploads, MakeWeak(this)).Via(Invoker_));
+            .Subscribe(BIND(&TS3MultiPartUploadSession::CancelPendingUploads, MakeWeak(this))
+            .Via(Invoker_));
 
         YT_VERIFY(Options_.PartSize >= MinMultiPartUploadPartSize);
         YT_VERIFY(Options_.UploadWindowSize > 0);
