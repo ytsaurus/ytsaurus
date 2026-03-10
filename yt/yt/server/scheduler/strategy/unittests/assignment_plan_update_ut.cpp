@@ -144,7 +144,7 @@ public:
         return Nodes_;
     }
 
-    TGpuPlanUpdateStatisticsPtr Statistics() const override
+    const TGpuPlanUpdateStatisticsPtr& GetStatistics() const override
     {
         return GpuPlanUpdateStatistic_;
     }
@@ -153,7 +153,7 @@ private:
     const TOperationMap& Operations_;
     const TNodeMap& Nodes_;
 
-    TGpuPlanUpdateStatisticsPtr GpuPlanUpdateStatistic_;
+    const TGpuPlanUpdateStatisticsPtr GpuPlanUpdateStatistic_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

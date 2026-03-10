@@ -468,7 +468,7 @@ const TNodeMap& TSchedulingPolicy::Nodes() const
     return Nodes_;
 }
 
-TGpuPlanUpdateStatisticsPtr TSchedulingPolicy::Statistics() const
+const TGpuPlanUpdateStatisticsPtr& TSchedulingPolicy::GetStatistics() const
 {
     return Statistics_;
 }

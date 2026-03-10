@@ -80,7 +80,7 @@ struct IAssignmentPlanUpdateContext
         EAllocationPreemptionReason preemptionReason,
         std::string preemptionDescription) = 0;
 
-    virtual TGpuPlanUpdateStatisticsPtr Statistics() const = 0;
+    virtual const TGpuPlanUpdateStatisticsPtr& GetStatistics() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

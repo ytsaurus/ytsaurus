@@ -160,7 +160,7 @@ public:
 
     const TOperationMap& Operations() const override;
     const TNodeMap& Nodes() const override;
-    TGpuPlanUpdateStatisticsPtr Statistics() const override;
+    const TGpuPlanUpdateStatisticsPtr& GetStatistics() const override;
 
 private:
     const TWeakPtr<ISchedulingPolicyHost> Host_;

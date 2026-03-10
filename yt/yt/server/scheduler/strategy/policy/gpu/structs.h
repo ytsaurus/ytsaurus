@@ -179,9 +179,9 @@ DEFINE_REFCOUNTED_TYPE(TNode)
 
 struct TGpuModuleStatistics final
 {
-    int TotalNodes;
-    int UnreservedNodes;
-    int FullHostModuleBoundOperations;
+    int TotalNodes = 0;
+    int UnreservedNodes = 0;
+    int FullHostModuleBoundOperations = 0;
 };
 
 void Serialize(const TGpuModuleStatistics& node, NYson::IYsonConsumer* consumer);
