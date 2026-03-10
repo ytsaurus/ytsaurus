@@ -1,3 +1,5 @@
+INCLUDE(${ARCADIA_ROOT}/contrib/ydb/library/yql/tools/solomon_emulator/recipe/recipe.inc)
+
 PEERDIR(
     kikimr/public/sdk/python/ydb_v3_new_behavior
 
@@ -6,6 +8,8 @@ PEERDIR(
     logbroker/tools/lib/recipe_helpers
 
     yt/yql/tests/common/test_framework
+
+    contrib/ydb/library/yql/tools/solomon_emulator/client
 )
 
 TEST_SRCS(
