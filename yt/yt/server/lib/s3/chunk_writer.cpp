@@ -111,7 +111,7 @@ public:
     bool IsUploadCompleted() const
     {
         auto completionFuture = GetCompletionFuture();
-        return completionFuture.IsSet() && completionFuture.Get().IsOK();
+        return completionFuture.IsSet() && completionFuture.BlockingGet().IsOK();
     }
 
 protected:
@@ -645,7 +645,7 @@ public:
         , Logger(ChunkClientLogger().WithTag("ChunkId: %v", SessionId_.ChunkId))
         , ChunkUploadSession_(New<TS3MultiPartUploadSession>(
             Client_,
-            mediumDescriptor->GetChunkPlacement(SessionId_.ChunkId),
+            mediumDescriptor->GetS3ObjectPlacementForChunk(SessionId_.ChunkId),
             TS3MultiPartUploadSession::TOptions{
                 .PartSize = config->UploadPartSize,
                 .UploadWindowSize = config->UploadWindowSize,
@@ -654,7 +654,7 @@ public:
             Logger))
         , ChunkMetaUploadSession_(New<TS3SimpleUploadSession>(
             Client_,
-            mediumDescriptor->GetChunkMetaPlacement(SessionId_.ChunkId),
+            mediumDescriptor->GetS3ObjectPlacementForChunkMeta(SessionId_.ChunkId),
             TDispatcher::Get()->GetWriterInvoker(),
             Logger))
     { }

@@ -35,7 +35,7 @@ struct TS3TestCase
     int BatchCount = 1;
     int BlockCountInChunk = 10;
     int RequestCountInReadBatch = 10;
-    int BlockInRequest = 2;
+    int BlocksInRequest = 2;
     bool ReadSequentially = true;
 };
 
@@ -212,7 +212,7 @@ TEST_P(TS3ReaderWriterTest, BlobsLayoutOnWrite)
     IChunkWriter::TWriteBlocksOptions writeOptions;
     TWorkloadDescriptor workloadDescriptor;
 
-    S3ChunkWriter_->Open()
+    auto openFutureResult = S3ChunkWriter_->Open()
         .Apply(BIND([&] {
             EXPECT_TRUE(S3ChunkWriter_->WriteBlocks(writeOptions, workloadDescriptor, GeneratedBlocks_));
             return S3ChunkWriter_->GetReadyEvent();
@@ -224,7 +224,9 @@ TEST_P(TS3ReaderWriterTest, BlobsLayoutOnWrite)
             *deferredMeta->mutable_extensions() = {};
             return S3ChunkWriter_->Close({}, {}, deferredMeta);
         }))
-        .Wait(TDuration::Seconds(120));
+        .BlockingWait(TDuration::Seconds(120));
+
+    EXPECT_TRUE(openFutureResult);
 
     {
         auto response = WaitFor(S3Client_->ListBuckets({})).ValueOrThrow();
@@ -248,7 +250,7 @@ TEST_P(TS3ReaderWriterTest, WriteAndReadBlocks)
     TWorkloadDescriptor workloadDescriptor;
 
     NTracing::TTraceContextGuard g(NTracing::TTraceContext::NewRoot("a"));
-    S3ChunkWriter_->Open()
+    auto openFutureResult = S3ChunkWriter_->Open()
         .Apply(BIND([&] {
             EXPECT_TRUE(S3ChunkWriter_->WriteBlocks(writeOptions, workloadDescriptor, GeneratedBlocks_));
             return S3ChunkWriter_->GetReadyEvent();
@@ -260,7 +262,9 @@ TEST_P(TS3ReaderWriterTest, WriteAndReadBlocks)
             *deferredMeta->mutable_extensions() = {};
             return S3ChunkWriter_->Close({}, {}, deferredMeta);
         }))
-        .Wait(TDuration::Seconds(120));
+        .BlockingWait(TDuration::Seconds(120));
+
+    EXPECT_TRUE(openFutureResult);
 
     auto pool = NConcurrency::CreateThreadPool(16, "Worker");
     auto invoker = pool->GetInvoker();
@@ -270,12 +274,12 @@ TEST_P(TS3ReaderWriterTest, WriteAndReadBlocks)
     for (int batchIndex = 0; batchIndex < testCase.BatchCount; ++batchIndex) {
         std::vector<TFuture<std::vector<TBlock>>> readFutures;
 
-        int requestSize = std::max(std::max(testCase.BlockCountInChunk / testCase.RequestCountInReadBatch, 1), testCase.BlockInRequest);
+        int requestSize = std::max(std::max(testCase.BlockCountInChunk / testCase.RequestCountInReadBatch, 1), testCase.BlocksInRequest);
 
         for (int requestIndex = 0; requestIndex < testCase.RequestCountInReadBatch; ++requestIndex) {
             std::vector<int> blockIndicies;
-            int blockInRequestCount = std::max<int>(Generator_.Generate<ui64>() % requestSize, 1);
-            for (int blockIndex = 0; blockIndex < blockInRequestCount; blockIndex++) {
+            int blocksInRequestCount = std::max<int>(Generator_.Generate<ui64>() % requestSize, 1);
+            for (int blockIndex = 0; blockIndex < blocksInRequestCount; blockIndex++) {
                 if (testCase.ReadSequentially) {
                     blockIndicies.push_back((requestIndex + blockIndex) % testCase.BlockCountInChunk);
                 } else {
@@ -320,14 +324,14 @@ INSTANTIATE_TEST_SUITE_P(
             .BatchCount = 16,
             .BlockCountInChunk = 1024,
             .RequestCountInReadBatch = 32,
-            .BlockInRequest = 16,
+            .BlocksInRequest = 16,
             .ReadSequentially = true,
         },
         TS3TestCase{
             .BatchCount = 16,
             .BlockCountInChunk = 1024,
             .RequestCountInReadBatch = 32,
-            .BlockInRequest = 16,
+            .BlocksInRequest = 16,
             .ReadSequentially = false,
         }
     ));
