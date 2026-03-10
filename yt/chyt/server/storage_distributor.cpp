@@ -281,6 +281,101 @@ TClusterNodes GetNodesToDistribute(TQueryContext* queryContext, size_t distribut
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void SetLowCardinalityFromStatistics(
+    std::vector<bool>& lowCardinalityMask,
+    ui64 lowCardinalityThreshold,
+    const std::vector<NTableClient::TColumnarHyperLogLogDigest>& columnHyperLogLogDigests)
+{
+    YT_VERIFY(columnHyperLogLogDigests.size() == lowCardinalityMask.size());
+    for (int i = 0; i < std::ssize(lowCardinalityMask); ++i) {
+        lowCardinalityMask[i] = columnHyperLogLogDigests[i].EstimateCardinality() <= lowCardinalityThreshold;
+    }
+}
+
+void SetStringOnlyLowCardinality(
+    std::vector<bool>& lowCardinalityMask,
+    const std::vector<TColumnSchema>& columns)
+{
+    for (int i = 0; i < std::ssize(lowCardinalityMask); ++i) {
+        auto type = DenullifyLogicalType(columns[i].LogicalType());
+        if (type->GetMetatype() == ELogicalMetatype::Simple) {
+            auto element = type->AsSimpleTypeRef().GetElement();
+            lowCardinalityMask[i] =
+                element == ESimpleLogicalValueType::String ||
+                    element == ESimpleLogicalValueType::Utf8 ||
+                    element == ESimpleLogicalValueType::Json;
+        }
+    }
+}
+
+void SetLowCardinalityFromRegExp(
+    std::vector<bool>& lowCardinalityMask,
+    const std::vector<TColumnSchema>& columns,
+    NRe2::TRe2Ptr columnNameRegExp)
+{
+    for (int i = 0; i < std::ssize(lowCardinalityMask); ++i) {
+        if (columnNameRegExp && NRe2::TRe2::FullMatch(columns[i].Name(), *columnNameRegExp)) {
+            lowCardinalityMask[i] = true;
+        }
+    }
+}
+
+TTableSchemaPtr BuildLowCardinalitySchema(TStorageContext* storageContext, TTableSchemaPtr schema, const std::vector<TTablePtr>& tables)
+{
+    auto settings = storageContext->Settings->Composite;
+
+    const auto& columns = schema->Columns();
+
+    std::vector<bool> mask(columns.size(), settings->LowCardinalityMode == ELowCardinalityMode::All);
+    if (settings->LowCardinalityMode == ELowCardinalityMode::FromStatistics) {
+        std::vector<std::string> columnNames;
+        columnNames.reserve(columns.size());
+        for (const auto& column : columns) {
+            columnNames.push_back(column.Name());
+        }
+
+        auto statistics = FetchStatistics(
+            storageContext,
+            {schema},
+            {tables},
+            columnNames,
+            storageContext->QueryContext->ReadTransactionId);
+        if (statistics.has_value() && statistics->HasLargeStatistics() && !statistics->LargeStatistics.ColumnHyperLogLogDigests.empty()) {
+            SetLowCardinalityFromStatistics(
+                mask,
+                settings->LowCardinalityThreshold,
+                statistics->LargeStatistics.ColumnHyperLogLogDigests);
+        }
+    } else if (settings->LowCardinalityMode == ELowCardinalityMode::StringOnly) {
+        SetStringOnlyLowCardinality(mask, columns);
+    }
+
+    if (settings->LowCardinalityRegExp) {
+        SetLowCardinalityFromRegExp(mask, columns, settings->LowCardinalityRegExp);
+    }
+
+    if (std::none_of(mask.begin(), mask.end(), [] (bool value) { return value; })) {
+        return schema;
+    }
+
+    std::vector<TColumnSchema> modifiedColumns = columns;
+    for (const auto& [columnIndex, isLowCardinality] : Enumerate(mask)) {
+        if (isLowCardinality) {
+            auto lcLogicalType = TaggedLogicalType(LowCardinalityTag, modifiedColumns[columnIndex].LogicalType());
+            modifiedColumns[columnIndex].SetLogicalType(std::move(lcLogicalType));
+        }
+    }
+
+    return New<TTableSchema>(
+        std::move(modifiedColumns),
+        schema->IsStrict(),
+        schema->IsUniqueKeys(),
+        schema->GetSchemaModification(),
+        schema->DeletedColumns());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! This class is extracted for better encapsulation of distributed query call context.
 //! Recall that TStorageDistributor may be reused for several subqueries.
 class TDistributedQueryPreparer
@@ -914,10 +1009,6 @@ public:
         for (const auto& table : Tables_) {
             DistributionSeed_ = CombineHashes(DistributionSeed_, THash<TString>()(table->Path.GetPath()));
         }
-        ColumnAttributes_.reserve(Schema_->GetColumnCount());
-        for (int i = 0; i < Schema_->GetColumnCount(); ++i) {
-            ColumnAttributes_.emplace_back(NYTree::CreateEphemeralAttributes());
-        }
         YT_LOG_DEBUG("Distribution seed generated (DistributionSeed: %v)", DistributionSeed_);
     }
 
@@ -948,17 +1039,12 @@ public:
             settings->LowCardinalityMode = ELowCardinalityMode::None;
             settings->LowCardinalityRegExp = nullptr;
         }
-        if (settings->LowCardinalityMode == ELowCardinalityMode::FromStatistics) {
-            auto statistics = FetchStatistics(storageContext, {Schema_}, {Tables_}, columnNames, QueryContext_->ReadTransactionId);
-            if (statistics.has_value() && statistics->HasLargeStatistics()) {
-                SetLowCardinalityFromStatistics(statistics->LargeStatistics.ColumnHyperLogLogDigests, settings);
-            }
-        } else {
-            SetLowCardinality(settings->LowCardinalityMode);
-        }
-        SetLowCardinalityFromRegExp(settings->LowCardinalityRegExp);
 
-        storageMetadata.setColumns(DB::ColumnsDescription(ToNamesAndTypesList(*Schema_, ColumnAttributes_, settings)));
+        if (settings->LowCardinalityMode != ELowCardinalityMode::None || settings->LowCardinalityRegExp) {
+            Schema_ = BuildLowCardinalitySchema(storageContext, Schema_, Tables_);
+        }
+
+        storageMetadata.setColumns(DB::ColumnsDescription(ToNamesAndTypesList(*Schema_, settings)));
         setInMemoryMetadata(storageMetadata);
     }
 
@@ -1231,15 +1317,17 @@ public:
             THROW_ERROR_EXCEPTION("Overriding dynamic tables is not supported");
         }
 
-        auto dataTypes = ToDataTypes(*Schema_, ColumnAttributes_, QueryContext_->SessionSettings->Composite, /*isReadConversions*/ false);
+        auto dataTypes = ToDataTypes(*Schema_, QueryContext_->SessionSettings->Composite, /*isReadConversions*/ false);
         YT_LOG_DEBUG(
             "Inferred ClickHouse data types from YT schema (Schema: %v, DataTypes: %v)",
             Schema_,
             dataTypes);
 
         // LowCardinality is disabled for write queries to prevent unnecessary transformations.
-        std::for_each(ColumnAttributes_.begin(), ColumnAttributes_.end(), [](const NYTree::IAttributeDictionaryPtr collumnAttribute) {
-            YT_VERIFY(!collumnAttribute->Get<bool>(LowCardinalityAttribute, false));
+        std::for_each(Schema_->Columns().begin(), Schema_->Columns().end(), [](const TColumnSchema& columnSchema) {
+            YT_VERIFY(
+                columnSchema.LogicalType()->GetMetatype() != NTableClient::ELogicalMetatype::Tagged ||
+                    columnSchema.LogicalType()->AsTaggedTypeRef().GetTag() != LowCardinalityTag);
         });
 
         // All sinks are created in InterpreterInsertQuery::buildInsertSelectPipeline before using pipe.
@@ -1278,7 +1366,6 @@ public:
             outputSink = CreateSinkToDynamicTable(
                 path,
                 Schema_,
-                ColumnAttributes_,
                 dataTypes,
                 QueryContext_->SessionSettings->DynamicTable,
                 QueryContext_->SessionSettings->Composite,
@@ -1292,7 +1379,6 @@ public:
             outputSink = CreateSinkToStaticTable(
                 path,
                 Schema_,
-                ColumnAttributes_,
                 dataTypes,
                 QueryContext_->SessionSettings->TableWriter,
                 QueryContext_->SessionSettings->Composite,
@@ -1593,17 +1679,11 @@ public:
         return Schema_;
     }
 
-    std::vector<NYTree::IAttributeDictionaryPtr> GetColumnAttributes() const override
-    {
-        return ColumnAttributes_;
-    }
-
 private:
     DB::ContextWeakPtr WeakContext_;
     TQueryContext* QueryContext_;
     std::vector<TTablePtr> Tables_;
     TTableSchemaPtr Schema_;
-    std::vector<NYTree::IAttributeDictionaryPtr> ColumnAttributes_;
     size_t DistributionSeed_;
     std::vector<std::shared_ptr<IChytIndexStat>> IndexStats_;
     TLogger Logger;
@@ -1644,47 +1724,6 @@ private:
         preparer.PrepareSecondaryQueries();
 
         return preparer;
-    }
-
-    void SetLowCardinalityFromStatistics(const std::vector<NTableClient::TColumnarHyperLogLogDigest>& columnHyperLogLogDigests, const TCompositeSettingsPtr& settings)
-    {
-        YT_VERIFY(columnHyperLogLogDigests.empty() || std::ssize(columnHyperLogLogDigests) == Schema_->GetColumnCount());
-        for (int i = 0; i < Schema_->GetColumnCount(); ++i) {
-            auto estimateCardinality = columnHyperLogLogDigests.empty() ? 0 : columnHyperLogLogDigests[i].EstimateCardinality();
-            ColumnAttributes_[i]->Set<bool>(LowCardinalityAttribute, estimateCardinality <= settings->LowCardinalityThreshold);
-        }
-    }
-
-    void SetLowCardinalityFromRegExp(NRe2::TRe2Ptr lowCardinalityRegExp)
-    {
-        for (int i = 0; i < Schema_->GetColumnCount(); ++i) {
-            if (lowCardinalityRegExp && NRe2::TRe2::FullMatch(Schema_->Columns()[i].Name(), *lowCardinalityRegExp)) {
-                ColumnAttributes_[i]->Set<bool>(LowCardinalityAttribute, true);
-            }
-        }
-    }
-
-    void SetLowCardinality(ELowCardinalityMode mode)
-    {
-        using namespace NTableClient;
-        YT_VERIFY(mode != ELowCardinalityMode::FromStatistics);
-        for (int i = 0; i < Schema_->GetColumnCount(); ++i) {
-            ColumnAttributes_[i]->Set<bool>(LowCardinalityAttribute, mode == ELowCardinalityMode::All ? true : false);
-            if (mode == ELowCardinalityMode::StringOnly) {
-                auto type = Schema_->Columns()[i].LogicalType();
-                if (type->GetMetatype() == ELogicalMetatype::Optional) {
-                    type = type->AsOptionalTypeRef().GetElement();
-                }
-                if (type->GetMetatype() == ELogicalMetatype::Simple) {
-                    auto element = type->AsSimpleTypeRef().GetElement();
-                    if (element == ESimpleLogicalValueType::String ||
-                        element == ESimpleLogicalValueType::Utf8 ||
-                        element == ESimpleLogicalValueType::Json) {
-                        ColumnAttributes_[i]->Set<bool>(LowCardinalityAttribute, true);
-                    }
-                }
-            }
-        }
     }
 
     //! Erase underlying table (assuming that we have single underlying static table)

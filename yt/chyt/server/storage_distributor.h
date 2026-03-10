@@ -25,8 +25,6 @@ struct IStorageDistributor
     virtual std::vector<TTablePtr> GetTables() const = 0;
 
     virtual NTableClient::TTableSchemaPtr GetSchema() const = 0;
-
-    virtual std::vector<NYTree::IAttributeDictionaryPtr> GetColumnAttributes() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

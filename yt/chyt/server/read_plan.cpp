@@ -161,24 +161,19 @@ bool TReadPlanWithFilter::SuitableForTwoStagePrewhere() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReadPlanWithFilterPtr BuildSimpleReadPlan(std::vector<TColumnSchema> columns, std::vector<NYTree::IAttributeDictionaryPtr> columnAttributes)
+TReadPlanWithFilterPtr BuildSimpleReadPlan(std::vector<TColumnSchema> columns)
 {
     std::vector<TReadStepWithFilter> steps;
-    steps.emplace_back(std::move(columns), std::move(columnAttributes));
+    steps.emplace_back(std::move(columns));
     return New<TReadPlanWithFilter>(std::move(steps), /*NeedFilter*/ false);
 }
 
 TReadPlanWithFilterPtr BuildReadPlanWithPrewhere(
     std::vector<TColumnSchema> columns,
-    std::vector<NYTree::IAttributeDictionaryPtr> columnAttributes,
     const DB::PrewhereInfoPtr& prewhereInfo,
     const DB::Settings& settings)
 {
     bool enableMultiplePrewhereReadSteps = settings[DB::Setting::enable_multiple_prewhere_read_steps];
-    YT_VERIFY(columnAttributes.empty() || columns.size() == columnAttributes.size());
-    if (columnAttributes.empty()) {
-        columnAttributes.resize(columns.size(), NYTree::CreateEphemeralAttributes());
-    }
 
     // Do not split conditions with short circuit functions to multiple prewhere steps,
     // because short circuit works only within one step.
@@ -218,7 +213,6 @@ TReadPlanWithFilterPtr BuildReadPlanWithPrewhere(
     for (const auto& step : prewhereActions.steps)
     {
         std::vector<TColumnSchema> stepColumns;
-        std::vector<NYTree::IAttributeDictionaryPtr> stepColumnAttributes;
 
         for (const auto& columnName : step->actions->getRequiredColumns()) {
             if (!columnNamesFromPreviousSteps.contains(columnName)) {
@@ -227,7 +221,6 @@ TReadPlanWithFilterPtr BuildReadPlanWithPrewhere(
                     THROW_ERROR_EXCEPTION("No such column %Qv in read schema", columnName);
                 }
                 stepColumns.push_back(columns[it->second]);
-                stepColumnAttributes.push_back(columnAttributes[it->second]);
                 columnNamesFromPreviousSteps.insert(columnName);
             }
         }
@@ -239,23 +232,20 @@ TReadPlanWithFilterPtr BuildReadPlanWithPrewhere(
         }
 
         auto filterInfo = TFilterInfo{step->actions, step->filter_column_name, step->remove_filter_column};
-        steps.push_back({std::move(stepColumns), std::move(stepColumnAttributes), std::move(filterInfo)});
+        steps.push_back({std::move(stepColumns), std::move(filterInfo)});
 
         needFilter |= step->need_filter;
     }
 
     std::vector<TColumnSchema> remainingColumns;
-    std::vector<NYTree::IAttributeDictionaryPtr> remainingColumnAttributes;
-
-    for (const auto& [column, attributes] : Zip(columns, columnAttributes)) {
+    for (const auto& column : columns) {
         if (!columnNamesFromPreviousSteps.contains(column.Name())) {
             remainingColumns.push_back(column);
-            remainingColumnAttributes.push_back(attributes);
         }
     }
 
     if (!remainingColumns.empty()) {
-        steps.push_back({std::move(remainingColumns), std::move(remainingColumnAttributes), /*FilterInfo*/ std::nullopt});
+        steps.push_back({std::move(remainingColumns), /*FilterInfo*/ std::nullopt});
     }
 
     // Sanity check.
@@ -285,7 +275,7 @@ DB::Block DeriveHeaderBlockFromReadPlan(const TReadPlanWithFilterPtr& readPlan, 
     TBlockWithFilter blockWithFilter(/*rowCount*/ 0);
 
     for (const auto& step : readPlan->Steps) {
-        for (const auto& column : ToHeaderBlock(step.Columns, step.ColumnAttributes, settings)) {
+        for (const auto& column : ToHeaderBlock(step.Columns, settings)) {
             blockWithFilter.Block.insert(column);
         }
         if (step.FilterInfo) {

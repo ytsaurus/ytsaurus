@@ -42,7 +42,6 @@ struct TSubquerySpec
     TString InitialQuery;
     // Does not include virtual columns.
     NTableClient::TTableSchemaPtr ReadSchema;
-    std::vector<NYTree::IAttributeDictionaryPtr> ColumnAttributes;
     int SubqueryIndex;
     int TableIndex;
     NTableClient::TTableReaderConfigPtr TableReaderConfig;

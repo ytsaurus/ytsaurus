@@ -27,7 +27,6 @@ class TYTToCHBlockConverter::TImpl
 public:
     TImpl(
         const std::vector<TColumnSchema>& readColumnSchemas,
-        const std::vector<NYTree::IAttributeDictionaryPtr>& columnAttributes,
         const TNameTablePtr& nameTable,
         const TCompositeSettingsPtr& compositeSettings,
         bool optimizeDistinctRead)
@@ -40,12 +39,10 @@ public:
         DB::ColumnsWithTypeAndName headerColumnTypeAndNames;
         headerColumnTypeAndNames.reserve(columnCount);
 
-        YT_VERIFY(columnAttributes.empty() || readColumnSchemas.size() == columnAttributes.size());
         for (int i = 0; i < std::ssize(readColumnSchemas); ++i) {
             const auto& converter = ColumnConverters_.emplace_back(
                 TComplexTypeFieldDescriptor(readColumnSchemas[i]),
-                compositeSettings,
-                columnAttributes.empty() ? false : columnAttributes[i]->Get<bool>(LowCardinalityAttribute, false));
+                compositeSettings);
                 headerColumnTypeAndNames.emplace_back(converter.GetDataType(), readColumnSchemas[i].Name());
         }
 
@@ -191,11 +188,10 @@ private:
 
 TYTToCHBlockConverter::TYTToCHBlockConverter(
     const std::vector<TColumnSchema>& readColumnSchemas,
-    const std::vector<NYTree::IAttributeDictionaryPtr>& columnAttributes,
     const TNameTablePtr& nameTable,
     const TCompositeSettingsPtr& compositeSettings,
     bool optimizeDistinctRead)
-    : Impl_(std::make_unique<TImpl>(readColumnSchemas, columnAttributes, nameTable, compositeSettings, optimizeDistinctRead))
+    : Impl_(std::make_unique<TImpl>(readColumnSchemas, nameTable, compositeSettings, optimizeDistinctRead))
 { }
 
 TYTToCHBlockConverter::TYTToCHBlockConverter(TYTToCHBlockConverter&& other) = default;

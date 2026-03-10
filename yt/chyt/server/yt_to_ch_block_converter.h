@@ -13,7 +13,6 @@ class TYTToCHBlockConverter
 public:
     TYTToCHBlockConverter(
         const std::vector<NTableClient::TColumnSchema>& columnSchemas,
-        const std::vector<NYTree::IAttributeDictionaryPtr>& columnAttributes,
         const NTableClient::TNameTablePtr& nameTable,
         const TCompositeSettingsPtr& compositeSettings,
         bool optimizeDistinctRead);

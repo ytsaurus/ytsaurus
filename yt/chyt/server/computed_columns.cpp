@@ -329,7 +329,7 @@ private:
             auto* columnSchema = Data_.TableSchema->FindColumn(columnName);
             YT_VERIFY(columnSchema);
             TComplexTypeFieldDescriptor descriptor(*columnSchema);
-            dataTypes.emplace_back(ToDataType(descriptor, Data_.Settings->Composite, /*isLowCardinality*/ false));
+            dataTypes.emplace_back(ToDataType(descriptor, Data_.Settings->Composite));
             columnAsts.emplace_back(std::make_shared<DB::ASTIdentifier>(columnName));
         }
 

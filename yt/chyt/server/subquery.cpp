@@ -166,7 +166,7 @@ public:
                 table->OperandIndex = operandIndex;
                 InputTables_.emplace_back(std::move(table));
             }
-            KeyColumnDataTypes_.push_back(ToDataTypes(*OperandSchemas_[operandIndex]->ToKeys(), {}, StorageContext_->Settings->Composite));
+            KeyColumnDataTypes_.push_back(ToDataTypes(*OperandSchemas_[operandIndex]->ToKeys(), StorageContext_->Settings->Composite));
         }
         if (KeyConditions_.empty()) {
             KeyConditions_.resize(OperandCount_, std::nullopt);

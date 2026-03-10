@@ -1329,11 +1329,11 @@ private:
 class TYTToCHColumnConverter::TImpl
 {
 public:
-    TImpl(TComplexTypeFieldDescriptor descriptor, TCompositeSettingsPtr settings, bool isLowCardinality, bool isReadConversions)
+    TImpl(TComplexTypeFieldDescriptor descriptor, TCompositeSettingsPtr settings, bool isReadConversions)
         : Descriptor_(std::move(descriptor))
         , Settings_(std::move(settings))
         , IsReadConversions_(isReadConversions)
-        , RootConverter_(CreateConverter(Descriptor_, isLowCardinality, /*isOutermost*/ true))
+        , RootConverter_(CreateConverter(Descriptor_, /*isOutermost*/ true))
     { }
 
     void InitColumn()
@@ -1682,13 +1682,8 @@ private:
         return std::make_unique<TNothingConverter>();
     }
 
-    IConverterPtr CreateConverter(const TComplexTypeFieldDescriptor& descriptor, bool isLowCardinality = false, bool isOutermost = false)
+    IConverterPtr CreateConverter(const TComplexTypeFieldDescriptor& descriptor, bool isOutermost = false)
     {
-        if (isLowCardinality) {
-            if (auto converter = CreateLowCardinalityConverter(descriptor)) {
-                return converter;
-            }
-        }
         const auto& type = descriptor.GetType();
         if (type->GetMetatype() == ELogicalMetatype::Simple) {
             const auto& simpleType = type->AsSimpleTypeRef();
@@ -1716,6 +1711,12 @@ private:
             return CreateStructConverter(descriptor);
         } else if (type->GetMetatype() == ELogicalMetatype::Decimal) {
             return CreateDecimalConverter(descriptor);
+        } else if (type->GetMetatype() == ELogicalMetatype::Tagged && type->AsTaggedTypeRef().GetTag() == LowCardinalityTag) {
+            auto innerDescriptor = descriptor.Detag();
+            if (auto converter = CreateLowCardinalityConverter(innerDescriptor)) {
+                return converter;
+            }
+            return CreateConverter(innerDescriptor, isOutermost);
         } else {
             ValidateReadOnly(descriptor);
             // Perform fallback to raw yson.
@@ -1729,9 +1730,8 @@ private:
 TYTToCHColumnConverter::TYTToCHColumnConverter(
     TComplexTypeFieldDescriptor descriptor,
     TCompositeSettingsPtr settings,
-    bool isLowCardinality,
     bool isReadConversions)
-    : Impl_(std::make_unique<TImpl>(std::move(descriptor), std::move(settings), isLowCardinality, isReadConversions))
+    : Impl_(std::make_unique<TImpl>(std::move(descriptor), std::move(settings), isReadConversions))
 { }
 
 void TYTToCHColumnConverter::InitColumn()
