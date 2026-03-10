@@ -27,41 +27,40 @@ static const TLogger Logger("Conversion");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::DataTypePtr ToDataType(const TComplexTypeFieldDescriptor& descriptor, const TCompositeSettingsPtr& settings, bool isLowCardinality, bool isReadConversions)
+DB::DataTypePtr ToDataType(const TComplexTypeFieldDescriptor& descriptor, const TCompositeSettingsPtr& settings, bool isReadConversions)
 {
-    TYTToCHColumnConverter converter(descriptor, settings, isLowCardinality, isReadConversions);
+    TYTToCHColumnConverter converter(descriptor, settings, isReadConversions);
     return converter.GetDataType();
 }
 
-DB::DataTypePtr ToDataType(const TColumnSchema& columnSchema, const TCompositeSettingsPtr& settings, bool isLowCardinality, bool isReadConversions)
+DB::DataTypePtr ToDataType(const TColumnSchema& columnSchema, const TCompositeSettingsPtr& settings, bool isReadConversions)
 {
     TComplexTypeFieldDescriptor descriptor(columnSchema);
-    TYTToCHColumnConverter converter(descriptor, settings, isLowCardinality, isReadConversions);
+    TYTToCHColumnConverter converter(descriptor, settings, isReadConversions);
     return converter.GetDataType();
 }
 
-DB::DataTypes ToDataTypes(const std::vector<TColumnSchema>& schemas, const std::vector<NYTree::IAttributeDictionaryPtr>& columnAttributes, const TCompositeSettingsPtr& settings, bool isReadConversions)
+DB::DataTypes ToDataTypes(const std::vector<TColumnSchema>& schemas, const TCompositeSettingsPtr& settings, bool isReadConversions)
 {
     DB::DataTypes result;
     result.reserve(ssize(schemas));
 
     for (int i = 0; i < std::ssize(schemas); ++i) {
         const auto& column = schemas[i];
-        bool isLowCardinality = columnAttributes.empty() ? false : columnAttributes[i]->Get<bool>(LowCardinalityAttribute, false);
-        result.emplace_back(ToDataType(column, settings, isLowCardinality, isReadConversions));
+        result.emplace_back(ToDataType(column, settings, isReadConversions));
     }
 
     return result;
 }
 
-DB::DataTypes ToDataTypes(const TTableSchema& schema, const std::vector<NYTree::IAttributeDictionaryPtr>& columnAttributes, const TCompositeSettingsPtr& settings, bool isReadConversions)
+DB::DataTypes ToDataTypes(const TTableSchema& schema, const TCompositeSettingsPtr& settings, bool isReadConversions)
 {
-    return ToDataTypes(schema.Columns(), columnAttributes, settings, isReadConversions);
+    return ToDataTypes(schema.Columns(), settings, isReadConversions);
 }
 
-DB::NamesAndTypesList ToNamesAndTypesList(const std::vector<TColumnSchema>& schemas, const std::vector<NYTree::IAttributeDictionaryPtr>& columnAttributes, const TCompositeSettingsPtr& settings)
+DB::NamesAndTypesList ToNamesAndTypesList(const std::vector<TColumnSchema>& schemas, const TCompositeSettingsPtr& settings)
 {
-    const auto& dataTypes = ToDataTypes(schemas, columnAttributes, settings);
+    const auto& dataTypes = ToDataTypes(schemas, settings);
 
     DB::NamesAndTypesList result;
 
@@ -72,16 +71,16 @@ DB::NamesAndTypesList ToNamesAndTypesList(const std::vector<TColumnSchema>& sche
     return result;
 }
 
-DB::NamesAndTypesList ToNamesAndTypesList(const TTableSchema& schema, const std::vector<NYTree::IAttributeDictionaryPtr>& columnAttributes, const TCompositeSettingsPtr& settings)
+DB::NamesAndTypesList ToNamesAndTypesList(const TTableSchema& schema, const TCompositeSettingsPtr& settings)
 {
-    return ToNamesAndTypesList(schema.Columns(), columnAttributes, settings);
+    return ToNamesAndTypesList(schema.Columns(), settings);
 }
 
-DB::Block ToHeaderBlock(const std::vector<TColumnSchema>& schemas, const std::vector<NYTree::IAttributeDictionaryPtr>& columnAttributes, const TCompositeSettingsPtr &settings)
+DB::Block ToHeaderBlock(const std::vector<TColumnSchema>& schemas, const TCompositeSettingsPtr &settings)
 {
     DB::Block headerBlock;
 
-    auto namesAndTypesList = ToNamesAndTypesList(schemas, columnAttributes, settings);
+    auto namesAndTypesList = ToNamesAndTypesList(schemas, settings);
 
     for (const auto& nameAndTypePair : namesAndTypesList) {
         auto column = nameAndTypePair.type->createColumn();
@@ -91,9 +90,9 @@ DB::Block ToHeaderBlock(const std::vector<TColumnSchema>& schemas, const std::ve
     return headerBlock;
 }
 
-DB::Block ToHeaderBlock(const TTableSchema& schema, const std::vector<NYTree::IAttributeDictionaryPtr>& columnAttributes, const TCompositeSettingsPtr& settings)
+DB::Block ToHeaderBlock(const TTableSchema& schema, const TCompositeSettingsPtr& settings)
 {
-    return ToHeaderBlock(schema.Columns(), columnAttributes, settings);
+    return ToHeaderBlock(schema.Columns(), settings);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -173,7 +172,7 @@ DB::Field ToField(
     const NTableClient::TLogicalTypePtr& type)
 {
     auto settings = New<TCompositeSettings>();
-    TYTToCHColumnConverter convertor(TComplexTypeFieldDescriptor(type), settings, /*isLowCardinality*/ false);
+    TYTToCHColumnConverter convertor(TComplexTypeFieldDescriptor(type), settings);
     convertor.InitColumn();
     convertor.ConsumeUnversionedValues(TRange(&value, 1));
     auto resultColumn = convertor.FlushColumn();

@@ -832,7 +832,6 @@ public:
 
     TLogicalTypePtr GetLogicalType() const override
     {
-        // TODO(dakovalkov): Wrap it within a 'tagged' type and support more efficient reading for such columns.
         return UnderlyingConverter_->GetLogicalType();
     }
 

@@ -2683,9 +2683,14 @@ class TestClickHouseNoCache(ClickHouseTestBase):
 
 
 class TestDataTypeConversion(ClickHouseTestBase):
-    def make_query_and_check_low_cardinality(self, clique, query, settings, expected_result):
+    def make_query_and_check_low_cardinality(self, clique, query, expected_result, exact_match=True, settings=None):
         result = clique.make_query(query, settings=settings, full_response=True)
-        assert result.json()["data"] == expected_result
+
+        if exact_match:
+            assert result.json()["data"] == expected_result
+        else:
+            assert_items_equal(result.json()["data"], expected_result)
+
         for col in result.json()["meta"]:
             assert col["type"].startswith("LowCardinality")
 
@@ -2758,14 +2763,14 @@ class TestDataTypeConversion(ClickHouseTestBase):
                 "chyt.composite.low_cardinality_mode": "all",
             }
 
-            self.make_query_and_check_low_cardinality(clique, 'select * from "//tmp/t"', settings, data)
-            self.make_query_and_check_low_cardinality(clique, 'select * from "//tmp/t" prewhere uint8_column = 1', settings, [get_row(1)])
+            self.make_query_and_check_low_cardinality(clique, 'select * from "//tmp/t"', data, settings=settings)
+            self.make_query_and_check_low_cardinality(clique, 'select * from "//tmp/t" prewhere uint8_column = 1', [get_row(1)], settings=settings)
 
             clique.make_query("insert into `//tmp/t0` select * from `//tmp/t`", settings=settings)
-            self.make_query_and_check_low_cardinality(clique, 'select * from "//tmp/t0"', settings, data)
+            self.make_query_and_check_low_cardinality(clique, 'select * from "//tmp/t0"', data, settings=settings)
 
             clique.make_query("create table `//tmp/t_ch` engine=YtTable() as select * from `//tmp/t`", settings=settings)
-            self.make_query_and_check_low_cardinality(clique, 'select * from "//tmp/t_ch"', settings, data)
+            self.make_query_and_check_low_cardinality(clique, 'select * from "//tmp/t_ch"', data, settings=settings)
 
             arr = []
             for _ in range(1000):
@@ -2778,7 +2783,7 @@ class TestDataTypeConversion(ClickHouseTestBase):
                 arr.append({"a": None, "b": None})
 
             write_table("//tmp/rle_encoded", arr)
-            self.make_query_and_check_low_cardinality(clique, 'select * from "//tmp/rle_encoded"', settings, arr)
+            self.make_query_and_check_low_cardinality(clique, 'select * from "//tmp/rle_encoded"', arr, settings=settings)
             result = clique.make_query('select uniq(*) from "//tmp/rle_encoded"', settings=settings)
             assert result == [{"uniq(a, b)": 2}]
 
@@ -2789,7 +2794,7 @@ class TestDataTypeConversion(ClickHouseTestBase):
                 arr.append({"a": None, "b": None})
 
             write_table("//tmp/dict_encoded", arr)
-            self.make_query_and_check_low_cardinality(clique, 'select * from "//tmp/dict_encoded"', settings, arr)
+            self.make_query_and_check_low_cardinality(clique, 'select * from "//tmp/dict_encoded"', arr, settings=settings)
 
             result = clique.make_query('select uniq(*) from "//tmp/dict_encoded"', settings=settings)
             assert result == [{"uniq(a, b)": 2}]
@@ -2803,7 +2808,7 @@ class TestDataTypeConversion(ClickHouseTestBase):
 
             settings["chyt.execution.enable_distinct_read_optimization"] = 1
             write_table("//tmp/dict_encoded", arr)
-            self.make_query_and_check_low_cardinality(clique, 'select * from "//tmp/dict_encoded"', settings, arr)
+            self.make_query_and_check_low_cardinality(clique, 'select * from "//tmp/dict_encoded"', arr, settings=settings)
 
             result = clique.make_query('select distinct a from "//tmp/dict_encoded"', settings=settings)
             assert result == [{"a": None}]
@@ -2815,8 +2820,8 @@ class TestDataTypeConversion(ClickHouseTestBase):
             self.make_query_and_check_low_cardinality(
                 clique,
                 'select * from "//tmp/t1" as t1 inner join (select * from "//tmp/t2") as t2 on t1.a != t2.a',
-                settings,
                 [{"a": "a", "b": "b", "t2.a": "b", "t2.b": "a"}],
+                settings=settings
             )
 
             result = clique.make_query('describe table "//tmp/t"', settings=settings)
@@ -3025,6 +3030,32 @@ class TestDataTypeConversion(ClickHouseTestBase):
 
             assert agg_result["str_hash"] == expected_str_hash
             assert agg_result["str_req_hash"] == expected_str_req_hash
+
+    @authors("buyval01")
+    def test_key_condition_with_lc_types(self):
+        create("table", "//tmp/t", attributes={
+            "schema": [
+                {"name": "a", "type": "int64", "sort_order": "ascending", "required": True}
+            ]
+        })
+        for i in range(3):
+            data = 5 * [{"a": 3 * i}] + 5 * [{"a": 3 * i + 1}] + 5 * [{"a": 3 * i + 2}]
+            write_table("<append=%true>//tmp/t", data)
+
+        with Clique(1, config_patch=self.low_cardinality_config("all")) as clique:
+            self.make_query_and_check_low_cardinality(
+                clique,
+                "select * from '//tmp/t' where a > 2",
+                5 * [{"a": 3 + i} for i in range(6)],
+                exact_match=False
+            )
+
+            self.make_query_and_check_low_cardinality(
+                clique,
+                "select * from '//tmp/t' where CAST(a as Int8) = 7",
+                5 * [{"a": 7}],
+                exact_match=False
+            )
 
 
 class TestCustomSettings(ClickHouseTestBase):

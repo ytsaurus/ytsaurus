@@ -52,8 +52,6 @@ DEFINE_ENUM(ELowCardinalityMode,
     (All)
 );
 
-constexpr std::string_view LowCardinalityAttribute = "low_cardinality";
-
 extern const std::string CacheUserName;
 extern const std::string ChytSqlObjectsUserName;
 extern const std::string InternalRemoteUserName;
@@ -62,6 +60,8 @@ extern const std::string InternalRemoteUserName;
 extern const std::vector<std::string> TableAttributesToFetch;
 extern const std::string TableSchemaAttribute;
 extern const std::string TableSchemaIdAttribute;
+
+extern const TString LowCardinalityTag;
 
 ////////////////////////////////////////////////////////////////////////////////
 

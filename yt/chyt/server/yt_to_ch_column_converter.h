@@ -37,7 +37,6 @@ public:
     TYTToCHColumnConverter(
         NTableClient::TComplexTypeFieldDescriptor descriptor,
         TCompositeSettingsPtr settings,
-        bool isLowCardinality,
         bool isReadConversion = true);
 
     TYTToCHColumnConverter(TYTToCHColumnConverter&& other);

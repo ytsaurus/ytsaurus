@@ -23,6 +23,8 @@ const std::vector<std::string> TableAttributesToFetch{
 const std::string TableSchemaAttribute("schema");
 const std::string TableSchemaIdAttribute("schema_id");
 
+const TString LowCardinalityTag("$low_cardinality");
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClickHouseServer
