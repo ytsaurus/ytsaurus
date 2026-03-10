@@ -24,6 +24,8 @@
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 
+#include <yt/yt/ytlib/tablet_balancer_client/balancing_request.h>
+
 #include <yt/yt/ytlib/tablet_client/pivot_keys_picker.h>
 
 #include <yt/yt/core/concurrency/thread_pool.h>
@@ -43,6 +45,7 @@ using namespace NApi;
 using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NProfiling;
+using namespace NTabletBalancerClient;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTracing;
@@ -181,6 +184,9 @@ public:
     void OnDynamicConfigChanged(
         const TTabletBalancerDynamicConfigPtr& oldConfig,
         const TTabletBalancerDynamicConfigPtr& newConfig) override;
+
+    void RequestBalancing(
+        const TBalancingRequest& balancingRequest) override;
 
 private:
     using TTabletBalancerPtr = TIntrusivePtr<TTabletBalancer>;
@@ -1096,6 +1102,12 @@ void TTabletBalancer::OnDynamicConfigChanged(
         ConvertToYsonString(newConfig, EYsonFormat::Text));
 }
 
+void TTabletBalancer::RequestBalancing(
+    const TBalancingRequest& /*balancingRequest*/)
+{
+    // TODO(dave11ar): Add logic.
+}
+
 bool TTabletBalancer::AreBundlesHealthy(int unhealthyBundleLimit) const
 {
     YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
@@ -1198,9 +1210,7 @@ bool TTabletBalancer::DidBundleBalancingTimeHappen(
     try {
         if (Config_->Period >= MinBalanceFrequency) {
             TInstant timePoint;
-            if (auto previousIterationStartTime = GetPreviousIterationStartTime(groupTag);
-                previousIterationStartTime)
-            {
+            if (auto previousIterationStartTime = GetPreviousIterationStartTime(groupTag)) {
                 timePoint = previousIterationStartTime + MinBalanceFrequency;
             } else {
                 // First balance of this group in this instance
@@ -1209,16 +1219,12 @@ bool TTabletBalancer::DidBundleBalancingTimeHappen(
                 timePoint = FirstIterationStartTime_;
             }
 
-            if (timePoint > CurrentIterationStartTime_) {
-                return false;
-            }
-
-            while (timePoint <= CurrentIterationStartTime_) {
+            for (; timePoint <= CurrentIterationStartTime_; timePoint += MinBalanceFrequency) {
                 if (formula.IsSatisfiedBy(timePoint)) {
                     return true;
                 }
-                timePoint += MinBalanceFrequency;
             }
+
             return false;
         } else {
             return formula.IsSatisfiedBy(CurrentIterationStartTime_);

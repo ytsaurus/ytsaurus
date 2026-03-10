@@ -1,0 +1,27 @@
+#pragma once
+
+#include <library/cpp/yt/misc/enum.h>
+
+namespace NYT::NTabletBalancerClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NProto {
+
+class TReqRequestBalancing;
+class TRspRequestBalancing;
+
+} // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EBalancingRequestMode,
+    ((Move)    (0))
+    ((Reshard) (1))
+);
+
+struct TBalancingRequest;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NTabletBalancerClient

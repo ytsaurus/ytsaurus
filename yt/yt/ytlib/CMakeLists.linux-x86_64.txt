@@ -32,6 +32,7 @@ get_built_tool_path(
 
 add_subdirectory(discovery_client)
 add_subdirectory(query_tracker_client)
+add_subdirectory(tablet_balancer_client)
 add_subdirectory(distributed_throttler)
 add_subdirectory(unittests)
 add_subdirectory(test_framework)
@@ -107,6 +108,7 @@ target_link_libraries(yt-yt-ytlib PUBLIC
   library-web_assembly-api
   yt-ytlib-discovery_client
   yt-ytlib-query_tracker_client
+  yt-ytlib-tablet_balancer_client
   yt_proto-yt-client
   flow-lib-client
   flow-lib-native_client
@@ -1892,6 +1894,7 @@ target_link_libraries(yt-yt-ytlib.global PUBLIC
   library-web_assembly-api
   yt-ytlib-discovery_client
   yt-ytlib-query_tracker_client
+  yt-ytlib-tablet_balancer_client
   yt_proto-yt-client
   flow-lib-client
   flow-lib-native_client

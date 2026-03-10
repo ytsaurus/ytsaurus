@@ -61,5 +61,6 @@ target_sources(yt-server-tablet_balancer PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/tablet_balancer/table_registry.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/tablet_balancer/tablet_action.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/tablet_balancer/tablet_balancer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/tablet_balancer/tablet_balancer_service.cpp
 )
 
