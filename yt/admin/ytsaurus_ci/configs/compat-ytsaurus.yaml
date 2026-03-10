@@ -19,18 +19,17 @@ main:
     operator: ">=0.25.0 && <=0.27.0"
     chyt: ">=2.16.0"
     strawberry: "0.0.13"
-25.2:
+25.2: &ytsaurus_25_2
   <<: *ytsaurus_24_2_0
   constraints:
     operator: ">=0.25.0"
-    strawberry: "0.0.15"
+    strawberry: ">=0.0.15"
+    chyt: ">=2.17.3"
 25.3:
-  <<: *ytsaurus_24_2_0
+  <<: *ytsaurus_25_2
   constraints:
     operator: ">=0.25.0"
-    strawberry: "0.0.15"
 25.4:
-  <<: *ytsaurus_24_2_0
+  <<: *ytsaurus_25_2
   constraints:
     operator: ">=0.25.0 && main"
-    strawberry: "0.0.15"
