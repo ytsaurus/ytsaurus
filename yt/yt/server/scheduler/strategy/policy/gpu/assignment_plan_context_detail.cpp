@@ -36,9 +36,9 @@ void TAssignmentPlanContextBase::AddPlannedAssignment(
     assignment->Operation->AddPlannedAssignment(assignment, preemptible);
 
     LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::AssignmentAdded)
-            .Item("operation_id").Value(operation->GetId())
-            .Item("node_address").Value(node->Address())
-            .Item("assignment").Value(assignment);
+        .Item("operation_id").Value(operation->GetId())
+        .Item("node_address").Value(node->Address())
+        .Item("assignment").Value(assignment);
 
     YT_LOG_DEBUG("Added assignment (AllocationGroupName: %v, ResourceUsage: %v, NodeAddress: %v,  Preemptible: %v, OperationId: %v)",
         assignment->AllocationGroupName,
@@ -60,9 +60,9 @@ void TAssignmentPlanContextBase::PreemptAssignment(
     assignment->Operation->RemoveAssignment(assignment);
 
     LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::AssignmentPreempted)
-            .Item("assignment").Value(assignment)
-            .Item("reason").Value(preemptionReason)
-            .Item("description").Value(preemptionDescription);
+        .Item("assignment").Value(assignment)
+        .Item("reason").Value(preemptionReason)
+        .Item("description").Value(preemptionDescription);
 
     YT_LOG_DEBUG(
         "Preempted assignment "
