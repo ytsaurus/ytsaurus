@@ -1,6 +1,7 @@
 #include <library/cpp/yt/phdr_cache/phdr_cache.h>
 
 #include <yt/yt/core/concurrency/thread_pool.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/actions/future.h>
 
@@ -43,7 +44,7 @@ int main(int argc, char** argv)
             .AsyncVia(threadPool->GetInvoker())
             .Run());
     }
-    AllSucceeded(asyncResults).BlockingGet();
+    WaitFor(AllSucceeded(asyncResults)).ThrowOnError();
     threadPool->Shutdown();
 
     return 0;

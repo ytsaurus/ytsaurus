@@ -10,6 +10,7 @@
 
 #include <yt/yt/core/concurrency/async_stream.h>
 #include <yt/yt/core/concurrency/async_stream_helpers.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/profiling/timing.h>
 
@@ -138,8 +139,7 @@ void BenchmarkSchemalessWrite(ISchemalessFormatWriterPtr writer)
     {
         YT_VERIFY(writer->Write(rows));
     }
-    writer->Close()
-        .BlockingGet()
+    WaitFor(writer->Close())
         .ThrowOnError();
     Cerr << timer.GetElapsedTime().MicroSeconds() / 1e6 << Endl;
 }
@@ -164,7 +164,7 @@ void BenchmarkWrite(IUnversionedRowsetWriterPtr writer)
     NProfiling::TWallTimer timer;
     {
         YT_VERIFY(writer->Write(rows));
-        YT_VERIFY(writer->Close().BlockingGet().IsOK());
+        YT_VERIFY(WaitFor(writer->Close()).IsOK());
     }
     Cerr << timer.GetElapsedTime().MicroSeconds() / 1e6 << Endl;
 }

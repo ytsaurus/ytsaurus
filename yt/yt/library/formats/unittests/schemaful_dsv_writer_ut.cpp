@@ -221,8 +221,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, MissingValueMode)
         Config_->MissingValueMode = EMissingSchemafulDsvValueMode::Fail;
         CreateStandardWriter();
         EXPECT_EQ(false, Writer_->Write(rows));
-        EXPECT_THROW(Writer_->Close()
-            .BlockingGet()
+        EXPECT_THROW(WaitFor(Writer_->Close())
             .ThrowOnError(), std::exception);
         OutputStream_.Clear();
     }
