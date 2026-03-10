@@ -3452,11 +3452,6 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
             options.TmpfsVolumes.push_back(volumeParams);
         }
 
-        // Place upper directory of overlayfs on requested disk.
-        if (UserJobSpec_->has_disk_request()) {
-            options.SlotPath = GetUserSlot()->GetSlotPath();
-        }
-
         // Do not set space and inode limits if root volume is used.
         if (UserJobSpec_->has_disk_request() && !SandboxNbdRootVolumeData_) {
             if (UserJobSpec_->disk_request().has_disk_space()) {

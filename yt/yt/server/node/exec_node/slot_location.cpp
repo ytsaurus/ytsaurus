@@ -1478,13 +1478,6 @@ TRootDirectoryConfigPtr TSlotLocation::CreateDefaultRootDirectoryConfig(
         /*permissions*/ 0755,
         /*removeIfExists*/ false));
 
-    // Create directory for root volume overlay.
-    config->Directories.push_back(getDirectory(
-        GetSandboxPath(slotIndex, ESandboxKind::RootVolumeOverlay),
-        uid,
-        /*permissions*/ 0777,
-        /*removeIfExists*/ true));
-
     // Create directory that porto uses to create volumes and import layers inside container.
     config->Directories.push_back(getDirectory(
         GetSandboxPath(slotIndex, ESandboxKind::PortoPlace),
