@@ -628,7 +628,7 @@ void TTableLocks::RemoveWriteLock(TLockInfo* lock) {
 }
 
 TTableLocks::TRuntimeLockHolder TTableLocks::AddRuntimeLock(TConstArrayRef<TCell> key) {
-    auto it = RuntimeLocks.find(key);
+    auto it = RuntimeLocks.find(TOwnedCellVec(key));
     if (it == RuntimeLocks.end()) {
         auto res = RuntimeLocks.emplace(
             std::piecewise_construct,
