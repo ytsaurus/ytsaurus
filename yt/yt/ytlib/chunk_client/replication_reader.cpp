@@ -27,6 +27,7 @@
 #include <yt/yt/ytlib/table_client/versioned_offloading_reader.h>
 
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
+#include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 #include <yt/yt/ytlib/node_tracker_client/node_status_directory.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
@@ -332,6 +333,12 @@ private:
     std::atomic<TInstant> LastFailureTime_ = TInstant();
     TCallback<TError(i64, TDuration)> SlownessChecker_;
 
+
+    bool HasActiveNodeDirectorySynchronizer() const
+    {
+        auto nodeDirectorySynchronizer = Client_->GetNativeConnection()->GetNodeDirectorySynchronizer();
+        return nodeDirectorySynchronizer && nodeDirectorySynchronizer->IsStarted();
+    }
 
     bool CanFetchSeedsFromMaster() const
     {
@@ -2889,6 +2896,14 @@ private:
                 }
             }
 
+            // NB(achains): If P2P is enabled but node directory synchronizer is not active,
+            //              we must forcefully request node descriptors (see YT-26951).
+            bool fetchNodeDescriptors = FetchNodeDescriptors_;
+            if (!fetchNodeDescriptors && EnableP2P_ && !reader->HasActiveNodeDirectorySynchronizer()) {
+                YT_LOG_DEBUG("Forcing node descriptor fetch because node directory synchronizer is inactive");
+                fetchNodeDescriptors = true;
+            }
+
             future = RequestBatcher_->GetBlockSet(
                 IRequestBatcher::TRequest{
                     .Address = primaryAddress,
@@ -2899,7 +2914,7 @@ private:
                     .PrimaryPeer = primaryPeer,
                     .BackupPeer = backupPeer,
                     .EnableP2P = EnableP2P_,
-                    .FetchNodeDescriptors = FetchNodeDescriptors_,
+                    .FetchNodeDescriptors = fetchNodeDescriptors,
                 },
                 // If hedging is enabled, then get block batching is not allowed.
                 /*hedgingEnabled*/ hedgingOptions.has_value());

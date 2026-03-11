@@ -166,7 +166,6 @@ public:
     MOCK_METHOD(NHiveClient::TClusterDirectoryPtr, GetClusterDirectory, (), (const, override));
     MOCK_METHOD(const NHiveClient::IClusterDirectorySynchronizerPtr&, GetClusterDirectorySynchronizer, (), (override));
     MOCK_METHOD(const NChunkClient::TMediumDirectorySynchronizerPtr&, GetMediumDirectorySynchronizer, (), (override));
-    MOCK_METHOD(const NNodeTrackerClient::INodeDirectorySynchronizerPtr&, GetNodeDirectorySynchronizer, (), (override));
     MOCK_METHOD(const NChunkClient::IChunkReplicaCachePtr&, GetChunkReplicaCache, (), (override));
     MOCK_METHOD((std::pair<NApi::NNative::IClientPtr, NYPath::TYPath>), GetQueryTrackerStage, (TStringBuf), (override));
     MOCK_METHOD(NRpc::IChannelPtr, GetQueryTrackerChannelOrThrow, (TStringBuf), (override));
@@ -223,6 +222,7 @@ public:
     NSequoiaClient::ISequoiaClientPtr GetSequoiaClient() override;
     const NRpc::IChannelFactoryPtr& GetChannelFactory() override;
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() override;
+    const NNodeTrackerClient::INodeDirectorySynchronizerPtr& GetNodeDirectorySynchronizer() override;
 
     const NRpc::IChannelPtr& GetSchedulerChannel() override;
     const NRpc::IChannelPtr& GetBundleControllerChannel() override;
@@ -256,6 +256,7 @@ private:
     const IInvokerPtr Invoker_;
     const INodeMemoryTrackerPtr NodeMemoryTracker_;
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
+    const NNodeTrackerClient::INodeDirectorySynchronizerPtr NodeDirectorySynchronizer_;
     const NRpc::IChannelPtr SchedulerChannel_;
     const NRpc::IChannelPtr BundleControllerChannel_;
     const NTransactionClient::IClockManagerPtr ClockManager_;
