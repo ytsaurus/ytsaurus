@@ -49,7 +49,7 @@ struct TRowDigestTestParams
     TStoreCompactionHint Hint{Kind};
 };
 
-TDigestFiller CreateDigestFillter(
+TDigestFiller CreateDigestFiller(
     int keyCount,
     int versionCount,
     int versionCountStep,
@@ -105,7 +105,7 @@ INSTANTIATE_TEST_SUITE_P(
         TRowDigestTestParams{
             .MinDataVersions = 1,
             .MaxObsoleteTimestampRatio = FloorWithPrecision(2. / 3, 6),
-            .DigestFiller = CreateDigestFillter(100, 3, 0),
+            .DigestFiller = CreateDigestFiller(100, 3, 0),
             .Hint = CreateHint(
                 EStoreCompactionReason::TtlCleanupExpected,
                 StartDate + TDuration::Days(1) + TDuration::Hours(3)),
@@ -113,7 +113,7 @@ INSTANTIATE_TEST_SUITE_P(
         TRowDigestTestParams{
             .MinDataVersions = 1,
             .MaxObsoleteTimestampRatio = FloorWithPrecision((3725. - 1) / 5050, 6),
-            .DigestFiller = CreateDigestFillter(100, 100, 1),
+            .DigestFiller = CreateDigestFiller(100, 100, 1),
             .Hint = CreateHint(
                 EStoreCompactionReason::TtlCleanupExpected,
                 StartDate + TDuration::Days(1) + TDuration::Hours(51)),
@@ -123,7 +123,7 @@ INSTANTIATE_TEST_SUITE_P(
             .MinDataVersions = 0,
             .MaxDataVersions = 0,
             .MaxObsoleteTimestampRatio = FloorWithPrecision((3775. - 1) / 5050, 6),
-            .DigestFiller = CreateDigestFillter(100, 100, 1),
+            .DigestFiller = CreateDigestFiller(100, 100, 1),
             .Hint = CreateHint(
                 EStoreCompactionReason::TtlCleanupExpected,
                 StartDate + TDuration::Days(1) + TDuration::Hours(50)),
@@ -133,7 +133,7 @@ INSTANTIATE_TEST_SUITE_P(
             .MinDataVersions = 0,
             .MaxDataVersions = 1,
             .MaxObsoleteTimestampRatio = FloorWithPrecision(28. / 30, 6),
-            .DigestFiller = CreateDigestFillter(5, 10, 2),
+            .DigestFiller = CreateDigestFiller(5, 10, 2),
             .Hint = CreateHint(
                 EStoreCompactionReason::TtlCleanupExpected,
                 StartDate + TDuration::Hours(25) + TDuration::Hours(8)),
@@ -143,7 +143,7 @@ INSTANTIATE_TEST_SUITE_P(
             .MinDataVersions = 1,
             .MaxObsoleteTimestampRatio = 0.6,
             .MaxTimestampsPerValue = 8192,
-            .DigestFiller = CreateDigestFillter(2, 16384, 16383),
+            .DigestFiller = CreateDigestFiller(2, 16384, 16383),
             .Hint = CreateHint(
                 EStoreCompactionReason::TooManyTimestamps,
                 StartDate + TDuration::Days(1) + TDuration::Hours(8193)),
@@ -153,7 +153,7 @@ INSTANTIATE_TEST_SUITE_P(
             .MinDataVersions = 1,
             .MaxObsoleteTimestampRatio = 1,
             .MaxTimestampsPerValue = 256,
-            .DigestFiller = CreateDigestFillter(100, 255, 1),
+            .DigestFiller = CreateDigestFiller(100, 255, 1),
             .Hint = CreateHint(EStoreCompactionReason::None),
         }));
 

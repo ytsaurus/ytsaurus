@@ -39,7 +39,7 @@ TCompactionHintConfigChange::TCompactionHintConfigChange(
 
         case NLsm::EStoreCompactionHintKind::VersionedRowDigest:
             OldEnable_ = oldConfig->CompactionHints->RowDigest->EnableNonAggregates && oldConfig->RowMergerType != ERowMergerType::Watermark;
-            NewEnable_ = newConfig->CompactionHints->RowDigest->EnableNonAggregates && newConfig->RowMergerType != ERowMergerType::Watermark;;
+            NewEnable_ = newConfig->CompactionHints->RowDigest->EnableNonAggregates && newConfig->RowMergerType != ERowMergerType::Watermark;
             ConfigChanged_ = !static_cast<TRetentionConfig*>(oldConfig.Get())->IsEqual(*static_cast<TRetentionConfig*>(newConfig.Get())) ||
                 !oldConfig->CompactionHints->RowDigest->AreCompactionSettingsEqual(newConfig->CompactionHints->RowDigest);
             break;
@@ -57,15 +57,15 @@ TCompactionHintConfigChange::TCompactionHintConfigChange(
 {
     switch (kind) {
         case NLsm::EPartitionCompactionHintKind::AggregateVersionedRowDigest:
-            OldEnable_ = oldConfig->CompactionHints->RowDigest->EnableAggregates;
-            NewEnable_ = newConfig->CompactionHints->RowDigest->EnableAggregates;
+            OldEnable_ = oldConfig->CompactionHints->RowDigest->EnableAggregates && oldConfig->RowMergerType != ERowMergerType::Watermark;
+            NewEnable_ = newConfig->CompactionHints->RowDigest->EnableAggregates && newConfig->RowMergerType != ERowMergerType::Watermark;
             ConfigChanged_ = !static_cast<TRetentionConfig*>(oldConfig.Get())->IsEqual(*static_cast<TRetentionConfig*>(newConfig.Get())) ||
                 !oldConfig->CompactionHints->RowDigest->AreCompactionSettingsEqual(newConfig->CompactionHints->RowDigest);
             break;
 
         case NLsm::EPartitionCompactionHintKind::MinHashDigest:
-            OldEnable_ = oldConfig->CompactionHints->MinHashDigest->Enable;
-            NewEnable_ = newConfig->CompactionHints->MinHashDigest->Enable;
+            OldEnable_ = oldConfig->CompactionHints->MinHashDigest->Enable && oldConfig->RowMergerType != ERowMergerType::Watermark;
+            NewEnable_ = newConfig->CompactionHints->MinHashDigest->Enable && newConfig->RowMergerType != ERowMergerType::Watermark;
             ConfigChanged_ = !static_cast<TRetentionConfig*>(oldConfig.Get())->IsEqual(*static_cast<TRetentionConfig*>(newConfig.Get())) ||
                 !oldConfig->CompactionHints->MinHashDigest->AreCompactionSettingsEqual(newConfig->CompactionHints->MinHashDigest);
             break;
@@ -129,16 +129,14 @@ bool DefinitelyHasNoHint(
     TPartition* partition,
     NLsm::EPartitionCompactionHintKind kind)
 {
-    switch (kind) {
-        case NLsm::EPartitionCompactionHintKind::AggregateVersionedRowDigest: {
-            const auto& tableSchema = partition->GetTablet()->GetTableSchema();
-            return !tableSchema->HasAggregateColumns() || tableSchema->HasTtlColumn();
-        }
+    const auto& tableSchema = partition->GetTablet()->GetTableSchema();
 
-        case NLsm::EPartitionCompactionHintKind::MinHashDigest: {
-            const auto& tableSchema = partition->GetTablet()->GetTableSchema();
+    switch (kind) {
+        case NLsm::EPartitionCompactionHintKind::AggregateVersionedRowDigest:
             return tableSchema->HasTtlColumn();
-        }
+
+        case NLsm::EPartitionCompactionHintKind::MinHashDigest:
+            return tableSchema->HasTtlColumn();
 
         default:
             YT_LOG_FATAL("Calling |DefinitelyHasNoHint| of partition compaction hint is not supported (PartitionCompactionHintKind: %v)",

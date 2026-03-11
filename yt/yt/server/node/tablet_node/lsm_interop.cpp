@@ -243,7 +243,10 @@ private:
             lsmTablet->SetOverlappingStoreCount(tablet->GetOverlappingStoreCount());
             lsmTablet->SetEdenOverlappingStoreCount(tablet->GetEdenOverlappingStoreCount());
             lsmTablet->SetCriticalPartitionCount(tablet->GetCriticalPartitionCount());
-            lsmTablet->SetHasTtlColumn(tablet->GetTableSchema()->HasTtlColumn());
+
+            auto tableSchema = tablet->GetTableSchema();
+            lsmTablet->SetHasTtlColumn(tableSchema->HasTtlColumn());
+            lsmTablet->SetHasAggregateColumn(tableSchema->HasAggregateColumns());
         } else {
             for (const auto& [id, store] : tablet->StoreIdMap()) {
                 lsmTablet->Stores().push_back(ScanStore(store, lsmTablet.Get()));

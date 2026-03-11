@@ -8,10 +8,6 @@ namespace NYT::NLsm {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool SubsetContains(ui32 subset, int index);
-
-////////////////////////////////////////////////////////////////////////////////
-
 DEFINE_ENUM_WITH_UNDERLYING_TYPE(EStoreCompactionHintKind, ui8,
     ((None)               (0))
     ((ChunkViewTooNarrow) (1))
@@ -202,17 +198,24 @@ class TPartitionCompactionHint
     class TPartitionCompactionHintRecalculationFinalizer
         : public TCompactionHintRecalculationFinalizerBase
     {
+        // NB(dave11ar): Compaction hints should use this order of stores for calculating prefixes/subsets or stores.
+        // Sorted by min timestamp.
+        DEFINE_BYREF_RO_PROPERTY(std::vector<TStore*>, Stores);
+
     public:
         explicit TPartitionCompactionHintRecalculationFinalizer(TPartition* partition, TPartitionCompactionHint* hint);
 
         ~TPartitionCompactionHintRecalculationFinalizer();
 
-        void TryApplyRecalculation(TInstant timestamp, EStoreCompactionReason reason, ui32 storeSubset);
+        void TryApplyRecalculationByPrefix(TInstant timestamp, EStoreCompactionReason reason, int storePrefixLength);
+        void TryApplyRecalculationBySubset(TInstant timestamp, EStoreCompactionReason reason, ui64 storeSubset);
 
     private:
         TPartition* Partition_;
         TPartitionCompactionHint* Hint_;
-        ui32 StoreSubset_ = 0;
+        ui64 StoreSubset_ = 0;
+
+        bool StoreSubsetContains(int index) const;
 
         std::vector<TStoreId> GetStoreIds() const;
     };

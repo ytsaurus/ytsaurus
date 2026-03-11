@@ -29,13 +29,6 @@ constinit const auto Logger = NTabletNode::TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool SubsetContains(ui32 subset, int index)
-{
-    return (subset & (1u << index)) != 0;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 bool TCompactionHintBase::TCompactionHintRecalculationFinalizerBase::TryApplyRecalculation(
     TInstant timestamp,
     EStoreCompactionReason reason)
@@ -189,32 +182,44 @@ TPartitionCompactionHint::TPartitionCompactionHintRecalculationFinalizer::TParti
     TPartitionCompactionHint* hint)
     : Partition_(partition)
     , Hint_(hint)
-{ }
+{
+    Stores_.reserve(partition->Stores().size());
+    for (const auto& store : partition->Stores()) {
+        Stores_.push_back(store.get());
+    }
+
+    std::sort(Stores_.begin(), Stores_.end(), [] (TStore* lhs, TStore* rhs) {
+        return lhs->GetMinTimestamp() < rhs->GetMinTimestamp();
+    });
+}
 
 TPartitionCompactionHint::TPartitionCompactionHintRecalculationFinalizer::~TPartitionCompactionHintRecalculationFinalizer()
 {
     Hint_->ApplyRecalculation(Timestamp_, Reason_, GetStoreIds());
 }
 
-void TPartitionCompactionHint::TPartitionCompactionHintRecalculationFinalizer::TryApplyRecalculation(
+void TPartitionCompactionHint::TPartitionCompactionHintRecalculationFinalizer::TryApplyRecalculationByPrefix(
     TInstant timestamp,
     EStoreCompactionReason reason,
-    ui32 storeSubset)
+    int storePrefixLength)
 {
-    auto partitionMajorTimestamp = MaxTimestamp;
-    for (const auto& [index, store] : Enumerate(Partition_->Stores())) {
-        if (!SubsetContains(storeSubset, index)) {
-            partitionMajorTimestamp = std::min(partitionMajorTimestamp, store->GetMinTimestamp());
-        }
-    }
+    YT_VERIFY(storePrefixLength < std::numeric_limits<ui64>::digits);
+    TryApplyRecalculationBySubset(timestamp, reason, (1ULL << storePrefixLength) - 1);
+}
 
-    if (timestamp >= TimestampToInstant(partitionMajorTimestamp).first) {
-        return;
-    }
-
+void TPartitionCompactionHint::TPartitionCompactionHintRecalculationFinalizer::TryApplyRecalculationBySubset(
+    TInstant timestamp,
+    EStoreCompactionReason reason,
+    ui64 storeSubset)
+{
     if (TCompactionHintRecalculationFinalizerBase::TryApplyRecalculation(timestamp, reason)) {
         StoreSubset_ = storeSubset;
     }
+}
+
+bool TPartitionCompactionHint::TPartitionCompactionHintRecalculationFinalizer::StoreSubsetContains(int index) const
+{
+    return (StoreSubset_ & (1ULL << index)) != 0;
 }
 
 std::vector<TStoreId> TPartitionCompactionHint::TPartitionCompactionHintRecalculationFinalizer::GetStoreIds() const
@@ -226,7 +231,7 @@ std::vector<TStoreId> TPartitionCompactionHint::TPartitionCompactionHintRecalcul
     std::vector<TStoreId> storeIds;
     storeIds.reserve(std::popcount(StoreSubset_));
     for (ui32 index = 0; index < ssize(Partition_->Stores()); ++index) {
-        if (SubsetContains(StoreSubset_, index)) {
+        if (StoreSubsetContains(index)) {
             storeIds.push_back(Partition_->Stores()[index]->GetId());
         }
     }

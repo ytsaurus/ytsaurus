@@ -58,8 +58,21 @@ DEFINE_REFCOUNTED_TYPE(TRelativeReplicationThrottlerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRowDigestConfig
+struct TPartitionCompactionHintConfig
     : public NYTree::TYsonStruct
+{
+    int MaxStoreCount;
+    int MaxStoreCountForExponentialCalculation;
+
+    REGISTER_YSON_STRUCT(TPartitionCompactionHintConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TRowDigestConfig
+    : public TPartitionCompactionHintConfig
 {
     bool EnableNonAggregates;
     bool EnableAggregates;
@@ -81,7 +94,7 @@ DEFINE_REFCOUNTED_TYPE(TRowDigestConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TMinHashDigestConfig
-    : public NYTree::TYsonStruct
+    : public TPartitionCompactionHintConfig
 {
     bool Enable;
 
