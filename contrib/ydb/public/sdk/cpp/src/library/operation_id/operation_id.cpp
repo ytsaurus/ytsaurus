@@ -75,7 +75,7 @@ std::string ProtoToString(const Ydb::TOperationId& proto) {
         case Ydb::TOperationId::COMPACTION:
             res << "ydb://compaction";
             break;
-	default:
+        default:
             Y_ABORT_UNLESS(false, "unexpected kind");
     }
     // According to protobuf documentation:
