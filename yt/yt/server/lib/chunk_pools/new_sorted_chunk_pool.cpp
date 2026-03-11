@@ -742,6 +742,8 @@ private:
             JobSizeConstraints_->GetForeignSliceDataWeight(),
             /*samplingRate*/ std::nullopt);
 
+        YT_LOG_DEBUG("Initialized constraints (Constraints: %v)", jobSizeConstraints);
+
         auto splitSortedJobOptions = SortedJobOptions_;
         // We do not want to yield during job splitting because it may potentially lead
         // to snapshot creation that will catch pool in inconsistent state.
