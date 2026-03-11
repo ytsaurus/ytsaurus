@@ -2899,9 +2899,6 @@ private:
     using TRecursiveResourceUsageCache = TSyncExpiringCache<TVersionedNodeId, TFuture<TYsonString>>;
     const TIntrusivePtr<TRecursiveResourceUsageCache> RecursiveResourceUsageCache_;
 
-    // COMPAT(danilalexeev): YT-21862.
-    bool DropLegacyCellMapsOnSnapshotLoaded_ = false;
-
     // COMPAT(h0pless): FixSchemaDivergence.
     bool RecalculateSchemas_ = false;
 
@@ -3007,11 +3004,6 @@ private:
         {
             Load(context, NodeIdToGroundUpdateQueueManagerSequenceNumbers_);
             Load(context, GroundUpdateQueueManagerSequenceNumberToNodeIds_);
-        }
-
-        // COMPAT(danilalexeev): YT-21862.
-        if (context.GetVersion() < EMasterReign::DropLegacyCellMap) {
-            DropLegacyCellMapsOnSnapshotLoaded_ = true;
         }
 
         auto normalClustersNeedSchemaRecalculation = context.GetVersion() >= EMasterReign::AddSchemaRevision &&

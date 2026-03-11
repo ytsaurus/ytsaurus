@@ -53,8 +53,6 @@ void TObjectServiceDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("allow_bypass_master_resolve", &TThis::AllowBypassMasterResolve)
         .Default(false);
-    registrar.Parameter("alert_on_mixed_read_write_batch", &TThis::AlertOnMixedReadWriteBatch)
-        .Default(false);
 
     registrar.Parameter("distributed_throttler", &TThis::DistributedThrottler)
         .DefaultNew();

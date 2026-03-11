@@ -447,7 +447,7 @@ private:
                 mutating = mutatingSubrequest;
             }
 
-            if (mutating != mutatingSubrequest && Owner_->GetDynamicConfig()->AlertOnMixedReadWriteBatch) {
+            if (mutating != mutatingSubrequest) {
                 YT_LOG_ALERT("Batch request contains both mutating and non-mutating subrequests");
             }
         }

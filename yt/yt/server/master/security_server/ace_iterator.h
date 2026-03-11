@@ -177,45 +177,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// COMPAT(danilalexeev): YT-27444.
-//! Same as TAceIterator but supports attribute-based access control (ABAC).
-/*!
- *  Essentially, this iterator is parameterized by an optional set of user tags.
- *  It then skips ACEs whose subject tag filter, if any, is not satisfied by
- *  these tags.
- */
-class TTagFilteringAceIterator
-{
-public:
-    using TValue = TAceIterator::TValue;
-
-    TTagFilteringAceIterator(
-        const NObjectServer::IObjectManager* objectManager,
-        NObjectServer::TObject* object,
-        const TBooleanFormulaTags* tags = nullptr,
-        TAcdOverride firstObjectAcdOverride = {});
-
-    //! Constructs an end iterator.
-    TTagFilteringAceIterator() = default;
-
-    TTagFilteringAceIterator& operator++();
-
-    bool operator==(const TTagFilteringAceIterator& rhs) const;
-
-    TValue operator*() const;
-
-    EAceIteratorStopCause GetStopCause() const;
-
-private:
-    bool ShouldAdvance() const;
-
-    void Advance();
-
-    const TBooleanFormulaTags* const Tags_ = nullptr;
-    TAceIterator Underlying_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NSecurityServer
 
