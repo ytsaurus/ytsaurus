@@ -37,6 +37,8 @@ using namespace NYTree;
 
 TQueueConsumerRegistrationManagerProfilingCounters::TQueueConsumerRegistrationManagerProfilingCounters(const TProfiler& profiler)
     : ListAllRegistrationsRequestCount(profiler.Counter("/list_all_registrations_request_count"))
+    , ResolveReplicatedTableReplicaRequestCount(profiler.Counter("/resolve_replicated_table_replica_request_count"))
+    , ResolveReplicatedTableReplicaFailedRequestCount(profiler.Counter("/resolve_replicated_table_replica_failed_request_count"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
