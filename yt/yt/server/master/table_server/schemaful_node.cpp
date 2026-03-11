@@ -8,6 +8,13 @@ namespace NYT::NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ECompatTableSchemaMode,
+    ((Weak)      (0))
+    ((Strong)    (1))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 const NTableClient::TColumnStableNameToConstraintMap& TSchemafulNode::Constraints() const
 {
     static const NTableClient::TColumnStableNameToConstraintMap EmptyColumnStableNameToConstraintMap;
@@ -41,7 +48,12 @@ void TSchemafulNode::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
 
     Load(context, Schema_);
-    Load(context, SchemaMode_);
+    // COMPAT(cherepashka)
+    if (context.GetVersion() < NCellMaster::EMasterReign::ReduceSchemaModeAndOptimizeFor) {
+        SchemaMode_ = CheckedEnumCast<NTableClient::ETableSchemaMode>(Load<ECompatTableSchemaMode>(context));
+    } else {
+        Load(context, SchemaMode_);
+    }
     // COMPAT(theevilbird)
     if (context.GetVersion() >= NCellMaster::EMasterReign::AddSchemaRevision &&
         context.GetVersion() < NCellMaster::EMasterReign::RemoveSchemaRevision) {
