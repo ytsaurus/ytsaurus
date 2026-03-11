@@ -21,17 +21,23 @@ TNodeDirectoryBuilder::TNodeDirectoryBuilder(
     , ProtoDirectory_(protoDirectory)
 { }
 
-void TNodeDirectoryBuilder::Add(TChunkReplica replica)
+void TNodeDirectoryBuilder::Add(TNodeId nodeId)
 {
-    auto nodeId = replica.GetNodeId();
     if (!ListedNodeIds_.insert(nodeId).second) {
         return;
     }
 
-    const auto& descriptor = Directory_->GetDescriptor(replica);
-    auto* item = ProtoDirectory_->add_items();
-    item->set_node_id(ToProto(nodeId));
-    ToProto(item->mutable_node_descriptor(), descriptor);
+    const auto descriptor = Directory_->FindDescriptor(nodeId);
+    if (descriptor) {
+        auto* item = ProtoDirectory_->add_items();
+        item->set_node_id(ToProto(nodeId));
+        ToProto(item->mutable_node_descriptor(), *descriptor);
+    }
+}
+
+void TNodeDirectoryBuilder::Add(TChunkReplica replica)
+{
+    Add(replica.GetNodeId());
 }
 
 void TNodeDirectoryBuilder::Add(const TChunkReplicaList& replicas)

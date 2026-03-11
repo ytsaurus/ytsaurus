@@ -38,6 +38,8 @@
 
 #include <yt/yt/ytlib/chunk_client/proto/data_node_service.pb.h>
 
+#include <yt/yt/ytlib/node_tracker_client/node_directory_builder.h>
+
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/chunk_slice.h>
@@ -259,6 +261,7 @@ public:
 private:
     struct TGetBlockResponseTemplate
     {
+        TChunkId ChunkId;
         IChunkPtr Chunk;
         TWorkloadDescriptor WorkloadDescriptor;
         bool HasCompleteChunk;
@@ -830,6 +833,19 @@ private:
         }
     }
 
+    void FillNodeDirectory(
+        NNodeTrackerClient::NProto::TNodeDirectory* protoDirectory,
+        const std::vector<TP2PSuggestion>& blockPeers)
+    {
+        TNodeDirectoryBuilder nodeDirectoryBuilder(Bootstrap_->GetNodeDirectory(), protoDirectory);
+
+        for (const auto& suggestion : blockPeers) {
+            for (const auto& peer : suggestion.Peers) {
+                nodeDirectoryBuilder.Add(peer);
+            }
+        }
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ProbeChunkSet)
     {
         auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
@@ -916,6 +932,8 @@ private:
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         auto blockIndexes = FromProto<std::vector<int>>(request->block_indexes());
         auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
+        bool enableP2P = request->enable_p2p();
+        bool fetchNodeDescriptors = request->fetch_node_descriptors();
 
         context->SetRequestInfo("ChunkId: %v, Blocks: %v, BlockCount: %v, Workload: %v",
             chunkId,
@@ -961,8 +979,15 @@ private:
 
         SuggestAllyReplicas(context);
 
-        const auto& p2pSnooper = Bootstrap_->GetP2PSnooper();
-        AddBlockPeers(response->mutable_peer_descriptors(), p2pSnooper->OnBlockProbe(chunkId, blockIndexes));
+        if (enableP2P) {
+            const auto& p2pSnooper = Bootstrap_->GetP2PSnooper();
+            auto blockPeers = p2pSnooper->OnBlockProbe(chunkId, blockIndexes);
+
+            AddBlockPeers(response->mutable_peer_descriptors(), blockPeers);
+            if (fetchNodeDescriptors) {
+                FillNodeDirectory(response->mutable_node_directory(), blockPeers);
+            }
+        }
 
         auto cachedBlockSize = 0L;
 
@@ -977,11 +1002,12 @@ private:
         }
 
         context->SetResponseInfo(
-            "HasCompleteChunk: %v, "
+            "ChunkId: %v, HasCompleteChunk: %v, "
             "NetThrottling: %v, NetQueueSize: %v, "
             "DiskThrottling: %v, DiskQueueSize: %v, "
             "PeerDescriptorCount: %v, CachedBlockCount: %v, "
             "CachedBlockSize: %v",
+            chunkId,
             hasCompleteChunk,
             netThrottling.Enabled,
             netThrottling.QueueSize,
@@ -1077,11 +1103,13 @@ private:
             [] (const auto& block) -> bool { return static_cast<bool>(block); });
 
         context->SetResponseInfo(
-            "HasCompleteChunk: %v, "
+            "ChunkId: %v, HasCompleteChunk: %v, "
             "NetThrottling: %v, NetQueueSize: %v, "
             "DiskThrottling: %v, DiskQueueSize: %v, "
             "ThrottledLargeBlock: %v, "
-            "BlocksWithData: %v, BlocksSize: %v",
+            "BlocksWithData: %v, BlocksSize: %v"
+            "DataBytesReadFromDisk: %v, DataBytesReadFromCache: %v",
+            responseTemplate.ChunkId,
             hasCompleteChunk,
             netThrottling,
             responseTemplate.NetQueueSize,
@@ -1089,7 +1117,9 @@ private:
             responseTemplate.DiskQueueSize,
             responseTemplate.ThrottledLargeBlock,
             blocksWithData,
-            blocksSize);
+            blocksSize,
+            chunkReaderStatistics->DataBytesReadFromDisk.load(),
+            chunkReaderStatistics->DataBytesReadFromCache.load());
 
         if (blocksSize == 0) {
             return VoidFuture;
@@ -1125,8 +1155,9 @@ private:
 
                     // Override response info.
                     context->SetResponseInfo(
-                        "HasCompleteChunk: %v,"
+                        "ChunkId: %v, HasCompleteChunk: %v,"
                         "NetThrottling: %v",
+                        responseTemplate.ChunkId,
                         hasCompleteChunk,
                         true);
                 }
@@ -1192,6 +1223,8 @@ private:
         bool populateCache = request->populate_cache();
         bool fetchFromCache = request->fetch_from_cache();
         bool fetchFromDisk = request->fetch_from_disk();
+        bool enableP2P = request->enable_p2p();
+        bool fetchNodeDescriptors = request->fetch_node_descriptors();
 
         context->SetRequestInfo(
             "ChunkId: %v, Blocks: %v, "
@@ -1250,7 +1283,7 @@ private:
                     fetchFromDisk && !netThrottling.Enabled && !diskThrottling.Enabled,
                     chunkReaderStatistics);
 
-                if (!chunk && options.FetchFromCache) {
+                if (!chunk && options.FetchFromCache && enableP2P) {
                     readFromP2P = true;
 
                     auto blocks = Bootstrap_->GetP2PBlockCache()->LookupBlocks(chunkId, blockIndexes);
@@ -1291,21 +1324,28 @@ private:
             auto readFromP2P = result.ReadFromP2P;
             auto& blocks = result.Blocks;
 
-            // NB: P2P manager might steal blocks and assign null values.
-            const auto& p2pSnooper = Bootstrap_->GetP2PSnooper();
             bool throttledLargeBlock = false;
-            auto blockPeers = p2pSnooper->OnBlockRead(
-                chunkId,
-                blockIndexes,
-                &blocks,
-                &throttledLargeBlock,
-                readFromP2P);
-            AddBlockPeers(response->mutable_peer_descriptors(), blockPeers);
+
+            if (enableP2P) {
+                // NB: P2P manager might steal blocks and assign null values.
+                const auto& p2pSnooper = Bootstrap_->GetP2PSnooper();
+                auto blockPeers = p2pSnooper->OnBlockRead(
+                    chunkId,
+                    blockIndexes,
+                    &blocks,
+                    &throttledLargeBlock,
+                    readFromP2P);
+                AddBlockPeers(response->mutable_peer_descriptors(), blockPeers);
+                if (fetchNodeDescriptors) {
+                    FillNodeDirectory(response->mutable_node_directory(), blockPeers);
+                }
+            }
 
             return PrepareGetBlocksResponse(
                 context,
                 response,
                 TGetBlockResponseTemplate{
+                    .ChunkId = chunkId,
                     .Chunk = chunk,
                     .WorkloadDescriptor = workloadDescriptor,
                     .HasCompleteChunk = hasCompleteChunk,
@@ -1383,6 +1423,7 @@ private:
                 context,
                 response,
                 TGetBlockResponseTemplate{
+                    .ChunkId = chunkId,
                     .Chunk = chunk,
                     .WorkloadDescriptor = workloadDescriptor,
                     .HasCompleteChunk = hasCompleteChunk,

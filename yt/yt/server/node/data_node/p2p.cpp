@@ -367,6 +367,7 @@ std::vector<TP2PSuggestion> TP2PSnooper::OnBlockRead(
             ThrottledBytes_.Increment((*blocks)[i].Size());
             ThrottledLargeBlockBytes_.Increment((*blocks)[i].Size());
             (*blocks)[i] = {};
+            YT_LOG_DEBUG("Skipping hot large block (ChunkId: %v, BlockIndex: %v)", chunkId, blockIndices[i]);
 
             if (throttledLargeBlock) {
                 *throttledLargeBlock = true;
@@ -440,6 +441,7 @@ std::vector<TP2PSuggestion> TP2PSnooper::OnBlockRead(
 
             ThrottledBytes_.Increment((*blocks)[i].Size());
             (*blocks)[i] = {};
+            YT_LOG_DEBUG("Skipping hot block (ChunkId: %v, BlockIndex: %v)", chunkId, blockIndices[i]);
         }
 
         if (!blockPeers.empty()) {
