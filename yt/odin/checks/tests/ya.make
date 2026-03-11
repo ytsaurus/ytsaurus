@@ -9,6 +9,7 @@ TEST_SRCS(
     test_controller_agent_operation_memory_consumption.py
     test_destroyed_replicas_size.py
     test_discovery.py
+    test_cypress_commands.py
     test_dynamic_table_commands.py
     test_lost_vital_chunks.py
     test_map_result.py
@@ -18,12 +19,14 @@ TEST_SRCS(
     test_operations_snapshots.py
     test_queue_agent_controller_liveness.py
     test_quorum_health.py
+    test_read_static_table_commands.py
     test_register_watcher.py
     test_scheduler_uptime.py
     test_sort_result.py
     test_tablet_cells.py
     test_tablet_cell_snapshots.py
     test_unaware_nodes.py
+    test_write_static_table_commands.py
 )
 
 PEERDIR(
@@ -51,6 +54,7 @@ DEPENDS(
     yt/odin/checks/bin/controller_agent_operation_memory_consumption
     yt/odin/checks/bin/destroyed_replicas_size
     yt/odin/checks/bin/discovery
+    yt/odin/checks/bin/cypress_commands
     yt/odin/checks/bin/dynamic_table_commands
     yt/odin/checks/bin/lost_vital_chunks
     yt/odin/checks/bin/map_result
@@ -60,6 +64,7 @@ DEPENDS(
     yt/odin/checks/bin/operations_snapshots
     yt/odin/checks/bin/quorum_health
     yt/odin/checks/bin/queue_agent_controller_liveness
+    yt/odin/checks/bin/read_static_table_commands
     yt/odin/checks/bin/register_watcher
     yt/odin/checks/bin/scheduler_uptime
     yt/odin/checks/bin/sort_result
@@ -67,6 +72,7 @@ DEPENDS(
     yt/odin/checks/bin/tablet_cell_snapshots
     yt/odin/checks/bin/tablet_cells
     yt/odin/checks/bin/unaware_nodes
+    yt/odin/checks/bin/write_static_table_commands
     yt/odin/bin/yt_odin
     yt/yt/packages/tests_package
 )
