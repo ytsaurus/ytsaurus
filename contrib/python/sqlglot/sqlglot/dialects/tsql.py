@@ -552,7 +552,7 @@ class TSQL(Dialect):
             "DATETIME2": TokenType.DATETIME2,
             "DATETIMEOFFSET": TokenType.TIMESTAMPTZ,
             "DECLARE": TokenType.DECLARE,
-            "EXEC": TokenType.COMMAND,
+            "EXEC": TokenType.EXECUTE,
             "FOR SYSTEM_TIME": TokenType.TIMESTAMP_SNAPSHOT,
             "GO": TokenType.COMMAND,
             "IMAGE": TokenType.IMAGE,
@@ -578,7 +578,7 @@ class TSQL(Dialect):
         }
         KEYWORDS.pop("/*+")
 
-        COMMANDS = {*tokens.Tokenizer.COMMANDS, TokenType.END}
+        COMMANDS = {*tokens.Tokenizer.COMMANDS, TokenType.END} - {TokenType.EXECUTE}
 
     class Parser(parser.Parser):
         SET_REQUIRES_ASSIGNMENT_DELIMITER = False
@@ -660,6 +660,7 @@ class TSQL(Dialect):
         STATEMENT_PARSERS = {
             **parser.Parser.STATEMENT_PARSERS,
             TokenType.DECLARE: lambda self: self._parse_declare(),
+            TokenType.EXECUTE: lambda self: self._parse_execute(),
         }
 
         RANGE_PARSERS = {
@@ -702,6 +703,18 @@ class TSQL(Dialect):
             "t": exp.Time,
             "ts": exp.Timestamp,
         }
+
+        def _parse_execute(self) -> exp.Execute:
+            execute = self.expression(
+                exp.Execute,
+                this=self._parse_table(schema=True),
+                expressions=self._parse_csv(self._parse_expression),
+            )
+
+            if execute.name.lower() == "sp_executesql":
+                execute = self.expression(exp.ExecuteSql, **execute.args)
+
+            return execute
 
         def _parse_datepart(self) -> exp.Extract:
             this = self._parse_var(tokens=[TokenType.IDENTIFIER])
@@ -768,21 +781,24 @@ class TSQL(Dialect):
 
             return self._parse_csv(_parse_for_xml)
 
-        def _parse_projections(self) -> t.List[exp.Expression]:
+        def _parse_projections(
+            self,
+        ) -> t.Tuple[t.List[exp.Expression], t.Optional[t.List[exp.Expression]]]:
             """
             T-SQL supports the syntax alias = expression in the SELECT's projection list,
             so we transform all parsed Selects to convert their EQ projections into Aliases.
 
             See: https://learn.microsoft.com/en-us/sql/t-sql/queries/select-clause-transact-sql?view=sql-server-ver16#syntax
             """
+            projections, _ = super()._parse_projections()
             return [
                 (
                     exp.alias_(projection.expression, projection.this.this, copy=False)
                     if isinstance(projection, exp.EQ) and isinstance(projection.this, exp.Column)
                     else projection
                 )
-                for projection in super()._parse_projections()
-            ]
+                for projection in projections
+            ], None
 
         def _parse_commit_or_rollback(self) -> exp.Commit | exp.Rollback:
             """Applies to SQL Server and Azure SQL Database
@@ -866,19 +882,24 @@ class TSQL(Dialect):
         ) -> t.Optional[exp.Expression]:
             this = super()._parse_user_defined_function(kind=kind)
 
-            if (
-                kind == TokenType.FUNCTION
-                or isinstance(this, exp.UserDefinedFunction)
-                or self._match(TokenType.ALIAS, advance=False)
-            ):
+            if kind == TokenType.FUNCTION or isinstance(this, exp.UserDefinedFunction):
                 return this
 
-            if not self._match(TokenType.WITH, advance=False):
-                expressions = self._parse_csv(self._parse_function_parameter)
-            else:
-                expressions = None
+            if kind == TokenType.PROCEDURE and this:
+                expressions = this.expressions
+                if not (
+                    expressions or self._match_set((TokenType.ALIAS, TokenType.WITH), advance=False)
+                ):
+                    expressions = self._parse_csv(self._parse_function_parameter)
 
-            return self.expression(exp.UserDefinedFunction, this=this, expressions=expressions)
+                return self.expression(
+                    exp.StoredProcedure,
+                    this=this if isinstance(this, exp.Table) else this.this,
+                    expressions=expressions,
+                    wrapped=this.args.get("wrapped"),
+                )
+
+            return self.expression(exp.UserDefinedFunction, this=this)
 
         def _parse_into(self) -> t.Optional[exp.Into]:
             into = super()._parse_into()
@@ -922,16 +943,13 @@ class TSQL(Dialect):
 
             return create
 
-        def _parse_if(self) -> t.Optional[exp.Expression]:
-            index = self._index
+        def _parse_if(self) -> exp.IfBlock:
+            this = self._parse_condition()
+            true = self._parse_block()
 
-            if self._match_text_seq("OBJECT_ID"):
-                self._parse_wrapped_csv(self._parse_string)
-                if self._match_text_seq("IS", "NOT", "NULL") and self._match(TokenType.DROP):
-                    return self._parse_drop(exists=True)
-                self._retreat(index)
+            false = self._match(TokenType.ELSE) and self._parse_block()
 
-            return super()._parse_if()
+            return self.expression(exp.IfBlock, this=this, true=true, false=false)
 
         def _parse_unique(self) -> exp.UniqueColumnConstraint:
             if self._match_texts(("CLUSTERED", "NONCLUSTERED")):
@@ -965,19 +983,6 @@ class TSQL(Dialect):
             self._match_r_paren()
 
             return partition
-
-        def _parse_declareitem(self) -> t.Optional[exp.DeclareItem]:
-            var = self._parse_id_var()
-            if not var:
-                return None
-
-            self._match(TokenType.ALIAS)
-            return self.expression(
-                exp.DeclareItem,
-                this=var,
-                kind=self._parse_schema() if self._match(TokenType.TABLE) else self._parse_types(),
-                default=self._match(TokenType.EQ) and self._parse_bitwise(),
-            )
 
         def _parse_alter_table_alter(self) -> t.Optional[exp.Expression]:
             expression = super()._parse_alter_table_alter()
@@ -1110,6 +1115,12 @@ class TSQL(Dialect):
             exp.TsOrDsAdd: date_delta_sql("DATEADD", cast=True),
             exp.TsOrDsDiff: date_delta_sql("DATEDIFF"),
             exp.TimestampTrunc: lambda self, e: self.func("DATETRUNC", e.unit, e.this),
+            exp.Trunc: lambda self, e: self.func(
+                "ROUND",
+                e.this,
+                e.args.get("decimals") or exp.Literal.number(0),
+                exp.Literal.number(1),
+            ),
             exp.Uuid: lambda *_: "NEWID()",
             exp.DateFromParts: rename_func("DATEFROMPARTS"),
         }
@@ -1463,3 +1474,34 @@ class TSQL(Dialect):
         def coalesce_sql(self, expression: exp.Coalesce) -> str:
             func_name = "ISNULL" if expression.args.get("is_null") else "COALESCE"
             return rename_func(func_name)(self, expression)
+
+        def storedprocedure_sql(self, expression: exp.StoredProcedure) -> str:
+            this = self.sql(expression, "this")
+            expressions = self.expressions(expression)
+            expressions = (
+                self.wrap(expressions) if expression.args.get("wrapped") else f" {expressions}"
+            )
+            return f"{this}{expressions}" if expressions.strip() != "" else this
+
+        def ifblock_sql(self, expression: exp.IfBlock) -> str:
+            this = self.sql(expression, "this")
+            true = self.sql(expression, "true")
+            true = f" {true}" if true else " "
+            false = self.sql(expression, "false")
+            false = f"; ELSE BEGIN {false}" if false else ""
+            return f"IF {this} BEGIN{true}{false}"
+
+        def whileblock_sql(self, expression: exp.WhileBlock) -> str:
+            this = self.sql(expression, "this")
+            body = self.sql(expression, "body")
+            body = f" {body}" if body else " "
+            return f"WHILE {this} BEGIN{body}"
+
+        def execute_sql(self, expression: exp.Execute) -> str:
+            this = self.sql(expression, "this")
+            expressions = self.expressions(expression)
+            expressions = f" {expressions}" if expressions else ""
+            return f"EXECUTE {this}{expressions}"
+
+        def executesql_sql(self, expression: exp.ExecuteSql) -> str:
+            return self.execute_sql(expression)

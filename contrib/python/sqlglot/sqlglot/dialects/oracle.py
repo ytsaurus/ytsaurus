@@ -6,8 +6,9 @@ from sqlglot import exp, generator, parser, tokens, transforms
 from sqlglot.dialects.dialect import (
     Dialect,
     NormalizationStrategy,
-    build_timetostr_or_tochar,
     build_formatted_time,
+    build_timetostr_or_tochar,
+    build_trunc,
     no_ilike_sql,
     rename_func,
     strposition_sql,
@@ -124,10 +125,8 @@ class Oracle(Dialect):
             "TO_CHAR": build_timetostr_or_tochar,
             "TO_TIMESTAMP": _build_to_timestamp,
             "TO_DATE": build_formatted_time(exp.StrToDate, "oracle"),
-            "TRUNC": lambda args: exp.DateTrunc(
-                unit=seq_get(args, 1) or exp.Literal.string("DD"),
-                this=seq_get(args, 0),
-                unabbreviate=False,
+            "TRUNC": lambda args, dialect: build_trunc(
+                args, dialect, date_trunc_unabbreviate=False, default_date_trunc_unit="DD"
             ),
         }
         FUNCTIONS.pop("TO_BOOLEAN")
@@ -294,8 +293,8 @@ class Oracle(Dialect):
             index = self._index
 
             # https://docs.oracle.com/en/database/oracle/oracle-database/26/sqlrf/Interval-Expressions.html
-            interval_span = self._parse_interval_span(this)
-            if isinstance(interval_span.args.get("unit"), exp.IntervalSpan):
+            interval_span = self._try_parse(lambda: self._parse_interval_span(this))
+            if interval_span and isinstance(interval_span.args.get("unit"), exp.IntervalSpan):
                 return interval_span
 
             self._retreat(index)

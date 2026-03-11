@@ -6,6 +6,7 @@ from sqlglot.dialects.dialect import (
     trim_sql,
     timestrtotime_sql,
     groupconcat_sql,
+    rename_func,
 )
 from sqlglot.dialects.presto import amend_exploded_column_table, Presto
 from sqlglot.tokens import TokenType
@@ -23,6 +24,11 @@ class Trino(Presto):
         }
 
     class Parser(Presto.Parser):
+        FUNCTIONS = {
+            **Presto.Parser.FUNCTIONS,
+            "VERSION": exp.CurrentVersion.from_arg_list,
+        }
+
         FUNCTION_PARSERS = {
             **Presto.Parser.FUNCTION_PARSERS,
             "TRIM": lambda self: self._parse_trim(),
@@ -80,6 +86,7 @@ class Trino(Presto):
             exp.ArraySum: lambda self,
             e: f"REDUCE({self.sql(e, 'this')}, 0, (acc, x) -> acc + x, acc -> acc)",
             exp.ArrayUniqueAgg: lambda self, e: f"ARRAY_AGG(DISTINCT {self.sql(e, 'this')})",
+            exp.CurrentVersion: rename_func("VERSION"),
             exp.GroupConcat: lambda self, e: groupconcat_sql(self, e, on_overflow=True),
             exp.LocationProperty: lambda self, e: self.property_sql(e),
             exp.Merge: merge_without_target_sql,

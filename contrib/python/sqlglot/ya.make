@@ -2,7 +2,7 @@
 
 PY3_LIBRARY()
 
-VERSION(28.10.1)
+VERSION(29.0.1)
 
 LICENSE(MIT)
 
@@ -55,6 +55,7 @@ PY_SRCS(
     sqlglot/executor/env.py
     sqlglot/executor/python.py
     sqlglot/executor/table.py
+    sqlglot/expression_core.py
     sqlglot/expressions.py
     sqlglot/generator.py
     sqlglot/helper.py
@@ -82,15 +83,18 @@ PY_SRCS(
     sqlglot/optimizer/simplify.py
     sqlglot/optimizer/unnest_subqueries.py
     sqlglot/parser.py
+    sqlglot/parser_core.py
     sqlglot/planner.py
     sqlglot/schema.py
     sqlglot/serde.py
     sqlglot/time.py
+    sqlglot/tokenizer_core.py
     sqlglot/tokens.py
     sqlglot/transforms.py
     sqlglot/trie.py
     sqlglot/typing/__init__.py
     sqlglot/typing/bigquery.py
+    sqlglot/typing/clickhouse.py
     sqlglot/typing/duckdb.py
     sqlglot/typing/hive.py
     sqlglot/typing/mysql.py

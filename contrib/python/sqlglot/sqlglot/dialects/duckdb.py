@@ -30,6 +30,7 @@ from sqlglot.dialects.dialect import (
     getbit_sql,
     groupconcat_sql,
     inline_array_unless_query,
+    jarowinkler_similarity,
     months_between_sql,
     no_datetime_sql,
     no_comment_column_constraint_sql,
@@ -37,7 +38,6 @@ from sqlglot.dialects.dialect import (
     no_time_sql,
     no_timestamp_sql,
     pivot_column_names,
-    regexp_replace_global_modifier,
     rename_func,
     remove_from_array_using_filter,
     strposition_sql,
@@ -92,8 +92,10 @@ WEEK_START_DAY_TO_DOW = {
 MAX_BIT_POSITION = exp.Literal.number(32768)
 
 # SEQ function constants
-_SEQ_BASE = "(ROW_NUMBER() OVER (ORDER BY 1) - 1)"
+_SEQ_BASE: exp.Expression = exp.maybe_parse("(ROW_NUMBER() OVER (ORDER BY 1) - 1)")
 _SEQ_RESTRICTED = (exp.Where, exp.Having, exp.AggFunc, exp.Order, exp.Select)
+# Maps SEQ expression types to their byte width (suffix indicates bytes: SEQ1=1, SEQ2=2, etc.)
+_SEQ_BYTE_WIDTH = {exp.Seq1: 1, exp.Seq2: 2, exp.Seq4: 4, exp.Seq8: 8}
 
 
 def _apply_base64_alphabet_replacements(
@@ -539,6 +541,22 @@ def _sort_array_sql(self: DuckDB.Generator, expression: exp.SortArray) -> str:
     return self.func(name, expression.this)
 
 
+def _array_contains_sql(self: DuckDB.Generator, expression: exp.ArrayContains) -> str:
+    this = expression.this
+    expr = expression.expression
+
+    func = self.func("ARRAY_CONTAINS", this, expr)
+
+    if expression.args.get("check_null"):
+        check_null_in_array = exp.Nullif(
+            this=exp.NEQ(this=exp.ArraySize(this=this), expression=exp.func("LIST_COUNT", this)),
+            expression=exp.false(),
+        )
+        return self.sql(exp.If(this=expr.is_(exp.Null()), true=check_null_in_array, false=func))
+
+    return func
+
+
 def _build_sort_array_desc(args: t.List) -> exp.Expression:
     return exp.SortArray(this=seq_get(args, 0), asc=exp.false())
 
@@ -652,6 +670,49 @@ def _json_format_sql(self: DuckDB.Generator, expression: exp.JSONFormat) -> str:
     return f"CAST({sql} AS TEXT)"
 
 
+def _build_seq_expression(base: exp.Expression, byte_width: int, signed: bool) -> exp.Expression:
+    """Build a SEQ expression with the given base, byte width, and signedness."""
+    bits = byte_width * 8
+    max_val = exp.Literal.number(2**bits)
+
+    if signed:
+        half = exp.Literal.number(2 ** (bits - 1))
+        return exp.replace_placeholders(
+            DuckDB.Generator.SEQ_SIGNED.copy(), base=base, max_val=max_val, half=half
+        )
+    return exp.replace_placeholders(
+        DuckDB.Generator.SEQ_UNSIGNED.copy(), base=base, max_val=max_val
+    )
+
+
+def _seq_to_range_in_generator(expression: exp.Expression) -> exp.Expression:
+    """
+    Transform SEQ functions to `range` column references when inside a GENERATOR context.
+
+    When GENERATOR(ROWCOUNT => N) becomes RANGE(N) in DuckDB, it produces a column
+    named `range` with values 0, 1, ..., N-1. SEQ functions produce the same sequence,
+    so we replace them with `range % max_val` to avoid nested window function issues.
+    """
+    if not isinstance(expression, exp.Select):
+        return expression
+
+    from_ = expression.args.get("from_")
+    if not (
+        from_
+        and isinstance(from_.this, exp.TableFromRows)
+        and isinstance(from_.this.this, exp.Generator)
+    ):
+        return expression
+
+    def replace_seq(node: exp.Expression) -> exp.Expression:
+        if isinstance(node, (exp.Seq1, exp.Seq2, exp.Seq4, exp.Seq8)):
+            byte_width = _SEQ_BYTE_WIDTH[type(node)]
+            return _build_seq_expression(exp.column("range"), byte_width, signed=node.name == "1")
+        return node
+
+    return expression.transform(replace_seq, copy=False)
+
+
 def _seq_sql(self: DuckDB.Generator, expression: exp.Func, byte_width: int) -> str:
     """
     Transpile Snowflake SEQ1/SEQ2/SEQ4/SEQ8 to DuckDB.
@@ -660,17 +721,6 @@ def _seq_sql(self: DuckDB.Generator, expression: exp.Func, byte_width: int) -> s
     The signed parameter (0 or 1) affects wrap-around behavior:
     - Unsigned (0): wraps at 2^(bits) - 1
     - Signed (1): wraps at 2^(bits-1) - 1, then goes negative
-
-    Note: SEQ in WHERE, HAVING, aggregates, or window ORDER BY is not supported
-    because these contexts don't allow window functions. Users should rewrite
-    using CTEs or subqueries.
-
-    Args:
-        expression: The SEQ function expression (may have 'this' arg for signed param)
-        byte_width: 1, 2, 4, or 8 bytes
-
-    Returns:
-        SQL string using ROW_NUMBER() with modulo for wrap-around
     """
     # Warn if SEQ is in a restricted context (Select stops search at current scope)
     ancestor = expression.find_ancestor(*_SEQ_RESTRICTED)
@@ -680,15 +730,7 @@ def _seq_sql(self: DuckDB.Generator, expression: exp.Func, byte_width: int) -> s
     ):
         self.unsupported("SEQ in restricted context is not supported - use CTE or subquery")
 
-    bits = byte_width * 8
-    max_val = exp.Literal.number(2**bits)
-
-    if expression.name == "1":
-        half = exp.Literal.number(2 ** (bits - 1))
-        result = exp.replace_placeholders(self.SEQ_SIGNED.copy(), max_val=max_val, half=half)
-    else:
-        result = exp.replace_placeholders(self.SEQ_UNSIGNED.copy(), max_val=max_val)
-
+    result = _build_seq_expression(_SEQ_BASE.copy(), byte_width, signed=expression.name == "1")
     return self.sql(result)
 
 
@@ -1359,6 +1401,35 @@ def _xor_sql(self: DuckDB.Generator, expression: exp.Xor) -> str:
     )
 
 
+def _explode_to_unnest_sql(self: DuckDB.Generator, expression: exp.Lateral) -> str:
+    """Handle LATERAL VIEW EXPLODE/INLINE conversion to UNNEST for DuckDB."""
+    explode = expression.this
+
+    if isinstance(explode, exp.Inline):
+        # For INLINE, create CROSS JOIN LATERAL (SELECT UNNEST(..., max_depth => 2))
+        # Build the UNNEST call with DuckDB-style named parameter
+        unnest_expr = exp.Unnest(
+            expressions=[
+                explode.this,
+                exp.Kwarg(this=exp.var("max_depth"), expression=exp.Literal.number(2)),
+            ]
+        )
+        select_expr = exp.Select(expressions=[unnest_expr]).subquery()
+
+        alias_expr = expression.args.get("alias")
+        if alias_expr and not alias_expr.this:
+            # we need to provide a table name if not present
+            alias_expr.set("this", exp.to_identifier(f"_u_{expression.index}"))
+
+        transformed_lateral_expr = exp.Lateral(this=select_expr, alias=alias_expr)
+        cross_join_lateral_expr = exp.Join(this=transformed_lateral_expr, kind="CROSS")
+
+        return self.sql(cross_join_lateral_expr)
+
+    # For other cases, use the standard conversion
+    return explode_to_unnest_sql(self, expression)
+
+
 def _sha_sql(
     self: DuckDB.Generator,
     expression: exp.Expression,
@@ -1526,6 +1597,7 @@ class DuckDB(Dialect):
             "BIT_AND": exp.BitwiseAndAgg.from_arg_list,
             "BIT_OR": exp.BitwiseOrAgg.from_arg_list,
             "BIT_XOR": exp.BitwiseXorAgg.from_arg_list,
+            "CURRENT_LOCALTIMESTAMP": exp.Localtimestamp.from_arg_list,
             "DATEDIFF": _build_date_diff,
             "DATE_DIFF": _build_date_diff,
             "DATE_TRUNC": date_trunc_to_time,
@@ -1542,9 +1614,11 @@ class DuckDB(Dialect):
                 this=seq_get(args, 0), scale=exp.UnixToTime.MILLIS
             ),
             "GENERATE_SERIES": _build_generate_series(),
+            "GET_CURRENT_TIME": exp.CurrentTime.from_arg_list,
             "GET_BIT": lambda args: exp.Getbit(
                 this=seq_get(args, 0), expression=seq_get(args, 1), zero_is_msb=True
             ),
+            "JARO_WINKLER_SIMILARITY": exp.JarowinklerSimilarity.from_arg_list,
             "JSON": exp.ParseJSON.from_arg_list,
             "JSON_EXTRACT_PATH": parser.build_extract_json_with_path(exp.JSONExtract),
             "JSON_EXTRACT_STRING": parser.build_extract_json_with_path(exp.JSONExtractScalar),
@@ -1556,6 +1630,8 @@ class DuckDB(Dialect):
             "LIST_FILTER": exp.ArrayFilter.from_arg_list,
             "LIST_HAS": exp.ArrayContains.from_arg_list,
             "LIST_HAS_ANY": exp.ArrayOverlaps.from_arg_list,
+            "LIST_MAX": exp.ArrayMax.from_arg_list,
+            "LIST_MIN": exp.ArrayMin.from_arg_list,
             "LIST_PREPEND": _build_array_prepend,
             "LIST_REVERSE_SORT": _build_sort_array_desc,
             "LIST_SORT": exp.SortArray.from_arg_list,
@@ -1586,9 +1662,11 @@ class DuckDB(Dialect):
             "STRUCT_PACK": exp.Struct.from_arg_list,
             "STR_SPLIT": exp.Split.from_arg_list,
             "STR_SPLIT_REGEX": exp.RegexpSplit.from_arg_list,
+            "TODAY": exp.CurrentDate.from_arg_list,
             "TIME_BUCKET": exp.DateBin.from_arg_list,
             "TO_TIMESTAMP": exp.UnixToTime.from_arg_list,
             "UNNEST": exp.Explode.from_arg_list,
+            "VERSION": exp.CurrentVersion.from_arg_list,
             "XOR": binary_from_function(exp.BitwiseXor),
         }
 
@@ -1842,6 +1920,7 @@ class DuckDB(Dialect):
                 exp.ArrayCompact(this=exp.Array(expressions=e.expressions))
             ),
             exp.ArrayConcat: array_concat_sql("LIST_CONCAT"),
+            exp.ArrayContains: _array_contains_sql,
             exp.ArrayFilter: rename_func("LIST_FILTER"),
             exp.ArrayInsert: _array_insert_sql,
             exp.ArrayRemoveAt: _array_remove_at_sql,
@@ -1849,6 +1928,8 @@ class DuckDB(Dialect):
             exp.ArraySort: _array_sort_sql,
             exp.ArrayPrepend: array_append_sql("LIST_PREPEND", swap_params=True),
             exp.ArraySum: rename_func("LIST_SUM"),
+            exp.ArrayMax: rename_func("LIST_MAX"),
+            exp.ArrayMin: rename_func("LIST_MIN"),
             exp.ArrayUniqueAgg: lambda self, e: self.func(
                 "LIST", exp.Distinct(expressions=[e.this])
             ),
@@ -1856,6 +1937,7 @@ class DuckDB(Dialect):
             exp.Base64DecodeString: lambda self, e: _base64_decode_sql(self, e, to_string=True),
             exp.BitwiseAnd: lambda self, e: self._bitwise_op(e, "&"),
             exp.BitwiseAndAgg: _bitwise_agg_sql,
+            exp.BitwiseCount: rename_func("BIT_COUNT"),
             exp.BitwiseLeftShift: _bitshift_sql,
             exp.BitwiseOr: lambda self, e: self._bitwise_op(e, "|"),
             exp.BitwiseOrAgg: _bitwise_agg_sql,
@@ -1866,11 +1948,15 @@ class DuckDB(Dialect):
             exp.Corr: lambda self, e: self._corr_sql(e),
             exp.CosineDistance: rename_func("LIST_COSINE_DISTANCE"),
             exp.CurrentTime: lambda *_: "CURRENT_TIME",
+            exp.CurrentSchemas: lambda self, e: self.func(
+                "current_schemas", e.this if e.this else exp.true()
+            ),
             exp.CurrentTimestamp: lambda self, e: self.sql(
                 exp.AtTimeZone(this=exp.var("CURRENT_TIMESTAMP"), zone=exp.Literal.string("UTC"))
             )
             if e.args.get("sysdate")
             else "CURRENT_TIMESTAMP",
+            exp.CurrentVersion: rename_func("version"),
             exp.Localtime: unsupported_args("this")(lambda *_: "LOCALTIME"),
             exp.DayOfMonth: rename_func("DAYOFMONTH"),
             exp.DayOfWeek: rename_func("DAYOFWEEK"),
@@ -1923,14 +2009,16 @@ class DuckDB(Dialect):
             ),
             exp.Ceil: _ceil_floor,
             exp.Floor: _ceil_floor,
+            exp.JarowinklerSimilarity: jarowinkler_similarity("JARO_WINKLER_SIMILARITY"),
             exp.JSONBExists: rename_func("JSON_EXISTS"),
             exp.JSONExtract: _arrow_json_extract_sql,
             exp.JSONExtractArray: _json_extract_value_array_sql,
             exp.JSONFormat: _json_format_sql,
             exp.JSONValueArray: _json_extract_value_array_sql,
-            exp.Lateral: explode_to_unnest_sql,
+            exp.Lateral: _explode_to_unnest_sql,
             exp.LogicalOr: lambda self, e: self.func("BOOL_OR", _cast_to_boolean(e.this)),
             exp.LogicalAnd: lambda self, e: self.func("BOOL_AND", _cast_to_boolean(e.this)),
+            exp.Select: transforms.preprocess([_seq_to_range_in_generator]),
             exp.Seq1: lambda self, e: _seq_sql(self, e, 1),
             exp.Seq2: lambda self, e: _seq_sql(self, e, 2),
             exp.Seq4: lambda self, e: _seq_sql(self, e, 4),
@@ -1951,14 +2039,6 @@ class DuckDB(Dialect):
             # See: https://github.com/duckdb/duckdb/blob/671faf92411182f81dce42ac43de8bfb05d9909e/src/planner/binder/tableref/bind_pivot.cpp#L61-L62
             exp.Pivot: transforms.preprocess([transforms.unqualify_columns]),
             exp.PreviousDay: _day_navigation_sql,
-            exp.RegexpReplace: lambda self, e: self.func(
-                "REGEXP_REPLACE",
-                e.this,
-                e.expression,
-                e.args.get("replacement"),
-                regexp_replace_global_modifier(e),
-            ),
-            exp.RegexpLike: rename_func("REGEXP_MATCHES"),
             exp.RegexpILike: lambda self, e: self.func(
                 "REGEXP_MATCHES", e.this, e.expression, exp.Literal.string("i")
             ),
@@ -2204,11 +2284,11 @@ class DuckDB(Dialect):
         )
 
         # Template for generating signed and unsigned SEQ values within a specified range
-        SEQ_UNSIGNED: exp.Expression = exp.maybe_parse(f"{_SEQ_BASE} % :max_val")
+        SEQ_UNSIGNED: exp.Expression = exp.maybe_parse(":base % :max_val")
         SEQ_SIGNED: exp.Expression = exp.maybe_parse(
-            f"(CASE WHEN {_SEQ_BASE} % :max_val >= :half "
-            f"THEN {_SEQ_BASE} % :max_val - :max_val "
-            f"ELSE {_SEQ_BASE} % :max_val END)"
+            "(CASE WHEN :base % :max_val >= :half "
+            "THEN :base % :max_val - :max_val "
+            "ELSE :base % :max_val END)"
         )
 
         # Template for MAP_CAT transpilation - Snowflake semantics:
@@ -2378,6 +2458,27 @@ class DuckDB(Dialect):
             CASE WHEN :null_check THEN NULL
             WHEN :all_empty_check THEN [:empty_struct]
             ELSE LIST_TRANSFORM(RANGE(0, :max_len), __i -> :transform_struct)
+            END
+            """,
+        )
+
+        # ARRAY_EXCEPT with bag semantics: N - M occurrences via cumulative counting
+        # 0-based indices in template (SQLGlot internal), converted to 1-based for DuckDB
+        # IS NOT DISTINCT FROM for NULL-safe element comparison
+        ARRAY_EXCEPT_TEMPLATE: exp.Expression = exp.maybe_parse(
+            """
+            CASE
+                WHEN :source IS NULL OR :exclude IS NULL THEN NULL
+                ELSE LIST_TRANSFORM(
+                    LIST_FILTER(
+                        LIST_ZIP(:source, GENERATE_SERIES(1, LEN(:source))),
+                        pair -> (
+                            LEN(LIST_FILTER(:source[1:pair[1]], e -> e IS NOT DISTINCT FROM pair[0]))
+                            > LEN(LIST_FILTER(:exclude, e -> e IS NOT DISTINCT FROM pair[0]))
+                        )
+                    ),
+                    pair -> pair[0]
+                )
             END
             """,
         )
@@ -2727,6 +2828,10 @@ class DuckDB(Dialect):
             if expression.args.get("safe"):
                 return self.sql(exp.case().when(exp.func("json_valid", arg), arg).else_(exp.null()))
             return self.func("JSON", arg)
+
+        @unsupported_args("decimals")
+        def trunc_sql(self, expression: exp.Trunc) -> str:
+            return self.func("TRUNC", expression.this)
 
         def normal_sql(self, expression: exp.Normal) -> str:
             """
@@ -3121,6 +3226,147 @@ class DuckDB(Dialect):
             )
             return self.sql(case)
 
+        def _validate_regexp_flags(
+            self, flags: t.Optional[exp.Expression], supported_flags: str
+        ) -> t.Optional[str]:
+            """
+            Validate and filter regexp flags for DuckDB compatibility.
+
+            Args:
+                flags: The flags expression to validate
+                supported_flags: String of supported flags (e.g., "ims", "cims").
+                                Only these flags will be returned.
+
+            Returns:
+                Validated/filtered flag string, or None if no valid flags remain
+            """
+            if not isinstance(flags, exp.Expression):
+                return None
+
+            if not flags.is_string:
+                self.unsupported("Non-literal regexp flags are not fully supported in DuckDB")
+                return None
+
+            flag_str = flags.this
+            unsupported = set(flag_str) - set(supported_flags)
+
+            if unsupported:
+                self.unsupported(
+                    f"Regexp flags {sorted(unsupported)} are not supported in this context"
+                )
+
+            flag_str = "".join(f for f in flag_str if f in supported_flags)
+            return flag_str if flag_str else None
+
+        def regexpcount_sql(self, expression: exp.RegexpCount) -> str:
+            this = expression.this
+            pattern = expression.expression
+            position = expression.args.get("position")
+            parameters = expression.args.get("parameters")
+
+            # Validate flags - only "ims" flags are supported for embedded patterns
+            validated_flags = self._validate_regexp_flags(parameters, supported_flags="ims")
+
+            if position:
+                this = exp.Substring(this=this, start=position)
+
+            # Embed flags in pattern (REGEXP_EXTRACT_ALL doesn't support flags argument)
+            if validated_flags:
+                pattern = exp.Concat(
+                    expressions=[exp.Literal.string(f"(?{validated_flags})"), pattern]
+                )
+
+            # Handle empty pattern: Snowflake returns 0, DuckDB would match between every character
+            result = (
+                exp.case()
+                .when(
+                    exp.EQ(this=pattern, expression=exp.Literal.string("")),
+                    exp.Literal.number(0),
+                )
+                .else_(
+                    exp.Length(
+                        this=exp.Anonymous(this="REGEXP_EXTRACT_ALL", expressions=[this, pattern])
+                    )
+                )
+            )
+
+            return self.sql(result)
+
+        def regexpreplace_sql(self, expression: exp.RegexpReplace) -> str:
+            subject = expression.this
+            pattern = expression.expression
+            replacement = expression.args.get("replacement") or exp.Literal.string("")
+            position = expression.args.get("position")
+            occurrence = expression.args.get("occurrence")
+            modifiers = expression.args.get("modifiers")
+
+            validated_flags = self._validate_regexp_flags(modifiers, supported_flags="cimsg") or ""
+
+            # Handle occurrence (only literals supported)
+            if occurrence and not occurrence.is_int:
+                self.unsupported("REGEXP_REPLACE with non-literal occurrence")
+            else:
+                occurrence = occurrence.to_py() if occurrence and occurrence.is_int else 0
+                if occurrence > 1:
+                    self.unsupported(f"REGEXP_REPLACE occurrence={occurrence} not supported")
+                # flag duckdb to do either all or none, single_replace check is for duckdb round trip
+                elif (
+                    occurrence == 0
+                    and "g" not in validated_flags
+                    and not expression.args.get("single_replace")
+                ):
+                    validated_flags += "g"
+
+            # Handle position (only literals supported)
+            prefix = None
+            if position and not position.is_int:
+                self.unsupported("REGEXP_REPLACE with non-literal position")
+            elif position and position.is_int and position.to_py() > 1:
+                pos = position.to_py()
+                prefix = exp.Substring(
+                    this=subject, start=exp.Literal.number(1), length=exp.Literal.number(pos - 1)
+                )
+                subject = exp.Substring(this=subject, start=exp.Literal.number(pos))
+
+            result: exp.Expression = exp.Anonymous(
+                this="REGEXP_REPLACE",
+                expressions=[
+                    subject,
+                    pattern,
+                    replacement,
+                    exp.Literal.string(validated_flags) if validated_flags else None,
+                ],
+            )
+
+            if prefix:
+                result = exp.Concat(expressions=[prefix, result])
+
+            return self.sql(result)
+
+        def regexplike_sql(self, expression: exp.RegexpLike) -> str:
+            this = expression.this
+            pattern = expression.expression
+            flag = expression.args.get("flag")
+
+            if not expression.args.get("full_match"):
+                return self.func("REGEXP_MATCHES", this, pattern, flag)
+
+            # DuckDB REGEXP_MATCHES supports: c, i, m, s (but not 'e')
+            validated_flags = self._validate_regexp_flags(flag, supported_flags="cims")
+
+            anchored_pattern = exp.Concat(
+                expressions=[
+                    exp.Literal.string("^("),
+                    exp.Paren(this=pattern),
+                    exp.Literal.string(")$"),
+                ]
+            )
+
+            if validated_flags:
+                flag = exp.Literal.string(validated_flags)
+
+            return self.func("REGEXP_MATCHES", this, anchored_pattern, flag)
+
         @unsupported_args("ins_cost", "del_cost", "sub_cost")
         def levenshtein_sql(self, expression: exp.Levenshtein) -> str:
             this = expression.this
@@ -3190,6 +3436,33 @@ class DuckDB(Dialect):
                 self.APPROXIMATE_SIMILARITY_TEMPLATE.copy(), expr=expr
             )
             return f"({self.sql(result)})"
+
+        def arraydistinct_sql(self, expression: exp.ArrayDistinct) -> str:
+            arr = expression.this
+            func = self.func("LIST_DISTINCT", arr)
+
+            if expression.args.get("check_null"):
+                add_null_to_array = exp.func(
+                    "LIST_APPEND", exp.func("LIST_DISTINCT", exp.ArrayCompact(this=arr)), exp.Null()
+                )
+                return self.sql(
+                    exp.If(
+                        this=exp.NEQ(
+                            this=exp.ArraySize(this=arr), expression=exp.func("LIST_COUNT", arr)
+                        ),
+                        true=add_null_to_array,
+                        false=func,
+                    )
+                )
+
+            return func
+
+        def arrayexcept_sql(self, expression: exp.ArrayExcept) -> str:
+            source = expression.this
+            exclude = expression.expression
+
+            replacements = {"source": source, "exclude": exclude}
+            return self.sql(exp.replace_placeholders(self.ARRAY_EXCEPT_TEMPLATE, **replacements))
 
         def arrayszip_sql(self, expression: exp.ArraysZip) -> str:
             args = expression.expressions
@@ -3338,6 +3611,11 @@ class DuckDB(Dialect):
             )
             return self.sql(result)
 
+        def mapcontainskey_sql(self, expression: exp.MapContainsKey) -> str:
+            return self.func(
+                "ARRAY_CONTAINS", exp.func("MAP_KEYS", expression.args["key"]), expression.this
+            )
+
         def startswith_sql(self, expression: exp.StartsWith) -> str:
             return self.func(
                 "STARTS_WITH",
@@ -3423,7 +3701,7 @@ class DuckDB(Dialect):
 
             return self.func("ARRAY_TO_STRING", this, expression.expression)
 
-        def regexpextract_sql(self, expression: exp.RegexpExtract) -> str:
+        def _regexp_extract_sql(self, expression: exp.RegexpExtract | exp.RegexpExtractAll) -> str:
             this = expression.this
             group = expression.args.get("group")
             params = expression.args.get("parameters")
@@ -3431,29 +3709,139 @@ class DuckDB(Dialect):
             occurrence = expression.args.get("occurrence")
             null_if_pos_overflow = expression.args.get("null_if_pos_overflow")
 
+            # Handle Snowflake's 'e' flag: it enables capture group extraction
+            # In DuckDB, this is controlled by the group parameter directly
+            if params and params.is_string and "e" in params.name:
+                params = exp.Literal.string(params.name.replace("e", ""))
+
+            validated_flags = self._validate_regexp_flags(params, supported_flags="cims")
+
+            # Strip default group when no following params (DuckDB default is same as group=0)
+            if (
+                not validated_flags
+                and group
+                and group.name == str(self.dialect.REGEXP_EXTRACT_DEFAULT_GROUP)
+            ):
+                group = None
+            flags_expr = exp.Literal.string(validated_flags) if validated_flags else None
+
+            # use substring to handle position argument
             if position and (not position.is_int or position.to_py() > 1):
                 this = exp.Substring(this=this, start=position)
 
                 if null_if_pos_overflow:
                     this = exp.Nullif(this=this, expression=exp.Literal.string(""))
 
-            # Do not render group if there is no following argument,
-            # and it's the default value for this dialect
-            if (
-                not params
-                and group
-                and group.name == str(self.dialect.REGEXP_EXTRACT_DEFAULT_GROUP)
-            ):
-                group = None
+            is_extract_all = isinstance(expression, exp.RegexpExtractAll)
+            non_single_occurrence = occurrence and (not occurrence.is_int or occurrence.to_py() > 1)
 
-            if occurrence and (not occurrence.is_int or occurrence.to_py() > 1):
-                return self.func(
-                    "ARRAY_EXTRACT",
-                    self.func("REGEXP_EXTRACT_ALL", this, expression.expression, group, params),
-                    exp.Literal.number(occurrence),
+            if is_extract_all or non_single_occurrence:
+                name = "REGEXP_EXTRACT_ALL"
+            else:
+                name = "REGEXP_EXTRACT"
+
+            result: exp.Expression = exp.Anonymous(
+                this=name, expressions=[this, expression.expression, group, flags_expr]
+            )
+
+            # Array slicing for REGEXP_EXTRACT_ALL with occurrence
+            if is_extract_all and non_single_occurrence:
+                result = exp.Bracket(this=result, expressions=[exp.Slice(this=occurrence)])
+            # ARRAY_EXTRACT for REGEXP_EXTRACT with occurrence > 1
+            elif non_single_occurrence:
+                result = exp.Anonymous(this="ARRAY_EXTRACT", expressions=[result, occurrence])
+
+            return self.sql(result)
+
+        def regexpextract_sql(self, expression: exp.RegexpExtract) -> str:
+            return self._regexp_extract_sql(expression)
+
+        def regexpextractall_sql(self, expression: exp.RegexpExtractAll) -> str:
+            return self._regexp_extract_sql(expression)
+
+        def regexpinstr_sql(self, expression: exp.RegexpInstr) -> str:
+            this = expression.this
+            pattern = expression.expression
+            position = expression.args.get("position")
+            orig_occ = expression.args.get("occurrence")
+            occurrence = orig_occ or exp.Literal.number(1)
+            option = expression.args.get("option")
+            parameters = expression.args.get("parameters")
+
+            validated_flags = self._validate_regexp_flags(parameters, supported_flags="ims")
+            if validated_flags:
+                pattern = exp.Concat(
+                    expressions=[exp.Literal.string(f"(?{validated_flags})"), pattern]
                 )
 
-            return self.func("REGEXP_EXTRACT", this, expression.expression, group, params)
+            # Handle starting position offset
+            pos_offset: exp.Expression = exp.Literal.number(0)
+            if position and (not position.is_int or position.to_py() > 1):
+                this = exp.Substring(this=this, start=position)
+                pos_offset = position - exp.Literal.number(1)
+
+            # Helper: LIST_SUM(LIST_TRANSFORM(list[1:end], x -> LENGTH(x)))
+            def sum_lengths(func_name: str, end: exp.Expression) -> exp.Expression:
+                lst = exp.Bracket(
+                    this=exp.Anonymous(this=func_name, expressions=[this, pattern]),
+                    expressions=[exp.Slice(this=exp.Literal.number(1), expression=end)],
+                    offset=1,
+                )
+                transform = exp.Anonymous(
+                    this="LIST_TRANSFORM",
+                    expressions=[
+                        lst,
+                        exp.Lambda(
+                            this=exp.Length(this=exp.to_identifier("x")),
+                            expressions=[exp.to_identifier("x")],
+                        ),
+                    ],
+                )
+                return exp.Coalesce(
+                    this=exp.Anonymous(this="LIST_SUM", expressions=[transform]),
+                    expressions=[exp.Literal.number(0)],
+                )
+
+            # Position = 1 + sum(split_lengths[1:occ]) + sum(match_lengths[1:occ-1]) + offset
+            base_pos: exp.Expression = (
+                exp.Literal.number(1)
+                + sum_lengths("STRING_SPLIT_REGEX", occurrence)
+                + sum_lengths("REGEXP_EXTRACT_ALL", occurrence - exp.Literal.number(1))
+                + pos_offset
+            )
+
+            # option=1: add match length for end position
+            if option and option.is_int and option.to_py() == 1:
+                match_at_occ = exp.Bracket(
+                    this=exp.Anonymous(this="REGEXP_EXTRACT_ALL", expressions=[this, pattern]),
+                    expressions=[occurrence],
+                    offset=1,
+                )
+                base_pos = base_pos + exp.Coalesce(
+                    this=exp.Length(this=match_at_occ), expressions=[exp.Literal.number(0)]
+                )
+
+            # NULL checks for all provided arguments
+            # .copy() is used strictly because .is_() alters the node's parent pointer, mutating the parsed AST
+            null_args = [
+                expression.this,
+                expression.expression,
+                position,
+                orig_occ,
+                option,
+                parameters,
+            ]
+            null_checks = [arg.copy().is_(exp.Null()) for arg in null_args if arg]
+
+            matches = exp.Anonymous(this="REGEXP_EXTRACT_ALL", expressions=[this, pattern])
+
+            return self.sql(
+                exp.case()
+                .when(exp.or_(*null_checks), exp.Null())
+                .when(pattern.copy().eq(exp.Literal.string("")), exp.Literal.number(0))
+                .when(exp.Length(this=matches) < occurrence, exp.Literal.number(0))
+                .else_(base_pos)
+            )
 
         @unsupported_args("culture")
         def numbertostr_sql(self, expression: exp.NumberToStr) -> str:

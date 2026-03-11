@@ -126,6 +126,11 @@ class Spark(Spark2):
             for prefix in ("r", "R")
         ]
 
+        KEYWORDS = {
+            **Spark2.Tokenizer.KEYWORDS,
+            "DECLARE": TokenType.DECLARE,
+        }
+
     class Parser(Spark2.Parser):
         FUNCTIONS = {
             **Spark2.Parser.FUNCTIONS,
@@ -137,11 +142,14 @@ class Spark(Spark2):
                 offset=1,
             ),
             "BIT_AND": exp.BitwiseAndAgg.from_arg_list,
+            "BIT_GET": exp.Getbit.from_arg_list,
             "BIT_OR": exp.BitwiseOrAgg.from_arg_list,
             "BIT_XOR": exp.BitwiseXorAgg.from_arg_list,
             "BIT_COUNT": exp.BitwiseCount.from_arg_list,
+            "CURDATE": exp.CurrentDate.from_arg_list,
             "DATE_ADD": _build_dateadd,
             "DATEADD": _build_dateadd,
+            "MAKE_TIMESTAMP": exp.TimestampFromParts.from_arg_list,
             "TIMESTAMPADD": _build_dateadd,
             "TIMESTAMPDIFF": build_date_delta(exp.TimestampDiff),
             "TRY_ADD": exp.SafeAdd.from_arg_list,
@@ -176,6 +184,11 @@ class Spark(Spark2):
         FUNCTION_PARSERS = {
             **Spark2.Parser.FUNCTION_PARSERS,
             "SUBSTR": lambda self: self._parse_substring(),
+        }
+
+        STATEMENT_PARSERS = {
+            **Spark2.Parser.STATEMENT_PARSERS,
+            TokenType.DECLARE: lambda self: self._parse_declare(),
         }
 
         def _parse_generated_as_identity(
@@ -218,6 +231,9 @@ class Spark(Spark2):
             exp.ArrayConstructCompact: lambda self, e: self.func(
                 "ARRAY_COMPACT", self.func("ARRAY", *e.expressions)
             ),
+            exp.ArrayInsert: lambda self, e: self.func(
+                "ARRAY_INSERT", e.this, e.args.get("position"), e.expression
+            ),
             exp.ArrayAppend: array_append_sql("ARRAY_APPEND"),
             exp.ArrayPrepend: array_append_sql("ARRAY_PREPEND"),
             exp.BitwiseAndAgg: rename_func("BIT_AND"),
@@ -233,6 +249,7 @@ class Spark(Spark2):
                     move_partitioned_by_to_schema_columns,
                 ]
             ),
+            exp.CurrentVersion: rename_func("VERSION"),
             exp.DateFromUnixDate: rename_func("DATE_FROM_UNIX_DATE"),
             exp.DatetimeAdd: date_delta_to_binary_interval_op(cast=False),
             exp.DatetimeSub: date_delta_to_binary_interval_op(cast=False),
@@ -249,6 +266,7 @@ class Spark(Spark2):
             exp.TimeSub: date_delta_to_binary_interval_op(cast=False),
             exp.TsOrDsAdd: _dateadd_sql,
             exp.TimestampAdd: _dateadd_sql,
+            exp.TimestampFromParts: rename_func("MAKE_TIMESTAMP"),
             exp.TimestampSub: date_delta_to_binary_interval_op(cast=False),
             exp.DatetimeDiff: timestampdiff_sql,
             exp.TimestampDiff: timestampdiff_sql,
@@ -294,3 +312,25 @@ class Spark(Spark2):
 
             parquet_file = expression.expressions[0]
             return f"parquet.`{parquet_file.name}`"
+
+        def ifblock_sql(self, expression: exp.IfBlock) -> str:
+            condition = expression.this
+            true_block = expression.args.get("true")
+
+            condition_expr = None
+            if isinstance(condition, exp.Not):
+                inner = condition.this
+                if isinstance(inner, exp.Is) and isinstance(inner.expression, exp.Null):
+                    condition_expr = inner.this
+
+            if isinstance(condition_expr, exp.ObjectId):
+                object_type = condition_expr.expression
+                if (
+                    (object_type is None or object_type.name.upper() == "U")
+                    and isinstance(true_block, exp.Block)
+                    and isinstance(drop := true_block.expressions[0], exp.Drop)
+                ):
+                    drop.set("exists", True)
+                    return self.sql(drop)
+
+            return super().ifblock_sql(expression)
