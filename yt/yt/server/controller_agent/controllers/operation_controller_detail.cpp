@@ -10444,9 +10444,6 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         jobSpec->set_interruption_signal(*jobSpecConfig->InterruptionSignal);
         jobSpec->set_signal_root_process_only(jobSpecConfig->SignalRootProcessOnly);
     }
-    if (jobSpecConfig->RestartExitCode) {
-        jobSpec->set_restart_exit_code(*jobSpecConfig->RestartExitCode);
-    }
 
     if (Config_->IopsThreshold) {
         jobSpec->set_iops_threshold(*Config_->IopsThreshold);

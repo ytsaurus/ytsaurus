@@ -402,8 +402,14 @@ void TVanillaTask::InitJobSpecTemplate()
 
     jobSpecExt->set_io_config(ToProto(ConvertToYsonString(Spec_->JobIO)));
 
+    auto* userJobSpec = jobSpecExt->mutable_user_job_spec();
+
+    if (Spec_->RestartExitCode) {
+        userJobSpec->set_restart_exit_code(*Spec_->RestartExitCode);
+    }
+
     TaskHost_->InitUserJobSpecTemplate(
-        jobSpecExt->mutable_user_job_spec(),
+        userJobSpec,
         Spec_,
         TaskHost_->GetUserFiles(Spec_),
         TaskHost_->GetSpec()->DebugArtifactsAccount);

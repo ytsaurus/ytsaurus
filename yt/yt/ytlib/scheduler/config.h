@@ -1626,7 +1626,6 @@ struct TUserJobSpec
 
     std::optional<TString> InterruptionSignal;
     bool SignalRootProcessOnly;
-    std::optional<int> RestartExitCode;
 
     bool EnableSetupCommands;
     bool EnableGpuLayers;
@@ -1779,6 +1778,9 @@ struct TVanillaTaskSpec
     TJobIOConfigPtr JobIO;
 
     std::vector<NYPath::TRichYPath> OutputTablePaths;
+
+    // TODO(coteeq): RestartExitCode is a generalization of RestartCompletedJobs.
+    std::optional<int> RestartExitCode;
 
     bool RestartCompletedJobs;
 
