@@ -122,6 +122,7 @@ class SQLite(Dialect):
             "STRFTIME": _build_strftime,
             "DATETIME": lambda args: exp.Anonymous(this="DATETIME", expressions=args),
             "TIME": lambda args: exp.Anonymous(this="TIME", expressions=args),
+            "SQLITE_VERSION": exp.CurrentVersion.from_arg_list,
         }
 
         STATEMENT_PARSERS = {
@@ -208,6 +209,7 @@ class SQLite(Dialect):
             exp.CurrentDate: lambda *_: "CURRENT_DATE",
             exp.CurrentTime: lambda *_: "CURRENT_TIME",
             exp.CurrentTimestamp: lambda *_: "CURRENT_TIMESTAMP",
+            exp.CurrentVersion: lambda *_: "SQLITE_VERSION()",
             exp.ColumnDef: transforms.preprocess([_generated_to_auto_increment]),
             exp.DateStrToDate: lambda self, e: self.sql(e, "this"),
             exp.If: rename_func("IIF"),
@@ -266,6 +268,14 @@ class SQLite(Dialect):
                 return self.func("DATE", expression.this)
 
             return super().cast_sql(expression)
+
+        # Note: SQLite's TRUNC always returns REAL (e.g., trunc(10.99) -> 10.0), not INTEGER.
+        # This creates a transpilation gap affecting division semantics, similar to Presto.
+        # Unlike Presto where this only affects decimals=0, SQLite has no decimals parameter
+        # so every use of TRUNC is affected. Modeling precisely would require exp.FloatTrunc.
+        @unsupported_args("decimals")
+        def trunc_sql(self, expression: exp.Trunc) -> str:
+            return self.func("TRUNC", expression.this)
 
         def generateseries_sql(self, expression: exp.GenerateSeries) -> str:
             parent = expression.parent

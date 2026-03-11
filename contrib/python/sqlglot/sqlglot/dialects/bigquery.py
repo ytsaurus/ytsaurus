@@ -394,6 +394,7 @@ class BigQuery(Dialect):
     LEAST_GREATEST_IGNORES_NULLS = False
     DEFAULT_NULL_TYPE = exp.DataType.Type.BIGINT
     PRIORITIZE_NON_LITERAL_TYPES = True
+    ALIAS_POST_VERSION = False
 
     # https://docs.cloud.google.com/bigquery/docs/reference/standard-sql/string_functions#initcap
     INITCAP_DEFAULT_DELIMITER_CHARS = ' \t\n\r\f\v\\[\\](){}/|<>!?@"^#$&~_,.:;*%+\\-'
@@ -1112,6 +1113,7 @@ class BigQuery(Dialect):
         SUPPORTS_EXPLODING_PROJECTIONS = False
         EXCEPT_INTERSECT_SUPPORT_ALL_CLAUSE = False
         SUPPORTS_UNIX_SECONDS = True
+        DECLARE_DEFAULT_ASSIGNMENT = "DEFAULT"
 
         SAFE_JSON_PATH_KEY_RE = re.compile(r"^[_\-a-zA-Z][\-\w]*$")
 
@@ -1543,12 +1545,3 @@ class BigQuery(Dialect):
                     return f"{self.sql(expression, 'to')}{self.sql(this)}"
 
             return super().cast_sql(expression, safe_prefix=safe_prefix)
-
-        def declareitem_sql(self, expression: exp.DeclareItem) -> str:
-            variables = self.expressions(expression, "this")
-            default = self.sql(expression, "default")
-            default = f" DEFAULT {default}" if default else ""
-            kind = self.sql(expression, "kind")
-            kind = f" {kind}" if kind else ""
-
-            return f"{variables}{kind}{default}"

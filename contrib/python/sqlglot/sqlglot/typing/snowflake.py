@@ -470,6 +470,9 @@ EXPRESSION_METADATA = {
     **{
         expr_type: {"returns": exp.DataType.Type.TINYINT}
         for expr_type in {
+            exp.DayOfMonth,
+            exp.DayOfWeek,
+            exp.DayOfYear,
             exp.Quarter,
         }
     },
@@ -495,7 +498,6 @@ EXPRESSION_METADATA = {
             exp.CurrentSecondaryRoles,
             exp.CurrentSession,
             exp.CurrentStatement,
-            exp.CurrentVersion,
             exp.CurrentTransaction,
             exp.CurrentWarehouse,
             exp.CurrentOrganizationUser,
@@ -506,7 +508,6 @@ EXPRESSION_METADATA = {
             exp.DecompressString,
             exp.HexDecodeString,
             exp.HexEncode,
-            exp.Monthname,
             exp.Randstr,
             exp.RegexpExtract,
             exp.RegexpReplace,
@@ -515,7 +516,6 @@ EXPRESSION_METADATA = {
             exp.Soundex,
             exp.SoundexP123,
             exp.SplitPart,
-            exp.Translate,
             exp.TryBase64DecodeString,
             exp.TryHexDecodeString,
             exp.Uuid,

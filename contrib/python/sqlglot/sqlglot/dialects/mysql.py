@@ -338,6 +338,7 @@ class MySQL(Dialect):
                 source_tz=seq_get(args, 1), target_tz=seq_get(args, 2), timestamp=seq_get(args, 0)
             ),
             "CURDATE": exp.CurrentDate.from_arg_list,
+            "CURTIME": exp.CurrentTime.from_arg_list,
             "DATE": lambda args: exp.TsOrDsToDate(this=seq_get(args, 0)),
             "DATE_ADD": build_date_delta_with_interval(exp.DateAdd),
             "DATE_FORMAT": build_formatted_time(exp.TimeToStr, "mysql"),
@@ -368,6 +369,7 @@ class MySQL(Dialect):
                 )
                 + 1
             ),
+            "VERSION": exp.CurrentVersion.from_arg_list,
             "WEEK": lambda args: exp.Week(
                 this=exp.TsOrDsToDate(this=seq_get(args, 0)), mode=seq_get(args, 1)
             ),
@@ -790,6 +792,16 @@ class MySQL(Dialect):
             part_list = self.expression(exp.PartitionList, this=name, expressions=values)
             return self.expression(exp.Partition, expressions=[part_list])
 
+        def _parse_primary_key(
+            self,
+            wrapped_optional: bool = False,
+            in_props: bool = False,
+            named_primary_key: bool = False,
+        ) -> exp.PrimaryKeyColumnConstraint | exp.PrimaryKey:
+            return super()._parse_primary_key(
+                wrapped_optional=wrapped_optional, in_props=in_props, named_primary_key=True
+            )
+
     class Generator(generator.Generator):
         INTERVAL_ALLOWS_PLURAL_FORM = False
         LOCKING_READS_SUPPORTED = True
@@ -821,6 +833,7 @@ class MySQL(Dialect):
             exp.BitwiseCount: rename_func("BIT_COUNT"),
             exp.Chr: lambda self, e: self.chr_sql(e, "CHAR"),
             exp.CurrentDate: no_paren_current_date_sql,
+            exp.CurrentVersion: rename_func("VERSION"),
             exp.DateDiff: _remove_ts_or_ds_to_date(
                 lambda self, e: self.func("DATEDIFF", e.this, e.expression), ("this", "expression")
             ),
@@ -879,6 +892,7 @@ class MySQL(Dialect):
                 lambda self, e: self.func("DATE_FORMAT", e.this, self.format_time(e))
             ),
             exp.Trim: trim_sql,
+            exp.Trunc: rename_func("TRUNCATE"),
             exp.TryCast: no_trycast_sql,
             exp.TsOrDsAdd: date_add_sql("ADD"),
             exp.TsOrDsDiff: lambda self, e: self.func("DATEDIFF", e.this, e.expression),

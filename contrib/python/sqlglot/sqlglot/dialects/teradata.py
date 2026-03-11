@@ -393,11 +393,6 @@ class Teradata(Dialect):
         def mod_sql(self, expression: exp.Mod) -> str:
             return self.binary(expression, "MOD")
 
-        def datatype_sql(self, expression: exp.DataType) -> str:
-            type_sql = super().datatype_sql(expression)
-            prefix_sql = expression.args.get("prefix")
-            return f"SYSUDTLIB.{type_sql}" if prefix_sql else type_sql
-
         def rangen_sql(self, expression: exp.RangeN) -> str:
             this = self.sql(expression, "this")
             expressions_sql = self.expressions(expression)
