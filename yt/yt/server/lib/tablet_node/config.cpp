@@ -38,6 +38,20 @@ void TRelativeReplicationThrottlerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TPartitionCompactionHintConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("max_store_count", &TThis::MaxStoreCount)
+        // NB(dave11ar): |1 << max_store_count| must fit in ui64 for store subset calculation.
+        .InRange(1, 63)
+        .Default(32);
+
+    registrar.Parameter("max_store_count_for_exponential_calculation", &TThis::MaxStoreCountForExponentialCalculation)
+        .InRange(1, 16)
+        .Default(6);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 bool TRowDigestConfig::AreCompactionSettingsEqual(const TRowDigestConfigPtr& other) const
 {
     return MaxObsoleteTimestampRatio == other->MaxObsoleteTimestampRatio &&

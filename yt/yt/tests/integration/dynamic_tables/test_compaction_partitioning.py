@@ -1433,20 +1433,33 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
                     "row_digest": {
                         "enable_aggregates": True,
                     }
-                }
-            },
+                },
+                "min_data_ttl": 10000,
+                "min_data_versions": 0,
+                "max_data_versions": 1,
+                "dynamic_store_auto_flush_period": yson.YsonEntity(),
+            }
         )
 
         sync_mount_table(table)
 
-        def _insert_flush(i):
-            insert_rows(table, [{"key": i, "value": i}])
-            sync_flush_table(table)
+        insert_rows(table, [{"key": 42, "value": 42}])
+        sync_flush_table(table)
 
-        for i in range(3):
-            _insert_flush(i)
+        for i in range(10):
+            insert_rows(table, [{"key": 42, "value": 42}])
 
-        sleep(10)
+        sync_flush_table(table)
+
+        sleep(5)
+        assert len(get(f"{table}/@chunk_ids")) == 2
+
+        set(f"{table}/@mount_config/aggregate_versioned_row_digest_compaction", {
+            "enable": True,
+        })
+        remount_table(table)
+
+        wait(lambda: len(get(f"{table}/@chunk_ids")) == 1)
 
 
 ################################################################################

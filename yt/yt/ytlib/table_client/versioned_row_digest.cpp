@@ -17,17 +17,39 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TVersionedRowDigest::TVersionedRowDigest(const TTDigestConfigPtr& config)
+    : LastTimestampDigest(CreateTDigest(config))
+    , AllButLastTimestampDigest(CreateTDigest(config))
+    , FirstTimestampDigest(CreateTDigest(config))
+{ }
+
+void TVersionedRowDigest::MergeWith(const TVersionedRowDigestPtr& other)
+{
+    LastTimestampDigest->MergeWith(other->LastTimestampDigest);
+    AllButLastTimestampDigest->MergeWith(other->AllButLastTimestampDigest);
+    if (FirstTimestampDigest && other->FirstTimestampDigest) {
+        FirstTimestampDigest->MergeWith(other->FirstTimestampDigest);
+    }
+
+    EarliestNthTimestamp.reserve(other->EarliestNthTimestamp.size());
+    for (int index = 0; index < ssize(other->EarliestNthTimestamp); ++index) {
+        if (ssize(EarliestNthTimestamp) > index) {
+            EarliestNthTimestamp[index] = std::min(EarliestNthTimestamp[index], other->EarliestNthTimestamp[index]);
+        } else {
+            EarliestNthTimestamp.push_back(other->EarliestNthTimestamp[index]);
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TVersionedRowDigestBuilder
     : public IVersionedRowDigestBuilder
 {
 public:
     explicit TVersionedRowDigestBuilder(const TTDigestConfigPtr& config)
-        : Digest_(New<TVersionedRowDigest>())
-    {
-        Digest_->LastTimestampDigest = CreateTDigest(config);
-        Digest_->AllButLastTimestampDigest = CreateTDigest(config);
-        Digest_->FirstTimestampDigest = CreateTDigest(config);
-    }
+        : Digest_(New<TVersionedRowDigest>(config))
+    { }
 
     void OnRow(TVersionedRow row) override
     {

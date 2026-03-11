@@ -11,6 +11,11 @@ namespace NYT::NTableClient {
 struct TVersionedRowDigest
     : public TRefCounted
 {
+    TVersionedRowDigest() = default;
+    explicit TVersionedRowDigest(const TTDigestConfigPtr& config);
+
+    void MergeWith(const TVersionedRowDigestPtr& other);
+
     std::vector<i64> EarliestNthTimestamp;
     IQuantileDigestPtr LastTimestampDigest;
     IQuantileDigestPtr AllButLastTimestampDigest;
