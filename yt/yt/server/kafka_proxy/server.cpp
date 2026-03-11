@@ -1063,9 +1063,18 @@ private:
                 } else {
                     topicPartitionResponse.HighWatermark = tabletInfos[partitionOffset].TotalRowCount;
                     auto rowset = rowsetOrError.Value();
-                    if (rowset->GetRows().size() > 0) {
-                        topicPartitionResponse.RecordBatches = {ConvertQueueRowsToRecordBatch(rowset)};
+                    if (rowset->GetRows().empty()) {
+                        continue;
                     }
+
+                    auto recordBatchesOrError = ConvertQueueRowsToRecordBatch(rowset);
+                    if (!recordBatchesOrError.IsOK()) {
+                        YT_LOG_DEBUG(recordBatchesOrError, "Failed to convert queue rows to record batches");
+                        topicPartitionResponse.ErrorCode = NKafka::EErrorCode::UnknownServerError;
+                        continue;
+                    }
+
+                    topicPartitionResponse.RecordBatches = {std::move(recordBatchesOrError.Value())};
                 }
             }
         }
