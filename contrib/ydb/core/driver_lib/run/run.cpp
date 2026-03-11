@@ -4,6 +4,8 @@
 #include "service_initializer.h"
 #include "kikimr_services_initializers.h"
 
+#include <contrib/ydb/core/kqp/compile_service/kqp_warmup_compile_actor.h>
+#include <contrib/ydb/core/kqp/common/simple/services.h>
 #include <contrib/ydb/core/memory_controller/memory_controller.h>
 #include <contrib/ydb/library/actors/core/callstack.h>
 #include <contrib/ydb/library/actors/core/events.h>
@@ -66,6 +68,7 @@
 #include <contrib/ydb/core/protos/node_broker.pb.h>
 #include <contrib/ydb/core/protos/recoveryshard_config.pb.h>
 #include <contrib/ydb/core/protos/replication.pb.h>
+#include <contrib/ydb/core/protos/schemeshard_config.pb.h>
 #include <contrib/ydb/core/protos/stream.pb.h>
 #include <contrib/ydb/core/protos/workload_manager_config.pb.h>
 #include <contrib/ydb/core/protos/data_integrity_trails.pb.h>
@@ -219,10 +222,13 @@ class TGRpcServersManager : public TActorBootstrapped<TGRpcServersManager> {
     bool Started = false;
     bool StopScheduled = false;
     bool WaitingForDisconnectRequest = false;
+    TDuration WarmupTimeout = TDuration::Zero();
+    bool WarmupReceived = false;
 
 public:
     enum {
         EvStop = EventSpaceBegin(TEvents::ES_PRIVATE),
+        EvWarmupTimeout,
     };
 
     struct TEvStop : TEventLocal<TEvStop, EvStop> {
@@ -233,17 +239,26 @@ public:
         {}
     };
 
+    struct TEvWarmupTimeout : TEventLocal<TEvWarmupTimeout, EvWarmupTimeout> {};
+
 public:
     TGRpcServersManager(std::weak_ptr<TGRpcServersWrapper> grpcServersWrapper,
-            TIntrusivePtr<NMemory::IProcessMemoryInfoProvider> processMemoryInfoProvider)
+            TIntrusivePtr<NMemory::IProcessMemoryInfoProvider> processMemoryInfoProvider,
+            TDuration warmupTimeout = TDuration::Zero())
         : GRpcServersWrapper(std::move(grpcServersWrapper))
         , ProcessMemoryInfoProvider(std::move(processMemoryInfoProvider))
+        , WarmupTimeout(warmupTimeout)
     {}
 
     void Bootstrap() {
         Become(&TThis::StateFunc);
         Send(MakeBlobStorageNodeWardenID(SelfId().NodeId()), new TEvNodeWardenQueryStorageConfig(true));
-        Start();
+
+        if (!WarmupTimeout) {
+            Start();
+        } else {
+            Schedule(WarmupTimeout, new TEvWarmupTimeout());
+        }
     }
 
     void Handle(TEvNodeWardenStorageConfig::TPtr ev) {
@@ -264,6 +279,20 @@ public:
     void HandleDisconnectRequestFinished() {
         WaitingForDisconnectRequest = false;
         CheckAndExecuteStop();
+    }
+
+    void HandleWarmupComplete(NKqp::TEvKqpWarmupComplete::TPtr&) {
+        if (!WarmupReceived) {
+            WarmupReceived = true;
+            Start();
+        }
+    }
+
+    void HandleWarmupTimeout() {
+        if (!WarmupReceived) {
+            WarmupReceived = true;
+            Start();
+        }
     }
 
     void CheckAndExecuteStop() {
@@ -339,6 +368,8 @@ public:
         hFunc(TEvStop, HandleStop)
         cFunc(TEvGRpcServersManager::EvDisconnectRequestStarted, HandleDisconnectRequestStarted)
         cFunc(TEvGRpcServersManager::EvDisconnectRequestFinished, HandleDisconnectRequestFinished)
+        hFunc(NKqp::TEvKqpWarmupComplete, HandleWarmupComplete)
+        cFunc(EvWarmupTimeout, HandleWarmupTimeout)
         cFunc(TEvents::TSystem::PoisonPill, PassAway)
     )
 };
@@ -623,6 +654,7 @@ void TKikimrRunner::InitializeMonitoring(const TKikimrRunConfig& runConfig, bool
         monConfig.InactivityTimeout = TDuration::Parse(appConfig.GetMonitoringConfig().GetInactivityTimeout());
         monConfig.CertificateFile = appConfig.GetMonitoringConfig().GetMonitoringCertificateFile();
         monConfig.PrivateKeyFile = appConfig.GetMonitoringConfig().GetMonitoringPrivateKeyFile();
+        monConfig.CaFile = appConfig.GetMonitoringConfig().GetMonitoringCaFile();
         monConfig.RedirectMainPageTo = appConfig.GetMonitoringConfig().GetRedirectMainPageTo();
         monConfig.RequireCountersAuthentication = appConfig.GetMonitoringConfig().GetRequireCountersAuthentication();
         if (includeHostName) {
@@ -718,6 +750,13 @@ void TKikimrRunner::InitializeGRpc(const TKikimrRunConfig& runConfig) {
     if (!GRpcServersWrapper) {
         GRpcServersWrapper = std::make_shared<TGRpcServersWrapper>();
     }
+
+    if (runConfig.AppConfig.GetTableServiceConfig().HasCompileCacheWarmupConfig()) {
+        auto warmupConfig = NKqp::ImportWarmupConfigFromProto(
+            runConfig.AppConfig.GetTableServiceConfig().GetCompileCacheWarmupConfig());
+        GRpcWarmupTimeout = warmupConfig.HardDeadline;
+    }
+
     GRpcServersWrapper->GrpcServersFactory = [runConfig, this] { return CreateGRpcServers(runConfig); };
 }
 
@@ -2176,7 +2215,8 @@ void TKikimrRunner::KikimrStart() {
 
     if (GRpcServersWrapper) {
         GRpcServersWrapper->Servers = GRpcServersWrapper->GrpcServersFactory();
-        GRpcServersManager = ActorSystem->Register(new TGRpcServersManager(GRpcServersWrapper, ProcessMemoryInfoProvider));
+        GRpcServersManager = ActorSystem->Register(new TGRpcServersManager(
+            GRpcServersWrapper, ProcessMemoryInfoProvider, GRpcWarmupTimeout));
         ActorSystem->RegisterLocalService(NKikimr::MakeGRpcServersManagerId(ActorSystem->NodeId), GRpcServersManager);
     }
 

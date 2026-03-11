@@ -11,11 +11,13 @@ SRCS(
     dq_compute_actor_watermarks.cpp
     dq_compute_actor.cpp
     dq_compute_issues_buffer.cpp
+    dq_info_aggregation_actor.cpp
     dq_request_context.h
     dq_request_context.cpp
 )
 
 PEERDIR(
+    library/cpp/protobuf/interop
     contrib/ydb/library/actors/core
     contrib/ydb/library/actors/wilson/protos
     contrib/ydb/library/services
@@ -26,6 +28,7 @@ PEERDIR(
     contrib/ydb/library/yql/dq/proto
     contrib/ydb/library/yql/dq/runtime
     contrib/ydb/library/yql/dq/tasks
+    contrib/ydb/library/yverify_stream
     yql/essentials/minikql
     yql/essentials/minikql/comp_nodes
     yql/essentials/public/issue

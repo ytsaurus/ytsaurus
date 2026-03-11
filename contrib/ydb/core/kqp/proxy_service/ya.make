@@ -4,6 +4,7 @@ SRCS(
     kqp_proxy_service.cpp
     kqp_proxy_databases_cache.cpp
     kqp_proxy_peer_stats_calculator.cpp
+    kqp_query_text_cache_service.cpp
     kqp_script_executions.cpp
     kqp_session_info.cpp
 )
@@ -16,6 +17,7 @@ PEERDIR(
     contrib/ydb/core/cms/console
     contrib/ydb/core/kqp/common
     contrib/ydb/core/kqp/common/events
+    contrib/ydb/core/kqp/compile_service
     contrib/ydb/core/kqp/counters
     contrib/ydb/core/kqp/gateway/behaviour/resource_pool_classifier
     contrib/ydb/core/kqp/gateway/behaviour/streaming_query

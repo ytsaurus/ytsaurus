@@ -20,6 +20,12 @@ LIBRARY()
         contrib/ydb/core/blobstorage/vdisk/common
     )
 
+    IF (OS_LINUX)
+        PEERDIR(
+            contrib/ydb/library/pdisk_io
+        )
+    ENDIF()
+
 END()
 
 RECURSE_FOR_TESTS(

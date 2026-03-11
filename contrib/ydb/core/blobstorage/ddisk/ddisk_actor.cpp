@@ -4,6 +4,10 @@
 #include <contrib/ydb/core/node_whiteboard/node_whiteboard.h>
 #include <contrib/ydb/core/util/stlog.h>
 
+#if defined(__linux__)
+#include <unistd.h>
+#endif
+
 namespace NKikimr::NDDisk {
 
     TDDiskActor::TDDiskActor(TVDiskConfig::TBaseInfo&& baseInfo, TIntrusivePtr<TBlobStorageGroupInfo> info,
@@ -33,6 +37,8 @@ namespace NKikimr::NDDisk {
 
         auto cChunks = counters->GetSubgroup("subsystem", "chunks");
 
+        auto cDirectIO = counters->GetSubgroup("subsystem", "direct_io");
+
 #define COUNTER(GROUP, NAME, DERIV) .NAME = c##GROUP->GetCounter(#NAME, DERIV),
 
         Counters = {
@@ -59,6 +65,10 @@ namespace NKikimr::NDDisk {
             .Chunks = {
                 COUNTER(Chunks, ChunksOwned, false)
             },
+            .DirectIO = {
+                COUNTER(DirectIO, ShortReads, true)
+                COUNTER(DirectIO, ShortWrites, true)
+            },
         };
 
         DDiskId = TStringBuilder() << '[' << BaseInfo.PDiskActorID.NodeId() << ':' << BaseInfo.PDiskId
@@ -72,12 +82,8 @@ namespace NKikimr::NDDisk {
     }
 
     void TDDiskActor::Handle(TEvents::TEvUndelivered::TPtr ev) {
-        if (ev->Get()->SourceType == TEv::EvWrite) {
-            HandleWriteInFlight(ev->Cookie, [&] {
-                return std::make_unique<TEvFlushPersistentBufferResult>(NKikimrBlobStorage::NDDisk::TReplyStatus::ERROR,
-                    "write undelivered");
-            });
-        } else if (ev->Get()->SourceType == TEv::EvSync) {
+        auto sourceType = ev->Get()->SourceType;
+        if (sourceType == TEv::EvRead || sourceType == TEv::EvReadPersistentBuffer) {
             std::vector<TSegmentManager::TSegment> segments;
             ui64 syncId = SegmentManager.GetSync(ev->Cookie);
             SegmentManager.PopRequest(ev->Cookie, &segments);
@@ -116,14 +122,14 @@ namespace NKikimr::NDDisk {
             hFunc(TEvDisconnect, handleQuery)
             hFunc(TEvWrite, handleQuery)
             hFunc(TEvRead, handleQuery)
-            hFunc(TEvSync, handleQuery)
+            hFunc(TEvSyncWithPersistentBuffer, handleQuery)
+            hFunc(TEvSyncWithDDisk, handleQuery)
             hFunc(TEvWritePersistentBuffer, handleQuery)
             hFunc(TEvReadPersistentBuffer, handleQuery)
-            hFunc(TEvFlushPersistentBuffer, handleQuery)
             hFunc(TEvErasePersistentBuffer, handleQuery)
+            hFunc(TEvBatchErasePersistentBuffer, handleQuery)
             hFunc(TEvListPersistentBuffer, handleQuery)
 
-            hFunc(TEvWriteResult, Handle)
             hFunc(TEvents::TEvUndelivered, Handle)
 
             hFunc(TEvReadResult, Handle)
@@ -139,6 +145,9 @@ namespace NKikimr::NDDisk {
             hFunc(NPDisk::TEvCutLog, Handle)
             hFunc(NPDisk::TEvChunkWriteRawResult, Handle)
             hFunc(NPDisk::TEvChunkReadRawResult, Handle)
+#if defined(__linux__)
+            hFunc(TEvPrivate::TEvShortIO, HandleShortIO)
+#endif
 
             IgnoreFunc(NNodeWhiteboard::TEvWhiteboard::TEvVDiskStateUpdate)
 
@@ -147,6 +156,15 @@ namespace NKikimr::NDDisk {
     }
 
     void TDDiskActor::PassAway() {
+#if defined(__linux__)
+        if (UringRouter) {
+            for (int i = 0; i < 1000 && InFlightCount.load(std::memory_order_acquire) > 0; ++i) {
+                usleep(1000);
+            }
+            UringRouter->Stop();
+            UringRouter.reset();
+        }
+#endif
         CountersBase->RemoveSubgroupChain(CountersChain);
         TActorBootstrapped::PassAway();
     }

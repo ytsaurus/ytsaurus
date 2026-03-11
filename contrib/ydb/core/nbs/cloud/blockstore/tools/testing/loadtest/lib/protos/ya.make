@@ -2,7 +2,6 @@ PROTO_LIBRARY()
 
 EXCLUDE_TAGS(GO_PROTO)
 
-
 SRCS(
     nbs2_load.proto
 )
