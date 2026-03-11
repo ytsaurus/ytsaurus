@@ -19,6 +19,7 @@ public:
 
     DEFINE_RPC_PROXY_METHOD(NProto, GetBundleConfig);
     DEFINE_RPC_PROXY_METHOD(NProto, SetBundleConfig);
+    DEFINE_RPC_PROXY_METHOD(NProto, Heartbeat);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
