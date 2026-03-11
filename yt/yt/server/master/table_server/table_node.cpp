@@ -60,6 +60,13 @@ constinit const auto Logger = TableServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM_WITH_UNDERLYING_TYPE(ECompatOptimizeFor, i32,
+    ((Lookup)  (0))
+    ((Scan)    (1))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TDynamicTableLock::Persist(const NCellMaster::TPersistenceContext& context)
 {
     using ::NYT::Persist;
@@ -339,7 +346,21 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
     TSchemafulNode::Load(context);
 
     using NYT::Load;
-    Load(context, OptimizeFor_);
+    // COMPAT(cherepashka)
+    if (context.GetVersion() < NCellMaster::EMasterReign::ReduceSchemaModeAndOptimizeFor) {
+        auto compatOptimizeFor = Load<TVersionedBuiltinAttribute<ECompatOptimizeFor>>(context);
+        if (compatOptimizeFor.IsNull()) {
+            OptimizeFor_.Reset();
+        } else if (compatOptimizeFor.IsTombstoned()) {
+            OptimizeFor_.Remove();
+        } else if (compatOptimizeFor.IsSet()) {
+            auto optimizeFor = compatOptimizeFor.ToOptional();
+            YT_VERIFY(optimizeFor);
+            OptimizeFor_.Set(CheckedEnumCast<EOptimizeFor>(*optimizeFor));
+        }
+    } else {
+        Load(context, OptimizeFor_);
+    }
     Load(context, ChunkFormat_);
     Load(context, HunkErasureCodec_);
 
