@@ -1,5 +1,6 @@
 #include "bootstrap.h"
 
+#include "bundle_controller_connector.h"
 #include "bundle_dynamic_config_manager.h"
 #include "config.h"
 #include "master_connector.h"
@@ -198,8 +199,11 @@ public:
 
         MasterConnector_ = CreateMasterConnector(this);
 
+        BundleControllerConnector_ = New<TBundleControllerConnector>(this);
+
         CellarManager_->Initialize();
         MasterConnector_->Initialize();
+        BundleControllerConnector_->Initialize();
     }
 
     void Run() override
@@ -223,6 +227,11 @@ public:
     const IMasterConnectorPtr& GetMasterConnector() const override
     {
         return MasterConnector_;
+    }
+
+    const TBundleControllerConnectorPtr& GetBundleControllerConnector() const override
+    {
+        return BundleControllerConnector_;
     }
 
     void ScheduleCellarHeartbeat() const override
@@ -294,6 +303,8 @@ private:
     ICellarManagerPtr CellarManager_;
 
     IMasterConnectorPtr MasterConnector_;
+
+    TBundleControllerConnectorPtr BundleControllerConnector_;
 
     ICellarOccupantPtr DryRunOccupant_;
 
@@ -391,11 +402,15 @@ private:
     }
 
     void OnDynamicConfigChanged(
-        const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
+        const TClusterNodeDynamicConfigPtr& oldConfig,
         const TClusterNodeDynamicConfigPtr& newConfig)
     {
         auto bundleConfig = GetBundleDynamicConfigManager()->GetConfig();
         ReconfigureCellarManager(bundleConfig, newConfig);
+
+        GetBundleControllerConnector()->OnDynamicConfigChanged(
+            oldConfig->CellarNode->BundleControllerConnector,
+            newConfig->CellarNode->BundleControllerConnector);
     }
 
     void OnBundleDynamicConfigChanged(
