@@ -445,9 +445,6 @@ public:
     void ConfigureSnapshotStore(NNative::IConnectionPtr connection)
     {
         auto snapshotClient = connection->CreateNativeClient(NNative::TClientOptions::FromUser(NSecurityClient::TabletCellSnapshotterUserName));
-        auto primaryStoresPath = GetStoresPath(/*primary*/ true);
-        auto secondaryStoresPath = GetStoresPath(/*primary*/ false);
-
         auto snapshotStore = Config_->Snapshots;
         switch (snapshotStore->StoreType) {
             case ESnapshotStoreType::Remote : {
@@ -455,8 +452,7 @@ public:
                 auto snapshotStore = CreateRemoteSnapshotStore(
                     remoteSnapshotStore,
                     Options_,
-                    primaryStoresPath + "/snapshots",
-                    secondaryStoresPath + "/snapshots",
+                    GetStoresPath() + "/snapshots",
                     snapshotClient,
                     PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId,
                     GetSnapshotOutThrottlerProvider());
@@ -548,8 +544,6 @@ public:
         ConfigureSnapshotStore(connection);
 
         auto changelogClient = connection->CreateNativeClient(NNative::TClientOptions::FromUser(NSecurityClient::TabletCellChangeloggerUserName));
-        auto primaryStoresPath = GetStoresPath(/*primary*/ true);
-        auto secondaryStoresPath = GetStoresPath(/*primary*/ false);
 
         auto changelogProfiler = occupier->GetProfiler()
             .WithPrefix("/remote_changelog")
@@ -563,8 +557,7 @@ public:
         ChangelogStoreFactory_ = CreateRemoteChangelogStoreFactory(
             Config_->Changelogs,
             Options_,
-            primaryStoresPath + "/changelogs",
-            secondaryStoresPath + "/changelogs",
+            GetStoresPath() + "/changelogs",
             changelogClient,
             Bootstrap_->GetResourceLimitsManager(),
             PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId,
@@ -929,13 +922,10 @@ private:
     IChangelogStoreFactoryPtr ChangelogStoreFactory_;
     std::atomic<bool> EnableSnapshotNetworkThrottling_ = false;
 
-    // COMPAT(danilalexeev): 'primary'.
-    TYPath GetStoresPath(bool primary)
+    TYPath GetStoresPath()
     {
         TStringBuilder builder;
-        builder.AppendString(primary
-            ? GetCellHydraPersistencePath(GetCellId())
-            : GetCellPath(GetCellId()));
+        builder.AppendString(GetCellHydraPersistencePath(GetCellId()));
         if (Options_->IndependentPeers) {
             builder.AppendFormat("/%v", PeerId_);
         }

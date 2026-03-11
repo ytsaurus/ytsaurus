@@ -72,16 +72,10 @@ struct TDynamicSecurityManagerConfig
     //! Period between user statistics commits.
     TDuration UserStatisticsFlushPeriod;
 
-    // This is a panic button.
-    bool EnableSubjectTagFilters;
-
     // COMPAT(coteeq)
     //! Defines what to do when a user is altering table but lacks
     //! full_read permission on that table.
     EAllowAlterWithoutFullRead AllowAlterWithoutFullRead;
-
-    // COMPAT(danilalexeev): YT-27444.
-    bool EnableProperColumnarAceHandling;
 
     REGISTER_YSON_STRUCT(TDynamicSecurityManagerConfig);
 

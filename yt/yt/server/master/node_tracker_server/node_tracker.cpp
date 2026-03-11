@@ -3301,15 +3301,23 @@ private:
 
         if (auto transaction = node->GetLeaseTransaction()) {
             if (auto timeout = transaction->GetTimeout()) {
-                // COPMAT(danilalexeev)
-                const auto& config = Bootstrap_->GetConfig()->NodeTracker;
-                auto defaultTimeout = node->IsDataNode()
-                    ? config->DefaultDataNodeLeaseTransactionTimeout
-                    : config->DefaultNodeTransactionTimeout;
+                if (!node->IsPendingRestart() &&
+                    !node->GetLastSeenLeaseTransactionTimeout())
+                {
+                    const auto& config = Bootstrap_->GetConfig()->NodeTracker;
+                    auto defaultTimeout = node->IsDataNode()
+                        ? config->DefaultDataNodeLeaseTransactionTimeout
+                        : config->DefaultNodeTransactionTimeout;
+                    node->SetLastSeenLeaseTransactionTimeout(defaultTimeout);
+
+                    YT_LOG_ALERT("Lease timeout missing for pending restart node (NodeId: %v, Address: %v)",
+                        node->GetId(),
+                        node->GetDefaultAddress());
+                }
 
                 auto newTimeout = node->IsPendingRestart()
                     ? GetDynamicConfig()->PendingRestartLeaseTimeout
-                    : node->GetLastSeenLeaseTransactionTimeout().value_or(defaultTimeout);
+                    : *node->GetLastSeenLeaseTransactionTimeout();
 
                 node->SetLastSeenLeaseTransactionTimeout(timeout);
 

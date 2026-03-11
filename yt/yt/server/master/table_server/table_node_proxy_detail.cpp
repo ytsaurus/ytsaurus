@@ -133,7 +133,7 @@ void TTableNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* context)
         auto* table = GetThisImpl();
         if (context->Columns) {
             checkOptions.Columns = std::move(context->Columns);
-        } else if (securityManager->HasColumnarAce(Object_, user)) {
+        } else if (securityManager->HasColumnarAce(Object_)) {
             // If the object lacks a columnar ACE, column-level permissions
             // are skipped during the permission check.
             const auto& tableManager = Bootstrap_->GetTableManager();

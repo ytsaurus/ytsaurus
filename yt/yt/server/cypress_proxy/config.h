@@ -100,9 +100,6 @@ struct TObjectServiceDynamicConfig
     //! When set to |true|, all requests are resolved at Sequoia first.
     bool AllowBypassMasterResolve;
 
-    // COMPAT(danilalexeev)
-    bool AlertOnMixedReadWriteBatch;
-
     NDistributedThrottler::TDistributedThrottlerConfigPtr DistributedThrottler;
 
     bool EnablePerUserRequestWeightThrottling;

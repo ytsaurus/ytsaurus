@@ -60,19 +60,12 @@ void TDynamicSecurityManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("forbid_irreversible_changes", &TThis::ForbidIrreversibleAclChanges)
         .Default(false);
 
-    registrar.Parameter("enable_subject_tag_filters", &TThis::EnableSubjectTagFilters)
-        .Default(true);
-
     registrar.Parameter("user_statistics_flush_period", &TThis::UserStatisticsFlushPeriod)
         .GreaterThan(TDuration::Zero())
         .Default(TDuration::Seconds(1));
 
     registrar.Parameter("allow_alter_without_full_read", &TThis::AllowAlterWithoutFullRead)
         .Default(EAllowAlterWithoutFullRead::Allow);
-
-    registrar.Parameter("enable_proper_columar_ace_handling", &TThis::EnableProperColumnarAceHandling)
-        .Default(false)
-        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

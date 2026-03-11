@@ -1933,12 +1933,6 @@ class TestCypressAcls(CheckPermissionBase):
         with pytest.raises(YtError):
             read_table("//tmp/t{secret}", authenticated_user="u")
 
-        # COMPAT(danilalexeev): YT-27444.
-        set("//sys/@config/security_manager/enable_proper_columar_ace_handling", False)
-        read_table("//tmp/t", authenticated_user="u")
-        read_table("//tmp/t{public}", authenticated_user="u")
-        read_table("//tmp/t{secret}", authenticated_user="u")
-
     @authors("h0pless")
     @not_implemented_in_sequoia
     def test_disable_subject_tag_filters(self):

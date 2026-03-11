@@ -902,10 +902,7 @@ private:
 
         auto innerRequest = TCypressYPathProxy::Remove(path);
         innerRequest->set_force(force);
-        // COPMAT(danilalexeev): Remove if.
-        if (request->has_effective_acl()) {
-            SetSequoiaNodeEffectiveAcl(&innerRequest->Header(), request->effective_acl());
-        }
+        SetSequoiaNodeEffectiveAcl(&innerRequest->Header(), request->effective_acl());
 
         SyncExecuteVerb(
             cypressManager->GetNodeProxy(trunkNode, cypressTransaction),

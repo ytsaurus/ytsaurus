@@ -567,12 +567,10 @@ private:
         auto recordCountGetter = [&] (int changelogId) {
             auto changelog = WaitFor(OpenChangelog(changelogId, /*options*/ {}, epoch))
                 .ValueOrThrow();
-            return TChangelogScanInfo{
-                .RecordCount = changelog->GetRecordCount(),
-            };
+            return changelog->GetRecordCount();
         };
 
-        auto recordReader = [&] (int changelogId, int recordId, bool /*atPrimaryPath*/) {
+        auto recordReader = [&] (int changelogId, int recordId) {
             auto changelog = WaitFor(OpenChangelog(changelogId, /*options*/ {}, epoch))
                 .ValueOrThrow();
 
