@@ -8,6 +8,7 @@ SRCS(
     chunk_reader.cpp
     chunk_writer.cpp
     config.cpp
+    upload_session.cpp
 )
 
 PEERDIR(

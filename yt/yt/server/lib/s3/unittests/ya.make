@@ -8,6 +8,7 @@ ALLOCATOR(TCMALLOC)
 
 SRCS(
     chunk_reader_writer_ut.cpp
+    upload_session_ut.cpp
 )
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
