@@ -77,9 +77,9 @@ target_sources(contrib-libs-curl PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/cookie.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/cshutdn.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/curl_addrinfo.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/curl_des.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/curl_endian.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/curl_fnmatch.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/curl_fopen.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/curl_get_line.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/curl_gethostname.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/curl_gssapi.c
@@ -94,10 +94,12 @@ target_sources(contrib-libs-curl PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/curl_trc.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/curlx/base64.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/curlx/dynbuf.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/curlx/fopen.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/curlx/inet_ntop.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/curlx/inet_pton.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/curlx/multibyte.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/curlx/nonblock.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/curlx/strerr.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/curlx/strparse.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/curlx/timediff.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/curlx/timeval.c
@@ -117,7 +119,6 @@ target_sources(contrib-libs-curl PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/fake_addrinfo.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/file.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/fileinfo.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/fopen.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/formdata.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/ftp.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/ftplistparser.c
@@ -144,7 +145,6 @@ target_sources(contrib-libs-curl PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/idn.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/if2ip.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/imap.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/krb5.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/ldap.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/llist.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/macos.c
@@ -156,6 +156,7 @@ target_sources(contrib-libs-curl PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/mqtt.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/multi.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/multi_ev.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/multi_ntfy.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/netrc.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/noproxy.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/openldap.c
@@ -218,7 +219,7 @@ target_sources(contrib-libs-curl PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/vssh/curl_path.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/vssh/libssh.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/vssh/libssh2.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/vssh/wolfssh.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/vtls/apple.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/vtls/cipher_suite.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/vtls/hostcheck.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/vtls/keylog.c
@@ -396,14 +397,6 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/curl_des.c
-  APPEND
-  PROPERTY
-  COMPILE_OPTIONS
-)
-
-set_property(
-  SOURCE
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/curl_endian.c
   APPEND
   PROPERTY
@@ -413,6 +406,14 @@ set_property(
 set_property(
   SOURCE
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/curl_fnmatch.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/curl_fopen.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -532,6 +533,14 @@ set_property(
 
 set_property(
   SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/curlx/fopen.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/curlx/inet_ntop.c
   APPEND
   PROPERTY
@@ -557,6 +566,14 @@ set_property(
 set_property(
   SOURCE
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/curlx/nonblock.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/curlx/strerr.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -709,14 +726,6 @@ set_property(
 set_property(
   SOURCE
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/fileinfo.c
-  APPEND
-  PROPERTY
-  COMPILE_OPTIONS
-)
-
-set_property(
-  SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/fopen.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -932,14 +941,6 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/krb5.c
-  APPEND
-  PROPERTY
-  COMPILE_OPTIONS
-)
-
-set_property(
-  SOURCE
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/ldap.c
   APPEND
   PROPERTY
@@ -1021,6 +1022,14 @@ set_property(
 set_property(
   SOURCE
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/multi_ev.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/multi_ntfy.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1524,7 +1533,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/vssh/wolfssh.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/vtls/apple.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
