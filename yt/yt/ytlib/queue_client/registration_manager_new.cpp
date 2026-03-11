@@ -152,6 +152,37 @@ DEFINE_ENUM(ELookupReason,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TLookupSessionProfilingCounters final
+{
+    explicit TLookupSessionProfilingCounters(TProfiler profiler)
+        : Counter(profiler.Counter("/count"))
+        , ErrorCounter(profiler.Counter("/error_count"))
+        , KeyCounter(profiler.Counter("/key_count"))
+        , ErrorKeyCounter(profiler.Counter("/error_key_count"))
+        , ExecutionTimeCounter(profiler.Timer("/time/execution"))
+    {}
+
+    //! Counts the number of lookup sessions executed.
+    TCounter Counter;
+    //! Counts the number of lookup sessions executed with errors.
+    TCounter ErrorCounter;
+    //! Counts the number of keys.
+    TCounter KeyCounter;
+    //! Counts the number of keys with erroneous lookup result.
+    //! \note All keys are treated as erroneous if session has failed.
+    //! Otherwise, only keys with erroneous lookup result are counted.
+    //! \note Only supported if lookup result is wrapped in TErrorOr, i.e.
+    //! does not work for list registration session.
+    TCounter ErrorKeyCounter;
+    //! Aggregates maximum lookup session execution time in 5 second windows.
+    TEventTimer ExecutionTimeCounter;
+};
+
+using TLookupSessionProfilingCountersPtr = TIntrusivePtr<TLookupSessionProfilingCounters>;
+DEFINE_REFCOUNTED_TYPE(TLookupSessionProfilingCounters)
+
+////////////////////////////////////////////////////////////////////////////////
+
 // TODO(apachee): Refactor helpers to registration_manager_new_detail.h and registration_manager_new_detail.cpp.
 // That would allow to cover helpers with tests.
 
@@ -170,19 +201,33 @@ public:
         TWeakPtr<NNative::IConnection> connection,
         TLookupSessionConfigPtr config,
         std::vector<TCacheKey> keys,
+        TLookupSessionProfilingCountersPtr profilingCounters,
         TLogger logger)
         : Config_(std::move(config))
         , Keys_(std::move(keys))
-        , Logger(logger)
+        , ProfilingCounters_(std::move(profilingCounters))
+        , Logger(std::move(logger))
         , Connection_(std::move(connection))
     { }
 
     auto Run() const
     {
+        TCpuInstant startTime = GetCpuInstant();
+        auto finally = Finally([&] {
+            TCpuInstant endTime = GetCpuInstant();
+            TCpuDuration executionTime = endTime - startTime;
+            ProfilingCounters_->ExecutionTimeCounter.Record(CpuDurationToDuration(executionTime));
+        });
+
+        ProfilingCounters_->Counter.Increment();
+        ProfilingCounters_->KeyCounter.Increment(Keys_.size());
+
         try {
             return RunGuarded();
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Lookup session failed");
+            ProfilingCounters_->ErrorCounter.Increment();
+            ProfilingCounters_->ErrorKeyCounter.Increment(Keys_.size());
             throw;
         }
     }
@@ -195,6 +240,14 @@ public:
         // NB(apachee): Wrap result in TErrorOr in case it isn't already.
         auto unwrappedResult = DoLookup(std::move(table));
         if constexpr (std::is_same_v<TLookupResult, TLookupResultWrapped>) {
+            i64 errorKeyCount = 0;
+            for (const auto& result : unwrappedResult) {
+                if (!result.IsOK()) {
+                    ++errorKeyCount;
+                }
+            }
+            ProfilingCounters_->ErrorKeyCounter.Increment(errorKeyCount);
+
             return unwrappedResult;
         } else {
             return std::vector<TLookupResultWrapped>(
@@ -206,6 +259,7 @@ public:
 protected:
     const TLookupSessionConfigPtr Config_;
     const std::vector<TCacheKey> Keys_;
+    const TLookupSessionProfilingCountersPtr ProfilingCounters_;
     const TLogger Logger;
 
     virtual std::vector<TLookupResult> DoLookup(TIntrusivePtr<TTable> table) const = 0;
@@ -245,6 +299,22 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TLookupSessionFactoryProfilingCounters final
+{
+    TEnumIndexedArray<ELookupReason, TLookupSessionProfilingCountersPtr> LookupSessionByReason;
+
+    explicit TLookupSessionFactoryProfilingCounters(TProfiler profiler)
+    {
+        for (auto lookupReason : TEnumTraits<ELookupReason>::GetDomainValues()) {
+            LookupSessionByReason[lookupReason] = New<TLookupSessionProfilingCounters>(
+                profiler
+                    .WithTag("lookup_reason", Format("%lv", lookupReason)));
+        }
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <typename TLookupSession>
 class TLookupSessionFactory
     : public TRefCounted
@@ -252,9 +322,11 @@ class TLookupSessionFactory
 public:
     TLookupSessionFactory(
         TWeakPtr<NNative::IConnection> connection,
+        TProfiler profiler,
         TLogger sessionLogger,
         TLookupSessionConfigPtr config)
         : Connection_(std::move(connection))
+        , ProfilingCounters_(std::move(profiler))
         , SessionLogger_(std::move(sessionLogger))
         , Config_(std::move(config))
     { }
@@ -264,17 +336,21 @@ public:
         Config_.Store(std::move(newConfig));
     }
 
-    TIntrusivePtr<TLookupSession> CreateSession(std::vector<typename TLookupSession::TCacheKey> keys) const
+    TIntrusivePtr<TLookupSession> CreateSession(
+        std::vector<typename TLookupSession::TCacheKey> keys,
+        ELookupReason lookupReason) const
     {
         return New<TLookupSession>(
             Connection_,
             Config_.Acquire(),
             std::move(keys),
+            ProfilingCounters_.LookupSessionByReason[lookupReason],
             SessionLogger_);
     }
 
 private:
     const TWeakPtr<NNative::IConnection> Connection_;
+    const TLookupSessionFactoryProfilingCounters ProfilingCounters_;
     const NLogging::TLogger SessionLogger_;
 
     TAtomicIntrusivePtr<TLookupSessionConfig> Config_;
@@ -529,12 +605,13 @@ public:
         , Logger(logger)
         , LookupSessionFactory_(New<TLookupSessionFactory>(
             Connection_,
+            profiler.WithPrefix("/session"),
             Logger,
             /*lookupSessionConfig*/ Config_))
         , LookupRequestBatcher_(New<TLookupRequestBatcher>(
             Connection_,
             Invoker_,
-            profiler,
+            profiler.WithPrefix("/batcher"),
             Logger,
             Config_->BatchLookup,
             LookupSessionFactory_))
@@ -591,7 +668,7 @@ private:
             , IsEnabled_(BatchLookupConfig_->Enable)
             , BatchRequestThrottler_(CreateNamedReconfigurableThroughputThrottler(
                 BatchLookupConfig_->Throttler,
-                Format("QueueConsumer%vBatchRequestThrottler", CacheKind),
+                "RequestThrottler",
                 Logger,
                 std::move(profiler)))
         { }
@@ -788,7 +865,9 @@ private:
                 keys.push_back(request.Key);
             }
 
-            auto session = LookupSessionFactory_->CreateSession(std::move(keys));
+            auto session = LookupSessionFactory_->CreateSession(
+                std::move(keys),
+                ELookupReason::InitialLookup);
 
             std::vector<TErrorOr<TValue>> responses;
 
@@ -960,9 +1039,15 @@ private:
 
     TFuture<std::vector<TErrorOr<TValue>>> DoGetMany(
         const std::vector<TKey>& keys,
-        bool /*isPeriodicUpdate*/) noexcept override
+        bool isPeriodicUpdate) noexcept override
     {
-        auto session = LookupSessionFactory_->CreateSession(std::move(keys));
+        auto lookupReason = isPeriodicUpdate
+            ? ELookupReason::PeriodicUpdate
+            : ELookupReason::InitialLookup;
+
+        auto session = LookupSessionFactory_->CreateSession(
+            std::move(keys),
+            lookupReason);
 
         return BIND(
             &TLookupSession::Run,
@@ -1020,7 +1105,7 @@ auto CreateCache(
     // - QueueConsumerReplicaMappingLookup.
     static constexpr TStringBuf CacheNamePrefix = "QueueConsumer";
     logger = std::move(logger)
-        .WithTag("Cache: %v%v", CacheNamePrefix, Format("%v", TCache::CacheKind));
+        .WithTag("Cache: %v%v", CacheNamePrefix, TCache::CacheKind);
 
     profiler = profiler
         .WithPrefix("/lookup_cache")
@@ -1052,7 +1137,7 @@ static_assert(std::is_same_v<TReplicaMappingLookupCache::TValue, TReplicaMapping
 
 #undef XX
 
-// TODO(apachee): Use SubscribeOnClusterUpdated of cluster directory for better
+// TODO(apachee): Use SubscribeOnClusterUpdated for automatic reconfiguration instead.
 class TQueueConsumerRegistrationManagerNewImpl
     : public TQueueConsumerRegistrationManagerBase
 {
@@ -1173,7 +1258,8 @@ private:
         const NTabletClient::TTableMountInfoPtr& tableMountInfo,
         bool throwOnFailure) const override
     {
-        // TODO(apachee): Metric for successful and failed replica mapping lookups. That helps verifying that new implementation is working as expected.
+        // TODO(apachee): Metric for successful and failed replica mapping lookups. That helps verifying that new implementation is working as expected,
+        // as well as report if this feature is even used.
 
         // NB(apachee): I kept the old implementation, which is:
         // - Lookup replicated table mapping table to resolve replicated table path from replica path.
@@ -1189,6 +1275,13 @@ private:
         auto resultOrError = WaitFor(ReplicaMappingLookupCache_->Get(TReplicaMappingCacheKey{
             .Replica = TCrossClusterReference::FromRichYPath(objectPath),
         }));
+
+        if (tableMountInfo->UpstreamReplicaId != NullObjectId) {
+            ProfilingCounters_.ResolveReplicatedTableReplicaRequestCount.Increment();
+            if (!resultOrError.IsOK()) {
+                ProfilingCounters_.ResolveReplicatedTableReplicaFailedRequestCount.Increment();
+            }
+        }
 
         if (resultOrError.IsOK()) {
             auto result = resultOrError.Value().ReplicatedTableRef;
