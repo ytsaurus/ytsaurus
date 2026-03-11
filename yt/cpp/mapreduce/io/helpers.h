@@ -3,6 +3,7 @@
 #include <yt/cpp/mapreduce/interface/io.h>
 #include <yt/cpp/mapreduce/interface/config.h>
 #include <yt/cpp/mapreduce/common/helpers.h>
+#include <yt/cpp/mapreduce/interface/logging/yt_log.h>
 
 namespace NYT {
 
@@ -96,10 +97,12 @@ inline TNode FormIORequestParameters(
     if (options.Config_) {
         fileWriter = *options.Config_;
     }
+    YT_LOG_INFO("(FormIORequestParameters) Uploading file options: uploadRF = %v, minUploadRF = %v", options.WriterOptions_->UploadReplicationFactor_, options.WriterOptions_->MinUploadReplicationFactor_);
     if (options.WriterOptions_) {
         AddWriterOptionsToNode(*options.WriterOptions_, &fileWriter);
     }
     if (fileWriter.Empty()) {
+        YT_LOG_INFO("(FormIORequestParameters) WriterOptions not provided, use defaults");
         AddWriterOptionsToNode(
             TWriterOptions()
                 .EnableEarlyFinish(true)

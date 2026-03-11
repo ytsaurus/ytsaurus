@@ -112,6 +112,7 @@ void TRetryfulWriter::Send(const TBuffer& buffer)
             std::visit([this, &attemptTx, &stream] (const auto& options) -> void {
                 using TType = std::decay_t<decltype(options)>;
                 if constexpr (std::is_same_v<TType, TFileWriterOptions>) {
+                    YT_LOG_INFO("(TRetryfulWriter::Send) Uploading file options: uploadRF = %v, minUploadRF = %v", options.WriterOptions_->UploadReplicationFactor_, options.WriterOptions_->MinUploadReplicationFactor_);
                     stream = RawClient_->WriteFile(attemptTx.GetId(), Path_, options);
                 } else if constexpr (std::is_same_v<TType, TTableWriterOptions>) {
                     stream = RawClient_->WriteTable(attemptTx.GetId(), Path_, Format_, options);

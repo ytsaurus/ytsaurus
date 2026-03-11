@@ -394,6 +394,7 @@ std::unique_ptr<IOutputStream> WriteFile(
     THttpHeader header("PUT", GetWriteFileCommand(context.Config->ApiVersion));
     header.AddTransactionId(transactionId);
     header.SetRequestCompression(ToString(context.Config->ContentEncoding));
+    YT_LOG_INFO("(WriteFile) Uploading file options: uploadRF = %v, minUploadRF = %v", options.WriterOptions_->UploadReplicationFactor_, options.WriterOptions_->MinUploadReplicationFactor_);
     header.MergeParameters(FormIORequestParameters(path, options));
 
     TRequestConfig config;
