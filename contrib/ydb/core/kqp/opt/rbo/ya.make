@@ -7,16 +7,11 @@ SRCS(
     kqp_stage_graph.cpp
     kqp_rbo_utils.cpp
     kqp_rbo.cpp
-    kqp_rbo_rules.cpp
     kqp_plan_conversion_utils.cpp
     kqp_rbo_type_ann.cpp
-    kqp_rename_unused_stage.cpp
-    kqp_constant_folding_stage.cpp
     kqp_rewrite_select.cpp
     kqp_rbo_compute_statistics.cpp
     kqp_rbo_statistics.cpp
-    kqp_rbo_dp_cost_based.cpp
-    kqp_prune_columns_stage.cpp
 )
 
 PEERDIR(
@@ -24,6 +19,7 @@ PEERDIR(
     contrib/ydb/core/kqp/opt/logical
     contrib/ydb/core/kqp/opt/peephole
     contrib/ydb/core/kqp/opt/physical
+    contrib/ydb/core/kqp/opt/rbo/rules
     contrib/ydb/core/kqp/opt/rbo/physical_convertion
     contrib/ydb/library/yql/dq/common
     contrib/ydb/library/yql/dq/opt

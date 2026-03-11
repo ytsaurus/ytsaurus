@@ -1,11 +1,13 @@
 LIBRARY()
 
 SRCS(
+    consumers_advanced_monitoring_settings.cpp
     pq_schema_actor.cpp
 )
 
 PEERDIR(
     contrib/ydb/library/grpc/server
+    library/cpp/json
     library/cpp/digest/md5
     contrib/ydb/core/grpc_services
     contrib/ydb/core/grpc_services/base

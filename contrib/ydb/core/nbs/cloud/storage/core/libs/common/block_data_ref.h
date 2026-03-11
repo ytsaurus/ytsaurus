@@ -2,9 +2,12 @@
 
 #include "public.h"
 
+#include <contrib/ydb/library/actors/util/rope.h>
+
 #include <util/generic/hash.h>
 #include <util/generic/strbuf.h>
 #include <util/generic/string.h>
+#include <util/generic/vector.h>
 #include <util/stream/output.h>
 
 #include <span>
@@ -42,6 +45,16 @@ public:
         : Start(nullptr)
         , Length(0)
     {}
+
+    static TBlockDataRef Create(const TVector<ui8>& data)
+    {
+        return {reinterpret_cast<const char*>(data.data()), data.size()};
+    }
+
+    static TBlockDataRef Create(const TRope& data)
+    {
+        return {data.Begin().ContiguousData(), data.GetSize()};
+    }
 
     static TBlockDataRef CreateZeroBlock(size_t len)
     {
@@ -117,8 +130,9 @@ using TBlockDataRefSpan = std::span<const TBlockDataRef>;
 }   // namespace NYdb::NBS
 
 template <>
-inline void Out<NYdb::NBS::TBlockDataRef>(IOutputStream& o,
-                                          const NYdb::NBS::TBlockDataRef& p)
+inline void Out<NYdb::NBS::TBlockDataRef>(
+    IOutputStream& o,
+    const NYdb::NBS::TBlockDataRef& p)
 {
     if (!p.Empty()) {
         o.Write(p.Data(), p.Size());

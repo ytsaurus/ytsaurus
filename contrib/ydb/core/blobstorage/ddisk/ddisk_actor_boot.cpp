@@ -7,12 +7,13 @@ namespace NKikimr::NDDisk {
         STLOG(PRI_DEBUG, BS_DDISK, BSDD01, "TDDiskActor::InitPDiskInterface", (DDiskId, DDiskId), (PDiskActorId, BaseInfo.PDiskActorID));
 
         Send(BaseInfo.PDiskActorID, new NPDisk::TEvYardInit(BaseInfo.InitOwnerRound, TVDiskID(Info->GroupID,
-            Info->GroupGeneration, BaseInfo.VDiskIdShort), BaseInfo.PDiskGuid, SelfId(), SelfId(), BaseInfo.VDiskSlotId));
+            Info->GroupGeneration, BaseInfo.VDiskIdShort), BaseInfo.PDiskGuid, SelfId(), SelfId(), BaseInfo.VDiskSlotId,
+            0 /*groupSizeInUnits*/, true /*getDiskFd*/));
     }
 
     void TDDiskActor::Handle(NPDisk::TEvYardInitResult::TPtr ev) {
         auto& msg = *ev->Get();
-        STLOG(PRI_DEBUG, BS_DDISK, BSDD02, "TDDiskActor::Handle(TEvYardInitResult)", (DDiskId, DDiskId), (Msg, msg.ToString()));
+        STLOG(PRI_INFO, BS_DDISK, BSDD02, "TDDiskActor::Handle(TEvYardInitResult)", (DDiskId, DDiskId), (Msg, msg.ToString()));
 
         if (msg.Status != NKikimrProto::OK) {
             Y_ABORT();
@@ -20,6 +21,13 @@ namespace NKikimr::NDDisk {
 
         PDiskParams = std::move(msg.PDiskParams);
         OwnedChunksOnBoot = std::move(msg.OwnedChunks);
+        DiskFd = std::move(msg.DiskFd);
+        if (!DiskFd.IsOpen()) {
+            STLOG(PRI_INFO, BS_DDISK, BSDD17,
+                "TDDiskActor::Handle(TEvYardInitResult) DiskFd is invalid, all further I/O will be routed through PDisk",
+                (DDiskId, DDiskId), (PDiskActorId, BaseInfo.PDiskActorID));
+        }
+        DiskFormat = std::move(msg.DiskFormat);
 
         if (const auto it = msg.StartingPoints.find(TLogSignature::SignatureDDiskChunkMap); it != msg.StartingPoints.end()) {
             NPDisk::TLogRecord& record = it->second;
@@ -102,6 +110,19 @@ namespace NKikimr::NDDisk {
     }
 
     void TDDiskActor::StartHandlingQueries() {
+#if defined(__linux__)
+        NPDisk::TUringRouterConfig config;
+        config.QueueDepth = MaxInFlight;
+        if (!UringRouter && DiskFd != INVALID_FHANDLE && DiskFormat && NPDisk::TUringRouter::Probe(config)) {
+            UringRouter = std::make_unique<NPDisk::TUringRouter>(DiskFd, TActivationContext::ActorSystem(), config);
+            if (const auto result = UringRouter->RegisterFile(); !result) {
+                STLOG(PRI_WARN, BS_DDISK, BSDD17,
+                    "TDDiskActor::StartHandlingQueries failed to register fixed file for io_uring",
+                    (DDiskId, DDiskId), (Errno, result.error()));
+            }
+            UringRouter->Start();
+        }
+#endif
         TActivationContext::Send(new IEventHandle(TEvPrivate::EvHandleSingleQuery, 0, SelfId(), SelfId(), nullptr, 0));
     }
 

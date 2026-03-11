@@ -20,7 +20,9 @@ PEERDIR(
     contrib/ydb/library/yql/providers/dq/api/protos
     contrib/ydb/library/yql/providers/pq/common
     contrib/ydb/library/yql/providers/pq/gateway/abstract
+    contrib/ydb/library/yql/providers/pq/gateway/clients/composite
     contrib/ydb/library/yql/providers/pq/proto
+    contrib/ydb/library/yverify_stream
     contrib/ydb/public/sdk/cpp/adapters/issue
     contrib/ydb/public/sdk/cpp/src/client/federated_topic
     contrib/ydb/public/sdk/cpp/src/client/driver

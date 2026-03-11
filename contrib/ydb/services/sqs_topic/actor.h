@@ -1,8 +1,8 @@
 #pragma once
 
 #include <contrib/ydb/services/lib/actors/pq_schema_actor.h>
-#include <contrib/ydb/core/protos//sqs.pb.h>
-#include <contrib/ydb/library//http_proxy//error/error.h>
+#include <contrib/ydb/core/protos/sqs.pb.h>
+#include <contrib/ydb/library/http_proxy/error/error.h>
 
 namespace NKikimr::NSqsTopic::V1 {
 

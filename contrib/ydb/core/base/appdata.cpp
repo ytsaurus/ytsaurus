@@ -22,6 +22,7 @@
 #include <contrib/ydb/core/protos/cms.pb.h>
 #include <contrib/ydb/core/protos/config.pb.h>
 #include <contrib/ydb/core/protos/data_integrity_trails.pb.h>
+#include <contrib/ydb/core/protos/schemeshard_config.pb.h>
 #include <contrib/ydb/core/protos/datashard_config.pb.h>
 #include <contrib/ydb/core/protos/feature_flags.pb.h>
 #include <contrib/ydb/core/protos/key.pb.h>
