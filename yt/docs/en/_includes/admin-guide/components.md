@@ -52,3 +52,53 @@ HTTP proxies accept commands as HTTP requests, which makes it easy to submit req
 
 RPC proxies use the {{product-name}} internal protocol, which makes working with them more complex but speeds up query processing. Using an RPC proxy is recommended for latency-critical commands with a high execution frequency, such as queries to dynamic tables.
 
+## Discovery Server
+
+The Discovery server maintains a registry of active cluster services. It allows cluster components and clients to locate proxies and other services at runtime without requiring their addresses to be hardcoded in configuration files.
+
+## Optional components
+
+### Queue Agent
+
+Queue Agent is a dedicated microservice for managing queues, consumers, and their registrations. It monitors queues and consumers, manages automatic queue trimming policies, and supports periodic exports of queue data to static tables.
+
+### Query Tracker
+
+Query Tracker is a component for executing queries written in SQL-like languages. It receives queries from users, dispatches them to the appropriate query engines (YQL, CHYT, SPYT), tracks execution progress, and stores results and query history.
+
+### Tablet Balancer
+
+The standalone Tablet Balancer is a component for automated distribution of tablets across tablet cells. It supports balancing by tablet size, row count, and load metrics, and operates independently from the master process to enable more flexible balancing strategies than the built-in master-side balancer.
+
+### Bundle Controller
+
+The Bundle Controller (also known as Cell Balancer) manages tablet node assignments to tablet cell bundles. It automatically assigns nodes from a spare pool to bundles, handles node failures by replacing failed nodes, and maintains the desired resource configuration for each bundle.
+
+### Replicated Table Tracker
+
+The Replicated Table Tracker monitors replicated dynamic tables and automatically manages the synchronous/asynchronous mode of table replicas. When a cluster hosting a synchronous replica becomes unavailable, it switches another replica to synchronous mode to ensure continued write availability.
+
+### Clock Server
+
+The Clock Server provides cluster-wide monotonic timestamps, which are required for multi-cell {{product-name}} clusters. It ensures a consistent ordering of events across multiple master cells.
+
+### Timestamp Provider
+
+The Timestamp Provider is an external timestamp service. It is used by remote clusters or specific configurations that need to obtain transaction timestamps from a separate source instead of the primary master.
+
+### Master Cache
+
+The Master Cache is a caching component that proxies requests to master servers. It reduces the load on master servers by caching frequently accessed metadata, which is useful in deployments with high metadata access rates.
+
+### TCP Proxy
+
+The TCP Proxy provides TCP-level proxying for cluster operations. It is used by SPYT (Spark over {{product-name}}) to enable external access to cluster jobs through a configurable range of TCP ports.
+
+### Kafka Proxy
+
+The Kafka Proxy implements the Kafka protocol on top of {{product-name}} queues. It allows applications built with Kafka client libraries to read from and write to {{product-name}} queues without code changes.
+
+### Cypress Proxy
+
+The Cypress Proxy is a caching proxy for Cypress metadata operations. It reduces the load on master servers by caching directory listings and attribute reads for objects stored in Cypress.
+
