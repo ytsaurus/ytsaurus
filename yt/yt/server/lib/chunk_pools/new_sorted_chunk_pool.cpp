@@ -201,6 +201,7 @@ public:
                 cookie,
                 jobSummary.InterruptionReason,
                 jobSummary.SplitJobCount);
+            YT_VERIFY(jobSummary.UnreadInputDataSlices.size() > 0);
             auto foreignSlices = JobManager_->ReleaseForeignSlices(cookie);
             for (auto& dataSlice : foreignSlices) {
                 dataSlice->LowerLimit().KeyBound = ShortenKeyBound(

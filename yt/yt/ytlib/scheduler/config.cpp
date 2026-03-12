@@ -1378,8 +1378,6 @@ void TUserJobSpec::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("signal_root_process_only", &TThis::SignalRootProcessOnly)
         .Default(false);
-    registrar.Parameter("restart_exit_code", &TThis::RestartExitCode)
-        .Default();
     registrar.Parameter("enable_gpu_layers", &TThis::EnableGpuLayers)
         .Default(true);
     registrar.Parameter("cuda_toolkit_version", &TThis::CudaToolkitVersion)
@@ -1759,6 +1757,8 @@ void TVanillaTaskSpec::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("output_table_paths", &TThis::OutputTablePaths)
         .Alias("output_paths")
+        .Default();
+    registrar.Parameter("restart_exit_code", &TThis::RestartExitCode)
         .Default();
     registrar.Parameter("restart_completed_jobs", &TThis::RestartCompletedJobs)
         .Default(false);

@@ -182,6 +182,7 @@ public:
                 cookie,
                 jobSummary.InterruptionReason,
                 jobSummary.SplitJobCount);
+            YT_VERIFY(jobSummary.UnreadInputDataSlices.size() > 0);
             auto childCookies = SplitJob(jobSummary.UnreadInputDataSlices, jobSummary.SplitJobCount, cookie);
             RegisterChildCookies(cookie, std::move(childCookies));
         }
