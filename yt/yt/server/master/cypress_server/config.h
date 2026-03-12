@@ -62,9 +62,6 @@ struct TDynamicCypressManagerConfig
 
     TDuration GraftSynchronizationPeriod;
 
-    // COMPAT(danilalexeev): YT-24575.
-    bool EnableScionSynchronization;
-
     bool EnableSymlinkCyclicityCheck;
 
     // COMPAT(h0pless): YT-26842. Remove in 25.4.
@@ -82,9 +79,6 @@ struct TDynamicCypressManagerConfig
     bool EnableVirtualMapReadOffloadAuthenticatedUserPropagation;
 
     int CrossCellCopyMaxSubtreeSize;
-
-    // COMPAT(danilalexeev)
-    bool DisableCypressNodeReachability;
 
     // COMPAT(shakurov)
     bool EnableIntraCellCrossShardLinks;

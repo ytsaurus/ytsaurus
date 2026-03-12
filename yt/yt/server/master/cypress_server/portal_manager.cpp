@@ -546,9 +546,7 @@ private:
                 exitNodeId);
         }
 
-        if (!GetDynamicConfig()->DisableCypressNodeReachability) {
-            node->SetReachable(true);
-        }
+        node->SetReachable(true);
 
         if (effectiveAnnotation) {
             node->SetAnnotation(*effectiveAnnotation);

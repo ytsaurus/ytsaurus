@@ -89,9 +89,6 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
         .Alias("portal_synchronization_period")
         .Default(TDuration::Minutes(1));
 
-    registrar.Parameter("enable_scion_synchronization", &TThis::EnableScionSynchronization)
-        .Default(true);
-
     registrar.Parameter("allow_cross_shard_dynamic_table_copying", &TThis::AllowCrossShardDynamicTableCopying)
         .Default(true);
 
@@ -111,9 +108,6 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("cross_cell_copy_max_subtree_size", &TThis::CrossCellCopyMaxSubtreeSize)
         .Default(100'000)
         .GreaterThanOrEqual(0);
-
-    registrar.Parameter("disable_cypress_node_reachability", &TThis::DisableCypressNodeReachability)
-        .Default(false);
 
     registrar.Parameter("enable_intra_cell_cross_shard_links", &TThis::EnableIntraCellCrossShardLinks)
         .Default(true);

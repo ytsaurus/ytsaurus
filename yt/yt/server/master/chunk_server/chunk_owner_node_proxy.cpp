@@ -1534,12 +1534,6 @@ void TChunkOwnerNodeProxy::ValidateResourceUsageIncreaseOnPrimaryMediumChange(TM
     auto* node = GetThisImpl<TChunkOwnerBase>();
     YT_VERIFY(node->IsTrunk());
 
-    // COMPAT(danilalexeev)
-    const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager;
-    if (!config->ValidateResourceUsageIncreaseOnPrimaryMediumChange) {
-        return;
-    }
-
     auto newPrimaryMediumIndex = newPrimaryMedium->GetIndex();
     auto* account = node->Account().Get();
     auto statistics = node->ComputeTotalStatistics();

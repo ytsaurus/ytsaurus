@@ -1017,7 +1017,6 @@ const IObjectTypeHandlerPtr& TObjectManager::GetHandlerOrThrow(EObjectType type)
 const IObjectTypeHandlerPtr& TObjectManager::GetHandler(const TObject* object) const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
-
     return GetHandler(object->GetType());
 }
 
