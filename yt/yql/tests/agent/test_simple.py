@@ -4,7 +4,7 @@ import yql.library.langver.python as langver
 
 from yt.environment.helpers import assert_items_equal, wait_for_dynamic_config_update
 
-from yt_commands import (authors, create, create_user, sync_mount_table,
+from yt_commands import (authors, create, create_user, sync_mount_table, get_driver,
                          write_table, insert_rows, alter_table, raises_yt_error,
                          write_file, create_pool, wait, get, set, ls, list_operations,
                          get_operation, issue_token, create_group)
@@ -890,8 +890,8 @@ class TestYqlAgent(TestQueriesYqlSimpleBase):
             assert gateway_config["yt_log_level"] == "YL_DEBUG"
             assert not gateway_config["execute_udf_locally_if_possible"]
             assert len(gateway_config["cluster_mapping"]) == 1
-            assert len(gateway_config["cluster_mapping"][0]["settings"]) == 2
-            assert len(gateway_config["default_settings"]) == 60
+            assert len(gateway_config["cluster_mapping"][0]["settings"]) == 3
+            assert len(gateway_config["default_settings"]) == 61
 
             setting_found = False
             for setting in gateway_config["default_settings"]:
@@ -2203,6 +2203,14 @@ class TestCrossClusterQueriesYql(TestQueriesYqlSimpleBase):
     NUM_REMOTE_CLUSTERS = 1
     NUM_TEST_PARTITIONS = 3
 
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "remote_operations": {
+                "remote_0": {"allowed_for_everyone": True}
+            }
+        }
+    }
+
     def test_two_clusters_without_intersections(self, query_tracker, yql_agent):
         self._test_simple_query("""
             insert into primary.`//tmp/t_0` select 123 as xyz;
@@ -2218,3 +2226,36 @@ class TestCrossClusterQueriesYql(TestQueriesYqlSimpleBase):
             select * from primary.`//tmp/t_1`;
             select * from remote_0.`//tmp/t_1`;
         """, [[{'xyz': 123}], [{'abc': 'BlaBla'}]])
+
+    def test_two_clusters_intersect(self, query_tracker, yql_agent):
+        attributes = {"schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}]}
+        create("table", "//tmp/t", attributes=attributes)
+        create("table", "//tmp/t", attributes=attributes, driver=get_driver(cluster="remote_0"))
+
+        rows = [{"a": 42, "b": "foo"}, {"a": -17, "b": "bar"}]
+        write_table("//tmp/t", rows)
+        write_table("//tmp/t", rows, driver=get_driver(cluster="remote_0"))
+
+        self._test_simple_query("""
+            select * from primary.`//tmp/t`
+            intersect
+            select * from remote_0.`//tmp/t`
+        """, rows)
+
+        rows.extend(rows)
+        self._test_simple_query("""
+            select * from primary.`//tmp/t`
+            union all
+            select * from remote_0.`//tmp/t`
+        """, rows)
+
+    def test_two_clusters_cross_join(self, query_tracker, yql_agent):
+        self._test_simple_query("""
+            insert into primary.`//tmp/t0` select 456 as uvw;
+            insert into remote_0.`//tmp/t0` select "dode vis"u as klm;
+        """, None)
+
+        self._test_simple_query("""
+            select * from primary.`//tmp/t0` as p
+            cross join remote_0.`//tmp/t0` as r
+        """,  [{'klm': 'dode vis', 'uvw': 456}])
