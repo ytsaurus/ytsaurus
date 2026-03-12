@@ -60,13 +60,6 @@ constinit const auto Logger = TableServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM_WITH_UNDERLYING_TYPE(ECompatOptimizeFor, i32,
-    ((Lookup)  (0))
-    ((Scan)    (1))
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TDynamicTableLock::Persist(const NCellMaster::TPersistenceContext& context)
 {
     using ::NYT::Persist;
