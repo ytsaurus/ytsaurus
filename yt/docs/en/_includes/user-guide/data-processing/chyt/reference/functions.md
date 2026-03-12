@@ -122,9 +122,9 @@ NULL
 
 ### YSON family functions* { #yson_extract }
 
-ClickHouse supports `JSON` family functions* for working with JSON format. To ensure a workflow that is more similar to standard ClickHouse, CHYT offers complete equivalents of these functions that are compatible with YSON format.
+{{clickhouse}} supports `JSON` family functions* for working with JSON format. To ensure a workflow that is more similar to standard {{clickhouse}}, CHYT offers complete equivalents of these functions that are compatible with YSON format.
 
-The function arguments and their returned values are described in the [ClickHouse documentation](https://clickhouse.com/docs/{{lang}}/sql-reference/functions/json-functions).
+The function arguments and their returned values are described in the [{{clickhouse}} documentation](https://clickhouse.com/docs/{{lang}}/sql-reference/functions/json-functions).
 
 The currently supported YSON function equivalents are as follows:
 
@@ -138,7 +138,7 @@ Unlike the `YPath` functions, in which array elements are indexed from 0, indexi
 
 {% note warning "Attention" %}
 
-These functions are implemented using shared ClickHouse code and don't have optimal performance. To speed up computations on large amounts of data, we recommend using the more optimal `YPath<Type>` functions.
+These functions are implemented using shared {{clickhouse}} code and don't have optimal performance. To speed up computations on large amounts of data, we recommend using the more optimal `YPath<Type>` functions.
 
 {% endnote %}
 
@@ -174,7 +174,7 @@ In total, there are five possible representation formats:
 
 {{product-name}} offers three representation formats: `binary`, `text`, and `pretty`.
 
-In `text` and `pretty` representation formats, string values escape all non-ASCII characters, including Cyrillic letters and various UTF-8–encoded characters. Two additional formats, `unescaped_text` and `unescaped_pretty`, were added to CHYT to make the resulting YSON containing strings with Cyrillic characters more human-readable. These formats only differ from `text` and `pretty` in that they only escape special YSON characters in string values. All other string characters are stored without changes.
+In `text` and `pretty` representation formats, string values escape all non-ASCII characters, including Cyrillic letters and various UTF-8–encoded characters. Two additional formats, `unescaped_text` and `unescaped_pretty`, were added to CHYT to make the resulting YSON containing strings with Cyrillic characters more readable. These formats only differ from `text` and `pretty` in that they only escape special YSON characters in string values. All other string characters are stored without changes.
 
 {% endnote %}
 
@@ -239,7 +239,7 @@ SELECT ytVersion()
 
 {% note info "Note" %}
 
-All functions used to work with Cypress are table functions in ClickHouse terms. This means that their returned value can be used in place of a table: for example, in the `FROM` section of a `SELECT` query.
+All functions used to work with Cypress are table functions in {{clickhouse}} terms. This means that their returned value can be used in place of a table: for example, in the `FROM` section of a `SELECT` query.
 
 {% endnote %}
 
@@ -249,16 +249,16 @@ All functions used to work with Cypress are table functions in ClickHouse terms.
 
 The result contains one row for each node in the directory at `dir_path`. Each row contains:
 
-- Two predefined columns, `$key` and `$path`, which hold the node's name and full path (always starts with `dir_path`). The values in these columns may differ from the `key` and `path` attributes if the node is a link (`link` type) to another node.
+- Two predefined columns, `$key` and `$path`, which hold the node's name and full path (always starts with `dir_path`). The values in these columns may differ from the `key` and `path` attributes if the node is a link (`link` type) to another node;
 
-- Three columns corresponding to the `resource_usage` attribute fields: `disk_space`, `tablet_count`, and `master_memory`.
+- Three columns corresponding to the `resource_usage` attribute fields: `disk_space`, `tablet_count`, and `master_memory`;
 
 - A large number of columns with names matching the corresponding node attributes: `key`, `path`, `account`, `owner`, `erasure_codec`, `id`, `acl`, and other. These columns include almost every system attribute.
 
 
 {% note info "Note" %}
 
-Since users don't normally need all the node attributes, most of the columns are virtual in ClickHouse terms. This means that by default they are not returned for `SELECT * FROM ytListNodes(...)` and `DESCRIBE ytListNodes(...)` expressions but can be requested explicitly:
+Since users don't normally need all the node attributes, most of the columns are virtual in {{clickhouse}} terms. This means that by default they are not returned for `SELECT * FROM ytListNodes(...)` and `DESCRIBE ytListNodes(...)` expressions but can be requested explicitly:
 
 ```sql
 SELECT id, key_columns, * FROM ytListNodes(...)
@@ -333,76 +333,91 @@ SELECT * FROM ytNodeAttributes('//sys', '//sys/clickhouse')
 
 {% note info "Note" %}
 
-All functions used to read sets of tables are table functions in ClickHouse terms. This means that their returned value can be used in place of a table: for example, in the `FROM` section of a `SELECT` query.
+All functions used to read sets of tables are table functions in {{clickhouse}} terms. This means that their returned value can be used in place of a table: for example, in the `FROM` section of a `SELECT` query.
 
 {% endnote %}
 
 ### ytTables { #yt_tables }
+
 `ytTables(arg1, [arg2, ...])`: Reads the union of a set of tables specified in the arguments.
 
-Each argument can be one of the following:
-- A string representing the path to a specific table.
-- A `ytListNodes[L]`, `ytListTables[L]`, or `ytListLogTables` function.
-- A subquery returning an arbitrary set of table paths*.
+The function can accept the following arguments:
 
-{% note warning "* Attention!" %}
+- Strings containing paths to specific tables.
+- Functions `ytListNodes[L]`, `ytListTables[L]`, and `ytListLogTables`.
+- The `view` function that accepts a *subquery* returning a set of paths to tables as an argument.
 
-Passing a subquery that returns multiple paths as a function argument doesn't conform to the ClickHouse syntax. Though you can do this in the current versions of CHYT and ClickHouse, this may be deprecated in the future releases. The proper way to pass these subqueries is by using the `view` function.
+   {% note info %}
 
-In addition, we're aware of a bug in the ClickHouse optimizer that may incorrectly move an external `WHERE` condition inside such a subquery, resulting in the error `Missing columns: '<column_name>' while processing query`. You can avoid this error by setting `enable_optimize_predicate_expression=0`.
+   Before CHYT 2.17, you could pass a subquery to `ytTables` without the `view` function. Starting with CHYT 2.17, attempting to do so will result in the following error: `Scalar subquery returned more than one row`.
 
-{% endnote %}
+   {% endnote %}
 
-The function returns the union of the set of all tables specified in the arguments. This function works similarly to the ClickHouse's [merge](https://clickhouse.com/docs/en/sql-reference/table-functions/merge) function but offers a more flexible framework for specifying multiple tables and is optimized for work with {{product-name}} tables.
+The `ytTables` function returns the union of the set of all tables specified in the arguments. It works similarly to the {{clickhouse}}'s `merge` function (see the [documentation](https://clickhouse.com/docs/en/sql-reference/table-functions/merge)) but offers more flexible methods for specifying tables and is optimized for {{product-name}}.
 
-If tables in the specified set have different schemas, the output will use a common schema that allows reading all the specified tables.
+In addition to the main table columns, the query output always contains the virtual columns `$table_index`, `$table_name`, and `$table_path`. Use them to determine which table each row is taken from. To learn more about virtual columns, see [the corresponding section](../../../../../user-guide/data-processing/chyt/yt-tables.md#virtual_columns).
+
+If tables in the specified set have different schemas, the function will infer a common schema suitable for all tables.
 
 {% cut "Algorithm for inferring a common schema" %}
 
-**Compatible types**
-* For each column, the algorithm selects the most generic type that all types in the column can be cast to.
-* For example, for `optional<int32>` and `int64`, the most generic type is `optional<i64>`.
-* **Please note** that due to the way data is stored in {{product-name}}, unsigned numeric types are incompatible with signed ones (that is, `int32` and `uint32` are incompatible).
+- **Compatible types**: For each column, the algorithm selects the "most generic type" that all types in the column can be cast to.
 
-**Incompatible types**
-* If the column types in different tables are incompatible, CHYT proceeds based on the set `chyt.concat_tables.type_mismatch_mode` option value.
-* For example, `string` and `int64` types are incompatible.
-* Possible option values are `drop`, `throw`, and `read_as_any`.
-* By default, the function throws a query execution error (`throw` value).
-* You can read columns of different types as YSON strings by setting the `read_as_any` option value. This may be inefficient, so we recommend that you structure your tables properly.
-* If these columns are not needed for the query's execution, you can discard them by setting the `drop` option value.
+   {% note info "Example" %}
 
-**Missing column**
-* If a column is missing in one or multiple input tables, CHYT proceeds based on the set `chyt.concat_tables.missing_column_mode` option value.
-* Possible values are `drop`, `throw`, and `read_as_null`.
-* By default, the column becomes optional, and values for the tables that don't have this column will be read as `NULL` (`read_as_null` value).
-* If you don't expect missing columns in any of the tables, you can set the `throw` option value to generate a query execution error when this happens.
-* As with incompatible types, you can discard these columns by setting the `drop` option value.
-* **Please note** that the `missing_column_mode` option only affects the function behavior if a table that is missing a column has a strict schema. If a column is missing in a non-strict schema, it may still exist in the actual data with any type. In this case, the algorithm makes a pessimistic assumption that the column is present with an incompatible type, and its subsequent behavior is determined by the previously described option `type_mismatch_mode`.
+   For `optional<int32>` and `int64`, the "most generic type" is `optional<i64>`.
+
+   {% endnote %}
+
+   {% note warning "Please note" %}
+
+   Due to the way data is stored in {{product-name}}, unsigned numeric types are incompatible with signed ones (that is, `int32` and `uint32` are incompatible).
+
+   {% endnote %}
+
+- **Incompatible types**: If the column types in different tables are incompatible, CHYT proceeds based on the set `chyt.concat_tables.type_mismatch_mode` option value.
+
+   {% note info "Example" %}
+
+   `string` and `int64` types are incompatible.
+
+   {% endnote %}
+
+   Possible option values are `drop`, `throw`, and `read_as_any`:
+
+   - By default, the function throws a query execution error (`throw` value).
+   - You can read columns of different types as YSON strings by setting the `read_as_any` option value. This may be inefficient, so we recommend that you structure your tables properly.
+   - If these columns are not needed for the query's execution, you can discard them by setting the `drop` option value.
+
+- **Missing column**: If a column is missing in one or multiple input tables, CHYT proceeds based on the set `chyt.concat_tables.missing_column_mode` option value. Possible values are `drop`, `throw`, and `read_as_null`:
+   - By default, the column becomes optional, and values for the tables that don't have this column will be read as `NULL` (`read_as_null` value).
+   - If you do not expect missing columns in any of the tables, you can set the `throw` option value to generate a query execution error if that happens.
+   - As with incompatible types, you can discard these columns by setting the `drop` option value.
+
+   {% note warning "Please note" %}
+
+   The `missing_column_mode` option only affects the function behavior if a table that is missing a column has a strict schema. If a column is missing in a non-strict schema, it may still exist in the actual data with any type. In this case, the algorithm makes a pessimistic assumption that the column is present with an incompatible type, and its subsequent behavior is determined by the previously described option `type_mismatch_mode`.
+
+   {% endnote %}
 
 {% endcut %}
-
-{% note info "Note" %}
-
-In addition to the main columns read from the tables themselves, the output also always contains the virtual columns `$table_index`, `$table_name`, and `$table_path`. You can use these columns to identify the table that each row was read from. For more information about virtual columns, see the [relevant section](../../../../../user-guide/data-processing/chyt/yt-tables.md#virtual_columns).
-
-{% endnote %}
 
 Example:
 ```sql
 -- Read the union of 2 tables:
 SELECT * FROM ytTables('//tmp/t1', '//tmp/t2')
+
 -- Read the union of all tables from the directory '//tmp/dir':
 SELECT * FROM ytTables(ytListTables('//tmp/dir'))
+
 -- Read the union of all tables from the directory and their names:
 SELECT *, $table_name FROM ytTables(ytListTables('//tmp/dir'))
+
 -- Read the last (lexicographically) table:
-SELECT * FROM ytTables((
-  SELECT max(path) FROM ytListTables('/tmp/dir')
-))
+SELECT * FROM ytTables(view(SELECT max(path) FROM ytListTables('/tmp/dir')))
+
 -- Read tables with a specific suffix:
-SELECT * FROM ytTables((
-  SELECT concat(path, '/suffix') FROM ytListNodes('//tmp/dir')
+SELECT * FROM ytTables(view(SELECT concat(path, '/suffix') FROM ytListNodes('//tmp/dir')))
 ))
 ```
 
