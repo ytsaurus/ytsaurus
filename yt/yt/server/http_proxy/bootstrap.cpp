@@ -160,7 +160,8 @@ void TBootstrap::DoInitialize()
         New<TNodeMemoryTrackerConfig>(),
         /*limits*/ {},
         Logger(),
-        HttpProxyProfiler().WithPrefix("/memory_usage"));
+        HttpProxyProfiler().WithPrefix("/memory_usage"),
+        GetControlInvoker());
 
     Connection_ = CreateConnection(
         Config_->ClusterConnection,
@@ -391,7 +392,10 @@ void TBootstrap::SetupClients()
     NLogging::GetDynamicTableLogWriterFactory()->SetClient(RootClient_);
 }
 
-void TBootstrap::ReconfigureMemoryUsageTracker(i64 memoryLimit, const TMemoryLimitRatiosConfigPtr& memoryLimitRatios)
+void TBootstrap::ReconfigureMemoryUsageTracker(
+    i64 memoryLimit,
+    const TMemoryLimitRatiosConfigPtr& memoryLimitRatios,
+    const TNodeMemoryTrackerConfigPtr& newConfig)
 {
     auto totalMemoryLimit = static_cast<i64>(memoryLimit * memoryLimitRatios->TotalMemoryLimitRatio);
     MemoryUsageTracker_->SetTotalLimit(totalMemoryLimit);
@@ -400,6 +404,8 @@ void TBootstrap::ReconfigureMemoryUsageTracker(i64 memoryLimit, const TMemoryLim
     MemoryUsageTracker_->SetCategoryLimit(
         EMemoryCategory::HeavyRequest,
         heavyRequestMemoryLimit);
+
+    MemoryUsageTracker_->Reconfigure(newConfig);
 }
 
 void TBootstrap::OnDynamicConfigChanged(
@@ -420,7 +426,8 @@ void TBootstrap::OnDynamicConfigChanged(
         GetOrDefault(
             newConfig->Api->RoleToMemoryLimitRatios,
             role,
-            newConfig->Api->DefaultMemoryLimitRatios));
+            newConfig->Api->DefaultMemoryLimitRatios),
+        newConfig->MemoryTracker);
 
     DynamicConfig_.Store(newConfig);
 
@@ -493,6 +500,8 @@ void TBootstrap::DoStart()
     Coordinator_->Start();
 
     AuthenticationManager_->Start();
+
+    MemoryUsageTracker_->Start();
 
     RpcServer_->Start();
 }

@@ -12,6 +12,8 @@
 
 #include <yt/yt/ytlib/api/native/config.h>
 
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
 #include <yt/yt/ytlib/security_client/config.h>
 
 #include <yt/yt/library/auth_server/config.h>
@@ -425,6 +427,9 @@ void TProxyDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("master_cell_directory_synchronizer", &TThis::MasterCellDirectorySynchronizer)
         .Default();
+
+    registrar.Parameter("memory_tracker", &TThis::MemoryTracker)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

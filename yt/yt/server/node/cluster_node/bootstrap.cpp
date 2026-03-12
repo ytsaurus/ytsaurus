@@ -825,7 +825,8 @@ private:
             New<TNodeMemoryTrackerConfig>(),
             /*limits*/ {},
             Logger(),
-            ClusterNodeProfiler().WithPrefix("/memory_usage"));
+            ClusterNodeProfiler().WithPrefix("/memory_usage"),
+            GetControlInvoker());
 
         // NB: Connection thread pool is required for dynamic config manager
         // initialization, so it is created before other thread pools.
@@ -1198,6 +1199,8 @@ private:
         }
 
         NodeResourceManager_->Start();
+
+        NodeMemoryUsageTracker_->Start();
 
         JobResourceManager_->Start();
 
