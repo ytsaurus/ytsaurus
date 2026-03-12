@@ -331,13 +331,11 @@ def create_odin_checks_config():
                 },
             },
             "read_static_table_commands": {
-                "check_timeout": 60,
                 "options": {
                     "table_path": "//sys/admin/odin/read_static_table_commands/table",
                 },
             },
             "write_static_table_commands": {
-                "check_timeout": 60,
                 "options": {
                     "temp_tables_path": "//sys/admin/odin/write_static_table_commands",
                 },
