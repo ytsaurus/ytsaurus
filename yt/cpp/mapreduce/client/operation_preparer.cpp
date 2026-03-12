@@ -520,8 +520,7 @@ TFileWriterOptions& TJobPreparer::GetFileCacheWriterOptions() const
     return TFileWriterOptions()
         .ComputeMD5(true)
         .WriterOptions(TWriterOptions()
-            .UploadReplicationFactor(replicationFactor)
-            .MinUploadReplicationFactor(replicationFactor));
+            .UploadReplicationFactor(replicationFactor));
 }
 
 void TJobPreparer::CreateFileInCypress(const TString& path) const
