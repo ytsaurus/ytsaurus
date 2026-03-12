@@ -304,8 +304,7 @@ private:
                 << TErrorAttribute("batch_index", commitContext->BatchIndex)
                 << rspOrError;
             YT_LOG_DEBUG(error);
-            const auto& tableMountCache = Client_->GetTableMountCache();
-            tableMountCache->InvalidateOnError(error, /*forceRetry*/ true);
+            Client_->GetTableMountCache()->InvalidateOnError(error, /*forceRetry*/ true);
             commitContext->CommitPromise.Set(error);
             return;
         }

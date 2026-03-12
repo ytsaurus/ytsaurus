@@ -793,7 +793,8 @@ private:
                             }
                         }
                     } else {
-                        auto randomTabletInfo = tableMountInfo->GetRandomMountedTablet();
+                        auto randomTabletInfo = tableMountInfo->GetRandomMountedTablet()
+                            .ValueOrThrow();
                         tabletInfo = GetOrderedTabletForRow(
                             tableMountInfo,
                             randomTabletInfo,
@@ -828,7 +829,8 @@ private:
                             preparedKey,
                             /*validateWrite*/ true);
                     } else {
-                        auto randomTabletInfo = tableMountInfo->GetRandomMountedTablet();
+                        auto randomTabletInfo = tableMountInfo->GetRandomMountedTablet()
+                            .ValueOrThrow();
                         tabletInfo = GetOrderedTabletForRow(
                             tableMountInfo,
                             randomTabletInfo,

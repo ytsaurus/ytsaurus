@@ -229,18 +229,6 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         wait(lambda: get(f"//sys/tablets/{tablet_id}/orchid/custom_runtime_data", default=None) == runtime_data)
 
-    def _insert_rows_with_hunk_storage(self, path, rows, retry_count=100):
-        iteration = 0
-        while iteration < retry_count:
-            iteration += 1
-            try:
-                insert_rows(path, rows)
-                return
-            except YtError as e:
-                if not e.contains_code(yt_error_codes.HunkTabletStoreToggleConflict) and \
-                   not e.contains_code(yt_error_codes.HunkStoreAllocationFailed):
-                    raise e
-
 
 ##################################################################
 

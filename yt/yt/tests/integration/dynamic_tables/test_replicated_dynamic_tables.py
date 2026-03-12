@@ -3524,6 +3524,37 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         sync_unmount_table(path)
         assert select_rows(f"* from [{path}] with hint \"{{require_sync_replica=%false}}\"") == data
 
+    @authors("akozhikhov")
+    def test_unmounted_errors(self):
+        self._create_cells()
+        self._create_replicated_table(
+            "//tmp/t",
+            schema=self.SIMPLE_SCHEMA_SORTED,
+            mount=False,
+            replicated_table_options={
+                "enable_replicated_table_tracker": False,
+            })
+        replica_id = create_table_replica(
+            "//tmp/t",
+            self.REPLICA_CLUSTER_NAME,
+            "//tmp/r",
+            attributes={"mode": "sync"},
+        )
+        self._create_replica_table("//tmp/r", schema=self.SIMPLE_SCHEMA_SORTED, mount=False)
+
+        sync_enable_table_replica(replica_id)
+
+        rows = [{"key": 0, "value1": "0", "value2": 0}]
+        with raises_yt_error("while it is in \"unmounted\" state"):
+            insert_rows("//tmp/t", rows)
+
+        sync_mount_table("//tmp/t")
+        with raises_yt_error("has no mounted tablets"):
+            insert_rows("//tmp/t", rows)
+
+        sync_mount_table("//tmp/r", driver=self.replica_driver)
+        insert_rows("//tmp/t", rows)
+
 
 ##################################################################
 
