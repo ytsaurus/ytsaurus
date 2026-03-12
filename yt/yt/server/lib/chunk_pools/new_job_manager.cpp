@@ -552,7 +552,7 @@ IChunkPoolOutput::TCookie TNewJobManager::AddJob(std::unique_ptr<TNewJobStub> jo
     }
 
     YT_LOG_DEBUG(
-        "Job added to job manager (Index: %v, PrimaryDataWeight: %v, PrimaryCompressedDataSize: %v, "
+        "Job added to job manager (OutputCookie: %v, PrimaryDataWeight: %v, PrimaryCompressedDataSize: %v, "
         "PrimaryRowCount: %v, PrimarySliceCount: %v, ForeignDataWeight: %v, ForeignCompressedDataSize: %v, "
         "ForeignRowCount: %v, ForeignSliceCount: %v, LowerPrimaryKey: %v, UpperPrimaryKey: %v)",
         outputCookie,
