@@ -489,8 +489,6 @@ private:
     NYTree::IYPathServicePtr CreateJobProxyOrchidService();
     NYTree::IYPathServicePtr CreateDynamicOrchidService();
 
-    void OnResourcesAcquired() noexcept;
-
     // Helpers.
 
     template <class... U>
