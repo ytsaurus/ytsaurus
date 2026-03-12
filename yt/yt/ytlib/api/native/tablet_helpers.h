@@ -42,11 +42,8 @@ NRpc::IChannelPtr CreateTabletReadChannel(
 
 void ValidateTabletMountedOrFrozen(
     const NTabletClient::TTableMountInfoPtr& tableInfo,
-    const NTabletClient::TTabletInfoPtr& tabletInfo);
-
-void ValidateTabletMounted(
-    const NTabletClient::TTableMountInfoPtr& tableInfo,
-    const NTabletClient::TTabletInfoPtr& tabletInfo);
+    const NTabletClient::TTabletInfoPtr& tabletInfo,
+    bool validateForWrite);
 
 NTableClient::TNameTableToSchemaIdMapping BuildColumnIdMapping(
     const NTableClient::TTableSchema& schema,

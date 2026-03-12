@@ -2,7 +2,7 @@ from yt_dynamic_tables_base import DynamicTablesBase
 
 from yt_commands import (
     authors, create, get, set, exists, wait, remove, sync_mount_table, sync_create_cells,
-    sync_unmount_table, write_hunks, read_hunks, raises_yt_error, get_driver,
+    sync_unmount_table, read_hunks, raises_yt_error, get_driver,
     sync_freeze_table, sync_unfreeze_table, copy, move,
     lock_hunk_store, unlock_hunk_store, start_transaction, commit_transaction, abort_transaction, lock
 )
@@ -17,7 +17,7 @@ from yt.common import YtError
 
 import yt.yson as yson
 
-from yt_error_codes import ResolveErrorCode, HunkTabletStoreToggleConflict, HunkStoreAllocationFailed
+from yt_error_codes import ResolveErrorCode, HunkTabletStoreToggleConflict
 
 import pytest
 
@@ -64,18 +64,6 @@ class TestHunkStorage(DynamicTablesBase):
     def _remove_hunk_storage(self, path):
         wait(lambda: get(f"{path}/@associated_nodes") == [])
         remove(path)
-
-    def _write_hunks_with_retries(self, path, rows, tablet_index=0, retry_count=100):
-        iteration = 0
-        while iteration < retry_count:
-            iteration += 1
-            try:
-                result = write_hunks(path, rows, tablet_index=tablet_index)
-                return result
-            except YtError as e:
-                if not e.contains_code(HunkTabletStoreToggleConflict) and \
-                   not e.contains_code(HunkStoreAllocationFailed):
-                    raise e
 
     @authors("gritukan")
     def test_create_remove(self):
@@ -733,6 +721,23 @@ class TestHunkStorage(DynamicTablesBase):
         wait(lambda: get("#{}/@state".format(action_id)) == "completed")
 
         assert get("#{}/@cell_id".format(tablet_id)) == cell_ids[1]
+
+    @authors("akozhikhov")
+    def test_unmounted_hunk_storage_errors(self):
+        sync_create_cells(1)
+        self._create_hunk_storage("//tmp/h")
+
+        with raises_yt_error("expected: \"mounted\""):
+            self._write_hunks_with_retries("//tmp/h", ["a" * 100])
+
+        sync_mount_table("//tmp/h")
+        hunks = self._write_hunks_with_retries("//tmp/h", ["a"])[0]
+        sync_unmount_table("//tmp/h")
+
+        with raises_yt_error("expected: \"mounted\""):
+            lock_hunk_store("//tmp/h", 0, hunks["chunk_id"])
+        with raises_yt_error("expected: \"mounted\""):
+            unlock_hunk_store("//tmp/h", 0, hunks["chunk_id"])
 
 
 @pytest.mark.enabled_multidaemon

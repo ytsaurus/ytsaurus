@@ -1318,7 +1318,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
                     return CompareRows(item.first, pivot) < 0;
                 });
 
-            ValidateTabletMountedOrFrozen(tableInfo, startShard);
+            ValidateTabletMountedOrFrozen(tableInfo, startShard, /*validateForWrite*/ false);
 
             auto [it, emplaced] = cellIdToBatchIndex.emplace(startShard->CellId, batchesByCells.size());
             if (emplaced) {
@@ -2495,6 +2495,9 @@ void TClient::DoTrimTable(
     tableInfo->ValidateDynamic();
     tableInfo->ValidateOrdered();
 
+    auto tabletInfo = tableInfo->GetTabletByIndexOrThrow(tabletIndex);
+    ValidateTabletMountedOrFrozen(tableInfo, tabletInfo, /*validateForWrite*/ true);
+
     const auto& permissionCache = Connection_->GetPermissionCache();
     NSecurityClient::TPermissionKey permissionKey{
         .Path = FromObjectId(tableInfo->TableId),
@@ -2503,8 +2506,6 @@ void TClient::DoTrimTable(
     };
     WaitFor(permissionCache->Get(permissionKey))
         .ThrowOnError();
-
-    auto tabletInfo = tableInfo->GetTabletByIndexOrThrow(tabletIndex);
 
     auto channel = GetCellChannelOrThrow(tabletInfo->CellId);
 
@@ -2685,6 +2686,27 @@ void TClient::DoTransferBundleResources(
 }
 
 IQueueRowsetPtr TClient::DoPullQueueImpl(
+    const NYPath::TRichYPath& queuePath,
+    i64 offset,
+    int partitionIndex,
+    const TQueueRowBatchReadOptions& rowBatchReadOptions,
+    const TPullQueueOptions& options,
+    bool checkPermissions)
+{
+    return CallAndRetryIfMetadataCacheIsInconsistent(
+        /*profilingInfo*/ nullptr,
+        [&] {
+            return DoPullQueueImplOnce(
+                queuePath,
+                offset,
+                partitionIndex,
+                rowBatchReadOptions,
+                options,
+                checkPermissions);
+        });
+}
+
+IQueueRowsetPtr TClient::DoPullQueueImplOnce(
     const NYPath::TRichYPath& queuePath,
     i64 offset,
     int partitionIndex,
@@ -2955,6 +2977,7 @@ IUnversionedRowsetPtr TClient::DoPullQueueViaTabletNodeApi(
 
     auto tabletInfo = tableInfo->GetTabletByIndexOrThrow(partitionIndex);
 
+    ValidateTabletMountedOrFrozen(tableInfo, tabletInfo, /*validateForWrite*/ false);
     auto channel = GetReadCellChannelOrThrow(tabletInfo->CellId);
     TQueryServiceProxy proxy(channel);
     proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultFetchTableRowsTimeout));

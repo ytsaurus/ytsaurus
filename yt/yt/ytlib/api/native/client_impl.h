@@ -1319,6 +1319,14 @@ private:
         const TPullQueueOptions& options,
         bool checkPermissions);
 
+    NQueueClient::IQueueRowsetPtr DoPullQueueImplOnce(
+        const NYPath::TRichYPath& queuePath,
+        i64 offset,
+        int partitionIndex,
+        const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
+        const TPullQueueOptions& options,
+        bool checkPermissions);
+
     IUnversionedRowsetPtr DoPullQueueViaSelectRows(
         const NYPath::TRichYPath& queuePath,
         i64 offset,

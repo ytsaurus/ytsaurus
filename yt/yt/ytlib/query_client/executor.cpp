@@ -130,7 +130,7 @@ std::vector<std::pair<TDataSource, std::string>> CoordinateDataSources(
     THashMap<NTabletClient::TTabletCellId, TConstCellDescriptorPtr> tabletCellReplicas;
 
     auto getAddress = [&] (const TTabletInfoPtr& tabletInfo) {
-        ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
+        ValidateTabletMountedOrFrozen(tableInfo, tabletInfo, /*validateForWrite*/ false);
 
         auto insertResult = tabletCellReplicas.emplace(tabletInfo->CellId, TConstCellDescriptorPtr());
         auto& descriptor = insertResult.first->second;

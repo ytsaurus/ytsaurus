@@ -4878,3 +4878,120 @@ class TestHunksInStaticTablePortals(TestHunksInStaticTableMulticell):
             move("//tmp/t", "//p/t")
 
         remove("//p")
+
+
+@pytest.mark.enabled_multidaemon
+class TestOrderedDynamicTablesHunksRpc(TestSortedDynamicTablesBase):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    NUM_RPC_PROXIES = 1
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "cluster_connection": {
+            "table_mount_cache": {
+                "expire_after_successful_update_time": 60000,
+                "refresh_time": 15000,
+                "expiration_period": 60000,
+                "expire_after_failed_update_time": 1000,
+                "expire_after_access_time": 300000,
+            },
+        }
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "tablet_node": {
+                "hunk_lock_manager": {
+                    "unlock_check_period": 100
+                }
+            }
+        }
+    }
+
+    SCHEMA = [
+        {"name": "key", "type": "int64"},
+        {"name": "value", "type": "string", "max_inline_hunk_size": 10},
+    ]
+
+    @authors("akozhikhov")
+    def test_unmounted_errors_1(self):
+        sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t_unique_1", schema=self.SCHEMA)
+        sync_reshard_table("//tmp/t_unique_1", 2)
+
+        rows0 = [{"key": 0, "value": "0" * 100, "$tablet_index": 0}]
+        rows1 = [{"key": 1, "value": "1" * 100, "$tablet_index": 1}]
+        with raises_yt_error("has no mounted tablets"):
+            self._insert_rows_with_hunk_storage("//tmp/t_unique_1", rows0)
+
+        sync_mount_table("//tmp/t_unique_1", first_tablet_index=0, last_tablet_index=0)
+        with raises_yt_error("has no mounted tablets"):
+            self._insert_rows_with_hunk_storage("//tmp/t_unique_1", rows0)
+        # Cache was invalidated and now we shall write correctly.
+        self._insert_rows_with_hunk_storage("//tmp/t_unique_1", rows0)
+        with raises_yt_error("expected: \"mounted\""):
+            self._insert_rows_with_hunk_storage("//tmp/t_unique_1", rows1)
+        sync_unmount_table("//tmp/t_unique_1", first_tablet_index=0, last_tablet_index=0)
+
+        with raises_yt_error("No such tablet"):
+            self._insert_rows_with_hunk_storage("//tmp/t_unique_1", rows0)
+        # Cache was invalidated and now it generates more precise error.
+        with raises_yt_error("has no mounted tablets"):
+            self._insert_rows_with_hunk_storage("//tmp/t_unique_1", rows0)
+
+        hunk_storage_id = create("hunk_storage", "//tmp/h_unique_1", attributes={
+            "scan_backoff_period": 1000,
+            "tablet_count": 2,
+        })
+        set("//tmp/t_unique_1/@hunk_storage_id", hunk_storage_id)
+        sync_mount_table("//tmp/t_unique_1", first_tablet_index=1, last_tablet_index=1)
+
+        with raises_yt_error("has no mounted tablets"):
+            self._insert_rows_with_hunk_storage("//tmp/t_unique_1", rows1)
+        # This time this error is about hunk storage.
+        with raises_yt_error("has no mounted tablets"):
+            self._insert_rows_with_hunk_storage("//tmp/t_unique_1", rows1)
+
+        sync_mount_table("//tmp/h_unique_1")
+        with raises_yt_error("has no mounted tablets"):
+            self._insert_rows_with_hunk_storage("//tmp/t_unique_1", rows1)
+        self._insert_rows_with_hunk_storage("//tmp/t_unique_1", rows1)
+
+        with raises_yt_error("expected: \"mounted\""):
+            self._insert_rows_with_hunk_storage("//tmp/t_unique_1", rows0)
+
+    @authors("akozhikhov")
+    def test_unmounted_errors_2(self):
+        sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t_unique_2", schema=self.SCHEMA)
+
+        hunk_storage_id = create("hunk_storage", "//tmp/h_unique_2", attributes={
+            "scan_backoff_period": 1000,
+        })
+        set("//tmp/t_unique_2/@hunk_storage_id", hunk_storage_id)
+        sync_mount_table("//tmp/h_unique_2")
+
+        rows = [{"key": 0, "value": "0" * 100, "$tablet_index": 0}]
+
+        with raises_yt_error("has no mounted tablets"):
+            self._insert_rows_with_hunk_storage("//tmp/t_unique_2", rows)
+
+        with raises_yt_error("while it is in \"unmounted\" state"):
+            assert [] == pull_queue("//tmp/t_unique_2", offset=0, partition_index=0)
+
+        sync_mount_table("//tmp/t_unique_2")
+        with raises_yt_error("while it is in \"unmounted\" state"):
+            assert [] == pull_queue("//tmp/t_unique_2", offset=0, partition_index=0)
+        assert [] == pull_queue("//tmp/t_unique_2", offset=0, partition_index=0)
+
+        self._insert_rows_with_hunk_storage("//tmp/t_unique_2", rows)
+        for i in range(len(rows)):
+            rows[i]["$tablet_index"] = 0
+            rows[i]["$row_index"] = i
+
+        assert rows == pull_queue("//tmp/t_unique_2", offset=0, partition_index=0)
+        sync_unmount_table("//tmp/t_unique_2")
+        with raises_yt_error("while it is in \"unmounted\" state"):
+            assert rows == pull_queue("//tmp/t_unique_2", offset=0, partition_index=0)

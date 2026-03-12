@@ -957,7 +957,8 @@ private:
             }
 
             const auto& hunkTableInfo = TableSession_->GetHunkTableInfo();
-            RandomHunkTabletInfo_ = hunkTableInfo->GetRandomMountedTablet();
+            RandomHunkTabletInfo_ = hunkTableInfo->GetRandomMountedTablet()
+                .ValueOrThrow();
 
             auto cellChannel = transaction->Client_->GetCellChannelOrThrow(RandomHunkTabletInfo_->CellId);
             TTabletServiceProxy proxy(cellChannel);
@@ -1008,6 +1009,7 @@ private:
                     << TError(ex);
             }
         }
+
         void GuardedSubmitRows()
         {
             auto transaction = Transaction_.Lock();
@@ -1039,7 +1041,8 @@ private:
                 ? Connection_->GetColumnEvaluatorCache()->Find(primarySchema)
                 : nullptr;
 
-            auto randomTabletInfo = tableInfo->GetRandomMountedTablet();
+            auto randomTabletInfo = tableInfo->GetRandomMountedTablet()
+                .ValueOrThrow();
 
             std::vector<int> columnIndexToLockIndex;
             GetLocksMapping(
@@ -2391,10 +2394,15 @@ private:
                             State_ = ETransactionState::Committed;
                         } else if (!resultOrError.IsOK()) {
                             YT_UNUSED_FUTURE(DoAbort(&guard));
-                            THROW_ERROR_EXCEPTION("Error committing transaction %v",
+
+                            auto error = TError("Error committing transaction %v",
                                 GetId())
                                 << MakeClusterIdErrorAttribute()
                                 << resultOrError;
+
+                            Client_->GetTableMountCache()->InvalidateOnError(error, /*forceRetry*/ true);
+
+                            THROW_ERROR(error);
                         }
                     }
 
