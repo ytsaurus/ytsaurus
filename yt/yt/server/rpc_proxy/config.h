@@ -207,6 +207,8 @@ struct TProxyDynamicConfig
 
     std::optional<int> WorkerThreadPoolSize;
 
+    TNodeMemoryTrackerConfigPtr MemoryTracker;
+
     REGISTER_YSON_STRUCT(TProxyDynamicConfig);
 
     static void Register(TRegistrar registrar);

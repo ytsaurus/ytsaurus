@@ -6,9 +6,15 @@
 
 #include <yt/yt/core/misc/error.h>
 
+#include <yt/yt/core/misc/ref_counted_tracker.h>
+
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
+#include <yt/yt/library/profiling/solomon/helpers.h>
+
 #include <library/cpp/yt/containers/enum_indexed_array.h>
+
+#include <tcmalloc/malloc_extension.h>
 
 #include <algorithm>
 
@@ -35,6 +41,8 @@ void TNodeMemoryTrackerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("check_per_category_limit_overcommit", &TThis::CheckPerCategoryLimitOvercommit)
         .Default(false);
+    registrar.Parameter("system_categories_update_period", &TThis::SystemCategoriesUpdatePeriod)
+        .Default(TDuration::Seconds(1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,7 +58,8 @@ public:
         const TNodeMemoryTrackerConfigPtr& config,
         const std::vector<std::pair<ECategory, i64>>& limits,
         const TLogger& logger,
-        const TProfiler& profiler);
+        const TProfiler& profiler,
+        const IInvokerPtr& invoker);
 
     i64 GetTotalLimit() const override;
     i64 GetTotalUsed() const override;
@@ -93,6 +102,8 @@ public:
         bool keepExistingTracking) override;
 
     void Reconfigure(const TNodeMemoryTrackerConfigPtr& config) override;
+
+    void Start() override;
 
 private:
     class TTrackedReferenceHolder
@@ -142,6 +153,8 @@ private:
     YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
 
     bool CheckPerCategoryLimitOvercommit_ = false;
+
+    NConcurrency::TPeriodicExecutorPtr UpdateExecutor_;
 
     std::atomic<i64> TotalLimit_;
 
@@ -194,6 +207,7 @@ private:
     THashMap<TPoolTag, TEnumIndexedArray<EMemoryCategory, IMemoryUsageTrackerPtr>> PoolTrackers_;
 
     void InitCategoryTrackers();
+    void UpdateSystemCategories();
 
     i64 DoGetLimit(ECategory category) const;
     i64 DoGetLimit(ECategory category, const TPool* pool) const;
@@ -230,6 +244,8 @@ private:
         bool keepExistingTracking,
         bool allowOvercommit);
 };
+
+DEFINE_REFCOUNTED_TYPE(TNodeMemoryTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -323,10 +339,17 @@ TNodeMemoryTracker::TNodeMemoryTracker(
     const TNodeMemoryTrackerConfigPtr& config,
     const std::vector<std::pair<ECategory, i64>>& limits,
     const TLogger& logger,
-    const TProfiler& profiler)
+    const TProfiler& profiler,
+    const IInvokerPtr& invoker)
     : Logger(logger)
     , Profiler_(profiler.WithSparse())
     , CheckPerCategoryLimitOvercommit_(config->CheckPerCategoryLimitOvercommit)
+    , UpdateExecutor_(invoker
+        ? New<NConcurrency::TPeriodicExecutor>(
+            invoker,
+            BIND(&TNodeMemoryTracker::UpdateSystemCategories, MakeWeak(this)),
+            config->SystemCategoriesUpdatePeriod)
+        : nullptr)
     , TotalLimit_(totalLimit)
     , TotalFree_(totalLimit)
     , ReferenceAddressToState_(ReferenceAddressMapShardCount)
@@ -933,6 +956,60 @@ void TNodeMemoryTracker::Reconfigure(const TNodeMemoryTrackerConfigPtr& config)
     auto guard = Guard(SpinLock_);
 
     CheckPerCategoryLimitOvercommit_ = config->CheckPerCategoryLimitOvercommit;
+
+    if (UpdateExecutor_) {
+        UpdateExecutor_->SetPeriod(config->SystemCategoriesUpdatePeriod);
+    }
+}
+
+void TNodeMemoryTracker::Start()
+{
+    if (UpdateExecutor_) {
+        UpdateExecutor_->Start();
+    }
+}
+
+void TNodeMemoryTracker::UpdateSystemCategories()
+{
+    i64 bytesUsed = tcmalloc::MallocExtension::GetNumericProperty("generic.current_allocated_bytes").value_or(0);
+    i64 bytesCommitted = tcmalloc::MallocExtension::GetNumericProperty("generic.heap_size").value_or(0);
+    auto newFragmentation = std::max<i64>(0, bytesCommitted - bytesUsed);
+
+    auto newFootprint = bytesUsed;
+    for (auto memoryCategory : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
+        if (memoryCategory == EMemoryCategory::UserJobs ||
+            memoryCategory == EMemoryCategory::Footprint ||
+            memoryCategory == EMemoryCategory::AllocFragmentation ||
+            memoryCategory == EMemoryCategory::TmpfsLayers)
+        {
+            continue;
+        }
+
+        newFootprint -= DoGetUsed(memoryCategory);
+    }
+    newFootprint = std::max<i64>(newFootprint, 0);
+
+    auto oldFootprint = UpdateUsage(EMemoryCategory::Footprint, newFootprint);
+    auto oldFragmentation = UpdateUsage(EMemoryCategory::AllocFragmentation, newFragmentation);
+
+    i64 profiling = GetCountersBytesAlive();
+    i64 oldProfiling = UpdateUsage(EMemoryCategory::Profiling, profiling);
+    i64 logging = TRefCountedTracker::Get()->GetBytesAlive(GetRefCountedTypeKey<NLogging::NDetail::TMessageBufferTag>());
+    i64 oldLogging = UpdateUsage(EMemoryCategory::Logging, logging);
+
+    YT_LOG_INFO(
+        "System categories memory usage updated (BytesCommitted: %v, BytesUsed: %v, Footprint: %v -> %v, "
+        "Fragmentation: %v -> %v, Profiling: %v -> %v, Logging: %v -> %v)",
+        bytesCommitted,
+        bytesUsed,
+        oldFootprint,
+        newFootprint,
+        oldFragmentation,
+        newFragmentation,
+        oldProfiling,
+        profiling,
+        oldLogging,
+        logging);
 }
 
 TErrorOr<TSharedRef> TNodeMemoryTracker::DoTryTrackMemory(
@@ -1208,14 +1285,16 @@ INodeMemoryTrackerPtr CreateNodeMemoryTracker(
     const TNodeMemoryTrackerConfigPtr& config,
     const std::vector<std::pair<ECategory, i64>>& limits,
     const NLogging::TLogger& logger,
-    const NProfiling::TProfiler& profiler)
+    const NProfiling::TProfiler& profiler,
+    const IInvokerPtr& invoker)
 {
     return New<TNodeMemoryTracker>(
         totalLimit,
         config,
         limits,
         logger,
-        profiler);
+        profiler,
+        invoker);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

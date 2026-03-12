@@ -170,7 +170,8 @@ void TBootstrap::DoInitialize()
         New<TNodeMemoryTrackerConfig>(),
         /*limits*/ {},
         Logger(),
-        RpcProxyProfiler().WithPrefix("/memory_usage"));
+        RpcProxyProfiler().WithPrefix("/memory_usage"),
+        GetControlInvoker());
 
     ReconfigureMemoryLimits(Config_->MemoryLimits);
 
@@ -390,6 +391,8 @@ void TBootstrap::DoStart()
     BundleDynamicConfigManager_->Initialize();
     BundleDynamicConfigManager_->Start();
 
+    MemoryUsageTracker_->Start();
+
     // NB: We must apply the first dynamic config before ApiService_ starts.
     YT_LOG_INFO("Loading dynamic config for the first time");
 
@@ -561,6 +564,7 @@ void TBootstrap::OnDynamicConfigChanged(
     QueryCorpusReporter_->Reconfigure(newConfig->Api->QueryCorpusReporter);
 
     ReconfigureMemoryLimits(newConfig->MemoryLimits);
+    MemoryUsageTracker_->Reconfigure(newConfig->MemoryTracker);
 
     ReconfigureConnection(newConfig, BundleDynamicConfigManager_->GetConfig());
 

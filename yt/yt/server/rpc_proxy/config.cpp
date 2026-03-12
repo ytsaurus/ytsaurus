@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/signature/config.h>
 
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
 #include <yt/yt/core/bus/tcp/config.h>
 
 namespace NYT::NRpcProxy {
@@ -216,6 +218,9 @@ void TProxyDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("worker_thread_pool_size", &TThis::WorkerThreadPoolSize)
         .GreaterThan(0)
         .Optional();
+
+    registrar.Parameter("memory_tracker", &TThis::MemoryTracker)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
