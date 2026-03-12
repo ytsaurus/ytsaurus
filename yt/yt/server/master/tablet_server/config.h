@@ -345,9 +345,6 @@ struct TDynamicTabletManagerConfig
     // COMPAT(shakurov)
     bool EnableHunkSpecificMedia;
 
-    // COMPAT(danilalexeev)
-    bool SafeCheckSecondaryCellStorage;
-
     bool EnableSmoothTabletMovement;
 
     bool EnableClockCellTagValidationOnChaosReplicaMount;

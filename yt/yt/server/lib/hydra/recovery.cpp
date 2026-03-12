@@ -171,9 +171,7 @@ void TRecovery::DoRun()
         }
         auto snapshotRecordId = snapshotMeta.last_record_id();
         auto snapshotLastMutationTerm = snapshotMeta.last_mutation_term();
-        // COMPAT(danilalexeev)
-        auto snapshotLastMutationReign = YT_OPTIONAL_FROM_PROTO(snapshotMeta, last_mutation_reign)
-            .value_or(InvalidReign);
+        auto snapshotLastMutationReign = snapshotMeta.last_mutation_reign();
         auto snapshotReadOnly = snapshotMeta.read_only();
         // COMPAT(h0pless): HydraLogicalClock. Remove the default value.
         auto logicalTime = YT_OPTIONAL_FROM_PROTO(snapshotMeta, logical_time, TLogicalTime)

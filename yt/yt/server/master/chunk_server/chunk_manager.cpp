@@ -2654,9 +2654,6 @@ private:
     // COMPAT(h0pless)
     bool NeedRecomputeChunkWeightStatisticsHistogram_ = false;
 
-    // COMPAT(danilalexeev)
-    bool NeedUnhealthyUnconfirmedChunkScan_ = false;
-
     TPeriodicExecutorPtr ProfilingExecutor_;
 
     TBufferedProducerPtr BufferedProducer_;
@@ -5431,9 +5428,6 @@ private:
         MediumMap_.LoadKeys(context);
         ChunkViewMap_.LoadKeys(context);
         DynamicStoreMap_.LoadKeys(context);
-
-        // COMPAT(danilalexeev)
-        NeedUnhealthyUnconfirmedChunkScan_ = context.GetVersion() < EMasterReign::WriteAclToSequoiaTable;
     }
 
     void LoadHistogramValues(
@@ -5659,37 +5653,6 @@ private:
 
             YT_LOG_INFO("Finished initializing chunk placement");
         }
-
-        if (NeedUnhealthyUnconfirmedChunkScan_) {
-            YT_LOG_INFO("Scanning for unhealthy unconfirmed chunks");
-
-            for (auto [_, chunk] : ChunkMap_) {
-                if (!IsObjectAlive(chunk) || chunk->IsConfirmed()) {
-                    continue;
-                }
-
-                auto exported = chunk->IsExported();
-                auto owningNodes = GetOwningNodes(chunk);
-                auto trunkOwningNodes = owningNodes
-                    | std::views::filter([] (const auto* node) {
-                        return node->IsTrunk();
-                    });
-
-                if (exported || !trunkOwningNodes.empty()) {
-                    YT_LOG_ALERT(
-                        "Found unhealthy unconfirmed chunk (ChunkId: %v, Exported: %v, OwningNodes: %v)",
-                        chunk->GetId(),
-                        exported,
-                        MakeFormattableView(
-                            owningNodes,
-                            [&] (auto* builder, const auto* node) {
-                                builder->AppendFormat("%v", node->GetVersionedId());
-                            }));
-                }
-            }
-
-            YT_LOG_INFO("Finished scanning");
-        }
     }
 
 
@@ -5750,7 +5713,6 @@ private:
         DefaultStoreMedium_ = nullptr;
 
         NeedRecomputeChunkWeightStatisticsHistogram_ = false;
-        NeedUnhealthyUnconfirmedChunkScan_ = false;
     }
 
     void SetZeroState() override

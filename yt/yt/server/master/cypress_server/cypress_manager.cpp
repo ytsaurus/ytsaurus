@@ -5032,37 +5032,16 @@ private:
         }
     }
 
-    void ResetCypressNodeReachability()
-    {
-        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
-
-        for (auto [nodeId, node] : NodeMap_) {
-            node->SetReachable(false);
-        }
-    }
-
     const TDynamicCypressManagerConfigPtr& GetDynamicConfig() const
     {
         const auto& configManager = Bootstrap_->GetConfigManager();
         return configManager->GetConfig()->CypressManager;
     }
 
-    void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig)
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
     {
         RecursiveResourceUsageCache_->SetExpirationTimeout(
             GetDynamicConfig()->RecursiveResourceUsageCacheExpirationTimeout);
-
-        if (!oldConfig->CypressManager->DisableCypressNodeReachability &&
-            GetDynamicConfig()->DisableCypressNodeReachability)
-        {
-            ResetCypressNodeReachability();
-        }
-
-        if (oldConfig->CypressManager->DisableCypressNodeReachability &&
-            !GetDynamicConfig()->DisableCypressNodeReachability)
-        {
-            YT_LOG_ALERT("Cypress node reachability is enabled again");
-        }
     }
 };
 

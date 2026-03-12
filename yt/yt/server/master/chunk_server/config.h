@@ -805,9 +805,6 @@ struct TDynamicChunkManagerConfig
     bool EnableNodeWriteSessionLimitForUserOnWriteTargetAllocation;
     double NodeWriteSessionLimitFractionOnWriteTargetAllocation;
 
-    // COMPAT(danilalexeev)
-    bool ValidateResourceUsageIncreaseOnPrimaryMediumChange;
-
     // COMPAT(shakurov)
     bool UseHunkSpecificMediaForRequisitionUpdates;
 

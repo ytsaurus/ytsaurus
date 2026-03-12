@@ -1780,10 +1780,8 @@ class YTEnvSetup(object):
 
             env.check_liveness(callback_func=emergency_exit_within_tests)
 
-            # COMPAT(danilalexeev)
-            if env.get_component_version("ytserver-master").abi >= (23, 2):
-                driver = yt_commands.get_driver(cluster=self.get_cluster_name(cluster_index))
-                self._master_exit_read_only_sync(env, driver=driver)
+            driver = yt_commands.get_driver(cluster=self.get_cluster_name(cluster_index))
+            self._master_exit_read_only_sync(env, driver=driver)
 
         for cluster_index, env in enumerate([self.Env] + self.remote_envs):
             self.teardown_cluster(method, cluster_index, wait_for_nodes)

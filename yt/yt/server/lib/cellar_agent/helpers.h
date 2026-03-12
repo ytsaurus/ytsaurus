@@ -15,9 +15,6 @@ namespace NYT::NCellarAgent {
 NCellarClient::ECellarType GetCellarTypeFromCellId(NElection::TCellId id);
 NCellarClient::ECellarType GetCellarTypeFromCellBundleId(NObjectClient::TObjectId id);
 
-// COMPAT(danilalexeev)
-NYPath::TYPath GetCellPath(NElection::TCellId id);
-
 const NYPath::TYPath& GetCellHydraPersistenceCypressPathPrefix(NElection::TCellId id);
 NYPath::TYPath GetCellHydraPersistencePath(NElection::TCellId id);
 

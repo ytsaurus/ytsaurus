@@ -220,11 +220,6 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        const auto& configManager = Bootstrap_->GetConfigManager();
-        if (!configManager->GetConfig()->CypressManager->EnableScionSynchronization) {
-            return;
-        }
-
         if (!IsLeader()) {
             return;
         }
