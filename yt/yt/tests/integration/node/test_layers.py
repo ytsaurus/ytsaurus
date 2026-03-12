@@ -5,7 +5,9 @@ from yt_commands import (
     write_file, write_table, get_job, abort_job, poll_job_shell,
     raises_yt_error, read_table, run_test_vanilla, map, map_reduce,
     sort, wait_for_nodes, update_nodes_dynamic_config,
-    wait_breakpoint, with_breakpoint, release_breakpoint, print_debug)
+    wait_breakpoint, with_breakpoint, release_breakpoint, print_debug,
+    make_random_string,
+)
 
 from yt.common import YtError, YtResponseError, update
 import yt.yson as yson
@@ -20,11 +22,25 @@ import gzip
 import re
 import sys
 import time
-import tempfile
 import zstandard as zstd
 
 from builtins import set as Set
 from collections import Counter
+
+
+def _make_random_uds_path() -> str:
+    path = "/tmp"
+
+    # PORTO-1242
+    if os.path.ismount("/tmp"):
+        path = os.path.expanduser('~')
+
+    path = f"{path}/tmp{make_random_string(8)}"
+
+    # Unix Domain Socket paths may not be longer than 108 bytes.
+    assert len(path) < 108
+
+    return path
 
 
 class TestLayersBase(YTEnvSetup):
@@ -1846,10 +1862,7 @@ class TestNbdSquashFSLayers(YTEnvSetup):
                     "enabled": True,
                     "server": {
                         "unix_domain_socket": {
-                            # The best would be to use os.path.join(self.path_to_run, tempfile.mkstemp(dir="/tmp")[1]),
-                            # but it leads to a path with length greater than the maximum allowed 108 bytes.
-                            # So put it at home directory until PORTO-1242 is done, then put it in /tmp.
-                            "path": tempfile.mkstemp(dir="/tmp" if "USER" not in os.environ else "/root" if os.environ["USER"] == "root" else "/home/" + os.environ["USER"])[1]
+                            "path": _make_random_uds_path(),
                         },
                     },
                 },
@@ -2188,10 +2201,7 @@ class TestNbdConnectionFailuresWithSquashFSLayers(YTEnvSetup):
                     },
                     "server": {
                         "unix_domain_socket": {
-                            # The best would be to use os.path.join(self.path_to_run, tempfile.mkstemp(dir="/tmp")[1]),
-                            # but it leads to a path with length greater than the maximum allowed 108 bytes.
-                            # So put it at home directory until PORTO-1242 is done, then put it in /tmp.
-                            "path": tempfile.mkstemp(dir="/root" if os.environ["USER"] == "root" else "/home/" + os.environ["USER"])[1]
+                            "path": _make_random_uds_path(),
                         },
                         "test_options": {
                             "set_error_on_read": True,
@@ -2353,10 +2363,7 @@ class TestFailOperationAfterSuccessiveJobAbortsOnPrepareVolume(YTEnvSetup):
                     "enabled": True,
                     "server": {
                         "unix_domain_socket": {
-                            # The best would be to use os.path.join(self.path_to_run, tempfile.mkstemp(dir="/tmp")[1]),
-                            # but it leads to a path with length greater than the maximum allowed 108 bytes.
-                            # So put it at home directory until PORTO-1242 is done, then put it in /tmp.
-                            "path": tempfile.mkstemp(dir="/root" if os.environ["USER"] == "root" else "/home/" + os.environ["USER"])[1]
+                            "path": _make_random_uds_path(),
                         },
                     },
                 },
@@ -2617,10 +2624,7 @@ class TestVirtualSandbox(YTEnvSetup):
                     "enabled": True,
                     "server": {
                         "unix_domain_socket": {
-                            # The best would be to use os.path.join(self.path_to_run, tempfile.mkstemp(dir="/tmp")[1]),
-                            # but it leads to a path with length greater than the maximum allowed 108 bytes.
-                            # So put it at home directory until PORTO-1242 is done, then put it in /tmp.
-                            "path": tempfile.mkstemp(dir="/tmp" if "USER" not in os.environ else "/root" if os.environ["USER"] == "root" else "/home/" + os.environ["USER"])[1]
+                            "path": _make_random_uds_path(),
                         },
                     },
                 },
