@@ -10,6 +10,8 @@ To ensure fault tolerance, a {{product-name}} cluster needs to have several mast
 
 {{product-name}} masters are stateful components of the cluster, because they store changelogs and snapshots of the cluster state on the disk. For optimal master performance, we recommend using a storage medium that's good at handling a large stream of small records, such as NVMe SSD.
 
+In addition to the primary master cell, large clusters can use **secondary master cells** to shard the load. Secondary cells can take on different roles: `chunk_host` (storing chunk metadata), `cypress_node_host` (hosting subtrees of the Cypress metadata tree), or `transaction_coordinator` (handling transactions). Adding secondary master cells requires complete cluster downtime and is described in the [Extending master servers](../../admin-guide/cell-addition.md) guide.
+
 ![](../../../images/yt_cluster_components.png)
 
 ## Data Nodes
@@ -54,7 +56,7 @@ RPC proxies use the {{product-name}} internal protocol, which makes working with
 
 ## Discovery Server
 
-The Discovery server maintains a registry of active cluster services. It allows cluster components and clients to locate proxies and other services at runtime without requiring their addresses to be hardcoded in configuration files.
+The Discovery Server maintains a registry of active cluster services. It allows cluster components and clients to locate proxies and other services at runtime without requiring their addresses to be hardcoded in configuration files.
 
 ## Optional components
 
@@ -101,4 +103,8 @@ The Kafka Proxy implements the Kafka protocol on top of {{product-name}} queues.
 ### Cypress Proxy
 
 The Cypress Proxy is a caching proxy for Cypress metadata operations. It reduces the load on master servers by caching directory listings and attribute reads for objects stored in Cypress.
+
+### Strawberry Controller
+
+The Strawberry Controller manages the lifecycle of long-running Vanilla operations on the cluster. It monitors Cypress for speclet nodes that describe how an operation should be started (image, resources, configuration), and automatically starts, stops, and restarts those operations as needed. The Strawberry Controller is required for [CHYT](../../user-guide/data-processing/chyt/about-chyt.md) (ClickHouse over {{product-name}}) and is also used by SPYT (Spark over {{product-name}}) and JupYT (Jupyter over {{product-name}}).
 
