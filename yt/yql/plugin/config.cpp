@@ -78,6 +78,7 @@ constexpr auto DefaultGatewaySettings = std::to_array<std::pair<TStringBuf, TStr
     {"DQRPCReaderInflight", "1"},
     {"UseNativeYtTypes", "true"},
     {"UseNativeDynamicTableRead", "true"},
+    {"RuntimeClusterSelection", "auto"},
 });
 
 constexpr auto DefaultDQGatewaySettings = std::to_array<std::pair<TStringBuf, TStringBuf>>({

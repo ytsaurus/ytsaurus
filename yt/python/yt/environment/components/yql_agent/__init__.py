@@ -151,7 +151,8 @@ class YqlAgent(YTServerComponentBase, YTComponent):
             {
                 "name": self.env.id,
                 "cluster": self.env.get_http_proxy_address(),
-                "default": True
+                "default": True,
+                "settings": [{"name": "_AllowRemoteClusterInput", "value": "true" if len(self.remote_envs) > 0 else "false"}]
             }
         ]
 
