@@ -101,8 +101,7 @@ struct IUserSlot
         bool testRootFs) = 0;
 
     virtual TFuture<IVolumePtr> RbindRootVolume(
-        const IVolumePtr& volume,
-        const TString& slotPath) = 0;
+        const IVolumePtr& volume) = 0;
 
     virtual TFuture<void> LinkTmpfsVolumes(
         const IVolumePtr& rootVolume,
