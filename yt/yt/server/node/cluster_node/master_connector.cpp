@@ -694,11 +694,8 @@ private:
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
 
-        // COMPAT(pogorelov): Remove when all masters will be 24.1.
-        if (rsp->tags_size() > 0) {
-            auto tags = FromProto<std::vector<std::string>>(rsp->tags());
-            UpdateTags(std::move(tags));
-        }
+        auto tags = FromProto<std::vector<std::string>>(rsp->tags());
+        UpdateTags(std::move(tags));
 
         auto newSecondaryMastersConnectionConfigs = ParseSecondaryMasterConnectionConfigsFromResponse(rsp->secondary_masters_configs());
         MaybeUpdateSecondaryMasterConnectionConfigs(newSecondaryMastersConnectionConfigs);
