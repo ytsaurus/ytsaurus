@@ -299,8 +299,17 @@ void TLayerLocation::Disable(const TError& error, bool persistentDisable)
     YT_LOG_WARNING("Layer location disabled (Path: %v)", Config_->Path);
 
     if (HealthChecker_) {
-        auto result = WaitFor(HealthChecker_->Stop());
-        YT_LOG_WARNING_IF(!result.IsOK(), result, "Layer location health checker stopping failed");
+        //! It should not be a problem to stop health checker asynchronously.
+        HealthChecker_->Stop()
+            .Subscribe(BIND(
+                [
+                    this,
+                    weakThis = MakeWeak(this)
+                ] (const TError& error) {
+                    if (auto this_ = weakThis.Lock()) {
+                        YT_LOG_WARNING_IF(!error.IsOK(), error, "Layer location health checker stopping failed");
+                    }
+                }));
     }
 
     {
