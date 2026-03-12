@@ -32,7 +32,7 @@ void TYqlAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("issue_token_attempts", &TThis::IssueTokenAttempts)
         .Default(10);
     registrar.Parameter("yql_thread_count", &TThis::YqlThreadCount)
-        .Default(256);
+        .Default(64);
     registrar.Parameter("max_supported_yql_version", &TThis::MaxSupportedYqlVersion)
         .Default();
     registrar.Parameter("default_yql_ui_version", &TThis::DefaultYqlUIVersion)
@@ -48,7 +48,7 @@ void TYqlAgentConfig::Register(TRegistrar registrar)
 void TYqlAgentDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_simultaneous_queries", &TThis::MaxSimultaneousQueries)
-        .Default(128);
+        .Default(63);
     registrar.Parameter("state_check_period", &TThis::StateCheckPeriod)
         .Default(TDuration::Seconds(15));
     registrar.Parameter("gateways", &TThis::GatewaysConfig)
