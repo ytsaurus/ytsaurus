@@ -218,6 +218,9 @@ items:
          - name: Operation options
            when: audience == "public"
            href: user-guide/data-processing/operations/operations-options.md
+         - name: Job Collectives
+           when: audience == "public"
+           href: user-guide/data-processing/operations/job-collectives.md
          - name: Chunk auto-merge at operation output
            when: audience == "public"
            href: user-guide/data-processing/operations/automerge.md
