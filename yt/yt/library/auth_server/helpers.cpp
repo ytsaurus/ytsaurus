@@ -274,5 +274,54 @@ TError EnsureUserExists(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool TryAddUserInGroups(
+    const ICypressUserManagerPtr& userManager,
+    const std::string& name,
+    const std::vector<std::string>& groups)
+{
+    const auto& Logger = AuthLogger;
+
+    if (groups.empty()) {
+        YT_LOG_TRACE("Empty set of groups is provided (Name: %v, Groups: %v)", name, groups);
+        return true;
+    }
+
+    YT_LOG_TRACE("Checking if user is a member of the groups (Name: %v, Groups: %v)", name, groups);
+    auto result = WaitFor(userManager->GetUserGroups(name));
+    if (!result.IsOK()) {
+        YT_LOG_WARNING(result, "Failed to get user groups (Name: %v)", name);
+        return false;
+    }
+
+    auto userGroups = result.Value();
+
+    YT_LOG_TRACE("Listing user groups (Name: %v, Groups: %v)", name, userGroups);
+
+    auto userGroupsSet = std::unordered_set<std::string>(userGroups.begin(), userGroups.end());
+    bool userAddedToAllGroups = true;
+    for (const auto& group : groups) {
+        if (userGroupsSet.contains(group)) {
+            continue;
+        }
+
+        YT_LOG_DEBUG("User is not a member of the group (Name: %v, Group: %v)", name, group);
+
+        auto result = WaitFor(userManager->AddUserToGroup(name, group));
+
+        userGroupsSet.insert(group);
+
+        if (result.IsOK()) {
+            YT_LOG_DEBUG("User added into the group (Name: %v, Group: %v)", name, group);
+        } else {
+            YT_LOG_WARNING(result, "Failed to add user into the group (Name: %v, Group: %v)", name, group);
+            userAddedToAllGroups = false;
+        }
+    }
+
+    return userAddedToAllGroups;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NAuth
 

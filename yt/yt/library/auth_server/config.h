@@ -512,13 +512,12 @@ struct TYCAuthenticatorConfig
 
     bool CheckUserExists;
     bool CreateUserIfNotExists;
+    bool AddUserToGroups;
 
     std::vector<std::string> DefaultUserTags;
 
     bool RetryAllServerErrors;
     std::vector<int> RetryStatusCodes;
-
-    std::string AuthenticateLoginField;
 
     REGISTER_YSON_STRUCT(TYCAuthenticatorConfig);
 

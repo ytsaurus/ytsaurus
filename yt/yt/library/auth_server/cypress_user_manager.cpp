@@ -20,6 +20,7 @@ namespace NYT::NAuth {
 using namespace NYPath;
 using namespace NYTree;
 using namespace NObjectClient;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,6 +55,25 @@ public:
             options).AsVoid();
     }
 
+    TFuture<std::vector<std::string>> GetUserGroups(const std::string& name) override
+    {
+        return Client_->GetNode("//sys/users/" + ToYPathLiteral(name) + "/@member_of")
+            .Apply(BIND([] (const TYsonString& rawGroupsList) {
+                return ConvertTo<std::vector<std::string>>(rawGroupsList);
+            }));
+    }
+
+    TFuture<void> AddUserToGroup(const std::string& name, const std::string& group) override
+    {
+        return Client_->AddMember(TString(group), TString(name))
+            .Apply(BIND([] (const TErrorOr<void>& result) {
+                if (result.IsOK() || result.GetCode() == NSecurityClient::EErrorCode::AlreadyPresentInGroup) {
+                    return;
+                }
+                result.ThrowOnError();
+            }));
+    }
+
 private:
     const TCypressUserManagerConfigPtr Config_;
     const NApi::IClientPtr Client_;
@@ -81,8 +101,18 @@ public:
         return MakeFuture(true);
     }
 
+    TFuture<std::vector<std::string>> GetUserGroups(const std::string& /*name*/) override
+    {
+        return MakeFuture(std::vector<std::string>());
+    }
+
 protected:
     TFuture<void> CreateUser(const std::string& /*name*/, const std::vector<std::string>& /*tags*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    TFuture<void> AddUserToGroup(const std::string& /*name*/, const std::string& /*group*/) override
     {
         YT_UNIMPLEMENTED();
     }
@@ -93,6 +123,58 @@ protected:
 ICypressUserManagerPtr CreateNullCypressUserManager()
 {
     return New<TNullCypressUserManager>();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TInMemoryCypressUserManager
+    : public ICypressUserManager
+{
+public:
+    TFuture<bool> CheckUserExists(const std::string& name) override
+    {
+        return MakeFuture(UserGroups_.contains(name));
+    }
+
+    TFuture<std::vector<std::string>> GetUserGroups(const std::string& name) override
+    {
+        if (!UserGroups_.contains(name)) {
+            return MakeFuture(std::vector<std::string>());
+        }
+
+        const auto& groups = UserGroups_.at(name);
+        return MakeFuture(std::vector<std::string>(groups.cbegin(), groups.cend()));
+    }
+
+    TFuture<void> CreateUser(const std::string& name, const std::vector<std::string>& /*tags*/) override
+    {
+        if (!UserGroups_.contains(name)) {
+            UserGroups_[name] = {};
+        }
+
+        return VoidFuture;
+    }
+
+    TFuture<void> AddUserToGroup(const std::string& name, const std::string& group) override
+    {
+        if (!UserGroups_.contains(name)) {
+            return MakeFuture(TError("User does not exist (Name: %v)", name));
+        }
+
+        UserGroups_[name].insert(group);
+
+        return VoidFuture;
+    }
+
+private:
+    std::map<std::string, std::set<std::string>> UserGroups_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+ICypressUserManagerPtr CreateInMemoryCypressUserManager()
+{
+    return New<TInMemoryCypressUserManager>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -133,6 +215,42 @@ DEFINE_REFCOUNTED_TYPE(TCypressUserManagerCheckUserExistsCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCypressUserManagerUserGroupsCache
+    : public TAsyncExpiringCache<std::string, std::vector<std::string>>
+{
+public:
+    TCypressUserManagerUserGroupsCache(
+        TAsyncExpiringCacheConfigPtr config,
+        ICypressUserManagerPtr cypressUserManager,
+        NProfiling::TProfiler profiler)
+        : TAsyncExpiringCache(
+            std::move(config),
+            /*logger*/ {},
+            std::move(profiler))
+        , CypressUserManager_(std::move(cypressUserManager))
+    { }
+
+private:
+    const ICypressUserManagerPtr CypressUserManager_;
+
+    TFuture<std::vector<std::string>> DoGet(
+        const std::string& name,
+        bool /*isPeriodicUpdate*/) noexcept override
+    {
+        return CypressUserManager_->GetUserGroups(name);
+    }
+
+    bool CanCacheError(const TError& /*error*/) noexcept override
+    {
+        return false;
+    }
+};
+
+DECLARE_REFCOUNTED_CLASS(TCypressUserManagerUserGroupsCache)
+DEFINE_REFCOUNTED_TYPE(TCypressUserManagerUserGroupsCache)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCachingCypressUserManager
     : public ICypressUserManager
 {
@@ -146,6 +264,10 @@ public:
             config->Cache->ToAsyncExpiringCacheConfig(),
             UserManager_,
             profiler.WithPrefix("/user_exists")))
+        , UserGroupsCache_(New<TCypressUserManagerUserGroupsCache>(
+            config->Cache->ToAsyncExpiringCacheConfig(),
+            UserManager_,
+            profiler.WithPrefix("/user_groups")))
     { }
 
     TFuture<bool> CheckUserExists(const std::string& name) override
@@ -160,9 +282,22 @@ public:
         return UserManager_->CreateUser(name, tags);
     }
 
+    TFuture<std::vector<std::string>> GetUserGroups(const std::string& name) override
+    {
+        return UserGroupsCache_->Get(name);
+    }
+
+    TFuture<void> AddUserToGroup(const std::string& name, const std::string& group) override
+    {
+        // If we cached groups for user, we should invalidate all of them.
+        UserGroupsCache_->InvalidateActive(name);
+        return UserManager_->AddUserToGroup(name, group);
+    }
+
 private:
     const ICypressUserManagerPtr UserManager_;
     const TCypressUserManagerCheckUserExistsCachePtr CheckUserExistsCache_;
+    const TCypressUserManagerUserGroupsCachePtr UserGroupsCache_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
