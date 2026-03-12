@@ -484,12 +484,6 @@ bool TJob::IsStarted() const
     return Started_;
 }
 
-void TJob::OnResourcesAcquired() noexcept
-{
-    // Resources can not be acquired for job, we acquire resources for allocation and we can transfer it to job.
-    YT_ABORT();
-}
-
 template <class... U>
 void TJob::AddJobEvent(U&&... u)
 {
