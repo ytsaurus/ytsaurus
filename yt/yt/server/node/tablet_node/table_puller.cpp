@@ -800,6 +800,12 @@ private:
         try {
             const auto& clusterName = queueReplicaInfo->ClusterName;
             const auto& replicaPath = queueReplicaInfo->ReplicaPath;
+
+            auto currentBatchFirstTimestamp = GetReplicationProgressMinTimestamp(
+                *replicationProgress,
+                PivotKey_.Get(),
+                NextPivotKey_.Get());
+
             TPullRowsResult result;
             {
                 TEventTimerGuard timerGuard(counters->PullRowsTime);
@@ -809,6 +815,11 @@ private:
                     THROW_ERROR_EXCEPTION("Queue replica cluster %Qv is not known", clusterName)
                         << HardErrorAttribute;
                 }
+
+                auto maxTransactionCommitInstant = RelativeThrottler_->GetMaxAllowedRecordTime(
+                    now,
+                    currentBatchFirstTimestamp,
+                    MountConfig_->ReplicationTickPeriod);
 
                 TPullRowsOptions options;
                 options.TabletRowsPerRead = TabletRowsPerRead;
@@ -822,15 +833,16 @@ private:
                 options.SelfTabletId = TabletId_;
                 // TODO(osidorkin): Reduce MaxTransactionCommitInstant if there is a big difference between
                 // ReplicationProgressMinTimestamp and now ReplicationProgressMaxTimestamp.
-                options.MaxTransactionCommitInstant = RelativeThrottler_->GetMaxAllowedRecordTime(now);
+                options.MaxTransactionCommitInstant = maxTransactionCommitInstant;
 
                 YT_LOG_DEBUG("Pulling rows (ClusterName: %v, ReplicaPath: %v, ReplicationProgress: %v, "
-                    "ReplicationRowIndexes: %v, UpperTimestamp: %v)",
+                    "ReplicationRowIndexes: %v, UpperTimestamp: %v, MaxTransactionCommitInstant: %v)",
                     clusterName,
                     replicaPath,
                     options.ReplicationProgress,
                     options.StartReplicationRowIndexes,
-                    upperTimestamp);
+                    upperTimestamp,
+                    maxTransactionCommitInstant);
 
                 result = WaitFor(alienClient->PullRows(replicaPath, options))
                     .ValueOrThrow();
@@ -862,10 +874,6 @@ private:
                 relativeThrottleTime);
 
             Throttler_->Acquire(dataWeight);
-            auto currentBatchFirstTimestamp = GetReplicationProgressMinTimestamp(
-                *replicationProgress,
-                PivotKey_.Get(),
-                NextPivotKey_.Get());
             auto newReplicationTimestamp = GetReplicationProgressMaxTimestamp(progress);
             RelativeThrottler_->OnReplicationBatchProcessed(
                 currentBatchFirstTimestamp,

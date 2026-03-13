@@ -82,15 +82,18 @@ public:
         return TDelayedExecutor::MakeDelayed(AllowedTime_ - now);
     }
 
-    TInstant GetMaxAllowedRecordTime(TInstant now) const override
+    TInstant GetMaxAllowedRecordTime(
+        TInstant now,
+        TTimestamp currentTimestamp,
+        TDuration replicationTickPeriod) const override
     {
         if (Queue_.empty()) {
-            return TInstant::Max();
+            return GetDefaultMaxAllowedInstant(currentTimestamp, replicationTickPeriod);
         }
 
         const auto& entry = Queue_.back();
         if (now <= entry.ReplicationTime) {
-            return TInstant::Max();
+            return GetDefaultMaxAllowedInstant(currentTimestamp, replicationTickPeriod);
         }
 
         return entry.LogRowRecordTime + (now - entry.ReplicationTime) * Config_->Ratio;
@@ -107,6 +110,11 @@ private:
 
     TRingQueue<TEntry> Queue_;
     TInstant AllowedTime_ = TInstant::Zero();
+
+    TInstant GetDefaultMaxAllowedInstant(TTimestamp currentTimestamp, TDuration replicationTickPeriod) const
+    {
+        return TimestampToInstant(currentTimestamp).second + replicationTickPeriod * Config_->Ratio;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
