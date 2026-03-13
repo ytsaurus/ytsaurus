@@ -87,6 +87,10 @@ public:
         TTimestamp currentTimestamp,
         TDuration replicationTickPeriod) const override
     {
+        if (!Config_->Enable) {
+            return TInstant::Max();
+        }
+
         if (Queue_.empty()) {
             return GetDefaultMaxAllowedInstant(currentTimestamp, replicationTickPeriod);
         }
