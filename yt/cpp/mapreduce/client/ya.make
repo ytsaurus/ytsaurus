@@ -48,6 +48,7 @@ PEERDIR(
 PEERDIR(
     yt/yt/core
     yt/yt/core/http
+    yt/yt/core/https
 )
 
 IF (BUILD_TYPE == "PROFILE")

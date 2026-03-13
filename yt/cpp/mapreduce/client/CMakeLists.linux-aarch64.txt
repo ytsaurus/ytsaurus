@@ -49,6 +49,7 @@ target_link_libraries(cpp-mapreduce-client PUBLIC
   cpp-mapreduce-io
   yt-yt-core
   yt-core-http
+  yt-core-https
   tools-enum_parser-enum_serialization_runtime
 )
 
