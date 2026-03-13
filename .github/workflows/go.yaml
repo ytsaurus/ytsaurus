@@ -8,6 +8,7 @@ on:
 jobs:
   check:
     name: Run checks
+    if: github.repository == 'ytsaurus/ytsaurus'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -58,7 +59,7 @@ jobs:
   send-alert:
     needs:
       - check
-    if: always()
+    if: always() && github.repository == 'ytsaurus/ytsaurus'
     uses: ./.github/workflows/check-status-and-send-alert.yaml
     with:
       is_failure: ${{ contains(join(needs.*.result, ','), 'failure') }}
