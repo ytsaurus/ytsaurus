@@ -922,6 +922,71 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TProxySpytConnectEngineProvider
+    : public IProxyEngineProvider
+{
+public:
+    TProxySpytConnectEngineProvider(IClientPtr stateClient)
+        : StateClient_(std::move(stateClient))
+    { }
+
+    TYsonString GetEngineInfo([[maybe_unused]] IMapNodePtr settingsMap) override
+    {
+        return EngineInfo_;
+    }
+
+    TYsonString GetDeclaredParametersInfo([[maybe_unused]] const std::string& query,[[maybe_unused]] const TYsonString& settings) override
+    {
+        return TYsonString();
+    }
+
+    void Reconfigure(const TSpytProxyConfigPtr& config)
+    {
+        std::vector<std::string> clustersWithSpyt;
+        auto spytDistribExists = WaitFor(StateClient_->NodeExists("//home/spark"))
+            .ValueOrThrow();
+        if (spytDistribExists) {
+            auto stateClusterName = WaitFor(StateClient_->GetClusterName())
+                .ValueOrThrow();
+            if (stateClusterName) {
+                clustersWithSpyt.push_back(*stateClusterName);
+            }
+        }
+        clustersWithSpyt.reserve(clustersWithSpyt.size() + config->Clusters.size());
+        clustersWithSpyt.insert(
+            clustersWithSpyt.end(),
+            config->Clusters.begin(),
+            config->Clusters.end());
+
+        if (!clustersWithSpyt.empty()) {
+            std::string defaultEngine(config->UseSpytConnectEngine ? "connect" : "livy");
+            EngineInfo_ = BuildYsonStringFluently()
+                .BeginMap()
+                    .Item("clusters").DoListFor(clustersWithSpyt, [&] (auto fluent, auto item) {
+                        fluent.Item().Value(item);
+                    })
+                    .Item("engines").BeginList()
+                        // TODO(atokarew): remove livy item when old spyt_engine will be removed.
+                        .Item().Value("livy").Item().Value("connect")
+                    .EndList()
+                    .Item("default_engine").Value(defaultEngine)
+                    .Item("default_settings").Value(config->DefaultSettings)
+                .EndMap();
+        } else {
+            EngineInfo_ = TYsonString();
+        }
+    }
+
+private:
+    const IClientPtr StateClient_;
+    TYsonString EngineInfo_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TProxySpytConnectEngineProvider);
+DECLARE_REFCOUNTED_CLASS(TProxySpytConnectEngineProvider);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSpytConnectEngine
     : public IQueryEngine
 {
@@ -931,6 +996,7 @@ public:
         , StateRoot_(std::move(stateRoot))
         , ControlQueue_(New<TActionQueue>("SpytConnectEngineControl"))
         , ClusterDirectory_(DynamicPointerCast<NNative::IConnection>(StateClient_->GetConnection())->GetClusterDirectory())
+        , ProxyEngineProvider_(New<TProxySpytConnectEngineProvider>(StateClient_))
     { }
 
     IQueryHandlerPtr StartOrAttachQuery(TActiveQuery activeQuery) override
@@ -955,6 +1021,12 @@ public:
     {
         Config_ = DynamicPointerCast<TSpytConnectEngineConfig>(config);
         NotIndexedQueriesTTL_ = notIndexedQueriesTTL;
+        ProxyEngineProvider_->Reconfigure(Config_->ProxyConfig);
+    }
+
+    std::optional<IProxyEngineProviderPtr> GetProxyEngineProvider() override
+    {
+        return ProxyEngineProvider_;
     }
 
 private:
@@ -962,6 +1034,7 @@ private:
     const TYPath StateRoot_;
     const TActionQueuePtr ControlQueue_;
     const TClusterDirectoryPtr ClusterDirectory_;
+    const TProxySpytConnectEngineProviderPtr ProxyEngineProvider_;
     TDuration NotIndexedQueriesTTL_;
 
     TSpytConnectEngineConfigPtr Config_;

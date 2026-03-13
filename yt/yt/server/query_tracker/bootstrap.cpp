@@ -258,12 +258,6 @@ private:
             orchidRoot,
             "query_tracker");
 
-        QueryTrackerProxy_ = CreateQueryTrackerProxy(
-            NativeClient_,
-            Config_->Root,
-            DynamicConfigManager_->GetConfig()->QueryTracker->ProxyConfig,
-            Config_->MinRequiredStateVersion);
-
         ComponentStateChecker_ = CreateComponentStateChecker(
             ControlInvoker_,
             NativeClient_,
@@ -282,10 +276,6 @@ private:
             orchidRoot,
             ControlInvoker_,
             NativeAuthenticator_));
-        RpcServer_->RegisterService(CreateProxyService(
-            ProxyInvoker_,
-            QueryTrackerProxy_,
-            ComponentStateChecker_));
 
         QueryTracker_ = CreateQueryTracker(
             DynamicConfigManager_->GetConfig()->QueryTracker,
@@ -296,6 +286,19 @@ private:
             ComponentStateChecker_,
             Config_->Root,
             Config_->MinRequiredStateVersion);
+
+        QueryTrackerProxy_ = CreateQueryTrackerProxy(
+            NativeClient_,
+            Config_->Root,
+            DynamicConfigManager_->GetConfig()->QueryTracker->ProxyConfig,
+            QueryTracker_->GetEngineProviders(),
+            Config_->MinRequiredStateVersion);
+
+        RpcServer_->RegisterService(CreateProxyService(
+            ProxyInvoker_,
+            QueryTrackerProxy_,
+            ComponentStateChecker_));
+
         SetNodeByYPath(
             orchidRoot,
             "/query_tracker",
@@ -367,7 +370,9 @@ private:
         }
 
         if (QueryTrackerProxy_) {
-            QueryTrackerProxy_->Reconfigure(newConfig->QueryTracker->ProxyConfig, newConfig->QueryTracker->NotIndexedQueriesTTL);
+            QueryTrackerProxy_->Reconfigure(
+                newConfig->QueryTracker->ProxyConfig,
+                newConfig->QueryTracker->NotIndexedQueriesTTL);
         }
 
         YT_LOG_DEBUG(
