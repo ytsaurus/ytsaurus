@@ -8,19 +8,6 @@ Is released as a docker image.
 
 **Releases:**
 
-{% cut "**2.8.3**" %}
-
-**Release date:** 2026-02-16
-
-Maintenance release with minor enhancements
-
-- Ability to specify any available version of spark in cluster mode of direct submit
-- YTsaurus client version up to 1.2.13
-- Other bug and stability fixes
-
-{% endcut %}
-
-
 {% cut "**2.8.2**" %}
 
 **Release date:** 2025-12-23
