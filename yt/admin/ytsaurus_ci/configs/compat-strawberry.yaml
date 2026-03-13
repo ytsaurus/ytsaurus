@@ -1,5 +1,6 @@
 main:
   source: dev
+  show_in_matrix: false
   constraints:
     ytsaurus: main
     chyt: main

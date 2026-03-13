@@ -34,6 +34,7 @@ RESOURCE_FILES(
     configs/compat-ytsaurus.yaml
     configs/components.yaml
     configs/scenarios.yaml
+    snapshots/ytsaurus
     templates/base-spec.yaml
     tests/configs/compat-operator.yaml
     tests/configs/compat-ytsaurus.yaml

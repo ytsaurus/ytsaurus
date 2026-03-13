@@ -188,36 +188,81 @@ def print_suites(paths: List[Dict[str, str]]):
         print()
 
 
-def format_compat_table(registry, pivot_component: str) -> str:
-    components = sorted(registry.get_components())
-    components.remove(pivot_component)
+def _resolve_compatible_versions(registry, component, constraint):
+    if constraint is None:
+        return []
     versions = sorted(
-        registry.get_component_versions(pivot_component),
+        registry.get_matrix_versions(component),
+        key=cmp_to_key(_compare_versions),
+        reverse=True,
+    )
+    return [v for v in versions if _satisfies_constraint(v, constraint)]
+
+
+def _format_constraint(constraint) -> str:
+    if constraint is None:
+        return "—"
+
+    if isinstance(constraint, list):
+        return ", ".join(str(v) for v in constraint)
+
+    if not isinstance(constraint, str):
+        return str(constraint)
+
+    if "&&" in constraint:
+        parts = [p.strip() for p in constraint.split("&&")]
+        has_alpha = any(part.isalpha() for part in parts)
+        if has_alpha:
+            return " or ".join(_format_constraint(p) for p in parts)
+
+        lower = next((p[2:].strip() for p in parts if p.startswith(">=")), None)
+        upper = next((p[2:].strip() for p in parts if p.startswith("<=")), None)
+        others = [_format_constraint(p) for p in parts if not p.startswith(">=") and not p.startswith("<=")]
+
+        if lower and upper and not others:
+            return f"{lower} – {upper}"
+        if lower and not upper and not others:
+            return f"≥ {lower}"
+        if upper and not lower and not others:
+            return f"≤ {upper}"
+        return " & ".join(_format_constraint(p) for p in parts)
+
+    if constraint.startswith(">="):
+        return f"≥ {constraint[2:].strip()}"
+    if constraint.startswith("<="):
+        return f"≤ {constraint[2:].strip()}"
+    if constraint.startswith(">"):
+        return f"> {constraint[1:].strip()}"
+    if constraint.startswith("<"):
+        return f"< {constraint[1:].strip()}"
+
+    return constraint
+
+
+PIVOT_COMPONENT = "ytsaurus"
+
+
+def format_compat_table(registry) -> str:
+    cols = sorted(registry.get_components())
+    if PIVOT_COMPONENT in cols:
+        cols.remove(PIVOT_COMPONENT)
+
+    versions = sorted(
+        registry.get_matrix_versions(PIVOT_COMPONENT),
         key=cmp_to_key(_compare_versions),
         reverse=True,
     )
 
-    def cell_text(constraint):
-        if constraint is None or constraint == "—":
-            return "—"
-        if isinstance(constraint, list):
-            return ", ".join(str(x) for x in constraint)
+    header = f"| {PIVOT_COMPONENT} | " + " | ".join(cols) + " |"
+    divider = "|:---|" + "|".join([":---"] * len(cols)) + "|"
+    lines = [header, divider]
 
-        return str(constraint).strip()
-
-    lines = [f"# {pivot_component}", ""]
     for ver in versions:
-        lines.append(f'% cut "**{ver}**" %')
-        lines.append("")
-        lines.append("| component | requirements |")
-        lines.append("|-----------|------------|")
-        constraints = registry.get_constraints(pivot_component, ver) or {}
-        for other in components:
-            c = constraints.get(other, "—")
-            t = cell_text(c)
-            cell = f"`{t}`" if t != "—" else "—"
-            lines.append(f"| {other} | {cell} |")
-        lines.append("% endcut %")
-        lines.append("")
+        constraints = registry.get_constraints(PIVOT_COMPONENT, ver) or {}
+        row = [f"**{ver}**"]
+        for col in cols:
+            constraint = constraints.get(col)
+            row.append(_format_constraint(constraint))
+        lines.append("| " + " | ".join(row) + " |")
 
     return "\n".join(lines) + "\n"
