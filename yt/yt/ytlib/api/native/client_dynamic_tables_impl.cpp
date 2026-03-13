@@ -3499,6 +3499,7 @@ private:
             req->set_max_rows_per_read(Options_.TabletRowsPerRead);
             req->set_max_data_weight(MaxDataWeight_);
             req->set_upper_timestamp(Options_.UpperTimestamp);
+            req->set_max_allowed_commit_instant(ToProto(Options_.MaxTransactionCommitInstant));
             ToProto(req->mutable_tablet_id(), TabletInfo_->TabletId);
             ToProto(req->mutable_cell_id(), TabletInfo_->CellId);
             ToProto(req->mutable_start_replication_progress(), ReplicationProgress_);
