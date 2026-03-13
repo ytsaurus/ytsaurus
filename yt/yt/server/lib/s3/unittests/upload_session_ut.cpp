@@ -65,6 +65,8 @@ protected:
 
     void SetUp() override
     {
+        ForbidContextSwitchInFutureHandler();
+
         ChunkId_ = MakeRandomId(EObjectType::Chunk, TCellTag(0xf003));
         auto mediumConfig = New<TS3MediumConfig>();
         mediumConfig->Bucket = RootBucket_;
