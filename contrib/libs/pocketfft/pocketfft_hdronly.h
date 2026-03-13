@@ -162,6 +162,21 @@ template<> struct VLEN<double> { static constexpr size_t val=2; };
 // std::aligned_alloc is a bit cursed ... it doesn't exist on MacOS < 10.15
 // and in musl, and other OSes seem to have even more peculiarities.
 // Let's unconditionally work around it for now.
+#if defined(POCKETFFT_USE_POSIX_MEMALIGN) && (defined(__APPLE__) || defined(__unix__))
+// Use posix_memalign on POSIX systems when explicitly enabled.
+// The portable aligned_alloc below stores metadata at ptr[-1], which conflicts
+// with ASAN's heap redzone and causes intermittent bus errors.
+inline void *aligned_alloc(size_t align, size_t size)
+  {
+  align = std::max(align, sizeof(void*)); // posix_memalign requires align >= sizeof(void*)
+  void *ptr = nullptr;
+  if (posix_memalign(&ptr, align, size) != 0)
+    throw std::bad_alloc();
+  return ptr;
+  }
+inline void aligned_dealloc(void *ptr)
+    { free(ptr); }
+#else
 # if 0
 //#if (__cplusplus >= 201703L) && (!defined(__MINGW32__)) && (!defined(_MSC_VER)) && (__MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_15)
 inline void *aligned_alloc(size_t align, size_t size)
@@ -186,6 +201,7 @@ inline void *aligned_alloc(size_t align, size_t size)
   }
 inline void aligned_dealloc(void *ptr)
   { if (ptr) free((reinterpret_cast<void**>(ptr))[-1]); }
+# endif
 #endif
 
 template<typename T> class arr

@@ -6,8 +6,8 @@ LICENSE(BSD-3-Clause)
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
 
-VERSION(2026-01-08)
+VERSION(2026-02-26)
 
-ORIGINAL_SOURCE(https://github.com/mreineck/pocketfft/archive/d746b2bb5368e0aa6b75de1d83dc7aae46e7da80.tar.gz)
+ORIGINAL_SOURCE(https://github.com/mreineck/pocketfft/archive/8187407446316c3d16f15e5395dabd4b22f4fec7.tar.gz)
 
 END()
