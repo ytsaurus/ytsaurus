@@ -3668,8 +3668,8 @@ def update_user_to_default_pool_map(user_to_default_pool):
     wait(lambda: get("//sys/scheduler/orchid/scheduler/user_to_default_pool") == user_to_default_pool)
 
 
-def get_nodes_with_flavor(flavor):
-    cluster_nodes = ls("//sys/cluster_nodes", attributes=["flavors"])
+def get_nodes_with_flavor(flavor, driver=None):
+    cluster_nodes = ls("//sys/cluster_nodes", attributes=["flavors"], driver=driver)
     nodes = []
     for node in cluster_nodes:
         if flavor in node.attributes["flavors"]:
@@ -3677,20 +3677,20 @@ def get_nodes_with_flavor(flavor):
     return nodes
 
 
-def get_data_nodes():
-    return get_nodes_with_flavor("data")
+def get_data_nodes(driver=None):
+    return get_nodes_with_flavor("data", driver=driver)
 
 
-def get_exec_nodes():
-    return get_nodes_with_flavor("exec")
+def get_exec_nodes(driver=None):
+    return get_nodes_with_flavor("exec", driver=driver)
 
 
-def get_tablet_nodes():
-    return get_nodes_with_flavor("tablet")
+def get_tablet_nodes(driver=None):
+    return get_nodes_with_flavor("tablet", driver=driver)
 
 
-def get_chaos_nodes():
-    return get_nodes_with_flavor("chaos")
+def get_chaos_nodes(driver=None):
+    return get_nodes_with_flavor("chaos", driver=driver)
 
 
 def is_active_primary_master_leader(rpc_address):

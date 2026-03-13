@@ -38,11 +38,11 @@ ScopeList: TypeAlias = list[Scope]
 @dataclass
 class GroundClusterConfig:
     cluster: str
-    account: str
     account_resource_limits: dict[str, Any]
     master_dynamic_config: dict[str, Any]
     sequoia_components: ScopeList
-    sequoia_root_cypress_path: str
+    account: str = "sequoia"
+    sequoia_root_cypress_path: str = "//sys/sequoia"
 
 
 @dataclass
