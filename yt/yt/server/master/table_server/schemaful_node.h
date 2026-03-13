@@ -25,7 +25,7 @@ public:
 public:
     virtual NSecurityServer::TAccount* GetAccount() const = 0;
 
-    const NTableClient::TColumnStableNameToConstraintMap& Constraints() const;
+    const NTableClient::TColumnStableNameToConstraintMap& GetConstraints() const;
     void SetConstraints(NTableClient::TColumnStableNameToConstraintMap constraints);
 
     // COMPAT(h0pless): This is a temporary workaround until schemaful node typehandler is introduced.

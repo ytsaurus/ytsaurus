@@ -881,7 +881,7 @@ public:
             return MakeColumnStableNameToConstraintMap(schema, std::move(constrainedSchema->ColumnToConstraint()), dynamicConfig->ColumnToConstraintLogLimit);
         }
 
-        Y_UNREACHABLE();
+        YT_UNREACHABLE();
     }
 
     TSecondaryIndex* CreateSecondaryIndex(

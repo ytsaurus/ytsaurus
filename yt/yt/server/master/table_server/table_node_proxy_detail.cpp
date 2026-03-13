@@ -1265,11 +1265,11 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
         }
 
         case EInternedAttributeKey::ConstrainedSchema: {
-            if (table->Constraints().empty()) {
+            if (table->GetConstraints().empty()) {
                 return tableManager->GetYsonTableSchemaAsync(table->GetSchema());
             }
             return tableManager->GetHeavyTableSchemaAsync(table->GetSchema()->AsCompactTableSchema())
-                .Apply(BIND([columnToConstraint = table->Constraints(), dynamicConfig = std::move(dynamicConfig)] (const TErrorOr<TTableSchemaPtr>& heavySchemaOrError) {
+                .Apply(BIND([columnToConstraint = table->GetConstraints(), dynamicConfig = std::move(dynamicConfig)] (const TErrorOr<TTableSchemaPtr>& heavySchemaOrError) {
                     auto tableSchema = heavySchemaOrError.ValueOrThrow();
                     TConstrainedTableSchema schema(*tableSchema, columnToConstraint, dynamicConfig->ColumnToConstraintLogLimit);
                     return ConvertToYsonString(schema);
@@ -1277,11 +1277,11 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
         }
 
         case EInternedAttributeKey::Constraints: {
-            if (table->Constraints().empty()) {
+            if (table->GetConstraints().empty()) {
                 return MakeFuture(ConvertToYsonString(TColumnNameToConstraintMap()));
             }
             return tableManager->GetHeavyTableSchemaAsync(table->GetSchema()->AsCompactTableSchema())
-                .Apply(BIND([columnToConstraint = table->Constraints(), dynamicConfig = std::move(dynamicConfig)] (const TErrorOr<TTableSchemaPtr>& heavySchemaOrError) {
+                .Apply(BIND([columnToConstraint = table->GetConstraints(), dynamicConfig = std::move(dynamicConfig)] (const TErrorOr<TTableSchemaPtr>& heavySchemaOrError) {
                     auto tableSchema = heavySchemaOrError.ValueOrThrow();
                     return ConvertToYsonString(MakeColumnNameToConstraintMap(*tableSchema, columnToConstraint, dynamicConfig->ColumnToConstraintLogLimit));
                 }));
@@ -2518,8 +2518,8 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         ValidateConstrainedTableSchemaAlter(
             *oldTableSchema,
             *newTableSchema,
-            table->Constraints(),
-            effectiveConstraints ? *effectiveConstraints : table->Constraints(),
+            table->GetConstraints(),
+            effectiveConstraints ? *effectiveConstraints : table->GetConstraints(),
             table->IsEmpty());
 
         if (effectiveConstraints) {

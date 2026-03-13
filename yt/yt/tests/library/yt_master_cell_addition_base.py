@@ -53,7 +53,9 @@ class MasterCellAdditionBase(YTEnvSetup):
             "sync_period": 10000,  # 10 sec
             "expire_after_successful_update_time": 0,
             "expire_after_failed_update_time": 0,
-            "duplicate_directory_update": True,
+            "testing": {
+                "duplicate_directory_update": True,
+            },
         },
     }
 
@@ -140,7 +142,9 @@ class MasterCellAdditionBase(YTEnvSetup):
             "sync_period": 10000,  # 10 sec
             "expire_after_successful_update_time": 0,
             "expire_after_failed_update_time": 0,
-            "duplicate_directory_update": True,
+            "testing": {
+                "duplicate_directory_update": True,
+            },
         },
     }
 
