@@ -424,7 +424,7 @@ private:
 
         YT_LOG_DEBUG("Root volume binding is not needed in simple workspace");
 
-         ResultHolder_.RootVolume = std::move(Context_.RootVolume);
+        ResultHolder_.RootVolume = std::move(Context_.RootVolume);
 
         return OKFuture;
     }
@@ -708,12 +708,9 @@ private:
             return slot->RbindRootVolume(Context_.RootVolume)
                 .Apply(BIND(
                     [
-                        slot,
                         this,
                         this_ = MakeStrong(this)
                     ] (const TErrorOr<IVolumePtr>& volumeOrError) {
-                        Context_.RootVolume.Reset();
-
                         if (!volumeOrError.IsOK()) {
                             YT_LOG_WARNING(volumeOrError, "Failed to prepare root volume");
 

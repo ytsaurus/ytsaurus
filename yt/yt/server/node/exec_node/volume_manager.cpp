@@ -507,6 +507,7 @@ public:
         // ToDo(psushin): choose proper invoker.
         // Avoid sync calls to WaitFor, to respect job preparation context switch guards.
         return AllSucceeded(std::move(overlayDataFutures))
+            .ToImmediatelyCancelable()
             .AsUnique()
             .Apply(BIND(
                 [
@@ -516,16 +517,18 @@ public:
                     this,
                     this_ = MakeStrong(this)
                 ] (std::vector<TOverlayData>&& overlayDataArray) {
+                    // Now we are ready to create overlay volume. It is a light
+                    // operation so we are allowed to make it uncancelable.
                     return CreateOverlayVolume(
                         tag,
                         TPrepareOverlayVolumeOptions{
                             .JobId = jobId,
                             .UserSandboxOptions = std::move(userSandboxOptions),
                             .OverlayDataArray = std::move(overlayDataArray)
-                        });
+                        })
+                        .ToUncancelable();
                 })
                 .AsyncVia(GetCurrentInvoker()))
-            .ToImmediatelyCancelable()
             .As<IVolumePtr>();
     }
 

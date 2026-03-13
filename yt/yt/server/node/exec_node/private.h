@@ -20,6 +20,14 @@ inline const TString ArtifactMetaSuffix(".artifact");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline const TString MountSuffix = "mount";
+inline const TString VolumesName = "volumes";
+inline const TString LayersName = "porto_layers";
+inline const TString LayersMetaName = "layers_meta";
+inline const TString VolumesMetaName = "volumes_meta";
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(TSchedulerConnector)
 
 ////////////////////////////////////////////////////////////////////////////////
