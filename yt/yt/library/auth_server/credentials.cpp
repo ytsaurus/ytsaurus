@@ -25,6 +25,7 @@ size_t THash<TTokenCredentials>::operator()(const NYT::NAuth::TTokenCredentials&
     size_t result = 0;
 
     HashCombine(result, credentials.Token);
+    HashCombine(result, credentials.TokenSha256);
     HashCombine(result, credentials.UserIP);
 
     return result;

@@ -47,7 +47,11 @@ public:
     TFuture<TAuthenticationResult> Authenticate(
         const TTokenCredentials& credentials) override
     {
-        const auto& token = credentials.Token;
+        if (!credentials.Token) {
+            return MakeFuture<TAuthenticationResult>(TError("Token must be provided to authenticate"));
+        }
+
+        const auto& token = *credentials.Token;
         auto userIP = FormatUserIP(credentials.UserIP);
         auto tokenHash = GetCryptoHash(token);
 
@@ -194,7 +198,11 @@ public:
     TFuture<TAuthenticationResult> Authenticate(
         const TTokenCredentials& credentials) override
     {
-        const auto& token = credentials.Token;
+        if (!credentials.Token) {
+            return MakeFuture<TAuthenticationResult>(TError("Token must be provided to authenticate"));
+        }
+
+        const auto& token = *credentials.Token;
         const auto& userIP = credentials.UserIP;
         auto tokenHash = GetCryptoHash(token);
         YT_LOG_DEBUG("Authenticating user with token via Cypress (TokenHash: %v, UserIP: %v)",
@@ -282,12 +290,13 @@ ITokenAuthenticatorPtr CreateLegacyCypressTokenAuthenticator(
 
 struct TTokenAuthenticatorCacheKey
 {
-    std::string Token;
+    std::optional<std::string> Token;
+    std::optional<std::string> TokenSha256;
     TString UserIPFactor;
 
     operator size_t() const
     {
-        return MultiHash(Token, UserIPFactor);
+        return MultiHash(Token, TokenSha256, UserIPFactor);
     }
 
     bool operator==(const TTokenAuthenticatorCacheKey&) const = default;
@@ -310,7 +319,11 @@ public:
     TFuture<TAuthenticationResult> Authenticate(const TTokenCredentials& credentials) override
     {
         return Get(
-            TTokenAuthenticatorCacheKey{credentials.Token, GetBlackboxCacheKeyFactorFromUserIP(Config_->CacheKeyMode, credentials.UserIP)},
+            TTokenAuthenticatorCacheKey{
+                .Token = credentials.Token,
+                .TokenSha256 = credentials.TokenSha256,
+                .UserIPFactor = GetBlackboxCacheKeyFactorFromUserIP(Config_->CacheKeyMode, credentials.UserIP),
+            },
             credentials.UserIP);
     }
 
@@ -322,7 +335,11 @@ private:
         const TTokenAuthenticatorCacheKey& key,
         const TNetworkAddress& userIP) noexcept override
     {
-        return TokenAuthenticator_->Authenticate(TTokenCredentials{key.Token, userIP});
+        return TokenAuthenticator_->Authenticate(TTokenCredentials{
+            .Token = key.Token,
+            .TokenSha256 = key.TokenSha256,
+            .UserIP = userIP,
+        });
     }
 };
 
