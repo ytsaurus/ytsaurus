@@ -65,6 +65,7 @@ struct TUserSandboxOptions
     int UserId = 0;
     std::optional<TVirtualSandboxData> VirtualSandboxData;
     std::optional<TSandboxNbdRootVolumeData> SandboxNbdRootVolumeData;
+    std::string SlotPath;
 
     TCallback<void(const TError&)> DiskOverdraftCallback;
 };
