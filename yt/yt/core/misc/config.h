@@ -12,7 +12,7 @@ namespace NYT {
 
 struct TExponentialBackoffOptions
 {
-    static constexpr int DefaultInvocationCount = 10;
+    static constexpr int DefaultInvocationCount = std::numeric_limits<int>::max();
     static constexpr auto DefaultMinBackoff = TDuration::Seconds(1);
     static constexpr auto DefaultMaxBackoff = TDuration::Seconds(5);
     static constexpr double DefaultBackoffMultiplier = 1.5;
@@ -34,7 +34,7 @@ struct TExponentialBackoffOptions
 
 struct TConstantBackoffOptions
 {
-    static constexpr int DefaultInvocationCount = 10;
+    static constexpr int DefaultInvocationCount = std::numeric_limits<int>::max();
     static constexpr auto DefaultBackoff = TDuration::Seconds(3);
     static constexpr double DefaultBackoffJitter = 0.1;
 
