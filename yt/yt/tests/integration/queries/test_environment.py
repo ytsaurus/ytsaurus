@@ -7,7 +7,7 @@ from yt.environment.init_query_tracker_state import get_latest_version, create_t
 from yt.common import YtError
 
 from yt_commands import (wait, authors, ls, get, set, assert_yt_error, remove, select_rows, insert_rows, exists,
-                         create_tablet_cell_bundle, sync_create_cells)
+                         create_tablet_cell_bundle, sync_create_cells, create)
 
 from yt_queries import get_query, get_query_tracker_info
 
@@ -657,3 +657,40 @@ class TestMigration(YTEnvSetup):
             assert exists(f"//sys/query_tracker/{table}")
             rows_after_migration = list(select_rows(f"* from [//sys/query_tracker/{table}]"))
             assert len(rows_after_migration) == 1
+
+
+@pytest.fixture
+def spyt_home():
+    create("map_node", "//home/spark", recursive=True)
+
+
+class TestQueryTrackerSpytInfo(YTEnvSetup):
+    QUERY_TRACKER_DYNAMIC_CONFIG = {
+        "spyt_connect_engine": {
+            "proxy_config": {
+                "clusters": ["cluster1", "cluster2", "cluster3"],
+                "default_settings": {
+                    "connect": {
+                        "spark_conf": {
+                            "spark.sql.shuffle.partitions": "200",
+                            "spark.sql.autoBroadcastJoinThreshold": "-1"
+                        },
+                        "num_executors": 3,
+                        "executor_cores": 2,
+                        "executor_memory": "8G"
+                    },
+                    "livy": {}
+                },
+                "use_spyt_connect_engine": True
+            }
+        }
+    }
+
+    @authors("atokarew")
+    def test_spyt_in_engines_info(self, spyt_home, query_tracker):
+        qt_info = get_query_tracker_info(attributes=["engines_info"])
+        spyt_info = qt_info["engines_info"]["spyt"]
+
+        assert spyt_info["clusters"] == ["primary", "cluster1", "cluster2", "cluster3"]
+        assert spyt_info["default_engine"] == "connect"
+        assert spyt_info["default_settings"]["connect"]["num_executors"] == 3

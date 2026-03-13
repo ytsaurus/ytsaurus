@@ -109,12 +109,26 @@ void TSpytConnectEngineConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(10));
     registrar.Parameter("status_poll_period", &TThis::StatusPollPeriod)
         .Default(TDuration::Seconds(1));
+    registrar.Parameter("proxy_config", &TThis::ProxyConfig)
+        .DefaultNew();
 
     registrar.Postprocessor([&] (TSpytConnectEngineConfig* config) {
         if (!(config->SparkVersion.empty() || config->SparkVersion.starts_with("3.5"))) {
             THROW_ERROR_EXCEPTION("Incompatible Spark version: only 3.5.x is supported");
         }
     });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TSpytProxyConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("clusters", &TThis::Clusters)
+        .Default({});
+    registrar.Parameter("default_settings", &TThis::DefaultSettings)
+        .Default(NYTree::BuildYsonNodeFluently().BeginMap().EndMap()->AsMap());
+    registrar.Parameter("use_spyt_connect_engine", &TThis::UseSpytConnectEngine)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -159,8 +173,6 @@ void TQueryTrackerDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("proxy_config", &TThis::ProxyConfig)
         .DefaultNew();
-    registrar.Parameter("use_spyt_connect_engine", &TThis::UseSpytConnectEngine)
-        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

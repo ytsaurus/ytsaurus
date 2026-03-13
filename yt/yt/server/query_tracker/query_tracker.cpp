@@ -135,6 +135,18 @@ public:
         return IYPathService::FromProducer(producer);
     }
 
+    std::unordered_map<EQueryEngine, IProxyEngineProviderPtr> GetEngineProviders() override
+    {
+        std::unordered_map<EQueryEngine, IProxyEngineProviderPtr> engineProviders;
+        for (const auto& engine : Engines_) {
+            auto maybeEngineProvider = engine.second->GetProxyEngineProvider();
+            if (maybeEngineProvider) {
+                engineProviders[engine.first] = *maybeEngineProvider;
+            }
+        }
+        return engineProviders;
+    }
+
 private:
     const std::string SelfAddress_;
     const IInvokerPtr ControlInvoker_;
@@ -419,7 +431,9 @@ private:
                 if (engine == EQueryEngine::Spyt) {
                     auto settings = ConvertToNode(queryRecord.Settings);
                     auto useSpytConnectNode = settings->AsMap()->FindChild("use_spyt_connect");
-                    bool useSpytConnect = useSpytConnectNode ? useSpytConnectNode->AsBoolean()->GetValue() : Config_->UseSpytConnectEngine;
+                    bool useSpytConnect = useSpytConnectNode
+                        ? useSpytConnectNode->AsBoolean()->GetValue()
+                        : Config_->SpytConnectEngine->ProxyConfig->UseSpytConnectEngine;
                     if (useSpytConnect) {
                         YT_LOG_DEBUG("Using SpytConnectEngine instead of SpytEngine");
                         engine = EQueryEngine::SpytConnect;

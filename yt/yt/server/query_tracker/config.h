@@ -129,12 +129,30 @@ struct TSpytConnectEngineConfig
     TDuration RefreshTokenPeriod;
     TDuration StatusPollPeriod;
 
+    TSpytProxyConfigPtr ProxyConfig;
+
     REGISTER_YSON_STRUCT(TSpytConnectEngineConfig);
 
     static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSpytConnectEngineConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSpytProxyConfig
+    : public NYTree::TYsonStruct
+{
+    std::vector<std::string> Clusters;
+    NYTree::IMapNodePtr DefaultSettings;
+    bool UseSpytConnectEngine;
+
+    REGISTER_YSON_STRUCT(TSpytProxyConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TSpytProxyConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -171,8 +189,6 @@ struct TQueryTrackerDynamicConfig
     TChytEngineConfigPtr ChytEngine;
     TSpytEngineConfigPtr SpytEngine;
     TSpytConnectEngineConfigPtr SpytConnectEngine;
-
-    bool UseSpytConnectEngine;
 
     TQueryTrackerProxyConfigPtr ProxyConfig;
 
