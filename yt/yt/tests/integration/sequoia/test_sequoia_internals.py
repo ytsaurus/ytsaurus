@@ -2,15 +2,14 @@ from yt_env_setup import (
     YTEnvSetup, with_additional_threads, Restarter, MASTERS_SERVICE)
 
 from yt_commands import (
-    authors, create, ls, get, remove, build_master_snapshots, raises_yt_error,
+    authors, create, ls, get, remove, raises_yt_error,
     exists, set, copy, move, gc_collect, write_table, read_table, create_user,
     start_transaction, abort_transaction, commit_transaction, wait, lock,
     execute_batch, make_batch_request, get_batch_output, print_debug, make_ace,
 )
 
 from yt_sequoia_helpers import (
-    resolve_sequoia_id, resolve_sequoia_path, select_rows_from_ground,
-    select_paths_from_ground,
+    select_rows_from_ground, select_paths_from_ground,
     lookup_cypress_transaction, select_cypress_transaction_replicas,
     select_cypress_transaction_descendants, clear_table_in_ground,
     select_cypress_transaction_prerequisites, lookup_rows_in_ground,
@@ -532,37 +531,6 @@ class TestSequoiaInternals(YTEnvSetup):
         assert "m" in ls(path)
         child_id = create("map_node", r"//tmp/m\@1")
         assert get(r"//tmp/m\@1/@id") == child_id
-
-    @authors("kvk1920")
-    def test_create_map_node(self):
-        m_id = create("map_node", "//tmp/m")
-        set(f"#{m_id}/@foo", "bar")
-
-        def check_everything():
-            assert resolve_sequoia_path("//tmp") == get("//tmp&/@scion_id")
-            assert resolve_sequoia_id(get("//tmp&/@scion_id")) == "//tmp"
-            assert resolve_sequoia_path("//tmp/m") == m_id
-            assert get(f"#{m_id}/@path") == "//tmp/m"
-            assert get(f"#{m_id}/@key") == "m"
-            assert get("//tmp/m/@path") == "//tmp/m"
-            assert get("//tmp/m/@key") == "m"
-
-            # TODO(kvk1920): Use attribute filter when it will be implemented in Sequoia.
-            assert get(f"#{m_id}/@type") == "map_node"
-            assert get(f"#{m_id}/@sequoia")
-
-            assert get(f"#{m_id}/@foo") == "bar"
-
-        check_everything()
-
-        build_master_snapshots()
-
-        # TODO(babenko): uncomment once Sequoia retries are implemented
-        # TODO(kvk1920): Move it to TestMasterSnapshots.
-        # with Restarter(self.Env, MASTERS_SERVICE):
-        #    pass
-
-        # check_everything()
 
     @authors("kvk1920")
     def test_sequoia_map_node_explicit_creation_is_forbidden(self):

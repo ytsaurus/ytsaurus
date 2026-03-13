@@ -34,9 +34,9 @@ from yt.environment.helpers import (  # noqa
     CYPRESS_PROXIES_SERVICE,
 )
 
-from yt.sequoia_tools import DESCRIPTORS
+import yt.sequoia_tools as yt_sequoia
 
-from yt.test_helpers import wait, WaitFailed, get_work_path, get_build_root, get_tests_sandbox
+from yt.test_helpers import wait, WaitFailed, get_work_path, get_build_root, get_tests_sandbox, log_level_override
 import yt.test_helpers.cleanup as test_cleanup
 
 from yt.common import YtResponseError, format_error, update_inplace as _update_inplace
@@ -1030,6 +1030,8 @@ class YTEnvSetup(object):
         def on_masters_started(cluster_index, client):
             if clusters is not None:
                 cls._setup_cluster_configuration(cluster_index, clusters, client)
+            if cls.has_ground(cluster_index):
+                cls._setup_sequoia_tables(cluster_index)
             if cluster_index == 0:
                 cls.on_masters_started()
 
@@ -1044,10 +1046,6 @@ class YTEnvSetup(object):
             ground_cluster_index = cluster_index + cls.get_ground_index_offset()
             env.start(on_masters_started_func=lambda client: on_masters_started(ground_cluster_index, client))
         yt_commands.wait_drivers()
-
-        for cluster_index in range(cls.NUM_REMOTE_CLUSTERS + 1):
-            if cls.get_param("USE_SEQUOIA", cluster_index):
-                cls._setup_sequoia_tables(cluster_index)
 
         yt_commands.init_drivers(cls.combined_envs)
 
@@ -1139,67 +1137,21 @@ class YTEnvSetup(object):
 
     @classmethod
     def _setup_sequoia_tables(cls, cluster_index):
-        ground_driver = yt_sequoia_helpers.get_ground_driver(cluster=cls.get_cluster_name(cluster_index))
-        if ground_driver is None:
-            return
+        cluster_name = cls.get_cluster_name(cluster_index)
+        ground_driver = yt_sequoia_helpers.get_ground_driver(cluster=cluster_name)
+        app = yt_sequoia_helpers.create_sequoia_tool(cluster=cluster_name)
 
-        ground_index = cluster_index + cls.get_ground_index_offset()
-        cls._ensure_sequoia_bundle_created("sequoia-cypress", ground_index)
-        cls._ensure_sequoia_bundle_created("sequoia-chunks", ground_index)
+        ground_reign = app.try_get_target_reign()
+        assert ground_reign is not None
 
-        # TODO(h0pless, danilalexeev): YT-25434. Use values from config for path, account and bundle names.
-        yt_commands.sync_create_cells(1, tablet_cell_bundle="sequoia-cypress", driver=ground_driver)
-        yt_commands.set("//sys/accounts/sequoia/@resource_limits/tablet_count", 10000, driver=ground_driver)
-        yt_commands.set("//sys/accounts/sequoia/@resource_limits/tablet_static_memory", 4 * (2**30), driver=ground_driver)
-
-        config = cls.combined_envs[cluster_index].get_cluster_configuration()["master"]
-
-        def get_table_paths(descriptor):
-            table_path = descriptor.get_default_path()
-            if "chunk_refresh_queue" in table_path:
-                cell_tags = [config["primary_cell_tag"]] + config["secondary_cell_tags"]
-                return ["{}_{}".format(table_path, cell_tag) for cell_tag in cell_tags]
-            return [table_path]
-
-        for descriptor in DESCRIPTORS.as_dict().values():
-            for table_path in get_table_paths(descriptor):
-                yt_commands.create(
-                    "table",
-                    table_path,
-                    attributes={
-                        "dynamic": True,
-                        "schema": descriptor.schema,
-                        "tablet_cell_bundle": "sequoia-cypress",
-                        "account": "sequoia",
-                        "in_memory_mode": "uncompressed",
-                    },
-                    driver=ground_driver)
-
-        unapproved_chunk_replicas_path = DESCRIPTORS.unapproved_chunk_replicas.get_default_path()
-        yt_commands.set(f"{unapproved_chunk_replicas_path}/@mount_config/min_data_versions", 0, driver=ground_driver)
-        yt_commands.set(f"{unapproved_chunk_replicas_path}/@mount_config/max_data_versions", 1, driver=ground_driver)
-        yt_commands.set(f"{unapproved_chunk_replicas_path}/@mount_config/min_data_ttl", 0, driver=ground_driver)
-        yt_commands.set(f"{unapproved_chunk_replicas_path}/@mount_config/max_data_ttl", 5000, driver=ground_driver)
-
-        response_keeper_path = DESCRIPTORS.response_keeper.get_default_path()
-        yt_commands.set(f"{response_keeper_path}/@mount_config/min_data_versions", 0, driver=ground_driver)
-        yt_commands.set(f"{response_keeper_path}/@mount_config/max_data_versions", 1, driver=ground_driver)
-        yt_commands.set(f"{response_keeper_path}/@mount_config/min_data_ttl", 0, driver=ground_driver)
-        yt_commands.set(f"{response_keeper_path}/@mount_config/max_data_ttl", 1000, driver=ground_driver)
-
-        for table_path in get_table_paths(DESCRIPTORS.chunk_refresh_queue):
-            yt_commands.reshard_table(table_path, 60, driver=ground_driver)
-
-        for table_path in get_table_paths(DESCRIPTORS.chunk_refresh_queue):
-            wait(lambda: yt_commands.get(f"{table_path}/@tablet_state", driver=ground_driver) != "transient")
-
-        for descriptor in DESCRIPTORS.as_dict().values():
-            for table_path in get_table_paths(descriptor):
-                yt_commands.mount_table(table_path, driver=ground_driver)
-
-        for descriptor in DESCRIPTORS.as_dict().values():
-            for table_path in get_table_paths(descriptor):
-                yt_commands.wait_for_tablet_state(table_path, "mounted", driver=ground_driver)
+        with log_level_override(yt.logger.LOGGER, logging.ERROR):
+            yt_sequoia.initialization.initialize_ground(app, ground_reign)
+            ground_index = cluster_index + cls.get_ground_index_offset()
+            cls._restore_sequoia_bundles_options(ground_index)
+            yt_commands.wait_for_cells(driver=ground_driver)
+            # TODO(danilalexeev): YT-25434. Make it a single call.
+            yt_sequoia.initialization.mount_tables(app, ground_reign, sync=False)
+            yt_sequoia.initialization.mount_tables(app, ground_reign, sync=True)
 
     @classmethod
     def apply_node_dynamic_config_patches(cls, config, ytserver_version, cluster_index):
@@ -1550,9 +1502,9 @@ class YTEnvSetup(object):
 
         scheduler_count = self.get_param("NUM_SCHEDULERS", cluster_index)
         if scheduler_count > 0:
-            scheduler_pool_trees_root = self.Env.configs["scheduler"][0]["scheduler"].get(
-                "pool_trees_root", "//sys/pool_trees"
-            )
+            scheduler_pool_trees_root = (
+                self.combined_envs[cluster_index].configs["scheduler"][0]["scheduler"]
+                .get("pool_trees_root", "//sys/pool_trees"))
         else:
             scheduler_pool_trees_root = "//sys/pool_trees"
 
@@ -1821,34 +1773,34 @@ class YTEnvSetup(object):
             yt_commands.gc_collect(driver=driver)
 
             if self._is_ground_cluster(cluster_index):
-                for table in DESCRIPTORS.get_group("transactions"):
+                for table in yt_sequoia.DESCRIPTORS.get_group("transactions"):
                     wait(lambda: yt_commands.select_rows(f"* from [{table.get_default_path()}]", driver=driver) == [])
 
-                wait(lambda: yt_commands.select_rows(f"* from [{DESCRIPTORS.doomed_transactions.get_default_path()}]", driver=driver) == [])
+                wait(lambda: yt_commands.select_rows(f"* from [{yt_sequoia.DESCRIPTORS.doomed_transactions.get_default_path()}]", driver=driver) == [])
 
                 paths_to_ignore = ["//sys/operations", "//sys/pools", "//sys/strawberry"]
 
-                non_empty_tables = list(DESCRIPTORS.get_group("resolve_tables"))
+                non_empty_tables = list(yt_sequoia.DESCRIPTORS.get_group("resolve_tables"))
 
                 def sequoia_tables_empty():
                     nodes_to_ignore = {
                         record["node_id"] for record in yt_commands.select_rows(
-                            f"node_id from [{DESCRIPTORS.node_id_to_path.get_default_path()}] where " + " or ".join(f"is_prefix('{p}', path)" for p in paths_to_ignore),
+                            f"node_id from [{yt_sequoia.DESCRIPTORS.node_id_to_path.get_default_path()}] where " + " or ".join(f"is_prefix('{p}', path)" for p in paths_to_ignore),
                             driver=driver)}
 
                     def condition(descriptor):
-                        if descriptor is DESCRIPTORS.node_id_to_path:
+                        if descriptor is yt_sequoia.DESCRIPTORS.node_id_to_path:
                             return (
                                 " where " +
                                 " and ".join([f"not is_prefix('{p}', path)" for p in paths_to_ignore]))
-                        if descriptor is DESCRIPTORS.path_to_node_id:
+                        if descriptor is yt_sequoia.DESCRIPTORS.path_to_node_id:
                             return (
                                 " where " +
                                 " and ".join([
                                     f"not is_prefix('{yt_sequoia_helpers.mangle_sequoia_path(p)}', path)"
                                     for p in paths_to_ignore
                                 ]))
-                        if descriptor is DESCRIPTORS.acls:
+                        if descriptor is yt_sequoia.DESCRIPTORS.acls:
                             return (
                                 " where node_id not in (" + ", ".join([f"'{n}'" for n in nodes_to_ignore]) + ")"
                             )
@@ -1864,7 +1816,7 @@ class YTEnvSetup(object):
                     new_non_empty_tables = []
                     for descriptor, rows in zip(non_empty_tables, table_contents):
                         for record in rows:
-                            if (descriptor is DESCRIPTORS.node_id_to_path and
+                            if (descriptor is yt_sequoia.DESCRIPTORS.node_id_to_path and
                                     record["path"] in (None, yson.YsonEntity) and
                                     record["target_path"] in (None, yson.YsonEntity) and
                                     record["fork_kind"] in (None, yson.YsonEntity)):
@@ -1905,13 +1857,8 @@ class YTEnvSetup(object):
         yt_commands.clear_metadata_caches(driver=driver)
 
     def _master_exit_read_only_sync(self, yt_instance, driver=None):
-        logger = yt.logger.LOGGER
-        old_level = logger.level
-        logger.setLevel(logging.ERROR)
-
-        master_exit_read_only_sync(driver=driver)
-
-        logger.setLevel(old_level)
+        with log_level_override(yt.logger.LOGGER, logging.ERROR):
+            master_exit_read_only_sync(driver=driver)
 
     def _abort_transactions(self, driver=None):
         abort_command = "abort_transaction" if driver.get_config()["api_version"] == 4 else "abort_tx"
@@ -2088,7 +2035,7 @@ class YTEnvSetup(object):
         )
 
     def _wait_for_scheduler_state_restored(self, driver=None):
-        exec_node_count = len(yt_commands.get_exec_nodes())
+        exec_node_count = len(yt_commands.get_exec_nodes(driver=driver))
 
         def check():
             responses = yt_commands.execute_batch(
@@ -2214,7 +2161,7 @@ class YTEnvSetup(object):
                 driver=driver)
 
         if should_set_default_config:
-            yt_commands.set(scheduler_pool_trees_root + "/default/@config", default_pool_tree_config)
+            yt_commands.set(scheduler_pool_trees_root + "/default/@config", default_pool_tree_config, driver=driver)
 
         if scheduler_count > 0:
             self._wait_for_scheduler_state_restored(driver=driver)
@@ -2470,35 +2417,10 @@ class YTEnvSetup(object):
         cls._restore_bundle_options("default", "sys", cluster_index)
 
     @classmethod
-    def _ensure_sequoia_bundle_created(cls, bundle, cluster_index):
+    def _restore_sequoia_bundles_options(cls, cluster_index):
         assert cls._is_ground_cluster(cluster_index)
-
-        driver = yt_commands.get_driver(cluster=cls.get_cluster_name(cluster_index))
-        if not yt_commands.exists(f"//sys/tablet_cell_bundles/{bundle}", driver=driver):
-            yt_commands.create_tablet_cell_bundle(
-                bundle,
-                attributes={
-                    "options": {
-                        "changelog_account": "sequoia",
-                        "snapshot_account": "sequoia",
-                    },
-                    "acl": [
-                        {
-                            "action": "allow",
-                            "permissions": ["use"],
-                            "subjects": ["users"],
-                        },
-                    ],
-                    "resource_limits": {
-                        "tablet_count": 10**5,
-                        "tablet_static_memory": 2**40,
-                    }
-                },
-                driver=driver)
-
-        # TODO(kvk1920): use Sequoia bundle and account from non-ground
-        # cluster's config.
-        cls._restore_bundle_options(bundle, "sequoia", cluster_index)
+        cls._restore_bundle_options("sequoia-cypress", "sequoia", cluster_index)
+        cls._restore_bundle_options("sequoia-chunks", "sequoia", cluster_index)
 
     def _remove_operations(self, driver=None):
         abort_command = "abort_operation" if driver.get_config()["api_version"] == 4 else "abort_op"

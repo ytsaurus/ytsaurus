@@ -5,13 +5,15 @@ from yt_commands import (
 from yt.yson import YsonMap
 from yt.yson.yson_token import TOKEN_SLASH, TOKEN_LITERAL, TOKEN_END_OF_STREAM
 
-from yt.sequoia_tools import DESCRIPTORS, TableDescriptor
+import yt.sequoia_tools as yt_sequoia
 
+import yt.wrapper as yt
 from yt.wrapper.ypath import escape_ypath_literal, unescape_ypath_literal
 from yt.ypath import YPathTokenizer
 
 import decorator
 import pytest
+from typing_extensions import override
 
 
 ################################################################################
@@ -59,17 +61,17 @@ def select_rows_from_ground(query, **kwargs):
     return select_rows(updated_query, **kwargs)
 
 
-def delete_rows_from_ground(descriptor: TableDescriptor, rows, **kwargs):
+def delete_rows_from_ground(descriptor: yt_sequoia.TableDescriptor, rows, **kwargs):
     _use_ground_driver(kwargs)
     delete_rows(descriptor.get_default_path(), rows, **kwargs)
 
 
-def insert_rows_to_ground(descriptor: TableDescriptor, rows, **kwargs):
+def insert_rows_to_ground(descriptor: yt_sequoia.TableDescriptor, rows, **kwargs):
     _use_ground_driver(kwargs)
     insert_rows(descriptor.get_default_path(), rows, **kwargs)
 
 
-def clear_table_in_ground(descriptor: TableDescriptor, **kwargs):
+def clear_table_in_ground(descriptor: yt_sequoia.TableDescriptor, **kwargs):
     _use_ground_driver(kwargs)
     keys = [c["name"] for c in descriptor.schema if "sort_order" in c and "expression" not in c]
     rows = select_rows_from_ground(", ".join(keys) + f" from [{descriptor.get_default_path()}]")
@@ -80,7 +82,7 @@ def clear_table_in_ground(descriptor: TableDescriptor, **kwargs):
 
 
 def _build_children_map_from_tables(id):
-    rows = select_rows_from_ground(f"child_key, child_id from [{DESCRIPTORS.child_nodes.get_default_path()}] where parent_id = \"{id}\"")
+    rows = select_rows_from_ground(f"child_key, child_id from [{yt_sequoia.DESCRIPTORS.child_nodes.get_default_path()}] where parent_id = \"{id}\"")
     result = YsonMap()
 
     for row in rows:
@@ -93,7 +95,7 @@ def _extract_type_from_id(id):
 
 
 def validate_sequoia_tree_consistency(cluster="primary"):
-    sequoia_node_rows = select_rows_from_ground(f"* from [{DESCRIPTORS.path_to_node_id.get_default_path()}]", cluster=cluster)
+    sequoia_node_rows = select_rows_from_ground(f"* from [{yt_sequoia.DESCRIPTORS.path_to_node_id.get_default_path()}]", cluster=cluster)
 
     supported_types = [SEQUOIA_MAP_NODE_OBJECT_ID, ROOTSTOCK_OBJECT_ID, SCION_OBJECT_ID]
     for row in sequoia_node_rows:
@@ -151,7 +153,7 @@ def demangle_sequoia_path(path: str) -> str:
 
 
 def select_paths_from_ground(*, fetch_sys_dir=False, **kwargs):
-    query = f"path from [{DESCRIPTORS.path_to_node_id.get_default_path()}]"
+    query = f"path from [{yt_sequoia.DESCRIPTORS.path_to_node_id.get_default_path()}]"
     if not fetch_sys_dir:
         query += f' where not is_prefix("{mangle_sequoia_path("//sys")}", path)'
     return [
@@ -162,25 +164,25 @@ def select_paths_from_ground(*, fetch_sys_dir=False, **kwargs):
 
 def resolve_sequoia_path(path):
     rows = lookup_rows_in_ground(
-        DESCRIPTORS.path_to_node_id.get_default_path(),
+        yt_sequoia.DESCRIPTORS.path_to_node_id.get_default_path(),
         [{"path": mangle_sequoia_path(path)}])
     return rows[0]["node_id"] if rows else None
 
 
 def resolve_sequoia_id(node_id):
     rows = lookup_rows_in_ground(
-        DESCRIPTORS.node_id_to_path.get_default_path(),
+        yt_sequoia.DESCRIPTORS.node_id_to_path.get_default_path(),
         [{"node_id": node_id}])
     return rows[0]["path"] if rows else None
 
 
 def resolve_sequoia_children(node_id):
     return select_rows_from_ground(
-        f"child_key, child_id from [{DESCRIPTORS.child_nodes.get_default_path()}] where node_id == \"{node_id}\"")
+        f"child_key, child_id from [{yt_sequoia.DESCRIPTORS.child_nodes.get_default_path()}] where node_id == \"{node_id}\"")
 
 
 def lookup_cypress_transaction(transaction_id):
-    result = lookup_rows_in_ground(DESCRIPTORS.transactions.get_default_path(), [{"transaction_id": transaction_id}])
+    result = lookup_rows_in_ground(yt_sequoia.DESCRIPTORS.transactions.get_default_path(), [{"transaction_id": transaction_id}])
     return result[0] if result else None
 
 
@@ -188,7 +190,7 @@ def select_cypress_transaction_replicas(transaction_id):
     return sorted([
         record["cell_tag"] for record in
         select_rows_from_ground(
-            f"cell_tag from [{DESCRIPTORS.transaction_replicas.get_default_path()}] "
+            f"cell_tag from [{yt_sequoia.DESCRIPTORS.transaction_replicas.get_default_path()}] "
             f"where transaction_id = \"{transaction_id}\"")
     ])
 
@@ -197,7 +199,7 @@ def select_cypress_transaction_descendants(ancestor_id):
     return sorted([
         record["descendant_id"] for record in
         select_rows_from_ground(
-            f"descendant_id from [{DESCRIPTORS.transaction_descendants.get_default_path()}] "
+            f"descendant_id from [{yt_sequoia.DESCRIPTORS.transaction_descendants.get_default_path()}] "
             f"where transaction_id = \"{ancestor_id}\"")
     ])
 
@@ -206,7 +208,7 @@ def select_cypress_transaction_prerequisites(transaction_id):
     return sorted([
         record["transaction_id"] for record in
         select_rows_from_ground(
-            f"transaction_id from [{DESCRIPTORS.dependent_transactions.get_default_path()}] "
+            f"transaction_id from [{yt_sequoia.DESCRIPTORS.dependent_transactions.get_default_path()}] "
             f"where dependent_transaction_id = \"{transaction_id}\"")
     ])
 
@@ -264,3 +266,81 @@ def is_sequoia_id(object_id):
 def is_cypress_tx_id(object_id):
     # Either transaction or nested_transaction.
     return (int(object_id.split("-")[2], 16) & 0xffff) in (1, 4)
+
+
+##################################################################
+
+
+def create_sequoia_tool(cluster: str = "primary") -> yt_sequoia.SequoiaTool:
+    ground_cluster = f"{cluster}_ground"
+
+    def create_native_client(cluster: str) -> yt.YtClient:
+        return yt.YtClient(config={
+            "enable_token": False,
+            "backend": "native",
+            "driver_config": get_driver(cluster=cluster).get_config(),
+        })
+
+    class ConfigProviderImpl(yt_sequoia.ConfigProvider):
+        CELL_BUNDLE_CONFIG = {
+            "options": {"changelog_account": "sequoia", "snapshot_account": "sequoia"},
+            "acl": [{"action": "allow", "permissions": ["use"], "subjects": ["users"]}],
+            "resource_limits": {"tablet_count": 10**5, "tablet_static_memory": 2**40},
+        }
+
+        @override
+        def get_ground_config(self) -> yt_sequoia.GroundClusterConfig:
+            return yt_sequoia.GroundClusterConfig(
+                cluster=ground_cluster,
+                account_resource_limits={"tablet_count": 10000, "tablet_static_memory": 2**32},
+                master_dynamic_config={},
+                sequoia_components=[yt_sequoia.Scope.REPLICAS, yt_sequoia.Scope.SEQUOIA])
+
+        @override
+        def get_component_config(self, scope: yt_sequoia.Scope) -> yt_sequoia.SequoiaComponentConfig:
+            # Helper to convert dicts to `TableGroupDescriptor` instances.
+            def create_table_group(name, attrs):
+                return yt_sequoia.TableGroupDescriptor(name=name, attributes=attrs)
+
+            if scope == yt_sequoia.Scope.REPLICAS:
+                table_groups = [
+                    create_table_group("chunk_tables", {"in_memory_mode": "uncompressed"}),
+                    create_table_group("location_replicas_table", {"in_memory_mode": "uncompressed"}),
+                    create_table_group("refresh_chunk_tables", {"in_memory_mode": "uncompressed", "tablet_count": 60}),
+                    create_table_group("unapproved_replicas_table", {
+                        "in_memory_mode": "uncompressed",
+                        "mount_config": {"max_data_ttl": 5000, "min_data_ttl": 0, "max_data_versions": 1, "min_data_versions": 0},
+                    }),
+                ]
+            else:
+                table_groups = [
+                    create_table_group("resolve_tables", {"in_memory_mode": "uncompressed"}),
+                    create_table_group("transaction_tables", {"in_memory_mode": "uncompressed"}),
+                    create_table_group("response_keeper_table", {
+                        "in_memory_mode": "uncompressed",
+                        "mount_config": {"max_data_ttl": 1000, "min_data_ttl": 1000, "max_data_versions": 1, "min_data_versions": 0}
+                    }),
+                ]
+
+            return yt_sequoia.SequoiaComponentConfig(
+                tablet_cell_bundle="sequoia-chunks" if scope == yt_sequoia.Scope.REPLICAS else "sequoia-cypress",
+                tablet_cell_bundle_config=self.CELL_BUNDLE_CONFIG,
+                tablet_cell_count=1,
+                table_groups=table_groups)
+
+    class AutoInteraction(yt_sequoia.UserInteraction):
+        @override
+        def confirm(self, *args, **kwargs) -> bool:
+            return False
+
+    remote_client = create_native_client(cluster)
+    ground_client = create_native_client(ground_cluster)
+    config_provider = ConfigProviderImpl()
+    interaction = AutoInteraction()
+
+    return yt_sequoia.SequoiaTool(
+        remote_client,
+        ground_client,
+        config_provider,
+        interaction,
+        dry_run=False)

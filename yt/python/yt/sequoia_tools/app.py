@@ -10,6 +10,12 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+_READ_KWARGS = {
+    "suppress_transaction_coordinator_sync": True,
+    "suppress_upstream_sync": True,
+}
+
+
 class UserInteraction(Protocol):
     def confirm(self, message: str, default: bool = False) -> bool:
         """Ask user for confirmation."""
@@ -42,17 +48,19 @@ class SequoiaTool():
         config = self.config_provider.get_ground_config()
         path = make_ground_reign_path(config.sequoia_root_cypress_path)
         try:
-            value = self.ground_client.get(path)
+            value = self.ground_client.get(path, **_READ_KWARGS)
             return cast(int, value)
         except yt.errors.YtResolveError:
             logger.warning(f"Ground reign is not set at {path}")
             return None
 
     def try_get_target_reign(self) -> Optional[int]:
-        address = self.remote_client.list("//sys/primary_masters")[0]
+        address = self.remote_client.list(
+            "//sys/primary_masters",
+            **_READ_KWARGS)[0]
         path = f"//sys/primary_masters/{address}/orchid/ground_reign"
         try:
-            value = self.remote_client.get(path)
+            value = self.remote_client.get(path, **_READ_KWARGS)
             return cast(int, value)
         except yt.errors.YtResolveError:
             # COMPAT(danilalexeev)
