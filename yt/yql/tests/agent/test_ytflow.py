@@ -354,7 +354,7 @@ pragma Ytflow.UseCpuAwareBalancer = "false";
 pragma Ytflow.ControllerWriteFullLogsToYT = "true";
 pragma Ytflow.ControllerLogLevel = "debug";
 pragma Ytflow.WorkerCount = "1";
-pragma Ytflow.WriteWorkerLogsToYT = "true";
+pragma Ytflow.WorkerWriteLogsToYT = "true";
 pragma Ytflow.WorkerLogLevel = "debug";
 
 pragma Ytflow.LogbrokerConsumerPath = "{self.LOGBROKER_CONSUMER}";
