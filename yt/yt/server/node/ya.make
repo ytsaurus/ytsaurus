@@ -267,6 +267,7 @@ RECURSE_FOR_TESTS(
     chaos_node/unittests
     data_node/unittests
     exec_node/unittests
+    job_agent/unittests
     query_agent/unittests
     tablet_node/unittests
 )
