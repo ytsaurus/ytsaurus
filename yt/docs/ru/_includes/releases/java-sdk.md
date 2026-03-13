@@ -8,6 +8,23 @@ Is released as packages in [maven](https://central.sonatype.com/artifact/tech.yt
 
 **Releases:**
 
+{% cut "**1.2.13**" %}
+
+**Release date:** 2026-02-16
+
+
+#### Features:
+- Support `Short` in `YTreeBuilder`.
+- Add `findByCode` to `YTsaurusErrorCode`.
+
+#### Fixes:
+- Fix empty attachment size (1 instead of 0).
+- Optimize `ColumnValueType` internal representation for performance (replace `Map` with `Array`).
+- Pre-compute column type and wire type in `ColumnSchema`.
+
+{% endcut %}
+
+
 {% cut "**1.2.12**" %}
 
 **Release date:** 2025-12-11
