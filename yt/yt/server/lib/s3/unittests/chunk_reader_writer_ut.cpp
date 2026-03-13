@@ -140,6 +140,8 @@ protected:
 
     void SetUp() override
     {
+        ForbidContextSwitchInFutureHandler();
+
         auto testCase = GetParam();
         auto blockCountInChunk = testCase.BlockCountInChunk;
         GeneratedBlocks_ = CreateBlocks(blockCountInChunk, &Generator_);
@@ -271,7 +273,7 @@ TEST_P(TS3ReaderWriterTest, WriteAndReadBlocks)
     for (int batchIndex = 0; batchIndex < testCase.BatchCount; ++batchIndex) {
         std::vector<TFuture<std::vector<TBlock>>> readFutures;
 
-        int requestSize = std::max(std::max(testCase.BlockCountInChunk / testCase.RequestCountInReadBatch, 1), testCase.BlocksInRequest);
+        int requestSize = std::max({testCase.BlockCountInChunk / testCase.RequestCountInReadBatch, 1, testCase.BlocksInRequest});
 
         for (int requestIndex = 0; requestIndex < testCase.RequestCountInReadBatch; ++requestIndex) {
             std::vector<int> blockIndicies;
