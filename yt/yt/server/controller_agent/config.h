@@ -1069,6 +1069,7 @@ struct TControllerAgentConfig
     bool EnableSortedMergeInSortJobSizeAdjustment;
 
     bool EnableMapJobSizeAdjustment;
+    bool EnableOrderedMapJobSizeAdjustment;
 
     //! Enables splitting of long jobs.
     // TODO(gritukan): Remove it.
