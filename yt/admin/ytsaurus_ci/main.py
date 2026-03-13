@@ -3,6 +3,7 @@ import os
 
 import click
 import yaml
+import hashlib
 
 from library.python import resource
 from yt.admin.ytsaurus_ci import cloudfunction_client
@@ -69,33 +70,38 @@ def run(version_filter, with_json):
 
 
 @matrix.command()
-@click.option("--output", "output_dir", type=click.Path(), required=True)
 @click.option(
-    "--components",
-    multiple=True,
+    "--output",
+    "output_dir",
+    type=click.Path(),
+    default="yt/docs/en/_includes/compatibility",
     required=True,
-    type=click.Choice(
-        [
-            "ytsaurus",
-            "operator",
-            "chyt",
-            "spyt",
-            "query_tracker",
-            "strawberry",
-        ]
-    ),
 )
-def docs(output_dir, components):
+def docs(output_dir):
     registry = component_registry.VersionComponentRegistry(yaml.safe_load(resource.resfs_read(consts.COMPONENTS_PATH)))
     os.makedirs(output_dir, exist_ok=True)
 
-    for component in components:
-        md = compatibility_graph.format_compat_table(registry, component)
-        path = os.path.join(output_dir, f"{component}.md")
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(md)
+    component = compatibility_graph.PIVOT_COMPONENT
+    md = compatibility_graph.format_compat_table(registry)
+    path = os.path.join(output_dir, f"{component}.md")
 
-    click.secho(f"Written {len(components)} file(s) to {output_dir}", fg="green")
+    snapshots_file = os.path.join(consts.BASE_DIR, consts.SNAPSHOTS_PATH, component)
+    with open(snapshots_file, "w", encoding="utf-8") as f:
+        snapshot = hashlib.sha512(md.encode())
+        f.write(snapshot.hexdigest())
+
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(md)
+
+    if "/en/" in path:
+        path = path.replace("/en/", "/ru/")
+    else:
+        path = path.replace("/ru/", "/en/")
+
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(md)
+
+    click.secho(f"Written compatibility table to {output_dir}", fg="green")
 
 
 @cli.command()
