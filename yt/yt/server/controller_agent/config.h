@@ -1337,6 +1337,8 @@ struct TControllerAgentConfig
 
     NServer::TOperationEventReporterConfigPtr OperationEventsReporter;
 
+    bool FailOperationsInEmptyTrees;
+
     REGISTER_YSON_STRUCT(TControllerAgentConfig);
 
     static void Register(TRegistrar registrar);
