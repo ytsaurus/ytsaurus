@@ -318,8 +318,12 @@ public:
     TFuture<TAuthenticationResult> Authenticate(
         const TTokenCredentials& credentials) override
     {
+        if (!credentials.Token) {
+            return MakeFuture<TAuthenticationResult>(TError("Token should be provided to authenticate"));
+        }
+
         auto callId = TGuid::Create();
-        const auto& token = credentials.Token;
+        const auto& token = *credentials.Token;
         const auto& userIP = credentials.UserIP;
         auto tokenHash = GetCryptoHash(token);
 
