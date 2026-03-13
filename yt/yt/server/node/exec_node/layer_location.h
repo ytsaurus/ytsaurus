@@ -134,9 +134,14 @@ public:
 
     i64 GetUsedSpace() const;
 
-    //! Remove volumes planted at a given path.
+    //! Remove volumes planted at a given place.
     void RemoveVolumes(
-        const TString& path,
+        const TString& place,
+        TDuration timeout);
+
+    //! Remove layers planted at a given place.
+    void RemoveLayers(
+        const TString& place,
         TDuration timeout);
 
 private:
