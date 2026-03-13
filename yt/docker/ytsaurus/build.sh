@@ -9,6 +9,7 @@ yql_build_path="."
 output_path="."
 image_cr=""
 component="ytsaurus"
+apt_mirror="http://archive.ubuntu.com/"
 install_nvidia_packages="false"
 
 print_usage() {
@@ -22,6 +23,7 @@ Usage: $script_name [-h|--help]
                     [--image-tag some-tag (default: $image_tag)]
                     [--image-cr some-cr/ (default: '$image_cr')]
                     [--install-nvidia-packages true|false (default: '$install_nvidia_packages')]
+                    [--apt-mirror http://some.apt.mirror/ (default: '$apt_mirror')]
 EOF
     exit 1
 }
@@ -56,6 +58,10 @@ while [[ $# -gt 0 ]]; do
         ;;
         --image-cr)
         image_cr="$2"
+        shift 2
+        ;;
+        --apt-mirror)
+        apt_mirror="$2"
         shift 2
         ;;
         --install-nvidia-packages)
@@ -189,4 +195,4 @@ else
 fi
 
 cd ${output_path}
-docker build --target ${component} --build-arg INSTALL_NVIDIA_PACKAGES=${install_nvidia_packages} -t ${image_cr}ytsaurus/${component}:${image_tag} .
+docker build --target ${component} --build-arg APT_MIRROR=${apt_mirror} --build-arg INSTALL_NVIDIA_PACKAGES=${install_nvidia_packages} -t ${image_cr}ytsaurus/${component}:${image_tag} .
