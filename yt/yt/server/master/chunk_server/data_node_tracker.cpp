@@ -711,7 +711,7 @@ public:
         if (it != ChunkLocationUuidToLocation_.end()) {
             auto* oldLocation = it->second;
             if (!IsObjectAlive(oldLocation)) {
-                YT_LOG_ALERT("Creating location with existing uuid (Uuid: %v)",
+                YT_LOG_ALERT("Creating location with existing UUID (Uuid: %v)",
                     locationUuid);
                 MaybeUnregisterChunkLocationUuid(oldLocation->GetId(), locationUuid);
             } else {

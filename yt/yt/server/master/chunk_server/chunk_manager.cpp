@@ -2801,7 +2801,7 @@ private:
                 locationByUuid = dataNodeTracker->FindChunkLocationByUuid(locationUuid);
                 if (IsObjectAlive(locationByUuid.value())) {
                     YT_LOG_ALERT_IF(shouldUseLocationIndicies,
-                        "Failed to find location via index, but succeeded to find via uuid "
+                        "Failed to find location via index, but succeeded to find via UUID "
                         "(LocationIndex: %v, LocationUuid: %v, NodeId: %v, NodeAddress: %v)",
                         replica.GetChunkLocationIndex(),
                         locationUuid,

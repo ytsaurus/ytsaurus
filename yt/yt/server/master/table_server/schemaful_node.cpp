@@ -15,7 +15,7 @@ DEFINE_ENUM(ECompatTableSchemaMode,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const NTableClient::TColumnStableNameToConstraintMap& TSchemafulNode::Constraints() const
+const NTableClient::TColumnStableNameToConstraintMap& TSchemafulNode::GetConstraints() const
 {
     static const NTableClient::TColumnStableNameToConstraintMap EmptyColumnStableNameToConstraintMap;
     if (!Constraints_) {
@@ -40,7 +40,7 @@ void TSchemafulNode::Save(NCellMaster::TSaveContext& context) const
 
     Save(context, Schema_);
     Save(context, SchemaMode_);
-    Save(context, Constraints());
+    Save(context, GetConstraints());
 }
 
 void TSchemafulNode::Load(NCellMaster::TLoadContext& context)
