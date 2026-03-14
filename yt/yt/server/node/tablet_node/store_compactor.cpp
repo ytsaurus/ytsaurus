@@ -179,6 +179,8 @@ struct TCompactionTaskInfo
     const std::vector<TStoreId> StoreIds;
     const THashSet<TChunkId> HunkChunkIds;
 
+    IScopedMemoryUsageTrackerPtr MemoryUsageTracker;
+
     TCompactionRuntimeData RuntimeData;
 
     TCompactionTaskInfo(
@@ -194,7 +196,8 @@ struct TCompactionTaskInfo
         int effect,
         std::vector<TStoreId> storeIds,
         THashSet<TChunkId> hunkChunkIds,
-        TEnumIndexedArray<EHunkCompactionReason, i64> hunkChunkCountByReason)
+        TEnumIndexedArray<EHunkCompactionReason, i64> hunkChunkCountByReason,
+        IScopedMemoryUsageTrackerPtr memoryUsageTracker)
         : TBackgroundActivityTaskInfoBase(
             taskId,
             tabletId,
@@ -208,6 +211,7 @@ struct TCompactionTaskInfo
         , Effect(effect)
         , StoreIds(std::move(storeIds))
         , HunkChunkIds(std::move(hunkChunkIds))
+        , MemoryUsageTracker(std::move(memoryUsageTracker))
     {
         auto guard = Guard(RuntimeData.SpinLock);
         RuntimeData.HunkChunkCountByReason = hunkChunkCountByReason;
@@ -222,6 +226,7 @@ struct TCompactionTaskInfo
 DEFINE_REFCOUNTED_TYPE(TCompactionTaskInfo);
 using TCompactionTaskInfoPtr = TIntrusivePtr<TCompactionTaskInfo>;
 
+[[maybe_unused]]
 void SerializeFragment(const TCompactionTaskInfo::TCompactionRuntimeData& runtimeData, IYsonConsumer* consumer)
 {
     BuildYsonMapFragmentFluently(consumer)
@@ -261,9 +266,15 @@ void Serialize(const TCompactionTaskInfo& task, IYsonConsumer* consumer)
         .Do([&] (auto fluent) {
             SerializeFragment(task.RuntimeData, fluent.GetConsumer());
         })
+        .DoIf(static_cast<bool>(task.MemoryUsageTracker), [&] (auto fluent) {
+            fluent
+                .Item("row_merger_memory_usage").Value(task.MemoryUsageTracker->GetSelfUsed())
+                .Item("peak_row_merger_memory_usage").Value(task.MemoryUsageTracker->GetSelfPeakUsed());
+        })
     .EndMap();
 }
 
+[[maybe_unused]]
 void Serialize(const TCompactionTaskInfoPtr& task, IYsonConsumer* consumer)
 {
     Serialize(*task, consumer);
@@ -2479,7 +2490,10 @@ TCompactionTask::TCompactionTask(
             effect,
             std::move(storeIds),
             std::move(hunkChunkIds),
-            hunkChunkCountByReason),
+            hunkChunkCountByReason,
+            CreateScopedMemoryTracker(
+                tablet->TryGetNodeMemoryUsageTracker()->WithCategory(
+                    EMemoryCategory::TabletRowMerger))),
         std::move(orchid))
     , Slot(slot)
     , Invoker(tablet->GetEpochAutomatonInvoker())
