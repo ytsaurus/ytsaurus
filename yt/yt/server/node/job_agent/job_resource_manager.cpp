@@ -625,6 +625,28 @@ public:
             releasingResources);
     }
 
+    void OnResourceDemandUpdated(const TLogger& Logger, const TJobResources& oldDemand, const TJobResources& newDemand)
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        auto delta = newDemand - oldDemand;
+
+        TJobResources pendingResources;
+        {
+            auto guard = WriterGuard(ResourcesLock_);
+            pendingResources =
+                ResourceUsages_[EResourcesState::Pending] += delta;
+        }
+
+        YT_LOG_DEBUG(
+            "Pending resources adjusted due to resource demand update "
+            "(OldDemand: %v, NewDemand: %v, Delta: %v, PendingResources: %v)",
+            oldDemand,
+            newDemand,
+            delta,
+            pendingResources);
+    }
+
     bool TryReserveResources(TNonNullPtr<TResourceHolder> resourceHolder, const TJobResources& resources, bool considerUserJobFreeMemoryWatermark)
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -2056,18 +2078,26 @@ void TResourceHolder::UpdateResourceDemand(
     const NClusterNode::TJobResources& resources,
     const NScheduler::TAllocationAttributes& allocationAttributes)
 {
-    auto guard = WriterGuard(ResourcesLock_);
+    TJobResources oldDemand;
 
-    YT_VERIFY(State_ == EResourcesState::Pending);
-    YT_VERIFY(AdditionalResourceUsage_ == ZeroJobResources());
+    {
+        auto guard = WriterGuard(ResourcesLock_);
 
-    YT_LOG_DEBUG(
-        "Resource demand updated (NewRecourceDemand: %v, NewPortCount: %v)",
-        resources,
-        allocationAttributes.PortCount);
+        YT_VERIFY(State_ == EResourcesState::Pending);
+        YT_VERIFY(AdditionalResourceUsage_ == ZeroJobResources());
 
-    BaseResourceUsage_ = resources;
-    AllocationAttributes_ = allocationAttributes;
+        YT_LOG_DEBUG(
+            "Resource demand updated (OldResourceDemand: %v, NewResourceDemand: %v, NewPortCount: %v)",
+            BaseResourceUsage_,
+            resources,
+            allocationAttributes.PortCount);
+
+        oldDemand = BaseResourceUsage_;
+        BaseResourceUsage_ = resources;
+        AllocationAttributes_ = allocationAttributes;
+    }
+
+    ResourceManagerImpl_->OnResourceDemandUpdated(Logger, oldDemand, resources);
 }
 
 TJobResources TResourceHolder::GetResourceUsage(bool excludeReleasing) const noexcept
