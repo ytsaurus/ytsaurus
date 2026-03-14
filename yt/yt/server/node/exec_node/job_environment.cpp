@@ -45,6 +45,7 @@
 
 #include <yt/yt/core/net/connection.h>
 
+#include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/proc.h>
 
 #include <library/cpp/yt/string/string.h>
@@ -161,6 +162,19 @@ public:
                 process->AddArguments({
                     "--stderr-path", *stderrPath,
                 });
+            }
+
+            if (Bootstrap_->GetConfig()->ExecNode->JobProxy->JobProxyLogging->TruncateJobProxyStderrOnStart) {
+                TString fullStderrPath;
+                if (stderrPath) {
+                    fullStderrPath = *stderrPath;
+                } else {
+                    fullStderrPath = NFS::CombinePaths(workingDirectory, "stderr");
+                }
+                if (NFS::Exists(fullStderrPath)) {
+                    YT_LOG_DEBUG("Truncating job proxy stderr file (Path: %v)", fullStderrPath);
+                    NFS::Remove(fullStderrPath);
+                }
             }
 
             process->SetWorkingDirectory(workingDirectory);
