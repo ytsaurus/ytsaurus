@@ -422,7 +422,7 @@ private:
 
         YT_LOG_DEBUG("Root volume binding is not needed in simple workspace");
 
-         ResultHolder_.RootVolume = std::move(Context_.RootVolume);
+        ResultHolder_.RootVolume = std::move(Context_.RootVolume);
 
         return OKFuture;
     }
@@ -706,18 +706,16 @@ private:
                         this,
                         this_ = MakeStrong(this)
                     ] (const TErrorOr<IVolumePtr>& volumeOrError) {
-                        Context_.RootVolume.Reset();
+                        if (!volumeOrError.IsOK()) {
+                            YT_LOG_WARNING(volumeOrError, "Failed to prepare root volume");
 
-                    if (!volumeOrError.IsOK()) {
-                        YT_LOG_WARNING(volumeOrError, "Failed to prepare root volume");
+                            THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::RootVolumePreparationFailed, "Failed to prepare root volume")
+                                << volumeOrError;
+                        }
 
-                        THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::RootVolumePreparationFailed, "Failed to prepare root volume")
-                            << volumeOrError;
-                    }
-
-                    ResultHolder_.RootVolume = std::move(volumeOrError.Value());
-            }).AsyncVia(Invoker_))
-            .ToImmediatelyCancelable();
+                        ResultHolder_.RootVolume = std::move(volumeOrError.Value());
+                    }).AsyncVia(Invoker_))
+                .ToImmediatelyCancelable();
         } else {
             ResultHolder_.RootVolume = std::move(Context_.RootVolume);
             YT_LOG_DEBUG("Root volume binding is not needed");

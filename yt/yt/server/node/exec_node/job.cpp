@@ -3442,6 +3442,7 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
     options.EnableRootVolumeDiskQuota = RootVolumeDiskQuotaEnabled_;
     options.EnableDiskQuota = Bootstrap_->GetConfig()->DataNode->VolumeManager->EnableDiskQuota;
     options.UserId = GetUserSlot()->GetUserId();
+    options.SlotPath = GetUserSlot()->GetSlotPath();
 
     if (UserJobSpec_) {
         for (const auto& tmpfsVolumeProto : UserJobSpec_->tmpfs_volumes()) {
