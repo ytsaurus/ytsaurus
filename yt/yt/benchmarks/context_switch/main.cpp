@@ -5,8 +5,9 @@
 #include <atomic>
 
 #include <yt/yt/core/concurrency/public.h>
-#include <yt/yt/core/concurrency/execution_stack.h>
 #include <yt/yt/core/concurrency/private.h>
+
+#include <library/cpp/yt/threading/execution_stack.h>
 
 #include <util/system/context.h>
 
@@ -19,7 +20,6 @@ YT_DEFINE_THREAD_LOCAL(TContMachineContext, CallerContext);
 struct TMyFiber
     : public ITrampoLine
 {
-
     TMyFiber()
         : Stack_(256_KB)
         , Context_({
@@ -44,7 +44,7 @@ struct TMyFiber
 
     size_t SwitchCount = 0;
 
-    TExecutionStack Stack_;
+    NThreading::TExecutionStack Stack_;
     TContMachineContext Context_;
 
 };
