@@ -136,7 +136,6 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/coroutine.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/delayed_executor.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/execution_stack.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/fair_share_action_queue.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/fair_share_invoker_pool.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/fair_share_invoker_queue.cpp
@@ -155,6 +154,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/notify_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/periodic_executor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/periodic_yielder.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/pooled_execution_stack.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/pollable_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/prioritized_invoker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/profiling_helpers.cpp

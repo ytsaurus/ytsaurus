@@ -42,6 +42,7 @@ target_sources(cpp-yt-threading PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/yt/threading/at_fork.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/yt/threading/count_down_latch.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/yt/threading/event_count.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/yt/threading/execution_stack.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/yt/threading/fork_aware_spin_lock.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/yt/threading/fork_aware_rw_spin_lock.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/yt/threading/futex.cpp
