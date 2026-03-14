@@ -783,7 +783,6 @@ def _get_table_attributes(table, client):
         table + "/@",
         attributes=[
             "chunk_count",
-            "chunk_count",
             "compressed_data_size",
             "data_weight",
             "dynamic",
