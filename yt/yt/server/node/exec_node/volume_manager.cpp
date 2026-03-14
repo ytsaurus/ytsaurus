@@ -903,8 +903,12 @@ public:
                     continue;
                 }
 
-                static const TString ReadyState = "ready";
-                if (volume.State != ReadyState) {
+                if (volume.State == "destroyed" || volume.State == "unlinked") {
+                    // Skip destroyed and unlinked volumes.
+                    continue;
+                }
+
+                if (volume.State != "ready") {
                     waitForVolumesToBecomeReady = true;
                     YT_LOG_DEBUG(
                         "Volume is not ready (VolumeDirectory: %v, VolumePath: %v, State: %v)",
