@@ -599,6 +599,7 @@ TEnumIndexedArray<EJobResourceWithDiskQuotaType, int> TOperationSharedState::Get
 {
     UpdateDiagnosticCounters();
 
+    auto guard = ReaderGuard(DiagnosticCountersLock_);
     return MinNeededResourcesWithDiskQuotaUnsatisfiedCount_;
 }
 
@@ -613,6 +614,7 @@ TEnumIndexedArray<EDeactivationReason, int> TOperationSharedState::GetDeactivati
 {
     UpdateDiagnosticCounters();
 
+    auto guard = ReaderGuard(DiagnosticCountersLock_);
     return DeactivationReasons_;
 }
 
@@ -620,6 +622,7 @@ TEnumIndexedArray<EDeactivationReason, int> TOperationSharedState::GetDeactivati
 {
     UpdateDiagnosticCounters();
 
+    auto guard = ReaderGuard(DiagnosticCountersLock_);
     return DeactivationReasonsFromLastNonStarvingTime_;
 }
 
@@ -640,7 +643,10 @@ int TOperationSharedState::GetOperationScheduleAllocationAttemptCount()
 void TOperationSharedState::ProcessUpdatedStarvationStatus(EStarvationStatus status)
 {
     if (StarvationStatusAtLastUpdate_ == EStarvationStatus::NonStarving && status != EStarvationStatus::NonStarving) {
-        std::fill(DeactivationReasonsFromLastNonStarvingTime_.begin(), DeactivationReasonsFromLastNonStarvingTime_.end(), 0);
+        {
+            auto guard = WriterGuard(DiagnosticCountersLock_);
+            std::fill(DeactivationReasonsFromLastNonStarvingTime_.begin(), DeactivationReasonsFromLastNonStarvingTime_.end(), 0);
+        }
 
         int shardId = 0;
         for (const auto& invoker : StrategyHost_->GetNodeShardInvokers()) {
@@ -661,6 +667,13 @@ void TOperationSharedState::ProcessUpdatedStarvationStatus(EStarvationStatus sta
 void TOperationSharedState::UpdateDiagnosticCounters()
 {
     auto now = TInstant::Now();
+    if (now < LastDiagnosticCountersUpdateTime_.load(std::memory_order_relaxed) + UpdateStateShardsBackoff_) {
+        return;
+    }
+
+    auto guard = WriterGuard(DiagnosticCountersLock_);
+
+    now = TInstant::Now();
     if (now < LastDiagnosticCountersUpdateTime_.load(std::memory_order_relaxed) + UpdateStateShardsBackoff_) {
         return;
     }
