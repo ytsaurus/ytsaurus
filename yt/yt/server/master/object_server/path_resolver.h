@@ -35,8 +35,8 @@ public:
         NTransactionServer::TTransaction*>;
     TPathResolver(
         NCellMaster::TBootstrap* bootstrap,
-        std::string service,
-        std::string method,
+        std::optional<std::string> service,
+        std::optional<std::string> method,
         const NYPath::TYPath& path,
         TTransactionToken transactionToken);
 
