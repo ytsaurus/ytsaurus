@@ -121,8 +121,6 @@ using NYT::ToProto;
 
 constinit const auto Logger = ObjectServerLogger;
 static const IObjectTypeHandlerPtr NullTypeHandler;
-static const std::string NullService;
-static const std::string NullMethod;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1751,8 +1749,8 @@ TObject* TObjectManager::ResolvePathToLocalObject(
 {
     TPathResolver resolver(
         Bootstrap_,
-        service.value_or(NullService),
-        method.value_or(NullMethod),
+        service,
+        method,
         path,
         transaction);
 
@@ -1777,8 +1775,8 @@ TObject* TObjectManager::ResolvePathToObject(
 {
     TPathResolver resolver(
         Bootstrap_,
-        service.value_or(NullService),
-        method.value_or(NullMethod),
+        service,
+        method,
         path,
         transaction);
 
@@ -1811,8 +1809,8 @@ TObjectId TObjectManager::ResolvePathToObjectId(
 {
     TPathResolver resolver(
         Bootstrap_,
-        service.value_or(NullService),
-        method.value_or(NullMethod),
+        service,
+        method,
         path,
         transaction);
 
