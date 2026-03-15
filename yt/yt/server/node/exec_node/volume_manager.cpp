@@ -974,6 +974,85 @@ public:
             (TInstant::Now() - startTime));
     }
 
+    //! Remove layers planted at a given place.
+    void RemoveLayers(
+        const TString& place,
+        TDuration timeout)
+    {
+        auto startTime = TInstant::Now();
+        auto deadLine = startTime + timeout;
+
+        auto Logger = ExecNodeLogger()
+            .WithTag("Place: %v", place);
+
+        YT_LOG_DEBUG(
+            "Removing layers from porto place (DeadLine: %v)",
+            deadLine);
+
+        auto checkDeadLine = [&] {
+            auto now = TInstant::Now();
+            if (now > deadLine) {
+                THROW_ERROR_EXCEPTION("Failed to wait for layers to be removed")
+                    << TErrorAttribute("timeout", timeout)
+                    << TErrorAttribute("place", place);
+            }
+        };
+
+        std::vector<TString> removedLayers;
+
+        while (true) {
+            checkDeadLine();
+
+            auto layerIds = WaitFor(LayerExecutor_->ListLayers(place))
+                .ValueOrThrow();
+
+            if (layerIds.empty()) {
+                YT_LOG_DEBUG("All layers have been removed");
+                break;
+            }
+
+            std::vector<TFuture<void>> removeFutures;
+            for (const auto& layerId : layerIds) {
+                YT_LOG_DEBUG(
+                    "Trying to remove layer (LayerId: %v)",
+                    layerId);
+
+                removedLayers.push_back(layerId);
+                removeFutures.push_back(LayerExecutor_->RemoveLayer(
+                    layerId,
+                    place,
+                    false /*async*/));
+            }
+
+            auto removeResults = WaitFor(AllSet(std::move(removeFutures)))
+                .ValueOrThrow();
+
+            for (const auto& removeError : removeResults) {
+                if (!removeError.IsOK()) {
+                    YT_LOG_INFO(
+                        removeError,
+                        "Failed to remove layer");
+                }
+            }
+
+            checkDeadLine();
+
+            static const TDuration Duration = TDuration::Seconds(30);
+
+            YT_LOG_DEBUG(
+                "Waiting for layers to be removed (Duration: %v)",
+                Duration);
+
+            TDelayedExecutor::WaitForDuration(Duration);
+        }
+
+        YT_LOG_DEBUG(
+            "Removed layers (Path: %v, LayerNames: %v, Duration: %v)",
+            place,
+            MakeShrunkFormattableView(removedLayers, TDefaultFormatter(), 10),
+            (TInstant::Now() - startTime));
+    }
+
 private:
     const NDataNode::TLayerLocationConfigPtr Config_;
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
@@ -4339,9 +4418,19 @@ public:
         YT_UNIMPLEMENTED("LinkTmpfsVolumes is not implemented for SimpleVolumeManager");
     }
 
-    TFuture<void> RemoveVolumes(const TString& /*volumePath*/) override
+    TFuture<void> RemoveVolumes(const TString& place, TDuration timeout) override
     {
-        YT_LOG_DEBUG("RemoveVolumes is empty in SimpleVolumeManager");
+        YT_LOG_DEBUG("RemoveVolumes is empty in SimpleVolumeManager (Place: %v, Timeout: %v)",
+            place,
+            timeout);
+        return OKFuture;
+    }
+
+    TFuture<void> RemoveLayers(const TString& place, TDuration timeout) override
+    {
+        YT_LOG_DEBUG("RemoveLayers is empty in SimpleVolumeManager (Place: %v, Timeout: %v)",
+            place,
+            timeout);
         return OKFuture;
     }
 
@@ -4799,18 +4888,37 @@ public:
         return location->RbindRootVolume(volume, slotPath);
     }
 
-    //! Remove volumes planted at a given path.
-    TFuture<void> RemoveVolumes(const TString& volumePath) override
+    //! Remove volumes planted at a given place.
+    TFuture<void> RemoveVolumes(const TString& place, TDuration timeout) override
     {
         auto location = LayerCache_->PickLocation();
         return BIND(
             [
                 location,
-                volumePath
+                place,
+                timeout
             ] {
                 return location->RemoveVolumes(
-                    volumePath,
-                    TDuration::Minutes(30));
+                    place,
+                    timeout);
+            })
+            .AsyncVia(GetCurrentInvoker())
+            .Run();
+    }
+
+    //! Remove layers planted at a given place.
+    TFuture<void> RemoveLayers(const TString& place, TDuration timeout) override
+    {
+        auto location = LayerCache_->PickLocation();
+        return BIND(
+            [
+                location,
+                place,
+                timeout
+            ] {
+                return location->RemoveLayers(
+                    place,
+                    timeout);
             })
             .AsyncVia(GetCurrentInvoker())
             .Run();
