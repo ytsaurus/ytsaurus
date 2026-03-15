@@ -290,9 +290,6 @@ public:
     //! Pick best location for new volume operations.
     TLayerLocationPtr PickVolumeLocation() const;
 
-    //! Pick best location for new layer operations.
-    TLayerLocationPtr PickLayerLocation() const;
-
     void PopulateAlerts(std::vector<TError>* alerts);
 
     TFuture<void> Disable(const TError& reason);
@@ -346,6 +343,9 @@ private:
         const TArtifactDownloadOptions& downloadOptions,
         TGuid tag,
         TLayerLocationPtr location);
+
+    //! Pick best location for new layer operations.
+    TLayerLocationPtr PickLayerLocation() const;
 
     void OnProfiling();
 };

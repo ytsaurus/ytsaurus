@@ -118,18 +118,10 @@ public:
         YT_UNIMPLEMENTED("LinkTmpfsVolumes is not implemented for SimpleVolumeManager");
     }
 
-    TFuture<void> RemoveVolumes(const TString& place, TDuration timeout) override
+    TFuture<void> RemoveVolumes(const TString& path, TDuration timeout) override
     {
-        YT_LOG_DEBUG("RemoveVolumes is empty in SimpleVolumeManager (Place: %v, Timeout: %v)",
-            place,
-            timeout);
-        return OKFuture;
-    }
-
-    TFuture<void> RemoveLayers(const TString& place, TDuration timeout) override
-    {
-        YT_LOG_DEBUG("RemoveLayers is empty in SimpleVolumeManager (Place: %v, Timeout: %v)",
-            place,
+        YT_LOG_DEBUG("RemoveVolumes is empty in SimpleVolumeManager (Path: %v, Timeout: %v)",
+            path,
             timeout);
         return OKFuture;
     }
@@ -618,36 +610,18 @@ public:
         return location->RbindRootVolume(volume, slotPath);
     }
 
-    //! Remove volumes planted at a given place.
-    TFuture<void> RemoveVolumes(const TString& place, TDuration timeout) override
+    //! Remove volumes planted at a given path.
+    TFuture<void> RemoveVolumes(const TString& path, TDuration timeout) override
     {
         auto location = LayerCache_->PickVolumeLocation();
         return BIND(
             [
                 location,
-                place,
+                path,
                 timeout
             ] {
                 return location->RemoveVolumes(
-                    place,
-                    timeout);
-            })
-            .AsyncVia(GetCurrentInvoker())
-            .Run();
-    }
-
-    //! Remove layers planted at a given place.
-    TFuture<void> RemoveLayers(const TString& place, TDuration timeout) override
-    {
-        auto location = LayerCache_->PickLayerLocation();
-        return BIND(
-            [
-                location,
-                place,
-                timeout
-            ] {
-                return location->RemoveLayers(
-                    place,
+                    path,
                     timeout);
             })
             .AsyncVia(GetCurrentInvoker())
