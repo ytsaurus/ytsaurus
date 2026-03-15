@@ -68,8 +68,8 @@ public:
 
     struct TS3ObjectPlacement
     {
-        std::string Bucket;
-        std::string Key;
+        TString Bucket;
+        TString Key;
     };
 
     TS3ObjectPlacement GetS3ObjectPlacementForChunk(TChunkId chunkId) const;
