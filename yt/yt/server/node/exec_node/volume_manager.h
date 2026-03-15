@@ -89,11 +89,8 @@ struct IVolumeManager
         const TString& destinationDirectory,
         const std::vector<TTmpfsVolumeResult>& volumes) = 0;
 
-    //! Remove volumes planted at a given place.
-    virtual TFuture<void> RemoveVolumes(const TString& place, TDuration timeout) = 0;
-
-    //! Remove layers planted at a given place.
-    virtual TFuture<void> RemoveLayers(const TString& place, TDuration timeout) = 0;
+    //! Remove volumes planted at a given path
+    virtual TFuture<void> RemoveVolumes(const TString& volumePath) = 0;
 
     virtual bool IsLayerCached(const TArtifactKey& artifactKey) const = 0;
 
