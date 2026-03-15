@@ -16,9 +16,14 @@ import yt.yson as yson
 
 from yt.yson import get_bytes
 
-from yt.xdelta_aggregate_column.bindings import State
-from yt.xdelta_aggregate_column.bindings import StateEncoder
-from yt.xdelta_aggregate_column.bindings import XDeltaCodec
+try:
+    from yt.xdelta_aggregate_column.bindings import State
+    from yt.xdelta_aggregate_column.bindings import StateEncoder
+    from yt.xdelta_aggregate_column.bindings import XDeltaCodec
+
+    xdelta_bindings_imported = True
+except ImportError:
+    xdelta_bindings_imported = False
 
 
 ##################################################################
@@ -367,6 +372,7 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
             self._create_table_with_aggregate_column("//tmp/t", aggregate=aggregate)
 
     @authors("leasid")
+    @pytest.mark.skipif(not xdelta_bindings_imported, reason="xdelta bindings are not available")
     def test_aggregate_xdelta(self):
         sync_create_cells(1)
         schema = [
