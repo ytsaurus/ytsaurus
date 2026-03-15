@@ -15,24 +15,15 @@ static constexpr bool DoNotLeaveNodesDecommissioned = false;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static int GetCeiledShare(int totalAmount, int partCount)
-{
-    YT_VERIFY(partCount > 0);
-
-    return (totalAmount + partCount - 1) / partCount;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 std::vector<std::string> GetBundlesByTag(
     const TTabletNodeInfoPtr& nodeInfo,
-    const THashMap<std::string, std::string>& filterTagToBundleName)
+    const THashMap<std::string, std::string>& nodeTagFilterToBundleName)
 {
     std::vector<std::string> result;
 
     for (const auto& tag : nodeInfo->UserTags) {
-        if (auto it = filterTagToBundleName.find(tag); it != filterTagToBundleName.end()) {
-            result.push_back(GetOrCrash(filterTagToBundleName, tag));
+        if (auto it = nodeTagFilterToBundleName.find(tag); it != nodeTagFilterToBundleName.end()) {
+            result.push_back(GetOrCrash(nodeTagFilterToBundleName, tag));
         }
     }
 
@@ -49,7 +40,7 @@ int GetReadyNodeCount(
     int readyNodeCount = 0;
     for (const auto& nodeName : aliveBundleNodes) {
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
-        if (nodeInfo->UserTags.count(nodeTagFilter) != 0 && !nodeInfo->Decommissioned) {
+        if (nodeInfo->UserTags.contains(nodeTagFilter) && !nodeInfo->Decommissioned) {
             ++readyNodeCount;
         }
     }
@@ -75,10 +66,9 @@ TPerDataCenterSpareNodesInfo GetSpareNodesInfo(
         return {};
     }
 
-    // NodeTagFilter To Bundle Name.
-    THashMap<std::string, std::string> filterTagToBundleName;
+    THashMap<std::string, std::string> nodeTagFilterToBundleName;
     for (const auto& [bundleName, bundleInfo] : input.Bundles) {
-        filterTagToBundleName[bundleInfo->NodeTagFilter] = bundleName;
+        nodeTagFilterToBundleName[bundleInfo->NodeTagFilter] = bundleName;
     }
 
     THashMap<std::string, std::string> operationsToBundle;
@@ -111,8 +101,8 @@ TPerDataCenterSpareNodesInfo GetSpareNodesInfo(
 
             bool hasMaintenanceRequests = !nodeInfo->CmsMaintenanceRequests.empty();
 
-            auto assignedBundlesNames = GetBundlesByTag(nodeInfo, filterTagToBundleName);
-            if (assignedBundlesNames.empty() && operationsToBundle.count(spareNodeName) == 0) {
+            auto assignedBundlesNames = GetBundlesByTag(nodeInfo, nodeTagFilterToBundleName);
+            if (assignedBundlesNames.empty() && !operationsToBundle.contains(spareNodeName)) {
                 if (hasMaintenanceRequests) {
                     spareNodes.ScheduledForMaintenance.push_back(spareNodeName);
                 } else {
@@ -122,22 +112,24 @@ TPerDataCenterSpareNodesInfo GetSpareNodesInfo(
             }
 
             if (std::ssize(assignedBundlesNames) > 1) {
-                YT_LOG_WARNING("Spare node is assigned to the multiple bundles (Node: %v, Bundles: %v)",
+                YT_LOG_WARNING("Spare node is assigned to multiple bundles (Node: %v, Bundles: %v)",
                     spareNodeName,
                     assignedBundlesNames);
 
                 mutations->AlertsToFire.push_back({
                     .Id = "node_with_multiple_node_tag_filters",
-                    .Description = Format("Spare node: %v is assigned to the multiple bundles: %v.",
+                    .Description = Format("Spare node %v is assigned to multiple bundles: %v.",
                         spareNodeName,
                         assignedBundlesNames),
                 });
                 continue;
             }
 
-            const auto bundleName = !assignedBundlesNames.empty() ? assignedBundlesNames.back() : GetOrCrash(operationsToBundle, spareNodeName);
+            const auto bundleName = !assignedBundlesNames.empty()
+                ? assignedBundlesNames.back()
+                : GetOrCrash(operationsToBundle, spareNodeName);
 
-            if (nodeInfo->Decommissioned && operationsToBundle.count(spareNodeName) == 0) {
+            if (nodeInfo->Decommissioned && !operationsToBundle.contains(spareNodeName)) {
                 YT_LOG_WARNING("Spare node is externally decommissioned (Node: %v, AssignedToBundle: %v)",
                     spareNodeName,
                     bundleName);
@@ -171,7 +163,7 @@ TPerDataCenterSpareNodesInfo GetSpareNodesInfo(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Returns true if the node finally/already assigned to the bundle.
+// Returns true if the node is finally/already assigned to the bundle.
 bool ProcessNodeAssignment(
     const std::string& nodeName,
     const std::string& bundleName,
@@ -182,7 +174,7 @@ bool ProcessNodeAssignment(
     const auto& nodeTagFilter = bundleInfo->NodeTagFilter;
     const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
 
-    if (nodeInfo->UserTags.count(nodeTagFilter) == 0) {
+    if (!nodeInfo->UserTags.contains(nodeTagFilter)) {
         auto tags = nodeInfo->UserTags;
         tags.insert(nodeTagFilter);
         mutations->ChangedNodeUserTags[nodeName] = mutations->WrapMutation(std::move(tags));
@@ -190,7 +182,7 @@ bool ProcessNodeAssignment(
             mutations->ChangedDecommissionedFlag[nodeName] = mutations->WrapMutation(true);
         }
 
-        YT_LOG_INFO("Setting node tag filter and decommission "
+        YT_LOG_INFO("Assigning node to bundle: setting node tag filter and decommission flag "
             "(Bundle: %v, TabletNode: %v, NodeTagFilter: %v, Decommissioned: %v)",
             bundleName,
             nodeName,
@@ -256,7 +248,7 @@ void TryCreateSpareNodesReleasements(
     const std::string& bundleName,
     const TSchedulerInputState& input,
     int slotsToRelease,
-    TSpareNodesInfo* spareNodesInfo,
+    const TSpareNodesInfo* spareNodesInfo,
     const TBundleControllerStatePtr& bundleState)
 {
     if (!bundleState->SpareNodeAssignments.empty()) {
@@ -268,7 +260,12 @@ void TryCreateSpareNodesReleasements(
         return;
     }
 
-    const auto& usingSpareNodes = spareNodesInfo->UsedByBundle[bundleName];
+    auto spareNodesIt = spareNodesInfo->UsedByBundle.find(bundleName);
+    if (spareNodesIt == spareNodesInfo->UsedByBundle.end()) {
+        return;
+    }
+
+    const auto& usingSpareNodes = spareNodesIt->second;
     auto it = usingSpareNodes.begin();
 
     auto now = TInstant::Now();
@@ -343,15 +340,15 @@ void TryCreateBundleNodesAssignment(
     auto now = TInstant::Now();
 
     for (const auto& nodeName : aliveNodes) {
-        if (bundleState->BundleNodeAssignments.count(nodeName) != 0) {
+        if (bundleState->BundleNodeAssignments.contains(nodeName)) {
             continue;
         }
 
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
 
-        if (bundleState->BundleNodeReleasements.count(nodeName) != 0) {
-            YT_LOG_WARNING("Trying to cancel bundle node release "
-            "(Bundle: %v, NodeName: %v, Decommissioned: %v, UserTags: %v)",
+        if (bundleState->BundleNodeReleasements.contains(nodeName)) {
+            YT_LOG_WARNING("Trying to cancel bundle node releasement "
+                "(Bundle: %v, NodeName: %v, Decommissioned: %v, UserTags: %v)",
                 bundleName,
                 nodeName,
                 nodeInfo->Decommissioned,
@@ -367,7 +364,8 @@ void TryCreateBundleNodesAssignment(
             operation->CreationTime = now;
             bundleState->BundleNodeAssignments[nodeName] = operation;
 
-            YT_LOG_INFO("Creating node tag filter assignment for bundle node (BundleName: %v, TabletNode: %v, NodeUserTags: %v)",
+            YT_LOG_INFO("Creating node tag filter assignment for bundle node "
+                "(BundleName: %v, TabletNode: %v, NodeUserTags: %v)",
                 bundleName,
                 nodeName,
                 nodeInfo->UserTags);
@@ -392,14 +390,15 @@ void TryCreateBundleNodesReleasement(
     auto now = TInstant::Now();
 
     for (const auto& nodeName : nodesToRelease) {
-        if (bundleState->BundleNodeAssignments.count(nodeName) != 0 ||
-            bundleState->BundleNodeReleasements.count(nodeName) != 0) {
+        if (bundleState->BundleNodeAssignments.contains(nodeName) ||
+            bundleState->BundleNodeReleasements.contains(nodeName))
+        {
             continue;
         }
 
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
 
-        if (nodeInfo->UserTags.count(nodeTagFilter) != 0) {
+        if (nodeInfo->UserTags.contains(nodeTagFilter)) {
             auto operation = New<TNodeTagFilterOperationState>();
             operation->CreationTime = now;
             bundleState->BundleNodeReleasements[nodeName] = operation;
@@ -415,7 +414,7 @@ void TryCreateBundleNodesReleasement(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AllTabletSlotsAreEmpty(const TTabletNodeInfoPtr& nodeInfo)
+bool AreAllTabletSlotsEmpty(const TTabletNodeInfoPtr& nodeInfo)
 {
     const auto& slots = nodeInfo->TabletSlots;
 
@@ -426,7 +425,7 @@ bool AllTabletSlotsAreEmpty(const TTabletNodeInfoPtr& nodeInfo)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ProcessNodesAssignments(
+void ProcessNodeAssignments(
     const std::string& bundleName,
     const TSchedulerInputState& input,
     TIndexedEntries<TNodeTagFilterOperationState>* nodeAssignments,
@@ -437,7 +436,7 @@ void ProcessNodesAssignments(
 
     for (const auto& [nodeName, operation] : *nodeAssignments) {
         if (now - operation->CreationTime > input.Config->NodeAssignmentTimeout) {
-            YT_LOG_WARNING("Assigning node is stuck (Bundle: %v, TabletNode: %v)",
+            YT_LOG_WARNING("Node assignment is stuck (Bundle: %v, TabletNode: %v)",
                 bundleName,
                 nodeName);
 
@@ -451,7 +450,7 @@ void ProcessNodesAssignments(
         }
 
         if (ProcessNodeAssignment(nodeName, bundleName, input, mutations)) {
-            YT_LOG_INFO("Assigning tablet node is finished (Bundle: %v, TabletNode: %v)",
+            YT_LOG_INFO("Node assignment completed (Bundle: %v, TabletNode: %v)",
                 bundleName,
                 nodeName);
 
@@ -466,7 +465,7 @@ void ProcessNodesAssignments(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ProcessNodesReleasements(
+void ProcessNodeReleasements(
     const std::string& bundleName,
     const TSchedulerInputState& input,
     bool leaveDecommissioned,
@@ -479,7 +478,7 @@ void ProcessNodesReleasements(
 
     for (const auto& [nodeName, operation] : *nodeAssignments) {
         if (now - operation->CreationTime > input.Config->NodeAssignmentTimeout) {
-            YT_LOG_WARNING("Releasing node is stuck (Bundle: %v, Node: %v)",
+            YT_LOG_WARNING("Node releasement is stuck (Bundle: %v, Node: %v)",
                 bundleName,
                 nodeName);
 
@@ -494,7 +493,8 @@ void ProcessNodesReleasements(
 
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
 
-        if (nodeInfo->UserTags.count(nodeTagFilter) != 0) {
+        // TODO: Move it to separate ProcessNodeReleasement function.
+        if (nodeInfo->UserTags.contains(nodeTagFilter)) {
             if (input.Config->DecommissionReleasedNodes) {
                 if (!nodeInfo->Decommissioned) {
                     mutations->ChangedDecommissionedFlag[nodeName] = mutations->WrapMutation(true);
@@ -504,7 +504,7 @@ void ProcessNodesReleasements(
                     continue;
                 }
 
-                if (!AllTabletSlotsAreEmpty(nodeInfo)) {
+                if (!AreAllTabletSlotsEmpty(nodeInfo)) {
                     YT_LOG_DEBUG("Releasing node: not all tablet cells are empty (Bundle: %v, NodeName: %v)",
                         bundleName,
                         nodeName);
@@ -516,7 +516,7 @@ void ProcessNodesReleasements(
                     nodeName);
             }
 
-            YT_LOG_INFO("Releasing node: Removing node tag filter (Bundle: %v, NodeName: %v)",
+            YT_LOG_INFO("Releasing node: removing node tag filter (Bundle: %v, NodeName: %v)",
                 bundleName,
                 nodeName);
 
@@ -527,7 +527,8 @@ void ProcessNodesReleasements(
         }
 
         if (nodeInfo->Decommissioned != leaveDecommissioned) {
-            YT_LOG_DEBUG("Releasing node: setting target decommissioned state (Bundle: %v, NodeName: %v, Decommissioned: %v)",
+            YT_LOG_DEBUG("Releasing node: setting target decommissioned state "
+                "(Bundle: %v, NodeName: %v, Decommissioned: %v)",
                 bundleName,
                 nodeName,
                 leaveDecommissioned);
@@ -535,7 +536,7 @@ void ProcessNodesReleasements(
             continue;
         }
 
-        YT_LOG_INFO("Cleaned up released node (Bundle: %v, NodeName: %v)",
+        YT_LOG_INFO("Node releasement completed, cleaned up released node (Bundle: %v, NodeName: %v)",
             bundleName,
             nodeName);
         finished.push_back(nodeName);
@@ -556,7 +557,7 @@ struct TDataCenterOrder
     // Data center is forbidden by admin.
     bool Forbidden = false;
 
-    // TODO(capone212): User preferences goes here.
+    // TODO(capone212): User preferences go here.
 
     int AssignedTabletCellCount = 0;
 
@@ -577,7 +578,7 @@ struct TDataCenterOrder
     }
 };
 
-int GetAvailableLiveTabletNodeCount(
+int GetAvailableAliveTabletNodeCount(
     const std::string& bundleName,
     const std::string& dataCenterName,
     const THashMap<std::string, THashSet<std::string>>& aliveBundleNodes,
@@ -671,14 +672,16 @@ THashSet<std::string> GetDataCentersToPopulate(
     int activeDataCenterCount = std::ssize(zoneInfo->DataCenters) - zoneInfo->RedundantDataCenterCount;
     YT_VERIFY(activeDataCenterCount > 0);
 
-    int perDataCenterSlotCount = GetCeiledShare(std::ssize(bundleInfo->TabletCellIds) * bundleInfo->Options->PeerCount, activeDataCenterCount);
-    int requiredPerDataCenterNodeCount = GetCeiledShare(perDataCenterSlotCount, perNodeSlotCount);
+    int perDataCenterSlotCount = DivCeil<int>(
+        std::ssize(bundleInfo->TabletCellIds) * bundleInfo->Options->PeerCount,
+        activeDataCenterCount);
+    int requiredPerDataCenterNodeCount = DivCeil(perDataCenterSlotCount, perNodeSlotCount);
 
     std::vector<TDataCenterOrder> dataCentersOrder;
     dataCentersOrder.reserve(std::ssize(zoneInfo->DataCenters));
 
     for (const auto& [dataCenter, dataCenterInfo] : zoneInfo->DataCenters) {
-        int availableNodeCount = GetAvailableLiveTabletNodeCount(
+        int availableNodeCount = GetAvailableAliveTabletNodeCount(
             bundleName,
             dataCenter,
             perDataCenterAliveNodes,
@@ -795,13 +798,13 @@ void SetNodeTagFilter(
     }
 
     if (nodeTagFilter.empty()) {
-        YT_LOG_WARNING("Bundle does not have node_tag_filter attribute (Bundle: %v)",
+        YT_LOG_WARNING("Bundle does not have \"node_tag_filter\" attribute (Bundle: %v)",
             bundleName);
 
         mutations->AlertsToFire.push_back({
             .Id = "bundle_with_no_tag_filter",
             .BundleName = bundleName,
-            .Description = Format("Bundle %Qv does not have node_tag_filter attribute set",
+            .Description = Format("Bundle %Qv does not have \"node_tag_filter\" attribute",
                 bundleName),
         });
         return;
@@ -823,18 +826,19 @@ void SetNodeTagFilter(
                 bundleName)});
     }
 
+    // Create and process bundle node assignments/releasements.
     for (const auto& [dataCenterName, _] : zoneInfo->DataCenters) {
         const auto& aliveNodes = perDataCenterAliveNodes[dataCenterName];
 
-        if (dataCentersToPopulate.count(dataCenterName) != 0) {
+        if (dataCentersToPopulate.contains(dataCenterName)) {
             TryCreateBundleNodesAssignment(bundleName, input, aliveNodes, bundleState, mutations);
         } else {
             TryCreateBundleNodesReleasement(bundleName, input, aliveNodes, bundleState);
         }
     }
 
-    ProcessNodesAssignments(bundleName, input, &bundleState->BundleNodeAssignments, mutations);
-    ProcessNodesReleasements(
+    ProcessNodeAssignments(bundleName, input, &bundleState->BundleNodeAssignments, mutations);
+    ProcessNodeReleasements(
         bundleName,
         input,
         DoNotLeaveNodesDecommissioned,
@@ -847,71 +851,74 @@ void SetNodeTagFilter(
         const auto& aliveNodes = perDataCenterAliveNodes[dataCenterName];
         int perNodeSlotCount = GetBundleEffectiveCpuLimits(bundleName, bundleInfo, input)
             ->WriteThreadPoolSize.value_or(DefaultWriteThreadPoolSize);
-        auto& spareNodes = perDataCenterSpareNodes[dataCenterName];
+        const auto& spareNodes = perDataCenterSpareNodes[dataCenterName];
 
-        auto getSpareSlotCount = [perNodeSlotCount, bundleName] (const auto& sparesByBundle) ->int {
-            auto it = sparesByBundle.find(bundleName);
-            if (it != sparesByBundle.end()) {
-                return perNodeSlotCount * std::ssize(it->second);
-            }
-            return 0;
-        };
+        int requiredDataCenterSlotCount = dataCentersToPopulate.contains(dataCenterName)
+            ? DivCeil<int>(requiredSlotCount, std::ssize(dataCentersToPopulate))
+            : 0;
 
-        int requiredDataCenterSlotCount = GetCeiledShare(requiredSlotCount, std::ssize(dataCentersToPopulate));
-        if (dataCentersToPopulate.count(dataCenterName) == 0) {
-            requiredDataCenterSlotCount = 0;
-        }
-
+        // Number of nodes that have bundle tag and are not decommissioned.
         int readyBundleNodeCount = GetReadyNodeCount(bundleInfo, aliveNodes, input);
+        // Number of slots on ready bundles nodes.
         int actualSlotCount = perNodeSlotCount * readyBundleNodeCount;
-        int usedSpareSlotCount = getSpareSlotCount(spareNodes.UsedByBundle);
+        // Number of slots on spare nodes assigned to bundle.
+        int bundleSpareNodeCount = ssize(GetOrDefaultReference(spareNodes.UsedByBundle, bundleName));
+        int usedSpareSlotCount = bundleSpareNodeCount * perNodeSlotCount;
 
-        int releasingSlotCount = usedSpareSlotCount + actualSlotCount - requiredDataCenterSlotCount;
-        int assigningSlotCount = requiredDataCenterSlotCount - usedSpareSlotCount - std::ssize(aliveNodes) * perNodeSlotCount;
+        int slotsToRelease =
+            (usedSpareSlotCount + actualSlotCount) - requiredDataCenterSlotCount;
+        // We account decommissioned nodes here as well because they will be added to bundle soon.
+        int slotsToAssign =
+            requiredDataCenterSlotCount - (usedSpareSlotCount + std::ssize(aliveNodes) * perNodeSlotCount);
 
         YT_LOG_DEBUG("Checking tablet cell slots for bundle "
             "(Bundle: %v, "
             "DataCenter: %v, "
+            "RequiredSlotCount: %v "
             "BundleSlotCount: %v, "
             "UsedSpareSlotCount: %v, "
-            "ReleasingSlotCount: %v, "
-            "AssigningSlotCount: %v, "
+            "SlotsToRelease: %v, "
+            "SlotsToAssign: %v, "
             "RequiredDataCenterSlotCount: %v)",
             bundleName,
             dataCenterName,
+            requiredSlotCount,
             actualSlotCount,
             usedSpareSlotCount,
-            releasingSlotCount,
-            assigningSlotCount,
+            slotsToRelease,
+            slotsToAssign,
             requiredDataCenterSlotCount);
 
         if (!input.Config->EnableSpareNodeAssignment) {
-            YT_LOG_DEBUG("Spare node assignment/releasement is disabled (Bundle: %v, DataCenter: %v, ReleasingSlotCount: %v, AssigningSlotCount: %v)",
-                bundleName,
-                dataCenterName,
-                releasingSlotCount,
-                assigningSlotCount);
+            if (slotsToRelease > 0 || slotsToAssign > 0) {
+                YT_LOG_DEBUG("Spare node assignment/releasement is disabled "
+                    "(Bundle: %v, DataCenter: %v, SlotsToRelease: %v, SlotsToAssign: %v)",
+                    bundleName,
+                    dataCenterName,
+                    slotsToRelease,
+                    slotsToAssign);
+            }
 
             continue;
         }
 
-        if (releasingSlotCount > 0) {
-            YT_LOG_DEBUG("Creating spare nodes releasements (BundleName: %v, DataCenter: %v, ReleasingSlotCount: %v)",
+        if (slotsToRelease > 0) {
+            YT_LOG_DEBUG("Creating spare nodes releasements (BundleName: %v, DataCenter: %v, SlotsToRelease: %v)",
                 bundleName,
                 dataCenterName,
-                releasingSlotCount);
-            TryCreateSpareNodesReleasements(bundleName, input, releasingSlotCount, &spareNodes, bundleState);
-        } else if (assigningSlotCount > 0) {
-            YT_LOG_DEBUG("Creating spare nodes assignment (BundleName: %v, DataCenter: %v, AssigningSlotCount: %v)",
+                slotsToRelease);
+            TryCreateSpareNodesReleasements(bundleName, input, slotsToRelease, &spareNodes, bundleState);
+        } else if (slotsToAssign > 0) {
+            YT_LOG_DEBUG("Creating spare nodes assignment (BundleName: %v, DataCenter: %v, SlotsToAssign: %v)",
                 bundleName,
                 dataCenterName,
-                assigningSlotCount);
-            TryCreateSpareNodesAssignment(bundleName, zoneName, dataCenterName, input, assigningSlotCount, spareNodesAllocator, bundleState);
+                slotsToAssign);
+            TryCreateSpareNodesAssignment(bundleName, zoneName, dataCenterName, input, slotsToAssign, spareNodesAllocator, bundleState);
         }
     }
 
-    ProcessNodesAssignments(bundleName, input, &bundleState->SpareNodeAssignments, mutations);
-    ProcessNodesReleasements(
+    ProcessNodeAssignments(bundleName, input, &bundleState->SpareNodeAssignments, mutations);
+    ProcessNodeReleasements(
         bundleName,
         input,
         LeaveNodesDecommissioned && input.Config->DecommissionReleasedNodes,
@@ -969,7 +976,7 @@ void ManageNodeTagFilters(
             continue;
         }
 
-        if (auto zoneIt = input.Zones.find(bundleInfo->Zone); zoneIt == input.Zones.end()) {
+        if (!input.Zones.contains(bundleInfo->Zone)) {
             continue;
         }
 
