@@ -724,6 +724,10 @@ struct TJobProxyLoggingConfig
     std::optional<TString> JobProxyStderrPath;
     std::optional<TString> ExecutorStderrPath;
 
+    //! If true, the job proxy stderr file will be truncated before each new job proxy launch.
+    //! This prevents unbounded growth of the stderr file across successive jobs in the same slot.
+    bool TruncateJobProxyStderrOnStart;
+
     REGISTER_YSON_STRUCT(TJobProxyLoggingConfig);
 
     static void Register(TRegistrar registrar);

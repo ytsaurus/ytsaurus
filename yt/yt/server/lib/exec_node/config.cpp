@@ -839,6 +839,9 @@ void TJobProxyLoggingConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("executor_stderr_path", &TThis::ExecutorStderrPath)
         .Default();
+
+    registrar.Parameter("truncate_job_proxy_stderr_on_start", &TThis::TruncateJobProxyStderrOnStart)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
