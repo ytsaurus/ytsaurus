@@ -2552,7 +2552,9 @@ void TJob::OnExtraGpuCheckCommandFinished(const TError& error)
 
         auto checkError = TError(NExecNode::EErrorCode::GpuCheckCommandFailed, "Extra GPU check command failed")
             << error
-            << initialError;
+            << initialError
+            << TErrorAttribute("job_id", GetId())
+            << TErrorAttribute("operation_id", GetOperationId());
 
         YT_LOG_WARNING(checkError, "Extra GPU check command executed after job failure is also failed");
         Finalize(std::move(checkError));
