@@ -277,8 +277,8 @@ protected:
     TFuture<TAuthenticationResult> Invoke(const std::string& token, const TString& userIP)
     {
         return Authenticator_->Authenticate(TTokenCredentials{
-            token,
-            NNet::TNetworkAddress::Parse(userIP)
+            .Token = token,
+            .UserIP = NNet::TNetworkAddress::Parse(userIP)
         });
     }
 
