@@ -10501,6 +10501,7 @@ void TOperationControllerBase::InitUserJobSpec(
         setEnvironmentVariable("YT_JOB_COOKIE", ToString(joblet->OutputCookie));
         setEnvironmentVariable("YT_COLLECTIVE_MEMBER_RANK", ToString(joblet->CollectiveInfo.Rank));
         setEnvironmentVariable("YT_COLLECTIVE_ID", ToString(joblet->CollectiveInfo.CollectiveId));
+        setEnvironmentVariable("YT_POOL_TREE", ToString(joblet->TreeId));
 
         for (const auto& [key, value] : joblet->Task->BuildJobEnvironment()) {
             setEnvironmentVariable(key, value);
