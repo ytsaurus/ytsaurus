@@ -153,7 +153,7 @@ TReplicationLogBatchDescriptor TReplicationLogBatchReaderBase::ReadReplicationBa
                         timestampCount >= TableMountConfig_->MaxTimestampsPerReplicationCommit ||
                         isRequestDeadlineExceeded ||
                         isDataWeightPerPullRowsLimitExceeded ||
-                        maxAllowedCommitInstantExceeded)
+                        (maxAllowedCommitInstantExceeded && timestampCount > 0))
                     {
                         readAllRows = false;
                         YT_LOG_DEBUG("Stopped reading replication batch because stopping conditions are met "
