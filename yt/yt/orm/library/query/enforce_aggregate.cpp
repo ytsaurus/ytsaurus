@@ -64,7 +64,8 @@ NQueryClient::NAst::TExpressionPtr EnforceAggregate(
     TObjectsHolder* objectsHolder,
     NQueryClient::NAst::TExpressionPtr expr)
 {
-    return TUnaggregatedRewriter(objectsHolder, NQueryClient::GetBuiltinTypeInferrers()).Visit(expr);
+    return TUnaggregatedRewriter(objectsHolder, NQueryClient::GetBuiltinTypeInferrers())
+        .Visit(expr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

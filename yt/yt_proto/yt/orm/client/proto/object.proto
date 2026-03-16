@@ -354,6 +354,7 @@ message TIndexOption
     optional bool unique = 7;
     optional string predicate = 8;
     optional string custom_table_name = 9;
+    optional bool native = 12; // Native-index support is under development. Do not use it in your ORM.
 }
 
 enum EHistoryCommitTime
