@@ -2,6 +2,7 @@
 
 #include "bootstrap.h"
 #include "job_directory_manager.h"
+#include "job_fs_secretary.h"
 #include "slot_manager.h"
 #include "private.h"
 #include "volume_artifact.h"
@@ -1188,8 +1189,8 @@ public:
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         // Inject default docker image for job workspace.
-        if (!context.DockerImage && context.RootVolumeLayerArtifactKeys.empty()) {
-            context.DockerImage = ConcreteConfig_->JobProxyImage;
+        if (!context.FSSecretary->GetDockerImage() && context.FSSecretary->GetRootVolumeLayerArtifactKeys().empty()) {
+            context.FSSecretary->SetDockerImage(ConcreteConfig_->JobProxyImage);
         }
 
         return CreateCriJobWorkspaceBuilder(

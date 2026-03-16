@@ -6,6 +6,7 @@
 #include "bootstrap.h"
 #include "controller_agent_connector.h"
 #include "job_controller.h"
+#include "job_fs_secretary.h"
 #include "job_gpu_checker.h"
 #include "job_proxy_log_manager.h"
 #include "job_workspace_builder.h"
@@ -182,13 +183,6 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString MakeNbdExportId(TJobId jobId, int nbdExportIndex)
-{
-    auto nbdExportId = jobId.Underlying();
-    nbdExportId.Parts32[0] = nbdExportIndex;
-    return ToString(nbdExportId);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 static const TString GpuUtilizationGpuSensorName = "gpu/utilization_gpu";
@@ -329,7 +323,8 @@ TJob::TJob(
     TJobSpec&& jobSpec,
     TControllerAgentDescriptor agentDescriptor,
     IBootstrap* bootstrap,
-    const TJobCommonConfigPtr& commonConfig)
+    const TJobCommonConfigPtr& commonConfig,
+    TJobFSSecretaryPtr fsSecretary)
     : Id_(jobId)
     , OperationId_(operationId)
     , Type_(EJobType(jobSpec.type()))
@@ -360,7 +355,6 @@ TJob::TJob(
         : New<TJobTestingOptions>())
     , Interruptible_(JobSpecExt_.interruptible())
     , AbortJobIfAccountLimitExceeded_(JobSpecExt_.abort_job_if_account_limit_exceeded())
-    , RootVolumeDiskQuotaEnabled_(JobSpecExt_.enable_root_volume_disk_quota())
     , RestrictPortoPlace_(UserJobSpec_ ? UserJobSpec_->restrict_porto_place() : false)
     , HasUserJobSpec_(UserJobSpec_ != nullptr)
     , TmpfsVolumeInfos_(ParseTmpfsVolumeInfos(UserJobSpec_))
@@ -368,6 +362,7 @@ TJob::TJob(
     , TraceContext_(TTraceContext::NewRoot("Job"))
     , FinishGuard_(TraceContext_)
     , JobInputCache_(Bootstrap_->GetExecNodeBootstrap()->GetJobInputCache())
+    , FSSecretary_(std::move(fsSecretary))
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
     YT_VERIFY(JobInputCache_);
@@ -427,7 +422,15 @@ void TJob::DoStart(TErrorOr<std::vector<TNameWithAddress>>&& resolvedNodeAddress
 
             StartUserJobMonitoring();
 
-            InitializeArtifacts();
+            FSSecretary_->ConfigureFromSpec(
+                Id_,
+                JobSpecExt_,
+                UserJobSpec_,
+                GetUserSlot()->GetUserId(),
+                /*hasNbdServer*/ static_cast<bool>(Bootstrap_->GetNbdServer()),
+                JobSpecExt_.enable_virtual_sandbox(),
+                JobSpecExt_.enable_root_volume_disk_quota(),
+                /*needGpuLayers*/ UserJobSpec_ && (NeedGpuLayers() || Bootstrap_->GetGpuManager()->ShouldTestLayers()));
 
             if (UserJobSpec_) {
                 if (UserJobSpec_->has_prepare_time_limit()) {
@@ -641,8 +644,7 @@ void TJob::PrepareArtifact(
 
             ValidateJobPhase(EJobPhase::PreparingArtifacts);
 
-            int artifactIndex = GetOrCrash(UserArtifactNameToIndex_, artifactName);
-            const auto& artifact = Artifacts_[artifactIndex];
+            const auto& artifact = FSSecretary_->GetUserArtifact(artifactName);
 
             YT_VERIFY(artifact.BypassArtifactCache || artifact.CopyFile);
 
@@ -1002,10 +1004,12 @@ void TJob::OnResultReceived(TJobResult jobResult)
             // Check if we had any NBD errors.
             TError nbdError;
             if (auto nbdServer = Bootstrap_->GetNbdServer()) {
-                for (const auto& deviceId : NbdDeviceIds_) {
+                for (const auto& deviceId : FSSecretary_->GetNbdDeviceIds()) {
                     if (auto device = nbdServer->FindDevice(deviceId)) {
                         if (auto error = device->GetError(); !error.IsOK()) {
-                            YT_LOG_ERROR(error, "NBD error occurred during job execution (DeviceId: %v)",
+                            YT_LOG_ERROR(
+                                error,
+                                "NBD error occurred during job execution (DeviceId: %v)",
                                 deviceId);
 
                             // Save the first found NBD error.
@@ -1020,7 +1024,8 @@ void TJob::OnResultReceived(TJobResult jobResult)
                             }
                         }
                     } else {
-                        YT_LOG_WARNING("NBD device not found (DeviceId: %v)",
+                        YT_LOG_WARNING(
+                            "NBD device not found (DeviceId: %v)",
                             deviceId);
                     }
                 }
@@ -1757,7 +1762,7 @@ void TJob::AbortJobAfterInterruptionCallFailed(TError internalError)
     if (JobPhase_ == NControllerAgent::EJobPhase::Running) {
         auto error = TError(NExecNode::EErrorCode::InterruptionFailed, "Error interrupting job on job proxy")
             << TErrorAttribute("interruption_reason", InterruptionReason_)
-            << internalError;
+            << std::move(internalError);
         Abort(std::move(error));
     }
 }
@@ -1870,7 +1875,7 @@ void TJob::DoInterrupt(
 
         TError error(ex);
         TDelayedExecutor::Submit(
-            BIND(&TJob::AbortJobAfterInterruptionCallFailed, MakeWeak(this), error)
+            BIND(&TJob::AbortJobAfterInterruptionCallFailed, MakeWeak(this), Passed(std::move(error)))
                 .Via(Invoker_),
             CommonConfig_->JobFinishTimeoutAfterInterruptionCallFailed);
     }
@@ -2401,23 +2406,21 @@ void TJob::OnArtifactsDownloaded(const TErrorOr<std::vector<TArtifactPtr>>& erro
             YT_LOG_INFO("Artifacts downloaded");
 
             const auto& artifacts = errorOrArtifacts.Value();
-            for (size_t index = 0; index < Artifacts_.size(); ++index) {
-                Artifacts_[index].Artifact = artifacts[index];
-            }
+            FSSecretary_->SetCachedArtifacts(artifacts);
 
             ArtifactsDownloadedTime_ = TInstant::Now();
-            RunWithWorkspaceBuilder();
+            PrepareWorkspace();
         });
 }
 
-void TJob::RunWithWorkspaceBuilder()
+void TJob::PrepareWorkspace()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
     std::vector<TDevice> devices = GetGpuDevices();
 
     auto binds = GetRootFSBinds();
 
-    if (VirtualSandboxData_) {
+    if (FSSecretary_->GetVirtualSandboxData()) {
         BuildVirtualSandbox();
     }
 
@@ -2430,12 +2433,9 @@ void TJob::RunWithWorkspaceBuilder()
 
         .ArtifactDownloadOptions = MakeArtifactDownloadOptions(),
 
-        .Artifacts = Artifacts_,
+        .FSSecretary = FSSecretary_,
         .Binds = binds,
-        .RootVolumeLayerArtifactKeys = RootVolumeLayerArtifactKeys_,
-        .GpuCheckVolumeLayerArtifactKeys = GpuCheckVolumeLayerArtifactKeys_,
         .SetupCommands = GetSetupCommands(),
-        .DockerImage = DockerImage_,
         .DockerAuth = BuildDockerAuthConfig(),
 
         .NeedGpu = NeedGpu(),
@@ -2504,12 +2504,12 @@ void TJob::OnWorkspacePreparationFinished(TJobWorkspaceBuilderPtr workspaceBuild
     YT_LOG_DEBUG_IF(!error.IsOK(), error, "Failed to build job workspace");
 
     auto result = workspaceBuilder->ExtractResult();
-    RootVolume_ = std::move(result.RootVolume);
-    TmpfsVolumes_ = std::move(result.TmpfsVolumes);
-    GpuCheckVolume_ = std::move(result.GpuCheckVolume);
+    FSSecretary_->SetRootVolume(std::move(result.RootVolume));
+    FSSecretary_->SetTmpfsVolumes(std::move(result.TmpfsVolumes));
+    FSSecretary_->SetGpuCheckVolume(std::move(result.GpuCheckVolume));
     // Workspace builder may add or replace docker image.
-    DockerImage_ = std::move(result.DockerImage);
-    DockerImageId_ = std::move(result.DockerImageId);
+    FSSecretary_->SetDockerImage(std::move(result.DockerImage));
+    FSSecretary_->SetDockerImageId(std::move(result.DockerImageId));
     SetupCommandCount_ = result.SetupCommandCount;
 
     GuardedAction(
@@ -2727,7 +2727,7 @@ void TJob::OnJobProxyFinished(const TError& error)
     if (!currentError.IsOK() && NeedsGpuCheck()) {
         SetJobPhase(EJobPhase::RunningExtraGpuCheckCommand);
 
-        YT_VERIFY(GpuCheckVolume_);
+        YT_VERIFY(FSSecretary_->GetGpuCheckVolume());
 
         auto context = TJobGpuCheckerContext{
             .Slot = GetUserSlot(),
@@ -2866,11 +2866,13 @@ void TJob::Cleanup()
     // Release resources.
     GpuStatistics_.clear();
 
+    FSSecretary_->ReleaseArtifacts();
+
     if (IsStarted() && IsEvicted()) {
         ResourceHolder_->ReleaseNonSlotResources();
     }
 
-    auto removeVolume = [this] (IVolumePtr& volume) {
+    auto removeVolume = [this] (IVolumePtr volume) {
         if (volume) {
             auto removeResult = WaitFor(volume->Remove());
             YT_LOG_ERROR_IF(
@@ -2878,17 +2880,16 @@ void TJob::Cleanup()
                 removeResult,
                 "Volume remove failed (VolumePath: %v)",
                 volume->GetPath());
-            volume.Reset();
         }
     };
 
     // Remove tmpfs volumes prior to root volume.
-    for (auto& volume : TmpfsVolumes_) {
-        removeVolume(volume.Volume);
+    for (auto& tmpfsVolume : FSSecretary_->ReleaseTmpfsVolumes()) {
+        removeVolume(std::move(tmpfsVolume.Volume));
     }
 
-    removeVolume(RootVolume_);
-    removeVolume(GpuCheckVolume_);
+    removeVolume(FSSecretary_->ReleaseRootVolume());
+    removeVolume(FSSecretary_->ReleaseGpuCheckVolume());
 
     UnsubscribeJobFromNbdDevices();
 
@@ -2930,24 +2931,20 @@ void TJob::Cleanup()
 
 void TJob::UnsubscribeJobFromNbdDevices()
 {
-    auto nbdServer = Bootstrap_->GetNbdServer();
-    if (!nbdServer) {
-        return;
-    }
-
-    for (const auto& deviceId : NbdDeviceIds_) {
-        YT_LOG_DEBUG("Unsubscribing job from NBD device errors (DeviceId: %v)",
-            deviceId);
-
-        if (auto device = nbdServer->FindDevice(deviceId)) {
-            auto res = device->UnsubscribeFromErrors(Id_.Underlying());
-            if (!res) {
-                YT_LOG_WARNING("Failed to unsubscribe job from NBD device errors (DeviceId: %v)",
+    if (auto nbdServer = Bootstrap_->GetNbdServer()) {
+        for (const auto& deviceId : FSSecretary_->ReleaseNbdDeviceIds()) {
+            if (auto device = nbdServer->FindDevice(deviceId)) {
+                auto res = device->UnsubscribeFromErrors(Id_.Underlying());
+                if (!res) {
+                    YT_LOG_WARNING(
+                        "Failed to unsubscribe job from NBD device errors (DeviceId: %v)",
+                        deviceId);
+                }
+            } else {
+                YT_LOG_DEBUG(
+                    "Failed to unsubscribe from NBD device error; device not found (DeviceId: %v)",
                     deviceId);
             }
-        } else {
-            YT_LOG_DEBUG("Failed to unsubscribe from NBD device error; device not found (DeviceId: %v)",
-                deviceId);
         }
     }
 }
@@ -3018,15 +3015,15 @@ std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory> TJob::PrepareNodeDir
         validateTableSpecs(jobSpecExt.foreign_input_table_specs());
 
         // NB: No need to add these descriptors to the input node directory.
-        for (const auto& artifact : Artifacts_) {
+        for (const auto& artifact : FSSecretary_->GetArtifacts()) {
             validateNodeIds(artifact.Key.chunk_specs(), nodeDirectory);
         }
 
-        for (const auto& artifactKey : RootVolumeLayerArtifactKeys_) {
+        for (const auto& artifactKey : FSSecretary_->GetRootVolumeLayerArtifactKeys()) {
             validateNodeIds(artifactKey.chunk_specs(), nodeDirectory);
         }
 
-        for (const auto& artifactKey : GpuCheckVolumeLayerArtifactKeys_) {
+        for (const auto& artifactKey : FSSecretary_->GetGpuCheckVolumeLayerArtifactKeys()) {
             validateNodeIds(artifactKey.chunk_specs(), nodeDirectory);
         }
 
@@ -3133,9 +3130,9 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     proxyInternalConfig->HttpServerUdsPath = GetUserSlot()->GetJobProxyHttpUnixDomainSocketPath();
 
     proxyInternalConfig->TmpfsManager = New<TTmpfsManagerConfig>();
-    proxyInternalConfig->TmpfsManager->TmpfsPaths.resize(TmpfsVolumes_.size());
-    for (const auto& tmpfsVolume : TmpfsVolumes_) {
-        // Pass tmpfs volume mount paths.
+    const auto& tmpfsVolumes = FSSecretary_->GetTmpfsVolumes();
+    proxyInternalConfig->TmpfsManager->TmpfsPaths.resize(tmpfsVolumes.size());
+    for (const auto& tmpfsVolume : tmpfsVolumes) {
         proxyInternalConfig->TmpfsManager->TmpfsPaths[tmpfsVolume.Index] = tmpfsVolume.Volume->GetPath();
     }
 
@@ -3168,18 +3165,18 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     proxyInternalConfig->SlotIndex = GetUserSlot()->GetSlotIndex();
     proxyInternalConfig->SlotPath = GetUserSlot()->GetSlotPath();
 
-    if (RootVolume_) {
-        proxyInternalConfig->RootPath = RootVolume_->GetPath();
+    if (FSSecretary_->GetRootVolume()) {
+        proxyInternalConfig->RootPath = FSSecretary_->GetRootVolume()->GetPath();
     } else {
         // Pass docker image if root volume is not materialized yet.
-        proxyInternalConfig->DockerImage = DockerImage_;
-        proxyInternalConfig->DockerImageId = DockerImageId_;
+        proxyInternalConfig->DockerImage = FSSecretary_->GetDockerImage();
+        proxyInternalConfig->DockerImageId = FSSecretary_->GetDockerImageId();
     }
 
-    if (RootVolume_ || DockerImage_) {
+    if (FSSecretary_->GetRootVolume() || FSSecretary_->GetDockerImage()) {
         proxyInternalConfig->Binds = GetRootFSBindConfigs();
 
-        for (const auto& artifact : Artifacts_) {
+        for (const auto& artifact : FSSecretary_->GetArtifacts()) {
             // Artifact is passed into the job via bind.
             if (artifact.AccessedViaBind) {
                 YT_VERIFY(artifact.Artifact);
@@ -3284,7 +3281,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         ExecAttributes_.SlotIndex = userSlot->GetSlotIndex();
         ExecAttributes_.SandboxPath = userSlot->GetSandboxPath(
             ESandboxKind::User,
-            RootVolume_,
+            FSSecretary_->GetRootVolume(),
             Bootstrap_->GetConfig()->ExecNode->JobProxy->TestRootFS);
         ExecAttributes_.MediumName = userSlot->GetMediumName();
 
@@ -3350,7 +3347,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
 
     proxyInternalConfig->OperationsArchiveVersion = Bootstrap_->GetJobController()->GetOperationsArchiveVersion();
 
-    proxyInternalConfig->EnableRootVolumeDiskQuota = RootVolumeDiskQuotaEnabled_;
+    proxyInternalConfig->EnableRootVolumeDiskQuota = FSSecretary_->IsRootVolumeDiskQuotaEnabled();
     proxyInternalConfig->RestrictPortoPlace = RestrictPortoPlace_;
 
     return proxyInternalConfig;
@@ -3373,19 +3370,22 @@ NCri::TCriAuthConfigPtr TJob::BuildDockerAuthConfig()
 
 void TJob::BuildVirtualSandbox()
 {
+    auto& virtualSandboxData = GetOrCrash(FSSecretary_->GetVirtualSandboxData());
+    const auto& nbdDeviceId = virtualSandboxData.NbdDeviceId;
+
     auto nbdServer = Bootstrap_->GetNbdServer();
     if (!nbdServer) {
         THROW_ERROR_EXCEPTION("NBD server is not present")
-            << TErrorAttribute("device_id", VirtualSandboxData_->NbdDeviceId);
+            << TErrorAttribute("device_id", nbdDeviceId);
     }
 
     auto readerHost = Bootstrap_->GetFileReaderHost();
     auto logger = nbdServer->GetLogger();
     auto invoker = nbdServer->GetInvoker();
 
-    std::vector<TArtifactMountOptions> options;
+    std::vector<TArtifactMountOptions> mountOptions;
 
-    for (const auto& artifact : Artifacts_) {
+    for (const auto& artifact : FSSecretary_->GetArtifacts()) {
         if (!artifact.AccessedViaVirtualSandbox) {
             continue;
         }
@@ -3403,7 +3403,7 @@ void TJob::BuildVirtualSandbox()
             invoker,
             logger);
 
-        options.push_back({
+        mountOptions.push_back(TArtifactMountOptions{
             .Path = std::move(filePath),
             .Permissions = static_cast<ui16>(0444 + (artifact.Executable ? 0111 : 0000)),
             .Reader = std::move(reader)
@@ -3414,11 +3414,11 @@ void TJob::BuildVirtualSandbox()
         .BlockSize = static_cast<ui32>(CommonConfig_->VirtualSandboxSquashFSBlockSize)
     };
 
-    VirtualSandboxData_->Reader = CreateVirtualSquashFSImageReader(
-        std::move(options),
+    FSSecretary_->SetVirtualSandboxReader(CreateVirtualSquashFSImageReader(
+        std::move(mountOptions),
         std::move(squashFsOptions),
         std::move(invoker),
-        std::move(logger));
+        std::move(logger)));
 }
 
 TUserSandboxOptions TJob::BuildUserSandboxOptions()
@@ -3428,275 +3428,20 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
     options.DiskOverdraftCallback = BIND(&TJob::Fail, MakeWeak(this))
         .Via(Invoker_);
     // TODO(khlebnikov): Move into volume manager.
-    options.EnableRootVolumeDiskQuota = RootVolumeDiskQuotaEnabled_;
+    options.EnableRootVolumeDiskQuota = FSSecretary_->IsRootVolumeDiskQuotaEnabled();
     options.EnableDiskQuota = Bootstrap_->GetConfig()->DataNode->VolumeManager->EnableDiskQuota;
     options.UserId = GetUserSlot()->GetUserId();
-    options.SlotPath = GetUserSlot()->GetSlotPath();
-    options.JobVolumeMounts = JobVolumeMounts_;
-    options.TmpfsVolumes = TmpfsVolumeParams_;
-    options.DiskSpaceLimit = RootVolumeDiskSpace_;
-    options.InodeLimit = RootVolumeInodeLimit_;
 
-    options.VirtualSandboxData = VirtualSandboxData_;
-    options.SandboxNbdRootVolumeData = SandboxNbdRootVolumeData_;
+    options.SlotPath = GetUserSlot()->GetSlotPath();
+    options.JobVolumeMounts = FSSecretary_->GetJobVolumeMounts();
+    options.TmpfsVolumes = FSSecretary_->GetTmpfsVolumeParams();
+    options.DiskSpaceLimit = FSSecretary_->GetRootVolumeDiskSpace();
+    options.InodeLimit = FSSecretary_->GetRootVolumeInodeLimit();
+
+    options.VirtualSandboxData = FSSecretary_->GetVirtualSandboxData();
+    options.SandboxNbdRootVolumeData = FSSecretary_->GetSandboxNbdRootVolumeData();
 
     return options;
-}
-
-bool TJob::CanBeAccessedViaBind(const TArtifactDescription& artifact) const
-{
-    return !artifact.AccessedViaVirtualSandbox &&
-        !artifact.BypassArtifactCache &&
-        !artifact.CopyFile &&
-        !Bootstrap_->GetConfig()->ExecNode->JobProxy->TestRootFS;
-}
-
-bool TJob::CanBeAccessedViaVirtualSandbox(const TArtifactDescription& artifact) const
-{
-    if (artifact.BypassArtifactCache ||
-        artifact.CopyFile ||
-        artifact.Key.data_source().type() != ToProto(NChunkClient::EDataSourceType::File))
-    {
-        return false;
-    }
-
-    // Check if artifact may be inside tmpfs
-    if (!Bootstrap_->GetConfig()->ExecNode->SlotManager->EnableTmpfs) {
-        return true;
-    }
-
-    for (const auto& tmpfsVolume : UserJobSpec_->tmpfs_volumes()) {
-        if (tmpfsVolume.path() == "." || artifact.Name.StartsWith(tmpfsVolume.path())) {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-void TJob::InitializeVolumes()
-{
-    YT_ASSERT_THREAD_AFFINITY(JobThread);
-
-    if (!UserJobSpec_ || UserJobSpec_->volumes().empty()) {
-        return;
-    }
-
-    JobVolumeMounts_.reserve(UserJobSpec_->job_volume_mounts().size());
-    for (const auto& protoVolumeMount : UserJobSpec_->job_volume_mounts()) {
-        TVolumeMountPtr volumeMount = New<NScheduler::TVolumeMount>();
-        FromProto(volumeMount.Get(), protoVolumeMount);
-        JobVolumeMounts_.push_back(std::move(volumeMount));
-    }
-
-    auto createNdbDiskRequest = [&] (const NScheduler::NProto::TNbdDiskRequest& nbdDiskRequest) {
-        // COMPAT(krasovav)
-        YT_VERIFY(!SandboxNbdRootVolumeData_);
-
-        if (!Bootstrap_->GetNbdServer()) {
-            THROW_ERROR_EXCEPTION(
-                NExecNode::EErrorCode::NbdServerDisabledOnNode,
-               "Nbd server disabled on this node but job requested nbd volume");
-        }
-
-        SandboxNbdRootVolumeData_ = TSandboxNbdRootVolumeData{};
-        NExecNode::FromProto(&(*SandboxNbdRootVolumeData_), nbdDiskRequest);
-    };
-
-    auto createLocalDiskRequest = [&] (const NScheduler::NProto::TLocalDiskRequest& localDiskRequest) {
-        RootVolumeDiskSpace_ = localDiskRequest.disk_request().storage_request_common_parameters().disk_space();
-
-        if (localDiskRequest.disk_request().has_inode_count()) {
-            RootVolumeInodeLimit_ = localDiskRequest.disk_request().inode_count();
-        }
-    };
-
-    auto createTmpfsStorageRequest = [&] (const std::string& volumeId, const NScheduler::NProto::TTmpfsStorageRequest& tmpfsDiskRequest) {
-        TTmpfsVolumeParams tmpfsVolume;
-        NExecNode::FromProto(&tmpfsVolume, tmpfsDiskRequest);
-        tmpfsVolume.UserId = GetUserSlot()->GetUserId();
-        tmpfsVolume.VolumeId = volumeId;
-        TmpfsVolumeParams_.push_back(std::move(tmpfsVolume));
-    };
-
-    for (const auto& [volumeId, protoVolume] : UserJobSpec_->volumes()) {
-        using TProtoMessage = NControllerAgent::NProto::TVolume::DiskRequestCase;
-        switch (protoVolume.disk_request_case()) {
-            case TProtoMessage::DISK_REQUEST_NOT_SET:
-                break;
-            case TProtoMessage::kLocalDiskRequest:
-                createLocalDiskRequest(protoVolume.local_disk_request());
-                break;
-            case TProtoMessage::kNbdDiskRequest:
-                createNdbDiskRequest(protoVolume.nbd_disk_request());
-                break;
-            case TProtoMessage::kTmpfsStorageRequest:
-                createTmpfsStorageRequest(volumeId, protoVolume.tmpfs_storage_request());
-                break;
-        }
-    }
-
-}
-
-THashSet<TString> TJob::InitializeNbdDeviceIds()
-{
-    YT_ASSERT_THREAD_AFFINITY(JobThread);
-
-    THashSet<TString> nbdDeviceIds;
-
-    // Mark NBD layers with NBD device ids.
-    auto nbdDeviceCount = 0;
-    for (auto& layer : RootVolumeLayerArtifactKeys_) {
-        if (FromProto<ELayerAccessMethod>(layer.access_method()) == ELayerAccessMethod::Nbd) {
-            auto deviceId = layer.GetRuntimeGuid();
-            EmplaceOrCrash(nbdDeviceIds, deviceId);
-            ToProto(layer.mutable_nbd_device_id(), deviceId);
-            ++nbdDeviceCount;
-        }
-    }
-
-    if (!RootVolumeLayerArtifactKeys_.empty() &&
-        Bootstrap_->GetNbdServer() &&
-        RootVolumeDiskQuotaEnabled_ &&
-        JobSpecExt_.enable_virtual_sandbox())
-    {
-        // Mark artifacts that will be accessed via virtual layer and create virtual artifact key.
-        std::optional<TArtifactKey> virtualArtifactKey;
-        for (auto& artifact : Artifacts_) {
-            // NB. The order of virtual artifacts and chunk specs within each artifact does matter.
-            // Differences in order will result in different artifact keys.
-            if (CanBeAccessedViaVirtualSandbox(artifact)) {
-                artifact.AccessedViaVirtualSandbox = true;
-
-                if (!virtualArtifactKey) {
-                    virtualArtifactKey.emplace();
-                    virtualArtifactKey->set_access_method(ToProto(NControllerAgent::ELayerAccessMethod::Nbd));
-                    virtualArtifactKey->set_filesystem(ToProto(NControllerAgent::ELayerFilesystem::SquashFS));
-
-                    auto* dataSource = virtualArtifactKey->mutable_data_source();
-                    dataSource->set_type(ToProto(NChunkClient::EDataSourceType::File));
-                }
-
-                // Construct concatenated data source path of the form "path1;path2;path3".
-                auto* dataSource = virtualArtifactKey->mutable_data_source();
-                if (dataSource->path().empty()) {
-                    dataSource->set_path(artifact.Key.data_source().path());
-                } else {
-                    dataSource->set_path(Format("%v;%v", dataSource->path(), artifact.Key.data_source().path()));
-                }
-
-                for (const auto& chunkSpec : artifact.Key.chunk_specs()) {
-                    virtualArtifactKey->add_chunk_specs()->CopyFrom(chunkSpec);
-                }
-            }
-        }
-
-        if (virtualArtifactKey) {
-            auto deviceId = virtualArtifactKey->GetRuntimeGuid();
-            EmplaceOrCrash(nbdDeviceIds, deviceId);
-            ToProto(virtualArtifactKey->mutable_nbd_device_id(), deviceId);
-            ++nbdDeviceCount;
-
-            VirtualSandboxData_ = TVirtualSandboxData({
-                .NbdDeviceId = deviceId,
-                .ArtifactKey = *virtualArtifactKey,
-            });
-         }
-    }
-
-    // Create NBD device id for NBD root volume.
-    if (SandboxNbdRootVolumeData_) {
-        auto deviceId = MakeNbdExportId(Id_, nbdDeviceCount);
-        EmplaceOrCrash(nbdDeviceIds, deviceId);
-        ++nbdDeviceCount;
-
-        SandboxNbdRootVolumeData_->DeviceId = deviceId;
-    }
-
-    return nbdDeviceIds;
-}
-
-// Build artifacts.
-void TJob::InitializeArtifacts()
-{
-    YT_ASSERT_THREAD_AFFINITY(JobThread);
-
-    if (UserJobSpec_) {
-        for (const auto& descriptor : UserJobSpec_->files()) {
-            Artifacts_.push_back(TArtifactDescription{
-                .SandboxKind = ESandboxKind::User,
-                .Name = descriptor.file_name(),
-                .Executable = descriptor.executable(),
-                .BypassArtifactCache = descriptor.bypass_artifact_cache(),
-                .CopyFile = descriptor.copy_file(),
-                .Key = TArtifactKey(descriptor),
-                .Artifact = nullptr,
-            });
-            YT_VERIFY(UserArtifactNameToIndex_.emplace(descriptor.file_name(), Artifacts_.size() - 1).second);
-        }
-
-        bool needGpuLayers = NeedGpuLayers() || Bootstrap_->GetGpuManager()->ShouldTestLayers();
-
-        if (needGpuLayers && UserJobSpec_->enable_gpu_layers()) {
-            if (UserJobSpec_->root_volume_layers().empty()) {
-                THROW_ERROR_EXCEPTION(
-                    NExecNode::EErrorCode::GpuJobWithoutLayers,
-                    "No layers specified for GPU job; at least a base layer is required to use GPU");
-            }
-
-            for (auto&& layerKey : Bootstrap_->GetGpuManager()->GetToppingLayers()) {
-                RootVolumeLayerArtifactKeys_.push_back(std::move(layerKey));
-            }
-            if (!UserJobSpec_->gpu_check_volume_layers().empty()) {
-                for (auto&& layerKey : Bootstrap_->GetGpuManager()->GetToppingLayers()) {
-                    GpuCheckVolumeLayerArtifactKeys_.push_back(std::move(layerKey));
-                }
-            }
-        }
-
-        for (const auto& layerKey : UserJobSpec_->root_volume_layers()) {
-            RootVolumeLayerArtifactKeys_.emplace_back(layerKey);
-        }
-
-        for (const auto& layerKey : UserJobSpec_->gpu_check_volume_layers()) {
-            GpuCheckVolumeLayerArtifactKeys_.emplace_back(layerKey);
-        }
-
-        if (UserJobSpec_->has_docker_image()) {
-            DockerImage_ = UserJobSpec_->docker_image();
-        }
-    }
-
-    if (JobSpecExt_.has_input_query_spec()) {
-        const auto& querySpec = JobSpecExt_.input_query_spec();
-        for (const auto& function : querySpec.external_functions()) {
-            TArtifactKey key;
-            key.mutable_data_source()->set_type(ToProto(EDataSourceType::File));
-
-            for (const auto& chunkSpec : function.chunk_specs()) {
-                *key.add_chunk_specs() = chunkSpec;
-            }
-
-            Artifacts_.push_back(TArtifactDescription{
-                .SandboxKind = ESandboxKind::Udf,
-                .Name = function.name(),
-                .Executable = false,
-                .BypassArtifactCache = false,
-                .CopyFile = false,
-                .Key = key,
-                .Artifact = nullptr,
-            });
-        }
-    }
-
-    InitializeVolumes();
-
-    NbdDeviceIds_ = InitializeNbdDeviceIds();
-
-    // Mark artifacts that will be accessed via bind.
-    for (auto& artifact : Artifacts_) {
-        artifact.AccessedViaBind = CanBeAccessedViaBind(artifact);
-    }
 }
 
 TArtifactDownloadOptions TJob::MakeArtifactDownloadOptions() const
@@ -3724,7 +3469,7 @@ TFuture<std::vector<TArtifactPtr>> TJob::DownloadArtifacts()
     const auto& artifactCache = Bootstrap_->GetArtifactCache();
 
     std::vector<TFuture<TArtifactPtr>> asyncArtifacts;
-    for (const auto& artifact : Artifacts_) {
+    for (const auto& artifact : FSSecretary_->GetArtifacts()) {
         i64 artifactSize = artifact.Key.GetCompressedDataSize();
         if (artifact.BypassArtifactCache) {
             ArtifactCacheStatistics_.CacheBypassedArtifactsSize += artifactSize;
@@ -3738,7 +3483,7 @@ TFuture<std::vector<TArtifactPtr>> TJob::DownloadArtifacts()
         }
 
         YT_LOG_INFO(
-            "Download user file (FileName: %v, SandboxKind: %v, CompressedDataSize: %v)",
+            "Downloading artifact (FileName: %v, SandboxKind: %v, CompressedDataSize: %v)",
             artifact.Name,
             artifact.SandboxKind,
             artifact.Key.GetCompressedDataSize());
@@ -3760,7 +3505,7 @@ TFuture<std::vector<TArtifactPtr>> TJob::DownloadArtifacts()
 
                     const auto& chunk = chunkOrError.Value();
                     YT_LOG_INFO(
-                        "Artifact chunk ready (FileName: %v, LocationId: %v, ChunkId: %v)",
+                        "Artifact ready (FileName: %v, LocationId: %v, ChunkId: %v)",
                         fileName,
                         chunk->GetLocation()->GetId(),
                         chunk->GetId());
@@ -4253,11 +3998,11 @@ std::vector<TShellCommandConfigPtr> TJob::GetSetupCommands()
 NContainers::TRootFS TJob::MakeWritableGpuCheckRootFS()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
-    YT_VERIFY(GpuCheckVolume_);
+    YT_VERIFY(FSSecretary_->GetGpuCheckVolume());
 
     NContainers::TRootFS rootFS;
 
-    rootFS.RootPath = GpuCheckVolume_->GetPath();
+    rootFS.RootPath = FSSecretary_->GetGpuCheckVolume()->GetPath();
     rootFS.IsRootReadOnly = false;
 
     return rootFS;
@@ -4266,11 +4011,11 @@ NContainers::TRootFS TJob::MakeWritableGpuCheckRootFS()
 NContainers::TRootFS TJob::MakeWritableRootFS()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
-    YT_VERIFY(RootVolume_);
+    YT_VERIFY(FSSecretary_->GetRootVolume());
 
     NContainers::TRootFS rootFS;
 
-    rootFS.RootPath = RootVolume_->GetPath();
+    rootFS.RootPath = FSSecretary_->GetRootVolume()->GetPath();
     rootFS.IsRootReadOnly = false;
     rootFS.Binds = GetRootFSBinds();
 
@@ -4602,7 +4347,8 @@ TJobPtr CreateJob(
     TJobSpec&& jobSpec,
     TControllerAgentDescriptor agentDescriptor,
     IBootstrap* bootstrap,
-    const TJobCommonConfigPtr& commonConfig)
+    const TJobCommonConfigPtr& commonConfig,
+    TJobFSSecretaryPtr fsSecretary)
 {
     return NewWithOffloadedDtor<TJob>(
         bootstrap->GetJobInvoker(),
@@ -4612,7 +4358,8 @@ TJobPtr CreateJob(
         std::move(jobSpec),
         std::move(agentDescriptor),
         bootstrap,
-        commonConfig);
+        commonConfig,
+        std::move(fsSecretary));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

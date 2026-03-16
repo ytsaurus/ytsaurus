@@ -1,6 +1,6 @@
 #pragma once
 
-#include "artifact_cache.h"
+#include "artifact_description.h"
 #include "controller_agent_connector.h"
 #include "gpu_manager.h"
 #include "helpers.h"
@@ -50,21 +50,6 @@ DEFINE_ENUM(EGpuCheckType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TArtifactDescription
-{
-    ESandboxKind SandboxKind;
-    TString Name;
-    bool Executable;
-    bool BypassArtifactCache;
-    bool CopyFile;
-    TArtifactKey Key;
-    TArtifactPtr Artifact;
-    bool AccessedViaBind = false;
-    bool AccessedViaVirtualSandbox = false;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TJob
     : public TRefCounted
 {
@@ -86,7 +71,8 @@ public:
         NControllerAgent::NProto::TJobSpec&& jobSpec,
         TControllerAgentDescriptor agentDescriptor,
         IBootstrap* bootstrap,
-        const TJobCommonConfigPtr& commonConfig);
+        const TJobCommonConfigPtr& commonConfig,
+        TJobFSSecretaryPtr fsSecretary);
 
     ~TJob();
 
@@ -319,7 +305,6 @@ private:
 
     const bool Interruptible_;
     const bool AbortJobIfAccountLimitExceeded_;
-    const bool RootVolumeDiskQuotaEnabled_;
     //! Restrict places allowed for porto volumes and layers.
     const bool RestrictPortoPlace_;
 
@@ -400,38 +385,10 @@ private:
     int SetupCommandCount_ = 0;
 
     std::optional<NControllerAgent::TNetworkProject> NetworkProject_;
-    std::vector<TTmpfsVolumeResult> TmpfsVolumes_;
-
-    std::vector<NScheduler::TVolumeMountPtr> JobVolumeMounts_;
 
     std::atomic<bool> UseJobInputCache_ = false;
 
     NThreading::TAtomicObject<THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr>> ProxiableChunks_;
-
-    std::vector<TArtifactDescription> Artifacts_;
-    std::vector<TArtifactKey> RootVolumeLayerArtifactKeys_;
-    std::vector<TArtifactKey> GpuCheckVolumeLayerArtifactKeys_;
-    std::optional<TString> DockerImage_;
-    std::optional<TString> DockerImageId_;
-
-    std::optional<TVirtualSandboxData> VirtualSandboxData_;
-
-    // COMPAT(krasovav)
-    std::optional<int> RootVolumeDiskSpace_;
-    // COMPAT(krasovav)
-    std::optional<int64_t> RootVolumeInodeLimit_;
-
-    std::optional<TSandboxNbdRootVolumeData> SandboxNbdRootVolumeData_;
-    std::vector<TTmpfsVolumeParams> TmpfsVolumeParams_;
-
-    //! NBD device ids used by the job.
-    THashSet<TString> NbdDeviceIds_;
-
-    //! Artifact name -> index of the artifact in #Artifacts_ list.
-    THashMap<TString, int> UserArtifactNameToIndex_;
-
-    IVolumePtr RootVolume_;
-    IVolumePtr GpuCheckVolume_;
 
     bool IsGpuRequested_;
 
@@ -482,6 +439,8 @@ private:
     NTracing::TTraceContextFinishGuard FinishGuard_;
 
     const IJobInputCachePtr JobInputCache_;
+
+    TJobFSSecretaryPtr FSSecretary_;
 
     bool HasJobTrace_ = false;
 
@@ -535,7 +494,7 @@ private:
 
     bool IsFullHostGpuJob() const;
 
-    void RunWithWorkspaceBuilder();
+    void PrepareWorkspace();
 
     IUserSlotPtr GetUserSlot() const;
     std::vector<TGpuSlotPtr> GetGpuSlots() const;
@@ -583,16 +542,6 @@ private:
     std::vector<NContainers::TBind> GetRootFSBinds();
 
     TNetworkAttributes BuildNetworkAttributes(NControllerAgent::TNetworkProject networkProject) const;
-
-    bool CanBeAccessedViaBind(const TArtifactDescription& artifact) const;
-    bool CanBeAccessedViaVirtualSandbox(const TArtifactDescription& artifact) const;
-
-    // Build artifacts.
-    void InitializeArtifacts();
-
-    void InitializeVolumes();
-
-    THashSet<TString> InitializeNbdDeviceIds();
 
     TArtifactDownloadOptions MakeArtifactDownloadOptions() const;
 
@@ -680,7 +629,8 @@ TJobPtr CreateJob(
     NControllerAgent::NProto::TJobSpec&& jobSpec,
     TControllerAgentDescriptor agentDescriptor,
     IBootstrap* bootstrap,
-    const TJobCommonConfigPtr& commonConfig);
+    const TJobCommonConfigPtr& commonConfig,
+    TJobFSSecretaryPtr fsSecretary);
 
 ////////////////////////////////////////////////////////////////////////////////
 
