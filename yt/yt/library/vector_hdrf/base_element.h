@@ -30,6 +30,7 @@ public:
     double GetSpecifiedResourceFlowRatio() const override;
 
     bool IsStepFunctionForGangOperationsEnabled() const override;
+    bool IsDiscretizedFairShareEnabled() const override;
 
     bool CanAcceptFreeVolume() const override;
 
@@ -76,6 +77,9 @@ class TBaseOperationElement
 {
 public:
     bool IsGangLike() const override;
+    TResourceVector GetPerJobResourceVector() const override;
+    int GetPendingJobCount() const override;
+    std::optional<TResourceVector> GetPreviousCycleFairShare() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

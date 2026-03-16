@@ -31,6 +31,7 @@ TEST_SRCS(
     test_scheduler_resource_limits.py
     test_scheduler_revive.py
     test_scheduler_runtime_parameters.py
+    test_scheduler_discretized_fair_share.py
     test_scheduler_strategy.py
     test_scheduler_user_statistics.py
     test_scheduling_segments.py

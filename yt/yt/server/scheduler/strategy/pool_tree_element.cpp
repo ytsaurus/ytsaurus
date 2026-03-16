@@ -1077,6 +1077,11 @@ bool TPoolTreeCompositeElement::IsStepFunctionForGangOperationsEnabled() const
     return true;
 }
 
+bool TPoolTreeCompositeElement::IsDiscretizedFairShareEnabled() const
+{
+    return false;
+}
+
 const std::vector<TPoolTreeElementPtr>& TPoolTreeCompositeElement::EnabledChildren() const
 {
     return EnabledChildren_;
@@ -1513,6 +1518,11 @@ bool TPoolTreePoolElement::IsStepFunctionForGangOperationsEnabled() const
     return Config_->EnableStepFunctionForGangOperations;
 }
 
+bool TPoolTreePoolElement::IsDiscretizedFairShareEnabled() const
+{
+    return TreeConfig_->EnableDiscretizedFairShare;
+}
+
 bool TPoolTreePoolElement::ShouldComputePromisedGuaranteeFairShare() const
 {
     return Config_->ComputePromisedGuaranteeFairShare;
@@ -1907,6 +1917,8 @@ void TPoolTreeOperationElement::PreUpdate(TFairSharePreUpdateContext* context)
 
 void TPoolTreeOperationElement::BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context)
 {
+    PersistentAttributes_.LastFairShare = Attributes().FairShare.Total;
+
     ResetSchedulableCounters();
     if (IsSchedulable()) {
         ++SchedulableElementCount_;
@@ -2202,6 +2214,21 @@ const TYsonString& TPoolTreeOperationElement::GetTrimmedAnnotations() const
 TResourceVector TPoolTreeOperationElement::GetBestAllocationShare() const
 {
     return PersistentAttributes_.BestAllocationShare;
+}
+
+TResourceVector TPoolTreeOperationElement::GetPerJobResourceVector() const
+{
+    return TResourceVector::FromJobResources(AggregatedInitialMinNeededAllocationResources_, TotalResourceLimits_);
+}
+
+int TPoolTreeOperationElement::GetPendingJobCount() const
+{
+    return TotalNeededResources_.GetUserSlots();
+}
+
+std::optional<TResourceVector> TPoolTreeOperationElement::GetPreviousCycleFairShare() const
+{
+    return PersistentAttributes_.LastFairShare;
 }
 
 bool TPoolTreeOperationElement::IsGangLike() const

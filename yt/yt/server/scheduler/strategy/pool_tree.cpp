@@ -1844,6 +1844,8 @@ private:
                             .EnableImprovedFairShareByFitFactorComputation = config->EnableImprovedFairShareByFitFactorComputation,
                             .EnableImprovedFairShareByFitFactorComputationDistributionGap =
                                 config->EnableImprovedFairShareByFitFactorComputationDistributionGap,
+                            .EnableDiscretizedFairShare = config->EnableDiscretizedFairShare,
+                            .MaxDiscretizedSteps = config->MaxDiscretizedSteps,
                         },
                         fairShareUpdateResult.ResourceLimits,
                         now,
@@ -3572,6 +3574,7 @@ private:
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "best_allocation_share", persistentAttributes.BestAllocationShare)
 
             .ITEM_OPTIONAL_VALUE_IF_SUITABLE_FOR_FILTER(filter, "fair_share_functions_statistics", element->GetFairShareFunctionsStatistics())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "discretized_fair_share_active", attributes.DiscretizedFairShareActive)
 
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "satisfaction_ratio", element->PostUpdateAttributes().SatisfactionRatio)
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "local_satisfaction_ratio", element->PostUpdateAttributes().LocalSatisfactionRatio)

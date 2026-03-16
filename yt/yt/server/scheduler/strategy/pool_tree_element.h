@@ -102,6 +102,8 @@ struct TPersistentAttributes
     TResourceVector BestAllocationShare = TResourceVector::Ones();
     TInstant LastBestAllocationShareUpdateTime;
 
+    std::optional<TResourceVector> LastFairShare;
+
     TIntegralResourcesState IntegralResourcesState;
 
     std::optional<TJobResources> AppliedSpecifiedResourceLimits;
@@ -521,6 +523,7 @@ public:
     bool HasHigherPriorityInFifoMode(const NVectorHdrf::TElement* lhs, const NVectorHdrf::TElement* rhs) const final;
 
     bool IsStepFunctionForGangOperationsEnabled() const override;
+    bool IsDiscretizedFairShareEnabled() const override;
 
     //! Post fair share update methods.
     void UpdateStarvationStatuses(TInstant now, bool enablePoolStarvation) override;
@@ -696,6 +699,7 @@ public:
     TIntegralResourcesState& IntegralResourcesState() override;
 
     bool IsStepFunctionForGangOperationsEnabled() const override;
+    bool IsDiscretizedFairShareEnabled() const override;
 
     bool ShouldComputePromisedGuaranteeFairShare() const override;
 
@@ -891,6 +895,9 @@ public:
     //! Fair share update methods that implements NVectorHdrf::TOperationElement interface.
     TResourceVector GetBestAllocationShare() const override;
     bool IsGangLike() const override;
+    TResourceVector GetPerJobResourceVector() const override;
+    int GetPendingJobCount() const override;
+    std::optional<TResourceVector> GetPreviousCycleFairShare() const override;
 
     //! Post fair share update methods.
     std::optional<TInstant> GetStarvingSince() const;

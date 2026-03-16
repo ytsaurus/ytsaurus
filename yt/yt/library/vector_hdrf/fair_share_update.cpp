@@ -1505,6 +1505,80 @@ bool TOperationElement::IsOperation() const
     return true;
 }
 
+namespace {
+
+// Builds a staircase FairShareByFitFactor function for an operation with |totalSteps| whole-job
+// steps, using the formula: the k-th jump (k=1..totalSteps) occurs at fit factor 2*k/(totalSteps+1),
+// so the last jump is at ff < 2 and a flat tail reaches ff=2 at DemandShare.
+// Only steps in [stepLo, stepHi] are materialized as staircases; outside the window, linear ramps
+// are used as approximations.  When stepLo==0 and stepHi==totalSteps the full staircase is built.
+void BuildDiscretizedStaircase(
+    TVectorPiecewiseLinearFunction::TBuilder& builder,
+    int totalSteps,
+    int stepLo,
+    int stepHi,
+    const TResourceVector& demandShare,
+    const TResourceVector& perJobVector)
+{
+    YT_VERIFY(totalSteps > 0);
+    YT_VERIFY(0 <= stepLo && stepLo <= stepHi && stepHi <= totalSteps);
+
+    auto valueCapped = [&](int k) -> TResourceVector {
+        if (k <= 0) {
+            return TResourceVector::Zero();
+        }
+        return TResourceVector::Min(perJobVector * static_cast<double>(k), demandShare);
+    };
+
+    const double stepFitFactor = 2.0 / (totalSteps + 1);
+
+    auto ffAt = [&](int k) -> double {
+        return k * stepFitFactor;
+    };
+
+    auto valueLo = valueCapped(stepLo);
+    auto valueHi = valueCapped(stepHi);
+
+    double ffLo = ffAt(stepLo);
+    double ffHi = ffAt(stepHi);
+
+    // Linear ramp from (0, Zero) to (ff_lo, value_lo).
+    if (stepLo > 0) {
+        builder.PushSegment({0.0, TResourceVector::Zero()}, {ffLo, valueLo});
+    }
+
+    // Initial flat segment of the staircase window.
+    builder.PushSegment({ffLo, valueLo}, {ffAt(stepLo + 1), valueLo});
+
+    // Staircase steps inside the window.
+    for (int k = stepLo + 1; k <= stepHi; ++k) {
+        double ff = ffAt(k);
+        auto prevValue = valueCapped(k - 1);
+        auto curValue = valueCapped(k);
+
+        // Vertical jump.
+        builder.PushSegment({ff, prevValue}, {ff, curValue});
+
+        // Horizontal at curValue.
+        if (k < stepHi) {
+            builder.PushSegment({ff, curValue}, {ffAt(k + 1), curValue});
+        } else if (stepHi < totalSteps) {
+            // End of window; linear ramp will follow — end the staircase here.
+            // (The ramp segment is pushed below, starting from {ffHi, valueHi}.)
+        } else {
+            // Last step of the full staircase: flat tail to ff=2.
+            builder.PushSegment({ff, curValue}, {2.0, curValue});
+        }
+    }
+
+    // Linear ramp from (ff_hi, value_hi) to (2, demandShare).
+    if (stepHi < totalSteps) {
+        builder.PushSegment({ffHi, valueHi}, {2.0, demandShare});
+    }
+}
+
+} // namespace
+
 void TOperationElement::PrepareFairShareByFitFactor(TFairShareUpdateContext* context)
 {
     TWallTimer timer;
@@ -1521,6 +1595,89 @@ void TOperationElement::PrepareFairShareByFitFactor(TFairShareUpdateContext* con
         builder.PushSegment({0.0, TResourceVector::Zero()}, {1.0, TResourceVector::Zero()});
         builder.PushSegment({1.0, TResourceVector::Zero()}, {1.0, Attributes().DemandShare});
         builder.PushSegment({1.0, Attributes().DemandShare}, {2.0, Attributes().DemandShare});
+    } else if (
+        context->Options.EnableDiscretizedFairShare &&
+        GetParentElement()->IsDiscretizedFairShareEnabled() &&
+        GetPendingJobCount() > 0 &&
+        MaxComponent(GetPerJobResourceVector()) > 0.0)
+    {
+        TWallTimer discretizedTimer;
+        auto finallyDiscretized = Finally([&] {
+            context->PrepareFairShareByFitFactorDiscretizedTotalTime += discretizedTimer.GetElapsedCpuTime();
+        });
+
+        Attributes().DiscretizedFairShareActive = true;
+
+        const auto perJobVector = GetPerJobResourceVector();
+        int pendingJobCount = GetPendingJobCount();
+        auto maxDiscretizedSteps = context->Options.MaxDiscretizedSteps;
+
+        if (pendingJobCount <= maxDiscretizedSteps) {
+            // Small operation: build full staircase.
+            if (AreDetailedLogsEnabled()) {
+                const auto& Logger = GetLogger();
+                YT_LOG_DEBUG(
+                    "Building discretized fair share staircase for small operation "
+                    "(PendingJobCount: %v, PerJobVector: %v, DemandShare: %v)",
+                    pendingJobCount,
+                    perJobVector,
+                    Attributes().DemandShare);
+            }
+            BuildDiscretizedStaircase(
+                builder,
+                pendingJobCount,
+                0,
+                pendingJobCount,
+                Attributes().DemandShare,
+                perJobVector);
+        } else {
+            // Large operation: windowed staircase.
+
+            // Determine the hint for the window center (in job-count space).
+            TResourceVector hint = TResourceVector::Zero();
+            if (auto prevFairShare = GetPreviousCycleFairShare()) {
+                hint = *prevFairShare;
+            } else if (MaxComponent(Attributes().UsageShare) > 0.0) {
+                hint = Attributes().UsageShare;
+            }
+
+            // Convert hint to job count on the dominant resource.
+            int hintPendingJobCount = 0;
+            const double perJobDominant = perJobVector[Attributes().DominantResource];
+            if (perJobDominant > 0.0) {
+                const double hintDominant = hint[Attributes().DominantResource];
+                hintPendingJobCount = static_cast<int>(std::round(hintDominant / perJobDominant));
+                hintPendingJobCount = std::clamp(hintPendingJobCount, 0, pendingJobCount);
+            }
+
+            // Compute window bounds.
+            int windowStepLo = std::max(0, hintPendingJobCount - maxDiscretizedSteps / 2);
+            int windowStepHi = std::min(pendingJobCount, windowStepLo + maxDiscretizedSteps);
+            windowStepLo = std::max(0, windowStepHi - maxDiscretizedSteps);  // Re-clamp in case we hit the upper boundary.
+
+            if (AreDetailedLogsEnabled()) {
+                const auto& Logger = GetLogger();
+                YT_LOG_DEBUG(
+                    "Building discretized fair share windowed staircase for large operation "
+                    "(PendingJobCount: %v, MaxSteps: %v, Window: [%v, %v], HintJobCount: %v, "
+                    "PerJobVector: %v, DemandShare: %v)",
+                    pendingJobCount,
+                    maxDiscretizedSteps,
+                    windowStepLo,
+                    windowStepHi,
+                    hintPendingJobCount,
+                    perJobVector,
+                    Attributes().DemandShare);
+            }
+
+            BuildDiscretizedStaircase(
+                builder,
+                pendingJobCount,
+                windowStepLo,
+                windowStepHi,
+                Attributes().DemandShare,
+                perJobVector);
+        }
     } else {
         // First we try to satisfy the current usage by giving equal fair share for each resource.
         // More precisely, for fit factor 0 <= f <= 1, fair share for resource r will be equal to min(usage[r], f * maxUsage).

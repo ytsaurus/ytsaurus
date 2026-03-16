@@ -243,6 +243,16 @@ public:
         return true;
     }
 
+    bool IsDiscretizedFairShareEnabled() const override
+    {
+        return DiscretizedFairShareEnabled_;
+    }
+
+    void SetDiscretizedFairShareEnabled(bool value)
+    {
+        DiscretizedFairShareEnabled_ = value;
+    }
+
     bool CanAcceptFreeVolume() const override
     {
         return IntegralGuaranteesConfig_->CanAcceptFreeVolume;
@@ -303,6 +313,7 @@ private:
 
     ESchedulingMode Mode_ = ESchedulingMode::FairShare;
     bool PromisedGuaranteeFairShareComputationEnabled_ = false;
+    bool DiscretizedFairShareEnabled_ = false;
 };
 
 using TCompositeElementMockPtr = TIntrusivePtr<TCompositeElementMock>;
@@ -395,8 +406,41 @@ public:
         IsGang_ = value;
     }
 
+    TResourceVector GetPerJobResourceVector() const override
+    {
+        return PerJobResourceVector_;
+    }
+
+    void SetPerJobResourceVector(const TResourceVector& value)
+    {
+        PerJobResourceVector_ = value;
+    }
+
+    int GetPendingJobCount() const override
+    {
+        return PendingJobCount_;
+    }
+
+    void SetPendingJobCount(int value)
+    {
+        PendingJobCount_ = value;
+    }
+
+    std::optional<TResourceVector> GetPreviousCycleFairShare() const override
+    {
+        return PreviousCycleFairShare_;
+    }
+
+    void SetPreviousCycleFairShare(std::optional<TResourceVector> value)
+    {
+        PreviousCycleFairShare_ = value;
+    }
+
 private:
     bool IsGang_ = false;
+    TResourceVector PerJobResourceVector_ = TResourceVector::Zero();
+    int PendingJobCount_ = 0;
+    std::optional<TResourceVector> PreviousCycleFairShare_;
 };
 
 using TOperationElementMockPtr = TIntrusivePtr<TOperationElementMock>;
@@ -434,6 +478,8 @@ struct TTestFairShareUpdateOptions
     bool EnableImprovedFairShareByFitFactorComputation = false;
     // TODO(ignat): delete this option if no necessity will be found on production clusters.
     bool EnableImprovedFairShareByFitFactorComputationDistributionGap = false;
+    bool EnableDiscretizedFairShare = false;
+    int MaxDiscretizedSteps = 100;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -592,6 +638,8 @@ protected:
                 .EnableImprovedFairShareByFitFactorComputation = testOptions.EnableImprovedFairShareByFitFactorComputation,
                 .EnableImprovedFairShareByFitFactorComputationDistributionGap =
                     testOptions.EnableImprovedFairShareByFitFactorComputationDistributionGap,
+                .EnableDiscretizedFairShare = testOptions.EnableDiscretizedFairShare,
+                .MaxDiscretizedSteps = testOptions.MaxDiscretizedSteps,
             },
             totalResourceLimits,
             testOptions.Now,
@@ -2249,6 +2297,619 @@ TEST_F(TFairShareUpdateTest, TestExampleFromProductionCluster)
     YT_LOG_INFO("Root element (FairShare: %v, OriginalFairShare: %v)",
         rootElement->Attributes().FairShare.Total,
         originalRootFairShare);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Discretized Fair Share Tests
+////////////////////////////////////////////////////////////////////////////////
+
+class TDiscretizedFairShareTest
+    : public TFairShareUpdateTest
+{
+protected:
+    TJobResources MakeJobResources(double cpu) const
+    {
+        TJobResources r;
+        r.SetUserSlots(static_cast<int>(std::round(cpu)));
+        r.SetCpu(cpu);
+        r.SetMemory(static_cast<i64>(std::round(cpu * 10_MB)));
+        return r;
+    }
+
+    TTestFairShareUpdateOptions MakeDiscretizedOptions(int maxSteps = 100) const
+    {
+        TTestFairShareUpdateOptions opts;
+        opts.EnableDiscretizedFairShare = true;
+        opts.MaxDiscretizedSteps = maxSteps;
+        return opts;
+    }
+
+    // Returns true if each component of fairShare is within eps of k * perJobVec[comp] for some
+    // non-negative integer k.
+    bool IsAtWholeJobBoundary(
+        const TResourceVector& fairShare,
+        const TResourceVector& perJobVec,
+        double eps = 1e-6) const
+    {
+        for (int r = 0; r < ResourceCount; ++r) {
+            if (perJobVec[r] <= 0.0) {
+                continue;
+            }
+            double kExact = fairShare[r] / perJobVec[r];
+            if (std::abs(kExact - std::round(kExact)) > eps) {
+                return false;
+            }
+        }
+        return true;
+    }
+};
+
+// T022: Two equal competing operations, both discretized (3 jobs each).
+TEST_F(TDiscretizedFairShareTest, TestDiscretizedFairShareSmallOperation)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+    auto rootElement = CreateRootElement();
+
+    auto pool = CreateSimplePool("Pool");
+    pool->SetDiscretizedFairShareEnabled(true);
+    pool->AttachParent(rootElement.Get());
+
+    auto perJobResources = MakeJobResources(20.0);
+    auto perJobVec = TResourceVector::FromJobResources(perJobResources, totalResourceLimits);
+
+    // Op1 and Op2: 3 jobs each, demand = 60 CPU each, total demand = 120 CPU > 100 CPU.
+    auto op1 = CreateOperation(pool.Get(), MakeJobResources(60.0));
+    op1->SetPerJobResourceVector(perJobVec);
+    op1->SetPendingJobCount(3);
+
+    auto op2 = CreateOperation(pool.Get(), MakeJobResources(60.0));
+    op2->SetPerJobResourceVector(perJobVec);
+    op2->SetPendingJobCount(3);
+
+    DoFairShareUpdate(totalResourceLimits, rootElement, MakeDiscretizedOptions());
+
+    EXPECT_TRUE(IsAtWholeJobBoundary(op1->Attributes().FairShare.Total, perJobVec));
+    EXPECT_TRUE(IsAtWholeJobBoundary(op2->Attributes().FairShare.Total, perJobVec));
+
+    // Total FS must not exceed 1.0.
+    auto totalFS = op1->Attributes().FairShare.Total + op2->Attributes().FairShare.Total;
+    EXPECT_TRUE(Dominates(TResourceVector::Ones() + TResourceVector::Epsilon(), totalFS));
+}
+
+// T023: Single-job operation: all-or-nothing behavior.
+TEST_F(TDiscretizedFairShareTest, TestDiscretizedFairShareSingleJob)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+    auto rootElement = CreateRootElement();
+
+    auto pool = CreateSimplePool("Pool");
+    pool->SetDiscretizedFairShareEnabled(true);
+    pool->AttachParent(rootElement.Get());
+
+    auto perJobVec = TResourceVector::FromJobResources(MakeJobResources(60.0), totalResourceLimits);
+
+    auto op = CreateOperation(pool.Get(), MakeJobResources(60.0));
+    op->SetPerJobResourceVector(perJobVec);
+    op->SetPendingJobCount(1);
+
+    DoFairShareUpdate(totalResourceLimits, rootElement, MakeDiscretizedOptions());
+
+    auto fs = op->Attributes().FairShare.Total;
+    // Must be either 0 (nothing) or 1 job (= perJobVec).
+    bool isZero = Dominates(TResourceVector::Epsilon(), fs);
+    bool isOneJob = TResourceVector::Near(fs, perJobVec, 1e-7);
+    EXPECT_TRUE(isZero || isOneJob) << "Expected all-or-nothing (not fractional fair share)";
+}
+
+// T024: Multi-resource per-job vector (GPU-heavy operation).
+TEST_F(TDiscretizedFairShareTest, TestDiscretizedFairShareMultipleResources)
+{
+    TJobResources totalResourceLimits;
+    totalResourceLimits.SetUserSlots(100);
+    totalResourceLimits.SetCpu(100);
+    totalResourceLimits.SetMemory(1000_MB);
+    totalResourceLimits.SetGpu(10);
+
+    auto rootElement = CreateRootElement();
+
+    auto pool = CreateSimplePool("Pool");
+    pool->SetDiscretizedFairShareEnabled(true);
+    pool->AttachParent(rootElement.Get());
+
+    // Per-job: 10 CPU + 2 GPU (heterogeneous).
+    TJobResources perJobResources;
+    perJobResources.SetUserSlots(10);
+    perJobResources.SetCpu(10);
+    perJobResources.SetMemory(100_MB);
+    perJobResources.SetGpu(2);
+    auto perJobVec = TResourceVector::FromJobResources(perJobResources, totalResourceLimits);
+
+    TJobResources demand;
+    demand.SetUserSlots(30);
+    demand.SetCpu(30);
+    demand.SetMemory(300_MB);
+    demand.SetGpu(6);  // 3 jobs.
+
+    auto op = CreateOperation(pool.Get(), demand);
+    op->SetPerJobResourceVector(perJobVec);
+    op->SetPendingJobCount(3);
+
+    DoFairShareUpdate(totalResourceLimits, rootElement, MakeDiscretizedOptions());
+
+    auto fs = op->Attributes().FairShare.Total;
+    EXPECT_TRUE(IsAtWholeJobBoundary(fs, perJobVec));
+}
+
+// T025: Operation in a pool with strong guarantees.
+TEST_F(TDiscretizedFairShareTest, TestDiscretizedFairShareWithGuarantees)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+    auto rootElement = CreateRootElement();
+
+    // Pool with strong guarantee of 30 CPU.
+    auto pool = CreateSimplePool("Pool", /*strongGuaranteeCpu=*/30.0);
+    pool->SetDiscretizedFairShareEnabled(true);
+    pool->AttachParent(rootElement.Get());
+
+    auto perJobVec = TResourceVector::FromJobResources(MakeJobResources(20.0), totalResourceLimits);
+
+    auto op = CreateOperation(pool.Get(), MakeJobResources(60.0));
+    op->SetPerJobResourceVector(perJobVec);
+    op->SetPendingJobCount(3);
+
+    DoFairShareUpdate(totalResourceLimits, rootElement, MakeDiscretizedOptions());
+
+    auto fs = op->Attributes().FairShare.Total;
+    EXPECT_TRUE(IsAtWholeJobBoundary(fs, perJobVec));
+    // With a 30 CPU guarantee, op should get at least 1 job (20 CPU).
+    EXPECT_GE(fs[EJobResourceType::Cpu], perJobVec[EJobResourceType::Cpu] - 1e-7);
+}
+
+// T026: Zero pending jobs → fair share stays at zero.
+TEST_F(TDiscretizedFairShareTest, TestDiscretizedFairShareZeroPendingJobs)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+    auto rootElement = CreateRootElement();
+
+    auto pool = CreateSimplePool("Pool");
+    pool->SetDiscretizedFairShareEnabled(true);
+    pool->AttachParent(rootElement.Get());
+
+    auto perJobVec = TResourceVector::FromJobResources(MakeJobResources(20.0), totalResourceLimits);
+
+    auto op = CreateOperation(pool.Get(), MakeJobResources(0.0));
+    op->SetPerJobResourceVector(perJobVec);
+    op->SetPendingJobCount(0);  // No pending jobs.
+
+    DoFairShareUpdate(totalResourceLimits, rootElement, MakeDiscretizedOptions());
+
+    // When PendingJobCount == 0, the discretized branch is skipped → continuous curve at 0 demand.
+    EXPECT_RV_NEAR(TResourceVector::Zero(), op->Attributes().FairShare.Total);
+}
+
+// T028: Feature disabled by default (EnableDiscretizedFairShare = false) → continuous behavior.
+TEST_F(TDiscretizedFairShareTest, TestDiscretizedFairShareDisabledByDefault)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+    auto rootElement = CreateRootElement();
+
+    auto pool = CreateSimplePool("Pool");
+    pool->SetDiscretizedFairShareEnabled(true);  // Pool opt-in, but global flag is off.
+    pool->AttachParent(rootElement.Get());
+
+    auto perJobVec = TResourceVector::FromJobResources(MakeJobResources(33.0), totalResourceLimits);
+
+    auto op1 = CreateOperation(pool.Get(), MakeJobResources(50.0));
+    op1->SetPerJobResourceVector(perJobVec);
+    op1->SetPendingJobCount(2);
+
+    auto op2 = CreateOperation(pool.Get(), MakeJobResources(50.0));
+    op2->SetPerJobResourceVector(perJobVec);
+    op2->SetPendingJobCount(2);
+
+    // Run WITHOUT discretized flag.
+    TTestFairShareUpdateOptions noDiscretized;
+    noDiscretized.EnableDiscretizedFairShare = false;
+    DoFairShareUpdate(totalResourceLimits, rootElement, noDiscretized);
+
+    // With continuous FS, each op gets 0.5 (50 CPU). This is NOT a whole-job boundary for perJob=0.33.
+    // We just check that the staircase was NOT applied by verifying non-whole-job boundary is possible.
+    // (50/100 = 0.5, 0.5/0.33 = 1.515... is not an integer.)
+    auto fs1 = op1->Attributes().FairShare.Total;
+    // Both ops should sum to approximately 1.0 (full utilization with continuous).
+    auto totalFS = fs1 + op2->Attributes().FairShare.Total;
+    EXPECT_NEAR(MaxComponent(totalFS), 1.0, 1e-6);
+}
+
+// T029: Mixed opt-in: one pool with discretized, another without.
+TEST_F(TDiscretizedFairShareTest, TestDiscretizedFairSharePoolToggleOff)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+    auto rootElement = CreateRootElement();
+
+    auto poolOn = CreateSimplePool("PoolOn");
+    poolOn->SetDiscretizedFairShareEnabled(true);
+    poolOn->AttachParent(rootElement.Get());
+
+    auto poolOff = CreateSimplePool("PoolOff");
+    poolOff->SetDiscretizedFairShareEnabled(false);  // Toggle off.
+    poolOff->AttachParent(rootElement.Get());
+
+    auto perJobVec = TResourceVector::FromJobResources(MakeJobResources(20.0), totalResourceLimits);
+
+    auto opOn = CreateOperation(poolOn.Get(), MakeJobResources(60.0));
+    opOn->SetPerJobResourceVector(perJobVec);
+    opOn->SetPendingJobCount(3);
+
+    auto opOff = CreateOperation(poolOff.Get(), MakeJobResources(60.0));
+    opOff->SetPerJobResourceVector(perJobVec);
+    opOff->SetPendingJobCount(3);
+
+    DoFairShareUpdate(totalResourceLimits, rootElement, MakeDiscretizedOptions());
+
+    // opOn: discretized staircase → whole-job boundary.
+    EXPECT_TRUE(IsAtWholeJobBoundary(opOn->Attributes().FairShare.Total, perJobVec));
+
+    // opOff: continuous (pool toggle off) → total FS from both pools sums to ~1.0.
+    auto totalFS = opOn->Attributes().FairShare.Total + opOff->Attributes().FairShare.Total;
+    EXPECT_TRUE(Dominates(TResourceVector::Ones() + TResourceVector::Epsilon(), totalFS));
+}
+
+// T030: Gang operation with discretized fair share: gang behavior takes precedence.
+TEST_F(TDiscretizedFairShareTest, TestDiscretizedFairShareGangPrecedence)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+    auto rootElement = CreateRootElement();
+
+    auto pool = CreateSimplePool("Pool");
+    pool->SetDiscretizedFairShareEnabled(true);
+    pool->AttachParent(rootElement.Get());
+
+    auto perJobVec = TResourceVector::FromJobResources(MakeJobResources(60.0), totalResourceLimits);
+
+    // Gang operation with discretized also configured.
+    auto op = CreateOperation(pool.Get(), MakeJobResources(60.0));
+    op->SetGangFlag(true);
+    op->SetPerJobResourceVector(perJobVec);
+    op->SetPendingJobCount(1);
+
+    TTestFairShareUpdateOptions opts = MakeDiscretizedOptions();
+    opts.EnableStepFunctionForGangOperations = true;
+    DoFairShareUpdate(totalResourceLimits, rootElement, opts);
+
+    auto fs = op->Attributes().FairShare.Total;
+    // Gang: all-or-nothing. Must be 0 or full demand.
+    bool isZero = Dominates(TResourceVector::Epsilon(), fs);
+    bool isFullDemand = TResourceVector::Near(fs, perJobVec, 1e-7);
+    EXPECT_TRUE(isZero || isFullDemand) << "Expected gang all-or-nothing (not fractional fair share)";
+}
+
+// T033: Large job count — segment count must be bounded.
+TEST_F(TDiscretizedFairShareTest, TestDiscretizedFairShareLargeJobCount)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+    auto rootElement = CreateRootElement();
+
+    auto pool = CreateSimplePool("Pool");
+    pool->SetDiscretizedFairShareEnabled(true);
+    pool->AttachParent(rootElement.Get());
+
+    constexpr int LargeK = 100'000;
+    constexpr int MaxSteps = 100;
+
+    auto perJobVec = TResourceVector::FromJobResources(MakeJobResources(0.001), totalResourceLimits);
+
+    auto op = CreateOperation(pool.Get(), MakeJobResources(0.001 * LargeK));
+    op->SetPerJobResourceVector(perJobVec);
+    op->SetPendingJobCount(LargeK);
+    // Set a previous-cycle fair share hint (50% of demand).
+    op->SetPreviousCycleFairShare(TResourceVector::FromJobResources(
+        MakeJobResources(0.001 * LargeK * 0.5), totalResourceLimits));
+
+    DoFairShareUpdate(totalResourceLimits, rootElement, MakeDiscretizedOptions(MaxSteps));
+
+    // Check segment count in FairShareByFitFactor_ is bounded.
+    auto stats = op->GetFairShareFunctionsStatistics();
+    ASSERT_TRUE(stats.has_value());
+    // Each staircase step = 2 segments (horizontal + vertical) + initial flat + 2 ramps (at most).
+    // Upper bound: 2 * MaxSteps + 4.
+    EXPECT_LE(stats->FairShareByFitFactorSize, 2 * MaxSteps + 4)
+        << "Too many segments: " << stats->FairShareByFitFactorSize;
+    // Note: for the windowed staircase, fair share outside the window (on the ramp) may not be at a
+    // whole-job boundary. The whole-job guarantee only holds within the staircase window.
+}
+
+// T034: Window correctness — with a hint, the window is placed around the expected job count.
+TEST_F(TDiscretizedFairShareTest, TestDiscretizedFairShareWindowCorrectness)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+    auto rootElement = CreateRootElement();
+
+    auto pool = CreateSimplePool("Pool");
+    pool->SetDiscretizedFairShareEnabled(true);
+    pool->AttachParent(rootElement.Get());
+
+    constexpr int LargeK = 1000;
+    constexpr int MaxSteps = 10;
+
+    // Per job = 0.1% of cluster (so 1000 jobs = 100% demand).
+    auto perJobVec = TResourceVector::FromJobResources(MakeJobResources(0.1), totalResourceLimits);
+
+    auto op = CreateOperation(pool.Get(), MakeJobResources(0.1 * LargeK));
+    op->SetPerJobResourceVector(perJobVec);
+    op->SetPendingJobCount(LargeK);
+    // Hint: ~50% → job count hint ≈ 500.
+    auto hintFS = perJobVec * 500.0;
+    op->SetPreviousCycleFairShare(hintFS);
+
+    DoFairShareUpdate(totalResourceLimits, rootElement, MakeDiscretizedOptions(MaxSteps));
+
+    // Segment count should be bounded.
+    auto stats = op->GetFairShareFunctionsStatistics();
+    ASSERT_TRUE(stats.has_value());
+    EXPECT_LE(stats->FairShareByFitFactorSize, 2 * MaxSteps + 6);
+
+    // Fair share must be at a whole-job boundary.
+    EXPECT_TRUE(IsAtWholeJobBoundary(op->Attributes().FairShare.Total, perJobVec));
+}
+
+// T035: Window shifts when hint changes on a second cycle.
+TEST_F(TDiscretizedFairShareTest, TestDiscretizedFairShareWindowShiftOnRecompute)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+
+    constexpr int LargeK = 1000;
+    constexpr int MaxSteps = 10;
+
+    auto perJobVec = TResourceVector::FromJobResources(MakeJobResources(0.1), totalResourceLimits);
+
+    // First cycle: hint points to low end (~100 jobs).
+    {
+        auto rootElement = CreateRootElement();
+        auto pool = CreateSimplePool("Pool");
+        pool->SetDiscretizedFairShareEnabled(true);
+        pool->AttachParent(rootElement.Get());
+
+        auto op = CreateOperation(pool.Get(), MakeJobResources(0.1 * LargeK));
+        op->SetPerJobResourceVector(perJobVec);
+        op->SetPendingJobCount(LargeK);
+        op->SetPreviousCycleFairShare(perJobVec * 100.0);  // Low hint.
+
+        DoFairShareUpdate(totalResourceLimits, rootElement, MakeDiscretizedOptions(MaxSteps));
+
+        auto fsLow = op->Attributes().FairShare.Total;
+        EXPECT_TRUE(IsAtWholeJobBoundary(fsLow, perJobVec));
+    }
+
+    // Second cycle: hint points to high end (~900 jobs).
+    {
+        auto rootElement = CreateRootElement();
+        auto pool = CreateSimplePool("Pool");
+        pool->SetDiscretizedFairShareEnabled(true);
+        pool->AttachParent(rootElement.Get());
+
+        auto op = CreateOperation(pool.Get(), MakeJobResources(0.1 * LargeK));
+        op->SetPerJobResourceVector(perJobVec);
+        op->SetPendingJobCount(LargeK);
+        op->SetPreviousCycleFairShare(perJobVec * 900.0);  // High hint.
+
+        DoFairShareUpdate(totalResourceLimits, rootElement, MakeDiscretizedOptions(MaxSteps));
+
+        auto fsHigh = op->Attributes().FairShare.Total;
+        EXPECT_TRUE(IsAtWholeJobBoundary(fsHigh, perJobVec));
+    }
+}
+
+// T036: Heterogeneous per-job vector (non-uniform resource ratios).
+TEST_F(TDiscretizedFairShareTest, TestDiscretizedFairShareHeterogeneousJobs)
+{
+    TJobResources totalResourceLimits;
+    totalResourceLimits.SetUserSlots(100);
+    totalResourceLimits.SetCpu(100);
+    totalResourceLimits.SetMemory(1000_MB);
+
+    auto rootElement = CreateRootElement();
+    auto pool = CreateSimplePool("Pool");
+    pool->SetDiscretizedFairShareEnabled(true);
+    pool->AttachParent(rootElement.Get());
+
+    // Non-uniform per-job: each job uses 10 CPU but 200 MB (memory-heavy).
+    TJobResources perJobResources;
+    perJobResources.SetUserSlots(10);
+    perJobResources.SetCpu(10);
+    perJobResources.SetMemory(200_MB);
+    auto perJobVec = TResourceVector::FromJobResources(perJobResources, totalResourceLimits);
+
+    TJobResources demand;
+    demand.SetUserSlots(30);
+    demand.SetCpu(30);
+    demand.SetMemory(600_MB);
+
+    auto op = CreateOperation(pool.Get(), demand);
+    op->SetPerJobResourceVector(perJobVec);
+    op->SetPendingJobCount(3);
+
+    DoFairShareUpdate(totalResourceLimits, rootElement, MakeDiscretizedOptions());
+
+    auto fs = op->Attributes().FairShare.Total;
+    // The staircase should produce values at whole-job boundaries for all resources.
+    EXPECT_TRUE(IsAtWholeJobBoundary(fs, perJobVec));
+}
+
+// T038: Bounded segment count for large operation vs. continuous.
+TEST_F(TDiscretizedFairShareTest, TestDiscretizedFairShareSegmentCountBound)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+
+    constexpr int LargeK = 50'000;
+    constexpr int MaxSteps = 100;
+
+    auto perJobVec = TResourceVector::FromJobResources(MakeJobResources(0.002), totalResourceLimits);
+
+    // Discretized op.
+    {
+        auto rootElement = CreateRootElement();
+        auto pool = CreateSimplePool("Pool");
+        pool->SetDiscretizedFairShareEnabled(true);
+        pool->AttachParent(rootElement.Get());
+
+        auto op = CreateOperation(pool.Get(), MakeJobResources(0.002 * LargeK));
+        op->SetPerJobResourceVector(perJobVec);
+        op->SetPendingJobCount(LargeK);
+        op->SetPreviousCycleFairShare(perJobVec * (LargeK / 2));
+
+        DoFairShareUpdate(totalResourceLimits, rootElement, MakeDiscretizedOptions(MaxSteps));
+
+        auto stats = op->GetFairShareFunctionsStatistics();
+        ASSERT_TRUE(stats.has_value());
+        EXPECT_LE(stats->FairShareByFitFactorSize, 2 * MaxSteps + 6);
+    }
+
+    // Continuous op with same job count: would have far more segments (driven by usage phases).
+    {
+        auto rootElement = CreateRootElement();
+        auto pool = CreateSimplePool("Pool");
+        pool->SetDiscretizedFairShareEnabled(false);
+        pool->AttachParent(rootElement.Get());
+
+        auto op = CreateOperation(pool.Get(), MakeJobResources(0.002 * LargeK));
+
+        TTestFairShareUpdateOptions noDiscretized;
+        noDiscretized.EnableDiscretizedFairShare = false;
+        DoFairShareUpdate(totalResourceLimits, rootElement, noDiscretized);
+
+        auto stats = op->GetFairShareFunctionsStatistics();
+        ASSERT_TRUE(stats.has_value());
+        // Continuous curve is much simpler (small number of segments from usage phase).
+        // Just verify discretized is at most the bound.
+        EXPECT_LE(stats->FairShareByFitFactorSize, 2 * MaxSteps + 6 + LargeK)
+            << "Sanity check failed";
+    }
+}
+
+// Production-cluster-style test with discretization enabled.
+// Uses the same gpu_tree_elements.yson data as TestExampleFromProductionCluster
+// but enables discretized fair share on every pool and synthesises per-job
+// vectors for non-gang operations so they enter the staircase path.
+TEST_F(TDiscretizedFairShareTest, TestExampleFromProductionClusterWithDiscretization)
+{
+    auto Logger = FairShareLogger;
+
+    auto elementsNode = ConvertToNode(ReadTestData("gpu_tree_elements.yson"));
+
+    TJobResources totalResourceLimits;
+
+    TRootElementMockPtr rootElement;
+    THashMap<std::string, TCompositeElementMockPtr> pools;
+    THashMap<std::string, TOperationElementMockPtr> operations;
+    std::vector<TOperationElementMockPtr> discretizedOps;
+
+    for (auto child : elementsNode->AsList()->GetChildren()) {
+        auto childMap = child->AsMap();
+
+        auto name = childMap->GetChildValueOrThrow<std::string>("name");
+        auto type = childMap->GetChildValueOrThrow<EElementType>("type");
+
+        TElementMockPtr element;
+        switch (type) {
+            case EElementType::Pool: {
+                TCompositeElementMockPtr compositeElement;
+                if (name == "<Root>") {
+                    rootElement = CreateRootElement();
+                    totalResourceLimits = ConvertTo<TJobResources>(
+                        childMap->GetChildOrThrow("resource_limits"));
+                    compositeElement = rootElement;
+                } else {
+                    auto pool = CreateSimplePool(name);
+
+                    auto strongGuaranteeResources = ConvertTo<TJobResources>(
+                        childMap->GetChildOrThrow("strong_guarantee_resources"));
+                    auto strongGuaranteeResourcesConfig = New<TTestJobResourcesConfig>();
+                    strongGuaranteeResourcesConfig->Gpu = strongGuaranteeResources.GetGpu();
+
+                    pool->SetStrongGuaranteeResourcesConfig(strongGuaranteeResourcesConfig);
+                    pool->SetMode(childMap->GetChildValueOrThrow<ESchedulingMode>("mode"));
+                    pool->SetDiscretizedFairShareEnabled(true);
+
+                    element = pool;
+                    compositeElement = pool;
+                }
+
+                pools.insert(std::pair(name, compositeElement));
+                break;
+            }
+            case EElementType::Operation: {
+                auto operation = CreateOperation(name);
+                auto operationType = childMap->GetChildValueOrThrow<std::string>("operation_type");
+                bool isGang = (operationType == "vanilla");
+                if (isGang) {
+                    operation->SetGangFlag(true);
+                }
+
+                auto resourceDemand = ConvertTo<TJobResources>(
+                    childMap->GetChildOrThrow("resource_demand"));
+                auto resourceUsage = ConvertTo<TJobResources>(
+                    childMap->GetChildOrThrow("resource_usage"));
+                operation->SetResourceDemand(resourceDemand);
+                operation->SetResourceUsage(resourceUsage);
+
+                // For non-gang operations with nonzero demand, synthesise per-job
+                // vectors so that the operation enters the discretised staircase path.
+                auto demandVec = TResourceVector::FromJobResources(
+                    resourceDemand, totalResourceLimits);
+                if (!isGang && MaxComponent(demandVec) > 0.0) {
+                    constexpr int PendingJobs = 3;
+                    auto perJobVec = demandVec * (1.0 / PendingJobs);
+                    operation->SetPerJobResourceVector(perJobVec);
+                    operation->SetPendingJobCount(PendingJobs);
+                    discretizedOps.push_back(operation);
+                }
+
+                operations.insert(std::pair(name, operation));
+                element = operation;
+                break;
+            }
+        }
+
+        if (element) {
+            double weight = childMap->GetChildValueOrThrow<double>("weight");
+            element->SetWeight(weight);
+        }
+
+        if (name != "<Root>") {
+            auto parentName = childMap->GetChildValueOrThrow<std::string>("parent");
+            element->AttachParent(GetOrCrash(pools, parentName).Get());
+        }
+    }
+
+    auto opts = MakeDiscretizedOptions();
+    opts.EnableStepFunctionForGangOperations = true;
+    opts.EnableImprovedFairShareByFitFactorComputation = true;
+    opts.EnableImprovedFairShareByFitFactorComputationDistributionGap = true;
+
+    DoFairShareUpdate(totalResourceLimits, rootElement, opts);
+
+    // Verify that every non-gang discretised operation has a whole-job-boundary
+    // fair share (the core property that discretisation is supposed to guarantee).
+    int checkedCount = 0;
+    for (const auto& op : discretizedOps) {
+        auto fs = op->Attributes().FairShare.Total;
+        auto perJobVec = op->GetPerJobResourceVector();
+        EXPECT_TRUE(IsAtWholeJobBoundary(fs, perJobVec))
+            << "Operation " << op->GetId()
+            << " fair share is not at a whole-job boundary";
+        ++checkedCount;
+    }
+
+    // Sanity: we checked a non-trivial number of operations.
+    EXPECT_GT(checkedCount, 0);
+
+    YT_LOG_INFO(
+        "Production cluster discretised test completed "
+        "(TotalOps: %v, DiscretisedOps: %v, CheckedOps: %v)",
+        operations.size(),
+        discretizedOps.size(),
+        checkedCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

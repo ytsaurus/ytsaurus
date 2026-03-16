@@ -502,6 +502,9 @@ struct TStrategyTreeConfig
     bool EnableImprovedFairShareByFitFactorComputation;
     bool EnableImprovedFairShareByFitFactorComputationDistributionGap;
 
+    bool EnableDiscretizedFairShare;
+    int MaxDiscretizedSteps;
+
     TJobResourcesConfigPtr MinJobResourceLimits;
     TJobResourcesConfigPtr MaxJobResourceLimits;
     TJobResourcesWithDiskConfigPtr GuaranteedJobResources;

@@ -87,6 +87,8 @@ struct TSchedulableAttributes
 
     std::optional<int> FifoIndex;
 
+    bool DiscretizedFairShareActive = false;
+
     TResourceVector GetGuaranteeShare() const;
 
     const TDetailedFairShare& GetFairShare(EFairShareType type = EFairShareType::Regular) const;
@@ -209,6 +211,7 @@ public:
     virtual double GetSpecifiedResourceFlowRatio() const = 0;
 
     virtual bool IsStepFunctionForGangOperationsEnabled() const = 0;
+    virtual bool IsDiscretizedFairShareEnabled() const = 0;
     virtual bool CanAcceptFreeVolume() const = 0;
     virtual bool ShouldDistributeFreeVolumeAmongChildren() const = 0;
 
@@ -343,6 +346,10 @@ public:
     // TODO(eshcherbin): Choose better name.
     virtual bool IsGangLike() const = 0;
 
+    virtual TResourceVector GetPerJobResourceVector() const = 0;
+    virtual int GetPendingJobCount() const = 0;
+    virtual std::optional<TResourceVector> GetPreviousCycleFairShare() const = 0;
+
 private:
     void PrepareFairShareByFitFactor(TFairShareUpdateContext* context) override;
 
@@ -373,6 +380,9 @@ struct TFairShareUpdateOptions
     bool EnableStepFunctionForGangOperations = false;
     bool EnableImprovedFairShareByFitFactorComputation = false;
     bool EnableImprovedFairShareByFitFactorComputationDistributionGap = false;
+
+    bool EnableDiscretizedFairShare = false;
+    int MaxDiscretizedSteps = 100;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -401,6 +411,7 @@ struct TFairShareUpdateContext
 
     NProfiling::TCpuDuration PrepareFairShareByFitFactorTotalTime = {};
     NProfiling::TCpuDuration PrepareFairShareByFitFactorOperationsTotalTime = {};
+    NProfiling::TCpuDuration PrepareFairShareByFitFactorDiscretizedTotalTime = {};
     NProfiling::TCpuDuration PrepareFairShareByFitFactorFifoTotalTime = {};
     NProfiling::TCpuDuration PrepareFairShareByFitFactorNormalTotalTime = {};
     NProfiling::TCpuDuration PrepareMaxFitFactorBySuggestionTotalTime = {};

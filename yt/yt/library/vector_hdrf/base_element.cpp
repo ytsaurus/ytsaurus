@@ -34,6 +34,11 @@ bool TBaseCompositeElement::IsStepFunctionForGangOperationsEnabled() const
     return false;
 }
 
+bool TBaseCompositeElement::IsDiscretizedFairShareEnabled() const
+{
+    return false;
+}
+
 bool TBaseCompositeElement::CanAcceptFreeVolume() const
 {
     return false;
@@ -86,6 +91,21 @@ EIntegralGuaranteeType TBasePool::GetIntegralGuaranteeType() const
 bool TBaseOperationElement::IsGangLike() const
 {
     return false;
+}
+
+TResourceVector TBaseOperationElement::GetPerJobResourceVector() const
+{
+    return TResourceVector::Zero();
+}
+
+int TBaseOperationElement::GetPendingJobCount() const
+{
+    return 0;
+}
+
+std::optional<TResourceVector> TBaseOperationElement::GetPreviousCycleFairShare() const
+{
+    return std::nullopt;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

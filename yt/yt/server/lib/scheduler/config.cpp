@@ -651,6 +651,11 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("enable_improved_fair_share_by_fit_factor_computation_distribution_gap", &TThis::EnableImprovedFairShareByFitFactorComputationDistributionGap)
         .Default(false);
+    registrar.Parameter("enable_discretized_fair_share", &TThis::EnableDiscretizedFairShare)
+        .Default(false);
+    registrar.Parameter("max_discretized_steps", &TThis::MaxDiscretizedSteps)
+        .Default(100)
+        .GreaterThan(0);
 
     registrar.Parameter("min_job_resource_limits", &TThis::MinJobResourceLimits)
         .DefaultNew();
