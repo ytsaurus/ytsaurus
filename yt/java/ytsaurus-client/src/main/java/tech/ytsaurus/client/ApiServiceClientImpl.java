@@ -63,6 +63,7 @@ import tech.ytsaurus.client.request.FlowExecuteResult;
 import tech.ytsaurus.client.request.FreezeTable;
 import tech.ytsaurus.client.request.GcCollect;
 import tech.ytsaurus.client.request.GenerateTimestamps;
+import tech.ytsaurus.client.request.GetCurrentUser;
 import tech.ytsaurus.client.request.GetFileFromCache;
 import tech.ytsaurus.client.request.GetFileFromCacheResult;
 import tech.ytsaurus.client.request.GetFlowView;
@@ -1946,6 +1947,13 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         req.writeHeaderTo(builder.header());
         req.writeTo(builder);
         return invoke(builder);
+    }
+
+    @Override
+    public CompletableFuture<String> getCurrentUser(GetCurrentUser req) {
+        return onStarted(req, RpcUtil.apply(
+                sendRequest(req, ApiServiceMethodTable.GET_CURRENT_USER.createRequestBuilder(rpcOptions)),
+                response -> response.body().getUser()));
     }
 
     @Override

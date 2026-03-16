@@ -19,6 +19,7 @@ import tech.ytsaurus.client.request.CreateObject;
 import tech.ytsaurus.client.request.FreezeTable;
 import tech.ytsaurus.client.request.GcCollect;
 import tech.ytsaurus.client.request.GenerateTimestamps;
+import tech.ytsaurus.client.request.GetCurrentUser;
 import tech.ytsaurus.client.request.GetInSyncReplicas;
 import tech.ytsaurus.client.request.GetJob;
 import tech.ytsaurus.client.request.GetJobStderr;
@@ -169,4 +170,6 @@ interface SyncApiServiceClient extends SyncTransactionalClient {
     ListQueriesResult listQueries(ListQueries req);
 
     void alterQuery(AlterQuery req);
+
+    String getCurrentUser(GetCurrentUser req);
 }
