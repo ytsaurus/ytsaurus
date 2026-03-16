@@ -43,12 +43,9 @@ struct TJobWorkspaceBuildingContext
 
     TArtifactDownloadOptions ArtifactDownloadOptions;
 
-    std::vector<TArtifactDescription> Artifacts;
+    TJobFSSecretaryPtr FSSecretary;
     std::vector<NContainers::TBind> Binds;
-    std::vector<TArtifactKey> RootVolumeLayerArtifactKeys;
-    std::vector<TArtifactKey> GpuCheckVolumeLayerArtifactKeys;
     std::vector<TShellCommandConfigPtr> SetupCommands;
-    std::optional<TString> DockerImage;
     NContainers::NCri::TCriAuthConfigPtr DockerAuth;
     IVolumePtr RootVolume;
     std::vector<TTmpfsVolumeResult> PreparedTmpfsVolumes;

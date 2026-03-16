@@ -19,6 +19,8 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
 #include <yt/yt/client/chunk_client/helpers.h>
 
 #include <yt/yt/core/concurrency/retrying_periodic_executor.h>

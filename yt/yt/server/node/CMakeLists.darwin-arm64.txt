@@ -155,6 +155,7 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/gpu_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/job_environment.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/job.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/job_fs_secretary.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/job_info.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/job_directory_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/job_gpu_checker.cpp

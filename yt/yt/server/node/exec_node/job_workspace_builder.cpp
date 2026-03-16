@@ -1,6 +1,7 @@
 #include "job_workspace_builder.h"
 
 #include "allocation.h"
+#include "job_fs_secretary.h"
 #include "job_gpu_checker.h"
 #include "slot.h"
 #include "volume.h"
@@ -156,9 +157,9 @@ void TJobWorkspaceBuilder::MakeArtifactSymlinks()
 
     YT_LOG_INFO(
         "Making artifact symlinks (ArtifactCount: %v)",
-        std::size(Context_.Artifacts));
+        std::size(Context_.FSSecretary->GetArtifacts()));
 
-    for (const auto& artifact : Context_.Artifacts) {
+    for (const auto& artifact : Context_.FSSecretary->GetArtifacts()) {
         // Artifact is passed into the job via symlink.
         if (!artifact.BypassArtifactCache && !artifact.CopyFile) {
             YT_VERIFY(artifact.Artifact);
@@ -203,14 +204,16 @@ void TJobWorkspaceBuilder::MakeFilesForArtifactBinds()
 {
     const auto& slot = Context_.Slot;
 
+    const auto& artifacts = Context_.FSSecretary->GetArtifacts();
+
     YT_LOG_INFO(
         "Setting permissions for artifacts (ArtifactCount: %v)",
-        std::size(Context_.Artifacts));
+        std::size(artifacts));
 
     std::vector<TFuture<void>> ioOperationFutures;
-    ioOperationFutures.reserve(Context_.Artifacts.size());
+    ioOperationFutures.reserve(size(artifacts));
 
-    for (const auto& artifact : Context_.Artifacts) {
+    for (const auto& artifact : artifacts) {
         if (artifact.AccessedViaBind) {
             YT_VERIFY(artifact.Artifact);
 
@@ -349,13 +352,13 @@ private:
         ValidateJobPhase(EJobPhase::CachingArtifacts);
         SetJobPhase(EJobPhase::PreparingRootVolume);
 
-        if (!Context_.RootVolumeLayerArtifactKeys.empty()) {
+        if (!Context_.FSSecretary->GetRootVolumeLayerArtifactKeys().empty()) {
             return MakeFuture(TError(
                 NExecNode::EErrorCode::LayerUnpackingFailed,
                 "Porto layers are not supported in simple job environment"));
         }
 
-        if (Context_.DockerImage) {
+        if (Context_.FSSecretary->GetDockerImage()) {
             return MakeFuture(TError(
                 NExecNode::EErrorCode::DockerImagePullingFailed,
                 "External docker image is not supported in simple job environment"));
@@ -548,9 +551,9 @@ private:
         SetJobPhase(EJobPhase::PreparingRootVolume);
 
         const auto& slot = Context_.Slot;
-        const auto& layerArtifactKeys = Context_.RootVolumeLayerArtifactKeys;
+        const auto& layerArtifactKeys = Context_.FSSecretary->GetRootVolumeLayerArtifactKeys();
 
-        if (Context_.DockerImage && layerArtifactKeys.empty()) {
+        if (Context_.FSSecretary->GetDockerImage() && layerArtifactKeys.empty()) {
             return MakeFuture(TError(
                 NExecNode::EErrorCode::DockerImagePullingFailed,
                 "External docker image is not supported in Porto job environment"));
@@ -654,7 +657,7 @@ private:
         SetJobPhase(EJobPhase::PreparingGpuCheckVolume);
 
         const auto& slot = Context_.Slot;
-        const auto& layerArtifactKeys = Context_.GpuCheckVolumeLayerArtifactKeys;
+        const auto& layerArtifactKeys = Context_.FSSecretary->GetGpuCheckVolumeLayerArtifactKeys();
 
         if (!layerArtifactKeys.empty()) {
             SetNowTime(TimePoints_.PrepareGpuCheckVolumeStartTime);
@@ -999,9 +1002,9 @@ private:
         ValidateJobPhase(EJobPhase::CachingArtifacts);
         SetJobPhase(EJobPhase::PreparingRootVolume);
 
-        const auto& dockerImage = Context_.DockerImage;
+        const auto& dockerImage = Context_.FSSecretary->GetDockerImage();
 
-        if (!dockerImage && !Context_.RootVolumeLayerArtifactKeys.empty()) {
+        if (!dockerImage && !Context_.FSSecretary->GetRootVolumeLayerArtifactKeys().empty()) {
             return MakeFuture(TError(
                 NExecNode::EErrorCode::LayerUnpackingFailed,
                 "Porto layers are not supported in CRI job environment"));

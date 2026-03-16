@@ -43,6 +43,8 @@ DECLARE_REFCOUNTED_CLASS(TArtifact)
 
 DECLARE_REFCOUNTED_CLASS(TCacheLocation)
 
+DECLARE_REFCOUNTED_CLASS(TJobFSSecretary)
+
 struct TControllerAgentDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////

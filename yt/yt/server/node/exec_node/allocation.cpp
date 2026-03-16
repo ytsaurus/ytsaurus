@@ -1,8 +1,12 @@
 #include "allocation.h"
 
+#include "bootstrap.h"
 #include "controller_agent_connector.h"
 #include "job_controller.h"
+#include "job_fs_secretary.h"
 #include "slot.h"
+
+#include <yt/yt/server/node/cluster_node/config.h>
 
 #include <yt/yt/server/lib/exec_node/config.h>
 
@@ -204,6 +208,10 @@ TAllocation::TAllocation(
     , NetworkPriority_(networkPriority)
     , ControllerAgentConnector_(
         Bootstrap_->GetControllerAgentConnectorPool()->GetControllerAgentConnector(ControllerAgentInfo_.GetDescriptor()))
+    , FSSecretary_(New<TJobFSSecretary>(
+        Bootstrap_,
+        Logger,
+        Bootstrap_->GetConfig()->ExecNode->SlotManager->EnableTmpfs))
 {
     YT_VERIFY(bootstrap);
 
@@ -614,7 +622,8 @@ void TAllocation::CreateAndSettleJob(
         std::move(jobSpec),
         ControllerAgentInfo_.GetDescriptor(),
         Bootstrap_,
-        Bootstrap_->GetJobController()->GetDynamicConfig()->JobCommon);
+        Bootstrap_->GetJobController()->GetDynamicConfig()->JobCommon,
+        FSSecretary_);
 
     job->SubscribeJobPrepared(
         BIND_NO_PROPAGATE(&TAllocation::OnJobPrepared, MakeStrong(this))

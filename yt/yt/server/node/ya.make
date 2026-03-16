@@ -70,6 +70,7 @@ SRCS(
     exec_node/gpu_manager.cpp
     exec_node/job_environment.cpp
     exec_node/job.cpp
+    exec_node/job_fs_secretary.cpp
     exec_node/job_info.cpp
     exec_node/job_directory_manager.cpp
     exec_node/job_gpu_checker.cpp

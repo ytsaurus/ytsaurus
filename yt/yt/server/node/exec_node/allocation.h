@@ -1,6 +1,7 @@
 #pragma once
 
 #include "job.h"
+#include "job_fs_secretary.h"
 #include "helpers.h"
 
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
@@ -133,6 +134,8 @@ private:
     EAllocationState State_ = EAllocationState::Waiting;
 
     std::optional<TJobId> LastJobId_;
+
+    TJobFSSecretaryPtr FSSecretary_;
 
     TJobPtr Job_;
 
