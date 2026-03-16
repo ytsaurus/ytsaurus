@@ -8,6 +8,27 @@ analytics:
       text: "Ok"
       theme: "accent"
       size: "xl"
+navigation:
+  logo:
+    url: "https://ytsaurus.tech/"
+    dark:
+      icon: "https://ytsaurus.tech/assets/logo-dark.svg"
+    light:
+      icon: "https://ytsaurus.tech/assets/logo-light.svg"
+  header:
+    rightItems:
+      - text: "How it works"
+        type: "link"
+        url: "overview/about"
+      - text: "Telegram"
+        type: "link"
+        url: "https://t.me/ytsaurus"
+        icon: "https://storage.yandexcloud.net/ytsaurus-www/assets/favicon-telegram.svg"
+      - text: "GitHub"
+        type: "link"
+        url: "https://github.com/ytsaurus/ytsaurus"
+        icon: "https://storage.yandexcloud.net/ytsaurus-www/assets/favicon-github.svg"
+      - type: controls
 items:
    - name: " {{product-name}} "
      when: audience == "public"
@@ -477,7 +498,7 @@ items:
            - name: Odin
              href: admin-guide/install-odin.md
            - name: Excel-integration
-             href: admin-guide/install-excel.md  
+             href: admin-guide/install-excel.md
            - name: Tutorial
              href: admin-guide/install-tutorial.md
            - name: Microservices

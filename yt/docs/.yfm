@@ -42,6 +42,8 @@ resources:
     - connect-src:
         - https://*.algolia.net
         - https://*.algolianet.com
+    - img-src:
+        - https://storage.yandexcloud.net
 
 # This configuration parameter is used to directly control the Edit button behaviour.
 vcs:
