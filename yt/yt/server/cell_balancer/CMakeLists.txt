@@ -67,7 +67,7 @@ target_sources(yt-server-cell_balancer PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/input_state.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/instance_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/mutations.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/node_tag_filters_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/node_tag_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/orchid_bindings.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/pod_id_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/program.cpp
