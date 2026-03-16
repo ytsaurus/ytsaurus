@@ -49,7 +49,7 @@ protected:
     //! to be done, like for multi-part uploads.
     //! NB: When implementing this method in class inheritor, keep in mind that upload may
     //! have completed since checked before invocation.
-    virtual TFuture<void> AbortIncompleteUpload();
+    virtual TFuture<void> AbortIncompleteUpload() = 0;
 
     //! Abort upload that has successfully uploaded the object.
     virtual TFuture<void> AbortCompletedUpload();
@@ -61,6 +61,8 @@ DEFINE_ENUM(ES3UploadSessionState,
     (Created)
     (Starting)
     (Started)
+    (Aborting)
+    (Aborted)
     (Completing)
     (Completed)
 );
@@ -94,6 +96,8 @@ public:
     //! After calling this method, no more data can be added to the session.
     TFuture<void> Complete();
 
+    TFuture<void> Abort(TError error);
+
     TFuture<void> GetReadyEvent();
 
 private:
@@ -119,6 +123,7 @@ private:
     i64 CurrentObjectOffset_ = 0;
 
     const TPromise<void> StartPromise_ = NewPromise<void>();
+    const TPromise<void> ReadyEventPromise_ = NewPromise<void>();
 
     ES3UploadSessionState GetState() const;
 
@@ -158,6 +163,8 @@ public:
 
 private:
     void DoUpload(TSharedRef data);
+
+    TFuture<void> AbortIncompleteUpload() override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TS3SimpleUploadSession);

@@ -133,8 +133,8 @@ TEST_F(TUploadSessionTest, SimpleUpload)
     EXPECT_TRUE(result.IsOK());
 
     auto getObjectResponse = WaitFor(S3Client_->GetObject({
-        .Bucket = objectPlacement.Bucket,
-        .Key = objectPlacement.Key,
+        .Bucket = TString(objectPlacement.Bucket),
+        .Key = TString(objectPlacement.Key),
     }))
         .ValueOrThrow();
     EXPECT_EQ(getObjectResponse.Data.ToStringBuf(), "one meaningful string");
@@ -169,8 +169,8 @@ TEST_F(TUploadSessionTest, ParallelMultiPartUpload)
     EXPECT_TRUE(result.IsOK());
 
     auto getObjectResponse = WaitFor(S3Client_->GetObject({
-        .Bucket = objectPlacement.Bucket,
-        .Key = objectPlacement.Key,
+        .Bucket = TString(objectPlacement.Bucket),
+        .Key = TString(objectPlacement.Key),
     }))
         .ValueOrThrow();
     EXPECT_EQ(std::ssize(getObjectResponse.Data.ToStringBuf()),  10 + 2 * 90);
@@ -205,8 +205,8 @@ TEST_F(TUploadSessionTest, AbortIncompleteMultiPartUpload)
     EXPECT_TRUE(WaitFor(AllSucceeded(std::move(futures))).IsOK());
 
     auto getObjectResponseOrError = WaitFor(S3Client_->GetObject({
-        .Bucket = objectPlacement.Bucket,
-        .Key = objectPlacement.Key,
+        .Bucket = TString(objectPlacement.Bucket),
+        .Key = TString(objectPlacement.Key),
     }));
     EXPECT_FALSE(getObjectResponseOrError.IsOK());
     EXPECT_TRUE(getObjectResponseOrError.GetMessage().contains("Not Found"));
@@ -236,11 +236,18 @@ TEST_F(TUploadSessionTest, AbortCompletedMultiPartUpload)
 
     EXPECT_TRUE(WaitFor(AllSucceeded(std::move(futures))).IsOK());
     EXPECT_TRUE(WaitFor(session->Complete()).IsOK());
+    auto getObjectResponse = WaitFor(S3Client_->GetObject({
+        .Bucket = TString(objectPlacement.Bucket),
+        .Key = TString(objectPlacement.Key),
+    }))
+        .ValueOrThrow();
+    EXPECT_EQ(std::ssize(getObjectResponse.Data.ToStringBuf()),  10 + 2 * 90);
+
     EXPECT_TRUE(WaitFor(session->Abort(TError("Some error"))).IsOK());
 
     auto getObjectResponseOrError = WaitFor(S3Client_->GetObject({
-        .Bucket = objectPlacement.Bucket,
-        .Key = objectPlacement.Key,
+        .Bucket = TString(objectPlacement.Bucket),
+        .Key = TString(objectPlacement.Key),
     }));
     EXPECT_FALSE(getObjectResponseOrError.IsOK());
     EXPECT_TRUE(getObjectResponseOrError.GetMessage().contains("Not Found"));

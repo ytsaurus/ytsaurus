@@ -51,7 +51,7 @@ public:
 
     TFuture<void> Open() override
     {
-        YT_LOG_INFO("Offshore S3 writer opened");
+        YT_LOG_DEBUG("Offshore S3 writer opened");
 
         return ChunkUploadSession_->Start();
     }
@@ -171,6 +171,7 @@ private:
     const TS3SimpleUploadSessionPtr ChunkMetaUploadSession_;
 
     const NChunkClient::TRefCountedChunkMetaPtr ChunkMeta_ = New<NChunkClient::TRefCountedChunkMeta>();
+
     NChunkClient::NProto::TChunkInfo ChunkInfo_;
     NChunkClient::NProto::TBlocksExt BlocksExt_;
 

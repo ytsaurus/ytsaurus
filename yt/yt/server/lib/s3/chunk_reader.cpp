@@ -116,11 +116,8 @@ public:
         const std::optional<TPartitionTags>& /*partitionTags*/,
         const std::optional<std::vector<int>>& extensionTags) override
     {
-        if (extensionTags) {
-            YT_LOG_ALERT("Get meta request for S3 media was formed with extension tags (ExtensionTags: %v)", extensionTags);
-            THROW_ERROR_EXCEPTION("Extension tags are not supported in get meta request from S3")
-                << TErrorAttribute("extension_tags", extensionTags);
-        }
+        YT_LOG_ALERT_AND_THROW_IF(extensionTags,
+            "Get meta request for S3 media was formed with extension tags (ExtensionTags: %v)", extensionTags);
 
         return DoGetMeta();
     }
@@ -243,10 +240,8 @@ private:
         IInvokerPtr invoker = nullptr)
     {
         return DoGetMeta(invoker)
-            .AsVoid()
-            .Apply(BIND([this, this_ = MakeStrong(this)] {
-                auto guard = ReaderGuard(MetaLock_);
-                return New<TBlocksExt>(GetProtoExtension<NChunkClient::NProto::TBlocksExt>(ChunkMeta_->extensions()));
+            .Apply(BIND([] (const TRefCountedChunkMetaPtr& meta) {
+                return New<TBlocksExt>(GetProtoExtension<NChunkClient::NProto::TBlocksExt>(meta->extensions()));
             }));
     }
 };

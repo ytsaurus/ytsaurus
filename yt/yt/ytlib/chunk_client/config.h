@@ -257,7 +257,7 @@ struct TS3MediumConfig
     : public NS3::TS3ConnectionConfig
 {
     //! Name of the bucket to use.
-    TString Bucket;
+    std::string Bucket;
 
     //! Credentials.
     std::string AccessKeyId;

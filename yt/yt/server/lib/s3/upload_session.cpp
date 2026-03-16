@@ -53,14 +53,7 @@ TFuture<void> TS3UploadSessionBase::Abort(TError error)
 bool TS3UploadSessionBase::IsUploadCompleted() const
 {
     auto completionFuture = GetCompletionFuture();
-    return completionFuture.IsSet() && completionFuture.BlockingGet().IsOK();
-}
-
-TFuture<void> TS3UploadSessionBase::AbortIncompleteUpload()
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    return TFuture<void>();
+    return completionFuture.IsSet() && completionFuture.GetOrCrash().IsOK();
 }
 
 TFuture<void> TS3UploadSessionBase::AbortCompletedUpload()
@@ -71,8 +64,8 @@ TFuture<void> TS3UploadSessionBase::AbortCompletedUpload()
 
     // This method is idempotent and does not throw if the object does not exist.
     return Client_->DeleteObjects(TDeleteObjectsRequest{
-        .Bucket = ObjectPlacement_.Bucket,
-        .Objects = {ObjectPlacement_.Key},
+        .Bucket = TString(ObjectPlacement_.Bucket),
+        .Objects = {TString(ObjectPlacement_.Key)},
     })
         .AsVoid();
 }
@@ -108,11 +101,10 @@ TFuture<void> TS3MultiPartUploadSession::Start()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    UploadSessionCancelableContext_ = New<TCancelableContext>();
-    CancelableInvoker_ = UploadSessionCancelableContext_->CreateInvoker(UnderlyingInvoker_);
-
-    // There is no need to schedule this callback twice.
+    // One multipart upload session can be used only once.
     if (TryExchangeState(ES3UploadSessionState::Created, ES3UploadSessionState::Starting)) {
+        UploadSessionCancelableContext_ = New<TCancelableContext>();
+        CancelableInvoker_ = UploadSessionCancelableContext_->CreateInvoker(UnderlyingInvoker_);
         CancelableInvoker_->Invoke(BIND(&TS3MultiPartUploadSession::DoStart, MakeWeak(this)));
     }
 
@@ -125,8 +117,10 @@ bool TS3MultiPartUploadSession::Add(std::vector<TSharedRef> data)
 
     auto guard = WriterGuard(SpinLock_);
 
-    // You should not add data to a session that has not been started (or that is already completing).
-    YT_VERIFY(State_ == ES3UploadSessionState::Started);
+    // You should not add data to a session that has not been started (or that is already completing or aborting).
+    if (State_ != ES3UploadSessionState::Started) {
+        return false;
+    }
 
     auto size = GetByteSize(data);
     UploadWindowSemaphore_->Acquire(size);
@@ -147,8 +141,9 @@ TFuture<void> TS3MultiPartUploadSession::Complete()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    // You cannot complete a session that has not been started.
-    YT_VERIFY(GetState() != ES3UploadSessionState::Created);
+    THROW_ERROR_EXCEPTION_IF(
+        GetState() == ES3UploadSessionState::Created,
+        "Attempted to complete multipart upload session which has not been started");
 
     // We do not need to schedule this callback twice.
     if (TryExchangeState(ES3UploadSessionState::Started, ES3UploadSessionState::Completing)) {
@@ -158,15 +153,26 @@ TFuture<void> TS3MultiPartUploadSession::Complete()
     return CompletionPromise_;
 }
 
+TFuture<void> TS3MultiPartUploadSession::Abort(TError error)
+{
+    {
+        auto guard = WriterGuard(SpinLock_);
+        State_ = ES3UploadSessionState::Aborting;
+    }
+    return TS3UploadSessionBase::Abort(error)
+        .Apply(BIND([this, this_ = MakeStrong(this)] () {
+            YT_VERIFY(TryExchangeState(ES3UploadSessionState::Aborting, ES3UploadSessionState::Aborted));
+        }));
+}
+
 TFuture<void> TS3MultiPartUploadSession::GetReadyEvent()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    auto promise = NewPromise<void>();
-    promise.TrySetFrom(GetCompletionFuture());
-    promise.TrySetFrom(UploadWindowSemaphore_->GetReadyEvent());
+    ReadyEventPromise_.TrySetFrom(GetCompletionFuture());
+    ReadyEventPromise_.TrySetFrom(UploadWindowSemaphore_->GetReadyEvent());
     // Futures, that we are setting from, are uncancelable, but it is wise to show our intent anyway.
-    return promise.ToFuture().ToUncancelable();
+    return ReadyEventPromise_.ToFuture().ToUncancelable();
 }
 
 ES3UploadSessionState TS3MultiPartUploadSession::GetState() const
@@ -193,14 +199,14 @@ void TS3MultiPartUploadSession::SchedulePartUploadIfNeeded()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    auto guard = ReaderGuard(SpinLock_);
+    auto guard = WriterGuard(SpinLock_);
     GuardedSchedulePartUploadIfNeeded();
 }
 
 void TS3MultiPartUploadSession::GuardedSchedulePartUploadIfNeeded()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
-    YT_ASSERT_SPINLOCK_AFFINITY(SpinLock_);
+    YT_ASSERT_WRITER_SPINLOCK_AFFINITY(SpinLock_);
 
     YT_VERIFY(State_ == ES3UploadSessionState::Started || State_ == ES3UploadSessionState::Completing);
 
@@ -212,7 +218,7 @@ void TS3MultiPartUploadSession::GuardedSchedulePartUploadIfNeeded()
 void TS3MultiPartUploadSession::GuardedSchedulePartUpload()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
-    YT_ASSERT_SPINLOCK_AFFINITY(SpinLock_);
+    YT_ASSERT_WRITER_SPINLOCK_AFFINITY(SpinLock_);
 
     struct TS3UploadPartTag {};
     auto data = MergeRefsToRef<TS3UploadPartTag>(std::move(BufferedData_));
@@ -233,16 +239,13 @@ void TS3MultiPartUploadSession::GuardedSchedulePartUpload()
         md5);
 
     auto uploadFuture = Client_->UploadPart(TUploadPartRequest{
-        .Bucket = ObjectPlacement_.Bucket,
-        .Key = ObjectPlacement_.Key,
+        .Bucket = TString(ObjectPlacement_.Bucket),
+        .Key = TString(ObjectPlacement_.Key),
         .UploadId = UploadId_,
         .PartIndex = partIndex,
         .Data = std::move(data),
         .ContentMd5 = std::move(md5),
-    });
-
-    auto uploadFutureWithHandler = uploadFuture
-        .Apply(BIND([weakThis = MakeWeak(this), partIndex, partSize] (const TErrorOr<TUploadPartResponse>& response) {
+    }).Apply(BIND([weakThis = MakeWeak(this), partIndex, partSize] (const TErrorOr<TUploadPartResponse>& response) {
             if (auto strongThis = weakThis.Lock()) {
                 return strongThis->OnPartUploadCompleted(response, partIndex, partSize);
             }
@@ -254,7 +257,7 @@ void TS3MultiPartUploadSession::GuardedSchedulePartUpload()
         // which may set promises while we are still holding the lock.
         .AsyncVia(CancelableInvoker_));
 
-    PendingPartUploads_.push_back(std::move(uploadFutureWithHandler));
+    PendingPartUploads_.push_back(std::move(uploadFuture));
 
     CurrentObjectOffset_ += partSize;
 }
@@ -307,8 +310,8 @@ void TS3MultiPartUploadSession::DoStart()
     YT_LOG_DEBUG("Starting multi-part upload to S3");
 
     auto multiPartUploadOrError = WaitFor(Client_->CreateMultipartUpload(TCreateMultipartUploadRequest{
-        .Bucket = ObjectPlacement_.Bucket,
-        .Key = ObjectPlacement_.Key,
+        .Bucket = TString(ObjectPlacement_.Bucket),
+        .Key = TString(ObjectPlacement_.Key),
     }));
 
     if (!multiPartUploadOrError.IsOK()) {
@@ -365,8 +368,8 @@ void TS3MultiPartUploadSession::DoComplete()
     }
 
     auto multiPartUploadOrError = WaitFor(Client_->CompleteMultipartUpload(TCompleteMultipartUploadRequest{
-        .Bucket = ObjectPlacement_.Bucket,
-        .Key = ObjectPlacement_.Key,
+        .Bucket = TString(ObjectPlacement_.Bucket),
+        .Key = TString(ObjectPlacement_.Key),
         .UploadId = UploadId_,
         .Parts = std::move(uploadedParts),
     }));
@@ -376,11 +379,11 @@ void TS3MultiPartUploadSession::DoComplete()
         return;
     }
 
-    YT_VERIFY(TryExchangeState(ES3UploadSessionState::Completing, ES3UploadSessionState::Completed));
+    if (TryExchangeState(ES3UploadSessionState::Completing, ES3UploadSessionState::Completed)) {
+        YT_LOG_DEBUG("Multi-part upload completed (UploadId: %v, ETag: %v)", UploadId_, multiPartUploadOrError.Value().ETag);
 
-    YT_LOG_DEBUG("Multi-part upload completed (UploadId: %v, ETag: %v)", UploadId_, multiPartUploadOrError.Value().ETag);
-
-    CompletionPromise_.TrySet();
+        CompletionPromise_.Set();
+    }
 }
 
 void TS3MultiPartUploadSession::DoAbortIncompleteUpload()
@@ -399,8 +402,8 @@ void TS3MultiPartUploadSession::DoAbortIncompleteUpload()
 
     YT_LOG_DEBUG("Aborting incomplete multi-part upload to S3 (UploadId: %v)", UploadId_);
     WaitFor(Client_->AbortMultipartUpload(TAbortMultipartUploadRequest{
-        .Bucket = ObjectPlacement_.Bucket,
-        .Key = ObjectPlacement_.Key,
+        .Bucket = TString(ObjectPlacement_.Bucket),
+        .Key = TString(ObjectPlacement_.Key),
         .UploadId = UploadId_,
     }))
         .ValueOrThrow();
@@ -445,8 +448,8 @@ void TS3SimpleUploadSession::DoUpload(TSharedRef data)
     YT_LOG_DEBUG("Uploading object to S3 (Size: %v)", data.Size());
 
     auto putObjectResponse = WaitFor(Client_->PutObject(TPutObjectRequest{
-        .Bucket = ObjectPlacement_.Bucket,
-        .Key = ObjectPlacement_.Key,
+        .Bucket = TString(ObjectPlacement_.Bucket),
+        .Key = TString(ObjectPlacement_.Key),
         .Data = std::move(data),
     }));
 
@@ -458,6 +461,13 @@ void TS3SimpleUploadSession::DoUpload(TSharedRef data)
     YT_LOG_DEBUG("Object upload completed (ETag: %v)", putObjectResponse.Value().ETag);
 
     CompletionPromise_.TrySet();
+}
+
+TFuture<void> TS3SimpleUploadSession::AbortIncompleteUpload()
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return TFuture<void>();
 }
 
 ////////////////////////////////////////////////////////////////////////////
