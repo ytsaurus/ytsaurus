@@ -1,6 +1,6 @@
 # Intro
 
-The tool for managing compatibility testing of YTsaurus components. Automatically generates and runs test configurations based on a compatibility graph (matrix) of component versions.
+The tool for managing compatibility testing of YTsaurus components. Automatically generates and runs test configurations based on a compatibility graph (matrix) of component versions. After any changes, you should to run auto-updated documentation of compatibility components.
 
 ## Description
 

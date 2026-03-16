@@ -509,6 +509,8 @@ items:
              href: admin-guide/multiproxy.md
    - name: Release notes
      href: admin-guide/releases.md
+   - name: Compatibility of cluster components
+     href: admin-guide/compatibility.md
    - name: FAQ
      when: audience == "public"
      href: faq/index.md

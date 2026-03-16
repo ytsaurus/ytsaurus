@@ -1,7 +1,9 @@
 import json
 
 import click
+import os
 import yaml
+import hashlib
 
 from library.python import resource
 from yt.admin.ytsaurus_ci import cloudfunction_client
@@ -52,6 +54,41 @@ def matrix(version_filter):
         click.secho(f"\nTotal: {len(suites)} compatible suite(s)", fg="green")
     else:
         click.secho("\nNo compatible suites found for given components", fg="red")
+
+
+@matrix.command()
+@click.option(
+    "--output",
+    "output_dir",
+    type=click.Path(),
+    default="yt/docs/en/_includes/compatibility",
+    required=True,
+)
+def docs(output_dir):
+    registry = component_registry.VersionComponentRegistry(yaml.safe_load(resource.resfs_read(consts.COMPONENTS_PATH)))
+    os.makedirs(output_dir, exist_ok=True)
+
+    component = compatibility_graph.PIVOT_COMPONENT
+    md = compatibility_graph.format_compat_table(registry)
+    path = os.path.join(output_dir, f"{component}.md")
+
+    snapshots_file = os.path.join(consts.BASE_DIR, consts.SNAPSHOTS_PATH, component)
+    with open(snapshots_file, "w", encoding="utf-8") as f:
+        snapshot = hashlib.sha512(md.encode())
+        f.write(snapshot.hexdigest())
+
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(md)
+
+    if "/en/" in path:
+        path = path.replace("/en/", "/ru/")
+    else:
+        path = path.replace("/ru/", "/en/")
+
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(md)
+
+    click.secho(f"Written compatibility table to {output_dir}", fg="green")
 
 
 @cli.command()
