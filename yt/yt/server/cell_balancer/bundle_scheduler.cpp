@@ -7,7 +7,7 @@
 #include "input_state.h"
 #include "instance_manager.h"
 #include "mutations.h"
-#include "pod_id_helpers.h"
+#include "node_tag_manager.h"
 #include "system_accounts.h"
 
 #include <library/cpp/yt/yson_string/public.h>
@@ -1248,7 +1248,7 @@ void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations
     ManageSystemAccountLimit(input, mutations);
     ManageResourceLimits(input, mutations);
 
-    ManageNodeTagFilters(input, *spareNodesState, mutations);
+    ManageNodeTags(input, *spareNodesState, mutations);
     ManageRpcProxyRoles(input, *spareProxiesState, mutations);
     ManageBundleShortName(input, mutations);
     ManageDrillsMode(input, mutations);
