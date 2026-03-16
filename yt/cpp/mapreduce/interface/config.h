@@ -2,6 +2,7 @@
 
 #include "fwd.h"
 #include "common.h"
+#include "patchable_field.h"
 
 #include <library/cpp/yt/misc/enum.h>
 

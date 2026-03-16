@@ -514,7 +514,7 @@ int TJobPreparer::GetFileCacheReplicationFactor() const
     }
 }
 
-TFileWriterOptions& TJobPreparer::GetFileCacheWriterOptions() const
+TFileWriterOptions TJobPreparer::GetFileCacheWriterOptions() const
 {
     auto replicationFactor = GetFileCacheReplicationFactor();
     return TFileWriterOptions()
