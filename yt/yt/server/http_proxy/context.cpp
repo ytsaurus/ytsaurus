@@ -799,7 +799,7 @@ void TContext::SetupUserMemoryLimits()
 
     updateUserMemoryRatio(config->DefaultMemoryLimitRatios);
 
-    const auto& role = Api_->GetCoordinator()->GetSelfEntry()->Role;
+    auto role = Api_->GetCoordinator()->GetSelfEntry()->Role;
     const auto& roleMemoryLimitRatiosIt = config->RoleToMemoryLimitRatios.find(role);
     if (roleMemoryLimitRatiosIt != config->RoleToMemoryLimitRatios.end()) {
         updateUserMemoryRatio(roleMemoryLimitRatiosIt->second);
