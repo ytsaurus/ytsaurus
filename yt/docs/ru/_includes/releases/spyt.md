@@ -20,7 +20,6 @@ Maintenance release with minor enhancements
 
 {% endcut %}
 
-
 {% cut "**2.8.2**" %}
 
 **Release date:** 2025-12-23

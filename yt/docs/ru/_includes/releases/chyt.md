@@ -33,7 +33,6 @@ Is released as a docker image.
 
 {% endcut %}
 
-
 {% cut "**2.17.4**" %}
 
 **Release date:** 2025-09-23
