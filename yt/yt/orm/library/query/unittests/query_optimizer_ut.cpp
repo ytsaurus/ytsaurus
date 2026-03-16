@@ -177,11 +177,6 @@ TEST(TQueryOptimizerTest, OptimizeGroupBy)
             "i.[permalink_ids] in (1, 2) and i.[permalink_ids] = 15",
             references,
             tableName));
-    EXPECT_TRUE(
-        RunGroupByOptimization(
-            "i.[permalink_ids] in (1, 2) and i.[permalink_ids] = 15",
-            references,
-            tableName));
 
     EXPECT_FALSE(
         RunGroupByOptimization(
