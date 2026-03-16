@@ -1099,6 +1099,8 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("enable_map_job_size_adjustment", &TThis::EnableMapJobSizeAdjustment)
         .Default(true);
+    registrar.Parameter("enable_ordered_map_job_size_adjustment", &TThis::EnableOrderedMapJobSizeAdjustment)
+        .Default(true);
     registrar.Parameter("enable_job_splitting", &TThis::EnableJobSplitting)
         .Default(true);
     registrar.Parameter("enable_job_interrupts", &TThis::EnableJobInterrupts)
