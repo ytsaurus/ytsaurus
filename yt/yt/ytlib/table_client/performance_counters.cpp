@@ -1,5 +1,9 @@
 #include "performance_counters.h"
 
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
+
+#include <yt/yt/ytlib/table_client/hunks.h>
+
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/versioned_reader.h>
 #include <yt/yt/client/table_client/private.h>
@@ -40,6 +44,23 @@ void TChunkReaderPerformanceCounters::IncrementHunkDataWeight(
     }
 }
 
+void TChunkReaderPerformanceCounters::Increment(
+    const TClientChunkReadOptions& chunkReadOptions,
+    bool isSystemWorkload)
+{
+    // Only DataBytesTransmitted is taken from chunk read options for now.
+    auto& sensor = isSystemWorkload ? SystemDataBytesTransmitted : UserDataBytesTransmitted;
+
+    sensor.Counter.fetch_add(
+        chunkReadOptions.ChunkReaderStatistics->DataBytesTransmitted.load(std::memory_order_relaxed),
+        std::memory_order_relaxed);
+    if (const auto& hunkStatistics = chunkReadOptions.HunkChunkReaderStatistics) {
+        sensor.Counter.fetch_add(
+            hunkStatistics->GetChunkReaderStatistics()->DataBytesTransmitted.load(std::memory_order_relaxed),
+            std::memory_order_relaxed);
+    }
+}
+
 void UpdatePerformanceCounters(
     const NChunkClient::NProto::TDataStatistics& statistics,
     const TTabletPerformanceCountersPtr& performanceCounters,
@@ -61,13 +82,31 @@ void UpdatePerformanceCounters(
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TPerformanceCountingReaderBase
     : public virtual IReaderBase
 {
 public:
-    explicit TPerformanceCountingReaderBase(IReaderBasePtr reader)
+    TPerformanceCountingReaderBase(
+        IReaderBasePtr reader,
+        TTabletPerformanceCountersPtr performanceCounters,
+        EDataSource source,
+        EPerformanceCountedRequestType requestType)
         : Reader_(std::move(reader))
+        , PerformanceCounters_(std::move(performanceCounters))
+        , DataSource_(source)
+        , RequestType_(requestType)
     { }
+
+    ~TPerformanceCountingReaderBase()
+    {
+        UpdatePerformanceCounters(
+            Reader_->GetDataStatistics(),
+            PerformanceCounters_,
+            DataSource_,
+            RequestType_);
+    }
 
     NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
     {
@@ -96,7 +135,12 @@ public:
 
 private:
     const IReaderBasePtr Reader_;
+    const TTabletPerformanceCountersPtr PerformanceCounters_;
+    const EDataSource DataSource_;
+    const EPerformanceCountedRequestType RequestType_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TVersionedPerformanceCountingReader
     : public IVersionedReader
@@ -107,22 +151,14 @@ public:
         IVersionedReaderPtr reader,
         TTabletPerformanceCountersPtr performanceCounters,
         EDataSource source,
-        EPerformanceCountedRequestType type)
-        : TPerformanceCountingReaderBase(reader)
+        EPerformanceCountedRequestType requestType)
+        : TPerformanceCountingReaderBase(
+            reader,
+            std::move(performanceCounters),
+            source,
+            requestType)
         , Reader_(std::move(reader))
-        , PerformanceCounters_(std::move(performanceCounters))
-        , DataSource_(source)
-        , RequestType_(type)
     { }
-
-    ~TVersionedPerformanceCountingReader()
-    {
-        UpdatePerformanceCounters(
-            Reader_->GetDataStatistics(),
-            PerformanceCounters_,
-            DataSource_,
-            RequestType_);
-    }
 
     TFuture<void> Open() override
     {
@@ -136,9 +172,6 @@ public:
 
 private:
     const IVersionedReaderPtr Reader_;
-    const TTabletPerformanceCountersPtr PerformanceCounters_;
-    const EDataSource DataSource_;
-    const EPerformanceCountedRequestType RequestType_;
 };
 
 class TSchemafulPerformanceCountingReader
@@ -150,22 +183,14 @@ public:
         ISchemafulUnversionedReaderPtr reader,
         TTabletPerformanceCountersPtr performanceCounters,
         EDataSource source,
-        EPerformanceCountedRequestType type)
-        : TPerformanceCountingReaderBase(reader)
+        EPerformanceCountedRequestType requestType)
+        : TPerformanceCountingReaderBase(
+            reader,
+            std::move(performanceCounters),
+            source,
+            requestType)
         , Reader_(std::move(reader))
-        , PerformanceCounters_(std::move(performanceCounters))
-        , DataSource_(source)
-        , RequestType_(type)
     { }
-
-    ~TSchemafulPerformanceCountingReader()
-    {
-        UpdatePerformanceCounters(
-            Reader_->GetDataStatistics(),
-            PerformanceCounters_,
-            DataSource_,
-            RequestType_);
-    }
 
     IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
@@ -174,37 +199,36 @@ public:
 
 private:
     const ISchemafulUnversionedReaderPtr Reader_;
-    const TTabletPerformanceCountersPtr PerformanceCounters_;
-    const EDataSource DataSource_;
-    const EPerformanceCountedRequestType RequestType_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 IVersionedReaderPtr CreateVersionedPerformanceCountingReader(
     IVersionedReaderPtr reader,
     TTabletPerformanceCountersPtr performanceCounters,
     EDataSource source,
-    EPerformanceCountedRequestType type)
+    EPerformanceCountedRequestType requestType)
 {
     YT_ASSERT(!DynamicPointerCast<TVersionedPerformanceCountingReader>(reader));
     return New<TVersionedPerformanceCountingReader>(
         std::move(reader),
         std::move(performanceCounters),
         source,
-        type);
+        requestType);
 }
 
 ISchemafulUnversionedReaderPtr CreateSchemafulPerformanceCountingReader(
     ISchemafulUnversionedReaderPtr reader,
     TTabletPerformanceCountersPtr performanceCounters,
     EDataSource source,
-    EPerformanceCountedRequestType type)
+    EPerformanceCountedRequestType requestType)
 {
     YT_ASSERT(!DynamicPointerCast<TSchemafulPerformanceCountingReader>(reader));
     return New<TSchemafulPerformanceCountingReader>(
         std::move(reader),
         std::move(performanceCounters),
         source,
-        type);
+        requestType);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

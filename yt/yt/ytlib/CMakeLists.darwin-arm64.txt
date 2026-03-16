@@ -317,6 +317,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_meta_fetcher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_reader_host.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_reader_memory_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_reader_options.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_reader_statistics.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_replica_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_scraper.cpp

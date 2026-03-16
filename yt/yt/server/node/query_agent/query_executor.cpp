@@ -209,25 +209,22 @@ using TTabletBalancingRatiosPtr = TIntrusivePtr<TTabletBalancingRatios>;
 class TProfilingReaderWrapper
     : public ISchemafulUnversionedReader
 {
-private:
-    const ISchemafulUnversionedReaderPtr Underlying_;
-    const TSelectRowsCounters Counters_;
-    const TTabletBalancingRatiosPtr TabletRatios_;
-    const TTabletId TabletId_;
-    const int SubqueryIndex_;
-
-    std::optional<TWallTimer> Timer_;
-
 public:
     TProfilingReaderWrapper(
         ISchemafulUnversionedReaderPtr underlying,
-        TSelectRowsCounters counters,
+        TClientChunkReadOptions sessionChunkReadOptions,
+        TClientChunkReadOptions tabletChunkReadOptions,
+        TSelectRowsCounters selectRowsCounters,
+        TTabletPerformanceCountersPtr performanceCounters,
         bool enableDetailedProfiling,
         TTabletId tabletId,
         int subqueryIndex,
         TTabletBalancingRatiosPtr tabletRatios)
         : Underlying_(std::move(underlying))
-        , Counters_(std::move(counters))
+        , SessionChunkReadOptions_(std::move(sessionChunkReadOptions))
+        , TabletChunkReadOptions_(std::move(tabletChunkReadOptions))
+        , SelectRowsCounters_(std::move(selectRowsCounters))
+        , PerformanceCounters_(std::move(performanceCounters))
         , TabletRatios_(std::move(tabletRatios))
         , TabletId_(tabletId)
         , SubqueryIndex_(subqueryIndex)
@@ -272,18 +269,33 @@ public:
         auto statistics = GetDataStatistics();
         auto decompressionCpuTime = GetDecompressionStatistics().GetTotalDuration();
 
-        Counters_.RowCount.Increment(statistics.row_count());
-        Counters_.DataWeight.Increment(statistics.data_weight());
-        Counters_.UnmergedRowCount.Increment(statistics.unmerged_row_count());
-        Counters_.UnmergedDataWeight.Increment(statistics.unmerged_data_weight());
-        Counters_.DecompressionCpuTime.Add(decompressionCpuTime);
+        SelectRowsCounters_.RowCount.Increment(statistics.row_count());
+        SelectRowsCounters_.DataWeight.Increment(statistics.data_weight());
+        SelectRowsCounters_.UnmergedRowCount.Increment(statistics.unmerged_row_count());
+        SelectRowsCounters_.UnmergedDataWeight.Increment(statistics.unmerged_data_weight());
+        SelectRowsCounters_.DecompressionCpuTime.Add(decompressionCpuTime);
 
         if (Timer_) {
-            Counters_.SelectDuration.Record(Timer_->GetElapsedTime());
+            SelectRowsCounters_.SelectDuration.Record(Timer_->GetElapsedTime());
         }
 
         (*TabletRatios_)[SubqueryIndex_][TabletId_] += statistics.data_weight();
+
+        PerformanceCounters_->Increment(TabletChunkReadOptions_, /*isSystemWorkload*/ false);
+        SessionChunkReadOptions_.AddStatisticsFrom(TabletChunkReadOptions_);
     }
+
+private:
+    const ISchemafulUnversionedReaderPtr Underlying_;
+    const TClientChunkReadOptions SessionChunkReadOptions_;
+    const TClientChunkReadOptions TabletChunkReadOptions_;
+    const TSelectRowsCounters SelectRowsCounters_;
+    const TTabletPerformanceCountersPtr PerformanceCounters_;
+    const TTabletBalancingRatiosPtr TabletRatios_;
+    const TTabletId TabletId_;
+    const int SubqueryIndex_;
+
+    std::optional<TWallTimer> Timer_;
 };
 
 } // namespace
@@ -464,7 +476,7 @@ public:
                         if (auto* traceContext = TryGetCurrentTraceContext()) {
                             auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(source.ObjectId);
                             // NB(tea-mur): If you want to pack information about a specific tablet here,
-                            // you need to create a separate trace context per tablet
+                            // you need to create a separate trace context per tablet.
                             PackBaggageFromTabletSnapshot(traceContext, ETabletIOCategory::SelectRows, tabletSnapshot);
                         }
                     }
@@ -598,12 +610,15 @@ private:
                     auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(dataSource.TabletId);
                     auto [columnFilter, timestampReadOptions] = GetColumnFilter(*Query_->GetReadSchema(), *tabletSnapshot->QuerySchema);
 
+                    auto tabletChunkReadOptions = ChunkReadOptions_;
+                    tabletChunkReadOptions.ResetStatistics();
+
                     auto reader = DoCreateScanReader(
                         tabletSnapshot,
                         columnFilter,
                         GetStoresAndBounds(tabletSnapshot, dataSource.PartitionIndex, MakeSharedRange(dataSource.Bounds, RowBuffer_)),
                         QueryOptions_.TimestampRange,
-                        ChunkReadOptions_,
+                        tabletChunkReadOptions,
                         ETabletDistributedThrottlerKind::Select,
                         ChunkReadOptions_.WorkloadDescriptor.Category,
                         std::move(timestampReadOptions),
@@ -611,7 +626,10 @@ private:
 
                     return New<TProfilingReaderWrapper>(
                         reader,
+                        ChunkReadOptions_,
+                        tabletChunkReadOptions,
                         *tabletSnapshot->TableProfiler->GetSelectRowsCounters(GetProfilingUser(Identity_)),
+                        tabletSnapshot->PerformanceCounters,
                         tabletSnapshot->Settings.MountConfig->EnableDetailedProfiling,
                         dataSource.TabletId,
                         subqueryIndex,
@@ -1597,6 +1615,9 @@ private:
             try {
                 ISchemafulUnversionedReaderPtr reader;
 
+                auto tabletChunkReadOptions = ChunkReadOptions_;
+                tabletChunkReadOptions.ResetStatistics();
+
                 if (dataSplit.Ranges) {
                     if (tabletSnapshot->TableSchema->IsSorted()) {
                         reader = CreateSchemafulSortedTabletReader(
@@ -1604,7 +1625,7 @@ private:
                             columnFilter,
                             dataSplit.Ranges,
                             QueryOptions_.TimestampRange,
-                            ChunkReadOptions_,
+                            tabletChunkReadOptions,
                             ETabletDistributedThrottlerKind::Select,
                             ChunkReadOptions_.WorkloadDescriptor.Category,
                             std::move(timestampReadOptions),
@@ -1628,7 +1649,7 @@ private:
                                 TLegacyOwningKey(range.first),
                                 TLegacyOwningKey(range.second),
                                 QueryOptions_.TimestampRange,
-                                ChunkReadOptions_,
+                                tabletChunkReadOptions,
                                 ETabletDistributedThrottlerKind::Select,
                                 ChunkReadOptions_.WorkloadDescriptor.Category);
                         };
@@ -1641,7 +1662,7 @@ private:
                         columnFilter,
                         MakeSharedRange(dataSplit.PartitionBounds, RowBuffer_),
                         QueryOptions_.TimestampRange,
-                        ChunkReadOptions_,
+                        tabletChunkReadOptions,
                         ETabletDistributedThrottlerKind::Select,
                         ChunkReadOptions_.WorkloadDescriptor.Category,
                         timestampReadOptions,
@@ -1657,7 +1678,7 @@ private:
                         dataSplit.Keys,
                         QueryOptions_.TimestampRange,
                         QueryOptions_.UseLookupCache,
-                        ChunkReadOptions_,
+                        tabletChunkReadOptions,
                         timestampReadOptions,
                         Invoker_,
                         GetProfilingUser(Identity_),
@@ -1666,7 +1687,10 @@ private:
 
                 return New<TProfilingReaderWrapper>(
                     reader,
+                    ChunkReadOptions_,
+                    tabletChunkReadOptions,
                     *tabletSnapshot->TableProfiler->GetSelectRowsCounters(GetProfilingUser(Identity_)),
+                    tabletSnapshot->PerformanceCounters,
                     tabletSnapshot->Settings.MountConfig->EnableDetailedProfiling,
                     dataSplit.TabletId,
                     subqueryIndex,
@@ -1744,7 +1768,6 @@ private:
                 (statistics.SyncTime.GetTotal() - statistics.CodegenTime.GetTotal()) *
                     safeDiv(innerStatistics.RowsWritten.GetTotal(), totalRowsWrittenBySubqueries))
                 .MicroSeconds();
-
 
             for (const auto& [tabletId, ratio] : (*TabletRatios_)[subqueryIndex]) {
                 TabletSnapshots_.GetCachedTabletSnapshot(tabletId)

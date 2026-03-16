@@ -1781,6 +1781,7 @@ private:
                     writer->GetDataStatistics().data_weight(),
                     std::memory_order::relaxed);
             }
+            tabletSnapshot->PerformanceCounters->Increment(chunkReadOptions, /*isSystemWorkload*/ true);
 
             YT_LOG_INFO("Eden partitioning completed "
                 "(RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v%v, WallTime: %v)",
@@ -2203,6 +2204,7 @@ private:
             tabletSnapshot->PerformanceCounters->CompactionDataWeight.Counter.fetch_add(
                 compactionResult.StoreWriter->GetDataStatistics().data_weight(),
                 std::memory_order::relaxed);
+            tabletSnapshot->PerformanceCounters->Increment(chunkReadOptions, /*isSystemWorkload*/ true);
 
             i64 outputTotalDataWeight = 0;
             for (const auto& statistics : finalizeResult.WriterStatistics) {
