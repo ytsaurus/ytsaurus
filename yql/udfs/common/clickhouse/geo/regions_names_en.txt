@@ -281,7 +281,6 @@
 20749	Hagatna
 20860	Samoa
 20861	Apia
-21533	Pago Pago
 20915	Solomon Islands
 20916	Honiara
 114184	Marau Sound
@@ -355,6 +354,8 @@
 114776	Pitcairn Islands
 114777	Kingman Reef
 114780	Wallis and Futuna
+218915	American Samoa
+21533	Pago Pago
 241	Africa
 1056	Egypt
 121445	Dakahlia Governorate
@@ -566,6 +567,7 @@
 112956	Ghat
 112957	Sabratah
 112958	Darnah
+219189	Ajdabiya
 10024	Tunisia
 10143	Tunis
 20951	Hammamet
@@ -593,7 +595,7 @@
 123532	Houmt Souq
 155389	Mezraya
 155390	Zarzis
-20733	Côte d'Ivoire
+20733	Ivory Coast
 20734	Abidjan
 104633	Yamoussoukro
 111837	Abengourou
@@ -604,6 +606,33 @@
 111842	Dabou
 111843	Gagnoa
 111844	Divo
+219185	Korhogo
+219768	Sikensi
+219769	Atiekoi
+219770	Brofodoumé
+219771	Ahoué
+219772	Grand Alépé
+219773	Montézo
+219774	Alépé
+219775	Ebrah
+219776	Adiaké
+219777	Attinguié
+219778	Jacqueville
+219779	Sassako-Begniny
+219780	N’dyéni
+219781	Songon
+219782	Yaou
+219783	Grand-Bassam
+219785	Aboisso
+219786	Bonoua
+219787	Anyama
+219788	Adzope
+219789	Agboville
+219790	Assinie
+219828	Gounioubé
+219835	Dimbokro
+219878	Bingerville
+219886	Modest
 20736	Cameroon
 20737	Yaoundé
 111353	Bamenda
@@ -686,12 +715,25 @@
 112025	Dessie
 112026	Arba Minch
 112027	Gore
+219648	Adama
+219649	Jimma
+219838	Sheger City
+219754	Koye
+219755	Burayu
+219756	Eka Taft
+219827	Gelan
+219836	Sululta
+219837	Sebeta
+219839	Furi
+219840	Mona Abichu
+219841	Kura Jiba
+219874	Gefersa
 20789	Sahrawi Arab Democratic Republic
 20793	El-Aaiún
 107914	Bir Lehlou
 20802	Ghana
 20803	Accra
-112447	Sekondi-Takoradi
+112447	Takoradi
 112448	Kumasi
 112449	Sunyani
 112450	Tamale
@@ -699,6 +741,38 @@
 112452	Obuasi
 112453	Bolgatanga
 115055	Suhum
+218787	Sekondi
+219889	Ashaiman
+219890	Tema
+219891	Kasoa
+219892	Ngleshi Amanfro
+219893	Pobiman
+219894	Obeyie
+219895	Kokrobite
+219896	Afienya
+219897	Suhum
+219898	Cape Coast
+219899	Mankesim
+219900	Koforidua
+219901	Akropong
+219902	Winneba
+219903	Nsawam
+219904	Prampram
+219905	Dawhenya
+219906	Gbawe
+219907	Weija
+219908	Weija Barrier
+219909	Janman
+219910	Mendskrom
+219911	McCarthy Hill
+219912	Oblogo
+219913	Oyibi
+219914	Amrahia
+219915	Oyarifa
+219916	Teiman
+219917	Misuskope
+219918	Zenu
+219919	Katamanso
 20818	Guinea
 20821	Conakry
 112487	Kankan
@@ -734,6 +808,8 @@
 110978	Ghardaia
 110979	In Salah
 110980	Timimoun
+218932	Blida
+218933	Boumerdes
 20854	Madagascar
 20855	Antananarivo
 67009	Antsiranana
@@ -789,7 +865,6 @@
 114267	Nyala
 114268	Al-Fashir
 114269	Geneina
-114270	Malakal
 114938	Omdurman
 20989	Eritrea
 20990	Asmara
@@ -857,6 +932,7 @@
 114538	Kabwe
 114539	Chipata
 115665	Choma
+219589	Solwezi
 21198	Congo
 21202	Brazzaville
 114132	Mossendjo
@@ -944,6 +1020,7 @@
 113086	Beira
 113087	Nampula
 113088	Maxixe
+219184	Matola
 21239	Botswana
 21398	Gaborone
 111213	Maun
@@ -1004,6 +1081,7 @@
 114167	Tambacounda
 114168	Ziguinchor
 114169	Mbour
+218939	Thies
 21475	Djibouti
 21476	Djibouti
 21576	Mayotte
@@ -1015,6 +1093,7 @@
 98551	Cilaos
 108137	South Sudan
 101491	Juba
+114270	Malakal
 114774	Saint Helena
 155296	Other
 155297	Universal
@@ -2729,6 +2808,7 @@
 104643	Lentvaris
 112963	Ukmerge
 112966	Elektrenai
+218717	Salcininkai
 104261	Kaunas County
 11476	Kaunas
 112961	Jonava
@@ -4212,7 +4292,7 @@
 109147	Vannes
 152989	Pontivy
 152990	Pontivy
-152824	Côtes-d'Armor
+152824	Cote d’Armor
 152825	Saint-Brieuc
 112132	Saint-Brieuc
 152985	Dinan
@@ -4641,6 +4721,7 @@
 153087	Clermont
 153078	Compiegne
 112068	Compiegne
+218704	Lataule
 153079	Senlis
 109111	Chantilly
 153088	Senlis
@@ -5790,6 +5871,7 @@
 109081	Locarno
 109082	Lugano
 123523	Ascona
+219610	Balerna
 104417	Vaud
 10520	Lausanne
 109083	Montreux
@@ -6335,6 +6417,7 @@
 145247	Oliva
 145433	San Juan de Alicante
 145439	Santa Pola
+218919	Alzira
 104183	Galicia
 21057	Coruna
 105096	Santiago de Compostela
@@ -7098,7 +7181,6 @@
 104238	Valka municipality
 101688	Valka
 104239	Ventspils municipality
-108813	Ventspils
 104240	Gulbene municipality
 104954	Gulbene
 104241	Daugavpils municipality
@@ -7185,7 +7267,6 @@
 108828	Ikskile
 108721	Incukalns municipality
 108830	Incukalns
-218428	Vangazi
 108722	Ilukste municipality
 108829	Ilukste
 108723	Jaunjelgava municipality
@@ -7255,6 +7336,7 @@
 108862	Roja
 108762	Ropazi municipality
 108864	Ropazi
+218428	Vangazi
 108763	Rucava municipality
 108869	Rucava
 108764	Rugaji municipality
@@ -7758,6 +7840,7 @@
 170667	Incekum
 170668	Kestel'
 11511	Antalya
+219951	Antalya (airport)
 17305	Aksu
 17306	Kumkoy
 17307	Manavgat
@@ -9639,7 +9722,7 @@
 105439	Luxembourg District
 21204	Luxembourg
 21359	Vatican City
-21946	Vatikan
+21946	Vatican
 21610	Montenegro
 105440	Andrijevica Municipality
 105461	Andrijevica
@@ -14306,6 +14389,7 @@
 209990	Gabrielovka
 209992	Zadoshenie
 209993	Starinki
+218628	gorodskoy posolok Pravdinskiy
 102169	Slutsky District
 26951	Slutsk
 210269	Belichsky selsovet
@@ -15083,7 +15167,7 @@
 214282	Sady
 214283	Uglyany
 214285	Shepeli
-29631	Gomel district
+29631	Gomel District
 155	Gomel
 217759	Central district
 217760	Soviet district
@@ -15136,7 +15220,6 @@
 198508	Dubrovka
 198510	Zhilichi
 198522	Krasnaya Niva
-198523	Krasnaya Polyana
 198525	Krivcha
 198526	Leninec
 198527	Leninsk
@@ -17110,7 +17193,6 @@
 207179	Balashevka
 207180	Baranovka
 207181	Gagali
-207182	Gorodok
 207183	Dobuzha
 207184	Komsomolsk
 207185	Krapivnya
@@ -20965,7 +21047,7 @@
 926	Universal
 10292	Baikonur
 29403	Akmolinsk District
-163	Nur-Sultan
+163	Astana
 20809	Kokshetau
 29431	Krasny Yar
 102501	
@@ -21127,7 +21209,7 @@
 204952	Karakol
 204953	Kosbarmak
 204032	Pokrovskij selskij okrug
-204954	
+204954	Pokrovka
 204955	Sadovoe
 204033	Poltavskij selskij okrug
 205661	Poltavka
@@ -21136,13 +21218,13 @@
 205663	Sepe
 204035	Sergeevskij selskij okrug
 205664	Sergeevka
-205665	
+205665	Aschikol
 205666	Samarka
 204036	Sochinskij selskij okrug
 205667	Sochinskoe
 204037	Telmanskij selskij okrug
 205668	Telmana
-205669	
+205669	Popovka
 205841	Raz'ezd 87
 204039	Esengeldinskij aulnyj okrug
 205842	Esengeldy
@@ -21179,14 +21261,14 @@
 206349	Zhuravlevka
 206351	Vorob'evka
 206353	Novodoneczk
-206355	
+206355	Yaroslavka
 205865	Kapitonovskij selskij okrug
 206427	Kapitonovka
 206431	Baluana Sholaka
 206435	Pushkino
 205866	Karamyshevskij selskij okrug
 206440	Shubaragash
-206456	
+206456	Mat
 206459	Otradnoe
 206461	Suvorovka
 205867	Karauzekskij selskij okrug
@@ -21653,7 +21735,7 @@
 208663	Uyaly
 208566	Kyzylsajskij selskij okrug
 208570	Almas
-208662	
+208662	Ushsart
 208665	Shalkar
 208567	Sabundinskij selskij okrug
 208569	Algabas
@@ -21829,7 +21911,7 @@
 209443	Gulyajpole
 209444	Egemen
 209445	Novografskoe
-209448	gorodskoj akimat Stepnogorsk
+209448	Stepnogorsk urban akimat
 29433	Stepnogorsk
 201278	Bogenbaj
 201281	Stepnogorskoe
@@ -22383,68 +22465,9 @@
 110319	Alatau
 202671	Kokshoky
 204499	Sulusai
-10303	Taldikorgan
 29456	Kapchaguy
-29467	Tekely
 102499	
 102513	
-116768	Alakol District
-29454	Kabanbuy
-29469	Usharal
-200011	Aypara
-200012	Akzhar
-200013	Aktubek
-200014	Akshi
-200015	Alakol
-200551	Alemdy
-200556	Arharly
-200559	Ashim
-200561	Baizerek
-200562	Besagash
-200565	Beskol
-200569	Bibakan
-200571	Budyr
-200579	Bulakty
-200587	Dostyk
-200591	Ekpendi
-200593	Enbekshi
-200607	Zhaypak
-200609	Zhalanashkol
-200613	Zhambyl
-200621	Zhanama
-200624	Zhumakhan Balapanov village
-200625	Junjurek
-200629	Zhylandy
-200630	Kazakhstan
-200631	Kainar
-200632	Kamyskala
-200633	Karabulak
-200634	Karatuma
-200635	Karlygash
-200636	Kenes
-200637	Kokzhar
-200638	Koktuma
-200639	Koktuma station
-200641	Kolbay
-200644	Konyr
-200647	Qyzylqayyng
-200649	Lepsy
-200651	Maikan
-200653	Milyshat
-200655	MTF 3
-200657	Fifth
-200660	Checkout 13
-200665	Saikhan
-200668	Sapak
-200672	Old Zhanama
-200673	Taldybulak
-200674	Terekty
-200675	Tokzhaylau
-200676	Ushbulak
-200677	Ushkayyn
-200678	Chimbulak
-200679	Shynzhyly
-200680	Yntaly
 116770	Balkhash District
 29449	Bakanas
 200681	Akdala
@@ -22473,310 +22496,6 @@
 201012	Orakty Batyr
 201013	Topar
 201016	Ushzharma
-116771	Karatal District
-29470	Ushtobe
-202992	Aydar
-202994	Aytu
-202996	Akzhar
-202998	Akiyk
-203001	Almaly
-203005	Bastobe
-203007	Besagash
-203010	Birlik
-203013	Doynshy
-203019	Dostyk
-203028	Village of Eskeldi bi
-203029	Zhanatalap
-203030	Zhastalap
-203031	Zhylybulak
-203034	Kaynar
-203037	Calpe
-203039	Canabek
-203041	Karazhide
-203043	Karakum
-203046	Carashengel
-203048	Kishi Tobe
-203052	Kozhban
-203053	Kokdala
-203054	Kokpekty
-203055	Copblick
-203056	Kurishdalasy
-203057	Kyzylzhar
-203058	Oisaz
-203059	Ortataube
-203060	Oyan
-203061	Railway No. 47
-203062	Sarybulak
-203063	Tastobe
-203064	Umtul
-203065	Uskomey
-116772	Aksu District
-29452	Zhansugurov
-29455	Kapal
-199945	Akozek
-199947	Aksu
-199949	Aktyube
-199951	Aktogan
-199952	Alajide
-199954	Altynaryk
-199955	Arasan
-199957	Arasan-Kapal
-199959	Ashchibulak
-199961	Balasaz
-199963	Barlybek Syrttanov
-199965	Baiterek
-199967	Bereke
-199968	Eginsu
-199969	Enbek
-199970	Yesebulatova
-199973	Zhanalyk
-199974	Zhaskazah
-199975	Kazakhstan
-199977	Kayrakty
-199980	Karakoz
-199982	Karaoy
-199984	Karashilik
-199986	Kenzhyra
-199987	Kenkaryn
-199989	Kokzhaydak
-199990	Kokozek
-199991	Koltaban
-199992	Kopa
-199993	Kopaly
-199994	Koshkental
-199995	Kuraksu
-199996	Qyzylaghash
-199997	Kyzylzhar
-199998	Kyzylkayyn
-199999	Matay
-200000	Molaly
-200001	Oytogan
-200002	Onim
-200003	Ormanov
-200004	Sagabuyen
-200005	Sagakures
-200006	Suyksay
-200007	Taras
-200008	Tausamaly
-200009	Ulgili
-200010	Sholakozek
-116773	Sarkand District
-29461	Lepsy
-29464	Sarkand
-204199	Abay
-204200	Akbalyk
-204201	Akkayyn
-204202	Almaly
-204203	Amanbokter
-204204	Arganate
-204205	Bakaly
-204206	Bayanbay
-204207	Birlik
-204208	Ekiasha
-204209	Yerkin
-204210	Kakimzhan
-204211	Karaboghet
-204212	Karatas
-204213	Karaultobe
-204214	Kargaly
-204215	Koilyk
-204216	Kokzhide
-204217	Kokozek
-204218	Kenterek
-204219	Kokshalgyn
-204220	Village of Mukan Tulebaev
-204221	Petropavlovka
-204222	Pogranichnik
-204223	Sadovoe
-204305	Sarykurak
-204306	Sokolovka
-204309	Taskudyk
-204310	Topolevka
-204311	Ulga
-204313	Cherkassk
-204315	Shatyrbay
-204317	Shubartubek
-116774	Koksu District
-29450	Balpyk bi
-203634	10 years of Kazakhstan
-203637	50 years of Kazakhstan
-203641	Beskainar
-203642	Ainabulak
-203644	Aktekshe
-203646	Akshatogan
-203650	Village of Akyn Kalka
-203653	Algabas
-203654	Baksha
-203690	Boztogan
-203691	Byzhy
-203692	Enbekshikazah
-203693	Zhambyl
-203694	Zharlyozek
-203695	Zhetyzhal
-203707	Village of Zyliha Tamshybay
-203711	Karatal
-203716	Kenaral
-203718	Kokbastau
-203721	Koksu
-203723	Kopir
-203724	Kyzyltogan
-203725	Mambet
-203726	Maulimbay
-203727	Moinkum
-203728	Mukanshi
-203729	Mukanshy
-203730	Musabek
-203731	Nadirizbek
-203732	Podhoz PCh-45
-203733	Talapty
-203734	Tauarasi
-203735	Terekty
-116775	Eskeldi District
-29457	Karabulak
-201532	Abay
-201534	Akeshki
-201536	Aktasty
-201537	Actuma
-201538	Akyn Sarah
-201539	Aldabergenov
-201540	Almaly
-201543	Baktybai Zholbarysuly village
-201545	Biggest
-201546	Bokterli
-201547	Ekpendi
-201548	Eltay
-201549	Esquiolmes
-201550	Zhalgyzagash
-201551	Zhanalyk
-201552	Zhastar
-201553	Zhendik
-201554	Zhetysu
-201555	Kaynarly
-201556	Karatal
-201557	Kokzhazyk
-201558	Koktobe
-201559	Konyr
-201560	Korzhimbay
-201561	Matthew Baisov village
-201562	Orkusak
-201563	Otenai
-201564	Syrymbet
-201565	Tambala
-201566	Tenlik
-201567	Terekty
-201568	Shymyr
-116776	Kerbulak District
-29465	Saryozek
-203191	Akbastau
-203194	Aktobe
-203196	Altyndala
-203198	Altynemel
-203199	Araltobe
-203347	Sarybastau rural district
-203349	Sarybastau
-203350	Arharly
-203351	Balgali
-203352	Malaysary
-203353	Malaysary station
-203354	Tary
-203355	Zholaman rural district
-203356	Zholaman
-203357	Arharly
-203358	Zholaman station
-203359	Dala
-203451	Arkharly Pass
-203471	Samen
-203360	Karashinsky rural district
-203200	Arharly
-203361	Karashoki
-203362	Baigazy
-203363	Basshi
-203365	Beriktas
-203367	Bostan
-203369	Dolanaly
-203374	Aksunkar road section
-203376	Dos
-203377	Village of Zhainak batyr
-203379	Zhanalyk
-203382	Zheldikar
-203393	Karlygash
-203397	Karymsak
-203404	Koykyrykkan
-203412	Koksay
-203418	Koksu
-203419	Koktal
-203424	Kosagash
-203425	Koyankoz
-203427	Kyzylzhar
-203429	Kyzylshkol
-203431	Maitobe
-203436	Nurum
-203442	Onzhas
-203480	Taldybulak
-203527	Tastybastau
-203530	Terysakkan
-203539	Shilisu
-203542	Shubar
-203543	Shankhanai
-203546	Kogalinskiy rural district
-29460	Kogaly
-203420	Konovalovka
-203426	Kurenbel
-203529	Tastyozek
-203551	Shagan
-203554	Kaspan rural district
-203384	Kaynarly
-203400	Kaspan
-203467	Saylykol
-203555	Shagan
-203558	Sarybulak rural district
-203387	Karaagash
-203533	Shilisu
-203535	Sarybulak
-203536	Kazansu
-116777	Panfilov District
-29453	Zharkent
-203896	Avat
-203898	Aydarly
-203899	Acaral
-203901	Akjazyk
-203902	Akkent
-203903	Akkudyk
-203904	Almaly
-203906	Altyuy
-203907	Aulieagash
-203908	Baskunshy
-203910	Village of Borlibai bi
-203920	Darbazacum
-203921	Dihankayrat
-203922	Enbekshi
-203923	Zharkent-Arasan
-203924	Zhideli
-203925	Kermeagash
-203926	Kishi Shygan
-203927	Ulken Shygan
-203928	Koktal
-203929	Koktal-Arasan
-203930	Kolyrolen
-203931	Kyzylzhide
-203932	Kyrykkudyk
-203933	Lesnovka
-203934	Nagarashi
-203935	Nadek
-203936	Lower Pangim
-203937	Penzim
-203938	Sadyr
-203939	Sarpyldak
-203940	Sarybel
-203941	Sarytobe
-203942	Village of Golovatsky
-203943	Suptai
-203944	Turpan
-203945	Usharal
-203946	Khorgos
-203947	Chulakai
-203948	Shizhin
-203949	Yntaly
 116778	Zhambyl District
 29468	Uzynagash
 201685	Aydarly
@@ -23295,25 +23014,11 @@
 199462	Kyzylzhar
 199634	Aktan
 29408	East-Kazakhstan District
-165	Semey
-29505	Shulbinsk
 10306	Ust-Kamenogorsk
 29496	Kurchatov
 29498	Ridder
 102502	
 102516	
-116813	Abay District
-29493	Karaul
-198583	Arhat
-198584	Horde
-198585	Kaskabulak
-198586	Borly
-198587	Kengirbai bi
-198588	Kokbay
-198589	Zhurekadyr
-198590	Medea
-198591	Saryzhal
-198592	Toktamys
 116814	Ayagoz District
 29483	Ayagoz
 29485	Barshatas
@@ -24005,6 +23710,7 @@
 202582	Zarechnoye
 29409	Zhambylsk District
 21094	Taraz
+202805	Talas
 102511	
 102525	
 116957	Bayzak District
@@ -24057,7 +23763,6 @@
 202802	Birlesu-Enbek
 202803	Shokai
 202804	Akbulym
-202805	Talas
 202814	Besagash
 202815	Turksib
 202816	Grodekovo
@@ -24838,7 +24543,6 @@
 210968	Gulshat
 212074	Konyrat
 212079	Sayak
-10308	Zhezkazgan
 29542	Karazhal
 212052	Zhajrem
 29544	Priozersk
@@ -26410,6 +26114,7 @@
 212252	Khmelnitsky
 212254	Chigirinska
 212255	Shalday
+219947	Atameken
 29416	North-Kazakhstan District
 10298	Petropavlovsk
 102506	
@@ -27442,7 +27147,7 @@
 215152	Shabyrly
 209728	Zhetysay district
 29615	Asykata
-29617	Zheltysuy
+29617	Zhetysai
 211048	40 Years of the Kazakh SSR
 211050	40 Years of Victory
 211054	Abdihalyk
@@ -27653,6 +27358,387 @@
 214354	Shyryldak
 214355	Yntaly
 214356	Yntymak
+218918	Jetısu oblysy
+10303	Taldikorgan
+29467	Tekely
+116768	Alakol District
+29454	Kabanbuy
+29469	Usharal
+200011	Aypara
+200012	Akzhar
+200013	Aktubek
+200014	Akshi
+200015	Alakol
+200551	Alemdy
+200556	Arharly
+200559	Ashim
+200561	Baizerek
+200562	Besagash
+200565	Beskol
+200569	Bibakan
+200571	Budyr
+200579	Bulakty
+200587	Dostyk
+200591	Ekpendi
+200593	Enbekshi
+200607	Zhaypak
+200609	Zhalanashkol
+200613	Zhambyl
+200621	Zhanama
+200624	Zhumakhan Balapanov village
+200625	Junjurek
+200629	Zhylandy
+200630	Kazakhstan
+200631	Kainar
+200632	Kamyskala
+200633	Karabulak
+200634	Karatuma
+200635	Karlygash
+200636	Kenes
+200637	Kokzhar
+200638	Koktuma
+200639	Koktuma station
+200641	Kolbay
+200644	Konyr
+200647	Qyzylqayyng
+200649	Lepsy
+200651	Maikan
+200653	Milyshat
+200655	MTF 3
+200657	Fifth
+200660	Checkout 13
+200665	Saikhan
+200668	Sapak
+200672	Old Zhanama
+200673	Taldybulak
+200674	Terekty
+200675	Tokzhaylau
+200676	Ushbulak
+200677	Ushkayyn
+200678	Chimbulak
+200679	Shynzhyly
+200680	Yntaly
+116771	Karatal District
+29470	Ushtobe
+202992	Aydar
+202994	Aytu
+202996	Akzhar
+202998	Akiyk
+203001	Almaly
+203005	Bastobe
+203007	Besagash
+203010	Birlik
+203013	Doynshy
+203019	Dostyk
+203028	Village of Eskeldi bi
+203029	Zhanatalap
+203030	Zhastalap
+203031	Zhylybulak
+203034	Kaynar
+203037	Calpe
+203039	Canabek
+203041	Karazhide
+203043	Karakum
+203046	Carashengel
+203048	Kishi Tobe
+203052	Kozhban
+203053	Kokdala
+203054	Kokpekty
+203055	Copblick
+203056	Kurishdalasy
+203057	Kyzylzhar
+203058	Oisaz
+203059	Ortataube
+203060	Oyan
+203061	Railway No. 47
+203062	Sarybulak
+203063	Tastobe
+203064	Umtul
+203065	Uskomey
+116772	Aksu District
+29452	Zhansugurov
+29455	Kapal
+199945	Akozek
+199947	Aksu
+199949	Aktyube
+199951	Aktogan
+199952	Alajide
+199954	Altynaryk
+199955	Arasan
+199957	Arasan-Kapal
+199959	Ashchibulak
+199961	Balasaz
+199963	Barlybek Syrttanov
+199965	Baiterek
+199967	Bereke
+199968	Eginsu
+199969	Enbek
+199970	Yesebulatova
+199973	Zhanalyk
+199974	Zhaskazah
+199975	Kazakhstan
+199977	Kayrakty
+199980	Karakoz
+199982	Karaoy
+199984	Karashilik
+199986	Kenzhyra
+199987	Kenkaryn
+199989	Kokzhaydak
+199990	Kokozek
+199991	Koltaban
+199992	Kopa
+199993	Kopaly
+199994	Koshkental
+199995	Kuraksu
+199996	Qyzylaghash
+199997	Kyzylzhar
+199998	Kyzylkayyn
+199999	Matay
+200000	Molaly
+200001	Oytogan
+200002	Onim
+200003	Ormanov
+200004	Sagabuyen
+200005	Sagakures
+200006	Suyksay
+200007	Taras
+200008	Tausamaly
+200009	Ulgili
+200010	Sholakozek
+116773	Sarkand District
+29461	Lepsy
+29464	Sarkand
+204199	Abay
+204200	Akbalyk
+204201	Akkayyn
+204202	Almaly
+204203	Amanbokter
+204204	Arganate
+204205	Bakaly
+204206	Bayanbay
+204207	Birlik
+204208	Ekiasha
+204209	Yerkin
+204210	Kakimzhan
+204211	Karaboghet
+204212	Karatas
+204213	Karaultobe
+204214	Kargaly
+204215	Koilyk
+204216	Kokzhide
+204217	Kokozek
+204218	Kenterek
+204219	Kokshalgyn
+204220	Village of Mukan Tulebaev
+204221	Petropavlovka
+204222	Pogranichnik
+204223	Sadovoe
+204305	Sarykurak
+204306	Sokolovka
+204309	Taskudyk
+204310	Topolevka
+204311	Ulga
+204313	Cherkassk
+204315	Shatyrbay
+204317	Shubartubek
+116774	Koksu District
+29450	Balpyk bi
+203634	10 years of Kazakhstan
+203637	50 years of Kazakhstan
+203641	Beskainar
+203642	Ainabulak
+203644	Aktekshe
+203646	Akshatogan
+203650	Village of Akyn Kalka
+203653	Algabas
+203654	Baksha
+203690	Boztogan
+203691	Byzhy
+203692	Enbekshikazah
+203693	Zhambyl
+203694	Zharlyozek
+203695	Zhetyzhal
+203707	Village of Zyliha Tamshybay
+203711	Karatal
+203716	Kenaral
+203718	Kokbastau
+203721	Koksu
+203723	Kopir
+203724	Kyzyltogan
+203725	Mambet
+203726	Maulimbay
+203727	Moinkum
+203728	Mukanshi
+203729	Mukanshy
+203730	Musabek
+203731	Nadirizbek
+203732	Podhoz PCh-45
+203733	Talapty
+203734	Tauarasi
+203735	Terekty
+116775	Eskeldi District
+29457	Karabulak
+201532	Abay
+201534	Akeshki
+201536	Aktasty
+201537	Actuma
+201538	Akyn Sarah
+201539	Aldabergenov
+201540	Almaly
+201543	Baktybai Zholbarysuly village
+201545	Biggest
+201546	Bokterli
+201547	Ekpendi
+201548	Eltay
+201549	Esquiolmes
+201550	Zhalgyzagash
+201551	Zhanalyk
+201552	Zhastar
+201553	Zhendik
+201554	Zhetysu
+201555	Kaynarly
+201556	Karatal
+201557	Kokzhazyk
+201558	Koktobe
+201559	Konyr
+201560	Korzhimbay
+201561	Matthew Baisov village
+201562	Orkusak
+201563	Otenai
+201564	Syrymbet
+201565	Tambala
+201566	Tenlik
+201567	Terekty
+201568	Shymyr
+116776	Kerbulak District
+29465	Saryozek
+203191	Akbastau
+203194	Aktobe
+203196	Altyndala
+203198	Altynemel
+203199	Araltobe
+203347	Sarybastau rural district
+203349	Sarybastau
+203350	Arharly
+203351	Balgali
+203352	Malaysary
+203353	Malaysary station
+203354	Tary
+203355	Zholaman rural district
+203356	Zholaman
+203357	Arharly
+203358	Zholaman station
+203359	Dala
+203451	Arkharly Pass
+203471	Samen
+203360	Karashinsky rural district
+203200	Arharly
+203361	Karashoki
+203362	Baigazy
+203363	Basshi
+203365	Beriktas
+203367	Bostan
+203369	Dolanaly
+203374	Aksunkar road section
+203376	Dos
+203377	Village of Zhainak batyr
+203379	Zhanalyk
+203382	Zheldikar
+203393	Karlygash
+203397	Karymsak
+203404	Koykyrykkan
+203412	Koksay
+203418	Koksu
+203419	Koktal
+203424	Kosagash
+203425	Koyankoz
+203427	Kyzylzhar
+203429	Kyzylshkol
+203431	Maitobe
+203436	Nurum
+203442	Onzhas
+203480	Taldybulak
+203527	Tastybastau
+203530	Terysakkan
+203539	Shilisu
+203542	Shubar
+203543	Shankhanai
+203546	Kogalinskiy rural district
+29460	Kogaly
+203420	Konovalovka
+203426	Kurenbel
+203529	Tastyozek
+203551	Shagan
+203554	Kaspan rural district
+203384	Kaynarly
+203400	Kaspan
+203467	Saylykol
+203555	Shagan
+203558	Sarybulak rural district
+203387	Karaagash
+203533	Shilisu
+203535	Sarybulak
+203536	Kazansu
+116777	Panfilov District
+29453	Zharkent
+203896	Avat
+203898	Aydarly
+203899	Acaral
+203901	Akjazyk
+203902	Akkent
+203903	Akkudyk
+203904	Almaly
+203906	Altyuy
+203907	Aulieagash
+203908	Baskunshy
+203910	Village of Borlibai bi
+203920	Darbazacum
+203921	Dihankayrat
+203922	Enbekshi
+203923	Zharkent-Arasan
+203924	Zhideli
+203925	Kermeagash
+203926	Kishi Shygan
+203927	Ulken Shygan
+203928	Koktal
+203929	Koktal-Arasan
+203930	Kolyrolen
+203931	Kyzylzhide
+203932	Kyrykkudyk
+203933	Lesnovka
+203934	Nagarashi
+203935	Nadek
+203936	Lower Pangim
+203937	Penzim
+203938	Sadyr
+203939	Sarpyldak
+203940	Sarybel
+203941	Sarytobe
+203942	Village of Golovatsky
+203943	Suptai
+203944	Turpan
+203945	Usharal
+203946	Khorgos
+203947	Chulakai
+203948	Shizhin
+203949	Yntaly
+218936	Ulytau Region
+10308	Zhezkazgan
+218938	Abai Region
+165	Semey
+29505	Shulbinsk
+116813	Abay District
+29493	Karaul
+198583	Arhat
+198584	Horde
+198585	Kaskabulak
+198586	Borly
+198587	Kengirbai bi
+198588	Kokbay
+198589	Zhurekadyr
+198590	Medea
+198591	Saryzhal
+198592	Toktamys
 167	Azerbaijan
 10253	Baku
 102270	Khazarsky District
@@ -27847,6 +27933,7 @@
 116119	Ararat
 116120	Vedi
 116121	Masis
+218718	Ararat (village)
 105791	Armavir
 10257	Armavir
 116122	Vagharshapat
@@ -27917,6 +28004,9 @@
 10335	Tashkent
 102300	Uchtepinsky District
 102301	Bektemirsky District
+190917	Mehnatobod
+190920	Qipchoq
+190922	Bektemir
 193929	Jaloir
 102302	Mirzo Ulugbeksky District
 102401	Amir Temur Khiyoboni
@@ -27964,6 +28054,7 @@
 102413	Tashkent
 102421	Ming Urick
 193931	Hamza
+219757	Yangihayot District
 105804	Andijan Province
 10329	Andijan
 189526	Khanabad
@@ -29357,7 +29448,6 @@
 192027	Yangimazar
 192028	Yashkuch
 192029	Kagan district
-192031	Aibek
 192032	Ainasaz
 192033	Ayranchi
 192034	Akaltyn
@@ -29424,7 +29514,6 @@
 192175	Miyankul
 192176	Mustakillik
 192177	Navbahor
-192178	Navruz
 192182	Naimancha
 192184	Niyazhaji
 192185	Nishavur
@@ -30010,7 +30099,7 @@
 193868	Yangibag
 193870	Yangikishlak
 105806	Jizzakh Province
-21606	Dzhizak
+21606	Jizzakh
 193915	Arnasay district
 193916	Bakhmal
 193917	Bakhtli
@@ -30367,7 +30456,6 @@
 194438	Tokchilik
 194439	Tuyakli
 194440	Uab
-194441	Ulugbek
 194442	Umar
 194443	Uchkyz
 194444	Hayrabad
@@ -31677,6 +31765,7 @@
 194164	Daug'iztau
 194165	Shurtepa
 194166	Mamikchi
+219879	Koneobod
 194290	Qiziltepa District
 194291	Qiziltepa
 194294	Chaydaroz
@@ -34012,6 +34101,7 @@
 198109	Kulbapoyan
 198110	Ulugbek
 198111	Kaynama
+219792	Kattakurgan
 198112	Taylak district
 198113	Tailac
 198203	Adas
@@ -34650,7 +34740,6 @@
 197361	Bagara
 197362	Bajkishlak
 197363	Baymakli
-197364	Bahoristan
 197365	Bujrabab
 197366	Bulaktepa
 197367	Bustan
@@ -34773,7 +34862,6 @@
 197754	Bagcha
 197755	Bayburi
 197756	Bajkishlak
-197757	Bandihan
 197758	Beshtam
 197759	Birlik
 197760	Buyrapush
@@ -34815,7 +34903,6 @@
 197796	Nilaba
 197797	Nilu
 197798	Palpaya
-197799	Pahtakor
 197800	Pistamazar
 197801	Saridzhuj
 197802	Sahibkar
@@ -35122,6 +35209,15 @@
 198384	Telpakchinar
 198385	Akastana
 198386	Hondiza
+219880	Bandixon district
+197364	Bahoristan
+197757	Bandihan
+197799	Pahtakor
+219881	Qualdirgoch
+219882	Obod Yugt
+219883	Chinor
+219884	Farovon
+219885	Birdamlik
 105812	Sirdaryo Province
 21089	Syrdar'ja
 21605	Gulistan
@@ -35249,6 +35345,7 @@
 196381	Yangikishlak
 196382	Yangihayat
 196383	Mirzaabad district
+192178	Navruz a.p.
 196384	Navruz
 196385	Aydin
 196386	Akaltyn
@@ -35493,6 +35590,7 @@
 190131	Yangihayot
 190132	Do'stlik
 190133	Bagara
+219877	Nurobod
 189815	Bekabad District
 189642	Zafar
 189816	Bobur
@@ -35730,6 +35828,7 @@
 190769	Xisarak
 190770	Kumushkon
 190771	Konurdek
+219876	Kyzyltog
 190772	Piskent District
 189647	Piskent
 190773	Qayrag'och
@@ -35813,9 +35912,6 @@
 190906	Qo'qonovul
 190911	Toshloq
 190913	Uchqun
-190917	Mehnatobod
-190920	Qipchoq
-190922	Bektemir
 190923	Sholikor
 190924	Ikkiovul
 190925	Stambul
@@ -35970,7 +36066,7 @@
 191148	Eshonobod
 105814	Fergana Province
 10332	Kokand
-10336	Phergana
+10336	Fergana
 101425	Margilan
 191149	Oltiariq District
 191150	Tinchlik
@@ -36655,6 +36751,11 @@
 192960	Qorasuv
 192961	Chekshura
 192962	Yangibog
+219830	Satkak
+219831	Gulshan
+219832	Logon
+219833	exclave Shohimardon
+219834	Shohimardon
 192963	Furqat District
 192964	Olatoy
 192965	Katta Yangi
@@ -36723,6 +36824,9 @@
 193046	Qorasoqol
 193048	Qatartol
 193049	Kelajak
+219825	Yangi Margilan
+219826	Fergana International Airport
+219829	Quvasoy
 105815	Xorazm Province
 21105	Urgench
 193063	Bogot District
@@ -36870,6 +36974,7 @@
 105816	Republic of Karakalpakstan
 10337	Nukus
 193317	Karatau
+219945	Bestobe
 193235	Amudaryo District
 193236	Mang'it
 193241	Klichboy
@@ -36892,7 +36997,6 @@
 193258	Kegeyli District
 193259	Xalqobod
 193260	kegeyli
-193261	Qozonketkan
 193262	Moynoq District
 193263	Moynoq
 193264	Qizlijar
@@ -36933,6 +37037,8 @@
 193332	Vodnik
 193333	Taxiatosh
 193334	Naymanko'l
+219946	Bozataw district
+193261	Qozonketkan
 187	Ukraine
 861	Other
 862	Universal
@@ -37599,161 +37705,6 @@
 102469	
 102494	
 20525	East
-20536	Donetsk Region
-142	Donetsk
-27017	Mospyne
-10366	Mariupol
-27044	Talakivka
-27069	Staryi Krym
-27071	Sartana
-20554	Kramatorsk
-26989	Bilenke
-27059	Yasnohirka
-27060	Shabelkivka
-21774	Horlivka
-24421	Amvrosiivka District
-27131	Blahodatne
-27294	Kopani
-28104	Novoamvrosiivske
-28868	Amvrosiivka
-24422	Bakhmut District
-27277	Volodymyrivka
-27431	Chasiv Yar
-27747	Svyato-Pokrovskoye
-27854	Luhanske
-28959	Soledar
-24423	Velyka Novosilka District
-27248	Velyka Novosilka
-27712	Krasna Poliana
-28673	Iskra
-28842	Oleksiivka
-28874	Andriivka
-29149	Kamyshuvakha
-29154	Staromlynivka
-24424	Volnovakha District
-27046	Vuhlehirsk
-27132	Blahodatne
-27278	Volodymyrivka
-27302	Volnovakha
-27529	Donske
-27631	Hrafske
-27948	Myrne
-28077	Novotroitske
-28207	Olgynka
-28292	Petrivske
-28623	Ivanivka
-28826	Shyrokyne
-28875	Andriivka
-28877	Andriivka
-28907	Svobodne
-29151	Olenivka
-24425	Nikolske District
-27307	Nikolske
-27780	Kalchyk
-24426	Dobropillia District
-27078	Bilozerske
-27088	Bilytske
-27279	Volodymyrivka
-27290	Vodianske
-28044	Novodonetske
-28078	Novotroitske
-24427	Kostiantynivka District
-24428	Pokrovsk District
-28079	Novotroitske
-28418	Rodynske
-28532	Udachne
-28624	Ivanivka
-24429	Lyman District
-28432	Rubtsi
-28473	Terny
-28775	Yarova
-29148	Drobysheve
-24431	Marinka District
-27701	Krasnohorivka
-27732	Kurakhove
-27855	Luhanske
-28004	Marinka
-28083	Novoukrainka
-24432	Novoazovsk District
-28096	Novoazovsk
-28915	Siedove
-29147	Bezimenne
-29153	Khomutove
-24433	Oleksandrivka District
-28848	Oleksandrivka
-24434	Sloviansk District
-27389	Cherkaske
-27947	Myrne
-28055	Novomykolaivka
-28461	Raihorodok
-28876	Andriivka
-101475	Sviatohirsk
-24435	Starobesheve District
-27627	Kalmiuske
-27726	Kumachove
-28125	Novyi Svit
-28293	Petrivske
-28998	Starobesheve
-24436	Boikivske District
-28251	Pervomaiske
-28466	Boikivske
-28908	Svobodne
-24437	Shakhtarsk District
-24438	Yasynuvata District
-27587	Keramik
-27702	Krasnohorivka
-28252	Pervomaiske
-29150	Ocheretyne
-24871	Debaltseve
-100982	Svitlodarsk
-24872	Toretsk
-27009	Kurdiumivka
-27011	Pivnichne
-27027	Novhorodske
-115088	Zalizne
-24873	Druzhkivka
-27023	Novomykolaivka
-27041	Raiske
-101709	Oleksiievo-Druzhkivka
-24874	Yenakiieve
-115090	Bunhe
-24875	Khrestivka
-24876	Makiivka
-27015	Mezhove
-24877	Selidove
-27026	Novohrodivka
-27045	Ukrainsk
-29146	Hirnyk
-24878	Snizhne
-27034	Pervomaiske
-27035	Pervomaiskyi
-27062	Andriivka
-27067	Severne
-24879	Chystiakove
-24880	Khartsyzk
-27004	Zuhres
-27049	Ilovaisk
-29152	Pokrovka
-27511	Dobropillia
-27517	Dokuchaievsk
-27561	Myrnohrad
-27637	Kostiantynivka
-27704	Pokrovsk
-27711	Lyman
-28543	Vuhledar
-28784	Yasynuvata
-28837	Avdiivka
-28896	Bakhmut
-28944	Sloviansk
-104640	Mykolaivka
-29145	Shakhtarsk
-101380	Manhush District
-28770	Yalta
-101381	Mangush
-101540	Urzuf
-102456	Other
-102481	Universal
-103552	Zhdanivka
 20537	Dnipropetrovsk Region
 141	Dnipro
 29155	Taromske
@@ -38148,294 +38099,6 @@
 28658	Izium
 102455	Other
 102480	Universal
-20539	Zaporizhia Region
-960	Zaporizhia
-10367	Melitopol
-24462	Berdiansk District
-27125	Berestove
-27380	Chervone Pole
-27500	Dmytrivka
-27850	Azovske
-28069	Novopetrivka
-28080	Novotroitske
-28150	Mykolaivka
-28240	Osypenko
-28550	Uspenivka
-28878	Andriivka
-28966	Sofiivka
-24463	Vasylivka District
-27369	Vasylivka
-27506	Dniprorudne
-27801	Kamianske
-28223	Orlianske
-28324	Pidhirne
-28821	Shyroke
-24464	Velyka Bilozerka District
-27240	Velyka Bilozerka
-28070	Novopetrivka
-24465	Vesyolovsky District
-27271	Vesele
-27573	Yelyzavetivka
-27771	Kalynivka
-28822	Shyroke
-29192	Musiivka
-24466	Vilniansk District
-27312	Vilniansk
-27503	Dniprovka
-27795	Kamiane
-27879	Liubymivka
-27959	Mykhailivka
-28094	Novohupalivka
-28471	Ternivka
-28596	Verbove
-24467	Huliaipole District
-27880	Liubymivka
-27949	Myrne
-28341	Poltavka
-28551	Uspenivka
-28742	Huliaipole
-24468	Zaporizhia District
-27074	Bilenke
-27738	Kushuhum
-27849	Lukasheve
-27988	Malokaterynivka
-28071	Novopetrivka
-28451	Rozumivka
-28731	Hrygorivka
-28823	Shyroke
-29189	Balabyne
-24469	Kamianka-Dniprovska District
-27129	Blahovishchenka
-27288	Vodiane
-27504	Dniprovka
-27794	Kamianka-Dniprovska
-24470	Bilmak District
-27130	Blahovishchenka
-27720	Bilmak
-27803	Komysh-Zoria
-28007	Marianivka
-24471	Melitopol District
-27285	Voznesenka
-27349	Vysoke
-27639	Kostiantynivka
-27950	Myrne
-28036	Novobohdanivka
-28047	Nove
-28475	Terpinnia
-28782	Yasne
-28902	Astrakhanka
-28905	Svitlodolynske
-24472	Mikhailivka Dictrict
-27187	Burchak
-27350	Vysoke
-27881	Liubymivka
-27960	Mykhailivka
-28008	Marianivka
-28383	Pryshyb
-28597	Tarsalak
-24473	Novomykolaivka District
-27878	Liubytske
-28009	Marianivka
-28057	Novomykolaivka
-28325	Pidhirne
-28472	Ternuvate
-28967	Sofiivka
-24474	Orikhiv District
-27649	Kopani
-27748	Tavriiske
-27951	Myrne
-28045	Novodanylivka
-28081	Novotroitske
-28213	Omelnyk
-28221	Orikhiv
-29190	Komyshuvakha
-24475	Pology District
-27221	Basan
-27411	Fedorivka
-27640	Kostiantynivka
-28340	Pology
-28527	Tarasivka
-28732	Hryhorivka
-24476	Pryazovske District
-27486	Divnynske
-27501	Dmytrivka
-28039	Novovasylivka
-28151	Mykolaivka
-28384	Pryazovske
-29072	Stepanivka Persha
-29188	Botieve
-29193	Hirsivka
-29194	Hannivka
-24477	Prymorsk District
-27153	Borysivka
-27356	Viacheslavka
-27436	Zelenivka
-27574	Yelizavetivka
-28173	Naberezhne
-28363	Preslav
-28382	Prymorsk
-28664	Inzivka
-28764	Yurivka
-24478	Rozivka District
-28416	Rozivka
-24479	Tokmak District
-27749	Lahidne
-27921	Molochansk
-28048	Nove
-28058	Novomykolaivka
-28189	Ocheretuvate
-28598	Pokrovske
-24480	Chernyhivka District
-27263	Verkhnii Tokmak
-27399	Chernihivka
-28367	Prostore
-24481	Yakymivka District
-27756	Kyrylivka
-28046	Novodanilovka
-28417	Rozivka
-28458	Radyvonivka
-28804	Sheliugy
-28841	Yakymivka
-29191	Kosykh
-24881	Enerhodar
-27101	Berdiansk
-28038	Novovasylivka
-28480	Tokmak
-102459	Other
-102484	Universal
-20540	Luhansk Region
-222	Luhansk
-27056	Katerynivka
-103822	Oleksandrivsk
-24543	Antratsyt District
-27566	Diakove
-27709	Krasnyi Kut
-28635	Ivanivka
-28887	Antratsyt
-24544	Bilovodsk District
-27076	Bilovodsk
-27213	Baranykivka
-27572	Yevsuh
-27635	Kononivka
-28714	Horodyshche
-24545	Bilokurakyne District
-27080	Bilokurakyne
-27185	Bunchukivka
-27832	Lozno-Oleksandrivka
-27856	Lyzyne
-24546	Sorokyne District
-27924	Molodohvardiisk
-28107	Novosvitlivka
-28636	Ivanivka
-29017	Sukhodilsk
-24547	Kreminna District
-27214	Baranykivka
-27672	Kreminna
-27697	Krasnorichenske
-27979	Makiivka
-28135	Nova Astrahan
-24548	Lutuhyne District
-27851	Lutuhyne
-28548	Uspenka
-24549	Markivka District
-27998	Markivka
-24550	Milove District
-27449	Zorykivka
-27765	Kalmykivka
-27906	Milove
-28986	Striltsivka
-24551	Novoaidar District
-27066	Shchastia
-27621	Koliadivka
-28097	Novoaidar
-28106	Novookhtyrka
-28459	Raihorodka
-29200	Shtormove
-24552	Novopskov District
-27081	Bilolutsk
-27466	Zakotne
-27930	Mozhniakivka
-28035	Novobila
-28076	Novopskov
-28442	Rybiantseve
-29199	Hanusivka
-24553	Perevalsk District
-27397	Chornukhyne
-27450	Zorynsk
-28259	Perevalsk
-28276	Petrivka
-28715	Horodyshche
-28897	Kypuche
-29198	Fashchivka
-24554	Popasna District
-27003	Zolote
-27029	Nyzhnie
-27052	Hirske
-27298	Vovchoiarivka
-28152	Mykolaivka
-28355	Popasna
-28489	Troitske
-24555	Svatovo District
-27632	Lahidne
-27716	Kuzemivka
-27907	Miluvatka
-27934	Mistky
-28277	Korzhove
-28460	Raihorodka
-28909	Svystunivka
-28911	Svatove
-29196	Nyzhnia Duvanka
-24556	Dovzhansk District
-27195	Krynychne
-27381	Voznesenivka
-27633	Dubove
-24557	Slovianoserbsk District
-27454	Zymohiria
-103551	Slovianoserbsk
-24558	Stanytsia Luhanska District
-27418	Chuhynka
-28153	Mykolaivka
-28278	Petropavlivka
-28994	Stanytsia Luhanska
-24559	Starobilsk District
-27766	Kalmykivka
-27816	Karaiashnyk
-28294	Petrivske
-28814	Shulhynka
-28997	Starobilsk
-29195	Chmyrivka
-24560	Troitske District
-27901	Lantrativka
-28041	Novochervone
-28335	Pokrovske
-28490	Troitske
-29197	Rozpasiivka
-24885	Alchevsk
-24886	Brianka
-24887	Holubivka
-24888	Khrustalnyi
-27001	Bokovo-Khrustalne
-27036	Petrovo-Krasnosillia
-106008	Miusynsk
-24889	Lysychansk
-27022	Novodruzhesk
-106009	Pryvillia
-24890	Pervomaisk
-24891	Rovenky
-27058	Yasenivskyi
-24892	Rubizhne
-24893	Sievierodonetsk
-26992	Borivske
-26997	Voronove
-27014	Metolkine
-24894	Kadiivka
-106005	Almazna
-106010	Irmino
-27687	Sorokyne
-106006	Hirne
-28903	Dovzhansk
-102458	Other
-102483	Universal
 20526	South
 20541	Odesa District
 145	Odesa
@@ -38590,145 +38253,6 @@
 28655	Izmayil
 102460	
 102485	
-20542	Kherson District
-962	Kherson
-27002	Zelenovka
-27063	Antonovka
-29131	Kamyshany
-24772	Berislavsky District
-27387	Chervony Mayak
-27759	Kachkarovka
-27763	Kazackoe
-28165	Nikolaevka
-29126	Berislav
-29135	Tomarino
-24773	Belozersky District
-27077	Belozerka
-27391	Chernobaevka
-28641	Ivanovka
-101606	Muzikovka
-24774	Velikolepetihinsky District
-27246	Velikaya Leptiha
-27643	Konstantinovka
-28166	Nikolaevka
-24775	Velikoaleksandrovsky District
-27098	Belaya Krinica
-27148	Borozenskoe
-27170	Bruskinskoe
-27252	Velikaya Aleksandrovka
-27406	Chkalovo
-27430	Charivnoe
-27567	Davidov Brod
-28042	Novodmitrovka
-24776	Verhnerogachiksky District
-27117	Berezhanka
-27262	Verkhny Rogachik
-28248	Pervomaevka
-29038	Samoylovka
-24777	Vysokopolsky District
-27352	Visokopolje
-28062	Novonikolaevka
-28222	Orlovo
-28642	Ivanovka
-28899	Arkhangelskoye
-29136	Zagradovka
-24778	Genichesky District
-27409	Chongar
-28043	Novodmitrovka
-28098	Novooleksiyivka
-28167	Nikolaevka
-28288	Petrovka
-28405	Rykove
-28559	Azovske
-28912	Schastlivtsevo
-28956	Sokologornoe
-28985	Strelkovoe
-29128	Genichesk
-155438	Henicheska Hirka
-24779	Golopristansky District
-27127	Bekhtery
-27413	Chulakovka
-27518	Dolmatovka
-27686	Oleksandrivka
-28087	Novofedorovka
-28643	Ivanovka
-28688	Gladkovka
-28700	Gola Pristan
-29132	Novaya Zbur'evka
-116712	Zalizny Port
-24780	Gornostaevsky District
-27242	Velikaya Blagoveshenka
-27463	Zavodovka
-27644	Konstantinovka
-28703	Gornostayivka
-24781	Ivanovsky Dictrict
-27133	Blagodatnoe
-27533	Druzhbovka
-27883	Lubimovka
-28040	Novovasiljevka
-28063	Novonikolaevka
-28560	Ahaimany
-28644	Ivanovka
-24782	Kalanchaksky District
-27783	Kalanchak
-27953	Mirnoe
-28101	Novoaleksandrovka
-28376	Privolie
-28449	Razdolnoe
-28572	Horly
-24783	Kakhovka District
-27471	Zaozernaya
-27884	Lubimovka
-28450	Razdolnoe
-28922	Semenivka
-24784	Nizhneserogozsky District
-27311	Volnoe
-28102	Novoaleksandrovka
-28170	Nizhnie Torgai
-28171	Nizhnie Serogozy
-29137	Serogozy
-24785	Novovorontsovsky District
-27094	Belyaevka
-27549	Dudchany
-27885	Lubimovka
-27964	Mihaylovka
-28037	Novovoroncovka
-28103	Novoaleksandrovka
-24786	Novotroyitske District
-27407	Chkalovo
-28064	Novonikolaevka
-28082	Novotroickoe
-28704	Gornostayivka
-28725	Gromovka
-29020	Sivashovka
-29134	Otradovka
-29138	Sivashskoe
-24787	Skadovsk District
-27691	Krasnoe
-27892	Lazurnoe
-27965	Mihaylovka
-28065	Novonikolaevka
-28885	Antonovka
-28934	Skadovsk
-24788	Oleshky District
-29127	Oleshky
-29129	Brilevka
-29130	Velikie Kopani
-29133	Novaya Mayachka
-24789	Chaplinsky District
-27424	Chaplinka
-28014	Magdalinovka
-28066	Novonatalovka
-28645	Ivanovka
-28733	Grigorovka
-28901	Askania Nova
-28988	Stroganovka
-24904	Novaya Kakhovka
-27006	Dnepryany
-27043	Tavrijsk
-27819	Kakhovka
-102462	
-102487	
 20543	Mykolaiv District
 148	Mykolaiv
 27244	Bolshaya Koreniha
@@ -38820,11 +38344,6 @@
 27798	Kamenny Most
 27889	Lysaya Gora
 28327	Podgorodnaya
-24628	Snigirevsky District
-27388	Chervona Dolina
-28275	Pershotravnevoe
-28861	Alexandrovka
-29139	Snigirevka
 24900	Yuzhnoukrainsk
 27286	Voznesensk
 28190	Ochakov
@@ -39855,14 +39374,19 @@
 10310	Osh
 105941	Batken Province
 100979	Batken
+218934	Kyzyl-Kyya
 105942	Jalal-Abad Province
 10312	Djalal-Abad
 114767	Kerben
+218935	Bazar-Korgon
+219791	Toktogul
 105943	Issyk Kul Province
 10311	Balykchy
 36934	Cholpon-Ata
 36948	Karakol
 155189	Bosteri
+218917	Tyup
+219984	Tamchi
 105944	Naryn Province
 36974	Naryn
 105945	Osh Province
@@ -39872,6 +39396,7 @@
 105947	Chuy Province
 105948	Tokmok
 112943	Karabalta
+218931	Kemin
 208	Moldova
 10313	Kishinev
 10314	Beltsi
@@ -40574,6 +40099,7 @@
 115034	Uiwang
 115035	Uijeongbu
 115036	Yangju
+218981	Yeoju
 114958	North Gyeongsang Province
 47136	Andong
 47194	Gyeongju
@@ -40871,10 +40397,32 @@
 101739	Petah Tikva
 116114	Rishon LeZion
 116730	Ramla
+218666	Yehud
+218667	Rosh Ha'ayin
+218668	Nes Ziyyona
+218669	Elat
+218670	Gedera
+218671	Giv'at Shmuel
+218672	Gan Yavne
+218673	Be'er Ya'akov
+218674	Kafr Qasem
+218675	Kafr Yona
+218676	Tzoran-Kadima
+218677	Kfar Sava
+218678	Modi'in-Maccabim-Re'ut
+218679	Lod
+218680	Ra'ananna
+218681	Hod Ha'Sharon
+218682	Shoham
 103901	Haifa District
 132	Haifa
 100548	Hadera
 108939	Caesarea
+218683	Nesher
+218684	Tirat Carmel
+218685	Kiryat Motzkin
+218686	Kiryat Yam
+218687	Qiryat Bialik
 103902	Northern District
 20906	Cfat
 21108	Tveri'a
@@ -40887,8 +40435,11 @@
 116180	Acre
 116429	Rosh Pinna
 116430	Hamat Gader
+219611	Karmiel
 103903	Jerusalem District
 130	Jerusalem
+218688	Bet Shemesh
+218689	Mevasseret Ziyyon
 103904	Southern District
 129	Beer-Sheva
 20797	Eylat
@@ -40905,6 +40456,12 @@
 101443	Bat-Yam
 108938	Herzliya
 114768	Holon
+218690	Ramat HaSharon
+218691	Bnei Brak
+218692	Ramat Gan
+218693	Givat Haim
+218694	Kiryat Ono
+218695	Or Yehuda
 108937	Golan Heights
 112783	Nablus
 116729	Judea and Samaria District
@@ -40921,11 +40478,11 @@
 109027	Al Riqqa
 109028	Bur Dubai
 109029	Deira
+109030	Jebel Ali
 109031	Jumeirah
 109032	Al Satwa
 109033	Shaik Zayed
 109036	Palm Jumeirah
-109030	Jebel Ali
 116243	Hatta
 121480	Ras al-Khaimah
 101467	Ras al-Khaimah
@@ -42556,16 +42113,70 @@
 114152	Kharj
 114160	Dawadmi
 114163	Wadi ad Dawasir
+218793	Addiriyah
+218912	Ad Dilam
+218794	Adduwadimi
+218795	Afif
+218798	Alaflaj
+218806	Alghat
+218808	Alhariq
+218816	Alkharj
+218824	Almajmaah
+218828	Almuzahimiyah
+218908	Al Muzahimiyah
+218835	Alquwayiyah
+218844	Arriyad
+218847	Assulayyil
+218848	Azzulfi
+218914	Al Zulfi
+218861	Duruma
+218866	Hawtat Bani Tamim
+218868	Huraymila
+218886	Rumah
+218891	Shaqra
+218896	Thadiq
+218903	Wadi addawasir
 121433	Makkah Region
 41030	Mecca
 114139	Jeddah
 114141	Ta'if
+218813	Aljumum
+218814	Alkamil
+218819	Alkhurmah
+218820	Allith
+218833	Alqunfidhah
+218836	Altaif
+218870	Jiddah
+218874	Khulays
+218875	Makkah almukarramah
+218880	Rabigh
+218882	Ranyah
+218899	Turubah
 121434	Al Madinah Region
 40249	Medina
 114149	Yanbu
+218810	Alhinakiyah
+218821	Almadinah almunawwarah
+218822	Almahd
+218837	Alula
+218849	Badr
+218872	Khaybar
+218905	Yanbu albahr
 121435	Al-Qassim Region
 114142	Unayzah
 114148	Buraydah
+218802	Alasyah
+218803	Albadai
+218805	Albukayriyah
+218826	Almidhnab
+218839	Annabhaniyah
+218842	Arrass
+218910	Ar Rass
+218845	Ashshimasiyah
+218857	Buraydah
+218885	Riyadh alkhabra
+218901	Unayzah
+218902	Uyun aljiwa
 121436	Eastern Province
 40419	Dammam
 114137	Al-Hofuf
@@ -42573,29 +42184,101 @@
 114145	Hafar-al-Batin
 114161	Al Qaisumah
 123267	Al Khobar
+218792	Addammam
+218799	Alahsa
+218812	Aljubayl
+218815	Alkhafji
+218818	Alkhubar
+218829	Alnuayriyah
+218831	Alqatif
+218856	Buqayq
+218863	Hafar albatin
+218878	Qaryah alulya
+218883	Ras Tannurah
 121437	'Asir Region
 114146	Abha
 114147	Khamis Mushayt
 114150	Bisha
+218789	Abha
+218797	Ahad Rifaydah
+218823	Almajardah
+218840	Annamas
+218851	Balqarn
+218855	Bishah
+218871	Khamis Mushayt
+218876	Muhayil
+218884	Rijal Alma
+218890	Sarat Abidah
+218894	Tathlith
+218906	Zahran aljanub
 121438	Tabuk Region
 114156	Tabuk
 114159	Wedjh
+218838	Alwajh
+218860	Duba
+218865	Haqil
+218893	Tabuk
+218895	Tayma
+218900	Umluj
 121439	Ha'il Region
 114143	Hail
+218807	Alghazalah
+218846	Asshinan
+218852	Baqa
+218864	Hail
 121440	Northern Borders Region
 114157	Turayf
 114158	Araar
 114164	Rafha
+218841	Arar
+218881	Rafha
+218898	Turayf
 121441	Jizan Region
 114151	Jazan
+218790	Abu Arish
+218911	Abu Arish
+218791	Addair
+218796	Ahad almusarihah
+218801	Alaridah
+218809	Alharth
+218811	Alidabi
+218832	Alqiyas
+218843	Arrayth
+218853	Baysh
+218858	Damad
+218862	Farasan
+218869	Jazan
+218887	Sabya
+218907	Sabia
+218889	Samtah
+218913	Samitah
 121442	Najran Region
 114144	Najran
 114155	Sharurah
+218817	Alkharkhir
+218850	Badr aljanub
+218867	Hubuna
+218873	Khubash
+218877	Najran
+218892	Sharurah
+218897	Thar
+218904	Yadamah
 121443	Al Bahah Region
 114154	Al Baha
+218800	Alaqiq
+218804	Albaha
+218825	Almandaq
+218827	Almukhwah
+218830	Alqari
+218854	Biljurashi
+218879	Qilwah
 121444	Al Jawf Region
 114153	Sakakah
 114162	Al-Qurayyat
+218834	Alqurayyat
+218859	Dawamat aljandal
+218888	Sakaka
+218909	Tubarjal
 10542	Syria
 144727	Latakia Governorate
 21122	Latakia
@@ -42665,7 +42348,7 @@
 144768	Dohuk Governorate
 144774	Dohuk
 144769	Erbil Governorate
-112762	Irbil
+112762	Erbil
 144770	Kirkuk Governorate
 112769	Kirkuk
 144771	Sulaymaniyah Governorate
@@ -42688,7 +42371,15 @@
 21316	Phnom Penh
 111352	Battambang
 21486	Qatar
+219591	Ad Dawhah
 21487	Doha
+219592	Al Daayen
+219593	Al Khor
+219594	Al Wakrah
+219595	Al Rayyan
+219596	Al Shamal
+219597	Umm Salal
+219598	Al Shahaniya
 21550	Bhutan
 21552	Thimphu
 21551	Yemen
@@ -42754,6 +42445,7 @@
 144811	Muscat Governorate
 21587	Muscat
 144812	As Seeb
+219590	Bawshar
 144813	Musandam Governorate
 113992	Khasab
 144814	Ad Dakhiliyah Governorate
@@ -42764,6 +42456,7 @@
 153105	Al Buraimi
 144817	Al Wusta Governorate
 153106	Hayma
+219222	Duqm
 29385	Taiwan
 10592	Taipei
 10593	Tainan
@@ -42802,6 +42495,7 @@
 116975	Matushkino
 116976	Savyolki
 116977	Staroye Kryukovo
+218941	Zelenograd — Kryukovo (D3)
 116978	Silino
 116979	Kryukovo
 9000	Yandex.wifi
@@ -42834,6 +42528,8 @@
 20485	Krasniye Vorota
 20486	Chistiye Prudy
 218596	stantsiya Kurskaya (D2)
+219017	Kurskaya (D4)
+218956	Elektrozavodskaya (D3)
 117067	Zamoskvorechye
 20468	Tretyakovskaya
 20474	Novokuznetskaya
@@ -42846,12 +42542,16 @@
 20484	Komsomolskaya
 20566	Sretenskiy bulvar
 218590	stantsiya Kalanchyovskaya (D2)
+218955	Leningradsky Railway Station (D3)
+218957	Kazansky Railway Station (D3)
+219012	Ploschad Tryokh Vokzalov (D4)
 117069	Meshchansky District
 20463	Rizhskaya
 20464	Prospekt Mira
 20465	Sukharevskaya
 20565	Trubnaya
 218575	Rizhskaya Station (D2)
+219014	Rizhskaya (D4)
 120538	Presnensky District
 20499	Ulitsa 1905 Goda
 20500	Barrikadnaya
@@ -42865,6 +42565,8 @@
 189454	Delovoy Tsentr
 218560	Begovaya Station (D1)
 218566	Testovskaya Station (D1)
+219011	Begovaya (D4)
+219018	Testovskaya (D4)
 120539	Tagansky District
 20407	Volgogradskiy Prospekt
 20476	Ploshchad Ilyicha
@@ -42874,6 +42576,7 @@
 20513	Krestyanskaya Zastava
 20514	Rimskaya
 20515	Chkalovskaya
+219004	Serp I Molot (D4)
 120540	Tverskoy District
 20467	Kitay-Gorod
 20470	Belorusskaya
@@ -42892,6 +42595,7 @@
 20563	Dostoevskaya
 20564	Suvorovskaya
 218568	Belorusskaya Station (D1)
+219016	Belorusskaya (D4)
 120542	Khamovniki
 20490	Park Kultury
 20491	Frunzenskaya
@@ -42921,10 +42625,15 @@
 117020	Vostochnoye Degunino
 218551	Degunino Station (D1)
 218572	Beskudnikovo Station (D1)
+219600	Yakhromskaya station
 117021	Golovinsky District
 20370	Vodniy Stadion
 117022	Dmitrovsky District
 117023	Zapadnoye Degunino
+218949	Khovrino (D3)
+218950	Grachevskaya (D3)
+218951	Mosselmash (D3)
+218952	Likhobory (D3)
 117024	Koptevo
 152923	Koptevo
 152924	Likhobory
@@ -42932,6 +42641,8 @@
 20369	Rechnoy Vokzal
 215102	Belomorskaya
 117026	Molzhaninovsky District
+218945	Novopodrezkovo (D3)
+218946	Molzhaninovo (D3)
 117027	Savyolovsky District
 215103	Savelovskaya (Bolshaya Koltcevaya)
 218582	Grazhdanskaya Station (D2)
@@ -42941,6 +42652,7 @@
 20377	Timiryazevskaya
 152925	Okruzhnaya
 189455	Okrushchnaya
+218953	Petrovsko-Razumovskaya (D3)
 117029	Khovrino
 187151	Khovrino
 117030	Khoroshyovsky District
@@ -42976,8 +42688,11 @@
 117038	Marfino
 152926	Vladykino
 218594	Okruzhnaya Station (D1)
+218954	Ostankino (D3)
 117039	Maryina Roshcha
 20567	Marina roscha
+219013	Maryina Roshcha (D4)
+219015	Savyolovskaya (D4)
 117040	Ostankinsky District
 103542	Ulitsa Sergeya Eisensteina
 103543	Vystavochny Tsentr
@@ -42993,6 +42708,7 @@
 117043	Sviblovo
 20387	Sviblovo
 117044	Severny
+219602	Fiztekh station
 117045	Severnoye Medvedkovo
 20385	Medvedkovo
 117046	Yuzhnoye Medvedkovo
@@ -43003,8 +42719,11 @@
 152929	Belokamennaya
 152930	Bulvar Rokossovskogo
 116981	Veshnyaki
+218964	Vykhino (D3)
+219001	Kuskovo (D4)
 116982	Vostochny
 215341	Vostochnyj
+219019	Akulovo
 116983	Vostochnoye Izmaylovo
 116984	Golyanovo
 116985	Ivanovskoye
@@ -43019,6 +42738,7 @@
 116988	Metrogorodok
 116989	Novogireyevo
 20390	Novogireyevo
+219003	Novogireyevo (D4)
 116990	Novokosino
 114781	Novokosino
 116991	Perovo
@@ -43026,6 +42746,7 @@
 20392	Shosse Entuziastov
 152934	Shosse Entuziastov
 152935	Andronovka
+218959	Aviamotornaya (D3)
 116992	Preobrazhenskoye
 20400	Cherkizovskaya
 20401	Preobrazhenskaya Ploshchad
@@ -43036,8 +42757,10 @@
 20397	Semenovskaya
 20398	Elektrozavodskaya
 152933	Sokolinaya Gora
+218958	Sortirovochnaya (D3)
 116995	Sokolniki
 20402	Sokolniki
+219650	Mitkovo
 20359	South-Eastern Administrative District
 120544	Vykhino-Zhulebino
 20403	Vykhino
@@ -43045,6 +42768,7 @@
 115040	Lermontovsky Prospekt
 218429	Kosino
 218623	Yugo-Vostochnaya
+218965	Kosino (D3)
 120545	Kapotnya
 120546	Kuzminki
 20405	Kuzminki
@@ -43069,6 +42793,9 @@
 218546	Novokhokhlovskaya Station (D2)
 218576	stantsiya Kalitniki (D2)
 218620	Nizhegorodskaya (Nekrasovskaya)
+218960	Andronovka (D3)
+218961	Perovo (D3)
+218999	Nizhegorodskaya (D4)
 120552	Pechatniki
 20411	Pechatniki
 152938	Ugreshskaya
@@ -43079,6 +42806,9 @@
 20404	Ryazanskiy Prospekt
 218621	Stakhanovskaya
 218622	Okskaya
+218962	Plushevo (D3)
+218963	Veshnyaki (D3)
+219000	Chukhlinka (D4)
 120554	Tekstilshchiki
 20406	Textilschiki
 20412	Volzhskaya
@@ -43111,6 +42841,8 @@
 120573	Nagatino-Sadovniki
 20418	Kolomenskaya
 120574	Nagatinsky Zaton
+218927	Nagatinsky Zaton
+218928	Klenovy Bulvar
 120575	Nagorny District
 20425	Varshavskaya
 20427	Nagatinskaya
@@ -43142,21 +42874,27 @@
 20433	Leninskiy Prospekt
 20444	Universitet
 152944	Ploshchad Gagarina
+219887	Vavilovskaya
 120558	Zyuzino
 20443	Kakhovskaya
 20445	Nakhimovskiy Prospekt
 20446	Sevastopolskaya
+218711	Zyuzino
 120559	Konkovo
 20438	Belyaevo
 20439	Konkovo
+219607	Universitet Druzhby Narodov station
 120560	Lomonosovsky District
 120561	Obruchevsky District
 20437	Kaluzhskaya
+218712	Vorontsovskaya
+218713	Novatorskaya
 120562	Severnoye Butovo
 20448	Bulvar Dmitriya Donskogo
 20516	Ulitsa Starokachalovskaya
 120563	Tyoply Stan
 20440	Tyopliy Stan
+219608	Generala Tyuleneva station
 120564	Cheryomushki
 20435	Profsoyuznaya
 20436	Noviye Cheremushki
@@ -43175,8 +42913,12 @@
 20362	Western Administrative District
 21657	Solncevo
 190116	Solntsevo
+218992	Solnechnaya (D4)
+218993	Mescherskaya (D4)
+219187	Novoperedelkino (D4)
 116996	Vnukovo
 121826	Tolstopaltsevo
+219606	Aeroport Vnukovo station
 116997	Dorogomilovo
 20449	Kievskaya
 20450	Park Pobedy
@@ -43185,6 +42927,8 @@
 152946	Kutuzovskaya
 163517	Minskaya
 218587	Fili Station (D1)
+218998	Poklonnaya (D4)
+219002	Kutuzovskaya (D4)
 116998	Krylatskoye
 20453	Krylatskoe
 116999	Kuntsevo
@@ -43196,11 +42940,15 @@
 116592	IC Skolkovo
 218541	Rabochiy Posyolok Station (D1)
 218550	Setun Station (D1)
+218715	Davydkovo
 117001	Novo-Peredelkino
 190117	Borovskoe Shosse
 190119	Novoperedelkino
+218991	Peredelkino (D4)
 117002	Ochakovo-Matveyevskoye
 190114	Ozernaya
+218714	Aminyevskaya
+218994	Ochakovo (D4)
 117003	Prospekt Vernadskogo
 20451	Prospekt Vernadskogo
 117004	Ramenki
@@ -43208,6 +42956,9 @@
 163520	Lomonosovsky Prospekt
 163522	Ramenki
 190113	Michurinsky Prospekt
+218995	Aminyevskaya (D4)
+218996	Matveyevskaya (D4)
+218997	Minskaya (D4)
 117005	Troparyovo-Nikulino
 20452	Yugo-Zapadnaya
 116268	Troparyovo
@@ -43239,6 +42990,9 @@
 20568	Strogino
 109160	Myakinino
 117053	Khoroshevo-Mnevniki
+218629	Narodnoye Opolcheniye
+218630	Mnyovniki
+218716	Terekhovo
 117054	Shchukino
 20367	Schukinskaya
 20368	Oktyabrskoe Pole
@@ -43247,8 +43001,6 @@
 117055	Yuzhnoye Tushino
 20365	Skhodnenskaya
 114619	Novomoskovsky Administrative District
-21624	Zcherbinka
-218571	Scherbinka Station (D2)
 116269	Vnukovo International Airport
 117008	Poselenie Voskresenskoe
 121892	Yamontovo
@@ -43279,6 +43031,9 @@
 121774	Rasskazovka
 190121	Rasskazovka
 212566	Likova
+218989	Michurinets (D4)
+218990	Vnukovo (D4)
+219603	Pykhtino
 215249	Poselenie Desyonovskoe
 101602	Vatutinki
 117009	Desna
@@ -43289,6 +43044,8 @@
 215247	Pyhchevo
 215250	Poselenie Kokoshkino
 117010	Kokoshkino
+218986	Kokoshkino (D4)
+218987	Tolstopaltsevo (D4)
 215251	Lukoshkino
 215253	Poselenie Marushkinskoe
 117011	Marushkino
@@ -43297,6 +43054,8 @@
 121758	Postnikovo
 215254	Davydkovo
 215257	Sharapovo
+218984	Kryokshino (D4)
+218985	Sanino (D4)
 215259	Poselenie Moskovskij
 103817	Moskovsky
 190115	Govorovo
@@ -43309,22 +43068,6 @@
 121789	Salaryevo
 144826	Salaryevo
 215261	Poselok Instituta Poliomielita
-215263	Poselenie Mosrentgen
-21707	Mosrentgen
-215293	Poselenie Sosenskoe
-29393	Kommunarka
-117013	Gazoprovod
-121533	Bachurino
-121614	Zimenki
-121682	Letovo
-121719	Nikolo-Hovanskoe
-121761	Prokshino
-121804	Sosenki
-121813	Stolbovo
-218464	Kommunarka
-218465	Olhovaya
-218466	Prokshino
-218467	Filatov Lug
 215294	Poselenie Filimonkovskoe
 117014	Verhnee Valuevo
 121314	Marino
@@ -43333,6 +43076,31 @@
 121843	Filimonki
 215307	Pushkino
 215308	Starosel'e
+219599	Shcherbinka area
+21624	Shcherbinka
+218571	Scherbinka Station (D2)
+219601	Kommunarka
+215263	Poselenie Mosrentgen
+21707	Mosrentgen
+219609	Tyutchevskaya station
+215293	Poselenie Sosenskoe
+29393	Kommunarka
+219717	Kommunarka
+117013	Gazoprovod
+121533	Bachurino
+121614	Zimenki
+121682	Letovo
+121719	Nikolo-Hovanskoe
+121761	Prokshino
+121804	Sosenki
+121813	Stolbovo
+218464	Novomoskovskaya
+218465	Olhovaya
+218466	Prokshino
+218467	Filatov Lug
+218708	Larevo
+219604	Potapovo station
+219605	Kornilovskaya station
 114620	Troitsky Administrative District
 20674	Troitsk
 212567	Poselenie Voronovskoe
@@ -43345,6 +43113,7 @@
 212571	Yudanovka
 212572	Yasenki
 212573	Voronovo
+218940	Semenkovo
 215310	Poselenie Kievskij
 117057	Kievsky
 215311	Poselenie Klenovskoe
@@ -44114,6 +43883,8 @@
 160108	Selivanikha
 160111	Khovanskoye
 214072	Sinevo
+218663	Millenium park
+218664	Greenfield
 98587	Kashira Urban Okrug
 10732	Kashira
 103818	Ozherelye
@@ -44235,6 +44006,7 @@
 214074	Belozerki
 214075	Borozda
 214076	Selinskoe
+219612	Temnovo
 98589	Kolomensky Urban Okrug
 10734	Kolomna
 21650	Lesnoj
@@ -44358,6 +44130,13 @@
 218564	Krasnogorskaya Station (D2)
 218579	Anikeevka Station (D2)
 98591	Leninsky District
+117723	Gorki
+117729	Gorki Leninskie
+118221	Kalinovka
+118808	Meshcherino
+119539	Petrovskoe
+119547	Petrushino
+121362	Beleutovo
 150806	Volodarskiy
 150807	Sovkhoz im. Lenina
 159133	Bulatnikovskoye rural settlement
@@ -44402,13 +44181,6 @@
 121349	Posyolok Sovkhoza imeni Lenina
 159152	Blizhniye Prudishchi
 159531	Urban settlement Gorki Leninskiye
-117723	Gorki
-117729	Gorki Leninskie
-118221	Kalinovka
-118808	Meshcherino
-119539	Petrovskoe
-119547	Petrushino
-121362	Beleutovo
 159534	Pugovichino
 159535	Sapronovo
 214077	Vidnoe urban settlement
@@ -44419,6 +44191,7 @@
 120159	Tarychevo
 214078	Spasskoe
 218548	Bitsa Station (D2)
+218752	Bobrovo
 98592	Lotoshinsky District
 159192	Mikulinskoye rural settlement
 117204	Afanasovo
@@ -44522,17 +44295,27 @@
 10738	Lubercy
 121328	Posyolok Kalinina
 121574	Posyolok VUGI
+218966	Ukhtomskaya (D3)
+218967	Lyubertsy (D3)
+218968	Panki (D3)
+21735	Dzerzhinsky
 101060	Tomilino
+218969	Tomilino (D3)
 101764	Kraskovo
 121307	Korenyovo
 105572	Malakhovka
+218970	Kraskovo (D3)
+218971	Malakhovka (D3)
 105574	Oktyabrsky
+117514	Verkhnee Myachkovo
 117964	Zhilino-2
 118294	Kirillovka
 118757	Marusino
 118784	Mashkovo
 118822	Mirnyy
 118929	Motyakovo
+119399	Ostrovtsy
+119873	Sel'tso
 120003	Sosnovka
 120195	Tokarevo
 120368	Chasovnya
@@ -44544,6 +44327,9 @@
 160399	Egorovo
 160400	Zhilino-1
 160404	Khlystovo
+161588	Mikhnevo
+161833	Poselok Vsesoyuznogo elektrotekhnicheskogo instituta imeni Lenina
+161836	Opytnoye Pole
 98595	Mozhajskij Urban Okrug
 10739	Mozhaysk
 21734	Jurlovo
@@ -44689,8 +44475,12 @@
 213831	Sholohovo
 213832	Kardo-Lenta
 213834	Vinogradovo
+218705	Yudino
+218706	Zimino
+218707	Poselok mebelnoy fabriki
 98597	Naro-Fominsky Urban Okrug
 10715	Aprelevka
+218982	Aprelevka (D4)
 10741	Naro-Fominsk
 37160	Vereya
 101588	Selyatino
@@ -44789,6 +44579,7 @@
 214112	Rozhdestveno
 214113	Sanniki
 214114	Tyornovka
+218983	Pobeda (D4)
 98598	Bogorodskij Urban Okrug
 10742	Noginsk
 21642	Elektrougli
@@ -45023,6 +44814,7 @@
 214120	Podlipki
 218545	Skolkovo Station (D1)
 218555	Nemchinovka Station (D1)
+218988	Lesnoy Gorodok (D4)
 98600	Ozery Urban Okrug
 10744	Ozery
 117125	Aleksandrovka
@@ -45135,6 +44927,9 @@
 214046	Berezhki
 98604	Pushkinsky District
 10748	Pushkino
+21623	Ivanteevka
+121005	Krasnoarmeysk Urban Okrug
+100471	Krasnoarmeysk
 146289	Krasnoarmeysk
 150851	Sanatoriy 28-A
 161413	Ashukino urban settlement
@@ -45195,31 +44990,34 @@
 161456	Koptelino
 161457	Komyagino
 98605	Ramensky District
+118010	Zaozer'e
 150855	Ramenskiy Sovkhoz
 161491	Bykovo urban settlement
 10718	Bykovo
+218973	Bykovo (D3)
 161809	Aparikha
 161495	Il'insky urban settlement
 133110	Ilyinskiy
+218974	Ilyinskaya (D3)
 161498	Kratovo urban settlement
 117795	Dement'evo
 117842	Donino
 118041	Zakharovo
 118145	Igumnovo
 118482	Kratovo
+218976	Kratovo (D3)
+218977	Eseninskaya (D3)
 120351	Khripan'
 161810	Popovka
 161502	Rodniki urban settlement
 119749	Rodniki
 161504	Udel'naya urban settlement
 105573	Udelnaya
+218972	Udelnaya (D3)
 161506	Vereyskoye rural settlement
 120015	Spartak
 146290	Vereya
-161588	Mikhnevo
-161833	Poselok Vsesoyuznogo elektrotekhnicheskogo instituta imeni Lenina
 161834	Bykovo
-161836	Opytnoye Pole
 161512	Vyalkovskoye rural settlement
 117547	Vlasovo
 117634	Vyalki
@@ -45290,11 +45088,6 @@
 120239	Turygino
 120470	Elektroizolyator
 161817	Antonovo
-161531	Ostrovetskoye rural settlement
-117514	Verkhnee Myachkovo
-118010	Zaozer'e
-119399	Ostrovtsy
-119873	Sel'tso
 161533	Rybolovskoye rural settlement
 118885	Mikheevo
 120299	Fedino
@@ -45345,6 +45138,9 @@
 121357	Posyolok Imeni Telmana
 214122	Ramenskoe urban settlement
 10750	Ramenskoe
+218978	Fabrichnaya (D3)
+218979	Ramenskoe (D3)
+218980	Ippodrom (D3)
 117802	Dergaevo
 98606	Ruzsky Urban Okrug
 10751	Ruza
@@ -45421,6 +45217,7 @@
 161858	sadovoye tovarishchestvo Berezka
 213569	Briket
 214050	Berezhki
+218665	Porechye
 98607	Stupino Urban Okrug
 10756	Stupino
 21628	Mihnevo
@@ -45613,7 +45410,10 @@
 119909	Serkovo
 133124	Uspenskiy
 146297	Dmitriyevka
-98610	Serpukhovsky District
+98610	Serpukhov Urban Okrug
+217	Pushino
+10754	Serpuhov
+20576	Protvino
 161996	Obolensk urban settlement
 21629	Obolensk
 118225	Kalugino
@@ -45739,6 +45539,7 @@
 120373	Chashnikovo
 120398	Chernaya Gryaz'
 121725	Nosovo
+218703	Shemyakino
 162050	Peshkovskoye rural settlement
 117670	Glazovo
 117901	Durykino
@@ -45884,6 +45685,7 @@
 162424	Berezki
 162425	Kulakovo
 162453	Sandarovo
+219948	Tomarovo
 98615	Shatura Urban Okrug
 10760	Cherusty
 10762	Shatura
@@ -46115,6 +45917,11 @@
 121842	Fedurnovo
 121861	Chernoe
 212576	Pavlino Forest
+219006	Olgino (D4)
+219007	Kuchino (D4)
+219008	Zheleznodorozhnaya (D4)
+219009	Saltykovskaya (D4)
+219010	Nikolskoye (D4)
 120859	Chernogolovka Urban Okrug
 219	Chernogolovka
 121543	Besedy
@@ -46138,26 +45945,80 @@
 10758	Himki
 21640	Skhodnya
 121837	Uskovo
+218943	Skhodnya (D3)
+218944	Podrezkovo (D3)
+218942	Firsanovskaya (D3)
+218947	Khimki (D3)
 10764	Sheremetyevo International Airport
 121836	Uskovo
+218948	Levoberezhnaya (D3)
 120990	Orehovo-Zuyevo Urban Okrug
 10745	Orehovo-Zuevo
+21643	Drezna
+37141	Likino-Dulevo
+37144	Kurovskoye
+117085	Avsyunino
+117221	Ashcherino
+117333	Bogorodskoe
+117545	Vlasovo
+117770	Gubino
+117780	Davydovo
 117796	Demikhovo
+117853	Dorokhovo
 117855	Drovoseki
+117891	Dubrovo
+118131	Ivantsevo
+118139	Ignatovo
+118165	Il'inskiy Pogost
+118208	Kabanovo
+118394	Kostino
 118718	Malaya Dubna
+118916	Molokovo
 119096	Nikulino
+119121	Novaya
+119173	Novoe
+119548	Petrushino
 119641	Prigorodnyy
+119815	Savost'yanovo
 119953	Snopok Novy
+120180	Timonino
 120225	Trusovo
 120466	Shcherbinino
+120509	Yakovlevo
+133098	Bezzubovo
+133100	Mistsevo
+133102	Sobolevo
 146286	Vereya
+146287	Zaputnoye
+146288	Savinskaya
+150842	Abramovka
+150843	Vereya
+150844	Zaputnoye
+150845	Krasnoye
+150846	Savinskaya
+150847	Khoteichi
+161189	Antsiferovo
+161190	Barskoye
+161191	Gora
+161192	Elizarovo
+161193	Zaponor'ye
+161194	Lyakhovo
+161195	Yakovlevskaya
 161196	Krasnaya Dubrava
 161197	Nazhitsy
 161198	Nesterovo
 161199	Sermino
 161200	Fedorovo
+161201	Alekseyevskaya
+161202	Astashkovo
+161203	Lashino
+161204	Lopakovo
+161205	Minino
+161206	Smolevo
+161208	Shevlyagino
 120991	Zhukovsky Urban Okrug
 20571	Zhukovskiy
+218975	Otdykh (D3)
 120992	Dubna Urban Okrug
 215	Dubna
 120993	Yelektrostal' Urban Okrug
@@ -46176,14 +46037,8 @@
 20728	Korolev
 21620	Yubileyny
 21633	Bolshevo
-120995	Serpukhov Urban Okrug
-10754	Serpuhov
 120996	Lytkarino Urban Okrug
 21630	Lytkarino
-120997	Ivanteevka Urban Okrug
-21623	Ivanteevka
-120998	Pushchino Urban Okrug
-217	Pushino
 120999	Dolgoprudny Urban Okrug
 214	Dolgoprudniy
 214066	Sheremet'evskij
@@ -46197,23 +46052,18 @@
 150835	Shikhovo
 121871	Shikhovo
 150834	Sanatoriy Porechye
-121001	Protvino Urban Okrug
-20576	Protvino
 121002	Lobnja Urban Okrug
 21641	Lobnja
 218544	Lobnya Station (D1)
 121003	Reutov Urban Okrug
 21621	Reutov
+219005	Reutov (D4)
 121004	Yelektrogorsk Urban Okrug
 37120	Elektrogorsk
-121005	Krasnoarmeysk Urban Okrug
-100471	Krasnoarmeysk
 121006	Kotelniki Urban Okrug
 21651	Kotelniki
 121428	Kotelniki
 150816	Belaya Dacha
-121007	Dzerzhinsky Urban Okrug
-21735	Dzerzhinsky
 121008	Roshal' Urban Okrug
 21644	Roshal'
 121009	Losino-Petrovsky Urban Okrug
@@ -46234,55 +46084,6 @@
 162668	Savinki
 162670	Toporkovo
 162671	Ulitkino
-188064	Likino-Dulevo Urban Okrug
-21643	Drezna
-37141	Likino-Dulevo
-37144	Kurovskoye
-117085	Avsyunino
-117221	Ashcherino
-117333	Bogorodskoe
-117545	Vlasovo
-117770	Gubino
-117780	Davydovo
-117853	Dorokhovo
-117891	Dubrovo
-118131	Ivantsevo
-118139	Ignatovo
-118165	Il'inskiy Pogost
-118208	Kabanovo
-118394	Kostino
-118916	Molokovo
-119121	Novaya
-119173	Novoe
-119548	Petrushino
-119815	Savost'yanovo
-120180	Timonino
-120509	Yakovlevo
-133098	Bezzubovo
-133100	Mistsevo
-133102	Sobolevo
-146287	Zaputnoye
-146288	Savinskaya
-150842	Abramovka
-150843	Vereya
-150844	Zaputnoye
-150845	Krasnoye
-150846	Savinskaya
-150847	Khoteichi
-161189	Antsiferovo
-161190	Barskoye
-161191	Gora
-161192	Elizarovo
-161193	Zaponor'ye
-161194	Lyakhovo
-161195	Yakovlevskaya
-161201	Alekseyevskaya
-161202	Astashkovo
-161203	Lashino
-161204	Lopakovo
-161205	Minino
-161206	Smolevo
-161208	Shevlyagino
 413	Other cities in the region
 414	Universal
 10645	Belgorod Oblast
@@ -47823,7 +47624,7 @@
 177403	Kustovskoye rural settlement
 126410	Kustovoye
 148306	Kalinino
-148309	Sereteno
+148309	Seretino
 177885	Kozychevo
 177404	Moshchenskoye rural settlement
 126411	Moshchenoye
@@ -47836,7 +47637,7 @@
 145766	Sazhnoye
 178040	Volobuyevka
 178042	Kleymenovo
-178044	
+178044	Ozerovo
 178045	Chursino
 177407	Smorodinskoye rural settlement
 148310	Smorodino
@@ -49750,6 +49551,8 @@
 154481	Anokhino
 160353	Melekhovo urban settlement
 118795	Melekhovo
+218922	Dobrograd urban settlement
+218754	Dobrograd
 98752	Kolchuginsky District
 10665	Kolchugino
 127124	Belaya Rechka
@@ -49813,33 +49616,6 @@
 127152	Savkovo
 127154	Turgenevo
 98754	Murom district
-127159	Dmitriyevskaya Sloboda
-127165	Muromskiy
-127173	Yakimanskaya Sloboda
-154497	Borisoglebskoye rural settlement
-127157	Borisogleb
-127161	Kondrakovo
-127163	Molotitsy
-127168	Poltso
-127171	Tatarovo
-127172	Chaadayevo
-148425	Blagoveshchenskoye
-148426	Krasny Bor
-148428	Ozhigovo
-148429	Prudishchi
-148431	Talyzino
-154502	Kovarditskoye rural settlement
-118316	Kovarditsy
-127158	Bulatnikovo
-127160	Zimenki
-127162	Mezhishchi
-127166	Panfilovo
-127167	Pestenkino
-127169	Savkovo
-127170	Strigino
-148427	Krivitsy
-148430	Saksino
-154507	Ivankovo
 98755	Petushinsky District
 10669	Petushki
 37129	Pokrov
@@ -50056,6 +49832,33 @@
 217994	Lesnoy
 120854	Murom Urban Okrug
 10668	Murom
+127159	Dmitriyevskaya Sloboda
+127165	Muromskiy
+127173	Yakimanskaya Sloboda
+154497	Borisoglebskoye rural settlement
+127157	Borisogleb
+127161	Kondrakovo
+127163	Molotitsy
+127168	Poltso
+127171	Tatarovo
+127172	Chaadayevo
+148425	Blagoveshchenskoye
+148426	Krasny Bor
+148428	Ozhigovo
+148429	Prudishchi
+148431	Talyzino
+154502	Kovarditskoye rural settlement
+118316	Kovarditsy
+127158	Bulatnikovo
+127160	Zimenki
+127162	Mezhishchi
+127166	Panfilovo
+127167	Pestenkino
+127169	Savkovo
+127170	Strigino
+148427	Krivitsy
+148430	Saksino
+154507	Ivankovo
 120855	Kovrov Urban Okrug
 10664	Kovrov
 120856	Gus-Khrustalny Urban Okrug
@@ -52172,6 +51975,7 @@
 120842	Voronezh Urban Okrug
 193	Voronezh
 108206	Zheleznodorozhny District
+219021	Krasnolesniy
 108207	Cominternovsky District
 108208	Levoberezhny District
 121720	Nikolskoe
@@ -55460,7 +55264,7 @@
 158132	Oktyabr'-Desyatyy
 158133	Vishnevka
 158134	Korenevskiy sel'sovet
-158135	Korenevo
+100719	Korenevo
 158136	Lobanovka
 158137	Matveyevka
 158138	Nikipelovka
@@ -55508,7 +55312,7 @@
 158165	Petrovskoye
 158166	Skrylevka
 160438	Korenevo urban settlement
-100719	Korenevo
+158135	Korenevo
 98872	Kursk District
 149735	Anakhina
 158167	Besedensky sel'sovet
@@ -64149,7 +63953,8 @@
 141322	Telyatovo
 141324	Chamerovo
 141325	Chistaya Dubrova
-99010	Vishnevolotsky District
+99010	Vyshny Volochyok Urban Okrug
+10807	Vishniy Volochek
 161584	Krasnomaysky urban settlement
 141344	Krasnomayskiy
 161585	Borisovskoye rural settlement
@@ -65233,8 +65038,6 @@
 102555	Ozerniy
 120925	Solnechny Urban Okrug
 102556	Solnechny
-120926	Vyshny Volochyok Urban Okrug
-10807	Vishniy Volochek
 120927	Torzhok Urban Okrug
 10822	Torzgok
 10832	Tula Oblast
@@ -66339,6 +66142,7 @@
 20281	Vasileostrovsky District
 120606	Municipal Okrug 7
 20338	Vasileostrovskaya
+219651	Gorny Institut
 120607	Vasilyevsky Okrug
 120608	Gavan
 120609	Morskoy Okrug
@@ -66355,7 +66159,7 @@
 20321	Udelnaya
 120615	Sosnovskoe
 120616	Municipal Okrug 15
-120617	Parnas
+120617	Sergievskoe
 120618	Shuvalovo-Ozerki
 20319	Prospekt Prosveshcheniya
 20320	Ozerki
@@ -66381,6 +66185,7 @@
 120629	Avtovo
 20302	Avtovo
 20303	Kirovskiy Zavod
+219949	Putilovskaya
 120630	Narvsky Okrug
 20304	Narvskaya
 120631	Krasnenkaya Rechka
@@ -66398,6 +66203,7 @@
 109773	Krasnoye Selo
 121849	Khvojny
 120638	Yugo-Zapad
+219950	Yugo-Zapadnaya
 120639	Yuzhno-Primorsky Okrug
 120640	Sosnovaya Polyana
 120641	Uritsk
@@ -66449,7 +66255,7 @@
 120664	Municipal Okrug 65
 20324	Staraya Derevnya
 189457	Begovaya
-120665	Chernaya Rechka
+120665	Lanskoe
 20323	Chernaya Rechka
 120666	Komendantsky Aerodrom
 20322	Pionerskaya
@@ -66471,7 +66277,7 @@
 120675	Balkansky Okrug
 20305	Kupchino
 218470	Dunaiskaya
-120676	Municipal Okrug 75
+120676	Municipal Okrug Alexandrovskiy
 20292	Tsentralny District
 120677	Dvortsovy Okrug
 20347	Nevskiy Prospekt
@@ -67027,6 +66833,7 @@
 118404	Kotel'skiy
 120329	Khabolovo
 138010	Kotly
+219614	Naryadovo
 166161	Kuzemkinskoye rural settlement
 119771	Ropsha
 138007	Bol'shoye Kuzemkino
@@ -67191,6 +66998,7 @@
 119731	Retselya
 167470	Aropakkuzi
 167471	Pikkolovo
+218788	Novogorelovo
 166358	Lebyazhenskoye urban settlement
 118574	Lebyazh'ye
 119185	Novoe Kalishche
@@ -67254,6 +67062,7 @@
 119451	Peniki
 167475	Verkhnyaya Bronna
 167476	Kuznetsy
+219684	Bronna
 166368	Ropshinskoye rural settlement
 119772	Ropsha
 120516	Yal'gelevo
@@ -67368,7 +67177,7 @@
 119049	Nikol'skiy
 166581	Svir'
 166509	Podporozhskoye urban settlement
-10881	Podorogie
+10881	Podporogie
 149894	Shemenichi
 166510	Vinnitskoye rural settlement
 22925	Vinnitsi
@@ -67693,7 +67502,7 @@
 166717	Varnek
 121034	Naryan-Mar Urban Okrug
 10902	Naryan-Mar
-10842	Arkhange'lskaya Oblast'
+10842	Arkhangel'skaya Oblast'
 21894	General
 21895	Other
 99081	Velsky District
@@ -68682,7 +68491,7 @@
 102448	Belushya Guba
 164564	Rogachevo
 121011	Arkhangelsk Urban Okrug
-20	Arhangelsk
+20	Arkhangelsk
 217996	Varavino-Factoria
 217997	Isakogorsky
 217998	Lomonosovsky
@@ -73325,6 +73134,7 @@
 177100	Suvorovskoye rural settlement
 29012	Suvorovskoye
 216350	Kamenolomnya
+219188	Limannoe
 177101	Uyutnenskoye rural settlement
 177079	Uyutnoye
 177102	Frunzenskoye rural settlement
@@ -73566,7 +73376,7 @@
 21866	General
 21867	Other
 99221	Akhtubinsk District
-20167	Ahtubinsk
+20167	Akhtubinsk
 175561	Poselok Verkhny Baskunchak urban settlement
 21369	Verhniy Baskunchak
 175564	Poselok Nizhny Baskunchak urban settlement
@@ -74506,7 +74316,7 @@
 127555	Leshchev
 127558	Pokrovka
 148459	im. Stepana Razina
-177438	Rassvetenskoye rural settlement
+177438	Rassvetinskoye rural settlement
 127559	Rassvet
 177439	Stepnovskoye rural settlement
 127551	Zarya
@@ -75616,6 +75426,7 @@
 149452	Sauk-Dere
 176169	Adagumskoye rural settlement
 131408	Adagum
+219613	Akkermenka
 176170	Varenikovskoye rural settlement
 101809	Varenikovskaya
 131421	Fadeyevo
@@ -76113,6 +75924,7 @@
 176353	Akhtanizovskoye rural settlement
 117215	Akhtanizovskaya
 119505	Peresyp'
+218930	Za Rodinu
 176354	Vyshestebliyevskoye rural settlement
 117538	Vinogradnyy
 117631	Vyshesteblievskaya
@@ -76264,6 +76076,7 @@
 131663	Navaginskoye
 131665	Sadovoye
 131668	Shaumyan
+219888	Ostrovskaya Schel
 176393	Shepsinskoye rural settlement
 118496	Kroyanskoe
 120431	Shepsi
@@ -76271,6 +76084,7 @@
 145963	Poselok pansionata Gizeldere
 149472	Vesna
 211289	Vol'noe
+219920	Polkovnichiy
 99300	Uspensky District
 176394	Veselovskoye rural settlement
 131670	Vesely
@@ -76359,18 +76173,18 @@
 131703	Shcherbinovskiy
 116897	Urban Okrug Novorossiysk
 970	Novorossiysk
+121568	Vladimirovka
+121576	Gayduk
 217040	Vostochnyy District
 217041	Tsentralny District
 217042	Primorskiy District
-217043	Yuzhnyy District
-101808	Abrau-Dyurso
 121548	Borisovka
 121549	Tsemdolina
-121562	Verkhnebakansky
-121568	Vladimirovka
-121576	Gayduk
-121579	Glebovka
 121641	Kirillovka
+217043	Yuzhnyy District
+101808	Abrau-Dyurso
+121562	Verkhnebakansky
+121579	Glebovka
 121712	Myshako
 121716	Natuhaevskaja
 121771	Raevskaja
@@ -76432,6 +76246,7 @@
 10994	Krasnaya Polyana
 20777	Adler
 121544	Bestuzhevskoe
+121563	Verkhnenikolaevskoe
 121565	Veseloe
 121706	Moldovka
 121859	Chereshnya
@@ -76454,7 +76269,6 @@
 121308	Baranovka
 121524	Ashe
 121557	Vardane
-121563	Verkhnenikolaevskoe
 121591	Detlyazhka
 121693	Magri
 121696	Makopse
@@ -76464,6 +76278,30 @@
 211268	Volkovka
 211272	Katkova Shchel'
 211279	Sergej-Pole
+219921	Otradnoye
+219922	Yakornaya Shchel
+219923	Golovinka
+219924	Nizhneye Uchdere
+219925	Kulturnoye Uch-Dere
+219926	Verkhneye Uchdere
+219927	Gornoye Loo
+219928	Verkhnearmyanskoye Loo
+219929	Verkhnearmyanskaya Khobza
+219930	Nizhnyaya Khobza
+219931	Verkhneye Buu
+219932	Beranda
+219933	Zubova Shchel
+219934	Maly Kichmay
+219935	Bolshoy Kichmay
+219936	Altmets
+219937	Tretya Rota
+219938	Verkhnerusskoye Loo
+219939	Khartsiz Pervy
+219940	Khartsiz Vtoroy
+219941	Ordyinka
+219942	Varvarovka
+219943	Razbity Kotel
+219944	Vasilyevka
 114801	Tsentralny City District
 116901	Urban Okrug Armavir
 10987	Armavir
@@ -76531,6 +76369,8 @@
 121754	Plodorodny
 121755	Pobeditel'
 121809	Starokorsunskaya
+218710	Federal territory Sirius
+218709	Sirius
 11004	Republic of Adygea
 21872	General
 21873	Other
@@ -79941,6 +79781,7 @@
 217062	Oktiabrsky District
 217063	Pervomaysky District
 217064	Novoviatsky District
+218916	Ganino
 121896	Doronichi
 121901	Kulikovskaja
 120974	Pervomaysky Urban Okrug
@@ -80467,6 +80308,7 @@
 167891	Velikopol'skoye rural settlement
 147046	Velikopol'ye
 150303	Staroye Kreshcheno
+218627	Oshlanger
 167892	Markovskoye rural settlement
 147048	Markovo
 147049	Upsha
@@ -80722,7 +80564,7 @@
 20721	Volzhsk
 120981	Kozmodemyansk Urban Okrug
 20630	Kozmodemyansk
-11079	Nizhny Novgorod Oblast'
+11079	Nizhny Novgorod Oblast
 21841	General
 21842	Other
 99530	Ardatovsky District
@@ -80782,7 +80624,8 @@
 168113	Khokhlovo
 168114	Chetvertovo
 168115	Yusupovo
-99531	Arzamassky District
+99531	Arzamas Urban Okrug
+11080	Arzamas
 150931	Balakhonikha
 150932	Berezovka
 150934	Vetoshkino
@@ -83103,8 +82946,6 @@
 168274	Sartakovo
 120912	Sarov Urban Okrug
 11083	Sarov
-120913	Arzamas Urban Okrug
-11080	Arzamas
 11084	Orenburg Oblast
 21843	General
 21844	Other
@@ -85758,7 +85599,8 @@
 21740	Siva
 135816	Kizva
 135820	Shulyndy
-99660	Solikamsk District
+99660	Solikamsk Urban Okrug
+11110	Solikamsk
 152077	Tokhtuyeva
 173078	Basimskoye rural settlement
 135821	Basim
@@ -85831,7 +85673,8 @@
 173126	Chaykinskoye rural settlement
 135858	Chayka
 152081	Teles
-99663	Usolsky District
+99663	Berezniki Urban Okrug
+20237	Berezniki
 20590	Usole
 117293	Berezovka
 135860	Lemzer
@@ -86069,6 +85912,7 @@
 172653	Stryapuninskoye rural settlement
 172650	Stryapunyata
 110915	Kudymkarsky District
+11076	Kudimkar
 152047	Verkh-Yusva
 173252	Beloyevskoye rural settlement
 117265	Beloevo
@@ -86238,14 +86082,8 @@
 108195	Novye Ljady
 120727	Novo-Brodovsky
 120728	Vladimirsky
-120889	Berezniki Urban Okrug
-20237	Berezniki
-120890	Solikamsk Urban Okrug
-11110	Solikamsk
 120891	Kungur Urban Okrug
 20250	Kungur
-120892	Kudymkar Urban Okrug
-11076	Kudimkar
 120893	Zvyozdny Urban Okrug
 102534	Zvezdniy
 11111	Republic of Bashkortostan
@@ -93209,7 +93047,7 @@
 11124	Zainsk
 11125	Zelenodolsk
 140845	Gari
-11126	Leninigorsk
+11126	Leninogorsk
 11127	Nizhnekamsk
 11128	Nurlat
 141050	Kurmysh
@@ -95220,13 +95058,13 @@
 121883	Yudino
 102026	Novo-Savinsky District
 102027	Privolzhsky District
+121547	Boriskovo
 190497	Dubravnaya
 102028	Sovetsky District
 121661	Konstantinovka
 121791	Samosyrovo
-121547	Boriskovo
 120895	Naberezhnye Chelny Urban Okrug
-236	Naberezhnie Chelny
+236	Naberezhnye Chelny
 217893	Avtozavodskij rajon
 217894	Centralnyj rajon
 217895	Komsomolskij rajon
@@ -96908,7 +96746,7 @@
 11138	Pokhvistnevo
 137774	Oktyabrskiy
 120866	Syzran Urban Okrug
-11139	Sizran
+11139	Syzran
 218424	Elizarovo
 218425	Kashpir
 218426	Fomkiny Sady
@@ -98051,6 +97889,7 @@
 138721	Berezovka
 138736	Ternovka
 138737	Uzmorye
+219647	Privolzhsky
 120884	Svetly Urban Okrug
 102532	Svetly
 120885	Saratov Urban Okrug
@@ -101085,6 +100924,7 @@
 149694	Chineyevo
 121138	Kurgan Urban Okrug
 53	Kurgan
+121580	Glinki
 218049	1 micro-district
 218051	1A district
 218053	2 microdistrict
@@ -101109,7 +100949,6 @@
 218120	Arbinka
 218121	Sunny Boulevard
 218123	Galkin
-218124	Glinka
 218125	Zaykovo
 218126	Stably
 218127	Karchevskaya Roshcha
@@ -101734,6 +101573,7 @@
 216503	Fominskoe
 114743	Nizhneturinsky Urban Okrug
 11169	Nignaya Tura
+218753	Is
 114744	Nizhny Tagil Urban Okrug
 11168	Nizhniy Tagil
 217107	Tagilstroevsky district
@@ -101827,6 +101667,7 @@
 101981	Leninsky District
 101985	Ploshchad 1905 goda
 101986	Geologicheskaya
+219186	Akademichesky District
 121111	Irbit Municipal State
 11163	Irbit
 121540	Berezniki
@@ -107766,6 +107607,27 @@
 149484	Novopetrovka
 183767	Yur'yevsky rural settlement
 131754	Yur'yevka
+185709	Dvinsky rural settlement
+149543	Dvinka
+185710	Verkh-Chetsky rural settlement
+149546	Splavnoy
+185708	Verkh-Chetsk
+185711	Zarechensky rural settlement
+132073	Zarechenka
+185713	Lazarevsky rural settlement
+132074	Lazarevo
+185714	Krasinsky rural settlement
+185712	Krasinka
+185715	Leont'yevsky rural settlement
+149544	Leont'yevka
+185716	Novomitropol'sky rural settlement
+132075	Novomitropol'ka
+185717	Povarenkinsky rural settlement
+149545	Povarenkino
+185718	Tyukhtetsky rural settlement
+101009	Tyukhtet
+185719	Chindatsky rural settlement
+149547	Chindat
 100146	Boguchansky District
 149485	Kamenka
 183768	Boguchansky rural settlement
@@ -108637,29 +108499,6 @@
 185701	Turukhansky rural settlement
 11313	Turukhansk
 119862	Selivanikha
-100177	Tyukhtetsky District
-117564	Voznesenka
-185709	Dvinsky rural settlement
-149543	Dvinka
-185710	Verkh-Chetsky rural settlement
-149546	Splavnoy
-185708	Verkh-Chetsk
-185711	Zarechensky rural settlement
-132073	Zarechenka
-185713	Lazarevsky rural settlement
-132074	Lazarevo
-185714	Krasinsky rural settlement
-185712	Krasinka
-185715	Leont'yevsky rural settlement
-149544	Leont'yevka
-185716	Novomitropol'sky rural settlement
-132075	Novomitropol'ka
-185717	Povarenkinsky rural settlement
-149545	Povarenkino
-185718	Tyukhtetsky rural settlement
-101009	Tyukhtet
-185719	Chindatsky rural settlement
-149547	Chindat
 100178	Uzhursky District
 20092	Ujur
 185725	Vasil'yevsky rural settlement
@@ -110777,6 +110616,7 @@
 184968	Omskoye rural settlement
 134019	Omsky
 212859	Zelyonovka
+218719	Berezyanka
 184969	Petrovskoye rural settlement
 134009	Borodinka
 134010	Devyaterikovka
@@ -111666,6 +111506,7 @@
 142008	Mezheninovka
 217708	Mirnenskoe rural settlement
 142009	Mirny
+219020	Bogashevo Airport
 217712	Moryakovskoe rural settlement
 142010	Moryakovskiy Zaton
 209436	Gubino
@@ -117914,6 +117755,9 @@
 121216	Nazran Urban Okrug
 1092	Nazran
 148865	Al'tiyevsky Administrative District
+219751	Gamuzievskiy Administrative District
+219752	Nasyr-Kortskiy Administrative District
+219753	Central Administrative District
 121217	Karabulak Urban Okrug
 20180	Karabulak
 121218	Magas Urban Okrug
@@ -119114,11 +118958,12 @@
 179895	Shelkozavodskaya
 121214	Grozny Urban Okrug
 1106	Grozniy
-216998	Zavodskoy District
-217001	Leninskiy District
-217003	Oktyabrsky District
+216998	Sheih-Mansurovskiy District
+217001	Akhmatovskiy District
+217003	Baysangurovskiy District
 101832	Khankala
-217004	Staropromyslovskiy District
+217004	Visaitovskiy District
+219750	Putinskiy District
 121215	Argun Urban Okrug
 11025	Argun
 179903	Sharoysky District
@@ -119794,6 +119639,7 @@
 109767	Inozemcevo
 102445	Other
 102446	General
+115092	Crimean Federal District
 10002	North America
 84	United States
 637	Other
@@ -123002,6 +122848,7 @@
 113043	Irapuato
 105655	State of Durango
 105688	Durango
+219250	Gómez Palacio
 105656	State of Hidalgo
 105689	Pachuca
 145469	Tula de Allende
@@ -123012,6 +122859,7 @@
 105658	State of Queretaro
 105691	Santiago de Querétaro
 109717	San Juan del Rio
+219261	El Pueblito
 105659	State of Quintana Roo
 21420	Cancun
 105692	Chetumal
@@ -123033,12 +122881,23 @@
 105693	Saltillo
 109722	Torreón
 113048	Monclova
+219251	Ciudad Acuña
 105661	State of Colima
 21254	Manzanillo
 105694	Colima
 105662	State of Mexico
 105695	Toluca de Lerdo
 114920	Nezahualcóyotl
+219247	Tepexpan
+219248	Coacalco
+219254	Xico
+219255	Villa Nicolás Romero
+219257	El Ojo de Agua
+219258	Chalco de Díaz Covarrubias
+219260	Ciudad López Mateos
+219265	Naucalpan de Juárez (municipio de Huixquilucan)
+219266	Naucalpan de Juárez (municipio de Naucalpan)
+219268	San Pablo de las Salinas
 105663	State of Michoacan
 105696	Morelia
 109696	Lázaro Cárdenas
@@ -123046,6 +122905,7 @@
 113033	Zamora
 113041	Uruapan
 113053	La Piedad de Cabadas
+219252	Apatzingán
 105664	State of Morelos
 105697	Cuernavaca
 105665	State of Nayarit
@@ -123069,6 +122929,7 @@
 109679	Apodaca
 109693	Juárez
 113034	Sabinas Hidalgo
+219269	San Pedro Garza García
 105670	State of Oaxaca
 21093	Tangolunda
 105699	Oaxaca de Juárez
@@ -123076,9 +122937,12 @@
 109711	Puerto Escondido
 113038	Salina Cruz
 113055	Ixtepec
+219267	San Juan Bautista Tuxtepec
 105671	State of Puebla
-105700	Puebla de Zaragoza
+105700	Puebla
 113032	Tehuacan
+219259	Cholula de Rivadavia
+219264	Heroica Puebla de Zaragoza
 105672	State of Zacatecas
 105701	Zacatecas
 109701	Loreto
@@ -123107,6 +122971,8 @@
 109705	Nuevo Laredo
 109720	Tampico
 114827	Reynosa
+219256	Miramar
+219263	Heroica Matamoros
 105678	State of Tlaxcala
 105706	Tlaxcala de Xicoténcatl
 105679	State of Jalisco
@@ -123114,6 +122980,9 @@
 21515	Guadalajara
 109695	Lagos de Moreno
 114922	Zapopan
+219249	Ciudad Guzmán
+219253	San Pedro Tlaquepaque
+219262	Hacienda Santa Fe
 105680	State of Chihuahua
 20849	Chihuahua
 109683	Ciudad Juarez
@@ -123552,6 +123421,8 @@
 109431	San Rafael
 111019	Malargue
 144584	Chacras de Coria
+218700	General Alvear
+218702	Nacunan
 122084	Misiones Province
 21288	Puerto Iguazú
 109424	Posadas
@@ -123597,13 +123468,22 @@
 105720	Maceió
 111230	Arapiraca
 145111	Maragogi
+219299	Atalaia
+219309	Delmiro Gouveia
+219314	Santana do Ipanema
+219550	Coruripe
+219553	Penedo
 29294	State of Amapá
 105721	Macapá
+219046	Santana
 29295	Amazonas State
 21234	Manaus
 111301	Parintins
 111321	Tefe
 111347	Tabatinga
+219029	Manacapuru
+219055	Itacoatiara
+219271	Silves
 29296	State of Bahia
 37174	Salvador
 109449	Bonito
@@ -123626,6 +123506,48 @@
 111324	Paulo Afonso
 111336	Juazeiro
 123568	Itacare
+219074	Lauro de Freitas
+219090	Luis Eduardo Magalháes
+219093	Simões Filho
+219098	Santo Antônio de Jesus
+219123	Eunápolis
+219125	Conceição do coité
+219279	Cruz das Almas
+219280	Monte Santo
+219282	Tucano
+219287	Gandu
+219288	Teixeira de Freitas
+219292	Irecê
+219301	Queimadas
+219311	Senhor do Bonfim
+219334	Vitória da Conquista
+219337	Vera Cruz
+219342	Catu
+219344	Conceição do Jacuípe
+219355	Esplanada
+219357	Jacobina
+219359	Pojuca
+219363	Alagoinhas
+219375	Ilhéus
+219379	Araci
+219390	Itaberaba
+219399	Ipirá
+219411	Ribeira do Pombal
+219412	Guanambi
+219420	Muritiba
+219429	Rio Real
+219436	Barreiras
+219452	Candeias
+219453	Itapetinga
+219457	Serrinha
+219460	Camaçari
+219468	Cícero Dantas
+219485	São Gonçalo dos Campos
+219496	Euclides da Cunha
+219501	Jaguaquara
+219535	Valença
+219536	Entre Rios
+219542	Santo Estêvão
 29297	State of Ceará
 105735	Fortaleza
 109444	Aquiraz
@@ -123634,6 +123556,18 @@
 115649	Caucaia
 123256	Paracuru
 123438	Jijoca de Jericoacoara
+219072	Crato
+219084	Itapipoca
+219112	Maracanaú
+219126	Aracati
+219127	Pentecoste
+219323	Aquiraz
+219368	Trairi
+219373	Maranguape
+219408	Acaraú
+219416	Iguatu
+219425	Limoeiro do Norte
+219480	Quixadá
 29298	State of Espírito Santo
 101721	Aracruz
 105734	Vitória
@@ -123642,6 +123576,10 @@
 115639	Vila Velha
 115641	Serra
 115645	Cariacica
+219032	Colatina
+219064	Linhares
+219164	São Mateus
+219392	Cariacica
 29299	State of Goiás
 105722	Goiânia
 109458	Caldas Novas
@@ -123649,16 +123587,51 @@
 111260	Rio Verde
 111280	Anapolis
 115636	Aparecida de Goiânia
+219036	Trindade
+219042	Formosa
+219058	Senador Canedo
+219082	Novo Gama
+219087	Itumbiara
+219096	Catalão
+219115	Águas Lindas de Goiás
+219124	Acreúna
+219165	Jataí 
+219166	Planaltina
+219361	Luziânia
+219462	Rio Verde
+219499	Caldas Novas
 29300	State of Maranhão
 105723	São Luís
 111263	Caxias
 111322	Imperatriz
+219065	Bacabal
+219067	Balsas
+219070	Timon
+219101	Açailândia
+219118	Paco do Lumiar
+219129	Chapadinha
+219130	Olho dÁgua das Cunhãs
+219131	Peritoró
+219132	Pinheiro
+219167	São José de Ribamar
+219168	Codó
+219270	Caxias
+219461	Vargem Grande
+219522	Itapecuru Mirim
 29301	State of Mato Grosso
 105724	Cuiabá
 111262	Rondonopolis
 111323	Barra do Garcas
 111327	Alta Floresta
 115657	Várzea Grande
+219031	Sorriso
+219037	Sinop
+219110	Tangará da Serra
+219332	Cáceres
+219341	Rondonópolis
+219465	Barra do Garças
+219478	Várzea Grande
+219514	Primavera do Leste
 29302	State of Mato Grosso do Sul
 105725	Campo Grande
 109453	Bonito
@@ -123666,6 +123639,8 @@
 111264	Dourados
 111284	Corumba
 111344	Paranaiba
+219403	Dourados
+219426	Ponta Porã
 29303	State of Minas Gerais
 21760	Belo Horizonte
 109445	Araxa
@@ -123693,6 +123668,87 @@
 111332	Sete Lagoas
 114655	São Lourenço
 114821	Bambui
+219028	Nova Lima
+219034	Nova Serrana
+219045	Passos
+219050	Ituiutaba
+219051	Lavras
+219057	Itabira
+219076	Araguari
+219107	Muriaê
+219117	Ubá
+219133	Araujos
+219134	Carlos Chagas
+219135	Cataguases
+219136	Januária
+219137	Paraopeba
+219169	Vespasiano
+219170	Coronel Fabriciano
+219272	Viçosa
+219276	Iturama
+219277	Santos Dumont
+219278	Frutal
+219283	Curvelo
+219285	Pedro Leopoldo
+219294	Martinho Campos
+219298	Arcos
+219303	Três Corações
+219306	Carmo do Cajuru
+219308	Extrema
+219315	Patos de Minas
+219316	Itabirito
+219318	Recreio
+219320	Guaxupé
+219331	Carmo do Paranaíba
+219346	São João del Rei
+219347	Serro
+219354	Três Marias
+219364	Bocaiúva
+219366	Betim
+219376	Governador Valadares
+219380	Diamantina
+219385	Pará de Minas
+219393	Bom Despacho
+219396	Ponte Nova
+219397	Campo Belo
+219401	Ouro Branco
+219404	Janaúba
+219410	Abaeté
+219413	Jaíba
+219414	Itajubá
+219415	Unaí
+219417	Lagoa da Prata
+219418	Igarapé
+219422	Montes Claros
+219435	Oliveira
+219438	Pirapora
+219446	Lagoa Santa
+219450	Piumhi
+219451	Brumadinho
+219454	Boa Esperança
+219458	Caratinga
+219471	Poços de Caldas
+219475	Nanuque
+219481	Cambuí
+219483	Santa Luzia
+219489	Brasília de Minas
+219494	Leopoldina
+219500	Patrocínio
+219506	Matozinhos
+219508	Formiga
+219509	Esmeraldas
+219510	Itaúna
+219511	Divinópolis
+219513	Três Pontas
+219517	Paracatu
+219527	Candeias
+219532	Visconde do Rio Branco
+219533	Alfenas
+219548	Ouro Preto
+219549	Congonhas
+219551	João Monlevade
+219554	Mariana
+219555	Barão de Cocais
 29304	State of Pará
 105726	Belém
 109454	Bonito
@@ -123704,9 +123760,24 @@
 111345	Itaituba
 111346	Castanhal
 115633	Ananindeua
+219023	Breves
+219033	Marituba
+219060	Abaetetuba
+219071	Paragominas
+219088	Barcarena
+219099	Paranapebas
+219116	Cameta
+219120	Bragança
+219138	Itupiranga
+219329	Castanhal
 29305	State of Paraíba
 105727	João Pessoa
 111308	Campina Grande
+219041	Santa Rita
+219062	Patos
+219139	Bayeux
+219447	Queimadas
+219526	Sapé
 29306	State of Paraná
 20967	Foz do Iguaçu
 98537	Curitiba
@@ -123720,6 +123791,28 @@
 111272	Guarapuava
 111341	Pinhais
 114884	Pato Branco
+219025	Umuarama
+219047	Sarandi
+219056	Colombo
+219061	Campo Largo
+219063	Toledo
+219068	Piraquara
+219073	Fazenda Rio Grande
+219077	Arapongas
+219091	Araucária
+219100	Almirante Tamandaré
+219113	Cambé
+219140	Joaquim Távora
+219141	Sertanópolis
+219142	Telêmaco Borba
+219328	Cianorte
+219340	Castro
+219350	Guaíra
+219419	Ibiporã
+219434	Paranavaí
+219466	Lapa
+219516	Rolândia
+219539	Cascavel
 29307	State of Pernambuco
 105728	Recife
 109455	Bonito
@@ -123732,10 +123825,34 @@
 115643	Olinda
 115650	Paulista
 115651	Caruaru
+219038	Camaragibe
+219054	Igarassu
+219143	Santa Cruz do Capibaribe
+219144	Solidão
+219171	Vitória de Santo Antão
+219172	São Lourenço da Mata
+219281	Garanhuns
+219327	Gravatá
+219367	Surubim
+219383	Cabo de Santo Agostinho
+219391	Pesqueira
+219423	Sirinhaém
+219432	Limoeiro
+219449	Carpina
+219456	Belo Jardim
+219473	Ipojuca
+219479	Palmares
+219505	Gravatá
+219523	Serra Talhada
+219525	Goiana
+219529	Paulista
+219530	Moreno
+219534	Bezerros
 29308	State of Piauí
 105729	Teresina
 111287	Paulistana
 111330	Parnaiba
+219295	Picos
 29309	State of Rio de Janiero
 21221	Rio de Janeiro
 109443	Angra dos Reis
@@ -123762,12 +123879,28 @@
 120775	Paraty
 122718	Cabo Frio
 123538	Arraial do Cabo
+219024	Araruama
+219040	Itaperuna
+219145	Três Rios
+219173	Maricá
+219174	Teresópolis
+219175	Rio das Ostras
+219176	São Pedro da Aldeia
+219362	Magé
+219427	Petrópolis
+219459	Casimiro de Abreu
+219472	Valença
+219492	Rio Bonito
+219547	Saquarema
 29310	State of Rio Grande do Norte
 105730	Natal
 109478	Praia do Forte
 111333	Mossoro
 123350	Tibau do Sul
 218616	Areia Branca
+219043	Parnamirim
+219177	São Gonçalo do Amarante
+219421	Caicó
 29311	State of Rio Grande do Sul
 105731	Porto Alegre
 109463	Caxias Do Sul
@@ -123789,10 +123922,36 @@
 115654	Gravataí
 115656	Viamão
 122102	Gramado
+219080	Santa Cruz do Sul
+219086	Alvorada
+219092	Bento Gonçalves
+219103	Cachoeirinho
+219146	Capão da canoa
+219147	Jaguarão
+219148	Santa Rosa
+219178	Bagé
+219296	Campo Bom
+219313	Sapiranga
+219321	Canoas
+219333	Caxias do Sul
+219335	Guaíba
+219336	Santo Ângelo
+219356	Igrejinha
+219358	Canela
+219370	Tramandaí
+219400	Torres
+219409	Imbé
+219474	Lajeado
+219477	Taquara
+219497	Parobé
+219538	Viamão
+219540	Gramado
+219546	Montenegro
 29312	State of Rondônia
 105732	Porto Velho
 111289	Ji Parana
 111339	Vilhena
+219395	Cacoal
 29313	State of Roraima
 105733	Boa Vista
 29314	State of Santa Catarina
@@ -123807,6 +123966,27 @@
 111340	Fraiburgo
 114598	Itajai
 145109	Bombinhas
+219049	Brusque
+219105	Jaraguá do Sul
+219109	Camboriú
+219111	Tubarão
+219149	Araquari
+219150	Imbituba
+219179	São José
+219180	Chapecó
+219181	Palhoça
+219273	Itapema
+219326	Tijucas
+219343	Navegantes
+219349	Penha
+219371	Biguaçu
+219377	Lages
+219398	São Bento do Sul
+219476	Içara
+219493	Porto Belo
+219502	Araranguá
+219541	Mafra
+219556	Concórdia
 29315	State of São Paulo
 20924	Sao Paulo
 109446	Atibaia
@@ -123859,14 +124039,153 @@
 123250	Ubatuba
 123535	Cachoeira Paulista
 145110	Caraguatatuba
+219022	Americana
+219026	Valinhos
+219027	Ferraz de Vasconcelos
+219030	Assis
+219035	Itapecerica da Serra
+219039	Embu das Artes
+219044	Itatiba
+219059	Salto
+219066	Jandira
+219069	Votorantim
+219075	Francisco Morato
+219078	Araras
+219079	Ourinhos
+219081	Franco da Rocha
+219083	Pindamonhangaba
+219085	Itapevi
+219089	Tatuí
+219094	Itanhaém
+219095	Poá
+219097	Guaratinguetá
+219102	Sumare
+219104	Paulinia
+219106	Santana de Parnaíba
+219108	Ribeirão Pires
+219114	Várzea Paulista
+219119	Bragança Paulista
+219121	Cubatão
+219122	Hortolândia
+219151	Bariri
+219152	Boituva
+219153	Brodowski
+219154	Caçapava
+219155	Fernandópolis
+219156	Jarinu
+219157	Monte Alto
+219158	Piraju
+219159	Presidente Epitácio
+219160	Santa Fé do Sul
+219161	Taiúva
+219162	São Joaquim da Barra
+219182	Taboão da Serra
+219183	Sertãozinho
+219274	Socorro
+219275	Brotas
+219284	Bebedouro
+219286	Lorena
+219289	São Manuel
+219290	Itápolis
+219291	Descalvado
+219297	Ibaté
+219300	Cachoeira Paulista
+219302	Leme
+219304	Embu-Guaçu
+219305	Diadema
+219310	Piedade
+219312	Araçatuba
+219317	São João da Boa Vista
+219319	São Pedro
+219322	Registro
+219324	Orlândia
+219325	Cosmópolis
+219330	Pirassununga
+219338	Itaquaquecetuba
+219339	Guaíra
+219345	Santo André
+219348	Mogi Mirim
+219351	Praia Grande
+219352	Cajamar
+219353	Taquaritinga
+219360	Aparecida
+219365	São Caetano do Sul
+219369	Vargem Grande do Sul
+219372	Guariba
+219374	Alumínio
+219378	Mirassol
+219381	Porto Feliz
+219382	Rio das Pedras
+219384	Arujá
+219386	Ibitinga
+219387	Cajati
+219388	São José dos Campos
+219389	Batatais
+219394	Pedreira
+219402	Artur Nogueira
+219405	Louveira
+219406	São José do Rio Pardo
+219407	Salto de Pirapora
+219424	Votuporanga
+219428	Itupeva
+219430	São Bernardo do Campo
+219431	Mococa
+219433	Cunha
+219437	Ituverava
+219439	Mirandópolis
+219440	Mairinque
+219441	Santa Isabel
+219442	Serrana
+219444	Caieiras
+219445	Pederneiras
+219448	São Carlos
+219455	Ibiúna
+219463	Peruíbe
+219467	Novo Horizonte
+219469	Barueri
+219470	Iguape
+219484	Mogi das Cruzes
+219486	Piedade
+219487	Nova Odessa
+219488	Lençóis Paulista
+219490	Mauá
+219491	Barretos
+219495	Indaiatuba
+219498	Porto Ferreira
+219503	Araçariguama
+219504	Araçoiaba da Serra
+219507	Carapicuíba
+219512	Cruzeiro
+219515	Cabreúva
+219518	Cajuru
+219519	Itapeva
+219520	Jaboticabal
+219521	Atibaia
+219531	Jardinópolis
+219537	Bertioga
+219543	Guarulhos
+219544	Campos do Jordão
+219545	Vinhedo
+219552	São Sebastião
 29316	State of Sergipe
 105736	Aracaju
+219048	Itabaiana
+219052	Nossa Senhora do Socorro
+219053	Lagarto
+219163	Porto da Folha
+219307	Propriá
+219443	Estância
+219464	Tobias Barreto
+219482	São Cristóvão
+219524	Boquim
 29317	State of Tocantins
 105737	Palmas
 111283	Araguaina
 114882	Porto Nacional
+219293	Gurupi
 115091	Federal District
 10136	Brasilia
+219128	Gama
 669	Other
 670	Universal
 10015	Bolivia
@@ -123898,6 +124217,16 @@
 123431	Santa Cruz Department
 10135	Santa Cruz de la Sierra
 111205	Puerto Suarez
+219758	Cotoca
+219759	Warnes
+219760	Montero
+219761	Portachuelo
+219762	La Guardia
+219763	El Torno
+219764	Puerto Pailas
+219765	Pailón
+219766	Porongo
+219767	Jorochito
 20785	Ecuador
 123352	Azuay Province
 21049	Cuenca
@@ -123975,6 +124304,9 @@
 85469	Easter Island
 123501	Hanga Roa
 115071	Quillota
+218699	Los Andes
+218923	Concon
+218924	Quilpue
 123316	O'Higgins Region
 109755	Santa Cruz
 111441	Rancagua
@@ -123989,6 +124321,7 @@
 123319	Araucanía Region
 111425	Pucon
 111432	Temuco
+218701	Capitan Pastene
 123320	Los Lagos Region
 21295	Puerto Mont
 109757	Puerto Varas
@@ -124004,6 +124337,8 @@
 123323	Santiago Metropolitan Region
 20963	Santiago
 111442	Melipilla
+218920	Comuna de Colina
+218921	Comuna de Lampa
 123324	Los Ríos Region
 111437	Valdivia
 123325	Arica y Parinacota Region
@@ -124047,7 +124382,6 @@
 123610	San Pedro Department
 123624	San Pedro de Ycuamandiyú
 21156	Peru
-21157	Lima
 105738	Amazonas Region
 110884	Chachapoyas
 105739	Ancash Region
@@ -124086,6 +124420,8 @@
 110893	Chiclayo
 105752	Lima Region
 110894	Huacho
+219875	Lima Department
+21157	Lima
 105753	Loreto Region
 84377	Iquitos
 105754	Madre de Dios Region
@@ -124197,6 +124533,8 @@
 109670	Medellin
 111817	Apartado
 111821	Puerto Berrio
+219231	Guarne
+219232	Urrao
 123276	Arauca Department
 111805	Arauca
 111811	Saravena
@@ -124204,6 +124542,8 @@
 109664	Barranquilla
 123280	Bolívar Department
 109667	Cartagena
+219233	Carmen de Bolivar
+219234	Santa Cruz de Mompox
 123281	Boyacá Department
 109671	Paipa
 111794	Tunja
@@ -124225,6 +124565,9 @@
 111798	Condoto
 123288	Córdoba Department
 111802	Monteria
+219226	Sahagún
+219235	San Andrés de Sotavento
+219236	Valencia
 123289	Cundinamarca Department
 111801	Girardot
 123290	Guainía Department
@@ -124234,8 +124577,11 @@
 123292	La Guajira Department
 111795	Maicao
 111815	Riohacha
+219230	Uribia
+219237	Manaure
 123293	Magdalena Department
 109676	Santa Marta
+219223	Aracataca
 123294	Meta Department
 111799	Villavicencio
 123295	Nariño Department
@@ -124243,10 +124589,15 @@
 111808	Providencia
 111809	Ipiales
 111816	Tumaco
+219225	Túquerres
+219228	Barbacoas
+219238	Samaniego
+219239	El Charco
 123296	Putumayo Department
 111818	Villagarzon
 111819	Puerto Asis
 123310	Mocoa
+219242	Valle del Guamuez
 123297	Quindío Department
 109663	Armenia
 123298	Risaralda Department
@@ -124259,11 +124610,20 @@
 123300	Santander Department
 109665	Bucaramanga
 111803	Barrancabermeja
+219243	San Juan de Girón
+219244	Lebrija
 123301	Norte de Santander Department
 111797	Cucuta
+219224	Pamplona
+219227	Ocaña
+219240	Villa del Rosario
+219241	Los Patios
 123302	Sucre Department
 111792	Sincelejo
 111804	Tolu
+219229	San Onofre
+219245	Corozal
+219246	San Marcos
 123303	Tolima Department
 109668	Ibague
 123304	Valle del Cauca Department
@@ -124276,7 +124636,7 @@
 123308	Mitú
 123306	Vichada Department
 111812	Puerto Carreno
-123307	Capital District
+123307	Bogota d.c.
 21174	Bogota
 21289	Uruguay
 123394	Artigas Department
@@ -124423,6 +124783,10 @@
 23453	Urengoy
 24430	Mangusky District
 24483	Bolehovsky District
+24544	Bilovodsk District
+24549	Markivka District
+24550	Milove District
+24552	Novopskov District
 24864	Dniprodzerzhinsk
 24870	Gorlovka
 27272	Vesyoloe
@@ -124503,6 +124867,8 @@
 37158	Visim
 99993	Zavodoukovsk District
 100128	Mezhdurechensk District
+100177	Tyukhtetsky District
+117564	Voznesenka
 100324	Dalnegorsky District
 100330	Lesozavodsk District
 100340	Ussuriysk district
@@ -125301,6 +125667,7 @@
 108795	Aizpute
 108797	Akniste
 108808	Burtnieki
+108813	Ventspils
 108822	Dundaga
 108824	Liegi
 108838	Līgatne
@@ -125717,7 +126084,6 @@
 115083	Bittsevsky Park
 115087	Artemove
 115089	Yunokomunarivsk
-115092	Crimean Federal District
 115093	Sakhir
 115094	Sakhir
 115106	Northeim
@@ -125790,6 +126156,9 @@
 120582	Sokolsky District
 120754	Western Sahara
 120813	East Nusa Tenggara
+120889	Berezniki Urban Okrug
+120890	Solikamsk Urban Okrug
+120892	Kudymkar Urban Okrug
 120896	Nizhnekamsk Urban Okrug
 120897	Leninogorsk Urban Okrug
 120898	Bugulma Urban Okrug
@@ -125797,7 +126166,14 @@
 120900	Aznakaevo Urban Okrug
 120901	Elabuga Urban Okrug
 120902	Bavly Urban Okrug
+120913	Arzamas Urban Okrug
+120926	Vyshny Volochyok Urban Okrug
 120989	Kolomna Urban Okrug
+120995	Serpukhov Urban Okrug
+120997	Ivanteevka Urban Okrug
+120998	Pushchino Urban Okrug
+121001	Protvino Urban Okrug
+121007	Dzerzhinsky Urban Okrug
 121041	Kedrovy Urban Okrug
 121054	Borodino Urban Okrug
 121091	Kamen-na-Obi
@@ -125810,7 +126186,6 @@
 121354	Serebryanye Prudy
 121373	State of Penang
 121429	Nara
-121580	Glinki
 121609	Zapadny
 121630	Kalinina
 121631	Posyolok Kalinina
@@ -126470,6 +126845,7 @@
 161238	Mitropol'e
 161368	Pavlovka
 161397	Ozerny
+161531	Ostrovetskoye rural settlement
 161601	Golovino
 161724	Prudki
 161765	Makarovo rural settlement
@@ -126673,6 +127049,7 @@
 187855	Suola
 187919	Gadel'gareyevo
 187941	Frunze
+188064	Likino-Dulevo Urban Okrug
 188065	Drezna urban settlement
 188066	Kurovskoye urban settlement
 188067	Likino-Dulevo urban settlement
@@ -126685,6 +127062,7 @@
 189529	Aisha Khanum
 189570	Akkurgan
 189641	Ohangaron
+192031	Aibek
 192170	Mazarkuhna
 193157	Xiva
 193231	Karakalpakstan
@@ -126697,7 +127075,9 @@
 193957	Mirza Ulugbek
 194285	Devanа
 194292	Baland gardien
+194441	Ulugbek
 195374	Uchquduq
+198523	Krasnaya Polyana
 198634	Luchiosa
 198663	Beryozka
 198974	Efeler
@@ -126731,6 +127111,7 @@
 206337	Azarovichi
 206338	Bolbechino
 206571	Algabas
+207182	Gorodok
 207354	Polna
 208017	Zhaksynskij selskij okrug
 208319	Zolotonozhskij-selsovet
@@ -126771,9 +127152,13 @@
 217603	Vurumsyut
 217618	Orlovka
 218048	Zaozernyj
+218124	Glinka
 218181	Barataevka
 218183	Karlinskoe
 218184	Lugovoe
+218937	Jezkazgan
+219528	Sete Lagoas
+219784	Gounioubé
 29	-----------
 37132	
 98569	Mogilev-Podolsky District
@@ -126800,3 +127185,588 @@
 98641	Aginsky district
 98642	Duldurginsky District
 98643	Mogoytuysky District
+218926	_._._
+20536	Donetsk Region
+142	Donetsk
+27017	Mospyne
+10366	Mariupol
+27044	Talakivka
+27069	Staryi Krym
+27071	Sartana
+20554	Kramatorsk
+26989	Bilenke
+27059	Yasnohirka
+27060	Shabelkivka
+21774	Horlivka
+24421	Amvrosiivka District
+27131	Blahodatne
+27294	Kopani
+28104	Novoamvrosiivske
+28868	Amvrosiivka
+24422	Bakhmut District
+27277	Volodymyrivka
+27431	Chasiv Yar
+27747	Svyato-Pokrovskoye
+27854	Luhanske
+28959	Soledar
+24423	Velyka Novosilka District
+27248	Velyka Novosilka
+27712	Krasna Poliana
+28673	Iskra
+28842	Oleksiivka
+28874	Andriivka
+29149	Kamyshuvakha
+29154	Staromlynivka
+24424	Volnovakha District
+27046	Vuhlehirsk
+27132	Blahodatne
+27278	Volodymyrivka
+27302	Volnovakha
+27529	Donske
+27631	Hrafske
+27948	Myrne
+28077	Novotroitske
+28083	Novoukrainka
+28207	Olgynka
+28292	Petrivske
+28623	Ivanivka
+28826	Shyrokyne
+28875	Andriivka
+28877	Andriivka
+28907	Svobodne
+29151	Olenivka
+24425	Nikolske District
+27307	Nikolske
+27780	Kalchyk
+24426	Dobropillia District
+27078	Bilozerske
+27088	Bilytske
+27279	Volodymyrivka
+27290	Vodianske
+28044	Novodonetske
+28078	Novotroitske
+24427	Kostiantynivka District
+24428	Pokrovsk District
+27732	Kurakhove
+28079	Novotroitske
+28418	Rodynske
+28532	Udachne
+28624	Ivanivka
+24429	Lyman District
+28432	Rubtsi
+28473	Terny
+28775	Yarova
+29148	Drobysheve
+24431	Marinka District
+24432	Novoazovsk District
+28096	Novoazovsk
+28915	Siedove
+29147	Bezimenne
+29153	Khomutove
+24433	Oleksandrivka District
+28848	Oleksandrivka
+24434	Sloviansk District
+27389	Cherkaske
+27947	Myrne
+28055	Novomykolaivka
+28461	Raihorodok
+28876	Andriivka
+101475	Sviatohirsk
+24435	Starobesheve District
+27627	Kalmiuske
+27726	Kumachove
+28125	Novyi Svit
+28293	Petrivske
+28998	Starobesheve
+24436	Boikivske District
+28251	Pervomaiske
+28466	Boikivske
+28908	Svobodne
+24437	Shakhtarsk District
+24438	Yasynuvata District
+27587	Keramik
+27702	Krasnohorivka
+28252	Pervomaiske
+29150	Ocheretyne
+24871	Debaltseve
+100982	Svitlodarsk
+24872	Toretsk
+27009	Kurdiumivka
+27011	Pivnichne
+27027	Novhorodske
+115088	Zalizne
+24873	Druzhkivka
+27023	Novomykolaivka
+27041	Raiske
+101709	Oleksiievo-Druzhkivka
+24874	Yenakiieve
+115090	Bunhe
+24875	Khrestivka
+24876	Makiivka
+27015	Mezhove
+24877	Selidove
+27026	Novohrodivka
+27045	Ukrainsk
+29146	Hirnyk
+24878	Snizhne
+27034	Pervomaiske
+27035	Pervomaiskyi
+27062	Andriivka
+27067	Severne
+24879	Chystiakove
+24880	Khartsyzk
+27004	Zuhres
+27049	Ilovaisk
+29152	Pokrovka
+27511	Dobropillia
+27517	Dokuchaievsk
+27561	Myrnohrad
+27637	Kostiantynivka
+27701	Krasnohorivka
+27704	Pokrovsk
+27711	Lyman
+27855	Luhanske
+28004	Marinka
+28543	Vuhledar
+28784	Yasynuvata
+28837	Avdiivka
+28896	Bakhmut
+28944	Sloviansk
+104640	Mykolaivka
+29145	Shakhtarsk
+101380	Manhush District
+28770	Yalta
+101381	Mangush
+101540	Urzuf
+102456	Other
+102481	Universal
+103552	Zhdanivka
+20539	Zaporizhia Region
+960	Zaporizhia
+10367	Melitopol
+24462	Berdiansk District
+27125	Berestove
+27380	Chervone Pole
+27500	Dmytrivka
+27850	Azovske
+28069	Novopetrivka
+28080	Novotroitske
+28150	Mykolaivka
+28240	Osypenko
+28550	Uspenivka
+28878	Andriivka
+28966	Sofiivka
+24463	Vasylivka District
+27369	Vasylivka
+27506	Dniprorudne
+27801	Kamianske
+28223	Orlianske
+28324	Pidhirne
+28821	Shyroke
+24464	Velyka Bilozerka District
+27240	Velyka Bilozerka
+28070	Novopetrivka
+24465	Vesyolovsky District
+27271	Vesele
+27573	Yelyzavetivka
+27771	Kalynivka
+28822	Shyroke
+29192	Musiivka
+24466	Vilniansk District
+27312	Vilniansk
+27503	Dniprovka
+27795	Kamiane
+27879	Liubymivka
+27959	Mykhailivka
+28094	Novohupalivka
+28471	Ternivka
+28596	Verbove
+24467	Huliaipole District
+27880	Liubymivka
+27949	Myrne
+28341	Poltavka
+28551	Uspenivka
+28742	Huliaipole
+24468	Zaporizhia District
+27074	Bilenke
+27738	Kushuhum
+27849	Lukasheve
+27988	Malokaterynivka
+28071	Novopetrivka
+28451	Rozumivka
+28731	Hrygorivka
+28823	Shyroke
+29189	Balabyne
+24469	Kamianka-Dniprovska District
+27129	Blahovishchenka
+27288	Vodiane
+27504	Dniprovka
+27794	Kamianka-Dniprovska
+24470	Bilmak District
+27130	Blahovishchenka
+27720	Bilmak
+27803	Komysh-Zoria
+28007	Marianivka
+24471	Melitopol District
+27285	Voznesenka
+27349	Vysoke
+27639	Kostiantynivka
+27950	Myrne
+28036	Novobohdanivka
+28047	Nove
+28475	Terpinnia
+28782	Yasne
+28902	Astrakhanka
+28905	Svitlodolynske
+24472	Mikhailivka Dictrict
+27187	Burchak
+27350	Vysoke
+27881	Liubymivka
+27960	Mykhailivka
+28008	Marianivka
+28383	Pryshyb
+28597	Tarsalak
+24473	Novomykolaivka District
+27878	Liubytske
+28009	Marianivka
+28057	Novomykolaivka
+28325	Pidhirne
+28472	Ternuvate
+28967	Sofiivka
+24474	Orikhiv District
+27649	Kopani
+27748	Tavriiske
+27951	Myrne
+28045	Novodanylivka
+28081	Novotroitske
+28213	Omelnyk
+28221	Orikhiv
+29190	Komyshuvakha
+24475	Pology District
+27221	Basan
+27411	Fedorivka
+27640	Kostiantynivka
+28340	Pology
+28527	Tarasivka
+28732	Hryhorivka
+24476	Pryazovske District
+27486	Divnynske
+27501	Dmytrivka
+28039	Novovasylivka
+28151	Mykolaivka
+28384	Pryazovske
+29072	Stepanivka Persha
+29188	Botieve
+29193	Hirsivka
+29194	Hannivka
+24477	Prymorsk District
+27153	Borysivka
+27356	Viacheslavka
+27436	Zelenivka
+27574	Yelizavetivka
+28173	Naberezhne
+28363	Preslav
+28382	Prymorsk
+28664	Inzivka
+28764	Yurivka
+24478	Rozivka District
+28416	Rozivka
+24479	Tokmak District
+27749	Lahidne
+27921	Molochansk
+28048	Nove
+28058	Novomykolaivka
+28189	Ocheretuvate
+28598	Pokrovske
+24480	Chernyhivka District
+27263	Verkhnii Tokmak
+27399	Chernihivka
+28367	Prostore
+24481	Yakymivka District
+27756	Kyrylivka
+28046	Novodanilovka
+28417	Rozivka
+28458	Radyvonivka
+28804	Sheliugy
+28841	Yakymivka
+29191	Kosykh
+24881	Enerhodar
+27101	Berdiansk
+28038	Novovasylivka
+28480	Tokmak
+102459	Other
+102484	Universal
+20540	Luhansk Region
+222	Luhansk
+27056	Katerynivka
+103822	Oleksandrivsk
+24543	Antratsyt District
+27566	Diakove
+27709	Krasnyi Kut
+28635	Ivanivka
+28887	Antratsyt
+24545	Bilokurakyne District
+27080	Bilokurakyne
+27185	Bunchukivka
+27832	Lozno-Oleksandrivka
+27856	Lyzyne
+24546	Sorokyne District
+27924	Molodohvardiisk
+28107	Novosvitlivka
+28636	Ivanivka
+29017	Sukhodilsk
+24547	Kreminna District
+27214	Baranykivka
+27672	Kreminna
+27697	Krasnorichenske
+27979	Makiivka
+28135	Nova Astrahan
+24548	Lutuhyne District
+27851	Lutuhyne
+28548	Uspenka
+218929	Bilorichenskyi
+24551	Novoaidar District
+27066	Shchastia
+27621	Koliadivka
+28097	Novoaidar
+28106	Novookhtyrka
+28459	Raihorodka
+29200	Shtormove
+24553	Perevalsk District
+27397	Chornukhyne
+27450	Zorynsk
+28259	Perevalsk
+28276	Petrivka
+28715	Horodyshche
+28897	Kypuche
+29198	Fashchivka
+24554	Popasna District
+27003	Zolote
+27029	Nyzhnie
+27052	Hirske
+27298	Vovchoiarivka
+28152	Mykolaivka
+28355	Popasna
+28489	Troitske
+24555	Svatovo District
+27632	Lahidne
+27716	Kuzemivka
+27907	Miluvatka
+27934	Mistky
+28277	Korzhove
+28460	Raihorodka
+28909	Svystunivka
+28911	Svatove
+29196	Nyzhnia Duvanka
+24556	Dovzhansk District
+27195	Krynychne
+27381	Voznesenivka
+27633	Dubove
+24557	Slovianoserbsk District
+27454	Zymohiria
+103551	Slovianoserbsk
+24558	Stanytsia Luhanska District
+27418	Chuhynka
+28153	Mykolaivka
+28278	Petropavlivka
+28994	Stanytsia Luhanska
+24559	Starobilsk District
+27076	Bilovodsk
+27081	Bilolutsk
+27213	Baranykivka
+27449	Zorykivka
+27466	Zakotne
+27572	Yevsuh
+27635	Kononivka
+27765	Kalmykivka
+27766	Kalmykivka
+27816	Karaiashnyk
+27906	Milove
+27930	Mozhniakivka
+27998	Markivka
+28035	Novobila
+28076	Novopskov
+28294	Petrivske
+28442	Rybiantseve
+28714	Horodyshche
+28814	Shulhynka
+28986	Striltsivka
+28997	Starobilsk
+29195	Chmyrivka
+29199	Hanusivka
+24560	Troitske District
+27901	Lantrativka
+28041	Novochervone
+28335	Pokrovske
+28490	Troitske
+29197	Rozpasiivka
+24885	Alchevsk
+24886	Brianka
+24887	Holubivka
+24888	Khrustalnyi
+27001	Bokovo-Khrustalne
+27036	Petrovo-Krasnosillia
+106008	Miusynsk
+24889	Lysychansk
+27022	Novodruzhesk
+106009	Pryvillia
+24890	Pervomaisk
+24891	Rovenky
+27058	Yasenivskyi
+24892	Rubizhne
+24893	Sievierodonetsk
+26992	Borivske
+26997	Voronove
+27014	Metolkine
+24894	Kadiivka
+106005	Almazna
+106010	Irmino
+27687	Sorokyne
+106006	Hirne
+28903	Dovzhansk
+102458	Other
+102483	Universal
+20542	Kherson District
+962	Kherson
+27002	Zelenovka
+27063	Antonovka
+29131	Kamyshany
+24628	Snigirevsky District
+27388	Chervona Dolina
+28275	Pershotravnevoe
+28861	Alexandrovka
+29139	Snigirevka
+24772	Berislavsky District
+27387	Chervony Mayak
+27759	Kachkarovka
+27763	Kazackoe
+28165	Nikolaevka
+29126	Berislav
+29135	Tomarino
+24773	Belozersky District
+27077	Belozerka
+27391	Chernobaevka
+28641	Ivanovka
+101606	Muzikovka
+24774	Velikolepetihinsky District
+27246	Velikaya Leptiha
+27643	Konstantinovka
+28166	Nikolaevka
+24775	Velikoaleksandrovsky District
+27098	Belaya Krinica
+27148	Borozenskoe
+27170	Bruskinskoe
+27252	Velikaya Aleksandrovka
+27406	Chkalovo
+27430	Charivnoe
+27567	Davidov Brod
+28042	Novodmitrovka
+24776	Verhnerogachiksky District
+27117	Berezhanka
+27262	Verkhny Rogachik
+28248	Pervomaevka
+29038	Samoylovka
+24777	Vysokopolsky District
+27352	Visokopolje
+28062	Novonikolaevka
+28222	Orlovo
+28642	Ivanovka
+28899	Arkhangelskoye
+29136	Zagradovka
+24778	Genichesky District
+27409	Chongar
+28043	Novodmitrovka
+28098	Novooleksiyivka
+28167	Nikolaevka
+28288	Petrovka
+28405	Rykove
+28559	Azovske
+28912	Schastlivtsevo
+28956	Sokologornoe
+28985	Strelkovoe
+29128	Genichesk
+155438	Henicheska Hirka
+24779	Golopristansky District
+27127	Bekhtery
+27413	Chulakovka
+27518	Dolmatovka
+27686	Oleksandrivka
+28087	Novofedorovka
+28643	Ivanovka
+28688	Gladkovka
+28700	Gola Pristan
+29132	Novaya Zbur'evka
+116712	Zalizny Port
+24780	Gornostaevsky District
+27242	Velikaya Blagoveshenka
+27463	Zavodovka
+27644	Konstantinovka
+28703	Gornostayivka
+24781	Ivanovsky Dictrict
+27133	Blagodatnoe
+27533	Druzhbovka
+27883	Lubimovka
+28040	Novovasiljevka
+28063	Novonikolaevka
+28560	Ahaimany
+28644	Ivanovka
+24782	Kalanchaksky District
+27783	Kalanchak
+27953	Mirnoe
+28101	Novoaleksandrovka
+28376	Privolie
+28449	Razdolnoe
+28572	Horly
+24783	Kakhovka District
+27471	Zaozernaya
+27884	Lubimovka
+28450	Razdolnoe
+28922	Semenivka
+24784	Nizhneserogozsky District
+27311	Volnoe
+28102	Novoaleksandrovka
+28170	Nizhnie Torgai
+28171	Nizhnie Serogozy
+29137	Serogozy
+24785	Novovorontsovsky District
+27094	Belyaevka
+27549	Dudchany
+27885	Lubimovka
+27964	Mihaylovka
+28037	Novovoroncovka
+28103	Novoaleksandrovka
+24786	Novotroyitske District
+27407	Chkalovo
+28064	Novonikolaevka
+28082	Novotroickoe
+28704	Gornostayivka
+28725	Gromovka
+29020	Sivashovka
+29134	Otradovka
+29138	Sivashskoe
+24787	Skadovsk District
+27691	Krasnoe
+27892	Lazurnoe
+27965	Mihaylovka
+28065	Novonikolaevka
+28885	Antonovka
+28934	Skadovsk
+24788	Oleshky District
+29127	Oleshky
+29129	Brilevka
+29130	Velikie Kopani
+29133	Novaya Mayachka
+24789	Chaplinsky District
+27424	Chaplinka
+28014	Magdalinovka
+28066	Novonatalovka
+28645	Ivanovka
+28733	Grigorovka
+28901	Askania Nova
+28988	Stroganovka
+24904	Novaya Kakhovka
+27006	Dnepryany
+27043	Tavrijsk
+27819	Kakhovka
+102462	
+102487	
