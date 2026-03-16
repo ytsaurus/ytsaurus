@@ -20,6 +20,7 @@ import tech.ytsaurus.client.request.CreateObject;
 import tech.ytsaurus.client.request.FreezeTable;
 import tech.ytsaurus.client.request.GcCollect;
 import tech.ytsaurus.client.request.GenerateTimestamps;
+import tech.ytsaurus.client.request.GetCurrentUser;
 import tech.ytsaurus.client.request.GetInSyncReplicas;
 import tech.ytsaurus.client.request.GetJob;
 import tech.ytsaurus.client.request.GetJobStderr;
@@ -298,5 +299,10 @@ class SyncApiServiceClientImpl
     @Override
     public void alterQuery(AlterQuery req) {
         client.alterQuery(req).join();
+    }
+
+    @Override
+    public String getCurrentUser(GetCurrentUser req) {
+        return client.getCurrentUser(req).join();
     }
 }

@@ -31,6 +31,7 @@ import tech.ytsaurus.rpcproxy.TReqFlowExecute;
 import tech.ytsaurus.rpcproxy.TReqFreezeTable;
 import tech.ytsaurus.rpcproxy.TReqGCCollect;
 import tech.ytsaurus.rpcproxy.TReqGenerateTimestamps;
+import tech.ytsaurus.rpcproxy.TReqGetCurrentUser;
 import tech.ytsaurus.rpcproxy.TReqGetFileFromCache;
 import tech.ytsaurus.rpcproxy.TReqGetFlowView;
 import tech.ytsaurus.rpcproxy.TReqGetInSyncReplicas;
@@ -118,6 +119,7 @@ import tech.ytsaurus.rpcproxy.TRspFlowExecute;
 import tech.ytsaurus.rpcproxy.TRspFreezeTable;
 import tech.ytsaurus.rpcproxy.TRspGCCollect;
 import tech.ytsaurus.rpcproxy.TRspGenerateTimestamps;
+import tech.ytsaurus.rpcproxy.TRspGetCurrentUser;
 import tech.ytsaurus.rpcproxy.TRspGetFileFromCache;
 import tech.ytsaurus.rpcproxy.TRspGetFlowView;
 import tech.ytsaurus.rpcproxy.TRspGetInSyncReplicas;
@@ -482,6 +484,9 @@ public class ApiServiceMethodTable {
 
     public static final RpcMethodDescriptor<TReqFlowExecute.Builder, TRspFlowExecute> FLOW_EXECUTE =
             apiServiceMethod("FlowExecute", TReqFlowExecute::newBuilder, TRspFlowExecute.parser());
+
+    public static final RpcMethodDescriptor<TReqGetCurrentUser.Builder, TRspGetCurrentUser> GET_CURRENT_USER =
+            apiServiceMethod("GetCurrentUser", TReqGetCurrentUser::newBuilder, TRspGetCurrentUser.parser());
 
     private ApiServiceMethodTable() {
     }
