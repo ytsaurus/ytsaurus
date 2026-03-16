@@ -4,7 +4,9 @@
 #include "chunk_meta_extensions.h"
 #include "config.h"
 #include "dictionary_compression_session.h"
+#include "performance_counters.h"
 #include "schemaless_chunk_reader.h"
+#include "schemaless_chunk_writer.h"
 #include "schemaless_multi_chunk_reader.h"
 #include "versioned_chunk_writer.h"
 
@@ -14,8 +16,6 @@
 #include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
-#include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
-#include <yt/yt/ytlib/table_client/performance_counters.h>
 
 #include <yt/yt/ytlib/tablet_client/proto/tablet_service.pb.h>
 
@@ -631,13 +631,37 @@ public:
         statistics.RefValueWeight += newStatistics.RefValueWeight;
     }
 
+protected:
+    // For cloning.
+    THunkChunkStatisticsBase() = default;
+
+    void CloneEmptyColumnarStatisticsTo(THunkChunkStatisticsBase* target) const
+    {
+        if (ColumnIdToStatistics_) {
+            target->ColumnIdToStatistics_.emplace();
+            for (const auto& [columnId, _] : *ColumnIdToStatistics_) {
+                target->ColumnIdToStatistics_->emplace(columnId, TAtomicColumnarStatistics{});
+            }
+        }
+    }
+
+    void AddColumnarStatisticsFrom(const THunkChunkStatisticsBase* from)
+    {
+        if (ColumnIdToStatistics_) {
+            YT_VERIFY(from->HasColumnarStatistics());
+            for (const auto& [columnId, _] : *ColumnIdToStatistics_) {
+                UpdateColumnarStatistics(columnId, from->GetColumnarStatistics(columnId));
+            }
+        }
+    }
+
 private:
     struct TAtomicColumnarStatistics
     {
         TAtomicColumnarStatistics()
         { }
 
-        TAtomicColumnarStatistics(TAtomicColumnarStatistics&& other)
+        TAtomicColumnarStatistics(TAtomicColumnarStatistics&& other) noexcept
             : InlineValueCount(other.InlineValueCount.load(std::memory_order::relaxed))
             , RefValueCount(other.RefValueCount.load(std::memory_order::relaxed))
             , InlineValueWeight(other.InlineValueWeight.load(std::memory_order::relaxed))
@@ -767,6 +791,38 @@ public:
     {
         return BackendProbingRequestCount_;
     }
+
+    IHunkChunkReaderStatisticsPtr CloneEmpty() const override
+    {
+        auto result = New<THunkChunkReaderStatistics>();
+        CloneEmptyColumnarStatisticsTo(result.Get());
+        return result;
+    }
+
+    void AddFrom(const IHunkChunkReaderStatisticsPtr& from) override
+    {
+        ChunkReaderStatistics_->AddFrom(from->GetChunkReaderStatistics());
+
+        auto onField = [&] (auto field) {
+            (this->*field)().fetch_add(
+                (from.Get()->*field)().load(std::memory_order_relaxed),
+                std::memory_order_relaxed);
+        };
+
+        onField(&IHunkChunkReaderStatistics::DataWeight);
+        onField(&IHunkChunkReaderStatistics::DroppedDataWeight);
+        onField(&IHunkChunkReaderStatistics::InlineValueCount);
+        onField(&IHunkChunkReaderStatistics::RefValueCount);
+        onField(&IHunkChunkReaderStatistics::BackendReadRequestCount);
+        onField(&IHunkChunkReaderStatistics::BackendHedgingReadRequestCount);
+        onField(&IHunkChunkReaderStatistics::BackendProbingRequestCount);
+
+        AddColumnarStatisticsFrom(dynamic_cast<THunkChunkStatisticsBase*>(from.Get()));
+    }
+
+protected:
+    // For cloning.
+    THunkChunkReaderStatistics() = default;
 
 private:
     const TChunkReaderStatisticsPtr ChunkReaderStatistics_ = New<TChunkReaderStatistics>();

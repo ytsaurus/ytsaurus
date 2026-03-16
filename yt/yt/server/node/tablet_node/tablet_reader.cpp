@@ -632,7 +632,7 @@ ISchemafulUnversionedReaderPtr DoCreateScanReader(
                     tabletSnapshot,
                     boundsPerStore[index],
                     timestamp,
-                    false,
+                    /*produceAllVersions*/ false,
                     enrichedColumnFilter,
                     chunkReadOptions,
                     workloadCategory);
@@ -917,7 +917,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
                     tabletSnapshot,
                     boundsPerStore[index],
                     timestamp,
-                    false,
+                    /*produceAllVersions*/ false,
                     enrichedColumnFilter,
                     chunkReadOptions,
                     workloadCategory);
@@ -1227,7 +1227,7 @@ IVersionedReaderPtr CreateCompactionTabletReader(
                 tabletSnapshot,
                 MakeSingletonRowRange(lowerBound, upperBound),
                 AllCommittedTimestamp,
-                true,
+                /*produceAllVersions*/ true,
                 TColumnFilter(),
                 chunkReadOptions,
                 workloadCategory);

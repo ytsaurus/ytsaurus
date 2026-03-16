@@ -16,8 +16,6 @@
 
 #include <yt/yt/ytlib/hydra/public.h>
 
-#include <yt/yt/ytlib/tablet_client/proto/heartbeat.pb.h>
-
 #include <yt/yt/ytlib/chunk_client/public.h>
 
 #include <yt/yt/ytlib/object_client/public.h>

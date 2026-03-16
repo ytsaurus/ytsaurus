@@ -1024,6 +1024,8 @@ class TestReplicaBalancing(TestStandaloneTabletBalancerBase, TestStatisticsRepor
 
     REMOTE_CLUSTER_NAME = "remote_0"
 
+    STATISTICS_TABLE_PATH = "//sys/tablet_balancer/performance_counters"
+
     @classmethod
     def modify_tablet_balancer_config(cls, config, multidaemon_config):
         super(TestReplicaBalancing, cls).modify_tablet_balancer_config(config, multidaemon_config)
@@ -1041,7 +1043,7 @@ class TestReplicaBalancing(TestStandaloneTabletBalancerBase, TestStatisticsRepor
 
     def teardown_method(self, method):
         for driver in (self.remote_driver, None):
-            remove(self.statistics_path, driver=driver)
+            remove(self.STATISTICS_TABLE_PATH, driver=driver, force=True)
         super(TestReplicaBalancing, self).teardown_method(method)
 
     @authors("alexelexa")
@@ -1049,8 +1051,6 @@ class TestReplicaBalancing(TestStandaloneTabletBalancerBase, TestStatisticsRepor
         self._set_default_metric("double([/statistics/uncompressed_data_size])")
         self._set_allowed_replica_clusters(self.get_cluster_names())
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups/default/parameterized/replica_clusters", self.get_cluster_names())
-
-        self.statistics_path = "//sys/tablet_balancer/performance_counters"
 
         cells = []
         tables = []
@@ -1070,7 +1070,7 @@ class TestReplicaBalancing(TestStandaloneTabletBalancerBase, TestStatisticsRepor
         for driver in (self.remote_driver, None):
             cells = sync_create_cells(2, driver=driver)
             sync_mount_table("//tmp/t", cell_id=cells[0], driver=driver)
-            self._setup_statistics_reporter(self.statistics_path, driver=driver, tablet_cell_bundle="system")
+            self._setup_statistics_reporter(driver=driver, bundle="system")
             self._apply_dynamic_config_patch({
                 "use_statistics_reporter": True,
             }, driver=driver)
@@ -1089,7 +1089,7 @@ class TestReplicaBalancing(TestStandaloneTabletBalancerBase, TestStatisticsRepor
 
         for table_id, driver in tables:
             def select():
-                return select_rows(f"* from [{self.statistics_path}] where table_id = \"{table_id}\"", driver=driver)
+                return select_rows(f"* from [{self.STATISTICS_TABLE_PATH}] where table_id = \"{table_id}\"", driver=driver)
             print_debug(select())
             wait(lambda: len(select()) > 0)
             print_debug(select())
@@ -1105,7 +1105,6 @@ class TestReplicaBalancing(TestStandaloneTabletBalancerBase, TestStatisticsRepor
 
     @authors("alexelexa")
     def test_replica_reshard(self):
-        self.statistics_path = "//sys/tablet_balancer/performance_counters"
         self._set_default_metric("double([/statistics/uncompressed_data_size])")
         self._set_allowed_replica_clusters(self.get_cluster_names())
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups/default/parameterized/replica_clusters", self.get_cluster_names())
@@ -1154,7 +1153,7 @@ class TestReplicaBalancing(TestStandaloneTabletBalancerBase, TestStatisticsRepor
         for driver in (self.remote_driver, None):
             sync_create_cells(1, driver=driver)
             sync_mount_table("//tmp/t", driver=driver)
-            self._setup_statistics_reporter(self.statistics_path, driver=driver, tablet_cell_bundle="system")
+            self._setup_statistics_reporter(driver=driver, bundle="system")
             self._apply_dynamic_config_patch({
                 "use_statistics_reporter": True,
             }, driver=driver)
@@ -1168,7 +1167,7 @@ class TestReplicaBalancing(TestStandaloneTabletBalancerBase, TestStatisticsRepor
 
         for table_id, driver in tables:
             def select():
-                return select_rows(f"* from [{self.statistics_path}] where table_id = \"{table_id}\"", driver=driver)
+                return select_rows(f"* from [{self.STATISTICS_TABLE_PATH}] where table_id = \"{table_id}\"", driver=driver)
             wait(lambda: len(select()) > 0)
 
         def _check_replica_modes():
@@ -1221,6 +1220,8 @@ class TestMultiClusterTabletBalancer(TestStandaloneTabletBalancerBase, TestStati
 
     REMOTE_CLUSTER_NAME = "remote_0"
 
+    STATISTICS_TABLE_PATH = "//sys/tablet_balancer/performance_counters"
+
     @classmethod
     def modify_tablet_balancer_config(cls, config, multidaemon_config):
         super(TestMultiClusterTabletBalancer, cls).modify_tablet_balancer_config(config, multidaemon_config)
@@ -1236,10 +1237,9 @@ class TestMultiClusterTabletBalancer(TestStandaloneTabletBalancerBase, TestStati
         cls.remote_driver = get_driver(cluster=cls.REMOTE_CLUSTER_NAME)
 
     def teardown_method(self, method):
-        if hasattr(self, "statistics_path"):
-            for driver in (self.remote_driver, None):
-                remove(self.statistics_path, driver=driver)
-            set("//sys/tablet_cell_bundles/default/@node_tag_filter", "", driver=self.remote_driver)
+        for driver in (self.remote_driver, None):
+            remove(self.STATISTICS_TABLE_PATH, driver=driver, force=True)
+        set("//sys/tablet_cell_bundles/default/@node_tag_filter", "", driver=self.remote_driver)
         super(TestMultiClusterTabletBalancer, self).teardown_method(method)
 
     @authors("alexelexa")
@@ -1321,7 +1321,6 @@ class TestMultiClusterTabletBalancer(TestStandaloneTabletBalancerBase, TestStati
 
     @authors("alexelexa")
     def test_banned_replica_clusters_for_replica_balancing(self):
-        self.statistics_path = "//sys/tablet_balancer/performance_counters"
         self._set_default_metric("double([/statistics/uncompressed_data_size])")
 
         self._apply_dynamic_config_patch({
@@ -1372,7 +1371,7 @@ class TestMultiClusterTabletBalancer(TestStandaloneTabletBalancerBase, TestStati
         for driver in (self.remote_driver, None):
             sync_create_cells(1, driver=driver)
             sync_mount_table("//tmp/t", driver=driver)
-            self._setup_statistics_reporter(self.statistics_path, driver=driver, tablet_cell_bundle="system")
+            self._setup_statistics_reporter(driver=driver, bundle="system")
             self._apply_dynamic_config_patch({
                 "use_statistics_reporter": True,
             }, driver=driver)

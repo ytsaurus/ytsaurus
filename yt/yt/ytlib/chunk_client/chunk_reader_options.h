@@ -42,6 +42,9 @@ struct TClientChunkReadOptions
 
     //! Additional request data, e.g. NBD request id.
     std::optional<ui64> Cookie;
+
+    void ResetStatistics();
+    void AddStatisticsFrom(const TClientChunkReadOptions& from) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
