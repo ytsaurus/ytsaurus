@@ -7,6 +7,28 @@ analytics:
       text: "Ок"
       theme: "accent"
       size: "xl"
+navigation:
+  logo:
+    url: "https://ytsaurus.tech/"
+    urlTitle: 'Вернуться на сайт'
+    dark:
+      icon: "https://ytsaurus.tech/assets/logo-dark.svg"
+    light:
+      icon: "https://ytsaurus.tech/assets/logo-light.svg"
+  header:
+    rightItems:
+      - text: "Как всё устроено"
+        type: "link"
+        url: "overview/about"
+      - text: "Telegram"
+        type: "link"
+        url: "https://t.me/ytsaurus_ru"
+        icon: "https://storage.yandexcloud.net/ytsaurus-www/assets/favicon-telegram.svg"
+      - text: "GitHub"
+        type: "link"
+        url: "https://github.com/ytsaurus/ytsaurus"
+        icon: "https://storage.yandexcloud.net/ytsaurus-www/assets/favicon-github.svg"
+      - type: controls
 items:
   - include: { mode: merge, path: yandex-specific/toc-internal.yaml }
     when: audience == "internal"
