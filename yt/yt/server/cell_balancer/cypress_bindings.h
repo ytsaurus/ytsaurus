@@ -739,6 +739,8 @@ struct TTabletNodeInfo
     TTabletNodeStatisticsPtr Statistics;
     std::string Rack;
 
+    ELocalNodeState LocalState; // Not registered as yson struct field.
+
     REGISTER_YSON_STRUCT(TTabletNodeInfo);
 
     static void Register(TRegistrar registrar);

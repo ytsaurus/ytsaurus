@@ -30,6 +30,8 @@ struct IBootstrap
 
     virtual const TDynamicConfigManagerPtr& GetDynamicConfigManager() const = 0;
 
+    virtual const INodeTrackerPtr& GetNodeTracker() const = 0;
+
     virtual void ExecuteIteration(bool dryRun) = 0;
 };
 

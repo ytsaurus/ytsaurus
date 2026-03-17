@@ -11,6 +11,7 @@ namespace NYT::NCellBalancer {
 DECLARE_REFCOUNTED_STRUCT(TCellBalancerBootstrapConfig)
 DECLARE_REFCOUNTED_STRUCT(TCellBalancerProgramConfig)
 DECLARE_REFCOUNTED_STRUCT(TCellBalancerConfig)
+DECLARE_REFCOUNTED_STRUCT(TNodeTrackerDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TBundleControllerConfig)
 DECLARE_REFCOUNTED_STRUCT(TChaosConfig)
 
@@ -19,6 +20,7 @@ DECLARE_REFCOUNTED_CLASS(TCellTrackerImpl)
 DECLARE_REFCOUNTED_STRUCT(IBundleController)
 DECLARE_REFCOUNTED_CLASS(TClusterStateProvider)
 DECLARE_REFCOUNTED_STRUCT(ICellDowntimeTracker)
+DECLARE_REFCOUNTED_STRUCT(INodeTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
