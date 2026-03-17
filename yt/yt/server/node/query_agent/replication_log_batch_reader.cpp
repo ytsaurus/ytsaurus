@@ -47,6 +47,7 @@ TReplicationLogBatchDescriptor TReplicationLogBatchReaderBase::ReadReplicationBa
 
     i64 batchDataWeight = 0;
     i64 readRowCount = 0;
+    i64 readTimestampsCount = 0;
     int timestampCount = 0;
     int batchRowCount = 0;
     int discardedByProgress = 0;
@@ -153,7 +154,7 @@ TReplicationLogBatchDescriptor TReplicationLogBatchReaderBase::ReadReplicationBa
                         timestampCount >= TableMountConfig_->MaxTimestampsPerReplicationCommit ||
                         isRequestDeadlineExceeded ||
                         isDataWeightPerPullRowsLimitExceeded ||
-                        (maxAllowedCommitInstantExceeded && timestampCount > 0))
+                        (maxAllowedCommitInstantExceeded && readTimestampsCount > 0))
                     {
                         readAllRows = false;
                         YT_LOG_DEBUG("Stopped reading replication batch because stopping conditions are met "
@@ -174,6 +175,8 @@ TReplicationLogBatchDescriptor TReplicationLogBatchReaderBase::ReadReplicationBa
                     if (isRowFitIntoProgress) {
                         ++timestampCount;
                     }
+
+                    ++readTimestampsCount;
                 }
 
                 if (isRowFitIntoProgress) {
