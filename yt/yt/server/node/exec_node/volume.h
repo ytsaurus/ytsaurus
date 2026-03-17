@@ -27,9 +27,7 @@ struct TVolumeMeta
     : public NProto::TVolumeMeta
 {
     TVolumeId Id;
-    std::string MountPath;
-    //! Path to custom porto place.
-    std::optional<std::string> PortoPlacePath;
+    TString MountPath;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

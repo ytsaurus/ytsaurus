@@ -110,15 +110,14 @@ TFuture<void> TPortoVolumeBase::DoRemoveVolumeCommon(
     const auto& volumePath = volumeMeta.MountPath;
 
     auto Logger = ExecNodeLogger()
-        .WithTag("VolumeType: %v, VolumeId: %v, VolumePath: %v, PortoPlacePath: %v",
+        .WithTag("VolumeType: %v, VolumeId: %v, VolumePath: %v",
             volumeType,
             volumeId,
-            volumePath,
-            volumeMeta.PortoPlacePath);
+            volumePath);
 
     YT_LOG_DEBUG("Removing volume");
 
-    return location->RemoveVolume(tagSet, volumeId, std::move(volumeMeta.PortoPlacePath))
+    return location->RemoveVolume(tagSet, volumeId)
         .Apply(BIND(
             [
                 Logger,
@@ -146,7 +145,7 @@ void TPortoVolumeBase::SetRemoveCallback(TCallback<TFuture<void>()> callback)
     RemoveCallback_ = BIND(
         [
             location = LayerLocation_,
-            volumePath = ToString(VolumeMeta_.MountPath),
+            volumePath = VolumeMeta_.MountPath,
             callback = std::move(callback)
         ] (const std::vector<TString>& targets) {
             return UnlinkTargets(location, volumePath, targets)
