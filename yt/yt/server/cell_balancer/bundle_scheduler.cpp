@@ -668,9 +668,6 @@ void ManageInstances(
     ISpareInstanceAllocatorPtr spareProxiesAllocator,
     TSchedulerMutations* mutations)
 {
-    TInstanceManager nodeAllocator;
-    TInstanceManager proxyAllocator;
-
     for (const auto& [bundleName, bundleInfo] : input.Bundles) {
         auto guard = mutations->MakeBundleNameGuard(bundleName);
 
@@ -698,12 +695,14 @@ void ManageInstances(
             bundleState,
             EGracePeriodBehaviour::Wait);
         auto nodeAdapter = CreateTabletNodeAllocatorAdapter(bundleState, bundleNodes, aliveNodes);
-        nodeAllocator.ManageInstances(bundleName, nodeAdapter.Get(), spareNodesAllocator, input, mutations);
+        TInstanceManager nodeAllocator(bundleName, input, spareNodesAllocator, nodeAdapter.Get(), mutations);
+        nodeAllocator.ManageInstances();
 
         const auto& bundleProxies = input.BundleProxies[bundleName];
         auto aliveProxies = GetAliveProxies(bundleProxies, input, EGracePeriodBehaviour::Wait);
         auto proxyAdapter = CreateRpcProxyAllocatorAdapter(bundleState, bundleProxies, aliveProxies);
-        proxyAllocator.ManageInstances(bundleName, proxyAdapter.Get(), spareProxiesAllocator, input, mutations);
+        TInstanceManager proxyAllocator(bundleName, input, spareProxiesAllocator, proxyAdapter.Get(), mutations);
+        proxyAllocator.ManageInstances();
     }
 
     if (input.Config->HasInstanceAllocatorService) {
@@ -1231,7 +1230,7 @@ void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations
     InitializeBundleTargetConfig(input, mutations);
 
     CalculateResourceUsage(input);
-    input.DatacenterDisrupted = GetDataCenterDisruptedState(input);
+    input.DataCenterDisruptionStatuses = GetDataCenterDisruptedState(input);
     input.BundleToShortName = MapBundlesToShortNames(input);
 
     InitializeBundleChangedStates(input, mutations);

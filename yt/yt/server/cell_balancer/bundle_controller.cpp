@@ -975,7 +975,7 @@ private:
             sensors->OfflineProxyCount.Update(offlineProxyCount);
         }
 
-        for (const auto& [dcPair, zoneDisrupted] : input.DatacenterDisrupted) {
+        for (const auto& [dcPair, zoneDisrupted] : input.DataCenterDisruptionStatuses) {
             auto sensor = GetZoneSensors(dcPair.first, dcPair.second);
             sensor->OfflineNodeCount.Update(zoneDisrupted.OfflineNodeCount);
             sensor->OfflineNodeThreshold.Update(zoneDisrupted.OfflineNodeThreshold);

@@ -374,7 +374,7 @@ public:
             return false;
         }
 
-        if (GetAliveInstances(dataCenterName).count(nodeName) == 0) {
+        if (!GetAliveInstances(dataCenterName).contains(nodeName)) {
             return false;
         }
 
