@@ -141,10 +141,18 @@ ACL inheritance should be used everywhere, except in places where the nature of 
 
 ## Checking the ACL { #check_acl}
 
-To check if a user has a certain permission to a certain Cypress node, use the `check-permission` command. Example:
+To check if a user has a certain permission to a certain Cypress node, use the `check-permission` command. 
+
+Example:
 
 ```bash
-$ yt check-permission yql write //tmp
+yt check-permission <user_name> <permission> <folder>
+```
+
+Example of command launch:
+
+```bash
+$ yt check-permission pavel-kulenov write //tmp
 {
   "action" = "allow";
   "object_id" = "1-3-411012f-1888ce1f";
