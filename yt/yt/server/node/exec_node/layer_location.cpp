@@ -1339,7 +1339,86 @@ void TLayerLocation::RemoveVolumes(TDuration timeout)
     RemoveVolumes(VolumesPath_, timeout);
 }
 
-//! Remove volumes planted at a given path.
+//! Remove layers planted at a given place.
+void TLayerLocation::RemoveLayers(
+    const TString& place,
+    TDuration timeout)
+{
+    auto startTime = TInstant::Now();
+    auto deadLine = startTime + timeout;
+
+    auto Logger = ExecNodeLogger()
+        .WithTag("Place: %v", place);
+
+    YT_LOG_DEBUG(
+        "Removing layers from porto place (DeadLine: %v)",
+        deadLine);
+
+    auto checkDeadLine = [&] {
+        auto now = TInstant::Now();
+        if (now > deadLine) {
+            THROW_ERROR_EXCEPTION("Failed to wait for layers to be removed")
+                << TErrorAttribute("timeout", timeout)
+                << TErrorAttribute("place", place);
+        }
+    };
+
+    std::vector<TString> removedLayers;
+
+    while (true) {
+        checkDeadLine();
+
+        auto layerIds = WaitFor(LayerExecutor_->ListLayers(place))
+            .ValueOrThrow();
+
+        if (layerIds.empty()) {
+            YT_LOG_DEBUG("All layers have been removed");
+            break;
+        }
+
+        std::vector<TFuture<void>> removeFutures;
+        for (const auto& layerId : layerIds) {
+            YT_LOG_DEBUG(
+                "Trying to remove layer (LayerId: %v)",
+                layerId);
+
+            removedLayers.push_back(layerId);
+            removeFutures.push_back(LayerExecutor_->RemoveLayer(
+                layerId,
+                place,
+                false /*async*/));
+        }
+
+        auto removeResults = WaitFor(AllSet(std::move(removeFutures)))
+            .ValueOrThrow();
+
+        for (const auto& removeError : removeResults) {
+            if (!removeError.IsOK()) {
+                YT_LOG_INFO(
+                    removeError,
+                    "Failed to remove layer");
+            }
+        }
+
+        checkDeadLine();
+
+        static const TDuration Duration = TDuration::Seconds(30);
+
+        YT_LOG_DEBUG(
+            "Waiting for layers to be removed (Duration: %v)",
+            Duration);
+
+        TDelayedExecutor::WaitForDuration(Duration);
+    }
+
+    YT_LOG_DEBUG(
+        "Removed layers (Path: %v, LayerNames: %v, Duration: %v)",
+        place,
+        MakeShrunkFormattableView(removedLayers, TDefaultFormatter(), 10),
+        (TInstant::Now() - startTime));
+}
+
+//! Remove volumes planted at a given directory.
 void TLayerLocation::RemoveVolumes(
     const TString& path,
     TDuration timeout)
