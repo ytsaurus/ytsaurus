@@ -145,6 +145,12 @@ struct IDriver
     //! Returns the list of descriptors for all supported commands.
     virtual const std::vector<TCommandDescriptor> GetCommandDescriptors() const = 0;
 
+    //! Writes the schema of parameters for the command with a given name to the consumer.
+    //! Throws if no command with this name is registered.
+    virtual void WriteCommandParameterSchema(
+        const TString& commandName,
+        NYson::IYsonConsumer* consumer) const = 0;
+
     virtual void ClearMetadataCaches() = 0;
 
     //! Returns the pool of sticky transactions stored in the driver.

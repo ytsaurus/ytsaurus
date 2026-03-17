@@ -516,6 +516,17 @@ public:
         return result;
     }
 
+    void WriteCommandParameterSchema(
+        const TString& commandName,
+        NYson::IYsonConsumer* consumer) const override
+    {
+        auto it = CommandNameToEntry_.find(commandName);
+        if (it == CommandNameToEntry_.end()) {
+            THROW_ERROR_EXCEPTION("Unknown command %Qv", commandName);
+        }
+        it->second.GetParameterSchema.Run(consumer);
+    }
+
     void ClearMetadataCaches() override
     {
         ClientCache_->Clear();
@@ -578,6 +589,7 @@ private:
     {
         TCommandDescriptor Descriptor;
         TExecuteCallback Execute;
+        TCallback<void(NYson::IYsonConsumer*)> GetParameterSchema;
     };
 
     THashMap<TString, TCommandEntry> CommandNameToEntry_;
@@ -591,6 +603,10 @@ private:
         entry.Execute = BIND_NO_PROPAGATE([] (ICommandContextPtr context) {
             TCommand command;
             command.Execute(context);
+        });
+        entry.GetParameterSchema = BIND_NO_PROPAGATE([] (NYson::IYsonConsumer* consumer) {
+            TCommand command;
+            command.WriteSchema(consumer);
         });
         YT_VERIFY(CommandNameToEntry_.emplace(descriptor.CommandName, entry).second);
     }

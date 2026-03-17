@@ -160,18 +160,45 @@ bool TContext::TryParseCommandName()
     TStringBuf commandName = versionedName;
     commandName.Skip(7);
     if (commandName == "" || commandName == "/") {
+        auto queryParams = ParseQueryString(Request_->GetUrl().RawQuery);
+        auto parametersNode = queryParams->FindChild("parameters");
+        bool includeParameters = parametersNode &&
+            parametersNode->GetType() == ENodeType::Int64 &&
+            parametersNode->AsInt64()->GetValue() == 1;
+
+        auto dispatchCommandDescriptors = [&] (const NDriver::IDriverPtr& driver) {
+            Response_->SetStatus(EStatusCode::OK);
+            if (includeParameters) {
+                DispatchJson([&driver] (auto consumer) {
+                    auto descriptors = driver->GetCommandDescriptors();
+                    BuildYsonFluently(consumer)
+                        .DoListFor(descriptors, [&driver] (auto fluent, const auto& descriptor) {
+                            fluent.Item().BeginMap()
+                                .Item("name").Value(descriptor.CommandName)
+                                .Item("input_type").Value(descriptor.InputType)
+                                .Item("output_type").Value(descriptor.OutputType)
+                                .Item("is_volatile").Value(descriptor.Volatile)
+                                .Item("is_heavy").Value(descriptor.Heavy)
+                                .Item("parameters").Do([&] (auto fluent) {
+                                    driver->WriteCommandParameterSchema(
+                                        descriptor.CommandName,
+                                        fluent.GetConsumer());
+                                })
+                            .EndMap();
+                        });
+                });
+            } else {
+                DispatchJson([&driver] (auto consumer) {
+                    BuildYsonFluently(consumer)
+                        .Value(driver->GetCommandDescriptors());
+                });
+            }
+        };
+
         if (*ApiVersion_ == 3) {
-            Response_->SetStatus(EStatusCode::OK);
-            DispatchJson([this] (auto consumer) {
-                BuildYsonFluently(consumer)
-                    .Value(Api_->GetDriverV3()->GetCommandDescriptors());
-            });
+            dispatchCommandDescriptors(Api_->GetDriverV3());
         } else if (*ApiVersion_ == 4) {
-            Response_->SetStatus(EStatusCode::OK);
-            DispatchJson([this] (auto consumer) {
-                BuildYsonFluently(consumer)
-                    .Value(Api_->GetDriverV4()->GetCommandDescriptors());
-            });
+            dispatchCommandDescriptors(Api_->GetDriverV4());
         }
 
         return false;

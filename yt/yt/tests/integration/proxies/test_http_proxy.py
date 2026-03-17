@@ -418,6 +418,28 @@ class TestHttpProxy(HttpProxyTestBase):
     def test_supported_api_versions(self):
         assert ["v3", "v4"] == requests.get(self._get_proxy_address() + "/api").json()
 
+    @authors("koct9i")
+    def test_api_command_list_with_parameters(self):
+        for version in ("v3", "v4"):
+            url = "{}/api/{}".format(self._get_proxy_address(), version)
+
+            commands = requests.get(url).json()
+            assert isinstance(commands, list)
+            assert len(commands) > 0
+            for command in commands:
+                assert "name" in command
+                assert "parameters" not in command
+
+            commands_with_params = requests.get(url + "?parameters=1").json()
+            assert isinstance(commands_with_params, list)
+            assert len(commands_with_params) == len(commands)
+            for command in commands_with_params:
+                assert "name" in command
+                assert "parameters" in command
+                params = command["parameters"]
+                assert params.get("type_name") == "struct"
+                assert "members" in params
+
     @authors("prime")
     def test_discover_versions_v2(self):
         # Give all components some time to be considered online.
