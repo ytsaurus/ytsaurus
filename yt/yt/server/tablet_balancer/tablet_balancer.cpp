@@ -260,6 +260,8 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
     THashSet<TGlobalGroupTag> GroupsToMoveOnNextIteration_;
+    // Used for forcing iteration by request by |RequestBalancing|.
+    THashSet<TGlobalGroupTag> GroupsToReshardOnNextIteration_;
     IActionManagerPtr ActionManager_;
     IClusterStateProviderPtr ClusterStateProvider_;
 
@@ -354,6 +356,11 @@ private:
         const TBundleTabletBalancerConfigPtr& config,
         const TGlobalGroupTag& groupTag,
         const TTimeFormula& groupSchedule) const;
+    //! Takes reader guard on Lock_.
+    bool ShouldRunReshard(
+        const TBundleTabletBalancerConfigPtr& config,
+        const TGlobalGroupTag& groupTag,
+        const TTimeFormula& groupSchedule) const;
     //! Taking reader guard on Lock twice.
     bool IsBundleEligibleForBalancing(
         const TBundleTabletBalancerConfigPtr& config,
@@ -412,6 +419,12 @@ private:
     void OnMoveIterationStarted(const TGlobalGroupTag& groupTag);
     //! Takes writer guard on Lock_.
     void ScheduleMoveIteration(const TGlobalGroupTag& groupTag);
+    //! Takes reader guard on Lock_.
+    bool IsPlanningToReshardOnNextIteration(const TGlobalGroupTag& groupTag) const;
+    //! Takes writer guard on Lock_.
+    void OnReshardIterationStarted(const TGlobalGroupTag& groupTag);
+    //! Takes writer guard on Lock_.
+    void ScheduleReshardIteration(const TGlobalGroupTag& groupTag);
 
     //! Takes reader guard on Lock_.
     TInstant GetPreviousIterationStartTime(const TGlobalGroupTag& groupTag) const;
@@ -479,6 +492,7 @@ void TTabletBalancer::Start()
     {
         auto guard = WriterGuard(Lock_);
         GroupsToMoveOnNextIteration_.clear();
+        GroupsToReshardOnNextIteration_.clear();
     }
 
     YT_LOG_WARNING_IF(!BalancingBundles_.empty(),
@@ -779,15 +793,18 @@ void TTabletBalancer::BalanceBundle(const TBundleSnapshotPtr& bundleSnapshot)
                     }
                     break;
             }
-        } else if (DidBundleBalancingTimeHappen(bundleSnapshot->Bundle->Config, groupTag, groupConfig->Schedule)) {
+        } else if (ShouldRunReshard(bundleSnapshot->Bundle->Config, groupTag, groupConfig->Schedule)) {
+            OnReshardIterationStarted(groupTag);
+
             if (groupConfig->Type == EBalancingType::Parameterized) {
                 auto finishedWithRetryableError = TryBalanceViaReshardParameterized(bundleSnapshot, groupName);
                 if (finishedWithRetryableError) {
+                    ScheduleReshardIteration(groupTag);
                     continue;
                 }
             }
 
-            ScheduleMoveIteration(std::move(groupTag));
+            ScheduleMoveIteration(groupTag);
             BalanceViaReshard(bundleSnapshot, groupName);
         } else {
             YT_LOG_INFO("Skip balancing iteration because the time has not yet come (BundleName: %v, Group: %v)",
@@ -1103,9 +1120,52 @@ void TTabletBalancer::OnDynamicConfigChanged(
 }
 
 void TTabletBalancer::RequestBalancing(
-    const TBalancingRequest& /*balancingRequest*/)
+    const TBalancingRequest& balancingRequest)
 {
-    // TODO(dave11ar): Add logic.
+    YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
+
+    auto bundleStateIt = Bundles_.find(balancingRequest.BundleName);
+    if (bundleStateIt == Bundles_.end()) {
+        THROW_ERROR_EXCEPTION("Received on-demand balancing request for an unknown bundle (BundleName: %v)", balancingRequest.BundleName);
+    }
+
+    auto bundleSnapshotOrError = WaitFor(bundleStateIt->second->GetBundleSnapshot());
+    if (!bundleSnapshotOrError.IsOK()) {
+        THROW_ERROR_EXCEPTION("Failed to get bundle snapshot for on-demand balancing (BundleName: %v)", balancingRequest.BundleName)
+            << bundleSnapshotOrError;
+    }
+
+    auto bundleSnapshot = std::move(bundleSnapshotOrError).Value();
+    const auto& tablets = bundleSnapshot->Bundle->Tablets;
+
+    THashSet<TGlobalGroupTag> groupsToBalance;
+    for (auto tabletId : balancingRequest.TabletIds) {
+        auto tabletIt = tablets.find(tabletId);
+        if (tabletIt == tablets.end()) {
+            YT_LOG_DEBUG("No such tablet for on-demand balancing (BundleName: %v, TabletId: %v)",
+                balancingRequest.BundleName,
+                tabletId);
+            continue;
+        }
+
+        auto group = tabletIt->second->Table->GetBalancingGroup();
+        if (!group) {
+            YT_LOG_DEBUG("No group for tablet for on-demand balancing (BundleName: %v, TabletId: %v)",
+                balancingRequest.BundleName,
+                tabletId);
+            continue;
+        }
+
+        groupsToBalance.emplace(balancingRequest.BundleName, std::move(*group));
+    }
+
+    for (const auto& groupTag : groupsToBalance) {
+        YT_LOG_DEBUG("Scheduling reshard iteration for group by tablet request (BundleName: %v, Group: %v)",
+            groupTag.first,
+            groupTag.second);
+
+        ScheduleReshardIteration(groupTag);
+    }
 }
 
 bool TTabletBalancer::AreBundlesHealthy(int unhealthyBundleLimit) const
@@ -1243,6 +1303,14 @@ bool TTabletBalancer::DidBundleBalancingTimeHappen(
     }
 }
 
+bool TTabletBalancer::ShouldRunReshard(
+    const TBundleTabletBalancerConfigPtr& config,
+    const TGlobalGroupTag& groupTag,
+    const TTimeFormula& groupSchedule) const
+{
+    return IsPlanningToReshardOnNextIteration(groupTag) || DidBundleBalancingTimeHappen(config, groupTag, groupSchedule);
+}
+
 TTimeFormula TTabletBalancer::GetBundleSchedule(
     const TBundleTabletBalancerConfigPtr& config,
     const std::string& bundleName,
@@ -1283,10 +1351,11 @@ bool TTabletBalancer::IsBundleEligibleForBalancing(
     }
 
     for (const auto& [groupName, groupConfig] : config->Groups) {
-        if (DidBundleBalancingTimeHappen(config, {name, groupName}, groupConfig->Schedule)) {
+        if (ShouldRunReshard(config, {name, groupName}, groupConfig->Schedule)) {
             return true;
         }
     }
+
     return false;
 }
 
@@ -1310,10 +1379,11 @@ THashSet<TGroupName> TTabletBalancer::GetGroupsForReshardBalancing(
 {
     THashSet<TGroupName> groupNames;
     for (const auto& [groupName, groupConfig] : config->Groups) {
-        if (DidBundleBalancingTimeHappen(config, {bundleName, groupName}, groupConfig->Schedule)) {
+        if (ShouldRunReshard(config, {bundleName, groupName}, groupConfig->Schedule)) {
             EmplaceOrCrash(groupNames, groupName);
         }
     }
+
     return groupNames;
 }
 
@@ -1988,6 +2058,24 @@ void TTabletBalancer::ScheduleMoveIteration(const TGlobalGroupTag& groupTag)
 {
     auto guard = WriterGuard(Lock_);
     GroupsToMoveOnNextIteration_.insert(groupTag);
+}
+
+bool TTabletBalancer::IsPlanningToReshardOnNextIteration(const TGlobalGroupTag& groupTag) const
+{
+    auto guard = ReaderGuard(Lock_);
+    return GroupsToReshardOnNextIteration_.contains(groupTag);
+}
+
+void TTabletBalancer::OnReshardIterationStarted(const TGlobalGroupTag& groupTag)
+{
+    auto guard = WriterGuard(Lock_);
+    GroupsToReshardOnNextIteration_.erase(groupTag);
+}
+
+void TTabletBalancer::ScheduleReshardIteration(const TGlobalGroupTag& groupTag)
+{
+    auto guard = WriterGuard(Lock_);
+    GroupsToReshardOnNextIteration_.insert(groupTag);
 }
 
 TInstant TTabletBalancer::GetPreviousIterationStartTime(const TGlobalGroupTag& groupTag) const
