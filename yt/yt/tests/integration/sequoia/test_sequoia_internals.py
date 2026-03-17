@@ -1,5 +1,5 @@
 from yt_env_setup import (
-    YTEnvSetup, with_additional_threads, Restarter, MASTERS_SERVICE)
+    YTEnvSetup, with_additional_threads, Restarter, MASTERS_SERVICE, is_asan_build)
 
 from yt_commands import (
     authors, create, ls, get, remove, raises_yt_error,
@@ -593,7 +593,7 @@ class TestSequoiaInternals(YTEnvSetup):
                 get("//tmp/t/@id", authenticated_user=username)
             return (datetime.now() - start_time).total_seconds()
 
-        # register user at both proxies
+        # Register user at both proxies.
         measure_read_time()
         sleep(1)
 
@@ -623,7 +623,8 @@ class TestSequoiaInternals(YTEnvSetup):
         set(f"//sys/users/{username}/@request_limits/read_request_rate/clusterwide", 100)
         sleep(1)
 
-        assert measure_read_time() < 2
+        max_expected_time = 2 if not is_asan_build() else 5
+        assert measure_read_time() < max_expected_time
 
     def lookup_acls(self, node_id):
         return lookup_rows_in_ground(DESCRIPTORS.acls.get_default_path(), [{"node_id": node_id}])
