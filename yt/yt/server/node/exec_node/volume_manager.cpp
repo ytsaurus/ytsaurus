@@ -24,7 +24,6 @@
 #include <yt/yt/server/lib/nbd/chunk_handler.h>
 
 #include <yt/yt/server/lib/exec_node/config.h>
-#include <yt/yt/server/lib/exec_node/helpers.h>
 
 #include <yt/yt/server/lib/misc/disk_health_checker.h>
 #include <yt/yt/server/lib/misc/private.h>
@@ -120,6 +119,8 @@ using NControllerAgent::ELayerFilesystem;
 
 constinit const auto Logger = ExecNodeLogger;
 static const auto ProfilingPeriod = TDuration::Seconds(1);
+
+static const TString MountSuffix = "mount";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -371,8 +372,6 @@ struct TVolumeMeta
 {
     TVolumeId Id;
     std::string MountPath;
-    //! Path to custom porto place.
-    std::optional<std::string> PortoPlacePath;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -488,6 +487,11 @@ struct TLayerLocationPerformanceCounters
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+static const TString VolumesName = "volumes";
+static const TString LayersName = "porto_layers";
+static const TString LayersMetaName = "layers_meta";
+static const TString VolumesMetaName = "volumes_meta";
 
 class TLayerLocation
     : public NNode::TDiskLocation
@@ -673,12 +677,9 @@ public:
             .Run();
     }
 
-    TFuture<void> RemoveVolume(
-        TTagSet tagSet,
-        TVolumeId volumeId,
-        std::optional<std::string> portoPlacePath)
+    TFuture<void> RemoveVolume(NProfiling::TTagSet tagSet, TVolumeId volumeId)
     {
-        return BIND(&TLayerLocation::DoRemoveVolume, MakeStrong(this), std::move(tagSet), std::move(volumeId), std::move(portoPlacePath))
+        return BIND(&TLayerLocation::DoRemoveVolume, MakeStrong(this), std::move(tagSet), std::move(volumeId))
             .AsyncVia(LocationQueue_->GetInvoker())
             .Run()
             .ToUncancelable();
@@ -947,8 +948,7 @@ public:
 
             for (const auto& unlinkError : unlinkResults) {
                 if (!unlinkError.IsOK() && unlinkError.GetCode() != EPortoErrorCode::VolumeNotLinked &&
-                        unlinkError.GetCode() != EPortoErrorCode::VolumeNotFound &&
-                        unlinkError.GetCode() != EPortoErrorCode::VolumeNotReady) {
+                        unlinkError.GetCode() != EPortoErrorCode::VolumeNotFound) {
                     THROW_ERROR(unlinkError);
                 }
             }
@@ -1094,23 +1094,13 @@ private:
         return NFS::CombinePaths(LayersMetaPath_, ToString(id)) + ".meta";
     }
 
-    std::string GetVolumePath(
-        const TVolumeId& id,
-        const std::optional<std::string>& portoPlacePath = std::nullopt) const
+    std::string GetVolumePath(const TVolumeId& id) const
     {
-        if (portoPlacePath) {
-            return NFS::CombinePaths(NFS::CombinePaths(portoPlacePath.value(), VolumesName), ToString(id));
-        }
         return NFS::CombinePaths(VolumesPath_, ToString(id));
     }
 
-    std::string GetVolumeMetaPath(
-        const TVolumeId& id,
-        const std::optional<std::string>& portoPlacePath = std::nullopt) const
+    std::string GetVolumeMetaPath(const TVolumeId& id) const
     {
-        if (portoPlacePath) {
-            return NFS::CombinePaths(NFS::CombinePaths(portoPlacePath.value(), VolumesMetaName), ToString(id)) + ".meta";
-        }
         return NFS::CombinePaths(VolumesMetaPath_, ToString(id)) + ".meta";
     }
 
@@ -1516,15 +1506,14 @@ private:
         NProfiling::TTagSet tagSet,
         std::optional<TEventTimerGuard> volumeCreateTimeGuard,
         TVolumeMeta&& volumeMeta,
-        THashMap<TString, TString>&& volumeProperties,
-        std::optional<std::string> portoPlacePath = std::nullopt)
+        THashMap<TString, TString>&& volumeProperties)
     {
         ValidateEnabled();
 
         auto guard = std::move(volumeCreateTimeGuard);
 
         auto volumeId = TVolumeId::Create();
-        auto volumePath = GetVolumePath(volumeId, portoPlacePath);
+        auto volumePath = GetVolumePath(volumeId);
         auto volumeType = FromProto<EVolumeType>(volumeMeta.type());
         // TODO(dgolear): Switch to std::string.
         TString mountPath = NFS::CombinePaths(volumePath, MountSuffix);
@@ -1571,16 +1560,15 @@ private:
                 mountPath);
 
             ToProto(volumeMeta.mutable_id(), volumeId);
-            volumeMeta.Id = volumeId;
             volumeMeta.MountPath = mountPath;
-            volumeMeta.PortoPlacePath = portoPlacePath;
+            volumeMeta.Id = volumeId;
 
             auto metaBlob = SerializeProtoToRefWithEnvelope(volumeMeta);
 
             TLayerMetaHeader header;
             header.MetaChecksum = GetChecksum(metaBlob);
 
-            auto volumeMetaFileName = GetVolumeMetaPath(volumeId, portoPlacePath);
+            auto volumeMetaFileName = GetVolumeMetaPath(volumeId);
             auto tempVolumeMetaFileName = volumeMetaFileName + std::string(NFS::TempFileSuffix);
 
             {
@@ -1749,24 +1737,15 @@ private:
             }
         }
 
-        std::optional<std::string> portoPlacePath;
-        if (!options.SlotPath.empty()) {
-            // Plant porto place for overlay volume in user slot.
-            portoPlacePath = NFS::CombinePaths(
-                options.SlotPath,
-                GetSandboxRelPath(ESandboxKind::PortoPlace));
-
-            if (!placePath) {
-                // See PORTO-460 for "//" prefix.
-                placePath = "//" + portoPlacePath.value();
-            }
+        if (!placePath) {
+            placePath = PlacePath_;
         }
 
         THashMap<TString, TString> volumeProperties = {
             {"backend", "overlay"},
             {"user", ToString(options.UserId)},
             {"permissions", "0777"},
-            {"place", placePath.value_or(PlacePath_)},
+            {"place", placePath.value()},
         };
 
         // NB: Root volume quota is independent from sandbox quota but enforces the same limits.
@@ -1808,8 +1787,7 @@ private:
             std::move(tagSet),
             std::move(volumeCreateTimeGuard),
             std::move(volumeMeta),
-            std::move(volumeProperties),
-            std::move(portoPlacePath));
+            std::move(volumeProperties));
     }
 
     TVolumeMeta DoCreateSquashFSVolume(
@@ -1866,20 +1844,12 @@ private:
             std::move(volumeProperties));
     }
 
-    void DoRemoveVolume(
-        TTagSet tagSet,
-        TVolumeId volumeId,
-        std::optional<std::string> portoPlacePath = std::nullopt)
+    void DoRemoveVolume(NProfiling::TTagSet tagSet, TVolumeId volumeId)
     {
-        auto volumePath = GetVolumePath(volumeId, portoPlacePath);
+        auto volumePath = GetVolumePath(volumeId);
         // TODO(dgolear): Switch to std::string.
         TString mountPath = NFS::CombinePaths(volumePath, MountSuffix);
-        auto volumeMetaPath = GetVolumeMetaPath(volumeId, portoPlacePath);
-
-        auto Logger = ExecNodeLogger()
-            .WithTag("VolumeId: %v, PortoPlacePath: %v",
-                volumeId,
-                portoPlacePath);
+        auto volumeMetaPath = GetVolumeMetaPath(volumeId);
 
         {
             auto guard = Guard(SpinLock_);
@@ -1887,7 +1857,8 @@ private:
             // When location is disabled, volumes is empty.
             if (IsEnabled() && !Volumes_.contains(volumeId)) {
                 YT_LOG_FATAL(
-                    "Volume already removed (VolumePath: %v, VolumeMetaPath: %v)",
+                    "Volume already removed (VolumeId: %v, VolumePath: %v, VolumeMetaPath: %v)",
+                    volumeId,
                     volumePath,
                     volumeMetaPath);
             }
@@ -1897,70 +1868,23 @@ private:
             // The location could be disabled while we were getting here.
             // Any how try to unlink volume and remove associated data.
 
-            YT_LOG_DEBUG("Removing volume");
+            YT_LOG_DEBUG(
+                "Removing volume (VolumeId: %v)",
+                volumeId);
 
-            auto timeout = TDuration::Minutes(10);
-            auto deadLine = TInstant::Now() + timeout;
-            auto checkDeadLine = [&] {
-                auto now = TInstant::Now();
-                if (now > deadLine) {
-                    THROW_ERROR_EXCEPTION("Failed to wait for volume to be removed")
-                        << TErrorAttribute("timeout", timeout)
-                        << TErrorAttribute("volume_path", mountPath);
-                }
-            };
+            WaitFor(VolumeExecutor_->UnlinkVolume(mountPath, "self"))
+                .ThrowOnError();
 
-            while (true) {
-                checkDeadLine();
+            YT_LOG_DEBUG(
+                "Volume unlinked (VolumeId: %v)",
+                volumeId);
 
-                auto unlinkError = WaitFor(VolumeExecutor_->UnlinkVolume(mountPath, "self"));
-                if (unlinkError.IsOK()) {
-                    break;
-                }
-
-                if (unlinkError.GetCode() == EPortoErrorCode::VolumeNotReady) {
-                    YT_LOG_DEBUG("Waiting for volume to become ready");
-                    TDelayedExecutor::WaitForDuration(TDuration::Seconds(5));
-                    continue;
-                }
-
-                if (unlinkError.GetCode() == EPortoErrorCode::VolumeNotFound ||
-                        unlinkError.GetCode() == EPortoErrorCode::VolumeNotLinked) {
-                    if (portoPlacePath) {
-                        // Ignore VolumeNotFound and VolumeNotLinked errors for custom porto places.
-                        YT_LOG_DEBUG(
-                            unlinkError,
-                            "Ignoring volume unlink error for custom porto place (VolumeId: %v, PortoPlacePath: %v)",
-                            volumeId,
-                            *portoPlacePath);
-                        break;
-                    }
-                    // For volumes in default locations, these errors should be thrown.
-                }
-
-                unlinkError.ThrowOnError();
-            }
-
-            YT_LOG_DEBUG("Volume unlinked");
-
-            try {
-                NFS::RemoveRecursive(volumePath);
-            } catch (...) {
-                if (!portoPlacePath) {
-                    throw;
-                }
-            }
-
-            try {
-                NFS::Remove(volumeMetaPath);
-            } catch (...) {
-                if (!portoPlacePath) {
-                    throw;
-                }
-            }
+            NFS::RemoveRecursive(volumePath);
+            NFS::Remove(volumeMetaPath);
 
             YT_LOG_INFO(
-                "Volume directory and meta removed (VolumePath: %v, VolumeMetaPath: %v)",
+                "Volume directory and meta removed (VolumeId: %v, VolumePath: %v, VolumeMetaPath: %v)",
+                volumeId,
                 volumePath,
                 volumeMetaPath);
 
@@ -1981,7 +1905,7 @@ private:
                 }
             }
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Failed to remove volume");
+            YT_LOG_ERROR(ex, "Failed to remove volume (VolumeId: %v)", volumeId);
 
             TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/remove_errors").Increment(1);
 
@@ -2275,13 +2199,12 @@ private:
         const auto& volumePath = volumeMeta.MountPath;
 
         YT_LOG_DEBUG(
-            "Removing volume (Type: %v, Id: %v, Path: %v, PortoPlacePath: %v)",
+            "Removing volume (Type: %v, Id: %v, Path: %v)",
             volumeType,
             volumeId,
-            volumePath,
-            volumeMeta.PortoPlacePath);
+            volumePath);
 
-        return location->RemoveVolume(tagSet, volumeId, std::move(volumeMeta.PortoPlacePath))
+        return location->RemoveVolume(tagSet, volumeId)
             .Apply(BIND([volumeType = volumeType, volumeId = volumeId, volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)] {
                 YT_LOG_DEBUG(
                     "Removed volume (Type: %v, Id: %v)",
@@ -2354,12 +2277,11 @@ private:
         const auto& volumePath = volumeMeta.MountPath;
 
         auto Logger = ExecNodeLogger()
-            .WithTag("Type: %v, VolumeId: %v, VolumePath: %v, DeviceId: %v, PortoPlacePath: %v",
+            .WithTag("Type: %v, VolumeId: %v, VolumePath: %v, DeviceId: %v",
                 volumeType,
                 volumeId,
                 volumePath,
-                nbdDeviceId,
-                volumeMeta.PortoPlacePath);
+                nbdDeviceId);
 
         YT_LOG_DEBUG("Removing RW volume");
 
@@ -2369,7 +2291,7 @@ private:
 
         // Second, remove volume. At this point all device connections are going
         // be terminated.
-        auto future = location->RemoveVolume(tagSet, volumeId, std::move(volumeMeta.PortoPlacePath));
+        auto future = location->RemoveVolume(tagSet, volumeId);
         return future.Apply(BIND(
             [
                 Logger,
@@ -2451,12 +2373,11 @@ private:
         const auto& volumePath = volumeMeta.MountPath;
 
         auto Logger = ExecNodeLogger()
-            .WithTag("Type: %v, VolumeId: %v, VolumePath: %v, DeviceId: %v, PortoPlacePath: %v",
+            .WithTag("Type: %v, VolumeId: %v, VolumePath: %v, DeviceId: %v",
                 volumeType,
                 volumeId,
                 volumePath,
-                nbdDeviceId,
-                volumeMeta.PortoPlacePath);
+                nbdDeviceId);
 
         YT_LOG_DEBUG("Removing RO volume");
 
@@ -2466,7 +2387,7 @@ private:
 
         // Second, remove volume. At this point all device connections are going
         // be terminated.
-        auto future = location->RemoveVolume(tagSet, volumeId, std::move(volumeMeta.PortoPlacePath));
+        auto future = location->RemoveVolume(tagSet, volumeId);
         return future.Apply(BIND(
             [
                 Logger,
@@ -4141,14 +4062,13 @@ private:
         const auto& volumePath = volumeMeta.MountPath;
 
         YT_LOG_DEBUG(
-            "Removing volume (Type: %v, Id: %v, Path: %v, PortoPlacePath: %v)",
+            "Removing volume (Type: %v, Id: %v, Path: %v)",
             volumeType,
             volumeId,
-            volumePath,
-            volumeMeta.PortoPlacePath);
+            volumePath);
 
         // At first remove overlay volume, then remove constituent volumes and layers.
-        auto future = location->RemoveVolume(tagSet, volumeId, std::move(volumeMeta.PortoPlacePath));
+        auto future = location->RemoveVolume(tagSet, volumeId);
         return future.Apply(BIND(
             [
                 volumeType = volumeType,
@@ -4221,13 +4141,12 @@ private:
         const auto& volumeId = volumeMeta.Id;
         const auto& volumePath = volumeMeta.MountPath;
 
-        YT_LOG_DEBUG("Removing volume (Type: %v, Id: %v, Path: %v, PortoPlacePath: %v)",
+        YT_LOG_DEBUG("Removing volume (Type: %v, Id: %v, Path: %v)",
             volumeType,
             volumeId,
-            volumePath,
-            volumeMeta.PortoPlacePath);
+            volumePath);
 
-        return location->RemoveVolume(tagSet, volumeId, std::move(volumeMeta.PortoPlacePath))
+        return location->RemoveVolume(tagSet, volumeId)
             .Apply(BIND([volumeType = volumeType, volumeId = volumeId, volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)] {
                 YT_LOG_DEBUG("Removed volume (Type: %v, Id: %v)",
                     volumeType,
