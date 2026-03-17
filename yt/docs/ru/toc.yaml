@@ -467,6 +467,8 @@ items:
                 href: api/python/examples.md
           - name: Apache Airflow
             href: api/airflow/userdoc.md
+          - name: Apache Flink
+            href: api/flink/overview.md
           - name: C++
             items:
               - name: Описание
