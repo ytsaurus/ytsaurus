@@ -47,10 +47,9 @@ public:
         }
 
         auto recordDelta = lastRecordTime - Queue_.front().LogRowRecordTime;
-        double correction = 1.0 * (std::ssize(Queue_) + 1) / std::ssize(Queue_);
         AllowedTime_ = std::max(
             AllowedTime_,
-            Queue_.front().ReplicationTime + recordDelta / Config_->Ratio * correction);
+            Queue_.front().ReplicationTime + recordDelta / GetCorrectedRatio());
 
         Queue_.push({lastRecordTime, now});
 
@@ -100,7 +99,7 @@ public:
             return GetDefaultMaxAllowedInstant(currentTimestamp, replicationTickPeriod);
         }
 
-        return entry.LogRowRecordTime + (now - entry.ReplicationTime) * Config_->Ratio;
+        return entry.LogRowRecordTime + (now - entry.ReplicationTime) * GetCorrectedRatio();
     }
 
 private:
@@ -118,6 +117,12 @@ private:
     TInstant GetDefaultMaxAllowedInstant(TTimestamp currentTimestamp, TDuration replicationTickPeriod) const
     {
         return TimestampToInstant(currentTimestamp).second + replicationTickPeriod * Config_->Ratio;
+    }
+
+    double GetCorrectedRatio() const
+    {
+        i64 queueSize = std::ssize(Queue_);
+        return Config_->Ratio * (1.0 *  queueSize / (queueSize + 1));
     }
 };
 
