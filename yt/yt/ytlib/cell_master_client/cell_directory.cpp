@@ -230,7 +230,7 @@ public:
 
         size_t randomIndex = 0;
         {
-            auto guard = ReaderGuard(SpinLock_);
+            auto guard = WriterGuard(SpinLock_);
             randomIndex = RandomGenerator_.Generate<size_t>();
         }
 
