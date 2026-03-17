@@ -116,10 +116,24 @@ void TBundleControllerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TNodeTrackerDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+
+    registrar.Parameter("heartbeat_timeout", &TThis::HeartbeatTimeout)
+        .Default(TDuration::Seconds(10));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TBundleControllerDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("bundle_scan_period", &TThis::BundleScanPeriod)
         .Default();
+
+    registrar.Parameter("node_tracker", &TThis::NodeTracker)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

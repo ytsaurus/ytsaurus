@@ -5,6 +5,7 @@
 #include "cell_tracker.h"
 #include "config.h"
 #include "dynamic_config_manager.h"
+#include "node_tracker.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
@@ -137,6 +138,13 @@ public:
         return NativeAuthenticator_;
     }
 
+    const INodeTrackerPtr& GetNodeTracker() const override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return NodeTracker_;
+    }
+
     const TDynamicConfigManagerPtr& GetDynamicConfigManager() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -181,6 +189,7 @@ private:
 
     ICypressElectionManagerPtr ElectionManager_;
     ICellTrackerPtr CellTracker_;
+    INodeTrackerPtr NodeTracker_;
     IBundleControllerPtr BundleController_;
 
     TDynamicConfigManagerPtr DynamicConfigManager_;
@@ -221,6 +230,7 @@ private:
 
         DynamicConfigManager_ = New<TDynamicConfigManager>(Config_, this);
         CellTracker_ = CreateCellTracker(this, Config_->CellBalancer);
+        NodeTracker_ = CreateNodeTracker();
         BundleController_ = CreateBundleController(this, Config_->BundleController);
 
         NMonitoring::Initialize(

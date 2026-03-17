@@ -105,10 +105,28 @@ DEFINE_REFCOUNTED_TYPE(TBundleControllerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TNodeTrackerDynamicConfig
+    : public NYTree::TYsonStruct
+{
+    bool Enable;
+
+    TDuration HeartbeatTimeout;
+
+    REGISTER_YSON_STRUCT(TNodeTrackerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TNodeTrackerDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TBundleControllerDynamicConfig
     : public TSingletonsDynamicConfig
 {
     std::optional<TDuration> BundleScanPeriod;
+
+    TNodeTrackerDynamicConfigPtr NodeTracker;
 
     REGISTER_YSON_STRUCT(TBundleControllerDynamicConfig);
 

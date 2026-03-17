@@ -3,6 +3,7 @@
 #include "private.h"
 #include "bootstrap.h"
 #include "cypress_bindings.h"
+#include "node_tracker.h"
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -270,6 +271,8 @@ private:
         auto nodeAddress = FromProto<std::string>(request->node_address());
 
         YT_LOG_INFO("Bundle controller got node heartbeat (NodeId: %v, NodeAddress: %v)", nodeId, nodeAddress);
+
+        Bootstrap_->GetNodeTracker()->ProcessNodeHeartbeat(&context->Request(), &context->Response());
 
         context->SetRequestInfo("NodeId: %v, NodeAddress: %v",
             nodeId,

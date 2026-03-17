@@ -10,6 +10,7 @@
 #include "cypress_bindings.h"
 #include "input_state.h"
 #include "mutations.h"
+#include "node_tracker.h"
 #include "orchid_bindings.h"
 
 #include <yt/yt/server/lib/cypress_election/election_manager.h>
@@ -179,6 +180,8 @@ public:
         const TBundleControllerDynamicConfigPtr& newConfig)
     {
         PeriodicExecutor_->SetPeriod(newConfig->BundleScanPeriod.value_or(Config_->BundleScanPeriod));
+
+        Bootstrap_->GetNodeTracker()->OnDynamicConfigChanged(oldConfig->NodeTracker, newConfig->NodeTracker);
 
         YT_LOG_DEBUG(
             "Updated bundle controller dynamic config (OldConfig: %v, NewConfig: %v)",
@@ -431,6 +434,8 @@ private:
 
         auto inputState = GetInputState(transaction);
         DropJailedBundlesFromInputState(&inputState);
+
+        Bootstrap_->GetNodeTracker()->UpdateNodeStates(inputState.TabletNodes);
 
         TSchedulerMutations mutations;
         ScheduleBundles(inputState, &mutations);
