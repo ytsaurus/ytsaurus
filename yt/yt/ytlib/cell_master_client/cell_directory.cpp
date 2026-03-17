@@ -61,7 +61,7 @@ public:
         TCellDirectoryConfigPtr config,
         NNative::TConnectionOptions options,
         IChannelFactoryPtr channelFactory,
-        TWeakPtr<NNative::IConnection> connection,
+        NHiveClient::ICellDirectoryPtr hiveCellDirectory,
         NLogging::TLogger logger)
         : Config_(std::move(config))
         , PrimaryMasterCellId_(Config_->PrimaryMaster->CellId)
@@ -75,7 +75,7 @@ public:
             NProfiling::TProfiler()))
         , RpcServer_(CreateLocalServer())
         , Options_(std::move(options))
-        , Owner_(std::move(connection))
+        , HiveCellDirectory_(std::move(hiveCellDirectory))
         , RandomGenerator_(TInstant::Now().GetValue())
     {
         for (const auto& masterConfig : Config_->SecondaryMasters) {
@@ -398,7 +398,7 @@ private:
     const TObjectServiceCachePtr Cache_;
     const IServerPtr RpcServer_;
     const NNative::TConnectionOptions Options_;
-    const TWeakPtr<NNative::IConnection> Owner_;
+    const NHiveClient::ICellDirectoryPtr HiveCellDirectory_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     THashMap<TCellTag, TEnumIndexedArray<EMasterChannelKind, IChannelPtr>> CellWrappedChannelMap_;
@@ -506,7 +506,6 @@ private:
         const TSecondaryMasterConnectionConfigs& secondaryMasterConnectionConfigs) override
     {
         {
-            auto connection = Owner_.Lock();
             // NB: To prevent racy configs changes between different updates, we hold lock for both computation of the update and application of changes.
             auto guard = WriterGuard(SpinLock_);
 
@@ -521,15 +520,15 @@ private:
                 YT_LOG_INFO("New master cell appeared, initializing channels (CellTag: %v)",
                     cellTag);
                 InitMasterChannels(secondaryMaster);
-                if (Config_->EnableHiveCellDirectoryReconfigurationOnNewMasterCells && connection) {
-                    connection->GetCellDirectory()->ReconfigureCell(secondaryMaster);
+                if (Config_->EnableHiveCellDirectoryReconfigurationOnNewMasterCells && HiveCellDirectory_) {
+                    HiveCellDirectory_->ReconfigureCell(secondaryMaster);
                 }
             }
             for (const auto& [cellTag, secondaryMaster] : changedSecondaryMasterConfigs) {
                 RemoveMasterChannels(cellTag);
                 InitMasterChannels(secondaryMaster);
-                if (Config_->EnableHiveCellDirectoryReconfigurationOnChangedMasterCells && connection) {
-                    connection->GetCellDirectory()->ReconfigureCell(secondaryMaster);
+                if (Config_->EnableHiveCellDirectoryReconfigurationOnChangedMasterCells && HiveCellDirectory_) {
+                    HiveCellDirectory_->ReconfigureCell(secondaryMaster);
                 }
             }
 
@@ -708,14 +707,14 @@ ICellDirectoryPtr CreateCellDirectory(
     TCellDirectoryConfigPtr config,
     NApi::NNative::TConnectionOptions options,
     IChannelFactoryPtr channelFactory,
-    TWeakPtr<NNative::IConnection> connection,
+    NHiveClient::ICellDirectoryPtr hiveCellDirectory,
     NLogging::TLogger logger)
 {
     return New<TCellDirectory>(
         std::move(config),
         std::move(options),
         std::move(channelFactory),
-        std::move(connection),
+        std::move(hiveCellDirectory),
         std::move(logger));
 }
 
