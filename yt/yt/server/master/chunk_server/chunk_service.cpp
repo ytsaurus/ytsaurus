@@ -144,11 +144,22 @@ public:
         securityManager->SubscribeUserRequestThrottlerConfigChanged(
             BIND_NO_PROPAGATE(&TChunkService::OnUserRequestThrottlerConfigChanged, MakeWeak(this)));
 
+        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+        hydraManager->SubscribeLeaderActive(BIND_NO_PROPAGATE(&TChunkService::OnLeaderActive, MakeWeak(this)));
+
         DeclareServerFeature(EMasterFeature::OverlayedJournals);
     }
 
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
+    void OnLeaderActive()
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        CreateChunkRequestQueueProvider_->ReconfigureAllQueues();
+        ExecuteBatchRequestQueueProvider_->ReconfigureAllQueues();
+    }
 
     // COMPAT(danilalexeev) ExecuteBatch will be removed in the future.
     TPerUserRequestQueueProvider::TReconfigurationCallback ReconfigurationCallback_;
