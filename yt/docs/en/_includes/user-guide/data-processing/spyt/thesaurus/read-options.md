@@ -67,3 +67,41 @@ Python example:
 ```python
 spark.read.option("readParallelism", "5").yt("//home/table")
 ```
+
+## recursiveFileLookup { #recursiveFileLookup }
+
+This option controls how the file structure is traversed when reading data. It determines whether the system should recursively descend into nested directories.
+
+The option can take the following values:
+
+- `true`: The system recursively traverses all subdirectories starting from the specified point and finds all files in the tree.
+- `false`: The system does not descend recursively into subdirectories and reads only the files in the specified directory.
+
+In Apache Spark, when reading data from HDFS and S3, the `recursiveFileLookup` option is `false` by default. In SPYT, the default value is set to `true`. This ensures consistency with the behavior of YQL and CHYT.
+
+If you're reading data with Hive‑compatible directory partitioning in Cypress, set the option to `false`. In this case, it's sufficient to process only the top-level files, and recursive traversal isn't required.
+
+For example, for this directory structure:
+
+```text
+home
+├── table
+│   ├── dt=2026-01-01
+│   ├── dt=2026-01-02
+│   ├── dt=2026-01-03
+│   └── dt=2026-01-04
+│   ...
+```
+
+Python code example:
+
+```python
+df = spark.read.option("recursiveFileLookup", "false").yt("//home/table")
+df.printSchema()
+...
+root
+ |-- id: long (nullable = false)
+ |-- value: long (nullable = false)
+ ...
+ |-- dt: string (nullable = false)
+```
