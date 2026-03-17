@@ -10,6 +10,7 @@ RECURSE(
     go
     java
     microservices
+    ml
     odin
     python
     styleguide
