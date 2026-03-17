@@ -1495,42 +1495,6 @@ TRootDirectoryConfigPtr TSlotLocation::CreateDefaultRootDirectoryConfig(
         /*permissions*/ 0777,
         /*removeIfExists*/ true));
 
-    config->Directories.push_back(getDirectory(
-        NFS::CombinePaths(GetSandboxPath(slotIndex, ESandboxKind::PortoPlace), VolumesName),
-        uid,
-        /*permissions*/ 0777,
-        /*removeIfExists*/ false));
-
-    config->Directories.push_back(getDirectory(
-        NFS::CombinePaths(GetSandboxPath(slotIndex, ESandboxKind::PortoPlace), VolumesMetaName),
-        uid,
-        /*permissions*/ 0777,
-        /*removeIfExists*/ false));
-
-    config->Directories.push_back(getDirectory(
-        NFS::CombinePaths(GetSandboxPath(slotIndex, ESandboxKind::PortoPlace), LayersName),
-        uid,
-        /*permissions*/ 0777,
-        /*removeIfExists*/ false));
-
-    config->Directories.push_back(getDirectory(
-        NFS::CombinePaths(GetSandboxPath(slotIndex, ESandboxKind::PortoPlace), LayersMetaName),
-        uid,
-        /*permissions*/ 0777,
-        /*removeIfExists*/ false));
-
-    config->Directories.push_back(getDirectory(
-        NFS::CombinePaths(GetSandboxPath(slotIndex, ESandboxKind::PortoPlace), "porto_volumes"),
-        uid,
-        /*permissions*/ 0777,
-        /*removeIfExists*/ false));
-
-    config->Directories.push_back(getDirectory(
-        NFS::CombinePaths(GetSandboxPath(slotIndex, ESandboxKind::PortoPlace), "porto_storage"),
-        uid,
-        /*permissions*/ 0777,
-        /*removeIfExists*/ false));
-
     return config;
 }
 
