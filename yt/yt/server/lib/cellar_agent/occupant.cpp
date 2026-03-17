@@ -257,6 +257,7 @@ public:
         , Index_(index)
         , PeerId_(createInfo.peer_id())
         , CellDescriptor_(FromProto<TCellId>(createInfo.cell_id()))
+        , CellId_(CellDescriptor_.CellId)
         , CellBundleName_(createInfo.cell_bundle())
         , Options_(ConvertTo<TTabletCellOptionsPtr>(TYsonString(createInfo.options())))
         , Logger(MakeLogger())
@@ -281,7 +282,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return CellDescriptor_.CellId;
+        return CellId_;
     }
 
     EPeerState GetControlState() const override
@@ -487,6 +488,7 @@ public:
         auto client = Bootstrap_->GetClient();
 
         CellDescriptor_ = FromProto<TCellDescriptor>(configureInfo.cell_descriptor());
+        YT_VERIFY(CellId_ == CellDescriptor_.CellId);
 
         // COMPAT(savrus)
         ConfigVersion_ = configureInfo.has_config_version()
@@ -871,6 +873,8 @@ private:
 
     int PeerId_;
     TCellDescriptor CellDescriptor_;
+    // Can be accessed from any thread so is stored separately from CellDescriptor_.
+    TCellId CellId_;
     int ConfigVersion_ = 0;
 
     const std::string CellBundleName_;
