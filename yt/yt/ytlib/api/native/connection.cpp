@@ -278,12 +278,8 @@ public:
             config->TvmId,
             Options_.TvmService);
 
-        MasterCellDirectory_ = NCellMasterClient::CreateCellDirectory(
-            StaticConfig_,
-            Options_,
-            ChannelFactory_,
-            MakeWeak(this),
-            Logger);
+        InitializeConnectionDirectories();
+
         MasterCellDirectorySynchronizer_ = NCellMasterClient::CreateCellDirectorySynchronizer(
             StaticConfig_->MasterCellDirectorySynchronizer,
             MasterCellDirectory_);
@@ -338,38 +334,15 @@ public:
             MakeWeak(this),
             CreateNodeChannelFactory(ChannelFactory_, GetNetworks()));
 
-        auto clusterDirectoryOptions = Options_;
-        clusterDirectoryOptions.SignatureGenerator =
-            New<NSignature::TProvidedSignatureGenerator>(
-                BIND_NO_PROPAGATE([weakThis = MakeWeak(this)] {
-                    if (auto this_ = weakThis.Lock()) {
-                        return this_->GetSignatureGenerator();
-                    }
-                    return GetDummySignatureGenerator();
-                }));
-
-        // NB(apachee): We only use queue consumer registration manager from the bootstrapped connection (exception are multi proxies).
-        // TODO(apachee): Fix this for multi proxies.
-        clusterDirectoryOptions.CreateQueueConsumerRegistrationManager = false;
-
-        ClusterDirectory_ = New<TClusterDirectory>(std::move(clusterDirectoryOptions));
         ClusterDirectorySynchronizer_ = CreateClusterDirectorySynchronizer(
             config->ClusterDirectorySynchronizer,
             this,
             ClusterDirectory_);
 
-        MediumDirectory_ = New<TMediumDirectory>();
         MediumDirectorySynchronizer_ = New<TMediumDirectorySynchronizer>(
             config->MediumDirectorySynchronizer,
             this,
             MediumDirectory_);
-
-        CellDirectory_ = NHiveClient::CreateCellDirectory(
-            config->CellDirectory,
-            ChannelFactory_,
-            GetClusterDirectory(),
-            GetNetworks(),
-            Logger);
         ConfigureMasterCells();
 
         CellDirectorySynchronizer_ = CreateCellDirectorySynchronizer(
@@ -452,7 +425,6 @@ public:
             this,
             Logger);
 
-        NodeDirectory_ = New<TNodeDirectory>();
         NodeDirectorySynchronizer_ = CreateNodeDirectorySynchronizer(
             MakeStrong(this),
             NodeDirectory_);
@@ -1224,6 +1196,45 @@ private:
                 BIND(&CreateTimestampProviderChannelFromAddresses, timestampProviderConfig, ChannelFactory_)) :
             CreateTimestampProviderChannel(timestampProviderConfig, ChannelFactory_);
         TimestampProvider_ = CreateBatchingRemoteTimestampProvider(timestampProviderConfig, TimestampProviderChannel_);
+    }
+
+    void InitializeConnectionDirectories()
+    {
+        auto config = Config_.Acquire();
+
+        auto clusterDirectoryOptions = Options_;
+        clusterDirectoryOptions.SignatureGenerator =
+            New<NSignature::TProvidedSignatureGenerator>(
+                BIND_NO_PROPAGATE([weakThis = MakeWeak(this)] {
+                    if (auto this_ = weakThis.Lock()) {
+                        return this_->GetSignatureGenerator();
+                    }
+                    return GetDummySignatureGenerator();
+                }));
+
+        // NB(apachee): We only use queue consumer registration manager from the bootstrapped connection (exception are multi proxies).
+        // TODO(apachee): Fix this for multi proxies.
+        clusterDirectoryOptions.CreateQueueConsumerRegistrationManager = false;
+
+        ClusterDirectory_ = New<TClusterDirectory>(std::move(clusterDirectoryOptions));
+
+        MediumDirectory_ = New<TMediumDirectory>();
+
+        CellDirectory_ = NHiveClient::CreateCellDirectory(
+            config->CellDirectory,
+            ChannelFactory_,
+            GetClusterDirectory(),
+            GetNetworks(),
+            Logger);
+
+        MasterCellDirectory_ = NCellMasterClient::CreateCellDirectory(
+            StaticConfig_,
+            Options_,
+            ChannelFactory_,
+            CellDirectory_,
+            Logger);
+
+        NodeDirectory_ = New<TNodeDirectory>();
     }
 
     void InitializeCypressProxyChannel()

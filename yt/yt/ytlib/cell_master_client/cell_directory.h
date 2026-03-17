@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/api/public.h>
 
+#include <yt/yt/ytlib/hive/public.h>
+
 #include <yt/yt/client/cell_master_client/public.h>
 
 #include <yt/yt/core/logging/log.h>
@@ -92,7 +94,7 @@ ICellDirectoryPtr CreateCellDirectory(
     TCellDirectoryConfigPtr config,
     NApi::NNative::TConnectionOptions options,
     NRpc::IChannelFactoryPtr channelFactory,
-    TWeakPtr<NApi::NNative::IConnection> connection,
+    NHiveClient::ICellDirectoryPtr hiveCellDirectory,
     NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////
