@@ -355,10 +355,11 @@ public:
             OnTableDynamicConfigChanged(nullptr, tableConfigManager->GetConfig());
         }
 
-        const auto& storeCompactorConfig = Bootstrap_->GetTabletNodeDynamicConfig()->StoreCompactor;
+        auto storeCompactorConfig = GetDynamicConfig()->StoreCompactor;
         for (auto [storeKind, partitionKind] : NLsm::StoreCompactionHintKinds) {
             CompactionHintFetchers_[storeKind]->Start(
-                Slot_->GetEpochAutomatonInvoker(),
+                // NB(dave11ar): Do not take epoch automaton invoker from Slot_, it might be initialized later.
+                EpochAutomatonInvoker_,
                 storeCompactorConfig->CompactionHintFetchers[storeKind]);
         }
     }
