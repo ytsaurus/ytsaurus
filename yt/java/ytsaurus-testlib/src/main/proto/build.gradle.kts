@@ -19,6 +19,7 @@ java {
 
 dependencies {
     api("com.google.protobuf:protobuf-java:4.33.0")
+    api(project(":yt:yt_proto:yt:formats"))
 
     protobuf(files(File(buildProtoDir, "yt/java/ytsaurus-testlib/src/main/proto")))
 }
