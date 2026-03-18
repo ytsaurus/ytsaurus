@@ -108,6 +108,7 @@ SRCS(
     cell_master_client/cell_directory_synchronizer.cpp
     cell_master_client/cell_directory.cpp
     cell_master_client/config.cpp
+    cell_master_client/helpers.cpp
     cell_master_client/protobuf_helpers.cpp
 
     cell_master_client/proto/cell_master_service.proto
