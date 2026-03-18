@@ -28,6 +28,7 @@ struct IBootstrap
     virtual const ITabletBalancerPtr& GetTabletBalancer() const = 0;
     virtual std::string GetClusterName() const = 0;
     virtual NHiveClient::TClusterDirectoryPtr GetClusterDirectory() const = 0;
+    virtual NNodeTrackerClient::TAddressMap GetLocalAddresses() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IBootstrap)
