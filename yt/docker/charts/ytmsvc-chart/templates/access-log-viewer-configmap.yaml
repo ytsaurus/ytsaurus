@@ -21,10 +21,24 @@ data:
         interval: 30m
         table_format: "2006-01-02T15:04:05"
         cutoff_time: 1h
+        {{- with .Values.microservices.accessLogViewer.rawLogPreprocessing.config.processings }}
+        {{- with (index . "30min") }}
+        {{- if .expirationTimeout }}
+        expiration_timeout: {{ .expirationTimeout }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
       1d:
         output_path: {{ .Values.microservices.accessLogViewer.rawLogPreprocessing.config.accessLogExportPath }}-parsed/1d
         interval: 24h
         table_format: "2006-01-02"
         cutoff_time: 1h
+        {{- with .Values.microservices.accessLogViewer.rawLogPreprocessing.config.processings }}
+        {{- with (index . "1d") }}
+        {{- if .expirationTimeout }}
+        expiration_timeout: {{ .expirationTimeout }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
   {{- end }}
 {{- end }}
