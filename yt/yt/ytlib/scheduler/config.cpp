@@ -1016,7 +1016,7 @@ void TOperationSpecBase::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("enable_root_volume_disk_quota", &TThis::EnableRootVolumeDiskQuota)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("chunk_availability_policy", &TThis::ChunkAvailabilityPolicy)
         .Default(NChunkClient::EChunkAvailabilityPolicy::DataPartsAvailable);
