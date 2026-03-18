@@ -1934,7 +1934,7 @@ class YtClient(ClientState):
     def lock_rows(
         self,
         table, input_stream,
-        locks=[], lock_type=None, durability=None, format=None, raw=None
+        locks=None, lock_type=None, durability=None, format=None, raw=None
     ):
         """
         Lock rows with keys from input_stream from dynamic table.
