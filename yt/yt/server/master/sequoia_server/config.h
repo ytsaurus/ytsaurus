@@ -60,12 +60,29 @@ DEFINE_REFCOUNTED_TYPE(TDynamicCypressProxyTrackerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDynamicSequoiaManagerTestingConfig
+    : public NYTree::TYsonStruct
+{
+    std::optional<double> SequoiaTransactionStartFailureProbability;
+
+    REGISTER_YSON_STRUCT(TDynamicSequoiaManagerTestingConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicSequoiaManagerTestingConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TDynamicSequoiaManagerConfig
     : public NYTree::TYsonStruct
 {
     bool Enable;
     bool EnableCypressTransactionsInSequoia;
     bool EnableGroundUpdateQueues;
+    bool EnableAsyncSequoiaTransactionStart;
+
+    TDynamicSequoiaManagerTestingConfigPtr Testing;
 
     REGISTER_YSON_STRUCT(TDynamicSequoiaManagerConfig);
 

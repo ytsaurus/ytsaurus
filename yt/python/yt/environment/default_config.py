@@ -199,7 +199,9 @@ def get_dynamic_master_config():
             "enable_smooth_tablet_movement": True,
         },
 
-        "sequoia_manager": {},
+        "sequoia_manager": {
+            "enable_async_sequoia_transaction_start": True,
+        },
 
         "cell_master": {
             "alert_update_period": 500,
