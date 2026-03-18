@@ -224,6 +224,8 @@ private:
         DECLARE_NEW_FRIEND()
     };
 
+    void LinkOrchidService() const;
+
     using TReshardDescriptorIt = std::vector<TReshardDescriptor>::iterator;
 
     struct TScheduledActionCountLimiter
@@ -509,6 +511,10 @@ void TTabletBalancer::Start()
     for (const auto& [name, bundle] : Bundles_) {
         bundle->Start();
     }
+
+    BIND(&TTabletBalancer::LinkOrchidService, MakeStrong(this))
+        .Via(ControlInvoker_)
+        .Run();
 
     PollExecutor_->Start();
 }
@@ -984,6 +990,45 @@ IYPathServicePtr TTabletBalancer::TTableOrchidService::FindItemService(const std
         .BeginMap()
             .Item("effective_config").Value(effectiveConfig)
         .EndMap();
+}
+
+void TTabletBalancer::LinkOrchidService() const
+{
+    try {
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+
+        static const TYPath LeaderOrchidServicePath = "//sys/tablet_balancer/orchid";
+        auto addresses = Bootstrap_->GetLocalAddresses();
+
+        const auto& client = Bootstrap_->GetClient();
+
+        YT_LOG_INFO("Creating tablet balancer orchid node");
+
+        TCreateNodeOptions createOptions;
+        createOptions.IgnoreExisting = true;
+        createOptions.Recursive = true;
+        createOptions.Attributes = CreateEphemeralAttributes();
+        createOptions.Attributes->Set("remote_addresses", ConvertToYsonString(addresses));
+
+        WaitFor(client->CreateNode(LeaderOrchidServicePath, EObjectType::Orchid, createOptions))
+            .ThrowOnError();
+
+        YT_LOG_INFO("Succesfully created orchid node");
+
+        auto remoteAddressPath = Format("%v&/@remote_addresses", LeaderOrchidServicePath);
+
+        YT_LOG_INFO("Setting new remote address for orchid node (NewValue: %v)",
+            ConvertToYsonString(addresses, EYsonFormat::Text));
+
+        WaitFor(client->SetNode(remoteAddressPath, ConvertToYsonString(addresses)))
+            .ThrowOnError();
+
+        YT_LOG_INFO("Succesfully linked orchid service");
+    } catch (const std::exception& e) {
+        YT_LOG_ERROR(e, "Failed to link orchid service, will stop leading");
+
+        YT_UNUSED_FUTURE(Bootstrap_->GetElectionManager()->StopLeading());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

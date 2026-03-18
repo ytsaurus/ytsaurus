@@ -68,36 +68,9 @@ class TestStandaloneTabletBalancerBase:
             config
         )
 
-    def _get_instances_orchid(self, instances):
-        for instance in instances:
-            yield get(f"{self.root_path}/instances/{instance}/orchid/tablet_balancer")
-
-    def _get_last_iteration_instance(self, instances):
-        start_times = list()
-        for (instance, orchid) in zip(instances, self._get_instances_orchid(instances)):
-            start_time = orchid.get("last_iteration_start_time")
-            if start_time:
-                start_times.append((start_time, instance))
-        return max(start_times, key=lambda pair: pair[0])[1]
-
-    def _get_last_iteration_instance_orchid(self, instances=None):
-        if instances is None:
-            instances = ls(self.root_path + "/instances")
-
-        start_times = list()
-        for orchid in self._get_instances_orchid(instances):
-            start_time = orchid.get("last_iteration_start_time")
-            if start_time:
-                start_times.append((start_time, orchid))
-        return max(start_times, key=lambda pair: pair[0])[1]
-
-    def _get_last_iteration_start_time(self, instances=None):
-        return self._get_last_iteration_instance_orchid(instances=instances).get("last_iteration_start_time")
-
     def _wait_full_iteration(self):
-        instances = ls(self.root_path + "/instances")
-        first_iteration_start_time = self._get_last_iteration_start_time(instances)
-        wait(lambda: first_iteration_start_time < self._get_last_iteration_start_time(instances))
+        first_iteration_start_time = get(f"{self.root_path}/orchid/tablet_balancer/last_iteration_start_time")
+        wait(lambda: first_iteration_start_time < get(f"{self.root_path}/orchid/tablet_balancer/last_iteration_start_time"))
 
     def _get_state_freshness_time(self):
         if self.bundle_state_freshness_time is None:
@@ -231,16 +204,24 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
             "string instead of map. Bazinga!"
         )
 
-        instance = self._get_last_iteration_instance(get("//sys/tablet_balancer/instances"))
-
         def _get_orchid(suffix):
-            return get(f"{self.root_path}/instances/{instance}/orchid/tablet_balancer{suffix}")
+            return get(f"{self.root_path}/orchid/tablet_balancer{suffix}")
 
-        def _has_expected_error():
+        def _has_error_at_root():
+            errors = _get_orchid("/retryable_bundle_errors")
+            return len(errors) > 0 and "Bundle has unparsable tablet balancer config" in str(errors)
+
+        def _has_error_in_bundle_orchid():
             errors = _get_orchid("/bundles/default/retryable_errors")
             return len(errors) > 0 and "Bundle has unparsable tablet balancer config" in str(errors)
 
-        wait(lambda: _has_expected_error())
+        def _has_bundle_config_error():
+            config_error = _get_orchid("/bundles/default/config_error")
+            return config_error and "Bundle has unparsable tablet balancer config" in str(config_error)
+
+        wait(lambda: _has_error_at_root())
+        wait(lambda: _has_error_in_bundle_orchid())
+        wait(lambda: _has_bundle_config_error())
 
         self._apply_dynamic_config_patch({
             "bundle_errors_ttl": 100,
@@ -248,6 +229,7 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
 
         remove("//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups")
 
+        wait(lambda: len(_get_orchid("/retryable_bundle_errors")) == 0)
         wait(lambda: len(_get_orchid("/bundles/default/retryable_errors")) == 0)
 
     @authors("navasardianna")
@@ -259,30 +241,11 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
             1
         )
 
-        def _check_config(instance):
-            config = get(f"{self.root_path}/instances/{instance}/orchid/tablet_balancer/bundles/default/config")
+        def _check_config():
+            config = get(f"{self.root_path}/orchid/tablet_balancer/bundles/default/config")
             return config and config["min_tablet_size"] == 1
 
-        instance = self._get_last_iteration_instance(get("//sys/tablet_balancer/instances"))
-
-        wait(lambda: _check_config(instance))
-
-    @authors("navasardianna")
-    def test_config_error_in_bundle_orchid(self):
-        self._configure_bundle("default")
-
-        set(
-            "//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups",
-            "123, string instead of map!"
-        )
-
-        def _has_bundle_config_error(instance):
-            config_error = get(f"{self.root_path}/instances/{instance}/orchid/tablet_balancer/bundles/default/config_error")
-            return config_error and "Bundle has unparsable tablet balancer config" in str(config_error)
-
-        instance = self._get_last_iteration_instance(get("//sys/tablet_balancer/instances"))
-
-        wait(lambda: _has_bundle_config_error(instance))
+        wait(lambda: _check_config())
 
     @authors("navasardianna")
     def test_table_config_orchid(self):
@@ -291,10 +254,8 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
         self._create_sorted_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
-        instance = self._get_last_iteration_instance(get("//sys/tablet_balancer/instances"))
-
         effective_config_path = \
-            f"{self.root_path}/instances/{instance}/orchid/tablet_balancer/bundles/default/tables/\/\/tmp\/t/effective_config"  # noqa
+            "//sys/tablet_balancer/orchid/tablet_balancer/bundles/default/tables/\/\/tmp\/t/effective_config"  # noqa
 
         def _has_expected_table():
             if not exists(effective_config_path):
@@ -304,37 +265,6 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
             return len(config) > 0 and config["group_name"] == "legacy"
 
         wait(lambda: _has_expected_table())
-
-    def test_by_bundle_errors(self):
-        instances = get("//sys/tablet_balancer/instances")
-
-        self._configure_bundle("default")
-        sync_create_cells(2)
-        self._create_sorted_table("//tmp/t")
-        sync_reshard_table("//tmp/t", [[], [1]])
-
-        set(
-            "//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups",
-            "string instead of map. Bazinga!"
-        )
-
-        def _get_last_iteration_instance_retryable_errors(instances):
-            orchid = self._get_last_iteration_instance_orchid(instances)
-            return orchid.get("retryable_bundle_errors")
-
-        def _check_parsing_error():
-            errors = _get_last_iteration_instance_retryable_errors(instances)
-            return len(errors) > 0 and str(errors).find("Bundle has unparsable tablet balancer config") > 0
-
-        wait(lambda: _check_parsing_error())
-
-        self._apply_dynamic_config_patch({
-            "bundle_errors_ttl": 100,
-        })
-
-        remove("//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups")
-
-        wait(lambda: len(_get_last_iteration_instance_retryable_errors(instances)) == 0)
 
     def test_move_table_between_bundles(self):
         create_tablet_cell_bundle("another")

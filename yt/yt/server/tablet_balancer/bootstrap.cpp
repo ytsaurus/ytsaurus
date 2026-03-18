@@ -161,6 +161,13 @@ public:
         return Connection_->GetClusterDirectory();
     }
 
+    virtual NNodeTrackerClient::TAddressMap GetLocalAddresses() const override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return TAddressMap{{NNodeTrackerClient::DefaultNetworkName, LocalAddress_}};
+    }
+
 private:
     const TTabletBalancerBootstrapConfigPtr Config_;
     const INodePtr ConfigNode_;
@@ -319,7 +326,7 @@ private:
     {
         TCypressRegistrarOptions options{
             .RootPath = Format("%v/instances/%v", Config_->RootPath, ToYPathLiteral(LocalAddress_)),
-            .OrchidRemoteAddresses = TAddressMap{{NNodeTrackerClient::DefaultNetworkName, LocalAddress_}},
+            .OrchidRemoteAddresses = GetLocalAddresses(),
         };
 
         auto registrar = CreateCypressRegistrar(
