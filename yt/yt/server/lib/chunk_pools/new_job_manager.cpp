@@ -59,6 +59,8 @@ void TNewJobStub::Finalize()
 {
     std::vector<TChunkStripePtr> stripes;
     stripes.reserve(StripeMap_.size());
+    // TODO(coteeq): We group stripes by (stream, range), but sort by (table, range).
+    // This does not seem intentional.
     for (auto& [tableAndRangeIndex, stripe] : StripeMap_) {
         for (const auto& dataSlice : stripe->DataSlices()) {
             YT_VERIFY(!dataSlice->IsLegacy);
