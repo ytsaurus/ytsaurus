@@ -8590,6 +8590,7 @@ void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& 
             chunkSliceList.emplace_back(std::move(chunkSlice));
         }
         TLegacyDataSlicePtr dataSlice;
+        // XXX(coteeq): Should check for unversionedness rather than dynamicity.
         if (dynamic) {
             dataSlice = CreateVersionedInputDataSlice(chunkSliceList);
             if (comparator) {
@@ -8607,7 +8608,7 @@ void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& 
             InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_, comparator);
         }
 
-        dataSlice->SetInputStreamIndex(dataSlice->GetTableIndex());
+        dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(dataSlice->GetTableIndex(), dataSlice->GetRangeIndex()));
         dataSlice->Tag = dataSliceDescriptor.GetTag();
         return dataSlice;
     };
