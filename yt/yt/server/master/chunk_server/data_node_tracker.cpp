@@ -711,7 +711,7 @@ public:
         if (it != ChunkLocationUuidToLocation_.end()) {
             auto* oldLocation = it->second;
             if (!IsObjectAlive(oldLocation)) {
-                YT_LOG_ALERT("Creating location with existing UUID (Uuid: %v)",
+                YT_LOG_INFO("Creating location with existing UUID (Uuid: %v)",
                     locationUuid);
                 MaybeUnregisterChunkLocationUuid(oldLocation->GetId(), locationUuid);
             } else {
@@ -867,7 +867,7 @@ private:
                 uuid);
         } else {
             if (uuidToLocationIt->second->GetId() != locationId) {
-                YT_LOG_ALERT("There is already a new location in ChunkLocationUuidToLocation_ (LocationId: %v, LocationUuid: %v)",
+                YT_LOG_INFO("There is already a new location in ChunkLocationUuidToLocation_ (LocationId: %v, LocationUuid: %v)",
                     locationId,
                     uuid);
                 return;
