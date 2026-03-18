@@ -380,6 +380,8 @@ struct TCustomTableMountConfig
 
     TTestingTableMountConfig Testing;
 
+    bool TablePullerStronglyPreferLocalQueue;
+
     REGISTER_YSON_STRUCT(TCustomTableMountConfig);
 
     static void Register(TRegistrar registrar);

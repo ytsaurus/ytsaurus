@@ -52,7 +52,8 @@ public:
 public:
     TQueueReplicaSelector(
         NLogging::TLogger logger,
-        const TBannedReplicaTracker& bannedReplicaTracker);
+        const TBannedReplicaTracker& bannedReplicaTracker,
+        bool stronglyPreferLocalQueue);
 
     TReplicaOrError PickQueueReplica(
         NChaosClient::TReplicaId selfUpstreamReplicaId,
@@ -65,6 +66,7 @@ public:
 private:
     const NLogging::TLogger Logger;
     const TBannedReplicaTracker& BannedReplicaTracker_;
+    const bool StronglyPreferLocalQueue_;
 
     NChaosClient::TReplicaId LastPulledFromReplicaId_;
     TInstant NextPermittedTimeForProgressBehindAlert_;
