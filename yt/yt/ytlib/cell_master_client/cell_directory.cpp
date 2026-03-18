@@ -2,6 +2,7 @@
 
 #include "private.h"
 #include "config.h"
+#include "helpers.h"
 #include "protobuf_helpers.h"
 
 #include <yt/yt/ytlib/api/native/config.h>
@@ -18,8 +19,6 @@
 #include <yt/yt/ytlib/object_client/object_service_cache.h>
 
 #include <yt/yt/client/object_client/helpers.h>
-
-#include <yt/yt/client/sequoia_client/public.h>
 
 #include <yt/yt_proto/yt/client/cell_master/proto/cell_directory.pb.h>
 
@@ -417,27 +416,6 @@ private:
             role);
     }
 
-    bool ClusterMasterCompositionChanged(
-        const TSecondaryMasterConnectionConfigs& oldSecondaryMasterConnectionConfigs,
-        const TSecondaryMasterConnectionConfigs& newSecondaryMasterConnectionConfigs) override
-    {
-        if (newSecondaryMasterConnectionConfigs.size() != oldSecondaryMasterConnectionConfigs.size()) {
-            return true;
-        }
-
-        for (const auto& [cellTag, secondaryMasterConnectionConfig] : newSecondaryMasterConnectionConfigs) {
-            if (!oldSecondaryMasterConnectionConfigs.contains(cellTag)) {
-                return true;
-            }
-            const auto& secondaryMaster = GetOrCrash(oldSecondaryMasterConnectionConfigs, cellTag);
-            // TODO(cherepashka): replace with connection config comparison after changing NProto::TCellDirectory.
-            if (secondaryMaster->Addresses != secondaryMasterConnectionConfig->Addresses) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     struct TMasterCellDirectoryUpdate
     {
         TSecondaryMasterConnectionConfigs NewSecondaryMastersConnectionConfigs;
@@ -716,23 +694,6 @@ ICellDirectoryPtr CreateCellDirectory(
         std::move(channelFactory),
         std::move(hiveCellDirectory),
         std::move(logger));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TCellTagList GetMasterCellTags(const TSecondaryMasterConnectionConfigs& masterConnectionConfigs)
-{
-    auto cellTags = GetKeys(masterConnectionConfigs);
-    return TCellTagList(cellTags.begin(), cellTags.end());
-}
-
-THashSet<TCellId> GetMasterCellIds(const TSecondaryMasterConnectionConfigs& masterConnectionConfigs)
-{
-    THashSet<TCellId> masterCellIds;
-    for (const auto& [_, config] : masterConnectionConfigs) {
-        InsertOrCrash(masterCellIds, config->CellId);
-    }
-    return masterCellIds;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

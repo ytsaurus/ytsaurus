@@ -30,6 +30,7 @@
 
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 #include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
+#include <yt/yt/ytlib/cell_master_client/helpers.h>
 #include <yt/yt/ytlib/cell_master_client/protobuf_helpers.h>
 
 #include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
@@ -423,7 +424,7 @@ private:
 
         const auto& masterCellDirectory = Bootstrap_->GetConnection()->GetMasterCellDirectory();
         auto oldSecondaryMastersConnectionConfigs = masterCellDirectory->GetSecondaryMasterConnectionConfigs();
-        if (!masterCellDirectory->ClusterMasterCompositionChanged(masterCellDirectory->GetSecondaryMasterConnectionConfigs(), newSecondaryMastersConnectionConfigs)) {
+        if (!ClusterMasterCompositionChanged(masterCellDirectory->GetSecondaryMasterConnectionConfigs(), newSecondaryMastersConnectionConfigs)) {
             return;
         }
 

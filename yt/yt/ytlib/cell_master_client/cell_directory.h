@@ -79,11 +79,6 @@ struct ICellDirectory
     //! Reconfigures master connection directory.
     virtual void ReconfigureMasterCellDirectory(
         const TSecondaryMasterConnectionConfigs& secondaryMasterConnectionConfigs) = 0;
-
-    // TODO(cherepashka): make it static function or just separate from ICellDirectory.
-    virtual bool ClusterMasterCompositionChanged(
-        const TSecondaryMasterConnectionConfigs& oldSecondaryMasterConnectionConfigs,
-        const TSecondaryMasterConnectionConfigs& newSecondaryMasterConnectionConfigs) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICellDirectory)
@@ -96,12 +91,6 @@ ICellDirectoryPtr CreateCellDirectory(
     NRpc::IChannelFactoryPtr channelFactory,
     NHiveClient::ICellDirectoryPtr hiveCellDirectory,
     NLogging::TLogger logger);
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO(cherepashka): move into helpers file.
-NObjectClient::TCellTagList GetMasterCellTags(const TSecondaryMasterConnectionConfigs& masterConnectionConfigs);
-THashSet<NObjectClient::TCellId> GetMasterCellIds(const TSecondaryMasterConnectionConfigs& masterConnectionConfigs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

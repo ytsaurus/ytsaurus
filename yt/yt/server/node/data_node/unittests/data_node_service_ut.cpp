@@ -341,12 +341,6 @@ struct TCellDirectoryMock
         ReconfigureMasterCellDirectory,
         (const NCellMasterClient::TSecondaryMasterConnectionConfigs& secondaryMasterConnectionConfigs),
         (override));
-
-    MOCK_METHOD(
-        bool,
-        ClusterMasterCompositionChanged,
-        (const TSecondaryMasterConnectionConfigs& oldSecondaryMasterConnectionConfigs, const TSecondaryMasterConnectionConfigs& newSecondaryMasterConnectionConfigs),
-        (override));
 };
 
 ////////////////////////////////////////////////////////////////////////////////
