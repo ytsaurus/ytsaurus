@@ -28,7 +28,9 @@ namespace {
 const auto CreateStartTransactionResponse = BIND_NO_PROPAGATE([] (TTransactionId transactionId) {
     NProto::TRspStartCypressTransaction rsp;
     ToProto(rsp.mutable_id(), transactionId);
-    return CreateResponseMessage(rsp);
+    return std::pair(
+        CreateResponseMessage(rsp),
+        std::string(Format("TransactionId: %v", transactionId)));
 });
 
 const auto CreateAbortTransactionResponse = BIND_NO_PROPAGATE([] () {
@@ -43,14 +45,16 @@ void StartCypressTransactionInSequoiaAndReply(
     TBootstrap* bootstrap,
     const ITransactionManager::TCtxStartCypressTransactionPtr& context)
 {
-    context->ReplyFrom(StartCypressTransaction(
-        bootstrap
-            ->GetSequoiaConnection()
-            ->CreateClient(context->GetAuthenticationIdentity()),
-        bootstrap->GetCellId(),
-        &context->Request(),
-        TDispatcher::Get()->GetHeavyInvoker(),
-        TransactionServerLogger())
+    context->ReplyAndLogFrom(
+        /*incremental*/ false,
+        StartCypressTransaction(
+            bootstrap
+                ->GetSequoiaConnection()
+                ->CreateClient(context->GetAuthenticationIdentity()),
+            bootstrap->GetCellId(),
+            &context->Request(),
+            TDispatcher::Get()->GetHeavyInvoker(),
+            TransactionServerLogger())
         .Apply(CreateStartTransactionResponse));
 }
 
