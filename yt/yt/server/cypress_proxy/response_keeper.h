@@ -18,8 +18,6 @@ struct ISequoiaResponseKeeper
         NRpc::TMutationId mutationId,
         TSharedRefArray responseMessage) const = 0;
 
-    virtual const TSequoiaResponseKeeperDynamicConfigPtr& GetDynamicConfig() const = 0;
-
     virtual void Reconfigure(const TSequoiaResponseKeeperDynamicConfigPtr& newConfig) = 0;
 };
 
