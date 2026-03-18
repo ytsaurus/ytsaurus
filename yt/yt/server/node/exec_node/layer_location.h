@@ -109,7 +109,10 @@ public:
 
     TFuture<void> RemoveLayer(const TLayerId& layerId);
 
-    TFuture<void> RemoveVolume(TTagSet tagSet, TVolumeId volumeId);
+    TFuture<void> RemoveVolume(
+        TTagSet tagSet,
+        TVolumeId volumeId,
+        std::optional<std::string> portoPlacePath);
 
     //! TODO(yuryalekseev): Remove me when slot rbind is removed.
     TFuture<IVolumePtr> RbindRootVolume(
@@ -177,9 +180,13 @@ private:
 
     std::string GetLayerMetaPath(const TLayerId& id) const;
 
-    std::string GetVolumePath(const TVolumeId& id) const;
+    std::string GetVolumePath(
+        const TVolumeId& id,
+        const std::optional<std::string>& portoPlacePath = std::nullopt) const;
 
-    std::string GetVolumeMetaPath(const TVolumeId& id) const;
+    std::string GetVolumeMetaPath(
+        const TVolumeId& id,
+        const std::optional<std::string>& portoPlacePath = std::nullopt) const;
 
     void ValidateEnabled() const;
 
@@ -207,7 +214,8 @@ private:
         TTagSet tagSet,
         std::optional<TEventTimerGuard> volumeCreateTimeGuard,
         TVolumeMeta volumeMeta,
-        THashMap<TString, TString>&& volumeProperties);
+        THashMap<TString, TString>&& volumeProperties,
+        std::optional<std::string> portoPlacePath = std::nullopt);
 
     TVolumeMeta DoCreateNbdVolume(
         TGuid tag,
@@ -235,7 +243,10 @@ private:
         TEventTimerGuard volumeCreateTimeGuard,
         TTmpfsVolumeParams volumeParams);
 
-    void DoRemoveVolume(TTagSet tagSet, TVolumeId volumeId);
+    void DoRemoveVolume(
+        TTagSet tagSet,
+        TVolumeId volumeId,
+        std::optional<std::string> portoPlacePath = std::nullopt);
 
     void DoLinkVolume(
         TGuid tag,
