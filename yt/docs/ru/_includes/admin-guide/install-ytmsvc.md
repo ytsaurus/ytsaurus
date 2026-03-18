@@ -24,7 +24,8 @@
 
 1. Установлен Helm 3.x.
 2. Версия {{product-name}} Kubernetes оператора не меньше 0.28.0.
-3. Включена [загрузка снапшотов](../../admin-guide/persistence-uploader.md#uploading-snapshots-to-cypress) и [access-логов](../../admin-guide/logging.md#structured_log_delivery) мастера в Кипарис.
+3. Версия UI не меньше 3.6.0.
+4. Включена [загрузка снапшотов](../../admin-guide/persistence-uploader.md#uploading-snapshots-to-cypress) и [access-логов](../../admin-guide/logging.md#structured_log_delivery) мастера в Кипарис.
 
   Настройка обоих процессов требует перезагрузки мастера с даунтаймом, поэтому с целью его минимизации рекомендуется производить применение настроек одновременно.
 
@@ -161,7 +162,7 @@ yt set //sys/accounts/sys/@acl/end '{action=allow; subjects=[robot-msvc-resource
 Выдайте права на чтение снапшотов, доступ к директориям микросервиса и использование аккаунта.
 
 ```bash
-yt set //sys/admin/snapshots/user_exports/@acl/end '{action=allow; subjects=[robot-msvc-acl-checker]; permissions=[read]}'
+yt set //sys/admin/snapshots/@acl/end '{action=allow; subjects=[robot-msvc-acl-checker]; permissions=[read]}'
 yt set //sys/admin/yt-microservices/bulk_acl_checker/@acl/end '{action=allow; subjects=[robot-msvc-acl-checker]; permissions=[read; write; create; remove; mount]}'
 yt set //sys/accounts/sys/@acl/end '{action=allow; subjects=[robot-msvc-acl-checker]; permissions=[use]}'
 ```
@@ -191,6 +192,7 @@ yt set //sys/tablet_cell_bundles/sys/@acl/end '{action=allow; subjects=[robot-ms
 
   ```bash
   yt set //sys/admin/logs/export/master-access/@acl/end '{action=allow; subjects=[robot-msvc-access-log-viewer]; permissions=[read; write]}'
+  yt set //sys/admin/yt-microservices/node_id_dict/@acl/end '{action=allow; subjects=[robot-msvc-access-log-viewer]; permissions=[read]}'
   yt set //sys/admin/yt-microservices/tmp/access_log_viewer/@acl/end '{action=allow; subjects=[robot-msvc-access-log-viewer]; permissions=[read; write; create; remove]}'
   yt set //sys/admin/yt-microservices/access_log_viewer/@acl/end '{action=allow; subjects=[robot-msvc-access-log-viewer]; permissions=[read; write; create; remove; mount]}'
   yt set //sys/admin/yt-microservices/raw_master_access_log_processing/@acl/end '{action=allow; subjects=[robot-msvc-access-log-viewer]; permissions=[read; write; create; remove]}'
@@ -275,6 +277,7 @@ kubectl create secret generic ytsaurus-msvc \
   --from-literal=YT_BULK_ACL_CHECKER_TOKEN="$(yt issue-token robot-msvc-acl-checker)" \
   --from-literal=YT_ID_TO_PATH_TOKEN="$(yt issue-token robot-msvc-id-to-path)" \
   --from-literal=YT_ACCESS_LOG_VIEWER_TOKEN="$(yt issue-token robot-msvc-access-log-viewer)" \
+  --from-literal=CRYPTO_SECRET="$(openssl rand -hex 32)" \
   -n <namespace>
 ```
 
@@ -284,15 +287,11 @@ kubectl create secret generic ytsaurus-msvc \
 
 - Укажите прокси и имя кластера:
 
-```yaml
-cluster:
-  proxy: "http-proxies.default.svc.cluster.local" # Внутренний адрес HTTP-прокси для namespace `default`
-  name: "<cluster-name>"                          # Имя вашего кластера (см. в `//sys/@cluster_connection/cluster_name`)
-```
-
-- Настройте CORS:
-
-  Необходимо указать `cors.allowedHostSuffixes` или `cors.allowedHosts` вашего UI. Подробнее будет описано ниже.
+  ```yaml
+  cluster:
+    proxy: "http-proxies.default.svc.cluster.local" # Внутренний адрес HTTP-прокси для namespace `default`
+    name: "<cluster-name>"                          # Имя вашего кластера (см. в `//sys/@cluster_connection/cluster_name`)
+  ```
 
 - Настройте Access Log Viewer:
 
@@ -315,12 +314,14 @@ cluster:
     proxy: "http-proxies.default.svc.cluster.local"
     name: "<cluster-name>"
 
-  cors:
-    allowedHostSuffixes:
-      - "<your-ui-domain-suffix>"
+  microservices:
+    accessLogViewer:
+      api:
+        config:
+          chytAlias: "ch_public"
   ```
 
-Полный список параметров доступен в [values.yaml](https://raw.githubusercontent.com/ytsaurus/ytsaurus/refs/heads/main/yt/docker/charts/ytmsvc-chart/values.yaml) в репозитории чарта. Детальное описание представлено ниже в разделе [Детальная конфигурация](#detailed-config).
+Полный список параметров доступен в [values.yaml](https://github.com/ytsaurus/ytsaurus/blob/main/yt/docker/charts/ytmsvc-chart/values.yaml) в репозитории чарта. Детальное описание представлено ниже в разделе [Детальная конфигурация](#detailed-config).
 
 ### Шаг 4: Установка Helm-чарта
 
@@ -348,150 +349,50 @@ kubectl logs ytsaurus-msvc-resource-usage-preprocessing-29390072-nrhj6 -n <names
 kubectl logs deployment/ytsaurus-msvc-ytmsvc-chart-resource-usage-api -n <namespace>
 ```
 
-### Шаг 5: Настройка сетевого доступа и включение в UI
+### Шаг 5: Включение в UI
 
-Resource Usage API и Access Log Viewer API используется веб-интерфейсом {{product-name}} напрямую из браузера пользователя. Выберите способ доступа в зависимости от вашего окружения.
+Для работы микросервисов в UI необходимо указать внутренние адреса сервисов в конфигурации. Запросы к микросервисам идут через бекенд UI, поэтому используются внутренние Kubernetes-адреса.
 
-#### Production
-
-Рекомендуемый способ для production. Микросервисы будут доступны на том же домене, что и UI, по пути `/resource-usage/` и `/access-log-viewer/` соответственно.
-
-1. Настройте `apiPrefix` в `values.yaml`:
-
-  ```yaml
-  microservices:
-    resourceUsage:
-      api:
-        config:
-          apiPrefix: "/resource-usage/"
-  ```
-
-  Для Access Log Viewer'а префикс настраивать не надо.
-
-2. Примените изменения:
+Создайте `//sys/@ui_config/ui_settings`, если он еще не существует, и укажите адреса микросервисов:
 
 ```bash
-helm upgrade ytsaurus-msvc oci://ghcr.io/ytsaurus/ytmsvc-chart \
-  --version {{ytmsvc-version}} \
-  -f values.yaml \
-  -n <namespace>
+if [ $(yt exists //sys/@ui_config/ui_settings) == "false" ]; then
+    yt set //sys/@ui_config/ui_settings '{}'
+fi
+
+yt set //sys/@ui_config/ui_settings/accounts_usage_base_path '"http://ytsaurus-msvc-ytmsvc-chart-resource-usage-service.default.svc.cluster.local"'
+yt set //sys/@ui_config/ui_settings/access_log_base_path '"http://ytsaurus-msvc-ytmsvc-chart-access-log-viewer-service.default.svc.cluster.local"'
 ```
 
-3. Модифицируйте Ingress:
+{% note info %}
 
-Необходимо модифицировать нынешний манифест UI Ingress так, чтобы он перенаправлял запросы `/resource-usage` на сервис:
+Если микросервисы развернуты в пространстве имен, отличном от `default`, замените `default` на название используемого пространства имен.
 
-```yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: ui-ingress
-  namespace: <namespace>
-spec:
-  rules:
-    - host: <your-ui-domain> # Укажите здесь ваш домен UI
-      http:
-        paths:
-          - backend:
-              service:
-                name: ytsaurus-msvc-ytmsvc-chart-resource-usage-service
-                port:
-                  name: http
-            path: /resource-usage
-            pathType: Prefix
-          - backend:
-              service:
-                name: ytsaurus-msvc-ytmsvc-chart-access-log-viewer-service
-                port:
-                  name: http
-            path: /access-log-viewer
-            pathType: Prefix
-          - backend:
-              service:
-                name: ytsaurus-ui
-                port:
-                  name: http
-            path: /
-            pathType: Prefix
-```
-
-Примените манифест:
-
-```bash
-kubectl apply -f ui-ingress.yaml
-```
-
-4. Укажите URL в конфигурации UI:
-
-```bash
-yt set //sys/@ui_config/resource_usage_base_url '"https://<your-ui-domain>/resource-usage/"'
-yt set //sys/@ui_config/access_log_viewer_base_url '"https://<your-ui-domain>/access-log-viewer/"'
-```
-
-#### Testing
-
-Этот способ подходит для быстрой проверки работоспособности.
-
-1. Настройте CORS в `values.yaml`:
-
-Так как UI (например, `http://localhost:8080`) будет обращаться к `http://localhost:3000`, браузер заблокирует запрос без явного разрешения CORS. Разрешите обращения от UI:
-
-```yaml
-cors:
-  allowedHosts:
-    - "localhost:8080"
-microservices:
-  resourceUsage:
-    api:
-      config:
-        apiPrefix: "/"
-```
-
-2. Примените изменения:
-
-```bash
-helm upgrade ytsaurus-msvc oci://ghcr.io/ytsaurus/ytmsvc-chart \
-  --version {{ytmsvc-version}} \
-  -f values.yaml \
-  -n <namespace>
-```
-
-3. Запустите проброс портов:
-
-```bash
-kubectl port-forward service/ytsaurus-msvc-ytmsvc-chart-resource-usage-service 3000:80 -n <namespace>
-kubectl port-forward service/ytsaurus-msvc-ytmsvc-chart-access-log-viewer-service 3001:80 -n <namespace>
-```
-
-4. Укажите локальный адрес в конфигурации UI:
-
-```bash
-yt set //sys/@ui_config/resource_usage_base_url '"http://localhost:3000/"'
-yt set //sys/@ui_config/access_log_viewer_base_url '"http://localhost:3001/"'
-```
+{% endnote %}
 
 #### Проверка результата
 
 - Работа Resource Usage:
 
-  1. Откройте веб-интерфейс {{product-name}};
-  2. Перейдите в раздел `Accounts` и выберите любой аккаунт;
-  3. Сверху откройте вкладку `Detailed usage`.
+  1. Убедитесь, что `cronjobs` завершились и в директории `//sys/admin/yt-microservices/resource_usage` содержатся таблицы препроцессинга;
+  2. Откройте веб-интерфейс {{product-name}};
+  3. Перейдите в раздел `Accounts` и выберите любой аккаунт;
+  4. Сверху откройте вкладку `Detailed usage`.
 
 - Работа Access Log Viewer:
-
-  1. Откройте веб-интерфейс {{product-name}};
-  2. Перейдите в раздел `Navigation` и откройте интересующий вас объект;
-  3. Сверху откройте вкладку `Access log`.
+  
+  1. Убедитесь, что `cronjobs` завершились и в директории `//sys/admin/yt-microservices/access_log_viewer/<cluster_name>` содержатся таблицы с логами. Если кластер свежий, потребуется 1–2 часа от момента создания кластера;
+  2. Откройте веб-интерфейс {{product-name}};
+  3. Перейдите в раздел `Navigation` и откройте интересующий вас объект;
+  4. Сверху откройте вкладку `Access log`.
 
 {% note info %}
 
-Для появления вкладки `Detailed usage` и `Access log` может потребоваться время (не более нескольких минут) и обновление страницы.
+Для появления вкладки `Detailed usage` и `Access log` может потребоваться время (не более 5 минут) и обновление страницы.
 
 Если вкладка не появилась или что-то пошло не так, проверьте:
-- Правильность `resource_usage_base_url` (должен включать протокол и завершаться `/`)
-- Логи микросервиса: `kubectl logs deployment/ytsaurus-msvc-ytmsvc-chart-resource-usage-api -n <namespace>`
-- Работу Ingress, если он используется: `kubectl get ingress -n <namespace>`
+- Правильность адресов в `//sys/@ui_config/ui_settings/accounts_usage_base_path` и `//sys/@ui_config/ui_settings/access_log_base_path`
+- Логи микросервисов: `kubectl logs deployment/ytsaurus-msvc-ytmsvc-chart-resource-usage-api -n <namespace>`
 
 {% endnote %}
 
@@ -505,11 +406,6 @@ yt set //sys/@ui_config/access_log_viewer_base_url '"http://localhost:3001/"'
     proxy: "http-proxies-lb.default.svc.cluster.local"
     # Имя кластера
     name: "ytsaurus"
-
-  cors:
-    # Списки хостов/суффиксов для CORS-запросов (необходимы для интеграции с UI)
-    allowedHosts: []
-    allowedHostSuffixes: []
 
   # Кука, используемая для аутентификации пользователей
   authCookieName: "YTCypressCookie"
@@ -535,9 +431,6 @@ yt set //sys/@ui_config/access_log_viewer_base_url '"http://localhost:3001/"'
 
           # Адрес и порт для сбора метрик
           debugHttpAddr: "[::]:81"
-
-          # Префикс обработчиков HTTP-сервера
-          apiPrefix: "/"
 
           # Имя cookie для авторизации (должно совпадать с настройкой UI)
           authCookieName: YTCypressCookie
@@ -625,6 +518,14 @@ yt set //sys/@ui_config/access_log_viewer_base_url '"http://localhost:3001/"'
           workPath: "//sys/admin/yt-microservices/raw_master_access_log_processing"
           # Количество одновременно обрабатываемых таблиц с сырыми логами
           maxInputTables: 16
+          # Настройки для каждого типа обработки логов
+          processings:
+            30min:
+              # Таймаут истечения срока хранения для выходных таблиц.
+              # Если не указан, таймаут не устанавливается.
+              expirationTimeout: 168h
+            # 1d:
+            #   expirationTimeout: 672h
   ```
 
 ### Access Log Viewer Preprocessing
