@@ -59,7 +59,7 @@ static void VerifyLocalMode(TStringBuf proxy, const IClientBasePtr& client)
     fqdnAttr = to_lower(fqdnAttr);
     auto realFqdn = to_lower(::FQDNHostName());
     Y_ENSURE(
-        fqdnAttr == realFqdn,
+        fqdnAttr == "localhost" || fqdnAttr == realFqdn,
         "FQDN from cluster differs from host name: " << fqdnAttr << ' ' << realFqdn
             << "; are you trying to run tests on a real cluster?");
 }
