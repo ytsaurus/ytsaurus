@@ -86,9 +86,11 @@ const T& ChooseReplica(const std::vector<T>& candidates, const TReplicaInfo& sel
 
 TQueueReplicaSelector::TQueueReplicaSelector(
     NLogging::TLogger logger,
-    const TBannedReplicaTracker& bannedReplicaTracker)
+    const TBannedReplicaTracker& bannedReplicaTracker,
+    bool stronglyPreferLocalQueue)
     : Logger(std::move(logger))
     , BannedReplicaTracker_(bannedReplicaTracker)
+    , StronglyPreferLocalQueue_(stronglyPreferLocalQueue)
     , LastPulledFromReplicaId_(NullObjectId)
     , NextPermittedTimeForProgressBehindAlert_(Now())
 { }
@@ -150,6 +152,8 @@ TQueueReplicaSelector::TReplicaOrError TQueueReplicaSelector::PickQueueReplica(
 
     auto findFreshQueueReplica = [&] () -> std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*> {
         std::vector<std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*>> candidates;
+        std::optional<std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*>> lastFetchedCandidate;
+
         for (auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
             if (BannedReplicaTracker_.IsReplicaBanned(replicaId)) {
                 continue;
@@ -163,11 +167,20 @@ TQueueReplicaSelector::TReplicaOrError TQueueReplicaSelector::PickQueueReplica(
             }
 
             if (selfReplica->ContentType == ETableReplicaContentType::Data) {
-                if (!IsReplicationProgressGreaterOrEqual(replicationProgress, replicaInfo.ReplicationProgress)) {
-                    if (replicaId == LastPulledFromReplicaId_) {
+                if (StronglyPreferLocalQueue_) {
+                    if (!IsTargetReplicaModeSync(selfReplica->Mode) &&
+                        selfReplica->ClusterName == replicaInfo.ClusterName)
+                    {
                         return {replicaId, &replicaInfo};
                     }
-                    candidates.emplace_back(replicaId, &replicaInfo);
+                }
+
+                if (!IsReplicationProgressGreaterOrEqual(replicationProgress, replicaInfo.ReplicationProgress)) {
+                    if (replicaId == LastPulledFromReplicaId_) {
+                        lastFetchedCandidate = {replicaId, &replicaInfo};
+                    } else if (!lastFetchedCandidate) {
+                        candidates.emplace_back(replicaId, &replicaInfo);
+                    }
                 }
             } else {
                 YT_VERIFY(selfReplica->ContentType == ETableReplicaContentType::Queue);
@@ -183,6 +196,10 @@ TQueueReplicaSelector::TReplicaOrError TQueueReplicaSelector::PickQueueReplica(
                     candidates.emplace_back(replicaId, &replicaInfo);
                 }
             }
+        }
+
+        if (lastFetchedCandidate) {
+            return *lastFetchedCandidate;
         }
 
         if (!candidates.empty()) {
