@@ -27,6 +27,7 @@ from flaky import flaky
 
 import base64
 from datetime import datetime, timedelta
+import itertools
 import pytest
 import random
 import string
@@ -3415,6 +3416,108 @@ class TestJobSizeAdjuster(YTEnvSetup):
 
         op.track()
         assert op.get_state() == "completed"
+
+    @authors("coteeq")
+    @pytest.mark.timeout(180)
+    @pytest.mark.skipif(is_asan_build(), reason="Test is too slow to fit into timeout")
+    def test_ordered_interrupted_adjusted(self):
+        create(
+            "table",
+            "//tmp/in",
+            attributes={"schema": [
+                {"name": "index", "type": "int64"},
+                {"name": "payload", "type": "string"},
+            ]},
+        )
+
+        # We need random to make chunk pool schedule jobs from the middle.
+        # If we schedule jobs left-to-right, the probability of the misadjusment is much lower.
+        payload_size = (800, 1000)
+        seed = random.randint(0, 2**16)
+        print_debug(f"Seed: {seed}")
+        rng = random.Random(seed)
+
+        def rows(*indices):
+            return [{"index": i, "payload": rng.randint(payload_size[0], payload_size[1]) * "x"} for i in indices]
+
+        for indices in itertools.batched(range(1000), n=50):
+            write_table("<append=%true>//tmp/in", rows(*indices))
+
+        ranges = [
+            "{lower_limit={row_index=%s};upper_limit={row_index=%s}}" % (range[0], range[-1] + 1)
+            for range in itertools.batched(range(1000), n=100)
+        ]
+
+        op = map(
+            track=False,
+            in_=[
+                f"<ranges=[{';'.join(ranges)}]>//tmp/in",
+            ],
+            out="<create=%true>//tmp/t_output",
+            command="cat",
+            ordered=True,
+            spec={
+                "data_weight_per_job": 10_000,
+                "mapper": {"format": "json"},
+                "resource_limits": {"user_slots": 3},
+                "force_allow_job_interruption": True,
+                "force_job_size_adjuster": True,
+                "job_io": {
+                    "testing_options": {"pipe_delay": 100},
+                    "buffer_row_count": 1,
+                    "pipe_capacity": 1,
+                },
+            }
+        )
+
+        op.wait_for_state("running")
+
+        def get_and_print_progress():
+            try:
+                progress = get(
+                    op.get_path() + "/@brief_progress/jobs",
+                    verbose=False
+                )
+            except YtError as e:
+                if e.contains_code(500):
+                    return None
+                else:
+                    raise
+
+            print_debug("Progress: ", (", ".join(f"{category}={count}" for category, count in progress.items())))
+            return progress
+
+        while op.get_state() == "running":
+            progress = get_and_print_progress()
+            if not progress:
+                continue
+
+            # No point in interrupting final jobs. They are not going to be adjusted anyway.
+            if progress["pending"] <= 5:
+                break
+
+            progress = op.build_progress()
+            jobs = op.get_running_jobs(verbose=False)
+            if len(jobs) >= 1:
+                job_id = next(iter(jobs))
+                try:
+                    time.sleep(1.5)  # Wait a bit until job starts reading.
+                    op.interrupt_job(job_id)
+                    print_debug(f"Successfully interrupted {job_id}")
+                except YtError:
+                    print_debug(f"Failed to interrupt {job_id}")
+                    pass
+
+        op.track()
+
+        # Otherwise payload shows up in diff
+        def strip_payload(rows):
+            return [
+                {"index": row["index"]}
+                for row in rows
+            ]
+
+        assert strip_payload(read_table("//tmp/t_output", verbose=False)) == strip_payload(rows(*range(1000)))
 
 
 ##################################################################
