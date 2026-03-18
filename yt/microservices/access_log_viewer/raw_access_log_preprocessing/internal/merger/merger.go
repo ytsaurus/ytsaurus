@@ -59,6 +59,9 @@ func (m *Merger) Run(ctx context.Context) error {
 			if err := m.mergePartition(ctx, tx, processingName, partition); err != nil {
 				return xerrors.Errorf("failed to merge partition %q: %w", partition, err)
 			}
+			if err := m.setExpirationTimeout(ctx, tx, processingConfig, partition); err != nil {
+				return xerrors.Errorf("failed to set expiration_timeout: %w", err)
+			}
 			if err := tx.RemoveNode(ctx, partitionsParent.Child(processingName).Child(partition), &yt.RemoveNodeOptions{Recursive: true}); err != nil {
 				return xerrors.Errorf("failed to remove chunks: %w", err)
 			}
@@ -137,6 +140,16 @@ func (m *Merger) mergePartition(ctx context.Context, tx yt.Tx, processingName st
 		return xerrors.Errorf("failed to wait for sort operation: %w", err)
 	}
 
+	return nil
+}
+
+func (m *Merger) setExpirationTimeout(ctx context.Context, tx yt.Tx, processingConfig *config.Processing, partition string) error {
+	if expirationTimeout := processingConfig.ExpirationTimeout; expirationTimeout != 0 {
+		outputPath := processingConfig.OutputPath.Child(partition)
+		if err := tx.SetNode(ctx, outputPath.Attr("expiration_timeout"), expirationTimeout.Milliseconds(), &yt.SetNodeOptions{}); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
