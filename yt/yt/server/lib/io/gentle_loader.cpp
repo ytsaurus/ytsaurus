@@ -190,6 +190,9 @@ public:
 
         for (int index = 0; index < Config_->WriterCount; ++index) {
             WritersQueue_.push_back(std::make_shared<TNonblockingQueue<TRequestInfo>>());
+        }
+
+        for (int index = 0; index < Config_->WriterCount; ++index) {
             invoker->Invoke(BIND(&TRandomWriter::RunWriter, MakeStrong(this), index));
         }
     }
