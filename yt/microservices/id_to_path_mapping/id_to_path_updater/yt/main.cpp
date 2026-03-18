@@ -188,6 +188,11 @@ int main(int argc, const char** argv)
     }
     YT_LOG_INFO("Processing input tables (InputTableCount: %v)", inputTables.size());
 
-    Process(std::move(cluster), std::move(tmpPath), std::move(inputTables), std::move(outputTable), std::move(forceCluster), std::move(allowClusters));
+    try {
+        Process(std::move(cluster), std::move(tmpPath), std::move(inputTables), std::move(outputTable), std::move(forceCluster), std::move(allowClusters));
+    } catch (const std::exception& ex) {
+        YT_LOG_ERROR(ex, "Failed to process tables");
+        return EXIT_FAILURE;
+    }
     return EXIT_SUCCESS;
 }
