@@ -436,6 +436,121 @@ TEST_F(TMultiLookupTest, MultiLookup)
     test(versionedLookupOptions, getYsonWithTimestamp(yson0, 0), getYsonWithTimestamp(yson1, 1));
 }
 
+TEST_F(TMultiLookupTest, MultiLookupAllowFailure)
+{
+    WriteUnversionedRow(
+        {"k0", "v1"},
+        "<id=0> 0; <id=1> 0;");
+    WriteUnversionedRow(
+        {"k0", "v1"},
+        "<id=0> 1; <id=1> 1;");
+
+    auto key0 = PrepareUnversionedRow(
+        {"k0", "v1"},
+        "<id=0> 0;");
+    auto key1 = PrepareUnversionedRow(
+        {"k0", "v1"},
+        "<id=0> 1;");
+
+    // Test with AllowFailure: one valid table and one non-existent table.
+    {
+        TMultiLookupOptions multiLookupOptions;
+        multiLookupOptions.AllowFailure = true;
+
+        auto results = WaitFor(Client_->MultiLookupRows(
+            {
+                {
+                    .Path = Table_,
+                    .NameTable = std::get<1>(key0),
+                    .Keys = std::get<0>(key0),
+                },
+                {
+                    .Path = "//tmp/nonexistent_table",
+                    .NameTable = std::get<1>(key1),
+                    .Keys = std::get<0>(key1),
+                },
+            },
+            multiLookupOptions))
+            .ValueOrThrow();
+
+        ASSERT_EQ(2u, results.size());
+
+        // First subrequest should succeed.
+        EXPECT_FALSE(results[0].Error.has_value());
+        const auto& rowset0 = results[0].Rowset;
+        ASSERT_EQ(1u, rowset0->GetRows().Size());
+        auto expected = ToString(YsonToSchemalessRow("<id=0> 0; <id=1> 0;"));
+        auto actual = ToString(rowset0->GetRows()[0]);
+        EXPECT_EQ(expected, actual);
+
+        // Second subrequest should have an error.
+        EXPECT_TRUE(results[1].Error.has_value());
+        EXPECT_FALSE(results[1].Error->IsOK());
+    }
+
+    // Test with AllowFailure when all subrequests succeed.
+    {
+        TMultiLookupOptions multiLookupOptions;
+        multiLookupOptions.AllowFailure = true;
+
+        auto results = WaitFor(Client_->MultiLookupRows(
+            {
+                {
+                    .Path = Table_,
+                    .NameTable = std::get<1>(key0),
+                    .Keys = std::get<0>(key0),
+                },
+                {
+                    .Path = Table_,
+                    .NameTable = std::get<1>(key1),
+                    .Keys = std::get<0>(key1),
+                },
+            },
+            multiLookupOptions))
+            .ValueOrThrow();
+
+        ASSERT_EQ(2u, results.size());
+
+        EXPECT_FALSE(results[0].Error.has_value());
+        EXPECT_FALSE(results[1].Error.has_value());
+
+        const auto& rowset0 = results[0].Rowset;
+        const auto& rowset1 = results[1].Rowset;
+
+        ASSERT_EQ(1u, rowset0->GetRows().Size());
+        ASSERT_EQ(1u, rowset1->GetRows().Size());
+
+        auto expected0 = ToString(YsonToSchemalessRow("<id=0> 0; <id=1> 0;"));
+        auto actual0 = ToString(rowset0->GetRows()[0]);
+        EXPECT_EQ(expected0, actual0);
+
+        auto expected1 = ToString(YsonToSchemalessRow("<id=0> 1; <id=1> 1;"));
+        auto actual1 = ToString(rowset1->GetRows()[0]);
+        EXPECT_EQ(expected1, actual1);
+    }
+
+    // Test without AllowFailure: should throw on non-existent table.
+    {
+        EXPECT_THROW_WITH_SUBSTRING(
+            WaitFor(Client_->MultiLookupRows(
+                {
+                    {
+                        .Path = Table_,
+                        .NameTable = std::get<1>(key0),
+                        .Keys = std::get<0>(key0),
+                    },
+                    {
+                        .Path = "//tmp/nonexistent_table",
+                        .NameTable = std::get<1>(key1),
+                        .Keys = std::get<0>(key1),
+                    },
+                },
+                TMultiLookupOptions()))
+                .ValueOrThrow(),
+            "nonexistent_table");
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClearTmpTestBase

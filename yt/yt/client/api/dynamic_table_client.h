@@ -6,6 +6,8 @@
 
 #include <yt/yt/client/query_client/query_statistics.h>
 
+#include <yt/yt/core/misc/error.h>
+
 namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,6 +58,11 @@ struct TMultiLookupOptions
     , public TMultiplexingBandOptions
 {
     std::optional<std::string> ExecutionPool;
+
+    //! If set to true, the request will succeed even if some subrequests fail
+    //! (e.g., table does not exist or is unmounted). Failed subrequests will have
+    //! their error reported in the result's Error field.
+    bool AllowFailure = false;
 };
 
 struct TExplainQueryOptions
@@ -84,6 +91,11 @@ struct TLookupRowsResult
     //! unavailable keys.
     //! Indexes are guaranteed to be unique and increasing.
     std::vector<int> UnavailableKeyIndexes;
+
+    //! If TMultiLookupOptions::AllowFailure is set, this field contains the error
+    //! for failed subrequests (e.g., table does not exist or is unmounted).
+    //! When set, Rowset may be null or empty.
+    std::optional<TError> Error;
 };
 
 using TUnversionedLookupRowsResult = TLookupRowsResult<IUnversionedRowset>;

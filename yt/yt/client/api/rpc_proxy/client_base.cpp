@@ -1073,6 +1073,7 @@ TFuture<std::vector<TUnversionedLookupRowsResult>> TClientBase::MultiLookupRows(
     req->set_retention_timestamp(options.RetentionTimestamp);
     req->set_multiplexing_band(static_cast<NProto::EMultiplexingBand>(options.MultiplexingBand));
     ToProto(req->mutable_tablet_read_options(), options);
+    req->set_allow_failure(options.AllowFailure);
 
     YT_OPTIONAL_TO_PROTO(req, execution_pool, options.ExecutionPool);
 
@@ -1092,6 +1093,14 @@ TFuture<std::vector<TUnversionedLookupRowsResult>> TClientBase::MultiLookupRows(
         for (const auto& subresponse : rsp->subresponses()) {
             int endAttachmentIndex = beginAttachmentIndex + subresponse.attachment_count();
             YT_VERIFY(endAttachmentIndex <= std::ssize(rsp->Attachments()));
+
+            if (subresponse.has_error()) {
+                beginAttachmentIndex = endAttachmentIndex;
+                result.push_back({
+                    .Error = FromProto<TError>(subresponse.error()),
+                });
+                continue;
+            }
 
             std::vector<TSharedRef> subresponseAttachments(
                 rsp->Attachments().begin() + beginAttachmentIndex,
