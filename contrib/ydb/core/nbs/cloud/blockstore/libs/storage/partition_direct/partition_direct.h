@@ -1,19 +1,20 @@
 #pragma once
 
-#include <contrib/ydb/library/actors/core/actor.h>
+#include <contrib/ydb/core/nbs/cloud/blockstore/config/protos/storage.pb.h>
 
-#include <contrib/ydb/core/nbs/cloud/blockstore/config/storage.pb.h>
+#include <contrib/ydb/core/base/blobstorage.h>
+#include <contrib/ydb/core/engine/minikql/flat_local_tx_factory.h>
 #include <contrib/ydb/core/protos/blockstore_config.pb.h>
+
+#include <contrib/ydb/library/actors/core/actor.h>
 
 namespace NYdb::NBS::NBlockStore::NStorage::NPartitionDirect {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NActors::TActorId CreatePartitionTablet(
-    const NActors::TActorId& owner,
-    NYdb::NBS::NProto::TStorageConfig storageConfig,
-    NKikimrBlockStore::TVolumeConfig volumeConfig
-);
+NActors::IActor* CreatePartitionTablet(
+    const NActors::TActorId& tablet,
+    NKikimr::TTabletStorageInfo* info);
 
 ////////////////////////////////////////////////////////////////////////////////
 

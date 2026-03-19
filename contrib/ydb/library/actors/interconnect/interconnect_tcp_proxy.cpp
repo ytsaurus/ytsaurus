@@ -114,7 +114,8 @@ namespace NActors {
             if (!Metrics) {
                 Metrics = Common->Metrics ? CreateInterconnectMetrics(Common) : CreateInterconnectCounters(Common);
             }
-            Metrics->SetPeerInfo(PeerNodeId, name, info.Location.GetDataCenterId());
+            const TString peerLabel = Common->Settings.MergePerHostCounters ? info.Host : name;
+            Metrics->SetPeerInfo(name, info.Location.GetDataCenterId(), peerLabel);
             PeerBridgePileName = info.Location.GetBridgePileName();
 
             LOG_DEBUG_IC("ICP02", "configured for host %s", name.data());
@@ -438,6 +439,11 @@ namespace NActors {
         if (Metrics) {
             Metrics->IncHandshakeFails();
         }
+        if (Common->Settings.MergePerHostCounters) {
+            LOG_NOTICE_IC("ICP36", "peer-level handshake fail PeerNodeId# %" PRIu32 " Peer# %s Host# %s Temporary# %u"
+                " Explanation# %s", PeerNodeId, Metrics ? Metrics->GetHumanFriendlyPeerHostName().data() : "",
+                TechnicalPeerHostName.data(), ui32(ev->Get()->Temporary), ev->Get()->Explanation.data());
+        }
 
         if (IncomingHandshakeActor || OutgoingHandshakeActor) {
             // one of handshakes is still going on
@@ -579,7 +585,7 @@ namespace NActors {
     void TInterconnectProxyTCP::EnqueueSessionEvent(STATEFN_SIG) {
         ICPROXY_PROFILED;
 
-        if (ev->Flags & IEventHandle::FlagFailFastWhenDisconnected) {
+        if (InErrorState) {
             return DropSessionEvent(ev);
         }
 

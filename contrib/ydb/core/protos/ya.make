@@ -110,6 +110,7 @@ SRCS(
     memory_controller_config.proto
     memory_stats.proto
     metrics.proto
+    metrics_config.proto
     minikql_engine.proto
     mon.proto
     msgbus.proto
@@ -179,6 +180,7 @@ PEERDIR(
     contrib/ydb/core/config/protos
     contrib/ydb/core/nbs/cloud/blockstore/tools/testing/loadtest/lib/protos
     contrib/ydb/core/fq/libs/config/protos
+    contrib/ydb/core/nbs/cloud/blockstore/config/protos
     contrib/ydb/core/protos/nbs
     contrib/ydb/core/protos/schemeshard
     contrib/ydb/core/scheme/protos
