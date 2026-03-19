@@ -2693,7 +2693,7 @@ IQueueRowsetPtr TClient::DoPullQueueImpl(
     bool checkPermissions)
 {
     return CallAndRetryIfMetadataCacheIsInconsistent(
-        /*profilingInfo*/ nullptr,
+        options.DetailedProfilingInfo,
         [&] {
             return DoPullQueueImplOnce(
                 queuePath,

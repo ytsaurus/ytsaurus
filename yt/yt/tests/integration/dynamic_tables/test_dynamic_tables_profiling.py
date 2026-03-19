@@ -6,11 +6,12 @@ from yt_commands import (
     create_tablet_cell_bundle, remove_tablet_cell, update_nodes_dynamic_config,
     insert_rows, select_rows, lookup_rows, sync_create_cells, pull_queue,
     sync_mount_table, sync_unmount_table, sync_flush_table, generate_uuid, sync_reshard_table,
-    disable_write_sessions_on_node, sync_compact_table, exists
+    disable_write_sessions_on_node, sync_compact_table, exists, ls, WaitFailed
 )
 
 from yt_helpers import profiler_factory
 
+from yt.common import YtError
 from yt.yson import YsonEntity
 from yt.environment.helpers import assert_items_equal
 
@@ -424,6 +425,8 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
 class TestOrderedDynamicTablesProfiling(TestOrderedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     DELTA_NODE_CONFIG = {"cluster_connection": {"timestamp_provider": {"update_period": 100}}}
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
 
     @authors("nadya73")
     def test_queue_profiling(self):
@@ -460,6 +463,57 @@ class TestOrderedDynamicTablesProfiling(TestOrderedDynamicTablesBase):
         wait(
             lambda: table_profiling.get_counter("fetch_table_rows/data_weight") == 50
         )
+
+    @authors("nadya73")
+    def test_detailed_pull_queue_profiling(self):
+        sync_create_cells(1)
+        self._create_ordered_table("//tmp/t", enable_detailed_profiling=True)
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 1, "value": "one"}]
+        insert_rows("//tmp/t", rows)
+
+        rpc_proxy = ls("//sys/rpc_proxies")[0]
+
+        proxy_pull_queue_duration_histogram = profiler_factory().at_rpc_proxy(rpc_proxy).histogram(
+            name="rpc_proxy/detailed_table_statistics/pull_queue_duration",
+            fixed_tags={"table_path": "//tmp/t", "user": "root"})
+
+        def _remove_system_columns(rows):
+            return [{"key": row["key"], "value": row["value"]} for row in rows]
+
+        def _check():
+            def _check_histogram(histogram):
+                try:
+                    bins = histogram.get_bins(verbose=True)
+                    bin_counters = [bin["count"] for bin in bins]
+                    if sum(bin_counters) != 1:
+                        return False
+                    if len(bin_counters) < 20:
+                        return False
+                    return True
+                except YtError as e:
+                    if "No sensors have been collected so far" not in str(e):
+                        raise e
+                    return False
+
+            assert _remove_system_columns(pull_queue("//tmp/t", offset=0, partition_index=0)) == rows
+
+            try:
+                wait(lambda: _check_histogram(proxy_pull_queue_duration_histogram), iter=5, sleep_backoff=0.5)
+                return True
+            except WaitFailed:
+                return False
+
+        wait(lambda: _check())
+        assert profiler_factory().at_rpc_proxy(rpc_proxy).get(
+            name="rpc_proxy/detailed_table_statistics/pull_queue_mount_cache_wait_time",
+            tags={"table_path": "//tmp/t"},
+            postprocessor=lambda data: data.get('all_time_max'),
+            summary_as_max_for_all_time=True,
+            export_summary_as_max=True,
+            verbose=False,
+            default=0) > 0
 
 
 ##################################################################
