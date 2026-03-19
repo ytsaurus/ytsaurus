@@ -384,6 +384,15 @@ items:
                   href: user-guide/data-processing/spyt/thesaurus/gpu-usage.md
             - name: Best practices
               href: user-guide/data-processing/spyt/best-practices.md
+        - name: FLYT
+          when: audience == "public"
+          items:
+            - name: Обзор
+              href: user-guide/data-processing/flyt/overview.md
+            - name: Apache Flink Connector {{product-name}}
+              href: user-guide/data-processing/flyt/flink-connector-ytsaurus.md
+            - name: Apache Flink YSON Formatter
+              href: user-guide/data-processing/flyt/flink-yson.md
         - name: YQL
           when: audience == "public"
           items:
@@ -467,8 +476,6 @@ items:
                 href: api/python/examples.md
           - name: Apache Airflow
             href: api/airflow/userdoc.md
-          - name: Apache Flink
-            href: api/flink/overview.md
           - name: C++
             items:
               - name: Описание
