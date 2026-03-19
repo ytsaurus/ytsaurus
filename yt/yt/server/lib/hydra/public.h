@@ -17,6 +17,7 @@ using NElection::TPeerIdSet;
 namespace NProto {
 
 class TReqResetStateHash;
+class TReqReportReignChange;
 class TMutationHeader;
 
 } // namespace NProto

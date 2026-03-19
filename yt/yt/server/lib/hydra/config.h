@@ -276,6 +276,8 @@ struct TDynamicDistributedHydraManagerConfig
 
     std::optional<bool> AlertOnSnapshotFailure;
 
+    std::optional<bool> ReportReignChange;
+
     std::optional<bool> EnableChangelogNetworkUsageAccounting;
     std::optional<bool> EnableSnapshotNetworkThrottling;
 
@@ -499,6 +501,10 @@ struct TDistributedHydraManagerConfig
 
     //! Enables sanitizing of local host name in errors.
     bool EnableHostSanitizing;
+
+    //! If true, special mutation will be committed on each reign change.
+    //! The default value of this flag is passed through TDistributedHydraManagerOptions.
+    std::optional<bool> ReportReignChange;
 
     TDistributedHydraManagerConfigPtr ApplyDynamic(const TDynamicDistributedHydraManagerConfigPtr& dynamicConfig) const;
     void ApplyDynamicInplace(const TDynamicDistributedHydraManagerConfig& dynamicConfig);

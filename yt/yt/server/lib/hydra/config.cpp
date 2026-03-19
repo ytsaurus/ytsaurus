@@ -285,6 +285,9 @@ void TDynamicDistributedHydraManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("alert_on_snapshot_failure", &TThis::AlertOnSnapshotFailure)
         .Optional();
 
+    registrar.Parameter("report_reign_change", &TThis::ReportReignChange)
+        .Optional();
+
     registrar.Parameter("enable_changelog_network_usage_accounting", &TThis::EnableChangelogNetworkUsageAccounting)
         .Optional();
     registrar.Parameter("enable_snapshot_network_throttling", &TThis::EnableSnapshotNetworkThrottling)
@@ -354,6 +357,8 @@ void TDistributedHydraManagerConfig::ApplyDynamicInplace(const TDynamicDistribut
     UpdateYsonStructField(CheckpointCheckPeriod, dynamicConfig.CheckpointCheckPeriod);
 
     UpdateYsonStructField(AlertOnSnapshotFailure, dynamicConfig.AlertOnSnapshotFailure);
+
+    UpdateYsonStructField(ReportReignChange, dynamicConfig.ReportReignChange);
 }
 
 void TDistributedHydraManagerConfig::Register(TRegistrar registrar)
@@ -518,6 +523,9 @@ void TDistributedHydraManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("alert_on_snapshot_failure", &TThis::AlertOnSnapshotFailure)
         .Default(true);
+
+    registrar.Parameter("report_reign_change", &TThis::ReportReignChange)
+        .Optional();
 
     registrar.Parameter("max_catch_up_accepted_mutation_count", &TThis::MaxCatchUpAcceptedMutationCount)
         .Default(10'000);

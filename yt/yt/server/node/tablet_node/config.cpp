@@ -593,6 +593,14 @@ void TUserBanDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TTestingTabletNodeDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("reign_override", &TThis::ReignOverride)
+        .Default(NHydra::InvalidReign);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("slots", &TThis::Slots)
@@ -688,6 +696,9 @@ void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("replication_card_updates_batcher", &TThis::ChaosReplicationCardUpdatesBatcher)
         .DefaultNew();
+
+    registrar.Parameter("testing", &TThis::Testing)
+        .Default();
 
     registrar.Postprocessor([] (TThis* config) {
         // Instantiate default distributed throttler configs.

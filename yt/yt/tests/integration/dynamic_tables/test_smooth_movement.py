@@ -10,7 +10,7 @@ from yt_commands import (
     create_area, start_transaction, commit_transaction, sync_flush_table, remount_table,
     get_singular_chunk_id, disable_tablet_cells_on_node, enable_tablet_cells_on_node,
     create_table_replica, alter_table_replica, unmount_table,
-    set_node_banned, trim_rows, generate_timestamp
+    set_node_banned, trim_rows, generate_timestamp, exit_read_only,
 )
 
 from yt.common import YtError
@@ -18,6 +18,7 @@ import yt.yson as yson
 
 import random
 import time
+import builtins
 
 import pytest
 
@@ -239,12 +240,6 @@ class TestSmoothMovement(SmoothMovementBase):
         custom_area_id = create_area(
             "custom",
             cell_bundle_id=get("//sys/tablet_cell_bundles/default/@id"))
-
-        update_nodes_dynamic_config({
-            "tablet_node": {
-                "slots": 1,
-            }
-        })
 
         cell_ids = sync_create_cells(3)
 
@@ -809,6 +804,110 @@ class TestSmoothMovement(SmoothMovementBase):
 
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
+    @authors("ifsmirnov")
+    @pytest.mark.parametrize("read_only", [True, False])
+    @pytest.mark.parametrize("peer_count", [1, 2])
+    def test_abort_movement_on_reign_change(self, read_only, peer_count):
+        set("//sys/tablet_cell_bundles/default/@options/peer_count", peer_count)
+
+        nodes = ls("//sys/tablet_nodes")
+        for node in nodes[2 * peer_count:]:
+            disable_tablet_cells_on_node(node)
+        cell_ids = sync_create_cells(2)
+
+        src_cell_id = cell_ids[0]
+        src_nodes = [peer["address"] for peer in get(f"#{src_cell_id}/@peers")]
+
+        current_reign = get(f"#{src_cell_id}/orchid/reign")
+        next_reign = current_reign + 1
+
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t", cell_id=src_cell_id)
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        h = SmoothMovementHelper(tablet_id)
+        h.start_forwarding_mutations()
+
+        def _check_smooth_movement_in_progress(expected):
+            for node in src_nodes:
+                tablet_orchid = get(f"//sys/tablet_nodes/{node}/orchid/tablet_cells/{src_cell_id}/tablets/{tablet_id}")
+                if ("smooth_movement" in tablet_orchid) != expected:
+                    return False
+            return True
+
+        assert _check_smooth_movement_in_progress(True)
+
+        if read_only:
+            build_snapshot(src_cell_id, set_read_only=True)
+
+        # Restart nodes with reign change.
+        for node in src_nodes:
+            disable_tablet_cells_on_node(node)
+        wait(lambda: get(f"#{src_cell_id}/@health") == "failed")
+
+        self._update_specific_nodes_dynamic_config(src_nodes, {
+            "tablet_node": {
+                "testing": {
+                    "reign_override": next_reign,
+                }
+            }
+        })
+
+        for node in src_nodes:
+            enable_tablet_cells_on_node(node)
+        wait(lambda: get(f"#{src_cell_id}/@health") == "good")
+        for node in src_nodes:
+            assert get(f"//sys/tablet_nodes/{node}/orchid/tablet_cells/{src_cell_id}/reign") == next_reign
+
+        if read_only:
+            assert _check_smooth_movement_in_progress(True)
+            exit_read_only(src_cell_id)
+
+            def _is_cell_alive():
+                try:
+                    for node in src_nodes:
+                        orchid = get(f"//sys/tablet_nodes/{node}/orchid/tablet_cells/{src_cell_id}/hydra")
+                        if orchid["read_only"] or not orchid["active"]:
+                            return False
+                except YtError:
+                    return False
+                return True
+            wait(_is_cell_alive)
+
+        # Follower does not restart when leader restarts after building final recovery action snapshot.
+        # Follower treats itself is active but stays in the previous epoch until stops receiving
+        # pings from leader and restarts, so we check not only active state but also the epoch.
+        def _check_peers_ready():
+            try:
+                epoch_ids = builtins.set()
+                for node in src_nodes:
+                    orchid = get(f"//sys/tablet_nodes/{node}/orchid/tablet_cells/{src_cell_id}/hydra")
+                    if "epoch_id" not in orchid:
+                        return False
+                    if not orchid["active"]:
+                        return False
+                    epoch_ids.add(orchid["epoch_id"])
+                return len(epoch_ids) == 1
+            except YtError:
+                return False
+        wait(_check_peers_ready)
+
+        assert _check_smooth_movement_in_progress(False)
+
+        assert h.get_action_state() == "failed"
+        assert h.get_action_error().contains_text("Smooth movement rejected on tablet reign change")
+
+        # Restart nodes again to check that reported reign change is detected during recovery.
+        for node in src_nodes:
+            disable_tablet_cells_on_node(node)
+        wait(lambda: get(f"#{src_cell_id}/@health") == "failed")
+        for node in src_nodes:
+            enable_tablet_cells_on_node(node)
+        wait(lambda: get(f"#{src_cell_id}/@health") == "good")
+        for node in src_nodes:
+            assert get(f"//sys/tablet_nodes/{node}/orchid/tablet_cells/{src_cell_id}/reign") == next_reign
+
+        assert _check_smooth_movement_in_progress(False)
 
 ##################################################################
 
@@ -818,9 +917,6 @@ class TestSmoothMovementLargeCommitDelay(SmoothMovementBase):
         "tablet_node": {
             "transaction_supervisor": {
                 "rpc_timeout": 20000,
-            },
-            "resource_limits": {
-                "slots": 1,
             },
         }
     }
