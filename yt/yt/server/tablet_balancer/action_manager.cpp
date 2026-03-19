@@ -148,7 +148,9 @@ void TActionManager::CreateActions(const std::string& bundleName)
 {
     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-    YT_VERIFY(Started_);
+    THROW_ERROR_EXCEPTION_UNLESS(
+        Started_,
+        "Action manager instance has already stopped");
 
     if (RunningActions_.contains(bundleName)) {
         THROW_ERROR_EXCEPTION(
