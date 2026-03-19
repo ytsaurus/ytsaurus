@@ -13,7 +13,7 @@ At this stage, you should have:
 - a special robot user `robot-task-proxy` with an issued token (see the [token management](../../user-guide/storage/auth.md#token-management) section):
    ```sh
    yt create user --attr "{name=robot-task-proxy}"
-   yt issue-token robot-task-proxy > robot-task-proxy-token
+   yt issue-token robot-task-proxy > token
    ```
 
 ## Configuration {#setup}
@@ -36,7 +36,7 @@ Create a secret with tokens for Task proxy access to {{product-name}}.
 
 ```bash
 kubectl create secret generic task-proxy-token \
-    --from-file robot-task-proxy-token \
+    --from-file token \
     -n ${NAMESPACE}
 ```
 
