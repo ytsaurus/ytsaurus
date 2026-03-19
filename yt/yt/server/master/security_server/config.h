@@ -39,10 +39,17 @@ DEFINE_ENUM(EAllowAlterWithoutFullRead,
 struct TDynamicSecurityManagerConfig
     : public NYTree::TYsonStruct
 {
+    static constexpr auto DefaultProfilingPeriod = TDuration::MilliSeconds(1000);
+
     TDuration AccountStatisticsGossipPeriod;
     TDuration AccountsProfilingPeriod;
     TDuration RequestRateSmoothingPeriod;
     TDuration AccountMasterMemoryUsageUpdatePeriod;
+
+    bool SendOnlyUpdatesInAccountGossip;
+    int PrimaryCellAccountGossipBatchSize;
+    int SecondaryCellAccountGossipBatchSize;
+    TDuration AccountStatisticsGossipProfilingPeriod;
 
     // COMPAT(h0pless): This is a panic button, in case account profiling breaks.
     bool EnableAccountsProfiling;
