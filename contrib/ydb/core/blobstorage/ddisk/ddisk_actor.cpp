@@ -68,6 +68,9 @@ namespace NKikimr::NDDisk {
             .DirectIO = {
                 COUNTER(DirectIO, ShortReads, true)
                 COUNTER(DirectIO, ShortWrites, true)
+                COUNTER(DirectIO, RegularUringCount, false)
+                COUNTER(DirectIO, FallbackUringCount, false)
+                COUNTER(DirectIO, FallbackPDiskCount, false)
             },
         };
 
@@ -130,10 +133,14 @@ namespace NKikimr::NDDisk {
             hFunc(TEvBatchErasePersistentBuffer, handleQuery)
             hFunc(TEvListPersistentBuffer, handleQuery)
 
+            hFunc(TEvPrivate::TEvReadPersistentBufferPart, Handle)
+            hFunc(TEvPrivate::TEvWritePersistentBufferPart, Handle)
+
             hFunc(TEvents::TEvUndelivered, Handle)
 
             hFunc(TEvReadResult, Handle)
             hFunc(TEvReadPersistentBufferResult, Handle)
+            hFunc(TEvPrivate::TEvInternalSyncWriteResult, Handle)
 
             hFunc(NPDisk::TEvYardInitResult, Handle)
             hFunc(NPDisk::TEvReadLogResult, Handle)

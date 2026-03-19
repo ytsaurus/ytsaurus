@@ -178,6 +178,7 @@ IF (OS_LINUX)
     PEERDIR(
         contrib/ydb/core/nbs/cloud/blockstore/libs/service
         contrib/ydb/core/nbs/cloud/blockstore/libs/storage/partition_direct
+        contrib/ydb/core/nbs/cloud/blockstore/libs/storage/ss_proxy
         contrib/ydb/core/nbs/cloud/blockstore/public/api/protos
         contrib/ydb/core/nbs/cloud/storage/core/libs/common
     )

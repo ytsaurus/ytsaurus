@@ -6,6 +6,7 @@ SRCS(
     kqp_compute.cpp
     kqp_effects.cpp
     kqp_full_text_source.cpp
+    kqp_sys_view_source.cpp
     kqp_fulltext_analyze.cpp
     kqp_output_stream.cpp
     kqp_program_builder.cpp
@@ -52,6 +53,8 @@ PEERDIR(
     contrib/ydb/core/protos
     contrib/ydb/core/scheme
     contrib/ydb/core/ydb_convert
+    contrib/ydb/library/aclib
+    contrib/ydb/library/yql/dq/actors
     contrib/ydb/library/yql/dq/actors/protos
     contrib/ydb/library/yql/dq/actors/spilling
     contrib/ydb/library/yql/dq/common
