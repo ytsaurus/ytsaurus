@@ -43,4 +43,8 @@ Thanks to multiple outside contributors for the active participation in {{produc
 
 {% include notitle [Java](../_includes/releases/java-sdk.md) %}
 
+## UI
+
+{% include notitle [UI](../_includes/releases/ui.md) %}
+
 
