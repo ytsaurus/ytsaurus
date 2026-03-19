@@ -109,6 +109,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((ValidateRootFS)                        (302129))
     ((FixOutputChunkPoolIndexSerialization)  (302130))
     ((FixPartitionsDispatchStatistics)       (302131))
+    ((FixInputStreamDirectory)               (302132))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
