@@ -456,7 +456,7 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(30));
 
     registrar.Parameter("enable_root_volume_disk_quota", &TThis::EnableRootVolumeDiskQuota)
-        .Default(true);
+        .Default(false);
 
     registrar.Parameter("restrict_porto_place", &TThis::RestrictPortoPlace)
         .Default(false);

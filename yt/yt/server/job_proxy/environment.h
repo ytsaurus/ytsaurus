@@ -156,7 +156,7 @@ struct TUserJobEnvironmentOptions
 
     i64 ThreadLimit;
 
-    bool EnableRootVolumeDiskQuota = true;
+    bool EnableRootVolumeDiskQuota = false;
 
     //! Allowed places for creation of volumes and layers. "***" means any place.
     std::vector<TString> Places;
