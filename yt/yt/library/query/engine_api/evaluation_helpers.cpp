@@ -143,7 +143,7 @@ TMultiJoinClosure::TItem::TItem(
     TCompartmentFunction<TComparerFunction> prefixEqComparer,
     TCompartmentFunction<THasherFunction> lookupHasher,
     TCompartmentFunction<TComparerFunction> lookupEqComparer)
-    : Context(MakeExpressionContext(TPermanentBufferTag(), std::move(chunkProvider)))
+    : Context(MakeExpressionContext(TMultiJoinClosureItemBufferTag(), std::move(chunkProvider)))
     , KeySize(keySize)
     , PrefixEqComparer(prefixEqComparer)
     , Lookup(

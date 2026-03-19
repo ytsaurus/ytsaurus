@@ -37,9 +37,6 @@ struct TOutputBufferTag
 struct TIntermediateBufferTag
 { };
 
-struct TPermanentBufferTag
-{ };
-
 struct TForeignExecutorBufferTag
 { };
 
@@ -150,6 +147,9 @@ struct TMultiJoinParameters
 
 struct TMultiJoinClosure
 {
+    struct TBufferTag
+    { };
+
     using THashJoinLookup = google::dense_hash_set<
         TPIValue*,
         NDetail::TGroupHasher,
@@ -157,6 +157,9 @@ struct TMultiJoinClosure
 
     struct TItem
     {
+        struct TMultiJoinClosureItemBufferTag
+        { };
+
         TExpressionContext Context;
         size_t KeySize;
         NWebAssembly::TCompartmentFunction<TComparerFunction> PrefixEqComparer;
