@@ -1412,75 +1412,45 @@ void TLayerLocation::RemoveLayers(
     TDuration timeout)
 {
     auto startTime = TInstant::Now();
-    auto deadLine = startTime + timeout;
 
     auto Logger = ExecNodeLogger()
         .WithTag("Place: %v", place);
 
     YT_LOG_DEBUG(
-        "Removing layers from porto place (DeadLine: %v)",
-        deadLine);
-
-    auto checkDeadLine = [&] {
-        auto now = TInstant::Now();
-        if (now > deadLine) {
-            THROW_ERROR_EXCEPTION("Failed to wait for layers to be removed")
-                << TErrorAttribute("timeout", timeout)
-                << TErrorAttribute("place", place);
-        }
-    };
+        "Removing layers from porto place (Timeout: %v)",
+        timeout);
 
     std::vector<TString> removedLayers;
 
-    while (true) {
-        checkDeadLine();
+    auto layerIds = WaitFor(LayerExecutor_->ListLayers(place).WithTimeout(timeout))
+        .ValueOrThrow();
 
-        auto layerIds = WaitFor(LayerExecutor_->ListLayers(place))
-            .ValueOrThrow();
-
-        if (layerIds.empty()) {
-            YT_LOG_DEBUG("All layers have been removed");
-            break;
-        }
-
-        std::vector<TFuture<void>> removeFutures;
-        for (const auto& layerId : layerIds) {
-            YT_LOG_DEBUG(
-                "Trying to remove layer (LayerId: %v)",
-                layerId);
-
-            removedLayers.push_back(layerId);
-            removeFutures.push_back(LayerExecutor_->RemoveLayer(
-                layerId,
-                place,
-                false /*async*/));
-        }
-
-        auto removeResults = WaitFor(AllSet(std::move(removeFutures)))
-            .ValueOrThrow();
-
-        for (const auto& removeError : removeResults) {
-            if (!removeError.IsOK()) {
-                YT_LOG_INFO(
-                    removeError,
-                    "Failed to remove layer");
-            }
-        }
-
-        checkDeadLine();
-
-        static const TDuration Duration = TDuration::Seconds(30);
-
+    std::vector<TFuture<void>> removeFutures;
+    for (const auto& layerId : layerIds) {
         YT_LOG_DEBUG(
-            "Waiting for layers to be removed (Duration: %v)",
-            Duration);
+            "Trying to remove layer (LayerId: %v)",
+            layerId);
 
-        TDelayedExecutor::WaitForDuration(Duration);
+        removedLayers.push_back(layerId);
+        removeFutures.push_back(LayerExecutor_->RemoveLayer(
+            layerId,
+            place,
+            false /*async*/));
+    }
+
+    auto removeResults = WaitFor(AllSetWithTimeout(std::move(removeFutures), timeout))
+        .ValueOrThrow();
+
+    for (const auto& removeError : removeResults) {
+        if (!removeError.IsOK()) {
+            YT_LOG_WARNING(
+                removeError,
+                "Failed to remove layer");
+        }
     }
 
     YT_LOG_DEBUG(
-        "Removed layers (Path: %v, LayerNames: %v, Duration: %v)",
-        place,
+        "Removed layers (LayerNames: %v, Duration: %v)",
         MakeShrunkFormattableView(removedLayers, TDefaultFormatter(), 10),
         (TInstant::Now() - startTime));
 }
