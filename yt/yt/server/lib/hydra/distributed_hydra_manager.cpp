@@ -2236,6 +2236,31 @@ private:
 
             ExecuteFinalRecoveryAction();
 
+            auto lastMutationReign = GetLastMutationReign();
+
+            if (Config_->Get()->ReportReignChange.value_or(Options_.ReportReignChange) &&
+                !GetReadOnly() &&
+                lastMutationReign != GetCurrentReign() &&
+                lastMutationReign != InvalidReign)
+            {
+                YT_LOG_INFO("Committing reign change mutation (PreviousReign: %v, CurrentReign: %v)",
+                    lastMutationReign,
+                    GetCurrentReign());
+
+                TReqReportReignChange protoReq;
+                protoReq.set_previous_reign(lastMutationReign);
+
+                TMutationRequest req;
+                req.Reign = GetCurrentReign();
+                req.Data = SerializeProtoToRefWithEnvelope(protoReq);
+                req.Type = protoReq.GetTypeName();
+                WaitFor(ForceCommitMutation(std::move(req)))
+                    .ThrowOnError();
+
+                YT_LOG_INFO("Reign change mutation committed (CurrentReign: %v)",
+                    GetCurrentReign());
+            }
+
             YT_VERIFY(ControlState_ == EPeerState::LeaderRecovery);
             ControlState_ = EPeerState::Leading;
 
@@ -3013,7 +3038,11 @@ private:
 
         YT_VERIFY(ControlState_ == EPeerState::LeaderRecovery);
 
-        switch (DecoratedAutomaton_->GetFinalRecoveryAction()) {
+        auto action = DecoratedAutomaton_->GetFinalRecoveryAction();
+        YT_LOG_INFO("Executing final recovery action (Action: %v)",
+            action);
+
+        switch (action) {
             case EFinalRecoveryAction::BuildSnapshotAndRestart: {
                 auto snapshotId = WaitFor(BuildSnapshot(/*setReadOnly*/ false, /*waitForSnapshotCompletion*/ true, /*enableAutomatonReadOnlyBarrier*/ false))
                     .ValueOrThrow();

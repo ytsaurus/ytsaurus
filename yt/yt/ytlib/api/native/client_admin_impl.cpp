@@ -293,7 +293,7 @@ void TClient::DoExitReadOnly(
         EAccessControlObject::ExitReadOnly,
         EPermission::Use);
 
-    auto channel = Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellId);
+    auto channel = GetHydraAdminChannelOrThrow(cellId);
 
     THydraServiceProxy proxy(channel);
 
