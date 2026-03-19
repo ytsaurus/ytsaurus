@@ -40,4 +40,8 @@
 
 {% include notitle [Java](../_includes/releases/java-sdk.md) %}
 
+## UI
+
+{% include notitle [UI](../_includes/releases/ui.md) %}
+
 
