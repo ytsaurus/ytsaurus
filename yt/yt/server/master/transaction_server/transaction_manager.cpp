@@ -1558,10 +1558,14 @@ public:
 
         auto* transaction = FindTransaction(transactionId);
         if (!IsObjectAlive(transaction)) {
+            const auto& config = Bootstrap_->GetDynamicConfig();
+
             // NB: regular atomic tablet transactions cannot have mater cell
             // participants. Therefore, every atomic tablet transaction on
             // master is a Sequoia transaction.
-            if (TypeFromId(transactionId) == EObjectType::AtomicTabletTransaction) {
+            if (TypeFromId(transactionId) == EObjectType::AtomicTabletTransaction &&
+                config->SequoiaManager->EnableAsyncSequoiaTransactionStart)
+            {
                 // NB: there is no need for SequoiaRetriableError because
                 // participant failures are already retriable.
                 THROW_ERROR_EXCEPTION(

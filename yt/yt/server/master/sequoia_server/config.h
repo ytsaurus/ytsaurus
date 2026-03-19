@@ -80,6 +80,8 @@ struct TDynamicSequoiaManagerConfig
     bool Enable;
     bool EnableCypressTransactionsInSequoia;
     bool EnableGroundUpdateQueues;
+
+    // COMPAT(kvk1920)
     bool EnableAsyncSequoiaTransactionStart;
 
     TDynamicSequoiaManagerTestingConfigPtr Testing;
