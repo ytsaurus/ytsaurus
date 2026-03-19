@@ -3032,13 +3032,6 @@ size_t MakeCodegenMultiJoinOp(
                         auto joinKeyValue = CodegenFragment(rowBuilder, equations[column]);
                         joinKeyValue.StoreToValues(rowBuilder, keyValues, column);
                     }
-
-                    TCGExprContext evaluatedColumnsBuilder(builder, TCGExprData{
-                        *fragmentInfos,
-                        rowBuilder.Buffer,
-                        keyValues,
-                        rowBuilder.ExpressionClosurePtr,
-                    });
                 }
 
                 Value* primaryValuesPtrRef = builder->ViaClosure(primaryValuesPtr);
