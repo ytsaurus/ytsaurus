@@ -13,7 +13,7 @@ Task-прокси предоставляет доступ к веб-сервис
 - специальный пользователь-робот `robot-task-proxy` с выписанным для него токеном (см. раздел [Управление токенами](../../user-guide/storage/auth.md#token-management)):
    ```sh
    yt create user --attr "{name=robot-task-proxy}"
-   yt issue-token robot-task-proxy > robot-task-proxy-token
+   yt issue-token robot-task-proxy > token
    ```
 
 ## Настройка {#setup}
@@ -36,7 +36,7 @@ yt set //sys/task_proxies/@acl/end '{action=allow; subjects=[robot-task-proxy]; 
 
 ```bash
 kubectl create secret generic task-proxy-token \
-    --from-file robot-task-proxy-token \
+    --from-file token \
     -n ${NAMESPACE}
 ```
 
