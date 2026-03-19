@@ -516,7 +516,7 @@ private:
                     false);
             } catch (const std::exception& ex) {
                 auto error = TError(NTabletClient::EErrorCode::TableSchemaIncompatible, "Schema validation failed during replica fallback")
-                    << TErrorAttribute(UpstreamReplicaIdAttributeName, tableInfo->UpstreamReplicaId)
+                    << TErrorAttribute(std::string(UpstreamReplicaIdAttributeName), tableInfo->UpstreamReplicaId)
                     << ex;
 
                 THROW_ERROR error;
@@ -1185,6 +1185,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
             ? connectionConfig->ReplicaFallbackRetryCount
             : 0;
 
+        THashMap<TReplicaId, TError> triedReplicaIds;
         for (int retryCount = 0; retryCount <= retryCountLimit; ++retryCount) {
             TTableReplicaInfoPtrList inSyncReplicas;
             std::vector<TTableReplicaId> bannedSyncReplicaIds;
@@ -1193,6 +1194,8 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
                     bannedSyncReplicaIds.push_back(replicaInfo->ReplicaId);
                 } else if (connectionConfig->BannedInSyncReplicaClusters.contains(replicaInfo->ClusterName)) {
                     bannedSyncReplicaIds.push_back(replicaInfo->ReplicaId);
+                } else if (triedReplicaIds.contains(replicaInfo->ReplicaId)) {
+                    continue;
                 } else {
                     inSyncReplicas.push_back(replicaInfo);
                 }
@@ -1205,6 +1208,10 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
                         if (auto error = bannedReplicaTracker->GetReplicaError(bannedReplicaId); !error.IsOK()) {
                             replicaErrors.push_back(std::move(error));
                         }
+                    }
+
+                    for (const auto& [_, error] : triedReplicaIds) {
+                        replicaErrors.push_back(error);
                     }
                 }
 
@@ -1229,7 +1236,15 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
                 replicaFallbackInfo.ReplicaId);
 
             if (bannedReplicaTracker) {
-                bannedReplicaTracker->BanReplica(replicaFallbackInfo.ReplicaId, resultOrError.Truncate());
+                if (auto banReplicaDirective = TReplicaBanDirective::FromError(resultOrError);
+                    banReplicaDirective.Mode == EBanMode::Replica &&
+                    banReplicaDirective.ReplicaId == replicaFallbackInfo.ReplicaId)
+                {
+                    bannedReplicaTracker->BanReplica(replicaFallbackInfo.ReplicaId, resultOrError.Truncate());
+                } else {
+                    // Don't ban but exclude from current invocation.
+                    EmplaceOrCrash(triedReplicaIds, replicaFallbackInfo.ReplicaId, resultOrError.Truncate());
+                }
             }
         }
 
@@ -2796,6 +2811,7 @@ IQueueRowsetPtr TClient::DoPullQueueImplOnce(
 
         TErrorOr<IQueueRowsetPtr> resultOrError;
 
+        THashMap<TReplicaId, TError> triedReplicaIds;
         for (int retryCount = 0; retryCount <= retryCountLimit; ++retryCount) {
             TTableReplicaInfoPtrList inSyncReplicas;
             std::vector<TTableReplicaId> bannedSyncReplicaIds;
@@ -2804,6 +2820,8 @@ IQueueRowsetPtr TClient::DoPullQueueImplOnce(
                     bannedSyncReplicaIds.push_back(replicaInfo->ReplicaId);
                 } else if (connectionConfig->BannedInSyncReplicaClusters.contains(replicaInfo->ClusterName)) {
                     bannedSyncReplicaIds.push_back(replicaInfo->ReplicaId);
+                } else if (triedReplicaIds.contains(replicaInfo->ReplicaId)) {
+                    continue;
                 } else {
                     inSyncReplicas.push_back(replicaInfo);
                 }
@@ -2816,6 +2834,10 @@ IQueueRowsetPtr TClient::DoPullQueueImplOnce(
                         if (auto error = bannedReplicaTracker->GetReplicaError(bannedReplicaId); !error.IsOK()) {
                             replicaErrors.push_back(std::move(error));
                         }
+                    }
+
+                    for (const auto& [_, error] : triedReplicaIds) {
+                        replicaErrors.push_back(error);
                     }
                 }
 
@@ -2851,7 +2873,15 @@ IQueueRowsetPtr TClient::DoPullQueueImplOnce(
                 replicaFallbackInfo.ReplicaId);
 
             if (bannedReplicaTracker) {
-                bannedReplicaTracker->BanReplica(replicaFallbackInfo.ReplicaId, resultOrError.Truncate());
+                if (auto banReplicaDirective = TReplicaBanDirective::FromError(resultOrError);
+                    banReplicaDirective.Mode == EBanMode::Replica &&
+                    banReplicaDirective.ReplicaId == replicaFallbackInfo.ReplicaId)
+                {
+                    bannedReplicaTracker->BanReplica(replicaFallbackInfo.ReplicaId, resultOrError.Truncate());
+                } else {
+                    // Don't ban but exclude from current invocation.
+                    EmplaceOrCrash(triedReplicaIds, replicaFallbackInfo.ReplicaId, resultOrError.Truncate());
+                }
             }
         }
 

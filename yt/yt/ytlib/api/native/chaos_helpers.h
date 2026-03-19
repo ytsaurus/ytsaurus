@@ -12,6 +12,19 @@ namespace NYT::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EBanMode,
+    (None)
+    (Replica)
+);
+
+struct TReplicaBanDirective
+{
+    EBanMode Mode = EBanMode::None;
+    NChaosClient::TReplicaId ReplicaId = NObjectClient::NullObjectId;
+
+    static TReplicaBanDirective FromError(const TError& error);
+};
+
 std::vector<NTabletClient::TTableReplicaId> GetChaosTableInSyncReplicas(
     const NTabletClient::TTableMountInfoPtr& tableInfo,
     const NChaosClient::TReplicationCardPtr& replicationCard,
