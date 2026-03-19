@@ -282,9 +282,10 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
             node->SetCommitOrdering(NTransactionClient::ECommitOrdering::Strong);
         }
 
+        auto hasEffectiveTableSchema = effectiveTableSchema != nullptr;
         if (node->IsNative()) {
-            if (effectiveTableSchema) {
-                tableManager->GetOrCreateNativeMasterTableSchema(effectiveTableSchema, node);
+            if (hasEffectiveTableSchema) {
+                tableManager->GetOrCreateNativeMasterTableSchema(std::move(effectiveTableSchema), node);
             } else {
                 auto* emptySchema = tableManager->GetEmptyMasterTableSchema();
                 tableManager->SetTableSchema(node, emptySchema);
@@ -297,7 +298,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
             tableManager->SetTableSchema(node, schemaById);
         }
 
-        if ((node->IsNative() && effectiveTableSchema) || schemaMode == ETableSchemaMode::Strong) {
+        if ((node->IsNative() && hasEffectiveTableSchema) || schemaMode == ETableSchemaMode::Strong) {
             node->SetSchemaMode(ETableSchemaMode::Strong);
         }
 
