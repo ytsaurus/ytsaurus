@@ -422,6 +422,9 @@ struct ISecurityManager
 
     //! Updates Sequoia tables on ACD change. Is not expected to be called manually.
     virtual void OnObjectAcdUpdated(TAccessControlDescriptor* acd) = 0;
+
+    //! Increases account statistics and puts update in gossip queue.
+    virtual void IncreaseLocalAndClusterAccountStatistics(TAccount* account, const TAccountStatistics& delta) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISecurityManager)

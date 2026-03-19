@@ -303,18 +303,14 @@ void TAccount::Load(NCellMaster::TLoadContext& context)
     MergeJobThrottler_->SetLimit(MergeJobRateLimit_);
 }
 
-void TAccount::SetLocalStatisticsPtr(TAccountStatistics *value) {
+void TAccount::SetLocalStatisticsPtr(TAccountStatistics *value)
+{
     LocalStatisticsPtr_ = value;
 }
 
 const TAccountStatistics& TAccount::LocalStatistics()
 {
     return *LocalStatisticsPtr_;
-}
-
-void TAccount::IncreaseLocalStatistics(const TAccountStatistics& delta)
-{
-    *LocalStatisticsPtr_ += delta;
 }
 
 void TAccount::SetLocalStatistics(const TAccountStatistics& statistics)
@@ -425,14 +421,14 @@ void TAccount::AttachChild(const std::string& key, TAccount* child) noexcept
     TNonversionedMapObjectBase<TAccount>::AttachChild(key, child);
 
     const auto& childLocalStatistics = child->LocalStatistics();
-    const auto& childClusterStatistics = child->ClusterStatistics();
     const auto& childMasterMemoryUsage = child->DetailedMasterMemoryUsage();
+
+    const auto& securityManager = GetBootstrap()->GetSecurityManager();
 
     for (auto* account = this; account; account = account->GetParent()) {
         auto& masterMemoryUsage = account->DetailedMasterMemoryUsage();
 
-        account->IncreaseLocalStatistics(childLocalStatistics);
-        account->IncreaseClusterStatistics(childClusterStatistics);
+        securityManager->IncreaseLocalAndClusterAccountStatistics(account, childLocalStatistics);
 
         masterMemoryUsage += childMasterMemoryUsage;
     }
@@ -443,14 +439,14 @@ void TAccount::DetachChild(TAccount* child) noexcept
     TNonversionedMapObjectBase<TAccount>::DetachChild(child);
 
     const auto& childLocalStatistics = child->LocalStatistics();
-    const auto& childClusterStatistics = child->ClusterStatistics();
     const auto& childMasterMemoryUsage = child->DetailedMasterMemoryUsage();
+
+    const auto& securityManager = GetBootstrap()->GetSecurityManager();
 
     for (auto* account = this; account; account = account->GetParent()) {
         auto& masterMemoryUsage = account->DetailedMasterMemoryUsage();
 
-        account->IncreaseLocalStatistics(-childLocalStatistics);
-        account->IncreaseClusterStatistics(-childClusterStatistics);
+        securityManager->IncreaseLocalAndClusterAccountStatistics(account, -childLocalStatistics);
 
         masterMemoryUsage -= childMasterMemoryUsage;
     }
