@@ -1178,6 +1178,61 @@ A typical example of a `SemilatticeRT` side effect is executing `UPSERT` to a ta
 SELECT WithSideEffects(MyModule::Func(...)) FROM table
 ```
 
+## ToDynamicLinear
+
+#### Signature
+
+```yql
+ToDynamicLinear(Linear<T>)->DynamicLinear<T>
+```
+
+Added in version [2025.04](../changelog/2025.04.md).
+`ToDynamicLinear` converts a value from a static [linear](../types/linear.md) type to a dynamic one.
+
+## FromDynamicLinear
+
+#### Signature
+
+```yql
+FromDynamicLinear(DynamicLinear<T>)->Linear<T>
+```
+
+Added in version [2025.04](../changelog/2025.04.md).
+`FromDynamicLinear` converts a value from a dynamic [linear](../types/linear.md) type to a static one.
+
+## LinearDestroy
+
+#### Signature
+
+```yql
+LinearDestroy(T, [Linear<U1>...])->T
+```
+
+Added in version [2025.05](../changelog/2025.05.md).
+This function returns its first parameter, consuming 0 or more [linear](../types/linear.md) type values listed after the first parameter.
+
+## Block
+
+#### Signature
+
+```yql
+Block(lambda((dependsOnArgument)->T))->T
+```
+
+Added in version [2025.04](../changelog/2025.04.md).
+`Block` executes a lambda with one parameter and returns its output value. The type of this parameter is undefined because it should only be used as a dependent node.
+Dependent nodes are nodes used to control the computation of non-deterministic functions, such as [Random](#random), or functions that create values of [linear](../types/linear.md) types.
+
+#### Example
+
+```yql
+SELECT Block(($arg)->{
+    $dict = ToMutDict({'key1':123}, $arg); -- используем зависимый узел при создании значения линейного типа
+    $dict = MutDictInsert($dict, 'key2', 456);
+    return FromMutDict($dict);
+}); -- {'key1':123, 'key2': 456}
+```
+
 ## EvaluateExpr, EvaluateAtom {#evaluate_expr_atom}
 
 Evaluate an expression before the start of the main calculation and input its result to the query as a literal (constant). In many contexts where the standard SQL would only expect a constant (for example in table names, number of rows in [LIMIT](../syntax/select/limit_offset.md), and so on), this functionality is automatically activated implicitly.
