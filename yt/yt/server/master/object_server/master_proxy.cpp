@@ -544,7 +544,7 @@ private:
             auto schema = New<TCompactTableSchema>(entry.schema());
 
             // NB: Schema lifetime is managed by cross-cell copy transaction.
-            auto masterTableSchema = tableManager->GetOrCreateNativeMasterTableSchema(schema, transaction);
+            auto masterTableSchema = tableManager->GetOrCreateNativeMasterTableSchema(std::move(schema), transaction);
 
             auto* rspEntry = response->add_old_to_new_schema_id();
             ToProto(rspEntry->mutable_old_schema_id(), oldSchemaId);
@@ -808,7 +808,7 @@ private:
         auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
 
         const auto& tableManager = Bootstrap_->GetTableManager();
-        auto result = tableManager->GetOrCreateNativeMasterTableSchema(schema, transaction);
+        auto result = tableManager->GetOrCreateNativeMasterTableSchema(std::move(schema), transaction);
         ToProto(response->mutable_schema_id(), result->GetId());
 
         context->SetResponseInfo(
