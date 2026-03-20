@@ -60,8 +60,12 @@ public:
         TGuid tag,
         TTagSet tagSet,
         TEventTimerGuard volumeCreateTimeGuard,
-        const TUserSandboxOptions& options,
-        const std::vector<TOverlayData>& overlayDataArray);
+        int userId,
+        const std::optional<TString>& placePath,
+        std::optional<int> diskSpaceLimit,
+        std::optional<int> inodeLimit,
+        const std::vector<TOverlayData>& overlayDataArray,
+        bool placeInUserSlot);
 
     TFuture<TVolumeMeta> CreateSquashFSVolume(
         TGuid tag,
@@ -227,8 +231,12 @@ private:
         TGuid tag,
         TTagSet tagSet,
         TEventTimerGuard volumeCreateTimeGuard,
-        const TUserSandboxOptions& options,
-        const std::vector<TOverlayData>& overlayDataArray);
+        int userId,
+        const std::optional<TString>& placePath,
+        std::optional<int> diskSpaceLimit,
+        std::optional<int> inodeLimit,
+        const std::vector<TOverlayData>& overlayDataArray,
+        bool placeInUserSlot);
 
     TVolumeMeta DoCreateSquashFSVolume(
         TGuid tag,

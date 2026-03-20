@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "artifact.h"
 
 #include <yt/yt/server/lib/scheduler/public.h>
 
@@ -110,6 +111,11 @@ struct TTmpfsVolumeParams
 
     // COMPAT(krasovav)
     int Index = 0;
+
+    TJobId JobId;
+
+    TArtifactDownloadOptions ArtifactDownloadOptions;
+    std::vector<TArtifactKey> LayerArtifactKeys;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

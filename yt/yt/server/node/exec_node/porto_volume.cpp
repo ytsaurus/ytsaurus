@@ -368,19 +368,22 @@ TOverlayVolume::TOverlayVolume(
     TTagSet tagSet,
     TVolumeMeta volumeMeta,
     TLayerLocationPtr location,
-    std::vector<TOverlayData> overlayDataArray)
+    std::vector<TOverlayData> overlayDataArray,
+    IVolumePtr volumeForUpperLayer)
     : TPortoVolumeBase(
         std::move(tagSet),
         std::move(volumeMeta),
         std::move(location))
     , OverlayDataArray_(std::move(overlayDataArray))
+    , VolumeForUpperLayer_(std::move(volumeForUpperLayer))
 {
     SetRemoveCallback(BIND(
         &TOverlayVolume::DoRemove,
         TagSet_,
         LayerLocation_,
         VolumeMeta_,
-        OverlayDataArray_));
+        OverlayDataArray_,
+        VolumeForUpperLayer_));
 }
 
 TOverlayVolume::~TOverlayVolume()
@@ -397,17 +400,28 @@ TFuture<void> TOverlayVolume::DoRemove(
     TTagSet tagSet,
     TLayerLocationPtr location,
     TVolumeMeta volumeMeta,
-    std::vector<TOverlayData> overlayDataArray)
+    std::vector<TOverlayData> overlayDataArray,
+    IVolumePtr volumeForUpperLayer)
 {
     // At first remove overlay volume, then remove constituent volumes and layers.
-    auto postRemovalCleanup = BIND_NO_PROPAGATE([overlayDataArray = std::move(overlayDataArray)] (const TLogger&) mutable -> TFuture<void> {
-        std::vector<TFuture<void>> futures;
-        futures.reserve(overlayDataArray.size());
-        for (auto& overlayData : overlayDataArray) {
-            futures.push_back(overlayData.Remove());
+    auto postRemovalCleanup = BIND_NO_PROPAGATE([
+            overlayDataArray = std::move(overlayDataArray),
+            volumeForUpperLayer = std::move(volumeForUpperLayer)
+        ] (const TLogger&) mutable -> TFuture<void> {
+            std::vector<TFuture<void>> futures;
+            futures.reserve(overlayDataArray.size());
+            for (auto& overlayData : overlayDataArray) {
+                futures.push_back(overlayData.Remove());
+            }
+
+            if (volumeForUpperLayer) {
+                futures.push_back(volumeForUpperLayer->Remove());
+            }
+
+            return AllSucceeded(std::move(futures))
+                .ToUncancelable();
         }
-        return AllSucceeded(std::move(futures));
-    });
+    );
 
     return DoRemoveVolumeCommon(
         "Overlay",

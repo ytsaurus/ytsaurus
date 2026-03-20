@@ -117,7 +117,7 @@ private:
     void ConfigureDockerImage(const NControllerAgent::NProto::TUserJobSpec* userJobSpec);
     void ConfigureUdfArtifacts(const NControllerAgent::NProto::TJobSpecExt& jobSpecExt);
     void ConfigureNbdDeviceIds();
-    void ConfigureVolumes(const NControllerAgent::NProto::TUserJobSpec* userJobSpec, int userId, bool hasNbdServer);
+    void ConfigureVolumes(const NControllerAgent::NProto::TUserJobSpec* userJobSpec, int userId, TJobId jobId, bool hasNbdServer);
 
     void MarkArtifactsAccessedViaVirtualSandbox(const NControllerAgent::NProto::TUserJobSpec* userJobSpec);
     void MarkArtifactsAccessedViaBind();

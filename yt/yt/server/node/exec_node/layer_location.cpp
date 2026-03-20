@@ -194,8 +194,12 @@ TFuture<TVolumeMeta> TLayerLocation::CreateOverlayVolume(
     TGuid tag,
     TTagSet tagSet,
     TEventTimerGuard volumeCreateTimeGuard,
-    const TUserSandboxOptions& options,
-    const std::vector<TOverlayData>& overlayDataArray)
+    int userId,
+    const std::optional<TString>& placePath,
+    std::optional<int> diskSpaceLimit,
+    std::optional<int> inodeLimit,
+    const std::vector<TOverlayData>& overlayDataArray,
+    bool placeInUserSlot)
 {
     return BIND(
         &TLayerLocation::DoCreateOverlayVolume,
@@ -203,8 +207,12 @@ TFuture<TVolumeMeta> TLayerLocation::CreateOverlayVolume(
         tag,
         Passed(std::move(tagSet)),
         Passed(std::move(volumeCreateTimeGuard)),
-        options,
-        overlayDataArray)
+        userId,
+        placePath,
+        diskSpaceLimit,
+        inodeLimit,
+        overlayDataArray,
+        placeInUserSlot)
         .AsyncVia(LocationQueue_->GetInvoker())
         .Run();
 }
@@ -1083,62 +1091,39 @@ TVolumeMeta TLayerLocation::DoCreateOverlayVolume(
     TGuid tag,
     TTagSet tagSet,
     TEventTimerGuard volumeCreateTimeGuard,
-    const TUserSandboxOptions& options,
-    const std::vector<TOverlayData>& overlayDataArray)
+    int userId,
+    const std::optional<TString>& placePath,
+    std::optional<int> diskSpaceLimit,
+    std::optional<int> inodeLimit,
+    const std::vector<TOverlayData>& overlayDataArray,
+    bool placeInUserSlot)
 {
     ValidateEnabled();
 
-    // Place overlayfs (upper and work directories) in root volume, if it is present.
-    std::optional<TString> placePath;
-    for (const auto& overlayData : overlayDataArray) {
-        if (overlayData.IsVolume() && overlayData.GetVolume()->IsRootVolume()) {
-            if (placePath) {
-                THROW_ERROR_EXCEPTION("Can not have multiple root volumes in overlay volume")
-                    << TErrorAttribute("first_root_volume", placePath)
-                    << TErrorAttribute("second_root_volume", overlayData.GetPath());
-            }
-            // See PORTO-460 for "//" prefix.
-            placePath = "//" + overlayData.GetPath();
+    TString portoPlacePath;
 
-            YT_LOG_DEBUG("Place overlay volume in NBD volume (PortoPlace: %v)",
-                placePath);
-        }
-    }
-
-    std::optional<std::string> portoPlacePath;
-    if (options.EnableRootVolumeDiskQuota && !options.SlotPath.empty() && !placePath) {
-        // Plant porto place for overlay volume in user slot.
-        portoPlacePath = NFS::CombinePaths(
-            options.SlotPath,
-            GetSandboxRelPath(ESandboxKind::PortoPlace));
-
-        // See PORTO-460 for "//" prefix.
-        placePath = (Config_->LocationIsAbsolute ? "" : "//") + portoPlacePath.value();
-
-        YT_LOG_DEBUG("Place overlay volume in user slot (PortoPlace: %v)",
-            placePath);
-    } else if (!placePath) {
-        placePath = PlacePath_;
+    if (!placePath) {
+        portoPlacePath = PlacePath_;
         YT_LOG_DEBUG("Place overlay volume in layer location (PortoPlace: %v)",
             placePath);
+    } else {
+        // See PORTO-460 for "//" prefix.
+        portoPlacePath = (Config_->LocationIsAbsolute ? "" : "//") + placePath.value();
     }
 
     THashMap<TString, TString> volumeProperties = {
         {"backend", "overlay"},
-        {"user", ToString(options.UserId)},
+        {"user", ToString(userId)},
         {"permissions", "0777"},
-        {"place", placePath.value()},
+        {"place", portoPlacePath},
     };
 
-    // NB: Root volume quota is independent from sandbox quota but enforces the same limits.
-    if (options.EnableDiskQuota && options.EnableRootVolumeDiskQuota) {
-        if (options.DiskSpaceLimit) {
-            volumeProperties["space_limit"] = ToString(*options.DiskSpaceLimit);
-        }
+    if (diskSpaceLimit) {
+        volumeProperties["space_limit"] = ToString(*diskSpaceLimit);
+    }
 
-        if (options.InodeLimit) {
-            volumeProperties["inode_limit"] = ToString(*options.InodeLimit);
-        }
+    if (inodeLimit) {
+        volumeProperties["inode_limit"] = ToString(*inodeLimit);
     }
 
     TStringBuilder builder;
@@ -1170,7 +1155,8 @@ TVolumeMeta TLayerLocation::DoCreateOverlayVolume(
         std::move(volumeCreateTimeGuard),
         std::move(volumeMeta),
         std::move(volumeProperties),
-        std::move(portoPlacePath));
+        // TODO(krasovav): refactor it
+        placeInUserSlot ? std::move(placePath) : std::nullopt);
 }
 
 TVolumeMeta TLayerLocation::DoCreateSquashFSVolume(
