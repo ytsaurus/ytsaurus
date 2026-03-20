@@ -90,7 +90,8 @@ public:
     TFuture<std::vector<TTmpfsVolumeResult>> PrepareTmpfsVolumes(
         const std::optional<TString>& sandboxPath,
         const std::vector<TTmpfsVolumeParams>& volumes,
-        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts) override
+        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts,
+        const TArtifactDownloadOptions&) override
     {
         YT_VERIFY(sandboxPath);
         // Create debug tag.
@@ -558,7 +559,8 @@ public:
     TFuture<std::vector<TTmpfsVolumeResult>> PrepareTmpfsVolumes(
         const std::optional<TString>&,
         const std::vector<TTmpfsVolumeParams>& volumes,
-        const std::vector<NScheduler::TVolumeMountPtr>&) override
+        const std::vector<NScheduler::TVolumeMountPtr>&,
+        const TArtifactDownloadOptions& artifactDownloadOptions) override
     {
         // Create debug tag.
         auto tag = TGuid::Create();
@@ -567,7 +569,7 @@ public:
         futures.reserve(volumes.size());
         for (const auto& volume : volumes) {
             // TODO: Remove call PrepareOverlayLayers (YT-27698)
-            futures.push_back(AllSucceeded(PrepareOverlayLayers(volume.LayerArtifactKeys, tag, volume.JobId, volume.ArtifactDownloadOptions))
+            futures.push_back(AllSucceeded(PrepareOverlayLayers(volume.LayerArtifactKeys, tag, volume.JobId, artifactDownloadOptions))
                 .AsUnique()
                 .Apply(BIND(
                     [

@@ -114,7 +114,6 @@ struct TTmpfsVolumeParams
 
     TJobId JobId;
 
-    TArtifactDownloadOptions ArtifactDownloadOptions;
     std::vector<TArtifactKey> LayerArtifactKeys;
 };
 

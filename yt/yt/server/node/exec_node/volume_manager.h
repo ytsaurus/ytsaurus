@@ -25,7 +25,8 @@ struct IVolumeManager
     virtual TFuture<std::vector<TTmpfsVolumeResult>> PrepareTmpfsVolumes(
         const std::optional<TString>& sandboxPath,
         const std::vector<TTmpfsVolumeParams>& volumes,
-        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts) = 0;
+        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts,
+        const TArtifactDownloadOptions& artifactDownloadOptions) = 0;
 
     //! TODO(yuryalekeev): Remove this method after we get rid of rbind volume.
     virtual TFuture<IVolumePtr> RbindRootVolume(
