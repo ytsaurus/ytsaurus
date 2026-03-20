@@ -186,7 +186,6 @@ public:
                 }
             }));
 
-
         return pipe->GetReader();
     }
 
