@@ -23,7 +23,8 @@ bool TVersionedChunkMetaCacheKey::operator==(const TVersionedChunkMetaCacheKey& 
     return
         ChunkId == other.ChunkId &&
         TableSchemaKeyColumnCount == other.TableSchemaKeyColumnCount &&
-        PreparedColumnarMeta == other.PreparedColumnarMeta;
+        PreparedColumnarMeta == other.PreparedColumnarMeta &&
+        CompressedBlockLastKeys == other.CompressedBlockLastKeys;
 }
 
 TVersionedChunkMetaCacheKey::operator size_t() const
@@ -31,7 +32,8 @@ TVersionedChunkMetaCacheKey::operator size_t() const
     return MultiHash(
         ChunkId,
         TableSchemaKeyColumnCount,
-        PreparedColumnarMeta);
+        PreparedColumnarMeta,
+        CompressedBlockLastKeys);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -72,12 +74,14 @@ public:
         const TTableSchemaPtr& schema,
         const TClientChunkReadOptions& chunkReadOptions,
         std::optional<i64> metaSize,
-        bool prepareColumnarMeta) override
+        bool prepareColumnarMeta,
+        bool compressBlockLastKeys) override
     {
         TVersionedChunkMetaCacheKey key{
             chunkReader->GetChunkId(),
             schema->GetKeyColumnCount(),
-            prepareColumnarMeta
+            prepareColumnarMeta,
+            compressBlockLastKeys
         };
 
         TFuture<TVersionedChunkMetaCacheEntryPtr> future;
@@ -89,7 +93,9 @@ public:
                 .MetaSize = metaSize,
             })
                 .Apply(BIND(
-                    &TCachedVersionedChunkMeta::Create,
+                    (compressBlockLastKeys
+                        ? &TCachedVersionedChunkMeta::CreateWithCompressedBlockLastKeys
+                        : &TCachedVersionedChunkMeta::Create),
                     prepareColumnarMeta,
                     MemoryUsageTracker_))
                 .AsUnique().Apply(BIND(
@@ -122,7 +128,11 @@ public:
             return false;
         }
 
-        auto cachedMeta = TCachedVersionedChunkMeta::Create(
+        auto cachedMeta = (
+            key.CompressedBlockLastKeys
+                ? &TCachedVersionedChunkMeta::CreateWithCompressedBlockLastKeys
+                : &TCachedVersionedChunkMeta::Create)
+            (
             key.PreparedColumnarMeta,
             MemoryUsageTracker_,
             meta);

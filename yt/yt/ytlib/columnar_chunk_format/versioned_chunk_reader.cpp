@@ -764,13 +764,28 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     auto keyColumnIndexes = ExtractKeyColumnIndexes(columnFilter, tableKeyColumnCount, IsKeys(readItems));
 
     auto preparedChunkMeta = chunkMeta->GetPreparedChunkMeta();
-    auto windowsList = BuildReadWindows(
-        readItems,
-        chunkMeta->BlockLastKeys(),
-        preparedChunkMeta->BlockChunkRowCounts,
-        chunkMeta->Misc().row_count(),
-        tableKeyColumnCount,
-        chunkMeta->GetChunkKeyColumnCount());
+
+    std::vector<TSpanMatching> windowsList;
+    if constexpr (std::is_same_v<std::decay_t<TReadItems>, TKeysWithHints>) {
+        windowsList = BuildReadWindows(
+            readItems,
+            {},
+            preparedChunkMeta->BlockChunkRowCounts,
+            chunkMeta->Misc().row_count(),
+            {},
+            {});
+    } else if (const auto* compressedBlockLastKeys = chunkMeta->GetCompressedBlockLastKeys()) {
+        windowsList = compressedBlockLastKeys->BuildReadListForWindow(readItems, *tableSchema);
+    } else {
+        windowsList = BuildReadWindows(
+            readItems,
+            chunkMeta->BlockLastKeys(),
+            preparedChunkMeta->BlockChunkRowCounts,
+            chunkMeta->Misc().row_count(),
+            tableKeyColumnCount,
+            chunkMeta->GetChunkKeyColumnCount());
+    }
+
     readerStatistics->BuildReadWindowsTime = getDurationAndReset();
 
     auto valuesIdMapping = chunkColumnMapping

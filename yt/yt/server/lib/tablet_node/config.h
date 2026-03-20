@@ -335,6 +335,7 @@ struct TCustomTableMountConfig
 
     bool SingleColumnGroupByDefault;
     bool SkipValueBlocksForMissingKeys;
+    bool CompressBlockLastKeys;
 
     bool EnableHunkColumnarProfiling;
 

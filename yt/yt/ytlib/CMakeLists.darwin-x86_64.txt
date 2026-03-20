@@ -434,6 +434,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/misc/memory_usage_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/misc/synchronizer_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/columnar_chunk_format/column_block_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/columnar_chunk_format/compressed_block_last_keys.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/columnar_chunk_format/memory_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/columnar_chunk_format/prepared_meta.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/columnar_chunk_format/rowset_builder.cpp

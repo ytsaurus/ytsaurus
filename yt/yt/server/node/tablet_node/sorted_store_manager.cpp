@@ -1102,6 +1102,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
                             .ChunkId = storeWriter->GetChunkId(),
                             .TableSchemaKeyColumnCount = tabletSnapshot->PhysicalSchema->GetKeyColumnCount(),
                             .PreparedColumnarMeta = true,
+                            .CompressedBlockLastKeys = tabletSnapshot->Settings.MountConfig->CompressBlockLastKeys,
                         },
                         New<TRefCountedChunkMeta>(*finalizedMeta));
                 }

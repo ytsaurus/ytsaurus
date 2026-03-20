@@ -66,9 +66,10 @@ i64 TXorFilterMeta::GetMemoryUsage() const
 
 TCachedVersionedChunkMeta::TCachedVersionedChunkMeta(
     bool prepareColumnarMeta,
+    bool compressBlockLastKeys,
     const IMemoryUsageTrackerPtr& memoryTracker,
     const NChunkClient::NProto::TChunkMeta& chunkMeta)
-    : TColumnarChunkMeta(chunkMeta)
+    : TColumnarChunkMeta(chunkMeta, compressBlockLastKeys)
     , ColumnarMetaPrepared_(prepareColumnarMeta && ChunkFormat_ == EChunkFormat::TableVersionedColumnar)
 {
     if (ChunkType_ != EChunkType::Table) {
@@ -115,6 +116,19 @@ TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::Create(
 {
     return New<TCachedVersionedChunkMeta>(
         prepareColumnarMeta,
+        /*compressBlockLastKeys*/ false,
+        memoryTracker,
+        *chunkMeta);
+}
+
+TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::CreateWithCompressedBlockLastKeys(
+    bool prepareColumnarMeta,
+    const IMemoryUsageTrackerPtr& memoryTracker,
+    const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta)
+{
+    return New<TCachedVersionedChunkMeta>(
+        prepareColumnarMeta,
+        /*compressBlockLastKeys*/ true,
         memoryTracker,
         *chunkMeta);
 }

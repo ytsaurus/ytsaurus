@@ -462,6 +462,9 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("skip_value_blocks_for_missing_keys", &TThis::SkipValueBlocksForMissingKeys)
         .Default(false);
 
+    registrar.Parameter("compress_block_last_keys", &TThis::CompressBlockLastKeys)
+        .Default(false);
+
     registrar.Parameter("enable_hunk_columnar_profiling", &TThis::EnableHunkColumnarProfiling)
         .Default(false);
 

@@ -555,12 +555,15 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             chunkReadOptions.MemoryUsageTracker);
     }
 
-    auto chunkMeta = FindCachedVersionedChunkMeta(/*prepareColumnMeta*/ true);
+    bool compressBlockLastKeys = tabletSnapshot->Settings.MountConfig->CompressBlockLastKeys;
+
+    auto chunkMeta = FindCachedVersionedChunkMeta(/*prepareColumnMeta*/ true, compressBlockLastKeys);
     if (!chunkMeta) {
         chunkMeta = WaitForFast(GetCachedVersionedChunkMeta(
             backendReaders.ChunkReader,
             chunkReadOptions,
-            /*prepareColumnMeta*/ true))
+            /*prepareColumnMeta*/ true,
+            compressBlockLastKeys))
             .ValueOrThrow();
     }
 
@@ -828,7 +831,9 @@ private:
             return OKFuture;
         }
 
-        if (auto chunkMeta = chunk->FindCachedVersionedChunkMeta(/*prepareColumnMeta*/ true)) {
+        bool compressBlockLastKeys = tabletSnapshot->Settings.MountConfig->CompressBlockLastKeys;
+
+        if (auto chunkMeta = chunk->FindCachedVersionedChunkMeta(/*prepareColumnMeta*/ true, compressBlockLastKeys)) {
             return OnGotChunkMeta(
                 chunk,
                 tabletSnapshot,
@@ -843,7 +848,8 @@ private:
             return chunk->GetCachedVersionedChunkMeta(
                 backendReaders.ChunkReader,
                 chunkReadOptions,
-                /*prepareColumnMeta*/ true)
+                /*prepareColumnMeta*/ true,
+                compressBlockLastKeys)
                 .AsUnique().Apply(BIND([
                     =,
                     this,

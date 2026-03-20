@@ -77,6 +77,11 @@ public:
         const IMemoryUsageTrackerPtr& memoryTracker,
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta);
 
+    static TCachedVersionedChunkMetaPtr CreateWithCompressedBlockLastKeys(
+        bool preparedColumnarMeta,
+        const IMemoryUsageTrackerPtr& memoryTracker,
+        const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta);
+
     bool IsColumnarMetaPrepared() const;
 
     i64 GetMemoryUsage() const override;
@@ -90,6 +95,7 @@ public:
 private:
     TCachedVersionedChunkMeta(
         bool prepareColumnarMeta,
+        bool compressBlockLastKeys,
         const IMemoryUsageTrackerPtr& memoryTracker,
         const NChunkClient::NProto::TChunkMeta& chunkMeta);
 
