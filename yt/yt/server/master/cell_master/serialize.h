@@ -162,6 +162,7 @@ DEFINE_ENUM(EMasterReign,
     ((PersistLastCellAggregatedStateReliability)                    (3210))  // aleksandra-zh
     ((ReduceSchemaModeAndOptimizeFor)                               (3211))  // cherepashka
     ((AccountStatisticsUpdatesInGossip)                             (3212))  // theevilbird
+    ((FixResolveForSourcePathInCopy)                                (3213))  // cherepashka
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

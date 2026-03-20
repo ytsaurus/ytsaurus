@@ -2055,8 +2055,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
         mode);
 
     const auto& cypressManager = Bootstrap_->GetCypressManager();
-    // TODO(cherepashka): fix this.
-    auto sourceProxy = cypressManager->TryResolvePathToNodeProxy(sourcePath, /*method*/ "", /*service*/ "", Transaction_);
+    auto sourceProxy = cypressManager->TryResolvePathToNodeProxy(sourcePath, context->GetMethod(), context->GetService(), Transaction_);
     if (!sourceProxy) {
         THROW_ERROR_EXCEPTION(
             NObjectClient::EErrorCode::CrossCellAdditionalPath,
