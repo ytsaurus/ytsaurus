@@ -112,10 +112,12 @@ struct TTmpfsVolumeParams
     // COMPAT(krasovav)
     int Index = 0;
 
-    TJobId JobId;
-
     std::vector<TArtifactKey> LayerArtifactKeys;
+
+    bool operator==(const TTmpfsVolumeParams&) const = default;
 };
+
+void FormatValue(TStringBuilderBase* builder, const TTmpfsVolumeParams& params, TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

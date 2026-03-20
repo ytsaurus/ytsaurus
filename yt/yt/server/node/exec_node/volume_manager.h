@@ -24,6 +24,7 @@ struct IVolumeManager
     //! Prepare tmpfs volumes.
     virtual TFuture<std::vector<TTmpfsVolumeResult>> PrepareTmpfsVolumes(
         const std::optional<TString>& sandboxPath,
+        const TJobId& jobId,
         const std::vector<TTmpfsVolumeParams>& volumes,
         const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts,
         const TArtifactDownloadOptions& artifactDownloadOptions) = 0;

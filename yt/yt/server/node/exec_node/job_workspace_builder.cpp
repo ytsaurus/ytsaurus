@@ -383,9 +383,19 @@ private:
         }
 
         const auto& slot = Context_.Slot;
-        const auto& artifactDownloadOptions = Context_.ArtifactDownloadOptions;
-        return slot->PrepareTmpfsVolumes(ResultHolder_.RootVolume, volumes, Context_.UserSandboxOptions.JobVolumeMounts, artifactDownloadOptions, Context_.TestRootFS)
-            .AsUnique().Apply(BIND([slot, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
+        return slot->PrepareTmpfsVolumes(
+            Context_.Job->GetId(),
+            ResultHolder_.RootVolume,
+            volumes,
+            Context_.UserSandboxOptions.JobVolumeMounts,
+            Context_.ArtifactDownloadOptions,
+            Context_.TestRootFS)
+            .AsUnique().Apply(BIND([
+                jobId = Context_.Job->GetId(),
+                slot,
+                this,
+                this_ = MakeStrong(this)
+            ] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
                 if (!volumeResultsOrError.IsOK()) {
                     THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::TmpfsVolumePreparationFailed, "Failed to prepare tmpfs volumes")
                         << volumeResultsOrError;
@@ -393,7 +403,8 @@ private:
 
                 auto& volumeResults = volumeResultsOrError.Value();
 
-                YT_LOG_DEBUG("Prepared tmpfs volumes (Volumes: %v)",
+                YT_LOG_DEBUG(
+                    "Prepared tmpfs volumes (Volumes: %v)",
                     MakeFormattableView(volumeResults,
                         [] (auto* builder, const TTmpfsVolumeResult& result) {
                             builder->AppendFormat("{VolumeId: %v, VolumePath: %v}",
@@ -563,7 +574,8 @@ private:
         if (!layerArtifactKeys.empty()) {
             SetNowTime(TimePoints_.PrepareRootVolumeStartTime);
 
-            YT_LOG_INFO("Preparing root volume (LayerCount: %v, HasVirtualSandbox: %v)",
+            YT_LOG_INFO(
+                "Preparing root volume (LayerCount: %v, HasVirtualSandbox: %v)",
                 layerArtifactKeys.size(),
                 Context_.UserSandboxOptions.VirtualSandboxData.has_value());
 
@@ -626,14 +638,13 @@ private:
         }
 
         const auto& slot = Context_.Slot;
-        const auto& artifactDownloadOptions = Context_.ArtifactDownloadOptions;
         return slot->PrepareTmpfsVolumes(
+            Context_.Job->GetId(),
             ResultHolder_.RootVolume,
             volumes,
             Context_.UserSandboxOptions.JobVolumeMounts,
-            artifactDownloadOptions,
-            Context_.TestRootFS
-        )
+            Context_.ArtifactDownloadOptions,
+            Context_.TestRootFS)
             .AsUnique()
             .Apply(
                 BIND([slot, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
@@ -644,13 +655,15 @@ private:
 
                     Context_.PreparedTmpfsVolumes = std::move(volumeResultsOrError.Value());
 
-                    YT_LOG_DEBUG("Prepared tmpfs volumes (Volumes: %v)",
-                    MakeFormattableView(Context_.PreparedTmpfsVolumes,
-                        [] (auto* builder, const TTmpfsVolumeResult& result) {
-                            builder->AppendFormat("{VolumeId: %v, VolumePath: %v}",
-                                result.VolumeId,
-                                result.Volume->GetPath());
-                        }));
+                    YT_LOG_DEBUG(
+                        "Prepared tmpfs volumes (Volumes: %v)",
+                        MakeFormattableView(
+                            Context_.PreparedTmpfsVolumes,
+                            [] (auto* builder, const TTmpfsVolumeResult& result) {
+                                builder->AppendFormat("{VolumeId: %v, VolumePath: %v}",
+                                    result.VolumeId,
+                                    result.Volume->GetPath());
+                            }));
                     SetNowTime(TimePoints_.PrepareTmpfsVolumesFinishTime);
                 })
                 .AsyncVia(Invoker_))
@@ -671,7 +684,8 @@ private:
         if (!layerArtifactKeys.empty()) {
             SetNowTime(TimePoints_.PrepareGpuCheckVolumeStartTime);
 
-            YT_LOG_INFO("Preparing GPU check volume (LayerCount: %v)",
+            YT_LOG_INFO(
+                "Preparing GPU check volume (LayerCount: %v)",
                 layerArtifactKeys.size());
 
             for (const auto& layer : layerArtifactKeys) {
@@ -759,7 +773,8 @@ private:
                         << error;
                 }
 
-                YT_LOG_DEBUG("Linked tmpfs volumes (Volumes: %v)",
+                YT_LOG_DEBUG(
+                    "Linked tmpfs volumes (Volumes: %v)",
                     MakeFormattableView(volumeResults,
                         [] (auto* builder, const TTmpfsVolumeResult& result) {
                             builder->AppendFormat("{VolumeId: %v, VolumePath: %v}",
@@ -1076,9 +1091,20 @@ private:
         }
 
         const auto& slot = Context_.Slot;
-        const auto& artifactDownloadOptions = Context_.ArtifactDownloadOptions;
-        return slot->PrepareTmpfsVolumes(ResultHolder_.RootVolume, volumes, Context_.UserSandboxOptions.JobVolumeMounts, artifactDownloadOptions, Context_.TestRootFS)
-            .AsUnique().Apply(BIND([slot, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
+        return slot->PrepareTmpfsVolumes(
+            Context_.Job->GetId(),
+            ResultHolder_.RootVolume,
+            volumes,
+            Context_.UserSandboxOptions.JobVolumeMounts,
+            Context_.ArtifactDownloadOptions,
+            Context_.TestRootFS)
+            .AsUnique()
+            .Apply(BIND([
+                jobId = Context_.Job->GetId(),
+                slot,
+                this,
+                this_ = MakeStrong(this)
+            ] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
                 if (!volumeResultsOrError.IsOK()) {
                     THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::TmpfsVolumePreparationFailed, "Failed to prepare tmpfs volumes")
                         << volumeResultsOrError;
@@ -1086,7 +1112,8 @@ private:
 
                 auto& volumeResults = volumeResultsOrError.Value();
 
-                YT_LOG_DEBUG("Prepared tmpfs volumes (Volumes: %v)",
+                YT_LOG_DEBUG(
+                    "Prepared tmpfs volumes (Volumes: %v)",
                     MakeFormattableView(volumeResults,
                         [] (auto* builder, const TTmpfsVolumeResult& result) {
                             builder->AppendFormat("{VolumeId: %v, VolumePath: %v}",
