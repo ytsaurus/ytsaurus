@@ -224,8 +224,6 @@ void ProfileResources(
             ITERATE_JOB_RESOURCES(XX)
             #undef XX
             break;
-        default:
-            YT_ABORT();
     }
 }
 
