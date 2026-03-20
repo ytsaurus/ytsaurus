@@ -944,7 +944,7 @@ void AddImportSnapshotToPipeline(
     })
     | GroupByKey()
     | "AggregatePathStatistic" >> MakeParDo<TFinalParDo>(media)
-    | YtSortedWrite(NYT::TRichYPath{destinationTable}.OptimizeFor(EOptimizeForAttr::OF_LOOKUP_ATTR), outputSchema);
+    | YtSortedWrite(destinationTable, outputSchema);
 }
 
 
@@ -1002,6 +1002,7 @@ void ImportSnapshotMain(int argc, const char** argv)
     opts.AddLongOption("force").NoArgument();
     opts.AddLongOption("cluster-to-lookup"); // This is only needed for testing
     opts.AddLongOption("memory-limit").DefaultValue(8_GB);
+    opts.AddLongOption("destination-table-chunk-size").DefaultValue(100_MB);
 
     NLastGetopt::TOptsParseResult r(&opts, argc, argv);
 
@@ -1025,6 +1026,7 @@ void ImportSnapshotMain(int argc, const char** argv)
     bool force = r.Has("force");
     TString clusterToLookup = r.GetOrElse("cluster-to-lookup", cluster); // This is only needed for testing
     i64 memoryLimit = FromString<i64>(r.Get("memory-limit"));
+    i64 destinationTableChunkSize = FromString<i64>(r.Get("destination-table-chunk-size"));
 
     NYT::TConfig::Get()->Token = LoadResourceUsageToken();
 
@@ -1094,6 +1096,14 @@ void ImportSnapshotMain(int argc, const char** argv)
     pipeline.Run();
 
     for (const auto& [snapshotId, tmpDestinationTable, realDestinationTable] : Zip(snapshots, tmpDestinationTablesNames, realDestinationTablesNames)) {
+        auto mergeTableOutput = NYT::TMergeOperationSpec()
+            .Mode(EMergeMode::MM_ORDERED)
+            .ForceTransform(true)
+            .AddInput(tmpDestinationTable)
+            .Output(tmpDestinationTable)
+            .DataSizePerJob(destinationTableChunkSize);
+        client->Merge(mergeTableOutput);
+
         auto alterTableOptions = NYT::TAlterTableOptions().Dynamic(true);
         client->AlterTable(tmpDestinationTable, alterTableOptions);
 
