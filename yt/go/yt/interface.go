@@ -683,6 +683,23 @@ type ListJobsResult struct {
 type GetJobStderrOptions struct {
 }
 
+type ListOperationEventsOptions struct {
+	EventType *OperationEventType `http:"event_type,omitnil"`
+	Limit     *uint64             `http:"limit,omitnil"`
+}
+
+type OperationEvent struct {
+	Timestamp               yson.Time                         `yson:"timestamp"`
+	EventType               OperationEventType                `yson:"event_type"`
+	Incarnation             *string                           `yson:"incarnation,omitempty"`
+	IncarnationSwitchReason *OperationIncarnationSwitchReason `yson:"incarnation_switch_reason,omitempty"`
+	IncarnationSwitchInfo   yson.RawValue                     `yson:"incarnation_switch_info,omitempty"`
+}
+
+type ListOperationEventsResult struct {
+	Events []OperationEvent
+}
+
 type GetOperationOptions struct {
 	Attributes     []string `http:"attributes,omitnil"`
 	IncludeRuntime *bool    `http:"include_runtime,omitnil"`
@@ -846,6 +863,14 @@ type LowLevelSchedulerClient interface {
 		jobID JobID,
 		options *GetJobStderrOptions,
 	) (r []byte, err error)
+
+	// http:verb:"list_operation_events"
+	// http:params:"operation_id"
+	ListOperationEvents(
+		ctx context.Context,
+		opID OperationID,
+		options *ListOperationEventsOptions,
+	) (r *ListOperationEventsResult, err error)
 }
 
 type AddMemberOptions struct {
