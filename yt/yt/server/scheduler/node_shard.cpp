@@ -181,13 +181,8 @@ TNodeShardGlobalSensors::TNodeShardGlobalSensors(TNodeShard* nodeShard)
         return NodeShard_->GetTotalNodeCount();
     });
 
-    for (auto reason : TEnumTraitsImpl<EUnutilizedResourceReason>::GetDomainValues()) {
-        UnutilizedResourcesCounterByReason_[reason].Init(
-            globalProfiler
-                .WithPrefix("/unutilized_node_resources")
-                .WithTag("reason", FormatEnum(reason)),
-            EMetricType::Counter);
-    }
+    UnutilizedResourcesProducer_ = New<TBufferedProducer>();
+    globalProfiler.AddProducer("/unutilized_node_resources", UnutilizedResourcesProducer_);
 }
 
 void TNodeShardGlobalSensors::UpdateRunningAllocationProfilingCounter(const TAllocationPtr& allocation, int value)
@@ -277,6 +272,10 @@ TNodeShard::TNodeShard(
         GetInvoker(),
         BIND(&TNodeShard::SubmitAllocationsToStrategy, MakeWeak(this)),
         Config_->NodeShardSubmitAllocationsToStrategyPeriod))
+    , UpdateUnutilizedResourcesSensorsExecutor_(New<TPeriodicExecutor>(
+        GetInvoker(),
+        BIND(&TNodeShard::UpdateUnutilizedResourcesSensors, MakeWeak(this)),
+        Config_->UnutilizedResourcesSensorsUpdatePeriod))
 { }
 
 int TNodeShard::GetId() const
@@ -297,6 +296,7 @@ void TNodeShard::UpdateConfig(const TSchedulerConfigPtr& config)
 
     SubmitAllocationsToStrategyExecutor_->SetPeriod(config->NodeShardSubmitAllocationsToStrategyPeriod);
     CachedExecNodeDescriptorsRefresher_->SetPeriod(config->NodeShardExecNodesCacheUpdatePeriod);
+    UpdateUnutilizedResourcesSensorsExecutor_->SetPeriod(config->UnutilizedResourcesSensorsUpdatePeriod);
     ResourceStatisticsByTagsCache_->SetExpirationTimeout(Config_->SchedulingTagFilterExpireTimeout);
 }
 
@@ -320,6 +320,7 @@ IInvokerPtr TNodeShard::OnMasterConnected(const TNodeShardMasterHandshakeResultP
 
     CachedExecNodeDescriptorsRefresher_->Start();
     SubmitAllocationsToStrategyExecutor_->Start();
+    UpdateUnutilizedResourcesSensorsExecutor_->Start();
 
     return CancelableInvoker_;
 }
@@ -354,6 +355,7 @@ void TNodeShard::DoCleanup()
     CancelableInvoker_.Reset();
 
     YT_UNUSED_FUTURE(CachedExecNodeDescriptorsRefresher_->Stop());
+    YT_UNUSED_FUTURE(UpdateUnutilizedResourcesSensorsExecutor_->Stop());
 
     for (const auto& [nodeId, node] : IdToNode_) {
         TLeaseManager::CloseLease(node->GetRegistrationLease());
@@ -1544,6 +1546,24 @@ void TNodeShard::UpdateAllocationPreemptibleProgressStartTime(const TAllocationP
     }
 }
 
+void TNodeShard::UpdateCumulativeUnutilizedResources(
+    const EUnutilizedResourceReason reason,
+    const TJobResources& resources,
+    const TCompactVector<NProfiling::TTag, 2>& tags)
+{
+    auto& cumulativeResources = CumulativeUnutilizedResources_[reason];
+    auto it = std::find_if(
+        cumulativeResources.begin(),
+        cumulativeResources.end(),
+        [&] (const auto& entry) { return entry.first == tags; });
+
+    if (it != cumulativeResources.end()) {
+        it->second += resources;
+    } else {
+        cumulativeResources.emplace_back(std::move(tags), resources);
+    }
+}
+
 NStrategy::TAllocationUpdate& TNodeShard::AddAllocationUpdateToSubmitToStrategy(
     const TAllocationPtr& allocation,
     TNonNullPtr<TOperationState> operationState)
@@ -2392,6 +2412,32 @@ void TNodeShard::SubmitAllocationsToStrategy()
     }
 }
 
+void TNodeShard::UpdateUnutilizedResourcesSensors()
+{
+    if (!GlobalSensors_) {
+        return;
+    }
+
+    TSensorBuffer buffer;
+    for (auto reason : TEnumTraits<EUnutilizedResourceReason>::GetDomainValues()) {
+        auto it = CumulativeUnutilizedResources_.find(reason);
+        if (it == CumulativeUnutilizedResources_.end()) {
+            continue;
+        }
+
+        TWithTagGuard reasonTagGuard(&buffer, "reason", FormatEnum(reason));
+        for (const auto& [tags, resources] : it->second) {
+            TWithTagGuard tagsGuard(&buffer);
+            for (const auto& tag : tags) {
+                tagsGuard.AddTag(tag);
+            }
+            ProfileResources(&buffer, resources, "", NProfiling::EMetricType::Counter);
+        }
+    }
+
+    GlobalSensors_->UnutilizedResourcesProducer()->Update(std::move(buffer));
+}
+
 void TNodeShard::SetAllocationState(const TAllocationPtr& allocation, const EAllocationState state)
 {
     YT_VERIFY(state != EAllocationState::Scheduled);
@@ -2456,7 +2502,8 @@ void TNodeShard::UpdateUnutilizedResourceCounters(
         if (unutilizedResources[reason]) {
             auto unutilizedVolume = unutilizedResources[reason].value() * secondsSinceLastUpdate;
             if (GlobalSensors_) {
-                GlobalSensors_->UnutilizedResourcesCounterByReason()[reason].Update(
+                UpdateCumulativeUnutilizedResources(
+                    reason,
                     unutilizedVolume,
                     {
                         {ProfilingPoolTreeKey, poolTree.value_or(ProfilingUndefinedPoolTreeValue)},

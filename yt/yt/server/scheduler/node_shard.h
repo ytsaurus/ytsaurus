@@ -77,8 +77,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NProfiling::TCounter, HeartbeatResponseProtoMessageBytes);
     DEFINE_BYREF_RO_PROPERTY(NProfiling::TCounter, HeartbeatRegisteredControllerAgentsBytes);
 
-    using TUnutilizedResourcesCounterByReason = TEnumIndexedArray<EUnutilizedResourceReason, TJobResourcesProfiler>;
-    DEFINE_BYREF_RW_PROPERTY(TUnutilizedResourcesCounterByReason, UnutilizedResourcesCounterByReason);
+    DEFINE_BYREF_RO_PROPERTY(NProfiling::TBufferedProducerPtr, UnutilizedResourcesProducer);
 
 public:
     explicit TNodeShardGlobalSensors(TNodeShard* nodeShard);
@@ -267,6 +266,10 @@ private:
 
     TIntrusivePtr<TNodeShardGlobalSensors> GlobalSensors_;
 
+    using TCumulativeUnutilizedResourcesPerTags = std::pair<TCompactVector<NProfiling::TTag, 2>, TJobResources>;
+    using TCumulativeUnutilizedResources = THashMap<EUnutilizedResourceReason, std::vector<TCumulativeUnutilizedResourcesPerTags>>;
+    TCumulativeUnutilizedResources CumulativeUnutilizedResources_;
+
     THashMap<TAllocationId, NStrategy::TAllocationUpdate> AllocationsToSubmitToStrategy_;
     std::atomic<int> SubmitToStrategyAllocationCount_;
 
@@ -287,6 +290,8 @@ private:
     NConcurrency::TPeriodicExecutorPtr RemoveOutdatedScheduleAllocationEntryExecutor_;
 
     NConcurrency::TPeriodicExecutorPtr SubmitAllocationsToStrategyExecutor_;
+
+    NConcurrency::TPeriodicExecutorPtr UpdateUnutilizedResourcesSensorsExecutor_;
 
     using TShardEpoch = ui64;
 
@@ -386,6 +391,8 @@ private:
 
     void SubmitAllocationsToStrategy();
 
+    void UpdateUnutilizedResourcesSensors();
+
     void ProcessScheduledAndPreemptedAllocations(
         const NStrategy::NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         NProto::NNode::TRspHeartbeat* response);
@@ -465,6 +472,11 @@ private:
     void AddRegisteredControllerAgentsToResponse(auto* response);
 
     void UpdateAllocationPreemptibleProgressStartTime(const TAllocationPtr& allocation, TInstant newPreemptibleProgressStartTime);
+
+    void UpdateCumulativeUnutilizedResources(
+        const EUnutilizedResourceReason reason,
+        const TJobResources& resources,
+        const TCompactVector<NProfiling::TTag, 2>& tags);
 
     NStrategy::TAllocationUpdate& AddAllocationUpdateToSubmitToStrategy(
         const TAllocationPtr& allocation,

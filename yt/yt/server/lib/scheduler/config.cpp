@@ -1368,6 +1368,9 @@ void TSchedulerConfig::Register(TRegistrar registrar)
     registrar.Parameter("operation_actions_allowed_for_pool_managers", &TThis::OperationActionsAllowedForPoolManagers)
         .Default();
 
+    registrar.Parameter("unutilized_resources_sensors_update_period", &TThis::UnutilizedResourcesSensorsUpdatePeriod)
+        .Default(TDuration::Seconds(1));
+
     registrar.Preprocessor([&] (TThis* config) {
         config->OperationServiceResponseKeeper->EnableWarmup = false;
     });
