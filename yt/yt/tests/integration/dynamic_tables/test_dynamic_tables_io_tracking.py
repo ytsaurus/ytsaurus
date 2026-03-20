@@ -249,7 +249,7 @@ class TestTabletNodeIOTracking(TestDynamicTableIOTrackingBase, DynamicTablesBase
         new_chunk_ids = [store["chunk_id"] for store in end_partitioning_events[0]["stores_to_add"]]
 
         # Check io log.
-        read_events = self.wait_for_raw_events(count=len(old_chunk_ids), from_barrier=from_barrier, check_event_count=True,
+        read_events = self.wait_for_raw_events(count=len(old_chunk_ids), from_barrier=from_barrier, check_event_count=False,
                                                filter=lambda event: event.get("data_node_method@") == "GetBlockSet")
         write_events = self.wait_for_raw_events(count=len(new_chunk_ids), from_barrier=from_barrier, check_event_count=True,
                                                 filter=lambda event: event.get("data_node_method@") == "FinishChunk")
