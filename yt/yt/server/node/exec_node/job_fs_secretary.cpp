@@ -71,7 +71,7 @@ void TJobFSSecretary::ConfigureFromSpec(
     }
     MarkArtifactsAccessedViaBind();
 
-    ConfigureVolumes(userJobSpec, userId, hasNbdServer);
+    ConfigureVolumes(userJobSpec, userId, jobId, hasNbdServer);
 
     ConfigureNbdDeviceIds();
 }
@@ -121,10 +121,6 @@ void TJobFSSecretary::ConfigureLayerArtifacts(const TUserJobSpec* userJobSpec)
 {
     if (!userJobSpec) {
         return;
-    }
-
-    for (const auto& layerKey : userJobSpec->root_volume_layers()) {
-        RootVolumeLayerArtifactKeys_.emplace_back(layerKey);
     }
 
     for (const auto& layerKey : userJobSpec->gpu_check_volume_layers()) {
@@ -226,7 +222,7 @@ void TJobFSSecretary::ConfigureNbdDeviceIds()
     }
 }
 
-void TJobFSSecretary::ConfigureVolumes(const TUserJobSpec* userJobSpec, int userId, bool hasNbdServer)
+void TJobFSSecretary::ConfigureVolumes(const TUserJobSpec* userJobSpec, int userId, TJobId jobId, bool hasNbdServer)
 {
     if (!userJobSpec) {
         return;
@@ -243,12 +239,20 @@ void TJobFSSecretary::ConfigureVolumes(const TUserJobSpec* userJobSpec, int user
         using TProtoMessage = NControllerAgent::NProto::TVolume;
         switch (protoVolume.disk_request_case()) {
             case TProtoMessage::DISK_REQUEST_NOT_SET:
+                for (const auto& layerKey : protoVolume.layers()) {
+                    RootVolumeLayerArtifactKeys_.emplace_back(layerKey);
+                }
+
                 break;
             case TProtoMessage::kLocalDiskRequest: {
                 const auto& localDiskRequest = protoVolume.local_disk_request();
                 RootVolumeDiskSpace_ = localDiskRequest.disk_request().storage_request_common_parameters().disk_space();
                 if (localDiskRequest.disk_request().has_inode_count()) {
                     RootVolumeInodeLimit_ = localDiskRequest.disk_request().inode_count();
+                }
+
+                for (const auto& layerKey : protoVolume.layers()) {
+                    RootVolumeLayerArtifactKeys_.emplace_back(layerKey);
                 }
                 break;
             }
@@ -261,6 +265,10 @@ void TJobFSSecretary::ConfigureVolumes(const TUserJobSpec* userJobSpec, int user
                 TSandboxNbdRootVolumeData sandboxNbdData;
                 NExecNode::FromProto(&sandboxNbdData, protoVolume.nbd_disk_request());
                 SandboxNbdRootVolumeData_ = std::move(sandboxNbdData);
+
+                for (const auto& layerKey : protoVolume.layers()) {
+                    RootVolumeLayerArtifactKeys_.emplace_back(layerKey);
+                }
                 break;
             }
             case TProtoMessage::kTmpfsStorageRequest: {
@@ -268,6 +276,11 @@ void TJobFSSecretary::ConfigureVolumes(const TUserJobSpec* userJobSpec, int user
                 NExecNode::FromProto(&tmpfsVolume, protoVolume.tmpfs_storage_request());
                 tmpfsVolume.UserId = userId;
                 tmpfsVolume.VolumeId = volumeId;
+                tmpfsVolume.JobId = jobId;
+
+                for (const auto& layerKey : protoVolume.layers()) {
+                    tmpfsVolume.LayerArtifactKeys.emplace_back(layerKey);
+                }
                 TmpfsVolumeParams_.push_back(std::move(tmpfsVolume));
                 break;
             }

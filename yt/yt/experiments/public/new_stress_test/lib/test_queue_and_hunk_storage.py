@@ -92,14 +92,13 @@ class Queue:
         if mounted:
             self.unmount()
         yt.move(self.path, new_path)
-        if mounted:
-            self.mount()
 
         moved_queue = Queue(self.base_path, name, self.tablet_count)
         moved_queue.hunk_storage_mounted = self.hunk_storage_mounted
         moved_queue.hunk_storage_name = self.hunk_storage_name
         moved_queue.data_path = f"{self.base_path}/{name}.data"
         moved_queue.create_data_table()
+
         return moved_queue
 
     def mount(self):

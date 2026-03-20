@@ -1702,14 +1702,14 @@ void TChunkOwnerNodeProxy::ReplicateEndUploadRequestToExternalCell(
 
 TMasterTableSchema* TChunkOwnerNodeProxy::CalculateEffectiveMasterTableSchema(
     TChunkOwnerBase* node,
-    const TCompactTableSchemaPtr& schema,
+    TCompactTableSchemaPtr schema,
     TMasterTableSchemaId schemaId,
     TTransaction* schemaHolder)
 {
     const auto& tableManager = Bootstrap_->GetTableManager();
     if (node->IsNative()) {
         if (schema) {
-            return tableManager->GetOrCreateNativeMasterTableSchema(schema, schemaHolder);
+            return tableManager->GetOrCreateNativeMasterTableSchema(std::move(schema), schemaHolder);
         }
 
         if (schemaId) {
@@ -1722,7 +1722,7 @@ TMasterTableSchema* TChunkOwnerNodeProxy::CalculateEffectiveMasterTableSchema(
     YT_VERIFY(schemaId);
 
     if (schema) {
-        return tableManager->CreateImportedTemporaryMasterTableSchema(schema, schemaHolder, schemaId);
+        return tableManager->CreateImportedTemporaryMasterTableSchema(std::move(schema), schemaHolder, schemaId);
     }
 
     return tableManager->GetMasterTableSchema(schemaId);
@@ -1903,7 +1903,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
             tableSchema,
             tableSchemaId);
 
-        uploadContext.TableSchema = CalculateEffectiveMasterTableSchema(node, tableSchema, tableSchemaId, uploadTransaction);
+        uploadContext.TableSchema = CalculateEffectiveMasterTableSchema(node, std::move(tableSchema), tableSchemaId, uploadTransaction);
 
         // NB: Chunk schema is at least as strict as the table schema, possibly more strict.
         // Thus we can send extra information only when they differ, and otherwise treat them the same way.
@@ -1915,7 +1915,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                 /*tableSchemaFromConstrainedSchema*/ nullptr,
                 /*isChunkSchema*/ true);
 
-            uploadContext.ChunkSchema = CalculateEffectiveMasterTableSchema(node, chunkSchema, chunkSchemaId, uploadTransaction);
+            uploadContext.ChunkSchema = CalculateEffectiveMasterTableSchema(node, std::move(chunkSchema), chunkSchemaId, uploadTransaction);
             ToProto(response->mutable_upload_chunk_schema_id(), uploadContext.ChunkSchema->GetId());
         } else {
             ToProto(response->mutable_upload_chunk_schema_id(), uploadContext.TableSchema->GetId());

@@ -641,6 +641,19 @@ DEFINE_REFCOUNTED_TYPE(TUserBanDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTestingTabletNodeDynamicConfig
+    : public NYTree::TYsonStructLite
+{
+    // Overrides tablet reign. Should only be used in tests.
+    NHydra::TReign ReignOverride;
+
+    REGISTER_YSON_STRUCT_LITE(TTestingTabletNodeDynamicConfig)
+
+    static void Register(TRegistrar registrar);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TTabletNodeDynamicConfig
     : public NYTree::TYsonStruct
 {
@@ -700,6 +713,8 @@ struct TTabletNodeDynamicConfig
     bool EnableSnapshotNetworkThrottling;
 
     NChaosClient::TChaosReplicationCardUpdatesBatcherDynamicConfigPtr ChaosReplicationCardUpdatesBatcher;
+
+    TTestingTabletNodeDynamicConfig Testing;
 
     REGISTER_YSON_STRUCT(TTabletNodeDynamicConfig);
 

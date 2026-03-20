@@ -109,6 +109,11 @@
 
 #if defined(OS_LINUX)
 #include <contrib/ydb/core/nbs/cloud/blockstore/bootstrap/bootstrap.h>
+#include <contrib/ydb/core/nbs/cloud/blockstore/libs/storage/api/ss_proxy.h>
+#include <contrib/ydb/core/nbs/cloud/blockstore/libs/storage/ss_proxy/ss_proxy.h>
+#include <contrib/ydb/core/nbs/cloud/blockstore/config/protos/storage.pb.h>
+#include <contrib/ydb/core/nbs/cloud/blockstore/libs/storage/volume/volume.h>
+#include <contrib/ydb/core/nbs/cloud/blockstore/libs/storage/partition_direct/partition_direct.h>
 #endif
 
 #include <contrib/ydb/core/mon/mon.h>
@@ -239,6 +244,7 @@
 #include <contrib/ydb/library/actors/helpers/selfping_actor.h>
 #include <contrib/ydb/library/actors/http/http_proxy.h>
 #include <contrib/ydb/library/actors/interconnect/interconnect.h>
+#include <contrib/ydb/library/actors/interconnect/interconnect_host_metrics_aggregator.h>
 #include <contrib/ydb/library/actors/interconnect/interconnect_mon.h>
 #include <contrib/ydb/library/actors/interconnect/interconnect_tcp_proxy.h>
 #include <contrib/ydb/library/actors/interconnect/interconnect_proxy_wrapper.h>
@@ -410,6 +416,9 @@ static TInterconnectSettings GetInterconnectSettings(const NKikimrConfig::TInter
         case NKikimrConfig::TInterconnectConfig::PER_DATA_CENTER:
             result.MergePerDataCenterCounters = true;
             break;
+        case NKikimrConfig::TInterconnectConfig::PER_HOST:
+            result.MergePerHostCounters = true;
+            break;
         case NKikimrConfig::TInterconnectConfig::NO_MERGE:
             break;
     }
@@ -498,6 +507,31 @@ static TInterconnectSettings GetInterconnectSettings(const NKikimrConfig::TInter
     }
 
     result.EnableExternalDataChannel = config.GetEnableExternalDataChannel();
+    result.EnableKernelLiveness = false;
+    if (config.GetUseKernelKeepAlive()) {
+        result.EnableKernelLiveness = true;
+
+        result.KernelUserTimeout = result.DeadPeer != TDuration::Zero()
+            ? result.DeadPeer
+            : NActors::DEFAULT_DEADPEER_TIMEOUT;
+        // Keep kernel liveness approximately aligned to KernelUserTimeout while keeping the setup simple.
+        // Target budget on idle links is:
+        //   KernelKeepAliveIdle + KernelKeepAliveInterval * KernelKeepAliveProbes ~= KernelUserTimeout.
+        // Interval is derived from timeout and probes are fixed for predictable behavior.
+        result.KernelKeepAliveInterval = Max(result.KernelUserTimeout / 10, TDuration::Seconds(1));
+        constexpr ui32 keepAliveProbes = 5;
+        result.KernelKeepAliveProbes = keepAliveProbes;
+
+        const ui64 userTimeoutMs = result.KernelUserTimeout.MilliSeconds();
+        const ui64 keepAliveIntervalMs = result.KernelKeepAliveInterval.MilliSeconds();
+        const ui64 keepAliveWindowMs = keepAliveIntervalMs * keepAliveProbes;
+        // Use the remaining budget as keepalive idle. If interval*probes already consumes timeout,
+        // clamp idle to 1s to keep socket options valid and avoid disabling kernel mode.
+        const ui64 keepAliveIdleMs = userTimeoutMs > keepAliveWindowMs
+            ? userTimeoutMs - keepAliveWindowMs
+            : TDuration::Seconds(1).MilliSeconds();
+        result.KernelKeepAliveIdle = Max(TDuration::MilliSeconds(keepAliveIdleMs), TDuration::Seconds(1));
+    }
 
     if (config.HasValidateIncomingPeerViaDirectLookup()) {
         result.ValidateIncomingPeerViaDirectLookup = config.GetValidateIncomingPeerViaDirectLookup();
@@ -775,6 +809,13 @@ void TBasicServicesInitializer::InitializeServices(NActors::TActorSystemSetup* s
                     NInterconnect::CreateInterconnectMonActor(icCommon), TMailboxType::ReadAsFilled, systemPoolId));
             }
 
+            if (settings.MergePerHostCounters) {
+                icCommon->HostMetricsAggregatorId = NActors::NInterconnectHostMetrics::MakeInterconnectHostMetricsAggregatorId(NodeId);
+                setup->LocalServices.emplace_back(icCommon->HostMetricsAggregatorId, TActorSetupCmd(
+                    NActors::NInterconnectHostMetrics::CreateInterconnectHostMetricsAggregatorActor(icCommon),
+                    TMailboxType::ReadAsFilled, interconnectPoolId));
+            }
+
             if (nsConfig.HasClusterUUID()) {
                 icCommon->ClusterUUID = nsConfig.GetClusterUUID();
             }
@@ -1012,6 +1053,19 @@ void TBasicServicesInitializer::InitializeServices(NActors::TActorSystemSetup* s
                 TActorSetupCmd(NRetroTracing::CreateRetroCollector(), TMailboxType::ReadAsFilled,
                         appData->BatchPoolId));
     }
+
+#if defined(OS_LINUX)
+    if (Config.HasNbsConfig() && Config.GetNbsConfig().GetEnabled()) {
+        auto ssProxy = NYdb::NBS::NStorage::CreateSSProxy(Config.GetNbsConfig().GetNbsStorageConfig());
+
+        setup->LocalServices.emplace_back(
+            NYdb::NBS::NStorage::MakeSSProxyServiceId(),
+            TActorSetupCmd(
+                ssProxy.release(),
+                TMailboxType::Revolving,
+                appData->UserPoolId));
+    }
+#endif
 }
 
 // TImmediateControlBoardInitializer
@@ -1225,6 +1279,10 @@ void TLocalServiceInitializer::InitializeServices(
     addToLocalConfig(TTabletTypes::StatisticsAggregator, &NStat::CreateStatisticsAggregator, TMailboxType::ReadAsFilled, appData->UserPoolId);
     addToLocalConfig(TTabletTypes::GraphShard, &NGraph::CreateGraphShard, TMailboxType::ReadAsFilled, appData->UserPoolId);
     addToLocalConfig(TTabletTypes::BackupController, &NBackup::CreateBackupController, TMailboxType::ReadAsFilled, appData->UserPoolId);
+#if defined(OS_LINUX)
+    addToLocalConfig(TTabletTypes::BlockStoreVolumeDirect, &NYdb::NBS::NStorage::CreateVolumeTablet, TMailboxType::ReadAsFilled, appData->UserPoolId);
+    addToLocalConfig(TTabletTypes::BlockStorePartitionDirect, &NYdb::NBS::NBlockStore::NStorage::NPartitionDirect::CreatePartitionTablet, TMailboxType::ReadAsFilled, appData->UserPoolId);
+#endif
 
     TTenantPoolConfig::TPtr tenantPoolConfig = new TTenantPoolConfig(Config.GetTenantPoolConfig(), localConfig);
     if (!tenantPoolConfig->IsEnabled && !tenantPoolConfig->StaticSlots.empty())
@@ -2291,7 +2349,7 @@ void TKqpServiceInitializer::InitializeServices(NActors::TActorSystemSetup* setu
 
         auto s3ActorsFactory = NYql::NDq::CreateS3ActorsFactory();
         auto proxy = NKqp::CreateKqpProxyService(Config.GetLogConfig(), Config.GetTableServiceConfig(),
-            Config.GetQueryServiceConfig(), std::move(settings), Factories->QueryReplayBackendFactory, std::move(kqpProxySharedResources),
+            Config.GetQueryServiceConfig(), Config.GetTliConfig(), std::move(settings), Factories->QueryReplayBackendFactory, std::move(kqpProxySharedResources),
             federatedQuerySetupFactory, s3ActorsFactory
         );
         setup->LocalServices.push_back(std::make_pair(
@@ -3205,7 +3263,8 @@ void TNbsServiceInitializer::InitializeServices(NActors::TActorSystemSetup *setu
     Y_UNUSED(setup);
     Y_UNUSED(appData);
 
-    NYdb::NBS::NBlockStore::CreateNbsService();
+    const auto& config = Config.GetNbsConfig();
+    NYdb::NBS::NBlockStore::CreateNbsService(config);
 }
 
 #endif

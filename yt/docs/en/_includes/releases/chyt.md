@@ -8,6 +8,19 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**2.18.1**" %}
+
+**Release date:** 2026-03-04
+
+
+**Fixes:**
+
+* Fix accounting of empty statistics in TColumnarStatisticsFetcher after failed fetch (75c3baf)
+
+
+{% endcut %}
+
+
 {% cut "**2.18.0**" %}
 
 **Release date:** 2026-01-20
@@ -32,6 +45,7 @@ Is released as a docker image.
 - Fix multithreaded write to secondaryProgress from different pipes, [8db79f4](https://github.com/ytsaurus/ytsaurus/commit/8db79f457cf71f0e00b8f65bd079aa03aaa9ad52).
 
 {% endcut %}
+
 
 {% cut "**2.17.4**" %}
 

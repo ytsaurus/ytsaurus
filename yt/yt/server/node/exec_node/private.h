@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "artifact.h"
 
 #include <yt/yt/server/lib/scheduler/public.h>
 
@@ -17,6 +18,14 @@ namespace NYT::NExecNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 inline const TString ArtifactMetaSuffix(".artifact");
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline const TString MountSuffix = "mount";
+inline const TString VolumesName = "volumes";
+inline const TString LayersName = "porto_layers";
+inline const TString LayersMetaName = "layers_meta";
+inline const TString VolumesMetaName = "volumes_meta";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -102,6 +111,11 @@ struct TTmpfsVolumeParams
 
     // COMPAT(krasovav)
     int Index = 0;
+
+    TJobId JobId;
+
+    TArtifactDownloadOptions ArtifactDownloadOptions;
+    std::vector<TArtifactKey> LayerArtifactKeys;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

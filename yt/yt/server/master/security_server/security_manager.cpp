@@ -476,6 +476,7 @@ public:
             EIncumbentType::SecurityManager)
         , UserActivityTracker_(CreateUserActivityTracker(bootstrap))
         , RequestTracker_(New<TRequestTracker>(Bootstrap_->GetConfig()->SecurityManager->UserThrottler, bootstrap))
+        , BufferedProducer_(New<TBufferedProducer>())
     {
         RegisterLoader(
             "SecurityManager.Keys",
@@ -566,6 +567,11 @@ public:
             .TimeCounter("/check_permission_cumulative_time");
         AclIterationTimeCounter_ = perCellPermissionValidationProfiler
             .TimeCounter("/acl_iteration_cumulative_time");
+
+        SecurityProfiler()
+            .WithGlobal()
+            .WithTag("cell_tag", ToString(Bootstrap_->GetMulticellManager()->GetCellTag()))
+            .AddProducer("", BufferedProducer_);
     }
 
     void OnAccountsProfiling()
@@ -735,7 +741,7 @@ public:
         ChargeAccountAncestry(
             account,
             [&] (TAccount* account) {
-                UpdateLocalAndClusterAccountStatistics(account, statisticsDelta);
+                IncreaseLocalAndClusterAccountStatistics(account, statisticsDelta);
             });
     }
 
@@ -1176,7 +1182,7 @@ public:
                     statisticsDelta.CommittedResourceUsage.AddToMediumDiskSpace(mediumIndex, diskSpace);
                 }
 
-                UpdateLocalAndClusterAccountStatistics(account, statisticsDelta);
+                IncreaseLocalAndClusterAccountStatistics(account, statisticsDelta);
             });
     }
 
@@ -1509,7 +1515,7 @@ public:
             [&] (TAccount* account) {
                 auto statisticsDelta = TAccountStatistics(resources, TClusterResources());
 
-                UpdateLocalAndClusterAccountStatistics(account, statisticsDelta);
+                IncreaseLocalAndClusterAccountStatistics(account, statisticsDelta);
             });
 
         if (transaction) {
@@ -1521,7 +1527,7 @@ public:
                 [&] (TAccount* account) {
                     auto statisticsDelta = TAccountStatistics(TClusterResources(), resources);
 
-                    UpdateLocalAndClusterAccountStatistics(account, std::move(statisticsDelta));
+                    IncreaseLocalAndClusterAccountStatistics(account, statisticsDelta);
                 });
         }
     }
@@ -1563,7 +1569,7 @@ public:
                     resourceUsageDelta,
                     committed ? resourceUsageDelta : TClusterResources());
 
-                UpdateLocalAndClusterAccountStatistics(account, statisticsDelta);
+                IncreaseLocalAndClusterAccountStatistics(account, statisticsDelta);
             });
     }
 
@@ -2920,6 +2926,15 @@ public:
 
     DEFINE_SIGNAL_OVERRIDE(void(TUser*, const TUserWorkload&), UserCharged);
 
+    void IncreaseLocalAndClusterAccountStatistics(TAccount* account, const TAccountStatistics& delta) override
+    {
+        if (delta == TAccountStatistics()) {
+            return;
+        }
+        account->IncreaseStatistics(delta);
+        AddStatisticsUpdateToGossipQueue(account);
+    }
+
 private:
     friend class TAccountTypeHandler;
     friend class TAccountResourceUsageLeaseTypeHandler;
@@ -2942,11 +2957,17 @@ private:
     TPeriodicExecutorPtr AccountStatisticsGossipExecutor_;
     TPeriodicExecutorPtr MembershipClosureRecomputeExecutor_;
     TPeriodicExecutorPtr AccountMasterMemoryUsageUpdateExecutor_;
+    TPeriodicExecutorPtr AccountStatisticsGossipProfilingExecutor_;
+
+    TBufferedProducerPtr BufferedProducer_;
 
     NHydra::TEntityMap<TAccount> AccountMap_;
     THashMap<std::string, TAccount*> AccountNameMap_;
 
     NHydra::TEntityMap<TAccountResourceUsageLease> AccountResourceUsageLeaseMap_;
+
+    std::list<TAccountId> AccountStatisticsUpdatesGossipQueue_;
+    THashSet<TAccountId> AccountsAwaitingGossipDispatch_;
 
     TAccountId RootAccountId_;
     TAccount* RootAccount_ = nullptr;
@@ -3259,6 +3280,15 @@ private:
             ->CommitAndLog(Logger()));
     }
 
+    void OnProfiling()
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        TSensorBuffer buffer;
+        buffer.AddGauge("/account_statistics_gossip_queue_size", AccountStatisticsUpdatesGossipQueue_.size());
+        BufferedProducer_->Update(std::move(buffer));
+    }
+
 
     void DoAddMember(TGroup* group, TSubject* member)
     {
@@ -3303,6 +3333,7 @@ private:
         ProxyRoleMap_.SaveValues(context);
         AccountResourceUsageLeaseMap_.SaveValues(context);
         Save(context, IsChunkHostCell_);
+        Save(context, AccountStatisticsUpdatesGossipQueue_);
     }
 
 
@@ -3330,6 +3361,13 @@ private:
         AccountResourceUsageLeaseMap_.LoadValues(context);
 
         Load(context, IsChunkHostCell_);
+        // COMPAT(theevilbird)
+        if (context.GetVersion() >= EMasterReign::AccountStatisticsUpdatesInGossip) {
+            Load(context, AccountStatisticsUpdatesGossipQueue_);
+            for (auto accountId : AccountStatisticsUpdatesGossipQueue_) {
+                EmplaceOrCrash(AccountsAwaitingGossipDispatch_, accountId);
+            }
+        }
     }
 
     void OnAfterSnapshotLoaded() override
@@ -4088,6 +4126,13 @@ private:
         return true;
     }
 
+    void OnRecoveryStarted() override
+    {
+        TMasterAutomatonPart::OnRecoveryStarted();
+
+        BufferedProducer_->SetEnabled(false);
+    }
+
 
     void OnRecoveryComplete() override
     {
@@ -4126,6 +4171,14 @@ private:
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::SecurityManager),
             BIND(&TSecurityManager::CommitAccountMasterMemoryUsage, MakeWeak(this)));
         AccountMasterMemoryUsageUpdateExecutor_->Start();
+
+        AccountStatisticsGossipProfilingExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
+            BIND(&TSecurityManager::OnProfiling, MakeWeak(this)),
+            TDynamicSecurityManagerConfig::DefaultProfilingPeriod);
+        AccountStatisticsGossipProfilingExecutor_->Start();
+
+        BufferedProducer_->SetEnabled(true);
     }
 
     bool NeedsAccountProfiling() const
@@ -4180,6 +4233,13 @@ private:
             YT_UNUSED_FUTURE(AccountsProfilingExecutor_->Stop());
             AccountsProfilingExecutor_.Reset();
         }
+
+        if (AccountStatisticsGossipProfilingExecutor_) {
+            YT_UNUSED_FUTURE(AccountStatisticsGossipProfilingExecutor_->Stop());
+            AccountStatisticsGossipProfilingExecutor_.Reset();
+        }
+
+        BufferedProducer_->SetEnabled(false);
     }
 
     void OnStopFollowing() override
@@ -4251,9 +4311,11 @@ private:
         account->DetailedMasterMemoryUsage() = multicellStatistics[selfCellTag].ResourceUsage.DetailedMasterMemory();
     }
 
-    void UpdateLocalAndClusterAccountStatistics(TAccount* account, const TAccountStatistics& delta)
+    void AddStatisticsUpdateToGossipQueue(TAccount* account)
     {
-        account->IncreaseStatistics(delta);
+        if (AccountsAwaitingGossipDispatch_.emplace(account->GetId()).second) {
+            AccountStatisticsUpdatesGossipQueue_.emplace_back(account->GetId());
+        }
     }
 
     void OnAccountStatisticsGossip()
@@ -4273,10 +4335,56 @@ private:
         }
 
         if (multicellManager->IsPrimaryMaster()) {
+            SendAccountStatisticsGossipFromPrimaryCell();
+        } else {
+            SendAccountStatisticsGossipFromSecondaryCells();
+        }
+    }
+
+    void SendAccountStatisticsGossipFromPrimaryCell()
+    {
+        // For each secondary cell, account statistics are being combined and sent.
+        // Note, however, that every cell receives the sum of all other cells' information with it's own data excluded.
+        // This is done because cell statistics on the primary master might be outdated for any particular cell.
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+
+        if (GetDynamicConfig()->SendOnlyUpdatesInAccountGossip) {
+            auto batchSize = Bootstrap_->GetConfigManager()->GetConfig()->SecurityManager->PrimaryCellAccountGossipBatchSize;
+            YT_LOG_INFO("Sending statistics gossip message with updated accounts to secondary cells (BatchSize: %v, AccountStatisticsUpdatesGossipQueueSize: %v)",
+                batchSize,
+                AccountStatisticsUpdatesGossipQueue_.size());
+            THashMap<TCellTag, NProto::TReqSetAccountStatistics> cellTagToRequest;
+            for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
+                cellTagToRequest.emplace(cellTag, NProto::TReqSetAccountStatistics());
+            }
+
+            for (int batchMessageIndex = 0; batchMessageIndex < batchSize && !AccountStatisticsUpdatesGossipQueue_.empty(); ++batchMessageIndex) {
+                auto accountId = AccountStatisticsUpdatesGossipQueue_.front();
+                AccountsAwaitingGossipDispatch_.erase(accountId);
+                AccountStatisticsUpdatesGossipQueue_.pop_front();
+
+                auto* account = FindAccount(accountId);
+                if (!IsObjectAlive(account)) {
+                    continue;
+                }
+
+                const auto& clusterStatistics = account->ClusterStatistics();
+                for (auto& [cellTag, request] : cellTagToRequest) {
+                    const auto& cellStatistics = GetOrCrash(account->MulticellStatistics(), cellTag);
+                    auto* entry = request.add_entries();
+                    ToProto(entry->mutable_account_id(), account->GetId());
+                    ToProto(entry->mutable_statistics(), clusterStatistics - cellStatistics);
+                }
+            }
+
+            for (const auto& [cellTag, request] : cellTagToRequest) {
+                if (request.entries_size() != 0) {
+                    multicellManager->PostToMaster(request, cellTag, true);
+                }
+            }
+        } else {
             YT_LOG_INFO("Sending account statistics gossip message to secondary cells");
-            // For each secondary cell, account statistics are being combined and sent.
-            // Note, however, that every cell receives the sum of all other cells' information with it's own data excluded.
-            // This is done because cell statistics on the primary master might be outdated for any particular cell.
             for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
                 NProto::TReqSetAccountStatistics request;
                 for (auto account : GetValuesSortedByKey(AccountMap_)) {
@@ -4292,6 +4400,39 @@ private:
                 }
                 multicellManager->PostToMaster(request, cellTag, true);
             }
+            AccountStatisticsUpdatesGossipQueue_.clear();
+            AccountsAwaitingGossipDispatch_.clear();
+        }
+    }
+
+    void SendAccountStatisticsGossipFromSecondaryCells()
+    {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+
+        if (GetDynamicConfig()->SendOnlyUpdatesInAccountGossip) {
+            auto batchSize = Bootstrap_->GetConfigManager()->GetConfig()->SecurityManager->SecondaryCellAccountGossipBatchSize;
+            YT_LOG_INFO("Sending statistics gossip message with updated accounts to primary cell (BatchSize: %v, AccountStatisticsUpdatesGossipQueueSize: %v)",
+                batchSize,
+                AccountStatisticsUpdatesGossipQueue_.size());
+            NProto::TReqSetAccountStatistics request;
+            request.set_cell_tag(multicellManager->GetCellTag().Underlying());
+            for (int batchMessageIndex = 0; batchMessageIndex < batchSize && !AccountStatisticsUpdatesGossipQueue_.empty(); ++batchMessageIndex) {
+                auto accountId = AccountStatisticsUpdatesGossipQueue_.front();
+                AccountsAwaitingGossipDispatch_.erase(accountId);
+                AccountStatisticsUpdatesGossipQueue_.pop_front();
+
+                auto* account = FindAccount(accountId);
+                if (!IsObjectAlive(account)) {
+                    continue;
+                }
+
+                auto* entry = request.add_entries();
+                ToProto(entry->mutable_account_id(), accountId);
+                ToProto(entry->mutable_statistics(), account->LocalStatistics());
+            }
+            if (request.entries_size() != 0) {
+                multicellManager->PostToPrimaryMaster(request, true);
+            }
         } else {
             YT_LOG_INFO("Sending account statistics gossip message to primary cell");
             NProto::TReqSetAccountStatistics request;
@@ -4306,6 +4447,9 @@ private:
                 ToProto(entry->mutable_statistics(), account->LocalStatistics());
             }
             multicellManager->PostToPrimaryMaster(request, true);
+
+            AccountStatisticsUpdatesGossipQueue_.clear();
+            AccountsAwaitingGossipDispatch_.clear();
         }
     }
 
@@ -4332,8 +4476,7 @@ private:
             return;
         }
 
-        YT_LOG_INFO("Received account statistics gossip message (CellTag: %v)",
-            cellTag);
+        YT_LOG_INFO("Received account statistics gossip message (CellTag: %v)", cellTag);
 
         for (const auto& entry : request->entries()) {
             auto accountId = FromProto<TAccountId>(entry.account_id());
@@ -4343,8 +4486,19 @@ private:
             }
 
             auto newStatistics = FromProto<TAccountStatistics>(entry.statistics());
-            *account->GetCellStatistics(cellTag) = newStatistics;
-            account->RecomputeClusterStatistics();
+
+            if (GetDynamicConfig()->SendOnlyUpdatesInAccountGossip) {
+                account->IncreaseClusterStatistics(-(*account->GetCellStatistics(cellTag)));
+                *account->GetCellStatistics(cellTag) = newStatistics;
+                account->IncreaseClusterStatistics(newStatistics);
+
+                AddStatisticsUpdateToGossipQueue(account);
+            } else {
+                *account->GetCellStatistics(cellTag) = newStatistics;
+                account->RecomputeClusterStatistics();
+
+                AddStatisticsUpdateToGossipQueue(account);
+            }
         }
     }
 
@@ -4418,7 +4572,7 @@ private:
                 statisticsDelta.ResourceUsage.IncreaseChunkHostCellMasterMemory(chunkHostCellMasterMemoryUsageDelta);
                 statisticsDelta.CommittedResourceUsage.IncreaseChunkHostCellMasterMemory(chunkHostCellMasterMemoryUsageDelta);
             }
-            UpdateLocalAndClusterAccountStatistics(account, statisticsDelta);
+            IncreaseLocalAndClusterAccountStatistics(account, statisticsDelta);
         }
     }
 
@@ -4436,7 +4590,7 @@ private:
             [&] (TAccount* account) {
                 auto statisticsDelta = TAccountStatistics(resourcesDelta, TClusterResources());
 
-                UpdateLocalAndClusterAccountStatistics(account, statisticsDelta);
+                IncreaseLocalAndClusterAccountStatistics(account, statisticsDelta);
             });
 
         auto* transactionResources = GetTransactionAccountUsage(transaction, account);
@@ -4753,6 +4907,10 @@ private:
     {
         const auto& newConfig = GetDynamicConfig();
 
+        if (AccountStatisticsGossipProfilingExecutor_) {
+            AccountStatisticsGossipProfilingExecutor_->SetPeriod(newConfig->AccountStatisticsGossipProfilingPeriod);
+        }
+
         if (AccountStatisticsGossipExecutor_) {
             AccountStatisticsGossipExecutor_->SetPeriod(newConfig->AccountStatisticsGossipPeriod);
         }
@@ -4799,7 +4957,7 @@ private:
                         TClusterResources().SetChunkHostCellMasterMemory(-localCommittedUsage.GetChunkHostCellMasterMemory())
                     );
 
-                    UpdateLocalAndClusterAccountStatistics(account, statisticsDelta);
+                    IncreaseLocalAndClusterAccountStatistics(account, statisticsDelta);
 
                     if (account->ClusterStatistics().ResourceUsage.GetChunkHostCellMasterMemory() < 0) {
                         YT_LOG_ALERT("Chunk host cell memory is negative after removing chunk host role from cell %v", cellTag);
@@ -4814,7 +4972,7 @@ private:
                         TClusterResources().SetChunkHostCellMasterMemory(localCommittedUsage.DetailedMasterMemory().GetTotal())
                     );
 
-                    UpdateLocalAndClusterAccountStatistics(account, statisticsDelta);
+                    IncreaseLocalAndClusterAccountStatistics(account, statisticsDelta);
                 }
             }
         }

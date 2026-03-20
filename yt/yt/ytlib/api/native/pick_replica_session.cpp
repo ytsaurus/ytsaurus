@@ -1,4 +1,5 @@
 #include "pick_replica_session.h"
+#include "chaos_helpers.h"
 #include "config.h"
 #include "connection.h"
 #include "private.h"
@@ -25,10 +26,6 @@ using TClusterScoreMap = THashMap<std::string, TTimestamp>;
 ////////////////////////////////////////////////////////////////////////////////
 
 constinit const auto Logger = ApiLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
-const std::string UpstreamReplicaIdAttributeName = "upstream_replica_id";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -263,14 +260,14 @@ TPickReplicaSession::TResult TPickReplicaSession::Execute(
 
     const auto config = Connection_->GetConfig();
     auto replicaFallbackRetryCount = config->ReplicaFallbackRetryCount;
-    THashMap<TTableReplicaId, TTableId> replicaIdToTableId;
+    THashMap<TTableReplicaId, int> replicaIdToTableIndex;
     int retryCountLimit = 0;
     for (int index = 0; index < std::ssize(TableInfos_); ++index) {
         const auto& tableInfo = TableInfos_[index];
         if (IsChaos(tableInfo)) {
             retryCountLimit = std::max(retryCountLimit, replicaFallbackRetryCount);
             for (const auto& replica : Replicas_[index]) {
-                replicaIdToTableId[replica.ReplicaInfo->ReplicaId] = tableInfo->TableId;
+                replicaIdToTableIndex[replica.ReplicaInfo->ReplicaId] = index;
             }
         }
     }
@@ -295,14 +292,12 @@ TPickReplicaSession::TResult TPickReplicaSession::Execute(
             YT_LOG_DEBUG(ex, "Fallback to replicas failed (Attempt: %v)", retryCount);
 
             error = ex.Error();
-            if (auto schemaError = error.FindMatching(NTabletClient::EErrorCode::TableSchemaIncompatible)) {
-                if (auto replicaId = schemaError->Attributes().Find<TTableReplicaId>(UpstreamReplicaIdAttributeName)) {
-                    if (auto it = replicaIdToTableId.find(*replicaId)) {
-                        auto bannedReplicaTracker = Connection_
-                            ->GetBannedReplicaTrackerCache()
-                            ->GetTracker(it->second);
-                        bannedReplicaTracker->BanReplica(*replicaId, error.Truncate());
-                    }
+            if (auto banDirective = TReplicaBanDirective::FromError(error);
+                banDirective.Mode == EBanMode::Replica &&
+                banDirective.ReplicaId)
+            {
+                if (auto it = replicaIdToTableIndex.find(banDirective.ReplicaId)) {
+                    BannedReplicaTrackers_[it->second]->BanReplica(banDirective.ReplicaId, error.Truncate());
                 }
             }
         }

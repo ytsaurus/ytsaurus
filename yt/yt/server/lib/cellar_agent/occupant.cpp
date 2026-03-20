@@ -605,6 +605,7 @@ public:
                 .EnableObserverPersistence = independent,
                 .ResponseKeeper = ResponseKeeper_,
                 .EnableLocalHostSanitizing = false,
+                .ReportReignChange = true,
             };
 
             IDistributedHydraManagerPtr hydraManager;

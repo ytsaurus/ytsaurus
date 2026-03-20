@@ -1,6 +1,7 @@
 #include "target_table.h"
 
 #include <contrib/ydb/core/base/path.h>
+#include <contrib/ydb/core/protos/replication.pb.h>
 
 namespace NKikimr::NReplication::NController {
 

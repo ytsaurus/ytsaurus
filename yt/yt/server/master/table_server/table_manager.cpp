@@ -393,11 +393,11 @@ public:
 
     // COMPAT(h0pless): AddChunkSchemas
     TMasterTableSchema* CreateImportedMasterTableSchema(
-        const TCompactTableSchemaPtr& tableSchema,
-        TMasterTableSchemaId hintId) override
+        TCompactTableSchemaPtr tableSchema,
+        TMasterTableSchemaId hintId)
     {
         // NB: An existing schema can be recreated without resurrection.
-        auto* masterTableSchema = CreateMasterTableSchema(tableSchema, /*isNative*/ false, hintId);
+        auto* masterTableSchema = CreateMasterTableSchema(std::move(tableSchema), /*isNative*/ false, hintId);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         // All imported schemas should have an artificial ref.
@@ -408,7 +408,7 @@ public:
     }
 
     TMasterTableSchema* CreateImportedTemporaryMasterTableSchema(
-        const TCompactTableSchemaPtr& tableSchema,
+        TCompactTableSchemaPtr tableSchema,
         TTransaction* schemaHolder,
         TMasterTableSchemaId hintId) override
     {
@@ -416,7 +416,7 @@ public:
 
         auto* schema = FindMasterTableSchema(hintId);
         if (!schema) {
-            schema = DoCreateMasterTableSchema(tableSchema, hintId, /*isNative*/ false);
+            schema = DoCreateMasterTableSchema(std::move(tableSchema), hintId, /*isNative*/ false);
         } else if (!IsObjectAlive(schema)) {
             ResurrectMasterTableSchema(schema);
             YT_VERIFY(*schema->CompactTableSchema_ == *tableSchema);
@@ -432,12 +432,12 @@ public:
     }
 
     TMasterTableSchema* GetOrCreateNativeMasterTableSchema(
-        const TCompactTableSchemaPtr& schema,
+        TCompactTableSchemaPtr schema,
         TSchemafulNode* schemaHolder) override
     {
         auto* masterTableSchema = FindNativeMasterTableSchema(schema);
         if (!masterTableSchema) {
-            masterTableSchema = CreateMasterTableSchema(schema, /*isNative*/ true);
+            masterTableSchema = CreateMasterTableSchema(std::move(schema), /*isNative*/ true);
         }
 
         SetTableSchema(schemaHolder, masterTableSchema);
@@ -447,14 +447,14 @@ public:
     }
 
     TMasterTableSchema* GetOrCreateNativeMasterTableSchema(
-        const TCompactTableSchemaPtr& schema,
+        TCompactTableSchemaPtr schema,
         TTransaction* schemaHolder) override
     {
         YT_VERIFY(IsObjectAlive(schemaHolder));
 
         auto* masterTableSchema = FindNativeMasterTableSchema(schema);
         if (!masterTableSchema) {
-            masterTableSchema = CreateMasterTableSchema(schema, /*isNative*/ true);
+            masterTableSchema = CreateMasterTableSchema(std::move(schema), /*isNative*/ true);
         }
 
         if (!schemaHolder->StagedObjects().contains(masterTableSchema)) {
@@ -467,7 +467,7 @@ public:
     }
 
     TMasterTableSchema* GetOrCreateNativeMasterTableSchema(
-        const TCompactTableSchemaPtr& schema,
+        TCompactTableSchemaPtr schema,
         TChunk* schemaHolder) override
     {
         // NB: A newly created chunk in operation can have zero reference count.
@@ -476,7 +476,7 @@ public:
 
         auto* masterTableSchema = FindNativeMasterTableSchema(schema);
         if (!masterTableSchema) {
-            masterTableSchema = CreateMasterTableSchema(schema, /*isNative*/ true);
+            masterTableSchema = CreateMasterTableSchema(std::move(schema), /*isNative*/ true);
         }
 
         SetChunkSchema(schemaHolder, masterTableSchema);
@@ -545,13 +545,13 @@ public:
     }
 
     TMasterTableSchema* CreateMasterTableSchema(
-        const TCompactTableSchemaPtr& tableSchema,
+        TCompactTableSchemaPtr tableSchema,
         bool isNative,
         TMasterTableSchemaId hintId = NObjectClient::NullObjectId)
     {
         auto* schema = FindMasterTableSchema(hintId);
         if (!schema) {
-            schema = DoCreateMasterTableSchema(tableSchema, hintId, isNative);
+            schema = DoCreateMasterTableSchema(std::move(tableSchema), hintId, isNative);
         } else if (!IsObjectAlive(schema)) {
             ResurrectMasterTableSchema(schema);
             YT_VERIFY(*schema->CompactTableSchema_ == *tableSchema);
@@ -564,7 +564,7 @@ public:
     }
 
     TMasterTableSchema* DoCreateMasterTableSchema(
-        const TCompactTableSchemaPtr& tableSchema,
+        TCompactTableSchemaPtr tableSchema,
         TMasterTableSchemaId hintId,
         bool isNative)
     {
@@ -585,7 +585,7 @@ public:
         } else {
             auto schemaHolder = TPoolAllocator::New<TMasterTableSchema>(
                 id,
-                tableSchema);
+                std::move(tableSchema));
             schema = MasterTableSchemaMap_.Insert(id, std::move(schemaHolder));
         }
 
@@ -1820,7 +1820,7 @@ private:
     {
         auto schema = New<TCompactTableSchema>(request->schema());
         auto schemaId = FromProto<TMasterTableSchemaId>(request->schema_id());
-        CreateImportedMasterTableSchema(schema, schemaId);
+        CreateImportedMasterTableSchema(std::move(schema), schemaId);
     }
 
     void HydraUnimportMasterTableSchema(NProto::TReqUnimportMasterTableSchema* request)

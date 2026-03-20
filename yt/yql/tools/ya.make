@@ -10,5 +10,7 @@ IF (NOT OPENSOURCE)
         ytfilerun
         ytflowrun
         ytflow_worker
+        qtworker
+        qtworker/full
     )
 ENDIF()

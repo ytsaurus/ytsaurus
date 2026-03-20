@@ -611,7 +611,7 @@ void MultiJoinOpHelper(
     });
 
     TMultiJoinClosure closure{
-        .Context = MakeExpressionContext(TPermanentBufferTag(), context->MemoryChunkProvider),
+        .Context = MakeExpressionContext(TMultiJoinClosure::TBufferTag(), context->MemoryChunkProvider),
     };
 
     closure.PrimaryRowSize = parameters->PrimaryRowSize;
@@ -1300,6 +1300,16 @@ public:
     i64 GetGroupedRowCount() const;
 
 private:
+    struct TGroupByClosureBufferTag
+    { };
+
+    struct TGroupByClosureAggregatedBufferTag
+    { };
+
+    struct TGroupByClosureTotalsBufferTag
+    { };
+
+
     TExpressionContext Context_;
     TExpressionContext AggregatedContext_;
     TExpressionContext TotalsContext_;
@@ -1387,9 +1397,9 @@ TGroupByClosure::TGroupByClosure(
     TWebAssemblyRowsConsumer consumeDelta,
     void** consumeTotalsClosure,
     TWebAssemblyRowsConsumer consumeTotals)
-    : Context_(MakeExpressionContext(TPermanentBufferTag(), chunkProvider))
-    , AggregatedContext_(MakeExpressionContext(TPermanentBufferTag(), chunkProvider))
-    , TotalsContext_(MakeExpressionContext(TPermanentBufferTag(), chunkProvider))
+    : Context_(MakeExpressionContext(TGroupByClosureBufferTag(), chunkProvider))
+    , AggregatedContext_(MakeExpressionContext(TGroupByClosureAggregatedBufferTag(), chunkProvider))
+    , TotalsContext_(MakeExpressionContext(TGroupByClosureTotalsBufferTag(), chunkProvider))
     , PrefixEqComparer_(prefixEqComparer)
     , GroupedIntermediateRows_(
         InitialGroupOpHashtableCapacity,

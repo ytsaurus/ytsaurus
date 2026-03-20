@@ -22,6 +22,15 @@ NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(NHydra::TReign reign);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NTesting {
+
+// Should only be used in tests. Do not set it when tablet cells are alive.
+void SetCurrentReignOverride(NHydra::TReign reign);
+
+} // namespace NTesting
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(ETabletReign,
     // 24.2 starts here.
     ((Start_24_2)                                  (101000)) // ponasenko-rs

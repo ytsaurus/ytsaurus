@@ -164,7 +164,7 @@ public:
         , ErrorManager_(std::move(errorManager))
         , ChaosAgent_(tablet->GetChaosAgent())
         , BannedReplicaTracker_(Logger, MountConfig_->Testing.TablePullerReplicaBanIterationCount)
-        , QueueReplicaSelector_(Logger, BannedReplicaTracker_)
+        , QueueReplicaSelector_(Logger, BannedReplicaTracker_, MountConfig_->TablePullerStronglyPreferLocalQueue)
         , LastReplicationProgressAdvance_(*tablet->RuntimeData()->ReplicationProgress.Acquire())
         , ReplicatorClientCache_(std::move(replicatorClientCache))
     { }

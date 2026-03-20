@@ -8,6 +8,29 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**v0.0.16**" %}
+
+**Release date:** 2026-03-06
+
+
+#### General Updates
+
+**Features:**
+
+* Add CHYT option to automatically restart the clique if the version currently running the clique differs from the one indicated by the speclet (Commit: 36ba795)
+* Add new config section to  specify the default speclet. This is necessary in order to be able to redefine the settings of oplets at one point in  the system. The per location configuration option is also supported. (Commit: c8aa165)
+* Improved accuracy of CHYT clique health state (Commit: 1de3d55)
+* The routine for checking completed jobs of the oplet operation for failures is presented. Added a monitoring handler to generate alerts about this. (Commit: 8a263b9)
+* Present mechanism for excluding some parts from CHYT config specified in speclet. It is necessary to hide the redefinition of the service parts of the configuration. (Commit: 0b0510e)
+
+**Fixes:**
+
+* Fix logging for https cluster proxy urls. (Commit: 9d0b858)
+
+
+{% endcut %}
+
+
 {% cut "**v0.0.15**" %}
 
 **Release date:** 2025-09-18

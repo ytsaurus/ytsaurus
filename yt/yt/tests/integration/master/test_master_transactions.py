@@ -542,6 +542,10 @@ class TestMasterTransactions(YTEnvSetup):
         with raises_yt_error("Prerequisite check failed: this failure is requested manually via dynamic config"):
             commit_transaction(tx)
 
+        if self.ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA:
+            # Mirrored transaction commit failure is handled asynchronously.
+            wait(lambda: not exists(f"#{tx}"))
+
         gc_collect()
 
         assert not exists(f"#{tx}")

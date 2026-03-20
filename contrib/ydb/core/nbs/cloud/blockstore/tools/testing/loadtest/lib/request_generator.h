@@ -1,11 +1,11 @@
 #pragma once
 
 #include "public.h"
-#include <contrib/ydb/core/nbs/cloud/blockstore/tools/testing/loadtest/lib/protos/nbs2_load.pb.h>
 
 #include <contrib/ydb/core/nbs/cloud/blockstore/libs/common/block_range.h>
 #include <contrib/ydb/core/nbs/cloud/blockstore/libs/diagnostics/public.h>
 #include <contrib/ydb/core/nbs/cloud/blockstore/libs/service/request.h>
+#include <contrib/ydb/core/nbs/cloud/blockstore/tools/testing/loadtest/lib/protos/nbs2_load.pb.h>
 
 #include <util/datetime/base.h>
 #include <util/generic/string.h>

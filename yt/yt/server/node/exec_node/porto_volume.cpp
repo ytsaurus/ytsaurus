@@ -110,14 +110,15 @@ TFuture<void> TPortoVolumeBase::DoRemoveVolumeCommon(
     const auto& volumePath = volumeMeta.MountPath;
 
     auto Logger = ExecNodeLogger()
-        .WithTag("VolumeType: %v, VolumeId: %v, VolumePath: %v",
+        .WithTag("VolumeType: %v, VolumeId: %v, VolumePath: %v, PortoPlacePath: %v",
             volumeType,
             volumeId,
-            volumePath);
+            volumePath,
+            volumeMeta.PortoPlacePath);
 
     YT_LOG_DEBUG("Removing volume");
 
-    return location->RemoveVolume(tagSet, volumeId)
+    return location->RemoveVolume(tagSet, volumeId, std::move(volumeMeta.PortoPlacePath))
         .Apply(BIND(
             [
                 Logger,
@@ -145,7 +146,7 @@ void TPortoVolumeBase::SetRemoveCallback(TCallback<TFuture<void>()> callback)
     RemoveCallback_ = BIND(
         [
             location = LayerLocation_,
-            volumePath = VolumeMeta_.MountPath,
+            volumePath = ToString(VolumeMeta_.MountPath),
             callback = std::move(callback)
         ] (const std::vector<TString>& targets) {
             return UnlinkTargets(location, volumePath, targets)
@@ -367,19 +368,22 @@ TOverlayVolume::TOverlayVolume(
     TTagSet tagSet,
     TVolumeMeta volumeMeta,
     TLayerLocationPtr location,
-    std::vector<TOverlayData> overlayDataArray)
+    std::vector<TOverlayData> overlayDataArray,
+    IVolumePtr volumeForUpperLayer)
     : TPortoVolumeBase(
         std::move(tagSet),
         std::move(volumeMeta),
         std::move(location))
     , OverlayDataArray_(std::move(overlayDataArray))
+    , VolumeForUpperLayer_(std::move(volumeForUpperLayer))
 {
     SetRemoveCallback(BIND(
         &TOverlayVolume::DoRemove,
         TagSet_,
         LayerLocation_,
         VolumeMeta_,
-        OverlayDataArray_));
+        OverlayDataArray_,
+        VolumeForUpperLayer_));
 }
 
 TOverlayVolume::~TOverlayVolume()
@@ -396,17 +400,28 @@ TFuture<void> TOverlayVolume::DoRemove(
     TTagSet tagSet,
     TLayerLocationPtr location,
     TVolumeMeta volumeMeta,
-    std::vector<TOverlayData> overlayDataArray)
+    std::vector<TOverlayData> overlayDataArray,
+    IVolumePtr volumeForUpperLayer)
 {
     // At first remove overlay volume, then remove constituent volumes and layers.
-    auto postRemovalCleanup = BIND_NO_PROPAGATE([overlayDataArray = std::move(overlayDataArray)] (const TLogger&) mutable -> TFuture<void> {
-        std::vector<TFuture<void>> futures;
-        futures.reserve(overlayDataArray.size());
-        for (auto& overlayData : overlayDataArray) {
-            futures.push_back(overlayData.Remove());
+    auto postRemovalCleanup = BIND_NO_PROPAGATE([
+            overlayDataArray = std::move(overlayDataArray),
+            volumeForUpperLayer = std::move(volumeForUpperLayer)
+        ] (const TLogger&) mutable -> TFuture<void> {
+            std::vector<TFuture<void>> futures;
+            futures.reserve(overlayDataArray.size());
+            for (auto& overlayData : overlayDataArray) {
+                futures.push_back(overlayData.Remove());
+            }
+
+            if (volumeForUpperLayer) {
+                futures.push_back(volumeForUpperLayer->Remove());
+            }
+
+            return AllSucceeded(std::move(futures))
+                .ToUncancelable();
         }
-        return AllSucceeded(std::move(futures));
-    });
+    );
 
     return DoRemoveVolumeCommon(
         "Overlay",

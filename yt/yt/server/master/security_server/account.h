@@ -209,13 +209,12 @@ public:
     void IncrementChunkMergerNodeTraversals();
     void DecrementChunkMergerNodeTraversals();
 
+    void IncreaseClusterStatistics(const TAccountStatistics& statistics);
+
 private:
     TAccountStatistics* LocalStatisticsPtr_{};
 
     int MergeJobRateLimit_ = 1;
-
-    void IncreaseLocalStatistics(const TAccountStatistics& delta);
-    void IncreaseClusterStatistics(const TAccountStatistics& statistics);
 
     //! Indicates the number of nodes currently being processed by the chunk
     //! merger that belong to this account.

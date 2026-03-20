@@ -406,9 +406,6 @@ struct TConnectionDynamicConfig
     // COMPAT(sabdenovch)
     bool GroupByWithLimitIsUnordered;
 
-    // COMPAT(sabdenovch)
-    bool AllowUnaliasedSecondaryIndex;
-
     TDuration FlowPipelineControllerRpcTimeout;
 
     EMasterChannelKind ReadOperationsArchiveStateFrom;

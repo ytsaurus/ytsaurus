@@ -578,7 +578,10 @@ public:
             ->AddChild("transactions", TransactionManager_->GetOrchidService())
             ->AddChild("tablets", TabletManager_->GetTabletOrchidService())
             ->AddChild("per_cluster_tablet_replication_status", TabletManager_->GetTabletReplicationOrchidService())
-            ->AddChild("hunk_tablets", HunkTabletManager_->GetOrchidService());
+            ->AddChild("hunk_tablets", HunkTabletManager_->GetOrchidService())
+            ->AddChild("reign", IYPathService::FromProducer(BIND([] (IYsonConsumer* consumer) {
+                consumer->OnInt64Scalar(GetCurrentReign());
+            })));
     }
 
     const TRuntimeTabletCellDataPtr& GetRuntimeData() override

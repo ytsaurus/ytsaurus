@@ -15,7 +15,7 @@ default:
     odin-version: 0.0.7
     tutorial-version: 0.0.3
     sidecars-version: 0.0.1
-    ytmsvc-version: 0.0.1
+    ytmsvc-version: 0.0.2
     excel-version: 0.0.1
     clickhouse: ClickHouse
 

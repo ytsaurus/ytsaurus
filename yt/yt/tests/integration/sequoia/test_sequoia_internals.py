@@ -754,6 +754,15 @@ class TestSequoiaInternals(YTEnvSetup):
         finish = datetime.now()
         assert finish - start >= timedelta(seconds=2)
 
+    @authors("kvk1920")
+    def test_sequoia_tx_start_failure(self):
+        set("//sys/@config/sequoia_manager/testing/sequoia_transaction_start_failure_probability", 0.4)
+        try:
+            for i in range(3):
+                create("int64_node", f"//tmp/i64-{i}")
+        finally:
+            set("//sys/@config/sequoia_manager/testing/sequoia_transaction_start_failure_probability", 0.0)
+
 
 @pytest.mark.enabled_multidaemon
 class TestSequoiaResolve(TestSequoiaInternals):

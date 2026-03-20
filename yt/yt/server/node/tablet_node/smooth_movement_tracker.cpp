@@ -335,7 +335,7 @@ public:
     {
         std::vector<std::string> reasons;
 
-        constexpr int ExpectedMutationHandlerCount = 82;
+        constexpr int ExpectedMutationHandlerCount = 83;
         if (Automaton_->GetRegisteredMethodCount() != ExpectedMutationHandlerCount) {
             reasons.push_back(Format(
                 "new mutation handler registered (ExpectedCount: %v, ActualCount: %v)",
@@ -434,6 +434,23 @@ public:
             "tablet movement. Refer to the place of code where this message is located "
             "to see all necessary requirements. Failure reason: %v",
             reasons);
+    }
+
+    void OnReignChanged(TReign previousReign) override
+    {
+        auto* mutationContext = GetCurrentMutationContext();
+        YT_LOG_DEBUG("Smooth movement tracker detects reign change, aborting all movements "
+            "(PreviousReign: %v, MutationReign: %v, CurrentReign: %v)",
+            previousReign,
+            mutationContext->Request().Reign,
+            GetCurrentReign());
+
+        TError error("Smooth movement rejected on tablet reign change: %v -> %v",
+            previousReign,
+            mutationContext->Request().Reign);
+        for (const auto& [id, tablet] : Host_->Tablets()) {
+            RejectMovement(tablet, error);
+        }
     }
 
 private:

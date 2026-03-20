@@ -336,6 +336,10 @@ public:
             GetOrchidRoot(),
             "/replication_hint_manager",
             CreateVirtualNode(HintManager_->GetOrchidService()));
+        SetNodeByYPath(
+            GetOrchidRoot(),
+            "/tablet_reign",
+            ConvertTo<INodePtr>(GetCurrentReign()));
         if (auto hotswapManager = ClusterNodeBootstrap_->TryGetHotswapManager()) {
             SetNodeByYPath(
                 GetOrchidRoot(),
@@ -658,6 +662,8 @@ private:
                 GetConfig()->TabletNode->ChaosReplicationCardUpdatesBatcher->ApplyDynamic(
                     tabletNodeConfig->ChaosReplicationCardUpdatesBatcher));
         }
+
+        NTesting::SetCurrentReignOverride(newConfig->TabletNode->Testing.ReignOverride);
 
         TabletNodeConfigChanged_.Fire(
             oldConfig->TabletNode,

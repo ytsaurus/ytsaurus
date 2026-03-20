@@ -44,6 +44,16 @@ void TDynamicCypressProxyTrackerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TDynamicSequoiaManagerTestingConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("sequoia_transaction_start_failure_probability", &TThis::SequoiaTransactionStartFailureProbability)
+        .GreaterThanOrEqual(0.0)
+        .LessThanOrEqual(1.0)
+        .Optional();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TDynamicSequoiaManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable", &TThis::Enable)
@@ -54,6 +64,14 @@ void TDynamicSequoiaManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_ground_update_queues", &TThis::EnableGroundUpdateQueues)
         .Default(false);
+
+    registrar.Parameter("enable_async_sequoia_transaction_start", &TThis::EnableAsyncSequoiaTransactionStart)
+        .Default(false)
+        .DontSerializeDefault();
+
+    registrar.Parameter("testing", &TThis::Testing)
+        .DefaultNew()
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -144,6 +144,9 @@ void TCompositeAutomatonPart::OnBeforeSnapshotLoaded()
 void TCompositeAutomatonPart::OnAfterSnapshotLoaded()
 { }
 
+void TCompositeAutomatonPart::OnReignChanged(TReign /*previousReign*/)
+{ }
+
 bool TCompositeAutomatonPart::IsLeader() const
 {
     return HydraManager_->IsLeader();
@@ -237,6 +240,7 @@ TCompositeAutomaton::TCompositeAutomaton(
     , MutationWaitTimer_(Profiler_.Timer("/mutation_wait_time"))
 {
     RegisterMethod(BIND_NO_PROPAGATE(&TCompositeAutomaton::HydraResetStateHash, Unretained(this)));
+    RegisterMethod(BIND_NO_PROPAGATE(&TCompositeAutomaton::HydraReportReignChange, Unretained(this)));
 }
 
 void TCompositeAutomaton::SetSerializationDumpMode(ESerializationDumpMode mode)
@@ -688,6 +692,22 @@ void TCompositeAutomaton::HydraResetStateHash(NProto::TReqResetStateHash* reques
         newStateHash);
 
     mutationContext->SetStateHash(newStateHash);
+}
+
+void TCompositeAutomaton::HydraReportReignChange(NProto::TReqReportReignChange* request)
+{
+    auto previousReign = request->previous_reign();
+
+    YT_LOG_INFO(
+        "Reporting reign change (PreviousReign: %v, CurrentReign: %v)",
+        previousReign,
+        GetCurrentMutationContext()->Request().Reign);
+
+    for (const auto& weakPart : Parts_) {
+        if (auto part = weakPart.Lock()) {
+            part->OnReignChanged(previousReign);
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

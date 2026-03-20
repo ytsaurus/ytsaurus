@@ -532,26 +532,7 @@ public:
                 auto* prerequisite = prerequisitesExt->mutable_revisions(index);
                 const auto& prerequisitePath = prerequisite->path();
                 auto prerequisiteResolveResult = ResolvePath(Bootstrap_, prerequisitePath, context);
-                // TODO(cherepashka): Unite std::get_if with Visit below after 25.1.
                 const auto* prerequisitePayload = std::get_if<TPathResolver::TRemoteObjectRedirectPayload>(&prerequisiteResolveResult.Payload);
-                if (Bootstrap_->GetDynamicConfig()->ObjectManager->ProhibitPrerequisiteRevisionsDifferFromExecutionPaths) {
-                    auto optionalPrerequisiteObjectId = Visit(
-                        prerequisiteResolveResult.Payload,
-                        [] (const TPathResolver::TLocalObjectPayload& payload) {
-                            return std::make_optional(payload.Object->GetId());
-                        },
-                        [] (const TPathResolver::TRemoteObjectRedirectPayload& payload) {
-                            return std::make_optional(payload.ObjectId);
-                        },
-                        [] (const auto&) -> std::optional<TObjectId> {
-                            return std::nullopt;
-                        });
-
-                    if (optionalPrerequisiteObjectId) {
-                        ValidatePrerequisiteRevisionPaths(forwardedRequestHeader, ObjectId_, additionalObjectIds, *optionalPrerequisiteObjectId)
-                            .ThrowOnError();
-                    }
-                }
                 if (!prerequisitePayload || CellTagFromId(prerequisitePayload->ObjectId) != ForwardedCellTag_) {
                     TError error(
                         NObjectClient::EErrorCode::CrossCellRevisionPrerequisitePath,
@@ -571,6 +552,11 @@ public:
                     }
 
                     THROW_ERROR(error);
+                }
+
+                if (Bootstrap_->GetDynamicConfig()->ObjectManager->ProhibitPrerequisiteRevisionsDifferFromExecutionPaths) {
+                    ValidatePrerequisiteRevisionPaths(forwardedRequestHeader, ObjectId_, additionalObjectIds, prerequisitePayload->ObjectId)
+                        .ThrowOnError();
                 }
 
                 auto prerequisitePathRewrite = MakeYPathRewrite(

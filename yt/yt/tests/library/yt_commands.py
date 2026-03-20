@@ -1467,7 +1467,12 @@ class Operation(object):
 
     def interrupt_job(self, job_id, interruption_timeout=10000):
 
-        wait(lambda: self.get_job_node_orchid(job_id)["job_state"] == "running")
+        @wait
+        def _wait_running():
+            state = self.get_job_node_orchid(job_id)["job_state"]
+            if state in ("completed", "aborted"):
+                raise YtError(f"Job cannot be interrupted as it is in {state} state")
+            return state == "running"
 
         interrupt_job(job_id, interruption_timeout)
 

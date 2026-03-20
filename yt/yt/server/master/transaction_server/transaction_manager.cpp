@@ -35,6 +35,7 @@
 
 #include <yt/yt/server/master/sequoia_server/config.h>
 #include <yt/yt/server/master/sequoia_server/context.h>
+#include <yt/yt/server/master/sequoia_server/sequoia_manager.h>
 
 #include <yt/yt/server/master/transaction_server/proto/transaction_manager.pb.h>
 
@@ -1555,7 +1556,26 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        auto* transaction = GetTransactionOrThrow(transactionId);
+        auto* transaction = FindTransaction(transactionId);
+        if (!IsObjectAlive(transaction)) {
+            const auto& config = Bootstrap_->GetDynamicConfig();
+
+            // NB: regular atomic tablet transactions cannot have mater cell
+            // participants. Therefore, every atomic tablet transaction on
+            // master is a Sequoia transaction.
+            if (TypeFromId(transactionId) == EObjectType::AtomicTabletTransaction &&
+                config->SequoiaManager->EnableAsyncSequoiaTransactionStart)
+            {
+                // NB: there is no need for SequoiaRetriableError because
+                // participant failures are already retriable.
+                THROW_ERROR_EXCEPTION(
+                    "No such Sequoia transaction %v on master participant %v",
+                    transactionId,
+                    Bootstrap_->GetCellTag());
+            }
+            ThrowNoSuchTransaction(transactionId);
+        }
+
         PrepareTransactionCommit(transaction, options);
     }
 

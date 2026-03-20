@@ -1,6 +1,7 @@
 #include "actor.h"
 
 #include <contrib/ydb/core/formats/arrow/reader/position.h>
+#include <contrib/ydb/library/formats/arrow/arrow_helpers.h>
 #include <contrib/ydb/core/tx/columnshard/blobs_reader/read_coordinator.h>
 #include <contrib/ydb/core/tx/columnshard/engines/reader/tracing/probes.h>
 #include <contrib/ydb/core/tx/columnshard/resource_subscriber/actor.h>
@@ -452,6 +453,8 @@ bool TColumnShardScan::SendResult(bool pageFault, bool lastBatch) {
             }
         }
     }
+
+    Result->ArrowBatch = NArrow::ClaimMemoryOwnership(Result->ArrowBatch);
 
     LWPROBE(SendResult, TabletId, ScanId, TxId, Result->GetRowsCount(), (Result->ArrowBatch ? NArrow::GetTableDataSize(Result->ArrowBatch) : 0), Result->CpuTime, Result->WaitTime, TInstant::Now() - LastSend, Result->Finished);
     Send(ScanComputeActorId, Result.Release(), IEventHandle::FlagTrackDelivery);   // TODO: FlagSubscribeOnSession ?

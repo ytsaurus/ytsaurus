@@ -84,6 +84,7 @@
 
 #include <contrib/ydb/core/base/tablet_resolver.h>
 #include <contrib/ydb/core/security/login_page.h>
+#include <contrib/ydb/core/security/sasl/static_credentials_provider.h>
 #include <contrib/ydb/core/tablet/bootstrapper.h>
 #include <contrib/ydb/core/tablet/resource_broker.h>
 #include <contrib/ydb/core/tablet/node_tablet_monitor.h>
@@ -634,6 +635,8 @@ TKikimrRunner::~TKikimrRunner() {
         ActorSystem->Stop();
         ActorSystem.Destroy();
     }
+
+    NSasl::TStaticCredentialsProvider::GetInstance().Clear();
 }
 
 void TKikimrRunner::AddGlobalObject(std::shared_ptr<void> object) {
@@ -657,6 +660,10 @@ void TKikimrRunner::InitializeMonitoring(const TKikimrRunConfig& runConfig, bool
         monConfig.CaFile = appConfig.GetMonitoringConfig().GetMonitoringCaFile();
         monConfig.RedirectMainPageTo = appConfig.GetMonitoringConfig().GetRedirectMainPageTo();
         monConfig.RequireCountersAuthentication = appConfig.GetMonitoringConfig().GetRequireCountersAuthentication();
+        if (appConfig.GetMonitoringConfig().CompressContentTypesSize() > 0) {
+            monConfig.CompressContentTypes.clear();
+            std::ranges::copy(appConfig.GetMonitoringConfig().GetCompressContentTypes(), std::back_inserter(monConfig.CompressContentTypes));
+        }
         if (includeHostName) {
             if (appConfig.HasNameserviceConfig() && appConfig.GetNameserviceConfig().NodeSize() > 0) {
                 for (const auto& it : appConfig.GetNameserviceConfig().GetNode()) {
@@ -1634,7 +1641,6 @@ void TKikimrRunner::InitializeAppData(const TKikimrRunConfig& runConfig)
     if (runConfig.AppConfig.HasClusterDiagnosticsConfig()) {
         AppData->ClusterDiagnosticsConfig.CopyFrom(runConfig.AppConfig.GetClusterDiagnosticsConfig());
     }
-
     TAppDataInitializersList appDataInitializers;
     // setup domain info
     appDataInitializers.AddAppDataInitializer(new TDomainsInitializer(runConfig));

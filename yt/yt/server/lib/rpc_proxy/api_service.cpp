@@ -4266,8 +4266,9 @@ void TApiService::ProcessPullQueueDetailedProfilingInfo(
     const std::string& userTag,
     const TDetailedProfilingInfoPtr& detailedProfilingInfo)
 {
+    TDetailedProfilingCountersPtr counters;
     if (detailedProfilingInfo->EnableDetailedTableProfiling) {
-        auto counters = GetOrCreateDetailedProfilingCounters({
+        counters = GetOrCreateDetailedProfilingCounters({
             .UserTag = userTag,
             .TablePath = detailedProfilingInfo->TablePath,
         });
@@ -4275,6 +4276,12 @@ void TApiService::ProcessPullQueueDetailedProfilingInfo(
         counters->PullQueueDurationTimer().Record(timer.GetElapsedTime());
         counters->PullQueueMountCacheWaitTimer().Record(detailedProfilingInfo->MountCacheWaitTime);
         counters->PullQueuePermissionCacheWaitTimer().Record(detailedProfilingInfo->PermissionCacheWaitTime);
+    } else if (!detailedProfilingInfo->RetryReasons.empty()) {
+        counters = GetOrCreateDetailedProfilingCounters({});
+    }
+
+    for (const auto& reason : detailedProfilingInfo->RetryReasons) {
+        counters->GetRetryCounterByReason(reason)->Increment();
     }
 }
 

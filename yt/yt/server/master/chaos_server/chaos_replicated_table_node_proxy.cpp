@@ -792,7 +792,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, Alter)
 
     bool isQueueObjectBefore = table->IsTrackedQueueObject();
 
-    tableManager->GetOrCreateNativeMasterTableSchema(effectiveSchema, table);
+    tableManager->GetOrCreateNativeMasterTableSchema(std::move(effectiveSchema), table);
 
     bool isQueueObjectAfter = table->IsTrackedQueueObject();
     const auto& chaosManager = Bootstrap_->GetChaosManager();

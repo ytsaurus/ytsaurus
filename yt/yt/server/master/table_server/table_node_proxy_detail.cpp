@@ -2544,12 +2544,12 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     if (schemaReceived || options.SchemaModification) {
         auto setCorrespondingTableSchema = [] (
             TTableNode* table,
-            const TCompactTableSchemaPtr& schema,
+            TCompactTableSchemaPtr schema,
             const TAlterTableOptions& options,
             const auto& tableManager)
         {
             if (table->IsNative()) {
-                return tableManager->GetOrCreateNativeMasterTableSchema(schema, table);
+                return tableManager->GetOrCreateNativeMasterTableSchema(std::move(schema), table);
             }
 
             YT_VERIFY(!options.Schema);
@@ -2558,7 +2558,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             return existingSchema;
         };
 
-        resultingSchema = setCorrespondingTableSchema(table, schema, options, tableManager);
+        resultingSchema = setCorrespondingTableSchema(table, std::move(schema), options, tableManager);
 
         table->SetSchemaMode(ETableSchemaMode::Strong);
     }
