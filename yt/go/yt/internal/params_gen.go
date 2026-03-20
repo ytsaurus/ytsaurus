@@ -1386,6 +1386,34 @@ func logGetJobStderrOptions(o *yt.GetJobStderrOptions) []log.Field {
 	return fields
 }
 
+func writeListOperationEventsOptions(w *yson.Writer, o *yt.ListOperationEventsOptions) {
+	if o == nil {
+		return
+	}
+	if o.EventType != nil {
+		w.MapKeyString("event_type")
+		w.Any(o.EventType)
+	}
+	if o.Limit != nil {
+		w.MapKeyString("limit")
+		w.Any(o.Limit)
+	}
+}
+
+func logListOperationEventsOptions(o *yt.ListOperationEventsOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.EventType != nil {
+		fields = append(fields, log.Any("event_type", o.EventType))
+	}
+	if o.Limit != nil {
+		fields = append(fields, log.Any("limit", o.Limit))
+	}
+	return fields
+}
+
 func writeGetOperationOptions(w *yson.Writer, o *yt.GetOperationOptions) {
 	if o == nil {
 		return
@@ -4553,6 +4581,47 @@ func (p *GetJobStderrParams) MarshalHTTP(w *yson.Writer) {
 	w.MapKeyString("job_id")
 	w.Any(p.jobID)
 	writeGetJobStderrOptions(w, p.options)
+}
+
+type ListOperationEventsParams struct {
+	verb    Verb
+	opID    yt.OperationID
+	options *yt.ListOperationEventsOptions
+}
+
+func NewListOperationEventsParams(
+	opID yt.OperationID,
+	options *yt.ListOperationEventsOptions,
+) *ListOperationEventsParams {
+	if options == nil {
+		options = &yt.ListOperationEventsOptions{}
+	}
+	optionsCopy := *options
+	return &ListOperationEventsParams{
+		Verb("list_operation_events"),
+		opID,
+		&optionsCopy,
+	}
+}
+
+func (p *ListOperationEventsParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *ListOperationEventsParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *ListOperationEventsParams) Log() []log.Field {
+	fields := []log.Field{
+		log.Any("opID", p.opID),
+	}
+	fields = append(fields, logListOperationEventsOptions(p.options)...)
+	return fields
+}
+
+func (p *ListOperationEventsParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("operation_id")
+	w.Any(p.opID)
+	writeListOperationEventsOptions(w, p.options)
 }
 
 type AddMemberParams struct {

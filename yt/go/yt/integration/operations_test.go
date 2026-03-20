@@ -304,6 +304,44 @@ func TestListAllOperations(t *testing.T) {
 	require.Equal(t, opIDs, found)
 }
 
+func TestListOperationEvents(t *testing.T) {
+	t.Parallel()
+
+	env := yttest.New(t)
+
+	ctx := ctxlog.WithFields(context.Background(), log.String("subtest_name", t.Name()))
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+
+	opSpec := map[string]any{
+		"tasks": map[string]any{
+			"main": map[string]any{
+				"job_count":    10,
+				"command":      "echo hello >> /dev/stderr",
+				"gang_options": map[string]any{},
+			},
+		},
+	}
+
+	opID, err := env.YT.StartOperation(ctx, yt.OperationVanilla, opSpec, nil)
+	require.NoError(t, err)
+
+	err = waitOpState(ctx, env.YT, opID, yt.StateCompleted)
+	require.NoError(t, err)
+
+	time.Sleep(3 * time.Second)
+
+	result, err := env.YT.ListOperationEvents(ctx, opID, nil)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotEmpty(t, result.Events)
+
+	for _, event := range result.Events {
+		require.Equal(t, yt.IncarnationStarted, event.EventType)
+		require.False(t, time.Time(event.Timestamp).IsZero())
+	}
+}
+
 func TestListAllJobs(t *testing.T) {
 	t.Parallel()
 
