@@ -54,7 +54,7 @@ public:
     TMessageId TrimLastestOutcomingMessages(int count);
     TMessageIdRange GetOutcomingMessageIdRange() const;
     void IterateOutcomingMessages(
-        TMessageId firstMessageId,
+        TMessageId* firstMessageId,
         const std::function<bool(const TOutcomingMessage&)>& visitor) const;
 
 private:

@@ -1808,7 +1808,7 @@ private:
                 .FirstMessageId = *runtimeData->FirstInFlightOutcomingMessageId,
             };
             runtimeData->PersistentState->IterateOutcomingMessages(
-                envelope.FirstMessageId,
+                &envelope.FirstMessageId,
                 [&] (const TOutcomingMessage& message) {
                     if (isOverflown()) {
                         return false;
