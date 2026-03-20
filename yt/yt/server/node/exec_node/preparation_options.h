@@ -47,7 +47,11 @@ struct TSandboxNbdRootVolumeData
     TDuration MasterRpcTimeout;
     int MinDataNodeCount;
     int MaxDataNodeCount;
+
+    bool operator==(const TSandboxNbdRootVolumeData&) const = default;
 };
+
+void FormatValue(TStringBuilderBase* builder, const TSandboxNbdRootVolumeData& data, TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

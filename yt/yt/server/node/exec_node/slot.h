@@ -96,6 +96,7 @@ struct IUserSlot
         const TVolumePreparationOptions& options) = 0;
 
     virtual TFuture<std::vector<TTmpfsVolumeResult>> PrepareTmpfsVolumes(
+        TJobId jobId,
         const IVolumePtr& rootVolume,
         const std::vector<TTmpfsVolumeParams>& volumes,
         const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts,

@@ -62,6 +62,7 @@ SRCS(
     exec_node/artifact.cpp
     exec_node/artifact.proto
     exec_node/artifact_cache.cpp
+    exec_node/artifact_description.cpp
     exec_node/bootstrap.cpp
     exec_node/controller_agent_connector.cpp
     exec_node/cache_location.cpp
@@ -83,6 +84,8 @@ SRCS(
     exec_node/job_input_cache.cpp
     exec_node/proxying_data_node_service.cpp
     exec_node/orchid.cpp
+    exec_node/preparation_options.cpp
+    exec_node/private.cpp
     exec_node/public.cpp
     exec_node/scheduler_connector.cpp
     exec_node/slot.cpp

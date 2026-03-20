@@ -20,6 +20,8 @@ struct TArtifactDescription
     TArtifactPtr Artifact;
     bool AccessedViaBind = false;
     bool AccessedViaVirtualSandbox = false;
+
+    bool IsStaticDescriptionEqualTo(const TArtifactDescription& other) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -89,6 +89,7 @@ public:
     //! Prepare tmpfs volumes.
     TFuture<std::vector<TTmpfsVolumeResult>> PrepareTmpfsVolumes(
         const std::optional<TString>& sandboxPath,
+        const TJobId& jobId,
         const std::vector<TTmpfsVolumeParams>& volumes,
         const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts,
         const TArtifactDownloadOptions&) override
@@ -101,7 +102,7 @@ public:
         futures.reserve(volumes.size());
         for (const auto& volume : volumes) {
             auto mountPath = GetVolumeMountPathByVolumeId(volume.VolumeId, volumeMounts);
-            futures.push_back(CreateTmpfsVolume(tag, *sandboxPath, volume, mountPath));
+            futures.push_back(CreateTmpfsVolume(tag, jobId, *sandboxPath, volume, mountPath));
         }
         return AllSucceeded(std::move(futures));
     }
@@ -208,6 +209,7 @@ private:
 
     TFuture<TTmpfsVolumeResult> CreateTmpfsVolume(
         TGuid tag,
+        const TJobId& jobId,
         const TString& sandboxPath,
         const TTmpfsVolumeParams& volume,
         const std::string& mountPath)
@@ -227,8 +229,10 @@ private:
         config->Size = volume.Size;
         config->UserId = volume.UserId;
 
-        YT_LOG_DEBUG("Creating tmpfs volume (Tag: %v, Config: %v)",
+        YT_LOG_DEBUG(
+            "Creating tmpfs volume (Tag: %v, JobId: %v, Config: %v)",
             tag,
+            jobId,
             ConvertToYsonString(config, EYsonFormat::Text));
 
         return BIND(
@@ -558,6 +562,7 @@ public:
     //! Prepare tmpfs volumes.
     TFuture<std::vector<TTmpfsVolumeResult>> PrepareTmpfsVolumes(
         const std::optional<TString>&,
+        const TJobId& jobId,
         const std::vector<TTmpfsVolumeParams>& volumes,
         const std::vector<NScheduler::TVolumeMountPtr>&,
         const TArtifactDownloadOptions& artifactDownloadOptions) override
@@ -569,11 +574,16 @@ public:
         futures.reserve(volumes.size());
         for (const auto& volume : volumes) {
             // TODO: Remove call PrepareOverlayLayers (YT-27698)
-            futures.push_back(AllSucceeded(PrepareOverlayLayers(volume.LayerArtifactKeys, tag, volume.JobId, artifactDownloadOptions))
+            futures.push_back(AllSucceeded(PrepareOverlayLayers(
+                    volume.LayerArtifactKeys,
+                    tag,
+                    jobId,
+                    artifactDownloadOptions))
                 .AsUnique()
                 .Apply(BIND(
                     [
                         tag,
+                        jobId,
                         volume,
                         this,
                         this_ = MakeStrong(this)
@@ -583,6 +593,7 @@ public:
                             .Apply(BIND(
                                 [
                                     tag,
+                                    jobId,
                                     overlayDataArray = std::move(overlayDataArray),
                                     volumeParams = std::move(volume),
                                     this,
@@ -600,7 +611,7 @@ public:
                                     // TODO If an exception is thrown here, then all volumes must be properly cleaned up.
                                     return DoCreateOverlayVolume(
                                         tag,
-                                        volumeParams.JobId,
+                                        jobId,
                                         volumeParams.UserId,
                                         placePath,
                                         overlayDataArray,

@@ -9,7 +9,28 @@
 
 #include <yt/yt/core/logging/log.h>
 
+#include <library/cpp/yt/memory/non_null_ptr.h>
+
+#include <optional>
+
 namespace NYT::NExecNode {
+
+////////////////////////////////////////////////////////////////////////////////
+
+
+struct TJobFSDescription
+{
+    std::vector<TArtifactDescription> Artifacts;
+    THashMap<TString, int> UserArtifactNameToIndex;
+    std::vector<TArtifactKey> RootVolumeLayerArtifactKeys;
+    std::vector<TArtifactKey> GpuCheckVolumeLayerArtifactKeys;
+    std::optional<TString> DockerImage;
+    std::optional<int> RootVolumeDiskSpace;
+    std::optional<int64_t> RootVolumeInodeLimit;
+    std::vector<TTmpfsVolumeParams> TmpfsVolumeParams;
+    std::vector<NScheduler::TVolumeMountPtr> JobVolumeMounts;
+    std::optional<TSandboxNbdRootVolumeData> SandboxNbdRootVolumeData;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -112,12 +133,15 @@ private:
     std::vector<NScheduler::TVolumeMountPtr> JobVolumeMounts_;
     bool HasVirtualSandboxArtifacts_ = false;
 
-    void ConfigureUserArtifacts(const NControllerAgent::NProto::TUserJobSpec* userJobSpec);
-    void ConfigureLayerArtifacts(const NControllerAgent::NProto::TUserJobSpec* userJobSpec);
-    void ConfigureDockerImage(const NControllerAgent::NProto::TUserJobSpec* userJobSpec);
-    void ConfigureUdfArtifacts(const NControllerAgent::NProto::TJobSpecExt& jobSpecExt);
+    void ConfigureUserArtifacts(TNonNullPtr<TJobFSDescription> description, const NControllerAgent::NProto::TUserJobSpec* userJobSpec);
+    void ConfigureLayerArtifacts(TNonNullPtr<TJobFSDescription> description, const NControllerAgent::NProto::TUserJobSpec* userJobSpec);
+    void ConfigureDockerImage(TNonNullPtr<TJobFSDescription> description, const NControllerAgent::NProto::TUserJobSpec* userJobSpec);
+    void ConfigureUdfArtifacts(TNonNullPtr<TJobFSDescription> description, const NControllerAgent::NProto::TJobSpecExt& jobSpecExt);
     void ConfigureNbdDeviceIds();
-    void ConfigureVolumes(const NControllerAgent::NProto::TUserJobSpec* userJobSpec, int userId, TJobId jobId, bool hasNbdServer);
+    void ConfigureVolumes(TNonNullPtr<TJobFSDescription> description, const NControllerAgent::NProto::TUserJobSpec* userJobSpec, int userId);
+    void VerifyDescriptionMatchesApplied(const TJobFSDescription& current) const;
+    void ApplyDescription(TNonNullPtr<TJobFSDescription> description);
+    void CheckConfiguration(bool hasNbdServer) const;
 
     void MarkArtifactsAccessedViaVirtualSandbox(const NControllerAgent::NProto::TUserJobSpec* userJobSpec);
     void MarkArtifactsAccessedViaBind();
