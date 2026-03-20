@@ -1,5 +1,7 @@
 from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
+from yt_env_setup import is_sanitizer_build
+
 from yt_helpers import profiler_factory
 
 from yt_sequoia_helpers import not_implemented_in_sequoia
@@ -1733,7 +1735,10 @@ class TestAlternativeLookupMethods(TestSortedDynamicTablesBase):
 
             return time.time() - start_time
 
-        assert _get_lookup_time(lookup_count=5) < 1
+        if is_sanitizer_build():
+            assert _get_lookup_time(lookup_count=5) < 1.5
+        else:
+            assert _get_lookup_time(lookup_count=5) < 1
 
         if throttler_type == "disk":
             update_nodes_dynamic_config({
