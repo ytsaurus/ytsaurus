@@ -196,13 +196,15 @@ void TChunkStore::ReconfigureLocation(const TChunkLocationPtr& location)
         return;
     }
 
-    if (!DynamicConfig_) {
+    auto dynamicConfig = DynamicConfig_.Acquire();
+
+    if (!dynamicConfig) {
         return;
     }
 
     const auto& staticLocationConfig = storeLocation->GetStaticConfig();
-    auto it = DynamicConfig_->StoreLocationConfigPerMedium.find(storeLocation->GetMediumName());
-    auto locationConfig = it == DynamicConfig_->StoreLocationConfigPerMedium.end()
+    auto it = dynamicConfig->StoreLocationConfigPerMedium.find(storeLocation->GetMediumName());
+    auto locationConfig = it == dynamicConfig->StoreLocationConfigPerMedium.end()
         ? staticLocationConfig
         : staticLocationConfig->ApplyDynamic(it->second);
     storeLocation->Reconfigure(locationConfig);
@@ -1106,22 +1108,25 @@ void TChunkStore::OnProfiling()
 
 bool TChunkStore::ShouldPublishDisabledLocations()
 {
-    return DynamicConfig_
-        ? DynamicConfig_->PublishDisabledLocations.value_or(Config_->PublishDisabledLocations)
+    auto dynamicConfig = DynamicConfig_.Acquire();
+    return dynamicConfig
+        ? dynamicConfig->PublishDisabledLocations.value_or(Config_->PublishDisabledLocations)
         : Config_->PublishDisabledLocations;
 }
 
 bool TChunkStore::ShouldChooseLocationBasedOnIOWeight()
 {
-    return DynamicConfig_
-        ? DynamicConfig_->ChooseLocationBasedOnIOWeight.value_or(Config_->ChooseLocationBasedOnIOWeight)
+    auto dynamicConfig = DynamicConfig_.Acquire();
+    return dynamicConfig
+        ? dynamicConfig->ChooseLocationBasedOnIOWeight.value_or(Config_->ChooseLocationBasedOnIOWeight)
         : Config_->ChooseLocationBasedOnIOWeight;
 }
 
 bool TChunkStore::ShouldSkipWriteThrottlingLocations()
 {
-    return DynamicConfig_
-        ? DynamicConfig_->SkipWriteThrottlingLocations.value_or(Config_->SkipWriteThrottlingLocations)
+    auto dynamicConfig = DynamicConfig_.Acquire();
+    return dynamicConfig
+        ? dynamicConfig->SkipWriteThrottlingLocations.value_or(Config_->SkipWriteThrottlingLocations)
         : Config_->SkipWriteThrottlingLocations;
 }
 
