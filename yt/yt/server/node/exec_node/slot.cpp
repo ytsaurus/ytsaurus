@@ -384,6 +384,7 @@ public:
         const IVolumePtr& rootVolume,
         const std::vector<TTmpfsVolumeParams>& volumeParams,
         const std::vector<TVolumeMountPtr>& volumeMounts,
+        const TArtifactDownloadOptions& artifactDownloadOptions,
         bool testRootFs) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -404,7 +405,8 @@ public:
 
         auto userSandboxPath = GetSandboxPath(ESandboxKind::User, rootVolume, testRootFs);
         return Location_->CreateTmpfsDirectoriesInsideSandbox(userSandboxPath, volumeParams, volumeMounts)
-            .Apply(BIND([userSandboxPath = std::move(userSandboxPath), rootVolume, volumeParams, volumeMounts, this, this_ = MakeStrong(this)] () mutable {
+            .Apply(BIND([
+                    userSandboxPath = std::move(userSandboxPath), rootVolume, volumeParams, volumeMounts,  artifactDownloadOptions, this, this_ = MakeStrong(this)] () mutable {
                 // Check if tmpfs volumes are enabled only after tmpfs directories are created.
                 if (!Bootstrap_->GetConfig()->ExecNode->SlotManager->EnableTmpfs) {
                     YT_LOG_INFO("Do not prepare tmpfs volumes since tmpfs is disabled in slot manager");
@@ -414,8 +416,16 @@ public:
                 return RunPreparationAction(
                     /*actionName*/ "PrepareTmpfsVolumes",
                     /*uncancelable*/ false,
-                    [userSandboxPath = std::move(userSandboxPath), rootVolume = std::move(rootVolume), volumeParams = std::move(volumeParams), volumeMounts, this, this_ = MakeStrong(this)] {
-                        return VolumeManager_->PrepareTmpfsVolumes(userSandboxPath, volumeParams, volumeMounts)
+                    [
+                        userSandboxPath = std::move(userSandboxPath),
+                        rootVolume = std::move(rootVolume),
+                        volumeParams = std::move(volumeParams),
+                        volumeMounts = std::move(volumeMounts),
+                        artifactDownloadOptions = std::move(artifactDownloadOptions),
+                        this,
+                        this_ = MakeStrong(this)
+                    ] {
+                        return VolumeManager_->PrepareTmpfsVolumes(userSandboxPath, volumeParams, volumeMounts, artifactDownloadOptions)
                             .AsUnique().Apply(BIND([rootVolume, volumeMounts, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
                                 if (!volumeResultsOrError.IsOK()) {
                                     THROW_ERROR_EXCEPTION("Failed to prepare tmpfs volumes: %v",

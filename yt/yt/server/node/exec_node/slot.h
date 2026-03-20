@@ -99,6 +99,7 @@ struct IUserSlot
         const IVolumePtr& rootVolume,
         const std::vector<TTmpfsVolumeParams>& volumes,
         const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts,
+        const TArtifactDownloadOptions& artifactDownloadOptions,
         bool testRootFs) = 0;
 
     virtual TFuture<IVolumePtr> RbindRootVolume(

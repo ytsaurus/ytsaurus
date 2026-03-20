@@ -383,7 +383,8 @@ private:
         }
 
         const auto& slot = Context_.Slot;
-        return slot->PrepareTmpfsVolumes(ResultHolder_.RootVolume, volumes, Context_.UserSandboxOptions.JobVolumeMounts, Context_.TestRootFS)
+        const auto& artifactDownloadOptions = Context_.ArtifactDownloadOptions;
+        return slot->PrepareTmpfsVolumes(ResultHolder_.RootVolume, volumes, Context_.UserSandboxOptions.JobVolumeMounts, artifactDownloadOptions, Context_.TestRootFS)
             .AsUnique().Apply(BIND([slot, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
                 if (!volumeResultsOrError.IsOK()) {
                     THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::TmpfsVolumePreparationFailed, "Failed to prepare tmpfs volumes")
@@ -625,7 +626,14 @@ private:
         }
 
         const auto& slot = Context_.Slot;
-        return slot->PrepareTmpfsVolumes(ResultHolder_.RootVolume, volumes, Context_.UserSandboxOptions.JobVolumeMounts, Context_.TestRootFS)
+        const auto& artifactDownloadOptions = Context_.ArtifactDownloadOptions;
+        return slot->PrepareTmpfsVolumes(
+            ResultHolder_.RootVolume,
+            volumes,
+            Context_.UserSandboxOptions.JobVolumeMounts,
+            artifactDownloadOptions,
+            Context_.TestRootFS
+        )
             .AsUnique()
             .Apply(
                 BIND([slot, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
@@ -1068,7 +1076,8 @@ private:
         }
 
         const auto& slot = Context_.Slot;
-        return slot->PrepareTmpfsVolumes(ResultHolder_.RootVolume, volumes, Context_.UserSandboxOptions.JobVolumeMounts, Context_.TestRootFS)
+        const auto& artifactDownloadOptions = Context_.ArtifactDownloadOptions;
+        return slot->PrepareTmpfsVolumes(ResultHolder_.RootVolume, volumes, Context_.UserSandboxOptions.JobVolumeMounts, artifactDownloadOptions, Context_.TestRootFS)
             .AsUnique().Apply(BIND([slot, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
                 if (!volumeResultsOrError.IsOK()) {
                     THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::TmpfsVolumePreparationFailed, "Failed to prepare tmpfs volumes")
