@@ -19,6 +19,8 @@
 
 #include <yt/yt/server/lib/exec_node/config.h>
 
+#include <yt/yt/server/lib/exec_node/helpers.h>
+
 #include <yt/yt/server/lib/misc/disk_health_checker.h>
 
 #include <yt/yt/server/tools/tools.h>
@@ -424,6 +426,46 @@ public:
         return LayerCache_->IsEnabled();
     }
 
+    std::vector<TFuture<TOverlayData>> PrepareOverlayLayers(
+        const std::vector<TArtifactKey>& artifactKeys,
+        TGuid tag,
+        TJobId jobId,
+        const TArtifactDownloadOptions& artifactDownloadOptions)
+    {
+        std::vector<TFuture<TOverlayData>> overlayDataFutures;
+        overlayDataFutures.reserve(artifactKeys.size());
+
+        for (const auto& artifactKey : artifactKeys) {
+            if (FromProto<ELayerAccessMethod>(artifactKey.access_method()) == ELayerAccessMethod::Nbd) {
+                overlayDataFutures.push_back(GetOrCreateRONbdVolume(
+                    tag,
+                    TPrepareRONbdVolumeOptions{
+                        .JobId = jobId,
+                        .ArtifactKey = artifactKey,
+                        .ImageReader = nullptr, // Create image reader if necessary.
+                    }));
+            } else if (FromProto<ELayerFilesystem>(artifactKey.filesystem()) == ELayerFilesystem::SquashFS) {
+                overlayDataFutures.push_back(GetOrCreateSquashFSVolume(
+                    tag,
+                    TPrepareSquashFSVolumeOptions{
+                        .JobId = jobId,
+                        .ArtifactKey = artifactKey,
+                        .ArtifactDownloadOptions = artifactDownloadOptions,
+                    }));
+            } else {
+                overlayDataFutures.push_back(GetOrCreateLayer(
+                    tag,
+                    TPrepareLayerOptions{
+                        .JobId = jobId,
+                        .ArtifactKey = artifactKey,
+                        .ArtifactDownloadOptions = artifactDownloadOptions,
+                    }));
+            }
+        }
+
+        return overlayDataFutures;
+    }
+
     //! Prepare rootfs volume.
     TFuture<IVolumePtr> PrepareVolume(
         const std::vector<TArtifactKey>& artifactKeys,
@@ -451,35 +493,7 @@ public:
             THROW_ERROR(error);
         }
 
-        std::vector<TFuture<TOverlayData>> overlayDataFutures;
-
-        for (const auto& artifactKey : artifactKeys) {
-            if (FromProto<ELayerAccessMethod>(artifactKey.access_method()) == ELayerAccessMethod::Nbd) {
-                overlayDataFutures.push_back(GetOrCreateRONbdVolume(
-                    tag,
-                    TPrepareRONbdVolumeOptions{
-                        .JobId = options.JobId,
-                        .ArtifactKey = artifactKey,
-                        .ImageReader = nullptr, // Create image reader if necessary.
-                    }));
-            } else if (FromProto<ELayerFilesystem>(artifactKey.filesystem()) == ELayerFilesystem::SquashFS) {
-                overlayDataFutures.push_back(GetOrCreateSquashFSVolume(
-                    tag,
-                    TPrepareSquashFSVolumeOptions{
-                        .JobId = options.JobId,
-                        .ArtifactKey = artifactKey,
-                        .ArtifactDownloadOptions = options.ArtifactDownloadOptions,
-                    }));
-            } else {
-                overlayDataFutures.push_back(GetOrCreateLayer(
-                    tag,
-                    TPrepareLayerOptions{
-                        .JobId = options.JobId,
-                        .ArtifactKey = artifactKey,
-                        .ArtifactDownloadOptions = options.ArtifactDownloadOptions,
-                    }));
-            }
-        }
+        auto overlayDataFutures = PrepareOverlayLayers(artifactKeys, tag, options.JobId, options.ArtifactDownloadOptions);
 
         if (auto data = userSandboxOptions.VirtualSandboxData) {
             overlayDataFutures.push_back(GetOrCreateRONbdVolume(
@@ -527,7 +541,7 @@ public:
                 ] (std::vector<TOverlayData>&& overlayDataArray) {
                     // Now we are ready to create overlay volume. It is a light
                     // operation so we are allowed to make it uncancelable.
-                    return CreateOverlayVolume(
+                    return CreateRootOverlayVolume(
                         tag,
                         TPrepareOverlayVolumeOptions{
                             .JobId = jobId,
@@ -552,7 +566,56 @@ public:
         std::vector<TFuture<TTmpfsVolumeResult>> futures;
         futures.reserve(volumes.size());
         for (const auto& volume : volumes) {
-            futures.push_back(CreateTmpfsVolume(tag, volume));
+            // TODO: Remove call PrepareOverlayLayers (YT-27698)
+            futures.push_back(AllSucceeded(PrepareOverlayLayers(volume.LayerArtifactKeys, tag, volume.JobId, volume.ArtifactDownloadOptions))
+                .AsUnique()
+                .Apply(BIND(
+                    [
+                        tag,
+                        volume,
+                        this,
+                        this_ = MakeStrong(this)
+                    ] (std::vector<TOverlayData>&& overlayDataArray) mutable {
+                        return CreateTmpfsVolume(tag, volume)
+                            .AsUnique()
+                            .Apply(BIND(
+                                [
+                                    tag,
+                                    overlayDataArray = std::move(overlayDataArray),
+                                    volumeParams = std::move(volume),
+                                    this,
+                                    this_ = MakeStrong(this)
+                                ] (TTmpfsVolumePtr&& volume) {
+                                    TTmpfsVolumeResult result;
+                                    result.VolumeId = std::move(volumeParams.VolumeId);
+                                    result.Index = volumeParams.Index;
+                                    if (overlayDataArray.empty()) {
+                                        result.Volume = std::move(volume);
+                                        return MakeFuture(result);
+                                    }
+
+                                    TString placePath = NFS::JoinPaths(volume->GetPath(), "place");
+                                    // TODO If an exception is thrown here, then all volumes must be properly cleaned up.
+                                    return DoCreateOverlayVolume(
+                                        tag,
+                                        volumeParams.JobId,
+                                        volumeParams.UserId,
+                                        placePath,
+                                        overlayDataArray,
+                                        /* volumeForUpperLayer */ std::move(volume)
+                                    )
+                                        .AsUnique()
+                                        .Apply(BIND([result = std::move(result)] (TOverlayVolumePtr&& volume) mutable -> TTmpfsVolumeResult {
+                                            result.Volume = std::move(static_cast<IVolumePtr>(volume));
+                                            return result;
+                                        }))
+                                        .ToUncancelable();
+                                })
+                            )
+                            .ToUncancelable();
+                    })
+                    .AsyncVia(GetCurrentInvoker()))
+                .ToUncancelable());
         }
         return AllSucceeded(std::move(futures));
     }
@@ -704,7 +767,7 @@ private:
             .As<TOverlayData>();
     }
 
-    TFuture<TTmpfsVolumeResult> CreateTmpfsVolume(
+    TFuture<TTmpfsVolumePtr> CreateTmpfsVolume(
         TGuid tag,
         const TTmpfsVolumeParams& volumeParams)
     {
@@ -727,30 +790,31 @@ private:
             std::move(volumeCreateTimeGuard),
             volumeParams);
 
-        return future.AsUnique()
+        return future
+            .AsUnique()
             .Apply(BIND(
                 [
-                    volumeId = volumeParams.VolumeId,
-                    index = volumeParams.Index,
                     tagSet = std::move(tagSet),
                     location = std::move(location)
                 ] (TVolumeMeta&& volumeMeta) mutable {
-                    TTmpfsVolumeResult result;
-                    result.VolumeId = std::move(volumeId);
-                    result.Volume = New<TTmpfsVolume>(
+                    return New<TTmpfsVolume>(
                         std::move(tagSet),
                         std::move(volumeMeta),
                         std::move(location));
-                    result.Index = index;
-                    return result;
                 }))
             .ToUncancelable();
     }
 
-    //! Create rootfs overlay volume.
-    TFuture<TOverlayVolumePtr> CreateOverlayVolume(
+    TFuture<TOverlayVolumePtr> DoCreateOverlayVolume(
         TGuid tag,
-        TPrepareOverlayVolumeOptions options)
+        TJobId jobId,
+        int userId,
+        std::optional<TString> placePath,
+        std::vector<TOverlayData> overlayDataArray,
+        IVolumePtr volumeForUpperLayer = nullptr,
+        std::optional<int> diskSpaceLimit = std::nullopt,
+        std::optional<int> inodeLimit = std::nullopt,
+        bool placeInUserSlot = false)
     {
         auto tagSet = TVolumeProfilerCounters::MakeTagSet(
             /*volume type*/ "overlay",
@@ -760,12 +824,12 @@ private:
         auto Logger = ExecNodeLogger()
             .WithTag("Tag: %v, JobId: %v, OverlayDataArraySize: %v",
                 tag,
-                options.JobId,
-                options.OverlayDataArray.size());
+                jobId,
+                overlayDataArray.size());
 
         YT_LOG_DEBUG("Creating overlay volume");
 
-        for (const auto& volumeOrLayer : options.OverlayDataArray) {
+        for (const auto& volumeOrLayer : overlayDataArray) {
             if (volumeOrLayer.IsLayer()) {
                 LayerCache_->Touch(volumeOrLayer.GetLayer());
 
@@ -784,8 +848,12 @@ private:
             tag,
             tagSet,
             std::move(volumeCreateTimeGuard),
-            options.UserSandboxOptions,
-            options.OverlayDataArray);
+            userId,
+            placePath,
+            diskSpaceLimit,
+            inodeLimit,
+            overlayDataArray,
+            placeInUserSlot);
 
         // This future is intentionally uncancellable: we don't want to interrupt volume creation.
         return volumeMetaFuture
@@ -795,16 +863,82 @@ private:
                     Logger,
                     tagSet = std::move(tagSet),
                     location = std::move(location),
-                    overlayDataArray = std::move(options.OverlayDataArray)
+                    overlayDataArray = std::move(overlayDataArray),
+                    volumeForUpperLayer = std::move(volumeForUpperLayer)
                 ] (TVolumeMeta&& volumeMeta) {
                     YT_LOG_DEBUG("Created overlay volume");
                     return New<TOverlayVolume>(
                         std::move(tagSet),
                         std::move(volumeMeta),
                         std::move(location),
-                        std::move(overlayDataArray));
+                        std::move(overlayDataArray),
+                        std::move(volumeForUpperLayer));
                 }))
             .ToUncancelable();
+    }
+
+    //! Create rootfs overlay volume.
+    TFuture<TOverlayVolumePtr> CreateRootOverlayVolume(
+        TGuid tag,
+        TPrepareOverlayVolumeOptions options)
+    {
+        bool placeInUserSlot = false;
+
+        // Place overlayfs (upper and work directories) in root volume, if it is present.
+        std::optional<TString> placePath;
+        for (const auto& overlayData : options.OverlayDataArray) {
+            if (overlayData.IsVolume() && overlayData.GetVolume()->IsRootVolume()) {
+                if (placePath) {
+                    THROW_ERROR_EXCEPTION("Can not have multiple root volumes in overlay volume")
+                        << TErrorAttribute("first_root_volume", placePath)
+                        << TErrorAttribute("second_root_volume", overlayData.GetPath());
+                }
+                // See PORTO-460 for "//" prefix.
+           //     placePath = "//" + overlayData.GetPath();
+
+                YT_LOG_DEBUG("Place overlay volume in NBD volume (PortoPlace: %v)",
+                    placePath);
+            }
+        }
+
+        const auto& userSandboxOptions = options.UserSandboxOptions;
+        if (userSandboxOptions.EnableRootVolumeDiskQuota && !userSandboxOptions.SlotPath.empty() && !placePath) {
+            // Plant porto place for overlay volume in user slot.
+            placePath = NFS::CombinePaths(
+                userSandboxOptions.SlotPath,
+                GetSandboxRelPath(ESandboxKind::PortoPlace));
+
+            YT_LOG_DEBUG("Place overlay volume in user slot (PortoPlace: %v)",
+                placePath);
+
+            placeInUserSlot = true;
+            // See PORTO-460 for "//" prefix.
+            //placePath = (Config_->LocationIsAbsolute ? "" : "//") + placePath.value();
+        }
+
+        std::optional<int> diskSpaceLimit;
+        std::optional<int> inodeLimit;
+
+        if (userSandboxOptions.EnableDiskQuota && userSandboxOptions.EnableRootVolumeDiskQuota) {
+            if (userSandboxOptions.DiskSpaceLimit) {
+                diskSpaceLimit = *userSandboxOptions.DiskSpaceLimit;
+            }
+
+            if (userSandboxOptions.InodeLimit) {
+                inodeLimit = *userSandboxOptions.InodeLimit;
+            }
+        }
+
+        return DoCreateOverlayVolume(
+            tag,
+            options.JobId,
+            userSandboxOptions.UserId,
+            placePath,
+            std::move(options.OverlayDataArray),
+            /* volumeForUpperLayer */ nullptr,
+            diskSpaceLimit,
+            inodeLimit,
+            placeInUserSlot);
     }
 
     void PopulateAlerts(std::vector<TError>* alerts)

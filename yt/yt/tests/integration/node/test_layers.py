@@ -138,7 +138,8 @@ class TestLayers(TestPortoLayersBase):
 
     @authors("prime")
     @pytest.mark.timeout(150)
-    def test_corrupted_layer(self):
+    @pytest.mark.parametrize("volume_type", ["local", "tmpfs"])
+    def test_corrupted_layer(self, volume_type):
         self.setup_files()
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
@@ -153,7 +154,28 @@ class TestLayers(TestPortoLayersBase):
                 spec={
                     "max_failed_job_count": 1,
                     "mapper": {
-                        "layer_paths": ["//tmp/layer1", "//tmp/corrupted_layer"],
+                        "volumes": {
+                            "1": {
+                                "layers": [
+                                    {
+                                        "path": "//tmp/layer1",
+                                    },
+                                    {
+                                        "path": "//tmp/corrupted_layer",
+                                    }
+                                ],
+                                "disk_request": None if volume_type == "local" else {
+                                    "type": volume_type,
+                                    "disk_space": 1024 * 1024
+                                }
+                            }
+                        },
+                        "job_volumes_mounts": [
+                            {
+                                "volume_id": "1",
+                                "mount_path": "."
+                            }
+                        ],
                     },
                 },
             )
@@ -164,7 +186,8 @@ class TestLayers(TestPortoLayersBase):
 
     @authors("psushin")
     @pytest.mark.parametrize("layer_compression", ["", ".gz", ".xz"])
-    def test_one_layer(self, layer_compression):
+    @pytest.mark.parametrize("volume_type", ["local", "tmpfs"])
+    def test_one_layer(self, layer_compression, volume_type):
         self.setup_files()
 
         create("table", "//tmp/t_in")
@@ -179,7 +202,25 @@ class TestLayers(TestPortoLayersBase):
             spec={
                 "max_failed_job_count": 1,
                 "mapper": {
-                    "layer_paths": ["//tmp/layer1" + layer_compression],
+                    "volumes": {
+                        "1": {
+                            "layers": [
+                                {
+                                    "path": "//tmp/layer1" + layer_compression
+                                }
+                            ],
+                            "disk_request": None if volume_type == "local" else {
+                                "type": volume_type,
+                                "disk_space": 1024 * 1024
+                            }
+                        }
+                    },
+                    "job_volumes_mounts": [
+                        {
+                            "volume_id": "1",
+                            "mount_path": "."
+                        }
+                    ],
                 },
             },
         )
@@ -190,7 +231,8 @@ class TestLayers(TestPortoLayersBase):
             assert b"static-bin" in op.read_stderr(job_id)
 
     @authors("psushin")
-    def test_two_layers(self):
+    @pytest.mark.parametrize("volume_type", ["local", "tmpfs"])
+    def test_two_layers(self, volume_type):
         self.setup_files()
 
         create("table", "//tmp/t_in")
@@ -205,7 +247,28 @@ class TestLayers(TestPortoLayersBase):
             spec={
                 "max_failed_job_count": 1,
                 "mapper": {
-                    "layer_paths": ["//tmp/layer1", "//tmp/layer2"],
+                    "volumes": {
+                        "1": {
+                            "layers": [
+                                {
+                                    "path": "//tmp/layer1"
+                                },
+                                {
+                                    "path": "//tmp/layer2"
+                                }
+                            ],
+                            "disk_request": None if volume_type == "local" else {
+                                "type": volume_type,
+                                "disk_space": 1024 * 1024
+                            }
+                        }
+                    },
+                    "job_volumes_mounts": [
+                        {
+                            "volume_id": "1",
+                            "mount_path": "."
+                        }
+                    ],
                 },
             },
         )
@@ -218,7 +281,8 @@ class TestLayers(TestPortoLayersBase):
             assert b"test" in stderr
 
     @authors("psushin")
-    def test_bad_layer(self):
+    @pytest.mark.parametrize("volume_type", ["local", "tmpfs"])
+    def test_bad_layer(self, volume_type):
         self.setup_files()
 
         create("table", "//tmp/t_in")
@@ -234,7 +298,28 @@ class TestLayers(TestPortoLayersBase):
                 spec={
                     "max_failed_job_count": 1,
                     "mapper": {
-                        "layer_paths": ["//tmp/layer1", "//tmp/bad_layer"],
+                        "volumes": {
+                            "1": {
+                                "layers": [
+                                    {
+                                        "path": "//tmp/layer1"
+                                    },
+                                    {
+                                        "path": "//tmp/bad_layer"
+                                    }
+                                ],
+                                "disk_request": None if volume_type == "local" else {
+                                    "type": volume_type,
+                                    "disk_space": 1024 * 1024
+                                }
+                            }
+                        },
+                        "job_volumes_mounts": [
+                            {
+                                "volume_id": "1",
+                                "mount_path": "."
+                            }
+                        ],
                     },
                 },
             )

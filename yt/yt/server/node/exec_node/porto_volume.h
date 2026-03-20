@@ -204,7 +204,8 @@ public:
         NProfiling::TTagSet tagSet,
         TVolumeMeta volumeMeta,
         TLayerLocationPtr location,
-        std::vector<TOverlayData> overlayDataArray);
+        std::vector<TOverlayData> overlayDataArray,
+        IVolumePtr volumeForUpperLayer);
 
     ~TOverlayVolume() override;
 
@@ -214,11 +215,14 @@ private:
     // Holds volumes and layers (so that they are not destroyed) while they are needed.
     const std::vector<TOverlayData> OverlayDataArray_;
 
+    IVolumePtr VolumeForUpperLayer_;
+
     static TFuture<void> DoRemove(
         NProfiling::TTagSet tagSet,
         TLayerLocationPtr location,
         TVolumeMeta volumeMeta,
-        std::vector<TOverlayData> overlayDataArray);
+        std::vector<TOverlayData> overlayDataArray,
+        IVolumePtr volumeForUpperLayer);
 };
 
 DECLARE_REFCOUNTED_CLASS(TOverlayVolume)

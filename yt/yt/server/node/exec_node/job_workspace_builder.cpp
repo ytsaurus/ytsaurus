@@ -646,6 +646,7 @@ private:
                     SetNowTime(TimePoints_.PrepareTmpfsVolumesFinishTime);
                 })
                 .AsyncVia(Invoker_))
+            // TODO: Remove it (YT-27698)
             .ToUncancelable();
     }
 
