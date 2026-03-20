@@ -1500,6 +1500,9 @@ public:
         , ReconfigureInvoker_(std::move(reconfigureInvoker))
         , EnableIOUringLogging_(Config_->EnableIOUringLogging)
         , RequestQueue_(New<TQueue>(locationId, Config_))
+    { }
+
+    void InitializeRefCounted()
     {
         ResizeThreads();
     }
