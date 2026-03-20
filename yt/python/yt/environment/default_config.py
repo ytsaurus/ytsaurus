@@ -89,7 +89,6 @@ def get_dynamic_master_config():
 
             "data_node_tracker": {
                 "enable_per_location_full_heartbeats": True,
-                "enable_chunk_replicas_throttling_in_heartbeats": True,
                 "enable_location_indexes_in_data_node_heartbeats": True,
                 "use_location_indexes_in_sequoia_chunk_confirmation": True,
                 "use_location_indexes_to_search_location_on_confirmation": True,

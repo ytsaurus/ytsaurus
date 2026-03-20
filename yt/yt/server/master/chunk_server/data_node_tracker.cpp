@@ -215,7 +215,6 @@ public:
             }
         }
 
-        const auto& config = GetDynamicConfig();
         const auto& hydraFacade = Bootstrap_->GetHydraFacade();
         i64 chunkReplicasCount = 0;
         if constexpr (std::is_same_v<TFullHeartbeatContextPtr, TCtxFullHeartbeatPtr>) {
@@ -225,12 +224,7 @@ public:
         } else {
             chunkReplicasCount += preparedRequest->NonSequoiaRequest.chunks_size();
         }
-        auto semaphoreSlotsToAquire = config->EnableChunkReplicasThrottlingInHeartbeats ? chunkReplicasCount : 1;
-        const auto& semaphore = config->EnableChunkReplicasThrottlingInHeartbeats
-            ? FullHeartbeatPerReplicasSemaphore_
-            : (std::is_same_v<TFullHeartbeatContextPtr, TCtxFullHeartbeatPtr>
-                ? FullHeartbeatSemaphore_
-                : LocationFullHeartbeatSemaphore_);
+        const auto& semaphore = FullHeartbeatPerReplicasSemaphore_;
 
         auto mutationBuilder = BIND([=, this, this_ = MakeStrong(this)] {
             return CreateMutation(
@@ -256,7 +250,7 @@ public:
             std::move(context),
             std::move(mutationBuilder),
             std::move(replyCallback),
-            semaphoreSlotsToAquire);
+            chunkReplicasCount);
     }
 
     // COMPAT(danilalexeev): YT-23781.
@@ -418,13 +412,9 @@ public:
             YT_LOG_TRACE("No Sequoia replicas for this request (NodeId: %v)", nodeId);
         }
 
-        const auto& config = GetDynamicConfig();
         const auto& hydraFacade = Bootstrap_->GetHydraFacade();
         auto chunkReplicasCount = preparedRequest->NonSequoiaRequest.added_chunks_size() + preparedRequest->NonSequoiaRequest.removed_chunks_size();
-        auto semaphoreSlotsToAquire = config->EnableChunkReplicasThrottlingInHeartbeats ? chunkReplicasCount : 1;
-        const auto& semaphore = config->EnableChunkReplicasThrottlingInHeartbeats
-            ? IncrementalHeartbeatPerReplicasSemaphore_
-            : IncrementalHeartbeatSemaphore_;
+        const auto& semaphore = IncrementalHeartbeatPerReplicasSemaphore_;
 
         auto mutationBuilder = BIND([=, this, this_ = MakeStrong(this)] {
             return CreateMutation(
@@ -444,7 +434,7 @@ public:
             std::move(context),
             std::move(mutationBuilder),
             std::move(replyCallback),
-            semaphoreSlotsToAquire);
+            chunkReplicasCount);
     }
 
     void ProcessIncrementalHeartbeat(
@@ -802,12 +792,6 @@ public:
 private:
     const TAsyncSemaphorePtr FullHeartbeatPerReplicasSemaphore_ = New<TAsyncSemaphore>(/*totalSlots*/ 0, /*enableOverdraft*/ true);
     const TAsyncSemaphorePtr IncrementalHeartbeatPerReplicasSemaphore_ = New<TAsyncSemaphore>(/*totalSlots*/ 0, /*enableOverdraft*/ true);
-    // COMPAT(cherepashka)
-    const TAsyncSemaphorePtr FullHeartbeatSemaphore_ = New<TAsyncSemaphore>(/*totalSlots*/ 0);
-    // COMPAT(cherepashka)
-    const TAsyncSemaphorePtr LocationFullHeartbeatSemaphore_ = New<TAsyncSemaphore>(/*totalSlots*/ 0);
-    // COMPAT(cherepashka)
-    const TAsyncSemaphorePtr IncrementalHeartbeatSemaphore_ = New<TAsyncSemaphore>(/*totalSlots*/ 0);
 
     TIdGenerator ChunkLocationIdGenerator_;
 
@@ -1524,9 +1508,6 @@ private:
     {
         FullHeartbeatPerReplicasSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentChunkReplicasDuringFullHeartbeat);
         IncrementalHeartbeatPerReplicasSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentChunkReplicasDuringIncrementalHeartbeat);
-        FullHeartbeatSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentFullHeartbeats);
-        LocationFullHeartbeatSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentLocationFullHeartbeats);
-        IncrementalHeartbeatSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentIncrementalHeartbeats);
 
         if (DanglingLocationsCleaningExecutor_) {
             DanglingLocationsCleaningExecutor_->SetPeriod(GetDynamicConfig()->DanglingLocationCleaner->CleanupPeriod);

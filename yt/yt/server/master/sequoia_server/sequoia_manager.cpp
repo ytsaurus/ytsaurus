@@ -228,8 +228,6 @@ private:
             THROW_ERROR_EXCEPTION("Transaction %v already exists", transactionId);
         }
 
-        // TODO(cherepashka): add user-friendly handling of errors above.
-
         NTransactionServer::TTransaction* transaction = nullptr;
 
         try {

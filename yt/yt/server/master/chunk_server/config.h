@@ -305,15 +305,6 @@ struct TDynamicDataNodeTrackerConfig
 
     int MaxConcurrentChunkReplicasDuringIncrementalHeartbeat;
 
-    // COMPAT(danilalexeev): YT-23781.
-    int MaxConcurrentFullHeartbeats;
-
-    // COMPAT(cherepashka)
-    int MaxConcurrentLocationFullHeartbeats;
-
-    // COMPAT(cherepashka)
-    int MaxConcurrentIncrementalHeartbeats;
-
     TDanglingLocationCleanerConfigPtr DanglingLocationCleaner;
 
     // COMPAT(danilalexeev): YT-23781.
@@ -323,9 +314,6 @@ struct TDynamicDataNodeTrackerConfig
     TDuration ValidationFullHeartbeatPeriod;
     TDuration ValidationFullHeartbeatSplay;
     bool ValidateSequoiaReplicas;
-
-    // COMPAT(cherepashka)
-    bool EnableChunkReplicasThrottlingInHeartbeats;
 
     bool EnableLocationIndexesInDataNodeHeartbeats;
 
