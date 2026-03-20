@@ -1967,7 +1967,7 @@ private:
         controlSpan.Lower *= 2;
         controlSpan.Upper *= 2;
 
-        TRangeSliceAdapter keys;
+        TBoundsIterator<TRowRange> keys;
         keys.Ranges = KeyRanges_;
 
         // All values must be accessible in column refiner.

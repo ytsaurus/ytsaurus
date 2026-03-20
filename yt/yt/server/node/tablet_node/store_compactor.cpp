@@ -621,6 +621,7 @@ private:
                     .ChunkId = writer->GetChunkId(),
                     .TableSchemaKeyColumnCount = TabletSnapshot_->PhysicalSchema->GetKeyColumnCount(),
                     .PreparedColumnarMeta = true,
+                    .CompressedBlockLastKeys = TabletSnapshot_->Settings.MountConfig->CompressBlockLastKeys,
                 },
                 New<TRefCountedChunkMeta>(*finalizedMeta));
         }

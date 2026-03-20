@@ -100,6 +100,12 @@ bool TColumnIterator<Type>::IsExhausted() const
 }
 
 template <EValueType Type>
+ui32 TColumnIterator<Type>::GetCurrentIndex() const
+{
+    return Span_.Lower;
+}
+
+template <EValueType Type>
 TUnversionedValue TColumnIterator<Type>::GetValue(ui32 position) const
 {
     YT_ASSERT(position < GetCount());
@@ -350,8 +356,6 @@ TReadSpan TBoundsIterator<TRowRange>::ShrinkRange(TReadSpan span)
 
     return {begin, end};
 }
-
-using TRangeSliceAdapter =  TBoundsIterator<TRowRange>;
 
 // TODO(lukyan): push_back_inserter iterator or other consume callback?
 

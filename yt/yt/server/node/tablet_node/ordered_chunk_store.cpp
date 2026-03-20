@@ -249,12 +249,13 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
 
     auto backendReaders = GetBackendReaders(workloadCategory);
 
-    auto chunkMeta = FindCachedVersionedChunkMeta(/*prepareColumnarMeta*/ false);
+    auto chunkMeta = FindCachedVersionedChunkMeta(/*prepareColumnarMeta*/ false, /*compressBlockLastKeys*/ false);
     if (!chunkMeta) {
         chunkMeta = WaitForFast(GetCachedVersionedChunkMeta(
             backendReaders.ChunkReader,
             chunkReadOptions,
-            /*prepareColumnarMeta*/ false))
+            /*prepareColumnarMeta*/ false,
+             /*compressBlockLastKeys*/ false))
             .ValueOrThrow();
     }
 

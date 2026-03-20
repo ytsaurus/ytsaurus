@@ -341,6 +341,7 @@ SRCS(
     misc/synchronizer_detail.cpp
 
     columnar_chunk_format/column_block_manager.cpp
+    columnar_chunk_format/compressed_block_last_keys.cpp
     columnar_chunk_format/memory_helpers.cpp
     columnar_chunk_format/prepared_meta.cpp
     columnar_chunk_format/rowset_builder.cpp

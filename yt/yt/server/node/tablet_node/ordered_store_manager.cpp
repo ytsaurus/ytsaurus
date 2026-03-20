@@ -391,6 +391,7 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
                             .ChunkId = tableWriter->GetChunkId(),
                             .TableSchemaKeyColumnCount = tabletSnapshot->PhysicalSchema->GetKeyColumnCount(),
                             .PreparedColumnarMeta = false,
+                            .CompressedBlockLastKeys = false,
                         },
                         New<TRefCountedChunkMeta>(*finalizedMeta));
                 }

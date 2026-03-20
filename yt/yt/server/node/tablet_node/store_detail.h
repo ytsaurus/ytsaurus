@@ -288,13 +288,15 @@ public:
 
     // Fast path.
     NTableClient::TCachedVersionedChunkMetaPtr FindCachedVersionedChunkMeta(
-        bool prepareColumnarMeta);
+        bool prepareColumnarMeta,
+        bool compressBlockLastKeys);
 
     // Slow path.
     TFuture<NTableClient::TCachedVersionedChunkMetaPtr> GetCachedVersionedChunkMeta(
         const NChunkClient::IChunkReaderPtr& chunkReader,
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
-        bool prepareColumnarMeta);
+        bool prepareColumnarMeta,
+        bool compressBlockLastKeys);
 
     void OnDynamicConfigChanged(
         const TTabletNodeDynamicConfigPtr& oldConfig,

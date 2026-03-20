@@ -397,7 +397,8 @@ private:
         auto chunkMeta = WaitFor(store->GetCachedVersionedChunkMeta(
             backendReader.ChunkReader,
             chunkReadOptions,
-            /*prepareColumnarMeta*/ true))
+            /*prepareColumnarMeta*/ true,
+            /*compressBlockLastKeys*/ false))
             .ValueOrThrow();
 
         // This is just some very rough approximation.
