@@ -303,6 +303,10 @@ dashboards = {
         "func": flow.build_flow_state_cache,
         "monitoring": {},
     },
+    "flow-companion-manager": {
+        "func": flow.build_flow_companion_manager,
+        "monitoring": {},
+    },
     "queue-metrics": {
         "func": queue_and_consumer_metrics.build_queue_metrics,
         "monitoring": {

@@ -41,7 +41,8 @@ def get_dashboards_meta():
         "computation",
         "one-worker",
         "message-transfering",
-        "state-cache"
+        "state-cache",
+        "companion-manager"
     ]:
         dashboards[short_name] = DashboardMeta(
             short_name=short_name,
