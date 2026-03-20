@@ -593,7 +593,6 @@ class TestNodesThrottling(YTEnvSetup):
         # Now each node has approximately 20 chunks, so after registration they will send full heartbeats and will be throttled.
 
         self.Env.kill_nodes()
-        set("//sys/@config/chunk_manager/data_node_tracker/enable_chunk_replicas_throttling_in_heartbeats", True)
         set("//sys/@config/chunk_manager/data_node_tracker/max_concurrent_chunk_replicas_during_full_heartbeat", 1)
         # Disabling `minimize_commit_latency` and make delay between mutations flush, this will help throttling to be visible.
         set("//sys/@config/hydra_manager/minimize_commit_latency", False)
