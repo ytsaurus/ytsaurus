@@ -167,6 +167,12 @@ void TSlotManagerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("volume_release_timeout", &TThis::VolumeReleaseTimeout)
         .Default(TDuration::Minutes(20));
 
+    registrar.Parameter("remove_volumes_from_porto_place_timeout", &TThis::RemoveVolumesFromPortoPlaceTimeout)
+        .Default(TDuration::Minutes(20));
+
+    registrar.Parameter("remove_layers_from_porto_place_timeout", &TThis::RemoveLayersFromPortoPlaceTimeout)
+        .Default(TDuration::Minutes(20));
+
     registrar.Parameter("abort_on_free_volume_synchronization_failed", &TThis::AbortOnFreeVolumeSynchronizationFailed)
         .Default(false);
 
