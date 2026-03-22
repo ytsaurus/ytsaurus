@@ -50,7 +50,6 @@ struct TJobWorkspaceBuildingContext
     std::vector<TShellCommandConfigPtr> SetupCommands;
     std::optional<TString> DockerImage;
     NContainers::NCri::TCriAuthConfigPtr DockerAuth;
-    IVolumePtr RootVolume;
     std::vector<TTmpfsVolumeResult> PreparedTmpfsVolumes;
 
     bool NeedGpu = false;

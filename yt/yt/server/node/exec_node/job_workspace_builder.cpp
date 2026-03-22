@@ -288,10 +288,6 @@ TJobWorkspaceBuildingResult TJobWorkspaceBuilder::ExtractResult()
         YT_LOG_FATAL("Result has already been extracted");
     }
 
-    if (!ResultHolder_.RootVolume) {
-        ResultHolder_.RootVolume = std::move(Context_.RootVolume);
-    }
-
     // It is expected that a situation where volumes are not linked will be triggered only when canceling job_workspace_builder.
     // The return of non-linked volumes is necessary in order to delete them correctly and set "disable" if an error occurs.
     if (ResultHolder_.TmpfsVolumes.empty()) {
@@ -421,8 +417,6 @@ private:
         SetJobPhase(EJobPhase::LinkingVolumes);
 
         YT_LOG_DEBUG("Root volume binding is not needed in simple workspace");
-
-        ResultHolder_.RootVolume = std::move(Context_.RootVolume);
 
         return OKFuture;
     }
@@ -583,7 +577,7 @@ private:
                                     << volumeOrError;
                             }
 
-                            Context_.RootVolume = volumeOrError.Value();
+                            ResultHolder_.RootVolume = volumeOrError.Value();
 
                             return slot->CreateSlotDirectories(
                                 std::move(volumeOrError.Value()),
@@ -699,8 +693,8 @@ private:
         SetJobPhase(EJobPhase::LinkingVolumes);
 
         auto slot = Context_.Slot;
-        if (Context_.RootVolume && !Context_.UserSandboxOptions.EnableRootVolumeDiskQuota) {
-            return slot->RbindRootVolume(Context_.RootVolume)
+        if (ResultHolder_.RootVolume && !Context_.UserSandboxOptions.EnableRootVolumeDiskQuota) {
+            return slot->RbindRootVolume(ResultHolder_.RootVolume)
                 .Apply(BIND(
                     [
                         this,
@@ -717,7 +711,6 @@ private:
                     }).AsyncVia(Invoker_))
                 .ToImmediatelyCancelable();
         } else {
-            ResultHolder_.RootVolume = std::move(Context_.RootVolume);
             YT_LOG_DEBUG("Root volume binding is not needed");
         }
 
@@ -1101,8 +1094,6 @@ private:
         SetJobPhase(EJobPhase::LinkingVolumes);
 
         YT_LOG_DEBUG("Root volume binding is not needed in cri workspace");
-
-        ResultHolder_.RootVolume = Context_.RootVolume;
 
         return OKFuture;
     }
