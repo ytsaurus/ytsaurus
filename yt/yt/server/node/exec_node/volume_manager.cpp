@@ -697,7 +697,7 @@ public:
     //! Remove volumes planted at a given place.
     TFuture<void> RemoveVolumes(const TString& place, TDuration timeout) override
     {
-        auto location = LayerCache_->PickVolumeLocation();
+        auto location = LayerCache_->PickRandomVolumeLocation();
         return BIND(
             [
                 location,
@@ -715,7 +715,7 @@ public:
     //! Remove layers planted at a given place.
     TFuture<void> RemoveLayers(const TString& place, TDuration timeout) override
     {
-        auto location = LayerCache_->PickLayerLocation();
+        auto location = LayerCache_->PickRandomLayerLocation();
         return BIND(
             [
                 location,

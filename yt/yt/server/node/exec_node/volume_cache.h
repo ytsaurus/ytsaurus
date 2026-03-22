@@ -290,8 +290,14 @@ public:
     //! Pick best location for new volume operations.
     TLayerLocationPtr PickVolumeLocation() const;
 
+    //! Pick random location for new volume operations.
+    TLayerLocationPtr PickRandomVolumeLocation() const;
+
     //! Pick best location for new layer operations.
     TLayerLocationPtr PickLayerLocation() const;
+
+    //! Pick random location for new layer operations with preference for non-importing locations.
+    TLayerLocationPtr PickRandomLayerLocation() const;
 
     void PopulateAlerts(std::vector<TError>* alerts);
 
