@@ -171,6 +171,12 @@ struct TSlotManagerDynamicConfig
 
     TDuration VolumeReleaseTimeout;
 
+    //! Timeout for removing volumes from porto place during slot cleanup.
+    TDuration RemoveVolumesFromPortoPlaceTimeout;
+
+    //! Timeout for removing layers from porto place during slot cleanup.
+    TDuration RemoveLayersFromPortoPlaceTimeout;
+
     bool AbortOnFreeVolumeSynchronizationFailed;
 
     bool AbortOnJobsDisabled;

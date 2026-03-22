@@ -788,13 +788,14 @@ private:
             return;
         }
 
+        auto timeout = Bootstrap_->GetDynamicConfig()->ExecNode->SlotManager->RemoveVolumesFromPortoPlaceTimeout;
+
         YT_LOG_DEBUG(
-            "Cleaning up volumes from porto place (PortoPlace: %v)",
-            portoPlacePath);
+            "Cleaning up volumes from porto place (PortoPlace: %v, Timeout: %v)",
+            portoPlacePath,
+            timeout);
 
-        static constexpr TDuration Timeout = TDuration::Minutes(10);
-
-        auto removeVolumesResult = WaitFor(VolumeManager_->RemoveVolumes(portoPlacePath, Timeout));
+        auto removeVolumesResult = WaitFor(VolumeManager_->RemoveVolumes(portoPlacePath, timeout));
         if (!removeVolumesResult.IsOK()) {
             auto error = TError("Failed to remove volumes from porto place")
                 << TErrorAttribute("porto_place", portoPlacePath)
@@ -821,13 +822,14 @@ private:
             return;
         }
 
+        auto timeout = Bootstrap_->GetDynamicConfig()->ExecNode->SlotManager->RemoveLayersFromPortoPlaceTimeout;
+
         YT_LOG_DEBUG(
-            "Cleaning up layers from porto place (PortoPlace: %v)",
-            portoPlacePath);
+            "Cleaning up layers from porto place (PortoPlace: %v, Timeout: %v)",
+            portoPlacePath,
+            timeout);
 
-        static constexpr TDuration Timeout = TDuration::Minutes(10);
-
-        auto removeLayersResult = WaitFor(VolumeManager_->RemoveLayers(portoPlacePath, Timeout));
+        auto removeLayersResult = WaitFor(VolumeManager_->RemoveLayers(portoPlacePath, timeout));
         if (!removeLayersResult.IsOK()) {
             auto error = TError("Failed to remove layers from porto place")
                 << TErrorAttribute("porto_place", portoPlacePath)
