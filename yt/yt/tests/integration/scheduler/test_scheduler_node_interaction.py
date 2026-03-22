@@ -5,7 +5,7 @@ from yt_commands import (
     get, set, remove, exists, raises_yt_error,
     update_nodes_dynamic_config, update_scheduler_config, update_pool_tree_config_option,
     create_pool, create_pool_tree, read_table, write_table,
-    map, run_test_vanilla,
+    map, run_test_vanilla, run_sleeping_vanilla,
     abort_job, get_job, list_jobs,
     get_operation_cypress_path, set_node_banned)
 
@@ -871,3 +871,50 @@ class TestSchedulingHeartbeatThrottling(YTEnvSetup):
 
         wait(lambda: get_total_scheduling_heartbeat_complexity() == 18)
         wait(lambda: concurrent_complexity_limit_reached_count.get_delta() > 0)
+
+
+##################################################################
+
+
+class TestUnutilizedResources(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 3
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "node_shard_count": 2,
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "job_resource_manager": {
+            "resource_limits": {
+                "user_slots": 2,
+                "cpu": 2,
+                "memory": 2 * 1024 ** 3,
+            }
+        }
+    }
+
+    @authors("bystrovserg")
+    def test_unutilized_resources_counter_sanity(self):
+        unutilized_cpu = profiler_factory().at_scheduler().counter(
+            "scheduler/unutilized_node_resources/cpu",
+            tags={"reason": "unknown"},
+        )
+        throttled_cpu = profiler_factory().at_scheduler().counter(
+            "scheduler/unutilized_node_resources/cpu",
+            tags={"reason": "throttling"},
+        )
+
+        op = run_sleeping_vanilla(
+            job_count=3,
+            task_patch={"cpu_limit": 1},
+            track=False,
+        )
+
+        wait(lambda: op.get_job_count("running") == 3)
+
+        wait(lambda: unutilized_cpu.get_delta() > 12)
+        assert throttled_cpu.get_delta() == 0
