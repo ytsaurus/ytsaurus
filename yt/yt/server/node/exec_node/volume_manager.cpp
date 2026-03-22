@@ -3755,6 +3755,30 @@ public:
         });
     }
 
+    TLayerLocationPtr PickRandomLocation() const
+    {
+        // Collect all enabled, non-full locations
+        std::vector<TLayerLocationPtr> availableLocations;
+        availableLocations.reserve(LayerLocations_.size());
+
+        for (const auto& location : LayerLocations_) {
+            if (location->IsEnabled() && !location->IsFull()) {
+                availableLocations.push_back(location);
+            }
+        }
+
+        // Pick randomly from available locations
+        if (!availableLocations.empty()) {
+            auto index = RandomNumber<size_t>(availableLocations.size());
+            return availableLocations[index];
+        }
+
+        // No locations available
+        THROW_ERROR_EXCEPTION(
+            NExecNode::EErrorCode::NoLayerLocationAvailable,
+            "Failed to get layer location; all locations are disabled");
+    }
+
     void PopulateAlerts(std::vector<TError>* alerts)
     {
         for (const auto& location : LayerLocations_) {
@@ -4874,7 +4898,7 @@ public:
     //! Remove volumes planted at a given place.
     TFuture<void> RemoveVolumes(const TString& place, TDuration timeout) override
     {
-        auto location = LayerCache_->PickLocation();
+        auto location = LayerCache_->PickRandomLocation();
         return BIND(
             [
                 location,
@@ -4892,7 +4916,7 @@ public:
     //! Remove layers planted at a given place.
     TFuture<void> RemoveLayers(const TString& place, TDuration timeout) override
     {
-        auto location = LayerCache_->PickLocation();
+        auto location = LayerCache_->PickRandomLocation();
         return BIND(
             [
                 location,
