@@ -428,9 +428,7 @@ func (c *client) LockRows(
 	}
 	defer tx.Abort()
 
-	opts.TransactionID = tx.ID()
-
-	err = c.Encoder.LockRows(ctx, path, locks, lockType, keys, opts)
+	err = tx.LockRows(ctx, path, locks, lockType, keys, opts)
 	if err != nil {
 		return err
 	}
@@ -543,8 +541,6 @@ func (c *client) PushQueueProducerBatch(
 	}
 	defer tx.Abort()
 
-	opts.TransactionID = tx.ID()
-
 	result, err = tx.PushQueueProducerBatch(ctx, producerPath, queuePath, sessionID, epoch, rowBatch, opts)
 	if err != nil {
 		return result, err
@@ -596,8 +592,6 @@ func (c *client) InsertRowBatch(
 	}
 	defer tx.Abort()
 
-	opts.TransactionID = tx.ID()
-
 	err = tx.InsertRowBatch(ctx, path, rowBatch, opts)
 	if err != nil {
 		return err
@@ -635,9 +629,7 @@ func (c *client) DeleteRows(
 	}
 	defer tx.Abort()
 
-	opts.TransactionID = tx.ID()
-
-	err = c.Encoder.DeleteRows(ctx, path, keys, opts)
+	err = tx.DeleteRows(ctx, path, keys, opts)
 	if err != nil {
 		return err
 	}
