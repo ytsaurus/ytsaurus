@@ -465,18 +465,18 @@ items:
              href: api/python/dataclass.md
            - name: Python API with examples
              href: api/python/examples.md
-           - name: Apache Airflow
-             href: api/airflow/userdoc.md
-           - name: C++
-             items:
-               - name: Description
-                 href: api/cpp/description.md
-               - name: Protobuf representation of tables
-                 href: api/cpp/protobuf.md
-               - name: Lambda expressions
-                 href: api/cpp/lambda.md
-               - name: Usage examples
-                 href: api/cpp/examples.md
+       - name: Apache Airflow
+         href: api/airflow/userdoc.md
+       - name: C++
+         items:
+           - name: Description
+             href: api/cpp/description.md
+           - name: Protobuf representation of tables
+             href: api/cpp/protobuf.md
+           - name: Lambda expressions
+             href: api/cpp/lambda.md
+           - name: Usage examples
+             href: api/cpp/examples.md
        - name: Go API
          href: api/go/reference.md
        - name: Java API
