@@ -97,10 +97,12 @@ public:
 
     const TArtifactDescription& GetUserArtifact(const TString& name) const;
 
-    //! Excludes artifacts that bypass cache or are accessed via virtual sandbox.
-    std::vector<TArtifactKey> GetArtifactsToCache() const;
+    //! Returns artifact descriptions that need to be cached
+    //! (excludes artifacts that bypass cache or are accessed via virtual sandbox).
+    std::vector<TArtifactDescription> GetArtifactsToCache() const;
 
-    //! The size of artifacts must match the size of Artifacts_.
+    //! Sets cached artifact pointers. The size must match GetArtifactsToCache().
+    //! Uses the same filtering logic to find the right slots in Artifacts_.
     void SetCachedArtifacts(std::vector<TArtifactPtr> artifacts);
 
     void ReleaseArtifacts();
@@ -132,6 +134,7 @@ private:
     std::vector<TTmpfsVolumeParams> TmpfsVolumeParams_;
     std::vector<NScheduler::TVolumeMountPtr> JobVolumeMounts_;
     bool HasVirtualSandboxArtifacts_ = false;
+    bool ArtifactsCached_ = false;
 
     void ConfigureUserArtifacts(TNonNullPtr<TJobFSDescription> description, const NControllerAgent::NProto::TUserJobSpec* userJobSpec);
     void ConfigureLayerArtifacts(TNonNullPtr<TJobFSDescription> description, const NControllerAgent::NProto::TUserJobSpec* userJobSpec);

@@ -657,6 +657,9 @@ void TTestingConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("fail_address_resolve", &TThis::FailAddressResolve)
         .Default(false);
+
+    registrar.Parameter("delay_in_artifacts_caching", &TThis::DelayInArtifactsCaching)
+        .Default();
 }
 
 void TJobProbeConfig::Register(TRegistrar registrar)

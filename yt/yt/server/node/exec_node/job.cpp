@@ -2353,6 +2353,21 @@ void TJob::OnNodeDirectoryPrepared(TErrorOr<std::unique_ptr<NNodeTrackerClient::
             }
 
             auto artifactsFuture = DownloadArtifacts();
+
+            if (CommonConfig_->Testing && CommonConfig_->Testing->DelayInArtifactsCaching) {
+                auto delay = *CommonConfig_->Testing->DelayInArtifactsCaching;
+                artifactsFuture = artifactsFuture.Apply(
+                    BIND([delay] (const TErrorOr<std::vector<TArtifactPtr>>& result) -> TFuture<std::vector<TArtifactPtr>> {
+                        if (!result.IsOK()) {
+                            return MakeFuture(result);
+                        }
+                        return TDelayedExecutor::MakeDelayed(delay)
+                            .Apply(BIND([artifacts = result.Value()] () mutable {
+                                return std::move(artifacts);
+                            }));
+                    }));
+            }
+
             artifactsFuture.Subscribe(
                 BIND(&TJob::OnArtifactsDownloaded, MakeWeak(this))
                     .Via(Invoker_));
@@ -2405,8 +2420,10 @@ void TJob::OnArtifactsDownloaded(const TErrorOr<std::vector<TArtifactPtr>>& erro
 
             YT_LOG_INFO("Artifacts downloaded");
 
-            const auto& artifacts = errorOrArtifacts.Value();
-            FSSecretary_->SetCachedArtifacts(artifacts);
+            FSSecretary_->SetCachedArtifacts(errorOrArtifacts.Value());
+
+            // NB(pogorelov): Until this, ArtifactsFuture_ holds references on artifact objects.
+            ArtifactsFuture_ = OKFuture;
 
             ArtifactsDownloadedTime_ = TInstant::Now();
             PrepareWorkspace();
@@ -2865,8 +2882,6 @@ void TJob::Cleanup()
 
     // Release resources.
     GpuStatistics_.clear();
-
-    FSSecretary_->ReleaseArtifacts();
 
     if (IsStarted() && IsEvicted()) {
         ResourceHolder_->ReleaseNonSlotResources();
@@ -3468,20 +3483,17 @@ TFuture<std::vector<TArtifactPtr>> TJob::DownloadArtifacts()
 
     const auto& artifactCache = Bootstrap_->GetArtifactCache();
 
-    std::vector<TFuture<TArtifactPtr>> asyncArtifacts;
+    // Account for bypassed artifacts.
     for (const auto& artifact : FSSecretary_->GetArtifacts()) {
-        i64 artifactSize = artifact.Key.GetCompressedDataSize();
         if (artifact.BypassArtifactCache) {
-            ArtifactCacheStatistics_.CacheBypassedArtifactsSize += artifactSize;
-            asyncArtifacts.push_back(MakeFuture<TArtifactPtr>(nullptr));
-            continue;
+            ArtifactCacheStatistics_.CacheBypassedArtifactsSize += artifact.Key.GetCompressedDataSize();
         }
+    }
 
-        if (artifact.AccessedViaVirtualSandbox) {
-            asyncArtifacts.push_back(MakeFuture<TArtifactPtr>(nullptr));
-            continue;
-        }
-
+    auto artifactsToCache = FSSecretary_->GetArtifactsToCache();
+    std::vector<TFuture<TArtifactPtr>> asyncArtifacts;
+    asyncArtifacts.reserve(size(artifactsToCache));
+    for (const auto& artifact : artifactsToCache) {
         YT_LOG_INFO(
             "Downloading artifact (FileName: %v, SandboxKind: %v, CompressedDataSize: %v)",
             artifact.Name,
@@ -3514,7 +3526,7 @@ TFuture<std::vector<TArtifactPtr>> TJob::DownloadArtifacts()
 
         asyncArtifacts.push_back(std::move(asyncArtifact));
 
-        UpdateArtifactStatistics(artifactSize, fetchedFromCache);
+        UpdateArtifactStatistics(artifact.Key.GetCompressedDataSize(), fetchedFromCache);
     }
 
     return AllSucceeded(std::move(asyncArtifacts))

@@ -706,12 +706,17 @@ const TArtifactDescription& TJobFSSecretary::GetUserArtifact(const TString& name
     return Artifacts_[index];
 }
 
-std::vector<TArtifactKey> TJobFSSecretary::GetArtifactsToCache() const
+std::vector<TArtifactDescription> TJobFSSecretary::GetArtifactsToCache() const
 {
-    std::vector<TArtifactKey> result;
+    if (ArtifactsCached_) {
+        return {};
+    }
+
+    std::vector<TArtifactDescription> result;
+    result.reserve(size(Artifacts_));
     for (const auto& artifact : Artifacts_) {
         if (!artifact.BypassArtifactCache && !artifact.AccessedViaVirtualSandbox) {
-            result.push_back(artifact.Key);
+            result.push_back(artifact);
         }
     }
     return result;
@@ -719,10 +724,19 @@ std::vector<TArtifactKey> TJobFSSecretary::GetArtifactsToCache() const
 
 void TJobFSSecretary::SetCachedArtifacts(std::vector<TArtifactPtr> artifacts)
 {
-    YT_VERIFY(artifacts.size() == Artifacts_.size());
-    for (int i = 0; i < ssize(Artifacts_); ++i) {
-        Artifacts_[i].Artifact = std::move(artifacts[i]);
+    if (empty(artifacts)) {
+        return;
     }
+
+    int cacheIndex = 0;
+    for (auto& artifact : Artifacts_) {
+        if (!artifact.BypassArtifactCache && !artifact.AccessedViaVirtualSandbox) {
+            YT_VERIFY(cacheIndex < ssize(artifacts));
+            artifact.Artifact = std::move(artifacts[cacheIndex++]);
+        }
+    }
+    YT_VERIFY(cacheIndex == ssize(artifacts));
+    ArtifactsCached_ = true;
 }
 
 void TJobFSSecretary::ReleaseArtifacts()
@@ -740,9 +754,6 @@ void TJobFSSecretary::OnNewJobStarted(TJobId jobId)
     Logger = BaseLogger_.WithTag("JobId: %v", jobId);
 
     RootVolumeDiskQuotaEnabled_ = false;
-    for (auto& artifact : Artifacts_) {
-        artifact.Artifact.Reset();
-    }
     DockerImageId_.reset();
     RootVolume_.Reset();
     GpuCheckVolume_.Reset();
