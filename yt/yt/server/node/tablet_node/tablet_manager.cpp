@@ -5664,8 +5664,10 @@ private:
             }
         }
 
-        for (auto& [_, tablet] : Tablets()) {
-            tablet->OnDynamicConfigChanged(Slot_, oldConfig, newConfig);
+        if (!AreNodesEqual(ConvertToNode(oldConfig->TabletNode), ConvertToNode(newConfig->TabletNode))) {
+            for (auto& [_, tablet] : Tablets()) {
+                tablet->OnDynamicConfigChanged(Slot_, oldConfig, newConfig);
+            }
         }
     }
 
