@@ -1927,27 +1927,30 @@ public:
         // We must continue initialization and set RowIndex_ before
         // ReadyEvent is set for the first time.
         InitBlockFetcher();
+    }
 
+    void InitializeRefCounted()
+    {
         // NB: We must complete initialization before ReadyEvent is set in the constructor.
         SetReadyEvent(
             RequestFirstBlocks()
-            .Apply(BIND([this, this_ = MakeStrong(this)] {
-                FeedBlocksToReaders();
-                Initialize(TRange(KeyColumnReaders_));
-                RowIndex_ = LowerRowIndex_;
-                LowerKeyLimitReached_ = !LowerLimit_.KeyBound();
+                .Apply(BIND([this, this_ = MakeStrong(this)] {
+                    FeedBlocksToReaders();
+                    Initialize(TRange(KeyColumnReaders_));
+                    RowIndex_ = LowerRowIndex_;
+                    LowerKeyLimitReached_ = !LowerLimit_.KeyBound();
 
-                YT_LOG_DEBUG("Initialized start row index (LowerKeyLimitReached: %v, RowIndex: %v)",
-                    LowerKeyLimitReached_,
-                    RowIndex_);
+                    YT_LOG_DEBUG("Initialized start row index (LowerKeyLimitReached: %v, RowIndex: %v)",
+                        LowerKeyLimitReached_,
+                        RowIndex_);
 
-                if (RowIndex_ >= HardUpperRowIndex_) {
-                    Completed_ = true;
-                }
-                if (IsSamplingCompleted()) {
-                    Completed_ = true;
-                }
-            })));
+                    if (RowIndex_ >= HardUpperRowIndex_) {
+                        Completed_ = true;
+                    }
+                    if (IsSamplingCompleted()) {
+                        Completed_ = true;
+                    }
+                })));
     }
 
     ~TColumnarSchemalessRangeChunkReader()
