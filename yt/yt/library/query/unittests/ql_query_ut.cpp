@@ -11246,6 +11246,91 @@ TEST_F(TQueryEvaluateTest, ListHasIntersection)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, YsonLengthComposite)
+{
+    auto split = MakeSplit({
+        {"list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+    });
+
+    auto source = TSource{
+        "list=[1; 2; 3]",
+        "list=[4; 5]",
+        "list=[]",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"length", EValueType::Int64}
+    });
+
+    auto result = YsonToRows({
+        "length=3",
+        "length=2",
+        "length=0",
+    }, resultSplit);
+
+    Evaluate("yson_length(list) as length FROM [//t]", split, source, ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, YsonLengthCompositeStruct)
+{
+    auto split = MakeSplit({
+        {"struct", StructLogicalType(
+            {
+                {"a", "a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+                {"b", "b", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"c", "c", SimpleLogicalType(ESimpleLogicalValueType::Boolean)},
+            },
+            /*removedFieldStableNames*/ {})},
+    });
+
+    auto source = TSource{
+        "struct={a=1;b=hello;c=%true}",
+        "struct={a=2;b=world;c=%false}",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"length", EValueType::Int64}
+    });
+
+    auto result = YsonToRows({
+        "length=3",
+        "length=3",
+    }, resultSplit);
+
+    Evaluate("yson_length(struct) as length FROM [//t]", split, source, ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, YsonLengthCompositeNestedList)
+{
+    auto split = MakeSplit({
+        {"nested", ListLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))},
+    });
+
+    auto source = TSource{
+        "nested=[[1;2];[3;4;5];[6]]",
+        "nested=[[1]]",
+        "nested=[]",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"length", EValueType::Int64}
+    });
+
+    auto result = YsonToRows({
+        "length=3",
+        "length=1",
+        "length=0",
+    }, resultSplit);
+
+    Evaluate("yson_length(nested) as length FROM [//t]", split, source, ResultMatcher(result));
+
+    SUCCEED();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_F(TQueryEvaluateTest, OrderByAny)
