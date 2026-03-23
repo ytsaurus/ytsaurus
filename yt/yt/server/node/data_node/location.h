@@ -124,7 +124,7 @@ class TLocationMemoryGuard
 {
 public:
     TLocationMemoryGuard() = default;
-    TLocationMemoryGuard(TLocationMemoryGuard&& other);
+    TLocationMemoryGuard(TLocationMemoryGuard&& other) noexcept;
     ~TLocationMemoryGuard();
 
     void Release();
@@ -136,7 +136,7 @@ public:
     void IncreaseSize(i64 delta);
     void DecreaseSize(i64 delta);
 
-    TLocationMemoryGuard& operator=(TLocationMemoryGuard&& other);
+    TLocationMemoryGuard& operator=(TLocationMemoryGuard&& other) noexcept;
 
     explicit operator bool() const;
 

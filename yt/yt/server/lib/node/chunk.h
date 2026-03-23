@@ -27,7 +27,7 @@ class TLockedChunkGuard
 {
 public:
     TLockedChunkGuard() = default;
-    TLockedChunkGuard(TLockedChunkGuard&& other);
+    TLockedChunkGuard(TLockedChunkGuard&& other) noexcept;
     ~TLockedChunkGuard();
 
     //! This method loses pointer to location and chunk for exclude
@@ -35,7 +35,7 @@ public:
     //! eternal (while the location is alive) lock on the chunk.
     void Release();
 
-    TLockedChunkGuard& operator=(TLockedChunkGuard&& other);
+    TLockedChunkGuard& operator=(TLockedChunkGuard&& other) noexcept;
 
     explicit operator bool() const;
 

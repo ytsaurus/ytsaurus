@@ -77,7 +77,7 @@ TCGValue::TCGValue(TCGValue&& other) noexcept
     other.Reset();
 }
 
-TCGValue& TCGValue::operator=(TCGValue&& other)
+TCGValue& TCGValue::operator=(TCGValue&& other) noexcept
 {
     IsNull_ = other.IsNull_;
     IsAggregate_ = other.IsAggregate_;

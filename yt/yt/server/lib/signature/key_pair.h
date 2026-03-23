@@ -22,8 +22,8 @@ public:
     TKeyPair(const TKeyPair& other) = default;
     TKeyPair& operator=(const TKeyPair& other) = default;
 
-    TKeyPair(TKeyPair&& other) = default;
-    TKeyPair& operator=(TKeyPair&& other) = default;
+    TKeyPair(TKeyPair&& other) noexcept = default;
+    TKeyPair& operator=(TKeyPair&& other) noexcept = default;
 
     [[nodiscard]] const TKeyInfoPtr& KeyInfo() const;
 
