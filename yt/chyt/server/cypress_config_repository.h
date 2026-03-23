@@ -28,7 +28,7 @@ public:
 
     void WriteDictionary(
         const DB::ContextPtr& context,
-        const std::string& name,
+        const DB::StorageID& storageId,
         const DB::LoadablesConfigurationPtr& config);
     void DeleteDictionary(
         const DB::ContextPtr& context,

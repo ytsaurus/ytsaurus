@@ -1,26 +1,26 @@
 #include "http_handler.h"
 
-#include "query_context.h"
 #include "host.h"
-#include "helpers.h"
+#include "query_context.h"
 
 #include <yt/yt/library/re2/re2.h>
 
-#include <DBPoco/Util/LayeredConfiguration.h>
-#include <Server/HTTPHandler.h>
-#include <Server/NotFoundHandler.h>
-#include <Server/StaticRequestHandler.h>
+#include <util/string/cast.h>
 
 #include <Access/AccessControl.h>
 #include <Access/User.h>
+
+#include <DBPoco/Util/LayeredConfiguration.h>
 
 #include <DBPoco/URI.h>
 
 #include <IO/Operators.h>
 
-#include <base/getFQDNOrHostName.h>
+#include <Server/HTTPHandler.h>
+#include <Server/NotFoundHandler.h>
+#include <Server/StaticRequestHandler.h>
 
-#include <util/string/cast.h>
+#include <base/getFQDNOrHostName.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -153,13 +153,9 @@ public:
             return;
         }
 
-        YT_LOG_DEBUG("Registering new user (UserName: %v)", userName);
-        RegisterNewUser(
-            Server_.context()->getAccessControl(),
-            userName,
-            Host_->GetUserDefinedDatabaseNames(),
-            Host_->HasUserDefinedSqlObjectStorage());
-        YT_LOG_DEBUG("User registered");
+        YT_LOG_DEBUG("Preparing clickhouse user (UserName: %v)", userName);
+        Host_->PrepareClickHouseUser(userName);
+        YT_LOG_DEBUG("User prepared");
 
         DB::HTTPHandler::handleRequest(request, response, writeEvent);
     }
