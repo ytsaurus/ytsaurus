@@ -1214,6 +1214,55 @@ class TestArtifactCacheBypass(YTEnvSetup):
         # In tests we crash if slot location is disabled.
         # Thus, if this test passed successfully, location was not disabled.
 
+    @authors("yuryalekseev")
+    def test_insufficient_tmpfs_for_files(self):
+        """
+        Test that map operation fails when tmpfs size is insufficient
+        for copying files from file_paths with copy_files=true.
+
+        This test verifies the fix for the issue where files were copied
+        to tmpfs without checking if there's enough space, potentially
+        causing slot location to be disabled.
+        """
+        # Create input and output tables
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        # Create a file that's larger than the tmpfs we'll allocate.
+        # File size: 20 MB
+        file_size = 20 * 1024 * 1024
+        create("file", "//tmp/large_file")
+        write_file("//tmp/large_file", b"A" * file_size)
+
+        # Try to run map operation with tmpfs size smaller than the file size.
+        # The operation should fail with TmpfsOverflow error.
+        tmpfs_size = file_size // 2
+
+        with raises_yt_error(yt_error_codes.TmpfsOverflow):
+            map(
+                command="cat",
+                in_="//tmp/t_input",
+                out="//tmp/t_output",
+                spec={
+                    "mapper": {
+                        "copy_files": True,
+                        "file_paths": ["//tmp/large_file"],
+                        "tmpfs_path": ".",
+                        "tmpfs_size": tmpfs_size,
+                    },
+                    "max_failed_job_count": 1,
+                }
+            )
+
+        # Verify that no slot location was disabled.
+        nodes = ls("//sys/cluster_nodes")
+        for node in nodes:
+            alerts = get("//sys/cluster_nodes/{}/@alerts".format(node))
+            for alert in alerts:
+                assert "disabled" not in alert.get("message", "").lower(), \
+                    f"Found disabled location alert on node {node}: {alert['message']}"
+
     @authors("gritukan")
     @pytest.mark.parametrize("bypass_artifact_cache", [False, True])
     def test_lost_artifact(self, bypass_artifact_cache):
