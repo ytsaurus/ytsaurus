@@ -481,6 +481,9 @@ public:
             produceAllVersions,
             schemaIdMapping)
         , Keys_(keys)
+    { }
+
+    void InitializeRefCounted()
     {
         SetReadyEvent(DoOpen(GetBlockSequence(), ChunkMeta_->Misc()));
     }
