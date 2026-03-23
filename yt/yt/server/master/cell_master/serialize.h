@@ -163,6 +163,7 @@ DEFINE_ENUM(EMasterReign,
     ((ReduceSchemaModeAndOptimizeFor)                               (3211))  // cherepashka
     ((AccountStatisticsUpdatesInGossip)                             (3212))  // theevilbird
     ((FixResolveForSourcePathInCopy)                                (3213))  // cherepashka
+    ((ForbidIndexedChunkFormatWithErasure)                          (3214))  // akozhikhov
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
