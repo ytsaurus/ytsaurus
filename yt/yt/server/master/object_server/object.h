@@ -12,6 +12,8 @@
 
 #include <yt/yt/core/misc/pool_allocator.h>
 
+#include <util/system/compiler.h>
+
 namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -418,8 +420,7 @@ public:
 
 private:
     T* Ptr_ = nullptr;
-    [[no_unique_address]]
-    C Context_;
+    Y_NO_UNIQUE_ADDRESS C Context_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
