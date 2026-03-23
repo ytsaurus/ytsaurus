@@ -40,6 +40,9 @@ DB::ColumnString::MutablePtr ConvertCHColumnToAny(
 void ReduceFilterToDistinct(
     DB::IColumn::Filter& filter,
     const NTableClient::IUnversionedColumnarRowBatch::TColumn& ytColumn);
+// Gets values column from dict or rle encoded column for distinct read optimization.
+const NTableClient::IUnversionedColumnarRowBatch::TColumn* UnwrapSimpleDistinctColumn(
+    const NTableClient::IUnversionedColumnarRowBatch::TColumn* ytColumn);
 
 ////////////////////////////////////////////////////////////////////////////////
 

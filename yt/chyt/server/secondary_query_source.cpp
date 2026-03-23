@@ -341,7 +341,7 @@ public:
                     if (auto columnarBatch = batch->TryAsColumnar()) {
                         auto batchColumns = columnarBatch->MaterializeColumns();
                         for (const auto* ytColumn : batchColumns) {
-                            if (ytColumn->Id == NameTable_->GetIdOrThrow(step.Columns[0].Name())) {
+                            if (ytColumn->Id == NameTable_->GetIdOrThrow(step.Columns[0].Name()) && ytColumn != UnwrapSimpleDistinctColumn(ytColumn)) {
                                 ReduceFilterToDistinct(blockWithFilter.Filter, *ytColumn);
                             }
                         }
