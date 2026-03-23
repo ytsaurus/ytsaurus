@@ -1869,6 +1869,16 @@ class TestAlternativeLookupMethods(TestSortedDynamicTablesBase):
         remount_table("//tmp/t")
         assert lookup_rows("//tmp/t", [{"key": i} for i in range(0, 100)]) == rows
 
+    @authors("akozhikhov")
+    def test_indexed_format_and_hunk_erasure_incompatibility(self):
+        sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t")
+        self._enable_hash_chunk_index("//tmp/t")
+        set("//tmp/t/@erasure_codec", "isa_reed_solomon_6_3")
+        with raises_yt_error('only for tables with null "erasure_codec"'):
+            sync_mount_table("//tmp/t")
+
 
 @pytest.mark.enabled_multidaemon
 class TestLookupWithRelativeNetworkThrottler(TestSortedDynamicTablesBase):
