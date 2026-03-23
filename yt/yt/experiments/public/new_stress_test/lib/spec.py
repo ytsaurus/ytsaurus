@@ -231,7 +231,12 @@ spec_template = {
     },
 
     "queue_and_hunk_storage": {
-        "unmount_probability": 0.2,
+        "unmount_queue_probability": 0.2,
+        "unmount_queue_tablet_probability": 0.1,
+        "mount_queue_tablet_probability": 0.2,
+        "unmount_hunk_storage_probability": 0.1,
+        "unmount_hunk_storage_tablet_probability": 0.1,
+        "mount_hunk_storage_tablet_probability": 0.2,
         "change_hunk_storage_probability": 0.8,
         "create_probability": 0.2,
         "copy_probability": 0.3,

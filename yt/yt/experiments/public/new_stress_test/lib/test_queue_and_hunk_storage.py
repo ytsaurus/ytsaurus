@@ -21,6 +21,7 @@ class Queue:
         self.data_path = f"{self.base_path}/{name}.data"
         self.hunk_storage_name = None
         self.mounted = False
+        self.is_mounted_tablet = [False] * tablet_count
         self.hunk_storage_mounted = False
         self.data_path = self.path + ".data"
         self.cell_tag = None
@@ -101,19 +102,34 @@ class Queue:
 
         return moved_queue
 
-    def mount(self):
-        logger.info(f"Mounting queue {self.path}")
-        yt.mount_table(self.path, sync=True)
+    def mount(self, tablet_index=None, sync=True):
+        logger.info(f"Mounting queue {self.path} (tablet_index: {tablet_index}, sync: {sync})")
+        if tablet_index:
+            yt.mount_table(self.path, first_tablet_index=tablet_index, last_tablet_index=tablet_index, sync=sync)
+            self.is_mounted_tablet[tablet_index] = True
+        else:
+            yt.mount_table(self.path, sync=sync)
+            self.is_mounted_tablet = [True] * self.tablet_count
         self.mounted = True
 
-    def unmount(self):
-        logger.info(f"Unmounting queue {self.path}")
-        yt.unmount_table(self.path, sync=True)
-        self.mounted = False
+    def unmount(self, tablet_index=None, sync=True):
+        logger.info(f"Unmounting queue {self.path} (tablet_index: {tablet_index}, sync: {sync})")
+        if tablet_index:
+            yt.unmount_table(self.path, first_tablet_index=tablet_index, last_tablet_index=tablet_index, sync=sync)
+            self.is_mounted_tablet[tablet_index] = False
+            if True not in self.is_mounted_tablet:
+                self.mounted=False
+        else:
+            yt.unmount_table(self.path, sync=sync)
+            self.is_mounted_tablet = [False] * self.tablet_count
+            self.mounted = False
 
     def write(self):
         logger.info(f"Writing to the queue {self.path}")
-        rows = [{"value": RSG.generate(1024), "$tablet_index": random.choice(range(0, self.tablet_count))} for _ in range(10)]
+
+        mounted_tablets = [tablet_index for tablet_index in range(self.tablet_count) if self.is_mounted_tablet[tablet_index]]
+        tablets = mounted_tablets if self.mounted else ([0] * self.tablet_count)
+        rows = [{"value": RSG.generate(1024), "$tablet_index": random.choice(tablets)} for _ in range(10)]
         data_rows = []
 
         new_written_row_count = [0] * self.tablet_count
@@ -139,6 +155,8 @@ class Queue:
                 if tablet_infos[tablet_index]["total_row_count"] != self.written_row_count[tablet_index]:
                     return False
             return True
+
+        logger.info(f"Checking written rows (written_row_count: {self.written_row_count})")
 
         wait(check_written)
 
@@ -182,6 +200,7 @@ class HunkStorage:
         self.name = name
         self.path = f"{base_path}/{name}"
         self.mounted = False
+        self.is_mounted_tablet = [False] * tablet_count
         self.cell_tag = cell_tag
         self.hunk_storage_id = None
         self.linked_queue_names = set()
@@ -206,15 +225,26 @@ class HunkStorage:
             self.path,
             attributes=hunk_storage_attributes)
 
-    def mount(self):
-        logger.info(f"Mounting hunk storage {self.path}")
-        yt.mount_table(self.path, sync=True)
+    def mount(self, tablet_index=None, sync=True):
+        logger.info(f"Mounting hunk storage {self.path} (tablet_index: {tablet_index}, sync: {sync})")
+        if tablet_index:
+            yt.mount_table(self.path, first_tablet_index=tablet_index, last_tablet_index=tablet_index, sync=sync)
+            self.is_mounted_tablet[tablet_index] = True
+        else:
+            yt.mount_table(self.path, sync=sync)
+            self.is_mounted_tablet = [True] * self.tablet_count
         self.mounted = True
 
-    def unmount(self):
-        logger.info(f"Unmounting hunk storage {self.path}")
-        yt.unmount_table(self.path, sync=True)
-        self.mounted = False
+    def unmount(self, tablet_index=None, sync=True):
+        logger.info(f"Unmounting hunk storage {self.path} (tablet_index: {tablet_index}, sync: {sync})")
+        if tablet_index:
+            yt.unmount_table(self.path, first_tablet_index=tablet_index, last_tablet_index=tablet_index, sync=sync)
+            self.is_mounted_tablet[tablet_index] = False
+            if True not in self.is_mounted_tablet:
+                self.mounted = False
+        else:
+            yt.unmount_table(self.path, sync=sync)
+            self.mounted = False
 
     def remove(self):
         logger.info(f"Removing hunk_storage {self.path}")
@@ -298,22 +328,35 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
 
     def _remount():
         for queue in queues.values():
-            if random.random() < spec.queue_and_hunk_storage.unmount_probability:
+            if random.random() < spec.queue_and_hunk_storage.unmount_queue_probability:
                 queue.unmount()
             else:
                 queue.mount()
 
+            for tablet_index in range(queue.tablet_count):
+                if random.random() < spec.queue_and_hunk_storage.unmount_queue_tablet_probability:
+                    queue.unmount(tablet_index=tablet_index)
+                elif random.random() < spec.queue_and_hunk_storage.mount_queue_tablet_probability:
+                    queue.mount(tablet_index=tablet_index)
+
         for hunk_storage in hunk_storages.values():
-            if random.random() < spec.queue_and_hunk_storage.unmount_probability:
-                # TODO(nadya73): Uncomment after YT-26227.
-                """
+            if random.random() < spec.queue_and_hunk_storage.unmount_hunk_storage_probability:
                 if len(hunk_storage.linked_queue_names) > 0:
                     for queue_name in hunk_storage.linked_queue_names:
                         queues[queue_name].unmount()
                 hunk_storage.unmount()
-                """
             else:
                 hunk_storage.mount()
+
+            for tablet_index in range(hunk_storage.tablet_count):
+                if random.random() < spec.queue_and_hunk_storage.unmount_hunk_storage_tablet_probability:
+                    hunk_storage.unmount(tablet_index=tablet_index, sync=False)
+                elif random.random() < spec.queue_and_hunk_storage.mount_hunk_storage_tablet_probability:
+                    hunk_storage.mount(tablet_index=tablet_index, sync=False)
+
+            # If all tablets were unmounted, unmount synchronously.
+            if True not in hunk_storage.is_mounted_tablet:
+                hunk_storage.unmount()
 
 
     def _write():
