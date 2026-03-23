@@ -2537,6 +2537,7 @@ class TestUserJobMonitoring(YTEnvSetup):
                 "testing": {
                     "test_resource": True,
                     "test_gpu_count": 8,
+                    "test_utilization_gpu_rate": 0.5,
                 },
             },
         },
@@ -2971,11 +2972,9 @@ class TestUserJobMonitoring(YTEnvSetup):
         with Restarter(self.Env, NODES_SERVICE):
             pass
 
-    @authors("omgronny")
-    def test_has_monitoring_before_start(self):
-        op = run_test_vanilla(
-            "for (( c=1; c>0; c++ )); do : ; done",
-            job_count=1,
+    @authors("severovv")
+    def test_zero_monitoring_before_start(self):
+        op = run_sleeping_vanilla(
             spec={
                 "job_testing_options": {
                     "delay_before_run_job_proxy": 1000000,
@@ -2984,7 +2983,7 @@ class TestUserJobMonitoring(YTEnvSetup):
             task_patch={
                 "monitoring": {
                     "enable": True,
-                    "sensor_names": ["cpu/user", "gpu/utilization_power"]
+                    "sensor_names": ["cpu/user", "gpu/utilization_gpu", "gpu/utilization_power"]
                 },
                 "gpu_limit": 1,
                 "enable_gpu_layers": False,
@@ -3008,6 +3007,10 @@ class TestUserJobMonitoring(YTEnvSetup):
             postprocessor=float) == 0)
         wait(lambda: profiler.get(
             "user_job/gpu/utilization_power",
+            {"job_descriptor": descriptor, "gpu_slot": "0"},
+            postprocessor=float) == 0)
+        wait(lambda: profiler.get(
+            "user_job/gpu/utilization_gpu",
             {"job_descriptor": descriptor, "gpu_slot": "0"},
             postprocessor=float) == 0)
 
@@ -3045,7 +3048,7 @@ class TestUserJobMonitoring(YTEnvSetup):
         wait(lambda: profiler.get(
             "user_job/gpu/utilization_gpu",
             {"job_descriptor": descriptor, "gpu_slot": "0"},
-            postprocessor=float) == 0)
+            postprocessor=float) == 0.5)
         assert profiler.get(
             "user_job/cpu/user",
             {"job_descriptor": descriptor},
