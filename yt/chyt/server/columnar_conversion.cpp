@@ -1160,19 +1160,22 @@ void ReduceFilterToDistinct(
     newFilter.resize_fill(ytValueColumn->ValueCount + 1);
 
     int rowIndex = 0;
+    YT_VERIFY(ytColumn.StartIndex == 0);
     bool hasNull = false;
+    auto dict = ytColumn.Rle ? ytColumn.Rle->ValueColumn->Dictionary : ytColumn.Dictionary;
+    bool zeroMeansNull = (dict && dict->ZeroMeansNull);
     DecodeRawVector<i64>(
         ytColumn.StartIndex,
         ytColumn.StartIndex + ytColumn.ValueCount,
         dictionaryIndexes,
         rleIndexes,
         [&] (i64 index) {
-            return index - ytValueColumn->StartIndex + 1;
+            return index + 1;
         },
         [&] (i64 index) {
-            hasNull |= (index == 0);
+            hasNull |= (index == 0 && zeroMeansNull);
             if (filter[rowIndex++]) {
-                index = (index == 0) ? newFilter.size() : index;
+                index = (index == 0 && zeroMeansNull) ? newFilter.size() : index;
                 newFilter.data()[index - 1] = 1;
             }
         });
@@ -1180,6 +1183,25 @@ void ReduceFilterToDistinct(
         newFilter.pop_back();
     }
     filter = std::move(newFilter);
+}
+
+const IUnversionedColumnarRowBatch::TColumn* UnwrapSimpleDistinctColumn(const IUnversionedColumnarRowBatch::TColumn* ytColumn)
+{
+    if (ytColumn->Rle && ytColumn->StartIndex == 0 ) {
+        auto rleIndexes = ytColumn->GetTypedValues<ui64>();
+        if (ytColumn->ValueCount > static_cast<i64>(rleIndexes.Back())) {
+            ytColumn = ytColumn->Rle->ValueColumn;
+        } else {
+            return ytColumn;
+        }
+    }
+    if (ytColumn->Dictionary) {
+        auto dictionaryIndexes = ytColumn->GetTypedValues<ui32>();
+        if (std::ssize(dictionaryIndexes) == ytColumn->ValueCount) {
+            ytColumn = ytColumn->Dictionary->ValueColumn;
+        }
+    }
+    return ytColumn;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

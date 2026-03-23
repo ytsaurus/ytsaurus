@@ -255,6 +255,19 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
         write_table("//tmp/rle_encoded_table", arr)
 
+        create("table", "//tmp/t_read_part_block", attributes={
+            "schema": [{"name": "a", "type": "int64"}],
+            "optimize_for": "scan",
+        })
+        arr = []
+        for _ in range(100):
+            arr.append({"a": 1})
+        for _ in range(100):
+            arr.append({"a": 2})
+        for _ in range(100):
+            arr.append({"a": 3})
+        write_table("//tmp/t_read_part_block", arr)
+
         with Clique(1, config_patch=patch, export_query_log=True) as clique:
             def send_simple_distinct_queries(table_name):
                 # Queries that are optimized by simple distinct optimization.
@@ -316,6 +329,9 @@ class TestClickHouseCommon(ClickHouseTestBase):
                     clique, query_log_path, "select distinct b from " + table_name + " prewhere a = c", 1, [{"b": "a"}]
                 )
                 self.make_query_and_check_block_rows(
+                    clique, query_log_path, "select distinct b from " + table_name + " prewhere c = 4", 1, [{"b": None}]
+                )
+                self.make_query_and_check_block_rows(
                     clique,
                     query_log_path,
                     "select distinct a from " + table_name + " group by a having a < 2",
@@ -369,6 +385,28 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 """
                 )
                 == [{"a": 1}, {"a": 2}, {"a": None}]
+            )
+
+            self.make_query_and_check_block_rows(
+                clique,
+                query_log_path,
+                'select distinct a from "//tmp/t_read_part_block[#0:#100]"',
+                100,
+                [{"a": 1}],
+            )
+            self.make_query_and_check_block_rows(
+                clique,
+                query_log_path,
+                'select distinct a from "//tmp/t_read_part_block[#100:#200]"',
+                100,
+                [{"a": 2}],
+            )
+            self.make_query_and_check_block_rows(
+                clique,
+                query_log_path,
+                'select distinct a from "//tmp/t_read_part_block[#200:#300]"',
+                100,
+                [{"a": 3}],
             )
 
     @authors("evgenstf")
