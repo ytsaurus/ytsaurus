@@ -67,6 +67,8 @@ struct TDictionaryConfig
 {
     TString Name;
 
+    TString Database;
+
     //! Source configuration.
     TDictionarySourceConfigPtr Source;
 

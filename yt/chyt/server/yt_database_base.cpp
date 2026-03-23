@@ -52,7 +52,7 @@ TYtDatabaseBase::TYtDatabaseBase(String databaseName)
 
 void TYtDatabaseBase::createTable(
     const DB::ContextPtr context,
-    const std::string& name,
+    const std::string& /*name*/,
     const DB::StoragePtr& table,
     const DB::ASTPtr& /*query*/)
 {
@@ -61,7 +61,7 @@ void TYtDatabaseBase::createTable(
         auto host = queryContext->Host;
         host->GetCypressDictionaryConfigRepository()->WriteDictionary(
             context,
-            name,
+            table->getStorageID(),
             dynamic_pointer_cast<DB::StorageDictionary>(table)->getConfiguration());
     }
     else if (table->getName() != "StorageDistributor") {
@@ -334,7 +334,10 @@ DB::StoragePtr TYtDatabaseBase::DoGetDictionary(DB::ContextPtr context, TQueryCo
 
     return std::make_shared<DB::StorageDictionary>(
         storageId,
-        loadResult.config->config,
+        loadResult.name,
+        DB::ExternalDictionariesLoader::getDictionaryStructure(*loadResult.config),
+        loadResult.config->config->getString("dictionary.comment", ""),
+        DB::StorageDictionary::Location::SameDatabaseAndNameAsDictionary,
         context);
 }
 

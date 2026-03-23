@@ -83,6 +83,7 @@ target_sources(yt-chyt-server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/conversion.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/custom_data_types.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/dictionary_access_control.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/dictionary_source.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/format.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/function_helpers.cpp

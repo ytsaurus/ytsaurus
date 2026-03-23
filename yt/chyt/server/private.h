@@ -54,6 +54,7 @@ DEFINE_ENUM(ELowCardinalityMode,
 
 extern const std::string CacheUserName;
 extern const std::string ChytSqlObjectsUserName;
+extern const std::string DictionariesUserName;
 extern const std::string InternalRemoteUserName;
 
 //! Contains the main attributes of the table that are used in CHYT, with the exception of schema and schema_id.
@@ -96,6 +97,7 @@ DECLARE_REFCOUNTED_STRUCT(TPocoOpenSslConfig)
 DECLARE_REFCOUNTED_STRUCT(TQueryCacheConfig)
 DECLARE_REFCOUNTED_STRUCT(TUserDefinedSqlObjectsStorageConfig)
 DECLARE_REFCOUNTED_STRUCT(TDictionaryRepositoryConfig)
+DECLARE_REFCOUNTED_STRUCT(TDictionaryAccessControlConfig)
 DECLARE_REFCOUNTED_STRUCT(TSystemLogTableExporterConfig)
 DECLARE_REFCOUNTED_STRUCT(TSystemLogTableExportersConfig)
 DECLARE_REFCOUNTED_STRUCT(TMemoryWatchdogConfig)
@@ -137,6 +139,7 @@ DECLARE_REFCOUNTED_CLASS(TSecondaryQueryReadTaskIterator)
 DECLARE_REFCOUNTED_CLASS(TCypressDictionaryConfigRepository)
 DECLARE_REFCOUNTED_CLASS(TTableSchemaCache)
 DECLARE_REFCOUNTED_CLASS(TCachedTableSchema)
+DECLARE_REFCOUNTED_CLASS(IDictionaryAccessControl)
 
 struct TValue;
 struct TSubquerySpec;
@@ -348,6 +351,9 @@ using PrewhereInfoPtr = std::shared_ptr<PrewhereInfo>;
 
 class IDatabase;
 using DatabasePtr = std::shared_ptr<IDatabase>;
+
+class IDictionarySource;
+using DictionarySourcePtr = std::shared_ptr<IDictionarySource>;
 
 // TODO(max42): get rid of this!
 void registerStorageMemory(StorageFactory& factory);

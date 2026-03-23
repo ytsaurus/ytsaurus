@@ -64,7 +64,7 @@ message TRspRemoveSqlObject
 
 message TReqReloadDictionary
 {
-    optional string dictionary_name = 1;
+    optional string config_path = 1;
 }
 
 message TRspReloadDictionary

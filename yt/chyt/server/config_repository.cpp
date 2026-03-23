@@ -18,13 +18,17 @@ class TDictionaryConfigRepository
     : public DB::IExternalLoaderConfigRepository
 {
 public:
-    explicit TDictionaryConfigRepository(const std::vector<TDictionaryConfigPtr>& dictionaries)
+    explicit TDictionaryConfigRepository(const std::vector<TDictionaryConfigPtr>& dictionaries, const TString& defaultDatabase)
     {
         Dictionaries_.reserve(dictionaries.size());
         for (const auto& dictionary : dictionaries) {
-            if (!Dictionaries_.emplace(dictionary->Name, dictionary).second) {
+            auto [it, inserted] = Dictionaries_.emplace(dictionary->Name, dictionary);
+            if (!inserted) {
                 THROW_ERROR_EXCEPTION("Duplicating dictionary name %Qv", dictionary->Name);
             };
+            if (!it->second->Database) {
+                it->second->Database = defaultDatabase;
+            }
             Keys_.emplace(dictionary->Name);
         }
     }
@@ -69,9 +73,10 @@ const std::string TDictionaryConfigRepository::Name_ = "YT";
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<DB::IExternalLoaderConfigRepository> CreateDictionaryConfigRepository(
-    const std::vector<TDictionaryConfigPtr>& dictionaries)
+    const std::vector<TDictionaryConfigPtr>& dictionaries,
+    const TString& defaultDatabase)
 {
-    return std::make_unique<TDictionaryConfigRepository>(dictionaries);
+    return std::make_unique<TDictionaryConfigRepository>(dictionaries, defaultDatabase);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

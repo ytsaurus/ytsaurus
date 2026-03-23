@@ -91,8 +91,13 @@ void RegisterNewUser(
     DB::AccessControl& accessControl,
     const std::string& userName,
     const std::vector<TString>& userDefinedDatabaseNames,
-    bool allowSqlUdfManagement)
+    bool allowSqlUdfManagement,
+    bool allowGlobalDictionaryAccess)
 {
+    if (accessControl.find(DB::AccessEntityType::USER, userName)) {
+        return;
+    }
+
     auto user = std::make_unique<DB::User>();
     user->setName(userName);
     user->access.grant(DB::AccessFlags::allFlagsGrantableOnTableLevel(), /*database*/ "YT");
@@ -102,7 +107,10 @@ void RegisterNewUser(
     user->access.grant(DB::AccessType::SHOW, /*database*/ "system");
     user->access.grant(DB::AccessType::SELECT, /*database*/ "system");
     user->access.grant(DB::AccessType::CREATE_TEMPORARY_TABLE);
-    user->access.grant(DB::AccessType::dictGet);
+
+    if (!allowGlobalDictionaryAccess) {
+        user->access.revoke(DB::AccessType::dictGet);
+    }
 
     if (allowSqlUdfManagement) {
         user->access.grant(DB::AccessType::CREATE_FUNCTION);
