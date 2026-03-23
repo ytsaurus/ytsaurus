@@ -1293,6 +1293,7 @@ std::vector<std::string> TTabletBalancer::UpdateBundleList()
 
     // Find bundles that are not in the list of bundles (probably deleted)
     // and erase them.
+    auto guard = Guard(BundleErrorsLock_);
     for (auto it = Bundles_.begin(); it != Bundles_.end();) {
         if (currentBundles.contains(it->first)) {
             ++it;
@@ -1300,6 +1301,7 @@ std::vector<std::string> TTabletBalancer::UpdateBundleList()
         }
 
         it->second->Stop();
+        BundleErrors_.erase(it->first);
         Bundles_.erase(it++);
     }
     return newBundles;

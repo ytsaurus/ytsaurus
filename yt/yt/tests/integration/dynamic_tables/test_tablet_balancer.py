@@ -255,7 +255,7 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
         sync_mount_table("//tmp/t")
 
         effective_config_path = \
-            "//sys/tablet_balancer/orchid/tablet_balancer/bundles/default/tables/\/\/tmp\/t/effective_config"  # noqa
+            "//sys/tablet_balancer/orchid/tablet_balancer/bundles/default/tables/\\/\\/tmp\\/t/effective_config"
 
         def _has_expected_table():
             if not exists(effective_config_path):
