@@ -868,7 +868,7 @@ bool TSlotManager::Disable(TError error)
             SlotCount_,
             InitializedSlotCount_.load(),
             InitializationEpoch_,
-            MakeCompactIntervalView(SortedFreeSlots()));
+            MakeCompactIntervalView(GetSortedFreeSlots()));
         AbortProcessDramatically(EProcessExitCode::InternalError, "Free slot synchronization failed");
     }
 
@@ -909,7 +909,7 @@ bool TSlotManager::Disable(TError error)
             SlotCount_,
             InitializedSlotCount_.load(),
             InitializationEpoch_,
-            MakeCompactIntervalView(SortedFreeSlots()));
+            MakeCompactIntervalView(GetSortedFreeSlots()));
         AbortProcessDramatically(EProcessExitCode::InternalError, "Some slots are hung after disabling slot manager");
     }
 
@@ -1320,7 +1320,7 @@ void TSlotManager::PushSlot(int slotIndex)
         SlotCount_,
         InitializedSlotCount_.load(),
         InitializationEpoch_,
-        MakeCompactIntervalView(SortedFreeSlots()));
+        MakeCompactIntervalView(GetSortedFreeSlots()));
 }
 
 int TSlotManager::PopSlot()
@@ -1359,7 +1359,7 @@ void TSlotManager::ReleaseSlot(ESlotType slotType, int slotIndex, NClusterNode::
         requestedCpu);
 }
 
-std::vector<int> TSlotManager::SortedFreeSlots()
+std::vector<int> TSlotManager::GetSortedFreeSlots()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
