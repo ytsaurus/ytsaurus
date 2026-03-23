@@ -127,7 +127,7 @@ public:
 
     TFuture<void> Open() override
     {
-        return ReadyEvent();
+        return InternalGetReadyEvent();
     }
 
     TDataStatistics GetDataStatistics() const override
