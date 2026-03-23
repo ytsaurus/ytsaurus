@@ -1226,7 +1226,7 @@ size_t TExpressionProfiler::Profile(
         ++fragments->Items[*escapeCharacterId].UseCount;
     }
 
-    bool nullable = true;
+    bool nullable = false;
     nullable |= fragments->Items[textId].Nullable;
     nullable |= fragments->Items[patternId].Nullable;
     if (escapeCharacterId) {
@@ -1286,7 +1286,8 @@ size_t TExpressionProfiler::Profile(
             likeExpr->Opcode,
             patternId,
             escapeCharacterId,
-            opaqueIndex),
+            opaqueIndex,
+            nullable),
         likeExpr->GetWireType(),
         nullable);
 
