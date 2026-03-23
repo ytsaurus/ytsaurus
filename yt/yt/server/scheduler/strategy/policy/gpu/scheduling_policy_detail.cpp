@@ -44,7 +44,7 @@ TGpuSchedulingProfilingCounters::TGpuSchedulingProfilingCounters(const NProfilin
     , TotalPlanningTime(profiler.Timer("/total_planning_time"))
     , OperationResourcesUpdateTime(profiler.Timer("/operation_resources_update_time"))
     , FullHostPlanningTime(profiler.Timer("/full_host_planning_time"))
-    , ReguralPlanningTime(profiler.Timer("/regular_planning_time"))
+    , RegularPlanningTime(profiler.Timer("/regular_planning_time"))
     , ExtraPlanningTime(profiler.Timer("/extra_planning_time"))
     , EnabledOperations(profiler.Gauge("/enabled_operations_count"))
     , FullHostModuleBoundOperations(profiler.Gauge("/full_host_module_bound_operations_count"))
@@ -59,8 +59,7 @@ TSchedulingPolicy::TSchedulingPolicy(
     const std::string& treeId,
     TGpuSchedulingPolicyConfigPtr config,
     NProfiling::TProfiler profiler)
-    : TAssignmentPlanContextBase(GetLogger(treeId))
-    , Host_(std::move(host))
+    : Host_(std::move(host))
     , StrategyHost_(strategyHost)
     , Logger(GetLogger(treeId))
     , Config_(std::move(config))
@@ -68,6 +67,7 @@ TSchedulingPolicy::TSchedulingPolicy(
         StrategyHost_->GetControlInvoker(EControlQueue::GpuAssignmentPlanUpdate),
         BIND(&TSchedulingPolicy::UpdateAssignmentPlan, MakeWeak(this)),
         Config_->PlanUpdatePeriod))
+    , AssignmentHandler_(GetLogger(treeId))
     , Profiler_(std::move(profiler))
     , ProfilingCounters_(Profiler_)
 { }
@@ -458,24 +458,11 @@ INodePtr TSchedulingPolicy::BuildPersistentState() const
     return ConvertToNode(persistentState);
 }
 
-const TOperationMap& TSchedulingPolicy::Operations() const
-{
-    return EnabledOperations_;
-}
-
-const TNodeMap& TSchedulingPolicy::Nodes() const
-{
-    return Nodes_;
-}
-
-const TGpuPlanUpdateStatisticsPtr& TSchedulingPolicy::GetStatistics() const
-{
-    return Statistics_;
-}
-
 void TSchedulingPolicy::UpdateAssignmentPlan()
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    TForbidContextSwitchGuard contextSwitchGuard;
 
     if (auto now = TInstant::Now(); now <= InitializationFromPersistentStateDeadline_) {
         YT_LOG_DEBUG(
@@ -491,213 +478,46 @@ void TSchedulingPolicy::UpdateAssignmentPlan()
         return;
     }
 
-    Statistics_ = New<TGpuPlanUpdateStatistics>();
-
-    {
-        TForbidContextSwitchGuard contextSwitchGuard;
-        auto treeSnapshot = host->GetTreeSnapshot();
-
-        for (const auto& [_, operation] : EnabledOperations_) {
-            UpdateOperationResources(operation, treeSnapshot);
-        }
-
-        for (const auto& [_, operation] : DisabledOperations_) {
-            ResetOperationResources(operation);
-        }
-
-        Statistics_->UpdatingOperationResourcesDuration = Statistics_->Timer.GetElapsedTime();
+    auto treeSnapshot = host->GetTreeSnapshot();
+    if (!treeSnapshot) {
+        YT_LOG_DEBUG("Could not get tree snapshot, skipping the update");
+        return;
     }
 
+    TAssignmentPlanUpdateContext updateContext(
+        Logger,
+        EnabledOperations_,
+        Nodes_,
+        treeSnapshot,
+        AssignmentHandler_);
+
+    updateContext.UpdatePreemptionStatuses();
+    updateContext.FillOperationUsage();
+    updateContext.PreemptLimitViolatingOperations();
+
+    for (const auto& [_, operation] : EnabledOperations_) {
+        updateContext.UpdateOperationResources(operation);
+    }
+
+    for (const auto& [_, operation] : DisabledOperations_) {
+        updateContext.ResetOperationResources(operation);
+    }
+
+    updateContext.GetStatistics()->UpdatingOperationResourcesDuration = updateContext.GetStatistics()->Timer.GetElapsedTime();
+
     TGpuAllocationAssignmentPlanUpdateExecutor updateExecutor(
-        this,
+        &updateContext,
         TInstant::Now(),
         Config_,
         Logger);
     updateExecutor.Run();
 
-    LogSnapshotEvent();
-    ProfileAssignmentPlanUpdating();
+    // NB(severovv): limits might have been violated during preemptive scheduling
+    updateContext.PreemptLimitViolatingOperations();
+
+    LogSnapshotEvent(updateContext.GetStatistics());
+    ProfileAssignmentPlanUpdating(updateContext.GetStatistics());
     UpdatePersistentState();
-}
-
-// TODO(eshcherbin): Optimize not to recalculate preemptible assignments and ready to assign resources from scratch.
-void TSchedulingPolicy::UpdateOperationResources(
-    const TOperationPtr& operation,
-    const TPoolTreeSnapshotPtr& treeSnapshot)
-{
-    YT_VERIFY(operation->IsInitialized());
-
-    // Reset disabled operation.
-    const auto* operationElement = treeSnapshot->FindEnabledOperationElement(operation->GetId());
-    if (!operationElement) {
-        ResetOperationResources(operation);
-        return;
-    }
-
-    operation->SetStarving(operationElement->GetStarvationStatus() != EStarvationStatus::NonStarving);
-    if (operation->IsStarving()) {
-        YT_LOG_DEBUG("Operation is starving (OperationId: %v)", operation->GetId());
-    }
-
-    auto convertToShare = [&] (const TJobResources& allocationResources) -> TResourceVector {
-        return TResourceVector::FromJobResources(allocationResources, operationElement->GetTotalResourceLimits());
-    };
-
-    const auto& fairShare = operationElement->Attributes().FairShare.Total;
-
-    // Update preemptible allocations.
-    if (operation->IsFullHostModuleBound()) {
-        operation->SetPreemptible(Dominates(TResourceVector::Epsilon(), fairShare));
-    } else {
-        auto sortedAssignments = GetItems(operation->Assignments());
-        // TODO(eshcherbin): Sort assignments by allocation start time.
-        std::ranges::sort(sortedAssignments, std::less<>(), [] (const TAssignmentPtr& assignment) { return assignment->AllocationGroupName; });
-
-        TResourceVector usageShare;
-        for (const auto& assignment : sortedAssignments) {
-            // NB(yaishenka): Assignment is preemptible if total resource usage (including current assignment) is higher than fair share.
-            usageShare += convertToShare(assignment->ResourceUsage);
-            bool previousStatus = std::exchange(
-                assignment->Preemptible,
-                !Dominates(fairShare + TResourceVector::Epsilon(), usageShare));
-
-            if (previousStatus != assignment->Preemptible) {
-                YT_LOG_DEBUG(
-                    "Changed assignment preemptible status (OperationId: %v, Preemptible: %v, FairShare: %v, UsageShare: %v)",
-                    operation->GetId(),
-                    assignment->Preemptible,
-                    fairShare,
-                    usageShare);
-            }
-        }
-    }
-
-    // Update ready to assign resources.
-    const auto assignedUsageShare = convertToShare(operation->AssignedResourceUsage());
-    TResourceVector readyToAssignShare;
-    operation->ReadyToAssignGroupedNeededResources().clear();
-
-    TResourceVector extraShare;
-    operation->ExtraGroupedNeededResources().clear();
-
-    // Preemptible FHMB operations do not deserve resources.
-    if (operation->IsFullHostModuleBound() && operation->IsPreemptible()) {
-        YT_LOG_DEBUG("Skipping FHMB operation because it is preemptible (OperationId: %v, FairShare: %v)", operation->GetId(), fairShare);
-        return;
-    }
-
-    // For an operation we want to maintain the following invariant:
-    //     ResourceUsage + EmptyAssignmentResources + ReadyToAssignResources ~= FairShare.
-    // Note that ResourceUsage + EmptyAssignmentResources == AssignedResourceUsage.
-    for (const auto& [neededAllocationGroupName, neededAllocationGroupResources] : GetGroupedNeededResources(operation, operationElement)) {
-        auto readyToAssignIt = EmplaceOrCrash(
-            operation->ReadyToAssignGroupedNeededResources(),
-            neededAllocationGroupName,
-            TAllocationGroupResources{.MinNeededResources = neededAllocationGroupResources.MinNeededResources});
-        auto& readyToAssignResources = readyToAssignIt->second;
-
-        auto extraIt = operation->ExtraGroupedNeededResources().emplace(
-            neededAllocationGroupName,
-            TAllocationGroupResources{.MinNeededResources = neededAllocationGroupResources.MinNeededResources}).first;
-        auto& extraResources = extraIt->second;
-
-        const auto allocationUsageShare = convertToShare(neededAllocationGroupResources.MinNeededResources);
-        const auto emptyAssignmentCount = GetOrDefault(operation->EmptyAssignmentCountPerGroup(), neededAllocationGroupName);
-
-        YT_LOG_DEBUG(
-            "Updating operation resources for allocation group "
-            "(OperationId: %v, AllocationGroup: %v, NeededAllocationCount: %v, MinNeededResources: %v, "
-            "EmptyAssignmentCount: %v, FairShare: %v, AllocationUsageShare: %v)",
-            operation->GetId(),
-            neededAllocationGroupName,
-            neededAllocationGroupResources.AllocationCount,
-            neededAllocationGroupResources.MinNeededResources,
-            emptyAssignmentCount,
-            fairShare,
-            allocationUsageShare);
-
-        while (emptyAssignmentCount + readyToAssignResources.AllocationCount + extraResources.AllocationCount < neededAllocationGroupResources.AllocationCount) {
-            auto sumOfUsageShare = assignedUsageShare + readyToAssignShare + extraShare + allocationUsageShare;
-            bool belowFairShare = Dominates(fairShare + TResourceVector::Epsilon(), sumOfUsageShare);
-
-            YT_LOG_DEBUG(
-                "Checking if fair share is exceeded before adding another assignment "
-                "(OperationId: %v, AllocationGroup: %v, AssignedUsageShare: %v, "
-                "ReadyToAssignShare: %v, FairShare: %v, ExtraShare: %v, SumOfUsageShare %v, BelowFairShare: %v)",
-                operation->GetId(),
-                neededAllocationGroupName,
-                assignedUsageShare,
-                readyToAssignShare,
-                fairShare,
-                extraShare,
-                sumOfUsageShare,
-                belowFairShare);
-
-            if (belowFairShare) {
-                ++readyToAssignResources.AllocationCount;
-                readyToAssignShare += allocationUsageShare;
-            } else {
-                if (operation->IsFullHostModuleBound()) {
-                    break;
-                }
-                ++extraResources.AllocationCount;
-                extraShare += allocationUsageShare;
-            }
-        }
-    }
-}
-
-TAllocationGroupResourcesMap TSchedulingPolicy::GetGroupedNeededResources(
-    const TOperationPtr& operation,
-    const TPoolTreeOperationElement* operationElement) const
-{
-    // TODO(eshcherbin): In full mode just return operation's grouped needed resources.
-
-    // NB(eshcherbin): This is a temporary hack. In dry-run mode operation's needed resources are not consistent
-    // with the policy's percieved resource usage (because there are no allocations in the dry-run policy).
-    // Thus, we need to approximate the known total resource demand by fake grouped needed resources.
-    YT_VERIFY(operation->InitialGroupedNeededResources());
-
-    if (operation->InitialGroupedNeededResources()->empty()) {
-        return *operation->InitialGroupedNeededResources();
-    }
-
-    // For vanilla operations we pretend that they always want what they wanted in the very beginning.
-    if (operation->GetType() == EOperationType::Vanilla) {
-        return *operation->InitialGroupedNeededResources();
-    }
-
-    // For all other operations we pretend that all their allocations are uniform.
-    const auto& [allocationGroupName, allocationGroup] = *operation->InitialGroupedNeededResources()->begin();
-    auto approximateAllocationGroup = allocationGroup;
-    approximateAllocationGroup.AllocationCount = 0;
-
-    TJobResources approximateResourceDemand;
-    while (!Dominates(approximateResourceDemand, operationElement->ResourceDemand()) &&
-        approximateAllocationGroup.AllocationCount < allocationGroup.AllocationCount)
-    {
-        approximateResourceDemand += approximateAllocationGroup.MinNeededResources;
-        ++approximateAllocationGroup.AllocationCount;
-    }
-
-    return TAllocationGroupResourcesMap{{allocationGroupName, approximateAllocationGroup}};
-}
-
-void TSchedulingPolicy::ResetOperationResources(const TOperationPtr& operation)
-{
-    if (!operation->IsInitialized()) {
-        return;
-    }
-
-    operation->ReadyToAssignGroupedNeededResources().clear();
-
-    if (operation->IsFullHostModuleBound()) {
-        operation->SetPreemptible(true);
-    } else {
-        for (const auto& assignment : operation->Assignments()) {
-            assignment->Preemptible = true;
-        }
-    }
 }
 
 void TSchedulingPolicy::PreemptAllNodeAssignments(
@@ -719,6 +539,14 @@ void TSchedulingPolicy::PreemptAllOperationAssignments(
     for (const auto& assignment : GetItems(operation->Assignments())) {
         PreemptAssignment(assignment, preemptionReason, preemptionDescription);
     }
+}
+
+void TSchedulingPolicy::PreemptAssignment(
+    const TAssignmentPtr& assignment,
+    EAllocationPreemptionReason preemptionReason,
+    const std::string& preemptionDescription)
+{
+    AssignmentHandler_.PreemptAssignment(assignment, preemptionReason, preemptionDescription);
 }
 
 void TSchedulingPolicy::ReviveNodeState(TNodeId nodeId, const TNodePtr& node)
@@ -902,8 +730,7 @@ void TSchedulingPolicy::UpdatePersistentState()
         auto& operationPersistentState = PersistentState_->OperationStates[operationId];
         operationPersistentState.SchedulingModule = operation->SchedulingModule();
 
-        YT_LOG_DEBUG(
-            "Updated operation persistent state (OperationId: %v, SchedulingModule %v,  Enabled %v)",
+        YT_LOG_DEBUG("Updated operation persistent state (OperationId: %v, SchedulingModule: %v, Enabled: %v)",
             operationId,
             operation->SchedulingModule(),
             operation->IsEnabled());
@@ -913,10 +740,10 @@ void TSchedulingPolicy::UpdatePersistentState()
     std::ranges::for_each(EnabledOperations_, updateOperationPersistentState);
 }
 
-void TSchedulingPolicy::LogSnapshotEvent() const
+void TSchedulingPolicy::LogSnapshotEvent(const TGpuPlanUpdateStatisticsPtr& statistics) const
 {
     LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::ModulesInfo)
-        .Item("modules").DoMapFor(Statistics_->ModuleStatistics, [] (TFluentMap fluent, const auto& item) {
+        .Item("modules").DoMapFor(statistics->ModuleStatistics, [] (TFluentMap fluent, const auto& item) {
             const auto& [module, moduleStatistic] = item;
             fluent.Item(module).Value(moduleStatistic);
         });
@@ -940,20 +767,20 @@ void TSchedulingPolicy::LogSnapshotEvent() const
         });
 }
 
-void TSchedulingPolicy::ProfileAssignmentPlanUpdating()
+void TSchedulingPolicy::ProfileAssignmentPlanUpdating(const TGpuPlanUpdateStatisticsPtr& statistics)
 {
-    ProfilingCounters_.PlannedAssignments.Increment(Statistics_->PlannedAssignments);
-    ProfilingCounters_.PreemptedAssignments.Increment(Statistics_->PreemptedAssignments);
+    ProfilingCounters_.PlannedAssignments.Increment(statistics->PlannedAssignments);
+    ProfilingCounters_.PreemptedAssignments.Increment(statistics->PreemptedAssignments);
 
-    ProfilingCounters_.TotalPlanningTime.Record(Statistics_->Timer.GetElapsedTime());
-    ProfilingCounters_.OperationResourcesUpdateTime.Record(Statistics_->UpdatingOperationResourcesDuration);
-    ProfilingCounters_.FullHostPlanningTime.Record(Statistics_->FullHostPlanningDuration);
-    ProfilingCounters_.ReguralPlanningTime.Record(Statistics_->ReguralPlanningDuration);
-    ProfilingCounters_.ExtraPlanningTime.Record(Statistics_->ExtraPlanningDuration);
+    ProfilingCounters_.TotalPlanningTime.Record(statistics->Timer.GetElapsedTime());
+    ProfilingCounters_.OperationResourcesUpdateTime.Record(statistics->UpdatingOperationResourcesDuration);
+    ProfilingCounters_.FullHostPlanningTime.Record(statistics->FullHostPlanningDuration);
+    ProfilingCounters_.RegularPlanningTime.Record(statistics->RegularPlanningDuration);
+    ProfilingCounters_.ExtraPlanningTime.Record(statistics->ExtraPlanningDuration);
 
     ProfilingCounters_.EnabledOperations.Update(std::ssize(EnabledOperations_));
 
-    for (const auto& [module, moduleStatistic] : Statistics_->ModuleStatistics) {
+    for (const auto& [module, moduleStatistic] : statistics->ModuleStatistics) {
         auto it = ProfilingCounters_.ModuleCounters.find(module);
         if (it == ProfilingCounters_.ModuleCounters.end()) {
             it = ProfilingCounters_.ModuleCounters.emplace(module, Profiler_.WithPrefix("/module").WithTag("module", module)).first;

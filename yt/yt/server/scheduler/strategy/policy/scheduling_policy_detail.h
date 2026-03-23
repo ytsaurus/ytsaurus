@@ -8,6 +8,7 @@
 #include "scheduling_heartbeat_context.h"
 #include "scheduling_segment_manager.h"
 #include "scheduling_policy.h"
+#include "attributes_list.h"
 
 #include <yt/yt/server/scheduler/strategy/policy/gpu/public.h>
 
@@ -37,7 +38,8 @@ using TNonOwningAllocationSet = THashSet<TAllocation*>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicAttributesList;
+struct TDynamicAttributes;
+using TDynamicAttributesList = TAttributesList<TDynamicAttributes>;
 
 // NB(eschcherbin): It would be more correct to design this class as an interface
 // with two implementations (simple and with heap), but this would introduce
@@ -96,18 +98,6 @@ struct TDynamicAttributes
     std::optional<TSchedulableChildSet> SchedulableChildSet;
     // Index of this element in its parent's schedulable child set.
     int SchedulableChildSetIndex = InvalidSchedulableChildSetIndex;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TDynamicAttributesList final
-    : public std::vector<TDynamicAttributes>
-{
-public:
-    explicit TDynamicAttributesList(int size = 0);
-
-    TDynamicAttributes& AttributesOf(const TPoolTreeElement* element);
-    const TDynamicAttributes& AttributesOf(const TPoolTreeElement* element) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
