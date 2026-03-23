@@ -136,7 +136,7 @@ RUN <<-EOT
 #!/bin/bash
 set -eux -o pipefail
 
-[ "$INSTALL_NVIDIA_PACKAGES" = "true" ] || exit
+[ "$INSTALL_NVIDIA_PACKAGES" = "true" ] || exit 0
 
 tee <<EOF >/etc/apt/sources.list.d/nvidia-container-toolkit.list
 deb [signed-by=/etc/apt/keyrings/nvidia-container-toolkit-keyring.asc] https://nvidia.github.io/libnvidia-container/stable/deb/\$(ARCH) /
