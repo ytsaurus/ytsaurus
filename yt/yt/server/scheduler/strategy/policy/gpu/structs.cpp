@@ -258,8 +258,8 @@ void Serialize(const TNode& node, NYson::IYsonConsumer* consumer)
             .Item("assigned_resource_usage").Value(node.AssignedResourceUsage())
             .DoIf(static_cast<bool>(node.Descriptor()), [&] (auto fluent) {
                 fluent
-                    .Item("resourse_limits").Value(node.Descriptor()->ResourceLimits)
-                    .Item("resourse_usage").Value(node.Descriptor()->ResourceUsage);
+                    .Item("resource_limits").Value(node.Descriptor()->ResourceLimits)
+                    .Item("resource_usage").Value(node.Descriptor()->ResourceUsage);
             })
         .EndMap();
 }

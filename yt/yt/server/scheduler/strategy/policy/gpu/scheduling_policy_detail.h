@@ -2,7 +2,7 @@
 
 #include "scheduling_policy.h"
 
-#include "assignment_plan_context_detail.h"
+#include "assignment_plan_update_context_detail.h"
 #include "persistent_state.h"
 
 #include <yt/yt/server/scheduler/strategy/pool_tree_element.h>
@@ -56,7 +56,7 @@ struct TGpuSchedulingProfilingCounters
     NProfiling::TEventTimer TotalPlanningTime;
     NProfiling::TEventTimer OperationResourcesUpdateTime;
     NProfiling::TEventTimer FullHostPlanningTime;
-    NProfiling::TEventTimer ReguralPlanningTime;
+    NProfiling::TEventTimer RegularPlanningTime;
     NProfiling::TEventTimer ExtraPlanningTime;
 
     NProfiling::TGauge EnabledOperations;
@@ -71,7 +71,6 @@ struct TGpuSchedulingProfilingCounters
 
 class TSchedulingPolicy
     : public ISchedulingPolicy
-    , public TAssignmentPlanContextBase
 {
 public:
     TSchedulingPolicy(
@@ -158,10 +157,6 @@ public:
     void InitPersistentState(INodePtr persistentState) override;
     INodePtr BuildPersistentState() const override;
 
-    const TOperationMap& Operations() const override;
-    const TNodeMap& Nodes() const override;
-    const TGpuPlanUpdateStatisticsPtr& GetStatistics() const override;
-
 private:
     const TWeakPtr<ISchedulingPolicyHost> Host_;
     IStrategyHost* const StrategyHost_;
@@ -171,6 +166,7 @@ private:
     TGpuSchedulingPolicyConfigPtr Config_;
 
     TPeriodicExecutorPtr PlanUpdateExecutor_;
+    TAssignmentHandler AssignmentHandler_;
 
     TNodeMap Nodes_;
     TOperationMap EnabledOperations_;
@@ -191,17 +187,6 @@ private:
 
     void UpdateAssignmentPlan();
 
-    // TODO(eshcherbin): Optimize not to recalculate preemptible assignments and ready to assign resources from scratch.
-    void UpdateOperationResources(
-        const TOperationPtr& operation,
-        const TPoolTreeSnapshotPtr& treeSnapshot);
-
-    TAllocationGroupResourcesMap GetGroupedNeededResources(
-        const TOperationPtr& operation,
-        const TPoolTreeOperationElement* operationElement) const;
-
-    void ResetOperationResources(const TOperationPtr& operation);
-
     void PreemptAllNodeAssignments(
         const TNodePtr& node,
         EAllocationPreemptionReason preemptionReason,
@@ -209,6 +194,11 @@ private:
 
     void PreemptAllOperationAssignments(
         const TOperationPtr& operation,
+        EAllocationPreemptionReason preemptionReason,
+        const std::string& preemptionDescription);
+
+    void PreemptAssignment(
+        const TAssignmentPtr& assignment,
         EAllocationPreemptionReason preemptionReason,
         const std::string& preemptionDescription);
 
@@ -227,9 +217,9 @@ private:
 
     void UpdatePersistentState();
 
-    void LogSnapshotEvent() const;
+    void LogSnapshotEvent(const TGpuPlanUpdateStatisticsPtr& statistics) const;
 
-    void ProfileAssignmentPlanUpdating();
+    void ProfileAssignmentPlanUpdating(const TGpuPlanUpdateStatisticsPtr& statistics);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulingPolicy)
