@@ -543,6 +543,8 @@ struct TTestingConfig
 {
     bool FailAddressResolve;
 
+    std::optional<TDuration> DelayInArtifactsCaching;
+
     REGISTER_YSON_STRUCT(TTestingConfig);
 
     static void Register(TRegistrar registrar);

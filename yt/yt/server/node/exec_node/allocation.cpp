@@ -764,6 +764,9 @@ void TAllocation::OnAllocationFinished(EAllocationFinishReason finishReason)
 
     ResourceHolder_.Reset();
 
+    FSSecretary_->ReleaseArtifacts();
+    FSSecretary_.Reset();
+
     AllocationProfiler->OnAllocationFinished(TotalJobCount_, finishReason);
 }
 
