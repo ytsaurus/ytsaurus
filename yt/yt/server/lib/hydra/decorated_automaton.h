@@ -125,7 +125,7 @@ class TSystemLockGuard
 {
 public:
     TSystemLockGuard() = default;
-    TSystemLockGuard(TSystemLockGuard&& other);
+    TSystemLockGuard(TSystemLockGuard&& other) noexcept;
     ~TSystemLockGuard();
 
     TSystemLockGuard& operator=(TSystemLockGuard&& other);

@@ -279,11 +279,11 @@ public:
     TRequestCounterGuard();
     TRequestCounterGuard(TIntrusivePtr<TIOEngineBase> engine, EIOEngineRequestType requestType);
     TRequestCounterGuard(const TRequestCounterGuard& other) = delete;
-    TRequestCounterGuard(TRequestCounterGuard&& other);
+    TRequestCounterGuard(TRequestCounterGuard&& other) noexcept;
     ~TRequestCounterGuard();
 
     TRequestCounterGuard& operator=(const TRequestCounterGuard& other) = delete;
-    TRequestCounterGuard& operator=(TRequestCounterGuard&& other);
+    TRequestCounterGuard& operator=(TRequestCounterGuard&& other) noexcept;
 
     void Release();
 

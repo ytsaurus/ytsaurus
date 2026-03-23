@@ -100,7 +100,7 @@ TNonOwningCGroup::TNonOwningCGroup(const TString& type, const TString& name)
     }))
 { }
 
-TNonOwningCGroup::TNonOwningCGroup(TNonOwningCGroup&& other)
+TNonOwningCGroup::TNonOwningCGroup(TNonOwningCGroup&& other) noexcept
     : FullPath_(std::move(other.FullPath_))
 { }
 

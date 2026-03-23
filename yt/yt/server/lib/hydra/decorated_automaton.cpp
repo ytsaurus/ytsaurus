@@ -96,7 +96,7 @@ TPendingMutation::TPendingMutation(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSystemLockGuard::TSystemLockGuard(TSystemLockGuard&& other)
+TSystemLockGuard::TSystemLockGuard(TSystemLockGuard&& other) noexcept
     : Automaton_(std::move(other.Automaton_))
 { }
 

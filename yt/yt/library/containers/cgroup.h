@@ -38,7 +38,7 @@ public:
     TNonOwningCGroup() = default;
     explicit TNonOwningCGroup(const TString& fullPath);
     TNonOwningCGroup(const TString& type, const TString& name);
-    TNonOwningCGroup(TNonOwningCGroup&& other);
+    TNonOwningCGroup(TNonOwningCGroup&& other) noexcept;
 
     void AddTask(int pid) const;
     void AddCurrentTask() const;

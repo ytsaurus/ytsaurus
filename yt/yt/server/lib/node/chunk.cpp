@@ -18,7 +18,7 @@ TLockedChunkGuard::TLockedChunkGuard(TChunkLocationBasePtr location, TChunkId ch
     , ChunkId_(chunkId)
 { }
 
-TLockedChunkGuard::TLockedChunkGuard(TLockedChunkGuard&& other)
+TLockedChunkGuard::TLockedChunkGuard(TLockedChunkGuard&& other) noexcept
 {
     MoveFrom(std::move(other));
 }
@@ -30,7 +30,7 @@ TLockedChunkGuard::~TLockedChunkGuard()
     }
 }
 
-TLockedChunkGuard& TLockedChunkGuard::operator=(TLockedChunkGuard&& other)
+TLockedChunkGuard& TLockedChunkGuard::operator=(TLockedChunkGuard&& other) noexcept
 {
     if (this != &other) {
         MoveFrom(std::move(other));

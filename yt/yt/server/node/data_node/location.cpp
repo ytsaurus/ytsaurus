@@ -194,7 +194,7 @@ TLocationMemoryGuard::TLocationMemoryGuard(
     , Owner_(owner)
 { }
 
-TLocationMemoryGuard::TLocationMemoryGuard(TLocationMemoryGuard&& other)
+TLocationMemoryGuard::TLocationMemoryGuard(TLocationMemoryGuard&& other) noexcept
 {
     MoveFrom(std::move(other));
 }
@@ -218,7 +218,7 @@ TLocationMemoryGuard::~TLocationMemoryGuard()
     Release();
 }
 
-TLocationMemoryGuard& TLocationMemoryGuard::operator=(TLocationMemoryGuard&& other)
+TLocationMemoryGuard& TLocationMemoryGuard::operator=(TLocationMemoryGuard&& other) noexcept
 {
     if (this != &other) {
         Release();
