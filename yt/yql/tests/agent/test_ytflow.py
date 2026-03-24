@@ -351,10 +351,15 @@ pragma Ytflow.WorkerRpcPort = "{port_manager.get_port()}";
 pragma Ytflow.WorkerMonitoringPort = "{port_manager.get_port()}";
 pragma Ytflow.ControllerCount = "1";
 pragma Ytflow.UseCpuAwareBalancer = "false";
+
 pragma Ytflow.ControllerWriteFullLogsToYT = "true";
+pragma Ytflow.ControllerWriteLogsToFile = "false";
 pragma Ytflow.ControllerLogLevel = "debug";
+
 pragma Ytflow.WorkerCount = "1";
+
 pragma Ytflow.WorkerWriteLogsToYT = "true";
+pragma Ytflow.WorkerWriteLogsToFile = "false";
 pragma Ytflow.WorkerLogLevel = "debug";
 
 pragma Ytflow.LogbrokerConsumerPath = "{self.LOGBROKER_CONSUMER}";
