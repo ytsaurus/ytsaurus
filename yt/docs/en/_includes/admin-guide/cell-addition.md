@@ -5,7 +5,7 @@ Adding new master cells always requires complete cluster downtime. In simplified
 ## Preparation
 
 1. You need to prepare a new static config and add information about the new cells to it.
-2. You can prepare @cluster_connection with the new cells in advance (to learn more about @cluster_connection, see item 14).
+2. You can prepare @cluster_connection with the new cells in advance (to learn more about @cluster_connection, see item 15).
 
 {% note warning "Important" %}
 
@@ -50,7 +50,15 @@ If for some reason you need these services to stay alive, you do not have to shu
 
 {% endnote %}
 
-### 6. Create a read-only snapshot on the master servers
+### 6. Assign empty roles to new master cells
+```bash
+yt set //sys/@config/multicell_manager/testing/allow_master_cell_with_empty_role %true
+yt set //sys/@config/multicell_manager/descriptors/{cell_tag}/roles []
+```
+
+If this is not done, the roles `chunk_host` and `cypress_node_host` will be automatically assigned to the new master cells (for more details about the existing roles, see item 13). Subsequent changes to the roles may result in data loss.
+
+### 7. Create a read-only snapshot on the master servers
 ```bash
 yt-admin build-master-snapshots —read-only —wait-for-snapshot-completion
 ```
@@ -66,9 +74,9 @@ This step is very important: not following it may result in loss of data.
 You can verify that the master servers are in read-only mode and have created a snapshot by leader logs:
 "Read-only mode enabled" and "Distributed snapshot creation finished".
 
-### 7. Shut down the master servers
+### 8. Shut down the master servers
 
-### 8. Deploy the master servers, clock servers, master caches, timestamp providers, and discovery servers
+### 9. Deploy the master servers, clock servers, master caches, timestamp providers, and discovery servers
 
 {% note warning "Important" %}
 
@@ -76,23 +84,23 @@ If any services other than the ones listed above were disabled at step 5, **do 
 
 {% endnote %}
 
-### 9. Exit read-only mode
+### 10. Exit read-only mode
 ```bash
 yt-admin master-exit-read-only
 ```
 
-### 10. Wait for the registration of new cells and replication of global objects
+### 11. Wait for the registration of new cells and replication of global objects
 Use the master server logs to verify that the new cells have been successfully registered and global master objects have been replicated on them.
 
 Search for the registration success message in the logs of the primary cell: "Master cell registered".
 Object replication messages can be found in the logs of the newly added master cells: "Foreign object created" (you may have to wait for a couple of minutes for the messages to start appearing). Note that there may be many objects on the cluster, so you want to wait for the global object replication to complete (wait for the flow of "Foreign object created" messages to stop).
 
-### 11. Wait for the master servers to return to their normal operation mode
+### 12. Wait for the master servers to return to their normal operation mode
 Make sure that all master servers, including other secondary cells if any, are in normal operation mode.
 
 You can search for the "Leader active"/"Follower active" message in the logs.
 
-### 12. Assign roles to the new cells
+### 13. Assign roles to the new cells
 
 You need secondary master cells to shard the load, and there are different methods to do that. Here you need to choose what kind of work the new cell will be doing.
 
@@ -113,7 +121,7 @@ Remember that proxy servers are not up at this point in time, and any access to 
 
 You can assign the roles later, but do not forget to do that; if you do, the new cells will not be doing anything useful.
 
-### 13. Deploy nodes (to the version with the new config)
+### 14. Deploy nodes (to the version with the new config)
 
 {% note warning "Important" %}
 
@@ -121,7 +129,7 @@ This step is a point of no return. In theory, you can still roll back the additi
 
 {% endnote %}
 
-### 14. Write new cells to cluster connection
+### 15. Write new cells to cluster connection
 Cluster connection resides in Cypress at `//sys/@cluster_connection/secondary_masters`.
 You need to write cells in the following format:
 ```bash
@@ -141,17 +149,17 @@ The new cells must be ADDED. If the cluster already contains secondary master ce
 
 {% endnote %}
 
-### 15. Enable chunk refresh and chunk requisition update
+### 16. Enable chunk refresh and chunk requisition update
 If you did not disable them at step 2, skip this step.
 ```bash
 yt set //sys/@config/chunk_manager/enable_chunk_refresh %true
 yt set //sys/@config/chunk_manager/enable_chunk_requisition_update %true
 ```
-### 16. Wait until all nodes are registered and the chunk refresh process completes successfully
+### 17. Wait until all nodes are registered and the chunk refresh process completes successfully
 Depending on the number of nodes and chunks on the cluster, this step may take a significant amount of time.
 
-### 17. Deploy other components
+### 18. Deploy other components
 Deploy proxies, schedulers, controller agents, and other components (if any are remaining).
 Components must be deployed to the version with the updated config.
 
-### 18. Wait for the cluster to return to its normal operation mode
+### 19. Wait for the cluster to return to its normal operation mode
