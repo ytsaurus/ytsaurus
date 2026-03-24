@@ -187,9 +187,10 @@ TFuture<void> TSlotLocation::CreateSlotDirectories(const IVolumePtr& rootVolume,
         const auto& rootVolumeMountPath = rootVolume->GetPath();
         YT_VERIFY(NFS::Exists(rootVolumeMountPath));
 
-        struct TDirectory {
+        struct TDirectory
+        {
             TString Path;
-            bool RemoveIfExists;
+            bool RemoveIfExists = false;
         };
 
         static constexpr int DirectoryPermissions = 0777;
