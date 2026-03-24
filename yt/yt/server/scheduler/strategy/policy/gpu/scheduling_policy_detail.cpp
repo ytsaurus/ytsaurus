@@ -560,30 +560,6 @@ void TSchedulingPolicy::ReviveNodeState(TNodeId nodeId, const TNodePtr& node)
         node->SchedulingModule() = std::move(maybeState->SchedulingModule);
     }
 
-    for (auto assignmentState : maybeState->AssignmentStates) {
-        TOperationPtr operation = GetOrDefault(DisabledOperations_, assignmentState->OperationId);
-        if (!operation) {
-            operation = GetOrDefault(EnabledOperations_, assignmentState->OperationId);
-        }
-
-        if (operation) {
-            auto assignment = New<TAssignment>(
-                std::move(assignmentState->AllocationGroupName),
-                std::move(assignmentState->ResourceUsage),
-                operation.Get(),
-                node.Get());
-
-            node->AddAssignment(assignment);
-            operation->AddAssignment(assignment);
-            continue;
-        }
-
-        InitialOperationAssignments_[assignmentState->OperationId].emplace_back(TInitialOperationAssignment{
-            .AssignmentState = assignmentState,
-            .NodeId = nodeId,
-        });
-    }
-
     YT_LOG_DEBUG(
         "Node state revived "
         "(NodeId: %v, NodeAddress: %v, SchedulingModule: %v)",
@@ -601,41 +577,6 @@ void TSchedulingPolicy::ReviveOperationState(TOperationPtr operation)
 
     if (maybeState->SchedulingModule) {
         operation->SchedulingModule() = std::move(maybeState->SchedulingModule);
-    }
-
-    for (auto&& [assignmentState, nodeId] : InitialOperationAssignments_[operation->GetId()]) {
-        auto node = GetOrDefault(Nodes_, nodeId);
-        if (!node) {
-            YT_LOG_DEBUG(
-                "Dropped assignment because node is missing "
-                "(OperationId: %v, NodeId: %v, AllocationGroupName: %v)",
-                operation->GetId(),
-                nodeId,
-                assignmentState->AllocationGroupName);
-
-            continue;
-        }
-
-        if (operation->SchedulingModule() && node->SchedulingModule() != operation->SchedulingModule()) {
-            YT_LOG_DEBUG(
-                "Dropped assignment because node's scheduling module has changed "
-                "(OperationId: %v, NodeId: %v, OldModule: %v, NewModule: %v)",
-                operation->GetId(),
-                nodeId,
-                operation->SchedulingModule(),
-                node->SchedulingModule());
-            operation->SchedulingModule().reset();
-            continue;
-        }
-
-        auto assignment = New<TAssignment>(
-            std::move(assignmentState->AllocationGroupName),
-            std::move(assignmentState->ResourceUsage),
-            operation.Get(),
-            node.Get());
-
-        node->AddAssignment(assignment);
-        operation->AddAssignment(assignment);
     }
 
     YT_LOG_DEBUG(
@@ -660,7 +601,6 @@ bool TSchedulingPolicy::CheckInitializationTimeout()
 
     if (TInstant::Now() > InitializationFromPersistentStateDeadline_) {
         InitialPersistentState_.Reset();
-        InitialOperationAssignments_.clear();
         return false;
     }
 
@@ -712,15 +652,6 @@ void TSchedulingPolicy::UpdatePersistentState()
         auto& nodePersistentState = PersistentState_->NodeStates[nodeId];
         nodePersistentState.SchedulingModule = node->SchedulingModule();
         nodePersistentState.Address = node->Address();
-
-        for (const auto& assignment : node->Assignments()) {
-            auto assignmentPersistentState = New<TPersistentAssignmentState>();
-            assignmentPersistentState->OperationId = assignment->Operation->GetId();
-            assignmentPersistentState->AllocationGroupName = assignment->AllocationGroupName;
-            assignmentPersistentState->ResourceUsage = assignment->ResourceUsage;
-
-            nodePersistentState.AssignmentStates.push_back(std::move(assignmentPersistentState));
-        }
 
         YT_LOG_DEBUG("Updated node persistent state (NodeId: %v)", nodeId);
     }
