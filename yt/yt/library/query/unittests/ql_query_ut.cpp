@@ -67,11 +67,11 @@ protected:
         TStringBuf query,
         TMatcher matcher,
         TYsonStringBuf placeholderValues = {},
-        int syntaxVersion = 1)
+        TPreparePlanFragmentOptions options = {.BuilderVersion = DefaultExpressionBuilderVersion})
     {
         EXPECT_THROW_THAT(
             BIND([&] {
-                ParseAndPreparePlanFragment(&PrepareMock_, query, placeholderValues, syntaxVersion);
+                ParseAndPreparePlanFragment(&PrepareMock_, query, placeholderValues, options);
             })
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run()
@@ -367,7 +367,7 @@ TEST_F(TQueryPrepareTest, NullTypeInference)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillOnce(Return(MakeFuture(MakeSimpleSplit())));
 
-    ParseAndPreparePlanFragment(&PrepareMock_, "null from [//t]", {}, 1);
+    ParseAndPreparePlanFragment(&PrepareMock_, "null from [//t]");
 }
 
 TEST_F(TQueryPrepareTest, AdditionPrecedence)
@@ -1205,7 +1205,7 @@ TEST_F(TQueryPrepareTest, RewriteCardinalityIntoHyperLogLogWithPrecision)
         }))));
 
     auto getFingerprint = [this] (TStringBuf query) -> std::string {
-        auto parsedSource = ParseSource(query, EParseMode::Query, {}, /*syntaxVersion*/ 1);
+        auto parsedSource = ParseSource(query, EParseMode::Query, {}, /*syntaxVersion*/ 2);
         auto plan = PreparePlanFragment(
             &PrepareMock_,
             parsedSource->Source,
@@ -1222,15 +1222,15 @@ TEST_F(TQueryPrepareTest, RewriteCardinalityIntoHyperLogLogWithPrecision)
     };
 
     {
-        auto fingerprint = getFingerprint("select cardinality(v) from [//t] group by 0");
+        auto fingerprint = getFingerprint("select cardinality(v) from `//t` group by 0");
         EXPECT_TRUE(fingerprint.starts_with("SELECT hll_7(v) AS hll_7(v) GROUP BY"));
     }
     {
-        auto fingerprint = getFingerprint("select * from [//t] group by 0 having cardinality(v) > 42");
+        auto fingerprint = getFingerprint("select * from `//t` group by 0 having cardinality(v) > 42");
         EXPECT_TRUE(fingerprint.contains("HAVING hll_7(v) >"));
     }
     {
-        auto fingerprint = getFingerprint("select k from [//t] group by k order by 1, (25 + cardinality(v)) limit 10");
+        auto fingerprint = getFingerprint("select k from `//t` group by k order by 1, (25 + cardinality(v)) limit 10");
         EXPECT_TRUE(fingerprint.contains("ORDER BY ? ASC, ? + hll_7(v) ASC LIMIT ?"));
     }
     {
@@ -1247,7 +1247,7 @@ TEST_F(TQueryPrepareTest, RewriteCardinalityIntoHyperLogLogWithPrecision)
             ) AS Subquery_2
             GROUP BY 0)";
 
-        auto parsedSource = ParseSource(query, EParseMode::Query, {}, /*syntaxVersion*/ 1);
+        auto parsedSource = ParseSource(query, EParseMode::Query, {}, /*syntaxVersion*/ 2);
 
         auto plan = PreparePlanFragment(
             &PrepareMock_,
@@ -1273,17 +1273,17 @@ TEST_F(TQueryPrepareTest, RewriteCardinalityIntoHyperLogLogWithPrecision)
     }
     {
         EXPECT_THROW_THAT(
-            getFingerprint("select * from [//t] where cardinality(v) > 42 group by 0"),
+            getFingerprint("select * from `//t` where cardinality(v) > 42 group by 0"),
             HasSubstr("Misuse of aggregate function \"hll_7\""));
     }
     {
         EXPECT_THROW_THAT(
-            getFingerprint("select * from [//t] group by cardinality(v)"),
+            getFingerprint("select * from `//t` group by cardinality(v)"),
             HasSubstr("Misuse of aggregate function \"hll_7\""));
     }
     {
         EXPECT_THROW_THAT(
-            getFingerprint("select max(cardinality(v)) from [//t] group by 0"),
+            getFingerprint("select max(cardinality(v)) from `//t` group by 0"),
             HasSubstr("Misuse of aggregate function \"hll_7\""));
     }
 }
