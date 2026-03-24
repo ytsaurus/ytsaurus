@@ -845,7 +845,7 @@ class QueueConsumerRegistrationManagerBase(YTEnvSetup):
         # COMPAT(apachee): After stable release supports this field, we can remove this code.
         implementation = processed_patch.get("implementation", None) or cls._get_registration_manager_applied_implementation()
         if implementation == "async_expiring_cache":
-            processed_patch.update({
+            update_inplace(processed_patch, {
                 "cache": {
                     "base": {
                         "expire_after_access_time": 1000,
