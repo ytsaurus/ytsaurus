@@ -56,7 +56,7 @@ class TAsyncMapBase
 {
     using TBase = TAsyncSlruCacheBase<TKey, TValue>;
 public:
-    TAsyncMapBase(const NProfiling::TProfiler& profiler = {});
+    explicit TAsyncMapBase(const NProfiling::TProfiler& profiler = {});
 
 private:
     i64 GetWeight(const typename TBase::TValuePtr& /*value*/) const override;
