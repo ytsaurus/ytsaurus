@@ -38,12 +38,13 @@ class TestInputFromRemote(YTEnvSetup):
     def test_merge_with_tx(self):
         attributes = {"schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}]}
         create("table", "//tmp/t1", attributes=attributes)
-        create("table", "//tmp/t1", attributes=attributes, driver=get_driver(cluster="remote_0"))
-
-        rows = [{"a": 42, "b": "foo"}, {"a": -17, "b": "bar"}]
-        write_table("//tmp/t1", rows, driver=get_driver(cluster="remote_0"))
 
         tx = start_transaction(timeout=100000, driver=get_driver(cluster="remote_0"))
+
+        create("table", "//tmp/t1", attributes=attributes, tx=tx, driver=get_driver(cluster="remote_0"))
+
+        rows = [{"a": 42, "b": "foo"}, {"a": -17, "b": "bar"}]
+        write_table("//tmp/t1", rows, tx=tx, driver=get_driver(cluster="remote_0"))
 
         merge(in_=yson.loads('[<cluster="remote_0";transaction_id="{}">"//tmp/t1"]'.format(tx).encode('utf8')), out="//tmp/t1")
 
