@@ -58,6 +58,8 @@ yt set //sys/@config/multicell_manager/descriptors/{cell_tag}/roles []
 
 If this is not done, the roles `chunk_host` and `cypress_node_host` will be automatically assigned to the new master cells (for more details about the existing roles, see item 13). Subsequent changes to the roles may result in data loss.
 
+Also note that when the first secondary cell is added, the primary cell's default roles change from `[cypress_node_host, transaction_coordinator, chunk_host]` to `[cypress_node_host, transaction_coordinator]`. Therefore, when performing this type of expansion, the primary cell's roles must also be specified explicitly.
+
 ### 7. Create a read-only snapshot on the master servers
 ```bash
 yt-admin build-master-snapshots —read-only —wait-for-snapshot-completion
