@@ -2,6 +2,8 @@ import builtins
 import datetime
 import time
 
+import pytest
+
 from yt_env_setup import (
     YTEnvSetup,
     Restarter,
@@ -1089,6 +1091,60 @@ class TestGpuSchedulerPersistentState(DryRunGpuSchedulingPolicyTestBaseConfig):
         assert assignment["allocation_group_name"] == assignment_from_orchid["allocation_group_name"]
 
     @authors("yaishenka")
+    def test_node_module_revive(self):
+        node_address_to_node_state_map = self._get_node_address_to_node_state_map()
+        for _, node in node_address_to_node_state_map.items():
+            assert node["scheduling_module"] == "SAS"
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        wait(lambda: len(get(scheduler_new_orchid_pool_tree_path("gpu") + "/gpu_assignment_plan/nodes")) == 2)
+
+        for node in get(scheduler_new_orchid_pool_tree_path("gpu") + "/gpu_assignment_plan/nodes").values():
+            assert node["scheduling_module"] == "SAS"
+
+    @authors("yaishenka")
+    def test_operation_module_revive(self):
+        update_pool_tree_config_option("gpu", "enable_step_function_for_gang_operations", False)
+        op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            spec={"is_gang": True},
+            job_count=2,
+        )
+
+        wait(lambda: len(op.get_running_jobs()) == 2)
+
+        wait_for_operations_in_orchid(operation_count=1)
+        wait_for_assignments_in_orchid(op, assignment_count=2)
+
+        operation_from_orchid = get_operation_from_orchid(op)
+
+        operation_states_map = {}
+        operation_states_path = self._get_persistent_state_path(entity="operation")
+        for operation_id in get(operation_states_path):
+            operation_states_map[operation_id] = get(self._get_persistent_state_path(entity="operation") + f"/{operation_id}")
+
+        operation_ids = {op.id, }
+        for operation_id, operation in operation_states_map.items():
+            assert operation["scheduling_module"] == "SAS"
+            assert operation_id in operation_ids
+            operation_ids.remove(operation_id)
+
+        assert len(operation_ids) == 0
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        wait_for_operations_in_orchid(operation_count=1)
+        wait_for_assignments_in_orchid(op, assignment_count=2)
+
+        revived_operation_from_orchid = get_operation_from_orchid(op)
+
+        assert revived_operation_from_orchid["scheduling_module"] == operation_from_orchid["scheduling_module"]
+
+    @pytest.mark.skip("YT-27733: Assignments are no longer stored in persistent state")
+    @authors("yaishenka")
     def test_simple_restart(self):
         op = run_sleeping_vanilla(
             task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
@@ -1139,6 +1195,7 @@ class TestGpuSchedulerPersistentState(DryRunGpuSchedulingPolicyTestBaseConfig):
         revived_assignment = revived_operation_from_orchid["assignments"][0]
         self._compare_assignment_with_orchid(revived_assignment, assignment_from_orchid)
 
+    @pytest.mark.skip("YT-27733: Assignments are no longer stored in persistent state")
     @authors("yaishenka")
     def test_full_host_module_bound_restart(self):
         update_pool_tree_config_option("gpu", "enable_step_function_for_gang_operations", False)
@@ -1198,6 +1255,7 @@ class TestGpuSchedulerPersistentState(DryRunGpuSchedulingPolicyTestBaseConfig):
         for assignment in assignments_from_orchid:
             self._compare_assignment_with_orchid(assignments[assignment["node_address"]], assignment)
 
+    @pytest.mark.skip("YT-27733: Assignments are no longer stored in persistent state")
     @authors("yaishenka")
     def test_map_vanilla_restart(self):
         op_vanilla = run_sleeping_vanilla(
@@ -1263,6 +1321,7 @@ class TestGpuSchedulerPersistentState(DryRunGpuSchedulingPolicyTestBaseConfig):
         revived_assignment = revived_map["assignments"][0]
         self._compare_assignment_with_orchid(revived_assignment, map_operation_from_orchid["assignments"][0])
 
+    @pytest.mark.skip("YT-27733: Assignments are no longer stored in persistent state")
     @authors("yaishenka")
     def test_restart_without_gpu_policy_state(self):
         op = run_sleeping_vanilla(

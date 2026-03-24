@@ -13,19 +13,8 @@ void TPersistentOperationState::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TPersistentAssignmentState::Register(TRegistrar registrar)
-{
-    registrar.Parameter("operation_id", &TThis::OperationId);
-    registrar.Parameter("allocation_group_name", &TThis::AllocationGroupName);
-    registrar.Parameter("resource_usage", &TThis::ResourceUsage);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TPersistentNodeState::Register(TRegistrar registrar)
 {
-    registrar.Parameter("assignment_states", &TThis::AssignmentStates)
-        .Default();
     registrar.Parameter("scheduling_module", &TThis::SchedulingModule)
         .Default()
         .DontSerializeDefault();
