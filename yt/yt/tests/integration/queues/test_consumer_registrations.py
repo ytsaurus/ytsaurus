@@ -785,6 +785,48 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
                     assert lookup_request_batcher_enabled
 
 
+@pytest.mark.enabled_multidaemon
+class TestCustomRegistrationManagerConfig(TestQueueConsumerApiBase, TestQueueAgentBase):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+    def setup_method(self, method):
+        super().setup_method(method)
+
+        self._create_cells()
+
+        self._APPLIED_QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG = {}
+
+        registration_manager_config = self._get_registration_manager_config()
+        self._apply_registration_manager_config_patch_all(registration_manager_config)
+        self._check_registration_manager_implementation(self._get_registration_manager_applied_implementation())
+
+    @authors("apachee")
+    def test_cache_delta_configuration_yt_27720(self):
+        self._apply_registration_manager_config_patch_all({
+            "cache": {
+                "delta": {
+                    "registration_lookup": {
+                        "refresh_time": 314,
+                    },
+                },
+            },
+        })
+
+        queue_path = self.create_queue_path()
+        consumer_path = self.create_consumer_path()
+        self._create_queue(queue_path)
+        self._create_consumer(consumer_path)
+        register_queue_consumer(queue_path, consumer_path, vital=True)
+
+        # Check registration_lookup and list_registrations caches.
+
+        assert len(list_queue_consumer_registrations(queue_path=queue_path)) == 1
+        assert len(list_queue_consumer_registrations(consumer_path=consumer_path)) == 1
+
+        assert len(pull_consumer(consumer_path, queue_path, offset=0, partition_index=0)) == 0
+
+
 class TestDataApiBase(TestQueueConsumerApiBase, TestQueueAgentBase):
     DO_PREPARE_TABLES_ON_SETUP = False
 

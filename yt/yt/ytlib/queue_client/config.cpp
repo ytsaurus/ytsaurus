@@ -154,7 +154,19 @@ void TQueueConsumerRegistrationManagerCacheConfig::Register(TRegistrar registrar
         // NB(apachee): Batching lookups and selects to dynamic state is a must.
         config->Base->BatchUpdate = true;
 
-        // TODO(apachee): Provide defaults for registration cache.
+        // Borrowed defaults from table mount cache.
+        config->Base->ExpireAfterAccessTime = TDuration::Minutes(30);
+        config->Base->ExpireAfterSuccessfulUpdateTime = TDuration::Minutes(30);
+        config->Base->RefreshTime = TDuration::Seconds(30);
+    });
+
+    registrar.Postprocessor([] (TThis* config) {
+        // NB(apachee): This can't be done in preprocessor as enum indexed array deserializer clears all elements.
+        for (auto cacheKind : TEnumTraits<EQueueConsumerRegistrationManagerCacheKind>::GetDomainValues()) {
+            if (!config->Delta[cacheKind]) {
+                config->Delta[cacheKind] = New<TAsyncExpiringCacheDynamicConfig>();
+            }
+        }
     });
 }
 
