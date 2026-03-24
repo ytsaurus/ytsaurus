@@ -566,7 +566,7 @@ TQueryPtr TQueryEvaluateTest::Prepare(
     TStringBuf query,
     const TSplitMap& dataSplits,
     TYsonStringBuf placeholderValues,
-    int syntaxVersion)
+    const TPreparePlanFragmentOptions& options)
 {
     for (const auto& dataSplit : dataSplits) {
         EXPECT_CALL(PrepareMock_, GetInitialSplit(dataSplit.first))
@@ -578,7 +578,7 @@ TQueryPtr TQueryEvaluateTest::Prepare(
         &PrepareMock_,
         query,
         placeholderValues,
-        syntaxVersion);
+        options);
 
     return fragment->Query;
 }
@@ -597,7 +597,7 @@ std::pair<TQueryPtr, TQueryStatistics> TQueryEvaluateTest::DoEvaluate(
         return {};
     }
 
-    auto primaryQuery = Prepare(query, dataSplits, evaluateOptions.PlaceholderValues, evaluateOptions.SyntaxVersion);
+    auto primaryQuery = Prepare(query, dataSplits, evaluateOptions.PlaceholderValues, TPreparePlanFragmentOptions{.SyntaxVersion = evaluateOptions.SyntaxVersion, .BuilderVersion = DefaultExpressionBuilderVersion});
 
     TQueryOptions options;
     options.InputRowLimit = evaluateOptions.InputRowLimit;
@@ -724,7 +724,7 @@ TQueryStatistics TQueryEvaluateTest::EvaluateCoordinatedGroupByImpl(
         return {};
     }
 
-    auto primaryQuery = Prepare(query, TSplitMap{{"//t", dataSplit}}, {}, /*syntaxVersion*/ 1);
+    auto primaryQuery = Prepare(query, TSplitMap{{"//t", dataSplit}}, {});
     YT_VERIFY(primaryQuery->GroupClause);
 
     int tabletCount = owningSources.size();
@@ -989,7 +989,7 @@ void TQueryEvaluateTest::EvaluateFullCoordinatedGroupByImpl(
     const TResultMatcher& resultMatcher,
     EExecutionBackend executionBackend)
 {
-    auto query = Prepare(queryString, TSplitMap{{"//t", dataSplit}}, {}, /*syntaxVersion*/ 1);
+    auto query = Prepare(queryString, TSplitMap{{"//t", dataSplit}}, {});
     auto rows = RunOnCoordinator(query, data, executionBackend);
 
     resultMatcher(rows, *query->GetTableSchema());

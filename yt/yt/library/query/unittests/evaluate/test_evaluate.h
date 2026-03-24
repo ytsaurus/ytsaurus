@@ -117,7 +117,7 @@ protected:
         TStringBuf query,
         const TSplitMap& dataSplits,
         NYson::TYsonStringBuf placeholderValues,
-        int syntaxVersion);
+        const TPreparePlanFragmentOptions& options = {});
 
     std::pair<TQueryPtr, TQueryStatistics> DoEvaluate(
         TStringBuf query,

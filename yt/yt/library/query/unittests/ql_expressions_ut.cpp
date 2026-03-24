@@ -1931,7 +1931,7 @@ TEST_F(TExpressionTest, NonNullableVariableForNullableArgument)
         *schema,
         GetBuiltinTypeInferrers(),
         /*references*/ nullptr,
-        /*exprBuilderVersion*/ 2);
+        TPreparePlanFragmentOptions{.BuilderVersion = 2});
     EXPECT_EQ(*expr->LogicalType, *OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)));
 
     Evaluate(expr, schema, buffer, row, [&] (const TUnversionedValue& result) {

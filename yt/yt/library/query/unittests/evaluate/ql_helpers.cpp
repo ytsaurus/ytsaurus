@@ -154,21 +154,17 @@ TPlanFragmentPtr ParseAndPreparePlanFragment(
     IPrepareCallbacks* callbacks,
     TStringBuf source,
     NYson::TYsonStringBuf placeholderValues,
-    int syntaxVersion,
+    const TPreparePlanFragmentOptions& options,
     IMemoryUsageTrackerPtr memoryTracker)
 {
-    auto parsedSource = ParseSource(source, EParseMode::Query, placeholderValues, syntaxVersion);
+    auto parsedSource = ParseSource(source, EParseMode::Query, placeholderValues, options.SyntaxVersion);
 
     return PreparePlanFragment(
         callbacks,
         parsedSource->Source,
         std::get<NAst::TQuery>(parsedSource->AstHead.Ast),
         parsedSource->AstHead,
-        TPreparePlanFragmentOptions{
-            .SyntaxVersion = syntaxVersion,
-            .BuilderVersion = DefaultExpressionBuilderVersion,
-            .ExecutionBackend = EExecutionBackend::Native,
-        },
+        options,
         std::move(memoryTracker));
 }
 
@@ -177,12 +173,12 @@ TConstExpressionPtr ParseAndPrepareExpression(
     const TTableSchema& tableSchema,
     const TConstTypeInferrerMapPtr& functions,
     THashSet<std::string>* references,
-    int exprBuilderVersion)
+    TPreparePlanFragmentOptions options)
 {
     return PrepareExpression(
         *ParseSource(source, EParseMode::Expression),
         tableSchema,
-        exprBuilderVersion,
+        options.BuilderVersion,
         functions,
         references);
 }
