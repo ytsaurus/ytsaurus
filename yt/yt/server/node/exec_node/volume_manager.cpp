@@ -250,7 +250,8 @@ private:
 
                     TVolumeProfilerCounters::Get()->GetGauge(tagSet, "/count")
                         .Update(VolumeCounters().Increment(tagSet));
-                    TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
+                    TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created")
+                        .Increment(1);
 
                     return TTmpfsVolumeResult{
                         .Volume = New<TSimpleTmpfsVolume>(
