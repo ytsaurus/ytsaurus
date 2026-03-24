@@ -353,9 +353,6 @@ public:
         auto dynamicConfig = DynamicConfigManager_->GetConfig()->ExecNode->SlotManager->VolumeManager;
         DynamicConfig_.Store(dynamicConfig);
 
-        if (Bootstrap_) {
-            Bootstrap_->SubscribePopulateAlerts(BIND(&TPortoVolumeManager::PopulateAlerts, MakeWeak(this)));
-        }
         // Create locations.
 
         std::vector<TFuture<void>> initLocationResults;
@@ -400,6 +397,11 @@ public:
             ControlInvoker_,
             MemoryUsageTracker_,
             Bootstrap_);
+
+        // Subscribe to PopulateAlerts only after LayerCache_ is created to avoid data race.
+        if (Bootstrap_) {
+            Bootstrap_->SubscribePopulateAlerts(BIND(&TPortoVolumeManager::PopulateAlerts, MakeWeak(this)));
+        }
 
         SquashFSVolumeCache_ = New<TSquashFSVolumeCache>(
             Bootstrap_,
