@@ -1912,8 +1912,12 @@ class YtClient(ClientState):
 
     def lock(
         self,
-        path,
-        mode=None, waitable=False, wait_for=None, child_key=None, attribute_key=None
+        path: Union[str, YPath],
+        mode: Optional[Literal["snapshot", "shared", "exclusive"]] = None,
+        waitable: Optional[bool] = False,
+        wait_for: Optional[int] = None,
+        child_key: Optional[str] = None,
+        attribute_key: Optional[str] = None
     ):
         """
         Tries to lock the path.
