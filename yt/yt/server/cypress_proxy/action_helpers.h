@@ -40,12 +40,14 @@ TFuture<NSequoiaClient::ISequoiaTransactionPtr> StartCypressProxyTransaction(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Selects all records with path in [path, path + sentinelChar) AND with tx_id
-//! in #transactionIds.
+//! Selects all records with path starting with #rootPath AND with tx_id
+//! in #cypressTransactionIds. Supports pagination via #limit and #cursorPath.
 TFuture<std::vector<NSequoiaClient::NRecords::TPathToNodeId>> SelectSubtree(
     const NSequoiaClient::ISequoiaTransactionPtr& transaction,
-    const NSequoiaClient::TAbsolutePath& path,
-    TRange<NCypressClient::TTransactionId> cypressTransactionIds);
+    const NSequoiaClient::TAbsolutePath& rootPath,
+    TRange<NCypressClient::TTransactionId> cypressTransactionIds,
+    std::optional<int> limit = {},
+    std::optional<NSequoiaClient::TAbsolutePathBuf> cursorPath = {});
 
 //! Creates chain of map-nodes under transaction #parentId.TransactionId.
 //! Returns bottommost node ID (created or not).

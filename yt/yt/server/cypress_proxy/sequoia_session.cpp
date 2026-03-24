@@ -350,12 +350,11 @@ void TraverseSelectedSubtree(
     auto it = records.begin();
     while (it != records.end()) {
         // Find records related to the next path.
-        auto [_, currentEnd] = std::equal_range(
+        auto currentEnd = std::find_if(
             it,
             records.end(),
-            *it,
-            [] (const NRecords::TPathToNodeId& lhs, const NRecords::TPathToNodeId& rhs) {
-                return lhs.Key.Path < rhs.Key.Path;
+            [&] (const NRecords::TPathToNodeId& record) {
+                return it->Key.Path != record.Key.Path;
             });
 
         TRange<NRecords::TPathToNodeId> currentRecords(
@@ -395,6 +394,47 @@ TTransactionId TSequoiaSession::GetCurrentCypressTransactionId() const
 {
     return CypressTransactionAncestry_.back();
 }
+
+TSequoiaSession::TSubtree TSequoiaSession::TPagedSubtreeFetcher::FetchNextPage()
+{
+    auto records = WaitFor(SelectSubtree(
+        Owner_->SequoiaTransaction_,
+        RootPath_,
+        Owner_->CypressTransactionAncestry_,
+        PageSize_,
+        CursorPath_))
+        .ValueOrThrow();
+
+    if (std::ssize(records) == PageSize_) {
+        // Fork resolve requires full rows scope per node, yet the last node's
+        // records may be trimmed. Process them at next iteration.
+        auto cursorPath = records.back().Key.Path;
+        while (records.back().Key.Path == cursorPath) {
+            records.pop_back();
+        }
+        CursorPath_ = TAbsolutePath(cursorPath);
+    } else {
+        ShouldContinue_ = false;
+    }
+
+    TPathForkResolver forkResolver;
+
+    TraverseSelectedSubtree(
+        std::move(records),
+        Owner_->CypressTransactionDepths_,
+        &forkResolver);
+
+    return {.Nodes = std::move(forkResolver).GetResult()};
+}
+
+TSequoiaSession::TPagedSubtreeFetcher::TPagedSubtreeFetcher(
+    TAbsolutePathBuf rootPath,
+    int pageSize,
+    TSequoiaSession* owner)
+    : RootPath_(rootPath)
+    , PageSize_(pageSize)
+    , Owner_(owner)
+{ }
 
 TSequoiaSessionPtr TSequoiaSession::Start(
     IBootstrap* bootstrap,
@@ -998,6 +1038,12 @@ TSequoiaSession::TSubtree TSequoiaSession::FetchSubtree(TAbsolutePathBuf path)
         &forkResolver);
 
     return TSubtree{.Nodes = std::move(forkResolver).GetResult()};
+}
+
+TSequoiaSession::TPagedSubtreeFetcher TSequoiaSession::FetchPagedSubtree(NSequoiaClient::TAbsolutePathBuf path)
+{
+    auto dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig();
+    return TPagedSubtreeFetcher(path, /*pageSize*/ dynamicConfig->SelectSubtreeRowsLimit, this);
 }
 
 void TSequoiaSession::DetachAndRemoveSubtree(

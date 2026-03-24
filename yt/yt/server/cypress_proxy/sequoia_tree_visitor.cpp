@@ -23,6 +23,49 @@ constinit auto Logger = CypressProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+bool IsAncestor(const TCypressNodeDescriptor& maybeAncestor, const TCypressNodeDescriptor& child)
+{
+    return IsAncestorPath(maybeAncestor.Path, child.Path);
+}
+
+} // namespace
+
+TSequoiaTreeTraverser::TSequoiaTreeTraverser(INodeVisitor<TCypressNodeDescriptor>* visitor)
+    : Visitor_(visitor)
+{ }
+
+void TSequoiaTreeTraverser::Walk(const TCypressNodeDescriptor& node)
+{
+    if (SkippedRoot_.has_value() && IsAncestor(*SkippedRoot_, node)) {
+        return;
+    }
+    SkippedRoot_.reset();
+
+    while (!Trace_.empty() && !IsAncestor(Trace_.back(), node)) {
+        Visitor_->OnNodeExited(Trace_.back());
+        Trace_.pop_back();
+    }
+
+    if (!Visitor_->ShouldVisit(node)) {
+        SkippedRoot_ = node;
+        return;
+    }
+
+    Visitor_->OnNodeEntered(node);
+    Trace_.push_back(node);
+}
+
+void TSequoiaTreeTraverser::Finish() &&
+{
+    for (const auto& node : Trace_ | std::views::reverse) {
+        Visitor_->OnNodeExited(node);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TraverseSequoiaTree(
     NCypressClient::TNodeId rootId,
     const TNodeIdToChildDescriptors& nodeIdToChildren,
