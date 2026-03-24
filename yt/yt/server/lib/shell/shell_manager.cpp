@@ -354,7 +354,7 @@ public:
         }
 #endif
 
-        return CreatePortoShell(PortoExecutor_, std::move(options));
+        return CreatePortoShell(PortoExecutor_, std::move(options), !jobShellDescriptor.Subcontainer.empty());
     }
 
 
