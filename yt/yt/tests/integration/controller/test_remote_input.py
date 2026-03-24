@@ -31,7 +31,7 @@ class TestInputFromRemote(YTEnvSetup):
         rows = [{"a": 42, "b": "foo"}, {"a": -17, "b": "bar"}]
         write_table("//tmp/t0", rows, driver=get_driver(cluster="remote_0"))
 
-        merge(in_=yson.loads('[<cluster="remote_0">"//tmp/t0"]'.encode('utf8')), out="//tmp/t0", verbose=True)
+        merge(in_=yson.loads('[<cluster="remote_0">"//tmp/t0"]'.encode('utf8')), out="//tmp/t0")
 
         assert_items_equal(read_table("//tmp/t0"), rows)
 
@@ -45,6 +45,6 @@ class TestInputFromRemote(YTEnvSetup):
 
         tx = start_transaction(timeout=100000, driver=get_driver(cluster="remote_0"))
 
-        merge(in_=yson.loads('[<cluster="remote_0";transaction_id="{}">"//tmp/t1"]'.format(tx).encode('utf8')), out="//tmp/t1", verbose=True)
+        merge(in_=yson.loads('[<cluster="remote_0";transaction_id="{}">"//tmp/t1"]'.format(tx).encode('utf8')), out="//tmp/t1")
 
         assert_items_equal(read_table("//tmp/t1"), rows)
