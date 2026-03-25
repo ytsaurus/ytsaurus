@@ -33,8 +33,7 @@ target_link_libraries(unittester-queue-client PUBLIC
 )
 
 target_allocator(unittester-queue-client
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
+  system_allocator
 )
 
 target_link_options(unittester-queue-client PRIVATE
@@ -43,10 +42,6 @@ target_link_options(unittester-queue-client PRIVATE
   -fPIC
   -framework
   CoreFoundation
-)
-
-target_sources(unittester-queue-client PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/unittests/dynamic_state_ut.cpp
 )
 
 

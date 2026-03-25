@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <yt/yt/ytlib/queue_client/dynamic_state.h>
+
 #include <yt/yt/core/yson/public.h>
 
 #include <any>
@@ -53,6 +55,39 @@ struct IObjectController
     virtual void BuildOrchid(NYson::IYsonConsumer* consumer) const = 0;
 
     virtual bool IsLeading() const = 0;
+};
+
+template <typename TRow, typename TSnapshot>
+class TErrorController
+    : public IObjectController
+{
+public:
+    TErrorController(
+        TRow row,
+        std::optional<NQueueClient::TReplicatedTableMappingTableRow> replicatedTableMappingRow,
+        TError error);
+
+    void OnDynamicConfigChanged(
+        const TQueueControllerDynamicConfigPtr& oldConfig,
+        const TQueueControllerDynamicConfigPtr& newConfig) override;
+
+    void OnRowUpdated(std::any row) override;
+
+    void OnReplicatedTableMappingRowUpdated(const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& row) override;
+
+    void Stop() override;
+
+    TRefCountedPtr GetLatestSnapshot() const override;
+
+    void BuildOrchid(NYson::IYsonConsumer* consumer) const override;
+
+    bool IsLeading() const override;
+
+private:
+    const TRow Row_;
+    const std::optional<NQueueClient::TReplicatedTableMappingTableRow> ReplicatedTableMappingRow_;
+    const TError Error_;
+    const TIntrusivePtr<TSnapshot> Snapshot_;
 };
 
 DEFINE_REFCOUNTED_TYPE(IObjectController)
