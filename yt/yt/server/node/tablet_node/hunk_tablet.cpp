@@ -174,7 +174,7 @@ void THunkTablet::Reconfigure(const THunkStorageSettings& settings)
 
 void THunkTablet::ConfigureProfiler()
 {
-    Profiler_ = GetTabletProfilerManager()->CreateHunkTabletProfiler(
+    Profiler_ = TTabletProfilerManager::Get()->CreateHunkTabletProfiler(
         Host_->GetTabletCellBundleName(),
         HunkStoragePath_,
         Id_);
