@@ -4468,7 +4468,9 @@ void TJob::CollectSensorsFromGpuAndRdmaDeviceInfo(ISensorWriter* writer)
     for (int index = 0; index < std::ssize(gpuSlots); ++index) {
         auto slot = gpuSlots[index];
 
-        auto gpuInfo = GetOrDefault(gpuInfoMap, slot->GetDeviceIndex(), TGpuInfo{});
+        auto gpuInfo = JobPhase_ < EJobPhase::Running
+            ? TGpuInfo{}
+            : GetOrDefault(gpuInfoMap, slot->GetDeviceIndex(), TGpuInfo{});
 
         TWithTagGuard tagGuard(writer, "gpu_slot", ToString(index));
 
