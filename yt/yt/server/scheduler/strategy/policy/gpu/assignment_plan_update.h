@@ -123,6 +123,8 @@ private:
     bool ShouldUseFullHostAggressivePreemption(const TOperationPtr& operation) const;
     bool ShouldUsePriorityModuleBinding(const TOperationPtr& operation) const;
 
+    bool ShouldResetModule(const TOperationPtr& operation) const;
+    void EvictOperationFromSchedulingModule(const TOperationPtr& operation, const std::string& preemptionDescription);
     bool BindFullHostOperationToModule(const TOperationPtr& operation, bool priorityModuleBinding);
 
     std::optional<NDetail::TOperationModuleBindingOutcome> ConsiderModuleForFullHostOperation(
