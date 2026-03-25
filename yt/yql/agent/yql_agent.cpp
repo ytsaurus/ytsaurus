@@ -469,6 +469,7 @@ public:
             .BeginMap()
                 .Item("declare_params").Value(true)
                 .Item("yql_runner").Value(true)
+                .Item("multiple_full_results").Value(true)
             .EndMap();
         response.set_supported_features(supportedFeatures.ToString());
 
@@ -601,16 +602,19 @@ private:
                         response.add_rowset_errors();
                         response.add_incomplete(rowset.Incomplete);
 
-                        if (!rowset.References || rowset.References->Reference.size() != 3 || rowset.References->Reference[0] != "yt") {
+                        if (rowset.References.empty()) {
                             response.add_full_result();
                         } else {
-                            const auto& cluster = rowset.References->Reference[1];
-                            const auto& table = rowset.References->Reference[2];
-                            const auto fullResult = NYTree::BuildYsonStringFluently()
-                                .BeginMap()
-                                    .Item("cluster").Value(cluster)
-                                    .Item("table_path").Value(table)
-                                .EndMap();
+                            auto fullResult = NYTree::BuildYsonStringFluently()
+                                .DoListFor(rowset.References, [&] (TFluentList fluent, const auto& ref) {
+                                    const auto& cluster = ref->Reference[1];
+                                    const auto& table = ref->Reference[2];
+                                    fluent.Item()
+                                        .BeginMap()
+                                            .Item("cluster").Value(cluster)
+                                            .Item("table_path").Value(table)
+                                        .EndMap();
+                                });
                             ToProto(response.add_full_result(), fullResult.AsStringBuf());
                         }
                     } else {
