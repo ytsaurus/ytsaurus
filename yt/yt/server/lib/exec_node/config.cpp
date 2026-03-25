@@ -380,6 +380,18 @@ const THashMap<TString, TUserJobStatisticSensorPtr>& TUserJobMonitoringDynamicCo
                 .Item("profiling_name").Value("/user_job/block_io/io_total")
             .EndMap()
 
+            .Item("block_io/bytes_read").BeginMap()
+                .Item("path").Value("/user_job/block_io/bytes_read")
+                .Item("type").Value("counter")
+                .Item("profiling_name").Value("/user_job/block_io/bytes_read")
+            .EndMap()
+
+            .Item("block_io/bytes_written").BeginMap()
+                .Item("path").Value("/user_job/block_io/bytes_written")
+                .Item("type").Value("counter")
+                .Item("profiling_name").Value("/user_job/block_io/bytes_written")
+            .EndMap()
+
             .Item("network/rx_bytes").BeginMap()
                 .Item("path").Value("/user_job/network/rx_bytes")
                 .Item("type").Value("counter")
