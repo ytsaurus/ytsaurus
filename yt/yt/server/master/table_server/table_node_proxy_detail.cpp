@@ -2084,6 +2084,17 @@ void TTableNodeProxy::ValidatePermission(
     CachedHasRowLevelAce_ = successfulValidationResult.HasRowLevelAce;
 }
 
+void TTableNodeProxy::RemoveSelf(TReqRemove* request, TRspRemove* response, const TCtxRemovePtr& context)
+{
+    auto* table = GetThisImpl();
+    if (table->GetHunkStorage() && !request->force()) {
+        THROW_ERROR_EXCEPTION("Cannot remove table %v that is linked to hunk storage",
+            table->GetId());
+    }
+
+    TBase::RemoveSelf(request, response, context);
+}
+
 bool TTableNodeProxy::ShouldHideRowCount() const
 {
     // NB(coteeq): CachedHasRowLevelAce_ may be null if we did not check permissions for the subject.

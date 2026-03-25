@@ -1821,6 +1821,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
+        remove("//tmp/t/@hunk_storage_id")
         remove("//tmp/t")
         wait(lambda: not exists("#{}".format(store_chunk_id)))
 
@@ -1882,7 +1883,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         set("//tmp/h/@store_rotation_period", 500)
         wait(lambda: get("#{}/@owning_nodes".format(hunk_store_id)) == ["//tmp/t"])
 
-        remove("//tmp/t")
+        remove("//tmp/t", force=True)
         wait(lambda: not exists("#{}".format(store_chunk_id)))
 
     @authors("akozhikhov")
@@ -1984,7 +1985,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
-        remove("//tmp/t")
+        remove("//tmp/t", force=True)
         wait(lambda: not exists("#{}".format(store_chunk_id)))
 
     @authors("akozhikhov")
@@ -2617,6 +2618,26 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         self._insert_rows_with_hunk_storage("//tmp/t", rows)
         sync_flush_table("//tmp/t")
         assert_items_equal(select_rows("key, value from [//tmp/t]"), rows)
+
+    @authors("akozhikhov")
+    def test_forbid_table_with_linked_hunk_storage_removal(self):
+        sync_create_cells(1)
+
+        self._create_table(path="//tmp/t")
+
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "scan_backoff_period": 1000,
+        })
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 0, "value": "a" * 100} for i in range(10)]
+        self._insert_rows_with_hunk_storage("//tmp/t", rows)
+
+        with raises_yt_error("that is linked to hunk storage"):
+            remove("//tmp/t")
 
 
 ################################################################################

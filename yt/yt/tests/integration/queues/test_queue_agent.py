@@ -6408,6 +6408,7 @@ class TestExportWithHunkStorage(TestQueueStaticExportBase):
         assert _check_chunks()
 
         sync_unmount_table(queue_path)
+        remove(f"{queue_path}/@hunk_storage_id")
         remove(queue_path)
 
         assert _check_data()

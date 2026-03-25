@@ -63,6 +63,8 @@ protected:
         NObjectServer::TObject* object,
         NYTree::EPermission permission) override;
 
+    void RemoveSelf(TReqRemove* request, TRspRemove* response, const TCtxRemovePtr& context) override;
+
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, ReshardAutomatic);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, GetMountInfo);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Alter);
