@@ -348,6 +348,7 @@ class TestHunkStorage(DynamicTablesBase):
         with raises_yt_error("Cannot remove a hunk storage that is being used by nodes"):
             remove("//tmp/h")
 
+        remove("//tmp/t/@hunk_storage_id")
         remove("//tmp/t")
         self._remove_hunk_storage("//tmp/h")
 
@@ -362,7 +363,7 @@ class TestHunkStorage(DynamicTablesBase):
 
         assert get("//tmp/h/@associated_nodes") == ["//tmp/t"]
 
-        remove("//tmp/t")
+        remove("//tmp/t", force=True)
         self._remove_hunk_storage("//tmp/h")
 
     @authors("aleksandra-zh")
@@ -397,7 +398,8 @@ class TestHunkStorage(DynamicTablesBase):
         with raises_yt_error("Cannot remove a hunk storage that is being used by nodes"):
             remove("//tmp/h")
 
-        remove("//tmp/t1")
+        remove("//tmp/t1", force=True)
+        remove("//tmp/t2/@hunk_storage_id")
         remove("//tmp/t2")
         self._remove_hunk_storage("//tmp/h")
 
@@ -413,6 +415,7 @@ class TestHunkStorage(DynamicTablesBase):
         commit_transaction(tx)
         assert get("//tmp/h/@associated_nodes") == ["//tmp/t1"]
 
+        remove("//tmp/t1/@hunk_storage_id")
         remove("//tmp/t1")
         self._remove_hunk_storage("//tmp/h")
 
@@ -446,6 +449,7 @@ class TestHunkStorage(DynamicTablesBase):
         commit_transaction(tx)
         assert get("//tmp/h/@associated_nodes") == ["//tmp/t1"]
 
+        remove("//tmp/t1/@hunk_storage_id")
         remove("//tmp/t1")
         self._remove_hunk_storage("//tmp/h")
 
@@ -473,7 +477,8 @@ class TestHunkStorage(DynamicTablesBase):
         with raises_yt_error("Cannot remove a hunk storage that is being used by nodes"):
             remove("//tmp/h")
 
-        remove("//tmp/t1")
+        remove("//tmp/t1", force=True)
+        remove("//tmp/t2/@hunk_storage_id")
         remove("//tmp/t2")
         self._remove_hunk_storage("//tmp/h")
 

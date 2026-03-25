@@ -678,10 +678,14 @@ void TOrderedDynamicStore::OnSetRemoved()
 
     const auto& hunkLockManager = Tablet_->GetHunkLockManager();
     for (const auto& [hunkStoreId, hunkStoreRef] : HunkStoreRefs_) {
-        YT_LOG_DEBUG(
-            "Unreferencing hunk store before death (HunkStoreId: %v)",
-            hunkStoreId);
         hunkLockManager->IncrementPersistentLockCount(hunkStoreId, -1);
+
+        YT_LOG_DEBUG(
+            "Unreferencing hunk store before death "
+            "(HunkStoreId: %v, PersistentLockCount: %v, TotalLockCount: %v)",
+            hunkStoreId,
+            hunkLockManager->GetPersistentLockCount(hunkStoreId),
+            hunkLockManager->GetTotalLockCount(hunkStoreId));
     }
 
     HunkStoreRefs_.clear();
