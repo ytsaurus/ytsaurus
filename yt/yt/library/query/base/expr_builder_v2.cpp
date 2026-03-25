@@ -1214,6 +1214,30 @@ TConstExpressionPtr TExpressionBuilderV2::OnQueryOp(const NAst::TQueryExpression
             fromExpressions = expressions;
         });
 
+    if (queryExpr->Query.WithIndex) {
+        THROW_ERROR_EXCEPTION("WITH INDEX clause is not supported in subqueries");
+    }
+
+    if (!queryExpr->Query.Joins.empty()) {
+        THROW_ERROR_EXCEPTION("JOIN clause is not supported in subqueries");
+    }
+
+    if (queryExpr->Query.HavingPredicate) {
+        THROW_ERROR_EXCEPTION("HAVING clause is not supported in subqueries");
+    }
+
+    if (!queryExpr->Query.OrderExpressions.empty()) {
+        THROW_ERROR_EXCEPTION("ORDER BY clause is not supported in subqueries");
+    }
+
+    if (queryExpr->Query.Offset) {
+        THROW_ERROR_EXCEPTION("OFFSET clause is not supported in subqueries");
+    }
+
+    if (queryExpr->Query.Limit) {
+        THROW_ERROR_EXCEPTION("LIMIT clause is not supported in subqueries");
+    }
+
     TNamedItemList typedFromExpressions;
 
     std::vector<TColumnSchema> columns;
