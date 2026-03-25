@@ -147,9 +147,9 @@ class TestYtflowBase(TestQueueAgentBase):
     def modify_yql_agent_config(cls, config):
         config['yql_agent']['ytflow_gateway_config'] = dict(
             ytflow_worker_bin=yatest.common.binary_path("yt/yql/tools/ytflow_worker/ytflow_worker"),
+            gateway_threads=1,
             default_settings=[
                 dict(name='FiniteStreams', value='1'),
-                dict(name='GatewayThreads', value='1'),
                 dict(name='YtPartitionCount', value='1'),
             ],
             cluster_mapping=[dict(
