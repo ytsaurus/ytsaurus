@@ -653,6 +653,7 @@ void PackImpl(const TType* type, TBuf& buffer, const NUdf::TUnboxedValuePod& val
             break;
 
         case TType::EKind::Data: {
+            MKQL_ENSURE(value, "Nonoptional value is absent");
             auto dataType = static_cast<const TDataType*>(type);
             switch (*dataType->GetDataSlot()) {
                 case NUdf::EDataSlot::Bool:
@@ -839,6 +840,7 @@ void PackImpl(const TType* type, TBuf& buffer, const NUdf::TUnboxedValuePod& val
         }
 
         case TType::EKind::Struct: {
+            MKQL_ENSURE(value, "Nonoptional value is absent");
             auto structType = static_cast<const TStructType*>(type);
             for (ui32 index = 0; index < structType->GetMembersCount(); ++index) {
                 auto memberType = structType->GetMemberType(index);
@@ -848,6 +850,7 @@ void PackImpl(const TType* type, TBuf& buffer, const NUdf::TUnboxedValuePod& val
         }
 
         case TType::EKind::Tuple: {
+            MKQL_ENSURE(value, "Nonoptional value is absent");
             auto tupleType = static_cast<const TTupleType*>(type);
             for (ui32 index = 0; index < tupleType->GetElementsCount(); ++index) {
                 auto elementType = tupleType->GetElementType(index);
@@ -857,6 +860,7 @@ void PackImpl(const TType* type, TBuf& buffer, const NUdf::TUnboxedValuePod& val
         }
 
         case TType::EKind::Dict: {
+            MKQL_ENSURE(value, "Nonoptional value is absent");
             auto dictType = static_cast<const TDictType*>(type);
             auto keyType = dictType->GetKeyType();
             auto payloadType = dictType->GetPayloadType();
@@ -935,6 +939,7 @@ void PackImpl(const TType* type, TBuf& buffer, const NUdf::TUnboxedValuePod& val
         }
 
         case TType::EKind::Variant: {
+            MKQL_ENSURE(value, "Nonoptional value is absent");
             auto variantType = static_cast<const TVariantType*>(type);
             ui32 variantIndex = value.GetVariantIndex();
             TType* innerType = variantType->GetUnderlyingType();
