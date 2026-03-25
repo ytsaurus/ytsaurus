@@ -1944,17 +1944,33 @@ void TChunkMerger::ValidateStatistics(
     const TChunkOwnerDataStatistics& oldStatistics,
     const TChunkOwnerDataStatistics& newStatistics)
 {
-    YT_LOG_ALERT_IF(oldStatistics.RowCount != newStatistics.RowCount,
-        "Row count in new statistics is different (NodeId: %v, OldRowCount: %v, NewRowCount: %v)",
-        nodeId,
-        oldStatistics.RowCount,
-        newStatistics.RowCount);
-
-    YT_LOG_ALERT_IF(oldStatistics.DataWeight != newStatistics.DataWeight,
-        "Data weight in new statistics is different (NodeId: %v, OldDataWeight: %v, NewDataWeight: %v)",
-        nodeId,
-        oldStatistics.DataWeight,
-        newStatistics.DataWeight);
+    if (oldStatistics.RowCount != newStatistics.RowCount) {
+        if (oldStatistics.RowCount < 0) {
+            YT_LOG_INFO("Fixed invalid row count (NodeId: %v, OldRowCount: %v, NewRowCount: %v)",
+                nodeId,
+                oldStatistics.RowCount,
+                newStatistics.RowCount);    
+        } else {
+            YT_LOG_ALERT("Row count in new statistics is different (NodeId: %v, OldRowCount: %v, NewRowCount: %v)",
+                nodeId,
+                oldStatistics.RowCount,
+                newStatistics.RowCount);
+        }
+    }
+    
+    if (oldStatistics.DataWeight != newStatistics.DataWeight) {
+        if (oldStatistics.DataWeight < 0) {
+            YT_LOG_INFO("Fixed invalid data weight (NodeId: %v, OldDataWeight: %v, NewDataWeight: %v)",
+                nodeId,
+                oldStatistics.DataWeight,
+                newStatistics.DataWeight);    
+        } else {
+            YT_LOG_ALERT("Data weight in new statistics is different (NodeId: %v, OldDataWeight: %v, NewDataWeight: %v)",
+                nodeId,
+                oldStatistics.DataWeight,
+                newStatistics.DataWeight);
+        }
+    }
 }
 
 void TChunkMerger::RemoveNodeFromRescheduleMaps(TAccountId accountId, NCypressClient::TNodeId nodeId)
