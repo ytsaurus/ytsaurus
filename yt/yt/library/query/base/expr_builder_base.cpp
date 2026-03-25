@@ -685,10 +685,17 @@ void TReferenceResolver::Finish()
 
 TExpressionBuilder::TExpressionBuilder(
     TStringBuf source,
-    const TConstTypeInferrerMapPtr& functions)
+    const TConstTypeInferrerMapPtr& functions,
+    const TPreparePlanFragmentContext& context)
     : Source_(source)
     , Functions_(functions)
+    , Context_(context)
 { }
+
+const NLogging::TLogger& TExpressionBuilder::GetLogger() const
+{
+    return Context_.Logger;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
