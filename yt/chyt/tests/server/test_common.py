@@ -2772,6 +2772,11 @@ class TestDataTypeConversion(ClickHouseTestBase):
         create("table", "//tmp/t2", attributes={"schema": short_schema})
         create("table", "//tmp/different_cardinality", attributes={"schema": short_schema})
         create("table", "//tmp/t3", attributes={"schema": short_schema})
+        nested_optional_schema = [
+            {"name": "nested_optional_uint8", "type_v3": {"type_name": "optional", "item": {"type_name": "optional", "item": "uint8"}}},
+            {"name": "nested_optional_string", "type_v3": {"type_name": "optional", "item": {"type_name": "optional", "item": "string"}}},
+        ]
+        create("table", "//tmp/nested_optional", attributes={"schema": nested_optional_schema})
 
         def get_row(value):
             str_value = str(value)
@@ -2894,6 +2899,9 @@ class TestDataTypeConversion(ClickHouseTestBase):
             clique.make_query("create table `//tmp/t_ch1` engine=YtTable() as select * from `//tmp/different_cardinality`", settings=settings)
             result = clique.make_query('select * from "//tmp/t_ch1"', settings=settings)
             assert result == arr
+
+            result = clique.make_query('describe table "//tmp/nested_optional"', settings=settings)
+            assert all(not t["type"].startswith("LowCardinality") for t in result)
 
             settings["chyt.composite.low_cardinality_mode"] = "string_only"
             result = clique.make_query('describe table "//tmp/t"', settings=settings)

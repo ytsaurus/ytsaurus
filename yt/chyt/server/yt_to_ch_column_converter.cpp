@@ -1482,6 +1482,9 @@ private:
     {
         IConverterPtr converter;
         if (descriptor.GetType()->GetMetatype() == ELogicalMetatype::Optional) {
+            if (insideOptional) {
+                return nullptr;
+            }
             return CreateLowCardinalityConverter(descriptor.OptionalElement(), true);
         } else if (descriptor.GetType()->GetMetatype() == ELogicalMetatype::Simple) {
             auto valueType = descriptor.GetType()->AsSimpleTypeRef().GetElement();
