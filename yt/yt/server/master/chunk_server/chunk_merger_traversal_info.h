@@ -15,6 +15,8 @@ struct TChunkMergerViolatedCriteriaStatistics
     int MaxCompressedDataSizeViolatedCriteria = 0;
     int MaxInputChunkDataWeightViolatedCriteria = 0;
     int MaxChunkMetaSizeViolatedCriteria = 0;
+    int MaxChunkListCountPerMergeSessionViolatedCriteria = 0;
+    int MaxJobsPerChunkListViolatedCriteria = 0;
 
     TChunkMergerViolatedCriteriaStatistics& operator+=(const TChunkMergerViolatedCriteriaStatistics& rhs);
 };

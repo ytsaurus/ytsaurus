@@ -17,6 +17,9 @@ TChunkMergerViolatedCriteriaStatistics& TChunkMergerViolatedCriteriaStatistics::
     MaxUncompressedDataSizeViolatedCriteria += rhs.MaxUncompressedDataSizeViolatedCriteria;
     MaxCompressedDataSizeViolatedCriteria += rhs.MaxCompressedDataSizeViolatedCriteria;
     MaxInputChunkDataWeightViolatedCriteria += rhs.MaxInputChunkDataWeightViolatedCriteria;
+    MaxChunkMetaSizeViolatedCriteria += rhs.MaxChunkMetaSizeViolatedCriteria;
+    MaxChunkListCountPerMergeSessionViolatedCriteria += rhs.MaxChunkListCountPerMergeSessionViolatedCriteria;
+    MaxJobsPerChunkListViolatedCriteria += rhs.MaxJobsPerChunkListViolatedCriteria;
     return *this;
 }
 
