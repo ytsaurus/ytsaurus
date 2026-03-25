@@ -506,10 +506,10 @@ public:
 
 private:
     const bool Disabled_ = true;
-    const NProfiling::TProfiler Profiler_ = {};
-    const NProfiling::TProfiler MediumProfiler_ = {};
-    const NProfiling::TProfiler MediumHistogramProfiler_ = {};
-    const NProfiling::TProfiler DiskProfiler_ = {};
+    const NProfiling::TProfiler Profiler_;
+    const NProfiling::TProfiler MediumProfiler_;
+    const NProfiling::TProfiler MediumHistogramProfiler_;
+    const NProfiling::TProfiler DiskProfiler_;
     const NTableClient::TTableSchemaPtr Schema_;
 
     TUserTaggedCounter<TQueryServiceCounters> QueryServiceCounters_;

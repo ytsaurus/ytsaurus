@@ -33,6 +33,8 @@ class TTabletProfilerManager
 public:
     TTabletProfilerManager();
 
+    static TTabletProfilerManager* Get();
+
     TTableProfilerPtr CreateTableProfiler(
         EDynamicTableProfilingMode profilingMode,
         const std::string& tabletCellBundle,
@@ -60,8 +62,6 @@ private:
     using THunkTabletProfilerKey = std::tuple<std::string, NYPath::TYPath, TObjectId>;
     THashMap<THunkTabletProfilerKey, TWeakPtr<THunkTabletProfiler>> HunkTabletProfilers_;
 };
-
-TTabletProfilerManager* GetTabletProfilerManager();
 
 ////////////////////////////////////////////////////////////////////////////////
 
