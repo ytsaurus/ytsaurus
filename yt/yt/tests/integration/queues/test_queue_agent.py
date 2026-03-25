@@ -3,7 +3,10 @@ from yt_queue_agent_test_base import (OrchidWithRegularPasses, QueueStaticExport
                                       CypressSynchronizerOrchid, AlertManagerOrchid, QueueAgentShardingManagerOrchid,
                                       ObjectAlertHelper)
 
-from yt.environment.init_queue_agent_state import run_migration, prepare_migration, INITIAL_VERSION as QUEUE_AGENT_STATE_INITIAL_VERSION
+from yt.environment.init_queue_agent_state import (
+    run_migration, prepare_migration, INITIAL_VERSION as QUEUE_AGENT_STATE_INITIAL_VERSION,
+    create_replica_mapping_index_action_factory
+)
 
 from yt_commands import (alter_table_replica, authors, commit_transaction, generate_timestamp, get, get_batch_output,
                          get_driver, set, ls, wait, assert_yt_error, create, create_table_replica, sync_mount_table, insert_rows,
@@ -6108,8 +6111,16 @@ class TestMigration(YTEnvSetup):
                 target_version=version
             )
 
+        create_replica_mapping_action = create_replica_mapping_index_action_factory()
+        create_replica_mapping_action.reconfigure(config={
+            "root": self.QUEUE_AGENT_STATE_ROOT,
+        })
+
         # Check secondary_index existence
         assert get(f"{self.QUEUE_AGENT_STATE_ROOT}/replica_mapping/@index_to/table_path") == f"{self.QUEUE_AGENT_STATE_ROOT}/replicated_table_mapping"
+
+        create_replica_mapping_action(client=self.Env.create_native_client())
+        create_replica_mapping_action(client=self.Env.create_native_client())
 
     @authors("apachee")
     def test_run_migration_on_existing_directory(self):

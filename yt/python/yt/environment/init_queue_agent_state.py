@@ -191,6 +191,13 @@ class CreateSecondaryIndexAction(ReconfigurableAction):
                      f"{client.get(f'{self.table_path}/@schema')=} "
                      f"{client.get(f'{self.index_table_path}/@schema')=}")
 
+        if client.exists(f"{self.index_table_path}/@index_to"):
+            actual_table_path = client.get(f"{self.index_table_path}/@index_to/table_path")
+            if actual_table_path != self.table_path:
+                raise RuntimeError(f"Index already exists, but indexes different table: {actual_table_path}")
+            logging.info("Skipping index creation, since it already exists")
+            return
+
         client.unmount_table(self.secondary_index_attributes["table_path"], sync=True)
         client.unmount_table(self.secondary_index_attributes["index_table_path"], sync=True)
 
@@ -457,10 +464,11 @@ TRANSFORMS[5] = [
     ),
 ]
 
+
 # Add secondary_index between replica_mapping and replicated_table_mapping.
 # Actual paths are set in prepare_migration.
-ACTIONS[6] = [
-    CreateSecondaryIndexAction(
+def create_replica_mapping_index_action_factory():
+    return CreateSecondaryIndexAction(
         table_name="replicated_table_mapping",
         index_table_name="replica_mapping",
         secondary_index_attributes={
@@ -471,6 +479,10 @@ ACTIONS[6] = [
         table_filter_callback=_replicated_table_filter_callback,
         index_table_filter_callback=_create_replicated_table_index_filter_callback("replicated_table_mapping"),
     )
+
+
+ACTIONS[6] = [
+    create_replica_mapping_index_action_factory(),
 ]
 
 MIGRATION = Migration(
