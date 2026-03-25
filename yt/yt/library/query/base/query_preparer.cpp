@@ -680,11 +680,12 @@ std::unique_ptr<TExpressionBuilder> CreateExpressionBuilder(
     TStringBuf source,
     const TConstTypeInferrerMapPtr& functions,
     const NAst::TAliasMap& aliasMap,
+    const TPreparePlanFragmentContext& context,
     int expressionBuilderVersion)
 {
     return (expressionBuilderVersion == 1
         ? &CreateExpressionBuilderV1
-        : &CreateExpressionBuilderV2)(source, functions, aliasMap);
+        : &CreateExpressionBuilderV2)(source, functions, aliasMap, context);
 }
 
 TJoinClausePtr BuildJoinClause(
@@ -698,8 +699,10 @@ TJoinClausePtr BuildJoinClause(
     const std::optional<std::string>& tableAlias,
     TExpressionBuilder* builder,
     const TPreparePlanFragmentOptions& options,
-    const NLogging::TLogger& Logger)
+    const TPreparePlanFragmentContext& context)
 {
+    const auto& Logger = context.Logger;
+
     auto foreignTableSchema = foreignDataSplit.TableSchema;
 
     auto joinClause = New<TJoinClause>();
@@ -712,7 +715,7 @@ TJoinClausePtr BuildJoinClause(
     }
 
     // BuildPredicate and BuildTypedExpression are used with foreignBuilder.
-    auto foreignBuilder = CreateExpressionBuilder(source, functions, aliasMap, options.BuilderVersion);
+    auto foreignBuilder = CreateExpressionBuilder(source, functions, aliasMap, context, options.BuilderVersion);
 
     foreignBuilder->AddTable({
         .Schema = *foreignTableSchema,
@@ -958,10 +961,12 @@ TJoinClausePtr BuildArrayJoinClause(
 
     ValidateColumnUniqueness(*arrayJoinClause->Schema.Original);
 
+    TPreparePlanFragmentContext arrayContext{builder->GetLogger()};
     auto arrayBuilder = CreateExpressionBuilder(
         source,
         functions,
         aliasMap,
+        arrayContext,
         builderVersion);
 
     arrayBuilder->AddTable({
@@ -1315,10 +1320,13 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
             return std::nullopt;
         });
 
+    TPreparePlanFragmentContext context{Logger};
+
     auto builder = CreateExpressionBuilder(
         source,
         functions,
         aliasMap,
+        context,
         options.BuilderVersion);
 
     builder->AddTable({
@@ -1344,7 +1352,7 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
                     table->Alias,
                     builder.get(),
                     options,
-                    Logger));
+                    context));
             },
             [&] (const NAst::TArrayJoin& arrayJoin) {
                 joinClauses.push_back(BuildArrayJoinClause(
@@ -1511,7 +1519,9 @@ TQueryPtr PrepareJobQuery(
     auto functions = New<TTypeInferrerMap>();
     functionsFetcher(functionNames, functions, EExecutionBackend::Native);
 
-    auto builder = CreateExpressionBuilder(source, functions, aliasMap, 1);
+    auto Logger = MakeQueryLogger(query);
+    TPreparePlanFragmentContext context{Logger};
+    auto builder = CreateExpressionBuilder(source, functions, aliasMap, context, 1);
 
     builder->AddTable({
         .Schema = *tableSchema,
@@ -1561,7 +1571,9 @@ TConstExpressionPtr PrepareExpression(
 
     std::vector<TColumnDescriptor> mapping;
 
-    auto builder = CreateExpressionBuilder(parsedSource.Source, functions, aliasMap, builderVersion);
+    auto Logger = MakeQueryLogger(TGuid::Create());
+    TPreparePlanFragmentContext context{Logger};
+    auto builder = CreateExpressionBuilder(parsedSource.Source, functions, aliasMap, context, builderVersion);
 
     builder->AddTable({
         .Schema = tableSchema,

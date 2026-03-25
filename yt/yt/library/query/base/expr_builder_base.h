@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ast.h"
+#include "prepare_plan_fragment_context.h"
 #include "query.h"
 #include "public.h"
 
@@ -102,7 +103,8 @@ public:
 
     TExpressionBuilder(
         TStringBuf source,
-        const TConstTypeInferrerMapPtr& functions);
+        const TConstTypeInferrerMapPtr& functions,
+        const TPreparePlanFragmentContext& context);
 
     virtual void AddTable(TNameSource nameSource) = 0;
     virtual TLogicalTypePtr ResolveColumn(const NAst::TColumnReference& reference) = 0;
@@ -129,17 +131,24 @@ public:
         }) = 0;
 
     virtual ~TExpressionBuilder() = default;
+
+    const NLogging::TLogger& GetLogger() const;
+
+private:
+    const TPreparePlanFragmentContext& Context_;
 };
 
 std::unique_ptr<TExpressionBuilder> CreateExpressionBuilderV1(
     TStringBuf source,
     const TConstTypeInferrerMapPtr& functions,
-    const NAst::TAliasMap& aliasMap);
+    const NAst::TAliasMap& aliasMap,
+    const TPreparePlanFragmentContext& context);
 
 std::unique_ptr<TExpressionBuilder> CreateExpressionBuilderV2(
     TStringBuf source,
     const TConstTypeInferrerMapPtr& functions,
-    const NAst::TAliasMap& aliasMap);
+    const NAst::TAliasMap& aliasMap,
+    const TPreparePlanFragmentContext& context);
 
 ////////////////////////////////////////////////////////////////////////////////
 

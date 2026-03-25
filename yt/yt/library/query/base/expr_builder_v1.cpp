@@ -523,8 +523,9 @@ public:
     TExpressionBuilderV1(
         TStringBuf source,
         const TConstTypeInferrerMapPtr& functions,
-        const NAst::TAliasMap& aliasMap)
-        : TExpressionBuilder(source, functions)
+        const NAst::TAliasMap& aliasMap,
+        const TPreparePlanFragmentContext& context)
+        : TExpressionBuilder(source, functions, context)
         , AliasMap_(aliasMap)
     { }
 
@@ -651,9 +652,10 @@ private:
 std::unique_ptr<TExpressionBuilder> CreateExpressionBuilderV1(
     TStringBuf source,
     const TConstTypeInferrerMapPtr& functions,
-    const NAst::TAliasMap& aliasMap)
+    const NAst::TAliasMap& aliasMap,
+    const TPreparePlanFragmentContext& context)
 {
-    return std::make_unique<TExpressionBuilderV1>(source, functions, aliasMap);
+    return std::make_unique<TExpressionBuilderV1>(source, functions, aliasMap, context);
 }
 
 TUntypedExpression TExpressionBuilderV1::OnExpression(

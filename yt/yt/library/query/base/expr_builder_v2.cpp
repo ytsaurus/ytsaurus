@@ -90,8 +90,9 @@ public:
     TExpressionBuilderV2(
         TStringBuf source,
         const TConstTypeInferrerMapPtr& functions,
-        const NAst::TAliasMap& aliasMap)
-        : TExpressionBuilder(source, functions)
+        const NAst::TAliasMap& aliasMap,
+        const TPreparePlanFragmentContext& context)
+        : TExpressionBuilder(source, functions, context)
     {
         PushAliasResolver(aliasMap);
     }
@@ -240,9 +241,10 @@ private:
 std::unique_ptr<TExpressionBuilder> CreateExpressionBuilderV2(
     TStringBuf source,
     const TConstTypeInferrerMapPtr& functions,
-    const NAst::TAliasMap& aliasMap)
+    const NAst::TAliasMap& aliasMap,
+    const TPreparePlanFragmentContext& context)
 {
-    return std::make_unique<TExpressionBuilderV2>(source, functions, aliasMap);
+    return std::make_unique<TExpressionBuilderV2>(source, functions, aliasMap, context);
 }
 
 TConstExpressionPtr TExpressionBuilderV2::DoOnExpression(
