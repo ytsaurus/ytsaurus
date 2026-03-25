@@ -22,7 +22,7 @@ struct TCreateNbdVolumeOptions
     TJobId JobId;
     TString DeviceId;
     TString Filesystem;
-    bool IsReadOnly;
+    bool IsReadOnly = true;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,9 +40,9 @@ struct TPrepareRWNbdVolumeOptions
 {
     TJobId JobId;
 
-    i64 Size;
-    int MediumIndex;
-    NNbd::EFilesystemType Filesystem;
+    i64 Size = 0;
+    int MediumIndex = 0;
+    NNbd::EFilesystemType Filesystem = NNbd::EFilesystemType::Unknown;
     TString DeviceId;
     NRpc::IChannelPtr DataNodeChannel;
     NChunkClient::TSessionId SessionId;
