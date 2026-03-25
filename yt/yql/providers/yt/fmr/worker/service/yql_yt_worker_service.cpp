@@ -166,7 +166,8 @@ int main(int argc, const char *argv[]) {
             return RunJob(task, tableDataServiceDiscoveryFilePath, fmrYtJobSerivce, jobLauncher, cancelFlag, tvmSettings);
         };
 
-        TFmrJobFactorySettings settings{.Function=func};
+        auto settings = GetDefaultJobFactorySettings();
+        settings.Function = func;
         auto jobFactory = MakeFmrJobFactory(settings);
         auto&& fmrCacheConfig = options.FmrRemoteCacheConfig;
 
