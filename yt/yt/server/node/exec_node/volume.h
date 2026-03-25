@@ -63,7 +63,7 @@ struct TLayerMetaHeader
     //! Version of layer meta format. Update every time layer meta version is updated.
     ui64 Version = ExpectedVersion;
 
-    ui64 MetaChecksum;
+    ui64 MetaChecksum = 0;
 
     static constexpr ui64 ExpectedSignature = 0xbe17d73ce7ff9ea6ull; // YTLMH001
     static constexpr ui64 ExpectedVersion = 1;
@@ -181,7 +181,7 @@ private:
     const std::string Path_;
     const TVolumeId VolumeId_;
     const IInvokerPtr Invoker_;
-    const bool DetachUnmount_;
+    const bool DetachUnmount_ = false;
     TFuture<void> RemoveFuture_;
 };
 
