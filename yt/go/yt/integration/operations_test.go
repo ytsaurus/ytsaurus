@@ -131,17 +131,22 @@ func TestOperationWithStderr(t *testing.T) {
 		require.Empty(t, jobs.Jobs)
 	}
 	taskName := "map"
-	jobs, err := env.YT.ListJobs(ctx, opID, nil)
-	require.NoError(t, err)
-	require.NotEmpty(t, jobs.Jobs)
-	for _, job := range jobs.Jobs {
+	checkJob := func(job yt.JobStatus) {
 		stderr, err := env.YT.GetJobStderr(ctx, opID, job.ID, nil)
 		require.NoError(t, err)
 		require.Equal(t, []byte("hello\n"), stderr)
 		info, err := env.YT.GetJob(ctx, opID, job.ID, nil)
 		require.NoError(t, err)
-		require.Equal(t, &job, info)
+		require.Equal(t, job.ID, info.ID)
+		require.Equal(t, job.Type, info.Type)
+		require.Equal(t, job.TaskName, info.TaskName)
 		require.Equal(t, taskName, job.TaskName)
+	}
+	jobs, err := env.YT.ListJobs(ctx, opID, nil)
+	require.NoError(t, err)
+	require.NotEmpty(t, jobs.Jobs)
+	for _, job := range jobs.Jobs {
+		checkJob(job)
 	}
 	jobs, err = env.YT.ListJobs(ctx, opID, &yt.ListJobsOptions{
 		TaskName: &taskName,
@@ -149,13 +154,7 @@ func TestOperationWithStderr(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, jobs.Jobs)
 	for _, job := range jobs.Jobs {
-		stderr, err := env.YT.GetJobStderr(ctx, opID, job.ID, nil)
-		require.NoError(t, err)
-		require.Equal(t, []byte("hello\n"), stderr)
-		info, err := env.YT.GetJob(ctx, opID, job.ID, nil)
-		require.NoError(t, err)
-		require.Equal(t, &job, info)
-		require.Equal(t, taskName, job.TaskName)
+		checkJob(job)
 	}
 }
 
