@@ -236,20 +236,21 @@ private:
 
         if (queueRecords.empty()) {
             auto error = TError("There are no updates to flush");
-            YT_LOG_ALERT(error);
+            YT_LOG_DEBUG(error);
             THROW_ERROR_EXCEPTION(error);
         }
         if (queueRecords.front().SequenceNumber != request->start_sequence_number()) {
             auto error = TError("First record sequence number %v is different from requested sequence number %v",
                 queueRecords.front().SequenceNumber,
                 request->start_sequence_number());
-            YT_LOG_ALERT(error);
+            YT_LOG_DEBUG(error);
             THROW_ERROR_EXCEPTION(error);
         }
         if (queueRecords.back().SequenceNumber < request->end_sequence_number()) {
             auto error = TError("Last queue sequence number %v is less than requested sequence number %v",
                 queueRecords.back().SequenceNumber,
                 request->end_sequence_number());
+            // This is still alert, looks weird.
             YT_LOG_ALERT(error);
             THROW_ERROR_EXCEPTION(error);
         }
