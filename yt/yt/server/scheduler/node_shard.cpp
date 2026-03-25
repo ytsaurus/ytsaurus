@@ -294,6 +294,7 @@ void TNodeShard::UpdateConfig(const TSchedulerConfigPtr& config)
 
     Config_ = config;
 
+    RemoveOutdatedScheduleAllocationEntryExecutor_->SetPeriod(config->ScheduleAllocationEntryCheckPeriod);
     SubmitAllocationsToStrategyExecutor_->SetPeriod(config->NodeShardSubmitAllocationsToStrategyPeriod);
     CachedExecNodeDescriptorsRefresher_->SetPeriod(config->NodeShardExecNodesCacheUpdatePeriod);
     UpdateUnutilizedResourcesSensorsExecutor_->SetPeriod(config->UnutilizedResourcesSensorsUpdatePeriod);
@@ -321,6 +322,7 @@ IInvokerPtr TNodeShard::OnMasterConnected(const TNodeShardMasterHandshakeResultP
     CachedExecNodeDescriptorsRefresher_->Start();
     SubmitAllocationsToStrategyExecutor_->Start();
     UpdateUnutilizedResourcesSensorsExecutor_->Start();
+    RemoveOutdatedScheduleAllocationEntryExecutor_->Start();
 
     return CancelableInvoker_;
 }
@@ -356,6 +358,8 @@ void TNodeShard::DoCleanup()
 
     YT_UNUSED_FUTURE(CachedExecNodeDescriptorsRefresher_->Stop());
     YT_UNUSED_FUTURE(UpdateUnutilizedResourcesSensorsExecutor_->Stop());
+    YT_UNUSED_FUTURE(RemoveOutdatedScheduleAllocationEntryExecutor_->Stop());
+    YT_UNUSED_FUTURE(SubmitAllocationsToStrategyExecutor_->Stop());
 
     for (const auto& [nodeId, node] : IdToNode_) {
         TLeaseManager::CloseLease(node->GetRegistrationLease());
