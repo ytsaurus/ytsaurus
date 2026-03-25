@@ -3137,6 +3137,9 @@ void TOperationControllerBase::OnJobStarted(const TJobletPtr& joblet)
         .Item("job_type").Value(joblet->JobType)
         .Item("task_name").Value(joblet->TaskName)
         .Item("tree_id").Value(joblet->TreeId)
+        .DoIf(joblet->UserJobMonitoringDescriptor.has_value(), [&] (TFluentMap fluent) {
+            fluent.Item("monitoring_descriptor").Value(ToString(*joblet->UserJobMonitoringDescriptor));
+        })
         .Do([&] (TFluentMap fluent) {
             EnrichJobInfo(fluent, joblet);
         });
