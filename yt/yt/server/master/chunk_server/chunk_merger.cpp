@@ -861,22 +861,21 @@ void TChunkMerger::OnProfiling(TSensorBuffer* buffer)
             continue;
         }
         TWithTagGuard tagGuard(buffer, "account", account->GetName());
-        buffer->AddGauge("/chunk_merger/chunk_replacements_succeeded", statistics.ChunkReplacementsSucceeded);
-        buffer->AddGauge("/chunk_merger/chunk_replacements_failed", statistics.ChunkReplacementsFailed);
-        buffer->AddGauge("/chunk_merger/chunk_count_saving", statistics.ChunkCountSaving);
+        buffer->AddCounter("/chunk_merger/chunk_replacements_succeeded", statistics.ChunkReplacementsSucceeded);
+        buffer->AddCounter("/chunk_merger/chunk_replacements_failed", statistics.ChunkReplacementsFailed);
+        buffer->AddCounter("/chunk_merger/chunk_count_saving", statistics.ChunkCountSaving);
 
         const auto& violatedCriteria = statistics.ViolatedCriteria;
-        buffer->AddGauge("/chunk_merger/max_chunk_count_violated_criteria", violatedCriteria.MaxChunkCountViolatedCriteria);
-        buffer->AddGauge("/chunk_merger/max_chunk_meta_size_violated_criteria", violatedCriteria.MaxChunkMetaSizeViolatedCriteria);
-        buffer->AddGauge("/chunk_merger/max_compressed_data_violated_criteria", violatedCriteria.MaxCompressedDataSizeViolatedCriteria);
-        buffer->AddGauge("/chunk_merger/max_data_weight_violated_criteria", violatedCriteria.MaxDataWeightViolatedCriteria);
-        buffer->AddGauge("/chunk_merger/max_input_chunk_data_weight_violated_criteria", violatedCriteria.MaxInputChunkDataWeightViolatedCriteria);
-        buffer->AddGauge("/chunk_merger/max_row_count_violated_criteria", violatedCriteria.MaxRowCountViolatedCriteria);
-        buffer->AddGauge("/chunk_merger/max_uncompressed_data_violated_criteria", violatedCriteria.MaxUncompressedDataSizeViolatedCriteria);
-        buffer->AddGauge("/chunk_merger/max_chunk_list_count_per_merge_session_violated_criteria", violatedCriteria.MaxChunkListCountPerMergeSessionViolatedCriteria);
-        buffer->AddGauge("/chunk_merger/max_jobs_per_chunk_list_violated_criteria", violatedCriteria.MaxJobsPerChunkListViolatedCriteria);
+        buffer->AddCounter("/chunk_merger/max_chunk_count_violated_criteria", violatedCriteria.MaxChunkCountViolatedCriteria);
+        buffer->AddCounter("/chunk_merger/max_chunk_meta_size_violated_criteria", violatedCriteria.MaxChunkMetaSizeViolatedCriteria);
+        buffer->AddCounter("/chunk_merger/max_compressed_data_violated_criteria", violatedCriteria.MaxCompressedDataSizeViolatedCriteria);
+        buffer->AddCounter("/chunk_merger/max_data_weight_violated_criteria", violatedCriteria.MaxDataWeightViolatedCriteria);
+        buffer->AddCounter("/chunk_merger/max_input_chunk_data_weight_violated_criteria", violatedCriteria.MaxInputChunkDataWeightViolatedCriteria);
+        buffer->AddCounter("/chunk_merger/max_row_count_violated_criteria", violatedCriteria.MaxRowCountViolatedCriteria);
+        buffer->AddCounter("/chunk_merger/max_uncompressed_data_violated_criteria", violatedCriteria.MaxUncompressedDataSizeViolatedCriteria);
+        buffer->AddCounter("/chunk_merger/max_chunk_list_count_per_merge_session_violated_criteria", violatedCriteria.MaxChunkListCountPerMergeSessionViolatedCriteria);
+        buffer->AddCounter("/chunk_merger/max_jobs_per_chunk_list_violated_criteria", violatedCriteria.MaxJobsPerChunkListViolatedCriteria);
     }
-    AccountToChunkMergerStatistics_.clear();
 
     buffer->AddCounter("/chunk_merger/sessions_awaiting_finalization", SessionsAwaitingFinalization_.size());
 

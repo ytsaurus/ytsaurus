@@ -8,15 +8,15 @@ namespace NYT::NChunkServer {
 
 struct TChunkMergerViolatedCriteriaStatistics
 {
-    int MaxChunkCountViolatedCriteria = 0;
-    int MaxRowCountViolatedCriteria = 0;
-    int MaxDataWeightViolatedCriteria = 0;
-    int MaxUncompressedDataSizeViolatedCriteria = 0;
-    int MaxCompressedDataSizeViolatedCriteria = 0;
-    int MaxInputChunkDataWeightViolatedCriteria = 0;
-    int MaxChunkMetaSizeViolatedCriteria = 0;
-    int MaxChunkListCountPerMergeSessionViolatedCriteria = 0;
-    int MaxJobsPerChunkListViolatedCriteria = 0;
+    i64 MaxChunkCountViolatedCriteria = 0;
+    i64 MaxRowCountViolatedCriteria = 0;
+    i64 MaxDataWeightViolatedCriteria = 0;
+    i64 MaxUncompressedDataSizeViolatedCriteria = 0;
+    i64 MaxCompressedDataSizeViolatedCriteria = 0;
+    i64 MaxInputChunkDataWeightViolatedCriteria = 0;
+    i64 MaxChunkMetaSizeViolatedCriteria = 0;
+    i64 MaxChunkListCountPerMergeSessionViolatedCriteria = 0;
+    i64 MaxJobsPerChunkListViolatedCriteria = 0;
 
     TChunkMergerViolatedCriteriaStatistics& operator+=(const TChunkMergerViolatedCriteriaStatistics& rhs);
 };
