@@ -326,7 +326,7 @@ public:
         TSchedulerMutations* mutations) const
     {
         auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
-        if (nodeInfo->State != InstanceStateOnline) {
+        if (!nodeInfo->IsOnline()) {
             return false;
         }
 

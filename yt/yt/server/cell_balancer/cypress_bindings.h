@@ -741,6 +741,8 @@ struct TTabletNodeInfo
 
     ELocalNodeState LocalState; // Not registered as yson struct field.
 
+    bool IsOnline() const;
+
     REGISTER_YSON_STRUCT(TTabletNodeInfo);
 
     static void Register(TRegistrar registrar);
