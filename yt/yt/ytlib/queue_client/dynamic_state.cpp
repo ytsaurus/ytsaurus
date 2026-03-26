@@ -344,10 +344,13 @@ TFuture<std::vector<TErrorOr<TRow>>> TTableBase<TRow, TRecordDescriptor>::Lookup
     // NB(apachee): Passing local variable as options is fine, since it is captured by value in the callback.
     TLookupRowsOptions patchedOptions = options;
     patchedOptions.KeepMissingRows = true;
-    patchedOptions.EnablePartialResult = true;
     return Client_->LookupRows(Path_, TRecordDescriptor::Get()->GetNameTable(), recordKeysRange, patchedOptions)
         .AsUnique()
-        .Apply(BIND([] (TUnversionedLookupRowsResult&& rawResult) {
+        .Apply(BIND([patchedOptions] (TUnversionedLookupRowsResult&& rawResult) {
+            if (patchedOptions.EnablePartialResult) {
+                YT_VERIFY(rawResult.UnavailableKeyIndexes.empty());
+            }
+
             auto optionalRecords = ToOptionalRecords<TRecord>(rawResult.Rowset);
 
             std::vector<TErrorOr<TRow>> result;
