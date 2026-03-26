@@ -243,7 +243,7 @@ THashMap<std::string, THashSet<std::string>> GetAliveNodes(
                 continue;
             }
 
-            if (nodeInfo->State != InstanceStateOnline) {
+            if (!nodeInfo->IsOnline()) {
                 if (gracePeriodBehaviour == EGracePeriodBehaviour::Immediately ||
                     now - nodeInfo->LastSeenTime > input.Config->OfflineInstanceGracePeriod)
                 {
@@ -528,7 +528,7 @@ THashMap<TSchedulerInputState::TQualifiedDCName, TDataCenterDisruptedState> GetD
         for (const auto& [dataCenterName, dataCenterNodes] : zoneNodes.PerDataCenter) {
             for (const auto& nodeName : dataCenterNodes) {
                 const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
-                if (nodeInfo->State == InstanceStateOnline) {
+                if (nodeInfo->IsOnline()) {
                     continue;
                 }
 
@@ -597,12 +597,12 @@ THashMap<TSchedulerInputState::TQualifiedDCName, TDataCenterDisruptedState> GetD
 
 bool IsOnline(const TTabletNodeInfoPtr& node)
 {
-    return node->State == InstanceStateOnline;
+    return node->IsOnline();
 }
 
 bool IsOnline(const TRpcProxyInfoPtr& proxy)
 {
-    return !!proxy->Alive;
+    return static_cast<bool>(proxy->Alive);
 }
 
 template <class TInstanceMap>

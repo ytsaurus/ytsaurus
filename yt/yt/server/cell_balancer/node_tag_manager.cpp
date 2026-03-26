@@ -95,7 +95,7 @@ bool TNodeTagManager::ProcessNodeAssignment(const std::string& nodeAddress)
         return false;
     }
 
-    bool isNodeOnline = InstanceStateOnline == nodeInfo->State;
+    bool isNodeOnline = nodeInfo->IsOnline();
 
     if (!isNodeOnline) {
         YT_LOG_WARNING("Node went offline during assigning to bundle "
