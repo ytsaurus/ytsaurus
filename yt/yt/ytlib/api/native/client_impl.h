@@ -1280,6 +1280,10 @@ private:
         const NTabletClient::TTableMountInfoPtr& tableInfo,
         const std::vector<int>& tabletIndexes,
         const TGetTabletInfosOptions& options);
+    std::vector<TTabletInfo> DoGetTabletInfosImpl(
+        const NTabletClient::TTableMountInfoPtr& tableInfo,
+        const std::vector<int>& tabletIndexes,
+        const TGetTabletInfosOptions& options);
 
     template <class TReq>
     void ExecuteTabletServiceRequest(

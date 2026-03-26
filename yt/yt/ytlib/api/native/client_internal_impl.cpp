@@ -97,7 +97,7 @@ std::vector<THunkDescriptor> TClient::DoWriteHunks(
     auto tableMountInfo = WaitFor(GetTableMountCache()->GetTableInfo(path))
         .ValueOrThrow();
     auto tabletInfo = tableMountInfo->GetTabletByIndexOrThrow(tabletIndex);
-    ValidateTabletMountedOrFrozen(tableMountInfo, tabletInfo, /*validateForWrite*/ true);
+    ValidateTabletMounted(tableMountInfo, tabletInfo);
 
     auto cellChannel = GetCellChannelOrThrow(tabletInfo->CellId);
 
@@ -254,7 +254,7 @@ void TClient::DoToggleHunkStoreLock(
     auto tableMountInfo = WaitFor(GetTableMountCache()->GetTableInfo(path))
         .ValueOrThrow();
     auto tabletInfo = tableMountInfo->GetTabletByIndexOrThrow(tabletIndex);
-    ValidateTabletMountedOrFrozen(tableMountInfo, tabletInfo, /*validateForWrite*/ true);
+    ValidateTabletMounted(tableMountInfo, tabletInfo);
 
     auto transaction = WaitFor(StartNativeTransaction(
         NTransactionClient::ETransactionType::Tablet,

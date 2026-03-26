@@ -93,7 +93,7 @@ std::vector<TTableReplicaId> TClient::GetReplicatedTableInSyncReplicas(
 
     auto registerTablet = [&] (const TTabletInfoPtr& tabletInfo) {
         if (tabletIds.insert(tabletInfo->TabletId).second) {
-            ValidateTabletMountedOrFrozen(tableInfo, tabletInfo, /*validateForWrite*/ false);
+            ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
             auto [it, emplaced] = cellToTabletIds.try_emplace(tabletInfo->CellId);
             if (emplaced) {
                 cellIds.push_back(it->first);

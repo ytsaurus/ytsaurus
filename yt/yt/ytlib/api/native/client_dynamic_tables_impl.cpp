@@ -589,6 +589,18 @@ std::vector<TTabletInfo> TClient::GetTabletInfosImpl(
     const std::vector<int>& tabletIndexes,
     const TGetTabletInfosOptions& options)
 {
+    return CallAndRetryIfMetadataCacheIsInconsistent(
+        /*profilingInfo*/ nullptr,
+        [&] {
+            return DoGetTabletInfosImpl(tableInfo, tabletIndexes, options);
+        });
+}
+
+std::vector<TTabletInfo> TClient::DoGetTabletInfosImpl(
+    const TTableMountInfoPtr& tableInfo,
+    const std::vector<int>& tabletIndexes,
+    const TGetTabletInfosOptions& options)
+{
     tableInfo->ValidateDynamic();
 
     struct TTabletBatch
@@ -603,6 +615,7 @@ std::vector<TTabletInfo> TClient::GetTabletInfosImpl(
     for (int resultIndex = 0; resultIndex < std::ssize(tabletIndexes); ++resultIndex) {
         auto tabletIndex = tabletIndexes[resultIndex];
         auto tabletInfo = tableInfo->GetTabletByIndexOrThrow(tabletIndex);
+        ValidateTabletNotUnmounted(tableInfo, tabletInfo);
 
         auto [it, emplaced] = cellIdToTabletBatch.try_emplace(tabletInfo->CellId);
         if (emplaced) {
@@ -1333,7 +1346,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
                     return CompareRows(item.first, pivot) < 0;
                 });
 
-            ValidateTabletMountedOrFrozen(tableInfo, startShard, /*validateForWrite*/ false);
+            ValidateTabletMountedOrFrozen(tableInfo, startShard);
 
             auto [it, emplaced] = cellIdToBatchIndex.emplace(startShard->CellId, batchesByCells.size());
             if (emplaced) {
@@ -2510,7 +2523,7 @@ void TClient::DoTrimTable(
     tableInfo->ValidateOrdered();
 
     auto tabletInfo = tableInfo->GetTabletByIndexOrThrow(tabletIndex);
-    ValidateTabletMountedOrFrozen(tableInfo, tabletInfo, /*validateForWrite*/ true);
+    ValidateTabletMounted(tableInfo, tabletInfo);
 
     const auto& permissionCache = Connection_->GetPermissionCache();
     NSecurityClient::TPermissionKey permissionKey{
@@ -3006,7 +3019,7 @@ IUnversionedRowsetPtr TClient::DoPullQueueViaTabletNodeApi(
 
     auto tabletInfo = tableInfo->GetTabletByIndexOrThrow(partitionIndex);
 
-    ValidateTabletMountedOrFrozen(tableInfo, tabletInfo, /*validateForWrite*/ false);
+    ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
     auto channel = GetReadCellChannelOrThrow(tabletInfo->CellId);
     TQueryServiceProxy proxy(channel);
     proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultFetchTableRowsTimeout));
