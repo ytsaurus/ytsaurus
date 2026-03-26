@@ -2,6 +2,8 @@
 
 #include "transaction_manager.h"
 
+#include <yt/yt/server/lib/sequoia/public.h>
+
 #include <yt/yt/ytlib/sequoia_client/public.h>
 
 namespace NYT::NTransactionServer {
@@ -57,7 +59,8 @@ TFuture<TSharedRefArray> FinishNonAliveCypressTransactionInSequoia(
 //! current master _peer_.
 TFuture<void> ReplicateCypressTransactionsInSequoiaAndSyncWithLeader(
     NCellMaster::TBootstrap* bootstrap,
-    std::vector<TTransactionId> transactionIds);
+    std::vector<TTransactionId> transactionIds,
+    std::unique_ptr<NProto::TReqReturnBoomerang> boomerang);
 
 ////////////////////////////////////////////////////////////////////////////////
 

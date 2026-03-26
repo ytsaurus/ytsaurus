@@ -849,7 +849,9 @@ private:
             }
         }
 
-        CellSyncSession_->SetSyncWithUpstream(!suppressUpstreamSync);
+        if (!suppressUpstreamSync) {
+            CellSyncSession_->ScheduleSyncWithUpstream();
+        }
         SuppressTransactionCoordinatorSync_ = suppressTransactionCoordinatorSync;
         SuppressStronglyOrderedTransactionBarrier_ = suppressStronglyOrderedTransactionBarrier;
     }
@@ -1057,23 +1059,15 @@ private:
                 "Cannot synchronize with cells when read-only mode is active");
         }
 
-        std::vector<TFuture<void>> additionalFutures;
         if (syncPhase == ESyncPhase::One &&
-            !SuppressStronglyOrderedTransactionBarrier_) {
-            // NB: We have to wait all current prepared transactions to
-            // observe side effects of Sequoia transactions.
-            const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
-            additionalFutures.push_back(
-                hydraManager->SyncWithLeader().Apply(BIND([=] {
-                    return transactionSupervisor->WaitUntilPreparedTransactionsFinished();
-                })));
+            !SuppressStronglyOrderedTransactionBarrier_)
+        {
+            // NB: we have to wait for prepared Sequoia transactions to observe
+            // Cypress transaction replications, aborts and commits.
+            CellSyncSession_->ScheduleSyncWithSequoiaTransactions();
         }
 
-        if (additionalFuture) {
-            additionalFutures.push_back(std::move(additionalFuture));
-        }
-
-        return CellSyncSession_->Sync(cellTags, std::move(additionalFutures));
+        return CellSyncSession_->Sync(cellTags, std::move(additionalFuture));
     }
 
     void RunSyncPhaseOne()
@@ -1397,6 +1391,7 @@ private:
                     addSubrequestTransactions(&writeSubrequestTransactions, subrequest, nullptr);
                     subrequest.RemoteTransactionReplicationSession = New<TTransactionReplicationSessionWithBoomerangs>(
                         Bootstrap_,
+                        CellSyncSession_,
                         std::move(writeSubrequestTransactions),
                         TTransactionReplicationInitiatorRequestInfo{
                             .Identity = Identity_,
@@ -1421,6 +1416,7 @@ private:
             // Pre-phase-one.
             RemoteTransactionReplicationSession_ = New<TTransactionReplicationSessionWithoutBoomerangs>(
                 Bootstrap_,
+                CellSyncSession_,
                 std::move(transactionsToReplicateWithoutBoomerangs),
                 TTransactionReplicationInitiatorRequestInfo{
                     .Identity = Identity_,

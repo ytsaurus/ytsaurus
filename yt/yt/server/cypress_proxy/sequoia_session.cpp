@@ -542,7 +542,7 @@ void TSequoiaSession::MaybeLockAndReplicateCypressTransaction()
     auto replicas = WaitFor(SequoiaTransaction_->LookupRows(replicaKeys))
         .ValueOrThrow();
 
-    TTransactionReplicationDestinationCellTagList dstCellTags;
+    TCellTagList dstCellTags;
     for (int i = 0; i < std::ssize(affectedCellTags); ++i) {
         if (!replicas[i].has_value()) {
             dstCellTags.push_back(affectedCellTags[i]);
@@ -572,7 +572,7 @@ void TSequoiaSession::MaybeLockAndReplicateCypressTransaction()
     // with Cypress transaction replication may be 1 + 1/3 Sequoia transactions
     // instead of 2.
 
-    WaitFor(ReplicateCypressTransactions(
+    WaitFor(ReplicateCypressTransactionToCells(
         SequoiaTransaction_->GetClient(),
         {cypressTransactionId},
         dstCellTags,

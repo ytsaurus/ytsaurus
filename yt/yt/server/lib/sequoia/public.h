@@ -1,5 +1,11 @@
 #pragma once
 
+namespace NYT::NTransactionServer::NProto {
+
+class TReqReturnBoomerang;
+
+} // namespace NYT::NTransactionServer::NProto
+
 namespace NYT::NSequoiaServer {
 
 ////////////////////////////////////////////////////////////////////////////////

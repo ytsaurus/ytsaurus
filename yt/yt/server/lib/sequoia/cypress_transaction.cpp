@@ -605,7 +605,7 @@ public:
 private:
     ISequoiaTransaction* const SequoiaTransaction_;
     TCompactVector<TTransactionId, 1> TransactionIds_;
-    TTransactionReplicationDestinationCellTagList CellTags_;
+    TCellTagList CellTags_;
     NTransactionServer::NProto::TReqMaterializeCypressTransactionReplicas Action_;
 };
 
@@ -626,7 +626,7 @@ public:
     TTransactionReplicator(
         ISequoiaTransactionPtr sequoiaTransaction,
         std::vector<std::optional<NRecords::TTransaction>> transactions,
-        TTransactionReplicationDestinationCellTagList cellTags,
+        TCellTagList cellTags,
         IInvokerPtr invoker)
         : SequoiaTransaction_(std::move(sequoiaTransaction))
         , CellTags_(std::move(cellTags))
@@ -640,7 +640,9 @@ public:
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-        YT_VERIFY(!InnermostTransactions_.empty());
+        if (InnermostTransactions_.empty()) {
+            return;
+        }
 
         int currentGroupStart = 0;
         for (int i = 1; i < std::ssize(InnermostTransactions_); ++i) {
@@ -669,7 +671,7 @@ public:
 
 private:
     const ISequoiaTransactionPtr SequoiaTransaction_;
-    const TTransactionReplicationDestinationCellTagList CellTags_;
+    const TCellTagList CellTags_;
     const IInvokerPtr Invoker_;
     std::vector<std::optional<NRecords::TTransaction>> InnermostTransactions_;
     std::vector<TTransactionId> AncestorIds_;
@@ -2188,8 +2190,9 @@ protected:
     TReplicateCypressTransactions(
         ISequoiaClientPtr sequoiaClient,
         TCellId hintCoordinatorCellId,
-        TTransactionReplicationDestinationCellTagList destinationCellTags,
+        TCellTagList destinationCellTags,
         std::vector<TTransactionId> transactionIds,
+        std::unique_ptr<NTransactionServer::NProto::TReqReturnBoomerang> boomerang,
         IInvokerPtr invoker,
         TLogger logger)
         : TSequoiaMutation(
@@ -2203,8 +2206,11 @@ protected:
             std::move(logger))
         , TransactionIds_(std::move(transactionIds))
         , DestinationCellTags_(std::move(destinationCellTags))
+        , Boomerang_(std::move(boomerang))
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        YT_VERIFY(DestinationCellTags_.size() == 1 || !Boomerang_);
     }
 
     TFuture<void> ApplySequoiaTransaction() override
@@ -2221,7 +2227,8 @@ protected:
 
 private:
     const std::vector<TTransactionId> TransactionIds_;
-    const TTransactionReplicationDestinationCellTagList DestinationCellTags_;
+    const TCellTagList DestinationCellTags_;
+    const std::unique_ptr<NTransactionServer::NProto::TReqReturnBoomerang> Boomerang_;
 
     TFuture<void> ReplicateTransactions(
         std::vector<std::optional<NRecords::TTransaction>>&& transactions)
@@ -2235,7 +2242,7 @@ private:
 
         ValidateTransactionAncestors(transactions);
 
-        if (transactions.empty()) {
+        if (transactions.empty() && !Boomerang_) {
             return OKFuture;
         }
 
@@ -2278,7 +2285,18 @@ private:
                     MakeTransactionActionData(action));
             });
 
-        return replicator->Run();
+        auto future = replicator->Run();
+
+        if (Boomerang_) {
+            YT_VERIFY(DestinationCellTags_.size() == 1);
+            future = future.Apply(BIND([this, this_ = MakeStrong(this)] {
+                SequoiaTransaction_->AddTransactionAction(
+                    DestinationCellTags_.front(),
+                    MakeTransactionActionData(*Boomerang_));
+            }));
+        }
+
+        return future;
     }
 };
 
@@ -2412,24 +2430,51 @@ TFuture<TSharedRefArray> FinishNonAliveCypressTransaction(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<void> ReplicateCypressTransactions(
+TFuture<void> ReplicateCypressTransactionsToCell(
     ISequoiaClientPtr sequoiaClient,
     std::vector<TTransactionId> transactionIds,
-    TTransactionReplicationDestinationCellTagList destinationCellTags,
-    TCellId hintCoordinatorCellId,
+    TCellId destinationCellId,
+    std::unique_ptr<NTransactionServer::NProto::TReqReturnBoomerang> boomerang,
     IInvokerPtr invoker,
-    TLogger logger)
+    NLogging::TLogger logger)
 {
     // Fast path.
-    if (transactionIds.empty()) {
+    if (transactionIds.empty() && !boomerang) {
         return OKFuture;
     }
 
     return New<TReplicateCypressTransactions>(
         std::move(sequoiaClient),
-        hintCoordinatorCellId,
-        std::move(destinationCellTags),
+        destinationCellId,
+        TCellTagList{CellTagFromId(destinationCellId)},
         std::move(transactionIds),
+        std::move(boomerang),
+        std::move(invoker),
+        std::move(logger))
+        ->Apply();
+}
+
+TFuture<void> ReplicateCypressTransactionToCells(
+    ISequoiaClientPtr sequoiaClient,
+    TTransactionId transactionId,
+    TCellTagList destinationCellTags,
+    TCellId transactionCoordinatorCellId,
+    IInvokerPtr invoker,
+    NLogging::TLogger logger)
+{
+    YT_VERIFY(CellTagFromId(transactionCoordinatorCellId) == CellTagFromId(transactionId));
+
+    // Fast path.
+    if (destinationCellTags.empty()) {
+        return OKFuture;
+    }
+
+    return New<TReplicateCypressTransactions>(
+        std::move(sequoiaClient),
+        transactionCoordinatorCellId,
+        std::move(destinationCellTags),
+        std::vector{transactionId},
+        /*boomerang*/ nullptr,
         std::move(invoker),
         std::move(logger))
         ->Apply();

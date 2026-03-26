@@ -337,6 +337,11 @@ public:
                 &TTransactionManager::HydraCommitMaterializeCypressTransactionReplicas,
                 Unretained(this)),
         });
+        RegisterTransactionActionHandlers<NProto::TReqReturnBoomerang>({
+            .Commit = BIND_NO_PROPAGATE(
+                &TTransactionManager::HydraCommitReturnBoomerang,
+                Unretained(this)),
+        });
 
         // Revoke leases of a Cypress Tx
         // Coordinator: TReqRevokeCypressTransactionLeases, late prepare
@@ -2940,6 +2945,19 @@ private:
     void HydraReturnBoomerang(NProto::TReqReturnBoomerang* request)
     {
         BoomerangTracker_->ProcessReturnedBoomerang(request);
+    }
+
+    void HydraCommitReturnBoomerang(
+        TTransaction* sequoiaTransaction,
+        NProto::TReqReturnBoomerang* request,
+        const TTransactionCommitOptions& /*options*/)
+    {
+        try {
+            HydraReturnBoomerang(request);
+        } catch (const std::exception& ex) {
+            YT_LOG_ALERT(ex, "Error during boomerang transaction action execution (SequoiaTransactionId: %v)",
+                sequoiaTransaction->GetId());
+        }
     }
 
     void HydraRemoveStuckBoomerangWaves(NProto::TReqRemoveStuckBoomerangWaves* request)
