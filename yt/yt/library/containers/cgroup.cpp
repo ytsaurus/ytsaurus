@@ -391,7 +391,7 @@ TCGroup::TCGroup(const TString& type, const TString& name)
     : TNonOwningCGroup(type, name)
 { }
 
-TCGroup::TCGroup(TCGroup&& other)
+TCGroup::TCGroup(TCGroup&& other) noexcept
     : TNonOwningCGroup(std::move(other))
     , Created_(other.Created_)
 {

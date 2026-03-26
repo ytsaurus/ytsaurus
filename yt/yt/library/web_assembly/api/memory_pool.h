@@ -21,8 +21,8 @@ public:
     explicit TWebAssemblyMemoryPool(IWebAssemblyCompartment* compartment);
 
     Y_WEAK ~TWebAssemblyMemoryPool();
-    TWebAssemblyMemoryPool(TWebAssemblyMemoryPool&& other);
-    TWebAssemblyMemoryPool& operator=(TWebAssemblyMemoryPool&& other);
+    TWebAssemblyMemoryPool(TWebAssemblyMemoryPool&& other) noexcept;
+    TWebAssemblyMemoryPool& operator=(TWebAssemblyMemoryPool&& other) noexcept;
 
     char* AllocateUnaligned(size_t size);
     char* AllocateAligned(size_t size, int align = 8);

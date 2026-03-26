@@ -199,7 +199,7 @@ TLocationMemoryGuard::TLocationMemoryGuard(TLocationMemoryGuard&& other) noexcep
     MoveFrom(std::move(other));
 }
 
-void TLocationMemoryGuard::MoveFrom(TLocationMemoryGuard&& other)
+void TLocationMemoryGuard::MoveFrom(TLocationMemoryGuard&& other) noexcept
 {
     MemoryGuard_ = std::move(other.MemoryGuard_);
     UseLegacyUsedMemory_ = other.UseLegacyUsedMemory_;
@@ -227,7 +227,7 @@ TLocationMemoryGuard& TLocationMemoryGuard::operator=(TLocationMemoryGuard&& oth
     return *this;
 }
 
-void TLocationMemoryGuard::Release()
+void TLocationMemoryGuard::Release() noexcept
 {
     if (Owner_) {
         Owner_->DecreaseUsedMemory(UseLegacyUsedMemory_, Direction_, Category_, Size_);

@@ -74,7 +74,7 @@ public:
         }
     }
 
-    TChaosDataTrimProgressGuard(TChaosDataTrimProgressGuard&& guard)
+    TChaosDataTrimProgressGuard(TChaosDataTrimProgressGuard&& guard) noexcept
         : Logger(std::move(guard.Logger))
         , TabletCancelableContext_(std::move(guard.TabletCancelableContext_))
         , ChaosTabletData_(std::move(guard.ChaosTabletData_))
