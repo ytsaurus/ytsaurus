@@ -383,6 +383,8 @@ protected:
     {
         NChunkClient::TClientChunkReadOptions result;
         result.ChunkReaderStatistics = New<NChunkClient::TChunkReaderStatistics>();
+
+        result.InitialQueryKind = EInitialQueryKind::LookupRows;
         return result;
     }
 };

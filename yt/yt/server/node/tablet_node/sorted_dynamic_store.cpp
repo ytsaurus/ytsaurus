@@ -55,6 +55,7 @@ using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
+using namespace NServer;
 using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NYTree;
@@ -240,7 +241,8 @@ public:
         TTimestamp timestamp,
         bool produceAllVersions,
         TSortedDynamicStoreRevision revision,
-        const TColumnFilter& columnFilter)
+        const TColumnFilter& columnFilter,
+        NProfiling::TEventTimer waitOnBlockedRowTimer)
         : Store_(std::move(store))
         , TabletSnapshot_(std::move(tabletSnapshot))
         , Timestamp_(timestamp)
@@ -250,6 +252,7 @@ public:
         , SchemaColumnCount_(Store_->SchemaColumnCount_)
         , ColumnLockCount_(Store_->ColumnLockCount_)
         , Pool_(TSortedDynamicStoreReaderPoolTag(), ReaderPoolSize)
+        , WaitOnBlockedRowTimer_(std::move(waitOnBlockedRowTimer))
     {
         YT_VERIFY(Timestamp_ != AllCommittedTimestamp || columnFilter.IsUniversal());
 
@@ -297,6 +300,8 @@ protected:
     std::vector<TVersionedValue> VersionedValues_;
 
     TLockMask LockMask_;
+
+    NProfiling::TEventTimer WaitOnBlockedRowTimer_;
 
     TTimestamp FillLatestWriteTimestamps(TSortedDynamicRow dynamicRow, TTimestamp* latestWriteTimestampPerLock)
     {
@@ -350,7 +355,7 @@ protected:
 
     TVersionedRow ProduceSingleRowVersion(TSortedDynamicRow dynamicRow)
     {
-        Store_->WaitOnBlockedRow(dynamicRow, LockMask_, Timestamp_);
+        WaitOnBlockedRowTimer_.Record(Store_->WaitOnBlockedRow(dynamicRow, LockMask_, Timestamp_));
 
         // Prepare timestamps.
         std::array<TTimestamp, MaxColumnLockCount> latestWriteTimestampPerLock;
@@ -434,7 +439,7 @@ protected:
 
     TVersionedRow ProduceAllRowVersions(TSortedDynamicRow dynamicRow, bool snapshotMode)
     {
-        Store_->WaitOnBlockedRow(dynamicRow, LockMask_, Timestamp_);
+        WaitOnBlockedRowTimer_.Record(Store_->WaitOnBlockedRow(dynamicRow, LockMask_, Timestamp_));
 
         std::array<TTimestamp, MaxColumnLockCount> latestWriteTimestampPerLock;
         FillLatestWriteTimestamps(dynamicRow, latestWriteTimestampPerLock.data());
@@ -687,14 +692,16 @@ public:
         bool produceAllVersions,
         bool snapshotMode,
         TSortedDynamicStoreRevision revision,
-        const TColumnFilter& columnFilter)
+        const TColumnFilter& columnFilter,
+        NProfiling::TEventTimer waitOnBlockedRowTimer)
         : TReaderBase(
             std::move(store),
             std::move(tabletSnapshot),
             timestamp,
             produceAllVersions,
             revision,
-            columnFilter)
+            columnFilter,
+            std::move(waitOnBlockedRowTimer))
         , Ranges_(std::move(ranges))
         , SnapshotMode_(snapshotMode)
     {
@@ -835,14 +842,16 @@ public:
         TSharedRange<TLegacyKey> keys,
         TTimestamp timestamp,
         bool produceAllVersions,
-        const TColumnFilter& columnFilter)
+        const TColumnFilter& columnFilter,
+        NProfiling::TEventTimer waitOnBlockedRowTimer)
         : TReaderBase(
             std::move(store),
             std::move(tabletSnapshot),
             timestamp,
             produceAllVersions,
             MaxRevision,
-            columnFilter)
+            columnFilter,
+            std::move(waitOnBlockedRowTimer))
         , Keys_(std::move(keys))
     { }
 
@@ -979,7 +988,8 @@ IVersionedReaderPtr TSortedDynamicStore::CreateFlushReader()
         /*produceAllVersions*/ true,
         /*snapshotMode*/ false,
         FlushRevision_,
-        TColumnFilter());
+        TColumnFilter(),
+        NProfiling::TEventTimer());
 }
 
 IVersionedReaderPtr TSortedDynamicStore::CreateSnapshotReader()
@@ -992,7 +1002,8 @@ IVersionedReaderPtr TSortedDynamicStore::CreateSnapshotReader()
         /*produceAllVersions*/ true,
         /*snapshotMode*/ true,
         GetSnapshotRevision(),
-        TColumnFilter());
+        TColumnFilter(),
+        NProfiling::TEventTimer());
 }
 
 const TSortedDynamicRowKeyComparer& TSortedDynamicStore::GetRowKeyComparer() const
@@ -1012,7 +1023,7 @@ void TSortedDynamicStore::ResetRowBlockedHandler()
     RowBlockedHandler_.Reset();
 }
 
-void TSortedDynamicStore::WaitOnBlockedRow(
+TDuration TSortedDynamicStore::WaitOnBlockedRow(
     TSortedDynamicRow row,
     TLockMask lockMask,
     TTimestamp timestamp)
@@ -1021,12 +1032,12 @@ void TSortedDynamicStore::WaitOnBlockedRow(
         timestamp == AllCommittedTimestamp ||
         Atomicity_ == EAtomicity::None)
     {
-        return;
+        return TDuration::Zero();
     }
 
-    auto now = NProfiling::GetCpuInstant();
+    auto start = NProfiling::GetCpuInstant();
     auto maxBlockedRowWaitTime = Context_->GetTabletManagerConfig()->MaxBlockedRowWaitTime;
-    auto deadline = now + NProfiling::DurationToCpuDuration(maxBlockedRowWaitTime);
+    auto deadline = start + NProfiling::DurationToCpuDuration(maxBlockedRowWaitTime);
 
     while (true) {
         int lockIndex = GetBlockingLockIndex(row, lockMask, timestamp);
@@ -1075,6 +1086,8 @@ void TSortedDynamicStore::WaitOnBlockedRow(
                 blockingTransactionId.TransactionId);
         }
     }
+
+    return NProfiling::CpuDurationToDuration(NProfiling::GetCpuInstant() - start);
 }
 
 TSortedDynamicRow TSortedDynamicStore::ModifyRow(
@@ -2487,7 +2500,7 @@ IVersionedReaderPtr TSortedDynamicStore::CreateReader(
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
-    const TClientChunkReadOptions& /*chunkReadOptions*/,
+    const TClientChunkReadOptions& chunkReadOptions,
     std::optional<EWorkloadCategory> /*workloadCategory*/)
 {
     return CreateVersionedPerformanceCountingReader(
@@ -2499,10 +2512,11 @@ IVersionedReaderPtr TSortedDynamicStore::CreateReader(
             produceAllVersions,
             /*snapshotMode*/ false,
             MaxRevision,
-            columnFilter),
+            columnFilter,
+            GetWaitOnBlockedRowTimer(tabletSnapshot->TableProfiler, chunkReadOptions.InitialQueryKind)),
         tabletSnapshot->PerformanceCounters,
         NTableClient::EDataSource::DynamicStore,
-        EPerformanceCountedRequestType::Read);
+        chunkReadOptions.InitialQueryKind);
 }
 
 IVersionedReaderPtr TSortedDynamicStore::CreateReader(
@@ -2521,10 +2535,11 @@ IVersionedReaderPtr TSortedDynamicStore::CreateReader(
             std::move(keys),
             timestamp,
             produceAllVersions,
-            columnFilter),
+            columnFilter,
+            GetWaitOnBlockedRowTimer(tabletSnapshot->TableProfiler, chunkReadOptions.InitialQueryKind)),
         tabletSnapshot->PerformanceCounters,
         NTableClient::EDataSource::DynamicStore,
-        chunkReadOptions.RequestType);
+        chunkReadOptions.InitialQueryKind);
 }
 
 bool TSortedDynamicStore::CheckRowLocks(

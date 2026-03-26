@@ -63,7 +63,7 @@ protected:
             key,
             minDataVersions,
             timestamp,
-            TClientChunkReadOptions())
+            TClientChunkReadOptions{.InitialQueryKind = EInitialQueryKind::LookupRows})
             .AsyncVia(AutomatonInvoker())
             .Run()
             .BlockingGet()

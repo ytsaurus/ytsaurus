@@ -453,6 +453,7 @@ public:
             .WorkloadDescriptor = QueryOptions_.WorkloadDescriptor,
             .ReadSessionId = QueryOptions_.ReadSessionId,
             .MemoryUsageTracker = Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::Query),
+            .InitialQueryKind = EInitialQueryKind::SelectRows,
         }
     { }
 

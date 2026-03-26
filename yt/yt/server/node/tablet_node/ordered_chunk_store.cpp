@@ -230,7 +230,7 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
             underlyingReader,
             PerformanceCounters_,
             NTableClient::EDataSource::ChunkStore,
-            EPerformanceCountedRequestType::Read);
+            chunkReadOptions.InitialQueryKind);
     };
 
     // Fast lane: check for in-memory reads.
