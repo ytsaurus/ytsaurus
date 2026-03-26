@@ -1237,6 +1237,113 @@ void RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(
     return;
 }
 
+namespace {
+
+// NB: This visitor does NOT traverse into subqueries in the FROM clause (e.g., `SELECT FROM (SELECT ...)`).
+// Such subqueries are handled separately via recursive calls to PreparePlanFragmentImpl.
+class TPathCollector
+    : public NAst::TAstVisitor<TPathCollector>
+{
+public:
+    explicit TPathCollector(std::function<void(const NYPath::TYPath&)> onPath)
+        : OnPath_(std::move(onPath))
+    { }
+
+    void OnQuery(const NAst::TQueryExpressionPtr queryExpr)
+    {
+        if (const auto* table = std::get_if<NAst::TTableDescriptor>(&queryExpr->Query.FromClause)) {
+            OnPath_(table->Path);
+        }
+
+        for (const auto& join : queryExpr->Query.Joins) {
+            NYT::Visit(join,
+                [&] (const NAst::TJoin& tableJoin) {
+                    OnPath_(tableJoin.Table.Path);
+                },
+                [&] (const NAst::TArrayJoin& /*arrayJoin*/) { });
+        }
+
+        for (const auto& [_, alias] : queryExpr->AliasMap) {
+            Visit(alias);
+        }
+
+        Visit(queryExpr->Query.SelectExprs);
+        Visit(queryExpr->Query.WherePredicate);
+        Visit(queryExpr->Query.GroupExprs);
+        Visit(queryExpr->Query.HavingPredicate);
+        for (const auto& [expr, _] : queryExpr->Query.OrderExpressions) {
+            Visit(expr);
+        }
+    }
+
+private:
+    std::function<void(const NYPath::TYPath&)> OnPath_;
+};
+
+const TDataSplit& GetDataSplitOrThrow(
+    const THashMap<NYPath::TYPath, TDataSplit>& dataSplits,
+    const NYPath::TYPath& path)
+{
+    auto it = dataSplits.find(path);
+    if (it == dataSplits.end()) {
+        THROW_ERROR_EXCEPTION("Data split not found for table path %Qv", path);
+    }
+    return it->second;
+}
+
+THashMap<NYPath::TYPath, TDataSplit> GetDataSplits(
+    IPrepareCallbacks* callbacks,
+    const NAst::TQuery& queryAst,
+    const NAst::TAliasMap& aliasMap,
+    int depth,
+    const NLogging::TLogger& Logger)
+{
+    {
+        const auto* table = std::get_if<NAst::TTableDescriptor>(&queryAst.FromClause);
+
+        YT_LOG_DEBUG("Getting initial data splits (PrimaryPath: %v, ForeignPaths: %v, SubqueryDepth: %v)",
+            table ? table->Path : "unapplicable",
+            MakeFormattableView(
+                queryAst.Joins,
+                [] (TStringBuilderBase* builder, const std::variant<NAst::TJoin, NAst::TArrayJoin>& join) {
+                    if (auto* tableJoin = std::get_if<NAst::TJoin>(&join)) {
+                        FormatValue(builder, tableJoin->Table.Path, TStringBuf());
+                    }
+            }),
+            depth);
+    }
+
+    auto asyncDataSplits = THashMap<NYPath::TYPath, TFuture<TDataSplit>>();
+
+    auto pathCollector = TPathCollector([&] (const NYPath::TYPath& path) -> void {
+        asyncDataSplits.try_emplace(path, callbacks->GetInitialSplit(path));
+    });
+    auto query = NAst::TQueryExpression({}, queryAst, aliasMap);
+    pathCollector.Visit(&query);
+
+    std::vector<TFuture<std::pair<NYPath::TYPath, TDataSplit>>> futures;
+    futures.reserve(asyncDataSplits.size());
+    for (const auto& [path, future] : asyncDataSplits) {
+        futures.push_back(future.Apply(BIND([path] (const TDataSplit& dataSplit) {
+            return std::pair{path, dataSplit};
+        })));
+    }
+
+    auto dataSplitPairs = WaitForFast(AllSucceeded(futures))
+        .ValueOrThrow();
+
+    auto result = THashMap<NYPath::TYPath, TDataSplit>();
+    result.reserve(dataSplitPairs.size());
+    for (auto& pair : dataSplitPairs) {
+        result.emplace(std::move(pair));
+    }
+
+    YT_LOG_DEBUG("Initial data splits received");
+    return result;
+}
+
+} // namespace
+
 TPlanFragmentPtr PreparePlanFragmentImpl(
     IPrepareCallbacks* callbacks,
     TStringBuf source,
@@ -1271,40 +1378,14 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
     auto functions = New<TTypeInferrerMap>();
     callbacks->FetchFunctions(ExtractFunctionNames(queryAst, aliasMap), functions, options.ExecutionBackend);
 
+    auto dataSplits = GetDataSplits(callbacks, queryAst, aliasMap, depth, Logger);
+
     const auto* table = std::get_if<NAst::TTableDescriptor>(&queryAst.FromClause);
 
-    YT_LOG_DEBUG("Getting initial data splits (PrimaryPath: %v, ForeignPaths: %v, SubqueryDepth: %v)",
-        table ? table->Path : "unapplicable",
-        MakeFormattableView(
-            queryAst.Joins,
-            [] (TStringBuilderBase* builder, const std::variant<NAst::TJoin, NAst::TArrayJoin>& join) {
-                if (auto* tableJoin = std::get_if<NAst::TJoin>(&join)) {
-                    FormatValue(builder, tableJoin->Table.Path, TStringBuf());
-                }
-        }),
-        depth);
-
-    std::vector<TFuture<TDataSplit>> asyncDataSplits;
-    asyncDataSplits.reserve(queryAst.Joins.size() + 1);
     if (table) {
-        asyncDataSplits.push_back(callbacks->GetInitialSplit(table->Path));
-    }
-    for (const auto& join : queryAst.Joins) {
-        Visit(join,
-            [&] (const NAst::TJoin& tableJoin) {
-                asyncDataSplits.push_back(callbacks->GetInitialSplit(tableJoin.Table.Path));
-            },
-            [&] (const NAst::TArrayJoin& /*arrayJoin*/) { });
-    }
-
-    auto dataSplits = WaitForFast(AllSucceeded(asyncDataSplits))
-        .ValueOrThrow();
-
-    YT_LOG_DEBUG("Initial data splits received");
-
-    if (table) {
-        fragment->DataSource.ObjectId = dataSplits[0].ObjectId;
-        query->Schema.Original = dataSplits[0].TableSchema;
+        const auto& dataSplit = GetDataSplitOrThrow(dataSplits, table->Path);
+        fragment->DataSource.ObjectId = dataSplit.ObjectId;
+        query->Schema.Original = dataSplit.TableSchema;
     } else {
         query->Schema.Original = fragment->SubqueryFragment->Query->GetTableSchema();
     }
@@ -1337,12 +1418,11 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
 
     std::vector<TJoinClausePtr> joinClauses;
     size_t commonKeyPrefix = std::numeric_limits<size_t>::max();
-    int splitIndex = table ? 1 : 0;
     for (const auto& join : queryAst.Joins) {
         Visit(join,
             [&] (const NAst::TJoin& tableJoin) {
                 joinClauses.push_back(BuildJoinClause(
-                    dataSplits[splitIndex++],
+                    GetDataSplitOrThrow(dataSplits, tableJoin.Table.Path),
                     tableJoin,
                     source,
                     aliasMap,
