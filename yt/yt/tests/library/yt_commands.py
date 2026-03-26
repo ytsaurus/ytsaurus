@@ -558,10 +558,12 @@ def assert_true_for_all_cells(env, predicate):
 
 
 def _check_true_for_all_cells(env, predicate):
+    ret = True
     for i in range(env.yt_config.secondary_cell_count + 1):
+        print_debug("Checking at cell", i)
         if not predicate(get_driver(i)):
-            return False
-    return True
+            ret = False
+    return ret
 
 
 def wait_true_for_all_cells(env, predicate):
