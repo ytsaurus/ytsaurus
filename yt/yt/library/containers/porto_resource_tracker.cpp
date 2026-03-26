@@ -516,7 +516,10 @@ TPortoResourceProfiler::TPortoResourceProfiler(
         ResourceUsageUpdatePeriod))
 {
     profiler.AddProducer("", MakeStrong(this));
+}
 
+void TPortoResourceProfiler::InitializeRefCounted()
+{
     UpdateBufferPeriodicExecutor_->Start();
 }
 
