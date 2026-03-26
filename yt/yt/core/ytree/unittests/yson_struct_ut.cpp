@@ -4553,5 +4553,105 @@ TEST(TestYsonStruct, MetaStructType)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPolyPostprocessBase
+    : public TYsonStruct
+{
+    int BaseValue;
+    int BaseValuePostprocessed;
+
+    REGISTER_YSON_STRUCT(TPolyPostprocessBase);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("base_value", &TThis::BaseValue)
+            .Default(0);
+
+        registrar.Postprocessor([] (TThis* self) {
+            self->BaseValuePostprocessed = self->BaseValue * 2;
+        });
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TPolyPostprocessBase)
+
+struct TPolyPostprocessDerived
+    : public TPolyPostprocessBase
+{
+    std::vector<TString> Raw;
+    std::vector<TString> Postprocessed;
+
+    REGISTER_YSON_STRUCT(TPolyPostprocessDerived);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("derived_raw", &TThis::Raw)
+            .Default();
+
+        registrar.Postprocessor([] (TThis* self) {
+            for (const auto& key : self->Raw) {
+                self->Postprocessed.push_back(NYT::Format("processed_%v", key));
+            }
+        });
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TPolyPostprocessDerived)
+
+DEFINE_POLYMORPHIC_YSON_STRUCT(PolyPostprocess, TPolyPostprocessBase,
+    ((Base) (TPolyPostprocessBase))
+    ((Derived) (TPolyPostprocessDerived))
+);
+
+struct TPostprocessedPolyHolder
+    : public TYsonStructLite
+{
+    TPolyPostprocess Poly;
+
+    REGISTER_YSON_STRUCT_LITE(TPostprocessedPolyHolder);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("poly", &TThis::Poly)
+            .Default();
+    }
+};
+
+TEST(TYsonStructTest, TestPolymorphicYsonStructPostprocessor)
+{
+    TPostprocessedPolyHolder holder;
+
+    auto node = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("poly")
+                .BeginMap()
+                    .Item("type")
+                        .Value("derived")
+                    .Item("base_value")
+                        .Value(42)
+                    .Item("derived_raw")
+                        .BeginList()
+                            .Item().Value("raw")
+                            .Item().Value("raw2")
+                        .EndList()
+                .EndMap()
+        .EndMap();
+
+    Deserialize(holder, node->AsMap());
+
+    ASSERT_EQ(holder.Poly.GetCurrentType(), EPolyPostprocessType::Derived);
+    auto derived = holder.Poly.TryGetConcrete<TPolyPostprocessDerived>();
+    ASSERT_NE(derived, nullptr);
+
+    EXPECT_EQ(derived->BaseValue, 42);
+    EXPECT_EQ(derived->BaseValuePostprocessed, 84);
+
+    ASSERT_EQ(derived->Raw.size(), 2u);
+    ASSERT_EQ(derived->Postprocessed.size(), 2u);
+    EXPECT_EQ(derived->Postprocessed[0], "processed_raw");
+    EXPECT_EQ(derived->Postprocessed[1], "processed_raw2");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT::NYTree
