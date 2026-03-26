@@ -23,7 +23,7 @@ void Serialize(const TIncarnationSwitchInfo& info, IYsonConsumer* consumer)
         .EndMap();
 }
 
-EOperationIncarnationSwitchReason TIncarnationSwitchData::GetSwitchReason()
+EOperationIncarnationSwitchReason TIncarnationSwitchData::GetSwitchReason() const
 {
     YT_VERIFY(IncarnationSwitchReason);
     return *IncarnationSwitchReason;
