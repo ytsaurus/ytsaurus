@@ -78,6 +78,21 @@ class MapWithUnrecognizedChildren(dict):
 
 ##################################################################
 
+def validate_spec(spec):
+    if spec["chunk_format"] == "table_versioned_indexed":
+        if spec["erasure_codec"] is not None and spec["erasure_codec"] != "none":
+            return False
+
+        if spec["compression_codec"] is not None and spec["compression_codec"] != "none":
+            return False
+
+        if spec["table_type"] != "sorted":
+            return False
+
+    return True
+
+##################################################################
+
 def variate_modes(spec):
     variable_paths = []
     complexity = [1]
@@ -120,7 +135,8 @@ def variate_modes(spec):
             variant = variable.get_variant(index)
             _deep_set(root, path, variant)
             description.append(("/".join(map(str, path)), variant))
-        resulting_specs.append((root, description))
+        if validate_spec(root):
+            resulting_specs.append((root, description))
 
     return resulting_specs
 
@@ -175,10 +191,10 @@ spec_template = {
     "mode": "iterative",
     "table_type": "sorted", #Variable(["sorted", "ordered", "queues"], VariationPolicy.PickRandom),
     "replicas": [],
-    "chunk_format": Variable(["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim"], VariationPolicy.PickRandom),
+    "chunk_format": Variable(["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim", "table_versioned_indexed"], VariationPolicy.PickRandom),
     "in_memory_mode": Variable(["none", "compressed", "uncompressed"], VariationPolicy.PickRandom),
-    "erasure_codec": Variable(["none"], VariationPolicy.PickRandom),
-    "hunk_erasure_codec": Variable(["none"], VariationPolicy.PickRandom),
+    "erasure_codec": Variable(["none", "isa_reed_solomon_6_3"], VariationPolicy.PickRandom),
+    "hunk_erasure_codec": Variable(["none", "isa_reed_solomon_6_3"], VariationPolicy.PickRandom),
     "compression_codec": None,
     "enable_tablet_balancer": False,
     "network_project": None,
@@ -211,7 +227,7 @@ spec_template = {
         "enable_lookup_hash_table": BoolVariable(VariationPolicy.PickRandom),
         "lookup_cache_rows_per_tablet": None,
         "enable_data_node_lookup": BoolVariable(VariationPolicy.PickRandom),
-        "enable_hash_chunk_index_for_lookup": False,
+        "enable_hash_chunk_index_for_lookup": BoolVariable(VariationPolicy.PickRandom),
         "write_policy": Variable(["insert_rows", "bulk_insert", "mixed"], VariationPolicy.PickRandom),
         "insertion_probability": 0.7,
         "deletion_probability": 0.1,
