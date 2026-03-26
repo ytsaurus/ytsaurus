@@ -28,7 +28,7 @@ void TPerformanceCountersEma::Merge(const TEmaCounter<i64>& other)
 }
 
 void TChunkReaderPerformanceCounters::IncrementHunkDataWeight(
-    EPerformanceCountedRequestType requestType,
+    EInitialQueryKind initialQueryKind,
     i64 value,
     EWorkloadCategory workloadCategory)
 {
@@ -37,7 +37,7 @@ void TChunkReaderPerformanceCounters::IncrementHunkDataWeight(
         return;
     }
 
-    if (requestType == EPerformanceCountedRequestType::Lookup) {
+    if (initialQueryKind == EInitialQueryKind::LookupRows) {
         StaticHunkChunkRowLookupDataWeight.Counter.fetch_add(value, std::memory_order::relaxed);
     } else {
         StaticHunkChunkRowReadDataWeight.Counter.fetch_add(value, std::memory_order::relaxed);
@@ -65,15 +65,15 @@ void UpdatePerformanceCounters(
     const NChunkClient::NProto::TDataStatistics& statistics,
     const TTabletPerformanceCountersPtr& performanceCounters,
     EDataSource source,
-    EPerformanceCountedRequestType type)
+    EInitialQueryKind initialQueryKind)
 {
-    if (source == EDataSource::DynamicStore && type == EPerformanceCountedRequestType::Lookup) {
+    if (source == EDataSource::DynamicStore && initialQueryKind == EInitialQueryKind::LookupRows) {
         performanceCounters->DynamicRowLookup.Counter.fetch_add(statistics.row_count(), std::memory_order::relaxed);
         performanceCounters->DynamicRowLookupDataWeight.Counter.fetch_add(statistics.data_weight(), std::memory_order::relaxed);
-    } else if (source == EDataSource::DynamicStore && type == EPerformanceCountedRequestType::Read) {
+    } else if (source == EDataSource::DynamicStore) {
         performanceCounters->DynamicRowRead.Counter.fetch_add(statistics.row_count(), std::memory_order::relaxed);
         performanceCounters->DynamicRowReadDataWeight.Counter.fetch_add(statistics.data_weight(), std::memory_order::relaxed);
-    } else if (type == EPerformanceCountedRequestType::Lookup) {
+    } else if (initialQueryKind == EInitialQueryKind::LookupRows) {
         performanceCounters->StaticChunkRowLookup.Counter.fetch_add(statistics.row_count(), std::memory_order::relaxed);
         performanceCounters->StaticChunkRowLookupDataWeight.Counter.fetch_add(statistics.data_weight(), std::memory_order::relaxed);
     } else {
@@ -92,11 +92,11 @@ public:
         IReaderBasePtr reader,
         TTabletPerformanceCountersPtr performanceCounters,
         EDataSource source,
-        EPerformanceCountedRequestType requestType)
+        EInitialQueryKind initialQueryKind)
         : Reader_(std::move(reader))
         , PerformanceCounters_(std::move(performanceCounters))
         , DataSource_(source)
-        , RequestType_(requestType)
+        , InitialQueryKind_(initialQueryKind)
     { }
 
     ~TPerformanceCountingReaderBase()
@@ -105,7 +105,7 @@ public:
             Reader_->GetDataStatistics(),
             PerformanceCounters_,
             DataSource_,
-            RequestType_);
+            InitialQueryKind_);
     }
 
     NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
@@ -137,7 +137,7 @@ private:
     const IReaderBasePtr Reader_;
     const TTabletPerformanceCountersPtr PerformanceCounters_;
     const EDataSource DataSource_;
-    const EPerformanceCountedRequestType RequestType_;
+    const EInitialQueryKind InitialQueryKind_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -151,12 +151,12 @@ public:
         IVersionedReaderPtr reader,
         TTabletPerformanceCountersPtr performanceCounters,
         EDataSource source,
-        EPerformanceCountedRequestType requestType)
+        EInitialQueryKind initialQueryKind)
         : TPerformanceCountingReaderBase(
             reader,
             std::move(performanceCounters),
             source,
-            requestType)
+            initialQueryKind)
         , Reader_(std::move(reader))
     { }
 
@@ -183,12 +183,12 @@ public:
         ISchemafulUnversionedReaderPtr reader,
         TTabletPerformanceCountersPtr performanceCounters,
         EDataSource source,
-        EPerformanceCountedRequestType requestType)
+        EInitialQueryKind initialQueryKind)
         : TPerformanceCountingReaderBase(
             reader,
             std::move(performanceCounters),
             source,
-            requestType)
+            initialQueryKind)
         , Reader_(std::move(reader))
     { }
 
@@ -207,28 +207,28 @@ IVersionedReaderPtr CreateVersionedPerformanceCountingReader(
     IVersionedReaderPtr reader,
     TTabletPerformanceCountersPtr performanceCounters,
     EDataSource source,
-    EPerformanceCountedRequestType requestType)
+    EInitialQueryKind initialQueryKind)
 {
     YT_ASSERT(!DynamicPointerCast<TVersionedPerformanceCountingReader>(reader));
     return New<TVersionedPerformanceCountingReader>(
         std::move(reader),
         std::move(performanceCounters),
         source,
-        requestType);
+        initialQueryKind);
 }
 
 ISchemafulUnversionedReaderPtr CreateSchemafulPerformanceCountingReader(
     ISchemafulUnversionedReaderPtr reader,
     TTabletPerformanceCountersPtr performanceCounters,
     EDataSource source,
-    EPerformanceCountedRequestType requestType)
+    EInitialQueryKind initialQueryKind)
 {
     YT_ASSERT(!DynamicPointerCast<TSchemafulPerformanceCountingReader>(reader));
     return New<TSchemafulPerformanceCountingReader>(
         std::move(reader),
         std::move(performanceCounters),
         source,
-        requestType);
+        initialQueryKind);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

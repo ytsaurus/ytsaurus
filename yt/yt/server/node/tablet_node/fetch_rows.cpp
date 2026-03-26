@@ -101,7 +101,6 @@ public:
             /*dictionaryCompressionFactory*/ nullptr,
             std::move(ChunkReadOptions_),
             std::move(PerformanceCounters_),
-            EPerformanceCountedRequestType::Read,
             std::move(sharedRows))
             .Apply(BIND([] (const TSharedRange<TMutableUnversionedRow>& rowset) {
                 auto writer = CreateWireProtocolWriter();

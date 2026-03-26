@@ -24,6 +24,7 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/public.h>
 
+#include <yt/yt/ytlib/table_client/public.h>
 #include <yt/yt/ytlib/table_client/config.h>
 #include <yt/yt/ytlib/table_client/hunks.h>
 #include <yt/yt/ytlib/table_client/key_filter.h>
@@ -97,13 +98,6 @@ class TStoreSession;
 
 struct TLookupRowsBufferTag
 { };
-
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_ENUM(EInitialQueryKind,
-    ((LookupRows)    (0))
-    ((SelectRows)    (1))
-);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -255,20 +249,6 @@ ETabletDistributedThrottlerKind GetThrottlerKindFromQueryKind(EInitialQueryKind 
     }
 }
 
-EPerformanceCountedRequestType GetRequestTypeFromQueryKind(EInitialQueryKind queryKind)
-{
-    switch (queryKind) {
-        case EInitialQueryKind::LookupRows:
-            return EPerformanceCountedRequestType::Lookup;
-
-        case EInitialQueryKind::SelectRows:
-            return EPerformanceCountedRequestType::Read;
-
-        default:
-            YT_ABORT();
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAdapterBase
@@ -310,8 +290,6 @@ class TCompressingAdapterBase
     : public TAdapterBase
 {
 protected:
-    static constexpr auto QueryKind = EInitialQueryKind::LookupRows;
-
     ICodec* const Codec_;
     const IMemoryUsageTrackerPtr MemoryUsageTracker_;
     const std::unique_ptr<IWireProtocolWriter> Writer_ = CreateWireProtocolWriter();
@@ -511,7 +489,7 @@ protected:
         const TTabletSnapshotPtr& tabletSnapshot,
         const TEnrichedColumnMappingInfo& /*columnMappingInfo*/,
         const TReadTimestampRange& timestampRange,
-        const TClientChunkReadOptions& /*chunkReadOptions*/,
+        const TClientChunkReadOptions& chunkReadOptions,
         const std::optional<std::string>& profilingUser,
         TRowBufferPtr rowBuffer,
         NLogging::TLogger logger)
@@ -536,6 +514,7 @@ protected:
             tabletSnapshot->ColumnEvaluator,
             tabletSnapshot->CustomRuntimeData,
             /*mergeRowsOnFlush*/ true)) // Always merge rows on flush.
+        , InitialQueryKind_(chunkReadOptions.InitialQueryKind)
     { }
 
     ~TRowCachePipeline()
@@ -563,7 +542,7 @@ protected:
             StoreFlushIndex_,
             flushIndex);
 
-        switch (TRowAdapter::QueryKind) {
+        switch (InitialQueryKind_) {
             case EInitialQueryKind::LookupRows: {
                 auto* counters = TableProfiler_->GetLookupCounters(ProfilingUser_);
 
@@ -919,6 +898,7 @@ private:
     const TRowBufferPtr RowBuffer_;
     const NLogging::TLogger Logger;
     const std::unique_ptr<NRowMerger::IVersionedRowMerger> CacheRowMerger_;
+    const EInitialQueryKind InitialQueryKind_;
 
     TSimpleRowMerger SimpleRowMerger_;
 
@@ -1055,7 +1035,6 @@ private:
             std::move(DictionaryCompressionFactory_),
             std::move(ChunkReadOptions_),
             std::move(PerformanceCounters_),
-            GetRequestTypeFromQueryKind(TBasePipeline::TAdapter::QueryKind),
             std::move(rows));
     }
 
@@ -1069,7 +1048,6 @@ private:
             std::move(DictionaryCompressionFactory_),
             std::move(ChunkReadOptions_),
             std::move(PerformanceCounters_),
-            GetRequestTypeFromQueryKind(TBasePipeline::TAdapter::QueryKind),
             std::move(rows));
     }
 };
@@ -1280,14 +1258,6 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TClientChunkReadOptions PatchChunkReadOptionsRequestType(
-    TClientChunkReadOptions chunkReadOptions,
-    EInitialQueryKind queryKind)
-{
-    chunkReadOptions.RequestType = GetRequestTypeFromQueryKind(queryKind);
-    return chunkReadOptions;
-}
 
 template <class TPipeline>
 class TTabletLookupSession
@@ -1970,9 +1940,7 @@ TTabletLookupSession<TPipeline>::TTabletLookupSession(
     })
     , Logger(lookupSession->Logger().WithTag("TabletId: %v", TabletSnapshot_->TabletId))
 {
-    YT_VERIFY(TPipeline::TAdapter::QueryKind == EInitialQueryKind::LookupRows);
-    YT_VERIFY(SessionChunkReadOptions_.RequestType == EPerformanceCountedRequestType::Lookup);
-    YT_VERIFY(TabletChunkReadOptions_.RequestType == EPerformanceCountedRequestType::Lookup);
+    YT_VERIFY(SessionChunkReadOptions_.InitialQueryKind == EInitialQueryKind::LookupRows);
 }
 
 // Constructor for select queries.
@@ -2002,7 +1970,7 @@ TTabletLookupSession<TPipeline>::TTabletLookupSession(
     , TabletSnapshot_(std::move(tabletSnapshot))
     , Timestamp_(readTimestampRange.Timestamp)
     , ProduceAllVersions_(produceAllVersions)
-    , SessionChunkReadOptions_(PatchChunkReadOptionsRequestType(chunkReadOptions, TPipeline::TAdapter::QueryKind))
+    , SessionChunkReadOptions_(chunkReadOptions)
     , TabletChunkReadOptions_(SessionChunkReadOptions_)
     , ColumnMappingInfo_(std::move(columnMappingInfo))
     , LookupKeys_(std::move(lookupKeys))
@@ -2028,7 +1996,7 @@ TTabletLookupSession<TPipeline>::TTabletLookupSession(
     })
     , Logger(logger.WithTag("TabletId: %v", TabletSnapshot_->TabletId))
 {
-    YT_VERIFY(TPipeline::TAdapter::QueryKind == EInitialQueryKind::SelectRows);
+    YT_VERIFY(SessionChunkReadOptions_.InitialQueryKind == EInitialQueryKind::SelectRows);
 }
 
 template <class TPipeline>
@@ -2444,7 +2412,7 @@ void TTabletLookupSession<TPipeline>::FinishSession(const TError& error)
         return;
     }
 
-    auto throttlerKind = GetThrottlerKindFromQueryKind(TPipeline::QueryKind);
+    auto throttlerKind = GetThrottlerKindFromQueryKind(SessionChunkReadOptions_.InitialQueryKind);
     if (const auto& throttler = TabletSnapshot_->DistributedThrottlers[throttlerKind]) {
         throttler->Acquire(FoundDataWeight_);
     }
@@ -2580,8 +2548,6 @@ public:
 
 protected:
     using TMutableRow = TMutableUnversionedRow;
-
-    static constexpr auto QueryKind = EInitialQueryKind::SelectRows;
 
     const IUnversionedRowsetWriterPtr Writer_;
     const ISchemafulPipePtr Pipe_;

@@ -70,6 +70,8 @@ struct TLookupCounters
     NTableClient::THunkChunkReaderCounters HunkChunkReaderCounters;
 
     TKeyFilterCounters KeyFilterCounters;
+
+    NYT::NProfiling::TEventTimer WaitOnBlockedRowDuration;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -118,6 +120,8 @@ struct TSelectRowsCounters
     NProfiling::TCounter CacheOutdated;
     NProfiling::TCounter CacheMisses;
     NProfiling::TCounter CacheInserts;
+
+    NProfiling::TEventTimer WaitOnBlockedRowDuration;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -186,6 +190,7 @@ struct TWriteCounters
     NProfiling::TCounter BulkInsertRowCount;
     NProfiling::TCounter BulkInsertDataWeight;
     NProfiling::TEventTimer ValidateResourceWallTime;
+    NProfiling::TEventTimer WaitOnBlockedRowDuration;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -616,6 +621,12 @@ private:
     i64 RowCount_ = 0;
     i64 DataWeight_ = 0;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+NProfiling::TEventTimer GetWaitOnBlockedRowTimer(
+    const TTableProfilerPtr& tableProfiler,
+    NTableClient::EInitialQueryKind initialQueryKind);
 
 ////////////////////////////////////////////////////////////////////////////////
 

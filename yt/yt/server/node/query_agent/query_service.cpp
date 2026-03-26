@@ -529,6 +529,7 @@ private:
             .MemoryUsageTracker = Bootstrap_
                 ->GetNodeMemoryUsageTracker()
                 ->WithCategory(EMemoryCategory::Lookup),
+            .InitialQueryKind = EInitialQueryKind::LookupRows,
         };
 
         TRetentionConfigPtr retentionConfig;
@@ -678,6 +679,7 @@ private:
         TClientChunkReadOptions chunkReadOptions{
             .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletReplication),
             .ReadSessionId = TReadSessionId::Create(),
+            .InitialQueryKind = EInitialQueryKind::PullRows,
         };
 
         TRowBatchReadOptions rowBatchReadOptions{
@@ -1601,6 +1603,7 @@ private:
         chunkReadOptions.MemoryUsageTracker = Bootstrap_
             ->GetNodeMemoryUsageTracker()
             ->WithCategory(EMemoryCategory::FetchTableRows);
+        chunkReadOptions.InitialQueryKind = EInitialQueryKind::FetchRows;
 
         auto resultFuture = FetchRowsFromOrderedStore(
             std::move(tabletSnapshot),

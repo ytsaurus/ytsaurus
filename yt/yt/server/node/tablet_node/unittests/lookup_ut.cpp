@@ -115,6 +115,8 @@ public:
             timestampRange.RetentionTimestamp = *retentionTimestamp;
         }
 
+        chunkReadOptions.InitialQueryKind = EInitialQueryKind::LookupRows;
+
         return BIND(&LookupRowsImpl,
             Tablet_.get(),
             keys,

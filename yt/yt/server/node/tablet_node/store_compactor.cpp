@@ -1536,6 +1536,7 @@ private:
             .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletPartitioning),
             .ReadSessionId = TReadSessionId::Create(),
             .MemoryUsageTracker = Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::TabletBackground),
+            .InitialQueryKind = EInitialQueryKind::TabletBackground,
         };
 
         auto Logger = TabletNodeLogger()
@@ -1953,6 +1954,7 @@ private:
             .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletCompaction),
             .ReadSessionId = TReadSessionId::Create(),
             .MemoryUsageTracker = Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::TabletBackground),
+            .InitialQueryKind = EInitialQueryKind::TabletBackground,
         };
 
         auto Logger = TabletNodeLogger()

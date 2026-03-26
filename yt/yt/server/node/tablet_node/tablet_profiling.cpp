@@ -69,6 +69,7 @@ TLookupCounters::TLookupCounters(
         mediumHistogramProfiler.WithPrefix("/lookup/medium_statistics"))
     , HunkChunkReaderCounters(mediumProfiler.WithPrefix("/lookup/hunks"), schema)
     , KeyFilterCounters(profiler.WithPrefix("/lookup/key_filter"))
+    , WaitOnBlockedRowDuration(profiler.Timer("/lookup/wait_on_blocked_row_duration"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -108,6 +109,7 @@ TSelectRowsCounters::TSelectRowsCounters(
     , CacheOutdated(profiler.Counter("/select/cache_outdated"))
     , CacheMisses(profiler.Counter("/select/cache_misses"))
     , CacheInserts(profiler.Counter("/select/cache_inserts"))
+    , WaitOnBlockedRowDuration(profiler.Timer("/select/wait_on_blocked_row_duration"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -157,6 +159,7 @@ TWriteCounters::TWriteCounters(const TProfiler& profiler)
     , BulkInsertRowCount(profiler.Counter("/write/bulk_insert_row_count"))
     , BulkInsertDataWeight(profiler.Counter("/write/bulk_insert_data_weight"))
     , ValidateResourceWallTime(profiler.Timer("/write/validate_resource_wall_time"))
+    , WaitOnBlockedRowDuration(profiler.Timer("/write/wait_on_blocked_row_duration"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -722,6 +725,28 @@ TSmoothMovementCounters* TTableProfiler::GetSmoothMovementCounters()
 const TProfiler& TTableProfiler::GetProfiler() const
 {
     return Profiler_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEventTimer GetWaitOnBlockedRowTimer(
+    const TTableProfilerPtr& tableProfiler,
+    EInitialQueryKind initialQueryKind)
+{
+    switch (initialQueryKind) {
+        case EInitialQueryKind::LookupRows:
+            return tableProfiler
+                ->GetLookupCounters(GetCurrentProfilingUser())
+                ->WaitOnBlockedRowDuration;
+
+        case EInitialQueryKind::SelectRows:
+            return tableProfiler
+                ->GetSelectRowsCounters(GetCurrentProfilingUser())
+                ->WaitOnBlockedRowDuration;
+
+        default:
+            return {};
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
