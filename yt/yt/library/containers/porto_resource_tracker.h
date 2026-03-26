@@ -143,6 +143,8 @@ public:
         TPodSpecConfigPtr podSpec,
         const TProfiler& profiler = TProfiler{"/porto"});
 
+    void InitializeRefCounted();
+
     ~TPortoResourceProfiler();
 
     void CollectSensors(ISensorWriter* writer) override;
