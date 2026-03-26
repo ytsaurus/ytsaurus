@@ -40,10 +40,15 @@ NRpc::IChannelPtr CreateTabletReadChannel(
     const TTabletReadOptions& options,
     const NNodeTrackerClient::TNetworkPreferenceList& networks);
 
+void ValidateTabletMounted(
+    const NTabletClient::TTableMountInfoPtr& tableInfo,
+    const NTabletClient::TTabletInfoPtr& tabletInfo);
 void ValidateTabletMountedOrFrozen(
     const NTabletClient::TTableMountInfoPtr& tableInfo,
-    const NTabletClient::TTabletInfoPtr& tabletInfo,
-    bool validateForWrite);
+    const NTabletClient::TTabletInfoPtr& tabletInfo);
+void ValidateTabletNotUnmounted(
+    const NTabletClient::TTableMountInfoPtr& tableInfo,
+    const NTabletClient::TTabletInfoPtr& tabletInfo);
 
 NTableClient::TNameTableToSchemaIdMapping BuildColumnIdMapping(
     const NTableClient::TTableSchema& schema,
