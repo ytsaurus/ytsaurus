@@ -92,7 +92,7 @@ UNIQUE_KEY_VALUE_PAIR_INDEX_SCHEMA = [
 
 def prepend_hash(schema):
     hash_column = {"name": "__hash__", "sort_order": "ascending", "type": "uint64"}
-    hash_column["expression"] = f"farm_hash(`{schema[0]["name"]}`)"
+    hash_column["expression"] = f"farm_hash(`{schema[0]['name']}`)"
 
     return [hash_column] + schema
 
