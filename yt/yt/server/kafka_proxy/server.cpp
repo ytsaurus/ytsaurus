@@ -229,6 +229,7 @@ private:
             connection->GetRemoteAddress());
 
         auto connectionState = New<TConnectionState>(kafkaConnection);
+        auto guard = WriterGuard(ConnectionMapLock_);
         EmplaceOrCrash(
             Connections_,
             kafkaConnection->GetConnectionId(),
