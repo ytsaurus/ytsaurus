@@ -49,6 +49,8 @@
 #include <yt/yt/server/master/tablet_server/cypress_integration.h>
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
 
+#include <yt/yt/server/master/transaction_server/transaction_manager.h>
+
 #include <yt/yt/server/lib/cellar_agent/helpers.h>
 
 #include <yt/yt/server/lib/cell_server/proto/cell_manager.pb.h>
@@ -732,6 +734,8 @@ public:
 
     void HydraOnCellDecommissionedOnMaster(TReqOnTabletCellDecommisionedOnMaster* request)
     {
+        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
+
         auto cellId = FromProto<TTamedCellId>(request->cell_id());
         auto* cell = FindCell(cellId);
         if (!IsObjectAlive(cell)) {
@@ -761,6 +765,8 @@ public:
 
     void HydraDecommissionCellOnMaster(TReqDecommissionTabletCellOnMaster* request)
     {
+        YT_VERIFY(Bootstrap_->IsSecondaryMaster());
+
         auto cellId = FromProto<TTamedCellId>(request->cell_id());
         auto* cell = FindCell(cellId);
         if (!IsObjectAlive(cell)) {
@@ -813,6 +819,8 @@ public:
 
     void HydraOnCellDecommissionedOnNode(TRspDecommissionTabletCellOnNode* response)
     {
+        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
+
         auto cellId = FromProto<TTamedCellId>(response->cell_id());
         auto* cell = FindCell(cellId);
         if (!IsObjectAlive(cell)) {
@@ -1773,7 +1781,7 @@ private:
 
             if (cellInfo.ConfigVersion != cell->GetConfigVersion()) {
                 YT_LOG_DEBUG("Occupant should be reconfigured "
-                    "(CellId: %v, PeerId: %v, ExpectedConfingVersion: %v, ActualConfigVersion: %v)",
+                    "(CellId: %v, PeerId: %v, ExpectedConfigVersion: %v, ActualConfigVersion: %v)",
                     cell->GetId(),
                     slot.PeerId,
                     cell->GetConfigVersion(),
@@ -2318,7 +2326,9 @@ private:
         if (peerId) {
             request.set_peer_id(*peerId);
         }
-        multicellManager->PostToSecondaryMasters(request);
+        multicellManager->PostToMasters(
+            request,
+            transaction->ReplicatedToCellTags());
 
         // NB: Make a copy, transaction will die soon.
         auto transactionId = transaction->GetId();
@@ -2452,6 +2462,20 @@ private:
         for (auto* cell : cells) {
             objectManager->ReplicateObjectCreationToSecondaryMaster(cell, cellTag);
         }
+
+        // Replicating running cell info to new secondary master cells is hard,
+        // let's just abort all prerequisites instead.
+        std::vector<TTransactionRawPtr> prerequisiteTransactions;
+        for (const auto& [transaction, _] : TransactionToCellMap_) {
+            prerequisiteTransactions.push_back(transaction);
+        }
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        for (auto transaction : prerequisiteTransactions) {
+            transactionManager->AbortMasterTransaction(transaction, {});
+        }
+
+        YT_VERIFY(TransactionToCellMap_.empty());
     }
 
     void OnReplicateValuesToSecondaryMaster(TCellTag cellTag)
@@ -2479,16 +2503,34 @@ private:
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
-        {
-            NTabletServer::NProto::TReqSetTabletCellConfigVersion req;
-            ToProto(req.mutable_cell_id(), cell->GetId());
-            req.set_config_version(cell->GetConfigVersion());
-            multicellManager->PostToMaster(req, cellTag);
-        }
+        YT_VERIFY(TransactionToCellMap_.empty());
 
         if (cell->IsDecommissionStarted()) {
             NTabletServer::NProto::TReqDecommissionTabletCellOnMaster req;
             ToProto(req.mutable_cell_id(), cell->GetId());
+            multicellManager->PostToMaster(req, cellTag);
+        }
+
+        if (auto peerCount = cell->PeerCount()) {
+            TReqUpdatePeerCount req;
+            ToProto(req.mutable_cell_id(), cell->GetId());
+            req.set_peer_count(*peerCount);
+            multicellManager->PostToMaster(req, cellTag);
+        }
+
+        if (int peerId = cell->GetLeadingPeerId(); peerId != 0) {
+            TReqSetLeadingPeer req;
+            ToProto(req.mutable_cell_id(), cell->GetId());
+            req.set_peer_id(peerId);
+            multicellManager->PostToMaster(req, cellTag);
+        }
+
+        // NB: This should go last since other requests may modify
+        // config version.
+        {
+            NTabletServer::NProto::TReqSetTabletCellConfigVersion req;
+            ToProto(req.mutable_cell_id(), cell->GetId());
+            req.set_config_version(cell->GetConfigVersion());
             multicellManager->PostToMaster(req, cellTag);
         }
     }

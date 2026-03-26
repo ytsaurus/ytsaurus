@@ -166,6 +166,7 @@ DEFINE_ENUM(EMasterReign,
     ((ForbidIndexedChunkFormatWithErasure)                          (3214))  // akozhikhov
     ((ForbidRemovingTableLinkedToHunkStorage)                       (3215))  // akozhikhov
     ((BoomerangMutationForMirroredTransaction)                      (3216))  // kvk1920
+    ((FixTamedCellReplicationToSecondaryMasters)                    (3217))  // ifsmirnov
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
