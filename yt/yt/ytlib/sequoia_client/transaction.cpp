@@ -240,7 +240,7 @@ public:
                 .AsyncVia(SerializedInvoker_))
             .Apply(BIND(&TSequoiaTransaction::DoCommitTransaction, MakeStrong(this), options)
                 .AsyncVia(SerializedInvoker_))
-            .Apply(BIND(MaybeWrapSequoiaRetriableError<void>))
+            .Apply(BIND(TransformSequoiaTransactionCommitError<void>))
             .Apply(BIND([type = Type_] (const TError& error) {
                 auto* counters = GetPerTransactionTypeCounters(type);
                 (error.IsOK() ? counters->TransactionCommitsSucceeded : counters->TransactionCommitsFailed).Increment();
