@@ -502,7 +502,10 @@ void TEntityMap<TValue, TTraits>::LoadKeys(TContext& context)
 {
     YT_ASSERT_THREAD_AFFINITY(this->UserThread);
 
-    this->Clear();
+    // Make sure Clear() has been called beforehand.
+    YT_VERIFY(this->Map_.empty());
+    YT_VERIFY(this->DynamicDataPool_.GetSize() == 0);
+    YT_VERIFY(!this->FirstSpareDynamicData_);
 
     TStreamLoadContextScopeGuard scopeGuard(context, Format("keys:%v", this->GetTypeName()));
 
