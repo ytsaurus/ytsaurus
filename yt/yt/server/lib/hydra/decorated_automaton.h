@@ -128,11 +128,11 @@ public:
     TSystemLockGuard(TSystemLockGuard&& other) noexcept;
     ~TSystemLockGuard();
 
-    TSystemLockGuard& operator=(TSystemLockGuard&& other);
+    TSystemLockGuard& operator=(TSystemLockGuard&& other) noexcept;
 
-    void Release();
+    void Release() noexcept;
 
-    explicit operator bool() const;
+    explicit operator bool() const noexcept;
 
     static TSystemLockGuard Acquire(TDecoratedAutomatonPtr automaton);
 
@@ -149,10 +149,10 @@ class TUserLockGuard
 {
 public:
     TUserLockGuard() = default;
-    TUserLockGuard(TUserLockGuard&& other);
+    TUserLockGuard(TUserLockGuard&& other) noexcept;
     ~TUserLockGuard();
 
-    TUserLockGuard& operator=(TUserLockGuard&& other);
+    TUserLockGuard& operator=(TUserLockGuard&& other) noexcept;
 
     void Release();
 

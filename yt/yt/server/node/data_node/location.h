@@ -127,7 +127,7 @@ public:
     TLocationMemoryGuard(TLocationMemoryGuard&& other) noexcept;
     ~TLocationMemoryGuard();
 
-    void Release();
+    void Release() noexcept;
 
     i64 GetSize() const;
     bool GetUseLegacyUsedMemory() const;
@@ -152,7 +152,7 @@ private:
         i64 size,
         TChunkLocationPtr owner);
 
-    void MoveFrom(TLocationMemoryGuard&& other);
+    void MoveFrom(TLocationMemoryGuard&& other) noexcept;
 
     TMemoryUsageTrackerGuard MemoryGuard_;
     // TODO(vvshlyaga): Remove flag useLegacyUsedMemory after rolling writer with probing on all nodes.

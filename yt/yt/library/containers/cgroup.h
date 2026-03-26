@@ -92,7 +92,7 @@ class TCGroup
 protected:
     TCGroup(const TString& type, const TString& name);
     explicit TCGroup(TNonOwningCGroup&& other);
-    TCGroup(TCGroup&& other);
+    TCGroup(TCGroup&& other) noexcept;
 
 public:
     ~TCGroup();
