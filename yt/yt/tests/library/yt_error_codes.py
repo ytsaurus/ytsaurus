@@ -69,6 +69,7 @@ ZombieEpoch = 3102
 InvalidRowSequenceNumbers = 3103
 QueueAgentRetriableError = 3104
 ChaosCellIsNotEnabled = 3209
+InactiveObjectLifeStage = 1001
 
 
 class Scheduler(object):

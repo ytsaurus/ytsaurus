@@ -167,8 +167,7 @@ private:
             GetSequoiaTablePath(tablePathDescriptor),
             tableDescriptor->GetRecordDescriptor()->GetNameTable(),
             std::move(keys),
-            options)
-            .AsUnique().Apply(BIND(MaybeWrapSequoiaRetriableError<TUnversionedLookupRowsResult>));
+            options);
     }
 
     TFuture<TSelectRowsResult> DoSelectRows(
@@ -211,8 +210,7 @@ private:
         options.Timestamp = timestamp;
 
         return GetGroundClientOrThrow()
-            ->SelectRows(builder.Build(), options)
-            .AsUnique().Apply(BIND(MaybeWrapSequoiaRetriableError<TSelectRowsResult>));
+            ->SelectRows(builder.Build(), options);
     }
 
     TFuture<void> DoTrimTable(

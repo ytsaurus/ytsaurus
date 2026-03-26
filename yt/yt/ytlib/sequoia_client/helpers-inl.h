@@ -18,18 +18,63 @@ TErrorOr<T> WrapSequoiaRetriableError(
         << std::forward<decltype(result)>(result);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 template <class T>
-TErrorOr<T> MaybeWrapSequoiaRetriableError(
-    std::conditional_t<std::is_void_v<T>, const TError&, TErrorOr<T>&&> result)
+TErrorOr<T> TransformSequoiaTransactionCommitError(
+    std::conditional_t<std::is_void_v<T>, const TError&, TErrorOr<T>&&> error)
 {
-    if (!result.IsOK() &&
-        !result.FindMatching(EErrorCode::SequoiaRetriableError) &&
-        IsRetriableSequoiaError(result))
-    {
-        return WrapSequoiaRetriableError<T>(std::forward<decltype(result)>(result));
+#define FOR_EACH_ERROR_CODE_TO_STRIP(process) \
+    process(NTransactionClient::EErrorCode::AtomicTransactionCommitFailure) \
+    process(NTransactionClient::EErrorCode::NativeTransactionCommitFailure) \
+    process(NTransactionClient::EErrorCode::ParticipantFailedToPrepare) \
+    process(NSequoiaClient::EErrorCode::TransactionActionFailedOnMasterCell)
+
+#define XX(errorCode) TErrorCode(errorCode),
+
+    static const std::vector<TErrorCode> ErrorCodesToStrip = {
+        FOR_EACH_ERROR_CODE_TO_STRIP(XX)
+    };
+
+#define XX(errorCode) TErrorCode(errorCode),
+
+    static const std::vector<TErrorCode> ErrorCodesToStripPlusSequoiaRetriableError = {
+        FOR_EACH_ERROR_CODE_TO_STRIP(XX)
+        NSequoiaClient::EErrorCode::SequoiaRetriableError
+    };
+
+#undef XX
+#undef FOR_EACH_ERROR_CODE_TO_STRIP
+
+    if (error.IsOK()) {
+        return error;
     }
 
-    return result;
+    auto retriable =
+        error.FindMatching(EErrorCode::SequoiaRetriableError) ||
+        IsRetriableSequoiaError(error);
+    const std::vector<TErrorCode>& errorCodesToStrip = retriable
+        ? ErrorCodesToStripPlusSequoiaRetriableError
+        : ErrorCodesToStrip;
+
+    std::vector<std::string> strippedMessages;
+    auto* currentError = &error;
+    while (std::find(errorCodesToStrip.begin(), errorCodesToStrip.end(), currentError->GetCode()) != errorCodesToStrip.end() &&
+        std::ssize(currentError->InnerErrors()) == 1)
+    {
+        strippedMessages.push_back(currentError->GetMessage());
+        currentError = &currentError->InnerErrors().front();
+    }
+
+    auto transformedError = *currentError;
+    transformedError
+        <<= TErrorAttribute("stripped_error_messages", strippedMessages);
+
+    if (retriable) {
+        transformedError = WrapSequoiaRetriableError<T>(std::move(transformedError));
+    }
+
+    return transformedError;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

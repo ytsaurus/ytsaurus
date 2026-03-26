@@ -10,6 +10,7 @@
 #include "user_directory.h"
 
 #include <yt/yt/server/lib/sequoia/cypress_transaction.h>
+#include <yt/yt/server/lib/sequoia/helpers.h>
 
 #include <yt/yt/server/lib/transaction_server/helpers.h>
 
@@ -559,7 +560,11 @@ void TSequoiaSession::Commit(TCellId coordinatorCellId)
             .StronglyOrdered = true,
         })
         .Apply(BIND([] (const TError& error) -> TError {
-            if (!error.IsOK() && error.FindMatching(NSequoiaClient::EErrorCode::InvalidSequoiaReign)) {
+            if (error.IsOK()) {
+                return error;
+            }
+
+            if (error.FindMatching(NSequoiaClient::EErrorCode::InvalidSequoiaReign)) {
                 YT_LOG_ALERT(error, "Failed to commit Sequoia transaction");
 
                 return WrapCypressProxyRegistrationError(std::move(error));

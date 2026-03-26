@@ -2389,7 +2389,9 @@ private:
                             State_ = ETransactionState::Committed;
                         } else if (!resultOrError.IsOK()) {
                             YT_UNUSED_FUTURE(DoAbort(&guard));
-                            THROW_ERROR_EXCEPTION("Error committing transaction %v",
+                            THROW_ERROR_EXCEPTION(
+                                NTransactionClient::EErrorCode::NativeTransactionCommitFailure,
+                                "Error committing transaction %v",
                                 GetId())
                                 << MakeClusterIdErrorAttribute()
                                 << resultOrError;

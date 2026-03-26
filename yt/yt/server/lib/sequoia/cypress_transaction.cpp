@@ -1,5 +1,6 @@
 #include "cypress_transaction.h"
 
+#include "helpers.h"
 #include "protobuf_helpers.h"
 #include "response_keeper.h"
 
@@ -1042,7 +1043,7 @@ private:
                 Description_);
         }
 
-        THROW_ERROR MaybeWrapSequoiaRetriableError<void>(result);
+        THROW_ERROR result;
     }
 };
 
