@@ -80,13 +80,14 @@ class MapWithUnrecognizedChildren(dict):
 
 def validate_spec(spec):
     if spec["chunk_format"] == "table_versioned_indexed":
-        if spec["erasure_codec"] is not None and spec["erasure_codec"] != "none":
-            return False
-
         if spec["compression_codec"] is not None and spec["compression_codec"] != "none":
             return False
 
         if spec["table_type"] != "sorted":
+            return False
+
+    if spec["sorted"]["enable_hash_chunk_index_for_lookup"]:
+        if spec["erasure_codec"] is not None and spec["erasure_codec"] != "none":
             return False
 
     return True
