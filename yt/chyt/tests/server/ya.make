@@ -4,6 +4,12 @@ SET(YT_SPLIT_FACTOR 30)
 
 INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/integration/YaMakeBoilerplateForTests.txt)
 
+IF (SANITIZER_TYPE)
+    REQUIREMENTS(
+        cpu:24
+    )
+ENDIF()
+
 PEERDIR(
     library/python/port_manager
     contrib/python/clickhouse-cityhash
@@ -59,4 +65,3 @@ TEST_SRCS(
 )
 
 END()
-
