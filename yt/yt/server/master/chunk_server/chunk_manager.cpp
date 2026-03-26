@@ -5703,6 +5703,7 @@ private:
         }
 
         ChunkMap_.Clear();
+        DynamicStoreMap_.Clear();
         ChunkListMap_.Clear();
         ChunkViewMap_.Clear();
         ForeignChunks_.clear();

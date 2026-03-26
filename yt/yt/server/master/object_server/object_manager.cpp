@@ -379,6 +379,7 @@ private:
 
     void OnRecoveryStarted() override;
     void OnRecoveryComplete() override;
+    void SetZeroState() override;
     void Clear() override;
     void OnLeaderActive() override;
     void OnStopLeading() override;
@@ -434,6 +435,7 @@ private:
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/);
 
     void InitSchemas();
+    void ClearTypeToEntrySchemas();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1213,6 +1215,15 @@ void TObjectManager::OnAfterSnapshotLoaded()
     }
 }
 
+void TObjectManager::SetZeroState()
+{
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+    TMasterAutomatonPart::SetZeroState();
+
+    InitSchemas();
+}
+
 void TObjectManager::Clear()
 {
     YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -1224,13 +1235,11 @@ void TObjectManager::Clear()
 
     MasterProxy_ = GetHandler(EObjectType::Master)->GetProxy(MasterObject_.get(), nullptr);
 
+    ClearTypeToEntrySchemas();
     SchemaMap_.Clear();
-
-    InitSchemas();
 
     CreatedObjects_ = 0;
     DestroyedObjects_ = 0;
-
 
     DropListNodeSchema_ = false;
 
@@ -1238,13 +1247,16 @@ void TObjectManager::Clear()
     MutationIdempotizer_->Clear();
 }
 
-void TObjectManager::InitSchemas()
+void TObjectManager::ClearTypeToEntrySchemas()
 {
     for (auto& [_, entry] : TypeToEntry_) {
         entry.SchemaObject = nullptr;
         entry.SchemaProxy.Reset();
     }
+}
 
+void TObjectManager::InitSchemas()
+{
     auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
     for (auto type : RegisteredTypes_) {
         if (!HasSchema(type)) {
