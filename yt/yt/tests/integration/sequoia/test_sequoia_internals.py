@@ -6,6 +6,7 @@ from yt_commands import (
     exists, set, copy, move, gc_collect, write_table, read_table, create_user,
     start_transaction, abort_transaction, commit_transaction, wait, lock,
     execute_batch, make_batch_request, get_batch_output, print_debug, make_ace,
+    create_account, remove_account,
 )
 
 from yt_sequoia_helpers import (
@@ -15,6 +16,8 @@ from yt_sequoia_helpers import (
     select_cypress_transaction_prerequisites, lookup_rows_in_ground,
     mangle_sequoia_path, demangle_sequoia_path, insert_rows_to_ground,
 )
+
+import yt_error_codes
 
 from yt.sequoia_tools import DESCRIPTORS
 
@@ -776,6 +779,23 @@ class TestSequoiaInternals(YTEnvSetup):
         finally:
             set("//sys/@config/sequoia_manager/testing/sequoia_transaction_start_failure_probability", 0.0)
 
+    @authors("shakurov")
+    def test_transaction_commit_failure_error_stripping_in_sequoia_session(self):
+        create_account("a")
+
+        create("table", "//tmp/t1", attributes={"account": "a"})
+        remove_account("a", sync=False)
+
+        with raises_yt_error("Account \"a\" cannot be used") as err:
+            create("table", "//tmp/t2", attributes={"account": "a"})
+        assert len(err) == 1
+        assert err[0].message.find("Received response with error") != -1
+        err = err[0]
+        assert len(err.inner_errors) == 1
+        print_debug(err.inner_errors[0])
+        # Not using contains_code here - we're checking the outermost error.
+        assert err.inner_errors[0]["code"] == yt_error_codes.InactiveObjectLifeStage
+
 
 @pytest.mark.enabled_multidaemon
 class TestSequoiaResolve(TestSequoiaInternals):
@@ -1288,6 +1308,21 @@ class TestSequoiaCypressTransactions(YTEnvSetup):
         assert exists("//tmp/m1")
         assert exists("//tmp/p11/m")
         assert exists("//tmp/p13/m")
+
+    @authors("shakurov")
+    def test_transaction_commit_failure_error_stripping_in_sequoia_mutation(self):
+        tx = start_transaction()
+        set("//sys/@config/transaction_manager/testing/prerequisite_check_failure_during_commit_of_transactions", [tx])
+
+        with raises_yt_error("Prerequisite check failed: this failure is requested manually via dynamic config") as err:
+            commit_transaction(tx)
+        assert len(err) == 1
+        assert err[0].message.find("Received response with error") != -1
+        err = err[0]
+        assert len(err.inner_errors) == 1
+        print_debug(err.inner_errors[0])
+        # Not using contains_text here - we're checking the outermost error.
+        assert err.inner_errors[0]["message"] == f"Error committing transaction {tx}"
 
 
 ##################################################################

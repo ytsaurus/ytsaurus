@@ -56,10 +56,13 @@ void ThrowOnSequoiaReplicasError(const TError& error, const std::vector<TErrorCo
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Does two things: wraps the error into SequoiaRetriableError if the error is,
+//! in fact, retriable and strips certain internal errors to hide extraneous
+//! implementation details from the user in order to avoid confusing them.
 // NB: We want to use AsUnique().Apply() almost everywhere but TFuture<void> doesn't
 // have this method. So |void| is a special case.
 template <class T>
-TErrorOr<T> MaybeWrapSequoiaRetriableError(
+TErrorOr<T> TransformSequoiaTransactionCommitError(
     std::conditional_t<std::is_void_v<T>, const TError&, TErrorOr<T>&&> result);
 
 ////////////////////////////////////////////////////////////////////////////////
