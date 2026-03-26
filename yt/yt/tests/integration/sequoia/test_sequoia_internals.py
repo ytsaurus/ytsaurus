@@ -1329,6 +1329,61 @@ class TestSequoiaCypressTransactions(YTEnvSetup):
 
 
 @pytest.mark.enabled_multidaemon
+class TestSequoiaCypressTransactionCompatibility(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+    USE_SEQUOIA = True
+    NUM_MASTERS = 3
+
+    NUM_SECONDARY_MASTER_CELLS = 3
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host"]},
+        "12": {"roles": ["transaction_coordinator"]},
+        "13": {"roles": ["transaction_coordinator"]},
+    }
+
+    @authors("kvk1920")
+    @pytest.mark.parametrize("case", [
+        "boomerang",
+        "replication_on_read",
+    ])
+    def test_tx_mirroring_compatibility(self, case):
+        tx_12 = start_transaction(coordinator_master_cell_tag=12)
+        tx_13 = start_transaction(coordinator_master_cell_tag=13)
+
+        set("//sys/@config/sequoia_manager/enable_cypress_transactions_in_sequoia", True)
+        set("//sys/@config/transaction_manager/enable_cypress_mirrorred_to_sequoia_prerequisite_transaction_validation_via_leases", True)
+        set("//sys/@config/transaction_manager/forbid_transaction_actions_for_cypress_transactions", True)
+
+        mtx_12 = start_transaction(coordinator_master_cell_tag=12)
+        mtx_13 = start_transaction(coordinator_master_cell_tag=13)
+
+        set("//tmp/a", 123)
+
+        def execute_verb(**kwargs):
+            if case == "boomerang":
+                set("//tmp/a", 123, **kwargs)
+            else:
+                get("//tmp", **kwargs)
+
+        execute_verb(prerequisite_transaction_ids=[tx_12, tx_13, mtx_12, mtx_13])
+        for tx in (tx_12, tx_13, mtx_12, mtx_13):
+            assert 10 in get(f"#{tx}/@replicated_to_cell_tags")
+
+        abort_transaction(tx_12)
+        abort_transaction(mtx_13)
+
+        with raises_yt_error(f"No such transaction {tx_12}"):
+            execute_verb(tx=tx_12)
+
+        with raises_yt_error(f"No such transaction {mtx_13}"):
+            execute_verb(tx=mtx_13)
+
+
+##################################################################
+
+
+@pytest.mark.enabled_multidaemon
 class SequoiaNodeVersioningBase(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True

@@ -7,6 +7,8 @@
 
 #include <yt/yt/server/lib/sequoia/cypress_transaction.h>
 
+#include <yt/yt/server/lib/sequoia/proto/transaction_manager.pb.h>
+
 #include <yt/yt/ytlib/cypress_transaction_client/proto/cypress_transaction_service.pb.h>
 
 #include <yt/yt/ytlib/sequoia_client/connection.h>
@@ -152,15 +154,16 @@ TFuture<TSharedRefArray> FinishNonAliveCypressTransactionInSequoia(
 
 TFuture<void> ReplicateCypressTransactionsInSequoiaAndSyncWithLeader(
     NCellMaster::TBootstrap* bootstrap,
-    std::vector<TTransactionId> transactionIds)
+    std::vector<TTransactionId> transactionIds,
+    std::unique_ptr<NProto::TReqReturnBoomerang> boomerang)
 {
-    return ReplicateCypressTransactions(
+    return ReplicateCypressTransactionsToCell(
         bootstrap
             ->GetSequoiaConnection()
             ->CreateClient(GetRootAuthenticationIdentity()),
         std::move(transactionIds),
-        {bootstrap->GetCellTag()},
         bootstrap->GetCellId(),
+        std::move(boomerang),
         TDispatcher::Get()->GetHeavyInvoker(),
         TransactionServerLogger())
         .Apply(BIND([hydraManager = bootstrap->GetHydraFacade()->GetHydraManager()] {

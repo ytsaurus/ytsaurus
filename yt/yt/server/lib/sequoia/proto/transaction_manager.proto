@@ -89,6 +89,16 @@ message TReqMaterializeCypressTransactionReplicas
     repeated TReqStartForeignTransaction transactions = 1;
 }
 
+message TReqReturnBoomerang
+{
+    required NYT.NProto.TGuid boomerang_wave_id = 1;
+    required int32 boomerang_wave_size = 2;
+
+    required NYT.NProto.TGuid boomerang_mutation_id = 3;
+    required string boomerang_mutation_type = 4;
+    required bytes boomerang_mutation_data = 5;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TTransactionFinishRequest

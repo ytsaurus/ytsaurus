@@ -30,21 +30,24 @@ public:
         TBootstrap* bootstrap,
         NLogging::TLogger logger);
 
-    void SetSyncWithUpstream(bool syncWithUpstream);
+    void ScheduleSyncWithUpstream();
+    void ScheduleSyncWithSequoiaTransactions();
 
-    // NB: The #additionalFutures is just to save some allocations and avoid doing this all the time:
-    //   auto syncFuture = session->Sync(); // Already calls #AllSucceeded internally.
-    //   additionalFutures.push_back(std::move(syncFuture));
-    //   AllSucceeded(std::move(additionalFutures)); // Second call to #AllSucceeded.
-    TFuture<void> Sync(const NObjectClient::TCellTagList& cellTags, std::vector<TFuture<void>> additionalFutures = {});
-    TFuture<void> Sync(const NObjectClient::TCellTagList& cellTags, TFuture<void> additionalFuture);
+    TFuture<void> Sync(const NObjectClient::TCellTagList& cellTags, TFuture<void> additionalFuture = {});
+    TFuture<void> Sync(const NObjectClient::TCellTagList& cellTags, std::vector<TFuture<void>> additionalFutures);
 
 private:
     TBootstrap* const Bootstrap_;
     const NLogging::TLogger Logger;
 
-    int PhaseNumber_ = 0;
-    bool SyncWithUpstream_ = false;
+    enum class ESyncRequest {
+        DontNeed,
+        Need,
+        Done,
+    };
+
+    ESyncRequest SyncWithUpstream_ = ESyncRequest::DontNeed;
+    ESyncRequest SyncWithSequoiaTransactions_ = ESyncRequest::DontNeed;
     NObjectClient::TCellTagList SyncedWithCellTags_;
 
     bool RegisterCellToSyncWith(NObjectClient::TCellTag cellTag);
