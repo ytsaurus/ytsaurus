@@ -75,10 +75,10 @@ private:
     //! All the input cookies that provided data that forms this job.
     std::vector<IChunkPoolInput::TCookie> InputCookies_;
 
-    //! Maps pair of <stream_index, range_index> into corresponding stripe.
-    THashMap<std::pair<int, int>, TChunkStripePtr> StripeMap_;
+    //! Maps stream index into corresponding stripe.
+    THashMap<int, TChunkStripePtr> StripeMap_;
 
-    const TChunkStripePtr& GetStripe(int streamIndex, int rangeIndex, bool isStripePrimary);
+    const TChunkStripePtr& GetStripe(int streamIndex, bool isStripePrimary);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
