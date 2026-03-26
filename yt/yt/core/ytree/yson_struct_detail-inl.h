@@ -561,6 +561,19 @@ inline void PostprocessRecursive(
     parameter.Postprocess(pathGetter);
 }
 
+// TPolymorphicYsonStruct
+template <class T>
+    requires requires { typename T::TImplementsYsonStructField; } &&
+             requires(T& t) {
+    { t.operator bool() } -> std::convertible_to<bool>;
+             } && requires(T& t, const std::function<NYPath::TYPath()>& p) { t->Postprocess(p); }
+inline void PostprocessRecursive(T& parameter, const std::function<NYPath::TYPath()>& pathGetter)
+{
+    if (parameter.operator bool()) {
+        parameter->Postprocess(pathGetter);
+    }
+}
+
 // std::optional
 template <class T>
 inline void PostprocessRecursive(
