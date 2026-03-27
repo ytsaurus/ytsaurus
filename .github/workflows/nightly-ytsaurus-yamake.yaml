@@ -7,6 +7,7 @@ on:
     branches:
     - main
     - stable/[0-9]+\.[0-9]+
+    - members/ilyaibraev/check-wfgen
   workflow_dispatch:
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: 'true'
@@ -391,7 +392,9 @@ jobs:
                 --apt-mirror ${{ vars.APT_MIRROR }} \
                 --install-nvidia-packages true
 
-        retry docker push ghcr.io/ytsaurus/ytsaurus:${{ needs.tag.outputs.image-tag }}
+        if ! [[ ${{ needs.tag.outputs.image-tag }} =~ "dev" ]]; then
+            retry docker push ghcr.io/ytsaurus/ytsaurus:${{ needs.tag.outputs.image-tag }}
+        fi
         docker tag ghcr.io/ytsaurus/ytsaurus:${{ needs.tag.outputs.image-tag }} ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tag.outputs.nightly-image-tag }}
         retry docker push ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tag.outputs.nightly-image-tag }}
     - name: Docker push query-tracker
@@ -410,7 +413,9 @@ jobs:
                 --image-cr ghcr.io/ \
                 --apt-mirror ${{ vars.APT_MIRROR }}
 
-        retry docker push ghcr.io/ytsaurus/query-tracker:${{ needs.tag.outputs.image-tag }}
+        if ! [[ ${{ needs.tag.outputs.image-tag }} =~ "dev" ]]; then
+            retry docker push ghcr.io/ytsaurus/query-tracker:${{ needs.tag.outputs.image-tag }}
+        fi
         docker tag ghcr.io/ytsaurus/query-tracker:${{ needs.tag.outputs.image-tag }} ghcr.io/ytsaurus/query-tracker-nightly:${{ needs.tag.outputs.nightly-image-tag }}
         retry docker push ghcr.io/ytsaurus/query-tracker-nightly:${{ needs.tag.outputs.nightly-image-tag }}
     - name: Docker push chyt
@@ -428,7 +433,9 @@ jobs:
                 --image-cr ghcr.io/ \
                 --apt-mirror ${{ vars.APT_MIRROR }}
 
-        retry docker push ghcr.io/ytsaurus/chyt:${{ needs.tag.outputs.image-tag }}
+        if ! [[ ${{ needs.tag.outputs.image-tag }} =~ "dev" ]]; then
+            retry docker push ghcr.io/ytsaurus/chyt:${{ needs.tag.outputs.image-tag }}
+        fi
         docker tag ghcr.io/ytsaurus/chyt:${{ needs.tag.outputs.image-tag }} ghcr.io/ytsaurus/chyt-nightly:${{ needs.tag.outputs.nightly-image-tag }}
         retry docker push ghcr.io/ytsaurus/chyt-nightly:${{ needs.tag.outputs.nightly-image-tag }}
     - name: Docker push local
@@ -447,7 +454,9 @@ jobs:
                 --image-cr ghcr.io/ \
                 --apt-mirror ${{ vars.APT_MIRROR }}
 
-        retry docker push ghcr.io/ytsaurus/local:${{ needs.tag.outputs.image-tag }}
+        if ! [[ ${{ needs.tag.outputs.image-tag }} =~ "dev" ]]; then
+            retry docker push ghcr.io/ytsaurus/local:${{ needs.tag.outputs.image-tag }}
+        fi
         docker tag ghcr.io/ytsaurus/local:${{ needs.tag.outputs.image-tag }} ghcr.io/ytsaurus/local-nightly:${{ needs.tag.outputs.nightly-image-tag }}
         retry docker push ghcr.io/ytsaurus/local-nightly:${{ needs.tag.outputs.nightly-image-tag }}
     - name: Clear workspace
@@ -520,7 +529,9 @@ jobs:
                 --apt-mirror ${{ vars.APT_MIRROR }} \
                 --install-nvidia-packages true
 
-        retry docker push ghcr.io/ytsaurus/ytsaurus:${{ needs.tag.outputs.image-tag }}-relwithdebinfo
+        if ! [[ ${{ needs.tag.outputs.image-tag }}-relwithdebinfo =~ "dev" ]]; then
+            retry docker push ghcr.io/ytsaurus/ytsaurus:${{ needs.tag.outputs.image-tag }}-relwithdebinfo
+        fi
         docker tag ghcr.io/ytsaurus/ytsaurus:${{ needs.tag.outputs.image-tag }}-relwithdebinfo ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tag.outputs.nightly-image-tag }}-relwithdebinfo
         retry docker push ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tag.outputs.nightly-image-tag }}-relwithdebinfo
     - name: Docker push query-tracker
@@ -539,7 +550,9 @@ jobs:
                 --image-cr ghcr.io/ \
                 --apt-mirror ${{ vars.APT_MIRROR }}
 
-        retry docker push ghcr.io/ytsaurus/query-tracker:${{ needs.tag.outputs.image-tag }}-relwithdebinfo
+        if ! [[ ${{ needs.tag.outputs.image-tag }}-relwithdebinfo =~ "dev" ]]; then
+            retry docker push ghcr.io/ytsaurus/query-tracker:${{ needs.tag.outputs.image-tag }}-relwithdebinfo
+        fi
         docker tag ghcr.io/ytsaurus/query-tracker:${{ needs.tag.outputs.image-tag }}-relwithdebinfo ghcr.io/ytsaurus/query-tracker-nightly:${{ needs.tag.outputs.nightly-image-tag }}-relwithdebinfo
         retry docker push ghcr.io/ytsaurus/query-tracker-nightly:${{ needs.tag.outputs.nightly-image-tag }}-relwithdebinfo
     - name: Docker push chyt
@@ -557,7 +570,9 @@ jobs:
                 --image-cr ghcr.io/ \
                 --apt-mirror ${{ vars.APT_MIRROR }}
 
-        retry docker push ghcr.io/ytsaurus/chyt:${{ needs.tag.outputs.image-tag }}-relwithdebinfo
+        if ! [[ ${{ needs.tag.outputs.image-tag }}-relwithdebinfo =~ "dev" ]]; then
+            retry docker push ghcr.io/ytsaurus/chyt:${{ needs.tag.outputs.image-tag }}-relwithdebinfo
+        fi
         docker tag ghcr.io/ytsaurus/chyt:${{ needs.tag.outputs.image-tag }}-relwithdebinfo ghcr.io/ytsaurus/chyt-nightly:${{ needs.tag.outputs.nightly-image-tag }}-relwithdebinfo
         retry docker push ghcr.io/ytsaurus/chyt-nightly:${{ needs.tag.outputs.nightly-image-tag }}-relwithdebinfo
     - name: Docker push local
@@ -576,7 +591,9 @@ jobs:
                 --image-cr ghcr.io/ \
                 --apt-mirror ${{ vars.APT_MIRROR }}
 
-        retry docker push ghcr.io/ytsaurus/local:${{ needs.tag.outputs.image-tag }}-relwithdebinfo
+        if ! [[ ${{ needs.tag.outputs.image-tag }}-relwithdebinfo =~ "dev" ]]; then
+            retry docker push ghcr.io/ytsaurus/local:${{ needs.tag.outputs.image-tag }}-relwithdebinfo
+        fi
         docker tag ghcr.io/ytsaurus/local:${{ needs.tag.outputs.image-tag }}-relwithdebinfo ghcr.io/ytsaurus/local-nightly:${{ needs.tag.outputs.nightly-image-tag }}-relwithdebinfo
         retry docker push ghcr.io/ytsaurus/local-nightly:${{ needs.tag.outputs.nightly-image-tag }}-relwithdebinfo
     - name: Clear workspace

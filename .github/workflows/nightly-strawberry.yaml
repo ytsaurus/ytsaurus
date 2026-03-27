@@ -85,7 +85,9 @@ jobs:
                 --image-cr ghcr.io/ \
                 --apt-mirror ${{ vars.APT_MIRROR }}
 
-        retry docker push ghcr.io/ytsaurus/strawberry:${{ steps.tag.outputs.IMAGE_TAG }}
+        if ! [[ ${{ steps.tag.outputs.IMAGE_TAG }} =~ "dev" ]]; then
+            retry docker push ghcr.io/ytsaurus/strawberry:${{ steps.tag.outputs.IMAGE_TAG }}
+        fi
         docker tag ghcr.io/ytsaurus/strawberry:${{ steps.tag.outputs.IMAGE_TAG }} ghcr.io/ytsaurus/strawberry-nightly:${{ steps.tag.outputs.NIGHTLY_IMAGE_TAG }}
         retry docker push ghcr.io/ytsaurus/strawberry-nightly:${{ steps.tag.outputs.NIGHTLY_IMAGE_TAG }}
     - name: Clear workspace
