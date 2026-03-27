@@ -37,6 +37,14 @@ class ChaosTestBase(DynamicTablesBase):
         }
     }
 
+    DELTA_CHAOS_NODE_CONFIG = {
+        "chaos_node": {
+            "chaos_manager": {
+                "era_commencing_period": 2,
+            },
+        },
+    }
+
     def _get_drivers(self):
         return [get_driver(cluster=cluster_name) for cluster_name in self.get_cluster_names()]
 
