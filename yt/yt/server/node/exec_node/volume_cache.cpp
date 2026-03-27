@@ -1067,27 +1067,46 @@ TLayerLocationPtr TLayerCache::PickVolumeLocation() const
     });
 }
 
-TLayerLocationPtr TLayerCache::PickRandomVolumeLocation() const
+TLayerLocationPtr TLayerCache::PickRandomLocation() const
 {
-    // Collect all enabled, non-full locations
-    std::vector<TLayerLocationPtr> availableLocations;
+    // Separate locations into non-importing and importing
+    std::vector<TLayerLocationPtr> nonImportingLocations;
+    std::vector<TLayerLocationPtr> importingLocations;
 
     for (const auto& location : LayerLocations_) {
-        if (location->IsEnabled() && !location->IsFull()) {
-            availableLocations.push_back(location);
+        if (!location->IsEnabled() || location->IsFull()) {
+            continue;
+        }
+
+        if (location->IsLayerImportInProgress()) {
+            importingLocations.push_back(location);
+        } else {
+            nonImportingLocations.push_back(location);
         }
     }
 
-    // Pick randomly from available locations
-    if (!availableLocations.empty()) {
-        auto index = RandomNumber<size_t>(availableLocations.size());
-        return availableLocations[index];
+    // Prefer non-importing locations, pick randomly from them
+    if (!nonImportingLocations.empty()) {
+        auto index = RandomNumber<size_t>(nonImportingLocations.size());
+        return nonImportingLocations[index];
     }
 
-    // No locations available
+    // If all are importing, pick randomly from importing locations
+    if (!importingLocations.empty()) {
+        auto index = RandomNumber<size_t>(importingLocations.size());
+        return importingLocations[index];
+    }
+
+    // For our purposes it is all right to return unavailable location.
+    if (!LayerLocations_.empty()) {
+        auto index = RandomNumber<size_t>(LayerLocations_.size());
+        return LayerLocations_[index];
+    }
+
+    // No location available.
     THROW_ERROR_EXCEPTION(
         NExecNode::EErrorCode::NoLayerLocationAvailable,
-        "Failed to get layer location; all locations are disabled");
+        "Failed to get any layer location");
 }
 
 void TLayerCache::PopulateAlerts(std::vector<TError>* alerts)
@@ -1380,42 +1399,6 @@ TLayerLocationPtr TLayerCache::PickLayerLocation() const
 
         return candidate->GetAvailableSpace() > current->GetAvailableSpace();
     });
-}
-
-TLayerLocationPtr TLayerCache::PickRandomLayerLocation() const
-{
-    // Separate locations into non-importing and importing
-    std::vector<TLayerLocationPtr> nonImportingLocations;
-    std::vector<TLayerLocationPtr> importingLocations;
-
-    for (const auto& location : LayerLocations_) {
-        if (!location->IsEnabled() || location->IsFull()) {
-            continue;
-        }
-
-        if (location->IsLayerImportInProgress()) {
-            importingLocations.push_back(location);
-        } else {
-            nonImportingLocations.push_back(location);
-        }
-    }
-
-    // Prefer non-importing locations, pick randomly from them
-    if (!nonImportingLocations.empty()) {
-        auto index = RandomNumber<size_t>(nonImportingLocations.size());
-        return nonImportingLocations[index];
-    }
-
-    // If all are importing, pick randomly from importing locations
-    if (!importingLocations.empty()) {
-        auto index = RandomNumber<size_t>(importingLocations.size());
-        return importingLocations[index];
-    }
-
-    // No locations available
-    THROW_ERROR_EXCEPTION(
-        NExecNode::EErrorCode::NoLayerLocationAvailable,
-        "Failed to get layer location; all locations are disabled");
 }
 
 void TLayerCache::OnProfiling()
