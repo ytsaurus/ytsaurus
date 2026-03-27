@@ -137,6 +137,7 @@ TSlotLocation::TSlotLocation(
     , Config_(std::move(config))
     , Bootstrap_(bootstrap)
     , SlotManagerStaticConfig_(Bootstrap_->GetConfig()->ExecNode->SlotManager)
+    , SlotManagerDynamicConfig_(Bootstrap_->GetDynamicConfig()->ExecNode->SlotManager)
     , JobDirectoryManager_(std::move(jobDirectoryManager))
     , SlotCount_(slotCount)
     , SlotIndexToUserId_(slotIndexToUserId)
@@ -174,6 +175,8 @@ TSlotLocation::TSlotLocation(
 void TSlotLocation::OnDynamicConfigChanged(const TSlotManagerDynamicConfigPtr& config)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    SlotManagerDynamicConfig_.Store(config);
 
     HealthChecker_->Reconfigure(Config_->DiskHealthChecker->ApplyDynamic(*config->DiskHealthChecker));
     JobDirectoryManager_->OnDynamicConfigChanged(config->JobDirectoryManager);
@@ -656,16 +659,27 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
 
             auto copyFileStart = TInstant::Now().MicroSeconds();
 
-            if (SlotManagerStaticConfig_->EnableReadWriteCopy) {
-                ReadWriteCopySync(
-                    sourceFile,
-                    destinationFile,
-                    SlotManagerStaticConfig_->FileCopyChunkSize);
+            i64 bytesTransferred = 0;
+            TError transferError;
+
+            if (SlotManagerDynamicConfig_.Acquire()->EnableAsyncArtifactCopy) {
+                auto spliceResult = WaitFor(
+                    SpliceAsync(
+                        sourceFile,
+                        destinationFile,
+                        /*pipeIsSrc*/ false,
+                        sourceLocation->GetAuxPoolInvoker(),
+                        Bootstrap_->GetAuxPoller()));
+
+                YT_VERIFY(spliceResult.IsOK());
+                bytesTransferred = spliceResult.Value().BytesSpliced;
+                transferError = std::move(spliceResult.Value().Error);
             } else {
                 SendfileChunkedCopy(
                     sourceFile,
                     destinationFile,
                     SlotManagerStaticConfig_->FileCopyChunkSize);
+                bytesTransferred = sourceFile.GetLength();
             }
 
             if (Bootstrap_->GetIOTracker()->IsEnabled()) {
@@ -673,7 +687,7 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
 
                 Bootstrap_->GetIOTracker()->Enqueue(
                     TIOCounters{
-                        .Bytes = sourceFile.GetLength(),
+                        .Bytes = bytesTransferred,
                         .IORequests = 1,
                     },
                     /*tags*/ BuildSandboxCopyTags(
@@ -684,7 +698,7 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
                 if (!IsInsideTmpfs(slotIndex, fullArtifactPath)) {
                     Bootstrap_->GetIOTracker()->Enqueue(
                         TIOCounters{
-                            .Bytes = sourceFile.GetLength(),
+                            .Bytes = bytesTransferred,
                             .IORequests = 1,
                         },
                         /*tags*/ BuildSandboxCopyTags(
@@ -695,12 +709,23 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
             }
 
             if (SlotManagerStaticConfig_->EnableArtifactCopyTracking) {
-                auto length = sourceFile.GetLength();
+                auto length = bytesTransferred;
                 auto delta = TInstant::Now().MicroSeconds() - copyFileStart;
 
                 MakeCopyMetricBuffer_->Update([=] (ISensorWriter* writer) {
                     writer->AddGauge("/copy/rate", std::max(0.0, (1.0 * length / delta)));
                 });
+            }
+
+            if (!transferError.IsOK()) {
+                YT_LOG_INFO(
+                    transferError,
+                    "Couldn't copy file to sandbox "
+                    "(JobId: %v, ArtifactName: %v, SandboxKind: %v)",
+                    jobId,
+                    artifactName,
+                    sandboxKind);
+                transferError.ThrowOnError();
             }
 
             YT_LOG_DEBUG(

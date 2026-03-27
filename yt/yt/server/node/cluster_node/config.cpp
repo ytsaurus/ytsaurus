@@ -365,6 +365,9 @@ void TClusterNodeBootstrapConfig::Register(TRegistrar registrar)
     registrar.Parameter("out_throttlers", &TThis::OutThrottlers)
         .Default();
 
+    registrar.Parameter("aux_poller_thread_count", &TThis::AuxPollerThreadCount)
+        .Default(1);
+
     registrar.Parameter("huge_page_manager", &TThis::HugePageManager)
         .DefaultNew();
 

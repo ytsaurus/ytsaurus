@@ -84,9 +84,6 @@ void TSlotManagerConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(1_KB)
         .Default(10_MB);
 
-    registrar.Parameter("enable_read_write_copy", &TThis::EnableReadWriteCopy)
-        .Default(false);
-
     registrar.Parameter("enable_artifact_copy_tracking", &TThis::EnableArtifactCopyTracking)
         .Default(false);
 
@@ -187,6 +184,9 @@ void TSlotManagerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("disk_health_checker", &TThis::DiskHealthChecker)
         .DefaultNew();
+
+    registrar.Parameter("enable_async_artifact_copy", &TThis::EnableAsyncArtifactCopy)
+        .Default(false);
 
     registrar.Parameter("job_environment", &TThis::JobEnvironment)
         .DefaultCtor([] {
