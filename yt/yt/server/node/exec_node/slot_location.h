@@ -151,6 +151,7 @@ private:
     const TSlotLocationConfigPtr Config_;
     IBootstrap* const Bootstrap_;
     const TSlotManagerConfigPtr SlotManagerStaticConfig_;
+    TAtomicIntrusivePtr<TSlotManagerDynamicConfig> SlotManagerDynamicConfig_;
     const IJobDirectoryManagerPtr JobDirectoryManager_;
     const int SlotCount_;
 

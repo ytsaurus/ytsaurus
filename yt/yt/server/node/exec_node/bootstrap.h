@@ -74,6 +74,8 @@ struct IBootstrap
     virtual NSignature::ISignatureGeneratorPtr GetSignatureGenerator() const = 0;
 
     virtual NSignature::ISignatureValidatorPtr GetSignatureValidator() const = 0;
+
+    virtual NConcurrency::IPollerPtr GetAuxPoller() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IBootstrap)

@@ -47,6 +47,7 @@ from flaky import flaky
 
 from copy import deepcopy
 
+import hashlib
 import pytest
 import time
 import datetime
@@ -1317,6 +1318,51 @@ class TestArtifactCacheBypass(YTEnvSetup):
 
 
 ##################################################################
+
+class TestSpliceArtifact(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "slot_manager": {
+                    "enable_async_artifact_copy": True,
+                },
+            },
+        },
+    }
+
+    @authors("dann239")
+    def test_splice_big_artifact(self):
+        data = make_random_string(32) * int(2 ** 20)
+        hash_ = hashlib.sha256(data.encode()).hexdigest()
+
+        script = (
+f"""
+import hashlib
+data = '{data}'
+assert hashlib.sha256(data.encode()).hexdigest() == '{hash_}'
+"""  # noqa
+        ).encode()
+
+        exec(script)
+
+        create("file", "//tmp/script.py", attributes={"replication_factor": 1})
+        write_file("//tmp/script.py", script)
+
+        vanilla(
+            spec={
+                "tasks": {
+                    "task": {
+                        "job_count": 1,
+                        "command": "python3 script.py",
+                        "file_paths": ["<copy_file=%true>//tmp/script.py"],
+                    },
+                },
+            }
+        )
 
 
 class TestUserJobIsolation(YTEnvSetup):
