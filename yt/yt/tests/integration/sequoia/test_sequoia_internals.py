@@ -792,6 +792,15 @@ class TestSequoiaInternals(YTEnvSetup):
         # Not using contains_code here - we're checking the outermost error.
         assert err.inner_errors[0]["code"] == yt_error_codes.InactiveObjectLifeStage
 
+    @authors("kvk1920")
+    def test_sequoia_tx_start_failure(self):
+        set("//sys/@config/sequoia_manager/testing/sequoia_transaction_start_failure_probability", 0.4)
+        try:
+            for i in range(3):
+                create("int64_node", f"//tmp/i64-{i}")
+        finally:
+            set("//sys/@config/sequoia_manager/testing/sequoia_transaction_start_failure_probability", 0.0)
+
 
 @pytest.mark.enabled_multidaemon
 class TestSequoiaResolve(TestSequoiaInternals):
