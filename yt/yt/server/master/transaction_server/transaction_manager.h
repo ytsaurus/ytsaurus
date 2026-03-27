@@ -55,6 +55,12 @@ struct ITransactionManager
         const NYTree::IAttributeDictionary& attributes,
         TTransactionId hintId = NullTransactionId) = 0;
 
+    virtual TTransaction* StartSequoiaTransaction(
+        TTransactionId transactionId,
+        std::optional<TDuration> timeout,
+        const std::string& title,
+        const NYTree::IAttributeDictionary& attributes) = 0;
+
     //! Starts Cypress transaction which is not mirrored to Sequoia.
     /*!
      *  NB: Such transaction should be finished with either

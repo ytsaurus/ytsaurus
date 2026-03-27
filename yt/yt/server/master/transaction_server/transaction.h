@@ -138,9 +138,6 @@ public:
     // There's no strong reason for this field to be persistent, but it may ease future debugging.
     DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, NativeCommitMutationRevision, NHydra::NullRevision);
 
-    // COMPAT(h0pless): Remove this when all issues with system transaction types will be ironed out.
-    DEFINE_BYVAL_RW_PROPERTY(bool, IsCypressTransaction);
-
     // COMPAT(kvk1920)
     // NB: meaningful only for Cypress tx.
     DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(NativeTxExternalizationEnabled);
@@ -188,9 +185,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NTracing::TTraceContextPtr, TraceContext);
 
 public:
-    explicit TTransaction(TTransactionId id, bool upload = false);
-
-    bool IsUpload() const;
+    explicit TTransaction(TTransactionId id);
 
     std::string GetLowercaseObjectName() const override;
     std::string GetCapitalizedObjectName() const override;
@@ -217,11 +212,14 @@ public:
     //! Returns |true| if this a (topmost or nested) externalized transaction.
     bool IsExternalized() const;
 
+    //! Returns |true| if this a Cypress (topmost or nested) transaction.
+    bool IsCypressTransaction() const;
+
+    //! Returns |true| if this an upload (topmost or nested) transaction.
+    bool IsUpload() const;
+
     //! Returns total number of locks taken by transaction and it's children.
     int GetRecursiveLockCount() const;
-
-    // COMPAT(h0pless)
-    void IncreaseRecursiveLockCount(int delta = 1);
 
     void AttachLock(
         NCypressServer::TLock* lock,
@@ -247,7 +245,6 @@ protected:
     IActionStateFactory* GetActionStateFactory() override;
 
 private:
-    bool Upload_ = false;
     int RecursiveLockCount_ = 0;
 
     int SuccessorTransactionLeaseCount_ = 0;

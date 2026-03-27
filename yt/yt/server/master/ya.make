@@ -429,6 +429,7 @@ SRCS(
     transaction_server/config.cpp
     transaction_server/cypress_integration.cpp
     transaction_server/cypress_transaction_service.cpp
+    transaction_server/helpers.cpp
     transaction_server/sequoia_integration.cpp
     transaction_server/transaction_finisher.cpp
     transaction_server/transaction_manager.cpp

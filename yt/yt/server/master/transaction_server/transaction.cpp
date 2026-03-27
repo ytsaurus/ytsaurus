@@ -219,17 +219,11 @@ void TTransaction::TExportEntry::Persist(const NCellMaster::TPersistenceContext&
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTransaction::TTransaction(TTransactionId id, bool upload)
+TTransaction::TTransaction(TTransactionId id)
     : TTransactionBase(id)
     , StartTime_(TInstant::Zero())
     , Acd_(this)
-    , Upload_(upload)
 { }
-
-bool TTransaction::IsUpload() const
-{
-    return Upload_;
-}
 
 std::string TTransaction::GetLowercaseObjectName() const
 {
@@ -275,10 +269,8 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, BulkInsertState_);
     Save(context, TablesWithBackupCheckpoints_);
     Save(context, Depth_);
-    Save(context, Upload_);
     Save(context, RecursiveLockCount_);
     Save(context, NativeCommitMutationRevision_);
-    Save(context, IsCypressTransaction_);
     Save(context, GetTransactionLeasesState());
     Save(context, LeaseCellIds_);
     Save(context, SuccessorTransactionLeaseCount_);
@@ -322,10 +314,16 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, BulkInsertState_);
     Load(context, TablesWithBackupCheckpoints_);
     Load(context, Depth_);
-    Load(context, Upload_);
+    if (context.GetVersion() < EMasterReign::RemoveCompatsAroundStartTransaction) {
+        bool upload;
+        Load(context, upload);
+    }
     Load(context, RecursiveLockCount_);
     Load(context, NativeCommitMutationRevision_);
-    Load(context, IsCypressTransaction_);
+    if (context.GetVersion() < EMasterReign::RemoveCompatsAroundStartTransaction) {
+        bool isCypressTransaction;
+        Load(context, isCypressTransaction);
+    }
 
     auto leasesState = Load<ETransactionLeasesState>(context);
     Load(context, LeaseCellIds_);
@@ -370,8 +368,17 @@ bool TTransaction::IsExternalizedToCell(TCellTag cellTag) const
 
 bool TTransaction::IsExternalized() const
 {
-    return GetType() == EObjectType::ExternalizedTransaction ||
-           GetType() == EObjectType::ExternalizedNestedTransaction;
+    return IsExternalizedTransactionType(GetType());
+}
+
+bool TTransaction::IsCypressTransaction() const
+{
+    return IsCypressTransactionType(GetType());
+}
+
+bool TTransaction::IsUpload() const
+{
+    return IsUploadTransactionType(GetType());
 }
 
 TTransactionId TTransaction::GetOriginalTransactionId() const
@@ -432,12 +439,6 @@ void TTransaction::DetachLock(
 
         currentTransaction = currentTransaction->GetParent();
     }
-}
-
-void TTransaction::IncreaseRecursiveLockCount(int delta)
-{
-    YT_VERIFY(delta >= 0);
-    RecursiveLockCount_ += delta;
 }
 
 void TTransaction::IncrementRecursiveLockCount()

@@ -2,14 +2,15 @@
 
 #include "private.h"
 
-#include "config.h"
 #include "boomerang_tracker.h"
+#include "config.h"
+#include "helpers.h"
 #include "sequoia_integration.h"
 #include "transaction_finisher.h"
 #include "transaction_presence_cache.h"
 #include "transaction_replication_session.h"
-#include "transaction.h"
 #include "transaction_type_handler.h"
+#include "transaction.h"
 
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
@@ -365,15 +366,33 @@ public:
         TTransactionId hintId = NullTransactionId) override
     {
         return StartTransaction(
+            ETransactionType::System,
             /*parent*/ nullptr,
             /*prerequisiteTransactions*/ {},
             replicatedToCellTags,
-            /*timeout*/ timeout,
+            timeout,
             /*deadline*/ std::nullopt,
             title,
             attributes,
-            /*isCypressTransaction*/ false,
             hintId);
+    }
+
+        TTransaction* StartSequoiaTransaction(
+        TTransactionId transactionId,
+        std::optional<TDuration> timeout,
+        const std::string& title,
+        const IAttributeDictionary& attributes) override
+    {
+        return StartTransaction(
+            ETransactionType::Sequoia,
+            /*parent*/ nullptr,
+            /*prerequisiteTransactions*/ {},
+            /*replicatedToCellTags*/ {},
+            timeout,
+            /*deadline*/ std::nullopt,
+            title,
+            attributes,
+            transactionId);
     }
 
     TTransaction* StartNonMirroredCypressTransaction(
@@ -381,18 +400,19 @@ public:
         const std::string& title) override
     {
         return StartTransaction(
+            ETransactionType::Cypress,
             /*parent*/ nullptr,
             /*prerequisiteTransactions*/ {},
             replicatedToCellTags,
             /*timeout*/ std::nullopt,
             /*deadline*/ std::nullopt,
             title,
-            EmptyAttributes(),
-            /*isCypressTransaction*/ true);
+            EmptyAttributes());
     }
 
 
     TTransaction* StartTransaction(
+        ETransactionType transactionType,
         TTransaction* parent,
         std::vector<TTransactionRawPtr> prerequisiteTransactions,
         const TCellTagList& replicatedToCellTags,
@@ -400,13 +420,14 @@ public:
         std::optional<TInstant> deadline,
         const std::optional<std::string>& title,
         const IAttributeDictionary& attributes,
-        bool isCypressTransaction,
         TTransactionId hintId = NullTransactionId)
     {
+        YT_VERIFY(transactionType != ETransactionType::Upload);
+
         ValidateNativeTransactionStart(parent, prerequisiteTransactions);
 
         return DoStartTransaction(
-            /*upload*/ false,
+            transactionType,
             parent,
             std::move(prerequisiteTransactions),
             replicatedToCellTags,
@@ -414,7 +435,6 @@ public:
             deadline,
             title,
             attributes,
-            isCypressTransaction,
             /*enableNativeTxExternalization*/ std::nullopt,
             hintId);
     }
@@ -430,15 +450,14 @@ public:
         ValidateUploadTransactionStart(parent);
 
         return DoStartTransaction(
-            /*upload*/ true,
+            ETransactionType::Upload,
             parent,
-            prerequisiteTransactions,
+            std::move(prerequisiteTransactions),
             replicatedToCellTags,
             timeout,
             /*deadline*/ std::nullopt,
             title,
             EmptyAttributes(),
-            /*isCypressTransaction*/ false,
             /*enableNativeTxExternalization*/ std::nullopt,
             hintId);
     }
@@ -493,7 +512,7 @@ public:
     }
 
     TTransaction* DoStartTransaction(
-        bool upload,
+        ETransactionType transactionType,
         TTransaction* parent,
         std::vector<TTransactionRawPtr> prerequisiteTransactions,
         TCellTagList replicatedToCellTags,
@@ -501,7 +520,6 @@ public:
         std::optional<TInstant> deadline,
         const std::optional<std::string>& title,
         const IAttributeDictionary& attributes,
-        bool isCypressTransaction,
         std::optional<bool> enableNativeTxExternalization,
         TTransactionId hintId)
     {
@@ -511,20 +529,14 @@ public:
 
         const auto& dynamicConfig = GetDynamicConfig();
 
-        EObjectType transactionObjectType;
-        if (upload) {
-            transactionObjectType = parent
-                ? EObjectType::UploadNestedTransaction
-                : EObjectType::UploadTransaction;
-        } else if (!isCypressTransaction) {
-            transactionObjectType = parent
-                ? EObjectType::SystemNestedTransaction
-                : EObjectType::SystemTransaction;
-        } else {
-            transactionObjectType = parent
-                ? EObjectType::NestedTransaction
-                : EObjectType::Transaction;
+        if (hintId) {
+            YT_VERIFY(ValidateTransactionTypeCoherency(transactionType, hintId));
         }
+
+        auto transactionObjectType = TransactionTypeToObjectType(
+            transactionType,
+            bool(parent),
+            hintId);
 
         // COMPAT(h0pless): Replace this with ThrowErrorException when CTxS will be used by all clients.
         // NB: Upload transaction can be nested to both system and Cypress transaction.
@@ -568,7 +580,7 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto transactionId = objectManager->GenerateId(transactionObjectType, hintId);
 
-        auto transactionHolder = TPoolAllocator::New<TTransaction>(transactionId, upload);
+        auto transactionHolder = TPoolAllocator::New<TTransaction>(transactionId);
         // COMPAT(shakurov): this is a hotfix. Replace TryInsert with Insert and remove TryInsert altogether.
         auto [transaction, inserted] = TransactionMap_.TryInsert(transactionId, std::move(transactionHolder));
         if (!inserted) {
@@ -598,7 +610,7 @@ public:
             InsertOrCrash(ForeignTransactions_, transaction);
         }
 
-        if (IsCypressTransactionType(transaction->GetType())) {
+        if (transaction->IsCypressTransaction()) {
             if (parent) {
                 transaction->SetNativeTxExternalizationEnabled(parent->IsNativeTxExternalizationEnabled());
             } else if (native) {
@@ -621,7 +633,7 @@ public:
             transaction->SetForeign();
         }
 
-        auto replicated = !native && isCypressTransaction;
+        auto replicated = !native && transaction->IsCypressTransaction();
         if (!replicated && timeout) {
             transaction->SetTimeout(std::min(*timeout, dynamicConfig->MaxTransactionTimeout));
         }
@@ -629,8 +641,6 @@ public:
         if (!replicated) {
             transaction->SetDeadline(deadline);
         }
-
-        transaction->SetIsCypressTransaction(isCypressTransaction);
 
         if (IsLeader()) {
             CreateLease(transaction);
@@ -663,7 +673,7 @@ public:
                     CellTagFromId(transactionId)),
                 replicatedToCellTags.end());
 
-            if (upload) {
+            if (transactionType == ETransactionType::Upload) {
                 transaction->ReplicatedToCellTags() = replicatedToCellTags;
             } else if (IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId)) {
                 MarkTransactionReplicated(transaction, replicatedToCellTags);
@@ -724,7 +734,7 @@ public:
         const TTransactionCommitOptions& options) override
     {
         YT_LOG_ALERT_IF(
-            transaction->GetIsCypressTransaction() && IsSequoiaId(transaction->GetId()),
+            transaction->IsCypressTransaction() && IsSequoiaId(transaction->GetId()),
             "Attempt to commit Cypress transaction in non-Sequoia way (TransactionId: %v)",
             transaction->GetId());
 
@@ -926,7 +936,7 @@ public:
         const TTransactionAbortOptions& options) override
     {
         YT_LOG_ALERT_IF(
-            transaction->GetIsCypressTransaction() && IsSequoiaId(transaction->GetId()),
+            transaction->IsCypressTransaction() && IsSequoiaId(transaction->GetId()),
             "Attempt to abort mirrored Cypress transaction in non-Sequoia way (TransactionId: %v)",
             transaction->GetId());
 
@@ -1235,8 +1245,6 @@ public:
         if (IsCypressTransactionType(transaction->GetType())) {
             startRequest.set_enable_native_tx_externalization(transaction->IsNativeTxExternalizationEnabled());
         }
-
-        startRequest.set_upload(transaction->IsUpload());
 
         if (GetDynamicConfig()->EnableStartForeignTransactionFixes) {
             if (const auto* attributes = transaction->GetAttributes()) {
@@ -1883,7 +1891,7 @@ public:
             ThrowNoSuchTransaction(transactionId);
         }
 
-        YT_VERIFY(transaction->GetIsCypressTransaction());
+        YT_VERIFY(transaction->IsCypressTransaction());
 
         ThrowIfDynamicTablesNotLocked(transaction, request.dynamic_tables_locked());
 
@@ -1942,7 +1950,7 @@ public:
         const auto& request = context->Request();
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
         auto* transaction = FindTransaction(transactionId);
-        if (!transaction || !transaction->GetIsCypressTransaction()) {
+        if (!transaction || !transaction->IsCypressTransaction()) {
             return false;
         }
 
@@ -2116,7 +2124,7 @@ public:
         }
 
         auto* transaction = GetTransactionOrThrow(transactionId);
-        YT_VERIFY(transaction->GetIsCypressTransaction());
+        YT_VERIFY(transaction->IsCypressTransaction());
 
         if (IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId)) {
             Bootstrap_->GetTransactionFinisher()->BeginRequest(context, transaction);
@@ -2165,7 +2173,7 @@ public:
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
         auto force = request.force();
         auto* transaction = FindTransaction(transactionId);
-        if (!IsObjectAlive(transaction) || !transaction->GetIsCypressTransaction()) {
+        if (!IsObjectAlive(transaction) || !transaction->IsCypressTransaction()) {
             return false;
         }
 
@@ -2395,14 +2403,14 @@ private:
 
         auto replicateToCellTags = FromProto<TCellTagList>(request->replicate_to_cell_tags());
         auto* transaction = StartTransaction(
+            isCypressTransaction ? ETransactionType::Cypress : ETransactionType::System,
             parent,
             prerequisiteTransactions,
             replicateToCellTags,
             timeout,
             deadline,
             title,
-            *attributes,
-            isCypressTransaction);
+            *attributes);
 
         auto id = transaction->GetId();
 
@@ -2461,6 +2469,7 @@ private:
 
         auto replicateToCellTags = FromProto<TCellTagList>(request->replicate_to_cell_tags());
         auto* transaction = StartTransaction(
+            ETransactionType::Cypress,
             parent,
             prerequisiteTransactions,
             replicateToCellTags,
@@ -2468,7 +2477,6 @@ private:
             deadline,
             title,
             *attributes,
-            /*isCypressTransaction*/ true,
             hintId);
 
         auto id = transaction->GetId();
@@ -2502,7 +2510,6 @@ private:
 
         auto parentId = FromProto<TTransactionId>(request->parent_id());
         auto* parent = parentId ? FindTransaction(parentId) : nullptr;
-        auto isUpload = request->upload();
         if (parentId && !parent) {
             THROW_ERROR_EXCEPTION("Failed to start foreign transaction: parent transaction not found")
                 << TErrorAttribute("transaction_id", hintId)
@@ -2525,13 +2532,6 @@ private:
         // NB: DoStartTransaction below cares about authenticated user.
         TAuthenticatedUserGuard userGuard(securityManager, user);
 
-        auto title = YT_OPTIONAL_FROM_PROTO(*request, title);
-
-        YT_VERIFY(
-            isUpload == (
-                TypeFromId(hintId) == EObjectType::UploadTransaction ||
-                TypeFromId(hintId) == EObjectType::UploadNestedTransaction));
-
         auto attributes = CreateEphemeralAttributes();
         if (request->has_operation_type()) {
             attributes->Set("operation_type", request->operation_type());
@@ -2543,9 +2543,12 @@ private:
             attributes->Set("operation_title", request->operation_title());
         }
 
-        auto transactionType = TypeFromId(hintId);
+        auto transactionType = ObjectTypeToTransactionType(TypeFromId(hintId));
+        ValidateTransactionTypeCoherency(transactionType, hintId);
+
+        auto title = YT_OPTIONAL_FROM_PROTO(*request, title);
         auto* transaction = DoStartTransaction(
-            isUpload,
+            transactionType,
             parent,
             /*prerequisiteTransactions*/ {},
             /*replicatedToCellTags*/ {},
@@ -2553,8 +2556,7 @@ private:
             /*deadline*/ std::nullopt,
             title,
             *attributes,
-            IsCypressTransactionType(transactionType),
-            IsCypressTransactionType(transactionType)
+            transactionType == ETransactionType::Cypress
                 ? std::optional(request->enable_native_tx_externalization())
                 : std::nullopt,
             hintId);
@@ -2576,7 +2578,7 @@ private:
         }
 
         if (GetDynamicConfig()->ForbidTransactionActionsForCypressTransactions) {
-            if (transaction->GetIsCypressTransaction() && !request->actions().empty()) {
+            if (transaction->IsCypressTransaction() && !request->actions().empty()) {
                 YT_LOG_ALERT(
                     "Transaction is Cypress but has actions (TransactionId: %v, TransactionActionCount: %v)",
                     transaction->GetId(),
@@ -2831,6 +2833,11 @@ private:
             return;
         }
 
+        YT_LOG_ALERT_UNLESS(
+            IsCypressTransactionType(TypeFromId(transactionId)),
+            "Unexpected transaction object type encountered during replica materialization (TransactionId: %v)",
+            transactionId);
+
         HydraStartForeignTransaction(request);
     }
 
@@ -3000,7 +3007,7 @@ private:
             if (transaction->GetPersistentState() != ETransactionState::Active) {
                 transaction->ThrowInvalidState();
             }
-            if (!transaction->GetIsCypressTransaction()) {
+            if (!transaction->IsCypressTransaction()) {
                 THROW_ERROR_EXCEPTION("Leases cannot be issued for non-Cypress transactions")
                     << TErrorAttribute("transaction_id", transaction->GetId());
             }
