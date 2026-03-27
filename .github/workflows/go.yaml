@@ -1,68 +1,188 @@
-name: Go SDK CI
+# THIS FILE IS GENERATED. Do not edit manually.
+# Regenerate: python .github/workflowsgen/gen_all.py
 
+name: Go SDK CI
 on:
   push:
     branches:
-      - main
-
+    - main
+    - members/ilyaibraev/check-wfgen
 jobs:
-  check:
-    name: Run checks
+  check-yt-go:
+    name: Run checks (yt/go)
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        module: ["yt/go", "library/go/core/log", "library/go/x/xreflect", "library/go/blockcodecs"]
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Prepare Dockerfile
-        shell: bash
-        run: |
-          echo "FROM ubuntu:20.04 " > Dockerfile
-          echo "WORKDIR /home/ytsaurus " >> Dockerfile
-          echo "RUN apt update && apt install -y ca-certificates wget build-essential curl" >> Dockerfile
-          echo "RUN wget https://go.dev/dl/go1.23.8.linux-amd64.tar.gz && tar -C /usr/local -xzf go1.23.8.linux-amd64.tar.gz" >> Dockerfile
-          echo "COPY . /home/ytsaurus/ " >> Dockerfile
-          echo "ENTRYPOINT [\"tail\", \"-f\", \"/dev/null\"]" >> Dockerfile
-
-      - name: Build Docker image
-        shell: bash
-        run: |
-          docker build -t test-image .
-
-      - name: Run Docker container
-        working-directory: ${{ matrix.module }}
-        shell: bash
-        run: |
-          docker run --privileged -v "/var/run/docker.sock":"/var/run/docker.sock" --network host -d --name test-container test-image
-
-      - name: Build
-        working-directory: ${{ matrix.module }}
-        shell: bash
-        run: |
-          docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd ${{ matrix.module }} && go build -v -mod=readonly ./..."
-
-      - name: Run tests
-        working-directory: ${{ matrix.module }}
-        shell: bash
-        run: |
-          docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd ${{ matrix.module }} && go test -v -mod=readonly ./..."
-
-      - name: Run tests with race detector
-        working-directory: ${{ matrix.module }}
-        shell: bash
-        run: |
-          docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd ${{ matrix.module }} && go test -v -mod=readonly -race ./..."
-
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Prepare Dockerfile
+      shell: bash
+      run: |
+        echo "FROM ubuntu:20.04 " > Dockerfile
+        echo "WORKDIR /home/ytsaurus " >> Dockerfile
+        echo "RUN apt update && apt install -y ca-certificates wget build-essential curl" >> Dockerfile
+        echo "RUN wget https://go.dev/dl/go1.23.8.linux-amd64.tar.gz && tar -C /usr/local -xzf go1.23.8.linux-amd64.tar.gz" >> Dockerfile
+        echo "COPY . /home/ytsaurus/ " >> Dockerfile
+        echo 'ENTRYPOINT ["tail", "-f", "/dev/null"]' >> Dockerfile
+    - name: Build Docker image
+      shell: bash
+      run: docker build -t test-image .
+    - name: Run Docker container
+      shell: bash
+      working-directory: yt/go
+      run: docker run --privileged -v "/var/run/docker.sock":"/var/run/docker.sock" --network host -d --name test-container test-image
+    - name: Build
+      shell: bash
+      working-directory: yt/go
+      run: docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd yt/go && go build -v -mod=readonly ./..."
+    - name: Run tests
+      shell: bash
+      working-directory: yt/go
+      run: docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd yt/go && go test -v -mod=readonly ./..."
+    - name: Run tests with race detector
+      shell: bash
+      working-directory: yt/go
+      run: docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd yt/go && go test -v -mod=readonly -race ./..."
+  check-library-go-core-log:
+    name: Run checks (library/go/core/log)
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Prepare Dockerfile
+      shell: bash
+      run: |
+        echo "FROM ubuntu:20.04 " > Dockerfile
+        echo "WORKDIR /home/ytsaurus " >> Dockerfile
+        echo "RUN apt update && apt install -y ca-certificates wget build-essential curl" >> Dockerfile
+        echo "RUN wget https://go.dev/dl/go1.23.8.linux-amd64.tar.gz && tar -C /usr/local -xzf go1.23.8.linux-amd64.tar.gz" >> Dockerfile
+        echo "COPY . /home/ytsaurus/ " >> Dockerfile
+        echo 'ENTRYPOINT ["tail", "-f", "/dev/null"]' >> Dockerfile
+    - name: Build Docker image
+      shell: bash
+      run: docker build -t test-image .
+    - name: Run Docker container
+      shell: bash
+      working-directory: library/go/core/log
+      run: docker run --privileged -v "/var/run/docker.sock":"/var/run/docker.sock" --network host -d --name test-container test-image
+    - name: Build
+      shell: bash
+      working-directory: library/go/core/log
+      run: docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd library/go/core/log && go build -v -mod=readonly ./..."
+    - name: Run tests
+      shell: bash
+      working-directory: library/go/core/log
+      run: docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd library/go/core/log && go test -v -mod=readonly ./..."
+    - name: Run tests with race detector
+      shell: bash
+      working-directory: library/go/core/log
+      run: docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd library/go/core/log && go test -v -mod=readonly -race ./..."
+  check-library-go-x-xreflect:
+    name: Run checks (library/go/x/xreflect)
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Prepare Dockerfile
+      shell: bash
+      run: |
+        echo "FROM ubuntu:20.04 " > Dockerfile
+        echo "WORKDIR /home/ytsaurus " >> Dockerfile
+        echo "RUN apt update && apt install -y ca-certificates wget build-essential curl" >> Dockerfile
+        echo "RUN wget https://go.dev/dl/go1.23.8.linux-amd64.tar.gz && tar -C /usr/local -xzf go1.23.8.linux-amd64.tar.gz" >> Dockerfile
+        echo "COPY . /home/ytsaurus/ " >> Dockerfile
+        echo 'ENTRYPOINT ["tail", "-f", "/dev/null"]' >> Dockerfile
+    - name: Build Docker image
+      shell: bash
+      run: docker build -t test-image .
+    - name: Run Docker container
+      shell: bash
+      working-directory: library/go/x/xreflect
+      run: docker run --privileged -v "/var/run/docker.sock":"/var/run/docker.sock" --network host -d --name test-container test-image
+    - name: Build
+      shell: bash
+      working-directory: library/go/x/xreflect
+      run: docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd library/go/x/xreflect && go build -v -mod=readonly ./..."
+    - name: Run tests
+      shell: bash
+      working-directory: library/go/x/xreflect
+      run: docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd library/go/x/xreflect && go test -v -mod=readonly ./..."
+    - name: Run tests with race detector
+      shell: bash
+      working-directory: library/go/x/xreflect
+      run: docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd library/go/x/xreflect && go test -v -mod=readonly -race ./..."
+  check-library-go-blockcodecs:
+    name: Run checks (library/go/blockcodecs)
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Prepare Dockerfile
+      shell: bash
+      run: |
+        echo "FROM ubuntu:20.04 " > Dockerfile
+        echo "WORKDIR /home/ytsaurus " >> Dockerfile
+        echo "RUN apt update && apt install -y ca-certificates wget build-essential curl" >> Dockerfile
+        echo "RUN wget https://go.dev/dl/go1.23.8.linux-amd64.tar.gz && tar -C /usr/local -xzf go1.23.8.linux-amd64.tar.gz" >> Dockerfile
+        echo "COPY . /home/ytsaurus/ " >> Dockerfile
+        echo 'ENTRYPOINT ["tail", "-f", "/dev/null"]' >> Dockerfile
+    - name: Build Docker image
+      shell: bash
+      run: docker build -t test-image .
+    - name: Run Docker container
+      shell: bash
+      working-directory: library/go/blockcodecs
+      run: docker run --privileged -v "/var/run/docker.sock":"/var/run/docker.sock" --network host -d --name test-container test-image
+    - name: Build
+      shell: bash
+      working-directory: library/go/blockcodecs
+      run: docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd library/go/blockcodecs && go build -v -mod=readonly ./..."
+    - name: Run tests
+      shell: bash
+      working-directory: library/go/blockcodecs
+      run: docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd library/go/blockcodecs && go test -v -mod=readonly ./..."
+    - name: Run tests with race detector
+      shell: bash
+      working-directory: library/go/blockcodecs
+      run: docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd library/go/blockcodecs && go test -v -mod=readonly -race ./..."
   send-alert:
+    name: Check status and send alert
     needs:
-      - check
+    - check-yt-go
+    - check-library-go-core-log
+    - check-library-go-x-xreflect
+    - check-library-go-blockcodecs
     if: always()
-    uses: ./.github/workflows/check-status-and-send-alert.yaml
-    with:
-      is_failure: ${{ contains(join(needs.*.result, ','), 'failure') }}
-    secrets:
-      GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+    runs-on: ubuntu-latest
+    steps:
+    - name: Download notification script
+      run: |
+        curl -fsSL \
+            -H "Authorization: token ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3.raw" \
+            "${{ github.api_url }}/repos/${{ github.repository }}/contents/.github/scripts/send_notifications.py?ref=${{ github.sha }}" \
+            -o send_notifications.py
+    - name: Install dependencies
+      run: pip install PyGithub==2.6.1
+    - name: Save conclusion (failure)
+      if: needs.check-yt-go.result == 'failure' || needs.check-library-go-core-log.result == 'failure' || needs.check-library-go-x-xreflect.result == 'failure' || needs.check-library-go-blockcodecs.result == 'failure'
+      run: |
+        CURRENT_JOB_CONCLUSION=failure
+        echo "CURRENT_JOB_CONCLUSION=$CURRENT_JOB_CONCLUSION" >> $GITHUB_ENV
+    - name: Save conclusion (success)
+      if: "!(needs.check-yt-go.result == 'failure' || needs.check-library-go-core-log.result == 'failure' || needs.check-library-go-x-xreflect.result == 'failure' || needs.check-library-go-blockcodecs.result == 'failure')"
+      run: |
+        CURRENT_JOB_CONCLUSION=success
+        echo "CURRENT_JOB_CONCLUSION=$CURRENT_JOB_CONCLUSION" >> $GITHUB_ENV
+    - name: Send telegram status report
+      id: send-telegram-status-report
+      run: |
+        python3 send_notifications.py \
+                --repo ${{ github.repository }} \
+                --git-token "${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}" \
+                --workflow "${{ github.workflow }}" \
+                --ref "${{ github.ref_name }}" \
+                --tg-token "${{ secrets.TELEGRAM_TOKEN }}" \
+                --tg-chat-id ${{ secrets.TELEGRAM_CHAT_ID }} \
+                --current-job-conclusion $CURRENT_JOB_CONCLUSION \
+                --current-job-id ${{ github.run_id }} \
+                --git-server-url "${{ github.api_url }}"
