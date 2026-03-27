@@ -71,17 +71,6 @@ jobs:
       run: |
         set -x
         echo '${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}' | docker login ghcr.io --username ${{ secrets.GH_USERNAME }} --password-stdin
-    - name: Docker setup mirror
-      run: |
-        set -x
-        mkdir -p /etc/docker
-        touch /etc/docker/daemon.json
-        if grep -q 'mirror.gcr.io' /etc/docker/daemon.json; then
-            echo "Docker mirror already set up, skipping."
-        else
-            echo '{"registry-mirrors": ["https://mirror.gcr.io"]}' > /etc/docker/daemon.json
-            systemctl restart docker
-        fi
     - name: Docker push strawberry
       run: |
         set -x
