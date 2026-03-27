@@ -3670,6 +3670,55 @@ TEST(TProtobufFormatTest, MultipleOtherColumns)
         }));
 }
 
+TEST(TProtobufFormatTest, TestEmbeddedSecondTableBug)
+{
+    auto nameTable = New<TNameTable>();
+
+    TString data;
+    TStringOutput resultStream(data);
+
+    auto controlAttributesConfig = New<TControlAttributesConfig>();
+    controlAttributesConfig->EnableTableIndex = true;
+    controlAttributesConfig->EnableEndOfStream = true;
+
+    auto protoWriter = CreateWriterForProtobuf(
+        MakeProtobufFormatConfig({TNoEmbeddedKeyValue::descriptor(), TEmbeddedKeyValue::descriptor()}),
+        std::vector<TTableSchemaPtr>(2, New<TTableSchema>()),
+        nameTable,
+        CreateAsyncAdapter(&resultStream),
+        true,
+        controlAttributesConfig,
+        0);
+
+    EXPECT_EQ(true, protoWriter->Write(
+        std::vector<TUnversionedRow>{
+            NNamedValue::MakeRow(nameTable, {
+                {TString(TableIndexColumnName), 1},
+                {"key", "foo"},
+                {"value", "bar"},
+            }),
+        }));
+
+    WaitFor(protoWriter->Close())
+        .ThrowOnError();
+
+    std::vector<std::string> result;
+    auto parser = TLenvalParser(data);
+    while (auto item = parser.Next()) {
+        TEmbeddedKeyValue message;
+        bool parsed = message.ParseFromString(item->RowData);
+        EXPECT_TRUE(parsed);
+        result.push_back(message.ShortUtf8DebugString());
+    }
+
+    EXPECT_EQ(
+        result,
+        std::vector<std::string>({
+            "key: \"foo\" embedded_value { value: \"bar\" }"
+        }));
+
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 using TProtobufFormatAllFieldsParameter = std::tuple<int, EProtoFormatType>;
