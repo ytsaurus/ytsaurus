@@ -1,0 +1,10 @@
+#pragma once
+
+#include <util/generic/string.h>
+
+namespace NYT::NDetail {
+
+TString PackJobState(TStringBuf jobstate);
+TString UnpackJobState(TStringBuf packedJobState);
+
+} // namespace NYT::NDetail
