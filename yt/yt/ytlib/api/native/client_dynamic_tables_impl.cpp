@@ -2025,10 +2025,17 @@ void TClient::ExecuteTabletServiceRequest(
         path,
         &tableId,
         &externalCellTag,
-        {"path"});
+        {"tablet_cell_bundle", "path"});
 
     if (!IsTabletOwnerType(TypeFromId(tableId))) {
         THROW_ERROR_EXCEPTION("Object %v is not a tablet owner", path);
+    }
+
+    if (IsSequoiaId(tableId)) {
+        // COMPAT(h0pless): This is a quick and dirty fix for dynamic tables in Sequoia in 25.4.
+        auto bundle = tableAttributes->Get<std::string>("tablet_cell_bundle");
+        ValidatePermissionImpl("//sys/tablet_cell_bundles/" + ToYPathLiteral(bundle), EPermission::Use);
+        ValidatePermissionImpl(path, EPermission::Mount);
     }
 
     auto nativeCellTag = CellTagFromId(tableId);
