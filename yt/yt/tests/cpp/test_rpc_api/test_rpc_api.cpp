@@ -1380,7 +1380,7 @@ TEST_F(TPartitionTableTest, GetColumnarStatisticsInvalidYPath)
     EXPECT_THROW_WITH_SUBSTRING(
         WaitFor(Client_->GetColumnarStatistics({TRichYPath(std::move(path))}))
             .ValueOrThrow(),
-        "Received ypath without column selectors");
+        "Received YPath without column selectors");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
