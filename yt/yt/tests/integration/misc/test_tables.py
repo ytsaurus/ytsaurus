@@ -1443,11 +1443,24 @@ class TestTables(YTEnvSetup):
             create("table", path, attributes={"schema": schema_regular, "dynamic": True})
             alter_table(path, schema=schema_descending)
 
+        def merge_static_regular_to_static_descending(suffix):
+            in_path = "//tmp/st_regular2_" + suffix
+            create("table", in_path, attributes={"schema": schema_regular})
+            out_path = "//tmp/st_descending3_" + suffix
+            create("table", out_path)
+            merge(
+                mode="ordered",
+                in_=in_path,
+                out=f"<schema={yson.dumps(schema_descending).decode()}>{out_path}",
+                spec={"force_transform": True, "schema_inference_mode": "from_output"},
+            )
+
         # Both static and dynamic tables with descending sort order are allowed.
         suffix = "allow_all"
         create_static_descending(suffix)
         alter_static_regular_to_static_descending(suffix)
         alter_static_descending_to_dynamic_descending(suffix)
+        merge_static_regular_to_static_descending(suffix)
         create_dynamic_descending(suffix)
         alter_dynamic_regular_to_dynamic_descending(suffix)
 
@@ -1456,6 +1469,7 @@ class TestTables(YTEnvSetup):
         suffix = "allow_static"
         create_static_descending(suffix)
         alter_static_regular_to_static_descending(suffix)
+        merge_static_regular_to_static_descending(suffix)
         with raises_yt_error(yt_error_codes.InvalidSchemaValue):
             alter_static_descending_to_dynamic_descending(suffix)
         with raises_yt_error(yt_error_codes.InvalidSchemaValue):
@@ -1472,6 +1486,8 @@ class TestTables(YTEnvSetup):
             alter_static_regular_to_static_descending(suffix)
         with raises_yt_error(yt_error_codes.InvalidSchemaValue):
             alter_static_descending_to_dynamic_descending(suffix)
+        with raises_yt_error(yt_error_codes.InvalidSchemaValue):
+            merge_static_regular_to_static_descending(suffix)
         with raises_yt_error(yt_error_codes.InvalidSchemaValue):
             create_dynamic_descending(suffix)
         with raises_yt_error(yt_error_codes.InvalidSchemaValue):

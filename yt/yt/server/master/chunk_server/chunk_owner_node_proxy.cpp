@@ -1922,6 +1922,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         }
     }
 
+    lockedNode->ValidateBeginUpload(uploadContext);
+
     if (!node->IsExternal()) {
         switch (uploadContext.Mode) {
             case EUpdateMode::Append: {
