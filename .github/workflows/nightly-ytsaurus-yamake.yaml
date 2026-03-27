@@ -59,7 +59,9 @@ jobs:
     timeout-minutes: 480
     steps:
     - name: Prepare python virtual environment
-      run: python3.11 -m venv ../venv
+      run: |
+        set -x
+        python3.11 -m venv ../venv
   tag:
     name: Calculate docker tag
     needs:
@@ -73,6 +75,7 @@ jobs:
     - name: Calculate docker tag
       id: tag
       run: |
+        set -x
         if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             IMAGE_TAG=dev-test
         else
@@ -102,6 +105,7 @@ jobs:
     steps:
     - name: Build GPU Agent
       run: |
+        set -x
         cd ../ytsaurus/ytsaurus/yt/yt/gpuagent
         export HOME=${RUNNER_WORKSPACE}
         /opt/go/bin/go build -o gpuagent ./cmd/agent
@@ -115,6 +119,7 @@ jobs:
     steps:
     - name: Create build directories
       run: |
+        set -x
         for prefix in build build_yql; do
             build_dir=${prefix}_ya-make_release
             mkdir -p ../${build_dir}
@@ -124,6 +129,7 @@ jobs:
     - name: Calculate variables
       id: vars
       run: |
+        set -x
         BUILD_FLAGS="--thinlto -DCGO_ENABLED=0 -DCFLAGS=-fsized-deallocation --bazel-remote-store --bazel-remote-base-uri=http://${{ vars.BUILD_CACHE_BAZEL_HOST }}"
 
         if [ "True" == "True" ]; then
@@ -142,6 +148,7 @@ jobs:
         echo "STRIP_VALUE=$STRIP_VALUE" >> $GITHUB_OUTPUT
     - name: Build Python packages (ya-make, release)
       run: |
+        set -x
         build_dir=../build_ya-make_release
         cd ${build_dir}
 
@@ -163,6 +170,7 @@ jobs:
         YTSAURUS_COMMIT_HASH=${GITHUB_SHA} ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${build_dir}
     - name: Build ytsaurus (ya-make, release)
       run: |
+        set -x
         cd ../build_ya-make_release
 
         BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }}"
@@ -184,6 +192,7 @@ jobs:
         ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_query_tracker_state
     - name: Build YQL agent (ya-make, release)
       run: |
+        set -x
         cd ../build_yql_ya-make_release
 
         export YTSAURUS_SOURCE_PATH="$(realpath $(pwd)/../ytsaurus/ytsaurus)"
@@ -207,6 +216,7 @@ jobs:
     steps:
     - name: Create build directories
       run: |
+        set -x
         for prefix in build build_yql; do
             build_dir=${prefix}_ya-make_relwithdebinfo
             mkdir -p ../${build_dir}
@@ -216,6 +226,7 @@ jobs:
     - name: Calculate variables
       id: vars
       run: |
+        set -x
         BUILD_FLAGS="--thinlto -DCGO_ENABLED=0 -DCFLAGS=-fsized-deallocation --bazel-remote-store --bazel-remote-base-uri=http://${{ vars.BUILD_CACHE_BAZEL_HOST }}"
 
         if [ "True" == "True" ]; then
@@ -234,6 +245,7 @@ jobs:
         echo "STRIP_VALUE=$STRIP_VALUE" >> $GITHUB_OUTPUT
     - name: Build Python packages (ya-make, relwithdebinfo)
       run: |
+        set -x
         build_dir=../build_ya-make_relwithdebinfo
         cd ${build_dir}
 
@@ -255,6 +267,7 @@ jobs:
         YTSAURUS_COMMIT_HASH=${GITHUB_SHA} ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${build_dir}
     - name: Build ytsaurus (ya-make, relwithdebinfo)
       run: |
+        set -x
         cd ../build_ya-make_relwithdebinfo
 
         BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }}"
@@ -276,6 +289,7 @@ jobs:
         ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_query_tracker_state
     - name: Build ytsaurus tests dependencies (ya-make, relwithdebinfo)
       run: |
+        set -x
         cd ../build_ya-make_relwithdebinfo
 
         BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }}"
@@ -302,6 +316,7 @@ jobs:
         done
     - name: Build YQL agent (ya-make, relwithdebinfo)
       run: |
+        set -x
         cd ../build_yql_ya-make_relwithdebinfo
 
         export YTSAURUS_SOURCE_PATH="$(realpath $(pwd)/../ytsaurus/ytsaurus)"
@@ -315,30 +330,6 @@ jobs:
         fi
 
         ../ytsaurus/ytsaurus/yt/docker/ya-build/query-tracker/build_yql_agent.sh ${SCRIPT_FLAGS}
-  test-yamake:
-    name: Tests (ya-make)
-    needs:
-    - start-vm
-    - yamake-relwithdebinfo
-    runs-on: ${{ needs.start-vm.outputs.label }}
-    timeout-minutes: 480
-    steps:
-    - name: Unittests (ya-make)
-      shell: bash
-      run: |
-        cp ./ytsaurus/yt/yt/scripts/run_unittests.sh ../build_ya-make_relwithdebinfo
-        ln -s $(pwd)/../build_ya-make_relwithdebinfo $(pwd)/../build
-        cd ../build
-        ./run_unittests.sh
-    - name: Prepare pytest environment
-      shell: bash
-      run: ytsaurus/yt/yt/scripts/prepare_pytest_environment.sh
-    - name: Integration tests
-      shell: bash
-      run: ytsaurus/yt/yt/scripts/run_integration_tests.sh
-    - name: Python tests
-      shell: bash
-      run: ytsaurus/yt/yt/scripts/run_python_tests.sh
   docker-release:
     name: Docker push (release)
     needs:
@@ -351,6 +342,7 @@ jobs:
     steps:
     - name: Setup retry function
       run: |
+        set -x
         cat << 'EOF' > docker-jobs-retry.sh
         function retry {
             local retries=3
@@ -370,9 +362,12 @@ jobs:
         EOF
         chmod +x docker-jobs-retry.sh
     - name: Docker login
-      run: echo '${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}' | docker login ghcr.io --username ${{ secrets.GH_USERNAME }} --password-stdin
+      run: |
+        set -x
+        echo '${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}' | docker login ghcr.io --username ${{ secrets.GH_USERNAME }} --password-stdin
     - name: Docker setup mirror
       run: |
+        set -x
         mkdir -p /etc/docker
         touch /etc/docker/daemon.json
         if grep -q 'mirror.gcr.io' /etc/docker/daemon.json; then
@@ -383,6 +378,7 @@ jobs:
         fi
     - name: Docker push ytsaurus
       run: |
+        set -x
         source docker-jobs-retry.sh
         mkdir -p ../docker-ytsaurus
 
@@ -401,6 +397,7 @@ jobs:
         retry docker push ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tag.outputs.nightly-image-tag }}
     - name: Docker push query-tracker
       run: |
+        set -x
         source docker-jobs-retry.sh
         mkdir -p ../docker-query-tracker
 
@@ -419,6 +416,7 @@ jobs:
         retry docker push ghcr.io/ytsaurus/query-tracker-nightly:${{ needs.tag.outputs.nightly-image-tag }}
     - name: Docker push chyt
       run: |
+        set -x
         source docker-jobs-retry.sh
         mkdir -p ../docker-chyt
 
@@ -436,6 +434,7 @@ jobs:
         retry docker push ghcr.io/ytsaurus/chyt-nightly:${{ needs.tag.outputs.nightly-image-tag }}
     - name: Docker push local
       run: |
+        set -x
         source docker-jobs-retry.sh
         mkdir -p ../docker-local
 
@@ -455,6 +454,7 @@ jobs:
     - name: Clear workspace
       if: always()
       run: |
+        set -x
         rm -rf ../docker-ytsaurus
         rm -rf ../docker-query-tracker
         rm -rf ../docker-chyt
@@ -471,6 +471,7 @@ jobs:
     steps:
     - name: Setup retry function
       run: |
+        set -x
         cat << 'EOF' > docker-jobs-retry.sh
         function retry {
             local retries=3
@@ -490,9 +491,12 @@ jobs:
         EOF
         chmod +x docker-jobs-retry.sh
     - name: Docker login
-      run: echo '${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}' | docker login ghcr.io --username ${{ secrets.GH_USERNAME }} --password-stdin
+      run: |
+        set -x
+        echo '${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}' | docker login ghcr.io --username ${{ secrets.GH_USERNAME }} --password-stdin
     - name: Docker setup mirror
       run: |
+        set -x
         mkdir -p /etc/docker
         touch /etc/docker/daemon.json
         if grep -q 'mirror.gcr.io' /etc/docker/daemon.json; then
@@ -503,6 +507,7 @@ jobs:
         fi
     - name: Docker push ytsaurus
       run: |
+        set -x
         source docker-jobs-retry.sh
         mkdir -p ../docker-ytsaurus
 
@@ -521,6 +526,7 @@ jobs:
         retry docker push ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tag.outputs.nightly-image-tag }}-relwithdebinfo
     - name: Docker push query-tracker
       run: |
+        set -x
         source docker-jobs-retry.sh
         mkdir -p ../docker-query-tracker
 
@@ -539,6 +545,7 @@ jobs:
         retry docker push ghcr.io/ytsaurus/query-tracker-nightly:${{ needs.tag.outputs.nightly-image-tag }}-relwithdebinfo
     - name: Docker push chyt
       run: |
+        set -x
         source docker-jobs-retry.sh
         mkdir -p ../docker-chyt
 
@@ -556,6 +563,7 @@ jobs:
         retry docker push ghcr.io/ytsaurus/chyt-nightly:${{ needs.tag.outputs.nightly-image-tag }}-relwithdebinfo
     - name: Docker push local
       run: |
+        set -x
         source docker-jobs-retry.sh
         mkdir -p ../docker-local
 
@@ -575,10 +583,45 @@ jobs:
     - name: Clear workspace
       if: always()
       run: |
+        set -x
         rm -rf ../docker-ytsaurus
         rm -rf ../docker-query-tracker
         rm -rf ../docker-chyt
         rm -rf ../docker-local
+  test-yamake:
+    name: Tests (ya-make)
+    needs:
+    - start-vm
+    - yamake-relwithdebinfo
+    - docker-release
+    - docker-relwithdebinfo
+    if: "!cancelled() && needs.yamake-relwithdebinfo.result == 'success'"
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    timeout-minutes: 480
+    steps:
+    - name: Unittests (ya-make)
+      shell: bash
+      run: |
+        set -x
+        cp ./ytsaurus/yt/yt/scripts/run_unittests.sh ../build_ya-make_relwithdebinfo
+        ln -s $(pwd)/../build_ya-make_relwithdebinfo $(pwd)/../build
+        cd ../build
+        ./run_unittests.sh
+    - name: Prepare pytest environment
+      shell: bash
+      run: |
+        set -x
+        ytsaurus/yt/yt/scripts/prepare_pytest_environment.sh
+    - name: Integration tests
+      shell: bash
+      run: |
+        set -x
+        ytsaurus/yt/yt/scripts/run_integration_tests.sh
+    - name: Python tests
+      shell: bash
+      run: |
+        set -x
+        ytsaurus/yt/yt/scripts/run_python_tests.sh
   stop-vm:
     name: Stop VM
     needs:
@@ -616,20 +659,25 @@ jobs:
         sparse-checkout-cone-mode: false
         sparse-checkout: .github/scripts/send_notifications.py
     - name: Prepare Python
-      run: pip install PyGithub==2.6.1
+      run: |
+        set -x
+        pip install PyGithub==2.6.1
     - name: Save conclusion (failure)
       if: needs.test-yamake.result == 'failure' || needs.docker-release.result == 'failure' || needs.docker-relwithdebinfo.result == 'failure'
       run: |
+        set -x
         CURRENT_JOB_CONCLUSION=failure
         echo "CURRENT_JOB_CONCLUSION=$CURRENT_JOB_CONCLUSION" >> $GITHUB_ENV
     - name: Save conclusion (success)
       if: "!(needs.test-yamake.result == 'failure' || needs.docker-release.result == 'failure' || needs.docker-relwithdebinfo.result == 'failure')"
       run: |
+        set -x
         CURRENT_JOB_CONCLUSION=success
         echo "CURRENT_JOB_CONCLUSION=$CURRENT_JOB_CONCLUSION" >> $GITHUB_ENV
     - name: Send telegram status report
       id: send-telegram-status-report
       run: |
+        set -x
         python3 ytsaurus/.github/scripts/send_notifications.py \
                 --repo ${{ github.repository }} \
                 --git-token "${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}" \

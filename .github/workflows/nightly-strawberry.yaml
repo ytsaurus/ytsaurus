@@ -19,11 +19,13 @@ jobs:
         path: ytsaurus
     - name: Build strawberry controller
       run: |
+        set -x
         cd ytsaurus/yt/chyt/controller/cmd/chyt-controller
         go build
     - name: Calculate docker tag
       id: tag
       run: |
+        set -x
         if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             IMAGE_TAG=dev-test
         else
@@ -45,6 +47,7 @@ jobs:
         echo "NIGHTLY_IMAGE_TAG=$NIGHTLY_IMAGE_TAG" >> $GITHUB_OUTPUT
     - name: Setup retry function
       run: |
+        set -x
         cat << 'EOF' > docker-jobs-retry.sh
         function retry {
             local retries=3
@@ -64,9 +67,12 @@ jobs:
         EOF
         chmod +x docker-jobs-retry.sh
     - name: Docker login
-      run: echo '${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}' | docker login ghcr.io --username ${{ secrets.GH_USERNAME }} --password-stdin
+      run: |
+        set -x
+        echo '${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}' | docker login ghcr.io --username ${{ secrets.GH_USERNAME }} --password-stdin
     - name: Docker setup mirror
       run: |
+        set -x
         mkdir -p /etc/docker
         touch /etc/docker/daemon.json
         if grep -q 'mirror.gcr.io' /etc/docker/daemon.json; then
@@ -77,6 +83,7 @@ jobs:
         fi
     - name: Docker push strawberry
       run: |
+        set -x
         source docker-jobs-retry.sh
         mkdir -p ../docker-strawberry
 
@@ -93,7 +100,9 @@ jobs:
         retry docker push ghcr.io/ytsaurus/strawberry-nightly:${{ steps.tag.outputs.NIGHTLY_IMAGE_TAG }}
     - name: Clear workspace
       if: always()
-      run: rm -rf ../docker-strawberry
+      run: |
+        set -x
+        rm -rf ../docker-strawberry
   send-alert:
     name: Check status and send alert
     needs: build-and-push
@@ -107,20 +116,25 @@ jobs:
         sparse-checkout-cone-mode: false
         sparse-checkout: .github/scripts/send_notifications.py
     - name: Prepare Python
-      run: pip install PyGithub==2.6.1
+      run: |
+        set -x
+        pip install PyGithub==2.6.1
     - name: Save conclusion (failure)
       if: needs.build-and-push.result == 'failure'
       run: |
+        set -x
         CURRENT_JOB_CONCLUSION=failure
         echo "CURRENT_JOB_CONCLUSION=$CURRENT_JOB_CONCLUSION" >> $GITHUB_ENV
     - name: Save conclusion (success)
       if: "!(needs.build-and-push.result == 'failure')"
       run: |
+        set -x
         CURRENT_JOB_CONCLUSION=success
         echo "CURRENT_JOB_CONCLUSION=$CURRENT_JOB_CONCLUSION" >> $GITHUB_ENV
     - name: Send telegram status report
       id: send-telegram-status-report
       run: |
+        set -x
         python3 ytsaurus/.github/scripts/send_notifications.py \
                 --repo ${{ github.repository }} \
                 --git-token "${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}" \

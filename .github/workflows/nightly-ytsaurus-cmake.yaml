@@ -7,7 +7,6 @@ on:
     branches:
     - main
     - stable/[0-9]+\.[0-9]+
-    - members/ilyaibraev/check-wfgen
   workflow_dispatch:
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: 'true'
@@ -59,7 +58,9 @@ jobs:
     timeout-minutes: 480
     steps:
     - name: Prepare python virtual environment
-      run: python3.11 -m venv ../venv
+      run: |
+        set -x
+        python3.11 -m venv ../venv
   cmake-release:
     name: Build cmake (release)
     needs:
@@ -70,6 +71,7 @@ jobs:
     steps:
     - name: Create build directories
       run: |
+        set -x
         for prefix in build build_yql; do
             build_dir=${prefix}_cmake_release
             mkdir -p ../${build_dir}
@@ -78,6 +80,7 @@ jobs:
         done
     - name: Configure ytsaurus (release)
       run: |
+        set -x
         mkdir -p ~/.conan2/
         cat > ~/.conan2/global.conf <<EOF
         core.net.http:timeout=5
@@ -100,6 +103,7 @@ jobs:
         ccache --set-config remote_storage="http://${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}:${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}@${{ vars.BUILD_CACHE_BAZEL_HOST }}|layout=bazel"
     - name: Build ytsaurus (cmake, release)
       run: |
+        set -x
         cd ../build_cmake_release
         ninja
   cmake-relwithdebinfo:
@@ -112,6 +116,7 @@ jobs:
     steps:
     - name: Create build directories
       run: |
+        set -x
         for prefix in build build_yql; do
             build_dir=${prefix}_cmake_relwithdebinfo
             mkdir -p ../${build_dir}
@@ -120,6 +125,7 @@ jobs:
         done
     - name: Configure ytsaurus (relwithdebinfo)
       run: |
+        set -x
         mkdir -p ~/.conan2/
         cat > ~/.conan2/global.conf <<EOF
         core.net.http:timeout=5
@@ -142,6 +148,7 @@ jobs:
         ccache --set-config remote_storage="http://${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}:${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}@${{ vars.BUILD_CACHE_BAZEL_HOST }}|layout=bazel"
     - name: Build ytsaurus (cmake, relwithdebinfo)
       run: |
+        set -x
         cd ../build_cmake_relwithdebinfo
         ninja ytserver-all ytserver-clickhouse
   test-cmake:
@@ -155,6 +162,7 @@ jobs:
     - name: Unittests (cmake)
       shell: bash
       run: |
+        set -x
         cp ./ytsaurus/yt/yt/scripts/run_unittests.sh ../build_cmake_relwithdebinfo
         ln -s $(pwd)/../build_cmake_relwithdebinfo $(pwd)/../build
         cd ../build
@@ -193,20 +201,25 @@ jobs:
         sparse-checkout-cone-mode: false
         sparse-checkout: .github/scripts/send_notifications.py
     - name: Prepare Python
-      run: pip install PyGithub==2.6.1
+      run: |
+        set -x
+        pip install PyGithub==2.6.1
     - name: Save conclusion (failure)
       if: needs.cmake-release.result == 'failure' || needs.cmake-relwithdebinfo.result == 'failure' || needs.test-cmake.result == 'failure'
       run: |
+        set -x
         CURRENT_JOB_CONCLUSION=failure
         echo "CURRENT_JOB_CONCLUSION=$CURRENT_JOB_CONCLUSION" >> $GITHUB_ENV
     - name: Save conclusion (success)
       if: "!(needs.cmake-release.result == 'failure' || needs.cmake-relwithdebinfo.result == 'failure' || needs.test-cmake.result == 'failure')"
       run: |
+        set -x
         CURRENT_JOB_CONCLUSION=success
         echo "CURRENT_JOB_CONCLUSION=$CURRENT_JOB_CONCLUSION" >> $GITHUB_ENV
     - name: Send telegram status report
       id: send-telegram-status-report
       run: |
+        set -x
         python3 ytsaurus/.github/scripts/send_notifications.py \
                 --repo ${{ github.repository }} \
                 --git-token "${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}" \

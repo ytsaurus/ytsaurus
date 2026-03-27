@@ -16,6 +16,7 @@ jobs:
     - name: Prepare Dockerfile
       shell: bash
       run: |
+        set -x
         echo "FROM ubuntu:20.04 " > Dockerfile
         echo "WORKDIR /home/ytsaurus " >> Dockerfile
         echo "RUN apt update && apt install -y ca-certificates wget build-essential curl" >> Dockerfile
@@ -24,23 +25,33 @@ jobs:
         echo 'ENTRYPOINT ["tail", "-f", "/dev/null"]' >> Dockerfile
     - name: Build Docker image
       shell: bash
-      run: docker build -t test-image .
+      run: |
+        set -x
+        docker build -t test-image .
     - name: Run Docker container
       shell: bash
       working-directory: yt/go
-      run: docker run --privileged -v "/var/run/docker.sock":"/var/run/docker.sock" --network host -d --name test-container test-image
+      run: |
+        set -x
+        docker run --privileged -v "/var/run/docker.sock":"/var/run/docker.sock" --network host -d --name test-container test-image
     - name: Build
       shell: bash
       working-directory: yt/go
-      run: docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd yt/go && go build -v -mod=readonly ./..."
+      run: |
+        set -x
+        docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd yt/go && go build -v -mod=readonly ./..."
     - name: Run tests
       shell: bash
       working-directory: yt/go
-      run: docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd yt/go && go test -v -mod=readonly ./..."
+      run: |
+        set -x
+        docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd yt/go && go test -v -mod=readonly ./..."
     - name: Run tests with race detector
       shell: bash
       working-directory: yt/go
-      run: docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd yt/go && go test -v -mod=readonly -race ./..."
+      run: |
+        set -x
+        docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd yt/go && go test -v -mod=readonly -race ./..."
   check-library-go-core-log:
     name: Run checks (library/go/core/log)
     runs-on: ubuntu-latest
@@ -50,6 +61,7 @@ jobs:
     - name: Prepare Dockerfile
       shell: bash
       run: |
+        set -x
         echo "FROM ubuntu:20.04 " > Dockerfile
         echo "WORKDIR /home/ytsaurus " >> Dockerfile
         echo "RUN apt update && apt install -y ca-certificates wget build-essential curl" >> Dockerfile
@@ -58,23 +70,33 @@ jobs:
         echo 'ENTRYPOINT ["tail", "-f", "/dev/null"]' >> Dockerfile
     - name: Build Docker image
       shell: bash
-      run: docker build -t test-image .
+      run: |
+        set -x
+        docker build -t test-image .
     - name: Run Docker container
       shell: bash
       working-directory: library/go/core/log
-      run: docker run --privileged -v "/var/run/docker.sock":"/var/run/docker.sock" --network host -d --name test-container test-image
+      run: |
+        set -x
+        docker run --privileged -v "/var/run/docker.sock":"/var/run/docker.sock" --network host -d --name test-container test-image
     - name: Build
       shell: bash
       working-directory: library/go/core/log
-      run: docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd library/go/core/log && go build -v -mod=readonly ./..."
+      run: |
+        set -x
+        docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd library/go/core/log && go build -v -mod=readonly ./..."
     - name: Run tests
       shell: bash
       working-directory: library/go/core/log
-      run: docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd library/go/core/log && go test -v -mod=readonly ./..."
+      run: |
+        set -x
+        docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd library/go/core/log && go test -v -mod=readonly ./..."
     - name: Run tests with race detector
       shell: bash
       working-directory: library/go/core/log
-      run: docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd library/go/core/log && go test -v -mod=readonly -race ./..."
+      run: |
+        set -x
+        docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd library/go/core/log && go test -v -mod=readonly -race ./..."
   check-library-go-x-xreflect:
     name: Run checks (library/go/x/xreflect)
     runs-on: ubuntu-latest
@@ -84,6 +106,7 @@ jobs:
     - name: Prepare Dockerfile
       shell: bash
       run: |
+        set -x
         echo "FROM ubuntu:20.04 " > Dockerfile
         echo "WORKDIR /home/ytsaurus " >> Dockerfile
         echo "RUN apt update && apt install -y ca-certificates wget build-essential curl" >> Dockerfile
@@ -92,23 +115,33 @@ jobs:
         echo 'ENTRYPOINT ["tail", "-f", "/dev/null"]' >> Dockerfile
     - name: Build Docker image
       shell: bash
-      run: docker build -t test-image .
+      run: |
+        set -x
+        docker build -t test-image .
     - name: Run Docker container
       shell: bash
       working-directory: library/go/x/xreflect
-      run: docker run --privileged -v "/var/run/docker.sock":"/var/run/docker.sock" --network host -d --name test-container test-image
+      run: |
+        set -x
+        docker run --privileged -v "/var/run/docker.sock":"/var/run/docker.sock" --network host -d --name test-container test-image
     - name: Build
       shell: bash
       working-directory: library/go/x/xreflect
-      run: docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd library/go/x/xreflect && go build -v -mod=readonly ./..."
+      run: |
+        set -x
+        docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd library/go/x/xreflect && go build -v -mod=readonly ./..."
     - name: Run tests
       shell: bash
       working-directory: library/go/x/xreflect
-      run: docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd library/go/x/xreflect && go test -v -mod=readonly ./..."
+      run: |
+        set -x
+        docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd library/go/x/xreflect && go test -v -mod=readonly ./..."
     - name: Run tests with race detector
       shell: bash
       working-directory: library/go/x/xreflect
-      run: docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd library/go/x/xreflect && go test -v -mod=readonly -race ./..."
+      run: |
+        set -x
+        docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd library/go/x/xreflect && go test -v -mod=readonly -race ./..."
   check-library-go-blockcodecs:
     name: Run checks (library/go/blockcodecs)
     runs-on: ubuntu-latest
@@ -118,6 +151,7 @@ jobs:
     - name: Prepare Dockerfile
       shell: bash
       run: |
+        set -x
         echo "FROM ubuntu:20.04 " > Dockerfile
         echo "WORKDIR /home/ytsaurus " >> Dockerfile
         echo "RUN apt update && apt install -y ca-certificates wget build-essential curl" >> Dockerfile
@@ -126,23 +160,33 @@ jobs:
         echo 'ENTRYPOINT ["tail", "-f", "/dev/null"]' >> Dockerfile
     - name: Build Docker image
       shell: bash
-      run: docker build -t test-image .
+      run: |
+        set -x
+        docker build -t test-image .
     - name: Run Docker container
       shell: bash
       working-directory: library/go/blockcodecs
-      run: docker run --privileged -v "/var/run/docker.sock":"/var/run/docker.sock" --network host -d --name test-container test-image
+      run: |
+        set -x
+        docker run --privileged -v "/var/run/docker.sock":"/var/run/docker.sock" --network host -d --name test-container test-image
     - name: Build
       shell: bash
       working-directory: library/go/blockcodecs
-      run: docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd library/go/blockcodecs && go build -v -mod=readonly ./..."
+      run: |
+        set -x
+        docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd library/go/blockcodecs && go build -v -mod=readonly ./..."
     - name: Run tests
       shell: bash
       working-directory: library/go/blockcodecs
-      run: docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd library/go/blockcodecs && go test -v -mod=readonly ./..."
+      run: |
+        set -x
+        docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd library/go/blockcodecs && go test -v -mod=readonly ./..."
     - name: Run tests with race detector
       shell: bash
       working-directory: library/go/blockcodecs
-      run: docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd library/go/blockcodecs && go test -v -mod=readonly -race ./..."
+      run: |
+        set -x
+        docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd library/go/blockcodecs && go test -v -mod=readonly -race ./..."
   send-alert:
     name: Check status and send alert
     needs:
@@ -160,20 +204,25 @@ jobs:
         sparse-checkout-cone-mode: false
         sparse-checkout: .github/scripts/send_notifications.py
     - name: Prepare Python
-      run: pip install PyGithub==2.6.1
+      run: |
+        set -x
+        pip install PyGithub==2.6.1
     - name: Save conclusion (failure)
       if: needs.check-yt-go.result == 'failure' || needs.check-library-go-core-log.result == 'failure' || needs.check-library-go-x-xreflect.result == 'failure' || needs.check-library-go-blockcodecs.result == 'failure'
       run: |
+        set -x
         CURRENT_JOB_CONCLUSION=failure
         echo "CURRENT_JOB_CONCLUSION=$CURRENT_JOB_CONCLUSION" >> $GITHUB_ENV
     - name: Save conclusion (success)
       if: "!(needs.check-yt-go.result == 'failure' || needs.check-library-go-core-log.result == 'failure' || needs.check-library-go-x-xreflect.result == 'failure' || needs.check-library-go-blockcodecs.result == 'failure')"
       run: |
+        set -x
         CURRENT_JOB_CONCLUSION=success
         echo "CURRENT_JOB_CONCLUSION=$CURRENT_JOB_CONCLUSION" >> $GITHUB_ENV
     - name: Send telegram status report
       id: send-telegram-status-report
       run: |
+        set -x
         python3 ytsaurus/.github/scripts/send_notifications.py \
                 --repo ${{ github.repository }} \
                 --git-token "${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}" \

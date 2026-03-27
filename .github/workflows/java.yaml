@@ -21,13 +21,21 @@ jobs:
     - name: Setup Gradle
       uses: gradle/gradle-build-action@v3
     - name: Execute Gradle build
-      run: ./gradlew build
+      run: |
+        set -x
+        ./gradlew build
     - name: Run tests
-      run: ./gradlew test --info
+      run: |
+        set -x
+        ./gradlew test --info
     - name: Run integration tests
-      run: ./gradlew testIntegration --info
+      run: |
+        set -x
+        ./gradlew testIntegration --info
     - name: Run integration multicell tests
-      run: ./gradlew testIntegrationMulticell --info
+      run: |
+        set -x
+        ./gradlew testIntegrationMulticell --info
     - name: Get latest Java SDK tag
       id: latest_tag
       uses: oprypin/find-latest-tag@v1.1.2
@@ -37,11 +45,14 @@ jobs:
     - name: Get snapshot release version
       id: release_version
       run: |
+        set -x
         LATEST_TAG=${{ steps.latest_tag.outputs.tag }}; RELEASE_VERSION=$(echo ${LATEST_TAG#java-sdk/})
         echo "RELEASE_VERSION=$RELEASE_VERSION" >> $GITHUB_OUTPUT
     - name: Publish snapshot
       if: vars.ENABLE_JAVA_SNAPSHOT_PUBLISHING == '1'
-      run: ./gradlew publish -PossrhUsername=${{ secrets.OSSRH_USERNAME }} -PossrhPassword=${{ secrets.OSSRH_PASSWORD }} -Pversion="${{ steps.release_version.outputs.RELEASE_VERSION }}-SNAPSHOT" -PsigningPassword=${{ secrets.GPG_PASSWORD }} -PsigningKey="${{ secrets.GPG_PRIVATE_KEY }}"
+      run: |
+        set -x
+        ./gradlew publish -PossrhUsername=${{ secrets.OSSRH_USERNAME }} -PossrhPassword=${{ secrets.OSSRH_PASSWORD }} -Pversion="${{ steps.release_version.outputs.RELEASE_VERSION }}-SNAPSHOT" -PsigningPassword=${{ secrets.GPG_PASSWORD }} -PsigningKey="${{ secrets.GPG_PRIVATE_KEY }}"
   send-alert:
     name: Check status and send alert
     needs: check
@@ -55,20 +66,25 @@ jobs:
         sparse-checkout-cone-mode: false
         sparse-checkout: .github/scripts/send_notifications.py
     - name: Prepare Python
-      run: pip install PyGithub==2.6.1
+      run: |
+        set -x
+        pip install PyGithub==2.6.1
     - name: Save conclusion (failure)
       if: needs.check.result == 'failure'
       run: |
+        set -x
         CURRENT_JOB_CONCLUSION=failure
         echo "CURRENT_JOB_CONCLUSION=$CURRENT_JOB_CONCLUSION" >> $GITHUB_ENV
     - name: Save conclusion (success)
       if: "!(needs.check.result == 'failure')"
       run: |
+        set -x
         CURRENT_JOB_CONCLUSION=success
         echo "CURRENT_JOB_CONCLUSION=$CURRENT_JOB_CONCLUSION" >> $GITHUB_ENV
     - name: Send telegram status report
       id: send-telegram-status-report
       run: |
+        set -x
         python3 ytsaurus/.github/scripts/send_notifications.py \
                 --repo ${{ github.repository }} \
                 --git-token "${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}" \

@@ -61,8 +61,7 @@ jobs:
     steps:
     - name: Build
       run: |
-        set -ex
-
+        set -x
         cd ytsaurus
 
         BUILD_FLAGS="--test-prepare --bazel-remote-store --bazel-remote-put"
@@ -133,8 +132,7 @@ jobs:
     steps:
     - name: Build
       run: |
-        set -ex
-
+        set -x
         cd ytsaurus
 
         BUILD_FLAGS="--test-prepare --bazel-remote-store --bazel-remote-put"
@@ -205,8 +203,7 @@ jobs:
     steps:
     - name: Build
       run: |
-        set -ex
-
+        set -x
         cd ytsaurus
 
         BUILD_FLAGS="--test-prepare --bazel-remote-store --bazel-remote-put"
