@@ -49,14 +49,13 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
-    - name: Download notification script
-      run: |
-        curl -fsSL \
-            -H "Authorization: token ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}" \
-            -H "Accept: application/vnd.github.v3.raw" \
-            "${{ github.api_url }}/repos/${{ github.repository }}/contents/.github/scripts/send_notifications.py?ref=${{ github.sha }}" \
-            -o send_notifications.py
-    - name: Install dependencies
+    - name: Checkout notification script
+      uses: actions/checkout@v4
+      with:
+        path: ytsaurus
+        sparse-checkout-cone-mode: false
+        sparse-checkout: .github/scripts/send_notifications.py
+    - name: Prepare Python
       run: pip install PyGithub==2.6.1
     - name: Save conclusion (failure)
       if: needs.check.result == 'failure'
@@ -71,7 +70,7 @@ jobs:
     - name: Send telegram status report
       id: send-telegram-status-report
       run: |
-        python3 send_notifications.py \
+        python3 ytsaurus/.github/scripts/send_notifications.py \
                 --repo ${{ github.repository }} \
                 --git-token "${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}" \
                 --workflow "${{ github.workflow }}" \

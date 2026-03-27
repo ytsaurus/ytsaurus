@@ -5,7 +5,6 @@ name: Cache heater
 on:
   push:
     branches:
-    - main
     - members/ilyaibraev/check-wfgen
   schedule:
   - cron: 0 2,15 * * *

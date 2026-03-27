@@ -1,0 +1,628 @@
+# THIS FILE IS GENERATED. Do not edit manually.
+# Regenerate: python .github/workflowsgen/gen_all.py
+
+name: Nightly YTsaurus (ya-make)
+on:
+  push:
+    branches:
+    - main
+    - stable/[0-9]+\.[0-9]+
+    - members/ilyaibraev/check-wfgen
+  workflow_dispatch:
+env:
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: 'true'
+jobs:
+  start-vm:
+    name: Start VM
+    runs-on: trampoline
+    outputs:
+      label: ${{ steps.start-yc-runner.outputs.label }}
+      instance-id: ${{ steps.start-yc-runner.outputs.instance-id }}
+    steps:
+    - name: Start YC runner
+      id: start-yc-runner
+      uses: yc-actions/yc-github-runner@v1
+      with:
+        mode: start
+        yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+        github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+        folder-id: ${{ vars.YC_FOLDER_ID }}
+        image-id: ${{ vars.YC_DEFAULT_IMAGE_ID }}
+        zone-id: ${{ vars.YC_ZONE_ID }}
+        subnet-id: ${{ vars.YC_SUBNET_ID }}
+        cores: 16
+        memory: 64GB
+        core-fraction: 100
+        disk-type: network-ssd-nonreplicated
+        disk-size: 744GB
+        user: ${{ secrets.YC_VM_USERNAME }}
+        ssh-public-key: ${{ secrets.YC_VM_SSH_PUBLIC_KEY }}
+        public-ip: false
+        ttl: PT24H
+        runner-home-dir: /actions-runner
+  checkout:
+    name: Checkout sources
+    needs: start-vm
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 2
+        path: ytsaurus
+  venv:
+    name: Prepare Python venv
+    needs: checkout
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    timeout-minutes: 480
+    steps:
+    - name: Prepare python virtual environment
+      run: python3.11 -m venv ../venv
+  tag:
+    name: Calculate docker tag
+    needs: checkout
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    outputs:
+      image-tag: ${{ steps.tag.outputs.IMAGE_TAG }}
+      nightly-image-tag: ${{ steps.tag.outputs.NIGHTLY_IMAGE_TAG }}
+    steps:
+    - name: Calculate docker tag
+      id: tag
+      run: |
+        if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            IMAGE_TAG=dev-test
+        else
+            if [[ $GITHUB_REF =~ main$ ]]; then
+                IMAGE_TAG=dev
+            elif [[ $GITHUB_REF =~ stable ]]; then
+                IMAGE_TAG=dev-${{GITHUB_REF#refs/*/stable/}}
+            elif [[ $GITHUB_REF =~ "query-tracker" ]]; then
+                IMAGE_TAG=dev-${{GITHUB_REF#refs/*/query-tracker/}}
+            elif [[ $GITHUB_REF =~ "chyt" ]]; then
+                IMAGE_TAG=dev-${{GITHUB_REF#refs/*/chyt/}}
+            else
+                IMAGE_TAG=dev-test
+            fi
+        fi
+
+        NIGHTLY_IMAGE_TAG=${{IMAGE_TAG}}-$(git -C ytsaurus show -s --pretty=%cs)-${{ github.sha }}
+        echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
+        echo "NIGHTLY_IMAGE_TAG=$NIGHTLY_IMAGE_TAG" >> $GITHUB_OUTPUT
+  gpu-agent:
+    name: Build GPU Agent
+    needs: venv
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    timeout-minutes: 480
+    steps:
+    - name: Build GPU Agent
+      run: |
+        cd ../ytsaurus/ytsaurus/yt/yt/gpuagent
+        export HOME=${RUNNER_WORKSPACE}
+        /opt/go/bin/go build -o gpuagent ./cmd/agent
+  yamake-release:
+    name: Build ya-make (release)
+    needs: venv
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    timeout-minutes: 480
+    steps:
+    - name: Create build directories
+      run: |
+        for prefix in build build_yql; do
+            build_dir=${{prefix}}_ya-make_release
+            mkdir -p ../${{build_dir}}
+            cd ../${{build_dir}}
+            rm -rf *
+        done
+    - name: Calculate variables
+      id: vars
+      run: |
+        BUILD_FLAGS="--thinlto -DCGO_ENABLED=0 -DCFLAGS=-fsized-deallocation --bazel-remote-store --bazel-remote-base-uri=http://${{ vars.BUILD_CACHE_BAZEL_HOST }}"
+
+        if [ "True" == "True" ]; then
+            BUILD_FLAGS="${BUILD_FLAGS} --bazel-remote-username=${{ secrets.BUILD_CACHE_BAZEL_USERNAME }} --bazel-remote-password=${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}"
+        fi
+
+        STRIP_VALUE=no
+        BUILD_TYPE=profile
+        if [ "release" == "release" ]; then
+            STRIP_VALUE=yes
+            BUILD_TYPE=release
+        fi
+
+        BUILD_FLAGS="${BUILD_FLAGS} --build=${BUILD_TYPE}"
+        echo "BUILD_FLAGS=$BUILD_FLAGS" >> $GITHUB_OUTPUT
+        echo "STRIP_VALUE=$STRIP_VALUE" >> $GITHUB_OUTPUT
+    - name: Build Python packages (ya-make, release)
+      run: |
+        build_dir=../build_ya-make_release
+        cd ${build_dir}
+
+        BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=yes -DUSE_ARCADIA_PYTHON=no -DUSE_LOCAL_PYTHON -DPYTHON_CONFIG=python3.11-config -DPYTHON_BIN=python3.11"
+
+        if [ "True" == "True" ]; then
+            ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} --bazel-remote-put ../ytsaurus/ytsaurus/yt/yt/python/yson_shared
+            ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} --bazel-remote-put ../ytsaurus/ytsaurus/yt/yt/python/driver/native_shared
+            ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} --bazel-remote-put ../ytsaurus/ytsaurus/yt/yt/python/driver/rpc_shared
+        fi
+
+        ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} ../ytsaurus/ytsaurus/yt/yt/python/yson_shared
+        ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} ../ytsaurus/ytsaurus/yt/yt/python/driver/native_shared
+        ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} ../ytsaurus/ytsaurus/yt/yt/python/driver/rpc_shared
+
+        cd ../ytsaurus
+
+        source ../venv/bin/activate
+        YTSAURUS_COMMIT_HASH=${GITHUB_SHA} ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${build_dir}
+    - name: Build ytsaurus (ya-make, release)
+      run: |
+        cd ../build_ya-make_release
+
+        BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }}"
+
+        if [ "True" == "True" ]; then
+            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --bazel-remote-put --output=. ../ytsaurus/ytsaurus/yt/yt/server/all
+            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --bazel-remote-put --output=. ../ytsaurus/ytsaurus/yt/chyt/server/bin
+            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --bazel-remote-put --output=. ../ytsaurus/ytsaurus/yt/chyt/trampoline
+            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --bazel-remote-put --output=. ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_operations_archive
+            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --bazel-remote-put --output=. ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_queue_agent_state
+            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --bazel-remote-put --output=. ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_query_tracker_state
+        fi
+
+        ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/yt/server/all
+        ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/chyt/server/bin
+        ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/chyt/trampoline
+        ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_operations_archive
+        ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_queue_agent_state
+        ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_query_tracker_state
+    - name: Build YQL agent (ya-make, release)
+      run: |
+        cd ../build_yql_ya-make_release
+
+        export YTSAURUS_SOURCE_PATH="$(realpath $(pwd)/../ytsaurus/ytsaurus)"
+        export YQL_BUILD_PATH="."
+        export BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }}"
+
+        SCRIPT_FLAGS="--build-python-udfs yes"
+
+        if [ "True" == "True" ]; then
+            BUILD_FLAGS="${BUILD_FLAGS} --bazel-remote-put" ../ytsaurus/ytsaurus/yt/docker/ya-build/query-tracker/build_yql_agent.sh ${SCRIPT_FLAGS}
+        fi
+
+        ../ytsaurus/ytsaurus/yt/docker/ya-build/query-tracker/build_yql_agent.sh ${SCRIPT_FLAGS}
+  yamake-relwithdebinfo:
+    name: Build ya-make (relwithdebinfo)
+    needs: venv
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    timeout-minutes: 480
+    steps:
+    - name: Create build directories
+      run: |
+        for prefix in build build_yql; do
+            build_dir=${{prefix}}_ya-make_relwithdebinfo
+            mkdir -p ../${{build_dir}}
+            cd ../${{build_dir}}
+            rm -rf *
+        done
+    - name: Calculate variables
+      id: vars
+      run: |
+        BUILD_FLAGS="--thinlto -DCGO_ENABLED=0 -DCFLAGS=-fsized-deallocation --bazel-remote-store --bazel-remote-base-uri=http://${{ vars.BUILD_CACHE_BAZEL_HOST }}"
+
+        if [ "True" == "True" ]; then
+            BUILD_FLAGS="${BUILD_FLAGS} --bazel-remote-username=${{ secrets.BUILD_CACHE_BAZEL_USERNAME }} --bazel-remote-password=${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}"
+        fi
+
+        STRIP_VALUE=no
+        BUILD_TYPE=profile
+        if [ "relwithdebinfo" == "release" ]; then
+            STRIP_VALUE=yes
+            BUILD_TYPE=release
+        fi
+
+        BUILD_FLAGS="${BUILD_FLAGS} --build=${BUILD_TYPE}"
+        echo "BUILD_FLAGS=$BUILD_FLAGS" >> $GITHUB_OUTPUT
+        echo "STRIP_VALUE=$STRIP_VALUE" >> $GITHUB_OUTPUT
+    - name: Build Python packages (ya-make, relwithdebinfo)
+      run: |
+        build_dir=../build_ya-make_relwithdebinfo
+        cd ${build_dir}
+
+        BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=yes -DUSE_ARCADIA_PYTHON=no -DUSE_LOCAL_PYTHON -DPYTHON_CONFIG=python3.11-config -DPYTHON_BIN=python3.11"
+
+        if [ "True" == "True" ]; then
+            ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} --bazel-remote-put ../ytsaurus/ytsaurus/yt/yt/python/yson_shared
+            ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} --bazel-remote-put ../ytsaurus/ytsaurus/yt/yt/python/driver/native_shared
+            ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} --bazel-remote-put ../ytsaurus/ytsaurus/yt/yt/python/driver/rpc_shared
+        fi
+
+        ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} ../ytsaurus/ytsaurus/yt/yt/python/yson_shared
+        ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} ../ytsaurus/ytsaurus/yt/yt/python/driver/native_shared
+        ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} ../ytsaurus/ytsaurus/yt/yt/python/driver/rpc_shared
+
+        cd ../ytsaurus
+
+        source ../venv/bin/activate
+        YTSAURUS_COMMIT_HASH=${GITHUB_SHA} ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${build_dir}
+    - name: Build ytsaurus (ya-make, relwithdebinfo)
+      run: |
+        cd ../build_ya-make_relwithdebinfo
+
+        BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }}"
+
+        if [ "True" == "True" ]; then
+            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --bazel-remote-put --output=. ../ytsaurus/ytsaurus/yt/yt/server/all
+            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --bazel-remote-put --output=. ../ytsaurus/ytsaurus/yt/chyt/server/bin
+            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --bazel-remote-put --output=. ../ytsaurus/ytsaurus/yt/chyt/trampoline
+            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --bazel-remote-put --output=. ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_operations_archive
+            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --bazel-remote-put --output=. ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_queue_agent_state
+            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --bazel-remote-put --output=. ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_query_tracker_state
+        fi
+
+        ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/yt/server/all
+        ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/chyt/server/bin
+        ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/chyt/trampoline
+        ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_operations_archive
+        ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_queue_agent_state
+        ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_query_tracker_state
+    - name: Build ytsaurus tests dependencies (ya-make, relwithdebinfo)
+      run: |
+        cd ../build_ya-make_relwithdebinfo
+
+        BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }}"
+
+        BUILD_FLAGS=$(echo ${BUILD_FLAGS} | sed 's/--thinlto//')
+
+        FOLDERS_WITH_UNITTESTS=""
+        for makefile in $(find ../ytsaurus/ytsaurus/ -name "ya.make" -exec grep -l -e "GTEST(unittester-" -e "UNITTEST()" {} +); do
+            folder=$(dirname ${makefile})
+            echo ${folder}
+            FOLDERS_WITH_UNITTESTS="${FOLDERS_WITH_UNITTESTS} ${folder}"
+        done
+
+        ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. -A --test-prepare --bazel-remote-put ${FOLDERS_WITH_UNITTESTS}
+
+        for build_folder in yt/yt/tests/integration/size_s \
+                            yt/yt/tests/integration/size_m \
+                            yt/yt/tests/integration/size_l \
+                            yt/yt/tests/integration/size_xl
+        do
+            echo ${build_folder}
+            build_folder=../ytsaurus/ytsaurus/${build_folder}
+            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ${build_folder} -A --test-prepare --bazel-remote-put
+        done
+    - name: Build YQL agent (ya-make, relwithdebinfo)
+      run: |
+        cd ../build_yql_ya-make_relwithdebinfo
+
+        export YTSAURUS_SOURCE_PATH="$(realpath $(pwd)/../ytsaurus/ytsaurus)"
+        export YQL_BUILD_PATH="."
+        export BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }}"
+
+        SCRIPT_FLAGS="--build-python-udfs yes"
+
+        if [ "True" == "True" ]; then
+            BUILD_FLAGS="${BUILD_FLAGS} --bazel-remote-put" ../ytsaurus/ytsaurus/yt/docker/ya-build/query-tracker/build_yql_agent.sh ${SCRIPT_FLAGS}
+        fi
+
+        ../ytsaurus/ytsaurus/yt/docker/ya-build/query-tracker/build_yql_agent.sh ${SCRIPT_FLAGS}
+  test-yamake:
+    name: Tests (ya-make)
+    needs: yamake-relwithdebinfo
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    timeout-minutes: 480
+    steps:
+    - name: Unittests (ya-make)
+      shell: bash
+      run: |
+        cp ./ytsaurus/yt/yt/scripts/run_unittests.sh ../build_ya-make_relwithdebinfo
+        ln -s $(pwd)/../build_ya-make_relwithdebinfo $(pwd)/../build
+        cd ../build
+        ./run_unittests.sh
+    - name: Prepare pytest environment
+      shell: bash
+      run: ytsaurus/yt/yt/scripts/prepare_pytest_environment.sh
+    - name: Integration tests
+      shell: bash
+      run: ytsaurus/yt/yt/scripts/run_integration_tests.sh
+    - name: Python tests
+      shell: bash
+      run: ytsaurus/yt/yt/scripts/run_python_tests.sh
+  docker-release:
+    name: Docker push (release)
+    needs:
+    - yamake-release
+    - gpu-agent
+    - tag
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    timeout-minutes: 480
+    steps:
+    - name: Setup retry function
+      run: |
+        cat << 'EOF' > docker-jobs-retry.sh
+        function retry {
+            local retries=3
+            local count=0
+            until "$@"; do
+                exit_code=$?
+                count=$(($count + 1))
+                if [ $count -lt $retries ]; then
+                    echo "Attempt $count failed with exit code $exit_code. Retrying..."
+                else
+                    echo "Attempt $count failed with exit code $exit_code. No more retries."
+                    return $exit_code
+                fi
+            done
+            return 0
+        }
+        EOF
+        chmod +x docker-jobs-retry.sh
+    - name: Docker login
+      run: echo '${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}' | docker login ghcr.io --username ${{ secrets.GH_USERNAME }} --password-stdin
+    - name: Docker setup mirror
+      run: |
+        mkdir -p /etc/docker
+        touch /etc/docker/daemon.json
+        if grep -q 'mirror.gcr.io' /etc/docker/daemon.json; then
+            echo "Docker mirror already set up, skipping."
+        else
+            echo '{"registry-mirrors": ["https://mirror.gcr.io"]}' > /etc/docker/daemon.json
+            systemctl restart docker
+        fi
+    - name: Docker push ytsaurus
+      run: |
+        source docker-jobs-retry.sh
+        mkdir -p ../docker-ytsaurus
+
+        retry ./ytsaurus/yt/docker/ytsaurus/build.sh \
+                --component ytsaurus \
+                --ytsaurus-source-path $(pwd)/ytsaurus \
+                --ytsaurus-build-path ../build_ya-make_release \
+                --output-path ../docker-ytsaurus \
+                --image-tag ${{ needs.tag.outputs.image-tag }} \
+                --image-cr ghcr.io/ \
+                --apt-mirror ${{ vars.APT_MIRROR }} \
+                --install-nvidia-packages true
+
+        retry docker push ghcr.io/ytsaurus/ytsaurus:${{ needs.tag.outputs.image-tag }}
+        docker tag ghcr.io/ytsaurus/ytsaurus:${{ needs.tag.outputs.image-tag }} ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tag.outputs.nightly-image-tag }}
+        retry docker push ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tag.outputs.nightly-image-tag }}
+    - name: Docker push query-tracker
+      run: |
+        source docker-jobs-retry.sh
+        mkdir -p ../docker-query-tracker
+
+        retry ./ytsaurus/yt/docker/ytsaurus/build.sh \
+                --component query-tracker \
+                --ytsaurus-source-path $(pwd)/ytsaurus \
+                --ytsaurus-build-path ../build_ya-make_release \
+                --yql-build-path ../build_yql_ya-make_release \
+                --output-path ../docker-query-tracker \
+                --image-tag ${{ needs.tag.outputs.image-tag }} \
+                --image-cr ghcr.io/ \
+                --apt-mirror ${{ vars.APT_MIRROR }}
+
+        retry docker push ghcr.io/ytsaurus/query-tracker:${{ needs.tag.outputs.image-tag }}
+        docker tag ghcr.io/ytsaurus/query-tracker:${{ needs.tag.outputs.image-tag }} ghcr.io/ytsaurus/query-tracker-nightly:${{ needs.tag.outputs.nightly-image-tag }}
+        retry docker push ghcr.io/ytsaurus/query-tracker-nightly:${{ needs.tag.outputs.nightly-image-tag }}
+    - name: Docker push chyt
+      run: |
+        source docker-jobs-retry.sh
+        mkdir -p ../docker-chyt
+
+        retry ./ytsaurus/yt/docker/ytsaurus/build.sh \
+                --component chyt \
+                --ytsaurus-source-path $(pwd)/ytsaurus \
+                --ytsaurus-build-path ../build_ya-make_release \
+                --output-path ../docker-chyt \
+                --image-tag ${{ needs.tag.outputs.image-tag }} \
+                --image-cr ghcr.io/ \
+                --apt-mirror ${{ vars.APT_MIRROR }}
+
+        retry docker push ghcr.io/ytsaurus/chyt:${{ needs.tag.outputs.image-tag }}
+        docker tag ghcr.io/ytsaurus/chyt:${{ needs.tag.outputs.image-tag }} ghcr.io/ytsaurus/chyt-nightly:${{ needs.tag.outputs.nightly-image-tag }}
+        retry docker push ghcr.io/ytsaurus/chyt-nightly:${{ needs.tag.outputs.nightly-image-tag }}
+    - name: Docker push local
+      run: |
+        source docker-jobs-retry.sh
+        mkdir -p ../docker-local
+
+        retry ./ytsaurus/yt/docker/ytsaurus/build.sh \
+                --component local \
+                --ytsaurus-source-path $(pwd)/ytsaurus \
+                --ytsaurus-build-path ../build_ya-make_release \
+                --yql-build-path ../build_yql_ya-make_release \
+                --output-path ../docker-local \
+                --image-tag ${{ needs.tag.outputs.image-tag }} \
+                --image-cr ghcr.io/ \
+                --apt-mirror ${{ vars.APT_MIRROR }}
+
+        retry docker push ghcr.io/ytsaurus/local:${{ needs.tag.outputs.image-tag }}
+        docker tag ghcr.io/ytsaurus/local:${{ needs.tag.outputs.image-tag }} ghcr.io/ytsaurus/local-nightly:${{ needs.tag.outputs.nightly-image-tag }}
+        retry docker push ghcr.io/ytsaurus/local-nightly:${{ needs.tag.outputs.nightly-image-tag }}
+    - name: Clear workspace
+      if: always()
+      run: |
+        rm -rf ../docker-ytsaurus
+        rm -rf ../docker-query-tracker
+        rm -rf ../docker-chyt
+        rm -rf ../docker-local
+  docker-relwithdebinfo:
+    name: Docker push (relwithdebinfo)
+    needs:
+    - yamake-relwithdebinfo
+    - gpu-agent
+    - tag
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    timeout-minutes: 480
+    steps:
+    - name: Setup retry function
+      run: |
+        cat << 'EOF' > docker-jobs-retry.sh
+        function retry {
+            local retries=3
+            local count=0
+            until "$@"; do
+                exit_code=$?
+                count=$(($count + 1))
+                if [ $count -lt $retries ]; then
+                    echo "Attempt $count failed with exit code $exit_code. Retrying..."
+                else
+                    echo "Attempt $count failed with exit code $exit_code. No more retries."
+                    return $exit_code
+                fi
+            done
+            return 0
+        }
+        EOF
+        chmod +x docker-jobs-retry.sh
+    - name: Docker login
+      run: echo '${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}' | docker login ghcr.io --username ${{ secrets.GH_USERNAME }} --password-stdin
+    - name: Docker setup mirror
+      run: |
+        mkdir -p /etc/docker
+        touch /etc/docker/daemon.json
+        if grep -q 'mirror.gcr.io' /etc/docker/daemon.json; then
+            echo "Docker mirror already set up, skipping."
+        else
+            echo '{"registry-mirrors": ["https://mirror.gcr.io"]}' > /etc/docker/daemon.json
+            systemctl restart docker
+        fi
+    - name: Docker push ytsaurus
+      run: |
+        source docker-jobs-retry.sh
+        mkdir -p ../docker-ytsaurus
+
+        retry ./ytsaurus/yt/docker/ytsaurus/build.sh \
+                --component ytsaurus \
+                --ytsaurus-source-path $(pwd)/ytsaurus \
+                --ytsaurus-build-path ../build_ya-make_relwithdebinfo \
+                --output-path ../docker-ytsaurus \
+                --image-tag ${{ needs.tag.outputs.image-tag }}-relwithdebinfo \
+                --image-cr ghcr.io/ \
+                --apt-mirror ${{ vars.APT_MIRROR }} \
+                --install-nvidia-packages true
+
+        retry docker push ghcr.io/ytsaurus/ytsaurus:${{ needs.tag.outputs.image-tag }}-relwithdebinfo
+        docker tag ghcr.io/ytsaurus/ytsaurus:${{ needs.tag.outputs.image-tag }}-relwithdebinfo ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tag.outputs.nightly-image-tag }}-relwithdebinfo
+        retry docker push ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tag.outputs.nightly-image-tag }}-relwithdebinfo
+    - name: Docker push query-tracker
+      run: |
+        source docker-jobs-retry.sh
+        mkdir -p ../docker-query-tracker
+
+        retry ./ytsaurus/yt/docker/ytsaurus/build.sh \
+                --component query-tracker \
+                --ytsaurus-source-path $(pwd)/ytsaurus \
+                --ytsaurus-build-path ../build_ya-make_relwithdebinfo \
+                --yql-build-path ../build_yql_ya-make_relwithdebinfo \
+                --output-path ../docker-query-tracker \
+                --image-tag ${{ needs.tag.outputs.image-tag }}-relwithdebinfo \
+                --image-cr ghcr.io/ \
+                --apt-mirror ${{ vars.APT_MIRROR }}
+
+        retry docker push ghcr.io/ytsaurus/query-tracker:${{ needs.tag.outputs.image-tag }}-relwithdebinfo
+        docker tag ghcr.io/ytsaurus/query-tracker:${{ needs.tag.outputs.image-tag }}-relwithdebinfo ghcr.io/ytsaurus/query-tracker-nightly:${{ needs.tag.outputs.nightly-image-tag }}-relwithdebinfo
+        retry docker push ghcr.io/ytsaurus/query-tracker-nightly:${{ needs.tag.outputs.nightly-image-tag }}-relwithdebinfo
+    - name: Docker push chyt
+      run: |
+        source docker-jobs-retry.sh
+        mkdir -p ../docker-chyt
+
+        retry ./ytsaurus/yt/docker/ytsaurus/build.sh \
+                --component chyt \
+                --ytsaurus-source-path $(pwd)/ytsaurus \
+                --ytsaurus-build-path ../build_ya-make_relwithdebinfo \
+                --output-path ../docker-chyt \
+                --image-tag ${{ needs.tag.outputs.image-tag }}-relwithdebinfo \
+                --image-cr ghcr.io/ \
+                --apt-mirror ${{ vars.APT_MIRROR }}
+
+        retry docker push ghcr.io/ytsaurus/chyt:${{ needs.tag.outputs.image-tag }}-relwithdebinfo
+        docker tag ghcr.io/ytsaurus/chyt:${{ needs.tag.outputs.image-tag }}-relwithdebinfo ghcr.io/ytsaurus/chyt-nightly:${{ needs.tag.outputs.nightly-image-tag }}-relwithdebinfo
+        retry docker push ghcr.io/ytsaurus/chyt-nightly:${{ needs.tag.outputs.nightly-image-tag }}-relwithdebinfo
+    - name: Docker push local
+      run: |
+        source docker-jobs-retry.sh
+        mkdir -p ../docker-local
+
+        retry ./ytsaurus/yt/docker/ytsaurus/build.sh \
+                --component local \
+                --ytsaurus-source-path $(pwd)/ytsaurus \
+                --ytsaurus-build-path ../build_ya-make_relwithdebinfo \
+                --yql-build-path ../build_yql_ya-make_relwithdebinfo \
+                --output-path ../docker-local \
+                --image-tag ${{ needs.tag.outputs.image-tag }}-relwithdebinfo \
+                --image-cr ghcr.io/ \
+                --apt-mirror ${{ vars.APT_MIRROR }}
+
+        retry docker push ghcr.io/ytsaurus/local:${{ needs.tag.outputs.image-tag }}-relwithdebinfo
+        docker tag ghcr.io/ytsaurus/local:${{ needs.tag.outputs.image-tag }}-relwithdebinfo ghcr.io/ytsaurus/local-nightly:${{ needs.tag.outputs.nightly-image-tag }}-relwithdebinfo
+        retry docker push ghcr.io/ytsaurus/local-nightly:${{ needs.tag.outputs.nightly-image-tag }}-relwithdebinfo
+    - name: Clear workspace
+      if: always()
+      run: |
+        rm -rf ../docker-ytsaurus
+        rm -rf ../docker-query-tracker
+        rm -rf ../docker-chyt
+        rm -rf ../docker-local
+  stop-vm:
+    name: Stop VM
+    needs:
+    - start-vm
+    - yamake-release
+    - yamake-relwithdebinfo
+    - gpu-agent
+    - test-yamake
+    - docker-release
+    - docker-relwithdebinfo
+    if: always()
+    runs-on: trampoline
+    steps:
+    - name: Stop YC runner
+      uses: yc-actions/yc-github-runner@v1
+      with:
+        mode: stop
+        yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+        github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+        label: ${{ needs.start-vm.outputs.label }}
+        instance-id: ${{ needs.start-vm.outputs.instance-id }}
+  send-alert:
+    name: Check status and send alert
+    needs:
+    - test-yamake
+    - docker-release
+    - docker-relwithdebinfo
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout notification script
+      uses: actions/checkout@v4
+      with:
+        path: ytsaurus
+        sparse-checkout-cone-mode: false
+        sparse-checkout: .github/scripts/send_notifications.py
+    - name: Prepare Python
+      run: pip install PyGithub==2.6.1
+    - name: Save conclusion (failure)
+      if: needs.test-yamake.result == 'failure' || needs.docker-release.result == 'failure' || needs.docker-relwithdebinfo.result == 'failure'
+      run: |
+        CURRENT_JOB_CONCLUSION=failure
+        echo "CURRENT_JOB_CONCLUSION=$CURRENT_JOB_CONCLUSION" >> $GITHUB_ENV
+    - name: Save conclusion (success)
+      if: "!(needs.test-yamake.result == 'failure' || needs.docker-release.result == 'failure' || needs.docker-relwithdebinfo.result == 'failure')"
+      run: |
+        CURRENT_JOB_CONCLUSION=success
+        echo "CURRENT_JOB_CONCLUSION=$CURRENT_JOB_CONCLUSION" >> $GITHUB_ENV
+    - name: Send telegram status report
+      id: send-telegram-status-report
+      run: |
+        python3 ytsaurus/.github/scripts/send_notifications.py \
+                --repo ${{ github.repository }} \
+                --git-token "${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}" \
+                --workflow "${{ github.workflow }}" \
+                --ref "${{ github.ref_name }}" \
+                --tg-token "${{ secrets.TELEGRAM_TOKEN }}" \
+                --tg-chat-id ${{ secrets.TELEGRAM_CHAT_ID }} \
+                --current-job-conclusion $CURRENT_JOB_CONCLUSION \
+                --current-job-id ${{ github.run_id }} \
+                --git-server-url "${{ github.api_url }}"

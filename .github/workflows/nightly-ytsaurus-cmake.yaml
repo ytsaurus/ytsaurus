@@ -1,0 +1,211 @@
+# THIS FILE IS GENERATED. Do not edit manually.
+# Regenerate: python .github/workflowsgen/gen_all.py
+
+name: Nightly YTsaurus (cmake)
+on:
+  push:
+    branches:
+    - main
+    - stable/[0-9]+\.[0-9]+
+    - members/ilyaibraev/check-wfgen
+  workflow_dispatch:
+env:
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: 'true'
+jobs:
+  start-vm:
+    name: Start VM
+    runs-on: trampoline
+    outputs:
+      label: ${{ steps.start-yc-runner.outputs.label }}
+      instance-id: ${{ steps.start-yc-runner.outputs.instance-id }}
+    steps:
+    - name: Start YC runner
+      id: start-yc-runner
+      uses: yc-actions/yc-github-runner@v1
+      with:
+        mode: start
+        yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+        github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+        folder-id: ${{ vars.YC_FOLDER_ID }}
+        image-id: ${{ vars.YC_DEFAULT_IMAGE_ID }}
+        zone-id: ${{ vars.YC_ZONE_ID }}
+        subnet-id: ${{ vars.YC_SUBNET_ID }}
+        cores: 16
+        memory: 64GB
+        core-fraction: 100
+        disk-type: network-ssd-nonreplicated
+        disk-size: 744GB
+        user: ${{ secrets.YC_VM_USERNAME }}
+        ssh-public-key: ${{ secrets.YC_VM_SSH_PUBLIC_KEY }}
+        public-ip: false
+        ttl: PT24H
+        runner-home-dir: /actions-runner
+  checkout:
+    name: Checkout sources
+    needs: start-vm
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 2
+        path: ytsaurus
+  venv:
+    name: Prepare Python venv
+    needs: checkout
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    timeout-minutes: 480
+    steps:
+    - name: Prepare python virtual environment
+      run: python3.11 -m venv ../venv
+  cmake-release:
+    name: Build cmake (release)
+    needs: venv
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    timeout-minutes: 480
+    steps:
+    - name: Create build directories
+      run: |
+        for prefix in build build_yql; do
+            build_dir=${{prefix}}_cmake_release
+            mkdir -p ../${{build_dir}}
+            cd ../${{build_dir}}
+            rm -rf *
+        done
+    - name: Configure ytsaurus (release)
+      run: |
+        mkdir -p ~/.conan2/
+        cat > ~/.conan2/global.conf <<EOF
+        core.net.http:timeout=5
+        core.sources:download_urls=["origin", "https://c3i.jfrog.io/artifactory/conan-center-backup-sources"]
+        EOF
+
+        cd ../build_cmake_release
+        cmake \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/ytsaurus/clang.toolchain \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DREQUIRED_LLVM_TOOLING_VERSION=18 \
+            -DCMAKE_PROJECT_TOP_LEVEL_INCLUDES=./cmake/conan_provider.cmake \
+            ../ytsaurus/ytsaurus
+
+        ccache --set-config base_dir="$(realpath ..)"
+        ccache --set-config remote_only=true
+        ccache --set-config remote_storage="http://${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}:${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}@${{ vars.BUILD_CACHE_BAZEL_HOST }}|layout=bazel"
+    - name: Build ytsaurus (cmake, release)
+      run: |
+        cd ../build_cmake_release
+        ninja
+  cmake-relwithdebinfo:
+    name: Build cmake (relwithdebinfo)
+    needs: venv
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    timeout-minutes: 480
+    steps:
+    - name: Create build directories
+      run: |
+        for prefix in build build_yql; do
+            build_dir=${{prefix}}_cmake_relwithdebinfo
+            mkdir -p ../${{build_dir}}
+            cd ../${{build_dir}}
+            rm -rf *
+        done
+    - name: Configure ytsaurus (relwithdebinfo)
+      run: |
+        mkdir -p ~/.conan2/
+        cat > ~/.conan2/global.conf <<EOF
+        core.net.http:timeout=5
+        core.sources:download_urls=["origin", "https://c3i.jfrog.io/artifactory/conan-center-backup-sources"]
+        EOF
+
+        cd ../build_cmake_relwithdebinfo
+        cmake \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/ytsaurus/clang.toolchain \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DREQUIRED_LLVM_TOOLING_VERSION=18 \
+            -DCMAKE_PROJECT_TOP_LEVEL_INCLUDES=./cmake/conan_provider.cmake \
+            ../ytsaurus/ytsaurus
+
+        ccache --set-config base_dir="$(realpath ..)"
+        ccache --set-config remote_only=true
+        ccache --set-config remote_storage="http://${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}:${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}@${{ vars.BUILD_CACHE_BAZEL_HOST }}|layout=bazel"
+    - name: Build ytsaurus (cmake, relwithdebinfo)
+      run: |
+        cd ../build_cmake_relwithdebinfo
+        ninja ytserver-all ytserver-clickhouse
+  test-cmake:
+    name: Tests (cmake)
+    needs: cmake-relwithdebinfo
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    timeout-minutes: 480
+    steps:
+    - name: Unittests (cmake)
+      shell: bash
+      run: |
+        cp ./ytsaurus/yt/yt/scripts/run_unittests.sh ../build_cmake_relwithdebinfo
+        ln -s $(pwd)/../build_cmake_relwithdebinfo $(pwd)/../build
+        cd ../build
+        ./run_unittests.sh
+  stop-vm:
+    name: Stop VM
+    needs:
+    - start-vm
+    - cmake-release
+    - cmake-relwithdebinfo
+    - test-cmake
+    if: always()
+    runs-on: trampoline
+    steps:
+    - name: Stop YC runner
+      uses: yc-actions/yc-github-runner@v1
+      with:
+        mode: stop
+        yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+        github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+        label: ${{ needs.start-vm.outputs.label }}
+        instance-id: ${{ needs.start-vm.outputs.instance-id }}
+  send-alert:
+    name: Check status and send alert
+    needs:
+    - cmake-release
+    - cmake-relwithdebinfo
+    - test-cmake
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout notification script
+      uses: actions/checkout@v4
+      with:
+        path: ytsaurus
+        sparse-checkout-cone-mode: false
+        sparse-checkout: .github/scripts/send_notifications.py
+    - name: Prepare Python
+      run: pip install PyGithub==2.6.1
+    - name: Save conclusion (failure)
+      if: needs.cmake-release.result == 'failure' || needs.cmake-relwithdebinfo.result == 'failure' || needs.test-cmake.result == 'failure'
+      run: |
+        CURRENT_JOB_CONCLUSION=failure
+        echo "CURRENT_JOB_CONCLUSION=$CURRENT_JOB_CONCLUSION" >> $GITHUB_ENV
+    - name: Save conclusion (success)
+      if: "!(needs.cmake-release.result == 'failure' || needs.cmake-relwithdebinfo.result == 'failure' || needs.test-cmake.result == 'failure')"
+      run: |
+        CURRENT_JOB_CONCLUSION=success
+        echo "CURRENT_JOB_CONCLUSION=$CURRENT_JOB_CONCLUSION" >> $GITHUB_ENV
+    - name: Send telegram status report
+      id: send-telegram-status-report
+      run: |
+        python3 ytsaurus/.github/scripts/send_notifications.py \
+                --repo ${{ github.repository }} \
+                --git-token "${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}" \
+                --workflow "${{ github.workflow }}" \
+                --ref "${{ github.ref_name }}" \
+                --tg-token "${{ secrets.TELEGRAM_TOKEN }}" \
+                --tg-chat-id ${{ secrets.TELEGRAM_CHAT_ID }} \
+                --current-job-conclusion $CURRENT_JOB_CONCLUSION \
+                --current-job-id ${{ github.run_id }} \
+                --git-server-url "${{ github.api_url }}"
