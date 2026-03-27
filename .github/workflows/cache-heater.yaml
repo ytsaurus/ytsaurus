@@ -3,9 +3,6 @@
 
 name: Cache heater
 on:
-  push:
-    branches:
-    - members/ilyaibraev/check-wfgen
   schedule:
   - cron: 0 2,15 * * *
   workflow_dispatch:

@@ -52,7 +52,9 @@ jobs:
         path: ytsaurus
   venv:
     name: Prepare Python venv
-    needs: checkout
+    needs:
+    - start-vm
+    - checkout
     runs-on: ${{ needs.start-vm.outputs.label }}
     timeout-minutes: 480
     steps:
@@ -60,7 +62,9 @@ jobs:
       run: python3.11 -m venv ../venv
   cmake-release:
     name: Build cmake (release)
-    needs: venv
+    needs:
+    - start-vm
+    - venv
     runs-on: ${{ needs.start-vm.outputs.label }}
     timeout-minutes: 480
     steps:
@@ -100,7 +104,9 @@ jobs:
         ninja
   cmake-relwithdebinfo:
     name: Build cmake (relwithdebinfo)
-    needs: venv
+    needs:
+    - start-vm
+    - venv
     runs-on: ${{ needs.start-vm.outputs.label }}
     timeout-minutes: 480
     steps:
@@ -140,7 +146,9 @@ jobs:
         ninja ytserver-all ytserver-clickhouse
   test-cmake:
     name: Tests (cmake)
-    needs: cmake-relwithdebinfo
+    needs:
+    - start-vm
+    - cmake-relwithdebinfo
     runs-on: ${{ needs.start-vm.outputs.label }}
     timeout-minutes: 480
     steps:

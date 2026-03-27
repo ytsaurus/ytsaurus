@@ -6,7 +6,6 @@ on:
   push:
     branches:
     - main
-    - members/ilyaibraev/check-wfgen
 jobs:
   check:
     name: Run checks

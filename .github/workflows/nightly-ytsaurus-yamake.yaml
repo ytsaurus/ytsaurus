@@ -52,7 +52,9 @@ jobs:
         path: ytsaurus
   venv:
     name: Prepare Python venv
-    needs: checkout
+    needs:
+    - start-vm
+    - checkout
     runs-on: ${{ needs.start-vm.outputs.label }}
     timeout-minutes: 480
     steps:
@@ -60,7 +62,9 @@ jobs:
       run: python3.11 -m venv ../venv
   tag:
     name: Calculate docker tag
-    needs: checkout
+    needs:
+    - start-vm
+    - checkout
     runs-on: ${{ needs.start-vm.outputs.label }}
     outputs:
       image-tag: ${{ steps.tag.outputs.IMAGE_TAG }}
@@ -90,7 +94,9 @@ jobs:
         echo "NIGHTLY_IMAGE_TAG=$NIGHTLY_IMAGE_TAG" >> $GITHUB_OUTPUT
   gpu-agent:
     name: Build GPU Agent
-    needs: venv
+    needs:
+    - start-vm
+    - venv
     runs-on: ${{ needs.start-vm.outputs.label }}
     timeout-minutes: 480
     steps:
@@ -101,7 +107,9 @@ jobs:
         /opt/go/bin/go build -o gpuagent ./cmd/agent
   yamake-release:
     name: Build ya-make (release)
-    needs: venv
+    needs:
+    - start-vm
+    - venv
     runs-on: ${{ needs.start-vm.outputs.label }}
     timeout-minutes: 480
     steps:
@@ -191,7 +199,9 @@ jobs:
         ../ytsaurus/ytsaurus/yt/docker/ya-build/query-tracker/build_yql_agent.sh ${SCRIPT_FLAGS}
   yamake-relwithdebinfo:
     name: Build ya-make (relwithdebinfo)
-    needs: venv
+    needs:
+    - start-vm
+    - venv
     runs-on: ${{ needs.start-vm.outputs.label }}
     timeout-minutes: 480
     steps:
@@ -307,7 +317,9 @@ jobs:
         ../ytsaurus/ytsaurus/yt/docker/ya-build/query-tracker/build_yql_agent.sh ${SCRIPT_FLAGS}
   test-yamake:
     name: Tests (ya-make)
-    needs: yamake-relwithdebinfo
+    needs:
+    - start-vm
+    - yamake-relwithdebinfo
     runs-on: ${{ needs.start-vm.outputs.label }}
     timeout-minutes: 480
     steps:
@@ -330,6 +342,7 @@ jobs:
   docker-release:
     name: Docker push (release)
     needs:
+    - start-vm
     - yamake-release
     - gpu-agent
     - tag
@@ -449,6 +462,7 @@ jobs:
   docker-relwithdebinfo:
     name: Docker push (relwithdebinfo)
     needs:
+    - start-vm
     - yamake-relwithdebinfo
     - gpu-agent
     - tag

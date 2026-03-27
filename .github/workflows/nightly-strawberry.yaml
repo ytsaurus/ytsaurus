@@ -7,34 +7,20 @@ on:
     branches:
     - main
     - stable/[0-9]+\.[0-9]+
-    - members/ilyaibraev/check-wfgen
   workflow_dispatch:
 jobs:
-  checkout:
-    name: Checkout sources
+  build-and-push:
+    name: Build and push Strawberry
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
       uses: actions/checkout@v3
       with:
         path: ytsaurus
-  build-strawberry:
-    name: Build Strawberry controller
-    needs: checkout
-    runs-on: ubuntu-latest
-    steps:
     - name: Build strawberry controller
       run: |
         cd ytsaurus/yt/chyt/controller/cmd/chyt-controller
         go build
-  tag:
-    name: Calculate docker tag
-    needs: checkout
-    runs-on: ubuntu-latest
-    outputs:
-      image-tag: ${{ steps.tag.outputs.IMAGE_TAG }}
-      nightly-image-tag: ${{ steps.tag.outputs.NIGHTLY_IMAGE_TAG }}
-    steps:
     - name: Calculate docker tag
       id: tag
       run: |
@@ -57,13 +43,6 @@ jobs:
         NIGHTLY_IMAGE_TAG=${IMAGE_TAG}-$(git -C ytsaurus show -s --pretty=%cs)-${{ github.sha }}
         echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
         echo "NIGHTLY_IMAGE_TAG=$NIGHTLY_IMAGE_TAG" >> $GITHUB_OUTPUT
-  docker-push:
-    name: Docker push strawberry
-    needs:
-    - build-strawberry
-    - tag
-    runs-on: ubuntu-latest
-    steps:
     - name: Setup retry function
       run: |
         cat << 'EOF' > docker-jobs-retry.sh
@@ -105,21 +84,19 @@ jobs:
                 --component strawberry \
                 --ytsaurus-source-path $(pwd)/ytsaurus \
                 --output-path ../docker-strawberry \
-                --image-tag ${{ needs.tag.outputs.image-tag }} \
+                --image-tag ${{ steps.tag.outputs.IMAGE_TAG }} \
                 --image-cr ghcr.io/ \
                 --apt-mirror ${{ vars.APT_MIRROR }}
 
-        retry docker push ghcr.io/ytsaurus/strawberry:${{ needs.tag.outputs.image-tag }}
-        docker tag ghcr.io/ytsaurus/strawberry:${{ needs.tag.outputs.image-tag }} ghcr.io/ytsaurus/strawberry-nightly:${{ needs.tag.outputs.nightly-image-tag }}
-        retry docker push ghcr.io/ytsaurus/strawberry-nightly:${{ needs.tag.outputs.nightly-image-tag }}
+        retry docker push ghcr.io/ytsaurus/strawberry:${{ steps.tag.outputs.IMAGE_TAG }}
+        docker tag ghcr.io/ytsaurus/strawberry:${{ steps.tag.outputs.IMAGE_TAG }} ghcr.io/ytsaurus/strawberry-nightly:${{ steps.tag.outputs.NIGHTLY_IMAGE_TAG }}
+        retry docker push ghcr.io/ytsaurus/strawberry-nightly:${{ steps.tag.outputs.NIGHTLY_IMAGE_TAG }}
     - name: Clear workspace
       if: always()
       run: rm -rf ../docker-strawberry
   send-alert:
     name: Check status and send alert
-    needs:
-    - build-strawberry
-    - docker-push
+    needs: build-and-push
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -132,12 +109,12 @@ jobs:
     - name: Prepare Python
       run: pip install PyGithub==2.6.1
     - name: Save conclusion (failure)
-      if: needs.build-strawberry.result == 'failure' || needs.docker-push.result == 'failure'
+      if: needs.build-and-push.result == 'failure'
       run: |
         CURRENT_JOB_CONCLUSION=failure
         echo "CURRENT_JOB_CONCLUSION=$CURRENT_JOB_CONCLUSION" >> $GITHUB_ENV
     - name: Save conclusion (success)
-      if: "!(needs.build-strawberry.result == 'failure' || needs.docker-push.result == 'failure')"
+      if: "!(needs.build-and-push.result == 'failure')"
       run: |
         CURRENT_JOB_CONCLUSION=success
         echo "CURRENT_JOB_CONCLUSION=$CURRENT_JOB_CONCLUSION" >> $GITHUB_ENV
