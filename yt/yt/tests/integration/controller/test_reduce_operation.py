@@ -3660,7 +3660,7 @@ class TestReduceJobSizeAdjuster(YTEnvSetup):
                 job_id = next(iter(jobs))
                 try:
                     time.sleep(1.5)  # Wait a bit until job starts reading.
-                    op.interrupt_job(job_id)
+                    op.interrupt_job(job_id, raise_on_failed_interruption=False)
                     print_debug(f"Successfully interrupted {job_id}")
                 except YtError:
                     print_debug(f"Failed to interrupt {job_id}")
