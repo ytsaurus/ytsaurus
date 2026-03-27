@@ -271,8 +271,7 @@ public:
 
         GetRpcServer()->RegisterService(CreateDataNodeNbdService(this, DataNodeLogger()));
 
-        GetRpcServer()->RegisterService(CreateDistributedChunkSessionService(
-            GetConfig()->DataNode->DistributedChunkSessionService,
+        GetRpcServer()->RegisterService(NDistributedChunkSessionServer::CreateDistributedChunkSessionService(
             GetStorageLightInvoker(),
             GetConnection()));
 

@@ -54,6 +54,8 @@ public:
         TJournalChunkWriterOptionsPtr options,
         TJournalChunkWriterConfigPtr config,
         TJournalWriterPerformanceCounters counters,
+        IInvokerPtr invoker,
+        std::optional<TChunkReplicaWithMediumList> targets,
         const NLogging::TLogger& logger)
         : Client_(std::move(client))
         , SessionId_(sessionId)
@@ -62,8 +64,14 @@ public:
         , Config_(std::move(config))
         , Counters_(std::move(counters))
         , ReplicaCount_(GetReplicaCount(Options_))
+        , Invoker_(CreateSerializedInvoker(std::move(invoker)))
+        , WriteTargets_(std::move(targets))
         , Logger(logger.WithTag("ChunkId: %v", ChunkId_))
-    { }
+    {
+        if (WriteTargets_) {
+            YT_VERIFY(std::ssize(*WriteTargets_) == ReplicaCount_);
+        }
+    }
 
     TFuture<void> Open() override
     {
@@ -130,7 +138,9 @@ private:
 
     const int ReplicaCount_;
 
-    const IInvokerPtr Invoker_ = CreateSerializedInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker());
+    const IInvokerPtr Invoker_;
+
+    std::optional<TChunkReplicaWithMediumList> WriteTargets_;
 
     const NLogging::TLogger Logger;
 
@@ -219,10 +229,16 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-        auto writeTargets = AllocateWriteTargets();
-        CreateNodes(writeTargets);
+        if (WriteTargets_) {
+            YT_LOG_DEBUG("Write targets were preallocated (SessionId: %v, Targets: %v)",
+                SessionId_,
+                *WriteTargets_);
+        } else {
+            WriteTargets_ = AllocateWriteTargets();
+        }
+        CreateNodes(*WriteTargets_);
         StartChunkSessions();
-        ConfirmChunk(writeTargets);
+        ConfirmChunk(*WriteTargets_);
     }
 
     TChunkReplicaWithMediumList AllocateWriteTargets()
@@ -832,6 +848,8 @@ IJournalChunkWriterPtr CreateJournalChunkWriter(
     TJournalChunkWriterOptionsPtr options,
     TJournalChunkWriterConfigPtr config,
     TJournalWriterPerformanceCounters counters,
+    IInvokerPtr invoker,
+    std::optional<TChunkReplicaWithMediumList> targets,
     const NLogging::TLogger& logger)
 {
     return New<TJournalChunkWriter>(
@@ -840,6 +858,8 @@ IJournalChunkWriterPtr CreateJournalChunkWriter(
         std::move(options),
         std::move(config),
         std::move(counters),
+        std::move(invoker),
+        std::move(targets),
         logger);
 }
 

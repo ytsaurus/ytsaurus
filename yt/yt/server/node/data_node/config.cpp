@@ -1013,9 +1013,6 @@ void TDataNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("p2p", &TThis::P2P)
         .DefaultNew();
 
-    registrar.Parameter("distributed_chunk_session_service", &TThis::DistributedChunkSessionService)
-        .DefaultNew();
-
     registrar.Parameter("enable_trash_scanning_barrier", &TThis::EnableTrashScanningBarrier)
         .Default(false);
 
