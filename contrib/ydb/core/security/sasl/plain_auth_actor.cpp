@@ -59,7 +59,9 @@ public:
             return CleanupAndDie(ctx);
         }
 
-        ProcessAuthMsg(ctx);
+        if (!ProcessAuthMsg(ctx)) {
+            return;
+        }
 
         const auto [credsLookupResult, userHashInitParams] = TStaticCredentialsProvider::GetInstance()
             .GetUserHashInitParams(Database, AuthcId);
@@ -71,7 +73,7 @@ public:
                 ", " << "Authentication failed: " << error
             );
             SendError(NKikimrIssues::TIssuesIds::DATABASE_NOT_EXIST, error);
-            return;
+            return CleanupAndDie(ctx);
         } else if (credsLookupResult == TStaticCredentialsProvider::UnknownUser) {
             std::stringstream error;
             error << "Cannot find user '" << AuthcId << "'";
@@ -96,7 +98,10 @@ public:
             return;
         }
 
-        ComputeHash(ctx, userHashInitParams);
+        if (!ComputeHash(ctx, userHashInitParams)) {
+            return;
+        }
+
         ResolveSchemeShard(ctx);
         return;
     }
@@ -158,7 +163,7 @@ private:
         return Base64Encode(serverKey);
     }
 
-    void ComputeHash(const TActorContext &ctx,
+    bool ComputeHash(const TActorContext &ctx,
         const std::unordered_map<NLoginProto::EHashType::HashType, std::string>& hashesInitParams)
     {
         std::string computedHash;
@@ -179,7 +184,8 @@ private:
                         "'" << AuthcId << "' has broken Argon hash";
                     );
                     SendError(NKikimrIssues::TIssuesIds::UNEXPECTED, "");
-                    return CleanupAndDie(ctx);
+                    CleanupAndDie(ctx);
+                    return false;
                 }
 
                 const auto argonSalt = Base64StrictDecode(itHashesInitParams->second);
@@ -195,7 +201,8 @@ private:
                         ", " << error
                     );
                     SendError(NKikimrIssues::TIssuesIds::ACCESS_DENIED, error);
-                    return CleanupAndDie(ctx);
+                    CleanupAndDie(ctx);
+                    return false;
                 }
 
                 const auto scramInitParams = ParseScramHashInitParams(itHashesInitParams->second);
@@ -208,7 +215,8 @@ private:
                         "'" << AuthcId << "' has broken Scram hash";
                     );
                     SendError(NKikimrIssues::TIssuesIds::UNEXPECTED, "");
-                    return CleanupAndDie(ctx);
+                    CleanupAndDie(ctx);
+                    return false;
                 }
 
                 const auto scramSalt = Base64StrictDecode(scramInitParams.Salt);
@@ -222,7 +230,8 @@ private:
                         ", " << error
                     );
                     SendError(NKikimrIssues::TIssuesIds::ACCESS_DENIED, error);
-                    return CleanupAndDie(ctx);
+                    CleanupAndDie(ctx);
+                    return false;
                 }
 
                 ComputedHash = std::move(scramHash);
@@ -240,8 +249,11 @@ private:
                 "'" << AuthcId << "' has no hashes";
             );
             SendError(NKikimrIssues::TIssuesIds::UNEXPECTED, "");
-            return CleanupAndDie(ctx);
+            CleanupAndDie(ctx);
+            return false;
         }
+
+        return true;
     }
 
     void SendResponse(std::unique_ptr<TEvSasl::TEvSaslPlainLoginResponse> response) const {
