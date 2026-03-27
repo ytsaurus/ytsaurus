@@ -1394,7 +1394,7 @@ TNodeId TSequoiaSession::MaterializeNodeOnMaster(
     EObjectType type,
     TNodeId /*existingNodeId*/)
 {
-    // TODO(h0pless): externalize.
+    // TODO(h0pless): externalize. YT-26855.
 
     auto createdNodeId = SequoiaTransaction_->GenerateObjectId(type, cellTagHint);
 
