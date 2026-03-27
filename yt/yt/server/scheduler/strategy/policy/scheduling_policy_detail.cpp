@@ -823,7 +823,7 @@ TSchedulingStageProfilingCounters::TSchedulingStageProfilingCounters(
     , UselessPrescheduleAllocationCount(profiler.Counter("/useless_preschedule_job_count"))
     , PrescheduleAllocationTime(profiler.Timer("/preschedule_job_time"))
     , TotalControllerScheduleAllocationTime(profiler.Timer("/controller_schedule_job_time/total"))
-    , ControllerScheduleAllocationTime(profiler.TimeGaugeSummary("/controller_schedule_job_time", ESummaryPolicy::Max | ESummaryPolicy::Avg))
+    , ControllerScheduleAllocationTime(profiler.Timer("/controller_schedule_job_time"))
     , ExecControllerScheduleAllocationTime(profiler.Timer("/controller_schedule_job_time/exec"))
     , StrategyScheduleAllocationTime(profiler.Timer("/strategy_schedule_job_time"))
     , PackingRecordHeartbeatTime(profiler.Timer("/packing_record_heartbeat_time"))
@@ -2337,7 +2337,7 @@ void TScheduleAllocationsContext::ProfileStageStatistics()
     profilingCounters->ControllerScheduleAllocationTimedOutCount.Increment(SchedulingStatistics().ControllerScheduleAllocationTimedOutCount);
 
     for (auto scheduleAllocationDuration : StageState_->ScheduleAllocationDurations) {
-        profilingCounters->ControllerScheduleAllocationTime.Update(scheduleAllocationDuration);
+        profilingCounters->ControllerScheduleAllocationTime.Record(scheduleAllocationDuration);
     }
 
     for (auto reason : TEnumTraits<EScheduleFailReason>::GetDomainValues()) {

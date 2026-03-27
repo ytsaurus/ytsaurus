@@ -225,7 +225,7 @@ struct TSchedulingStageProfilingCounters
     NProfiling::TCounter UselessPrescheduleAllocationCount;
     NProfiling::TEventTimer PrescheduleAllocationTime;
     NProfiling::TEventTimer TotalControllerScheduleAllocationTime;
-    NProfiling::TTimeGauge ControllerScheduleAllocationTime;
+    NProfiling::TEventTimer ControllerScheduleAllocationTime;
     NProfiling::TEventTimer ExecControllerScheduleAllocationTime;
     NProfiling::TEventTimer StrategyScheduleAllocationTime;
     NProfiling::TEventTimer PackingRecordHeartbeatTime;
