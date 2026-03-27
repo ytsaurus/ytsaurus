@@ -325,6 +325,9 @@ const TChunkReplication& TChunkOwnerBase::EffectiveHunkReplication() const
     }
 }
 
+void TChunkOwnerBase::ValidateBeginUpload(const TBeginUploadContext& /*context*/)
+{ }
+
 void TChunkOwnerBase::BeginUpload(const TBeginUploadContext& context)
 {
     UpdateMode_ = context.Mode;

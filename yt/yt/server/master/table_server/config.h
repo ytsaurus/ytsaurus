@@ -33,6 +33,9 @@ struct TDynamicTableManagerConfig
     ui64 ColumnToConstraintLogLimit;
     bool EnableColumnConstraintsForTables;
 
+    // COMPAT(h0pless): Remove this in 26.1.
+    bool ValidateNoDescendingSortOrder;
+
     REGISTER_YSON_STRUCT(TDynamicTableManagerConfig)
 
     static void Register(TRegistrar registrar);

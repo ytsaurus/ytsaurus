@@ -1,5 +1,6 @@
 #include "table_node.h"
 
+#include "config.h"
 #include "private.h"
 #include "master_table_schema.h"
 #include "mount_config_attributes.h"
@@ -243,6 +244,21 @@ const TTableNode* TTableNode::GetTrunkNode() const
     return TTabletOwnerBase::GetTrunkNode()->As<TTableNode>();
 }
 
+void TTableNode::ValidateBeginUpload(const TBeginUploadContext& context)
+{
+    // COMPAT(h0pless): This check protects from requests from pre-24.2 clients.
+    // It is safe to remove once we become brave enough.
+    YT_LOG_ALERT_AND_THROW_UNLESS(context.TableSchema, "Schema is missing in begin upload context");
+
+    const auto& config = context.Bootstrap->GetConfigManager()->GetConfig();
+    if (config->TableManager->ValidateNoDescendingSortOrder) {
+        if (!config->EnableDescendingSortOrder || (IsDynamic() && !config->EnableDescendingSortOrderDynamic)) {
+            const auto& compactTableSchema = context.TableSchema->AsCompactTableSchema();
+            ValidateNoDescendingSortOrder(compactTableSchema->GetSortOrders(), compactTableSchema->GetKeyColumns());
+        }
+    }
+}
+
 void TTableNode::BeginUpload(const TBeginUploadContext &context)
 {
     const auto& tableManager = context.Bootstrap->GetTableManager();
@@ -267,7 +283,6 @@ void TTableNode::BeginUpload(const TBeginUploadContext &context)
         SchemaMode_ = *context.SchemaMode;
     }
 
-    YT_LOG_ALERT_AND_THROW_UNLESS(context.TableSchema, "Schema is missing in begin upload context");
     tableManager->SetTableSchema(this, context.TableSchema);
 
     TTabletOwnerBase::BeginUpload(context);
