@@ -1308,7 +1308,7 @@ class TestReadSizeEstimation(_TestColumnarStatisticsBase):
                 (200 + 400 + 800 + 1600 + 3200 + 6400) * 150,  # small + large_1 + large_2.
                 0 if strict else (12800 + 25600) * 150,  # unknown1 + unknown2.
                 ]):
-            assert expected_size * (1. - delta) <= statistic["read_size_estimation"] <= expected_size * (1. + delta)
+            assert expected_size * (1. - delta) <= statistic["read_size_estimate"] <= expected_size * (1. + delta)
 
     @authors("apollo1321")
     @pytest.mark.timeout(300)
@@ -1329,4 +1329,4 @@ class TestReadSizeEstimation(_TestColumnarStatisticsBase):
         delta = 0.03 if mode == "from_nodes" else 0.10
 
         for statistic in statistics:
-            assert expected_size * (1. - delta) <= statistic["read_size_estimation"] <= expected_size * (1. + delta)
+            assert expected_size * (1. - delta) <= statistic["read_size_estimate"] <= expected_size * (1. + delta)
