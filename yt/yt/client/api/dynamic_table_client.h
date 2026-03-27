@@ -94,7 +94,6 @@ struct TLookupRowsResult
 
     //! If TMultiLookupOptions::AllowFailure is set, this field contains the error
     //! for failed subrequests (e.g., table does not exist or is unmounted).
-    //! When set, Rowset may be null or empty.
     std::optional<TError> Error;
 };
 
