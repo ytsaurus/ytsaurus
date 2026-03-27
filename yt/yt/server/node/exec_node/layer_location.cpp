@@ -1453,7 +1453,7 @@ void TLayerLocation::RemoveVolumes(
         .WithTag("Path: %v", path);
 
     YT_LOG_DEBUG(
-        "Waiting for volumes to be removed (DeadLine: %v)",
+        "Removing volumes (DeadLine: %v)",
         deadLine);
 
     auto checkDeadLine = [&] {
@@ -1483,7 +1483,11 @@ void TLayerLocation::RemoveVolumes(
             }
 
             if (volume.State == "destroyed" || volume.State == "unlinked") {
-                // Skip destroyed and unlinked volumes.
+                // Skipping destroyed and unlinked volumes.
+                YT_LOG_DEBUG(
+                    "Skipping volume (VolumePath: %v, State: %v)",
+                    volume.Path,
+                    volume.State);
                 continue;
             }
 
