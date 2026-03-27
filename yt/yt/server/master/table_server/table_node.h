@@ -162,6 +162,7 @@ public:
     TTableNode* GetTrunkNode();
     const TTableNode* GetTrunkNode() const;
 
+    void ValidateBeginUpload(const TBeginUploadContext& context) override;
     void BeginUpload(const TBeginUploadContext& context) override;
 
     void EndUpload(const TEndUploadContext& context) override;
