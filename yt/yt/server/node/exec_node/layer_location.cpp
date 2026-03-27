@@ -1453,7 +1453,7 @@ void TLayerLocation::RemoveVolumes(
         .WithTag("Path: %v", path);
 
     YT_LOG_DEBUG(
-        "Removing volumes (DeadLine: %v)",
+        "Removing volumes from path (DeadLine: %v)",
         deadLine);
 
     auto checkDeadLine = [&] {
