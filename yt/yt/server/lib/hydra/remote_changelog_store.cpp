@@ -690,10 +690,10 @@ private:
 
         TFuture<void> FlushPendingRecords()
         {
+            auto guard = Guard(WriterLock_);
+
             YT_LOG_DEBUG("Journal writer opened; flushing pending records (PendingRecordCount: %v)",
                 PendingRecords_.size());
-
-            auto guard = Guard(WriterLock_);
 
             auto rows = std::exchange(PendingRecords_, {});
             auto flushedFuture = rows.empty() ? OKFuture : Writer_->Write(TRange(rows));
