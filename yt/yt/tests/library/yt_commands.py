@@ -1467,7 +1467,11 @@ class Operation(object):
 
         return get(job_orchid_path, verbose=False, driver=self._driver)
 
-    def interrupt_job(self, job_id, interruption_timeout=10000):
+    def interrupt_job(self, job_id, interruption_timeout=10000, raise_on_failed_interruption=True):
+        """
+        Interrupt job. If raise_on_failed_interruption is True and job was completed
+        (and not interrupted), raise an error.
+        """
 
         @wait
         def _wait_running():
@@ -1478,7 +1482,17 @@ class Operation(object):
 
         interrupt_job(job_id, interruption_timeout)
 
-        wait(lambda: self.get_job_node_orchid(job_id)["interrupted"])
+        @wait
+        def _wait_interrupted():
+            orchid = self.get_job_node_orchid(job_id)
+            if orchid["job_state"] == "completed":
+                if not orchid["interrupted"]:
+                    print_debug(f"Job {job_id} completed naturally")
+                    if raise_on_failed_interruption:
+                        raise YtError("Job completed without interruption")
+
+                return True
+            return orchid["interrupted"]
 
     def get_job_phase(self, job_id):
         job_orchid = self.get_job_node_orchid(job_id)
