@@ -189,10 +189,20 @@ public:
         return ChaosLeaseTracker_->PingTransaction(chaosLeaseId, pingAncestors);
     }
 
-    TChaosLease* GetChaosLeaseOrThrow(TChaosLeaseId chaosLeaseId) const override
+    TChaosLease* GetChaosLeaseOrThrowWithValidate(TChaosLeaseId chaosLeaseId) const
     {
         ValidateEnabledState();
 
+        auto* chaosLease = FindChaosLease(chaosLeaseId);
+        if (!chaosLease) {
+            ThrowChaosLeaseNotKnown(chaosLeaseId);
+        }
+
+        return chaosLease;
+    }
+
+    TChaosLease* GetChaosLeaseOrThrow(TChaosLeaseId chaosLeaseId) const override
+    {
         auto* chaosLease = FindChaosLease(chaosLeaseId);
         if (!chaosLease) {
             ThrowChaosLeaseNotKnown(chaosLeaseId);
@@ -235,10 +245,9 @@ public:
 
         for (const auto& protoChaosLease : request->chaos_leases()) {
             auto chaosLeaseId = FromProto<TChaosLeaseId>(protoChaosLease.chaos_lease_id());
-            createdLeaseIds.push_back(chaosLeaseId);
-            nestedLeaseIds.push_back(chaosLeaseId);
             auto* chaosLease = FindChaosLease(chaosLeaseId);
             if (!chaosLease) {
+                createdLeaseIds.push_back(chaosLeaseId);
                 auto chaosLeaseHolder = std::make_unique<TChaosLease>(chaosLeaseId);
                 chaosLease = ChaosLeaseMap_.Insert(chaosLeaseId, std::move(chaosLeaseHolder));
                 YT_LOG_DEBUG("Chaos lease created for immigration (ChaosLeaseId: %v)",
@@ -462,9 +471,17 @@ private:
             if (chaosLease->GetState() == EChaosLeaseState::RevokingShortcutsForMigration &&
                 chaosLease->Coordinators().empty())
             {
-                auto* rootLease = chaosLease->IsRoot()
-                    ? chaosLease
-                    : GetChaosLeaseOrThrow(chaosLease->GetRootId());
+                TChaosLease* rootLease;
+                // COMPAT(gryzlov-ad)
+                if (reign < EChaosReign::ChaosLeaseEnabledValidationDuringGet) {
+                    rootLease = chaosLease->IsRoot()
+                        ? chaosLease
+                        : GetChaosLeaseOrThrowWithValidate(chaosLease->GetRootId());
+                } else {
+                    rootLease = chaosLease->IsRoot()
+                        ? chaosLease
+                        : GetChaosLeaseOrThrow(chaosLease->GetRootId());
+                }
 
                 // TODO(osidorkin) Can do this more optimally if some extra data is stored inside lease object.
                 std::vector<TChaosLease*> traversedLeases;
@@ -808,7 +825,7 @@ private:
             siblingChaosCellTag);
     }
 
-    void ValidateEnabledState() const
+    void ValidateEnabledState() const override
     {
         if (State_ != EChaosLeaseManagerState::Enabled) {
             ThrowCellIsNotEnabled(State_);
