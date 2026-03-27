@@ -142,7 +142,7 @@ class TNewSortedJobBuilder
 {
 public:
     TNewSortedJobBuilder(
-        const TSortedJobOptions& options,
+        const TSortedJobOptions& options Y_LIFETIME_BOUND,
         IJobSizeConstraintsPtr jobSizeConstraints,
         TRowBufferPtr rowBuffer,
         const std::vector<TInputChunkPtr>& teleportChunks,
