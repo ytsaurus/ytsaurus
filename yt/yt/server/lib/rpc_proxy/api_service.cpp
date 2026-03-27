@@ -4528,8 +4528,6 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, MultiLookup)
                 if (result.Error) {
                     ToProto(subresponse->mutable_error(), *result.Error);
                     subresponse->set_attachment_count(0);
-                    // Create an empty rowset descriptor for failed subrequests
-                    // The descriptor is required by proto, but will have no columns since we have no schema
                     subresponse->mutable_rowset_descriptor();
                     rowCounts.push_back(0);
                 } else {
