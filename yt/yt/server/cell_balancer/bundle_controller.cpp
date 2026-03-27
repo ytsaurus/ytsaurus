@@ -555,9 +555,9 @@ private:
         CreateTabletCells(transaction, mutations.CellsToCreate);
         RemoveTabletCells(transaction, mutations.CellsToRemove);
 
-        if (mutations.DynamicConfig) {
+        if (mutations.BundlesDynamicConfig) {
             DynamicConfigUpdateCounter_.Increment();
-            SetBundlesDynamicConfig(transaction, *mutations.DynamicConfig);
+            SetBundlesDynamicConfig(transaction, *mutations.BundlesDynamicConfig);
         }
 
         SetBundleAttributes(transaction, TabletCellBundlesPath, BundleTabletStaticMemoryLimits, mutations.ChangedTabletStaticMemory);
@@ -1204,7 +1204,7 @@ private:
             {Config_->HulkDeallocationsPath, Config_->HulkDeallocationsHistoryPath},
             GetAliveDeallocationsId(inputState));
 
-        inputState.DynamicConfig = GetBundlesDynamicConfig(transaction);
+        inputState.BundlesDynamicConfig = GetBundlesDynamicConfig(transaction);
 
         inputState.SysConfig = GetSystemConfig(transaction);
 

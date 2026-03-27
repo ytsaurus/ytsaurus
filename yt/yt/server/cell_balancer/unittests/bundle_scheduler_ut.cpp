@@ -1692,14 +1692,14 @@ TEST_P(TBundleSchedulerTest, CheckDynamicConfig)
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
 
-    EXPECT_TRUE(mutations.DynamicConfig);
+    EXPECT_TRUE(mutations.BundlesDynamicConfig);
 
-    input.DynamicConfig = *mutations.DynamicConfig;
+    input.BundlesDynamicConfig = *mutations.BundlesDynamicConfig;
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
 
     // Dynamic config did not change.
-    EXPECT_FALSE(mutations.DynamicConfig);
+    EXPECT_FALSE(mutations.BundlesDynamicConfig);
 
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
@@ -1709,7 +1709,7 @@ TEST_P(TBundleSchedulerTest, CheckDynamicConfig)
     ScheduleBundles(input, &mutations);
 
     // Dynamic config is changed.
-    EXPECT_TRUE(mutations.DynamicConfig);
+    EXPECT_TRUE(mutations.BundlesDynamicConfig);
     CheckEmptyAlerts(mutations);
 }
 
@@ -1735,14 +1735,14 @@ TEST_P(TBundleSchedulerTest, CheckMediumThroughputLimits)
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
 
-    EXPECT_TRUE(mutations.DynamicConfig);
+    EXPECT_TRUE(mutations.BundlesDynamicConfig);
 
-    input.DynamicConfig = *mutations.DynamicConfig;
+    input.BundlesDynamicConfig = *mutations.BundlesDynamicConfig;
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
 
     // Dynamic config did not change.
-    EXPECT_FALSE(mutations.DynamicConfig);
+    EXPECT_FALSE(mutations.BundlesDynamicConfig);
 
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
@@ -1754,7 +1754,7 @@ TEST_P(TBundleSchedulerTest, CheckMediumThroughputLimits)
     ScheduleBundles(input, &mutations);
 
     // Dynamic config is changed.
-    EXPECT_TRUE(mutations.DynamicConfig);
+    EXPECT_TRUE(mutations.BundlesDynamicConfig);
     CheckEmptyAlerts(mutations);
 }
 
@@ -4699,8 +4699,8 @@ TEST_P(TNodeTagsFilterManager, TestSpareNodesAreNotAssignedDuringWriteThreadPool
             ScheduleBundles(input, &mutations);
             EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->RemovingCells));
             EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->SpareNodeAssignments));
-            ASSERT_TRUE(mutations.DynamicConfig.has_value());
-            input.DynamicConfig = *mutations.DynamicConfig;
+            ASSERT_TRUE(mutations.BundlesDynamicConfig.has_value());
+            input.BundlesDynamicConfig = *mutations.BundlesDynamicConfig;
         }
         {
             bundleInfo->TargetConfig->CpuLimits->WriteThreadPoolSize = changedWriteThreadPoolSize;
@@ -4710,7 +4710,7 @@ TEST_P(TNodeTagsFilterManager, TestSpareNodesAreNotAssignedDuringWriteThreadPool
                 nodeCountPerDc * GetActiveDataCenterCount() * (initialWriteThreadPoolSize - changedWriteThreadPoolSize) / peerCount,
                 std::ssize(mutations.ChangedStates["bigd"]->RemovingCells));
             EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->SpareNodeAssignments));
-            EXPECT_FALSE(mutations.DynamicConfig.has_value());
+            EXPECT_FALSE(mutations.BundlesDynamicConfig.has_value());
         }
     }
 }

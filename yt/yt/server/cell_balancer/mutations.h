@@ -69,7 +69,7 @@ public:
     std::string LastBundleWithChangedRootSystemAccountLimit;
     TAccountResourcesPtr ChangedRootSystemAccountLimit;
 
-    std::optional<TBundlesDynamicConfig> DynamicConfig;
+    std::optional<TBundlesDynamicConfig> BundlesDynamicConfig;
 
     THashSet<std::string> NodesToCleanup;
     THashSet<std::string> ProxiesToCleanup;
