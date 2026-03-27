@@ -24,13 +24,14 @@ message TReqStartForeignTransaction
     required NYT.NProto.TGuid id = 1;
     optional NYT.NProto.TGuid parent_id = 2;
     optional string title = 3;
-    required bool upload = 4;
     optional string operation_type = 5;
     optional string operation_id = 6;
     optional string operation_title = 7;
 
     optional string user = 8;
 
+    // COMPAT(h0pless): RemoveCompatsAroundStartTransaction.
+    optional bool upload = 4;
 
     // COMPAT(kvk1920): remove after 24.2.
     optional bool enable_native_tx_externalization = 9 [default = false];

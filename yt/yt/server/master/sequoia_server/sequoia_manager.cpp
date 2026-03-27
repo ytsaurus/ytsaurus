@@ -231,12 +231,11 @@ private:
         NTransactionServer::TTransaction* transaction = nullptr;
 
         try {
-            transaction = transactionManager->StartSystemTransaction(
-                /*replicatedToCellTags*/ {},
+            transaction = transactionManager->StartSequoiaTransaction(
+                transactionId,
                 timeout,
                 title,
-                *attributes,
-                transactionId);
+                *attributes);
         } catch (const std::exception& ex) {
             YT_LOG_ALERT(ex, "Failed to start Sequoia transaction (TransactionId: %v)", transactionId);
             throw;

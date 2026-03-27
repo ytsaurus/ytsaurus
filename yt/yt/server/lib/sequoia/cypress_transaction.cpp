@@ -550,7 +550,6 @@ public:
         ToProto(subrequest->mutable_parent_id(), cypressTransaction.AncestorIds.empty()
             ? NullTransactionId
             : cypressTransaction.AncestorIds.back());
-        subrequest->set_upload(false);
         subrequest->set_enable_native_tx_externalization(true);
 
         auto attributes = ConvertTo<IMapNodePtr>(cypressTransaction.Attributes);
