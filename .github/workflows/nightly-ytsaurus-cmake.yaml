@@ -67,9 +67,9 @@ jobs:
     - name: Create build directories
       run: |
         for prefix in build build_yql; do
-            build_dir=${{prefix}}_cmake_release
-            mkdir -p ../${{build_dir}}
-            cd ../${{build_dir}}
+            build_dir=${prefix}_cmake_release
+            mkdir -p ../${build_dir}
+            cd ../${build_dir}
             rm -rf *
         done
     - name: Configure ytsaurus (release)
@@ -107,9 +107,9 @@ jobs:
     - name: Create build directories
       run: |
         for prefix in build build_yql; do
-            build_dir=${{prefix}}_cmake_relwithdebinfo
-            mkdir -p ../${{build_dir}}
-            cd ../${{build_dir}}
+            build_dir=${prefix}_cmake_relwithdebinfo
+            mkdir -p ../${build_dir}
+            cd ../${build_dir}
             rm -rf *
         done
     - name: Configure ytsaurus (relwithdebinfo)

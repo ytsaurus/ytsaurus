@@ -44,17 +44,17 @@ jobs:
             if [[ $GITHUB_REF =~ main$ ]]; then
                 IMAGE_TAG=dev
             elif [[ $GITHUB_REF =~ stable ]]; then
-                IMAGE_TAG=dev-${{GITHUB_REF#refs/*/stable/}}
+                IMAGE_TAG=dev-${GITHUB_REF#refs/*/stable/}
             elif [[ $GITHUB_REF =~ "query-tracker" ]]; then
-                IMAGE_TAG=dev-${{GITHUB_REF#refs/*/query-tracker/}}
+                IMAGE_TAG=dev-${GITHUB_REF#refs/*/query-tracker/}
             elif [[ $GITHUB_REF =~ "chyt" ]]; then
-                IMAGE_TAG=dev-${{GITHUB_REF#refs/*/chyt/}}
+                IMAGE_TAG=dev-${GITHUB_REF#refs/*/chyt/}
             else
                 IMAGE_TAG=dev-test
             fi
         fi
 
-        NIGHTLY_IMAGE_TAG=${{IMAGE_TAG}}-$(git -C ytsaurus show -s --pretty=%cs)-${{ github.sha }}
+        NIGHTLY_IMAGE_TAG=${IMAGE_TAG}-$(git -C ytsaurus show -s --pretty=%cs)-${{ github.sha }}
         echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
         echo "NIGHTLY_IMAGE_TAG=$NIGHTLY_IMAGE_TAG" >> $GITHUB_OUTPUT
   docker-push:
