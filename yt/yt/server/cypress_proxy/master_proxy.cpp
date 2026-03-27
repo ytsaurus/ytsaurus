@@ -239,6 +239,7 @@ DEFINE_YPATH_SERVICE_METHOD(TMasterProxy, MaterializeNode)
     }
 
     // TODO(h0pless): Write type validation here when supporting the externalization.
+    // For more details see YT-26855.
     if (!IsSupportedSequoiaType(type)) {
         THROW_ERROR_EXCEPTION("Creation of %Qlv is not supported in Sequoia yet",
             type);

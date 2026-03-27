@@ -1221,11 +1221,11 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Create)
     ToProto(response->mutable_node_id(), createdNodeId);
     response->set_cell_tag(ToProto(CellTagFromId(createdNodeId)));
 
-    // TODO(h0pless): Add account info here, currently impossible to integrate properly due to the fact
-    // that there is no such attribute stored in Sequoia dynamic tables.
-    context->SetResponseInfo("NodeId: %v, CellTag: %v",
+    auto accountName = inheritedAttributes->Get<std::string>(EInternedAttributeKey::Account.Unintern());
+    context->SetResponseInfo("NodeId: %v, CellTag: %v, Account: %v",
         createdNodeId,
-        CellTagFromId(createdNodeId));
+        CellTagFromId(createdNodeId),
+        accountName);
 
     FinishSequoiaSessionAndReply(context, CellIdFromObjectId(attachmentPointNodeId), /*commitSession*/ true);
 }
@@ -2528,12 +2528,12 @@ private:
             ? FromProto<TAttributeFilter>(request->attributes())
             : TAttributeFilter();
 
-        // TODO(h0pless): Get rid of limit here.
+        // NB: Limit works for list, and not for get. This is a weird descion, but
+        // let's just mirror the behaviour of Cypress here.
         auto limit = YT_OPTIONAL_FROM_PROTO(*request, limit);
-
-        context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
-            limit,
-            attributeFilter);
+        context->SetRequestInfo("AttributeFilter: %v, Limit: %v",
+            attributeFilter,
+            limit);
 
         if (limit && limit < 0) {
             THROW_ERROR_EXCEPTION("Limit is negative")
@@ -2553,7 +2553,6 @@ private:
 
         if (limit && std::ssize(children) > limit) {
             children.resize(*limit);
-
             writer.OnBeginAttributes();
             writer.OnKeyedItem("incomplete");
             writer.OnBooleanScalar(true);

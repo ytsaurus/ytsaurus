@@ -485,7 +485,6 @@ private:
 
     THashMap<TCellTag, TMasterCellCommitSessionPtr> MasterCellCommitSessions_;
 
-    // TODO(h0pless): Add TRequestGeneration to a macro above.
     using TRequest = std::variant<
         TDatalessLockRowRequest,
         TLockRowRequest,

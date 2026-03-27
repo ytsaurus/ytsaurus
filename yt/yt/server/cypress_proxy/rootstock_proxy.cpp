@@ -89,7 +89,6 @@ private:
             hintId,
             transactionId);
 
-        // TODO(h0pless): Support flags / rewrite errors.
         if (ignoreExisting) {
             THROW_ERROR_EXCEPTION("Rootstock creation with \"ignore_existing\" flag is not supported in Sequoia yet");
         }
@@ -137,7 +136,9 @@ private:
         ToProto(createRootstockRequest->mutable_hint_id(), rootstockId);
         ToProto(createRootstockRequest->mutable_node_attributes(), *attributes);
 
-        sequoiaTransaction->AddTransactionAction(rootstockCellTag, MakeTransactionActionData(rootstockAction));
+        sequoiaTransaction->AddTransactionAction(
+            rootstockCellTag,
+            MakeTransactionActionData(rootstockAction));
 
         auto rootstockCellId = connection->GetMasterCellId(rootstockCellTag);
         SequoiaSession_->Commit(rootstockCellId);
@@ -146,10 +147,8 @@ private:
         // so we sync secondary master with primary to make sure that scion is created.
         // Without this sync first requests to Sequoia subtree may fail because of scion
         // absence. Note that this is best effort since sync may fail.
-        // TODO(h0pless): Rethink it when syncs for Sequoia transactions will be implemented.
         auto scionCellId = connection->GetMasterCellId(scionCellTag);
-        WaitFor(connection->SyncHiveCellWithOthers({scionCellId}, rootstockCellId))
-            .ThrowOnError();
+        Y_UNUSED(WaitFor(connection->SyncHiveCellWithOthers({scionCellId}, rootstockCellId)));
 
         ToProto(response->mutable_node_id(), rootstockId);
         response->set_cell_tag(ToProto(rootstockCellTag));
