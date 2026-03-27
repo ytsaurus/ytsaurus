@@ -16,7 +16,7 @@ public:
 
     DEFINE_RPC_PROXY_METHOD(NProto, StartSession);
     DEFINE_RPC_PROXY_METHOD(NProto, PingSession);
-    DEFINE_RPC_PROXY_METHOD(NProto, SendBlocks);
+    DEFINE_RPC_PROXY_METHOD(NProto, WriteRecord);
     DEFINE_RPC_PROXY_METHOD(NProto, FinishSession);
 };
 

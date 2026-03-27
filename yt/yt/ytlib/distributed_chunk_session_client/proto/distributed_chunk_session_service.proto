@@ -6,12 +6,17 @@ import "yt_proto/yt/client/chunk_client/proto/chunk_meta.proto";
 import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
 import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 
+import "yt_proto/yt/core/yson/proto/protobuf_interop.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqStartSession
 {
     required NYT.NChunkClient.NProto.TSessionId session_id = 1;
-    repeated NYT.NNodeTrackerClient.NProto.TNodeDescriptor chunk_replicas = 2;
+    required uint64 session_timeout = 2;
+    repeated fixed64 chunk_replicas = 3;
+    required bytes journal_chunk_writer_options = 4 [(NYT.NYson.NProto.yson_string) = true];
+    required bytes journal_chunk_writer_config = 5 [(NYT.NYson.NProto.yson_string) = true];
 }
 
 message TRspStartSession
@@ -22,33 +27,19 @@ message TRspStartSession
 message TReqPingSession
 {
     required NYT.NChunkClient.NProto.TSessionId session_id = 1;
-    required int32 acknowledged_block_count = 2;
 }
 
 message TRspPingSession
-{
-    required bool close_demanded = 1;
-
-    required int32 written_block_count = 2;
-
-    required NYT.NChunkClient.NProto.TMiscExt chunk_misc_meta = 3;
-
-    // Meta for blocks started from acknowledged_block_count.
-    repeated NYT.NTableClient.NProto.TDataBlockMeta data_block_metas = 4;
-}
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqSendBlocks
+message TReqWriteRecord
 {
     required NYT.NChunkClient.NProto.TSessionId session_id = 1;
-
-    required NYT.NChunkClient.NProto.TMiscExt blocks_misc_meta = 2;
-
-    repeated NYT.NTableClient.NProto.TDataBlockMeta data_block_metas = 3;
 }
 
-message TRspSendBlocks
+message TRspWriteRecord
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

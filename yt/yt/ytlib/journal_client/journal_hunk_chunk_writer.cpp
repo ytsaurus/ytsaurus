@@ -1,18 +1,21 @@
 #include "journal_hunk_chunk_writer.h"
 
 #include "config.h"
-#include "journal_chunk_writer.h"
 #include "helpers.h"
+#include "journal_chunk_writer.h"
 
 #include <yt/yt/ytlib/table_client/hunks.h>
 
 #include <yt/yt/library/erasure/impl/codec.h>
+
+#include <yt/yt/core/rpc/dispatcher.h>
 
 namespace NYT::NJournalClient {
 
 using namespace NApi;
 using namespace NChunkClient;
 using namespace NConcurrency;
+using namespace NRpc;
 using namespace NTableClient;
 using namespace NYTree;
 
@@ -35,6 +38,8 @@ public:
             options,
             PrepareJournalChunkWriterConfig(config),
             std::move(counters),
+            TDispatcher::Get()->GetHeavyInvoker(),
+            /*targets*/ std::nullopt,
             logger))
         , Options_(std::move(options))
         , Config_(std::move(config))

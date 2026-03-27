@@ -9,12 +9,18 @@ namespace NYT::NDistributedChunkSessionClient {
 struct TDistributedChunkSessionControllerConfig
     : public NYTree::TYsonStruct
 {
-    TDuration DataNodePingPeriod;
-    TDuration WriteSessionPingPeriod;
+    TDuration SessionPingPeriod;
+    TDuration SessionTimeout;
     std::string Account;
-    int ReplicationFactor;
+    std::string MediumName;
+    bool IsVital;
 
     TDuration NodeRpcTimeout;
+    TDuration CreateChunkTimeout;
+
+    // Number of consecutive ping failures after which the controller
+    // considers the session lost and closes with an error.
+    int MaxConsecutivePingFailures;
 
     REGISTER_YSON_STRUCT(TDistributedChunkSessionControllerConfig);
 

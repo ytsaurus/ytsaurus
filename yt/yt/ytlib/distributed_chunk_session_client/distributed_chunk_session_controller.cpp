@@ -6,23 +6,19 @@
 
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 
-#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
-
-#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/yt/ytlib/chunk_client/config.h>
-#include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
+#include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/api/config.h>
 
-#include <yt/yt/client/rpc/helpers.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
+#include <yt/yt/core/yson/protobuf_helpers.h>
 
-#include <yt/yt/core/concurrency/action_queue.h>
+#include <util/random/shuffle.h>
 
 namespace NYT::NDistributedChunkSessionClient {
 
@@ -33,15 +29,29 @@ using namespace NLogging;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NRpc;
-using namespace NTableClient;
-using namespace NThreading;
+using namespace NYson;
 
 using NApi::NNative::IClientPtr;
-using NChunkClient::NProto::TChunkInfo;
-using NChunkClient::NProto::TChunkMeta;
-using NChunkClient::NProto::TMiscExt;
-using NTableClient::NProto::TDataBlockMetaExt;
-using NTableClient::NProto::TNameTableExt;
+
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+// NB: We deliberately avoid WaitFor throughout this file to reduce fiber stack
+// memory consumption. Each fiber blocked in WaitFor occupies stack space
+// (typically 256KB). With a large number of concurrent sessions this adds up
+// significantly. Using future pipelines instead allows the same logical flow
+// without holding a fiber while waiting for I/O.
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EControllerState,
+    (Created)
+    (Starting)
+    (Running)
+    (Closing)
+    (Closed)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,14 +63,15 @@ public:
         IClientPtr client,
         TDistributedChunkSessionControllerConfigPtr config,
         TTransactionId transactionId,
-        TNameTablePtr chunkNameTable,
+        TJournalChunkWriterOptionsPtr writerOptions,
+        TJournalChunkWriterConfigPtr writerConfig,
         IInvokerPtr invoker)
         : Client_(std::move(client))
         , Config_(std::move(config))
         , TransactionId_(transactionId)
-        , ChunkNameTable_(std::move(chunkNameTable))
+        , WriterOptions_(std::move(writerOptions))
+        , WriterConfig_(std::move(writerConfig))
         , Invoker_(std::move(invoker))
-        , SerializedInvoker_(CreateSerializedInvoker(Invoker_))
         , Logger(DistributedChunkSessionLogger().WithTag("TransactionId: %v", TransactionId_))
     { }
 
@@ -68,268 +79,231 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return BIND(
-            &TDistributedChunkSessionController::DoStartSession,
-            MakeStrong(this))
-            .AsyncVia(SerializedInvoker_)
-            .Run();
-    }
+        YT_VERIFY(State_.exchange(EControllerState::Starting) == EControllerState::Created);
 
-    bool IsActive() const final
-    {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
-
-        auto guard = ReaderGuard(CloseSpinLock_);
-        return !CloseInitiated_;
+        return CreateChunk()
+            .Apply(BIND(
+                &TDistributedChunkSessionController::OnChunkCreated,
+                MakeStrong(this)))
+            .Apply(BIND(
+                &TDistributedChunkSessionController::OnSessionStarted,
+                MakeStrong(this)))
+            .Apply(BIND(
+                &TDistributedChunkSessionController::OnStartCompleted,
+                MakeStrong(this)));
     }
 
     TFuture<void> Close() final
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
-        YT_VERIFY(SessionStarted_);
 
         CloseSession();
-        return CloseFuture_;
+        return ClosedPromise_.ToFuture();
+    }
+
+    TFuture<void> WaitUntilClosed() final
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return ClosedPromise_.ToFuture();
     }
 
     TSessionId GetSessionId() const final
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
+        auto state = State_.load();
+        YT_VERIFY(state == EControllerState::Running || state == EControllerState::Closed);
+
         return SessionId_;
     }
 
 private:
-    struct TNode
-    {
-        TNode(
-            TNodeDescriptor descriptor,
-            IChannelPtr channel,
-            TChunkReplicaWithMedium chunkReplica)
-            : Descriptor(std::move(descriptor))
-            , Channel(std::move(channel))
-            , ChunkReplica(std::move(chunkReplica))
-        { }
-
-        const TNodeDescriptor Descriptor;
-        const IChannelPtr Channel;
-        const TChunkReplicaWithMedium ChunkReplica;
-
-        TChunkLocationUuid TargetLocationUuid = InvalidChunkLocationUuid;
-        TChunkLocationIndex TargetLocationIndex = InvalidChunkLocationIndex;
-
-        TPeriodicExecutorPtr PingExecutor;
-        TChunkInfo ChunkInfo;
-    };
-
     const IClientPtr Client_;
     const TDistributedChunkSessionControllerConfigPtr Config_;
     const TTransactionId TransactionId_;
 
-    const TNameTablePtr ChunkNameTable_;
+    const TJournalChunkWriterOptionsPtr WriterOptions_;
+    const TJournalChunkWriterConfigPtr WriterConfig_;
 
     const IInvokerPtr Invoker_;
-    const IInvokerPtr SerializedInvoker_;
 
     const TLogger Logger;
 
-    TPeriodicExecutorPtr CoordinatorPingExecutor_;
+    std::atomic<EControllerState> State_ = EControllerState::Created;
+
+    TPeriodicExecutorPtr SessionPingExecutor_;
+    TChunkReplicaWithMediumList ChunkReplicas_;
 
     TSessionId SessionId_;
-    std::vector<TNode> Nodes_;
+    TChunkReplicaWithMediumList Targets_;
 
-    TNode* CoordinatorNode_ = nullptr;
+    TNodeDescriptor SequencerDescriptor_;
+    IChannelPtr SequencerChannel_;
 
-    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, CloseSpinLock_);
-    bool CloseInitiated_ = false;
-    TFuture<void> CloseFuture_;
+    TPromise<void> ClosedPromise_ = NewPromise<void>();
 
-    int AcknowledgedBlockCount_ = 0;
-    TMiscExt ChunkMiscMeta_;
-    TDataBlockMetaExt DataBlockMetas_;
+    int ConsecutivePingFailures_ = 0;
 
-    TChunkMeta ChunkMeta_;
-
-    std::atomic<bool> SessionStarted_ = false;
-
-    TNodeDescriptor DoStartSession()
+    TFuture<TSessionId> CreateChunk() const
     {
-        YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
+        auto channel = Client_->GetMasterChannelOrThrow(
+            EMasterChannelKind::Leader,
+            CellTagFromId(TransactionId_));
+        TChunkServiceProxy proxy(channel);
 
-        auto options = New<TMultiChunkWriterOptions>();
-        options->Account = Config_->Account;
-        options->ReplicationFactor = Config_->ReplicationFactor;
+        auto req = proxy.CreateChunk();
+        req->SetTimeout(Config_->CreateChunkTimeout);
+        GenerateMutationId(req);
 
-        SessionId_ = CreateChunk(
-            Client_,
-            CellTagFromId(TransactionId_),
-            std::move(options),
-            TransactionId_,
-            TChunkListId{},
-            Logger());
+        req->set_type(ToProto(EObjectType::JournalChunk));
+        req->set_account(Config_->Account);
+        ToProto(req->mutable_transaction_id(), TransactionId_);
+        req->set_replication_factor(WriterOptions_->ReplicationFactor);
+        req->set_erasure_codec(ToProto(WriterOptions_->ErasureCodec));
+        req->set_medium_name(Config_->MediumName);
+        req->set_read_quorum(WriterOptions_->ReadQuorum);
+        req->set_write_quorum(WriterOptions_->WriteQuorum);
+        req->set_movable(true);
+        req->set_vital(Config_->IsVital);
 
+        return req->Invoke().Apply(BIND([] (const TChunkServiceProxy::TErrorOrRspCreateChunkPtr& rspOrError) {
+            return FromProto<TSessionId>(rspOrError.ValueOrThrow()->session_id());
+        }));
+    }
+
+    TFuture<void> OnChunkCreated(TSessionId sessionId)
+    {
+        SessionId_ = sessionId;
         YT_LOG_INFO("Chunk created (ChunkId: %v)", SessionId_);
 
-        auto targets = AllocateWriteTargets(
+        // TODO(apollo1321): AllocateWriteTargets uses WaitFor internally, which contradicts
+        // the no-WaitFor design of this file. Write targets allocation should also be batched
+        // to reduce master workload. Both should be fixed via a distributed chunk session manager.
+        Targets_ = AllocateWriteTargets(
             Client_,
-            TSessionId(DecodeChunkId(SessionId_.ChunkId).Id, SessionId_.MediumIndex),
-            /*desiredTargetCount*/ Config_->ReplicationFactor,
-            /*minTargetCount*/ Config_->ReplicationFactor,
+            SessionId_,
+            /*desiredTargetCount*/ WriterOptions_->ReplicationFactor,
+            /*minTargetCount*/ WriterOptions_->ReplicationFactor,
             /*replicationFactorOverride*/ {},
             /*preferredHostName*/ {},
             /*forbiddenAddresses*/ {},
             /*allocatedAddresses*/ {},
             Logger);
 
-        Nodes_.reserve(targets.size());
+        Shuffle(Targets_.begin(), Targets_.end());
 
         const auto& nodeDirectory = Client_->GetNativeConnection()->GetNodeDirectory();
         const auto& channelFactory = Client_->GetChannelFactory();
         const auto& networks = Client_->GetNativeConnection()->GetNetworks();
-        for (auto& target : targets) {
-            auto descriptor = nodeDirectory->GetDescriptor(target);
-            auto channel = channelFactory->CreateChannel(descriptor.GetAddressOrThrow(networks));
-            Nodes_.emplace_back(
-                std::move(descriptor),
-                std::move(channel),
-                std::move(target));
-        }
 
-        std::vector<TFuture<TDataNodeServiceProxy::TRspStartChunkPtr>> asyncResults;
-        asyncResults.reserve(Nodes_.size());
-        for (int index = 0; index < std::ssize(Nodes_); ++index) {
-            TDataNodeServiceProxy proxy(Nodes_[index].Channel);
-            auto req = proxy.StartChunk();
-            req->SetTimeout(Config_->NodeRpcTimeout);
-            ToProto(req->mutable_session_id(), SessionId_);
-            req->set_sync_on_close(true);
-            req->set_disable_send_blocks(true);
-            SetRequestWorkloadDescriptor(req, TWorkloadDescriptor(EWorkloadCategory::UserBatch));
+        SequencerDescriptor_ = nodeDirectory->GetDescriptor(Targets_[0]);
+        SequencerChannel_ = channelFactory->CreateChannel(
+            SequencerDescriptor_.GetAddressOrThrow(networks));
 
-            asyncResults.push_back(req->Invoke());
-        }
+        YT_LOG_INFO("Selected sequencer node (Address: %v)",
+            SequencerDescriptor_.GetAddressOrThrow(networks));
 
-        auto responses = WaitFor(AllSucceeded(std::move(asyncResults)))
-            .ValueOrThrow();
-
-        for (int index = 0; index < std::ssize(Nodes_); ++index) {
-            YT_VERIFY(responses[index]->has_location_uuid());
-            Nodes_[index].TargetLocationUuid = FromProto<TChunkLocationUuid>(responses[index]->location_uuid());
-            // COMPAT(cherepashka)
-            if (responses[index]->has_location_index()) {
-                Nodes_[index].TargetLocationIndex = FromProto<TChunkLocationIndex>(responses[index]->location_index());
-            }
-            Nodes_[index].PingExecutor = New<TPeriodicExecutor>(
-                SerializedInvoker_,
-                BIND(&TDistributedChunkSessionController::SendDataNodePing, MakeWeak(this), index),
-                Config_->DataNodePingPeriod);
-
-            Nodes_[index].PingExecutor->Start();
-        }
-
-        CoordinatorNode_ = &Nodes_[RandomNumber<size_t>(Nodes_.size())];
-
-        YT_LOG_INFO("Selected coordinator node (Address: %v)", CoordinatorNode_->Descriptor.GetAddressOrThrow(networks));
-
-        TDistributedChunkSessionServiceProxy proxy(CoordinatorNode_->Channel);
+        TDistributedChunkSessionServiceProxy proxy(SequencerChannel_);
         auto req = proxy.StartSession();
+        req->SetTimeout(Config_->NodeRpcTimeout);
         ToProto(req->mutable_session_id(), SessionId_);
-        for (const auto& node : Nodes_) {
-            ToProto(req->add_chunk_replicas(), node.Descriptor);
-        }
-        WaitFor(req->Invoke())
-            .ThrowOnError();
+        req->set_session_timeout(ToProto(Config_->SessionTimeout));
+        ToProto(req->mutable_chunk_replicas(), Targets_);
+        req->set_journal_chunk_writer_options(ToProto(ConvertToYsonString(WriterOptions_)));
+        req->set_journal_chunk_writer_config(ToProto(ConvertToYsonString(WriterConfig_)));
 
-        CoordinatorPingExecutor_ = New<TPeriodicExecutor>(
-            SerializedInvoker_,
-            BIND(&TDistributedChunkSessionController::SendCoordinatorPing, MakeWeak(this)),
-            Config_->WriteSessionPingPeriod);
-
-        CoordinatorPingExecutor_->Start();
-
-        SessionStarted_ = true;
-
-        return CoordinatorNode_->Descriptor;
+        return req->Invoke().AsVoid();
     }
 
-    void SendDataNodePing(int index)
+    TNodeDescriptor OnSessionStarted(const TError& error)
     {
-        YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
+        error.ThrowOnError();
 
-        auto& node = Nodes_[index];
+        SessionPingExecutor_ = New<TPeriodicExecutor>(
+            Invoker_,
+            BIND(&TDistributedChunkSessionController::SendSequencerPing, MakeWeak(this)),
+            Config_->SessionPingPeriod);
 
-        YT_LOG_DEBUG("Sending data node ping (Address: %v)",
-            node.Descriptor.GetDefaultAddress());
+        SessionPingExecutor_->Start();
 
-        TDataNodeServiceProxy proxy(node.Channel);
+        YT_VERIFY(State_.exchange(EControllerState::Running) == EControllerState::Starting);
+
+        return SequencerDescriptor_;
+    }
+
+    TNodeDescriptor OnStartCompleted(const TErrorOr<TNodeDescriptor>& descriptorOrError)
+    {
+        if (!descriptorOrError.IsOK()) {
+            auto error = TError(descriptorOrError);
+            YT_LOG_DEBUG(error, "Failed to start session");
+            YT_VERIFY(State_.exchange(EControllerState::Closed) == EControllerState::Starting);
+            ClosedPromise_.Set(error);
+            descriptorOrError.ThrowOnError();
+        }
+
+        return descriptorOrError.Value();
+    }
+
+    void SendSequencerPing()
+    {
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+
+        YT_LOG_DEBUG(
+            "Sending sequencer ping (Address: %v)",
+            SequencerDescriptor_.GetDefaultAddress());
+
+        TDistributedChunkSessionServiceProxy proxy(SequencerChannel_);
         auto req = proxy.PingSession();
         req->SetTimeout(Config_->NodeRpcTimeout);
         ToProto(req->mutable_session_id(), SessionId_);
 
-        auto rspOrError = WaitFor(req->Invoke());
-        if (!rspOrError.IsOK()) {
-            YT_LOG_DEBUG(rspOrError, "Data node ping failed (Address: %v)",
-                node.Descriptor.GetDefaultAddress());
-            return;
-        }
-
-        if (rspOrError.Value()->close_demanded()) {
-            CloseSession();
-        }
+        req->Invoke()
+            .AsVoid()
+            .Subscribe(BIND(
+                &TDistributedChunkSessionController::OnSequencerPingResponse,
+                MakeWeak(this))
+                .Via(Invoker_));
     }
 
-    void SendCoordinatorPing()
+    void OnSequencerPingResponse(const TError& error)
     {
-        YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
-
-        YT_VERIFY(CoordinatorNode_);
-
-        YT_LOG_DEBUG("Sending coordinator ping (Address: %v)",
-            CoordinatorNode_->Descriptor.GetDefaultAddress());
-
-        TDistributedChunkSessionServiceProxy proxy(CoordinatorNode_->Channel);
-        auto req = proxy.PingSession();
-        ToProto(req->mutable_session_id(), SessionId_);
-        req->set_acknowledged_block_count(AcknowledgedBlockCount_);
-
-        auto rspOrError = WaitFor(req->Invoke());
-        if (!rspOrError.IsOK()) {
-            YT_LOG_DEBUG(rspOrError, "Coordinator ping failed (Address: %v)",
-                CoordinatorNode_->Descriptor.GetDefaultAddress());
+        if (error.IsOK()) {
+            YT_LOG_DEBUG("Successfully pinged session");
+            ConsecutivePingFailures_ = 0;
             return;
         }
 
-        {
-            auto guard = ReaderGuard(CloseSpinLock_);
-            if (CloseInitiated_) {
-                YT_LOG_DEBUG("Drop coordinator ping response since close is initiated");
-                return;
+        if (error.GetCode() == NChunkClient::EErrorCode::NoSuchSession) {
+            YT_LOG_DEBUG(error, "Session has expired, finishing controller");
+
+            auto expected = EControllerState::Running;
+            if (State_.compare_exchange_strong(expected, EControllerState::Closed)) {
+                ClosedPromise_.SetFrom(
+                    StopPingExecutor().Apply(BIND([error] {
+                        return MakeFuture(error);
+                    })));
             }
+            return;
         }
 
-        YT_VERIFY(AcknowledgedBlockCount_ == req->acknowledged_block_count());
+        ++ConsecutivePingFailures_;
+        YT_LOG_DEBUG(
+            error,
+            "Session ping failed (ConsecutivePingFailures: %v, MaxConsecutivePingFailures: %v)",
+            ConsecutivePingFailures_,
+            Config_->MaxConsecutivePingFailures);
 
-        auto rsp = rspOrError.Value();
+        if (ConsecutivePingFailures_ >= Config_->MaxConsecutivePingFailures) {
+            YT_LOG_DEBUG(error, "Too many consecutive ping failures, finishing controller");
 
-        YT_VERIFY(AcknowledgedBlockCount_ <= rsp->written_block_count());
-        AcknowledgedBlockCount_ = rsp->written_block_count();
-
-        YT_VERIFY(DataBlockMetas_.data_blocks_size() + rsp->data_block_metas_size() == rsp->written_block_count());
-
-        for (const auto& blockMeta : rsp->data_block_metas()) {
-            *DataBlockMetas_.add_data_blocks() = blockMeta;
-        }
-
-        ChunkMiscMeta_ = std::move(*rsp->mutable_chunk_misc_meta());
-
-        YT_LOG_DEBUG("Updated statistics (BlockCount: %v, DataWeight: %v, RowCount: %v, CloseDemanded: %v)",
-            AcknowledgedBlockCount_,
-            ChunkMiscMeta_.data_weight(),
-            ChunkMiscMeta_.row_count(),
-            rsp->close_demanded());
-
-        if (rsp->close_demanded()) {
-            CloseSession();
+            auto expected = EControllerState::Running;
+            if (State_.compare_exchange_strong(expected, EControllerState::Closed)) {
+                ClosedPromise_.SetFrom(
+                    StopPingExecutor().Apply(BIND([error] {
+                        return MakeFuture(error.Wrap("Too many consecutive ping failures"));
+                    })));
+            }
         }
     }
 
@@ -337,229 +311,89 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        auto guard = WriterGuard(CloseSpinLock_);
-        if (std::exchange(CloseInitiated_, true)) {
+        auto expected = EControllerState::Running;
+        if (!State_.compare_exchange_strong(expected, EControllerState::Closing)) {
+            YT_LOG_DEBUG("Session is not running (State: %v)", expected);
+
+            YT_VERIFY(
+                expected == EControllerState::Closing ||
+                expected == EControllerState::Closed);
             return;
         }
 
-        YT_LOG_DEBUG("Initiating session close (BlockCount: %v, DataWeight: %v, RowCount: %v)",
-            AcknowledgedBlockCount_,
-            ChunkMiscMeta_.data_weight(),
-            ChunkMiscMeta_.row_count());
+        YT_LOG_DEBUG("Closing session");
 
-        CloseFuture_ = BIND(
-            &TDistributedChunkSessionController::DoCloseSession,
-            MakeStrong(this))
-            .AsyncVia(SerializedInvoker_)
-            .Run();
-    }
-
-    void DoCloseSession()
-    {
-        YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
-
-        auto stopCoordinatorFuture = StopCoordinator();
-        auto stopCoordinatorPingFuture = CoordinatorPingExecutor_->Stop();
-
-        FillChunkMeta();
-
-        auto finishedNodesOrError = WaitFor(FinishChunkOnNodes());
-        YT_LOG_FATAL_IF(
-            !finishedNodesOrError.IsOK(),
-            finishedNodesOrError,
-            "Unexpected failure during finishing chunk on nodes");
-
-        auto& finishedNodes = finishedNodesOrError.Value();
-        YT_LOG_INFO("Chunk was successfully finished on %v nodes", finishedNodes.size());
-
-        auto confirmChunkFuture = ConfirmChunk(std::move(finishedNodes));
-
-        std::vector<TFuture<void>> stopNodesPingFutures;
-        stopNodesPingFutures.reserve(Nodes_.size());
-        for (const auto& node : Nodes_) {
-            stopNodesPingFutures.push_back(node.PingExecutor->Stop());
-        }
-
-        auto stopCoordinatorResult = WaitFor(stopCoordinatorFuture);
-        YT_LOG_FATAL_IF(
-            !stopCoordinatorResult.IsOK(),
-            stopCoordinatorResult,
-            "Unexpected failure during coordinator stopping");
-
-        auto stopCoordinatorPingResult = WaitFor(stopCoordinatorPingFuture);
-        YT_LOG_FATAL_IF(
-            !stopCoordinatorPingResult.IsOK(),
-            stopCoordinatorPingResult,
-            "Unexpected failure during coordinator ping executor stopping");
-
-        auto confirmChunkError = WaitFor(confirmChunkFuture);
-        THROW_ERROR_EXCEPTION_IF_FAILED(
-            confirmChunkError,
-            "Failed to confirm chunk %v",
-            SessionId_.ChunkId);
-
-        auto stopNodesPingResult = WaitFor(AllSucceeded(stopNodesPingFutures));
-        YT_LOG_FATAL_IF(
-            !stopNodesPingResult.IsOK(),
-            stopNodesPingResult,
-            "Unexpected failure during nodes ping executors stopping");
-
-        YT_LOG_DEBUG("Chunk confirmed");
-    }
-
-    void FillChunkMeta()
-    {
-        YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
-
-        ChunkMeta_.set_type(ToProto(EChunkType::Table));
-        ChunkMeta_.set_format(ToProto(EChunkFormat::TableUnversionedSchemalessHorizontal));
-
-        SetProtoExtension(ChunkMeta_.mutable_extensions(), ChunkMiscMeta_);
-        SetProtoExtension(ChunkMeta_.mutable_extensions(), DataBlockMetas_);
-        auto nameTableExt = ToProto<TNameTableExt>(ChunkNameTable_);
-        SetProtoExtension(ChunkMeta_.mutable_extensions(), nameTableExt);
-    }
-
-    TFuture<void> StopCoordinator()
-    {
-        YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
-        YT_VERIFY(CoordinatorNode_);
-
-        TDistributedChunkSessionServiceProxy proxy(CoordinatorNode_->Channel);
+        TDistributedChunkSessionServiceProxy proxy(SequencerChannel_);
         auto req = proxy.FinishSession();
-        ToProto(req->mutable_session_id(), SessionId_);
-
-        return req->Invoke().AsUnique().Apply(BIND(&TDistributedChunkSessionController::OnCoordinatorStopped, MakeStrong(this)));
-    }
-
-    void OnCoordinatorStopped(TErrorOr<TDistributedChunkSessionServiceProxy::TRspFinishSessionPtr>&& rspOrError)
-    {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
-        YT_LOG_INFO_IF(!rspOrError.IsOK(), rspOrError, "Coordinator stop failed");
-    }
-
-    TFuture<std::vector<TNode*>> FinishChunkOnNodes()
-    {
-        YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
-
-        std::vector<TFuture<void>> finishChunkFutures;
-        finishChunkFutures.reserve(Nodes_.size());
-        for (auto& node : Nodes_) {
-            finishChunkFutures.push_back(FinishChunkOnNode(&node));
-        }
-
-        return AllSet(std::move(finishChunkFutures))
-            .AsUnique().Apply(BIND(&TDistributedChunkSessionController::OnAllNodesFinished, MakeStrong(this)));
-    }
-
-    std::vector<TNode*> OnAllNodesFinished(std::vector<TError>&& responses)
-    {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
-
-        std::vector<TNode*> finishedNodes;
-        finishedNodes.reserve(std::size(responses));
-
-        for (int index = 0; index < std::ssize(responses); ++index) {
-            if (responses[index].IsOK()) {
-                finishedNodes.push_back(&Nodes_[index]);
-            }
-        }
-
-        return finishedNodes;
-    }
-
-    TFuture<void> FinishChunkOnNode(TNode* node)
-    {
-        YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
-
-        TDataNodeServiceProxy proxy(node->Channel);
-        auto req = proxy.FinishChunk();
         req->SetTimeout(Config_->NodeRpcTimeout);
         ToProto(req->mutable_session_id(), SessionId_);
-        req->set_block_count(AcknowledgedBlockCount_);
-        *req->mutable_chunk_meta() = ChunkMeta_;
-        req->set_truncate_extra_blocks(true);
 
-        return req->Invoke().AsUnique().Apply(BIND(&TDistributedChunkSessionController::OnChunkFinished, MakeStrong(this), node));
+        ClosedPromise_.SetFrom(
+            req->Invoke()
+                .AsVoid()
+                .AsUnique()
+                .Apply(BIND(
+                    &TDistributedChunkSessionController::OnSessionFinished,
+                    MakeStrong(this)))
+                .AsUnique()
+                .Apply(BIND(
+                    &TDistributedChunkSessionController::OnPingExecutorStopped,
+                    MakeStrong(this))));
     }
 
-    void OnChunkFinished(TNode* node, TErrorOr<TDataNodeServiceProxy::TRspFinishChunkPtr>&& rspOrError)
+    TUniqueFuture<void> OnSessionFinished(TError&& error)
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
-
-        if (!rspOrError.IsOK()) {
-            YT_LOG_DEBUG(rspOrError, "Finish chunk failed (Address: %v)", node->Descriptor.GetDefaultAddress());
-            rspOrError.ThrowOnError();
-            return;
+        if (error.IsOK()) {
+            YT_LOG_DEBUG("Successfully closed session");
+        } else {
+            YT_LOG_DEBUG(error, "Error occurred while closing session");
         }
 
-        YT_LOG_DEBUG(
-            "Chunk finished (Address: %v, DiskSpace: %v)",
-            node->Descriptor.GetDefaultAddress(),
-            rspOrError.Value()->chunk_info().disk_space());
-
-        node->ChunkInfo = std::move(*rspOrError.Value()->mutable_chunk_info());
+        return StopPingExecutor().Apply(BIND([error] {
+            return MakeFuture(error);
+        })).AsUnique();
     }
 
-    TFuture<void> ConfirmChunk(std::vector<TNode*> nodes)
+    void OnPingExecutorStopped(TError&& finishError)
     {
-        YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
-        THROW_ERROR_EXCEPTION_IF(nodes.empty(), "All chunk nodes failed");
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CellTagFromId(SessionId_.ChunkId));
-        TChunkServiceProxy proxy(channel);
+        YT_VERIFY(State_.exchange(EControllerState::Closed) == EControllerState::Closing);
 
-        auto req = proxy.ConfirmChunk();
-        GenerateMutationId(req);
+        finishError.ThrowOnError();
+    }
 
-        ToProto(req->mutable_chunk_id(), SessionId_.ChunkId);
-
-        const TChunkInfo* chunkInfo = nullptr;
-        for (const auto* node : nodes) {
-            if (!chunkInfo) {
-                chunkInfo = &node->ChunkInfo;
-                continue;
-            }
-
-            YT_LOG_WARNING_IF(
-                chunkInfo->disk_space() != node->ChunkInfo.disk_space(),
-                "Chunk takes different amount of disk space on nodes");
-
-            if (chunkInfo->disk_space() < node->ChunkInfo.disk_space()) {
-                chunkInfo = &node->ChunkInfo;
-            }
-        }
-
-        *req->mutable_chunk_info() = *chunkInfo;
-        *req->mutable_chunk_meta() = ChunkMeta_;
-
-        req->set_location_uuids_supported(true);
-
-        for (const auto& node : nodes) {
-            auto* replicaInfo = req->add_replicas();
-            replicaInfo->set_replica(ToProto(node->ChunkReplica));
-            ToProto(replicaInfo->mutable_location_uuid(), node->TargetLocationUuid);
-            replicaInfo->set_location_index(ToProto<ui32>(node->TargetLocationIndex));
-        }
-
-        return req->Invoke().AsVoid();
+    TUniqueFuture<void> StopPingExecutor()
+    {
+        return SessionPingExecutor_->Stop()
+            .Apply(BIND([Logger = Logger] (const TError& error) {
+                YT_LOG_FATAL_IF(
+                    !error.IsOK(),
+                    error,
+                    "Unexpected failure during session ping executor stopping");
+            }))
+            .AsUnique();
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
+
 IDistributedChunkSessionControllerPtr CreateDistributedChunkSessionController(
     IClientPtr client,
     TDistributedChunkSessionControllerConfigPtr config,
     TTransactionId transactionId,
-    TNameTablePtr chunkNameTable,
+    TJournalChunkWriterOptionsPtr writerOptions,
+    TJournalChunkWriterConfigPtr writerConfig,
     IInvokerPtr invoker)
 {
     return New<TDistributedChunkSessionController>(
         std::move(client),
         std::move(config),
         transactionId,
-        std::move(chunkNameTable),
+        std::move(writerOptions),
+        std::move(writerConfig),
         std::move(invoker));
 }
 
