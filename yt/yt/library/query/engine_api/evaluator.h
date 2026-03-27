@@ -1,7 +1,7 @@
 #pragma once
 
 #include "builtin_function_profiler.h"
-#include "join_profiler.h"
+#include <yt/yt/library/query/base/join_profiler.h>
 #include "public.h"
 
 #include <yt/yt/library/query/base/callbacks.h>
