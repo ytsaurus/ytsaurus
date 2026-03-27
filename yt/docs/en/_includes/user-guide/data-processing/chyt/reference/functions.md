@@ -156,6 +156,20 @@ SELECT YSONExtractString('{a=[{c=xyz}; {c=qwe}]}', 'a', 2, 'c');
 "qwe"
 ```
 
+### ConvertYsonToJson
+If the supported YSON functionality is insufficient, CHYT provides the capability to convert YSON to JSON.
+
+Example:
+
+```sql
+SELECT ConvertYsonToJson('{key1=42; key2=57; key3=29}')
+'{
+  "key3":29,
+  "key1":42,
+  "key2":57
+}'
+```
+
 ### YSON representation formats
 
 Data from `Any` type columns can be stored in binary `YSON` representation. Since it's not always convenient to read such data, CHYT has the `ConvertYSON` function that converts different `YSON` representations into each other.
