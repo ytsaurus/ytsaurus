@@ -1163,10 +1163,13 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
                         ? options.Timestamp
                         : SyncLastCommittedTimestamp);
 
-                YT_LOG_DEBUG("Picked in-sync replicas for lookup (ReplicaIds: %v, Timestamp: %v, ReplicationCard: %v)",
+                YT_LOG_DEBUG(
+                    "Picked in-sync replicas for lookup "
+                    "(ReplicaIds: %v, Timestamp: %v, ReplicationCard: %v, EnableReadFromInSyncAsyncReplicas: %v)",
                     replicaIds,
                     options.Timestamp,
-                    *replicationCard);
+                    *replicationCard,
+                    connectionConfig->EnableReadFromInSyncAsyncReplicas);
 
                 TTableReplicaInfoPtrList inSyncReplicas;
                 for (auto replicaId : replicaIds) {
