@@ -134,6 +134,8 @@
 
 #include <yt/yt/library/numeric/algorithm_helpers.h>
 
+#include <yt/yt/library/profiling/solomon/registry.h>
+
 #include <yt/yt/core/actions/cancelable_context.h>
 #include <yt/yt/core/actions/codicil_guarded_invoker.h>
 
@@ -294,7 +296,8 @@ TOperationControllerBase::TOperationControllerBase(
                 AuthenticatedUser_)),
         CreateFairShareCallbackQueue,
         Config_->InvokerPoolTotalTimeAggregationPeriod,
-        "OperationController"))
+        "OperationController",
+        NProfiling::TSolomonRegistry::Get()))
     , InvokerPool_(DiagnosableInvokerPool_)
     , SuspendableInvokerPool_(TransformInvokerPool(InvokerPool_, CreateSuspendableInvoker))
     , CancelableInvokerPool_(TransformInvokerPool(
