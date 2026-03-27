@@ -881,7 +881,7 @@ public:
         auto deadLine = startTime + timeout;
 
         YT_LOG_DEBUG(
-            "Waiting for volumes to be removed (VolumeDirectory: %v, DeadLine: %v)",
+            "Removing volumes (VolumeDirectory: %v, DeadLine: %v)",
             volumeDirectory,
             deadLine);
 
@@ -912,7 +912,11 @@ public:
                 }
 
                 if (volume.State == "destroyed" || volume.State == "unlinked") {
-                    // Skip destroyed and unlinked volumes.
+                    // Skipping destroyed and unlinked volumes.
+                    YT_LOG_DEBUG(
+                        "Skipping volume (VolumePath: %v, State: %v)",
+                        volume.Path,
+                        volume.State);
                     continue;
                 }
 
