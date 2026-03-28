@@ -881,7 +881,7 @@ public:
         auto deadLine = startTime + timeout;
 
         YT_LOG_DEBUG(
-            "Removing volumes (VolumeDirectory: %v, DeadLine: %v)",
+            "Removing volumes from path (VolumeDirectory: %v, DeadLine: %v)",
             volumeDirectory,
             deadLine);
 
@@ -3790,10 +3790,16 @@ public:
             return importingLocations[index];
         }
 
-        // No locations available.
+        // For our purposes it is all right to return unavailable location.
+        if (!LayerLocations_.empty()) {
+            auto index = RandomNumber<size_t>(LayerLocations_.size());
+            return LayerLocations_[index];
+        }
+
+        // No location available.
         THROW_ERROR_EXCEPTION(
             NExecNode::EErrorCode::NoLayerLocationAvailable,
-            "Failed to get layer location; all locations are disabled");
+            "Failed to get any layer location");
     }
 
     void PopulateAlerts(std::vector<TError>* alerts)

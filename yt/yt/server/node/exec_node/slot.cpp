@@ -801,6 +801,7 @@ private:
                 << TErrorAttribute("porto_place", portoPlacePath)
                 << removeVolumesResult;
             YT_LOG_ERROR(error);
+            // It would be nice to disable just this particular slot index, not the whole slot.
             Location_->Disable(error);
             THROW_ERROR error;
         }
@@ -835,6 +836,7 @@ private:
                 << TErrorAttribute("porto_place", portoPlacePath)
                 << removeLayersResult;
             YT_LOG_ERROR(error);
+            // It would be nice to disable just this particular slot index, not the whole slot.
             Location_->Disable(error);
             THROW_ERROR error;
         }

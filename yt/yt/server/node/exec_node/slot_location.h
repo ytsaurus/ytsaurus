@@ -143,6 +143,9 @@ public:
 
     void ValidateEnabled() const;
 
+    //! Get path to slot location (not to slot location of a particular index).
+    TString GetPath() const;
+
 private:
     const TSlotLocationConfigPtr Config_;
     IBootstrap* const Bootstrap_;
