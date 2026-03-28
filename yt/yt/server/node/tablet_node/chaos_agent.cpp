@@ -41,10 +41,12 @@ namespace NYT::NTabletNode {
 
 using namespace NApi;
 using namespace NChaosClient;
+using namespace NConcurrency;
+using namespace NThreading;
 using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NObjectClient;
-using namespace NConcurrency;
+using namespace NProfiling;
 using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -118,6 +120,8 @@ public:
 
     TAsyncSemaphoreGuard TryGetConfigLockGuard() override
     {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
         return TAsyncSemaphoreGuard::TryAcquire(ConfigurationLock_);
     }
 
@@ -148,16 +152,15 @@ private:
     TFuture<void> FiberFuture_;
     TFuture<void> ProgressReporterFiberFuture_;
     TAsyncSemaphorePtr ConfigurationLock_;
-    NThreading::TAtomicObject<TWeakPtr<IInvoker>> SelfInvoker_;
+    TAtomicObject<TWeakPtr<IInvoker>> SelfInvoker_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, RefreshEraFutureLock_);
-    TFuture<void> RefreshEraFuture_;
+    TAtomicObject<TFuture<void>> RefreshEraFuture_;
 
     void FiberMain(TCallback<void()> callback, TDuration period)
     {
         while (true) {
             TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("ChaosAgent"));
-            NProfiling::TWallTimer timer;
+            TWallTimer timer;
             callback();
             TDelayedExecutor::WaitForDuration(period - timer.GetElapsedTime());
         }
@@ -305,21 +308,26 @@ private:
 
     void RefreshEra(TReplicationEra newEra) override
     {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
         YT_LOG_DEBUG("Refreshing replication card era (NewEra: %v)",
             newEra);
 
-        auto guard = TGuard(RefreshEraFutureLock_);
-        if (!RefreshEraFuture_ || RefreshEraFuture_.IsSet()) {
-            RefreshEraFuture_ = BIND(
-                &TChaosAgent::UpdateReplicationCardAndReconfigure,
-                MakeWeak(this),
-                newEra)
-                .AsyncVia(Tablet_->GetEpochAutomatonInvoker())
-                .Run();
-        }
+        auto future = RefreshEraFuture_.Load();
+        if (!future || future.IsSet()) {
+            future = RefreshEraFuture_.Transform([this, newEra] (TFuture<void>& futureEra) {
+                if (!futureEra || futureEra.IsSet()) {
+                    futureEra = BIND(
+                      &TChaosAgent::UpdateReplicationCardAndReconfigure,
+                        MakeWeak(this),
+                        newEra)
+                        .AsyncVia(Tablet_->GetEpochAutomatonInvoker())
+                        .Run();
+                }
 
-        auto future = RefreshEraFuture_;
-        guard.Release();
+                return futureEra;
+            });
+        }
 
         WaitFor(future)
             .ThrowOnError();
