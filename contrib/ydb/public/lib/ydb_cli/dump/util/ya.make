@@ -11,6 +11,7 @@ SRCS(
 
 PEERDIR(
     contrib/ydb/public/lib/ydb_cli/common
+    contrib/ydb/public/sdk/cpp/src/client/cms
     contrib/ydb/public/sdk/cpp/src/client/draft
     contrib/ydb/public/sdk/cpp/src/client/scheme
     contrib/ydb/public/sdk/cpp/src/client/table

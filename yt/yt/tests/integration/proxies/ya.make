@@ -17,6 +17,7 @@ TEST_SRCS(
 )
 
 PEERDIR(
+    library/python/port_manager
     yt/yt/tests/conftest_lib
 )
 

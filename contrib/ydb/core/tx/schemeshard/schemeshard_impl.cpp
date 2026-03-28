@@ -2964,6 +2964,11 @@ void TSchemeShard::PersistTableIsRestore(NIceDb::TNiceDb& db, const TPathId path
     }
 }
 
+void TSchemeShard::PersistTableIsRestore(NIceDb::TNiceDb& db, const TPathId pathId, const TColumnTableInfo::TPtr tableInfo) {
+    db.Table<Schema::ColumnTables>().Key(pathId.LocalPathId).Update(
+        NIceDb::TUpdate<Schema::ColumnTables::IsRestore>(tableInfo->IsRestore));
+}
+
 void TSchemeShard::PersistTableAltered(NIceDb::TNiceDb& db, const TPathId pathId, const TTableInfo::TPtr tableInfo) {
     TString partitionConfig;
     Y_PROTOBUF_SUPPRESS_NODISCARD tableInfo->PartitionConfig().SerializeToString(&partitionConfig);
@@ -5191,6 +5196,8 @@ void TSchemeShard::OnActivateExecutor(const TActorContext &ctx) {
 
     SplitSettings.Register(appData->Icb);
 
+    BackupSettings.Register(appData->Icb);
+
     Executor()->RegisterExternalTabletCounters(TabletCountersPtr);
     Execute(CreateTxInitSchema(), ctx);
 
@@ -5741,11 +5748,19 @@ THashSet<TShardIdx> TSchemeShard::CollectAllShards(const THashSet<TPathId> &path
 
 void TSchemeShard::UncountNode(TPathElement::TPtr node) {
     const auto isBackupTable = IsBackupTable(node->PathId);
+    EPathCategory pathCategory;
+    if (isBackupTable) {
+        pathCategory = EPathCategory::Backup;
+    } else if (node->IsSystemDirectory() || node->IsSysView()) {
+        pathCategory = EPathCategory::System;
+    } else {
+        pathCategory = EPathCategory::Regular;
+    }
 
     if (node->IsDomainRoot()) {
-        ResolveDomainInfo(node->ParentPathId)->DecPathsInside(this, 1, isBackupTable);
+        ResolveDomainInfo(node->ParentPathId)->DecPathsInside(this, 1, pathCategory);
     } else {
-        ResolveDomainInfo(node)->DecPathsInside(this, 1, isBackupTable);
+        ResolveDomainInfo(node)->DecPathsInside(this, 1, pathCategory);
     }
     PathsById.at(node->ParentPathId)->DecAliveChildrenPrivate(isBackupTable);
 

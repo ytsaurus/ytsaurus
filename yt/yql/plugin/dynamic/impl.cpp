@@ -15,7 +15,7 @@ extern "C" {
 
 ssize_t BridgeGetAbiVersion()
 {
-    return 8; // EYqlPluginAbiVersion::PqProvider
+    return 9; // EYqlPluginAbiVersion::SolomonProvider
 }
 
 TBridgeYqlPlugin* BridgeCreateYqlPlugin(const TBridgeYqlPluginOptions* bridgeOptions)
@@ -40,6 +40,7 @@ TBridgeYqlPlugin* BridgeCreateYqlPlugin(const TBridgeYqlPluginOptions* bridgeOpt
         .DqGatewayConfig = bridgeOptions->DqGatewayConfigLength ? TYsonString(TStringBuf(bridgeOptions->DqGatewayConfig, bridgeOptions->DqGatewayConfigLength)) : TYsonString(),
         .YtflowGatewayConfig = bridgeOptions->YtflowGatewayConfigLength ? TYsonString(TStringBuf(bridgeOptions->YtflowGatewayConfig, bridgeOptions->YtflowGatewayConfigLength)) : TYsonString(),
         .PqGatewayConfig = bridgeOptions->PqGatewayConfigLength ? TYsonString(TStringBuf(bridgeOptions->PqGatewayConfig, bridgeOptions->PqGatewayConfigLength)) : TYsonString(),
+        .SolomonGatewayConfig = bridgeOptions->SolomonGatewayConfigLength ? TYsonString(TStringBuf(bridgeOptions->SolomonGatewayConfig, bridgeOptions->SolomonGatewayConfigLength)) : TYsonString(),
         .DqManagerConfig = bridgeOptions->DqGatewayConfigLength ? TYsonString(TStringBuf(bridgeOptions->DqManagerConfig, bridgeOptions->DqManagerConfigLength)) : TYsonString(),
         .FileStorageConfig = TYsonString(TStringBuf(bridgeOptions->FileStorageConfig, bridgeOptions->FileStorageConfigLength)),
         .OperationAttributes = TYsonString(TStringBuf(bridgeOptions->OperationAttributes, bridgeOptions->OperationAttributesLength)),

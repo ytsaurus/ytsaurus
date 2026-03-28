@@ -382,6 +382,12 @@ public:
                 NYson::ReflectProtobufMessageType<NYql::TPqGatewayConfig>(),
                 protobufWriterOptions));
 
+            auto* gatewaySolomonConfig = GatewaysConfigInitial_.MutableSolomon();
+            gatewaySolomonConfig->ParseFromStringOrThrow(NYson::YsonStringToProto(
+                options.SolomonGatewayConfig,
+                NYson::ReflectProtobufMessageType<NYql::TSolomonGatewayConfig>(),
+                protobufWriterOptions));
+
             NYql::TFileStorageConfig fileStorageConfig;
             fileStorageConfig.ParseFromStringOrThrow(NYson::YsonStringToProto(
                 options.FileStorageConfig,
@@ -964,6 +970,7 @@ private:
         dynamicConfig->GatewaysConfig = std::move(gatewaysConfig);
         auto* gatewayYtConfig = dynamicConfig->GatewaysConfig.MutableYt();
         auto* gatewayPqConfig = dynamicConfig->GatewaysConfig.MutablePq();
+        auto* gatewaySolomonConfig = dynamicConfig->GatewaysConfig.MutableSolomon();
 
         // Ignore MrJobUdfsDir in dynamic config (we won't reload udfs and won't restart DqManager_).
         gatewayYtConfig->ClearMrJobUdfsDir();
@@ -982,6 +989,10 @@ private:
         for (const auto& mapping : gatewayPqConfig->GetClusterMapping()) {
             dynamicConfig->Clusters.insert({mapping.name(), TString(NYql::PqProviderName)});
             dynamicConfig->ClusterAddresses.insert({mapping.name(), mapping.endpoint()});
+        }
+        for (const auto& mapping : gatewaySolomonConfig->GetClusterMapping()) {
+            dynamicConfig->Clusters.insert({mapping.name(), TString(NYql::SolomonProviderName)});
+            dynamicConfig->ClusterAddresses.insert({mapping.name(), (mapping.usessl() ? "https://" : "http://") + mapping.cluster()});
         }
         YQL_LOG(DEBUG) << __FUNCTION__ << ": Clusters ready";
 

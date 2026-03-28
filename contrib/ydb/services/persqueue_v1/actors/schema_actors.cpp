@@ -565,11 +565,8 @@ void TDescribeTopicActorImpl::RestartTablet(ui64 tabletId, const TActorContext& 
     if (pipe && pipe != tabletInfo.Pipe) return;
     if (tabletInfo.ResultRecived) return;
 
-    if (tabletId == BalancerTabletId) {
-        if (GotLocation && GotReadSessions) {
-            return;
-        }
-        BalancerPipe = nullptr;
+    if (tabletId == BalancerTabletId && GotLocation && GotReadSessions) {
+        return;
     }
 
     NTabletPipe::CloseClient(ctx, tabletInfo.Pipe);
@@ -627,7 +624,6 @@ void TDescribeTopicActorImpl::RequestTablet(TTabletInfo& tablet, const TActorCon
         tablet.Pipe = CreatePipe(tablet.TabletId, ctx);
 
     if (tablet.TabletId == BalancerTabletId) {
-        BalancerPipe = &tablet.Pipe;
         RequestBalancer(ctx);
     } else {
         RequestPartitionStatus(tablet, ctx);
@@ -688,7 +684,7 @@ void TDescribeTopicActorImpl::RequestPartitionsLocation(const TActorContext& ctx
         }
     }
     NTabletPipe::SendData(
-        ctx, *BalancerPipe,
+        ctx, Tablets[BalancerTabletId].Pipe,
         new TEvPersQueue::TEvGetPartitionsLocation(partsVector)
     );
     ++RequestsInfly;
@@ -697,7 +693,7 @@ void TDescribeTopicActorImpl::RequestPartitionsLocation(const TActorContext& ctx
 void TDescribeTopicActorImpl::RequestReadSessionsInfo(const TActorContext& ctx) {
     AFL_ENSURE(Settings.Mode == TDescribeTopicActorSettings::EMode::DescribeConsumer);
     NTabletPipe::SendData(
-            ctx, *BalancerPipe,
+            ctx, Tablets[BalancerTabletId].Pipe,
                     new TEvPersQueue::TEvGetReadSessionsInfo(NPersQueue::ConvertNewConsumerName(Settings.Consumer, ctx))
             );
     LOG_DEBUG_S(ctx, NKikimrServices::PQ_READ_PROXY, "DescribeTopicImpl " << ctx.SelfID.ToString() << ": Request sessions");
@@ -795,10 +791,14 @@ void TDescribeTopicActorImpl::Handle(TEvPersQueue::TEvGetPartitionsLocationRespo
 }
 
 void TDescribeTopicActorImpl::CheckCloseBalancerPipe(const TActorContext& ctx) {
-    if (!GotLocation || !GotReadSessions)
+    if (!GotLocation || !GotReadSessions) {
         return;
-    NTabletPipe::CloseClient(ctx, *BalancerPipe);
-    *BalancerPipe = TActorId{};
+    }
+    auto& balancerPipe = Tablets[BalancerTabletId].Pipe;
+    if (balancerPipe) {
+        NTabletPipe::CloseClient(ctx, balancerPipe);
+        balancerPipe = {};
+    }
     BalancerTabletId = 0;
 }
 
@@ -1414,7 +1414,9 @@ bool TPartitionsLocationActor::ApplyResponse(
         partLocation.PartitionId = part.GetPartitionId();
         partLocation.Generation = part.GetGeneration();
         partLocation.NodeId = nodeId;
-        Response->Partitions.emplace_back(std::move(partLocation));
+        if (TopicPartitionsIds.contains(partLocation.PartitionId)) {
+            Response->Partitions.emplace_back(std::move(partLocation));
+        }
     }
     Finalize();
     return true;
