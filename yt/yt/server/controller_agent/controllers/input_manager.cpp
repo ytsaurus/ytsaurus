@@ -1096,9 +1096,14 @@ void TInputManager::InitInputChunkScrapers()
 
 bool TInputManager::CanInterruptJobs() const
 {
-    // TODO(galtsev): hot fix for YT-23460, see also YT-17003
     for (auto& table : InputTables_) {
+        // TODO(galtsev): Hot fix for YT-23460, see also YT-17003.
         if (table->Path.GetForeign() && table->Path.GetNewRanges(table->Comparator).size() > 1) {
+            return false;
+        }
+
+        // TODO(dave11ar): Hot fix for YT-26795.
+        if (table->Path.GetVersionedReadOptions().ReadMode != EVersionedIOMode::Default) {
             return false;
         }
     }
