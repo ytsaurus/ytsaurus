@@ -1454,12 +1454,71 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         sleep(5)
         assert len(get(f"{table}/@chunk_ids")) == 2
 
-        set(f"{table}/@mount_config/aggregate_versioned_row_digest_compaction", {
-            "enable": True,
+        set(f"{table}/@mount_config/compaction_hints/row_digest", {
+            "enable_aggregates": True,
         })
         remount_table(table)
 
         wait(lambda: len(get(f"{table}/@chunk_ids")) == 1)
+
+    @authors("dave11ar")
+    def test_simple_min_hash_digest(self):
+        def _update_config(config):
+            update_nodes_dynamic_config({
+                "tablet_node": {
+                    "store_compactor": {
+                        "compaction_hint_fetchers": {
+                            "min_hash_digest": config,
+                        },
+                    },
+                },
+            })
+
+        sync_create_cells(1)
+
+        _update_config({
+            "periodic_executor": {
+                "period": 1.
+            },
+            "request_throttler": {
+                "limit": 0,
+            },
+        })
+
+        table = "//tmp/t"
+
+        self._create_simple_table(
+            table,
+            mount_config={
+                "min_data_ttl": 0,
+                "dynamic_store_auto_flush_period": yson.YsonEntity(),
+                "compaction_hints": {
+                    "min_hash_digest": {
+                        "enable" : True,
+                    },
+                }
+            },
+        )
+
+        sync_mount_table(table)
+
+        row_count = 10
+
+        insert_rows(table, [{"key": i, "value": "v"} for i in range(row_count)])
+        sync_flush_table(table)
+
+        delete_rows(table, [{"key": i} for i in range(row_count)])
+        sync_flush_table(table)
+
+        assert len(get(f"{table}/@chunk_ids")) == 2
+
+        _update_config({
+            "request_throttler": {
+                "limit": 300,
+            },
+        })
+
+        wait(lambda: len(get(f"{table}/@chunk_ids")) == 0)
 
 
 ################################################################################

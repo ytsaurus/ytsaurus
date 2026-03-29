@@ -203,7 +203,7 @@ class TPartitionCompactionHint
         DEFINE_BYREF_RO_PROPERTY(std::vector<TStore*>, Stores);
 
     public:
-        explicit TPartitionCompactionHintRecalculationFinalizer(TPartition* partition, TPartitionCompactionHint* hint);
+        TPartitionCompactionHintRecalculationFinalizer(TPartition* partition, TPartitionCompactionHint* hint);
 
         ~TPartitionCompactionHintRecalculationFinalizer();
 
