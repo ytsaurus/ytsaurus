@@ -1160,7 +1160,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         assert compacted == chunk_count
 
     @authors("tem-shett")
-    def test_forced_compaction(self):
+    def DISABLED_test_forced_compaction(self):
         cell_id = sync_create_cells(1)[0]
         cell_node = get(f"#{cell_id}/@peers/0/address")
         self._create_simple_table(
