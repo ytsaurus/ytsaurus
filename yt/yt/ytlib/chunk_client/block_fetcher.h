@@ -65,7 +65,7 @@ public:
         NCompression::ECodec codecId,
         double compressionRatio,
         const TClientChunkReadOptions& chunkReadOptions,
-        IInvokerPtr sessionInvoker = {});
+        IInvokerPtr sessionInvoker = nullptr);
 
     ~TBlockFetcher();
 

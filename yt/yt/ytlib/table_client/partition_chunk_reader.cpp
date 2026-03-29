@@ -59,7 +59,10 @@ TPartitionChunkReader::TPartitionChunkReader(
 {
     // NB(gepardo): Real extraChunkTags will be packed later, in InitializeBlockSequence().
     PackBaggageForChunkReader(TraceContext_, dataSource, TExtraChunkTags{});
+}
 
+void TPartitionChunkReader::InitializeRefCounted()
+{
     SetReadyEvent(BIND(&TPartitionChunkReader::InitializeBlockSequence, MakeStrong(this))
         .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
         .Run());
