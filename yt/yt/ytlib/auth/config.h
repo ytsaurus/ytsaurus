@@ -28,6 +28,8 @@ struct TNativeAuthenticationManagerConfig
     //! If true, then service tickets are verified in shadow mode, and a warning is emitted on failure.
     bool WarnOnUnauthenticated;
 
+    TNativeAuthenticationManagerConfigPtr ApplyDynamic(const TNativeAuthenticationManagerDynamicConfigPtr& dynamicConfig) const;
+
     REGISTER_YSON_STRUCT(TNativeAuthenticationManagerConfig);
 
     static void Register(TRegistrar registrar);

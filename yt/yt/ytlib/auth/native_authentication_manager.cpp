@@ -26,33 +26,21 @@ IDynamicTvmServicePtr TNativeAuthenticationManager::CreateTvmService(const TTvmS
 
     auto appliedConfig = CloneYsonStruct(config);
     appliedConfig->ClientEnableServiceTicketFetching = true;
-    YT_VERIFY(appliedConfig->ClientDstMap.emplace("self", appliedConfig->GetClientSelfId()).second);
+    EmplaceOrCrash(appliedConfig->ClientDstMap, "self", appliedConfig->GetClientSelfId());
     return CreateDynamicTvmService(appliedConfig, AuthProfiler().WithPrefix("/native_tvm"));
 }
 
 void TNativeAuthenticationManager::Configure(const TNativeAuthenticationManagerConfigPtr& config)
 {
     TvmService_.Store(CreateTvmService(config->TvmService));
-    EnableValidation_.store(config->EnableValidation);
-    EnableSubmission_.store(config->EnableSubmission);
-    WarnOnUnauthenticated_.store(config->WarnOnUnauthenticated);
-}
-
-void TNativeAuthenticationManager::Reconfigure(const TNativeAuthenticationManagerDynamicConfigPtr& config)
-{
-    if (config->EnableValidation) {
-        EnableValidation_.store(*config->EnableValidation);
-    }
-    if (config->EnableSubmission) {
-        EnableSubmission_.store(*config->EnableSubmission);
-    }
-    if (config->WarnOnUnauthenticated) {
-        WarnOnUnauthenticated_.store(*config->WarnOnUnauthenticated);
-    }
-    if (EnableValidation_.load() && !EnableSubmission_.load()) {
+    if (config->EnableValidation && !config->EnableSubmission) {
         YT_LOG_WARNING("Disabling ticket validation automatically when submission is disabled");
         EnableValidation_.store(false);
+    } else {
+        EnableValidation_.store(config->EnableValidation);
     }
+    EnableSubmission_.store(config->EnableSubmission);
+    WarnOnUnauthenticated_.store(config->WarnOnUnauthenticated);
 }
 
 IDynamicTvmServicePtr TNativeAuthenticationManager::GetTvmService() const
