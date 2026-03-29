@@ -1,22 +1,25 @@
 import itertools
 import json
 import os
+import os.path
 
 import pytest
 
 import yatest.common
-from library.python.port_manager import PortManager
 import library.python.ydb.federated_topic_client as fedydb
 
 import logbroker.tools.lib.recipe_helpers.cm_requests as cm_requests
 
 import contrib.ydb.library.yql.tools.solomon_emulator.client.client as solomon_client
 
+from library.python.port_manager import PortManager
+
 from yt.environment.helpers import assert_items_equal
 from yt.wrapper.flow_commands import PipelineState
 from yt.yql.tests.common.test_framework.test_utils import (
     wait_pipeline_state_or_failed_jobs,
-    create_flow_logs_replicators
+    create_flow_logs_replicators,
+    dump_pipeline_jobs_stderr,
 )
 
 from yt_commands import (
@@ -369,21 +372,33 @@ pragma Ytflow.LogbrokerWriteCompressionLevel = "{self.LOGBROKER_COMPRESSION_LEVE
 
                 query_text = '\n'.join([query_text_header, query_text])
 
+                client = self.Env.create_client()
+
+                test_id = self._get_test_id(request)
+
                 controller_logs_replicator, worker_logs_replicator = create_flow_logs_replicators(
                     self.PIPELINE_PATH,
                     yatest.common.output_path(),
                     logs_batch_size=1000,
-                    output_file_prefix=self._get_test_id(request),
-                    yt_client=self.Env.create_client())
+                    output_file_prefix=test_id,
+                    yt_client=client)
 
                 with controller_logs_replicator, worker_logs_replicator:
                     query = start_query("yql", query_text)
                     query.track()
 
-                    wait_pipeline_state_or_failed_jobs(
-                        PipelineState.Completed, pipeline_path,
-                        client=self.Env.create_client(),
-                        timeout=600)
+                    try:
+                        wait_pipeline_state_or_failed_jobs(
+                            PipelineState.Completed, pipeline_path,
+                            client=client,
+                            timeout=600)
+
+                    finally:
+                        dump_pipeline_jobs_stderr(
+                            self.PIPELINE_PATH,
+                            os.path.join(yatest.common.output_path(), f"{test_id}_pipeline_jobs.stderr"),
+                            client=client)
+
         return impl
 
     def _remove_system_columns(self, rows):

@@ -1,5 +1,6 @@
 import six
 import time
+import traceback
 import threading
 import os
 
@@ -239,3 +240,59 @@ class FlowLogsReplicator(threading.Thread):
             self.stop_event.wait(1)
 
         return True
+
+
+def dump_pipeline_jobs_stderr(pipeline_path, jobs_stderr_file_path, client):
+    import yt.yson
+
+    vanilla_info_attribute = "_yql_ytflow_vanilla_info"
+
+    pipeline_attributes = client.get(
+        pipeline_path,
+        attributes=[vanilla_info_attribute],
+    )
+
+    def write_info(message):
+        with open(jobs_stderr_file_path, "w") as jobs_stderr_file:
+            jobs_stderr_file.write(message)
+            jobs_stderr_file.write("\n")
+
+    if pipeline_attributes.attributes is None:
+        write_info("No operation found in pipeline attributes\n")
+        return
+
+    operation_id = pipeline_attributes.attributes[vanilla_info_attribute]["operation_id"]
+
+    try:
+        jobs = client.list_jobs(operation_id, with_stderr=True)
+    except Exception:
+        write_info(traceback.format_exc())
+        return
+
+    with open(jobs_stderr_file_path, "w") as jobs_stderr_file:
+        for job in jobs["jobs"]:
+            jobs_stderr_file.write(
+                "Job: {id} ({state}, {task_name})\n".format(
+                    id=job["id"],
+                    state=job["state"],
+                    task_name=job["task_name"],
+                )
+            )
+
+            if job["state"] == "failed":
+                formatted_error = yt.yson.dumps(job["error"], yson_format="pretty") \
+                    .decode("utf-8")
+
+                jobs_stderr_file.write(formatted_error)
+                jobs_stderr_file.write("\n")
+
+            try:
+                job_stderr = client.get_job_stderr(operation_id, job["id"]) \
+                    .read() \
+                    .decode("utf8")
+
+                jobs_stderr_file.write(job_stderr)
+            except Exception:
+                jobs_stderr_file.write(traceback.format_exc())
+
+            jobs_stderr_file.write("\n\n")
