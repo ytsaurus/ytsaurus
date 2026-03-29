@@ -5,6 +5,8 @@
 
 namespace NYT::NAuth {
 
+using namespace NYTree;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TNativeAuthenticationManagerConfig::Register(TRegistrar registrar)
@@ -23,6 +25,17 @@ void TNativeAuthenticationManagerConfig::Register(TRegistrar registrar)
             THROW_ERROR_EXCEPTION("Turning off validation while submission is enabled results in non-working configuration");
         }
     });
+}
+
+TNativeAuthenticationManagerConfigPtr TNativeAuthenticationManagerConfig::ApplyDynamic(
+    const TNativeAuthenticationManagerDynamicConfigPtr& dynamicConfig) const
+{
+    auto mergedConfig = CloneYsonStruct(MakeStrong(this));
+    UpdateYsonStructField(mergedConfig->EnableValidation, dynamicConfig->EnableValidation);
+    UpdateYsonStructField(mergedConfig->EnableSubmission, dynamicConfig->EnableSubmission);
+    UpdateYsonStructField(mergedConfig->WarnOnUnauthenticated, dynamicConfig->WarnOnUnauthenticated);
+    mergedConfig->Postprocess();
+    return mergedConfig;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

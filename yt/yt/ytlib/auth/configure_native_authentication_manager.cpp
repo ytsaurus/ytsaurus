@@ -25,10 +25,10 @@ void ConfigureSingleton(const TNativeAuthenticationManagerConfigPtr& config)
 }
 
 void ReconfigureSingleton(
-    const TNativeAuthenticationManagerConfigPtr& /*config*/,
+    const TNativeAuthenticationManagerConfigPtr& config,
     const TNativeAuthenticationManagerDynamicConfigPtr& dynamicConfig)
 {
-    TNativeAuthenticationManager::Get()->Reconfigure(dynamicConfig);
+    TNativeAuthenticationManager::Get()->Configure(config->ApplyDynamic(dynamicConfig));
 }
 
 YT_DEFINE_RECONFIGURABLE_SINGLETON(
