@@ -2544,7 +2544,10 @@ public:
             chunkState->RlsChecker);
 
         Initialize();
+    }
 
+    void InitializeRefCounted()
+    {
         // NB: We must complete initialization before ReadyEvent is set in the constructor.
         SetReadyEvent(RequestFirstBlocks());
     }

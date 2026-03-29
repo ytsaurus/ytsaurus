@@ -46,6 +46,8 @@ public:
         const NChunkClient::TDataSourcePtr& dataSource,
         NChunkClient::TChunkReaderMemoryManagerHolderPtr chunkReaderMemoryManagerHolder = nullptr);
 
+    void InitializeRefCounted();
+
     template <class TValueInsertIterator, class TRowDescriptorInsertIterator>
     bool Read(
         TValueInsertIterator& keyValueInserter,

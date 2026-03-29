@@ -46,6 +46,9 @@ public:
         , RowBuffer_(New<TRowBuffer>(TSchemalessSortingReaderTag()))
         , Evaluator_(std::move(evaluator))
         , RowReorderer_(std::move(nameTable), RowBuffer_, /*deepCapture*/ true, outputColumns)
+    { }
+
+    void InitializeRefCounted()
     {
         SetReadyEvent(BIND(&TSortingReader::DoOpen, MakeWeak(this))
             .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
