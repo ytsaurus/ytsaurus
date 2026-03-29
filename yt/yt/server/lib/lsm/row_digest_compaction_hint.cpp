@@ -167,24 +167,6 @@ void DoRecalculatePartitionCompactionHint<EPartitionCompactionHintKind::Aggregat
             recalculationFinalizer.TryApplyRecalculationByPrefix(timestamp, EStoreCompactionReason::AggregateTtlCleanupExpected, prefixLength);
         }
     }
-
-    if (partition->GetTablet()->GetHasAggregateColumn() || ssize(stores) > rowDigestConfig->MaxStoreCountForExponentialCalculation) {
-        return;
-    }
-
-    for (ui64 storeSubset = 1; storeSubset < (1ULL << ssize(stores)); ++storeSubset) {
-        auto subsetCumulativeDigest = New<TVersionedRowDigest>(NonCompressableDigestConfig);
-        for (int index = 0; index < ssize(stores); ++index) {
-            if ((1ULL << index) & storeSubset) {
-                subsetCumulativeDigest->MergeWith(std::get<TVersionedRowDigestPtr>(
-                    stores[index]->CompactionHints().Payloads()[EStoreCompactionHintKind::VersionedRowDigest]));
-            }
-        }
-
-        if (auto timestamp = CalculateTtlCleanupExpected(subsetCumulativeDigest, mountConfig, /*majorTimestamp*/ TInstant::Max())) {
-            recalculationFinalizer.TryApplyRecalculationBySubset(timestamp, EStoreCompactionReason::AggregateTtlCleanupExpected, storeSubset);
-        }
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
