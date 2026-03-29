@@ -154,6 +154,7 @@ TQueueReplicaSelector::TReplicaOrError TQueueReplicaSelector::PickQueueReplica(
         std::vector<std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*>> candidates;
         std::optional<std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*>> lastFetchedCandidate;
 
+        bool isSelfReplicaInLastEra = oldestTimestamp >= selfReplica->History.back().Timestamp;
         for (auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
             if (BannedReplicaTracker_.IsReplicaBanned(replicaId)) {
                 continue;
@@ -168,7 +169,7 @@ TQueueReplicaSelector::TReplicaOrError TQueueReplicaSelector::PickQueueReplica(
 
             if (selfReplica->ContentType == ETableReplicaContentType::Data) {
                 if (StronglyPreferLocalQueue_) {
-                    if (!IsTargetReplicaModeSync(selfReplica->Mode) &&
+                    if (isSelfReplicaInLastEra &&
                         selfReplica->ClusterName == replicaInfo.ClusterName)
                     {
                         return {replicaId, &replicaInfo};
