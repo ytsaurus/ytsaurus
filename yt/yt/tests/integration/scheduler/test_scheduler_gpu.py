@@ -11,7 +11,8 @@ from yt_env_setup import (
 
 from yt_commands import (
     authors, create, wait, write_table, ls, get, create_data_center, create_rack, run_sleeping_vanilla, update_pool_tree_config,
-    update_pool_tree_config_option, create_pool_tree, exists, map, update_scheduler_config, create_pool, set_node_banned, set
+    update_pool_tree_config_option, create_pool_tree, exists, map, update_scheduler_config, create_pool, set_node_banned,
+    set, update_op_parameters,
 )
 
 from yt_scheduler_helpers import (
@@ -195,7 +196,7 @@ class TestDryRunGpuSchedulingPolicy(DryRunGpuSchedulingPolicyTestBaseConfig):
         assert node_address in ls("//sys/cluster_nodes")
         node = get(scheduler_new_orchid_pool_tree_path("gpu") + f"/gpu_assignment_plan/nodes/{node_address}")
         assert node["assigned_resource_usage"]["gpu"] == 1
-        assert node["resourse_limits"]["gpu"] == 8
+        assert node["resource_limits"]["gpu"] == 8
         assert node["scheduling_module"] == TestDryRunGpuSchedulingPolicy.DATA_CENTER
 
         assert len(get(scheduler_new_orchid_pool_tree_path("gpu") + f"/gpu_assignment_plan/nodes/{node_address}/assignments")) == 1
@@ -413,7 +414,7 @@ class TestDryRunGpuSchedulingPolicy(DryRunGpuSchedulingPolicyTestBaseConfig):
         assert node_address in ls("//sys/cluster_nodes")
         node = get(scheduler_new_orchid_pool_tree_path("cpu") + f"/gpu_assignment_plan/nodes/{node_address}")
         assert node["assigned_resource_usage"]["cpu"] == 1.0
-        assert node["resourse_limits"]["cpu"] == 10.0
+        assert node["resource_limits"]["cpu"] == 10.0
         assert node["scheduling_module"] == TestDryRunGpuSchedulingPolicy.DATA_CENTER
 
         assert len(get(scheduler_new_orchid_pool_tree_path("cpu") + f"/gpu_assignment_plan/nodes/{node_address}/assignments")) == 1
@@ -864,7 +865,7 @@ class TestDryRunGpuSchedulingPolicy(DryRunGpuSchedulingPolicyTestBaseConfig):
 
         assignments_counter = profiler.gauge(prefix + "/assignments_count")
         planned_assignments_counter = profiler.counter(prefix + "/planned_assignments_count")
-        preempted_assignments_counter = profiler.counter(prefix + "/planned_assignments_count")
+        preempted_assignments_counter = profiler.counter(prefix + "/preempted_assignments_count")
         enabled_operations_counter = profiler.gauge(prefix + "/enabled_operations_count")
         full_host_module_bound_operations_counter = profiler.gauge(prefix + "/full_host_module_bound_operations_count")
         assigned_gpu_counter = profiler.gauge(prefix + "/assigned_gpu_count")
@@ -898,7 +899,7 @@ class TestDryRunGpuSchedulingPolicy(DryRunGpuSchedulingPolicyTestBaseConfig):
         op.abort()
 
         wait(lambda: assignments_counter.get() == 0)
-        wait(lambda: preempted_assignments_counter.get() == 1)
+        wait(lambda: preempted_assignments_counter.get() == 0)
         wait(lambda: enabled_operations_counter.get() == 0)
         wait(lambda: full_host_module_bound_operations_counter.get() == 0)
         wait(lambda: assigned_gpu_counter.get() == 0)
@@ -970,6 +971,89 @@ class TestDryRunGpuSchedulingPolicy(DryRunGpuSchedulingPolicyTestBaseConfig):
         assert assignment_log_found
         assert modules_log_found
         assert operation_log_found
+
+    @authors("severovv")
+    def test_pool_limits_decrease(self):
+        create_pool("limited", pool_tree="gpu", attributes={"resource_limits": {"gpu": 12}}, wait_for_orchid=True)
+
+        op1 = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+            job_count=3,
+            pool="limited",
+        )
+        wait(lambda: len(op1.get_running_jobs()) == 3)
+        wait_for_operations_in_orchid(operation_count=1)
+        wait_for_assignments_in_orchid(op1, assignment_count=3)
+        set("//sys/pool_trees/gpu/limited/@resource_limits", {"gpu": 8})
+        wait_for_assignments_in_orchid(op1, assignment_count=2, exactly=True)
+
+    @authors("severovv")
+    def test_operation_limits_decrease(self):
+        op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+            job_count=3,
+        )
+
+        wait(lambda: len(op.get_running_jobs()) == 3)
+        wait_for_operations_in_orchid(operation_count=1)
+        wait_for_assignments_in_orchid(op, assignment_count=3)
+
+        update_op_parameters(
+            op.id,
+            parameters={"scheduling_options_per_pool_tree": {"gpu": {"resource_limits": {"gpu": 8}}}},
+        )
+        wait_for_assignments_in_orchid(op, assignment_count=2, exactly=True)
+
+    @authors("severovv")
+    def test_planning_over_limit(self):
+        create_pool("limited", pool_tree="gpu", attributes={"resource_limits": {"gpu": 12}}, wait_for_orchid=True)
+
+        op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+            job_count=4,
+            pool="limited",
+        )
+
+        wait_for_operations_in_orchid(operation_count=1)
+        wait_for_assignments_in_orchid(op, assignment_count=3, exactly=True)
+
+    @authors("severovv")
+    def test_preemptive_planning_limits(self):
+        profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "gpu"})
+        prefix = "scheduler/gpu_policy"
+        preempted_assignments_counter = profiler.counter(prefix + "/preempted_assignments_count")
+
+        create_pool("limited", pool_tree="gpu", attributes={"strong_guarantee_resources": {"gpu": 8}, "resource_limits": {"gpu": 8}})
+        create_pool("guaranteed", pool_tree="gpu", parent_name="limited", attributes={"strong_guarantee_resources": {"gpu": 8}})
+        create_pool("unguaranteed", pool_tree="gpu", parent_name="limited", attributes={"strong_guarantee_resources": {"gpu": 0}}, wait_for_orchid=True)
+
+        bg_runner = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+            job_count=1,
+            pool="guaranteed",
+        )
+
+        preemptive_runner = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+            job_count=1,
+            pool="unguaranteed",
+        )
+
+        wait_for_operations_in_orchid(operation_count=2)
+        wait_for_assignments_in_orchid(bg_runner, assignment_count=1)
+        wait_for_assignments_in_orchid(preemptive_runner, assignment_count=1)
+
+        will_replace = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+            job_count=1,
+            pool="guaranteed",
+        )
+
+        wait_for_operations_in_orchid(operation_count=3)
+        wait_for_assignments_in_orchid(bg_runner, assignment_count=1, exactly=True)
+        wait_for_assignments_in_orchid(will_replace, assignment_count=1, exactly=True)
+        wait(lambda: preempted_assignments_counter.get() == 1)
+
 
 ##################################################################
 

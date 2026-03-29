@@ -194,7 +194,7 @@ struct TGpuPlanUpdateStatistics final
 
     TDuration UpdatingOperationResourcesDuration;
     TDuration FullHostPlanningDuration;
-    TDuration ReguralPlanningDuration;
+    TDuration RegularPlanningDuration;
     TDuration ExtraPlanningDuration;
 
     int PlannedAssignments = 0;

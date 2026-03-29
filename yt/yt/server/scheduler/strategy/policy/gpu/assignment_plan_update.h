@@ -67,6 +67,7 @@ struct IAssignmentPlanUpdateContext
 
     virtual const TOperationMap& Operations() const = 0;
     virtual const TNodeMap& Nodes() const = 0;
+    virtual const TGpuPlanUpdateStatisticsPtr& GetStatistics() const = 0;
 
     virtual void AddPlannedAssignment(
         std::string allocationGroupName,
@@ -80,7 +81,7 @@ struct IAssignmentPlanUpdateContext
         EAllocationPreemptionReason preemptionReason,
         std::string preemptionDescription) = 0;
 
-    virtual TGpuPlanUpdateStatisticsPtr Statistics() const = 0;
+    virtual TJobResources GetAvailableOperationLimits(const TOperationPtr& operation) const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -149,22 +150,24 @@ private:
 
     NDetail::TPreemptionPenalty GetAssignmentPreemptionPenalty(const TAssignmentPtr& assignment) const;
 
+    int GetLimitedAllocationCount(
+        const TOperationPtr& operation,
+        const std::string& allocationGroupName,
+        const TAllocationGroupResources& allocationGroupResources) const;
+
     //! NB: These methods sort |availableNodes| in-place.
     void PlanAllocationGroup(
         const TOperationPtr& operation,
         const std::string& allocationGroupName,
-        TAllocationGroupResources allocationGroupResources,
         std::vector<TNode*>* availableNodes);
     void PlanAllocationGroupWithPreemption(
         const TOperationPtr& operation,
         const std::string& allocationGroupName,
-        TAllocationGroupResources allocationGroupResources,
         std::vector<TNode*>* availableNodes,
         bool useFullHostAggressivePreemption = false);
     void PlanPreemptibleAllocationGroup(
         const TOperationPtr& operation,
         const std::string& allocationGroupName,
-        TAllocationGroupResources allocationGroupResources,
         std::vector<TNode*>* availableNodes);
 
     void DumpModuleStatistics() const;
@@ -188,7 +191,7 @@ private:
     protected:
         const TOperationPtr& Operation_;
         const std::string& AllocationGroupName_;
-        const TAllocationGroupResources& AllocationGroupResources_;
+        const TAllocationGroupResources AllocationGroupResources_;
         TGpuAllocationAssignmentPlanUpdateExecutor* const Host_;
 
         bool CanAddAssignmentToNode(

@@ -148,8 +148,11 @@ bool TOperationSharedState::ProcessAllocationPreemption(
 
     if (delta != TJobResources()) {
         if (!operationElement->CommitHierarchicalPreemptedResourceUsage(-delta)) {
-            YT_LOG_DEBUG("Failed to commit preempted resource usage, decreasing resource usage instead, "
-                        "(OperationId: %v, Delta: %v)", operationElement->GetId(), delta);
+            YT_LOG_DEBUG(
+                "Failed to commit preempted resource usage, decreasing resource usage instead "
+                "(OperationId: %v, Delta: %v)",
+                operationElement->GetId(),
+                delta);
             operationElement->IncreaseHierarchicalResourceUsage(delta);
         }
         UpdatePreemptibleAllocationsList(operationElement);

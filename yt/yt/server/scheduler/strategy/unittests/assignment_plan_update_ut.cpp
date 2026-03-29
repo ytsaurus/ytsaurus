@@ -1,7 +1,7 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/server/scheduler/strategy/policy/gpu/assignment_plan_update.h>
-#include <yt/yt/server/scheduler/strategy/policy/gpu/assignment_plan_context_detail.h>
+#include <yt/yt/server/scheduler/strategy/policy/gpu/assignment_plan_update_context_detail.h>
 
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
@@ -120,18 +120,18 @@ TDiskQuota ToDiskQuota(const TDiskRequest& diskRequest)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTestAssignmentPlanContext
-    : public TAssignmentPlanContextBase
+struct TTestAssignmentPlanUpdateContext
+    : public IAssignmentPlanUpdateContext
 {
 public:
-    TTestAssignmentPlanContext(
+    TTestAssignmentPlanUpdateContext(
         const TOperationMap& operations,
         const TNodeMap& nodes,
         NLogging::TLogger logger)
-        : TAssignmentPlanContextBase(std::move(logger))
-        , Operations_(operations)
+        : Operations_(operations)
         , Nodes_(nodes)
         , GpuPlanUpdateStatistic_(New<TGpuPlanUpdateStatistics>())
+        , AssignmentHandler_(logger)
     { }
 
     const TOperationMap& Operations() const override
@@ -144,16 +144,47 @@ public:
         return Nodes_;
     }
 
-    TGpuPlanUpdateStatisticsPtr Statistics() const override
+    const TGpuPlanUpdateStatisticsPtr& GetStatistics() const override
     {
         return GpuPlanUpdateStatistic_;
+    }
+
+    TJobResources GetAvailableOperationLimits(const TOperationPtr& operation) const override
+    {
+        return GetOrDefault(OperationIdToLimit_, operation->GetId(), TJobResources::Infinite());
+    }
+
+    void SetAvailableLimitForOperation(const TOperationPtr& operation, const TJobResources& limit)
+    {
+        EmplaceOrCrash(OperationIdToLimit_, operation->GetId(), limit);
+    }
+
+    void AddPlannedAssignment(
+        std::string allocationGroupName,
+        TJobResourcesWithQuota resourceUsage,
+        TOperation* operation,
+        TNode* node,
+        bool preemptible = false) override
+    {
+        AssignmentHandler_.AddPlannedAssignment(std::move(allocationGroupName), resourceUsage, operation, node, preemptible);
+    }
+
+    void PreemptAssignment(
+        const TAssignmentPtr& assignment,
+        EAllocationPreemptionReason preemptionReason,
+        std::string preemptionDescription) override
+    {
+        AssignmentHandler_.PreemptAssignment(assignment, preemptionReason, std::move(preemptionDescription));
     }
 
 private:
     const TOperationMap& Operations_;
     const TNodeMap& Nodes_;
 
-    TGpuPlanUpdateStatisticsPtr GpuPlanUpdateStatistic_;
+    THashMap<TOperationId, TJobResources> OperationIdToLimit_;
+
+    const TGpuPlanUpdateStatisticsPtr GpuPlanUpdateStatistic_;
+    TAssignmentHandler AssignmentHandler_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -405,23 +436,37 @@ protected:
         updateExecutor.Run();
     }
 
+    TOperationMap MakeOperationMap(const std::vector<TOperationPtr>& operations)
+    {
+        TOperationMap operationMap;
+        for (const auto& operation : operations) {
+            EmplaceOrCrash(operationMap, operation->GetId(), operation);
+        }
+        return operationMap;
+    }
+
+    TNodeMap MakeNodeMap(const std::vector<TNodePtr>& nodes)
+    {
+        TNodeMap nodeMap;
+        for (const auto& node : nodes) {
+            EmplaceOrCrash(nodeMap, node->Descriptor()->Id, node);
+        }
+        return nodeMap;
+    }
+
     void DoAllocationAssignmentPlanUpdate(
         const std::vector<TOperationPtr>& operations,
         const std::vector<TNodePtr>& nodes,
         TGpuSchedulingPolicyConfigPtr config = GetTestConfig(),
         TInstant now = {})
     {
-        TOperationMap operationMap;
-        for (const auto& operation : operations) {
-            EmplaceOrCrash(operationMap, operation->GetId(), operation);
-        }
+        auto nodesMap = MakeNodeMap(nodes);
+        auto operationsMap = MakeOperationMap(operations);
 
-        TNodeMap nodeMap;
-        for (const auto& node : nodes) {
-            EmplaceOrCrash(nodeMap, node->Descriptor()->Id, node);
-        }
-
-        TTestAssignmentPlanContext context(operationMap, nodeMap, Logger);
+        TTestAssignmentPlanUpdateContext context(
+            operationsMap,
+            nodesMap,
+            Logger);
         DoAllocationAssignmentPlanUpdate(&context, std::move(config), now);
     }
 
@@ -2266,6 +2311,47 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSimpleOpportunisticOperation)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestOpportunisticOperationLimits)
+{
+    auto nodes = CreateSingleModuleTestNodes();
+    std::vector<TOperationPtr> operations{
+        CreateSingleGroupTestOperationWithExtraResources(
+            UnitResources * 2,
+            /*allocationCount*/ 1,
+            UnitResources * 2,
+            /*extraAllocationCount*/ 3)
+    };
+
+    auto operationsMap = MakeOperationMap(operations);
+    auto nodesMap = MakeNodeMap(nodes);
+    TTestAssignmentPlanUpdateContext context(operationsMap, nodesMap, Logger);
+
+    // NB(severovv): here limits only apply to extra allocations, normal allocation is ignored
+    context.SetAvailableLimitForOperation(operations[0], UnitResources * 3);
+    DoAllocationAssignmentPlanUpdate(&context);
+
+    ASSERT_EQ(2, std::ssize(operations[0]->Assignments()));
+
+    THashSet<TAssignmentPtr> preemptibleAssignments;
+    for (const auto& assignment : operations[0]->Assignments()) {
+        if (assignment->Preemptible) {
+            preemptibleAssignments.insert(assignment);
+        }
+    }
+    ASSERT_EQ(1, std::ssize(preemptibleAssignments));
+
+    operations.push_back(CreateSimpleTestOperation(6, 1));
+    operations[1]->SetStarving(true);
+
+    DoAllocationAssignmentPlanUpdate(operations, nodes);
+
+    ASSERT_TRUE((*preemptibleAssignments.begin())->Preempted);
+
+    ASSERT_EQ(1, std::ssize(operations[0]->Assignments()));
+    ASSERT_EQ(1, std::ssize(operations[1]->Assignments()));
+}
+
 
 } // namespace
 } // namespace NYT::NScheduler::NStrategy::NPolicy::NGpu

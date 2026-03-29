@@ -467,26 +467,6 @@ void TSchedulableChildSet::InitializeChildrenOrder()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDynamicAttributesList::TDynamicAttributesList(int size)
-    : std::vector<TDynamicAttributes>(size)
-{ }
-
-TDynamicAttributes& TDynamicAttributesList::AttributesOf(const TPoolTreeElement* element)
-{
-    int index = element->GetTreeIndex();
-    YT_ASSERT(index != UnassignedTreeIndex && index < std::ssize(*this));
-    return (*this)[index];
-}
-
-const TDynamicAttributes& TDynamicAttributesList::AttributesOf(const TPoolTreeElement* element) const
-{
-    int index = element->GetTreeIndex();
-    YT_ASSERT(index != UnassignedTreeIndex && index < std::ssize(*this));
-    return (*this)[index];
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TDynamicAttributesListSnapshot::TDynamicAttributesListSnapshot(TDynamicAttributesList value)
     : Value(std::move(value))
 { }
