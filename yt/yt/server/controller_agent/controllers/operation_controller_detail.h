@@ -1,7 +1,5 @@
 #pragma once
 
-#include "private.h"
-
 #include "aggregated_job_statistics.h"
 #include "alert_manager.h"
 #include "auto_merge_director.h"
@@ -10,6 +8,7 @@
 #include "input_manager.h"
 #include "job_info.h"
 #include "job_memory.h"
+#include "private.h"
 #include "spec_manager.h"
 #include "task.h"
 #include "task_host.h"

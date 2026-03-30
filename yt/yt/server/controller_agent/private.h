@@ -4,11 +4,11 @@
 
 #include <yt/yt/ytlib/controller_agent/persistence.h>
 
-#include <yt/yt/library/profiling/sensor.h>
-
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/tracing/trace_context.h>
+
+#include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NControllerAgent {
 

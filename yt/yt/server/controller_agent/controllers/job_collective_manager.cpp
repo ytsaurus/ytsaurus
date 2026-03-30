@@ -9,6 +9,7 @@
 #include <yt/yt/server/lib/controller_agent/progress_counter.h>
 
 #include <yt/yt/ytlib/controller_agent/serialize.h>
+
 #include <yt/yt/ytlib/scheduler/config.h>
 
 #include <util/generic/algorithm.h>

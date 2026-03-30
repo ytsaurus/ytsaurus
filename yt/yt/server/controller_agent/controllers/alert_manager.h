@@ -1,5 +1,4 @@
 #include "private.h"
-
 #include "task.h"
 
 #include <yt/yt/core/actions/invoker_pool.h>

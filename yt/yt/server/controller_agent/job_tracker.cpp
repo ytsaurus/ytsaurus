@@ -14,18 +14,16 @@
 #include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
+#include <yt/yt/client/node_tracker_client/node_directory.h>
+
 #include <yt/yt/core/concurrency/lease_manager.h>
-
 #include <yt/yt/core/concurrency/scheduler_api.h>
-
 #include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <yt/yt/core/ytree/service_combiner.h>
 #include <yt/yt/core/ytree/virtual.h>
 
 #include <yt/yt/core/logging/log.h>
-
-#include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <library/cpp/yt/misc/variant.h>
 

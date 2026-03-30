@@ -12,9 +12,9 @@
 
 #include <yt/yt/server/lib/misc/update_executor.h>
 
+#include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
-#include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
@@ -43,8 +43,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/record_helpers.h>
+#include <yt/yt/client/table_client/row_buffer.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 

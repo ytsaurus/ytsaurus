@@ -1,10 +1,10 @@
 #include "job_memory.h"
 
-#include <yt/yt/client/table_client/config.h>
-
 #include <yt/yt/ytlib/chunk_client/config.h>
 
 #include <yt/yt/ytlib/scheduler/config.h>
+
+#include <yt/yt/client/table_client/config.h>
 
 namespace NYT::NControllerAgent::NControllers {
 

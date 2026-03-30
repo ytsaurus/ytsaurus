@@ -1,8 +1,7 @@
 #pragma once
 
-#include "private.h"
-
 #include "operation_controller.h"
+#include "private.h"
 
 #include <yt/yt/ytlib/scheduler/public.h>
 

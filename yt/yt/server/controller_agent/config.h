@@ -25,9 +25,9 @@
 
 #include <yt/yt/client/ypath/rich.h>
 
-#include <yt/yt/library/program/config.h>
-
 #include <yt/yt/library/server_program/config.h>
+
+#include <yt/yt/library/program/config.h>
 
 #include <yt/yt/library/re2/public.h>
 

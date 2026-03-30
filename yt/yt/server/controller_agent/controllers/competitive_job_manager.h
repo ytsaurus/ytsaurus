@@ -1,5 +1,6 @@
 #pragma once
 
+#include "extra_job_manager.h"
 #include "private.h"
 
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
@@ -7,8 +8,6 @@
 #include <yt/yt/server/lib/controller_agent/helpers.h>
 
 #include <yt/yt/client/job_tracker_client/public.h>
-
-#include "extra_job_manager.h"
 
 namespace NYT::NControllerAgent::NControllers {
 
