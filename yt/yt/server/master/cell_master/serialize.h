@@ -168,6 +168,7 @@ DEFINE_ENUM(EMasterReign,
     ((BoomerangMutationForMirroredTransaction)                      (3216))  // kvk1920
     ((FixTamedCellReplicationToSecondaryMasters)                    (3217))  // ifsmirnov
     ((RemoveCompatsAroundStartTransaction)                          (3218))  // h0pless
+    ((FixDescendingSortOrderValidationInBeginUpload)                (3219))  // h0pless
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
