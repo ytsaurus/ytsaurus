@@ -127,10 +127,8 @@ public:
     TFuture<void> Close(
         const IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
-        const TDeferredChunkMetaPtr& /*chunkMeta*/ = nullptr,
-        std::optional<int> truncateBlockCount = std::nullopt) override
+        const TDeferredChunkMetaPtr& /*chunkMeta*/ = nullptr) override
     {
-        YT_VERIFY(!truncateBlockCount.has_value());
         if (!MetaFinalized_) {
             FinalizeMeta();
         }

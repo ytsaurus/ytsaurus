@@ -36,23 +36,6 @@ constinit const auto Logger = IOLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-i64 TruncateBlocks(NChunkClient::NProto::TBlocksExt& blocksExt, int truncateBlockCount, i64 oldDataSize)
-{
-    YT_LOG_FATAL_IF(
-        truncateBlockCount > blocksExt.blocks_size() || truncateBlockCount < 0,
-        "Invalid truncate block count (TruncateBlockCount: %v, BlockCount: %v)",
-        truncateBlockCount,
-        blocksExt.blocks_size());
-
-    i64 truncateDataSize = 0;
-    for (int index = truncateBlockCount; index < blocksExt.blocks_size(); ++index) {
-        truncateDataSize += blocksExt.blocks(index).size();
-    }
-    blocksExt.mutable_blocks()->Truncate(truncateBlockCount);
-    YT_VERIFY(truncateDataSize <= oldDataSize);
-    return oldDataSize - truncateDataSize;
-}
-
 TSerializedBlocksRequest SerializeBlocks(i64 startOffset, const std::vector<TBlock>& blocks, NChunkClient::NProto::TBlocksExt& blocksExt)
 {
     TSerializedBlocksRequest request;
@@ -326,25 +309,19 @@ TFuture<void> TChunkFileWriter::GetReadyEvent()
 TFuture<void> TChunkFileWriter::Close(
     const IChunkWriter::TWriteBlocksOptions& options,
     const TWorkloadDescriptor& workloadDescriptor,
-    const TDeferredChunkMetaPtr& chunkMeta,
-    std::optional<int> truncateBlockCount)
+    const TDeferredChunkMetaPtr& chunkMeta)
 {
-    return Close(options, workloadDescriptor, chunkMeta, {}, truncateBlockCount);
+    return Close(options, workloadDescriptor, chunkMeta, {});
 }
 
 TFuture<void> TChunkFileWriter::Close(
     const IChunkWriter::TWriteBlocksOptions& options,
     const TWorkloadDescriptor& workloadDescriptor,
     const TDeferredChunkMetaPtr& chunkMeta,
-    TFairShareSlotId fairShareSlotId,
-    std::optional<int> truncateBlockCount)
+    TFairShareSlotId fairShareSlotId)
 {
     if (auto error = TryChangeState(EState::Ready, EState::Closing); !error.IsOK()) {
         return MakeFuture<void>(std::move(error));
-    }
-
-    if (truncateBlockCount.has_value()) {
-        DataSize_ = TruncateBlocks(BlocksExt_, *truncateBlockCount, DataSize_);
     }
 
     auto metaFileName = FileName_ + ChunkMetaSuffix;

@@ -90,10 +90,8 @@ i64 TJournalSession::GetIntermediateEmptyBlockCount() const
 
 TFuture<ISession::TFinishResult> TJournalSession::DoFinish(
     const TRefCountedChunkMetaPtr& /*chunkMeta*/,
-    std::optional<int> blockCount,
-    bool truncateExtraBlocks)
+    std::optional<int> blockCount)
 {
-    YT_VERIFY(!truncateExtraBlocks);
     YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     auto result = Changelog_->Finish();
