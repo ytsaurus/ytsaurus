@@ -1497,5 +1497,34 @@ TEST_F(TFormatReaderTest, FormattedPartitionTableTest)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMutationIdTest
+    : public TApiTestBase
+{ };
+
+TEST_F(TMutationIdTest, Commit)
+{
+    auto tx = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Master))
+        .ValueOrThrow();
+
+    auto txId = tx->GetId();
+
+    auto mutationId = TGuid::Create();
+    auto commit = [&] (bool retry) {
+        TTransactionCommitOptions options;
+        options.MutationId = mutationId;
+        if (retry) {
+            options.Retry = true;
+        }
+        auto attached = Client_->AttachTransaction(txId);
+        WaitFor(attached->Commit(options))
+            .ThrowOnError();
+    };
+    EXPECT_NO_THROW(commit(false));
+    // Second commit with same mutationId doesn't throw
+    EXPECT_NO_THROW(commit(true));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT::NCppTests
