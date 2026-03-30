@@ -1733,7 +1733,7 @@ void TGangOperationController::LogOperationIncarnationStarted(const TIncarnation
 {
     LogEventFluently(ELogEventType::OperationIncarnationStarted)
         .Item("operation_id").Value(GetOperationId())
-        .Item("incarnation").Value(Incarnation_.Underlying())
+        .Item("operation_incarnation").Value(Incarnation_.Underlying())
         .OptionalItem("incarnation_switch_reason", data.IncarnationSwitchReason)
         .Item("incarnation_switch_info").Value(data.IncarnationSwitchInfo);
 }
