@@ -354,7 +354,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        return AutomatonEpochContext_ ? AutomatonEpochContext_->Term : InvalidTerm;
+        return AutomatonEpochContext_ ? AutomatonEpochContext_->Term.load() : InvalidTerm;
     }
 
     TFuture<void> Reconfigure(TDynamicDistributedHydraManagerConfigPtr dynamicConfig) override
@@ -482,7 +482,11 @@ public:
                             .Item("leader_id").Value(epochContext->LeaderId)
                             .Item("self_id").Value(selfId)
                             .Item("voting").Value(epochContext->CellManager->GetPeerConfig(selfId)->Voting)
-                            .Item("entering_read_only_mode").Value(epochContext->EnteringReadOnlyMode);
+                            .Item("entering_read_only_mode").Value(epochContext->EnteringReadOnlyMode)
+                            .Item("catching_up").Value(epochContext->CatchingUp)
+                            .Item("leader_switch_started").Value(epochContext->LeaderSwitchStarted)
+                            .Item("leader_lease_expired").Value(epochContext->LeaderLeaseExpired)
+                            .Item("acquiring_changelog").Value(epochContext->AcquiringChangelog);
                             // TODO(aleksandra-zh): add stuff.
                     })
                     .Item("state").Value(DecoratedAutomaton_->GetState())

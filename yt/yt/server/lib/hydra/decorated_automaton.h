@@ -81,7 +81,7 @@ struct TEpochContext
     NElection::TCellManagerPtr CellManager;
     IChangelogStorePtr ChangelogStore;
     TReachableState ReachableState;
-    int Term = InvalidTerm;
+    std::atomic<int> Term = InvalidTerm;
 
     IInvokerPtr EpochSystemAutomatonInvoker;
     IInvokerPtr EpochUserAutomatonInvoker;
@@ -95,12 +95,11 @@ struct TEpochContext
     NConcurrency::TPeriodicExecutorPtr AlivePeersUpdateExecutor;
 
     std::atomic_flag Restarting = ATOMIC_FLAG_INIT;
-    bool LeaderSwitchStarted = false;
-    bool LeaderLeaseExpired = false;
-    bool AcquiringChangelog = false;
-    bool EnteringReadOnlyMode = false;
-    bool CatchingUp = false;
-
+    std::atomic<bool> LeaderSwitchStarted = false;
+    std::atomic<bool> LeaderLeaseExpired = false;
+    std::atomic<bool> AcquiringChangelog = false;
+    std::atomic<bool> EnteringReadOnlyMode = false;
+    std::atomic<bool> CatchingUp = false;
     std::atomic<bool> ReadOnly = false;
     std::atomic<bool> Discombobulated = false;
 
