@@ -119,11 +119,9 @@ public:
     TFuture<void> Close(
         const IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& /*workloadDescriptor*/,
-        const TDeferredChunkMetaPtr& chunkMeta,
-        std::optional<int> truncateBlockCount) override
+        const TDeferredChunkMetaPtr& chunkMeta) override
     {
         YT_VERIFY(Opened_ && !Closed_);
-        YT_VERIFY(!truncateBlockCount.has_value());
 
         return BIND(&TStripedErasureWriter::DoClose, MakeStrong(this), options, chunkMeta)
             .AsyncVia(WriterInvoker_)

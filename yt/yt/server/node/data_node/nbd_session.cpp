@@ -194,8 +194,7 @@ i64 TNbdSession::GetIntermediateEmptyBlockCount() const
 
 TFuture<ISession::TFinishResult> TNbdSession::Finish(
     const NChunkClient::TRefCountedChunkMetaPtr& /* chunkMeta */,
-    std::optional<int> /* blockCount */,
-    bool /*truncateExtraBlocks*/)
+    std::optional<int> /* blockCount */)
 {
     THROW_ERROR_EXCEPTION("Not implemented");
 }

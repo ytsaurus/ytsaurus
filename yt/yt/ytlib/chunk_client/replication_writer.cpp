@@ -425,12 +425,10 @@ public:
     TFuture<void> Close(
         const IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
-        const TDeferredChunkMetaPtr& chunkMeta,
-        std::optional<int> truncateBlockCount) override
+        const TDeferredChunkMetaPtr& chunkMeta) override
     {
         YT_VERIFY(State_.load() == EReplicationWriterState::Open);
         YT_VERIFY(chunkMeta || IsJournalChunkId(DecodeChunkId(SessionId_.ChunkId).Id));
-        YT_VERIFY(!truncateBlockCount.has_value());
 
         State_.store(EReplicationWriterState::Closing);
 
