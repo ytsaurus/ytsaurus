@@ -54,6 +54,8 @@ PEERDIR(
     contrib/ydb/core/actorlib_impl
     contrib/ydb/core/base
     contrib/ydb/core/blobstorage
+    contrib/ydb/core/control
+    contrib/ydb/core/mon
     contrib/ydb/core/blobstorage/crypto
     contrib/ydb/core/blobstorage/dsproxy/mock
     contrib/ydb/core/blobstorage/groupinfo

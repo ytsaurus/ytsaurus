@@ -124,8 +124,11 @@ PEERDIR(
     contrib/ydb/library/ydb_issue
     contrib/ydb/public/api/protos/out
     yql/essentials/minikql
+    yql/essentials/types/binary_json
     library/cpp/deprecated/atomic
 )
+
+YQL_LAST_ABI_VERSION()
 
 IF (NOT OS_WINDOWS)
 PEERDIR(

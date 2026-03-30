@@ -197,6 +197,7 @@ public:
 
             if (count > 0) {
                 io_uring_cq_advance(Owner.Ring.get(), count);
+                Owner.InFlightCount.fetch_sub(count, std::memory_order_release);
             }
         }
 
@@ -253,7 +254,12 @@ void TUringRouter::Start() {
 }
 
 struct io_uring_sqe* TUringRouter::GetSqe() {
-    return io_uring_get_sqe(Ring.get());
+    auto sqe = io_uring_get_sqe(Ring.get());
+    if (sqe) {
+        InFlightCount.fetch_add(1, std::memory_order_acquire);
+    }
+
+    return sqe;
 }
 
 void TUringRouter::PrepareSqe(struct io_uring_sqe* sqe, TUringOperationBase* op) {
@@ -359,7 +365,7 @@ void TUringRouter::Stop() {
         // Submit a stop marker that will complete only after all previously
         // submitted operations (including those not yet flushed) are complete.
         while (true) {
-            struct io_uring_sqe* sqe = io_uring_get_sqe(Ring.get());
+            struct io_uring_sqe* sqe = GetSqe();
             if (sqe) {
                 io_uring_prep_nop(sqe);
                 sqe->flags |= IOSQE_IO_DRAIN;
@@ -394,6 +400,10 @@ bool TUringRouter::IsFileRegistered() const {
 
 EUringFavor TUringRouter::GetUringFavor() const {
     return Config.GetUringFavor();
+}
+
+ui32 TUringRouter::GetInflight() const {
+    return InFlightCount.load(std::memory_order_relaxed);
 }
 
 bool TUringRouter::Probe(TUringRouterConfig config) {

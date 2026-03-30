@@ -18,6 +18,7 @@ private:
     ui64 TabletId;
     TIntrusivePtr<NKikimr::NPDisk::TSectorMap> SectorMap;
     ui32 BlockSize;
+    std::atomic<ui64> LsnGenerator;   // TODO
 
     std::atomic<NActors::TMonotonic> LastTraceTs{NActors::TMonotonic::Zero()};
     // Throttle trace ID creation to avoid overwhelming the tracing system
@@ -34,47 +35,46 @@ public:
 
     ~TInMemoryDirectBlockGroup() override = default;
 
-    NThreading::TFuture<void> EstablishConnections(
-        TExecutorPtr executor,
-        NWilson::TTraceId traceId,
-        ui32 vChunkIndex) override;
+    TExecutorPtr GetExecutor() override;
 
-    void ReadBlocksLocalFromPersistentBuffer(
-        TExecutorPtr executor,
-        ui32 vChunkIndex,
-        ui8 persistentBufferIndex,
-        TCallContextPtr callContext,
-        std::shared_ptr<TReadBlocksLocalRequest> request,
-        NWilson::TTraceId traceId,
-        NThreading::TPromise<TReadBlocksLocalResponse> promise,
-        ui64 lsn) override;
+    ui64 GenerateLsn() override;
 
-    void ReadBlocksLocalFromDDisk(
-        TExecutorPtr executor,
-        ui32 vChunkIndex,
-        TCallContextPtr callContext,
-        std::shared_ptr<TReadBlocksLocalRequest> request,
-        NWilson::TTraceId traceId,
-        NThreading::TPromise<TReadBlocksLocalResponse> promise) override;
+    NThreading::TFuture<void> EstablishConnections() override;
 
-    TVector<TPersistentBufferWriteMeta> WriteBlocksLocal(
-        TExecutorPtr executor,
+    NThreading::TFuture<TDBGReadBlocksResponse> ReadBlocksFromPBuffer(
         ui32 vChunkIndex,
-        TCallContextPtr callContext,
-        std::shared_ptr<TWriteBlocksLocalRequest> request,
-        NWilson::TTraceId traceId,
-        NThreading::TPromise<TWriteBlocksLocalResponse> promise) override;
-
-    void SyncWithPersistentBuffer(
-        TExecutorPtr executor,
-        ui32 vChunkIndex,
-        ui8 persistBufferIndex,
-        const TVector<TSyncRequest>& syncRequests,
+        ui8 hostIndex,
+        ui64 lsn,
+        TBlockRange64 range,
+        TGuardedSgList guardedSglist,
         NWilson::TTraceId traceId) override;
 
-    void ErasePersistentBuffer(
-        TExecutorPtr executor,
-        std::shared_ptr<TEraseRequestHandler> requestHandler) override;
+    NThreading::TFuture<TDBGReadBlocksResponse> ReadBlocksFromDDisk(
+        ui32 vChunkIndex,
+        ui8 hostIndex,
+        TBlockRange64 range,
+        TGuardedSgList guardedSglist,
+        NWilson::TTraceId traceId) override;
+
+    NThreading::TFuture<TDBGWriteBlocksResponse> WriteBlocksToPBuffer(
+        ui32 vChunkIndex,
+        ui8 hostIndex,
+        ui64 lsn,
+        TBlockRange64 range,
+        TGuardedSgList guardedSglist,
+        NWilson::TTraceId traceId) override;
+
+    NThreading::TFuture<TDBGFlushResponse> FlushFromPBuffer(
+        ui32 vChunkIndex,
+        ui8 hostIndex,
+        const TVector<TPBufferSegment>& segments,
+        NWilson::TTraceId traceId) override;
+
+    NThreading::TFuture<TDBGEraseResponse> EraseFromPBuffer(
+        ui32 vChunkIndex,
+        ui8 hostIndex,
+        const TVector<TPBufferSegment>& segments,
+        NWilson::TTraceId traceId) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
