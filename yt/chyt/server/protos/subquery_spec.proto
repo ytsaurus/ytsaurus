@@ -7,6 +7,12 @@ import "yt_proto/yt/core/ytree/proto/attributes.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TSubqueryOptions
+{
+    optional bool use_distinct_read_optimization = 1;
+    optional bool use_min_max_optimization = 2;
+}
+
 message TSubquerySpec
 {
     required NYT.NChunkClient.NProto.TDataSourceDirectoryExt data_source_directory = 1;
@@ -20,6 +26,7 @@ message TSubquerySpec
     optional bytes table_reader_config = 11; // YSON-serialized TTableReaderConfig
     optional bytes query_settings = 12; // YSON-serialized TQuerySettings
     optional NYT.NTableClient.NProto.TColumnarStatisticsExt table_stats = 13;
+    optional TSubqueryOptions subquery_options = 14;
 }
 
 message TSecondaryQueryReadTask
