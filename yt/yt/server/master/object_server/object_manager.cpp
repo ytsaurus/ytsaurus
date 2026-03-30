@@ -1020,6 +1020,13 @@ TObjectId TObjectManager::GenerateId(EObjectType type, TObjectId hintId)
     ++CreatedObjects_;
 
     if (hintId) {
+        YT_LOG_ALERT_UNLESS(
+            type == TypeFromId(hintId),
+            "Provided object id does not match the provided type (Type: %v, TypeFromId: %v, Id: %v)",
+            type,
+            TypeFromId(hintId),
+            hintId);
+
         return hintId;
     }
 
