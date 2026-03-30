@@ -52,17 +52,24 @@ class TestYtDictionaries(ClickHouseTestBase):
                     }
                 },
         ) as clique:
+            expected_result = [
+                {"number": 0, "str": "n/a", "i64": 42},
+                {"number": 1, "str": "str1", "i64": 1},
+                {"number": 2, "str": "n/a", "i64": 42},
+                {"number": 3, "str": "str3", "i64": 9},
+                {"number": 4, "str": "n/a", "i64": 42},
+            ]
             result = clique.make_query(
                 "select number, dictGetString('dict', 'value_str', number) as str, "
                 "dictGetInt64('dict', 'value_i64', number) as i64 from numbers(5)"
             )
-        assert result == [
-            {"number": 0, "str": "n/a", "i64": 42},
-            {"number": 1, "str": "str1", "i64": 1},
-            {"number": 2, "str": "n/a", "i64": 42},
-            {"number": 3, "str": "str3", "i64": 9},
-            {"number": 4, "str": "n/a", "i64": 42},
-        ]
+            assert result == expected_result
+
+            settings = {"chyt.execution.enable_distinct_read_optimization": 1}
+            result = clique.make_query(
+                "select number, dictGetString('dict', 'value_str', number) as str, "
+                "dictGetInt64('dict', 'value_i64', number) as i64 from numbers(5)", settings=settings)
+            assert result == expected_result
 
     @authors("max42")
     def test_composite_key_hashed(self):

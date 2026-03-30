@@ -698,8 +698,8 @@ private:
 
         SpecTemplate_.QuerySettings = StorageContext_->Settings;
         SpecTemplate_.QuerySettings->Execution->EnableInputSpecsPulling = SuitableForPullInputSpecsMode();
-        SpecTemplate_.QuerySettings->Execution->EnableOptimizeDistinctRead = QueryAnalyzer_->NeedOnlyDistinct();
-        SpecTemplate_.QuerySettings->Execution->EnableMinMaxOptimization =
+        SpecTemplate_.SubqueryOptions.UseDistinctReadOptimization = QueryAnalyzer_->NeedOnlyDistinct();
+        SpecTemplate_.SubqueryOptions.UseMinMaxOptimization =
             QueryAnalysisResult_->EnableMinMaxOptimization && SpecTemplate_.TableStatistics.has_value();
 
         auto& tableStatistics = SpecTemplate_.TableStatistics;
@@ -720,7 +720,7 @@ private:
                 return true;
             };
             if (!tableStatistics->HasValueStatistics() || !checkValues(tableStatistics->ColumnMinValues) || !checkValues(tableStatistics->ColumnMaxValues)) {
-                SpecTemplate_.QuerySettings->Execution->EnableMinMaxOptimization = false;
+                SpecTemplate_.SubqueryOptions.UseMinMaxOptimization = false;
                 tableStatistics = std::nullopt;
             }
         }
@@ -777,7 +777,9 @@ private:
             "query_processing_stage", DB::QueryProcessingStage::toString(ProcessingStage_));
 
         QueryContext_->SetRuntimeVariable(
-            "use_min_max_optimization", SpecTemplate_.QuerySettings->Execution->EnableMinMaxOptimization);
+            "use_input_specs_pulling", SpecTemplate_.QuerySettings->Execution->EnableInputSpecsPulling);
+        QueryContext_->SetRuntimeVariable(
+            "use_min_max_optimization", SpecTemplate_.SubqueryOptions.UseMinMaxOptimization);
         QueryContext_->SetRuntimeVariable(
             "try_optimize_distinct_read", SpecTemplate_.QuerySettings->Execution->EnableOptimizeDistinctRead);
         QueryContext_->SetRuntimeVariable(
@@ -843,7 +845,7 @@ private:
                 taskCount,
                 QueryContext_->SessionSettings->Execution->TaskCountIncreaseFactor);
         }
-        if (SpecTemplate_.QuerySettings->Execution->EnableMinMaxOptimization) {
+        if (SpecTemplate_.SubqueryOptions.UseMinMaxOptimization) {
             taskCount = 1;
         }
 

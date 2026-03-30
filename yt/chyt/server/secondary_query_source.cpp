@@ -223,6 +223,7 @@ public:
         TTraceContextPtr traceContext,
         THost* host,
         TQuerySettingsPtr settings,
+        TSubqueryOptions options,
         TLogger logger,
         TCallback<void(const TStatistics&)> statisticsCallback)
         : DB::ISource(
@@ -232,6 +233,7 @@ public:
         , TraceContext_(std::move(traceContext))
         , Host_(host)
         , Settings_(std::move(settings))
+        , Options_(std::move(options))
         , Logger(std::move(logger))
         , StatisticsCallback_(std::move(statisticsCallback))
         , NameTable_(GetPlanNameTable(ReadPlan_))
@@ -336,7 +338,7 @@ public:
                 const auto& step = ReadPlan_->Steps[stepIndex];
 
                 bool filterEmpty = blockWithFilter.Filter.empty() || blockWithFilter.RowCountAfterFilter == batch->GetRowCount();
-                if (stepIndex == std::ssize(ReadPlan_->Steps) - 1 && Settings_->Execution->EnableOptimizeDistinctRead && !filterEmpty) {
+                if (stepIndex == std::ssize(ReadPlan_->Steps) - 1 && Options_.UseDistinctReadOptimization && !filterEmpty) {
                     YT_VERIFY(step.Columns.size() == 1);
                     if (auto columnarBatch = batch->TryAsColumnar()) {
                         auto batchColumns = columnarBatch->MaterializeColumns();
@@ -424,6 +426,7 @@ protected:
     TTraceContextPtr TraceContext_;
     THost* const Host_;
     const TQuerySettingsPtr Settings_;
+    const TSubqueryOptions Options_;
     const TLogger Logger;
 
     //! Converters for every step from the read plan.
@@ -454,7 +457,7 @@ protected:
     {
         Converters_.reserve(ReadPlan_->Steps.size());
         for (int i = 0; i < std::ssize(ReadPlan_->Steps); ++i) {
-            bool enableOptimizeDistinctRead = (i == std::ssize(ReadPlan_->Steps) - 1) ? Settings_->Execution->EnableOptimizeDistinctRead : false;
+            bool enableOptimizeDistinctRead = (i == std::ssize(ReadPlan_->Steps) - 1) ? Options_.UseDistinctReadOptimization : false;
             Converters_.emplace_back(ReadPlan_->Steps[i].Columns, NameTable_, Settings_->Composite, enableOptimizeDistinctRead);
         }
 
@@ -578,6 +581,7 @@ public:
         TTraceContextPtr traceContext,
         THost* host,
         TQuerySettingsPtr settings,
+        TSubqueryOptions options,
         TLogger logger,
         TChunkReaderStatisticsPtr chunkReaderStatistics,
         TCallback<void(const TStatistics&)> statisticsCallback,
@@ -587,6 +591,7 @@ public:
             traceContext,
             host,
             settings,
+            std::move(options),
             logger,
             statisticsCallback)
         , ReaderFactory_(std::move(readerFactory))
@@ -601,7 +606,7 @@ public:
     DB::String getName() const override
     {
         std::string name = "SecondaryQuerySource";
-        if (Settings_->Execution->EnableOptimizeDistinctRead) {
+        if (Options_.UseDistinctReadOptimization) {
             name += " (Distinct values optimized)";
         }
         return name;
@@ -614,7 +619,7 @@ public:
 
     IUnversionedRowBatchPtr ReadBatch() override
     {
-        auto batch = CurrentReader_->Read(Options_);
+        auto batch = CurrentReader_->Read(RowBatchReadOptions_);
         if (!batch) {
             OnReaderFinish();
         }
@@ -631,7 +636,7 @@ private:
     ISchemalessMultiChunkReaderPtr CurrentReader_;
     TChunkReaderStatisticsPtr ChunkReaderStatistics_;
 
-    const TRowBatchReadOptions Options_{
+    const TRowBatchReadOptions RowBatchReadOptions_{
             .Columnar = Settings_->EnableColumnarRead,
     };
 
@@ -701,7 +706,7 @@ public:
         TCallback<void(const TStatistics&)> statisticsCallback,
         IUnversionedRowBatchPtr batch,
         std::string batchDescription = "")
-        : TSecondaryQuerySourceBase(readPlan, traceContext, host, settings, logger, statisticsCallback)
+        : TSecondaryQuerySourceBase(readPlan, traceContext, host, settings, /*options*/ TSubqueryOptions(), logger, statisticsCallback)
         , Batch_(std::move(batch))
         , BatchDescription_(std::move(batchDescription))
     {
@@ -781,6 +786,7 @@ DB::SourcePtr CreateSecondaryQuerySource(
         std::move(traceContext),
         host,
         std::move(querySettings),
+        /*options*/ TSubqueryOptions(),
         std::move(logger),
         std::move(chunkReaderStatistics),
         std::move(statisticsCallback));
@@ -826,15 +832,13 @@ DB::SourcePtr CreateSecondaryQuerySource(
         YT_LOG_DEBUG("Input stream factory handled breakpoint (Breakpoint: %v)", *breakpointFilename);
     }
 
-    // TODO(buyval01): Inject settings from subquerySpec to storageContext settings at tcp handler level.
-    storageContext->Settings->Execution->EnableOptimizeDistinctRead = subquerySpec.QuerySettings->Execution->EnableOptimizeDistinctRead;
-
     return std::make_shared<TSecondaryQuerySource>(
         /*reader*/ nullptr,
         std::move(readPlan),
         sourceTraceContext,
         queryContext->Host,
         storageContext->Settings,
+        subquerySpec.SubqueryOptions,
         queryContext->Logger.WithTag("ReadSessionId: %v", chunkReadOptions.ReadSessionId),
         chunkReadOptions.ChunkReaderStatistics,
         std::move(statisticsCallback),
