@@ -424,7 +424,7 @@ def delete_rows(table, input_stream, atomicity=None, durability=None, format=Non
         client=client).run()
 
 
-def lock_rows(table, input_stream, locks=[], lock_type=None, durability=None, format=None, raw=None, client=None):
+def lock_rows(table, input_stream, locks=None, lock_type=None, durability=None, format=None, raw=None, client=None):
     """Lock rows with keys from input_stream from dynamic table.
 
     :param table: table to remove rows from.
@@ -438,6 +438,8 @@ def lock_rows(table, input_stream, locks=[], lock_type=None, durability=None, fo
     """
     if raw is None:
         raw = get_config(client)["default_value_of_raw_option"]
+
+    locks = get_value(locks, [])
 
     table = TablePath(table, client=client)
     format = _prepare_command_format(format, raw, client)

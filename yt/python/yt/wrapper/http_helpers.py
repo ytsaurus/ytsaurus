@@ -91,9 +91,11 @@ def _hexify_recursively(obj):
     if isinstance(obj, dict):
         for key in obj:
             obj[key] = _hexify_recursively(obj[key])
+        return obj
     elif isinstance(obj, list):
         for index in range(len(obj)):
-            obj[key] = _hexify_recursively(obj[key])
+            obj[index] = _hexify_recursively(obj[index])
+        return obj
     elif isinstance(obj, bytes):
         return _hexify(obj)
     else:
