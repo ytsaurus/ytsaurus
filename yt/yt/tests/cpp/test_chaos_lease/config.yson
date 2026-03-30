@@ -1,0 +1,24 @@
+{
+    NUM_MASTERS = 1;
+    NUM_NODES = 4;
+    NUM_CHAOS_NODES = 2;
+    NUM_CLOCKS = 1;
+    NUM_MASTER_CACHES = 1;
+    NUM_SCHEDULERS = 0;
+    NUM_CONTROLLER_AGENTS = 0;
+    DRIVER_BACKEND = rpc;
+    NUM_RPC_PROXIES = 1;
+    ENABLE_RPC_PROXY = %true;
+    DELTA_RPC_DRIVER_CONFIG = {
+        enable_retries = %true;
+    };
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true" = {
+            tablet_node = {
+                replication_card_updates_batcher = {
+                    enable = %true;
+                };
+            };
+        };
+    };
+}
