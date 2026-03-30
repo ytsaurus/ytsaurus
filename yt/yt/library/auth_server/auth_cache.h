@@ -51,6 +51,7 @@ private:
     THashMap<TKey, TEntryPtr> Cache_;
 
     virtual TFuture<TValue> DoGet(const TKey& key, const TContext& context) noexcept = 0;
+    void ScheduleErase(const TEntryPtr& entry);
     void TryErase(const TWeakPtr<TEntry>& weakEntry);
 };
 

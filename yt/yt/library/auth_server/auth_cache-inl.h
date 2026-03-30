@@ -9,6 +9,8 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
+#include <yt/yt/core/misc/jitter.h>
+
 namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -99,15 +101,25 @@ TFuture<TValue> TAuthCache<TKey, TValue, TContext>::Get(const TKey& key, const T
     }
 
     if (inserted) {
-        entry->EraseCookie = NConcurrency::TDelayedExecutor::Submit(
-            BIND(&TAuthCache::TryErase, MakeWeak(this), MakeWeak(entry)),
-            Config_->OptimisticCacheTtl);
-
+        ScheduleErase(entry);
         entry->Promise.SetFrom(DoGet(entry->Key, entry->Context).ToUncancelable());
     }
 
     auto guard = Guard(entry->Lock);
     return entry->Future;
+}
+template <class TKey, class TValue, class TContext>
+void TAuthCache<TKey, TValue, TContext>::ScheduleErase(const TEntryPtr& entry)
+{
+    auto delay = ApplyJitter(
+        Config_->OptimisticCacheTtl,
+        Config_->OptimisticCacheTtlJitter,
+        // Returns a uniform random number in [-1.0, 0).
+        [] { return RandomNumber<double>() - 1.0; });
+
+    entry->EraseCookie = NConcurrency::TDelayedExecutor::Submit(
+        BIND(&TAuthCache::TryErase, MakeWeak(this), MakeWeak(entry)),
+        delay);
 }
 
 template <class TKey, class TValue, class TContext>
@@ -126,9 +138,7 @@ void TAuthCache<TKey, TValue, TContext>::TryErase(const TWeakPtr<TEntry>& weakEn
             Cache_.erase(it);
         }
     } else {
-        entry->EraseCookie = NConcurrency::TDelayedExecutor::Submit(
-            BIND(&TAuthCache::TryErase, MakeWeak(this), MakeWeak(entry)),
-            Config_->OptimisticCacheTtl);
+        ScheduleErase(entry);
     }
 }
 
