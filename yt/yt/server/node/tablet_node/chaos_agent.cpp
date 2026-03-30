@@ -135,6 +135,25 @@ public:
         }
     }
 
+    TFuture<void> GetFutureEra(NChaosClient::TReplicationEra currentEra) override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        auto snapshotEra = Tablet_->RuntimeData()->ReplicationEra.load();
+        if (currentEra < snapshotEra) {
+            return OKFuture;
+        }
+
+        return UpdateEraPromise_.Read([this, currentEra] (const TPromise<void>& promise) {
+            auto snapshotEra = Tablet_->RuntimeData()->ReplicationEra.load();
+            if (currentEra < snapshotEra) {
+                return OKFuture;
+            }
+
+            return promise.ToFuture();
+        });
+    }
+
 private:
     TTablet* const Tablet_;
     const ITabletSlotPtr Slot_;
@@ -155,6 +174,7 @@ private:
     TAtomicObject<TWeakPtr<IInvoker>> SelfInvoker_;
 
     TAtomicObject<TFuture<void>> RefreshEraFuture_;
+    TAtomicObject<TPromise<void>> UpdateEraPromise_ = NewPromise<void>();
 
     void FiberMain(TCallback<void()> callback, TDuration period)
     {
@@ -315,10 +335,10 @@ private:
 
         auto future = RefreshEraFuture_.Load();
         if (!future || future.IsSet()) {
-            future = RefreshEraFuture_.Transform([this, newEra] (TFuture<void>& futureEra) {
+            future = RefreshEraFuture_.Transform([this, newEra] (auto& futureEra) {
                 if (!futureEra || futureEra.IsSet()) {
                     futureEra = BIND(
-                      &TChaosAgent::UpdateReplicationCardAndReconfigure,
+                        &TChaosAgent::UpdateReplicationCardAndReconfigure,
                         MakeWeak(this),
                         newEra)
                         .AsyncVia(Tablet_->GetEpochAutomatonInvoker())
@@ -329,7 +349,7 @@ private:
             });
         }
 
-        WaitFor(future)
+        WaitFor(std::move(future))
             .ThrowOnError();
 
         YT_LOG_DEBUG("Finished refreshing replication card era (NewEra: %v)",
@@ -354,6 +374,13 @@ private:
         auto mutation = CreateMutation(Slot_->GetSimpleHydraManager(), req);
         WaitFor(mutation->Commit())
             .ThrowOnError();
+
+        if (Tablet_->RuntimeData()->ReplicationEra.load() == newEra) {
+            UpdateEraPromise_.Transform([] (TPromise<void>& futureEra) {
+                futureEra.Set();
+                futureEra = NewPromise<void>();
+            });
+        }
 
         YT_LOG_DEBUG("Replication era advance finished (NewReplicationEra: %v)",
             newEra);
