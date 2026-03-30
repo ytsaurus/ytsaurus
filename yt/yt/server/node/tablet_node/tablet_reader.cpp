@@ -158,7 +158,7 @@ public:
 
     TUnversionedRow BuildMergedRow(TVersionedRow versionedRow)
     {
-        if (Y_UNLIKELY(!versionedRow.DeleteTimestamps().Empty())) {
+        if (!versionedRow.DeleteTimestamps().Empty()) [[unlikely]] {
             THROW_ERROR_EXCEPTION("Delete timestamp are not supported");
         }
 
@@ -171,7 +171,7 @@ public:
 
         for (auto key : versionedRow.Keys()) {
             int columnIndex = ColumnIdToIndex_[key.Id];
-            if (Y_UNLIKELY(columnIndex == -1)) {
+            if (columnIndex == -1) [[unlikely]] {
                 continue;
             }
 
@@ -206,7 +206,7 @@ public:
             if (nestedColumnIndex != -1) {
                 NestedColumns_[nestedColumnIndex] = {valueIt, valueItNext};
                 valueIt = valueItNext;
-            } else if (Y_LIKELY(columnIndex != -1)) {
+            } else if (columnIndex != -1) [[likely]] {
                 auto* aggregateFunction = AggregateFunctions_[columnIndex];
                 auto* state = &resultRow[columnIndex];
 
@@ -863,7 +863,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
     for (const auto& store : stores) {
         boundaries.push_back(store->GetMinKey());
 
-        if (Y_UNLIKELY(!mergeVersionedRows)) {
+        if (!mergeVersionedRows) [[unlikely]] {
             auto type = store->GetType();
 
             THROW_ERROR_EXCEPTION_IF(type != EStoreType::SortedDynamic && type != EStoreType::SortedChunk,

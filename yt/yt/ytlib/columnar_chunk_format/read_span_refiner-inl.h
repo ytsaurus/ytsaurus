@@ -145,7 +145,7 @@ void TColumnIterator<Type>::SkipToSegment(ui32 rowIndex)
 template <EValueType Type>
 void TColumnIterator<Type>::SkipTo(ui32 rowIndex)
 {
-    if (Y_UNLIKELY(rowIndex >= GetSegmentRowLimit())) {
+    if (rowIndex >= GetSegmentRowLimit()) [[unlikely]] {
         SkipToSegment(rowIndex);
     }
 
@@ -180,7 +180,7 @@ ui32 TColumnIterator<Type>::SkipWhileImpl(ui32 upperRowBound, TPredicate pred)
     Position_ = SkipInSegment(upperRowBound, pred, Position_ + 1);
 
     // TODO(lukyan): Move this branch into noinline function?
-    if (Y_UNLIKELY(Position_ == GetCount())) {
+    if (Position_ == GetCount()) [[unlikely]] {
         // TODO(lukyan): Use lookup segment readers here.
         YT_ASSERT(UpperRowBound(GetCount() - 1) < upperRowBound && pred(GetCount() - 1));
 

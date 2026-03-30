@@ -1972,7 +1972,7 @@ private:
         while (*currentSubrequestIndex < TotalSubrequestCount_) {
             // NB: PrematureBackoffAlarmProbability_ is usually std::nullopt.
             // NB: This may trigger even at 0 processed subrequests, which is intended.
-            if (Y_UNLIKELY(RandomNumber<double>() <= PrematureBackoffAlarmProbability_)) {
+            if (RandomNumber<double>() <= PrematureBackoffAlarmProbability_) [[unlikely]] {
                 OnBackoffAlarm(/*premature*/ true);
             }
 
@@ -2442,7 +2442,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        if (Y_UNLIKELY(premature)) {
+        if (premature) [[unlikely]] {
             // Premature backoff alarm is only triggered from Automaton or LocalRead threads,
             // so it's safe to read subrequest indices here.
             YT_LOG_DEBUG("Backoff alarm triggered prematurely "

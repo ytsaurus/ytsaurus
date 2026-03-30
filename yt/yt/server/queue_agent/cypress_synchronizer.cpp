@@ -595,7 +595,7 @@ private:
                     continue;
                 }
 
-                if (auto inserted = watchedObjects.InsertObject(&object).second; Y_UNLIKELY(!inserted)) {
+                if (auto inserted = watchedObjects.InsertObject(&object).second; !inserted) [[unlikely]] {
                     YT_LOG_WARNING("Duplicate object paths present in current dynamic state (Cluster: %v, Path: %v)",
                         cluster,
                         object.Path);
@@ -707,7 +707,7 @@ private:
             }
         }
 
-        if (Y_UNLIKELY(missingReplicatedTableMappingObjectCount > 0)) {
+        if (missingReplicatedTableMappingObjectCount > 0) [[unlikely]] {
             // NB(apachee): As a side effect if WriteReplicatedTableMapping was only just enabled, this would stage an alert.
             // TODO(apachee): Persist alerts in alert collector to be able to check this alert in tests.
             YT_LOG_WARNING("Found objects present in current dynamic state with replicated table object type, but missing in replicated table mapping table (ObjectCount: %v)",

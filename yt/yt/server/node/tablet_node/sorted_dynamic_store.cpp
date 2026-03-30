@@ -883,7 +883,7 @@ public:
             YT_VERIFY(RowCount_ < std::ssize(Keys_));
 
             TVersionedRow row;
-            if (Y_LIKELY(Store_->LookupHashTable_)) {
+            if (Store_->LookupHashTable_) [[likely]] {
                 auto dynamicRow = Store_->LookupHashTable_->Find(Keys_[RowCount_]);
                 if (dynamicRow) {
                     row = ProduceRow(dynamicRow);

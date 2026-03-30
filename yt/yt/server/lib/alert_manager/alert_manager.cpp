@@ -217,7 +217,7 @@ public:
     {
         auto guard = WriterGuard(SpinLock_);
 
-        if (Y_UNLIKELY(Stopped_)) {
+        if (Stopped_) [[unlikely]] {
             return;
         }
 
@@ -233,7 +233,7 @@ public:
     {
         auto guard = WriterGuard(SpinLock_);
 
-        if (Y_UNLIKELY(Stopped_)) {
+        if (Stopped_) [[unlikely]] {
             return;
         }
 
