@@ -1,8 +1,8 @@
 #include "legacy_sorted_chunk_pool.h"
 
-#include "legacy_job_manager.h"
 #include "helpers.h"
 #include "input_chunk_mapping.h"
+#include "legacy_job_manager.h"
 #include "legacy_sorted_job_builder.h"
 
 #include <yt/yt/server/lib/controller_agent/job_size_constraints.h>
