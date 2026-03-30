@@ -68,7 +68,7 @@ public:
                 connection->GetConfig()->ChunkReplicaCache));
     }
 
-    void Initialize()
+    void InitializeRefCounted()
     {
         ExpirationExecutor_->Start();
         ScheduleRefreshRound(TDuration::Zero());
@@ -945,12 +945,10 @@ IChunkReplicaCachePtr CreateChunkReplicaCache(
     TProfiler profiler,
     IMemoryUsageTrackerPtr memoryUsageTracker)
 {
-    auto cache = New<TChunkReplicaCache>(
+    return New<TChunkReplicaCache>(
         std::move(connection),
         std::move(profiler),
         std::move(memoryUsageTracker));
-    cache->Initialize();
-    return cache;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -104,7 +104,7 @@ public:
         DeclareServerFeature(ETabletServiceFeatures::SharedWriteLocks);
     }
 
-    void Initialize()
+    void InitializeRefCounted()
     {
         SubscribeLoadAdjusted();
     }
@@ -511,9 +511,7 @@ private:
 
 IServicePtr CreateTabletService(ITabletSlotPtr slot, IBootstrap* bootstrap)
 {
-    auto service = New<TTabletService>(std::move(slot), bootstrap);
-    service->Initialize();
-    return service;
+    return New<TTabletService>(std::move(slot), bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
