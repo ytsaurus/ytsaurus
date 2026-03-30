@@ -1,6 +1,7 @@
 RECURSE(
     library
     test_base
+    test_chaos_lease
     test_chunk_scraper
     test_cross_cluster_replicated_state
     test_cypress_election
