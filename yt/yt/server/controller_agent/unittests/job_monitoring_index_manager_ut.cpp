@@ -1,6 +1,6 @@
-#include <yt/yt/core/test_framework/framework.h>
-
 #include <yt/yt/server/controller_agent/job_monitoring_index_manager.h>
+
+#include <yt/yt/core/test_framework/framework.h>
 
 namespace NYT::NControllerAgent {
 namespace {

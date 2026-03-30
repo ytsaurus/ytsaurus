@@ -1,8 +1,7 @@
 #pragma once
 
-#include "private.h"
-
 #include "data_flow_graph.h"
+#include "private.h"
 
 #include <yt/yt/server/controller_agent/helpers.h>
 

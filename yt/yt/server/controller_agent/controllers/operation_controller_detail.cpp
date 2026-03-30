@@ -28,13 +28,13 @@
 #include <yt/yt/server/lib/controller_agent/job_report.h>
 #include <yt/yt/server/lib/controller_agent/network_project.h>
 
-#include <yt/yt/server/lib/misc/job_reporter.h>
-#include <yt/yt/server/lib/misc/job_table_schema.h>
-
 #include <yt/yt/server/lib/scheduler/helpers.h>
 #include <yt/yt/server/lib/scheduler/public.h>
 
 #include <yt/yt/server/lib/tablet_node/public.h>
+
+#include <yt/yt/server/lib/misc/job_reporter.h>
+#include <yt/yt/server/lib/misc/job_table_schema.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_spec_fetcher.h>
@@ -132,8 +132,6 @@
 
 #include <yt/yt/library/erasure/impl/codec.h>
 
-#include <yt/yt/library/numeric/algorithm_helpers.h>
-
 #include <yt/yt/library/profiling/solomon/registry.h>
 
 #include <yt/yt/core/actions/cancelable_context.h>
@@ -162,6 +160,8 @@
 #include <yt/yt/core/phoenix/load.h>
 #include <yt/yt/core/phoenix/schemas.h>
 #include <yt/yt/core/phoenix/type_registry.h>
+
+#include <yt/yt/library/numeric/algorithm_helpers.h>
 
 #include <library/cpp/yt/memory/chunked_input_stream.h>
 

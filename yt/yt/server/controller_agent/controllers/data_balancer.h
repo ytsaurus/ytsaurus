@@ -1,8 +1,7 @@
 #pragma once
 
-#include "private.h"
-
 #include "job_info.h"
+#include "private.h"
 
 #include <yt/yt/ytlib/controller_agent/serialize.h>
 
