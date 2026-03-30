@@ -3583,6 +3583,7 @@ std::optional<EAbortReason> TJob::DeduceAbortReason()
         NChunkClient::EErrorCode::MasterCommunicationFailed,
         NChunkClient::EErrorCode::MasterNotConnected,
         NChunkClient::EErrorCode::ReaderTimeout,
+        NChunkClient::EErrorCode::ReaderRetryCountLimitExceeded,
         NChunkClient::EErrorCode::ChunkBlockFetchFailed,
         NChunkClient::EErrorCode::ChunkMetaFetchFailed,
         NChunkClient::EErrorCode::AutoRepairFailed,
