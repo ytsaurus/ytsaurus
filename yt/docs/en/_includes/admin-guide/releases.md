@@ -323,7 +323,6 @@ Publishes as docker images.
 - Row and column level security (RLS/CLS) support
 - Updated read and write statistics
 - Perfomance and stability fixes
-- (Yandex only) Python 3.13 by default
 
 {% endcut %}
 
