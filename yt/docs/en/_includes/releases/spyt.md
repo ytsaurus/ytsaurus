@@ -8,6 +8,19 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**2.9.0**" %}
+
+**Release date:** 2026-03-30
+
+
+- Support for Spark Connect in Spark Standalone inner cluster
+- Row and column level security (RLS/CLS) support
+- Updated read and write statistics
+- Perfomance and stability fixes
+- (Yandex only) Python 3.13 by default
+
+{% endcut %}
+
 {% cut "**2.8.2**" %}
 
 **Release date:** 2025-12-23
@@ -177,7 +190,7 @@ Maintenance release with minor enhancements and bug fixes
 **Release date:** 2024-12-25
 
 
-Major release that enables support for Spark 3.4.x and 3.5.x. 
+Major release that enables support for Spark 3.4.x and 3.5.x.
 
 - Compile-time Spark version is changed from 3.2.2 to 3.5.4;
 - SPYT compile-time Spark version will be the latest available supported version since this release;
@@ -253,7 +266,7 @@ Maintenance release with bug fixes:
 
 * Support for running local files and their dependencies in direct submit mode by uploading it to YTsaurus cache
 * Support for submitting compiled python binaries as spark applications via direct submit
-* Dataframe write schema hints 
+* Dataframe write schema hints
 * Bug fixes:
 * * Writing to external S3 from YTsaurus
 * * Reading float values from nested structures
