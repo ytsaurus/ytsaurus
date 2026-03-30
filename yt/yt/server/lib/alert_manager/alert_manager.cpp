@@ -181,7 +181,7 @@ public:
         , Logger(alertManager->GetLogger())
     { }
 
-    void Initialize() const
+    void InitializeRefCounted()
     {
         // XXX(apachee): Kind of a waste since initialize is called right after ctor,
         // but otherwise it is even more awkward, and overhead is negligible.
@@ -284,9 +284,7 @@ DEFINE_REFCOUNTED_TYPE(TAlertCollector)
 
 IAlertCollectorPtr CreateAlertCollector(IAlertManagerPtr alertManager)
 {
-    auto alertCollector = New<TAlertCollector>(std::move(alertManager));
-    alertCollector->Initialize();
-    return alertCollector;
+    return New<TAlertCollector>(std::move(alertManager));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
