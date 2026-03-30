@@ -1,8 +1,8 @@
 #pragma once
 
 #include "chunk_pool.h"
-#include "private.h"
 #include "job_manager.h"
+#include "private.h"
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 

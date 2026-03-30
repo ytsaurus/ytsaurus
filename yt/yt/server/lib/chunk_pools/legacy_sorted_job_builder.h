@@ -1,8 +1,7 @@
 #pragma once
 
-#include "private.h"
-
 #include "legacy_job_manager.h"
+#include "private.h"
 #include "sorted_job_builder.h"
 
 #include <yt/yt/ytlib/table_client/public.h>
