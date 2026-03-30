@@ -238,11 +238,9 @@ void TTableNode::ValidateBeginUpload(const TBeginUploadContext& context)
     YT_LOG_ALERT_AND_THROW_UNLESS(context.TableSchema, "Schema is missing in begin upload context");
 
     const auto& config = context.Bootstrap->GetConfigManager()->GetConfig();
-    if (config->TableManager->ValidateNoDescendingSortOrder) {
-        if (!config->EnableDescendingSortOrder || (IsDynamic() && !config->EnableDescendingSortOrderDynamic)) {
-            const auto& compactTableSchema = context.TableSchema->AsCompactTableSchema();
-            ValidateNoDescendingSortOrder(compactTableSchema->GetSortOrders(), compactTableSchema->GetKeyColumns());
-        }
+    if (!config->EnableDescendingSortOrder || (IsDynamic() && !config->EnableDescendingSortOrderDynamic)) {
+        const auto& compactTableSchema = context.TableSchema->AsCompactTableSchema();
+        ValidateNoDescendingSortOrder(compactTableSchema->GetSortOrders(), compactTableSchema->GetKeyColumns());
     }
 }
 
