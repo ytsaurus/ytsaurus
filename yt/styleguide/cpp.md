@@ -220,6 +220,8 @@ Very common standard includes (like `<vector>` or `<util/string.h>`) are collect
 #include "helpers.h"
 #include "config.h"
 
+#include <yt/yt/server/foo/baz/baz.h>
+
 #include <yt/yt/server/misc/something.h>
 #include <yt/yt/server/misc/something_more.h>
 
