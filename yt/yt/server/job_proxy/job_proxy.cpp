@@ -780,7 +780,7 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
         YT_VERIFY(JobProxyRpcServerPort_.has_value());
         Config_->BusServer->Port = *JobProxyRpcServerPort_;
 
-        PublicRpcServer_ = NRpc::NBus::CreateBusServer(CreatePublicTcpBusServer(Config_->BusServer));
+        PublicRpcServer_ = NRpc::NBus::CreateBusServer(CreateRemoteTcpBusServer(Config_->BusServer));
         PublicRpcServer_->Start();
         YT_LOG_INFO("Public RPC server started (JobProxyRpcServerPort: %v)", JobProxyRpcServerPort_);
 
@@ -1006,7 +1006,9 @@ TJobResult TJobProxy::RunJob()
             if (userJobSpec.enable_rpc_proxy_in_job_proxy()) {
                 EnableRpcProxyInJobProxy(userJobSpec.rpc_proxy_worker_thread_pool_size(), userJobSpec.enable_shuffle_service_in_job_proxy());
             } else {
-                YT_VERIFY(!userJobSpec.enable_shuffle_service_in_job_proxy());
+                THROW_ERROR_EXCEPTION_IF(
+                    userJobSpec.enable_shuffle_service_in_job_proxy(),
+                    "Shuffle service in job proxy requires RPC proxy to be enabled in job proxy");
             }
         }
 
