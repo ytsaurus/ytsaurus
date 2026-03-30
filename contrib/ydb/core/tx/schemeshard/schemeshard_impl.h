@@ -412,6 +412,7 @@ public:
     bool EnableInitialUniqueIndex = false;
     bool EnableAddUniqueIndex = false;
     bool EnableFulltextIndex = false;
+    bool EnableJsonIndex = false;
     bool EnableExternalDataSourcesOnServerless = false;
     bool EnableShred = false;
     bool EnableExternalSourceSchemaInference = false;
@@ -1286,7 +1287,8 @@ public:
         const TString& relativeTablePath,
         const TString& indexName,
         const TString& targetTablePath,
-        const TActorContext& ctx);
+        const TActorContext& ctx,
+        const TString& specificImplTableName = "");
 
     TString FindTargetTablePath(
         const TBackupCollectionInfo::TPtr& backupCollectionInfo,

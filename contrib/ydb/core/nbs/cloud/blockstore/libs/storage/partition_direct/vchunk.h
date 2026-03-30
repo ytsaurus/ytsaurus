@@ -1,14 +1,17 @@
 #pragma once
 
+#include "direct_block_group.h"
+#include "erase_request.h"
+#include "flush_request.h"
+#include "write_request.h"
+
 #include <contrib/ydb/core/nbs/cloud/blockstore/libs/service/context.h>
 #include <contrib/ydb/core/nbs/cloud/blockstore/libs/service/public.h>
 #include <contrib/ydb/core/nbs/cloud/blockstore/libs/service/request.h>
-#include <contrib/ydb/core/nbs/cloud/blockstore/libs/storage/partition_direct/direct_block_group.h>
-#include <contrib/ydb/core/nbs/cloud/blockstore/libs/storage/partition_direct/dirty_map.h>
+#include <contrib/ydb/core/nbs/cloud/blockstore/libs/storage/partition_direct/dirty_map/dirty_map.h>
+#include <contrib/ydb/core/nbs/cloud/blockstore/libs/storage/partition_direct/vchunk_config.h>
 
 #include <contrib/ydb/core/nbs/cloud/storage/core/libs/coroutine/executor.h>
-
-#include <contrib/ydb/library/actors/wilson/wilson_span.h>
 
 namespace NYdb::NBS::NBlockStore::NStorage::NPartitionDirect {
 
@@ -18,9 +21,11 @@ class TVChunk: public std::enable_shared_from_this<TVChunk>
 {
 public:
     TVChunk(
-        ui32 index,
-        NStorage::NPartitionDirect::IDirectBlockGroupPtr directBlockGroup,
-        ui32 syncRequestsBatchSize);
+        NActors::TActorSystem* actorSystem,
+        const TVChunkConfig& vChunkConfig,
+        IDirectBlockGroupPtr directBlockGroup,
+        ui32 syncRequestsBatchSize,
+        TDuration traceSamplePeriod);
 
     ~TVChunk();
 
@@ -37,21 +42,46 @@ public:
         NWilson::TTraceId traceId);
 
 private:
-    void RequestBlockFlush(ui64 blockIndex, const NWilson::TTraceId& traceId);
-    void ProcessSyncQueue(
-        size_t persistBufferIndex,
-        const NWilson::TTraceId& traceId);
+    NWilson::TTraceId SpanTrace();
 
-    ui32 Index;
-    size_t BlocksCount;
-    ui32 SyncRequestsBatchSize;
+    void UpdateDirtyMap(const TDBGRestoreResponse& response);
 
-    TExecutorPtr Executor;
-    std::unique_ptr<TDirtyMap> DirtyMap;
-    NStorage::NPartitionDirect::IDirectBlockGroupPtr DirectBlockGroup;
+    void DoStart();
 
-    static constexpr size_t PersistentBufferCount = 5;
-    TVector<TVector<TSyncRequest>> PendingSyncRequestsByPersistentBufferIndex;
+    void DoReadBlocksLocal(
+        NThreading::TPromise<TReadBlocksLocalResponse> promise,
+        TCallContextPtr callContext,
+        std::shared_ptr<TReadBlocksLocalRequest> request,
+        NWilson::TTraceId traceId);
+
+    void DoWriteBlocksLocal(
+        NThreading::TPromise<TWriteBlocksLocalResponse> promise,
+        TCallContextPtr callContext,
+        std::shared_ptr<TWriteBlocksLocalRequest> request,
+        NWilson::TTraceId traceId);
+    void OnWriteBlocksResponse(
+        NThreading::TPromise<TWriteBlocksLocalResponse> promise,
+        TBlockRange64 range,
+        const TWriteRequestExecutor::TResponse& response);
+
+    void DoFlush();
+    void OnFlushResponse(const TFlushRequestExecutor::TResponse& response);
+
+    void DoErase();
+    void OnEraseResponse(const TEraseRequestExecutor::TResponse& response);
+
+    NActors::TActorSystem* const ActorSystem = nullptr;
+    const TExecutorPtr Executor;
+    const TThreadChecker ExecutorThreadChecker{Executor};
+    const IDirectBlockGroupPtr DirectBlockGroup;
+    const TVChunkConfig VChunkConfig;
+    const size_t BlocksCount;
+    const ui32 SyncRequestsBatchSize;
+    const TDuration TraceSamplePeriod;
+
+    TBlocksDirtyMap BlocksDirtyMap;
+    std::atomic<NActors::TMonotonic> LastTraceTs{NActors::TMonotonic::Zero()};
+    bool DirtyMapRestored = false;
 };
 
 }   // namespace NYdb::NBS::NBlockStore::NStorage::NPartitionDirect
