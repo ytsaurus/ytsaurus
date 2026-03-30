@@ -1839,6 +1839,9 @@ def start_op(op_type, **kwargs):
     if fail_fast and ("spec" not in kwargs or "max_failed_job_count" not in kwargs["spec"]):
         set_branch(kwargs, ["spec", "max_failed_job_count"], 1)
 
+    if "spec" not in kwargs or "enable_root_volume_disk_quota" not in kwargs["spec"]:
+        set_branch(kwargs, ["spec", "enable_root_volume_disk_quota"], True)
+
     track = kwargs.get("track", True)
     if "track" in kwargs:
         del kwargs["track"]
