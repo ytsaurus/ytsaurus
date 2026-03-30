@@ -1394,7 +1394,7 @@ private:
 
     EQueueSubmitResult CheckShardAfterEnqueue(int shardIndex)
     {
-        if (Y_UNLIKELY(shardIndex >= Config_->GetUringThreadCount(std::memory_order::seq_cst))) {
+        if (shardIndex >= Config_->GetUringThreadCount(std::memory_order::seq_cst)) [[unlikely]] {
             return EQueueSubmitResult::NeedReconfigure;
         }
 
@@ -1573,7 +1573,7 @@ public:
 
     void ReconfigureQueueIfNeeded(EQueueSubmitResult result)
     {
-        if (Y_LIKELY(result != EQueueSubmitResult::NeedReconfigure)) {
+        if (result != EQueueSubmitResult::NeedReconfigure) [[likely]] {
             return;
         }
 

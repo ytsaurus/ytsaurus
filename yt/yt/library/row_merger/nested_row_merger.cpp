@@ -969,7 +969,7 @@ void TNestedTableMerger::BuildMergeScript()
 
     while (true) {
         RowIds_.push_back(topId);
-        if (Y_UNLIKELY(advanceStream(topId))) {
+        if (advanceStream(topId)) [[unlikely]] {
             RowIdHeap_.front() = RowIdHeap_.back();
             RowIdHeap_.pop_back();
             if (RowIdHeap_.empty()) {

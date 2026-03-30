@@ -595,7 +595,7 @@ bool TSchedulingPolicy::CheckInitializationTimeout()
         return false;
     }
 
-    if (Y_LIKELY(InitialPersistentState_->NodeStates.empty() && InitialPersistentState_->OperationStates.empty())) {
+    if (InitialPersistentState_->NodeStates.empty() && InitialPersistentState_->OperationStates.empty()) [[likely]] {
         return false;
     }
 

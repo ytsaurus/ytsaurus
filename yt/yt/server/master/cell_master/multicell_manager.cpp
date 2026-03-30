@@ -362,7 +362,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        if (Y_UNLIKELY(cellRole == EMasterCellRole::Unknown)) {
+        if (cellRole == EMasterCellRole::Unknown) [[unlikely]] {
             YT_LOG_ALERT("Unknown cell role specified while selecting master cells by role");
             return {};
         }

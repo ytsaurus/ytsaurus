@@ -1561,7 +1561,7 @@ const TPIValue* TGroupByClosure::InsertTotals(const TExecutionContext* /*context
 
 void TGroupByClosure::Flush(const TExecutionContext* context, EStreamTag incomingTag)
 {
-    if (Y_UNLIKELY(IsCombinedWithOrderOp())) {
+    if (IsCombinedWithOrderOp()) [[unlikely]] {
         YT_VERIFY(CurrentSegment_ == EGroupOpProcessingStage::RightBorder);
         auto rows = TopCollector_->GetRows();
         auto begin = rows.data() + std::min(context->Offset, std::ssize(rows));
@@ -1570,7 +1570,7 @@ void TGroupByClosure::Flush(const TExecutionContext* context, EStreamTag incomin
         return;
     }
 
-    if (Y_UNLIKELY(CurrentSegment_ == EGroupOpProcessingStage::RightBorder)) {
+    if (CurrentSegment_ == EGroupOpProcessingStage::RightBorder) [[unlikely]] {
         if (!Aggregated_.empty()) {
             FlushAggregated(context, Aggregated_.data(), Aggregated_.data() + Aggregated_.size());
             Aggregated_.clear();
@@ -1603,20 +1603,20 @@ void TGroupByClosure::Flush(const TExecutionContext* context, EStreamTag incomin
         }
 
         case EStreamTag::Intermediate: {
-            if (Y_UNLIKELY(incomingTag == EStreamTag::Totals)) {
+            if (incomingTag == EStreamTag::Totals) [[unlikely]] {
                 // Do nothing since totals can be followed with intermediate that should be grouped with current.
                 break;
             }
 
-            if (Y_UNLIKELY(CurrentSegment_ == EGroupOpProcessingStage::LeftBorder)) {
+            if (CurrentSegment_ == EGroupOpProcessingStage::LeftBorder) [[unlikely]] {
                 FlushIntermediate(context, Intermediate_.data(), Intermediate_.data() + Intermediate_.size());
                 Intermediate_.clear();
-            } else if (Y_UNLIKELY(std::ssize(Intermediate_) >= context->RowsetProcessingBatchSize)) {
+            } else if (std::ssize(Intermediate_) >= context->RowsetProcessingBatchSize) [[unlikely]] {
                 // When group key contains full primary key (used with joins), flush will be called on each grouped row.
                 // Thus, we batch calls to Flusher.
                 FlushDelta(context, Intermediate_.data(), Intermediate_.data() + Intermediate_.size());
                 Intermediate_.clear();
-            } else if (Y_UNLIKELY(incomingTag == EStreamTag::Aggregated)) {
+            } else if (incomingTag == EStreamTag::Aggregated) [[unlikely]] {
                 FlushDelta(context, Intermediate_.data(), Intermediate_.data() + Intermediate_.size());
                 Intermediate_.clear();
             }

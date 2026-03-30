@@ -490,7 +490,7 @@ DB::ColumnString::MutablePtr ConvertStringLikeYTColumnToCHColumnImpl(
 
     auto checkedConsumer = [&] (auto pair) {
         auto [str, length] = pair;
-        if (Y_UNLIKELY(remainingCHCharsCapacity <= static_cast<size_t>(length))) {
+        if (remainingCHCharsCapacity <= static_cast<size_t>(length)) [[unlikely]] {
             resizeCHChars(
                 std::max(chChars.size() * 2, chChars.size() + (static_cast<size_t>(length) + 1)));
         }

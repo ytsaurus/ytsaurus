@@ -1235,7 +1235,7 @@ public:
             // If a chunk has been created before the migration but is being confirmed after it,
             // charge it to the staging account anyway: it's ok, because transaction resource usage accounting
             // isn't really delta-based, and it's nicer from the user's point of view.
-            if (Y_UNLIKELY(account == ChunkWiseAccountingMigrationAccount_)) {
+            if (account == ChunkWiseAccountingMigrationAccount_) [[unlikely]] {
                 account = stagingAccount;
             }
 
