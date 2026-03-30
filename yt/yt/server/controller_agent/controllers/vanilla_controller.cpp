@@ -996,6 +996,8 @@ private:
 
     const TOperationEventReporterPtr& GetOperationEventReporter() const;
 
+    void LogOperationIncarnationStarted(const TIncarnationSwitchData& data);
+
     void ReportGangRankToArchive(const TGangJobletPtr& joblet) const;
 
     void OnJobStarted(const TJobletPtr& joblet) final;
@@ -1729,6 +1731,15 @@ const TOperationEventReporterPtr& TGangOperationController::GetOperationEventRep
     return Host_->GetOperationEventReporter();
 }
 
+void TGangOperationController::LogOperationIncarnationStarted(const TIncarnationSwitchData& data)
+{
+    LogEventFluently(ELogEventType::OperationIncarnationStarted)
+        .Item("operation_id").Value(GetOperationId())
+        .Item("operation_incarnation").Value(Incarnation_.Underlying())
+        .OptionalItem("incarnation_switch_reason", data.IncarnationSwitchReason)
+        .Item("incarnation_switch_info").Value(data.IncarnationSwitchInfo);
+}
+
 void TGangOperationController::ReportGangRankToArchive(const TGangJobletPtr& joblet) const
 {
     HandleJobReport(joblet, TControllerJobReport()
@@ -1914,6 +1925,7 @@ void TGangOperationController::CustomMaterialize()
         TotalGangSize_ += static_cast<const TGangTask*>(task.Get())->GetGangSize();
     }
 
+    LogOperationIncarnationStarted(TIncarnationSwitchData{});
     ReportOperationIncarnationStartedEventToArchive(TIncarnationSwitchData{});
 }
 
@@ -1925,6 +1937,7 @@ void TGangOperationController::OnOperationIncarnationChanged(bool operationIsRev
 
     OperationIncarnationSwitchCounters[data.GetSwitchReason()].Increment();
 
+    LogOperationIncarnationStarted(data);
     ReportOperationIncarnationStartedEventToArchive(std::move(data));
 
     RestartAllRunningJobsPreservingAllocations(operationIsReviving);
