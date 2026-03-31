@@ -10,8 +10,6 @@
 
 #include <yt/yt/server/lib/exec_node/config.h>
 
-#include <yt/yt/library/profiling/public.h>
-
 #include <yt/yt/core/actions/new_with_offloaded_dtor.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
@@ -19,6 +17,8 @@
 #include <yt/yt/core/ytree/service_combiner.h>
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/ypath_service.h>
+
+#include <yt/yt/library/profiling/public.h>
 
 #include <library/cpp/yt/error/error_helpers.h>
 

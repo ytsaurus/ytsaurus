@@ -56,6 +56,8 @@
 
 #include <yt/yt/library/disk_manager/hotswap_manager.h>
 
+#include <yt/yt/core/service_discovery/yp/config.h>
+
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
 
 #include <yt/yt/core/net/address.h>
@@ -64,8 +66,6 @@
 #include <yt/yt/core/ytree/virtual.h>
 
 #include <yt/yt/core/bus/tcp/dispatcher.h>
-
-#include <yt/yt/core/service_discovery/yp/config.h>
 
 #include <yt/yt/core/logging/config.h>
 

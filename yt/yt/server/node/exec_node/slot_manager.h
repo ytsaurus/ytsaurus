@@ -2,13 +2,12 @@
 
 #include "private.h"
 
-#include <yt/yt/server/lib/job_proxy/config.h>
-
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
-
 #include <yt/yt/server/node/cluster_node/node_resource_manager.h>
 
 #include <yt/yt/server/node/data_node/public.h>
+
+#include <yt/yt/server/lib/job_proxy/config.h>
 
 #include <yt/yt/ytlib/scheduler/proto/resources.pb.h>
 

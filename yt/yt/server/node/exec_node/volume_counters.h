@@ -2,10 +2,10 @@
 
 #include "public.h"
 
+#include <yt/yt/core/misc/public.h>
+
 #include <yt/yt/library/profiling/sensor.h>
 #include <yt/yt/library/profiling/tagged_counters.h>
-
-#include <yt/yt/core/misc/public.h>
 
 namespace NYT::NExecNode {
 

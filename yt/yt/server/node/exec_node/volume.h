@@ -1,7 +1,7 @@
 #pragma once
 
-#include "public.h"
 #include "artifact.h"
+#include "public.h"
 
 #include <yt/yt/server/node/exec_node/volume.pb.h>
 

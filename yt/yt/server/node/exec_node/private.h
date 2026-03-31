@@ -1,17 +1,17 @@
 #pragma once
 
-#include "public.h"
 #include "artifact.h"
+#include "public.h"
 
 #include <yt/yt/server/lib/scheduler/public.h>
 
 #include <yt/yt/server/lib/job_proxy/public.h>
 
-#include <yt/yt/library/profiling/sensor.h>
-
 #include <yt/yt/library/containers/public.h>
 
 #include <yt/yt/core/logging/log.h>
+
+#include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NExecNode {
 

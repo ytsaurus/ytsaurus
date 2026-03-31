@@ -1,8 +1,8 @@
 #pragma once
 
-#include "public.h"
 #include "artifact.h"
 #include "cache_location.h"
+#include "public.h"
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
