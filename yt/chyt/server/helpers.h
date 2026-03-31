@@ -29,19 +29,17 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<NYT::NTableClient::ESimpleLogicalValueType LogicalType>
+template <NYT::NTableClient::ESimpleLogicalValueType LogicalType>
 using TTzIntegerType = NYT::NTableClient::TUnderlyingTimestampIntegerType<NYT::NTableClient::TUnderlyingTzType<LogicalType>>;
 
-template<NTableClient::ESimpleLogicalValueType LogicalType>
+template <NTableClient::ESimpleLogicalValueType LogicalType>
 TTzIntegerType<LogicalType> GetTimestampFromTzString(std::string_view tzString);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NClickHouseServer::NProto::TPathWithRevision* protoPath, const std::pair<TString, NHydra::TRevision>& path);
+void ToProto(NClickHouseServer::NProto::TPathWithRevision* protoPath, const std::pair<NYPath::TYPath, NHydra::TRevision>& path);
 
-////////////////////////////////////////////////////////////////////////////////
-
-void FromProto(std::pair<TString, NHydra::TRevision>* path, const NClickHouseServer::NProto::TPathWithRevision& protoPath);
+void FromProto(std::pair<NYPath::TYPath, NHydra::TRevision>* path, const NClickHouseServer::NProto::TPathWithRevision& protoPath);
 
 ////////////////////////////////////////////////////////////////////////////////
 

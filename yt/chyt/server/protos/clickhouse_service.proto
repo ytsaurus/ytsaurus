@@ -19,7 +19,7 @@ message TRspProcessGossip
 message TPathWithRevision
 {
     required string path = 1;
-    required int64 revision = 2;
+    required uint64 revision = 2;
 }
 
 message TReqInvalidateCachedObjectAttributes

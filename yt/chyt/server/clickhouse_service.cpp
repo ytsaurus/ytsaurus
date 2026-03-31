@@ -64,7 +64,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, InvalidateCachedObjectAttributes)
     {
-        auto paths = FromProto<std::vector<std::pair<TString, NHydra::TRevision>>>(request->table_paths());
+        auto paths = FromProto<std::vector<std::pair<NYPath::TYPath, NHydra::TRevision>>>(request->table_paths());
 
         context->SetRequestInfo("Paths: %v", paths);
 
