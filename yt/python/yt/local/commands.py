@@ -1,5 +1,5 @@
 from yt.environment import YTInstance
-from yt.environment.api import LocalYtConfig
+from yt.environment.api import LocalYtConfig, LogLevel
 from yt.environment.helpers import (
     wait_for_removing_file_lock,
     is_file_locked,
@@ -187,6 +187,7 @@ def start(master_count=1,
           discovery_server_ports=None,
           id=None,
           local_cypress_dir=None,
+          log_level=LogLevel.INFO,
           enable_debug_logging=False,
           enable_structured_logging=False,
           enable_logging_compression=False,
@@ -311,6 +312,7 @@ def start(master_count=1,
         rpc_proxy_ports=rpc_proxy_ports,
         discovery_server_ports=discovery_server_ports,
         enable_master_cache=enable_master_cache,
+        log_level=log_level,
         enable_debug_logging=enable_debug_logging,
         enable_structured_logging=enable_structured_logging,
         enable_log_compression=enable_logging_compression,
