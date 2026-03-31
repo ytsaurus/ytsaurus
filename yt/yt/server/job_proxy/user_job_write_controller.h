@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/yt/ytlib/chunk_client/chunk_writer.h>
+#include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 
 #include <yt/yt/ytlib/job_proxy/public.h>
 
