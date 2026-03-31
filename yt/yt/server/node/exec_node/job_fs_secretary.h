@@ -2,8 +2,8 @@
 
 #include "artifact_description.h"
 #include "preparation_options.h"
-#include "public.h"
 #include "private.h"
+#include "public.h"
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 

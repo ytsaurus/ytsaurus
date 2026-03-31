@@ -4,8 +4,8 @@
 #include "private.h"
 #include "volume_counters.h"
 
-#include <yt/yt/server/tools/tools.h>
 #include <yt/yt/server/tools/proc.h>
+#include <yt/yt/server/tools/tools.h>
 
 #include <yt/yt/core/actions/bind.h>
 

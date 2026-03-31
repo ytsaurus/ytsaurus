@@ -1,7 +1,7 @@
 #pragma once
 
-#include "public.h"
 #include "artifact.h"
+#include "public.h"
 #include "volume.h"
 #include "volume_artifact.h"
 

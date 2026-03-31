@@ -2,8 +2,8 @@
 
 #include "artifact.h"
 #include "artifact_cache.h"
-#include "job_gpu_checker.h"
 #include "job.h"
+#include "job_gpu_checker.h"
 #include "private.h"
 
 #include <yt/yt/server/node/data_node/chunk.h>
@@ -16,11 +16,11 @@
 
 #include <yt/yt/library/containers/cri/public.h>
 
-#include <yt/yt/core/actions/public.h>
 #include <yt/yt/core/actions/future.h>
+#include <yt/yt/core/actions/public.h>
 
-#include <yt/yt/core/concurrency/thread_affinity.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/core/logging/log.h>
 

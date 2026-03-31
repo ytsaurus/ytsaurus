@@ -4,9 +4,9 @@
 #include "artifact_cache.h"
 #include "job_workspace_builder.h"
 
-#include <yt/yt/library/containers/public.h>
-
 #include <yt/yt/server/lib/job_proxy/config.h>
+
+#include <yt/yt/library/containers/public.h>
 
 #include <yt/yt/client/formats/format.h>
 
