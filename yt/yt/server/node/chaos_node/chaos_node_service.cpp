@@ -263,6 +263,7 @@ private:
             }
             case EObjectType::ChaosLease: {
                 const auto& chaosLeaseManager = Slot_->GetChaosLeaseManager();
+                chaosLeaseManager->ValidateEnabledState();
                 auto* chaosLease = chaosLeaseManager->GetChaosLeaseOrThrow(chaosObjectId);
                 Y_UNUSED(chaosLease);
                 break;
@@ -529,6 +530,7 @@ private:
             chaosLeaseId);
 
         const auto& chaosLeaseManager = Slot_->GetChaosLeaseManager();
+        chaosLeaseManager->ValidateEnabledState();
         auto* chaosLease = chaosLeaseManager->GetChaosLeaseOrThrow(chaosLeaseId);
         response->set_timeout(ToProto(chaosLease->GetTimeout()));
 

@@ -6099,12 +6099,17 @@ class TestChaosMetaCluster(ChaosTestBase):
             wait(lambda: is_chaos_manager_suspended(disabled_cell))
             wait(lambda: is_chaos_coordinator_suspended(disabled_cell))
 
-            lease_id = create_chaos_lease(enabled_cell)
-            assert get_chaos_lease_from_orchid(enabled_cell, lease_id)["state"] == "normal"
-            ping_chaos_lease(lease_id)
+            lease_ids = [create_chaos_lease(enabled_cell, attributes={"timeout": 30000})]
+            lease_ids.append(create_chaos_lease(enabled_cell, attributes={"timeout": 30000, "parent_id": lease_ids[0]}))
+            lease_ids.append(create_chaos_lease(enabled_cell, attributes={"timeout": 30000, "parent_id": lease_ids[0]}))
 
-            with pytest.raises(YtError):
-                assert get_chaos_lease_from_orchid(disabled_cell, lease_id)
+            for lease_id in lease_ids:
+                assert get_chaos_lease_from_orchid(enabled_cell, lease_id)["state"] == "normal"
+                ping_chaos_lease(lease_id)
+
+            for lease_id in lease_ids:
+                with pytest.raises(YtError):
+                    get_chaos_lease_from_orchid(disabled_cell, lease_id)
 
             resume_chaos_cells([disabled_cell])
             suspend_chaos_cells([enabled_cell])
@@ -6115,13 +6120,15 @@ class TestChaosMetaCluster(ChaosTestBase):
             wait(lambda: is_chaos_coordinator_suspended(enabled_cell))
             wait(lambda: not is_chaos_manager_suspended(disabled_cell))
 
-            wait(lambda: get_chaos_lease_from_orchid(disabled_cell, lease_id)["state"] == "normal", ignore_exceptions=True)
-            with pytest.raises(YtError):
-                assert get_chaos_lease_from_orchid(enabled_cell, lease_id)
+            for lease_id in lease_ids:
+                wait(lambda: get_chaos_lease_from_orchid(disabled_cell, lease_id)["state"] == "normal", ignore_exceptions=True)
 
-            retry_enabled_cell(lambda: get(f"#{lease_id}"))
+            for lease_id in lease_ids:
+                with pytest.raises(YtError):
+                    get_chaos_lease_from_orchid(enabled_cell, lease_id)
 
-            retry_enabled_cell(lambda: ping_chaos_lease(lease_id))
+                retry_enabled_cell(lambda: get(f"#{lease_id}"))
+                retry_enabled_cell(lambda: ping_chaos_lease(lease_id))
 
         check_suspend(alpha_cell, beta_cell)
         check_suspend(beta_cell, alpha_cell)
