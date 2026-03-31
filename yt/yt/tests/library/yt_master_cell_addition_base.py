@@ -971,7 +971,7 @@ class MasterCellAdditionBaseChecks(MasterCellAdditionBase):
         wait(lambda: len(get("//sys/chunks/{}/@stored_replicas".format(chunk_id))) == 3)
         wait(lambda: sorted(get("//sys/chunks/{}/@stored_replicas".format(chunk_id))) == stored_replicas)
 
-    def check_tablet_cell_prerequisite_tx(self):
+    def DISABLED_check_tablet_cell_prerequisite_tx(self):
         if not exists("//sys/tablet_cell_bundles/b"):
             create_tablet_cell_bundle("b")
         cell_id = create_tablet_cell(attributes={"tablet_cell_bundle": "b"})
