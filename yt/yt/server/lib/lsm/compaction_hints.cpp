@@ -180,8 +180,7 @@ bool TStoreCompactionHints::RecalculateHints(const std::unique_ptr<TStore>& stor
 TPartitionCompactionHint::TPartitionCompactionHintRecalculationFinalizer::TPartitionCompactionHintRecalculationFinalizer(
     TPartition* partition,
     TPartitionCompactionHint* hint)
-    : Partition_(partition)
-    , Hint_(hint)
+    : Hint_(hint)
 {
     Stores_.reserve(partition->Stores().size());
     for (const auto& store : partition->Stores()) {
@@ -230,9 +229,9 @@ std::vector<TStoreId> TPartitionCompactionHint::TPartitionCompactionHintRecalcul
 
     std::vector<TStoreId> storeIds;
     storeIds.reserve(std::popcount(StoreSubset_));
-    for (ui32 index = 0; index < ssize(Partition_->Stores()); ++index) {
+    for (ui32 index = 0; index < ssize(Stores_); ++index) {
         if (StoreSubsetContains(index)) {
-            storeIds.push_back(Partition_->Stores()[index]->GetId());
+            storeIds.push_back(Stores_[index]->GetId());
         }
     }
 
@@ -247,7 +246,7 @@ bool TPartitionCompactionHint::RecalculateHint(TPartition* partition)
             partition->Stores());
 
         YT_LOG_DEBUG_IF(recalculated,
-            "Partition compaction hint LSM hint was recalculated "
+            "Partition compaction hint lsm response was made "
             "(%v, PartitionId: %v, PartitionCompactionHintKind: %v, Timestamp: %v, Reason: %v, Revision: %v, StoreIds: %v)",
             partition->GetTablet()->GetLoggingTag(),
             partition->GetId(),

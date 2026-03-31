@@ -211,7 +211,6 @@ class TPartitionCompactionHint
         void TryApplyRecalculationBySubset(TInstant timestamp, EStoreCompactionReason reason, ui64 storeSubset);
 
     private:
-        TPartition* Partition_;
         TPartitionCompactionHint* Hint_;
         ui64 StoreSubset_ = 0;
 
