@@ -336,21 +336,73 @@ public:
 
     std::pair<NApi::ITransactionPtr, std::string> GetIntermediateMediumTransaction() override
     {
-        if (GetFastIntermediateMediumLimit() > 0 && !SwitchedToSlowIntermediateMedium_) {
-            auto medium = GetIntermediateStreamDescriptorTemplate()->TableWriterOptions->MediumName;
-            return {OutputTransaction_, medium};
-        } else {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        if (GetFastIntermediateMediumLimit() == 0) {
             return {nullptr, {}};
         }
+
+        NApi::ITransactionPtr transaction;
+        {
+            auto guard = Guard(OutputTransactionLock_);
+            if (SwitchedToSlowIntermediateMedium_ || SwitchIntermediateMediumScheduled_) {
+                return {nullptr, {}};
+            }
+            transaction = OutputTransaction_;
+        }
+
+        if (!transaction) {
+            return {nullptr, {}};
+        }
+
+        auto medium = GetIntermediateStreamDescriptorTemplate()->TableWriterOptions->MediumName;
+        return {transaction, medium};
     }
 
     void UpdateIntermediateMediumUsage(i64 usage) override
     {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
         auto fastIntermediateMediumLimit = GetFastIntermediateMediumLimit();
 
-        if (!GetIntermediateMediumTransaction().first || usage < fastIntermediateMediumLimit) {
+        NApi::ITransactionPtr outputTransaction;
+        {
+            auto guard = Guard(OutputTransactionLock_);
+            if (SwitchedToSlowIntermediateMedium_ ||
+                SwitchIntermediateMediumScheduled_ ||
+                fastIntermediateMediumLimit == 0 ||
+                !OutputTransaction_ ||
+                usage < fastIntermediateMediumLimit)
+            {
+                return;
+            }
+            SwitchIntermediateMediumScheduled_ = true;
+            outputTransaction = OutputTransaction_;
+        }
+
+        // Dispatch the actual task mutation to the controller invoker so it does not
+        // race with SetStreamDescriptors running on JobSpecBuildInvoker. The flag is
+        // set inside DoSwitchIntermediateMedium after the mutation completes, ensuring
+        // snapshot consistency.
+        BIND(&TSortControllerBase::DoSwitchIntermediateMedium, MakeWeak(this), usage, fastIntermediateMediumLimit, outputTransaction->GetId())
+            .Via(GetCancelableInvoker())
+            .Run();
+    }
+
+private:
+    TSortOperationSpecBasePtr Spec_;
+
+    void DoSwitchIntermediateMedium(i64 usage, i64 fastIntermediateMediumLimit, TTransactionId transactionId)
+    {
+        YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
+
+        // Multiple dispatches may be queued if UpdateIntermediateMediumUsage fires
+        // repeatedly before this callback completes. Skip if the first one already finished.
+        if (SwitchedToSlowIntermediateMedium_) {
             return;
         }
+
+        TForbidContextSwitchGuard contextSwitchGuard;
 
         for (const auto& partitionTask : PartitionTasks_) {
             partitionTask->SwitchIntermediateMedium();
@@ -362,18 +414,18 @@ public:
             IntermediateSortTask_->SwitchIntermediateMedium();
         }
 
-        YT_LOG_DEBUG("Switching from the fast intermediate medium to the slow one "
+        YT_LOG_DEBUG("Switched from the fast intermediate medium to the slow one "
             "(FastMediumUsage: %v, FastMediumLimit: %v, UsageToLimitRatio: %v, TransactionId: %v)",
             usage,
             fastIntermediateMediumLimit,
             static_cast<double>(usage) / fastIntermediateMediumLimit,
-            OutputTransaction_->GetId());
+            transactionId);
 
-        SwitchedToSlowIntermediateMedium_ = true;
+        // Set the flag only after all task descriptors are updated so that a snapshot
+        // taken with this flag true is guaranteed to have consistent task state.
+        auto guard = Guard(OutputTransactionLock_);
+        YT_VERIFY(!std::exchange(SwitchedToSlowIntermediateMedium_, true));
     }
-
-private:
-    TSortOperationSpecBasePtr Spec_;
 
 protected:
     TSortOperationOptionsBasePtr Options_;
@@ -484,8 +536,18 @@ protected:
 
     TSortedMergeTaskPtr SortedMergeTask_;
 
-    //! True if the operation has switched to the slow intermediate medium (HDD) after producing
-    //! more intermediate data than the limit for the fast intermediate medium (SSD).
+    //! True once DoSwitchIntermediateMedium has been dispatched to the controller invoker.
+    //! Protected by OutputTransactionLock_. Prevents unbounded growth of the callback
+    //! queue when UpdateIntermediateMediumUsage fires repeatedly before the dispatch runs.
+    //! NB: not persisted — resets to false on revive, so UpdateIntermediateMediumUsage
+    //! will naturally re-dispatch if the switch did not complete before the snapshot.
+    bool SwitchIntermediateMediumScheduled_ = false;
+
+    //! True once DoSwitchIntermediateMedium has completed and all task MediumName fields
+    //! have been updated to the slow intermediate medium. Protected by OutputTransactionLock_.
+    //! Persisted: if set in a snapshot, tasks are already consistent with the slow medium.
+    //! NB: set only inside DoSwitchIntermediateMedium (controller invoker), so a snapshot
+    //! with this flag true is guaranteed to have consistent task descriptors.
     bool SwitchedToSlowIntermediateMedium_ = false;
 
     TEnumIndexedArray<EPartitionDispatchDecision, int> PartitionsDispatchStatistics_;

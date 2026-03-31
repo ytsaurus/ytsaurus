@@ -562,6 +562,12 @@ protected:
     // NB: Transaction objects are ephemeral and should not be saved to snapshot.
     TInputTransactionManagerPtr InputTransactions_;
     NApi::ITransactionPtr AsyncTransaction_;
+    // NB: OutputTransaction_ may be read from the ControlThread (GetIntermediateMediumTransaction)
+    // while being written from the controller invoker (StartTransactions/InitializeReviving).
+    // NB: SwitchedToSlowIntermediateMedium_ and SwitchIntermediateMediumScheduled_ (sort
+    // controller) are also protected by this lock since they are read from the ControlThread
+    // and written from the controller invoker.
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, OutputTransactionLock_);
     NApi::ITransactionPtr OutputTransaction_;
     NApi::ITransactionPtr DebugTransaction_;
     NApi::NNative::ITransactionPtr OutputCompletionTransaction_;
