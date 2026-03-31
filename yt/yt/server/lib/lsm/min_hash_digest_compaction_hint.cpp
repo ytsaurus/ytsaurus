@@ -69,20 +69,20 @@ void DoRecalculatePartitionCompactionHint<EPartitionCompactionHintKind::MinHashD
     ui64 storeSubsetCount = 1ULL << ssize(stores);
 
     for (ui64 storeSubset = 1; storeSubset < storeSubsetCount; ++storeSubset) {
-        TMinHashDigestPtr subsetCumulativeDigest;
+        cumulativeDigest = nullptr;
 
         for (int index = 0; index < ssize(stores); ++index) {
             if (storeSubset & (1ULL << index)) {
                 const auto& currentDigest = std::get<TMinHashDigestPtr>(
                     stores[index]->CompactionHints().Payloads()[EStoreCompactionHintKind::MinHashDigest]);
 
-                subsetCumulativeDigest = !subsetCumulativeDigest
+                cumulativeDigest = !cumulativeDigest
                     ? currentDigest
                     : TMinHashDigest::Merge(cumulativeDigest, currentDigest);
             }
         }
 
-        if (auto timestamp = subsetCumulativeDigest->CalculateWritesSimilarityTimestamp(minHashDigestConfig->WritesSimilarity, similarityMode)) {
+        if (auto timestamp = cumulativeDigest->CalculateWritesSimilarityTimestamp(minHashDigestConfig->WritesSimilarity, similarityMode)) {
             recalculationFinalizer.TryApplyRecalculationBySubset(
                 TInstant::Seconds(timestamp) + mountConfig->MinDataTtl,
                 EStoreCompactionReason::MinHashRemoveDuplicates,

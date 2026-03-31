@@ -1507,12 +1507,18 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         insert_rows(table, [{"key": i, "value": "v"} for i in range(row_count)])
         sync_flush_table(table)
 
+        # Avoid equal seconds timestamp for writes and deletes.
+        sleep(1)
+
         delete_rows(table, [{"key": i} for i in range(row_count)])
         sync_flush_table(table)
 
         assert len(get(f"{table}/@chunk_ids")) == 2
 
         _update_config({
+            "periodic_executor": {
+                "period": 1.
+            },
             "request_throttler": {
                 "limit": 300,
             },
