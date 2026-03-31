@@ -684,8 +684,14 @@ public:
     TSortedChunkStoreVersionedReader(
         IStoreContextPtr context,
         int skippedBefore,
-        int skippedAfter,
-        TSortedChunkStore* const chunk,
+        int skippedAfter)
+        : Context_(std::move(context))
+        , SkippedBefore_(skippedBefore)
+        , SkippedAfter_(skippedAfter)
+    { }
+
+    void Initialize(
+        TSortedChunkStore* chunk,
         const TTabletSnapshotPtr& tabletSnapshot,
         TSharedRange<TLegacyKey> keys,
         TTimestamp timestamp,
@@ -693,9 +699,6 @@ public:
         const TColumnFilter& columnFilter,
         const TClientChunkReadOptions& chunkReadOptions,
         std::optional<EWorkloadCategory> workloadCategory)
-        : Context_(std::move(context))
-        , SkippedBefore_(skippedBefore)
-        , SkippedAfter_(skippedAfter)
     {
         InitializationFuture_ = InitializeUnderlyingReader(
             chunk,
@@ -1211,10 +1214,11 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         }
     }
 
-    return New<TSortedChunkStoreVersionedReader>(
+    auto reader = New<TSortedChunkStoreVersionedReader>(
         Context_,
         skippedBefore,
-        skippedAfter,
+        skippedAfter);
+    reader->Initialize(
         this,
         tabletSnapshot,
         std::move(filteredKeys),
@@ -1223,6 +1227,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         columnFilter,
         chunkReadOptions,
         workloadCategory);
+    return reader;
 }
 
 IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
