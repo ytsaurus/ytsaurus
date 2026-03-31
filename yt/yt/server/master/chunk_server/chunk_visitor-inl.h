@@ -13,9 +13,49 @@ namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TResult>
+TChunkVisitorBase<TResult>::TChunkVisitorBase(
+    NCellMaster::TBootstrap* bootstrap,
+    const TChunkLists& chunkLists)
+    : Bootstrap_(bootstrap)
+    , ChunkLists_(chunkLists)
+{
+    NObjectServer::VerifyPersistentStateRead();
+}
+
+template <class TResult>
+TFuture<TResult> TChunkVisitorBase<TResult>::Run()
+{
+    NObjectServer::VerifyPersistentStateRead();
+
+    auto context = CreateAsyncChunkTraverserContext(
+        Bootstrap_,
+        NCellMaster::EAutomatonThreadQueue::ChunkStatisticsTraverser);
+    TraverseChunkTree(
+        std::move(context),
+        this,
+        ChunkLists_);
+
+    return Promise_;
+}
+
+template <class TResult>
+void TChunkVisitorBase<TResult>::OnFinish(const TError& error)
+{
+    NObjectServer::VerifyPersistentStateRead();
+
+    if (error.IsOK()) {
+        OnSuccess();
+    } else {
+        Promise_.Set(TError("Error traversing chunk tree") << error);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TKeyExtractor, class TKeyFormatter>
 class TChunkStatisticsVisitor
-    : public TChunkVisitorBase
+    : public TChunkVisitorBase<NYson::TYsonString>
 {
 public:
     TChunkStatisticsVisitor(
@@ -23,7 +63,7 @@ public:
         TChunkLists chunkLists,
         TKeyExtractor keyExtractor,
         TKeyFormatter keyFormatter)
-        : TChunkVisitorBase(bootstrap, chunkLists)
+        : TChunkVisitorBase<NYson::TYsonString>(bootstrap, chunkLists)
         , KeyExtractor_(std::move(keyExtractor))
         , KeyFormatter_(std::move(keyFormatter))
     { }
