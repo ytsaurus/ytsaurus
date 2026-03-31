@@ -18,7 +18,12 @@ Full use of tablet transactions in Python API is only possible via RPC-proxy (`y
 ------
 #### **Q: When querying a dynamic table, I get the "Maximum block size limit violated" error.** {#block-size-limit}
 
-**A:** The query involves a dynamic table once converted from a static table. The `block_size` parameter was not specified. If you receive an error like this, make sure you follow all the instructions from the [section](../../user-guide/dynamic-tables/mapreduce.md) about converting a static table into a dynamic table. If block size is large, you need to increase `max_unversioned_block_size` to 32 MB and re-mount the table. This can happen, if the table's cells store large binary data that are stored in a single block in their entirety.
+**A:** The query involves a dynamic table once converted from a static table. The `block_size` parameter was not specified. If you receive an error like this, make sure you follow all the instructions from the [section](#convert_table) about converting a static table into a dynamic table. If block size is large, you need to increase `max_unversioned_block_size` to 32 MB and re-mount the table. This can happen, if the table's cells store large binary data that are stored in a single block in their entirety.
+
+------
+#### **Q: When mounting a dynamic table, I get the error "Cannot mount tablet ... since chunk ... has too large row or value size", "Cannot mount tablet ... since it has chunks with too large block size", "Cannot mount tablet ... since it has too large chunks"** {#cannot-mount-large-chunks}
+
+**A:** The error usually occurs due to incorrect settings during the converting of a static table to a dynamic one. Make sure you have followed all the instructions from the [conversion section](#convert_table).
 
 ------
 #### **Q: When querying a dynamic table, I get the "Too many overlapping stores in tablet" error.** {#overlapping-stores-tablet}
