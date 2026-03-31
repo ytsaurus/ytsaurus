@@ -57,7 +57,8 @@ h3 {
     <div class="grid-item">
         <h3><a lang="en" href="user-guide/data-processing/scheduler/scheduler-and-pools">Data processing</a></h3>
         <p>Processing data with {{product-name}}: scheduler, MapReduce paradigm, operations supported.</p>
-    <!-- <div class="grid-item">
+        <ul>
+            <!-- <div class="grid-item">
         <h3><a href="admin-guide/set-req">Administration Guide</a></h3>
         <p>Configuration, installation process and instructions for basic administrative tasks.</p>
     </div> -->
@@ -67,15 +68,20 @@ h3 {
             <li><b><a lang="en" href="user-guide/data-processing/spyt/overview">SPYT</a></b>: An Apache Spark cluster running in {{product-name}}.</li>
         </ul>
     </div>
-
-
 </div>
 
 ## Useful links { #links }
+
+{% if audience == "internal" %}
+
+{% include [Полезные ссылки](_includes/links-int.md) %}
+
+{% else %}
 
 * [GitHub](https://github.com/ytsaurus/ytsaurus)
 * [{{product-name}} site](https://ytsaurus.tech)
 * [Telegram](https://t.me/ytsaurus)
 * [Stack Overflow](https://stackoverflow.com/tags/ytsaurus)
 * [Email for questions](mailto:community@ytsaurus.tech)
+{% endif %}
 
