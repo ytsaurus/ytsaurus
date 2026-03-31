@@ -33,6 +33,8 @@ Most of the options are available starting with version 1.23.0, unless otherwis
 | `spark.yt.read.transactional` | `true` | Use shapshot lock for reading if transaction is not specified. It is recommended to turn this option off when reading immutable data to improve reading perfomance | 2.6.0 |
 | `spark.yt.read.ytDistributedReading.enabled` | `false` | Use distributed API for reading data from {{product-name}}. This method reduces the number of requests to the {{product-name}} master when reading data, but is not yet compatible with the `spark.yt.read.planOptimization.enabled` option | 2.8.0 |
 | `spark.yt.write.distributed.enabled` | `false` | Use distributed API for writing data to {{product-name}}. This method reduces the number of requests to the {{product-name}} master when writing data, but is only applicable to working with static tables | 2.8.0 |
+| `spark.yt.read.ytOmitInaccessibleRows.enabled` | `true` | Skip inaccessible rows instead of throwing an error | 2.9.0 |
+| `spark.yt.read.ytOmitInaccessibleColumns.enabled` | `true` | Skip inaccessible columns instead of throwing an error | 2.9.0 |
 
 ## Options for launching tasks directly { #direct-submit }
 
