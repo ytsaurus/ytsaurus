@@ -1442,7 +1442,7 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
             }
 
             if (suitableForReadRangeInferring) {
-                result.KeyReadRanges = InferReadRange(selectQuery->getWhere(), storage->GetSchema());
+                result.KeyReadRanges = InferReadRange(selectQuery->getWhere(), storage->GetSchema(), getContext()->getSettingsRef());
                 YT_LOG_DEBUG("Inferred read range for table (Table: %v, KeyReadRange: %v)", storage->GetTables(), result.KeyReadRanges);
             }
         }
