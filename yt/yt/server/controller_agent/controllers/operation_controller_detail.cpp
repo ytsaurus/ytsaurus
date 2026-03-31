@@ -728,8 +728,11 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
             asyncResults.push_back(AbortInputTransactions());
         } else {
             YT_LOG_INFO("Reusing operation transactions");
-            OutputTransaction_ = outputTransaction;
             DebugTransaction_ = debugTransaction;
+            {
+                auto guard = Guard(OutputTransactionLock_);
+                OutputTransaction_ = outputTransaction;
+            }
             AsyncTransaction_ = WaitFor(StartTransaction(ETransactionType::Async, Client_))
                 .ValueOrThrow();
         }
@@ -1724,8 +1727,9 @@ void TOperationControllerBase::StartTransactions()
 
     {
         AsyncTransaction_ = results[0].ValueOrThrow();
-        OutputTransaction_ = results[1].ValueOrThrow();
         DebugTransaction_ = results[2].ValueOrThrow();
+        auto guard = Guard(OutputTransactionLock_);
+        OutputTransaction_ = results[1].ValueOrThrow();
     }
 
     WaitFor(inputTransactionsReadyFuture).ThrowOnError();
@@ -5989,6 +5993,8 @@ bool TOperationControllerBase::IsFinished() const
 
 std::pair<ITransactionPtr, std::string> TOperationControllerBase::GetIntermediateMediumTransaction()
 {
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
     return {nullptr, {}};
 }
 
