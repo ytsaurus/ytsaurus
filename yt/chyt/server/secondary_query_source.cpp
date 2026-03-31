@@ -344,7 +344,7 @@ public:
                         auto batchColumns = columnarBatch->MaterializeColumns();
                         for (const auto* ytColumn : batchColumns) {
                             if (ytColumn->Id == NameTable_->GetIdOrThrow(step.Columns[0].Name()) && ytColumn != UnwrapSimpleDistinctColumn(ytColumn)) {
-                                ReduceFilterToDistinct(blockWithFilter.Filter, *ytColumn);
+                                ReduceFilterToDistinct(&blockWithFilter.Filter, *ytColumn);
                             }
                         }
                     }
@@ -369,7 +369,7 @@ public:
                 if (step.FilterInfo) {
                     // We can't remove filter column from block while running execute,
                     // because block must contain at least one column to preserve row count.
-                    step.FilterInfo->RemoveColumnIfNeeded(blockWithFilter);
+                    step.FilterInfo->RemoveColumnIfNeeded(&blockWithFilter);
                 }
             }
 
@@ -634,10 +634,10 @@ public:
 private:
     const TReaderFactoryPtr ReaderFactory_;
     ISchemalessMultiChunkReaderPtr CurrentReader_;
-    TChunkReaderStatisticsPtr ChunkReaderStatistics_;
+    const TChunkReaderStatisticsPtr ChunkReaderStatistics_;
 
     const TRowBatchReadOptions RowBatchReadOptions_{
-            .Columnar = Settings_->EnableColumnarRead,
+        .Columnar = Settings_->EnableColumnarRead,
     };
 
     void OnReaderFinish()
@@ -715,7 +715,7 @@ public:
 
     DB::String getName() const override
     {
-        return "SingleBatchSource(" + BatchDescription_ + ")";
+        return Format("SingleBatchSource(%v)", BatchDescription_);
     }
 
     bool CanReadBatch() const override
@@ -725,9 +725,7 @@ public:
 
     IUnversionedRowBatchPtr ReadBatch() override
     {
-        auto batch = std::move(Batch_);
-        Batch_ = nullptr;
-        return batch;
+        return std::exchange(Batch_, nullptr);
     }
 
     TFuture<void> GetReadyEvent() const override

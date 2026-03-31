@@ -184,10 +184,11 @@ public:
     }
 
 private:
+    const bool OptimizeDistinctRead_;
+
     DB::Block HeaderBlock_;
     std::vector<TYTToCHColumnConverter> ColumnConverters_;
     std::vector<int> IdToColumnIndex_;
-    bool OptimizeDistinctRead_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

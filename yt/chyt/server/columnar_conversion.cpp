@@ -1147,12 +1147,12 @@ DB::ColumnString::MutablePtr ConvertCHColumnToAny(
 }
 
 void ReduceFilterToDistinct(
-    DB::IColumn::Filter& filter,
+    DB::IColumn::Filter* filter,
     const IUnversionedColumnarRowBatch::TColumn& ytColumn)
 {
     auto [ytValueColumn, rleIndexes, dictionaryIndexes] = AnalyzeColumnEncoding(ytColumn);
 
-    if ((dictionaryIndexes.empty() && rleIndexes.empty()) || filter.empty()) {
+    if ((dictionaryIndexes.empty() && rleIndexes.empty()) || filter->empty()) {
         return;
     }
 
@@ -1174,7 +1174,7 @@ void ReduceFilterToDistinct(
         },
         [&] (i64 index) {
             hasNull |= (index == 0 && zeroMeansNull);
-            if (filter[rowIndex++]) {
+            if ((*filter)[rowIndex++]) {
                 index = (index == 0 && zeroMeansNull) ? newFilter.size() : index;
                 newFilter.data()[index - 1] = 1;
             }
@@ -1182,7 +1182,7 @@ void ReduceFilterToDistinct(
     if (!hasNull) {
         newFilter.pop_back();
     }
-    filter = std::move(newFilter);
+    *filter = std::move(newFilter);
 }
 
 const IUnversionedColumnarRowBatch::TColumn* UnwrapSimpleDistinctColumn(const IUnversionedColumnarRowBatch::TColumn* ytColumn)

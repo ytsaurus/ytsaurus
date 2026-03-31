@@ -101,7 +101,7 @@ class TSimpleValueConverter
     : public IConverter
 {
 public:
-    TSimpleValueConverter(DB::DataTypePtr dataType)
+    explicit TSimpleValueConverter(DB::DataTypePtr dataType)
         : DataType_(std::move(dataType))
     { }
 

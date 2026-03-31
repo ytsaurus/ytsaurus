@@ -45,18 +45,16 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NClickHouseServer::NProto::TPathWithRevision* protoPath, const std::pair<TString, NHydra::TRevision>& path)
+void ToProto(NClickHouseServer::NProto::TPathWithRevision* protoPath, const std::pair<NYPath::TYPath, NHydra::TRevision>& path)
 {
     protoPath->set_path(path.first);
     protoPath->set_revision(path.second.Underlying());
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-void FromProto(std::pair<TString, NHydra::TRevision>* path, const NClickHouseServer::NProto::TPathWithRevision& protoPath)
+void FromProto(std::pair<NYPath::TYPath, NHydra::TRevision>* path, const NClickHouseServer::NProto::TPathWithRevision& protoPath)
 {
     path->first = FromProto<TString>(protoPath.path());
-    path->second = FromProto<NYT::NHydra::TRevision>(protoPath.revision());
+    path->second = FromProto<NHydra::TRevision>(protoPath.revision());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -73,8 +71,6 @@ using namespace NTableClient;
 using namespace NYPath;
 using namespace NYson;
 using namespace NYTree;
-
-using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -581,10 +577,9 @@ NHydra::TRevision GetRefreshRevision(const NApi::NNative::IClientPtr& client, co
 {
     auto revisionOrError = WaitFor(client->GetNode(path + "/@revision", {}));
     if (!revisionOrError.IsOK()) {
-        THROW_ERROR_EXCEPTION("Could not get refresh revision for path %v", path);
-    } else {
-        return ConvertTo<NHydra::TRevision>(revisionOrError.Value());
+        THROW_ERROR_EXCEPTION("Could not get refresh revision for %v", path);
     }
+    return ConvertTo<NHydra::TRevision>(revisionOrError.Value());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
