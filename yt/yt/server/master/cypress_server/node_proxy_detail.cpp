@@ -2296,8 +2296,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, LockCopySource)
             THROW_ERROR_EXCEPTION("Portal entrances cannot be copied");
         }
 
-        if (nodeType != EObjectType::MapNode && nodeType != EObjectType::PortalExit) {
-            // NB: Other types that can have children are all Sequoia-related and are handled on Cypress proxy.
+        if (!IsCompositeNodeType(nodeType) || IsSequoiaNode(nodeType)) {
+            // NB: All Sequoia-related and are handled on Cypress proxy.
             continue;
         }
 
@@ -2441,8 +2441,12 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, CalculateInherited
             continue;
         }
 
-        if (currentNode->GetType() != EObjectType::MapNode && currentNode->GetType() != EObjectType::PortalExit) {
-            THROW_ERROR_EXCEPTION("Type %Qlv cannot be cross-cell copied", currentNode->GetType());
+        if (auto currentNodeType = currentNode->GetType();
+            currentNodeType != EObjectType::MapNode &&
+            currentNodeType != EObjectType::PortalExit &&
+            currentNodeType != EObjectType::ClusterProxyNode)
+        {
+            THROW_ERROR_EXCEPTION("Type %Qlv cannot be cross-cell copied", currentNodeType);
         }
 
         TKeyToCypressNode keyToChildMapStorage;
