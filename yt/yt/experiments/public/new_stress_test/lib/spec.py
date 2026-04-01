@@ -300,6 +300,35 @@ spec_template = {
     "ipv4": False
 }
 
+group_by_spec = merge_specs(spec_template, {
+    "table_type": "sorted",
+    "chunk_format": Variable(["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim"], VariationPolicy.PickRandom),
+    "in_memory_mode": "none",
+    "erasure_codec": "none",
+    "hunk_erasure_codec": "none",
+
+    "size": {
+        "tablet_count": 1,
+    },
+
+    "prepare_table_via_alter": False,
+
+    "sorted": {
+        "enable_lookup_hash_table": False,
+        "enable_data_node_lookup": False,
+        "write_policy": "insert_rows",
+    },
+
+    "testing": {
+        "skip_lookup": True,
+        "skip_select": False,
+        "skip_group_by": False,
+    },
+
+    "ordered": None,
+    "replicated": Opaque(),
+})
+
 simple_sorted_spec = merge_specs(spec_template, {
     "table_type": "sorted",
     "chunk_format": Variable(["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim"], VariationPolicy.PickRandom),
@@ -373,6 +402,7 @@ presets = {
     "simple_sorted": simple_sorted_spec,
     "simple_ordered": simple_ordered_spec,
     "indexed_sorted": indexed_sorted_spec,
+    "group_by": group_by_spec,
 }
 
 ##################################################################
