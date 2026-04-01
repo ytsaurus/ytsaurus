@@ -55,8 +55,8 @@ protected:
     const TVolumeMeta VolumeMeta_;
     const TLayerLocationPtr LayerLocation_;
 
-    TPromise<void> RemovePromise_ = NewPromise<void>();
-    std::atomic<bool> RemovalRequested_{false};
+    const TPromise<void> RemovePromise_ = NewPromise<void>();
+    std::atomic<bool> RemovalRequested_ = false;
 
     static TFuture<void> DoRemoveVolumeCommon(
         const TString& volumeType,
@@ -73,7 +73,7 @@ private:
 
     TCallback<TFuture<void>(const std::vector<TString>&)> RemoveCallback_;
 
-    static TFuture<void> UnlinkTargets(TLayerLocationPtr location, TString source, std::vector<TString> targets);
+    static TFuture<void> UnlinkTargets(TLayerLocationPtr location, TString source, const std::vector<TString>& targets);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

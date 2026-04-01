@@ -7,6 +7,7 @@ SRCS(
     core_watcher.cpp
     cpu_monitor.cpp
     environment.cpp
+    helpers.cpp
     job_throttler.cpp
     job_detail.cpp
     job_prober_service.cpp

@@ -1066,7 +1066,7 @@ public:
 
         auto resourceLimits = GetResourceLimits(/*considerUserJobFreeMemoryWatermark*/ false);
 
-        if (GetDynamicConfig()->CheckUserJobsCategoryLimitOnResourcesUpdating) {
+        if (GetDynamicConfig()->CheckUserJobsCategoryLimitOnResourceUpdate) {
             auto error = CheckResourceOverdraft(
                 acquiredResources + releasingResources,
                 resourceLimits);

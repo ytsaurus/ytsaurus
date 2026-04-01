@@ -136,12 +136,14 @@ void TJobResourceManagerDynamicConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(0);
 
     registrar.Parameter("free_user_job_memory_watermark_multiplier", &TThis::FreeUserJobMemoryWatermarkMultiplier)
-        .Default(0.0);
+        .Default(0.0)
+        .GreaterThanOrEqual(0.0)
+        .LessThan(1.0);
 
     registrar.Parameter("consider_user_job_free_memory_watermark_in_resource_acquisition", &TThis::ConsiderUserJobFreeMemoryWatermarkInResourceAcquisition)
         .Default(true);
 
-    registrar.Parameter("check_user_jobs_category_limit_on_resources_updating", &TThis::CheckUserJobsCategoryLimitOnResourcesUpdating)
+    registrar.Parameter("check_user_jobs_category_limit_on_resource_update", &TThis::CheckUserJobsCategoryLimitOnResourceUpdate)
         .Default(false);
 
     registrar.Postprocessor([] (TThis* config) {
