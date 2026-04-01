@@ -253,6 +253,30 @@ TEST_F(TUploadSessionTest, AbortCompletedMultiPartUpload)
     EXPECT_TRUE(getObjectResponseOrError.GetMessage().contains("Not Found"));
 }
 
+TEST_F(TUploadSessionTest, MultipleAbortMultiPartUpload)
+{
+    const int N = 100;
+    auto pool = NConcurrency::CreateThreadPool(4, "Worker");
+    auto invoker = pool->GetInvoker();
+    auto objectPlacement = MediumDescriptor_->GetS3ObjectPlacementForChunk(ChunkId_);
+    auto session = New<TS3MultiPartUploadSession>(
+        S3Client_,
+        objectPlacement,
+        TS3MultiPartUploadSession::TOptions{.PartSize = 64_MB, .UploadWindowSize = 128_MB},
+        invoker,
+        Logger);
+    WaitFor(session->Start())
+        .ThrowOnError();
+
+    std::vector<TFuture<void>> futures;
+    for (int i = 0; i < N; ++i) {
+        futures.push_back(session->Abort(TError("Some error")));
+    }
+
+    WaitFor(AllSucceeded(std::move(futures)))
+        .ThrowOnError();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NS3

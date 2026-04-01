@@ -83,15 +83,10 @@ public:
     TFuture<void> Close(
         const IChunkWriter::TWriteBlocksOptions& /*options*/,
         const TWorkloadDescriptor& /*workloadDescriptor*/,
-        const TDeferredChunkMetaPtr& chunkMeta,
-        std::optional<int> truncateBlockCount) override
+        const TDeferredChunkMetaPtr& chunkMeta) override
     {
         // Journal chunks are not supported.
         YT_VERIFY(chunkMeta);
-
-        if (truncateBlockCount.has_value()) {
-            DataSize_ = TruncateBlocks(BlocksExt_, *truncateBlockCount, DataSize_);
-        }
 
         // Some uploads may still be running, but no more blocks can be added, so we can safely
         // finalize the meta in parallel with the completion of the chunk upload itself.

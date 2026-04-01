@@ -128,11 +128,11 @@ bool TS3MultiPartUploadSession::Add(std::vector<TSharedRef> data)
     BufferedData_.insert(BufferedData_.end(), std::make_move_iterator(data.begin()), std::make_move_iterator(data.end()));
     BufferedDataSize_ += size;
 
-    GuardedSchedulePartUploadIfNeeded();
-
     YT_LOG_DEBUG("Added data to multi-part upload session (Size: %v, BufferedDataSize: %v)",
         size,
         BufferedDataSize_);
+
+    CancelableInvoker_->Invoke(BIND(&TS3MultiPartUploadSession::SchedulePartUploadIfNeeded, MakeWeak(this)));
 
     return UploadWindowSemaphore_->IsReady();
 }
@@ -155,8 +155,13 @@ TFuture<void> TS3MultiPartUploadSession::Complete()
 
 TFuture<void> TS3MultiPartUploadSession::Abort(TError error)
 {
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
     {
         auto guard = WriterGuard(SpinLock_);
+        if (State_ == ES3UploadSessionState::Aborting || State_ == ES3UploadSessionState::Aborted) {
+            return MakeFuture<void>({});
+        }
         State_ = ES3UploadSessionState::Aborting;
     }
     return TS3UploadSessionBase::Abort(error)
@@ -197,7 +202,7 @@ bool TS3MultiPartUploadSession::TryExchangeState(ES3UploadSessionState expected,
 
 void TS3MultiPartUploadSession::SchedulePartUploadIfNeeded()
 {
-    YT_ASSERT_THREAD_AFFINITY_ANY();
+    YT_ASSERT_INVOKER_AFFINITY(CancelableInvoker_);
 
     auto guard = WriterGuard(SpinLock_);
     GuardedSchedulePartUploadIfNeeded();
@@ -205,10 +210,13 @@ void TS3MultiPartUploadSession::SchedulePartUploadIfNeeded()
 
 void TS3MultiPartUploadSession::GuardedSchedulePartUploadIfNeeded()
 {
-    YT_ASSERT_THREAD_AFFINITY_ANY();
+    YT_ASSERT_INVOKER_AFFINITY(CancelableInvoker_);
     YT_ASSERT_WRITER_SPINLOCK_AFFINITY(SpinLock_);
 
-    YT_VERIFY(State_ == ES3UploadSessionState::Started || State_ == ES3UploadSessionState::Completing);
+    // If abort already was called we do not need to upload anything.
+    if (State_ == ES3UploadSessionState::Aborting || State_ == ES3UploadSessionState::Aborted) {
+        return;
+    }
 
     if (!BufferedData_.empty() && (BufferedDataSize_ >= Options_.PartSize || State_ == ES3UploadSessionState::Completing)) {
         GuardedSchedulePartUpload();
@@ -291,7 +299,7 @@ TUploadPartResponse TS3MultiPartUploadSession::OnPartUploadCompleted(const TErro
 
 std::vector<TFuture<TUploadPartResponse>> TS3MultiPartUploadSession::DrainPendingPartUploads()
 {
-    YT_ASSERT_THREAD_AFFINITY_ANY();
+    YT_ASSERT_INVOKER_AFFINITY(CancelableInvoker_);
 
     std::vector<TFuture<TUploadPartResponse>> pendingPartUploads;
 
@@ -305,7 +313,7 @@ std::vector<TFuture<TUploadPartResponse>> TS3MultiPartUploadSession::DrainPendin
 
 void TS3MultiPartUploadSession::DoStart()
 {
-    YT_ASSERT_THREAD_AFFINITY_ANY();
+    YT_ASSERT_INVOKER_AFFINITY(CancelableInvoker_);
 
     YT_LOG_DEBUG("Starting multi-part upload to S3");
 
@@ -345,6 +353,8 @@ void TS3MultiPartUploadSession::DoStart()
 
 void TS3MultiPartUploadSession::DoComplete()
 {
+    YT_ASSERT_INVOKER_AFFINITY(CancelableInvoker_);
+
     YT_LOG_DEBUG("Completing multi-part upload to S3");
 
     SchedulePartUploadIfNeeded();
@@ -445,6 +455,8 @@ TFuture<void> TS3SimpleUploadSession::Upload(TSharedRef data)
 
 void TS3SimpleUploadSession::DoUpload(TSharedRef data)
 {
+    YT_ASSERT_INVOKER_AFFINITY(CancelableInvoker_);
+
     YT_LOG_DEBUG("Uploading object to S3 (Size: %v)", data.Size());
 
     auto putObjectResponse = WaitFor(Client_->PutObject(TPutObjectRequest{
