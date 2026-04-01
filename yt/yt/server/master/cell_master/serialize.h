@@ -169,6 +169,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixTamedCellReplicationToSecondaryMasters)                    (3217))  // ifsmirnov
     ((RemoveCompatsAroundStartTransaction)                          (3218))  // h0pless
     ((FixDescendingSortOrderValidationInBeginUpload)                (3219))  // h0pless
+    ((SomeTablesIgnoreCommitOrderingInheritance)                    (3220))  // sabdenovch
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
