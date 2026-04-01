@@ -218,10 +218,14 @@ public:
             schemaIdMapping)
         , KeyFilterStatistics_(std::move(keyFilterStatistics))
         , Ranges_(std::move(ranges))
+        , SessionInvoker_(std::move(sessionInvoker))
     {
         YT_VERIFY(ChunkMeta_->GetChunkFormat() == TBlockReader::ChunkFormat);
+    }
 
-        SetReadyEvent(DoOpen(GetBlockSequence(), ChunkMeta_->Misc(), sessionInvoker));
+    void InitializeRefCounted()
+    {
+        SetReadyEvent(DoOpen(GetBlockSequence(), ChunkMeta_->Misc(), SessionInvoker_));
     }
 
     IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
@@ -322,8 +326,10 @@ private:
     using TBlockReaderAdapter<TBlockReader>::BlockReader_;
 
     TKeyFilterStatisticsPtr KeyFilterStatistics_;
+    const TSharedRange<TRowRange> Ranges_;
+    const IInvokerPtr SessionInvoker_;
+
     std::vector<size_t> BlockIndexes_;
-    TSharedRange<TRowRange> Ranges_;
     int NextBlockIndex_ = 0;
     int RangeIndex_ = 0;
     bool IsLastRangeEmpty_ = true;
