@@ -18,7 +18,7 @@ struct IDistributedChunkSessionController
 
     virtual TFuture<void> Close() = 0;
 
-    virtual TFuture<void> WaitUntilClosed() = 0;
+    virtual TFuture<void> GetClosedFuture() = 0;
 
     virtual NChunkClient::TSessionId GetSessionId() const = 0;
 };

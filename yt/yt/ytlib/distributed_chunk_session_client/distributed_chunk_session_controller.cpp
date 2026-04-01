@@ -83,13 +83,13 @@ public:
 
         return CreateChunk()
             .Apply(BIND(
-                &TDistributedChunkSessionController::OnChunkCreated,
+                &TDistributedChunkSessionController::StartRemoteSession,
                 MakeStrong(this)))
             .Apply(BIND(
-                &TDistributedChunkSessionController::OnSessionStarted,
+                &TDistributedChunkSessionController::InitializePingExecutor,
                 MakeStrong(this)))
             .Apply(BIND(
-                &TDistributedChunkSessionController::OnStartCompleted,
+                &TDistributedChunkSessionController::HandleStartResult,
                 MakeStrong(this)));
     }
 
@@ -101,7 +101,7 @@ public:
         return ClosedPromise_.ToFuture();
     }
 
-    TFuture<void> WaitUntilClosed() final
+    TFuture<void> GetClosedFuture() final
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -172,7 +172,7 @@ private:
         }));
     }
 
-    TFuture<void> OnChunkCreated(TSessionId sessionId)
+    TFuture<void> StartRemoteSession(TSessionId sessionId)
     {
         SessionId_ = sessionId;
         YT_LOG_INFO("Chunk created (ChunkId: %v)", SessionId_);
@@ -216,7 +216,7 @@ private:
         return req->Invoke().AsVoid();
     }
 
-    TNodeDescriptor OnSessionStarted(const TError& error)
+    TNodeDescriptor InitializePingExecutor(const TError& error)
     {
         error.ThrowOnError();
 
@@ -232,7 +232,7 @@ private:
         return SequencerDescriptor_;
     }
 
-    TNodeDescriptor OnStartCompleted(const TErrorOr<TNodeDescriptor>& descriptorOrError)
+    TNodeDescriptor HandleStartResult(const TErrorOr<TNodeDescriptor>& descriptorOrError)
     {
         if (!descriptorOrError.IsOK()) {
             auto error = TError(descriptorOrError);

@@ -59,7 +59,7 @@ public:
                 MakeWeak(this)));
     }
 
-    TFuture<void> WaitUntilClosed() final
+    TFuture<void> GetClosedFuture() final
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 

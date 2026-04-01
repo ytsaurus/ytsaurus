@@ -22,7 +22,7 @@ struct IDistributedChunkSessionSequencer
 
     virtual TFuture<void> WriteRecord(TSharedRef record) = 0;
 
-    virtual TFuture<void> WaitUntilClosed() = 0;
+    virtual TFuture<void> GetClosedFuture() = 0;
 
     virtual TFuture<void> Close() = 0;
 };
