@@ -29,6 +29,7 @@ public:
     //! This method is intended to be best-effort, it is not possible to achieve race-free cancellation.
     //! Some stray parts/objects may remain in S3 and should be removed separately.
     //! Do not call any other methods after this one.
+    // TODO: we need to do better in the future.
     TFuture<void> Abort(TError error);
 
     //! Returns true if upload session was completed successfuly.
@@ -96,6 +97,7 @@ public:
     //! After calling this method, no more data can be added to the session.
     TFuture<void> Complete();
 
+    // TODO: we need to do better in the future.
     TFuture<void> Abort(TError error);
 
     TFuture<void> GetReadyEvent();
