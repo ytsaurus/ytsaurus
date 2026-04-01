@@ -1347,10 +1347,14 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert get("#{0}/@kind".format(root_chunk_list)) == "sorted_dynamic_root"
         assert get("#{0}/@kind".format(tablet_chunk_list)) == "sorted_dynamic_tablet"
 
-    @authors("babenko")
+    @authors("babenko", "sabdenovch")
     def test_no_commit_ordering(self):
+        set("//tmp/@commit_ordering", "strong")
         self._create_simple_table("//tmp/t")
         assert not exists("//tmp/t/@commit_ordering")
+
+        with raises_yt_error("commit ordering, cannot set it"):
+            self._create_simple_table("//tmp/ts", commit_ordering="strong")
 
     @authors("max42")
     def test_type_conversion(self):
