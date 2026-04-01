@@ -426,7 +426,7 @@ TEST_F(TDistributedChunkSessionTest, SessionTimeout)
     ActionQueue_->Resume();
 
     // After resuming, the controller detects the expired session via ping and closes.
-    auto closedError = WaitFor(controller->WaitUntilClosed());
+    auto closedError = WaitFor(controller->GetClosedFuture());
     EXPECT_FALSE(closedError.IsOK());
     EXPECT_EQ(closedError.GetCode(), NChunkClient::EErrorCode::NoSuchSession);
 
@@ -521,9 +521,9 @@ TEST_F(TDistributedChunkSessionTest, StartSessionWithNotEnoughNodes)
     EXPECT_FALSE(startError.IsOK());
     EXPECT_THAT(startError.GetMessage(), HasSubstr("Not enough"));
 
-    // WaitUntilClosed must already be resolved with the same error
+    // GetClosedFuture must already be resolved with the same error
     // since DoStartSession set ClosedPromise_ on failure.
-    auto closedError = WaitFor(controller->WaitUntilClosed());
+    auto closedError = WaitFor(controller->GetClosedFuture());
     EXPECT_FALSE(closedError.IsOK());
     EXPECT_EQ(closedError.GetCode(), startError.GetCode());
 
@@ -535,7 +535,7 @@ TEST_F(TDistributedChunkSessionTest, StartSessionWithNotEnoughNodes)
     EnsureControllerIsDestroyed(std::move(controller));
 }
 
-TEST_F(TDistributedChunkSessionTest, WaitUntilClosedResolvedOnSessionExpiry)
+TEST_F(TDistributedChunkSessionTest, GetClosedFutureResolvedOnSessionExpiry)
 {
     ControllerConfig_->SessionTimeout = TDuration::Seconds(1);
     ControllerConfig_->SessionPingPeriod = TDuration::MilliSeconds(200);
@@ -565,7 +565,7 @@ TEST_F(TDistributedChunkSessionTest, WaitUntilClosedResolvedOnSessionExpiry)
     // which sets ClosedPromise_ with an error.
     ActionQueue_->Resume();
 
-    auto error = WaitFor(controller->WaitUntilClosed());
+    auto error = WaitFor(controller->GetClosedFuture());
     EXPECT_FALSE(error.IsOK());
     EXPECT_EQ(error.GetCode(), NChunkClient::EErrorCode::NoSuchSession);
 
@@ -610,7 +610,7 @@ TEST_F(TDistributedChunkSessionTest, SequencerNodeDiesAfterWrite)
         // the controller closes with an error.
         auto resumeGuard = PauseProcess(sequencerNode.GetDefaultAddress());
 
-        auto error = WaitFor(controller->WaitUntilClosed());
+        auto error = WaitFor(controller->GetClosedFuture());
         EXPECT_FALSE(error.IsOK());
         EXPECT_THAT(error.GetMessage(), HasSubstr("Too many consecutive ping failures"));
     }

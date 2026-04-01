@@ -79,7 +79,7 @@ public:
             Connection_,
             Invoker_);
 
-        sequencer->WaitUntilClosed().Subscribe(BIND_NO_PROPAGATE(
+        sequencer->GetClosedFuture().Subscribe(BIND_NO_PROPAGATE(
             &TDistributedChunkSessionManager::OnSequencerFinished,
             MakeWeak(this),
             sessionId));
