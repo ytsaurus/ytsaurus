@@ -206,14 +206,12 @@ class TestQueueAgentConsumerProfiling(TestQueueAgentBase):
         consumer_orchid.wait_fresh_pass()
 
         def get_metric() -> list:
-            fixed_tags = {}
-            if queue_tag:
-                fixed_tags["queue_tag"] = queue_tag
-            if consumer_tag:
-                fixed_tags["consumer_tag"] = consumer_tag
             x = profiler.gauge(
                 'queue_agent/consumer_partition/lag_rows',
-                fixed_tags=fixed_tags,
+                fixed_tags={
+                    "queue_tag": queue_tag or NONE_TAG,
+                    "consumer_tag": consumer_tag or NONE_TAG,
+                },
             ).get_all()
             print_debug(x)
             return x
@@ -221,15 +219,8 @@ class TestQueueAgentConsumerProfiling(TestQueueAgentBase):
         wait(get_metric, ignore_exceptions=True)
 
         lag_rows = get_metric()[0]
-        if not queue_tag:
-            assert "queue_tag" not in lag_rows["tags"]
-        else:
-            assert lag_rows["tags"]["queue_tag"] == queue_tag
-
-        if not consumer_tag:
-            assert "consumer_tag" not in lag_rows["tags"]
-        else:
-            assert lag_rows["tags"]["consumer_tag"] == consumer_tag
+        assert lag_rows["tags"]["queue_tag"] == queue_tag or NONE_TAG
+        assert lag_rows["tags"]["consumer_tag"] == consumer_tag or NONE_TAG
 
         queue_tag = "new_queue_tag"
         yt_set(f"{queue}/@queue_profiling_tag", queue_tag)
@@ -239,11 +230,7 @@ class TestQueueAgentConsumerProfiling(TestQueueAgentBase):
 
         lag_rows = get_metric()[0]
         assert lag_rows["tags"]["queue_tag"] == queue_tag
-
-        if not consumer_tag:
-            assert "consumer_tag" not in lag_rows["tags"]
-        else:
-            assert lag_rows["tags"]["consumer_tag"] == consumer_tag
+        assert lag_rows["tags"]["consumer_tag"] == consumer_tag or NONE_TAG
 
         consumer_tag = "new_consumer_tag"
         yt_set(f"{consumer_path}/@queue_consumer_profiling_tag", consumer_tag)
@@ -282,16 +269,13 @@ class TestQueueAgentQueueProfiling(TestQueueAgentBase):
             return profiler.gauge(
                 'queue_agent/queue/partitions',
                 fixed_tags={
-                    "queue_tag": queue_tag,
-                } if queue_tag else {},
+                    "queue_tag": queue_tag or NONE_TAG,
+                },
             ).get_all()
 
         wait(get_metric, ignore_exceptions=True)
         partitions = get_metric()[0]
-        if not queue_tag:
-            assert "queue_tag" not in partitions["tags"]
-        else:
-            assert partitions["tags"]["queue_tag"] == queue_tag
+        assert partitions["tags"]["queue_tag"] == queue_tag or NONE_TAG
 
         queue_tag = "new_queue_tag"
         yt_set(f"{queue}/@queue_profiling_tag", queue_tag)
