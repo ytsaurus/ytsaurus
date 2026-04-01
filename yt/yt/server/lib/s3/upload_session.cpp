@@ -225,7 +225,7 @@ void TS3MultiPartUploadSession::GuardedSchedulePartUploadIfNeeded()
 
 void TS3MultiPartUploadSession::GuardedSchedulePartUpload()
 {
-    YT_ASSERT_THREAD_AFFINITY_ANY();
+    YT_ASSERT_INVOKER_AFFINITY(CancelableInvoker_);
     YT_ASSERT_WRITER_SPINLOCK_AFFINITY(SpinLock_);
 
     struct TS3UploadPartTag {};
