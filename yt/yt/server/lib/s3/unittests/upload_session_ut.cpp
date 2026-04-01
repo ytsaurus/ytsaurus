@@ -92,7 +92,7 @@ protected:
     void CleanBuckets()
     {
         YT_VERIFY(S3Client_);
-    
+
         // Clean all the objects and buckets up.
         auto listBucketsRsp = WaitFor(S3Client_->ListBuckets({}))
             .ValueOrThrow();

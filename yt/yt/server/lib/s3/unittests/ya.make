@@ -4,8 +4,6 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SUBSCRIBER(g:yt)
 
-ALLOCATOR(TCMALLOC)
-
 SRCS(
     chunk_reader_writer_ut.cpp
     upload_session_ut.cpp
@@ -15,9 +13,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 PEERDIR(
     yt/yt/server/lib/s3
-
     yt/yt/ytlib
-
     library/cpp/digest/md5
 )
 
