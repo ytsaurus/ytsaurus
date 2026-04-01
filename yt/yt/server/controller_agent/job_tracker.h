@@ -30,6 +30,11 @@ DEFINE_ENUM(EJobStage,
     (Finished)
 );
 
+// NB: These are fake values and so are not present in EJobStage.
+constexpr TStringBuf WaitingForConfirmationJobStage = "waiting_for_confirmation";
+constexpr TStringBuf AbortingJobStage = "aborting";
+constexpr TStringBuf ReleasingJobStage = "releasing";
+
 DEFINE_ENUM(ESettleJobRequestStage,
     (WaitingOnBarrier)
     (WaitingForController)

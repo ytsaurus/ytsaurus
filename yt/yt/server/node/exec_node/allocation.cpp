@@ -63,7 +63,7 @@ public:
                     .Counter("/settlement_requests_succeeded"),
                 Profiler_
                     .WithTag("is_job_first", "true")
-                    .Counter("/settlement_requests_succeeded")
+                    .Counter("/settlement_requests_succeeded"),
             }
     { }
 
