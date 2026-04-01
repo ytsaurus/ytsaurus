@@ -139,8 +139,6 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     auto trimmedRowCounts = combinedAttributes->GetAndRemove<std::vector<i64>>("trimmed_row_counts", {});
     auto hunkStorageId = combinedAttributes->FindAndRemove<TObjectId>("hunk_storage_id");
     auto hasHunkChunkList = combinedAttributes->Find<bool>("has_hunk_chunk_list");
-    bool commitOrderingIsExplicit = context.ExplicitAttributes->Contains(EInternedAttributeKey::CommitOrdering.Unintern());
-    auto commitOrdering = combinedAttributes->FindAndRemove<NTransactionClient::ECommitOrdering>(EInternedAttributeKey::CommitOrdering.Unintern());
 
     ValidateReplicationFactor(replicationFactor);
 
@@ -278,6 +276,12 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         }
         node->SetHunkErasureCodec(hunkErasureCodec);
 
+        if (node->IsPhysicallyLog()) {
+            // NB: This setting may be not visible in attributes but crucial for replication
+            // to work properly.
+            node->SetCommitOrdering(NTransactionClient::ECommitOrdering::Strong);
+        }
+
         auto hasEffectiveTableSchema = effectiveTableSchema != nullptr;
         if (node->IsNative()) {
             if (hasEffectiveTableSchema) {
@@ -296,25 +300,6 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
 
         if ((node->IsNative() && hasEffectiveTableSchema) || schemaMode == ETableSchemaMode::Strong) {
             node->SetSchemaMode(ETableSchemaMode::Strong);
-        }
-
-        if (node->IsPhysicallyLog()) {
-            // NB: This setting may be not visible in attributes but crucial for replication
-            // to work properly.
-            THROW_ERROR_EXCEPTION_IF(commitOrderingIsExplicit && *commitOrdering != NTransactionClient::ECommitOrdering::Strong,
-                "Tables of type %Qlv only support %Qlv commit ordering, cannot set it to %Qlv",
-                    node->GetType(),
-                    NTransactionClient::ECommitOrdering::Strong,
-                    *commitOrdering);
-            node->SetCommitOrdering(NTransactionClient::ECommitOrdering::Strong);
-        } else if (node->IsSorted()) {
-            THROW_ERROR_EXCEPTION_IF(commitOrderingIsExplicit && *commitOrdering != NTransactionClient::ECommitOrdering::Weak,
-                "Sorted tables only support %Qlv commit ordering, cannot set it to %Qlv",
-                    NTransactionClient::ECommitOrdering::Weak,
-                    *commitOrdering);
-            node->SetCommitOrdering(NTransactionClient::ECommitOrdering::Weak);
-        } else if (commitOrdering.has_value()) {
-            node->SetCommitOrdering(*commitOrdering);
         }
 
         // NB: Dynamic table should have a bundle during creation for accounting to work properly.

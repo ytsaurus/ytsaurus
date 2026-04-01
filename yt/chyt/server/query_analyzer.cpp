@@ -414,8 +414,8 @@ class TCheckInFunctionExistsVisitor
     : public DB::InDepthQueryTreeVisitor<TCheckInFunctionExistsVisitor>
 {
 public:
-    explicit TCheckInFunctionExistsVisitor(DB::QueryTreeNodePtr joinTree)
-        : JoinTree_(std::move(joinTree))
+    TCheckInFunctionExistsVisitor(const DB::QueryTreeNodePtr& joinTree)
+        : JoinTree_(joinTree)
     { }
 
     void visitImpl(const DB::QueryTreeNodePtr& node)
@@ -429,9 +429,9 @@ public:
             return;
         }
         if (functionNode->getArguments().getNodes().size() != 2) {
-            THROW_ERROR_EXCEPTION("Wrong number of arguments passed to function %v",
-                functionNode->getFunctionName())
-                << TErrorAttribute("number_of_arguments", functionNode->getArguments().getNodes().size());
+            THROW_ERROR_EXCEPTION("Wrong number of arguments passed to function (FunctionName: %v, NumberOfArguments: %v)",
+                functionNode->getFunctionName(),
+                functionNode->getArguments().getNodes().size());
         }
 
         auto rhs = functionNode->getArguments().getNodes()[1];
@@ -465,7 +465,7 @@ public:
     }
 
 private:
-    const DB::QueryTreeNodePtr JoinTree_;
+    const DB::QueryTreeNodePtr& JoinTree_;
     bool HasInOperator_ = false;
 };
 
@@ -473,9 +473,20 @@ class TCheckSimpleDistinctVisitor
     : public DB::InDepthQueryTreeVisitor<TCheckSimpleDistinctVisitor>
 {
 public:
-    explicit TCheckSimpleDistinctVisitor(bool isDistinct)
+    TCheckSimpleDistinctVisitor(bool isDistinct)
         : IsDistinct_(isDistinct)
     { }
+
+    static bool IsAllowedAggregationFunction(const DB::FunctionNode& node)
+    {
+        return (
+            node.getFunctionName() == "min" ||
+            node.getFunctionName() == "max" ||
+            node.getFunctionName() == "uniq" ||
+            node.getFunctionName() == "uniqExact" ||
+            node.getFunctionName() == "uniqCombined"
+        );
+    }
 
     void visitImpl(const DB::QueryTreeNodePtr& node)
     {
@@ -506,16 +517,6 @@ public:
     }
 
 private:
-    static bool IsAllowedAggregationFunction(const DB::FunctionNode& node)
-    {
-        return
-            node.getFunctionName() == "min" ||
-            node.getFunctionName() == "max" ||
-            node.getFunctionName() == "uniq" ||
-            node.getFunctionName() == "uniqExact" ||
-            node.getFunctionName() == "uniqCombined";
-    }
-
     const bool IsDistinct_;
 
     bool IsAggregated_ = false;
@@ -528,6 +529,8 @@ class TCheckMinMaxOptimizationVisitor
     : public DB::InDepthQueryTreeVisitor<TCheckMinMaxOptimizationVisitor>
 {
 public:
+    TCheckMinMaxOptimizationVisitor() = default;
+
     void visitImpl(const DB::QueryTreeNodePtr& node)
     {
         if (auto* functionNode = node->as<DB::FunctionNode>()) {

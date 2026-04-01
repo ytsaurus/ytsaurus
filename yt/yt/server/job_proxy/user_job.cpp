@@ -1188,8 +1188,8 @@ private:
 
         if (deliveryFencedMode == EDeliveryFencedMode::New) {
             if (!DeliveryFencedWriteEnabled) {
-                YT_LOG_INFO("Delivery fenced write is disabled, fail job");
-                THROW_ERROR_EXCEPTION("Delivery fenced write is disabled");
+                YT_LOG_DEBUG("Delivery fenced write is disabled, fail job");
+                THROW_ERROR_EXCEPTION("Delivery fenced write is disabled on the node");
             }
         }
 

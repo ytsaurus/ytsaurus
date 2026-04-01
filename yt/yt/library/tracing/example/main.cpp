@@ -1,7 +1,5 @@
 #include <yt/yt/library/tracing/jaeger/tracer.h>
 
-#include <yt/yt/core/concurrency/scheduler_api.h>
-
 #include <yt/yt/library/tracing/batch_trace.h>
 
 #include <yt/yt/core/tracing/trace_context.h>
@@ -136,7 +134,7 @@ int main(int argc, char* argv[])
             DelayedSamplingExample(endpoint);
         }
 
-        NConcurrency::WaitFor(jaeger->WaitFlush()).ThrowOnError();
+        jaeger->WaitFlush().BlockingGet();
     } catch (const std::exception& ex) {
         Cerr << ex.what() << Endl;
         return 1;

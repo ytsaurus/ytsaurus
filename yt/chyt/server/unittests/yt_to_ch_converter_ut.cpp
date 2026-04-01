@@ -143,7 +143,7 @@ protected:
         ExpectFields(*column, expectedFields);
     }
 
-    void ExpectThrowOnDataConversion(const TComplexTypeFieldDescriptor& descriptor, const auto& input) const
+    void ExpectThrowOnDataConversion(TComplexTypeFieldDescriptor descriptor, const auto& input) const
     {
         TYTToCHColumnConverter converter(descriptor, Settings_);
         converter.InitColumn();

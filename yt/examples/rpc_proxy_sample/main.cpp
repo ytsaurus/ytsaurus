@@ -14,8 +14,6 @@
 
 #include <yt/yt/client/table_client/helpers.h>
 
-#include <yt/yt/core/concurrency/scheduler_api.h>
-
 #include <yt/yt/core/logging/log_manager.h>
 #include <yt/yt/core/logging/config.h>
 
@@ -35,7 +33,6 @@ using namespace NYTree;
 using namespace NNet;
 using namespace NApi;
 using namespace NApi::NRpcProxy;
-using namespace NConcurrency;
 using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -114,7 +111,7 @@ protected:
     {
         if (ValidateSignature("get", {"path"}, tokens)) {
             auto path = tokens[1];
-            auto result = WaitFor(Client_->GetNode(path));
+            auto result = Client_->GetNode(path).BlockingGet();
             if (!ValidateResult(result)) return;
 
             NYson::TYsonWriter writer(&Cout, NYson::EYsonFormat::Pretty);
@@ -123,7 +120,7 @@ protected:
 
         if (ValidateSignature("list", {"path"}, tokens)) {
             auto path = tokens[1];
-            auto result = WaitFor(Client_->ListNode(path));
+            auto result = Client_->ListNode(path).BlockingGet();
             if (!ValidateResult(result)) return;
 
             NYson::TYsonWriter writer(&Cout, NYson::EYsonFormat::Pretty);
@@ -165,7 +162,7 @@ protected:
             TPrepareRows prepareRows(tokens);
 
             if (tokens[0] == "ulookup") {
-                auto result = WaitFor(Client_->LookupRows(path, prepareRows.NameTable, prepareRows.Rows));
+                auto result = Client_->LookupRows(path, prepareRows.NameTable, prepareRows.Rows).BlockingGet();
                 if (!ValidateResult(result)) return;
 
                 const auto& rowset = result.Value().Rowset;
@@ -178,7 +175,7 @@ protected:
             }
 
             if (tokens[0] == "vlookup") {
-                auto result = WaitFor(Client_->VersionedLookupRows(path, prepareRows.NameTable, prepareRows.Rows));
+                auto result = Client_->VersionedLookupRows(path, prepareRows.NameTable, prepareRows.Rows).BlockingGet();
                 if (!ValidateResult(result)) return;
 
                 const auto& rowset = result.Value().Rowset;
@@ -197,7 +194,7 @@ protected:
 
                 Cout << query << Endl;
 
-                auto result = WaitFor(Client_->SelectRows(query));
+                auto result = Client_->SelectRows(query).BlockingGet();
                 if (!ValidateResult(result)) return;
 
                 const auto& rowset = result.Value().Rowset;
@@ -213,11 +210,11 @@ protected:
             auto path = tokens[1];
             TPrepareRows prepareRows(tokens);
 
-            auto tx = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet));
+            auto tx = Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet).BlockingGet();
             if (!ValidateResult(tx)) return;
 
             tx.Value()->WriteRows(path, prepareRows.NameTable, prepareRows.Rows);
-            auto result = WaitFor(tx.Value()->Commit());
+            auto result = tx.Value()->Commit().BlockingGet();
             if (!ValidateResult(result)) return;
 
             Cout << "Committed" << Endl;
@@ -227,11 +224,11 @@ protected:
             auto path = tokens[1];
             TPrepareRows prepareRows(tokens);
 
-            auto tx = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet));
+            auto tx = Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet).BlockingGet();
             if (!ValidateResult(tx)) return;
 
             tx.Value()->DeleteRows(path, prepareRows.NameTable, prepareRows.Rows);
-            auto result = WaitFor(tx.Value()->Commit());
+            auto result = tx.Value()->Commit().BlockingGet();
             if (!ValidateResult(result)) return;
 
             Cout << "Committed" << Endl;
@@ -242,12 +239,13 @@ protected:
             TPrepareRows prepareRows(tokens);
 
             TGetInSyncReplicasOptions options;
-            options.Timestamp = WaitFor(Client_
+            options.Timestamp = Client_
                 ->GetTimestampProvider()
-                ->GenerateTimestamps(1))
+                ->GenerateTimestamps(1)
+                .BlockingGet()
                 .ValueOrThrow();
             Cout << "T=" << options.Timestamp << Endl;
-            auto result = WaitFor(Client_->GetInSyncReplicas(path, prepareRows.NameTable, prepareRows.Rows, options));
+            auto result = Client_->GetInSyncReplicas(path, prepareRows.NameTable, prepareRows.Rows, options).BlockingGet();
             if (!ValidateResult(result)) return;
 
             Cout << result.Value().size() << Endl;

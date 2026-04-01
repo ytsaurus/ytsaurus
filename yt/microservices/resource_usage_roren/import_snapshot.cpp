@@ -832,6 +832,9 @@ TPipeline CreateEmptyPipeline(TString cluster,
     TYtPipelineConfig config;
     config.SetCluster(cluster);
     config.SetWorkingDir(tmpDir);
+    if (pool) {
+        config.SetPool(pool.value());
+    }
 
     TNode specPatch;
     if (pool) {
@@ -1101,7 +1104,11 @@ void ImportSnapshotMain(int argc, const char** argv)
             .ForceTransform(true)
             .AddInput(tmpDestinationTable)
             .Output(tmpDestinationTable)
-            .DataSizePerJob(destinationTableChunkSize);
+            .DataSizePerJob(destinationTableChunkSize)
+            .Title(NYT::Format("[Resource Usage Roren] Reducing destination table chunk size %v", snapshotId));
+        if (pool) {
+            mergeTableOutput.Pool(pool.value());
+        }
         client->Merge(mergeTableOutput);
 
         auto alterTableOptions = NYT::TAlterTableOptions().Dynamic(true);

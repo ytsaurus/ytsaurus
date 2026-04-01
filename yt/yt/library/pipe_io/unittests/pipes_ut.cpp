@@ -7,6 +7,8 @@
 
 #include <yt/yt/core/net/connection.h>
 
+#include <yt/yt/library/backtrace_introspector/introspect.h>
+
 #include <yt/yt/library/pipe_io/pipe.h>
 
 #include <yt/yt/library/program/program.h>
@@ -430,7 +432,20 @@ protected:
     IConnectionWriterPtr Writer;
 };
 
-YT_TRY_BLOCK_SIGNAL_FOR_PROCESS(SIGRTMIN, NSignals::GetDefaultSignalBlockingCallback(NLogging::TLogger("PipesTest")));
+YT_TRY_BLOCK_SIGNAL_FOR_PROCESS(SIGRTMIN, [] (bool ok, int threadCount) {
+    if (!ok) {
+        NLogging::TLogger Logger("SignalBlocking");
+        YT_LOG_WARNING("Thread count is not 1, trying to get thread infos (ThreadCount: %v)", threadCount);
+        auto threadInfos = NYT::NBacktraceIntrospector::IntrospectThreads();
+        auto descripion = NYT::NBacktraceIntrospector::FormatIntrospectionInfos(threadInfos);
+        AbortProcessDramatically(
+            EProcessExitCode::GenericError,
+            Format(
+                "Thread count is not 1, threadCount: %v, threadInfos: %v",
+                threadCount,
+                descripion));
+    }
+});
 
 #define EXPECT_ERROR_IS_OK(...) do { \
         auto error = __VA_ARGS__; \
@@ -528,8 +543,9 @@ TEST_P(TNewDeliveryFencedWriteTestFixture, HugeData)
 
         auto readBuffer = TSharedMutableRef::Allocate(ChunkSize);
 
-        auto readResult = WaitFor(Reader->Read(readBuffer)
-            .WithTimeout(TDuration::Seconds(10)));
+        auto readResult = Reader->Read(readBuffer)
+            .WithTimeout(TDuration::Seconds(10))
+            .BlockingGet();
 
         EXPECT_ERROR_IS_OK(readResult);
 

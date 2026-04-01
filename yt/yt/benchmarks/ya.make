@@ -1,7 +1,6 @@
 RECURSE(
     action_queue
     bus
-    future
     context_switch
     exceptions
     fair_share_action_queue

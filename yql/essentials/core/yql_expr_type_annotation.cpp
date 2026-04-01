@@ -719,7 +719,7 @@ IGraphTransformer::TStatus TryConvertToImpl(TExprContext& ctx, TExprNode::TPtr& 
                 break;
             }
             default:
-                YQL_ENSURE(false, "Unreachable");
+                Y_UNREACHABLE();
         }
 
         return IGraphTransformer::TStatus::Repeat;
@@ -812,7 +812,7 @@ IGraphTransformer::TStatus TryConvertToImpl(TExprContext& ctx, TExprNode::TPtr& 
                 break;
             }
             default:
-                YQL_ENSURE(false, "Unreachable");
+                Y_UNREACHABLE();
         }
 
         node = RebuildVariant(node, transforms, ctx);
@@ -3370,7 +3370,7 @@ const TMultiExprType* GetWideFlowOrStreamComponents(const TTypeAnnotationNode& t
     } else if (type.GetKind() == ETypeAnnotationKind::Stream) {
         return type.Cast<TStreamExprType>()->GetItemType()->Cast<TMultiExprType>();
     } else {
-        YQL_ENSURE(false, "Unreachable");
+        Y_UNREACHABLE();
     }
 }
 
@@ -5485,7 +5485,7 @@ IGraphTransformer::TStatus SilentInferCommonTypeInternal(TExprNode::TPtr& node1,
             break;
         }
         default:
-            YQL_ENSURE(false, "Unreachable");
+            Y_UNREACHABLE();
         }
 
         if (changed1) {

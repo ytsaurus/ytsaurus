@@ -226,7 +226,6 @@ public:
     {
         return ToDerived()->GetImpl()->GetReadStatistics();
     }
-
 protected:
     TDerived* ToDerived()
     {
@@ -1459,7 +1458,7 @@ public:
         std::string pipePath,
         std::optional<int> capacity)
     {
-        TFileDescriptorGuard signalFD(CreateSignalFD());
+        TFileDescriptorGuard signalFD = CreateSignalFD();
         TDeliveryFencedWriteConnectionImplPtr impl;
         impl = New<TDeliveryFencedWriteConnectionImpl>(std::move(poller), std::move(pipePath), signalFD.Get(), capacity);
         impl->Init();
@@ -1534,12 +1533,12 @@ private:
 
     void Init()
     {
-        TFileDescriptorGuard readFdGuard(HandleEintr(::open, PipePath_.data(), O_RDONLY | O_CLOEXEC | O_NONBLOCK));
+        TFileDescriptorGuard readFdGuard = HandleEintr(::open, PipePath_.data(), O_RDONLY | O_CLOEXEC | O_NONBLOCK);
         if (readFdGuard.Get() == -1) {
             ThrowError("open pipe for reading");
         }
 
-        TFileDescriptorGuard writeFdGuard(HandleEintr(::open, PipePath_.data(), O_WRONLY | O_CLOEXEC));
+        TFileDescriptorGuard writeFdGuard = HandleEintr(::open, PipePath_.data(), O_WRONLY | O_CLOEXEC);
         if (writeFdGuard.Get() == -1) {
             ThrowError("open pipe for writing");
         }
@@ -1770,7 +1769,7 @@ TFileDescriptor CreateWriteFDForConnection(
 {
 #ifdef _unix_
     int flags = O_WRONLY | O_CLOEXEC;
-    TFileDescriptorGuard fd(HandleEintr(::open, pipePath.c_str(), flags));
+    TFileDescriptorGuard fd = HandleEintr(::open, pipePath.c_str(), flags);
     if (fd.Get() == -1) {
         THROW_ERROR_EXCEPTION(MakeSystemError("Failed to open named pipe"))
             << TErrorAttribute("path", pipePath);
@@ -1871,7 +1870,7 @@ IConnectionReaderPtr CreateInputConnectionFromPath(
 {
 #ifdef _unix_
     int flags = O_RDONLY | O_CLOEXEC | O_NONBLOCK;
-    TFileDescriptorGuard fd(HandleEintr(::open, pipePath.c_str(), flags));
+    TFileDescriptorGuard fd = HandleEintr(::open, pipePath.c_str(), flags);
     if (fd.Get() == -1) {
         THROW_ERROR_EXCEPTION(MakeSystemError("Failed to open named pipe"))
             << TErrorAttribute("path", pipePath);
@@ -1906,7 +1905,7 @@ IConnectionWriterPtr CreateOutputConnectionFromPath(
 
     bool useDeliveryFence = deliveryFencedMode == EDeliveryFencedMode::Old;
 
-    TFileDescriptorGuard fd(CreateWriteFDForConnection(pipePath, capacity, useDeliveryFence));
+    TFileDescriptorGuard fd = CreateWriteFDForConnection(pipePath, capacity, useDeliveryFence);
     auto connection = New<TFDConnection>(
         fd.Get(),
         std::move(poller),
@@ -1960,7 +1959,7 @@ IPacketConnectionPtr CreatePacketConnection(
     const TNetworkAddress& at,
     NConcurrency::IPollerPtr poller)
 {
-    TFileDescriptorGuard fd(CreateUdpSocket(at.GetSockAddr()->sa_family));
+    TFileDescriptorGuard fd = CreateUdpSocket(at.GetSockAddr()->sa_family);
     try {
         SetReuseAddrFlag(fd.Get());
         BindSocket(fd.Get(), at);

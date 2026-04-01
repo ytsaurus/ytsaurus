@@ -14,7 +14,7 @@ public:
         Y_UNUSED(ctx);
         Y_UNUSED(settings);
         YQL_ENSURE(false, "Native CBO is not supported here");
-        YQL_ENSURE(false, "Unreachable");
+        Y_UNREACHABLE();
     }
 
     IOptimizerNew::TPtr MakeJoinCostBasedOptimizerPG(IProviderContext& pctx, TExprContext& ctx, const TPGSettings& settings) const override {

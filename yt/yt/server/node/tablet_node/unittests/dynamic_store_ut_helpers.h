@@ -45,7 +45,6 @@
 
 namespace NYT::NTabletNode {
 
-using namespace NConcurrency;
 using namespace NHydra;
 using namespace NObjectClient;
 using namespace NQueryClient;
@@ -162,10 +161,10 @@ public:
 
     void SetUp() override
     {
-        WaitFor(BIND(&TDynamicStoreTestBase::DoSetUp, Unretained(this))
+        BIND(&TDynamicStoreTestBase::DoSetUp, Unretained(this))
             .AsyncVia(TestQueue_->GetInvoker())
-            .Run())
-            .ThrowOnError();
+            .Run()
+            .BlockingGet();
     }
 
     void DoSetUp()

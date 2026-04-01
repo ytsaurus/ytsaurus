@@ -951,9 +951,10 @@ public:
 
 TEST_P(TSortedStoreManagerStressTest, Test)
 {
-    WaitFor(BIND(&TSortedStoreManagerStressTest::RunTest, Unretained(this))
+    BIND(&TSortedStoreManagerStressTest::RunTest, Unretained(this))
         .AsyncVia(TestQueue_->GetInvoker())
-        .Run())
+        .Run()
+        .BlockingGet()
         .ThrowOnError();
 }
 

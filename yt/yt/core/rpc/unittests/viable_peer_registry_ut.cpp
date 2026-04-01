@@ -171,8 +171,7 @@ IViablePeerRegistryPtr CreateTestRegistry(
     const IChannelFactoryPtr& channelFactory,
     int maxPeerCount,
     std::optional<int> hashesPerPeer = {},
-    std::optional<int> minPeerCountForPriorityAwareness = {},
-    std::optional<bool> enablePowerOfTwoChoicesStrategy = {})
+    std::optional<int> minPeerCountForPriorityAwareness = {})
 {
     auto config = New<TViablePeerRegistryConfig>();
     config->MaxPeerCount = maxPeerCount;
@@ -181,9 +180,6 @@ IViablePeerRegistryPtr CreateTestRegistry(
     }
     if (minPeerCountForPriorityAwareness) {
         config->MinPeerCountForPriorityAwareness = *minPeerCountForPriorityAwareness;
-    }
-    if (enablePowerOfTwoChoicesStrategy) {
-        config->EnablePowerOfTwoChoicesStrategy = *enablePowerOfTwoChoicesStrategy;
     }
 
     return CreateViablePeerRegistry(
@@ -198,8 +194,7 @@ IViablePeerRegistryPtr CreateTestRegistry(
     const IChannelFactoryPtr& channelFactory,
     int maxPeerCount,
     std::optional<int> hashesPerPeer = {},
-    std::optional<int> minPeerCountForPriorityAwareness = {},
-    std::optional<bool> enablePowerOfTwoChoicesStrategy = {})
+    std::optional<int> minPeerCountForPriorityAwareness = {})
 {
     return CreateTestRegistry(
         peerPriorityStrategy == EPeerPriorityStrategy::None
@@ -208,8 +203,7 @@ IViablePeerRegistryPtr CreateTestRegistry(
         channelFactory,
         maxPeerCount,
         hashesPerPeer,
-        minPeerCountForPriorityAwareness,
-        enablePowerOfTwoChoicesStrategy);
+        minPeerCountForPriorityAwareness);
 }
 
 std::vector<std::string> AddressesFromChannels(const std::vector<IChannelPtr>& channels)
@@ -541,13 +535,7 @@ INSTANTIATE_TEST_SUITE_P(
 TEST(TPreferLocalViablePeerRegistryTest, Simple)
 {
     auto channelFactory = New<TFakeChannelFactory>();
-    auto viablePeerRegistry = CreateTestRegistry(
-        EPeerPriorityStrategy::PreferLocal,
-        channelFactory,
-        3,
-        /*hashesPerPeer*/ {},
-        /*minPeerCountForPriorityAwareness*/ {},
-        /*enablePowerOfTwoChoicesStrategy*/ false);
+    auto viablePeerRegistry = CreateTestRegistry(EPeerPriorityStrategy::PreferLocal, channelFactory, 3);
 
     auto finally = Finally([oldLocalHostName = NNet::GetLocalHostName()] {
         NNet::SetLocalHostName(oldLocalHostName);
@@ -566,7 +554,6 @@ TEST(TPreferLocalViablePeerRegistryTest, Simple)
     auto req = CreateRequest();
     for (int iter = 0; iter < 100; ++iter) {
         auto channel = viablePeerRegistry->PickRandomChannel(req, /*hedgingOptions*/ {});
-
         EXPECT_EQ(channel->GetEndpointDescription(), "a.man.yp-c.yandex.net");
     }
 }
@@ -695,13 +682,7 @@ TEST(TPreferLocalViablePeerRegistryTest, FillFromBacklogRespectsPriority)
 TEST(TPreferLocalViablePeerRegistryTest, DoNotCrashIfNoLocalPeers)
 {
     auto channelFactory = New<TFakeChannelFactory>();
-    auto viablePeerRegistry = CreateTestRegistry(
-        EPeerPriorityStrategy::PreferLocal,
-        channelFactory,
-        3,
-        /*hashesPerPeer*/ {},
-        /*minPeerCountForPriorityAwareness*/ {},
-        /*enablePowerOfTwoChoicesStrategy*/ false);
+    auto viablePeerRegistry = CreateTestRegistry(EPeerPriorityStrategy::PreferLocal, channelFactory, 3);
 
     auto finally = Finally([oldLocalHostName = NNet::GetLocalHostName()] {
         NNet::SetLocalHostName(oldLocalHostName);
@@ -759,13 +740,7 @@ TEST(TPreferLocalViablePeerRegistryTest, YpClusterOverride)
 {
     auto channelFactory = New<TFakeChannelFactory>();
     auto mapPeerPriorityProvider = CreateYPClusterMatchingPeerPriorityProviderWithOverrides();
-    auto viablePeerRegistry = CreateTestRegistry(
-        mapPeerPriorityProvider,
-        channelFactory,
-        4,
-        /*hashesPerPeer*/ {},
-        /*minPeerCountForPriorityAwareness*/ {},
-        /*enablePowerOfTwoChoicesStrategy*/ false);
+    auto viablePeerRegistry = CreateTestRegistry(mapPeerPriorityProvider, channelFactory, 4);
 
     auto finally = Finally([oldLocalHostName = NNet::GetLocalHostName()] {
         NNet::SetLocalHostName(oldLocalHostName);

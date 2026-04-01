@@ -152,7 +152,7 @@ bool CheckVariant(const TVariantExprType* got, const TVariantExprType* expected,
             return CheckVariantContent(gotTuple, expectedTuple, ctx, typeCtx);
         }
         default:
-            YQL_ENSURE(false, "Unreachable");
+            Y_UNREACHABLE();
     }
 
     return false;

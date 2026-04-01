@@ -373,7 +373,7 @@ public:
                 return true;
             }
 
-            Y_ENSURE(false, "Unreachable");
+            Y_UNREACHABLE();
         }
         return true;
     }
@@ -2948,7 +2948,7 @@ private:
                                                           GetSecond<TM64ResourceName>(value),
                                                           timezoneId, shift))
                             {
-                                Y_ENSURE(false, "Unreachable");
+                                Y_UNREACHABLE();
                             }
 
                             if (shift == 0) {

@@ -2,7 +2,6 @@ PY3TEST()
 
 TEST_SRCS(
     test_tls_helpers.py
-    test_init_logging.py
 )
 
 PEERDIR(

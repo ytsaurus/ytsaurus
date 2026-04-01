@@ -94,6 +94,7 @@ microservices:
       failedJobsHistoryLimit: 2
       startingDeadlineSeconds: 5
       ttlSecondsAfterFinished: 43200
+      pool: null
     removeExcessive:
       enabled: true
       schedule: "0 0 * * *"

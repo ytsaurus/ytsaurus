@@ -2,8 +2,6 @@
 
 #include <yt/yt/client/chunk_client/read_limit.h>
 
-#include <yt/yt/core/concurrency/scheduler_api.h>
-
 #include <yt/yt/client/table_client/columnar_statistics.h>
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/versioned_reader.h>
@@ -11,7 +9,6 @@
 namespace NYT::NTableClient {
 
 using namespace NChunkClient;
-using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -141,7 +138,7 @@ void CheckResult(std::vector<TVersionedRow> expected, IVersionedReaderPtr reader
 
     while (auto batch = reader->Read({.MaxRowsPerRead = 20})) {
         if (batch->IsEmpty()) {
-            ASSERT_TRUE(WaitFor(reader->GetReadyEvent()).IsOK());
+            ASSERT_TRUE(reader->GetReadyEvent().BlockingGet().IsOK());
             continue;
         }
 

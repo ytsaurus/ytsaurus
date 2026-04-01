@@ -361,8 +361,6 @@ struct TLineageStats {
     TMaybe<bool> Correct;
     TMaybe<bool> CorrectStandalone;
     ui64 Size = 0;
-    ui64 Memory = 0;
-    ui64 Duration = 0;
 };
 
 const TString TypeAnnotationContextComponent = "TypeAnnotationContext";

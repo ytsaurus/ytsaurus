@@ -34,7 +34,7 @@ EOptionalityHandlerStrategy GetStrategyBasedOnTupleType(TType* tupleType, TType*
     } else {
         return EOptionalityHandlerStrategy::AddOptionalToChild;
     }
-    MKQL_ENSURE(false, "Unreachable");
+    Y_UNREACHABLE();
 }
 
 constexpr bool IsTupleOptional(EOptionalityHandlerStrategy strategy) {
@@ -45,7 +45,7 @@ constexpr bool IsTupleOptional(EOptionalityHandlerStrategy strategy) {
         case EOptionalityHandlerStrategy::IntersectOptionals:
             return true;
     }
-    MKQL_ENSURE(false, "Unreachable");
+    Y_UNREACHABLE();
 }
 
 template <bool IsOptional>

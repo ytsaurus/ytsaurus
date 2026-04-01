@@ -249,7 +249,7 @@ public:
 
             return childRes.Release();
         }
-        MKQL_ENSURE(false, "Unreachable");
+        Y_UNREACHABLE();
     }
 #ifndef MKQL_DISABLE_CODEGEN
 private:

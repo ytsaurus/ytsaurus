@@ -294,14 +294,14 @@ public:
                                 .Item(ToString(runningJob->JobId)).BeginMap()
                                     .Item("stage").Value(
                                         runningJob->Confirmed
-                                        ? FormatEnum(EJobStage::Running)
-                                        : WaitingForConfirmationJobStage)
+                                        ? "running"
+                                        : "waiting_for_confirmation")
                                 .EndMap();
                         }
 
                         for (const auto& [jobId, finishedJobInfo] : allocation->GetFinishedJobs()) {
                             fluent.Item(ToString(jobId)).BeginMap()
-                                .Item("stage").Value(FormatEnum(EJobStage::Finished))
+                                .Item("stage").Value("finished")
                             .EndMap();
                         }
                     })
@@ -424,11 +424,7 @@ public:
         if (const auto* allocation = nodeJobs.FindAllocation(jobId)) {
             std::optional<TString> jobStageString;
             if (allocation->HasRunningJob(jobId)) {
-                if (allocation->GetRunningJob()->Confirmed) {
-                    jobStageString = FormatEnum(EJobStage::Running);
-                } else {
-                    jobStageString = WaitingForConfirmationJobStage;
-                }
+                jobStageString = allocation->GetRunningJob()->Confirmed ? FormatEnum(EJobStage::Running) : "waiting_for_confirmation";
             } else if (allocation->GetFinishedJobs().contains(jobId)) {
                 jobStageString = FormatEnum(EJobStage::Finished);
             }
@@ -446,7 +442,7 @@ public:
             jobToAbortIt != std::end(nodeJobs.JobsToAbort))
         {
             jobYson = BuildYsonStringFluently().BeginMap()
-                    .Item("stage").Value(AbortingJobStage)
+                    .Item("stage").Value("aborting")
                     .Item("abort_reason").Value(jobToAbortIt->second.AbortReason)
                     .Item("request_new_job").Value(jobToAbortIt->second.RequestNewJob)
                     .Item("node_address").Value(nodeAddress)
@@ -456,7 +452,7 @@ public:
             jobToReleaseIt != std::end(nodeJobs.JobsToRelease))
         {
             jobYson = BuildYsonStringFluently().BeginMap()
-                    .Item("stage").Value(ReleasingJobStage)
+                    .Item("stage").Value("releasing")
                     .Item("release_flags").Value(ToString(jobToReleaseIt->second))
                     .Item("node_address").Value(nodeAddress)
                     .Item("allocation_id").Value(AllocationIdFromJobId(jobId))

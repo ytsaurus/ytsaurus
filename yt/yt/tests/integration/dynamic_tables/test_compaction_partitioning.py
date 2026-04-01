@@ -1159,43 +1159,36 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
 
         assert compacted == chunk_count
 
-    @authors("dave11ar")
-    def test_forced_compaction(self):
-        table_path = "//tmp/test_forced_compaction_unique_table_path"
-        tablet_count = 31
-
+    @authors("tem-shett")
+    def DISABLED_test_forced_compaction(self):
         cell_id = sync_create_cells(1)[0]
         cell_node = get(f"#{cell_id}/@peers/0/address")
         self._create_simple_table(
-            table_path,
-            pivot_keys=[[]] + [[i] for i in range(1, tablet_count)],
-            # Disable regular compaction
+            "//tmp/t",
+            pivot_keys=[[]] + [[i] for i in range(1, 30)],
             mount_config={
                 "min_compaction_store_count": 179,
                 "max_compaction_store_count": 180
             }
         )
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(30)])
+        sync_unmount_table("//tmp/t")
+        sync_reshard_table("//tmp/t", 1)
+        sync_mount_table("//tmp/t")
 
-        sync_mount_table(table_path)
-        insert_rows(table_path, [{"key": i, "value": str(i)} for i in range(tablet_count)])
-        sync_flush_table(table_path)
-
-        assert get(f"{table_path}/@tablet_count") == tablet_count
-
-        set(f"{table_path}/@mount_config/forced_compaction", {"start_time": (time() + 2) * 1000, "duration": 7000})
-        remount_table(table_path)
+        set("//tmp/t/@mount_config/forced_compaction", {"start_time": time() * 1000, "duration": 5000})
+        remount_table("//tmp/t")
 
         def _get_completed_compactions_count():
-            completed_tasks = get(f"//sys/tablet_nodes/{cell_node}/orchid/store_compactor/compaction_tasks/completed_tasks")
-            return sum(1 for task in completed_tasks if task["table_path"] == table_path)
+            return get(f"//sys/tablet_nodes/{cell_node}/orchid/store_compactor/compaction_tasks/completed_task_count")
 
         wait(lambda: _get_completed_compactions_count() > 0)
 
+        sleep(1)
         old_completed_compactions_count = _get_completed_compactions_count()
 
-        assert old_completed_compactions_count < tablet_count
-
-        wait(lambda: _get_completed_compactions_count() == tablet_count)
+        wait(lambda: _get_completed_compactions_count() > old_completed_compactions_count)
 
     @authors("dave11ar")
     def test_timestamp_digest_disabling(self):

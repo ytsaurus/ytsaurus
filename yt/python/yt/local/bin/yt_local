@@ -3,7 +3,6 @@
 from yt.local import start, stop, delete, get_proxy, list_instances
 from yt.local.helpers import YTCheckingThread
 from yt.local.commands import get_main_process_pid_file_path
-from yt.environment.api import LogLevel
 
 from yt.wrapper.cli_helpers import run_main, ParseStructuredArgument, ParseStructuredArguments
 from yt.wrapper.exceptions_catcher import KeyboardInterruptsCatcher
@@ -46,8 +45,7 @@ def start_func(**kwargs):
         "ports_range_start": "port_range_start",
         "operations_memory_limit": "jobs_memory_limit",
         "no_proxy": "http_proxy_count",
-        "rpc_proxy": "rpc_proxy_count",
-        "enable_debug_logging": "log_level",
+        "rpc_proxy": "rpc_proxy_count"
     }
 
     for old_param, new_param in DEPRECATION_MAPPING.items():
@@ -144,13 +142,6 @@ def start_func(**kwargs):
         environment.exit()
 
 
-def parse_log_level(value: str) -> LogLevel:
-    try:
-        return LogLevel.from_str(value)
-    except ValueError:
-        raise argparse.ArgumentTypeError(f"Invalid log level: {value}")
-
-
 def add_start_subparser(subparsers):
     parser = subparsers.add_parser("start", help="Start local YT environment with specified options")
     parser.set_defaults(func=start_func)
@@ -198,8 +189,6 @@ def add_start_subparser(subparsers):
                         help="ports for discovery servers; number of values should be equal to discovery-server-count.")
     parser.add_argument("--enable-debug-logging", action="store_true", default=False,
                         help="set logging level threshold to DEBUG")
-    parser.add_argument("--log-level", type=parse_log_level, default=LogLevel.INFO,
-                        help="Log level (trace, debug, info, warning, error, critical)")
     parser.add_argument("--enable-structured-logging", action="store_true", default=False,
                         help="enables structured logs for services")
     parser.add_argument("--enable-logging-compression", action="store_true", default=False,

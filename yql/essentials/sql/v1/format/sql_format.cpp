@@ -1,6 +1,5 @@
 #include "sql_format.h"
 
-#include <yql/essentials/utils/yql_panic.h>
 #include <yql/essentials/sql/v1/proto_parser/parse_tree.h>
 
 #include <yql/essentials/parser/lexer_common/lexer.h>
@@ -858,7 +857,7 @@ private:
                 break;
             }
             case TRule_value_constructor::ALT_NOT_SET:
-                YQL_ENSURE(false, "Unreachable");
+                Y_UNREACHABLE();
         }
     }
 
@@ -2899,7 +2898,7 @@ private:
                 VisitKeyword(msg.GetAlt_ttl_tier_action2().GetToken1());
                 break;
             case TRule_ttl_tier_action::ALT_NOT_SET:
-                YQL_ENSURE(false, "Unreachable");
+                Y_UNREACHABLE();
         }
     }
 

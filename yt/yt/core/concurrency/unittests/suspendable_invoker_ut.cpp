@@ -94,11 +94,12 @@ TEST_F(TSuspendableInvokerTest, SuspendableDoubleWaitFor)
 
     WaitUntilSet(setFlagFuture);
 
-    auto flagValue = WaitFor(BIND([&] () -> bool {
+    auto flagValue = BIND([&] () -> bool {
         return flag;
     })
         .AsyncVia(suspendableInvoker)
-        .Run())
+        .Run()
+        .BlockingGet()
         .ValueOrThrow();
 
     EXPECT_TRUE(flagValue);

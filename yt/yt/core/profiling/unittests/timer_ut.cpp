@@ -1,7 +1,6 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
-#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/profiling/timing.h>
 
@@ -58,13 +57,13 @@ protected:
 TEST_F(TTimerTest, CpuEmpty)
 {
     TValue cpu = 0;
-    WaitFor(BIND([&] {
+    BIND([&] {
         TFiberWallTimer cpuTimer;
         cpu = cpuTimer.GetElapsedValue();
     })
         .AsyncVia(Queue_->GetInvoker())
-        .Run())
-        .ThrowOnError();
+        .Run()
+        .BlockingGet();
 
     EXPECT_LT(cpu, 10'000);
 }
@@ -73,7 +72,7 @@ TEST_F(TTimerTest, CpuWallCompare)
 {
     TValue cpu = 0;
     TValue wall = 0;
-    WaitFor(BIND([&] {
+    BIND([&] {
         TFiberWallTimer cpuTimer;
         TWallTimer wallTimer;
 
@@ -83,8 +82,8 @@ TEST_F(TTimerTest, CpuWallCompare)
         wall = wallTimer.GetElapsedValue();
     })
         .AsyncVia(Queue_->GetInvoker())
-        .Run())
-        .ThrowOnError();
+        .Run()
+        .BlockingGet();
 
     EXPECT_LT(cpu, 10'000);
     EXPECT_GT(wall, 80'000);

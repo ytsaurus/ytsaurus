@@ -4,7 +4,7 @@
 #include <util/generic/yexception.h>
 
 namespace {
-class TLimitingAllocator: public NYql::ILimitingAllocator {
+class TLimitingAllocator: public IAllocator {
 public:
     TLimitingAllocator(size_t limit, IAllocator* allocator)
         : Alloc_(allocator)
@@ -24,14 +24,6 @@ public:
         Alloc_->Release(block);
     }
 
-    size_t GetAllocatedSize() const final {
-        return Allocated_;
-    }
-
-    size_t GetLimitSize() const final {
-        return Limit_;
-    }
-
 private:
     IAllocator* Alloc_;
     size_t Allocated_ = 0;
@@ -40,7 +32,7 @@ private:
 } // namespace
 
 namespace NYql {
-std::unique_ptr<ILimitingAllocator> MakeLimitingAllocator(size_t limit, IAllocator* underlying) {
+std::unique_ptr<IAllocator> MakeLimitingAllocator(size_t limit, IAllocator* underlying) {
     return std::make_unique<TLimitingAllocator>(limit, underlying);
 }
 } // namespace NYql

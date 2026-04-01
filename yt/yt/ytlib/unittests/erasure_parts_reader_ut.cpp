@@ -15,7 +15,6 @@
 #include <yt/yt/core/misc/error.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
-#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 
@@ -23,8 +22,6 @@
 
 namespace NYT::NChunkClient {
 namespace {
-
-using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -241,10 +238,11 @@ void ExecTest(TTestCase testCase)
         NChunkClient::ChunkClientLogger());
 
     auto readStart = Now();
-    auto rowParts = WaitFor(reader->ReadRows(
+    auto rowParts = reader->ReadRows(
         /*options*/ {},
         testCase.FirstRowIndex,
-        testCase.RowCount))
+        testCase.RowCount)
+        .BlockingGet()
         .ValueOrThrow();
 
     if (testCase.ReadShouldBeFast) {

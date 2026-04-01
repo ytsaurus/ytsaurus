@@ -7,11 +7,10 @@
 
 namespace NYT {
 
-////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////ъ
 
-template <NTableClient::ESimpleLogicalValueType LogicalType>
-TTzIntegerType<LogicalType> GetTimestampFromTzString(std::string_view tzString)
-{
+template<NTableClient::ESimpleLogicalValueType LogicalType>
+TTzIntegerType<LogicalType> GetTimestampFromTzString(std::string_view tzString) {
     auto [timestamp, _] = NTzTypes::ParseTzValue<TTzIntegerType<LogicalType>>(tzString);
     return timestamp;
 }

@@ -432,7 +432,7 @@ public:
             return EFetchResult::Finish;
         }
 
-        MKQL_ENSURE(false, "Unreachable");
+        Y_UNREACHABLE();
     }
 #ifndef MKQL_DISABLE_CODEGEN
     ICodegeneratorInlineWideNode::TGenerateResult DoGenGetValues(const TCodegenContext& ctx, Value* statePtr, BasicBlock*& block) const {
@@ -958,7 +958,7 @@ public:
             return ptr->IsFinished() ? EFetchResult::Finish : EFetchResult::Yield;
         }
 
-        MKQL_ENSURE(false, "Unreachable");
+        Y_UNREACHABLE();
     }
 #ifndef MKQL_DISABLE_CODEGEN
     ICodegeneratorInlineWideNode::TGenerateResult DoGenGetValues(const TCodegenContext& ctx, Value* statePtr, BasicBlock*& block) const {

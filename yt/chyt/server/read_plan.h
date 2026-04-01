@@ -39,7 +39,7 @@ struct TFilterInfo
     //! Removes filter column if RemoveFilterColumn is |true|,
     //! called from Execute, but sometimes it needs to be called separately.
     //! NB: Modifies the passed TBlockWithFilter.
-    DB::IColumn::Ptr RemoveColumnIfNeeded(TBlockWithFilter* blockWithFilter) const;
+    DB::IColumn::Ptr RemoveColumnIfNeeded(TBlockWithFilter& blockWithFilter) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -313,15 +313,6 @@ private:
         Save(context, Decommission_);
     }
 
-    void Clear() override
-    {
-        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
-
-        TCompositeAutomatonPart::Clear();
-
-        LeaseMap_.Clear();
-    }
-
     void OnLeaderActive() override
     {
         YT_VERIFY(!LeaseRemovalExecutor_);

@@ -58,14 +58,15 @@ protected:
         int minDataVersions = 100,
         TTimestamp timestamp = AsyncLastCommittedTimestamp)
     {
-        return WaitFor(BIND(&VersionedLookupRowImpl,
+        return BIND(&VersionedLookupRowImpl,
             TabletSlot_->TabletManager()->GetTablet(),
             key,
             minDataVersions,
             timestamp,
             TClientChunkReadOptions{.InitialQueryKind = EInitialQueryKind::LookupRows})
             .AsyncVia(AutomatonInvoker())
-            .Run())
+            .Run()
+            .BlockingGet()
             .ValueOrThrow();
     }
 

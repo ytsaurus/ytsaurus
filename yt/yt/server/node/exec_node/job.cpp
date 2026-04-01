@@ -1115,7 +1115,7 @@ void TJob::UpdateControllerAgentDescriptor(TControllerAgentDescriptor descriptor
 
 TInstant TJob::GetControllerAgentResetTime() const
 {
-    YT_ASSERT_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return ControllerAgentInfo_.GetDescriptorResetTime();
 }

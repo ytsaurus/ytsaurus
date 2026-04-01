@@ -485,9 +485,10 @@ public:
     {
         int index = 0;
         for (const auto& ref : dataRefs) {
-            auto result = WaitFor(erasureReader->ReadBlocks(
+            auto result = erasureReader->ReadBlocks(
                 /*options*/ {},
-                std::vector<int>(1, index++)));
+                std::vector<int>(1, index++))
+                .BlockingGet();
             auto resultRef = result.ValueOrThrow().front();
             ASSERT_TRUE(TRef::AreBitwiseEqual(ref, resultRef.Data));
         }
@@ -653,9 +654,10 @@ TEST_P(TErasureMixtureTest, Reader)
         // Check blocks separately
         int index = 0;
         for (const auto& ref : dataRefs) {
-            auto result = WaitFor(erasureReader->ReadBlocks(
+            auto result = erasureReader->ReadBlocks(
                 /*options*/ {},
-                std::vector<int>(1, index++)));
+                std::vector<int>(1, index++))
+                .BlockingGet();
             EXPECT_TRUE(result.IsOK());
             auto resultRef = TBlock::Unwrap(result.ValueOrThrow()).front();
 
@@ -668,9 +670,10 @@ TEST_P(TErasureMixtureTest, Reader)
         std::vector<int> indices;
         indices.push_back(1);
         indices.push_back(3);
-        auto result = WaitFor(erasureReader->ReadBlocks(
+        auto result = erasureReader->ReadBlocks(
             /*options*/ {},
-            indices));
+            indices)
+            .BlockingGet();
         EXPECT_TRUE(result.IsOK());
         auto resultRef = TBlock::Unwrap(result.ValueOrThrow());
         EXPECT_EQ(ToString(dataRefs[1]), ToString(resultRef[0]));
@@ -710,9 +713,10 @@ TEST_P(TErasureMixtureTest, ReaderStriped)
         // Check blocks separately
         int index = 0;
         for (const auto& ref : dataRefs) {
-            auto result = WaitFor(erasureReader->ReadBlocks(
+            auto result = erasureReader->ReadBlocks(
                 /*options*/ {},
-                std::vector<int>(1, index++)));
+                std::vector<int>(1, index++))
+                .BlockingGet();
             EXPECT_TRUE(result.IsOK());
             auto resultRef = TBlock::Unwrap(result.ValueOrThrow()).front();
 
@@ -726,9 +730,10 @@ TEST_P(TErasureMixtureTest, ReaderStriped)
         indices.push_back(1);
         indices.push_back(3);
         indices.push_back(5);
-        auto result = WaitFor(erasureReader->ReadBlocks(
+        auto result = erasureReader->ReadBlocks(
             /*options*/ {},
-            indices));
+            indices)
+            .BlockingGet();
         EXPECT_TRUE(result.IsOK());
         auto resultRef = TBlock::Unwrap(result.ValueOrThrow());
         EXPECT_EQ(ToString(dataRefs[1]), ToString(resultRef[0]));

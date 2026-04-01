@@ -1,6 +1,5 @@
 #include "cbo_optimizer_new.h"
 
-#include <yql/essentials/utils/yql_panic.h>
 #include <util/string/join.h>
 #include <util/string/printf.h>
 #include <library/cpp/iterator/zip.h>
@@ -82,7 +81,7 @@ private:
         }
 
         ParseError(Sprintf("Unknown JoinType: '%s', supported algos: [%s]", reqJoinAlgoStr.c_str(), JoinSeq(", ", joinAlgosStr).c_str()), Pos_ - reqJoinAlgoStr.size());
-        YQL_ENSURE(false, "Unreachable");
+        Y_UNREACHABLE();
     }
 
     void JoinOrder(bool leading /* is keyword "Leading" or "JoinOrder" */) {
@@ -113,7 +112,7 @@ private:
         }
 
         ParseError(Sprintf("JoinOrder args must be either a relation, either a join, example of the format: JoinOrder(t1 (t2 t3))"), Pos_);
-        YQL_ENSURE(false, "Unreachable");
+        Y_UNREACHABLE();
     }
 
     void CardinalityOrBytes(bool isRows) {
@@ -151,7 +150,7 @@ private:
             }
             default: {
                 ParseError(Sprintf("Unknown operation: '%c'", sign), Pos_ - 1);
-                YQL_ENSURE(false, "Unreachable");
+                Y_UNREACHABLE();
             }
         }
 
@@ -231,7 +230,7 @@ private:
         }
 
         ParseError(Sprintf("Expected [%s], but got [%c]", "", nextSym), Pos_);
-        YQL_ENSURE(false, "Unreachable");
+        Y_UNREACHABLE();
     }
 
     std::optional<TString> MaybeKeyword(const TVector<TString>& keywords) {
@@ -257,7 +256,7 @@ private:
         }
 
         ParseError(Sprintf("Expected [%s], but got [%c]", JoinSeq(", ", keywords).c_str(), Text_[Pos_ + 1]), Pos_);
-        YQL_ENSURE(false, "Unreachable");
+        Y_UNREACHABLE();
     }
 
     double Number() {
@@ -275,7 +274,7 @@ private:
         } catch (...) {
             ParseError(Sprintf("Expected a number, got [%s]", term.c_str()), Pos_ - term.size());
         }
-        YQL_ENSURE(false, "Unreachable");
+        Y_UNREACHABLE();
     }
 
 private:

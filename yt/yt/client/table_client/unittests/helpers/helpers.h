@@ -1,7 +1,5 @@
 #pragma once
 
-#include <yt/yt/core/concurrency/scheduler_api.h>
-
 #include <yt/yt/core/test_framework/framework.h>
 
 
@@ -59,7 +57,7 @@ void CheckSchemalessResult(
     while (auto batch = reader->Read(options)) {
         auto actual = batch->MaterializeRows();
         if (actual.empty()) {
-            ASSERT_TRUE(NConcurrency::WaitFor(reader->GetReadyEvent()).IsOK());
+            ASSERT_TRUE(reader->GetReadyEvent().BlockingGet().IsOK());
             continue;
         }
 
@@ -220,3 +218,4 @@ NTableChunkFormat::NProto::TSegmentMeta CreateSimpleSegmentMeta();
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient
+

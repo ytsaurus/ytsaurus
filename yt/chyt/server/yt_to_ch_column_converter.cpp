@@ -599,7 +599,7 @@ public:
                     NullColumn_->insertValue(value.Type == EValueType::Null ? 1 : 0);
                 }
             } else if constexpr (!EnableComplexNullConverison) {
-                auto isNull = [] (const auto& value) { return value.Type == EValueType::Null; };
+                auto isNull = [](const auto& value) { return value.Type == EValueType::Null; };
                 if (std::any_of(values.begin(), values.end(), isNull)) {
                     ThrowComplexNullConversion();
                 }
@@ -632,7 +632,7 @@ public:
             if (NullColumn_) {
                 ReplaceColumnTypeChecked(NullColumn_, std::move(bytemap));
             } else if constexpr (!EnableComplexNullConverison) {
-                auto isNull = [] (const auto& value) { return value == 0; };
+                auto isNull = [](const auto& value) { return value == 0; };
                 if (std::any_of(bytemap->getData().begin(), bytemap->getData().end(), isNull)) {
                     ThrowComplexNullConversion();
                 }
@@ -674,7 +674,7 @@ private:
 
     void ThrowComplexNullConversion() const
     {
-        THROW_ERROR_EXCEPTION("ClickHouse does not support nullable arrays and complex structures, conversion is disabled");
+        THROW_ERROR_EXCEPTION("ClickHouse doesn't support nullable arrays and complex structures, conversion is disabled");
     }
 };
 

@@ -811,8 +811,6 @@ TFuture<std::vector<TTabletActionId>> TClient::BalanceTabletCells(
     req->set_keep_actions(options.KeepActions);
     ToProto(req->mutable_movable_tables(), movableTables);
 
-    ToProto(req->mutable_mutating_options(), options);
-
     return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspBalanceTabletCellsPtr>& rspOrError) {
         const auto& rsp = rspOrError.ValueOrThrow();
         return FromProto<std::vector<TTabletActionId>>(rsp->tablet_actions());
@@ -852,8 +850,6 @@ TFuture<void> TClient::AlterReplicationCard(
     if (options.CollocationOptions) {
         req->set_collocation_options(ToProto(ConvertToYsonString(options.CollocationOptions)));
     }
-
-    ToProto(req->mutable_mutating_options(), options);
 
     return req->Invoke().As<void>();
 }

@@ -11,7 +11,6 @@
 
 #include <yql/essentials/public/issue/yql_issue.h>
 #include <yql/essentials/public/langver/yql_langver.h>
-#include <yql/essentials/utils/yql_panic.h>
 #include <library/cpp/yson/node/node.h>
 
 #include <library/cpp/logger/priority.h>
@@ -956,7 +955,7 @@ struct TInputSpecTraits {
     /// and pass it to the worker's SetInput function for each input.
     template <typename... A>
     static void PreparePullStreamWorker(const T&, IPullStreamWorker*, A&&...) {
-        YQL_ENSURE(false, "Unreachable");
+        Y_UNREACHABLE();
     }
 
     /// For pull list mode, should take an input spec, a pull list worker and whatever the user passed
@@ -964,14 +963,14 @@ struct TInputSpecTraits {
     /// and pass it to the worker's SetInput function for each input.
     template <typename... A>
     static void PreparePullListWorker(const T&, IPullListWorker*, A&&...) {
-        YQL_ENSURE(false, "Unreachable");
+        Y_UNREACHABLE();
     }
 
     /// For push stream mode, should take an input spec and a worker and create a consumer which will
     /// be returned to the user. The consumer should keep the worker alive until its own destruction.
     /// The return type of this function should exactly match the one defined in ConsumerType typedef.
     static TConsumerType MakeConsumer(const T&, TWorkerHolder<IPushStreamWorker>) {
-        YQL_ENSURE(false, "Unreachable");
+        Y_UNREACHABLE();
     }
 };
 
@@ -1003,13 +1002,13 @@ struct TOutputSpecTraits {
     /// For pull stream mode, should take an output spec and a worker and build a stream which will be returned
     /// to the user. The return type of this function must match the one specified in the PullStreamReturnType.
     static TPullStreamReturnType ConvertPullStreamWorkerToOutputType(const T&, TWorkerHolder<IPullStreamWorker>) {
-        YQL_ENSURE(false, "Unreachable");
+        Y_UNREACHABLE();
     }
 
     /// For pull list mode, should take an output spec and a worker and build a list which will be returned
     /// to the user. The return type of this function must match the one specified in the PullListReturnType.
     static TPullListReturnType ConvertPullListWorkerToOutputType(const T&, TWorkerHolder<IPullListWorker>) {
-        YQL_ENSURE(false, "Unreachable");
+        Y_UNREACHABLE();
     }
 
     /// For push stream mode, should take an output spec, a worker and whatever arguments the user passed
@@ -1017,7 +1016,7 @@ struct TOutputSpecTraits {
     /// SetConsumer function.
     template <typename... A>
     static void SetConsumerToWorker(const T&, IPushStreamWorker*, A&&...) {
-        YQL_ENSURE(false, "Unreachable");
+        Y_UNREACHABLE();
     }
 };
 

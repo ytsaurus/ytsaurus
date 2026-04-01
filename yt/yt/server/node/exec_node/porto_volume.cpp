@@ -165,7 +165,7 @@ void TPortoVolumeBase::SetRemoveCallback(TCallback<TFuture<void>()> callback)
         });
 }
 
-TFuture<void> TPortoVolumeBase::UnlinkTargets(TLayerLocationPtr location, TString source, const std::vector<TString>& targets)
+TFuture<void> TPortoVolumeBase::UnlinkTargets(TLayerLocationPtr location, TString source, std::vector<TString> targets)
 {
     auto Logger = ExecNodeLogger()
         .WithTag("VolumePath: %v", source);
@@ -180,7 +180,7 @@ TFuture<void> TPortoVolumeBase::UnlinkTargets(TLayerLocationPtr location, TStrin
     std::vector<TFuture<void>> futures;
     futures.reserve(targets.size());
     for (const auto& target : targets) {
-        futures.push_back(location->UnlinkVolume(source, target));
+        futures.emplace_back(location->UnlinkVolume(source, target));
     }
 
     return AllSucceeded(std::move(futures))

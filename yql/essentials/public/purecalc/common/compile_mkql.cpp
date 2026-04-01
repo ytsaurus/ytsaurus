@@ -58,7 +58,7 @@ NCommon::IMkqlCallableCompiler::TCompiler MakeFileContentCallableCompiler(const 
         } else {
             // TODO support EUserDataType::URL
             MKQL_ENSURE(false, "user data blocks of type URL are not supported by FileContent: " << name);
-            YQL_ENSURE(false, "Unreachable");
+            Y_UNREACHABLE();
         }
     };
 }

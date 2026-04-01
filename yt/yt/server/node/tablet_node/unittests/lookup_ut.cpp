@@ -117,7 +117,7 @@ public:
 
         chunkReadOptions.InitialQueryKind = EInitialQueryKind::LookupRows;
 
-        return WaitFor(BIND(&LookupRowsImpl,
+        return BIND(&LookupRowsImpl,
             Tablet_.get(),
             keys,
             timestampRange,
@@ -125,20 +125,22 @@ public:
             tabletSnapshot,
             chunkReadOptions)
             .AsyncVia(LookupQueue_->GetInvoker())
-            .Run())
+            .Run()
+            .BlockingGet()
             .ValueOrThrow();
     }
 
     TVersionedOwningRow DoVersionedLookupRow(const TUnversionedOwningRow& key)
     {
-        return WaitFor(BIND(&VersionedLookupRowImpl,
+        return BIND(&VersionedLookupRowImpl,
             Tablet_.get(),
             key,
             /*minDataVersions*/ 100,
             AsyncLastCommittedTimestamp,
             ChunkReadOptions_)
             .AsyncVia(LookupQueue_->GetInvoker())
-            .Run())
+            .Run()
+            .BlockingGet()
             .ValueOrThrow();
     }
 

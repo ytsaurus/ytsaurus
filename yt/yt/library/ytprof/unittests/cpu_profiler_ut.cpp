@@ -264,7 +264,7 @@ TEST_F(TCpuProfilerTest, TraceContext)
     RunUnderProfiler("trace_context.pb.gz", [] {
         auto actionQueue = New<TActionQueue>("CpuProfileTest");
 
-        NConcurrency::WaitFor(BIND([] {
+        BIND([] {
             auto rootTraceContext = TTraceContext::NewRoot("");
             rootTraceContext->AddProfilingTag("user", "prime");
             TCurrentTraceContextGuard guard(rootTraceContext);
@@ -285,8 +285,8 @@ TEST_F(TCpuProfilerTest, TraceContext)
                 .ThrowOnError();
         })
             .AsyncVia(actionQueue->GetInvoker())
-            .Run())
-            .ThrowOnError();
+            .Run()
+            .BlockingGet();
 
         actionQueue->Shutdown();
     });

@@ -71,9 +71,9 @@ bool HasShortCircuitActions(const DB::ActionsDAG& actionsDag)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::IColumn::Ptr TFilterInfo::RemoveColumnIfNeeded(TBlockWithFilter* blockWithFilter) const
-{
-    auto& [block, rowCount, currentFilter, rowCountAfterFilter] = *blockWithFilter;
+DB::IColumn::Ptr TFilterInfo::RemoveColumnIfNeeded(TBlockWithFilter& blockWithFilter) const
+    {
+    auto& [block, rowCount, currentFilter, rowCountAfterFilter] = blockWithFilter;
 
     if (!block.has(FilterColumnName)) {
         return nullptr;
@@ -99,7 +99,7 @@ void TFilterInfo::Execute(TBlockWithFilter& blockWithFilter) const
         Actions->execute(block, numRows);
     }
 
-    auto filterColumn = RemoveColumnIfNeeded(&blockWithFilter);
+    auto filterColumn = RemoveColumnIfNeeded(blockWithFilter);
 
     if (currentFilter.empty()) {
         currentFilter.resize_fill(rowCount, 1);
@@ -284,7 +284,7 @@ DB::Block DeriveHeaderBlockFromReadPlan(const TReadPlanWithFilterPtr& readPlan, 
     }
     for (const auto& step : readPlan->Steps) {
         if (step.FilterInfo) {
-            step.FilterInfo->RemoveColumnIfNeeded(&blockWithFilter);
+            step.FilterInfo->RemoveColumnIfNeeded(blockWithFilter);
         }
     }
 

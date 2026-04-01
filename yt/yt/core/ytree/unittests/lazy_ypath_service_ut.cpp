@@ -37,7 +37,8 @@ TYsonString YPathGet(
     const TYPath& path,
     const TAttributeFilter& attributeFilter = {})
 {
-    return ConvertToYsonString(WaitFor(AsyncYPathGet(service, path, attributeFilter))
+    return ConvertToYsonString(AsyncYPathGet(service, path, attributeFilter)
+        .BlockingGet()
         .ValueOrThrow(), EYsonFormat::Text);
 }
 
@@ -328,3 +329,4 @@ TEST(TLazyYPathServiceTest, RootAttributes)
 
 } // namespace
 } // namespace NYT::NYTree
+

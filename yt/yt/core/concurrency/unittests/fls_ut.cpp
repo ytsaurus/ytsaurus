@@ -58,12 +58,12 @@ TFlsSlot<TMyValue> Slot;
 
 TEST_F(TFlsTest, IsInitialized)
 {
-    WaitFor(BIND([&] {
+    BIND([&] {
         EXPECT_FALSE(Slot.IsInitialized());
     })
         .AsyncVia(ActionQueue->GetInvoker())
-        .Run())
-        .ThrowOnError();
+        .Run()
+        .BlockingGet();
 
     EXPECT_EQ(CtorCalls, 0);
     EXPECT_EQ(DtorCalls, 0);
@@ -110,3 +110,4 @@ TEST_F(TFlsTest, TwoFibers)
 
 } // namespace
 } // namespace NYT::NConcurrency
+

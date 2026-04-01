@@ -82,9 +82,10 @@ protected:
 TEST_F(TSuspendableActionQueueTest, Simple)
 {
     std::atomic<i64> x = 0;
-    WaitFor(BIND([&x] { ++x; })
+    BIND([&x] { ++x; })
         .AsyncVia(Invoker_)
-        .Run())
+        .Run()
+        .BlockingGet()
         .ThrowOnError();
 
     EXPECT_EQ(x, 1);
@@ -136,9 +137,10 @@ TEST_F(TSuspendableActionQueueTest, SuspendEmptyQueue)
     Queue_->Resume();
 
     int x = 0;
-    WaitFor(BIND([&x] {++x; })
+    BIND([&x] {++x; })
         .AsyncVia(Invoker_)
-        .Run())
+        .Run()
+        .BlockingGet()
         .ThrowOnError();
 
     EXPECT_EQ(x, 1);

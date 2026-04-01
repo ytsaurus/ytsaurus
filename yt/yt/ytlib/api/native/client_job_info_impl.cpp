@@ -1717,8 +1717,8 @@ static void AddWhereExpressions(TQueryBuilder* builder, const TListJobsOptions& 
 
         builder->AddWhereConjunct(Format(
             "(collective_id_hi, collective_id_lo) = (%vu, %vu)",
-            collectiveId.Underlying().Parts64[0],
-            collectiveId.Underlying().Parts64[1]));
+            collectiveId.Parts64[0],
+            collectiveId.Parts64[1]));
     }
 
     if (options.WithCompetitors) {
@@ -1940,9 +1940,9 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
         }
 
         if (record.CollectiveIdHi) {
-            job.CollectiveId = TCollectiveId(TGuid(
+            job.CollectiveId = TGuid(
                 *record.CollectiveIdHi,
-                *record.CollectiveIdLo));
+                *record.CollectiveIdLo);
         }
 
         if (record.CollectiveMemberRank) {
@@ -2247,14 +2247,14 @@ static void ParseJobsFromControllerAgentResponse(
         if (needCollectiveMemberRank) {
             auto collectiveInfo = jobMapNode->FindChild("collective_info");
             if (collectiveInfo) {
-                job.CollectiveMemberRank = collectiveInfo->AsMap()->FindChildValue<int>("rank");
+                job.CollectiveMemberRank = collectiveInfo->AsMap()->FindChildValue<ui64>("rank");
             }
         }
         if (needCollectiveId) {
             auto collectiveInfo = jobMapNode->FindChild("collective_info");
             if (collectiveInfo) {
                 if (auto collectiveId = collectiveInfo->AsMap()->FindChildValue<TJobId>("collective_id")) {
-                    job.CollectiveId = TCollectiveId(collectiveId->Underlying());
+                    job.CollectiveId = collectiveId->Underlying();
                 }
             }
         }
@@ -2313,10 +2313,10 @@ static void ParseJobsFromControllerAgentResponse(
         auto state = ConvertTo<EJobState>(jobMap->GetChildOrThrow("state"));
         auto stderrSize = jobMap->GetChildValueOrThrow<i64>("stderr_size");
         auto failContextSize = jobMap->GetChildValueOrDefault<i64>("fail_context_size", 0);
-        std::optional<TCollectiveId> collectiveId;
+        std::optional<TGuid> collectiveId;
         if (auto collectiveInfo = jobMap->FindChild("collective_info")) {
             if (auto maybeCollectiveId = collectiveInfo->AsMap()->FindChildValue<TJobId>("collective_id")) {
-                collectiveId = TCollectiveId(maybeCollectiveId->Underlying());
+                collectiveId = maybeCollectiveId->Underlying();
             }
         }
         auto jobCompetitionId = jobMap->GetChildValueOrThrow<TJobId>("job_competition_id");

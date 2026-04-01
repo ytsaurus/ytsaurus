@@ -19,7 +19,7 @@ struct TObjectAttributeCacheConfig
     //! User for executing requests to master.
     std::string UserName;
 
-    int RefreshRevisionCacheCapacity;
+    ui64 RefreshRevisionStorageSize;
 
     REGISTER_YSON_STRUCT(TObjectAttributeCacheConfig);
 

@@ -2,8 +2,6 @@
 
 #include <yt/yt/library/formats/format.h>
 
-#include <yt/yt/core/concurrency/scheduler_api.h>
-
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
@@ -27,7 +25,8 @@ void TestNameTableExpansion(ISchemalessFormatWriterPtr writer, NTableClient::TNa
         auto completeRow = row.FinishRow();
         EXPECT_EQ(true, writer->Write({completeRow.Get()}));
     }
-    NConcurrency::WaitFor(writer->Close())
+    writer->Close()
+        .BlockingGet()
         .ThrowOnError();
 }
 

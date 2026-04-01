@@ -33,7 +33,7 @@ bool IsSystemError(const TError& error);
 class TFileDescriptorGuard
 {
 public:
-    explicit TFileDescriptorGuard(TFileDescriptor fd = -1) noexcept;
+    TFileDescriptorGuard(TFileDescriptor fd = -1) noexcept;
 
     ~TFileDescriptorGuard();
 

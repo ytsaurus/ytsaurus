@@ -146,8 +146,9 @@ void DoTestCancelWriter(TAsyncReaderWriterLock& lock)
 
     guard->Release();
 
-    WaitFor(secondGuardFuture
-        .WithTimeout(TDuration::Seconds(1)))
+    secondGuardFuture
+        .WithTimeout(TDuration::Seconds(1))
+        .BlockingGet()
         .ThrowOnError();
 }
 

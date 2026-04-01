@@ -429,6 +429,7 @@ class PackageManager(object):
         ]
         outs = [
             b_rooted(build_ws_config_path(self.module_path)),
+            b_rooted(build_pre_lockfile_path(self.module_path)),
         ]
         resources = []
 

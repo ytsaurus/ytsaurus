@@ -44,7 +44,8 @@ public:
             ChunkReadOptions_,
             /*workloadCategory*/ std::nullopt);
 
-        WaitFor(lookupReader->Open())
+        lookupReader->Open()
+            .BlockingGet()
             .ThrowOnError();
 
         std::vector<TVersionedRow> rows;
@@ -104,3 +105,4 @@ public:
 
 } // namespace
 } // namespace NYT::NTabletNode
+

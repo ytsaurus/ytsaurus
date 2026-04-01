@@ -1,6 +1,5 @@
 from . import default_config
 from .helpers import canonize_uuid
-from .api import LogLevel
 
 from yt.wrapper.common import MB, GB
 from yt.common import update, update_inplace
@@ -970,7 +969,7 @@ def _build_controller_agent_configs(multidaemon_config_output,
                           singletons_config.setdefault("logging", {}),
                           yt_config,
                           has_structured_logs=True,
-                          log_level=LogLevel.TRACE)
+                          debug_logging_min_level="trace")
 
         init_jaeger_collector(singletons_config, "controller_agent", {"controller_agent_index": str(index)})
 
@@ -2096,37 +2095,32 @@ def _init_logging(path, name, logging_config, yt_config,
                   has_structured_logs=False,
                   enable_log_compression=None,
                   use_name_in_writer_name=True,
-                  log_level=None):
+                  debug_logging_min_level="debug"):
     if enable_log_compression is None:
         enable_log_compression = yt_config.enable_log_compression
-
-    effective_log_level = yt_config.log_level
-    if yt_config.enable_debug_logging:
-        effective_log_level = min(effective_log_level, LogLevel.DEBUG)
-    if log_level is not None:
-        effective_log_level = min(effective_log_level, log_level)
-
     return init_logging(
         path,
         name,
         logging_config,
-        log_level=effective_log_level,
+        enable_debug_logging=yt_config.enable_debug_logging,
         enable_log_compression=enable_log_compression,
         log_compression_method=yt_config.log_compression_method,
         enable_structured_logging=yt_config.enable_structured_logging and has_structured_logs,
         log_errors_to_stderr=log_errors_to_stderr,
-        use_name_in_writer_name=use_name_in_writer_name)
+        use_name_in_writer_name=use_name_in_writer_name,
+        debug_logging_min_level=debug_logging_min_level)
 
 
 def init_logging(path, name,
                  logging_config=None,
-                 log_level=LogLevel.INFO,
+                 enable_debug_logging=False,
                  enable_log_compression=False,
                  log_compression_method="gzip",
                  enable_structured_logging=False,
                  abort_on_alert=None,
                  log_errors_to_stderr=False,
-                 use_name_in_writer_name=True):
+                 use_name_in_writer_name=True,
+                 debug_logging_min_level="debug"):
     def _get_writer_name(writer_name):
         if use_name_in_writer_name:
             return f"{writer_name}-{name}"
@@ -2160,10 +2154,10 @@ def init_logging(path, name,
     if "compression_thread_count" not in logging_config:
         logging_config["compression_thread_count"] = 4
 
-    default_log_level = max(log_level, LogLevel.INFO)
-    writer_name = _get_writer_name(default_log_level.to_str())
+    # Info logs.
+    writer_name = _get_writer_name("info")
     logging_config.setdefault("rules", []).append({
-        "min_level": default_log_level.to_str(),
+        "min_level": "info",
         "writers": [writer_name],
         "family": "plain_text",
     })
@@ -2188,10 +2182,10 @@ def init_logging(path, name,
         }
 
     # Debug logs.
-    if log_level <= LogLevel.DEBUG:
+    if enable_debug_logging:
         writer_name = _get_writer_name("debug")
         logging_config["rules"].append({
-            "min_level": log_level.to_str(),
+            "min_level": debug_logging_min_level,
             "family": "plain_text",
             "exclude_categories": ["Bus", "Concurrency"],
             "writers": [writer_name],

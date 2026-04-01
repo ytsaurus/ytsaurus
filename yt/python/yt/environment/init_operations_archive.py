@@ -1221,7 +1221,6 @@ TRANSFORMS[66] = [
                 ("distributed_group_job_index", "int64"),
                 ("distributed_group_main_job_id_hi", "uint64"),
                 ("distributed_group_main_job_id_lo", "uint64"),
-
                 ("collective_member_rank", "int64"),
                 ("collective_id_hi", "uint64"),
                 ("collective_id_lo", "uint64"),

@@ -16,7 +16,6 @@
 #include <yt/yt/client/table_client/unversioned_writer.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
-#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <library/cpp/testing/hook/hook.h>
 
@@ -383,7 +382,7 @@ std::pair<TQueryPtr, TQueryStatistics> TQueryEvaluateTest::EvaluateWithQueryStat
     const TResultMatcher& resultMatcher,
     TEvaluateOptions options)
 {
-    return WaitFor(BIND(&TQueryEvaluateTest::DoEvaluate, this)
+    return BIND(&TQueryEvaluateTest::DoEvaluate, this)
         .AsyncVia(ActionQueue_->GetInvoker())
         .Run(
             query,
@@ -391,7 +390,8 @@ std::pair<TQueryPtr, TQueryStatistics> TQueryEvaluateTest::EvaluateWithQueryStat
             owningSources,
             resultMatcher,
             options,
-            std::nullopt))
+            std::nullopt)
+        .BlockingGet()
         .ValueOrThrow();
 }
 
@@ -536,7 +536,7 @@ TQueryPtr TQueryEvaluateTest::EvaluateExpectingError(
     };
 
     evaluateOptions.ExecutionBackend = EExecutionBackend::WebAssembly;
-    WaitFor(BIND(&TQueryEvaluateTest::DoEvaluate, this)
+    BIND(&TQueryEvaluateTest::DoEvaluate, this)
         .AsyncVia(ActionQueue_->GetInvoker())
         .Run(
             query,
@@ -544,11 +544,12 @@ TQueryPtr TQueryEvaluateTest::EvaluateExpectingError(
             owningSources,
             AnyMatcher,
             evaluateOptions,
-            expectedError))
+            expectedError)
+        .BlockingGet()
         .ValueOrThrow();
 
     evaluateOptions.ExecutionBackend = EExecutionBackend::Native;
-    return WaitFor(BIND(&TQueryEvaluateTest::DoEvaluate, this)
+    return BIND(&TQueryEvaluateTest::DoEvaluate, this)
         .AsyncVia(ActionQueue_->GetInvoker())
         .Run(
             query,
@@ -556,7 +557,8 @@ TQueryPtr TQueryEvaluateTest::EvaluateExpectingError(
             owningSources,
             AnyMatcher,
             std::move(evaluateOptions),
-            expectedError))
+            expectedError)
+        .BlockingGet()
         .ValueOrThrow().first;
 }
 
