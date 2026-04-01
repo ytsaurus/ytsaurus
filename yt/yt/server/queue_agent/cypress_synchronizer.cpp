@@ -1,6 +1,7 @@
 #include "cypress_synchronizer.h"
 #include "config.h"
 #include "helpers.h"
+#include "pass_profiler.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -981,6 +982,7 @@ public:
             ControlInvoker_,
             BIND(&TCypressSynchronizer::Pass, MakeWeak(this)),
             DynamicConfig_->PassPeriod))
+        , PassProfiler_(QueueAgentProfilerGlobal().WithPrefix("/cypress_synchronizer"))
         , OrchidService_(IYPathService::FromProducer(BIND(&TCypressSynchronizer::BuildOrchid, MakeWeak(this)))->Via(ControlInvoker_))
         , AlertCollector_(CreateAlertCollectorCallback_())
     { }
@@ -1030,6 +1032,7 @@ public:
 
         auto finalizePass = Finally([&] {
             alertCollector->PublishAlerts();
+            PassProfiler_.OnFinish(TInstant::Now() - PassInstant_);
         });
 
         if (!DynamicConfig_->Enable) {
@@ -1039,6 +1042,7 @@ public:
 
         PassInstant_ = TInstant::Now();
         ++PassIndex_;
+        PassProfiler_.OnStart(PassIndex_, PassInstant_);
 
         auto dynamicConfigSnapshot = CloneYsonStruct(DynamicConfig_);
 
@@ -1055,6 +1059,7 @@ public:
             PassError_ = TError();
         } catch (const std::exception& ex) {
             PassError_ = TError(ex);
+            PassProfiler_.OnError();
             alertCollector->StageAlert(CreateAlert(
                 NAlerts::EErrorCode::CypressSynchronizerPassFailed,
                 "Error performing Cypress synchronizer pass",
@@ -1089,6 +1094,7 @@ private:
     const TClientDirectoryPtr ClientDirectory_;
     const TCallback<IAlertCollectorPtr()> CreateAlertCollectorCallback_;
     const TPeriodicExecutorPtr PassExecutor_;
+    const TPassProfiler PassProfiler_;
     const IYPathServicePtr OrchidService_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, AlertCollectorLock_);

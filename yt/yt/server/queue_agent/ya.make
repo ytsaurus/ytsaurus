@@ -9,6 +9,7 @@ SRCS(
     cypress_synchronizer.cpp
     dynamic_config_manager.cpp
     helpers.cpp
+    pass_profiler.cpp
     performance_counters.cpp
     profile_manager.cpp
     program.cpp
@@ -18,6 +19,7 @@ SRCS(
     snapshot_representation.cpp
     queue_exporter.cpp
     queue_exporter_old.cpp
+    queue_exporter_profile_manager.cpp
     queue_export_manager.cpp
 )
 

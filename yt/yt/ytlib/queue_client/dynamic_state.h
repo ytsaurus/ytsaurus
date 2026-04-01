@@ -86,8 +86,11 @@ struct TQueueTableRow
     std::optional<std::string> QueueAgentStage;
     std::optional<NObjectClient::TObjectId> ObjectId;
     std::optional<bool> QueueAgentBanned;
+    std::optional<std::string> QueueProfilingTag;
 
     std::optional<TError> SynchronizationError;
+
+    std::optional<std::string> GetProfilingTag() const;
 
     static std::vector<TString> GetCypressAttributeNames();
 
@@ -125,8 +128,11 @@ struct TConsumerTableRow
     std::optional<NTableClient::TTableSchema> Schema;
     std::optional<std::string> QueueAgentStage;
     std::optional<bool> QueueAgentBanned;
+    std::optional<std::string> QueueConsumerProfilingTag;
 
     std::optional<TError> SynchronizationError;
+
+    std::optional<std::string> GetProfilingTag() const;
 
     static std::vector<TString> GetCypressAttributeNames();
 

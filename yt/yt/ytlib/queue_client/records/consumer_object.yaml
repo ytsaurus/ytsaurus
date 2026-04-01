@@ -57,3 +57,8 @@ types:
         cpp_type: std::optional<bool>
         column_name: queue_agent_banned
         column_type: Boolean
+
+      - cpp_name: QueueConsumerProfilingTag
+        cpp_type: std::optional<std::string>
+        column_name: queue_consumer_profiling_tag
+        column_type: String

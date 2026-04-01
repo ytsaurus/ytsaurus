@@ -55,6 +55,7 @@ target_sources(yt-server-queue_agent PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/cypress_synchronizer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/dynamic_config_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/pass_profiler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/performance_counters.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/profile_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/program.cpp
@@ -64,6 +65,7 @@ target_sources(yt-server-queue_agent PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/snapshot_representation.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/queue_exporter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/queue_exporter_old.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/queue_exporter_profile_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/queue_export_manager.cpp
 )
 

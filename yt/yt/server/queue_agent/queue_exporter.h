@@ -2,6 +2,7 @@
 
 #include "private.h"
 #include "config.h"
+#include "queue_exporter_profile_manager.h"
 
 #include <yt/yt/server/lib/alert_manager/alert_manager.h>
 
@@ -129,7 +130,7 @@ IQueueExporterPtr CreateQueueExporter(
     IInvokerPtr invoker,
     IQueueExportManagerPtr queueExportManager,
     NAlertManager::IAlertCollectorPtr alertCollector,
-    const NProfiling::TProfiler& queueProfiler,
+    IQueueExporterProfileManagerPtr profileManager,
     const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////

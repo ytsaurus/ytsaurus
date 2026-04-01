@@ -4,6 +4,7 @@
 
 #include "config.h"
 #include "queue_exporter.h"
+#include "queue_exporter_profile_manager.h"
 
 #include <yt/yt/server/lib/alert_manager/alert_manager.h>
 
@@ -91,7 +92,7 @@ public:
         NHiveClient::TClientDirectoryPtr clientDirectory,
         IInvokerPtr invoker,
         NAlertManager::IAlertCollectorPtr alertCollector,
-        const NProfiling::TProfiler& queueProfiler,
+        IQueueExporterProfileManagerPtr profileManager,
         const NLogging::TLogger& logger);
 
     TQueueExportProgressOldPtr GetExportProgressOld() const;
