@@ -363,6 +363,7 @@ DEFINE_REFCOUNTED_TYPE(TTabletSnapshot)
 
 void ValidateTabletRetainedTimestamp(const TTabletSnapshotPtr& tabletSnapshot, TTimestamp timestamp);
 void ValidateTabletMounted(TTablet* tablet);
+void ValidateTrimmedRowCountPrecedesTimestamp(const TTablet* tablet, i64 trimmedRowCount, TTimestamp timestamp);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -930,7 +931,7 @@ public:
 
     void UpdateUnmergedRowCount();
 
-    TTimestamp GetOrderedChaosReplicationMinTimestamp();
+    TTimestamp GetOrderedChaosReplicationMinTimestamp() const;
 
     const IHunkLockManagerPtr& GetHunkLockManager() const;
 

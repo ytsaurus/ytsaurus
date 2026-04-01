@@ -141,6 +141,74 @@ void ValidateTabletMounted(TTablet* tablet)
     }
 }
 
+void ValidateTrimmedRowCountPrecedesTimestamp(const TTablet* tablet, i64 trimmedRowCount, TTimestamp timestamp)
+{
+    YT_VERIFY(
+        tablet->GetCommitOrdering() == ECommitOrdering::Strong,
+        "Table MUST have strong commit ordering to check stores boundaries by timestamp");
+
+    const auto& storeRowIndexMap = tablet->StoreRowIndexMap();
+    if (storeRowIndexMap.empty()) {
+        // No stores.
+        return;
+    }
+
+    auto it = storeRowIndexMap.upper_bound(trimmedRowCount);
+    if (it == storeRowIndexMap.begin()) {
+        // trimmedRowCount is before the first store start row index, nothing to trim.
+        return;
+    }
+
+    auto storeIt = it;
+    --storeIt;
+
+    // Check that we are not trimming more than the table size.
+    if (it == storeRowIndexMap.end()) {
+        if (i64 storeStartingRowIndex = storeIt->second->GetStartingRowIndex();
+            trimmedRowCount > storeStartingRowIndex + storeIt->second->GetRowCount())
+        {
+            THROW_ERROR_EXCEPTION("Could not trim tablet since trimmed row count is greater than current row count")
+                << TErrorAttribute("tablet_id", tablet->GetId())
+                << TErrorAttribute("trimmed_row_count", trimmedRowCount)
+                << TErrorAttribute("timestamp", timestamp)
+                << TErrorAttribute("last_store_starting_row_index", storeStartingRowIndex)
+                << TErrorAttribute("last_store_row_count", storeIt->second->GetRowCount());
+        }
+    }
+
+    // Last store could be empty and have min_timestamp == MaxTimestamp, so check the last non-empty one
+    // it should have valid timestamp.
+    if (storeIt->second->GetMinTimestamp() == MaxTimestamp) {
+        // Check for trim row count mismatch.
+        if (storeIt == storeRowIndexMap.begin()) {
+            i64 storeStartingRowIndex = storeIt->second->GetStartingRowIndex();
+            if (trimmedRowCount != storeStartingRowIndex) {
+                THROW_ERROR_EXCEPTION(
+                    "Could not fully trim tablet since trimmed row count is greater than current row count")
+                    << TErrorAttribute("trimmed_row_count", trimmedRowCount)
+                    << TErrorAttribute("store_starting_row_index", storeStartingRowIndex);
+            }
+
+            // The only remaining store is empty and it's a full trim.
+            return;
+        }
+
+        --storeIt;
+    }
+
+    if (const auto& store = storeIt->second;
+        timestamp < store->GetMinTimestamp() ||
+        (trimmedRowCount > store->GetStartingRowIndex() && timestamp < store->GetMaxTimestamp()))
+    {
+        THROW_ERROR_EXCEPTION("Could not trim tablet since some replicas may not be replicated up to this point")
+            << TErrorAttribute("tablet_id", tablet->GetId())
+            << TErrorAttribute("trimmed_row_count", trimmedRowCount)
+            << TErrorAttribute("store_starting_row_index", store->GetStartingRowIndex())
+            << TErrorAttribute("timestamp", timestamp)
+            << TErrorAttribute("store_max_timestamp", store->GetMaxTimestamp());
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TRuntimeTableReplicaData::Populate(TTableReplicaStatistics* statistics) const
@@ -3128,7 +3196,7 @@ void TTablet::UpdateUnmergedRowCount()
     }
 }
 
-TTimestamp TTablet::GetOrderedChaosReplicationMinTimestamp()
+TTimestamp TTablet::GetOrderedChaosReplicationMinTimestamp() const
 {
     YT_VERIFY(!TableSchema_->IsSorted());
 
