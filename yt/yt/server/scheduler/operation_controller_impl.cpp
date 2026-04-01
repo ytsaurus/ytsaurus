@@ -117,6 +117,7 @@ TControllerAgentPtr TOperationControllerImpl::FindAgent() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
+    auto guard = Guard(SpinLock_);
     return Agent_.Lock();
 }
 
