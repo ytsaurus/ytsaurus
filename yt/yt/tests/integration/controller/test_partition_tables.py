@@ -145,6 +145,8 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
             compressed_data_size = aggregate_statistics["compressed_data_size"]
         if value_count is None:
             value_count = aggregate_statistics["value_count"]
+        if chunk_count is None:
+            chunk_count = aggregate_statistics["chunk_count"]
         expected_aggregate_statistics = {
             "chunk_count": chunk_count,
             "data_weight": data_weight,
@@ -167,19 +169,27 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
         partitions = partition_tables([], data_weight_per_partition=1)
         assert partitions == []
 
-    @authors("galtsev")
+    @authors("galtsev,pavook")
     def test_invalid_options(self):
         table = "//tmp/sorted-static"
         self._create_table(table, chunk_count=1, rows_per_chunk=1, row_weight=1)
 
-        with raises_yt_error("Missing required parameter /data_weight_per_partition"):
-            partition_tables([table])
-
         with raises_yt_error("Validation failed at /data_weight_per_partition"):
             partition_tables([table], data_weight_per_partition=-1)
 
+        with raises_yt_error("Validation failed at /compressed_data_size_per_partition"):
+            partition_tables([table], compressed_data_size_per_partition=-1)
+
         with raises_yt_error("Validation failed at /max_partition_count"):
             partition_tables([table], data_weight_per_partition=1, max_partition_count=-1)
+
+        with raises_yt_error("Must specify either \"data_weight_per_partition\" or \"compressed_data_size_per_partition\""):
+            partition_tables([table])
+
+        dynamic_table = "//tmp/sorted-dynamic"
+        self._create_table(dynamic_table, chunk_count=1, rows_per_chunk=1, row_weight=1, dynamic=True)
+        with raises_yt_error("Partitioning versioned table by compressed data size is unimplemented"):
+            partition_tables([dynamic_table], compressed_data_size_per_partition=1)
 
     @authors("galtsev")
     @pytest.mark.parametrize("dynamic,sorted", [(False, False), (False, True), (True, False)])
@@ -209,6 +219,23 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
             expected_partitions.append(partition)
 
         assert self.strip_cookies(partitions) == expected_partitions
+
+    @authors("pavook")
+    @pytest.mark.parametrize("sorted", [False, True])
+    @pytest.mark.parametrize("partition_mode", ["unordered", "ordered"])
+    def test_partition_by_compressed_data_size(self, sorted: bool, partition_mode: str):
+        table = "//tmp/{}-table".format("ordered" if not sorted else "sorted")
+        chunk_count = 6
+        rows_per_chunk = 1000
+        row_weight = 2000
+        data_weight = self._create_table(table, chunk_count, rows_per_chunk, row_weight, sorted=sorted)
+        compressed_data_size = get(f"{table}/@compressed_data_size")
+        assert compressed_data_size < data_weight // 4
+
+        partitions = partition_tables([table], partition_mode=partition_mode, compressed_data_size_per_partition=compressed_data_size // 3, enable_cookies=True)
+        self.check_partitions([table], partitions, check_cookies=True)
+        self.check_aggregate_statistics(partitions, chunk_count if partition_mode == "unordered" else None, chunk_count * rows_per_chunk, data_weight)
+        assert len(partitions) == 3
 
     @authors("galtsev")
     @pytest.mark.parametrize("enable_dynamic_store_read", [False, True])

@@ -6780,7 +6780,13 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PartitionTables)
 
     options.PartitionMode = FromProto<NTableClient::ETablePartitionMode>(request->partition_mode());
 
-    options.DataWeightPerPartition = request->data_weight_per_partition();
+    if (request->has_data_weight_per_partition()) {
+        options.DataWeightPerPartition = request->data_weight_per_partition();
+    }
+
+    if (request->has_compressed_data_size_per_partition()) {
+        options.CompressedDataSizePerPartition = request->compressed_data_size_per_partition();
+    }
 
     if (request->has_max_partition_count()) {
         options.MaxPartitionCount = request->max_partition_count();
@@ -6796,11 +6802,12 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PartitionTables)
         FromProto(&options, request->transactional_options());
     }
 
-    context->SetRequestInfo("Paths: %v, PartitionMode: %v, KeyGuarantee: %v, DataWeightPerPartition: %v, AdjustDataWeightPerPartition: %v, EnableCookies: %v",
+    context->SetRequestInfo("Paths: %v, PartitionMode: %v, KeyGuarantee: %v, DataWeightPerPartition: %v, CompressedDataSizePerPartition: %v, AdjustDataWeightPerPartition: %v, EnableCookies: %v",
         paths,
         options.PartitionMode,
         options.EnableKeyGuarantee,
         options.DataWeightPerPartition,
+        options.CompressedDataSizePerPartition,
         options.AdjustDataWeightPerPartition,
         options.EnableCookies);
 
