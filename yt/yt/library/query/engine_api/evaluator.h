@@ -21,7 +21,7 @@ struct IEvaluator
         const TConstBaseQueryPtr& query,
         const ISchemafulUnversionedReaderPtr& reader,
         const IUnversionedRowsetWriterPtr& writer,
-        const std::vector<IJoinProfilerPtr>& joinProfilers,
+        const TJoinProfilerRegistry& joinProfilerRegistry,
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
         const NWebAssembly::TModuleBytecode& sdk,

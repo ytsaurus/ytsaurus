@@ -59,4 +59,16 @@ IJoinProfilerPtr CreateJoinSubqueryProfiler(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJoinProfilerRegistry
+{
+public:
+    IJoinProfilerPtr GetJoinProfilerOrThrow(size_t index) const;
+    void InsertJoinProfilerOrThrow(size_t index, IJoinProfilerPtr profiler);
+
+private:
+    THashMap<size_t, IJoinProfilerPtr> Profilers_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NQueryClient

@@ -376,6 +376,7 @@ struct TJoinClause
     bool RequireSyncReplica = true;
 
     TJoinClause() = default;
+
     TJoinClause(const TJoinClause& other);
 
     TTableSchemaPtr GetRenamedSchema() const;

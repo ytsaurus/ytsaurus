@@ -1630,7 +1630,7 @@ public:
         TCodegenSource* codegenSource,
         const TConstQueryPtr& query,
         size_t* slotCount,
-        const std::vector<IJoinProfilerPtr>& joinProfilers);
+        const TJoinProfilerRegistry& joinProfilerRegistry);
 
     void Profile(
         TCodegenSource* codegenSource,
@@ -2346,7 +2346,7 @@ void TQueryProfiler::Profile(
     TCodegenSource* codegenSource,
     const TConstQueryPtr& query,
     size_t* slotCount,
-    const std::vector<IJoinProfilerPtr>& joinProfilers)
+    const TJoinProfilerRegistry& joinProfilerRegistry)
 {
     Fold(ExecutionBackend_);
     Fold(OptimizationLevel_);
@@ -2523,7 +2523,7 @@ void TQueryProfiler::Profile(
                 .IsLeft = joinClause->IsLeft,
                 .IsPartiallySorted = joinClause->ForeignKeyPrefix < singleJoinParameters.KeySize,
                 .ForeignColumns = joinClause->GetForeignColumnIndices(),
-                .JoinRowsProducer = joinProfilers[joinIndex]->Profile(),
+                .JoinRowsProducer = joinProfilerRegistry.GetJoinProfilerOrThrow(joinIndex)->Profile(),
             };
 
             joinParameters.Items.push_back(std::move(singleJoinParameters));
@@ -2676,7 +2676,7 @@ TCGQueryGenerator Profile(
     const TConstBaseQueryPtr& query,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    const std::vector<IJoinProfilerPtr>& joinProfilers,
+    const TJoinProfilerRegistry& joinProfilerRegistry,
     bool useCanonicalNullRelations,
     EExecutionBackend executionBackend,
     EOptimizationLevel optimizationLevel,
@@ -2705,7 +2705,7 @@ TCGQueryGenerator Profile(
     TCodegenSource codegenSource = &CodegenEmptyOp;
 
     if (auto derivedQuery = dynamic_cast<const TQuery*>(query.Get())) {
-        profiler.Profile(&codegenSource, derivedQuery, &slotCount, joinProfilers);
+        profiler.Profile(&codegenSource, derivedQuery, &slotCount, joinProfilerRegistry);
     } else if (auto derivedQuery = dynamic_cast<const TFrontQuery*>(query.Get())) {
         profiler.Profile(&codegenSource, derivedQuery, &slotCount);
     } else {

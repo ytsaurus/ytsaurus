@@ -712,8 +712,12 @@ TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
         )");
         auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
 
+        TJoinProfilerRegistry joinProfilerRegistry1;
+        for (int joinIndex = 0; joinIndex < std::ssize(query->JoinClauses); ++joinIndex) {
+            joinProfilerRegistry1.InsertJoinProfilerOrThrow(joinIndex, MakeNullJoinSubqueryProfiler());
+        }
         TCGVariables variables;
-        ProfileForBothExecutionBackends(query, &id1, &variables, {MakeNullJoinSubqueryProfiler()});
+        ProfileForBothExecutionBackends(query, &id1, &variables, std::move(joinProfilerRegistry1));
     }
 
     llvm::FoldingSetNodeID id2;
@@ -728,8 +732,12 @@ TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
         )");
         auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
 
+        TJoinProfilerRegistry joinProfilerRegistry2;
+        for (int joinIndex = 0; joinIndex < std::ssize(query->JoinClauses); ++joinIndex) {
+            joinProfilerRegistry2.InsertJoinProfilerOrThrow(joinIndex, MakeNullJoinSubqueryProfiler());
+        }
         TCGVariables variables;
-        ProfileForBothExecutionBackends(query, &id2, &variables, {MakeNullJoinSubqueryProfiler()});
+        ProfileForBothExecutionBackends(query, &id2, &variables, std::move(joinProfilerRegistry2));
     }
 
     EXPECT_EQ(id1, id2);
@@ -757,7 +765,7 @@ TEST_F(TQueryPrepareTest, DisjointGroupBy)
         auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
-        ProfileForBothExecutionBackends(query, &id1, &variables, {MakeNullJoinSubqueryProfiler()});
+        ProfileForBothExecutionBackends(query, &id1, &variables);
     }
 
     llvm::FoldingSetNodeID id2;
@@ -766,7 +774,7 @@ TEST_F(TQueryPrepareTest, DisjointGroupBy)
         auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
-        ProfileForBothExecutionBackends(query, &id2, &variables, {MakeNullJoinSubqueryProfiler()});
+        ProfileForBothExecutionBackends(query, &id2, &variables);
     }
 
     EXPECT_NE(id1, id2);
@@ -785,7 +793,7 @@ TEST_F(TQueryPrepareTest, GroupByWithLimitFolding)
         auto query = ParseAndPreparePlanFragment(&PrepareMock_, "* from [//t] group by 1")->Query;
 
         TCGVariables variables;
-        ProfileForBothExecutionBackends(query, &id1, &variables, {MakeNullJoinSubqueryProfiler()});
+        ProfileForBothExecutionBackends(query, &id1, &variables);
     }
 
     llvm::FoldingSetNodeID id2;
@@ -793,7 +801,7 @@ TEST_F(TQueryPrepareTest, GroupByWithLimitFolding)
         auto query = ParseAndPreparePlanFragment(&PrepareMock_, "* from [//t] group by 1 limit 1")->Query;
 
         TCGVariables variables;
-        ProfileForBothExecutionBackends(query, &id2, &variables, {MakeNullJoinSubqueryProfiler()});
+        ProfileForBothExecutionBackends(query, &id2, &variables);
     }
 
     EXPECT_NE(id1, id2);

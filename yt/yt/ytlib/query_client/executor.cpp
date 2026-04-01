@@ -630,10 +630,11 @@ private:
 
         auto subqueryResults = New<TMpscStack<TQueryStatistics>>();
 
-        std::vector<IJoinProfilerPtr> joinProfilers;
+        TJoinProfilerRegistry joinProfilerRegistry;
         for (int joinIndex = 0; joinIndex < std::ssize(query->JoinClauses); ++joinIndex) {
-            joinProfilers.push_back(CreateJoinSubqueryProfiler(
-                query->JoinClauses[joinIndex],
+            const auto& joinClause = query->JoinClauses[joinIndex];
+            joinProfilerRegistry.InsertJoinProfilerOrThrow(joinIndex, CreateJoinSubqueryProfiler(
+                joinClause,
                 executePlanCallback,
                 [subqueryResults] (TQueryStatistics statistics) mutable {
                     subqueryResults->Enqueue(std::move(statistics));
@@ -648,7 +649,7 @@ private:
             query,
             reader,
             writer,
-            std::move(joinProfilers),
+            joinProfilerRegistry,
             functionGenerators,
             aggregateGenerators,
             sdk,
@@ -744,7 +745,7 @@ private:
                     std::move(frontQuery),
                     std::move(reader),
                     writer,
-                    /*joinProfilers*/ {},
+                    /*joinProfilerRegistry*/ {},
                     functionGenerators,
                     aggregateGenerators,
                     sdk,
