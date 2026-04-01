@@ -292,7 +292,7 @@ public:
 
         const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
         auto timestamp = transactionSupervisor->GetLastCoordinatorCommitTimestamp();
-        if (!validate || !timestamp) {
+        if (!validate || timestamp == NullTimestamp) {
             timestamp = NTransactionClient::SyncLastCommittedTimestamp;
         }
 
@@ -355,14 +355,14 @@ public:
             auto masterIt = masterReplicasInSequoiaSkin.find(chunkId);
             if (masterIt == masterReplicasInSequoiaSkin.end()) {
                 YT_LOG_ALERT("Chunk is not present in master replicas (ChunkId: %v)",
-                chunkId);
+                    chunkId);
                 continue;
             }
             auto& masterReplicas = masterIt->second;
             auto sequoiaIt = sequoiaReplicas.find(chunkId);
             if (sequoiaIt == sequoiaReplicas.end()) {
                 YT_LOG_ALERT("Chunk is not present in Sequoia replicas (ChunkId: %v)",
-                chunkId);
+                    chunkId);
                 continue;
             }
 
@@ -375,7 +375,7 @@ public:
             SortUniqueBy(sequoiaReplicas, [] (const auto& replica) {
                 return replica;
             });
-            std::sort(masterReplicas.begin(), masterReplicas.end());
+            std::ranges::sort(masterReplicas);
 
             YT_LOG_TRACE("Validating chunk replicas (ChunkId: %v, MasterReplicas: %v, SequoiaReplicas: %v, CommitTimestamp: %v)",
                 chunkId,
@@ -436,11 +436,12 @@ public:
             auto masterReplicas = chunk->GetStoredReplicaList(/*includeNonOnlineReplicas*/ true);
             std::vector<TSequoiaChunkReplica> replicas;
             for (const auto& masterReplica : masterReplicas) {
-                TSequoiaChunkReplica replica;
-                replica.ChunkId = chunk->GetId();
-                replica.ReplicaIndex = masterReplica.GetReplicaIndex();
-                replica.NodeId = masterReplica.GetNodeId();
-                replica.ReplicaState = masterReplica.GetReplicaState();
+                TSequoiaChunkReplica replica{
+                    .ChunkId = chunk->GetId(),
+                    .ReplicaIndex = masterReplica.GetReplicaIndex(),
+                    .NodeId = masterReplica.GetNodeId(),
+                    .ReplicaState = masterReplica.GetReplicaState()
+                };
                 if (auto* locationReplica = masterReplica.As<EStoredReplicaType::ChunkLocation>()) {
                     // NB: InvalidChunkLocationIndex will be used as default for offshore media.
                     replica.LocationIndex = locationReplica->GetChunkLocationIndex();

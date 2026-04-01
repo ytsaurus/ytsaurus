@@ -1306,9 +1306,7 @@ public:
                 /*validateChunkMeta*/ false);
 
             if (!chunkToConfirmationValidationResult.emplace(chunkId, result).second) {
-                YT_LOG_ALERT("A chunk was found in confirmation batch multiple times (ChunkId: %v)",
-                    chunkId);
-                THROW_ERROR_EXCEPTION("A chunk %v was found in confirmation batch multiple times",
+                YT_LOG_ALERT_AND_THROW("A chunk was found in confirmation batch multiple times (ChunkId: %v)",
                     chunkId);
             }
         }
@@ -1325,9 +1323,7 @@ public:
 
             auto it = chunkToConfirmationValidationResult.find(chunkId);
             if (it == chunkToConfirmationValidationResult.end()) {
-                YT_LOG_ALERT("Chunk is not present in confirmation validation result list (ChunkId: %v)",
-                    chunkId);
-                THROW_ERROR_EXCEPTION("Chunk %v is not present in confirmation validation result list",
+                YT_LOG_ALERT_AND_THROW("Chunk is not present in confirmation validation result list (ChunkId: %v)",
                     chunkId);
             }
 
@@ -3684,66 +3680,58 @@ private:
             .Apply(BIND([=,
                 requests = std::move(requests),
                 sequoiaChunkReplicas = std::move(sequoiaChunkReplicas),
-                promise = std::move(promise),
                 this,
                 this_ = MakeStrong(this)
             ] (const ISequoiaTransactionPtr& transaction) mutable {
-                try {
-                    // TODO: validate requests are the same for the same chunks.
-                    // sequoiaChunkReplicas might actually contain replicas from separate confirm requests,
-                    // I hope they are the same and I am okay with this for now.
-                    SortUniqueBy(requests, [] (const auto& request) {
-                        return FromProto<TChunkId>(request.chunk_id());
-                    });
+                // TODO(aleksandra-zh): validate requests are the same for the same chunks.
+                // sequoiaChunkReplicas might actually contain replicas from separate confirm requests,
+                // I hope they are the same and I am okay with this for now.
+                SortUniqueBy(requests, [] (const auto& request) {
+                    return FromProto<TChunkId>(request.chunk_id());
+                });
 
-                    NProto::TReqConfirmMultipleChunks confirmChunksRequest;
-                    for (const auto& request : requests) {
-                        auto* chunkConfirmation = confirmChunksRequest.add_chunk_confirmations();
-                        *chunkConfirmation->mutable_chunk_id() = request.chunk_id();
-                        if (storeSequoiaReplicasOnMaster) {
-                            *chunkConfirmation->mutable_replicas() = std::move(request.replicas());
-                        }
-                        *chunkConfirmation->mutable_chunk_meta() = std::move(request.chunk_meta());
-                        *chunkConfirmation->mutable_chunk_info() = std::move(request.chunk_info());
-                        *chunkConfirmation->mutable_schema_id() = request.schema_id();
-
-                        auto chunkId = FromProto<TChunkId>(request.chunk_id());
-
-                        auto it = sequoiaChunkReplicas.find(chunkId);
-                        const auto& replicas = it == sequoiaChunkReplicas.end() ? std::vector<TChunkReplicaWithLocationIndex>() : it->second;
-                        NRecords::TUnapprovedChunkReplicas chunkReplicas{
-                            .Key = {
-                                .ChunkId = chunkId,
-                            },
-                            .StoredReplicas = GetReplicasYson(replicas, {}),
-                            .ConfirmationTime = TInstant::Now(),
-                        };
-                        transaction->WriteRow(
-                            chunkReplicas,
-                            NTableClient::ELockType::SharedWrite,
-                            NTableClient::EValueFlags::Aggregate);
-
+                NProto::TReqConfirmMultipleChunks confirmChunksRequest;
+                for (const auto& request : requests) {
+                    auto* chunkConfirmation = confirmChunksRequest.add_chunk_confirmations();
+                    *chunkConfirmation->mutable_chunk_id() = request.chunk_id();
+                    if (storeSequoiaReplicasOnMaster) {
+                        *chunkConfirmation->mutable_replicas() = std::move(request.replicas());
                     }
-                    transaction->AddTransactionAction(
-                        Bootstrap_->GetCellTag(),
-                        NTransactionClient::MakeTransactionActionData(confirmChunksRequest));
+                    *chunkConfirmation->mutable_chunk_meta() = std::move(request.chunk_meta());
+                    *chunkConfirmation->mutable_chunk_info() = std::move(request.chunk_info());
+                    *chunkConfirmation->mutable_schema_id() = request.schema_id();
 
-                    NApi::TTransactionCommitOptions commitOptions{
-                        .CoordinatorCellId = Bootstrap_->GetCellId(),
-                        .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
-                        .StronglyOrdered = true,
+                    auto chunkId = FromProto<TChunkId>(request.chunk_id());
+
+                    auto it = sequoiaChunkReplicas.find(chunkId);
+                    const auto& replicas = it == sequoiaChunkReplicas.end() ? std::vector<TChunkReplicaWithLocationIndex>() : it->second;
+                    NRecords::TUnapprovedChunkReplicas chunkReplicas{
+                        .Key = {
+                            .ChunkId = chunkId,
+                        },
+                        .StoredReplicas = GetReplicasYson(replicas, {}),
+                        .ConfirmationTime = TInstant::Now(),
                     };
+                    transaction->WriteRow(
+                        chunkReplicas,
+                        NTableClient::ELockType::SharedWrite,
+                        NTableClient::EValueFlags::Aggregate);
 
-                    auto result = WaitFor(transaction->Commit(commitOptions));
-                    ThrowOnSequoiaReplicasError(result, retriableErrorCodes);
-                } catch (const std::exception& ex) {
-                    promise.Set(TError(ex));
-                    return;
                 }
-                promise.Set(TError());
-            }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
+                transaction->AddTransactionAction(
+                    Bootstrap_->GetCellTag(),
+                    NTransactionClient::MakeTransactionActionData(confirmChunksRequest));
 
-        YT_UNUSED_FUTURE(future);
+                NApi::TTransactionCommitOptions commitOptions{
+                    .CoordinatorCellId = Bootstrap_->GetCellId(),
+                    .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
+                    .StronglyOrdered = true,
+                };
+
+                auto result = WaitFor(transaction->Commit(commitOptions));
+                ThrowOnSequoiaReplicasError(result, retriableErrorCodes);
+            }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
+        promise.SetFrom(std::move(future));
     }
 
     TFuture<void> ConfirmSequoiaChunkBatched(TReqConfirmChunk request) override
@@ -6042,7 +6030,7 @@ private:
         }
 
         if (BatchConfirmTransactionCommitPromise_) {
-            BatchConfirmTransactionCommitPromise_.TrySet(TError("Hydra peer has stopped"));
+            BatchConfirmTransactionCommitPromise_.Set(TError("Hydra peer has stopped"));
             BatchConfirmTransactionCommitPromise_.Reset();
         }
     }
