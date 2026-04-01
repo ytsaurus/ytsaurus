@@ -457,9 +457,7 @@ private:
         TTagSet tagSet;
         tagSet.AddRequiredTag({"queue_cluster", queueRef.Cluster});
         tagSet.AddRequiredTag({"queue_path", TrimProfilingTagValue(queueRef.Path)});
-        if (subConsumerSnapshot->QueueProfilingTag.has_value()) {
-            tagSet.AddRequiredTag({"queue_tag", subConsumerSnapshot->QueueProfilingTag.value()});
-        }
+        tagSet.AddRequiredTag({"queue_tag", subConsumerSnapshot->QueueProfilingTag.value_or(NoneProfilingTag)});
         profiler = profiler.WithTags(tagSet);
 
         if (!ConsumerPartitionProfilingCounters_.contains(queueRef)) {

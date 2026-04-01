@@ -25,19 +25,13 @@ NProfiling::TTagSet CreateObjectProfilingTags(
 
     if (enablePathAggregation) {
         tags.AddTag({Format("%lv_path", Kind), pathTag}, /*parent*/ -1); // Parent is queue_cluster.
-        int parent = -2;
-        if (row.GetProfilingTag().has_value()) {
-            tags.AddTag({Format("%lv_tag", Kind), row.GetProfilingTag().value()}, parent); // Parent is queue_cluster.
-            parent--;
-        }
+        tags.AddTag({Format("%lv_tag", Kind), row.GetProfilingTag().value_or(NoneProfilingTag)}, /*parent*/ -2); // Parent is queue_cluster.
         if (addObjectType) {
-            tags.AddTag({"object_type", ToOptionalString(row.ObjectType).value_or(NoneObjectType)}, parent); // Parent is queue_cluster.
+            tags.AddTag({"object_type", ToOptionalString(row.ObjectType).value_or(NoneObjectType)}, /*parent*/ -3); // Parent is queue_cluster.
         }
     } else {
         tags.AddRequiredTag({Format("%lv_path", Kind), pathTag});
-        if (row.GetProfilingTag().has_value()) {
-            tags.AddRequiredTag({Format("%lv_tag", Kind), row.GetProfilingTag().value()});
-        }
+        tags.AddRequiredTag({Format("%lv_tag", Kind), row.GetProfilingTag().value_or(NoneProfilingTag)});
         if (addObjectType) {
             tags.AddRequiredTag({"object_type", ToOptionalString(row.ObjectType).value_or(NoneObjectType)});
         }
