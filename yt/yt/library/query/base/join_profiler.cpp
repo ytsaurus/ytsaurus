@@ -390,4 +390,19 @@ IJoinProfilerPtr CreateJoinSubqueryProfiler(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+IJoinProfilerPtr TJoinProfilerRegistry::GetJoinProfilerOrThrow(size_t index) const
+{
+    auto it = Profilers_.find(index);
+    THROW_ERROR_EXCEPTION_IF(it == Profilers_.end(), "Join profiler not found for index %v", index);
+    return it->second;
+}
+
+void TJoinProfilerRegistry::InsertJoinProfilerOrThrow(size_t index, IJoinProfilerPtr profiler)
+{
+    auto [it, inserted] = Profilers_.emplace(index, std::move(profiler));
+    THROW_ERROR_EXCEPTION_IF(!inserted, "Join profiler already exists for index %v", index);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NQueryClient

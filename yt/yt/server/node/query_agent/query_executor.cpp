@@ -706,17 +706,16 @@ private:
                 // so we can set the most recent feature flags.
                 auto responseFeatureFlags = MakeFuture(MostFreshFeatureFlags());
 
-                std::vector<IJoinProfilerPtr> joinProfilers;
-                joinProfilers.reserve(Query_->JoinClauses.size());
-
+                TJoinProfilerRegistry joinProfilerRegistry;
                 for (int joinIndex = 0; joinIndex < std::ssize(Query_->JoinClauses); ++joinIndex) {
+                    const auto& joinClause = Query_->JoinClauses[joinIndex];
                     auto executePlanCallback = executePlanWithUserProvidedTimestamp;
-                    if (Query_->JoinClauses[joinIndex]->RequireSyncReplica == false) {
+                    if (joinClause->RequireSyncReplica == false) {
                         executePlanCallback = executePlanWithAsyncLastCommittedTimestamp;
                     }
 
-                    joinProfilers.push_back(CreateJoinSubqueryProfiler(
-                        Query_->JoinClauses[joinIndex],
+                    joinProfilerRegistry.InsertJoinProfilerOrThrow(joinIndex, CreateJoinSubqueryProfiler(
+                        joinClause,
                         executePlanCallback,
                         [=, Logger = Logger] (TQueryStatistics statistics) mutable {
                             YT_LOG_DEBUG("Remote subquery statistics %v", statistics);
@@ -736,7 +735,7 @@ private:
                         bottomQuery,
                         getSubqueryReader(subqueryIndex),
                         pipe->GetWriter(),
-                        joinProfilers,
+                        joinProfilerRegistry,
                         functionGenerators,
                         aggregateGenerators,
                         sdk,
@@ -786,7 +785,7 @@ private:
                     frontQuery,
                     reader,
                     Writer_,
-                    /*joinProfilers*/ {},
+                    /*joinProfilerRegistry*/ {},
                     functionGenerators,
                     aggregateGenerators,
                     sdk,
