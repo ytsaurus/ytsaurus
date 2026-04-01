@@ -17,6 +17,7 @@
 #include <yt/yt/library/query/engine/functions_cg.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
 
@@ -70,12 +71,11 @@ protected:
         TPreparePlanFragmentOptions options = {.BuilderVersion = DefaultExpressionBuilderVersion})
     {
         EXPECT_THROW_THAT(
-            BIND([&] {
+            NConcurrency::WaitFor(BIND([&] {
                 ParseAndPreparePlanFragment(&PrepareMock_, query, placeholderValues, options);
             })
             .AsyncVia(ActionQueue_->GetInvoker())
-            .Run()
-            .BlockingGet()
+            .Run())
             .ThrowOnError(),
             matcher);
     }

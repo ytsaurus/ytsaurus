@@ -87,7 +87,7 @@ public:
         attributes->Set("name", "user");
         userOptions.Attributes = std::move(attributes);
         userOptions.IgnoreExisting = true;
-        Client_->CreateObject(EObjectType::User, userOptions).BlockingGet()
+        WaitFor(Client_->CreateObject(EObjectType::User, userOptions))
             .ThrowOnError();
 
         auto config = New<TCrossClusterReplicatedStateConfig>();

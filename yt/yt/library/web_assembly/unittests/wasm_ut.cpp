@@ -7,6 +7,7 @@
 #include <yt/yt/library/web_assembly/engine/wavm_private_imports.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/misc/finally.h>
 
@@ -1602,7 +1603,7 @@ TEST_F(TWebAssemblyTest, InfiniteRecursion)
     });
 
     auto runInFiberContext = [&] {
-        BIND([&] {
+        NConcurrency::WaitFor(BIND([&] {
             SetCurrentCompartment(compartment.get());
             auto unsetCompartment = Finally([] {
                 SetCurrentCompartment(nullptr);
@@ -1611,8 +1612,7 @@ TEST_F(TWebAssemblyTest, InfiniteRecursion)
             recurse(1000000);
         })
             .AsyncVia(actionQueue->GetInvoker())
-            .Run()
-            .BlockingGet()
+            .Run())
             .ThrowOnError();
     };
 

@@ -91,13 +91,12 @@ TEST_P(TIOEngineTest, WriteError)
     auto data = GenerateRandomBlob(S);
 
     auto writeToFail = [&] {
-        return engine->Write({
+        return WaitFor(engine->Write({
             .Handle = file,
             .Offset = -10,
             .Buffers = {data.Slice(0, 10), data.Slice(20, 30), data, data.Slice(40, 50)},
             .Flush = true,
-        })
-            .BlockingGet();
+        }));
     };
 
     for (int i = 0; i < 1000; ++i) {
@@ -120,13 +119,12 @@ TEST_P(TIOEngineTest, ReadWrite)
     auto data = GenerateRandomBlob(S);
 
     auto write = [&] {
-        engine->Write({
+        WaitFor(engine->Write({
             .Handle = file,
             .Offset = 0,
             .Buffers = {data.Slice(1, 1), data.Slice(1, 1), data, data.Slice(1, 1)},
             .Flush = true,
-        })
-            .BlockingGet()
+        }))
             .ThrowOnError();
     };
 
@@ -596,42 +594,38 @@ TEST_P(TIOEngineTest, Lock)
 
     // Shared lock attempts should fail.
     EXPECT_THROW({
-        engine->Lock({
+        WaitFor(engine->Lock({
             .Handle = secondHandler,
             .Mode = ELockFileMode::Shared,
             .Nonblocking = true,
-        })
-            .BlockingGet()
+        }))
             .ThrowOnError();
     }, NYT::TErrorException);
 
     WaitForFast(engine->Lock({firstHandler, ELockFileMode::Unlock}))
         .ThrowOnError();
 
-    engine->Lock({
+    WaitFor(engine->Lock({
         .Handle = secondHandler,
         .Mode = ELockFileMode::Shared,
         .Nonblocking = true,
-    })
-        .BlockingGet()
+    }))
         .ThrowOnError();
 
     EXPECT_THROW({
-        engine->Lock({
+        WaitFor(engine->Lock({
             .Handle = firstHandler,
             .Mode = ELockFileMode::Exclusive,
             .Nonblocking = true,
-        })
-            .BlockingGet()
+        }))
             .ThrowOnError();
     }, NYT::TErrorException);
 
-    engine->Lock({
+    WaitFor(engine->Lock({
         .Handle = firstHandler,
         .Mode = ELockFileMode::Shared,
         .Nonblocking = true,
-    })
-        .BlockingGet()
+    }))
         .ThrowOnError();
 }
 
