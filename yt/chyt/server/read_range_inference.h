@@ -11,12 +11,15 @@ namespace NYT::NClickHouseServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 NYT::NQueryClient::TConstExpressionPtr ConvertToConstExpression(
+    DB::QueryTreeNodePtr node,
     const NTableClient::TTableSchemaPtr& schema,
-    DB::QueryTreeNodePtr node);
+    const TCompositeSettingsPtr& settings,
+    bool transformNullIn = false);
 
 std::vector<NChunkClient::TReadRange> InferReadRange(
     DB::QueryTreeNodePtr filterNode,
-    const NTableClient::TTableSchemaPtr& schema);
+    const NTableClient::TTableSchemaPtr& schema,
+    const DB::Settings& settings);
 
 ////////////////////////////////////////////////////////////////////////////////
 

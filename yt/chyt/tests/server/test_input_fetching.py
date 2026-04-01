@@ -1683,9 +1683,19 @@ class TestInferReadRange(ClickHouseTestBase):
                 [{"ts": int(datetime.strptime(ts_str, ts_pattern).timestamp() * 10**6)} for ts_str in chunk_tss]
             )
 
+        create(
+            "table",
+            "//tmp/t_str",
+            attributes={
+                "schema": [{"name": "a", "type": "string", "sort_order": "ascending"}],
+            }
+        )
+        write_table("<append=%true>//tmp/t_str", [{"a": "aa"}, {"a": "ab"}])
+        write_table("<append=%true>//tmp/t_str", [{"a": "ba"}, {"a": "bb"}])
+
         with Clique(1, config_patch=self._get_config_patch(), export_query_log=True) as clique:
             def base_check(table, predicate, exact, expected=None):
-                query = f"select ts from '{table}' where {predicate}"
+                query = f"select * from '{table}' where {predicate}"
                 res = clique.make_query_and_validate_prewhered_row_count(query, exact=exact)
                 if expected is not None:
                     assert_items_equal(res, expected)
@@ -1709,25 +1719,39 @@ class TestInferReadRange(ClickHouseTestBase):
                 2,
                 expected=[{"ts": "2025-01-01 12:21:00.000000"}, {"ts": "2025-03-03 12:23:00.000000"}]
             )
+            check("ts < toDateTime('2025-02-02T00:00:00') OR ts > toDateTime('2025-09-09T00:00:00')", 2)
 
             expected_result = [{"ts": "2025-07-07 12:27:00.000000"}, {"ts": "2025-08-08 12:28:00.000000"}]
             check("ts BETWEEN toDateTime('2025-07-07T00:00:00') AND toDateTime('2025-09-09T00:00:00')", 2, expected=expected_result)
             check("ts >= toDateTime('2025-07-07T00:00:00') AND ts <= toDateTime('2025-09-09T00:00:00')", 2, expected=expected_result)
             check("toDateTime('2025-07-07T00:00:00') <= ts  AND ts <= toDateTime('2025-09-09T00:00:00')", 2, expected=expected_result)
 
-            check("ts IN (toDateTime('2025-05-05T12:25:00'))", 1, expected=[{"ts": "2025-05-05 12:25:00.000000"}])
-            check(
-                "ts IN (toDateTime('2025-02-02T12:22:00'), toDateTime('2025-05-05T12:25:00'), toDateTime('2025-08-08T12:28:00'))",
-                3,
-                expected=[{"ts": "2025-02-02 12:22:00.000000"}, {"ts": "2025-05-05 12:25:00.000000"}, {"ts": "2025-08-08 12:28:00.000000"}]
-            )
-            # Values are not sorted.
-            check(
-                "ts IN (toDateTime('2025-05-05T12:25:00'), toDateTime('2025-02-02T12:22:00'), toDateTime('2025-08-08T12:28:00'))",
-                3,
-                expected=[{"ts": "2025-02-02 12:22:00.000000"}, {"ts": "2025-05-05 12:25:00.000000"}, {"ts": "2025-08-08 12:28:00.000000"}]
-            )
-            check("ts < toDateTime('2025-02-02T00:00:00') OR ts > toDateTime('2025-09-09T00:00:00')", 2)
+            for set_template in ["[{data}]", "({data})"]:
+                set_data = "toDateTime('2025-05-05T12:25:00')"
+                expected = [{"ts": "2025-05-05 12:25:00.000000"}]
+                check(f"ts IN {set_template.format(data=set_data)}", 1, expected=expected)
+
+                set_data = [
+                    "toDateTime('2025-02-02T12:22:00')",
+                    "toDateTime('2025-05-05T12:25:00')",
+                    "toDateTime('2025-08-08T12:28:00')",
+                ]
+                expected = [
+                    {"ts": "2025-02-02 12:22:00.000000"},
+                    {"ts": "2025-05-05 12:25:00.000000"},
+                    {"ts": "2025-08-08 12:28:00.000000"},
+                ]
+                check(f"ts IN {set_template.format(data=', '.join(set_data))}", 3, expected=expected)
+
+                # Values are not sorted.
+                set_data = [
+                    "toDateTime('2025-05-05T12:25:00')",
+                    "toDateTime('2025-02-02T12:22:00')",
+                    "toDateTime('2025-08-08T12:28:00')",
+                ]
+                check(f"ts IN {set_template.format(data=', '.join(set_data))}", 3, expected=expected)
+
+                base_check("//tmp/t_str", f"a IN {set_template.format(data="\'ab\', \'bb\'")}", 2, [{"a": "ab"}, {"a": "bb"}])
 
     @authors("buyval01")
     def test_clickhouse_bool(self):

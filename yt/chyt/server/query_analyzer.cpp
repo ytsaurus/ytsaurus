@@ -1429,8 +1429,8 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
             }
 
             if (suitableForReadRangeInferring) {
-                result.KeyReadRanges = InferReadRange(selectQuery->getWhere(), storage->GetSchema());
-                YT_LOG_DEBUG("Inferred %Qv read range for %v table", result.KeyReadRanges, storage->GetTables());
+                result.KeyReadRanges = InferReadRange(selectQuery->getWhere(), storage->GetSchema(), getContext()->getSettingsRef());
+                YT_LOG_DEBUG("Inferred read range for table (Table: %v, KeyReadRange: %v)", storage->GetTables(), result.KeyReadRanges);
             }
         }
         result.KeyConditions.emplace_back(std::move(keyCondition));
