@@ -14,6 +14,8 @@
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
+#include <yt/yt/core/concurrency/scheduler_api.h>
+
 #include <yt/yt/core/ytree/ypath_client.h>
 
 #include <library/cpp/iterator/enumerate.h>
@@ -250,11 +252,11 @@ public:
         TCreateNodeOptions options;
         options.IgnoreExisting = true;
 
-        client->CreateNode("//tmp/test1", EObjectType::MapNode, options).BlockingGet()
+        WaitFor(client->CreateNode("//tmp/test1", EObjectType::MapNode, options))
             .ValueOrThrow();
-        client->CreateNode("//tmp/test2", EObjectType::MapNode, options).BlockingGet()
+        WaitFor(client->CreateNode("//tmp/test2", EObjectType::MapNode, options))
             .ValueOrThrow();
-        client->CreateNode("//tmp/test3", EObjectType::MapNode, options).BlockingGet()
+        WaitFor(client->CreateNode("//tmp/test3", EObjectType::MapNode, options))
             .ValueOrThrow();
 
         TCreateObjectOptions userOptions;
@@ -262,7 +264,7 @@ public:
         attributes->Set("name", "cross_cluster_test_user");
         userOptions.Attributes = std::move(attributes);
         userOptions.IgnoreExisting = true;
-        client->CreateObject(EObjectType::User, userOptions).BlockingGet().ThrowOnError();
+        WaitFor(client->CreateObject(EObjectType::User, userOptions)).ThrowOnError();
     }
 
 protected:
@@ -283,7 +285,7 @@ protected:
     ICrossClusterReplicatedStatePtr CreateXState(TCrossClusterReplicatedStateConfigPtr config, TCrossClusterManualCallbackExecutor& callbackExecutor)
     {
         auto nativeConnection = DynamicPointerCast<NNative::IConnection>(Connection_);
-        nativeConnection->GetClusterDirectorySynchronizer()->Sync(true).BlockingGet();
+        WaitFor(nativeConnection->GetClusterDirectorySynchronizer()->Sync(true)).ThrowOnError();
         auto client = callbackExecutor.CreateClient(
             nativeConnection, config, NNative::TClientOptions::FromUser(config->User));
         auto lockWaiter = CreateCrossClusterReplicaLockWaiter(Connection_->GetInvoker(), config, Logger());
@@ -303,7 +305,7 @@ protected:
         auto client = connection->CreateNativeClient(NNative::TClientOptions::Root());
         auto allowAll = R"([{subjects=["cross_cluster_test_user"];permissions=["read";"write";"modify_children"];action="allow"}])"sv;
         auto denyAll = R"([{subjects=["cross_cluster_test_user"];permissions=["read";"write";"modify_children"];action="deny"}])"sv;
-        client->SetNode(std::move(path) + "/@acl", NYson::TYsonString(deny ? denyAll : allowAll)).BlockingGet().ThrowOnError();
+        WaitFor(client->SetNode(std::move(path) + "/@acl", NYson::TYsonString(deny ? denyAll : allowAll))).ThrowOnError();
     }
 
     std::string GetClusterName()
@@ -324,7 +326,7 @@ void ExecuteN(
         for (auto j = 0; j < 3; ++j) {
             auto opt = callbackExecutor.ExecuteNext(j, timeout);
             YT_VERIFY(opt);
-            opt->BlockingGet().ThrowOnError();
+            WaitFor(*opt).ThrowOnError();
         }
     }
 }
@@ -339,7 +341,7 @@ void ExecuteN(
         for (auto j = 0; j < 3; ++j) {
             auto opt = callbackExecutor.ExecuteNextWithTag(tag, j, timeout);
             YT_VERIFY(opt);
-            opt->BlockingGet().ThrowOnError();
+            WaitFor(*opt).ThrowOnError();
         }
     }
 }
@@ -362,7 +364,7 @@ TEST_F(TCrossClusterReplicatedStateTest, TestLoadEmpty)
 
     auto validated = xState->ValidateStateDirectories();
     ExecuteNAndCheck(*callbackExecutor, 1);
-    validated.BlockingGet().ThrowOnError();
+    WaitFor(validated).ThrowOnError();
 
     auto emptyEntry = xState->Value("a", "empty");
     auto emptyLoadResult = emptyEntry->Load();
@@ -372,8 +374,7 @@ TEST_F(TCrossClusterReplicatedStateTest, TestLoadEmpty)
     // 0 - Fetch.
     ExecuteNAndCheck(*callbackExecutor, 1);
 
-    auto emptyValue = emptyLoadResult.BlockingGet()
-        .ValueOrThrow();
+    auto emptyValue = WaitFor(emptyLoadResult).ValueOrThrow();
 
     EXPECT_TRUE(!emptyValue);
 
@@ -383,8 +384,7 @@ TEST_F(TCrossClusterReplicatedStateTest, TestLoadEmpty)
 
     ExecuteNAndCheck(*callbackExecutor, 1);
 
-    auto emptyVersionsMap = emptyVersions.BlockingGet()
-        .ValueOrThrow();
+    auto emptyVersionsMap = WaitFor(emptyVersions).ValueOrThrow();
 
     EXPECT_TRUE(emptyVersionsMap.empty());
 }
@@ -403,14 +403,13 @@ TEST_F(TCrossClusterReplicatedStateTest, TestLoadCreated)
     // 0 - Fetch, 1 - Create, 2 - Set.
     ExecuteNAndCheck(*callbackExecutor, 4);
 
-    storeResult.BlockingGet().ThrowOnError();
+    WaitFor(storeResult).ThrowOnError();
 
     auto loadResult = emptyEntry->Load();
 
     ExecuteNAndCheck(*callbackExecutor, 1);
 
-    auto value = loadResult.BlockingGet()
-        .ValueOrThrow();
+    auto value = WaitFor(loadResult).ValueOrThrow();
 
     EXPECT_TRUE(value->AsMap()->FindChild("value")->AsInt64()->GetValue() == 1u);
 
@@ -418,8 +417,7 @@ TEST_F(TCrossClusterReplicatedStateTest, TestLoadCreated)
 
     ExecuteNAndCheck(*callbackExecutor, 1);
 
-    auto versionsMap = versions.BlockingGet()
-        .ValueOrThrow();
+    auto versionsMap = WaitFor(versions).ValueOrThrow();
 
     EXPECT_EQ(versionsMap["empty1"], "0000000000000001;a");
 }
@@ -449,14 +447,13 @@ TEST_F(TCrossClusterReplicatedStateTest, TestConcurrentCreation)
     // Gather lock, set and release lock
     ExecuteN(*callbackExecutor, "b", 2);
 
-    EXPECT_TRUE(storeResultA.BlockingGet().IsOK());
-    EXPECT_TRUE(storeResultB.BlockingGet().IsOK());
+    EXPECT_TRUE(WaitFor(storeResultA).IsOK());
+    EXPECT_TRUE(WaitFor(storeResultB).IsOK());
 
     auto loadResult = emptyEntryA->Load();
     ExecuteNAndCheck(*callbackExecutor, 1);
 
-    auto value = loadResult.BlockingGet()
-        .ValueOrThrow();
+    auto value = WaitFor(loadResult).ValueOrThrow();
 
     EXPECT_EQ(value->AsMap()->FindChild("version")->AsUint64()->GetValue(), 1u);
     EXPECT_EQ(value->AsMap()->FindChild("version_tag")->AsString()->GetValue(), "b");
@@ -474,12 +471,11 @@ TEST_F(TCrossClusterReplicatedStateTest, TestConcurrentStores)
 
     auto storeResult0 = entryA->Store(ConvertToNode(TYsonString("{value=1}"sv))->AsMap());
     ExecuteNAndCheck(*callbackExecutor, 4);
-    storeResult0.BlockingGet().ThrowOnError();
+    WaitFor(storeResult0).ThrowOnError();
 
     auto loadResult = entryA->Load();
     ExecuteNAndCheck(*callbackExecutor, 1);
-    auto value = loadResult.BlockingGet()
-        .ValueOrThrow();
+    auto value = WaitFor(loadResult).ValueOrThrow();
 
     EXPECT_EQ(value->AsMap()->FindChild("value")->AsInt64()->GetValue(), 1);
     EXPECT_EQ(value->AsMap()->FindChild("version")->AsUint64()->GetValue(), 1u);
@@ -502,14 +498,13 @@ TEST_F(TCrossClusterReplicatedStateTest, TestConcurrentStores)
     // Gather lock, set and release lock
     ExecuteN(*callbackExecutor, "b", 2);
 
-    EXPECT_TRUE(storeResultA.BlockingGet().IsOK());
-    EXPECT_TRUE(storeResultB.BlockingGet().IsOK());
+    EXPECT_TRUE(WaitFor(storeResultA).IsOK());
+    EXPECT_TRUE(WaitFor(storeResultB).IsOK());
 
     loadResult = entryA->Load();
     ExecuteNAndCheck(*callbackExecutor, 1);
 
-    value = loadResult.BlockingGet()
-        .ValueOrThrow();
+    value = WaitFor(loadResult).ValueOrThrow();
 
     EXPECT_EQ(value->AsMap()->FindChild("version")->AsUint64()->GetValue(), 2u);
     EXPECT_EQ(value->AsMap()->FindChild("version_tag")->AsString()->GetValue(), "b");
@@ -532,14 +527,13 @@ TEST_F(TCrossClusterReplicatedStateTest, TestConcurrentStores)
     // Abort
     ExecuteN(*callbackExecutor, "a", 1);
 
-    EXPECT_TRUE(storeResultB1.BlockingGet().IsOK());
-    EXPECT_TRUE(storeResultA1.BlockingGet().IsOK());
+    EXPECT_TRUE(WaitFor(storeResultB1).IsOK());
+    EXPECT_TRUE(WaitFor(storeResultA1).IsOK());
 
     loadResult = entryA->Load();
     ExecuteNAndCheck(*callbackExecutor, 1);
 
-    value = loadResult.BlockingGet()
-        .ValueOrThrow();
+    value = WaitFor(loadResult).ValueOrThrow();
 
     EXPECT_EQ(value->AsMap()->FindChild("version")->AsUint64()->GetValue(), 3u);
     EXPECT_EQ(value->AsMap()->FindChild("version_tag")->AsString()->GetValue(), "b");
@@ -572,14 +566,13 @@ TEST_F(TCrossClusterReplicatedStateTest, TestLockAcquisionFailed)
     // Set and release
     ExecuteN(*callbackExecutor, "a", 2);
 
-    EXPECT_TRUE(storeResultA.BlockingGet().IsOK());
-    EXPECT_THROW_WITH_SUBSTRING(storeResultB.BlockingGet().ThrowOnError();, "Can't update values on cluster quorum");
+    EXPECT_TRUE(WaitFor(storeResultA).IsOK());
+    EXPECT_THROW_WITH_SUBSTRING(WaitFor(storeResultB).ThrowOnError();, "Can't update values on cluster quorum");
 
     auto loadResult = entryA->Load();
     ExecuteN(*callbackExecutor, 1);
 
-    auto value = loadResult.BlockingGet()
-        .ValueOrThrow();
+    auto value = WaitFor(loadResult).ValueOrThrow();
 
     EXPECT_EQ(value->AsMap()->FindChild("version")->AsUint64()->GetValue(), 1u);
     EXPECT_EQ(value->AsMap()->FindChild("value")->AsInt64()->GetValue(), 2);
@@ -599,7 +592,7 @@ TEST_F(TCrossClusterReplicatedStateTest, TestQuorumUnavailable)
     auto emptyEntry = xState->Value("a", "empty7");
     auto storeResult = emptyEntry->Store(ConvertToNode(TYsonString("{value=2}"sv))->AsMap());
     ExecuteNAndCheck(*callbackExecutor, 2);
-    EXPECT_THROW_WITH_SUBSTRING(storeResult.BlockingGet().ThrowOnError();, "Can't update values on cluster quorum");
+    EXPECT_THROW_WITH_SUBSTRING(WaitFor(storeResult).ThrowOnError();, "Can't update values on cluster quorum");
 
     SetAcl("//tmp/test1", false);
     SetAcl("//tmp/test2", false);
@@ -623,7 +616,7 @@ TEST_F(TCrossClusterReplicatedStateTest, TestLoadWrites)
         for (auto i = 0; i < 3; ++i) {
             auto opt = callbackExecutor->ExecuteNext(i);
             EXPECT_TRUE(opt);
-            EXPECT_NO_THROW(opt->BlockingGet().ThrowOnError());
+            EXPECT_NO_THROW(WaitFor(*opt).ThrowOnError());
         }
     }
 
@@ -633,12 +626,12 @@ TEST_F(TCrossClusterReplicatedStateTest, TestLoadWrites)
         for (auto i = 1; i < 3; ++i) {
             auto opt = callbackExecutor->ExecuteNext(i);
             EXPECT_TRUE(opt);
-            EXPECT_NO_THROW(opt->BlockingGet().ThrowOnError());
+            EXPECT_NO_THROW(WaitFor(*opt).ThrowOnError());
         }
     }
 
-    EXPECT_NO_THROW(storeResult.BlockingGet().ThrowOnError());
-    EXPECT_FALSE(GetRootClient()->NodeExists("//tmp/test1/empty4").BlockingGet().ValueOrThrow());
+    EXPECT_NO_THROW(WaitFor(storeResult).ThrowOnError());
+    EXPECT_FALSE(WaitFor(GetRootClient()->NodeExists("//tmp/test1/empty4")).ValueOrThrow());
     SetAcl("//tmp/test1", false);
 
     auto loadResult = emptyEntry->Load();
@@ -647,22 +640,22 @@ TEST_F(TCrossClusterReplicatedStateTest, TestLoadWrites)
         for (auto i = 0; i < 3; ++i) {
             auto opt = callbackExecutor->ExecuteNext(i);
             EXPECT_TRUE(opt);
-            EXPECT_NO_THROW(opt->BlockingGet().ThrowOnError());
+            EXPECT_NO_THROW(WaitFor(*opt).ThrowOnError());
         }
     }
 
     for (auto j = 0; j < 2; ++j) {
         auto opt = callbackExecutor->ExecuteNext(0);
         EXPECT_TRUE(opt);
-        EXPECT_NO_THROW(opt->BlockingGet().ThrowOnError());
+        EXPECT_NO_THROW(WaitFor(*opt).ThrowOnError());
     }
 
     EXPECT_FALSE(callbackExecutor->ExecuteNext(0));
     EXPECT_FALSE(callbackExecutor->ExecuteNext(1));
     EXPECT_FALSE(callbackExecutor->ExecuteNext(2));
-    EXPECT_TRUE(GetRootClient()->NodeExists("//tmp/test1/empty4").BlockingGet().ValueOrThrow());
+    EXPECT_TRUE(WaitFor(GetRootClient()->NodeExists("//tmp/test1/empty4")).ValueOrThrow());
 
-    auto value = loadResult.BlockingGet().ValueOrThrow();
+    auto value = WaitFor(loadResult).ValueOrThrow();
     EXPECT_TRUE(value->AsMap()->FindChild("value")->AsInt64()->GetValue() == 1u);
 }
 
@@ -683,7 +676,7 @@ TEST_F(TCrossClusterReplicatedStateTest, TestQuorumIntersection)
         for (auto i = 0; i < 3; ++i) {
             auto opt = callbackExecutor->ExecuteNext(i);
             EXPECT_TRUE(opt);
-            EXPECT_NO_THROW(opt->BlockingGet().ThrowOnError());
+            EXPECT_NO_THROW(WaitFor(*opt).ThrowOnError());
         }
     }
 
@@ -691,14 +684,14 @@ TEST_F(TCrossClusterReplicatedStateTest, TestQuorumIntersection)
         for (auto i = 1; i < 3; ++i) {
             auto opt = callbackExecutor->ExecuteNext(i);
             EXPECT_TRUE(opt);
-            EXPECT_NO_THROW(opt->BlockingGet().ThrowOnError());
+            EXPECT_NO_THROW(WaitFor(*opt).ThrowOnError());
         }
     }
 
     EXPECT_FALSE(callbackExecutor->ExecuteNext(0));
-    storeResult.BlockingGet().ThrowOnError();
+    WaitFor(storeResult).ThrowOnError();
 
-    EXPECT_FALSE(GetRootClient()->NodeExists("//tmp/test1/empty5").BlockingGet().ValueOrThrow());
+    EXPECT_FALSE(WaitFor(GetRootClient()->NodeExists("//tmp/test1/empty5")).ValueOrThrow());
     SetAcl("//tmp/test1", false);
     SetAcl("//tmp/test3", true);
 
@@ -706,8 +699,7 @@ TEST_F(TCrossClusterReplicatedStateTest, TestQuorumIntersection)
 
     ExecuteNAndCheck(*callbackExecutor, 1);
 
-    auto versionsMap = versions.BlockingGet()
-        .ValueOrThrow();
+    auto versionsMap = WaitFor(versions).ValueOrThrow();
 
     EXPECT_EQ(versionsMap["empty5"], "0000000000000001;a");
 
@@ -717,23 +709,22 @@ TEST_F(TCrossClusterReplicatedStateTest, TestQuorumIntersection)
         for (auto i = 0; i < 3; ++i) {
             auto opt = callbackExecutor->ExecuteNext(i);
             EXPECT_TRUE(opt);
-            EXPECT_NO_THROW(opt->BlockingGet().ThrowOnError());
+            EXPECT_NO_THROW(WaitFor(*opt).ThrowOnError());
         }
     }
 
     for (auto j = 0; j < 2; ++j) {
         auto opt = callbackExecutor->ExecuteNext(0);
         EXPECT_TRUE(opt);
-        EXPECT_NO_THROW(opt->BlockingGet().ThrowOnError());
+        EXPECT_NO_THROW(WaitFor(*opt).ThrowOnError());
     }
 
     EXPECT_FALSE(callbackExecutor->ExecuteNext(1));
     EXPECT_FALSE(callbackExecutor->ExecuteNext(2));
 
-    EXPECT_TRUE(GetRootClient()->NodeExists("//tmp/test1/empty5").BlockingGet().ValueOrThrow());
+    EXPECT_TRUE(WaitFor(GetRootClient()->NodeExists("//tmp/test1/empty5")).ValueOrThrow());
 
-    auto value = loadResult.BlockingGet()
-        .ValueOrThrow();
+    auto value = WaitFor(loadResult).ValueOrThrow();
     EXPECT_EQ(value->AsMap()->FindChild("value")->AsInt64()->GetValue(), 1);
 
     SetAcl("//tmp/test3", false);
@@ -754,19 +745,19 @@ TEST_F(TCrossClusterReplicatedStateTest, TestSingleClusterAvailableOnWrite)
     for (auto i = 0; i < 2; ++i) {
         auto opt = callbackExecutor->ExecuteNext(2);
         EXPECT_TRUE(opt);
-        EXPECT_NO_THROW(opt->BlockingGet().ThrowOnError());
+        EXPECT_NO_THROW(WaitFor(*opt).ThrowOnError());
     }
-    EXPECT_THROW_WITH_SUBSTRING(storeResult.BlockingGet().ThrowOnError();, "Can't update values on cluster quorum");
+    EXPECT_THROW_WITH_SUBSTRING(WaitFor(storeResult).ThrowOnError();, "Can't update values on cluster quorum");
 
     auto loadResult = emptyEntry->Load();
     ExecuteN(*callbackExecutor, 2);
-    EXPECT_THROW_WITH_SUBSTRING(storeResult.BlockingGet().ThrowOnError();, "Can't update values on cluster quorum");
+    EXPECT_THROW_WITH_SUBSTRING(WaitFor(storeResult).ThrowOnError();, "Can't update values on cluster quorum");
 
     auto versions = xState->FetchVersions();
 
     ExecuteNAndCheck(*callbackExecutor, 1);
 
-    EXPECT_THROW_WITH_SUBSTRING(versions.BlockingGet().ValueOrThrow(), "Can't get versions from cluster quorum");
+    EXPECT_THROW_WITH_SUBSTRING(WaitFor(versions).ValueOrThrow(), "Can't get versions from cluster quorum");
 
     SetAcl("//tmp/test1", false);
     SetAcl("//tmp/test2", false);
@@ -777,11 +768,10 @@ TEST_F(TCrossClusterReplicatedStateTest, TestSingleClusterAvailableOnWrite)
         for (auto j = 0; j < 2; ++j) {
             auto opt = callbackExecutor->ExecuteNext(j);
             EXPECT_TRUE(opt);
-            EXPECT_NO_THROW(opt->BlockingGet().ThrowOnError());
+            EXPECT_NO_THROW(WaitFor(*opt).ThrowOnError());
         }
     }
-    auto value = loadResult.BlockingGet()
-        .ValueOrThrow();
+    auto value = WaitFor(loadResult).ValueOrThrow();
     EXPECT_EQ(value->AsMap()->FindChild("value")->AsInt64()->GetValue(), 2);
     EXPECT_EQ(value->AsMap()->FindChild("version")->AsUint64()->GetValue(), 1u);
 }
@@ -814,12 +804,12 @@ TEST_F(TCrossClusterReplicatedStateTest, Test100ConcurrentStores)
     }
 
     for (auto& storeResult : storeResults) {
-        storeResult.BlockingGet().ThrowOnError();
+        WaitFor(storeResult).ThrowOnError();
     }
 
     auto loadResult = entries.back()->Load();
     ExecuteNAndCheck(*callbackExecutor, 1);
-    auto value = loadResult.BlockingGet().ValueOrThrow();
+    auto value = WaitFor(loadResult).ValueOrThrow();
 
     EXPECT_EQ(value->AsMap()->FindChild("value")->AsInt64()->GetValue(), 1);
     EXPECT_EQ(value->AsMap()->FindChild("version")->AsUint64()->GetValue(), 1u);

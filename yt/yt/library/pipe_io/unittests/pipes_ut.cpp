@@ -543,9 +543,8 @@ TEST_P(TNewDeliveryFencedWriteTestFixture, HugeData)
 
         auto readBuffer = TSharedMutableRef::Allocate(ChunkSize);
 
-        auto readResult = Reader->Read(readBuffer)
-            .WithTimeout(TDuration::Seconds(10))
-            .BlockingGet();
+        auto readResult = WaitFor(Reader->Read(readBuffer)
+            .WithTimeout(TDuration::Seconds(10)));
 
         EXPECT_ERROR_IS_OK(readResult);
 

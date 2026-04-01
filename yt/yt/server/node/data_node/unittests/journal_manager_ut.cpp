@@ -163,22 +163,22 @@ protected:
             ChunkContext_,
             ChunkStoreHost_);
 
-        BIND([&] {
+        WaitFor(BIND([&] {
             ChunkStore_->Initialize();
         })
             .AsyncVia(ActionQueue_->GetInvoker())
-            .Run()
-            .BlockingGet();
+            .Run())
+            .ThrowOnError();
     }
 
     void Stop()
     {
-        BIND([&] {
+        WaitFor(BIND([&] {
             ChunkStore_->Shutdown();
         })
             .AsyncVia(ActionQueue_->GetInvoker())
-            .Run()
-            .BlockingGet();
+            .Run())
+            .ThrowOnError();
     }
 
     void SetUp() override

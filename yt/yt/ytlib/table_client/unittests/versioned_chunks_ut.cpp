@@ -374,14 +374,13 @@ protected:
     {
         WriteManyRows(testOptions);
 
-        auto chunkMeta = MemoryReader->GetMeta(/*options*/ {})
+        auto chunkMeta = WaitFor(MemoryReader->GetMeta(/*options*/ {})
             .Apply(BIND(
                 &(testOptions.CompressBlockLastKeys
                     ? TCachedVersionedChunkMeta::CreateWithCompressedBlockLastKeys
                     : TCachedVersionedChunkMeta::Create),
                 /*prepareColumnarMeta*/ false,
-                /*memoryTracker*/ nullptr))
-            .BlockingGet()
+                /*memoryTracker*/ nullptr)))
             .ValueOrThrow();
 
         {
@@ -854,14 +853,13 @@ protected:
             GetTestOptions().UseNewReader,
             &memoryPool);
 
-        auto chunkMeta = memoryReader->GetMeta(/*options*/ {})
+        auto chunkMeta = WaitFor(memoryReader->GetMeta(/*options*/ {})
             .Apply(BIND(
                 &(GetTestOptions().CompressBlockLastKeys
                     ? TCachedVersionedChunkMeta::CreateWithCompressedBlockLastKeys
                     : TCachedVersionedChunkMeta::Create),
                 /*prepareColumnarMeta*/ false,
-                /*memoryTracker*/ nullptr))
-            .BlockingGet()
+                /*memoryTracker*/ nullptr)))
             .ValueOrThrow();
 
         auto chunkState = New<TChunkState>(TChunkState{
@@ -984,14 +982,13 @@ protected:
             GetTestOptions().UseNewReader,
             &memoryPool);
 
-        auto chunkMeta = memoryReader->GetMeta(/*options*/ {})
+        auto chunkMeta = WaitFor(memoryReader->GetMeta(/*options*/ {})
             .Apply(BIND(
                 &(GetTestOptions().CompressBlockLastKeys
                     ? TCachedVersionedChunkMeta::CreateWithCompressedBlockLastKeys
                     : TCachedVersionedChunkMeta::Create),
                 /*prepareColumnarMeta*/ false,
-                /*memoryTracker*/ nullptr))
-            .BlockingGet()
+                /*memoryTracker*/ nullptr)))
             .ValueOrThrow();
 
         auto chunkState = New<TChunkState>(TChunkState{
@@ -1118,12 +1115,11 @@ protected:
     {
         auto blockCache = GetPreloadedBlockCache(memoryReader);
 
-        auto chunkMeta = memoryReader->GetMeta(/*options*/ {})
+        auto chunkMeta = WaitFor(memoryReader->GetMeta(/*options*/ {})
             .Apply(BIND(
                 &TCachedVersionedChunkMeta::Create,
                 /*prepareColumnarMeta*/ false,
-                /*memoryTracker*/ nullptr))
-            .BlockingGet()
+                /*memoryTracker*/ nullptr)))
             .ValueOrThrow();
 
         return CreateChunkLookupHashTable(
