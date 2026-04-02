@@ -567,7 +567,7 @@ void TQueueAgent::Pass()
 
     if (auto error = WaitFor(AllSucceeded(futures)); !error.IsOK()) {
         PassError_ = error;
-        YT_LOG_ERROR(error, "Error while reading dynamic state");
+        YT_LOG_WARNING(error, "Error while reading dynamic state");
         AlertCollector_->StageAlert(CreateAlert(
             NAlerts::EErrorCode::QueueAgentPassFailed,
             "Error while reading dynamic state",
