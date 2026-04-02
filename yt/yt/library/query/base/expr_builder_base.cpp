@@ -697,6 +697,11 @@ const NLogging::TLogger& TExpressionBuilder::GetLogger() const
     return Context_.Logger;
 }
 
+const TPreparePlanFragmentContext& TExpressionBuilder::GetContext() const
+{
+    return Context_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueryClient

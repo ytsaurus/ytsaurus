@@ -1357,6 +1357,9 @@ size_t TExpressionProfiler::Profile(
     TExpressionFragments* fragments,
     bool isolated)
 {
+    THROW_ERROR_EXCEPTION_IF(!subqueryExpr->JoinClauses.empty(),
+        "JOIN clauses in subquery expressions are not implemented");
+
     llvm::FoldingSetNodeID id;
     id.AddInteger(static_cast<int>(ExecutionBackend_));
     id.AddInteger(static_cast<int>(EFoldingObjectType::Subquery));

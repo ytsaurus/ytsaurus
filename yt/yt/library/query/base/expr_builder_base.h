@@ -1,7 +1,6 @@
 #pragma once
 
 #include "ast.h"
-#include "prepare_plan_fragment_context.h"
 #include "query.h"
 #include "public.h"
 
@@ -133,8 +132,9 @@ public:
     virtual ~TExpressionBuilder() = default;
 
     const NLogging::TLogger& GetLogger() const;
+    const TPreparePlanFragmentContext& GetContext() const;
 
-private:
+protected:
     const TPreparePlanFragmentContext& Context_;
 };
 
