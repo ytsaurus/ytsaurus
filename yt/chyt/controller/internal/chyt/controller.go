@@ -54,6 +54,7 @@ type Config struct {
 	DefaultSpeclet             *Speclet                `yson:"default_speclet"`
 	SpecletConfigExclusionTree map[string]any          `yson:"speclet_config_exclusion_tree"`
 	DefaultOpletHealth         *strawberry.OpletHealth `yson:"default_oplet_health"`
+	EnableDiscoveryHealthCheck *bool                   `yson:"enable_discovery_health_check"`
 }
 
 type controllerSnapshot struct {
@@ -62,11 +63,12 @@ type controllerSnapshot struct {
 }
 
 const (
-	DefaultEnableYandexSpecificLinks                        = false
-	DefaultExportSystemLogTables                            = false
-	DefaultEnableGeodata                                    = false
-	DefaultEnableRuntimeData                                = false
-	DefaultDefaultOpletHealth        strawberry.OpletHealth = strawberry.OpletHealthUnknown
+	DefaultEnableYandexSpecificLinks                         = false
+	DefaultExportSystemLogTables                             = false
+	DefaultEnableGeodata                                     = false
+	DefaultEnableRuntimeData                                 = false
+	DefaultEnableDiscoveryHealthCheck                        = false
+	DefaultDefaultOpletHealth         strawberry.OpletHealth = strawberry.OpletHealthUnknown
 )
 
 func (c *Config) LogRotationModeOrDefault() LogRotationModeType {
@@ -109,6 +111,13 @@ func (c *Config) DefaultOpletHealthOrDefault() strawberry.OpletHealth {
 		return *c.DefaultOpletHealth
 	}
 	return DefaultDefaultOpletHealth
+}
+
+func (c *Config) EnableDiscoveryHealthCheckOrDefault() bool {
+	if c.EnableDiscoveryHealthCheck != nil {
+		return *c.EnableDiscoveryHealthCheck
+	}
+	return DefaultEnableDiscoveryHealthCheck
 }
 
 func (c *Config) getDefaultInstanceCPU() uint64 {
@@ -411,6 +420,10 @@ func (c *Controller) needsRestart(ctx context.Context, oplet *strawberry.Oplet) 
 }
 
 func (c *Controller) checkHealth(ctx context.Context, oplet *strawberry.Oplet) (strawberry.OpletHealth, string) {
+	if !oplet.Active() || !c.config.EnableDiscoveryHealthCheckOrDefault() {
+		return strawberry.OpletHealthGood, ""
+	}
+
 	// If discovery client hasn't been initialized for any reason, we consider this as the default case.
 	if c.dc == nil {
 		return c.config.DefaultOpletHealthOrDefault(), ""
@@ -706,9 +719,15 @@ func createDiscoveryClient(ctx context.Context, ytc yt.Client) (yt.DiscoveryClie
 }
 
 func NewController(l log.Logger, ytc yt.Client, root ypath.Path, cluster string, rawConfig yson.RawValue) strawberry.Controller {
-	dc, err := createDiscoveryClient(context.Background(), ytc)
-	if err != nil {
-		panic(err)
+	config := parseConfig(rawConfig)
+
+	var dc yt.DiscoveryClient
+	if config.EnableDiscoveryHealthCheckOrDefault() {
+		var err error
+		dc, err = createDiscoveryClient(context.Background(), ytc)
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	c := &Controller{
@@ -718,7 +737,7 @@ func NewController(l log.Logger, ytc yt.Client, root ypath.Path, cluster string,
 		root:    root,
 		cluster: cluster,
 		secrets: make(map[string][]byte),
-		config:  parseConfig(rawConfig),
+		config:  config,
 	}
 	c.prepareTvmSecret()
 	return c
