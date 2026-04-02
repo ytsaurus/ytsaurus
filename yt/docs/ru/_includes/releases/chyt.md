@@ -8,6 +8,16 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**2.18.2**" %}
+
+**Release date:** 2026-03-23
+
+
+No description
+
+{% endcut %}
+
+
 {% cut "**2.18.1**" %}
 
 **Release date:** 2026-03-04
