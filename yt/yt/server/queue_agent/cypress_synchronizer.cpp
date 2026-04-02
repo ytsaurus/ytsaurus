@@ -823,7 +823,7 @@ private:
                 const auto& object = modifiedObjects[objectIndex];
                 const auto& responseOrError = responses[objectIndex];
                 if (!responseOrError.IsOK()) {
-                    YT_LOG_ERROR(
+                    YT_LOG_WARNING(
                         responseOrError,
                         "Error fetching attributes for object (Cluster: %v, Path: %v)",
                         cluster,

@@ -809,7 +809,7 @@ private:
         try {
             GuardedTrim();
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Error while trimming queue");
+            YT_LOG_WARNING(ex, "Error while trimming queue");
             TrimAlertCollector_.Acquire()->StageAlert(CreateAlert(
                 NAlerts::EErrorCode::QueueAgentQueueControllerTrimFailed,
                 "Error while trimming queue",
