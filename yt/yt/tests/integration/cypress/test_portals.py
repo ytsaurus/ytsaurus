@@ -1329,6 +1329,14 @@ class TestPortals(YTEnvSetup):
         assert "allow" == check_permission("cat", "write", table)["action"]
         assert "deny" == check_permission("rat", "read", table)["action"]
 
+        node = portal_exit + "/n"
+        set(node, 42)
+        set(portal_entrance + "/@acl", [make_ace("allow", "dog", "write", "immediate_descendants_only")])
+        set(portal_entrance + "/@inherit_acl", False)
+        wait(lambda: not get(f"{portal_exit}/@inherit_acl"))
+        assert "allow" == check_permission("dog", "write", node)["action"]
+        assert "deny" == check_permission("cat", "write", node)["action"]
+
     @authors("kvk1920")
     def test_empty_annotation(self):
         remove("//sys/@config/cypress_manager/graft_synchronization_period")
@@ -1627,7 +1635,7 @@ class TestCrossCellCopy(YTEnvSetup):
         attributes = get(f"{path}/@", tx=tx)
         if attributes["type"] == "table":
             attributes["schema"] = get(f"{path}/@schema", tx=tx)
-
+        attributes.pop("sequoia_acl", None)
         return attributes
 
     def _validate_attribute_consistency_for_node(self, src_path, dst_path, tx):

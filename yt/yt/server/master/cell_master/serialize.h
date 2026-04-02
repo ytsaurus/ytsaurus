@@ -147,6 +147,7 @@ DEFINE_ENUM(EMasterReign,
     ((TransferableInheritedAttributes_25_4)                         (3159))  // kvk1920
     ((TweakChunkMergerTraversalInfoAfterRebalance_25_4)             (3160))  // aleksandra-zh, shakurov
     ((PersistLastCellAggregatedStateReliability_25_4)               (3161))  // aleksandra-zh
+    ((FixEffectiveAclForScion_25_4)                                 (3162))  // danilalexeev
 
     // 26.1 starts here.
     ((Start_26_1)                                                   (3200))  // community bot
@@ -170,6 +171,7 @@ DEFINE_ENUM(EMasterReign,
     ((RemoveCompatsAroundStartTransaction)                          (3218))  // h0pless
     ((FixDescendingSortOrderValidationInBeginUpload)                (3219))  // h0pless
     ((SomeTablesIgnoreCommitOrderingInheritance)                    (3220))  // sabdenovch
+    ((FixEffectiveAclForScion)                                      (3221))  // danilalexeev
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

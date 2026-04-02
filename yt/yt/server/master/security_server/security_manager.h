@@ -279,7 +279,13 @@ struct ISecurityManager
 
     //! Returns the ACL obtained by combining ACLs of the object and its parents.
     //! The returned ACL is a fake one, i.e. does not exist explicitly anywhere.
-    virtual TAccessControlList GetEffectiveAcl(NObjectServer::TObject* object) = 0;
+    //! The result contains only the inherited ACEs. The object itself does not
+    //! inherit its every ACE. For grafted nodes (PortalExit, Scion), to mimic
+    //! the natural behaviour, one must provide a join of the object's ACEs and
+    //! inherited ancestry ACEs to the target node, hence the #skipFirstObject flag.
+    virtual TAccessControlList GetEffectiveAcl(
+        NObjectServer::TObject* object,
+        bool skipFirstObject = false) = 0;
 
     //! Sets the authenticated user.
     virtual void SetAuthenticatedUser(TUser* user) = 0;
