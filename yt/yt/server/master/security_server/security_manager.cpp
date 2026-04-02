@@ -2188,7 +2188,7 @@ public:
         return acd;
     }
 
-    TAccessControlList GetEffectiveAcl(NObjectServer::TObject* object) override
+    TAccessControlList GetEffectiveAcl(NObjectServer::TObject* object, bool skipFirstObject) override
     {
         TAccessControlList result;
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -2197,18 +2197,20 @@ public:
             const auto& handler = objectManager->GetHandler(object);
             auto acd = handler->FindAcd(object);
             if (acd) {
-                for (auto entry : acd->Acl().Entries) {
-                    auto inheritedMode = GetInheritedInheritanceMode(entry.InheritanceMode, depth);
-                    if (inheritedMode) {
-                        entry.InheritanceMode = *inheritedMode;
-                        result.Entries.push_back(entry);
+                if (!skipFirstObject) {
+                    for (auto entry : acd->Acl().Entries) {
+                        auto inheritedMode = GetInheritedInheritanceMode(entry.InheritanceMode, depth);
+                        if (inheritedMode) {
+                            entry.InheritanceMode = *inheritedMode;
+                            result.Entries.push_back(entry);
+                        }
                     }
                 }
                 if (!acd->Inherit()) {
                     break;
                 }
             }
-
+            skipFirstObject = false;
             object = handler->GetParent(object);
             ++depth;
         }
