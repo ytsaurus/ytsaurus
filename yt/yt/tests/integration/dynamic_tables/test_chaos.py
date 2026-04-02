@@ -62,7 +62,7 @@ class TestChaos(ChaosTestBase):
         },
     }
 
-    DELTA_RPC_PROXY_CONFIG = {
+    DELTA_DYNAMIC_RPC_PROXY_CONFIG = {
         "cluster_connection": {
             "enable_read_from_async_replicas": True,
             "chaos_residency_cache": {
@@ -4394,6 +4394,10 @@ class TestChaos(ChaosTestBase):
                             raise err
                 wait(_do)
 
+        for proxy in ls("//sys/rpc_proxies"):
+            orchid_path = "cluster_connection/dynamic_config/enable_read_from_async_replicas"
+            assert get(f"//sys/rpc_proxies/{proxy}/orchid/{orchid_path}")
+
         values, keys = _create_expected_data(schemas[0])
         wait(lambda: lookup_rows("//tmp/rd", keys, driver=remote_driver0) == values)
         _check(lambda: _filter(lookup_rows("//tmp/rd", keys, timestamp=ts, replica_consistency="sync", driver=remote_driver0), schema1) == values)
@@ -4879,7 +4883,7 @@ class TestChaosSpecial(ChaosTestBase):
         },
     }
 
-    DELTA_RPC_PROXY_CONFIG = {
+    DELTA_DYNAMIC_RPC_PROXY_CONFIG = {
         "cluster_connection": {
             "enable_read_from_async_replicas": True,
             "chaos_residency_cache": {
@@ -5255,6 +5259,18 @@ class TestChaosRpcProxy(TestChaos):
                     with raises_yt_error("No working in-sync replicas found for table //tmp/crt"):
                         lookup_rows("//tmp/crt", keys, timestamp=timestamp)
 
+    @authors("osidorkin")
+    def test_dynconfig_rewinded_correctly(self):
+        def check_property(expected_value : bool):
+            for proxy in ls("//sys/rpc_proxies"):
+                orchid_path = "cluster_connection/dynamic_config/enable_read_from_async_replicas"
+                assert get(f"//sys/rpc_proxies/{proxy}/orchid/{orchid_path}") == expected_value
+
+        check_property(True)
+        with self.RpcProxyDynamicConfig("/cluster_connection/enable_read_from_async_replicas", False):
+            check_property(False)
+        check_property(True)
+
 
 ##################################################################
 
@@ -5513,7 +5529,7 @@ class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
         },
     }
 
-    DELTA_RPC_PROXY_CONFIG = {
+    DELTA_DYNAMIC_RPC_PROXY_CONFIG = {
         "cluster_connection": {
             "chaos_residency_cache": {
                 "enable_client_mode": True,
