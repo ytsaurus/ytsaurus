@@ -790,7 +790,7 @@ public:
 
     TAccount* FindAccountByName(const std::string& name, bool activeLifeStageOnly) override
     {
-        auto* account = DoFindAccountByName(name, /*throwOnInvalidId=*/ false);
+        auto* account = DoFindAccountByName(name, /*throwOnInvalidId*/ false);
         if (!account) {
             return account;
         }

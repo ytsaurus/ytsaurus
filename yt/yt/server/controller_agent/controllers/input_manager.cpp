@@ -1509,12 +1509,12 @@ std::pair<TCombiningSamplesFetcherPtr, TUnavailableChunksWatcherPtr> TInputManag
             cluster->Client(),
             Logger);
 
-        for (const auto& chunk : CollectPrimaryChunks(/*versioned=*/ false, clusterName)) {
+        for (const auto& chunk : CollectPrimaryChunks(/*versioned*/ false, clusterName)) {
             if (!chunk->IsDynamicStore()) {
                 samplesFetcher->AddChunk(chunk);
             }
         }
-        for (const auto& chunk : CollectPrimaryChunks(/*versioned=*/ true, clusterName)) {
+        for (const auto& chunk : CollectPrimaryChunks(/*versioned*/ true, clusterName)) {
             if (!chunk->IsDynamicStore()) {
                 samplesFetcher->AddChunk(chunk);
             }

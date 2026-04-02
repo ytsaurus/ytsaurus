@@ -1408,13 +1408,13 @@ TBundleSnapshotPtr TBundleState::DeepCopyLatestBundleSnapshot(EFetchKind kind) c
         case EFetchKind::Statistics:
             bundleSnapshot->Bundle = oldBundleSnapshot->Bundle->DeepCopy(
                 /*copyCells*/ true,
-                /*copyTabletsAndStatistics=*/ false);
+                /*copyTabletsAndStatistics*/ false);
             break;
 
         case EFetchKind::PerformanceCounters:
             bundleSnapshot->Bundle = oldBundleSnapshot->Bundle->DeepCopy(
                 /*copyCells*/ true,
-                /*copyTabletsAndStatistics=*/ true);
+                /*copyTabletsAndStatistics*/ true);
             break;
     }
 
