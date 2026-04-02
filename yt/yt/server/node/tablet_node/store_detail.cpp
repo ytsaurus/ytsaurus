@@ -1131,13 +1131,6 @@ TTabletStoreReaderConfigPtr TChunkStoreBase::GetReaderConfig()
 
 void TChunkStoreBase::InvalidateCachedReaders(const TTabletStoreReaderConfigPtr& storeReaderConfig)
 {
-    {
-        auto guard = WriterGuard(WeakCachedVersionedChunkMetaEntryLock_);
-        auto oldEntry = std::move(WeakCachedVersionedChunkMetaEntry_);
-        // Prevent destroying oldCachedWeakVersionedChunkMeta under spinlock.
-        guard.Release();
-    }
-
     BackendReadersHolder_->InvalidateCachedReadersAndTryResetConfig(storeReaderConfig);
 }
 
