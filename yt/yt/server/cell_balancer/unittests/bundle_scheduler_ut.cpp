@@ -1075,7 +1075,7 @@ TEST_P(TBundleSchedulerTest, DisableAllocationsCausesAllocationFromSpare)
 
         EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
 
-        EXPECT_EQ(/*nodeCount=*/ 1 + /*proxyCount=*/ 1, std::ssize(mutations.NewAllocations));
+        EXPECT_EQ(/*nodeCount*/ 1 + /*proxyCount*/ 1, std::ssize(mutations.NewAllocations));
         EXPECT_EQ(0, std::ssize(mutations.ChangedNodeAnnotations));
     }
     {

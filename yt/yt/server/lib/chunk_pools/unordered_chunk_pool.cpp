@@ -472,7 +472,7 @@ private:
         }
 
         if (Sampler_.Sample()) {
-            ChunkTeleported_.Fire(chunk, /*tag=*/std::any{});
+            ChunkTeleported_.Fire(chunk, /*tag*/ std::any{});
         } else {
             // Drop this teleport chunk.
         }

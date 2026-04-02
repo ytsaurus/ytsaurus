@@ -7927,7 +7927,7 @@ void TOperationControllerBase::ParseInputQuery(const NScheduler::TInputlyQueryab
         auto keys = std::vector<TExternalFunction>();
         keys.reserve(externalNames.size());
         for (const auto& name : externalNames) {
-            keys.emplace_back(EExecutionBackend::Native, *Config_->UdfRegistryPath, /*IsSdk=*/ false, name);
+            keys.emplace_back(EExecutionBackend::Native, *Config_->UdfRegistryPath, /*IsSdk*/ false, name);
         }
 
         auto descriptors = LookupAllUdfDescriptors(keys, Host_->GetClient());
