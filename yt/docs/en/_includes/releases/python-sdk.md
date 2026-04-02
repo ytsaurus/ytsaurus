@@ -8,6 +8,24 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 
 **Releases:**
 
+{% cut "**0.13.48**" %}
+
+**Release date:** 2026-03-27
+
+
+##### Features
+- Add `read_from` parameter to `lookup_rows` and `select_rows` [2f0b0b0ae0aa23390785c7913866202ae03dbcf8]
+- Add `--no-enable-slicing` option to `reshard-table` CLI command [62c8c5ab4ce0c6efd8b4ac190279ca55d9c69b2e]
+- Add type hints to `lock` command [a3ac56216b9c9ddc860df1ff9942d532051e42b0]
+
+##### Fixes
+- Fix native driver to use address resolver config in server format [2816f6fe94f7feffc04d3ff547333cc4ffc1b8e8]
+- Fix `make_read_request` to raise original error instead of possible abort transaction error [c223a8f738c04524828fb7268fd757beb4dd93cc]
+- Fix retry logic when `retry_count` is `None` [db1ab343327831b0ea499e6e5c7a47db77fa08df]
+
+{% endcut %}
+
+
 {% cut "**0.13.47**" %}
 
 **Release date:** 2026-02-16

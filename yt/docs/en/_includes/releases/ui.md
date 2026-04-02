@@ -8,6 +8,38 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**3.7.0**" %}
+
+**Release date:** 2026-03-19
+
+
+#### [3.7.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v3.6.1...ui-v3.7.0) (2026-03-19)
+
+
+#### Features
+
+* **Queries:** multiple full result [YTFRONT-5615] ([d1adf53](https://github.com/ytsaurus/ytsaurus-ui/commit/d1adf532b6d2bb7ab67f852c6a308fb4161d73c4))
+
+
+#### Bug Fixes
+
+* **ACL/EditInheritance:** disable 'Confirm' button until a field is changed [YTFRONT-5562] ([e9a3c20](https://github.com/ytsaurus/ytsaurus-ui/commit/e9a3c208caedb27f05fc09a6c25edaf3dc82996d))
+* **Components/Proxies:** add filtering of 'Role' choices [YTFRONT-] ([54c2f78](https://github.com/ytsaurus/ytsaurus-ui/commit/54c2f783107d82b8bbc60a8f5bab73cf0cec1c92))
+* **Flows:** use 'name' field for computations [YTFRONT-5604] ([a5c2bc3](https://github.com/ytsaurus/ytsaurus-ui/commit/a5c2bc390f22b55ebea1d3324498fdb4fe07c25e))
+* **Navigation/ChaosReplicatedTable:** use 'alter_replication_card' command to switch automatic replication [YTFRONT-5287] ([b911633](https://github.com/ytsaurus/ytsaurus-ui/commit/b91163362a0b8d28c0b5951bcf0b5a443f733b0b))
+* **Monitoring:** fix dashboard autoupdate [YTFRONT-5614] ([5414ee4](https://github.com/ytsaurus/ytsaurus-ui/commit/5414ee418dee9d456a25d1a86cab93b69dde1d98))
+* **Navigation:** metadata in empty tables [YTFRONT-5638] ([4c15602](https://github.com/ytsaurus/ytsaurus-ui/commit/4c15602d12b4442f9b7e89a38666d8e3798ade5c))
+* **Navigation/TopRow:** a path with '\/' should not be marked as a symlink [YTFRONT-5182] ([b302c3b](https://github.com/ytsaurus/ytsaurus-ui/commit/b302c3b046c3c9e60c8210147c644c26f9bb00f3))
+* **Operation/Details:** layer paths with attributes should be properly displayed [YTFRONT-5268] ([2e76f34](https://github.com/ytsaurus/ytsaurus-ui/commit/2e76f345296ce4772282da363fc38f1c7e0de0b3))
+* **Queries/Progress:** fix operation url [YTFRONT-5622] ([73e6b3d](https://github.com/ytsaurus/ytsaurus-ui/commit/73e6b3d5c37d830b86da26c5c2e9e92ce53e259f))
+* **Scheduling:** use utf8.decode for title of operations [YTFRONT-5597] ([dbb222c](https://github.com/ytsaurus/ytsaurus-ui/commit/dbb222cbdeba9a96f28470e19b7ab9adf84f34df))
+* **System:** 'nvme' word should be in UPPERCASE [YTFRONT-5534] ([dac156c](https://github.com/ytsaurus/ytsaurus-ui/commit/dac156c67387192986dbc6d76785ae034783db4d))
+* **System:** copy address to clipboard [YTFRONT-5129] ([0182d77](https://github.com/ytsaurus/ytsaurus-ui/commit/0182d7774600e32a59e1c3ac8d55ab8d5142056c))
+
+
+{% endcut %}
+
+
 {% cut "**3.6.0**" %}
 
 **Release date:** 2026-02-18
