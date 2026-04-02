@@ -190,6 +190,8 @@ type Spec struct {
 
 	JobCPUMonitor *JobCPUMonitor `yson:"job_cpu_monitor,omitempty"`
 
+	EnableRootVolumeDiskQuota bool `yson:"enable_root_volume_disk_quota,omitempty"`
+
 	Mapper         *UserScript            `yson:"mapper,omitempty"`
 	Reducer        *UserScript            `yson:"reducer,omitempty"`
 	ReduceCombiner *UserScript            `yson:"reduce_combiner,omitempty"`
