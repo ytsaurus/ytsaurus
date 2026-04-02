@@ -941,6 +941,10 @@ def get_dynamic_cypress_proxy_config():
     return {}
 
 
+def get_dynamic_rpc_proxy_config():
+    return {}
+
+
 def get_replicated_table_tracker_config():
     return {
         "dynamic_config_manager": {
