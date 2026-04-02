@@ -507,6 +507,9 @@ private:
                     TCommandResponse rsp;
                     rsp.Deserialize(response);
                     return rsp;
+                }).AsyncVia(ExecutionInvoker_))
+                .AsUnique().Apply(BIND([] (TErrorOr<TCommandResponse>&& responseOrError) {
+                    return MakeFuture<TCommandResponse>(std::move(responseOrError));
                 }));
         })
             .AsyncVia(ExecutionInvoker_)
