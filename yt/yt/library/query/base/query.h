@@ -269,6 +269,8 @@ struct TSubqueryExpression
 {
     TNamedItemList FromExpressions;
 
+    std::vector<TConstJoinClausePtr> JoinClauses;
+
     TConstExpressionPtr WhereClause;
     TConstGroupClausePtr GroupClause;
     TConstProjectClausePtr ProjectClause;

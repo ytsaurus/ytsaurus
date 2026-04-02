@@ -300,6 +300,140 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryGroupBy)
     }
 }
 
+TEST_F(TQueryEvaluateTest, NestedSubqueryWithJoinPrepare)
+{
+    TSplitMap splits;
+
+    splits["//t"] = MakeSplit({
+        {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+        {"b", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+    });
+
+    splits["//foreign"] = MakeSplit({
+        {"x", EValueType::Int64},
+        {"c", EValueType::Int64},
+    });
+
+    // Prepare should succeed: syntactic support for joins in subqueries.
+    auto primaryQuery = Prepare(R"(
+        select t.a as a,
+            (select li, foreign_t.c
+                from (array_agg(t.b, true) as li)
+                join `//foreign` as foreign_t on li = foreign_t.x
+            ) as joined_data
+        from `//t` as t
+        group by a
+    )",
+        splits,
+        {},
+        TPreparePlanFragmentOptions{.SyntaxVersion = 2, .BuilderVersion = DefaultExpressionBuilderVersion});
+
+    EXPECT_TRUE(primaryQuery);
+}
+
+TEST_F(TQueryEvaluateTest, NestedSubqueryWithJoinEvaluateFails)
+{
+    TSplitMap splits;
+    std::vector<TSource> sources;
+
+    splits["//t"] = MakeSplit({
+        {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+        {"b", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+    });
+    sources.push_back({
+        "a=1;b=10",
+        "a=2;b=20",
+    });
+
+    splits["//foreign"] = MakeSplit({
+        {"x", EValueType::Int64},
+        {"c", EValueType::Int64},
+    });
+    sources.push_back({
+        "x=10;c=100",
+        "x=20;c=200",
+    });
+
+    // Evaluation should fail because join subqueries are not fully implemented.
+    EXPECT_THROW_THAT(
+        EvaluateOnlyViaNativeExecutionBackend(R"(
+            select t.a as a,
+                (select li, foreign_t.c
+                    from (array_agg(t.b, true) as li)
+                    join `//foreign` as foreign_t on li = foreign_t.x
+                ) as joined_data
+            from `//t` as t
+            group by a
+        )",
+            splits,
+            sources,
+            AnyMatcher,
+            {.SyntaxVersion = 2}),
+        testing::HasSubstr("JOIN clauses in subquery expressions are not implemented"));
+}
+
+TEST_F(TQueryEvaluateTest, NestedSubqueryWithLeftJoinPrepare)
+{
+    TSplitMap splits;
+
+    splits["//t"] = MakeSplit({
+        {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+        {"k", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+    });
+
+    splits["//lookup"] = MakeSplit({
+        {"li", EValueType::Int64},
+        {"v", EValueType::String},
+    });
+
+    // Prepare should succeed with LEFT JOIN in subquery.
+    auto primaryQuery = Prepare(R"(
+        select t.a as a,
+            (select li, lookup_t.v
+                from (array_agg(t.k, true) as li)
+                left join `//lookup` as lookup_t on li = lookup_t.li
+            ) as joined_data
+        from `//t` as t
+        group by a
+    )",
+        splits,
+        {},
+        TPreparePlanFragmentOptions{.SyntaxVersion = 2, .BuilderVersion = DefaultExpressionBuilderVersion});
+
+    EXPECT_TRUE(primaryQuery);
+}
+
+TEST_F(TQueryEvaluateTest, NestedSubqueryWithJoinOnSyntaxPrepare)
+{
+    TSplitMap splits;
+
+    splits["//t"] = MakeSplit({
+        {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+        {"b", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+    });
+
+    splits["//other"] = MakeSplit({
+        {"x", EValueType::Int64},
+        {"y", EValueType::Int64},
+    });
+
+    // Prepare should succeed with ON-syntax join in subquery.
+    auto primaryQuery = Prepare(R"(
+        select t.a as a,
+            (select li, other_t.y
+                from (array_agg(t.b, true) as li)
+                join `//other` as other_t on li = other_t.x
+            ) as joined_data
+        from `//t` as t
+        group by a
+    )",
+        splits,
+        {},
+        TPreparePlanFragmentOptions{.SyntaxVersion = 2, .BuilderVersion = DefaultExpressionBuilderVersion});
+
+    EXPECT_TRUE(primaryQuery);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

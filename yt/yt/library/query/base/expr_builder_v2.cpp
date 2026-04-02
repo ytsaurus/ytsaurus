@@ -3,6 +3,7 @@
 #include "helpers.h"
 #include "private.h"
 #include "query_helpers.h"
+#include "query_preparer.h"
 
 #include <library/cpp/yt/misc/variant.h>
 
@@ -1207,7 +1208,7 @@ TConstExpressionPtr TExpressionBuilderV2::OnQueryOp(const NAst::TQueryExpression
 
     Visit(queryExpr->Query.FromClause,
         [&] (const NAst::TTableDescriptor& /*table*/) {
-            THROW_ERROR_EXCEPTION("Subquery from table not supported");
+            THROW_ERROR_EXCEPTION("Subquery from table is not supported");
         },
         [&] (const NAst::TQueryAstHeadPtr& /*subquery*/) {
             THROW_ERROR_EXCEPTION("Subquery from subquery in expression not supported");
@@ -1218,10 +1219,6 @@ TConstExpressionPtr TExpressionBuilderV2::OnQueryOp(const NAst::TQueryExpression
 
     if (queryExpr->Query.WithIndex) {
         THROW_ERROR_EXCEPTION("WITH INDEX clause is not supported in subqueries");
-    }
-
-    if (!queryExpr->Query.Joins.empty()) {
-        THROW_ERROR_EXCEPTION("JOIN clause is not supported in subqueries");
     }
 
     if (queryExpr->Query.HavingPredicate) {
@@ -1270,6 +1267,35 @@ TConstExpressionPtr TExpressionBuilderV2::OnQueryOp(const NAst::TQueryExpression
         .Alias = std::nullopt,
     });
 
+    std::vector<TJoinClausePtr> joinClauses;
+    if (!queryExpr->Query.Joins.empty()) {
+        size_t commonKeyPrefix = std::numeric_limits<size_t>::max();
+        for (const auto& join : queryExpr->Query.Joins) {
+            Visit(join,
+                [&] (const NAst::TJoin& tableJoin) {
+                    auto dataSplitsIt = Context_.DataSplits.find(tableJoin.Table.Path);
+                    if (dataSplitsIt == Context_.DataSplits.end()) {
+                        THROW_ERROR_EXCEPTION("Data split not found for table path %Qv", tableJoin.Table.Path);
+                    }
+
+                    joinClauses.push_back(BuildJoinClause(
+                        dataSplitsIt->second,
+                        tableJoin,
+                        Source_,
+                        queryExpr->AliasMap,
+                        Functions_,
+                        &commonKeyPrefix,
+                        schema,
+                        /*tableAlias*/ std::nullopt,
+                        this,
+                        Context_));
+                },
+                [&] (const NAst::TArrayJoin& /*arrayJoin*/) {
+                    THROW_ERROR_EXCEPTION("ARRAY JOIN is not supported in subquery joins");
+                });
+        }
+    }
+
     TConstExpressionPtr whereClause;
 
     if (queryExpr->Query.WherePredicate) {
@@ -1316,6 +1342,8 @@ TConstExpressionPtr TExpressionBuilderV2::OnQueryOp(const NAst::TQueryExpression
     auto result = New<TSubqueryExpression>(resultType);
 
     result->FromExpressions = typedFromExpressions;
+
+    result->JoinClauses = {joinClauses.begin(), joinClauses.end()};
 
     result->WhereClause = whereClause;
     result->GroupClause = groupClause;

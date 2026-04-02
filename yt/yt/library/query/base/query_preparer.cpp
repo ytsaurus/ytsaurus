@@ -698,10 +698,10 @@ TJoinClausePtr BuildJoinClause(
     const TTableSchemaPtr& tableSchema,
     const std::optional<std::string>& tableAlias,
     TExpressionBuilder* builder,
-    const TPreparePlanFragmentOptions& options,
     const TPreparePlanFragmentContext& context)
 {
     const auto& Logger = context.Logger;
+    const auto& options = context.Options;
 
     auto foreignTableSchema = foreignDataSplit.TableSchema;
 
@@ -961,12 +961,11 @@ TJoinClausePtr BuildArrayJoinClause(
 
     ValidateColumnUniqueness(*arrayJoinClause->Schema.Original);
 
-    TPreparePlanFragmentContext arrayContext{builder->GetLogger()};
     auto arrayBuilder = CreateExpressionBuilder(
         source,
         functions,
         aliasMap,
-        arrayContext,
+        builder->GetContext(),
         builderVersion);
 
     arrayBuilder->AddTable({
@@ -1401,7 +1400,7 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
             return std::nullopt;
         });
 
-    TPreparePlanFragmentContext context{Logger};
+    TPreparePlanFragmentContext context{Logger, dataSplits, options};
 
     auto builder = CreateExpressionBuilder(
         source,
@@ -1431,7 +1430,6 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
                     query->Schema.Original,
                     table->Alias,
                     builder.get(),
-                    options,
                     context));
             },
             [&] (const NAst::TArrayJoin& arrayJoin) {
@@ -1600,7 +1598,9 @@ TQueryPtr PrepareJobQuery(
     functionsFetcher(functionNames, functions, EExecutionBackend::Native);
 
     auto Logger = MakeQueryLogger(query);
-    TPreparePlanFragmentContext context{Logger};
+    THashMap<NYPath::TYPath, TDataSplit> emptyDataSplits;
+    TPreparePlanFragmentOptions defaultOptions;
+    TPreparePlanFragmentContext context{Logger, emptyDataSplits, defaultOptions};
     auto builder = CreateExpressionBuilder(source, functions, aliasMap, context, 1);
 
     builder->AddTable({
@@ -1652,7 +1652,9 @@ TConstExpressionPtr PrepareExpression(
     std::vector<TColumnDescriptor> mapping;
 
     auto Logger = MakeQueryLogger(TGuid::Create());
-    TPreparePlanFragmentContext context{Logger};
+    THashMap<NYPath::TYPath, TDataSplit> emptyDataSplits;
+    TPreparePlanFragmentOptions defaultOptions;
+    TPreparePlanFragmentContext context{Logger, emptyDataSplits, defaultOptions};
     auto builder = CreateExpressionBuilder(parsedSource.Source, functions, aliasMap, context, builderVersion);
 
     builder->AddTable({

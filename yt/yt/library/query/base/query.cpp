@@ -1196,6 +1196,8 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
         if (subqueryExpr->ProjectClause) {
             ToProto(proto->mutable_project_clause(), subqueryExpr->ProjectClause);
         }
+
+        ToProto(proto->mutable_join_clauses(), subqueryExpr->JoinClauses);
     }
 }
 
@@ -1390,6 +1392,8 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
             if (ext.has_project_clause()) {
                 FromProto(&result->ProjectClause, ext.project_clause());
             }
+
+            FromProto(&result->JoinClauses, ext.join_clauses());
 
             *original = result;
             return;
