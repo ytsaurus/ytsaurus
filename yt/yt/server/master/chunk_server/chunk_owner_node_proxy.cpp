@@ -426,7 +426,9 @@ private:
         const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
         // This is context switch, chunks may die.
-        auto replicas = chunkReplicaFetcher->GetChunkReplicas(Chunks_, /*useUnapproved*/ true);
+        auto replicas = chunkReplicaFetcher->GetChunkReplicas(
+            Chunks_,
+            /*includeUnapproved*/ true);
         for (const auto& chunk : Chunks_) {
             if (!IsObjectAlive(chunk)) {
                 ReplyError(TError("Chunk %v died during replica fetch",

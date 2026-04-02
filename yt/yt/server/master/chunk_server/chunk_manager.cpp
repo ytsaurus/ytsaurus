@@ -1794,7 +1794,9 @@ public:
         TouchChunk(chunk);
 
         auto ephemeralChunk = TEphemeralObjectPtr<TChunk>(chunk);
-        auto replicasOrError = ChunkReplicaFetcher_->GetChunkReplicas(ephemeralChunk);
+        auto replicasOrError = ChunkReplicaFetcher_->GetChunkReplicas(
+            ephemeralChunk,
+            /*includeUnapproved*/ true);
         if (!replicasOrError.IsOK()) {
             return TError(replicasOrError);
         }
