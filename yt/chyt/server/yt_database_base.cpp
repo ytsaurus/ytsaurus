@@ -296,8 +296,8 @@ DB::StoragePtr TYtDatabaseBase::DoGetTable(
     WaitFor(AllSucceeded(std::vector({tableFuture.AsVoid(), dictionaryFuture.AsVoid()})))
         .ThrowOnError();
 
-    auto table = tableFuture.BlockingGet().ValueOrThrow();
-    auto dictionary = dictionaryFuture.BlockingGet().ValueOrThrow();
+    auto table = tableFuture.GetOrCrash().ValueOrThrow();
+    auto dictionary = dictionaryFuture.GetOrCrash().ValueOrThrow();
 
     DB::StoragePtr result;
     if (table && dictionary) {
