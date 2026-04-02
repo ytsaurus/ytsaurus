@@ -278,8 +278,7 @@ void PrintHunkChunkMeta(const IIOEnginePtr& ioEngine, const TString& chunkFileNa
 {
     auto chunkId = TChunkId::FromString(NFS::GetFileName(TString(chunkFileName)));
     auto chunkReader = GetChunkReader(ioEngine, chunkFileName);
-    auto meta = chunkReader->GetMeta(/*chunkReadOptions*/{})
-        .BlockingGet()
+    auto meta = WaitFor(chunkReader->GetMeta(/*chunkReadOptions*/{}))
         .ValueOrThrow();
     auto hunkMiscExt = GetProtoExtension<NTableClient::NProto::THunkChunkMiscExt>(meta->extensions());
     auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta->extensions());
@@ -297,8 +296,7 @@ void PrintMeta(const IIOEnginePtr& ioEngine, const TString& chunkFileName)
 {
     auto chunkId = TChunkId::FromString(NFS::GetFileName(TString(chunkFileName)));
     auto chunkReader = GetChunkReader(ioEngine, chunkFileName);
-    auto meta = chunkReader->GetMeta(/*options*/{})
-        .BlockingGet()
+    auto meta = WaitFor(chunkReader->GetMeta(/*options*/{}))
         .ValueOrThrow();
 
     if (FromProto<EChunkFormat>(meta->format()) == EChunkFormat::HunkDefault) {
@@ -440,7 +438,7 @@ std::pair<IChunkReaderPtr, NYT::NErasure::ICodec*> CreateErasureReader(
 
     {
         auto chunkReader = GetChunkReader(ioEngine, chunkFileNames[0]);
-        auto meta = chunkReader->GetMeta(/*options*/ {}).BlockingGet()
+        auto meta = WaitFor(chunkReader->GetMeta(/*options*/ {}))
             .ValueOrThrow();
         auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta->extensions());
         auto codecId = FromProto<NYT::NErasure::ECodec>(miscExt.erasure_codec());
@@ -585,8 +583,7 @@ std::unique_ptr<IUniversalReader> CreateUnversionedUniversalReader(
     }
 
     auto chunkReader = GetChunkReader(ioEngine, chunkFileNames[0]);
-    auto chunkMeta = chunkReader->GetMeta(/*options*/ {})
-        .BlockingGet()
+    auto chunkMeta = WaitFor(chunkReader->GetMeta(/*options*/ {}))
         .ValueOrThrow();
 
     TChunkSpec chunkSpec;
@@ -947,7 +944,7 @@ void ExtractErasureBlocks(
     std::vector<int> blockIndices;
     for (int partIndex = 0; partIndex < codec->GetDataPartCount(); ++partIndex) {
         auto chunkReader = GetChunkReader(ioEngine, chunkFileNames[partIndex]);
-        auto meta = chunkReader->GetMeta(/*options*/ {}).BlockingGet()
+        auto meta = WaitFor(chunkReader->GetMeta(/*options*/ {}))
             .ValueOrThrow();
         auto blocksExt = GetProtoExtension<NChunkClient::NProto::TBlocksExt>(meta->extensions());
         auto blockMetaExt = GetProtoExtension<NTableClient::NProto::TDataBlockMetaExt>(meta->extensions());
@@ -1052,8 +1049,7 @@ void ExtractBlocks(
     const TString& chunkFileName)
 {
     auto chunkReader = GetChunkReader(ioEngine, chunkFileName);
-    auto meta = chunkReader->GetMeta(/*options*/ {})
-        .BlockingGet()
+    auto meta = WaitFor(chunkReader->GetMeta(/*options*/ {}))
         .ValueOrThrow();
 
     auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta->extensions());
@@ -1108,8 +1104,7 @@ void SliceChunk(
     int keyColumnCount)
 {
     auto chunkReader = GetChunkReader(ioEngine, chunkFileName);
-    auto meta = chunkReader->GetMeta(/*options*/ {})
-        .BlockingGet()
+    auto meta = WaitFor(chunkReader->GetMeta(/*options*/ {}))
         .ValueOrThrow();
 
     NChunkClient::NProto::TSliceRequest req;

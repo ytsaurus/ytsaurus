@@ -14,6 +14,7 @@
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/client/table_client/schema.h>
 
+#include <yt/yt/core/concurrency/scheduler_api.h>
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/serialize.h>
@@ -48,8 +49,7 @@ int main(int argc, char** argv)
             NullChunkId,
             fileName);
 
-        auto chunkMeta = reader->GetMeta(/*options*/ {})
-            .BlockingGet()
+        auto chunkMeta = NConcurrency::WaitFor(reader->GetMeta(/*options*/ {}))
             .ValueOrThrow();
 
         std::cout << "Type: " << ToString(FromProto<EChunkType>(chunkMeta->type())) << std::endl;
