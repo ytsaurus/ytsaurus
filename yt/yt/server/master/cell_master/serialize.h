@@ -148,6 +148,7 @@ DEFINE_ENUM(EMasterReign,
     ((TweakChunkMergerTraversalInfoAfterRebalance_25_4)             (3160))  // aleksandra-zh, shakurov
     ((PersistLastCellAggregatedStateReliability_25_4)               (3161))  // aleksandra-zh
     ((FixEffectiveAclForScion_25_4)                                 (3162))  // danilalexeev
+    ((FixPerCellLimitsReplicationOnSecondary_25_4)                  (3163))  // cherepashka
 
     // 26.1 starts here.
     ((Start_26_1)                                                   (3200))  // community bot
