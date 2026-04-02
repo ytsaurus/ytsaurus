@@ -1,8 +1,11 @@
 #include "bundle_controller_connector.h"
 
 #include "bootstrap.h"
+#include "bundle_dynamic_config_manager.h"
 #include "config.h"
 #include "private.h"
+
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -42,6 +45,11 @@ TBundleControllerConnector::TBundleControllerConnector(IBootstrap* bootstrap)
         DynamicConfig_->HeartbeatExecutor))
 {
     YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+
+    if (DynamicConfig_->Enable) {
+        HeartbeatExecutor_->Start();
+        YT_LOG_INFO("Started bundle controller connector after changing the config");
+    }
 }
 
 void TBundleControllerConnector::Initialize()
@@ -106,6 +114,8 @@ TError TBundleControllerConnector::SendHeartbeat()
         return TError("Failed to report heartbeat to bundle controller");
     }
 
+    ProcessHeartbeatResponse(rspOrError.Value());
+
     YT_LOG_INFO("Successfully reported heartbeat to bundle controller");
 
     return {};
@@ -118,6 +128,18 @@ void TBundleControllerConnector::PrepareHeartbeatRequest(const TReqClientHeartbe
     request->set_node_id(ToProto(Bootstrap_->GetNodeId()));
     request->set_node_address(ToProto(
         Bootstrap_->GetLocalDescriptor().GetDefaultAddress()));
+}
+
+void TBundleControllerConnector::ProcessHeartbeatResponse(const TRspClientHeartbeatPtr& response)
+{
+    if (response->has_force_update_config() && response->force_update_config()) {
+        YT_LOG_INFO("Started out of band bundle dynamic config update pipeline");
+
+        WaitFor(Bootstrap_->GetBundleDynamicConfigManager()->ScheduleOutOfBandUpdate())
+            .ThrowOnError();
+
+        YT_LOG_INFO("Finished out of band bundle dynamic config update pipeline");
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

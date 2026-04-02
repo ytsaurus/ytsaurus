@@ -134,6 +134,9 @@ void TBundleControllerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("node_tracker", &TThis::NodeTracker)
         .DefaultNew();
+
+    registrar.Parameter("remove_tags_from_offline_nodes", &TThis::RemoveTagsFromOfflineNodes)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

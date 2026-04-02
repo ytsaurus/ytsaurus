@@ -71,6 +71,9 @@ public:
     //! is loaded for the first time.
     TFuture<void> GetConfigLoadedFuture() const;
 
+    //! Schedules dynamic config out of band.
+    TFuture<void> ScheduleOutOfBandUpdate() const;
+
 protected:
     //! Returns the list of instance tags.
     virtual std::vector<std::string> GetInstanceTags() const;

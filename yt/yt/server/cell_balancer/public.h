@@ -67,11 +67,11 @@ struct TSpareInstanceAllocator;
 
 DEFINE_ENUM(ELocalNodeState,
     // Never sent a heartbeat to bundle controller.
-    ((Unknown)      (-1))
-    // Sent a heartbeat a long time ago.
-    ((Offline)       (0))
+    ((Unknown)       (0))
     // Sent a heartbeat recently.
     ((Online)        (1))
+    // Sent a heartbeat a long time ago.
+    ((Offline)       (2))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

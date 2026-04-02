@@ -21,19 +21,26 @@ public:
         : DynamicConfig_(New<TNodeTrackerDynamicConfig>())
     { }
 
-    void ProcessNodeHeartbeat(TReqHeartbeat* request, TRspHeartbeat* /*response*/) override
+    void ProcessNodeHeartbeat(
+        NBundleController::NProto::TReqHeartbeat* request,
+        NBundleController::NProto::TRspHeartbeat* response) override
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto nodeAddress = FromProto<std::string>(request->node_address());
 
-        auto nodeIt = NodeHeartbeatStates_.emplace(nodeAddress, TNodeState{}).first;
+        auto& nodeState = NodeHeartbeatStates_.emplace(nodeAddress, TNodeState{}).first->second;
 
         YT_LOG_DEBUG("Processing node heartbeat (NodeAddress: %v, PreviousPingTime: %v)",
             nodeAddress,
-            nodeIt->second.LastPingTime);
+            nodeState.LastPingTime);
 
-        nodeIt->second.LastPingTime = TInstant::Now();
+        nodeState.LastPingTime = TInstant::Now();
+
+        if (nodeState.RequestConfigUpdate) {
+            response->set_force_update_config(true);
+            nodeState.RequestConfigUpdate = false;
+        }
     }
 
     void OnDynamicConfigChanged(
@@ -74,13 +81,34 @@ public:
                 continue;
             }
 
-            nodeIt->second.MasterState = masterState;
-            info->LocalState = now - nodeIt->second.LastPingTime >= timeout
-                ? ELocalNodeState::Offline
-                : ELocalNodeState::Online;
+            auto& heartbeatState = nodeIt->second;
+
+            info->LocalState = heartbeatState.LastPingTime
+                ? now - heartbeatState.LastPingTime >= timeout
+                    ? ELocalNodeState::Offline
+                    : ELocalNodeState::Online
+                    : ELocalNodeState::Unknown;
+
+            if (masterState == NNodeTrackerClient::ENodeState::Online &&
+                info->LocalState == ELocalNodeState::Offline &&
+                heartbeatState.LastReportedLocalState != info->LocalState)
+            {
+                YT_LOG_DEBUG("Node considered offline by node tracker (NodeAddress: %v)",
+                    address);
+            }
+
+            heartbeatState.LastReportedLocalState = info->LocalState;
+            heartbeatState.MasterState = masterState;
         }
 
         YT_LOG_INFO("Finished node states update through the heartbeat node tracker");
+    }
+
+    void RequestConfigUpdate(const std::string& nodeAddress) override
+    {
+        NodeHeartbeatStates_[nodeAddress].RequestConfigUpdate = true;
+        YT_LOG_INFO("Requested node config update (NodeAddress: %v)",
+            nodeAddress);
     }
 
 private:
@@ -88,6 +116,9 @@ private:
     {
         NNodeTrackerClient::ENodeState MasterState = NNodeTrackerClient::ENodeState::Unknown;
         TInstant LastPingTime;
+        ELocalNodeState LastReportedLocalState;
+
+        bool RequestConfigUpdate = false;
     };
 
     THashMap<std::string, TNodeState> NodeHeartbeatStates_;

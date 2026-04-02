@@ -54,6 +54,7 @@ struct TDataCenterDisruptedState
 struct TSchedulerInputState
 {
     TBundleControllerConfigPtr Config;
+    TBundleControllerDynamicConfigPtr DynamicConfig;
 
     TIndexedEntries<TZoneInfo> Zones;
     TIndexedEntries<TBundleInfo> Bundles;

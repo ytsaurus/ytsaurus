@@ -128,6 +128,8 @@ struct TBundleControllerDynamicConfig
 
     TNodeTrackerDynamicConfigPtr NodeTracker;
 
+    bool RemoveTagsFromOfflineNodes;
+
     REGISTER_YSON_STRUCT(TBundleControllerDynamicConfig);
 
     static void Register(TRegistrar registrar);
