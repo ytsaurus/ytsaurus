@@ -1784,6 +1784,27 @@ class TestJobStderr(YTEnvSetup):
         # that is last one.
         check_all_stderrs(op, b"stderr\n", 11)
 
+    @authors("pogorelov")
+    def test_node_host_env_var(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"foo": "bar"})
+
+        op = map(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat > /dev/null; echo $YT_NODE_HOST >&2",
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        node_host = op.read_stderr(job_ids[0]).strip().decode("ascii")
+        print_debug("YT_NODE_HOST = ", node_host)
+        assert node_host != ""
+
+        cluster_nodes = ls("//sys/cluster_nodes")
+        assert any(node_host in node for node in cluster_nodes)
+
 
 class TestJobStderrMulticell(TestJobStderr):
     NUM_SECONDARY_MASTER_CELLS = 2

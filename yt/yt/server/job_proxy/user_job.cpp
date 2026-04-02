@@ -1447,6 +1447,8 @@ private:
             SetEnvironmentVariable("YT_FIRST_OUTPUT_TABLE_FD", ToString(jobFirstOutputTableFD));
         }
 
+        SetEnvironmentVariable("YT_NODE_HOST", Host_->GetLocalHostName());
+
         const auto& environment = UserJobEnvironment_->GetEnvironmentVariables();
         for (const auto& variable : environment) {
             SetEnvironmentVariable(variable);
