@@ -530,7 +530,7 @@ void TTabletNodeInfo::Register(TRegistrar registrar)
 
 bool TTabletNodeInfo::IsOnline() const
 {
-    return State == InstanceStateOnline;
+    return State == InstanceStateOnline && LocalState != ELocalNodeState::Offline;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

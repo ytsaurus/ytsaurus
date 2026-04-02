@@ -1026,7 +1026,7 @@ class YTInstance(object):
 
         raise YtError(f"Node with address {address} not found")
 
-    def kill_nodes(self, indexes=None, addresses=None, wait_offline=True):
+    def kill_nodes(self, indexes=None, addresses=None, wait_offline=True, abort_transactions=True):
         assert indexes is None or addresses is None
 
         if indexes is None and addresses is not None:
@@ -1034,12 +1034,13 @@ class YTInstance(object):
 
         self.kill_service("node", indexes=indexes)
 
-        addresses = None
-        if indexes is None:
-            indexes = list(xrange(self.yt_config.node_count))
-        addresses = [self.get_node_address(index) for index in indexes]
+        if abort_transactions:
+            addresses = None
+            if indexes is None:
+                indexes = list(xrange(self.yt_config.node_count))
+            addresses = [self.get_node_address(index) for index in indexes]
 
-        self._abort_node_transactions_and_wait(addresses, wait_offline)
+            self._abort_node_transactions_and_wait(addresses, wait_offline)
 
     def kill_chaos_nodes(self, indexes=None, wait_offline=True):
         self.kill_service("chaos_node", indexes=indexes)

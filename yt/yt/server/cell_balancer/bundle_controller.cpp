@@ -438,7 +438,7 @@ private:
         Bootstrap_->GetNodeTracker()->UpdateNodeStates(inputState.TabletNodes);
 
         TSchedulerMutations mutations;
-        ScheduleBundles(inputState, &mutations);
+        ScheduleBundles(inputState, &mutations, Bootstrap_->GetNodeTracker());
 
         if (dryRun) {
             return;
@@ -1160,6 +1160,7 @@ private:
     {
         TSchedulerInputState inputState{
             .Config = Config_,
+            .DynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig(),
         };
 
         YT_PROFILE_TIMING("/bundle_controller/load_timings/zones") {

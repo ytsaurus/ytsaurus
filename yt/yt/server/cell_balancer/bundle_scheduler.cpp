@@ -1221,7 +1221,7 @@ void MiscBundleChecks(const TSchedulerInputState& input, TSchedulerMutations* mu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations)
+void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations, const INodeTrackerPtr& nodeTracker)
 {
     InitializeRelations(&input, mutations->MakeOnAlertCallback());
 
@@ -1247,7 +1247,7 @@ void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations
     ManageSystemAccountLimit(input, mutations);
     ManageResourceLimits(input, mutations);
 
-    ManageNodeTags(input, *spareNodesState, mutations);
+    ManageNodeTags(input, *spareNodesState, mutations, nodeTracker);
     ManageRpcProxyRoles(input, *spareProxiesState, mutations);
     ManageBundleShortName(input, mutations);
     ManageDrillsMode(input, mutations);

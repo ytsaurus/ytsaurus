@@ -1,18 +1,20 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 import yt.yson as yson
 import yt.packages.requests as requests
 from yt_commands import (
     authors, ls, update, wait, exists, set, get, create, create_tablet_cell_bundle, create_area, execute_command, remove)
 
-from yt.common import update_inplace
+from yt.common import YtError, update_inplace
 
 import time
 from typing import Tuple, override
 
+from yt_error_codes import ResolveErrorCode
+
 ##################################################################
 
 
-class TestBundleController(YTEnvSetup):
+class TestBundleControllerBase(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # Cell balancer crashes in multidaemon mode.
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -80,7 +82,7 @@ class TestBundleController(YTEnvSetup):
 
     @classmethod
     def setup_class(cls):
-        super(TestBundleController, cls).setup_class()
+        super(TestBundleControllerBase, cls).setup_class()
 
         bundle_controller_config = cls.Env._cluster_configuration["cell_balancer"][0]
         cls.config_path = bundle_controller_config.get("dynamic_config_path", "//sys/bundle_controller/config")
@@ -412,6 +414,11 @@ class TestBundleController(YTEnvSetup):
                 result.append(node)
         return result
 
+
+##################################################################
+
+
+class TestBundleController(TestBundleControllerBase):
     @authors("grachevkirill")
     def test_bundle_controller_just_works(self):
         assert exists("//sys/bundle_controller/controller/zones")
@@ -815,3 +822,99 @@ class TestBundleController(YTEnvSetup):
                     continue
                 break
             remove(f"//sys/cluster_nodes/{node}/@cms_maintenance_requests/req")
+
+
+##################################################################
+
+
+class TestBundleControllerLongPeriods(TestBundleControllerBase):
+    DELTA_NODE_CONFIG = {
+        "master_connector": {
+            "lease_transaction_timeout": 60000,
+        },
+        "dynamic_config_manager": {
+            "update_period": 15000,
+        },
+    }
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "cellar_node": {
+                "bundle_controller_connector": {
+                    "enable": True,
+                    "heartbeat_executor": {
+                        "period": 100,
+                    }
+                }
+            }
+        }
+    }
+    DELTA_CELL_BALANCER_CONFIG = {
+        "bundle_controller": {
+            "enable_spare_node_assignment": True,
+            "decommission_released_nodes": True,
+        }
+    }
+    NUM_NODES = 5
+    NUM_CELL_BALANCERS = 1
+    TEST_MAINTENANCE_FLAGS = True
+
+    @authors("navasardianna")
+    def test_nodes_allocation_with_tracker(self):
+        self._move_nodes_to_spare_bundle()
+        self._initialize_zone_default()
+
+        self._create_bundle(
+            "chaplin",
+            bundle_controller_target_config={
+                "tablet_node_count": 1,
+                "cpu_limits": {
+                    "write_thread_pool_size": 3,
+                },
+            },
+            enable_instance_allocation=True)
+
+        self._apply_dynamic_config_patch({
+            "remove_tags_from_offline_nodes": True,
+            "node_tracker": {
+                "enable": True,
+                "heartbeat_timeout": 1000,
+            }
+        })
+
+        self._wait_for_bundle_controller_iterations((10, 0), fail_on_error=True)
+
+        def _has_cell_created():
+            try:
+                cell_ids = get("//sys/tablet_cell_bundles/chaplin/@tablet_cell_ids")
+                return exists(f"#{cell_ids[0]}/@peers/0/address")
+            except YtError as e:
+                if e.contains_code(ResolveErrorCode):
+                    return False
+                raise
+
+        wait(lambda: _has_cell_created())
+        cell_ids = get("//sys/tablet_cell_bundles/chaplin/@tablet_cell_ids")
+        node = get(f"#{cell_ids[0]}/@peers/0/address")
+
+        wait(lambda: get(f"#{cell_ids[0]}/@health") == "good")
+
+        set("//sys/tablet_cell_bundles/chaplin/@enable_instance_allocation", False)
+        set("//sys/@config/tablet_manager/peer_revocation_timeout", 1000)
+
+        def _has_cell_moved():
+            try:
+                return get(f"#{cell_ids[0]}/@peers/0/address") != node
+            except YtError as e:
+                if e.contains_code(ResolveErrorCode):
+                    return False
+                raise
+
+        node_index = get(f"//sys/cluster_nodes/{node}/@annotations/yt_env_index")
+
+        with Restarter(self.Env, NODES_SERVICE, indexes=[node_index], abort_transactions=False):
+            wait(lambda: _has_cell_moved(), timeout=5)
+
+            new_node = get(f"#{cell_ids[0]}/@peers/0/address")
+            assert get(f"//sys/cluster_nodes/{new_node}/@bundle_controller_annotations/allocated_for_bundle") == "spare"
+
+            wait(lambda: get(f"#{cell_ids[0]}/@health") == "good")

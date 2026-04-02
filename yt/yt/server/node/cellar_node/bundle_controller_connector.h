@@ -39,6 +39,8 @@ private:
     TError SendHeartbeat();
 
     void PrepareHeartbeatRequest(const TReqClientHeartbeatPtr& request);
+
+    void ProcessHeartbeatResponse(const TRspClientHeartbeatPtr& response);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBundleControllerConnector)

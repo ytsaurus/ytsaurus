@@ -5,6 +5,7 @@
 #include "cypress_bindings.h"
 #include "input_state.h"
 #include "mutations.h"
+#include "node_tracker.h"
 
 namespace NYT::NCellBalancer {
 
@@ -64,11 +65,13 @@ TNodeTagManager::TNodeTagManager(
     std::string bundleName,
     const TSchedulerInputState& input,
     TSpareInstanceAllocator<TSpareNodesInfo>* spareNodeAllocator,
-    TSchedulerMutations* mutations)
+    TSchedulerMutations* mutations,
+    INodeTrackerPtr nodeTracker)
     : BundleName_(std::move(bundleName))
     , Input_(input)
     , SpareNodeAllocator_(spareNodeAllocator)
     , Mutations_(mutations)
+    , NodeTracker_(std::move(nodeTracker))
     , Logger(BundleControllerLogger().WithTag("Bundle: %v", BundleName_))
 { }
 
@@ -116,6 +119,10 @@ bool TNodeTagManager::ProcessNodeAssignment(const std::string& nodeAddress)
             cpuLimits->WriteThreadPoolSize,
             std::ssize(nodeInfo->TabletSlots));
 
+        if (NodeTracker_) {
+            NodeTracker_->RequestConfigUpdate(nodeAddress);
+        }
+
         return false;
     }
 
@@ -126,6 +133,10 @@ bool TNodeTagManager::ProcessNodeAssignment(const std::string& nodeAddress)
             nodeAddress,
             tabletStatic,
             nodeInfo->Statistics->Memory->TabletStatic->Limit);
+
+        if (NodeTracker_) {
+            NodeTracker_->RequestConfigUpdate(nodeAddress);
+        }
 
         return false;
     }
@@ -339,6 +350,30 @@ void TNodeTagManager::TryCreateBundleNodesReleasement(
                 nodeAddress,
                 nodeInfo->UserTags);
         }
+    }
+}
+
+void TNodeTagManager::RemoveTagsFromNodes(const THashSet<std::string>& nodes)
+{
+    const auto& bundleInfo = GetOrCrash(Input_.Bundles, BundleName_);
+    const auto& nodeTagFilter = bundleInfo->NodeTagFilter;
+
+    for (const auto& nodeAddress : nodes) {
+        const auto& nodeInfo = GetOrCrash(Input_.TabletNodes, nodeAddress);
+
+        auto userTags = nodeInfo->UserTags;
+
+        if (!userTags.contains(nodeTagFilter)) {
+            continue;
+        }
+
+        YT_LOG_INFO("Removing bundle tag from offline node "
+            "(NodeAddress: %v, Tags: %v)",
+            nodeAddress,
+            nodeInfo->UserTags);
+
+        userTags.erase(nodeTagFilter);
+        Mutations_->ChangedNodeUserTags[nodeAddress] = Mutations_->WrapMutation(userTags);
     }
 }
 
@@ -689,6 +724,21 @@ void TNodeTagManager::SetNodeTags()
         }
     }
 
+    if (Input_.DynamicConfig->RemoveTagsFromOfflineNodes) {
+        for (const auto& [dataCenterName, nodeAddresses] : bundleNodes) {
+            THashSet<std::string> offlineNodes;
+
+            for (const auto& address : nodeAddresses) {
+                const auto& info = GetOrCrash(Input_.TabletNodes, address);
+                if (!info->IsOnline()) {
+                    offlineNodes.insert(address);
+                }
+            }
+
+            RemoveTagsFromNodes(offlineNodes);
+        }
+    }
+
     ProcessNodeAssignments(&bundleState->BundleNodeAssignments);
     ProcessNodeReleasements(
         /*leaveDecommissioned*/ false,
@@ -923,7 +973,8 @@ void InitializeZoneToSpareNodes(TSchedulerInputState& input, TSchedulerMutations
 void ManageNodeTags(
     TSchedulerInputState& input,
     TSpareInstanceAllocator<TSpareNodesInfo>& spareNodesAllocator,
-    TSchedulerMutations* mutations)
+    TSchedulerMutations* mutations,
+    const INodeTrackerPtr& nodeTracker)
 {
     for (const auto& [bundleName, bundleInfo] : input.Bundles) {
         auto guard = mutations->MakeBundleNameGuard(bundleName);
@@ -942,7 +993,8 @@ void ManageNodeTags(
             bundleName,
             input,
             &spareNodesAllocator,
-            mutations);
+            mutations,
+            nodeTracker);
 
         nodeTagManager.SetNodeTags();
     }

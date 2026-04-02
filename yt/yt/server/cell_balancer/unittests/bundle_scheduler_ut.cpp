@@ -129,6 +129,8 @@ TSchedulerInputState GenerateSimpleInputContext(int nodeCount, int writeThreadCo
     input.Config->Cluster = "sen-tst";
     input.Config->EnableNetworkLimits = true;
 
+    input.DynamicConfig = New<TBundleControllerDynamicConfig>();
+
     {
         auto zoneInfo = New<TZoneInfo>();
         input.Zones["default-zone"] = zoneInfo;
@@ -155,6 +157,8 @@ TSchedulerInputState GenerateMultiDCInputContext(int nodeCount, int writeThreadC
     input.Config = New<TBundleControllerConfig>();
     input.Config->Cluster = "sen-tst";
     input.Config->EnableNetworkLimits = true;
+
+    input.DynamicConfig = New<TBundleControllerDynamicConfig>();
 
     {
         auto zoneInfo = New<TZoneInfo>();

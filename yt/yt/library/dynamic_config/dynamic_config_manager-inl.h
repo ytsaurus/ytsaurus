@@ -368,6 +368,17 @@ void TDynamicConfigManagerBase<TConfig>::DoBuildOrchid(NYson::IYsonConsumer* con
         .EndMap();
 }
 
+template <typename TConfig>
+TFuture<void> TDynamicConfigManagerBase<TConfig>::ScheduleOutOfBandUpdate() const
+{
+    auto event = UpdateExecutor_->GetExecutedEvent();
+    UpdateExecutor_->ScheduleOutOfBand();
+
+    YT_LOG_INFO("Scheduled dynamic config update out of band");
+
+    return event;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NDynamicConfig
