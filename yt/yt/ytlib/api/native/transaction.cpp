@@ -2384,6 +2384,14 @@ private:
                         }
                     }
 
+                    if (GetType() == ETransactionType::Tablet) {
+                        // NB: Master prerequisite transactions for tablet transactions are already handled
+                        // at the data sending stage (TReqWrite) and are not used during commit stage.
+                        // Chaos leases are excluded from prerequisite transaction ids even earlier,
+                        // in BuildAdjustedCommitOptions.
+                        CommitOptions_.PrerequisiteTransactionIds = {};
+                    }
+
                     return Transaction_->Commit(CommitOptions_);
                 }).AsyncVia(SerializedInvoker_))
             .Apply(
