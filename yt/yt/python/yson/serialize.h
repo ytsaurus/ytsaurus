@@ -30,7 +30,7 @@ struct TContext
     TCompactVector<TPathPart, 2> PathParts;
     std::optional<size_t> RowIndex;
 
-    void Push(TStringBuf& key)
+    void Push(TStringBuf key)
     {
         TPathPart pathPart;
         pathPart.Key = key;
@@ -55,7 +55,6 @@ struct TContext
     {
         PathParts.pop_back();
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -93,7 +92,10 @@ void Serialize(
     int depth = 0,
     TContext* context = nullptr);
 
-void Deserialize(Py::Object& obj, NYTree::INodePtr node, const std::optional<TString>& encoding = std::nullopt);
+void Deserialize(
+    Py::Object& obj,
+    NYTree::INodePtr node,
+    const std::optional<TString>& encoding = std::nullopt);
 
 ////////////////////////////////////////////////////////////////////////////////
 
