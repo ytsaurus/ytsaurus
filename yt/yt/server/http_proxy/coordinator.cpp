@@ -373,7 +373,7 @@ void TCoordinator::UpdateReadOnly()
         }
 
         auto peerReadOnly = rspMap->GetChildValueOrThrow<bool>("read_only");
-        readOnly = readOnly ? (*readOnly || peerReadOnly) : peerReadOnly;
+        readOnly = readOnly.value_or(false) || peerReadOnly;
     }
 
     MastersInReadOnly_ = readOnly.value_or(true);
