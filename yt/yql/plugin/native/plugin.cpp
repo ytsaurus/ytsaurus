@@ -16,6 +16,7 @@
 #include <yt/yql/providers/yt/lib/schema/schema.h>
 #include <yt/yql/providers/yt/lib/skiff/yql_skiff_schema.h>
 #include <yt/yql/providers/yt/lib/yt_download/yt_download.h>
+#include <yt/yql/providers/yt/lib/yt_url_lister/yt_url_lister.h>
 #include <yt/yql/providers/yt/provider/yql_yt_provider.h>
 
 #include <yql/essentials/parser/pg_wrapper/interface/comp_factory.h>
@@ -44,6 +45,7 @@
 #include <yql/essentials/core/url_preprocessing/url_preprocessing.h>
 #include <yql/essentials/core/yql_library_compiler.h>
 #include <yql/essentials/core/yql_type_helpers.h>
+#include <yql/essentials/core/url_lister/url_lister_manager.h>
 
 #include <yql/essentials/minikql/invoke_builtins/mkql_builtins.h>
 #include <yql/essentials/minikql/mkql_function_registry.h>
@@ -597,6 +599,7 @@ public:
 
         auto dynamicConfig = DynamicConfig_.Acquire();
         auto factory = CreateProgramFactory(*dynamicConfig);
+        factory->SetUrlListerManager(MakeUrlListerManager({MakeYtUrlLister()}));
         auto [program, sqlSettings] = CreateProgramAndSqlSettingsFromParameters(queryText, settings, credentialsStr, dynamicConfig, factory);
         auto pipelineConfigurator = New<TQueryPipelineConfigurator>(program);
         {
