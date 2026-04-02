@@ -13,7 +13,6 @@ bool ClusterMasterCompositionChanged(
 ////////////////////////////////////////////////////////////////////////////////
 
 NObjectClient::TCellTagList GetMasterCellTags(const TSecondaryMasterConnectionConfigs& masterConnectionConfigs);
-THashSet<NObjectClient::TCellId> GetMasterCellIds(const TSecondaryMasterConnectionConfigs& masterConnectionConfigs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
