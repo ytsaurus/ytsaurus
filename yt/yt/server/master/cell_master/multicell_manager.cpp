@@ -941,9 +941,6 @@ private:
             PostToMaster(request, cellTag, true);
         }
 
-        ReplicateKeysToSecondaryMaster_.Fire(cellTag);
-        ReplicateValuesToSecondaryMaster_.Fire(cellTag);
-
         for (const auto& [registeredCellTag, entry] : RegisteredMasterMap_) {
             if (registeredCellTag == cellTag) {
                 continue;
@@ -963,6 +960,9 @@ private:
                 PostToMaster(request, cellTag, true);
             }
         }
+
+        ReplicateKeysToSecondaryMaster_.Fire(cellTag);
+        ReplicateValuesToSecondaryMaster_.Fire(cellTag);
 
         {
             NProto::TRspRegisterSecondaryMasterAtPrimary response;
