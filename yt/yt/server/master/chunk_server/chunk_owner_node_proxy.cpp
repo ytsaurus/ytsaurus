@@ -1087,43 +1087,64 @@ TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(TInternedAtt
                 break;
             }
 
-            const auto& chunkManager = Bootstrap_->GetChunkManager();
-            const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
-            return ComputeChunkStatistics(
+            std::vector<TEphemeralObjectPtr<TChunkList>> ephemeralChunkLists;
+            for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+                ephemeralChunkLists.emplace_back(chunkLists[contentType]);
+            }
+
+            auto visitor = New<TChunkReplicasVisitor>(
                 Bootstrap_,
-                chunkLists,
-                [chunkReplicaFetcher] (const TChunk* chunk) -> std::optional<int> {
-                    // TODO(aleksandra-zh): batch getting replicas.
-                    auto ephemeralChunk = TEphemeralObjectPtr<TChunk>(const_cast<TChunk*>(chunk));
-                    // This is context switch, chunk may die.
-                    auto replicas = chunkReplicaFetcher->GetChunkReplicas(ephemeralChunk)
-                        .ValueOrThrow();
-                    if (replicas.empty()) {
-                        return std::nullopt;
-                    }
+                chunkLists);
+            return visitor->Run()
+                .Apply(BIND([chunkLists = std::move(chunkLists), ephemeralChunkLists = std::move(ephemeralChunkLists), this, this_ = MakeStrong(this)] (const THashMap<TChunkId, TErrorOr<std::vector<TSequoiaChunkReplica>>>& chunkIdToReplicas) {
+                    const auto& chunkManager = Bootstrap_->GetChunkManager();
+                    const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
-                    // We should choose a single medium for the chunk if there are replicas
-                    // with different media. We choose the most frequent medium if more than
-                    // half replicas belong to it, otherwise arbitrary one.
-                    int chosenMediumIndex = -1;
-                    int chosenMediumReplicaCount = 0;
+                    return ComputeChunkStatistics(
+                        Bootstrap_,
+                        chunkLists,
+                        [chunkReplicaFetcher, chunkIdToReplicas = std::move(chunkIdToReplicas)] (const TChunk* chunk) -> std::optional<int> {
+                            auto it = chunkIdToReplicas.find(chunk->GetId());
+                            if (it == chunkIdToReplicas.end()) {
+                                // Maybe try one more time?
+                                THROW_ERROR_EXCEPTION(
+                                    NRpc::EErrorCode::TransientFailure,
+                                    "Chunk %v replicas were not fetched",
+                                    chunk->GetId());
+                            }
 
-                    for (auto replica : replicas) {
-                        int mediumIndex = replica.GetEffectiveMediumIndex();
-                        if (mediumIndex == chosenMediumIndex || chosenMediumReplicaCount == 0) {
-                            chosenMediumIndex = mediumIndex;
-                            ++chosenMediumReplicaCount;
-                        } else {
-                            --chosenMediumReplicaCount;
-                        }
-                    }
+                            const auto& sequoiaReplicas = it->second
+                                .ValueOrThrow();
 
-                    YT_VERIFY(chosenMediumIndex != -1);
-                    return chosenMediumIndex;
-                },
-                [=] (int mediumIndex) {
-                    return chunkManager->GetMediumByIndexOrThrow(mediumIndex)->GetName();
-                });
+                            if (sequoiaReplicas.empty()) {
+                                return std::nullopt;
+                            }
+
+                            auto replicas = chunkReplicaFetcher->FilterAliveReplicas(sequoiaReplicas);
+
+                            // We should choose a single medium for the chunk if there are replicas
+                            // with different media. We choose the most frequent medium if more than
+                            // half replicas belong to it, otherwise arbitrary one.
+                            int chosenMediumIndex = -1;
+                            int chosenMediumReplicaCount = 0;
+
+                            for (auto replica : replicas) {
+                                int mediumIndex = replica.GetEffectiveMediumIndex();
+                                if (mediumIndex == chosenMediumIndex || chosenMediumReplicaCount == 0) {
+                                    chosenMediumIndex = mediumIndex;
+                                    ++chosenMediumReplicaCount;
+                                } else {
+                                    --chosenMediumReplicaCount;
+                                }
+                            }
+
+                            YT_VERIFY(chosenMediumIndex != -1);
+                            return chosenMediumIndex;
+                        },
+                        [=] (int mediumIndex) {
+                            return chunkManager->GetMediumByIndexOrThrow(mediumIndex)->GetName();
+                        });
+            }));
         }
 
         default:
