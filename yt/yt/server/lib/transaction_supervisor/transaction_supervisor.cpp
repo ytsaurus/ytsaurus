@@ -31,6 +31,7 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/client/transaction_client/helpers.h>
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt/client/api/connection.h>
@@ -924,7 +925,15 @@ private:
             auto maxAllowedCommitTimestamp = request->max_allowed_commit_timestamp();
             auto stronglyOrdered = request->strongly_ordered();
 
+            // COMPAT(tea-mur): It should be safe to remove prerequisite transactions from tx supervisor after 26.1 (YT-27547)
             auto  prerequisiteTransactionIds = GetPrerequisiteTransactionIds(context->GetRequestHeader());
+
+            // Actually there may be prerequisites in the case of old CA (see r18873063) or tablet txs from old proxies
+            YT_LOG_ALERT_UNLESS(
+                prerequisiteTransactionIds.empty(),
+                "Unexpected prerequisite transactions (TransactionId: %v, PrerequisiteTransactionIds: %v)",
+                transactionId,
+                prerequisiteTransactionIds);
 
             if (coordinatorPrepareMode == ETransactionCoordinatorPrepareMode::Late &&
                 coordinatorCommitMode == ETransactionCoordinatorCommitMode::Lazy)
