@@ -24,6 +24,8 @@ const std::vector<std::string> TableAttributesToFetch{
 const std::string TableSchemaAttribute("schema");
 const std::string TableSchemaIdAttribute("schema_id");
 
+const std::string ParamTransactionId("_yt_transaction_id");
+
 const TString LowCardinalityTag("$low_cardinality");
 
 ////////////////////////////////////////////////////////////////////////////////
