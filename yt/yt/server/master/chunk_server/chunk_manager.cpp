@@ -517,6 +517,7 @@ public:
         BufferedProducer_ = New<TBufferedProducer>();
         ChunkServerProfiler()
             .WithDefaultDisabled()
+            .WithProducerRemoveSupport()
             .WithTag("cell_tag", ToString(Bootstrap_->GetMulticellManager()->GetCellTag()))
             .AddProducer("", BufferedProducer_);
 
@@ -525,6 +526,7 @@ public:
         CrpBufferedProducer_ = New<TBufferedProducer>();
         ChunkServerProfiler()
             .WithDefaultDisabled()
+            .WithProducerRemoveSupport()
             .WithSparse()
             .WithTag("cell_tag", ToString(Bootstrap_->GetMulticellManager()->GetCellTag()))
             .AddProducer("", CrpBufferedProducer_);
