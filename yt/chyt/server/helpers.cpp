@@ -157,6 +157,9 @@ DB::Field GetMinimumTypeValue(const DB::DataTypePtr& dataType)
 
         case DB::TypeIndex::String:
             return DB::Field("");
+        case DB::TypeIndex::Array:
+        case DB::TypeIndex::Tuple:
+            return DB::Field(DB::NEGATIVE_INFINITY);
 
         default:
             THROW_ERROR_EXCEPTION("Unexpected data type %v", dataType->getName());
@@ -208,6 +211,9 @@ DB::Field GetMaximumTypeValue(const DB::DataTypePtr& dataType)
             // Set some big value instead of it.
             // NOTE: CH uses unsigned char comparison, so max char is '\xff', not '\xef'.
             return DB::Field(std::string(SentinelMaxStringLength, '\xff'));
+        case DB::TypeIndex::Array:
+        case DB::TypeIndex::Tuple:
+            return DB::Field(DB::POSITIVE_INFINITY);
 
         default:
             THROW_ERROR_EXCEPTION("Unexpected data type %v", dataType->getName());
@@ -269,6 +275,10 @@ std::optional<DB::Field> TryDecrementFieldValue(const DB::Field& field, const DB
             // Not implemented yet.
             return std::nullopt;
 
+        case DB::TypeIndex::Array:
+        case DB::TypeIndex::Tuple:
+            return std::nullopt;
+
         default:
             THROW_ERROR_EXCEPTION("Unexpected data type %v", dataType->getName());
     }
@@ -312,6 +322,10 @@ std::optional<DB::Field> TryIncrementFieldValue(const DB::Field& field, const DB
         case DB::TypeIndex::Float32:
         case DB::TypeIndex::Float64:
             // Not implemented yet.
+            return std::nullopt;
+
+        case DB::TypeIndex::Array:
+        case DB::TypeIndex::Tuple:
             return std::nullopt;
 
         default:
