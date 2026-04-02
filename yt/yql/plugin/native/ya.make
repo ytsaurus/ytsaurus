@@ -30,6 +30,7 @@ PEERDIR(
     yql/essentials/core/progress_merger
     yql/essentials/core/services/mounts
     yql/essentials/core/user_data
+    yql/essentials/core/url_lister
     yql/essentials/minikql
     yql/essentials/minikql/invoke_builtins/llvm16
     yql/essentials/minikql/comp_nodes/llvm16
@@ -70,6 +71,7 @@ PEERDIR(
     yt/yql/providers/yt/lib/schema
     yt/yql/providers/yt/lib/skiff
     yt/yql/providers/yt/lib/yt_download
+    yt/yql/providers/yt/lib/yt_url_lister
     yt/yql/providers/yt/provider
     yt/yql/providers/yt/codec/codegen
     yt/yql/providers/yt/comp_nodes/dq/llvm16

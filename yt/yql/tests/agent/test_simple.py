@@ -905,6 +905,21 @@ class TestYqlAgent(TestQueriesYqlSimpleBase):
             ],
         )
 
+    @authors("a-romanov")
+    @pytest.mark.timeout(180)
+    def test_files_from_folder(self, query_tracker, yql_agent):
+        create("file", "//tmp/first_file")
+        write_file("//tmp/first_file", b"eerste")
+
+        create("map_node", "//tmp/dir")
+        create("file", "//tmp/dir/second_file")
+        write_file("//tmp/dir/second_file", b"twede")
+
+        self._test_simple_query("""
+            pragma folder("tt", "yt://{}/tmp");
+            select FileContent("tt/first_file") as first, FileContent("tt/dir/second_file") as second;
+        """.format(self.Env.get_http_proxy_address()), [{'first': 'eerste', 'second': 'twede'}])
+
     @authors("apollo1321")
     def test_config_defaults(self, query_tracker, yql_agent):
         instances = ls("//sys/yql_agent/instances")
