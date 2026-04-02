@@ -23,6 +23,7 @@
 
 #include <yt/yt/library/signals/signal_registry.h>
 
+#include <yt/yt/core/concurrency/scheduler_api.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <yt/yt/core/bus/tcp/server.h>
@@ -79,10 +80,9 @@ void TBootstrap::Run()
     RpcQueryServiceThreadPool_ = CreateThreadPool(Config_->RpcQueryServiceThreadCount, "RpcQueryService");
 
     try {
-        BIND(&TBootstrap::DoRun, this)
+        WaitFor(BIND(&TBootstrap::DoRun, this)
             .AsyncVia(GetControlInvoker())
-            .Run()
-            .BlockingGet()
+            .Run())
             .ThrowOnError();
     } catch (const std::exception& ex) {
         // Make best-effort check that error is an "Address already in use" error.
