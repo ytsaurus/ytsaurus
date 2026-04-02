@@ -396,6 +396,7 @@ private:
         const TNodeAddress Address;
         double Metric = 0;
         i64 FreeNodeMemory = 0;
+        i64 CellMemoryLimit;
         int Index;
         bool Overloaded = false;
         i64 SafeFreeMemoryAmount;
@@ -531,7 +532,6 @@ void TParameterizedReassignSolver::Initialize()
     auto cells = Bundle_->GetAliveCells();
 
     if (cells.empty()) {
-        // Therefore nodes list will be empty and balancing will not be triggered.
         YT_LOG_WARNING("There are no alive cells");
         return;
     }
@@ -649,7 +649,8 @@ void TParameterizedReassignSolver::Initialize()
 
     int tableCount = std::ssize(tableInfoIndex);
     if (tableCount == 0) {
-        // Therefore there are no tables to balance.
+        YT_LOG_DEBUG_IF(Bundle_->Config->EnableVerboseLogging,
+            "There are no tables to balance");
         return;
     }
 
@@ -757,6 +758,7 @@ void TParameterizedReassignSolver::CalculateMemory(const THashMap<TTabletCellId,
         node.FreeNodeMemory = free;
         node.Overloaded = free < 0;
         node.SafeFreeMemoryAmount = statistics.MemoryLimit * (1 - Bundle_->Config->SafeUsedTabletStaticRatio);
+        node.CellMemoryLimit = cellLimit;
 
         EmplaceOrCrash(cellMemoryLimit, address, cellLimit);
     }
@@ -927,7 +929,7 @@ bool TParameterizedReassignSolver::CheckMoveFollowsMemoryLimits(
     }
 
     auto size = tablet->MemorySize;
-    if (destinationCell->FreeCellMemory < size) {
+    if (size <= destinationCell->Node->CellMemoryLimit && destinationCell->FreeCellMemory < size) {
         return false;
     }
 
