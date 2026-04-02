@@ -713,6 +713,31 @@ class MasterCellAdditionBaseChecks(MasterCellAdditionBase):
 
         wait(lambda: check(["11", "12", "13"]))
 
+    def check_user_limits(self):
+        create_user("bob")
+        set("//sys/users/bob/@request_limits/request_queue_size", {
+            "clusterwide": 22,
+            "default": 22,
+            "per_cell": {"11": 123},
+        })
+
+        assert get("//sys/users/bob/@request_limits/request_queue_size") == {
+            "clusterwide": 22,
+            "default": 22,
+            "per_cell": {"11": 123},
+        }
+
+        yield
+
+        assert_true_for_secondary_cells(
+            self.Env,
+            lambda driver: get("//sys/users/bob/@request_limits/request_queue_size", driver=driver) == {
+                "clusterwide": 22,
+                "default": 22,
+                "per_cell": {"11": 123},
+            },
+        )
+
     def check_areas(self):
         default_bundle_id = get("//sys/tablet_cell_bundles/default/@id")
         default_area_id = get("//sys/tablet_cell_bundles/default/@areas/default/id")
