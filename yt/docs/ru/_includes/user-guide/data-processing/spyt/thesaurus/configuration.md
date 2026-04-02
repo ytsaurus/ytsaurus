@@ -60,6 +60,10 @@
 | `spark.ytsaurus.annotations` | - | Аннотации для операций с драйвером и экзекьюторами | 2.2.0 |
 | `spark.ytsaurus.driver.annotations` | - | Аннотации для операции с драйвером | 2.2.0 |
 | `spark.ytsaurus.executors.annotations` | - | Аннотации для операции с экзекьюторами | 2.2.0 |
+| `spark.ytsaurus.driver.operation.parameters` | - | Дополнительные параметры операции драйвера в формате YSON | 2.6.0 |
+| `spark.ytsaurus.driver.task.parameters` | - | Дополнительные параметры таски в операции драйвера в формате YSON | 2.6.0 |
+| `spark.ytsaurus.executor.operation.parameters` | - | Дополнительные параметры операции экзекьюторов в формате YSON | 2.6.0 |
+| `spark.ytsaurus.executor.task.parameters` | - | Дополнительные параметры YTsaurus-таска экзекьюторов в формате YSON | 2.6.0 |
 | `spark.ytsaurus.driver.watch` | true | Флаг для выполнения мониторинга операции с драйвером при выполнении в кластерном режиме | 2.4.2 |
 | `spark.ytsaurus.network.project` | - | Название сетевого проекта, в котором запускается Spark приложения | 2.4.3 |
 | `spark.hadoop.yt.mtn.enabled` | false | Флаг включения поддержки MTN | 2.4.3 |
