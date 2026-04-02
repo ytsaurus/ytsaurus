@@ -13,6 +13,15 @@ import random
 
 RSG = RandomStringGenerator()
 
+@yt.with_context
+def simple_mapper(input_row, context):
+    output_row = {
+        "tablet_index": context.tablet_index,
+        "row_index": context.row_index,
+        "value": input_row["value"],
+    }
+    yield output_row
+
 class Queue:
     def __init__(self, base_path, name, tablet_count):
         self.name = name
@@ -144,7 +153,7 @@ class Queue:
                 yt.insert_rows(self.path, rows)
                 yt.insert_rows(self.data_path, data_rows)
 
-        run_with_retries(lambda: _insert_rows(), retry_count=5, backoff=5, except_action=lambda ex: logger.error(f"Exception during insert, try to retry: {ex}"))
+        run_with_retries(lambda: _insert_rows(), retry_count=5, backoff=5, except_action=lambda ex: logger.error(f"Exception during insert, try to retry: {ex.simplify()}"))
 
         for tablet_index, row_count in enumerate(new_written_row_count):
             self.written_row_count[tablet_index] += row_count
@@ -166,6 +175,20 @@ class Queue:
             yt.freeze_table(self.path, sync=True)
             yt.unfreeze_table(self.path, sync=True)
 
+    def _get_expected_rows(self, tablet_index=None):
+        where_expr = ""
+        if tablet_index is not None:
+            where_expr = f"where tablet_index = {tablet_index}"
+
+        expected_rows = []
+        while True:
+            rows = list(yt.select_rows(f"select row_index, value from [{self.data_path}] {where_expr} order by tablet_index, row_index offset {len(expected_rows)} limit 100"))
+            if len(rows) == 0:
+                break
+            expected_rows += rows
+
+        return expected_rows
+
     def read_and_check(self):
         logger.info(f"Reading everything from queue {self.path}")
 
@@ -180,12 +203,7 @@ class Queue:
             if len(actual_rows) != written_row_count:
                 raise YtError(f"From queue {self.path} from tablet {tablet_index} were read {len(actual_rows)} rows but {written_row_count} rows were written")
 
-            expected_rows = []
-            while True:
-                rows = list(yt.select_rows(f"select row_index, value from [{self.data_path}] where tablet_index = {tablet_index} order by row_index offset {len(expected_rows)} limit 100"))
-                if len(rows) == 0:
-                    break
-                expected_rows += rows
+            expected_rows = self._get_expected_rows(tablet_index)
 
             if len(actual_rows) != len(expected_rows):
                 raise YtError(f"Data table {self.data_path} contains {len(expected_rows)} rows for tablet {tablet_index} but queue {self.path} contains {len(actual_rows)} rows")
@@ -193,6 +211,39 @@ class Queue:
             for expected_row, actual_row in zip(expected_rows, actual_rows):
                 if expected_row["value"] != actual_row["value"]:
                     raise YtError(f"Row with value '{expected_row["value"]}' was expected in the queue {self.path} in the tablet {tablet_index} but value '{actual_row["value"]}' was read")
+
+    def run_map(self):
+        logger.info(f"Running map on queue {self.path}")
+        map_result_path = self.path + ".map_result"
+        yt.run_map(simple_mapper, source_table=self.path, destination_table=map_result_path)
+        yt.run_sort(map_result_path, sort_by=["tablet_index", "row_index"])
+        map_result_rows = list(yt.read_table(map_result_path))
+
+        expected_rows = self._get_expected_rows()
+
+        if len(map_result_rows) != len(expected_rows):
+            raise YtError(f"Data table {self.data_path} contains {len(expected_rows)} rows but map result {map_result_path} contains {len(map_result_rows)} rows")
+
+        for expected_row, actual_row in zip(expected_rows, map_result_rows):
+            if expected_row["value"] != actual_row["value"]:
+                raise YtError(f"Row with value '{expected_row["value"]}' was expected in the map result {map_result_path} but value '{actual_row["value"]}' was read")
+
+    def run_sort(self):
+        logger.info(f"Running sort on queue {self.path}")
+        sort_result_path = self.path + ".sort_result"
+        yt.run_sort(self.path, sort_result_path, sort_by=["value"])
+        sort_result_rows = list(yt.read_table(sort_result_path))
+
+        expected_rows = self._get_expected_rows()
+        expected_rows = sorted(expected_rows, key=lambda x: (x["value"]))
+
+        if len(sort_result_rows) != len(expected_rows):
+            raise YtError(f"Data table {self.data_path} contains {len(expected_rows)} rows but sort result {sort_result_path} contains {len(sort_result_rows)} rows")
+
+        for expected_row, actual_row in zip(expected_rows, sort_result_rows):
+            if expected_row["value"] != actual_row["value"]:
+                raise YtError(f"Row with value '{expected_row["value"]}' was expected in the sort result {sort_result_path} but value '{actual_row["value"]}' was read")
+
 
 
 class HunkStorage:
@@ -373,10 +424,33 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
 
     def _read():
         for queue in queues.values():
-            unmounted = not queue.mounted or (queue.hunk_storage_name and not hunk_storages[queue.hunk_storage_name].mounted)
             try:
                 queue.read_and_check()
             except YtError as err:
+                unmounted = not queue.mounted or (queue.hunk_storage_name and not hunk_storages[queue.hunk_storage_name].mounted)
+                if unmounted and is_unmounted_error(err):
+                    logger.info(f"Error was expected, queue or hunk_storage is unmounted")
+                else:
+                    raise err
+
+    def _map():
+        for queue in queues.values():
+            try:
+                queue.run_map()
+            except YtError as err:
+                unmounted = not queue.mounted or (queue.hunk_storage_name and not hunk_storages[queue.hunk_storage_name].mounted)
+                if unmounted and is_unmounted_error(err):
+                    logger.info(f"Error was expected, queue or hunk_storage is unmounted")
+                else:
+                    raise err
+
+
+    def _sort():
+        for queue in queues.values():
+            try:
+                queue.run_sort()
+            except YtError as err:
+                unmounted = not queue.mounted or (queue.hunk_storage_name and not hunk_storages[queue.hunk_storage_name].mounted)
                 if unmounted and is_unmounted_error(err):
                     logger.info(f"Error was expected, queue or hunk_storage is unmounted")
                 else:
@@ -471,6 +545,10 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
         for i in range(10):
             _write()
             _flush()
+
+            _map()
+            _sort()
+
             _read()
 
         # TODO(nadya73): add alter queue the the static tables and running maps in 25.4.
