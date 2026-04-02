@@ -62,6 +62,8 @@ extern const std::vector<std::string> TableAttributesToFetch;
 extern const std::string TableSchemaAttribute;
 extern const std::string TableSchemaIdAttribute;
 
+extern const std::string ParamTransactionId;
+
 extern const TString LowCardinalityTag;
 
 ////////////////////////////////////////////////////////////////////////////////
