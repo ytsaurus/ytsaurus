@@ -5432,6 +5432,11 @@ TCompositeNeededResources TOperationControllerBase::GetNeededResources() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
+    // NB(pogorelov): This check give us happens-before relation with restoring resources without taking a lock in Revive().
+    if (State_ != EControllerState::Running) {
+        return TCompositeNeededResources{};
+    }
+
     auto guard = ReaderGuard(CachedNeededResourcesLock_);
     return CachedNeededResources_;
 }

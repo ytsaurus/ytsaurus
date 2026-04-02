@@ -1716,12 +1716,14 @@ private:
                 protoOperation->set_suspicious_jobs(ToProto(controller->GetSuspiciousJobsYson()));
             }
 
-            ToProto(
-                protoOperation->mutable_composite_needed_resources(),
-                controller->GetNeededResources());
-            ToProto(
-                protoOperation->mutable_grouped_needed_resources(),
-                controller->GetGroupedNeededResources());
+            if (controller->IsRunning()) {
+                ToProto(
+                    protoOperation->mutable_composite_needed_resources(),
+                    controller->GetNeededResources());
+                ToProto(
+                    protoOperation->mutable_grouped_needed_resources(),
+                    controller->GetGroupedNeededResources());
+            }
         }
 
         request->set_exec_nodes_requested(preparedRequest.ExecNodesRequested);
