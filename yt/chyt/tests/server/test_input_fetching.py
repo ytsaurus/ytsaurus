@@ -1823,6 +1823,50 @@ class TestInferReadRange(ClickHouseTestBase):
             res = clique.make_query("select id, count(*) as cnt from `//tmp/t` where id between 1 and 2 group by id")
             assert_items_equal(res, [{"id": 1, "cnt": value_cnt}, {"id": 2, "cnt": value_cnt}])
 
+    @authors("a-dyu")
+    def test_read_range_with_optional_list_sort_key(self):
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "schema": [
+                    {"name": "key", "type_v3": "int64", "sort_order": "ascending"},
+                    {"name": "arr", "type_v3": optional_type({"type_name": "list", "item": "string"}),
+                     "sort_order": "ascending"},
+                    {
+                        "name": "tuple_key",
+                        "type_v3": {
+                            "type_name": "tuple",
+                            "elements": [{"type": "string"}, {"type": "int64"}],
+                        },
+                        "sort_order": "ascending",
+                    },
+                    {"name": "value", "type_v3": "string"},
+                ],
+            },
+        )
+
+        write_table("<append=%true>//tmp/t", [
+            {"key": 1, "arr": ["a", "b"], "tuple_key": ["a", 1], "value": "v1"},
+            {"key": 1, "arr": ["c"], "tuple_key": ["b", 2], "value": "v2"},
+            {"key": 2, "arr": None, "tuple_key": ["c", 3], "value": "v3"},
+        ])
+        write_table("<append=%true>//tmp/t", [
+            {"key": 3, "arr": [], "tuple_key": ["d", 4], "value": "v4"},
+            {"key": 3, "arr": ["x", "y", "z"], "tuple_key": ["e", 5], "value": "v5"},
+            {"key": 4, "arr": ["d"], "tuple_key": ["f", 6], "value": "v6"},
+        ])
+
+        with Clique(1, config_patch=self._get_config_patch()) as clique:
+            res = clique.make_query("select value from \"//tmp/t\" where key = 3 order by value")
+            assert res == [{"value": "v4"}, {"value": "v5"}]
+
+            res = clique.make_query("select value from \"//tmp/t\" where key >= 2 order by value")
+            assert res == [{"value": "v3"}, {"value": "v4"}, {"value": "v5"}, {"value": "v6"}]
+
+            res = clique.make_query("select value from \"//tmp/t\" where key = 1 order by value")
+            assert res == [{"value": "v1"}, {"value": "v2"}]
+
 
 class TestInputFetchingYPath(ClickHouseTestBase):
     def _create_table(self):
