@@ -8,12 +8,24 @@ All main components are released as a docker image.
 
 **Releases:**
 
+{% cut "**25.3.1**" %}
+
+**Release date:** 2026-03-25
+
+
+To install YTsaurus Server 25.3.1 [update](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release%2F0.27.0) the k8s-operator to version 0.27.0.
+
+#### Queue Agent
+##### Fixes:
+- Fix secondary index creation in init_queue_agent_state script, [9840c02](https://github.com/ytsaurus/ytsaurus/commit/9840c02ebe08e450b88ba00efa23c5af0a8b1eda)
+
+{% endcut %}
+
+
 {% cut "**25.3.0**" %}
 
 **Release date:** 2026-03-13
 
-
-#### YTsaurus 25.3.0 Release Notes
 
 #### Overview
 
