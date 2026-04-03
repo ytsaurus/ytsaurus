@@ -46,6 +46,7 @@ public:
         TDiskHealthCheckerConfigPtr healthCheckerConfig,
         NContainers::IPortoExecutorPtr volumeExecutor,
         NContainers::IPortoExecutorPtr layerExecutor,
+        NContainers::IPortoExecutorPtr fastLayerExecutor,
         const TString& id);
 
     TFuture<void> Initialize();
@@ -154,6 +155,7 @@ private:
     TAtomicIntrusivePtr<TLayerCacheDynamicConfig> DynamicConfig_;
     const NContainers::IPortoExecutorPtr VolumeExecutor_;
     const NContainers::IPortoExecutorPtr LayerExecutor_;
+    const NContainers::IPortoExecutorPtr FastLayerExecutor_;
 
     const NConcurrency::TActionQueuePtr LocationQueue_;
     const TString VolumesPath_;

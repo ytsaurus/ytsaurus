@@ -49,12 +49,14 @@ TLayerLocation::TLayerLocation(
     TDiskHealthCheckerConfigPtr healthCheckerConfig,
     IPortoExecutorPtr volumeExecutor,
     IPortoExecutorPtr layerExecutor,
+    IPortoExecutorPtr fastLayerExecutor,
     const TString& id)
     : TDiskLocation(locationConfig, id, ExecNodeLogger())
     , Config_(locationConfig)
     , DynamicConfigManager_(dynamicConfigManager)
     , VolumeExecutor_(std::move(volumeExecutor))
     , LayerExecutor_(std::move(layerExecutor))
+    , FastLayerExecutor_(std::move(fastLayerExecutor))
     , LocationQueue_(New<TActionQueue>(id))
     , VolumesPath_(NFS::CombinePaths(Config_->Path, VolumesName))
     , VolumesMetaPath_(NFS::CombinePaths(Config_->Path, VolumesMetaName))
@@ -1408,7 +1410,9 @@ void TLayerLocation::RemoveLayers(
 
     std::vector<TString> removedLayers;
 
-    auto layerIds = WaitFor(LayerExecutor_->ListLayers(place).WithTimeout(timeout))
+    auto executor = FastLayerExecutor_ ? FastLayerExecutor_ : LayerExecutor_;
+
+    auto layerIds = WaitFor(executor->ListLayers(place).WithTimeout(timeout))
         .ValueOrThrow();
 
     std::vector<TFuture<void>> removeFutures;
@@ -1418,7 +1422,7 @@ void TLayerLocation::RemoveLayers(
             layerId);
 
         removedLayers.push_back(layerId);
-        removeFutures.push_back(LayerExecutor_->RemoveLayer(
+        removeFutures.push_back(executor->RemoveLayer(
             layerId,
             place,
             false /*async*/));
