@@ -175,6 +175,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixEffectiveAclForScion)                                      (3221))  // danilalexeev
     ((FixPerCellLimitsReplicationOnSecondary)                       (3222))  // cherepashka
     ((RevertFixDescendingSortOrderValidationInBeginUpload)          (3223))  // h0pless
+    ((RemoveNativeTxExternalizationEnabledFlag)                     (3224))  // h0pless
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

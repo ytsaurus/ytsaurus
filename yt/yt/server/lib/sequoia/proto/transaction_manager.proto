@@ -33,8 +33,8 @@ message TReqStartForeignTransaction
     // COMPAT(h0pless): RemoveCompatsAroundStartTransaction.
     optional bool upload = 4;
 
-    // COMPAT(kvk1920): remove after 24.2.
-    optional bool enable_native_tx_externalization = 9 [default = false];
+    // Can be used after 26.2.
+    reserved 9;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

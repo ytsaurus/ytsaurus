@@ -138,10 +138,6 @@ public:
     // There's no strong reason for this field to be persistent, but it may ease future debugging.
     DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, NativeCommitMutationRevision, NHydra::NullRevision);
 
-    // COMPAT(kvk1920)
-    // NB: meaningful only for Cypress tx.
-    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(NativeTxExternalizationEnabled);
-
     DEFINE_BYREF_RW_PROPERTY(THashSet<NHydra::TCellId>, LeaseCellIds);
 
     DEFINE_BYREF_RW_PROPERTY(TPromise<void>, LeasesRevokedPromise);

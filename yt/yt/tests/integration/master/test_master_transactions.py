@@ -8,7 +8,7 @@ from yt_commands import (
     create_group, add_member, remove_member, start_transaction, abort_transaction,
     commit_transaction, ping_transaction, lock, write_file, write_table,
     get_transactions, get_topmost_transactions, gc_collect, get_driver,
-    raises_yt_error, read_table, generate_uuid, link)
+    raises_yt_error, generate_uuid, link)
 
 from yt_sequoia_helpers import select_cypress_transaction_replicas
 
@@ -1207,31 +1207,6 @@ class TestCypressTransactionExternalization(YTEnvSetup):
 
         # Shouldn't crash.
         gc_collect()
-
-    @authors("kvk1920")
-    def test_cross_cell_table_copy(self):
-        # The main purpose of this test is to check if
-        # "enable_native_tx_externalization" is properly delivered to tx
-        # participant via Sequoia transactions.
-
-        create("portal_entrance", "//tmp/portal", attributes={"exit_cell_tag": 11})
-        create("table", "//tmp/portal/t")
-
-        assert get("//tmp/portal/t/@external_cell_tag") == 12
-
-        tx = start_transaction()
-
-        content = [{"key": 0, "value": "a"}, {"key": 1, "value": "b"}]
-
-        write_table("//tmp/portal/t", content, tx=tx)
-
-        copy("//tmp/portal/t", "//tmp/t", tx=tx)
-        assert exists("//tmp/t", tx=tx)
-        assert read_table("//tmp/t", tx=tx) == content
-
-        commit_transaction(tx)
-        assert exists("//tmp/t")
-        assert read_table("//tmp/t") == content
 
 
 @authors("kvk1920")
