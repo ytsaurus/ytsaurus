@@ -60,6 +60,10 @@ Most of the options are available starting with version 1.23.0, unless otherwis
 | `spark.ytsaurus.annotations` | - | Annotations for driver and executor operations. | 2.2.0 |
 | `spark.ytsaurus.driver.annotations` | - | Annotations for a driver operation. | 2.2.0 |
 | `spark.ytsaurus.executors.annotations` | - | Annotations for an executor operation. | 2.2.0 |
+| `spark.ytsaurus.driver.operation.parameters` | - | Additional parameters of the driver operation with YSON format | 2.6.0 |
+| `spark.ytsaurus.driver.task.parameters` | - | Additional parameters of the task within the driver operation with YSON format | 2.6.0 |
+| `spark.ytsaurus.executor.operation.parameters` | - | Additional parameters of the executor operation with YSON format | 2.6.0 |
+| `spark.ytsaurus.executor.task.parameters` | - | Additional parameters of the YTsaurus executor task with YSON format | 2.6.0 |
 | `spark.ytsaurus.driver.watch` | true | Flag for monitoring a driver operation executed in cluster mode. | 2.4.2 |
 | `spark.ytsaurus.network.project` | - | Name of the network project where a Spark application is launched. | 2.4.3 |
 | `spark.hadoop.yt.mtn.enabled` | false | Flag for enabling MTN support | 2.4.3 |
