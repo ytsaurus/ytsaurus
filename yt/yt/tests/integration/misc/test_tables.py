@@ -1455,6 +1455,9 @@ class TestTables(YTEnvSetup):
                 spec={"force_transform": True, "schema_inference_mode": "from_output"},
             )
 
+        initial_value = get("//sys/@config/table_manager/validate_no_descending_sort_order")
+        set("//sys/@config/table_manager/validate_no_descending_sort_order", True)
+
         # Both static and dynamic tables with descending sort order are allowed.
         suffix = "allow_all"
         create_static_descending(suffix)
@@ -1492,6 +1495,7 @@ class TestTables(YTEnvSetup):
             create_dynamic_descending(suffix)
         with raises_yt_error(yt_error_codes.InvalidSchemaValue):
             alter_dynamic_regular_to_dynamic_descending(suffix)
+        set("//sys/@config/table_manager/validate_no_descending_sort_order", initial_value)
 
     @authors("babenko", "ignat")
     def test_statistics1(self):
