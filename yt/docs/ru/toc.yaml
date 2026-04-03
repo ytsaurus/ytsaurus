@@ -568,6 +568,8 @@ items:
       - name: Изоляция запросов в YQL‑агенте
         when: audience == "public"
         href: admin-guide/yql-query-isolation.md
+      - name: Шифрование в нативном протоколе
+        href: admin-guide/native-encryption.md
       - name: Прочее
         items:
           - name: Чтение с удаленных кластеров через RPC Proxy
