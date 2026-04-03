@@ -265,6 +265,13 @@ NYson::TYsonString GetReplicasYson(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TChunkReplicaWithLocationIndexFormatter
+{
+    void operator()(TStringBuilderBase* builder, const TChunkReplicaWithLocationIndex& replica) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChunkServer
 
 namespace NYT {

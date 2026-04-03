@@ -250,4 +250,16 @@ TYsonString GetReplicasYson(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TChunkReplicaWithLocationIndexFormatter::operator()(
+    TStringBuilderBase* builder,
+    const TChunkReplicaWithLocationIndex& replica) const
+{
+    builder->AppendFormat("{NodeId: %v, ReplicaIndex: %v, LocationIndex: %v}",
+        replica.NodeId,
+        replica.ReplicaIndex,
+        replica.LocationIndex);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChunkServer
