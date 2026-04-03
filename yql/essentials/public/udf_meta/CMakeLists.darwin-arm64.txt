@@ -12,9 +12,17 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(udf)
-add_subdirectory(decimal)
-add_subdirectory(types)
-add_subdirectory(langver)
-add_subdirectory(issue)
-add_subdirectory(udf_meta)
+add_library(essentials-public-udf_meta)
+
+
+target_link_libraries(essentials-public-udf_meta PUBLIC
+  contrib-libs-cxxsupp
+  yutil
+  library-cpp-json
+)
+
+target_sources(essentials-public-udf_meta PRIVATE
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf_meta/udf_meta.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf_meta/udf_meta.h
+)
+
