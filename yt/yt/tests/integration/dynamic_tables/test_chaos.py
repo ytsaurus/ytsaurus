@@ -57,26 +57,15 @@ class TestChaos(ChaosTestBase):
 
     DELTA_DRIVER_CONFIG = {
         "enable_read_from_async_replicas": True,
-        "chaos_residency_cache": {
-            "enable_client_mode" : True,
-        },
     }
 
     DELTA_DYNAMIC_RPC_PROXY_CONFIG = {
         "cluster_connection": {
             "enable_read_from_async_replicas": True,
-            "chaos_residency_cache": {
-                "enable_client_mode" : True,
-            },
         },
     }
 
     DELTA_NODE_CONFIG = {
-        "cluster_connection": {
-            "chaos_residency_cache": {
-                "enable_client_mode": True,
-            },
-        },
         "chaos_node": {
             "replication_card_automaton_cache_expiration_time": 100
         },
@@ -4878,26 +4867,15 @@ class TestChaosSpecial(ChaosTestBase):
 
     DELTA_DRIVER_CONFIG = {
         "enable_read_from_async_replicas": True,
-        "chaos_residency_cache": {
-            "enable_client_mode" : True,
-        },
     }
 
     DELTA_DYNAMIC_RPC_PROXY_CONFIG = {
         "cluster_connection": {
             "enable_read_from_async_replicas": True,
-            "chaos_residency_cache": {
-                "enable_client_mode" : True,
-            },
         },
     }
 
     DELTA_NODE_CONFIG = {
-        "cluster_connection": {
-            "chaos_residency_cache": {
-                "enable_client_mode": True,
-            },
-        },
         "chaos_node": {
             "replication_card_automaton_cache_expiration_time": 100
         },
@@ -5283,23 +5261,12 @@ class TestChaosNativeProxy(ChaosTestBase):
 
     DELTA_DRIVER_CONFIG = {
         "enable_read_from_async_replicas": True,
-        "chaos_residency_cache": {
-            "enable_client_mode" : True,
-        },
     }
 
     DELTA_MASTER_CACHE_CONFIG = {
         "cluster_connection": {
             "chaos_residency_cache": {
                 "use_has_chaos_object": True,
-            },
-        },
-    }
-
-    DELTA_NODE_CONFIG = {
-        "cluster_connection": {
-            "chaos_residency_cache": {
-                "enable_client_mode": True,
             },
         },
     }
@@ -5511,14 +5478,6 @@ class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
         },
     }
 
-    DELTA_NODE_CONFIG = {
-        "cluster_connection": {
-            "chaos_residency_cache": {
-                "enable_client_mode": True,
-            },
-        },
-    }
-
     DELTA_RPC_DRIVER_CONFIG = {
         "table_mount_cache": {
             "expire_after_successful_update_time": 0,
@@ -5531,9 +5490,6 @@ class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
 
     DELTA_DYNAMIC_RPC_PROXY_CONFIG = {
         "cluster_connection": {
-            "chaos_residency_cache": {
-                "enable_client_mode": True,
-            },
             "replication_card_cache": {
                 "expire_after_successful_update_time": 60000,
                 "expire_after_failed_update_time": 60000,
@@ -5548,9 +5504,6 @@ class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
 
     DELTA_NODE_CONFIG = {
         "cluster_connection": {
-            "chaos_residency_cache": {
-                "enable_client_mode": True,
-            },
             "replication_card_cache": {
                 "expire_after_successful_update_time": 60000,
                 "expire_after_failed_update_time": 60000,
@@ -7040,23 +6993,12 @@ class TestChaosSingleClusterNativeProxyWithPortals(ChaosTestBase):
 
     DELTA_DRIVER_CONFIG = {
         "enable_read_from_async_replicas": True,
-        "chaos_residency_cache": {
-            "enable_client_mode" : True,
-        },
     }
 
     DELTA_MASTER_CACHE_CONFIG = {
         "cluster_connection": {
             "chaos_residency_cache": {
                 "use_has_chaos_object": True,
-            },
-        },
-    }
-
-    DELTA_NODE_CONFIG = {
-        "cluster_connection": {
-            "chaos_residency_cache": {
-                "enable_client_mode": True,
             },
         },
     }
