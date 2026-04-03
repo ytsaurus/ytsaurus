@@ -167,7 +167,9 @@ struct IOperationControllerHost
 
     virtual void RegisterAllocation(TStartedAllocationInfo allocationInfo) = 0;
     virtual void RegisterJob(TStartedJobInfo jobInfo) = 0;
-    virtual void Revive(std::vector<TStartedAllocationInfo> allocations) = 0;
+    virtual void Revive(std::vector<TStartedAllocationInfo> allocations, bool suspended) = 0;
+    virtual void SuspendOperation() = 0;
+    virtual void ResumeOperation() = 0;
     virtual void ReleaseJobs(std::vector<TJobToRelease> jobs) = 0;
     virtual void AbortJob(
         TJobId jobId,
@@ -302,7 +304,7 @@ struct IOperationControllerSchedulerHost
      *  \note Invoker affinity: cancelable Controller invoker
      *
      */
-    virtual TOperationControllerReviveResult Revive() = 0;
+    virtual TOperationControllerReviveResult Revive(bool suspended) = 0;
 
     //! Called by a scheduler in operation complete pipeline.
     /*!

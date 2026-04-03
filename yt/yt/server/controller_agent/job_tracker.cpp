@@ -529,11 +529,13 @@ public:
 
         auto producer = TYsonProducer(BIND([
             jobsReady = operationInfo.JobsReady,
+            suspended = operationInfo.Suspended,
             operationId,
             jobTracker = JobTracker_
         ] (IYsonConsumer* consumer) {
             BuildYsonFluently(consumer).BeginMap()
                 .Item("jobs_ready").Value(jobsReady)
+                .Item("suspended").Value(suspended)
                 .Item("allocations").Do([&] (TFluentAny innerFluent) {
                     const auto& operationIt = jobTracker->RegisteredOperations_.find(operationId);
 
@@ -1313,6 +1315,12 @@ void TJobTracker::SettleJob(const TJobTracker::TCtxSettleJobPtr& context)
             YT_LOG_INFO("Operation jobs are not ready yet, skip settle job request");
 
             THROW_ERROR_EXCEPTION("Operation %v jobs are not ready yet", operationId);
+        }
+
+        if (operationInfo.Suspended) {
+            YT_LOG_INFO("Operation is suspended, skip SettleJob request");
+
+            THROW_ERROR_EXCEPTION("Operation %v is suspended", operationId);
         }
 
         SettleJobRequestGuard.SetStage(ESettleJobRequestStage::WaitingForController);
@@ -2608,9 +2616,57 @@ void TJobTracker::DoRegisterJob(TStartedJobInfo jobInfo, TOperationId operationI
         /*confirmed*/ true);
 }
 
+void TJobTracker::DoSuspendOperation(TOperationId operationId)
+{
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
+
+    auto operationIt = RegisteredOperations_.find(operationId);
+    if (operationIt == std::end(RegisteredOperations_)) {
+        YT_LOG_DEBUG(
+            "Suspend requested for operation that is not registered in job tracker, ignored (OperationId: %v)",
+            operationId);
+        return;
+    }
+
+    auto& operationInfo = operationIt->second;
+    bool wasSuspended = operationInfo.Suspended;
+    operationInfo.Suspended = true;
+
+    if (wasSuspended) {
+        YT_LOG_WARNING("Suspending operation already suspended in job tracker (OperationId: %v)", operationId);
+        return;
+    }
+    YT_LOG_DEBUG("Operation suspended in job tracker (OperationId: %v)", operationId);
+}
+
+void TJobTracker::DoResumeOperation(TOperationId operationId)
+{
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
+
+    auto operationIt = RegisteredOperations_.find(operationId);
+    if (operationIt == std::end(RegisteredOperations_)) {
+        YT_LOG_DEBUG(
+            "Resume requested for operation that is not registered in job tracker, ignored (OperationId: %v)",
+            operationId);
+        return;
+    }
+
+    auto& operationInfo = operationIt->second;
+
+    bool wasSuspended = operationInfo.Suspended;
+    operationInfo.Suspended = false;
+
+    if (!wasSuspended) {
+        YT_LOG_WARNING("Resuming operation not suspended in job tracker (OperationId: %v)", operationId);
+        return;
+    }
+    YT_LOG_DEBUG("Operation resumed in job tracker (OperationId: %v)", operationId);
+}
+
 void TJobTracker::DoRevive(
     TOperationId operationId,
-    std::vector<TStartedAllocationInfo> allocations)
+    std::vector<TStartedAllocationInfo> allocations,
+    bool suspended)
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
@@ -2619,6 +2675,7 @@ void TJobTracker::DoRevive(
     auto& operationInfo = GetOrCrash(RegisteredOperations_, operationId);
 
     operationInfo.JobsReady = true;
+    operationInfo.Suspended = suspended;
 
     {
         int loggingJobSampleMaxSize = Config_->LoggingJobSampleSize;
@@ -3803,7 +3860,7 @@ void TJobTrackerOperationHandler::RegisterJob(TStartedJobInfo jobInfo)
         OperationId_));
 }
 
-void TJobTrackerOperationHandler::Revive(std::vector<TStartedAllocationInfo> allocations)
+void TJobTrackerOperationHandler::Revive(std::vector<TStartedAllocationInfo> allocations, bool suspended)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -3813,7 +3870,32 @@ void TJobTrackerOperationHandler::Revive(std::vector<TStartedAllocationInfo> all
         &TJobTracker::DoRevive,
         MakeStrong(JobTracker_),
         OperationId_,
-        std::move(allocations)));
+        std::move(allocations),
+        suspended));
+}
+
+void TJobTrackerOperationHandler::SuspendOperation()
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    auto guard = TCurrentTraceContextGuard(TraceContext_);
+
+    CancelableInvoker_->Invoke(BIND(
+        &TJobTracker::DoSuspendOperation,
+        MakeStrong(JobTracker_),
+        OperationId_));
+}
+
+void TJobTrackerOperationHandler::ResumeOperation()
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    auto guard = TCurrentTraceContextGuard(TraceContext_);
+
+    CancelableInvoker_->Invoke(BIND(
+        &TJobTracker::DoResumeOperation,
+        MakeStrong(JobTracker_),
+        OperationId_));
 }
 
 void TJobTrackerOperationHandler::ReleaseJobs(std::vector<TJobToRelease> jobs)

@@ -216,6 +216,7 @@ message TReqReviveOperation
 {
     required NYT.NProto.TGuid incarnation_id = 1;
     required NYT.NProto.TGuid operation_id = 2;
+    optional bool suspended = 3;
 }
 
 message TRspReviveOperation

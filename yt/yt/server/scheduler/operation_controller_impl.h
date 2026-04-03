@@ -33,7 +33,7 @@ public:
         const NYTree::INodePtr& cumulativeSpecPatch) override;
     TFuture<TOperationControllerPrepareResult> Prepare() override;
     TFuture<TOperationControllerMaterializeResult> Materialize() override;
-    TFuture<TOperationControllerReviveResult> Revive() override;
+    TFuture<TOperationControllerReviveResult> Revive(bool suspended) override;
     TFuture<TOperationControllerCommitResult> Commit() override;
     TFuture<void> Terminate(EOperationState finalState) override;
     TFuture<void> Complete() override;
@@ -41,6 +41,9 @@ public:
     TFuture<TOperationControllerUnregisterResult> Unregister() override;
     TFuture<void> UpdateRuntimeParameters(TOperationRuntimeParametersUpdatePtr update) override;
     TFuture<void> PatchSpec(const NYTree::INodePtr& newCumulativeSpecPatch, bool dryRun) override;
+
+    void Suspend() override;
+    void Resume() override;
 
     void OnNonscheduledAllocationAborted(
         TAllocationId allocationId,
