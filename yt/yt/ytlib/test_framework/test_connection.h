@@ -230,6 +230,7 @@ public:
 
     const NRpc::IChannelPtr& GetSchedulerChannel() override;
     const NRpc::IChannelPtr& GetBundleControllerChannel() override;
+    const NRpc::IChannelPtr& GetTabletBalancerChannel() override;
     const NRpc::IChannelPtr& GetCypressProxyChannel() override;
 
     const NTransactionClient::IClockManagerPtr& GetClockManager() override;
@@ -266,6 +267,7 @@ private:
     const NNodeTrackerClient::INodeDirectorySynchronizerPtr NodeDirectorySynchronizer_;
     const NRpc::IChannelPtr SchedulerChannel_;
     const NRpc::IChannelPtr BundleControllerChannel_;
+    const NRpc::IChannelPtr TabletBalancerChannel_;
     const NRpc::IChannelPtr CypressProxyChannel_;
     const NTransactionClient::IClockManagerPtr ClockManager_;
     const NHiveClient::ICellDirectoryPtr CellDirectory_;

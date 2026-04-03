@@ -34,6 +34,7 @@ TTestConnection::TTestConnection(
     , NodeDirectorySynchronizer_(CreateNodeDirectorySynchronizer(MakeStrong(this), NodeDirectory_))
     , SchedulerChannel_(ChannelFactory_->CreateChannel("scheduler"))
     , BundleControllerChannel_(ChannelFactory_->CreateChannel("bundle_controller_channel"))
+    , TabletBalancerChannel_(ChannelFactory_->CreateChannel("tablet_balancer_channel"))
     , CypressProxyChannel_(ChannelFactory_->CreateChannel("cypress_proxy_channel"))
     , MediumDirectory_(New<NChunkClient::TMediumDirectory>())
 { }
@@ -129,6 +130,11 @@ const NRpc::IChannelPtr& TTestConnection::GetSchedulerChannel()
 const NRpc::IChannelPtr& TTestConnection::GetBundleControllerChannel()
 {
     return BundleControllerChannel_;
+}
+
+const NRpc::IChannelPtr& TTestConnection::GetTabletBalancerChannel()
+{
+    return TabletBalancerChannel_;
 }
 
 const NRpc::IChannelPtr& TTestConnection::GetCypressProxyChannel()

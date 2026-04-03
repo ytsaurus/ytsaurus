@@ -77,6 +77,8 @@
 #include <yt/yt/ytlib/security_client/permission_cache.h>
 #include <yt/yt/ytlib/security_client/user_attribute_cache.h>
 
+#include <yt/yt/ytlib/tablet_balancer_client/tablet_balancer_channel.h>
+
 #include <yt/yt/ytlib/tablet_client/native_table_mount_cache.h>
 
 #include <yt/yt/ytlib/transaction_client/config.h>
@@ -303,6 +305,12 @@ public:
             config->BundleController,
             ChannelFactory_,
             GetMasterChannelOrThrow(EMasterChannelKind::Leader),
+            GetNetworks());
+
+        TabletBalancerChannel_ = NTabletBalancerClient::CreateTabletBalancerChannel(
+            config->TabletBalancer,
+            ChannelFactory_,
+            GetMasterChannelOrThrow(EMasterChannelKind::Follower),
             GetNetworks());
 
         InitializeQueueAgentChannels();
@@ -691,6 +699,11 @@ public:
         return BundleControllerChannel_;
     }
 
+    const IChannelPtr& GetTabletBalancerChannel() override
+    {
+        return TabletBalancerChannel_;
+    }
+
     IChannelPtr GetChaosChannelByCellId(TCellId cellId, EPeerKind peerKind) override
     {
         return WrapChaosChannel(ChaosCellChannelFactory_->CreateChannel(cellId, peerKind));
@@ -1063,6 +1076,7 @@ private:
 
     IChannelPtr SchedulerChannel_;
     IChannelPtr BundleControllerChannel_;
+    IChannelPtr TabletBalancerChannel_;
 
     THashMap<TString, IChannelPtr> QueueAgentChannels_;
     IQueueConsumerRegistrationManagerPtr QueueConsumerRegistrationManager_;
