@@ -372,6 +372,10 @@ public:
                     dynamicConfig->LayerCache->LayerPortoExecutor,
                     Format("layer%v", index),
                     ExecNodeProfiler().WithPrefix("/location_layers/porto").WithTag("location_id", id)),
+                CreatePortoExecutor(
+                    dynamicConfig->LayerCache->LayerPortoExecutor,
+                    Format("FastLayerExecutor%v", index),
+                    ExecNodeProfiler().WithPrefix("/location_fast_layers/porto").WithTag("location_id", id)),
                 id);
             initLocationResults.push_back(location->Initialize());
             locations.push_back(std::move(location));
