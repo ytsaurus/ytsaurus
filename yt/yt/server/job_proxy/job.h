@@ -20,6 +20,7 @@
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
 #include <yt/yt/ytlib/job_proxy/job_spec_helper.h>
+#include <yt/yt/ytlib/job_proxy/profiling_writer.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
@@ -172,6 +173,7 @@ struct IJob
         //! but the original statistics is sent as a separate protobuf field.
         std::vector<NChunkClient::TChunkWriterStatisticsPtr> ChunkWriterStatistics;
         NTableClient::TTimingStatistics TimingStatistics;
+        std::vector<TWriterTimingStatistics> WriterTimingStatistics;
 
         struct TPipeStatistics
         {

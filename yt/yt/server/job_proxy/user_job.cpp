@@ -1526,7 +1526,9 @@ private:
         result.LatencyStatistics.OutputTimeToFirstReadBatch.reserve(writers.size());
         for (const auto& writer : writers) {
             result.LatencyStatistics.OutputTimeToFirstReadBatch.emplace_back(
-                    writer->GetTimeToFirstBatch());
+                writer->GetTimeToFirstBatch());
+            result.WriterTimingStatistics.emplace_back(
+                writer->GetTimingStatistics());
         }
 
         for (const auto& writeBlocksOptions : UserJobWriteController_->GetOutputWriteBlocksOptions()) {
