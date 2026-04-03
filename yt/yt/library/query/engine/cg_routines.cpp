@@ -689,8 +689,6 @@ void MultiJoinOpHelper(
 
         std::vector<std::vector<TPIValue*>> sortedForeignSequences;
         for (size_t joinId = 0; joinId < closure.Items.size(); ++joinId) {
-            closure.ProcessSegment(joinId);
-
             auto orderedKeys = std::move(closure.Items[joinId].OrderedKeys);
 
             YT_LOG_DEBUG("Collected %v join keys",
