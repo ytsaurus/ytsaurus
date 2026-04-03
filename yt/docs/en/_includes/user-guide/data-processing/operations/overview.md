@@ -28,7 +28,7 @@ Each operation consists of jobs of one or more types. The job type determines wh
 | Job type | Operations | Description |
 |---|---|---|
 | Map | [Map](../../../../user-guide/data-processing/operations/map.md) | Applies the user-defined mapper to a portion of the input data. |
-| OrderedMap | [Map](../../../../user-guide/data-processing/operations/map.md) (ordered mode) | Same as Map, but guarantees that input rows are delivered in order. Activated when `ordered` is set to `%true`. |
+| OrderedMap | [Map](../../../../user-guide/data-processing/operations/map.md) (ordered mode) | Same as Map, but guarantees that input rows are delivered in order. Activated when `ordered=%true` is set. |
 | Partition | [Sort](../../../../user-guide/data-processing/operations/sort.md), [MapReduce](../../../../user-guide/data-processing/operations/mapreduce.md) | Reads a portion of input data and distributes it across partitions based on key hash values. Used when no user-defined mapper is present. |
 | PartitionMap | [MapReduce](../../../../user-guide/data-processing/operations/mapreduce.md) | Combines the mapper with partitioning: applies the user-defined mapper and distributes the output across partitions. |
 | SimpleSort | [Sort](../../../../user-guide/data-processing/operations/sort.md) | Sorts data within a single partition when the partition is small enough to fit in one job. |
@@ -40,8 +40,8 @@ Each operation consists of jobs of one or more types. The job type determines wh
 | ReduceCombiner | [MapReduce](../../../../user-guide/data-processing/operations/mapreduce.md) | Applies a user-defined combiner to partially reduce data within large partitions before the final reduce phase. |
 | SortedMerge | [Merge](../../../../user-guide/data-processing/operations/merge.md) | Merges already sorted input tables while preserving sort order. |
 | OrderedMerge | [Merge](../../../../user-guide/data-processing/operations/merge.md) | Merges input tables by concatenating them in a specified order. |
-| UnorderedMerge | [Merge](../../../../user-guide/data-processing/operations/merge.md) | Merges input table chunks without any ordering guarantees. Also used for auto-merging output chunks. |
-| ShallowMerge | [Auto-merge](../../../../user-guide/data-processing/operations/automerge.md) | Merges chunks at the metadata level without reading row data. Used during auto-merge of operation output. |
+| UnorderedMerge | [Merge](../../../../user-guide/data-processing/operations/merge.md), [Sort](../../../../user-guide/data-processing/operations/sort.md) | Merges input table chunks without any ordering guarantees. Also used in Sort operations and for auto-merging output chunks. |
+| ShallowMerge | Used by [auto-merge feature](../../../../user-guide/data-processing/operations/automerge.md) | Merges chunks at the metadata level without reading row data. Used during auto-merge of operation output. |
 | RemoteCopy | [RemoteCopy](../../../../user-guide/data-processing/operations/remote-copy.md) | Copies data chunks from one cluster to another. |
 | Vanilla | [Vanilla](../../../../user-guide/data-processing/operations/vanilla.md) | Runs user-defined code without any predefined input/output data processing semantics. |
 
