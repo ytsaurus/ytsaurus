@@ -21,9 +21,40 @@ from collections import defaultdict
 from yt.yson import YsonEntity
 
 from yt.wrapper.common import generate_uuid
-from yt.wrapper.ypath import escape_ypath_literal
+from yt.wrapper.ypath import escape_ypath_literal, YPath
 
 import yt.environment.init_queue_agent_state as init_queue_agent_state
+
+
+class GenericObjectPath(YPath):
+    def __init__(self, path: str, cluster: str | None = None, queue_consumer_name: str | None = None):
+        if cluster is None:
+            super().__init__(path)
+            if "cluster" not in self.attributes:
+                raise ValueError("Cluster is not specified")
+            return
+
+        attributes = {"cluster": cluster}
+        if queue_consumer_name is not None:
+            attributes["queue_consumer_name"] = queue_consumer_name
+
+        super().__init__(path, attributes=attributes)
+
+    def get_path(self) -> str:
+        return str(self.to_yson_type())
+
+    def get_cluster(self) -> str:
+        return self.attributes["cluster"]
+
+    def get_queue_consumer_name(self) -> str | None:
+        return self.attributes.get("queue_consumer_name")
+
+    def __str__(self):
+        if self.get_queue_consumer_name() is not None:
+            return str(self.to_yson_string(sort_keys=True))
+
+        return f"{self.get_cluster()}:{self.get_path()}"
+
 
 ##################################################################
 
@@ -60,8 +91,10 @@ class QueueConsumerRegistration:
 
     @classmethod
     def from_orchid(cls, r):
-        return cls(*r["queue"].split(":"), *r["consumer"].split(":"), r["vital"],
-                   cls._normalize_partitions(r["partitions"]))
+        queue_ypath = GenericObjectPath(r["queue"])
+        consumer_ypath = GenericObjectPath(r["consumer"])
+        return cls(queue_ypath.get_cluster(), queue_ypath.get_path(), consumer_ypath.get_cluster(),
+                   consumer_ypath.get_path(), r["vital"], cls._normalize_partitions(r["partitions"]))
 
     @classmethod
     def from_list_registrations(cls, r):
@@ -332,11 +365,11 @@ class QueueAgentOrchid(OrchidWithRegularPasses):
         self.wait_fresh_pass()
         return get(self.orchid_path() + "/owned_consumers")
 
-    def get_queue_orchid(self, queue_ref):
-        return QueueOrchid(queue_ref, self.agent_id)
+    def get_queue_orchid(self, queue_ref: str | GenericObjectPath):
+        return QueueOrchid(str(queue_ref), self.agent_id)
 
-    def get_owned_queue_orchid(self, queue_ref):
-        return OwnedQueueOrchid(queue_ref, self.agent_id)
+    def get_owned_queue_orchid(self, queue_ref: str | GenericObjectPath):
+        return OwnedQueueOrchid(str(queue_ref), self.agent_id)
 
     def get_queue_orchids(self):
         return [self.get_queue_orchid(queue) for queue in self.list_queues()]
@@ -344,11 +377,11 @@ class QueueAgentOrchid(OrchidWithRegularPasses):
     def get_owned_queue_orchids(self):
         return [self.get_owned_queue_orchid(queue) for queue in self.list_queues()]
 
-    def get_consumer_orchid(self, consumer_ref):
-        return ConsumerOrchid(consumer_ref, self.agent_id)
+    def get_consumer_orchid(self, consumer_ref: str | GenericObjectPath):
+        return ConsumerOrchid(str(consumer_ref), self.agent_id)
 
-    def get_owned_consumer_orchid(self, consumer_ref):
-        return OwnedConsumerOrchid(consumer_ref, self.agent_id)
+    def get_owned_consumer_orchid(self, consumer_ref: str | GenericObjectPath):
+        return OwnedConsumerOrchid(str(consumer_ref), self.agent_id)
 
     def get_consumer_orchids(self):
         return [self.get_consumer_orchid(consumer) for consumer in self.list_consumers()]

@@ -17,12 +17,15 @@ inline constexpr char QueueConsumerNameAttributeKey[] = "queue_consumer_name";
 inline constexpr char ClusterAttributeKey[] = "cluster";
 
 class TTablePath
-    : public NYPath::TConstrainedRichYPath<
+: public NYPath::TConstrainedRichYPath<
         NYPath::TRequiredAttributesValidator<ClusterAttributeKey>,
         NYPath::TWhitelistAttributesValidator<ClusterAttributeKey>>
 {
 public:
     using TConstrainedRichYPath::TConstrainedRichYPath;
+
+    //! NB(panesher): All unexpected attributes are ignored during conversion.
+    static TTablePath FromRichYPathSafe(const NYPath::TRichYPath& richYPath);
 };
 
 using TQueuePath = TTablePath;
@@ -35,6 +38,9 @@ class TGenericObjectPath
 {
 public:
     using TConstrainedRichYPath::TConstrainedRichYPath;
+
+    //! NB(panesher): All unexpected attributes are ignored during conversion.
+    static TGenericObjectPath FromRichYPathSafe(const NYPath::TRichYPath& richYPath);
 };
 
 using TConsumerPath = TGenericObjectPath;
@@ -55,6 +61,8 @@ void FormatValue(TStringBuilderBase* builder, const NQueueClient::TTablePath& pa
 
 //! Stable format for TGenericObjectPath.
 void FormatValue(TStringBuilderBase* builder, const NQueueClient::TGenericObjectPath& path, TStringBuf spec);
+
+NYTree::IAttributeDictionaryPtr MakeAttributesWithCluster(const std::string& cluster);
 
 } // namespace NYT::NQueueClient
 

@@ -180,11 +180,11 @@ private:
 
     //! Picks host using rendezvous hashing.
     //! The probability of host reassignment in case of any small host set changes is low.
-    static std::string PickHost(const TCrossClusterReference& object, const std::vector<TMemberInfo>& queueAgents)
+    static std::string PickHost(const TGenericObjectPath& object, const std::vector<TMemberInfo>& queueAgents)
     {
         YT_VERIFY(!queueAgents.empty());
 
-        auto objectHash = FarmHashCombine(0, {object.Cluster, object.Path});
+        auto objectHash = FarmHashCombine(0, {object.GetCluster().value(), object.GetPath()});
 
         auto getCombinedHash = [objectHash] (const TMemberInfo& queueAgent) {
             return FarmHashCombine(objectHash, {queueAgent.Id});
@@ -324,12 +324,12 @@ private:
 
         // Map all objects to their responsible queue agents via rendezvous hashing.
 
-        THashSet<TCrossClusterReference> allObjects;
+        THashSet<TGenericObjectPath> allObjects;
         for (const auto& queueRow : queueRows) {
-            allObjects.insert(queueRow.Ref);
+            allObjects.emplace(queueRow.Path);
         }
         for (const auto& consumerRow : consumerRows) {
-            allObjects.insert(consumerRow.Ref);
+            allObjects.insert(consumerRow.Path);
         }
 
         auto currentMapping = TQueueAgentObjectMappingTable::ToMapping(objectMappingRows);

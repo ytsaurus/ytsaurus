@@ -3229,8 +3229,8 @@ std::vector<TListQueueConsumerRegistrationsResult> TClient::DoListQueueConsumerR
     result.reserve(registrations.size());
     for (const auto& registration : registrations) {
         result.push_back({
-            .QueuePath = registration.Queue,
-            .ConsumerPath = registration.Consumer,
+            .QueuePath = TRichYPath(registration.Queue),
+            .ConsumerPath = TRichYPath(registration.Consumer),
             .Vital = registration.Vital,
             .Partitions = registration.Partitions,
         });

@@ -54,6 +54,22 @@ TString ConvertToString(const TGenericObjectPath& path)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTablePath TTablePath::FromRichYPathSafe(const NYPath::TRichYPath& richYPath)
+{
+    THROW_ERROR_EXCEPTION_IF(!richYPath.GetCluster().has_value(), "Can't convert %Qv to TTablePath, because there is no cluster attribute", richYPath);
+    return TTablePath(richYPath.GetPath(), *MakeAttributesWithCluster(richYPath.GetCluster().value()));
+}
+
+TGenericObjectPath TGenericObjectPath::FromRichYPathSafe(const NYPath::TRichYPath& richYPath)
+{
+    THROW_ERROR_EXCEPTION_IF(!richYPath.GetCluster().has_value(), "Can't convert %Qv to TTablePath, because there is no cluster attribute", richYPath);
+    TGenericObjectPath result(richYPath.GetPath(), *MakeAttributesWithCluster(richYPath.GetCluster().value()));
+    if (auto consumerName = richYPath.GetQueueConsumerName()) {
+        result.SetQueueConsumerName(consumerName.value());
+    }
+    return result;
+}
+
 std::weak_ordering operator<=>(const TTablePath& lhs, const TTablePath& rhs)
 {
     return std::tuple(lhs.GetCluster(), lhs.GetPath()) <=> std::tuple(rhs.GetCluster(), rhs.GetPath());
@@ -66,20 +82,16 @@ std::weak_ordering operator<=>(const TGenericObjectPath& lhs, const TGenericObje
 
 TTablePath ToTablePath(const TGenericObjectPath& genericPath)
 {
-    TRichYPath path(genericPath.GetPath());
-    path.SetCluster(genericPath.GetCluster().value());
-    return TTablePath(std::move(path));
+    return TTablePath(genericPath.GetPath(), *MakeAttributesWithCluster(genericPath.GetCluster().value()));
 }
 
 TCrossClusterReference ToCrossClusterReference(const TTablePath& path)
 {
-    YT_VERIFY(path.GetCluster().has_value(), "Cluster is required for TTablePath");
     return TCrossClusterReference(path.GetCluster().value(), path.GetPath());
 }
 
 TCrossClusterReference ToCrossClusterReference(const TGenericObjectPath& path)
 {
-    YT_VERIFY(path.GetCluster().has_value(), "Cluster is required for TGenericObjectPath");
     return TCrossClusterReference(path.GetCluster().value(), path.GetPath());
 }
 
@@ -97,6 +109,13 @@ void FormatValue(TStringBuilderBase* builder, const TGenericObjectPath& path, TS
     }
     // TODO(YT-27209): Remove this implementation.
     FormatValue(builder, ToCrossClusterReference(path), spec);
+}
+
+IAttributeDictionaryPtr MakeAttributesWithCluster(const std::string& cluster)
+{
+    auto attributes = CreateEphemeralAttributes();
+    attributes->Set(ClusterAttributeKey, cluster);
+    return attributes;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

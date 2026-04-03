@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "path.h"
 
 #include <yt/yt/ytlib/queue_client/records/consumer_object.record.h>
 #include <yt/yt/ytlib/queue_client/records/consumer_registration.record.h>
@@ -73,7 +74,7 @@ private:
 // Keep fields in-sync with the implementations of all related methods in the corresponding cpp file.
 struct TQueueTableRow
 {
-    TCrossClusterReference Ref;
+    TQueuePath Path;
     std::optional<TRowRevision> RowRevision;
     // Even though some fields are nullable by their nature (e.g. revision),
     // outer-level nullopt is interpreted as Null, i.e. missing value.
@@ -95,7 +96,7 @@ struct TQueueTableRow
     static std::vector<TString> GetCypressAttributeNames();
 
     static TQueueTableRow FromAttributeDictionary(
-        const TCrossClusterReference& queue,
+        const TQueuePath& queue,
         std::optional<TRowRevision> rowRevision,
         const NYTree::IAttributeDictionaryPtr& cypressAttributes);
 
@@ -120,7 +121,7 @@ DEFINE_REFCOUNTED_TYPE(TQueueTable)
 // Keep fields in-sync with the implementations of all related methods in the corresponding cpp file.
 struct TConsumerTableRow
 {
-    TCrossClusterReference Ref;
+    TConsumerPath Path;
     std::optional<TRowRevision> RowRevision;
     std::optional<NHydra::TRevision> Revision;
     std::optional<NObjectClient::EObjectType> ObjectType;
@@ -137,7 +138,7 @@ struct TConsumerTableRow
     static std::vector<TString> GetCypressAttributeNames();
 
     static TConsumerTableRow FromAttributeDictionary(
-        const TCrossClusterReference& consumer,
+        const TConsumerPath& consumer,
         std::optional<TRowRevision> rowRevision,
         const NYTree::IAttributeDictionaryPtr& cypressAttributes);
 
@@ -162,7 +163,7 @@ DEFINE_REFCOUNTED_TYPE(TConsumerTable)
 
 struct TQueueAgentObjectMappingTableRow
 {
-    TCrossClusterReference Object;
+    TGenericObjectPath Object;
     std::string QueueAgentHost;
 };
 
@@ -174,7 +175,7 @@ class TQueueAgentObjectMappingTable
 public:
     TQueueAgentObjectMappingTable(NYPath::TYPath root, NApi::IClientPtr client);
 
-    static THashMap<TCrossClusterReference, TString> ToMapping(const std::vector<TQueueAgentObjectMappingTableRow>& rows);
+    static THashMap<TGenericObjectPath, TString> ToMapping(const std::vector<TQueueAgentObjectMappingTableRow>& rows);
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueueAgentObjectMappingTable)
@@ -183,8 +184,8 @@ DEFINE_REFCOUNTED_TYPE(TQueueAgentObjectMappingTable)
 
 struct TConsumerRegistrationTableRow
 {
-    TCrossClusterReference Queue;
-    TCrossClusterReference Consumer;
+    TQueuePath Queue;
+    TConsumerPath Consumer;
     //! If true, this consumer will be considered in automatic trimming performed by queue agents for this queue.
     bool Vital;
 
@@ -277,7 +278,7 @@ DEFINE_REFCOUNTED_TYPE(TGenericReplicatedTableMeta)
 
 struct TReplicatedTableMappingTableRow
 {
-    TCrossClusterReference Ref;
+    TTablePath Path;
     std::optional<NHydra::TRevision> Revision;
     std::optional<NObjectClient::EObjectType> ObjectType;
     TGenericReplicatedTableMetaPtr Meta;
@@ -285,7 +286,7 @@ struct TReplicatedTableMappingTableRow
     std::optional<TError> SynchronizationError;
 
     static TReplicatedTableMappingTableRow FromAttributeDictionary(
-        const TCrossClusterReference& object,
+        const TTablePath& object,
         const NYTree::IAttributeDictionaryPtr& cypressAttributes);
 
     std::vector<NYPath::TRichYPath> GetReplicas(
@@ -314,8 +315,8 @@ DEFINE_REFCOUNTED_TYPE(TReplicatedTableMappingTable)
 
 struct TReplicaMappingTableRow
 {
-    TCrossClusterReference ReplicaRef;
-    TCrossClusterReference ReplicatedTableRef;
+    TTablePath ReplicaPath;
+    TTablePath ReplicatedTablePath;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
