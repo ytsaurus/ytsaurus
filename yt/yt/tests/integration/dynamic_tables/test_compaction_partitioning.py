@@ -32,6 +32,24 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 4
 
+    def _update_compaction_hint_fetcher_config(self, name, period, limit=300):
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "store_compactor": {
+                    "compaction_hint_fetchers": {
+                        name: {
+                            "periodic_executor": {
+                                "period": period,
+                            },
+                            "request_throttler": {
+                                "limit": limit,
+                            },
+                        },
+                    },
+                },
+            },
+        })
+
     @authors("ifsmirnov")
     def test_partition_balancer_chunk_view(self):
         [cell_id] = sync_create_cells(1)
@@ -548,19 +566,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         def get_chunk_ids():
             return get(f"//sys/tablets/{tablet_id}/orchid/partitions/0/stores")
 
-        update_nodes_dynamic_config({
-            "tablet_node": {
-                "store_compactor": {
-                    "compaction_hint_fetchers": {
-                        "versioned_row_digest": {
-                            "periodic_executor": {
-                                "period": 1.
-                            }
-                        },
-                    },
-                },
-            },
-        })
+        self._update_compaction_hint_fetcher_config("versioned_row_digest", 1)
 
         # Create a large chunk that will not be compacted will smaller ones and thus will prevent
         # purging delete tombstones by major timestamp.
@@ -697,19 +703,8 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
     @authors("dave11ar")
     def test_timestamp_digest_ttl_cleanup_expected(self):
         sync_create_cells(1)
-        update_nodes_dynamic_config({
-            "tablet_node": {
-                "store_compactor": {
-                    "compaction_hint_fetchers": {
-                        "versioned_row_digest": {
-                            "periodic_executor": {
-                                "period": 1.
-                            }
-                        },
-                    },
-                },
-            },
-        })
+
+        self._update_compaction_hint_fetcher_config("versioned_row_digest", 1)
 
         def check(min_data_versions, max_data_versions, max_obsolete_timestamp_ratio):
             table_path = f"//tmp/t{generate_uuid()}"
@@ -756,19 +751,8 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
     @authors("dave11ar")
     def test_timestamp_digest_min_data_versions_1(self):
         sync_create_cells(1)
-        update_nodes_dynamic_config({
-            "tablet_node": {
-                "store_compactor": {
-                    "compaction_hint_fetchers": {
-                        "versioned_row_digest": {
-                            "periodic_executor": {
-                                "period": 1.
-                            }
-                        },
-                    },
-                },
-            },
-        })
+
+        self._update_compaction_hint_fetcher_config("versioned_row_digest", 1)
 
         self._create_simple_table(
             "//tmp/t",
@@ -799,24 +783,6 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
 
     @authors("dave11ar")
     def test_compaction_hints_after_cell_moved(self):
-        def update_throttler_limit(limit):
-            update_nodes_dynamic_config({
-                "tablet_node": {
-                    "store_compactor": {
-                        "compaction_hint_fetchers": {
-                            "versioned_row_digest": {
-                                "periodic_executor": {
-                                    "period": 1.
-                                },
-                                "request_throttler": {
-                                    "limit": limit,
-                                },
-                            },
-                        },
-                    },
-                }
-            })
-
         cell_id = sync_create_cells(1)[0]
         cell_address = f"//sys/tablet_cells/{cell_id}"
 
@@ -835,7 +801,8 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         )
         sync_mount_table("//tmp/t")
 
-        update_throttler_limit(0)
+        self._update_compaction_hint_fetcher_config("versioned_row_digest", 1, 0)
+
         for _ in range(10):
             insert_rows("//tmp/t", [{"key": 1, "value": "v"}])
 
@@ -863,25 +830,14 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         assert chunk_id in get("//tmp/t/@chunk_ids")
         assert check_no_hint()
 
-        update_throttler_limit(10000)
+        self._update_compaction_hint_fetcher_config("versioned_row_digest", 1, 10000)
         wait(lambda: chunk_id not in get("//tmp/t/@chunk_ids"))
 
     @authors("dave11ar")
     def test_timestamp_digest_with_watermark_row_merger_mode(self):
         sync_create_cells(1)
-        update_nodes_dynamic_config({
-            "tablet_node": {
-                "store_compactor": {
-                    "compaction_hint_fetchers": {
-                        "versioned_row_digest": {
-                            "periodic_executor": {
-                                "period": 1.
-                            },
-                        },
-                    },
-                },
-            },
-        })
+
+        self._update_compaction_hint_fetcher_config("versioned_row_digest", 1)
 
         def _create_table(row_merger_type):
             table_path = f"//tmp/t{generate_uuid()}"
@@ -955,19 +911,8 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
     @authors("dave11ar")
     def test_timestamp_digest_with_ttl_column(self):
         sync_create_cells(1)
-        update_nodes_dynamic_config({
-            "tablet_node": {
-                "store_compactor": {
-                    "compaction_hint_fetchers": {
-                        "versioned_row_digest": {
-                            "periodic_executor": {
-                                "period": 1.
-                            },
-                        },
-                    },
-                },
-            },
-        })
+
+        self._update_compaction_hint_fetcher_config("versioned_row_digest", 1)
 
         table_path = "//tmp/t"
         chunk_ids_path = f"{table_path}/@chunk_ids"
@@ -1203,22 +1148,8 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
 
         chunk_count = 2
 
-        update_nodes_dynamic_config({
-            "tablet_node": {
-                "store_compactor": {
-                    "compaction_hint_fetchers": {
-                        "versioned_row_digest": {
-                            "periodic_executor": {
-                                "period": 1.
-                            },
-                            "request_throttler": {
-                                "limit": 0,
-                            },
-                        },
-                    },
-                },
-            },
-        })
+        self._update_compaction_hint_fetcher_config("versioned_row_digest", 1, 0)
+
         table = "//tmp/t"
 
         self._create_simple_table(
@@ -1470,27 +1401,9 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
 
     @authors("dave11ar")
     def test_simple_min_hash_digest(self):
-        def _update_config(config):
-            update_nodes_dynamic_config({
-                "tablet_node": {
-                    "store_compactor": {
-                        "compaction_hint_fetchers": {
-                            "min_hash_digest": config,
-                        },
-                    },
-                },
-            })
-
         sync_create_cells(1)
 
-        _update_config({
-            "periodic_executor": {
-                "period": 1.
-            },
-            "request_throttler": {
-                "limit": 0,
-            },
-        })
+        self._update_compaction_hint_fetcher_config("min_hash_digest", 1, 0)
 
         table = "//tmp/t"
 
@@ -1522,16 +1435,151 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
 
         assert len(get(f"{table}/@chunk_ids")) == 2
 
-        _update_config({
-            "periodic_executor": {
-                "period": 1.
-            },
-            "request_throttler": {
-                "limit": 300,
-            },
-        })
+        self._update_compaction_hint_fetcher_config("min_hash_digest", 1, 300)
 
         wait(lambda: len(get(f"{table}/@chunk_ids")) == 0)
+
+    @authors("dave11ar")
+    def test_min_hash_digest_three_chunks_deletes(self):
+        sync_create_cells(1)
+
+        self._update_compaction_hint_fetcher_config("min_hash_digest", 1, 0)
+
+        table = "//tmp/t"
+
+        self._create_simple_table(
+            table,
+            mount_config={
+                "min_data_ttl": 0,
+                "dynamic_store_auto_flush_period": yson.YsonEntity(),
+                "compaction_hints": {
+                    "min_hash_digest": {
+                        "enable": True,
+                    },
+                },
+                # Disable regular compaction
+                "min_compaction_store_count": 179,
+                "max_compaction_store_count": 180,
+            },
+        )
+
+        sync_mount_table(table)
+
+        row_count = 10
+
+        # Chunk 1: write keys 0..4.
+        insert_rows(table, [{"key": i, "value": "v"} for i in range(row_count // 2)])
+        sync_flush_table(table)
+
+        # Chunk 2: overwrite keys 5..9 with new values.
+        insert_rows(table, [{"key": i, "value": "w"} for i in range(row_count // 2, row_count)])
+        sync_flush_table(table)
+
+        sleep(1)
+
+        # Chunk 3: delete keys 0..9.
+        delete_rows(table, [{"key": i} for i in range(row_count)])
+        sync_flush_table(table)
+
+        assert len(get(f"{table}/@chunk_ids")) == 3
+
+        self._update_compaction_hint_fetcher_config("min_hash_digest", 1, 300)
+
+        # All three chunks share the same key set, so min hash digest detects
+        # high similarity and triggers compaction that removes all data.
+        wait(lambda: len(get(f"{table}/@chunk_ids")) == 0)
+
+    @authors("dave11ar")
+    def test_min_hash_digest_three_chunks_writes(self):
+        sync_create_cells(1)
+
+        self._update_compaction_hint_fetcher_config("min_hash_digest", 1, 0)
+
+        table = "//tmp/t"
+
+        self._create_simple_table(
+            table,
+            mount_config={
+                "min_data_ttl": 0,
+                "dynamic_store_auto_flush_period": yson.YsonEntity(),
+                "compaction_hints": {
+                    "min_hash_digest": {
+                        "enable": True,
+                    },
+                },
+                # Disable regular compaction
+                "min_compaction_store_count": 179,
+                "max_compaction_store_count": 180,
+            },
+        )
+
+        sync_mount_table(table)
+
+        row_count = 10
+
+        # Chunk 1: write keys 0..4.
+        insert_rows(table, [{"key": i, "value": "v"} for i in range(row_count)])
+        sync_flush_table(table)
+
+        sleep(1)
+
+        # Chunk 2: overwrite keys 5..9 with new values.
+        insert_rows(table, [{"key": i, "value": "w"} for i in range(row_count)])
+        sync_flush_table(table)
+
+        assert len(get(f"{table}/@chunk_ids")) == 2
+
+        self._update_compaction_hint_fetcher_config("min_hash_digest", 1, 300)
+
+        wait(lambda: len(get(f"{table}/@chunk_ids")) == 1)
+
+    @authors("dave11ar")
+    def test_aggregate_digest_three_chunks(self):
+        sync_create_cells(1)
+        table = "//tmp/t"
+        self._create_simple_table(
+            table,
+            schema=[
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "int64", "aggregate": "sum"},
+            ],
+            mount_config={
+                "compaction_hints": {
+                    "row_digest": {
+                        "enable_aggregates": True,
+                    }
+                },
+                "min_data_ttl": 1000000000,
+                "min_data_versions": 0,
+                "max_data_versions": 1,
+                # Disable regular compaction
+                "min_compaction_store_count": 179,
+                "max_compaction_store_count": 180,
+
+                "dynamic_store_auto_flush_period": yson.YsonEntity(),
+            }
+        )
+
+        sync_mount_table(table)
+
+        insert_rows(table, [{"key": 42, "value": 42}])
+        sync_flush_table(table)
+
+        insert_rows(table, [{"key": 42, "value": 42}])
+        sync_flush_table(table)
+
+        for _ in range(10):
+            insert_rows(table, [{"key": 42, "value": 42}])
+        sync_flush_table(table)
+
+        assert len(get(f"{table}/@chunk_ids")) == 3
+
+        set(f"{table}/@mount_config/min_data_ttl", 1)
+        remount_table(table)
+
+        # Aggregate row digest detects that the three chunks have obsolete
+        # aggregate versions and triggers compaction into a single chunk.
+        wait(lambda: len(get(f"{table}/@chunk_ids")) == 1)
 
 
 ################################################################################
