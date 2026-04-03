@@ -22,6 +22,7 @@ target_link_libraries(essentials-public-udf_meta PUBLIC
   contrib-libs-cxxsupp
   yutil
   library-cpp-json
+  essentials-public-langver
 )
 
 target_sources(essentials-public-udf_meta PRIVATE
