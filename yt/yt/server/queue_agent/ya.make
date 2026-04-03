@@ -17,6 +17,7 @@ SRCS(
     queue_agent.cpp
     queue_agent_sharding_manager.cpp
     queue_controller.cpp
+    snapshot.cpp
     snapshot_representation.cpp
     queue_exporter.cpp
     queue_exporter_old.cpp

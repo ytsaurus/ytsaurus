@@ -20,6 +20,7 @@
 #include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/helpers.h>
 
 #include <library/cpp/iterator/enumerate.h>
 
@@ -86,7 +87,7 @@ std::optional<T> FromOptionalYsonString(const std::optional<TYsonString>& value)
 TQueueTableRow RowFromRecord(const NRecords::TQueueObject& record)
 {
     return TQueueTableRow{
-        .Ref = TCrossClusterReference{record.Key.Cluster, record.Key.Path},
+        .Path = TQueuePath(record.Key.Path, *MakeAttributesWithCluster(record.Key.Cluster)),
         .RowRevision = record.RowRevision,
         .Revision = record.Revision,
         .ObjectType = MapStringToEnum<EObjectType>(record.ObjectType),
@@ -105,8 +106,8 @@ TQueueTableRow RowFromRecord(const NRecords::TQueueObject& record)
 NRecords::TQueueObjectKey RecordKeyFromRow(const TQueueTableRow& row)
 {
     return NRecords::TQueueObjectKey{
-        .Cluster = row.Ref.Cluster,
-        .Path = row.Ref.Path,
+        .Cluster = row.Path.GetCluster().value(),
+        .Path = row.Path.GetPath(),
     };
 }
 
@@ -139,7 +140,7 @@ TConsumerTableRow RowFromRecord(const NRecords::TConsumerObject& record)
     }
 
     return TConsumerTableRow{
-        .Ref = TCrossClusterReference{record.Key.Cluster, record.Key.Path},
+        .Path = TConsumerPath(record.Key.Path, *MakeAttributesWithCluster(record.Key.Cluster)),
         .RowRevision = record.RowRevision,
         .Revision = record.Revision,
         .ObjectType = MapStringToEnum<EObjectType>(record.ObjectType),
@@ -155,8 +156,8 @@ TConsumerTableRow RowFromRecord(const NRecords::TConsumerObject& record)
 NRecords::TConsumerObjectKey RecordKeyFromRow(const TConsumerTableRow& row)
 {
     return NRecords::TConsumerObjectKey{
-        .Cluster = row.Ref.Cluster,
-        .Path = row.Ref.Path,
+        .Cluster = row.Path.GetCluster().value(),
+        .Path = row.Path.GetPath(),
     };
 }
 NRecords::TConsumerObject RecordFromRow(const TConsumerTableRow& row)
@@ -185,8 +186,8 @@ TConsumerRegistrationTableRow RowFromRecord(const NRecords::TConsumerRegistratio
 {
     const auto& key = record.Key;
     return TConsumerRegistrationTableRow{
-        .Queue = TCrossClusterReference{key.QueueCluster, key.QueuePath},
-        .Consumer = TCrossClusterReference{key.ConsumerCluster, key.ConsumerPath},
+        .Queue = TQueuePath{key.QueuePath, *MakeAttributesWithCluster(key.QueueCluster)},
+        .Consumer = TConsumerPath{key.ConsumerPath, *MakeAttributesWithCluster(key.ConsumerCluster)},
         .Vital = record.Vital.value_or(false),
         .Partitions = FromOptionalYsonString<std::vector<int>>(record.Partitions),
     };
@@ -195,10 +196,10 @@ TConsumerRegistrationTableRow RowFromRecord(const NRecords::TConsumerRegistratio
 NRecords::TConsumerRegistrationKey RecordKeyFromRow(const TConsumerRegistrationTableRow& row)
 {
     return NRecords::TConsumerRegistrationKey{
-        .QueueCluster = row.Queue.Cluster,
-        .QueuePath = row.Queue.Path,
-        .ConsumerCluster = row.Consumer.Cluster,
-        .ConsumerPath = row.Consumer.Path,
+        .QueueCluster = row.Queue.GetCluster().value(),
+        .QueuePath = row.Queue.GetPath(),
+        .ConsumerCluster = row.Consumer.GetCluster().value(),
+        .ConsumerPath = row.Consumer.GetPath(),
     };
 }
 
@@ -214,7 +215,7 @@ NRecords::TConsumerRegistration RecordFromRow(const TConsumerRegistrationTableRo
 TQueueAgentObjectMappingTableRow RowFromRecord(const NRecords::TQueueAgentObjectMapping& record)
 {
     return TQueueAgentObjectMappingTableRow{
-        .Object = TCrossClusterReference::FromString(record.Key.Object),
+        .Object = TGenericObjectPath(record.Key.Object),
         .QueueAgentHost = record.QueueAgentHost,
     };
 }
@@ -237,7 +238,7 @@ NRecords::TQueueAgentObjectMapping RecordFromRow(const TQueueAgentObjectMappingT
 TReplicatedTableMappingTableRow RowFromRecord(const NRecords::TReplicatedTableMapping& record)
 {
     return TReplicatedTableMappingTableRow{
-        .Ref = TCrossClusterReference{record.Key.Cluster, record.Key.Path},
+        .Path = TTablePath(record.Key.Path, *MakeAttributesWithCluster(record.Key.Cluster)),
         .Revision = record.Revision,
         .ObjectType = MapStringToEnum<EObjectType>(record.ObjectType),
         .Meta = FromOptionalYsonString<TGenericReplicatedTableMetaPtr>(record.Meta).value_or(nullptr),
@@ -248,8 +249,8 @@ TReplicatedTableMappingTableRow RowFromRecord(const NRecords::TReplicatedTableMa
 NRecords::TReplicatedTableMappingKey RecordKeyFromRow(const TReplicatedTableMappingTableRow& row)
 {
     return NRecords::TReplicatedTableMappingKey{
-        .Cluster = row.Ref.Cluster,
-        .Path = row.Ref.Path,
+        .Cluster = row.Path.GetCluster().value(),
+        .Path = row.Path.GetPath(),
     };
 }
 
@@ -261,10 +262,10 @@ NRecords::TReplicatedTableMapping RecordFromRow(const TReplicatedTableMappingTab
         meta = ConvertToYsonString(row.Meta);
 
         auto richYPathReplicaList = row.GetReplicas();
-        std::vector<TCrossClusterReference> replicaList;
+        std::vector<std::string> replicaList;
         replicaList.reserve(richYPathReplicaList.size());
         for (const auto& replica : richYPathReplicaList) {
-            replicaList.push_back(TCrossClusterReference::FromRichYPath(replica));
+            replicaList.emplace_back(ToString(TTablePath(replica)));
         }
         replicaListTypeV3 = ConvertToYsonString(replicaList);
     }
@@ -282,17 +283,17 @@ NRecords::TReplicatedTableMapping RecordFromRow(const TReplicatedTableMappingTab
 TReplicaMappingTableRow RowFromRecord(const NRecords::TReplicaMapping& record)
 {
     return TReplicaMappingTableRow{
-        .ReplicaRef = TCrossClusterReference::FromString(record.Key.ReplicaList),
-        .ReplicatedTableRef = TCrossClusterReference{record.Key.Cluster, record.Key.Path},
+        .ReplicaPath = TTablePath(record.Key.ReplicaList.data()),
+        .ReplicatedTablePath = TTablePath(record.Key.Path, *MakeAttributesWithCluster(record.Key.Cluster)),
     };
 }
 
 NRecords::TReplicaMappingKey RecordKeyFromRow(const TReplicaMappingTableRow& row)
 {
     return NRecords::TReplicaMappingKey{
-        .ReplicaList = ToString(row.ReplicaRef),
-        .Cluster = row.ReplicatedTableRef.Cluster,
-        .Path = row.ReplicatedTableRef.Path,
+        .ReplicaList = ToString(row.ReplicaPath),
+        .Cluster = row.ReplicatedTablePath.GetCluster().value(),
+        .Path = row.ReplicatedTablePath.GetPath(),
     };
 }
 
@@ -472,12 +473,12 @@ std::vector<TString> TQueueTableRow::GetCypressAttributeNames()
 }
 
 TQueueTableRow TQueueTableRow::FromAttributeDictionary(
-    const TCrossClusterReference& queue,
+    const TQueuePath& queue,
     std::optional<TRowRevision> rowRevision,
     const IAttributeDictionaryPtr& cypressAttributes)
 {
     return {
-        .Ref = queue,
+        .Path = queue,
         .RowRevision = rowRevision,
         .Revision = cypressAttributes->Find<NHydra::TRevision>("attribute_revision"),
         .ObjectType = cypressAttributes->Find<EObjectType>("type"),
@@ -497,7 +498,7 @@ void Serialize(const TQueueTableRow& row, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("queue").Value(row.Ref)
+            .Item("queue").Value(row.Path)
             .Item("row_revision").Value(row.RowRevision)
             .Item("revision").Value(row.Revision)
             .Item("object_type").Value(row.ObjectType)
@@ -546,12 +547,12 @@ std::vector<TString> TConsumerTableRow::GetCypressAttributeNames()
 }
 
 TConsumerTableRow TConsumerTableRow::FromAttributeDictionary(
-    const TCrossClusterReference& consumer,
+    const TConsumerPath& consumer,
     std::optional<TRowRevision> rowRevision,
     const IAttributeDictionaryPtr& cypressAttributes)
 {
     return {
-        .Ref = consumer,
+        .Path = consumer,
         .RowRevision = rowRevision,
         .Revision = cypressAttributes->Get<NHydra::TRevision>("attribute_revision"),
         .ObjectType = cypressAttributes->Get<EObjectType>("type"),
@@ -573,7 +574,7 @@ void Serialize(const TConsumerTableRow& row, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("consumer").Value(row.Ref)
+            .Item("consumer").Value(row.Path)
             .Item("row_revision").Value(row.RowRevision)
             .Item("revision").Value(row.Revision)
             .Item("object_type").Value(row.ObjectType)
@@ -596,10 +597,10 @@ TConsumerTable::TConsumerTable(TYPath root, IClientPtr client)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashMap<TCrossClusterReference, TString> TQueueAgentObjectMappingTable::ToMapping(
+THashMap<TGenericObjectPath, TString> TQueueAgentObjectMappingTable::ToMapping(
     const std::vector<TQueueAgentObjectMappingTableRow>& rows)
 {
-    THashMap<TCrossClusterReference, TString> objectMapping;
+    THashMap<TGenericObjectPath, TString> objectMapping;
     for (const auto& row : rows) {
         objectMapping[row.Object] = row.QueueAgentHost;
     }
@@ -681,12 +682,12 @@ TGenericReplicatedTableMetaPtr ParseReplicatedTableMeta(EObjectType objectType, 
 }
 
 TReplicatedTableMappingTableRow TReplicatedTableMappingTableRow::FromAttributeDictionary(
-    const TCrossClusterReference& object,
+    const TTablePath& object,
     const IAttributeDictionaryPtr& cypressAttributes)
 {
     auto objectType = cypressAttributes->Get<EObjectType>("type");
     return {
-        .Ref = object,
+        .Path = object,
         .Revision = cypressAttributes->Get<NHydra::TRevision>("attribute_revision"),
         .ObjectType = objectType,
         .Meta = ParseReplicatedTableMeta(objectType, cypressAttributes),
@@ -701,17 +702,19 @@ std::vector<TRichYPath> TReplicatedTableMappingTableRow::GetReplicas(
     std::vector<TRichYPath> replicas;
 
     if (ObjectType && *ObjectType == EObjectType::ReplicatedTable && Meta && Meta->ReplicatedTableMeta) {
+        replicas.reserve(Meta->ReplicatedTableMeta->Replicas.size());
         for (const auto& replica : GetValues(Meta->ReplicatedTableMeta->Replicas)) {
             if (!mode || *mode == replica->Mode) {
-                replicas.push_back(TCrossClusterReference{replica->ClusterName, replica->ReplicaPath});
+                replicas.emplace_back(TTablePath(replica->ReplicaPath, *MakeAttributesWithCluster(replica->ClusterName)).Normalize());
             }
         }
     }
 
     if (ObjectType && *ObjectType == EObjectType::ChaosReplicatedTable && Meta && Meta->ChaosReplicatedTableMeta) {
+        replicas.reserve(Meta->ChaosReplicatedTableMeta->Replicas.size());
         for (const auto& replica : GetValues(Meta->ChaosReplicatedTableMeta->Replicas)) {
             if ((!mode || *mode == replica->Mode) && (!contentType || *contentType == replica->ContentType)) {
-                replicas.push_back(TCrossClusterReference{replica->ClusterName, replica->ReplicaPath});
+                replicas.emplace_back(TTablePath(replica->ReplicaPath, *MakeAttributesWithCluster(replica->ClusterName)).Normalize());
             }
         }
     }
@@ -722,13 +725,13 @@ std::vector<TRichYPath> TReplicatedTableMappingTableRow::GetReplicas(
 void TReplicatedTableMappingTableRow::Validate() const
 {
     if (!ObjectType) {
-        THROW_ERROR_EXCEPTION("Invalid replicated table mapping row for object %Qv: object type cannot be null", Ref);
+        THROW_ERROR_EXCEPTION("Invalid replicated table mapping row for object %Qv: object type cannot be null", Path);
     }
 
     if (!Meta) {
         THROW_ERROR_EXCEPTION(
             "Invalid replicated table mapping row for object %Qv of type %Qlv: meta cannot be null",
-            Ref,
+            Path,
             *ObjectType);
     }
 
@@ -737,18 +740,18 @@ void TReplicatedTableMappingTableRow::Validate() const
             THROW_ERROR_EXCEPTION_IF(
                 !Meta->ReplicatedTableMeta,
                 "Invalid replicated table mapping row for replicated table %Qv: replicated table meta cannot be null",
-                Ref);
+                Path);
             break;
         case EObjectType::ChaosReplicatedTable:
             THROW_ERROR_EXCEPTION_IF(
                 !Meta->ChaosReplicatedTableMeta,
                 "Invalid replicated table mapping row for replicated table %Qv: chaos replicated table meta cannot be null",
-                Ref);
+                Path);
             break;
         default:
             THROW_ERROR_EXCEPTION(
                 "Invalid replicated table mapping row for object %Qv: incompatible type %Qlv",
-                Ref,
+                Path,
                 *ObjectType);
     }
 
@@ -765,7 +768,7 @@ void Serialize(const TReplicatedTableMappingTableRow& row, IYsonConsumer* consum
 {
     BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("object").Value(row.Ref)
+            .Item("object").Value(row.Path)
             .Item("revision").Value(row.Revision)
             .Item("object_type").Value(row.ObjectType)
             .Item("meta").Value(row.Meta)

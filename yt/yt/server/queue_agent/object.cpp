@@ -9,10 +9,10 @@ TErrorController<TRow, TSnapshot>::TErrorController(
     TRow row,
     std::optional<NQueueClient::TReplicatedTableMappingTableRow> replicatedTableMappingRow,
     TError error)
-    : Row_(std::move(row))
+    : Row_(row)
     , ReplicatedTableMappingRow_(std::move(replicatedTableMappingRow))
     , Error_(std::move(error))
-    , Snapshot_(New<TSnapshot>())
+    , Snapshot_(New<TSnapshot>(std::move(row)))
 {
     Snapshot_->Error = Error_;
 }

@@ -27,6 +27,7 @@ using namespace NRpc;
 using namespace NTracing;
 using namespace NYson;
 using namespace NYTree;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -165,14 +166,14 @@ private:
             switch (object.Kind) {
                 case ECypressSyncObjectKind::Queue:
                     QueueRows.push_back(TQueueTableRow::FromAttributeDictionary(
-                        TCrossClusterReference{cluster, object.Path},
+                        TQueuePath(object.Path, *MakeAttributesWithCluster(cluster)),
                         NextRowRevision(object.RowRevision),
                         attributes));
                     fillChaosReplicatedTableQueueAgentStage(QueueRows.back());
                     break;
                 case ECypressSyncObjectKind::Consumer:
                     ConsumerRows.push_back(TConsumerTableRow::FromAttributeDictionary(
-                        TCrossClusterReference{cluster, object.Path},
+                        TConsumerPath(object.Path, *MakeAttributesWithCluster(cluster)),
                         NextRowRevision(object.RowRevision),
                         attributes));
                     fillChaosReplicatedTableQueueAgentStage(ConsumerRows.back());
@@ -186,7 +187,7 @@ private:
         // NB: Must provide a strong exception-safety guarantee.
         void AppendPotentiallyReplicatedObject(const std::string& cluster, const TObject& object, const IAttributeDictionaryPtr& attributes) {
             auto tableRow =
-                TReplicatedTableMappingTableRow::FromAttributeDictionary(TCrossClusterReference{cluster, object.Path}, attributes);
+                TReplicatedTableMappingTableRow::FromAttributeDictionary(TTablePath(object.Path, *MakeAttributesWithCluster(cluster)), attributes);
             const auto& type = tableRow.ObjectType;
             if (IsReplicatedTableObjectType(type)) {
                 tableRow.Validate();
@@ -203,20 +204,21 @@ private:
             switch (object.Kind) {
                 case ECypressSyncObjectKind::Queue:
                     QueueRows.push_back({
-                        .Ref = TCrossClusterReference{cluster, object.Path},
+                        .Path = TQueuePath(object.Path, *MakeAttributesWithCluster(cluster)),
                         .RowRevision = NextRowRevision(object.RowRevision),
                         .Revision = revision,
                         .SynchronizationError = error,
                     });
                     break;
-                case ECypressSyncObjectKind::Consumer:
+                case ECypressSyncObjectKind::Consumer: {
                     ConsumerRows.push_back({
-                        .Ref = TCrossClusterReference{cluster, object.Path},
+                        .Path = TConsumerPath(object.Path, *MakeAttributesWithCluster(cluster)),
                         .RowRevision = NextRowRevision(object.RowRevision),
                         .Revision = revision,
                         .SynchronizationError = error,
                     });
                     break;
+                }
                 case ECypressSyncObjectKind::Unknown:
                     // NB(apachee): Cypress sync object kind must be known at this point.
                     YT_ABORT();
@@ -258,7 +260,7 @@ private:
             switch (object.Kind) {
                 case ECypressSyncObjectKind::Queue:
                     QueueRows.push_back({
-                        .Ref = TCrossClusterReference{cluster, object.Path},
+                        .Path = TQueuePath(object.Path, *MakeAttributesWithCluster(cluster)),
                         .RowRevision = NextRowRevision(object.RowRevision),
                         .SynchronizationError = error,
                     });
@@ -266,7 +268,7 @@ private:
                     break;
                 case ECypressSyncObjectKind::Consumer:
                     ConsumerRows.push_back({
-                        .Ref = TCrossClusterReference{cluster, object.Path},
+                        .Path = TConsumerPath(object.Path, *MakeAttributesWithCluster(cluster)),
                         .RowRevision = NextRowRevision(object.RowRevision),
                         .SynchronizationError = error,
                     });
@@ -299,7 +301,7 @@ private:
             }
 
             ReplicatedTableMappingRows.push_back({
-                .Ref = TCrossClusterReference{cluster, object.Path},
+                .Path = TTablePath(object.Path, *MakeAttributesWithCluster(cluster)),
                 .ObjectType = objectType,
                 .SynchronizationError = error,
             });
@@ -309,10 +311,10 @@ private:
         {
             switch (object.Kind) {
                 case ECypressSyncObjectKind::Queue:
-                    QueueRows.push_back({.Ref = TCrossClusterReference{cluster, object.Path}});
+                    QueueRows.emplace_back(TQueuePath(object.Path, *MakeAttributesWithCluster(cluster)));
                     break;
                 case ECypressSyncObjectKind::Consumer:
-                    ConsumerRows.push_back({.Ref = TCrossClusterReference{cluster, object.Path}});
+                    ConsumerRows.emplace_back(TConsumerPath(object.Path, *MakeAttributesWithCluster(cluster)));
                     break;
                 case ECypressSyncObjectKind::Unknown:
                     // NB(apachee): Cypress sync object kind must be known at this point.
@@ -322,7 +324,7 @@ private:
 
         void AppendReplicatedObjectKey(const std::string& cluster, const TObject& object)
         {
-            ReplicatedTableMappingRows.push_back({.Ref = TCrossClusterReference{cluster, object.Path}});
+            ReplicatedTableMappingRows.emplace_back(TTablePath(object.Path, *MakeAttributesWithCluster(cluster)));
         }
 
         void MergeWith(const TObjectRowList& rhs)
@@ -736,9 +738,10 @@ private:
         WaitFor(AllSucceeded(std::vector{asyncQueues.AsVoid(), asyncConsumers.AsVoid(), asyncReplicatedTableMapping.AsVoid()}))
             .ThrowOnError();
 
+
         for (const auto& queue : asyncQueues.GetOrCrash().Value()) {
-            ClusterToDynamicStateObjects_[queue.Ref.Cluster].push_back({
-                queue.Ref.Path,
+            ClusterToDynamicStateObjects_[queue.Path.GetCluster().value()].push_back({
+                queue.Path.GetPath(),
                 /*kind*/ ECypressSyncObjectKind::Queue,
                 queue.ObjectType,
                 queue.Revision,
@@ -746,8 +749,8 @@ private:
         }
 
         for (const auto& consumer : asyncConsumers.GetOrCrash().Value()) {
-            ClusterToDynamicStateObjects_[consumer.Ref.Cluster].push_back({
-                consumer.Ref.Path,
+            ClusterToDynamicStateObjects_[consumer.Path.GetCluster().value()].push_back({
+                consumer.Path.GetPath(),
                 /*kind*/ ECypressSyncObjectKind::Consumer,
                 consumer.ObjectType,
                 consumer.Revision,
@@ -759,8 +762,8 @@ private:
         }
 
         for (const auto& replicatedObject : asyncReplicatedTableMapping.GetOrCrash().Value()) {
-            ClusterToReplicatedTableMappingObjects_[replicatedObject.Ref.Cluster].push_back({
-                replicatedObject.Ref.Path,
+            ClusterToReplicatedTableMappingObjects_[replicatedObject.Path.GetCluster().value()].push_back({
+                replicatedObject.Path.GetPath(),
                 /*kind*/ ECypressSyncObjectKind::Unknown,
                 replicatedObject.ObjectType,
                 replicatedObject.Revision,

@@ -212,11 +212,11 @@ THashMap<TString, TQueueExportProgressPtr> DoGetQueueExportProgressFromObjectSer
     const IYPathServicePtr& queueService,
     const TRichYPath& queuePath)
 {
-    auto queueRef = Format("%v:%v", queuePath.GetCluster(), queuePath.GetPath());
-    auto exportsPath = Format("/%v/status/exports", ToYPathLiteral(queueRef));
+    auto stringPath = Format("%v:%v", queuePath.GetCluster().value(), queuePath.GetPath());
+    auto exportsPath = Format("/%v/status/exports", ToYPathLiteral(stringPath));
     auto queueExportsYson = WaitFor(AsyncYPathGet(queueService, exportsPath))
         .ValueOrThrow("Get request failed (Queue: %v, ExportsPath: %v)",
-            queueRef, exportsPath);
+            queuePath, exportsPath);
 
     auto queueExportsNode = ConvertTo<IMapNodePtr>(queueExportsYson);
     if (auto error = queueExportsNode->FindChildValue<TError>("error")) {

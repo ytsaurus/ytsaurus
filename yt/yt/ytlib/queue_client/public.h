@@ -1,5 +1,7 @@
 #pragma once
 
+#include "path.h"
+
 #include <yt/yt/core/misc/public.h>
 
 #include <yt/yt/client/queue_client/common.h>
@@ -52,7 +54,7 @@ struct TQueueTableRow;
 struct TConsumerTableRow;
 struct TConsumerRegistrationTableRow;
 struct TReplicatedTableMappingTableRow;
-using TConsumerRowMap = THashMap<TCrossClusterReference, TConsumerTableRow>;
+using TConsumerRowMap = THashMap<TConsumerPath, TConsumerTableRow>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
