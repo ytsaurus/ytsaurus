@@ -419,6 +419,11 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    const NRpc::IChannelPtr& GetTabletBalancerChannel() override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     void RegisterShuffleService(const std::string& /*address*/) override
     {
         YT_UNIMPLEMENTED();

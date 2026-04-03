@@ -26,6 +26,8 @@
 
 #include <yt/yt/ytlib/yql_client/config.h>
 
+#include <yt/yt/ytlib/tablet_balancer_client/config.h>
+
 #include <yt/yt/ytlib/transaction_client/config.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -219,6 +221,8 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("scheduler", &TThis::Scheduler)
         .DefaultNew();
     registrar.Parameter("bundle_controller", &TThis::BundleController)
+        .DefaultNew();
+    registrar.Parameter("tablet_balancer", &TThis::TabletBalancer)
         .DefaultNew();
     registrar.Parameter("queue_agent", &TThis::QueueAgent)
         .DefaultNew();

@@ -225,6 +225,7 @@ private:
     };
 
     void LinkOrchidService() const;
+    void LinkTabletBalancerService() const;
 
     using TReshardDescriptorIt = std::vector<TReshardDescriptor>::iterator;
 
@@ -513,6 +514,10 @@ void TTabletBalancer::Start()
     }
 
     BIND(&TTabletBalancer::LinkOrchidService, MakeStrong(this))
+        .Via(ControlInvoker_)
+        .Run();
+
+    BIND(&TTabletBalancer::LinkTabletBalancerService, MakeStrong(this))
         .Via(ControlInvoker_)
         .Run();
 
@@ -1031,6 +1036,26 @@ void TTabletBalancer::LinkOrchidService() const
     }
 }
 
+void TTabletBalancer::LinkTabletBalancerService() const
+{
+    YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+
+    auto addresses = Bootstrap_->GetLocalAddresses();
+
+    YT_LOG_INFO("Setting new address for tablet balancer (Addresses: %v)",
+        ConvertToYsonString(addresses, EYsonFormat::Text));
+
+    auto rspOrError = WaitFor(Bootstrap_->GetClient()->SetNode(
+        "//sys/tablet_balancer/@addresses",
+        ConvertToYsonString(addresses)));
+
+    if (!rspOrError.IsOK()) {
+        YT_LOG_ERROR(rspOrError, "Failed to link tablet balancer service, will stop leading");
+
+        YT_UNUSED_FUTURE(Bootstrap_->GetElectionManager()->StopLeading());
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEffectiveTableConfig TTabletBalancer::GetEffectiveTableConfig(
@@ -1169,21 +1194,27 @@ void TTabletBalancer::RequestBalancing(
 {
     YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
+    if (!IsActive_.load()) {
+        THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Current instance of tablet balancer is not a leader");
+    }
+
     auto bundleStateIt = Bundles_.find(balancingRequest.BundleName);
     if (bundleStateIt == Bundles_.end()) {
-        THROW_ERROR_EXCEPTION("Received on-demand balancing request for an unknown bundle (BundleName: %v)", balancingRequest.BundleName);
+        THROW_ERROR_EXCEPTION("Received on-demand balancing request for an unknown bundle (BundleName: %v)",
+            balancingRequest.BundleName);
     }
 
     auto bundleSnapshotOrError = WaitFor(bundleStateIt->second->GetBundleSnapshot());
     if (!bundleSnapshotOrError.IsOK()) {
-        THROW_ERROR_EXCEPTION("Failed to get bundle snapshot for on-demand balancing (BundleName: %v)", balancingRequest.BundleName)
+        THROW_ERROR_EXCEPTION("Failed to get bundle snapshot for on-demand balancing (BundleName: %v)",
+            balancingRequest.BundleName)
             << bundleSnapshotOrError;
     }
 
     auto bundleSnapshot = std::move(bundleSnapshotOrError).Value();
     const auto& tablets = bundleSnapshot->Bundle->Tablets;
 
-    THashSet<TGlobalGroupTag> groupsToBalance;
+    THashSet<TGlobalGroupTag> groups;
     for (auto tabletId : balancingRequest.TabletIds) {
         auto tabletIt = tablets.find(tabletId);
         if (tabletIt == tablets.end()) {
@@ -1201,15 +1232,28 @@ void TTabletBalancer::RequestBalancing(
             continue;
         }
 
-        groupsToBalance.emplace(balancingRequest.BundleName, std::move(*group));
+        groups.emplace(balancingRequest.BundleName, std::move(*group));
     }
 
-    for (const auto& groupTag : groupsToBalance) {
-        YT_LOG_DEBUG("Scheduling reshard iteration for group by tablet request (BundleName: %v, Group: %v)",
+    for (const auto& groupTag : groups) {
+        YT_LOG_DEBUG("Scheduling balancing iteration for group by tablet request (BundleName: %v, Group: %v, Mode: %v)",
             groupTag.first,
-            groupTag.second);
+            groupTag.second,
+            balancingRequest.Mode);
 
-        ScheduleReshardIteration(groupTag);
+        switch (balancingRequest.Mode) {
+            case EBalancingRequestMode::Move:
+                ScheduleMoveIteration(groupTag);
+                break;
+
+            case EBalancingRequestMode::Reshard:
+                ScheduleReshardIteration(groupTag);
+                break;
+
+            default:
+                THROW_ERROR_EXCEPTION("Received on-demand balancing request with unknown %Qlv mode",
+                    balancingRequest.Mode);
+        }
     }
 }
 

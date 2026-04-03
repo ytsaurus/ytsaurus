@@ -526,6 +526,12 @@ SRCS(
     table_client/proto/table_ypath.proto
     table_client/proto/virtual_value_directory.proto
 
+    tablet_balancer_client/balancing_request.cpp
+    tablet_balancer_client/config.cpp
+    tablet_balancer_client/tablet_balancer_channel.cpp
+
+    tablet_balancer_client/proto/tablet_balancer_service.proto
+
     tablet_client/backup.cpp
     tablet_client/config.cpp
     tablet_client/bulk_insert_locking.cpp
@@ -833,7 +839,6 @@ PEERDIR(
     yt/yt/library/web_assembly/api
     yt/yt/ytlib/discovery_client
     yt/yt/ytlib/query_tracker_client
-    yt/yt/ytlib/tablet_balancer_client
     yt/yt_proto/yt/client
     yt/yt/flow/lib/client
     yt/yt/flow/lib/native_client
