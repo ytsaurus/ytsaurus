@@ -23,6 +23,9 @@ void TDynamicTableManagerConfig::Register(TRegistrar registrar)
         .Default(false)
         .DontSerializeDefault();
 
+    registrar.Parameter("validate_no_descending_sort_order", &TThis::ValidateNoDescendingSortOrder)
+        .Default(false);
+
     registrar.Preprocessor([] (TThis* config) {
         config->TableSchemaCache->ExpirationPeriod = TDuration::Seconds(10);
         config->TableSchemaCache->RefreshTime = std::nullopt;
