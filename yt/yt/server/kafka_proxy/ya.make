@@ -16,6 +16,7 @@ SRCS(
     group_coordinator.cpp
     helpers.cpp
     program.cpp
+    request_handler.cpp
     server.cpp
 )
 

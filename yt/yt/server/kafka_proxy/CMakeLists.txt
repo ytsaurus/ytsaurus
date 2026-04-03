@@ -57,6 +57,7 @@ target_sources(yt-server-kafka_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/kafka_proxy/group_coordinator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/kafka_proxy/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/kafka_proxy/program.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/kafka_proxy/request_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/kafka_proxy/server.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/server/kafka_proxy/records/kafka_message.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/server/kafka_proxy/records/kafka_message.record.h
