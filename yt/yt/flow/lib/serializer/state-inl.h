@@ -14,11 +14,8 @@ namespace NYT::NFlow::NYsonSerializer {
 template <class T>
 TStateSchemaPtr GetYsonStateSchema()
 {
-    auto ctor = []() {
-        return New<T>();
-    };
-
-    return NPrivate::BuildYsonStateSchema(ctor);
+    static const auto schema = NPrivate::BuildYsonStateSchema(&New<T>);
+    return schema;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
