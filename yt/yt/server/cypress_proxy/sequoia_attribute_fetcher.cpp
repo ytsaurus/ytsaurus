@@ -499,7 +499,7 @@ private:
         bool serialize)
     {
         bool inherit = node->Get<bool>(EInternedAttributeKey::InheritAcl.Unintern());
-        auto acl = node->Get<TSerializableAccessControlList>(EInternedAttributeKey::Acl.Unintern());
+        auto acl = node->Get<TSerializableAccessControlList>(EInternedAttributeKey::SequoiaAcl.Unintern());
 
         if (inherit &&
             acl.Entries.empty() &&
@@ -711,7 +711,7 @@ private:
                     break;
                 }
                 case EInternedAttributeKey::EffectiveAcl: {
-                    EffectiveBaseAttributes_.push_back(EInternedAttributeKey::Acl.Unintern());
+                    EffectiveBaseAttributes_.push_back(EInternedAttributeKey::SequoiaAcl.Unintern());
                     EffectiveBaseAttributes_.push_back(EInternedAttributeKey::InheritAcl.Unintern());
                     break;
                 }

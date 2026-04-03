@@ -232,16 +232,16 @@ private:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         const auto& securityManager = Bootstrap_->GetSecurityManager();
 
-        THashMap<TCellTag, std::vector<TRootstockNode*>> scionsByCellTag;
+        THashMap<TCellTag, std::vector<TRootstockNode*>> rootstocksByScionCellTag;
 
         for (auto [nodeId, node] : RootstockNodes_) {
-            scionsByCellTag[CellTagFromId(node->GetScionId())].push_back(node);
+            rootstocksByScionCellTag[CellTagFromId(node->GetScionId())].push_back(node);
         }
 
-        for (auto [scionCellTag, scion] : scionsByCellTag) {
+        for (auto [scionCellTag, rootstocks] : rootstocksByScionCellTag) {
             NProto::TReqSynchronizeScions request;
 
-            for (auto* node : scion) {
+            for (auto* node : rootstocks) {
                 YT_VERIFY(node->IsTrunk());
                 YT_VERIFY(CellTagFromId(node->GetScionId()) == scionCellTag);
 
@@ -256,9 +256,8 @@ private:
                 GatherInheritableAttributes(node->GetParent(), &effectiveInheritableAttributes->MutableAttributes());
                 ToProto(scionInfo->mutable_effective_inheritable_attributes(), *effectiveInheritableAttributes);
 
-                auto effectiveAcl = securityManager->GetEffectiveAcl(node);
-                auto serializedEffectiveAcl = ConvertToYsonString(effectiveAcl).ToString();
-                scionInfo->set_effective_acl(serializedEffectiveAcl);
+                auto inheritedAcl = securityManager->GetEffectiveAcl(node, /*skipFirstObject*/ true);
+                scionInfo->set_inherited_acl(ToProto(ConvertToYsonString(inheritedAcl)));
 
                 auto acd = securityManager->GetAcd(node);
                 scionInfo->set_direct_acl(ToProto(ConvertToYsonString(acd->Acl())));
@@ -313,8 +312,8 @@ private:
                 inheritableAttributes->MergeFrom(*attributesDict);
 
                 const auto& securityManager = Bootstrap_->GetSecurityManager();
-                auto effectiveAcl = DeserializeAclOrAlert(
-                    ConvertToNode(TYsonString(scionInfo.effective_acl())),
+                auto inheritedAcl = DeserializeAclOrAlert(
+                    ConvertToNode(TYsonString(scionInfo.inherited_acl())),
                     securityManager);
                 auto directAcl = DeserializeAclOrAlert(
                     ConvertToNode(TYsonString(scionInfo.direct_acl())),
@@ -336,6 +335,13 @@ private:
 
                 // NB: Fields of exitNode are updated after protobuf parsing in order to avoid partial updating.
                 scionNode->EffectiveInheritableAttributes().emplace(inheritableAttributes->Attributes().ToPersistent());
+                scionNode->DirectAcd().SetEntries(directAcl);
+
+                auto effectiveAcl = std::move(directAcl);
+                effectiveAcl.Entries.insert(
+                    effectiveAcl.Entries.end(),
+                    std::make_move_iterator(inheritedAcl.Entries.begin()),
+                    std::make_move_iterator(inheritedAcl.Entries.end()));
 
                 {
                     auto acd = securityManager->GetAcd(scionNode).AsMutable();
@@ -343,7 +349,6 @@ private:
                     acd->SetInherit(scionInfo.inherit_acl());
                     acd->SetOwner(owner);
                 }
-                scionNode->DirectAcd().SetEntries(directAcl);
 
                 if (effectiveAnnotationInfo) {
                     scionNode->SetAnnotation(std::move(effectiveAnnotationInfo->Annotation));
@@ -429,8 +434,8 @@ private:
         }
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto effectiveAcl = securityManager->GetEffectiveAcl(trunkNode);
-        request.set_effective_acl(ToProto(ConvertToYsonString(effectiveAcl)));
+        auto inheritedAcl = securityManager->GetEffectiveAcl(trunkNode, /*skipFirstObject*/ true);
+        request.set_inherited_acl(ToProto(ConvertToYsonString(inheritedAcl)));
 
         const auto& directAcd = trunkNode->Acd();
         request.set_direct_acl(ToProto(ConvertToYsonString(directAcd.Acl())));
@@ -496,14 +501,12 @@ private:
         const auto& path = request->path();
         const auto& key = request->key();
 
-        auto effectiveAcl = DeserializeAclOrAlert(
-            ConvertToNode(TYsonString(request->effective_acl())),
+        auto inheritedAcl = DeserializeAclOrAlert(
+            ConvertToNode(TYsonString(request->inherited_acl())),
             securityManager);
-        auto directAcl = request->has_direct_acl()
-            ? std::optional(DeserializeAclOrAlert(
-                ConvertToNode(TYsonString(request->direct_acl())),
-                securityManager))
-            : std::nullopt;
+        auto directAcl = DeserializeAclOrAlert(
+            ConvertToNode(TYsonString(request->direct_acl())),
+            securityManager);
         auto inheritAcl = request->inherit_acl();
 
         auto effectiveAnnotation = request->has_effective_annotation()
@@ -542,14 +545,18 @@ private:
             path,
             parentId);
         scionNode->MutableSequoiaProperties() = std::make_unique<TCypressNode::TMutableSequoiaProperties>();
+        scionNode->DirectAcd().SetEntries(directAcl);
+
+        auto effectiveAcl = std::move(directAcl);
+        effectiveAcl.Entries.insert(
+            effectiveAcl.Entries.end(),
+            std::make_move_iterator(inheritedAcl.Entries.begin()),
+            std::make_move_iterator(inheritedAcl.Entries.end()));
 
         {
             auto acd = securityManager->GetAcd(scionNode).AsMutable();
             acd->SetEntries(effectiveAcl);
             acd->SetInherit(inheritAcl);
-            if (directAcl) {
-                scionNode->DirectAcd().SetEntries(*directAcl);
-            }
 
             if (auto ownerName = explicitAttributes->FindAndRemove<std::string>(EInternedAttributeKey::Owner.Unintern())) {
                 if (auto* owner = securityManager->FindSubjectByNameOrAlias(*ownerName, /*activeLifeStageOnly*/ true)) {

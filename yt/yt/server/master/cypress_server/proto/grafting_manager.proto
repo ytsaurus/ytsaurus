@@ -23,9 +23,9 @@ message TReqCreateScion
 
     optional string key = 8;
 
-    required bytes effective_acl = 9;
-    optional bytes direct_acl = 10;
-    optional bool inherit_acl = 11;
+    required bytes inherited_acl = 9;
+    required bytes direct_acl = 10;
+    required bool inherit_acl = 11;
 
     optional string effective_annotation = 12;
     optional string effective_annotation_path = 13;

@@ -64,6 +64,9 @@ class TestGrafting(YTEnvSetup):
         assert get("//tmp/r/@type") == "scion"
         assert get("//tmp/r/@rootstock_id") == rootstock_id
 
+        expected_acl = get("//tmp/r&/@effective_acl")
+        assert get("//tmp/r/@effective_acl") == expected_acl
+
         assert exists(f"//sys/rootstocks/{rootstock_id}")
         assert exists(f"//sys/scions/{scion_id}")
 
