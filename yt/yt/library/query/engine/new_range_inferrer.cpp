@@ -995,7 +995,7 @@ TSharedRange<TRowRange> CreateNewHeavyRangeInferrer(
         ToString(constraints, constraintRef));
 
     using TAlloc = TAllocatorOverChunkProvider<TRowRange>;
-    auto enrichedRanges = std::vector<TRowRange, TAlloc>(TAlloc(
+    std::set<TRowRange, std::less<TRowRange>, TAlloc> nonOverlappingEnrichedRanges(TAlloc(
         memoryChunkProvider,
         GetRefCountedTypeCookie<TRangeInferrerBufferTag>()));
 
@@ -1032,22 +1032,49 @@ TSharedRange<TRowRange> CreateNewHeavyRangeInferrer(
                 constraintRow,
                 options.RangeExpansionLimit);
 
-            enrichedRanges.insert(enrichedRanges.end(), ranges.begin(), ranges.end());
+            for (const auto& newRange : ranges) {
+                auto it = nonOverlappingEnrichedRanges.lower_bound(newRange);
+
+                auto mergeStart = it;
+                auto mergedLower = newRange.first;;
+                if (it != nonOverlappingEnrichedRanges.begin()) {
+                    auto prev = std::prev(it);
+                    if (!(prev->second < newRange.first)) {
+                        mergeStart = prev;
+                        mergedLower = mergeStart->first;
+                    }
+                }
+
+                auto mergeEnd = it;
+                while (mergeEnd != nonOverlappingEnrichedRanges.end() && !(newRange.second < mergeEnd->first)) {
+                    ++mergeEnd;
+                }
+
+                auto mergedUpper = newRange.second;
+                if (mergeStart != mergeEnd) {
+                    auto lastMerged = std::prev(mergeEnd);
+                    if (lastMerged->second > mergedUpper) {
+                        mergedUpper = lastMerged->second;
+                    }
+                }
+
+                if (mergeStart != mergeEnd) {
+                    nonOverlappingEnrichedRanges.erase(mergeStart, mergeEnd);
+                }
+
+                nonOverlappingEnrichedRanges.insert(TRowRange(mergedLower, mergedUpper));
+            }
         },
         keyWidth);
 
-    std::sort(enrichedRanges.begin(), enrichedRanges.end());
-    enrichedRanges.erase(
-        MergeOverlappingRanges(enrichedRanges.begin(), enrichedRanges.end()),
-        enrichedRanges.end());
+    std::vector<TRowRange> enrichedRanges(nonOverlappingEnrichedRanges.begin(), nonOverlappingEnrichedRanges.end());
 
     for (int index = 0; index + 1 < std::ssize(enrichedRanges); ++index) {
-        YT_VERIFY(enrichedRanges[index].second <= enrichedRanges[index + 1].first);
+        YT_ASSERT(enrichedRanges[index].second <= enrichedRanges[index + 1].first);
     }
 
-    enrichedRanges.shrink_to_fit();
-
-    return MakeSharedRange(std::move(enrichedRanges), buffer);
+    // Predicate holds string literal blobs.
+    return MakeSharedRange(std::move(enrichedRanges), buffer, std::move(predicate));
 }
 
 TSharedRange<TRowRange> CreateNewLightRangeInferrer(
