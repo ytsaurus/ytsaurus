@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/client/kafka/requests.h>
+
 #include <yt/yt/core/actions/public.h>
 
 #include <yt/yt/core/concurrency/public.h>
@@ -17,7 +19,7 @@ namespace NYT::NKafkaProxy {
 using TMessage = TSharedRefArray;
 
 //! This handler is called whenever client sends request to server.
-using TRequestHandler = TCallback<void(IConnectionPtr, TMessage)>;
+using TRequestCallback = TCallback<void(IConnectionPtr, TMessage)>;
 
 //! This handler is called when connection fails.
 using TFailHandler = TCallback<void(IConnectionPtr, TError)>;
@@ -47,13 +49,23 @@ struct IConnection
 
 DEFINE_REFCOUNTED_TYPE(IConnection)
 
+struct TConnectionState final
+{
+    int SaslHandshakeVersion = 0;
+    std::optional<TString> SaslMechanism;
+    std::optional<NKafka::ERequestType> ExpectedRequestType = {NKafka::ERequestType::SaslHandshake};
+
+    std::optional<TString> UserName;
+};
+using TConnectionStatePtr = TIntrusivePtr<TConnectionState>;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 IConnectionPtr CreateConnection(
     TProxyBootstrapConfigPtr config,
     NNet::IConnectionPtr connection,
     IInvokerPtr invoker,
-    TRequestHandler requestHandler,
+    TRequestCallback requesCallback,
     TFailHandler failHandler);
 
 ////////////////////////////////////////////////////////////////////////////////
