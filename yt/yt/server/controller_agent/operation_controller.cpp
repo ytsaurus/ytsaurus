@@ -253,9 +253,9 @@ public:
         return DoExecuteGuarded(&IOperationController::SaveSnapshot, output);
     }
 
-    TOperationControllerReviveResult Revive() override
+    TOperationControllerReviveResult Revive(bool suspended) override
     {
-        return DoExecuteGuarded(&IOperationController::Revive);
+        return DoExecuteGuarded(&IOperationController::Revive, suspended);
     }
 
     void Terminate(EControllerState finalState) override

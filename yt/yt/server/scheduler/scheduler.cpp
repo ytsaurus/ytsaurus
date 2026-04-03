@@ -854,6 +854,10 @@ public:
         operation->SetSuspended(false);
         DoSetOperationAlert(operation->GetId(), EOperationAlertType::OperationSuspended, TError());
 
+        if (const auto& controller = operation->GetController()) {
+            controller->Resume();
+        }
+
         YT_LOG_INFO("Operation resumed (OperationId: %v)",
             operation->GetId());
 
@@ -938,7 +942,8 @@ public:
             operation,
             error,
             /*abortRunningAllocations*/ true,
-            /*setAlert*/ true));
+            /*setAlert*/ true,
+            /*initiatedByController*/ true));
     }
 
     void OnOperationAgentUnregistered(const TOperationPtr& operation)
@@ -2914,7 +2919,7 @@ private:
             operation->SetStateAndEnqueueEvent(EOperationState::Reviving);
 
             {
-                auto result = WaitFor(controller->Revive())
+                auto result = WaitFor(controller->Revive(operation->GetSuspended()))
                     .ValueOrThrow();
 
                 ValidateOperationState(operation, EOperationState::Reviving);
@@ -3373,7 +3378,8 @@ private:
         const TOperationPtr& operation,
         const TError& error,
         bool abortRunningAllocations,
-        bool setAlert)
+        bool setAlert,
+        bool initiatedByController = false)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -3386,6 +3392,12 @@ private:
         auto codicilGuard = operation->MakeCodicilGuard();
 
         operation->SetSuspended(true);
+
+        if (!initiatedByController) {
+            if (const auto& controller = operation->GetController()) {
+                controller->Suspend();
+            }
+        }
 
         if (abortRunningAllocations) {
             AbortOperationAllocations(
@@ -3404,7 +3416,9 @@ private:
             DoSetOperationAlert(operation->GetId(), EOperationAlertType::OperationSuspended, error);
         }
 
-        YT_LOG_INFO(error, "Operation suspended (OperationId: %v)",
+        YT_LOG_INFO(
+            error,
+            "Operation suspended (OperationId: %v)",
             operation->GetId());
     }
 

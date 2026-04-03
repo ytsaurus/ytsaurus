@@ -136,6 +136,8 @@ DEFINE_ENUM(EAgentToSchedulerOperationEventType,
 DEFINE_ENUM(ESchedulerToAgentOperationEventType,
     ((UpdateGroupedNeededResources) (0))
     ((UnregisterOperation)          (1))
+    ((SuspendOperation)             (2))
+    ((ResumeOperation)              (3))
 );
 
 DEFINE_ENUM(EControlQueue,

@@ -258,7 +258,7 @@ TFuture<TOperationControllerMaterializeResult> TOperationControllerImpl::Materia
     return PendingMaterializeResult_;
 }
 
-TFuture<TOperationControllerReviveResult> TOperationControllerImpl::Revive()
+TFuture<TOperationControllerReviveResult> TOperationControllerImpl::Revive(bool suspended)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
     YT_VERIFY(IncarnationId_);
@@ -274,6 +274,7 @@ TFuture<TOperationControllerReviveResult> TOperationControllerImpl::Revive()
     auto req = ControllerAgentTrackerProxy_->ReviveOperation();
     req->SetTimeout(Config_->ControllerAgentTracker->LightRpcTimeout);
     ToProto(req->mutable_operation_id(), OperationId_);
+    req->set_suspended(suspended);
     InvokeAgent<TControllerAgentServiceProxy::TRspReviveOperation>(req).Subscribe(
         BIND([
             this,
@@ -489,6 +490,38 @@ TFuture<void> TOperationControllerImpl::PatchSpec(const INodePtr& newCumulativeS
         }
         rspOrError.ThrowOnError();
     }));
+}
+
+void TOperationControllerImpl::Suspend()
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    if (!IncarnationId_) {
+        return;
+    }
+
+    YT_LOG_DEBUG("Suspend operation event enqueued");
+
+    EnqueueOperationEvent({
+        .EventType = ESchedulerToAgentOperationEventType::SuspendOperation,
+        .OperationId = OperationId_,
+    });
+}
+
+void TOperationControllerImpl::Resume()
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    if (!IncarnationId_) {
+        return;
+    }
+
+    YT_LOG_DEBUG("Resume operation event enqueued");
+
+    EnqueueOperationEvent({
+        .EventType = ESchedulerToAgentOperationEventType::ResumeOperation,
+        .OperationId = OperationId_,
+    });
 }
 
 void TOperationControllerImpl::OnAllocationAborted(

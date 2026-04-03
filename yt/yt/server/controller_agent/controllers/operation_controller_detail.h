@@ -241,7 +241,7 @@ public:
 
     // NB(max42): Don't make Revive safe! It may lead to either destroying all
     // operations on a cluster, or to a scheduler crash.
-    TOperationControllerReviveResult Revive() override;
+    TOperationControllerReviveResult Revive(bool suspended) override;
 
     TOperationControllerInitializeResult InitializeClean() override;
     TOperationControllerInitializeResult InitializeReviving(
@@ -1530,7 +1530,7 @@ private:
 
     void RemoveRemainingJobsOnOperationFinished();
 
-    void OnOperationReady();
+    void OnOperationReady(bool suspended);
 
     bool ShouldProcessJobEvents() const;
 

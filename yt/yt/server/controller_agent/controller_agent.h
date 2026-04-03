@@ -153,7 +153,7 @@ public:
         NYTree::INodePtr cumulativeSpecPatch);
     TFuture<std::optional<TOperationControllerPrepareResult>> PrepareOperation(const TOperationPtr& operation);
     TFuture<std::optional<TOperationControllerMaterializeResult>> MaterializeOperation(const TOperationPtr& operation);
-    TFuture<std::optional<TOperationControllerReviveResult>> ReviveOperation(const TOperationPtr& operation);
+    TFuture<std::optional<TOperationControllerReviveResult>> ReviveOperation(const TOperationPtr& operation, bool suspended);
     TFuture<std::optional<TOperationControllerCommitResult>> CommitOperation(const TOperationPtr& operation);
     TFuture<void> CompleteOperation(const TOperationPtr& operation);
     TFuture<void> TerminateOperation(const TOperationPtr& operation, EControllerState controllerFinalState);
