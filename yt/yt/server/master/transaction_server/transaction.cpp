@@ -279,10 +279,6 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, SequoiaWriteSet_);
     Save(context, AuthenticationIdentity_.User);
     Save(context, AuthenticationIdentity_.UserTag);
-
-    if (IsCypressTransactionType(GetType())) {
-        Save(context, NativeTxExternalizationEnabled_);
-    }
 }
 
 void TTransaction::Load(NCellMaster::TLoadContext& context)
@@ -337,8 +333,20 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, AuthenticationIdentity_.User);
     Load(context, AuthenticationIdentity_.UserTag);
 
-    if (IsCypressTransactionType(GetType())) {
-        Load(context, NativeTxExternalizationEnabled_);
+    if (context.GetVersion() < EMasterReign::RemoveNativeTxExternalizationEnabledFlag) {
+        if (IsCypressTransactionType(GetType())) {
+            bool nativeTxExternalizationEnabled;
+            Load(context, nativeTxExternalizationEnabled);
+
+            // All transactions should have this flag set to true, unless they were started before 24.2.
+            // But let's write a detailed message here anyway.
+            YT_LOG_FATAL_UNLESS(
+                nativeTxExternalizationEnabled,
+                "A Cypress transaction has NativeTxExternalizationEnabled set to false; This can happen if a transaction "
+                "was started too long ago. New algorithm relies on all transactions being externalized. This issue may lead "
+                "to data corruption! Please abort said transaction in order for master to be able to be started (TransactionId: %v)",
+                Id_);
+        }
     }
 }
 

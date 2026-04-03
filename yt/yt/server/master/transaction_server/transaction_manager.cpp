@@ -435,7 +435,6 @@ public:
             deadline,
             title,
             attributes,
-            /*enableNativeTxExternalization*/ std::nullopt,
             hintId);
     }
 
@@ -458,7 +457,6 @@ public:
             /*deadline*/ std::nullopt,
             title,
             EmptyAttributes(),
-            /*enableNativeTxExternalization*/ std::nullopt,
             hintId);
     }
 
@@ -520,7 +518,6 @@ public:
         std::optional<TInstant> deadline,
         const std::optional<std::string>& title,
         const IAttributeDictionary& attributes,
-        std::optional<bool> enableNativeTxExternalization,
         TTransactionId hintId)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -610,18 +607,6 @@ public:
             InsertOrCrash(ForeignTransactions_, transaction);
         }
 
-        if (transaction->IsCypressTransaction()) {
-            if (parent) {
-                transaction->SetNativeTxExternalizationEnabled(parent->IsNativeTxExternalizationEnabled());
-            } else if (native) {
-                transaction->SetNativeTxExternalizationEnabled(true);
-            } else {
-                YT_VERIFY(enableNativeTxExternalization.has_value());
-
-                transaction->SetNativeTxExternalizationEnabled(*enableNativeTxExternalization);
-            }
-        }
-
         transaction->SetPersistentState(ETransactionState::Active);
         transaction->PrerequisiteTransactions() = std::move(prerequisiteTransactions);
         for (auto prerequisiteTransaction : transaction->PrerequisiteTransactions()) {
@@ -690,7 +675,7 @@ public:
 
         YT_LOG_DEBUG("Transaction started (TransactionId: %v, ParentId: %v, PrerequisiteTransactionIds: %v, "
             "ReplicatedToCellTags: %v, Timeout: %v, Deadline: %v, User: %v, Title: %v, WallTime: %v, "
-            "MirroredToSequoia: %v, NativeTxExternalizationEnabled: %v)",
+            "MirroredToSequoia: %v)",
             transactionId,
             GetObjectId(parent),
             MakeFormattableView(transaction->PrerequisiteTransactions(), [] (auto* builder, auto prerequisiteTransaction) {
@@ -702,8 +687,7 @@ public:
             user->GetName(),
             title,
             time,
-            IsCypressTransactionMirroredToSequoia(transactionId),
-            transaction->IsNativeTxExternalizationEnabled());
+            IsCypressTransactionMirroredToSequoia(transactionId));
 
         securityManager->ChargeUser(user, {EUserWorkloadType::Write, 1, time});
 
@@ -1084,10 +1068,7 @@ public:
             return {};
         }
 
-        bool shouldExternalize = transaction->IsNative()
-            ? transaction->IsNativeTxExternalizationEnabled()
-            : true;
-        return ExternalizeOrReplicateTransaction(transaction, dstCellTags, shouldExternalize);
+        return ExternalizeOrReplicateTransaction(transaction, dstCellTags, /*shouldExternalize*/ true);
     }
 
     TTransactionId ExternalizeOrReplicateTransaction(
@@ -1205,10 +1186,7 @@ public:
 
         // NB: The value of this property is the same among all relative
         // transactions.
-        auto externalizationEnabled = IsCypressTransactionType(transaction->GetType())
-            ? !transaction->IsNative() || transaction->IsNativeTxExternalizationEnabled()
-            : false;
-
+        auto externalizationEnabled = IsCypressTransactionType(transaction->GetType());
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         for (auto* currentTransaction = transaction; currentTransaction; currentTransaction = currentTransaction->GetParent()) {
             if (externalizationEnabled && currentTransaction->IsExternalizedToCell(dstCellTag)) {
@@ -1240,10 +1218,6 @@ public:
 
         if (auto title = transaction->GetTitle()) {
             startRequest.set_title(*title);
-        }
-
-        if (IsCypressTransactionType(transaction->GetType())) {
-            startRequest.set_enable_native_tx_externalization(transaction->IsNativeTxExternalizationEnabled());
         }
 
         if (GetDynamicConfig()->EnableStartForeignTransactionFixes) {
@@ -2556,9 +2530,6 @@ private:
             /*deadline*/ std::nullopt,
             title,
             *attributes,
-            transactionType == ETransactionType::Cypress
-                ? std::optional(request->enable_native_tx_externalization())
-                : std::nullopt,
             hintId);
         YT_VERIFY(transaction->GetId() == hintId);
     }
