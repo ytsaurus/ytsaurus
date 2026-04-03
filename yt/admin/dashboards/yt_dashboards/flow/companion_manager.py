@@ -31,15 +31,13 @@ def build_companion_manager():
             "Companion memory",
             MonitoringExpr(FlowWorker("yt.flow.worker.resource.companion_manager.memory_usage"))
             .unit("UNIT_BYTES_SI")
-            .value("resource", "CompanionManager")
-            .stack(True),
+            .value("resource", "CompanionManager"),
             description="Companion process memory usage. May be imprecise due to sampling nature of measuring.",
         )
         .cell(
             "Companion threads",
             MonitoringExpr(FlowWorker("yt.flow.worker.resource.companion_manager.thread_count"))
-            .value("resource", "CompanionManager")
-            .stack(True),
+            .value("resource", "CompanionManager"),
         )
         .cell("", EmptyCell())
     ).owner
