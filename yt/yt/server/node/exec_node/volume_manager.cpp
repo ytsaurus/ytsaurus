@@ -498,12 +498,14 @@ public:
         TDiskHealthCheckerConfigPtr healthCheckerConfig,
         IPortoExecutorPtr volumeExecutor,
         IPortoExecutorPtr layerExecutor,
+        IPortoExecutorPtr fastLayerExecutor,
         const TString& id)
         : TDiskLocation(locationConfig, id, ExecNodeLogger())
         , Config_(locationConfig)
         , DynamicConfigManager_(dynamicConfigManager)
         , VolumeExecutor_(std::move(volumeExecutor))
         , LayerExecutor_(std::move(layerExecutor))
+        , FastLayerExecutor_(std::move(fastLayerExecutor))
         , LocationQueue_(New<TActionQueue>(id))
         , VolumesPath_(NFS::CombinePaths(Config_->Path, VolumesName))
         , VolumesMetaPath_(NFS::CombinePaths(Config_->Path, VolumesMetaName))
@@ -864,6 +866,9 @@ public:
 
         VolumeExecutor_->OnDynamicConfigChanged(newConfig->VolumePortoExecutor);
         LayerExecutor_->OnDynamicConfigChanged(newConfig->LayerPortoExecutor);
+        if (FastLayerExecutor_) {
+            FastLayerExecutor_->OnDynamicConfigChanged(newConfig->LayerPortoExecutor);
+        }
 
         if (HealthChecker_) {
             HealthChecker_->Reconfigure(Config_->DiskHealthChecker->ApplyDynamic(*newConfig->DiskHealthChecker));
@@ -991,7 +996,9 @@ public:
 
         std::vector<TString> removedLayers;
 
-        auto layerIds = WaitFor(LayerExecutor_->ListLayers(place).WithTimeout(timeout))
+        auto executor = FastLayerExecutor_ ? FastLayerExecutor_ : LayerExecutor_;
+
+        auto layerIds = WaitFor(executor->ListLayers(place).WithTimeout(timeout))
             .ValueOrThrow();
 
         std::vector<TFuture<void>> removeFutures;
@@ -1001,7 +1008,7 @@ public:
                 layerId);
 
             removedLayers.push_back(layerId);
-            removeFutures.push_back(LayerExecutor_->RemoveLayer(
+            removeFutures.push_back(executor->RemoveLayer(
                 layerId,
                 place,
                 false /*async*/));
@@ -1030,6 +1037,7 @@ private:
     TAtomicIntrusivePtr<TLayerCacheDynamicConfig> DynamicConfig_;
     const IPortoExecutorPtr VolumeExecutor_;
     const IPortoExecutorPtr LayerExecutor_;
+    const NContainers::IPortoExecutorPtr FastLayerExecutor_;
 
     const TActionQueuePtr LocationQueue_ ;
     const TString VolumesPath_;
@@ -2736,6 +2744,7 @@ public:
                 nullptr,
                 PortoExecutor_,
                 PortoExecutor_,
+                nullptr,
                 Format("%v_tmpfs_layer", CacheName_));
 
             WaitFor(TmpfsLocation_->Initialize())
@@ -4635,6 +4644,10 @@ public:
                     dynamicConfig->LayerCache->LayerPortoExecutor,
                     Format("layer%v", index),
                     ExecNodeProfiler().WithPrefix("/location_layers/porto").WithTag("location_id", id)),
+                CreatePortoExecutor(
+                    dynamicConfig->LayerCache->LayerPortoExecutor,
+                    Format("FastLayerExecutor%v", index),
+                    ExecNodeProfiler().WithPrefix("/location_fast_layers/porto").WithTag("location_id", id)),
                 id);
             initLocationResults.push_back(location->Initialize());
             locations.push_back(std::move(location));
