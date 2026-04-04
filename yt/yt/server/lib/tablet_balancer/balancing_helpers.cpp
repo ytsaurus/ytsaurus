@@ -190,10 +190,10 @@ TTabletSizeConfig GetTabletSizeConfig(
     }
 
     return TTabletSizeConfig{
-        minTabletSize,
-        maxTabletSize,
-        desiredTabletSize,
-        tableConfig->MinTabletCount,
+        .MinTabletSize = minTabletSize,
+        .MaxTabletSize = maxTabletSize,
+        .DesiredTabletSize = desiredTabletSize,
+        .MinTabletCount = tableConfig->MinTabletCount,
     };
 }
 

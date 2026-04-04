@@ -338,6 +338,9 @@ void TTableTabletBalancerConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("group", &TThis::Group)
         .Default();
+    registrar.Parameter("desired_tablet_metric", &TThis::DesiredTabletMetric)
+        .Default()
+        .GreaterThan(0);
     registrar.Parameter("replica_path_overrides", &TThis::ReplicaPathOverrides)
         .Default();
 

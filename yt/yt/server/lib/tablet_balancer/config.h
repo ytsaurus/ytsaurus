@@ -193,6 +193,7 @@ struct TTableTabletBalancerConfig
 {
     std::optional<bool> EnableParameterized;
     std::optional<TString> Group;
+    std::optional<double> DesiredTabletMetric;
     THashMap<TClusterName, std::vector<NYPath::TYPath>> ReplicaPathOverrides;
 
     REGISTER_YSON_STRUCT(TTableTabletBalancerConfig);

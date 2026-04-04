@@ -1183,7 +1183,7 @@ TEST_P(TTestMergeSplitTabletsParameterized, ViaMemorySize)
     auto expectedDescriptorsIt = expected.begin();
 
     for (const auto& [id, table] : bundle->Tables) {
-        YT_VERIFY(table->TableConfig->DesiredTabletCount);
+        YT_VERIFY(table->TableConfig->DesiredTabletCount || table->TableConfig->DesiredTabletMetric);
 
         auto descriptors = resharder->BuildTableActionDescriptors(table);
         for (const auto& descriptor : descriptors) {
@@ -1238,6 +1238,18 @@ INSTANTIATE_TEST_SUITE_P(
             "tables=[{in_memory_mode=uncompressed; uncompressed_data_size=200; compressed_data_size=200;"
                      "config={enable_parameterized=%true; desired_tablet_count=2};"
                      "tablets=["
+            "{tablet_index=1; cell_index=1;"
+                "statistics={uncompressed_data_size=10; memory_size=100; compressed_data_size=100; partition_count=1}};"
+            "{tablet_index=2; cell_index=1;"
+                "statistics={uncompressed_data_size=10; memory_size=1; compressed_data_size=100; partition_count=1}}]}];"
+            "cells=[{cell_index=1; memory_size=1; node_address=home}];"
+            "nodes=[{node_address=home; memory_used=1}]}",
+            /*reshardDescriptors*/ "[{tablets=[1;]; tablet_count=2; data_size=10}]"),
+        std::tuple( // SPLIT (by metric and desired_tablet_metric)
+            "{config={groups={default={parameterized={metric=\"double([/statistics/memory_size])\"; enable_reshard=%true}}}};"
+            "tables=[{in_memory_mode=uncompressed; uncompressed_data_size=200; compressed_data_size=200;"
+                        "config={enable_parameterized=%true; desired_tablet_metric=50};"
+                        "tablets=["
             "{tablet_index=1; cell_index=1;"
                 "statistics={uncompressed_data_size=10; memory_size=100; compressed_data_size=100; partition_count=1}};"
             "{tablet_index=2; cell_index=1;"
@@ -1300,6 +1312,20 @@ INSTANTIATE_TEST_SUITE_P(
             "tables=[{in_memory_mode=uncompressed; uncompressed_data_size=40; compressed_data_size=40;"
                      "config={enable_parameterized=%true; desired_tablet_count=2};"
                      "tablets=["
+            "{tablet_index=1; cell_index=1;"
+                "statistics={uncompressed_data_size=10; memory_size=1; compressed_data_size=10; partition_count=1}};"
+            "{tablet_index=2; cell_index=1;"
+                "statistics={uncompressed_data_size=10; memory_size=1; compressed_data_size=10; partition_count=1}};"
+            "{tablet_index=3; cell_index=1;"
+                "statistics={uncompressed_data_size=15; memory_size=3; compressed_data_size=20; partition_count=1}}]}];"
+            "cells=[{cell_index=1; memory_size=102; node_address=home}];"
+            "nodes=[{node_address=home; memory_used=102}]}",
+            /*reshardDescriptors*/ "[{tablets=[1;2;]; tablet_count=1; data_size=20}]"),
+        std::tuple( // MERGE (metric is too small and desired_tablet_metric)
+            "{config={groups={default={parameterized={metric=\"double([/statistics/memory_size])\"; enable_reshard=%true}}}};"
+            "tables=[{in_memory_mode=uncompressed; uncompressed_data_size=40; compressed_data_size=40;"
+                        "config={enable_parameterized=%true; desired_tablet_metric=2};"
+                        "tablets=["
             "{tablet_index=1; cell_index=1;"
                 "statistics={uncompressed_data_size=10; memory_size=1; compressed_data_size=10; partition_count=1}};"
             "{tablet_index=2; cell_index=1;"
