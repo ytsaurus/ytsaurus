@@ -34,10 +34,38 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const std::vector<TString> ParameterizedBalancingAttributes = {
+const std::vector<TString> ParameterizedBalancingAttributes = {
     "/statistics",
     "/performance_counters"
 };
+
+double ExtractMetricValue(
+    const NTableClient::TUnversionedValue& value,
+    const std::string& metric,
+    TTabletId tabletId,
+    TTableId tableId)
+{
+    switch (value.Type) {
+        case EValueType::Double:
+            return value.Data.Double;
+
+        case EValueType::Int64:
+            return value.Data.Int64;
+
+        case EValueType::Uint64:
+            return value.Data.Uint64;
+
+        default:
+            THROW_ERROR_EXCEPTION(
+                "Tablet metric value type is not numerical: got %Qlv",
+                value.Type)
+                << TErrorAttribute("metric_formula", metric)
+                << TErrorAttribute("tablet_id", tabletId)
+                << TErrorAttribute("table_id", tableId);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 constexpr int MaxVerboseLogMessagesPerIteration = 2000;
 constexpr double MinimumAcceptableMetricValue = 1e-30;
@@ -195,24 +223,11 @@ protected:
             rowBuffer)
             .ValueOrThrow();
 
-        switch (value.Type) {
-            case EValueType::Double:
-                return value.Data.Double;
+        auto tableId = tablet->Table
+            ? tablet->Table->Id
+            : NullObjectId;
 
-            case EValueType::Int64:
-                return value.Data.Int64;
-
-            case EValueType::Uint64:
-                return value.Data.Uint64;
-
-            default:
-                THROW_ERROR_EXCEPTION(
-                    "Tablet metric value type is not numerical: got %Qlv",
-                    value.Type)
-                    << TErrorAttribute("metric_formula", Metric_)
-                    << TErrorAttribute("tablet_id", tablet->Id)
-                    << TErrorAttribute("table_id", tablet->Table->Id);
-        }
+        return ExtractMetricValue(value, Metric_, tablet->Id, tableId);
     }
 };
 

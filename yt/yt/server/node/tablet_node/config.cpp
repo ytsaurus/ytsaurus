@@ -503,6 +503,24 @@ void TStatisticsReporterConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TOverloadReporterConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+
+    registrar.Parameter("max_evaluator_cache_size", &TThis::MaxEvaluatorCacheSize)
+        .Default(100);
+
+    registrar.Parameter("periodic_executor", &TThis::PeriodicExecutor)
+        .Default({
+            .Period = TDuration::Seconds(10),
+            .Splay = TDuration::Seconds(5),
+            .Jitter = 0.2,
+        });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TMediumThrottlersConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable_changelog_throttling", &TThis::EnableChangelogThrottling)
@@ -671,6 +689,9 @@ void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("statistics_reporter", &TThis::StatisticsReporter)
+        .DefaultNew();
+
+    registrar.Parameter("overload_reporter", &TThis::OverloadReporter)
         .DefaultNew();
 
     registrar.Parameter("error_manager", &TThis::ErrorManager)

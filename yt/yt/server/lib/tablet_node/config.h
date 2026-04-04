@@ -142,6 +142,22 @@ struct TGradualCompactionConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(dave11ar): This is a temporary interface that will be replaced by a more general solution.
+struct TOverloadReactiveBalancingConfig
+    : public NYTree::TYsonStruct
+{
+    std::string Metric;
+    double Limit;
+
+    REGISTER_YSON_STRUCT(TOverloadReactiveBalancingConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TOverloadReactiveBalancingConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TBuiltinTableMountConfig
     : public virtual NYTree::TYsonStruct
 {
@@ -372,6 +388,8 @@ struct TCustomTableMountConfig
     std::optional<int> PartitionReaderPrefetchKeyLimit;
 
     i64 MaxEdenDataSizeForSplitting;
+
+    TOverloadReactiveBalancingConfigPtr OverloadReactiveBalancing;
 
     bool ValidateRowIndexInChaosReplication;
 
