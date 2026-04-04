@@ -1323,7 +1323,9 @@ private:
 
     bool IsParameterizedReshardEnabled(const TTablePtr& table) const;
 
-    TTableStatistics GetTableStatistics(const TTablePtr& table, int desiredTabletCount) const;
+    TTableStatistics GetTableStatistics(
+        const TTablePtr& table,
+        const TTableTabletBalancerConfigPtr& config) const;
 
     std::optional<TReshardDescriptor> TryMakeTabletFit(
         const TTablePtr& table,
@@ -1425,19 +1427,19 @@ std::vector<TReshardDescriptor> TParameterizedResharder::BuildTableActionDescrip
         return {};
     }
 
-    YT_VERIFY(table->TableConfig->DesiredTabletCount.has_value());
-    auto desiredTabletCount = *table->TableConfig->DesiredTabletCount;
+    YT_VERIFY(table->TableConfig->DesiredTabletCount.has_value() ||
+        table->TableConfig->DesiredTabletMetric.has_value());
 
-    if (desiredTabletCount <= 0) {
+    if (table->TableConfig->DesiredTabletCount.has_value() && *table->TableConfig->DesiredTabletCount <= 0) {
         YT_LOG_WARNING("Table desired tablet count is not positive "
             "(TableId: %v, TablePath: %v, DesiredTabletCount: %v)",
             table->Id,
             table->Path,
-            desiredTabletCount);
+            table->TableConfig->DesiredTabletCount);
         return {};
     }
 
-    auto statistics = GetTableStatistics(table, desiredTabletCount);
+    auto statistics = GetTableStatistics(table, table->TableConfig);
     YT_VERIFY(statistics.DesiredTabletMetric > 0);
     std::vector<TReshardDescriptor> actions;
     THashSet<int> touchedTabletIndexes;
@@ -1460,7 +1462,7 @@ std::vector<TReshardDescriptor> TParameterizedResharder::BuildTableActionDescrip
         "(TabletCount: %v, NewTabletCount: %v, DesiredTabletCount: %v)",
         std::ssize(table->Tablets),
         tabletCount,
-        desiredTabletCount);
+        statistics.DesiredTabletCount);
 
     SortTabletActionsByUsefulness(&actions);
     TrimTabletActions(std::ssize(table->Tablets), &actions);
@@ -1679,9 +1681,9 @@ bool TParameterizedResharder::IsParameterizedReshardEnabled(const TTablePtr& tab
 
 TParameterizedResharder::TTableStatistics TParameterizedResharder::GetTableStatistics(
     const TTablePtr& table,
-    int desiredTabletCount) const
+    const TTableTabletBalancerConfigPtr& config) const
 {
-    TTableStatistics statistics{.DesiredTabletCount = desiredTabletCount};
+    TTableStatistics statistics {};
 
     for (const auto& tablet : table->Tablets) {
         statistics.TabletSizes.push_back(GetTabletBalancingSize(tablet));
@@ -1708,11 +1710,32 @@ TParameterizedResharder::TTableStatistics TParameterizedResharder::GetTableStati
             table->Id);
     }
 
-    statistics.DesiredTabletSize = statistics.TableSize / statistics.DesiredTabletCount;
+    if (config->DesiredTabletCount.has_value()) {
+        YT_LOG_DEBUG_IF(
+            config->DesiredTabletMetric.has_value() &&
+            (Bundle_->Config->EnableVerboseLogging || table->TableConfig->EnableVerboseLogging) &&
+            LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
+            "Desired tablet count and desired tablet metric both set in config, use desired tablet count "
+            "(TableId: %v, DesiredTabletCount: %v, DesiredTabletMetric: %v)",
+            table->Id,
+            config->DesiredTabletCount,
+            config->DesiredTabletMetric);
+
+        statistics.DesiredTabletCount = config->DesiredTabletCount.value();
+        statistics.DesiredTabletMetric = statistics.TableMetric / statistics.DesiredTabletCount;
+
+        statistics.DesiredTabletSize = statistics.TableSize / statistics.DesiredTabletCount;
+    } else {
+        statistics.DesiredTabletMetric = config->DesiredTabletMetric.value();
+        statistics.DesiredTabletCount = statistics.TableMetric / statistics.DesiredTabletMetric;
+
+        // NB(dave11ar): For accuracy purposes.
+        statistics.DesiredTabletSize = statistics.DesiredTabletMetric * statistics.TableSize / statistics.TableMetric;
+    }
+
     statistics.MinTabletSize = statistics.DesiredTabletSize / 1.9;
     statistics.MaxTabletSize = statistics.DesiredTabletSize * 1.9;
 
-    statistics.DesiredTabletMetric = statistics.TableMetric / statistics.DesiredTabletCount;
     statistics.MinTabletMetric = statistics.DesiredTabletMetric / 1.9;
 
     if (statistics.TableMetric == 0.0 || statistics.DesiredTabletMetric == 0.0) {

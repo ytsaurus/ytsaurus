@@ -2517,7 +2517,7 @@ THashSet<TTableId> TBundleState::GetReplicaBalancingMajorTables(const TTabletCel
         if (table->IsParameterizedMoveBalancingEnabled() ||
             table->IsParameterizedReshardBalancingEnabled(
                 /*enableParameterizedReshardByDefault*/ true,
-                /*desiredTabletCountRequired*/ false))
+                /*desiredTabletCountOrMetricRequired*/ false))
         {
             const auto& groupConfig = GetOrCrash(bundle->Config->Groups, *table->GetBalancingGroup());
             const auto& replicaClusters = groupConfig->Parameterized->ReplicaClusters;
