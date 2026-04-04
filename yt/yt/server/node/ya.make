@@ -163,6 +163,7 @@ SRCS(
     tablet_node/ordered_chunk_store.cpp
     tablet_node/ordered_dynamic_store.cpp
     tablet_node/ordered_store_manager.cpp
+    tablet_node/overload_reporter.cpp
     tablet_node/partition.cpp
     tablet_node/partition_balancer.cpp
     tablet_node/puller_replica_cache.cpp
@@ -232,6 +233,8 @@ PEERDIR(
     yt/yt/library/tracing/baggage_manager
     yt/yt/library/tracing/jaeger
 
+    yt/yt/orm/library/query/heavy
+
     yt/yt/ytlib/distributed_throttler
 
     yt/yt/server/node/cellar_node
@@ -252,6 +255,7 @@ PEERDIR(
     yt/yt/server/lib/nbd
     yt/yt/server/lib/node
     yt/yt/server/lib/rpc
+    yt/yt/server/lib/tablet_balancer
     yt/yt/server/lib/tablet_server
 
     # TODO(max42): Eliminate.

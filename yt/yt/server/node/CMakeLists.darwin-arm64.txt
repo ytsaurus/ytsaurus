@@ -69,6 +69,7 @@ target_link_libraries(yt-server-node PUBLIC
   yt-library-tcmalloc
   library-tracing-baggage_manager
   library-tracing-jaeger
+  library-query-heavy
   yt-ytlib-distributed_throttler
   server-node-cellar_node
   server-node-chaos_node
@@ -87,6 +88,7 @@ target_link_libraries(yt-server-node PUBLIC
   server-lib-nbd
   server-lib-node
   server-lib-rpc
+  server-lib-tablet_balancer
   server-lib-tablet_server
   server-lib-controller_agent
   library-cpp-getopt
@@ -243,6 +245,7 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/ordered_chunk_store.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/ordered_dynamic_store.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/ordered_store_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/overload_reporter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/partition.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/partition_balancer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/puller_replica_cache.cpp

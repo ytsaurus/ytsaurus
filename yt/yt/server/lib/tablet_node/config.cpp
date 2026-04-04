@@ -137,6 +137,15 @@ void TGradualCompactionConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TOverloadReactiveBalancingConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("metric", &TThis::Metric);
+    registrar.Parameter("limit", &TThis::Limit)
+        .GreaterThanOrEqual(0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TBuiltinTableMountConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("tablet_cell_bundle", &TThis::TabletCellBundle)
@@ -525,6 +534,9 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("max_eden_data_size_for_splitting", &TThis::MaxEdenDataSizeForSplitting)
         .Default(500_MB);
+
+    registrar.Parameter("overload_reactive_balancing", &TThis::OverloadReactiveBalancing)
+        .Optional();
 
     registrar.Parameter("validate_row_index_in_chaos_replication", &TThis::ValidateRowIndexInChaosReplication)
         .Default(false);

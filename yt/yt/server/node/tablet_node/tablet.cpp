@@ -2221,6 +2221,8 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(
 
     snapshot->CustomRuntimeData = CustomRuntimeData_;
 
+    snapshot->TabletSizeMetrics = TabletSizeMetrics_;
+
     return snapshot;
 }
 

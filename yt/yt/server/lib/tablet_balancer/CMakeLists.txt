@@ -12,43 +12,13 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_subdirectory(dry_run)
-add_subdirectory(unittests)
-
-add_library(server-lib-tablet_balancer)
-
-
-target_compile_options(server-lib-tablet_balancer PRIVATE
-  -Wdeprecated-this-capture
-  -Wimplicit-fallthrough
-  -Wparentheses
-  -Wno-logical-op-parentheses
-  -Wno-bitwise-op-parentheses
-  -Wswitch
-  -Wreturn-type
-)
-
-target_link_libraries(server-lib-tablet_balancer PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-client
-  yt-yt-core
-  library-query-heavy
-  yt-yt-ytlib
-)
-
-target_sources(server-lib-tablet_balancer PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/balancing_helpers.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/helpers.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/parameterized_balancing_helpers.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/replica_balancing_helpers.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/table.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/tablet.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/tablet_cell.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/tablet_cell_bundle.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 

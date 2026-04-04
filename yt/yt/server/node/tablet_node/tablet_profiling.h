@@ -267,6 +267,18 @@ struct TChunkWriteCounters
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTabletSizeMetrics
+{
+    i64 DataWeight = 0;
+    i64 UncompressedDataSize = 0;
+    i64 CompressedDataSize = 0;
+    i64 RowCount = 0;
+    i64 ChunkCount = 0;
+    i64 HunkCount = 0;
+    i64 TotalHunkLength = 0;
+    i64 HunkChunkCount = 0;
+};
+
 struct TTabletCounters
 {
     TTabletCounters() = default;

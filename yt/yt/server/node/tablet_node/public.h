@@ -242,6 +242,7 @@ DECLARE_REFCOUNTED_STRUCT(TMasterConnectorDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TResourceLimitsConfig)
 DECLARE_REFCOUNTED_STRUCT(TBackupManagerDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TStatisticsReporterConfig)
+DECLARE_REFCOUNTED_STRUCT(TOverloadReporterConfig)
 DECLARE_REFCOUNTED_STRUCT(TErrorManagerConfig)
 DECLARE_REFCOUNTED_STRUCT(TMediumThrottlersConfig)
 DECLARE_REFCOUNTED_STRUCT(TCompressionDictionaryBuilderConfig)
@@ -280,6 +281,8 @@ DECLARE_REFCOUNTED_STRUCT(IHunkTabletManager)
 DECLARE_REFCOUNTED_STRUCT(IHunkTabletScanner)
 
 DECLARE_REFCOUNTED_CLASS(THunkStore)
+
+DECLARE_REFCOUNTED_STRUCT(IOverloadReporter)
 
 ////////////////////////////////////////////////////////////////////////////////
 

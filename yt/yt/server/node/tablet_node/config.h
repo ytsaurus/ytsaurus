@@ -516,10 +516,27 @@ struct TStatisticsReporterConfig
     NConcurrency::TPeriodicExecutorOptions PeriodicOptions;
 
     REGISTER_YSON_STRUCT(TStatisticsReporterConfig);
+
     static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TStatisticsReporterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TOverloadReporterConfig
+    : public NYTree::TYsonStruct
+{
+    bool Enable;
+    i64 MaxEvaluatorCacheSize;
+    NConcurrency::TPeriodicExecutorOptions PeriodicExecutor;
+
+    REGISTER_YSON_STRUCT(TOverloadReporterConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TOverloadReporterConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -699,6 +716,7 @@ struct TTabletNodeDynamicConfig
     NRpc::TOverloadControllerConfigPtr OverloadController;
 
     TStatisticsReporterConfigPtr StatisticsReporter;
+    TOverloadReporterConfigPtr OverloadReporter;
 
     TErrorManagerConfigPtr ErrorManager;
 
