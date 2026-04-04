@@ -441,6 +441,9 @@ void TLayerLocation::OnDynamicConfigChanged(
 
     VolumeExecutor_->OnDynamicConfigChanged(newConfig->VolumePortoExecutor);
     LayerExecutor_->OnDynamicConfigChanged(newConfig->LayerPortoExecutor);
+    if (FastLayerExecutor_) {
+        FastLayerExecutor_->OnDynamicConfigChanged(newConfig->LayerPortoExecutor);
+    }
 
     if (HealthChecker_) {
         HealthChecker_->Reconfigure(Config_->DiskHealthChecker->ApplyDynamic(*newConfig->DiskHealthChecker));
