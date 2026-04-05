@@ -196,6 +196,7 @@ public:
 
     void HandleJobReport(NExecNode::TNodeJobReport&& jobReport);
 
+    // NB(bystrovserg): Should be called only at the end of job as it clears input_node_directory.
     void ReportSpec();
 
     void ReportStderr();
@@ -479,6 +480,10 @@ private:
     bool HandleFinishingPhase();
 
     void ValidateJobPhase(EJobPhase expectedPhase) const;
+
+    //! Remove heavy fields (e.g. input_node_directory) from the job spec.
+    //! Can be called only at the end of the job.
+    void TrimJobSpec();
 
     // Event handlers.
     void OnNodeDirectoryPrepared(TErrorOr<std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory>>&& protoNodeDirectoryOrError);
