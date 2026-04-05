@@ -58,9 +58,6 @@ class TestConstraintsRestrictions(ChaosTestBase):
 
     DELTA_DRIVER_CONFIG = {
         "enable_read_from_async_replicas": True,
-        "chaos_residency_cache": {
-            "enable_client_mode" : True,
-        },
     }
 
     MASTER_CELL_DESCRIPTORS_REMOTE_0 = {
