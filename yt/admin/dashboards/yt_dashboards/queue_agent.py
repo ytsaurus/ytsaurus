@@ -4,6 +4,7 @@ from yt_dashboard_generator.dashboard import Dashboard, Rowset
 from yt_dashboard_generator.sensor import MultiSensor
 from yt_dashboard_generator.specific_sensors.monitoring import MonitoringExpr, PlainMonitoringExpr
 from yt_dashboards.common.sensors import QueueAgentPorto, QueueAgentCpu
+from yt_dashboards.common.queue_agent import build_pass_metrisc_rowsets
 
 from dataclasses import dataclass, field
 from functools import partial
@@ -109,12 +110,10 @@ def _build_ram_rowset(has_porto, config: QueueAgentDashboardConfig):
     return rowset
 
 
-def _build_components_pass_metrics_rowset():
-    pass
-
-
-def _build_objects_pass_metrics_rowset():
-    pass
+def _build_pass_metrics_rowset(prefix: str, legend_prefix: str):
+    rowsets = build_pass_metrisc_rowsets(prefix, legend_prefix)
+    assert len(rowsets) == 1
+    return rowsets[0]
 
 
 def build_dashboard(has_porto, config: Optional[dict] = None):
@@ -129,6 +128,9 @@ def build_dashboard(has_porto, config: Optional[dict] = None):
     rowset_builders = [
         partial(_build_cpu_rowset, has_porto=has_porto),
         partial(_build_ram_rowset, has_porto=has_porto),
+        partial(_build_pass_metrics_rowset, prefix="yt.queue_agent", legend_prefix="Queue Agent "),
+        partial(_build_pass_metrics_rowset, prefix="yt.queue_agent.cypress_synchronizer", legend_prefix="Cypress Synchronizer "),
+        partial(_build_pass_metrics_rowset, prefix="yt.queue_agent.queue_agent_sharding_manager", legend_prefix="Sharding Manager "),
     ]
 
     def run_builder(builder):
