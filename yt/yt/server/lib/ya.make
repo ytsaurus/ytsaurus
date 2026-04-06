@@ -59,7 +59,6 @@ RECURSE(
     node_tracker_server
     object_server
     rpc_proxy
-    s3
     scheduler
     security_server
     shell
@@ -77,3 +76,9 @@ RECURSE(
     user_job
     cross_cluster_replicated_state
 )
+
+IF (NOT OPENSOURCE)
+    RECURSE(
+        s3
+    )
+ENDIF()
