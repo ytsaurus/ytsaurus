@@ -13,7 +13,7 @@ def main():
     setup(
         name=PACKAGE_NAME,
         version=version,
-        python_requires=">=3.8",
+        python_requires=">=3.10",
         entry_points={
             "console_scripts": [
                 "mcp_yt_server = yt.mcp.bin.mcp_yt_server:main"
