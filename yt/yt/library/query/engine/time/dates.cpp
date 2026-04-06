@@ -192,7 +192,7 @@ i64 TimestampFloorQuarterViaLib(i64 timestamp)
     timestamp -= timeinfo.tm_min * 60;
     timestamp -= timeinfo.tm_sec;
 
-    while (timeinfo.tm_mon % 4 != 0) {
+    while (timeinfo.tm_mon % 3 != 0) {
         timestamp--;
 
         GmTimeR(&timestamp, &timeinfo);
@@ -238,7 +238,7 @@ i64 TimestampFloorQuarterViaLut(i64 timestamp)
     timestamp -= timestamp % SECONDS_IN_DAY;
     timestamp -= (day->DayOfTheMonth - 1) * SECONDS_IN_DAY;
 
-    while (day->Month % 4 != 1) {
+    while (day->Month % 3 != 1) {
         timestamp--;
 
         day = &UtcLut[FindUtc(timestamp)];
@@ -284,7 +284,7 @@ i64 TimestampFloorQuarterLocaltimeViaLut(i64 timestamp)
 {
     const auto* day = &LocaltimeLut[FindLocal(timestamp)];
     day -= day->DayOfTheMonth - 1;
-    while (day->Month % 4 != 1) {
+    while (day->Month % 3 != 1) {
         day -= 1;
         day -= day->DayOfTheMonth - 1;
     }
@@ -352,7 +352,7 @@ i64 TimestampFloorQuarterLocaltimeViaLib(i64 timestamp)
     constexpr i64 FiveMonths = SECONDS_IN_DAY * 31 * 5;
 
     return BinarySearchTm(timestamp, FiveMonths, [] (const tm& probe, const tm& anchor) {
-        return probe.tm_mon - probe.tm_mon % 4 == anchor.tm_mon - anchor.tm_mon % 4;
+        return probe.tm_mon - probe.tm_mon % 3 == anchor.tm_mon - anchor.tm_mon % 3;
     });
 }
 
@@ -563,7 +563,7 @@ i64 TimestampFloorQuarterTZ(i64 timestamp, char* timezoneString, int timezoneLen
 
     return NYT::BinarySearch(timestamp - 5 * 31 * SECONDS_IN_DAY, timestamp, [&] (i64 probe) {
         auto probeTm = ToCivilTime(TInstant::Seconds(probe), timezone);
-        return probeTm.Mon - probeTm.Mon % 4 != tm.Mon - tm.Mon % 4;
+        return probeTm.Mon - probeTm.Mon % 3 != tm.Mon - tm.Mon % 3;
     });
 }
 
