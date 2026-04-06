@@ -135,17 +135,19 @@ public:
         }
     }
 
-    TFuture<void> GetFutureEra(NChaosClient::TReplicationEra currentEra) override
+    TFuture<void> GetFutureEra(
+        TReplicationEra currentEra,
+        const TTabletSnapshotPtr& tabletSnapshot) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        auto snapshotEra = Tablet_->RuntimeData()->ReplicationEra.load();
+        auto snapshotEra = tabletSnapshot->TabletRuntimeData->ReplicationEra.load();
         if (currentEra < snapshotEra) {
             return OKFuture;
         }
 
-        return UpdateEraPromise_.Read([this, currentEra] (const TPromise<void>& promise) {
-            auto snapshotEra = Tablet_->RuntimeData()->ReplicationEra.load();
+        return UpdateEraPromise_.Read([currentEra, tabletSnapshot] (const TPromise<void>& promise) {
+            auto snapshotEra = tabletSnapshot->TabletRuntimeData->ReplicationEra.load();
             if (currentEra < snapshotEra) {
                 return OKFuture;
             }
