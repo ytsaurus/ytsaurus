@@ -29,6 +29,7 @@
 
 #include <DataTypes/DataTypeTuple.h>
 #include <DataTypes/DataTypeFactory.h>
+#include <DataTypes/DataTypeLowCardinality.h>
 
 #include <Interpreters/convertFieldToType.h>
 
@@ -166,8 +167,7 @@ std::optional<TExpressionConvertionResult> ConnverterImpl(
     DB::QueryTreeNodePtr node,
     const DB::DataTypePtr& desiredDataType,
     std::optional<EValueType> desiredValueType,
-    const TConversionContext& context
-)
+    const TConversionContext& context)
 {
     std::optional<TExpressionConvertionResult> result;
 
@@ -185,6 +185,9 @@ std::optional<TExpressionConvertionResult> ConnverterImpl(
                 // but at this step of the reverse conversion, DateTime64(6) must be dispatched to different ValueType
                 // in order for the constant node to be processed correctly.
                 result->DataType = ToDataType(*columnSchema, context.ConversionSettings, /*isReadConversion*/ false);
+                if (const auto& lcDataType = std::dynamic_pointer_cast<const DB::DataTypeLowCardinality>(result->DataType)) {
+                    result->DataType = lcDataType->getDictionaryType();
+                }
                 result->ValueType = columnSchema->GetWireType();
             }
             break;
