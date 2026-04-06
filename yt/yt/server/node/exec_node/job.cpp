@@ -1704,6 +1704,8 @@ void TJob::ReportSpec()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
+    TrimJobSpec();
+
     HandleJobReport(MakeDefaultJobReport()
         .Spec(JobSpec_));
 }
@@ -2316,6 +2318,25 @@ void TJob::ValidateJobPhase(EJobPhase expectedPhase) const
     }
 }
 
+void TJob::TrimJobSpec()
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    YT_VERIFY(IsFinished());
+
+    // NodeDirectory can be really huge, we better offload its cleanup.
+    auto* inputNodeDirectory = GuardedJobSpec_.Transform([] (TJobSpec& jobSpec) {
+        return jobSpec.MutableExtension(TJobSpecExt::job_spec_ext)
+            ->release_input_node_directory();
+    });
+
+    if (inputNodeDirectory) {
+        NRpc::TDispatcher::Get()->GetCompressionPoolInvoker()->Invoke(BIND([inputNodeDirectory] {
+            delete inputNodeDirectory;
+        }));
+    }
+}
+
 // Event handlers.
 void TJob::OnNodeDirectoryPrepared(TErrorOr<std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory>>&& protoNodeDirectoryOrError)
 {
@@ -2857,17 +2878,8 @@ void TJob::Cleanup()
 
     TDelayedExecutor::CancelAndClear(cleanupTimeoutCookie);
 
-    // NodeDirectory can be really huge, we better offload its cleanup.
     // NB: Do this after slot cleanup.
-    {
-        auto* inputNodeDirectory = GuardedJobSpec_.Transform([] (TJobSpec& jobSpec) {
-            return jobSpec.MutableExtension(TJobSpecExt::job_spec_ext)
-                ->release_input_node_directory();
-        });
-        NRpc::TDispatcher::Get()->GetCompressionPoolInvoker()->Invoke(BIND([inputNodeDirectory] {
-            delete inputNodeDirectory;
-        }));
-    }
+    TrimJobSpec();
 
     // Release resources.
     GpuStatistics_.clear();
