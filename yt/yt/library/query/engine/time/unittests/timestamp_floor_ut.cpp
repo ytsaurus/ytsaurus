@@ -100,8 +100,8 @@ TEST(TTimestampFloorUtcTest, Quarter)
         GmTimeR(&result, &resultTimeinfo);
         GmTimeR(&prev, &prevtimeinfo);
 
-        EXPECT_EQ(timeinfo.tm_mon - timeinfo.tm_mon % 4, resultTimeinfo.tm_mon - resultTimeinfo.tm_mon % 4);
-        EXPECT_NE(prevtimeinfo.tm_mon - prevtimeinfo.tm_mon % 4, resultTimeinfo.tm_mon - resultTimeinfo.tm_mon % 4);
+        EXPECT_EQ(timeinfo.tm_mon - timeinfo.tm_mon % 3, resultTimeinfo.tm_mon - resultTimeinfo.tm_mon % 3);
+        EXPECT_NE(prevtimeinfo.tm_mon - prevtimeinfo.tm_mon % 3, resultTimeinfo.tm_mon - resultTimeinfo.tm_mon % 3);
     };
 
     for (i64 timestamp = MinLutUtcTimestamp - TestedWrapRange; timestamp < MaxLutUtcTimestamp + TestedWrapRange; timestamp += Step) {
@@ -258,8 +258,8 @@ TEST(TTimestampFloorLocaltimeTest, Quarter)
         localtime_r(&result, &resultTimeinfo);
         localtime_r(&prev, &prevtimeinfo);
 
-        EXPECT_EQ(timeinfo.tm_mon - timeinfo.tm_mon % 4, resultTimeinfo.tm_mon - resultTimeinfo.tm_mon % 4);
-        EXPECT_NE(prevtimeinfo.tm_mon - prevtimeinfo.tm_mon % 4, resultTimeinfo.tm_mon - resultTimeinfo.tm_mon % 4);
+        EXPECT_EQ(timeinfo.tm_mon - timeinfo.tm_mon % 3, resultTimeinfo.tm_mon - resultTimeinfo.tm_mon % 3);
+        EXPECT_NE(prevtimeinfo.tm_mon - prevtimeinfo.tm_mon % 3, resultTimeinfo.tm_mon - resultTimeinfo.tm_mon % 3);
     };
 
     for (i64 timestamp = MinLutLocaltimeTimestamp - TestedWrapRange; timestamp < MaxLutLocaltimeTimestamp + TestedWrapRange; timestamp += Step) {
