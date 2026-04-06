@@ -78,17 +78,20 @@ class TestUsers(YTEnvSetup):
         assert not is_banned("root")
 
     @authors("babenko")
-    def test_request_rate_limit1(self):
+    def test_request_rate_limit(self):
         create_user("u")
+        set("//sys/users/u/@write_request_rate_limit", 1)
+        set("//sys/users/u/@read_request_rate_limit", 1)
+
         with raises_yt_error("cannot be negative"):
             set("//sys/users/u/@read_request_rate_limit", -1)
         with raises_yt_error("cannot be negative"):
             set("//sys/users/u/@write_request_rate_limit", -1)
 
-    @authors("babenko")
-    def test_request_rate_limit2(self):
-        create_user("u")
-        set("//sys/users/u/@request_rate_limit", 1)
+    @authors("h0pless")
+    def test_request_rate_limit_root(self):
+        with raises_yt_error("Cannot set"):
+            set("//sys/users/root/@request_limits", {"read_request_rate": {"default": 1}, "write_request_rate": {"default": 1}})
 
     @authors("babenko")
     def test_request_queue_size_limit1(self):
