@@ -115,7 +115,7 @@ NYPath::TYPath GetOperationsAcoPrincipalPath(TStringBuf acoName);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYson::TYsonString GetAclFromAcoName(
+NSecurityClient::TSerializableAccessControlList GetAclFromAcoName(
     const NApi::NNative::IClientPtr& client,
     const std::string& acoName);
 
@@ -173,7 +173,7 @@ TError CheckOperationAccessByAcl(
     TJobId jobId,
     NYTree::EPermissionSet permissionSet,
     const NSecurityClient::TSerializableAccessControlList& acl,
-    const NApi::IClientPtr& client,
+    const NApi::NNative::IClientPtr& client,
     const NLogging::TLogger& logger);
 
 void ValidateOperationAccess(

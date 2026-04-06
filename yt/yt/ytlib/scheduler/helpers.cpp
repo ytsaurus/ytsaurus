@@ -30,6 +30,8 @@
 
 #include <yt/yt/core/ytree/ypath_resolver.h>
 
+#include <yt/yt/core/ypath/helpers.h>
+
 #include <yt/yt/library/re2/re2.h>
 
 #include <util/folder/path.h>
@@ -51,7 +53,6 @@ using namespace NSecurityClient;
 using namespace NLogging;
 using namespace NRpc;
 using namespace NTracing;
-using namespace NSecurityClient;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -408,13 +409,18 @@ NYPath::TYPath GetOperationsAcoPrincipalPath(TStringBuf acoName)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonString GetAclFromAcoName(const NApi::NNative::IClientPtr& client, const std::string& acoName)
+TSerializableAccessControlList GetAclFromAcoName(const NApi::NNative::IClientPtr& client, const std::string& acoName)
 {
     TGetNodeOptions getNodeOptions;
     getNodeOptions.ReadFrom = EMasterChannelKind::ClientSideCache;
-    return NConcurrency::WaitFor(
-        client->GetNode(
-            GetOperationsAcoPrincipalPath(acoName) + "/@acl"))
+
+    return WaitFor(client->GetNode(
+            GetOperationsAcoPrincipalPath(acoName) + "/@acl",
+            getNodeOptions)
+        .AsUnique()
+        .Apply(BIND([] (TYsonString&& aclYson) {
+            return ConvertTo<TSerializableAccessControlList>(aclYson);
+        })))
         .ValueOrThrow();
 }
 
@@ -463,8 +469,7 @@ TSerializableAccessControlList TAccessControlRule::GetOrLookupAcl(const NApi::NN
     if (IsAcl()) {
         return GetAcl();
     } else {
-        auto aclYson = GetAclFromAcoName(client, GetAcoName());
-        return ConvertTo<TSerializableAccessControlList>(aclYson);
+        return GetAclFromAcoName(client, GetAcoName());
     }
 }
 
@@ -545,7 +550,7 @@ std::optional<TAccessControlRule> TryGetAccessControlRuleFromOperation(const TOp
     auto aclYson = TryGetAny(operation.RuntimeParameters.AsStringBuf(), "/acl");
 
     if (aclYson) {
-        auto acl = ConvertTo<NSecurityClient::TSerializableAccessControlList>(TYsonStringBuf(*aclYson));
+        auto acl = ConvertTo<TSerializableAccessControlList>(TYsonStringBuf(*aclYson));
         return TAccessControlRule(acl);
     }
 
@@ -568,24 +573,15 @@ TError CheckOperationAccessByAco(
     const TLogger& logger)
 {
     auto authenticatedUser = user.value_or(GetCurrentAuthenticationIdentity().User);
+    auto acl = GetAclFromAcoName(client, acoName);
 
-    std::vector<TFuture<TCheckPermissionResponse>> futures;
-    for (auto permission : TEnumTraits<EPermission>::GetDomainValues()) {
-        if (Any(permission & permissionSet)) {
-            futures.push_back(client->CheckPermission(authenticatedUser, GetOperationsAcoPrincipalPath(acoName), permission));
-        }
-    }
-
-    auto results = WaitFor(AllSucceeded(futures))
-        .ValueOrThrow();
-
-    return ValidateCheckPermissionsResults(
+    return CheckOperationAccessByAcl(
         authenticatedUser,
         operationId,
         jobId,
         permissionSet,
-        results,
-        TAccessControlRule(acoName),
+        acl,
+        client,
         logger);
 }
 
@@ -595,9 +591,11 @@ TError CheckOperationAccessByAcl(
     TJobId jobId,
     EPermissionSet permissionSet,
     const TSerializableAccessControlList& acl,
-    const IClientPtr& client,
+    const NNative::IClientPtr& client,
     const TLogger& logger)
 {
+    const auto checkBaseAco = client->GetNativeConnection()->GetConfig()->CheckOperationBaseAco;
+
     auto Logger = logger;
 
     if (operationId) {
@@ -607,9 +605,22 @@ TError CheckOperationAccessByAcl(
         Logger.AddTag("JobId: %v", jobId);
     }
 
+    INodePtr aclNode;
+
+    if (checkBaseAco) {
+        const auto& baseAcoPrincipalAcl = GetAclFromAcoName(client, client->GetNativeConnection()->GetConfig()->OperationBaseAcoName);
+        auto finalAcl = acl;
+        finalAcl.Entries.insert(
+            finalAcl.Entries.end(),
+            baseAcoPrincipalAcl.Entries.begin(),
+            baseAcoPrincipalAcl.Entries.end());
+        aclNode = ConvertToNode(std::move(finalAcl));
+    } else {
+        aclNode = ConvertToNode(acl);
+    }
+
     TCheckPermissionByAclOptions options;
     options.IgnoreMissingSubjects = true;
-    auto aclNode = ConvertToNode(acl);
 
     std::vector<TFuture<TCheckPermissionByAclResult>> futures;
     for (auto permission : TEnumTraits<EPermission>::GetDomainValues()) {
