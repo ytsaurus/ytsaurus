@@ -509,18 +509,20 @@ struct TDynamicSequoiaChunkReplicasConfig
 {
     bool Enable;
 
+    TDynamicSequoiaChunkReplicasStoreConfigPtr BlobReplicasStoreConfig;
+    TDynamicSequoiaChunkReplicasStoreConfigPtr JournalReplicasStoreConfig;
+
     TDuration RemovalPeriod;
     int RemovalBatchSize;
 
     TDuration ConfirmPeriod;
     int ConfirmBatchSize;
 
-    //! Probability (in percents) that chunk replicas will be Sequoia.
-    int ReplicasPercentage;
-
-    bool FetchReplicasFromSequoia;
-    bool StoreSequoiaReplicasOnMaster;
-    bool ProcessRemovedSequoiaReplicasOnMaster;
+    // COMPAT(grphil).
+    int CompatReplicasPercentage;
+    bool CompatFetchReplicasFromSequoia;
+    bool CompatStoreSequoiaReplicasOnMaster;
+    bool CompatProcessRemovedSequoiaReplicasOnMaster;
 
     bool EnableChunkPurgatory;
 
@@ -530,22 +532,15 @@ struct TDynamicSequoiaChunkReplicasConfig
 
     bool UseLocationReplacementForLocationFullHeartbeat;
 
-    bool ClearMasterRequest;
+    // COMPAT(grphil).
+    bool CompatClearMasterRequest;
 
-    // When fetching replicas from Sequoia, validate they are the same as master replicas.
-    // This only makes sense when replicas are stored on master.
-    bool ValidateSequoiaReplicasFetch;
-
-    // If Sequoia replicas were enabled recently, not all chunk replicas will be present in
-    // dynamic tables, which is OK. There still should not be any replicas that are
-    // not present on master.
-    bool AllowExtraMasterReplicasDuringValidation;
+    // COMPAT(grphil).
+    bool CompatValidateSequoiaReplicasFetch;
+    bool CompatAllowExtraMasterReplicasDuringValidation;
 
     // TODO(aleksandra-zh): remove that.
     std::vector<TErrorCode> RetriableErrorCodes;
-
-    // COMPAT(aleksandra-zh).
-    bool AlwaysIncludeUnapprovedReplicas;
 
     // COMPAT(aleksandra-zh).
     bool BatchChunkConfirmation;
@@ -563,6 +558,41 @@ struct TDynamicSequoiaChunkReplicasConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicSequoiaChunkReplicasConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDynamicSequoiaChunkReplicasConfigPtr CopySequoiaChunkReplicasConfig(TDynamicSequoiaChunkReplicasConfigPtr config);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDynamicSequoiaChunkReplicasStoreConfig
+    : public NYTree::TYsonStruct
+{
+    bool StoreInSequoia;
+    //! Probability (in percents) that chunk replicas will be Sequoia.
+    int ReplicasPercentage;
+
+    bool FetchReplicasFromSequoia;
+    bool StoreSequoiaReplicasOnMaster;
+    int StoreSequoiaReplicasOnMasterPercentage;
+
+    bool ProcessRemovedSequoiaReplicasOnMaster;
+
+    // When fetching replicas from Sequoia, validate they are the same as master replicas.
+    // This only makes sense when replicas are stored on master.
+    bool ValidateSequoiaReplicasFetch;
+
+    // If Sequoia replicas were enabled recently, not all chunk replicas will be present in
+    // dynamic tables, which is OK. There still should not be any replicas that are
+    // not present on master.
+    bool AllowExtraMasterReplicasDuringValidation;
+
+    REGISTER_YSON_STRUCT(TDynamicSequoiaChunkReplicasStoreConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicSequoiaChunkReplicasStoreConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

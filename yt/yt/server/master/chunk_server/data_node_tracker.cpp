@@ -1094,12 +1094,13 @@ private:
             std::is_same_v<THeartbeatContextPtr, TCtxLocationFullHeartbeatPtr> ||
             std::is_same_v<THeartbeatContextPtr, TCtxIncrementalHeartbeatPtr>);
 
-        const auto& sequoiaChunkReplicasConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->SequoiaChunkReplicas;
-        auto isSequoiaEnabled = sequoiaChunkReplicasConfig->Enable;
-        const auto sequoiaChunkProbability = sequoiaChunkReplicasConfig->ReplicasPercentage;
+        const auto& sequoiaReplicasConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->SequoiaChunkReplicas;
+        auto isSequoiaEnabled = sequoiaReplicasConfig->Enable;
 
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
+        TDynamicSequoiaChunkReplicasConfigPtr sequoiaChunkReplicasConfig;
+        if (isSequoiaEnabled) {
+            sequoiaChunkReplicasConfig = CopySequoiaChunkReplicasConfig(sequoiaReplicasConfig);
+        }
 
         auto doSplitRequest = BIND([&] {
             auto& originalRequest = context->Request();
@@ -1119,7 +1120,13 @@ private:
                         chunkInfo.set_location_index(ToProto(locationDirectory[locationDirectoryIndex]));
                     }
 
-                    if (isSequoiaEnabled && chunkReplicaFetcher->CanHaveSequoiaReplicas(chunkIdWithIndex.Id, sequoiaChunkProbability)) {
+                    auto isSequoiaChunk = false;
+                    if (isSequoiaEnabled) {
+                        auto chunkSequoiaConfig = GetChunkSequoiaConfig(chunkIdWithIndex.Id, sequoiaChunkReplicasConfig);
+                        isSequoiaChunk = chunkSequoiaConfig.StoreInSequoia;
+                    }
+
+                    if (isSequoiaChunk) {
                         if constexpr (std::is_same_v<TChunkInfo, NChunkClient::NProto::TChunkAddInfo>) {
                             *sequoiaRequest->add_added_chunks() = std::move(chunkInfo);
                         } else {

@@ -1398,4 +1398,47 @@ void ValidateChunkMetaOnConfirmation(const NChunkClient::NProto::TChunkMeta& chu
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const TDynamicSequoiaChunkReplicasStoreConfigPtr& GetChunkSequoiaStoreConfig(
+    TChunkId chunk,
+    const TDynamicSequoiaChunkReplicasConfigPtr& config)
+{
+    if (IsJournalChunkId(chunk)) {
+        return config->JournalReplicasStoreConfig;
+    } else {
+        return config->BlobReplicasStoreConfig;
+    }
+}
+
+TChunkSequoiaConfig GetChunkSequoiaConfig(TChunkId chunkId, const TDynamicSequoiaChunkReplicasConfigPtr& config)
+{
+    TChunkSequoiaConfig result;
+    if (!config->Enable) {
+        return result;
+    }
+
+    const auto& storeConfig = GetChunkSequoiaStoreConfig(chunkId, config);
+    if (!storeConfig->StoreInSequoia) {
+        return result;
+    }
+
+    auto chunkPercentage = static_cast<int>(EntropyFromId(chunkId) % 100);
+    if (chunkPercentage >= storeConfig->ReplicasPercentage) {
+        return result;
+    }
+
+    result.StoreInSequoia = true;
+    result.FetchReplicasFromSequoia |= storeConfig->FetchReplicasFromSequoia;
+
+    if (storeConfig->StoreSequoiaReplicasOnMaster && chunkPercentage < storeConfig->StoreSequoiaReplicasOnMasterPercentage) {
+        result.StoreSequoiaReplicasOnMaster = true;
+        result.ProcessRemovedSequoiaReplicasOnMaster = true;
+        result.ValidateSequoiaReplicasFetch = storeConfig->ValidateSequoiaReplicasFetch;
+        result.AllowExtraMasterReplicasDuringValidation = storeConfig->AllowExtraMasterReplicasDuringValidation;
+    } else {
+        result.ProcessRemovedSequoiaReplicasOnMaster = storeConfig->ProcessRemovedSequoiaReplicasOnMaster;
+    }
+
+    return result;
+}
+
 } // namespace NYT::NChunkServer
