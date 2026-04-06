@@ -242,7 +242,7 @@ private:
         NYTProf::NProto::Profile* profile,
         const TJobProfilerSpecPtr& spec)
     {
-        Symbolize(profile, /*filesOnly*/ true);
+        Symbolize(profile, { .SymbolizeExistingFunctions = false });
         AddBuildInfo(profile, TBuildInfo::GetDefault());
 
         if (spec->RunExternalSymbolizer) {

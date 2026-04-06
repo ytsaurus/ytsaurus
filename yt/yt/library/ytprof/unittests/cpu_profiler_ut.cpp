@@ -91,7 +91,7 @@ void RunUnderProfiler(
         ASSERT_EQ(expectEmpty, profile.sampleSize() == 0);
     }
 
-    Symbolize(&profile, true);
+    Symbolize(&profile, { .SymbolizeExistingFunctions = false });
     AddBuildInfo(&profile, TBuildInfo::GetDefault());
     SymbolizeByExternalPProf(&profile, TSymbolizationOptions{
         .TmpDir = GetOutputPath().GetPath(),
