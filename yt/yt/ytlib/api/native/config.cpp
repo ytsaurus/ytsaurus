@@ -572,6 +572,12 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default(2'500)
         .GreaterThan(0);
 
+    registrar.Parameter("check_operation_base_aco", &TThis::CheckOperationBaseAco)
+        .Default(false);
+
+    registrar.Parameter("operation_base_aco_name", &TThis::OperationBaseAcoName)
+        .Default("base_aco");
+
     registrar.Postprocessor([] (TConnectionDynamicConfig* config) {
         if (!config->UploadTransactionPingPeriod.has_value()) {
             config->UploadTransactionPingPeriod = config->UploadTransactionTimeout / 4;

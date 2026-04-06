@@ -1,7 +1,7 @@
 from yt_commands import (
     authors, wait, retry, wait_no_assert,
     wait_breakpoint, release_breakpoint, with_breakpoint, create, get, set,
-    exists, create_user,
+    exists, create_user, remove_user, remove,
     create_group, make_ace, add_member, read_table, write_table, map, map_reduce, run_test_vanilla, abort_job, abandon_job,
     get_operation, get_job_fail_context, get_job_input, get_job_stderr, get_job_spec, dump_job_context,
     get_job, list_operations, list_jobs,
@@ -54,6 +54,14 @@ def suspend_and_resume_op(**kwargs):
 def _update_op_parameters(**kwargs):
     kwargs["parameters"] = {"scheduling_options_per_pool_tree": {"default": {"weight": 3.0}}}
     update_op_parameters(kwargs.pop("operation_id"), **kwargs)
+
+
+def update_base_aco(ace):
+    set("//sys/access_control_object_namespaces/operations/base_aco/principal/@acl/end", ace)
+
+
+def pop_base_aco():
+    remove("//sys/access_control_object_namespaces/operations/base_aco/principal/@acl/-1")
 
 
 class TestSchedulerAclsBase(YTEnvSetup):
@@ -116,6 +124,7 @@ class TestSchedulerAclsBase(YTEnvSetup):
     manage_and_read_user = "manage_and_read_user"
     banned_from_managing_user = "banned_from_managing_user"
     banned_user = "banned_user"
+    global_readers = "global_readers"
     group_membership = {manage_and_read_group: [manage_and_read_user, banned_from_managing_user]}
 
     spec = {
@@ -146,6 +155,7 @@ class TestSchedulerAclsBase(YTEnvSetup):
             self.manage_and_read_user,
             self.banned_from_managing_user,
             self.banned_user,
+            self.global_readers,
         ]:
             create_user(user)
 
@@ -157,9 +167,12 @@ class TestSchedulerAclsBase(YTEnvSetup):
                 add_member(member, group)
 
         create_access_control_object_namespace("operations")
+        create_access_control_object("base_aco", "operations")
         create_access_control_object("users", "operations")
         create_access_control_object("new_aco", "operations")
         update_access_control_object_acl("operations", "users", self.spec["acl"])
+
+        update_base_aco(make_ace("allow", self.global_readers, "read"))
 
     @staticmethod
     def _random_string(length):
@@ -288,7 +301,7 @@ class TestSchedulerAclsBase(YTEnvSetup):
 class TestSchedulerAcls(TestSchedulerAclsBase):
     NUM_TEST_PARTITIONS = 6
 
-    @authors("omgronny")
+    @authors("bystrovserg")
     @pytest.mark.parametrize("should_update_operation_parameters", [False, True])
     def test_read_job_from_node_actions(self, should_update_operation_parameters):
         def _dump_job_context(operation_id, job_id, **kwargs):
@@ -336,7 +349,7 @@ class TestSchedulerAcls(TestSchedulerAclsBase):
                     job_id=job_id,
                 )
 
-    @authors("omgronny")
+    @authors("bystrovserg")
     @pytest.mark.parametrize("should_update_operation_parameters", [False, True])
     def test_read_job_from_cypress_actions(self, should_update_operation_parameters):
         actions = [
@@ -364,7 +377,7 @@ class TestSchedulerAcls(TestSchedulerAclsBase):
                 job_id=job_id,
             )
 
-    @authors("omgronny")
+    @authors("bystrovserg")
     def test_read_job_from_archive_actions(self):
         actions = [
             get_job_fail_context,
@@ -396,7 +409,7 @@ class TestSchedulerAcls(TestSchedulerAclsBase):
                 job_id=job_id,
             )
 
-    @authors("omgronny")
+    @authors("bystrovserg")
     @pytest.mark.parametrize("should_update_operation_parameters", [False, True])
     def test_manage_job_actions(self, should_update_operation_parameters):
         actions = [
@@ -418,7 +431,7 @@ class TestSchedulerAcls(TestSchedulerAclsBase):
             ):
                 self._validate_access(self.manage_and_read_user, True, action, job_id=job_id)
 
-    @authors("omgronny")
+    @authors("bystrovserg")
     @pytest.mark.parametrize("should_update_operation_parameters", [False, True])
     def test_manage_and_read_job_actions(self, should_update_operation_parameters):
         def spawn_job_shell(operation_id, job_id, **kwargs):
@@ -476,7 +489,7 @@ class TestSchedulerAcls(TestSchedulerAclsBase):
                     job_id=job_id,
                 )
 
-    @authors("omgronny")
+    @authors("bystrovserg")
     @pytest.mark.parametrize("should_update_operation_parameters", [False, True])
     def test_manage_operation_actions(self, should_update_operation_parameters):
         actions = [
@@ -501,7 +514,7 @@ class TestSchedulerAcls(TestSchedulerAclsBase):
             ):
                 self._validate_access(self.manage_and_read_user, True, action, operation_id=op.id)
 
-    @authors("omgronny")
+    @authors("bystrovserg")
     def test_scheduler_operation_abort_by_owners(self):
         spec = {"owners": [self.manage_and_read_user]}
         with self._run_op_context_manager(spec=spec) as (op, job_id):
@@ -511,7 +524,7 @@ class TestSchedulerAcls(TestSchedulerAclsBase):
             self._validate_access(self.banned_from_managing_user, False, _abort_op, operation_id=op.id)
             self._validate_access(self.manage_and_read_user, True, _abort_op, operation_id=op.id)
 
-    @authors("omgronny")
+    @authors("bystrovserg")
     def test_acl_priority_over_owners(self):
         spec = {
             "owners": [self.no_rights_user],
@@ -525,7 +538,7 @@ class TestSchedulerAcls(TestSchedulerAclsBase):
             self._validate_access(self.banned_from_managing_user, False, _abort_op, operation_id=op.id)
             self._validate_access(self.manage_and_read_user, True, _abort_op, operation_id=op.id)
 
-    @authors("omgronny")
+    @authors("bystrovserg")
     def test_invalid_acl(self):
         spec = {
             "acl": [
@@ -541,7 +554,7 @@ class TestSchedulerAcls(TestSchedulerAclsBase):
             with self._run_op_context_manager(spec=spec) as (op, job_id):
                 pass
 
-    @authors("omgronny")
+    @authors("bystrovserg")
     def test_acl_errors(self):
         # Wrong permissions.
         with pytest.raises(YtError):
@@ -552,7 +565,7 @@ class TestSchedulerAcls(TestSchedulerAclsBase):
             ):
                 pass
 
-    @authors("omgronny")
+    @authors("bystrovserg")
     @pytest.mark.parametrize("allow_access", [False, True])
     def test_allow_users_group_access_to_intermediate_data(self, allow_access):
         update_controller_agent_config("allow_users_group_read_intermediate_data", allow_access)
@@ -597,7 +610,7 @@ class TestSchedulerAcls(TestSchedulerAclsBase):
         release_breakpoint(breakpoint_name=breakpoint_name)
         op.track()
 
-    @authors("omgronny")
+    @authors("bystrovserg")
     @pytest.mark.parametrize("add_authenticated_user", [False, True])
     def test_add_authenticated_user_to_acl(self, add_authenticated_user):
         spec = {
@@ -625,7 +638,7 @@ class TestSchedulerAcls(TestSchedulerAclsBase):
 
         set("//sys/operations/@acl", [])
 
-    @authors("omgronny", "aleksandr.gaev")
+    @authors("bystrovserg", "aleksandr.gaev")
     @pytest.mark.parametrize("use_acl", [False, True])
     @pytest.mark.parametrize("should_archive_operation", [False, True])
     @pytest.mark.parametrize("include_runtime", [False, True])
@@ -648,7 +661,7 @@ class TestSchedulerAcls(TestSchedulerAclsBase):
         self._validate_access(self.banned_from_managing_user, True, get_operation, op_id_or_alias=op.id, include_runtime=include_runtime)
         self._validate_access(self.banned_user, True, get_operation, op_id_or_alias=op.id, include_runtime=include_runtime)
 
-    @authors("omgronny")
+    @authors("bystrovserg")
     def test_aco_in_operations(self):
         op = run_test_vanilla(
             command=with_breakpoint("BREAKPOINT"),
@@ -671,7 +684,7 @@ class TestSchedulerAcls(TestSchedulerAclsBase):
             self._validate_access(self.manage_and_read_user, True, action, operation_id=op.id, job_id=job_id)
             self._validate_access(self.banned_from_managing_user, True, action, operation_id=op.id, job_id=job_id)
 
-    @authors("omgronny")
+    @authors("bystrovserg")
     def test_aco_and_acl_in_operations(self):
         acl = self.spec["acl"]
 
@@ -699,7 +712,7 @@ class TestSchedulerAcls(TestSchedulerAclsBase):
         update_op_parameters(op.id, parameters={"aco_name": "new_aco"})
         wait(lambda: get_operation(op.id)["runtime_parameters"]["aco_name"] == "new_aco")
 
-    @authors("omgronny")
+    @authors("bystrovserg")
     def test_manage_operation_actions_using_aco(self):
         spec = {
             "aco_name": "users",
@@ -727,7 +740,7 @@ class TestSchedulerAcls(TestSchedulerAclsBase):
             ):
                 self._validate_access(self.manage_and_read_user, True, action, operation_id=op.id)
 
-    @authors("omgronny")
+    @authors("bystrovserg")
     def test_missing_user_in_acl(self):
         create_test_tables(force=True)
         op = map(
@@ -951,6 +964,44 @@ class TestSchedulerAcls(TestSchedulerAclsBase):
         test_permission()
 
 
+class TestSchedulerBaseAco(TestSchedulerAclsBase):
+    DELTA_DRIVER_CONFIG = {
+        "check_operation_base_aco": True,
+    }
+
+    @authors("bystrovserg")
+    @pytest.mark.parametrize("use_acl", [False, True])
+    def test_base_aco(self, use_acl):
+        chill_guy = "chill_guy"
+        create_user(chill_guy)
+
+        spec = self.spec if use_acl else {"aco_name": "users"}
+
+        op = run_test_vanilla(
+            command=with_breakpoint("BREAKPOINT"),
+            spec=spec,
+        )
+        wait_breakpoint()
+
+        def test_permission(should_have_manage_permission):
+            self._validate_permission(self.global_readers, True, op.id, "read")
+            self._validate_permission(self.global_readers, False, op.id, "manage")
+
+            self._validate_permission(chill_guy, False, op.id, "read")
+            self._validate_permission(chill_guy, should_have_manage_permission, op.id, "manage")
+
+        wait_no_assert(lambda: test_permission(should_have_manage_permission=False))
+        release_breakpoint()
+        op.track()
+        update_base_aco(make_ace("allow", chill_guy, "manage"))
+
+        clean_operations()
+        wait_no_assert(lambda: test_permission(should_have_manage_permission=True))
+
+        remove_user(chill_guy)
+        pop_base_aco()
+
+
 class TestSchedulerAclsStrictMode(TestSchedulerAclsBase):
     NUM_TEST_PARTITIONS = 6
 
@@ -960,7 +1011,7 @@ class TestSchedulerAclsStrictMode(TestSchedulerAclsBase):
         "strict_operation_info_access_validation": True,
     }
 
-    @authors("omgronny", "aleksandr.gaev")
+    @authors("bystrovserg", "aleksandr.gaev")
     @pytest.mark.parametrize("use_acl", [False, True])
     @pytest.mark.parametrize("should_archive_operation", [False, True])
     @pytest.mark.parametrize("include_runtime", [False, True])
