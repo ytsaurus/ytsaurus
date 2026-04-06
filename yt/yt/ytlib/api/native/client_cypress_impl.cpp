@@ -247,15 +247,6 @@ protected:
         , Logger(std::move(logger))
     { }
 
-    ~TCrossCellExecutor()
-    {
-        try {
-            MaybeAbortTransaction();
-        } catch (std::exception& e) {
-            YT_LOG_DEBUG(TError(e), "Error aborting transaction");
-        }
-    }
-
     // COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy.
     struct TSerializedSubtree
     {
@@ -1055,9 +1046,12 @@ protected:
         YT_LOG_DEBUG("Aborting transaction");
 
         auto error = WaitFor(Transaction_->Abort());
-        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error aborting transaction");
+        if (!error.IsOK()) {
+            YT_LOG_DEBUG(error, "Error aborting transaction");
+        } else {
+            YT_LOG_DEBUG("Transaction aborted");
+        }
 
-        YT_LOG_DEBUG("Transaction aborted");
     }
 };
 
@@ -1083,6 +1077,22 @@ public:
     { }
 
     TNodeId Run()
+    {
+        try {
+            return DoRun();
+        } catch (const std::exception& ex) {
+            MaybeAbortTransaction();
+            throw;
+        }
+    }
+
+private:
+    const TYPath SrcPath_;
+    const TYPath DstPath_;
+    const TOptions Options_;
+
+
+    TNodeId DoRun()
     {
         YT_LOG_DEBUG("Cross-cell node cloning started");
         StartTransaction(
@@ -1123,15 +1133,11 @@ public:
         }
         SyncExternalCellsWithClonedNodeCell();
         CommitTransaction(commitOptions);
+
         YT_LOG_DEBUG("Cross-cell node cloning completed");
+
         return DstNodeId_;
     }
-
-private:
-    const TYPath SrcPath_;
-    const TYPath DstPath_;
-    const TOptions Options_;
-
 
     void RemoveSource()
     {
@@ -1166,6 +1172,36 @@ public:
     }
 
     void Run()
+    {
+        try {
+            DoRun();
+        } catch (const std::exception& ex) {
+            MaybeAbortTransaction();
+            throw;
+        }
+    }
+
+private:
+    const TYPath Path_;
+    const TExternalizeNodeOptions Options_;
+    TYsonString Acl_;
+    TYsonString InheritAcl_;
+    TYsonString Annotation_;
+
+    static TMoveNodeOptions GetOptions()
+    {
+        TMoveNodeOptions options;
+        options.PreserveAccount = true;
+        options.PreserveCreationTime = true;
+        options.PreserveModificationTime = true;
+        options.PreserveExpirationTime = true;
+        options.PreserveOwner = true;
+        options.PreserveAcl = true;
+        options.Force = true;
+        return options;
+    }
+
+    void DoRun()
     {
         YT_LOG_DEBUG("Node externalization started");
         StartTransaction(
@@ -1205,26 +1241,6 @@ public:
         SyncExternalCellsWithClonedNodeCell();
         CommitTransaction();
         YT_LOG_DEBUG("Node externalization completed");
-    }
-
-private:
-    const TYPath Path_;
-    const TExternalizeNodeOptions Options_;
-    TYsonString Acl_;
-    TYsonString InheritAcl_;
-    TYsonString Annotation_;
-
-    static TMoveNodeOptions GetOptions()
-    {
-        TMoveNodeOptions options;
-        options.PreserveAccount = true;
-        options.PreserveCreationTime = true;
-        options.PreserveModificationTime = true;
-        options.PreserveExpirationTime = true;
-        options.PreserveOwner = true;
-        options.PreserveAcl = true;
-        options.Force = true;
-        return options;
     }
 
     void RequestAclAndAnnotation()
