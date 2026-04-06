@@ -123,6 +123,7 @@ private:
 
     //! One iteration of state polling and object store updating.
     void Pass();
+    void GuardedPass(const NLogging::TLogger& Logger);
 
     TTaggedProfilingCounters& GetOrCreateTaggedProfilingCounters(const NQueueClient::TProfilingTags& profilingTags);
 
