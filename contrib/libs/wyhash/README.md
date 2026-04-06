@@ -1,3 +1,17 @@
+New PRNG: w1rand
+```
+static inline uint64_t w1rand(uint64_t *s) {
+  const uint64_t c = 0xd07ebc63274654c7ull;
+  *s += c;
+  __uint128_t t = (__uint128_t)*s * (*s ^ c);
+  return (t >> 64) ^ t;
+}
+```
+w1rand                                  :  0.277 cycles per byte
+
+wyrand                                  :  0.344 cycles per byte
+
+
 wyhash has evolved into [rapidhash](https://github.com/Nicoshev/rapidhash) !  
 With improved speed, quality and compatibility.
 ====
