@@ -210,8 +210,7 @@ TAllocation::TAllocation(
         Bootstrap_->GetControllerAgentConnectorPool()->GetControllerAgentConnector(ControllerAgentInfo_.GetDescriptor()))
     , FSSecretary_(New<TJobFSSecretary>(
         Bootstrap_,
-        Logger,
-        Bootstrap_->GetConfig()->ExecNode->SlotManager->EnableTmpfs))
+        Logger))
 {
     YT_VERIFY(bootstrap);
 

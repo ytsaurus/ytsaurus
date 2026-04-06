@@ -41,8 +41,7 @@ class TJobFSSecretary
 public:
     TJobFSSecretary(
         IBootstrap* bootstrap,
-        NLogging::TLogger logger,
-        bool tmpfsEnabled);
+        NLogging::TLogger logger);
 
     //! Must be called before any other methods during job preparation.
     void ConfigureFromSpec(
@@ -113,7 +112,6 @@ private:
     const NLogging::TLogger BaseLogger_;
     NLogging::TLogger Logger;
     bool RootVolumeDiskQuotaEnabled_ = false;
-    const bool TmpfsEnabled_;
 
     std::vector<TArtifactDescription> Artifacts_;
     std::vector<TArtifactKey> RootVolumeLayerArtifactKeys_;

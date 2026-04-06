@@ -191,12 +191,10 @@ TError CheckSandboxNbdRootVolumeData(
 
 TJobFSSecretary::TJobFSSecretary(
     IBootstrap* bootstrap,
-    NLogging::TLogger logger,
-    bool tmpfsEnabled)
+    NLogging::TLogger logger)
     : Bootstrap_(bootstrap)
     , BaseLogger_(std::move(logger))
     , Logger(BaseLogger_)
-    , TmpfsEnabled_(tmpfsEnabled)
 { }
 
 void TJobFSSecretary::ConfigureFromSpec(
@@ -547,10 +545,6 @@ bool TJobFSSecretary::CanBeAccessedViaVirtualSandbox(
         artifact.Key.data_source().type() != ToProto(EDataSourceType::File))
     {
         return false;
-    }
-
-    if (!TmpfsEnabled_) {
-        return true;
     }
 
     for (const auto& tmpfsVolume : userJobSpec->tmpfs_volumes()) {

@@ -989,7 +989,7 @@ class TestDisabledSandboxTmpfs(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
-    DELTA_NODE_CONFIG = {"exec_node": {"slot_manager": {"enable_tmpfs": False}}}
+    DELTA_CONTROLLER_AGENT_CONFIG = {"controller_agent": {"enable_tmpfs": False}}
 
     @authors("ignat")
     def test_simple(self):
@@ -998,7 +998,7 @@ class TestDisabledSandboxTmpfs(YTEnvSetup):
         write_table("//tmp/t_input", {"foo": "bar"})
 
         op = map(
-            command="cat; echo 'content' > tmpfs/file; ls tmpfs/ >&2; cat tmpfs/file >&2;",
+            command="[ -d tmpfs ] || echo -n 'Success' >&2",
             in_="//tmp/t_input",
             out="//tmp/t_output",
             spec={
@@ -1013,7 +1013,7 @@ class TestDisabledSandboxTmpfs(YTEnvSetup):
         assert len(job_ids) == 1
         content = op.read_stderr(job_ids[0]).decode("ascii")
         words = content.strip().split()
-        assert ["file", "content"] == words
+        assert ["Success"] == words
 
 
 ##################################################################

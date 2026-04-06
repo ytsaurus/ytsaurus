@@ -69,9 +69,6 @@ void TSlotManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("locations", &TThis::Locations);
 
-    registrar.Parameter("enable_tmpfs", &TThis::EnableTmpfs)
-        .Default(true);
-
     registrar.Parameter("detached_tmpfs_umount", &TThis::DetachedTmpfsUmount)
         .Default(true);
 
