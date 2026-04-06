@@ -54,6 +54,7 @@ using namespace NCypressElection;
 using namespace NYPath;
 using namespace NRpc::NBus;
 using namespace NProfiling;
+using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -570,17 +571,32 @@ void TQueueAgent::Pass()
     PassProfiler_.OnStart(PassIndex_, PassInstant_);
 
     auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("QueueAgent"));
-
     auto Logger = QueueAgentLogger().WithTag("PassIndex: %v", PassIndex_);
 
-    // Collect queue and consumer rows.
-
     YT_LOG_INFO("Pass started");
-    auto finalizePass = Finally([&] {
-        AlertCollector_->PublishAlerts();
-        PassProfiler_.OnFinish(TInstant::Now() - PassInstant_);
-        YT_LOG_INFO("Pass finished");
-    });
+
+    try {
+        GuardedPass(Logger);
+        PassError_ = TError();
+    } catch (const std::exception& ex) {
+        PassError_ = ex;
+        YT_LOG_ERROR(PassError_, "Error in Queue Agent pass");
+        AlertCollector_->StageAlert(CreateAlert(
+            NAlerts::EErrorCode::QueueAgentPassFailed,
+            "Error in Queue Agent pass",
+            /*tags*/ {},
+            PassError_));
+        PassProfiler_.OnError();
+    }
+
+    AlertCollector_->PublishAlerts();
+    PassProfiler_.OnFinish(TInstant::Now() - PassInstant_);
+    YT_LOG_INFO("Pass finished");
+}
+
+void TQueueAgent::GuardedPass(const TLogger& Logger)
+{
+    YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
     // NB: The tables below contain information about all stages.
     auto asyncQueueRows = DynamicState_->Queues->Select();
@@ -589,23 +605,14 @@ void TQueueAgent::Pass()
     // NB: Only contains objects with the same stage as ours.
     auto asyncObjectMappingRows = DynamicState_->QueueAgentObjectMapping->Select();
 
-    std::vector<TFuture<void>> futures{
+    std::vector futures{
         asyncQueueRows.AsVoid(),
         asyncConsumerRows.AsVoid(),
         asyncRegistrationRows.AsVoid(),
         asyncObjectMappingRows.AsVoid(),
     };
-
     if (auto error = WaitFor(AllSucceeded(futures)); !error.IsOK()) {
-        PassError_ = error;
-        YT_LOG_WARNING(error, "Error while reading dynamic state");
-        AlertCollector_->StageAlert(CreateAlert(
-            NAlerts::EErrorCode::QueueAgentPassFailed,
-            "Error while reading dynamic state",
-            /*tags*/ {},
-            error));
-        PassProfiler_.OnError();
-        return;
+        THROW_ERROR_EXCEPTION("Error while reading dynamic state") << error;
     }
     auto queueRows = asyncQueueRows.AsUnique().GetOrCrash().Value();
     auto consumerRows = asyncConsumerRows.AsUnique().GetOrCrash().Value();
@@ -810,20 +817,6 @@ void TQueueAgent::Pass()
         appendRegistration(freshObjects[EObjectKind::Consumer], registration.Consumer);
     }
 
-    // Then, find and stop to-be-deleted controllers.
-
-    {
-        auto guard = ReaderGuard(ObjectLock_);
-
-        for (auto objectKind : {EObjectKind::Queue, EObjectKind::Consumer}) {
-            for (const auto& [ref, object] : Objects_[objectKind]) {
-                if (!freshObjects[objectKind].contains(ref)) {
-                    object.Controller->Stop();
-                }
-            }
-        }
-    }
-
     // Then, replace old objects with fresh ones.
 
     {
@@ -841,6 +834,24 @@ void TQueueAgent::Pass()
 
         ObjectToHost_.swap(objectMapping);
     }
+
+    // Then, find and stop to-be-deleted controllers.
+
+    {
+        auto guard = ReaderGuard(ObjectLock_);
+
+        // NB(panesher): After swap we have here only old objects.
+        auto& oldObjects = freshObjects;
+
+        for (auto objectKind : {EObjectKind::Queue, EObjectKind::Consumer}) {
+            for (const auto& [ref, object] : oldObjects[objectKind]) {
+                if (!Objects_[objectKind].contains(ref)) {
+                    object.Controller->Stop();
+                }
+            }
+        }
+    }
+
 
     // Finally, update rows in the controllers. As best effort to prevent some inconsistencies (like enabling trimming
     // with obsolete list of vital registrations), we do that strictly after registration update.
@@ -863,8 +874,6 @@ void TQueueAgent::Pass()
         updateRows(EObjectKind::Queue, GetValues(followedQueues));
         updateRows(EObjectKind::Consumer, GetValues(followedConsumers));
     }
-
-    PassError_ = TError();
 
     Profile();
 }
