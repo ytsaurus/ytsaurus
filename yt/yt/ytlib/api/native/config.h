@@ -426,6 +426,10 @@ struct TConnectionDynamicConfig
 
     i64 GetJobTraceBatchSize;
 
+    //! Enable base ACO check when validating operation access.
+    bool CheckOperationBaseAco;
+    std::string OperationBaseAcoName;
+
     REGISTER_YSON_STRUCT(TConnectionDynamicConfig);
 
     static void Register(TRegistrar registrar);
