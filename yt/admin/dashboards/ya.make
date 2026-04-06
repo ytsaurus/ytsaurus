@@ -53,6 +53,7 @@ PY_SRCS(
     yt_dashboards/common/__init__.py
     yt_dashboards/common/postprocessors.py
     yt_dashboards/common/runner.py
+    yt_dashboards/common/queue_agent.py
     yt_dashboards/common/sensors.py
 )
 
