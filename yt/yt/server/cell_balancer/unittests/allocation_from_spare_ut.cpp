@@ -424,7 +424,7 @@ TEST_P(TNoAllocatorTest, OfflineNodeReplacement)
     for (const auto& [_, node] : input.TabletNodes) {
         if (node->BundleControllerAnnotations->AllocatedForBundle == "bigd") {
             node->State = "offline";
-            node->LastSeenTime = TInstant::Now() - TDuration::Hours(1);
+            node->LastSeenTime = TInstant::Now() - TDuration::Seconds(1);
             for (const auto& slot : node->TabletSlots) {
                 slot->State = TabletSlotStateEmpty;
             }
@@ -763,7 +763,7 @@ TEST_P(TNoAllocatorTest, NodeGoneOfflineDuringAllocation)
         if (node->BundleControllerAnnotations->AllocatedForBundle == "bigd") {
             YT_LOG_DEBUG("Node marked as offline (NodeAddress: %v)", address);
             node->State = "offline";
-            node->LastSeenTime = TInstant::Now() - TDuration::Hours(1);
+            node->LastSeenTime = TInstant::Now() - TDuration::Seconds(1);
             for (const auto& slot : node->TabletSlots) {
                 slot->State = TabletSlotStateEmpty;
             }
@@ -797,7 +797,9 @@ TEST_P(TNoAllocatorTest, NodeGoneOfflineDuringAllocation)
         ApplyMutations(&input, mutations);
     }
 
+    ASSERT_TRUE(!input.BundleStates["bigd"]->NodeAllocations.empty());
     auto allocationId = input.BundleStates["bigd"]->NodeAllocations.begin()->first;
+    ASSERT_TRUE(input.AllocationRequests.contains(allocationId));
     auto firstNode = input.AllocationRequests[allocationId]->Status->NodeId;
     YT_LOG_DEBUG("Node marked as offline during allocation (NodeAddress: %v)", firstNode);
     ASSERT_TRUE(!firstNode.empty());

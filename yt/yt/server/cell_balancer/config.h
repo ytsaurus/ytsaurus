@@ -130,6 +130,9 @@ struct TBundleControllerDynamicConfig
 
     bool RemoveTagsFromOfflineNodes;
 
+    std::optional<TDuration> RemoveInstanceCypressNodeAfter;
+    std::optional<TDuration> OfflineInstanceGracePeriod;
+
     REGISTER_YSON_STRUCT(TBundleControllerDynamicConfig);
 
     static void Register(TRegistrar registrar);

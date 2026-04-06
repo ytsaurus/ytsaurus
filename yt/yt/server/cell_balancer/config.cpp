@@ -137,6 +137,11 @@ void TBundleControllerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("remove_tags_from_offline_nodes", &TThis::RemoveTagsFromOfflineNodes)
         .Default(false);
+
+    registrar.Parameter("remove_instance_cypress_node_after", &TThis::RemoveInstanceCypressNodeAfter)
+        .Default();
+    registrar.Parameter("offline_instance_grace_period", &TThis::OfflineInstanceGracePeriod)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
