@@ -10,7 +10,7 @@ from .helpers import get_disabled_cache_config
 
 import yt.yson as yson
 
-from yt.common import wait
+from yt.common import wait, update_inplace
 
 from yt.test_helpers import assert_items_equal
 
@@ -1602,7 +1602,7 @@ class TestInferReadRange(ClickHouseTestBase):
     def _get_config_patch(self):
         return {
             "yt": {
-                "settings": {
+                "query_settings": {
                     "execution": {
                         "enable_read_range_inferring": True,
                     },
@@ -1792,7 +1792,7 @@ class TestInferReadRange(ClickHouseTestBase):
 
     # CHYT-1387
     @authors("buyval01")
-    def test_read_range_with_sorted_pool(self):
+    def test_sorted_pool(self):
         create("table", "//tmp/t", attributes={
             "schema": [{"name": "id", "type": "int64", "required": True, "sort_order": "ascending"}]
         })
@@ -1824,7 +1824,7 @@ class TestInferReadRange(ClickHouseTestBase):
             assert_items_equal(res, [{"id": 1, "cnt": value_cnt}, {"id": 2, "cnt": value_cnt}])
 
     @authors("a-dyu")
-    def test_read_range_with_optional_list_sort_key(self):
+    def test_optional_list_sort_key(self):
         create(
             "table",
             "//tmp/t",
@@ -1866,6 +1866,41 @@ class TestInferReadRange(ClickHouseTestBase):
 
             res = clique.make_query("select value from \"//tmp/t\" where key = 1 order by value")
             assert res == [{"value": "v1"}, {"value": "v2"}]
+
+    @authors("buyval01")
+    def test_low_cardinality_key(self):
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "schema": [
+                    {"name": "key", "type": "string", "sort_order": "ascending"},
+                    {"name": "value", "type": "int64"},
+                ]
+            }
+        )
+        write_table("<append=%true>//tmp/t", [{"key": "aa", "value": 1}, {"key": "ab", "value": 2}])
+        write_table("<append=%true>//tmp/t", [{"key": "ba", "value": 3}, {"key": "bb", "value": 4}])
+
+        config = {
+            "yt": {"query_settings": {"composite": {"low_cardinality_mode": "all"}}}
+        }
+        update_inplace(config, self._get_config_patch())
+        with Clique(1, config_patch=config, export_query_log=True) as clique:
+            res = clique.make_query_and_validate_prewhered_row_count(
+                'select value from "//tmp/t" where key = \'aa\'', exact=1
+            )
+            assert res == [{"value": 1}]
+
+            res = clique.make_query_and_validate_prewhered_row_count(
+                'select value from "//tmp/t" where key >= \'ba\'', exact=2
+            )
+            assert_items_equal(res, [{"value": 3}, {"value": 4}])
+
+            res = clique.make_query_and_validate_prewhered_row_count(
+                'select value from "//tmp/t" where key IN (\'aa\', \'bb\')', exact=2
+            )
+            assert_items_equal(res, [{"value": 1}, {"value": 4}])
 
 
 class TestInputFetchingYPath(ClickHouseTestBase):
