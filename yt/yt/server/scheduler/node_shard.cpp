@@ -2570,6 +2570,16 @@ void TNodeShard::UpdateUnutilizedResourcesOnHeartbeatEnd(
 
         node->UnutilizedResourcesByReason()[EUnutilizedResourceReason::AcceptableFragmentation] = acceptableFragmentation;
         node->UnutilizedResourcesByReason()[EUnutilizedResourceReason::ExcessiveFragmentation] = excessiveFragmentation;
+
+        YT_LOG_DEBUG(
+            "Node resources fragmented after heartbeat "
+            "(Address: %v, NodeFreeResources: %v, MinSpareResources: %v, "
+            "AcceptableFragmentation: %v, ExcessiveFragmentation: %v)",
+            node->GetDefaultAddress(),
+            FormatResources(nodeFreeResources),
+            FormatResources(minSpareResources),
+            FormatResources(acceptableFragmentation),
+            FormatResources(excessiveFragmentation));
     }
 
     node->UnutilizedResourcesByReason()[EUnutilizedResourceReason::Utilized] = node->ResourceUsage();
