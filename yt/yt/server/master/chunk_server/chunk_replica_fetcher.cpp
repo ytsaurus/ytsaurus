@@ -55,7 +55,7 @@ constinit const auto Logger = ChunkServerLogger;
 
 namespace {
 
-    std::vector<TSequoiaChunkReplica> ParseReplicas(
+std::vector<TSequoiaChunkReplica> ParseReplicas(
     const auto& replicaRecords,
     const auto& extractReplicas)
 {
@@ -83,6 +83,28 @@ namespace {
     return replicas;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(TReplicaFetchState)
+
+struct TReplicaFetchState
+    : public TRefCounted
+{
+    TDynamicSequoiaChunkReplicasConfigPtr ConfigForValidation;
+
+    THashMap<TChunkId, std::vector<TSequoiaChunkReplica>> MasterReplicas;
+    THashMap<TChunkId, std::vector<TSequoiaChunkReplica>> ApprovedMasterReplicasForPendingValidationChunks;
+
+    std::vector<TChunkId> ChunkIdsToFetchReplicasFromSequoia;
+    std::vector<TChunkId> ChunkIdsToFetchUnapprovedReplicasFromSequoia;
+
+    NTransactionClient::TTimestamp Timestamp = NTransactionClient::SyncLastCommittedTimestamp;
+};
+
+DEFINE_REFCOUNTED_TYPE(TReplicaFetchState);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -95,28 +117,43 @@ public:
         : Bootstrap_(bootstrap)
     { }
 
-    bool CanHaveSequoiaReplicas(TChunkId chunkId, int probability) const override
-    {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
-
-        if (IsJournalChunkId(chunkId)) {
-            return false;
-        }
-
-        return static_cast<int>(EntropyFromId(chunkId) % 100) < probability;
-    }
-
-    bool CanHaveSequoiaReplicas(TChunkId chunkId) const override
+    TStoredChunkReplicaList FilterAliveReplicas(const std::vector<TSequoiaChunkReplica>& replicas) const override
     {
         VerifyPersistentStateRead();
 
-        const auto& config = GetDynamicConfig();
-        if (!config->Enable) {
-            return false;
-        }
+        // COMPAT(grphil)
+        auto includeNonOnlineReplicas = GetBootstrap()->GetConfigManager()->GetConfig()->ChunkManager->AlwaysFetchNonOnlineReplicas;
 
-        auto probability = config->ReplicasPercentage;
-        return CanHaveSequoiaReplicas(chunkId, probability);
+        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+        TStoredChunkReplicaList aliveReplicas;
+        for (const auto& replica : replicas) {
+            auto chunkId = replica.ChunkId;
+            auto locationIndex = replica.LocationIndex;
+            auto* location = dataNodeTracker->FindChunkLocationByIndex(locationIndex);
+            if (!IsObjectAlive(location)) {
+                YT_LOG_DEBUG("Found Sequoia chunk replica with a non-existent location (ChunkId: %v, LocationIndex: %v)",
+                    chunkId,
+                    locationIndex);
+                continue;
+            }
+            auto node = location->GetNode();
+            if (!IsObjectAlive(node)) {
+                YT_LOG_ERROR("Found Sequoia chunk replica with a location not bound to any node (ChunkId: %v, LocationIndex: %v)",
+                    chunkId,
+                    locationIndex);
+                continue;
+            }
+
+            if (!includeNonOnlineReplicas && node->GetLocalState() != ENodeState::Online) {
+                YT_LOG_TRACE("Found Sequoia chunk replica on non-online node, ignoring replica (ChunkId: %v, NodeAddress: %v, NodeState: %v)",
+                    chunkId,
+                    node->GetDefaultAddress(),
+                    node->GetLocalState());
+                continue;
+            }
+            aliveReplicas.emplace_back(TAugmentedStoredChunkReplicaPtr(location, replica.ReplicaIndex, replica.ReplicaState));
+        }
+        return aliveReplicas;
     }
 
 
@@ -191,7 +228,8 @@ public:
             replicas.resize(::NErasure::MaxTotalPartCount);
         }
 
-        if (!CanHaveSequoiaReplicas(chunkId) || !GetDynamicConfig()->FetchReplicasFromSequoia) {
+        auto chunkSequoiaConfig = GetChunkSequoiaConfig(chunkId, GetDynamicConfig());
+        if (!chunkSequoiaConfig.FetchReplicasFromSequoia) {
             return MakeFuture(replicas);
         }
 
@@ -226,6 +264,7 @@ public:
         auto result = GetChunkReplicas(chunks, includeUnapproved);
         return GetOrCrash(result, chunk->GetId());
     }
+
     TChunkToStoredChunkReplicaList GetChunkReplicas(
         const std::vector<TEphemeralObjectPtr<TChunk>>& chunks,
         bool includeUnapproved) const override
@@ -233,176 +272,50 @@ public:
         YT_VERIFY(!HasMutationContext());
         VerifyPersistentStateRead();
 
-        auto sequoiaChunkIds = FilterSequoiaChunkIds(chunks);
-
-        auto validate = GetDynamicConfig()->ValidateSequoiaReplicasFetch;
-        auto fetchReplicasFromSequoia = GetDynamicConfig()->FetchReplicasFromSequoia;
-
-        // COMPAT(grphil)
-        auto includeNonOnlineReplicas = GetBootstrap()->GetConfigManager()->GetConfig()->ChunkManager->AlwaysFetchNonOnlineReplicas;
+        auto state = New<TReplicaFetchState>();
+        FilterChunkIdsToFetchFromSequoia(
+            chunks | std::views::transform([] (const auto& chunk) {
+                return chunk->GetId();
+            }),
+            state,
+            includeUnapproved,
+            /*disableValidation*/ false,
+            /*force*/ false);
 
         // Fastpath.
-        if (!fetchReplicasFromSequoia || sequoiaChunkIds.empty()) {
+        if (state->ChunkIdsToFetchReplicasFromSequoia.empty()) {
             TChunkToStoredChunkReplicaList result;
             for (const auto& chunk : chunks) {
-                result.emplace(chunk->GetId(), chunk->GetStoredReplicaList(includeNonOnlineReplicas));
+                result.emplace(chunk->GetId(), chunk->GetStoredReplicaList(/*includeNonOnlineReplicas*/ false));
             }
             return result;
         }
 
-        THashMap<TChunkId, std::vector<TSequoiaChunkReplica>> masterReplicasInSequoiaSkin;
-        THashMap<TChunkId, std::vector<TSequoiaChunkReplica>> unapprovedMasterReplicasInSequoiaSkin;
-        // We only need these for validation.
-        // If validation is disabled master replicas will be fetched below (in CombineReplicas).
-        if (validate) {
-            for (const auto& chunk : chunks) {
-                auto masterReplicas = chunk->GetStoredReplicaList(includeNonOnlineReplicas);
-                std::vector<TSequoiaChunkReplica> replicas;
-                std::vector<TSequoiaChunkReplica> unapprovedReplicas;
-                for (const auto& masterReplica : masterReplicas) {
-                    TSequoiaChunkReplica replica;
-                    replica.ChunkId = chunk->GetId();
-                    replica.ReplicaIndex = masterReplica.GetReplicaIndex();
-                    replica.NodeId = masterReplica.GetNodeId();
-                    replica.ReplicaState = masterReplica.GetReplicaState();
-                    if (auto* locationReplica = masterReplica.As<EStoredReplicaType::ChunkLocation>()) {
-                        // NB: InvalidChunkLocationIndex will be used as default for offshore media.
-                        replica.LocationIndex = locationReplica->GetChunkLocationIndex();
-                        auto* location = locationReplica->AsChunkLocationPtr();
-                        if (location->HasUnapprovedReplica(TChunkPtrWithReplicaIndex(chunk.Get(), masterReplica.GetReplicaIndex()))) {
-                            unapprovedReplicas.push_back(replica);
-                        } else {
-                            replicas.push_back(replica);
-                        }
-                    } else {
-                        replicas.push_back(replica);
-                    }
-                }
+        // In previous version of Sequoia replica fetcher, we had two scenarios:
+        // - Fetch with validation:
+        // In that case all replicas were fetched from master before Sequoia fetch.
+        // - Fetch without validation:
+        // In that case all replicas were fetched from master after Sequoia fetch.
+        // For better consistency, now all master replicas are fetched before Sequoia fetch.
+        FetchReplicasFromMaster(chunks, state);
+        FinishReplicaFetchStateInitialization(state);
 
-                YT_LOG_TRACE("Fetched master replicas (ChunkId: %v, MasterReplicas: %v, UnapprovedMasterReplicas: %v)",
-                    chunk->GetId(),
-                    replicas,
-                    unapprovedReplicas);
+        auto replicas = WaitForFast(FetchReplicasFromSequoia(state)
+            .Apply(BIND([state, this, this_ = MakeStrong(this)] (const TErrorOr<THashMap<TChunkId, std::vector<TSequoiaChunkReplica>>>& sequoiaReplicas) {
+                return CombineAndValidateReplicas(state, sequoiaReplicas);
+            })
+            .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())))
+            .ValueOrThrow();
 
-                // Chunks can have duplicates.
-                masterReplicasInSequoiaSkin.emplace(chunk->GetId(), std::move(replicas));
-                unapprovedMasterReplicasInSequoiaSkin.emplace(chunk->GetId(), std::move(unapprovedReplicas));
+        TChunkToStoredChunkReplicaList result;
+        for (const auto& [chunkId, replicasOrError] : replicas) {
+            if (replicasOrError.IsOK()) {
+                EmplaceOrCrash(result, chunkId, FilterAliveReplicas(replicasOrError.Value()));
+            } else {
+                EmplaceOrCrash(result, chunkId, TError(replicasOrError));
             }
         }
-
-        const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
-        auto timestamp = transactionSupervisor->GetLastCoordinatorCommitTimestamp();
-        if (!validate || timestamp == NullTimestamp) {
-            timestamp = NTransactionClient::SyncLastCommittedTimestamp;
-        }
-
-        // Let's not fetch unapproved replicas for validation.
-        includeUnapproved = !validate && (includeUnapproved || GetDynamicConfig()->AlwaysIncludeUnapprovedReplicas);
-        auto sequoiaReplicasOrError = WaitForFast(DoGetOnlySequoiaChunkReplicas(sequoiaChunkIds, includeUnapproved, validate, timestamp));
-
-        // We can only validate replicas when they are stored on master, so do not bother merging and take master replicas,
-        // as there are three possible cases:
-        // - the two lists are the same (and then there is no need to merge)
-        // - there are more master replicas (again we can just take master replicas then)
-        // - there are more Sequoia replicas (and this is a bug, so lets alert it, take master replicas and investigate later)
-        if (validate) {
-            ValidateSequoiaReplicaFetch(sequoiaChunkIds, masterReplicasInSequoiaSkin, sequoiaReplicasOrError, timestamp);
-
-            // Put unapproved replicas back.
-            for (const auto& [chunkId, unapprovedMasterReplicas] : unapprovedMasterReplicasInSequoiaSkin) {
-                auto& masterReplicas = masterReplicasInSequoiaSkin[chunkId];
-                masterReplicas.insert(masterReplicas.end(), unapprovedMasterReplicas.begin(), unapprovedMasterReplicas.end());
-            }
-
-            TChunkToStoredChunkReplicaList result;
-            for (const auto& [chunkId, replicas] : masterReplicasInSequoiaSkin) {
-                EmplaceOrCrash(result, chunkId, FilterAliveReplicas(replicas));
-            }
-
-            return result;
-        }
-
-        // This will fetch stored master replicas again.
-        return CombineReplicas(chunks, sequoiaReplicasOrError, sequoiaChunkIds, includeNonOnlineReplicas);
-    }
-
-    void ValidateSequoiaReplicaFetch(
-        const std::vector<TChunkId>& sequoiaChunkIds,
-        THashMap<TChunkId, std::vector<TSequoiaChunkReplica>>& masterReplicasInSequoiaSkin,
-        TErrorOr<THashMap<TChunkId, std::vector<TSequoiaChunkReplica>>>& sequoiaReplicasOrError,
-        TTimestamp commitTimestamp) const
-    {
-        VerifyPersistentStateRead();
-
-        if (!sequoiaReplicasOrError.IsOK()) {
-            YT_LOG_DEBUG(sequoiaReplicasOrError, "Cannot validate Sequoia replicas correspondence");
-            return;
-        }
-
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        auto cellTag = multicellManager->GetCellTag();
-
-        auto allowExtraMasterReplicas = GetDynamicConfig()->AllowExtraMasterReplicasDuringValidation;
-
-        auto& sequoiaReplicas = sequoiaReplicasOrError.Value();
-        for (auto chunkId : sequoiaChunkIds) {
-            if (CellTagFromId(chunkId) != cellTag) {
-                YT_LOG_DEBUG("Skipping foreign chunk during Sequoia replica validation (ChunkId: %v)",
-                    chunkId);
-                continue;
-            }
-
-            auto masterIt = masterReplicasInSequoiaSkin.find(chunkId);
-            if (masterIt == masterReplicasInSequoiaSkin.end()) {
-                YT_LOG_ALERT("Chunk is not present in master replicas (ChunkId: %v)",
-                    chunkId);
-                continue;
-            }
-            auto& masterReplicas = masterIt->second;
-            auto sequoiaIt = sequoiaReplicas.find(chunkId);
-            if (sequoiaIt == sequoiaReplicas.end()) {
-                YT_LOG_ALERT("Chunk is not present in Sequoia replicas (ChunkId: %v)",
-                    chunkId);
-                continue;
-            }
-
-            auto& sequoiaReplicas = sequoiaIt->second;
-            YT_LOG_TRACE("Fetched Sequoia replicas (ChunkId: %v, SequoiaReplicas: %v)",
-                chunkId,
-                sequoiaReplicas);
-
-            // Can contain same approved and unapproved replicas.
-            SortUniqueBy(sequoiaReplicas, [] (const auto& replica) {
-                return replica;
-            });
-            std::ranges::sort(masterReplicas);
-
-            YT_LOG_TRACE("Validating chunk replicas (ChunkId: %v, MasterReplicas: %v, SequoiaReplicas: %v, CommitTimestamp: %v)",
-                chunkId,
-                masterReplicas,
-                sequoiaReplicas,
-                commitTimestamp);
-
-            if (masterReplicas != sequoiaReplicas) {
-                if (!allowExtraMasterReplicas) {
-                    YT_LOG_ALERT("Master and Sequoia replicas differ (ChunkId: %v, MasterReplicas: %v, SequoiaReplicas: %v, CommitTimestamp: %v)",
-                        chunkId,
-                        masterReplicas,
-                        sequoiaReplicas,
-                        commitTimestamp);
-                } else {
-                    for (auto sequoiaReplica : sequoiaReplicas) {
-                        if (std::find(masterReplicas.begin(), masterReplicas.end(), sequoiaReplica) == masterReplicas.end()) {
-                            YT_LOG_ALERT("Extra Sequoia replica found (ChunkId: %v, MasterReplicas: %v, ExtraSequoiaReplicas: %v, CommitTimestamp: %v)",
-                                chunkId,
-                                masterReplicas,
-                                sequoiaReplica,
-                                commitTimestamp);
-                        }
-                    }
-                }
-            }
-        }
+        return result;
     }
 
     TFuture<std::vector<TSequoiaChunkReplica>> GetChunkReplicasAsync(
@@ -423,6 +336,7 @@ public:
                     .ValueOrThrow();
             }));
     }
+
     TFuture<THashMap<TChunkId, TErrorOr<std::vector<TSequoiaChunkReplica>>>> GetChunkReplicasAsync(
         std::vector<TEphemeralObjectPtr<TChunk>> chunks,
         bool includeUnapproved) const override
@@ -430,52 +344,39 @@ public:
         YT_VERIFY(!HasMutationContext());
         VerifyPersistentStateRead();
 
-        THashMap<TChunkId, TErrorOr<std::vector<TSequoiaChunkReplica>>> result;
-        for (const auto& chunk : chunks) {
-            // We may have non-online replicas here, they will be filtered in FilterAliveReplicas.
-            auto masterReplicas = chunk->GetStoredReplicaList(/*includeNonOnlineReplicas*/ true);
-            std::vector<TSequoiaChunkReplica> replicas;
-            for (const auto& masterReplica : masterReplicas) {
-                TSequoiaChunkReplica replica{
-                    .ChunkId = chunk->GetId(),
-                    .ReplicaIndex = masterReplica.GetReplicaIndex(),
-                    .NodeId = masterReplica.GetNodeId(),
-                    .ReplicaState = masterReplica.GetReplicaState()
-                };
-                if (auto* locationReplica = masterReplica.As<EStoredReplicaType::ChunkLocation>()) {
-                    // NB: InvalidChunkLocationIndex will be used as default for offshore media.
-                    replica.LocationIndex = locationReplica->GetChunkLocationIndex();
-                }
-                replicas.push_back(replica);
-            }
-            EmplaceOrCrash(result, chunk->GetId(), replicas);
-        }
+        YT_VERIFY(!HasMutationContext());
+        VerifyPersistentStateRead();
 
-        auto sequoiaChunkIds = FilterSequoiaChunkIds(chunks);
-        if (sequoiaChunkIds.empty()) {
+        auto state = New<TReplicaFetchState>();
+        FilterChunkIdsToFetchFromSequoia(
+            chunks | std::views::transform([] (const auto& chunk) {
+                return chunk->GetId();
+            }),
+            state,
+            includeUnapproved,
+            /*disableValidation*/ false,
+            /*force*/ false);
+
+        FetchReplicasFromMaster(chunks, state);
+
+        // Fastpath.
+        if (state->ChunkIdsToFetchReplicasFromSequoia.empty()) {
+            THashMap<TChunkId, TErrorOr<std::vector<TSequoiaChunkReplica>>> result;
+            for (auto&& [chunkId, replicas] : std::move(state->MasterReplicas)) {
+                EmplaceOrCrash(result, chunkId, std::move(replicas));
+            }
             return MakeFuture(std::move(result));
         }
 
-        return DoGetOnlySequoiaChunkReplicas(sequoiaChunkIds, includeUnapproved)
-            .Apply(BIND([sequoiaChunkIds = std::move(sequoiaChunkIds), result = std::move(result)] (const TErrorOr<THashMap<TChunkId, std::vector<TSequoiaChunkReplica>>>& sequoiaReplicasOrError) mutable {
-                if (!sequoiaReplicasOrError.IsOK()) {
-                    for (auto chunkId : sequoiaChunkIds) {
-                        EmplaceOrCrash(result, chunkId, TError(sequoiaReplicasOrError));
-                    }
-                    return result;
-                }
+        FinishReplicaFetchStateInitialization(state);
 
-                for (auto& [chunkId, replicas] : sequoiaReplicasOrError.Value()) {
-                    auto it = GetIteratorOrCrash(result, chunkId);
-                    auto& allReplicas = it->second.Value();
-                    allReplicas.insert(allReplicas.end(), replicas.begin(), replicas.end());
-
-                    SortUniqueBy(allReplicas, [] (const auto& replica) {
-                        return replica;
-                    });
-                }
-                return result;
-            }));
+        // In previous version of Sequoia replica fetcher no validation was performed during async replica fetch.
+        // Now we validate all Sequoia replicas that require validation the same way as it is done for GetChunkReplicas.
+        return FetchReplicasFromSequoia(state)
+            .Apply(BIND([state, this, this_ = MakeStrong(this)] (const TErrorOr<THashMap<TChunkId, std::vector<TSequoiaChunkReplica>>>& sequoiaReplicas) {
+                return CombineAndValidateReplicas(state, sequoiaReplicas);
+            })
+            .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
     }
 
     TFuture<std::vector<TSequoiaChunkReplica>> GetApprovedSequoiaChunkReplicas(
@@ -581,15 +482,18 @@ public:
         YT_VERIFY(!HasMutationContext());
         VerifyPersistentStateRead();
 
-        std::vector<TChunkId> sequoiaChunkIds;
-        for (auto chunkId : chunkIds) {
-            if (CanHaveSequoiaReplicas(chunkId)) {
-                sequoiaChunkIds.push_back(chunkId);
-            }
-        }
-        SortUnique(sequoiaChunkIds);
+        auto state = New<TReplicaFetchState>();
+        FilterChunkIdsToFetchFromSequoia(
+            chunkIds,
+            state,
+            includeUnapproved,
+            /*disableValidation*/ true,
+            force);
 
-        return DoGetOnlySequoiaChunkReplicas(sequoiaChunkIds, includeUnapproved, force);
+        FinishReplicaFetchStateInitialization(state);
+
+        // We keep the old behaviour here that for non-Sequoia chunk ids we will have no entry in result hash map.
+        return FetchReplicasFromSequoia(state);
     }
 
     TFuture<std::vector<NRecords::TChunkRefreshQueue>> GetChunksToRefresh(int replicatorShard, int limit) const override
@@ -625,29 +529,142 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    TFuture<THashMap<TChunkId, std::vector<TSequoiaChunkReplica>>> DoGetOnlySequoiaChunkReplicas(
-        const std::vector<TChunkId>& sequoiaChunkIds,
+    void FilterChunkIdsToFetchFromSequoia(
+        const auto& chunkIds,
+        TReplicaFetchStatePtr state,
         bool includeUnapproved,
-        bool force = false,
-        TTimestamp timestamp = NTransactionClient::SyncLastCommittedTimestamp) const
+        bool disableValidation,
+        bool force) const
+    {
+        VerifyPersistentStateRead();
+
+        auto config = GetDynamicConfig();
+        if (!config->Enable) {
+            return;
+        }
+
+        for (const auto& chunkId : chunkIds) {
+            auto chunkSequoiaConfig = GetChunkSequoiaConfig(chunkId, config);
+
+            if (chunkSequoiaConfig.StoreInSequoia &&
+                (chunkSequoiaConfig.FetchReplicasFromSequoia || force))
+            {
+                state->ChunkIdsToFetchReplicasFromSequoia.push_back(chunkId);
+                if (includeUnapproved &&
+                    (disableValidation || !chunkSequoiaConfig.ValidateSequoiaReplicasFetch))
+                {
+                    // If validation is enabled, we will eventually return replicas that are stored in master.
+                    // We will validate only approved replicas, so we do not need to fetch unapproved replicas.
+                    state->ChunkIdsToFetchUnapprovedReplicasFromSequoia.push_back(chunkId);
+                }
+            }
+        }
+
+        SortUnique(state->ChunkIdsToFetchReplicasFromSequoia);
+        SortUnique(state->ChunkIdsToFetchUnapprovedReplicasFromSequoia);
+    }
+
+    void FetchReplicasFromMaster(
+        const std::vector<TEphemeralObjectPtr<TChunk>>& chunks,
+        TReplicaFetchStatePtr state) const
+    {
+        VerifyPersistentStateRead();
+
+        // For every chunk we fetch all master replicas to state->MasterReplicas;
+        // We always include unapproved master-stored replicas.
+
+        // For chunks that require Sequoia fetch and validation we add approved replicas to state->ApprovedMasterReplicasForPendingValidationChunks
+
+        for (const auto& chunk : chunks) {
+            auto convertToSequoiaReplica = [&] (TAugmentedStoredChunkReplicaPtr masterReplica) {
+                TSequoiaChunkReplica replica{
+                    .ChunkId = chunk->GetId(),
+                    .ReplicaIndex = masterReplica.GetReplicaIndex(),
+                    .NodeId = masterReplica.GetNodeId(),
+                    .ReplicaState = masterReplica.GetReplicaState()
+                };
+                if (auto* locationReplica = masterReplica.As<EStoredReplicaType::ChunkLocation>()) {
+                    // NB: InvalidChunkLocationIndex will be used as default for offshore media.
+                    replica.LocationIndex = locationReplica->GetChunkLocationIndex();
+                }
+                return replica;
+            };
+
+            // Chunks can have duplicates.
+            if (state->MasterReplicas.contains(chunk->GetId())) {
+                continue;
+            }
+
+            auto& replicas = state->MasterReplicas[chunk->GetId()];
+            for (const auto& masterReplica : chunk->GetStoredReplicaList(/*includeNonOnlineReplicas*/ false)) {
+                replicas.push_back(convertToSequoiaReplica(masterReplica));
+            }
+
+            YT_LOG_TRACE("Fetched master replicas for chunk (ChunkId: %v, Replicas: %v)",
+                chunk->GetId(),
+                replicas);
+
+            auto chunkSequoiaConfig = GetChunkSequoiaConfig(chunk->GetId(), GetDynamicConfig());
+            if (chunkSequoiaConfig.ValidateSequoiaReplicasFetch) {
+                auto& approvedReplicas = state->ApprovedMasterReplicasForPendingValidationChunks[chunk->GetId()];
+                // Chunks can have duplicates.
+                approvedReplicas.clear();
+                for (const auto& masterReplica : chunk->GetStoredReplicaList(/*includeNonOnlineReplicas*/ false)) {
+                    if (auto* locationReplica = masterReplica.As<EStoredReplicaType::ChunkLocation>()) {
+                        auto* location = locationReplica->AsChunkLocationPtr();
+                        if (location->HasUnapprovedReplica(TChunkPtrWithReplicaIndex(chunk.Get(), masterReplica.GetReplicaIndex()))) {
+                            continue;
+                        }
+                    }
+                    approvedReplicas.push_back(convertToSequoiaReplica(masterReplica));
+                }
+
+                YT_LOG_TRACE("Fetched approved master replicas for chunk pending Sequoia fetch and validation (ChunkId: %v, ApprovedMasterReplicas: %v)",
+                    chunk->GetId(),
+                    approvedReplicas);
+            }
+        }
+    }
+
+    void FinishReplicaFetchStateInitialization(TReplicaFetchStatePtr state) const
+    {
+        if (!state->ApprovedMasterReplicasForPendingValidationChunks.empty()) {
+            // If ApprovedMasterReplicasForPendingValidationChunks is not empty, we need to validate replicas for some chunks.
+            // In this case we need Sequoia state at the time of last coordinator commit timestamp.
+
+            const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
+            state->Timestamp = transactionSupervisor->GetLastCoordinatorCommitTimestamp();
+
+            if (state->Timestamp == NTransactionClient::NullTimestamp) {
+                state->Timestamp = NTransactionClient::SyncLastCommittedTimestamp;
+            }
+
+            // Validation will be executed in separate thread, so we need to copy Sequoia replicas config.
+            state->ConfigForValidation = CopySequoiaChunkReplicasConfig(GetDynamicConfig());
+        }
+        // If no validation is needed, the default value of NTransactionClient::SyncLastCommittedTimestamp will be used for timestamp.
+    }
+
+    TFuture<THashMap<TChunkId, std::vector<TSequoiaChunkReplica>>> FetchReplicasFromSequoia(
+        TReplicaFetchStatePtr state) const
     {
         YT_VERIFY(!HasMutationContext());
         VerifyPersistentStateRead();
 
         THashMap<TChunkId, std::vector<TSequoiaChunkReplica>> result;
-        for (auto chunkId : sequoiaChunkIds) {
+        for (auto chunkId : state->ChunkIdsToFetchReplicasFromSequoia) {
+            // Chunks may have no Sequoia replicas, so we should initialize result with empty list initially.
             result[chunkId] = std::vector<TSequoiaChunkReplica>();
         }
 
-        // Force is used for chunk attributes.
-        if (!GetDynamicConfig()->FetchReplicasFromSequoia && !force) {
-            return MakeFuture(std::move(result));
+        if (state->ChunkIdsToFetchReplicasFromSequoia.empty()) {
+            return MakeFuture(result);
         }
 
-        auto unapprovedReplicasFuture = includeUnapproved
-            ? GetUnapprovedSequoiaChunkReplicas(sequoiaChunkIds, timestamp)
-            : MakeFuture<std::vector<TSequoiaChunkReplica>>({});
-        auto replicasFuture = GetApprovedSequoiaChunkReplicas(sequoiaChunkIds, timestamp);
+        auto unapprovedReplicasFuture = state->ChunkIdsToFetchUnapprovedReplicasFromSequoia.empty()
+            ? MakeFuture<std::vector<TSequoiaChunkReplica>>({})
+            : GetUnapprovedSequoiaChunkReplicas(state->ChunkIdsToFetchUnapprovedReplicasFromSequoia, state->Timestamp);
+        auto replicasFuture = GetApprovedSequoiaChunkReplicas(state->ChunkIdsToFetchReplicasFromSequoia, state->Timestamp);
         std::vector futures({replicasFuture, unapprovedReplicasFuture});
         return AllSucceeded(futures)
             .Apply(BIND([result = std::move(result)] (const std::vector<std::vector<TSequoiaChunkReplica>>& sequoiaReplicas) mutable {
@@ -662,18 +679,90 @@ private:
             }));
     }
 
-    std::vector<TChunkId> FilterSequoiaChunkIds(const std::vector<TEphemeralObjectPtr<TChunk>>& chunks) const
+    THashMap<TChunkId, TErrorOr<std::vector<TSequoiaChunkReplica>>> CombineAndValidateReplicas(
+        TReplicaFetchStatePtr state,
+        const TErrorOr<THashMap<TChunkId, std::vector<TSequoiaChunkReplica>>>& sequoiaReplicasOrError) const
     {
-        std::vector<TChunkId> sequoiaChunkIds;
-        for (const auto& chunk : chunks) {
-            if (CanHaveSequoiaReplicas(chunk->GetId())) {
-                sequoiaChunkIds.push_back(chunk->GetId());
-            }
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        THashMap<TChunkId, TErrorOr<std::vector<TSequoiaChunkReplica>>> result;
+
+        for (auto&& [chunkId, replicas] : std::move(state->MasterReplicas)) {
+            EmplaceOrCrash(result, chunkId, std::move(replicas));
         }
 
-        SortUnique(sequoiaChunkIds);
+        if (!sequoiaReplicasOrError.IsOK()) {
+            for (const auto& chunkId : state->ChunkIdsToFetchReplicasFromSequoia) {
+                result[chunkId] = TError(sequoiaReplicasOrError);
+            }
+            return result;
+        }
 
-        return sequoiaChunkIds;
+        for (const auto& [chunkId, sequoiaReplicas] : sequoiaReplicasOrError.Value()) {
+            auto approvedReplicasIt = state->ApprovedMasterReplicasForPendingValidationChunks.find(chunkId);
+            if (approvedReplicasIt != state->ApprovedMasterReplicasForPendingValidationChunks.end()) {
+                ValidateSequoiaReplicaFetch(state, chunkId, sequoiaReplicas, approvedReplicasIt->second);
+                // We can only validate replicas when they are stored on master, so do not bother merging and take master replicas,
+                // as there are three possible cases:
+                // - the two lists are the same (and then there is no need to merge)
+                // - there are more master replicas (again we can just take master replicas then)
+                // - there are more Sequoia replicas (and this is a bug, so lets alert it, take master replicas and investigate later)
+                continue;
+            }
+
+            auto replicasIt = result.find(chunkId);
+            YT_LOG_ALERT_AND_THROW_IF(
+                replicasIt == result.end(),
+                "Master replicas were not fetched for chunk during combined master and Sequoia replica fetch (ChunkId: %v)",
+                chunkId);
+
+            auto& replicas = replicasIt->second.Value();
+            replicas.insert(replicas.end(), sequoiaReplicas.begin(), sequoiaReplicas.end());
+            SortUnique(replicas);
+        }
+        return result;
+    }
+
+    void ValidateSequoiaReplicaFetch(
+        TReplicaFetchStatePtr state,
+        TChunkId chunkId,
+        std::vector<TSequoiaChunkReplica> sequoiaReplicas,
+        std::vector<TSequoiaChunkReplica> masterReplicas) const
+    {
+        YT_LOG_ALERT_AND_THROW_IF(
+            !state->ConfigForValidation,
+            "No Sequoia replicas config is found during Sequoia replica fetch validation");
+
+        auto chunkSequoiaConfig = GetChunkSequoiaConfig(chunkId, state->ConfigForValidation);
+
+        SortUnique(sequoiaReplicas);
+        SortUnique(masterReplicas);
+
+        YT_LOG_TRACE("Validating chunk replicas (ChunkId: %v, MasterReplicas: %v, SequoiaReplicas: %v, CommitTimestamp: %v)",
+            chunkId,
+            masterReplicas,
+            sequoiaReplicas,
+            state->Timestamp);
+
+        if (masterReplicas != sequoiaReplicas) {
+            if (!chunkSequoiaConfig.AllowExtraMasterReplicasDuringValidation) {
+                YT_LOG_ALERT("Master and Sequoia replicas differ (ChunkId: %v, MasterReplicas: %v, SequoiaReplicas: %v, CommitTimestamp: %v)",
+                    chunkId,
+                    masterReplicas,
+                    sequoiaReplicas,
+                    state->Timestamp);
+            } else {
+                for (auto sequoiaReplica : sequoiaReplicas) {
+                    if (std::find(masterReplicas.begin(), masterReplicas.end(), sequoiaReplica) == masterReplicas.end()) {
+                        YT_LOG_ALERT("Extra Sequoia replica found (ChunkId: %v, MasterReplicas: %v, ExtraSequoiaReplicas: %v, CommitTimestamp: %v)",
+                            chunkId,
+                            masterReplicas,
+                            sequoiaReplica,
+                            state->Timestamp);
+                    }
+                }
+            }
+        }
     }
 
     const TDynamicSequoiaChunkReplicasConfigPtr& GetDynamicConfig() const
@@ -681,91 +770,6 @@ private:
         VerifyPersistentStateRead();
 
         return Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->SequoiaChunkReplicas;
-    }
-
-    TStoredChunkReplicaList FilterAliveReplicas(const std::vector<TSequoiaChunkReplica>& replicas) const override
-    {
-        VerifyPersistentStateRead();
-
-        // COMPAT(grphil)
-        auto includeNonOnlineReplicas = GetBootstrap()->GetConfigManager()->GetConfig()->ChunkManager->AlwaysFetchNonOnlineReplicas;
-
-        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
-        TStoredChunkReplicaList aliveReplicas;
-        for (const auto& replica : replicas) {
-            auto chunkId = replica.ChunkId;
-            auto locationIndex = replica.LocationIndex;
-            auto* location = dataNodeTracker->FindChunkLocationByIndex(locationIndex);
-            if (!IsObjectAlive(location)) {
-                YT_LOG_ERROR("Found Sequoia chunk replica with a non-existent location (ChunkId: %v, LocationIndex: %v)",
-                    chunkId,
-                    locationIndex);
-                continue;
-            }
-            auto node = location->GetNode();
-            if (!IsObjectAlive(node)) {
-                YT_LOG_ERROR("Found Sequoia chunk replica with a location not bound to any node (ChunkId: %v, LocationIndex: %v)",
-                    chunkId,
-                    locationIndex);
-                continue;
-            }
-
-            if (!includeNonOnlineReplicas && node->GetLocalState() != ENodeState::Online) {
-                YT_LOG_TRACE("Found Sequoia chunk replica on non-online node, ignoring replica (ChunkId: %v, NodeAddress: %v, NodeState: %v)",
-                    chunkId,
-                    node->GetDefaultAddress(),
-                    node->GetLocalState());
-                continue;
-            }
-            aliveReplicas.emplace_back(TAugmentedStoredChunkReplicaPtr(location, replica.ReplicaIndex, replica.ReplicaState));
-        }
-        return aliveReplicas;
-    }
-
-    // COMPAT(grphil): includeNonOnlineReplicas
-    TChunkToStoredChunkReplicaList CombineReplicas(
-        const std::vector<TEphemeralObjectPtr<TChunk>>& chunks,
-        const TErrorOr<THashMap<TChunkId, std::vector<TSequoiaChunkReplica>>>& sequoiaReplicasOrError,
-        const std::vector<TChunkId>& sequoiaChunkIds,
-        bool includeNonOnlineReplicas) const
-    {
-        VerifyPersistentStateRead();
-
-        TChunkToStoredChunkReplicaList result;
-        if (!sequoiaReplicasOrError.IsOK()) {
-            for (auto chunkId : sequoiaChunkIds) {
-                EmplaceOrCrash(result, chunkId, TError(sequoiaReplicasOrError));
-            }
-        } else {
-            for (auto& [chunkId, replicas] : sequoiaReplicasOrError.Value()) {
-                EmplaceOrCrash(result, chunkId, FilterAliveReplicas(replicas));
-            }
-        }
-
-        for (const auto& chunk : chunks) {
-            auto filteredMasterReplicas = chunk->GetStoredReplicaList(includeNonOnlineReplicas);
-            auto [it, inserted] = result.emplace(chunk->GetId(), filteredMasterReplicas);
-
-            if (inserted) {
-                continue;
-            }
-
-            if (!it->second.IsOK()) {
-                continue;
-            }
-
-            auto& replicas = it->second.Value();
-            replicas.insert(replicas.end(), filteredMasterReplicas.begin(), filteredMasterReplicas.end());
-
-            SortUniqueBy(replicas, [] (const auto& replica) {
-                auto replicaIndex = replica.GetReplicaIndex();
-                auto nodeId = replica.GetNodeId();
-                auto locationUuid = replica.GetLocationUuid();
-                return std::tuple(replicaIndex, nodeId, locationUuid);
-            });
-        }
-
-        return result;
     }
 
     TFuture<std::vector<TSequoiaChunkReplica>> DoGetSequoiaReplicas(

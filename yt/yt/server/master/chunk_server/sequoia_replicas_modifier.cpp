@@ -57,12 +57,7 @@ public:
         TBootstrap* bootstrap,
         const TDynamicChunkManagerConfigPtr& config)
         : TransactionType_(transactionType)
-        , EnableSequoiaChunkRefresh_(config->SequoiaChunkReplicas->EnableSequoiaChunkRefresh)
-        , ProcessRemovedSequoiaReplicasOnMaster_(config->SequoiaChunkReplicas->ProcessRemovedSequoiaReplicasOnMaster)
-        , StoreSequoiaReplicasOnMaster_(config->SequoiaChunkReplicas->StoreSequoiaReplicasOnMaster)
-        , ClearMasterRequest_(config->SequoiaChunkReplicas->ClearMasterRequest)
-        , FixSequoiaReplicasIfReplicaValidationFailed_(config->SequoiaChunkReplicas->FixSequoiaReplicasIfReplicaValidationFailed)
-        , RetriableErrorCodes_(config->SequoiaChunkReplicas->RetriableErrorCodes)
+        , Config_(CopySequoiaChunkReplicasConfig(config->SequoiaChunkReplicas))
         , Bootstrap_(bootstrap)
         , Profile_(profile)
     { }
@@ -96,12 +91,7 @@ public:
 
 private:
     const ESequoiaTransactionType TransactionType_;
-    const bool EnableSequoiaChunkRefresh_;
-    const bool ProcessRemovedSequoiaReplicasOnMaster_;
-    const bool StoreSequoiaReplicasOnMaster_;
-    const bool ClearMasterRequest_;
-    const bool FixSequoiaReplicasIfReplicaValidationFailed_;
-    const std::vector<TErrorCode> RetriableErrorCodes_;
+    const TDynamicSequoiaChunkReplicasConfigPtr Config_;
 
     TBootstrap* const Bootstrap_;
     TSequoiaReplicaModificationProfile& Profile_;
@@ -250,7 +240,7 @@ private:
         Profile_.CumulativeTime[ESequoiaReplicaModificationPhase::LookupRemovedLocationReplicas].Add(Timer_.GetElapsedTime());
         Timer_.Restart();
 
-        ThrowOnSequoiaReplicasError(removedReplicasOrError, RetriableErrorCodes_);
+        ThrowOnSequoiaReplicasError(removedReplicasOrError, Config_->RetriableErrorCodes);
 
         return removedReplicasOrError.ValueOrThrow();
     }
@@ -292,7 +282,7 @@ private:
         Profile_.CumulativeTime[ESequoiaReplicaModificationPhase::LookupExistingReplicasInReplacedLocation].Add(Timer_.GetElapsedTime());
         Timer_.Restart();
 
-        ThrowOnSequoiaReplicasError(existingReplicasInReplacedLocationOrError, RetriableErrorCodes_);
+        ThrowOnSequoiaReplicasError(existingReplicasInReplacedLocationOrError, Config_->RetriableErrorCodes);
 
         return existingReplicasInReplacedLocationOrError.ValueOrThrow();
     }
@@ -371,7 +361,7 @@ private:
                     chunkModifiedReplicas.AddedReplicas.size(),
                     chunkModifiedReplicas.RemovedReplicas.size());
             }
-            if (FixSequoiaReplicasIfReplicaValidationFailed_) {
+            if (Config_->FixSequoiaReplicasIfReplicaValidationFailed) {
                 YT_LOG_DEBUG("Will fix Sequoia replicas on validation failure");
                 return false;
             }
@@ -431,7 +421,7 @@ private:
                 };
                 Transaction_->DeleteRow(locationReplicaKey);
             }
-            if (EnableSequoiaChunkRefresh_) {
+            if (Config_->EnableSequoiaChunkRefresh) {
                 NRecords::TChunkRefreshQueue refreshQueueEntry{
                     .TabletIndex = GetChunkShardIndex(chunkId),
                     .ChunkId = chunkId,
@@ -441,7 +431,7 @@ private:
             }
         }
 
-        if (EnableSequoiaChunkRefresh_) {
+        if (Config_->EnableSequoiaChunkRefresh) {
             for (auto chunkId : ChunksWithMediumChange_) {
                 NRecords::TChunkRefreshQueue refreshQueueEntry{
                     .TabletIndex = GetChunkShardIndex(chunkId),
@@ -452,15 +442,32 @@ private:
             }
         }
 
-        // If we do not need replicas on master, we can make request more lightweight.
-        if (ClearMasterRequest_) {
-            if (!StoreSequoiaReplicasOnMaster_) {
-                Request_->mutable_added_chunks()->Clear();
-            }
-            if (!ProcessRemovedSequoiaReplicasOnMaster_ && Request_->caused_by_node_disposal()) {
-                Request_->mutable_removed_chunks()->Clear();
-            }
+        // We always clean master request to avoid additional work in automaton thread.
+        auto addedChunksEndIt = std::remove_if(
+            Request_->mutable_added_chunks()->begin(),
+            Request_->mutable_added_chunks()->end(),
+            [&](const TChunkAddInfo& chunkAddInfo) {
+                auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkAddInfo.chunk_id()));
+                auto chunkSequoiaConfig = GetChunkSequoiaConfig(chunkIdWithIndex.Id, Config_);
+                return !chunkSequoiaConfig.StoreSequoiaReplicasOnMaster;
+            });
+        Request_->mutable_added_chunks()->erase(addedChunksEndIt, Request_->mutable_added_chunks()->end());
+
+        // We should always process all removed chunks on master if request was not caused by node disposal.
+        if (Request_->caused_by_node_disposal()) {
+            auto removedChunksEndIt = std::remove_if(
+                Request_->mutable_removed_chunks()->begin(),
+                Request_->mutable_removed_chunks()->end(),
+                [&](const TChunkRemoveInfo& chunkRemoveInfo) {
+                    auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkRemoveInfo.chunk_id()));
+
+                    auto chunkSequoiaConfig = GetChunkSequoiaConfig(chunkIdWithIndex.Id, Config_);
+
+                    return !chunkSequoiaConfig.ProcessRemovedSequoiaReplicasOnMaster;
+                });
+            Request_->mutable_removed_chunks()->erase(removedChunksEndIt, Request_->mutable_removed_chunks()->end());
         }
+
 
         Transaction_->AddTransactionAction(
             Bootstrap_->GetCellTag(),
@@ -482,7 +489,7 @@ private:
 
         Profile_.CumulativeTime[ESequoiaReplicaModificationPhase::CommitTransaction].Add(Timer_.GetElapsedTime());
 
-        ThrowOnSequoiaReplicasError(result, RetriableErrorCodes_);
+        ThrowOnSequoiaReplicasError(result, Config_->RetriableErrorCodes);
 
         // TODO(aleksandra-zh): add ally replica info.
         TRspModifyReplicas response;
