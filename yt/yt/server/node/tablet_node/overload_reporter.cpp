@@ -33,6 +33,7 @@ namespace NYT::NTabletNode {
 using namespace NRpc;
 using namespace NYson;
 using namespace NYTree;
+using namespace NLogging;
 using namespace NThreading;
 using namespace NConcurrency;
 using namespace NQueryClient;
@@ -40,10 +41,6 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTabletBalancer;
 using namespace NTabletBalancerClient;
-
-////////////////////////////////////////////////////////////////////////////////
-
-constinit const auto Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -90,6 +87,7 @@ class TOverloadReporter
 public:
     TOverloadReporter(IBootstrap* const bootstrap)
         : Bootstrap_(bootstrap)
+        , Logger(TabletNodeLogger().WithTag("OverloadReporter"))
         , ActionQueue_(New<TActionQueue>("TabOverloadReporter"))
         , Config_(Bootstrap_->GetTabletNodeDynamicConfig()->OverloadReporter)
         , EvaluatorCache_(Config_.Acquire()->MaxEvaluatorCacheSize)
@@ -138,12 +136,32 @@ public:
 private:
     IBootstrap* const Bootstrap_;
 
+    const TLogger Logger;
+
     const NConcurrency::TActionQueuePtr ActionQueue_;
 
     TAtomicIntrusivePtr<TOverloadReporterConfig> Config_;
     NConcurrency::TPeriodicExecutorPtr Executor_;
 
     TExpressionEvaluatorCache EvaluatorCache_;
+
+    void LogTabletBalancerResponse(
+        const std::string& bundleName,
+        const std::vector<TTabletId>& tabletIds,
+        const TTabletBalancerServiceProxy::TErrorOrRspRequestBalancingPtr& rspOrError) const
+    {
+        if (rspOrError.IsOK()) {
+            YT_LOG_DEBUG(rspOrError, "Failed to send balancing request caused by tablets overload"
+                "(BundleName: %v, TabletCount: %v)",
+                bundleName,
+                tabletIds.size());
+        } else {
+            YT_LOG_DEBUG("Successfully sent balancing request caused by tablets overload "
+                "(BundleName: %v, TabletCount: %v)",
+                bundleName,
+                tabletIds.size());
+        }
+    }
 
     void DoReportOverload()
     {
@@ -175,18 +193,14 @@ private:
             req->set_mode(ToProto(EBalancingRequestMode::Reshard));
             req->set_reason("overload");
 
-            req->Invoke()
-                .Subscribe(BIND([bundleName_ = std::move(bundleName), tabletCount = tabletIds.size()] (
-                    const TTabletBalancerServiceProxy::TErrorOrRspRequestBalancingPtr& rspOrError)
-                {
-                    if (!rspOrError.IsOK()) {
-                        YT_LOG_DEBUG(rspOrError, "Failed to send balancing request caused by tablets overload"
-                            "(BundleName: %v, TabletCount: %v)",
-                            bundleName_,
-                            tabletCount);
-                    }
-                }));
+            req->Invoke().Subscribe(BIND(
+                &TOverloadReporter::LogTabletBalancerResponse,
+                MakeWeak(this),
+                std::move(bundleName),
+                std::move(tabletIds)));
         }
+
+        YT_LOG_DEBUG("Finished overload reporter iteration");
     }
 
     bool IsTabletOverloaded(const TTabletSnapshotPtr& tabletSnapshot)
@@ -201,7 +215,9 @@ private:
         auto evaluator = EvaluatorCache_.GetOrCreateExpressionEvaluator(overloadConfig->Metric);
 
         auto rowBuffer = New<TRowBuffer>();
-        auto metricValueOrError = evaluator->Evaluate(CollectPerformanceCounters(tabletSnapshot), rowBuffer);
+        auto metricValueOrError = evaluator->Evaluate(
+            {CollectSizeMetrics(tabletSnapshot), CollectPerformanceCounters(tabletSnapshot)},
+            rowBuffer);
 
         if (!metricValueOrError.IsOK()) {
             YT_LOG_DEBUG(metricValueOrError, "Failed to calculate if tablet is overloaded, ignored "
@@ -219,7 +235,15 @@ private:
                 tabletSnapshot->TabletId,
                 tabletSnapshot->TableId);
 
-            return metricValue > overloadConfig->Limit;
+            bool overloaded = metricValue > overloadConfig->Limit;
+
+            YT_LOG_DEBUG_IF(overloaded, "Tablet is overloaded (%v, Metric: %v, MetricValue: %v, Limit: %v)",
+                tabletSnapshot->LoggingTag,
+                overloadConfig->Metric,
+                metricValue,
+                overloadConfig->Limit);
+
+            return overloaded;
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG(ex, "Failed to extract metric value calculating tablet is overloaded "
                 "(%v, Metric: %v)",
@@ -230,10 +254,9 @@ private:
         }
     }
 
-    static TYsonString CollectPerformanceCounters(const TTabletSnapshotPtr& tabletSnapshot)
+    static TYsonString CollectSizeMetrics(const TTabletSnapshotPtr& tabletSnapshot)
     {
         const auto& sizeMetrics = tabletSnapshot->TabletSizeMetrics;
-        const auto& performanceCounters = tabletSnapshot->PerformanceCounters;
 
         i64 memorySize;
         switch (tabletSnapshot->Settings.MountConfig->InMemoryMode) {
@@ -256,7 +279,20 @@ private:
                 .Item("uncompressed_data_size").Value(sizeMetrics.UncompressedDataSize)
                 .Item("memory_size").Value(memorySize)
                 .Item("partition_count").Value(ssize(tabletSnapshot->PartitionList))
+            .EndMap();
+    }
 
+    static TYsonString CollectPerformanceCounters(const TTabletSnapshotPtr& tabletSnapshot)
+    {
+        const auto& performanceCounters = tabletSnapshot->PerformanceCounters;
+
+        #define XX(name, Name) performanceCounters->Name.UpdateEma();
+        ITERATE_TABLET_PERFORMANCE_COUNTERS(XX)
+        ITERATE_NODE_TABLET_PERFORMANCE_COUNTERS(XX)
+        #undef XX
+
+        return BuildYsonStringFluently()
+            .BeginMap()
                 #define XX(name, Name) \
                 .Item(#name "_count").Value(performanceCounters->Name.Ema.Count) \
                 .Item(#name "_rate").Value(performanceCounters->Name.Ema.ImmediateRate) \

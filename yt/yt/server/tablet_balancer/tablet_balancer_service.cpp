@@ -43,6 +43,9 @@ private:
         const auto& tabletBalancer = Bootstrap_->GetTabletBalancer();
 
         tabletBalancer->RequestBalancing(balancingRequest);
+
+        context->SetRequestInfo();
+        context->Reply();
     }
 };
 
