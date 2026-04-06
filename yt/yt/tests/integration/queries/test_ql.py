@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (authors, raises_yt_error, create_dynamic_table,
-                         sync_mount_table, insert_rows)
+                         sync_mount_table, insert_rows, sync_create_cells)
 
 from yt_queries import start_query
 
@@ -171,6 +171,153 @@ class TestQueriesQL(YTEnvSetup):
         q = start_query("ql", "select (T.list_v[1] + 2u) as p from `//tmp/t` as T", settings=settings)
         q.track()
         assert_items_equal(q.read_result(0), [{"p": p + 2} for p in range(2)])
+
+    @authors("abatovkin")
+    def test_hyperloglog_functions(self, query_tracker):
+        sync_create_cells(1)
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "int64"},
+        ]
+        self._create_simple_dynamic_table("//tmp/t", schema=schema, enable_dynamic_store_read=True)
+        sync_mount_table("//tmp/t")
+
+        # 100 distinct values
+        rows = [{"key": i, "value": i} for i in range(100)]
+        insert_rows("//tmp/t", rows)
+
+        settings = {"cluster": "primary"}
+
+        q = start_query("ql", "SELECT hll_14(value) as cardinality FROM [//tmp/t] GROUP BY 1", settings=settings)
+        q.track()
+        info = q.get()
+        assert info["result_count"] == 1
+        result = q.read_result(0)
+        assert len(result) == 1
+        estimate = result[0]["cardinality"]
+        # should be around 100, with some error tolerance (HLL standard error ~0.65% for p=14)
+        assert abs(estimate - 100) < 20, f"Cardinality estimate {estimate} too far from 100"
+
+        q7 = start_query("ql", "SELECT hll_7(value) as cardinality FROM [//tmp/t] GROUP BY 1", settings=settings)
+        q7.track()
+        result7 = q7.read_result(0)
+        estimate7 = result7[0]["cardinality"]
+        # tolerance larger for lower precision
+        assert abs(estimate7 - 100) < 30, f"hll_7 estimate {estimate7} too far from 100"
+
+        q_gen = start_query("ql", "SELECT cardinality(value) as cardinality FROM [//tmp/t] GROUP BY 1", settings=settings)
+        q_gen.track()
+        result_gen = q_gen.read_result(0)
+        estimate_gen = result_gen[0]["cardinality"]
+        assert abs(estimate_gen - 100) < 20
+
+        # Test hll_14_state with grouping
+        q2 = start_query("ql", """
+                               SELECT
+                                   key % 2 as group,
+                                   hll_14_state(value) as state
+                               FROM [//tmp/t]
+                               GROUP BY key % 2
+                               ORDER BY group
+                               """, settings=settings)
+        q2.track()
+        result2 = q2.read_result(0)
+        assert len(result2) == 2
+        # Each group has ~50 distinct values
+        for row in result2:
+            # state is a binary string, ensure it's not empty
+            state = row["state"]
+            assert isinstance(state, bytes) or isinstance(state, str)
+            assert len(state) > 0
+
+        # Test hll_14_merge_state across groups (merge the two group states)
+        # First, create a subquery that returns both states, then merge them
+        q3 = start_query("ql", """
+                               SELECT hll_14_merge_state(state) as merged_state
+                               FROM (
+                                        SELECT hll_14_state(value) as state
+                                        FROM [//tmp/t]
+                                        WHERE key % 2 = 0
+                                        GROUP BY 1
+                                        UNION ALL
+                                        SELECT hll_14_state(value) as state
+                                        FROM [//tmp/t]
+                                        WHERE key % 2 = 1
+                                        GROUP BY 1
+                                    )
+                               GROUP BY 1
+                               """, settings=settings)
+        q3.track()
+        result3 = q3.read_result(0)
+        merged_state = result3[0]["merged_state"]
+        # Merged state should be a binary string
+        assert isinstance(merged_state, bytes) or isinstance(merged_state, str)
+        # Estimate cardinality from merged state using hll_14_merge
+        q4 = start_query("ql", """
+                               SELECT hll_14_merge(state) as merged_cardinality
+                               FROM (
+                                        SELECT hll_14_state(value) as state
+                                        FROM [//tmp/t]
+                                        WHERE key % 2 = 0
+                                        GROUP BY 1
+                                        UNION ALL
+                                        SELECT hll_14_state(value) as state
+                                        FROM [//tmp/t]
+                                        WHERE key % 2 = 1
+                                        GROUP BY 1
+                                    )
+                               GROUP BY 1
+                               """, settings=settings)
+        q4.track()
+        result4 = q4.read_result(0)
+        merged_estimate = result4[0]["merged_cardinality"]
+        assert abs(merged_estimate - 100) < 20
+
+        # Test cardinality_merge function (generic merge)
+        q5 = start_query("ql", """
+                               SELECT cardinality_merge(state) as total
+                               FROM (
+                                        SELECT hll_14_state(value) as state
+                                        FROM [//tmp/t]
+                                        WHERE key < 50
+                                        GROUP BY 1
+                                        UNION ALL
+                                        SELECT hll_14_state(value) as state
+                                        FROM [//tmp/t]
+                                        WHERE key >= 50
+                                        GROUP BY 1
+                                    )
+                               GROUP BY 1
+                               """, settings=settings)
+        q5.track()
+        result5 = q5.read_result(0)
+        total = result5[0]["total"]
+        assert abs(total - 100) < 20
+
+        # Test with duplicate values (should not increase cardinality)
+        # Insert same 100 values again
+        insert_rows("//tmp/t", rows)
+        q6 = start_query("ql", "SELECT hll_14(value) as cardinality FROM [//tmp/t] GROUP BY 1", settings=settings)
+        q6.track()
+        result6 = q6.read_result(0)
+        estimate_dup = result6[0]["cardinality"]
+        # Should still be ~100, not 200
+        assert abs(estimate_dup - 100) < 20, f"Duplicate values changed cardinality to {estimate_dup}"
+
+        # Test with string values
+        schema_str = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ]
+        self._create_simple_dynamic_table("//tmp/t_str", schema=schema_str, enable_dynamic_store_read=True)
+        sync_mount_table("//tmp/t_str")
+        rows_str = [{"key": i, "value": f"value_{i}"} for i in range(50)]
+        insert_rows("//tmp/t_str", rows_str)
+        q7 = start_query("ql", "SELECT hll_14(value) as cardinality FROM [//tmp/t_str] GROUP BY 1", settings=settings)
+        q7.track()
+        result7 = q7.read_result(0)
+        estimate_str = result7[0]["cardinality"]
+        assert abs(estimate_str - 50) < 15
 
 
 ##################################################################
