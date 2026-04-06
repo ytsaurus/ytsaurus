@@ -472,6 +472,7 @@ private:
 
     TThrottlingTimes DoThrottle(
         TReplicationEra snapshotEra,
+        const TTabletSnapshotPtr& tabletSnapshot,
         const TReplicationProgress& replicationProgress,
         const TReplicaInfo& selfReplica,
         const TTablePullerCounters& counters)
@@ -500,7 +501,7 @@ private:
 
         // Skip relative throttler on era change because it can throttle for quite a long time
         // on tables with rare commits and cause long write downtimes.
-        auto futureReplicationEra = ChaosAgent_->GetFutureEra(snapshotEra);
+        auto futureReplicationEra = ChaosAgent_->GetFutureEra(snapshotEra, tabletSnapshot);
         if (!futureReplicationEra.IsSet()) {
             auto throttleFuture = RelativeThrottler_->Throttle();
             if (auto optionalError = throttleFuture.TryGet()) {
@@ -548,6 +549,7 @@ private:
 
         auto throttlingTimes = DoThrottle(
             snapshotEra,
+            tabletSnapshot,
             *replicationProgress,
             *selfReplica,
             *counters);
