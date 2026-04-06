@@ -288,6 +288,13 @@ public:
         return Dummy;
     }
 
+    std::vector<std::string> GetOfflineInstances(
+        const TSchedulerInputState& /*input*/,
+        const std::string& /*dataCenterName*/) const
+    {
+        return {};
+    }
+
     const std::vector<std::string>& GetInstances(const std::string& dataCenterName) const
     {
         const static std::vector<std::string> Dummy;

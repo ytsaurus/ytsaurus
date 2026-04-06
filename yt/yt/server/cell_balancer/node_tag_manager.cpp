@@ -89,7 +89,7 @@ bool TNodeTagManager::ProcessNodeAssignment(const std::string& nodeAddress)
             Mutations_->ChangedDecommissionedFlag[nodeAddress] = Mutations_->WrapMutation(true);
         }
 
-        YT_LOG_INFO("Assigning node to bundle: setting node tag filter and decommission flag "
+        YT_LOG_INFO("Assigning node to bundle: setting node tag and decommission flag "
             "(NodeAddress: %v, NodeTagFilter: %v, Decommissioned: %v)",
             nodeAddress,
             nodeTagFilter,
@@ -287,8 +287,17 @@ void TNodeTagManager::TryCreateBundleNodesAssignment(
     const auto& nodeTagFilter = bundleInfo->NodeTagFilter;
     auto now = TInstant::Now();
 
+    THashSet<std::string> deallocatingNodes;
+    for (const auto& [_, deallocation] : bundleState->NodeDeallocations) {
+        deallocatingNodes.insert(deallocation->InstanceName);
+    }
+
     for (const auto& nodeAddress : aliveNodes) {
         if (bundleState->BundleNodeAssignments.contains(nodeAddress)) {
+            continue;
+        }
+
+        if (deallocatingNodes.contains(nodeAddress)) {
             continue;
         }
 
@@ -311,7 +320,7 @@ void TNodeTagManager::TryCreateBundleNodesAssignment(
             operation->CreationTime = now;
             bundleState->BundleNodeAssignments[nodeAddress] = operation;
 
-            YT_LOG_INFO("Creating node tag filter assignment for bundle node "
+            YT_LOG_INFO("Creating node tag assignment for bundle node "
                 "(NodeAddress: %v, NodeUserTags: %v)",
                 nodeAddress,
                 nodeInfo->UserTags);
@@ -345,7 +354,7 @@ void TNodeTagManager::TryCreateBundleNodesReleasement(
             operation->CreationTime = now;
             bundleState->BundleNodeReleasements[nodeAddress] = operation;
 
-            YT_LOG_INFO("Creating node tag filter releasement for bundle node "
+            YT_LOG_INFO("Creating node tag releasement for bundle node "
                 "(NodeAddress: %v, NodeUserTags: %v)",
                 nodeAddress,
                 nodeInfo->UserTags);
@@ -456,7 +465,7 @@ struct TDataCenterOrder
 
     int AssignedTabletCellCount = 0;
 
-    // How many nodes we have to assign to bundle, i.e. how many nodes do not have needed node tag filter.
+    // How many nodes we have to assign to bundle, i.e. how many nodes do not have needed node tag.
     int RequiredNodeAssignmentCount = 0;
 
     // Just dc name alphabetical order for predictability.
@@ -603,7 +612,7 @@ THashSet<std::string> TNodeTagManager::GetDataCentersToPopulate(
         YT_LOG_DEBUG(
             "Bundle data center status "
             "(DataCenter: %v, Unfeasible: %v, Forbidden: %v, AssignedTabletCellCount: %v,"
-            " PerDataCenterSlotCount: %v, RequiredPerDataCenterNodeCount: %v"
+            " PerDataCenterSlotCount: %v, RequiredPerDataCenterNodeCount: %v,"
             " RequiredNodeAssignmentCount: %v, AvailableNodeCount: %v, RequiredNodeCount: %v)",
             dataCenter,
             status.Unfeasible,
@@ -775,7 +784,7 @@ void TNodeTagManager::SetNodeTags()
 
         YT_LOG_DEBUG("Checking tablet cell slots for bundle "
             "(DataCenter: %v, "
-            "RequiredSlotCount: %v "
+            "RequiredSlotCount: %v, "
             "BundleSlotCount: %v, "
             "UsedSpareSlotCount: %v, "
             "SlotsToRelease: %v, "
