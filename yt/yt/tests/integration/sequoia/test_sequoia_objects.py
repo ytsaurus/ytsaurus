@@ -200,6 +200,8 @@ class TestSequoiaReplicas(YTEnvSetup):
 
         chunk_id = get_singular_chunk_id("//tmp/t")
 
+        get("//tmp/t/@chunk_media_statistics")
+
         desired_replica_count = 3 if erasure_codec == "none" else 16
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 1)
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == desired_replica_count)

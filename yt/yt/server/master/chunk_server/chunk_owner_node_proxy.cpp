@@ -1146,7 +1146,9 @@ TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(TInternedAtt
                         [=] (int mediumIndex) {
                             return chunkManager->GetMediumByIndexOrThrow(mediumIndex)->GetName();
                         });
-            }));
+            }).AsyncViaGuarded(
+                Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ChunkManager),
+                TError("Error computing chunk statistics")));
         }
 
         default:
