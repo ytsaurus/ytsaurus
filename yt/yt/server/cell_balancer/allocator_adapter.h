@@ -90,6 +90,9 @@ public:
     virtual void SetDefaultSpareAttributes(const std::string& proxyName, TSchedulerMutations* mutations) const = 0;
 
     virtual const THashSet<std::string>& GetAliveInstances(const std::string& dataCenterName) const = 0;
+    virtual std::vector<std::string> GetOfflineInstances(
+        const TSchedulerInputState& input,
+        const std::string& dataCenterName) const = 0;
 
     virtual const std::vector<std::string>& GetInstances(const std::string& dataCenterName) const = 0;
 
