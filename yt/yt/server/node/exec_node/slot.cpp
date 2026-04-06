@@ -416,12 +416,6 @@ public:
                 this,
                 this_ = MakeStrong(this)
             ] () mutable {
-                // Check if tmpfs volumes are enabled only after tmpfs directories are created.
-                if (!Bootstrap_->GetConfig()->ExecNode->SlotManager->EnableTmpfs) {
-                    YT_LOG_INFO("Do not prepare tmpfs volumes since tmpfs is disabled in slot manager");
-                    return MakeFuture(std::vector<TTmpfsVolumeResult>{});
-                }
-
                 return RunPreparationAction(
                     /*actionName*/ "PrepareTmpfsVolumes",
                     /*uncancelable*/ false,
@@ -468,11 +462,6 @@ public:
             auto error = TError("Failed to link tmpfs volumes since volume manager is not initialized");
             YT_LOG_WARNING(error);
             return MakeFuture<void>(std::move(error));
-        }
-
-        if (!Bootstrap_->GetConfig()->ExecNode->SlotManager->EnableTmpfs) {
-            YT_LOG_INFO("Do not link tmpfs volumes since tmpfs is disabled in slot manager");
-            return OKFuture;
         }
 
         auto userSandboxPath = GetSandboxPath(ESandboxKind::User, rootVolume, testRootFs);

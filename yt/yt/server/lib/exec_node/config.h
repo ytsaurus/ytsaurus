@@ -96,9 +96,6 @@ struct TSlotManagerConfig
     //! Root path for slot directories.
     std::vector<TSlotLocationConfigPtr> Locations;
 
-    //! Enable using tmpfs on the node.
-    bool EnableTmpfs;
-
     //! Use MNT_DETACH when tmpfs umount called. When option enabled the "Device is busy" error is impossible,
     //! because actual umount will be performed by Linux core asynchronously.
     bool DetachedTmpfsUmount;
