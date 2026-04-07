@@ -1797,6 +1797,9 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
                     ? queryEngineConfig->ExpressionBuilderVersion.value_or(1)
                     : 1),
             .ExecutionBackend = queryOptions.ExecutionBackend,
+            .AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse = queryEngineConfig
+                ? queryEngineConfig->AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse.value_or(false)
+                : false,
         },
         HeavyRequestMemoryUsageTracker_);
 
@@ -1959,6 +1962,9 @@ NYson::TYsonString TClient::DoExplainQuery(
                     ? queryEngineConfig->ExpressionBuilderVersion.value_or(1)
                     : 1),
             .ExecutionBackend = EExecutionBackend::Native, // TODO(dtorilov): Support WebAssembly in ExplainQuery.
+            .AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse = queryEngineConfig
+                ? queryEngineConfig->AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse.value_or(false)
+                : false,
         },
         HeavyRequestMemoryUsageTracker_);
 

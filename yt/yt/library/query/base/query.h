@@ -379,6 +379,8 @@ struct TJoinClause
 
     TConstGroupClausePtr GroupClause;
 
+    bool RequireSyncReplica = true;
+
     TJoinClause() = default;
     TJoinClause(const TJoinClause& other);
 

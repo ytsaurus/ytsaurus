@@ -52,6 +52,7 @@ struct TPreparePlanFragmentOptions
     NCodegen::EExecutionBackend ExecutionBackend = NCodegen::EExecutionBackend::Native;
     bool ShouldRewriteCardinalityIntoHyperLogLog = false; // COMPAT(dtorilov): Remove after 25.4.
     int HyperLogLogPrecision = 14;
+    bool AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse = false; // COMPAT(dtorilov): Remove after 26.1.
 };
 
 TPlanFragmentPtr PreparePlanFragment(

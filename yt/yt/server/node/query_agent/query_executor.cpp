@@ -83,6 +83,10 @@
 
 #include <yt/yt/core/rpc/authentication_identity.h>
 
+#include <yt/yt/client/transaction_client/public.h>
+
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
+
 #include <library/cpp/yt/memory/chunked_memory_pool.h>
 
 #include <algorithm>
@@ -649,6 +653,9 @@ private:
             return GetPrefixReadItems(groupedDataSplits[subqueryIndex], joinClause.CommonKeyPrefix);
         };
 
+        auto executePlanWithUserProvidedTimestamp = GetExecutePlanCallback(QueryOptions_);
+        auto executePlanWithAsyncLastCommittedTimestamp = GetExecutePlanCallbackWithAsyncLastCommittedTimestamp();
+
         return CoordinateAndExecute(
             Query_->IsOrdered(QueryOptions_.AllowUnorderedGroupByWithLimit),
             Query_->IsPrefetching(),
@@ -663,7 +670,8 @@ private:
                 aggregateGenerators,
                 getPrefetchJoinDataSource = std::move(getPrefetchJoinDataSource),
                 bottomQueryPattern = std::move(bottomQueryPattern),
-                executePlanCallback = GetExecutePlanCallback(),
+                executePlanWithUserProvidedTimestamp,
+                executePlanWithAsyncLastCommittedTimestamp,
                 splitCount,
                 subqueryIndex = 0
             ] () mutable -> TEvaluateResult {
@@ -691,6 +699,11 @@ private:
                 joinProfilers.reserve(Query_->JoinClauses.size());
 
                 for (int joinIndex = 0; joinIndex < std::ssize(Query_->JoinClauses); ++joinIndex) {
+                    auto executePlanCallback = executePlanWithUserProvidedTimestamp;
+                    if (Query_->JoinClauses[joinIndex]->RequireSyncReplica == false) {
+                        executePlanCallback = executePlanWithAsyncLastCommittedTimestamp;
+                    }
+
                     joinProfilers.push_back(CreateJoinSubqueryProfiler(
                         Query_->JoinClauses[joinIndex],
                         executePlanCallback,
@@ -893,7 +906,7 @@ private:
         return dataSource;
     }
 
-    TExecutePlan GetExecutePlanCallback()
+    TExecutePlan GetExecutePlanCallback(const TQueryOptions& queryOptions)
     {
         auto clientOptions = NApi::NNative::TClientOptions::FromAuthenticationIdentity(Identity_);
         auto client = Bootstrap_
@@ -911,7 +924,7 @@ private:
             FunctionImplCache_);
 
         return [
-            options = GetJoinSubqueryOptions(QueryOptions_),
+            options = GetJoinSubqueryOptions(queryOptions),
             this,
             this_ = MakeStrong(this),
             remoteExecutor
@@ -927,6 +940,13 @@ private:
                 .AsyncVia(Invoker_)
                 .Run();
         };
+    }
+
+    TExecutePlan GetExecutePlanCallbackWithAsyncLastCommittedTimestamp()
+    {
+        auto patchedOptions = QueryOptions_;
+        patchedOptions.TimestampRange.Timestamp = NTransactionClient::AsyncLastCommittedTimestamp;
+        return GetExecutePlanCallback(patchedOptions);
     }
 
     TSharedRange<std::vector<TTabletReadItems>> CoordinateDataSourcesOld(

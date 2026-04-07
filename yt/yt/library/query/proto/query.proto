@@ -215,6 +215,8 @@ message TJoinClause
     repeated TExpression array_expressions = 16;
 
     optional TGroupClause group_clause = 17;
+
+    optional bool require_sync_replica = 18 [default = true];
 }
 
 message TGroupClause
