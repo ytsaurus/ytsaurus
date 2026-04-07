@@ -16,6 +16,7 @@ tutorial:
     desiredOrderSize: 3000
     force: true
     queryTrackerStage: "production"
+    bundle: "default"
   replicaCount: 1
   initJob:
     backoffLimit: 2

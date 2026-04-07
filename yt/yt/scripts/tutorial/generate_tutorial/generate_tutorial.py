@@ -347,6 +347,7 @@ def generate_data(args: argparse.Namespace):
                 "optimize_for": "lookup",
                 "chunk_writer": {"block_size": 256 * 2**10},
                 "desired_chunk_size": 100 * 2**20,
+                "tablet_cell_bundle": args.bundle,
             },
         )
 
@@ -499,6 +500,7 @@ def main():
     )
     parser.add_argument("--cluster-name", help="Name of the target cluster")
     parser.add_argument("--stage", help="Stage for queries", default="experimental")
+    parser.add_argument("--bundle", help="Bundle for tutorial table mount", default="default")
 
     args = parser.parse_args()
 
