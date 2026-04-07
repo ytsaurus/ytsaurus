@@ -106,8 +106,7 @@ public:
 
         auto localConnection = Bootstrap_->GetClient()->GetNativeConnection();
         auto foreignConnection = localConnection->GetClusterDirectory()->GetConnectionOrThrow(clusterName);
-        // TODO(capone212): Use separate user name NSecurityClient::BundleControllerUserName
-        auto client = foreignConnection->CreateClient(TClientOptions::FromUser(NSecurityClient::RootUserName));
+        auto client = foreignConnection->CreateClient(Bootstrap_->GetClient()->GetOptions());
         Clients_[clusterName] = client;
 
         return client;
