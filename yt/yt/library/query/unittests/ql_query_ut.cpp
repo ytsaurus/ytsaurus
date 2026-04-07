@@ -1085,8 +1085,7 @@ TEST_F(TQueryPrepareTest, SubqueryAliases)
         &PrepareMock_,
         source,
         topQuery,
-        parsedSource->AstHead,
-        EExecutionBackend::Native);
+        parsedSource->AstHead);
 
     EXPECT_TRUE(topAliasMap.contains("c"));
     EXPECT_EQ(topAliasMap.size(), 1ul);

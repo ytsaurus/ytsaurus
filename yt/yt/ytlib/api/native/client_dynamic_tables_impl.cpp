@@ -1790,10 +1790,16 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         parsedQuery->Source,
         *astQuery,
         parsedQuery->AstHead,
-        queryOptions.ExecutionBackend,
-        options.ExpressionBuilderVersion.value_or(queryEngineConfig ? queryEngineConfig->ExpressionBuilderVersion.value_or(1) : 1),
-        HeavyRequestMemoryUsageTracker_,
-        options.SyntaxVersion);
+        TPreparePlanFragmentOptions{
+            .SyntaxVersion = options.SyntaxVersion,
+            .BuilderVersion = options.ExpressionBuilderVersion.value_or(
+                queryEngineConfig
+                    ? queryEngineConfig->ExpressionBuilderVersion.value_or(1)
+                    : 1),
+            .ExecutionBackend = queryOptions.ExecutionBackend,
+        },
+        HeavyRequestMemoryUsageTracker_);
+
     const auto& query = fragment->Query;
 
     THROW_ERROR_EXCEPTION_IF(
@@ -1946,10 +1952,15 @@ NYson::TYsonString TClient::DoExplainQuery(
         parsedQuery->Source,
         *astQuery,
         parsedQuery->AstHead,
-        EExecutionBackend::Native, // TODO(dtorilov): Support WebAssembly in ExplainQuery.
-        options.ExpressionBuilderVersion.value_or(queryEngineConfig ? queryEngineConfig->ExpressionBuilderVersion.value_or(1) : 1),
-        HeavyRequestMemoryUsageTracker_,
-        options.SyntaxVersion);
+        TPreparePlanFragmentOptions{
+            .SyntaxVersion = options.SyntaxVersion,
+            .BuilderVersion = options.ExpressionBuilderVersion.value_or(
+                queryEngineConfig
+                    ? queryEngineConfig->ExpressionBuilderVersion.value_or(1)
+                    : 1),
+            .ExecutionBackend = EExecutionBackend::Native, // TODO(dtorilov): Support WebAssembly in ExplainQuery.
+        },
+        HeavyRequestMemoryUsageTracker_);
 
     auto memoryChunkProvider = MemoryProvider_->GetOrCreateProvider(
         ToString(TReadSessionId::Create()),
