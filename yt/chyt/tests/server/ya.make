@@ -25,6 +25,14 @@ DEPENDS(
     yt/chyt/tests/dummy_logger
 )
 
+IF (SANITIZER_TYPE == "thread")
+    # There is no llvm-symbolizer by default in job environment so we are going to bring it ourselves.
+    # See yt/chyt/tests/server/base.py for setup code.
+    DEPENDS(
+        contrib/libs/llvm20/tools/llvm-symbolizer
+    )
+ENDIF()
+
 DEPENDS(yt/yt/packages/tests_package)
 
 DEPENDS(

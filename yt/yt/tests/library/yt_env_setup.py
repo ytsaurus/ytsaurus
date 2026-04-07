@@ -233,6 +233,10 @@ def is_msan_build():
     return get_sanitizer_type() == "memory"
 
 
+def is_tsan_build():
+    return get_sanitizer_type() == "thread"
+
+
 def is_sanitizer_build():
     return bool(get_sanitizer_type())
 
