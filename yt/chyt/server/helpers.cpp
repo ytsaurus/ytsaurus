@@ -22,6 +22,7 @@
 
 #include <DataTypes/DataTypeNullable.h>
 #include <DataTypes/DataTypeDateTime64.h>
+#include <DataTypes/DataTypeLowCardinality.h>
 
 #include <Interpreters/ExpressionActions.h>
 #include <Interpreters/ProcessList.h>
@@ -168,6 +169,9 @@ DB::Field GetMinimumTypeValue(const DB::DataTypePtr& dataType)
         case DB::TypeIndex::Tuple:
             return DB::Field(DB::NEGATIVE_INFINITY);
 
+        case DB::TypeIndex::LowCardinality:
+            return GetMinimumTypeValue(DB::removeLowCardinality(dataType));
+
         default:
             THROW_ERROR_EXCEPTION("Unexpected data type %v", dataType->getName());
     }
@@ -221,6 +225,9 @@ DB::Field GetMaximumTypeValue(const DB::DataTypePtr& dataType)
         case DB::TypeIndex::Array:
         case DB::TypeIndex::Tuple:
             return DB::Field(DB::POSITIVE_INFINITY);
+
+        case DB::TypeIndex::LowCardinality:
+            return GetMaximumTypeValue(DB::removeLowCardinality(dataType));
 
         default:
             THROW_ERROR_EXCEPTION("Unexpected data type %v", dataType->getName());
@@ -286,6 +293,9 @@ std::optional<DB::Field> TryDecrementFieldValue(const DB::Field& field, const DB
         case DB::TypeIndex::Tuple:
             return std::nullopt;
 
+        case DB::TypeIndex::LowCardinality:
+            return TryDecrementFieldValue(field, DB::removeLowCardinality(dataType));
+
         default:
             THROW_ERROR_EXCEPTION("Unexpected data type %v", dataType->getName());
     }
@@ -335,6 +345,9 @@ std::optional<DB::Field> TryIncrementFieldValue(const DB::Field& field, const DB
         case DB::TypeIndex::Array:
         case DB::TypeIndex::Tuple:
             return std::nullopt;
+
+        case DB::TypeIndex::LowCardinality:
+            return TryIncrementFieldValue(field, DB::removeLowCardinality(dataType));
 
         default:
             THROW_ERROR_EXCEPTION("Unexpected data type %v", dataType->getName());
