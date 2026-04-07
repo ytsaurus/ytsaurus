@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"reflect"
 	"testing"
 	"time"
 
@@ -78,6 +79,103 @@ func TestOperation(t *testing.T) {
 
 	require.False(t, r.Next())
 	require.NoError(t, r.Err())
+}
+
+func init() {
+	// Register jobs for Vanilla operation tests
+	mapreduce.Register(&simpleVanillaJob{})
+}
+
+type simpleVanillaJob struct {
+	mapreduce.Untyped
+}
+
+func (j *simpleVanillaJob) Do(ctx mapreduce.JobContext, in mapreduce.Reader, out []mapreduce.Writer) error {
+	return nil
+}
+
+// setSpecParameter sets a parameter on UserScript by field name using reflection.
+func setSpecParameter(s *spec.UserScript, fieldName string, value any) error {
+	rv := reflect.ValueOf(s).Elem()
+	field := rv.FieldByName(fieldName)
+	if !field.IsValid() {
+		return fmt.Errorf("field %s not found", fieldName)
+	}
+
+	// Convert value to pointer type if needed.
+	val := value
+	if field.Kind() == reflect.Ptr {
+		// For pointer fields like *bool, wrap the value.
+		v := reflect.New(field.Type().Elem())
+		v.Elem().Set(reflect.ValueOf(value))
+		val = v.Interface()
+	}
+
+	field.Set(reflect.ValueOf(val))
+	return nil
+}
+
+func TestVanillaSpecParameters(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		paramName   string
+		paramVal    any
+		structField string
+	}{
+		{
+			name:        "enable_gpu_check true",
+			paramName:   "enable_gpu_check",
+			paramVal:    true,
+			structField: "EnableGpuCheck",
+		},
+		{
+			name:        "enable_gpu_check false",
+			paramName:   "enable_gpu_check",
+			paramVal:    false,
+			structField: "EnableGpuCheck",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			env := yttest.New(t)
+
+			ctx := ctxlog.WithFields(context.Background(), log.String("subtest_name", t.Name()))
+			ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+			defer cancel()
+
+			// Verify that the struct field exists.
+			userScriptType := reflect.TypeOf((*spec.UserScript)(nil)).Elem()
+			_, exists := userScriptType.FieldByName(tt.structField)
+			require.True(t, exists, "Parameter %s not found in spec.UserScript struct", tt.structField)
+
+			// Create Vanilla spec with parameter.
+			s := spec.Vanilla().
+				AddVanillaTask("test", 1)
+
+			// Initialize mapper if nil and set parameter using reflection.
+			if s.Mapper == nil {
+				s.Mapper = &spec.UserScript{}
+			}
+			require.NoError(t, setSpecParameter(s.Mapper, tt.structField, tt.paramVal))
+
+			// Create a simple job.
+			job := &simpleVanillaJob{}
+
+			op, err := env.MR.Vanilla(s, map[string]mapreduce.Job{"test": job})
+			require.NoError(t, err)
+
+			status, err := env.YT.GetOperation(ctx, op.ID(), nil)
+			require.NoError(t, err)
+
+			require.NotEmpty(t, status.ID)
+			t.Logf("Vanilla operation started successfully with %s=%v", tt.paramName, tt.paramVal)
+		})
+	}
 }
 
 func TestOperationWithStderr(t *testing.T) {
