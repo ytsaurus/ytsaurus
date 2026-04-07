@@ -190,10 +190,14 @@ bool TChunkScannerWithPayload<TPayload>::EnqueueChunk(TQueuedChunk chunk, std::o
 }
 
 template <class TPayload>
-auto TChunkScannerWithPayload<TPayload>::DequeueChunk() -> TQueuedChunk
+auto TChunkScannerWithPayload<TPayload>::DequeueChunk(NProfiling::TCpuInstant deadline) -> TQueuedChunk
 {
-    if (TBase::HasUnscannedChunk()) {
+    if (TBase::HasUnscannedChunk(deadline)) {
         return TChunkQueue::WithoutPayload(TGlobalChunkScanner::DequeueChunk());
+    }
+
+    if (!TChunkQueue::HasUnscannedChunk(deadline)) {
+        return TChunkQueue::None();
     }
 
     auto front = TChunkQueue::DequeueChunk();
