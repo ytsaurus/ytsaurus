@@ -22,6 +22,47 @@ def simple_mapper(input_row, context):
     }
     yield output_row
 
+
+class MountState:
+    def __init__(self, tablet_count):
+        self.tablet_count = tablet_count
+        self.is_mounted_tablet = [False] * tablet_count
+        self.is_sync = [False] * tablet_count
+
+    def has_mounted_tablet(self):
+        return True in self.is_mounted_tablet
+
+    def has_unmounted_tablet(self):
+        return False in self.is_mounted_tablet
+
+    def is_mounted_async(self, tablet_index):
+        return self._is_mounted_async_impl(True, tablet_index)
+
+    def is_unmounted_async(self, tablet_index):
+        return self._is_mounted_async_impl(False, tablet_index)
+
+    def _is_mounted_async_impl(self, is_mount, tablet_index):
+        tablets = [tablet_index] if tablet_index else [tablet_index for tablet_index in range(self.tablet_count)]
+        if is_mount:
+            return True in [self.is_mounted_tablet[tablet_index] and not self.is_sync[tablet_index] for tablet_index in tablets]
+        else:
+            return True in [not self.is_mounted_tablet[tablet_index] and not self.is_sync[tablet_index] for tablet_index in tablets]
+
+    def mount(self, tablet_index, sync):
+        self._mount_impl(True, tablet_index, sync)
+
+    def unmount(self, tablet_index, sync):
+        self._mount_impl(False, tablet_index, sync)
+
+    def _mount_impl(self, is_mount, tablet_index, sync):
+        if not tablet_index:
+            self.is_mounted_tablet = [is_mount] * self.tablet_count
+            self.is_sync = [sync] * self.tablet_count
+        else:
+            self.is_mounted_tablet[tablet_index] = is_mount
+            self.is_sync[tablet_index] = sync
+
+
 class Queue:
     def __init__(self, base_path, name, tablet_count):
         self.name = name
@@ -29,9 +70,7 @@ class Queue:
         self.path = f"{self.base_path}/{name}"
         self.data_path = f"{self.base_path}/{name}.data"
         self.hunk_storage_name = None
-        self.mounted = False
-        self.is_mounted_tablet = [False] * tablet_count
-        self.hunk_storage_mounted = False
+        self.mount_state = MountState(tablet_count)
         self.data_path = self.path + ".data"
         self.cell_tag = None
         self.tablet_count = tablet_count
@@ -80,31 +119,26 @@ class Queue:
         copy_path = f"{self.base_path}/{name}"
         logger.info(f"Copying queue {self.path} to {copy_path}")
 
-        mounted = self.mounted
-        if mounted:
+        if self.mount_state.has_mounted_tablet():
             self.unmount()
         yt.copy(self.path, copy_path)
-        if mounted:
-            self.mount()
 
         copy_queue = Queue(self.base_path, name, self.tablet_count)
-        copy_queue.hunk_storage_mounted = self.hunk_storage_mounted
         copy_queue.hunk_storage_name = self.hunk_storage_name
         copy_queue.data_path = f"{self.base_path}/{name}.data"
         copy_queue.create_data_table()
+
         return copy_queue
 
     def move(self, name):
         new_path = f"{self.base_path}/{name}"
         logger.info(f"Moving queue {self.path} to {new_path}")
 
-        mounted = self.mounted
-        if mounted:
+        if self.mount_state.has_mounted_tablet():
             self.unmount()
         yt.move(self.path, new_path)
 
         moved_queue = Queue(self.base_path, name, self.tablet_count)
-        moved_queue.hunk_storage_mounted = self.hunk_storage_mounted
         moved_queue.hunk_storage_name = self.hunk_storage_name
         moved_queue.data_path = f"{self.base_path}/{name}.data"
         moved_queue.create_data_table()
@@ -113,31 +147,44 @@ class Queue:
 
     def mount(self, tablet_index=None, sync=True):
         logger.info(f"Mounting queue {self.path} (tablet_index: {tablet_index}, sync: {sync})")
+
+        if self.mount_state.is_unmounted_async(tablet_index):
+            logger.info(f"Queue {self.path} was unmounted with sync=False, unmounting with sync=True")
+            self.unmount(tablet_index, sync=True)
+
         if tablet_index:
             yt.mount_table(self.path, first_tablet_index=tablet_index, last_tablet_index=tablet_index, sync=sync)
-            self.is_mounted_tablet[tablet_index] = True
         else:
             yt.mount_table(self.path, sync=sync)
-            self.is_mounted_tablet = [True] * self.tablet_count
-        self.mounted = True
+
+        self.mount_state.mount(tablet_index, sync)
 
     def unmount(self, tablet_index=None, sync=True):
         logger.info(f"Unmounting queue {self.path} (tablet_index: {tablet_index}, sync: {sync})")
+
+        if self.mount_state.is_mounted_async(tablet_index):
+            logger.info(f"Queue {self.path} was mounted with sync=False, mounting with sync=True")
+            self.mount(tablet_index, sync=True)
+
         if tablet_index:
             yt.unmount_table(self.path, first_tablet_index=tablet_index, last_tablet_index=tablet_index, sync=sync)
-            self.is_mounted_tablet[tablet_index] = False
-            if True not in self.is_mounted_tablet:
-                self.mounted=False
         else:
             yt.unmount_table(self.path, sync=sync)
-            self.is_mounted_tablet = [False] * self.tablet_count
-            self.mounted = False
 
-    def write(self):
-        logger.info(f"Writing to the queue {self.path}")
+        self.mount_state.unmount(tablet_index, sync)
 
-        mounted_tablets = [tablet_index for tablet_index in range(self.tablet_count) if self.is_mounted_tablet[tablet_index]]
-        tablets = mounted_tablets if self.mounted else ([0] * self.tablet_count)
+    def write(self, only_in_mounted):
+        logger.info(f"Writing to the queue {self.path}, only in mounted: {only_in_mounted}")
+
+        if only_in_mounted:
+            tablets = [tablet_index for tablet_index in range(self.tablet_count) if self.mount_state.is_mounted_tablet[tablet_index] and self.mount_state.is_sync[tablet_index]]
+        else:
+            tablets = [tablet_index for tablet_index in range(self.tablet_count)]
+
+        if not tablets:
+            logger.info(f"No mounted tablet in the queue {self.path}, do nothing")
+            return
+
         rows = [{"value": RSG.generate(1024), "$tablet_index": random.choice(tablets)} for _ in range(10)]
         data_rows = []
 
@@ -153,7 +200,7 @@ class Queue:
                 yt.insert_rows(self.path, rows)
                 yt.insert_rows(self.data_path, data_rows)
 
-        run_with_retries(lambda: _insert_rows(), retry_count=5, backoff=5, except_action=lambda ex: logger.error(f"Exception during insert, try to retry: {ex.simplify()}"))
+        run_with_retries(lambda: _insert_rows(), retry_count=5, backoff=2, except_action=lambda ex: logger.error(f"Exception during insert, try to retry: {ex.simplify()}"))
 
         for tablet_index, row_count in enumerate(new_written_row_count):
             self.written_row_count[tablet_index] += row_count
@@ -171,7 +218,7 @@ class Queue:
 
     def flush(self):
         logger.info(f"Flushing queue {self.path}")
-        if self.mounted:
+        if self.mount_state.has_mounted_tablet():
             yt.freeze_table(self.path, sync=True)
             yt.unfreeze_table(self.path, sync=True)
 
@@ -215,7 +262,7 @@ class Queue:
     def run_map(self):
         logger.info(f"Running map on queue {self.path}")
         map_result_path = self.path + ".map_result"
-        yt.run_map(simple_mapper, source_table=self.path, destination_table=map_result_path)
+        yt.run_map(simple_mapper, source_table=self.path, destination_table=map_result_path, spec={"job_io": {"control_attributes": {"enable_row_index": True, "enable_tablet_index": True}}})
         yt.run_sort(map_result_path, sort_by=["tablet_index", "row_index"])
         map_result_rows = list(yt.read_table(map_result_path))
 
@@ -250,8 +297,7 @@ class HunkStorage:
     def __init__(self, base_path, name, cell_tag=None, tablet_count=1):
         self.name = name
         self.path = f"{base_path}/{name}"
-        self.mounted = False
-        self.is_mounted_tablet = [False] * tablet_count
+        self.mount_state = MountState(tablet_count)
         self.cell_tag = cell_tag
         self.hunk_storage_id = None
         self.linked_queue_names = set()
@@ -278,24 +324,31 @@ class HunkStorage:
 
     def mount(self, tablet_index=None, sync=True):
         logger.info(f"Mounting hunk storage {self.path} (tablet_index: {tablet_index}, sync: {sync})")
+
+        if self.mount_state.is_unmounted_async(tablet_index):
+            logger.info(f"Hunk storage {self.path} was unmounted with sync=False, unmounting with sync=True")
+            self.unmount(tablet_index, sync=True)
+
         if tablet_index:
             yt.mount_table(self.path, first_tablet_index=tablet_index, last_tablet_index=tablet_index, sync=sync)
-            self.is_mounted_tablet[tablet_index] = True
         else:
             yt.mount_table(self.path, sync=sync)
-            self.is_mounted_tablet = [True] * self.tablet_count
-        self.mounted = True
+
+        self.mount_state.mount(tablet_index, sync)
 
     def unmount(self, tablet_index=None, sync=True):
         logger.info(f"Unmounting hunk storage {self.path} (tablet_index: {tablet_index}, sync: {sync})")
+
+        if self.mount_state.is_mounted_async(tablet_index):
+            logger.info(f"Hunk storage {self.path} was mounted with sync=False, mounting with sync=True")
+            self.mount(tablet_index, sync=True)
+
         if tablet_index:
             yt.unmount_table(self.path, first_tablet_index=tablet_index, last_tablet_index=tablet_index, sync=sync)
-            self.is_mounted_tablet[tablet_index] = False
-            if True not in self.is_mounted_tablet:
-                self.mounted = False
         else:
             yt.unmount_table(self.path, sync=sync)
-            self.mounted = False
+
+        self.mount_state.unmount(tablet_index, sync)
 
     def remove(self):
         logger.info(f"Removing hunk_storage {self.path}")
@@ -310,7 +363,6 @@ def link(queue, hunk_storage):
     yt.set(f"{queue.path}/@hunk_storage_id", hunk_storage.hunk_storage_id)
     yt.remount_table(queue.path)
     queue.hunk_storage_name = hunk_storage.name
-    queue.hunk_storage_mounted = hunk_storage.mounted
     hunk_storage.linked_queue_names.add(queue.name)
 
 
@@ -319,7 +371,6 @@ def unlink(queue, hunk_storage):
     yt.remove(f"{queue.path}/@hunk_storage_id")
     yt.remount_table(queue.path)
     queue.hunk_storage_name = None
-    queue.hunk_storage_mounted = False
     hunk_storage.linked_queue_names.remove(queue.name)
 
 
@@ -405,21 +456,23 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
                 elif random.random() < spec.queue_and_hunk_storage.mount_hunk_storage_tablet_probability:
                     hunk_storage.mount(tablet_index=tablet_index, sync=False)
 
-            # If all tablets were unmounted, unmount synchronously.
-            if True not in hunk_storage.is_mounted_tablet:
-                hunk_storage.unmount()
+
+    def _check_error(queue, err):
+        unmounted = queue.mount_state.has_unmounted_tablet() or (queue.hunk_storage_name and not hunk_storages[queue.hunk_storage_name].mount_state.has_unmounted_tablet())
+        if unmounted and is_unmounted_error(err):
+            logger.info(f"Error was expected, queue or hunk_storage has unmounted tablet")
+        else:
+            raise err
 
 
     def _write():
         for queue in queues.values():
+            queue.write(only_in_mounted=True)
+
             try:
-                queue.write()
+                queue.write(only_in_mounted=False)
             except YtError as err:
-                unmounted = not queue.mounted or (queue.hunk_storage_name and not hunk_storages[queue.hunk_storage_name].mounted)
-                if unmounted and is_unmounted_error(err):
-                    logger.info(f"Error was expected, queue or hunk_storage is unmounted")
-                else:
-                    raise err
+                _check_error(queue, err)
 
 
     def _read():
@@ -427,22 +480,15 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
             try:
                 queue.read_and_check()
             except YtError as err:
-                unmounted = not queue.mounted or (queue.hunk_storage_name and not hunk_storages[queue.hunk_storage_name].mounted)
-                if unmounted and is_unmounted_error(err):
-                    logger.info(f"Error was expected, queue or hunk_storage is unmounted")
-                else:
-                    raise err
+                _check_error(queue, err)
+
 
     def _map():
         for queue in queues.values():
             try:
                 queue.run_map()
             except YtError as err:
-                unmounted = not queue.mounted or (queue.hunk_storage_name and not hunk_storages[queue.hunk_storage_name].mounted)
-                if unmounted and is_unmounted_error(err):
-                    logger.info(f"Error was expected, queue or hunk_storage is unmounted")
-                else:
-                    raise err
+                _check_error(queue, err)
 
 
     def _sort():
@@ -450,11 +496,7 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
             try:
                 queue.run_sort()
             except YtError as err:
-                unmounted = not queue.mounted or (queue.hunk_storage_name and not hunk_storages[queue.hunk_storage_name].mounted)
-                if unmounted and is_unmounted_error(err):
-                    logger.info(f"Error was expected, queue or hunk_storage is unmounted")
-                else:
-                    raise err
+                _check_error(queue, err)
 
 
     def _flush():
@@ -475,12 +517,18 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
         removed_queue_names = []
         for queue in queues.values():
             if random.random() < spec.queue_and_hunk_storage.remove_probability:
-                queue.remove()
-                removed_queue_names += [queue.name]
-                removed_queue_count += 1
+                try:
+                    queue.remove()
+                    removed_queue_names += [queue.name]
+                    removed_queue_count += 1
 
-                if queue.hunk_storage_name:
-                    hunk_storages[queue.hunk_storage_name].linked_queue_names.remove(queue.name)
+                    if queue.hunk_storage_name:
+                        hunk_storages[queue.hunk_storage_name].linked_queue_names.remove(queue.name)
+                except YtError as err:
+                    if "Cannot remove table" in str(err) and "that is linked to hunk storage" in str(err) and queue.hunk_storage_name:
+                        logger.info(f"Error was expected, queue is linked to hunk storage")
+                    else:
+                        raise err
 
         for queue_name in removed_queue_names:
             del queues[queue_name]
