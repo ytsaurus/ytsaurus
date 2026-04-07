@@ -540,6 +540,8 @@ items:
             href: admin-guide/persistence-uploader.md
           #      - name: Интеграции с внешними системами
           #        href: admin-guide/external-systems.md
+      - name: Настройка внешнего доступа к кластеру
+        href: admin-guide/cluster-access-proxy.md
       - name: Настройка SSO
         href: admin-guide/oauth.md
         when: audience == "public"
