@@ -35,6 +35,9 @@ void TBundleControllerConfig::Register(TRegistrar registrar)
     registrar.Parameter("cluster", &TThis::Cluster)
         .NonEmpty();
 
+    registrar.Parameter("use_dedicated_user_name", &TThis::UseDedicatedUserName)
+        .Default();
+
     registrar.Parameter("bundle_scan_period", &TThis::BundleScanPeriod)
         .Default(TDuration::Seconds(10));
 

@@ -57,6 +57,7 @@ struct TBundleControllerConfig
     : public NYTree::TYsonStruct
 {
     std::string Cluster;
+    bool UseDedicatedUserName;
     TDuration BundleScanPeriod;
     TDuration BundleScanTransactionTimeout;
     // TODO(grachevkirill): Rename to AllocatorRequestTimeout

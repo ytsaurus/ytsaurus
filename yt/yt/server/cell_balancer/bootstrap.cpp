@@ -208,7 +208,11 @@ private:
         Connection_->GetClusterDirectorySynchronizer()->Start();
         Connection_->GetMasterCellDirectorySynchronizer()->Start();
 
-        auto clientOptions = NNative::TClientOptions::FromUser(NSecurityClient::RootUserName);
+        const auto& bundleController = Config_->BundleController;
+        auto clientOptions = NNative::TClientOptions::FromUser(
+            bundleController && bundleController->UseDedicatedUserName
+                ? NSecurityClient::BundleControllerUserName
+                : NSecurityClient::RootUserName);
         Client_ = Connection_->CreateNativeClient(clientOptions);
 
         NLogging::GetDynamicTableLogWriterFactory()->SetClient(Client_);
