@@ -6043,6 +6043,51 @@ TEST_F(TQueryEvaluateTest, LeftJoinWithCondition)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, JoinListContainsWithEntityGuard)
+{
+    TSplitMap splits;
+    std::vector<TSource> sources;
+
+    auto leftSplit = MakeSplit({
+        {"a", EValueType::Int64},
+    });
+
+    splits["//left"] = leftSplit;
+    sources.push_back({
+        "a=1",
+        "a=2",
+    });
+
+    // Store YSON as strings, convert to Any in query via yson_string_to_any
+    // to produce real YSON entity values (test framework converts # to NULL sentinel).
+    auto rightSplit = MakeSplit({
+        {"a", EValueType::Int64},
+        {"l", EValueType::String},
+    });
+
+    splits["//right"] = rightSplit;
+    sources.push_back({
+        R"(a=1;l="[foo;available-for-support]")",
+        R"(a=2;l="#")",
+    });
+
+    auto resultSplit = MakeSplit({
+        {"a", EValueType::Int64},
+    });
+
+    auto result = YsonToRows({
+        "a=1",
+    }, resultSplit);
+
+    Evaluate(
+        "a FROM [//left] join [//right] using a "
+        "where yson_string_to_any(l) != make_entity() "
+        "AND list_contains(yson_string_to_any(l), \"available-for-support\")",
+        splits,
+        sources,
+        ResultMatcher(result));
+}
+
 TEST_F(TQueryEvaluateTest, ComplexAlias)
 {
     auto split = MakeSplit({
