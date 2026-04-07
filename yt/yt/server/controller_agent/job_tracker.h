@@ -139,6 +139,7 @@ private:
     {
         TOperationId OperationId;
         bool JobsReady = false;
+        bool Suspended = false;
         const TWeakPtr<IOperationController> OperationController;
         THashSet<TAllocationId> TrackedAllocationIds;
     };
@@ -520,7 +521,11 @@ private:
 
     void DoRevive(
         TOperationId operationId,
-        std::vector<TStartedAllocationInfo> allocations);
+        std::vector<TStartedAllocationInfo> allocations,
+        bool suspended);
+
+    void DoSuspendOperation(TOperationId operationId);
+    void DoResumeOperation(TOperationId operationId);
 
     void DoReleaseJobs(
         TOperationId operationId,
@@ -650,7 +655,9 @@ public:
     void RegisterAllocation(TStartedAllocationInfo allocationInfo);
 
     void RegisterJob(TStartedJobInfo jobInfo);
-    void Revive(std::vector<TStartedAllocationInfo> allocations);
+    void Revive(std::vector<TStartedAllocationInfo> allocations, bool suspended);
+    void SuspendOperation();
+    void ResumeOperation();
     void ReleaseJobs(std::vector<TJobToRelease> jobs);
 
     void RequestJobAbortion(

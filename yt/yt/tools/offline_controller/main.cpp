@@ -129,7 +129,17 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    void Revive(std::vector<TStartedAllocationInfo>) override
+    void Revive(std::vector<TStartedAllocationInfo> /*allocations*/, bool /*suspended*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    void SuspendOperation() override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    void ResumeOperation() override
     {
         YT_UNIMPLEMENTED();
     }

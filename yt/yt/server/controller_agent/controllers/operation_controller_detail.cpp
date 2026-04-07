@@ -1446,7 +1446,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
 
     YT_LOG_INFO("Materialization finished");
 
-    OnOperationReady();
+    OnOperationReady(/*suspended*/ false);
 
     return result;
 }
@@ -1480,7 +1480,7 @@ void TOperationControllerBase::ClearEmptyAllocationsInRevive()
     EraseNodesIf(AllocationMap_, [] (const auto& idAllocation) { return !idAllocation.second.Joblet; });
 }
 
-TOperationControllerReviveResult TOperationControllerBase::Revive()
+TOperationControllerReviveResult TOperationControllerBase::Revive(bool suspended)
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
@@ -1602,7 +1602,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
 
     State_ = EControllerState::Running;
 
-    OnOperationReady();
+    OnOperationReady(suspended);
 
     OnOperationRevived();
 
@@ -11984,7 +11984,7 @@ void TOperationControllerBase::RemoveRemainingJobsOnOperationFinished()
     ReleaseJobs(jobIdsToRelease);
 }
 
-void TOperationControllerBase::OnOperationReady()
+void TOperationControllerBase::OnOperationReady(bool suspended)
 {
     YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool_);
 
@@ -12012,7 +12012,7 @@ void TOperationControllerBase::OnOperationReady()
 
     YT_LOG_DEBUG("Registering revived allocations and jobs in job tracker (AllocationCount: %v)", std::size(revivedAllocations));
 
-    Host_->Revive(std::move(revivedAllocations));
+    Host_->Revive(std::move(revivedAllocations), suspended);
 }
 
 void TOperationControllerBase::OnOperationRevived()

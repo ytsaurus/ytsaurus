@@ -3046,6 +3046,48 @@ class TestGangOperations(YTEnvSetup):
 
         assert incarnation_switch_counter.get() == 0
 
+    @authors("pogorelov")
+    def test_suspended_gang_operation(self):
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "task_a": {
+                        "job_count": 2,
+                        "command": with_breakpoint("BREAKPOINT"),
+                        "gang_options": {},
+                    },
+                },
+            },
+        )
+
+        job_ids = wait_breakpoint(job_count=2)
+
+        op.suspend()
+        wait(lambda: get(op.get_path() + "/@suspended"))
+
+        # Abort one job to trigger an incarnation switch.
+        # Since the operation is suspended, no new jobs should be scheduled.
+        abort_job(job_ids[0])
+
+        # Wait for all running jobs to stop.
+        wait(lambda: op.get_job_count("running") == 0)
+
+        # Wait a bit and verify that no new jobs were started.
+        time.sleep(1)
+        assert op.get_job_count("running") == 0
+
+        for job_id in job_ids:
+            release_breakpoint(job_id=job_id)
+
+        op.resume()
+        wait(lambda: not get(op.get_path() + "/@suspended"))
+
+        wait_breakpoint(job_count=2)
+        release_breakpoint()
+
+        op.track()
+
 
 ##################################################################
 
