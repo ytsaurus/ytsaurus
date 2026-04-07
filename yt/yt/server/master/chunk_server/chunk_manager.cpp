@@ -1034,7 +1034,14 @@ public:
             UpdateResourceUsage(chunk, +1);
         }
 
-        ScheduleChunkRefresh(chunk);
+        MarkChunkRecentlyConfirmed(chunk->GetId());
+
+        const auto& config = GetDynamicConfig();
+        auto refreshDelay = config->DelayRecentlyConfirmedChunksRefresh
+            ? std::make_optional(config->ReplicaApproveTimeout)
+            : std::nullopt;
+
+        ScheduleChunkRefresh(chunk, refreshDelay);
 
         YT_LOG_DEBUG("Chunk confirmed (ChunkId: %v, Replicas: %v, ReferencedHunkChunkIds: %v)",
             chunk->GetId(),
@@ -2757,6 +2764,9 @@ private:
 
     std::optional<TIncrementalHeartbeatCounters> TotalIncrementalHeartbeatCounters_;
 
+    std::queue<std::pair<TChunkId, TCpuInstant>> RecentlyConfirmedChunksByConfirmTime_;
+    THashSet<TChunkId> RecentlyConfirmedChunks_;
+
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     TChunkLocation* FindLocationOnConfirmation(
@@ -3830,6 +3840,41 @@ private:
                 auto result = WaitFor(transaction->Commit(commitOptions));
                 ThrowOnSequoiaReplicasError(result, retriableErrorCodes);
             }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
+    }
+
+    void RemoveOutdatedRecentlyConfirmedChunks()
+    {
+        const auto& config = GetDynamicConfig();
+        auto oldestConfirmTime = GetCpuInstant() - DurationToCpuDuration(config->ReplicaApproveTimeout);
+
+        while (!RecentlyConfirmedChunksByConfirmTime_.empty())
+        {
+            auto [chunkId, confirmTime] = RecentlyConfirmedChunksByConfirmTime_.front();
+            if (confirmTime >= oldestConfirmTime) {
+                break;
+            }
+            EraseOrCrash(RecentlyConfirmedChunks_, chunkId);
+            RecentlyConfirmedChunksByConfirmTime_.pop();
+        }
+    }
+
+    bool IsChunkRecentlyConfirmed(TChunkId chunkId) override
+    {
+        RemoveOutdatedRecentlyConfirmedChunks();
+        return RecentlyConfirmedChunks_.contains(chunkId);
+    }
+
+    void MarkChunkRecentlyConfirmed(TChunkId chunkId)
+    {
+        const auto& config = GetDynamicConfig();
+
+        // We will execute delayed global chunk refresh after recovery is completed.
+        // So we do not need to store confirmations for chunks that were confirmed during recovery.
+        if (config->DelayRecentlyConfirmedChunksRefresh && !Bootstrap_->GetHydraFacade()->GetHydraManager()->IsRecovery()) {
+            RemoveOutdatedRecentlyConfirmedChunks();
+            InsertOrCrash(RecentlyConfirmedChunks_, chunkId);
+            RecentlyConfirmedChunksByConfirmTime_.emplace(chunkId, GetCpuInstant());
+        }
     }
 
     TFuture<TRspModifyReplicas> ModifySequoiaReplicas(

@@ -690,6 +690,10 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("chunk_refresh_period", &TThis::ChunkRefreshPeriod)
         .Default(TDuration::MilliSeconds(100));
 
+    registrar.Parameter("delay_recently_confirmed_chunks_refresh", &TThis::DelayRecentlyConfirmedChunksRefresh)
+        .Default(true)
+        .DontSerializeDefault();
+
     registrar.Parameter("max_blob_chunks_per_refresh", &TThis::MaxBlobChunksPerRefresh)
         .Default(8000)
         .Alias("max_chunks_per_refresh");

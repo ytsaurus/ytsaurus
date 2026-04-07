@@ -386,6 +386,8 @@ struct IChunkManager
     virtual TFuture<void> ConfirmSequoiaChunkBatched(
         NChunkClient::NProto::TReqConfirmChunk request) = 0;
 
+    virtual bool IsChunkRecentlyConfirmed(TChunkId chunkId) = 0;
+
 private:
     friend class TChunkTypeHandler;
     friend class TChunkListTypeHandler;
