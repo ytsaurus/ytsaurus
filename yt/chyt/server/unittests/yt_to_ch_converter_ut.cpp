@@ -1616,5 +1616,57 @@ TEST(TTestKeyConversion, TestNulls)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TTestKeyConversion, TestLowCardinality)
+{
+    TTableSchema schema;
+
+    {
+        std::vector<TColumnSchema> columnSchemas;
+        columnSchemas.reserve(2);
+
+        auto& column1 = columnSchemas.emplace_back("dummy_name", ESimpleLogicalValueType::Int64);
+        column1.SetRequired(true);
+        auto& column2 = columnSchemas.emplace_back(column1);
+        column2.SetLogicalType(TaggedLogicalType(LowCardinalityTag, column2.LogicalType()));
+
+        schema = TTableSchema(std::move(columnSchemas));
+    }
+
+    DB::DataTypes dataTypes = {
+        std::make_shared<DB::DataTypeInt64>(),
+        std::make_shared<DB::DataTypeLowCardinality>(std::make_shared<DB::DataTypeInt64>()),
+    };
+
+    auto lowerBound = MakeBound(
+        {MakeUnversionedInt64Value(5)},
+        /*isInclusive=*/false,
+        /*isUpper=*/false);
+    auto upperBound = MakeUpperBound({MakeUnversionedInt64Value(10)});
+
+    auto chKeys = ToClickHouseKeys(lowerBound, upperBound, schema, dataTypes, 2, false);
+    YT_LOG_DEBUG("MinKey %v %v", chKeys.MinKey[0], chKeys.MinKey[1]);
+    YT_LOG_DEBUG("MaxKey %v %v", chKeys.MaxKey[0], chKeys.MaxKey[1]);
+    EXPECT_EQ(chKeys.MinKey, std::vector<DB::FieldRef>({DB::Field(5L), DB::Field(std::numeric_limits<DB::Int64>::max())}));
+    EXPECT_EQ(chKeys.MaxKey, std::vector<DB::FieldRef>({DB::Field(10L), DB::Field(std::numeric_limits<DB::Int64>::min())}));
+
+    upperBound = MakeBound(
+        {MakeUnversionedInt64Value(10), MakeUnversionedInt64Value(5),},
+        /*isInclusive=*/false,
+        /*isUpper=*/true);
+
+    lowerBound = MakeBound(
+        {MakeUnversionedInt64Value(5), MakeUnversionedInt64Value(10),},
+        /*isInclusive=*/false,
+        /*isUpper=*/false);
+
+    chKeys = ToClickHouseKeys(lowerBound, upperBound, schema, dataTypes, 2, true);
+    YT_LOG_DEBUG("MinKey %v %v", chKeys.MinKey[0], chKeys.MinKey[1]);
+    YT_LOG_DEBUG("MaxKey %v %v", chKeys.MaxKey[0], chKeys.MaxKey[1]);
+    EXPECT_EQ(chKeys.MaxKey, std::vector<DB::FieldRef>({DB::Field(10L), DB::Field(4L)}));
+    EXPECT_EQ(chKeys.MinKey, std::vector<DB::FieldRef>({DB::Field(5L), DB::Field(11L)}));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT::NClickHouseServer
