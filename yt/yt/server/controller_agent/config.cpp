@@ -1485,6 +1485,12 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
                 config->CudaProfilerEnvironment->PathEnvironmentVariableName,
                 config->CudaProfilerEnvironment->PathEnvironmentVariableValue);
         }
+
+#if defined(_tsan_enabled_)
+        // TODO(pogorelov): Implement building snapshots without fork to improve compatibility with tsan (YT-27927).
+        config->EnableSnapshotBuilding = false;
+        config->EnableSnapshotBuildingDisabledAlert = false;
+#endif
     });
 }
 
