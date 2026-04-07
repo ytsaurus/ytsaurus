@@ -211,6 +211,7 @@ public:
     NYson::TYsonString BuildArchiveFeatures() const;
 
     void SetHasJobTrace(bool value);
+    void SetHasGpuCheckStderr(bool value);
 
     void AbortJobAfterInterruptionCallFailed(TError internalError);
 
@@ -445,6 +446,7 @@ private:
     TJobFSSecretaryPtr FSSecretary_;
 
     bool HasJobTrace_ = false;
+    bool HasGpuCheckStderr_ = false;
 
     NYTree::IYPathServicePtr CreateStaticOrchidService();
     NYTree::IYPathServicePtr CreateJobProxyOrchidService();

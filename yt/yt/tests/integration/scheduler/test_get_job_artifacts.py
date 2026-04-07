@@ -5,7 +5,7 @@ from yt_commands import (
     create, get,
     set, remove, exists, create_tmpdir, create_user, make_ace, insert_rows, select_rows, lookup_rows,
     read_table, write_table, map, reduce, map_reduce,
-    sort, list_jobs, get_job_input,
+    sort, list_jobs, get_job, get_job_input,
     get_job_stderr, get_job_stderr_paged, get_job_spec, get_job_input_paths,
     clean_operations, sync_create_cells, update_op_parameters, raises_yt_error,
     gc_collect, run_test_vanilla, wait_no_assert, update_controller_agent_config)
@@ -1115,6 +1115,10 @@ class TestGetJobStderrGpuChecker(YTEnvSetup, GpuCheckBase):
         with raises_yt_error("Stderr is not found"):
             get_job_stderr(op.id, job_id, type="gpu_check_stderr")
 
+        # Check no has_gpu_check_stderr.
+        job = get_job(op.id, job_id)
+        assert not job.get("archive_features", {}).get("has_gpu_check_stderr", False)
+
         print_debug("Check job stderr")
         job_error = get_job_stderr(op.id, job_id)
         assert job_error == b"AAA\n"
@@ -1152,6 +1156,38 @@ class TestGetJobStderrGpuChecker(YTEnvSetup, GpuCheckBase):
 
         wait(lambda: len(get_job_stderr(op.id, job_id)) > 0)
         wait(lambda: len(get_job_stderr(op.id, job_id, type="gpu_check_stderr")) > 0)
+
+    @authors("bystrovserg")
+    @pytest.mark.timeout(180)
+    def test_has_gpu_check_stderr_in_archive_features(self):
+        self.setup_gpu_layer_and_reset_nodes(prepare_gpu_base_layer=True)
+        self.setup_gpu_check_options(binary_path="/gpu_check/gpu_check_fail")
+
+        op = run_test_vanilla(
+            command="echo 1",
+            spec={
+                "max_failed_job_count": 1,
+            },
+            task_patch={
+                "layer_paths": ["//tmp/base_layer"],
+                "gpu_limit": 1,
+                "enable_gpu_layers": True,
+                "enable_gpu_check": True,
+            },
+            track=False,
+        )
+
+        wait(lambda: len(op.list_jobs()) == 1)
+        job_id = op.list_jobs()[0]
+
+        wait(lambda: len(get_job_stderr(op.id, job_id, type="gpu_check_stderr")) > 0, ignore_exceptions=True)
+
+        @wait_no_assert
+        def check_has_gpu_check_stderr():
+            job = get_job(op.id, job_id)
+            assert "archive_features" in job
+            assert "has_gpu_check_stderr" in job["archive_features"]
+            assert job["archive_features"]["has_gpu_check_stderr"]
 
 ##################################################################
 
