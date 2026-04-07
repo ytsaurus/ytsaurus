@@ -1,4 +1,4 @@
-New PRNG: w1rand
+New PRNG: w1rand that passed BigCrush and PractRand(512GB)
 ```
 static inline uint64_t w1rand(uint64_t *s) {
   const uint64_t c = 0xd07ebc63274654c7ull;
@@ -7,10 +7,6 @@ static inline uint64_t w1rand(uint64_t *s) {
   return (t >> 64) ^ t;
 }
 ```
-w1rand                                  :  0.277 cycles per byte
-
-wyrand                                  :  0.344 cycles per byte
-
 
 wyhash has evolved into [rapidhash](https://github.com/Nicoshev/rapidhash) !  
 With improved speed, quality and compatibility.
