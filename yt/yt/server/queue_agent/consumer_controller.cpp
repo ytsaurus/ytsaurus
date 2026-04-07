@@ -724,7 +724,7 @@ bool UpdateConsumerController(
     const TQueueAgentClientDirectoryPtr& clientDirectory,
     IInvokerPtr invoker)
 {
-    if (row.IsMultiConsumerRow()) {
+    if (row.IsMultiConsumer) {
         controller = New<TErrorConsumerController>(row, replicatedTableMappingRow, TError("Multi-consumer are not supported yet"));
         return true;
     }
