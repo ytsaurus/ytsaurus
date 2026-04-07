@@ -49,6 +49,7 @@
   "ROADMAP.md":"yt/opensource/repos/ytsaurus/github_toplevel/ROADMAP.md",
   "SECURITY.md":"yt/opensource/repos/ytsaurus/github_toplevel/SECURITY.md",
   "build/internal/conf/internal.conf":"yt/go/opensource_conf_internal.conf",
+  "build/internal/ya.conf":"yt/opensource/repos/ytsaurus/github_toplevel/build/internal/ya.conf",
   "build/mapping.conf.json":"devtools/ya/opensource/mapping.conf.json",
   "build/ya.conf.json":"devtools/ya/opensource/ya.conf.json",
   "clang.toolchain":"yt/opensource/repos/ytsaurus/github_toplevel/clang.toolchain",
