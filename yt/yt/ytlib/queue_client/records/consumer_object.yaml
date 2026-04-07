@@ -62,3 +62,8 @@ types:
         cpp_type: std::optional<std::string>
         column_name: queue_consumer_profiling_tag
         column_type: String
+
+      - cpp_name: IsMultiConsumer
+        cpp_type: std::optional<bool>
+        column_name: is_multi_consumer
+        column_type: Boolean

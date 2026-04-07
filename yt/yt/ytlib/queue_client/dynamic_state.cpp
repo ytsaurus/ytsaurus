@@ -149,6 +149,7 @@ TConsumerTableRow RowFromRecord(const NRecords::TConsumerObject& record)
         .QueueAgentStage = record.QueueAgentStage,
         .QueueAgentBanned = record.QueueAgentBanned,
         .QueueConsumerProfilingTag = record.QueueConsumerProfilingTag,
+        .IsMultiConsumer = record.IsMultiConsumer.value_or(false),
         .SynchronizationError = FromOptionalYsonString<TError>(record.SynchronizationError),
     };
 }
@@ -179,6 +180,7 @@ NRecords::TConsumerObject RecordFromRow(const TConsumerTableRow& row)
         .SynchronizationError = ToOptionalYsonString(row.SynchronizationError),
         .QueueAgentBanned = row.QueueAgentBanned,
         .QueueConsumerProfilingTag = row.QueueConsumerProfilingTag,
+        .IsMultiConsumer = row.IsMultiConsumer,
     };
 }
 
@@ -551,7 +553,7 @@ TConsumerTableRow TConsumerTableRow::FromAttributeDictionary(
     std::optional<TRowRevision> rowRevision,
     const IAttributeDictionaryPtr& cypressAttributes)
 {
-    return {
+    TConsumerTableRow row{
         .Path = consumer,
         .RowRevision = rowRevision,
         .Revision = cypressAttributes->Get<NHydra::TRevision>("attribute_revision"),
@@ -561,13 +563,11 @@ TConsumerTableRow TConsumerTableRow::FromAttributeDictionary(
         .QueueAgentStage = cypressAttributes->Find<std::string>("queue_agent_stage"),
         .QueueAgentBanned = cypressAttributes->Find<bool>("queue_agent_banned"),
         .QueueConsumerProfilingTag = cypressAttributes->Find<std::string>("queue_consumer_profiling_tag"),
+        .IsMultiConsumer = false,
         .SynchronizationError = TError(),
     };
-}
-
-bool TConsumerTableRow::IsMultiConsumerRow() const
-{
-    return Schema.has_value() && Schema->FindColumnByStableName(TColumnStableName{"queue_consumer_name"});
+    row.IsMultiConsumer = row.Schema.has_value() && row.Schema->FindColumnByStableName(TColumnStableName{QueueConsumerNameAttributeKey}) != nullptr;
+    return row;
 }
 
 void Serialize(const TConsumerTableRow& row, IYsonConsumer* consumer)
