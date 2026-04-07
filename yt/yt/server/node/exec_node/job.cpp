@@ -387,6 +387,7 @@ TJob::~TJob()
 {
     YT_LOG_DEBUG("Destroying job");
 
+    YT_VERIFY(!PreparingNodeDirectory_);
     auto jobSpec = GuardedJobSpec_.Transform(
         [] (TJobSpec& spec) -> TJobSpec {
             return std::move(spec);
@@ -2325,6 +2326,7 @@ void TJob::TrimJobSpec()
     YT_VERIFY(IsFinished());
 
     // NodeDirectory can be really huge, we better offload its cleanup.
+    YT_VERIFY(!PreparingNodeDirectory_);
     auto* inputNodeDirectory = GuardedJobSpec_.Transform([] (TJobSpec& jobSpec) {
         return jobSpec.MutableExtension(TJobSpecExt::job_spec_ext)
             ->release_input_node_directory();
@@ -2359,6 +2361,7 @@ void TJob::OnNodeDirectoryPrepared(TErrorOr<std::unique_ptr<NNodeTrackerClient::
                 "Failed to prepare job node directory");
 
             if (auto& protoNodeDirectory = protoNodeDirectoryOrError.Value()) {
+                YT_VERIFY(!PreparingNodeDirectory_);
                 GuardedJobSpec_.Transform([&](TJobSpec& jobSpec) {
                     jobSpec.MutableExtension(TJobSpecExt::job_spec_ext)
                         ->mutable_input_node_directory()
@@ -2612,6 +2615,7 @@ void TJob::RunJobProxy()
     auto eligibleChunks = GetKeys(ProxiableChunks_.Load());
     auto hotChunks = JobInputCache_->FilterHotChunkIds(eligibleChunks);
 
+    YT_VERIFY(!PreparingNodeDirectory_);
     GuardedJobSpec_.Transform([&] (TJobSpec& jobSpec) {
         PrepareProxiedChunkReading(
             Bootstrap_->GetNodeId(),
@@ -2991,6 +2995,11 @@ bool TJob::IsEvicted() const
 std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory> TJob::PrepareNodeDirectory()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    PreparingNodeDirectory_.store(true);
+    auto preparingNodeDirectoryGuard = Finally([&] {
+        PreparingNodeDirectory_.store(false);
+    });
 
     const auto& jobSpecExt = JobSpec_.GetExtension(TJobSpecExt::job_spec_ext);
     if (jobSpecExt.has_input_node_directory()) {

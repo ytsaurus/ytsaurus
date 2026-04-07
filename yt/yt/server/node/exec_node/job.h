@@ -478,6 +478,8 @@ private:
 
     bool HasJobTrace_ = false;
 
+    std::atomic<bool> PreparingNodeDirectory_ = false;
+
     NYTree::IYPathServicePtr CreateStaticOrchidService();
     NYTree::IYPathServicePtr CreateJobProxyOrchidService();
     NYTree::IYPathServicePtr CreateDynamicOrchidService();
