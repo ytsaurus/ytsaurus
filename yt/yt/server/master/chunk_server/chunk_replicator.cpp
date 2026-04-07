@@ -2982,11 +2982,15 @@ void TChunkReplicator::OnRefresh()
         THashMap<TChunkId, int> chunkIdToErrorCount;
         while (*totalCount < maxChunksPerRefresh && scanner->HasUnscannedChunk(deadline)) {
             ++(*totalCount);
-            auto [chunk, errorCount] = scanner->DequeueChunk();
+            auto [chunk, errorCount] = scanner->DequeueChunk(deadline);
             if (!IsObjectAlive(chunk)) {
                 continue;
             }
             if (!chunk->IsConfirmed()) {
+                continue;
+            }
+            if (config->DelayRecentlyConfirmedChunksRefresh && chunkManager->IsChunkRecentlyConfirmed(chunk->GetId())) {
+                scanner->EnqueueChunk({chunk, errorCount}, DurationToCpuDuration(config->ReplicaApproveTimeout));
                 continue;
             }
 

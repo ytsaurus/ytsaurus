@@ -663,6 +663,9 @@ struct TDynamicChunkManagerConfig
     //! Interval between consequent chunk refresh iterations.
     std::optional<TDuration> ChunkRefreshPeriod;
 
+    //! If set, recently confirmed chunks will be refreshed after ReplicaApproveTimeout.
+    bool DelayRecentlyConfirmedChunksRefresh;
+
     //! Maximum number of chunks to process during a refresh iteration.
     int MaxBlobChunksPerRefresh;
 
