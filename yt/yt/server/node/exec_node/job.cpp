@@ -398,6 +398,7 @@ TYsonString TJob::BuildArchiveFeatures() const
     return BuildYsonStringFluently()
         .BeginMap()
             .Item("has_trace").Value(HasJobTrace_)
+            .Item("has_gpu_check_stderr").Value(HasGpuCheckStderr_)
         .EndMap();
 }
 
@@ -1359,6 +1360,20 @@ void TJob::SetHasJobTrace(bool hasJobTrace)
     }
 
     HasJobTrace_ = hasJobTrace;
+
+    HandleJobReport(MakeDefaultJobReport()
+        .ArchiveFeatures(BuildArchiveFeatures()));
+}
+
+void TJob::SetHasGpuCheckStderr(bool hasGpuCheckStderr)
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    if (hasGpuCheckStderr == HasGpuCheckStderr_) {
+        return;
+    }
+
+    HasGpuCheckStderr_ = hasGpuCheckStderr;
 
     HandleJobReport(MakeDefaultJobReport()
         .ArchiveFeatures(BuildArchiveFeatures()));

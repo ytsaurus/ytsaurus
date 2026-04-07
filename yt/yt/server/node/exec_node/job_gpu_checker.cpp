@@ -186,6 +186,7 @@ void TJobGpuChecker::OnGpuCheckFinished(TJobGpuCheckerPtr checker, TErrorOr<std:
             job->HandleJobReport(
                 TNodeJobReport()
                     .GpuCheckStderr(gpuCheckResult.Stderr));
+            job->SetHasGpuCheckStderr(true);
         }
     } else {
         error = result;
