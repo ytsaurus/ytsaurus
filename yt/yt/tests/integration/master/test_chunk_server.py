@@ -1414,7 +1414,7 @@ class TestPendingRestartNodeDisposal(TestNodePendingRestartBase):
         for node in nodes:
             maintenance_ids.update(add_maintenance("cluster_node", node, "pending_restart", ""))
 
-        sleep(0.5)
+        sleep(1)
 
         status = get("#" + chunk_id + "/@replication_status/default")
         assert status["temporarily_unavailable"]
@@ -1434,7 +1434,7 @@ class TestPendingRestartNodeDisposal(TestNodePendingRestartBase):
         wait(check1)
 
         # general statistics
-        wait(lambda: chunk_id in ls("//sys/replica_temporarily_unavailable_chunks"))
+        assert chunk_id in ls("//sys/replica_temporarily_unavailable_chunks")
         assert get("//sys/@data_missing_chunk_count") == 0
         assert get("//sys/@parity_missing_chunk_count") == 0
 
@@ -1443,16 +1443,14 @@ class TestPendingRestartNodeDisposal(TestNodePendingRestartBase):
             remove_maintenance("cluster_node", node, id=maintenance_ids[str(node)])
 
         # explicit statistics
-        def check2():
-            status = get("#" + chunk_id + "/@replication_status/default")
-            return (
-                not status["temporarily_unavailable"] and
-                not status["data_missing"] and
-                not status["parity_missing"] and
-                not status["overreplicated"])
-        wait(check2)
+        status = get("#" + chunk_id + "/@replication_status/default")
+        assert not status["temporarily_unavailable"]
+        assert not status["data_missing"]
+        assert not status["parity_missing"]
+        assert not status["overreplicated"]
 
         # general statistics
+        assert chunk_id in ls("//sys/replica_temporarily_unavailable_chunks")
         assert get("//sys/@data_missing_chunk_count") == 0
         assert get("//sys/@parity_missing_chunk_count") == 0
 
