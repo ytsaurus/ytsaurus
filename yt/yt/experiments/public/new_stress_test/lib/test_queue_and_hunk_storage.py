@@ -18,9 +18,20 @@ def simple_mapper(input_row, context):
     output_row = {
         "tablet_index": context.tablet_index,
         "row_index": context.row_index,
+        "key": input_row["key"],
         "value": input_row["value"],
     }
     yield output_row
+
+
+@yt.with_context
+def simple_reducer(key, input_row_iterator, context):
+    for input_row in input_row_iterator:
+        output_row = {
+            "key": key["key"],
+            "value": input_row["value"],
+        }
+        yield output_row
 
 
 class MountState:
@@ -29,24 +40,40 @@ class MountState:
         self.is_mounted_tablet = [False] * tablet_count
         self.is_sync = [False] * tablet_count
 
-    def has_mounted_tablet(self):
-        return True in self.is_mounted_tablet
-
-    def has_unmounted_tablet(self):
-        return False in self.is_mounted_tablet
-
-    def is_mounted_async(self, tablet_index):
-        return self._is_mounted_async_impl(True, tablet_index)
-
-    def is_unmounted_async(self, tablet_index):
-        return self._is_mounted_async_impl(False, tablet_index)
-
-    def _is_mounted_async_impl(self, is_mount, tablet_index):
-        tablets = [tablet_index] if tablet_index else [tablet_index for tablet_index in range(self.tablet_count)]
+    def _is_relevant_tablet(self, tablet_index, is_mount, sync):
+        result = True
         if is_mount:
-            return True in [self.is_mounted_tablet[tablet_index] and not self.is_sync[tablet_index] for tablet_index in tablets]
+            result = result and self.is_mounted_tablet[tablet_index]
         else:
-            return True in [not self.is_mounted_tablet[tablet_index] and not self.is_sync[tablet_index] for tablet_index in tablets]
+            result = result and not self.is_mounted_tablet[tablet_index]
+
+        if sync:
+            result = result and self.is_sync[tablet_index]
+        else:
+            result = result and not self.is_sync[tablet_index]
+        return result
+
+    def has_mounted_tablet(self, sync=None):
+        if sync is None:
+            return True in self.is_mounted_tablet
+        else:
+            return True in [self._is_relevant_tablet(tablet_index, True, sync) for tablet_index in range(self.tablet_count)]
+
+    def has_unmounted_tablet(self, sync=None):
+        if sync is None:
+            return False in self.is_mounted_tablet
+        else:
+            return True in [self._is_relevant_tablet(tablet_index, False, sync) for tablet_index in range(self.tablet_count)]
+
+    def get_mounted_tablet_indexes(self, tablet_index, sync):
+        return self._get_mounted_tablet_indexes_impl(True, tablet_index, sync)
+
+    def get_unmounted_tablet_indexes(self, tablet_index, sync):
+        return self._get_mounted_tablet_indexes_impl(False, tablet_index, sync)
+
+    def _get_mounted_tablet_indexes_impl(self, is_mount, tablet_index, sync):
+        tablets = [tablet_index] if tablet_index else [tablet_index for tablet_index in range(self.tablet_count)]
+        return [tablet_index for tablet_index in tablets if self._is_relevant_tablet(tablet_index, is_mount, sync)]
 
     def mount(self, tablet_index, sync):
         self._mount_impl(True, tablet_index, sync)
@@ -55,12 +82,28 @@ class MountState:
         self._mount_impl(False, tablet_index, sync)
 
     def _mount_impl(self, is_mount, tablet_index, sync):
-        if not tablet_index:
+        if not tablet_index is not None:
             self.is_mounted_tablet = [is_mount] * self.tablet_count
             self.is_sync = [sync] * self.tablet_count
         else:
             self.is_mounted_tablet[tablet_index] = is_mount
             self.is_sync[tablet_index] = sync
+
+
+def mount_async_tablets(obj, tablet_index):
+    mounted_async_tablet_indexes = obj.mount_state.get_mounted_tablet_indexes(tablet_index, sync=False)
+    if mounted_async_tablet_indexes:
+        logger.info(f"Object {obj.path} was mounted async for tablets {mounted_async_tablet_indexes}, mounting with sync)")
+        for mounted_async_tablet_index in mounted_async_tablet_indexes:
+            obj.mount(mounted_async_tablet_index, sync=True)
+
+
+def unmount_async_tablets(obj, tablet_index):
+    unmounted_async_tablet_indexes = obj.mount_state.get_unmounted_tablet_indexes(tablet_index, sync=False)
+    if unmounted_async_tablet_indexes:
+        logger.info(f"Object {obj.path} was unmounted async for tablets {unmounted_async_tablet_indexes}, mounting with sync)")
+        for unmounted_async_tablet_index in unmounted_async_tablet_indexes:
+            obj.unmount(unmounted_async_tablet_index, sync=True)
 
 
 class Queue:
@@ -81,6 +124,7 @@ class Queue:
         attributes["dynamic"] = True
         attributes["enable_dynamic_store_read"] = True
         attributes["schema"] = [
+            {"name": "key", "type": "string"},
             {"name": "value", "type": "string", "max_inline_hunk_size": 512},
             {"name": "$cumulative_data_weight", "type": "int64"}
         ]
@@ -104,6 +148,7 @@ class Queue:
             "schema": [
                 {"name": "tablet_index", "type": "int64", "sort_order": "ascending"},
                 {"name": "row_index", "type": "int64", "sort_order": "ascending"},
+                {"name": "key", "type": "string"},
                 {"name": "value", "type": "string"},
             ]
         }
@@ -148,11 +193,9 @@ class Queue:
     def mount(self, tablet_index=None, sync=True):
         logger.info(f"Mounting queue {self.path} (tablet_index: {tablet_index}, sync: {sync})")
 
-        if self.mount_state.is_unmounted_async(tablet_index):
-            logger.info(f"Queue {self.path} was unmounted with sync=False, unmounting with sync=True")
-            self.unmount(tablet_index, sync=True)
+        unmount_async_tablets(self, tablet_index)
 
-        if tablet_index:
+        if tablet_index is not None:
             yt.mount_table(self.path, first_tablet_index=tablet_index, last_tablet_index=tablet_index, sync=sync)
         else:
             yt.mount_table(self.path, sync=sync)
@@ -162,11 +205,9 @@ class Queue:
     def unmount(self, tablet_index=None, sync=True):
         logger.info(f"Unmounting queue {self.path} (tablet_index: {tablet_index}, sync: {sync})")
 
-        if self.mount_state.is_mounted_async(tablet_index):
-            logger.info(f"Queue {self.path} was mounted with sync=False, mounting with sync=True")
-            self.mount(tablet_index, sync=True)
+        mount_async_tablets(self, tablet_index)
 
-        if tablet_index:
+        if tablet_index is not None:
             yt.unmount_table(self.path, first_tablet_index=tablet_index, last_tablet_index=tablet_index, sync=sync)
         else:
             yt.unmount_table(self.path, sync=sync)
@@ -181,18 +222,20 @@ class Queue:
         else:
             tablets = [tablet_index for tablet_index in range(self.tablet_count)]
 
+        logger.info(f"Rows will be written in tablets {tablets} in the queue {self.path}")
+
         if not tablets:
             logger.info(f"No mounted tablet in the queue {self.path}, do nothing")
             return
 
-        rows = [{"value": RSG.generate(1024), "$tablet_index": random.choice(tablets)} for _ in range(10)]
+        rows = [{"key": RSG.generate(2), "value": RSG.generate(1024), "$tablet_index": random.choice(tablets)} for _ in range(10)]
         data_rows = []
 
         new_written_row_count = [0] * self.tablet_count
         for row in rows:
             tablet_index = row["$tablet_index"]
             row_index = self.written_row_count[tablet_index] + new_written_row_count[tablet_index]
-            data_rows += [{"value": row["value"], "tablet_index": tablet_index, "row_index": row_index}]
+            data_rows += [{"key": row["key"], "value": row["value"], "tablet_index": tablet_index, "row_index": row_index}]
             new_written_row_count[row["$tablet_index"]] += 1
 
         def _insert_rows():
@@ -206,9 +249,9 @@ class Queue:
             self.written_row_count[tablet_index] += row_count
 
         def check_written():
-            tablet_infos = yt.get_tablet_infos(self.path, list(range(self.tablet_count)))["tablets"]
-            for tablet_index in range(self.tablet_count):
-                if tablet_infos[tablet_index]["total_row_count"] != self.written_row_count[tablet_index]:
+            tablet_infos = yt.get_tablet_infos(self.path, tablets)["tablets"]
+            for offset, tablet_index in enumerate(tablets):
+                if tablet_infos[offset]["total_row_count"] != self.written_row_count[tablet_index]:
                     return False
             return True
 
@@ -219,8 +262,12 @@ class Queue:
     def flush(self):
         logger.info(f"Flushing queue {self.path}")
         if self.mount_state.has_mounted_tablet():
-            yt.freeze_table(self.path, sync=True)
-            yt.unfreeze_table(self.path, sync=True)
+            mount_async_tablets(self, tablet_index=None)
+
+            mounted_tablet_indexes = self.mount_state.get_mounted_tablet_indexes(tablet_index=None, sync=True)
+            for tablet_index in mounted_tablet_indexes:
+                yt.freeze_table(self.path, sync=True, first_tablet_index=tablet_index, last_tablet_index=tablet_index)
+                yt.unfreeze_table(self.path, sync=True, first_tablet_index=tablet_index, last_tablet_index=tablet_index)
 
     def _get_expected_rows(self, tablet_index=None):
         where_expr = ""
@@ -229,7 +276,7 @@ class Queue:
 
         expected_rows = []
         while True:
-            rows = list(yt.select_rows(f"select row_index, value from [{self.data_path}] {where_expr} order by tablet_index, row_index offset {len(expected_rows)} limit 100"))
+            rows = list(yt.select_rows(f"select row_index, key, value from [{self.data_path}] {where_expr} order by tablet_index, row_index offset {len(expected_rows)} limit 100"))
             if len(rows) == 0:
                 break
             expected_rows += rows
@@ -259,38 +306,62 @@ class Queue:
                 if expected_row["value"] != actual_row["value"]:
                     raise YtError(f"Row with value '{expected_row["value"]}' was expected in the queue {self.path} in the tablet {tablet_index} but value '{actual_row["value"]}' was read")
 
+                if expected_row["key"] != actual_row["key"]:
+                    raise YtError(f"Row with key '{expected_row["key"]}' was expected in the queue {self.path} in the tablet {tablet_index} but key '{actual_row["key"]}' was read")
+
+    def _check_rows(self, expected_rows, actual_rows, table_path, rows_descr,):
+
+        if len(actual_rows) != len(expected_rows):
+            raise YtError(f"Data table {self.data_path} contains {len(expected_rows)} rows but {rows_descr} {table_path} contains {len(actual_rows)} rows")
+
+        for expected_row, actual_row in zip(expected_rows, actual_rows):
+            if expected_row["value"] != actual_row["value"]:
+                raise YtError(f"Row with value '{expected_row["value"]}' was expected in the {rows_descr} {table_path} but value '{actual_row["value"]}' was read")
+
+            if expected_row["key"] != actual_row["key"]:
+                raise YtError(f"Row with key '{expected_row["key"]}' was expected in the {rows_descr} {table_path} but key '{actual_row["key"]}' was read")
+
     def run_map(self):
         logger.info(f"Running map on queue {self.path}")
         map_result_path = self.path + ".map_result"
+
         yt.run_map(simple_mapper, source_table=self.path, destination_table=map_result_path, spec={"job_io": {"control_attributes": {"enable_row_index": True, "enable_tablet_index": True}}})
+
         yt.run_sort(map_result_path, sort_by=["tablet_index", "row_index"])
         map_result_rows = list(yt.read_table(map_result_path))
 
         expected_rows = self._get_expected_rows()
+        self._check_rows(expected_rows, map_result_rows, map_result_path, "map result")
 
-        if len(map_result_rows) != len(expected_rows):
-            raise YtError(f"Data table {self.data_path} contains {len(expected_rows)} rows but map result {map_result_path} contains {len(map_result_rows)} rows")
-
-        for expected_row, actual_row in zip(expected_rows, map_result_rows):
-            if expected_row["value"] != actual_row["value"]:
-                raise YtError(f"Row with value '{expected_row["value"]}' was expected in the map result {map_result_path} but value '{actual_row["value"]}' was read")
 
     def run_sort(self):
         logger.info(f"Running sort on queue {self.path}")
         sort_result_path = self.path + ".sort_result"
-        yt.run_sort(self.path, sort_result_path, sort_by=["value"])
+
+        yt.run_sort(self.path, sort_result_path, sort_by=["key", "value"])
+
         sort_result_rows = list(yt.read_table(sort_result_path))
 
         expected_rows = self._get_expected_rows()
-        expected_rows = sorted(expected_rows, key=lambda x: (x["value"]))
+        expected_rows = sorted(expected_rows, key=lambda x: (x["key"], x["value"]))
 
-        if len(sort_result_rows) != len(expected_rows):
-            raise YtError(f"Data table {self.data_path} contains {len(expected_rows)} rows but sort result {sort_result_path} contains {len(sort_result_rows)} rows")
+        self._check_rows(expected_rows, sort_result_rows, sort_result_path, "sort result")
 
-        for expected_row, actual_row in zip(expected_rows, sort_result_rows):
-            if expected_row["value"] != actual_row["value"]:
-                raise YtError(f"Row with value '{expected_row["value"]}' was expected in the sort result {sort_result_path} but value '{actual_row["value"]}' was read")
 
+    def run_map_reduce(self):
+        logger.info(f"Running map-reduce on queue {self.path}")
+        map_reduce_result_path = self.path + ".map_reduce_result"
+
+        yt.run_map_reduce(mapper=None, reducer=simple_reducer, reduce_by=["key"], sort_by=["key"], source_table=self.path, destination_table=map_reduce_result_path)
+
+        yt.run_sort(map_reduce_result_path, sort_by=["key", "value"])
+
+        map_reduce_result_rows = list(yt.read_table(map_reduce_result_path))
+
+        expected_rows = self._get_expected_rows()
+        expected_rows = sorted(expected_rows, key=lambda x: (x["key"], x["value"]))
+
+        self._check_rows(expected_rows, map_reduce_result_rows, map_reduce_result_path, "map-reduce result")
 
 
 class HunkStorage:
@@ -325,11 +396,9 @@ class HunkStorage:
     def mount(self, tablet_index=None, sync=True):
         logger.info(f"Mounting hunk storage {self.path} (tablet_index: {tablet_index}, sync: {sync})")
 
-        if self.mount_state.is_unmounted_async(tablet_index):
-            logger.info(f"Hunk storage {self.path} was unmounted with sync=False, unmounting with sync=True")
-            self.unmount(tablet_index, sync=True)
+        unmount_async_tablets(self, tablet_index)
 
-        if tablet_index:
+        if tablet_index is not None:
             yt.mount_table(self.path, first_tablet_index=tablet_index, last_tablet_index=tablet_index, sync=sync)
         else:
             yt.mount_table(self.path, sync=sync)
@@ -339,11 +408,9 @@ class HunkStorage:
     def unmount(self, tablet_index=None, sync=True):
         logger.info(f"Unmounting hunk storage {self.path} (tablet_index: {tablet_index}, sync: {sync})")
 
-        if self.mount_state.is_mounted_async(tablet_index):
-            logger.info(f"Hunk storage {self.path} was mounted with sync=False, mounting with sync=True")
-            self.mount(tablet_index, sync=True)
+        mount_async_tablets(self, tablet_index)
 
-        if tablet_index:
+        if tablet_index is not None:
             yt.unmount_table(self.path, first_tablet_index=tablet_index, last_tablet_index=tablet_index, sync=sync)
         else:
             yt.unmount_table(self.path, sync=sync)
@@ -376,7 +443,7 @@ def unlink(queue, hunk_storage):
 
 def is_unmounted_error(err):
     err_str = str(err)
-    unmounted_substrings = ["No such tablet", "has no mounted tablets", "Unknown cell 0-0-0-0", "is not known"]
+    unmounted_substrings = ["No such tablet", "has no mounted tablets", "Unknown cell 0-0-0-0", "is not known", 'while it is in "unmounted" state']
     return err.is_tablet_not_mounted() or any(s in err_str for s in unmounted_substrings)
 
 
@@ -457,8 +524,16 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
                     hunk_storage.mount(tablet_index=tablet_index, sync=False)
 
 
-    def _check_error(queue, err):
-        unmounted = queue.mount_state.has_unmounted_tablet() or (queue.hunk_storage_name and not hunk_storages[queue.hunk_storage_name].mount_state.has_unmounted_tablet())
+    def _check_write_error(queue, err):
+        unmounted = queue.mount_state.has_unmounted_tablet() or (queue.hunk_storage_name and not hunk_storages[queue.hunk_storage_name].mount_state.has_mounted_tablet(sync=True))
+        if unmounted and is_unmounted_error(err):
+            logger.info(f"Error was expected, queue or hunk_storage has unmounted tablet")
+        else:
+            raise err
+
+
+    def _check_read_error(queue, err):
+        unmounted = queue.mount_state.has_unmounted_tablet() or (queue.hunk_storage_name and hunk_storages[queue.hunk_storage_name].mount_state.has_unmounted_tablet())
         if unmounted and is_unmounted_error(err):
             logger.info(f"Error was expected, queue or hunk_storage has unmounted tablet")
         else:
@@ -472,7 +547,7 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
             try:
                 queue.write(only_in_mounted=False)
             except YtError as err:
-                _check_error(queue, err)
+                _check_write_error(queue, err)
 
 
     def _read():
@@ -480,7 +555,7 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
             try:
                 queue.read_and_check()
             except YtError as err:
-                _check_error(queue, err)
+                _check_read_error(queue, err)
 
 
     def _map():
@@ -488,7 +563,14 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
             try:
                 queue.run_map()
             except YtError as err:
-                _check_error(queue, err)
+                _check_read_error(queue, err)
+
+    def _map_reduce():
+        for queue in queues.values():
+            try:
+                queue.run_map_reduce()
+            except YtError as err:
+                _check_read_error(queue, err)
 
 
     def _sort():
@@ -496,7 +578,7 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
             try:
                 queue.run_sort()
             except YtError as err:
-                _check_error(queue, err)
+                _check_read_error(queue, err)
 
 
     def _flush():
@@ -595,6 +677,7 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
             _flush()
 
             _map()
+            _map_reduce()
             _sort()
 
             _read()
