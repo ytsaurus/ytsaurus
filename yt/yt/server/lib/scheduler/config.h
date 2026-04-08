@@ -525,6 +525,7 @@ struct TStrategyTreeConfig
     bool UsePrecommitForPreemption;
 
     TGpuSchedulingPolicyConfigPtr GpuSchedulingPolicy;
+    EPolicyKind PolicyKind;
 
     bool EnableAbsoluteFairShareStarvationTolerance;
     bool ConsiderAllocationOnFairShareBoundPreemptible;

@@ -591,19 +591,10 @@ public:
     void RegisterAllocationsFromRevivedOperation(
         TPoolTreeOperationElement* element,
         std::vector<TAllocationPtr> allocations) const override;
-    bool ProcessAllocationUpdate(
+    TProcessAllocationUpdateResult ProcessAllocationUpdate(
         const TPoolTreeSnapshotPtr& treeSnapshot,
         TPoolTreeOperationElement* element,
-        TAllocationId allocationId,
-        const TJobResources& allocationResources,
-        bool resetPreemptibleProgress,
-        const std::optional<std::string>& allocationDataCenter,
-        const std::optional<std::string>& allocationInfinibandCluster,
-        std::optional<EAbortReason>* maybeAbortReason) const override;
-    bool ProcessFinishedAllocation(
-        const TPoolTreeSnapshotPtr& treeSnapshot,
-        TPoolTreeOperationElement* element,
-        TAllocationId allocationId) const override;
+        const TAllocationUpdate& allocationUpdate) override;
 
     //! Diagnostics.
     void BuildSchedulingAttributesStringForNode(

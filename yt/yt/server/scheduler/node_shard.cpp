@@ -1541,12 +1541,11 @@ void TNodeShard::UpdateAllocationPreemptibleProgressStartTime(const TAllocationP
     allocation->SetPreemptibleProgressStartTime(newPreemptibleProgressStartTime);
 
     if (auto* operationState = FindOperationState(allocation->GetOperationId())) {
-        // We do not consider exact preemptible progress start time in strategy.
         YT_LOG_DEBUG("Preemptible progress reset (AllocationId: %v)", allocation->GetId());
         auto& allocationToSubmitToStrategy = AddAllocationUpdateToSubmitToStrategy(
             allocation,
             operationState);
-        allocationToSubmitToStrategy.ResetPreemptibleProgress = true;
+        allocationToSubmitToStrategy.PreemptibleProgressStartTime = newPreemptibleProgressStartTime;
     }
 }
 
@@ -1577,6 +1576,7 @@ NStrategy::TAllocationUpdate& TNodeShard::AddAllocationUpdateToSubmitToStrategy(
 
     if (inserted) {
         allocationToSubmitToStrategy = NStrategy::TAllocationUpdate{
+            .NodeId = allocation->GetNode()->GetId(),
             .OperationId = allocation->GetOperationId(),
             .AllocationId = allocation->GetId(),
             .TreeId = allocation->GetTreeId(),
@@ -2380,10 +2380,13 @@ void TNodeShard::OnAllocationAborted(
 void TNodeShard::SubmitAllocationsToStrategy()
 {
     YT_PROFILE_TIMING("/scheduler/strategy_job_processing_time") {
-        if (!AllocationsToSubmitToStrategy_.empty()) {
+        THashMap<TAllocationId, NStrategy::TAllocationUpdate> allocationsToSubmit;
+        std::swap(allocationsToSubmit, AllocationsToSubmitToStrategy_);
+
+        if (!allocationsToSubmit.empty()) {
             THashSet<TAllocationId> allocationsToPostpone;
             THashMap<TAllocationId, EAbortReason> allocationsToAbort;
-            auto allocationUpdates = GetValues(AllocationsToSubmitToStrategy_);
+            auto allocationUpdates = GetValues(allocationsToSubmit);
             ManagerHost_->GetStrategy()->ProcessAllocationUpdates(
                 allocationUpdates,
                 &allocationsToPostpone,
@@ -2395,21 +2398,18 @@ void TNodeShard::SubmitAllocationsToStrategy()
                 AbortAllocation(allocationId, error, abortReason);
             }
 
-            // TODO(eshcherbin): Remove |allocationsToRemove| and inline allocation removal in this loop?
-            std::vector<std::pair<TOperationId, TAllocationId>> allocationsToRemove;
-            for (const auto& allocation : allocationUpdates) {
-                if (!allocationsToPostpone.contains(allocation.AllocationId)) {
-                    allocationsToRemove.emplace_back(allocation.OperationId, allocation.AllocationId);
-                }
+            for (const auto& allocationId : allocationsToPostpone) {
+                AllocationsToSubmitToStrategy_.try_emplace(allocationId, std::move(allocationsToSubmit[allocationId]));
             }
 
-            for (const auto& [operationId, allocationId] : allocationsToRemove) {
-                auto* operationState = FindOperationState(operationId);
-                if (operationState) {
-                    operationState->AllocationsToSubmitToStrategy.erase(allocationId);
+            for (const auto& allocation : allocationUpdates) {
+                if (allocationsToPostpone.contains(allocation.AllocationId)) {
+                    continue;
                 }
 
-                EraseOrCrash(AllocationsToSubmitToStrategy_, allocationId);
+                if (auto* operationState = FindOperationState(allocation.OperationId)) {
+                    operationState->AllocationsToSubmitToStrategy.erase(allocation.AllocationId);
+                }
             }
         }
         SubmitToStrategyAllocationCount_.store(size(AllocationsToSubmitToStrategy_));

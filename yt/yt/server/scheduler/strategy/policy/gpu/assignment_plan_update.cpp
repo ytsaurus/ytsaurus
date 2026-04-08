@@ -735,11 +735,19 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::PreemptAllOperationAssignments(
     }
 }
 
-// TODO(eshcherbin): Support non-empty assignments.
 NDetail::TPreemptionPenalty TGpuAllocationAssignmentPlanUpdateExecutor::GetAssignmentPreemptionPenalty(
     const TAssignmentPtr& assignment) const
 {
-    return static_cast<NDetail::TPreemptionPenalty>(Config_->MinAssignmentPreemptibleDuration.Seconds()) *
+    auto duration = [&] {
+        if (!assignment->PreemptibleProgressStartTime) {
+            return Config_->MinAssignmentPreemptibleDuration;
+        }
+        return std::max(
+            Now_ - *assignment->PreemptibleProgressStartTime,
+            Config_->MinAssignmentPreemptibleDuration);
+    }();
+
+    return static_cast<NDetail::TPreemptionPenalty>(duration.Seconds()) *
         assignment->ResourceUsage.GetGpu();
 }
 
@@ -1100,7 +1108,8 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::TPreemptiveAllocationGroupPlann
         Host_->Context_->PreemptAssignment(
             preemptibleAssignment,
             PreemptionReason_,
-            PreemptionDescription_);
+            PreemptionDescription_,
+            Operation_->GetId());
 
         ++PreemptedAssignmentCount_;
     }

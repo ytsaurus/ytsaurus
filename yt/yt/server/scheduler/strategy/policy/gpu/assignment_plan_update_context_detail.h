@@ -33,7 +33,10 @@ public:
     void PreemptAssignment(
         const TAssignmentPtr& assignment,
         EAllocationPreemptionReason preemptionReason,
-        std::string preemptionDescription) const;
+        const std::string& preemptionDescription,
+        std::optional<TOperationId> preemptedForOperationId = {}) const;
+
+    void RemoveAssignment(const TAssignmentPtr& assignment, bool strict = true) const;
 
 private:
     const NLogging::TLogger Logger;
@@ -50,7 +53,8 @@ public:
         const TOperationMap& operations,
         const TNodeMap& nodes,
         const TPoolTreeSnapshotPtr& treeSnapshot,
-        const TAssignmentHandler& planner);
+        const TAssignmentHandler& planner,
+        EGpuSchedulingPolicyMode policyMode = EGpuSchedulingPolicyMode::DryRun);
 
     const TOperationMap& Operations() const override;
     const TNodeMap& Nodes() const override;
@@ -66,7 +70,8 @@ public:
     void PreemptAssignment(
         const TAssignmentPtr& assignment,
         EAllocationPreemptionReason preemptionReason,
-        std::string preemptionDescription) override;
+        const std::string& preemptionDescription,
+        std::optional<TOperationId> preemptedForOperationId = {}) override;
 
     TJobResources GetAvailableOperationLimits(const TOperationPtr& operation) const override;
     std::optional<TString> FindLimitViolatingParentId(const TPoolTreeElement* element) const;
@@ -88,6 +93,8 @@ private:
     const TPoolTreeSnapshotPtr TreeSnapshot_;
 
     const TAssignmentHandler& AssignmentHandler_;
+
+    const EGpuSchedulingPolicyMode PolicyMode_;
 
     TDynamicAttributesList AttributesList_;
 

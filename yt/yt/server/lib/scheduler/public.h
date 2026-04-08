@@ -180,10 +180,16 @@ DEFINE_ENUM(EGpuSchedulingModuleType,
     (InfinibandCluster)
 );
 
+DEFINE_ENUM(EPolicyKind,
+    (Classic)
+    (Gpu)
+);
+
 // NB(eshcherbin): Temporary.
 DEFINE_ENUM(EGpuSchedulingPolicyMode,
     (Noop)
     (DryRun)
+    (Allocating)
 );
 
 // TODO(eshcherbin): Scheduling segments algorithm will be deprecated.

@@ -2,6 +2,12 @@
 
 #include "helpers.h"
 
+#include "pool_tree_snapshot_state.h"
+
+#include <yt/yt/server/scheduler/strategy/policy/pool_tree_snapshot_state.h>
+
+#include <yt/yt/server/lib/scheduler/helpers.h>
+
 namespace NYT::NScheduler::NStrategy::NPolicy::NGpu {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -21,6 +27,28 @@ std::optional<std::string> GetNodeModule(
         case ESchedulingSegmentModuleType::InfinibandCluster:
             return nodeInfinibandCluster;
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TAllocationInfoMap CollectRunningAllocationInfos(
+    const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
+    const TPoolTreeSnapshotPtr& treeSnapshot)
+{
+    TAllocationInfoMap runningAllocationInfos;
+
+    runningAllocationInfos.reserve(std::size(schedulingHeartbeatContext->RunningAllocations()));
+
+    for (auto allocation : schedulingHeartbeatContext->RunningAllocations()) {
+        runningAllocationInfos.emplace(
+            allocation->GetId(),
+            TAllocationInfo{
+                .Allocation = allocation,
+                .OperationElement = treeSnapshot->FindEnabledOperationElement(allocation->GetOperationId()),
+            });
+    }
+
+    return runningAllocationInfos;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -81,7 +109,7 @@ void TSchedulingPolicy::RegisterNode(TNodeId nodeId, const std::string& nodeAddr
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-    EmplaceOrCrash(Nodes_, nodeId, New<TNode>(nodeAddress));
+    EmplaceOrCrash(Nodes_, nodeId, New<TNode>(nodeId, nodeAddress));
 
     YT_LOG_DEBUG("Node registered (NodeId: %v, NodeAddress: %v)",
         nodeId,
@@ -108,69 +136,23 @@ void TSchedulingPolicy::UnregisterNode(TNodeId nodeId)
         nodeAddress);
 }
 
-void TSchedulingPolicy::UpdateNodeDescriptor(TNodeId nodeId, TExecNodeDescriptorPtr descriptor)
-{
-    YT_ASSERT_THREAD_AFFINITY(ControlThread);
-
-    TForbidContextSwitchGuard contextSwitchGuard;
-
-    YT_VERIFY(nodeId == descriptor->Id);
-
-    auto nodeIt = Nodes_.find(nodeId);
-    if (nodeIt == Nodes_.end()) {
-        YT_LOG_DEBUG("Can't update node descriptor because node is missing (NodeId: %v)", nodeId);
-        return;
-    }
-    const auto& node = nodeIt->second;
-
-    YT_VERIFY(node->Address() == descriptor->GetDefaultAddress());
-
-    bool wasSchedulable = node->IsSchedulable();
-
-    node->SetDescriptor(std::move(descriptor));
-
-    ReviveNodeState(nodeId, node);
-
-    // TODO(eshcherbin): Rework how modules are configured.
-    auto oldModule = node->SchedulingModule();
-    node->SchedulingModule() = GetNodeModule(
-        node->Descriptor()->DataCenter,
-        node->Descriptor()->InfinibandCluster,
-        Config_->ModuleType);
-
-    if (!wasSchedulable && node->IsSchedulable()) {
-        YT_LOG_DEBUG("Node has become schedulable (NodeAddress: %v, SchedulingModule: %v, ResourceLimits: %v)",
-            node->Address(),
-            node->SchedulingModule(),
-            node->Descriptor()->ResourceLimits);
-    } else if (!node->IsSchedulable() && wasSchedulable) {
-        YT_LOG_DEBUG("Node has become unschedulable (NodeAddress: %v, SchedulingModule: %v)",
-            node->Descriptor()->GetDefaultAddress(),
-            node->SchedulingModule());
-
-        PreemptAllNodeAssignments(
-            node,
-            EAllocationPreemptionReason::NodeUnschedulable,
-            "Node is unschedulable");
-    } else if (oldModule && oldModule != node->SchedulingModule()) {
-        YT_LOG_DEBUG("Node's scheduling module has changed (NodeAddress: %v, OldModule: %v, NewModule: %v)",
-            node->Descriptor()->GetDefaultAddress(),
-            oldModule,
-            node->SchedulingModule());
-
-        PreemptAllNodeAssignments(
-            node,
-            EAllocationPreemptionReason::NodeUnschedulable,
-            "Node's scheduling module has changed");
-    }
-}
-
 void TSchedulingPolicy::ProcessSchedulingHeartbeat(
-    const ISchedulingHeartbeatContextPtr& /*schedulingHeartbeatContext*/,
-    const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
-    bool /*skipScheduleAllocations*/)
+    const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
+    const TPoolTreeSnapshotPtr& treeSnapshot,
+    bool skipScheduleAllocations)
 {
-    YT_UNIMPLEMENTED();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    auto processSchedulingHeartbeatFuture = BIND(
+        &TSchedulingPolicy::DoProcessSchedulingHeartbeat,
+        MakeWeak(this),
+        schedulingHeartbeatContext,
+        treeSnapshot,
+        skipScheduleAllocations)
+        .AsyncVia(StrategyHost_->GetControlInvoker(EControlQueue::Strategy))
+        .Run();
+
+    Y_UNUSED(WaitFor(processSchedulingHeartbeatFuture));
 }
 
 void TSchedulingPolicy::RegisterOperation(const TPoolTreeOperationElement* element)
@@ -249,9 +231,22 @@ TError TSchedulingPolicy::OnOperationMaterialized(const TPoolTreeOperationElemen
     return {};
 }
 
-TError TSchedulingPolicy::CheckOperationSchedulingInSeveralTreesAllowed(const TPoolTreeOperationElement* /*element*/) const
+TError TSchedulingPolicy::CheckOperationSchedulingInSeveralTreesAllowed(const TPoolTreeOperationElement* element) const
 {
-    YT_UNIMPLEMENTED();
+    auto operation = GetOrDefault(EnabledOperations_, element->GetOperationId());
+
+    if (!operation) {
+        return {};
+    }
+
+    if (operation->IsFullHostModuleBound() && !element->IsSingleAllocationVanillaOperation()) {
+        // NB: This error will be propagated to operation's failure only if operation is launched in several trees.
+        return TError(
+            "Scheduling in several trees is forbidden for operations in module-aware scheduling segments, "
+            "specify a single tree or use the \"schedule_in_single_tree\" spec option");
+    }
+
+    return {};
 }
 
 void TSchedulingPolicy::EnableOperation(const TPoolTreeOperationElement* element)
@@ -291,44 +286,62 @@ void TSchedulingPolicy::DisableOperation(TPoolTreeOperationElement* element, boo
     YT_LOG_DEBUG("Operation disabled (OperationId: %v)", operation->GetId());
 }
 
+// TODO(YT-27592): Implement this in YT-27592.
 void TSchedulingPolicy::RegisterAllocationsFromRevivedOperation(
     TPoolTreeOperationElement* /*element*/,
     std::vector<TAllocationPtr> /*allocations*/) const
+{ }
+
+TProcessAllocationUpdateResult TSchedulingPolicy::ProcessAllocationUpdate(
+    const TPoolTreeSnapshotPtr& treeSnapshot,
+    TPoolTreeOperationElement* element,
+    const TAllocationUpdate& allocationUpdate)
 {
-    YT_UNIMPLEMENTED();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    YT_VERIFY(Config_->Mode == EGpuSchedulingPolicyMode::Allocating);
+
+    auto processAllocationUpdate = BIND(
+        &TSchedulingPolicy::DoProcessAllocationUpdate,
+        MakeStrong(this),
+        treeSnapshot,
+        MakeStrong(element),
+        allocationUpdate)
+        .AsyncVia(StrategyHost_->GetControlInvoker(EControlQueue::Strategy))
+        .Run();
+
+    return WaitFor(processAllocationUpdate)
+        .ValueOrThrow();
 }
 
-bool TSchedulingPolicy::ProcessAllocationUpdate(
-    const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
-    TPoolTreeOperationElement* /*element*/,
-    TAllocationId /*allocationId*/,
-    const TJobResources& /*allocationResources*/,
-    bool /*resetPreemptibleProgress*/,
-    const std::optional<std::string>& /*allocationDataCenter*/,
-    const std::optional<std::string>& /*allocationInfinibandCluster*/,
-    std::optional<EAbortReason>* /*maybeAbortReason*/) const
-{
-    YT_UNIMPLEMENTED();
-}
-
-bool TSchedulingPolicy::ProcessFinishedAllocation(
-    const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
-    TPoolTreeOperationElement* /*element*/,
-    TAllocationId /*allocationId*/) const
-{
-    YT_UNIMPLEMENTED();
-}
-
+// TODO(YT-27647): Save node info by NodeShards and don't switch to control here.
 void TSchedulingPolicy::BuildSchedulingAttributesStringForNode(
-    TNodeId /*nodeId*/,
-    TDelimitedStringBuilderWrapper& /*delimitedBuilder*/) const
+    TNodeId nodeId,
+    TDelimitedStringBuilderWrapper& delimitedBuilder) const
 {
-    YT_UNIMPLEMENTED();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    Y_UNUSED(WaitFor(BIND(
+        &TSchedulingPolicy::DoBuildSchedulingAttributesStringForNode,
+        MakeWeak(this),
+        nodeId,
+        &delimitedBuilder)
+        .AsyncVia(StrategyHost_->GetControlInvoker(EControlQueue::Strategy))
+        .Run()));
 }
 
-void TSchedulingPolicy::BuildSchedulingAttributesForNode(TNodeId /*nodeId*/, TFluentMap /*fluent*/) const
+// TODO(YT-27647): Save node info by NodeShards and don't switch to control here.
+void TSchedulingPolicy::BuildSchedulingAttributesForNode(TNodeId nodeId, TFluentMap fluent) const
 {
-    YT_UNIMPLEMENTED();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    Y_UNUSED(WaitFor(BIND(
+        &TSchedulingPolicy::DoBuildSchedulingAttributesForNode,
+        MakeWeak(this),
+        nodeId,
+        fluent)
+        .AsyncVia(StrategyHost_->GetControlInvoker(EControlQueue::Strategy))
+        .Run()));
 }
 
 void TSchedulingPolicy::BuildSchedulingAttributesStringForOngoingAllocations(
@@ -336,17 +349,13 @@ void TSchedulingPolicy::BuildSchedulingAttributesStringForOngoingAllocations(
     const std::vector<TAllocationPtr>& /*allocations*/,
     TInstant /*now*/,
     TDelimitedStringBuilderWrapper& /*delimitedBuilder*/) const
-{
-    YT_UNIMPLEMENTED();
-}
+{ }
 
 void TSchedulingPolicy::BuildElementLoggingStringAttributes(
     const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
     const TPoolTreeElement* /*element*/,
     TDelimitedStringBuilderWrapper& /*delimitedBuilder*/) const
-{
-    YT_UNIMPLEMENTED();
-}
+{ }
 
 void TSchedulingPolicy::PopulateOrchidService(const TCompositeMapServicePtr& orchidService) const
 {
@@ -380,9 +389,7 @@ void TSchedulingPolicy::ProfileOperation(
     const TPoolTreeOperationElement* /*element*/,
     const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
     NProfiling::ISensorWriter* /*writer*/) const
-{
-    YT_UNIMPLEMENTED();
-}
+{ }
 
 TPostUpdateContextPtr TSchedulingPolicy::CreatePostUpdateContext(TPoolTreeRootElement* /*rootElement*/)
 {
@@ -396,7 +403,7 @@ void TSchedulingPolicy::PostUpdate(
 
 TPoolTreeSnapshotStatePtr TSchedulingPolicy::CreateSnapshotState(TPostUpdateContextPtr* /*postUpdateContext*/)
 {
-    return nullptr;
+    return New<TPoolTreeSnapshotStateImpl>();
 }
 
 void TSchedulingPolicy::OnResourceUsageSnapshotUpdate(
@@ -458,9 +465,68 @@ INodePtr TSchedulingPolicy::BuildPersistentState() const
     return ConvertToNode(persistentState);
 }
 
+void TSchedulingPolicy::UpdateNodeDescriptor(const TNodePtr& node, TExecNodeDescriptorPtr descriptor)
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    TForbidContextSwitchGuard contextSwitchGuard;
+
+    YT_VERIFY(node->GetId() == descriptor->Id);
+
+    YT_LOG_ALERT_UNLESS(
+        node->Address() == descriptor->GetDefaultAddress(),
+        "Node address differs from descriptor default address "
+        "(NodeId: %v, Address: %v, DefaultAddress: %v)",
+        node->GetId(),
+        node->Address(),
+        descriptor->GetDefaultAddress());
+
+    bool wasSchedulable = node->IsSchedulable();
+
+    node->SetDescriptor(std::move(descriptor));
+
+    ReviveNodeState(node);
+
+    // TODO(eshcherbin): Rework how modules are configured.
+    auto oldModule = node->SchedulingModule();
+    node->SchedulingModule() = GetNodeModule(
+        node->Descriptor()->DataCenter,
+        node->Descriptor()->InfinibandCluster,
+        Config_->ModuleType);
+
+    if (!wasSchedulable && node->IsSchedulable()) {
+        YT_LOG_DEBUG("Node has become schedulable (NodeAddress: %v, SchedulingModule: %v, ResourceLimits: %v)",
+            node->Address(),
+            node->SchedulingModule(),
+            node->Descriptor()->ResourceLimits);
+    } else if (!node->IsSchedulable() && wasSchedulable) {
+        YT_LOG_DEBUG("Node has become unschedulable (NodeAddress: %v, SchedulingModule: %v)",
+            node->Descriptor()->GetDefaultAddress(),
+            node->SchedulingModule());
+
+        PreemptAllNodeAssignments(
+            node,
+            EAllocationPreemptionReason::NodeUnschedulable,
+            "Node is unschedulable");
+    } else if (oldModule && oldModule != node->SchedulingModule()) {
+        YT_LOG_DEBUG("Node's scheduling module has changed (NodeAddress: %v, OldModule: %v, NewModule: %v)",
+            node->Descriptor()->GetDefaultAddress(),
+            oldModule,
+            node->SchedulingModule());
+
+        PreemptAllNodeAssignments(
+            node,
+            EAllocationPreemptionReason::NodeUnschedulable,
+            "Node's scheduling module has changed");
+    }
+}
+
 void TSchedulingPolicy::UpdateAssignmentPlan()
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&AssignmentPlanUpdateLock_))
+        .ValueOrThrow();
 
     TForbidContextSwitchGuard contextSwitchGuard;
 
@@ -489,7 +555,8 @@ void TSchedulingPolicy::UpdateAssignmentPlan()
         EnabledOperations_,
         Nodes_,
         treeSnapshot,
-        AssignmentHandler_);
+        AssignmentHandler_,
+        Config_->Mode);
 
     updateContext.UpdatePreemptionStatuses();
     updateContext.FillOperationUsage();
@@ -549,9 +616,14 @@ void TSchedulingPolicy::PreemptAssignment(
     AssignmentHandler_.PreemptAssignment(assignment, preemptionReason, preemptionDescription);
 }
 
-void TSchedulingPolicy::ReviveNodeState(TNodeId nodeId, const TNodePtr& node)
+void TSchedulingPolicy::RemoveAssignment(const TAssignmentPtr& assignment, bool strict)
 {
-    auto maybeState = FindInitialNodePersistentState(nodeId);
+    AssignmentHandler_.RemoveAssignment(assignment, strict);
+}
+
+void TSchedulingPolicy::ReviveNodeState(const TNodePtr& node)
+{
+    auto maybeState = FindInitialNodePersistentState(node->GetId());
     if (!maybeState) {
         return;
     }
@@ -563,7 +635,7 @@ void TSchedulingPolicy::ReviveNodeState(TNodeId nodeId, const TNodePtr& node)
     YT_LOG_DEBUG(
         "Node state revived "
         "(NodeId: %v, NodeAddress: %v, SchedulingModule: %v)",
-        nodeId,
+        node->GetId(),
         node->Address(),
         node->SchedulingModule());
 }
@@ -741,6 +813,635 @@ void TSchedulingPolicy::ProfileAssignmentPlanUpdating(const TGpuPlanUpdateStatis
     ProfilingCounters_.FullHostModuleBoundOperations.Update(fullHostModuleBoundOperations);
 }
 
+TLogger TSchedulingPolicy::GetNodeLogger(const TExecNodeDescriptorPtr& nodeDescriptor)
+{
+    return Logger.WithTag(
+        "NodeId: %v, NodeAddress: %v",
+        nodeDescriptor->Id,
+        nodeDescriptor->GetDefaultAddress());
+}
+
+void TSchedulingPolicy::DoProcessSchedulingHeartbeat(
+    const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
+    const TPoolTreeSnapshotPtr& treeSnapshot,
+    bool skipScheduleAllocations)
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    auto guard = WaitFor(TAsyncLockReaderGuard::Acquire(&AssignmentPlanUpdateLock_))
+        .ValueOrThrow();
+
+    const auto& nodeDescriptor = schedulingHeartbeatContext->GetNodeDescriptor();
+    const auto Logger = GetNodeLogger(nodeDescriptor);
+
+    auto node = GetOrDefault(Nodes_, nodeDescriptor->Id);
+
+    if (!node) {
+        YT_LOG_WARNING("Skipping scheduling heartbeat because node is not registered");
+        return;
+    }
+
+    UpdateNodeDescriptor(node, nodeDescriptor);
+
+    if (Config_->Mode == EGpuSchedulingPolicyMode::DryRun) {
+        return;
+    }
+
+    PreemptAllocations(node, schedulingHeartbeatContext, treeSnapshot);
+
+    if (!skipScheduleAllocations && node->IsSchedulable()) {
+        ScheduleAllocations(node, schedulingHeartbeatContext, treeSnapshot);
+    }
+}
+
+void TSchedulingPolicy::PreemptAllocations(
+    const TNodePtr& node,
+    const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
+    const TPoolTreeSnapshotPtr& treeSnapshot)
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    const auto Logger = GetNodeLogger(node->Descriptor());
+
+    auto runningAllocationInfos = CollectRunningAllocationInfos(schedulingHeartbeatContext, treeSnapshot);
+
+    THashSet<TAllocationId> preemptedAllocations;
+    for (const auto& [allocationId, preemptionInfo] : node->AllocationIdToPreemptionInfo()) {
+        auto it = runningAllocationInfos.find(allocationId);
+        if (it == runningAllocationInfos.end()) {
+            YT_LOG_DEBUG("No running allocation to preempt (AllocationId: %v)", allocationId);
+            continue;
+        }
+
+        const auto& [runningAllocation, operationElement] = it->second;
+        if (!operationElement) {
+            YT_LOG_WARNING("Dangling allocation found (AllocationId: %v)", allocationId);
+            continue;
+        }
+
+        runningAllocation->SetPreemptionReason(preemptionInfo.Description);
+        if (preemptionInfo.PreemptedForOperationId) {
+            runningAllocation->SetPreemptedFor(TPreemptedFor{.OperationId = *preemptionInfo.PreemptedForOperationId});
+        }
+
+        PreemptAllocation(
+            runningAllocation,
+            operationElement,
+            schedulingHeartbeatContext,
+            preemptionInfo.Reason,
+            preemptionInfo.PreemptedResources);
+
+        runningAllocationInfos.erase(it);
+        InsertOrCrash(preemptedAllocations, allocationId);
+    }
+
+    for (const auto& allocationId : preemptedAllocations) {
+        node->PreemptAllocation(allocationId);
+    }
+
+    for (const auto& [allocationId, allocationInfo] : runningAllocationInfos) {
+        auto assignment = GetOrDefault(node->AllocationIdToAssignment(), allocationId);
+        if (assignment) {
+            continue;
+        }
+
+        if (node->PreemptedAllocations().contains(allocationId)) {
+            continue;
+        }
+
+        const auto& [runningAllocation, operationElement] = allocationInfo;
+
+        if (!operationElement) {
+            YT_LOG_WARNING("Dangling allocation found (AllocationId: %v)", allocationId);
+            continue;
+        }
+
+        YT_LOG_WARNING("Found unexpected allocation (OperationId: %v, AllocationId: %v)",
+            runningAllocation->GetOperationId(),
+            runningAllocation->GetId());
+
+        PreemptAllocation(
+            runningAllocation,
+            operationElement,
+            schedulingHeartbeatContext,
+            EAllocationPreemptionReason::UnexpectedAllocation,
+            runningAllocation->ResourceUsage());
+    }
+}
+
+void TSchedulingPolicy::ScheduleAllocations(
+    const TNodePtr& node,
+    const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
+    const TPoolTreeSnapshotPtr& treeSnapshot)
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    const auto NodeLogger = GetNodeLogger(node->Descriptor());
+
+    auto nodeShardId = StrategyHost_->GetNodeShardId(node->GetId());
+    const auto& nodeShardInvoker = StrategyHost_->GetNodeShardInvokers()[nodeShardId];
+
+    // NB(yaishenka): Copy assignments with |GetItems|, because the set will be modified.
+    for (const auto& assignment : GetItems(node->Assignments())) {
+        // NB(yaishenka): Node can be unregistered after wait in DoScheduleAllocation.
+        if (!Nodes_.contains(node->GetId())) {
+            const auto& Logger = NodeLogger;
+            YT_LOG_WARNING("Node was unregistered while scheduling allocations");
+            return;
+        }
+
+        if (!IsAssignmentPreliminary(assignment)) {
+            continue;
+        }
+
+        auto operationId = assignment->OperationId;
+        const auto Logger = NodeLogger.WithTag("OperationId: %v", operationId);
+
+        auto operationElement = treeSnapshot->FindEnabledOperationElement(operationId);
+        auto operation = GetOrDefault(EnabledOperations_, operationId);
+
+        if (!operationElement || !operation) {
+            YT_LOG_WARNING("Cannot schedule allocation because operation is %v",
+                treeSnapshot->FindDisabledOperationElement(operationId)
+                    ? "disabled"
+                    : "missing in snapshot");
+
+            RemoveAssignment(assignment);
+            continue;
+        }
+
+        if (!operation->Assignments().contains(assignment)) {
+            YT_LOG_WARNING("Assignment doesn't belong to operation anymore");
+            RemoveAssignment(assignment, true);
+            continue;
+        }
+
+        // NB(yaishenka): At this moment we are certain that operation is enabled,
+        // node is registered, assignment exists in node and operation.
+        TJobResources availableResourceLimits;
+        auto increaseResult = operationElement->TryIncreaseHierarchicalResourceUsagePrecommit(
+            assignment->ResourceUsage,
+            /*allowLimitsOvercommit*/ false,
+            /*additionalLocalResourceLimits*/ {},
+            &availableResourceLimits);
+
+        auto availableResources = Min(availableResourceLimits, schedulingHeartbeatContext->GetNodeFreeResourcesWithDiscount());
+
+        if (increaseResult != EResourceTreeIncreaseResult::Success) {
+            YT_LOG_WARNING("Failed to increase operation resource usage precommit (IncreaseResult: %v)", increaseResult);
+            RemoveAssignment(assignment);
+            continue;
+        }
+
+        nodeShardInvoker->Invoke(BIND(
+            &TPoolTreeOperationElement::OnScheduleAllocationStarted,
+            MakeWeak(operationElement),
+            schedulingHeartbeatContext));
+
+        auto scheduleAllocationResult = DoScheduleAllocation(
+            node,
+            operation,
+            operationElement,
+            assignment,
+            schedulingHeartbeatContext,
+            treeSnapshot,
+            availableResources);
+
+        // TODO(yaishenka): Set operation alert if timeout.
+        if (!scheduleAllocationResult->StartDescriptor) {
+            YT_LOG_DEBUG(
+                "Failed to schedule allocation, removing assignment "
+                "(OperationId: %v, AllocationGroupName: %v, AssignmentResourceUsage: %v, Reasons: %v)",
+                operationId,
+                assignment->AllocationGroupName,
+                assignment->ResourceUsage,
+                scheduleAllocationResult->Failed);
+
+            RemoveAssignment(assignment, /*strict*/ false);
+
+            operationElement->DecreaseHierarchicalResourceUsagePrecommit(
+                assignment->ResourceUsage);
+
+            nodeShardInvoker->Invoke(BIND(
+                &TPoolTreeOperationElement::OnScheduleAllocationFailed,
+                MakeWeak(operationElement),
+                schedulingHeartbeatContext->GetNow(),
+                operationElement->GetTreeId(),
+                scheduleAllocationResult));
+
+            nodeShardInvoker->Invoke(BIND(
+                &TPoolTreeOperationElement::OnScheduleAllocationFinished,
+                MakeWeak(operationElement),
+                schedulingHeartbeatContext));
+            continue;
+        }
+
+        auto allocationId = scheduleAllocationResult->StartDescriptor->Id;
+        assignment->AddAllocation(allocationId);
+
+        operationElement->CommitHierarchicalResourceUsage(
+            assignment->ResourceUsage,
+            assignment->ResourceUsage);
+
+        // TODO(yaishenka): Scheduling index and stage type are irrelevant for this policy. Do not store it in TAllocation.
+        // TODO(YT-27936): (!) Implement network priority though.
+        schedulingHeartbeatContext->StartAllocation(
+            operationElement->GetTreeId(),
+            operationElement->GetOperationId(),
+            scheduleAllocationResult->IncarnationId,
+            scheduleAllocationResult->ControllerEpoch,
+            *scheduleAllocationResult->StartDescriptor,
+            operationElement->Spec()->PreemptionMode,
+            /*schedulingIndex*/ 0,
+            /*stageType*/ EAllocationSchedulingStage::RegularMediumPriority,
+            /*networkPriority*/ {});
+
+        nodeShardInvoker->Invoke(BIND(
+            &TPoolTreeOperationElement::OnScheduleAllocationFinished,
+            MakeWeak(operationElement),
+            schedulingHeartbeatContext));
+
+        YT_LOG_DEBUG(
+            "Allocation scheduled "
+            "(AllocationId: %v, AllocationResourceLimits: %v, "
+            "ControllerDuration: %v, ControllerNextDurationEstimate: %v)",
+            allocationId,
+            StrategyHost_->FormatResources(scheduleAllocationResult->StartDescriptor->ResourceLimits),
+            scheduleAllocationResult->Duration,
+            scheduleAllocationResult->NextDurationEstimate);
+    }
+}
+
+void TSchedulingPolicy::PreemptAllocation(
+    const TAllocationPtr& allocation,
+    TPoolTreeOperationElement* element,
+    const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
+    EAllocationPreemptionReason preemptionReason,
+    TJobResources preemptedUsage) const
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    YT_LOG_DEBUG(
+        "Preempting allocation (OperationId: %v, AllocationId: %v, PreemptionReason: %v, PreemptedUsage: %v)",
+        element->GetOperationId(),
+        allocation->GetId(),
+        preemptionReason,
+        preemptedUsage);
+
+    MaybeDelay(element->Spec()->TestingOperationOptions->DelayBeforeAllocationPreemption);
+
+    schedulingHeartbeatContext->ResourceUsage() -= allocation->ResourceUsage();
+    allocation->ResourceUsage() = TJobResources();
+
+    if (preemptedUsage != TJobResources()) {
+        element->IncreaseHierarchicalResourceUsage(-preemptedUsage);
+    }
+
+    schedulingHeartbeatContext->PreemptAllocation(
+        allocation,
+        element->GetEffectiveAllocationPreemptionTimeout(),
+        preemptionReason);
+}
+
+// TODO(YT-27935): (!) Ask for a specific allocation group.
+// TODO(YT-27867): Add diagnostics like in regular policy.
+TControllerScheduleAllocationResultPtr TSchedulingPolicy::DoScheduleAllocation(
+    const TNodePtr& node,
+    const TOperationPtr& operation,
+    TPoolTreeOperationElement* operationElement,
+    const TAssignmentPtr& assignment,
+    const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
+    const TPoolTreeSnapshotPtr& treeSnapshot,
+    const TJobResources& availableResources)
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    const auto NodeLogger = GetNodeLogger(node->Descriptor());
+    const auto Logger = NodeLogger.WithTag("OperationId: %v", operationElement->GetOperationId());
+
+    auto nodeShardId = StrategyHost_->GetNodeShardId(node->GetId());
+    const auto& nodeShardInvoker = StrategyHost_->GetNodeShardInvokers()[nodeShardId];
+
+    auto scheduleAllocationFuture = BIND(
+        &TPoolTreeOperationElement::ScheduleAllocation,
+        MakeStrong(operationElement),
+        schedulingHeartbeatContext,
+        availableResources,
+        schedulingHeartbeatContext->GetNodeFreeDiskResourcesWithDiscount(assignment->ResourceUsage),
+        treeSnapshot->ControllerConfig()->ScheduleAllocationTimeLimit,
+        operationElement->GetTreeId())
+        .AsyncVia(nodeShardInvoker)
+        .Run();
+
+
+    auto scheduleAllocationResult = WaitFor(scheduleAllocationFuture)
+        .ValueOrThrow();
+
+    if (!scheduleAllocationResult->StartDescriptor) {
+        if (scheduleAllocationResult->Failed[NControllerAgent::EScheduleFailReason::Timeout] > 0) {
+            YT_LOG_WARNING("Allocation scheduling timed out");
+
+            YT_UNUSED_FUTURE(StrategyHost_->SetOperationAlert(
+                operationElement->GetOperationId(),
+                EOperationAlertType::ScheduleJobTimedOut,
+                TError("Allocation scheduling timed out: either scheduler is under heavy load or operation is too heavy"),
+                treeSnapshot->ControllerConfig()->ScheduleAllocationTimeoutAlertResetTime));
+        }
+
+        return scheduleAllocationResult;
+    }
+
+    auto allocationId = scheduleAllocationResult->StartDescriptor->Id;
+
+    // NB(yaishenka): After wait above node can be unregistered, operation can be disabled (and maybe enabled again)
+    if (!node->Assignments().contains(assignment) || !operation->IsEnabled()) {
+        YT_LOG_DEBUG(
+                "Aborting allocation with deleted assignment "
+                "(AllocationId: %v, AllocationResources: %v, NodeAssignedResources: %v, NodeResourceLimits: %v)",
+                allocationId,
+                FormatResources(scheduleAllocationResult->StartDescriptor->ResourceLimits.ToJobResources()),
+                FormatResources(node->AssignedResourceUsage()),
+                FormatResources(node->Descriptor()->ResourceLimits));
+
+            operationElement->AbortAllocation(
+                allocationId,
+                EAbortReason::SchedulingResourceOvercommit,
+                scheduleAllocationResult->ControllerEpoch);
+
+            scheduleAllocationResult = New<TControllerScheduleAllocationResult>();
+            scheduleAllocationResult->RecordFail(NControllerAgent::EScheduleFailReason::NoCandidateTasks);
+
+            return scheduleAllocationResult;
+    }
+
+    auto delta = assignment->UpdateResourceUsage(scheduleAllocationResult->StartDescriptor->ResourceLimits);
+    auto increaseResult = operationElement->TryIncreaseHierarchicalResourceUsagePrecommit(
+        delta,
+        /*allowLimitsOvercommit*/ false);
+
+    switch (increaseResult) {
+        case EResourceTreeIncreaseResult::Success:
+            break;
+        case EResourceTreeIncreaseResult::AdditionalResourceLimitExceeded:
+            // NB(yaishenka): we don't provide additional resource limits, so we don't expect this value
+            YT_ABORT();
+        case EResourceTreeIncreaseResult::ResourceLimitExceeded: {
+            YT_LOG_DEBUG(
+                "Aborting allocation with resource overcommit "
+                "(AllocationId: %v, AllocationResources: %v, NodeAssignedResources: %v, NodeResourceLimits: %v)",
+                allocationId,
+                FormatResources(scheduleAllocationResult->StartDescriptor->ResourceLimits.ToJobResources()),
+                FormatResources(node->AssignedResourceUsage()),
+                FormatResources(node->Descriptor()->ResourceLimits));
+
+            operationElement->AbortAllocation(
+                allocationId,
+                EAbortReason::SchedulingResourceOvercommit,
+                scheduleAllocationResult->ControllerEpoch);
+
+            scheduleAllocationResult = New<TControllerScheduleAllocationResult>();
+            scheduleAllocationResult->RecordFail(NControllerAgent::EScheduleFailReason::ResourceOvercommit);
+
+            return scheduleAllocationResult;
+        }
+        case EResourceTreeIncreaseResult::ElementIsNotAlive: {
+            YT_LOG_DEBUG("Aborting allocation as operation is not alive in tree anymore (AllocationId: %v)", allocationId);
+
+            operationElement->AbortAllocation(
+                allocationId,
+                EAbortReason::SchedulingOperationIsNotAlive,
+                scheduleAllocationResult->ControllerEpoch);
+
+            scheduleAllocationResult = New<TControllerScheduleAllocationResult>();
+            scheduleAllocationResult->RecordFail(NControllerAgent::EScheduleFailReason::OperationIsNotAlive);
+
+            return scheduleAllocationResult;
+        }
+    }
+
+    if (Dominates(node->AssignedResourceUsage(), node->Descriptor()->ResourceLimits)) {
+        YT_LOG_DEBUG(
+            "Aborting allocation with resource overcommit (AllocationId: %v, AllocationResources: %v)",
+            allocationId,
+            FormatResources(scheduleAllocationResult->StartDescriptor->ResourceLimits.ToJobResources()));
+
+        operationElement->AbortAllocation(
+            allocationId,
+            EAbortReason::SchedulingResourceOvercommit,
+            scheduleAllocationResult->ControllerEpoch);
+
+        scheduleAllocationResult = New<TControllerScheduleAllocationResult>();
+        scheduleAllocationResult->RecordFail(NControllerAgent::EScheduleFailReason::ResourceOvercommit);
+    }
+
+    return scheduleAllocationResult;
+}
+
+TProcessAllocationUpdateResult TSchedulingPolicy::DoProcessAllocationUpdate(
+    const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
+    TPoolTreeOperationElementPtr element,
+    const TAllocationUpdate& allocationUpdate)
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    TForbidContextSwitchGuard contextSwitchGuard;
+
+    auto node = GetOrDefault(Nodes_, allocationUpdate.NodeId);
+
+    auto operation = GetOrDefault(EnabledOperations_, element->GetOperationId());
+    if (!operation) {
+        YT_LOG_DEBUG(
+            "No enabled operation found for allocation (OperationId: %v, AllocationId: %v)",
+            element->GetOperationId(),
+            allocationUpdate.AllocationId);
+
+        return TProcessAllocationUpdateResult{
+            .Status = EAllocationUpdateStatus::Disabled,
+            .NeedToPostpone = true,
+        };
+    }
+
+    auto assignment = GetOrDefault(operation->AllocationIdToAssignment(), allocationUpdate.AllocationId);
+
+    if (allocationUpdate.Finished) {
+        // TODO(YT-27933): Update operation allocation info by removing allocation
+        YT_LOG_DEBUG(
+            "Allocation finished (OperationId: %v, AllocationId: %v)",
+            element->GetOperationId(),
+            allocationUpdate.AllocationId);
+        if (assignment) {
+            RemoveAssignment(assignment);
+            element->IncreaseHierarchicalResourceUsage(-allocationUpdate.AllocationResources);
+            return TProcessAllocationUpdateResult{
+                .Status = EAllocationUpdateStatus::Updated,
+            };
+        }
+
+        // TODO(YT-27592): We need to check if allocation is reviving here.
+        if (!node) {
+            YT_LOG_DEBUG(
+                "No registered node found for allocation (OperationId: %v, AllocationId: %v, NodeId: %v)",
+                element->GetOperationId(),
+                allocationUpdate.AllocationId,
+                allocationUpdate.NodeId);
+
+            element->IncreaseHierarchicalResourceUsage(-allocationUpdate.AllocationResources);
+
+            return TProcessAllocationUpdateResult{
+                .Status = EAllocationUpdateStatus::Updated,
+            };
+        }
+
+        if (node->AllocationIdToPreemptionInfo().contains(allocationUpdate.AllocationId)) {
+            YT_LOG_DEBUG(
+                "Found finished allocation waiting for preemption (OperationId: %v, AllocationId: %v)",
+                element->GetOperationId(),
+                allocationUpdate.AllocationId);
+
+            node->PreemptAllocation(allocationUpdate.AllocationId);
+            node->RemovePreemptedAllocation(allocationUpdate.AllocationId);
+            element->IncreaseHierarchicalResourceUsage(-allocationUpdate.AllocationResources);
+            return TProcessAllocationUpdateResult{
+                .Status = EAllocationUpdateStatus::Updated,
+            };
+        }
+
+        if (node->PreemptedAllocations().contains(allocationUpdate.AllocationId)) {
+            YT_LOG_DEBUG(
+                "Found finished preempted allocation (OperationId: %v, AllocationId: %v)",
+                element->GetOperationId(),
+                allocationUpdate.AllocationId);
+
+            node->RemovePreemptedAllocation(allocationUpdate.AllocationId);
+            return TProcessAllocationUpdateResult{
+                .Status = EAllocationUpdateStatus::Updated,
+            };
+        }
+
+        YT_LOG_DEBUG(
+            "Found unexpected finished allocation (OperationId: %v, AllocationId: %v)",
+            element->GetOperationId(),
+            allocationUpdate.AllocationId);
+
+        return TProcessAllocationUpdateResult{
+            .Status = EAllocationUpdateStatus::Unexpected,
+        };
+    }
+
+    YT_VERIFY(allocationUpdate.ResourceUsageUpdated || allocationUpdate.PreemptibleProgressStartTime);
+
+    if (!assignment) {
+        if (node && node->AllocationIdToPreemptionInfo().contains(allocationUpdate.AllocationId)) {
+            // NB(yaishenka): allocation is waiting for preemption.
+            YT_LOG_DEBUG(
+                "Found allocation waiting for preemption (OperationId: %v, AllocationId: %v)",
+                element->GetOperationId(),
+                allocationUpdate.AllocationId);
+
+            // TODO(YT-27933): Update operation allocation.
+            return TProcessAllocationUpdateResult{
+                .Status = EAllocationUpdateStatus::Updated,
+            };
+        }
+
+        if (node && node->PreemptedAllocations().contains(allocationUpdate.AllocationId)) {
+            // NB(yaishenka): Allocation is waiting to be preempted on the node. Postpone it.
+            YT_LOG_DEBUG(
+                "Found preempted allocation (OperationId: %v, AllocationId: %v)",
+                element->GetOperationId(),
+                allocationUpdate.AllocationId);
+
+            return TProcessAllocationUpdateResult{
+                .Status = EAllocationUpdateStatus::Preempted,
+                .NeedToPostpone = true,
+            };
+        }
+
+        // TODO(YT-27592): We need to check if allocation is reviving here.
+        if (!node) {
+            YT_LOG_DEBUG(
+                "No registered node found for allocation (OperationId: %v, AllocationId: %v, NodeId: %v)",
+                element->GetOperationId(),
+                allocationUpdate.AllocationId,
+                allocationUpdate.NodeId);
+
+            return TProcessAllocationUpdateResult{
+                .Status = EAllocationUpdateStatus::Unexpected,
+                .NeedToPostpone = true,
+            };
+        }
+
+        YT_LOG_DEBUG(
+            "Found unexpected allocation, aborting it (OperationId: %v, AllocationId: %v)",
+            element->GetOperationId(),
+            allocationUpdate.AllocationId);
+
+        return TProcessAllocationUpdateResult{
+            .Status = EAllocationUpdateStatus::Unexpected,
+            .NeedToPostpone = false,
+            .NeedToAbort = true,
+        };
+    }
+
+    if (allocationUpdate.PreemptibleProgressStartTime) {
+        assignment->PreemptibleProgressStartTime = allocationUpdate.PreemptibleProgressStartTime;
+    }
+
+    auto delta = assignment->UpdateResourceUsage(allocationUpdate.AllocationResources);
+    if (delta != TJobResources()) {
+        element->IncreaseHierarchicalResourceUsage(delta);
+    }
+
+    if (Dominates(assignment->Node->AssignedResourceUsage(), assignment->Node->Descriptor()->ResourceLimits)) {
+        YT_LOG_DEBUG(
+            "Preempting assignment with resource overcommit "
+            "(OperationId: %v, AllocationId: %v, AllocationResources: %v)",
+            operation->GetId(),
+            assignment->AllocationId,
+            FormatResources(assignment->ResourceUsage));
+
+        PreemptAssignment(
+            assignment,
+            EAllocationPreemptionReason::ResourceOvercommit,
+            /*preemptionDescription*/ "Preempted due to node resource overcommit");
+    }
+
+    return TProcessAllocationUpdateResult{
+        .Status = EAllocationUpdateStatus::Updated,
+    };
+}
+
+// TODO(YT-27867): consider to add more info here
+void TSchedulingPolicy::DoBuildSchedulingAttributesForNode(TNodeId nodeId, TFluentMap fluent) const
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    auto node = GetOrDefault(Nodes_, nodeId);
+    if (!node) {
+        return;
+    }
+
+    fluent
+        .Item("module").Value(node->SchedulingModule())
+        .Item("assignments").List(node->Assignments());
+}
+
+// TODO(YT-27867): consider to add more info here
+void TSchedulingPolicy::DoBuildSchedulingAttributesStringForNode(TNodeId nodeId, TStringBuilderBase* builder) const
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    auto node = GetOrDefault(Nodes_, nodeId);
+    if (!node) {
+        return;
+    }
+
+    builder->AppendFormat(
+        "SchedulingModule: %v, AssignedUsage: %v",
+        node->SchedulingModule(),
+        node->AssignedResourceUsage());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TNoopSchedulingPolicy::TNoopSchedulingPolicy(const std::string& treeId)
@@ -756,16 +1457,11 @@ void TNoopSchedulingPolicy::RegisterNode(TNodeId /*nodeId*/, const std::string& 
 void TNoopSchedulingPolicy::UnregisterNode(TNodeId /*nodeId*/)
 { }
 
-void TNoopSchedulingPolicy::UpdateNodeDescriptor(TNodeId /*nodeId*/, TExecNodeDescriptorPtr /*descriptor*/)
-{ }
-
 void TNoopSchedulingPolicy::ProcessSchedulingHeartbeat(
     const ISchedulingHeartbeatContextPtr& /*schedulingHeartbeatContext*/,
     const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
     bool /*skipScheduleAllocations*/)
-{
-    YT_UNIMPLEMENTED();
-}
+{ }
 
 void TNoopSchedulingPolicy::RegisterOperation(const TPoolTreeOperationElement* /*element*/)
 { }
@@ -780,7 +1476,7 @@ TError TNoopSchedulingPolicy::OnOperationMaterialized(const TPoolTreeOperationEl
 
 TError TNoopSchedulingPolicy::CheckOperationSchedulingInSeveralTreesAllowed(const TPoolTreeOperationElement* /*element*/) const
 {
-    YT_UNIMPLEMENTED();
+    return {};
 }
 
 void TNoopSchedulingPolicy::EnableOperation(const TPoolTreeOperationElement* /*element*/)
@@ -792,27 +1488,12 @@ void TNoopSchedulingPolicy::DisableOperation(TPoolTreeOperationElement* /*elemen
 void TNoopSchedulingPolicy::RegisterAllocationsFromRevivedOperation(
     TPoolTreeOperationElement* /*element*/,
     std::vector<TAllocationPtr> /*allocations*/) const
-{
-    YT_UNIMPLEMENTED();
-}
+{ }
 
-bool TNoopSchedulingPolicy::ProcessAllocationUpdate(
+TProcessAllocationUpdateResult TNoopSchedulingPolicy::ProcessAllocationUpdate(
     const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
     TPoolTreeOperationElement* /*element*/,
-    TAllocationId /*allocationId*/,
-    const TJobResources& /*allocationResources*/,
-    bool /*resetPreemptibleProgress*/,
-    const std::optional<std::string>& /*allocationDataCenter*/,
-    const std::optional<std::string>& /*allocationInfinibandCluster*/,
-    std::optional<EAbortReason>* /*maybeAbortReason*/) const
-{
-    YT_UNIMPLEMENTED();
-}
-
-bool TNoopSchedulingPolicy::ProcessFinishedAllocation(
-    const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
-    TPoolTreeOperationElement* /*element*/,
-    TAllocationId /*allocationId*/) const
+    const TAllocationUpdate& /*allocationUpdate*/)
 {
     YT_UNIMPLEMENTED();
 }
@@ -820,31 +1501,23 @@ bool TNoopSchedulingPolicy::ProcessFinishedAllocation(
 void TNoopSchedulingPolicy::BuildSchedulingAttributesStringForNode(
     TNodeId /*nodeId*/,
     TDelimitedStringBuilderWrapper& /*delimitedBuilder*/) const
-{
-    YT_UNIMPLEMENTED();
-}
+{ }
 
 void TNoopSchedulingPolicy::BuildSchedulingAttributesForNode(TNodeId /*nodeId*/, TFluentMap /*fluent*/) const
-{
-    YT_UNIMPLEMENTED();
-}
+{ }
 
 void TNoopSchedulingPolicy::BuildSchedulingAttributesStringForOngoingAllocations(
     const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
     const std::vector<TAllocationPtr>& /*allocations*/,
     TInstant /*now*/,
     TDelimitedStringBuilderWrapper& /*delimitedBuilder*/) const
-{
-    YT_UNIMPLEMENTED();
-}
+{ }
 
 void TNoopSchedulingPolicy::BuildElementLoggingStringAttributes(
     const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
     const TPoolTreeElement* /*element*/,
     TDelimitedStringBuilderWrapper& /*delimitedBuilder*/) const
-{
-    YT_UNIMPLEMENTED();
-}
+{ }
 
 void TNoopSchedulingPolicy::PopulateOrchidService(const TCompositeMapServicePtr& /*orchidService*/) const
 { }
@@ -853,9 +1526,7 @@ void TNoopSchedulingPolicy::ProfileOperation(
     const TPoolTreeOperationElement* /*element*/,
     const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
     NProfiling::ISensorWriter* /*writer*/) const
-{
-    YT_UNIMPLEMENTED();
-}
+{ }
 
 TPostUpdateContextPtr TNoopSchedulingPolicy::CreatePostUpdateContext(TPoolTreeRootElement* /*rootElement*/)
 {

@@ -50,29 +50,64 @@ void TAssignmentHandler::AddPlannedAssignment(
 void TAssignmentHandler::PreemptAssignment(
     const TAssignmentPtr& assignment,
     EAllocationPreemptionReason preemptionReason,
-    std::string preemptionDescription) const
+    const std::string& preemptionDescription,
+    std::optional<TOperationId> preemptedForOperationId) const
 {
-    assignment->Preempted = true;
-    assignment->PreemptionReason = preemptionReason;
-    assignment->PreemptionDescription = std::move(preemptionDescription);
-    assignment->Node->PreemptAssignment(assignment);
+    assignment->Node->PreemptAssignment(
+        assignment,
+        preemptionReason,
+        preemptionDescription,
+        preemptedForOperationId);
     assignment->Operation->RemoveAssignment(assignment);
 
     LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::AssignmentPreempted)
         .Item("assignment").Value(assignment)
         .Item("reason").Value(preemptionReason)
-        .Item("description").Value(assignment->PreemptionDescription);
+        .Item("description").Value(preemptionDescription);
 
     YT_LOG_DEBUG(
         "Preempted assignment "
-        "(Reason: %v, Description: %v, AllocationGroupName: %v, "
-        "ResourceUsage: %v, NodeAddress: %v, OperationId: %v)",
-        assignment->PreemptionReason,
-        assignment->PreemptionDescription,
+        "(Reason: %v, Description: %v, PreemptedFor: %v, AllocationGroupName: %v, "
+        "ResourceUsage: %v, NodeAddress: %v, OperationId: %v, AllocationId: %v, PreemptibleProgressStartTime: %v)",
+        preemptionReason,
+        preemptionDescription,
+        preemptedForOperationId,
         assignment->AllocationGroupName,
         assignment->ResourceUsage,
         assignment->Node->Address(),
-        assignment->Operation->GetId());
+        assignment->Operation->GetId(),
+        assignment->AllocationId,
+        assignment->PreemptibleProgressStartTime);
+}
+
+void TAssignmentHandler::RemoveAssignment(const TAssignmentPtr& assignment, bool strict) const
+{
+    YT_LOG_DEBUG(
+        "Removing assignment "
+        "(ResourceUsage: %v, NodeAddress: %v, OperationId: %v, AllocationId: %v, "
+        "Strict: %v)",
+        assignment->ResourceUsage,
+        assignment->Node->Address(),
+        assignment->Operation->GetId(),
+        assignment->AllocationId,
+        strict);
+
+    if (strict) {
+        YT_VERIFY(assignment->Node->Assignments().contains(assignment));
+        assignment->Node->RemoveAssignment(assignment);
+
+        YT_VERIFY(assignment->Operation->Assignments().contains(assignment));
+        assignment->Operation->RemoveAssignment(assignment);
+
+        return;
+    }
+
+    if (assignment->Node->Assignments().contains(assignment)) {
+        assignment->Node->RemoveAssignment(assignment);
+    }
+    if (assignment->Operation->Assignments().contains(assignment)) {
+        assignment->Operation->RemoveAssignment(assignment);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -82,13 +117,15 @@ TAssignmentPlanUpdateContext::TAssignmentPlanUpdateContext(
     const TOperationMap& operations,
     const TNodeMap& nodes,
     const TPoolTreeSnapshotPtr& treeSnapshot,
-    const TAssignmentHandler& assignmentHandler)
+    const TAssignmentHandler& assignmentHandler,
+    EGpuSchedulingPolicyMode policyMode)
     : Logger(logger)
     , Operations_(operations)
     , Nodes_(nodes)
     , Statistics_(New<TGpuPlanUpdateStatistics>())
     , TreeSnapshot_(treeSnapshot)
     , AssignmentHandler_(assignmentHandler)
+    , PolicyMode_(policyMode)
     , AttributesList_(TreeSnapshot_->RootElement()->GetTreeSize())
 { }
 
@@ -121,10 +158,15 @@ void TAssignmentPlanUpdateContext::AddPlannedAssignment(
 void TAssignmentPlanUpdateContext::PreemptAssignment(
     const TAssignmentPtr& assignment,
     EAllocationPreemptionReason preemptionReason,
-    std::string preemptionDescription)
+    const std::string& preemptionDescription,
+    std::optional<TOperationId> preemptedForOperationId)
 {
     IncreaseOperationUsage(assignment->Operation, -assignment->ResourceUsage);
-    AssignmentHandler_.PreemptAssignment(assignment, preemptionReason, std::move(preemptionDescription));
+    AssignmentHandler_.PreemptAssignment(
+        assignment,
+        preemptionReason,
+        preemptionDescription,
+        preemptedForOperationId);
 }
 
 TJobResources TAssignmentPlanUpdateContext::GetAvailableOperationLimits(const TOperationPtr& operation) const
@@ -354,10 +396,19 @@ void TAssignmentPlanUpdateContext::UpdatePreemptionStatus(const TOperationPtr& o
         operation->SetPreemptible(Dominates(TResourceVector::Epsilon(), fairShare));
     } else {
         auto sortedAssignments = GetItems(operation->Assignments());
-        // TODO(eshcherbin): Sort assignments by allocation start time.
-        std::ranges::sort(sortedAssignments, std::less<>(), [] (const TAssignmentPtr& assignment) {
-            return assignment->AllocationGroupName;
-        });
+        std::ranges::sort(
+            sortedAssignments,
+            [] (const auto& lhs, const auto& rhs) {
+                // Empty allocations go last.
+                if (!lhs->AllocationId || !rhs->AllocationId) {
+                    return lhs->AllocationId.has_value();
+                }
+                if (!lhs->PreemptibleProgressStartTime || !rhs->PreemptibleProgressStartTime) {
+                    return lhs->PreemptibleProgressStartTime.has_value();
+                }
+
+                return lhs->PreemptibleProgressStartTime < rhs->PreemptibleProgressStartTime;
+            });
 
         TResourceVector usageShare;
         for (const auto& assignment : sortedAssignments) {
@@ -382,7 +433,9 @@ TAllocationGroupResourcesMap TAssignmentPlanUpdateContext::GetGroupedNeededResou
     const TOperationPtr& operation,
     const TPoolTreeOperationElement* operationElement) const
 {
-    // TODO(eshcherbin): In full mode just return operation's grouped needed resources.
+    if (PolicyMode_ == EGpuSchedulingPolicyMode::Allocating) {
+        return operationElement->GroupedNeededResources();
+    }
 
     // NB(eshcherbin): This is a temporary hack. In dry-run mode operation's needed resources are not consistent
     // with the policy's perceived resource usage (because there are no allocations in the dry-run policy).
