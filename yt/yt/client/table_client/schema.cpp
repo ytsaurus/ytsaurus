@@ -1979,9 +1979,6 @@ void ValidateColumnSchema(
             "dict_sum",
         };
         for (int precision = 7; precision <= 14; ++precision) {
-            result.insert(Format("hll_%v", precision));
-            result.insert(Format("hll_%v_state", precision));
-            result.insert(Format("hll_%v_merge", precision));
             result.insert(Format("hll_%v_merge_state", precision));
         }
         return result;
