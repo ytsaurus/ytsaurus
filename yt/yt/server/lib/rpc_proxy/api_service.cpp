@@ -4437,7 +4437,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, MultiLookup)
         context,
         request,
         &options);
- 
+
     if (request->has_allow_failure()) {
         options.AllowFailure = request->allow_failure();
     }
