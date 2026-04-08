@@ -842,6 +842,37 @@ select * from $stream2;
 
         self._assert_logbroker_topic_content(out_topic_path, ["2"])
 
+    @authors("artemmashin")
+    @pytest.mark.timeout(180)
+    def test_using_same_stream_in_multiple_sinks(self, query_tracker, yql_agent, run_query):
+        input_table_path = self._create_yt_table(dict(
+            schema=self._make_queue_schema([
+                {"name": "value", "type": "int64"},
+            ]),
+        ))
+        input_data = [{"value": value} for value in range(5)]
+        self._write_yt_table(input_table_path, input_data)
+
+        out_table_paths = [self._create_yt_table(dict(
+            schema=self._make_queue_schema([
+                {"name": "value", "type": "int64"},
+            ]),
+        )) for _ in range(2)]
+
+        run_query(f"""
+$stream = select value + 1 as value from `{input_table_path}`;
+
+insert into `{out_table_paths[0]}` with truncate
+select * from $stream;
+
+insert into `{out_table_paths[1]}` with truncate
+select * from $stream;
+""")
+
+        expected_data = [{"value": row["value"] + 1} for row in input_data]
+        for out_table in out_table_paths:
+            self._assert_yt_table_content(out_table, expected_data)
+
 
 class TestYtflowSolomon(TestYtflowBase):
     NUM_TEST_PARTITIONS = 16
