@@ -226,7 +226,7 @@ protected:
     std::vector<TUnversionedRow> MakeRows(int beginIndex, int endIndex)
     {
         std::vector<TUnversionedRow> result;
-        for (int i = beginIndex; i < endIndex ; ++i) {
+        for (int i = beginIndex; i < endIndex; ++i) {
             auto row = TMutableUnversionedRow::Allocate(&MemoryPool_, 2);
             row[0] = MakeUnversionedInt64Value(i, 0);
             row[1] = MakeUnversionedStringValue("big data", 1);
