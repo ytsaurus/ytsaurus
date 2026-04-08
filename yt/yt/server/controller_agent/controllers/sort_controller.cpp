@@ -1911,9 +1911,10 @@ protected:
             return MergeChunkPoolOutputs(
                 std::move(physicalPartitionsToMerge),
                 Logger().WithTag(
-                    "Name: PartitionsMerger[%v][%v]",
+                    "Name: PartitionsMerger[%v][%v][%v]",
                     intermediatePartition->GetLevel(),
-                    intermediatePartition->GetIndex()));
+                    intermediatePartition->GetIndex(),
+                    physicalPartitionIndices[0]));
         }();
 
         bool isManiac = std::ssize(physicalPartitionIndices) == 1 &&

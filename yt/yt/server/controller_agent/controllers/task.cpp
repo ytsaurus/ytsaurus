@@ -1069,7 +1069,7 @@ void TTask::SetChunkPoolIndexForOutputStripes(
     }
 }
 
-NChunkPools::IChunkPoolOutput::TCookie  TTask::ExtractCookieForAllocation(
+NChunkPools::IChunkPoolOutput::TCookie TTask::ExtractCookieForAllocation(
     const TAllocation& allocation)
 {
     auto nodeId = HasInputLocality() ? NodeIdFromAllocationId(allocation.Id) : InvalidNodeId;
