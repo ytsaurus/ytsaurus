@@ -371,7 +371,7 @@ TJob::TJob(
 
     TrafficMeter_->Start();
 
-    AddJobEvent(JobState_, JobPhase_);
+    AddJobEvent(JobState_, JobPhase_.load());
 
     HandleJobReport(MakeDefaultJobReport()
         .TreeId(JobSpecExt_.tree_id()));
@@ -503,11 +503,11 @@ void TJob::Start() noexcept
     TCurrentTraceContextGuard guard(TraceContext_);
 
     // Job may be aborted concurrently with allocation scheduled.
-    if (JobPhase_ != EJobPhase::Created) {
+    if (JobPhase_.load() != EJobPhase::Created) {
         YT_LOG_INFO(
             "Job was not started since it is not in initial state (JobState: %v, JobPhase: %v)",
             JobState_,
-            JobPhase_);
+            JobPhase_.load());
         return;
     }
 
@@ -588,7 +588,7 @@ void TJob::Abort(TError error, bool graceful)
     YT_LOG_INFO(
         error,
         "Job abort requested (Phase: %v, State: %v)",
-        JobPhase_,
+        JobPhase_.load(),
         JobState_);
 
     if (graceful) {
@@ -779,7 +779,7 @@ void TJob::Terminate(EJobState finalState, TError error)
         }
     };
 
-    switch (JobPhase_) {
+    switch (JobPhase_.load()) {
         case EJobPhase::Created:
             doTerminate();
             // NB(arkady-e1ppa): We can have
@@ -821,7 +821,7 @@ void TJob::Terminate(EJobState finalState, TError error)
             YT_LOG_INFO(
                 "Cannot terminate job (JobState: %v, JobPhase: %v, JobError: %v)",
                 JobState_,
-                JobPhase_,
+                JobPhase_.load(),
                 Error_);
             break;
 
@@ -831,7 +831,7 @@ void TJob::Terminate(EJobState finalState, TError error)
             YT_LOG_INFO(
                 "Cannot terminate job (JobState: %v, JobPhase: %v)",
                 JobState_,
-                JobPhase_);
+                JobPhase_.load());
 
             YT_VERIFY(IsFinished());
             break;
@@ -1212,7 +1212,7 @@ EJobPhase TJob::GetPhase() const
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    return JobPhase_;
+    return JobPhase_.load();
 }
 
 int TJob::GetSlotIndex() const
@@ -1305,7 +1305,7 @@ void TJob::SetResourceUsage(const NClusterNode::TJobResources& newUsage)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    if (JobPhase_ == EJobPhase::Running) {
+    if (JobPhase_.load() == EJobPhase::Running) {
         ResourceHolder_->SetBaseResourceUsage(newUsage);
     }
 }
@@ -1314,7 +1314,7 @@ void TJob::SetProgress(double progress)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    if (JobPhase_ == EJobPhase::Running) {
+    if (JobPhase_.load() == EJobPhase::Running) {
         Progress_ = progress;
     }
 }
@@ -1439,7 +1439,7 @@ void TJob::SetStatistics(const TYsonString& statisticsYson)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    if (JobPhase_ != EJobPhase::Running && JobPhase_ != EJobPhase::FinalizingJobProxy) {
+    if (JobPhase_.load() != EJobPhase::Running && JobPhase_.load() != EJobPhase::FinalizingJobProxy) {
         return;
     }
 
@@ -1627,7 +1627,7 @@ std::optional<TGetJobStderrResponse> TJob::GetStderr(const TGetJobStderrOptions&
         return std::nullopt;
     }
 
-    if (JobPhase_ == EJobPhase::Running) {
+    if (JobPhase_.load() == EJobPhase::Running) {
         try {
             return GetJobProbeOrThrow()->GetStderr(options);
         } catch (const std::exception& ex) {
@@ -1636,7 +1636,7 @@ std::optional<TGetJobStderrResponse> TJob::GetStderr(const TGetJobStderrOptions&
         }
     }
 
-    if (JobPhase_ < EJobPhase::Running ||
+    if (JobPhase_.load() < EJobPhase::Running ||
         JobState_ == EJobState::Aborted ||
         JobState_ == EJobState::Failed)
     {
@@ -1644,7 +1644,7 @@ std::optional<TGetJobStderrResponse> TJob::GetStderr(const TGetJobStderrOptions&
     }
 
     // Cleanup is not atomic, so in case of job proxy failure we might see job in cleanup phase and running state.
-    if (JobPhase_ == EJobPhase::Cleanup) {
+    if (JobPhase_.load() == EJobPhase::Cleanup) {
         YT_VERIFY(Error_);
         if (Error_->FindMatching(NExecNode::EErrorCode::JobProxyFailed) ||
             Error_->FindMatching(NExecNode::EErrorCode::JobProxyPreparationTimeout))
@@ -1657,7 +1657,7 @@ std::optional<TGetJobStderrResponse> TJob::GetStderr(const TGetJobStderrOptions&
     YT_LOG_ALERT(
         "Stderr is unset for job (JobState: %v, JobPhase: %v)",
         JobState_,
-        JobPhase_);
+        JobPhase_.load());
 
     return std::nullopt;
 }
@@ -1774,7 +1774,7 @@ void TJob::TryReportStatistics()
 
 void TJob::AbortJobAfterInterruptionCallFailed(TError internalError)
 {
-    if (JobPhase_ == NControllerAgent::EJobPhase::Running) {
+    if (JobPhase_.load() == NControllerAgent::EJobPhase::Running) {
         auto error = TError(NExecNode::EErrorCode::InterruptionFailed, "Error interrupting job on job proxy")
             << TErrorAttribute("interruption_reason", InterruptionReason_)
             << std::move(internalError);
@@ -1811,9 +1811,9 @@ void TJob::DoInterrupt(
         preemptionReason,
         preemptedFor);
 
-    if (JobPhase_ > EJobPhase::Running) {
+    if (JobPhase_.load() > EJobPhase::Running) {
         // We're done with this job, no need to interrupt.
-        YT_LOG_DEBUG("Job is already not running, do nothing (JobPhase: %v)", JobPhase_);
+        YT_LOG_DEBUG("Job is already not running, do nothing (JobPhase: %v)", JobPhase_.load());
         return;
     }
 
@@ -1845,7 +1845,7 @@ void TJob::DoInterrupt(
         return;
     }
 
-    if (JobPhase_ < EJobPhase::Running) {
+    if (JobPhase_.load() < EJobPhase::Running) {
         auto error = TError(NJobProxy::EErrorCode::InterruptionFailed, "Interrupting job that has not started yet")
             << TErrorAttribute("interruption_reason", InterruptionReason_);
 
@@ -1911,7 +1911,7 @@ void TJob::DoFail(TError error)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    if (JobPhase_ != EJobPhase::Running) {
+    if (JobPhase_.load() != EJobPhase::Running) {
         error = TError("Failing job that is not running") << std::move(error);
 
         Terminate(EJobState::Failed, std::move(error));
@@ -1950,7 +1950,7 @@ void TJob::DoRequestGracefulAbort(TError error)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    if (JobPhase_ != EJobPhase::Running) {
+    if (JobPhase_.load() != EJobPhase::Running) {
         Terminate(EJobState::Aborted, std::move(error));
         return;
     }
@@ -2149,10 +2149,10 @@ void TJob::SetJobPhase(EJobPhase phase)
 
     YT_LOG_DEBUG(
         "Setting new job phase (Previous: %v, New: %v)",
-        JobPhase_,
+        JobPhase_.load(),
         phase);
 
-    JobPhase_ = phase;
+    JobPhase_.store(phase);
     AddJobEvent(phase);
 }
 
@@ -2160,15 +2160,15 @@ void TJob::ValidateJobRunning() const
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    if (JobPhase_ != EJobPhase::Running) {
+    if (JobPhase_.load() != EJobPhase::Running) {
         YT_LOG_DEBUG(
             "Unexpected job phase (Actual: %v, Expected: %v)",
-            JobPhase_,
+            JobPhase_.load(),
             EJobPhase::Running);
 
         THROW_ERROR_EXCEPTION(NJobProberClient::EErrorCode::JobIsNotRunning, "Job %v is not running", Id_)
             << TErrorAttribute("job_state", JobState_)
-            << TErrorAttribute("job_phase", JobPhase_);
+            << TErrorAttribute("job_phase", JobPhase_.load());
     }
 }
 
@@ -2296,7 +2296,7 @@ bool TJob::HandleFinishingPhase()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    switch (JobPhase_) {
+    switch (JobPhase_.load()) {
         case EJobPhase::WaitingForCleanup:
             Cleanup();
             return true;
@@ -2314,20 +2314,20 @@ void TJob::ValidateJobPhase(EJobPhase expectedPhase) const
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    if (JobPhase_ != expectedPhase) {
+    if (JobPhase_.load() != expectedPhase) {
         // COMPAT(krasovav)
-        if (expectedPhase == EJobPhase::CachingArtifacts && JobPhase_ == EJobPhase::DownloadingArtifacts) {
+        if (expectedPhase == EJobPhase::CachingArtifacts && JobPhase_.load() == EJobPhase::DownloadingArtifacts) {
             return;
         }
 
         YT_LOG_DEBUG(
             "Unexpected job phase (Actual: %v, Expected: %v)",
-            JobPhase_,
+            JobPhase_.load(),
             expectedPhase);
 
         THROW_ERROR_EXCEPTION("Unexpected job phase")
             << TErrorAttribute("expected_phase", expectedPhase)
-            << TErrorAttribute("actual_phase", JobPhase_)
+            << TErrorAttribute("actual_phase", JobPhase_.load())
             << TErrorAttribute("abort_reason", EAbortReason::UnexpectedNodeJobPhase);
     }
 }
@@ -2624,10 +2624,10 @@ void TJob::RunJobProxy()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    if (JobPhase_ != EJobPhase::RunningCustomPreparations &&
-        JobPhase_ != EJobPhase::RunningGpuCheckCommand)
+    if (JobPhase_.load() != EJobPhase::RunningCustomPreparations &&
+        JobPhase_.load() != EJobPhase::RunningGpuCheckCommand)
     {
-        YT_LOG_ALERT("Unexpected phase before run job proxy (ActualPhase: %v)", JobPhase_);
+        YT_LOG_ALERT("Unexpected phase before run job proxy (ActualPhase: %v)", JobPhase_.load());
     }
 
     SetJobPhase(EJobPhase::SpawningJobProxy);
@@ -2669,9 +2669,9 @@ void TJob::OnJobProxyPreparationTimeout()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    YT_VERIFY(JobPhase_ >= EJobPhase::SpawningJobProxy);
+    YT_VERIFY(JobPhase_.load() >= EJobPhase::SpawningJobProxy);
 
-    if (JobPhase_ == EJobPhase::PreparingJob) {
+    if (JobPhase_.load() == EJobPhase::PreparingJob) {
         YT_LOG_INFO("Job proxy preparation timeout");
 
         Abort(TError(
@@ -2684,13 +2684,13 @@ void TJob::OnJobPreparationTimeout(TDuration prepareTimeLimit, bool fatal)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    if (JobPhase_ < EJobPhase::Running) {
+    if (JobPhase_.load() < EJobPhase::Running) {
         auto error = TError(
             fatal ? NExecNode::EErrorCode::FatalJobPreparationTimeout : NExecNode::EErrorCode::JobPreparationTimeout,
             "Failed to prepare job within timeout")
             << TErrorAttribute("prepare_time_limit", prepareTimeLimit)
             << TErrorAttribute("job_creation_time", CreationTime_)
-            << TErrorAttribute("job_phase", JobPhase_);
+            << TErrorAttribute("job_phase", JobPhase_.load());
 
         if (fatal) {
             Fail(std::move(error));
@@ -2704,7 +2704,7 @@ void TJob::OnWaitingForCleanupTimeout()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    if (JobPhase_ == EJobPhase::WaitingForCleanup) {
+    if (JobPhase_.load() == EJobPhase::WaitingForCleanup) {
         auto timeout = CommonConfig_->WaitingForJobCleanupTimeout;
 
         auto error = TError(NExecNode::EErrorCode::WaitingForJobCleanupTimeout, "Failed to wait for job cleanup within timeout")
@@ -2829,7 +2829,7 @@ void TJob::GuardedAction(const TSourceTag& sourceTag, const TCallback& action)
     YT_LOG_DEBUG(
         "Run guarded action (State: %v, Phase: %v, Source: %v)",
         JobState_,
-        JobPhase_,
+        JobPhase_.load(),
         sourceTag);
 
     if (HandleFinishingPhase()) {
@@ -2865,7 +2865,7 @@ void TJob::Cleanup()
     YT_VERIFY(IsFinished());
 
     YT_LOG_FATAL_IF(
-        JobPhase_ == EJobPhase::Cleanup || JobPhase_ == EJobPhase::Finished,
+        JobPhase_.load() == EJobPhase::Cleanup || JobPhase_.load() == EJobPhase::Finished,
         "Job cleanup should be called only once");
 
     auto cleanupTimeoutCookie = TDelayedExecutor::Submit(
@@ -2878,7 +2878,7 @@ void TJob::Cleanup()
 
         TDelayedExecutor::WaitForDuration(*delay);
 
-        if (JobPhase_ >= EJobPhase::Cleanup) {
+        if (JobPhase_.load() >= EJobPhase::Cleanup) {
             return;
         }
     }
@@ -3022,7 +3022,7 @@ std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory> TJob::PrepareNodeDir
     const auto& nodeDirectory = Bootstrap_->GetNodeDirectory();
 
     for (int attempt = 1;; ++attempt) {
-        if (JobPhase_ != EJobPhase::PreparingNodeDirectory) {
+        if (JobPhase_.load() != EJobPhase::PreparingNodeDirectory) {
             break;
         }
 
@@ -4244,7 +4244,7 @@ void TJob::CollectSensorsFromGpuAndRdmaDeviceInfo(ISensorWriter* writer)
     for (int index = 0; index < std::ssize(gpuSlots); ++index) {
         auto slot = gpuSlots[index];
 
-        auto gpuInfo = JobPhase_ < EJobPhase::Running
+        auto gpuInfo = JobPhase_.load() < EJobPhase::Running
             ? TGpuInfo{}
             : GetOrDefault(gpuInfoMap, slot->GetDeviceIndex(), TGpuInfo{});
 
