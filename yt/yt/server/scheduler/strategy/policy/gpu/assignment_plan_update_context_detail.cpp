@@ -285,7 +285,8 @@ void TAssignmentPlanUpdateContext::UpdateOperationResources(const TOperationPtr&
             auto sumOfUsageShare = assignedUsageShare + readyToAssignShare + extraShare + allocationUsageShare;
             bool belowFairShare = Dominates(fairShare + TResourceVector::Epsilon(), sumOfUsageShare);
 
-            YT_LOG_DEBUG(
+            YT_LOG_DEBUG_UNLESS(
+                !operationElement->AreDetailedLogsEnabled(),
                 "Checking if fair share is exceeded before adding another assignment "
                 "(OperationId: %v, AllocationGroup: %v, AssignedUsageShare: %v, "
                 "ReadyToAssignShare: %v, FairShare: %v, ExtraShare: %v, SumOfUsageShare: %v, BelowFairShare: %v)",
