@@ -277,7 +277,7 @@ private:
             return
                 IsRetriableError(error) ||
                 error.FindMatching(NSequoiaClient::EErrorCode::SequoiaRetriableError)||
-                ContainsTransactionSuccessorHasLeasesError(error, id) ;
+                ContainsTransactionSuccessorHasLeasesError(error, id);
         });
     }
 

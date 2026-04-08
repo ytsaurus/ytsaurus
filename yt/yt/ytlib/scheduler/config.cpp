@@ -2374,7 +2374,7 @@ void TMapReduceOperationSpec::Register(TRegistrar registrar)
         spec->SortJobIO->TableReader->PassCount = 50;
 
         spec->MergeJobIO->TableReader->RetryCount = 3;
-        spec->MergeJobIO->TableReader->PassCount = 50 ;
+        spec->MergeJobIO->TableReader->PassCount = 50;
     });
 
     registrar.Postprocessor([] (TMapReduceOperationSpec* spec) {

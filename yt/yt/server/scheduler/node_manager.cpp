@@ -252,7 +252,7 @@ TError TNodeManager::HandleNodesAttributes(const NYTree::IListNodePtr& nodeList)
     }
 
     std::vector<TFuture<void>> removeFutures;
-    for (int i = 0 ; i < std::ssize(NodeShards_); ++i) {
+    for (int i = 0; i < std::ssize(NodeShards_); ++i) {
         auto& nodeShard = NodeShards_[i];
         removeFutures.push_back(
             BIND(&TNodeShard::RemoveMissingNodes, nodeShard)
@@ -263,7 +263,7 @@ TError TNodeManager::HandleNodesAttributes(const NYTree::IListNodePtr& nodeList)
         .ThrowOnError();
 
     std::vector<TFuture<std::vector<TError>>> handleFutures;
-    for (int i = 0 ; i < std::ssize(NodeShards_); ++i) {
+    for (int i = 0; i < std::ssize(NodeShards_); ++i) {
         auto& nodeShard = NodeShards_[i];
         handleFutures.push_back(
             BIND(&TNodeShard::HandleNodesAttributes, nodeShard)

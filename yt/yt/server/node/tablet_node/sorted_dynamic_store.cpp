@@ -1488,7 +1488,7 @@ void TSortedDynamicStore::PrepareRow(TTransaction* transaction, TSortedDynamicRo
         auto* lock = row.BeginLocks(KeyColumnCount_);
         for (int index = 0; index < ColumnLockCount_; ++index, ++lock) {
             if (lock->WriteTransaction == transaction) {
-                lock->WriteTransactionPrepareTimestamp = prepareTimestamp ;
+                lock->WriteTransactionPrepareTimestamp = prepareTimestamp;
             } else if (lock->SharedWriteTransactions.contains({NotPreparedTimestamp, transaction})) {
                 EraseOrCrash(
                     lock->SharedWriteTransactions,
