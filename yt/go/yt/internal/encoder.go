@@ -960,6 +960,55 @@ func (e *Encoder) RemoveQueueProducerSession(
 	return
 }
 
+func (e *Encoder) PullQueueConsumer(
+	ctx context.Context,
+	consumerPath ypath.Path,
+	queuePath ypath.Path,
+	options *yt.PullQueueConsumerOptions,
+) (r yt.TableReader, result *yt.PullQueueConsumerResult, err error) {
+	call := e.newCall(NewPullQueueConsumerParams(consumerPath, queuePath, options))
+	r, err = e.InvokeReadRow(ctx, call)
+	if err != nil {
+		return
+	}
+	// TODO: extract start_offset from response metadata
+	result = &yt.PullQueueConsumerResult{}
+	return
+}
+
+func (e *Encoder) AdvanceQueueConsumer(
+	ctx context.Context,
+	consumerPath ypath.Path,
+	queuePath ypath.Path,
+	options *yt.AdvanceQueueConsumerOptions,
+) (err error) {
+	call := e.newCall(NewAdvanceQueueConsumerParams(consumerPath, queuePath, options))
+	err = e.do(ctx, call, noopResultDecoder)
+	return
+}
+
+func (e *Encoder) RegisterQueueConsumer(
+	ctx context.Context,
+	queuePath ypath.Path,
+	consumerPath ypath.Path,
+	options *yt.RegisterQueueConsumerOptions,
+) (err error) {
+	call := e.newCall(NewRegisterQueueConsumerParams(queuePath, consumerPath, options))
+	err = e.do(ctx, call, noopResultDecoder)
+	return
+}
+
+func (e *Encoder) UnregisterQueueConsumer(
+	ctx context.Context,
+	queuePath ypath.Path,
+	consumerPath ypath.Path,
+	options *yt.UnregisterQueueConsumerOptions,
+) (err error) {
+	call := e.newCall(NewUnregisterQueueConsumerParams(queuePath, consumerPath, options))
+	err = e.do(ctx, call, noopResultDecoder)
+	return
+}
+
 func (e *Encoder) LockRows(
 	ctx context.Context,
 	path ypath.Path,

@@ -549,6 +549,42 @@ func (c *client) PushQueueProducerBatch(
 	return result, tx.Commit()
 }
 
+func (c *client) PullQueueConsumer(
+	ctx context.Context,
+	consumerPath ypath.Path,
+	queuePath ypath.Path,
+	opts *yt.PullQueueConsumerOptions,
+) (r yt.TableReader, result *yt.PullQueueConsumerResult, err error) {
+	return c.Encoder.PullQueueConsumer(ctx, consumerPath, queuePath, opts)
+}
+
+func (c *client) AdvanceQueueConsumer(
+	ctx context.Context,
+	consumerPath ypath.Path,
+	queuePath ypath.Path,
+	opts *yt.AdvanceQueueConsumerOptions,
+) (err error) {
+	return c.Encoder.AdvanceQueueConsumer(ctx, consumerPath, queuePath, opts)
+}
+
+func (c *client) RegisterQueueConsumer(
+	ctx context.Context,
+	queuePath ypath.Path,
+	consumerPath ypath.Path,
+	opts *yt.RegisterQueueConsumerOptions,
+) error {
+	return c.Encoder.RegisterQueueConsumer(ctx, queuePath, consumerPath, opts)
+}
+
+func (c *client) UnregisterQueueConsumer(
+	ctx context.Context,
+	queuePath ypath.Path,
+	consumerPath ypath.Path,
+	opts *yt.UnregisterQueueConsumerOptions,
+) error {
+	return c.Encoder.UnregisterQueueConsumer(ctx, queuePath, consumerPath, opts)
+}
+
 // InsertRows wraps encoder's implementation with transaction.
 func (c *client) InsertRows(
 	ctx context.Context,
