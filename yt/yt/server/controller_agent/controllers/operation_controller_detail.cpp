@@ -280,8 +280,10 @@ TOperationControllerBase::TOperationControllerBase(
         return logger;
     }())
     , CoreNotes_({Format("OperationId: %v", OperationId_)})
-    , Acl_(operation->GetAcl())
-    , AcoName_(operation->GetAcoName())
+    , AccessControlRule_(
+        operation->GetAcoName()
+            ? TAccessControlRule(*operation->GetAcoName())
+            : TAccessControlRule(operation->GetAcl()))
     , ControllerEpoch_(operation->GetControllerEpoch())
     , CancelableContext_(New<TCancelableContext>())
     , ChunkScraperHeavyInvoker_(Host_->GetChunkScraperHeavyThreadPoolInvoker())
@@ -4918,11 +4920,16 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
             joblet);
     }
 
-    if (AcoName_) {
-        jobSpecExt->set_aco_name(*AcoName_);
-    } else {
-        jobSpecExt->set_acl(ToProto(ConvertToYsonString(Acl_)));
-    }
+    AccessControlRule_.Read(
+        [&] (const auto& rule) {
+            if (rule.IsAcl()) {
+                jobSpecExt->set_acl(ToProto(ConvertToYsonString(rule.GetAcl())));
+            } else if (rule.IsAcoName()) {
+                jobSpecExt->set_aco_name(rule.GetAcoName());
+            } else {
+                YT_ABORT();
+            }
+        });
 }
 
 void TOperationControllerBase::RegisterTask(TTaskPtr task)
@@ -6342,11 +6349,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
 
     TSerializableAccessControlList legacyIntermediateLivePreviewAcl;
     if (isLegacyIntermediateLivePreviewSupported) {
-        if (AcoName_) {
-            legacyIntermediateLivePreviewAcl = TAccessControlRule(*AcoName_).GetOrLookupAcl(Client_);
-        } else {
-            legacyIntermediateLivePreviewAcl = Acl_;
-        }
+        legacyIntermediateLivePreviewAcl = AccessControlRule_.Load().GetOrLookupAcl(Client_);
     }
 
     // NB: Use root credentials.
@@ -9152,11 +9155,27 @@ void TOperationControllerBase::Dispose()
 
 void TOperationControllerBase::UpdateRuntimeParameters(const TOperationRuntimeParametersUpdatePtr& update)
 {
+    YT_VERIFY(!update->Acl || !update->AcoName);
+
+    auto [isNonTrivialAcl, isAcoName] = AccessControlRule_.Read(
+        [](const auto& rule) {
+            return std::make_pair(
+                rule.IsAcl() && !rule.GetAcl().Entries.empty(),
+                rule.IsAcoName());
+        });
+
+    // Should be checked by scheduler.
+    // NB(coteeq): Trivial ACL is historically compatible with both new ACL and new AcoName.
+    YT_VERIFY(!(update->Acl && isAcoName));
+    YT_VERIFY(!(update->AcoName && isNonTrivialAcl));
+
     if (update->Acl) {
-        Acl_ = *update->Acl;
-    } else if (update->AcoName) {
-        AcoName_ = *update->AcoName;
+        AccessControlRule_.Exchange(TAccessControlRule(*update->Acl));
     }
+    if (update->AcoName) {
+        AccessControlRule_.Exchange(TAccessControlRule(*update->AcoName));
+    }
+
     if (update->SchedulingTagFilter) {
         Spec_->SchedulingTagFilter = *update->SchedulingTagFilter;
         UpdateExecNodes();
@@ -11220,10 +11239,14 @@ void TOperationControllerBase::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(47, AvailableExecNodesObserved_);
     PHOENIX_REGISTER_FIELD(48, BannedNodeIds_);
     PHOENIX_REGISTER_FIELD(49, PathToOutputTable_);
-    PHOENIX_REGISTER_FIELD(50, Acl_);
-    // COMPAT(omgronny)
-    PHOENIX_REGISTER_FIELD(51, AcoName_,
-        .SinceVersion(ESnapshotVersion::AcoName));
+
+    // COMPAT(coteeq)
+    PHOENIX_REGISTER_DELETED_FIELD(50, TSerializableAccessControlList, Acl_, ESnapshotVersion::AccessControlRule);
+    PHOENIX_REGISTER_DELETED_FIELD(51, std::optional<std::string>, AcoName_, ESnapshotVersion::AccessControlRule);
+
+    PHOENIX_REGISTER_FIELD(80, AccessControlRule_,
+        .SinceVersion(ESnapshotVersion::AccessControlRule));
+
     PHOENIX_REGISTER_FIELD(52, BannedTreeIds_);
     PHOENIX_REGISTER_FIELD(54, JobMetricsDeltaPerTree_);
     PHOENIX_REGISTER_FIELD(55, TotalTimePerTree_);
