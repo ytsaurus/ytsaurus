@@ -396,7 +396,8 @@ private:
     bool IsGpuRequested_;
 
     EJobState JobState_ = EJobState::Waiting;
-    EJobPhase JobPhase_ = EJobPhase::Created;
+    // NB(pogorelov): We change job phase only from job thread.
+    std::atomic<EJobPhase> JobPhase_ = EJobPhase::Created;
 
     NServer::TJobEvents JobEvents_;
 
