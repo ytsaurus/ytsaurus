@@ -517,9 +517,7 @@ protected:
     const NLogging::TLogger Logger;
     const std::vector<TString> CoreNotes_;
 
-    NSecurityClient::TSerializableAccessControlList Acl_;
-
-    std::optional<std::string> AcoName_;
+    NThreading::TAtomicObject<NScheduler::TAccessControlRule> AccessControlRule_;
 
     // Intentionally transient.
     const NScheduler::TControllerEpoch ControllerEpoch_;

@@ -484,6 +484,12 @@ TString TAccessControlRule::GetAclString() const
     }
 }
 
+void TAccessControlRule::Persist(const TStreamPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, AccessControlRule_);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {

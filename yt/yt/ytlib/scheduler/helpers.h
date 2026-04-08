@@ -148,6 +148,8 @@ public:
 
     TString GetAclString() const;
 
+    void Persist(const TStreamPersistenceContext& context);
+
 private:
     std::variant<NSecurityClient::TSerializableAccessControlList, std::string> AccessControlRule_;
 };
