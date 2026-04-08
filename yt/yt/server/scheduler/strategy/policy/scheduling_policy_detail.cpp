@@ -2791,61 +2791,78 @@ void TSchedulingPolicy::RegisterAllocationsFromRevivedOperation(
     }
 }
 
-bool TSchedulingPolicy::ProcessAllocationUpdate(
+TProcessAllocationUpdateResult TSchedulingPolicy::ProcessAllocationUpdate(
     const TPoolTreeSnapshotPtr& treeSnapshot,
     TPoolTreeOperationElement* element,
-    TAllocationId allocationId,
-    const TJobResources& allocationResources,
-    bool resetPreemptibleProgress,
-    const std::optional<std::string>& allocationDataCenter,
-    const std::optional<std::string>& allocationInfinibandCluster,
-    std::optional<EAbortReason>* maybeAbortReason) const
+    const TAllocationUpdate& allocationUpdate)
 {
     const auto& treeSnapshotState = GetPoolTreeSnapshotState(treeSnapshot);
     const auto& operationState = treeSnapshotState->GetEnabledOperationState(element);
     const auto& operationSharedState = treeSnapshotState->GetEnabledOperationSharedState(element);
 
+    if (allocationUpdate.Finished) {
+        // NB: Should be filtered out on large clusters.
+        YT_LOG_DEBUG(
+            "Processing allocation finish (OperationId: %v, AllocationId: %v)",
+            allocationUpdate.OperationId,
+            allocationUpdate.AllocationId);
+
+        if (operationSharedState->OnAllocationFinished(element, allocationUpdate.AllocationId)) {
+            return TProcessAllocationUpdateResult{
+                .Status = EAllocationUpdateStatus::Updated,
+            };
+        }
+
+        return TProcessAllocationUpdateResult{
+            .Status = EAllocationUpdateStatus::Disabled,
+            .NeedToPostpone = true,
+        };
+    }
+
+    YT_VERIFY(allocationUpdate.ResourceUsageUpdated || allocationUpdate.PreemptibleProgressStartTime);
+
     if (!operationSharedState->ProcessAllocationUpdate(
         element,
-        allocationId,
-        allocationResources,
-        resetPreemptibleProgress))
+        allocationUpdate.AllocationId,
+        allocationUpdate.AllocationResources,
+        /*resetPreemptibleProgress*/ allocationUpdate.PreemptibleProgressStartTime.has_value()))
     {
         // Operation is disabled.
-        return false;
+        return TProcessAllocationUpdateResult{
+            .Status = EAllocationUpdateStatus::Disabled,
+            .NeedToPostpone = true,
+        };
     }
 
     const auto& operationSchedulingSegment = operationState->SchedulingSegment;
     if (operationSchedulingSegment && IsModuleAwareSchedulingSegment(*operationSchedulingSegment)) {
         const auto& operationModule = operationState->SchedulingSegmentModule;
         const auto& allocationModule = TSchedulingSegmentManager::GetNodeModule(
-            allocationDataCenter,
-            allocationInfinibandCluster,
+            allocationUpdate.AllocationDataCenter,
+            allocationUpdate.AllocationInfinibandCluster,
             element->TreeConfig()->SchedulingSegments->ModuleType);
         bool allocationIsRunningInTheRightModule = operationModule && (operationModule == allocationModule);
         if (!allocationIsRunningInTheRightModule) {
-            *maybeAbortReason = EAbortReason::WrongSchedulingSegmentModule;
-
             YT_LOG_DEBUG(
                 "Requested to abort allocation because it is running in a wrong module "
                 "(OperationId: %v, AllocationId: %v, OperationModule: %v, AllocationModule: %v)",
                 element->GetOperationId(),
-                allocationId,
+                allocationUpdate.AllocationId,
                 operationModule,
                 allocationModule);
+
+            return TProcessAllocationUpdateResult{
+                .Status = EAllocationUpdateStatus::Updated,
+                .NeedToPostpone = true,
+                .NeedToAbort = true,
+                .AbortReason = EAbortReason::WrongSchedulingSegmentModule,
+            };
         }
     }
 
-    return true;
-}
-
-bool TSchedulingPolicy::ProcessFinishedAllocation(
-    const TPoolTreeSnapshotPtr& treeSnapshot,
-    TPoolTreeOperationElement* element,
-    TAllocationId allocationId) const
-{
-    const auto& operationSharedState = GetPoolTreeSnapshotState(treeSnapshot)->GetEnabledOperationSharedState(element);
-    return operationSharedState->OnAllocationFinished(element, allocationId);
+    return TProcessAllocationUpdateResult{
+        .Status = EAllocationUpdateStatus::Updated,
+    };
 }
 
 void TSchedulingPolicy::BuildSchedulingAttributesStringForNode(TNodeId nodeId, TDelimitedStringBuilderWrapper& delimitedBuilder) const

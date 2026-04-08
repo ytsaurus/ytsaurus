@@ -2150,8 +2150,6 @@ void TPoolTreeOperationElement::SetStarvationStatus(EStarvationStatus starvation
                 .Item("usage_on_starvation_start").Value(PersistentAttributes_.UsageOnStarvationStart);
         }
 
-
-
         PersistentAttributes_.StarvingSince.reset();
     }
 }

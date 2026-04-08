@@ -79,7 +79,8 @@ struct IAssignmentPlanUpdateContext
     virtual void PreemptAssignment(
         const TAssignmentPtr& assignment,
         EAllocationPreemptionReason preemptionReason,
-        std::string preemptionDescription) = 0;
+        const std::string& preemptionDescription,
+        std::optional<TOperationId> preemptedForOperationId = {}) = 0;
 
     virtual TJobResources GetAvailableOperationLimits(const TOperationPtr& operation) const = 0;
 };
