@@ -1447,7 +1447,11 @@ private:
 
         THashMap<TOperationId, std::pair<TTransactionId, std::string>> transactions;
         for (const auto& [operationId, operation] : controllerAgent->GetOperations()) {
-            auto [transaction, medium] = operation->GetController()->GetIntermediateMediumTransaction();
+            auto controller = operation->GetController();
+            if (!controller->IsRunning()) {
+                continue;
+            }
+            auto [transaction, medium] = controller->GetIntermediateMediumTransaction();
             if (transaction) {
                 transactions[operationId] = {transaction->GetId(), medium};
             }
@@ -1534,6 +1538,10 @@ private:
                 if (auto operation = controllerAgent->FindOperation(operationId)) {
                     auto controller = operation->GetController();
                     YT_VERIFY(controller);
+
+                    if (!controller->IsRunning()) {
+                        continue;
+                    }
 
                     controller->UpdateIntermediateMediumUsage(*usage);
                     bool switchedToSlowMedium = controller->GetIntermediateMediumTransaction().first == nullptr;
@@ -1707,3 +1715,4 @@ void TMasterConnector::SetControllerAgentAlert(EControllerAgentAlertType alertTy
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent
+
