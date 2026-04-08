@@ -321,6 +321,7 @@ TOperationControllerBase::TOperationControllerBase(
         GetCancelableInvoker(),
         BIND(&TThis::UpdateAggregatedRunningJobStatistics, MakeWeak(this)),
         Config_->RunningJobStatisticsUpdatePeriod))
+    , CachedJobMetricsReportPeriodCpuDuration_(Config_->JobMetricsReportPeriod)
     , ScheduleAllocationStatistics_(New<TScheduleAllocationStatistics>(Config_->ScheduleAllocationStatisticsMovingAverageWindowSize))
     , CheckTimeLimitExecutor_(New<TPeriodicExecutor>(
         GetCancelableInvoker(),
@@ -4864,6 +4865,8 @@ void TOperationControllerBase::UpdateConfig(const TControllerAgentConfigPtr& con
 
     Config_ = config;
 
+    CachedJobMetricsReportPeriodCpuDuration_.store(config->JobMetricsReportPeriod);
+
     RunningJobStatisticsUpdateExecutor_->SetPeriod(config->RunningJobStatisticsUpdatePeriod);
     SendRunningAllocationTimeStatisticsUpdatesExecutor_->SetPeriod(config->RunningAllocationTimeStatisticsUpdatesSendPeriod);
 
@@ -9219,7 +9222,8 @@ TOperationJobMetrics TOperationControllerBase::PullJobMetricsDelta(bool force)
     auto guard = Guard(JobMetricsDeltaPerTreeLock_);
 
     auto now = NProfiling::GetCpuInstant();
-    if (!force && LastJobMetricsDeltaReportTime_ + DurationToCpuDuration(Config_->JobMetricsReportPeriod) > now) {
+    auto reportPeriod = CachedJobMetricsReportPeriodCpuDuration_.load();
+    if (!force && LastJobMetricsDeltaReportTime_ + DurationToCpuDuration(reportPeriod) > now) {
         return {};
     }
 
