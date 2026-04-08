@@ -329,11 +329,8 @@ void TCompactionHintControllerBase<TDerived, TLsmCompactionHint, TOwner>::SetDet
 template <class TDerived, class TLsmCompactionHint, class TOwner>
 void TCompactionHintControllerBase<TDerived, TLsmCompactionHint, TOwner>::UpdateRevision()
 {
-    auto steadyNow = std::chrono::steady_clock::now();
-    auto nanosecondsFromEpoch =
-        std::chrono::duration_cast<std::chrono::nanoseconds>(steadyNow.time_since_epoch()).count();
-
-    LsmCompactionHint_.SetNodeObjectRevision(TRevision(nanosecondsFromEpoch));
+    static thread_local ui64 revisionCounter = 0;
+    LsmCompactionHint_.SetNodeObjectRevision(TRevision(++revisionCounter));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -570,6 +567,7 @@ void TPartitionCompactionHintController::OnStoreAdded(TPartition* partition, TSo
     }
 
     if (FetchInProgress()) {
+        UpdateRevision();
         store->CompactionHintFetchPipelines().InitializePartitionPipeline(store, GetPartitionCompactionHintKind());
         return;
     }

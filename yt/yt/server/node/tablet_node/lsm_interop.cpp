@@ -330,13 +330,13 @@ private:
             if (store->IsSorted()) {
                 auto sortedChunkStore = store->AsSortedChunk();
 
-                auto& FetchPipelines = sortedChunkStore->CompactionHintFetchPipelines();
+                auto& fetchPipelines = sortedChunkStore->CompactionHintFetchPipelines();
                 for (auto [storeKind, partitionKind] : NLsm::StoreCompactionHintKinds) {
-                    if (FetchPipelines.DefinitelyHasNoHint(storeKind)) {
+                    if (fetchPipelines.DefinitelyHasNoHint(storeKind)) {
                         continue;
                     }
 
-                    if (auto pipeline = FetchPipelines.FetchPipelines()[storeKind]->Lock()) {
+                    if (auto pipeline = fetchPipelines.FetchPipelines()[storeKind]->Lock()) {
                         lsmStore->CompactionHints().Payloads()[storeKind] = pipeline->Payload();
                     }
 
