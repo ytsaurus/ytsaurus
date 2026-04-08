@@ -117,7 +117,7 @@ template <>
 void DoRecalculateStoreCompactionHint<EStoreCompactionHintKind::VersionedRowDigest>(TStore* store)
 {
     auto recalculationFinalizer = store->CompactionHints().Hints()[EStoreCompactionHintKind::VersionedRowDigest]
-        .BuildRecalculationFinalizer();
+        .BuildRecalculationFinalizer(store);
 
     auto majorTimestamp = TInstant::Max();
     const auto& mountConfig = store->GetTablet()->GetMountConfig();

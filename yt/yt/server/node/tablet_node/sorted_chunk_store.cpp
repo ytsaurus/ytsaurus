@@ -423,9 +423,11 @@ EStoreType TSortedChunkStore::GetType() const
 
 void TSortedChunkStore::SetStoreState(EStoreState state)
 {
+    auto oldState = StoreState_;
+
     TChunkStoreBase::SetStoreState(state);
 
-    Partition_->CompactionHints().OnStoreStateChanged(Partition_, this);
+    Partition_->CompactionHints().OnStoreStateChanged(Partition_, this, oldState);
 }
 
 TSortedChunkStorePtr TSortedChunkStore::AsSortedChunk()
