@@ -10,7 +10,7 @@ template <>
 void DoRecalculateStoreCompactionHint<EStoreCompactionHintKind::ChunkViewTooNarrow>(TStore* store)
 {
     auto recalculationFinalizer = store->CompactionHints().Hints()[EStoreCompactionHintKind::ChunkViewTooNarrow]
-        .BuildRecalculationFinalizer();
+        .BuildRecalculationFinalizer(store);
 
     auto chunkViewShare = std::get<TStoreCompactionHint::TChunkViewTooNarrowPayload>(
         store->CompactionHints().Payloads()[EStoreCompactionHintKind::ChunkViewTooNarrow]);

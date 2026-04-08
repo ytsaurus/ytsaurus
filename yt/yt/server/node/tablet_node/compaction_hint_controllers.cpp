@@ -498,23 +498,26 @@ void TPartitionCompactionHintController::OnMountConfigUpdated(TPartition* partit
         /*isInBadState*/ !AreAllStoresGood());
 }
 
-void TPartitionCompactionHintController::OnStoreStateChanged(TPartition* partition, TSortedChunkStore* store)
+void TPartitionCompactionHintController::OnStoreStateChanged(TPartition* partition, TSortedChunkStore* store, EStoreState oldState)
 {
     YT_VERIFY(State_ >= ECompactionHintState::BadState);
 
-    if (DefinitelyHasNoHint(store)) {
+    if (DefinitelyHasNoHint(store) || store->GetStoreState() == oldState) {
         return;
     }
 
+    // From bad state to good.
     if (store->GetStoreState() == EStoreState::Persistent) {
         --BadStateStoreCount_;
         if (AreAllStoresGood()) {
             SetActiveState(partition);
         }
-    } else {
+    // From good state to bad.
+    } else if (oldState == EStoreState::Persistent) {
         SetPassiveState(partition, ECompactionHintState::BadState);
         ++BadStateStoreCount_;
     }
+    // From bad state to bad, for example RemovePrepared -> Removed, do nothing.
 }
 
 void TPartitionCompactionHintController::OnStoreHasNoHint(TPartition* partition, TSortedChunkStore* store)
@@ -537,7 +540,9 @@ void TPartitionCompactionHintController::OnStoreRemoved(TPartition* partition, T
 
     if (FetchInProgress()) {
         YT_VERIFY(AreAllStoresGood());
+        UpdateRevision();
         store->CompactionHintFetchPipelines().ResetPartitionPipeline(GetPartitionCompactionHintKind());
+        return;
     }
 
     if (DefinitelyHasNoHint(store)) {
@@ -674,11 +679,11 @@ void TPartitionCompactionHints::OnMountConfigUpdated(TPartition* partition, cons
         ECompactionHintState::DisabledByConfig);
 }
 
-void TPartitionCompactionHints::OnStoreStateChanged(TPartition* partition, TSortedChunkStore* store)
+void TPartitionCompactionHints::OnStoreStateChanged(TPartition* partition, TSortedChunkStore* store, EStoreState oldState)
 {
     ForEachController(
-        [partition, store] (auto& controller) {
-            controller.OnStoreStateChanged(partition, store);
+        [partition, store, oldState] (auto& controller) {
+            controller.OnStoreStateChanged(partition, store, oldState);
         },
         [store] () {
             store->CompactionHints().OnStoreStateChanged(store);

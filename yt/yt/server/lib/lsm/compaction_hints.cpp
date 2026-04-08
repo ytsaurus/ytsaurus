@@ -103,13 +103,30 @@ bool TCompactionHintBase::DoRecalculateHint(TRecalculator&& recalculator, TRange
 ////////////////////////////////////////////////////////////////////////////////
 
 TStoreCompactionHint::TStoreCompactionHintRecalculationFinalizer::TStoreCompactionHintRecalculationFinalizer(
+    TStore* store,
     TStoreCompactionHint* hint)
-    : Hint_(hint)
+    : Store_(store)
+    , Hint_(hint)
 { }
 
 TStoreCompactionHint::TStoreCompactionHintRecalculationFinalizer::~TStoreCompactionHintRecalculationFinalizer()
 {
     Hint_->ApplyRecalculation(Timestamp_, Reason_);
+}
+
+bool TStoreCompactionHint::TStoreCompactionHintRecalculationFinalizer::TryApplyRecalculation(
+    TInstant timestamp,
+    EStoreCompactionReason reason)
+{
+    YT_LOG_DEBUG("Candidate store compaction hint lsm response provided "
+        "(%v, StoreId: %v, StoreCompactionHintKind: %v, Timestamp: %v, Reason: %v)",
+        Store_->GetTablet()->GetLoggingTag(),
+        Store_->GetId(),
+        Hint_->StoreCompactionHintKind_,
+        timestamp,
+        reason);
+
+    return TCompactionHintRecalculationFinalizerBase::TryApplyRecalculation(timestamp, reason);
 }
 
 bool TStoreCompactionHint::RecalculateHint(const std::unique_ptr<TStore>& store)
@@ -145,9 +162,9 @@ bool TStoreCompactionHint::RecalculateHint(const std::unique_ptr<TStore>& store)
     }
 }
 
-TStoreCompactionHint::TStoreCompactionHintRecalculationFinalizer TStoreCompactionHint::BuildRecalculationFinalizer()
+TStoreCompactionHint::TStoreCompactionHintRecalculationFinalizer TStoreCompactionHint::BuildRecalculationFinalizer(TStore* store)
 {
-    return TStoreCompactionHintRecalculationFinalizer(this);
+    return TStoreCompactionHintRecalculationFinalizer(store, this);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -180,7 +197,8 @@ bool TStoreCompactionHints::RecalculateHints(const std::unique_ptr<TStore>& stor
 TPartitionCompactionHint::TPartitionCompactionHintRecalculationFinalizer::TPartitionCompactionHintRecalculationFinalizer(
     TPartition* partition,
     TPartitionCompactionHint* hint)
-    : Hint_(hint)
+    : Partition_(partition)
+    , Hint_(hint)
 {
     Stores_.reserve(partition->Stores().size());
     for (const auto& store : partition->Stores()) {
@@ -211,6 +229,15 @@ void TPartitionCompactionHint::TPartitionCompactionHintRecalculationFinalizer::T
     EStoreCompactionReason reason,
     ui64 storeSubset)
 {
+    YT_LOG_DEBUG("Candidate partition compaction hint lsm response provided "
+        "(%v, PartitionId: %v, PartitionCompactionHintKind: %v, Timestamp: %v, Reason: %v, StoreSubset: %v)",
+        Partition_->GetTablet()->GetLoggingTag(),
+        Partition_->GetId(),
+        Hint_->StoreCompactionHintKind_,
+        timestamp,
+        reason,
+        storeSubset);
+
     if (TCompactionHintRecalculationFinalizerBase::TryApplyRecalculation(timestamp, reason)) {
         StoreSubset_ = storeSubset;
     }
