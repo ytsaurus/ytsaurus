@@ -971,8 +971,11 @@ func (e *Encoder) PullQueueConsumer(
 	if err != nil {
 		return
 	}
-	// TODO: extract start_offset from response metadata
+
 	result = &yt.PullQueueConsumerResult{}
+	if startOffset, ok := yt.StartRowIndex(r); ok {
+		result.StartOffset = startOffset
+	}
 	return
 }
 
