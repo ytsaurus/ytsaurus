@@ -771,14 +771,16 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     }
 
     context->SetResponseInfo(
-        "NodeShardId: %v, NodeId: %v, NodeAddress: %v, HeartbeatComplexity: %v, TotalComplexity: %v, IsThrottling: %v, SendRegisteredControllerAgents: %v",
+        "NodeShardId: %v, NodeId: %v, NodeAddress: %v, HeartbeatComplexity: %v, TotalComplexity: %v, "
+        "IsThrottling: %v, SendRegisteredControllerAgents: %v, NodeFreeResources: %v",
         Id_,
         nodeId,
         descriptor.GetDefaultAddress(),
         node->GetSchedulingHeartbeatComplexity(),
         ConcurrentHeartbeatComplexity_.load(),
         isThrottlingActive,
-        shouldSendRegisteredControllerAgents);
+        shouldSendRegisteredControllerAgents,
+        schedulingHeartbeatContext->GetNodeFreeResourcesWithoutDiscount());
 
     TStringBuilder schedulingAttributesBuilder;
     TDelimitedStringBuilderWrapper delimitedSchedulingAttributesBuilder(&schedulingAttributesBuilder);
