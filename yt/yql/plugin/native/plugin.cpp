@@ -10,11 +10,13 @@
 #include <yt/yql/providers/yt/common/yql_names.h>
 #include <yt/yql/providers/yt/comp_nodes/dq/dq_yt_factory.h>
 #include <yt/yql/providers/yt/gateway/native/yql_yt_native.h>
+#include <yt/yql/providers/yt/lib/access_provider/full/yt_access_provider.h>
 #include <yt/yql/providers/yt/lib/log/yt_logger.h>
 #include <yt/yql/providers/yt/lib/res_pull/res_or_pull.h>
 #include <yt/yql/providers/yt/lib/row_spec/yql_row_spec.h>
 #include <yt/yql/providers/yt/lib/schema/schema.h>
 #include <yt/yql/providers/yt/lib/skiff/yql_skiff_schema.h>
+#include <yt/yql/providers/yt/lib/tvm_client/full/tvm_client.h>
 #include <yt/yql/providers/yt/lib/yt_download/yt_download.h>
 #include <yt/yql/providers/yt/lib/yt_url_lister/yt_url_lister.h>
 #include <yt/yql/providers/yt/provider/yql_yt_provider.h>
@@ -1048,6 +1050,8 @@ private:
         ytServices.FileStorage = FileStorage_;
         ytServices.Config = std::make_shared<NYql::TYtGatewayConfig>(dynamicConfig.GatewaysConfig.GetYt());
         ytServices.SecretMasker = CreateSecretMasker();
+        ytServices.TvmClient = CreateTvmClient(dynamicConfig.GatewaysConfig.GetYt());
+        ytServices.YtAccessProvider = CreateYtAccessProvider(ytServices.TvmClient, dynamicConfig.GatewaysConfig.GetYt());
 
         TVector<NYql::TDataProviderInitializer> dataProvidersInit;
         if (DqManagerConfig_) {
