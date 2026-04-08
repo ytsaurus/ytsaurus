@@ -36,6 +36,7 @@ class ComputationCellGenerator:
                 **Init** - loading timers and output messages after start of job (do you understand why previous jobs were finished?).
                 **Input.Empty/Input.Fetch** - just waiting for input messages.
                 **Input.InjectionDelay** - has input messages but waits for watermark to be advanced because of injection delay logic.
+                **Input.WatermarkAlignment** - reading is stopped due to watermark misalignment (partition's watermark exceeds the group watermark + drift bound).
                 **CheckDelayedMessages** - checking delayed messages (little CPU-bound work).
                 **Distribute.Start** - scheduling distributing (little CPU-bound work).
                 **Distribute.OutputBufferOverflow** - waiting because of output buffer overflow.
