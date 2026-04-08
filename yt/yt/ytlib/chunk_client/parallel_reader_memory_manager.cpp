@@ -50,6 +50,9 @@ public:
             Options_.ProfilingPeriod))
         , Id_(TGuid::Create())
         , Logger(ReaderMemoryManagerLogger().WithTag("ManagerId: %v", Id_))
+    { }
+
+    void InitializeRefCounted()
     {
         if (Options_.EnableProfiling) {
             ProfilingExecutor_->Start();
