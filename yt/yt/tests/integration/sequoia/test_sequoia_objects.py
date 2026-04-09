@@ -919,28 +919,31 @@ class TestSequoiaReplicasMulticell(TestSequoiaReplicas):
         sequoia_and_master_chunk_created = False
 
         while not only_master_chunk_created or not only_sequoia_chunk_created or not sequoia_and_master_chunk_created:
-            create("table", "//tmp/t")
-            write_table("//tmp/t", [{"a": "b"}])
-            chunk_id = get_singular_chunk_id("//tmp/t")
+            tables = [f"//tmp/t{i}" for i in range(10)]
+            for table in tables:
+                create("table", table)
+                write_table(table, [{"a": "b"}])
 
-            wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 3)
+            for table in tables:
+                chunk_id = get_singular_chunk_id(table)
+                wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 3)
 
-            sequoia_replicas = get(f"#{chunk_id}/@stored_sequoia_replicas")
-            master_replicas = get(f"#{chunk_id}/@stored_master_replicas")
-            replicas = get(f"#{chunk_id}/@stored_replicas")
-            assert len(sequoia_replicas) == 0 or len(replicas) == len(sequoia_replicas)
-            assert len(master_replicas) == 0 or len(replicas) == len(master_replicas)
+                sequoia_replicas = get(f"#{chunk_id}/@stored_sequoia_replicas")
+                master_replicas = get(f"#{chunk_id}/@stored_master_replicas")
+                replicas = get(f"#{chunk_id}/@stored_replicas")
+                assert len(sequoia_replicas) == 0 or len(replicas) == len(sequoia_replicas)
+                assert len(master_replicas) == 0 or len(replicas) == len(master_replicas)
 
-            if len(sequoia_replicas) > 0:
-                if len(master_replicas) > 0:
-                    sequoia_and_master_chunk_created = True
+                if len(sequoia_replicas) > 0:
+                    if len(master_replicas) > 0:
+                        sequoia_and_master_chunk_created = True
+                    else:
+                        only_sequoia_chunk_created = True
                 else:
-                    only_sequoia_chunk_created = True
-            else:
-                assert len(master_replicas) > 0
-                only_master_chunk_created = True
+                    assert len(master_replicas) > 0
+                    only_master_chunk_created = True
 
-            remove("//tmp/t")
+                remove(table)
 
 
 class TestSequoiaReplicasProcessRemovedSequoiaReplicasOnMaster(TestSequoiaReplicas):
