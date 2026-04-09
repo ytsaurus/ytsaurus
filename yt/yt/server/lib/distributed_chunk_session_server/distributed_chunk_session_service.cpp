@@ -123,7 +123,7 @@ private:
 
         auto sequencer = DistributedChunkSessionManager_->GetSequencerOrThrow(sessionId);
 
-        context->ReplyFrom(sequencer->Close());
+        context->ReplyFrom(sequencer->Close().ToUncancelable());
     }
 };
 

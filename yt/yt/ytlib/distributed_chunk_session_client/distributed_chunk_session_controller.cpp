@@ -38,10 +38,10 @@ namespace {
 ////////////////////////////////////////////////////////////////////////////////
 
 // NB: We deliberately avoid WaitFor throughout this file to reduce fiber stack
-// memory consumption. Each fiber blocked in WaitFor occupies stack space
-// (typically 256KB). With a large number of concurrent sessions this adds up
-// significantly. Using future pipelines instead allows the same logical flow
-// without holding a fiber while waiting for I/O.
+// memory consumption. Each fiber that at least once blocked in WaitFor
+// occupies stack space (typically 256KB). With a large number of concurrent
+// sessions this adds up significantly. Using future pipelines instead allows
+// the same logical flow without holding a fiber while waiting for I/O.
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,7 +79,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        YT_VERIFY(State_.exchange(EControllerState::Starting) == EControllerState::Created);
+        TransitionState(EControllerState::Created, EControllerState::Starting);
 
         return CreateChunk()
             .Apply(BIND(
@@ -113,7 +113,10 @@ public:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto state = State_.load();
-        YT_VERIFY(state == EControllerState::Running || state == EControllerState::Closed);
+        YT_LOG_FATAL_IF(
+            state != EControllerState::Running && state != EControllerState::Closed,
+            "Unexpected controller state (State: %v)",
+            state);
 
         return SessionId_;
     }
@@ -141,7 +144,7 @@ private:
     TNodeDescriptor SequencerDescriptor_;
     IChannelPtr SequencerChannel_;
 
-    TPromise<void> ClosedPromise_ = NewPromise<void>();
+    const TPromise<void> ClosedPromise_ = NewPromise<void>();
 
     int ConsecutivePingFailures_ = 0;
 
@@ -179,7 +182,7 @@ private:
 
         // TODO(apollo1321): AllocateWriteTargets uses WaitFor internally, which contradicts
         // the no-WaitFor design of this file. Write targets allocation should also be batched
-        // to reduce master workload. Both should be fixed via a distributed chunk session manager.
+        // to reduce master workload. Both should be fixed via a distributed chunk session pool.
         Targets_ = AllocateWriteTargets(
             Client_,
             SessionId_,
@@ -201,7 +204,8 @@ private:
         SequencerChannel_ = channelFactory->CreateChannel(
             SequencerDescriptor_.GetAddressOrThrow(networks));
 
-        YT_LOG_INFO("Selected sequencer node (Address: %v)",
+        YT_LOG_INFO(
+            "Selected sequencer node (Address: %v)",
             SequencerDescriptor_.GetAddressOrThrow(networks));
 
         TDistributedChunkSessionServiceProxy proxy(SequencerChannel_);
@@ -222,12 +226,12 @@ private:
 
         SessionPingExecutor_ = New<TPeriodicExecutor>(
             Invoker_,
-            BIND(&TDistributedChunkSessionController::SendSequencerPing, MakeWeak(this)),
+            BIND_NO_PROPAGATE(&TDistributedChunkSessionController::SendSequencerPing, MakeWeak(this)),
             Config_->SessionPingPeriod);
 
         SessionPingExecutor_->Start();
 
-        YT_VERIFY(State_.exchange(EControllerState::Running) == EControllerState::Starting);
+        TransitionState(EControllerState::Starting, EControllerState::Running);
 
         return SequencerDescriptor_;
     }
@@ -237,7 +241,7 @@ private:
         if (!descriptorOrError.IsOK()) {
             auto error = TError(descriptorOrError);
             YT_LOG_DEBUG(error, "Failed to start session");
-            YT_VERIFY(State_.exchange(EControllerState::Closed) == EControllerState::Starting);
+            TransitionState(EControllerState::Starting, EControllerState::Closed);
             ClosedPromise_.Set(error);
             descriptorOrError.ThrowOnError();
         }
@@ -315,9 +319,10 @@ private:
         if (!State_.compare_exchange_strong(expected, EControllerState::Closing)) {
             YT_LOG_DEBUG("Session is not running (State: %v)", expected);
 
-            YT_VERIFY(
-                expected == EControllerState::Closing ||
-                expected == EControllerState::Closed);
+            YT_LOG_FATAL_IF(
+                expected != EControllerState::Closing && expected != EControllerState::Closed,
+                "Unexpected controller state (State: %v)",
+                expected);
             return;
         }
 
@@ -358,7 +363,7 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-        YT_VERIFY(State_.exchange(EControllerState::Closed) == EControllerState::Closing);
+        TransitionState(EControllerState::Closing, EControllerState::Closed);
 
         finishError.ThrowOnError();
     }
@@ -373,6 +378,17 @@ private:
                     "Unexpected failure during session ping executor stopping");
             }))
             .AsUnique();
+    }
+
+    void TransitionState(EControllerState from, EControllerState to)
+    {
+        auto actual = State_.exchange(to);
+        YT_LOG_FATAL_IF(
+            actual != from,
+            "Unexpected controller state (ExpectedState: %v, ActualState: %v, NewState: %v)",
+            from,
+            actual,
+            to);
     }
 };
 

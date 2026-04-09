@@ -63,7 +63,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return ClosedPromise_.ToFuture();
+        return ClosedPromise_.ToFuture().ToUncancelable();
     }
 
     TFuture<void> WriteRecord(TSharedRef record) final
@@ -90,7 +90,7 @@ public:
             ClosedPromise_.SetFrom(Writer_->Close());
         }
 
-        return ClosedPromise_.ToFuture();
+        return ClosedPromise_.ToFuture().ToUncancelable();
     }
 
 private:
