@@ -177,6 +177,7 @@ class Queue:
         copy_queue = Queue(self.base_path, name, self.tablet_count)
         copy_queue.hunk_storage_name = self.hunk_storage_name
         copy_queue.data_path = copied_data_path
+        copy_queue.written_row_count = copy.deepcopy(self.written_row_count)
 
         return copy_queue
 
@@ -196,6 +197,7 @@ class Queue:
         moved_queue = Queue(self.base_path, name, self.tablet_count)
         moved_queue.hunk_storage_name = self.hunk_storage_name
         moved_queue.data_path = moved_data_path
+        moved_queue.written_row_count = copy.deepcopy(self.written_row_count)
 
         return moved_queue
 
@@ -264,9 +266,9 @@ class Queue:
                     return False
             return True
 
-        logger.info(f"Checking written rows (written_row_count: {self.written_row_count})")
+        logger.info(f"Checking written rows (written_row_count: {self.written_row_count}, queue: {self.path})")
 
-        wait(check_written)
+        wait(check_written, error_message=f"Queue {self.path} has unexpected written row count (expected: {self.written_row_count})")
 
     def flush(self):
         logger.info(f"Flushing queue {self.path}")
