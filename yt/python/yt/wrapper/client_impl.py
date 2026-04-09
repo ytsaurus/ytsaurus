@@ -24,7 +24,12 @@ from .ypath import TablePath as TablePath_, YPath
 class YtClient(ClientState):
     """Implements YT client."""
 
-    def __init__(self, proxy: str = None, token: str = None, config: Union[DefaultConfigType, VerifiedDict, Dict[str, Any]] = None):
+    def __init__(
+        self,
+        proxy: Optional[str] = None,
+        token: Optional[str] = None,
+        config: Optional[Union[DefaultConfigType, VerifiedDict, Dict[str, Any]]] = None,
+    ):
         super(YtClient, self).__init__()
         initialize_client(self, proxy, token, config)
 
