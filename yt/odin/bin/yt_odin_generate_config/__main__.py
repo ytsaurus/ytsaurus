@@ -118,7 +118,7 @@ ODIN_WEBSERVICE_CONFIG_TEMPLATE = {
         "type": "yt"
     },
     "debug": 0,
-    "host": "::",
+    "host": "*",
     "logging": {
         # "filename": "{LOG_FILE}"
     },
