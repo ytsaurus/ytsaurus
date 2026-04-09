@@ -384,7 +384,7 @@ private:
             ++Splitter_->NonAndDepth_;
         }
 
-        TDepthGuard(TDepthGuard&& other)
+        TDepthGuard(TDepthGuard&& other) noexcept
             : Splitter_(std::exchange(other.Splitter_, nullptr))
         { }
 

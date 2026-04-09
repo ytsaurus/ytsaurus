@@ -762,12 +762,12 @@ TYsonString MergeAttributes(
             }
             case EMergeAttributesMode::CompareCallback: {
                 auto oldResult = MergeAttributeValuesAsNodes(expandedAttributeValues, format, duplicatePolicy);
-                auto newResult = MergeAttributeValuesWithPrefixes(std::move(expandedAttributeValues), format, duplicatePolicy);
+                auto newResult = MergeAttributeValuesWithPrefixes(expandedAttributeValues, format, duplicatePolicy);
                 if (!NYTree::AreNodesEqual(NYTree::ConvertToNode(oldResult), NYTree::ConvertToNode(newResult))) {
                     std::vector<NYPath::TYPath> mismatchedPaths;
                     mismatchedPaths.reserve(expandedAttributeValues.size());
-                    for (const auto& attribute : expandedAttributeValues) {
-                        mismatchedPaths.push_back(attribute.Path);
+                    for (auto& attribute : expandedAttributeValues) {
+                        mismatchedPaths.push_back(std::move(attribute.Path));
                     }
                     mismatchCallback(/*expandWildcardsMismatched*/ false, std::move(mismatchedPaths));
                 }
