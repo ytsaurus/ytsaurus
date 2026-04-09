@@ -3005,6 +3005,11 @@ void ListContains(
     auto node = NYTree::ConvertToNode(
         FromUnversionedValue<NYson::TYsonStringBuf>(ysonListAtHost));
 
+    if (node->GetType() == NYTree::ENodeType::Entity) {
+        *PtrFromVM(compartment, result) = MakeUnversionedSentinelValue(EValueType::Null);
+        return;
+    }
+
     bool found = false;
     switch (whatAtHost.Type) {
         case EValueType::String:
