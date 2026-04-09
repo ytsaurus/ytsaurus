@@ -156,7 +156,7 @@ private:
             return;
         }
         YT_LOG_INFO("Sequencer lease expired, closing (SessionId: %v)", sessionId);
-        sequencer->Close().Subscribe(BIND([sessionId] (const TError& error) {
+        sequencer->Close().Subscribe(BIND_NO_PROPAGATE([sessionId] (const TError& error) {
             YT_LOG_INFO(error, "Sequencer session has been closed (SessionId: %v)", sessionId);
         }));
     }
