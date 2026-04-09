@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: gunicorn
-Version: 25.1.0
+Version: 25.2.0
 Summary: WSGI HTTP Server for UNIX
 Author-email: Benoit Chesneau <benoitc@gunicorn.org>
 License-Expression: MIT
@@ -45,6 +45,8 @@ Provides-Extra: setproctitle
 Requires-Dist: setproctitle; extra == "setproctitle"
 Provides-Extra: http2
 Requires-Dist: h2>=4.1.0; extra == "http2"
+Provides-Extra: fast
+Requires-Dist: gunicorn_h1c>=0.4.1; extra == "fast"
 Provides-Extra: testing
 Requires-Dist: gevent>=24.10.1; extra == "testing"
 Requires-Dist: eventlet>=0.40.3; extra == "testing"
