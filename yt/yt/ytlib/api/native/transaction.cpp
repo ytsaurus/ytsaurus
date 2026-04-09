@@ -851,7 +851,8 @@ private:
                                 *versionedWriteSchema,
                                 versionedWriteIdMapping,
                                 NameTable_,
-                                tabletIndexColumnId);
+                                tabletIndexColumnId,
+                                Options_.AllowMissingKeyColumns);
                         }
                         break;
 
@@ -866,7 +867,8 @@ private:
                             TUnversionedRow(modification.Row),
                             *deleteSchema,
                             deleteIdMapping,
-                            NameTable_);
+                            NameTable_,
+                            Options_.AllowMissingKeyColumns);
                         break;
 
                     case ERowModificationType::WriteAndLock: {

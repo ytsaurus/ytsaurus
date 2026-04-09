@@ -53,7 +53,7 @@ void ValidateTabletNotUnmounted(
 NTableClient::TNameTableToSchemaIdMapping BuildColumnIdMapping(
     const NTableClient::TTableSchema& schema,
     const NTableClient::TNameTablePtr& nameTable,
-    bool allowKeyExtension = false);
+    bool allowMissingKeyColumns = false);
 
 TSharedRange<NTableClient::TUnversionedRow> PermuteAndEvaluateKeys(
     const NTabletClient::TTableMountInfoPtr& tableInfo,
