@@ -281,7 +281,7 @@ private:
 
     NProfiling::TDynamicTagPtr MediumTag_;
 
-    TChunkLocationUuid Uuid_;
+    NThreading::TAtomicObject<TChunkLocationUuid> Uuid_;
     TChunkLocationIndex Index_ = NNodeTrackerClient::InvalidChunkLocationIndex;
 
     TFairShareHierarchicalSlotQueuePtr<std::string> IOFairShareQueue_;

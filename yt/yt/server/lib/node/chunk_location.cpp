@@ -195,7 +195,7 @@ TChunkLocationUuid TChunkLocationBase::GetUuid() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return Uuid_;
+    return Uuid_.Load();
 }
 
 TChunkLocationIndex TChunkLocationBase::GetIndex() const
@@ -208,12 +208,12 @@ void TChunkLocationBase::SetIndex(TChunkLocationIndex index)
     if (Index_ != NNodeTrackerClient::InvalidChunkLocationIndex && Index_ != index) {
         YT_LOG_ALERT(
             "Attempted to change chunk location index (LocationUuid: %v, OldIndex: %v, NewIndex: %v)",
-            Uuid_,
+            Uuid_.Load(),
             Index_,
             index);
 
         THROW_ERROR_EXCEPTION("Attempted to change chunk location index")
-            << TErrorAttribute("location_uuid", Uuid_)
+            << TErrorAttribute("location_uuid", Uuid_.Load())
             << TErrorAttribute("old_index", Index_)
             << TErrorAttribute("new_index", index);
     }
@@ -508,25 +508,29 @@ void TChunkLocationBase::InitializeUuid()
         }
     }
 
+    TChunkLocationUuid uuid;
+
     if (Exists(uuidPath)) {
         TUnbufferedFileInput file(uuidPath);
         auto uuidString = file.ReadAll();
-        if (!TCellId::FromString(uuidString, &Uuid_)) {
+        if (!TCellId::FromString(uuidString, &uuid)) {
             THROW_ERROR_EXCEPTION(
                 "Failed to parse chunk location uuid %Qv",
                 uuidString);
         }
     } else {
         do {
-            Uuid_ = TChunkLocationUuid::Create();
-        } while (Uuid_ == EmptyChunkLocationUuid || Uuid_ == InvalidChunkLocationUuid);
+            uuid = TChunkLocationUuid::Create();
+        } while (uuid == EmptyChunkLocationUuid || uuid == InvalidChunkLocationUuid);
         YT_LOG_INFO(
             "Chunk location uuid file is not found, creating (LocationUuid: %v)",
-            Uuid_);
+            uuid);
         TFile file(uuidPath, CreateAlways | WrOnly | Seq | CloseOnExec);
         TUnbufferedFileOutput output(file);
-        output.Write(ToString(Uuid_));
+        output.Write(ToString(uuid));
     }
+
+    Uuid_.Store(uuid);
 }
 
 bool TChunkLocationBase::IsSick() const
