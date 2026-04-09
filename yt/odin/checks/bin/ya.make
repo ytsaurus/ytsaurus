@@ -6,6 +6,7 @@ RECURSE(
     controller_agent_count
     controller_agent_operation_memory_consumption
     controller_agent_uptime
+    cypress_commands
     destroyed_replicas_size
     discovery
     dynamic_table_commands
@@ -30,6 +31,7 @@ RECURSE(
     query_tracker_ql_liveness
     query_tracker_yql_liveness
     query_tracker_dq_liveness
+    read_static_table_commands
     queue_agent_alerts
     queue_agent_controller_liveness
     queue_api
@@ -52,6 +54,7 @@ RECURSE(
     tablet_cells
     tmp_node_count
     unaware_nodes
+    write_static_table_commands
 )
 
 IF (NOT OPENSOURCE)
