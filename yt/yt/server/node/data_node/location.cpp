@@ -339,7 +339,6 @@ TChunkLocation::TChunkLocation(
     UnlimitedOutThrottler_ = CreateNamedUnlimitedThroughputThrottler(
         "UnlimitedOut",
         diskThrottlerProfiler);
-    EnableUncategorizedThrottler_ = GetStaticConfig()->EnableUncategorizedThrottler;
     UncategorizedThrottler_ = ReconfigurableUncategorizedThrottler_ = CreateNamedReconfigurableThroughputThrottler(
         GetStaticConfig()->UncategorizedThrottler,
         "uncategorized",
@@ -375,6 +374,14 @@ double TChunkLocation::GetMemoryLimitFractionForStartingNewSessions() const
     return config->MemoryLimitFractionForStartingNewSessions;
 }
 
+bool TChunkLocation::ShouldUseUncategorizedThrottler() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    auto config = GetRuntimeConfig();
+    return config->EnableUncategorizedThrottler;
+}
+
 void TChunkLocation::Reconfigure(TChunkLocationConfigPtr config)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -384,8 +391,7 @@ void TChunkLocation::Reconfigure(TChunkLocationConfigPtr config)
     for (auto kind : TEnumTraits<EChunkLocationThrottlerKind>::GetDomainValues()) {
         ReconfigurableThrottlers_[kind]->Reconfigure(config->Throttlers[kind]);
     }
-    EnableUncategorizedThrottler_ = config->EnableUncategorizedThrottler;
-    if (EnableUncategorizedThrottler_) {
+    if (config->EnableUncategorizedThrottler) {
         ReconfigurableUncategorizedThrottler_->Reconfigure(config->UncategorizedThrottler);
     }
 
@@ -792,7 +798,7 @@ const IThroughputThrottlerPtr& TChunkLocation::GetInThrottler(const TWorkloadDes
             return Throttlers_[EChunkLocationThrottlerKind::TabletStoreFlushIn];
 
         default:
-            if (EnableUncategorizedThrottler_) {
+            if (ShouldUseUncategorizedThrottler()) {
                 return UncategorizedThrottler_;
             } else {
                 return UnlimitedInThrottler_;
@@ -825,7 +831,7 @@ const IThroughputThrottlerPtr& TChunkLocation::GetOutThrottler(const TWorkloadDe
             return Throttlers_[EChunkLocationThrottlerKind::TabletRecoveryOut];
 
         default:
-            if (EnableUncategorizedThrottler_) {
+            if (ShouldUseUncategorizedThrottler()) {
                 return UncategorizedThrottler_;
             } else {
                 return UnlimitedOutThrottler_;

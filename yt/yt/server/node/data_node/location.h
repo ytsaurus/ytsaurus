@@ -306,6 +306,8 @@ public:
     //! This method returns memory limit fraction.
     double GetMemoryLimitFractionForStartingNewSessions() const;
 
+    bool ShouldUseUncategorizedThrottler() const;
+
     const TChunkStorePtr& GetChunkStore() const;
 
     std::optional<TDuration> GetDelayBeforeBlobSessionBlockFree() const;
@@ -361,7 +363,6 @@ private:
     NConcurrency::IThroughputThrottlerPtr UnlimitedInThrottler_;
     NConcurrency::IThroughputThrottlerPtr UnlimitedOutThrottler_;
 
-    bool EnableUncategorizedThrottler_;
     NConcurrency::IReconfigurableThroughputThrottlerPtr ReconfigurableUncategorizedThrottler_;
     NConcurrency::IThroughputThrottlerPtr UncategorizedThrottler_;
 
