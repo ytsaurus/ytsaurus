@@ -168,10 +168,15 @@ class Queue:
             self.unmount()
         yt.copy(self.path, copy_path)
 
+        copied_data_path = f"{self.base_path}/{name}.data"
+        yt.unmount_table(self.data_path, sync=True)
+        yt.copy(self.data_path, copied_data_path)
+        yt.mount_table(self.data_path, sync=True)
+        yt.mount_table(copied_data_path, sync=True)
+
         copy_queue = Queue(self.base_path, name, self.tablet_count)
         copy_queue.hunk_storage_name = self.hunk_storage_name
-        copy_queue.data_path = f"{self.base_path}/{name}.data"
-        copy_queue.create_data_table()
+        copy_queue.data_path = copied_data_path
 
         return copy_queue
 
@@ -183,10 +188,14 @@ class Queue:
             self.unmount()
         yt.move(self.path, new_path)
 
+        moved_data_path = f"{self.base_path}/{name}.data"
+        yt.unmount_table(self.data_path, sync=True)
+        yt.move(self.data_path, moved_data_path)
+        yt.mount_table(moved_data_path, sync=True)
+
         moved_queue = Queue(self.base_path, name, self.tablet_count)
         moved_queue.hunk_storage_name = self.hunk_storage_name
-        moved_queue.data_path = f"{self.base_path}/{name}.data"
-        moved_queue.create_data_table()
+        moved_queue.data_path = moved_data_path
 
         return moved_queue
 
