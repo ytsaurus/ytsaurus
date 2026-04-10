@@ -799,8 +799,7 @@ void TJob::Terminate(EJobState finalState, TError error)
         case EJobPhase::PreparingNodeDirectory:
         case EJobPhase::DownloadingArtifacts:
         case EJobPhase::CachingArtifacts:
-        case EJobPhase::PreparingRootVolume:
-        case EJobPhase::PreparingTmpfsVolumes:
+        case EJobPhase::PreparingVolumes:
         case EJobPhase::PreparingGpuCheckVolume:
         case EJobPhase::LinkingVolumes:
         case EJobPhase::ValidatingRootFS:
@@ -1191,7 +1190,8 @@ NJobAgent::TTimeStatistics TJob::GetTimeStatistics() const
         .PrepareDuration = sumOptionals(getDuration(PreparationStartTime_, ExecStartTime_), fakePrepareDuration),
         .ArtifactsCachingDuration = getDuration(NodeDirectoryPreparationStartTime_, ArtifactsDownloadedTime_),
         .PrepareRootFSDuration = getDuration(PrepareRootVolumeStartTime_, PrepareRootVolumeFinishTime_),
-        .PrepareTmpfsDuration = getDuration(PrepareTmpfsVolumesStartTime_, PrepareTmpfsVolumesFinishTime_),
+        .PrepareNonRootVolumesDuration = getDuration(PrepareNonRootVolumesStartTime_, PrepareNonRootVolumesFinishTime_),
+        .LinkVolumesDuration = getDuration(LinkVolumesStartTime_, LinkVolumesFinishTime_),
         .PrepareGpuCheckFSDuration = getDuration(PrepareGpuCheckVolumeStartTime_, PrepareGpuCheckVolumeFinishTime_),
         .ValidateRootFSDuration = getDuration(ValidateRootFSStartTime_, ValidateRootFSFinishTime_),
         .ExecDuration = getDuration(ExecStartTime_, FinishTime_),
@@ -2519,14 +2519,14 @@ void TJob::PrepareWorkspace()
             PrepareRootVolumeStartTime_ = timePoints.PrepareRootVolumeStartTime;
             PrepareRootVolumeFinishTime_ = timePoints.PrepareRootVolumeFinishTime;
 
-            PrepareTmpfsVolumesStartTime_ = timePoints.PrepareTmpfsVolumesStartTime;
-            PrepareTmpfsVolumesFinishTime_ = timePoints.PrepareTmpfsVolumesFinishTime;
+            PrepareNonRootVolumesStartTime_ = timePoints.PrepareNonRootVolumesStartTime;
+            PrepareNonRootVolumesFinishTime_ = timePoints.PrepareNonRootVolumesFinishTime;
 
             PrepareGpuCheckVolumeStartTime_ = timePoints.PrepareGpuCheckVolumeStartTime;
             PrepareGpuCheckVolumeFinishTime_ = timePoints.PrepareGpuCheckVolumeFinishTime;
 
-            LinkTmpfsVolumesStartTime_ = timePoints.LinkTmpfsVolumesStartTime;
-            LinkTmpfsVolumesFinishTime_ = timePoints.LinkTmpfsVolumesFinishTime;
+            LinkVolumesStartTime_ = timePoints.LinkVolumesStartTime;
+            LinkVolumesFinishTime_ = timePoints.LinkVolumesFinishTime;
 
             ValidateRootFSStartTime_ = timePoints.ValidateRootFSStartTime;
             ValidateRootFSFinishTime_ = timePoints.ValidateRootFSFinishTime;
@@ -2556,7 +2556,7 @@ void TJob::OnWorkspacePreparationFinished(TJobWorkspaceBuilderPtr workspaceBuild
 
     auto result = workspaceBuilder->ExtractResult();
     FSSecretary_->SetRootVolume(std::move(result.RootVolume));
-    FSSecretary_->SetTmpfsVolumes(std::move(result.TmpfsVolumes));
+    FSSecretary_->SetNonRootVolumes(std::move(result.NonRootVolumes));
     FSSecretary_->SetGpuCheckVolume(std::move(result.GpuCheckVolume));
     // Workspace builder may add or replace docker image.
     FSSecretary_->SetDockerImage(std::move(result.DockerImage));
@@ -2924,8 +2924,8 @@ void TJob::Cleanup()
     };
 
     // Remove tmpfs volumes prior to root volume.
-    for (auto& tmpfsVolume : FSSecretary_->ReleaseTmpfsVolumes()) {
-        removeVolume(std::move(tmpfsVolume.Volume));
+    for (auto& tmpfsVolume : FSSecretary_->ReleaseNonRootVolumes()) {
+        removeVolume(std::move(tmpfsVolume->Volume));
     }
 
     removeVolume(FSSecretary_->ReleaseRootVolume());
@@ -3170,10 +3170,15 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     proxyInternalConfig->HttpServerUdsPath = GetUserSlot()->GetJobProxyHttpUnixDomainSocketPath();
 
     proxyInternalConfig->TmpfsManager = New<TTmpfsManagerConfig>();
-    const auto& tmpfsVolumes = FSSecretary_->GetTmpfsVolumes();
-    proxyInternalConfig->TmpfsManager->TmpfsPaths.resize(tmpfsVolumes.size());
-    for (const auto& tmpfsVolume : tmpfsVolumes) {
-        proxyInternalConfig->TmpfsManager->TmpfsPaths[tmpfsVolume.Index] = tmpfsVolume.Volume->GetPath();
+    const auto& nonRootVolumes = FSSecretary_->GetNonRootVolumes();
+
+    proxyInternalConfig->TmpfsManager->TmpfsPaths.resize(FSSecretary_->GetTmpfsVolumeCount());
+    for (const auto& volume : nonRootVolumes) {
+        if (volume->VolumeType == EVolumeType::Tmpfs) {
+            auto tmpfsVolume = StaticPointerCast<TTmpfsVolumeResult>(volume);
+            YT_VERIFY(tmpfsVolume->Index < std::ssize(proxyInternalConfig->TmpfsManager->TmpfsPaths));
+            proxyInternalConfig->TmpfsManager->TmpfsPaths[tmpfsVolume->Index] = tmpfsVolume->Volume->GetPath();
+        }
     }
 
     proxyInternalConfig->MemoryTracker = New<TMemoryTrackerConfig>();
@@ -3474,7 +3479,7 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
 
     options.SlotPath = GetUserSlot()->GetSlotPath();
     options.JobVolumeMounts = FSSecretary_->GetJobVolumeMounts();
-    options.TmpfsVolumes = FSSecretary_->GetTmpfsVolumeParams();
+    options.NonRootVolumes = FSSecretary_->GetNonRootVolumeParams();
     options.DiskSpaceLimit = FSSecretary_->GetRootVolumeDiskSpace();
     options.InodeLimit = FSSecretary_->GetRootVolumeInodeLimit();
 

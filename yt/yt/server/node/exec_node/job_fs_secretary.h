@@ -1,6 +1,7 @@
 #pragma once
 
 #include "artifact_description.h"
+#include "helpers.h"
 #include "preparation_options.h"
 #include "private.h"
 #include "public.h"
@@ -27,7 +28,7 @@ struct TJobFSDescription
     std::optional<TString> DockerImage;
     std::optional<int> RootVolumeDiskSpace;
     std::optional<int64_t> RootVolumeInodeLimit;
-    std::vector<TTmpfsVolumeParams> TmpfsVolumeParams;
+    std::vector<TBaseVolumeParamsPtr> NonRootVolumeParams;
     std::vector<NScheduler::TVolumeMountPtr> JobVolumeMounts;
     std::optional<TSandboxNbdRootVolumeData> SandboxNbdRootVolumeData;
 };
@@ -80,9 +81,11 @@ public:
 
     const std::optional<TSandboxNbdRootVolumeData>& GetSandboxNbdRootVolumeData() const;
 
-    const std::vector<TTmpfsVolumeResult>& GetTmpfsVolumes() const;
-    std::vector<TTmpfsVolumeResult> ReleaseTmpfsVolumes();
-    void SetTmpfsVolumes(std::vector<TTmpfsVolumeResult> volumes);
+    const std::vector<TVolumeResultPtr>& GetNonRootVolumes() const;
+    std::vector<TVolumeResultPtr> ReleaseNonRootVolumes();
+    void SetNonRootVolumes(std::vector<TVolumeResultPtr> volumes);
+
+    size_t GetTmpfsVolumeCount() const;
 
     const std::optional<TVirtualSandboxData>& GetVirtualSandboxData() const;
     void SetVirtualSandboxReader(NNbd::IImageReaderPtr reader);
@@ -90,7 +93,7 @@ public:
     const std::optional<int>& GetRootVolumeDiskSpace() const;
     const std::optional<int64_t>& GetRootVolumeInodeLimit() const;
 
-    const std::vector<TTmpfsVolumeParams>& GetTmpfsVolumeParams() const;
+    const std::vector<TBaseVolumeParamsPtr>& GetNonRootVolumeParams() const;
 
     const std::vector<NScheduler::TVolumeMountPtr>& GetJobVolumeMounts() const;
 
@@ -123,13 +126,13 @@ private:
     THashSet<TString> NbdDeviceIds_;
     std::optional<TSandboxNbdRootVolumeData> SandboxNbdRootVolumeData_;
     THashMap<TString, int> UserArtifactNameToIndex_;
-    std::vector<TTmpfsVolumeResult> TmpfsVolumes_;
+    std::vector<TVolumeResultPtr> NonRootVolumes_;
     std::optional<TVirtualSandboxData> VirtualSandboxData_;
     // COMPAT(krasovav)
     std::optional<int> RootVolumeDiskSpace_;
     // COMPAT(krasovav)
     std::optional<int64_t> RootVolumeInodeLimit_;
-    std::vector<TTmpfsVolumeParams> TmpfsVolumeParams_;
+    std::vector<TBaseVolumeParamsPtr> NonRootVolumeParams_;
     std::vector<NScheduler::TVolumeMountPtr> JobVolumeMounts_;
     bool HasVirtualSandboxArtifacts_ = false;
     bool ArtifactsCached_ = false;

@@ -115,6 +115,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((FixPartitionsDispatchStatistics)       (302208))
     ((FixInputStreamDirectory)               (302209))
     ((AccessControlRule)                     (302210))
+    ((LinkVolumes)                           (302211))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -95,10 +95,10 @@ struct IUserSlot
         const std::vector<TArtifactKey>& layers,
         const TVolumePreparationOptions& options) = 0;
 
-    virtual TFuture<std::vector<TTmpfsVolumeResult>> PrepareTmpfsVolumes(
+    virtual TFuture<std::vector<TVolumeResultPtr>> PrepareNonRootVolumes(
         TJobId jobId,
         const IVolumePtr& rootVolume,
-        const std::vector<TTmpfsVolumeParams>& volumes,
+        const std::vector<TBaseVolumeParamsPtr>& volumes,
         const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts,
         const TArtifactDownloadOptions& artifactDownloadOptions,
         bool testRootFs) = 0;
@@ -106,9 +106,9 @@ struct IUserSlot
     virtual TFuture<IVolumePtr> RbindRootVolume(
         const IVolumePtr& volume) = 0;
 
-    virtual TFuture<void> LinkTmpfsVolumes(
+    virtual TFuture<void> LinkVolumes(
         const IVolumePtr& rootVolume,
-        const std::vector<TTmpfsVolumeResult>& volumes,
+        const std::vector<TVolumeResultPtr>& volumes,
         const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts,
         bool testRootFs) = 0;
 

@@ -96,6 +96,7 @@ SRCS(
     exec_node/volume.proto
     exec_node/volume.cpp
     exec_node/volume_artifact.cpp
+    exec_node/volume_helpers.cpp
     exec_node/volume_cache.cpp
     exec_node/volume_counters.cpp
     exec_node/volume_manager.cpp

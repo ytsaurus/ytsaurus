@@ -1129,44 +1129,6 @@ void ToProto(NProto::TTmpfsStorageRequest* protoDiskRequestConfig, const TTmpfsS
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Check that no volume path is a prefix of another volume path. Throw if check has failed.
-void ValidateTmpfsPaths(const std::vector<std::string_view>& tmpfsPaths)
-{
-    for (int i = 0; i < std::ssize(tmpfsPaths); ++i) {
-        for (int j = 0; j < std::ssize(tmpfsPaths); ++j) {
-            if (i == j) {
-                continue;
-            }
-
-            auto lhsFsPath = TFsPath(tmpfsPaths[i]);
-            auto rhsFsPath = TFsPath(tmpfsPaths[j]);
-
-            if (lhsFsPath.IsSubpathOf(rhsFsPath)) {
-                THROW_ERROR_EXCEPTION("Path of tmpfs volume %Qv is a prefix of another tmpfs volume %Qv",
-                    tmpfsPaths[i],
-                    tmpfsPaths[j]);
-            }
-        }
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-int CountNonTmpfsVolumes(const THashMap<std::string, TVolumePtr>& volumes)
-{
-    int count = 0;
-
-    for (const auto& [_, volume] : volumes) {
-        if (volume->DiskRequest && volume->DiskRequest->GetCurrentType() != NExecNode::EVolumeType::Tmpfs) {
-            ++count;
-        }
-    }
-
-    return count;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 bool IsDiskRequestTmpfs(const std::optional<TStorageRequestConfig>& diskRequest)
 {
     return diskRequest && diskRequest->GetCurrentType() == NExecNode::EVolumeType::Tmpfs;

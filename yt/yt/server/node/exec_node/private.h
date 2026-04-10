@@ -102,36 +102,4 @@ struct TGpuCheckOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTmpfsVolumeParams
-{
-    i64 Size = 0;
-    //! Slot user id.
-    int UserId = 0;
-    std::string VolumeId;
-
-    // COMPAT(krasovav)
-    int Index = 0;
-
-    std::vector<TArtifactKey> LayerArtifactKeys;
-
-    bool operator==(const TTmpfsVolumeParams&) const = default;
-};
-
-void FormatValue(TStringBuilderBase* builder, const TTmpfsVolumeParams& params, TStringBuf spec);
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TTmpfsVolumeResult
-{
-    //! Tmpfs volume.
-    IVolumePtr Volume;
-
-    std::string VolumeId;
-
-    // COMPAT(krasovav)
-    int Index = 0;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NExecNode

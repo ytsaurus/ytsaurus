@@ -44,7 +44,8 @@ public:
 
     TFuture<void> Link(
         TGuid tag,
-        const TString& target) override final;
+        const TString& target,
+        bool sholdCheckTargetDirExists) override final;
 
     TFuture<void> Remove() override final;
 
@@ -250,6 +251,30 @@ private:
 };
 
 DECLARE_REFCOUNTED_CLASS(TTmpfsVolume)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLoopVolume
+    : public TPortoVolumeBase
+{
+public:
+    TLoopVolume(
+        NProfiling::TTagSet tagSet,
+        TVolumeMeta volumeMeta,
+        TLayerLocationPtr location);
+
+    ~TLoopVolume() override;
+
+    bool IsRootVolume() const override final;
+
+private:
+    static TFuture<void> DoRemove(
+        NProfiling::TTagSet tagSet,
+        TLayerLocationPtr location,
+        TVolumeMeta volumeMeta);
+};
+
+DECLARE_REFCOUNTED_CLASS(TLoopVolume)
 
 ////////////////////////////////////////////////////////////////////////////////
 
