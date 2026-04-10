@@ -1574,6 +1574,79 @@ class TestUserJobIsolation(YTEnvSetup):
         release_breakpoint()
         op.track()
 
+    @authors("pogorelov")
+    def test_high_job_thread_count_alert_no_alert_when_below_limit(self):
+        update_controller_agent_config("max_job_thread_count_formula", "1000")
+
+        cmd = "for i in $(seq 1 32); do nohup sleep 1 & done; wait"
+
+        op = run_test_vanilla(cmd, spec={"max_failed_job_count": 1})
+        op.track()
+
+        alerts = ls(op.get_path() + "/@alerts")
+        assert "high_job_thread_count" not in alerts
+
+    @authors("pogorelov")
+    @pytest.mark.parametrize("formula", ["1", "cpu", "cpu * 5"])
+    def test_high_job_thread_count_alert(self, formula):
+        update_controller_agent_config("max_job_thread_count_formula", formula)
+
+        cmd = "for i in $(seq 1 32); do nohup sleep 1 & done; wait"
+
+        op = run_test_vanilla(cmd, spec={"max_failed_job_count": 1})
+        op.track()
+        wait(lambda: "high_job_thread_count" in ls(op.get_path() + "/@alerts"))
+        alert = get(op.get_path() + "/@alerts/high_job_thread_count")
+        assert "Some jobs have too many threads" in alert["message"]
+
+    @authors("pogorelov")
+    def test_high_job_thread_count_alert_attributes(self):
+        update_controller_agent_config("max_job_thread_count_formula", "1")
+
+        cmd = "for i in $(seq 1 32); do nohup sleep 1 & done; wait"
+
+        op = run_test_vanilla(cmd, spec={"max_failed_job_count": 1})
+        op.track()
+        wait(lambda: "high_job_thread_count" in ls(op.get_path() + "/@alerts"))
+
+        alerts = ls(op.get_path() + "/@alerts")
+        assert alerts == ["high_job_thread_count"]
+
+        alert = get(op.get_path() + "/@alerts/high_job_thread_count")
+        inner_errors = alert["inner_errors"]
+        assert len(inner_errors) == 1
+
+        inner_error = inner_errors[0]
+        assert "Jobs exceed thread count limit" in inner_error["message"]
+        assert "job_id" in inner_error["attributes"]
+        assert inner_error["attributes"]["thread_count"] >= 32
+
+    @authors("pogorelov")
+    def test_high_job_thread_count_alert_multiple_tasks(self):
+        update_controller_agent_config("max_job_thread_count_formula", "1")
+
+        cmd = "for i in $(seq 1 32); do nohup sleep 1 & done; wait"
+
+        op = vanilla(
+            spec={
+                "tasks": {
+                    "task_a": {"job_count": 1, "command": cmd},
+                    "task_b": {"job_count": 1, "command": cmd},
+                },
+                "max_failed_job_count": 1,
+            },
+            track=True,
+        )
+
+        wait(lambda: "high_job_thread_count" in ls(op.get_path() + "/@alerts"))
+
+        alert = get(op.get_path() + "/@alerts/high_job_thread_count")
+        inner_errors = alert["inner_errors"]
+        assert len(inner_errors) == 2
+
+        task_names = {e["attributes"]["task"] for e in inner_errors}
+        assert task_names == {"task_a", "task_b"}
+
 
 class TestFixedUser(YTEnvSetup):
     USE_PORTO = True

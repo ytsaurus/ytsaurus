@@ -2,7 +2,19 @@
 
 #include <yt/yt/server/controller_agent/private.h>
 
+#include <yt/yt/client/job_tracker_client/public.h>
+
 namespace NYT::NControllerAgent::NControllers {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct THighThreadCountJobInfo
+{
+    NJobTrackerClient::TJobId JobId;
+    i64 ThreadCount = 0;
+
+    PHOENIX_DECLARE_TYPE(THighThreadCountJobInfo, 0xfb21a9c1);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -116,6 +116,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((FixInputStreamDirectory)               (302209))
     ((AccessControlRule)                     (302210))
     ((LinkVolumes)                           (302211))
+    ((HighThreadCountJobPerTask)             (302212))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
