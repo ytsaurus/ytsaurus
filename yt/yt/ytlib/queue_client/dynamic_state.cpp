@@ -351,6 +351,7 @@ TFuture<std::vector<TErrorOr<TRow>>> TTableBase<TRow, TRecordDescriptor>::Lookup
     // NB(apachee): Passing local variable as options is fine, since it is captured by value in the callback.
     TLookupRowsOptions patchedOptions = options;
     patchedOptions.KeepMissingRows = true;
+    patchedOptions.AllowMissingKeyColumns = true;
     return Client_->LookupRows(Path_, TRecordDescriptor::Get()->GetNameTable(), recordKeysRange, patchedOptions)
         .AsUnique()
         .Apply(BIND([patchedOptions] (TUnversionedLookupRowsResult&& rawResult) {
@@ -424,7 +425,7 @@ TFuture<TTransactionCommitResult> TTableBase<TRow, TRecordDescriptor>::Insert(TR
         .Apply(BIND([records = std::move(records), path = Path_] (const ITransactionPtr& transaction) {
             auto recordsRange = FromRecords(TRange(records));
 
-            transaction->WriteRows(path, TRecordDescriptor::Get()->GetNameTable(), recordsRange, {.RequireSyncReplica = false});
+            transaction->WriteRows(path, TRecordDescriptor::Get()->GetNameTable(), recordsRange, {.RequireSyncReplica = false, .AllowMissingKeyColumns = true});
             return transaction->Commit();
         }));
 }
@@ -441,7 +442,7 @@ TFuture<TTransactionCommitResult> TTableBase<TRow, TRecordDescriptor>::Delete(TR
     return Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet)
         .Apply(BIND([recordKeys = std::move(recordKeys), path = Path_] (const ITransactionPtr& transaction) {
             auto recordKeysRange = FromRecordKeys(TRange(recordKeys));
-            transaction->DeleteRows(path, TRecordDescriptor::Get()->GetNameTable(), recordKeysRange, {.RequireSyncReplica = false});
+            transaction->DeleteRows(path, TRecordDescriptor::Get()->GetNameTable(), recordKeysRange, {.RequireSyncReplica = false, .AllowMissingKeyColumns = true});
             return transaction->Commit();
         }));
 }
