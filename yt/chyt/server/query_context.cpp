@@ -163,6 +163,14 @@ TQueryContext::TQueryContext(
     InitialAddress = clientInfo.initial_address.toString();
     InitialQueryId = TQueryId::FromString(clientInfo.initial_query_id);
 
+    if (QueryKind == EQueryKind::InitialQuery) {
+        const auto& queryParams = context->getQueryParameters();
+        if (auto it = queryParams.find(ParamTransactionId); it != queryParams.end()) {
+            ParentTransactionId = TTransactionId::FromString(it->second);
+            YT_LOG_INFO("Query has parent transaction (ParentTransactionId: %v)", ParentTransactionId);
+        }
+    }
+
     if (QueryKind == EQueryKind::SecondaryQuery) {
         YT_VERIFY(secondaryQueryHeader);
         ParentQueryId = secondaryQueryHeader->ParentQueryId;
@@ -187,6 +195,10 @@ TQueryContext::TQueryContext(
     }
 
     Settings = ParseCustomSettings(Host->GetConfig()->QuerySettings, context->getSettingsRef().allCustom(), Logger);
+
+    if (ParentTransactionId) {
+        Settings->Execution->TableReadLockMode = ETableReadLockMode::Sync;
+    }
 
     YT_LOG_INFO(
         "Query client info (CurrentUser: %v, CurrentAddress: %v, InitialUser: %v, InitialAddress: %v, "
@@ -526,11 +538,13 @@ void TQueryContext::InitializeQueryWriteTransaction()
             << TErrorAttribute("transaction_id", WriteTransactionId)
             << TErrorAttribute("query_kind", QueryKind);
     }
-    InitialQueryWriteTransaction_ = WaitFor(Client()->StartNativeTransaction(ETransactionType::Master))
+    InitialQueryWriteTransaction_ = WaitFor(Client()->StartNativeTransaction(
+        ETransactionType::Master,
+        {.ParentId = ParentTransactionId}))
         .ValueOrThrow();
     WriteTransactionId = InitialQueryWriteTransaction_->GetId();
 
-    YT_LOG_INFO("Write transaction started (WriteTransactionId: %v)", WriteTransactionId);
+    YT_LOG_INFO("Write transaction started (WriteTransactionId: %v, ParentTransactionId: %v)", WriteTransactionId, ParentTransactionId);
 }
 
 void TQueryContext::CommitWriteTransaction()
@@ -549,7 +563,9 @@ void TQueryContext::InitializeQueryReadTransactionFuture()
 
     YT_VERIFY(QueryKind == EQueryKind::InitialQuery);
 
-    auto transactionFuture = Client()->StartNativeTransaction(ETransactionType::Master);
+    auto transactionFuture = Client()->StartNativeTransaction(
+        ETransactionType::Master,
+        {.ParentId = ParentTransactionId});
     auto timestampFuture = Client()->GetTimestampProvider()->GenerateTimestamps();
 
     ReadTransactionFuture_ = AllSucceeded(std::vector{transactionFuture.AsVoid(), timestampFuture.AsVoid()})

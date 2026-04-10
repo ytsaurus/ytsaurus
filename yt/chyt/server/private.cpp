@@ -23,6 +23,8 @@ const std::vector<std::string> TableAttributesToFetch{
     "row_count",
 };
 
+const std::string ParamTransactionId("_yt_transaction_id");
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClickHouseServer
