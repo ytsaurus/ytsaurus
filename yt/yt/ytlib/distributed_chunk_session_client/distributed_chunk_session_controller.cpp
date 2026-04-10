@@ -361,7 +361,7 @@ private:
 
     void OnPingExecutorStopped(TError&& finishError)
     {
-        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         TransitionState(EControllerState::Closing, EControllerState::Closed);
 

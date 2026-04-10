@@ -177,10 +177,16 @@ protected:
             /*replicas*/ {replica});
     }
 
-    static void EnsureControllerIsDestroyed(IDistributedChunkSessionControllerPtr controller)
+    void EnsureControllerIsDestroyed(IDistributedChunkSessionControllerPtr controller)
     {
         auto controllerWeakPtr = TWeakPtr(controller);
         controller.Reset();
+        // The invoker thread may still be inside a callback that holds
+        // MakeStrong(this). Shut down the action queue to join the
+        // thread and let the current callback finish. Non-graceful
+        // shutdown discards pending callbacks to verify they use
+        // MakeWeak(this).
+        ActionQueue_->Shutdown(/*graceful*/ false);
         EXPECT_TRUE(controllerWeakPtr.IsExpired());
     }
 
