@@ -296,8 +296,8 @@ private:
                 #define XX(name, Name) \
                 .Item(#name "_count").Value(performanceCounters->Name.Ema.Count) \
                 .Item(#name "_rate").Value(performanceCounters->Name.Ema.ImmediateRate) \
-                .Item(#name "_rate_10m").Value(performanceCounters->Name.Ema.WindowRates[0]) \
-                .Item(#name "_rate_1h").Value(performanceCounters->Name.Ema.WindowRates[1])
+                .Item(#name "_10m_rate").Value(performanceCounters->Name.Ema.WindowRates[0]) \
+                .Item(#name "_1h_rate").Value(performanceCounters->Name.Ema.WindowRates[1])
                 ITERATE_TABLET_PERFORMANCE_COUNTERS(XX)
                 ITERATE_NODE_TABLET_PERFORMANCE_COUNTERS(XX)
                 #undef XX
