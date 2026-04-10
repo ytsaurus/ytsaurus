@@ -991,5 +991,202 @@ TEST_F(TClusterIdentificationTest, FetchFromMaster)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TOptionalKeyColumnsTest
+    : public TDynamicTablesTestBase
+{
+public:
+    void SetUp()
+    {
+        CreateTable(
+            "//tmp/optional_key_test",
+            "["
+            "{name=k0;type=int64;sort_order=ascending};"
+            "{name=k1;type=int64;sort_order=ascending;required=%false};"
+            "{name=k2;type=int64;sort_order=ascending;required=%false};"
+            "{name=v0;type=int64}]");
+    }
+
+    void TearDown()
+    {
+        WaitFor(Client_->RemoveNode(Table_))
+            .ThrowOnError();
+        Table_ = "";
+    }
+
+    void WriteRow(
+        const std::vector<std::string>& names,
+        TStringBuf rowString,
+        bool allowMissingKeyColumns = true)
+    {
+        auto preparedRow = PrepareUnversionedRow(names, rowString);
+        auto transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
+            .ValueOrThrow();
+
+        TModifyRowsOptions options;
+        options.AllowMissingKeyColumns = allowMissingKeyColumns;
+
+        transaction->WriteRows(
+            Table_,
+            std::get<1>(preparedRow),
+            std::get<0>(preparedRow),
+            options);
+
+        WaitFor(transaction->Commit())
+            .ThrowOnError();
+    }
+
+    void DeleteRows(
+        const std::vector<std::string>& names,
+        TStringBuf rowString,
+        bool allowMissingKeyColumns = true)
+    {
+        auto preparedKey = PrepareUnversionedRow(names, rowString);
+        auto transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
+            .ValueOrThrow();
+
+        TModifyRowsOptions options;
+        options.AllowMissingKeyColumns = allowMissingKeyColumns;
+
+        transaction->DeleteRows(
+            Table_,
+            std::get<1>(preparedKey),
+            std::get<0>(preparedKey),
+            options);
+
+        WaitFor(transaction->Commit())
+            .ThrowOnError();
+    }
+
+    TSharedRange<TUnversionedRow> LookupRows(
+        const std::vector<std::string>& names,
+        TStringBuf rowString,
+        bool allowMissingKeyColumns = true)
+    {
+        TLookupRowsOptions options;
+        options.AllowMissingKeyColumns = allowMissingKeyColumns;
+        auto preparedKey = PrepareUnversionedRow(names, rowString);
+        return WaitFor(Client_->LookupRows(
+            Table_,
+            std::get<1>(preparedKey),
+            std::get<0>(preparedKey),
+            options))
+            .ValueOrThrow()
+            .Rowset
+            ->GetRows();
+    }
+
+    TSharedRange<TUnversionedRow> SelectAllRows()
+    {
+        return WaitFor(Client_->SelectRows(Format("* from [%v]", Table_)))
+            .ValueOrThrow()
+            .Rowset
+            ->GetRows();
+    }
+};
+
+TEST_F(TOptionalKeyColumnsTest, TestWriteRowsOnKeyPrefix)
+{
+    EXPECT_THROW(WriteRow(
+        {"k0", "v0"},
+        "<id=0> 1; <id=1> 100",
+        /*allowMissingKeyColumns*/ false), TErrorException);
+
+    WriteRow(
+        {"k0", "v0"},
+        "<id=0> 1; <id=1> 100");
+
+    WriteRow(
+        {"k0", "k1", "v0"},
+        "<id=0> 2; <id=1> 20; <id=2> 200");
+
+    auto rows = SelectAllRows();
+    ASSERT_EQ(2u, rows.Size());
+
+    auto actual = ToString(rows[0]);
+    auto expected = ToString(YsonToSchemalessRow(
+        "<id=0> 1; <id=1> #; <id=2> #; <id=3> 100;"));
+    EXPECT_EQ(expected, actual);
+
+    actual = ToString(rows[1]);
+    expected = ToString(YsonToSchemalessRow(
+        "<id=0> 2; <id=1> 20; <id=2> #; <id=3> 200;"));
+    EXPECT_EQ(expected, actual);
+}
+
+TEST_F(TOptionalKeyColumnsTest, TestLookupOnKeyPrefix)
+{
+    WriteRow(
+        {"k0", "k1", "k2", "v0"},
+        "<id=0> 10; <id=1> 11; <id=2> 12; <id=3> 1000");
+    WriteRow(
+        {"k0", "k1", "v0"},
+        "<id=0> 10; <id=1> 11; <id=2> 2000");
+    WriteRow(
+        {"k0", "v0"},
+        "<id=0> 10; <id=1> 3000");
+
+    EXPECT_THROW(LookupRows(
+        {"k0", "k1"},
+        "<id=0> 10; <id=1> 11",
+        /*allowMissingKeyColumns*/ false), TErrorException);
+
+    auto rows = LookupRows(
+        {"k0", "k1"},
+        "<id=0> 10; <id=1> 11");
+
+    ASSERT_EQ(1u, rows.Size());
+    auto actual = ToString(rows[0]);
+    auto expected = ToString(YsonToSchemalessRow(
+        "<id=0> 10; <id=1> 11; <id=2> #; <id=3> 2000"));
+    EXPECT_EQ(expected, actual);
+
+    EXPECT_THROW(LookupRows(
+        {"k0"},
+        "<id=0> 10",
+        /*allowMissingKeyColumns*/ false), TErrorException);
+
+    rows = LookupRows(
+        {"k0"},
+        "<id=0> 10");
+
+    ASSERT_EQ(1u, rows.Size());
+    actual = ToString(rows[0]);
+    expected = ToString(YsonToSchemalessRow(
+        "<id=0> 10; <id=1> #; <id=2> #; <id=3> 3000"));
+    EXPECT_EQ(expected, actual);
+}
+
+TEST_F(TOptionalKeyColumnsTest, TestDeleteRowsOnKeyPrefix)
+{
+    WriteRow(
+        {"k0", "k1", "k2", "v0"},
+        "<id=0> 200; <id=1> 201; <id=2> 102; <id=3> 10000");
+    WriteRow(
+        {"k0", "k1", "v0"},
+        "<id=0> 200; <id=1> 201; <id=2> 20000");
+    WriteRow(
+        {"k0", "v0"},
+        "<id=0> 200; <id=1> 30000");
+
+    EXPECT_THROW(DeleteRows({"k0"}, "<id=0> 200", /*allowMissingKeyColumns*/ false), TErrorException);
+
+    DeleteRows({"k0"},"<id=0> 200");
+
+    auto rows = SelectAllRows();
+    ASSERT_EQ(2u, rows.Size());
+
+    DeleteRows({"k0", "k1"}, "<id=0> 200; <id=1> 201");
+
+    rows = SelectAllRows();
+    ASSERT_EQ(1u, rows.Size());
+
+    auto actual = ToString(rows[0]);
+    auto expected = ToString(YsonToSchemalessRow(
+        "<id=0> 200; <id=1> 201; <id=2> 102; <id=3> 10000;"));
+    EXPECT_EQ(expected, actual);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT::NCppTests
