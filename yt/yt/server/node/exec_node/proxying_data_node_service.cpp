@@ -57,6 +57,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockSet));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockRange));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkMeta));
+
+        DeclareServerFeature(EChunkClientFeature::MultiplePartitionTags);
     }
 
 private:

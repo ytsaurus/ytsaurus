@@ -258,6 +258,8 @@ public:
             .SetInvoker(Bootstrap_->GetControlInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AnnounceChunkReplicas)
             .SetInvoker(Bootstrap_->GetStorageLightInvoker()));
+
+        DeclareServerFeature(EChunkClientFeature::MultiplePartitionTags);
     }
 
 private:
