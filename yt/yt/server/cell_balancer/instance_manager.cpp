@@ -259,6 +259,27 @@ void TInstanceManager::InitNewAllocations(
         if (CheckResourceUsageExceeded(bundleInfo->ResourceQuota)) {
             return;
         }
+
+        if (!Input_.Config->HasInstanceAllocatorService) {
+            int freeSpareCount = SpareInstanceAllocator_->GetFreeInstanceCount(zoneName, dataCenterName);
+            if (freeSpareCount < instanceCountToAllocate) {
+                YT_LOG_DEBUG("Not enough spare instances to fulfill all allocations, capping "
+                    "(DataCenter: %v, InstanceType: %v, Requested: %v, Available: %v)",
+                    dataCenterName,
+                    Adapter_->GetInstanceType(),
+                    instanceCountToAllocate,
+                    freeSpareCount);
+                instanceCountToAllocate = freeSpareCount;
+
+                Mutations_->AlertsToFire.push_back(TAlert{
+                    .Id = "no_spare_instances_available",
+                    .BundleName = BundleName_,
+                    .DataCenter = dataCenterName,
+                    .Description = Format("No spare instances of type %v are available for allocation",
+                        Adapter_->GetHumanReadableInstanceType()),
+                });
+            }
+        }
     }
 
     if (instanceCountToAllocate == 0) {
@@ -389,7 +410,8 @@ std::string TInstanceManager::GetPodIdTemplate(
 
 bool TInstanceManager::ProcessAllocation(
     const std::string& allocationId,
-    const TAllocationRequestStatePtr& allocationState)
+    const TAllocationRequestStatePtr& allocationState,
+    int* cancellableBudget)
 {
     auto it = Input_.AllocationRequests.find(allocationId);
     if (it == Input_.AllocationRequests.end()) {
@@ -482,6 +504,18 @@ bool TInstanceManager::ProcessAllocation(
     }
 
     if (!Input_.Config->HasInstanceAllocatorService && allocationInfo->Status->NodeId.empty()) {
+        // Cancel this allocation if we have more pending unassigned allocations
+        // than are actually needed (e.g. bundle nodes came back online).
+        if (*cancellableBudget > 0) {
+            YT_LOG_INFO("Cancelling allocation request since it is no longer needed "
+                "(AllocationId: %v, CancellableBudget: %v)",
+                allocationId,
+                *cancellableBudget);
+            Mutations_->CompletedAllocations.insert(Mutations_->WrapMutation(allocationId));
+            --*cancellableBudget;
+            return false;
+        }
+
         CompleteExistingAllocationWithoutInstanceAllocatorService(
             allocationId,
             allocationInfo,
@@ -505,8 +539,45 @@ void TInstanceManager::ProcessExistingAllocations()
     auto& allocations = Adapter_->AllocationsState();
     TIndexedEntries<TAllocationRequestState> aliveAllocations;
 
+    // Compute how many unassigned allocations can be cancelled because they are
+    // no longer needed. This happens when bundle nodes come back online after
+    // being offline, making previously created allocations redundant.
+    int cancellableBudget = 0;
+    if (!Input_.Config->HasInstanceAllocatorService) {
+        const auto& bundleInfo = GetOrCrash(Input_.Bundles, BundleName_);
+        const auto& zoneInfo = GetOrCrash(Input_.Zones, bundleInfo->Zone);
+        YT_VERIFY(std::ssize(zoneInfo->DataCenters) == 1);
+        const auto& dataCenterName = zoneInfo->DataCenters.begin()->first;
+
+        int aliveInstanceCount = std::ssize(Adapter_->GetAliveInstances(dataCenterName));
+        int targetInstanceCount = Adapter_->GetTargetInstanceCount(bundleInfo, zoneInfo);
+        int instanceCountToReallocate = GetInstanceCountToReallocate(dataCenterName);
+
+        int unassignedAllocations = 0;
+        for (const auto& [allocationId, allocationState] : allocations) {
+            auto it = Input_.AllocationRequests.find(allocationId);
+            if (it != Input_.AllocationRequests.end() && it->second->Status->NodeId.empty()) {
+                ++unassignedAllocations;
+            }
+        }
+
+        int neededAllocations = std::max(0, targetInstanceCount - aliveInstanceCount) + instanceCountToReallocate;
+        cancellableBudget = std::max(0, unassignedAllocations - neededAllocations);
+
+        YT_LOG_DEBUG_IF(cancellableBudget > 0,
+            "Computed cancellable allocation budget "
+            "(AliveInstanceCount: %v, TargetInstanceCount: %v, InstanceCountToReallocate: %v, "
+            "UnassignedAllocations: %v, NeededAllocations: %v, CancellableBudget: %v)",
+            aliveInstanceCount,
+            targetInstanceCount,
+            instanceCountToReallocate,
+            unassignedAllocations,
+            neededAllocations,
+            cancellableBudget);
+    }
+
     for (const auto& [allocationId, allocationState] : allocations) {
-        if (ProcessAllocation(allocationId, allocationState)) {
+        if (ProcessAllocation(allocationId, allocationState, &cancellableBudget)) {
             aliveAllocations[allocationId] = allocationState;
         }
     }
@@ -872,7 +943,7 @@ void TInstanceManager::InitNewDeallocations(
         ssize(offlineInstances));
 
     auto instancesToRemove = Adapter_->PickInstancesToDeallocate(
-        instanceCountToDeallocate,
+        std::max<int>(0, instanceCountToDeallocate),
         dataCenterName,
         bundleInfo,
         Input_);

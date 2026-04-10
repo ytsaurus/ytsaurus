@@ -1070,6 +1070,119 @@ TEST_P(TNoAllocatorTest, MultipeerAllocation)
     ValidateConsistency(input);
 }
 
+TEST_P(TNoAllocatorTest, AllNodesGoneOffline)
+{
+    auto input = GenerateInputContext(/*nodeCount*/ 3, CellsPerNode);
+    GenerateNodesForBundle(input, "bigd", 3, {.SetFilterTag = true, .SlotCount = CellsPerNode});
+    GenerateNodesForBundle(input, SpareBundleName, 2, {.SlotCount = 1});
+    GenerateTabletCellsForBundle(input, "bigd", CellsPerNode * 3);
+
+    // Send all nodes offline.
+    for (const auto& [address, node] : input.TabletNodes) {
+        YT_LOG_DEBUG("Marking node offline (NodeAddress: %v)", address);
+        node->State = "offline";
+        node->LastSeenTime = TInstant::Now() - TDuration::Seconds(1);
+    }
+
+    // Run several BC iterations while all nodes are offline.
+    for (int i = 0; i < 5; ++i) {
+        YT_LOG_DEBUG("Step offline %v", i);
+
+        RemoveCellsFromOfflineNodes(&input);
+
+        TSchedulerMutations mutations;
+        ScheduleBundles(input, &mutations);
+
+        EXPECT_TRUE(!mutations.AlertsToFire.empty());
+
+        ApplyMutations(&input, mutations);
+    }
+
+    // Bring all nodes back online.
+    for (const auto& [address, node] : input.TabletNodes) {
+        YT_LOG_DEBUG("Marking node online (NodeAddress: %v)", address);
+        node->State = "online";
+    }
+
+    // Run more iterations until convergence.
+    for (int i = 0; i < 30; ++i) {
+        YT_LOG_DEBUG("Step online %v", i);
+
+        FakeApplyDynamicConfigAtNodes(&input);
+        RemoveCellsFromDecommissionedNodes(&input);
+        RemoveCellsFromOfflineNodes(&input);
+
+        TSchedulerMutations mutations;
+        ScheduleBundles(input, &mutations);
+        ApplyMutations(&input, mutations);
+    }
+
+    ValidateConsistency(input);
+}
+
+TEST_P(TNoAllocatorTest, CancelAllocationsWhenNoLongerNeeded)
+{
+    auto input = GenerateInputContext(/*nodeCount*/ 3, CellsPerNode);
+    GenerateNodesForBundle(input, "bigd", 3, {.SetFilterTag = true, .SlotCount = CellsPerNode});
+    auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 2, {.SlotCount = 1});
+    GenerateTabletCellsForBundle(input, "bigd", CellsPerNode * 3);
+
+    // Send all bundle nodes offline.
+    for (const auto& [address, node] : input.TabletNodes) {
+        if (node->BundleControllerAnnotations->AllocatedForBundle == "bigd") {
+            YT_LOG_DEBUG("Marking bundle node offline (NodeAddress: %v)", address);
+            node->State = "offline";
+            node->LastSeenTime = TInstant::Now() - TDuration::Seconds(1);
+            for (const auto& slot : node->TabletSlots) {
+                slot->State = TabletSlotStateEmpty;
+            }
+        }
+    }
+
+    // Run one iteration: 2 allocation requests should be created (only 2 spare available).
+    {
+        YT_LOG_DEBUG("Step %v", __LINE__);
+        TSchedulerMutations mutations;
+        ScheduleBundles(input, &mutations);
+        ApplyMutations(&input, mutations);
+
+        EXPECT_EQ(2, ssize(input.BundleStates["bigd"]->NodeAllocations));
+        EXPECT_TRUE(!mutations.AlertsToFire.empty());
+    }
+
+    // Kill one spare node (mark it offline so it's no longer usable).
+    {
+        auto spareNode = *spareNodes.begin();
+        YT_LOG_DEBUG("Killing spare node (NodeAddress: %v)", spareNode);
+        input.TabletNodes[spareNode]->State = "offline";
+        input.TabletNodes[spareNode]->LastSeenTime = TInstant::Now() - TDuration::Seconds(1);
+    }
+
+    // Bring all bundle nodes back online.
+    for (const auto& [address, node] : input.TabletNodes) {
+        if (node->BundleControllerAnnotations->AllocatedForBundle == "bigd") {
+            YT_LOG_DEBUG("Marking bundle node online (NodeAddress: %v)", address);
+            node->State = "online";
+        }
+    }
+
+    // After several iterations, no allocation requests should remain.
+    for (int i = 0; i < 30; ++i) {
+        YT_LOG_DEBUG("Step online %v", i);
+
+        FakeApplyDynamicConfigAtNodes(&input);
+        RemoveCellsFromDecommissionedNodes(&input);
+        RemoveCellsFromOfflineNodes(&input);
+
+        TSchedulerMutations mutations;
+        ScheduleBundles(input, &mutations);
+        ApplyMutations(&input, mutations);
+    }
+
+    EXPECT_TRUE(input.BundleStates["bigd"]->NodeAllocations.empty());
+    EXPECT_TRUE(input.AllocationRequests.empty());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 INSTANTIATE_TEST_SUITE_P(
