@@ -1162,6 +1162,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Alias("operation_alerts")
         .DefaultNew();
 
+    registrar.Parameter("max_job_thread_count_formula", &TThis::MaxJobThreadCountFormula)
+        .Default();
+
     registrar.Parameter("controller_row_buffer_chunk_size", &TThis::ControllerRowBufferChunkSize)
         .Default(64_KB)
         .GreaterThan(0);
