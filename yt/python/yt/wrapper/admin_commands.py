@@ -23,12 +23,13 @@ def exit_read_only(cell_id=None, client=None):
     return make_request("exit_read_only", params=params, client=client)
 
 
-def build_master_snapshots(set_read_only=None, wait_for_snapshot_completion=None, retry=None, enable_automaton_read_only_barrier=None, client=None):
+def build_master_snapshots(set_read_only, wait_for_snapshot_completion=None, retry=None, enable_automaton_read_only_barrier=None, client=None):
     """Builds snapshot of all master cells."""
 
-    params = {}
-    if set_read_only is not None:
-        set_param(params, "set_read_only", set_read_only)
+    params = {
+        "set_read_only": set_read_only
+    }
+
     if wait_for_snapshot_completion is not None:
         set_param(params, "wait_for_snapshot_completion", wait_for_snapshot_completion)
     if retry is not None:
