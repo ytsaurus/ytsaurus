@@ -869,29 +869,29 @@ void TDataNodeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("chunk_meta_cache", &TThis::ChunkMetaCache)
         .DefaultCtor([] {
-            return TSlruCacheConfig::CreateWithCapacity(5_GB);
+            return TSlruCacheConfig::CreateWithCapacity(5_GB, 16);
         });
     registrar.Parameter("blocks_ext_cache", &TThis::BlocksExtCache)
         .DefaultCtor([] {
-            return TSlruCacheConfig::CreateWithCapacity(3_GB);
+            return TSlruCacheConfig::CreateWithCapacity(3_GB, 16);
         });
     registrar.Parameter("block_meta_cache", &TThis::BlockMetaCache)
         .DefaultCtor([] {
-            return TSlruCacheConfig::CreateWithCapacity(1_GB);
+            return TSlruCacheConfig::CreateWithCapacity(1_GB, 16);
         });
     registrar.Parameter("block_cache", &TThis::BlockCache)
         .DefaultCtor([] {
             auto blockCache = New<NChunkClient::TBlockCacheConfig>();
-            blockCache->CompressedData = TSlruCacheConfig::CreateWithCapacity(6_GB);
+            blockCache->CompressedData = TSlruCacheConfig::CreateWithCapacity(6_GB, 16);
             return blockCache;
         });
     registrar.Parameter("blob_reader_cache", &TThis::BlobReaderCache)
         .DefaultCtor([] {
-            return TSlruCacheConfig::CreateWithCapacity(1_MB);
+            return TSlruCacheConfig::CreateWithCapacity(1_MB, 16);
         });
     registrar.Parameter("changelog_reader_cache", &TThis::ChangelogReaderCache)
         .DefaultCtor([] {
-            return TSlruCacheConfig::CreateWithCapacity(256);
+            return TSlruCacheConfig::CreateWithCapacity(256, 16);
         });
     registrar.Parameter("table_schema_cache", &TThis::TableSchemaCache)
         .DefaultNew();
