@@ -17,6 +17,9 @@ void TJobProxyTestingConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("fail_preparation", &TThis::FailPreparation)
         .Default(false);
+
+    registrar.Parameter("halt_when_materializing_artifact", &TThis::HaltWhenMaterializingArtifact)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

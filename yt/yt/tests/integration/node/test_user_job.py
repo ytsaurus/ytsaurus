@@ -26,6 +26,8 @@ from yt_commands import (
 
 from yt_operations_archive_helpers import get_job_from_archive
 
+from yt_io_tracking_base import TestIOTrackingBase
+
 import subprocess
 
 import yt_error_codes
@@ -1275,7 +1277,7 @@ class TestArtifactCacheBypass(YTEnvSetup):
 
 ##################################################################
 
-class TestSpliceArtifact(YTEnvSetup):
+class TestSpliceArtifact(TestIOTrackingBase):
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -1290,8 +1292,8 @@ class TestSpliceArtifact(YTEnvSetup):
         },
     }
 
-    @authors("dann239")
-    def test_splice_big_artifact(self):
+    @staticmethod
+    def _prepare_big_script():
         data = make_random_string(32) * int(2 ** 20)
         hash_ = hashlib.sha256(data.encode()).hexdigest()
 
@@ -1304,9 +1306,12 @@ assert hashlib.sha256(data.encode()).hexdigest() == '{hash_}'
         ).encode()
 
         exec(script)
+        return script
 
+    @authors("dann239")
+    def test_splice_big_artifact(self):
         create("file", "//tmp/script.py", attributes={"replication_factor": 1})
-        write_file("//tmp/script.py", script)
+        write_file("//tmp/script.py", self._prepare_big_script())
 
         vanilla(
             spec={
@@ -1319,6 +1324,50 @@ assert hashlib.sha256(data.encode()).hexdigest() == '{hash_}'
                 },
             }
         )
+
+    @authors("dann239")
+    def test_stuck_artifact_materializing(self):
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "job_proxy": {
+                        "testing_config": {
+                            "halt_when_materializing_artifact": True,
+                        },
+                    },
+                    "job_common": {
+                        "job_prepare_time_limit": 5000,
+                    },
+                },
+            },
+        })
+
+        create("file", "//tmp/script.py", attributes={"replication_factor": 1})
+        write_file("//tmp/script.py", self._prepare_big_script())
+
+        from_barrier = self.write_log_barrier(self.get_node_address())
+
+        with pytest.raises(YtError):
+            vanilla(
+                spec={
+                    "tasks": {
+                        "task": {
+                            "job_count": 1,
+                            "command": "python3 script.py",
+                            "file_paths": ["<copy_file=%true>//tmp/script.py"],
+                        },
+                    },
+                },
+            )
+
+        raw_events = self.wait_for_raw_events(
+            count=2,
+            from_barrier=from_barrier,
+            filter=lambda event: event["job_io_kind@"] == 'artifact_copy',
+        )
+
+        # One pipe's worth of data was transferred.
+        assert all(event['bytes'] == 65536 for event in raw_events)
 
 
 class TestUserJobIsolation(YTEnvSetup):
