@@ -319,7 +319,7 @@ void ScanOpHelper(
     auto startBatchSize = context->Offset + context->Limit;
 
     TRowBatchReadOptions readOptions{
-        .MaxRowsPerRead = context->Ordered
+        .MaxRowsPerRead = (context->ScanOrder == EScanOrder::Ordered)
             ? std::min(startBatchSize, context->RowsetProcessingBatchSize)
             : context->RowsetProcessingBatchSize
     };
@@ -1439,7 +1439,7 @@ TGroupByClosure::TGroupByClosure(
 void TGroupByClosure::UpdateTagAndFlushIfNeeded(const TExecutionContext* context, EStreamTag tag)
 {
     if (tag != LastTag_) {
-        if (context->Ordered) {
+        if (context->ScanOrder == EScanOrder::Ordered) {
             Flush(context, tag);
         }
     }
@@ -1467,7 +1467,7 @@ void TGroupByClosure::ValidateGroupKeyIsNotNull(TPIValue* row) const
 
 void TGroupByClosure::FlushIntermediatesIfCurrentGroupSetIsFinished(const TExecutionContext* context, TPIValue* row)
 {
-    // NB: If !context->Ordered then PrefixEqComparer_ never lets flush.
+    // NB: If context->ScanOrder == EScanOrder::Unordered then PrefixEqComparer_ never lets flush.
     if (IsCurrentGroupSetFinished(row)) {
         Flush(context, EStreamTag::Intermediate);
     }
@@ -1493,7 +1493,7 @@ bool TGroupByClosure::CanEarlyStopProcessing(const TExecutionContext* context, T
     // NB: Our semantics of `totals` operation allows to stop grouping when the limit is reached.
 
     return
-        context->Ordered &&
+        (context->ScanOrder == EScanOrder::Ordered) &&
         (GroupedRowCount_ >= context->Offset + context->Limit) &&
         (IsCurrentGroupSetFinished(row) || AllAggregatesAreFirst_);
 }

@@ -330,7 +330,7 @@ ISchemafulUnversionedReaderPtr CreateAdaptiveOrderedSchemafulReader(
 ////////////////////////////////////////////////////////////////////////////////
 
 TQueryStatistics CoordinateAndExecute(
-    bool ordered,
+    EScanOrder scanOrder,
     bool prefetch,
     int splitCount,
     i64 offset,
@@ -360,8 +360,8 @@ TQueryStatistics CoordinateAndExecute(
         return evaluateResult.Reader;
     };
 
-    YT_LOG_DEBUG("Creating reader (Ordered: %v, Prefetch: %v, SplitCount: %v, Offset: %v, Limit: %v, UseAdaptiveOrderedSchemafulReader: %v)",
-        ordered,
+    YT_LOG_DEBUG("Creating reader (ScanOrder: %v, Prefetch: %v, SplitCount: %v, Offset: %v, Limit: %v, UseAdaptiveOrderedSchemafulReader: %v)",
+        scanOrder,
         prefetch,
         splitCount,
         offset,
@@ -369,7 +369,7 @@ TQueryStatistics CoordinateAndExecute(
         useAdaptiveOrderedSchemafulReader);
 
     // TODO: Use separate condition for prefetch after protocol update
-    auto topReader = ordered
+    auto topReader = (scanOrder == EScanOrder::Ordered)
         ? (prefetch
             ? CreateFullPrefetchingOrderedSchemafulReader(std::move(subqueryReaderCreator))
             : CreateAdaptiveOrderedSchemafulReader(std::move(subqueryReaderCreator), subplanHolders, offset, limit, useAdaptiveOrderedSchemafulReader))

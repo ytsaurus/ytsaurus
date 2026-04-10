@@ -1317,7 +1317,7 @@ TEST_F(TQueryPrepareTest, OmitOrderByUsingFixedInferredPrefix)
     };
 
     EXPECT_NE(fragment->Query->OrderClause, nullptr);
-    EXPECT_FALSE(fragment->Query->IsOrdered(false));
+    EXPECT_EQ(fragment->Query->GetScanOrder(false), EScanOrder::Unordered);
 
     auto [dataSource, query] = InferRanges(
         columnEvaluatorCache,
@@ -1331,7 +1331,7 @@ TEST_F(TQueryPrepareTest, OmitOrderByUsingFixedInferredPrefix)
         Logger());
 
     EXPECT_EQ(query->OrderClause, nullptr);
-    EXPECT_TRUE(query->IsOrdered(false));
+    EXPECT_EQ(query->GetScanOrder(false), EScanOrder::Ordered);
 }
 
 TEST_F(TQueryPrepareTest, LeftJoinOptionalizesType)
@@ -9411,7 +9411,7 @@ void TQueryEvaluateComplexTest::DoTest(
     };
 
     auto query = Evaluate(queryString, splits, sources, resultMatcher);
-    EXPECT_TRUE(query->IsOrdered(/*allowUnorderedGroupByWithLimit*/ true));
+    EXPECT_EQ(query->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ true), EScanOrder::Ordered);
 }
 
 TEST_P(TQueryEvaluateComplexTest, All)

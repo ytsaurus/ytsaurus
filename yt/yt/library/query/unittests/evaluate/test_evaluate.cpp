@@ -118,7 +118,7 @@ TQueryStatistics DoExecuteQuery(
 
     ssize_t batchSize = maxBatchSize;
 
-    if (query->IsOrdered(/*allowUnorderedGroupByWithLimit*/ true) && query->Offset + query->Limit < batchSize) {
+    if ((query->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ true) == EScanOrder::Ordered) && query->Offset + query->Limit < batchSize) {
         batchSize = query->Offset + query->Limit;
     }
 
@@ -131,7 +131,7 @@ TQueryStatistics DoExecuteQuery(
             owningSourceRows[index] = TOwningRow();
         }
 
-        if (isFirstRead && query->IsOrdered(/*allowUnorderedGroupByWithLimit*/ true)) {
+        if (isFirstRead && query->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ true) == EScanOrder::Ordered) {
             EXPECT_EQ(options.MaxRowsPerRead, std::min(DefaultRowsetProcessingBatchSize, query->Offset + query->Limit));
             isFirstRead = false;
         }
@@ -648,7 +648,7 @@ std::pair<TQueryPtr, TQueryStatistics> TQueryEvaluateTest::DoEvaluate(
                 primaryQuery,
                 *joinClause,
                 evaluateOptions.MinKeyWidth,
-                primaryQuery->IsOrdered(/*allowUnorderedGroupByWithLimit*/ true)))
+                primaryQuery->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ true) == EScanOrder::Ordered))
             {
                 auto buffer = New<TRowBuffer>();
                 TRowRanges universalRange{{
@@ -791,7 +791,7 @@ TQueryStatistics TQueryEvaluateTest::EvaluateCoordinatedGroupByImpl(
         return pipe->GetReader();
     };
 
-    auto frontReader = frontQuery->IsOrdered(/*allowUnorderedGroupByWithLimit*/ true)
+    auto frontReader = (frontQuery->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ true) == EScanOrder::Ordered)
         ? CreateFullPrefetchingOrderedSchemafulReader(getNextReader)
         : CreateFullPrefetchingShufflingSchemafulReader(getNextReader);
 
@@ -912,7 +912,7 @@ ISchemafulPipePtr TQueryEvaluateTest::RunOnNode(
         return pipe->GetReader();
     };
 
-    auto reader = query->IsOrdered(/*allowUnorderedGroupByWithLimit*/ true)
+    auto reader = (query->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ true) == EScanOrder::Ordered)
         ? CreateFullPrefetchingOrderedSchemafulReader(nextReader)
         : CreateFullPrefetchingShufflingSchemafulReader(nextReader);
 
@@ -957,7 +957,7 @@ TSharedRange<TUnversionedRow> TQueryEvaluateTest::RunOnCoordinator(
         return pipe->GetReader();
     };
 
-    auto reader = frontQuery->IsOrdered(/*allowUnorderedGroupByWithLimit*/ true)
+    auto reader = (frontQuery->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ true) == EScanOrder::Ordered)
         ? CreateFullPrefetchingOrderedSchemafulReader(nextReader)
         : CreateFullPrefetchingShufflingSchemafulReader(nextReader);
 
