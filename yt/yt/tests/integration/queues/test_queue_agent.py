@@ -6519,3 +6519,70 @@ class TestExportWithHunkStorage(TestQueueStaticExportBase):
 class TestExportWithHunkStoragePortals(TestExportWithHunkStorage):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
+
+
+class TestMultiConsumerForwardCompatibility(TestQueueAgentBase):
+    DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
+        "cypress_synchronizer": {
+            "policy": "watching",
+        },
+    }
+
+    @authors("panesher")
+    def test_multi_consumer_compatibility(self):
+        path = "//tmp/consumer"
+        create(
+            "table",
+            path,
+            attributes={
+                "dynamic": True,
+                "schema": [
+                    {"name": "queue_consumer_name", "type": "string", "sort_order": "ascending"},
+                    {"name": "test", "type": "string"},
+                    {"name": "key", "type": "string"},
+                ],
+                "treat_as_queue_consumer": True,
+                "queue_agent_stage": "production",
+            },
+        )
+        sync_mount_table(path)
+
+        self._wait_for_component_passes()
+
+        assert f"primary:{path}" in [row["object"] for row in select_rows("* from [//sys/queue_agents/queue_agent_object_mapping]")]
+        consumer_orchid = QueueAgentOrchid().get_consumer_orchid(f"primary:{path}")
+        assert consumer_orchid.get_status()["error"]["message"] == "Multi-consumer are not supported yet"
+
+    @authors("panesher")
+    def test_part_of_multi_consumer_compatibility(self):
+        path = "//tmp/consumer"
+        create(
+            "table",
+            path,
+            attributes={
+                "dynamic": True,
+                "schema": [
+                    {"name": "queue_consumer_name", "type": "string", "sort_order": "ascending"},
+                    {"name": "test", "type": "string"},
+                    {"name": "key", "type": "string"},
+                ],
+                "treat_as_queue_consumer": True,
+                "queue_agent_stage": "production",
+            },
+        )
+        sync_mount_table(path)
+
+        self._wait_for_component_passes()
+
+        orchid = QueueAgentOrchid()
+        assert len(orchid.get_consumer_orchids()) == 1
+
+        insert_rows("//sys/queue_agents/queue_agent_object_mapping", [
+            {
+                "object": f"<cluster=primary;queue_consumer_id=my_id>//{path}",
+                "host": "primary",
+            },
+        ])
+
+        self._wait_for_component_passes()
+        assert len(orchid.get_consumer_orchids()) == 1

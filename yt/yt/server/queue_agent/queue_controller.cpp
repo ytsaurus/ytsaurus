@@ -1579,75 +1579,7 @@ DEFINE_REFCOUNTED_TYPE(TOrderedDynamicTableController)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TErrorQueueController
-    : public IQueueController
-{
-public:
-    TErrorQueueController(
-        TQueueTableRow row,
-        std::optional<TReplicatedTableMappingTableRow> replicatedTableMappingRow,
-        TError error)
-        : Row_(std::move(row))
-        , ReplicatedTableMappingRow_(std::move(replicatedTableMappingRow))
-        , Error_(std::move(error))
-        , Snapshot_(New<TQueueSnapshot>())
-    {
-        Snapshot_->Error = Error_;
-    }
-
-    void OnDynamicConfigChanged(
-        const TQueueControllerDynamicConfigPtr& /*oldConfig*/,
-        const TQueueControllerDynamicConfigPtr& /*newConfig*/) override
-    { }
-
-    void OnRowUpdated(std::any /*row*/) override
-    {
-        // Row update is handled in UpdateQueueController.
-    }
-
-    void OnReplicatedTableMappingRowUpdated(const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& /*row*/) override
-    {
-        // Row update is handled in UpdateQueueController.
-    }
-
-    void Stop() override
-    { }
-
-    TRefCountedPtr GetLatestSnapshot() const override
-    {
-        return Snapshot_;
-    }
-
-    void BuildOrchid(NYson::IYsonConsumer* consumer) const override
-    {
-        BuildYsonFluently(consumer)
-            .BeginMap()
-                .Item("row").Value(Row_)
-                .Item("replicated_table_mapping_row").Value(ReplicatedTableMappingRow_)
-                .Item("status").BeginMap()
-                    .Item("error").Value(Error_)
-                .EndMap()
-                .Item("partitions").BeginList().EndList()
-            .EndMap();
-    }
-
-    EQueueFamily GetFamily() const override
-    {
-        return EQueueFamily::Null;
-    }
-
-    bool IsLeading() const override
-    {
-        return false;
-    }
-
-private:
-    const TQueueTableRow Row_;
-    const std::optional<TReplicatedTableMappingTableRow> ReplicatedTableMappingRow_;
-    const TError Error_;
-    const TQueueSnapshotPtr Snapshot_;
-};
-
+using TErrorQueueController = TErrorController<TQueueTableRow, TQueueSnapshot>;
 DEFINE_REFCOUNTED_TYPE(TErrorQueueController)
 
 ////////////////////////////////////////////////////////////////////////////////

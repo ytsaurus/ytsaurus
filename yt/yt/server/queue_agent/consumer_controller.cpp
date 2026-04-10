@@ -708,6 +708,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TErrorConsumerController = TErrorController<TConsumerTableRow, TConsumerSnapshot>;
+DEFINE_REFCOUNTED_TYPE(TErrorConsumerController)
+
+////////////////////////////////////////////////////////////////////////////////
+
 bool UpdateConsumerController(
     IObjectControllerPtr& controller,
     bool leading,
@@ -719,6 +724,11 @@ bool UpdateConsumerController(
     const TQueueAgentClientDirectoryPtr& clientDirectory,
     IInvokerPtr invoker)
 {
+    if (row.IsMultiConsumerRow()) {
+        controller = New<TErrorConsumerController>(row, replicatedTableMappingRow, TError("Multi-consumer are not supported yet"));
+        return true;
+    }
+
     if (controller && controller->IsLeading() == leading) {
         return false;
     }
