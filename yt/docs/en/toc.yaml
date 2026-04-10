@@ -528,9 +528,8 @@ items:
             href: admin-guide/logging.md
           - name: Uploading snapshots to Cypress
             href: admin-guide/persistence-uploader.md
-       #- name: Configuring external access to cluster
-       #  href: admin-guide/cluster-access-proxy.md
-       #  when: audience == "public"
+       - name: Configuring external access to cluster
+         include: { mode: link, path: admin-guide/cluster-access-proxy/toc_i.yaml }
        - name: Setting up SSO
          href: admin-guide/oauth.md
          when: audience == "public"
