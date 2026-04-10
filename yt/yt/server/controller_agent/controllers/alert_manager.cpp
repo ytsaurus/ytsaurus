@@ -28,7 +28,7 @@ public:
         , Logger(Host_->GetLogger())
         , AnalyzeExecutor_(New<TPeriodicExecutor>(
             Host_->GetCancelableInvoker(EOperationControllerQueue::Default),
-            BIND(&TAlertManager::Analyze, MakeWeak(this)),
+            BIND_NO_PROPAGATE(&TAlertManager::Analyze, MakeWeak(this)),
             Config_->Period))
     { }
 
@@ -56,6 +56,7 @@ public:
         AnalyzeControllerQueues();
         AnalyzeInvalidatedJobs();
         AnalyzeTasksUnavailableNetworkBandwidthToClustersDuration();
+        AnalyzeJobsThreadCount();
     }
 
 private:
@@ -79,6 +80,9 @@ private:
     };
 
     THashMap<TString, std::deque<TGpuPowerUsageRecord>> AnalyzeGpuPowerUsageOnWindowVertexDescriptorToRecords_;
+
+    //! Last fingerprint from host; refresh alert only when violating task set or formula changes.
+    int LastHighJobThreadCountAlertFingerprint_ = 0;
 
     void AnalyzeProcessingUnitUsage(
         const std::vector<TStatisticPath>& usageStatistics,
@@ -843,6 +847,25 @@ private:
                 EOperationAlertType::UnavailableNetworkBandwidthToClusters,
                 error);
         }
+    }
+
+    void AnalyzeJobsThreadCount()
+    {
+        const auto fingerprint = Host_->GetHighJobThreadCountAlertFingerprint();
+        if (fingerprint == LastHighJobThreadCountAlertFingerprint_) {
+            return;
+        }
+        LastHighJobThreadCountAlertFingerprint_ = fingerprint;
+
+        const auto& formula = Host_->GetConfig()->MaxJobThreadCountFormula;
+        if (formula.IsEmpty()) {
+            Host_->SetOperationAlert(EOperationAlertType::HighJobThreadCount, TError{});
+            return;
+        }
+
+        Host_->SetOperationAlert(
+            EOperationAlertType::HighJobThreadCount,
+            Host_->BuildHighJobThreadCountAlert());
     }
 
     PHOENIX_DECLARE_FRIEND();

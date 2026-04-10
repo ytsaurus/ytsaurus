@@ -148,6 +148,7 @@
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/statistics.h>
 
 #include <yt/yt/core/profiling/timing.h>
 
@@ -442,6 +443,32 @@ const TAggregatedJobStatistics& TOperationControllerBase::GetAggregatedFinishedJ
 const TAggregatedJobStatistics& TOperationControllerBase::GetAggregatedRunningJobStatistics() const
 {
     return AggregatedRunningJobStatistics_;
+}
+
+int TOperationControllerBase::GetHighJobThreadCountAlertFingerprint() const
+{
+    // The map only grows (entries are added in UpdateHighThreadCountJob, cleared in UpdateConfig
+    // when the formula changes). Its size uniquely identifies the current alert state.
+    return static_cast<int>(HighThreadCountJobPerTask_.size());
+}
+
+TError TOperationControllerBase::BuildHighJobThreadCountAlert() const
+{
+    if (Config_->MaxJobThreadCountFormula.IsEmpty() || HighThreadCountJobPerTask_.empty()) {
+        return TError{};
+    }
+
+    std::vector<TError> errors;
+    errors.reserve(HighThreadCountJobPerTask_.size());
+    for (const auto& [taskName, info] : HighThreadCountJobPerTask_) {
+        errors.push_back(
+            TError("Jobs exceed thread count limit")
+                << TErrorAttribute("thread_count", info.ThreadCount)
+                << TErrorAttribute("job_id", info.JobId)
+                << TErrorAttribute("task", taskName));
+    }
+
+    return TError("Some jobs have too many threads") << std::move(errors);
 }
 
 std::unique_ptr<IHistogram> TOperationControllerBase::ComputeFinalPartitionSizeHistogram() const
@@ -3358,6 +3385,7 @@ bool TOperationControllerBase::OnJobCompleted(
 
         UpdateJobMetrics(joblet, *jobSummary, /*isJobFinished*/ true);
         UpdateAggregatedFinishedJobStatistics(joblet, *jobSummary);
+        UpdateHighThreadCountJob(joblet, *jobSummary);
 
         taskJobResult = joblet->Task->OnJobCompleted(joblet, *jobSummary);
 
@@ -3483,6 +3511,7 @@ bool TOperationControllerBase::OnJobFailed(
 
         UpdateJobMetrics(joblet, *jobSummary, /*isJobFinished*/ true);
         UpdateAggregatedFinishedJobStatistics(joblet, *jobSummary);
+        UpdateHighThreadCountJob(joblet, *jobSummary);
 
         taskJobResult = joblet->Task->OnJobFailed(joblet, *jobSummary);
 
@@ -3632,6 +3661,7 @@ bool TOperationControllerBase::OnJobAborted(
                     });
             }
             UpdateAggregatedFinishedJobStatistics(joblet, *jobSummary);
+            UpdateHighThreadCountJob(joblet, *jobSummary);
         }
 
         UpdateJobMetrics(joblet, *jobSummary, /*isJobFinished*/ true);
@@ -4844,6 +4874,10 @@ void TOperationControllerBase::AccountBuildingJobSpecDelta(int countDelta, i64 t
 void TOperationControllerBase::UpdateConfig(const TControllerAgentConfigPtr& config)
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
+
+    if (!(config->MaxJobThreadCountFormula == Config_->MaxJobThreadCountFormula)) {
+        HighThreadCountJobPerTask_.clear();
+    }
 
     Config_ = config;
 
@@ -10164,6 +10198,49 @@ void TOperationControllerBase::UpdateAggregatedFinishedJobStatistics(const TJobl
     joblet->Task->UpdateAggregatedFinishedJobStatistics(joblet, jobSummary);
 }
 
+void TOperationControllerBase::UpdateHighThreadCountJob(
+    const TJobletPtr& joblet,
+    const TJobSummary& jobSummary)
+{
+    if (!jobSummary.Statistics) {
+        return;
+    }
+
+    if (Config_->MaxJobThreadCountFormula.IsEmpty()) {
+        return;
+    }
+
+    auto threadCount = FindNumericValue(*jobSummary.Statistics, "/user_job/cpu/peak_thread_count"_SP);
+    if (!threadCount) {
+        return;
+    }
+
+    const auto& taskName = joblet->Task->GetVertexDescriptor();
+
+    // Already have a violating job for this task.
+    if (HighThreadCountJobPerTask_.contains(taskName)) {
+        return;
+    }
+
+    const auto& userJobSpec = joblet->Task->GetUserJobSpec();
+    if (!userJobSpec) {
+        return;
+    }
+
+    const auto cpuLimit = static_cast<i64>(std::ceil(userJobSpec->CpuLimit));
+    i64 threadLimit = 0;
+    try {
+        threadLimit = Config_->MaxJobThreadCountFormula.Eval({{"cpu", cpuLimit}});
+    } catch (const std::exception& ex) {
+        YT_LOG_WARNING(ex, "Failed to evaluate max_job_thread_count_formula (TaskName: %v)", taskName);
+        return;
+    }
+
+    if (*threadCount > threadLimit) {
+        HighThreadCountJobPerTask_[taskName] = THighThreadCountJobInfo{.JobId = jobSummary.Id, .ThreadCount = *threadCount};
+    }
+}
+
 void TOperationControllerBase::UpdateJobMetrics(const TJobletPtr& joblet, const TJobSummary& jobSummary, bool isJobFinished)
 {
     YT_LOG_TRACE("Updating job metrics (JobId: %v)", joblet->JobId);
@@ -11256,6 +11333,9 @@ void TOperationControllerBase::RegisterMetadata(auto&& registrar)
         .SinceVersion(ESnapshotVersion::GroupedNeededResources));
 
     PHOENIX_REGISTER_FIELD(79, EstimatedInputStatistics_);
+
+    PHOENIX_REGISTER_FIELD(81, HighThreadCountJobPerTask_,
+        .SinceVersion(ESnapshotVersion::HighThreadCountJobPerTask));
 
     // NB: Keep this at the end of persist as it requires some of the previous
     // fields to be already initialized.

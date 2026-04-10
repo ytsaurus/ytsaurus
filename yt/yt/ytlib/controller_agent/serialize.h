@@ -110,6 +110,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((FixOutputChunkPoolIndexSerialization)  (302130))
     ((FixPartitionsDispatchStatistics)       (302131))
     ((FixInputStreamDirectory)               (302132))
+    ((HighThreadCountJobPerTask)             (302133))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

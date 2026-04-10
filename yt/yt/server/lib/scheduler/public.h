@@ -116,6 +116,7 @@ DEFINE_ENUM(EOperationAlertType,
     ((InaccuratelyEstimatedCompressedDataSize)     (45))
     ((TooManySlicesInJobs)                         (46))
     ((SpecIsTooLarge)                              (47))
+    ((HighJobThreadCount)                          (48))
 );
 
 DEFINE_ENUM_UNKNOWN_VALUE(EOperationAlertType, Unknown);

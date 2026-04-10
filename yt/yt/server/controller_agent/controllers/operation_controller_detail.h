@@ -824,6 +824,10 @@ protected:
     const TAggregatedJobStatistics& GetAggregatedFinishedJobStatistics() const override;
     const TAggregatedJobStatistics& GetAggregatedRunningJobStatistics() const override;
 
+    int GetHighJobThreadCountAlertFingerprint() const override;
+
+    TError BuildHighJobThreadCountAlert() const override;
+
     std::unique_ptr<IHistogram> ComputeFinalPartitionSizeHistogram() const override;
 
     //! Called before snapshot downloading to check if revival is allowed
@@ -1170,6 +1174,9 @@ private:
 
     TAggregatedJobStatistics AggregatedFinishedJobStatistics_;
 
+    //! Per task: first job that exceeded the thread count limit (for operation alerts).
+    THashMap<TString, THighThreadCountJobInfo> HighThreadCountJobPerTask_;
+
     //! Records peak memory usage.
     i64 PeakMemoryUsage_ = 0;
 
@@ -1397,6 +1404,8 @@ private:
     int GetAvailableExecNodeCount() const;
 
     void UpdateAggregatedFinishedJobStatistics(const TJobletPtr& joblet, const TJobSummary& jobSummary);
+    void UpdateHighThreadCountJob(const TJobletPtr& joblet, const TJobSummary& jobSummary);
+
     void UpdateJobMetrics(const TJobletPtr& joblet, const TJobSummary& jobSummary, bool isJobFinished);
 
     void LogProgress(bool force = false);
