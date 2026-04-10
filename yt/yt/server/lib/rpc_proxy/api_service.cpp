@@ -3872,6 +3872,7 @@ private:
             ? TColumnFilter()
             : TColumnFilter(std::move(columnFilterIndexes));
         options->KeepMissingRows = request->keep_missing_rows();
+        options->AllowMissingKeyColumns = request->allow_missing_key_columns();
         options->EnablePartialResult = request->enable_partial_result();
         if (request->has_use_lookup_cache()) {
             options->UseLookupCache = request->use_lookup_cache();

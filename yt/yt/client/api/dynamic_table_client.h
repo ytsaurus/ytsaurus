@@ -21,6 +21,8 @@ struct TLookupRequestOptions
     //! Add |$timestamp:columnName| to result if readMode is latest_timestamp.
     NTableClient::TVersionedReadOptions VersionedReadOptions;
     std::optional<std::string> ExecutionPool;
+    //! If |true| then treat missing key columns as null.
+    bool AllowMissingKeyColumns = false;
 };
 
 struct TLookupRowsOptionsBase

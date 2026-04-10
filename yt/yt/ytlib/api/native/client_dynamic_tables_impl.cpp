@@ -1062,7 +1062,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
             {.AllowTimestampColumns = isTimestampedLookup});
     }
 
-    auto idMapping = BuildColumnIdMapping(*schema, nameTable);
+    auto idMapping = BuildColumnIdMapping(*schema, nameTable, options.AllowMissingKeyColumns);
 
     auto remappedColumnFilter = RemapColumnFilter(options.ColumnFilter, idMapping, nameTable);
     auto resultSchema = schema->Filter(remappedColumnFilter, true);
@@ -1114,7 +1114,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
         : nullptr;
 
     for (int index = 0; index < std::ssize(keys); ++index) {
-        ValidateClientKey(keys[index], *schema, idMapping, nameTable);
+        ValidateClientKey(keys[index], *schema, idMapping, nameTable, options.AllowMissingKeyColumns);
         auto capturedKey = inputRowBuffer->CaptureAndPermuteRow(
             keys[index],
             *schema,

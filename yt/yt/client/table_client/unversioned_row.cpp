@@ -1269,9 +1269,10 @@ void ValidateClientKey(
     TLegacyKey key,
     const TTableSchema& schema,
     const TNameTableToSchemaIdMapping& idMapping,
-    const TNameTablePtr& nameTable)
+    const TNameTablePtr& nameTable,
+    bool allowMissingKeyColumns)
 {
-    ValidateClientRow(key, schema, idMapping, nameTable, true);
+    ValidateClientRow(key, schema, idMapping, nameTable, true, allowMissingKeyColumns);
 }
 
 void ValidateReadTimestamp(TTimestamp timestamp)
