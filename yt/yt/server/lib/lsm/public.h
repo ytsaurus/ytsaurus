@@ -64,8 +64,6 @@ DEFINE_ENUM(EStoreCompactionReason,
     (AggregateTtlCleanupExpected)
     (RemoveDuplicates)
     (ApplyDeletions)
-    (MinHashRemoveDuplicates)
-    (MinHashApplyDeletions)
     (NarrowChunkView)
     (Global)
 );

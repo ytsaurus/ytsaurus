@@ -724,7 +724,11 @@ private:
             return {EStoreCompactionReason::Regular, std::move(finalists)};
         }
 
-        auto [hintReason, hintStoreIds] = partition->CompactionHints().GetStoresForCompaction(CurrentTime_, edenMajorTimestamp);
+        auto [hintReason, hintStoreIds] = partition->CompactionHints().GetStoresForCompaction(
+            CurrentTime_,
+            edenMajorTimestamp,
+            mountConfig);
+
         if (hintReason != EStoreCompactionReason::None) {
             YT_VERIFY(!partition->IsEden());
 

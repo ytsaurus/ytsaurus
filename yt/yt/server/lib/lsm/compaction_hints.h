@@ -259,9 +259,17 @@ public:
 
     std::pair<EStoreCompactionReason, std::vector<TStoreId>> GetStoresForCompaction(
         TInstant currentTime,
-        TTimestamp edenMajorTimestamp) const;
+        TTimestamp edenMajorTimestamp,
+        const TTableMountConfigPtr& mountConfig) const;
 
     bool RecalculateHints(TPartition* partition);
+
+private:
+    static bool IsCompactionAllowed(
+        const TPartitionCompactionHint& hint,
+        TInstant currentTime,
+        TInstant edenMajorTimestampInstant,
+        const TTableMountConfigPtr& mountConfig);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

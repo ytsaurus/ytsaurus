@@ -319,15 +319,13 @@ TPartitionCompactionHints::TPartitionCompactionHints(THints hints)
 
 std::pair<EStoreCompactionReason, std::vector<TStoreId>> TPartitionCompactionHints::GetStoresForCompaction(
     TInstant currentTime,
-    TTimestamp edenMajorTimestamp) const
+    TTimestamp edenMajorTimestamp,
+    const TTableMountConfigPtr& mountConfig) const
 {
-    auto edenMajorInstant = TimestampToInstant(edenMajorTimestamp).first;
+    auto edenMajorTimestampInstant = TimestampToInstant(edenMajorTimestamp).first;
 
     for (const auto& hint : Hints_) {
-        if (!hint ||
-            !hint.IsSuitableTimeForCompaction(currentTime) ||
-            hint.GetTimestamp() >= edenMajorInstant)
-        {
+        if (!IsCompactionAllowed(hint, currentTime, edenMajorTimestampInstant, mountConfig)) {
             continue;
         }
 
@@ -349,6 +347,44 @@ bool TPartitionCompactionHints::RecalculateHints(TPartition* partition)
     }
 
     return recalculated;
+}
+
+
+bool TPartitionCompactionHints::IsCompactionAllowed(
+    const TPartitionCompactionHint& hint,
+    TInstant currentTime,
+    TInstant edenMajorTimestampInstant,
+    const TTableMountConfigPtr& mountConfig)
+{
+    if (!hint || !hint.IsSuitableTimeForCompaction(currentTime)) {
+        return false;
+    }
+
+    TDuration dataOffset;
+    switch (hint.GetReason()) {
+        case EStoreCompactionReason::AggregateTtlCleanupExpected:
+            dataOffset = mountConfig->MinDataVersions == 0
+                ? (mountConfig->MaxDataVersions == 0
+                    ? mountConfig->MinDataTtl
+                    : mountConfig->MaxDataTtl)
+                : mountConfig->MinDataTtl;
+            break;
+
+        case EStoreCompactionReason::AggregateDeleteTooManyTimestamps:
+        case EStoreCompactionReason::RemoveDuplicates:
+        case EStoreCompactionReason::ApplyDeletions:
+            dataOffset = mountConfig->MinDataTtl;
+            break;
+
+        default:
+            YT_LOG_FATAL("Unknown compaction reason for partition compaction hint (Reason: %v)",
+                hint.GetReason());
+    }
+
+    // Latest timestamp among the data that will be deleted.
+    auto dataTimestamp = hint.GetTimestamp() - dataOffset;
+
+    return dataTimestamp < edenMajorTimestampInstant;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
