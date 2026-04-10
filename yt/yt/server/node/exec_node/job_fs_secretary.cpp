@@ -125,18 +125,18 @@ TError CheckRootVolumeDiskSpaceAndInodeLimit(
     return {};
 }
 
-TError CheckTmpfsVolumeParams(
-    const std::vector<TTmpfsVolumeParams>& baseline,
-    const std::vector<TTmpfsVolumeParams>& current)
+TError CheckNonRootVolumeParams(
+    const std::vector<TBaseVolumeParamsPtr>& baseline,
+    const std::vector<TBaseVolumeParamsPtr>& current)
 {
     if (baseline.size() != current.size()) {
-        return TError("Job spec tmpfs volume params count differs from the first job in this allocation")
+        return TError("Job spec non-root volume params count differs from the first job in this allocation")
             << TErrorAttribute("baseline_count", baseline.size())
             << TErrorAttribute("current_count", current.size());
     }
     for (int i = 0; i < ssize(current); ++i) {
-        if (!(baseline[i] == current[i])) {
-            return TError("Job spec tmpfs volume params differ from the first job in this allocation")
+        if (!(*baseline[i] == *current[i])) {
+            return TError("Job spec non-root volume params differ from the first job in this allocation")
                 << TErrorAttribute("volume_index", i)
                 << TErrorAttribute("baseline", Format("%v", baseline[i]))
                 << TErrorAttribute("current", Format("%v", current[i]));
@@ -271,7 +271,7 @@ void TJobFSSecretary::VerifyDescriptionMatchesApplied(const TJobFSDescription& c
             current.RootVolumeDiskSpace,
             RootVolumeInodeLimit_,
             current.RootVolumeInodeLimit));
-    crashIfFailed(CheckTmpfsVolumeParams(TmpfsVolumeParams_, current.TmpfsVolumeParams));
+    crashIfFailed(CheckNonRootVolumeParams(NonRootVolumeParams_, current.NonRootVolumeParams));
     crashIfFailed(CheckJobVolumeMounts(JobVolumeMounts_, current.JobVolumeMounts));
     crashIfFailed(CheckSandboxNbdRootVolumeData(SandboxNbdRootVolumeData_, current.SandboxNbdRootVolumeData));
 }
@@ -285,7 +285,7 @@ void TJobFSSecretary::ApplyDescription(TNonNullPtr<TJobFSDescription> descriptio
     DockerImage_ = std::move(description->DockerImage);
     RootVolumeDiskSpace_ = description->RootVolumeDiskSpace;
     RootVolumeInodeLimit_ = description->RootVolumeInodeLimit;
-    TmpfsVolumeParams_ = std::move(description->TmpfsVolumeParams);
+    NonRootVolumeParams_ = std::move(description->NonRootVolumeParams);
     JobVolumeMounts_ = std::move(description->JobVolumeMounts);
     SandboxNbdRootVolumeData_ = std::move(description->SandboxNbdRootVolumeData);
 }
@@ -457,10 +457,14 @@ void TJobFSSecretary::ConfigureVolumes(TNonNullPtr<TJobFSDescription> descriptio
         return;
     }
 
+    std::optional<std::string_view> rootVolumeId;
     description->JobVolumeMounts.reserve(userJobSpec->job_volume_mounts().size());
     for (const auto& protoVolumeMount : userJobSpec->job_volume_mounts()) {
         auto volumeMount = New<NScheduler::TVolumeMount>();
         FromProto(volumeMount.Get(), protoVolumeMount);
+        if (volumeMount->MountPath == "/") {
+            rootVolumeId = volumeMount->VolumeId;
+        }
         description->JobVolumeMounts.push_back(std::move(volumeMount));
     }
 
@@ -475,13 +479,26 @@ void TJobFSSecretary::ConfigureVolumes(TNonNullPtr<TJobFSDescription> descriptio
                 break;
             case TProtoMessage::kLocalDiskRequest: {
                 const auto& localDiskRequest = protoVolume.local_disk_request();
-                description->RootVolumeDiskSpace = localDiskRequest.disk_request().storage_request_common_parameters().disk_space();
-                if (localDiskRequest.disk_request().has_inode_count()) {
-                    description->RootVolumeInodeLimit = localDiskRequest.disk_request().inode_count();
-                }
+                if (rootVolumeId && rootVolumeId.value() == volumeId) {
+                    description->RootVolumeDiskSpace = localDiskRequest.disk_request().storage_request_common_parameters().disk_space();
+                    if (localDiskRequest.disk_request().has_inode_count()) {
+                        description->RootVolumeInodeLimit = localDiskRequest.disk_request().inode_count();
+                    }
 
-                for (const auto& layerKey : protoVolume.layers()) {
-                    description->RootVolumeLayerArtifactKeys.emplace_back(layerKey);
+                    for (const auto& layerKey : protoVolume.layers()) {
+                        description->RootVolumeLayerArtifactKeys.emplace_back(layerKey);
+                    }
+                } else {
+                    auto localVolume = New<TLocalDiskVolumeParams>(volumeId, userId);
+                    localVolume->Size = localDiskRequest.disk_request().storage_request_common_parameters().disk_space();
+                    if (localDiskRequest.disk_request().has_inode_count()) {
+                        localVolume->InodeLimit = localDiskRequest.disk_request().inode_count();
+                    }
+
+                    for (const auto& layerKey : protoVolume.layers()) {
+                        localVolume->LayerArtifactKeys.emplace_back(layerKey);
+                    }
+                    description->NonRootVolumeParams.push_back(std::move(localVolume));
                 }
                 break;
             }
@@ -496,16 +513,14 @@ void TJobFSSecretary::ConfigureVolumes(TNonNullPtr<TJobFSDescription> descriptio
                 break;
             }
             case TProtoMessage::kTmpfsStorageRequest: {
-                TTmpfsVolumeParams tmpfsVolume;
-                NExecNode::FromProto(&tmpfsVolume, protoVolume.tmpfs_storage_request());
-                tmpfsVolume.UserId = userId;
-                tmpfsVolume.VolumeId = volumeId;
+                auto tmpfsVolume = New<TTmpfsVolumeParams>(volumeId, userId);
+                NExecNode::FromProto(tmpfsVolume.Get(), protoVolume.tmpfs_storage_request());
 
                 for (const auto& layerKey : protoVolume.layers()) {
-                    tmpfsVolume.LayerArtifactKeys.emplace_back(layerKey);
+                    tmpfsVolume->LayerArtifactKeys.emplace_back(layerKey);
                 }
 
-                description->TmpfsVolumeParams.push_back(std::move(tmpfsVolume));
+                description->NonRootVolumeParams.push_back(std::move(tmpfsVolume));
                 break;
             }
         }
@@ -648,20 +663,31 @@ const std::optional<TSandboxNbdRootVolumeData>& TJobFSSecretary::GetSandboxNbdRo
     return SandboxNbdRootVolumeData_;
 }
 
-const std::vector<TTmpfsVolumeResult>& TJobFSSecretary::GetTmpfsVolumes() const
+const std::vector<TVolumeResultPtr>& TJobFSSecretary::GetNonRootVolumes() const
 {
-    return TmpfsVolumes_;
+    return NonRootVolumes_;
 }
 
-std::vector<TTmpfsVolumeResult> TJobFSSecretary::ReleaseTmpfsVolumes()
+std::vector<TVolumeResultPtr> TJobFSSecretary::ReleaseNonRootVolumes()
 {
-    YT_LOG_DEBUG("Releasing tmpfs volumes");
-    return std::move(TmpfsVolumes_);
+    YT_LOG_DEBUG("Releasing non-root volumes");
+    return std::move(NonRootVolumes_);
 }
 
-void TJobFSSecretary::SetTmpfsVolumes(std::vector<TTmpfsVolumeResult> volumes)
+void TJobFSSecretary::SetNonRootVolumes(std::vector<TVolumeResultPtr> volumes)
 {
-    TmpfsVolumes_ = std::move(volumes);
+    NonRootVolumes_ = std::move(volumes);
+}
+
+size_t TJobFSSecretary::GetTmpfsVolumeCount() const
+{
+    i64 tmpfsVolumeCount = 0;
+    for (const auto& volume : NonRootVolumes_) {
+        if (volume->VolumeType == EVolumeType::Tmpfs) {
+            ++tmpfsVolumeCount;
+        }
+    }
+    return tmpfsVolumeCount;
 }
 
 const std::optional<TVirtualSandboxData>& TJobFSSecretary::GetVirtualSandboxData() const
@@ -685,9 +711,9 @@ const std::optional<int64_t>& TJobFSSecretary::GetRootVolumeInodeLimit() const
     return RootVolumeInodeLimit_;
 }
 
-const std::vector<TTmpfsVolumeParams>& TJobFSSecretary::GetTmpfsVolumeParams() const
+const std::vector<TBaseVolumeParamsPtr>& TJobFSSecretary::GetNonRootVolumeParams() const
 {
-    return TmpfsVolumeParams_;
+    return NonRootVolumeParams_;
 }
 
 const std::vector<NScheduler::TVolumeMountPtr>& TJobFSSecretary::GetJobVolumeMounts() const
@@ -753,7 +779,7 @@ void TJobFSSecretary::OnNewJobStarted(TJobId jobId)
     RootVolume_.Reset();
     GpuCheckVolume_.Reset();
     NbdDeviceIds_.clear();
-    TmpfsVolumes_.clear();
+    NonRootVolumes_.clear();
     VirtualSandboxData_.reset();
     HasVirtualSandboxArtifacts_ = false;
 }

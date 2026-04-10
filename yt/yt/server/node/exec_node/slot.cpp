@@ -380,10 +380,10 @@ public:
             });
     }
 
-    TFuture<std::vector<TTmpfsVolumeResult>> PrepareTmpfsVolumes(
+    TFuture<std::vector<TVolumeResultPtr>> PrepareNonRootVolumes(
         TJobId jobId,
         const IVolumePtr& rootVolume,
-        const std::vector<TTmpfsVolumeParams>& volumeParams,
+        const std::vector<TBaseVolumeParamsPtr>& volumeParams,
         const std::vector<TVolumeMountPtr>& volumeMounts,
         const TArtifactDownloadOptions& artifactDownloadOptions,
         bool testRootFs) override
@@ -392,21 +392,25 @@ public:
 
         VerifyEnabled();
 
-        YT_LOG_DEBUG("Preparing tmpfs volumes (Volumes: %v)",
-            MakeFormattableView(volumeParams,
-                [] (auto* builder, const TTmpfsVolumeParams& volume) {
-                    builder->AppendFormat("{VolumeId: %v}", volume.VolumeId);
+        YT_LOG_DEBUG(
+            "Preparing non-root volumes (Volumes: %v)",
+            MakeFormattableView(
+                volumeParams,
+                [] (auto* builder, const TBaseVolumeParamsPtr& volume) {
+                    builder->AppendFormat("{VolumeId: %v}", volume->VolumeId);
                 }));
 
         if (!VolumeManager_) {
-            auto error = TError("Failed to prepare tmpfs volumes since volume manager is not initialized");
+            auto error = TError("Failed to prepare non-root volumes since volume manager is not initialized");
             YT_LOG_WARNING(error);
-            return MakeFuture<std::vector<TTmpfsVolumeResult>>(std::move(error));
+            return MakeFuture<std::vector<TVolumeResultPtr>>(std::move(error));
         }
 
         auto userSandboxPath = GetSandboxPath(ESandboxKind::User, rootVolume, testRootFs);
-        return Location_->CreateTmpfsDirectoriesInsideSandbox(userSandboxPath, volumeParams, volumeMounts)
-            .Apply(BIND([
+        return RunPreparationAction(
+            /*actionName*/ "PrepareNonRootVolumes",
+            /*uncancelable*/ false,
+            [
                 jobId,
                 userSandboxPath = std::move(userSandboxPath),
                 rootVolume,
@@ -415,42 +419,40 @@ public:
                 artifactDownloadOptions,
                 this,
                 this_ = MakeStrong(this)
-            ] () mutable {
-                return RunPreparationAction(
-                    /*actionName*/ "PrepareTmpfsVolumes",
-                    /*uncancelable*/ false,
-                    [
-                        jobId,
-                        userSandboxPath = std::move(userSandboxPath),
-                        rootVolume = std::move(rootVolume),
-                        volumeParams = std::move(volumeParams),
-                        volumeMounts = std::move(volumeMounts),
-                        artifactDownloadOptions = std::move(artifactDownloadOptions),
-                        this,
-                        this_ = MakeStrong(this)
-                    ] {
-                        return VolumeManager_->PrepareTmpfsVolumes(userSandboxPath, jobId, volumeParams, volumeMounts, artifactDownloadOptions)
-                            .AsUnique().Apply(BIND([rootVolume, volumeMounts, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
+            ] {
+                return VolumeManager_->PrepareNonRootVolumes(userSandboxPath, jobId, volumeParams, volumeMounts, artifactDownloadOptions)
+                    .AsUnique()
+                    .Apply(
+                        BIND(
+                            [
+                                rootVolume,
+                                volumeMounts,
+                                this,
+                                this_ = MakeStrong(this)
+                            ] (TErrorOr<std::vector<TVolumeResultPtr>>&& volumeResultsOrError) {
                                 if (!volumeResultsOrError.IsOK()) {
-                                    THROW_ERROR_EXCEPTION("Failed to prepare tmpfs volumes: %v",
+                                    THROW_ERROR_EXCEPTION("Failed to prepare non-root volumes: %v",
                                         volumeResultsOrError);
                                 }
 
                                 auto& volumeResults = volumeResultsOrError.Value();
 
                                 // Inform slot location about tmpfses to be used.
-                                Location_->TakeIntoAccountTmpfsVolumes(SlotIndex_, rootVolume, volumeResults, volumeMounts);
+                                Location_->TakeIntoAccountTmpfsVolumes(
+                                    SlotIndex_,
+                                    rootVolume,
+                                    volumeResults,
+                                    volumeMounts);
                                 return std::move(volumeResults);
-                            })
-                            .AsyncVia(Bootstrap_->GetJobInvoker()));
-                    });
-            })
-            .AsyncVia(Bootstrap_->GetJobInvoker()));
+                    })
+                    .AsyncVia(Bootstrap_->GetJobInvoker()));
+            });
+
     }
 
-    TFuture<void> LinkTmpfsVolumes(
+    TFuture<void> LinkVolumes(
         const IVolumePtr& rootVolume,
-        const std::vector<TTmpfsVolumeResult>& volumeResults,
+        const std::vector<TVolumeResultPtr>& volumeResults,
         const std::vector<TVolumeMountPtr>& volumeMounts,
         bool testRootFs) override
     {
@@ -459,26 +461,26 @@ public:
         VerifyEnabled();
 
         if (!VolumeManager_) {
-            auto error = TError("Failed to link tmpfs volumes since volume manager is not initialized");
+            auto error = TError("Failed to link volumes since volume manager is not initialized");
             YT_LOG_WARNING(error);
             return MakeFuture<void>(std::move(error));
         }
 
         auto userSandboxPath = GetSandboxPath(ESandboxKind::User, rootVolume, testRootFs);
 
-        YT_LOG_DEBUG("Linking tmpfs volumes into sandbox (UserSandboxPath: %v, Volumes: %v)",
+        YT_LOG_DEBUG("Linking volumes into sandbox (UserSandboxPath: %v, Volumes: %v)",
             userSandboxPath,
             MakeFormattableView(volumeResults,
-                [] (auto* builder, const TTmpfsVolumeResult& result) {
+                [] (auto* builder, const TVolumeResultPtr& result) {
                     builder->AppendFormat("{VolumeId: %v}",
-                        result.VolumeId);
+                        result->VolumeId);
                 }));
 
         return RunPreparationAction(
-            /*actionName*/ "LinkTmpfsVolumes",
+            /*actionName*/ "LinkVolumes",
             /*uncancelable*/ true,
             [userSandboxPath = std::move(userSandboxPath), volumeResults, volumeMounts, this, this_ = MakeStrong(this)] {
-                return VolumeManager_->LinkTmpfsVolumes(userSandboxPath, volumeResults, volumeMounts);
+                return VolumeManager_->LinkVolumes(userSandboxPath, volumeResults, volumeMounts);
         });
     }
 

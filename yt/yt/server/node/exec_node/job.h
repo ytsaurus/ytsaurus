@@ -365,14 +365,14 @@ private:
     std::optional<TInstant> PrepareRootVolumeStartTime_;
     std::optional<TInstant> PrepareRootVolumeFinishTime_;
 
-    std::optional<TInstant> PrepareTmpfsVolumesStartTime_;
-    std::optional<TInstant> PrepareTmpfsVolumesFinishTime_;
+    std::optional<TInstant> PrepareNonRootVolumesStartTime_;
+    std::optional<TInstant> PrepareNonRootVolumesFinishTime_;
 
     std::optional<TInstant> PrepareGpuCheckVolumeStartTime_;
     std::optional<TInstant> PrepareGpuCheckVolumeFinishTime_;
 
-    std::optional<TInstant> LinkTmpfsVolumesStartTime_;
-    std::optional<TInstant> LinkTmpfsVolumesFinishTime_;
+    std::optional<TInstant> LinkVolumesStartTime_;
+    std::optional<TInstant> LinkVolumesFinishTime_;
 
     std::optional<TInstant> ValidateRootFSStartTime_;
     std::optional<TInstant> ValidateRootFSFinishTime_;

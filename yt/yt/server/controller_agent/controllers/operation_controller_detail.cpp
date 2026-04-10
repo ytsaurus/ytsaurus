@@ -10456,8 +10456,6 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         }
     }
 
-    // COMPAT(krasovav)
-    YT_VERIFY(CountNonTmpfsVolumes(jobSpecConfig->Volumes) <= 1);
     {
         THashSet<std::string> volumesNotAllowedToBeCreated;
         for (const auto& [name, volume] : jobSpecConfig->Volumes) {

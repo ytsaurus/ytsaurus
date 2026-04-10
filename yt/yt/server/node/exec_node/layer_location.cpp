@@ -137,11 +137,28 @@ TFuture<TVolumeMeta> TLayerLocation::CreateNbdVolume(
         .Run();
 }
 
+TFuture<TVolumeMeta> TLayerLocation::CreateLoopVolume(
+    TGuid tag,
+    TTagSet tagSet,
+    TEventTimerGuard volumeCreateTimeGuard,
+    TLocalDiskVolumeParamsPtr tmpfsVolume)
+{
+    return BIND(
+        &TLayerLocation::DoCreateLoopVolume,
+        MakeStrong(this),
+        tag,
+        Passed(std::move(tagSet)),
+        Passed(std::move(volumeCreateTimeGuard)),
+        Passed(std::move(tmpfsVolume)))
+        .AsyncVia(LocationQueue_->GetInvoker())
+        .Run();
+}
+
 TFuture<TVolumeMeta> TLayerLocation::CreateTmpfsVolume(
     TGuid tag,
     TTagSet tagSet,
     TEventTimerGuard volumeCreateTimeGuard,
-    TTmpfsVolumeParams tmpfsVolume)
+    TTmpfsVolumeParamsPtr tmpfsVolume)
 {
     return BIND(
         &TLayerLocation::DoCreateTmpfsVolume,
@@ -252,14 +269,16 @@ TFuture<void> TLayerLocation::RemoveVolume(
 TFuture<void> TLayerLocation::LinkVolume(
     TGuid tag,
     const TString& source,
-    const TString& target)
+    const TString& target,
+    bool sholdCheckTargetDirExists)
 {
     return BIND(
         &TLayerLocation::DoLinkVolume,
         MakeStrong(this),
         tag,
         source,
-        target)
+        target,
+        sholdCheckTargetDirExists)
         .AsyncVia(LocationQueue_->GetInvoker())
         .Run();
 }
@@ -1192,19 +1211,50 @@ TVolumeMeta TLayerLocation::DoCreateSquashFSVolume(
         std::move(volumeProperties));
 }
 
+TVolumeMeta TLayerLocation::DoCreateLoopVolume(
+    TGuid tag,
+    TTagSet tagSet,
+    TEventTimerGuard volumeCreateTimeGuard,
+    TLocalDiskVolumeParamsPtr volumeParams)
+{
+    ValidateEnabled();
+
+    THashMap<TString, TString> volumeProperties {
+        {"backend", "loop"},
+        {"fs_type", "ext4"},
+        {"user", ToString(volumeParams->UserId)},
+        {"permissions", "0777"},
+        {"space_limit", ToString(volumeParams->Size)},
+    };
+
+    if (volumeParams->InodeLimit) {
+        volumeProperties["inode_limit"] = ToString(*volumeParams->InodeLimit);
+    }
+
+    TVolumeMeta volumeMeta;
+    volumeMeta.set_type(ToProto(EVolumeType::Local));
+
+    return DoCreateVolume(
+        tag,
+        std::move(tagSet),
+        std::move(volumeCreateTimeGuard),
+        std::move(volumeMeta),
+        std::move(volumeProperties));
+}
+
 TVolumeMeta TLayerLocation::DoCreateTmpfsVolume(
     TGuid tag,
     TTagSet tagSet,
     TEventTimerGuard volumeCreateTimeGuard,
-    TTmpfsVolumeParams volumeParams)
+    TTmpfsVolumeParamsPtr volumeParams)
 {
     ValidateEnabled();
 
     THashMap<TString, TString> volumeProperties {
         {"backend", "tmpfs"},
-        {"user", ToString(volumeParams.UserId)},
+        {"user", ToString(volumeParams->UserId)},
         {"permissions", "0777"},
-        {"space_limit", ToString(volumeParams.Size)},
+        {"space_limit", ToString(volumeParams->Size)},
     };
 
     TVolumeMeta volumeMeta;
@@ -1363,14 +1413,19 @@ void TLayerLocation::DoRemoveVolume(
 void TLayerLocation::DoLinkVolume(
     TGuid tag,
     const TString& source,
-    const TString& target)
+    const TString& target,
+    bool sholdCheckTargetDirExists)
 {
     YT_LOG_DEBUG("Linking volume (Tag: %v, Source: %v, Target: %v)",
         tag,
         source,
         target);
 
-    // If target does not exist, it is created by porto.
+    if (sholdCheckTargetDirExists && NFS::Exists(target)) {
+        THROW_ERROR_EXCEPTION("Target path already exists")
+            << TErrorAttribute("target", target);
+    }
+    NFS::MakeDirRecursive(target, 0755);
     WaitFor(VolumeExecutor_->LinkVolume(source, "self", target))
         .ThrowOnError();
 }

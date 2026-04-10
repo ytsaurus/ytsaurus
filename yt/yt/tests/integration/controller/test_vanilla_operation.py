@@ -884,10 +884,9 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                 }
             )
 
-    # TODO(krasovav): Rewrite to check two different mediums after supporting two non tmpfs volumes.
     @authors("krasovav")
-    def test_two_non_tmpfs_volumes(self):
-        with raises_yt_error('Volume request with two or more different non tmpfs disk request are not currently supported'):
+    def test_non_root_nbd_volumes(self):
+        with raises_yt_error('Non-root nbd are not currently supported'):
             vanilla(
                 spec={
                     "tasks": {
@@ -896,25 +895,16 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                             "command": "cat",
                             "job_volumes_mounts" : [
                                 {
-                                    "volume_id": "a",
-                                    "mount_path": "first",
-                                },
-                                {
-                                    "volume_id": "b",
-                                    "mount_path": "second",
+                                    "volume_id": "nbd",
+                                    "mount_path": "nbd",
                                 },
                             ],
                             "volumes" : {
-                                "a": {
+                                "nbd": {
                                     "disk_request": {
-                                        "type": "local",
+                                        "type": "nbd",
                                         "disk_space": 1024 * 1024,
-                                    },
-                                },
-                                "b": {
-                                    "disk_request": {
-                                        "type": "local",
-                                        "disk_space": 1024 * 1024,
+                                        "nbd_disk": {},
                                     },
                                 },
                             },

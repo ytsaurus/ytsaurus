@@ -638,50 +638,6 @@ time.sleep(10)
                 },
             )
 
-        with pytest.raises(YtError):
-            map(
-                command="cat",
-                in_="//tmp/t_input",
-                out="//tmp/t_output",
-                spec={
-                    "mapper": {
-                        "tmpfs_volumes": [
-                            {
-                                "path": "tmpfs",
-                                "size": 1024 * 1024,
-                            },
-                            {
-                                "path": "tmpfs/inner",
-                                "size": 1024 * 1024,
-                            },
-                        ]
-                    },
-                    "max_failed_job_count": 1,
-                },
-            )
-
-        with pytest.raises(YtError):
-            map(
-                command="cat",
-                in_="//tmp/t_input",
-                out="//tmp/t_output",
-                spec={
-                    "mapper": {
-                        "tmpfs_volumes": [
-                            {
-                                "path": "tmpfs/fake_inner/../",
-                                "size": 1024 * 1024,
-                            },
-                            {
-                                "path": "tmpfs/inner",
-                                "size": 1024 * 1024,
-                            },
-                        ]
-                    },
-                    "max_failed_job_count": 1,
-                },
-            )
-
     @authors("ignat")
     def test_multiple_tmpfs_volumes_with_common_prefix(self):
         create("table", "//tmp/t_input")

@@ -1645,9 +1645,6 @@ void TUserJobSpec::Register(TRegistrar registrar)
             tmpfsPaths.push_back(volumeMount->MountPath);
         }
 
-        //! Check that no volume path is a prefix of another volume path.
-        ValidateTmpfsPaths(tmpfsPaths);
-
         if (spec->MemoryReserveFactor &&
             (*spec->MemoryReserveFactor == 1.0 || !spec->IgnoreMemoryReserveFactorLessThanOne))
         {
@@ -1715,6 +1712,17 @@ void TUserJobSpec::Register(TRegistrar registrar)
         std::sort(spec->JobVolumeMounts.begin(), spec->JobVolumeMounts.end(), [] (const auto& lhs, const auto& rhs) {
             return lhs->MountPath < rhs->MountPath;
         });
+
+        {
+            THashSet<std::string_view> allUniqueVolumeMountPaths;
+            for (const auto& volumeMount : spec->JobVolumeMounts) {
+                allUniqueVolumeMountPaths.insert(volumeMount->MountPath);
+            }
+            if (allUniqueVolumeMountPaths.size() != spec->JobVolumeMounts.size()) {
+                THROW_ERROR_EXCEPTION("Options \"job_volume_mounts\" must contains only unique mount path")
+                    << TErrorAttribute("job_volume_mounts", spec->JobVolumeMounts);
+            }
+        }
 
         if (!spec->IsFirstIterationPostprocessorComplete) {
             spec->DeprecatedTmpfsVolumes = std::move(tmpDeprecatedTmpfsVolumes);

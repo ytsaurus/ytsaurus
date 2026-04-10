@@ -361,6 +361,16 @@ const std::string& GetVolumeMountPathByVolumeId(const std::string& volumeId, con
     return volumeMountIt->Get()->MountPath;
 }
 
+const TVolumeResultPtr& GetNonRootVolumeResultByVolumeId(const std::string& volumeId, const std::vector<TVolumeResultPtr>& volumes)
+{
+    auto volumeIt = std::find_if(volumes.begin(), volumes.end(), [&] (const auto& volume) {
+        return volume->VolumeId == volumeId;
+    });
+
+    YT_VERIFY(volumeIt != volumes.end());
+    return *volumeIt;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void FromProto(TSandboxNbdRootVolumeData* nbd, const NScheduler::NProto::TNbdDiskRequest& protoNbd)

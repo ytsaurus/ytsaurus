@@ -42,10 +42,11 @@ const std::string& TPortoVolumeBase::GetPath() const
 
 TFuture<void> TPortoVolumeBase::Link(
     TGuid tag,
-    const TString& target)
+    const TString& target,
+    bool sholdCheckTargetDirExists)
 {
     return TAsyncLockWriterGuard::Acquire(&Lock_)
-        .AsUnique().Apply(BIND([tag, target, this, this_ = MakeStrong(this)] (
+        .AsUnique().Apply(BIND([tag, target, sholdCheckTargetDirExists, this, this_ = MakeStrong(this)] (
             TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>&& guard)
         {
             // Targets_ is protected with guard.
@@ -55,7 +56,7 @@ TFuture<void> TPortoVolumeBase::Link(
 
             // TODO(dgolear): Switch to std::string.
             auto source = TString(GetPath());
-            return LayerLocation_->LinkVolume(tag, source, target);
+            return LayerLocation_->LinkVolume(tag, source, target, sholdCheckTargetDirExists);
         }));
 }
 
@@ -202,7 +203,7 @@ TSquashFSVolume::TSquashFSVolume(
         artifactKey)
     , Artifact_(std::move(artifact))
 {
-    SetRemoveCallback(BIND(
+    SetRemoveCallback(BIND_NO_PROPAGATE(
         &TSquashFSVolume::DoRemove,
         TagSet_,
         LayerLocation_,
@@ -243,7 +244,7 @@ TRWNbdVolume::TRWNbdVolume(
     , NbdDeviceId_(std::move(nbdDeviceId))
     , NbdServer_(std::move(nbdServer))
 {
-    SetRemoveCallback(BIND(
+    SetRemoveCallback(BIND_NO_PROPAGATE(
         &TRWNbdVolume::DoRemove,
         TagSet_,
         LayerLocation_,
@@ -313,7 +314,7 @@ TRONbdVolume::TRONbdVolume(
     , NbdDeviceId_(std::move(nbdDeviceId))
     , NbdServer_(std::move(nbdServer))
 {
-    SetRemoveCallback(BIND(
+    SetRemoveCallback(BIND_NO_PROPAGATE(
         &TRONbdVolume::DoRemove,
         TagSet_,
         LayerLocation_,
@@ -377,7 +378,7 @@ TOverlayVolume::TOverlayVolume(
     , OverlayDataArray_(std::move(overlayDataArray))
     , VolumeForUpperLayer_(std::move(volumeForUpperLayer))
 {
-    SetRemoveCallback(BIND(
+    SetRemoveCallback(BIND_NO_PROPAGATE(
         &TOverlayVolume::DoRemove,
         TagSet_,
         LayerLocation_,
@@ -444,7 +445,7 @@ TTmpfsVolume::TTmpfsVolume(
         std::move(volumeMeta),
         std::move(location))
 {
-    SetRemoveCallback(BIND(
+    SetRemoveCallback(BIND_NO_PROPAGATE(
         &TTmpfsVolume::DoRemove,
         TagSet_,
         LayerLocation_,
@@ -474,6 +475,48 @@ TFuture<void> TTmpfsVolume::DoRemove(
 }
 
 DEFINE_REFCOUNTED_TYPE(TTmpfsVolume)
+
+////////////////////////////////////////////////////////////////////////////////
+
+TLoopVolume::TLoopVolume(
+    TTagSet tagSet,
+    TVolumeMeta volumeMeta,
+    TLayerLocationPtr location)
+    : TPortoVolumeBase(
+        std::move(tagSet),
+        std::move(volumeMeta),
+        std::move(location))
+{
+    SetRemoveCallback(BIND_NO_PROPAGATE(
+        &TLoopVolume::DoRemove,
+        TagSet_,
+        LayerLocation_,
+        VolumeMeta_));
+}
+
+TLoopVolume::~TLoopVolume()
+{
+    YT_UNUSED_FUTURE(Remove());
+}
+
+bool TLoopVolume::IsRootVolume() const
+{
+    return false;
+}
+
+TFuture<void> TLoopVolume::DoRemove(
+    TTagSet tagSet,
+    TLayerLocationPtr location,
+    TVolumeMeta volumeMeta)
+{
+    return DoRemoveVolumeCommon(
+        "Loop",
+        std::move(tagSet),
+        std::move(location),
+        std::move(volumeMeta));
+}
+
+DEFINE_REFCOUNTED_TYPE(TLoopVolume)
 
 ////////////////////////////////////////////////////////////////////////////////
 

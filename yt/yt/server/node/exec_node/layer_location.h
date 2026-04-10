@@ -75,11 +75,17 @@ public:
         const TArtifactKey& artifactKey,
         const std::string& squashFSFilePath);
 
+    TFuture<TVolumeMeta> CreateLoopVolume(
+        TGuid tag,
+        TTagSet tagSet,
+        TEventTimerGuard volumeCreateTimeGuard,
+        TLocalDiskVolumeParamsPtr tmpfsVolume);
+
     TFuture<TVolumeMeta> CreateTmpfsVolume(
         TGuid tag,
         TTagSet tagSet,
         TEventTimerGuard volumeCreateTimeGuard,
-        TTmpfsVolumeParams tmpfsVolume);
+        TTmpfsVolumeParamsPtr tmpfsVolume);
 
     void Disable(const TError& error, bool persistentDisable = true);
 
@@ -129,7 +135,8 @@ public:
     TFuture<void> LinkVolume(
         TGuid tag,
         const TString& source,
-        const TString& target);
+        const TString& target,
+        bool sholdCheckTargetDirExists);
 
     TFuture<void> UnlinkVolume(
         const TString& source,
@@ -247,11 +254,17 @@ private:
         const TArtifactKey& artifactKey,
         const std::string& squashFSFilePath);
 
+    TVolumeMeta DoCreateLoopVolume(
+        TGuid tag,
+        TTagSet tagSet,
+        TEventTimerGuard volumeCreateTimeGuard,
+        TLocalDiskVolumeParamsPtr volumeParams);
+
     TVolumeMeta DoCreateTmpfsVolume(
         TGuid tag,
         TTagSet tagSet,
         TEventTimerGuard volumeCreateTimeGuard,
-        TTmpfsVolumeParams volumeParams);
+        TTmpfsVolumeParamsPtr volumeParams);
 
     void DoRemoveVolume(
         TTagSet tagSet,
@@ -261,7 +274,8 @@ private:
     void DoLinkVolume(
         TGuid tag,
         const TString& source,
-        const TString& target);
+        const TString& target,
+        bool sholdCheckTargetDirExists);
 
     void DoUnlinkVolume(
         const TString& source,

@@ -2,6 +2,7 @@
 
 #include "artifact.h"
 #include "bootstrap.h"
+#include "volume_helpers.h"
 #include "private.h"
 
 #include <yt/yt/server/node/exec_node/preparation_options.h>
@@ -96,6 +97,7 @@ TClosure MakeJobInterrupter(TJobId jobId, const IBootstrap* bootstrap);
 ////////////////////////////////////////////////////////////////////////////////
 
 const std::string& GetVolumeMountPathByVolumeId(const std::string& volumeId, const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts);
+const TVolumeResultPtr& GetNonRootVolumeResultByVolumeId(const std::string& volumeId, const std::vector<TVolumeResultPtr>& volumes);
 
 ////////////////////////////////////////////////////////////////////////////////
 

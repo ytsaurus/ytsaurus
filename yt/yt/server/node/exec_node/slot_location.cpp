@@ -63,32 +63,48 @@ using namespace NServer;
 
 bool TSlotLocation::TSandboxTmpfsData::IsInsideTmpfs(const TString& path, const NLogging::TLogger& Logger) const
 {
-    auto relativePath = TryGetPathRelativeToSandbox(path);
-    if (!relativePath) {
-        YT_LOG_DEBUG("Failed to get path relative to sandbox (Path: %v, SandboxPaths: %v)",
-            path,
-            SandboxPaths_);
-        return false;
-    }
-
-    YT_LOG_DEBUG("Checking if path is inside tmpfs (Path: %v, RelativePath: %v, TmpfsPaths: %v)",
+    YT_LOG_DEBUG(
+        "Checking if path is inside tmpfs volume (Path: %v, VolumePathToType: %v)",
         path,
-        relativePath,
-        TmpfsPaths_);
+        VolumePathToType_);
 
-    auto it = TmpfsPaths_.upper_bound(*relativePath);
-    if (it != TmpfsPaths_.begin()) {
-        --it;
-        if (*relativePath == *it || relativePath->StartsWith(NFS::CombinePaths(*it, "/"))) {
-            YT_LOG_DEBUG("Path is inside tmpfs (Path: %v, RelativePath: %v, TmpfsPath: %v, SandboxPaths: %v)",
-                path,
-                *relativePath,
-                *it,
-                SandboxPaths_);
-            return true;
+    bool isTmpfs = false;
+    std::optional<std::string_view> longerVolumePath;
+    auto tryUpdateLongestTmpfsPath = [&] (std::string_view volumePath, EVolumeType volumeType) {
+        if (path.StartsWith(volumePath)) {
+            if (!longerVolumePath || volumePath.size() > longerVolumePath->size()) {
+                longerVolumePath = volumePath;
+                isTmpfs = volumeType == EVolumeType::Tmpfs;
+            }
+        }
+    };
+
+    for (const auto& [volumePath, type] : VolumePathToType_) {
+        if (NFS::IsAbsolutePath(volumePath)) {
+            tryUpdateLongestTmpfsPath(volumePath, type);
+        } else {
+            for (const auto& sandboxPath : SandboxPaths_) {
+                tryUpdateLongestTmpfsPath(NFS::JoinPaths(sandboxPath, volumePath), type);
+            }
         }
     }
-    return false;
+
+    if (longerVolumePath) {
+        YT_LOG_DEBUG(
+            "Path %v inside tmpfs (Path: %v, VolumePath: %v, VolumePathToType: %v, SandboxPaths: %v)",
+            isTmpfs ? "is" : "isn't",
+            path,
+            *longerVolumePath,
+            VolumePathToType_,
+            SandboxPaths_);
+    } else {
+        YT_LOG_DEBUG(
+            "Path is inside root volume (Path: %v, VolumePathToType: %v, SandboxPaths: %v)",
+            path,
+            VolumePathToType_,
+            SandboxPaths_);
+    }
+    return isTmpfs;
 }
 
 void TSlotLocation::TSandboxTmpfsData::AddSandboxPath(TString&& sandboxPath)
@@ -101,27 +117,9 @@ void TSlotLocation::TSandboxTmpfsData::AddSandboxPath(TString&& sandboxPath)
     SandboxPaths_.insert(std::move(sandboxPath));
 }
 
-void TSlotLocation::TSandboxTmpfsData::AddTmpfsPath(TString&& tmpfsPath)
+void TSlotLocation::TSandboxTmpfsData::AddVolumeInfo(TString&& volumePath, EVolumeType volumeType)
 {
-    EmplaceOrCrash(TmpfsPaths_, std::move(tmpfsPath));
-}
-
-std::optional<TString> TSlotLocation::TSandboxTmpfsData::TryGetPathRelativeToSandbox(const TString& path) const
-{
-    auto fullPath = NFS::JoinPaths(path, "/");
-    for (const auto& sandboxPath : SandboxPaths_) {
-        auto fullSandboxPath = NFS::JoinPaths(sandboxPath, "/");
-        if (fullSandboxPath.empty() || fullPath.size() < fullSandboxPath.size() || !fullPath.starts_with(fullSandboxPath)) {
-            continue;
-        }
-
-        if (fullPath.size() == fullSandboxPath.size()) {
-            return "/";
-        }
-
-        return path.substr(sandboxPath.size());
-    }
-    return std::nullopt;
+    EmplaceOrCrash(VolumePathToType_, std::move(volumePath), volumeType);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -284,46 +282,6 @@ TFuture<void> TSlotLocation::ValidateRootFS(const IVolumePtr& rootVolume) const
     })
         .AsyncVia(HeavyInvoker_)
         .Run();
-}
-
-TFuture<void> TSlotLocation::CreateTmpfsDirectoriesInsideSandbox(
-    const TString& userSandboxPath,
-    const std::vector<TTmpfsVolumeParams>& volumeParams,
-    const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts) const
-{
-    return BIND([userSandboxPath, volumeParams, volumeMounts] () {
-        // It is assumed that userSandboxPath already exists.
-        for (const auto& volume : volumeParams) {
-            // TODO(gritukan): GetRealPath here can be replaced with some light analogue that does not access filesystem.
-            auto mountPath = GetVolumeMountPathByVolumeId(volume.VolumeId, volumeMounts);
-
-            auto tmpfsUserSandboxPath = NFS::GetRealPath(NFS::CombinePaths(userSandboxPath, mountPath));
-
-            const auto& Logger = ExecNodeLogger();
-            YT_LOG_DEBUG("Creating tmpfs directory (TmpfsPath: %v, UserSandboxPath: %v, TmpfsUserSandboxPath: %v)",
-                volume.VolumeId,
-                userSandboxPath,
-                tmpfsUserSandboxPath);
-
-            try {
-                if (tmpfsUserSandboxPath != userSandboxPath) {
-                    // If we mount directory inside sandbox, it should not exist.
-                    if (NFS::Exists(tmpfsUserSandboxPath)) {
-                        THROW_ERROR_EXCEPTION("Tmpfs path %v already exists",
-                            tmpfsUserSandboxPath);
-                    }
-                }
-                NFS::MakeDirRecursive(tmpfsUserSandboxPath);
-            } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Failed to create directory %v for tmpfs in sandbox %v",
-                    tmpfsUserSandboxPath,
-                    userSandboxPath)
-                    << ex;
-            }
-        }
-    })
-    .AsyncVia(HeavyInvoker_)
-    .Run();
 }
 
 TFuture<void> TSlotLocation::Initialize()
@@ -495,10 +453,10 @@ TFuture<void> TSlotLocation::PrepareSandboxDirectories(
     auto sandboxPath = GetSandboxPath(slotIndex, ESandboxKind::User);
 
     return BIND([=, this_ = MakeStrong(this)] {
-            for (const auto& volumeParams : options.TmpfsVolumes) {
+            for (const auto& volumeParams : options.NonRootVolumes) {
                 // TODO(gritukan): Implement a function that joins absolute path with a relative path and returns
                 // real path without filesystem access.
-                auto mountPath = GetVolumeMountPathByVolumeId(volumeParams.VolumeId, options.JobVolumeMounts);
+                auto mountPath = GetVolumeMountPathByVolumeId(volumeParams->VolumeId, options.JobVolumeMounts);
                 auto tmpfsPath = GetRealPath(CombinePaths(sandboxPath, mountPath));
                 if (tmpfsPath == sandboxPath) {
                     return true;
@@ -527,7 +485,7 @@ TFuture<void> TSlotLocation::PrepareSandboxDirectories(
 void TSlotLocation::TakeIntoAccountTmpfsVolumes(
     int slotIndex,
     const IVolumePtr& rootVolume,
-    const std::vector<TTmpfsVolumeResult>& volumeResults,
+    const std::vector<TVolumeResultPtr>& volumeResults,
     const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts)
 {
     YT_LOG_DEBUG("Taking into account tmpfs volumes (SlotIndex: %v, VolumeCount: %v)",
@@ -548,8 +506,8 @@ void TSlotLocation::TakeIntoAccountTmpfsVolumes(
     tmpfsData.AddSandboxPath(GetSandboxPath(slotIndex, ESandboxKind::User));
 
     for (const auto& volume: volumeResults) {
-        auto mountPath = GetVolumeMountPathByVolumeId(volume.VolumeId, volumeMounts);
-        tmpfsData.AddTmpfsPath(NFS::GetRealPath(NFS::CombinePaths("/", mountPath)));
+        auto mountPath = GetVolumeMountPathByVolumeId(volume->VolumeId, volumeMounts);
+        tmpfsData.AddVolumeInfo(NFS::GetRealPath(NFS::CombinePaths("/", mountPath)), volume->VolumeType);
     }
 }
 
