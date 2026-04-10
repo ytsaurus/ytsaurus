@@ -87,10 +87,11 @@ private:
     std::atomic<bool> UsePrecommitForPreemption_ = false;
 
     // For testing.
-    std::optional<TDuration> ResourceTreeInitializeResourceUsageDelay_;
-    std::optional<TDuration> ResourceTreeReleaseResourcesRandomDelay_;
-    std::optional<TDuration> ResourceTreeIncreaseLocalResourceUsagePrecommitRandomDelay_;
-    std::optional<TDuration> ResourceTreeRevertResourceUsagePrecommitRandomDelay_;
+    // Encoded as microseconds; ::Max<TDuration::TValue>() means "not set".
+    std::atomic<TDuration::TValue> ResourceTreeInitializeResourceUsageDelay_ = ::Max<TDuration::TValue>();
+    std::atomic<TDuration::TValue> ResourceTreeReleaseResourcesRandomDelay_ = ::Max<TDuration::TValue>();
+    std::atomic<TDuration::TValue> ResourceTreeIncreaseLocalResourceUsagePrecommitRandomDelay_ = ::Max<TDuration::TValue>();
+    std::atomic<TDuration::TValue> ResourceTreeRevertResourceUsagePrecommitRandomDelay_ = ::Max<TDuration::TValue>();
 
     THashSet<TResourceTreeElementPtr> AliveElements_;
 
