@@ -554,6 +554,10 @@ public:
 
             YT_LOG_INFO("Materializing artifact");
 
+            if (Config_->TestingConfig->HaltWhenMaterializingArtifact) {
+                Sleep(TDuration::Max());
+            }
+
             constexpr ssize_t SpliceCopyBlockSize = 16_MB;
             Splice(pipeFile, artifactFile, SpliceCopyBlockSize);
 
