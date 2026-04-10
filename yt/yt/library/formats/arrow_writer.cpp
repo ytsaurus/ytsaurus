@@ -2319,6 +2319,8 @@ void SerializeComplexTypeColumn(
     auto encodedOffsets = column->GetTypedValues<ui32>();
     std::vector<ui32> offsets(column->ValueCount + 1);
 
+    auto startOffset = DecodeStringOffset(encodedOffsets, avgLength, startIndex);
+
     DecodeStringOffsets(
         encodedOffsets,
         avgLength,
@@ -2326,7 +2328,9 @@ void SerializeComplexTypeColumn(
         endIndex,
         TMutableRange(offsets));
 
-    auto currentStringData = stringData.Data();
+    // DecodeStringOffsets returns offsets relative to startOffset, so we must
+    // advance the base pointer by startOffset to get the correct YSON data.
+    auto currentStringData = stringData.Data() + startOffset;
 
     for (int rowOffset = 0; rowOffset < column->ValueCount; ++rowOffset) {
         int currentBufferIndex = initialBufferIndex;
