@@ -17,7 +17,7 @@ import time
 from gunicorn.asgi.unreader import AsyncUnreader
 from gunicorn.asgi.parser import (
     PythonProtocol, CallbackRequest, ParseError,
-    LimitRequestLine, LimitRequestHeaders
+    LimitRequestLine, LimitRequestHeaders, InvalidChunkExtension
 )
 from gunicorn.asgi.uwsgi import AsyncUWSGIRequest
 from gunicorn.http.errors import NoMoreData
@@ -283,6 +283,7 @@ class ASGIProtocol(asyncio.Protocol):
     _h1c_available = None
     _h1c_protocol_class = None
     _h1c_has_limits = False  # True if >= 0.4.1 (has limit parameters)
+    _h1c_invalid_chunk_extension = None  # Exception class from gunicorn_h1c >= 0.6.3
 
     def __init__(self, worker):
         self.worker = worker
@@ -363,6 +364,10 @@ class ASGIProtocol(asyncio.Protocol):
                 cls._h1c_protocol_class = H1CProtocol
                 # Require >= 0.4.1 for limit enforcement
                 cls._h1c_has_limits = hasattr(gunicorn_h1c, 'LimitRequestLine')
+                # Check for InvalidChunkExtension (>= 0.6.3)
+                cls._h1c_invalid_chunk_extension = getattr(
+                    gunicorn_h1c, 'InvalidChunkExtension', None
+                )
             except ImportError:
                 cls._h1c_available = False
                 cls._h1c_has_limits = False
@@ -414,12 +419,18 @@ class ASGIProtocol(asyncio.Protocol):
             else:
                 parser_class = PythonProtocol
 
+        # Handle limit_request_line=0 (unlimited per documentation)
+        # PythonProtocol handles 0 correctly, but C parser needs a large value
+        limit_request_line = self.cfg.limit_request_line
+        if limit_request_line == 0 and parser_class != PythonProtocol:
+            limit_request_line = 1024 * 1024  # 1MB for C parser
+
         # Create parser with callbacks and limit parameters (both parsers support them)
         self._callback_parser = parser_class(
             on_headers_complete=self._on_headers_complete,
             on_body=self._on_body,
             on_message_complete=self._on_message_complete,
-            limit_request_line=self.cfg.limit_request_line,
+            limit_request_line=limit_request_line,
             limit_request_fields=self.cfg.limit_request_fields,
             limit_request_field_size=self.cfg.limit_request_field_size,
             permit_unconventional_http_method=self.cfg.permit_unconventional_http_method,
@@ -474,10 +485,23 @@ class ASGIProtocol(asyncio.Protocol):
                 self._send_error_response(431, str(e))  # Request Header Fields Too Large
                 self._close_transport()
                 return
+            except InvalidChunkExtension as e:
+                self._send_error_response(400, str(e))
+                self._close_transport()
+                return
             except ParseError as e:
                 self._send_error_response(400, str(e))
                 self._close_transport()
                 return
+            except Exception as e:
+                # Handle gunicorn_h1c exceptions (different class hierarchy)
+                h1c_exc = ASGIProtocol._h1c_invalid_chunk_extension
+                # pylint: disable=isinstance-second-argument-not-valid-type
+                if h1c_exc is not None and isinstance(e, h1c_exc):
+                    self._send_error_response(400, str(e))
+                    self._close_transport()
+                    return
+                raise
 
         # Backpressure: pause reading if buffer is too large
         if not self._reading_paused and self._is_buffer_full():
@@ -917,7 +941,7 @@ class ASGIProtocol(asyncio.Protocol):
     def _build_http_scope(self, request, sockname, peername):
         """Build ASGI HTTP scope from parsed request."""
         # Use pre-computed bytes headers if available (fast path)
-        # Fall back to conversion for legacy requests (AsyncRequest, HTTP/2)
+        # Fall back to conversion for HTTP/2 requests
         headers_bytes = getattr(request, 'headers_bytes', None)
         if isinstance(headers_bytes, list):
             headers = list(headers_bytes)  # Copy to avoid mutation
@@ -1327,6 +1351,9 @@ class ASGIProtocol(asyncio.Protocol):
                     "body": b"",
                     "more_body": False,
                 }
+
+            if stream._body_complete:
+                body_received = True
 
             return {
                 "type": "http.request",
