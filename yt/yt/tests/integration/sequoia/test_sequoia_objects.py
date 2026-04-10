@@ -1187,7 +1187,6 @@ class TestSequoiaObjects(YTEnvSetup):
             create("table", "//tmp/t3", prerequisite_transaction_ids=[tx], attributes={"external_cell_tag": 12})
 
     @authors("cherepashka")
-    @pytest.mark.skip("TODO(cherepashka): YT-24792")
     def test_start_tx_with_prerequisite(self):
         tx1 = start_transaction(coordinator_master_cell_tag=11)
         tx2 = start_transaction(coordinator_master_cell_tag=12)
