@@ -2192,7 +2192,7 @@ void TObjectManager::HydraExecuteLeader(
         // interval. If the boomerang's "begin" has been lost due to a recent
         // leader change, we get here.
 
-        auto errorResponse = TError("Mutation is already applied")
+        auto errorResponse = TError("Mutation is already applied, probably the request kept retrying for too long")
             << TErrorAttribute("mutation_id", mutationId);
 
         rpcContext->Reply(errorResponse);
