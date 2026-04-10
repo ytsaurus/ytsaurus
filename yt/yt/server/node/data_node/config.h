@@ -61,8 +61,8 @@ struct TP2PConfig
     TSlruCacheDynamicConfigPtr RequestCacheOverride;
 
     TDuration ChunkCooldownTimeout;
-    int MaxDistributedBytes;
-    int MaxBlockSize;
+    i64 MaxDistributedBytes;
+    i64 MaxBlockSize;
     int BlockCounterResetTicks;
     int HotBlockThreshold;
     int SecondHotBlockThreshold;
