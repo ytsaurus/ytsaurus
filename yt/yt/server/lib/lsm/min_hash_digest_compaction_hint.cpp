@@ -26,6 +26,7 @@ void DoRecalculatePartitionCompactionHint<EPartitionCompactionHintKind::MinHashD
     auto mountConfig = partition->GetTablet()->GetMountConfig();
     const auto& minHashDigestConfig = mountConfig->CompactionHints->MinHashDigest;
 
+    // NB(dave11ar): If MinDataVersions = 1, we can remove second version only after first version is older than MinDataTtl.
     auto similarityMode = mountConfig->MinDataVersions == 1
         ? EMinHashWriteSimilarityMode::Auxiliary
         : EMinHashWriteSimilarityMode::Primary;
@@ -49,7 +50,7 @@ void DoRecalculatePartitionCompactionHint<EPartitionCompactionHintKind::MinHashD
         {
             recalculationFinalizer.TryApplyRecalculationByPrefix(
                 TInstant::Seconds(timestamp) + mountConfig->MinDataTtl,
-                EStoreCompactionReason::MinHashApplyDeletions,
+                EStoreCompactionReason::ApplyDeletions,
                 prefixLength);
         }
         if (auto timestamp = cumulativeDigest->CalculateWritesSimilarityTimestamp(minHashDigestConfig->WritesSimilarity, similarityMode);
@@ -57,7 +58,7 @@ void DoRecalculatePartitionCompactionHint<EPartitionCompactionHintKind::MinHashD
         {
             recalculationFinalizer.TryApplyRecalculationByPrefix(
                 TInstant::Seconds(timestamp) + mountConfig->MinDataTtl,
-                EStoreCompactionReason::MinHashRemoveDuplicates,
+                EStoreCompactionReason::RemoveDuplicates,
                 prefixLength);
         }
     }
@@ -85,7 +86,7 @@ void DoRecalculatePartitionCompactionHint<EPartitionCompactionHintKind::MinHashD
         if (auto timestamp = cumulativeDigest->CalculateWritesSimilarityTimestamp(minHashDigestConfig->WritesSimilarity, similarityMode)) {
             recalculationFinalizer.TryApplyRecalculationBySubset(
                 TInstant::Seconds(timestamp) + mountConfig->MinDataTtl,
-                EStoreCompactionReason::MinHashRemoveDuplicates,
+                EStoreCompactionReason::RemoveDuplicates,
                 storeSubset);
         }
     }
