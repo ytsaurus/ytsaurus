@@ -95,6 +95,7 @@ protected:
     void Fold(EExecutionBackend backend);
     void Fold(EOptimizationLevel optimizationLevel);
     void Fold(ETotalsMode backend);
+    void Fold(EScanOrder scanOrder);
     void Fold(bool boolean);
     void Fold(int numeric);
     void Fold(size_t numeric);
@@ -129,6 +130,11 @@ void TSchemaProfiler::Fold(EOptimizationLevel optimizationLevel)
 void TSchemaProfiler::Fold(ETotalsMode mode)
 {
     Fold(static_cast<int>(mode));
+}
+
+void TSchemaProfiler::Fold(EScanOrder scanOrder)
+{
+    Fold(static_cast<int>(scanOrder));
 }
 
 void TSchemaProfiler::Fold(bool boolean)
@@ -1730,7 +1736,7 @@ private:
     // When totals are calculated at the coordinator, the coordinator should also finalize aggregated.
     bool ShouldFinalizeAggregatesAndAccountTotalsAtCoordinator() const
     {
-        return Query_->GroupClause->TotalsMode != ETotalsMode::None && Query_->IsOrdered(AllowUnorderedGroupByWithLimit_);
+        return Query_->GroupClause->TotalsMode != ETotalsMode::None && Query_->GetScanOrder(AllowUnorderedGroupByWithLimit_) == EScanOrder::Ordered;
     }
 
     // We should convert intermediates to deltas at the last stage of execution (query is final), since there will be no more groupings.
@@ -1784,7 +1790,7 @@ private:
 
     void LimitTotalsInput(size_t* totals) const
     {
-        bool considerLimit = Query_->IsOrdered(AllowUnorderedGroupByWithLimit_) && Query_->IsFinal;
+        bool considerLimit = (Query_->GetScanOrder(AllowUnorderedGroupByWithLimit_) == EScanOrder::Ordered) && Query_->IsFinal;
 
         if (considerLimit) {
             int offsetId = Variables_->AddOpaque<size_t>(Query_->Offset);
@@ -1937,7 +1943,7 @@ void TQueryProfiler::Profile(
     Fold(EFoldingObjectType::MergeMode);
     Fold(mergeMode);
     Fold(EFoldingObjectType::QueryIsOrdered);
-    Fold(query->IsOrdered(AllowUnorderedGroupByWithLimit_));
+    Fold(query->GetScanOrder(AllowUnorderedGroupByWithLimit_));
 
     auto combineGroupOpWithOrderOp = TCodegenOrderOpInfosPtr();
 
@@ -2094,7 +2100,7 @@ void TQueryProfiler::Profile(
             groupClause->TotalsMode != ETotalsMode::None,
             // Input is ordered for ordered queries and bottom fragments if CommonPrefixWithPrimaryKey > 0.
             // Prefix comparer can be used only if input is ordered.
-            (!mergeMode || query->IsOrdered(AllowUnorderedGroupByWithLimit_)) && (!combineGroupOpWithOrderOp) ? groupClause->CommonPrefixWithPrimaryKey : 0,
+            (!mergeMode || query->GetScanOrder(AllowUnorderedGroupByWithLimit_) == EScanOrder::Ordered) && (!combineGroupOpWithOrderOp) ? groupClause->CommonPrefixWithPrimaryKey : 0,
             combineGroupOpWithOrderOp,
             ComparerManager_);
 
@@ -2485,7 +2491,7 @@ void TQueryProfiler::Profile(
 
         size_t joinBatchSize = MaxJoinBatchSize_;
 
-        if (query->IsOrdered(AllowUnorderedGroupByWithLimit_) && query->Offset + query->Limit < static_cast<ssize_t>(joinBatchSize)) {
+        if ((query->GetScanOrder(AllowUnorderedGroupByWithLimit_) == EScanOrder::Ordered) && query->Offset + query->Limit < static_cast<ssize_t>(joinBatchSize)) {
             joinBatchSize = query->Offset + query->Limit;
         }
 

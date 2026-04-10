@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_common.h>
 
 #include <yt/yt/client/query_client/query_statistics.h>
@@ -61,7 +62,7 @@ using TTopQueryEvaluator = std::function<TQueryStatistics(
     TFuture<TFeatureFlags> /*responseFeatureFlags*/)>;
 
 TQueryStatistics CoordinateAndExecute(
-    bool ordered,
+    EScanOrder scanOrder,
     bool prefetch,
     int splitCount,
     i64 offset,

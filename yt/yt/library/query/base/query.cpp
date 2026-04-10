@@ -506,17 +506,18 @@ TBaseQuery::TBaseQuery(const TBaseQuery& other)
     , InferRanges(other.InferRanges)
 { }
 
-bool TBaseQuery::IsOrdered(bool allowUnorderedGroupByWithLimit) const
+EScanOrder TBaseQuery::GetScanOrder(bool allowUnorderedGroupByWithLimit) const
 {
     if (Limit < std::numeric_limits<i64>::max()) {
         if (allowUnorderedGroupByWithLimit) {
-            return !OrderClause && (!GroupClause || GroupClause->AllAggregatesAreFirst() || GroupClause->CommonPrefixWithPrimaryKey > 0);
+            bool ordered = !OrderClause && (!GroupClause || GroupClause->AllAggregatesAreFirst() || GroupClause->CommonPrefixWithPrimaryKey > 0);
+            return ordered ? EScanOrder::Ordered : EScanOrder::Unordered;
         } else {
-            return !OrderClause;
+            return !OrderClause ? EScanOrder::Ordered : EScanOrder::Unordered;
         }
     } else {
         YT_VERIFY(!OrderClause);
-        return false;
+        return EScanOrder::Unordered;
     }
 }
 

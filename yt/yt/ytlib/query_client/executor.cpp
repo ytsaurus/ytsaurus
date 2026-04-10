@@ -527,7 +527,7 @@ private:
 
         std::vector<std::pair<std::vector<TDataSource>, std::string>> groupedDataSplits;
 
-        if (coordinatedQuery->IsOrdered(options.AllowUnorderedGroupByWithLimit)) {
+        if (coordinatedQuery->GetScanOrder(options.AllowUnorderedGroupByWithLimit) == EScanOrder::Ordered) {
             // Splits are ordered by tablet bounds.
             YT_LOG_DEBUG("Got ordered splits (SplitCount: %v)", allSplits.size());
 
@@ -701,7 +701,7 @@ private:
         int splitCount = std::ssize(groupedDataSplits);
 
         auto statistics = CoordinateAndExecute(
-            query->IsOrdered(options.AllowUnorderedGroupByWithLimit),
+            query->GetScanOrder(options.AllowUnorderedGroupByWithLimit),
             query->IsPrefetching(),
             splitCount,
             query->Offset,

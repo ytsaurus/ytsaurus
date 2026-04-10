@@ -124,7 +124,7 @@ public:
                 .MaxJoinBatchSize = options.MaxJoinBatchSize,
                 .Offset = query->Offset,
                 .Limit = query->Limit,
-                .Ordered = query->IsOrdered(options.AllowUnorderedGroupByWithLimit),
+                .ScanOrder = query->GetScanOrder(options.AllowUnorderedGroupByWithLimit),
                 .IsMerge = dynamic_cast<const TFrontQuery*>(query.Get()) != nullptr,
                 .MemoryChunkProvider = memoryChunkProvider,
                 .RequestFeatureFlags = &requestFeatureFlags,
@@ -194,7 +194,7 @@ private:
         auto Logger = MakeQueryLogger(query);
 
         // See condition in folding_profiler.cpp.
-        bool considerLimit = query->IsOrdered(allowUnorderedGroupByWithLimit) && !query->GroupClause;
+        bool considerLimit = (query->GetScanOrder(allowUnorderedGroupByWithLimit) == EScanOrder::Ordered) && !query->GroupClause;
 
         auto queryFingerprint = InferName(query, TInferNameOptions{
             .OmitValues = true,

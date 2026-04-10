@@ -16,6 +16,11 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EScanOrder,
+    ((Unordered) (0))
+    ((Ordered)   (1))
+);
+
 DEFINE_ENUM(EExpressionKind,
     ((None)                    (0))
     ((Literal)                 (1))
@@ -470,7 +475,7 @@ struct TBaseQuery
 
     TBaseQuery(const TBaseQuery& other);
 
-    bool IsOrdered(bool allowUnorderedGroupByWithLimit) const;
+    EScanOrder GetScanOrder(bool allowUnorderedGroupByWithLimit) const;
 
     bool IsPrefetching() const;
 
