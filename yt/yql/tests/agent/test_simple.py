@@ -2278,3 +2278,16 @@ class TestCrossClusterQueriesYql(TestQueriesYqlSimpleBase):
             select * from primary.`//tmp/t0` as p
             cross join remote_0.`//tmp/t0` as r
         """,  [{'klm': 'dode vis', 'uvw': 456}])
+
+
+@authors("ziganshinmr")
+class TestOperationOptions(TestQueriesYqlBase):
+    @authors("ziganshinmr")
+    @pytest.mark.timeout(180)
+    def test_operation_options(self, query_tracker, yql_agent):
+        query = self.start_query("yql", "select CurrentOperationId() AS op_id, CurrentAuthenticatedUser() AS user")
+        query.track()
+        query_info = query.get()
+
+        expected_result = [{"op_id": query_info["id"], "user": query_info["user"]}]
+        assert query.read_result(0) == expected_result

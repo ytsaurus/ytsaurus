@@ -646,6 +646,7 @@ public:
 
         program->SetOperationId(ToString(queryId));
         program->SetOperationUrl(sqlSettings.DefaultCluster);
+        program->SetAuthenticatedUser(user);
 
         auto settingsMap = NodeFromYsonString(settings.ToString()).AsMap();
         if (auto parameters = settingsMap.FindPtr("declared_parameters")) {
