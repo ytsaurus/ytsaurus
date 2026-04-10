@@ -622,17 +622,6 @@ void TTableNodeTypeHandlerBase<TImpl>::DoSerializeNode(
     TSchemafulNodeTypeHandler::DoSerializeNode(node, context);
 
     if (node->IsDynamic()) {
-        // This is just a precaution. Copying dynamic tables should be fine: yes,
-        // there's a potential for a race between externalization request arriving
-        // to an external cell via Hive and a mount request arriving there via RPC
-        // (as part of 2PC). This race, however, is prevented by both mounting and
-        // externalization taking exclusive lock beforehand.
-        const auto& configManager = this->GetBootstrap()->GetConfigManager();
-        const auto& config = configManager->GetConfig()->CypressManager;
-        if (!config->AllowCrossShardDynamicTableCopying) {
-            THROW_ERROR_EXCEPTION("Dynamic tables do not support cross-cell copying");
-        }
-
         if (!node->GetTrunkNode()->SecondaryIndices().empty() || node->GetTrunkNode()->GetIndexTo()) {
             THROW_ERROR_EXCEPTION("Cannot cross-cell copy neither a table with a secondary index nor an index table itself");
         }
@@ -663,8 +652,6 @@ void TTableNodeTypeHandlerBase<TImpl>::DoMaterializeNode(
 {
     TTabletOwnerTypeHandler::DoMaterializeNode(node, context);
     TSchemafulNodeTypeHandler::DoMaterializeNode(node, context);
-
-    // TODO(babenko): support copying dynamic tables
 
     using NYT::Load;
 
