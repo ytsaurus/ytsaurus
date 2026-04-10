@@ -1,8 +1,8 @@
-from yt_commands import (authors, make_ace, wait, get, set, create, sync_mount_table, get_driver, select_rows, print_debug, link,
+from yt_commands import (authors, make_ace, wait, get, set, create, sync_mount_table, sync_unmount_table, get_driver, select_rows, print_debug, link,
                          check_permission, register_queue_consumer, unregister_queue_consumer, commit_transaction,
                          list_queue_consumer_registrations, raises_yt_error, retry_yt_error, create_user,
                          sync_create_cells, remove, pull_queue, pull_consumer, advance_consumer, insert_rows,
-                         start_transaction, ls, wait_for_tablet_state)
+                         start_transaction, ls, wait_for_tablet_state, alter_table)
 
 from yt_queue_agent_test_base import (QueueConsumerRegistration, TestQueueAgentBase, ReplicatedObjectBase,
                                       CypressSynchronizerOrchid, QueueConsumerRegistrationManagerBase)
@@ -783,6 +783,58 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
                         driver=driver
                     )
                     assert lookup_request_batcher_enabled
+
+    @authors("panesher")
+    @pytest.mark.parametrize("do_alter", (True, False))
+    @pytest.mark.parametrize(("create_registration_table", "is_replicated"), [
+        (TestQueueConsumerApiBase._create_simple_registration_table, False),
+        (TestQueueConsumerApiBase._create_replicated_registration_table, True),
+        (TestQueueConsumerApiBase._create_chaos_registration_table, False),
+    ])
+    def test_ok_with_consumer_name(self, create_registration_table, is_replicated, do_alter):
+        new_schema = [
+            {"name": "queue_cluster", "type": "string", "sort_order": "ascending"},
+            {"name": "queue_path", "type": "string", "sort_order": "ascending"},
+            {"name": "consumer_cluster", "type": "string", "sort_order": "ascending"},
+            {"name": "consumer_path", "type": "string", "sort_order": "ascending"},
+            {"name": "consumer_name", "type": "string", "sort_order": "ascending"},
+            {"name": "vital", "type": "boolean"},
+            {"name": "partitions", "type": "any"},
+        ]
+
+        kwargs = {}
+        if is_replicated:
+            kwargs["replicas_mode"] = "sync"
+        kwargs["schema"] = init_queue_agent_state.REGISTRATION_TABLE_SCHEMA if do_alter else new_schema
+        config = create_registration_table(self, **kwargs)
+
+        self._apply_registration_manager_config_patch_all(config)
+
+        local_replica_path = config["local_replica_path"]
+        replica_clusters = config["replica_clusters"]
+        clusters = self.get_cluster_names()
+        consumer_cluster = "primary"
+        print_debug("config:", config)
+
+        if do_alter:
+            sync_unmount_table(local_replica_path)
+            alter_table(local_replica_path, schema=new_schema)
+            sync_mount_table(local_replica_path)
+
+        attrs = {"dynamic": True, "schema": [{"name": "a", "type": "string"}]}
+        create("table", "//tmp/c1", attributes=attrs)
+        cluster = clusters[0]
+        queue_name = f"//tmp/q-{cluster}"
+
+        create("table", queue_name, attributes=attrs, driver=get_driver(cluster=cluster))
+        register_queue_consumer(queue_name, "//tmp/c1", vital=True)
+
+        registrations = builtins.set()
+        registrations.add((cluster, queue_name, consumer_cluster, "//tmp/c1", True))
+        wait(lambda: self._registrations_are(local_replica_path, replica_clusters, registrations))
+
+        unregister_queue_consumer(queue_name, "//tmp/c1")
+        wait(lambda: self._registrations_are(local_replica_path, replica_clusters, builtins.set()))
 
 
 @pytest.mark.enabled_multidaemon
