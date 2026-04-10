@@ -2,9 +2,52 @@
 
 Data is imported from external systems to {{product-name}} with SPYT.
 
-This document contains instructions for using the [`import.py`](https://github.com/ytsaurus/ytsaurus/blob/main/connectors/import.py) script. This script imports data from Hadoop, Hive, or from database systems that support the JDBC protocol.
+This page contains instructions for importing data using the [import.py](https://github.com/ytsaurus/ytsaurus/blob/main/connectors/import.py) script. With this script, you can import data from Hive, Hadoop, S3, and database management systems that support the JDBC protocol. To import data from other systems not supported by `import.py` — such as MongoDB, — you can use SPYT directly, reading from the external system via the corresponding Spark Data Source.
 
-To import data from other systems not supported by `import.py` — such as MongoDB, — you can use SPYT directly, reading from the external system via the corresponding Spark Data Source.
+
+## Configuring connection via Kerberos
+
+To connect to Hadoop, you can use the Kerberos network authentication protocol. You can set up Kerberos authentication by taking the following steps:
+
+1. Create a token on the Hadoop side using the following command:
+```bash
+$ fetchdt --renewer null /tmp/token
+```
+2. Copy the token to Cypress:
+```bash
+$ cat /tmp/token | yt write-file //home/spark/conf/token
+```
+3. When you start the application, specify the path to the token in Cypress by using the `--files` option
+
+#### Client mode
+
+In `--deploy-mode client` mode, you need to specify the path to a local
+file with the token for the driver, since its process runs outside the {{product-name}} cluster.
+For executors, specify `HADOOP_TOKEN_FILE_LOCATION=token````bash
+```bash
+$ spark-submit \
+  --master ytsaurus:// \
+  --deploy-mode client \
+  --files yt://home/spark/conf/token \
+  --conf spark.executorEnv.HADOOP_TOKEN_FILE_LOCATION=/tmp/token \
+ ./script.py
+```
+#### Cluster mode
+
+In `--deploy-mode cluster` mode, the path to the file with the token should be specified in the `spark.ytsaurus.config.global.path` configuration parameter.
+
+You will also need to add the `kdc` and `realm` parameters for the driver. Example command:
+
+```bash
+$ spark-submit \
+  --master ytsaurus:// \
+  --deploy-mode cluster \
+  --files yt://home/spark/conf/token \
+  --conf spark.ytsaurus.config.global.path=//home/spark/conf/global \
+  --conf spark.driver.extraJavaOption="-Djava.security.krb5.kdc=... \
+  									   -Djava.secutirykrb5.realm=..."  \
+ ./script.py
+```
 
 ## Installing dependencies { #dependencies }
 
@@ -155,7 +198,7 @@ To configure the SPYT cluster started as part of an import operation, use the fo
 | `--executor-timeout` | Idle timeout for Spark executors. |
 | `--executor-tmpfs-limit` | Size of tmpfs partition for Spark executors. |
 | `--executor-memory` | Amount of RAM to allocate to each executor. |
-  | `--executor-memory-overhead` | Amount of additional RAM to allocate to executors beyond the primary amount. For example, if the primary memory is 4 GB and the overhead is 2 GB, the total memory requested from the cluster will be 6 GB. |
+  | `--executor-memory-overhead` | Amount of additional RAM to allocate to executors beyond the primary amount. For example, if the main memory is 4 GB and the additional memory is 2 GB, then the total amount of memory requested from the cluster will be 6 GB. |
 
 If you're importing data from S3:
 
