@@ -496,8 +496,9 @@ DEFINE_REFCOUNTED_TYPE(TListRegistrationsSession)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// NB(apachee): Returns optional row to consider missing replica mapping row as a valid cache result, rather than an error.
 class TReplicaMappingLookupSession
-    : public TLookupSessionBase<TReplicaMappingTable, TReplicaMappingCacheKey>
+    : public TLookupSessionBase<TReplicaMappingTable, TReplicaMappingCacheKey, std::optional<TReplicaMappingTableRow>>
 {
 public:
     using TLookupSessionBase::TLookupSessionBase;
@@ -506,7 +507,7 @@ private:
     static constexpr auto ReplicaColumnName_ = "replica_list";
     static constexpr auto ReplicasPlaceholderValueName_ = "replicas";
 
-    std::vector<TErrorOr<TReplicaMappingTableRow>> DoLookup(TReplicaMappingTablePtr table) const override
+    std::vector<std::optional<TReplicaMappingTableRow>> DoLookup(TReplicaMappingTablePtr table) const override
     {
         static const auto query = Format(
             "([%v]) IN {%v}",
@@ -537,14 +538,15 @@ private:
             replicaMapping[replica] = std::move(row);
         }
 
-        std::vector<TErrorOr<TReplicaMappingTableRow>> result;
+        std::vector<std::optional<TReplicaMappingTableRow>> result;
         result.reserve(Keys_.size());
         for (const auto& key : Keys_) {
             auto it = replicaMapping.find(key.Replica);
             if (it == replicaMapping.end()) {
-                result.push_back(TError(EErrorCode::DynamicStateMissingRow, "Requested key does not exist"));
+                result.push_back(std::nullopt);
             } else {
-                result.push_back(std::move(it->second));
+                // NB(apachee): Copy rather than move to eliminate assumption about key uniqueness.
+                result.push_back(it->second);
             }
         }
 
@@ -1133,7 +1135,7 @@ XX(ReplicaMappingLookup)
 
 static_assert(std::is_same_v<TRegistrationLookupCache::TValue, TConsumerRegistrationTableRow>);
 static_assert(std::is_same_v<TListRegistrationsCache::TValue, std::vector<TConsumerRegistrationTableRow>>);
-static_assert(std::is_same_v<TReplicaMappingLookupCache::TValue, TReplicaMappingTableRow>);
+static_assert(std::is_same_v<TReplicaMappingLookupCache::TValue, std::optional<TReplicaMappingTableRow>>);
 
 #undef XX
 
@@ -1283,8 +1285,8 @@ private:
             }
         }
 
-        if (resultOrError.IsOK()) {
-            auto result = resultOrError.Value().ReplicatedTableRef;
+        if (resultOrError.IsOK() && resultOrError.Value().has_value()) {
+            auto result = resultOrError.Value()->ReplicatedTableRef;
             YT_LOG_DEBUG(
                 "Using corresponding replicated table path in request instead of replica path (ReplicaPath: %v, ReplicatedTablePath: %v)",
                 objectPath,
@@ -1293,7 +1295,8 @@ private:
         }
 
         if (tableMountInfo->UpstreamReplicaId != NullObjectId && throwOnFailure) {
-            if (resultOrError.FindMatching(EErrorCode::DynamicStateMissingRow)) {
+            if (resultOrError.IsOK()) {
+                YT_VERIFY(!resultOrError.Value().has_value());
                 // NB(apachee): This may happen, since replicated table mapping is not updated immediately after the replica is created, i.e. we need to wait for a fresh cypress synchronizer pass.
                 THROW_ERROR_EXCEPTION("Unable to map replica %Qv to replicated table; if issue persists for more than 10 minutes, please contact YT support", objectPath);
             } else {
