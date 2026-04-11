@@ -388,6 +388,22 @@ void TClient::DoForsakeChaosCoordinator(
         .ValueOrThrow();
 }
 
+void TClient::DoRemoveChaosCellMailbox(
+    NHydra::TCellId chaosCellId,
+    NHydra::TCellId destinationCellId,
+    const TRemoveChaosCellMailboxOptions& options)
+{
+    auto cellChannel = Connection_->GetChaosChannelByCellId(chaosCellId);
+    auto proxy = TChaosNodeServiceProxy(cellChannel);
+    proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
+    auto req = proxy.RemoveCellMailbox();
+
+    ToProto(req->mutable_destination_cell_id(), destinationCellId);
+
+    auto rsp = WaitFor(req->Invoke())
+        .ValueOrThrow();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NNative
