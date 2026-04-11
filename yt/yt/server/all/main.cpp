@@ -128,6 +128,8 @@ const TProgramMap& GetProgramMap()
             .Add(NControllerAgent::RunControllerAgentProgram, "controller-agent")
             .Add(NLogTailer::RunLogTailerProgram, "log-tailer")
             .Add(NClusterDiscoveryServer::RunClusterDiscoveryServerProgram, "discovery")
+            .Add(NTimestampProvider::RunTimestampProviderProgram, "timestamp-proxy")
+             // COMPAT(ponasenko-rs, YT-27171): Remove later.
             .Add(NTimestampProvider::RunTimestampProviderProgram, "timestamp-provider")
             .Add(NMasterCache::RunMasterCacheProgram, "master-cache")
             .Add(NChaosCache::RunChaosCacheProgram, "chaos-cache")
