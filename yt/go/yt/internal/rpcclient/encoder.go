@@ -740,6 +740,11 @@ func (e *Encoder) CreateQueueProducerSession(
 	sessionID string,
 	opts *yt.CreateQueueProducerSessionOptions,
 ) (result *yt.CreateQueueProducerSessionResult, err error) {
+
+	if opts == nil {
+		opts = &yt.CreateQueueProducerSessionOptions{}
+	}
+
 	req := &rpc_proxy.TReqCreateQueueProducerSession{
 		ProducerPath:    []byte(producerPath.String()),
 		QueuePath:       []byte(queuePath.String()),
