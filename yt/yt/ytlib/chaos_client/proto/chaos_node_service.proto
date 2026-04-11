@@ -362,6 +362,18 @@ message TRspForsakeCoordinator
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqRemoveCellMailbox
+{
+    required NYT.NProto.TGuid destination_cell_id = 1;
+}
+
+message TRspRemoveCellMailbox
+{
+    required bool success = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqCreateChaosLease
 {
     optional NYT.NProto.TGuid parent_id = 1;

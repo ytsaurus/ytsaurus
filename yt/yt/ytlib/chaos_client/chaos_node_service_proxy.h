@@ -33,6 +33,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, WatchReplicationCard);
     DEFINE_RPC_PROXY_METHOD(NProto, GetChaosObjectResidency);
     DEFINE_RPC_PROXY_METHOD(NProto, ForsakeCoordinator);
+    DEFINE_RPC_PROXY_METHOD(NProto, RemoveCellMailbox);
     DEFINE_RPC_PROXY_METHOD(NProto, CreateChaosLease);
     DEFINE_RPC_PROXY_METHOD(NProto, RemoveChaosLease);
     DEFINE_RPC_PROXY_METHOD(NProto, GetChaosLease);

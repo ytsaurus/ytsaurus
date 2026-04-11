@@ -91,6 +91,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(IsChaosObjectExistent));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateTableProgress));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateMultipleTableProgresses));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveCellMailbox));
     }
 
 private:
@@ -139,6 +140,17 @@ private:
 
         const auto& chaosManager = Slot_->GetChaosManager();
         chaosManager->ForsakeCoordinator(std::move(context));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, RemoveCellMailbox)
+    {
+        auto destinationCellId = FromProto<TCellId>(request->destination_cell_id());
+
+        context->SetRequestInfo("DestinationCellId: %v",
+            destinationCellId);
+
+        const auto& chaosManager = Slot_->GetChaosManager();
+        chaosManager->RemoveCellMailbox(std::move(context));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, GetReplicationCard)

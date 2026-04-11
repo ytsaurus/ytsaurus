@@ -329,7 +329,7 @@ private:
         }
 
         const auto& hiveManager = Slot_->GetHiveManager();
-        auto mailbox = hiveManager->GetMailbox(chaosCellId);
+        auto mailbox = hiveManager->GetOrCreateCellMailbox(chaosCellId);
         hiveManager->PostMessage(mailbox, rsp);
 
         YT_LOG_DEBUG("Shortcuts granted (Shortcuts: %v)",
@@ -543,7 +543,7 @@ private:
         }
 
         const auto& hiveManager = Slot_->GetHiveManager();
-        auto mailbox = hiveManager->GetMailbox(chaosCellId);
+        auto mailbox = hiveManager->GetOrCreateCellMailbox(chaosCellId);
         hiveManager->PostMessage(mailbox, rsp);
     }
 
