@@ -20,9 +20,9 @@ pragma config.flags(
     "NormalizeEqualityFilterOverJoin"
 );
 pragma yt.AutoMerge = "disabled";
-pragma yt.DataSizePerPartition = "64M";
-pragma yt.DataSizePerJob = "64M";
-pragma yt.DataSizePerMapJob = "64M";
+pragma yt.DataSizePerPartition = "16M";
+pragma yt.DataSizePerJob = "16M";
+pragma yt.DataSizePerMapJob = "16M";
 pragma yt.HybridDqExecution = "true";
 pragma dq.AnalyzeQuery = "true";
 pragma yt.MapJoinLimit = "4G";
