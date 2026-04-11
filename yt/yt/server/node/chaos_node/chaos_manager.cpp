@@ -163,6 +163,7 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraCreateReplicationCardCollocation, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraChaosNodeRemoveMigratedReplicationCards, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraForsakeCoordinator, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraRemoveCellMailbox, Unretained(this)));
     }
 
     void Initialize() override
@@ -333,6 +334,16 @@ public:
             HydraManager_,
             context,
             &TChaosManager::HydraForsakeCoordinator,
+            this);
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
+    }
+
+    void RemoveCellMailbox(const TCtxRemoveCellMailboxPtr& context) override
+    {
+        auto mutation = CreateMutation(
+            HydraManager_,
+            context,
+            &TChaosManager::HydraRemoveCellMailbox,
             this);
         YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
@@ -1054,7 +1065,7 @@ private:
             NChaosNode::NProto::TReqRemoveReplicationCard req;
             ToProto(req.mutable_replication_card_id(), replicationCard->GetId());
 
-            auto mailbox = hiveManager->GetMailbox(replicationCard->Migration().OriginCellId);
+            auto mailbox = hiveManager->GetOrCreateCellMailbox(replicationCard->Migration().OriginCellId);
             hiveManager->PostMessage(mailbox, req);
 
             YT_LOG_DEBUG("Removing migrated replication card at origin cell (ReplicationCardId: %v, OriginCellId: %v)",
@@ -1673,7 +1684,7 @@ private:
         const auto& hiveManager = Slot_->GetHiveManager();
 
         for (const auto& [coordinatorCellId, request] : revokeShortcutsRequests) {
-            auto mailbox = hiveManager->GetMailbox(coordinatorCellId);
+            auto mailbox = hiveManager->GetOrCreateCellMailbox(coordinatorCellId);
             hiveManager->PostMessage(mailbox, request);
         }
 
@@ -1807,6 +1818,18 @@ private:
                     TypeFromId(chaosObject->GetId()));
             }
         }
+    }
+
+    void HydraRemoveCellMailbox(
+        const TCtxRemoveCellMailboxPtr& /*context*/,
+        NChaosClient::NProto::TReqRemoveCellMailbox* request,
+        NChaosClient::NProto::TRspRemoveCellMailbox* response)
+    {
+        auto destinationCellId = FromProto<TCellId>(request->destination_cell_id());
+        const auto& hiveManager = Slot_->GetHiveManager();
+        bool succes = hiveManager->TryRemoveCellMailbox(destinationCellId);
+
+        response->set_success(succes);
     }
 
     void HydraMigrateReplicationCards(
@@ -2508,7 +2531,7 @@ private:
         }
 
         const auto& hiveManager = Slot_->GetHiveManager();
-        auto mailbox = hiveManager->GetMailbox(coordinatorCellId);
+        auto mailbox = hiveManager->GetOrCreateCellMailbox(coordinatorCellId);
         hiveManager->PostMessage(mailbox, req);
     }
 
@@ -2548,7 +2571,7 @@ private:
         }
 
         const auto& hiveManager = Slot_->GetHiveManager();
-        auto mailbox = hiveManager->GetMailbox(coordinatorCellId);
+        auto mailbox = hiveManager->GetOrCreateCellMailbox(coordinatorCellId);
         hiveManager->PostMessage(mailbox, req);
     }
 

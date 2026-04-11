@@ -1011,6 +1011,11 @@ public: \
         NHydra::TCellId cordiantorCellId,
         const TForsakeChaosCoordinatorOptions& options),
         (chaosCellId, cordiantorCellId, options))
+    IMPLEMENT_METHOD(void, RemoveChaosCellMailbox, (
+        NHydra::TCellId chaosCellId,
+        NHydra::TCellId destinationCellId,
+        const TRemoveChaosCellMailboxOptions& options),
+        (chaosCellId, destinationCellId, options))
 
     TFuture<IRowBatchReaderPtr> CreateShuffleReader(
         const TSignedShuffleHandlePtr& signedShuffleHandle,
