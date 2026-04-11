@@ -374,7 +374,7 @@ std::vector<TErrorOr<i64>> TClient::DoGetOrderedTabletSafeTrimRowCount(
 
 void TClient::DoForsakeChaosCoordinator(
     NHydra::TCellId chaosCellId,
-    NHydra::TCellId coordiantorCellId,
+    NHydra::TCellId coordinatorCellId,
     const TForsakeChaosCoordinatorOptions& options)
 {
     auto cellChannel = Connection_->GetChaosChannelByCellId(chaosCellId);
@@ -382,7 +382,7 @@ void TClient::DoForsakeChaosCoordinator(
     proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
     auto req = proxy.ForsakeCoordinator();
 
-    ToProto(req->mutable_coordinator_cell_id(), coordiantorCellId);
+    ToProto(req->mutable_coordinator_cell_id(), coordinatorCellId);
 
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
