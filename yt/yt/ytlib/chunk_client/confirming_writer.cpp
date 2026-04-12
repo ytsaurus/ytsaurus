@@ -178,6 +178,10 @@ public:
 
     TChunkId GetChunkId() const override
     {
+        // Protects from race with concurrent Initialize().
+        if (!Initialized_.load()) {
+            return {};
+        }
         return SessionId_.ChunkId;
     }
 
