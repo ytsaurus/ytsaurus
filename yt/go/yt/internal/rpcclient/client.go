@@ -564,7 +564,30 @@ func (c *client) AdvanceQueueConsumer(
 	queuePath ypath.Path,
 	opts *yt.AdvanceQueueConsumerOptions,
 ) (err error) {
-	return c.Encoder.AdvanceQueueConsumer(ctx, consumerPath, queuePath, opts)
+	if opts == nil {
+		opts = &yt.AdvanceQueueConsumerOptions{}
+	}
+	if opts.TransactionOptions == nil {
+		opts.TransactionOptions = &yt.TransactionOptions{}
+	}
+
+	var zero yt.TxID
+	if opts.TransactionID != zero {
+		return c.Encoder.AdvanceQueueConsumer(ctx, consumerPath, queuePath, opts)
+	}
+
+	tx, err := c.BeginTabletTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Abort()
+
+	err = tx.AdvanceQueueConsumer(ctx, consumerPath, queuePath, opts)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
 
 func (c *client) RegisterQueueConsumer(
