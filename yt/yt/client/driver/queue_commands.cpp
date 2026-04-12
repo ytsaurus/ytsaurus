@@ -248,6 +248,11 @@ void TPullQueueConsumerCommand::DoExecute(ICommandContextPtr context)
         Options))
         .ValueOrThrow();
 
+    ProduceResponseParameters(context, [&] (IYsonConsumer* consumer) {
+        BuildYsonMapFragmentFluently(consumer)
+            .Item("start_row_index").Value(result->GetStartOffset());
+    });
+
     auto format = context->GetOutputFormat();
     auto output = context->Request().OutputStream;
     auto writer = CreateSchemafulWriterForFormat(format, result->GetSchema(), output);
