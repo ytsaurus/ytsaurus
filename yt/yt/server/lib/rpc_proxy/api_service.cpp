@@ -486,12 +486,15 @@ class TApiServiceContext
 public:
     // For most cases the most important request field is "path". If it is present in request message,
     // we want to see it in the structured log.
-    DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, RequestPath);
-
-    TLogger Logger;
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TYPath>, RequestPath);
 
 public:
     using TTypedServiceContext<TRequestMessage, TResponseMessage>::TTypedServiceContext;
+
+    void SetLogger(TLogger logger)
+    {
+        Logger = std::move(logger);
+    }
 
     void SetupMainMessage(TYsonString requestYson)
     {
@@ -520,11 +523,13 @@ public:
                 DoEmitError();
             }
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(TError(ex), "Error while logging structured event");
+            YT_LOG_ERROR(ex, "Error while logging structured event");
         }
     }
 
 private:
+    TLogger Logger;
+
     //! True if message should be emitted to main topic.
     bool EmitMain_ = false;
     // YSON-serialized request body. This field may be really heavy.
@@ -1375,15 +1380,14 @@ void TApiService::InitContext(TApiServiceContext<TRequestMessage, TResponseMessa
 {
     using TContext = NYT::NRpcProxy::TApiServiceContext<TRequestMessage, TResponseMessage>;
 
-    context->Logger = Logger
-        .WithTag("RequestId: %v", context->GetRequestId());
+    context->SetLogger(Logger
+        .WithTag("RequestId: %v", context->GetRequestId()));
 
     // First, recover request path from the typed request context using the incredible power of C++20 concepts.
-    std::optional<TString> requestPath;
+    std::optional<TYPath> requestPath;
     if constexpr (requires { context->Request().path(); }) {
         requestPath.emplace(context->Request().path());
     }
-
     context->SetRequestPath(std::move(requestPath));
 
     // Then, connect it to the typed context using subscriptions for reply and cancel signals.
