@@ -68,8 +68,6 @@ public:
     //! Return maximum number of new task jobs that may be started in current situation.
     int GetTaskPendingJobCountLimit();
 
-    void Persist(const TPersistenceContext& context);
-
     DEFINE_SIGNAL(void(), StateChanged);
 
 private:
@@ -94,6 +92,9 @@ private:
     bool TaskCompleted_ = false;
 
     NLogging::TSerializableLogger Logger;
+
+    PHOENIX_DECLARE_FRIEND();
+    PHOENIX_DECLARE_TYPE(TAutoMergeDirector, 0x3d47f1c2);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

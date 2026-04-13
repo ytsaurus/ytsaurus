@@ -74,9 +74,9 @@ struct TJobMonitoringDescriptor
     TGuid Guid;
     int Index = 0;
 
-    void Persist(const TPersistenceContext& context);
-
     auto operator<=>(const TJobMonitoringDescriptor& other) const = default;
+
+    PHOENIX_DECLARE_TYPE(TJobMonitoringDescriptor, 0xa1c3d5e7);
 };
 
 inline const TJobMonitoringDescriptor NullMonitoringDescriptor{
