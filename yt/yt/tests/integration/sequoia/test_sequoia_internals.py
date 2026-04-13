@@ -605,6 +605,7 @@ class TestSequoiaInternals(YTEnvSetup):
 
         set("//sys/cypress_proxies/@config", {
             "object_service": {
+                "enable_per_user_request_weight_throttling": True,
                 "distributed_throttler": {
                     "member_client": {
                         "attribute_update_period": 300,
