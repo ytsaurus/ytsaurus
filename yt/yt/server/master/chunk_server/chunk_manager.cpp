@@ -458,22 +458,13 @@ public:
     void Initialize() override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->RegisterHandler(CreateChunkTypeHandler(Bootstrap_, EObjectType::Chunk));
-        objectManager->RegisterHandler(CreateChunkTypeHandler(Bootstrap_, EObjectType::ErasureChunk));
-        objectManager->RegisterHandler(CreateChunkTypeHandler(Bootstrap_, EObjectType::JournalChunk));
-        objectManager->RegisterHandler(CreateChunkTypeHandler(Bootstrap_, EObjectType::ErasureJournalChunk));
-        for (auto type = MinErasureChunkPartType;
-             type <= MaxErasureChunkPartType;
-             type = static_cast<EObjectType>(ToUnderlying(type) + 1))
-        {
-            objectManager->RegisterHandler(CreateChunkTypeHandler(Bootstrap_, type));
+
+        for (auto type : TEnumTraits<EObjectType>::GetDomainValues()) {
+            if (IsChunkType(type)) {
+                objectManager->RegisterHandler(CreateChunkTypeHandler(Bootstrap_, type));
+            }
         }
-        for (auto type = MinErasureJournalChunkPartType;
-             type <= MaxErasureJournalChunkPartType;
-             type = static_cast<EObjectType>(ToUnderlying(type) + 1))
-        {
-            objectManager->RegisterHandler(CreateChunkTypeHandler(Bootstrap_, type));
-        }
+
         objectManager->RegisterHandler(CreateChunkViewTypeHandler(Bootstrap_));
         objectManager->RegisterHandler(CreateDynamicStoreTypeHandler(Bootstrap_, EObjectType::SortedDynamicTabletStore));
         objectManager->RegisterHandler(CreateDynamicStoreTypeHandler(Bootstrap_, EObjectType::OrderedDynamicTabletStore));
