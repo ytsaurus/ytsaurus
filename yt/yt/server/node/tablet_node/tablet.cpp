@@ -71,6 +71,7 @@
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 
+#include <library/cpp/iterator/enumerate.h>
 #include <library/cpp/iterator/zip.h>
 
 namespace NYT::NTabletNode {
@@ -2762,6 +2763,10 @@ void TTablet::PopulateReplicateTabletContentRequest(NProto::TReqReplicateTabletC
         replicatableContent->set_custom_runtime_data(ToProto(CustomRuntimeData_));
     }
     ToProto(request->mutable_allocated_dynamic_store_ids(), this->DynamicStoreIdPool_);
+    for (auto reason : TEnumTraits<EDynamicStoreIdReservationReason>::GetDomainValues()) {
+        request->add_reserved_dynamic_store_id_count(
+            ReservedDynamicStoreIdCount_[reason]);
+    }
 
     request->set_last_commit_timestamp(GetLastCommitTimestamp());
     request->set_last_write_timestamp(GetLastWriteTimestamp());
@@ -2862,6 +2867,23 @@ void TTablet::LoadReplicatedContent(const NProto::TReqReplicateTabletContent* re
     FromProto(&OriginatorTablets_, replicatableContent.originator_tablets());
 
     FromProto(&DynamicStoreIdPool_, request->allocated_dynamic_store_ids());
+    for (auto [index, count] : Enumerate(request->reserved_dynamic_store_id_count())) {
+        if (count == 0) {
+            continue;
+        }
+
+        auto reason = static_cast<EDynamicStoreIdReservationReason>(index);
+        if (TEnumTraits<EDynamicStoreIdReservationReason>::IsKnownValue(reason)) {
+            ReservedDynamicStoreIdCount_[reason] = count;
+        } else {
+            YT_LOG_ALERT("Replicated content concains nonzero reserved "
+                "dynamic store count with unknown reason "
+                "(%v, Reason: %v, Count: %v)",
+                GetLoggingTag(),
+                reason,
+                count);
+        }
+    }
 
     RuntimeData_->LastCommitTimestamp = request->last_commit_timestamp();
     RuntimeData_->LastWriteTimestamp = request->last_write_timestamp();
