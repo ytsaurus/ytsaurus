@@ -823,3 +823,49 @@ ru:
     - from: /flow/connectors/grut-watchlog.md
       to: /flow/extensions/grut-watchlog.md
       type: redirect
+
+    # Redirects for Cluster Access article
+
+    - from: /admin-guide/cluster-access-proxy.md#how-to-resolve
+      to: /admin-guide/cluster-access-proxy/network-isolation
+      type: redirect
+
+    - from: /admin-guide/cluster-access-proxy.md#use-flat-network
+      to: /admin-guide/cluster-access-proxy/network-isolation.md#use-flat-network
+      type: redirect
+
+    - from: /admin-guide/cluster-access-proxy.md#k8s-services
+      to: /admin-guide/cluster-access-proxy/network-isolation.md#k8s-services
+      type: redirect
+
+    - from: /admin-guide/cluster-access-proxy.md#k8s-services
+      to: /admin-guide/cluster-access-proxy/network-isolation.md#k8s-services
+      type: redirect
+
+    - from: /admin-guide/cluster-access-proxy.md#spyt-access
+      to: /admin-guide/cluster-access-proxy/spyt.md
+      type: redirect
+
+    - from: /admin-guide/cluster-access-proxy.md#manage-traffic
+      to: /admin-guide/cluster-access-proxy/manage-traffic.md
+      type: redirect
+
+    - from: /admin-guide/cluster-access-proxy.md#split-traffic
+      to: /admin-guide/cluster-access-proxy/manage-traffic.md#split-traffic
+      type: redirect
+
+    - from: /admin-guide/cluster-access-proxy.md#osobennosti-http-dostupa-i-ingress
+      to: /admin-guide/cluster-access-proxy/manage-traffic.md#ingress
+      type: redirect
+
+    - from: /admin-guide/cluster-access-proxy.md#projects
+      to: /admin-guide/cluster-access-proxy/manage-traffic.md#projects
+      type: redirect
+
+    - from: /admin-guide/cluster-access-proxy.md#faq
+      to: /admin-guide/cluster-access-proxy/faq.md
+      type: redirect
+
+    - from: /admin-guide/cluster-access-proxy.md
+      to: /admin-guide/cluster-access-proxy/index.md
+      type: redirect
