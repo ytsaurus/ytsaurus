@@ -541,7 +541,7 @@ items:
           #      - name: Интеграции с внешними системами
           #        href: admin-guide/external-systems.md
       - name: Настройка внешнего доступа к кластеру
-        href: admin-guide/cluster-access-proxy.md
+        include: { mode: link, path: admin-guide/cluster-access-proxy/toc_i.yaml }
       - name: Настройка SSO
         href: admin-guide/oauth.md
         when: audience == "public"
