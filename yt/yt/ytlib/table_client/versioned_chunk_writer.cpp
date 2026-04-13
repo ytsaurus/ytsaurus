@@ -1051,7 +1051,7 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
         TRange<TVersionedRow>
     >;
 
-    auto writer = New<TVersionedMultiChunkWriter>(
+    return New<TVersionedMultiChunkWriter>(
         std::move(config),
         std::move(options),
         std::move(client),
@@ -1064,8 +1064,6 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
         /*trafficMeter*/ nullptr,
         std::move(throttler),
         std::move(blockCache));
-    writer->Init();
-    return writer;
 }
 
 IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(

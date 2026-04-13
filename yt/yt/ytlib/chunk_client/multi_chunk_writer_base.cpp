@@ -74,7 +74,7 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     Logger.AddTag("TransactionId: %v", TransactionId_);
 }
 
-void TNontemplateMultiChunkWriterBase::Init()
+void TNontemplateMultiChunkWriterBase::InitializeRefCounted()
 {
     InitSession();
 }

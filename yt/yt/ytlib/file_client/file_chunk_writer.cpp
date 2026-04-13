@@ -277,7 +277,7 @@ IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
             dataSink);
     };
 
-    auto writer = New<TFileMultiChunkWriter>(
+    return New<TFileMultiChunkWriter>(
         config,
         options,
         client,
@@ -290,10 +290,6 @@ IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
         trafficMeter,
         throttler,
         blockCache);
-
-    writer->Init();
-
-    return writer;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

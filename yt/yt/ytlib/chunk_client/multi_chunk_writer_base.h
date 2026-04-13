@@ -35,7 +35,7 @@ public:
         NConcurrency::IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache);
 
-    void Init();
+    void InitializeRefCounted();
 
     TFuture<void> Close() override;
 
