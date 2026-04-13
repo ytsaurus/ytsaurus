@@ -1627,6 +1627,8 @@ TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnecti
 
         statisticsAggregationDefault = queryConfig->StatisticsAggregation.value_or(
             statisticsAggregationDefault);
+
+        queryOptions.TruncatedQueryLengthForTracing = queryConfig->TruncatedQueryLengthForTracing;
     }
 
     queryOptions.RangeExpansionLimit = options.RangeExpansionLimit;

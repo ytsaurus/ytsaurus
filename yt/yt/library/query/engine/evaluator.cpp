@@ -67,7 +67,19 @@ public:
         NTracing::TChildTraceContextGuard guard("QueryClient.Evaluate");
         NTracing::AnnotateTraceContext([&] (const auto& traceContext) {
             traceContext->AddTag("fragment_id", query->Id);
-            traceContext->AddTag("query_fingerprint", queryFingerprint);
+
+            constexpr auto ellipsis = "... <truncated>"sv;
+            if (options.TruncatedQueryLengthForTracing &&
+                std::ssize(queryFingerprint) > *options.TruncatedQueryLengthForTracing + std::ssize(ellipsis))
+            {
+                traceContext->AddTag(
+                    "query_fingerprint",
+                    queryFingerprint
+                        .substr(0, *options.TruncatedQueryLengthForTracing)
+                        .append(ellipsis));
+            } else {
+                traceContext->AddTag("query_fingerprint", queryFingerprint);
+            }
         });
 
         auto Logger = MakeQueryLogger(query);

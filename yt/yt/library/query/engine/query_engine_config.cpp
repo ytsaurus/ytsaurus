@@ -46,6 +46,10 @@ void TQueryEngineDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("allow_join_with_async_last_committed_timestamp_if_require_sync_replica_is_false", &TThis::AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse)
         .Optional();
+
+    registrar.Parameter("truncated_query_length_for_tracing", &TThis::TruncatedQueryLengthForTracing)
+        .GreaterThan(0)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
