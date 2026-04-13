@@ -2542,19 +2542,19 @@ def remove_maintenance(**kwargs):
 def add_maintenance_request_parsers(add_parser):
     parser = add_parser("add-maintenance", add_maintenance)
     parser.add_argument("-c", "--component", type=str)
-    parser.add_argument("-a", "--address", type=str)
-    parser.add_argument("-t", "--type", type=str)
+    parser.add_argument("-a", "--address", type=str, help="Component address")
+    parser.add_argument("-t", "--type", type=str, help="Maintenance type")
     parser.add_argument("--comment", type=str)
 
     parser = add_parser("remove-maintenance", remove_maintenance)
     parser.add_argument("-c", "--component", type=str)
-    parser.add_argument("-a", "--address", type=str)
+    parser.add_argument("-a", "--address", type=str, help="Component address")
     parser.add_argument("--id", default=None)
     add_structured_argument(parser, "--ids", default=None)
-    parser.add_argument("-t", "--type", default=None)
+    parser.add_argument("-t", "--type", default=None, help="Maintenance type")
     parser.add_argument("-u", "--user", default=None)
-    parser.add_argument("--mine", default=False)
-    parser.add_argument("--all", default=False)
+    parser.add_argument("--mine", action="store_true")
+    parser.add_argument("--all", action="store_true")
 
 
 def add_admin_parser(root_subparsers):
