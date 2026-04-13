@@ -176,6 +176,7 @@ struct TQueryBaseOptions
     bool MergeVersionedRows = true;
     // COMPAT(sabdenovch)
     bool AllowUnorderedGroupByWithLimit = true;
+    std::optional<int> TruncatedQueryLengthForTracing;
 };
 
 struct TQueryOptions
