@@ -183,7 +183,7 @@ protected:
         SettingsHash_ = ComputeSettingsHash();
     }
 
-    const std::string FormatAsUUID(const TGuid& guid) const
+    static const std::string FormatAsUUID(const TGuid& guid)
     {
         TGUID uuid;
         std::copy(guid.Parts32, guid.Parts32 + 4, uuid.dw);
@@ -229,8 +229,13 @@ public:
         std::string user,
         NNative::IClientPtr clusterClient,
         TLogger logger)
-        : TConnectServerLauncherBase(std::move(config), std::move(settings), std::move(user), std::move(clusterClient), std::move(logger))
-        , DriverOperationDescription_(Format("QT Spark connect driver for %v", User_))
+        : TConnectServerLauncherBase(
+            std::move(config),
+            std::move(settings),
+            std::move(user),
+            std::move(clusterClient),
+            std::move(logger))
+        , DriverOperationDescription_(Format("QT Spark connect driver for %Qv", User_))
     { }
 
     std::string GetSessionId() override
@@ -433,7 +438,7 @@ private:
 
         return BuildYsonNodeFluently()
             .BeginMap()
-                .Item("title").Value(Format("QT Spark connect server for %v", User_))
+                .Item("title").Value(Format("QT Spark connect server for %Qv", User_))
                 .Item("annotations").BeginMap()
                     .Item("spark_connect_server_description").Value(DriverOperationDescription_)
                     .Item("settings_hash").Value(SettingsHash_)
@@ -497,7 +502,12 @@ public:
         std::string user,
         NNative::IClientPtr clusterClient,
         TLogger logger)
-        : TConnectServerLauncherBase(std::move(config), std::move(settings), std::move(user), std::move(clusterClient), std::move(logger))
+        : TConnectServerLauncherBase(
+            std::move(config),
+            std::move(settings),
+            std::move(user),
+            std::move(clusterClient),
+            std::move(logger))
         , HttpClient_(CreateClient(Config_->HttpClient, NYT::NBus::TTcpDispatcher::Get()->GetXferPoller()))
         , Headers_(New<NHttp::THeaders>())
     {
@@ -628,7 +638,7 @@ private:
                     fluent
                         .Item("spark.hadoop.yt.user").Value(User_)
                         .Item("spark.hadoop.yt.token").Value(token)
-                        .Item("spark.app.name").Value(std::format("Spark connect server for {}", User_))
+                        .Item("spark.app.name").Value(Format("Spark connect server for %Qv", User_))
                         .Item("spark.ytsaurus.arrow.stringToBinary").Value("true")
                         .Item("spark.ytsaurus.connect.settings.hash").Value(SettingsHash_);
                 })
@@ -660,7 +670,7 @@ private:
     {
         if (response->GetStatusCode() != expected) {
             THROW_ERROR_EXCEPTION(
-                "Unexpected HTTP status code from Spark Master: expected %Qv, actual %Qv",
+                "Unexpected HTTP status code from Spark Master: expected %Qlv, actual %Qlv",
                 expected,
                 response->GetStatusCode())
                     << TErrorAttribute("response_body", response->ReadAll().ToStringBuf());
@@ -1014,13 +1024,13 @@ public:
             Config_,
             activeQuery,
             ClusterDirectory_,
-            NotIndexedQueriesTTL_);
+            NotIndexedQueriesTtl_);
     }
 
     void Reconfigure(const TEngineConfigBasePtr& config, const TDuration notIndexedQueriesTTL) override
     {
         Config_ = DynamicPointerCast<TSpytConnectEngineConfig>(config);
-        NotIndexedQueriesTTL_ = notIndexedQueriesTTL;
+        NotIndexedQueriesTtl_ = notIndexedQueriesTTL;
         ProxyEngineProvider_->Reconfigure(Config_->ProxyConfig);
     }
 
@@ -1035,7 +1045,7 @@ private:
     const TActionQueuePtr ControlQueue_;
     const TClusterDirectoryPtr ClusterDirectory_;
     const TProxySpytConnectEngineProviderPtr ProxyEngineProvider_;
-    TDuration NotIndexedQueriesTTL_;
+    TDuration NotIndexedQueriesTtl_;
 
     TSpytConnectEngineConfigPtr Config_;
 };
