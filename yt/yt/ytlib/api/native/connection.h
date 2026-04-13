@@ -296,7 +296,7 @@ DEFINE_ENUM(EInsistentGetRemoteConnectionMode,
 //! Lookup cluster in directory, if cluster is missing wait for sync then retry lookup (once).
 //! `mode` parameter controls how waiting is done
 //!    - SyncOutOfBound -- run sync out of bound sync immediately.
-//!    - WaitFirstSuccessfulSync -- wait until
+//!    - WaitFirstSuccessfulSync -- wait until first successful sync is performed
 TFuture<IConnectionPtr> InsistentGetRemoteConnection(
     const NApi::NNative::IConnectionPtr& connection,
     const std::string& clusterName,
