@@ -30,6 +30,7 @@ public:
     void SaveValues(NCellMaster::TSaveContext& context) const;
     void LoadKeys(NCellMaster::TLoadContext& context);
     void LoadValues(NCellMaster::TLoadContext& context);
+    void OnAfterSnapshotLoaded();
     void Clear();
 
     TFuture<void> Collect();
@@ -68,6 +69,8 @@ public:
     void CheckEmpty();
 
     int GetZombieCount() const;
+    int GetZombieCypressNodeCount() const;
+    int GetZombieChunkCount() const;
     int GetEphemeralGhostCount() const;
     int GetEphemeralGhostUnrefQueueSize() const;
     int GetWeakGhostCount() const;
@@ -85,6 +88,10 @@ private:
     //! Contains objects with zero ref counter.
     //! These are ready for IObjectTypeHandler::Destroy call.
     THashSet<TObjectRawPtr> Zombies_;
+
+    //! Transient counters.
+    int ZombieCypressNodeCount_ = 0;
+    int ZombieChunkCount_ = 0;
 
     //! Contains objects with zero ref counter, zero weak ref counter, and positive ephemeral ref counter.
     //! These were already destroyed (via IObjectTypeHandler::Destroy) and await disposal (via |delete|).
@@ -125,6 +132,8 @@ private:
     const TDynamicObjectManagerConfigPtr& GetDynamicConfig();
     void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr oldConfig);
     std::optional<TDuration> GetEffectiveGCSweepPeriod();
+
+    void UpdateZombieCount(const TObject* object, int delta);
 };
 
 DEFINE_REFCOUNTED_TYPE(TGarbageCollector)

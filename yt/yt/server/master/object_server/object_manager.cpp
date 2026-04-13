@@ -1191,6 +1191,8 @@ void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
 
 void TObjectManager::OnAfterSnapshotLoaded()
 {
+    GarbageCollector_->OnAfterSnapshotLoaded();
+
     auto dropSchema = [&] (EObjectType schemaType) {
         auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
         auto schemaId = MakeSchemaObjectId(schemaType, primaryCellTag);
@@ -2746,6 +2748,8 @@ void TObjectManager::OnProfiling()
 
     TSensorBuffer buffer;
     buffer.AddGauge("/zombie_object_count", GarbageCollector_->GetZombieCount());
+    buffer.AddGauge("/zombie_cypress_node_count", GarbageCollector_->GetZombieCypressNodeCount());
+    buffer.AddGauge("/zombie_chunk_count", GarbageCollector_->GetZombieChunkCount());
     buffer.AddGauge("/ephemeral_ghost_object_count", GarbageCollector_->GetEphemeralGhostCount());
     buffer.AddGauge("/ephemeral_unref_queue_size", GarbageCollector_->GetEphemeralGhostUnrefQueueSize());
     buffer.AddGauge("/weak_ghost_object_count", GarbageCollector_->GetWeakGhostCount());

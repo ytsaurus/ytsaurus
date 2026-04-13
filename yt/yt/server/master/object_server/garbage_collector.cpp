@@ -142,11 +142,22 @@ void TGarbageCollector::LoadValues(NCellMaster::TLoadContext& context)
     YT_VERIFY(EphemeralGhosts_.empty());
 }
 
+void TGarbageCollector::OnAfterSnapshotLoaded()
+{
+    ZombieCypressNodeCount_ = 0;
+    ZombieChunkCount_ = 0;
+    for (auto zombie : Zombies_) {
+        UpdateZombieCount(zombie, +1);
+    }
+}
+
 void TGarbageCollector::Clear()
 {
     YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     Zombies_.clear();
+    ZombieCypressNodeCount_ = 0;
+    ZombieChunkCount_ = 0;
     RemovalAwaitingCellsSyncObjects_.clear();
 
     ClearWeakGhosts();
@@ -277,7 +288,8 @@ void TGarbageCollector::RegisterZombie(TObject* object)
 
     YT_LOG_TRACE("Object has become zombie (ObjectId: %v)",
         object->GetId());
-    YT_VERIFY(Zombies_.insert(object).second);
+    InsertOrCrash(Zombies_, object);
+    UpdateZombieCount(object, +1);
 }
 
 void TGarbageCollector::UnregisterZombie(TObject* object)
@@ -286,6 +298,7 @@ void TGarbageCollector::UnregisterZombie(TObject* object)
     YT_ASSERT(object->GetObjectRefCounter() == 1);
 
     if (Zombies_.erase(object) == 1) {
+        UpdateZombieCount(object, -1);
         YT_LOG_DEBUG("Object has been resurrected (ObjectId: %v)",
             object->GetId());
         CheckEmpty();
@@ -297,6 +310,7 @@ void TGarbageCollector::DestroyZombie(TObject* object)
     YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     YT_VERIFY(Zombies_.erase(object) == 1);
+    UpdateZombieCount(object, -1);
 
     auto ephemeralRefCounter = object->GetObjectEphemeralRefCounter();
     auto weakRefCounter = object->GetObjectWeakRefCounter();
@@ -551,6 +565,16 @@ int TGarbageCollector::GetZombieCount() const
     return std::ssize(Zombies_);
 }
 
+int TGarbageCollector::GetZombieCypressNodeCount() const
+{
+    return ZombieCypressNodeCount_;
+}
+
+int TGarbageCollector::GetZombieChunkCount() const
+{
+    return ZombieChunkCount_;
+}
+
 int TGarbageCollector::GetEphemeralGhostCount() const
 {
     return std::ssize(EphemeralGhosts_);
@@ -592,6 +616,16 @@ std::optional<TDuration> TGarbageCollector::GetEffectiveGCSweepPeriod()
     return GetDynamicConfig()->EnableGC
         ? std::make_optional(GetDynamicConfig()->GCSweepPeriod)
         : std::nullopt;
+}
+
+void TGarbageCollector::UpdateZombieCount(const TObject* object, int delta)
+{
+    auto type = object->GetType();
+    if (IsChunkType(type)) {
+        ZombieChunkCount_ += delta;
+    } else if (IsVersionedType(type)) {
+        ZombieCypressNodeCount_ += delta;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
