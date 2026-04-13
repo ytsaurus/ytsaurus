@@ -8,6 +8,19 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**v0.0.17**" %}
+
+**Release date:** 2026-04-03
+
+
+#### General Updates
+
+* Make discovery health check opt-in (Commit: 19a9ccd688af14ddf3cc7ab8cd3afdd195a02776)
+
+
+{% endcut %}
+
+
 {% cut "**v0.0.16**" %}
 
 **Release date:** 2026-03-06
