@@ -86,6 +86,8 @@
 #include <yt/yt/server/lib/chunk_server/helpers.h>
 #include <yt/yt/server/lib/chunk_server/job_tracker_service_proxy.h>
 
+#include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/data_node_tracker_client/location_directory.h>
@@ -2741,6 +2743,7 @@ private:
     THashMap<TChunkId, int> SequoiaChunkPurgatory_;
     // Transient.
     bool ChunksBeingPurged_ = false;
+    bool IsFirstSequoiaReplicaRemovalIteration_ = true;
     std::atomic<bool> FetchingSequoiaChunksToRefresh_ = false;
 
     NHydra::TEntityMap<TChunk> ChunkMap_;
@@ -6094,6 +6097,7 @@ private:
                 ->CommitAndLog(Logger()));
         }
 
+        IsFirstSequoiaReplicaRemovalIteration_ = true;
         SequoiaReplicaRemovalExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkManager),
             BIND(&TChunkManager::OnSequoiaReplicaRemoval, MakeWeak(this)),
@@ -6200,6 +6204,23 @@ private:
 
         if (SequoiaChunkPurgatory_.empty()) {
             return;
+        }
+
+        if (ChunksBeingPurged_) {
+            YT_LOG_DEBUG("Chunks are still being purged");
+            return;
+        }
+
+        if (IsFirstSequoiaReplicaRemovalIteration_) {
+            const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
+            auto transactionsFinishResult = WaitFor(transactionSupervisor->WaitUntilPreparedTransactionsFinished());
+            if (!transactionsFinishResult.IsOK()) {
+                YT_LOG_WARNING(
+                    transactionsFinishResult,
+                    "Error waiting for prepared transactions to finish during Sequoia replica removal");
+                return;
+            }
+            IsFirstSequoiaReplicaRemovalIteration_ = false;
         }
 
         if (ChunksBeingPurged_) {
