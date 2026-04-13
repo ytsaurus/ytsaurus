@@ -143,9 +143,9 @@ public:
 
         // Cycles are fine for bootstrap.
         GetBundleDynamicConfigManager()
-            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnBundleDynamicConfigChanged, MakeStrong(this)));
+            ->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnBundleDynamicConfigChanged, MakeStrong(this)));
         GetDynamicConfigManager()
-            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
+            ->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
 
         TransactionLeaseTrackerThreadPool_ = CreateTransactionLeaseTrackerThreadPool(
             "TxTracker",

@@ -479,7 +479,7 @@ TTabletBalancer::TTabletBalancer(
         dynamicConfig->ClusterStateProvider,
         ControlInvoker_);
 
-    bootstrap->GetDynamicConfigManager()->SubscribeConfigChanged(
+    bootstrap->GetDynamicConfigManager()->SubscribeBeforeConfigChanged(
         BIND(&TTabletBalancer::OnDynamicConfigChanged, MakeWeak(this)));
 }
 

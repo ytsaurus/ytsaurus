@@ -124,9 +124,9 @@ public:
 
         // Cycles are fine for bootstrap.
         GetDynamicConfigManager()
-            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
+            ->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
         GetBundleDynamicConfigManager()
-            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnBundleDynamicConfigChanged, MakeStrong(this)));
+            ->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnBundleDynamicConfigChanged, MakeStrong(this)));
 
         OverloadController_ = NRpc::CreateOverloadController(
             New<NRpc::TOverloadControllerConfig>(),
