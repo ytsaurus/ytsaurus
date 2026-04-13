@@ -1840,28 +1840,42 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, AssembleTreeCopy)
         force);
 
     // Sanity checks.
-    YT_LOG_ALERT_IF(
+    YT_LOG_ALERT_AND_THROW_IF(
         request->node_id_to_children_size() == 0,
         "Empty list received when attempting to assemble tree copy");
-    YT_LOG_ALERT_IF(
+    YT_LOG_ALERT_AND_THROW_IF(
         rootNodeId != FromProto<TNodeId>(request->node_id_to_children()[0].node_id()),
         "Received malformed request to assemble tree copy (RootNodeId: %v, FirstElementInMapping: %v)",
         rootNodeId,
         FromProto<TNodeId>(request->node_id_to_children()[0].node_id()));
 
-    THashMap<TNodeId, std::vector<TCypressChildDescriptor>> nodeIdToChildrenInfo;
+    TNodeIdToChildDescriptors nodeIdToChildren;
     for (const auto& nodeIdToChild : request->node_id_to_children()) {
         auto nodeId = FromProto<TNodeId>(nodeIdToChild.node_id());
-        nodeIdToChildrenInfo[nodeId].reserve(nodeIdToChild.children_size());
-        for (const auto& child : nodeIdToChild.children()) {
-            auto childId = FromProto<TNodeId>(child.id());
-            nodeIdToChildrenInfo[nodeId].push_back({
+        std::vector<TCypressChildDescriptor> children;
+        children.reserve(nodeIdToChild.children_size());
+        for (const auto& childInfo : nodeIdToChild.children()) {
+            auto childId = FromProto<TNodeId>(childInfo.id());
+            children.push_back({
                 .ParentId = nodeId,
                 .ChildId = childId,
-                .ChildKey = child.key(),
+                .ChildKey = childInfo.key(),
             });
+            EmplaceDefault(nodeIdToChildren, childId);
         }
+        nodeIdToChildren[nodeId] = std::move(children);
     }
+
+    auto linkNodeIdsView = nodeIdToChildren
+        | std::views::keys
+        | std::views::filter([] (TNodeId nodeId) {
+            return IsLinkType(TypeFromId(nodeId));
+        });
+    auto linkNodeIds = std::vector(std::ranges::begin(linkNodeIdsView), std::ranges::end(linkNodeIdsView));
+    auto linkNodeIdToTargetPath = WaitFor(SequoiaSession_->FetchNodeAttributesFromMaster(
+        linkNodeIds,
+        TAttributeFilter({EInternedAttributeKey::TargetPath.Unintern()})))
+        .ValueOrThrow();
 
     auto destinationRootPath = PathJoin(
         Path_,
@@ -1872,7 +1886,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, AssembleTreeCopy)
         destinationRootPath,
         preserveAcl,
         preserveModificationTime,
-        std::move(nodeIdToChildrenInfo));
+        nodeIdToChildren,
+        linkNodeIdToTargetPath);
 
     context->SetResponseInfo("NodeId: %v", rootNodeId);
 
