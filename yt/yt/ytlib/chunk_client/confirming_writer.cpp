@@ -331,7 +331,7 @@ private:
         auto replicas = UnderlyingWriter_->GetWrittenChunkReplicasInfo().Replicas;
         YT_VERIFY(!replicas.empty());
 
-        YT_LOG_DEBUG("Confirming chunk (Replicas: %v)",replicas);
+        YT_LOG_DEBUG("Confirming chunk (Replicas: %v)", replicas);
 
         auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CellTag_);
         TChunkServiceProxy proxy(channel);
