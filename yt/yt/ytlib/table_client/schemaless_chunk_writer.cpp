@@ -1682,7 +1682,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
 {
-    auto writer = New<TPartitionMultiChunkWriter>(
+    return New<TPartitionMultiChunkWriter>(
         std::move(config),
         std::move(options),
         std::move(client),
@@ -1699,10 +1699,6 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
         std::move(blockCache),
         dataSink,
         std::move(writeBlocksOptions));
-
-    writer->Init();
-
-    return writer;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2208,7 +2204,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     TCallback<void(TKey, TKey)> boundaryKeysProcessor)
 {
     auto createSuitableSchemalessMultiChunkWriter = [&] <class TWriter> (auto createChunkWriter) {
-        auto writer = New<TWriter>(
+        return New<TWriter>(
             std::move(config),
             std::move(options),
             std::move(client),
@@ -2225,10 +2221,6 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
             std::move(throttler),
             std::move(blockCache),
             std::move(boundaryKeysProcessor));
-
-        writer->Init();
-
-        return writer;
     };
 
     switch (options->VersionedWriteOptions.WriteMode) {
