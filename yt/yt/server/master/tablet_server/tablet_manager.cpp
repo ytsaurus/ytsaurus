@@ -4239,17 +4239,17 @@ private:
                 YT_VERIFY(newTablet->OriginatorTablets().size() == 1);
                 auto originatorTabletId = newTablet->OriginatorTablets()[0].TabletId;
 
-                if (auto it = savedTrimmedRowCounts.find(originatorTabletId); it != savedTrimmedRowCounts.end()) {
-                    newTablet->SetTrimmedRowCount(it->second);
-                }
+                auto it = savedTrimmedRowCounts.find(originatorTabletId);
+                YT_VERIFY(it != savedTrimmedRowCounts.end());
+                newTablet->SetTrimmedRowCount(it->second);
 
-                if (auto savedIt = savedReplicaInfos.find(originatorTabletId); savedIt != savedReplicaInfos.end()) {
-                    for (auto& [replicaPtr, newInfo] : newTablet->Replicas()) {
-                        if (auto infoIt = savedIt->second.find(replicaPtr->GetId()); infoIt != savedIt->second.end()) {
-                            newInfo.SetCommittedReplicationRowIndex(infoIt->second.GetCommittedReplicationRowIndex());
-                            newInfo.SetCurrentReplicationTimestamp(infoIt->second.GetCurrentReplicationTimestamp());
-                        }
-                    }
+                auto savedIt = savedReplicaInfos.find(originatorTabletId);
+                YT_VERIFY(savedIt != savedReplicaInfos.end());
+                for (auto& [replicaPtr, newInfo] : newTablet->Replicas()) {
+                    auto infoIt = savedIt->second.find(replicaPtr->GetId());
+                    YT_VERIFY(infoIt != savedIt->second.end());
+                    newInfo.SetCommittedReplicationRowIndex(infoIt->second.GetCommittedReplicationRowIndex());
+                    newInfo.SetCurrentReplicationTimestamp(infoIt->second.GetCurrentReplicationTimestamp());
                 }
             }
         }
