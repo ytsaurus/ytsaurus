@@ -308,6 +308,16 @@ class TestSequoiaSymlinks(YTEnvSetup):
         assert get("//cypress/l1&/@broken")
         assert get("//tmp/l2&/@broken")
 
+    @authors("danilalexeev")
+    def test_copy_link(self):
+        link("//cypress", "//cypress/m1/l1", recursive=True)
+        copy("//cypress/m1", "//tmp/m1")
+        assert get("//tmp/m1/l1/@path") == "//cypress"
+        link("//tmp", "//tmp/m1/l2")
+        copy("//tmp/m1", "//cypress/m2")
+        assert get("//cypress/m2/l2/@path") == "//tmp"
+        assert get("//cypress/m2/l1/@path") == "//cypress"
+
     @authors("cherepashka", "danilalexeev")
     def test_user(self):
         create_user("u")
