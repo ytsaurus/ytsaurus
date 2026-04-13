@@ -314,7 +314,7 @@ public:
 
         YT_LOG_INFO("Initializing artifact cache");
 
-        Bootstrap_->GetDynamicConfigManager()->SubscribeConfigChanged(
+        Bootstrap_->GetDynamicConfigManager()->SubscribeBeforeConfigChanged(
             BIND_NO_PROPAGATE(&TArtifactCache::TImpl::OnDynamicConfigChanged, MakeWeak(this)));
 
         std::vector<TFuture<void>> futures;

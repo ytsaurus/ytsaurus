@@ -332,7 +332,7 @@ public:
         BackupManager_->Initialize();
 
         const auto& tableConfigManager = Bootstrap_->GetTableDynamicConfigManager();
-        tableConfigManager->SubscribeConfigChanged(TableDynamicConfigChangedCallback_);
+        tableConfigManager->SubscribeBeforeConfigChanged(TableDynamicConfigChangedCallback_);
 
         Bootstrap_->SubscribeTabletNodeConfigChanged(DynamicConfigChangedCallback_);
         OnDynamicConfigChanged(
@@ -343,7 +343,7 @@ public:
     void Finalize() override
     {
         const auto& tableConfigManager = Bootstrap_->GetTableDynamicConfigManager();
-        tableConfigManager->UnsubscribeConfigChanged(TableDynamicConfigChangedCallback_);
+        tableConfigManager->UnsubscribeBeforeConfigChanged(TableDynamicConfigChangedCallback_);
     }
 
     void OnStartLeading() override

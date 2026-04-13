@@ -99,7 +99,7 @@ public:
         , Config_(dataNodeConfig)
         , ChunkMetaManager_(chunkMetaManager)
     {
-        dynamicConfigManager->SubscribeConfigChanged(
+        dynamicConfigManager->SubscribeBeforeConfigChanged(
             BIND_NO_PROPAGATE(&TBlobReaderCache::OnDynamicConfigChanged, MakeWeak(this)));
     }
 

@@ -1146,7 +1146,7 @@ public:
         , LastUpdateTime_(TInstant::Now())
         , LastCounters_(GetCounters())
     {
-        dynamicConfigManager->SubscribeConfigChanged(
+        dynamicConfigManager->SubscribeBeforeConfigChanged(
             BIND(&TIOStatisticsProvider::OnDynamicConfigChanged, MakeWeak(this)));
 
         profiler.AddProducer("", MakeStrong(this));
