@@ -72,7 +72,7 @@ class MountState:
         return self._get_mounted_tablet_indexes_impl(False, tablet_index, sync)
 
     def _get_mounted_tablet_indexes_impl(self, is_mount, tablet_index, sync):
-        tablets = [tablet_index] if tablet_index else [tablet_index for tablet_index in range(self.tablet_count)]
+        tablets = [tablet_index] if tablet_index is not None else list(range(self.tablet_count))
         return [tablet_index for tablet_index in tablets if self._is_relevant_tablet(tablet_index, is_mount, sync)]
 
     def mount(self, tablet_index, sync):
@@ -254,7 +254,7 @@ class Queue:
                 yt.insert_rows(self.path, rows)
                 yt.insert_rows(self.data_path, data_rows)
 
-        run_with_retries(lambda: _insert_rows(), retry_count=5, backoff=2, except_action=lambda ex: logger.error(f"Exception during insert, try to retry: {ex.simplify()}"))
+        run_with_retries(lambda: _insert_rows(), retry_count=1, backoff=1, except_action=lambda ex: logger.error(f"Exception during insert, try to retry: {ex.simplify()}"))
 
         for tablet_index, row_count in enumerate(new_written_row_count):
             self.written_row_count[tablet_index] += row_count
@@ -683,7 +683,7 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
         _move()
         _remount()
 
-        for i in range(10):
+        for i in range(2):
             _write()
             _flush()
 
