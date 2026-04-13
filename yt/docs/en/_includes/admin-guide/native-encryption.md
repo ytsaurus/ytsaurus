@@ -1,30 +1,31 @@
-# Encryption in the Native Protocol
+# Native Protocol encryption in {{product-name}}
 
-{{product-name}} supports encryption of internal traffic between cluster components using TLS. This document describes the encryption architecture and provides setup instructions for various deployment scenarios.
+{{product-name}} supports encryption of internal traffic between cluster components using TLS. This document describes the encryption architecture and provides configuration instructions for various deployment scenarios.
 
 ## Overview {#overview}
 
-All components of a {{product-name}} cluster—Master servers, Data Nodes, proxies, and schedulers—communicate with each other over an internal native RPC protocol. By default, data is transmitted in plaintext, which is suitable for trusted networks. If you operate in a public network or need to protect confidential data, use traffic encryption.
+All components in a {{product-name}} cluster — master servers, data nodes, proxies, and schedulers — communicate over the internal native RPC protocol. By default, data is transmitted in plaintext, which is acceptable as long as the network is trusted. However, if your cluster operates in a public network, or if you need to protect sensitive data, you should enable traffic encryption.
 
-{{product-name}} supports [two protection modes](#configuration-examples) for connections:
-- [Mutual authentication (mTLS)](#example-mtls) — both parties verify each other's certificates.
-- [One-way encryption](#example-one-way) — the client verifies the server's authenticity.
+{{product-name}} supports [two connection security modes](#configuration-examples):
 
-The certificate rotation mechanism allows updating certificates without stopping services. When deploying in Kubernetes, you can use cert-manager for automatic certificate management.
+- [Mutual authentication (mTLS)](#example-mtls) — both sides verify each other's certificates.
+- [One-way encryption](#example-one-way) — the client verifies the server's identity.
+
+With certificate rotation, you can update certificates without service interruptions. When deploying on Kubernetes, certificate management can be automated using cert-manager.
 
 {% note info %}
 
-Native protocol encryption is available starting from {{product-name}} version 25.2.
+Native protocol encryption is available starting with {{product-name}} version 25.2.
 
 {% endnote %}
 
-## Encryption Architecture {#architecture}
+## Encryption architecture {#architecture}
 
-To configure encryption correctly, it's important to understand how components interact within a {{product-name}} cluster. The architecture of the transport layer and the secure connection establishment process are described below.
+To configure encryption correctly, it's important to understand how components interact within a {{product-name}} cluster. Below, we explain the transport-layer architecture and the process of establishing a secure connection.
 
 ### What is the bus layer {#what-is-bus-layer}
 
-`bus` is the {{product-name}} transport layer that facilitates message transmission between components: schedulers, proxies, Data Nodes, and so on. `bus` works with messages, allowing it to define their size precisely, unlike regular TCP, which operates with a byte stream.
+The `bus` is the transport layer in {{product-name}} that handles message delivery between components such as schedulers, proxies, data nodes, and others. The `bus` works with messages, which makes their size clearly defined — unlike standard TCP, which operates on a byte stream.
 
 <div class="mermaid-diagram-compact">
 
@@ -35,15 +36,15 @@ sequenceDiagram
     participant Bus as Bus
     participant TCP as TCP
 
-    Note over RPC: Creates a protobuf message
+    Note over RPC: Creates a Protobuf message
     rect rgb(255, 243, 224)
-    RPC->>Bus: Passes the message as a byte array
+    RPC->>Bus: Sends the message as a sequence of bytes
     end
     rect rgb(232, 245, 232)
     Bus->>Bus: Determines the message size
     end
     rect rgb(232, 245, 232)
-    Bus->>TCP: Sends bytes via TCP
+    Bus->>TCP: Sends bytes over TCP
     end
     rect rgb(232, 245, 232)
     TCP->>TCP: Network transmission
@@ -52,40 +53,45 @@ sequenceDiagram
     TCP->>Bus: Receives bytes
     end
     rect rgb(232, 245, 232)
-    Bus->>Bus: Waits for the complete message<br/>based on the known size
+    Bus->>Bus: Waits for the full message<br/>based on the known size
     end
     rect rgb(255, 243, 224)
-    Bus->>RPC: Passes the assembled message
+    Bus->>RPC: Sends the assembled message
     end
-    Note over RPC: Processes the protobuf message
+    Note over RPC: Processes the Protobuf message
 ```
 
 </div>
 
-The RPC layer operates above the `bus` level, assembling protobuf messages from the transmitted bytes. The TCP layer for network data transmission sits below the `bus` level. The bus layer knows the exact size of each message and waits to receive all bytes before passing the message up.
+The RPC layer operates above the `bus` layer, assembling Protobuf messages from the transmitted bytes. The TCP layer, which handles network data transmission, sits below the `bus` layer. The `bus` layer knows the exact size of each message and waits for all bytes to arrive before passing the message upward.
 
-The diagram below shows the interaction between {{product-name}} cluster components and with external clients. Traffic encryption is configured and occurs exclusively within the cluster—between its components (for example, HTTP Proxy, Master Server, Data Nodes). The type of external client does not affect encryption: it can be a regular HTTP client, CHYT, SPYT, or any other service. For the full list of components that support encryption, see the [Components for configuration](#components-list) section.
+
+The diagram below shows how {{product-name}} cluster components interact with one another and with external clients. Traffic encryption is configured and applied only within the cluster — between its components such as HTTP proxies, master servers, and data nodes. The type of external client doesn't affect encryption: it can be a regular HTTP client, CHYT, SPYT, or any other service. For the full list of components that support encryption, see [Components for configuration](#components-list).
+
 
 ![](../../../images/encryption-diagram-en.svg)
 
-Each component (Master server, scheduler, Data Node, etc.) simultaneously acts in two roles:
+Each component (master server, scheduler, data node, and others) performs two roles at once:
+
 - `bus_client` — initiates outgoing connections to other components.
 - `bus_server` — accepts incoming connections from other components.
 
-For example, when an HTTP Proxy requests data from a Master Server:
-- The HTTP Proxy acts as the `bus_client` (the connection initiator).
-- The Master Server acts as the `bus_server` (the receiving party).
+For example, when an HTTP proxy requests data from a master server:
 
-At the same time, the same Master Server can act as a `bus_client` when connecting to other cluster components.
+- The HTTP proxy acts as a `bus_client` (connection initiator).
+- The master server acts as a `bus_server` (recipient).
 
-### Secure connection establishment process {#secure-connection-process}
+At the same time, the master server can also act as a `bus_client` when communicating with other cluster components.
+
+### Establishing a secure connection {#secure-connection-process}
 
 Establishing an encrypted connection between components happens in several stages:
-1. **TCP connection establishment** — the client and server establish a regular TCP connection.
-2. **Handshake exchange** — the client sends its Handshake to the server, then the server sends its Handshake to the client.
-3. **Encryption decision** — each side learns from the opposite side's Handshake whether to establish an SSL connection.
+
+1. **TCP connection setup** — the client and server establish a standard TCP connection.
+2. **Handshake exchange** — the client sends its handshake to the server, and the server then sends its handshake to the client.
+3. **Encryption decision** — each side determines, based on the peer's handshake, whether an SSL connection should be established.
 4. **SslAck exchange** — if encryption is required, the client and server exchange fixed-size SslAck packets.
-5. **Switching to SSL mode** — after exchanging SslAck, the parties switch to using the SSL library.
+5. **Switching to SSL mode** — after exchanging SslAck, both sides switch to using the SSL library.
 
 <div class="mermaid-diagram-compact">
 
@@ -95,25 +101,25 @@ sequenceDiagram
     participant C as Client<br/>(bus_client)
     participant S as Server<br/>(bus_server)
 
-    Note over C,S: TCP establishment
+    Note over C,S: TCP setup
     rect rgb(255, 243, 224)
     C->>S: TCP connection
     end
 
     Note over C,S: Handshake exchange
     rect rgb(255, 243, 224)
-    C->>S: Client Handshake
+    C->>S: Client handshake
     end
     rect rgb(255, 243, 224)
-    S->>C: Server Handshake
+    S->>C: Server handshake
     end
 
     Note over C,S: Encryption decision
     rect rgb(232, 245, 232)
-    C->>C: Analyzes Server Handshake
+    C->>C: Server handshake analysis
     end
     rect rgb(232, 245, 232)
-    S->>S: Analyzes Client Handshake
+    S->>S: Client handshake analysis
     end
 
     Note over C,S: SslAck exchange
@@ -126,60 +132,64 @@ sequenceDiagram
 
     Note over C,S: SSL mode
     rect rgb(255, 243, 224)
-    C->>S: Data via TLS
+    C->>S: Data over TLS
     end
     rect rgb(255, 243, 224)
-    S->>C: Data via TLS
+    S->>C: Data over TLS
     end
 ```
 
 </div>
 
-**Handshake** is a protobuf message exchanged by components immediately after establishing a TCP connection. It contains:
-- `encryption_mode` — encryption requirements (`disabled`/`optional`/`required`).
-- `verification_mode` — certificate verification requirements (`none`/`ca`/`full`).
 
-Key features of the Handshake:
-- **Size can vary** — because it's protobuf, the message size can change when new fields are added.
-- **Strict sequence** — the client sends its Handshake first, the server receives it and only then sends its own.
-- **Decision making** — each side analyzes the opposite side's Handshake and its own configuration to decide whether to enable encryption.
+**Handshake** is a Protobuf message exchanged by components immediately after a TCP connection is established. It includes:
 
-### Encryption decision making {#encryption-decision}
+- `encryption_mode` — the encryption requirements (`disabled`/`optional`/`required`).
+- `verification_mode` — the certificate verification requirements (`none`/`ca`/`full`).
 
-Each component makes the encryption decision based on:
+Key properties of a handshake:
+
+- **Variable size** — because it's a Protobuf message, its size may change when new fields are added.
+- **Defined sequence** — the client sends its handshake first, the server receives it and then sends its own.
+- **Decision point** — each side analyzes the peer's handshake and its own configuration to determine whether an encryption should be established.
+
+### Encryption decision {#encryption-decision}
+
+Each component decides whether to establish encryption based on:
+
 - Its own configuration (`encryption_mode`, `verification_mode`).
-- The opposite side's configuration (from the Handshake).
+- The peer's configuration (as provided in the handshake).
 
-If one side is configured to `required` and the other to `disabled`, the connection won't be established.
+If one side is configured as `required` and the other as `disabled`, the connection won't be established.
 
 ## How to enable encryption {#configuration}
 
-To enable encryption, configure the appropriate parameters in the cluster component configurations. The available parameters and their usage scenarios are described below.
+To enable encryption, configure the appropriate parameters in the cluster component settings. Below is an overview of the available parameters and their usage scenarios.
 
 ### Configuration parameters {#configuration-parameters}
 
-Encryption is configured through the `bus_client` and `bus_server` parameters in each component's configuration:
+Encryption is enabled via the `bus_client` and `bus_server` parameters in each component's configuration:
 
 #|
 || **Parameter** {.cell-align-center}| **Description** {.cell-align-center}||
 || `encryption_mode` {#encryption_mod}| Encryption mode:
-- `disabled` — encryption is disabled. If the other party requires encryption (`required`), the connection won't be established.
-- `optional` — encryption on demand. The connection will be encrypted only if the other party's mode is `required`.
-- `required` — encryption is mandatory. If the other party's mode is `disabled`, the connection will fail. ||
+- `disabled` — encryption is turned off. If the other side requires encryption (`required`), the connection won't be established.
+- `optional` — encryption is used only if requested. The connection will be encrypted if the peer's mode is `required`.
+- `required` — encryption is mandatory. If the peer's mode is `disabled`, the connection will fail. ||
 || `verification_mode` | Certificate verification mode:
-- `none` — the other party is not authenticated.
-- `ca` — the other party is authenticated via the CA file (checks that the certificate is signed by a trusted CA).
-- `full` — the other party is authenticated via the CA and by matching the certificate to the hostname (strictest mode). ||
-|| `cipher_list` | Cipher suite list separated by colons. Example: `"AES128-GCM-SHA256:PSK-AES128-GCM-SHA256"`. ||
-|| `ca` | CA certificate or path to the file. Example: `{ "file_name" = "/etc/yt/certs/ca.pem" }`. ||
-|| `cert_chain` | Certificate or path to the file. Example: `{ "file_name" = "/etc/yt/certs/cert.pem" }`. ||
-|| `private_key` | Private key or path to the file. Example: `{ "file_name" = "/etc/yt/certs/key.pem" }`. ||
-|| `load_certs_from_bus_certs_directory` | Load certificates from the bus certificates directory. When set to `true`, the `ca`, `cert_chain`, and `private_key` parameters are interpreted as file names, not paths. Convenient for external clusters. ||
+- `none` — no peer authentication is performed.
+- `ca` — the peer is authenticated using a CA file (the certificate must be signed by a trusted CA).
+- `full` — the peer is authenticated using both the CA and hostname verification against the certificate (strictest mode). ||
+|| `cipher_list` | A list of cipher suites separated by colons. Example: `"AES128-GCM-SHA256:PSK-AES128-GCM-SHA256"`. ||
+|| `ca` | A CA certificate or a path to the certificate file. Example: `{ "file_name" = "/etc/yt/certs/ca.pem" }`. ||
+|| `cert_chain` | A certificate or a path to the certificate file. Example: `{ "file_name" = "/etc/yt/certs/cert.pem" }`. ||
+|| `private_key` | A private key or a path to the key file. Example: `{ "file_name" = "/etc/yt/certs/key.pem" }`. ||
+|| `load_certs_from_bus_certs_directory` | Load certificates from the `bus` certificates directory. When set to `true`, the `ca`, `cert_chain`, and `private_key` parameters are treated as file names rather than full paths. Convenient when working with external clusters. ||
 |#
 
 ### Encryption mode compatibility {#encryption-modes-compatibility}
 
-When establishing a connection, the result depends on the combination of modes in the [encryption_mode](#configuration-parameters) parameter settings for `bus_client` and `bus_server`:
+When a connection is established, the result depends on the combination of [encryption_mode](#configuration-parameters) settings configured for `bus_client` and `bus_server`:
 
 #|
 || **Client** {.cell-align-center}| **Server** {.cell-align-center}| **Result** {.cell-align-center}||
@@ -197,6 +207,7 @@ When establishing a connection, the result depends on the combination of modes i
 ### Components for configuration {#components-list}
 
 You can configure encryption for the following cluster components:
+
 - controller_agent
 - data_node
 - discovery
@@ -212,33 +223,38 @@ You can configure encryption for the following cluster components:
 - qt
 - yql_agent
 
-Encryption can also be configured with external cluster components, such as SPYT and CHYT.
+You can also enable encryption when working with external cluster components such as SPYT and CHYT.
 
 {% note info %}
 
-To use TLS in CHYT, you need:
-- CHYT version 2.17 or higher.
-- Strawberry version 0.0.14 or higher.
+To use TLS with CHYT, you need:
+
+- CHYT version 2.17 or later.
+
+- Strawberry version 0.0.14 or later.
 
 {% endnote %}
 
+
 ### Integration with CHYT
 
-Unlike other components, CHYT runs inside a [vanilla operation](../../user-guide/data-processing/operations/vanilla) of {{product-name}}, so certificates are transferred in a special way:
-- Strawberry reads certificates from files specified in its configuration.
-- The `cluster-connection` configuration with `bus_client`/`bus_server` parameters is taken from Cypress to determine the encryption mode and connection parameters to cluster components.
-- All security settings, including certificates and encryption parameters, are passed into the operation via the [secure_vault](*secure_vault) mechanism.
-- When certificates change, Strawberry calculates the hash of the new data and, upon detecting changes, automatically restarts the operation to apply the updated settings.
+Unlike other components, CHYT runs inside a {{product-name}} [vanilla operation](../../user-guide/data-processing/operations/vanilla), so certificates are passed in a specific way:
 
-The `secure_vault` mechanism allows you to securely pass certificates and keys into operations without exposing them in plain text. The `cluster-connection` configuration contains all the necessary settings for establishing secure connections between CHYT and other cluster components, including encryption modes (`encryption_mode`) and certificate verification modes (`verification_mode`).
+- Strawberry reads certificates from the files specified in its configuration.
+- The `cluster-connection` configuration with `bus_client`/`bus_server` parameters is taken from Cypress to determine the encryption mode and connection settings for cluster components.
+- The operation receives all security settings, including certificates and encryption parameters, via a [secure_vault](*secure_vault).
+- When the certificates change, Strawberry computes a hash of the updated data and, if the hash differs, automatically restarts the operation to apply the new settings.
+
+The `secure_vault` allows you to pass certificates and keys to operations securely, without exposing them in plaintext. The `cluster-connection` configuration includes all the necessary settings for establishing secure connections between CHYT and other cluster components, including encryption modes (`encryption_mode`) and certificate verification modes (`verification_mode`).
+
 
 ## Configuration examples {#configuration-examples}
 
-The examples below show how to configure TLS with different security levels. These configurations are used in the {{product-name}} component configuration files. For more details on how to apply them, see the [configuration parameters](#configuration) section.
+The examples below show how to configure TLS for different security levels. These settings are used in configuration files for {{product-name}} components. For more details on how to apply them, see [Configuration parameters](#configuration).
 
 ### Mutual certificate verification (mTLS) {#example-mtls}
 
-Configuration for the maximum security level with verification of both parties' certificates:
+Configuration for the highest security level with certificate verification on both sides:
 
 {% cut "mTLS configuration example" %}
 
@@ -294,13 +310,14 @@ bus_server:
 
 {% endcut %}
 
+
 ## Setup scenarios {#deployment-scenarios}
 
-The method for setting up encryption depends on how your {{product-name}} cluster is deployed. Instructions for the main deployment scenarios are provided below.
+The way you configure encryption depends on how your {{product-name}} cluster is deployed. Here are instructions for the main deployment scenarios.
 
 {% list tabs dropdown %}
 
-- K8s with operator {selected}
+- K8s with an operator {selected}
 
   - [Deploying a new cluster with encryption](#k8s-new-cluster)
   - [Enabling encryption on an existing cluster](#k8s-existing-cluster)
@@ -311,31 +328,37 @@ The method for setting up encryption depends on how your {{product-name}} cluste
 
   #### Deploying a new cluster with encryption {#k8s-new-cluster}
 
-  The simplest way is to use a ready-made demo configuration example with TLS enabled:
+  The easiest way to get started is to use the ready-made demo configuration with TLS enabled:
 
-  1. Install cert-manager (if not already installed):
+  1. Install cert-manager (if it isn't already installed):
+
      ```bash
      kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.0/cert-manager.yaml
      ```
 
   2. Apply the cluster configuration with TLS:
+
      ```bash
      kubectl apply -f https://raw.githubusercontent.com/ytsaurus/ytsaurus-k8s-operator/main/config/samples/cluster_v1_tls.yaml
      ```
 
   3. Check the deployment status:
+
      ```bash
      kubectl get ytsaurus -n <namespace>
      ```
+
      ```
      NAME       CLUSTERSTATE   UPDATESTATE   UPDATINGCOMPONENTS   BLOCKEDCOMPONENTS
      ytsaurus   Running        None
      ```
-     This command shows the status of the YTsaurus cluster. The `Running` status means the cluster has started successfully and is operational. The empty `UPDATINGCOMPONENTS` and `BLOCKEDCOMPONENTS` fields indicate all components are functioning normally.
+
+     This command shows the status of the YTsaurus cluster. The `Running` status means the cluster has started successfully and is operational. Empty `UPDATINGCOMPONENTS` and `BLOCKEDCOMPONENTS` fields indicate that all components are working normally.
 
      ```bash
      kubectl get certificates -n <namespace>
      ```
+
      ```
      NAME                   READY   SECRET                 AGE
      ytsaurus-ca            True    ytsaurus-ca-secret     42d
@@ -343,27 +366,33 @@ The method for setting up encryption depends on how your {{product-name}} cluste
      ytsaurus-native-cert   True    ytsaurus-native-cert   42d
      ytsaurus-rpc-cert      True    ytsaurus-rpc-cert      42d
      ```
-     This command lists certificates managed by cert-manager. The `READY: True` status confirms the certificates have been successfully issued and are ready for use. The `ytsaurus-native-cert` certificate is used for encrypting internal bus traffic between components.
+
+     This command lists the certificates managed by cert-manager. The `READY: True` status confirms that the certificates have been issued and are ready for use. The `ytsaurus-native-cert` certificate is used to encrypt internal `bus` traffic between components.
 
      ```bash
      kubectl get secrets -n <namespace> | grep -E "ytsaurus|tls|cert"
      ```
+
      ```
      ytsaurus-ca-secret      kubernetes.io/tls   3      41d
      ytsaurus-https-cert     kubernetes.io/tls   3      41d
      ytsaurus-native-cert    kubernetes.io/tls   3      41d
      ytsaurus-rpc-cert       kubernetes.io/tls   3      41d
      ```
-     This command shows Kubernetes secrets with TLS certificates and keys.
-     - The type `kubernetes.io/tls` indicates a TLS secret.
-     - The number `3` in the DATA column means three components:
+
+     This command displays Kubernetes secrets that contain TLS certificates and keys.
+
+     - Type `kubernetes.io/tls` indicates a TLS secret.
+     - Value `3` in the DATA column means the secret includes three items:
+
         - `tls.crt` (certificate).
         - `tls.key` (private key).
-        - `ca.crt` (CA certificate for verification).
+        - `ca.crt` (CA certificate used for verification).
 
      ```bash
      kubectl describe ytsaurus <cluster-name> -n <namespace> | grep -A 5 "Native Transport"
      ```
+
      ```
      Native Transport:
        Tls Client Secret:
@@ -374,11 +403,13 @@ The method for setting up encryption depends on how your {{product-name}} cluste
        Tls Secret:
          Name:  ytsaurus-native-cert
      ```
+
      This command shows the encryption settings in the cluster configuration. The `Tls Required: true` parameter confirms that encryption is mandatory for internal connections.
 
      ```bash
      kubectl describe certificate <certificate-name> -n <namespace>
      ```
+
      ```
      Name:         ytsaurus-native-cert
      Namespace:    default
@@ -393,13 +424,15 @@ The method for setting up encryption depends on how your {{product-name}} cluste
        Not Before:              2026-01-30T07:45:50Z
        Renewal Time:            2026-03-31T07:45:50Z
      ```
-     This command shows certificate details. The `Not After` (expiry) and `Renewal Time` fields confirm automatic certificate rotation via cert-manager.
+
+     This command displays certificate details. The `Not After` (expiry) and `Renewal Time` fields confirm automatic certificate rotation via cert-manager.
 
      ```bash
      kubectl get secret <secret-name> -n <namespace> -o jsonpath='{.data.ca\.crt}' | base64 -d > /tmp/ca.crt
      kubectl exec -n ytsaurus hp-0 -- curl --cacert /tmp/ca.crt -k -v https://hp-0.http-proxies.ytsaurus.svc.cluster.local:443/api/v4/
      ```
-     This command checks the TLS handshake when connecting to the cluster API **from inside the cluster**. The `-v` option enables verbose mode to view the secure connection establishment process.
+
+     This command checks the TLS handshake when connecting to the cluster API **from inside the cluster**. The `-v` option enables verbose mode so you can see the full process of establishing a secure connection.
 
      {% cut "Example output showing a successful TLS handshake" %}
      ```
@@ -444,21 +477,23 @@ The method for setting up encryption depends on how your {{product-name}} cluste
      < X-YT-Proxy: hp-0.http-proxies.ytsaurus.svc.cluster.local
      < Content-Type: application/json
      ```
+
      {% endcut %}
 
-     The output shows successful completion of all TLS handshake stages: Client hello → Server hello → Certificate → Key exchange → Finished. The connection is established using the `TLSv1.2` protocol with the `ECDHE-RSA-AES256-GCM-SHA384` cipher. The certificate is issued by `ytsaurus CA` and is valid until the indicated date. The `HTTP/1.1 200 OK` response status confirms the request was successfully executed over the secure connection.
+     The output shows that every stage of the TLS handshake completed successfully: Client hello → Server hello → Certificate → Key exchange → Finished. The connection is established using the `TLSv1.2` protocol with the `ECDHE-RSA-AES256-GCM-SHA384` cipher. The certificate is issued by `ytsaurus CA` and is valid until the specified date. The `HTTP/1.1 200 OK` response confirms that the request was successfully executed over the secure connection.
 
      Key points in the output:
-     - Successful completion of all TLS handshake stages (Client hello → Server hello → Certificate → Key exchange → Finished).
-     - Connection established using the `TLSv1.2` protocol.
-     - Modern cipher `ECDHE-RSA-AES256-GCM-SHA384` is used.
-     - Certificate issued by `ytsaurus CA` and valid until `Apr 30 07:45:50 2026 GMT`.
+
+     - All TLS handshake stages completed successfully (Client hello → Server hello → Certificate → Key exchange → Finished).
+     - The connection was established using the `TLSv1.2` protocol.
+     - The connection uses a modern cipher: `ECDHE-RSA-AES256-GCM-SHA384`.
+     - The certificate is issued by `ytsaurus CA` and valid until `Apr 30 07:45:50 2026 GMT`.
      - The YTsaurus HTTP proxy (`X-YT-Proxy: hp-0.http-proxies.ytsaurus.svc.cluster.local`) successfully processes the request over the secure connection.
-     - The `HTTP/1.1 200 OK` response status confirms successful request execution over TLS.
+     - The `HTTP/1.1 200 OK` response confirms successful request execution over TLS.
 
-  This configuration automatically creates a self-signed CA, issues certificates, and configures components to operate with mutual authentication (mTLS).
+  This configuration automatically creates a self-signed CA, issues certificates, and configures components to use encryption with mutual authentication (mTLS).
 
-  #### Enabling encryption on an existing cluster {#k8s-existing-cluster}
+  #### Configuring encryption on an existing cluster {#k8s-existing-cluster}
 
   To enable encryption on a running cluster, add the following parameters to the YTsaurus specification:
 
@@ -481,7 +516,7 @@ The method for setting up encryption depends on how your {{product-name}} cluste
 
   {% note warning %}
 
-  The `tlsInsecure: true` parameter disables client certificate verification. For full mutual authentication (mTLS), set `tlsInsecure: false` and specify `tlsClientSecret`.
+  The `tlsInsecure: true` parameter disables verification of client certificates. For full mutual authentication (mTLS), set `tlsInsecure: false` and specify `tlsClientSecret`.
 
   {% endnote %}
 
@@ -493,25 +528,28 @@ The method for setting up encryption depends on how your {{product-name}} cluste
   || `tlsSecret` | Secret with the server certificate (type kubernetes.io/tls). ||
   || `tlsClientSecret` | Secret with the client certificate for mTLS. ||
   || `tlsRequired` | Require mandatory encryption (`true`/`false`). ||
-  || `tlsInsecure` | Disable client certificate verification (`true`/`false`). ||
-  || `tlsPeerAlternativeHostName` | Host name to check in the certificate. ||
+  || `tlsInsecure` | Disable verification of client certificates (`true`/`false`). ||
+  || `tlsPeerAlternativeHostName` | Hostname that should be checked in the certificate. ||
   |#
 
   #### Automatic certificate rotation {#k8s-cert-rotation}
 
   When using cert-manager, rotation happens automatically:
+
   - Cert-manager monitors certificate expiration dates.
   - A new certificate is issued when the expiration date approaches.
-  - The secret is updated without restarting pods.
-  - Components use the new certificate for new connections.
+  - The secret is updated without restarting any pods.
+  - Components begin using the new certificate for new connections.
 
   **How automatic rotation works:**
-  - When the current certificate's validity expires, cert-manager automatically issues a new certificate.
-  - The new certificate and key are updated in the Kubernetes Secret mounted into the container.
-  - The certificate file mounted into the server container is automatically updated without restarting the pod.
-  - Each server periodically rereads the certificate:
-    - At the BUS level — for every new connection.
-    - Existing connections continue to work with the old certificate.
+
+  - When the current certificate is about to expire, cert-manager automatically issues a new one.
+  - The new certificate and key are updated in the Kubernetes Secret mounted inside the container.
+  - The certificate file mounted inside the server container is refreshed automatically without requiring a pod restart.
+  - Each server periodically reloads the certificate:
+
+    - At the `bus` layer — for every new connection.
+    - Existing connections remain active with the old certificate.
     - New connections use the updated certificate.
 
   #### TLS operation modes {#k8s-tls-modes}
@@ -521,12 +559,12 @@ The method for setting up encryption depends on how your {{product-name}} cluste
   #|
   || **tlsRequired** | **tlsInsecure** | **Description** | **server** | **client** ||
   || `false` | `true` | Encryption is disabled, components communicate in plaintext. | `EO-VN` | `EO-VN` ||
-  || `false` | `false` | TLS is enabled but not mandatory. The client verifies the server's certificate, but the server does not require TLS. | `EO-VN` | `ER-VF` ||
-  || `true` | `true` | Encryption is enabled, but the server does not verify the client's certificate (one-way encryption). | `ER-VN` | `ER-VF` ||
-  || `true` | `false` | Encryption is enabled, both parties verify each other's certificates (mutual verification). | `ER-VF` | `ER-VF` ||
+  || `false` | `false` | TLS is enabled but not required. The client verifies the server's certificate, but the server doesn't require TLS. | `EO-VN` | `ER-VF` ||
+  || `true` | `true` | Encryption is enabled, but the server doesn't verify the client's certificate (one-way encryption). | `ER-VN` | `ER-VF` ||
+  || `true` | `false` | Encryption is enabled, both sides verify each other's certificates (mutual verification). | `ER-VF` | `ER-VF` ||
   |#
 
-  **Decoding:**
+  **Legend:**
   - `EO` – Encryption Optional
   - `ER` – Encryption Required
   - `VN` – Verification None
@@ -542,9 +580,10 @@ The method for setting up encryption depends on how your {{product-name}} cluste
   #### Prepare certificates {#manual-prepare-certs}
 
   Before configuring encryption, prepare SSL certificates:
-  1. A CA certificate for verification.
+
+  1. CA certificate for verification.
   2. Certificates and keys for each component.
-  3. Place the files in a location accessible to the components (for example, `/etc/yt/certs/`).
+  3. Place the files in the directory accessible to the components (for example, `/etc/yt/certs/`).
 
   #### Configure components {#manual-configure-components}
 
@@ -574,7 +613,7 @@ The method for setting up encryption depends on how your {{product-name}} cluste
 
   1. Update the configuration files of all components.
   1. Restart the cluster components.
-  1. Check for the establishment of encrypted connections in the logs.
+  1. Check the logs to verify that encrypted connections were established.
 
 - External clusters
 
@@ -590,18 +629,19 @@ The method for setting up encryption depends on how your {{product-name}} cluste
   #### Preparation {#external-prepare}
 
   On each cluster, prepare:
+
   - The opposite cluster's CA certificate.
   - A client certificate and key for your own cluster.
-  - Place the files in the bus certificates directory.
+  - Place the files in the directory used for `bus` certificates.
 
   #### Configure cluster A {#external-cluster-a}
 
-  1. **Download the current clusters configuration**:
+  1. **Download the current cluster configuration**:
      ```bash
      yt get //sys/clusters > clusters.yaml
      ```
 
-  1. **Add configuration for connecting to cluster B**:
+  1. **Add the configuration for connecting to cluster B**:
      ```yaml
      cluster-b:
        discovery_servers:
@@ -626,20 +666,23 @@ The method for setting up encryption depends on how your {{product-name}} cluste
 
   #### Configure cluster B {#external-cluster-b}
 
-  Repeat similar steps on cluster B, specifying parameters for connecting to cluster A.
+  Repeat the same steps on cluster B, specifying parameters for connecting to cluster A.
 
   {% note warning %}
 
-  For mutual authentication to work, the configuration must be set up on both clusters. One-sided configuration will lead to connection errors.
+  For mutual authentication to work, you need to set up this configuration on both clusters. A one-sided configuration will lead to connection errors.
 
   {% endnote %}
 
 {% endlist %}
 
+
+
 ## Performance {#performance}
 
-Encryption increases CPU load and can slightly reduce performance. Based on test results:
-- CPU load increases by 5–15% depending on the operation type.
+Encryption increases CPU load and may slightly reduce performance. Based on test results:
+
+- CPU load increases by 5–15%, depending on the operation type.
 - Throughput decreases by 3–10%.
 - Latency increases by 1–5 ms.
 
@@ -700,3 +743,6 @@ Encryption increases CPU load and can slightly reduce performance. Based on test
 [*cluster-name]: Replace with your YTsaurus cluster name.
 
 [*namespace]: Replace with the namespace where the cluster is deployed.
+
+
+
