@@ -69,17 +69,17 @@ void TDataBalancer::OnExecNodesUpdated(const TExecNodeDescriptorMap& newExecNode
     }
 }
 
-void TDataBalancer::Persist(const TPersistenceContext& context)
+void TDataBalancer::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, Options_);
-    Persist(context, TotalDataWeight_);
-    Persist(context, IdToNode_);
-    Persist(context, ActiveNodeTotalIOWeight_);
-    Persist(context, ConsecutiveViolationCount_);
-    Persist(context, Logger);
+    PHOENIX_REGISTER_FIELD(1, Options_);
+    PHOENIX_REGISTER_FIELD(2, TotalDataWeight_);
+    PHOENIX_REGISTER_FIELD(3, IdToNode_);
+    PHOENIX_REGISTER_FIELD(4, ActiveNodeTotalIOWeight_);
+    PHOENIX_REGISTER_FIELD(5, ConsecutiveViolationCount_);
+    PHOENIX_REGISTER_FIELD(6, Logger);
 }
+
+PHOENIX_DEFINE_TYPE(TDataBalancer);
 
 TDataBalancer::TNode& TDataBalancer::GetOrRegisterNode(NNodeTrackerClient::TNodeId nodeId)
 {
@@ -94,14 +94,14 @@ TDataBalancer::TNode& TDataBalancer::GetOrRegisterNode(const TJobNodeDescriptor&
     return node;
 }
 
-void TDataBalancer::TNode::Persist(const TPersistenceContext& context)
+void TDataBalancer::TNode::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, DataWeight);
-    Persist(context, Active);
-    Persist(context, Descriptor);
+    PHOENIX_REGISTER_FIELD(1, DataWeight);
+    PHOENIX_REGISTER_FIELD(2, Active);
+    PHOENIX_REGISTER_FIELD(3, Descriptor);
 }
+
+PHOENIX_DEFINE_TYPE(TDataBalancer::TNode);
 
 void TDataBalancer::LogViolation(const TDataBalancer::TNode& node, i64 dataWeight)
 {

@@ -53,10 +53,11 @@ public:
     NScheduler::TClusterName GetClusterName(const NYPath::TRichYPath& path);
     std::optional<std::string> GetLocalClusterName() const;
 
-    void Persist(const TPersistenceContext& context);
-
 private:
     std::optional<std::string> LocalClusterName_;
+
+    PHOENIX_DECLARE_FRIEND();
+    PHOENIX_DECLARE_TYPE(TClusterResolver, 0xc4a8f2d5);
 };
 
 DEFINE_REFCOUNTED_TYPE(TClusterResolver)
