@@ -44,8 +44,7 @@ $ spark-submit \
   --deploy-mode cluster \
   --files yt://home/spark/conf/token \
   --conf spark.ytsaurus.config.global.path=//home/spark/conf/global \
-  --conf spark.driver.extraJavaOption="-Djava.security.krb5.kdc=... \
-  									   -Djava.secutirykrb5.realm=..."  \
+  --conf spark.driver.extraJavaOption="-Djava.security.krb5.kdc=... -Djava.secutirykrb5.realm=..."  \
  ./script.py
 ```
 
