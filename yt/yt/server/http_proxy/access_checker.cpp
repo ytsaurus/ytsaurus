@@ -35,7 +35,7 @@ public:
         coordinator->SubscribeOnSelfRoleChanged(BIND_NO_PROPAGATE(&TAccessChecker::OnProxyRoleUpdated, MakeWeak(this)));
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TAccessChecker::OnDynamicConfigChanged, MakeWeak(this)));
+        dynamicConfigManager->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TAccessChecker::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     TError CheckAccess(const std::string& user) const override

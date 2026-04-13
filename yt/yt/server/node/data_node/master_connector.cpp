@@ -148,7 +148,7 @@ public:
         Bootstrap_->SubscribeSecondaryMasterCellListChanged(BIND_NO_PROPAGATE(&TMasterConnector::OnSecondaryMasterCellListChanged, MakeWeak(this)));
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
+        dynamicConfigManager->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
 
         const auto& chunkStore = Bootstrap_->GetChunkStore();
         chunkStore->SubscribeChunkAdded(BIND_NO_PROPAGATE(&TMasterConnector::OnChunkAdded, MakeWeak(this)));

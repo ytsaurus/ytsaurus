@@ -261,7 +261,7 @@ public:
             .SetInvokerProvider(BIND(&TQueryService::GetExecuteInvoker, Unretained(this)))
             .SetHandleMethodError(true));
 
-        Bootstrap_->GetDynamicConfigManager()->SubscribeConfigChanged(BIND(
+        Bootstrap_->GetDynamicConfigManager()->SubscribeBeforeConfigChanged(BIND(
             &TQueryService::OnDynamicConfigChanged,
             MakeWeak(this)));
         SubscribeLoadAdjusted();

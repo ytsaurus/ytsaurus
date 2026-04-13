@@ -72,7 +72,7 @@ TApi::TApi(TBootstrap* bootstrap)
     });
 
     const auto& dynamicConfigManager = bootstrap->GetDynamicConfigManager();
-    dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TApi::OnDynamicConfigChanged, MakeWeak(this)));
+    dynamicConfigManager->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TApi::OnDynamicConfigChanged, MakeWeak(this)));
 }
 
 std::string TApi::GetNetworkNameForAddress(const TNetworkAddress& address) const

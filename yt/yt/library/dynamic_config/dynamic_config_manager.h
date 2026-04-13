@@ -27,8 +27,18 @@ public:
     using TConfigPtr = TIntrusivePtr<TConfig>;
 
 public:
-    //! Raises when dynamic config changes.
-    DEFINE_SIGNAL(void(const TConfigPtr& /*oldConfig*/, const TConfigPtr& /*newConfig*/), ConfigChanged);
+    // TODO(h0pless): Think about refactoring this in the following fashion:
+    // 1. Rename BeforeConfigChanged to ValidateConfigChange;
+    // 2. Rename AfterConfigChanged to ConfigChanged;
+    // 3. Change BeforeConfigChanged signature to void(const TConfigPtr& /*newConfig*/);
+    // 4. Split callbacks passed by SubscribeBeforeConfigChanged in two: Validate (with validation)
+    //    and Apply (semantically noexcept).
+    //! Fired right before the config is changed. Subscribers are expected to throw if the changes are invalid.
+    //! However, it is not guaranteed that all subscribers are called in such case, which may lead to a partially applied config.
+    DEFINE_SIGNAL(void(const TConfigPtr& /*oldConfig*/, const TConfigPtr& /*newConfig*/), BeforeConfigChanged);
+
+    //! Fired right after the new config is applied. Subscribers must not throw.
+    DEFINE_SIGNAL(void(const TConfigPtr& /*oldConfig*/), AfterConfigChanged);
 
 public:
     // NB: Invoker must be serialized.

@@ -112,7 +112,7 @@ private:
         const std::vector<NTabletClient::TTableReplicaId>& replicaIds);
 
     void OnConfigChanged(const NTabletServer::TDynamicReplicatedTableTrackerConfigPtr& oldConfig);
-    void SubscribeConfigChanged(
+    void SubscribeBeforeConfigChanged(
         TCallback<void(NTabletServer::TDynamicReplicatedTableTrackerConfigPtr)> callback);
 };
 

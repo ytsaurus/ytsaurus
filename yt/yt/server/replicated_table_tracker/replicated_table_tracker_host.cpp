@@ -55,7 +55,7 @@ TReplicatedTableTrackerHostCounters::TReplicatedTableTrackerHostCounters()
 TReplicatedTableTrackerHost::TReplicatedTableTrackerHost(IBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
 {
-    SubscribeConfigChanged(BIND_NO_PROPAGATE(&TReplicatedTableTrackerHost::OnConfigChanged, MakeWeak(this)));
+    SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TReplicatedTableTrackerHost::OnConfigChanged, MakeWeak(this)));
     OnConfigChanged(Bootstrap_->GetDynamicConfigManager()->GetConfig());
 
     ScheduleUpdateIteration();
@@ -529,10 +529,10 @@ void TReplicatedTableTrackerHost::OnConfigChanged(const TDynamicReplicatedTableT
     TrackerEnabled_ = newConfig->EnableReplicatedTableTracker && newConfig->UseNewReplicatedTableTracker;
 }
 
-void TReplicatedTableTrackerHost::SubscribeConfigChanged(
+void TReplicatedTableTrackerHost::SubscribeBeforeConfigChanged(
     TCallback<void(TDynamicReplicatedTableTrackerConfigPtr)> callback)
 {
-    Bootstrap_->GetDynamicConfigManager()->SubscribeConfigChanged(BIND(
+    Bootstrap_->GetDynamicConfigManager()->SubscribeBeforeConfigChanged(BIND(
         [callback = std::move(callback)] (
             const TDynamicReplicatedTableTrackerConfigPtr& /*oldConfig*/,
             const TDynamicReplicatedTableTrackerConfigPtr& newConfig)

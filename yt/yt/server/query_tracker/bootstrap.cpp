@@ -204,7 +204,7 @@ private:
         NLogging::GetDynamicTableLogWriterFactory()->SetClient(NativeClient_);
 
         DynamicConfigManager_ = New<TDynamicConfigManager>(Config_, NativeClient_, ControlInvoker_);
-        DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));
+        DynamicConfigManager_->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));
 
         BusServer_ = CreateBusServer(Config_->BusServer);
 

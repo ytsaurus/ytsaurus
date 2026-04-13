@@ -324,7 +324,7 @@ public:
         BackupManager_->Initialize();
 
         const auto& tableConfigManager = Bootstrap_->GetTableDynamicConfigManager();
-        tableConfigManager->SubscribeConfigChanged(TableDynamicConfigChangedCallback_);
+        tableConfigManager->SubscribeBeforeConfigChanged(TableDynamicConfigChangedCallback_);
 
         const auto& configManager = Bootstrap_->GetDynamicConfigManager();
         configManager->SubscribeConfigChanged(DynamicConfigChangedCallback_);
@@ -335,7 +335,7 @@ public:
     void Finalize() override
     {
         const auto& tableConfigManager = Bootstrap_->GetTableDynamicConfigManager();
-        tableConfigManager->UnsubscribeConfigChanged(TableDynamicConfigChangedCallback_);
+        tableConfigManager->UnsubscribeBeforeConfigChanged(TableDynamicConfigChangedCallback_);
     }
 
     void OnStartLeading() override

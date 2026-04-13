@@ -73,7 +73,7 @@ public:
             Bootstrap_))
         , OrchidService_(CreateOrchidService())
     {
-        ReplicatorHintConfigFetcher_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&THintManager::OnDynamicConfigChanged, MakeWeak(this)));
+        ReplicatorHintConfigFetcher_->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&THintManager::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     void Start() override
