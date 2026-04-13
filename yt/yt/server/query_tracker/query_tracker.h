@@ -26,6 +26,8 @@ struct IQueryTracker
     virtual void Reconfigure(const TQueryTrackerDynamicConfigPtr& config) = 0;
 
     virtual NYTree::IYPathServicePtr GetOrchidService() const = 0;
+
+    virtual std::unordered_map<EQueryEngine, IProxyEngineProviderPtr> GetEngineProviders() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IQueryTracker)
