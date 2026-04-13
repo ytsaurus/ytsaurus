@@ -100,7 +100,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         const auto& configManager = Context_->GetDynamicConfigManager();
-        configManager->SubscribeConfigChanged(
+        configManager->SubscribeBeforeConfigChanged(
             BIND(&THunkLockManager::OnDynamicConfigChanged, MakeWeak(this))
                 .Via(Context_->GetAutomatonInvoker()));
     }

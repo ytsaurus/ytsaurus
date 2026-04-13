@@ -228,7 +228,7 @@ public:
         slotManager->SubscribeScanSlot(BIND_NO_PROPAGATE(&TInMemoryManager::ScanSlot, MakeWeak(this)));
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TInMemoryManager::OnDynamicConfigChanged, MakeWeak(this)));
+        dynamicConfigManager->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TInMemoryManager::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     TInMemoryChunkDataPtr EvictInterceptedChunkData(TChunkId chunkId) override

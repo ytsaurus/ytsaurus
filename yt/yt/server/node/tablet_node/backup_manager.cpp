@@ -194,7 +194,7 @@ public:
 
         const auto& configManager = Bootstrap_->GetDynamicConfigManager();
         Config_ = configManager->GetConfig()->TabletNode->BackupManager;
-        configManager->SubscribeConfigChanged(
+        configManager->SubscribeBeforeConfigChanged(
             BIND_NO_PROPAGATE(&TBackupManager::OnDynamicConfigChanged, MakeWeak(this))
                 .Via(Slot_->GetAutomatonInvoker()));
     }

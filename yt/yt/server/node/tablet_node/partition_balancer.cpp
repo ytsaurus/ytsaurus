@@ -94,7 +94,7 @@ public:
         Config_.Store(Bootstrap_->GetConfig()->TabletNode->PartitionBalancer);
         Bootstrap_
             ->GetDynamicConfigManager()
-            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TPartitionBalancer::OnDynamicConfigChanged, MakeWeak(this)));
+            ->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TPartitionBalancer::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
 private:

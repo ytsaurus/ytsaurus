@@ -880,7 +880,7 @@ public:
             MakeWeak(this)));
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        dynamicConfigManager->SubscribeConfigChanged(BIND(
+        dynamicConfigManager->SubscribeBeforeConfigChanged(BIND(
             &TCompressionDictionaryBuilder::OnDynamicConfigChanged,
             MakeWeak(this)));
     }

@@ -41,12 +41,12 @@ public:
         , MemberId_(std::move(memberId))
         , DynamicConfigCallback_(BIND_NO_PROPAGATE(&TDistributedThrottlerManager::OnDynamicConfigChanged, MakeWeak(this)))
     {
-        Bootstrap_->GetDynamicConfigManager()->SubscribeConfigChanged(DynamicConfigCallback_);
+        Bootstrap_->GetDynamicConfigManager()->SubscribeBeforeConfigChanged(DynamicConfigCallback_);
     }
 
     ~TDistributedThrottlerManager()
     {
-        Bootstrap_->GetDynamicConfigManager()->UnsubscribeConfigChanged(DynamicConfigCallback_);
+        Bootstrap_->GetDynamicConfigManager()->UnsubscribeBeforeConfigChanged(DynamicConfigCallback_);
     }
 
     IReconfigurableThroughputThrottlerPtr GetOrCreateThrottler(

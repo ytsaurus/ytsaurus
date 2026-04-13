@@ -49,7 +49,7 @@ public:
     {
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         Config_ = dynamicConfigManager->GetConfig()->TabletNode;
-        dynamicConfigManager->SubscribeConfigChanged(BIND(
+        dynamicConfigManager->SubscribeBeforeConfigChanged(BIND(
             &TStructuredLogger::OnDynamicConfigChanged,
             MakeWeak(this)));
 

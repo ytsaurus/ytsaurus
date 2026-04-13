@@ -327,7 +327,7 @@ public:
         tableConfigManager->SubscribeBeforeConfigChanged(TableDynamicConfigChangedCallback_);
 
         const auto& configManager = Bootstrap_->GetDynamicConfigManager();
-        configManager->SubscribeConfigChanged(DynamicConfigChangedCallback_);
+        configManager->SubscribeBeforeConfigChanged(DynamicConfigChangedCallback_);
 
         OnDynamicConfigChanged(configManager->GetConfig(), configManager->GetConfig());
     }
