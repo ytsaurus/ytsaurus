@@ -1726,10 +1726,8 @@ private:
             if (GetDynamicConfigManager()->GetConfig()->DataNode->MasterConnector->CheckChunksCellTagsAfterReceivingNewMasterCellConfigs) {
                 YT_UNUSED_FUTURE(
                     // NB: Master cell tags were updated during firing the above signals.
-                    BIND([weakThis = MakeWeak(this), dataNodeBootstrap, masterCellTags = GetMasterConnector()->GetMasterCellTags()] {
-                        if (auto this_ = weakThis.Lock()) {
-                            dataNodeBootstrap->GetChunkStore()->CheckAllChunksHaveValidCellTags(masterCellTags);
-                        }
+                    BIND([this_ = MakeStrong(this), dataNodeBootstrap, masterCellTags = GetMasterConnector()->GetMasterCellTags()] {
+                        dataNodeBootstrap->GetChunkStore()->CheckAllChunksHaveValidCellTags(masterCellTags);
                     }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
                     .Run());
             }
