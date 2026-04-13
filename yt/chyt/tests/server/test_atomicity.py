@@ -1,9 +1,10 @@
 from helpers import get_breakpoint_node, release_breakpoint, wait_breakpoint
 
 from yt_commands import (authors, raises_yt_error, create, write_table, remove, read_table,
-                         get, link, insert_rows, sync_mount_table, sync_unmount_table)
+                         get, link, insert_rows, sync_mount_table, sync_unmount_table, lock,
+                         start_transaction, abort_transaction, exists)
 
-from yt.common import wait
+from yt.common import wait, update as config_update
 
 from yt.test_helpers import assert_items_equal
 
@@ -12,6 +13,7 @@ from base import ClickHouseTestBase, Clique, QueryFailedError
 import yt.yson as yson
 
 import threading
+import time
 import pytest
 
 
@@ -443,3 +445,109 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
                 assert clique.make_query(query, settings=settings) == expected
 
             thread.join()
+
+
+class TestQueryWithExternalTransaction(ClickHouseTestBase):
+    class ChytParentTransaction:
+        def __init__(self):
+            self.tx = None
+
+        def __enter__(self):
+            self.tx = start_transaction(timeout=60000)
+            return (self.tx, {"param__yt_transaction_id": self.tx})
+
+        def __exit__(self, type, value, traceback):
+            abort_transaction(self.tx)
+
+    @authors("buyval01")
+    def test_read(self):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "i", "type": "int64"}]})
+        write_table("//tmp/t", [{"i": 1}])
+
+        with Clique(2) as clique:
+            with self.ChytParentTransaction() as (tx, tx_settings):
+                node_id = lock("//tmp/t", tx=tx, mode="snapshot")['node_id']
+                write_table("<append=%true>//tmp/t", [{"i": 2}])
+                assert clique.make_query("select * from `//tmp/t`", settings=tx_settings) == [{"i": 1}]
+                time.sleep(5)
+                # There are no hanging locks left.
+                assert get(f"#{node_id}/@lock_count") == 1
+
+    @authors("buyval01")
+    def test_write(self):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "i", "type": "int64"}]})
+        write_table("//tmp/t", [{"i": 1}])
+
+        create("table", "//tmp/tt", attributes={"schema": [{"name": "i", "type": "int64"}]})
+
+        with Clique(2) as clique:
+            instances = clique.get_active_instances()
+
+            # Mutating queries within an external transaction should not invalidate clique's cache.
+            # After each such query, we need to check the cache on every instance.
+            def check_cache_hit(hit=True):
+                for inst in instances:
+                    cache_hit_counter = clique.get_profiler_counter("clickhouse/yt/object_attribute_cache/hit", instance_id=inst.attributes["job_cookie"])
+                    cache_miss_counter = clique.get_profiler_counter("clickhouse/yt/object_attribute_cache/miss", instance_id=inst.attributes["job_cookie"])
+
+                    clique.make_direct_query(inst, "select * from `//tmp/t`")
+
+                    if hit:
+                        wait(lambda: cache_miss_counter.get_delta() != 0 or cache_hit_counter.get_delta() > 0)
+                        assert cache_miss_counter.get_delta() == 0
+                    else:
+                        wait(lambda: cache_hit_counter.get_delta() != 0 or cache_miss_counter.get_delta() > 0)
+                        assert cache_hit_counter.get_delta() == 0
+
+            # Populate cache.
+            check_cache_hit(hit=False)
+
+            with self.ChytParentTransaction() as (tx, tx_settings):
+                query = "insert into `//tmp/tt` select * from `//tmp/t`"
+                clique.make_query(query, settings=config_update({"parallel_distributed_insert_select": 1}, tx_settings))
+                assert read_table("//tmp/tt", tx=tx) == [{"i": 1}]
+                assert read_table("//tmp/tt") == []
+
+            check_cache_hit()
+
+            with self.ChytParentTransaction() as (tx, tx_settings):
+                query = 'insert into "//tmp/t" (*) values (3)'
+                clique.make_query(query, settings=tx_settings)
+                assert read_table("//tmp/t", tx=tx) == [{"i": 1}, {"i": 3}]
+                assert read_table("//tmp/t") == [{"i": 1}]
+
+            check_cache_hit()
+
+            with self.ChytParentTransaction() as (tx, tx_settings):
+                query = 'create table "//tmp/t_copy" engine YtTable() as select * from "//tmp/t"'
+                clique.make_query(query, settings=tx_settings)
+                assert exists("//tmp/t_copy", tx=tx)
+                assert not exists("//tmp/t_copy")
+
+            check_cache_hit()
+
+            with self.ChytParentTransaction() as (tx, tx_settings):
+                query = 'truncate table "//tmp/t"'
+                clique.make_query(query, settings=tx_settings)
+                assert read_table("//tmp/t", tx=tx) == []
+                assert read_table("//tmp/t") == [{"i": 1}]
+
+            check_cache_hit()
+
+            with self.ChytParentTransaction() as (tx, tx_settings):
+                query = 'rename table "//tmp/t" to "//tmp/t_renamed"'
+                clique.make_query(query, settings=tx_settings)
+                assert not exists("//tmp/t", tx=tx)
+                assert exists("//tmp/t_renamed", tx=tx)
+                assert exists("//tmp/t")
+                assert not exists("//tmp/t_renamed")
+
+            check_cache_hit()
+
+            with self.ChytParentTransaction() as (tx, tx_settings):
+                query = 'drop table "//tmp/t"'
+                clique.make_query(query, settings=tx_settings)
+                assert not exists("//tmp/t", tx=tx)
+                assert exists("//tmp/t")
+
+            check_cache_hit()

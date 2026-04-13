@@ -1053,9 +1053,6 @@ public:
                 // Can't erase table like in distributedWrite because of INSERT INTO t FROM (SELECT * FROM t) case.
                 THROW_ERROR_EXCEPTION("Parallel overwriting is not supported, set max_insert_threads = 1");
             }
-            if (queryContext->QueryKind == EQueryKind::InitialQuery) {
-                queryContext->InitializeQueryWriteTransaction();
-            }
         }
 
         if (table->Dynamic && overwrite) {
@@ -1063,6 +1060,11 @@ public:
         }
 
         auto dataTypes = ToDataTypes(*table->Schema, QueryContext_->Settings->Composite, /*isReadConversions*/ false);
+
+        if (queryContext->QueryKind == EQueryKind::InitialQuery) {
+            queryContext->InitializeQueryWriteTransaction();
+        }
+
         YT_LOG_DEBUG(
             "Inferred ClickHouse data types from YT schema (Schema: %v, DataTypes: %v)",
             table->Schema,
@@ -1076,6 +1078,9 @@ public:
             if (queryContext->WriteSinkCount.fetch_sub(1) == 1) {
                 queryContext->CommitWriteTransaction();
 
+                if (queryContext->ParentTransactionId) {
+                    return;
+                }
                 auto invalidateMode = queryContext->Settings->Caching->TableAttributesInvalidateMode;
                 if (queryContext->QueryKind == EQueryKind::SecondaryQuery) {
                     // Write in secondary query means distributed insert select.
@@ -1175,6 +1180,8 @@ public:
 
         auto distributedStage = executionSettings->DistributedInsertStage;
 
+        YT_LOG_DEBUG("Distributed insert stage: %v", distributedStage);
+
         if (distributedStage == EDistributedInsertStage::None) {
             return std::nullopt;
         }
@@ -1205,6 +1212,7 @@ public:
         int distributedInsertStageRank = GetDistributedInsertStageRank(distributedStage);
         int queryProcessingStageRank = GetQueryProcessingStageRank(queryProcessingStage);
 
+        YT_LOG_DEBUG("Distributed insert stage rank: %v, query processing stage rank: %v", distributedInsertStageRank, queryProcessingStageRank);
         if (queryProcessingStageRank < distributedInsertStageRank) {
             return std::nullopt;
         }
@@ -1242,6 +1250,11 @@ public:
             auto* queryContext = GetQueryContext(context);
             queryContext->CommitWriteTransaction();
             auto refreshRevision = NHydra::NullRevision;
+
+            if (queryContext->ParentTransactionId) {
+                return;
+            }
+
             if (queryContext->CreatedTablePath.has_value()) {
                 YT_VERIFY(*queryContext->CreatedTablePath == path);
                 refreshRevision = GetRefreshRevision(queryContext->Client(), path);
@@ -1273,11 +1286,18 @@ public:
         THROW_ERROR_EXCEPTION_IF(table->Dynamic,
             "TRUNCATE is not supported for dynamic tables");
 
+        auto* queryContext = GetQueryContext(context);
+
+        queryContext->InitializeQueryWriteTransaction();
+
         EraseTable(context);
 
-        auto* queryContext = GetQueryContext(context);
-        auto refreshRevision = GetRefreshRevision(queryContext->Client(), table->GetPath());
-        InvalidateCache(queryContext, {{table->GetPath(), refreshRevision}});
+        queryContext->CommitWriteTransaction();
+
+        if (!queryContext->ParentTransactionId) {
+            auto refreshRevision = GetRefreshRevision(queryContext->Client(), table->GetPath());
+            InvalidateCache(queryContext, {{table->GetPath(), refreshRevision}});
+        }
     }
 
     std::unordered_map<std::string, DB::ColumnSize> getColumnSizes() const override

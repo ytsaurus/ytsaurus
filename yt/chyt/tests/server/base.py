@@ -664,7 +664,7 @@ class Clique(object):
         return get(orchid_path + path, verbose=verbose)
 
     def get_profiler(self, instance_id=None):
-        if not instance_id:
+        if instance_id is None:
             instance_id = self.get_active_instances()[0].attributes["job_cookie"]
 
         yt_client = YtClient(config={
