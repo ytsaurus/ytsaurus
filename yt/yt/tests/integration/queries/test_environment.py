@@ -666,22 +666,18 @@ def spyt_home():
 
 class TestQueryTrackerSpytInfo(YTEnvSetup):
     QUERY_TRACKER_DYNAMIC_CONFIG = {
-        "spyt_connect_engine": {
+        "spyt_engine": {
             "proxy_config": {
                 "clusters": ["cluster1", "cluster2", "cluster3"],
                 "default_settings": {
-                    "connect": {
-                        "spark_conf": {
-                            "spark.sql.shuffle.partitions": "200",
-                            "spark.sql.autoBroadcastJoinThreshold": "-1"
-                        },
-                        "num_executors": 3,
-                        "executor_cores": 2,
-                        "executor_memory": "8G"
+                    "spark_conf": {
+                        "spark.sql.shuffle.partitions": "200",
+                        "spark.sql.autoBroadcastJoinThreshold": "-1"
                     },
-                    "livy": {}
-                },
-                "use_spyt_connect_engine": True
+                    "num_executors": 3,
+                    "executor_cores": 2,
+                    "executor_memory": "8G"
+                }
             }
         }
     }
@@ -692,5 +688,4 @@ class TestQueryTrackerSpytInfo(YTEnvSetup):
         spyt_info = qt_info["engines_info"]["spyt"]
 
         assert spyt_info["clusters"] == ["primary", "cluster1", "cluster2", "cluster3"]
-        assert spyt_info["default_engine"] == "connect"
-        assert spyt_info["default_settings"]["connect"]["num_executors"] == 3
+        assert spyt_info["default_settings"]["num_executors"] == 3
