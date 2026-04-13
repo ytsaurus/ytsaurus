@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
+GPU_PROVIDER="${YT_GPU_PROVIDER:-nvidia}"
+
 start_gpuagent() {
     if ! ls /dev/nvidia* &> /dev/null
     then
@@ -9,7 +11,7 @@ start_gpuagent() {
     fi
     while true; do
         echo "Launching gpuagent..."
-        gpuagent --tcp 23105 || true
+        gpuagent --tcp 23105 --gpu-provider "${GPU_PROVIDER}" || true
         sleep 5
     done
 }
