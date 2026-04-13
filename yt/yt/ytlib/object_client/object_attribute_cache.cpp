@@ -74,6 +74,7 @@ TObjectAttributeCache::TRevisionCache::TRevisionCache(int maxPathsSize)
 
 void TObjectAttributeCache::TRevisionCache::Add(const NYPath::TYPath& path, NHydra::TRevision revision)
 {
+    auto guard = Guard(Lock_);
     Remove(path);
     if (std::ssize(Paths_) == MaxPathsSize_) {
         Remove(Paths_.begin()->second, true);
@@ -84,6 +85,7 @@ void TObjectAttributeCache::TRevisionCache::Add(const NYPath::TYPath& path, NHyd
 
 NHydra::TRevision TObjectAttributeCache::TRevisionCache::Get(const NYPath::TYPath& path) const
 {
+    auto guard = Guard(Lock_);
     auto it = RevisionMap_.find(path);
     if (it != RevisionMap_.end()) {
         return it->second;
@@ -98,6 +100,7 @@ NHydra::TRevision TObjectAttributeCache::TRevisionCache::GetDefault() const
 
 void TObjectAttributeCache::TRevisionCache::Remove(const NYPath::TYPath& path, bool updateDefault)
 {
+    YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
     auto it = RevisionMap_.find(path);
     if (it != RevisionMap_.end()) {
         if (updateDefault) {
