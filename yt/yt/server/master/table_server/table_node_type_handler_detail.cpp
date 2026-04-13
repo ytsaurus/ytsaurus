@@ -271,6 +271,15 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         enableStripedErasure);
     auto* node = nodeHolder.get();
 
+    // NB: This is done before the try-catch above because in case of its failure
+    // the destruction signal will be send to Rtt during zombification of the node.
+    if (replicated && !id.IsBranched() && !node->IsExternal()) {
+        tabletManager->GetReplicatedTableCreatedSignal()->Fire(TReplicatedTableData{
+            .Id = id.ObjectId,
+            .Options = New<TReplicatedTableOptions>(),
+        });
+    }
+
     try {
         node->SetOptimizeFor(optimizeFor);
         if (optionalChunkFormat) {
@@ -419,13 +428,6 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         this->Zombify(node);
         this->Destroy(node);
         throw;
-    }
-
-    if (replicated && !id.IsBranched() && !node->IsExternal()) {
-        tabletManager->GetReplicatedTableCreatedSignal()->Fire(TReplicatedTableData{
-            .Id = id.ObjectId,
-            .Options = New<TReplicatedTableOptions>(),
-        });
     }
 
     return nodeHolder;
