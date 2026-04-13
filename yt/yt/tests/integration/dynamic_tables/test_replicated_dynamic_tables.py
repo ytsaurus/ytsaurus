@@ -2850,7 +2850,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         assert async_replica["replica_id"] == replica_id1
         assert async_replica["current_replication_row_index"] <= 3
 
-    @authors("ifsmirnov")
+    @authors("ifsmirnov", "mkarpov")
     def test_reshard_non_empty_replicated_table(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t", schema=self.SIMPLE_SCHEMA_SORTED, min_replication_log_ttl=0)
@@ -2884,15 +2884,182 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         sync_flush_table("//tmp/t")
 
-        # Remove one replica to advance replicated trimmed row count.
-        remove("#{}".format(replica_id1))
-        # 2 dynamic stores.
-        wait(lambda: get("//tmp/t/@chunk_count") == 0 + 2)
-        assert get_tablet_infos("//tmp/t", [0])["tablets"][0]["trimmed_row_count"] == 1
+        before_row_index = get(f"#{replica_id2}/@tablets/0/committed_replication_row_index")
+        before_timestamp = get(f"#{replica_id2}/@tablets/0/current_replication_timestamp")
+        before_trimmed_row_count = get_tablet_infos("//tmp/t", [0])["tablets"][0]["trimmed_row_count"]
+        before_chunk_count = get("//tmp/t/@tablets/0/statistics/chunk_count")
+        assert before_chunk_count > 0
 
         sync_unmount_table("//tmp/t")
-        with pytest.raises(YtError):
-            reshard_table("//tmp/t", [[]])
+        reshard_table("//tmp/t", [[], [25], [50], [75]])
+
+        tablets = get("//tmp/t/@tablets")
+        assert [t["pivot_key"] for t in tablets] == [[], [25], [50], [75]]
+
+        sync_mount_table("//tmp/t")
+
+        for i in range(4):
+            assert get(f"//tmp/t/@tablets/{i}/statistics/chunk_count") == before_chunk_count
+            assert get(f"//tmp/t/@tablets/{i}/trimmed_row_count") == before_trimmed_row_count
+            assert get(f"#{replica_id2}/@tablets/{i}/committed_replication_row_index") == before_row_index
+            assert get(f"#{replica_id2}/@tablets/{i}/current_replication_timestamp") == before_timestamp
+
+        new_rows = [
+            {"key": 10, "value1": "a", "value2": 1},
+            {"key": 30, "value1": "b", "value2": 2},
+            {"key": 60, "value1": "c", "value2": 3},
+            {"key": 80, "value1": "d", "value2": 4},
+        ]
+        insert_rows("//tmp/t", new_rows)
+        all_rows = sorted(rows + new_rows, key=lambda r: r["key"])
+        wait(lambda: lookup_rows(
+            "//tmp/r1",
+            [{"key": r["key"]} for r in all_rows],
+            driver=self.replica_driver,
+        ) == all_rows)
+
+    @authors("mkarpov")
+    def test_reshard_sorted_replicated_table_merge_forbidden(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", schema=self.SIMPLE_SCHEMA_SORTED, min_replication_log_ttl=0)
+        replica_id = create_table_replica(
+            "//tmp/t",
+            self.REPLICA_CLUSTER_NAME,
+            "//tmp/r",
+            attributes={"mode": "sync"},
+        )
+        self._create_replica_table("//tmp/r", replica_id, schema=self.SIMPLE_SCHEMA_SORTED)
+        sync_enable_table_replica(replica_id)
+
+        insert_rows("//tmp/t", [{"key": 100, "value1": "foo", "value2": 200}])
+        sync_flush_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
+
+        reshard_table("//tmp/t", [[], [25], [50], [75]])
+
+        with pytest.raises(
+            YtError,
+            match=r"Pivot key \[0#25\] of tablet 1 must be retained; merging is not supported",
+        ):
+            reshard_table("//tmp/t", [[], [33], [67]])
+
+    @authors("mkarpov")
+    def test_reshard_sorted_replicated_table_partial_range(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", schema=self.SIMPLE_SCHEMA_SORTED, min_replication_log_ttl=0)
+        replica_id = create_table_replica(
+            "//tmp/t",
+            self.REPLICA_CLUSTER_NAME,
+            "//tmp/r",
+            attributes={"mode": "sync"},
+        )
+        self._create_replica_table("//tmp/r", replica_id, schema=self.SIMPLE_SCHEMA_SORTED)
+        sync_enable_table_replica(replica_id)
+
+        # One row in the tablet we will partially reshard ([50, 75)) and one past it.
+        rows = [
+            {"key": 60, "value1": "c", "value2": 3},
+            {"key": 80, "value1": "d", "value2": 4},
+        ]
+        insert_rows("//tmp/t", rows)
+        wait(lambda: lookup_rows(
+            "//tmp/r",
+            [{"key": r["key"]} for r in rows],
+            driver=self.replica_driver,
+        ) == rows)
+
+        sync_flush_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
+        reshard_table("//tmp/t", [[], [25], [50], [75]])
+        sync_mount_table("//tmp/t")
+        sync_flush_table("//tmp/t")
+
+        mid_row_index = get(f"#{replica_id}/@tablets/2/committed_replication_row_index")
+        mid_timestamp = get(f"#{replica_id}/@tablets/2/current_replication_timestamp")
+        mid_chunk_count = get("//tmp/t/@tablets/2/statistics/chunk_count")
+        assert mid_chunk_count > 0
+
+        sync_unmount_table("//tmp/t")
+        reshard_table("//tmp/t", [[50], [60]], first_tablet_index=2, last_tablet_index=2)
+        tablets = get("//tmp/t/@tablets")
+        assert [t["pivot_key"] for t in tablets] == [[], [25], [50], [60], [75]]
+
+        sync_mount_table("//tmp/t")
+        for i in [2, 3]:
+            assert get(f"//tmp/t/@tablets/{i}/statistics/chunk_count") == mid_chunk_count
+            assert get(f"#{replica_id}/@tablets/{i}/committed_replication_row_index") == mid_row_index
+            assert get(f"#{replica_id}/@tablets/{i}/current_replication_timestamp") == mid_timestamp
+
+        partial_rows = [
+            {"key": 55, "value1": "e", "value2": 5},
+            {"key": 65, "value1": "f", "value2": 6},
+        ]
+        insert_rows("//tmp/t", partial_rows)
+        all_rows = sorted(rows + partial_rows, key=lambda r: r["key"])
+        wait(lambda: lookup_rows(
+            "//tmp/r",
+            [{"key": r["key"]} for r in all_rows],
+            driver=self.replica_driver,
+        ) == all_rows)
+
+    @authors("mkarpov")
+    def test_reshard_replicated_table_filters_out_of_range_log_rows(self):
+        self._create_cells()
+        self._create_replicated_table(
+            "//tmp/t",
+            schema=self.SIMPLE_SCHEMA_SORTED,
+            min_replication_log_ttl=0,
+        )
+        replica_id = create_table_replica(
+            "//tmp/t",
+            self.REPLICA_CLUSTER_NAME,
+            "//tmp/r",
+            attributes={"mode": "async"},
+        )
+        self._create_replica_table("//tmp/r", replica_id, schema=self.SIMPLE_SCHEMA_SORTED)
+        sync_enable_table_replica(replica_id)
+
+        initial_rows = [{"key": k, "value1": "pre", "value2": k} for k in range(10)]
+        insert_rows("//tmp/t", initial_rows, require_sync_replica=False)
+        wait(lambda: lookup_rows(
+            "//tmp/r",
+            [{"key": r["key"]} for r in initial_rows],
+            driver=self.replica_driver,
+        ) == initial_rows)
+
+        alter_table_replica(replica_id, enabled=False)
+        wait(lambda: get(f"#{replica_id}/@state") == "disabled")
+
+        lagging_rows = [{"key": k, "value1": "post", "value2": k} for k in range(10, 20)]
+        insert_rows("//tmp/t", lagging_rows, require_sync_replica=False)
+
+        sync_flush_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
+        reshard_table("//tmp/t", [[], [5], [10], [15]])
+        sync_mount_table("//tmp/t")
+
+        write_count_path = "//tmp/r/@tablets/0/performance_counters/dynamic_row_write_count"
+        wait(lambda: get(write_count_path, driver=self.replica_driver) == len(initial_rows))
+
+        alter_table_replica(replica_id, enabled=True)
+
+        total = len(initial_rows) + len(lagging_rows)
+        wait(lambda: all(
+            get(f"#{replica_id}/@tablets/{i}/committed_replication_row_index") >= total
+            for i in range(get("//tmp/t/@tablet_count"))
+        ))
+
+        all_rows = sorted(initial_rows + lagging_rows, key=lambda r: r["key"])
+        assert lookup_rows(
+            "//tmp/r",
+            [{"key": r["key"]} for r in all_rows],
+            driver=self.replica_driver,
+        ) == all_rows
+
+        actual = get(write_count_path, driver=self.replica_driver)
+        assert actual == total, f"replica writes: {actual} != {total}"
+
+
 
     @authors("akozhikhov")
     @pytest.mark.parametrize("remove_list", [True, False])

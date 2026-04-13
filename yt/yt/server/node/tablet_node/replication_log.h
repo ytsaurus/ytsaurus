@@ -15,6 +15,10 @@ namespace NYT::NTabletNode {
 
 i64 GetLogRowIndex(NTableClient::TUnversionedRow logRow);
 
+NTableClient::TUnversionedValueRange GetSortedLogRowKeys(
+    NTableClient::TUnversionedRow logRow,
+    int keyColumnCount);
+
 TLegacyOwningKey MakeRowBound(i64 rowIndex, i64 tabletIndex = -1);
 
 TUnversionedRow BuildLogRow(

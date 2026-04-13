@@ -3106,12 +3106,12 @@ private:
 
         const auto& allTablets = table->Tablets();
         int tabletIndex = tablet->GetIndex();
-        if (table->IsSorted() && !table->IsReplicated()) {
+        if (table->IsSorted()) {
             ToProto(reqEssential.mutable_pivot_key(), tablet->GetPivotKey());
             ToProto(reqEssential.mutable_next_pivot_key(), tablet->GetIndex() + 1 == std::ssize(allTablets)
                 ? MaxKey()
                 : allTablets[tabletIndex + 1]->As<TTablet>()->GetPivotKey());
-        } else if (!table->IsSorted()) {
+        } else {
             auto lower = tabletIndex == 0
                 ? EmptyKey()
                 : MakeUnversionedOwningRow(tablet->GetIndex());
@@ -4174,6 +4174,19 @@ private:
             }
         }
 
+        THashMap<TTabletId, i64> savedTrimmedRowCounts;
+        THashMap<TTabletId, THashMap<TTableReplicaId, TTableReplicaInfo>> savedReplicaInfos;
+        if (table->IsReplicated() && table->IsSorted()) {
+            for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+                auto* tablet = tablets[index]->As<TTablet>();
+                savedTrimmedRowCounts[tablet->GetId()] = tablet->GetTrimmedRowCount();
+                auto& tabletSaved = savedReplicaInfos[tablet->GetId()];
+                for (const auto& [replica, info] : tablet->Replicas()) {
+                    tabletSaved[replica->GetId()] = info;
+                }
+            }
+        }
+
         std::vector<TOwningKeyBound> oldPivotKeyBounds;
         std::vector<TTabletId> oldTabletIds;
         oldTabletIds.reserve(lastTabletIndex - firstTabletIndex + 1);
@@ -4183,7 +4196,7 @@ private:
             auto* tablet = tablets[index]->As<TTablet>();
             oldTabletIds.push_back(tablet->GetId());
 
-            if (table->IsPhysicallySorted()) {
+            if (table->IsSorted()) {
                 oldPivotKeyBounds.push_back(tablet->GetPivotKeyBound());
             }
             table->DiscountTabletStatistics(tablet->GetTabletStatistics());
@@ -4191,7 +4204,7 @@ private:
             objectManager->UnrefObject(tablet);
         }
 
-        if (table->IsPhysicallySorted()) {
+        if (table->IsSorted()) {
             if (lastTabletIndex + 1 < std::ssize(tablets)) {
                 oldPivotKeyBounds.push_back(tablets[lastTabletIndex + 1]->As<TTablet>()->GetPivotKeyBound());
             } else {
@@ -4217,6 +4230,29 @@ private:
             oldPivotKeyBounds,
             pivotKeys,
             oldEdenStoreIds);
+
+        if (table->IsReplicated() && table->IsSorted()) {
+            for (auto* newTablet : newTablets) {
+                if (newTablet->OriginatorTablets().empty()) {
+                    continue;
+                }
+                YT_VERIFY(newTablet->OriginatorTablets().size() == 1);
+                auto originatorTabletId = newTablet->OriginatorTablets()[0].TabletId;
+
+                if (auto it = savedTrimmedRowCounts.find(originatorTabletId); it != savedTrimmedRowCounts.end()) {
+                    newTablet->SetTrimmedRowCount(it->second);
+                }
+
+                if (auto savedIt = savedReplicaInfos.find(originatorTabletId); savedIt != savedReplicaInfos.end()) {
+                    for (auto& [replicaPtr, newInfo] : newTablet->Replicas()) {
+                        if (auto infoIt = savedIt->second.find(replicaPtr->GetId()); infoIt != savedIt->second.end()) {
+                            newInfo.SetCommittedReplicationRowIndex(infoIt->second.GetCommittedReplicationRowIndex());
+                            newInfo.SetCurrentReplicationTimestamp(infoIt->second.GetCurrentReplicationTimestamp());
+                        }
+                    }
+                }
+            }
+        }
 
         // Account new tablet statistics.
         for (auto* newTablet : newTablets) {
