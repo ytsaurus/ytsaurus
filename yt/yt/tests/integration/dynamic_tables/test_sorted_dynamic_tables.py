@@ -835,16 +835,23 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             expected)
 
     @authors("savrus", "sandello")
-    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    def test_lookup_hash_table(self, optimize_for):
+    @pytest.mark.parametrize("chunk_format", [
+        "table_versioned_simple",
+        "table_versioned_columnar",
+        "table_versioned_slim",
+        "table_versioned_indexed",
+    ])
+    def test_lookup_hash_table(self, chunk_format):
         sync_create_cells(1)
         self._create_simple_table(
             "//tmp/t",
-            optimize_for=optimize_for)
+            chunk_format=chunk_format)
 
         set("//tmp/t/@in_memory_mode", "uncompressed")
         set("//tmp/t/@enable_lookup_hash_table", True)
         set("//tmp/t/@max_dynamic_store_row_count", 10)
+        if chunk_format == "table_versioned_indexed":
+            set("//tmp/t/@compression_codec", "none")
         sync_mount_table("//tmp/t")
 
         def _rows(i, j):
