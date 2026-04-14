@@ -14,6 +14,8 @@
 
 #include <yt/yt/server/lib/transaction_server/helpers.h>
 
+#include <yt/yt/server/lib/misc/interned_attributes.h>
+
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
@@ -50,6 +52,7 @@ using namespace NObjectClient;
 using namespace NRpc;
 using namespace NSequoiaClient;
 using namespace NSequoiaServer;
+using namespace NServer;
 using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NYson;
@@ -756,9 +759,6 @@ TNodeIdToConstAttributes TSequoiaSession::FetchInheritableAttributes(
         ? masterConnector->GetSupportedInheritableDuringCopyAttributeKeys()
         : masterConnector->GetSupportedInheritableAttributeKeys();
 
-    auto requestTemplate = TYPathProxy::Get("/@");
-    ToProto(requestTemplate->mutable_attributes(), TAttributeFilter(*inheritableAttributeList));
-
     std::vector<TNodeId> nodeIds(std::accumulate(
         nodeRanges.begin(),
         nodeRanges.end(),
@@ -772,23 +772,33 @@ TNodeIdToConstAttributes TSequoiaSession::FetchInheritableAttributes(
         }
     }
 
+    return WaitFor(FetchNodeAttributesFromMaster(nodeIds, TAttributeFilter(*inheritableAttributeList)))
+        .ValueOrThrow();
+}
+
+TFuture<TNodeIdToConstAttributes> TSequoiaSession::FetchNodeAttributesFromMaster(
+    TRange<TNodeId> nodeIds,
+    const TAttributeFilter& attributeFilter) const
+{
+    auto requestTemplate = TYPathProxy::Get("&/@");
+    ToProto(requestTemplate->mutable_attributes(), attributeFilter);
+
     auto batcher = TMasterYPathProxy::CreateGetBatcher(
         GetNativeAuthenticatedClient(),
         requestTemplate,
         nodeIds,
         GetCurrentCypressTransactionId());
-    auto nodeIdToRspOrError = WaitFor(batcher.Invoke())
-        .ValueOrThrow();
-
-    THashMap<TNodeId, IConstAttributeDictionaryPtr> inheritableAttributes;
-    inheritableAttributes.reserve(nodeIds.size());
-    for (const auto& [nodeId, rspOrError] : nodeIdToRspOrError) {
-        inheritableAttributes.emplace(
-            nodeId,
-            ConvertToAttributes(TYsonString(rspOrError.ValueOrThrow()->value())));
-    }
-
-    return inheritableAttributes;
+    return batcher.Invoke()
+        .Apply(BIND([] (const TMasterYPathProxy::TVectorizedGetBatcher::TVectorizedResponse& nodeIdToRspOrError) {
+            TNodeIdToConstAttributes result;
+            result.reserve(std::ssize(nodeIdToRspOrError));
+            for (const auto& [nodeId, rspOrError] : nodeIdToRspOrError) {
+                result.emplace(
+                    nodeId,
+                    ConvertToAttributes(TYsonString(rspOrError.ValueOrThrow()->value())));
+            }
+            return result;
+        }));
 }
 
 const NApi::NNative::IClientPtr& TSequoiaSession::GetNativeAuthenticatedClient() const
@@ -1363,10 +1373,11 @@ TNodeId TSequoiaSession::MaterializeNodeOnMaster(
 void TSequoiaSession::AssembleTreeCopy(
     TNodeId rootNodeId,
     TNodeId rootParentId,
-    TAbsolutePath rootPath,
+    TAbsolutePathBuf rootPath,
     bool preserveAcl,
     bool preserveModificationTime,
-    THashMap<TNodeId, std::vector<TCypressChildDescriptor>> nodeIdToChildrenInfo)
+    const TNodeIdToChildDescriptors& nodeIdToChildrenInfo,
+    const TNodeIdToConstAttributes& linkNodeIdToAttributes)
 {
     auto cypressTransactionId = GetCurrentCypressTransactionId();
     TCypressChildDescriptor rootNodeInfo = {
@@ -1399,7 +1410,7 @@ void TSequoiaSession::AssembleTreeCopy(
 
         currentPath.Append(nodeInfo.ChildKey);
 
-        for (const auto& childInfo : nodeIdToChildrenInfo[nodeInfo.ChildId]) {
+        for (const auto& childInfo : GetOrCrash(nodeIdToChildrenInfo, nodeInfo.ChildId)) {
             traverseQueue.emplace_back(childInfo, currentDepth + 1);
 
             // NB: Sequoia transaction has automated action sorting,
@@ -1413,10 +1424,17 @@ void TSequoiaSession::AssembleTreeCopy(
                 SequoiaTransaction_);
         }
 
+        std::optional<TYPath> linkNodeTargetPath;
+        if (IsLinkType(TypeFromId(nodeInfo.ChildId))) {
+            const auto& attributes = GetOrCrash(linkNodeIdToAttributes, nodeInfo.ChildId);
+            linkNodeTargetPath = attributes->Get<TYPath>(EInternedAttributeKey::TargetPath.Unintern());
+        }
+
         NCypressProxy::MaterializeNodeInSequoia(
             {nodeInfo.ChildId, cypressTransactionId},
             nodeInfo.ParentId,
             currentPath,
+            linkNodeTargetPath,
             preserveAcl,
             preserveModificationTime,
             ProgenitorTransactionCache_,

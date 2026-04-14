@@ -229,10 +229,11 @@ public:
     void AssembleTreeCopy(
         NCypressClient::TNodeId nodeId,
         NCypressClient::TNodeId parentId,
-        NSequoiaClient::TAbsolutePath path,
+        NSequoiaClient::TAbsolutePathBuf path,
         bool preserveAcl,
         bool preserveModificationTime,
-        THashMap<NCypressClient::TNodeId, std::vector<TCypressChildDescriptor>> nodeIdToChildInfo);
+        const TNodeIdToChildDescriptors& nodeIdToChildInfo,
+        const TNodeIdToConstAttributes& linkNodeIdToAttributes);
 
     // Map-node's children accessors.
 
@@ -326,6 +327,10 @@ public:
     TNodeIdToConstAttributes FetchInheritableAttributes(
         std::initializer_list<TRange<TCypressNodeDescriptor>> nodeRanges,
         bool duringCopy);
+
+    TFuture<TNodeIdToConstAttributes> FetchNodeAttributesFromMaster(
+        TRange<NCypressClient::TNodeId> nodeIds,
+        const NYTree::TAttributeFilter& attributeFilter) const;
 
     const NApi::NNative::IClientPtr& GetNativeAuthenticatedClient() const;
 
