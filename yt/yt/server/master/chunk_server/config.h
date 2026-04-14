@@ -204,6 +204,9 @@ struct TDynamicChunkMergerConfig
     // COMPAT(aleksandra-zh) COMPAT(shakurov).
     bool TweakTraversalInfoAfterRebalance;
 
+    // COMPAT(h0pless): Hotfix for copy with preserve-modification-time. Should be set to #false asap.
+    bool UpdateModificationTime;
+
     REGISTER_YSON_STRUCT(TDynamicChunkMergerConfig);
 
     static void Register(TRegistrar registrar);

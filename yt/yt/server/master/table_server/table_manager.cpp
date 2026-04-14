@@ -91,6 +91,41 @@ class TTableManager;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TStatisticsUpdateRequest::Persist(const NCellMaster::TPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, UpdateDataStatistics);
+    Persist(context, UpdateTabletResourceUsage);
+    Persist(context, UpdateModificationTime);
+    Persist(context, UpdateAccessTime);
+    Persist(context, UseNativeContentRevisionCas);
+}
+
+TStatisticsUpdateRequest& TStatisticsUpdateRequest::operator|=(const TStatisticsUpdateRequest& rhs)
+{
+    UpdateDataStatistics |= rhs.UpdateDataStatistics;
+    UpdateTabletResourceUsage |= rhs.UpdateTabletResourceUsage;
+    UpdateModificationTime |= rhs.UpdateModificationTime;
+    UpdateAccessTime |= rhs.UpdateAccessTime;
+    UseNativeContentRevisionCas |= rhs.UseNativeContentRevisionCas;
+    return *this;
+}
+
+void FormatValue(TStringBuilderBase* builder, const TStatisticsUpdateRequest& req, TStringBuf /*spec*/)
+{
+    builder->AppendFormat(
+        "{UpdateDataStatistics: %v, UpdateTabletResourceUsage: %v, UpdateModificationTime: %v, "
+        "UpdateAccessTime: %v, UseNativeContentRevisionCas: %v}",
+        req.UpdateDataStatistics,
+        req.UpdateTabletResourceUsage,
+        req.UpdateModificationTime,
+        req.UpdateAccessTime,
+        req.UseNativeContentRevisionCas);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TMasterTableSchemaTypeHandler
     : public TObjectTypeHandlerWithMapBase<TMasterTableSchema>
 {
@@ -183,26 +218,18 @@ public:
 
     void ScheduleStatisticsUpdate(
         TChunkOwnerBase* chunkOwner,
-        bool updateDataStatistics,
-        bool updateTabletStatistics,
-        bool useNativeContentRevisionCas) override
+        TStatisticsUpdateRequest request) override
     {
-        YT_ASSERT(!updateTabletStatistics || IsTabletOwnerType(chunkOwner->GetType()));
+        YT_ASSERT(!request.UpdateTabletResourceUsage || IsTabletOwnerType(chunkOwner->GetType()));
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsSecondaryMaster()) {
-            YT_LOG_DEBUG("Schedule node statistics update (NodeId: %v, UpdateDataStatistics: %v, UpdateTabletStatistics: %v, UseNativeContentRevisionCas: %v)",
+            YT_LOG_DEBUG("Schedule node statistics update (NodeId: %v, StatisticsUpdateRequest: %v)",
                 chunkOwner->GetId(),
-                updateDataStatistics,
-                updateTabletStatistics,
-                useNativeContentRevisionCas);
+                request);
 
             auto& statistics = StatisticsUpdateRequests_[chunkOwner->GetId()];
-            statistics.UpdateTabletResourceUsage |= updateTabletStatistics;
-            statistics.UpdateDataStatistics |= updateDataStatistics;
-            statistics.UpdateModificationTime = true;
-            statistics.UpdateAccessTime = true;
-            statistics.UseNativeContentRevisionCas = useNativeContentRevisionCas;
+            statistics |= request;
 
             auto& ongoingUpdate = NodeIdToOngoingStatisticsUpdate_[chunkOwner->GetId()];
             ongoingUpdate.RequestCount++;
@@ -1445,36 +1472,6 @@ public:
     DEFINE_SIGNAL_OVERRIDE(void(TTableCollocationId), ReplicationCollocationDestroyed);
 
 private:
-    struct TStatisticsUpdateRequest
-    {
-        bool UpdateDataStatistics = false;
-        bool UpdateTabletResourceUsage = false;
-        bool UpdateModificationTime = false;
-        bool UpdateAccessTime = false;
-        bool UseNativeContentRevisionCas = false;
-
-        void Persist(const NCellMaster::TPersistenceContext& context)
-        {
-            using NYT::Persist;
-
-            Persist(context, UpdateDataStatistics);
-            Persist(context, UpdateTabletResourceUsage);
-            Persist(context, UpdateModificationTime);
-            Persist(context, UpdateAccessTime);
-            Persist(context, UseNativeContentRevisionCas);
-        }
-
-        TStatisticsUpdateRequest& operator|=(const TStatisticsUpdateRequest& rhs)
-        {
-            UpdateDataStatistics |= rhs.UpdateDataStatistics;
-            UpdateTabletResourceUsage |= rhs.UpdateTabletResourceUsage;
-            UpdateModificationTime |= rhs.UpdateModificationTime;
-            UpdateAccessTime |= rhs.UpdateAccessTime;
-            UseNativeContentRevisionCas |= rhs.UseNativeContentRevisionCas;
-            return *this;
-        }
-    };
-
     struct TOngoingStatisticsUpdate
     {
         i64 RequestCount = 0;
@@ -1793,9 +1790,13 @@ private:
 
             ScheduleStatisticsUpdate(
                 chunkOwner,
-                entry.update_data_statistics(),
-                entry.update_tablet_statistics(),
-                /*useNativeContentRevisionCas*/ true);
+                TStatisticsUpdateRequest{
+                    .UpdateDataStatistics = entry.update_data_statistics(),
+                    .UpdateTabletResourceUsage = entry.update_tablet_statistics(),
+                    .UpdateModificationTime = true,
+                    .UpdateAccessTime = true,
+                    .UseNativeContentRevisionCas = true,
+                });
         }
 
         for (const auto& protoNodeId : request->requested_node_ids()) {
@@ -2041,10 +2042,15 @@ private:
         auto it = NodeIdToOngoingStatisticsUpdate_.find(sourceNode->GetId());
         if (it != NodeIdToOngoingStatisticsUpdate_.end()) {
             const auto& request = it->second.EffectiveRequest;
-            ScheduleStatisticsUpdate(clonedNode,
-                request.UpdateDataStatistics,
-                request.UpdateTabletResourceUsage,
-                request.UseNativeContentRevisionCas);
+            ScheduleStatisticsUpdate(
+                clonedNode,
+                TStatisticsUpdateRequest{
+                    .UpdateDataStatistics = request.UpdateDataStatistics,
+                    .UpdateTabletResourceUsage = request.UpdateTabletResourceUsage,
+                    .UpdateModificationTime = true,
+                    .UpdateAccessTime = true,
+                    .UseNativeContentRevisionCas = request.UseNativeContentRevisionCas,
+                });
         }
     }
 

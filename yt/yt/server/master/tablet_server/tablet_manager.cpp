@@ -2773,8 +2773,13 @@ public:
         const auto& tableManager = Bootstrap_->GetTableManager();
         tableManager->ScheduleStatisticsUpdate(
             table,
-            /*updateDataStatistics*/ true,
-            /*updateTabletStatistics*/ false);
+            TStatisticsUpdateRequest{
+                .UpdateDataStatistics = true,
+                .UpdateTabletResourceUsage = false,
+                .UpdateModificationTime = true,
+                .UpdateAccessTime = true,
+                .UseNativeContentRevisionCas = false,
+            });
 
         TTabletStatistics statisticsDelta;
         statisticsDelta.ChunkCount = 1;
@@ -4776,7 +4781,15 @@ private:
                 }
 
                 if (EnableUpdateStatisticsOnHeartbeat_) {
-                    tableManager->ScheduleStatisticsUpdate(table, true, false);
+                    tableManager->ScheduleStatisticsUpdate(
+                        table,
+                        TStatisticsUpdateRequest{
+                            .UpdateDataStatistics = true,
+                            .UpdateTabletResourceUsage = false,
+                            .UpdateModificationTime = true,
+                            .UpdateAccessTime = true,
+                            .UseNativeContentRevisionCas = false,
+                        });
                 }
             }
 
@@ -5753,8 +5766,13 @@ private:
         const auto& tableManager = Bootstrap_->GetTableManager();
         tableManager->ScheduleStatisticsUpdate(
             table,
-            /*updateDataStatistics*/ true,
-            /*updateTabletStatistics*/ false);
+            TStatisticsUpdateRequest{
+                .UpdateDataStatistics = true,
+                .UpdateTabletResourceUsage = false,
+                .UpdateModificationTime = true,
+                .UpdateAccessTime = true,
+                .UseNativeContentRevisionCas = false,
+            });
 
         TTabletStatistics statisticsDelta;
         statisticsDelta.ChunkCount = -ssize(dynamicStores);
@@ -6516,7 +6534,15 @@ private:
         bundle->UpdateResourceUsage(delta);
 
         const auto& tableManager = Bootstrap_->GetTableManager();
-        tableManager->ScheduleStatisticsUpdate(table, scheduleTableDataStatisticsUpdate);
+        tableManager->ScheduleStatisticsUpdate(
+            table,
+            TStatisticsUpdateRequest{
+                .UpdateDataStatistics = scheduleTableDataStatisticsUpdate,
+                .UpdateTabletResourceUsage = true,
+                .UpdateModificationTime = true,
+                .UpdateAccessTime = true,
+                .UseNativeContentRevisionCas = false,
+            });
     }
 
     void OnProfiling()
