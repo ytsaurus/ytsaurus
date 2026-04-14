@@ -55,6 +55,10 @@ struct IBlockDevice
     virtual TString GetProfileSensorTag() const = 0;
 
     virtual TFuture<void> Initialize() = 0;
+    //! Wait for all in-flight requests to complete while rejecting new ones.
+    //! This allows volume removal to wait for pending operations without
+    //! finalizing the device, keeping it available for cleanup operations.
+    virtual TFuture<void> Drain() = 0;
     virtual TFuture<void> Finalize() = 0;
 
     virtual TFuture<TReadResponse> Read(
