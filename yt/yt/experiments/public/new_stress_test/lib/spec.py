@@ -260,6 +260,10 @@ spec_template = {
         "move_probability": 0.3,
         "remove_probability": 0.2,
         "flush_probability": 0.5,
+        "run_map_probability": 0.2,
+        "run_sort_probability": 0.2,
+        "run_map_reduce_probability": 0.2,
+        "run_merge_probability": 0.2,
     },
 
     "replicated": {
