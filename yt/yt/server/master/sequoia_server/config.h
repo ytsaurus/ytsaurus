@@ -86,6 +86,16 @@ struct TDynamicSequoiaManagerConfig
 
     TDynamicSequoiaManagerTestingConfigPtr Testing;
 
+    // There is a complicated tradeoff here:
+    //   - shared write locks are waitable. Therefore, when 2 Sequoia
+    //     transactions are locking the same row the second transaction can wait
+    //     the first one before conflict checking. Read locks may lead to
+    //     confilct even if timestamp intervals don't overlap.
+    //   - every lookup waits for any incoming potential change. Therefore,
+    //     shared write locks increase lookup latency while shared read locks
+    //     don't.
+    bool UseSharedWriteLocksForCypressTransactions;
+
     REGISTER_YSON_STRUCT(TDynamicSequoiaManagerConfig);
 
     static void Register(TRegistrar registrar);

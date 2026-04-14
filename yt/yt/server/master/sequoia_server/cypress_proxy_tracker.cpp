@@ -8,6 +8,7 @@
 #include "cypress_proxy_object.h"
 #include "cypress_proxy_type_handler.h"
 #include "helpers.h"
+#include "sequoia_manager.h"
 
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
@@ -88,12 +89,16 @@ public:
 
         if (error.IsOK()) {
             response.set_master_reign(ToProto(GetCurrentReign()));
-            response.mutable_limits()->set_max_copiable_subtree_size(MaxCopiableSubtreeSize_.load());
+            response.mutable_limits()->set_max_copiable_subtree_size(MaxCopiableSubtreeSize_.load(std::memory_order::acquire));
             FillSupportedInheritableAttributes(&response);
+
+            const auto& sequoiaManager = Bootstrap_->GetSequoiaManager();
+            auto* transactionFeatures = response.mutable_sequoia_transaction_features();
+            ToProto(transactionFeatures, sequoiaManager->GetSequoiaTransactionFeatures());
         } else {
             YT_LOG_EVENT(
                 Logger,
-                SequoiaEnabled_.load() ? NLogging::ELogLevel::Alert : NLogging::ELogLevel::Error,
+                SequoiaEnabled_.load(std::memory_order::acquire) ? NLogging::ELogLevel::Alert : NLogging::ELogLevel::Error,
                 error,
                 "Failed to register Cypress proxy");
         }
@@ -252,8 +257,9 @@ private:
     {
         const auto& config = Bootstrap_->GetDynamicConfig();
         const auto& cypressManagerConfig = config->CypressManager;
-        MaxCopiableSubtreeSize_.store(cypressManagerConfig->CrossCellCopyMaxSubtreeSize);
-        SequoiaEnabled_.store(config->SequoiaManager->Enable);
+
+        MaxCopiableSubtreeSize_.store(cypressManagerConfig->CrossCellCopyMaxSubtreeSize, std::memory_order::release);
+        SequoiaEnabled_.store(config->SequoiaManager->Enable, std::memory_order::release);
     }
 
     void FillSupportedInheritableAttributes(NProto::TRspHeartbeat* response)

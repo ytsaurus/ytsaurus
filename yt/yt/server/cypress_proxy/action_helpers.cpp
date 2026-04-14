@@ -84,12 +84,14 @@ static const TSequoiaTransactionOptions SequoiaTransactionOptionsTemplate = {
 TFuture<ISequoiaTransactionPtr> StartCypressProxyTransaction(
     const ISequoiaClientPtr& sequoiaClient,
     ESequoiaTransactionType type,
+    const NSequoiaClient::TSequoiaTransactionFeatures& features,
     const std::vector<TTransactionId>& cypressPrerequisiteTransactionIds,
     const TTransactionStartOptions& options)
 {
     auto sequoiaTransactionOptions = SequoiaTransactionOptionsTemplate;
     sequoiaTransactionOptions.CypressPrerequisiteTransactionIds = cypressPrerequisiteTransactionIds;
-    return sequoiaClient->StartTransaction(type, options, sequoiaTransactionOptions);
+    sequoiaTransactionOptions.Features = features;
+    return sequoiaClient->StartTransaction(type, options, std::move(sequoiaTransactionOptions));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -5,6 +5,8 @@
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 
+#include <yt/yt/server/master/sequoia_server/sequoia_manager.h>
+
 #include <yt/yt/server/lib/sequoia/cypress_transaction.h>
 
 #include <yt/yt/server/lib/sequoia/proto/transaction_manager.pb.h>
@@ -39,6 +41,12 @@ const auto CreateAbortTransactionResponse = BIND_NO_PROPAGATE([] () {
     return CreateResponseMessage(NCypressTransactionClient::NProto::TRspAbortTransaction{});
 });
 
+NSequoiaClient::TSequoiaTransactionFeatures GetSequoiaTransactionFeatures(TBootstrap* bootstrap)
+{
+    const auto& sequoiaManager = bootstrap->GetSequoiaManager();
+    return sequoiaManager->GetSequoiaTransactionFeatures();
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -55,6 +63,7 @@ void StartCypressTransactionInSequoiaAndReply(
                 ->CreateClient(context->GetAuthenticationIdentity()),
             bootstrap->GetCellId(),
             &context->Request(),
+            GetSequoiaTransactionFeatures(bootstrap),
             TDispatcher::Get()->GetHeavyInvoker(),
             TransactionServerLogger())
         .Apply(CreateStartTransactionResponse));
@@ -73,6 +82,7 @@ TFuture<void> DoomCypressTransactionInSequoia(
         bootstrap->GetCellId(),
         transactionId,
         request,
+        GetSequoiaTransactionFeatures(bootstrap),
         TDispatcher::Get()->GetHeavyInvoker(),
         TransactionServerLogger());
 }
@@ -94,6 +104,7 @@ TFuture<TSharedRefArray> AbortCypressTransactionInSequoia(
         force,
         mutationId,
         retry,
+        GetSequoiaTransactionFeatures(bootstrap),
         TDispatcher::Get()->GetHeavyInvoker(),
         TransactionServerLogger());
 }
@@ -108,6 +119,7 @@ TFuture<TSharedRefArray> AbortExpiredCypressTransactionInSequoia(
             ->CreateClient(GetRootAuthenticationIdentity()),
         bootstrap->GetCellId(),
         transactionId,
+        GetSequoiaTransactionFeatures(bootstrap),
         TDispatcher::Get()->GetHeavyInvoker(),
         TransactionServerLogger());
 }
@@ -132,6 +144,7 @@ TFuture<TSharedRefArray> CommitCypressTransactionInSequoia(
         commitTimestamp,
         mutationId,
         retry,
+        GetSequoiaTransactionFeatures(bootstrap),
         TDispatcher::Get()->GetHeavyInvoker(),
         TransactionServerLogger());
 }
@@ -164,6 +177,7 @@ TFuture<void> ReplicateCypressTransactionsInSequoiaAndSyncWithLeader(
         std::move(transactionIds),
         bootstrap->GetCellId(),
         std::move(boomerang),
+        GetSequoiaTransactionFeatures(bootstrap),
         TDispatcher::Get()->GetHeavyInvoker(),
         TransactionServerLogger())
         .Apply(BIND([hydraManager = bootstrap->GetHydraFacade()->GetHydraManager()] {
