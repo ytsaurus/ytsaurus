@@ -982,7 +982,6 @@ public:
             ControlInvoker_,
             BIND(&TCypressSynchronizer::Pass, MakeWeak(this)),
             DynamicConfig_->PassPeriod))
-        , PassProfiler_(QueueAgentProfilerGlobal().WithPrefix("/cypress_synchronizer"))
         , OrchidService_(IYPathService::FromProducer(BIND(&TCypressSynchronizer::BuildOrchid, MakeWeak(this)))->Via(ControlInvoker_))
         , AlertCollector_(CreateAlertCollectorCallback_())
     { }
@@ -996,10 +995,11 @@ public:
     {
         Active_ = true;
 
-        {
-            auto guard = Guard(AlertCollectorLock_);
-            AlertCollector_ = CreateAlertCollectorCallback_();
+        // NB: Start and Stop called via Serialized Invoker, so there is no concurrency here.
+        if (!PassProfiler_.Acquire()) {
+            PassProfiler_.Store(New<TPassProfiler>(QueueAgentProfiler().WithPrefix("/cypress_synchronizer")));
         }
+        AlertCollector_.Store(CreateAlertCollectorCallback_());
         PassExecutor_->Start();
     }
 
@@ -1008,10 +1008,10 @@ public:
         // NB: We can't have context switches happen in this callback, so sync operations could potentially be performed
         // after a call to CypressSynchronizer::Stop().
         YT_UNUSED_FUTURE(PassExecutor_->Stop());
-        {
-            auto guard = Guard(AlertCollectorLock_);
-            AlertCollector_->Stop();
-        }
+
+        // NB: Start and Stop called via Serialized Invoker, so there is no concurrency here.
+        AlertCollector_.Acquire()->Stop();
+        PassProfiler_.Store(nullptr);
 
         Active_ = false;
     }
@@ -1024,15 +1024,13 @@ public:
 
         auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("CypressSynchronizer"));
 
-        IAlertCollectorPtr alertCollector;
-        {
-            auto guard = Guard(AlertCollectorLock_);
-            alertCollector = AlertCollector_;
-        }
-
+        auto alertCollector = AlertCollector_.Acquire();
+        auto passProfiler = PassProfiler_.Acquire();
         auto finalizePass = Finally([&] {
             alertCollector->PublishAlerts();
-            PassProfiler_.OnFinish(TInstant::Now() - PassInstant_);
+            if (passProfiler) {
+                passProfiler->OnFinish(TInstant::Now() - PassInstant_);
+            }
         });
 
         if (!DynamicConfig_->Enable) {
@@ -1042,8 +1040,9 @@ public:
 
         PassInstant_ = TInstant::Now();
         ++PassIndex_;
-        PassProfiler_.OnStart(PassIndex_, PassInstant_);
-
+        if (passProfiler) {
+            passProfiler->OnStart(PassIndex_, PassInstant_);
+        }
         auto dynamicConfigSnapshot = CloneYsonStruct(DynamicConfig_);
 
         YT_LOG_DEBUG("Pass started (PassIndex: %v)", PassIndex_);
@@ -1059,7 +1058,9 @@ public:
             PassError_ = TError();
         } catch (const std::exception& ex) {
             PassError_ = TError(ex);
-            PassProfiler_.OnError();
+            if (passProfiler) {
+                passProfiler->OnError();
+            }
             alertCollector->StageAlert(CreateAlert(
                 NAlerts::EErrorCode::CypressSynchronizerPassFailed,
                 "Error performing Cypress synchronizer pass",
@@ -1094,11 +1095,10 @@ private:
     const TClientDirectoryPtr ClientDirectory_;
     const TCallback<IAlertCollectorPtr()> CreateAlertCollectorCallback_;
     const TPeriodicExecutorPtr PassExecutor_;
-    const TPassProfiler PassProfiler_;
     const IYPathServicePtr OrchidService_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, AlertCollectorLock_);
-    IAlertCollectorPtr AlertCollector_;
+    TAtomicIntrusivePtr<TPassProfiler> PassProfiler_{};
+    TAtomicIntrusivePtr<IAlertCollector> AlertCollector_;
 
     //! Whether this instance is actively performing passes.
     std::atomic<bool> Active_ = false;
