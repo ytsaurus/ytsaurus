@@ -36,6 +36,7 @@
 
 #include <yt/yt/core/bus/server.h>
 
+#include <yt/yt/core/concurrency/async_rw_lock.h>
 #include <yt/yt/core/concurrency/poller.h>
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
@@ -115,6 +116,7 @@ private:
 
         IConnectionPtr Connection;
 
+        TAsyncReaderWriterLock ExecutionLock;
         TConnectionStatePtr Info = New<TConnectionState>();
     };
     using TKafkaConnectionPtr = TIntrusivePtr<TKafkaConnection>;
@@ -189,10 +191,18 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        auto response = RequestHandler_->Handle(
-            GetConnectionState(connection->GetConnectionId())->Info,
-            request,
-            Logger().WithTag("ConnectionId: %v", connection->GetConnectionId()));
+        auto connectionState = GetConnectionState(connection->GetConnectionId());
+
+        TMessage response;
+        {
+            auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&connectionState->ExecutionLock))
+                .ValueOrThrow();
+
+            response = RequestHandler_->Handle(
+                connectionState->Info,
+                request,
+                Logger().WithTag("ConnectionId: %v", connection->GetConnectionId()));
+        }
 
         YT_UNUSED_FUTURE(connection->PostMessage(response)
             .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
